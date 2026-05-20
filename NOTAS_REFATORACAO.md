@@ -13,6 +13,7 @@ Aplicacao Flask ainda tem `app.py` como entrada principal, mas a modularizacao j
   - `utils.py`: datas, parse seguro de inteiros e leitura do modelo de notificacao.
   - `work_types.py`: fonte central para tipos de trabalho, labels, cores, status de notificacao, tipos da agenda e metadados de ETL por tipo.
   - `modules.py`: fonte central para paginas/modulos do sistema, com icones, URLs, descricoes, secoes de navegacao e permissao minima.
+  - `version.py`: versao semantica atual exibida no rodape do sistema.
 - Criado pacote `blueprints/`
   - `admin.py`: primeiro blueprint real.
   - `processar.py`: upload, dry-run, confirmacao e cancelamento de importacoes.
@@ -52,6 +53,7 @@ Aplicacao Flask ainda tem `app.py` como entrada principal, mas a modularizacao j
   - topbar, menu mobile e home usam o mesmo cadastro de modulos;
   - paginas administrativas ficam ocultas para visualizador;
   - badges de notificacoes e agenda foram preservadas.
+- Versao semantica inicial definida como `1.0.0` (`maio/2026`) e exibida no rodape das paginas.
 - Gravacao em SISPNC/SisPNCD ficou bloqueada nesta fase:
   - a UI exibe o modo leitura;
   - `/api/sispncd/salvar` retorna erro controlado e nao executa `UPDATE`.
@@ -114,20 +116,21 @@ Cobertura atual inclui:
 - consultas Conta Ovos respeitam `CONTAOVOS_STATUS = 0` e o endpoint de salvar status nao altera o banco.
 - assets compartilhados `/static/css/app.css` e `/static/js/app.js` respondem 200.
 - cadastro central de modulos valida icones existentes e permissoes admin/visualizador.
+- versao atual aparece no layout principal e na tela de login.
 
 ## Comandos de validacao
 
 Rodar apos cada corte:
 
 ```powershell
-python -m py_compile app.py etl.py app_core\auth.py app_core\db.py app_core\import_history.py app_core\modules.py app_core\sispncd.py app_core\uploads.py app_core\utils.py app_core\work_types.py blueprints\admin.py blueprints\agenda.py blueprints\conta_ovos_sispncd.py blueprints\processar.py tests\test_security.py
+python -m py_compile app.py etl.py app_core\auth.py app_core\db.py app_core\import_history.py app_core\modules.py app_core\sispncd.py app_core\uploads.py app_core\utils.py app_core\version.py app_core\work_types.py blueprints\admin.py blueprints\agenda.py blueprints\conta_ovos_sispncd.py blueprints\processar.py tests\test_security.py
 python -m unittest discover -s tests -v
 ```
 
 Ultimo resultado conhecido:
 
 ```text
-Ran 35 tests
+Ran 37 tests
 OK
 ```
 

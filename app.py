@@ -19,6 +19,7 @@ from app_core import import_history
 from app_core import modules as modules_core
 from app_core import uploads as uploads_core
 from app_core import utils as utils_core
+from app_core import version as version_core
 from app_core import work_types
 from blueprints.admin import bp as admin_bp
 from blueprints.agenda import bp as agenda_bp
@@ -295,6 +296,9 @@ def inject_globals():
         topbar_modules  = modules_core.visible_modules(u, area="topbar"),
         sidebar_groups  = modules_core.grouped_modules(modules_core.visible_modules(u, area="sidebar")),
         home_modules    = modules_core.visible_modules(u, area="home"),
+        APP_VERSION      = version_core.APP_VERSION,
+        APP_VERSION_DATE = version_core.APP_VERSION_DATE,
+        APP_VERSION_LABEL= version_core.APP_VERSION_LABEL,
     )
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

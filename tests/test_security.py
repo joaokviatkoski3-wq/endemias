@@ -15,6 +15,7 @@ import app as endemias_app
 import etl
 from app_core import modules as modules_core
 from app_core import sispncd as sispncd_core
+from app_core import version as version_core
 from app_core import work_types
 
 
@@ -276,6 +277,14 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("localStorage.getItem('theme')", js)
         self.assertIn("document.documentElement.setAttribute('data-theme', currentTheme)", js)
         self.assertIn("currentTheme === 'dark' ? 'light' : 'dark'", js)
+
+    def test_versao_aparece_no_base_e_no_login(self):
+        client = _client_logado()
+        home = client.get("/")
+        login = endemias_app.app.test_client().get("/login")
+
+        self.assertIn(version_core.APP_VERSION_LABEL.encode("utf-8"), home.data)
+        self.assertIn(version_core.APP_VERSION_LABEL.encode("utf-8"), login.data)
 
 
 class MainApisSmokeTests(unittest.TestCase):

@@ -208,6 +208,10 @@ img { max-width:100%; }
    CONTEÚDO
 ═══════════════════════════════════════════ */
 .page { padding:22px 24px; max-width:1440px; margin:0 auto; flex:1; min-height:0; display:flex; flex-direction:column; }
+.app-footer {
+  margin-top:auto; padding:20px 0 2px;
+  color:var(--text3); font-size:10.5px; text-align:center;
+}
 .page-header { margin-bottom:20px; }
 .page-header h1 {
   font-size:22px; font-weight:700; color:var(--text);
