@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block title %}Início{% endblock %}
+{% block page_title %}Setor de Endemias{% endblock %}
+
+{% block extra_css %}<style>
+.home-hero {
+  background:linear-gradient(135deg, var(--brand) 0%, #0c3080 100%);
+  border-radius:var(--radius-lg); padding:36px 40px 40px; margin-bottom:20px;
+  color:#fff; position:relative;
+}
+.home-hero::before {
+  content:''; position:absolute; right:-10px; top:-20px;
+  width:300px; height:300px; border-radius:50%;
+  background:url('/static/img/logo_endemias.png') center/contain no-repeat;
+  opacity:.1; pointer-events:none; z-index:0;
+}
+.home-hero > * { position:relative; z-index:1; }
+.home-hero-title { font-size:30px; font-weight:700; margin-bottom:6px; letter-spacing:-.02em; }
+.home-hero-sub { font-size:13px; color:rgba(255,255,255,.65); margin-bottom:28px; }
+.home-hero-kpis { display:flex; flex-wrap:wrap; gap:28px 40px; }
+.hero-kpi-val { font-size:2rem; font-weight:700; line-height:1; font-variant-numeric:tabular-nums; }
+.hero-kpi-label { font-size:10px; color:rgba(255,255,255,.55); margin-top:4px; text-transform:uppercase; letter-spacing:.5px; }
+
+.nav-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px; margin-bottom:20px; }
+.nav-card {
+  background:var(--surface); border-radius:var(--radius); padding:20px;
+  box-shadow:var(--shadow); border:1.5px solid transparent;
+  text-decoration:none; color:var(--text);
+  display:flex; flex-direction:column; align-items:flex-start; gap:10px;
+  transition:all .2s;
+}
+.nav-card:hover { border-color:var(--brand); box-shadow:var(--shadow-md); transform:translateY(-2px); text-decoration:none; }
+.nav-card-icon { font-size:28px; }
+.nav-card-title { font-size:14px; font-weight:700; color:var(--brand); }
+.nav-card-desc { font-size:11.5px; color:var(--text3); line-height:1.5; }
+.nav-card-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:auto; }
+.nav-card-tag { font-size:9px; font-weight:700; padding:2px 7px; border-radius:20px; background:var(--brand-xs); color:var(--brand); }
+.nav-card-badge { background:var(--red); color:#fff; font-size:9px; font-weight:700; padding:2px 7px; border-radius:20px; }
+
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media(max-width:700px) { .two-col { grid-template-columns:1fr; } .home-hero { padding:24px; } .home-hero-title { font-size:24px; } }
+
+.focos-recentes { list-style:none; }
+.foco-item { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--border); }
+.foco-item:last-child { border-bottom:none; }
+.foco-item-main { flex:1; min-width:0; }
+.foco-item-addr { font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.foco-item-meta { font-size:10.5px; color:var(--text3); }
+</style>{% endblock %}
+
+{% block content %}
+
+<!-- Hero -->
+<div class="home-hero">
+  <div class="home-hero-title">Setor de Endemias</div>
+  <div class="home-hero-sub">Vigilância Ambiental e Controle de Vetores · Almirante Tamandaré-PR</div>
+  <div class="home-hero-kpis">
+    <div class="hero-kpi">
+      <div class="hero-kpi-val">{{ kpis.visitas_hoje }}</div>
+      <div class="hero-kpi-label">Visitas hoje</div>
+    </div>
+    <div class="hero-kpi">
+      <div class="hero-kpi-val">{{ kpis.visitas_ano }}</div>
+      <div class="hero-kpi-label">Visitas no ano</div>
+    </div>
+    <div class="hero-kpi">
+      <div class="hero-kpi-val">{{ kpis.agentes_ativos }}</div>
+      <div class="hero-kpi-label">Agentes ativos (30d)</div>
+    </div>
+    <div class="hero-kpi">
+      <div class="hero-kpi-val" style="color:{% if kpis.focos_pendentes > 0 %}#fbbf24{% else %}#86efac{% endif %}">{{ kpis.focos_pendentes }}</div>
+      <div class="hero-kpi-label">Notificações pendentes</div>
+    </div>
+    <div class="hero-kpi">
+      <div class="hero-kpi-val">{{ kpis.coletas_total }}</div>
+      <div class="hero-kpi-label">Coletas registradas</div>
+    </div>
+    <div class="hero-kpi">
+      <div class="hero-kpi-val" style="color:{% if kpis.positivos_aeg > 0 %}#fca5a5{% else %}#86efac{% endif %}">{{ kpis.positivos_aeg }}</div>
+      <div class="hero-kpi-label">Positivos <em>Ae. aegypti</em></div>
+    </div>
+  </div>
+</div>
+
+<!-- Navegação -->
+<div class="nav-cards">
+  {% for module in home_modules %}
+  <a href="{{ module.href }}" class="nav-card">
+    <div class="nav-card-icon"><img src="/static/icons/{{ module.icon }}" alt="" class="icon-svg"></div>
+    <div class="nav-card-title">{{ module.title }}</div>
+    <div class="nav-card-desc">{{ module.description }}</div>
+    <div class="nav-card-tags">
+      {% for tag in module.tags %}
+      <span class="nav-card-tag">{{ tag }}</span>
+      {% endfor %}
+      {% if module.badge == 'notificacoes' and kpis.focos_pendentes > 0 %}<span class="nav-card-badge">{{ kpis.focos_pendentes }} pendentes</span>{% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+{% endblock %}

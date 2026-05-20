@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Notificações — Impressão</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;color:#000;background:#fff;}
+
+.screen-controls{
+  position:fixed;top:0;left:0;right:0;z-index:999;
+  background:#1a4fba;color:#fff;
+  display:flex;align-items:center;gap:12px;
+  padding:10px 20px;font-size:13px;
+}
+.screen-controls button{
+  background:#fff;color:#1a4fba;border:none;border-radius:6px;
+  padding:6px 16px;font-size:13px;font-weight:700;cursor:pointer;
+}
+.screen-controls span{opacity:.75;font-size:12px;}
+.print-spacer{height:46px;}
+
+.notificacao{
+  max-width:19cm;
+  margin:20px auto;
+  padding:1.5cm 2cm;
+  border:1px solid #ccc;
+  background:#fff;
+}
+
+/* Cabeçalho */
+.cab{display:flex;align-items:center;width:100%;margin-bottom:14pt;}
+.cab-logo{width:3cm;text-align:center;flex-shrink:0;}
+.cab-logo img{max-height:2.8cm;max-width:2.8cm;object-fit:contain;}
+.cab-titulo{flex:1;text-align:center;padding:0 8px;}
+.cab-titulo .org{font-size:10pt;font-weight:700;margin-bottom:2pt;}
+.cab-titulo .sub{font-size:8.5pt;color:#333;line-height:1.5;}
+
+.data-linha{text-align:right;font-size:9.5pt;margin-bottom:12pt;}
+.titulo{text-align:center;font-size:13pt;font-weight:700;margin-bottom:10pt;}
+.saudacao{font-size:10.5pt;font-weight:700;margin-bottom:14pt;}
+.corpo{font-size:10.5pt;line-height:1.6;margin-bottom:14pt;text-align:justify;}
+.aviso{font-size:10.5pt;font-weight:700;margin-bottom:10pt;}
+.contato{font-size:9.5pt;margin-bottom:14pt;}
+.campo{font-size:10.5pt;font-style:italic;margin-bottom:4pt;}
+.campo strong{font-style:normal;}
+
+.ass{display:flex;gap:2cm;margin-top:20pt;margin-bottom:10pt;}
+.ass-col{flex:1;text-align:center;}
+.ass-linha{font-size:10pt;border-top:1px solid #000;padding-top:4pt;margin-top:24pt;}
+
+.rodape{font-size:7.5pt;text-align:center;color:#555;margin-top:8pt;border-top:1px solid #eee;padding-top:6pt;}
+.num-notif{font-size:7pt;text-align:center;color:#888;margin-top:3pt;}
+
+@media print{
+  .screen-controls,.print-spacer{display:none!important;}
+  .notificacao{max-width:100%;margin:0;padding:1.2cm 1.8cm;border:none;page-break-after:always;}
+  .notificacao:last-child{page-break-after:avoid;}
+}
+</style>
+</head>
+<body>
+
+{% if auto_print %}
+<div class="screen-controls">
+  <button onclick="window.print()">Imprimir</button>
+  <span>{{ focos|length }} notificação(ões)</span>
+  <span style="margin-left:auto;opacity:.5;">Feche esta aba após imprimir</span>
+</div>
+<div class="print-spacer"></div>
+{% endif %}
+
+{% for f in focos %}
+{% set loc_linha = ((f.localidade_nome or f.localidade or '') + (' — Quarteirão ' + f.quarteirao|string if f.quarteirao else '')) | trim %}
+{% set end_fmt   = ((f.logradouro or '') + (', ' + (f.numero or 's/n'))) | trim(', ') %}
+{% set data_fmt  = f.data | data_br if f.data else '______' %}
+
+<div class="notificacao">
+
+  <div class="cab">
+    <div class="cab-logo">
+      <img src="/static/img/logo_prefeitura.png" alt="">
+    </div>
+    <div class="cab-titulo">
+      {% for linha in modelo.CABECALHO.split('\n') %}
+        {% if loop.first %}
+          <div class="org">{{ linha }}</div>
+        {% else %}
+          <div class="sub">{{ linha }}</div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <div class="cab-logo">
+      <img src="/static/img/logo_endemias.png" alt="">
+    </div>
+  </div>
+
+  <div class="data-linha">
+    Almirante Tamandaré (PR), ______/______ de {{ f.data[:4] if f.data else '____' }}.
+  </div>
+
+  <div class="titulo">{{ modelo.TITULO }}</div>
+
+  <div class="saudacao">{{ modelo.SAUDACAO }}</div>
+
+  <div class="corpo">
+    {{ modelo.CORPO
+       | replace('{endereco}', end_fmt)
+       | replace('{data_visita}', data_fmt)
+       | replace('Aedes aegypti', '<em>Aedes aegypti</em>')
+       | safe }}
+  </div>
+
+  <div class="aviso">{{ modelo.AVISO }}</div>
+
+  <div class="contato">{{ modelo.CONTATO }}</div>
+
+  <div class="campo"><strong>• LOCALIDADE:</strong> {{ loc_linha or '___________________________' }}</div>
+  <div class="campo"><strong>• ENDEREÇO:</strong> {{ end_fmt or '___________________________' }}</div>
+  <div class="campo"><strong>• MORADOR:</strong> {{ f.nome_morador or '___________________________' }}</div>
+  <div class="campo"><strong>• DEPÓSITO(S):</strong> {{ f.depositos or '___________________________' }}</div>
+  <div class="campo"><strong>• AGENTE(S):</strong> {{ f.agentes or '___________________________' }}</div>
+  {% if f.observacoes %}
+  <div class="campo"><strong>• OBSERVAÇÕES:</strong> {{ f.observacoes }}</div>
+  {% endif %}
+
+  <div class="ass">
+    <div class="ass-col">
+      <div class="ass-linha">Vigilância Ambiental / Setor de Endemias</div>
+    </div>
+    <div class="ass-col">
+      <div class="ass-linha">Proprietário / Responsável</div>
+    </div>
+  </div>
+
+  <div class="rodape">{{ modelo.RODAPE }}</div>
+  {% if f.codigo %}
+  <div class="num-notif">N.º da notificação: {{ f.codigo }}</div>
+  {% endif %}
+
+</div>
+{% endfor %}
+
+{% if auto_print %}
+<script>
+  window.addEventListener('load', () => setTimeout(() => window.print(), 600));
+</script>
+{% endif %}
+
+</body>
+</html>

@@ -1,0 +1,38 @@
+# Seguranca - NUNCA versionar
+secret.key
+*.db
+*.db-wal
+*.db-shm
+
+# Pastas de dados sensiveis
+backups/
+uploads_temp/
+notificacoes_geradas/
+saida/
+instance/
+
+# Pastas temporarias/de apoio local
+Pagina Conta Ovos - SisPNCD/
+Página Conta Ovos - SisPNCD/
+*Conta Ovos - SisPNCD/
+tmp/
+temp/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+.env
+
+# Logs
+*.log
+
+# IDEs
+.vscode/
+.idea/

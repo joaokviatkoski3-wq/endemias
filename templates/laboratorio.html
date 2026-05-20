@@ -1,0 +1,286 @@
+{% extends 'base.html' %}
+{% block title %}Laboratório{% endblock %}
+{% block page_title %}Resultados Laboratoriais{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><span class="icon"><img src="/static/icons/microscopio.svg" alt="🔬" class="icon-svg"></span> Resultados Laboratoriais</h1>
+  <div class="sub">Análise de coletas de ovitrampas por espécie, período e localidade</div>
+</div>
+
+<!-- FILTROS -->
+<div class="filter-card">
+  <div class="filter-hd" data-target="lf-body" onclick="toggleFilter('lf-body')">
+    <div class="filter-hd-left">
+      <span><img src="/static/icons/busca.svg" alt="🔍" class="icon-svg"></span><span class="filter-hd-title">Filtros</span>
+      <span class="filter-hd-count" id="lf-badge"></span>
+    </div>
+    <span class="filter-toggle open">▾</span>
+  </div>
+  <div class="filter-body open" id="lf-body">
+    <div class="filter-grid">
+      <div class="f-g"><label>Data início</label><input type="date" id="l_d_ini" value="{{ d_ini }}"></div>
+      <div class="f-g"><label>Data fim</label><input type="date" id="l_d_fim" value="{{ d_fim }}"></div>
+      <div class="f-g"><label>Nº Tubo</label><input type="text" id="l_tubo" placeholder="Ex: 65"></div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <div class="f-g" style="margin-bottom:8px;"><label>Espécie</label></div>
+      <div class="pill-group">
+        <div class="pill"><input type="radio" name="especie" id="esp_todas" value="" checked onchange="buscar()"><label for="esp_todas"><span class="dot"></span>Todas</label></div>
+        <div class="pill"><input type="radio" name="especie" id="esp_aeg" value="aegypti" onchange="buscar()"><label for="esp_aeg"><span class="dot"></span>Ae. aegypti</label></div>
+        <div class="pill"><input type="radio" name="especie" id="esp_alb" value="albopictus" onchange="buscar()"><label for="esp_alb"><span class="dot"></span>Ae. albopictus</label></div>
+        <div class="pill"><input type="radio" name="especie" id="esp_out" value="outra" onchange="buscar()"><label for="esp_out"><span class="dot"></span>Outra espécie</label></div>
+      </div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <div class="f-g" style="margin-bottom:8px;"><label>Tipo de trabalho</label></div>
+      <div class="pill-group">
+        {% for t in tipos_glob %}
+        <div class="pill"><input type="checkbox" id="lt_{{ t }}" value="{{ t }}" onchange="buscar()">
+          <label for="lt_{{ t }}"><span class="dot"></span>{{ t }}</label></div>
+        {% endfor %}
+      </div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <div class="f-g" style="margin-bottom:8px;"><label>Localidade</label></div>
+      <div class="pill-group">
+        {% for l in localidades_glob %}
+        <div class="pill"><input type="checkbox" id="ll_{{ loop.index }}" value="{{ l }}" onchange="buscar()">
+          <label for="ll_{{ loop.index }}"><span class="dot"></span>{{ l }}</label></div>
+        {% endfor %}
+      </div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <div class="f-g" style="margin-bottom:8px;"><label>Agente</label></div>
+      <div class="pill-group">
+        {% for a in agentes_glob %}
+        <div class="pill"><input type="checkbox" id="la_{{ loop.index }}" value="{{ a }}" onchange="buscar()">
+          <label for="la_{{ loop.index }}"><span class="dot"></span>{{ a }}</label></div>
+        {% endfor %}
+      </div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+        <input type="checkbox" id="l_pos" onchange="buscar()"> Mostrar apenas positivos para Ae. aegypti
+      </label>
+    </div>
+    <div class="filter-actions">
+      <button class="btn btn-primary" onclick="buscar()"><img src="/static/icons/atualizar.svg" alt="🔄" class="icon-svg"> Atualizar</button>
+      <button class="btn btn-ghost" onclick="resetFiltros()"><img src="/static/icons/fechar.svg" alt="✕" class="icon-svg"> Limpar</button>
+      <button class="btn btn-outline" onclick="exportarLab()" title="Exportar resultados filtrados"><img src="/static/icons/importar.svg" alt="📥" class="icon-svg"> Exportar .xlsx</button>
+    </div>
+  </div>
+</div>
+
+<!-- KPIs -->
+<div id="l-kpi" class="kpi-grid">
+  <div class="loading-box"><div class="spinner"></div></div>
+</div>
+
+<!-- TABS -->
+<div class="tabs-bar">
+  <button class="tab-btn active" onclick="openTab('lt-tabela',this)"><img src="/static/icons/prancheta.svg" alt="📋" class="icon-svg"> Tabela</button>
+  <button class="tab-btn" onclick="openTab('lt-evolucao',this)"><img src="/static/icons/grafico_linha.svg" alt="📈" class="icon-svg"> Evolução</button>
+  <button class="tab-btn" onclick="openTab('lt-localidade',this)"><img src="/static/icons/marcador.svg" alt="📍" class="icon-svg"> Localidades</button>
+</div>
+
+<!-- TABELA -->
+<div class="tab-pane active" id="lt-tabela">
+  <div id="l-tabela-area">
+    <div class="loading-box"><div class="spinner"></div></div>
+  </div>
+</div>
+
+<!-- EVOLUÇÃO -->
+<div class="tab-pane" id="lt-evolucao">
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/calendario.svg" alt="📅" class="icon-svg"> Coletas por mês — total vs positivos Ae. aegypti</div></div>
+      <div class="chart-wrap h300"><canvas id="lchEv"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- LOCALIDADE -->
+<div class="tab-pane" id="lt-localidade">
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/marcador.svg" alt="📍" class="icon-svg"> Coletas e positividade por localidade</div></div>
+      <div class="chart-wrap h320"><canvas id="lchLoc"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let lPagina = 1, lTotal = 0, lTotalPag = 1;
+
+function buildFiltros() {
+  const p = new URLSearchParams();
+  p.set('d_ini', document.getElementById('l_d_ini').value || '');
+  p.set('d_fim', document.getElementById('l_d_fim').value || '');
+  const tubo = document.getElementById('l_tubo').value.trim();
+  if(tubo) p.set('tubo', tubo);
+  const esp = document.querySelector('input[name=especie]:checked');
+  if(esp && esp.value) p.set('especie', esp.value);
+  if(document.getElementById('l_pos').checked) p.set('apenas_pos','1');
+  document.querySelectorAll('[id^="lt_"]:checked').forEach(cb => p.append('tipo', cb.value));
+  document.querySelectorAll('[id^="ll_"]:checked').forEach(cb => p.append('localidade', cb.value));
+  document.querySelectorAll('[id^="la_"]:checked').forEach(cb => p.append('agente', cb.value));
+  p.set('pagina', lPagina);
+  p.set('por_pagina', 50);
+  return p.toString();
+}
+
+async function buscar(pg=1) {
+  lPagina = pg;
+  const qs = buildFiltros();
+  document.getElementById('l-tabela-area').innerHTML = '<div class="loading-box"><div class="spinner"></div></div>';
+
+  try {
+    const d = await apiGet('/api/laboratorio?' + qs);
+    lTotal = d.total; lTotalPag = d.total_paginas;
+
+    // KPIs
+    const t = d.totais;
+    const ip = t.indice_pos || 0;
+    document.getElementById('l-kpi').innerHTML = `
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/tubo_ensaio.svg" alt="🧪" class="icon-svg"></div><div class="kpi-label">Total coletas</div><div class="kpi-val">${fmtNum(t.total_coletas)}</div></div>
+      <div class="kpi red"><div class="kpi-icon"><img src="/static/icons/mosquito.svg" alt="🦟" class="icon-svg"></div><div class="kpi-label">Positivos Ae. aegypti</div><div class="kpi-val">${fmtNum(t.positivos_aeg)}</div></div>
+      <div class="kpi amber"><div class="kpi-icon"><img src="/static/icons/grafico_barra.svg" alt="📊" class="icon-svg"></div><div class="kpi-label">Índice positividade</div><div class="kpi-val">${ip.toFixed(1)}%</div>
+        <div class="kpi-sub">${ip<1?'Baixo':ip<4?'Médio':'<img src="/static/icons/alerta.svg" alt="⚠" class="icon-svg"> Alto'}</div></div>
+      <div class="kpi purple"><div class="kpi-icon"><img src="/static/icons/mosquito.svg" alt="🦟" class="icon-svg"></div><div class="kpi-label">Positivos Albopictus</div><div class="kpi-val">${fmtNum(t.positivos_alb)}</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/circulo_vermelho.svg" alt="🔴" class="icon-svg"></div><div class="kpi-label">Aegypti total</div><div class="kpi-val">${fmtNum(t.aegypti)}</div></div>
+      <div class="kpi green"><div class="kpi-icon"><img src="/static/icons/circulo_amarelo.svg" alt="🟡" class="icon-svg"></div><div class="kpi-label">Albopictus total</div><div class="kpi-val">${fmtNum(t.albopictus)}</div></div>
+    `;
+
+    // Tabela
+    renderTabela(d.registros);
+
+    // Gráficos
+    const ev = d.evolucao || [];
+    mkChart('lchEv', {
+      type: 'bar',
+      data: {
+        labels: ev.map(r=>r.mes),
+        datasets: [
+          { label:'Total coletas', data:ev.map(r=>r.total), backgroundColor:'#3b82f688', borderRadius:4, order:2 },
+          { label:'Positivos Ae. aegypti', data:ev.map(r=>r.positivos), backgroundColor:'#ef444488', borderRadius:4, order:1 },
+        ]
+      },
+      options:{ scales:eixos() }
+    });
+
+    const pl = d.por_loc || [];
+    mkChart('lchLoc', {
+      type:'bar',
+      data:{
+        labels:pl.map(r=>r.loc||'—'),
+        datasets:[
+          { label:'Total', data:pl.map(r=>r.total), backgroundColor:'#3b82f688', borderRadius:3 },
+          { label:'Positivos', data:pl.map(r=>r.positivos), backgroundColor:'#ef444488', borderRadius:3 },
+        ]
+      },
+      options:{ indexAxis:'y', scales:eixos({y:{grid:{display:false}}}) }
+    });
+
+  } catch(e) {
+    document.getElementById('l-kpi').innerHTML = '';
+    document.getElementById('l-tabela-area').innerHTML = `<div class="empty"><div class="empty-icon"><img src="/static/icons/alerta.svg" alt="⚠" class="icon-svg">️</div><p>${e.message}</p></div>`;
+  }
+}
+
+function renderTabela(rows) {
+  if(!rows.length) {
+    document.getElementById('l-tabela-area').innerHTML = '<div class="empty"><div class="empty-icon"><img src="/static/icons/microscopio.svg" alt="🔬" class="icon-svg"></div><p>Nenhum resultado encontrado.</p></div>';
+    return;
+  }
+
+  const paginacao = renderPag();
+
+  const html = `
+    <div class="table-wrap">
+      <div class="table-hd">
+        <span class="table-title">Resultados</span>
+        <span class="table-info">${fmtNum(lTotal)} registro${lTotal!==1?'s':''} · pág. ${lPagina}/${lTotalPag}</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th>Data</th><th>Tipo</th><th>Localidade</th><th>Endereço</th>
+            <th>Tubo</th><th>Depósito</th>
+            <th style="background:#dc262620;color:#dc2626">Ae. aegypti</th>
+            <th style="background:#f59e0b20;color:#b45309">Ae. albopictus</th>
+            <th>Outra</th>
+            <th>Resultado</th><th>Agentes</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => {
+              const posAeg = (r.aegypt_larvas||0)+(r.aegypt_pupas||0)+(r.aegypt_exuvias||0)+(r.aegypt_adulto||0);
+              const posAlb = (r.albopictus_larvas||0)+(r.albopictus_pupas||0)+(r.albopictus_exuvias||0)+(r.albopictus_adulto||0);
+              const posOut = (r.outra_larvas||0)+(r.outra_pupas||0)+(r.outra_exuvias||0)+(r.outra_adulto||0);
+              const resultado = posAeg>0 ? '<span class="badge badge-pos">+ aegypti</span>' : posAlb>0 ? '<span class="badge badge-pendente">+ albopictus</span>' : '<span class="badge badge-neg">negativo</span>';
+              return `<tr>
+                <td class="nowrap">${fmtDate(r.data)}</td>
+                <td>${tagTipo(r.tipo)}</td>
+                <td class="nowrap">${r.localidade||'—'}</td>
+                <td class="small">${r.logradouro||'—'}${r.numero?', '+r.numero:''}</td>
+                <td class="mono">${r.num_tubo||'—'}</td>
+                <td class="small">${r.tipo_deposito||'—'}</td>
+                <td class="text-center">
+                  ${posAeg>0?`<strong style="color:var(--red)">${posAeg}</strong><br><span class="dim" style="font-size:9.5px">L${r.aegypt_larvas} P${r.aegypt_pupas} E${r.aegypt_exuvias} A${r.aegypt_adulto}</span>`:
+                  '<span class="dim">—</span>'}
+                </td>
+                <td class="text-center">
+                  ${posAlb>0?`<strong style="color:var(--amber)">${posAlb}</strong>`:
+                  '<span class="dim">—</span>'}
+                </td>
+                <td class="text-center">${posOut>0?`<strong>${posOut}</strong>`:'<span class="dim">—</span>'}</td>
+                <td>${resultado}</td>
+                <td class="small dim">${r.agentes||'—'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${paginacao}
+    </div>`;
+  document.getElementById('l-tabela-area').innerHTML = html;
+}
+
+function renderPag() {
+  if(lTotalPag <= 1) return '';
+  const btns = [];
+  btns.push(`<button class="pag-btn" onclick="buscar(${lPagina-1})" ${lPagina<=1?'disabled':''}>‹</button>`);
+  for(let p=1; p<=lTotalPag; p++) {
+    if(Math.abs(p-lPagina)<=2 || p===1 || p===lTotalPag) {
+      btns.push(`<button class="pag-btn ${p===lPagina?'active':''}" onclick="buscar(${p})">${p}</button>`);
+    } else if(btns[btns.length-1] !== '…') {
+      btns.push('…');
+    }
+  }
+  btns.push(`<button class="pag-btn" onclick="buscar(${lPagina+1})" ${lPagina>=lTotalPag?'disabled':''}>›</button>`);
+  return `<div class="pag">${btns.join('')}<span class="pag-info">${fmtNum(lTotal)} registros</span></div>`;
+}
+
+function resetFiltros() {
+  document.querySelectorAll('[id^="ll_"],[id^="la_"],[id^="lt_"]').forEach(cb=>cb.checked=false);
+  document.getElementById('l_tubo').value='';
+  document.getElementById('l_pos').checked=false;
+  document.querySelector('input[name=especie][value=""]').checked=true;
+  document.getElementById('l_d_ini').value='{{ d_ini }}';
+  document.getElementById('l_d_fim').value='{{ d_fim }}';
+  buscar();
+}
+
+document.getElementById('l_d_ini').addEventListener('change',()=>buscar());
+document.getElementById('l_d_fim').addEventListener('change',()=>buscar());
+document.getElementById('l_tubo').addEventListener('keydown',e=>{if(e.key==='Enter')buscar();});
+
+buscar();
+
+function exportarLab() {
+  const p = new URLSearchParams(window.location.search);
+  window.location = '/api/laboratorio/exportar?' + p.toString();
+}
+</script>
+{% endblock %}

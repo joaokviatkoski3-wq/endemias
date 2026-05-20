@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Endemias — Login</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:#f1f5fd;min-height:100vh;display:flex;align-items:center;justify-content:center;}
+.wrap{width:100%;max-width:360px;padding:20px;}
+.card{background:#fff;border-radius:14px;box-shadow:0 4px 24px rgba(26,79,186,.13);overflow:hidden;}
+.card-top{background:#1a4fba;padding:32px 28px 24px;text-align:center;}
+.card-top img{height:48px;filter:brightness(0) invert(1);margin-bottom:12px;opacity:.95;}
+.card-top h1{color:#fff;font-size:18px;font-weight:700;margin-bottom:2px;}
+.card-top p{color:rgba(255,255,255,.55);font-size:11px;}
+.card-body{padding:28px;}
+.f-g{display:flex;flex-direction:column;gap:5px;margin-bottom:16px;}
+.f-g label{font-size:10.5px;font-weight:700;color:#4a5878;text-transform:uppercase;letter-spacing:.5px;}
+.f-g input{padding:9px 12px;border:1.5px solid #dde4f5;border-radius:7px;font-size:14px;color:#1a2540;background:#f8faff;outline:none;font-family:inherit;transition:border-color .15s;}
+.f-g input:focus{border-color:#1a4fba;}
+.btn{width:100%;padding:11px;border:none;border-radius:7px;background:#1a4fba;color:#fff;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;transition:background .15s;margin-top:4px;}
+.btn:hover{background:#133a8f;}
+.erro{background:#fee2e2;color:#991b1b;border-radius:7px;padding:10px 14px;font-size:12.5px;margin-bottom:16px;display:flex;align-items:center;gap:6px;}
+.footer{text-align:center;font-size:10px;color:#8896b0;margin-top:16px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="card-top">
+      <img src="/static/img/logo_endemias.png" alt="">
+      <h1>Endemias</h1>
+      <p>Setor de Endemias · Almirante Tamandaré-PR</p>
+    </div>
+    <div class="card-body">
+      {% if erro %}
+      <div class="erro"><img src="/static/icons/alerta.svg" alt="⚠" class="icon-svg"> {{ erro }}</div>
+      {% endif %}
+      <form method="POST" action="/login{% if request.args.get('next') %}?next={{ request.args.get('next') }}{% endif %}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="f-g">
+          <label>Usuário</label>
+          <input type="text" name="usuario" autocomplete="username" autofocus required placeholder="seu.usuario">
+        </div>
+        <div class="f-g">
+          <label>Senha</label>
+          <input type="password" name="senha" autocomplete="current-password" required placeholder="••••••">
+        </div>
+        <button class="btn" type="submit">Entrar</button>
+      </form>
+    </div>
+  </div>
+  <div class="footer">Sistema de Gestão Integrado v3 · 2025</div>
+</div>
+</body>
+</html>

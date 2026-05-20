@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Minha Senha{% endblock %}
+{% block page_title %}Minha Senha{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><span class="icon"><img src="/static/icons/chave.svg" alt="🔑" class="icon-svg"></span> Alterar Senha</h1>
+  <div class="sub">Usuário: <strong>{{ usuario_atual.usuario }}</strong> — {{ usuario_atual.nome }}</div>
+</div>
+
+<div style="max-width:420px;">
+  <div class="chart-card">
+    {% if ok %}
+    <div style="background:var(--green-l);color:#166534;border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:18px;font-size:13px;display:flex;align-items:center;gap:8px;">
+      <img src="/static/icons/check.svg" alt="✓" class="icon-svg"> {{ ok }}
+    </div>
+    {% endif %}
+    {% if erro %}
+    <div style="background:var(--red-l);color:#991b1b;border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:18px;font-size:13px;display:flex;align-items:center;gap:8px;">
+      <img src="/static/icons/alerta.svg" alt="⚠" class="icon-svg"> {{ erro }}
+    </div>
+    {% endif %}
+    <form method="POST" style="display:flex;flex-direction:column;gap:14px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="f-g">
+        <label>Senha atual</label>
+        <input type="password" name="atual" required class="inp">
+      </div>
+      <div class="f-g">
+        <label>Nova senha</label>
+        <input type="password" name="nova" required minlength="6" class="inp">
+      </div>
+      <div class="f-g">
+        <label>Confirmar nova senha</label>
+        <input type="password" name="confirmar" required minlength="6" class="inp">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:4px;">
+        <button type="submit" class="btn btn-primary">Salvar</button>
+        <a href="/" class="btn btn-ghost">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+.inp{padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:14px;color:var(--text);background:var(--surface2);outline:none;font-family:inherit;width:100%;transition:border-color .15s;}
+.inp:focus{border-color:var(--brand);}
+</style>
+{% endblock %}

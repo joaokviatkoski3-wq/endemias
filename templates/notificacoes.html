@@ -1,0 +1,347 @@
+{% extends 'base.html' %}
+{% block title %}Notificações{% endblock %}
+{% block page_title %}Gestão de Notificações{% endblock %}
+
+{% block extra_css %}<style>
+.status-bar { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
+.status-chip {
+  display:flex; align-items:center; gap:6px; padding:6px 14px;
+  border-radius:20px; border:2px solid transparent;
+  font-size:11.5px; font-weight:600; cursor:pointer;
+  transition:all .15s; background:var(--surface); box-shadow:var(--shadow);
+}
+.status-chip:hover { transform:translateY(-1px); }
+.status-chip.sel { border-color:currentColor; }
+.status-chip .cnt { font-size:13px; font-weight:700; }
+.chip-pendente   { color:#92400e; background:var(--amber-l); }
+.chip-impressa   { color:#1e40af; background:#dbeafe; }
+.chip-entregue   { color:#166534; background:var(--green-l); }
+.chip-naoloc     { color:#991b1b; background:var(--red-l); }
+.chip-inconsist  { color:#6b21a8; background:var(--purple-l); }
+.chip-arquivada  { color:var(--text3); background:var(--surface2); border-color:var(--border);}
+.chip-todos      { color:var(--brand); background:var(--brand-xs); }
+
+.focos-form { }
+.foco-row {
+  display:grid;
+  grid-template-columns:28px 1fr auto;
+  align-items:center; gap:10px;
+  padding:10px 14px; border-bottom:1px solid var(--border);
+  transition:background .12s;
+}
+.foco-row:hover { background:var(--tr-hover); }
+.foco-row:last-child { border-bottom:none; }
+.foco-main { min-width:0; }
+.foco-addr { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.foco-meta { font-size:11px; color:var(--text3); margin-top:2px; display:flex; flex-wrap:wrap; gap:8px; }
+.foco-meta span { display:flex; align-items:center; gap:3px; }
+.foco-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+
+/* Status inline dropdown */
+.status-select {
+  font-size:11px; font-weight:600; padding:3px 8px; border-radius:20px;
+  border:1.5px solid transparent; cursor:pointer; appearance:none;
+  background:transparent; font-family:inherit;
+}
+.sel-pendente   { color:#92400e; background:var(--amber-l); border-color:#f59e0b66; }
+.sel-impressa   { color:#1e40af; background:#dbeafe; border-color:#3b82f666; }
+.sel-entregue   { color:#166534; background:var(--green-l); border-color:#22c55e66; }
+.sel-naoloc     { color:#991b1b; background:var(--red-l); border-color:#ef444466; }
+.sel-inconsist  { color:#6b21a8; background:var(--purple-l); border-color:#8b5cf666; }
+.sel-arquivada  { color:var(--text3); background:var(--surface2); border-color:var(--border); }
+
+.actions-bar {
+  padding:10px 14px; background:var(--surface2); border-top:1px solid var(--border);
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+}
+.sel-count { font-size:12px; font-weight:600; color:var(--brand); }
+
+.busca-wrap { position:relative; }
+.busca-wrap input { padding-left:30px; }
+.busca-wrap .busca-icon { position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:13px; color:var(--text3); }
+</style>{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><span class="icon"><img src="/static/icons/sino.svg" alt="🔔" class="icon-svg"></span> Notificações de Focos Positivos</h1>
+  <div class="sub">Gestão e rastreamento de notificações a moradores com focos de <em>Aedes aegypti</em></div>
+</div>
+
+<!-- STATUS BAR (chips clicáveis) -->
+<div class="status-bar">
+  <div class="status-chip chip-todos {{ 'sel' if not filtro_status }}" onclick="filtrarStatus('')">
+    <span>Todos</span>
+    <span class="cnt">{{ total }}</span>
+  </div>
+  {% for st, cls in [
+    ('pendente','chip-pendente'),('impressa','chip-impressa'),
+    ('entregue','chip-entregue'),('morador não localizado','chip-naoloc'),
+    ('dados inconsistentes','chip-inconsist'),('arquivada','chip-arquivada')
+  ] %}
+  {% if contadores.get(st) %}
+  <div class="status-chip {{ cls }} {{ 'sel' if st in filtro_status }}" onclick="filtrarStatus('{{ st }}')">
+    <span>{{ st | capitalize }}</span>
+    <span class="cnt">{{ contadores.get(st, 0) }}</span>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+<!-- FILTROS -->
+<div class="filter-card">
+  <div class="filter-hd" data-target="nf-body" onclick="toggleFilter('nf-body')">
+    <div class="filter-hd-left">
+      <span><img src="/static/icons/busca.svg" alt="🔍" class="icon-svg"></span><span class="filter-hd-title">Filtros avançados</span>
+    </div>
+    <span class="filter-toggle">▾</span>
+  </div>
+  <div class="filter-body" id="nf-body">
+    <form method="GET" action="/notificacoes" id="filtro-form">
+      <!-- Status ocultos (gerenciados pelos chips) -->
+      {% for st in filtro_status %}
+      <input type="hidden" name="status" value="{{ st }}">
+      {% endfor %}
+
+      <div class="filter-grid">
+        <div class="f-g"><label>Data início</label><input type="date" name="d_ini" value="{{ filtro_d_ini }}"></div>
+        <div class="f-g"><label>Data fim</label><input type="date" name="d_fim" value="{{ filtro_d_fim }}"></div>
+        <div class="f-g">
+          <label>Busca (endereço, tubo, morador)</label>
+          <div class="busca-wrap">
+            <span class="busca-icon"><img src="/static/icons/busca.svg" alt="🔍" class="icon-svg"></span>
+            <input type="text" name="busca" value="{{ busca }}" placeholder="Endereço, tubo, morador, #código..." style="padding-left:30px;width:100%">
+          </div>
+        </div>
+        <div class="f-g">
+          <label>Itens por página</label>
+          <select name="por_pagina">
+            {% for n in [25, 50, 100, 200, 'tudo'] %}
+            <option value="{{ n }}" {{ 'selected' if por_pagina == n|string else '' }}>{{ n }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-bottom:10px;">
+        <div class="f-g" style="margin-bottom:8px;"><label>Tipo de trabalho</label></div>
+        <div class="pill-group">
+          {% for t in tipos %}
+          <div class="pill">
+            <input type="checkbox" name="tipo" id="nt_{{ t }}" value="{{ t }}" {{ 'checked' if t in filtro_tipo }}>
+            <label for="nt_{{ t }}"><span class="dot"></span>{{ t }}</label>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div class="f-g" style="margin-bottom:8px;"><label>Localidade</label></div>
+        <div class="pill-group">
+          {% for l in localidades_n %}
+          <div class="pill">
+            <input type="checkbox" name="localidade" id="nl_{{ loop.index }}" value="{{ l }}" {{ 'checked' if l in filtro_loc }}>
+            <label for="nl_{{ loop.index }}"><span class="dot"></span>{{ l }}</label>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div style="margin-bottom:14px;">
+        <div class="f-g" style="margin-bottom:8px;"><label>Agente</label></div>
+        <div class="pill-group">
+          {% for a in agentes_lista %}
+          <div class="pill">
+            <input type="checkbox" name="agente" id="na_{{ loop.index }}" value="{{ a }}" {{ 'checked' if a in filtro_agente }}>
+            <label for="na_{{ loop.index }}"><span class="dot"></span>{{ a }}</label>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-primary"><img src="/static/icons/atualizar.svg" alt="🔄" class="icon-svg"> Filtrar</button>
+        <a href="/notificacoes" class="btn btn-ghost"><img src="/static/icons/fechar.svg" alt="✕" class="icon-svg"> Limpar</a>
+        <button type="button" class="btn btn-outline" onclick="exportarNotif()" title="Exportar resultados filtrados"><img src="/static/icons/importar.svg" alt="📥" class="icon-svg"> Exportar .xlsx</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- TABELA DE FOCOS -->
+<form id="notif-form" method="POST" action="/notificacoes/imprimir">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="table-wrap">
+    <div class="table-hd">
+      <span class="table-title"><img src="/static/icons/circulo_vermelho.svg" alt="🔴" class="icon-svg"> Focos positivos — {{ total }} registro{{ 's' if total != 1 else '' }}</span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="table-info">Pág. {{ pagina }}/{{ total_paginas }}</span>
+      </div>
+    </div>
+
+    <div id="focos-lista">
+      {% if focos %}
+        {% for f in focos %}
+        {% set st = f.status_notificacao or 'pendente' %}
+        {% set st_cls = {
+          'pendente':'sel-pendente','impressa':'sel-impressa','entregue':'sel-entregue',
+          'morador não localizado':'sel-naoloc','dados inconsistentes':'sel-inconsist','arquivada':'sel-arquivada'
+        }.get(st, 'sel-pendente') %}
+        <div class="foco-row" id="row-{{ f.id_foco }}">
+          <input type="checkbox" name="ids" value="{{ f.id_foco }}" class="foco-check"
+                 onchange="updateSelCount()" style="width:16px;height:16px;cursor:pointer;accent-color:var(--brand)">
+          <div class="foco-main">
+            <div class="foco-addr">
+              <a href="/notificacoes/foco/{{ f.id_foco }}" style="color:var(--text)">
+                {{ f.logradouro or 'Endereço não informado' }}{% if f.numero %}, {{ f.numero }}{% endif %}
+                {% if f.complemento %} — {{ f.complemento }}{% endif %}
+              </a>
+            </div>
+            <div class="foco-meta">
+              <span><img src="/static/icons/marcador.svg" alt="📍" class="icon-svg"> {{ f.localidade_nome or '—' }}</span>
+              <span><img src="/static/icons/casas.svg" alt="🏘" class="icon-svg"> Qrt. {{ f.quarteirao or '—' }}</span>
+              <span><img src="/static/icons/agenda.svg" alt="🗓" class="icon-svg"> {{ f.data[:10] if f.data and f.data|length >= 10 else '—' }}</span>
+              <span><img src="/static/icons/tubo_ensaio.svg" alt="🧪" class="icon-svg"> Tubo(s) {{ f.num_tubo or '—' }}</span>
+              {% if f.codigo %}<span style="font-weight:700;color:var(--brand);">#{{ f.codigo }}</span>{% endif %}
+              {% if f.depositos %}<span title="{{ f.depositos }}"><img src="/static/icons/balde.svg" alt="🪣" class="icon-svg"> {{ f.depositos }}</span>{% endif %}
+              {% if f.tipo_trabalho %}<span>{{ f.tipo_trabalho }}</span>{% endif %}
+              {% if f.agentes %}<span class="dim"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"> {{ f.agentes }}</span>{% endif %}
+            </div>
+          </div>
+          <div class="foco-actions">
+            <select class="status-select {{ st_cls }}" onchange="atualizarStatus('{{ f.id_foco }}', this)"
+                    title="Alterar status">
+              {% for s in STATUS_OPCOES %}
+              <option value="{{ s }}" {{ 'selected' if s == st else '' }}>{{ s | capitalize }}</option>
+              {% endfor %}
+            </select>
+            <a href="/notificacoes/foco/{{ f.id_foco }}" class="btn btn-xs btn-outline" title="Abrir detalhes"><img src="/static/icons/editar.svg" alt="✏" class="icon-svg">️</a>
+            <a href="/notificacoes/foco/{{ f.id_foco }}/imprimir-html" target="_blank"
+               class="btn btn-xs btn-outline" title="Imprimir esta notificação"><img src="/static/icons/imprimir.svg" alt="🖨" class="icon-svg">️</a>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty"><div class="empty-icon"><img src="/static/icons/sino.svg" alt="🔔" class="icon-svg"></div><p>Nenhum foco encontrado com os filtros selecionados.</p></div>
+      {% endif %}
+    </div>
+
+    <!-- Barra de ações em massa -->
+    <div class="actions-bar">
+      <input type="checkbox" id="sel-all" onchange="toggleAll(this)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--brand)" title="Selecionar todos">
+      <label for="sel-all" style="font-size:12px;cursor:pointer;">Selecionar todos</label>
+      <span class="sel-count" id="sel-count"></span>
+      <button type="button" class="btn btn-primary btn-sm" id="btn-imprimir-html" disabled
+              onclick="imprimirHtmlSelecionados()">
+        <img src="/static/icons/imprimir.svg" alt="🖨" class="icon-svg">️ Imprimir selecionados
+      </button>
+      <button type="submit" class="btn btn-ghost btn-sm" id="btn-imprimir" disabled>
+        <img src="/static/icons/documento.svg" alt="📄" class="icon-svg"> Gerar DOCX selecionados
+      </button>
+    </div>
+
+    <!-- Paginação -->
+    {% if total_paginas > 1 %}
+    <div class="pag">
+      {% if pagina > 1 %}
+      <a href="{{ request.path }}?{{ request.query_string.decode() | replace('pagina=' ~ pagina, 'pagina=' ~ (pagina-1)) }}" class="pag-btn">‹</a>
+      {% endif %}
+      {% for p in range(1, total_paginas + 1) %}
+        {% if p == pagina or p == 1 or p == total_paginas or (p > pagina - 3 and p < pagina + 3) %}
+          <a href="{{ request.path }}?{{ request.query_string.decode() | replace('pagina=' ~ pagina, 'pagina=' ~ p) if 'pagina=' in request.query_string.decode() else request.query_string.decode() + '&pagina=' + p|string }}"
+             class="pag-btn {{ 'active' if p == pagina else '' }}">{{ p }}</a>
+        {% elif p == pagina - 3 or p == pagina + 3 %}
+          <span style="color:var(--text3);padding:0 4px;">…</span>
+        {% endif %}
+      {% endfor %}
+      {% if pagina < total_paginas %}
+      <a href="{{ request.path }}?{{ request.query_string.decode() | replace('pagina=' ~ pagina, 'pagina=' ~ (pagina+1)) if 'pagina=' in request.query_string.decode() else request.query_string.decode() + '&pagina=' ~ (pagina+1) }}" class="pag-btn">›</a>
+      {% endif %}
+      <span class="pag-info">{{ total }} registros · {{ por_pagina }} por pág.</span>
+    </div>
+    {% endif %}
+  </div>
+</form>
+
+<script>
+function toggleAll(cb) {
+  document.querySelectorAll('.foco-check').forEach(c => c.checked = cb.checked);
+  updateSelCount();
+}
+
+function updateSelCount() {
+  const n    = document.querySelectorAll('.foco-check:checked').length;
+  const btn  = document.getElementById('btn-imprimir');
+  const btnH = document.getElementById('btn-imprimir-html');
+  const cnt  = document.getElementById('sel-count');
+  if (n > 0) {
+    cnt.textContent = `${n} selecionado${n>1?'s':''}`;
+    btn.disabled  = false;
+    btnH.disabled = false;
+  } else {
+    cnt.textContent = '';
+    btn.disabled  = true;
+    btnH.disabled = true;
+  }
+  document.getElementById('sel-all').indeterminate =
+    n > 0 && n < document.querySelectorAll('.foco-check').length;
+}
+
+function imprimirHtmlSelecionados() {
+  const ids = [...document.querySelectorAll('.foco-check:checked')].map(c => c.value);
+  if (!ids.length) return;
+  // Submete para a rota de impressão HTML em nova aba
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/notificacoes/imprimir-html';
+  form.target = '_blank';
+  ids.forEach(id => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = 'ids'; inp.value = id;
+    form.appendChild(inp);
+  });
+  document.body.appendChild(form);
+  form.submit();
+  document.body.removeChild(form);
+}
+
+async function atualizarStatus(id, sel) {
+  const novoStatus = sel.value;
+  const cls = {
+    'pendente':'sel-pendente','impressa':'sel-impressa','entregue':'sel-entregue',
+    'morador não localizado':'sel-naoloc','dados inconsistentes':'sel-inconsist','arquivada':'sel-arquivada'
+  };
+  // Aplica visual imediatamente
+  sel.className = 'status-select ' + (cls[novoStatus] || 'sel-pendente');
+  try {
+    const r = await fetch(`/notificacoes/foco/${id}/status`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify({status: novoStatus}),
+    });
+    if(r.ok) toast(`Status atualizado: ${novoStatus}`, 'success');
+    else toast('Erro ao salvar status', 'error');
+  } catch(e) {
+    toast('Erro de comunicação', 'error');
+  }
+}
+
+function filtrarStatus(st) {
+  const u = new URL(window.location.href);
+  u.searchParams.delete('status');
+  u.searchParams.delete('pagina');
+  if(st) u.searchParams.set('status', st);
+  window.location.href = u.toString();
+}
+
+// Confirma antes de gerar DOCX
+document.getElementById('notif-form').addEventListener('submit', function(e) {
+  const n = document.querySelectorAll('.foco-check:checked').length;
+  if(!confirm(`Gerar notificação DOCX para ${n} foco${n>1?'s':''}?\n\nOs focos pendentes serão marcados como "impressa".`)) {
+    e.preventDefault();
+  }
+});
+
+function exportarNotif() {
+  const p = new URLSearchParams(window.location.search);
+  window.location = '/api/notificacoes/exportar?' + p.toString();
+}
+</script>
+{% endblock %}

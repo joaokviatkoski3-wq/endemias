@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{% block title %}Endemias{% endblock %} — Almirante Tamandaré</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<link rel="stylesheet" href="/static/css/app.css">
+{% block extra_css %}{% endblock %}
+<script>
+const WORK_TYPE_COLORS = {{ TIPO_CORES|tojson }};
+const WORK_TYPE_LABELS = {{ TIPO_LABELS|tojson }};
+const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
+</script>
+</head>
+<body>
+<div class="app">
+
+<!-- Overlay mobile -->
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<!-- Sidebar mobile -->
+<aside class="sidebar-mobile" id="sidebar-mobile">
+  <div class="sidebar-mobile-hd">
+    <img src="/static/img/logo_endemias.png" alt="">
+    <button class="sidebar-mobile-close" onclick="closeSidebar()"><img src="/static/icons/fechar.svg" alt="✕" class="icon-svg"></button>
+  </div>
+  <nav class="sidebar-mobile-nav">
+    {% for group in sidebar_groups %}
+    <span class="sidebar-mobile-label">{{ group.section }}</span>
+    {% for module in group["items"] %}
+    <a href="{{ module.href }}" class="sidebar-mobile-link {{ 'active' if request.endpoint in module.endpoints }}">
+      <img src="/static/icons/{{ module.icon }}" alt="" class="icon-svg"> {{ module.sidebar_title }}
+      {% if module.badge == 'notificacoes' and nav_pendentes %}<span class="badge-nav" style="background:#ef4444;color:#fff;font-size:9px;font-weight:700;border-radius:20px;padding:1px 5px;margin-left:4px;">{{ nav_pendentes }}</span>{% endif %}
+      {% if module.badge == 'agenda' %}<span id="badge-agenda-mobile" style="display:none;background:#ef4444;color:#fff;font-size:9px;font-weight:700;border-radius:20px;padding:1px 5px;margin-left:4px;"></span>{% endif %}
+    </a>
+    {% endfor %}
+    {% endfor %}
+    <span class="sidebar-mobile-label">Conta</span>
+    <a href="/minha-senha" class="sidebar-mobile-link {{ 'active' if request.endpoint == 'minha_senha' }}"><img src="/static/icons/chave.svg" alt="" class="icon-svg"> Alterar Senha</a>
+    <a href="/logout" class="sidebar-mobile-link">Sair</a>
+  </nav>
+  <div class="sidebar-mobile-ft">
+    {% if usuario_atual %}{{ usuario_atual.nome }} · {{ usuario_atual.nivel }}{% endif %}<br>
+    Setor de Endemias · Almirante Tamandaré-PR
+  </div>
+</aside>
+
+<!-- Topbar -->
+<header class="topbar">
+  <div class="topbar-brand">
+    <img src="/static/img/logo_endemias.png" alt="Endemias">
+    <div class="topbar-brand-txt">
+      <div class="t1">{% block page_title %}Endemias{% endblock %}</div>
+      <div class="t2">Almirante Tamandaré-PR</div>
+    </div>
+  </div>
+
+  <nav class="topbar-nav">
+    {% for module in topbar_modules %}
+    <a href="{{ module.href }}" class="topbar-link {{ 'active' if request.endpoint in module.endpoints }}" {% if module.badge == 'agenda' %}id="link-agenda"{% endif %}>
+      <img src="/static/icons/{{ module.icon }}" alt="" class="icon-svg"> {{ module.short_title }}
+      {% if module.badge == 'notificacoes' and nav_pendentes %}<span class="badge-nav">{{ nav_pendentes }}</span>{% endif %}
+      {% if module.badge == 'agenda' %}<span id="badge-agenda" style="display:none;background:#ef4444;color:#fff;font-size:9px;font-weight:700;border-radius:20px;padding:1px 5px;margin-left:2px;"></span>{% endif %}
+    </a>
+    {% endfor %}
+  </nav>
+
+  <div class="topbar-right">
+    <span class="topbar-clock" id="clock"></span>
+    {% if usuario_atual %}
+    <div style="position:relative;display:inline-block;" id="user-menu-wrap">
+      <button class="btn-icon" onclick="toggleUserMenu()" title="{{ usuario_atual.nome }}">
+        <img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"> <span style="font-size:11px;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;">{{ usuario_atual.nome.split()[0] }}</span>
+      </button>
+      <div id="user-menu" style="display:none;position:absolute;right:0;top:calc(100% + 6px);
+           background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+           box-shadow:var(--shadow-md);min-width:160px;z-index:500;overflow:hidden;">
+        <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text3);">
+          {{ usuario_atual.nivel }}
+        </div>
+        <a href="/minha-senha" style="display:block;padding:9px 14px;font-size:12.5px;color:var(--text);text-decoration:none;" onmouseover="this.style.background='var(--brand-xs)'" onmouseout="this.style.background=''"><img src="/static/icons/chave.svg" alt="🔑" class="icon-svg"> Alterar senha</a>
+        <a href="/logout"      style="display:block;padding:9px 14px;font-size:12.5px;color:var(--red);text-decoration:none;"  onmouseover="this.style.background='var(--red-l)'"   onmouseout="this.style.background=''">↩ Sair</a>
+      </div>
+    </div>
+    {% endif %}
+    <button class="btn-icon" onclick="toggleDark()" id="btnDark" title="Alternar tema"><img src="/static/icons/lua.svg" alt="🌙" class="icon-svg"></button>
+    <button class="btn-hamburger" onclick="openSidebar()"><img src="/static/icons/menu.svg" alt="☰" class="icon-svg"></button>
+  </div>
+</header>
+
+<!-- Conteúdo da página -->
+<main class="page">
+{% block content %}{% endblock %}
+</main>
+
+<!-- Toast area -->
+<div id="toast-area"></div>
+
+</div><!-- .app -->
+
+<script src="/static/js/app.js"></script>
+{% block extra_js %}{% endblock %}
+
+
+</body>
+</html>

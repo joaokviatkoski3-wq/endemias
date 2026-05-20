@@ -1,0 +1,188 @@
+// Schema gerado automaticamente a partir de endemias.db.
+// Para visualizar: acesse https://dbdiagram.io/ > New Diagram > cole este conteudo.
+// Referencias marcadas como inferidas dependem do nome das colunas e devem ser revisadas visualmente.
+
+Table agenda_eventos [note: 'Registros atuais: 2'] {
+  id_evento integer [pk]
+  titulo text [not null]
+  descricao text
+  tipo text [not null]
+  data_inicio text [not null]
+  data_fim text
+  dia_inteiro integer [not null]
+  lembrete_min integer
+  cor text
+  criado_por text
+  criado_em text [not null]
+}
+
+Table agentes [note: 'Registros atuais: 22'] {
+  id_agente integer [pk]
+  nome text [not null]
+}
+
+Table coletas [note: 'Registros atuais: 67'] {
+  id_coleta text [pk]
+  id_visita text [not null]
+  num_tubo text
+  codigo_deposito text
+  tipo_deposito text
+  deposito_eliminado integer
+}
+
+Table depositos_inspecionados [note: 'Registros atuais: 8568'] {
+  id integer [pk]
+  id_visita text [not null]
+  tipo_deposito text [not null]
+  inspecionado integer
+  eliminado integer
+  tratado integer
+  tipo_tratamento text
+  qtd_carga real
+  is_historico integer
+}
+
+Table focos_historico [note: 'Registros atuais: 24'] {
+  id integer [pk]
+  id_foco integer [not null]
+  campo text [not null]
+  valor_ant text
+  valor_novo text
+  usuario text
+  alterado_em text
+}
+
+Table focos_positivos [note: 'Registros atuais: 654'] {
+  id_foco text [pk]
+  id_visita text
+  id_coleta text
+  id_resultado integer
+  num_tubo text
+  origem text [not null]
+  tipo_trabalho text
+  data text
+  id_localidade integer
+  localidade text
+  quarteirao integer
+  logradouro text
+  numero text
+  complemento text
+  nome_morador text
+  tipo_imovel text
+  depositos text
+  agentes text
+  gera_notificacao integer [not null]
+  status_notificacao text
+  tentativa_1 text
+  tentativa_2 text
+  tentativa_3 text
+  data_entrega text
+  observacoes text
+  processado_em text
+  codigo text
+}
+
+Table importacoes [note: 'Registros atuais: 0'] {
+  id_importacao integer [pk]
+  job_id text [not null]
+  usuario text
+  arquivos_json text [not null]
+  status text [not null]
+  dry_run_ok integer
+  commit_ok integer
+  sumario_json text
+  erro text
+  criado_em text [not null]
+  atualizado_em text [not null]
+}
+
+Table localidades [note: 'Registros atuais: 15'] {
+  id_localidade integer [pk]
+  nome text [not null]
+  cod_localidade text
+}
+
+Table resultados_laboratorio [note: 'Registros atuais: 67'] {
+  id_resultado integer [pk]
+  id_coleta text [not null]
+  num_tubo text [not null]
+  data_coleta date [not null]
+  laboratorista text
+  data_leitura date
+  aegypt_larvas integer
+  aegypt_pupas integer
+  aegypt_exuvias integer
+  aegypt_adulto integer
+  albopictus_larvas integer
+  albopictus_pupas integer
+  albopictus_exuvias integer
+  albopictus_adulto integer
+  outra_larvas integer
+  outra_pupas integer
+  outra_exuvias integer
+  outra_adulto integer
+  kobo_uuid text
+}
+
+Table tratamentos [note: 'Registros atuais: 446'] {
+  id integer [pk]
+  id_visita text [not null]
+  tipo text
+  quantidade_carga real
+  qtd_depositos_tratados integer
+}
+
+Table usuarios [note: 'Registros atuais: 5'] {
+  id_usuario integer [pk]
+  usuario text [not null]
+  nome text [not null]
+  senha_hash text [not null]
+  nivel text [not null]
+  ativo integer [not null]
+  criado_em text [not null]
+}
+
+Table visita_agentes [note: 'Registros atuais: 35853'] {
+  id_visita text [pk, not null]
+  id_agente integer [pk, not null]
+}
+
+Table visitas [note: 'Registros atuais: 16470'] {
+  id_visita text [pk]
+  kobo_uuid text [not null]
+  kobo_id integer
+  tipo text [not null]
+  data date [not null]
+  hora_inicio time
+  hora_fim time
+  ciclo integer
+  localidade text
+  logradouro text
+  numero text
+  quarteirao integer
+  sequencia text
+  morador text
+  tipo_imovel text
+  visita text
+  lado text
+  agua_sanepar integer
+  observacoes text
+  submission_time text
+  processado_em text [not null]
+  id_localidade integer
+  SISPNC varchar(20)
+  CONTAOVOS_STATUS integer
+}
+
+Ref: coletas.id_visita > visitas.id_visita // declarada no SQLite
+Ref: depositos_inspecionados.id_visita > visitas.id_visita // declarada no SQLite
+Ref: focos_historico.id_foco > focos_positivos.id_foco // declarada no SQLite
+Ref: focos_positivos.id_localidade > localidades.id_localidade // declarada no SQLite
+Ref: focos_positivos.id_resultado > resultados_laboratorio.id_resultado // declarada no SQLite
+Ref: focos_positivos.id_coleta > coletas.id_coleta // declarada no SQLite
+Ref: focos_positivos.id_visita > visitas.id_visita // declarada no SQLite
+Ref: resultados_laboratorio.id_coleta > coletas.id_coleta // declarada no SQLite
+Ref: tratamentos.id_visita > visitas.id_visita // declarada no SQLite
+Ref: visita_agentes.id_agente > agentes.id_agente // declarada no SQLite
+Ref: visita_agentes.id_visita > visitas.id_visita // declarada no SQLite
+Ref: visitas.id_localidade > localidades.id_localidade // declarada no SQLite

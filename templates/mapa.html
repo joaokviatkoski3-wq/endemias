@@ -1,0 +1,549 @@
+{% extends "base.html" %}
+{% block title %}Mapa de Quarteirões{% endblock %}
+{% block page_title %}Mapa{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* ── Sobrescrever .page só nesta página ─────────────────────────── */
+.page {
+  max-width: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Cascata de altura ───────────────────────────────────────────── */
+.mapa-wrap {
+  display: flex;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.mapa-painel {
+  width: 300px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  padding: 14px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.mapa-container {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+}
+
+#mapa {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+/* ── Loading overlay ─────────────────────────────────────────────── */
+#map-loading {
+  position: absolute; inset: 0;
+  background: rgba(var(--surface-rgb, 255,255,255), .8);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 600; color: var(--brand);
+  z-index: 1000; transition: opacity .3s; pointer-events: none;
+}
+
+/* ── Painel cards ────────────────────────────────────────────────── */
+.painel-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+.painel-titulo {
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .5px;
+  color: var(--text3); margin-bottom: 10px;
+}
+.filtro-g { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.filtro-g label { font-size: 11px; font-weight: 600; color: var(--text2); }
+.filtro-g select, .filtro-g input {
+  padding: 6px 8px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 12px;
+  background: var(--surface2); color: var(--text); width: 100%;
+}
+.filtro-checks { display: flex; flex-wrap: wrap; gap: 6px; }
+.filtro-checks label {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 11.5px; cursor: pointer;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 20px; padding: 3px 9px;
+  user-select: none; transition: all .15s;
+}
+.filtro-checks label.inativo {
+  opacity: .4; text-decoration: line-through;
+}
+
+/* ── Modos ───────────────────────────────────────────────────────── */
+.modos-wrap { display: flex; flex-direction: column; gap: 5px; }
+.modo-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--surface2);
+  cursor: pointer; font-size: 12px; color: var(--text);
+  transition: all .15s; text-align: left; width: 100%;
+}
+.modo-btn:hover { border-color: var(--brand); }
+.modo-btn.ativo { border-color: var(--brand); background: var(--brand-xs); color: var(--brand); font-weight: 700; }
+.modo-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── Legenda ─────────────────────────────────────────────────────── */
+.legenda { display: flex; flex-direction: column; gap: 5px; }
+.leg-item { display: flex; align-items: center; gap: 8px; font-size: 11.5px; }
+.leg-cor { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; border: 1px solid rgba(0,0,0,.1); }
+
+/* ── KPIs ────────────────────────────────────────────────────────── */
+.map-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.map-kpi { background: var(--surface2); border-radius: var(--radius-sm); padding: 8px 10px; text-align: center; }
+.map-kpi .val { font-size: 18px; font-weight: 800; color: var(--brand); }
+.map-kpi .lbl { font-size: 10px; color: var(--text3); }
+
+/* ── Detalhe selecionado ─────────────────────────────────────────── */
+.sel-info {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px;
+  font-size: 12px; line-height: 1.6; min-height: 60px; color: var(--text2);
+}
+.popup-linha { display: flex; justify-content: space-between; gap: 12px; }
+.popup-linha span:last-child { font-weight: 600; }
+
+@media (max-width: 768px) {
+  .mapa-wrap { flex-direction: column; }
+  .mapa-painel { width: 100%; max-height: 50vh; border-right: none; border-bottom: 1px solid var(--border); }
+  .mapa-container { min-height: 55vh; }
+}
+</style>
+
+<div class="mapa-wrap">
+
+  <!-- ── Painel lateral ──────────────────────────────────────────── -->
+  <div class="mapa-painel">
+
+    <div class="painel-card">
+      <div class="painel-titulo">Modo de coloração</div>
+      <div class="modos-wrap">
+        <button class="modo-btn ativo" data-modo="trabalhado" onclick="setModo(this)">
+          <span class="modo-dot" style="background:#22c55e;"></span> Trabalhado / Não trabalhado
+        </button>
+        <button class="modo-btn" data-modo="tipo" onclick="setModo(this)">
+          <span class="modo-dot" style="background:#3b82f6;"></span> Por tipo de trabalho
+        </button>
+        <button class="modo-btn" data-modo="focos" onclick="setModo(this)">
+          <span class="modo-dot" style="background:#ef4444;"></span> Focos positivos
+        </button>
+        <button class="modo-btn" data-modo="fechados" onclick="setModo(this)">
+          <span class="modo-dot" style="background:#f97316;"></span> Fechados / Recusa
+        </button>
+      </div>
+    </div>
+
+    <div class="painel-card">
+      <div class="painel-titulo">Filtros</div>
+      <div class="filtro-g">
+        <label>Data inicial</label>
+        <input type="date" id="f-d-ini" onchange="aplicarFiltros()">
+      </div>
+      <div class="filtro-g">
+        <label>Data final</label>
+        <input type="date" id="f-d-fim" onchange="aplicarFiltros()">
+      </div>
+      <div class="filtro-g">
+        <label>Localidade</label>
+        <select id="f-localidade" onchange="aplicarFiltros()">
+          <option value="">Todas</option>
+          {% for loc in localidades_glob %}<option value="{{ loc }}">{{ loc }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="filtro-g">
+        <label>Tipo de trabalho</label>
+        <div class="filtro-checks">
+          {% for tipo in TIPOS_TRABALHO %}
+          <label id="lbl-{{ tipo.codigo }}" onclick="toggleTipo('{{ tipo.codigo }}', this)">{{ tipo.codigo }}</label>
+          {% endfor %}
+        </div>
+      </div>
+      <button class="btn btn-ghost" style="width:100%;font-size:12px;margin-top:4px;" onclick="limparFiltros()">
+        <img src="/static/icons/fechar.svg" alt="✕" class="icon-svg"> Limpar filtros
+      </button>
+    </div>
+
+    <div class="painel-card">
+      <div class="painel-titulo">Resumo</div>
+      <div class="map-kpis">
+        <div class="map-kpi"><div class="val" id="kpi-trabalhados">—</div><div class="lbl">Trabalhados</div></div>
+        <div class="map-kpi"><div class="val" id="kpi-nao-trab">—</div><div class="lbl">Não trabalhados</div></div>
+        <div class="map-kpi"><div class="val" id="kpi-visitas">—</div><div class="lbl">Visitas</div></div>
+        <div class="map-kpi"><div class="val" id="kpi-focos" style="color:#ef4444;">—</div><div class="lbl">Focos</div></div>
+      </div>
+    </div>
+
+    <div class="painel-card">
+      <div class="painel-titulo">Legenda</div>
+      <div class="legenda" id="legenda-conteudo"></div>
+    </div>
+
+    <div class="painel-card">
+      <div class="painel-titulo">Quarteirão selecionado</div>
+      <div class="sel-info" id="sel-info">Clique em um quarteirão no mapa.</div>
+    </div>
+
+  </div>
+
+  <!-- ── Mapa ────────────────────────────────────────────────────── -->
+  <div class="mapa-container">
+    <div id="map-loading">Carregando mapa...</div>
+    <div id="mapa"></div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  Estado
+// ═══════════════════════════════════════════════════════════════════
+let mapaL, geojsonLayer, geojsonData;
+let dadosAPI  = {};
+let modoAtual = 'trabalhado';
+let tiposSel  = new Set({{ TIPOS_TRABALHO|map(attribute='codigo')|list|tojson }});
+
+// ═══════════════════════════════════════════════════════════════════
+//  Cores
+// ═══════════════════════════════════════════════════════════════════
+const CORES_TIPO = Object.assign({misto:'#64748b'}, WORK_TYPE_COLORS);
+function corTipoCodigo(tipo) {
+  return CORES_TIPO[tipo] || '#64748b';
+}
+
+function corTrabalhado(d) {
+  if (!d || d.total === 0) return { fill:'#94a3b8', border:'#64748b' };
+  return { fill:'#22c55e', border:'#16a34a' };
+}
+function corTipo(d) {
+  if (!d || d.total === 0) return { fill:'#94a3b8', border:'#64748b' };
+  const ativos = Object.entries(d.tipos || {})
+    .filter(([, total]) => total > 0)
+    .map(([tipo]) => tipo);
+  if (ativos.length === 1) {
+    const cor = corTipoCodigo(ativos[0]);
+    return { fill: cor + 'cc', border: cor };
+  }
+  return { fill: CORES_TIPO.misto + 'cc', border: CORES_TIPO.misto };
+}
+function corFocos(d) {
+  if (!d || d.focos === 0) return { fill:'#94a3b8', border:'#64748b' };
+  if (d.focos === 1)       return { fill:'#fde68a', border:'#f59e0b' };
+  if (d.focos <= 3)        return { fill:'#fca5a5', border:'#ef4444' };
+  return { fill:'#dc2626', border:'#991b1b' };
+}
+function corFechados(d) {
+  if (!d || d.total === 0) return { fill:'#94a3b8', border:'#64748b' };
+  const pct = (d.fechados + d.recuperados) / d.total;
+  if (pct === 0)   return { fill:'#bbf7d0', border:'#22c55e' };
+  if (pct < 0.2)   return { fill:'#fde68a', border:'#f59e0b' };
+  if (pct < 0.5)   return { fill:'#fca5a5', border:'#ef4444' };
+  return { fill:'#dc2626', border:'#991b1b' };
+}
+function obterCor(d) {
+  switch(modoAtual) {
+    case 'trabalhado': return corTrabalhado(d);
+    case 'tipo':       return corTipo(d);
+    case 'focos':      return corFocos(d);
+    case 'fechados':   return corFechados(d);
+    default:           return { fill:'#94a3b8', border:'#64748b' };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Legendas
+// ═══════════════════════════════════════════════════════════════════
+const LEGENDAS = {
+  trabalhado: [
+    { cor:'#22c55e', texto:'Trabalhado no período' },
+    { cor:'#94a3b8', texto:'Não trabalhado' },
+  ],
+  tipo: [
+    {% for tipo in TIPOS_TRABALHO %}
+    { cor:'{{ tipo.cor }}', texto:'{{ tipo.codigo }} — {{ tipo.label }}' },
+    {% endfor %}
+    { cor:'#64748b', texto:'Múltiplos tipos' },
+    { cor:'#94a3b8', texto:'Não trabalhado' },
+  ],
+  focos: [
+    { cor:'#94a3b8', texto:'Sem focos' },
+    { cor:'#fde68a', texto:'1 foco' },
+    { cor:'#fca5a5', texto:'2–3 focos' },
+    { cor:'#dc2626', texto:'4 ou mais focos' },
+  ],
+  fechados: [
+    { cor:'#bbf7d0', texto:'Sem fechados/recusas' },
+    { cor:'#fde68a', texto:'< 20%' },
+    { cor:'#fca5a5', texto:'20–50%' },
+    { cor:'#dc2626', texto:'> 50%' },
+    { cor:'#94a3b8', texto:'Não trabalhado' },
+  ],
+};
+
+function atualizarLegenda() {
+  document.getElementById('legenda-conteudo').innerHTML = LEGENDAS[modoAtual]
+    .map(l => `<div class="leg-item">
+      <div class="leg-cor" style="background:${l.cor};"></div>
+      <span>${l.texto}</span></div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Leaflet
+// ═══════════════════════════════════════════════════════════════════
+function initMapa() {
+  mapaL = L.map('mapa', { zoomControl: true });
+
+  const camadas = {
+    'Mapa': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a>', maxZoom: 19,
+    }),
+    'Satélite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: '© Esri — Earthstar Geographics', maxZoom: 19,
+    }),
+    'Satélite + Ruas': L.layerGroup([
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '© Esri', maxZoom: 19,
+      }),
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap', maxZoom: 19, opacity: 0.45,
+      }),
+    ]),
+  };
+  camadas['Mapa'].addTo(mapaL);
+  L.control.layers(camadas, {}, { position: 'topright', collapsed: false }).addTo(mapaL);
+
+  fetch('/static/quarteiroes.geojson')
+    .then(r => r.json())
+    .then(gj => {
+      geojsonData = gj;
+      renderGeoJSON();
+      esconderLoading();
+    })
+    .catch(e => { console.error('GeoJSON erro:', e); esconderLoading(); });
+}
+
+function esconderLoading() {
+  const el = document.getElementById('map-loading');
+  el.style.opacity = '0';
+  setTimeout(() => el.style.display = 'none', 300);
+}
+
+function mostrarLoading() {
+  const el = document.getElementById('map-loading');
+  el.style.display = 'flex';
+  el.style.opacity = '1';
+}
+
+function renderGeoJSON() {
+  if (geojsonLayer) { mapaL.removeLayer(geojsonLayer); }
+
+  geojsonLayer = L.geoJSON(geojsonData, {
+    style: feature => {
+      const p   = feature.properties;
+      const d   = dadosAPI[`${p.Localidade}:${p.id_quart}`];
+      const cor = obterCor(d);
+      return { fillColor: cor.fill, fillOpacity: 0.75, color: cor.border, weight: 1, opacity: 1 };
+    },
+    onEachFeature: (feature, layer) => {
+      layer.on({
+        mouseover: e => e.target.setStyle({ weight: 2.5, fillOpacity: 0.92 }),
+        mouseout:  e => geojsonLayer.resetStyle(e.target),
+        click:     e => mostrarDetalhe(feature.properties),
+      });
+    },
+  }).addTo(mapaL);
+
+  if (geojsonLayer.getBounds().isValid()) {
+    mapaL.fitBounds(geojsonLayer.getBounds(), { padding: [10, 10] });
+  }
+  atualizarKPIs();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Detalhe
+// ═══════════════════════════════════════════════════════════════════
+function mostrarDetalhe(props) {
+  const d  = dadosAPI[`${props.Localidade}:${props.id_quart}`];
+  const el = document.getElementById('sel-info');
+
+  if (!d || d.total === 0) {
+    el.innerHTML = `<strong>Quarteirão ${props.id_quart}</strong><br>
+      <span style="color:var(--text3)">Sem registros no período.</span>`;
+    return;
+  }
+
+  const tipos = Object.entries(d.tipos || {})
+    .filter(([, total]) => total > 0)
+    .map(([tipo, total]) => {
+      const cor = corTipoCodigo(tipo);
+      return `<span style="background:${cor}22;color:${cor};border:1px solid ${cor}55;
+      border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-right:3px;">${tipo}&nbsp;${total}</span>`;
+    })
+    .join('');
+
+  el.innerHTML = `
+    <strong>Quarteirão ${props.id_quart}</strong>
+    <hr style="margin:4px 0;border-color:var(--border);">
+    <div class="popup-linha"><span>Total de visitas</span><span>${d.total}</span></div>
+    <div class="popup-linha"><span>Normais</span><span>${d.normais}</span></div>
+    <div class="popup-linha"><span>Fechados</span><span>${d.fechados}</span></div>
+    <div class="popup-linha"><span>Recuperados</span><span>${d.recuperados}</span></div>
+    <div class="popup-linha" style="color:#ef4444"><span>Focos positivos</span><span><strong>${d.focos}</strong></span></div>
+    ${d.focos_pendentes > 0 ? `<div class="popup-linha" style="color:#f59e0b"><span>Focos pendentes</span><span><strong>${d.focos_pendentes}</strong></span></div>` : ''}
+    ${d.ultimo_trabalho ? `<div class="popup-linha"><span>Último trabalho</span><span>${d.ultimo_trabalho}</span></div>` : ''}
+    <div style="margin-top:6px;">${tipos}</div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  KPIs
+// ═══════════════════════════════════════════════════════════════════
+function atualizarKPIs() {
+  if (!geojsonData) return;
+  let trabalhados = 0, visitas = 0, focos = 0;
+  const total = geojsonData.features.length;
+  geojsonData.features.forEach(f => {
+    const d = dadosAPI[`${f.properties.Localidade}:${f.properties.id_quart}`];
+    if (d && d.total > 0) { trabalhados++; visitas += d.total; focos += d.focos; }
+  });
+  document.getElementById('kpi-trabalhados').textContent = trabalhados.toLocaleString('pt-BR');
+  document.getElementById('kpi-nao-trab').textContent    = (total - trabalhados).toLocaleString('pt-BR');
+  document.getElementById('kpi-visitas').textContent     = visitas.toLocaleString('pt-BR');
+  document.getElementById('kpi-focos').textContent       = focos.toLocaleString('pt-BR');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Filtros
+// ═══════════════════════════════════════════════════════════════════
+function setModo(btn) {
+  document.querySelectorAll('.modo-btn').forEach(b => b.classList.remove('ativo'));
+  btn.classList.add('ativo');
+  modoAtual = btn.dataset.modo;
+  atualizarLegenda();
+  salvarEstado();
+  if (geojsonLayer) renderGeoJSON();
+}
+
+function toggleTipo(tipo, label) {
+  if (tiposSel.has(tipo)) tiposSel.delete(tipo);
+  else                    tiposSel.add(tipo);
+  label.classList.toggle('inativo', !tiposSel.has(tipo));
+  aplicarFiltros();
+}
+
+function _hoje() {
+  return new Date().toISOString().split('T')[0];
+}
+function _nDiasAtras(n) {
+  const d = new Date(); d.setDate(d.getDate() - n);
+  return d.toISOString().split('T')[0];
+}
+
+function buildParams() {
+  const p = new URLSearchParams();
+  const v = id => document.getElementById(id).value;
+  if (v('f-localidade')) p.append('localidade', v('f-localidade'));
+  if (v('f-d-ini'))      p.append('d_ini',      v('f-d-ini'));
+  if (v('f-d-fim'))      p.append('d_fim',      v('f-d-fim'));
+  tiposSel.forEach(t => p.append('tipo', t));
+  return p;
+}
+
+function salvarEstado() {
+  salvarFiltros('mapa', {
+    localidade:document.getElementById('f-localidade').value,
+    d_ini:     document.getElementById('f-d-ini').value,
+    d_fim:     document.getElementById('f-d-fim').value,
+    tipos:     [...tiposSel],
+    modo:      modoAtual,
+  });
+}
+
+function restaurarEstado() {
+  const s = carregarFiltros('mapa');
+  if (s) {
+    if (s.localidade) document.getElementById('f-localidade').value = s.localidade;
+    if (s.d_ini)      document.getElementById('f-d-ini').value      = s.d_ini;
+    if (s.d_fim)      document.getElementById('f-d-fim').value      = s.d_fim;
+    if (s.tipos)      tiposSel = new Set(s.tipos);
+    if (s.modo)       modoAtual = s.modo;
+    // sincronizar botões de modo
+    document.querySelectorAll('.modo-btn').forEach(b => {
+      b.classList.toggle('ativo', b.dataset.modo === modoAtual);
+    });
+    // sincronizar tipo labels
+    document.querySelectorAll('.filtro-checks label').forEach(l => {
+      const t = l.id?.replace('lbl-', '');
+      if (t) l.classList.toggle('inativo', !tiposSel.has(t));
+    });
+  } else {
+    // padrão: último mês
+    document.getElementById('f-d-ini').value = _nDiasAtras(30);
+    document.getElementById('f-d-fim').value = _hoje();
+  }
+}
+
+async function aplicarFiltros() {
+  if (!geojsonData) return;
+  salvarEstado();
+  mostrarLoading();
+  try {
+    const r = await fetch('/api/mapa?' + buildParams());
+    dadosAPI = await r.json();
+    renderGeoJSON();
+  } catch(e) { console.error(e); }
+  finally { esconderLoading(); }
+}
+
+function limparFiltros() {
+  ['f-localidade','f-d-ini','f-d-fim'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('f-d-ini').value = _nDiasAtras(30);
+  document.getElementById('f-d-fim').value = _hoje();
+  tiposSel = new Set({{ TIPOS_TRABALHO|map(attribute='codigo')|list|tojson }});
+  document.querySelectorAll('.filtro-checks label').forEach(l => l.classList.remove('inativo'));
+  limparFiltrosPagina('mapa');
+  aplicarFiltros();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Init
+// ═══════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  atualizarLegenda();
+  restaurarEstado();  // carrega estado salvo ou aplica default 1 mês
+  atualizarLegenda(); // re-aplica legenda caso modo tenha mudado
+  initMapa();
+  // Dados iniciais com os filtros restaurados
+  try {
+    const r = await fetch('/api/mapa?' + buildParams());
+    dadosAPI = await r.json();
+    if (geojsonLayer) renderGeoJSON();
+  } catch(e) { console.error(e); }
+});
+</script>
+{% endblock %}

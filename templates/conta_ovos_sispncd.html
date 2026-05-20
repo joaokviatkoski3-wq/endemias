@@ -1,0 +1,441 @@
+{% extends "base.html" %}
+{% block title %}Conta Ovos e SisPNCD{% endblock %}
+{% block page_title %}Conta Ovos e SisPNCD{% endblock %}
+
+{% block extra_css %}<style>
+.module-tabbar {
+  position:relative; z-index:30; margin:0 0 18px;
+  display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  padding:8px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); box-shadow:var(--shadow);
+}
+.module-tab-btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  min-height:38px; padding:8px 16px; border-radius:var(--radius-sm);
+  border:1.5px solid var(--border); background:var(--surface2);
+  color:var(--text2); font-size:13px; font-weight:700;
+  text-decoration:none; white-space:nowrap;
+}
+.module-tab-btn:hover { border-color:var(--brand); color:var(--brand); background:var(--brand-xs); }
+.module-tab-btn.active { background:var(--brand); border-color:var(--brand); color:#fff; }
+.module-tab-btn.active .icon-svg { filter:brightness(0) invert(1) !important; }
+.module-pane, .sis-pane { display:none; }
+.module-pane.active, .sis-pane.active { display:block; position:relative; z-index:1; }
+.metric-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:16px; }
+.metric {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:14px; box-shadow:var(--shadow);
+}
+.metric-label { font-size:10px; color:var(--text3); font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
+.metric-value { font-size:26px; color:var(--brand); font-weight:700; line-height:1.1; margin-top:4px; font-variant-numeric:tabular-nums; }
+.subsection-title {
+  font-size:12px; font-weight:700; color:var(--brand); text-transform:uppercase;
+  letter-spacing:.4px; margin:0 0 10px; display:flex; align-items:center; gap:6px;
+}
+.split-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+.read-only-note {
+  display:flex; align-items:center; gap:8px; color:var(--amber);
+  background:var(--amber-l); border:1px solid rgba(217,119,6,.25);
+  border-radius:var(--radius); padding:10px 12px; font-size:12px; font-weight:600;
+}
+[data-theme="dark"] .read-only-note { background:rgba(251,191,36,.12); }
+.empty-inline { color:var(--text3); font-size:12px; padding:18px; text-align:center; }
+.sispncd-actions { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
+.sispncd-actions .f-g { min-width:190px; }
+@media(max-width:900px) { .split-grid { grid-template-columns:1fr; } }
+</style>{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><span class="icon"><img src="/static/icons/fichario.svg" alt="" class="icon-svg"></span> Conta Ovos e SisPNCD</h1>
+  <div class="sub">Consultas operacionais sobre TBO, boletim de ovos e consolidado SisPNCD</div>
+</div>
+
+<div class="module-tabbar" aria-label="Alternar modulo">
+  <button class="module-tab-btn active" type="button" onclick="openModuleTab('tab-conta-ovos', this)">
+    <img src="/static/icons/balde.svg" alt="" class="icon-svg"> Conta Ovos
+  </button>
+  <button class="module-tab-btn" type="button" onclick="openModuleTab('tab-sispncd', this)">
+    <img src="/static/icons/fichario.svg" alt="" class="icon-svg"> SisPNCD
+  </button>
+</div>
+
+<section id="tab-conta-ovos" class="module-pane active">
+  <div class="filter-card">
+    <div class="filter-hd" data-target="co-filter" onclick="toggleFilter('co-filter')">
+      <div class="filter-hd-left">
+        <span><img src="/static/icons/busca.svg" alt="" class="icon-svg"></span>
+        <span class="filter-hd-title">Filtros Conta Ovos</span>
+        <span class="filter-hd-count" id="co-total-info"></span>
+      </div>
+      <span class="filter-toggle open">v</span>
+    </div>
+    <div class="filter-body open" id="co-filter">
+      <div class="filter-grid">
+        <div class="f-g">
+          <label>Data</label>
+          <input type="date" id="co-data" value="{{ default_conta_ovos.data }}">
+        </div>
+        <div class="f-g">
+          <label>Quarteirao</label>
+          <input type="number" id="co-quarteirao" value="{{ default_conta_ovos.quarteirao }}" min="0" placeholder="Numero">
+        </div>
+        <div class="f-g">
+          <label>Localidade</label>
+          <select id="co-localidade">
+            <option value="">Todas</option>
+            {% for loc in localidades %}
+            <option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="filter-actions">
+        <button class="btn btn-primary" type="button" onclick="buscarContaOvos()"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+        <button class="btn btn-ghost" type="button" disabled title="Gravacao desativada nesta fase"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar status desativado</button>
+        <span class="dim small">Somente TBO com CONTAOVOS_STATUS = 0</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="metric-grid">
+    <div class="metric">
+      <div class="metric-label">Visitas e pendencias</div>
+      <div class="metric-value" id="co-total-visitas">0</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Positivas</div>
+      <div class="metric-value" id="co-total-positivas">0</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Tratadas</div>
+      <div class="metric-value" id="co-total-tratadas">0</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Larvicida mg</div>
+      <div class="metric-value" id="co-total-larvicida">0</div>
+    </div>
+  </div>
+
+  <div class="split-grid">
+    <div class="chart-card">
+      <h2 class="subsection-title"><img src="/static/icons/casas.svg" alt="" class="icon-svg"> Imoveis</h2>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Tipo</th><th>Visitas</th><th>Pendencias</th><th>Positivas</th><th>Tratadas</th></tr></thead>
+        <tbody id="co-imoveis-body"></tbody>
+      </table></div>
+    </div>
+    <div class="chart-card">
+      <h2 class="subsection-title"><img src="/static/icons/balde.svg" alt="" class="icon-svg"> Depositos</h2>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Tipo</th><th>Quantidade</th><th>Eliminado</th><th>Tratado</th><th>Larvicida mg</th></tr></thead>
+        <tbody id="co-depositos-body"></tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<section id="tab-sispncd" class="module-pane">
+  <div class="filter-card">
+    <div class="filter-hd" data-target="sis-filter" onclick="toggleFilter('sis-filter')">
+      <div class="filter-hd-left">
+        <span><img src="/static/icons/busca.svg" alt="" class="icon-svg"></span>
+        <span class="filter-hd-title">Filtros SisPNCD</span>
+        <span class="filter-hd-count" id="sis-periodo"></span>
+      </div>
+      <span class="filter-toggle open">v</span>
+    </div>
+    <div class="filter-body open" id="sis-filter">
+      <div class="filter-grid">
+        <div class="f-g">
+          <label>Semana epidemiologica</label>
+          <input type="number" id="sis-semana" min="1" max="53" value="{{ default_semana }}">
+        </div>
+        <div class="f-g">
+          <label>Ano</label>
+          <input type="number" id="sis-ano" min="2020" max="2099" value="{{ default_ano }}">
+        </div>
+        <div class="f-g">
+          <label>Localidade</label>
+          <select id="sis-localidade">
+            <option value="">Todas</option>
+            {% for loc in localidades %}
+            <option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <div class="f-g" style="margin-bottom:8px;"><label>Tipo de trabalho</label></div>
+        <div class="pill-group">
+          <div class="pill"><input type="checkbox" id="sis-tb-tbo" value="TB/TBO" checked><label for="sis-tb-tbo"><span class="dot"></span>TB/TBO</label></div>
+          <div class="pill"><input type="checkbox" id="sis-pve" value="PVE" checked><label for="sis-pve"><span class="dot"></span>PVE</label></div>
+          <div class="pill"><input type="checkbox" id="sis-pe" value="PE" checked><label for="sis-pe"><span class="dot"></span>PE</label></div>
+        </div>
+      </div>
+      <div class="sispncd-actions">
+        <button class="btn btn-primary" type="button" onclick="buscarSisPNCD()"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Pesquisar</button>
+        <div class="f-g">
+          <label>Codigo SisPNCD</label>
+          <input type="text" id="sis-codigo" maxlength="9" placeholder="0000/0000" disabled>
+        </div>
+        <button class="btn btn-ghost" type="button" disabled title="Gravacao desativada nesta fase"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar desativado</button>
+        <div class="read-only-note"><img src="/static/icons/cadeado.svg" alt="" class="icon-svg"> Modo leitura: nenhuma consulta desta pagina grava no banco.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabs-bar">
+    <button class="tab-btn active" type="button" onclick="openSisTab('sis-dados', this)">Dados gerais</button>
+    <button class="tab-btn" type="button" onclick="openSisTab('sis-lab', this)">Laboratorio</button>
+  </div>
+
+  <div id="sis-dados" class="sis-pane active">
+    <div class="metric-grid">
+      <div class="metric"><div class="metric-label">Quarteiroes TB/TBO</div><div class="metric-value" id="sis-total-quarteiroes">0</div></div>
+      <div class="metric"><div class="metric-label">Imoveis inspecionados</div><div class="metric-value" id="sis-imoveis-inspecionados">0</div></div>
+      <div class="metric"><div class="metric-label">Coletas</div><div class="metric-value" id="sis-total-coletas">0</div></div>
+      <div class="metric"><div class="metric-label">Agentes</div><div class="metric-value" id="sis-total-agentes">0</div></div>
+      <div class="metric"><div class="metric-label">Dias trabalhados</div><div class="metric-value" id="sis-total-dias">0</div></div>
+    </div>
+
+    <div class="split-grid">
+      <div class="chart-card">
+        <h2 class="subsection-title"><img src="/static/icons/casas.svg" alt="" class="icon-svg"> Imoveis trabalhados</h2>
+        <div class="metric-grid">
+          <div class="metric"><div class="metric-label">Residencia</div><div class="metric-value" id="sis-imoveis-residencia">0</div></div>
+          <div class="metric"><div class="metric-label">Comercio</div><div class="metric-value" id="sis-imoveis-comercio">0</div></div>
+          <div class="metric"><div class="metric-label">TB</div><div class="metric-value" id="sis-imoveis-tb">0</div></div>
+          <div class="metric"><div class="metric-label">PE</div><div class="metric-value" id="sis-imoveis-pe">0</div></div>
+          <div class="metric"><div class="metric-label">Outros</div><div class="metric-value" id="sis-imoveis-outros">0</div></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h2 class="subsection-title"><img src="/static/icons/alerta.svg" alt="" class="icon-svg"> Pendencias</h2>
+        <div class="metric-grid">
+          <div class="metric"><div class="metric-label">Recusas</div><div class="metric-value" id="sis-pendencias-recusa">0</div></div>
+          <div class="metric"><div class="metric-label">Fechados</div><div class="metric-value" id="sis-pendencias-fechado">0</div></div>
+          <div class="metric"><div class="metric-label">Recuperados</div><div class="metric-value" id="sis-pendencias-recuperado">0</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="split-grid">
+      <div class="chart-card">
+        <h2 class="subsection-title"><img src="/static/icons/balde.svg" alt="" class="icon-svg"> Depositos inspecionados</h2>
+        <div class="metric-grid" id="sis-depositos-grid"></div>
+      </div>
+      <div class="chart-card">
+        <h2 class="subsection-title"><img src="/static/icons/comprimido.svg" alt="" class="icon-svg"> Tratamento</h2>
+        <div class="metric-grid">
+          <div class="metric"><div class="metric-label">Imoveis tratados</div><div class="metric-value" id="sis-imoveis-tratados">0</div></div>
+          <div class="metric"><div class="metric-label">Depositos eliminados</div><div class="metric-value" id="sis-total-eliminados">0</div></div>
+          <div class="metric"><div class="metric-label">Tratamentos</div><div class="metric-value" id="sis-total-tratados">0</div></div>
+        </div>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Tipo</th><th>Quantidade</th><th>Carga</th></tr></thead>
+          <tbody id="sis-tratamentos-body"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="sis-lab" class="sis-pane">
+    <div class="split-grid">
+      <div class="chart-card">
+        <h2 class="subsection-title"><img src="/static/icons/mosquito.svg" alt="" class="icon-svg"> Depositos com Aedes aegypti</h2>
+        <div class="table-scroll"><table><thead><tr><th>Deposito</th><th>Quantidade</th></tr></thead><tbody id="sis-dep-aegypti-body"></tbody></table></div>
+      </div>
+      <div class="chart-card">
+        <h2 class="subsection-title"><img src="/static/icons/mosquito.svg" alt="" class="icon-svg"> Depositos com Aedes albopictus</h2>
+        <div class="table-scroll"><table><thead><tr><th>Deposito</th><th>Quantidade</th></tr></thead><tbody id="sis-dep-albopictus-body"></tbody></table></div>
+      </div>
+    </div>
+
+    <div class="chart-card" style="margin-bottom:14px;">
+      <h2 class="subsection-title"><img src="/static/icons/casas.svg" alt="" class="icon-svg"> Imoveis positivos por especie</h2>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Especie</th><th>Residencia</th><th>Comercio</th><th>TB</th><th>PE</th><th>Outros</th></tr></thead>
+        <tbody id="sis-imoveis-especies-body"></tbody>
+      </table></div>
+    </div>
+
+    <div class="split-grid">
+      <div class="chart-card">
+        <h2 class="subsection-title"><img src="/static/icons/tubo_ensaio.svg" alt="" class="icon-svg"> Exemplares</h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Especie</th><th>Larvas</th><th>Pupas</th><th>Exuvias</th><th>Adultos</th></tr></thead>
+          <tbody id="sis-exemplares-body"></tbody>
+        </table></div>
+      </div>
+      <div class="chart-card">
+        <h2 class="subsection-title"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Quarteiroes positivos</h2>
+        <div class="metric-grid">
+          <div class="metric"><div class="metric-label">Aegypti</div><div class="metric-value" id="sis-quarteiroes-aegypti">0</div></div>
+          <div class="metric"><div class="metric-label">Albopictus</div><div class="metric-value" id="sis-quarteiroes-albopictus">0</div></div>
+          <div class="metric"><div class="metric-label">Ambas</div><div class="metric-value" id="sis-quarteiroes-ambas">0</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}<script>
+const KIND_LABELS = {
+  residencia: 'Residencia',
+  comercio: 'Comercio',
+  tb: 'Terreno baldio',
+  pe: 'Ponto estrategico',
+  outros: 'Outros'
+};
+const DEPOSIT_CODES = ['a1','a2','b','c','d1','d2','e'];
+
+function openModuleTab(id, btn) {
+  document.querySelectorAll('.module-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.module-tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+function openSisTab(id, btn) {
+  document.querySelectorAll('.sis-pane').forEach(p => p.classList.remove('active'));
+  btn.closest('.tabs-bar').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = fmtNum(value || 0);
+}
+function tableRows(rows, emptyText, cols) {
+  if (!rows.length) return `<tr><td colspan="${cols}" class="empty-inline">${emptyText}</td></tr>`;
+  return rows.join('');
+}
+
+async function buscarContaOvos() {
+  const p = new URLSearchParams();
+  p.set('data', document.getElementById('co-data').value || '');
+  p.set('quarteirao', document.getElementById('co-quarteirao').value || '');
+  const loc = document.getElementById('co-localidade').value;
+  if (loc) p.set('localidade', loc);
+  try {
+    const d = await apiGet('/api/conta-ovos?' + p.toString());
+    renderContaOvos(d);
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+function renderContaOvos(d) {
+  const imoveis = d.imoveis || {};
+  const depositos = d.depositos || {};
+  let positivas = 0, tratadas = 0, larvicida = 0;
+  const rowsImoveis = Object.keys(KIND_LABELS).map(k => {
+    const r = imoveis[k] || {};
+    positivas += Number(r.positivas || 0);
+    tratadas += Number(r.tratadas || 0);
+    return `<tr><td>${KIND_LABELS[k]}</td><td>${fmtNum(r.visitas)}</td><td>${fmtNum(r.pendencias)}</td><td>${fmtNum(r.positivas)}</td><td>${fmtNum(r.tratadas)}</td></tr>`;
+  });
+  const rowsDepositos = DEPOSIT_CODES.map(k => {
+    const r = depositos[k] || {};
+    larvicida += Number(r.larvicida_mg || 0);
+    return `<tr><td>${k.toUpperCase()}</td><td>${fmtNum(r.quantidade)}</td><td>${fmtNum(r.eliminado)}</td><td>${fmtNum(r.tratado)}</td><td>${fmtNum(r.larvicida_mg)}</td></tr>`;
+  });
+  document.getElementById('co-imoveis-body').innerHTML = rowsImoveis.join('');
+  document.getElementById('co-depositos-body').innerHTML = rowsDepositos.join('');
+  setText('co-total-visitas', d.total_visitas);
+  setText('co-total-positivas', positivas);
+  setText('co-total-tratadas', tratadas);
+  setText('co-total-larvicida', larvicida);
+  document.getElementById('co-total-info').textContent = `${fmtNum(d.total_visitas)} registros`;
+}
+
+function tiposSisSelecionados() {
+  const tipos = [];
+  if (document.getElementById('sis-tb-tbo').checked) tipos.push('TB/TBO');
+  if (document.getElementById('sis-pve').checked) tipos.push('PVE');
+  if (document.getElementById('sis-pe').checked) tipos.push('PE');
+  return tipos;
+}
+
+async function buscarSisPNCD() {
+  const p = new URLSearchParams();
+  p.set('semana', document.getElementById('sis-semana').value || '');
+  p.set('ano', document.getElementById('sis-ano').value || '');
+  const loc = document.getElementById('sis-localidade').value;
+  if (loc) p.set('localidade', loc);
+  tiposSisSelecionados().forEach(t => p.append('tipo', t));
+  try {
+    const d = await apiGet('/api/sispncd/pesquisar?' + p.toString());
+    renderSisPNCD(d);
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+function renderSisPNCD(d) {
+  const g = d.dados_gerais || {};
+  const lab = d.laboratorio || {};
+  document.getElementById('sis-periodo').textContent = `${fmtDate(d.data_inicio)} a ${fmtDate(d.data_fim)}`;
+  setText('sis-total-quarteiroes', g.total_quarteiroes);
+  setText('sis-imoveis-inspecionados', g.imoveis_inspecionados);
+  setText('sis-total-coletas', g.total_coletas);
+  setText('sis-total-agentes', g.total_agentes);
+  setText('sis-total-dias', g.total_dias);
+  Object.keys(KIND_LABELS).forEach(k => setText(`sis-imoveis-${k}`, (g.imoveis || {})[k]));
+  setText('sis-imoveis-tratados', g.imoveis_tratados);
+  setText('sis-total-eliminados', g.total_eliminados);
+  setText('sis-total-tratados', g.total_tratados);
+  setText('sis-pendencias-recusa', (g.pendencias || {}).recusa);
+  setText('sis-pendencias-fechado', (g.pendencias || {}).fechado);
+  setText('sis-pendencias-recuperado', (g.pendencias || {}).recuperado);
+
+  const deps = g.depositos || {};
+  document.getElementById('sis-depositos-grid').innerHTML = DEPOSIT_CODES.map(k => `
+    <div class="metric"><div class="metric-label">${k.toUpperCase()}</div><div class="metric-value">${fmtNum(deps[k] || 0)}</div></div>
+  `).join('');
+
+  const tratamentos = (g.tratamentos || []).map(r => `<tr><td>${r.tipo}</td><td>${fmtNum(r.quantidade)}</td><td>${fmtNum(r.carga_kg)}</td></tr>`);
+  document.getElementById('sis-tratamentos-body').innerHTML = tableRows(tratamentos, 'Sem tratamentos no periodo.', 3);
+
+  renderDepositTable('sis-dep-aegypti-body', lab.depositos_aegypti || []);
+  renderDepositTable('sis-dep-albopictus-body', lab.depositos_albopictus || []);
+  renderSpeciesKindTable(lab);
+  renderExemplares(lab);
+  setText('sis-quarteiroes-aegypti', lab.quarteiroes_aegypti);
+  setText('sis-quarteiroes-albopictus', lab.quarteiroes_albopictus);
+  setText('sis-quarteiroes-ambas', lab.quarteiroes_ambas);
+}
+
+function renderDepositTable(id, rows) {
+  const htmlRows = rows.map(r => `<tr><td>${r.tipo_deposito || '-'}</td><td>${fmtNum(r.quantidade)}</td></tr>`);
+  document.getElementById(id).innerHTML = tableRows(htmlRows, 'Sem depositos positivos no periodo.', 2);
+}
+
+function renderSpeciesKindTable(lab) {
+  const sources = [
+    ['Aedes aegypti', lab.imoveis_aegypti || {}],
+    ['Aedes albopictus', lab.imoveis_albopictus || {}],
+    ['Outras especies', lab.imoveis_outras || {}],
+  ];
+  document.getElementById('sis-imoveis-especies-body').innerHTML = sources.map(([label, data]) => `
+    <tr><td>${label}</td>${Object.keys(KIND_LABELS).map(k => `<td>${fmtNum(data[k] || 0)}</td>`).join('')}</tr>
+  `).join('');
+}
+
+function renderExemplares(lab) {
+  const sources = [
+    ['Aedes aegypti', lab.exemplares_aegypti || {}],
+    ['Aedes albopictus', lab.exemplares_albopictus || {}],
+    ['Outras especies', lab.exemplares_outras || {}],
+  ];
+  document.getElementById('sis-exemplares-body').innerHTML = sources.map(([label, data]) => `
+    <tr><td>${label}</td><td>${fmtNum(data.larvas)}</td><td>${fmtNum(data.pupas)}</td><td>${fmtNum(data.exuvias)}</td><td>${fmtNum(data.adultos)}</td></tr>
+  `).join('');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  buscarContaOvos();
+  buscarSisPNCD();
+});
+</script>{% endblock %}

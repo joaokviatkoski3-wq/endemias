@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatório — {{ agente }}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#000;background:#fff;}
+
+.screen-bar{
+  position:fixed;top:0;left:0;right:0;z-index:999;
+  background:#1a4fba;color:#fff;
+  display:flex;align-items:center;gap:12px;padding:10px 20px;font-size:13px;
+}
+.screen-bar button{background:#fff;color:#1a4fba;border:none;border-radius:6px;padding:6px 16px;font-size:13px;font-weight:700;cursor:pointer;}
+.screen-bar a{color:rgba(255,255,255,.7);text-decoration:none;font-size:12px;}
+.spacer{height:46px;}
+
+.pagina{max-width:21cm;margin:20px auto;padding:1.5cm 2cm;border:1px solid #ccc;}
+
+.cab{display:flex;align-items:center;margin-bottom:18pt;}
+.cab-logo{width:3cm;text-align:center;flex-shrink:0;}
+.cab-logo img{max-height:2.5cm;max-width:2.5cm;object-fit:contain;}
+.cab-titulo{flex:1;text-align:center;padding:0 8px;}
+.cab-titulo .org{font-size:10pt;font-weight:700;margin-bottom:2pt;}
+.cab-titulo .sub{font-size:8pt;color:#444;line-height:1.5;}
+
+.secao{font-size:11pt;font-weight:700;color:#1a4fba;border-bottom:2px solid #1a4fba;padding-bottom:3pt;margin:14pt 0 8pt;}
+
+.hero{background:#f0f4ff;border:1px solid #c7d4f5;border-radius:6pt;padding:12pt;margin-bottom:14pt;}
+.hero-nome{font-size:16pt;font-weight:700;color:#1a4fba;margin-bottom:2pt;}
+.hero-sub{font-size:9pt;color:#555;}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8pt;margin-bottom:14pt;}
+.kpi{background:#f8faff;border:1px solid #dde4f5;border-radius:4pt;padding:8pt;text-align:center;}
+.kpi-val{font-size:16pt;font-weight:700;color:#1a4fba;}
+.kpi-lbl{font-size:7.5pt;color:#555;text-transform:uppercase;letter-spacing:.3px;margin-top:2pt;}
+.kpi.green .kpi-val{color:#16a34a;}
+.kpi.red   .kpi-val{color:#dc2626;}
+.kpi.amber .kpi-val{color:#d97706;}
+.kpi.teal  .kpi-val{color:#0d9488;}
+
+.periodo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8pt;margin-bottom:12pt;}
+.periodo-card{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4pt;padding:10pt;text-align:center;}
+.periodo-card.tarde{background:#fffbeb;border-color:#fde68a;}
+.periodo-titulo{font-size:9pt;font-weight:700;color:#064e3b;margin-bottom:6pt;}
+.periodo-card.tarde .periodo-titulo{color:#92400e;}
+.periodo-val{font-size:18pt;font-weight:700;color:#1a4fba;}
+.periodo-sub{font-size:8pt;color:#555;margin-top:2pt;}
+
+table{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:12pt;}
+th{background:#1a4fba;color:#fff;padding:5pt 7pt;text-align:left;font-weight:700;}
+td{padding:4pt 7pt;border-bottom:1px solid #e5e7eb;}
+tr:nth-child(even) td{background:#f8faff;}
+.center{text-align:center;}
+.right{text-align:right;}
+.comp-acima{color:#16a34a;font-weight:700;}
+.comp-abaixo{color:#dc2626;font-weight:700;}
+.comp-igual{color:#6b7280;}
+
+.tbo-cards{display:grid;grid-template-columns:1fr 1fr;gap:8pt;margin-bottom:12pt;}
+.tbo-card{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4pt;padding:10pt;}
+.tbo-card.amber{background:#fffbeb;border-color:#fde68a;}
+.tbo-card-titulo{font-size:9pt;font-weight:700;color:#064e3b;margin-bottom:6pt;}
+.tbo-card.amber .tbo-card-titulo{color:#92400e;}
+.tbo-stat{display:flex;justify-content:space-between;font-size:9pt;padding:2pt 0;border-bottom:1px solid #d1fae5;}
+.tbo-card.amber .tbo-stat{border-bottom-color:#fde68a;}
+.tbo-stat:last-child{border-bottom:none;}
+.tbo-stat-val{font-weight:700;}
+
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:12pt;margin-bottom:12pt;}
+.chart-box{background:#f8faff;border:1px solid #dde4f5;border-radius:4pt;padding:10pt;}
+.chart-titulo{font-size:9pt;font-weight:700;color:#1a4fba;margin-bottom:8pt;}
+
+.dias-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(55pt,1fr));gap:4pt;margin-bottom:12pt;}
+.dia-item{background:#f8faff;border:1px solid #dde4f5;border-radius:3pt;padding:4pt;text-align:center;}
+.dia-data{font-size:7pt;color:#64748b;}
+.dia-val{font-size:11pt;font-weight:700;color:#1a4fba;}
+
+.rodape{font-size:7pt;color:#888;text-align:center;margin-top:20pt;border-top:1px solid #e5e7eb;padding-top:6pt;}
+
+@media print{
+  .screen-bar,.spacer{display:none!important;}
+  .pagina{max-width:100%;margin:0;padding:1cm 1.5cm;border:none;}
+  @page{margin:1cm 1.5cm;}
+}
+</style>
+</head>
+<body>
+
+<div class="screen-bar">
+  <button onclick="window.print()">Imprimir / Salvar PDF</button>
+  <a href="javascript:window.close()">&#10005; Fechar</a>
+  <span style="margin-left:auto;opacity:.6;font-size:11px;">Use "Salvar como PDF" no diálogo de impressão</span>
+</div>
+<div class="spacer"></div>
+
+<div class="pagina">
+
+  <!-- Cabeçalho -->
+  <div class="cab">
+    <div class="cab-logo"><img src="/static/img/logo_prefeitura.png" alt=""></div>
+    <div class="cab-titulo">
+      <div class="org">PREFEITURA MUNICIPAL DE ALMIRANTE TAMANDARÉ</div>
+      <div class="sub">Secretaria Municipal de Saúde<br>Vigilância Ambiental em Saúde — Setor de Endemias</div>
+    </div>
+    <div class="cab-logo"><img src="/static/img/logo_endemias.png" alt=""></div>
+  </div>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-nome">{{ agente }}</div>
+    <div class="hero-sub">
+      Agente de Endemias &nbsp;·&nbsp;
+      {% set pi = d_ini.split('-') %}{% set pf = d_fim.split('-') %}
+      Período: {{ pi[2] }}/{{ pi[1] }}/{{ pi[0] }} a {{ pf[2] }}/{{ pf[1] }}/{{ pf[0] }} &nbsp;·&nbsp;
+      Gerado em: {{ now }}
+    </div>
+  </div>
+
+  <!-- KPIs gerais -->
+  <div class="secao">Resumo geral</div>
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-val">{{ totais.total or 0 }}</div><div class="kpi-lbl">Total de visitas</div></div>
+    <div class="kpi"><div class="kpi-val">{{ totais.dias or 0 }}</div><div class="kpi-lbl">Dias trabalhados</div></div>
+    <div class="kpi"><div class="kpi-val">{{ media_dia }}</div><div class="kpi-lbl">Média / dia</div></div>
+    <div class="kpi"><div class="kpi-val">{{ totais.quarteiroes or 0 }}</div><div class="kpi-lbl">Quarteirões</div></div>
+    <div class="kpi green"><div class="kpi-val">{{ totais.normais or 0 }}</div><div class="kpi-lbl">Normais ({{ taxa_normal }}%)</div></div>
+    <div class="kpi amber"><div class="kpi-val">{{ totais.fechados or 0 }}</div><div class="kpi-lbl">Fechados</div></div>
+    <div class="kpi"><div class="kpi-val">{{ totais.recuperados or 0 }}</div><div class="kpi-lbl">Recuperados</div></div>
+    <div class="kpi red"><div class="kpi-val">{{ totais.recusados or 0 }}</div><div class="kpi-lbl">Recusas</div></div>
+    {% if dep %}
+    <div class="kpi teal"><div class="kpi-val">{{ dep.insp or 0 }}</div><div class="kpi-lbl">Dep. inspecionados</div></div>
+    <div class="kpi"><div class="kpi-val">{{ dep.elim or 0 }}</div><div class="kpi-lbl">Dep. eliminados</div></div>
+    <div class="kpi"><div class="kpi-val">{{ dep.trat or 0 }}</div><div class="kpi-lbl">Dep. tratados</div></div>
+    {% endif %}
+    {% if col and col.total %}
+    <div class="kpi teal"><div class="kpi-val">{{ col.total }}</div><div class="kpi-lbl">Coletas</div></div>
+    <div class="kpi red"><div class="kpi-val">{{ col.pos_aeg }}</div><div class="kpi-lbl">Positivos Ae. aegypti</div></div>
+    <div class="kpi"><div class="kpi-val">{{ ((col.pos_aeg / col.total) * 100) | round(1) if col.total else 0 }}%</div><div class="kpi-lbl">Índice positividade</div></div>
+    {% endif %}
+  </div>
+
+  <!-- Média por período -->
+  {% if por_periodo %}
+  <div class="secao">Média por período do dia</div>
+  <div class="periodo-grid">
+    <div class="periodo-card">
+      <div class="periodo-titulo">Manha (ate 12h)</div>
+      <div class="periodo-val">{{ por_periodo.manha.total if por_periodo.manha else '—' }}</div>
+      <div class="periodo-sub">visitas &nbsp;·&nbsp; media {{ por_periodo.manha.media if por_periodo.manha else '—' }} / dia com visitas matutinas</div>
+    </div>
+    <div class="periodo-card tarde">
+      <div class="periodo-titulo">Tarde (a partir de 12h)</div>
+      <div class="periodo-val">{{ por_periodo.tarde.total if por_periodo.tarde else '—' }}</div>
+      <div class="periodo-sub">visitas &nbsp;·&nbsp; media {{ por_periodo.tarde.media if por_periodo.tarde else '—' }} / dia com visitas vespertinas</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Por tipo de trabalho -->
+  <div class="secao">Visitas por tipo de trabalho</div>
+  <table>
+    <thead><tr>
+      <th>Tipo</th><th class="center">Total</th><th class="center">Normais</th>
+      <th class="center">Fechados</th><th class="center">Recuperados</th><th class="center">Recusas</th>
+    </tr></thead>
+    <tbody>
+    {% for r in por_tipo %}
+    <tr>
+      <td><strong>{{ r.tipo }}</strong> — {{ TIPO_LABELS.get(r.tipo, r.tipo) }}</td>
+      <td class="center">{{ r.total }}</td><td class="center">{{ r.normais }}</td>
+      <td class="center">{{ r.fechados }}</td><td class="center">{{ r.recuperados }}</td>
+      <td class="center">{{ r.recusados }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Por localidade -->
+  <div class="secao">Visitas por localidade</div>
+  <table>
+    <thead><tr><th>Localidade</th><th class="right">Visitas</th><th class="right">% do total</th></tr></thead>
+    <tbody>
+    {% for r in por_loc %}
+    <tr>
+      <td>{{ r.localidade or '—' }}</td>
+      <td class="right">{{ r.total }}</td>
+      <td class="right">{{ ((r.total / totais.total) * 100) | round(1) if totais.total else 0 }}%</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Gráficos distribuição -->
+  <div class="secao">Gráficos de distribuição</div>
+  <div class="chart-row">
+    <div class="chart-box">
+      <div class="chart-titulo">Visitas por tipo de trabalho</div>
+      <canvas id="chTipo" height="180"></canvas>
+    </div>
+    <div class="chart-box">
+      <div class="chart-titulo">Visitas por localidade</div>
+      <canvas id="chLoc" height="180"></canvas>
+    </div>
+  </div>
+
+  <!-- Tempo TBO -->
+  {% if tbo_por_grupo %}
+  <div class="secao">Tempo por visita TBO — Acessados vs Não acessados</div>
+  <div class="tbo-cards">
+    {% if tbo_por_grupo.acessados %}
+    {% set ag = tbo_por_grupo.acessados %}
+    <div class="tbo-card">
+      <div class="tbo-card-titulo">Imóveis acessados (Normal / Recuperado) — {{ ag.n }} visitas</div>
+      <div class="tbo-stat"><span>Tempo médio</span><span class="tbo-stat-val">{{ ag.media }}min</span></div>
+      <div class="tbo-stat"><span>Mínimo</span><span class="tbo-stat-val">{{ ag.minimo }}min</span></div>
+      <div class="tbo-stat"><span>Máximo</span><span class="tbo-stat-val">{{ ag.maximo }}min</span></div>
+    </div>
+    {% endif %}
+    {% if tbo_por_grupo.nao_acessados %}
+    {% set na = tbo_por_grupo.nao_acessados %}
+    <div class="tbo-card amber">
+      <div class="tbo-card-titulo">Imóveis não acessados (Fechado / Recusa) — {{ na.n }} visitas</div>
+      <div class="tbo-stat"><span>Tempo médio</span><span class="tbo-stat-val">{{ na.media }}min</span></div>
+      <div class="tbo-stat"><span>Mínimo</span><span class="tbo-stat-val">{{ na.minimo }}min</span></div>
+      <div class="tbo-stat"><span>Máximo</span><span class="tbo-stat-val">{{ na.maximo }}min</span></div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if tbo_por_grupo.acessados or tbo_por_grupo.nao_acessados %}
+  <div class="chart-row">
+    <div class="chart-box">
+      <div class="chart-titulo">Tempo médio (min)</div>
+      <canvas id="chTboMedia" height="160"></canvas>
+    </div>
+    <div class="chart-box">
+      <div class="chart-titulo">Mínimo / Máximo (min)</div>
+      <canvas id="chTboMinMax" height="160"></canvas>
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  <!-- Comparação com média geral -->
+  {% if comparacao and comparacao.num_agentes > 1 %}
+  <div class="secao">Comparação com a média geral dos agentes</div>
+  <p style="font-size:8.5pt;color:#555;margin-bottom:8pt;">
+    Baseado em {{ comparacao.num_agentes }} agentes com registros no mesmo período. Nenhum agente é identificado individualmente.
+  </p>
+  <table>
+    <thead><tr>
+      <th>Indicador</th>
+      <th class="center">Este agente</th>
+      <th class="center">Média geral</th>
+      <th class="center">Diferença</th>
+    </tr></thead>
+    <tbody>
+    {% set tv = totais.total or 0 %}
+    {% set cmp = comparacao %}
+
+    {# total #}
+    {% set d = tv - cmp.media_total %}
+    <tr>
+      <td>Total de visitas</td>
+      <td class="center">{{ tv }}</td>
+      <td class="center">{{ cmp.media_total }}</td>
+      <td class="center {% if d > 0 %}comp-acima{% elif d < 0 %}comp-abaixo{% else %}comp-igual{% endif %}">
+        {{ '+' if d > 0 else '' }}{{ d | round(1) }}
+      </td>
+    </tr>
+
+    {# media dia #}
+    {% set d = media_dia - cmp.media_dia %}
+    <tr>
+      <td>Média de visitas / dia</td>
+      <td class="center">{{ media_dia }}</td>
+      <td class="center">{{ cmp.media_dia }}</td>
+      <td class="center {% if d > 0 %}comp-acima{% elif d < 0 %}comp-abaixo{% else %}comp-igual{% endif %}">
+        {{ '+' if d > 0 else '' }}{{ d | round(1) }}
+      </td>
+    </tr>
+
+    {# normais #}
+    {% set d = (totais.normais or 0) - cmp.media_normais %}
+    <tr>
+      <td>Visitas normais</td>
+      <td class="center">{{ totais.normais or 0 }}</td>
+      <td class="center">{{ cmp.media_normais }}</td>
+      <td class="center {% if d > 0 %}comp-acima{% elif d < 0 %}comp-abaixo{% else %}comp-igual{% endif %}">
+        {{ '+' if d > 0 else '' }}{{ d | round(1) }}
+      </td>
+    </tr>
+
+    {# fechados #}
+    {% set d = (totais.fechados or 0) - cmp.media_fechados %}
+    <tr>
+      <td>Imóveis fechados</td>
+      <td class="center">{{ totais.fechados or 0 }}</td>
+      <td class="center">{{ cmp.media_fechados }}</td>
+      <td class="center {% if d > 0 %}comp-abaixo{% elif d < 0 %}comp-acima{% else %}comp-igual{% endif %}">
+        {{ '+' if d > 0 else '' }}{{ d | round(1) }}
+      </td>
+    </tr>
+
+    {# recuperados #}
+    {% set d = (totais.recuperados or 0) - cmp.media_recuperados %}
+    <tr>
+      <td>Recuperados</td>
+      <td class="center">{{ totais.recuperados or 0 }}</td>
+      <td class="center">{{ cmp.media_recuperados }}</td>
+      <td class="center {% if d > 0 %}comp-acima{% elif d < 0 %}comp-abaixo{% else %}comp-igual{% endif %}">
+        {{ '+' if d > 0 else '' }}{{ d | round(1) }}
+      </td>
+    </tr>
+
+    {# recusados — menor = melhor #}
+    {% set d = (totais.recusados or 0) - cmp.media_recusados %}
+    <tr>
+      <td>Recusas</td>
+      <td class="center">{{ totais.recusados or 0 }}</td>
+      <td class="center">{{ cmp.media_recusados }}</td>
+      <td class="center {% if d > 0 %}comp-abaixo{% elif d < 0 %}comp-acima{% else %}comp-igual{% endif %}">
+        {{ '+' if d > 0 else '' }}{{ d | round(1) }}
+      </td>
+    </tr>
+
+    </tbody>
+  </table>
+  <p style="font-size:7.5pt;color:#888;margin-bottom:12pt;">
+    Verde = favorável em relação à média &nbsp;|&nbsp; Vermelho = desfavorável &nbsp;|&nbsp;
+    Para fechados e recusas, valores menores são considerados favoráveis.
+  </p>
+  {% endif %}
+
+  <!-- Produção diária -->
+  <div class="secao">Produção diária</div>
+  <div class="dias-grid">
+    {% for r in por_dia %}
+    {% set p = r.data.split('-') %}
+    <div class="dia-item">
+      <div class="dia-data">{{ p[2] }}/{{ p[1] }}/{{ p[0] }}</div>
+      <div class="dia-val">{{ r.total }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Rodapé -->
+  <div class="rodape">
+    Rua Bertolina Kendrick de Oliveira, 681 – Vila Santa Terezinha – Almirante Tamandaré/PR &nbsp;|&nbsp;
+    CEP 83501-150 &nbsp;|&nbsp; endemias@tamandare.pr.gov.br
+  </div>
+
+</div>
+
+<script>
+const porTipo  = {{ por_tipo  | tojson }};
+const porLoc   = {{ por_loc   | tojson }};
+const tboGrupo = {{ tbo_por_grupo | tojson }};
+
+const PAL = ['#1a4fba','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316'];
+
+function mkChart(id, cfg) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  new Chart(el, cfg);
+}
+
+if (porTipo.length) {
+  mkChart('chTipo', {
+    type: 'bar',
+    data: {
+      labels: porTipo.map(r => r.tipo),
+      datasets: [{ label: 'Visitas', data: porTipo.map(r => r.total),
+        backgroundColor: PAL.map(c => c + 'cc'), borderRadius: 3 }]
+    },
+    options: { plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { font: { size: 9 } } }, x: { ticks: { font: { size: 9 } } } } }
+  });
+}
+
+if (porLoc.length) {
+  mkChart('chLoc', {
+    type: 'bar',
+    data: {
+      labels: porLoc.map(r => r.localidade || '—'),
+      datasets: [{ label: 'Visitas', data: porLoc.map(r => r.total),
+        backgroundColor: PAL.map(c => c + 'cc'), borderRadius: 3 }]
+    },
+    options: { indexAxis: 'y', plugins: { legend: { display: false } },
+      scales: { y: { ticks: { font: { size: 9 } } }, x: { beginAtZero: true, ticks: { font: { size: 9 } } } } }
+  });
+}
+
+const acess  = tboGrupo.acessados     || {};
+const nAcess = tboGrupo.nao_acessados || {};
+if (acess.n || nAcess.n) {
+  const grupos = ['Acessados (Normal/Recup.)', 'Não acessados (Fech./Recusa)'];
+  mkChart('chTboMedia', {
+    type: 'bar',
+    data: { labels: grupos, datasets: [{
+      label: 'Tempo médio (min)', data: [acess.media || 0, nAcess.media || 0],
+      backgroundColor: ['#10b981cc', '#f59e0bcc'], borderRadius: 4
+    }]},
+    options: { plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { font: { size: 9 } } }, x: { ticks: { font: { size: 8 } } } } }
+  });
+  mkChart('chTboMinMax', {
+    type: 'bar',
+    data: { labels: grupos, datasets: [
+      { label: 'Mínimo', data: [acess.minimo || 0, nAcess.minimo || 0], backgroundColor: '#3b82f6cc', borderRadius: 4 },
+      { label: 'Máximo', data: [acess.maximo || 0, nAcess.maximo || 0], backgroundColor: '#ef4444cc', borderRadius: 4 },
+    ]},
+    options: { plugins: { legend: { position: 'top', labels: { font: { size: 9 } } } },
+      scales: { y: { beginAtZero: true, ticks: { font: { size: 9 } } }, x: { ticks: { font: { size: 8 } } } } }
+  });
+}
+</script>
+</body>
+</html>

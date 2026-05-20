@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Acesso Negado{% endblock %}
+{% block page_title %}Acesso Negado{% endblock %}
+{% block content %}
+<div class="empty" style="padding:80px 20px;">
+  <div class="empty-icon"><img src="/static/icons/cadeado.svg" alt="🔒" class="icon-svg"></div>
+  <p style="font-size:16px;font-weight:700;margin-bottom:8px;">Sem permissão</p>
+  <p style="margin-bottom:20px;">Seu nível de acesso não permite executar esta ação.</p>
+  <a href="/" class="btn btn-primary">Voltar ao início</a>
+</div>
+{% endblock %}

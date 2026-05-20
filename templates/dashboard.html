@@ -1,0 +1,422 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard Visitas{% endblock %}
+
+{% block extra_css %}<style>
+.kpi-grid { grid-template-columns:repeat(auto-fill,minmax(148px,1fr)); }
+</style>{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><span class="icon"><img src="/static/icons/grafico_barra.svg" alt="📊" class="icon-svg"></span> Dashboard de Visitas</h1>
+  <div class="sub">Análise operacional por tipo de trabalho, localidade e agente</div>
+</div>
+
+<!-- FILTROS -->
+<div class="filter-card">
+  <div class="filter-hd" data-target="f-body" onclick="toggleFilter('f-body')">
+    <div class="filter-hd-left">
+      <span><img src="/static/icons/busca.svg" alt="🔍" class="icon-svg"></span>
+      <span class="filter-hd-title">Filtros</span>
+      <span class="filter-hd-count" id="f-badge"></span>
+    </div>
+    <span class="filter-toggle open">▾</span>
+  </div>
+  <div class="filter-body open" id="f-body">
+    <div class="filter-grid">
+      <div class="f-g">
+        <label>Data início</label>
+        <input type="date" id="d_ini" value="{{ d_ini }}">
+      </div>
+      <div class="f-g">
+        <label>Data fim</label>
+        <input type="date" id="d_fim" value="{{ d_fim }}">
+      </div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <div class="f-g" style="margin-bottom:8px;"><label>Tipo de trabalho</label></div>
+      <div class="pill-group">
+        {% for t in tipos_glob %}
+        <div class="pill">
+          <input type="checkbox" id="tipo_{{ t }}" value="{{ t }}" {{ 'checked' if t in tipos_sel else '' }} onchange="buscar()">
+          <label for="tipo_{{ t }}"><span class="dot"></span>{{ t }}</label>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <div class="f-g" style="margin-bottom:8px;"><label>Localidade</label></div>
+      <div class="pill-group">
+        {% for l in localidades_glob %}
+        <div class="pill">
+          <input type="checkbox" id="loc_{{ loop.index }}" value="{{ l }}" {{ 'checked' if l in locs_sel else '' }} onchange="buscar()">
+          <label for="loc_{{ loop.index }}"><span class="dot"></span>{{ l }}</label>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <div class="f-g" style="margin-bottom:8px;"><label>Agente</label></div>
+      <div class="pill-group">
+        {% for a in agentes_glob %}
+        <div class="pill">
+          <input type="checkbox" id="ag_{{ loop.index }}" value="{{ a }}" {{ 'checked' if a in ags_sel else '' }} onchange="buscar()">
+          <label for="ag_{{ loop.index }}"><span class="dot"></span>{{ a }}</label>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="filter-actions">
+      <button class="btn btn-primary" onclick="buscar()"><img src="/static/icons/atualizar.svg" alt="🔄" class="icon-svg"> Atualizar</button>
+      <button class="btn btn-ghost" onclick="resetFiltros()"><img src="/static/icons/fechar.svg" alt="✕" class="icon-svg"> Limpar</button>
+      <span class="dim small" id="f-periodo"></span>
+    </div>
+  </div>
+</div>
+
+<!-- KPIs -->
+<div id="kpi-area" class="kpi-grid">
+  <div class="loading-box"><div class="spinner"></div></div>
+</div>
+
+<!-- TABS GRÁFICOS -->
+<div class="tabs-bar">
+  <button class="tab-btn active" onclick="openTab('tab-geral',this)"><img src="/static/icons/grafico_linha.svg" alt="📈" class="icon-svg"> Geral</button>
+  <button class="tab-btn" onclick="openTab('tab-local',this)"><img src="/static/icons/marcador.svg" alt="📍" class="icon-svg"> Localidades</button>
+  <button class="tab-btn" onclick="openTab('tab-agente',this)"><img src="/static/icons/usuarios.svg" alt="👥" class="icon-svg"> Agentes</button>
+  <button class="tab-btn" onclick="openTab('tab-depositos',this)"><img src="/static/icons/balde.svg" alt="🪣" class="icon-svg"> Depósitos</button>
+</div>
+
+<!-- TAB GERAL -->
+<div class="tab-pane active" id="tab-geral">
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/calendario.svg" alt="📅" class="icon-svg"> Evolução semanal de visitas</div></div>
+      <div class="chart-wrap h280"><canvas id="chEvolucao"></canvas></div>
+    </div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/fichario.svg" alt="🗂" class="icon-svg"> Visitas por tipo</div></div>
+      <div class="chart-wrap h240"><canvas id="chTipo"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/porta.svg" alt="🚪" class="icon-svg"> Status das visitas</div></div>
+      <div class="chart-wrap h240"><canvas id="chStatus"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/casa.svg" alt="🏠" class="icon-svg"> Tipo de imóvel</div></div>
+      <div class="chart-wrap h240"><canvas id="chImovel"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB LOCAL -->
+<div class="tab-pane" id="tab-local">
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/marcador.svg" alt="📍" class="icon-svg"> Visitas por localidade</div></div>
+      <div class="chart-wrap h360"><canvas id="chLocal"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB AGENTE -->
+<div class="tab-pane" id="tab-agente">
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/usuarios.svg" alt="👥" class="icon-svg"> Produção por agente</div></div>
+      <div class="chart-wrap h360"><canvas id="chAgente"></canvas></div>
+    </div>
+  </div>
+  <div id="ranking-agentes" class="table-wrap">
+    <div class="table-hd"><span class="table-title">Ranking de Produção</span></div>
+    <div class="table-scroll"><table id="t-agentes">
+      <thead><tr><th>#</th><th>Agente</th><th>Visitas</th><th>%</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- TAB DEPÓSITOS -->
+<div class="tab-pane" id="tab-depositos">
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/balde.svg" alt="🪣" class="icon-svg"> Depósitos inspecionados por tipo</div></div>
+      <div class="chart-wrap h280"><canvas id="chDepTipo"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/grafico_barra.svg" alt="📊" class="icon-svg"> Resumo de depósitos</div></div>
+      <div id="dep-resumo" style="padding:20px;"></div>
+    </div>
+  </div>
+
+  <!-- TBO tempo -->
+  <div id="secao-tbo" style="display:none;">
+    <div class="chart-hd" style="margin-top:20px;margin-bottom:10px;">
+      <div class="chart-title">⏱ Tempo por visita TBO — Acessados vs Não acessados</div>
+    </div>
+    <div class="chart-grid">
+      <div class="chart-card">
+        <div class="chart-hd"><div class="chart-title">Tempo médio (min)</div></div>
+        <div class="chart-wrap h240"><canvas id="chTboMedia"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-hd"><div class="chart-title">Mínimo / Máximo (min)</div></div>
+        <div class="chart-wrap h240"><canvas id="chTboMinMax"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let dados = null;
+
+async function buscar() {
+  atualizaBadge();
+  const qs = buildFiltros();
+  document.getElementById('kpi-area').innerHTML = '<div class="loading-box"><div class="spinner"></div></div>';
+
+  try {
+    dados = await apiGet('/api/dashboard?' + qs);
+    renderKPIs();
+    renderGraficos();
+  } catch(e) {
+    document.getElementById('kpi-area').innerHTML = `<div class="empty"><div class="empty-icon"><img src="/static/icons/alerta.svg" alt="⚠" class="icon-svg">️</div><p>Erro ao carregar: ${e.message}</p></div>`;
+  }
+}
+
+function buildFiltros() {
+  const p = new URLSearchParams();
+  const di = document.getElementById('d_ini').value;
+  const df = document.getElementById('d_fim').value;
+  if(di) p.set('d_ini', di);
+  if(df) p.set('d_fim', df);
+  document.querySelectorAll('.pill input[type=checkbox]:checked').forEach(cb => {
+    const id = cb.id;
+    if(id.startsWith('tipo_')) p.append('tipo', cb.value);
+    else if(id.startsWith('loc_'))  p.append('localidade', cb.value);
+    else if(id.startsWith('ag_'))   p.append('agente', cb.value);
+  });
+  return p.toString();
+}
+
+function atualizaBadge() {
+  const n = document.querySelectorAll('.pill input:checked').length;
+  const badge = document.getElementById('f-badge');
+  badge.textContent = n ? `(${n} filtro${n>1?'s':''} ativo${n>1?'s':''})` : '';
+  const di = document.getElementById('d_ini').value;
+  const df = document.getElementById('d_fim').value;
+  const fp = document.getElementById('f-periodo');
+  if(di && df) fp.textContent = `${fmtDate(di)} → ${fmtDate(df)}`;
+}
+
+function resetFiltros() {
+  document.querySelectorAll('.pill input[type=checkbox]').forEach(cb => cb.checked = false);
+  document.getElementById('d_ini').value = '{{ d_ini }}';
+  document.getElementById('d_fim').value = '{{ d_fim }}';
+  buscar();
+}
+
+function renderKPIs() {
+  const k = dados.kpi || {};
+  const d = dados.depositos || {};
+  const tv = k.total || 0;
+  const norm = k.normais || 0;
+  const taxa_norm = tv ? Math.round(norm/tv*100) : 0;
+
+  const tbo = dados.tbo_duracao || {};
+  const fmtMin = m => m != null ? (m < 60 ? `${m}min` : `${Math.floor(m/60)}h${String(Math.round(m%60)).padStart(2,'0')}min`) : '—';
+
+  document.getElementById('kpi-area').innerHTML = `
+    <div class="kpi"><div class="kpi-icon"><img src="/static/icons/prancheta.svg" alt="📋" class="icon-svg"></div><div class="kpi-label">Total de visitas</div><div class="kpi-val">${fmtNum(tv)}</div></div>
+    <div class="kpi green"><div class="kpi-icon"><img src="/static/icons/check.svg" alt="✓" class="icon-svg"></div><div class="kpi-label">Normais</div><div class="kpi-val">${fmtNum(norm)}</div><div class="kpi-sub">${taxa_norm}% do total</div></div>
+    <div class="kpi amber"><div class="kpi-icon"><img src="/static/icons/porta.svg" alt="🚪" class="icon-svg"></div><div class="kpi-label">Fechados</div><div class="kpi-val">${fmtNum(k.fechados||0)}</div></div>
+    <div class="kpi cyan"><div class="kpi-icon"><img src="/static/icons/atualizar.svg" alt="🔄" class="icon-svg"></div><div class="kpi-label">Recuperados</div><div class="kpi-val">${fmtNum(k.recuperados||0)}</div></div>
+    <div class="kpi red"><div class="kpi-icon"><img src="/static/icons/erro.svg" alt="✗" class="icon-svg"></div><div class="kpi-label">Recusas</div><div class="kpi-val">${fmtNum(k.recusados||0)}</div></div>
+    <div class="kpi"><div class="kpi-icon"><img src="/static/icons/calendario.svg" alt="📅" class="icon-svg"></div><div class="kpi-label">Dias trabalhados</div><div class="kpi-val">${fmtNum(k.dias||0)}</div></div>
+    <div class="kpi purple"><div class="kpi-icon"><img src="/static/icons/casas.svg" alt="🏘" class="icon-svg"></div><div class="kpi-label">Quarteirões</div><div class="kpi-val">${fmtNum(k.quarteiroes||0)}</div></div>
+    <div class="kpi teal"><div class="kpi-icon"><img src="/static/icons/balde.svg" alt="🪣" class="icon-svg"></div><div class="kpi-label">Dep. inspecionados</div><div class="kpi-val">${fmtNum(d.inspecionados||0)}</div></div>
+    ${tbo.n > 0 ? `
+    <div class="kpi teal"><div class="kpi-icon">⏱</div><div class="kpi-label">TBO — Tempo médio</div><div class="kpi-val">${fmtMin(tbo.media)}</div><div class="kpi-sub">${fmtNum(tbo.n)} visitas</div></div>
+    <div class="kpi"><div class="kpi-icon">⬇</div><div class="kpi-label">TBO — Mínimo</div><div class="kpi-val">${fmtMin(tbo.minimo)}</div></div>
+    <div class="kpi"><div class="kpi-icon">⬆</div><div class="kpi-label">TBO — Máximo</div><div class="kpi-val">${fmtMin(tbo.maximo)}</div></div>
+    ` : ''}
+  `;
+}
+
+function renderGraficos() {
+  const tbo = dados.tbo_duracao || {};
+  // Evolução semanal
+  const ev = dados.evolucao || [];
+  mkChart('chEvolucao', {
+    type: 'line',
+    data: {
+      labels: ev.map(r => r.sem.replace(/(\d{4})-(\d+)/,'S$2/$1')),
+      datasets: [{ label:'Visitas/semana', data: ev.map(r=>r.total),
+        borderColor:PAL[0], backgroundColor:PAL[0]+'22', fill:true,
+        borderWidth:2, pointRadius:3, tension:.35 }]
+    },
+    options: { scales: eixos() }
+  });
+
+  // Por tipo (donut)
+  const pt = dados.por_tipo || [];
+  mkChart('chTipo', {
+    type: 'doughnut',
+    data: {
+      labels: pt.map(r=>r.tipo),
+      datasets: [{ data: pt.map(r=>r.total),
+        backgroundColor: pt.map(r=>WORK_TYPE_COLORS[r.tipo]||'#64748b'),
+        borderColor:'var(--surface)', borderWidth:2 }]
+    },
+    options: { cutout:'60%', plugins:{ legend:{ position:'right', labels:{font:{size:11}} } } }
+  });
+
+  // Status visita (bar horizontal)
+  const ps = dados.por_status || [];
+  const statusLabel = {normal:'Normal',fechado:'Fechado',recuperado:'Recuperado',recusa:'Recusa','sem info':'Sem info'};
+  const statusCor   = {normal:'#22c55e',fechado:'#f59e0b',recuperado:'#3b82f6',recusa:'#ef4444','sem info':'#94a3b8'};
+  mkChart('chStatus', {
+    type: 'bar',
+    data: {
+      labels: ps.map(r => statusLabel[r.visita] || r.visita),
+      datasets: [{ label:'Visitas', data: ps.map(r=>r.total),
+        backgroundColor: ps.map(r=>statusCor[r.visita]||'#94a3b8'),
+        borderRadius:4 }]
+    },
+    options: {
+      indexAxis:'y', plugins:{ legend:{display:false} },
+      scales: eixos({x:{}, y:{grid:{display:false}}})
+    }
+  });
+
+  // Tipo imóvel (pie)
+  const pi = dados.por_imovel || [];
+  mkChart('chImovel', {
+    type: 'pie',
+    data: {
+      labels: pi.map(r=>r.tipo_imovel),
+      datasets:[{ data:pi.map(r=>r.total), backgroundColor:PAL, borderColor:'var(--surface)', borderWidth:2 }]
+    },
+    options:{ plugins:{ legend:{ position:'right', labels:{font:{size:10}} } } }
+  });
+
+  // Por localidade (bar horizontal)
+  const pl = dados.por_loc || [];
+  mkChart('chLocal', {
+    type: 'bar',
+    data: {
+      labels: pl.map(r=>r.loc||'—'),
+      datasets:[{ label:'Visitas', data:pl.map(r=>r.total),
+        backgroundColor: PAL[0]+'cc', borderRadius:4 }]
+    },
+    options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:eixos({y:{grid:{display:false}}}) }
+  });
+
+  // Por agente (bar)
+  const pa = dados.por_agente || [];
+  mkChart('chAgente', {
+    type: 'bar',
+    data: {
+      labels: pa.map(r=>r.nome),
+      datasets:[{ label:'Visitas', data:pa.map(r=>r.total),
+        backgroundColor: pa.map((_,i)=>PAL[i%PAL.length]+'cc'), borderRadius:4 }]
+    },
+    options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:eixos({y:{grid:{display:false}}}) }
+  });
+
+  // Ranking agentes
+  const total_geral = pa.reduce((s,r)=>s+r.total,0);
+  const tbody = document.querySelector('#t-agentes tbody');
+  tbody.innerHTML = pa.map((r,i)=>`
+    <tr>
+      <td><strong>#${i+1}</strong></td>
+      <td>${r.nome}</td>
+      <td><strong>${fmtNum(r.total)}</strong></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="flex:1;height:6px;background:var(--border);border-radius:3px;min-width:60px;">
+            <div style="width:${total_geral?Math.round(r.total/total_geral*100):0}%;height:100%;background:var(--brand);border-radius:3px;"></div>
+          </div>
+          <span class="dim small">${total_geral?Math.round(r.total/total_geral*100):0}%</span>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  // Depósitos por tipo (bar)
+  const dt = dados.dep_por_tipo || [];
+  mkChart('chDepTipo', {
+    type: 'bar',
+    data: {
+      labels: dt.map(r=>r.tipo_deposito),
+      datasets:[{ label:'Inspecionados', data:dt.map(r=>r.insp),
+        backgroundColor: dt.map((_,i)=>PAL[i%PAL.length]+'cc'), borderRadius:4 }]
+    },
+    options:{ plugins:{legend:{display:false}}, scales:eixos() }
+  });
+
+  // Resumo depósitos
+  const dep = dados.depositos || {};
+  document.getElementById('dep-resumo').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:16px;padding:8px 0;">
+      ${[['<img src="/static/icons/busca.svg" alt="🔍" class="icon-svg"> Inspecionados', dep.inspecionados||0, 'brand'],
+         ['<img src="/static/icons/lixeira.svg" alt="🗑" class="icon-svg"> Eliminados',    dep.eliminados||0,    'green'],
+         ['<img src="/static/icons/comprimido.svg" alt="💊" class="icon-svg"> Tratados',      dep.tratados||0,      'purple']].map(([lb,vl,cor])=>`
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px;">${lb}</div>
+          <div style="font-size:2rem;font-weight:700;color:var(--${cor})">${fmtNum(vl)}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  // TBO — tempo por grupo
+  const tboGrupos = tbo.por_grupo || {};
+  const acess  = tboGrupos.acessados    || {};
+  const nAcess = tboGrupos.nao_acessados|| {};
+  if (tbo.n > 0 && (acess.n || nAcess.n)) {
+    document.getElementById('secao-tbo').style.display = 'block';
+    const grupos = ['Acessados\n(Normal/Recuperado)', 'Não acessados\n(Fechado/Recusa)'];
+    mkChart('chTboMedia', {
+      type: 'bar',
+      data: {
+        labels: grupos,
+        datasets:[{
+          label: 'Tempo médio (min)',
+          data: [acess.media||0, nAcess.media||0],
+          backgroundColor: ['#10b981cc','#f59e0bcc'],
+          borderColor:     ['#10b981','#f59e0b'],
+          borderWidth: 1, borderRadius: 4,
+        }]
+      },
+      options: {
+        scales: { ...eixos(), y:{ ...eixos().y, title:{ display:true, text:'minutos', color:'var(--text3)', font:{size:10} } } },
+        plugins: { legend:{ display:false } }
+      }
+    });
+    mkChart('chTboMinMax', {
+      type: 'bar',
+      data: {
+        labels: grupos,
+        datasets:[
+          { label:'Mínimo', data:[acess.minimo||0, nAcess.minimo||0], backgroundColor:'#3b82f6cc', borderRadius:4 },
+          { label:'Máximo', data:[acess.maximo||0, nAcess.maximo||0], backgroundColor:'#ef4444cc', borderRadius:4 },
+        ]
+      },
+      options: {
+        scales: { ...eixos(), y:{ ...eixos().y, title:{ display:true, text:'minutos', color:'var(--text3)', font:{size:10} } } },
+        plugins: { legend:{ position:'top', labels:{ color:'var(--text2)', font:{size:11} } } }
+      }
+    });
+  }
+}
+
+// Auto-busca ao mudar datas
+document.getElementById('d_ini').addEventListener('change', buscar);
+document.getElementById('d_fim').addEventListener('change', buscar);
+
+buscar();
+</script>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Esporotricose{% endblock %}
+{% block page_title %}Esporotricose{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><span class="icon"><img src="/static/icons/pets.svg" alt="" class="icon-svg"></span> Esporotricose</h1>
+  <div class="sub">Visitas domiciliares para coleta de dados sobre moradores e animais</div>
+</div>
+
+<div class="chart-card" style="max-width:880px;margin:0 auto;">
+  <div style="display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap;">
+    <div style="width:54px;height:54px;border-radius:12px;background:var(--brand-xs);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+      <img src="/static/icons/pets.svg" alt="" class="icon-svg" style="width:28px;height:28px;">
+    </div>
+    <div style="flex:1;min-width:260px;">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+        <h2 style="font-size:20px;margin:0;">Modulo em breve</h2>
+        <span class="badge badge-pendente">Em breve</span>
+      </div>
+      <p style="color:var(--text2);line-height:1.7;margin:0 0 16px;">
+        Esta area sera preparada para importar planilhas do KoboToolbox com estrutura propria
+        de visitas de esporotricose, permitindo acompanhar registros por morador, endereco,
+        animais e situacao da visita.
+      </p>
+      <div class="chart-grid cols3" style="margin-top:14px;">
+        <div class="kpi">
+          <div class="kpi-label">Fonte prevista</div>
+          <div class="kpi-val" style="font-size:18px;">Kobo</div>
+          <div class="kpi-sub">Planilha dedicada</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Status</div>
+          <div class="kpi-val" style="font-size:18px;">Planejado</div>
+          <div class="kpi-sub">Sem tabelas no banco ainda</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Proximo passo</div>
+          <div class="kpi-val" style="font-size:18px;">Schema</div>
+          <div class="kpi-sub">Definir campos da importacao</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

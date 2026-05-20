@@ -1,0 +1,330 @@
+{% extends 'base.html' %}
+{% block title %}Relatório por Agente{% endblock %}
+{% block page_title %}Relatório por Agente{% endblock %}
+
+{% block extra_css %}<style>
+.agent-selector {
+  background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow);
+  padding:20px; margin-bottom:18px; display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end;
+}
+.agent-grid { display:flex; flex-wrap:wrap; gap:8px; flex:1; min-width:200px; }
+.agent-pill {
+  padding:6px 14px; border-radius:20px; border:2px solid var(--border);
+  font-size:12.5px; font-weight:600; cursor:pointer; transition:all .15s;
+  background:var(--surface2); color:var(--text2);
+}
+.agent-pill:hover { border-color:var(--brand); color:var(--brand); }
+.agent-pill.active { background:var(--brand); color:#fff; border-color:var(--brand); }
+
+.periodo-inputs { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
+
+/* Header agente */
+.agent-header {
+  background:linear-gradient(135deg,var(--brand) 0%,#0c3080 100%);
+  border-radius:var(--radius-lg); padding:24px 28px; margin-bottom:18px; color:#fff;
+  display:flex; align-items:center; gap:20px;
+}
+.agent-avatar {
+  width:60px; height:60px; border-radius:50%; background:rgba(255,255,255,.2);
+  display:flex; align-items:center; justify-content:center; font-size:28px; flex-shrink:0;
+}
+.agent-header-info h2 { font-size:22px; font-weight:700; margin-bottom:4px; }
+.agent-header-info .sub { font-size:12px; color:rgba(255,255,255,.65); }
+
+.perf-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; margin-bottom:18px; }
+
+/* Barra de meta */
+.meta-bar { height:8px; background:var(--border); border-radius:4px; overflow:hidden; margin-top:4px; }
+.meta-fill { height:100%; border-radius:4px; background:var(--brand); transition:width .6s ease; }
+
+.chart-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+@media(max-width:700px) { .chart-row { grid-template-columns:1fr; } }
+
+.empty-agent {
+  text-align:center; padding:80px 20px; color:var(--text3);
+  background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow);
+}
+.empty-agent .big-icon { font-size:60px; opacity:.3; margin-bottom:16px; }
+</style>{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><span class="icon"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"></span> Relatório por Agente</h1>
+  <div class="sub">Desempenho individual: visitas, produtividade, depósitos e resultados laboratoriais</div>
+</div>
+
+<!-- Seletor de agente + período -->
+<div class="agent-selector">
+  <div style="flex:1;">
+    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Selecione o agente</div>
+    <div class="agent-grid" id="agente-pills">
+      {% for a in agentes_glob %}
+      <button type="button"
+        class="agent-pill {{ 'active' if a == agente_sel }}"
+        onclick="selecionarAgente('{{ a }}')">{{ a }}</button>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="periodo-inputs">
+    <div class="f-g">
+      <label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Início</label>
+      <input type="date" id="ra_d_ini" value="{{ d_ini }}">
+    </div>
+    <div class="f-g">
+      <label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Fim</label>
+      <input type="date" id="ra_d_fim" value="{{ d_fim }}">
+    </div>
+    <button class="btn btn-primary" onclick="buscar()"><img src="/static/icons/atualizar.svg" alt="🔄" class="icon-svg"> Atualizar</button>
+    {% for periodo, label in [('7','7 dias'),('30','30 dias'),('90','90 dias'),('365','1 ano')] %}
+    <button class="btn btn-ghost btn-sm" onclick="setPeriodo({{ periodo }})">{{ label }}</button>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Área de resultado -->
+<div id="ra-area">
+  {% if agente_sel %}
+  <div class="loading-box"><div class="spinner"></div></div>
+  {% else %}
+  <div class="empty-agent">
+    <div class="big-icon"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"></div>
+    <p style="font-size:15px;font-weight:600;margin-bottom:6px;">Selecione um agente acima</p>
+    <p>O relatório de desempenho será carregado automaticamente.</p>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+let agenteAtual = '{{ agente_sel | e }}';
+
+function selecionarAgente(nome) {
+  agenteAtual = nome;
+  document.querySelectorAll('.agent-pill').forEach(p => {
+    p.classList.toggle('active', p.textContent.trim() === nome);
+  });
+  buscar();
+}
+
+function setPeriodo(dias) {
+  const fim = new Date();
+  const ini = new Date();
+  ini.setDate(fim.getDate() - parseInt(dias));
+  document.getElementById('ra_d_ini').value = ini.toISOString().split('T')[0];
+  document.getElementById('ra_d_fim').value = fim.toISOString().split('T')[0];
+  buscar();
+}
+
+async function buscar() {
+  if(!agenteAtual) return;
+  const d_ini = document.getElementById('ra_d_ini').value;
+  const d_fim  = document.getElementById('ra_d_fim').value;
+  document.getElementById('ra-area').innerHTML = '<div class="loading-box"><div class="spinner"></div></div>';
+  try {
+    const d = await apiGet(`/api/relatorio-agente?agente=${encodeURIComponent(agenteAtual)}&d_ini=${d_ini}&d_fim=${d_fim}`);
+    renderRelatorio(d);
+  } catch(e) {
+    document.getElementById('ra-area').innerHTML = `<div class="empty"><div class="empty-icon"><img src="/static/icons/alerta.svg" alt="⚠" class="icon-svg">️</div><p>Erro: ${e.message}</p></div>`;
+  }
+}
+
+function renderRelatorio(d) {
+  const t  = d.totais;
+  const c  = d.coletas;
+  const diasStr = `${fmtDate(d.d_ini)} → ${fmtDate(d.d_fim)}`;
+  const taxaN  = t.total ? Math.round((t.normais||0)/t.total*100) : 0;
+  const taxaF  = t.total ? Math.round((t.fechados||0)/t.total*100) : 0;
+  const taxaRec = t.total ? Math.round((t.recuperados||0)/t.total*100) : 0;
+
+  const tbo = d.tbo_duracao || {};
+  const fmtMin = m => m != null ? (m < 60 ? `${m}min` : `${Math.floor(m/60)}h${String(Math.round(m%60)).padStart(2,'0')}min`) : '—';
+
+  let html = `
+    <!-- Header agente -->
+    <div class="agent-header">
+      <div class="agent-avatar"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"></div>
+      <div class="agent-header-info">
+        <h2>${d.agente}</h2>
+        <div class="sub">Agente de Endemias · Período: ${diasStr}</div>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="perf-grid">
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/prancheta.svg" alt="📋" class="icon-svg"></div><div class="kpi-label">Total visitas</div><div class="kpi-val">${fmtNum(t.total)}</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/calendario.svg" alt="📅" class="icon-svg"></div><div class="kpi-label">Dias trabalhados</div><div class="kpi-val">${fmtNum(t.dias)}</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/raio.svg" alt="⚡" class="icon-svg"></div><div class="kpi-label">Média/dia</div><div class="kpi-val">${t.media_dia}</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/casas.svg" alt="🏘" class="icon-svg"></div><div class="kpi-label">Quarteirões</div><div class="kpi-val">${fmtNum(t.quarteiroes)}</div></div>
+      <div class="kpi green"><div class="kpi-icon"><img src="/static/icons/check.svg" alt="✓" class="icon-svg"></div><div class="kpi-label">Normais</div><div class="kpi-val">${fmtNum(t.normais)}</div><div class="kpi-sub">${taxaN}%</div></div>
+      <div class="kpi amber"><div class="kpi-icon"><img src="/static/icons/porta.svg" alt="🚪" class="icon-svg"></div><div class="kpi-label">Fechados</div><div class="kpi-val">${fmtNum(t.fechados)}</div><div class="kpi-sub">${taxaF}%</div></div>
+      <div class="kpi cyan"><div class="kpi-icon"><img src="/static/icons/atualizar.svg" alt="🔄" class="icon-svg"></div><div class="kpi-label">Recuperados</div><div class="kpi-val">${fmtNum(t.recuperados)}</div><div class="kpi-sub">${taxaRec}%</div></div>
+      <div class="kpi red"><div class="kpi-icon"><img src="/static/icons/erro.svg" alt="✗" class="icon-svg"></div><div class="kpi-label">Recusas</div><div class="kpi-val">${fmtNum(t.recusados)}</div></div>
+      <div class="kpi teal"><div class="kpi-icon"><img src="/static/icons/balde.svg" alt="🪣" class="icon-svg"></div><div class="kpi-label">Dep. inspecionados</div><div class="kpi-val">${fmtNum(t.inspecionados)}</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/lixeira.svg" alt="🗑" class="icon-svg"></div><div class="kpi-label">Dep. eliminados</div><div class="kpi-val">${fmtNum(t.eliminados)}</div></div>
+      ${c.total ? `
+      <div class="kpi purple"><div class="kpi-icon"><img src="/static/icons/microscopio.svg" alt="🔬" class="icon-svg"></div><div class="kpi-label">Coletas</div><div class="kpi-val">${fmtNum(c.total)}</div></div>
+      <div class="kpi red"><div class="kpi-icon"><img src="/static/icons/mosquito.svg" alt="🦟" class="icon-svg"></div><div class="kpi-label">Índice positividade</div><div class="kpi-val">${c.indice}%</div>
+        <div class="kpi-sub">${c.pos_aeg} positivos</div>
+      </div>` : ''}
+      ${tbo.n > 0 ? `
+      <div class="kpi teal"><div class="kpi-icon">⏱</div><div class="kpi-label">TBO — Tempo médio</div><div class="kpi-val">${fmtMin(tbo.media)}</div><div class="kpi-sub">${fmtNum(tbo.n)} visitas</div></div>
+      <div class="kpi"><div class="kpi-icon">⬇</div><div class="kpi-label">TBO — Mínimo</div><div class="kpi-val">${fmtMin(tbo.minimo)}</div></div>
+      <div class="kpi"><div class="kpi-icon">⬆</div><div class="kpi-label">TBO — Máximo</div><div class="kpi-val">${fmtMin(tbo.maximo)}</div></div>
+      ` : ''}
+    </div>
+
+    <!-- Por tipo -->
+    ${d.por_tipo.length ? `
+    <div class="table-wrap" style="margin-bottom:14px;">
+      <div class="table-hd"><span class="table-title"><img src="/static/icons/grafico_barra.svg" alt="📊" class="icon-svg"> Visitas por tipo de trabalho</span></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Tipo</th><th>Total</th><th>Normais</th><th>Fechados</th><th>Recuperados</th><th>Recusas</th><th>Distribuição</th></tr></thead>
+        <tbody>
+          ${d.por_tipo.map(r => {
+            const pct = t.total ? Math.round(r.total/t.total*100) : 0;
+            return `<tr>
+              <td>${tagTipo(r.tipo)}</td>
+              <td><strong>${fmtNum(r.total)}</strong></td>
+              <td>${fmtNum(r.normais||0)}</td>
+              <td>${fmtNum(r.fechados||0)}</td>
+              <td>${fmtNum(r.recuperados||0)}</td>
+              <td>${fmtNum(r.recusados||0)}</td>
+              <td style="width:120px;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <div style="flex:1;height:6px;background:var(--border);border-radius:3px;">
+                    <div style="width:${pct}%;height:100%;background:var(--brand);border-radius:3px;"></div>
+                  </div>
+                  <span class="dim small">${pct}%</span>
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>
+    </div>` : ''}
+
+    <!-- Gráficos -->
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-hd"><div class="chart-title"><img src="/static/icons/calendario.svg" alt="📅" class="icon-svg"> Produção diária</div></div>
+        <div class="chart-wrap h240"><canvas id="raChDia"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-hd"><div class="chart-title"><img src="/static/icons/marcador.svg" alt="📍" class="icon-svg"> Por localidade</div></div>
+        <div class="chart-wrap h240"><canvas id="raChLoc"></canvas></div>
+      </div>
+    </div>
+
+    <div class="chart-card" style="margin-bottom:14px;">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/grafico_linha.svg" alt="📈" class="icon-svg"> Evolução semanal</div></div>
+      <div class="chart-wrap h220"><canvas id="raChSem"></canvas></div>
+    </div>
+
+    <div id="secao-tbo-ag" style="display:none;">
+      <div class="chart-hd" style="margin-bottom:10px;">
+        <div class="chart-title">⏱ Tempo por visita TBO — Acessados vs Não acessados</div>
+      </div>
+      <div class="chart-row">
+        <div class="chart-card">
+          <div class="chart-hd"><div class="chart-title">Tempo médio (min)</div></div>
+          <div class="chart-wrap h220"><canvas id="raChTboMedia"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-hd"><div class="chart-title">Mínimo / Máximo (min)</div></div>
+          <div class="chart-wrap h220"><canvas id="raChTboMinMax"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Botão PDF -->
+    <div style="margin-top:16px;display:flex;gap:10px;">
+      <button class="btn btn-outline" onclick="gerarPDF()" style="gap:6px;">
+        <img src="/static/icons/documento.svg" alt="📄" class="icon-svg"> Baixar PDF
+      </button>
+    </div>
+  `;
+
+  document.getElementById('ra-area').innerHTML = html;
+
+  // Gráficos
+  const porDia = d.por_dia || [];
+  mkChart('raChDia', {
+    type:'bar',
+    data:{
+      labels: porDia.map(r=>fmtDate(r.data)),
+      datasets:[{
+        label:'Visitas', data:porDia.map(r=>r.total),
+        backgroundColor: PAL[0]+'cc', borderRadius:3
+      }]
+    },
+    options:{ plugins:{legend:{display:false}}, scales:eixos({x:{ticks:{maxRotation:45,font:{size:9}}}}) }
+  });
+
+  const porLoc = d.por_loc || [];
+  mkChart('raChLoc', {
+    type:'bar',
+    data:{
+      labels:porLoc.map(r=>r.localidade||'—'),
+      datasets:[{ label:'Visitas', data:porLoc.map(r=>r.total), backgroundColor:PAL.map(c=>c+'cc'), borderRadius:3 }]
+    },
+    options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:eixos({y:{grid:{display:false}}}) }
+  });
+
+  const ev = d.evolucao || [];
+  mkChart('raChSem', {
+    type:'line',
+    data:{
+      labels:ev.map(r=>fmtDate(r.semana)),
+      datasets:[{
+        label:'Visitas/semana', data:ev.map(r=>r.total),
+        borderColor:PAL[0], backgroundColor:PAL[0]+'22',
+        fill:true, borderWidth:2, pointRadius:4, tension:.35
+      }]
+    },
+    options:{ plugins:{legend:{display:false}}, scales:eixos() }
+  });
+
+  // TBO por grupo
+  const tboGrupos = tbo.por_grupo || {};
+  const acess  = tboGrupos.acessados     || {};
+  const nAcess = tboGrupos.nao_acessados || {};
+  if (tbo.n > 0 && (acess.n || nAcess.n)) {
+    document.getElementById('secao-tbo-ag').style.display = 'block';
+    const grupos = ['Acessados\n(Normal/Recuperado)', 'Não acessados\n(Fechado/Recusa)'];
+    mkChart('raChTboMedia', {
+      type:'bar',
+      data:{ labels:grupos, datasets:[{
+        label:'Tempo médio (min)', data:[acess.media||0, nAcess.media||0],
+        backgroundColor:['#10b981cc','#f59e0bcc'], borderColor:['#10b981','#f59e0b'],
+        borderWidth:1, borderRadius:4
+      }]},
+      options:{ plugins:{legend:{display:false}},
+        scales:{...eixos(), y:{...eixos().y, title:{display:true,text:'minutos',color:'var(--text3)',font:{size:10}}}} }
+    });
+    mkChart('raChTboMinMax', {
+      type:'bar',
+      data:{ labels:grupos, datasets:[
+        { label:'Mínimo', data:[acess.minimo||0, nAcess.minimo||0], backgroundColor:'#3b82f6cc', borderRadius:4 },
+        { label:'Máximo', data:[acess.maximo||0, nAcess.maximo||0], backgroundColor:'#ef4444cc', borderRadius:4 },
+      ]},
+      options:{ plugins:{legend:{position:'top', labels:{color:'var(--text2)',font:{size:11}}}},
+        scales:{...eixos(), y:{...eixos().y, title:{display:true,text:'minutos',color:'var(--text3)',font:{size:10}}}} }
+    });
+  }
+}
+
+function gerarPDF() {
+  if (!agenteAtual) { alert('Selecione um agente antes de gerar o PDF.'); return; }
+  const ag  = encodeURIComponent(agenteAtual);
+  const ini = encodeURIComponent(document.getElementById('ra_d_ini').value);
+  const fim = encodeURIComponent(document.getElementById('ra_d_fim').value);
+  window.open(`/relatorio-agente/pdf?agente=${ag}&d_ini=${ini}&d_fim=${fim}`, '_blank');
+}
+
+// Data inputs
+document.getElementById('ra_d_ini').addEventListener('change', buscar);
+document.getElementById('ra_d_fim').addEventListener('change', buscar);
+
+// Auto-load se agente já selecionado
+if(agenteAtual) buscar();
+</script>
+{% endblock %}

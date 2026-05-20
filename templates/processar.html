@@ -1,0 +1,451 @@
+{% extends "base.html" %}
+{% block title %}Processar Planilhas{% endblock %}
+{% block page_title %}Processar Planilhas{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><span class="icon"><img src="/static/icons/importar.svg" alt="📥" class="icon-svg"></span> Processar Planilhas KoboToolbox</h1>
+  <div class="sub">Faça o upload dos arquivos Excel (.xlsx) exportados do KoboToolbox</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     TELA 1 — UPLOAD
+════════════════════════════════════════════════════════════ -->
+<div id="area-upload">
+  <div class="chart-card" style="margin-bottom:18px;">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/pasta.svg" alt="📂" class="icon-svg"> Arquivos</div>
+      <div style="font-size:11px;color:var(--text3);">PE_, TB_, TBO_, PVE_ e LARVAS_</div>
+    </div>
+
+    <div id="dropzone"
+         style="border:2.5px dashed var(--border2);border-radius:var(--radius);padding:40px 20px;
+                text-align:center;cursor:pointer;transition:all .2s;margin-bottom:14px;background:var(--surface2);">
+      <div style="font-size:32px;margin-bottom:8px;"><img src="/static/icons/prancheta.svg" alt="📋" class="icon-svg"></div>
+      <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px;">Arraste os arquivos aqui</div>
+      <div style="font-size:12px;color:var(--text3);">ou clique para selecionar</div>
+      <input type="file" id="file-input" multiple accept=".xlsx" style="display:none;">
+    </div>
+
+    <div id="file-list" style="display:none;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Arquivos selecionados</div>
+      <div id="file-items" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+      {% for tipo in TIPOS_TRABALHO %}
+      <span style="background:{{ tipo.cor }}18;color:{{ tipo.cor }};border:1px solid {{ tipo.cor }}40;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
+        {{ tipo.codigo }}_ {{ tipo.label }}
+      </span>
+      {% endfor %}
+      <span style="background:#ef444418;color:#ef4444;border:1px solid #ef444440;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
+        LARVAS_ Resultados de Laboratório
+      </span>
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:center;">
+      <button id="btn-processar" class="btn btn-primary" disabled onclick="iniciarProcessamento()">▶ Verificar e processar</button>
+      <button id="btn-limpar" class="btn btn-ghost" onclick="limparArquivos()" style="display:none;">
+        <img src="/static/icons/fechar.svg" alt="✕" class="icon-svg"> Limpar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     TELA 2 — LOG DO DRY-RUN
+════════════════════════════════════════════════════════════ -->
+<div class="chart-card" style="margin-bottom:18px;">
+  <div class="chart-hd">
+    <div class="chart-title"><img src="/static/icons/rolar.svg" alt="Historico" class="icon-svg"> Ultimas importacoes</div>
+    <div style="font-size:11px;color:var(--text3);">Auditoria dos processamentos recentes</div>
+  </div>
+  {% if importacoes %}
+  <div class="table-scroll">
+    <table class="historico-importacoes">
+      <thead>
+        <tr>
+          <th>Inicio</th>
+          <th>Status</th>
+          <th>Usuario</th>
+          <th>Arquivos</th>
+          <th>Atualizado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for imp in importacoes %}
+        <tr>
+          <td>{{ imp.criado_em[:16].replace('T', ' ') }}</td>
+          <td><span class="imp-status imp-{{ imp.status_classe }}">{{ imp.status_label }}</span></td>
+          <td>{{ imp.usuario or '—' }}</td>
+          <td>
+            <div class="imp-arquivos">
+              {% for arq in imp.arquivos[:3] %}
+              <span title="{{ arq }}">{{ arq }}</span>
+              {% endfor %}
+              {% if imp.arquivos|length > 3 %}
+              <span>+{{ imp.arquivos|length - 3 }}</span>
+              {% endif %}
+            </div>
+          </td>
+          <td>{{ imp.atualizado_em[:16].replace('T', ' ') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="padding:18px;border:1px dashed var(--border2);border-radius:var(--radius-sm);color:var(--text3);font-size:12.5px;text-align:center;background:var(--surface2);">
+    Nenhuma importacao registrada ainda.
+  </div>
+  {% endif %}
+</div>
+
+<div id="area-log" style="display:none;">
+  <div class="chart-card" style="margin-bottom:14px;">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/rolar.svg" alt="📜" class="icon-svg"> Verificando planilhas…</div>
+      <span id="log-status-badge" class="badge" style="display:none;"></span>
+    </div>
+    <div style="background:var(--amber-xs,#fef9ec);border:1px solid var(--amber,#f59e0b);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--text2);">
+      <strong>Pré-visualização — nenhum dado foi gravado ainda.</strong>
+      Revise o log abaixo e confirme para salvar no banco de dados.
+    </div>
+    <div id="log-container"
+         style="font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;
+                background:var(--surface2);border-radius:var(--radius-sm);
+                padding:16px;max-height:460px;overflow-y:auto;border:1px solid var(--border);">
+      <div id="log-linhas"></div>
+      <div id="log-cursor" style="display:inline-block;width:8px;height:13px;background:var(--brand);vertical-align:text-bottom;animation:blink .8s step-end infinite;"></div>
+    </div>
+    <div style="padding:10px 0 0;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" onclick="copiarLog()"><img src="/static/icons/prancheta.svg" alt="📋" class="icon-svg"> Copiar log</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     TELA 3 — CONFIRMAÇÃO
+════════════════════════════════════════════════════════════ -->
+<div id="area-confirmar" style="display:none;">
+
+  <!-- Sumário do dry-run -->
+  <div class="chart-card" style="margin-bottom:14px;">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/check.svg" alt="✓" class="icon-svg"> Resumo da verificação</div>
+    </div>
+
+    <div id="sumario-erros" style="display:none;background:var(--red-xs,#fef2f2);border:1px solid var(--red,#ef4444);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:var(--red,#ef4444);">
+      <strong>⚠ Foram encontrados erros durante a verificação.</strong>
+      Você ainda pode confirmar, mas os registros com erro não serão inseridos.
+    </div>
+
+    <div id="sumario-ok" style="display:none;background:var(--green-xs,#f0fdf4);border:1px solid var(--green,#16a34a);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:var(--green,#16a34a);">
+      <strong>✓ Verificação concluída sem erros.</strong> Todos os registros estão prontos para importação.
+    </div>
+
+    <div id="sumario-tabela" style="margin-bottom:16px;"></div>
+
+    <div style="padding:4px 0 0;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+      <button id="btn-confirmar" class="btn btn-primary" onclick="confirmar()" style="background:var(--green,#16a34a);border-color:var(--green,#16a34a);">
+        <img src="/static/icons/check.svg" alt="✓" class="icon-svg"> Confirmar e gravar no banco
+      </button>
+      <button class="btn btn-ghost" onclick="cancelar()" style="color:var(--red,#ef4444);border-color:var(--red,#ef4444);">
+        <img src="/static/icons/fechar.svg" alt="✕" class="icon-svg"> Cancelar
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="voltarLog()">
+        ← Ver log completo novamente
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     TELA 4 — LOG DO COMMIT REAL
+════════════════════════════════════════════════════════════ -->
+<div id="area-commit" style="display:none;">
+  <div class="chart-card" style="margin-bottom:14px;">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/rolar.svg" alt="📜" class="icon-svg"> Gravando no banco…</div>
+      <span id="commit-badge" class="badge" style="display:none;"></span>
+    </div>
+    <div id="commit-log-container"
+         style="font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;
+                background:var(--surface2);border-radius:var(--radius-sm);
+                padding:16px;max-height:460px;overflow-y:auto;border:1px solid var(--border);">
+      <div id="commit-log-linhas"></div>
+      <div id="commit-cursor" style="display:inline-block;width:8px;height:13px;background:var(--brand);vertical-align:text-bottom;animation:blink .8s step-end infinite;"></div>
+    </div>
+    <div style="padding:10px 0 0;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" onclick="copiarLogCommit()"><img src="/static/icons/prancheta.svg" alt="📋" class="icon-svg"> Copiar log</button>
+      <button class="btn btn-ghost btn-sm" id="btn-novo" style="display:none;" onclick="novoProcessamento()">+ Novo processamento</button>
+    </div>
+  </div>
+
+  <div class="chart-card" style="margin-top:14px;" id="card-downloads" style="display:none;">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/grafico_barra.svg" alt="📊" class="icon-svg"> Consolidados Excel</div>
+      <div style="font-size:11px;color:var(--text3);">Gerados automaticamente após o processamento</div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;padding:4px 0 8px;">
+      {% for tipo in TIPOS_TRABALHO %}
+      <a href="/saida/download/{{ tipo.codigo }}" class="btn btn-outline" style="border-color:{{ tipo.cor }};color:{{ tipo.cor }};">
+        <img src="/static/icons/importar.svg" alt="📥" class="icon-svg"> {{ tipo.codigo }}_consolidado.xlsx
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+#dropzone.over{border-color:var(--brand);background:var(--brand-xs);}
+.log-titulo{color:var(--brand);font-weight:700;}
+.log-ok{color:var(--green);}
+.log-erro{color:var(--red);}
+.log-aviso{color:var(--amber);}
+.log-normal{color:var(--text2);}
+.sumario-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.sumario-table th{background:var(--surface2);color:var(--text3);font-weight:700;padding:6px 10px;text-align:left;border-bottom:2px solid var(--border2);}
+.sumario-table td{padding:6px 10px;border-bottom:1px solid var(--border);}
+.sumario-table tr:last-child td{border-bottom:none;}
+.sumario-tipo{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;}
+.historico-importacoes th{font-size:11px;}
+.historico-importacoes td{vertical-align:top;}
+.imp-status{display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap;}
+.imp-verde{background:var(--green-l);color:var(--green);}
+.imp-vermelho{background:var(--red-l);color:var(--red);}
+.imp-azul{background:var(--brand-xs);color:var(--brand);}
+.imp-cinza{background:var(--surface2);color:var(--text3);border:1px solid var(--border);}
+.imp-arquivos{display:flex;flex-wrap:wrap;gap:4px;max-width:520px;}
+.imp-arquivos span{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:11px;color:var(--text2);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+</style>
+
+<script>
+// ── Estado ────────────────────────────────────────────────────────────────────
+let arquivos = [];
+let currentJobId = null;
+let logDryRun = '';
+
+const CORES = Object.assign({}, WORK_TYPE_COLORS, {LARVAS:'#ef4444'});
+
+// ── Helpers de tela ───────────────────────────────────────────────────────────
+function mostrar(id) {
+  ['area-upload','area-log','area-confirmar','area-commit'].forEach(x =>
+    document.getElementById(x).style.display = (x === id ? 'block' : 'none')
+  );
+}
+
+// ── Dropzone ──────────────────────────────────────────────────────────────────
+const dropzone  = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('over'));
+dropzone.addEventListener('drop', e => { e.preventDefault(); dropzone.classList.remove('over'); adicionarArquivos([...e.dataTransfer.files]); });
+fileInput.addEventListener('change', () => { adicionarArquivos([...fileInput.files]); fileInput.value = ''; });
+
+function adicionarArquivos(novos) {
+  const validos = novos.filter(f => f.name.endsWith('.xlsx'));
+  const nomes   = new Set(arquivos.map(f => f.name));
+  validos.forEach(f => { if (!nomes.has(f.name)) arquivos.push(f); });
+  renderFileList();
+}
+
+function renderFileList() {
+  const container = document.getElementById('file-items');
+  const listDiv   = document.getElementById('file-list');
+  const btnProc   = document.getElementById('btn-processar');
+  const btnLimpar = document.getElementById('btn-limpar');
+  container.innerHTML = '';
+  if (arquivos.length === 0) {
+    listDiv.style.display = 'none'; btnProc.disabled = true; btnLimpar.style.display = 'none'; return;
+  }
+  listDiv.style.display = 'block'; btnLimpar.style.display = 'inline-flex'; btnProc.disabled = false;
+  arquivos.forEach((f, i) => {
+    const prefixo = f.name.split('_')[0].toUpperCase();
+    const cor = CORES[prefixo] || '#64748b';
+    const el = document.createElement('div');
+    el.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border);';
+    el.innerHTML = `
+      <span style="background:${cor}18;color:${cor};border-radius:4px;padding:2px 7px;font-size:10.5px;font-weight:700;">${prefixo}</span>
+      <span style="flex:1;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.name}</span>
+      <span style="font-size:11px;color:var(--text3);">${(f.size/1024).toFixed(0)} KB</span>
+      <button onclick="removerArquivo(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;line-height:1;padding:0 2px;">&times;</button>`;
+    container.appendChild(el);
+  });
+}
+
+function removerArquivo(i) { arquivos.splice(i, 1); renderFileList(); }
+function limparArquivos()   { arquivos = []; renderFileList(); }
+
+// ── FASE 1 — DRY-RUN ─────────────────────────────────────────────────────────
+async function iniciarProcessamento() {
+  if (!arquivos.length) return;
+  document.getElementById('log-linhas').innerHTML = '';
+  document.getElementById('log-cursor').style.display = 'inline-block';
+  document.getElementById('log-status-badge').style.display = 'none';
+  document.querySelector('#area-log .chart-hd .chart-title').innerHTML =
+    '<img src="/static/icons/rolar.svg" alt="📜" class="icon-svg"> Verificando planilhas…';
+  mostrar('area-log');
+
+  const formData = new FormData();
+  arquivos.forEach(f => formData.append('arquivos', f));
+
+  let jobId;
+  try {
+    const r = await fetch('/processar/iniciar', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrf() },
+      body: formData
+    });
+    const d = await r.json();
+    if (!r.ok || d.erro) { appendLog('ERRO: ' + (d.erro || 'Falha no upload'), 'erro'); finalizarDryRun(false, []); return; }
+    jobId = d.job_id;
+    currentJobId = jobId;
+    appendLog(`Upload: ${d.arquivos.length} arquivo(s) recebido(s).`, 'ok');
+  } catch(e) {
+    appendLog('ERRO de comunicação: ' + e.message, 'erro'); finalizarDryRun(false, []); return;
+  }
+
+  const sse = new EventSource(`/processar/stream/${jobId}`);
+  sse.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.done !== undefined) {
+      sse.close();
+      finalizarDryRun(d.ok, d.sumario || []);
+      return;
+    }
+    if (d.msg !== undefined) appendLog(d.msg, d.tag || 'normal');
+  };
+  sse.onerror = () => { sse.close(); appendLog('\n[ERRO] Conexão interrompida.', 'erro'); finalizarDryRun(false, []); };
+}
+
+function finalizarDryRun(ok, sumario) {
+  document.getElementById('log-cursor').style.display = 'none';
+  const badge = document.getElementById('log-status-badge');
+  badge.style.display = 'inline-flex';
+  if (ok) {
+    badge.className = 'badge badge-entregue'; badge.textContent = 'Verificação OK';
+  } else {
+    badge.className = 'badge badge-naoloc'; badge.textContent = 'Verificação com erros';
+  }
+  document.querySelector('#area-log .chart-hd .chart-title').innerHTML =
+    '<img src="/static/icons/rolar.svg" alt="📜" class="icon-svg"> Log de verificação';
+
+  // Salvar log texto para exibição eventual
+  logDryRun = document.getElementById('log-linhas').textContent;
+
+  // Montar tela de confirmação
+  document.getElementById('sumario-erros').style.display = ok ? 'none' : 'block';
+  document.getElementById('sumario-ok').style.display    = ok ? 'block' : 'none';
+
+  // Tabela sumário
+  let html = '<table class="sumario-table"><thead><tr><th>Arquivo</th><th>Tipo</th><th>Visitas no banco após import</th><th>Coletas</th></tr></thead><tbody>';
+  if (sumario.length) {
+    sumario.forEach(s => {
+      const cor = CORES[s.tipo] || '#64748b';
+      html += `<tr>
+        <td style="font-size:12px;">${s.arquivo}</td>
+        <td><span class="sumario-tipo" style="background:${cor}18;color:${cor};">${s.tipo} — ${WORK_TYPE_LABELS[s.tipo]||s.tipo}</span></td>
+        <td style="font-weight:700;">${s.visitas}</td>
+        <td>${s.coletas}</td>
+      </tr>`;
+    });
+  } else {
+    html += '<tr><td colspan="4" style="color:var(--text3);text-align:center;padding:16px;">Nenhum dado novo para importar</td></tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('sumario-tabela').innerHTML = html;
+
+  // Ir para confirmação após pequeno delay para o usuário ver o log
+  setTimeout(() => mostrar('area-confirmar'), 600);
+}
+
+// ── FASE 2 — CONFIRMAÇÃO / CANCELAMENTO ──────────────────────────────────────
+function voltarLog() { mostrar('area-log'); }
+
+async function cancelar() {
+  if (currentJobId) {
+    fetch(`/processar/cancelar/${currentJobId}`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrf() }
+    }).catch(()=>{});
+    currentJobId = null;
+  }
+  novoProcessamento();
+  toast('Processamento cancelado. Nenhum dado foi gravado.', 'info');
+}
+
+async function confirmar() {
+  if (!currentJobId) return;
+  document.getElementById('commit-log-linhas').innerHTML = '';
+  document.getElementById('commit-cursor').style.display = 'inline-block';
+  document.getElementById('commit-badge').style.display  = 'none';
+  document.getElementById('btn-novo').style.display      = 'none';
+  mostrar('area-commit');
+
+  const jobId = currentJobId;
+  const sse = new EventSource(`/processar/confirmar/${jobId}`);
+  sse.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.done !== undefined) {
+      sse.close();
+      document.getElementById('commit-cursor').style.display = 'none';
+      document.getElementById('btn-novo').style.display      = 'inline-flex';
+      const badge = document.getElementById('commit-badge');
+      badge.style.display = 'inline-flex';
+      if (d.ok) {
+        badge.className = 'badge badge-entregue'; badge.textContent = 'Gravado com sucesso';
+        toast('Dados gravados no banco com sucesso!', 'success');
+        document.getElementById('card-downloads').style.display = 'block';
+      } else {
+        badge.className = 'badge badge-naoloc'; badge.textContent = 'Concluído com erros';
+        toast('Importação concluída com erros.', 'error');
+      }
+      currentJobId = null;
+      return;
+    }
+    if (d.msg !== undefined) appendCommitLog(d.msg, d.tag || 'normal');
+  };
+  sse.onerror = () => {
+    sse.close();
+    appendCommitLog('\n[ERRO] Conexão interrompida.', 'erro');
+    document.getElementById('commit-cursor').style.display = 'none';
+    document.getElementById('btn-novo').style.display = 'inline-flex';
+  };
+}
+
+// ── Helpers de log ────────────────────────────────────────────────────────────
+function appendLog(msg, tag) {
+  _addLogLine('log-linhas', 'log-container', msg, tag);
+}
+function appendCommitLog(msg, tag) {
+  _addLogLine('commit-log-linhas', 'commit-log-container', msg, tag);
+}
+function _addLogLine(linesId, containerId, msg, tag) {
+  const span = document.createElement('span');
+  span.className = 'log-' + ({'titulo':'titulo','ok':'ok','erro':'erro','aviso':'aviso'}[tag]||'normal');
+  span.textContent = msg + '\n';
+  document.getElementById(linesId).appendChild(span);
+  const box = document.getElementById(containerId);
+  box.scrollTop = box.scrollHeight;
+}
+
+function copiarLog() {
+  navigator.clipboard.writeText(document.getElementById('log-linhas').textContent)
+    .then(() => toast('Log copiado!', 'success'));
+}
+function copiarLogCommit() {
+  navigator.clipboard.writeText(document.getElementById('commit-log-linhas').textContent)
+    .then(() => toast('Log copiado!', 'success'));
+}
+
+function novoProcessamento() {
+  arquivos = []; currentJobId = null;
+  renderFileList();
+  mostrar('area-upload');
+}
+</script>
+{% endblock %}

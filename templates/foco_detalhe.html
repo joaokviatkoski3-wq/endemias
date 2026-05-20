@@ -1,0 +1,267 @@
+{% extends 'base.html' %}
+{% block title %}Foco {{ foco.num_tubo or foco.id_foco[:8] }}{% endblock %}
+{% block page_title %}Detalhe do Foco{% endblock %}
+
+{% block extra_css %}<style>
+.back-link { display:inline-flex; align-items:center; gap:6px; color:var(--text3); font-size:13px; margin-bottom:16px; }
+.back-link:hover { color:var(--brand); }
+.detail-grid { display:grid; grid-template-columns:1fr 320px; gap:16px; }
+@media(max-width:900px) { .detail-grid { grid-template-columns:1fr; } }
+.detail-card { background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow); }
+.detail-card-hd { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.detail-card-hd .title { font-size:13px; font-weight:700; color:var(--brand); text-transform:uppercase; letter-spacing:.4px; }
+.detail-card-body { padding:18px; }
+.field-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px 18px; }
+@media(max-width:600px) { .field-grid { grid-template-columns:1fr; } }
+.field { display:flex; flex-direction:column; gap:4px; }
+.field.full { grid-column:1/-1; }
+.field label { font-size:10px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; }
+.field input,.field select,.field textarea {
+  padding:8px 10px; border:1.5px solid var(--border); border-radius:var(--radius-sm);
+  font-size:13px; color:var(--text); background:var(--surface2);
+  font-family:inherit; outline:none; transition:border-color .15s; width:100%;
+}
+.field input:focus,.field select:focus,.field textarea:focus { border-color:var(--brand); }
+.field textarea { resize:vertical; min-height:80px; }
+.field-readonly { padding:8px 0; font-size:13px; color:var(--text); }
+.field-readonly strong { color:var(--brand); }
+
+.hist-item { padding:8px 0; border-bottom:1px solid var(--border); }
+.hist-item:last-child { border-bottom:none; }
+
+.status-big { font-size:14px; font-weight:700; padding:8px 16px; border-radius:var(--radius-sm); text-align:center; }
+
+.tentativas { display:flex; flex-direction:column; gap:8px; }
+.tent { display:flex; align-items:center; gap:8px; }
+.tent-num { width:24px; height:24px; border-radius:50%; background:var(--brand); color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+
+.save-bar { position:sticky; bottom:0; background:var(--surface); border-top:1px solid var(--border); padding:12px 18px; display:flex; gap:8px; align-items:center; z-index:50; box-shadow:0 -4px 12px rgba(0,0,0,.08); }
+</style>{% endblock %}
+
+{% block content %}
+<a href="/notificacoes" class="back-link">← Voltar para notificações</a>
+
+<!-- Header do foco -->
+<div style="background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 20px;margin-bottom:16px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+  <div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;">Foco Positivo · Tubo {{ foco.num_tubo or '—' }}</div>
+    <div style="font-size:20px;font-weight:700;margin-bottom:4px;">
+      {{ foco.logradouro or 'Endereço não informado' }}{% if foco.numero %}, {{ foco.numero }}{% endif %}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--text3);">
+      <span><img src="/static/icons/marcador.svg" alt="📍" class="icon-svg"> {{ foco.localidade_nome or foco.localidade or '—' }}</span>
+      <span><img src="/static/icons/casas.svg" alt="🏘" class="icon-svg"> Quarteirão {{ foco.quarteirao or '—' }}</span>
+      <span><img src="/static/icons/agenda.svg" alt="🗓" class="icon-svg"> {{ foco.data[:10] if foco.data and foco.data|length >= 10 else '—' }}</span>
+      {% if foco.tipo_trabalho %}<span>{{ foco.tipo_trabalho }}</span>{% endif %}
+    </div>
+  </div>
+  <div>
+    {% set st = foco.status_notificacao or 'pendente' %}
+    {% set st_map = {
+      'pendente': ('badge-pendente','⏳'),
+      'impressa': ('badge-impressa','<img src="/static/icons/imprimir.svg" alt="🖨" class="icon-svg">️'),
+      'entregue': ('badge-entregue','<img src="/static/icons/check.svg" alt="✓" class="icon-svg">'),
+      'morador não localizado': ('badge-naoloc','<img src="/static/icons/alerta.svg" alt="⚠" class="icon-svg">'),
+      'dados inconsistentes': ('badge-inconsist','<img src="/static/icons/alerta.svg" alt="⚠" class="icon-svg">'),
+      'arquivada': ('badge-arquivada','—'),
+    } %}
+    {% set cls, ico = st_map.get(st, ('badge-sc','?')) %}
+    <span class="badge {{ cls }}" style="font-size:13px;padding:6px 14px;">{{ ico }} {{ st | capitalize }}</span>
+  </div>
+</div>
+
+<div class="detail-grid">
+
+  <!-- FORM EDIÇÃO -->
+  <form id="foco-form">
+  <div class="detail-card" style="margin-bottom:16px;">
+    <div class="detail-card-hd">
+      <span class="title"><img src="/static/icons/nota.svg" alt="📝" class="icon-svg"> Dados da Notificação</span>
+    </div>
+    <div class="detail-card-body">
+      <div class="field-grid">
+        <div class="field">
+          <label>Status da notificação</label>
+          <select name="status_notificacao" id="f-status">
+            {% for s in STATUS_OPCOES %}
+            <option value="{{ s }}" {{ 'selected' if s == (foco.status_notificacao or 'pendente') }}>{{ s | capitalize }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Data de entrega</label>
+          <input type="date" name="data_entrega" value="{{ foco.data_entrega or '' }}">
+        </div>
+        <div class="field">
+          <label>Nome do morador</label>
+          <input type="text" name="nome_morador" value="{{ foco.nome_morador or '' }}" placeholder="Nome completo">
+        </div>
+        <div class="field">
+          <label>Logradouro</label>
+          <input type="text" name="logradouro" value="{{ foco.logradouro or '' }}">
+        </div>
+        <div class="field">
+          <label>Número</label>
+          <input type="text" name="numero" value="{{ foco.numero or '' }}">
+        </div>
+        <div class="field">
+          <label>Complemento</label>
+          <input type="text" name="complemento" value="{{ foco.complemento or '' }}">
+        </div>
+        <div class="field full">
+          <label>Depósitos encontrados</label>
+          <input type="text" name="depositos" value="{{ foco.depositos or '' }}" placeholder="Ex: A1, B, C">
+        </div>
+        <div class="field full">
+          <label>Agentes responsáveis</label>
+          <input type="text" name="agentes" value="{{ foco.agentes or '' }}" placeholder="Nomes separados por / ou ,">
+        </div>
+        <div class="field full">
+          <label>Observações</label>
+          <textarea name="observacoes">{{ foco.observacoes or '' }}</textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tentativas de entrega -->
+  <div class="detail-card" style="margin-bottom:16px;">
+    <div class="detail-card-hd"><span class="title"><img src="/static/icons/agenda.svg" alt="🗓" class="icon-svg"> Tentativas de Entrega</span></div>
+    <div class="detail-card-body">
+      <div class="tentativas">
+        {% for i in [1,2,3] %}
+        <div class="tent">
+          <div class="tent-num">{{ i }}</div>
+          <input type="date" name="tentativa_{{ i }}" value="{{ foco['tentativa_' ~ i] or '' }}" style="flex:1">
+          {% if foco['tentativa_' ~ i] %}
+          <span class="badge badge-neg" style="font-size:10px;"><img src="/static/icons/check.svg" alt="✓" class="icon-svg"> registrada</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Barra de salvar -->
+  <div class="save-bar">
+    <button type="button" class="btn btn-primary" onclick="salvar()"><img src="/static/icons/salvar.svg" alt="💾" class="icon-svg"> Salvar alterações</button>
+    <button type="button" class="btn btn-ghost" onclick="window.location.reload()">↩ Descartar</button>
+    <form method="POST" action="/notificacoes/imprimir" style="margin:0;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="ids" value="{{ foco.id_foco }}">
+      <button type="submit" class="btn btn-outline" {% if not foco.gera_notificacao %}disabled title="Este foco não gera notificação"{% endif %}>
+        <img src="/static/icons/imprimir.svg" alt="🖨" class="icon-svg">️ Imprimir DOCX
+      </button>
+    </form>
+    <span class="dim small" id="save-msg"></span>
+  </div>
+  </form>
+
+  <!-- Coluna lateral -->
+  <div>
+    <!-- Dados imutáveis -->
+    <div class="detail-card" style="margin-bottom:14px;">
+      <div class="detail-card-hd"><span class="title"><img src="/static/icons/microscopio.svg" alt="🔬" class="icon-svg"> Dados do foco</span></div>
+      <div class="detail-card-body" style="display:flex;flex-direction:column;gap:12px;">
+        {% for label, val in [
+          ('Código da notificação', foco.codigo or '—'),
+          ('ID do foco', foco.id_foco[:16] ~ '…'),
+          ('Origem', foco.origem or '—'),
+          ('Tipo de trabalho', foco.tipo_trabalho or '—'),
+          ('Número(s) do(s) tubo(s)', foco.num_tubo or '—'),
+          ('Tipo de imóvel', foco.tipo_imovel or '—'),
+          ('Gera notificação', 'Sim' if foco.gera_notificacao else 'Não'),
+          ('Processado em', foco.processado_em[:16] if foco.processado_em else '—'),
+        ] %}
+        <div class="field">
+          <label>{{ label }}</label>
+          <div class="field-readonly">{{ val }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Histórico de visitas no mesmo endereço -->
+    {% if historico %}
+    <div class="detail-card">
+      <div class="detail-card-hd">
+        <span class="title"><img src="/static/icons/prancheta.svg" alt="📋" class="icon-svg"> Histórico no endereço</span>
+        <span class="dim small">{{ historico|length }} visita{{ 's' if historico|length != 1 else '' }}</span>
+      </div>
+      <div class="detail-card-body" style="padding:10px 16px;">
+        {% for h in historico %}
+        <div class="hist-item">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span style="font-size:12px;font-weight:600;">{{ h.data }}</span>
+            <span style="font-size:10.5px;padding:1px 7px;border-radius:20px;background:var(--brand-xs);color:var(--brand);font-weight:700;">{{ h.tipo }}</span>
+          </div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:2px;">{{ h.visita or '—' }}{% if h.agentes %} · {{ h.agentes }}{% endif %}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+async function salvar() {
+  const form = document.getElementById('foco-form');
+  const fd = new FormData(form);
+  const btn = document.querySelector('.save-bar .btn-primary');
+  const msg = document.getElementById('save-msg');
+  btn.disabled = true; btn.textContent = 'Salvando…';
+  try {
+    const r = await fetch('/notificacoes/foco/{{ foco.id_foco }}/atualizar', {
+      method:'POST',
+      headers:{'X-Requested-With':'XMLHttpRequest', 'X-CSRFToken': getCsrf()},
+      body: fd,
+    });
+    if(r.ok) {
+      toast('Foco atualizado com sucesso!', 'success');
+      msg.textContent = 'Salvo às ' + new Date().toLocaleTimeString('pt-BR');
+    } else {
+      toast('Erro ao salvar', 'error');
+    }
+  } catch(e) {
+    toast('Erro de comunicação', 'error');
+  }
+  btn.disabled = false; btn.textContent = '<img src="/static/icons/salvar.svg" alt="💾" class="icon-svg"> Salvar alterações';
+}
+
+// Atalho de teclado
+document.addEventListener('keydown', e => {
+  if((e.ctrlKey||e.metaKey) && e.key==='s') { e.preventDefault(); salvar(); }
+});
+</script>
+
+{% if historico_foco %}
+<div class="table-wrap" style="margin-top:16px;">
+  <div class="table-hd"><span class="table-title"><img src="/static/icons/relogio.svg" alt="🕓" class="icon-svg"> Histórico de alterações</span></div>
+  <table style="width:100%;border-collapse:collapse;font-size:12px;">
+    <thead>
+      <tr style="background:var(--surface2);border-bottom:1px solid var(--border);">
+        <th style="padding:8px 14px;text-align:left;color:var(--text2);">Campo</th>
+        <th style="padding:8px 8px;text-align:left;color:var(--text2);">Antes</th>
+        <th style="padding:8px 8px;text-align:left;color:var(--text2);">Depois</th>
+        <th style="padding:8px 8px;text-align:left;color:var(--text2);">Usuário</th>
+        <th style="padding:8px 8px;text-align:left;color:var(--text2);">Quando</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for h in historico_foco %}
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:7px 14px;font-weight:600;color:var(--brand);">{{ h.campo }}</td>
+      <td style="padding:7px 8px;color:var(--text3);">{{ h.valor_ant or '—' }}</td>
+      <td style="padding:7px 8px;">{{ h.valor_novo or '—' }}</td>
+      <td style="padding:7px 8px;color:var(--text2);">{{ h.usuario or '—' }}</td>
+      <td style="padding:7px 8px;color:var(--text3);white-space:nowrap;">{{ h.alterado_em[:16] if h.alterado_em else '—' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

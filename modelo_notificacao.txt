@@ -1,0 +1,27 @@
+# MODELO DA NOTIFICAÇÃO — Setor de Endemias
+# Edite este arquivo para alterar o texto da notificação.
+# As variáveis entre chaves {} serão substituídas automaticamente.
+# NÃO altere os nomes das variáveis, apenas o texto ao redor delas.
+
+[CABECALHO]
+Prefeitura Municipal de Almirante Tamandaré
+Secretaria Municipal de Saúde
+Setor de Endemias / Vigilância Ambiental
+
+[TITULO]
+COMUNICADO / NOTIFICAÇÃO
+
+[SAUDACAO]
+Prezado(a) Senhor(a) PROPRIETÁRIO/RESPONSÁVEL
+
+[CORPO]
+Vimos, através deste, comunicar que neste endereço, {endereco}, foram coletados exemplares nas formas imaturas (larva e pupa) do vetor Aedes aegypti, transmissor da Dengue, Zika, Chikungunya e Febre Amarela, conforme vistoria realizada em {data_visita}. Salientamos que estamos encontrando uma quantidade de focos Aedes aegypti muito alta nesse bairro, além de casos da doença, pensando na prevenção de mais casos, pedimos a colaboração de todos.
+
+[AVISO]
+A reincidência e/ou o não cumprimento das determinações poderá acarretar medidas mais severas ao responsável.
+
+[CONTATO]
+Sem mais para o momento, nos colocamos à disposição para quaisquer esclarecimentos ou dúvidas, contato pelo (41) 3699-3211 ou (41) 99239-8705.
+
+[RODAPE]
+Rua Bertolina Kendrick de Oliveira, 681 – Vila Santa Terezinha – Almirante Tamandaré/PR  |  CEP 83501-150  |  endemias@tamandare.pr.gov.br
