@@ -24,7 +24,10 @@ from app_core import work_types
 from blueprints.admin import bp as admin_bp
 from blueprints.agenda import bp as agenda_bp
 from blueprints.conta_ovos_sispncd import bp as conta_ovos_sispncd_bp
+from blueprints.consultas import bp as consultas_bp
+from blueprints.esporotricose import bp as esporotricose_bp
 from blueprints.processar import bp as processar_bp
+from blueprints.relatorio_agente import bp as relatorio_agente_bp
 
 # â”€â”€ ValidaÃ§Ã£o de upload de arquivos (SEC-04) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # xlsx Ã© um ZIP internamente â€” assinatura PK\x03\x04 nos primeiros bytes
@@ -165,7 +168,10 @@ def invalidar_cache_globals():
 app.extensions["invalidar_cache_globals"] = invalidar_cache_globals
 app.register_blueprint(agenda_bp)
 app.register_blueprint(conta_ovos_sispncd_bp)
+app.register_blueprint(consultas_bp)
+app.register_blueprint(esporotricose_bp)
 app.register_blueprint(processar_bp)
+app.register_blueprint(relatorio_agente_bp)
 
 def garantir_tabela_importacoes(conn=None):
     return import_history.garantir_tabela_importacoes(get_db, conn)
@@ -426,243 +432,8 @@ def home():
         focos_recentes=[dict(r) for r in focos_rec],
     )
 
-@app.route("/dashboard")
-@login_required
-def dashboard():
-    return render_template("dashboard.html",
-        d_ini=request.args.get("d_ini", data_n_dias(90)),
-        d_fim=request.args.get("d_fim", hoje()),
-        tipos_sel=request.args.getlist("tipo"),
-        locs_sel=request.args.getlist("localidade"),
-        ags_sel=request.args.getlist("agente"),
-    )
-
-@app.route("/laboratorio")
-@login_required
-def laboratorio():
-    return render_template("laboratorio.html",
-        d_ini=request.args.get("d_ini", data_n_dias(90)),
-        d_fim=request.args.get("d_fim", hoje()),
-    )
-
-@app.route("/visitas")
-@login_required
-def visitas():
-    return render_template("visitas.html",
-        d_ini=request.args.get("d_ini", data_n_dias(7)),
-        d_fim=request.args.get("d_fim", hoje()),
-        tipos_sel=request.args.getlist("tipo"),
-        locs_sel=request.args.getlist("localidade"),
-        ags_sel=request.args.getlist("agente"),
-    )
-
-@app.route("/relatorio-agente")
-@login_required
-def relatorio_agente():
-    return render_template("relatorio_agente.html",
-        agente_sel=request.args.get("agente", ""),
-        d_ini=request.args.get("d_ini", data_n_dias(30)),
-        d_fim=request.args.get("d_fim", hoje()),
-    )
-
-@app.route("/esporotricose")
-@login_required
-def esporotricose():
-    return render_template("esporotricose.html")
-
 # â”€â”€ COD-03: lÃ³gica de dados do relatÃ³rio de agente extraÃ­da aqui â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Usada tanto pela rota PDF quanto pela API, sem duplicaÃ§Ã£o.
-def _obter_dados_relatorio_agente(nome, d_ini, d_fim):
-    """
-    Consulta todas as mÃ©tricas de um agente num perÃ­odo.
-    Retorna dict pronto para render_template ou jsonify.
-    """
-    conn = get_db()
-    p = [nome, d_ini, d_fim]
-    base_w = (
-        "FROM visitas v "
-        "JOIN visita_agentes va ON va.id_visita=v.id_visita "
-        "JOIN agentes a ON a.id_agente=va.id_agente "
-        "LEFT JOIN localidades l ON l.id_localidade=v.id_localidade "
-        "WHERE a.nome=? AND v.data BETWEEN ? AND ?"
-    )
-
-    try:
-        totais = conn.execute(f"""SELECT
-            COUNT(DISTINCT v.id_visita) as total, COUNT(DISTINCT v.data) as dias,
-            COUNT(DISTINCT v.quarteirao) as quarteiroes,
-            COUNT(DISTINCT CASE WHEN LOWER(v.visita)='normal'     THEN v.id_visita END) as normais,
-            COUNT(DISTINCT CASE WHEN LOWER(v.visita)='fechado'    THEN v.id_visita END) as fechados,
-            COUNT(DISTINCT CASE WHEN LOWER(v.visita)='recuperado' THEN v.id_visita END) as recuperados,
-            COUNT(DISTINCT CASE WHEN LOWER(v.visita)='recusa'     THEN v.id_visita END) as recusados
-            {base_w}""", p).fetchone()
-
-        por_tipo = conn.execute(f"""SELECT v.tipo,
-            COUNT(DISTINCT v.id_visita) as total,
-            COUNT(DISTINCT CASE WHEN LOWER(v.visita)='normal'     THEN v.id_visita END) as normais,
-            COUNT(DISTINCT CASE WHEN LOWER(v.visita)='fechado'    THEN v.id_visita END) as fechados,
-            COUNT(DISTINCT CASE WHEN LOWER(v.visita)='recuperado' THEN v.id_visita END) as recuperados,
-            COUNT(DISTINCT CASE WHEN LOWER(v.visita)='recusa'     THEN v.id_visita END) as recusados
-            {base_w} GROUP BY v.tipo ORDER BY total DESC""", p).fetchall()
-
-        por_loc = conn.execute(
-            f"SELECT l.nome as localidade, COUNT(DISTINCT v.id_visita) as total "
-            f"{base_w} GROUP BY l.nome ORDER BY total DESC", p
-        ).fetchall()
-
-        por_dia = conn.execute(
-            f"SELECT v.data, COUNT(DISTINCT v.id_visita) as total "
-            f"{base_w} GROUP BY v.data ORDER BY v.data", p
-        ).fetchall()
-
-        evolucao = conn.execute(
-            f"SELECT strftime('%Y-%m-%d',v.data,'weekday 0','-6 days') as semana, "
-            f"COUNT(DISTINCT v.id_visita) as total {base_w} GROUP BY semana ORDER BY semana", p
-        ).fetchall()
-
-        dep = conn.execute("""
-            SELECT SUM(d.inspecionado) as insp, SUM(d.eliminado) as elim, SUM(d.tratado) as trat
-            FROM visitas v JOIN visita_agentes va ON va.id_visita=v.id_visita
-            JOIN agentes a ON a.id_agente=va.id_agente
-            LEFT JOIN depositos_inspecionados d ON d.id_visita=v.id_visita
-            WHERE a.nome=? AND v.data BETWEEN ? AND ?""", p).fetchone()
-
-        col = conn.execute("""
-            SELECT COUNT(DISTINCT c.id_coleta) as total,
-                COUNT(DISTINCT CASE WHEN rl.aegypt_larvas>0 OR rl.aegypt_pupas>0
-                    OR rl.aegypt_exuvias>0 OR rl.aegypt_adulto>0 THEN c.id_coleta END) as pos_aeg,
-                COUNT(DISTINCT CASE WHEN rl.albopictus_larvas>0 OR rl.albopictus_pupas>0
-                    THEN c.id_coleta END) as pos_alb
-            FROM visitas v JOIN visita_agentes va ON va.id_visita=v.id_visita
-            JOIN agentes a ON a.id_agente=va.id_agente
-            LEFT JOIN coletas c ON c.id_visita=v.id_visita
-            LEFT JOIN resultados_laboratorio rl ON rl.id_coleta=c.id_coleta
-            WHERE a.nome=? AND v.data BETWEEN ? AND ?""", p).fetchone()
-
-        tbo_raw = conn.execute("""
-            SELECT
-                CASE WHEN LOWER(sub.visita) IN ('normal','recuperado') THEN 'acessados'
-                     ELSE 'nao_acessados' END as grupo,
-                COUNT(*) as n, ROUND(AVG(dur),1) as media,
-                ROUND(MIN(dur),1) as minimo, ROUND(MAX(dur),1) as maximo
-            FROM (SELECT v.visita,
-                  (julianday(v.data||' '||v.hora_fim)-julianday(v.data||' '||v.hora_inicio))*24*60 AS dur
-                  FROM visitas v JOIN visita_agentes va ON va.id_visita=v.id_visita
-                  JOIN agentes a ON a.id_agente=va.id_agente
-                  WHERE a.nome=? AND v.data BETWEEN ? AND ? AND v.tipo=?
-                  AND v.hora_inicio IS NOT NULL AND v.hora_fim IS NOT NULL) sub
-            WHERE dur BETWEEN 1 AND 240 GROUP BY grupo""", p + [DURATION_WORK_TYPE_CODE]).fetchall()
-
-        por_periodo_raw = conn.execute(f"""SELECT
-            CASE WHEN v.hora_inicio < '12:00' THEN 'manha' ELSE 'tarde' END as periodo,
-            COUNT(DISTINCT v.id_visita) as total,
-            COUNT(DISTINCT v.data) as dias_periodo
-            {base_w} AND v.hora_inicio IS NOT NULL GROUP BY periodo""", p).fetchall()
-
-        media_geral_raw = conn.execute("""
-            SELECT
-                COUNT(DISTINCT v.id_visita) as total,
-                COUNT(DISTINCT v.data) as dias,
-                COUNT(DISTINCT v.quarteirao) as quarteiroes,
-                COUNT(DISTINCT CASE WHEN LOWER(v.visita)='normal'     THEN v.id_visita END) as normais,
-                COUNT(DISTINCT CASE WHEN LOWER(v.visita)='fechado'    THEN v.id_visita END) as fechados,
-                COUNT(DISTINCT CASE WHEN LOWER(v.visita)='recuperado' THEN v.id_visita END) as recuperados,
-                COUNT(DISTINCT CASE WHEN LOWER(v.visita)='recusa'     THEN v.id_visita END) as recusados,
-                COUNT(DISTINCT a.id_agente) as num_agentes
-            FROM visitas v JOIN visita_agentes va ON va.id_visita=v.id_visita
-            JOIN agentes a ON a.id_agente=va.id_agente
-            WHERE v.data BETWEEN ? AND ?""", [d_ini, d_fim]).fetchone()
-    finally:
-        conn.close()
-
-    # â”€â”€ Calcular mÃ©tricas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    totais_d = dict(totais) if totais else {}
-    dep_d    = dict(dep)    if dep    else {}
-    col_d    = dict(col)    if col    else {}
-    tv   = safe_int(totais_d.get("total", 0))
-    dias = safe_int(totais_d.get("dias",  0))
-    tc   = safe_int(col_d.get("total", 0))
-    ta   = safe_int(col_d.get("pos_aeg", 0))
-
-    por_periodo = {}
-    for r in por_periodo_raw:
-        rd = dict(r)
-        dias_p = safe_int(rd.get("dias_periodo")) or 1
-        por_periodo[rd["periodo"]] = {
-            "total": safe_int(rd.get("total", 0)),
-            "media": round(safe_int(rd.get("total", 0)) / dias_p, 1),
-        }
-
-    comparacao = {}
-    if media_geral_raw:
-        mg   = dict(media_geral_raw)
-        n_ag = safe_int(mg.get("num_agentes")) or 1
-        tv_g = safe_int(mg.get("total", 0))
-        dias_g = safe_int(mg.get("dias", 0)) or 1
-        comparacao = {
-            "media_total":       round(tv_g / n_ag, 1),
-            "media_dia":         round((tv_g / n_ag) / dias_g, 1),
-            "media_normais":     round(safe_int(mg.get("normais", 0)) / n_ag, 1),
-            "media_fechados":    round(safe_int(mg.get("fechados", 0)) / n_ag, 1),
-            "media_recuperados": round(safe_int(mg.get("recuperados", 0)) / n_ag, 1),
-            "media_recusados":   round(safe_int(mg.get("recusados", 0)) / n_ag, 1),
-            "num_agentes":       n_ag,
-        }
-
-    return {
-        "agente": nome, "d_ini": d_ini, "d_fim": d_fim,
-        "totais": totais_d,
-        "por_tipo":  [dict(r) for r in por_tipo],
-        "por_loc":   [dict(r) for r in por_loc],
-        "por_dia":   [dict(r) for r in por_dia],
-        "evolucao":  [dict(r) for r in evolucao],
-        "dep":       dep_d,
-        "col":       col_d,
-        "tbo_por_grupo": {r["grupo"]: dict(r) for r in tbo_raw},
-        "taxa_normal": round(safe_int(totais_d.get("normais", 0)) / tv * 100, 1) if tv else 0,
-        "media_dia":   round(tv / dias, 1) if dias else 0,
-        "por_periodo": por_periodo,
-        "comparacao":  comparacao,
-        # campos extras para compatibilidade com API JSON
-        "totais_api": {
-            "total": tv, "dias": dias,
-            "media_dia": round(tv / dias, 1) if dias else 0,
-            "quarteiroes": safe_int(totais_d.get("quarteiroes", 0)),
-            "normais": safe_int(totais_d.get("normais", 0)),
-            "fechados": safe_int(totais_d.get("fechados", 0)),
-            "recuperados": safe_int(totais_d.get("recuperados", 0)),
-            "recusados": safe_int(totais_d.get("recusados", 0)),
-            "inspecionados": safe_int(dep_d.get("insp", 0)),
-            "eliminados": safe_int(dep_d.get("elim", 0)),
-            "tratados": safe_int(dep_d.get("trat", 0)),
-        },
-        "coletas_api": {
-            "total": tc, "pos_aeg": ta,
-            "pos_alb": safe_int(col_d.get("pos_alb", 0)),
-            "indice": round(ta / tc * 100, 1) if tc else 0,
-        },
-        "now": datetime.now().strftime("%d/%m/%Y %H:%M"),
-    }
-
-@app.route("/relatorio-agente/pdf")
-@login_required
-def relatorio_agente_pdf():
-    """
-    COD-03: Rota PDF usa _obter_dados_relatorio_agente() compartilhada com a API.
-    Antes tinha ~130 linhas de queries duplicadas aqui â€” agora sÃ£o 8 linhas.
-    """
-    nome  = request.args.get("agente", "")
-    d_ini = request.args.get("d_ini", data_n_dias(30))
-    d_fim = request.args.get("d_fim", hoje())
-    if not nome:
-        return "Agente nÃ£o informado.", 400
-    try:
-        dados = _obter_dados_relatorio_agente(nome, d_ini, d_fim)
-    except Exception as e:
-        logging.exception("Erro em relatorio_agente_pdf")
-        return f"Erro ao gerar relatÃ³rio: {e}", 500
-    return render_template("relatorio_agente_pdf.html", **dados)
-
 # â”€â”€ NOTIFICAÃ‡Ã•ES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.route("/notificacoes")
@@ -1084,43 +855,6 @@ def api_visitas():
         logging.exception("Erro em rota Flask")
         return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
 
-
-@app.route("/api/relatorio-agente")
-@login_required
-def api_relatorio_agente():
-    """
-    COD-03: API usa _obter_dados_relatorio_agente() compartilhada com a rota PDF.
-    Antes tinha ~110 linhas de queries duplicadas â€” agora sÃ£o 12 linhas.
-    """
-    try:
-        nome  = request.args.get("agente", "")
-        d_ini = request.args.get("d_ini", data_n_dias(30))
-        d_fim = request.args.get("d_fim", hoje())
-        if not nome:
-            return jsonify({"erro": "Agente nÃ£o informado"}), 400
-        dados = _obter_dados_relatorio_agente(nome, d_ini, d_fim)
-        # Retornar estrutura compatÃ­vel com o frontend existente
-        return jsonify({
-            "agente":   dados["agente"],
-            "d_ini":    dados["d_ini"],
-            "d_fim":    dados["d_fim"],
-            "totais":   dados["totais_api"],
-            "coletas":  dados["coletas_api"],
-            "tbo_duracao": {
-                "por_grupo": dados["tbo_por_grupo"],
-            },
-            "por_tipo": dados["por_tipo"],
-            "por_loc":  dados["por_loc"],
-            "por_dia":  dados["por_dia"],
-            "evolucao": dados["evolucao"],
-        })
-    except Exception as e:
-        logging.exception("Erro em api_relatorio_agente")
-        return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
-
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-#  GERAÃ‡ÃƒO DE DOCX
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def formatar_data_br(data_iso):
     meses = ["janeiro","fevereiro","marÃ§o","abril","maio","junho",

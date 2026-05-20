@@ -18,7 +18,10 @@ Aplicacao Flask ainda tem `app.py` como entrada principal, mas a modularizacao j
   - `admin.py`: primeiro blueprint real.
   - `processar.py`: upload, dry-run, confirmacao e cancelamento de importacoes.
   - `conta_ovos_sispncd.py`: pagina e APIs de consulta do modulo Conta Ovos e SisPNCD.
+  - `consultas.py`: paginas de consulta de dashboard, laboratorio e lista de visitas.
   - `agenda.py`: pagina, eventos, edicao/exclusao e lembretes da agenda.
+  - `esporotricose.py`: pagina placeholder do futuro modulo de esporotricose.
+  - `relatorio_agente.py`: pagina, PDF, API e consultas do relatorio por agente.
 - Rotas de usuarios movidas para blueprint mantendo:
   - `/admin/usuarios`
   - `/admin/usuarios/criar`
@@ -35,6 +38,16 @@ Aplicacao Flask ainda tem `app.py` como entrada principal, mas a modularizacao j
   - `/api/agenda/eventos`
   - `/api/agenda/eventos/<id_evento>`
   - `/api/agenda/lembretes`
+- Rota de esporotricose movida para blueprint mantendo:
+  - `/esporotricose`
+- Paginas de consulta movidas para blueprint mantendo:
+  - `/dashboard`
+  - `/laboratorio`
+  - `/visitas`
+- Relatorio por agente movido para blueprint mantendo:
+  - `/relatorio-agente`
+  - `/relatorio-agente/pdf`
+  - `/api/relatorio-agente`
 - Validacao de upload XLSX movida para `app_core/uploads.py`, mantendo wrapper compatível em `app.py`.
 - Eventos automaticos da agenda tiveram textos normalizados para evitar mojibake no calendario e no popup de detalhes.
 - Criada pagina placeholder `/esporotricose` para futuro modulo de visitas/importacao de esporotricose, sem alteracao de banco.
@@ -130,7 +143,7 @@ Cobertura atual inclui:
 Rodar apos cada corte:
 
 ```powershell
-python -m py_compile app.py etl.py app_core\auth.py app_core\db.py app_core\import_history.py app_core\modules.py app_core\sispncd.py app_core\uploads.py app_core\utils.py app_core\version.py app_core\work_types.py blueprints\admin.py blueprints\agenda.py blueprints\conta_ovos_sispncd.py blueprints\processar.py tests\test_security.py
+python -m py_compile app.py etl.py app_core\auth.py app_core\db.py app_core\import_history.py app_core\modules.py app_core\sispncd.py app_core\uploads.py app_core\utils.py app_core\version.py app_core\work_types.py blueprints\admin.py blueprints\agenda.py blueprints\consultas.py blueprints\conta_ovos_sispncd.py blueprints\esporotricose.py blueprints\processar.py blueprints\relatorio_agente.py tests\test_security.py
 python -m unittest discover -s tests -v
 ```
 
@@ -145,8 +158,8 @@ OK
 
 1. Mover outro blueprint pequeno quando fizer sentido.
    - Opcoes:
-     - `esporotricose`: placeholder simples, bom para padronizar novos modulos.
      - `notificacoes`: modulo maior, mas com ganho relevante por reduzir bastante o `app.py`.
+     - APIs de consulta maiores (`dashboard`, `laboratorio`, `visitas`) em cortes separados.
 2. Preparar base para novos tipos importados por planilha.
    - Sugestao:
      - criar registro central de tipos de importacao futuros;
