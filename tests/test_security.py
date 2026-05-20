@@ -1,5 +1,6 @@
 import io
 import json
+import shutil
 import sqlite3
 import sys
 import tempfile
@@ -316,12 +317,12 @@ class MainApisSmokeTests(unittest.TestCase):
                 self.assertEqual(resp.status_code, 200)
                 self.assertTrue(resp.is_json)
 
-    def test_consultas_sispncd_nao_alteram_coluna_sispnc(self):
+    def test_consultas_sispncd_nao_alteram_coluna_sispncd(self):
         client = _client_logado()
         conn = sqlite3.connect(endemias_app.DB_PATH)
         try:
             antes = conn.execute(
-                "SELECT COUNT(*), COUNT(SISPNC), COUNT(DISTINCT SISPNC) FROM visitas"
+                "SELECT COUNT(*), COUNT(SISPNCD), COUNT(DISTINCT SISPNCD) FROM visitas"
             ).fetchone()
         finally:
             conn.close()
@@ -332,14 +333,14 @@ class MainApisSmokeTests(unittest.TestCase):
         conn = sqlite3.connect(endemias_app.DB_PATH)
         try:
             depois = conn.execute(
-                "SELECT COUNT(*), COUNT(SISPNC), COUNT(DISTINCT SISPNC) FROM visitas"
+                "SELECT COUNT(*), COUNT(SISPNCD), COUNT(DISTINCT SISPNCD) FROM visitas"
             ).fetchone()
         finally:
             conn.close()
 
         self.assertEqual(antes, depois)
 
-    def test_conta_ovos_filtra_status_pendente_e_nao_altera_status(self):
+    def test_conta_ovos_filtra_status_pendente_e_salva_status(self):
         client = _client_logado("admin")
         padrao = sispncd_core.get_default_conta_ovos(endemias_app.DB_PATH)
 
@@ -371,23 +372,102 @@ class MainApisSmokeTests(unittest.TestCase):
         if ja_registrados:
             self.assertLessEqual(dados["total_visitas"], pendentes_antes)
 
-        csrf_original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
-        endemias_app.app.config["WTF_CSRF_ENABLED"] = False
-        try:
-            salvar = client.post("/api/conta-ovos/salvar-status", json={})
-            self.assertEqual(salvar.status_code, 409)
-        finally:
-            endemias_app.app.config["WTF_CSRF_ENABLED"] = csrf_original
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_tmp = Path(tmpdir) / "endemias.db"
+            shutil.copy2(endemias_app.DB_PATH, db_tmp)
+            original_db = endemias_app.app.config["DB_PATH"]
+            csrf_original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
+            endemias_app.app.config["DB_PATH"] = str(db_tmp)
+            endemias_app.app.config["WTF_CSRF_ENABLED"] = False
+            try:
+                padrao_tmp = sispncd_core.get_default_conta_ovos(str(db_tmp))
+                conn = sqlite3.connect(db_tmp)
+                esperado_salvar = conn.execute(
+                    """SELECT COUNT(*) FROM visitas
+                       WHERE tipo='TBO' AND CONTAOVOS_STATUS=0 AND data=? AND quarteirao=?""",
+                    (padrao_tmp["data"], padrao_tmp["quarteirao"]),
+                ).fetchone()[0]
+                conn.close()
+                self.assertGreater(esperado_salvar, 0)
 
-        conn = sqlite3.connect(endemias_app.DB_PATH)
-        try:
-            pendentes_depois = conn.execute(
-                "SELECT COUNT(*) FROM visitas WHERE tipo='TBO' AND CONTAOVOS_STATUS=0"
-            ).fetchone()[0]
-        finally:
-            conn.close()
+                client_tmp = _client_logado("admin")
+                salvar = client_tmp.post(
+                    "/api/conta-ovos/salvar-status",
+                    json={"data": padrao_tmp["data"], "quarteirao": padrao_tmp["quarteirao"]},
+                )
+                self.assertEqual(salvar.status_code, 200)
+                self.assertEqual(salvar.get_json()["atualizados"], esperado_salvar)
 
-        self.assertEqual(pendentes_antes, pendentes_depois)
+                conn = sqlite3.connect(db_tmp)
+                restantes = conn.execute(
+                    """SELECT COUNT(*) FROM visitas
+                       WHERE tipo='TBO' AND CONTAOVOS_STATUS=0 AND data=? AND quarteirao=?""",
+                    (padrao_tmp["data"], padrao_tmp["quarteirao"]),
+                ).fetchone()[0]
+                conn.close()
+                self.assertEqual(restantes, 0)
+            finally:
+                endemias_app.app.config["DB_PATH"] = original_db
+                endemias_app.app.config["WTF_CSRF_ENABLED"] = csrf_original
+
+    def test_sispncd_salva_codigo_sem_sobrescrever_existentes(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_tmp = Path(tmpdir) / "endemias.db"
+            shutil.copy2(endemias_app.DB_PATH, db_tmp)
+            original_db = endemias_app.app.config["DB_PATH"]
+            csrf_original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
+            endemias_app.app.config["DB_PATH"] = str(db_tmp)
+            endemias_app.app.config["WTF_CSRF_ENABLED"] = False
+            try:
+                conn = sqlite3.connect(db_tmp)
+                row = conn.execute(
+                    """SELECT data, tipo
+                        FROM visitas
+                        WHERE SISPNCD IS NULL
+                        ORDER BY data DESC
+                        LIMIT 1"""
+                ).fetchone()
+                conn.close()
+                self.assertIsNotNone(row)
+                ano, semana, _ = sispncd_core.date.fromisoformat(row[0]).isocalendar()
+
+                client = _client_logado("admin")
+                codigo = "9999/2026"
+                salvar = client.post(
+                    "/api/sispncd/salvar",
+                    json={"ano": ano, "semana": semana, "tipo": [row[1]], "codigo": codigo},
+                )
+                self.assertEqual(salvar.status_code, 200)
+                atualizados = salvar.get_json()["atualizados"]
+                self.assertGreater(atualizados, 0)
+
+                conn = sqlite3.connect(db_tmp)
+                try:
+                    gravados = conn.execute(
+                        "SELECT COUNT(*) FROM visitas WHERE SISPNCD=?",
+                        (codigo,),
+                    ).fetchone()[0]
+                    nulos_restantes_no_codigo = conn.execute(
+                        "SELECT COUNT(*) FROM visitas WHERE SISPNCD IS NULL"
+                    ).fetchone()[0]
+                finally:
+                    conn.close()
+                self.assertEqual(gravados, atualizados)
+                self.assertGreaterEqual(nulos_restantes_no_codigo, 0)
+            finally:
+                endemias_app.app.config["DB_PATH"] = original_db
+                endemias_app.app.config["WTF_CSRF_ENABLED"] = csrf_original
+
+    def test_api_pendencias_conta_ovos_sispncd_retorna_resumo(self):
+        client = _client_logado()
+        resp = client.get("/api/conta-ovos-sispncd/pendencias")
+
+        self.assertEqual(resp.status_code, 200)
+        dados = resp.get_json()
+        self.assertIn("conta_ovos", dados)
+        self.assertIn("sispncd", dados)
+        self.assertIn("total", dados["conta_ovos"])
+        self.assertIn("grupos", dados["sispncd"])
 
     def test_api_visitas_tem_campos_de_paginacao(self):
         client = _client_logado()

@@ -123,6 +123,91 @@ def get_default_conta_ovos(db_path):
     return row or {"data": date.today().isoformat(), "quarteirao": ""}
 
 
+def pendencias_envio(db_path, limite_grupos=8):
+    conn = db_core.connect(db_path)
+    try:
+        conta_total = conn.execute(
+            "SELECT COUNT(*) FROM visitas WHERE tipo='TBO' AND CONTAOVOS_STATUS = 0"
+        ).fetchone()[0] or 0
+        conta_grupos = [
+            dict(row)
+            for row in conn.execute(
+                """
+                SELECT data,
+                       quarteirao,
+                       COALESCE(localidade, '-') AS localidade,
+                       COUNT(*) AS total
+                 FROM visitas
+                 WHERE tipo='TBO'
+                   AND CONTAOVOS_STATUS = 0
+                 GROUP BY data, quarteirao, COALESCE(localidade, '-')
+                 ORDER BY data DESC, total DESC
+                 LIMIT ?
+                """,
+                (limite_grupos,),
+            )
+        ]
+
+        sispncd_total = conn.execute(
+            "SELECT COUNT(*) FROM visitas WHERE SISPNCD IS NULL"
+        ).fetchone()[0] or 0
+        sispncd_grupos = [
+            dict(row)
+            for row in conn.execute(
+                """
+                SELECT tipo,
+                       COALESCE(localidade, '-') AS localidade,
+                       MIN(data) AS data_inicio,
+                       MAX(data) AS data_fim,
+                       COUNT(*) AS total
+                  FROM visitas
+                 WHERE SISPNCD IS NULL
+                 GROUP BY tipo, COALESCE(localidade, '-')
+                 ORDER BY total DESC, tipo, localidade
+                 LIMIT ?
+                """,
+                (limite_grupos,),
+            )
+        ]
+    finally:
+        conn.close()
+
+    return {
+        "conta_ovos": {"total": conta_total, "grupos": conta_grupos},
+        "sispncd": {"total": sispncd_total, "grupos": sispncd_grupos},
+    }
+
+
+def salvar_status_conta_ovos(db_path, data, quarteirao, id_localidade=None):
+    data = parse_iso_date(data)
+    quarteirao = parse_int(quarteirao, "quarteirao", 0)
+    id_localidade = optional_localidade(id_localidade)
+
+    where = (
+        "tipo = 'TBO' "
+        "AND CONTAOVOS_STATUS = 0 "
+        "AND data = ? "
+        "AND quarteirao = ?"
+    )
+    params = [data, quarteirao]
+    if id_localidade:
+        where += " AND id_localidade = ?"
+        params.append(id_localidade)
+
+    conn = db_core.connect(db_path)
+    try:
+        cur = conn.execute(
+            f"UPDATE visitas SET CONTAOVOS_STATUS = 1 WHERE {where}",
+            params,
+        )
+        conn.commit()
+        atualizados = cur.rowcount if cur.rowcount is not None else 0
+    finally:
+        conn.close()
+
+    return {"ok": True, "atualizados": atualizados, "data": data, "quarteirao": quarteirao}
+
+
 def conta_ovos(db_path, data, quarteirao, id_localidade=None):
     data = parse_iso_date(data)
     quarteirao = parse_int(quarteirao, "quarteirao", 0)
@@ -392,6 +477,48 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
         "tipos": tipos,
         "dados_gerais": dados,
         "laboratorio": lab,
+    }
+
+
+def salvar_sispncd(db_path, year, week, tipos, codigo, id_localidade=None):
+    data_inicio, data_fim = epidemiological_week_range(year, week)
+    if isinstance(tipos, str):
+        tipos = [tipos]
+    tipos = normalize_work_types(tipos)
+    id_localidade = optional_localidade(id_localidade)
+    codigo = (codigo or "").strip()
+    if not codigo:
+        raise ValidationError("Informe o codigo SisPNCD.")
+    if len(codigo) > 20:
+        raise ValidationError("Codigo SisPNCD muito longo.")
+
+    clauses = [
+        "data BETWEEN ? AND ?",
+        f"tipo IN ({_placeholders(tipos)})",
+    ]
+    params = [data_inicio, data_fim] + list(tipos)
+    if id_localidade:
+        clauses.append("id_localidade = ?")
+        params.append(id_localidade)
+    where = " AND ".join(clauses)
+    conn = db_core.connect(db_path)
+    try:
+        cur = conn.execute(
+            f"UPDATE visitas SET SISPNCD = ? WHERE {where} AND SISPNCD IS NULL",
+            [codigo] + params,
+        )
+        conn.commit()
+        atualizados = cur.rowcount if cur.rowcount is not None else 0
+    finally:
+        conn.close()
+
+    return {
+        "ok": True,
+        "atualizados": atualizados,
+        "codigo": codigo,
+        "data_inicio": data_inicio,
+        "data_fim": data_fim,
+        "tipos": tipos,
     }
 
 

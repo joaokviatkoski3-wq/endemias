@@ -54,12 +54,17 @@ Aplicacao Flask ainda tem `app.py` como entrada principal, mas a modularizacao j
   - paginas administrativas ficam ocultas para visualizador;
   - badges de notificacoes e agenda foram preservadas.
 - Versao semantica inicial definida como `1.0.0` (`maio/2026`) e exibida no rodape das paginas.
-- Gravacao em SISPNC/SisPNCD ficou bloqueada nesta fase:
-  - a UI exibe o modo leitura;
-  - `/api/sispncd/salvar` retorna erro controlado e nao executa `UPDATE`.
-- Gravacao do status Conta Ovos tambem ficou bloqueada nesta fase:
-  - botao "Salvar status" desativado na UI;
-  - `/api/conta-ovos/salvar-status` retorna erro controlado e nao executa `UPDATE`.
+- Versao atual em desenvolvimento: `1.1.0`, com liberacao de gravacao Conta Ovos/SisPNCD.
+- Gravacao em SisPNCD foi liberada apos o marco `v1.0.0`:
+  - `/api/sispncd/salvar` grava o codigo somente em visitas pendentes com `SISPNCD IS NULL`;
+  - a gravacao respeita semana/ano/tipo/localidade e nao sobrescreve codigos ja preenchidos.
+- Gravacao do status Conta Ovos foi liberada apos o marco `v1.0.0`:
+  - botao "Salvar status" marca como enviados os TBO pendentes do filtro atual;
+  - `/api/conta-ovos/salvar-status` altera `CONTAOVOS_STATUS` de `0` para `1`.
+- Pagina Conta Ovos e SisPNCD recebeu painel de pendencias:
+  - TBO pendentes para Conta Ovos (`CONTAOVOS_STATUS = 0`);
+  - visitas pendentes para SisPNCD (`SISPNCD IS NULL`).
+- Coluna `visitas.SISPNC` renomeada para `visitas.SISPNCD`, com backup previo do banco real.
 - `templates/base.html` reconhece o endpoint novo `admin.admin_usuarios` no menu.
 - Historico de importacoes implementado:
   - tabela `importacoes`;
@@ -112,8 +117,10 @@ Cobertura atual inclui:
 - pagina `/esporotricose` responde para usuarios logados.
 - pagina `/conta-ovos-sispncd` responde para usuarios logados.
 - APIs `/api/conta-ovos` e `/api/sispncd/pesquisar` retornam JSON.
-- consultas SisPNCD nao alteram a coluna `visitas.SISPNC`.
-- consultas Conta Ovos respeitam `CONTAOVOS_STATUS = 0` e o endpoint de salvar status nao altera o banco.
+- consultas SisPNCD nao alteram a coluna `visitas.SISPNCD`.
+- endpoint de salvar SisPNCD grava somente pendentes em banco temporario nos testes.
+- consultas Conta Ovos respeitam `CONTAOVOS_STATUS = 0` e o endpoint de salvar status grava somente pendentes em banco temporario nos testes.
+- API de pendencias de envio retorna resumo para Conta Ovos e SisPNCD.
 - assets compartilhados `/static/css/app.css` e `/static/js/app.js` respondem 200.
 - cadastro central de modulos valida icones existentes e permissoes admin/visualizador.
 - versao atual aparece no layout principal e na tela de login.
@@ -130,7 +137,7 @@ python -m unittest discover -s tests -v
 Ultimo resultado conhecido:
 
 ```text
-Ran 37 tests
+Ran 39 tests
 OK
 ```
 

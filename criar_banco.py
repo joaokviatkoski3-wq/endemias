@@ -68,9 +68,9 @@ CREATE TABLE IF NOT EXISTS visitas (
     submission_time TEXT,
     processado_em   TEXT    NOT NULL,
     -- DB-06: colunas adicionadas por migração posterior (existem no banco real)
-    -- SISPNC: código de registro no SISPNC (Sistema de Informações de Saúde — PNCD)
+    -- SISPNCD: codigo de registro no SisPNCD
     -- Preenchido via formulário KoboToolbox quando disponível; NULL para registros anteriores
-    SISPNC          VARCHAR(20),
+    SISPNCD         VARCHAR(20),
     -- CONTAOVOS_STATUS: controle do status do formulário de contagem de ovos
     -- 0 = pendente, 1 = preenchido, NULL = não aplicável (tipo diferente de TBO)
     CONTAOVOS_STATUS INTEGER CHECK(CONTAOVOS_STATUS IN (0,1))

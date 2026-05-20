@@ -76,15 +76,15 @@
 - A lógica inline em `processar_upload()` permanece como única fonte de verdade
 - Redução: `etl.py` de 833 → 798 linhas
 
-### DB-06 — Colunas `SISPNC` e `CONTAOVOS_STATUS` documentadas *(médio — concluído)*
+### DB-06 — Colunas `SISPNCD` e `CONTAOVOS_STATUS` documentadas *(médio — concluído)*
 
-**O que era:** Duas colunas existentes no banco real (`SISPNC VARCHAR(20)` e `CONTAOVOS_STATUS INTEGER`) não estavam no `criar_banco.py`. Um novo deploy não as criaria, causando erros silenciosos ou queries que falhavam.
+**O que era:** Duas colunas existentes no banco real (`SISPNCD VARCHAR(20)` e `CONTAOVOS_STATUS INTEGER`) não estavam no `criar_banco.py`. Um novo deploy não as criaria, causando erros silenciosos ou queries que falhavam.
 
 **O que foi feito em `criar_banco.py`:**
 ```sql
 -- DB-06: colunas adicionadas por migração posterior (existem no banco real)
--- SISPNC: código de registro no SISPNC (Sistema de Informações de Saúde — PNCD)
-SISPNC           VARCHAR(20),
+-- SISPNCD: codigo de registro no SisPNCD
+SISPNCD          VARCHAR(20),
 -- CONTAOVOS_STATUS: 0=pendente, 1=preenchido, NULL=não aplicável
 CONTAOVOS_STATUS INTEGER CHECK(CONTAOVOS_STATUS IN (0,1))
 ```

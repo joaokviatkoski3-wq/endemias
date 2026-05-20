@@ -81,21 +81,43 @@ def api_sispncd_pesquisar():
     return jsonify(result)
 
 
+@bp.route("/api/conta-ovos-sispncd/pendencias")
+@login_required
+def api_pendencias_envio():
+    return jsonify(sispncd.pendencias_envio(_db_path()))
+
+
 @bp.route("/api/sispncd/salvar", methods=["POST"])
 @login_required
 @nivel_min("admin")
-def api_sispncd_salvar_bloqueado():
-    return jsonify({
-        "erro": "Gravacao em SISPNC temporariamente desativada para validacao inicial das consultas.",
-        "read_only": True,
-    }), 409
+def api_sispncd_salvar():
+    data = request.json or {}
+    try:
+        result = sispncd.salvar_sispncd(
+            _db_path(),
+            data.get("ano"),
+            data.get("semana") or data.get("semana_epidemiologica"),
+            data.get("tipo") or data.get("tipos_trabalho"),
+            data.get("codigo") or data.get("sispncd"),
+            id_localidade=data.get("localidade"),
+        )
+    except sispncd.ValidationError as exc:
+        return _json_error(exc)
+    return jsonify(result)
 
 
 @bp.route("/api/conta-ovos/salvar-status", methods=["POST"])
 @login_required
 @nivel_min("admin")
-def api_conta_ovos_salvar_status_bloqueado():
-    return jsonify({
-        "erro": "Atualizacao de CONTAOVOS_STATUS temporariamente desativada para validacao inicial das consultas.",
-        "read_only": True,
-    }), 409
+def api_conta_ovos_salvar_status():
+    data = request.json or {}
+    try:
+        result = sispncd.salvar_status_conta_ovos(
+            _db_path(),
+            data.get("data"),
+            data.get("quarteirao"),
+            id_localidade=data.get("localidade"),
+        )
+    except sispncd.ValidationError as exc:
+        return _json_error(exc)
+    return jsonify(result)

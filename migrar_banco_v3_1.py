@@ -184,15 +184,19 @@ if tabela_endemias:
 else:
     ok("Tabela 'endemias' não encontrada (já foi removida ou nunca existiu).")
 
-# ── 6b. Colunas SISPNC e CONTAOVOS_STATUS (DB-06) ─────────────────────────
-print("\n[6b/7] Verificando colunas SISPNC e CONTAOVOS_STATUS em visitas...")
+# ── 6b. Colunas SISPNCD e CONTAOVOS_STATUS (DB-06) ────────────────────────
+print("\n[6b/7] Verificando colunas SISPNCD e CONTAOVOS_STATUS em visitas...")
 colunas_visitas = {r[1] for r in conn.execute("PRAGMA table_info(visitas)").fetchall()}
-if "SISPNC" not in colunas_visitas:
-    conn.execute("ALTER TABLE visitas ADD COLUMN SISPNC VARCHAR(20)")
+if "SISPNCD" not in colunas_visitas and "SISPNC" in colunas_visitas:
+    conn.execute("ALTER TABLE visitas RENAME COLUMN SISPNC TO SISPNCD")
     conn.commit()
-    ok("Coluna SISPNC adicionada à tabela visitas.")
+    ok("Coluna SISPNC renomeada para SISPNCD.")
+elif "SISPNCD" not in colunas_visitas:
+    conn.execute("ALTER TABLE visitas ADD COLUMN SISPNCD VARCHAR(20)")
+    conn.commit()
+    ok("Coluna SISPNCD adicionada à tabela visitas.")
 else:
-    ok("Coluna SISPNC já existe.")
+    ok("Coluna SISPNCD já existe.")
 if "CONTAOVOS_STATUS" not in colunas_visitas:
     conn.execute("ALTER TABLE visitas ADD COLUMN CONTAOVOS_STATUS INTEGER")
     conn.commit()

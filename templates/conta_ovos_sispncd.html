@@ -42,7 +42,32 @@
 .empty-inline { color:var(--text3); font-size:12px; padding:18px; text-align:center; }
 .sispncd-actions { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
 .sispncd-actions .f-g { min-width:190px; }
+.pending-panel {
+  display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-bottom:18px;
+}
+.pending-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:14px 16px;
+}
+.pending-card-hd { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.pending-title { font-size:12px; font-weight:800; color:var(--brand); text-transform:uppercase; letter-spacing:.4px; display:flex; align-items:center; gap:6px; }
+.pending-total { font-size:24px; font-weight:800; color:var(--text); line-height:1; font-variant-numeric:tabular-nums; }
+.pending-list { display:flex; flex-direction:column; gap:6px; }
+.pending-item {
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:7px 9px; border-radius:var(--radius-sm); background:var(--surface2);
+  color:var(--text2); font-size:11.5px;
+}
+.pending-item strong { color:var(--text); font-weight:700; }
+.pending-count { color:var(--brand); font-weight:800; white-space:nowrap; }
+.write-note {
+  display:flex; align-items:center; gap:8px; color:var(--green);
+  background:var(--green-l); border:1px solid rgba(22,163,74,.25);
+  border-radius:var(--radius); padding:10px 12px; font-size:12px; font-weight:600;
+}
+[data-theme="dark"] .write-note { background:rgba(34,197,94,.12); }
 @media(max-width:900px) { .split-grid { grid-template-columns:1fr; } }
+@media(max-width:900px) { .pending-panel { grid-template-columns:1fr; } }
 </style>{% endblock %}
 
 {% block content %}
@@ -58,6 +83,23 @@
   <button class="module-tab-btn" type="button" onclick="openModuleTab('tab-sispncd', this)">
     <img src="/static/icons/fichario.svg" alt="" class="icon-svg"> SisPNCD
   </button>
+</div>
+
+<div class="pending-panel" aria-label="Pendencias de envio">
+  <div class="pending-card">
+    <div class="pending-card-hd">
+      <div class="pending-title"><img src="/static/icons/balde.svg" alt="" class="icon-svg"> Pendentes Conta Ovos</div>
+      <div class="pending-total" id="pend-co-total">0</div>
+    </div>
+    <div class="pending-list" id="pend-co-list"><div class="empty-inline">Carregando pendencias...</div></div>
+  </div>
+  <div class="pending-card">
+    <div class="pending-card-hd">
+      <div class="pending-title"><img src="/static/icons/fichario.svg" alt="" class="icon-svg"> Pendentes SisPNCD</div>
+      <div class="pending-total" id="pend-sis-total">0</div>
+    </div>
+    <div class="pending-list" id="pend-sis-list"><div class="empty-inline">Carregando pendencias...</div></div>
+  </div>
 </div>
 
 <section id="tab-conta-ovos" class="module-pane active">
@@ -92,7 +134,7 @@
       </div>
       <div class="filter-actions">
         <button class="btn btn-primary" type="button" onclick="buscarContaOvos()"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
-        <button class="btn btn-ghost" type="button" disabled title="Gravacao desativada nesta fase"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar status desativado</button>
+        <button class="btn btn-green" type="button" onclick="salvarContaOvosStatus()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar status</button>
         <span class="dim small">Somente TBO com CONTAOVOS_STATUS = 0</span>
       </div>
     </div>
@@ -177,10 +219,10 @@
         <button class="btn btn-primary" type="button" onclick="buscarSisPNCD()"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Pesquisar</button>
         <div class="f-g">
           <label>Codigo SisPNCD</label>
-          <input type="text" id="sis-codigo" maxlength="9" placeholder="0000/0000" disabled>
+          <input type="text" id="sis-codigo" maxlength="20" placeholder="0000/0000">
         </div>
-        <button class="btn btn-ghost" type="button" disabled title="Gravacao desativada nesta fase"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar desativado</button>
-        <div class="read-only-note"><img src="/static/icons/cadeado.svg" alt="" class="icon-svg"> Modo leitura: nenhuma consulta desta pagina grava no banco.</div>
+        <button class="btn btn-green" type="button" onclick="salvarSisPNCD()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar SisPNCD</button>
+        <div class="write-note"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Grava somente visitas pendentes, sem sobrescrever codigos ja preenchidos.</div>
       </div>
     </div>
   </div>
@@ -307,9 +349,51 @@ function setText(id, value) {
   const el = document.getElementById(id);
   if (el) el.textContent = fmtNum(value || 0);
 }
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
 function tableRows(rows, emptyText, cols) {
   if (!rows.length) return `<tr><td colspan="${cols}" class="empty-inline">${emptyText}</td></tr>`;
   return rows.join('');
+}
+
+async function carregarPendencias() {
+  try {
+    const d = await apiGet('/api/conta-ovos-sispncd/pendencias');
+    renderPendencias(d);
+  } catch(e) {
+    document.getElementById('pend-co-list').innerHTML = `<div class="empty-inline">${escapeHtml(e.message)}</div>`;
+    document.getElementById('pend-sis-list').innerHTML = `<div class="empty-inline">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderPendencias(d) {
+  const conta = d.conta_ovos || {};
+  const sis = d.sispncd || {};
+  setText('pend-co-total', conta.total);
+  setText('pend-sis-total', sis.total);
+
+  const contaRows = (conta.grupos || []).map(r => `
+    <div class="pending-item">
+      <span><strong>${fmtDate(r.data)}</strong> - Q${escapeHtml(r.quarteirao ?? '-')} - ${escapeHtml(r.localidade || '-')}</span>
+      <span class="pending-count">${fmtNum(r.total)}</span>
+    </div>
+  `);
+  document.getElementById('pend-co-list').innerHTML = contaRows.length
+    ? contaRows.join('')
+    : '<div class="empty-inline">Sem TBO pendente para Conta Ovos.</div>';
+
+  const sisRows = (sis.grupos || []).map(r => `
+    <div class="pending-item">
+      <span><strong>${escapeHtml(r.tipo || '-')}</strong> - ${escapeHtml(r.localidade || '-')} - ${fmtDate(r.data_inicio)} a ${fmtDate(r.data_fim)}</span>
+      <span class="pending-count">${fmtNum(r.total)}</span>
+    </div>
+  `);
+  document.getElementById('pend-sis-list').innerHTML = sisRows.length
+    ? sisRows.join('')
+    : '<div class="empty-inline">Sem visita pendente para SisPNCD.</div>';
 }
 
 async function buscarContaOvos() {
@@ -321,6 +405,23 @@ async function buscarContaOvos() {
   try {
     const d = await apiGet('/api/conta-ovos?' + p.toString());
     renderContaOvos(d);
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function salvarContaOvosStatus() {
+  const body = {
+    data: document.getElementById('co-data').value || '',
+    quarteirao: document.getElementById('co-quarteirao').value || '',
+    localidade: document.getElementById('co-localidade').value || null,
+  };
+  if (!confirm('Marcar os TBO pendentes deste filtro como enviados ao Conta Ovos?')) return;
+  try {
+    const d = await apiPost('/api/conta-ovos/salvar-status', body);
+    toast(`${fmtNum(d.atualizados)} registro(s) marcado(s) no Conta Ovos.`, 'success');
+    await buscarContaOvos();
+    await carregarPendencias();
   } catch(e) {
     toast(e.message, 'error');
   }
@@ -358,16 +459,44 @@ function tiposSisSelecionados() {
   return tipos;
 }
 
+function sisFiltroPayload() {
+  return {
+    semana: document.getElementById('sis-semana').value || '',
+    ano: document.getElementById('sis-ano').value || '',
+    localidade: document.getElementById('sis-localidade').value || null,
+    tipo: tiposSisSelecionados(),
+  };
+}
+
 async function buscarSisPNCD() {
+  const filtro = sisFiltroPayload();
   const p = new URLSearchParams();
-  p.set('semana', document.getElementById('sis-semana').value || '');
-  p.set('ano', document.getElementById('sis-ano').value || '');
-  const loc = document.getElementById('sis-localidade').value;
+  p.set('semana', filtro.semana);
+  p.set('ano', filtro.ano);
+  const loc = filtro.localidade;
   if (loc) p.set('localidade', loc);
-  tiposSisSelecionados().forEach(t => p.append('tipo', t));
+  filtro.tipo.forEach(t => p.append('tipo', t));
   try {
     const d = await apiGet('/api/sispncd/pesquisar?' + p.toString());
     renderSisPNCD(d);
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function salvarSisPNCD() {
+  const body = sisFiltroPayload();
+  body.codigo = (document.getElementById('sis-codigo').value || '').trim();
+  if (!body.codigo) {
+    toast('Informe o codigo SisPNCD.', 'error');
+    return;
+  }
+  if (!confirm('Gravar este codigo SisPNCD nas visitas pendentes do filtro atual?')) return;
+  try {
+    const d = await apiPost('/api/sispncd/salvar', body);
+    toast(`${fmtNum(d.atualizados)} visita(s) atualizada(s) no SisPNCD.`, 'success');
+    await buscarSisPNCD();
+    await carregarPendencias();
   } catch(e) {
     toast(e.message, 'error');
   }
@@ -435,6 +564,7 @@ function renderExemplares(lab) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  carregarPendencias();
   buscarContaOvos();
   buscarSisPNCD();
 });
