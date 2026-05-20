@@ -17,6 +17,7 @@ Aplicacao Flask ainda tem `app.py` como entrada principal, mas a modularizacao j
   - `admin.py`: primeiro blueprint real.
   - `processar.py`: upload, dry-run, confirmacao e cancelamento de importacoes.
   - `conta_ovos_sispncd.py`: pagina e APIs de consulta do modulo Conta Ovos e SisPNCD.
+  - `agenda.py`: pagina, eventos, edicao/exclusao e lembretes da agenda.
 - Rotas de usuarios movidas para blueprint mantendo:
   - `/admin/usuarios`
   - `/admin/usuarios/criar`
@@ -28,6 +29,11 @@ Aplicacao Flask ainda tem `app.py` como entrada principal, mas a modularizacao j
   - `/processar/stream/<job_id>`
   - `/processar/confirmar/<job_id>`
   - `/processar/cancelar/<job_id>`
+- Rotas da agenda movidas para blueprint mantendo:
+  - `/agenda`
+  - `/api/agenda/eventos`
+  - `/api/agenda/eventos/<id_evento>`
+  - `/api/agenda/lembretes`
 - Validacao de upload XLSX movida para `app_core/uploads.py`, mantendo wrapper compatível em `app.py`.
 - Eventos automaticos da agenda tiveram textos normalizados para evitar mojibake no calendario e no popup de detalhes.
 - Criada pagina placeholder `/esporotricose` para futuro modulo de visitas/importacao de esporotricose, sem alteracao de banco.
@@ -114,7 +120,7 @@ Cobertura atual inclui:
 Rodar apos cada corte:
 
 ```powershell
-python -m py_compile app.py etl.py app_core\auth.py app_core\db.py app_core\import_history.py app_core\modules.py app_core\sispncd.py app_core\uploads.py app_core\utils.py app_core\work_types.py blueprints\admin.py blueprints\conta_ovos_sispncd.py blueprints\processar.py tests\test_security.py
+python -m py_compile app.py etl.py app_core\auth.py app_core\db.py app_core\import_history.py app_core\modules.py app_core\sispncd.py app_core\uploads.py app_core\utils.py app_core\work_types.py blueprints\admin.py blueprints\agenda.py blueprints\conta_ovos_sispncd.py blueprints\processar.py tests\test_security.py
 python -m unittest discover -s tests -v
 ```
 
@@ -129,7 +135,8 @@ OK
 
 1. Mover outro blueprint pequeno quando fizer sentido.
    - Opcoes:
-     - `agenda`: relativamente isolado, mas tem bastante JS na tela.
+     - `esporotricose`: placeholder simples, bom para padronizar novos modulos.
+     - `notificacoes`: modulo maior, mas com ganho relevante por reduzir bastante o `app.py`.
 2. Preparar base para novos tipos importados por planilha.
    - Sugestao:
      - criar registro central de tipos de importacao futuros;
