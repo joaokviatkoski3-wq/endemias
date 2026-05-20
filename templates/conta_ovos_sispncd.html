@@ -52,7 +52,7 @@
 .pending-card-hd { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
 .pending-title { font-size:12px; font-weight:800; color:var(--brand); text-transform:uppercase; letter-spacing:.4px; display:flex; align-items:center; gap:6px; }
 .pending-total { font-size:24px; font-weight:800; color:var(--text); line-height:1; font-variant-numeric:tabular-nums; }
-.pending-list { display:flex; flex-direction:column; gap:6px; }
+.pending-list { display:flex; flex-direction:column; gap:6px; max-height:260px; overflow-y:auto; padding-right:2px; }
 .pending-item {
   display:flex; align-items:center; justify-content:space-between; gap:10px;
   padding:7px 9px; border-radius:var(--radius-sm); background:var(--surface2);
@@ -374,6 +374,8 @@ function renderPendencias(d) {
   const sis = d.sispncd || {};
   setText('pend-co-total', conta.total);
   setText('pend-sis-total', sis.total);
+  document.getElementById('pend-co-total').title = `${fmtNum(conta.total_grupos || 0)} grupo(s) pendente(s)`;
+  document.getElementById('pend-sis-total').title = `${fmtNum(sis.total_grupos || 0)} grupo(s) pendente(s)`;
 
   const contaRows = (conta.grupos || []).map(r => `
     <div class="pending-item">

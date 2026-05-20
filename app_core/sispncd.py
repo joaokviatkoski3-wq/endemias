@@ -123,38 +123,36 @@ def get_default_conta_ovos(db_path):
     return row or {"data": date.today().isoformat(), "quarteirao": ""}
 
 
-def pendencias_envio(db_path, limite_grupos=8):
+def pendencias_envio(db_path, limite_grupos=None):
     conn = db_core.connect(db_path)
     try:
         conta_total = conn.execute(
             "SELECT COUNT(*) FROM visitas WHERE tipo='TBO' AND CONTAOVOS_STATUS = 0"
         ).fetchone()[0] or 0
-        conta_grupos = [
-            dict(row)
-            for row in conn.execute(
-                """
+        conta_sql = """
                 SELECT data,
                        quarteirao,
                        COALESCE(localidade, '-') AS localidade,
                        COUNT(*) AS total
-                 FROM visitas
+                  FROM visitas
                  WHERE tipo='TBO'
                    AND CONTAOVOS_STATUS = 0
                  GROUP BY data, quarteirao, COALESCE(localidade, '-')
                  ORDER BY data DESC, total DESC
-                 LIMIT ?
-                """,
-                (limite_grupos,),
-            )
+                """
+        conta_params = ()
+        if limite_grupos:
+            conta_sql += " LIMIT ?"
+            conta_params = (limite_grupos,)
+        conta_grupos = [
+            dict(row)
+            for row in conn.execute(conta_sql, conta_params)
         ]
 
         sispncd_total = conn.execute(
             "SELECT COUNT(*) FROM visitas WHERE SISPNCD IS NULL"
         ).fetchone()[0] or 0
-        sispncd_grupos = [
-            dict(row)
-            for row in conn.execute(
-                """
+        sispncd_sql = """
                 SELECT tipo,
                        COALESCE(localidade, '-') AS localidade,
                        MIN(data) AS data_inicio,
@@ -164,17 +162,21 @@ def pendencias_envio(db_path, limite_grupos=8):
                  WHERE SISPNCD IS NULL
                  GROUP BY tipo, COALESCE(localidade, '-')
                  ORDER BY total DESC, tipo, localidade
-                 LIMIT ?
-                """,
-                (limite_grupos,),
-            )
+                """
+        sispncd_params = ()
+        if limite_grupos:
+            sispncd_sql += " LIMIT ?"
+            sispncd_params = (limite_grupos,)
+        sispncd_grupos = [
+            dict(row)
+            for row in conn.execute(sispncd_sql, sispncd_params)
         ]
     finally:
         conn.close()
 
     return {
-        "conta_ovos": {"total": conta_total, "grupos": conta_grupos},
-        "sispncd": {"total": sispncd_total, "grupos": sispncd_grupos},
+        "conta_ovos": {"total": conta_total, "total_grupos": len(conta_grupos), "grupos": conta_grupos},
+        "sispncd": {"total": sispncd_total, "total_grupos": len(sispncd_grupos), "grupos": sispncd_grupos},
     }
 
 

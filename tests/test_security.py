@@ -469,6 +469,25 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("total", dados["conta_ovos"])
         self.assertIn("grupos", dados["sispncd"])
 
+        conn = sqlite3.connect(endemias_app.DB_PATH)
+        try:
+            esperado_graziela = conn.execute(
+                """SELECT COUNT(*) FROM visitas
+                   WHERE tipo='TBO'
+                     AND localidade='Graziela'
+                     AND data='2026-05-04'
+                     AND CONTAOVOS_STATUS=0"""
+            ).fetchone()[0]
+        finally:
+            conn.close()
+
+        if esperado_graziela:
+            grupos = dados["conta_ovos"]["grupos"]
+            self.assertTrue(any(
+                g["data"] == "2026-05-04" and g["localidade"] == "Graziela"
+                for g in grupos
+            ))
+
     def test_api_visitas_tem_campos_de_paginacao(self):
         client = _client_logado()
         resp = client.get("/api/visitas?pagina=1&por_pagina=5")
