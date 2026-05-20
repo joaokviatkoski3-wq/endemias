@@ -31,18 +31,28 @@ tick(); setInterval(tick, 30000);
 /* ═══════════════════════════
    TEMA ESCURO
 ═══════════════════════════ */
-let darkMode = localStorage.getItem('dark') === '1';
+function getSavedTheme() {
+  const theme = localStorage.getItem('theme');
+  if (theme === 'light' || theme === 'dark') return theme;
+  return localStorage.getItem('dark') === '1' ? 'dark' : 'light';
+}
+
+let currentTheme = getSavedTheme();
+let darkMode = currentTheme === 'dark';
 function applyTheme() {
-  document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+  darkMode = currentTheme === 'dark';
+  document.documentElement.setAttribute('data-theme', currentTheme);
+  localStorage.setItem('theme', currentTheme);
+  localStorage.setItem('dark', darkMode ? '1' : '0');
   document.getElementById('btnDark').innerHTML = darkMode ? '<img src="/static/icons/sol.svg" alt="☀" class="icon-svg">️' : '<img src="/static/icons/lua.svg" alt="🌙" class="icon-svg">';
   // Atualiza Chart.js existente
   refreshChartsTheme();
 }
 function toggleDark() {
-  darkMode = !darkMode;
-  localStorage.setItem('dark', darkMode ? '1' : '0');
+  currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
   applyTheme();
 }
+window.toggleDark = toggleDark;
 applyTheme();
 
 function refreshChartsTheme() {

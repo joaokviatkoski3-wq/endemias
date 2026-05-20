@@ -267,6 +267,16 @@ class MainPagesSmokeTests(unittest.TestCase):
                 finally:
                     resp.close()
 
+    def test_tema_claro_escuro_tem_contrato_explicito(self):
+        css = (ROOT / "static" / "css" / "app.css").read_text(encoding="utf-8")
+        js = (ROOT / "static" / "js" / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('[data-theme="light"]', css)
+        self.assertIn('[data-theme="dark"]', css)
+        self.assertIn("localStorage.getItem('theme')", js)
+        self.assertIn("document.documentElement.setAttribute('data-theme', currentTheme)", js)
+        self.assertIn("currentTheme === 'dark' ? 'light' : 'dark'", js)
+
 
 class MainApisSmokeTests(unittest.TestCase):
     def test_apis_principais_logadas_retornam_json(self):

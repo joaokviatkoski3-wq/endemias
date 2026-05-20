@@ -18,7 +18,9 @@
 /* ═══════════════════════════════════════════
    VARIÁVEIS
 ═══════════════════════════════════════════ */
-:root {
+:root,
+[data-theme="light"] {
+  color-scheme: light;
   /* Brand */
   --brand:      #1a4fba;
   --brand-d:    #133a8f;
@@ -56,6 +58,7 @@
   --tr-hover:   #f0f5ff;
 }
 [data-theme="dark"] {
+  color-scheme: dark;
   --brand:      #4a80f0;
   --brand-d:    #3b72e0;
   --brand-l:    #6699f7;
