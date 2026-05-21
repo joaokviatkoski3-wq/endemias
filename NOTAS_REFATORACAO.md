@@ -67,7 +67,8 @@ Aplicacao Flask ainda tem `app.py` como entrada principal, mas a modularizacao j
   - paginas administrativas ficam ocultas para visualizador;
   - badges de notificacoes e agenda foram preservadas.
 - Versao semantica inicial definida como `1.0.0` (`maio/2026`) e exibida no rodape das paginas.
-- Versao atual em desenvolvimento: `1.1.0`, com liberacao de gravacao Conta Ovos/SisPNCD.
+- Versao atual: `1.2.0` (`maio/2026`), com ajustes de agenda/notificacoes, schema DBML atualizado e pendencias Conta Ovos clicaveis.
+- Marco `v1.1.0`: liberacao de gravacao Conta Ovos/SisPNCD.
 - Gravacao em SisPNCD foi liberada apos o marco `v1.0.0`:
   - `/api/sispncd/salvar` grava o codigo somente em visitas pendentes com `SISPNCD IS NULL`;
   - a gravacao respeita semana/ano/tipo/localidade e nao sobrescreve codigos ja preenchidos.

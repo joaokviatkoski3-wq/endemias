@@ -55,10 +55,19 @@
 .pending-list { display:flex; flex-direction:column; gap:6px; max-height:260px; overflow-y:auto; padding-right:2px; }
 .pending-item {
   display:flex; align-items:center; justify-content:space-between; gap:10px;
-  padding:7px 9px; border-radius:var(--radius-sm); background:var(--surface2);
+  width:100%; border:1px solid transparent; padding:7px 9px; border-radius:var(--radius-sm); background:var(--surface2);
   color:var(--text2); font-size:11.5px;
+  font:inherit; text-align:left;
 }
 .pending-item strong { color:var(--text); font-weight:700; }
+.pending-item.clickable { cursor:pointer; transition:background .15s, border-color .15s, color .15s, box-shadow .15s; }
+.pending-item.clickable:hover,
+.pending-item.clickable.active {
+  border-color:var(--brand);
+  background:var(--brand-xs);
+  color:var(--brand);
+}
+.pending-item.clickable.active { box-shadow:inset 3px 0 0 var(--brand); }
 .pending-count { color:var(--brand); font-weight:800; white-space:nowrap; }
 .write-note {
   display:flex; align-items:center; gap:8px; color:var(--green);
@@ -66,6 +75,15 @@
   border-radius:var(--radius); padding:10px 12px; font-size:12px; font-weight:600;
 }
 [data-theme="dark"] .write-note { background:rgba(34,197,94,.12); }
+.value-positive {
+  color:var(--green) !important;
+  font-weight:800 !important;
+}
+td.value-positive {
+  background:var(--green-l);
+  border-radius:6px;
+}
+[data-theme="dark"] td.value-positive { background:rgba(34,197,94,.13); }
 @media(max-width:900px) { .split-grid { grid-template-columns:1fr; } }
 @media(max-width:900px) { .pending-panel { grid-template-columns:1fr; } }
 </style>{% endblock %}
@@ -347,12 +365,20 @@ function openSisTab(id, btn) {
 }
 function setText(id, value) {
   const el = document.getElementById(id);
-  if (el) el.textContent = fmtNum(value || 0);
+  if (!el) return;
+  el.textContent = fmtNum(value || 0);
+  el.classList.toggle('value-positive', Number(value || 0) > 0);
 }
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
+}
+function positiveClass(value) {
+  return Number(value || 0) > 0 ? ' class="value-positive"' : '';
+}
+function valueCell(value) {
+  return `<td${positiveClass(value)}>${fmtNum(value)}</td>`;
 }
 function tableRows(rows, emptyText, cols) {
   if (!rows.length) return `<tr><td colspan="${cols}" class="empty-inline">${emptyText}</td></tr>`;
@@ -378,10 +404,14 @@ function renderPendencias(d) {
   document.getElementById('pend-sis-total').title = `${fmtNum(sis.total_grupos || 0)} grupo(s) pendente(s)`;
 
   const contaRows = (conta.grupos || []).map(r => `
-    <div class="pending-item">
+    <button class="pending-item clickable" type="button"
+            data-data="${escapeHtml(r.data || '')}"
+            data-quarteirao="${escapeHtml(r.quarteirao ?? '')}"
+            data-localidade-id="${escapeHtml(r.id_localidade ?? '')}"
+            onclick="selecionarPendenciaContaOvos(this)">
       <span><strong>${fmtDate(r.data)}</strong> - Q${escapeHtml(r.quarteirao ?? '-')} - ${escapeHtml(r.localidade || '-')}</span>
-      <span class="pending-count">${fmtNum(r.total)}</span>
-    </div>
+      <span class="pending-count${Number(r.total || 0) > 0 ? ' value-positive' : ''}">${fmtNum(r.total)}</span>
+    </button>
   `);
   document.getElementById('pend-co-list').innerHTML = contaRows.length
     ? contaRows.join('')
@@ -390,12 +420,25 @@ function renderPendencias(d) {
   const sisRows = (sis.grupos || []).map(r => `
     <div class="pending-item">
       <span><strong>${escapeHtml(r.tipo || '-')}</strong> - ${escapeHtml(r.localidade || '-')} - ${fmtDate(r.data_inicio)} a ${fmtDate(r.data_fim)}</span>
-      <span class="pending-count">${fmtNum(r.total)}</span>
+      <span class="pending-count${Number(r.total || 0) > 0 ? ' value-positive' : ''}">${fmtNum(r.total)}</span>
     </div>
   `);
   document.getElementById('pend-sis-list').innerHTML = sisRows.length
     ? sisRows.join('')
     : '<div class="empty-inline">Sem visita pendente para SisPNCD.</div>';
+}
+
+async function selecionarPendenciaContaOvos(item) {
+  document.querySelectorAll('#pend-co-list .pending-item').forEach(el => el.classList.remove('active'));
+  item.classList.add('active');
+
+  document.getElementById('co-data').value = item.dataset.data || '';
+  document.getElementById('co-quarteirao').value = item.dataset.quarteirao || '';
+  document.getElementById('co-localidade').value = item.dataset.localidadeId || '';
+
+  const contaOvosTab = document.querySelector('.module-tab-btn');
+  openModuleTab('tab-conta-ovos', contaOvosTab);
+  await buscarContaOvos();
 }
 
 async function buscarContaOvos() {
@@ -437,12 +480,12 @@ function renderContaOvos(d) {
     const r = imoveis[k] || {};
     positivas += Number(r.positivas || 0);
     tratadas += Number(r.tratadas || 0);
-    return `<tr><td>${KIND_LABELS[k]}</td><td>${fmtNum(r.visitas)}</td><td>${fmtNum(r.pendencias)}</td><td>${fmtNum(r.positivas)}</td><td>${fmtNum(r.tratadas)}</td></tr>`;
+    return `<tr><td>${KIND_LABELS[k]}</td>${valueCell(r.visitas)}${valueCell(r.pendencias)}${valueCell(r.positivas)}${valueCell(r.tratadas)}</tr>`;
   });
   const rowsDepositos = DEPOSIT_CODES.map(k => {
     const r = depositos[k] || {};
     larvicida += Number(r.larvicida_mg || 0);
-    return `<tr><td>${k.toUpperCase()}</td><td>${fmtNum(r.quantidade)}</td><td>${fmtNum(r.eliminado)}</td><td>${fmtNum(r.tratado)}</td><td>${fmtNum(r.larvicida_mg)}</td></tr>`;
+    return `<tr><td>${k.toUpperCase()}</td>${valueCell(r.quantidade)}${valueCell(r.eliminado)}${valueCell(r.tratado)}${valueCell(r.larvicida_mg)}</tr>`;
   });
   document.getElementById('co-imoveis-body').innerHTML = rowsImoveis.join('');
   document.getElementById('co-depositos-body').innerHTML = rowsDepositos.join('');
@@ -523,10 +566,10 @@ function renderSisPNCD(d) {
 
   const deps = g.depositos || {};
   document.getElementById('sis-depositos-grid').innerHTML = DEPOSIT_CODES.map(k => `
-    <div class="metric"><div class="metric-label">${k.toUpperCase()}</div><div class="metric-value">${fmtNum(deps[k] || 0)}</div></div>
+    <div class="metric"><div class="metric-label">${k.toUpperCase()}</div><div class="metric-value${Number(deps[k] || 0) > 0 ? ' value-positive' : ''}">${fmtNum(deps[k] || 0)}</div></div>
   `).join('');
 
-  const tratamentos = (g.tratamentos || []).map(r => `<tr><td>${r.tipo}</td><td>${fmtNum(r.quantidade)}</td><td>${fmtNum(r.carga_kg)}</td></tr>`);
+  const tratamentos = (g.tratamentos || []).map(r => `<tr><td>${r.tipo}</td>${valueCell(r.quantidade)}${valueCell(r.carga_kg)}</tr>`);
   document.getElementById('sis-tratamentos-body').innerHTML = tableRows(tratamentos, 'Sem tratamentos no periodo.', 3);
 
   renderDepositTable('sis-dep-aegypti-body', lab.depositos_aegypti || []);
@@ -539,7 +582,7 @@ function renderSisPNCD(d) {
 }
 
 function renderDepositTable(id, rows) {
-  const htmlRows = rows.map(r => `<tr><td>${r.tipo_deposito || '-'}</td><td>${fmtNum(r.quantidade)}</td></tr>`);
+  const htmlRows = rows.map(r => `<tr><td>${r.tipo_deposito || '-'}</td>${valueCell(r.quantidade)}</tr>`);
   document.getElementById(id).innerHTML = tableRows(htmlRows, 'Sem depositos positivos no periodo.', 2);
 }
 
@@ -550,7 +593,7 @@ function renderSpeciesKindTable(lab) {
     ['Outras especies', lab.imoveis_outras || {}],
   ];
   document.getElementById('sis-imoveis-especies-body').innerHTML = sources.map(([label, data]) => `
-    <tr><td>${label}</td>${Object.keys(KIND_LABELS).map(k => `<td>${fmtNum(data[k] || 0)}</td>`).join('')}</tr>
+    <tr><td>${label}</td>${Object.keys(KIND_LABELS).map(k => valueCell(data[k] || 0)).join('')}</tr>
   `).join('');
 }
 
@@ -561,7 +604,7 @@ function renderExemplares(lab) {
     ['Outras especies', lab.exemplares_outras || {}],
   ];
   document.getElementById('sis-exemplares-body').innerHTML = sources.map(([label, data]) => `
-    <tr><td>${label}</td><td>${fmtNum(data.larvas)}</td><td>${fmtNum(data.pupas)}</td><td>${fmtNum(data.exuvias)}</td><td>${fmtNum(data.adultos)}</td></tr>
+    <tr><td>${label}</td>${valueCell(data.larvas)}${valueCell(data.pupas)}${valueCell(data.exuvias)}${valueCell(data.adultos)}</tr>
   `).join('');
 }
 

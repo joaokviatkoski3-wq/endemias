@@ -66,7 +66,7 @@
       'arquivada': ('badge-arquivada','—'),
     } %}
     {% set cls, ico = st_map.get(st, ('badge-sc','?')) %}
-    <span class="badge {{ cls }}" style="font-size:13px;padding:6px 14px;">{{ ico }} {{ st | capitalize }}</span>
+    <span class="badge {{ cls }}" style="font-size:13px;padding:6px 14px;">{{ ico | safe }} {{ st | capitalize }}</span>
   </div>
 </div>
 
@@ -211,7 +211,8 @@ async function salvar() {
   const fd = new FormData(form);
   const btn = document.querySelector('.save-bar .btn-primary');
   const msg = document.getElementById('save-msg');
-  btn.disabled = true; btn.textContent = 'Salvando…';
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true; btn.textContent = 'Salvando...';
   try {
     const r = await fetch('/notificacoes/foco/{{ foco.id_foco }}/atualizar', {
       method:'POST',
@@ -227,7 +228,7 @@ async function salvar() {
   } catch(e) {
     toast('Erro de comunicação', 'error');
   }
-  btn.disabled = false; btn.textContent = '<img src="/static/icons/salvar.svg" alt="💾" class="icon-svg"> Salvar alterações';
+  btn.disabled = false; btn.innerHTML = originalHtml;
 }
 
 // Atalho de teclado

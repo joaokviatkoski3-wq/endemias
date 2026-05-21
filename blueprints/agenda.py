@@ -104,13 +104,18 @@ def api_eventos():
         (fim, inicio),
     )
     for r in rows:
+        cor = r["cor"] or work_types.AGENDA_TYPE_COLORS.get(r["tipo"], "#64748b")
         eventos.append({
             "id": f"manual_{r['id_evento']}",
             "title": r["titulo"],
             "start": r["data_inicio"],
             "end": r["data_fim"] or r["data_inicio"],
             "allDay": bool(r["dia_inteiro"]),
-            "color": r["cor"] or work_types.AGENDA_TYPE_COLORS.get(r["tipo"], "#64748b"),
+            "color": cor,
+            "backgroundColor": cor,
+            "borderColor": cor,
+            "textColor": "#ffffff",
+            "display": "block",
             "extendedProps": {
                 "tipo": r["tipo"],
                 "tipoLabel": work_types.AGENDA_TYPE_LABELS.get(r["tipo"], "Outro"),
@@ -170,6 +175,9 @@ def api_eventos():
             "end": r["data"],
             "allDay": True,
             "color": work_types.WORK_TYPE_COLORS.get(tipo, "#64748b") + "cc",
+            "backgroundColor": work_types.WORK_TYPE_COLORS.get(tipo, "#64748b") + "cc",
+            "borderColor": work_types.WORK_TYPE_COLORS.get(tipo, "#64748b"),
+            "textColor": "#ffffff",
             "display": "block",
             "extendedProps": {
                 "tipo": tipo,

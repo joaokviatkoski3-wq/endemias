@@ -132,12 +132,13 @@ def pendencias_envio(db_path, limite_grupos=None):
         conta_sql = """
                 SELECT data,
                        quarteirao,
+                       id_localidade,
                        COALESCE(localidade, '-') AS localidade,
                        COUNT(*) AS total
                   FROM visitas
                  WHERE tipo='TBO'
                    AND CONTAOVOS_STATUS = 0
-                 GROUP BY data, quarteirao, COALESCE(localidade, '-')
+                 GROUP BY data, quarteirao, id_localidade, COALESCE(localidade, '-')
                  ORDER BY data DESC, total DESC
                 """
         conta_params = ()

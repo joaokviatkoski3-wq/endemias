@@ -186,6 +186,11 @@
 .fc-button-primary:not(:disabled).fc-button-active { background: var(--brand-d) !important; }
 .fc-day-today { background: var(--brand-xs) !important; }
 .fc-event { cursor: pointer; border-radius: 4px !important; font-size: 11.5px !important; }
+.fc .fc-event-main,
+.fc .fc-event-title,
+.fc .fc-event-time {
+  color: inherit !important;
+}
 .fc-event-title { font-weight: 600; }
 .fc-daygrid-event-dot { display: none; }
 [data-theme="dark"] .fc-scrollgrid { border-color: var(--border) !important; }
@@ -320,6 +325,15 @@ document.addEventListener('DOMContentLoaded', () => {
     },
 
     eventDidMount: function(info) {
+      const bg = info.event.backgroundColor || info.event.extendedProps.cor || info.event.borderColor || '#64748b';
+      const border = info.event.borderColor || bg;
+      const text = info.event.textColor || '#ffffff';
+      info.el.style.setProperty('background-color', bg, 'important');
+      info.el.style.setProperty('border-color', border, 'important');
+      info.el.style.setProperty('color', text, 'important');
+      info.el.querySelectorAll('.fc-event-main,.fc-event-title,.fc-event-time').forEach(node => {
+        node.style.setProperty('color', text, 'important');
+      });
       const orig = info.event.extendedProps.origem;
       if (orig === 'auto') {
         info.el.style.opacity = '0.85';

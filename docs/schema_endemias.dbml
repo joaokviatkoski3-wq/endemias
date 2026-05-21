@@ -2,7 +2,7 @@
 // Para visualizar: acesse https://dbdiagram.io/ > New Diagram > cole este conteudo.
 // Referencias marcadas como inferidas dependem do nome das colunas e devem ser revisadas visualmente.
 
-Table agenda_eventos [note: 'Registros atuais: 2'] {
+Table agenda_eventos [note: 'Registros atuais: 339'] {
   id_evento integer [pk]
   titulo text [not null]
   descricao text
@@ -30,7 +30,7 @@ Table coletas [note: 'Registros atuais: 67'] {
   deposito_eliminado integer
 }
 
-Table depositos_inspecionados [note: 'Registros atuais: 8568'] {
+Table depositos_inspecionados [note: 'Registros atuais: 8567'] {
   id integer [pk]
   id_visita text [not null]
   tipo_deposito text [not null]
@@ -42,7 +42,60 @@ Table depositos_inspecionados [note: 'Registros atuais: 8568'] {
   is_historico integer
 }
 
-Table focos_historico [note: 'Registros atuais: 24'] {
+Table esporotricose_animais [note: 'Registros atuais: 648'] {
+  id_animal text [pk]
+  id_visita text [not null]
+  kobo_uuid text
+  especie text
+  outro_animal text
+  nome text
+  raca text
+  sexo text
+  ambiente text
+  vacinado text
+  castrado text
+  feridas text
+  regiao_ferida text
+  atendimento_veterinario text
+  data_atendimento date
+  evolucao_caso text
+  arquivo_origem text
+  processado_em text [not null]
+}
+
+Table esporotricose_visita_agentes [note: 'Registros atuais: 1368'] {
+  id_visita text [pk, not null]
+  id_agente integer [pk, not null]
+}
+
+Table esporotricose_visitas [note: 'Registros atuais: 719'] {
+  id_visita text [pk]
+  kobo_uuid text [not null]
+  kobo_id integer
+  data date [not null]
+  hora_inicio time
+  hora_fim time
+  inicio_registro text
+  fim_registro text
+  agentes_texto text
+  localidade text
+  id_localidade integer
+  quarteirao integer
+  tipo_imovel text
+  logradouro text
+  numero text
+  morador text
+  visita text
+  telefone text
+  observacoes text
+  deseja_cadastrar_animal text
+  origem_estrutura text [not null]
+  arquivo_origem text
+  submission_time text
+  processado_em text [not null]
+}
+
+Table focos_historico [note: 'Registros atuais: 26'] {
   id integer [pk]
   id_foco integer [not null]
   campo text [not null]
@@ -96,7 +149,7 @@ Table importacoes [note: 'Registros atuais: 0'] {
   atualizado_em text [not null]
 }
 
-Table localidades [note: 'Registros atuais: 15'] {
+Table localidades [note: 'Registros atuais: 16'] {
   id_localidade integer [pk]
   nome text [not null]
   cod_localidade text
@@ -142,12 +195,12 @@ Table usuarios [note: 'Registros atuais: 5'] {
   criado_em text [not null]
 }
 
-Table visita_agentes [note: 'Registros atuais: 35853'] {
+Table visita_agentes [note: 'Registros atuais: 35848'] {
   id_visita text [pk, not null]
   id_agente integer [pk, not null]
 }
 
-Table visitas [note: 'Registros atuais: 16470'] {
+Table visitas [note: 'Registros atuais: 16465'] {
   id_visita text [pk]
   kobo_uuid text [not null]
   kobo_id integer
@@ -170,12 +223,16 @@ Table visitas [note: 'Registros atuais: 16470'] {
   submission_time text
   processado_em text [not null]
   id_localidade integer
-  SISPNC varchar(20)
+  SISPNCD varchar(20)
   CONTAOVOS_STATUS integer
 }
 
 Ref: coletas.id_visita > visitas.id_visita // declarada no SQLite
 Ref: depositos_inspecionados.id_visita > visitas.id_visita // declarada no SQLite
+Ref: esporotricose_animais.id_visita > esporotricose_visitas.id_visita // declarada no SQLite
+Ref: esporotricose_visita_agentes.id_agente > agentes.id_agente // declarada no SQLite
+Ref: esporotricose_visita_agentes.id_visita > esporotricose_visitas.id_visita // declarada no SQLite
+Ref: esporotricose_visitas.id_localidade > localidades.id_localidade // declarada no SQLite
 Ref: focos_historico.id_foco > focos_positivos.id_foco // declarada no SQLite
 Ref: focos_positivos.id_localidade > localidades.id_localidade // declarada no SQLite
 Ref: focos_positivos.id_resultado > resultados_laboratorio.id_resultado // declarada no SQLite

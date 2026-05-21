@@ -304,6 +304,46 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn(version_core.APP_VERSION_LABEL.encode("utf-8"), home.data)
         self.assertIn(version_core.APP_VERSION_LABEL.encode("utf-8"), login.data)
 
+    def test_detalhe_notificacao_renderiza_icones_sem_escape(self):
+        client = _client_logado()
+        conn = sqlite3.connect(endemias_app.DB_PATH)
+        try:
+            row = conn.execute(
+                "SELECT id_foco FROM focos_positivos WHERE gera_notificacao=1 LIMIT 1"
+            ).fetchone()
+        finally:
+            conn.close()
+        self.assertIsNotNone(row)
+
+        resp = client.get(f"/notificacoes/foco/{row[0]}")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertNotIn("&lt;img", html)
+        self.assertIn('src="/static/icons/salvar.svg"', html)
+
+    def test_agenda_eventos_expoem_cores_para_fullcalendar(self):
+        client = _client_logado()
+        resp = client.get("/api/agenda/eventos?start=2026-01-01&end=2026-12-31")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.is_json)
+        eventos = resp.get_json()
+        self.assertTrue(eventos)
+        for evento in eventos:
+            self.assertIn("backgroundColor", evento)
+            self.assertIn("borderColor", evento)
+            self.assertIn("textColor", evento)
+
+    def test_agenda_nao_forca_cor_global_nos_eventos(self):
+        client = _client_logado()
+        resp = client.get("/agenda")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertNotIn("background-color: var(--fc-event-bg-color) !important", html)
+        self.assertIn("style.setProperty('background-color', bg, 'important')", html)
+
 
 class MainApisSmokeTests(unittest.TestCase):
     def test_apis_principais_logadas_retornam_json(self):
@@ -578,6 +618,17 @@ class MainApisSmokeTests(unittest.TestCase):
                 g["data"] == "2026-05-04" and g["localidade"] == "Graziela"
                 for g in grupos
             ))
+            self.assertTrue(all("id_localidade" in g for g in grupos))
+
+    def test_conta_ovos_pendencias_sao_clicaveis_para_filtrar(self):
+        client = _client_logado()
+        resp = client.get("/conta-ovos-sispncd")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("selecionarPendenciaContaOvos", html)
+        self.assertIn("data-localidade-id", html)
+        self.assertIn("await buscarContaOvos()", html)
 
     def test_api_visitas_tem_campos_de_paginacao(self):
         client = _client_logado()

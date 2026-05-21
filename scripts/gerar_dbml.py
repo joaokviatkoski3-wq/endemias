@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 IGNORED_PREFIXES = ("sqlite_",)
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def dbml_name(name):
@@ -90,11 +91,12 @@ def infer_refs(tables, columns, declared_refs):
     lookup = build_table_lookup(tables)
     primary_keys = primary_key_by_table(columns)
     known = {(src, src_col, dst, dst_col) for src, src_col, dst, dst_col, _ in declared_refs}
+    declared_source_columns = {(src, src_col) for src, src_col, _, _, _ in declared_refs}
     refs = list(declared_refs)
 
     for table, table_columns in columns.items():
         for _, column_name, _, _, _, pk in table_columns:
-            if pk:
+            if pk or (table, column_name) in declared_source_columns:
                 continue
             for candidate in candidate_table_names(column_name):
                 target = lookup.get(candidate)
@@ -143,15 +145,18 @@ def render_dbml(conn, tables, columns, refs):
 
 def main():
     parser = argparse.ArgumentParser(description="Gera DBML para uso no dbdiagram.io.")
-    parser.add_argument("--db", default="endemias.db", help="Caminho do banco SQLite.")
-    parser.add_argument("--out", default="docs/schema_endemias.dbml", help="Arquivo DBML de saida.")
+    parser.add_argument("--db", default=str(ROOT / "endemias.db"), help="Caminho do banco SQLite.")
+    parser.add_argument("--out", default=str(ROOT / "docs" / "schema_endemias.dbml"), help="Arquivo DBML de saida.")
     args = parser.parse_args()
 
     db_path = Path(args.db)
     out_path = Path(args.out)
+    if not db_path.exists():
+        raise SystemExit(f"Banco SQLite nao encontrado: {db_path}")
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with sqlite3.connect(db_path) as conn:
+    db_uri = f"{db_path.resolve().as_uri()}?mode=ro"
+    with sqlite3.connect(db_uri, uri=True) as conn:
         tables, columns, declared_refs = load_schema(conn)
         refs = infer_refs(tables, columns, declared_refs)
         out_path.write_text(render_dbml(conn, tables, columns, refs), encoding="utf-8")
