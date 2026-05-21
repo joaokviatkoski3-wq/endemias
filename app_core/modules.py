@@ -102,7 +102,7 @@ MODULES: Tuple[AppModule, ...] = (
         icon="pets.svg",
         nav_section="Analise",
         description="Visitas domiciliares para coleta de dados sobre moradores e animais.",
-        tags=("Kobo", "Em breve"),
+        tags=("Kobo", "Animais"),
         endpoints=("esporotricose", "esporotricose.page"),
     ),
     AppModule(

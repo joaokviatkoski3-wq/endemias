@@ -15,7 +15,7 @@
   <div class="chart-card" style="margin-bottom:18px;">
     <div class="chart-hd">
       <div class="chart-title"><img src="/static/icons/pasta.svg" alt="📂" class="icon-svg"> Arquivos</div>
-      <div style="font-size:11px;color:var(--text3);">PE_, TB_, TBO_, PVE_ e LARVAS_</div>
+      <div style="font-size:11px;color:var(--text3);">PE_, TB_, TBO_, PVE_, ESPOROTRICOSE_ e LARVAS_</div>
     </div>
 
     <div id="dropzone"
@@ -40,6 +40,9 @@
       {% endfor %}
       <span style="background:#ef444418;color:#ef4444;border:1px solid #ef444440;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
         LARVAS_ Resultados de Laboratório
+      </span>
+      <span style="background:#14b8a618;color:#14b8a6;border:1px solid #14b8a640;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
+        ESPOROTRICOSE_ Visitas de esporotricose
       </span>
     </div>
 
@@ -227,7 +230,7 @@ let arquivos = [];
 let currentJobId = null;
 let logDryRun = '';
 
-const CORES = Object.assign({}, WORK_TYPE_COLORS, {LARVAS:'#ef4444'});
+const CORES = Object.assign({}, WORK_TYPE_COLORS, {LARVAS:'#ef4444', ESPOROTRICOSE:'#14b8a6'});
 
 // ── Helpers de tela ───────────────────────────────────────────────────────────
 function mostrar(id) {
@@ -342,15 +345,19 @@ function finalizarDryRun(ok, sumario) {
   document.getElementById('sumario-ok').style.display    = ok ? 'block' : 'none';
 
   // Tabela sumário
-  let html = '<table class="sumario-table"><thead><tr><th>Arquivo</th><th>Tipo</th><th>Visitas no banco após import</th><th>Coletas</th></tr></thead><tbody>';
+  let html = '<table class="sumario-table"><thead><tr><th>Arquivo</th><th>Tipo</th><th>Visitas novas</th><th>Coletas/animais</th></tr></thead><tbody>';
   if (sumario.length) {
     sumario.forEach(s => {
       const cor = CORES[s.tipo] || '#64748b';
+      const label = s.tipo === 'ESPOROTRICOSE' ? 'Esporotricose' : (WORK_TYPE_LABELS[s.tipo] || s.tipo);
+      const secundarios = s.tipo === 'ESPOROTRICOSE'
+        ? (s.animais_novos ?? s.coletas_novas ?? 0)
+        : (s.coletas_novas ?? s.coletas ?? 0);
       html += `<tr>
         <td style="font-size:12px;">${s.arquivo}</td>
-        <td><span class="sumario-tipo" style="background:${cor}18;color:${cor};">${s.tipo} — ${WORK_TYPE_LABELS[s.tipo]||s.tipo}</span></td>
-        <td style="font-weight:700;">${s.visitas}</td>
-        <td>${s.coletas}</td>
+        <td><span class="sumario-tipo" style="background:${cor}18;color:${cor};">${s.tipo} - ${label}</span></td>
+        <td style="font-weight:700;">${s.visitas_novas ?? s.visitas ?? 0}</td>
+        <td>${secundarios}</td>
       </tr>`;
     });
   } else {

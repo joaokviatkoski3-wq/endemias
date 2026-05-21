@@ -6,11 +6,12 @@
 #  Não tem interface gráfica — retorna lista de eventos de log.
 # =============================================================================
 
-import os, json, shutil, hashlib, sqlite3, traceback
+import os, glob, json, shutil, hashlib, sqlite3, traceback
 import pandas as pd
 from datetime import datetime
 from openpyxl.utils import column_index_from_string
 
+from app_core import esporotricose as esporotricose_core
 from app_core import work_types
 
 # =============================================================================
@@ -734,6 +735,7 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
 
     houve_erro = False
     sumario = []  # preview para tela de confirmação
+    esporotricose_core.ensure_schema(conn)
 
     # FIX ETL-01: UMA transação para todos os arquivos — garante atomicidade total
     conn.execute("BEGIN")
@@ -741,13 +743,20 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
     for caminho in arquivos_trabalho:
         nome = os.path.basename(caminho)
         tipo = identificar_tipo(nome, TIPOS)
+        if nome.upper().startswith("ESPOROTRICOSE"):
+            tipo = "ESPOROTRICOSE"
         if tipo is None:
             logger.log(f"\n  [IGNORADO] '{nome}' — prefixo não reconhecido.", "aviso")
             continue
         logger.log(f"\n  → {nome} ({tipo})")
         try:
             # FIX ETL-02: processar_arquivo agora retorna contadores reais de inserção
-            resultado = processar_arquivo(caminho, tipo, TIPOS[tipo], cfg_larvas, larvas, conn, logger, agora_iso, dry_run=dry_run)
+            if tipo == "ESPOROTRICOSE":
+                resultado = esporotricose_core.processar_arquivo(
+                    caminho, conn, logger, agora_iso, dry_run=dry_run, aceitar_legado=False
+                )
+            else:
+                resultado = processar_arquivo(caminho, tipo, TIPOS[tipo], cfg_larvas, larvas, conn, logger, agora_iso, dry_run=dry_run)
             if isinstance(resultado, dict):
                 ok = resultado.get("ok", False)
                 if ok:
@@ -756,6 +765,7 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
                         "tipo": tipo,
                         "visitas_novas": resultado.get("visitas_novas", 0),
                         "coletas_novas": resultado.get("coletas_novas", 0),
+                        "animais_novos": resultado.get("animais_novos", 0),
                         "resultados_novos": resultado.get("resultados_novos", 0),
                     })
             else:
@@ -771,7 +781,8 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
     logger.log("\n[4/4] Verificando banco...", "titulo")
     cur = conn.cursor()
     for tabela in ["visitas", "visita_agentes", "depositos_inspecionados",
-                   "tratamentos", "coletas", "resultados_laboratorio", "focos_positivos"]:
+                   "tratamentos", "coletas", "resultados_laboratorio", "focos_positivos",
+                   "esporotricose_visitas", "esporotricose_animais"]:
         cur.execute(f'SELECT COUNT(*) FROM "{tabela}"')
         qtd = cur.fetchone()[0]
         logger.log(f"  {tabela:<35} {qtd} registro(s)", "ok")

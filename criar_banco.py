@@ -215,6 +215,67 @@ CREATE TABLE IF NOT EXISTS agenda_eventos (
 );
 CREATE INDEX IF NOT EXISTS idx_agenda_inicio ON agenda_eventos(data_inicio);
 
+CREATE TABLE IF NOT EXISTS esporotricose_visitas (
+    id_visita       TEXT PRIMARY KEY,
+    kobo_uuid       TEXT NOT NULL UNIQUE,
+    kobo_id         INTEGER,
+    data            DATE NOT NULL,
+    hora_inicio     TIME,
+    hora_fim        TIME,
+    inicio_registro TEXT,
+    fim_registro    TEXT,
+    agentes_texto   TEXT,
+    localidade      TEXT,
+    id_localidade   INTEGER REFERENCES localidades(id_localidade),
+    quarteirao      INTEGER,
+    tipo_imovel     TEXT,
+    logradouro      TEXT,
+    numero          TEXT,
+    morador         TEXT,
+    visita          TEXT,
+    telefone        TEXT,
+    observacoes     TEXT,
+    deseja_cadastrar_animal TEXT,
+    origem_estrutura TEXT NOT NULL DEFAULT 'nova',
+    arquivo_origem  TEXT,
+    submission_time TEXT,
+    processado_em   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_esporo_visitas_data ON esporotricose_visitas(data);
+CREATE INDEX IF NOT EXISTS idx_esporo_visitas_localidade ON esporotricose_visitas(id_localidade);
+CREATE INDEX IF NOT EXISTS idx_esporo_visitas_quarteirao ON esporotricose_visitas(quarteirao);
+CREATE INDEX IF NOT EXISTS idx_esporo_visitas_kobo_uuid ON esporotricose_visitas(kobo_uuid);
+
+CREATE TABLE IF NOT EXISTS esporotricose_visita_agentes (
+    id_visita TEXT NOT NULL REFERENCES esporotricose_visitas(id_visita) ON DELETE CASCADE,
+    id_agente INTEGER NOT NULL REFERENCES agentes(id_agente),
+    PRIMARY KEY (id_visita, id_agente)
+);
+
+CREATE TABLE IF NOT EXISTS esporotricose_animais (
+    id_animal       TEXT PRIMARY KEY,
+    id_visita       TEXT NOT NULL REFERENCES esporotricose_visitas(id_visita) ON DELETE CASCADE,
+    kobo_uuid       TEXT,
+    especie         TEXT,
+    outro_animal    TEXT,
+    nome            TEXT,
+    raca            TEXT,
+    sexo            TEXT,
+    ambiente        TEXT,
+    vacinado        TEXT,
+    castrado        TEXT,
+    feridas         TEXT,
+    regiao_ferida   TEXT,
+    atendimento_veterinario TEXT,
+    data_atendimento DATE,
+    evolucao_caso   TEXT,
+    arquivo_origem  TEXT,
+    processado_em   TEXT NOT NULL,
+    UNIQUE(id_visita, kobo_uuid)
+);
+CREATE INDEX IF NOT EXISTS idx_esporo_animais_visita ON esporotricose_animais(id_visita);
+CREATE INDEX IF NOT EXISTS idx_esporo_animais_especie ON esporotricose_animais(especie);
+
 CREATE TABLE IF NOT EXISTS importacoes (
     id_importacao INTEGER PRIMARY KEY AUTOINCREMENT,
     job_id        TEXT    NOT NULL UNIQUE,

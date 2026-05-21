@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT))
 
 import app as endemias_app
 import etl
+from app_core import esporotricose as esporotricose_core
 from app_core import modules as modules_core
 from app_core import sispncd as sispncd_core
 from app_core import version as version_core
@@ -222,6 +223,22 @@ class ModuleRegistryTests(unittest.TestCase):
         self.assertIn("usuarios", keys)
 
 
+class EsporotricoseSchemaTests(unittest.TestCase):
+    def test_schema_cria_tabelas_de_esporotricose(self):
+        with sqlite3.connect(":memory:") as conn:
+            esporotricose_core.ensure_schema(conn)
+            tabelas = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'esporotricose_%'"
+                )
+            }
+
+        self.assertIn("esporotricose_visitas", tabelas)
+        self.assertIn("esporotricose_animais", tabelas)
+        self.assertIn("esporotricose_visita_agentes", tabelas)
+
+
 class ProtectedRouteTests(unittest.TestCase):
     def test_home_sem_login_redireciona_para_login(self):
         endemias_app.app.config["TESTING"] = True
@@ -316,6 +333,80 @@ class MainApisSmokeTests(unittest.TestCase):
                 resp = client.get(rota)
                 self.assertEqual(resp.status_code, 200)
                 self.assertTrue(resp.is_json)
+
+    def test_api_esporotricose_retorna_json(self):
+        client = _client_logado()
+        resp = client.get("/api/esporotricose")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.is_json)
+        dados = resp.get_json()
+        self.assertIn("totais", dados)
+        self.assertIn("animais", dados)
+
+    def test_pagina_esporotricose_exibe_abas_principais(self):
+        client = _client_logado()
+        resp = client.get("/esporotricose")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("esporo-tabbar", html)
+        self.assertIn("esp-tab-visitas", html)
+        self.assertIn("esp-tab-animais", html)
+        self.assertIn("esp-tab-atencao", html)
+        self.assertIn("esp-tab-localidades", html)
+        self.assertIn("esp-tab-dashboard", html)
+        self.assertIn("Animais cadastrados", html)
+        self.assertIn("vis-busca", html)
+        self.assertIn("vis-agente", html)
+
+    def test_api_esporotricose_animais_retorna_detalhes(self):
+        client = _client_logado()
+        resp = client.get("/api/esporotricose/animais?feridas=Sim")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.is_json)
+        dados = resp.get_json()
+        self.assertIn("total", dados)
+        self.assertIn("registros", dados)
+        if dados["registros"]:
+            self.assertIn("nome", dados["registros"][0])
+            self.assertIn("morador", dados["registros"][0])
+
+    def test_api_esporotricose_visitas_retorna_agentes_e_busca(self):
+        client = _client_logado()
+        resp = client.get("/api/esporotricose/visitas?busca=Graziela")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.is_json)
+        dados = resp.get_json()
+        self.assertIn("total", dados)
+        self.assertIn("registros", dados)
+        if dados["registros"]:
+            self.assertIn("agentes", dados["registros"][0])
+            self.assertIn("morador", dados["registros"][0])
+
+    def test_api_esporotricose_localidades_retorna_resumo(self):
+        client = _client_logado()
+        resp = client.get("/api/esporotricose/localidades")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.is_json)
+        dados = resp.get_json()
+        self.assertIn("registros", dados)
+        if dados["registros"]:
+            self.assertIn("localidade", dados["registros"][0])
+            self.assertIn("visitas", dados["registros"][0])
+
+    def test_api_esporotricose_dashboard_retorna_series(self):
+        client = _client_logado()
+        resp = client.get("/api/esporotricose/dashboard")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.is_json)
+        dados = resp.get_json()
+        for chave in ("evolucao", "status", "especies", "ambiente", "localidades", "saude"):
+            self.assertIn(chave, dados)
 
     def test_consultas_sispncd_nao_alteram_coluna_sispncd(self):
         client = _client_logado()
