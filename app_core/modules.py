@@ -132,11 +132,12 @@ MODULES: Tuple[AppModule, ...] = (
         key="mapa",
         title="Mapa",
         href="/mapa",
-        endpoint="mapa",
+        endpoint="mapa.page",
         icon="mapa.svg",
         nav_section="Gestao",
         description="Quarteiroes trabalhados, focos e cobertura por localidade no mapa.",
         tags=("Leaflet", "OpenStreetMap"),
+        endpoints=("mapa", "mapa.page"),
     ),
     AppModule(
         key="agenda",

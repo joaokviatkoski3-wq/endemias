@@ -664,6 +664,65 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertIn("tipos", primeiro)
             self.assertIsInstance(primeiro["tipos"], dict)
 
+    def test_mapa_usa_blueprint_proprio(self):
+        endpoints = {
+            str(rule): rule.endpoint
+            for rule in endemias_app.app.url_map.iter_rules()
+            if str(rule) in {"/mapa", "/api/mapa"}
+        }
+
+        self.assertEqual(endpoints["/mapa"], "mapa.page")
+        self.assertEqual(endpoints["/api/mapa"], "mapa.api_mapa")
+
+    def test_apis_consultas_usam_blueprint_proprio(self):
+        endpoints = {
+            str(rule): rule.endpoint
+            for rule in endemias_app.app.url_map.iter_rules()
+            if str(rule) in {"/api/dashboard", "/api/laboratorio", "/api/visitas"}
+        }
+
+        self.assertEqual(endpoints["/api/dashboard"], "consultas.api_dashboard")
+        self.assertEqual(endpoints["/api/laboratorio"], "consultas.api_laboratorio")
+        self.assertEqual(endpoints["/api/visitas"], "consultas.api_visitas")
+
+    def test_exportacoes_usam_blueprint_proprio(self):
+        endpoints = {
+            str(rule): rule.endpoint
+            for rule in endemias_app.app.url_map.iter_rules()
+            if str(rule) in {
+                "/api/visitas/exportar",
+                "/api/notificacoes/exportar",
+                "/api/laboratorio/exportar",
+                "/saida/download/<tipo>",
+            }
+        }
+
+        self.assertEqual(endpoints["/api/visitas/exportar"], "exportacoes.exportar_visitas")
+        self.assertEqual(endpoints["/api/notificacoes/exportar"], "exportacoes.exportar_notificacoes")
+        self.assertEqual(endpoints["/api/laboratorio/exportar"], "exportacoes.exportar_laboratorio")
+        self.assertEqual(endpoints["/saida/download/<tipo>"], "exportacoes.saida_download")
+
+    def test_exportacoes_retornam_xlsx(self):
+        client = _client_logado()
+        rotas = [
+            "/api/visitas/exportar?d_ini=2099-01-01&d_fim=2099-01-02",
+            "/api/notificacoes/exportar?d_ini=2099-01-01&d_fim=2099-01-02",
+            "/api/laboratorio/exportar?d_ini=2099-01-01&d_fim=2099-01-02",
+        ]
+
+        for rota in rotas:
+            with self.subTest(rota=rota):
+                resp = client.get(rota)
+                try:
+                    self.assertEqual(resp.status_code, 200)
+                    self.assertIn(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        resp.content_type,
+                    )
+                    self.assertTrue(resp.data.startswith(b"PK"))
+                finally:
+                    resp.close()
+
     def test_api_agenda_eventos_automaticos_sem_mojibake(self):
         client = _client_logado()
         resp = client.get("/api/agenda/eventos?start=2020-01-01&end=2035-12-31")
