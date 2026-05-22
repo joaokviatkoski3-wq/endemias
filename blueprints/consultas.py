@@ -26,32 +26,7 @@ def request_int_arg(nome, default, minimo=None, maximo=None):
 
 
 def build_where(params_dict, alias_v="v", alias_l="l", alias_a="a"):
-    where, params = "WHERE 1=1", []
-    d_ini = params_dict.get("d_ini") or utils_core.data_n_dias(365)
-    d_fim = params_dict.get("d_fim") or utils_core.hoje()
-    where += f" AND {alias_v}.data BETWEEN ? AND ?"
-    params += [d_ini, d_fim]
-
-    tipos = params_dict.getlist("tipo")
-    locs = params_dict.getlist("localidade")
-    ags = params_dict.getlist("agente")
-
-    if tipos:
-        where += f" AND {alias_v}.tipo IN ({','.join('?' * len(tipos))})"
-        params += tipos
-    if locs:
-        where += f" AND {alias_l}.nome IN ({','.join('?' * len(locs))})"
-        params += locs
-    if ags:
-        cond = " OR ".join([
-            f"EXISTS(SELECT 1 FROM visita_agentes va2 JOIN agentes a2 ON a2.id_agente=va2.id_agente "
-            f"WHERE va2.id_visita={alias_v}.id_visita AND a2.nome=?)"
-            for _ in ags
-        ])
-        where += f" AND ({cond})"
-        params += ags
-
-    return where, params
+    return utils_core.build_visit_where(params_dict, alias_v, alias_l)
 
 
 @bp.route("/dashboard")

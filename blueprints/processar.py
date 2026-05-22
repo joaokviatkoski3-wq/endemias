@@ -197,7 +197,7 @@ def processar_stream(job_id):
     return _sse_response(gerar)
 
 
-@bp.route("/processar/confirmar/<job_id>", methods=["GET"])
+@bp.route("/processar/confirmar/<job_id>", methods=["POST"])
 @login_required
 @nivel_min("admin")
 def processar_confirmar(job_id):

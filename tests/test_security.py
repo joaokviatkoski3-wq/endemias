@@ -248,6 +248,31 @@ class ProtectedRouteTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/login", resp.headers["Location"])
 
+    def test_logout_nao_aceita_get(self):
+        client = _client_logado()
+
+        resp = client.get("/logout")
+
+        self.assertEqual(resp.status_code, 405)
+
+    def test_minha_senha_exige_csrf(self):
+        client = _client_logado()
+
+        resp = client.post("/minha-senha", data={
+            "atual": "qualquer",
+            "nova": "123456",
+            "confirmar": "123456",
+        })
+
+        self.assertEqual(resp.status_code, 400)
+
+    def test_confirmar_processamento_nao_aceita_get(self):
+        client = _client_logado("admin")
+
+        resp = client.get("/processar/confirmar/job-inexistente")
+
+        self.assertEqual(resp.status_code, 405)
+
 
 class MainPagesSmokeTests(unittest.TestCase):
     def test_paginas_principais_logadas_respondem_200(self):
@@ -354,6 +379,7 @@ class MainApisSmokeTests(unittest.TestCase):
 
         self.assertTrue(app_temp.config["TESTING"])
         self.assertEqual(app_temp.config["DB_PATH"], endemias_app.DB_PATH)
+        self.assertGreater(app_temp.config["MAX_CONTENT_LENGTH"], 0)
         endpoints = {str(rule): rule.endpoint for rule in app_temp.url_map.iter_rules()}
         self.assertEqual(endpoints["/"], "home.page")
 

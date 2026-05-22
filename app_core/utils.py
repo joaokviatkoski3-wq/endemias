@@ -29,6 +29,42 @@ def bounded_int(value, default, minimo=None, maximo=None):
     return result
 
 
+def _getlist(params_dict, key):
+    if hasattr(params_dict, "getlist"):
+        return params_dict.getlist(key)
+    value = params_dict.get(key, [])
+    return value if isinstance(value, list) else [value]
+
+
+def build_visit_where(params_dict, alias_v="v", alias_l="l"):
+    where, params = "WHERE 1=1", []
+    d_ini = params_dict.get("d_ini") or data_n_dias(365)
+    d_fim = params_dict.get("d_fim") or hoje()
+    where += f" AND {alias_v}.data BETWEEN ? AND ?"
+    params += [d_ini, d_fim]
+
+    tipos = _getlist(params_dict, "tipo")
+    locs = _getlist(params_dict, "localidade")
+    ags = _getlist(params_dict, "agente")
+
+    if tipos:
+        where += f" AND {alias_v}.tipo IN ({','.join('?' * len(tipos))})"
+        params += tipos
+    if locs:
+        where += f" AND {alias_l}.nome IN ({','.join('?' * len(locs))})"
+        params += locs
+    if ags:
+        cond = " OR ".join([
+            f"EXISTS(SELECT 1 FROM visita_agentes va2 JOIN agentes a2 ON a2.id_agente=va2.id_agente "
+            f"WHERE va2.id_visita={alias_v}.id_visita AND a2.nome=?)"
+            for _ in ags
+        ])
+        where += f" AND ({cond})"
+        params += ags
+
+    return where, params
+
+
 def ler_modelo(modelo_path):
     secoes, secao_atual, linhas = {}, None, []
     try:

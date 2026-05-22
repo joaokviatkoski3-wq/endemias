@@ -394,7 +394,17 @@ async function confirmar() {
   mostrar('area-commit');
 
   const jobId = currentJobId;
-  const sse = new EventSource(`/processar/confirmar/${jobId}`);
+  const response = await fetch(`/processar/confirmar/${jobId}`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf() }
+  });
+  if (!response.ok) {
+    appendCommitLog('\n[ERRO] Conexão interrompida.', 'erro');
+    document.getElementById('commit-cursor').style.display = 'none';
+    document.getElementById('btn-novo').style.display = 'inline-flex';
+    return;
+  }
+  const sse = await responseToEventSource(response);
   sse.onmessage = e => {
     const d = JSON.parse(e.data);
     if (d.done !== undefined) {
@@ -425,6 +435,33 @@ async function confirmar() {
 }
 
 // ── Helpers de log ────────────────────────────────────────────────────────────
+async function responseToEventSource(response) {
+  const stream = { onmessage: null, onerror: null, close() {} };
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  setTimeout(async () => {
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+        for (const event of events) {
+          const line = event.split('\n').find(item => item.startsWith('data: '));
+          if (line && stream.onmessage) {
+            stream.onmessage({ data: line.slice(6) });
+          }
+        }
+      }
+    } catch (e) {
+      if (stream.onerror) stream.onerror(e);
+    }
+  }, 0);
+  return stream;
+}
+
 function appendLog(msg, tag) {
   _addLogLine('log-linhas', 'log-container', msg, tag);
 }
