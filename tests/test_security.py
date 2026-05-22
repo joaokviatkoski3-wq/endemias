@@ -346,6 +346,17 @@ class MainPagesSmokeTests(unittest.TestCase):
 
 
 class MainApisSmokeTests(unittest.TestCase):
+    def test_create_app_permanece_configuravel(self):
+        app_temp = endemias_app.create_app({
+            "TESTING": True,
+            "DB_PATH": endemias_app.DB_PATH,
+        })
+
+        self.assertTrue(app_temp.config["TESTING"])
+        self.assertEqual(app_temp.config["DB_PATH"], endemias_app.DB_PATH)
+        endpoints = {str(rule): rule.endpoint for rule in app_temp.url_map.iter_rules()}
+        self.assertEqual(endpoints["/"], "home.page")
+
     def test_apis_principais_logadas_retornam_json(self):
         client = _client_logado()
         rotas = [

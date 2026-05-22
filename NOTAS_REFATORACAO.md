@@ -2,11 +2,12 @@
 
 ## Estado atual
 
-Aplicacao Flask ainda tem `app.py` como entrada principal, mas a modularizacao ja comecou. As URLs publicas foram mantidas iguais.
+Aplicacao Flask usa `app.py` como entrada principal e ja expoe `create_app()` para inicializacao configuravel. As URLs publicas foram mantidas iguais.
 
 ## Ja feito
 
 - Criado pacote `app_core/`
+  - `app_setup.py`: registro de error handlers, filtros Jinja, contexto global e cache de dados globais.
   - `auth.py`: hash/verificacao de senha, rate limit de login, `login_required`, `nivel_min`, usuario atual e URL segura.
   - `db.py`: conexao SQLite e helpers `query`, `query_one`, `scalar`.
   - `import_history.py`: tabela e operacoes de historico de importacoes.
@@ -137,6 +138,8 @@ Aplicacao Flask ainda tem `app.py` como entrada principal, mas a modularizacao j
   - codigo do tipo com duracao nas consultas de dashboard/relatorio.
 - Helpers comuns de blueprint passaram a ser usados em `auth`, `home`, `admin`, `agenda`, `mapa` e `conta_ovos_sispncd`.
 - `app.py` ficou sem rotas diretas de pagina/API; permanece como entrada/configuracao, contexto global, wrappers de compatibilidade e error handlers.
+- `create_app(config_overrides=None)` foi criado em `app.py`, mantendo `app = create_app()` para compatibilidade com execucao atual e testes.
+- Error handlers, filtro `data_br`, contexto global e cache de localidades/agentes/tipos foram movidos para `app_core/app_setup.py`.
 
 ## Testes atuais
 
@@ -173,20 +176,21 @@ Cobertura atual inclui:
 - cadastro central de modulos valida icones existentes e permissoes admin/visualizador.
 - versao atual aparece no layout principal e na tela de login.
 - contratos de rotas em blueprints para auth, home, consultas, exportacoes, mapa e notificacoes.
+- factory `create_app()` cria uma instancia Flask configuravel em teste isolado.
 
 ## Comandos de validacao
 
 Rodar apos cada corte:
 
 ```powershell
-python -m py_compile app.py etl.py app_core\auth.py app_core\blueprint_helpers.py app_core\db.py app_core\import_history.py app_core\modules.py app_core\sispncd.py app_core\uploads.py app_core\utils.py app_core\version.py app_core\work_types.py blueprints\admin.py blueprints\agenda.py blueprints\auth.py blueprints\consultas.py blueprints\conta_ovos_sispncd.py blueprints\esporotricose.py blueprints\exportacoes.py blueprints\home.py blueprints\mapa.py blueprints\notificacoes.py blueprints\processar.py blueprints\relatorio_agente.py tests\test_security.py
+python -m py_compile app.py etl.py app_core\app_setup.py app_core\auth.py app_core\blueprint_helpers.py app_core\db.py app_core\import_history.py app_core\modules.py app_core\sispncd.py app_core\uploads.py app_core\utils.py app_core\version.py app_core\work_types.py blueprints\admin.py blueprints\agenda.py blueprints\auth.py blueprints\consultas.py blueprints\conta_ovos_sispncd.py blueprints\esporotricose.py blueprints\exportacoes.py blueprints\home.py blueprints\mapa.py blueprints\notificacoes.py blueprints\processar.py blueprints\relatorio_agente.py tests\test_security.py
 python -m unittest discover -s tests -v
 ```
 
 Ultimo resultado conhecido:
 
 ```text
-Ran 57 tests
+Ran 58 tests
 OK
 ```
 
@@ -195,7 +199,7 @@ OK
 1. Fazer um corte de limpeza estrutural no `app.py` quando fizer sentido.
    - Opcoes:
      - revisar wrappers antigos que ficaram apenas por compatibilidade.
-     - preparar uma factory Flask (`create_app`) para reduzir estado global.
+     - separar configuracao/logging/secret key em modulo auxiliar de aplicacao.
 2. Preparar base para novos tipos importados por planilha.
    - Sugestao:
      - criar registro central de tipos de importacao futuros;
