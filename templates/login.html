@@ -22,6 +22,7 @@ body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-seri
 .btn:hover{background:#133a8f;}
 .erro{background:#fee2e2;color:#991b1b;border-radius:7px;padding:10px 14px;font-size:12.5px;margin-bottom:16px;display:flex;align-items:center;gap:6px;}
 .footer{text-align:center;font-size:10px;color:#8896b0;margin-top:16px;}
+.footer-credit{margin-top:3px;}
 </style>
 </head>
 <body>
@@ -50,7 +51,10 @@ body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-seri
       </form>
     </div>
   </div>
-  <div class="footer">{{ APP_VERSION_LABEL }}</div>
+  <div class="footer">
+    <div>{{ APP_VERSION_LABEL }}</div>
+    <div class="footer-credit">João Kviatkoski</div>
+  </div>
 </div>
 </body>
 </html>

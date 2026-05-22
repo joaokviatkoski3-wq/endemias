@@ -1,5 +1,6 @@
 import hashlib
 import time
+from datetime import datetime
 from functools import wraps
 from urllib.parse import urljoin, urlparse
 
@@ -10,6 +11,23 @@ from werkzeug.security import check_password_hash, generate_password_hash
 LOGIN_MAX_TENTATIVAS = 5
 LOGIN_JANELA_SEG = 15 * 60
 login_tentativas = {}
+
+
+def garantir_tabela_login_tentativas(get_db, conn=None):
+    fechar = conn is None
+    conn = conn or get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS login_tentativas (
+            chave       TEXT PRIMARY KEY,
+            tentativas  INTEGER NOT NULL DEFAULT 0,
+            primeira_em REAL    NOT NULL,
+            atualizado_em TEXT  NOT NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_login_tentativas_primeira ON login_tentativas(primeira_em)")
+    conn.commit()
+    if fechar:
+        conn.close()
 
 
 def hash_legado(senha):
@@ -84,6 +102,26 @@ def login_bloqueado(chave, agora=None):
     return tentativas >= LOGIN_MAX_TENTATIVAS
 
 
+def login_bloqueado_db(get_db, chave, agora=None):
+    agora = agora if agora is not None else time.time()
+    conn = get_db()
+    try:
+        garantir_tabela_login_tentativas(get_db, conn)
+        row = conn.execute(
+            "SELECT tentativas, primeira_em FROM login_tentativas WHERE chave=?",
+            (chave,),
+        ).fetchone()
+        if not row:
+            return False
+        if agora - row["primeira_em"] > LOGIN_JANELA_SEG:
+            conn.execute("DELETE FROM login_tentativas WHERE chave=?", (chave,))
+            conn.commit()
+            return False
+        return row["tentativas"] >= LOGIN_MAX_TENTATIVAS
+    finally:
+        conn.close()
+
+
 def registrar_login_falha(chave, agora=None):
     agora = agora if agora is not None else time.monotonic()
     tentativas, primeira = login_tentativas.get(chave, (0, agora))
@@ -92,5 +130,45 @@ def registrar_login_falha(chave, agora=None):
     login_tentativas[chave] = (tentativas + 1, primeira)
 
 
+def registrar_login_falha_db(get_db, chave, agora=None):
+    agora = agora if agora is not None else time.time()
+    atualizado = datetime.now().isoformat()
+    conn = get_db()
+    try:
+        garantir_tabela_login_tentativas(get_db, conn)
+        row = conn.execute(
+            "SELECT tentativas, primeira_em FROM login_tentativas WHERE chave=?",
+            (chave,),
+        ).fetchone()
+        if not row or agora - row["primeira_em"] > LOGIN_JANELA_SEG:
+            tentativas, primeira = 0, agora
+        else:
+            tentativas, primeira = row["tentativas"], row["primeira_em"]
+        conn.execute(
+            """
+            INSERT INTO login_tentativas (chave, tentativas, primeira_em, atualizado_em)
+            VALUES (?,?,?,?)
+            ON CONFLICT(chave) DO UPDATE SET
+                tentativas=excluded.tentativas,
+                primeira_em=excluded.primeira_em,
+                atualizado_em=excluded.atualizado_em
+            """,
+            (chave, tentativas + 1, primeira, atualizado),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def limpar_login_falhas(chave):
     login_tentativas.pop(chave, None)
+
+
+def limpar_login_falhas_db(get_db, chave):
+    conn = get_db()
+    try:
+        garantir_tabela_login_tentativas(get_db, conn)
+        conn.execute("DELETE FROM login_tentativas WHERE chave=?", (chave,))
+        conn.commit()
+    finally:
+        conn.close()

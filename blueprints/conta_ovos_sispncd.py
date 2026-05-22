@@ -2,6 +2,7 @@ from datetime import date
 
 from flask import Blueprint, jsonify, render_template, request
 
+from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import sispncd
@@ -84,6 +85,19 @@ def api_sispncd_salvar():
         )
     except sispncd.ValidationError as exc:
         return _json_error(exc)
+    audit.registrar_evento(
+        bh.get_db,
+        "sispncd_salvo",
+        entidade="visitas",
+        detalhes={
+            "ano": data.get("ano"),
+            "semana": data.get("semana") or data.get("semana_epidemiologica"),
+            "tipo": data.get("tipo") or data.get("tipos_trabalho"),
+            "codigo": result.get("codigo"),
+            "localidade": data.get("localidade"),
+            "atualizados": result.get("atualizados"),
+        },
+    )
     return jsonify(result)
 
 
@@ -101,4 +115,15 @@ def api_conta_ovos_salvar_status():
         )
     except sispncd.ValidationError as exc:
         return _json_error(exc)
+    audit.registrar_evento(
+        bh.get_db,
+        "conta_ovos_status_salvo",
+        entidade="visitas",
+        detalhes={
+            "data": result.get("data"),
+            "quarteirao": result.get("quarteirao"),
+            "localidade": data.get("localidade"),
+            "atualizados": result.get("atualizados"),
+        },
+    )
     return jsonify(result)

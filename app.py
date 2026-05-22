@@ -34,9 +34,28 @@ from blueprints.relatorio_agente import bp as relatorio_agente_bp
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "endemias.db")
-CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
-UPLOAD_TEMP = os.path.join(BASE_DIR, "uploads_temp")
+
+
+def resolve_paths(env=None, base_dir=BASE_DIR):
+    env = env or os.environ
+    instance_dir = os.path.abspath(env.get("ENDEMIAS_INSTANCE_DIR", base_dir))
+    return {
+        "INSTANCE_DIR": instance_dir,
+        "DB_PATH": os.path.abspath(env.get("ENDEMIAS_DB_PATH", os.path.join(instance_dir, "endemias.db"))),
+        "CONFIG_PATH": os.path.abspath(env.get("ENDEMIAS_CONFIG_PATH", os.path.join(base_dir, "config.json"))),
+        "UPLOAD_TEMP": os.path.abspath(env.get("ENDEMIAS_UPLOAD_TEMP", os.path.join(instance_dir, "uploads_temp"))),
+        "LOG_PATH": os.path.abspath(env.get("ENDEMIAS_LOG_PATH", os.path.join(instance_dir, "endemias.log"))),
+        "SECRET_KEY_PATH": os.path.abspath(env.get("ENDEMIAS_SECRET_KEY_PATH", os.path.join(instance_dir, "secret.key"))),
+    }
+
+
+PATHS = resolve_paths()
+INSTANCE_DIR = PATHS["INSTANCE_DIR"]
+DB_PATH = PATHS["DB_PATH"]
+CONFIG_PATH = PATHS["CONFIG_PATH"]
+UPLOAD_TEMP = PATHS["UPLOAD_TEMP"]
+LOG_PATH = PATHS["LOG_PATH"]
+SECRET_KEY_PATH = PATHS["SECRET_KEY_PATH"]
 
 csrf = CSRFProtect()
 
@@ -46,8 +65,7 @@ def _validar_arquivo_xlsx(file_storage):
     return uploads_core.validar_arquivo_xlsx(file_storage)
 
 
-def _configure_logging(base_dir):
-    log_path = os.path.join(base_dir, "endemias.log")
+def _configure_logging(log_path):
     root_logger = logging.getLogger()
     ja_configurado = any(
         isinstance(handler, logging.handlers.RotatingFileHandler)
@@ -66,8 +84,8 @@ def _configure_logging(base_dir):
     root_logger.setLevel(logging.WARNING)
 
 
-def _configure_secret_key(flask_app, base_dir):
-    key_file = os.path.join(base_dir, "secret.key")
+def _configure_secret_key(flask_app, key_file):
+    os.makedirs(os.path.dirname(key_file), exist_ok=True)
     if os.path.exists(key_file):
         with open(key_file, "rb") as f:
             flask_app.secret_key = f.read()
@@ -229,12 +247,16 @@ def build_where(params_dict, alias_v="v", alias_l="l", alias_a="a"):
 
 def create_app(config_overrides=None):
     os.makedirs(UPLOAD_TEMP, exist_ok=True)
+    os.makedirs(INSTANCE_DIR, exist_ok=True)
 
-    flask_app = Flask(__name__)
+    flask_app = Flask(__name__, instance_path=INSTANCE_DIR)
     flask_app.config.update(
         DB_PATH=DB_PATH,
         CONFIG_PATH=CONFIG_PATH,
         UPLOAD_TEMP=UPLOAD_TEMP,
+        INSTANCE_DIR=INSTANCE_DIR,
+        LOG_PATH=LOG_PATH,
+        SECRET_KEY_PATH=SECRET_KEY_PATH,
         PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
@@ -245,8 +267,8 @@ def create_app(config_overrides=None):
     if config_overrides:
         flask_app.config.update(config_overrides)
 
-    _configure_logging(BASE_DIR)
-    _configure_secret_key(flask_app, BASE_DIR)
+    _configure_logging(flask_app.config["LOG_PATH"])
+    _configure_secret_key(flask_app, flask_app.config["SECRET_KEY_PATH"])
     csrf.init_app(flask_app)
 
     flask_app.extensions["invalidar_cache_globals"] = invalidar_cache_globals

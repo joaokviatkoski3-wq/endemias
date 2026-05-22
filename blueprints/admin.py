@@ -4,6 +4,7 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
 
+from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 
@@ -39,11 +40,19 @@ def admin_criar_usuario():
     else:
         try:
             conn = bh.get_db()
-            conn.execute("""INSERT INTO usuarios (usuario,nome,senha_hash,nivel,ativo,criado_em)
-                            VALUES (?,?,?,?,1,?)""",
-                         (usuario, nome, auth_core.hash_senha(senha), nivel, datetime.now().isoformat()))
+            cur = conn.execute("""INSERT INTO usuarios (usuario,nome,senha_hash,nivel,ativo,criado_em)
+                                  VALUES (?,?,?,?,1,?)""",
+                               (usuario, nome, auth_core.hash_senha(senha), nivel, datetime.now().isoformat()))
             conn.commit()
+            novo_id = cur.lastrowid
             conn.close()
+            audit.registrar_evento(
+                bh.get_db,
+                "usuario_criado",
+                entidade="usuarios",
+                entidade_id=novo_id,
+                detalhes={"usuario": usuario, "nome": nome, "nivel": nivel},
+            )
         except Exception as e:
             erro = f"Erro: {e}"
     if erro:
@@ -59,6 +68,7 @@ def admin_editar_usuario(uid):
     campo = request.form.get("campo")
     valor = request.form.get("valor", "").strip()
     conn = bh.get_db()
+    anterior = conn.execute("SELECT usuario,nome,nivel,ativo FROM usuarios WHERE id_usuario=?", (uid,)).fetchone()
     if campo == "nivel" and valor in ("admin", "operador", "visualizador"):
         conn.execute("UPDATE usuarios SET nivel=? WHERE id_usuario=?", (valor, uid))
     elif campo == "ativo" and valor in ("0", "1"):
@@ -73,6 +83,20 @@ def admin_editar_usuario(uid):
         return jsonify({"erro": "Parametro invalido."}), 400
     conn.commit()
     conn.close()
+    detalhes = {"campo": campo}
+    if anterior:
+        detalhes.update({
+            "usuario": anterior["usuario"],
+            "valor_antigo": anterior[campo] if campo in anterior.keys() else None,
+        })
+    detalhes["valor_novo"] = "***" if campo == "senha" else valor
+    audit.registrar_evento(
+        bh.get_db,
+        "usuario_editado",
+        entidade="usuarios",
+        entidade_id=uid,
+        detalhes=detalhes,
+    )
     return jsonify({"ok": True})
 
 
@@ -82,7 +106,15 @@ def admin_editar_usuario(uid):
 def admin_resetar_senha(uid):
     nova = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
     conn = bh.get_db()
+    alvo = conn.execute("SELECT usuario,nome FROM usuarios WHERE id_usuario=?", (uid,)).fetchone()
     conn.execute("UPDATE usuarios SET senha_hash=? WHERE id_usuario=?", (auth_core.hash_senha(nova), uid))
     conn.commit()
     conn.close()
+    audit.registrar_evento(
+        bh.get_db,
+        "usuario_senha_resetada",
+        entidade="usuarios",
+        entidade_id=uid,
+        detalhes={"usuario": alvo["usuario"] if alvo else None, "nome": alvo["nome"] if alvo else None},
+    )
     return jsonify({"ok": True, "senha": nova})

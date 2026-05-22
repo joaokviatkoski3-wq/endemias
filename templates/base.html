@@ -100,7 +100,10 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
 <!-- Conteúdo da página -->
 <main class="page">
 {% block content %}{% endblock %}
-  <footer class="app-footer">{{ APP_VERSION_LABEL }}</footer>
+  <footer class="app-footer">
+    <div>{{ APP_VERSION_LABEL }}</div>
+    <div class="app-footer-credit">João Kviatkoski</div>
+  </footer>
 </main>
 
 <!-- Toast area -->

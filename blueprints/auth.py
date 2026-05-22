@@ -19,15 +19,15 @@ def _chave_login(usuario):
 
 
 def _login_bloqueado(chave, agora=None):
-    return auth_core.login_bloqueado(chave, agora)
+    return auth_core.login_bloqueado_db(bh.get_db, chave, agora)
 
 
 def _registrar_login_falha(chave, agora=None):
-    return auth_core.registrar_login_falha(chave, agora)
+    return auth_core.registrar_login_falha_db(bh.get_db, chave, agora)
 
 
 def _limpar_login_falhas(chave):
-    return auth_core.limpar_login_falhas(chave)
+    return auth_core.limpar_login_falhas_db(bh.get_db, chave)
 
 
 def _hash(senha):

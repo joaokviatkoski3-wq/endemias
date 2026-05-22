@@ -11,6 +11,7 @@ import uuid
 import zipfile
 from pathlib import Path
 
+from flask import session as flask_session
 from werkzeug.datastructures import FileStorage
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +19,8 @@ sys.path.insert(0, str(ROOT))
 
 import app as endemias_app
 import etl
+from app_core import audit as audit_core
+from app_core import auth as auth_core
 from app_core import esporotricose as esporotricose_core
 from app_core import db as db_core
 from app_core import modules as modules_core
@@ -100,6 +103,22 @@ class LoginRateLimitTests(unittest.TestCase):
         endemias_app._limpar_login_falhas(chave)
 
         self.assertNotIn(chave, endemias_app._login_tentativas)
+
+    def test_rate_limit_persistente_em_sqlite(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "login.db")
+
+            def get_db():
+                return db_core.connect(db_path)
+
+            chave = "127.0.0.1:admin"
+            for i in range(endemias_app.LOGIN_MAX_TENTATIVAS):
+                self.assertFalse(auth_core.login_bloqueado_db(get_db, chave, agora=100 + i))
+                auth_core.registrar_login_falha_db(get_db, chave, agora=100 + i)
+
+            self.assertTrue(auth_core.login_bloqueado_db(get_db, chave, agora=120))
+            auth_core.limpar_login_falhas_db(get_db, chave)
+            self.assertFalse(auth_core.login_bloqueado_db(get_db, chave, agora=121))
 
 
 class UploadValidationTests(unittest.TestCase):
@@ -215,6 +234,43 @@ class DatabaseConnectionTests(unittest.TestCase):
                 self.assertEqual(conn.execute("PRAGMA journal_mode").fetchone()[0].lower(), "wal")
             finally:
                 conn.close()
+
+
+class AuditLogTests(unittest.TestCase):
+    def test_registra_evento_de_auditoria(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "audit.db")
+
+            def get_db():
+                return db_core.connect(db_path)
+
+            app_temp = endemias_app.create_app({
+                "TESTING": True,
+                "DB_PATH": db_path,
+            })
+            with app_temp.test_request_context("/", environ_base={"REMOTE_ADDR": "10.0.0.5"}):
+                flask_session["uid"] = 7
+                flask_session["nome"] = "Audit User"
+                audit_core.registrar_evento(
+                    get_db,
+                    "teste_evento",
+                    entidade="usuarios",
+                    entidade_id=3,
+                    detalhes={"campo": "nivel", "valor_novo": "admin"},
+                )
+
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                row = conn.execute("SELECT * FROM auditoria_eventos").fetchone()
+            finally:
+                conn.close()
+
+            self.assertIsNotNone(row)
+            self.assertEqual(row["acao"], "teste_evento")
+            self.assertEqual(row["entidade"], "usuarios")
+            self.assertEqual(row["entidade_id"], "3")
+            self.assertIn("valor_novo", row["detalhes_json"])
 
 
 class WorkTypesConfigTests(unittest.TestCase):
@@ -512,6 +568,23 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertGreater(app_temp.config["MAX_CONTENT_LENGTH"], 0)
         endpoints = {str(rule): rule.endpoint for rule in app_temp.url_map.iter_rules()}
         self.assertEqual(endpoints["/"], "home.page")
+
+    def test_resolve_paths_suporta_instance_dir_e_overrides(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            env = {
+                "ENDEMIAS_INSTANCE_DIR": tmpdir,
+                "ENDEMIAS_DB_PATH": str(Path(tmpdir) / "dados.db"),
+                "ENDEMIAS_UPLOAD_TEMP": str(Path(tmpdir) / "uploads"),
+            }
+
+            paths = endemias_app.resolve_paths(env=env, base_dir=str(ROOT))
+
+        self.assertEqual(paths["INSTANCE_DIR"], os.path.abspath(tmpdir))
+        self.assertEqual(paths["DB_PATH"], os.path.abspath(env["ENDEMIAS_DB_PATH"]))
+        self.assertEqual(paths["UPLOAD_TEMP"], os.path.abspath(env["ENDEMIAS_UPLOAD_TEMP"]))
+        self.assertEqual(paths["CONFIG_PATH"], os.path.abspath(str(ROOT / "config.json")))
+        self.assertTrue(paths["LOG_PATH"].endswith("endemias.log"))
+        self.assertTrue(paths["SECRET_KEY_PATH"].endswith("secret.key"))
 
     def test_apis_principais_logadas_retornam_json(self):
         client = _client_logado()
