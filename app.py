@@ -4,13 +4,13 @@ Setor de Endemias / VigilÃ¢ncia Ambiental â€” Almirante TamandarÃ©-PR
 
 Servidor Ãºnico: rode em um computador e os demais acessam via http://IP:5000
 """
-import os, sqlite3, json
+import os
 import logging
 import logging.handlers
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 
 from flask import (Flask, render_template, request, redirect, url_for,
-                   send_file, jsonify, abort, session)
+                   jsonify, session)
 from flask_wtf.csrf import CSRFProtect, CSRFError
 
 from app_core import auth as auth_core
@@ -28,6 +28,7 @@ from blueprints.consultas import bp as consultas_bp
 from blueprints.esporotricose import bp as esporotricose_bp
 from blueprints.exportacoes import bp as exportacoes_bp
 from blueprints.mapa import bp as mapa_bp
+from blueprints.notificacoes import bp as notificacoes_bp
 from blueprints.processar import bp as processar_bp
 from blueprints.relatorio_agente import bp as relatorio_agente_bp
 
@@ -39,11 +40,8 @@ def _validar_arquivo_xlsx(file_storage):
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
 DB_PATH     = os.path.join(BASE_DIR, "endemias.db")
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
-MODELO_PATH = os.path.join(BASE_DIR, "modelo_notificacao.txt")
-SAIDA_DIR   = os.path.join(BASE_DIR, "notificacoes_geradas")
 UPLOAD_TEMP = os.path.join(BASE_DIR, "uploads_temp")
 
-os.makedirs(SAIDA_DIR, exist_ok=True)
 os.makedirs(UPLOAD_TEMP, exist_ok=True)
 
 app = Flask(__name__)
@@ -173,6 +171,7 @@ app.register_blueprint(consultas_bp)
 app.register_blueprint(esporotricose_bp)
 app.register_blueprint(exportacoes_bp)
 app.register_blueprint(mapa_bp)
+app.register_blueprint(notificacoes_bp)
 app.register_blueprint(processar_bp)
 app.register_blueprint(relatorio_agente_bp)
 
@@ -269,9 +268,6 @@ def build_where(params_dict, alias_v="v", alias_l="l", alias_a="a"):
         where += f" AND ({cond})"; params += ags
 
     return where, params
-
-def ler_modelo():
-    return utils_core.ler_modelo(MODELO_PATH)
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  CONTEXTO GLOBAL
@@ -435,380 +431,6 @@ def home():
         focos_recentes=[dict(r) for r in focos_rec],
     )
 
-# â”€â”€ COD-03: lÃ³gica de dados do relatÃ³rio de agente extraÃ­da aqui â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Usada tanto pela rota PDF quanto pela API, sem duplicaÃ§Ã£o.
-# â”€â”€ NOTIFICAÃ‡Ã•ES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-@app.route("/notificacoes")
-@login_required
-def notificacoes():
-    fs = request.args.getlist("status")
-    ft = request.args.getlist("tipo")
-    fl = request.args.getlist("localidade")
-    fa = request.args.getlist("agente")
-    d_ini   = request.args.get("d_ini", "")
-    d_fim   = request.args.get("d_fim", "")
-    busca   = request.args.get("busca", "").strip()
-    pagina  = request_int_arg("pagina", 1, minimo=1)
-    pp_str  = request.args.get("por_pagina", "50")
-    pp      = None if pp_str == "tudo" else safe_int(pp_str, 50)
-    if pp is not None:
-        pp = min(max(pp, 1), 500)
-        pp_str = str(pp)
-
-    where, params = "WHERE 1=1", []
-    if d_ini:   where += " AND f.data>=?"; params.append(d_ini)
-    if d_fim:   where += " AND f.data<=?"; params.append(d_fim)
-    if fs:      where += f" AND COALESCE(f.status_notificacao,'pendente') IN ({','.join('?'*len(fs))})"; params+=fs
-    if ft:      where += f" AND f.tipo_trabalho IN ({','.join('?'*len(ft))})"; params+=ft
-    if fl:      where += f" AND l.nome IN ({','.join('?'*len(fl))})"; params+=fl
-    if fa:
-        cond = " OR ".join(["f.agentes LIKE ?" for _ in fa])
-        where += f" AND ({cond})"; params += [f"%{a}%" for a in fa]
-    if busca:
-        where += " AND (f.logradouro LIKE ? OR f.num_tubo LIKE ? OR f.nome_morador LIKE ? OR CAST(f.quarteirao AS TEXT) LIKE ? OR f.codigo LIKE ?)"
-        b = f"%{busca}%"; params += [b, b, b, b, b]
-    where += " AND f.gera_notificacao=1"
-
-    base = f"SELECT f.*, l.nome AS localidade_nome FROM focos_positivos f LEFT JOIN localidades l ON l.id_localidade=f.id_localidade {where}"
-    conn = get_db()
-    total = conn.execute(f"SELECT COUNT(*) FROM focos_positivos f LEFT JOIN localidades l ON l.id_localidade=f.id_localidade {where}", params).fetchone()[0]
-
-    if pp:
-        total_pag = max(1, (total + pp - 1) // pp)
-        pagina    = min(pagina, total_pag)
-        focos     = conn.execute(base + " ORDER BY f.data DESC LIMIT ? OFFSET ?", params + [pp, (pagina-1)*pp]).fetchall()
-    else:
-        total_pag, pagina = 1, 1
-        focos = conn.execute(base + " ORDER BY f.data DESC", params).fetchall()
-
-    contadores = {}
-    for row in conn.execute("SELECT COALESCE(status_notificacao,'pendente') as st, COUNT(*) as cnt FROM focos_positivos WHERE gera_notificacao=1 GROUP BY st").fetchall():
-        contadores[row[0]] = row[1]
-
-    tipos_n   = [r[0] for r in conn.execute("SELECT DISTINCT tipo_trabalho FROM focos_positivos WHERE tipo_trabalho IS NOT NULL ORDER BY tipo_trabalho").fetchall()]
-    locs_n    = [r[0] for r in conn.execute("SELECT DISTINCT nome FROM localidades ORDER BY nome").fetchall()]
-    agentes_l = [r[0] for r in conn.execute("SELECT nome FROM agentes ORDER BY nome").fetchall()]
-    conn.close()
-
-    return render_template("notificacoes.html",
-        focos=[dict(f) for f in focos], contadores=contadores,
-        tipos=tipos_n, localidades_n=locs_n, agentes_lista=agentes_l,
-        filtro_status=fs, filtro_tipo=ft, filtro_loc=fl, filtro_agente=fa,
-        filtro_d_ini=d_ini, filtro_d_fim=d_fim, busca=busca,
-        pagina=pagina, total_paginas=total_pag, total=total, por_pagina=pp_str,
-    )
-
-@app.route("/notificacoes/foco/<id_foco>")
-@login_required
-def foco_detalhe(id_foco):
-    foco = q1("SELECT f.*, l.nome AS localidade_nome FROM focos_positivos f LEFT JOIN localidades l ON l.id_localidade=f.id_localidade WHERE f.id_foco=?", (id_foco,))
-    if not foco: abort(404)
-    historico = []
-    if foco.get("logradouro"):
-        historico = q("""
-            SELECT v.data, v.tipo, v.visita, GROUP_CONCAT(DISTINCT a.nome) as agentes
-            FROM visitas v
-            LEFT JOIN visita_agentes va ON va.id_visita=v.id_visita
-            LEFT JOIN agentes a ON a.id_agente=va.id_agente
-            WHERE v.logradouro=? AND v.numero=?
-            GROUP BY v.id_visita ORDER BY v.data DESC LIMIT 10
-        """, (foco["logradouro"], foco.get("numero", "")))
-    historico_foco = q("""
-        SELECT campo, valor_ant, valor_novo, usuario, alterado_em
-        FROM focos_historico WHERE id_foco=? ORDER BY alterado_em DESC LIMIT 50
-    """, (id_foco,))
-    return render_template("foco_detalhe.html", foco=foco, historico=historico,
-                           historico_foco=historico_foco)
-
-@app.route("/notificacoes/foco/<id_foco>/atualizar", methods=["POST"])
-@login_required
-@nivel_min("operador")
-def foco_atualizar(id_foco):
-    campos = ["status_notificacao","tentativa_1","tentativa_2","tentativa_3",
-              "data_entrega","observacoes","nome_morador","logradouro","numero","complemento","depositos","agentes"]
-    vals   = {c: request.form.get(c) or None for c in campos}
-    conn   = get_db()
-    try:
-        # Ler valores anteriores para auditoria
-        anterior = conn.execute(
-            f"SELECT {','.join(campos)} FROM focos_positivos WHERE id_foco=?", (id_foco,)
-        ).fetchone()
-
-        conn.execute("""
-            UPDATE focos_positivos SET
-                status_notificacao=?,tentativa_1=?,tentativa_2=?,tentativa_3=?,
-                data_entrega=?,observacoes=?,nome_morador=?,
-                logradouro=?,numero=?,complemento=?,depositos=?,agentes=?
-            WHERE id_foco=?
-        """, list(vals.values()) + [id_foco])
-
-        # Registrar apenas campos que mudaram
-        if anterior:
-            usuario = session.get("nome", "desconhecido")
-            agora   = datetime.now().isoformat()
-            for i, campo in enumerate(campos):
-                ant = anterior[i]
-                nov = vals[campo]
-                if str(ant or "") != str(nov or ""):
-                    conn.execute("""
-                        INSERT INTO focos_historico (id_foco, campo, valor_ant, valor_novo, usuario, alterado_em)
-                        VALUES (?,?,?,?,?,?)
-                    """, (id_foco, campo, ant, nov, usuario, agora))
-
-        conn.commit()
-    finally:
-        conn.close()
-    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-        return jsonify({"ok": True})
-    return redirect(url_for("foco_detalhe", id_foco=id_foco))
-
-@app.route("/notificacoes/foco/<id_foco>/status", methods=["POST"])
-@login_required
-@nivel_min("operador")
-def foco_status_rapido(id_foco):
-    novo = request.json.get("status") if request.is_json else request.form.get("status")
-    if novo not in STATUS_OPCOES + [None]:
-        return jsonify({"erro": "Status invÃ¡lido"}), 400
-    conn = get_db()
-    try:
-        ant_row = conn.execute("SELECT status_notificacao FROM focos_positivos WHERE id_foco=?", (id_foco,)).fetchone()
-        ant = ant_row[0] if ant_row else None
-        conn.execute("UPDATE focos_positivos SET status_notificacao=? WHERE id_foco=?", (novo, id_foco))
-        if str(ant or "") != str(novo or ""):
-            conn.execute("""INSERT INTO focos_historico (id_foco,campo,valor_ant,valor_novo,usuario,alterado_em)
-                            VALUES (?,?,?,?,?,?)""",
-                         (id_foco, "status_notificacao", ant, novo,
-                          session.get("nome","desconhecido"), datetime.now().isoformat()))
-        conn.commit()
-    finally:
-        conn.close()
-    return jsonify({"ok": True, "status": novo})
-
-@app.route("/notificacoes/imprimir", methods=["POST"])
-@login_required
-@nivel_min("operador")
-def imprimir():
-    ids = request.form.getlist("ids")
-    if not ids: return redirect(url_for("notificacoes"))
-    conn = get_db()
-    focos = []
-    for id_foco in ids:
-        row = conn.execute("""
-            SELECT f.*, l.nome AS localidade_nome FROM focos_positivos f
-            LEFT JOIN localidades l ON l.id_localidade=f.id_localidade
-            WHERE f.id_foco=? AND f.gera_notificacao=1
-        """, (id_foco,)).fetchone()
-        if row: focos.append(dict(row))
-    if not focos:
-        conn.close(); return "Nenhum foco vÃ¡lido.", 400
-    try:
-        caminho = gerar_docx(focos)
-    except Exception as e:
-        conn.close(); return f"Erro ao gerar DOCX: {e}", 500
-    for f in focos:
-        conn.execute("UPDATE focos_positivos SET status_notificacao='impressa' WHERE id_foco=? AND COALESCE(status_notificacao,'pendente')='pendente'", (f["id_foco"],))
-    conn.commit(); conn.close()
-    return send_file(caminho, as_attachment=True,
-                     download_name=f"notificacoes_{datetime.now().strftime('%Y%m%d_%H%M')}.docx")
-
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-#  ROTAS â€” PROCESSAR (ETL via upload)
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-
-#  API JSON
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-
-# Documento de notificacao
-
-def formatar_data_br(data_iso):
-    meses = ["janeiro","fevereiro","marÃ§o","abril","maio","junho",
-             "julho","agosto","setembro","outubro","novembro","dezembro"]
-    try:
-        d = datetime.strptime(str(data_iso)[:10], "%Y-%m-%d")
-        return f"{d.day} de {meses[d.month-1]} de {d.year}"
-    except (ValueError, TypeError, AttributeError):
-        return "______"
-
-def remover_bordas(tabela):
-    from docx.oxml.ns import qn
-    from docx.oxml import OxmlElement
-    for row in tabela.rows:
-        for cell in row.cells:
-            tcPr = cell._tc.get_or_add_tcPr()
-            borders = OxmlElement("w:tcBorders")
-            for side in ["top","bottom","left","right","insideH","insideV"]:
-                b = OxmlElement(f"w:{side}"); b.set(qn("w:val"), "none"); borders.append(b)
-            tcPr.append(borders)
-
-def gerar_via(doc, foco, modelo):
-    from docx.shared import Pt, Cm
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-
-    def par(texto="", bold=False, italic=False, size=11,
-            align=WD_ALIGN_PARAGRAPH.LEFT, sb=0, sa=6):
-        p = doc.add_paragraph()
-        p.alignment = align
-        p.paragraph_format.space_before = Pt(sb)
-        p.paragraph_format.space_after  = Pt(sa)
-        if texto:
-            r = p.add_run(texto); r.bold = bold; r.italic = italic; r.font.size = Pt(size)
-        return p
-
-    def par_mixed(partes, align=WD_ALIGN_PARAGRAPH.LEFT, sb=0, sa=6):
-        p = doc.add_paragraph(); p.alignment = align
-        p.paragraph_format.space_before = Pt(sb); p.paragraph_format.space_after = Pt(sa)
-        for texto, bold, italic, size in partes:
-            r = p.add_run(texto); r.bold = bold; r.italic = italic; r.font.size = Pt(size)
-        return p
-
-    cab = doc.add_table(rows=1, cols=3); cab.style = "Table Grid"; remover_bordas(cab)
-
-    # Coluna esquerda â€” Logo da prefeitura
-    cl = cab.rows[0].cells[0]; cl.width = Cm(3.5)
-    pl = cl.paragraphs[0]; pl.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    logo_pref = os.path.join(BASE_DIR, "static", "img", "logo_prefeitura.png")
-    try: pl.add_run().add_picture(logo_pref, width=Cm(3))
-    except Exception: pl.add_run("[LOGO PREFEITURA]")
-
-    # Coluna central â€” TÃ­tulos
-    ct = cab.rows[0].cells[1]
-    for i, linha in enumerate(modelo.get("CABECALHO","").split("\n")):
-        p = ct.paragraphs[0] if i == 0 else ct.add_paragraph()
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        r = p.add_run(linha); r.bold = (i==0); r.font.size = Pt(10 if i==0 else 9)
-
-    # Coluna direita â€” Logo do Setor de Endemias
-    cr = cab.rows[0].cells[2]; cr.width = Cm(3.5)
-    pr = cr.paragraphs[0]; pr.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    logo_end = os.path.join(BASE_DIR, "static", "img", "logo_endemias.png")
-    try: pr.add_run().add_picture(logo_end, width=Cm(3))
-    except Exception: pr.add_run("[LOGO ENDEMIAS]")
-
-    # Centralizar a tabela na pÃ¡gina
-    from docx.oxml.ns import qn as _qn
-    from docx.oxml import OxmlElement as _OxmlElement
-    tblPr = cab._tbl.tblPr
-    jc = _OxmlElement("w:jc"); jc.set(_qn("w:val"), "center")
-    tblPr.append(jc)
-
-    doc.add_paragraph()
-    par(f"Almirante TamandarÃ© (PR), ______/______ de {date.today().year}.",
-        align=WD_ALIGN_PARAGRAPH.RIGHT, size=10, sa=8)
-    par(modelo.get("TITULO","COMUNICADO / NOTIFICAÃ‡ÃƒO"), bold=True, size=13,
-        align=WD_ALIGN_PARAGRAPH.CENTER, sa=4)
-    par(modelo.get("SAUDACAO","Prezado(a) Senhor(a) PROPRIETÃRIO/RESPONSÃVEL"), bold=True, size=11, sa=8)
-
-    end_fmt  = f"{foco.get('logradouro') or ''}, {foco.get('numero') or 's/n'}".strip(", ")
-    loc_fmt  = foco.get("localidade_nome") or foco.get("localidade") or ""
-    qrt_fmt  = f"QuarteirÃ£o {foco.get('quarteirao')}" if foco.get("quarteirao") else ""
-    loc_linha = " â€” ".join(filter(None, [loc_fmt, qrt_fmt]))
-
-    corpo = modelo.get("CORPO","").replace("{endereco}", end_fmt)\
-                                  .replace("{localidade}", loc_linha)\
-                                  .replace("{data_visita}", formatar_data_br(foco.get("data")))
-    partes = []
-    marcador = "Aedes aegypti"
-    while marcador in corpo:
-        idx = corpo.index(marcador)
-        if corpo[:idx]: partes.append((corpo[:idx], False, False, 11))
-        partes.append((marcador, False, True, 11)); corpo = corpo[idx+len(marcador):]
-    if corpo: partes.append((corpo, False, False, 11))
-    par_mixed(partes, sa=8)
-
-    par(modelo.get("AVISO",""), bold=True, size=11, sa=8)
-    par(modelo.get("CONTATO",""), size=10, sa=10)
-    campos = [
-        ("LOCALIDADE",    loc_linha or "___________________________"),
-        ("ENDEREÃ‡O",      end_fmt   or "___________________________"),
-        ("MORADOR",       foco.get("nome_morador") or "___________________________"),
-        ("DEPÃ“SITO(S)",   foco.get("depositos")    or "___________________________"),
-        ("AGENTE(S)",     foco.get("agentes")      or "___________________________"),
-    ]
-    if foco.get("observacoes"):
-        campos.append(("OBSERVAÃ‡Ã•ES", foco["observacoes"]))
-    for label, valor in campos:
-        par_mixed([(f"â€¢ {label}: ", True, True, 11), (valor, False, True, 11)], sa=3)
-
-    doc.add_paragraph()
-    ass = doc.add_table(rows=2, cols=2); ass.style = "Table Grid"; remover_bordas(ass)
-    for i, txt in enumerate(["_"*35, "_"*35]):
-        c = ass.rows[0].cells[i]; c.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        c.paragraphs[0].add_run(txt)
-    for i, txt in enumerate(["VigilÃ¢ncia Ambiental / Setor de Endemias","ProprietÃ¡rio / ResponsÃ¡vel"]):
-        c = ass.rows[1].cells[i]; c.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        c.paragraphs[0].add_run(txt).bold = True
-
-    doc.add_paragraph()
-    par(modelo.get("RODAPE",""), size=8, align=WD_ALIGN_PARAGRAPH.CENTER, sa=0)
-    if foco.get("codigo"):
-        par(f"NÂº da notificaÃ§Ã£o: {foco['codigo']}", size=7,
-            align=WD_ALIGN_PARAGRAPH.CENTER, sa=0)
-
-def gerar_docx(focos):
-    from docx import Document; from docx.shared import Cm
-    modelo = ler_modelo(); doc = Document()
-    for section in doc.sections:
-        section.top_margin = section.bottom_margin = Cm(1.5)
-        section.left_margin = section.right_margin  = Cm(2)
-    for i, foco in enumerate(focos):
-        gerar_via(doc, foco, modelo)
-        if i < len(focos)-1: doc.add_page_break()
-    caminho = os.path.join(SAIDA_DIR, f"notificacoes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx")
-    doc.save(caminho); return caminho
-
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-#  MAPA
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-
-
-def _focos_para_impressao(ids):
-    """Retorna lista de dicts de focos para impressÃ£o, na ordem dos IDs."""
-    conn = get_db()
-    focos = []
-    for id_foco in ids:
-        row = conn.execute("""
-            SELECT f.*, l.nome AS localidade_nome
-            FROM focos_positivos f
-            LEFT JOIN localidades l ON l.id_localidade = f.id_localidade
-            WHERE f.id_foco = ? AND f.gera_notificacao = 1
-        """, (id_foco,)).fetchone()
-        if row:
-            focos.append(dict(row))
-    conn.close()
-    return focos
-
-@app.route("/notificacoes/foco/<id_foco>/imprimir-html")
-@login_required
-@nivel_min("operador")
-def imprimir_html_single(id_foco):
-    focos = _focos_para_impressao([id_foco])
-    if not focos:
-        abort(404)
-    # Marcar como impressa se ainda pendente
-    conn = get_db()
-    conn.execute("""UPDATE focos_positivos SET status_notificacao='impressa'
-                    WHERE id_foco=? AND COALESCE(status_notificacao,'pendente')='pendente'""", (id_foco,))
-    conn.commit(); conn.close()
-    return render_template("notificacao_print.html", focos=focos, auto_print=True, modelo=type("M", (), ler_modelo())())
-
-@app.route("/notificacoes/imprimir-html", methods=["POST"])
-@login_required
-@nivel_min("operador")
-def imprimir_html_lote():
-    ids = request.form.getlist("ids")
-    if not ids:
-        return redirect(url_for("notificacoes"))
-    focos = _focos_para_impressao(ids)
-    if not focos:
-        return "Nenhum foco vÃ¡lido.", 400
-    conn = get_db()
-    for f in focos:
-        conn.execute("""UPDATE focos_positivos SET status_notificacao='impressa'
-                        WHERE id_foco=? AND COALESCE(status_notificacao,'pendente')='pendente'""",
-                     (f["id_foco"],))
-    conn.commit(); conn.close()
-    return render_template("notificacao_print.html", focos=focos, auto_print=True, modelo=type("M", (), ler_modelo())())
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  ERROR HANDLERS

@@ -23,6 +23,7 @@ Aplicacao Flask ainda tem `app.py` como entrada principal, mas a modularizacao j
   - `esporotricose.py`: pagina placeholder do futuro modulo de esporotricose.
   - `exportacoes.py`: exportacoes XLSX de visitas, notificacoes e laboratorio.
   - `mapa.py`: pagina e API do mapa.
+  - `notificacoes.py`: pagina, detalhe, atualizacao, status rapido e impressao das notificacoes.
   - `relatorio_agente.py`: pagina, PDF, API e consultas do relatorio por agente.
 - Rotas de usuarios movidas para blueprint mantendo:
   - `/admin/usuarios`
@@ -62,6 +63,14 @@ Aplicacao Flask ainda tem `app.py` como entrada principal, mas a modularizacao j
 - Mapa movido para blueprint mantendo:
   - `/mapa`
   - `/api/mapa`
+- Notificacoes movidas para blueprint mantendo:
+  - `/notificacoes`
+  - `/notificacoes/foco/<id_foco>`
+  - `/notificacoes/foco/<id_foco>/atualizar`
+  - `/notificacoes/foco/<id_foco>/status`
+  - `/notificacoes/imprimir`
+  - `/notificacoes/foco/<id_foco>/imprimir-html`
+  - `/notificacoes/imprimir-html`
 - Validacao de upload XLSX movida para `app_core/uploads.py`, mantendo wrapper compatível em `app.py`.
 - Eventos automaticos da agenda tiveram textos normalizados para evitar mojibake no calendario e no popup de detalhes.
 - Criada pagina placeholder `/esporotricose` para futuro modulo de visitas/importacao de esporotricose, sem alteracao de banco.
@@ -152,29 +161,31 @@ Cobertura atual inclui:
 - assets compartilhados `/static/css/app.css` e `/static/js/app.js` respondem 200.
 - cadastro central de modulos valida icones existentes e permissoes admin/visualizador.
 - versao atual aparece no layout principal e na tela de login.
+- contratos de rotas em blueprints para consultas, exportacoes, mapa e notificacoes.
 
 ## Comandos de validacao
 
 Rodar apos cada corte:
 
 ```powershell
-python -m py_compile app.py etl.py app_core\auth.py app_core\db.py app_core\import_history.py app_core\modules.py app_core\sispncd.py app_core\uploads.py app_core\utils.py app_core\version.py app_core\work_types.py blueprints\admin.py blueprints\agenda.py blueprints\consultas.py blueprints\conta_ovos_sispncd.py blueprints\esporotricose.py blueprints\exportacoes.py blueprints\mapa.py blueprints\processar.py blueprints\relatorio_agente.py tests\test_security.py
+python -m py_compile app.py etl.py app_core\auth.py app_core\db.py app_core\import_history.py app_core\modules.py app_core\sispncd.py app_core\uploads.py app_core\utils.py app_core\version.py app_core\work_types.py blueprints\admin.py blueprints\agenda.py blueprints\consultas.py blueprints\conta_ovos_sispncd.py blueprints\esporotricose.py blueprints\exportacoes.py blueprints\mapa.py blueprints\notificacoes.py blueprints\processar.py blueprints\relatorio_agente.py tests\test_security.py
 python -m unittest discover -s tests -v
 ```
 
 Ultimo resultado conhecido:
 
 ```text
-Ran 54 tests
+Ran 55 tests
 OK
 ```
 
 ## Proximos passos recomendados
 
-1. Mover outro blueprint pequeno quando fizer sentido.
+1. Fazer um corte de limpeza pequeno no `app.py` quando fizer sentido.
    - Opcoes:
-     - `notificacoes`: modulo maior, mas com ganho relevante por reduzir bastante o `app.py`.
-     - downloads e impressao de notificacoes podem ser separados em modulos auxiliares junto do corte de `notificacoes`.
+     - mover rotas de login/minha senha para um blueprint de autenticacao;
+     - mover a pagina inicial (`/`) para um blueprint pequeno de home;
+     - revisar wrappers antigos que ficaram apenas por compatibilidade.
 2. Preparar base para novos tipos importados por planilha.
    - Sugestao:
      - criar registro central de tipos de importacao futuros;

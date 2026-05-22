@@ -702,6 +702,41 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(endpoints["/api/laboratorio/exportar"], "exportacoes.exportar_laboratorio")
         self.assertEqual(endpoints["/saida/download/<tipo>"], "exportacoes.saida_download")
 
+    def test_notificacoes_usam_blueprint_proprio(self):
+        endpoints = {
+            str(rule): rule.endpoint
+            for rule in endemias_app.app.url_map.iter_rules()
+            if str(rule) in {
+                "/notificacoes",
+                "/notificacoes/foco/<id_foco>",
+                "/notificacoes/foco/<id_foco>/atualizar",
+                "/notificacoes/foco/<id_foco>/status",
+                "/notificacoes/imprimir",
+                "/notificacoes/foco/<id_foco>/imprimir-html",
+                "/notificacoes/imprimir-html",
+            }
+        }
+
+        self.assertEqual(endpoints["/notificacoes"], "notificacoes.page")
+        self.assertEqual(endpoints["/notificacoes/foco/<id_foco>"], "notificacoes.foco_detalhe")
+        self.assertEqual(
+            endpoints["/notificacoes/foco/<id_foco>/atualizar"],
+            "notificacoes.foco_atualizar",
+        )
+        self.assertEqual(
+            endpoints["/notificacoes/foco/<id_foco>/status"],
+            "notificacoes.foco_status_rapido",
+        )
+        self.assertEqual(endpoints["/notificacoes/imprimir"], "notificacoes.imprimir")
+        self.assertEqual(
+            endpoints["/notificacoes/foco/<id_foco>/imprimir-html"],
+            "notificacoes.imprimir_html_single",
+        )
+        self.assertEqual(
+            endpoints["/notificacoes/imprimir-html"],
+            "notificacoes.imprimir_html_lote",
+        )
+
     def test_exportacoes_retornam_xlsx(self):
         client = _client_logado()
         rotas = [
