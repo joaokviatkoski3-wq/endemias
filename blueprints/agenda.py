@@ -1,42 +1,19 @@
 from datetime import datetime, timedelta
 
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, jsonify, render_template, request
 
 from app_core import auth as auth_core
-from app_core import db as db_core
+from app_core import blueprint_helpers as bh
 from app_core import work_types
 
 
 bp = Blueprint("agenda", __name__)
 login_required = auth_core.login_required
-
-
-def _db_path():
-    return current_app.config["DB_PATH"]
-
-
-def get_db():
-    return db_core.connect(_db_path())
-
-
-def q(sql, params=()):
-    return db_core.query(_db_path(), sql, params)
-
-
-def q1(sql, params=()):
-    return db_core.query_one(_db_path(), sql, params)
-
-
-def usuario_atual():
-    return auth_core.usuario_atual(q1)
-
-
-def nivel_min(nivel):
-    return auth_core.nivel_min(nivel, usuario_atual)
+nivel_min = bh.nivel_min
 
 
 def _admin_required_json():
-    u = usuario_atual()
+    u = bh.usuario_atual()
     ordem = {"admin": 3, "operador": 2, "visualizador": 1}
     if not u or ordem.get(u["nivel"], 0) < ordem.get("admin", 999):
         return None, (jsonify({"erro": "Sem permissao"}), 403)
@@ -70,7 +47,7 @@ def api_eventos():
         if not titulo or not data_inicio:
             return jsonify({"erro": "Titulo e data sao obrigatorios"}), 400
 
-        conn = get_db()
+        conn = bh.get_db()
         cur = conn.execute(
             """INSERT INTO agenda_eventos
             (titulo, descricao, tipo, data_inicio, data_fim, dia_inteiro, lembrete_min, cor, criado_por, criado_em)
@@ -97,7 +74,7 @@ def api_eventos():
     fim = request.args.get("end", "")
     eventos = []
 
-    rows = q(
+    rows = bh.q(
         """SELECT * FROM agenda_eventos
            WHERE date(data_inicio) <= date(?) AND (data_fim IS NULL OR date(data_fim) >= date(?))
            ORDER BY data_inicio""",
@@ -127,7 +104,7 @@ def api_eventos():
             },
         })
 
-    auto_rows = q(
+    auto_rows = bh.q(
         """
         SELECT
             v.data,
@@ -198,7 +175,7 @@ def api_eventos():
 @nivel_min("admin")
 def api_evento(id_evento):
     if request.method == "DELETE":
-        conn = get_db()
+        conn = bh.get_db()
         conn.execute("DELETE FROM agenda_eventos WHERE id_evento=?", (id_evento,))
         conn.commit()
         conn.close()
@@ -216,7 +193,7 @@ def api_evento(id_evento):
     if not titulo or not data_inicio:
         return jsonify({"erro": "Titulo e data sao obrigatorios"}), 400
 
-    conn = get_db()
+    conn = bh.get_db()
     conn.execute(
         """UPDATE agenda_eventos SET titulo=?, descricao=?, tipo=?, data_inicio=?,
            data_fim=?, dia_inteiro=?, lembrete_min=?, cor=? WHERE id_evento=?""",
@@ -233,7 +210,7 @@ def api_lembretes():
     """Retorna eventos manuais nas proximas 24h para notificacoes do browser."""
     agora = datetime.now()
     limite = agora + timedelta(hours=24)
-    rows = q(
+    rows = bh.q(
         """SELECT id_evento, titulo, tipo, data_inicio, dia_inteiro, lembrete_min
            FROM agenda_eventos
            WHERE data_inicio BETWEEN ? AND ?

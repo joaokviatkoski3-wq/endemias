@@ -737,6 +737,26 @@ class MainApisSmokeTests(unittest.TestCase):
             "notificacoes.imprimir_html_lote",
         )
 
+    def test_auth_usa_blueprint_proprio(self):
+        endpoints = {
+            str(rule): rule.endpoint
+            for rule in endemias_app.app.url_map.iter_rules()
+            if str(rule) in {"/login", "/logout", "/minha-senha"}
+        }
+
+        self.assertEqual(endpoints["/login"], "auth.login")
+        self.assertEqual(endpoints["/logout"], "auth.logout")
+        self.assertEqual(endpoints["/minha-senha"], "auth.minha_senha")
+
+    def test_home_usa_blueprint_proprio(self):
+        endpoints = {
+            str(rule): rule.endpoint
+            for rule in endemias_app.app.url_map.iter_rules()
+            if str(rule) == "/"
+        }
+
+        self.assertEqual(endpoints["/"], "home.page")
+
     def test_exportacoes_retornam_xlsx(self):
         client = _client_logado()
         rotas = [

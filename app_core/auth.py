@@ -39,7 +39,7 @@ def login_required(view):
     @wraps(view)
     def dec(*args, **kwargs):
         if not session.get("uid"):
-            return redirect(url_for("login", next=request.path))
+            return redirect(url_for("auth.login", next=request.path))
         return view(*args, **kwargs)
     return dec
 
@@ -52,7 +52,7 @@ def nivel_min(nivel, usuario_atual_func):
         def wrapper(*args, **kwargs):
             usuario = usuario_atual_func()
             if not usuario:
-                return redirect(url_for("login"))
+                return redirect(url_for("auth.login"))
             if ordem.get(usuario["nivel"], 0) < ordem.get(nivel, 999):
                 return render_template("403.html"), 403
             return view(*args, **kwargs)

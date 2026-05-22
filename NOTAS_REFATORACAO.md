@@ -13,15 +13,18 @@ Aplicacao Flask ainda tem `app.py` como entrada principal, mas a modularizacao j
   - `utils.py`: datas, parse seguro de inteiros e leitura do modelo de notificacao.
   - `work_types.py`: fonte central para tipos de trabalho, labels, cores, status de notificacao, tipos da agenda e metadados de ETL por tipo.
   - `modules.py`: fonte central para paginas/modulos do sistema, com icones, URLs, descricoes, secoes de navegacao e permissao minima.
+  - `blueprint_helpers.py`: helpers compartilhados para blueprints (`get_db`, `q/q1/qval`, usuario atual, permissao e parse de inteiros).
   - `version.py`: versao semantica atual exibida no rodape do sistema.
 - Criado pacote `blueprints/`
   - `admin.py`: primeiro blueprint real.
+  - `auth.py`: login, logout e alteracao da propria senha.
   - `processar.py`: upload, dry-run, confirmacao e cancelamento de importacoes.
   - `conta_ovos_sispncd.py`: pagina e APIs de consulta do modulo Conta Ovos e SisPNCD.
   - `consultas.py`: paginas de consulta de dashboard, laboratorio e lista de visitas.
   - `agenda.py`: pagina, eventos, edicao/exclusao e lembretes da agenda.
   - `esporotricose.py`: pagina placeholder do futuro modulo de esporotricose.
   - `exportacoes.py`: exportacoes XLSX de visitas, notificacoes e laboratorio.
+  - `home.py`: pagina inicial e KPIs da home.
   - `mapa.py`: pagina e API do mapa.
   - `notificacoes.py`: pagina, detalhe, atualizacao, status rapido e impressao das notificacoes.
   - `relatorio_agente.py`: pagina, PDF, API e consultas do relatorio por agente.
@@ -30,6 +33,12 @@ Aplicacao Flask ainda tem `app.py` como entrada principal, mas a modularizacao j
   - `/admin/usuarios/criar`
   - `/admin/usuarios/<uid>/editar`
   - `/admin/usuarios/<uid>/resetar-senha`
+- Rotas de autenticacao movidas para blueprint mantendo:
+  - `/login`
+  - `/logout`
+  - `/minha-senha`
+- Rota da pagina inicial movida para blueprint mantendo:
+  - `/`
 - Rotas de processamento movidas para blueprint mantendo:
   - `/processar`
   - `/processar/iniciar`
@@ -126,6 +135,8 @@ Aplicacao Flask ainda tem `app.py` como entrada principal, mas a modularizacao j
   - tags de tipos na home;
   - validacao de `/saida/download/<tipo>`;
   - codigo do tipo com duracao nas consultas de dashboard/relatorio.
+- Helpers comuns de blueprint passaram a ser usados em `auth`, `home`, `admin`, `agenda`, `mapa` e `conta_ovos_sispncd`.
+- `app.py` ficou sem rotas diretas de pagina/API; permanece como entrada/configuracao, contexto global, wrappers de compatibilidade e error handlers.
 
 ## Testes atuais
 
@@ -161,31 +172,30 @@ Cobertura atual inclui:
 - assets compartilhados `/static/css/app.css` e `/static/js/app.js` respondem 200.
 - cadastro central de modulos valida icones existentes e permissoes admin/visualizador.
 - versao atual aparece no layout principal e na tela de login.
-- contratos de rotas em blueprints para consultas, exportacoes, mapa e notificacoes.
+- contratos de rotas em blueprints para auth, home, consultas, exportacoes, mapa e notificacoes.
 
 ## Comandos de validacao
 
 Rodar apos cada corte:
 
 ```powershell
-python -m py_compile app.py etl.py app_core\auth.py app_core\db.py app_core\import_history.py app_core\modules.py app_core\sispncd.py app_core\uploads.py app_core\utils.py app_core\version.py app_core\work_types.py blueprints\admin.py blueprints\agenda.py blueprints\consultas.py blueprints\conta_ovos_sispncd.py blueprints\esporotricose.py blueprints\exportacoes.py blueprints\mapa.py blueprints\notificacoes.py blueprints\processar.py blueprints\relatorio_agente.py tests\test_security.py
+python -m py_compile app.py etl.py app_core\auth.py app_core\blueprint_helpers.py app_core\db.py app_core\import_history.py app_core\modules.py app_core\sispncd.py app_core\uploads.py app_core\utils.py app_core\version.py app_core\work_types.py blueprints\admin.py blueprints\agenda.py blueprints\auth.py blueprints\consultas.py blueprints\conta_ovos_sispncd.py blueprints\esporotricose.py blueprints\exportacoes.py blueprints\home.py blueprints\mapa.py blueprints\notificacoes.py blueprints\processar.py blueprints\relatorio_agente.py tests\test_security.py
 python -m unittest discover -s tests -v
 ```
 
 Ultimo resultado conhecido:
 
 ```text
-Ran 55 tests
+Ran 57 tests
 OK
 ```
 
 ## Proximos passos recomendados
 
-1. Fazer um corte de limpeza pequeno no `app.py` quando fizer sentido.
+1. Fazer um corte de limpeza estrutural no `app.py` quando fizer sentido.
    - Opcoes:
-     - mover rotas de login/minha senha para um blueprint de autenticacao;
-     - mover a pagina inicial (`/`) para um blueprint pequeno de home;
      - revisar wrappers antigos que ficaram apenas por compatibilidade.
+     - preparar uma factory Flask (`create_app`) para reduzir estado global.
 2. Preparar base para novos tipos importados por planilha.
    - Sugestao:
      - criar registro central de tipos de importacao futuros;

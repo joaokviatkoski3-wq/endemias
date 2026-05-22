@@ -9,8 +9,7 @@ import logging
 import logging.handlers
 from datetime import timedelta
 
-from flask import (Flask, render_template, request, redirect, url_for,
-                   jsonify, session)
+from flask import Flask, jsonify, render_template, request, session
 from flask_wtf.csrf import CSRFProtect, CSRFError
 
 from app_core import auth as auth_core
@@ -23,10 +22,12 @@ from app_core import version as version_core
 from app_core import work_types
 from blueprints.admin import bp as admin_bp
 from blueprints.agenda import bp as agenda_bp
+from blueprints.auth import bp as auth_bp
 from blueprints.conta_ovos_sispncd import bp as conta_ovos_sispncd_bp
 from blueprints.consultas import bp as consultas_bp
 from blueprints.esporotricose import bp as esporotricose_bp
 from blueprints.exportacoes import bp as exportacoes_bp
+from blueprints.home import bp as home_bp
 from blueprints.mapa import bp as mapa_bp
 from blueprints.notificacoes import bp as notificacoes_bp
 from blueprints.processar import bp as processar_bp
@@ -91,6 +92,8 @@ _login_tentativas    = auth_core.login_tentativas
 app.config["WTF_CSRF_TIME_LIMIT"]   = 3600  # token vÃ¡lido por 1h
 app.config["WTF_CSRF_CHECK_DEFAULT"] = True
 csrf = CSRFProtect(app)
+csrf.exempt(auth_bp)
+app.register_blueprint(auth_bp)
 app.register_blueprint(admin_bp)
 
 # Isentar rotas que nÃ£o precisam de CSRF (SSE â€” usam GET, sem estado)
@@ -170,6 +173,7 @@ app.register_blueprint(conta_ovos_sispncd_bp)
 app.register_blueprint(consultas_bp)
 app.register_blueprint(esporotricose_bp)
 app.register_blueprint(exportacoes_bp)
+app.register_blueprint(home_bp)
 app.register_blueprint(mapa_bp)
 app.register_blueprint(notificacoes_bp)
 app.register_blueprint(processar_bp)
@@ -327,109 +331,6 @@ def _limpar_login_falhas(chave):
     return auth_core.limpar_login_falhas(chave)
 
 
-@app.route("/login", methods=["GET", "POST"])
-@csrf.exempt   # login nÃ£o tem sessÃ£o prÃ©via para validar token â€” protegido pelo rate limit da senha
-def login():
-    if session.get("uid"):
-        return redirect(url_for("home"))
-    erro = None
-    if request.method == "POST":
-        usuario = request.form.get("usuario", "").strip()
-        senha   = request.form.get("senha", "")
-        chave   = _chave_login(usuario)
-        if _login_bloqueado(chave):
-            logging.warning(f"Login bloqueado por excesso de tentativas | usuario={usuario} | IP={request.remote_addr}")
-            return render_template("login.html", erro="Muitas tentativas incorretas. Aguarde alguns minutos e tente novamente."), 429
-        u = q1("SELECT * FROM usuarios WHERE usuario=? AND ativo=1", (usuario,))
-        if u:
-            ok, novo_hash = _verificar_senha(senha, u["senha_hash"])
-            if ok:
-                _limpar_login_falhas(chave)
-                session.permanent = True          # respeita PERMANENT_SESSION_LIFETIME
-                session["uid"]    = u["id_usuario"]
-                session["nivel"]  = u["nivel"]
-                session["nome"]   = u["nome"]
-                # Upgrade silencioso de hash legado para pbkdf2
-                if novo_hash:
-                    try:
-                        conn = get_db()
-                        conn.execute("UPDATE usuarios SET senha_hash=? WHERE id_usuario=?",
-                                     (novo_hash, u["id_usuario"]))
-                        conn.commit()
-                        conn.close()
-                    except Exception:
-                        pass
-                # Redirecionar com seguranÃ§a (sem open redirect)
-                dest = request.args.get("next", "")
-                if not dest or not _url_segura(dest):
-                    dest = url_for("home")
-                return redirect(dest)
-        erro = "UsuÃ¡rio ou senha incorretos."
-        _registrar_login_falha(chave)
-    return render_template("login.html", erro=erro)
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("login"))
-
-@app.route("/minha-senha", methods=["GET", "POST"])
-@login_required
-def minha_senha():
-    erro = ok = None
-    if request.method == "POST":
-        atual = request.form.get("atual", "")
-        nova  = request.form.get("nova", "")
-        conf  = request.form.get("confirmar", "")
-        u = q1("SELECT * FROM usuarios WHERE id_usuario=?", (session["uid"],))
-        senha_ok, _ = _verificar_senha(atual, u["senha_hash"])
-        if not senha_ok:
-            erro = "Senha atual incorreta."
-        elif len(nova) < 6:
-            erro = "A nova senha deve ter ao menos 6 caracteres."
-        elif nova != conf:
-            erro = "As senhas nÃ£o coincidem."
-        else:
-            conn = get_db()
-            conn.execute("UPDATE usuarios SET senha_hash=? WHERE id_usuario=?",
-                         (_hash(nova), session["uid"]))
-            conn.commit(); conn.close()
-            ok = "Senha alterada com sucesso."
-    return render_template("minha_senha.html", erro=erro, ok=ok)
-
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-#  ROTAS â€” PÃGINAS PRINCIPAIS
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-
-@app.route("/")
-@login_required
-def home():
-    conn = get_db()
-    try:
-        ano_ini  = data_ano()
-        kpis = {
-            "visitas_hoje":     conn.execute("SELECT COUNT(*) FROM visitas WHERE data=?", (hoje(),)).fetchone()[0],
-            "visitas_ano":      conn.execute("SELECT COUNT(*) FROM visitas WHERE data>=?", (ano_ini,)).fetchone()[0],
-            "focos_pendentes":  conn.execute("SELECT COUNT(*) FROM focos_positivos WHERE status_notificacao='pendente' AND gera_notificacao=1").fetchone()[0],
-            "agentes_ativos":   conn.execute("SELECT COUNT(DISTINCT id_agente) FROM visita_agentes va JOIN visitas v ON v.id_visita=va.id_visita WHERE v.data>=?", (data_n_dias(30),)).fetchone()[0],
-            "coletas_total":    conn.execute("SELECT COUNT(*) FROM coletas").fetchone()[0],
-            "positivos_aeg":    conn.execute("SELECT COUNT(*) FROM resultados_laboratorio WHERE aegypt_larvas>0 OR aegypt_pupas>0 OR aegypt_exuvias>0 OR aegypt_adulto>0").fetchone()[0],
-        }
-        atividade   = conn.execute("SELECT data, COUNT(*) as total FROM visitas WHERE data>=? GROUP BY data ORDER BY data DESC LIMIT 14", (data_n_dias(14),)).fetchall()
-        dist_tipo   = conn.execute("SELECT tipo, COUNT(*) as total FROM visitas WHERE data>=? GROUP BY tipo ORDER BY total DESC", (ano_ini,)).fetchall()
-        focos_rec   = conn.execute("""
-            SELECT f.*, l.nome as localidade_nome FROM focos_positivos f
-            LEFT JOIN localidades l ON l.id_localidade=f.id_localidade
-            WHERE f.gera_notificacao=1 ORDER BY f.processado_em DESC LIMIT 5
-        """).fetchall()
-    finally:
-        conn.close()
-    return render_template("home.html",
-        kpis=kpis,
-        atividade=[dict(r) for r in atividade],
-        dist_tipo=[dict(r) for r in dist_tipo],
-        focos_recentes=[dict(r) for r in focos_rec],
-    )
 
 
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

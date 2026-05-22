@@ -2,45 +2,22 @@ import secrets
 import string
 from datetime import datetime
 
-from flask import Blueprint, current_app, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
 
 from app_core import auth as auth_core
-from app_core import db as db_core
+from app_core import blueprint_helpers as bh
 
 
 bp = Blueprint("admin", __name__)
 login_required = auth_core.login_required
-
-
-def _db_path():
-    return current_app.config["DB_PATH"]
-
-
-def get_db():
-    return db_core.connect(_db_path())
-
-
-def q(sql, params=()):
-    return db_core.query(_db_path(), sql, params)
-
-
-def q1(sql, params=()):
-    return db_core.query_one(_db_path(), sql, params)
-
-
-def usuario_atual():
-    return auth_core.usuario_atual(q1)
-
-
-def nivel_min(nivel):
-    return auth_core.nivel_min(nivel, usuario_atual)
+nivel_min = bh.nivel_min
 
 
 @bp.route("/admin/usuarios")
 @login_required
 @nivel_min("admin")
 def admin_usuarios():
-    usuarios = q("SELECT * FROM usuarios ORDER BY nivel, nome")
+    usuarios = bh.q("SELECT * FROM usuarios ORDER BY nivel, nome")
     return render_template("admin_usuarios.html", usuarios=usuarios)
 
 
@@ -61,7 +38,7 @@ def admin_criar_usuario():
         erro = "Nivel invalido."
     else:
         try:
-            conn = get_db()
+            conn = bh.get_db()
             conn.execute("""INSERT INTO usuarios (usuario,nome,senha_hash,nivel,ativo,criado_em)
                             VALUES (?,?,?,?,1,?)""",
                          (usuario, nome, auth_core.hash_senha(senha), nivel, datetime.now().isoformat()))
@@ -70,7 +47,7 @@ def admin_criar_usuario():
         except Exception as e:
             erro = f"Erro: {e}"
     if erro:
-        usuarios = q("SELECT * FROM usuarios ORDER BY nivel, nome")
+        usuarios = bh.q("SELECT * FROM usuarios ORDER BY nivel, nome")
         return render_template("admin_usuarios.html", usuarios=usuarios, erro=erro)
     return redirect(url_for("admin.admin_usuarios"))
 
@@ -81,7 +58,7 @@ def admin_criar_usuario():
 def admin_editar_usuario(uid):
     campo = request.form.get("campo")
     valor = request.form.get("valor", "").strip()
-    conn = get_db()
+    conn = bh.get_db()
     if campo == "nivel" and valor in ("admin", "operador", "visualizador"):
         conn.execute("UPDATE usuarios SET nivel=? WHERE id_usuario=?", (valor, uid))
     elif campo == "ativo" and valor in ("0", "1"):
@@ -104,7 +81,7 @@ def admin_editar_usuario(uid):
 @nivel_min("admin")
 def admin_resetar_senha(uid):
     nova = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
-    conn = get_db()
+    conn = bh.get_db()
     conn.execute("UPDATE usuarios SET senha_hash=? WHERE id_usuario=?", (auth_core.hash_senha(nova), uid))
     conn.commit()
     conn.close()

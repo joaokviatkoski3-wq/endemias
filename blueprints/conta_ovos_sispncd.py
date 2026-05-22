@@ -1,34 +1,15 @@
 from datetime import date
 
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, jsonify, render_template, request
 
 from app_core import auth as auth_core
-from app_core import db as db_core
+from app_core import blueprint_helpers as bh
 from app_core import sispncd
 
 
 bp = Blueprint("conta_ovos_sispncd", __name__)
 login_required = auth_core.login_required
-
-
-def _db_path():
-    return current_app.config["DB_PATH"]
-
-
-def q(sql, params=()):
-    return db_core.query(_db_path(), sql, params)
-
-
-def q1(sql, params=()):
-    return db_core.query_one(_db_path(), sql, params)
-
-
-def usuario_atual():
-    return auth_core.usuario_atual(q1)
-
-
-def nivel_min(nivel):
-    return auth_core.nivel_min(nivel, usuario_atual)
+nivel_min = bh.nivel_min
 
 
 def _json_error(exc, status=400):
@@ -39,8 +20,8 @@ def _json_error(exc, status=400):
 @login_required
 def page():
     today = date.today()
-    default_conta_ovos = sispncd.get_default_conta_ovos(_db_path())
-    localidades = q("SELECT id_localidade, nome FROM localidades ORDER BY nome")
+    default_conta_ovos = sispncd.get_default_conta_ovos(bh.db_path())
+    localidades = bh.q("SELECT id_localidade, nome FROM localidades ORDER BY nome")
     return render_template(
         "conta_ovos_sispncd.html",
         localidades=localidades,
@@ -55,7 +36,7 @@ def page():
 def api_conta_ovos():
     try:
         result = sispncd.conta_ovos(
-            _db_path(),
+            bh.db_path(),
             request.args.get("data"),
             request.args.get("quarteirao"),
             id_localidade=request.args.get("localidade"),
@@ -70,7 +51,7 @@ def api_conta_ovos():
 def api_sispncd_pesquisar():
     try:
         result = sispncd.sispncd(
-            _db_path(),
+            bh.db_path(),
             request.args.get("ano"),
             request.args.get("semana") or request.args.get("semana_epidemiologica"),
             request.args.getlist("tipo") or request.args.getlist("tipos_trabalho"),
@@ -84,7 +65,7 @@ def api_sispncd_pesquisar():
 @bp.route("/api/conta-ovos-sispncd/pendencias")
 @login_required
 def api_pendencias_envio():
-    return jsonify(sispncd.pendencias_envio(_db_path()))
+    return jsonify(sispncd.pendencias_envio(bh.db_path()))
 
 
 @bp.route("/api/sispncd/salvar", methods=["POST"])
@@ -94,7 +75,7 @@ def api_sispncd_salvar():
     data = request.json or {}
     try:
         result = sispncd.salvar_sispncd(
-            _db_path(),
+            bh.db_path(),
             data.get("ano"),
             data.get("semana") or data.get("semana_epidemiologica"),
             data.get("tipo") or data.get("tipos_trabalho"),
@@ -113,7 +94,7 @@ def api_conta_ovos_salvar_status():
     data = request.json or {}
     try:
         result = sispncd.salvar_status_conta_ovos(
-            _db_path(),
+            bh.db_path(),
             data.get("data"),
             data.get("quarteirao"),
             id_localidade=data.get("localidade"),

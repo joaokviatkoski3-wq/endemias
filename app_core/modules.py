@@ -43,10 +43,11 @@ MODULES: Tuple[AppModule, ...] = (
         title="Inicio",
         short_title="Inicio",
         href="/",
-        endpoint="home",
+        endpoint="home.page",
         icon="casa.svg",
         nav_section="Principal",
         show_home=False,
+        endpoints=("home", "home.page"),
     ),
     AppModule(
         key="dashboard",

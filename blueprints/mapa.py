@@ -1,22 +1,14 @@
 import logging
 
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, jsonify, render_template, request
 
 from app_core import auth as auth_core
-from app_core import db as db_core
+from app_core import blueprint_helpers as bh
 from app_core import work_types
 
 
 bp = Blueprint("mapa", __name__)
 login_required = auth_core.login_required
-
-
-def _db_path():
-    return current_app.config["DB_PATH"]
-
-
-def get_db():
-    return db_core.connect(_db_path())
 
 
 @bp.route("/mapa")
@@ -54,7 +46,7 @@ def api_mapa():
             where_v += " AND v.data<=?"
             params_v.append(d_fim)
 
-        conn = get_db()
+        conn = bh.get_db()
         try:
             rows_v = conn.execute(
                 f"""

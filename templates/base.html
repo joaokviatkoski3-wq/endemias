@@ -41,7 +41,7 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
     {% endfor %}
     {% endfor %}
     <span class="sidebar-mobile-label">Conta</span>
-    <a href="/minha-senha" class="sidebar-mobile-link {{ 'active' if request.endpoint == 'minha_senha' }}"><img src="/static/icons/chave.svg" alt="" class="icon-svg"> Alterar Senha</a>
+    <a href="/minha-senha" class="sidebar-mobile-link {{ 'active' if request.endpoint in ('minha_senha', 'auth.minha_senha') }}"><img src="/static/icons/chave.svg" alt="" class="icon-svg"> Alterar Senha</a>
     <a href="/logout" class="sidebar-mobile-link">Sair</a>
   </nav>
   <div class="sidebar-mobile-ft">
