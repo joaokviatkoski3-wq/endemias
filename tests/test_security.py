@@ -1,10 +1,14 @@
 import io
 import json
+import os
 import shutil
 import sqlite3
 import sys
 import tempfile
+import time
 import unittest
+import uuid
+import zipfile
 from pathlib import Path
 
 from werkzeug.datastructures import FileStorage
@@ -15,10 +19,12 @@ sys.path.insert(0, str(ROOT))
 import app as endemias_app
 import etl
 from app_core import esporotricose as esporotricose_core
+from app_core import db as db_core
 from app_core import modules as modules_core
 from app_core import sispncd as sispncd_core
 from app_core import version as version_core
 from app_core import work_types
+from blueprints import processar as processar_bp
 
 
 def _usuario_teste(nivel=None):
@@ -97,9 +103,17 @@ class LoginRateLimitTests(unittest.TestCase):
 
 
 class UploadValidationTests(unittest.TestCase):
-    def test_aceita_xlsx_com_assinatura_zip(self):
+    def _xlsx_minimo(self):
+        stream = io.BytesIO()
+        with zipfile.ZipFile(stream, "w") as zf:
+            zf.writestr("[Content_Types].xml", "<Types></Types>")
+            zf.writestr("xl/workbook.xml", "<workbook></workbook>")
+        stream.seek(0)
+        return stream
+
+    def test_aceita_xlsx_com_estrutura_zip_excel(self):
         arquivo = FileStorage(
-            stream=io.BytesIO(b"PK\x03\x04conteudo"),
+            stream=self._xlsx_minimo(),
             filename="TB_exemplo.xlsx",
         )
 
@@ -121,6 +135,22 @@ class UploadValidationTests(unittest.TestCase):
         self.assertEqual(nome, "TB_exemplo.xlsx")
         self.assertIn("XLSX", motivo)
 
+    def test_rejeita_zip_sem_estrutura_xlsx(self):
+        stream = io.BytesIO()
+        with zipfile.ZipFile(stream, "w") as zf:
+            zf.writestr("conteudo.txt", "nao e excel")
+        stream.seek(0)
+        arquivo = FileStorage(
+            stream=stream,
+            filename="TB_exemplo.xlsx",
+        )
+
+        valido, nome, motivo = endemias_app._validar_arquivo_xlsx(arquivo)
+
+        self.assertFalse(valido)
+        self.assertEqual(nome, "TB_exemplo.xlsx")
+        self.assertIn("estrutura XLSX", motivo)
+
     def test_rejeita_extensao_diferente(self):
         arquivo = FileStorage(
             stream=io.BytesIO(b"PK\x03\x04conteudo"),
@@ -132,6 +162,33 @@ class UploadValidationTests(unittest.TestCase):
         self.assertFalse(valido)
         self.assertEqual(nome, "")
         self.assertIn("Extens", motivo)
+
+
+class UploadTempCleanupTests(unittest.TestCase):
+    def test_limpa_apenas_jobs_uuid_antigos(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            antigo = Path(tmpdir) / str(uuid.uuid4())
+            recente = Path(tmpdir) / str(uuid.uuid4())
+            nao_job = Path(tmpdir) / "manual"
+            antigo.mkdir()
+            recente.mkdir()
+            nao_job.mkdir()
+            velho = time.time() - 48 * 3600
+            os.utime(antigo, (velho, velho))
+            os.utime(nao_job, (velho, velho))
+
+            app_temp = endemias_app.create_app({
+                "TESTING": True,
+                "UPLOAD_TEMP": tmpdir,
+                "DB_PATH": endemias_app.DB_PATH,
+            })
+            with app_temp.app_context():
+                removidos = processar_bp.limpar_uploads_antigos(max_age_hours=24)
+
+            self.assertEqual(removidos, 1)
+            self.assertFalse(antigo.exists())
+            self.assertTrue(recente.exists())
+            self.assertTrue(nao_job.exists())
 
 
 class RequestParsingTests(unittest.TestCase):
@@ -146,6 +203,18 @@ class RequestParsingTests(unittest.TestCase):
                 endemias_app.request_int_arg("por_pagina", 50, minimo=1, maximo=500),
                 500,
             )
+
+
+class DatabaseConnectionTests(unittest.TestCase):
+    def test_conexao_sqlite_configura_timeout_e_wal(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "teste.db")
+            conn = db_core.connect(db_path)
+            try:
+                self.assertEqual(conn.execute("PRAGMA busy_timeout").fetchone()[0], 5000)
+                self.assertEqual(conn.execute("PRAGMA journal_mode").fetchone()[0].lower(), "wal")
+            finally:
+                conn.close()
 
 
 class WorkTypesConfigTests(unittest.TestCase):
@@ -248,6 +317,15 @@ class ProtectedRouteTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/login", resp.headers["Location"])
 
+    def test_respostas_incluem_headers_basicos_de_seguranca(self):
+        endemias_app.app.config["TESTING"] = True
+        with endemias_app.app.test_client() as client:
+            resp = client.get("/login")
+
+        self.assertEqual(resp.headers["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(resp.headers["Referrer-Policy"], "same-origin")
+        self.assertEqual(resp.headers["X-Frame-Options"], "SAMEORIGIN")
+
     def test_logout_nao_aceita_get(self):
         client = _client_logado()
 
@@ -270,6 +348,44 @@ class ProtectedRouteTests(unittest.TestCase):
         client = _client_logado("admin")
 
         resp = client.get("/processar/confirmar/job-inexistente")
+
+        self.assertEqual(resp.status_code, 405)
+
+    def test_stream_processamento_nao_aceita_get(self):
+        client = _client_logado("admin")
+
+        resp = client.get("/processar/stream/job-inexistente")
+
+        self.assertEqual(resp.status_code, 405)
+
+    def test_rotas_processamento_rejeitam_job_id_invalido(self):
+        original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
+        endemias_app.app.config["WTF_CSRF_ENABLED"] = False
+        try:
+            client = _client_logado("admin")
+            for rota in (
+                "/processar/stream/job-invalido",
+                "/processar/confirmar/job-invalido",
+                "/processar/cancelar/job-invalido",
+            ):
+                with self.subTest(rota=rota):
+                    resp = client.post(rota)
+                    self.assertEqual(resp.status_code, 404)
+        finally:
+            endemias_app.app.config["WTF_CSRF_ENABLED"] = original
+
+    def test_impressao_html_individual_nao_aceita_get(self):
+        client = _client_logado("admin")
+        conn = sqlite3.connect(endemias_app.DB_PATH)
+        try:
+            row = conn.execute(
+                "SELECT id_foco FROM focos_positivos WHERE gera_notificacao=1 LIMIT 1"
+            ).fetchone()
+        finally:
+            conn.close()
+        self.assertIsNotNone(row)
+
+        resp = client.get(f"/notificacoes/foco/{row[0]}/imprimir-html")
 
         self.assertEqual(resp.status_code, 405)
 
@@ -303,13 +419,27 @@ class MainPagesSmokeTests(unittest.TestCase):
 
     def test_assets_compartilhados_respondem_200(self):
         client = _client_logado()
-        for rota in ("/static/css/app.css", "/static/js/app.js"):
+        for rota in (
+            "/static/css/app.css",
+            "/static/js/app.js",
+            "/static/vendor/chartjs/chart.umd.min.js",
+            "/static/vendor/chartjs-plugin-datalabels/chartjs-plugin-datalabels.min.js",
+            "/static/vendor/leaflet/leaflet.min.css",
+            "/static/vendor/leaflet/leaflet.min.js",
+        ):
             with self.subTest(rota=rota):
                 resp = client.get(rota)
                 try:
                     self.assertEqual(resp.status_code, 200)
                 finally:
                     resp.close()
+
+    def test_templates_principais_nao_dependem_de_cdn_externo(self):
+        for rel in ("templates/base.html", "templates/login.html", "templates/mapa.html"):
+            with self.subTest(rel=rel):
+                texto = (ROOT / rel).read_text(encoding="utf-8")
+                self.assertNotIn("cdnjs.cloudflare.com", texto)
+                self.assertNotIn("fonts.googleapis.com", texto)
 
     def test_tema_claro_escuro_tem_contrato_explicito(self):
         css = (ROOT / "static" / "css" / "app.css").read_text(encoding="utf-8")

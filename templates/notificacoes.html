@@ -213,8 +213,10 @@
               {% endfor %}
             </select>
             <a href="/notificacoes/foco/{{ f.id_foco }}" class="btn btn-xs btn-outline" title="Abrir detalhes"><img src="/static/icons/editar.svg" alt="✏" class="icon-svg">️</a>
-            <a href="/notificacoes/foco/{{ f.id_foco }}/imprimir-html" target="_blank"
-               class="btn btn-xs btn-outline" title="Imprimir esta notificação"><img src="/static/icons/imprimir.svg" alt="🖨" class="icon-svg">️</a>
+            <form method="POST" action="/notificacoes/foco/{{ f.id_foco }}/imprimir-html" target="_blank" style="display:inline-flex;margin:0;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-xs btn-outline" title="Imprimir esta notificação"><img src="/static/icons/imprimir.svg" alt="🖨" class="icon-svg">️</button>
+            </form>
           </div>
         </div>
         {% endfor %}
@@ -292,6 +294,9 @@ function imprimirHtmlSelecionados() {
   form.method = 'POST';
   form.action = '/notificacoes/imprimir-html';
   form.target = '_blank';
+  const csrf = document.createElement('input');
+  csrf.type = 'hidden'; csrf.name = 'csrf_token'; csrf.value = getCsrf();
+  form.appendChild(csrf);
   ids.forEach(id => {
     const inp = document.createElement('input');
     inp.type = 'hidden'; inp.name = 'ids'; inp.value = id;

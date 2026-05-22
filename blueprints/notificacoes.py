@@ -595,7 +595,7 @@ def _focos_para_impressao(ids):
     return focos
 
 
-@bp.route("/notificacoes/foco/<id_foco>/imprimir-html")
+@bp.route("/notificacoes/foco/<id_foco>/imprimir-html", methods=["POST"])
 @login_required
 @nivel_min("operador")
 def imprimir_html_single(id_foco):

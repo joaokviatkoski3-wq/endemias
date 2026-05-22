@@ -76,6 +76,15 @@ def register_template_filters(app):
             return str(valor) if valor else "______"
 
 
+def register_security_headers(app):
+    @app.after_request
+    def add_security_headers(response):
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "same-origin")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        return response
+
+
 def register_context_processors(app):
     @app.context_processor
     def inject_globals():

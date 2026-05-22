@@ -123,7 +123,7 @@ function toast(msg, type='info', dur=3000) {
 /* ═══════════════════════════
    CHART.JS DEFAULTS
 ═══════════════════════════ */
-Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+Chart.defaults.font.family = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 Chart.defaults.font.size   = 11;
 Chart.defaults.color       = '#4a5878';
 Chart.defaults.plugins.legend.labels.boxWidth = 10;

@@ -1,14 +1,14 @@
+import zipfile
+
 import werkzeug.utils
 
 
 XLSX_MAGIC = b"PK\x03\x04"
+XLSX_REQUIRED_ENTRIES = {"[Content_Types].xml", "xl/workbook.xml"}
 
 
 def validar_arquivo_xlsx(file_storage):
-    """
-    Valida extensao e assinatura real do arquivo XLSX.
-    Retorna (valido: bool, nome_seguro: str, motivo: str).
-    """
+    """Valida extensao, assinatura e estrutura minima de um arquivo XLSX."""
     nome_original = file_storage.filename or ""
     if not nome_original.lower().endswith(".xlsx"):
         return False, "", f"Extensao invalida: '{nome_original}'"
@@ -22,4 +22,13 @@ def validar_arquivo_xlsx(file_storage):
             f"'{nome_original}' nao e um arquivo XLSX valido "
             f"(assinatura inesperada: {cabecalho.hex()})"
         )
+    try:
+        with zipfile.ZipFile(file_storage.stream) as zf:
+            entradas = set(zf.namelist())
+    except zipfile.BadZipFile:
+        return False, nome_seguro, f"'{nome_original}' nao e um arquivo XLSX valido"
+    finally:
+        file_storage.seek(0)
+    if not XLSX_REQUIRED_ENTRIES.issubset(entradas):
+        return False, nome_seguro, f"'{nome_original}' nao possui estrutura XLSX esperada"
     return True, nome_seguro, ""

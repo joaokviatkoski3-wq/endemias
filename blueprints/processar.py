@@ -4,6 +4,7 @@ import os
 import queue
 import shutil
 import threading
+import time
 import uuid
 
 from flask import Blueprint, Response, current_app, jsonify, render_template, request, session, stream_with_context
@@ -28,6 +29,43 @@ def _config_path():
 
 def _upload_temp():
     return current_app.config["UPLOAD_TEMP"]
+
+
+def limpar_uploads_antigos(max_age_hours=24):
+    upload_root = os.path.abspath(_upload_temp())
+    os.makedirs(upload_root, exist_ok=True)
+    cutoff = time.time() - (max_age_hours * 3600)
+    removidos = 0
+    for entry in os.scandir(upload_root):
+        if not entry.is_dir():
+            continue
+        try:
+            uuid.UUID(entry.name)
+        except ValueError:
+            continue
+        if entry.stat().st_mtime >= cutoff:
+            continue
+        job_path = os.path.abspath(entry.path)
+        if os.path.commonpath([upload_root, job_path]) != upload_root:
+            continue
+        shutil.rmtree(job_path, ignore_errors=True)
+        removidos += 1
+    return removidos
+
+
+def _job_dir(job_id):
+    try:
+        normalized = str(uuid.UUID(str(job_id)))
+    except (ValueError, TypeError, AttributeError):
+        return None
+    if normalized != str(job_id).lower():
+        return None
+
+    upload_root = os.path.abspath(_upload_temp())
+    job_path = os.path.abspath(os.path.join(upload_root, normalized))
+    if os.path.commonpath([upload_root, job_path]) != upload_root:
+        return None
+    return job_path
 
 
 def _cache_invalidator():
@@ -95,6 +133,10 @@ def _sse_response(gerar):
 @login_required
 @nivel_min("admin")
 def processar_page():
+    try:
+        limpar_uploads_antigos()
+    except Exception:
+        logging.exception("Falha ao limpar uploads temporarios antigos")
     importacoes = listar_importacoes_recentes(10)
     return render_template("processar.html", importacoes=importacoes)
 
@@ -103,12 +145,16 @@ def processar_page():
 @login_required
 @nivel_min("admin")
 def processar_iniciar():
+    try:
+        limpar_uploads_antigos()
+    except Exception:
+        logging.exception("Falha ao limpar uploads temporarios antigos")
     arquivos = request.files.getlist("arquivos")
     if not arquivos:
         return jsonify({"erro": "Nenhum arquivo enviado."}), 400
 
     job_id = str(uuid.uuid4())
-    job_dir = os.path.join(_upload_temp(), job_id)
+    job_dir = _job_dir(job_id)
     os.makedirs(job_dir, exist_ok=True)
 
     salvos = []
@@ -138,12 +184,12 @@ def processar_iniciar():
     return jsonify({"job_id": job_id, "arquivos": salvos})
 
 
-@bp.route("/processar/stream/<job_id>")
+@bp.route("/processar/stream/<job_id>", methods=["POST"])
 @login_required
 @nivel_min("admin")
 def processar_stream(job_id):
-    job_dir = os.path.join(_upload_temp(), job_id)
-    if not os.path.isdir(job_dir):
+    job_dir = _job_dir(job_id)
+    if not job_dir or not os.path.isdir(job_dir):
         return "Job nao encontrado.", 404
 
     arquivos_trabalho, arquivos_larvas = _arquivos_do_job(job_dir)
@@ -161,16 +207,22 @@ def processar_stream(job_id):
             q_log.put((msg, tag))
 
         def worker():
-            lg = Logger(callback=cb)
-            result[0] = processar_upload(
-                arquivos_trabalho,
-                arquivos_larvas,
-                db_path,
-                config_path,
-                lg,
-                dry_run=True,
-            )
-            done.set()
+            try:
+                lg = Logger(callback=cb)
+                result[0] = processar_upload(
+                    arquivos_trabalho,
+                    arquivos_larvas,
+                    db_path,
+                    config_path,
+                    lg,
+                    dry_run=True,
+                )
+            except Exception as exc:
+                logging.exception("Falha no dry-run de importacao")
+                q_log.put((f"Erro inesperado no processamento: {exc}", "erro"))
+                result[0] = (False, [])
+            finally:
+                done.set()
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -201,8 +253,8 @@ def processar_stream(job_id):
 @login_required
 @nivel_min("admin")
 def processar_confirmar(job_id):
-    job_dir = os.path.join(_upload_temp(), job_id)
-    if not os.path.isdir(job_dir):
+    job_dir = _job_dir(job_id)
+    if not job_dir or not os.path.isdir(job_dir):
         return jsonify({"erro": "Job nao encontrado ou expirado."}), 404
 
     arquivos_trabalho, arquivos_larvas = _arquivos_do_job(job_dir)
@@ -221,16 +273,22 @@ def processar_confirmar(job_id):
             q_log.put((msg, tag))
 
         def worker():
-            lg = Logger(callback=cb)
-            result[0] = processar_upload(
-                arquivos_trabalho,
-                arquivos_larvas,
-                db_path,
-                config_path,
-                lg,
-                dry_run=False,
-            )
-            done.set()
+            try:
+                lg = Logger(callback=cb)
+                result[0] = processar_upload(
+                    arquivos_trabalho,
+                    arquivos_larvas,
+                    db_path,
+                    config_path,
+                    lg,
+                    dry_run=False,
+                )
+            except Exception as exc:
+                logging.exception("Falha na confirmacao de importacao")
+                q_log.put((f"Erro inesperado ao gravar no banco: {exc}", "erro"))
+                result[0] = (False, [])
+            finally:
+                done.set()
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -268,7 +326,9 @@ def processar_confirmar(job_id):
 @login_required
 @nivel_min("admin")
 def processar_cancelar(job_id):
-    job_dir = os.path.join(_upload_temp(), job_id)
+    job_dir = _job_dir(job_id)
+    if not job_dir:
+        return jsonify({"erro": "Job nao encontrado ou expirado."}), 404
     try:
         shutil.rmtree(job_dir)
     except Exception:

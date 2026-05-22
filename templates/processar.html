@@ -115,7 +115,7 @@
       Revise o log abaixo e confirme para salvar no banco de dados.
     </div>
     <div id="log-container"
-         style="font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;
+         style="font-family:'Cascadia Mono','Consolas',monospace;font-size:12px;line-height:1.7;
                 background:var(--surface2);border-radius:var(--radius-sm);
                 padding:16px;max-height:460px;overflow-y:auto;border:1px solid var(--border);">
       <div id="log-linhas"></div>
@@ -173,7 +173,7 @@
       <span id="commit-badge" class="badge" style="display:none;"></span>
     </div>
     <div id="commit-log-container"
-         style="font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;
+         style="font-family:'Cascadia Mono','Consolas',monospace;font-size:12px;line-height:1.7;
                 background:var(--surface2);border-radius:var(--radius-sm);
                 padding:16px;max-height:460px;overflow-y:auto;border:1px solid var(--border);">
       <div id="commit-log-linhas"></div>
@@ -312,7 +312,19 @@ async function iniciarProcessamento() {
     appendLog('ERRO de comunicação: ' + e.message, 'erro'); finalizarDryRun(false, []); return;
   }
 
-  const sse = new EventSource(`/processar/stream/${jobId}`);
+  let sse;
+  try {
+    const response = await fetch(`/processar/stream/${jobId}`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrf() }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    sse = await responseToEventSource(response);
+  } catch(e) {
+    appendLog('\n[ERRO] Conexão interrompida.', 'erro');
+    finalizarDryRun(false, []);
+    return;
+  }
   sse.onmessage = e => {
     const d = JSON.parse(e.data);
     if (d.done !== undefined) {
