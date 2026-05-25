@@ -5,6 +5,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 
 from app_core import auth as auth_core
 from app_core import db as db_core
+from app_core import esporotricose as esporotricose_core
 from app_core import utils as utils_core
 from app_core import work_types
 
@@ -15,6 +16,39 @@ login_required = auth_core.login_required
 
 def _get_db():
     return db_core.connect(current_app.config["DB_PATH"])
+
+
+def _resumo_esporotricose_agente(nome, d_ini, d_fim):
+    filtros = {"agente": nome, "d_ini": d_ini, "d_fim": d_fim}
+    resumo = esporotricose_core.resumo(current_app.config["DB_PATH"], filtros)
+    dashboard = esporotricose_core.dashboard(current_app.config["DB_PATH"], filtros)
+    totais = resumo.get("totais", {})
+    animais = resumo.get("animais", {})
+    visitas = utils_core.safe_int(totais.get("visitas", 0))
+    dias = utils_core.safe_int(totais.get("dias", 0))
+    total_animais = utils_core.safe_int(animais.get("total", 0))
+    com_feridas = utils_core.safe_int(animais.get("com_feridas", 0))
+
+    return {
+        "totais": {
+            "visitas": visitas,
+            "dias": dias,
+            "media_dia": round(visitas / dias, 1) if dias else 0,
+            "localidades": utils_core.safe_int(totais.get("localidades", 0)),
+            "normais": utils_core.safe_int(totais.get("normais", 0)),
+            "fechadas": utils_core.safe_int(totais.get("fechadas", 0)),
+            "recusas": utils_core.safe_int(totais.get("recusas", 0)),
+            "recuperadas": utils_core.safe_int(totais.get("recuperadas", 0)),
+        },
+        "animais": {
+            "total": total_animais,
+            "caes": utils_core.safe_int(animais.get("caes", 0)),
+            "gatos": utils_core.safe_int(animais.get("gatos", 0)),
+            "com_feridas": com_feridas,
+            "taxa_feridas": round(com_feridas / total_animais * 100, 1) if total_animais else 0,
+        },
+        "dashboard": dashboard,
+    }
 
 
 def _obter_dados(nome, d_ini, d_fim):
@@ -104,17 +138,52 @@ def _obter_dados(nome, d_ini, d_fim):
 
         media_geral_raw = conn.execute("""
             SELECT
-                COUNT(DISTINCT v.id_visita) as total,
-                COUNT(DISTINCT v.data) as dias,
-                COUNT(DISTINCT v.quarteirao) as quarteiroes,
-                COUNT(DISTINCT CASE WHEN LOWER(v.visita)='normal'     THEN v.id_visita END) as normais,
-                COUNT(DISTINCT CASE WHEN LOWER(v.visita)='fechado'    THEN v.id_visita END) as fechados,
-                COUNT(DISTINCT CASE WHEN LOWER(v.visita)='recuperado' THEN v.id_visita END) as recuperados,
-                COUNT(DISTINCT CASE WHEN LOWER(v.visita)='recusa'     THEN v.id_visita END) as recusados,
-                COUNT(DISTINCT a.id_agente) as num_agentes
-            FROM visitas v JOIN visita_agentes va ON va.id_visita=v.id_visita
-            JOIN agentes a ON a.id_agente=va.id_agente
-            WHERE v.data BETWEEN ? AND ?""", [d_ini, d_fim]).fetchone()
+                AVG(total) as media_total,
+                AVG(CASE WHEN dias > 0 THEN total * 1.0 / dias ELSE 0 END) as media_dia,
+                AVG(normais) as media_normais,
+                AVG(fechados) as media_fechados,
+                AVG(recuperados) as media_recuperados,
+                AVG(recusados) as media_recusados,
+                COUNT(*) as num_agentes
+            FROM (
+                SELECT a.id_agente,
+                    COUNT(DISTINCT v.id_visita) as total,
+                    COUNT(DISTINCT v.data) as dias,
+                    COUNT(DISTINCT CASE WHEN LOWER(v.visita)='normal'     THEN v.id_visita END) as normais,
+                    COUNT(DISTINCT CASE WHEN LOWER(v.visita)='fechado'    THEN v.id_visita END) as fechados,
+                    COUNT(DISTINCT CASE WHEN LOWER(v.visita)='recuperado' THEN v.id_visita END) as recuperados,
+                    COUNT(DISTINCT CASE WHEN LOWER(v.visita)='recusa'     THEN v.id_visita END) as recusados
+                FROM visitas v JOIN visita_agentes va ON va.id_visita=v.id_visita
+                JOIN agentes a ON a.id_agente=va.id_agente
+                WHERE v.data BETWEEN ? AND ? AND a.nome <> ?
+                GROUP BY a.id_agente
+            ) medias""", [d_ini, d_fim, nome]).fetchone()
+
+        esporotricose_core.ensure_schema(conn)
+        comparacao_esporo_raw = conn.execute("""
+            SELECT
+                AVG(visitas) as media_visitas,
+                AVG(CASE WHEN dias > 0 THEN visitas * 1.0 / dias ELSE 0 END) as media_dia,
+                AVG(animais) as media_animais,
+                AVG(com_feridas) as media_feridas,
+                AVG(fechadas) as media_fechadas,
+                AVG(recusas) as media_recusas,
+                COUNT(*) as num_agentes
+            FROM (
+                SELECT ag.id_agente,
+                    COUNT(DISTINCT v.id_visita) AS visitas,
+                    COUNT(DISTINCT v.data) AS dias,
+                    COUNT(DISTINCT an.id_animal) AS animais,
+                    COUNT(DISTINCT CASE WHEN LOWER(COALESCE(an.feridas,''))='sim' THEN an.id_animal END) AS com_feridas,
+                    COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='fechado' THEN v.id_visita END) AS fechadas,
+                    COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='recusa' THEN v.id_visita END) AS recusas
+                FROM esporotricose_visitas v
+                JOIN esporotricose_visita_agentes va ON va.id_visita=v.id_visita
+                JOIN agentes ag ON ag.id_agente=va.id_agente
+                LEFT JOIN esporotricose_animais an ON an.id_visita=v.id_visita
+                WHERE v.data BETWEEN ? AND ? AND ag.nome <> ?
+                GROUP BY ag.id_agente
+            ) medias""", [d_ini, d_fim, nome]).fetchone()
     finally:
         conn.close()
 
@@ -138,17 +207,29 @@ def _obter_dados(nome, d_ini, d_fim):
     comparacao = {}
     if media_geral_raw:
         mg = dict(media_geral_raw)
-        n_ag = utils_core.safe_int(mg.get("num_agentes")) or 1
-        tv_g = utils_core.safe_int(mg.get("total", 0))
-        dias_g = utils_core.safe_int(mg.get("dias", 0)) or 1
+        n_ag = utils_core.safe_int(mg.get("num_agentes"))
         comparacao = {
-            "media_total": round(tv_g / n_ag, 1),
-            "media_dia": round((tv_g / n_ag) / dias_g, 1),
-            "media_normais": round(utils_core.safe_int(mg.get("normais", 0)) / n_ag, 1),
-            "media_fechados": round(utils_core.safe_int(mg.get("fechados", 0)) / n_ag, 1),
-            "media_recuperados": round(utils_core.safe_int(mg.get("recuperados", 0)) / n_ag, 1),
-            "media_recusados": round(utils_core.safe_int(mg.get("recusados", 0)) / n_ag, 1),
+            "media_total": round(mg.get("media_total") or 0, 1),
+            "media_dia": round(mg.get("media_dia") or 0, 1),
+            "media_normais": round(mg.get("media_normais") or 0, 1),
+            "media_fechados": round(mg.get("media_fechados") or 0, 1),
+            "media_recuperados": round(mg.get("media_recuperados") or 0, 1),
+            "media_recusados": round(mg.get("media_recusados") or 0, 1),
             "num_agentes": n_ag,
+        }
+
+    esporotricose = _resumo_esporotricose_agente(nome, d_ini, d_fim)
+    comparacao_esporotricose = {}
+    if comparacao_esporo_raw:
+        ce = dict(comparacao_esporo_raw)
+        comparacao_esporotricose = {
+            "media_visitas": round(ce.get("media_visitas") or 0, 1),
+            "media_dia": round(ce.get("media_dia") or 0, 1),
+            "media_animais": round(ce.get("media_animais") or 0, 1),
+            "media_feridas": round(ce.get("media_feridas") or 0, 1),
+            "media_fechadas": round(ce.get("media_fechadas") or 0, 1),
+            "media_recusas": round(ce.get("media_recusas") or 0, 1),
+            "num_agentes": utils_core.safe_int(ce.get("num_agentes")),
         }
 
     return {
@@ -165,6 +246,8 @@ def _obter_dados(nome, d_ini, d_fim):
         "media_dia": round(tv / dias, 1) if dias else 0,
         "por_periodo": por_periodo,
         "comparacao": comparacao,
+        "esporotricose": esporotricose,
+        "comparacao_esporotricose": comparacao_esporotricose,
         "totais_api": {
             "total": tv, "dias": dias,
             "media_dia": round(tv / dias, 1) if dias else 0,
@@ -236,6 +319,9 @@ def api():
             "por_loc": dados["por_loc"],
             "por_dia": dados["por_dia"],
             "evolucao": dados["evolucao"],
+            "comparacao": dados["comparacao"],
+            "esporotricose": dados["esporotricose"],
+            "comparacao_esporotricose": dados["comparacao_esporotricose"],
         })
     except Exception:
         logging.exception("Erro em relatorio_agente.api")

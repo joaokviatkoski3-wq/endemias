@@ -72,6 +72,29 @@ def _client_logado(nivel=None):
     return client
 
 
+def _agente_relatorio_teste():
+    conn = sqlite3.connect(endemias_app.DB_PATH)
+    try:
+        row = conn.execute(
+            """SELECT ag.nome
+               FROM agentes ag
+               JOIN esporotricose_visita_agentes va ON va.id_agente=ag.id_agente
+               LIMIT 1"""
+        ).fetchone()
+        if not row:
+            row = conn.execute(
+                """SELECT a.nome
+                   FROM agentes a
+                   JOIN visita_agentes va ON va.id_agente=a.id_agente
+                   LIMIT 1"""
+            ).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        raise RuntimeError("Nenhum agente encontrado para os testes do relatorio.")
+    return row[0]
+
+
 def _executar_criar_banco_em(tmpdir, vezes=1):
     import criar_banco
 
@@ -657,6 +680,29 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("chComparativo", html)
         self.assertIn("chEspEvolucao", html)
 
+    def test_relatorio_agente_exibe_esporotricose_e_aviso_de_privacidade(self):
+        client = _client_logado()
+        resp = client.get("/relatorio-agente")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Produção de esporotricose", html)
+        self.assertIn("médias agregadas dos demais agentes", html)
+
+    def test_pdf_relatorio_agente_inclui_esporotricose_sem_identificar_demais(self):
+        client = _client_logado()
+        agente = _agente_relatorio_teste()
+        resp = client.get(
+            "/relatorio-agente/pdf",
+            query_string={"agente": agente, "d_ini": "2020-01-01", "d_fim": "2030-12-31"},
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Produção de esporotricose", html)
+        self.assertIn("Comparação agregada de esporotricose", html)
+        self.assertIn("Outros agentes não são listados nem identificados", html)
+
     def test_central_do_sistema_admin_responde_200(self):
         client = _client_logado("admin")
         resp = client.get("/admin/sistema")
@@ -853,6 +899,37 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("resumo", dados["esporotricose"])
         self.assertIn("dashboard", dados["esporotricose"])
         self.assertIn("evolucao", dados["esporotricose"]["dashboard"])
+
+    def test_api_relatorio_agente_inclui_esporotricose_sem_expor_outros_agentes(self):
+        client = _client_logado()
+        agente = _agente_relatorio_teste()
+        resp = client.get(
+            "/api/relatorio-agente",
+            query_string={"agente": agente, "d_ini": "2020-01-01", "d_fim": "2030-12-31"},
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        dados = resp.get_json()
+        self.assertIn("esporotricose", dados)
+        self.assertIn("totais", dados["esporotricose"])
+        self.assertIn("animais", dados["esporotricose"])
+        self.assertIn("comparacao_esporotricose", dados)
+        self.assertNotIn("recentes", dados["esporotricose"])
+
+        conn = sqlite3.connect(endemias_app.DB_PATH)
+        try:
+            outros = [
+                row[0]
+                for row in conn.execute(
+                    "SELECT nome FROM agentes WHERE nome <> ? ORDER BY nome LIMIT 5",
+                    (agente,),
+                )
+            ]
+        finally:
+            conn.close()
+        payload = json.dumps(dados, ensure_ascii=False)
+        for outro in outros:
+            self.assertNotIn(outro, payload)
 
     def test_api_conta_ovos_e_sispncd_consultas_retornam_json(self):
         client = _client_logado()

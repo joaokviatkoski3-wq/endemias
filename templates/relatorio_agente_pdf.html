@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Relatório — {{ agente }}</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="/static/vendor/chartjs/chart.umd.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#000;background:#fff;}
@@ -142,6 +142,26 @@ tr:nth-child(even) td{background:#f8faff;}
     {% endif %}
   </div>
 
+  <!-- Esporotricose -->
+  <div class="secao">Produção de esporotricose</div>
+  {% set esp_t = esporotricose.totais %}
+  {% set esp_a = esporotricose.animais %}
+  <p style="font-size:8.5pt;color:#555;margin-bottom:8pt;">
+    Esta seção mostra apenas a produção do agente selecionado. Comparações usam médias agregadas dos demais agentes, sem identificação individual.
+  </p>
+  <div class="kpi-grid">
+    <div class="kpi teal"><div class="kpi-val">{{ esp_t.visitas }}</div><div class="kpi-lbl">Visitas esporotricose</div></div>
+    <div class="kpi"><div class="kpi-val">{{ esp_t.dias }}</div><div class="kpi-lbl">Dias com registros</div></div>
+    <div class="kpi"><div class="kpi-val">{{ esp_t.media_dia }}</div><div class="kpi-lbl">Média / dia</div></div>
+    <div class="kpi green"><div class="kpi-val">{{ esp_t.normais }}</div><div class="kpi-lbl">Visitas normais</div></div>
+    <div class="kpi amber"><div class="kpi-val">{{ esp_t.fechadas }}</div><div class="kpi-lbl">Fechadas</div></div>
+    <div class="kpi red"><div class="kpi-val">{{ esp_t.recusas }}</div><div class="kpi-lbl">Recusas</div></div>
+    <div class="kpi teal"><div class="kpi-val">{{ esp_a.total }}</div><div class="kpi-lbl">Animais</div></div>
+    <div class="kpi red"><div class="kpi-val">{{ esp_a.com_feridas }}</div><div class="kpi-lbl">Com feridas ({{ esp_a.taxa_feridas }}%)</div></div>
+    <div class="kpi"><div class="kpi-val">{{ esp_a.caes }}</div><div class="kpi-lbl">Cães</div></div>
+    <div class="kpi"><div class="kpi-val">{{ esp_a.gatos }}</div><div class="kpi-lbl">Gatos</div></div>
+  </div>
+
   <!-- Média por período -->
   {% if por_periodo %}
   <div class="secao">Média por período do dia</div>
@@ -206,6 +226,17 @@ tr:nth-child(even) td{background:#f8faff;}
     </div>
   </div>
 
+  <div class="chart-row">
+    <div class="chart-box">
+      <div class="chart-titulo">Esporotricose por mês</div>
+      <canvas id="chEspEvolucao" height="160"></canvas>
+    </div>
+    <div class="chart-box">
+      <div class="chart-titulo">Esporotricose por localidade</div>
+      <canvas id="chEspLoc" height="160"></canvas>
+    </div>
+  </div>
+
   <!-- Tempo TBO -->
   {% if tbo_por_grupo %}
   <div class="secao">Tempo por visita TBO — Acessados vs Não acessados</div>
@@ -244,17 +275,17 @@ tr:nth-child(even) td{background:#f8faff;}
   {% endif %}
   {% endif %}
 
-  <!-- Comparação com média geral -->
-  {% if comparacao and comparacao.num_agentes > 1 %}
-  <div class="secao">Comparação com a média geral dos agentes</div>
+  <!-- Comparacao com media agregada dos demais agentes -->
+  {% if comparacao and comparacao.num_agentes > 0 %}
+  <div class="secao">Comparação com a média agregada dos demais agentes</div>
   <p style="font-size:8.5pt;color:#555;margin-bottom:8pt;">
-    Baseado em {{ comparacao.num_agentes }} agentes com registros no mesmo período. Nenhum agente é identificado individualmente.
+    Baseado em {{ comparacao.num_agentes }} outros agentes com registros no mesmo período. Nenhum agente é identificado individualmente.
   </p>
   <table>
     <thead><tr>
       <th>Indicador</th>
       <th class="center">Este agente</th>
-      <th class="center">Média geral</th>
+      <th class="center">Média dos demais</th>
       <th class="center">Diferença</th>
     </tr></thead>
     <tbody>
@@ -335,6 +366,44 @@ tr:nth-child(even) td{background:#f8faff;}
   </p>
   {% endif %}
 
+  {% if comparacao_esporotricose and comparacao_esporotricose.num_agentes > 0 %}
+  <div class="secao">Comparação agregada de esporotricose</div>
+  <p style="font-size:8.5pt;color:#555;margin-bottom:8pt;">
+    Baseado em médias dos demais agentes com registros de esporotricose no período. Outros agentes não são listados nem identificados.
+  </p>
+  <table>
+    <thead><tr>
+      <th>Indicador</th>
+      <th class="center">Este agente</th>
+      <th class="center">Média dos demais</th>
+      <th class="center">Diferença</th>
+    </tr></thead>
+    <tbody>
+    {% set ce = comparacao_esporotricose %}
+    {% set itens = [
+      ('Visitas de esporotricose', esp_t.visitas, ce.media_visitas, 1),
+      ('Média de visitas / dia', esp_t.media_dia, ce.media_dia, 1),
+      ('Animais cadastrados', esp_a.total, ce.media_animais, 1),
+      ('Animais com feridas', esp_a.com_feridas, ce.media_feridas, 0),
+      ('Visitas fechadas', esp_t.fechadas, ce.media_fechadas, 0),
+      ('Recusas', esp_t.recusas, ce.media_recusas, 0),
+    ] %}
+    {% for label, valor, media, maior_melhor in itens %}
+      {% set d = valor - media %}
+      {% set favoravel = (d >= 0) if maior_melhor else (d <= 0) %}
+      <tr>
+        <td>{{ label }}</td>
+        <td class="center">{{ valor }}</td>
+        <td class="center">{{ media }}</td>
+        <td class="center {% if d == 0 %}comp-igual{% elif favoravel %}comp-acima{% else %}comp-abaixo{% endif %}">
+          {{ '+' if d > 0 else '' }}{{ d | round(1) }}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
   <!-- Produção diária -->
   <div class="secao">Produção diária</div>
   <div class="dias-grid">
@@ -359,6 +428,7 @@ tr:nth-child(even) td{background:#f8faff;}
 const porTipo  = {{ por_tipo  | tojson }};
 const porLoc   = {{ por_loc   | tojson }};
 const tboGrupo = {{ tbo_por_grupo | tojson }};
+const espDash  = {{ esporotricose.dashboard | tojson }};
 
 const PAL = ['#1a4fba','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316'];
 
@@ -390,6 +460,36 @@ if (porLoc.length) {
         backgroundColor: PAL.map(c => c + 'cc'), borderRadius: 3 }]
     },
     options: { indexAxis: 'y', plugins: { legend: { display: false } },
+      scales: { y: { ticks: { font: { size: 9 } } }, x: { beginAtZero: true, ticks: { font: { size: 9 } } } } }
+  });
+}
+
+const espEv = espDash.evolucao || [];
+if (espEv.length) {
+  mkChart('chEspEvolucao', {
+    type: 'line',
+    data: {
+      labels: espEv.map(r => r.mes),
+      datasets: [{ label: 'Visitas', data: espEv.map(r => r.visitas),
+        borderColor: '#06b6d4', backgroundColor: '#06b6d422', fill: true, tension: .35 }]
+    },
+    options: { plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { font: { size: 9 } } }, x: { ticks: { font: { size: 9 } } } } }
+  });
+}
+
+const espLoc = espDash.localidades || [];
+if (espLoc.length) {
+  mkChart('chEspLoc', {
+    type: 'bar',
+    data: {
+      labels: espLoc.map(r => r.nome || '—'),
+      datasets: [
+        { label: 'Visitas', data: espLoc.map(r => r.visitas), backgroundColor: '#06b6d4cc', borderRadius: 3 },
+        { label: 'Animais', data: espLoc.map(r => r.animais), backgroundColor: '#8b5cf6cc', borderRadius: 3 },
+      ]
+    },
+    options: { indexAxis: 'y', plugins: { legend: { position: 'top', labels: { font: { size: 9 } } } },
       scales: { y: { ticks: { font: { size: 9 } } }, x: { beginAtZero: true, ticks: { font: { size: 9 } } } } }
   });
 }

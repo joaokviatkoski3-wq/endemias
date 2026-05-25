@@ -39,6 +39,17 @@
 
 .chart-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
 @media(max-width:700px) { .chart-row { grid-template-columns:1fr; } }
+.ra-section-title {
+  font-size:13px; font-weight:800; color:var(--text); margin:18px 0 10px;
+  display:flex; align-items:center; gap:8px;
+}
+.privacy-note {
+  background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius);
+  padding:10px 12px; margin:0 0 14px; color:var(--text2); font-size:12px;
+}
+.comp-ok { color:var(--green); font-weight:700; }
+.comp-bad { color:var(--red); font-weight:700; }
+.comp-neutral { color:var(--text3); font-weight:700; }
 
 .empty-agent {
   text-align:center; padding:80px 20px; color:var(--text3);
@@ -50,7 +61,7 @@
 {% block content %}
 <div class="page-header">
   <h1><span class="icon"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"></span> Relatório por Agente</h1>
-  <div class="sub">Desempenho individual: visitas, produtividade, depósitos e resultados laboratoriais</div>
+  <div class="sub">Desempenho individual: visitas, produtividade, depósitos, laboratório e esporotricose</div>
 </div>
 
 <!-- Seletor de agente + período -->
@@ -130,6 +141,11 @@ async function buscar() {
 function renderRelatorio(d) {
   const t  = d.totais;
   const c  = d.coletas;
+  const esp = d.esporotricose || {};
+  const espT = esp.totais || {};
+  const espA = esp.animais || {};
+  const espCmp = d.comparacao_esporotricose || {};
+  const cmp = d.comparacao || {};
   const diasStr = `${fmtDate(d.d_ini)} → ${fmtDate(d.d_fim)}`;
   const taxaN  = t.total ? Math.round((t.normais||0)/t.total*100) : 0;
   const taxaF  = t.total ? Math.round((t.fechados||0)/t.total*100) : 0;
@@ -171,6 +187,40 @@ function renderRelatorio(d) {
       <div class="kpi"><div class="kpi-icon">⬆</div><div class="kpi-label">TBO — Máximo</div><div class="kpi-val">${fmtMin(tbo.maximo)}</div></div>
       ` : ''}
     </div>
+
+    <div class="ra-section-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Produção de esporotricose</div>
+    <div class="privacy-note">
+      As comparações usam apenas médias agregadas dos demais agentes no período. Nenhum outro agente é identificado individualmente.
+    </div>
+    <div class="perf-grid">
+      <div class="kpi teal"><div class="kpi-icon"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"></div><div class="kpi-label">Visitas esporotricose</div><div class="kpi-val">${fmtNum(espT.visitas||0)}</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/calendario.svg" alt="" class="icon-svg"></div><div class="kpi-label">Dias com registros</div><div class="kpi-val">${fmtNum(espT.dias||0)}</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/raio.svg" alt="" class="icon-svg"></div><div class="kpi-label">Média/dia</div><div class="kpi-val">${espT.media_dia||0}</div></div>
+      <div class="kpi green"><div class="kpi-icon"><img src="/static/icons/check.svg" alt="" class="icon-svg"></div><div class="kpi-label">Visitas normais</div><div class="kpi-val">${fmtNum(espT.normais||0)}</div></div>
+      <div class="kpi amber"><div class="kpi-icon"><img src="/static/icons/porta.svg" alt="" class="icon-svg"></div><div class="kpi-label">Fechadas</div><div class="kpi-val">${fmtNum(espT.fechadas||0)}</div></div>
+      <div class="kpi red"><div class="kpi-icon"><img src="/static/icons/erro.svg" alt="" class="icon-svg"></div><div class="kpi-label">Recusas</div><div class="kpi-val">${fmtNum(espT.recusas||0)}</div></div>
+      <div class="kpi purple"><div class="kpi-icon"><img src="/static/icons/casas.svg" alt="" class="icon-svg"></div><div class="kpi-label">Animais</div><div class="kpi-val">${fmtNum(espA.total||0)}</div></div>
+      <div class="kpi red"><div class="kpi-icon"><img src="/static/icons/alerta.svg" alt="" class="icon-svg"></div><div class="kpi-label">Com feridas</div><div class="kpi-val">${fmtNum(espA.com_feridas||0)}</div><div class="kpi-sub">${espA.taxa_feridas||0}%</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/check.svg" alt="" class="icon-svg"></div><div class="kpi-label">Cães</div><div class="kpi-val">${fmtNum(espA.caes||0)}</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/check.svg" alt="" class="icon-svg"></div><div class="kpi-label">Gatos</div><div class="kpi-val">${fmtNum(espA.gatos||0)}</div></div>
+    </div>
+
+    ${espCmp.num_agentes ? `
+    <div class="table-wrap" style="margin-bottom:14px;">
+      <div class="table-hd"><span class="table-title"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Comparação agregada com demais agentes</span></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Indicador</th><th>Este agente</th><th>Média dos demais</th><th>Diferença</th></tr></thead>
+        <tbody>
+          ${linhaComparacao('Visitas de vetores', t.total||0, cmp.media_total, true)}
+          ${linhaComparacao('Média/dia de vetores', t.media_dia||0, cmp.media_dia, true)}
+          ${linhaComparacao('Visitas de esporotricose', espT.visitas||0, espCmp.media_visitas, true)}
+          ${linhaComparacao('Animais cadastrados', espA.total||0, espCmp.media_animais, true)}
+          ${linhaComparacao('Animais com feridas', espA.com_feridas||0, espCmp.media_feridas, false)}
+          ${linhaComparacao('Fechadas em esporotricose', espT.fechadas||0, espCmp.media_fechadas, false)}
+          ${linhaComparacao('Recusas em esporotricose', espT.recusas||0, espCmp.media_recusas, false)}
+        </tbody>
+      </table></div>
+    </div>` : ''}
 
     <!-- Por tipo -->
     ${d.por_tipo.length ? `
@@ -217,6 +267,17 @@ function renderRelatorio(d) {
     <div class="chart-card" style="margin-bottom:14px;">
       <div class="chart-hd"><div class="chart-title"><img src="/static/icons/grafico_linha.svg" alt="📈" class="icon-svg"> Evolução semanal</div></div>
       <div class="chart-wrap h220"><canvas id="raChSem"></canvas></div>
+    </div>
+
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-hd"><div class="chart-title"><img src="/static/icons/grafico_linha.svg" alt="" class="icon-svg"> Esporotricose por mês</div></div>
+        <div class="chart-wrap h220"><canvas id="raChEspEvolucao"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-hd"><div class="chart-title"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"> Esporotricose por localidade</div></div>
+        <div class="chart-wrap h220"><canvas id="raChEspLoc"></canvas></div>
+      </div>
     </div>
 
     <div id="secao-tbo-ag" style="display:none;">
@@ -283,6 +344,34 @@ function renderRelatorio(d) {
     options:{ plugins:{legend:{display:false}}, scales:eixos() }
   });
 
+  const espDash = esp.dashboard || {};
+  const espEv = espDash.evolucao || [];
+  mkChart('raChEspEvolucao', {
+    type:'line',
+    data:{
+      labels:espEv.map(r=>r.mes),
+      datasets:[{
+        label:'Visitas', data:espEv.map(r=>r.visitas),
+        borderColor:PAL[5], backgroundColor:PAL[5]+'22',
+        fill:true, borderWidth:2, pointRadius:4, tension:.35
+      }]
+    },
+    options:{ plugins:{legend:{display:false}}, scales:eixos() }
+  });
+
+  const espLoc = espDash.localidades || [];
+  mkChart('raChEspLoc', {
+    type:'bar',
+    data:{
+      labels:espLoc.map(r=>r.nome||'—'),
+      datasets:[
+        { label:'Visitas', data:espLoc.map(r=>r.visitas), backgroundColor:PAL[5]+'cc', borderRadius:3 },
+        { label:'Animais', data:espLoc.map(r=>r.animais), backgroundColor:PAL[4]+'cc', borderRadius:3 },
+      ]
+    },
+    options:{ indexAxis:'y', plugins:{legend:{position:'top', labels:{color:'var(--text2)',font:{size:11}}}}, scales:eixos({y:{grid:{display:false}}}) }
+  });
+
   // TBO por grupo
   const tboGrupos = tbo.por_grupo || {};
   const acess  = tboGrupos.acessados     || {};
@@ -310,6 +399,20 @@ function renderRelatorio(d) {
         scales:{...eixos(), y:{...eixos().y, title:{display:true,text:'minutos',color:'var(--text3)',font:{size:10}}}} }
     });
   }
+}
+
+function linhaComparacao(label, valor, media, maiorMelhor) {
+  if (media == null) media = 0;
+  const diff = Math.round((valor - media) * 10) / 10;
+  const favoravel = maiorMelhor ? diff >= 0 : diff <= 0;
+  const cls = diff === 0 ? 'comp-neutral' : (favoravel ? 'comp-ok' : 'comp-bad');
+  const sinal = diff > 0 ? '+' : '';
+  return `<tr>
+    <td>${label}</td>
+    <td><strong>${fmtNum(valor)}</strong></td>
+    <td>${fmtNum(media)}</td>
+    <td><span class="${cls}">${sinal}${diff}</span></td>
+  </tr>`;
 }
 
 function gerarPDF() {
