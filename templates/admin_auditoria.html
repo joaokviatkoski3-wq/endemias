@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Auditoria{% endblock %}
+{% block page_title %}Auditoria{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><span class="icon"><img src="/static/icons/documento.svg" alt="" class="icon-svg"></span> Auditoria</h1>
+  <div class="sub">Eventos administrativos, segurança e operações sensíveis</div>
+</div>
+
+<form method="GET" class="filter-card" style="margin-bottom:16px;">
+  <div class="filter-grid">
+    <div class="f-g"><label>Ação</label><input class="inp" name="acao" value="{{ filtros.acao }}" placeholder="Ex: login, usuario"></div>
+    <div class="f-g"><label>Usuário</label><input class="inp" name="usuario" value="{{ filtros.usuario }}" placeholder="Nome"></div>
+    <div class="f-g"><label>Entidade</label><input class="inp" name="entidade" value="{{ filtros.entidade }}" placeholder="usuarios, visitas"></div>
+    <div class="f-g"><label>Início</label><input class="inp" type="date" name="d_ini" value="{{ filtros.d_ini }}"></div>
+    <div class="f-g"><label>Fim</label><input class="inp" type="date" name="d_fim" value="{{ filtros.d_fim }}"></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:12px;">
+    <button class="btn btn-primary" type="submit"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Filtrar</button>
+    <a class="btn btn-ghost" href="/admin/auditoria">Limpar</a>
+    <a class="btn btn-outline" href="/admin/auditoria/exportar{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Exportar XLSX</a>
+  </div>
+</form>
+
+<div class="chart-card">
+  <div class="chart-hd">
+    <div class="chart-title">Eventos recentes</div>
+    <div style="font-size:11px;color:var(--text3);">{{ eventos|length }} registro(s)</div>
+  </div>
+  <div class="table-scroll">
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Ação</th>
+          <th>Usuário</th>
+          <th>IP</th>
+          <th>Entidade</th>
+          <th>Detalhes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in eventos %}
+        <tr>
+          <td style="white-space:nowrap;">{{ ev.criado_em[:16].replace('T', ' ') }}</td>
+          <td><span class="badge badge-impressa">{{ ev.acao }}</span></td>
+          <td>{{ ev.usuario_nome or 'sistema' }}</td>
+          <td>{{ ev.ip or '—' }}</td>
+          <td>{{ ev.entidade or '—' }}{% if ev.entidade_id %} #{{ ev.entidade_id }}{% endif %}</td>
+          <td style="max-width:520px;">
+            {% if ev.detalhes %}
+              {% for k, v in ev.detalhes.items() %}
+                <span style="display:inline-block;margin:1px 6px 1px 0;color:var(--text2);"><strong>{{ k }}:</strong> {{ v }}</span>
+              {% endfor %}
+            {% else %}
+              <span style="color:var(--text3);">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="text-align:center;color:var(--text3);padding:22px;">Nenhum evento encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+.filter-grid{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:10px;}
+.inp{padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);color:var(--text);font-family:inherit;width:100%;}
+@media(max-width:900px){.filter-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:560px){.filter-grid{grid-template-columns:1fr;}}
+</style>
+{% endblock %}

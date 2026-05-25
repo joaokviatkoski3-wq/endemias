@@ -1,3 +1,4 @@
+import contextlib
 import io
 import json
 import os
@@ -68,6 +69,27 @@ def _client_logado(nivel=None):
         sess["nome"] = usuario["nome"]
         sess["nivel"] = usuario["nivel"]
     return client
+
+
+def _executar_criar_banco_em(tmpdir, vezes=1):
+    import criar_banco
+
+    cwd_original = os.getcwd()
+    os.chdir(tmpdir)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            for _ in range(vezes):
+                criar_banco.main()
+    finally:
+        os.chdir(cwd_original)
+    return str(Path(tmpdir) / "endemias.db")
+
+
+def _login_client_com_usuario(client, usuario):
+    with client.session_transaction() as sess:
+        sess["uid"] = usuario["id_usuario"]
+        sess["nome"] = usuario["nome"]
+        sess["nivel"] = usuario["nivel"]
 
 
 class LoginRateLimitTests(unittest.TestCase):
@@ -236,6 +258,30 @@ class DatabaseConnectionTests(unittest.TestCase):
                 conn.close()
 
 
+class CriarBancoScriptTests(unittest.TestCase):
+    def test_criar_banco_roda_em_base_nova_com_hash_moderno(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir, vezes=2)
+            conn = sqlite3.connect(db_path)
+            try:
+                usuario = conn.execute(
+                    "SELECT usuario, senha_hash FROM usuarios WHERE usuario='admin'"
+                ).fetchone()
+                agenda = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='agenda_eventos'"
+                ).fetchone()
+                total_admin = conn.execute(
+                    "SELECT COUNT(*) FROM usuarios WHERE usuario='admin'"
+                ).fetchone()[0]
+            finally:
+                conn.close()
+
+        self.assertIsNotNone(usuario)
+        self.assertTrue(usuario[1].startswith("pbkdf2:"))
+        self.assertIsNotNone(agenda)
+        self.assertEqual(total_admin, 1)
+
+
 class AuditLogTests(unittest.TestCase):
     def test_registra_evento_de_auditoria(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -271,6 +317,56 @@ class AuditLogTests(unittest.TestCase):
             self.assertEqual(row["entidade"], "usuarios")
             self.assertEqual(row["entidade_id"], "3")
             self.assertIn("valor_novo", row["detalhes_json"])
+
+    def test_admin_auditoria_renderiza_eventos(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            app_temp = endemias_app.create_app({"TESTING": True, "DB_PATH": db_path})
+            with app_temp.test_request_context("/"):
+                flask_session["uid"] = 1
+                flask_session["nome"] = "Teste Auditoria"
+                audit_core.registrar_evento(
+                    endemias_app.get_db,
+                    "teste_auditoria_pagina",
+                    entidade="usuarios",
+                    entidade_id=1,
+                    detalhes={"origem": "teste"},
+                )
+
+            client = app_temp.test_client()
+            _login_client_com_usuario(client, {"id_usuario": 1, "nome": "Administrador", "nivel": "admin"})
+            resp = client.get("/admin/auditoria?acao=teste_auditoria_pagina")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("teste_auditoria_pagina", html)
+        self.assertIn("Eventos recentes", html)
+
+    def test_admin_auditoria_exporta_xlsx(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            app_temp = endemias_app.create_app({"TESTING": True, "DB_PATH": db_path})
+            with app_temp.test_request_context("/"):
+                flask_session["uid"] = 1
+                flask_session["nome"] = "Teste Auditoria"
+                audit_core.registrar_evento(
+                    endemias_app.get_db,
+                    "teste_auditoria_exportar",
+                    entidade="usuarios",
+                    entidade_id=1,
+                    detalhes={"origem": "teste"},
+                )
+
+            client = app_temp.test_client()
+            _login_client_com_usuario(client, {"id_usuario": 1, "nome": "Administrador", "nivel": "admin"})
+            resp = client.get("/admin/auditoria/exportar?acao=teste_auditoria_exportar")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            resp.content_type,
+        )
+        self.assertTrue(resp.data.startswith(b"PK"))
 
 
 class WorkTypesConfigTests(unittest.TestCase):
@@ -568,6 +664,27 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertGreater(app_temp.config["MAX_CONTENT_LENGTH"], 0)
         endpoints = {str(rule): rule.endpoint for rule in app_temp.url_map.iter_rules()}
         self.assertEqual(endpoints["/"], "home.page")
+
+    def test_wrappers_de_banco_respeitam_db_path_do_app_atual(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "isolado.db")
+            app_temp = endemias_app.create_app({
+                "TESTING": True,
+                "DB_PATH": db_path,
+            })
+
+            with app_temp.app_context():
+                conn = endemias_app.get_db()
+                try:
+                    conn.execute("CREATE TABLE marcador (valor TEXT)")
+                    conn.execute("INSERT INTO marcador (valor) VALUES ('ok')")
+                    conn.commit()
+                finally:
+                    conn.close()
+
+                self.assertEqual(endemias_app.qval("SELECT valor FROM marcador"), "ok")
+
+            self.assertTrue(Path(db_path).exists())
 
     def test_resolve_paths_suporta_instance_dir_e_overrides(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -988,6 +1105,16 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(endpoints["/logout"], "auth.logout")
         self.assertEqual(endpoints["/minha-senha"], "auth.minha_senha")
 
+    def test_admin_auditoria_usa_blueprint_proprio(self):
+        endpoints = {
+            str(rule): rule.endpoint
+            for rule in endemias_app.app.url_map.iter_rules()
+            if str(rule) in {"/admin/auditoria", "/admin/auditoria/exportar"}
+        }
+
+        self.assertEqual(endpoints["/admin/auditoria"], "admin.admin_auditoria")
+        self.assertEqual(endpoints["/admin/auditoria/exportar"], "admin.admin_auditoria_exportar")
+
     def test_home_usa_blueprint_proprio(self):
         endpoints = {
             str(rule): rule.endpoint
@@ -1064,6 +1191,7 @@ class PermissionMatrixTests(unittest.TestCase):
         rotas = [
             "/processar",
             "/admin/usuarios",
+            "/admin/auditoria",
         ]
 
         for rota in rotas:
@@ -1076,6 +1204,7 @@ class PermissionMatrixTests(unittest.TestCase):
         rotas = [
             "/processar",
             "/admin/usuarios",
+            "/admin/auditoria",
         ]
 
         for rota in rotas:

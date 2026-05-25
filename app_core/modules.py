@@ -180,6 +180,18 @@ MODULES: Tuple[AppModule, ...] = (
         min_level="admin",
         endpoints=("admin_usuarios", "admin.admin_usuarios"),
     ),
+    AppModule(
+        key="auditoria",
+        title="Auditoria",
+        href="/admin/auditoria",
+        endpoint="admin.admin_auditoria",
+        icon="documento.svg",
+        nav_section="Administracao",
+        description="Consulta de eventos administrativos, seguranca e operacoes sensiveis.",
+        tags=("Admin", "Log"),
+        min_level="admin",
+        endpoints=("admin_auditoria", "admin.admin_auditoria"),
+    ),
 )
 
 

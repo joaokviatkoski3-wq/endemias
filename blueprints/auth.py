@@ -2,6 +2,7 @@ import logging
 
 from flask import Blueprint, redirect, render_template, request, session, url_for
 
+from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 
@@ -53,6 +54,12 @@ def login():
                 usuario,
                 request.remote_addr,
             )
+            audit.registrar_evento(
+                bh.get_db,
+                "login_bloqueado",
+                entidade="usuarios",
+                detalhes={"usuario": usuario},
+            )
             return render_template(
                 "login.html",
                 erro="Muitas tentativas incorretas. Aguarde alguns minutos e tente novamente.",
@@ -66,6 +73,13 @@ def login():
                 session["uid"] = u["id_usuario"]
                 session["nivel"] = u["nivel"]
                 session["nome"] = u["nome"]
+                audit.registrar_evento(
+                    bh.get_db,
+                    "login_sucesso",
+                    entidade="usuarios",
+                    entidade_id=u["id_usuario"],
+                    detalhes={"usuario": usuario, "nivel": u["nivel"]},
+                )
                 if novo_hash:
                     try:
                         conn = bh.get_db()
@@ -83,11 +97,18 @@ def login():
                 return redirect(dest)
         erro = "Usuario ou senha incorretos."
         _registrar_login_falha(chave)
+        audit.registrar_evento(
+            bh.get_db,
+            "login_falha",
+            entidade="usuarios",
+            detalhes={"usuario": usuario},
+        )
     return render_template("login.html", erro=erro)
 
 
 @bp.route("/logout", methods=["POST"])
 def logout():
+    audit.registrar_evento(bh.get_db, "logout", entidade="usuarios", entidade_id=session.get("uid"))
     session.clear()
     return redirect(url_for("auth.login"))
 
@@ -116,5 +137,11 @@ def minha_senha():
             )
             conn.commit()
             conn.close()
+            audit.registrar_evento(
+                bh.get_db,
+                "usuario_alterou_senha",
+                entidade="usuarios",
+                entidade_id=session["uid"],
+            )
             ok = "Senha alterada com sucesso."
     return render_template("minha_senha.html", erro=erro, ok=ok)

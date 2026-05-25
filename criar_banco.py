@@ -9,8 +9,10 @@
 #  Uso: python criar_banco.py
 # =============================================================================
 
-import sqlite3, os, hashlib
+import sqlite3, os
 from datetime import datetime
+
+from app_core import auth as auth_core
 
 BANCO = "endemias.db"
 
@@ -315,7 +317,7 @@ TABELAS_ESPERADAS = [
 
 
 def _hash_senha(senha):
-    return hashlib.sha256(senha.encode("utf-8")).hexdigest()
+    return auth_core.hash_senha(senha)
 
 
 def main():
@@ -410,10 +412,6 @@ def main():
     print("=" * 54)
 
 
-if __name__ == "__main__":
-    main()
-
-
 def migrar_agenda(conn):
     """Adiciona tabela de eventos da agenda. Seguro rodar mesmo se já existir."""
     conn.executescript("""
@@ -434,3 +432,7 @@ def migrar_agenda(conn):
     CREATE INDEX IF NOT EXISTS idx_agenda_inicio ON agenda_eventos(data_inicio);
     """)
     conn.commit()
+
+
+if __name__ == "__main__":
+    main()

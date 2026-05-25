@@ -14,6 +14,7 @@ from flask import (
     url_for,
 )
 
+from app_core import audit
 from app_core import auth as auth_core
 from app_core import db as db_core
 from app_core import utils as utils_core
@@ -260,10 +261,12 @@ def foco_atualizar(id_foco):
         if anterior:
             usuario = session.get("nome", "desconhecido")
             agora = datetime.now().isoformat()
+            alterados = []
             for i, campo in enumerate(campos):
                 ant = anterior[i]
                 nov = vals[campo]
                 if str(ant or "") != str(nov or ""):
+                    alterados.append(campo)
                     conn.execute(
                         """
                         INSERT INTO focos_historico
@@ -276,6 +279,13 @@ def foco_atualizar(id_foco):
         conn.commit()
     finally:
         conn.close()
+    audit.registrar_evento(
+        get_db,
+        "notificacao_atualizada",
+        entidade="focos_positivos",
+        entidade_id=id_foco,
+        detalhes={"campos": alterados if anterior else []},
+    )
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return jsonify({"ok": True})
     return redirect(url_for("notificacoes.foco_detalhe", id_foco=id_foco))
@@ -316,6 +326,13 @@ def foco_status_rapido(id_foco):
         conn.commit()
     finally:
         conn.close()
+    audit.registrar_evento(
+        get_db,
+        "notificacao_status_atualizado",
+        entidade="focos_positivos",
+        entidade_id=id_foco,
+        detalhes={"status_antigo": ant, "status_novo": novo},
+    )
     return jsonify({"ok": True, "status": novo})
 
 
@@ -355,6 +372,12 @@ def imprimir():
         )
     conn.commit()
     conn.close()
+    audit.registrar_evento(
+        get_db,
+        "notificacao_docx_impressa",
+        entidade="focos_positivos",
+        detalhes={"ids": [f["id_foco"] for f in focos], "total": len(focos)},
+    )
     return send_file(
         caminho,
         as_attachment=True,
@@ -612,6 +635,13 @@ def imprimir_html_single(id_foco):
         conn.commit()
     finally:
         conn.close()
+    audit.registrar_evento(
+        get_db,
+        "notificacao_html_impressa",
+        entidade="focos_positivos",
+        entidade_id=id_foco,
+        detalhes={"total": 1},
+    )
     return render_template(
         "notificacao_print.html",
         focos=focos,
@@ -641,6 +671,12 @@ def imprimir_html_lote():
         conn.commit()
     finally:
         conn.close()
+    audit.registrar_evento(
+        get_db,
+        "notificacao_html_impressa",
+        entidade="focos_positivos",
+        detalhes={"ids": [f["id_foco"] for f in focos], "total": len(focos)},
+    )
     return render_template(
         "notificacao_print.html",
         focos=focos,

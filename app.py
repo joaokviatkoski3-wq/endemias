@@ -9,7 +9,7 @@ import logging.handlers
 import os
 from datetime import timedelta
 
-from flask import Flask, request, session
+from flask import Flask, current_app, has_app_context, request, session
 from flask_wtf.csrf import CSRFProtect
 
 from app_core import app_setup
@@ -127,20 +127,26 @@ AGENDA_FORM_LABEL = work_types.AGENDA_FORM_LABELS
 
 
 # Banco e wrappers de compatibilidade.
+def _db_path():
+    if has_app_context():
+        return current_app.config.get("DB_PATH", DB_PATH)
+    return DB_PATH
+
+
 def get_db():
-    return db_core.connect(DB_PATH)
+    return db_core.connect(_db_path())
 
 
 def q(sql, params=()):
-    return db_core.query(DB_PATH, sql, params)
+    return db_core.query(_db_path(), sql, params)
 
 
 def q1(sql, params=()):
-    return db_core.query_one(DB_PATH, sql, params)
+    return db_core.query_one(_db_path(), sql, params)
 
 
 def qval(sql, params=()):
-    return db_core.scalar(DB_PATH, sql, params)
+    return db_core.scalar(_db_path(), sql, params)
 
 
 def invalidar_cache_globals():

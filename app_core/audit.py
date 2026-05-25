@@ -58,3 +58,51 @@ def registrar_evento(get_db, acao, entidade=None, entidade_id=None, detalhes=Non
         conn.commit()
     finally:
         conn.close()
+
+
+def listar_eventos(get_db, filtros=None, limite=100):
+    filtros = filtros or {}
+    limite = max(1, min(int(limite or 100), 500))
+    where = ["1=1"]
+    params = []
+    if filtros.get("acao"):
+        where.append("acao LIKE ?")
+        params.append(f"%{filtros['acao']}%")
+    if filtros.get("usuario"):
+        where.append("usuario_nome LIKE ?")
+        params.append(f"%{filtros['usuario']}%")
+    if filtros.get("entidade"):
+        where.append("entidade = ?")
+        params.append(filtros["entidade"])
+    if filtros.get("d_ini"):
+        where.append("date(criado_em) >= date(?)")
+        params.append(filtros["d_ini"])
+    if filtros.get("d_fim"):
+        where.append("date(criado_em) <= date(?)")
+        params.append(filtros["d_fim"])
+
+    conn = get_db()
+    try:
+        garantir_tabela_auditoria(get_db, conn)
+        rows = conn.execute(
+            f"""
+            SELECT *
+              FROM auditoria_eventos
+             WHERE {' AND '.join(where)}
+             ORDER BY datetime(criado_em) DESC, id_evento DESC
+             LIMIT ?
+            """,
+            params + [limite],
+        ).fetchall()
+    finally:
+        conn.close()
+
+    eventos = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item["detalhes"] = json.loads(item.get("detalhes_json") or "{}")
+        except (TypeError, json.JSONDecodeError):
+            item["detalhes"] = {}
+        eventos.append(item)
+    return eventos

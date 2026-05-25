@@ -9,6 +9,7 @@ import uuid
 
 from flask import Blueprint, Response, current_app, jsonify, render_template, request, session, stream_with_context
 
+from app_core import audit
 from app_core import auth as auth_core
 from app_core import db as db_core
 from app_core import import_history
@@ -178,6 +179,13 @@ def processar_iniciar():
 
     try:
         registrar_importacao(job_id, salvos, status="upload")
+        audit.registrar_evento(
+            get_db,
+            "importacao_upload",
+            entidade="importacoes",
+            entidade_id=job_id,
+            detalhes={"arquivos": salvos},
+        )
     except Exception:
         logging.exception("Falha ao registrar historico de importacao")
 
@@ -241,6 +249,13 @@ def processar_stream(job_id):
                 "dry_run_ok" if ok else "dry_run_erro",
                 dry_run_ok=ok,
                 sumario=sumario,
+            )
+            audit.registrar_evento(
+                get_db,
+                "importacao_verificada",
+                entidade="importacoes",
+                entidade_id=job_id,
+                detalhes={"ok": ok, "itens": len(sumario or [])},
             )
         except Exception:
             logging.exception("Falha ao atualizar historico de importacao")
@@ -315,6 +330,13 @@ def processar_confirmar(job_id):
                 commit_ok=ok,
                 sumario=sumario,
             )
+            audit.registrar_evento(
+                get_db,
+                "importacao_confirmada",
+                entidade="importacoes",
+                entidade_id=job_id,
+                detalhes={"ok": ok, "itens": len(sumario or [])},
+            )
         except Exception:
             logging.exception("Falha ao atualizar historico de importacao")
         yield f"data: {json.dumps({'done': True, 'ok': ok})}\n\n"
@@ -335,6 +357,7 @@ def processar_cancelar(job_id):
         pass
     try:
         atualizar_importacao(job_id, "cancelado")
+        audit.registrar_evento(get_db, "importacao_cancelada", entidade="importacoes", entidade_id=job_id)
     except Exception:
         logging.exception("Falha ao atualizar historico de importacao")
     return jsonify({"ok": True})

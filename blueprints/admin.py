@@ -1,8 +1,12 @@
+import io
+import json
 import secrets
 import string
 from datetime import datetime
 
-from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
+import openpyxl
+from flask import Blueprint, jsonify, redirect, render_template, request, send_file, session, url_for
+from openpyxl.styles import Font, PatternFill
 
 from app_core import audit
 from app_core import auth as auth_core
@@ -14,12 +18,79 @@ login_required = auth_core.login_required
 nivel_min = bh.nivel_min
 
 
+def _filtros_auditoria():
+    return {
+        "acao": request.args.get("acao", "").strip(),
+        "usuario": request.args.get("usuario", "").strip(),
+        "entidade": request.args.get("entidade", "").strip(),
+        "d_ini": request.args.get("d_ini", "").strip(),
+        "d_fim": request.args.get("d_fim", "").strip(),
+    }
+
+
+def _excel_safe(value):
+    text = "" if value is None else str(value)
+    return "'" + text if text[:1] in ("=", "+", "-", "@") else text
+
+
 @bp.route("/admin/usuarios")
 @login_required
 @nivel_min("admin")
 def admin_usuarios():
     usuarios = bh.q("SELECT * FROM usuarios ORDER BY nivel, nome")
     return render_template("admin_usuarios.html", usuarios=usuarios)
+
+
+@bp.route("/admin/auditoria")
+@login_required
+@nivel_min("admin")
+def admin_auditoria():
+    filtros = _filtros_auditoria()
+    eventos = audit.listar_eventos(bh.get_db, filtros, limite=200)
+    return render_template("admin_auditoria.html", eventos=eventos, filtros=filtros)
+
+
+@bp.route("/admin/auditoria/exportar")
+@login_required
+@nivel_min("admin")
+def admin_auditoria_exportar():
+    filtros = _filtros_auditoria()
+    eventos = audit.listar_eventos(bh.get_db, filtros, limite=500)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Auditoria"
+    headers = ["Data", "Acao", "Usuario", "IP", "Entidade", "Entidade ID", "Detalhes"]
+    fill = PatternFill("solid", fgColor="1A4FBA")
+    for col, title in enumerate(headers, 1):
+        cell = ws.cell(1, col, title)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = fill
+    for row_idx, ev in enumerate(eventos, 2):
+        detalhes = json.dumps(ev.get("detalhes") or {}, ensure_ascii=False, sort_keys=True)
+        values = [
+            ev.get("criado_em", ""),
+            ev.get("acao", ""),
+            ev.get("usuario_nome", ""),
+            ev.get("ip", ""),
+            ev.get("entidade", ""),
+            ev.get("entidade_id", ""),
+            detalhes,
+        ]
+        for col, value in enumerate(values, 1):
+            ws.cell(row_idx, col, _excel_safe(value))
+    for col in ws.columns:
+        width = max((len(str(cell.value or "")) for cell in col), default=8)
+        ws.column_dimensions[col[0].column_letter].width = min(width + 2, 60)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=f"auditoria_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 @bp.route("/admin/usuarios/criar", methods=["POST"])
