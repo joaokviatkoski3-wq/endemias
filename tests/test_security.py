@@ -646,6 +646,17 @@ class MainPagesSmokeTests(unittest.TestCase):
                 self.assertEqual(resp.status_code, 200)
                 self.assertIn("text/html", resp.content_type)
 
+    def test_dashboard_integrado_exibe_esporotricose(self):
+        client = _client_logado()
+        resp = client.get("/dashboard")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Dashboard Integrado", html)
+        self.assertIn("Esporotricose", html)
+        self.assertIn("chComparativo", html)
+        self.assertIn("chEspEvolucao", html)
+
     def test_central_do_sistema_admin_responde_200(self):
         client = _client_logado("admin")
         resp = client.get("/admin/sistema")
@@ -830,6 +841,18 @@ class MainApisSmokeTests(unittest.TestCase):
                 resp = client.get(rota)
                 self.assertEqual(resp.status_code, 200)
                 self.assertTrue(resp.is_json)
+
+    def test_api_dashboard_inclui_esporotricose_e_comparativo(self):
+        client = _client_logado()
+        resp = client.get("/api/dashboard")
+
+        self.assertEqual(resp.status_code, 200)
+        dados = resp.get_json()
+        self.assertIn("comparativo_mensal", dados)
+        self.assertIn("esporotricose", dados)
+        self.assertIn("resumo", dados["esporotricose"])
+        self.assertIn("dashboard", dados["esporotricose"])
+        self.assertIn("evolucao", dados["esporotricose"]["dashboard"])
 
     def test_api_conta_ovos_e_sispncd_consultas_retornam_json(self):
         client = _client_logado()

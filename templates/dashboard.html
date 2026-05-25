@@ -1,22 +1,60 @@
 {% extends 'base.html' %}
-{% block title %}Dashboard{% endblock %}
-{% block page_title %}Dashboard Visitas{% endblock %}
+{% block title %}Dashboard Integrado{% endblock %}
+{% block page_title %}Dashboard Integrado{% endblock %}
 
 {% block extra_css %}<style>
 .kpi-grid { grid-template-columns:repeat(auto-fill,minmax(148px,1fr)); }
+.dash-overview { display:grid; grid-template-columns:1.3fr repeat(3,1fr); gap:12px; margin-bottom:16px; }
+.dash-overview-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:16px; min-width:0;
+}
+.dash-overview-card.primary {
+  background:linear-gradient(135deg,var(--brand-d),var(--brand)); color:#fff; border-color:transparent;
+}
+.dash-overview-card span {
+  display:block; color:var(--text3); font-size:10px; font-weight:800;
+  text-transform:uppercase; letter-spacing:.55px; margin-bottom:6px;
+}
+.dash-overview-card.primary span { color:rgba(255,255,255,.66); }
+.dash-overview-card strong {
+  display:block; font-size:28px; line-height:1.05; color:var(--text);
+  font-variant-numeric:tabular-nums; margin-bottom:5px;
+}
+.dash-overview-card.primary strong { color:#fff; font-size:34px; }
+.dash-overview-card small { display:block; color:var(--text3); font-size:11.5px; }
+.dash-overview-card.primary small { color:rgba(255,255,255,.74); }
+.dash-mini-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:14px; }
+.dash-mini-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm);
+  box-shadow:var(--shadow); padding:14px 16px;
+}
+.dash-mini-card span {
+  display:block; color:var(--text3); font-size:10px; font-weight:800;
+  text-transform:uppercase; letter-spacing:.45px;
+}
+.dash-mini-card strong { display:block; color:var(--text); font-size:24px; line-height:1.05; margin-top:5px; }
+.dash-insights { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:16px; }
+.dash-insight {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm);
+  box-shadow:var(--shadow); padding:13px 14px; min-width:0;
+}
+.dash-insight strong { display:block; color:var(--text); font-size:13px; margin-bottom:3px; }
+.dash-insight span { color:var(--text3); font-size:11.5px; }
+@media(max-width:900px){ .dash-overview,.dash-insights { grid-template-columns:1fr 1fr; } }
+@media(max-width:560px){ .dash-overview,.dash-insights { grid-template-columns:1fr; } }
 </style>{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <h1><span class="icon"><img src="/static/icons/grafico_barra.svg" alt="📊" class="icon-svg"></span> Dashboard de Visitas</h1>
-  <div class="sub">Análise operacional por tipo de trabalho, localidade e agente</div>
+  <h1><span class="icon"><img src="/static/icons/grafico_barra.svg" alt="Dashboard" class="icon-svg"></span> Dashboard Integrado</h1>
+  <div class="sub">Analise operacional de visitas, territorio, laboratorio e esporotricose</div>
 </div>
 
-<!-- FILTROS -->
 <div class="filter-card">
   <div class="filter-hd" data-target="f-body" onclick="toggleFilter('f-body')">
     <div class="filter-hd-left">
-      <span><img src="/static/icons/busca.svg" alt="🔍" class="icon-svg"></span>
+      <span><img src="/static/icons/busca.svg" alt="" class="icon-svg"></span>
       <span class="filter-hd-title">Filtros</span>
       <span class="filter-hd-count" id="f-badge"></span>
     </div>
@@ -25,7 +63,7 @@
   <div class="filter-body open" id="f-body">
     <div class="filter-grid">
       <div class="f-g">
-        <label>Data início</label>
+        <label>Data inicio</label>
         <input type="date" id="d_ini" value="{{ d_ini }}">
       </div>
       <div class="f-g">
@@ -67,70 +105,102 @@
       </div>
     </div>
     <div class="filter-actions">
-      <button class="btn btn-primary" onclick="buscar()"><img src="/static/icons/atualizar.svg" alt="🔄" class="icon-svg"> Atualizar</button>
-      <button class="btn btn-ghost" onclick="resetFiltros()"><img src="/static/icons/fechar.svg" alt="✕" class="icon-svg"> Limpar</button>
+      <button class="btn btn-primary" onclick="buscar()"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+      <button class="btn btn-ghost" onclick="resetFiltros()"><img src="/static/icons/fechar.svg" alt="" class="icon-svg"> Limpar</button>
       <span class="dim small" id="f-periodo"></span>
     </div>
   </div>
 </div>
 
-<!-- KPIs -->
+<div id="dash-resumo-integrado" class="dash-overview">
+  <div class="loading-box"><div class="spinner"></div></div>
+</div>
+
+<div id="dash-insights" class="dash-insights"></div>
+
 <div id="kpi-area" class="kpi-grid">
   <div class="loading-box"><div class="spinner"></div></div>
 </div>
 
-<!-- TABS GRÁFICOS -->
 <div class="tabs-bar">
-  <button class="tab-btn active" onclick="openTab('tab-geral',this)"><img src="/static/icons/grafico_linha.svg" alt="📈" class="icon-svg"> Geral</button>
-  <button class="tab-btn" onclick="openTab('tab-local',this)"><img src="/static/icons/marcador.svg" alt="📍" class="icon-svg"> Localidades</button>
-  <button class="tab-btn" onclick="openTab('tab-agente',this)"><img src="/static/icons/usuarios.svg" alt="👥" class="icon-svg"> Agentes</button>
-  <button class="tab-btn" onclick="openTab('tab-depositos',this)"><img src="/static/icons/balde.svg" alt="🪣" class="icon-svg"> Depósitos</button>
+  <button class="tab-btn active" onclick="openTab('tab-geral',this)"><img src="/static/icons/grafico_linha.svg" alt="" class="icon-svg"> Geral</button>
+  <button class="tab-btn" onclick="openTab('tab-esporo',this)"><img src="/static/icons/pets.svg" alt="" class="icon-svg"> Esporotricose</button>
+  <button class="tab-btn" onclick="openTab('tab-local',this)"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"> Territorio</button>
+  <button class="tab-btn" onclick="openTab('tab-agente',this)"><img src="/static/icons/usuarios.svg" alt="" class="icon-svg"> Equipe</button>
+  <button class="tab-btn" onclick="openTab('tab-depositos',this)"><img src="/static/icons/balde.svg" alt="" class="icon-svg"> Depositos</button>
 </div>
 
-<!-- TAB GERAL -->
 <div class="tab-pane active" id="tab-geral">
   <div class="chart-grid">
     <div class="chart-card full">
-      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/calendario.svg" alt="📅" class="icon-svg"> Evolução semanal de visitas</div></div>
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/grafico_linha.svg" alt="" class="icon-svg"> Evolucao mensal integrada</div></div>
+      <div class="chart-wrap h280"><canvas id="chComparativo"></canvas></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/calendario.svg" alt="" class="icon-svg"> Evolucao semanal de visitas</div></div>
       <div class="chart-wrap h280"><canvas id="chEvolucao"></canvas></div>
     </div>
   </div>
   <div class="chart-grid">
     <div class="chart-card">
-      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/fichario.svg" alt="🗂" class="icon-svg"> Visitas por tipo</div></div>
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/fichario.svg" alt="" class="icon-svg"> Visitas por tipo</div></div>
       <div class="chart-wrap h240"><canvas id="chTipo"></canvas></div>
     </div>
     <div class="chart-card">
-      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/porta.svg" alt="🚪" class="icon-svg"> Status das visitas</div></div>
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/porta.svg" alt="" class="icon-svg"> Status das visitas</div></div>
       <div class="chart-wrap h240"><canvas id="chStatus"></canvas></div>
     </div>
     <div class="chart-card">
-      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/casa.svg" alt="🏠" class="icon-svg"> Tipo de imóvel</div></div>
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/casa.svg" alt="" class="icon-svg"> Tipo de imovel</div></div>
       <div class="chart-wrap h240"><canvas id="chImovel"></canvas></div>
     </div>
   </div>
 </div>
 
-<!-- TAB LOCAL -->
+<div class="tab-pane" id="tab-esporo">
+  <div id="esporo-kpi-area" class="dash-mini-grid"></div>
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/calendario.svg" alt="" class="icon-svg"> Evolucao mensal de esporotricose</div></div>
+      <div class="chart-wrap h280"><canvas id="chEspEvolucao"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/porta.svg" alt="" class="icon-svg"> Situacao das visitas</div></div>
+      <div class="chart-wrap h260"><canvas id="chEspStatus"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/pets.svg" alt="" class="icon-svg"> Especies cadastradas</div></div>
+      <div class="chart-wrap h260"><canvas id="chEspEspecies"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Saude e manejo</div></div>
+      <div class="chart-wrap h300"><canvas id="chEspSaude"></canvas></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Visitas e animais por localidade</div></div>
+      <div class="chart-wrap h340"><canvas id="chEspLocalidades"></canvas></div>
+    </div>
+  </div>
+</div>
+
 <div class="tab-pane" id="tab-local">
   <div class="chart-grid">
     <div class="chart-card full">
-      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/marcador.svg" alt="📍" class="icon-svg"> Visitas por localidade</div></div>
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"> Visitas por localidade</div></div>
       <div class="chart-wrap h360"><canvas id="chLocal"></canvas></div>
     </div>
   </div>
 </div>
 
-<!-- TAB AGENTE -->
 <div class="tab-pane" id="tab-agente">
   <div class="chart-grid">
     <div class="chart-card full">
-      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/usuarios.svg" alt="👥" class="icon-svg"> Produção por agente</div></div>
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/usuarios.svg" alt="" class="icon-svg"> Producao por agente</div></div>
       <div class="chart-wrap h360"><canvas id="chAgente"></canvas></div>
     </div>
   </div>
   <div id="ranking-agentes" class="table-wrap">
-    <div class="table-hd"><span class="table-title">Ranking de Produção</span></div>
+    <div class="table-hd"><span class="table-title">Ranking de producao</span></div>
     <div class="table-scroll"><table id="t-agentes">
       <thead><tr><th>#</th><th>Agente</th><th>Visitas</th><th>%</th></tr></thead>
       <tbody></tbody>
@@ -138,31 +208,28 @@
   </div>
 </div>
 
-<!-- TAB DEPÓSITOS -->
 <div class="tab-pane" id="tab-depositos">
   <div class="chart-grid">
     <div class="chart-card">
-      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/balde.svg" alt="🪣" class="icon-svg"> Depósitos inspecionados por tipo</div></div>
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/balde.svg" alt="" class="icon-svg"> Depositos inspecionados por tipo</div></div>
       <div class="chart-wrap h280"><canvas id="chDepTipo"></canvas></div>
     </div>
     <div class="chart-card">
-      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/grafico_barra.svg" alt="📊" class="icon-svg"> Resumo de depósitos</div></div>
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Resumo de depositos</div></div>
       <div id="dep-resumo" style="padding:20px;"></div>
     </div>
   </div>
-
-  <!-- TBO tempo -->
   <div id="secao-tbo" style="display:none;">
     <div class="chart-hd" style="margin-top:20px;margin-bottom:10px;">
-      <div class="chart-title">⏱ Tempo por visita TBO — Acessados vs Não acessados</div>
+      <div class="chart-title">Tempo por visita TBO - acessados vs nao acessados</div>
     </div>
     <div class="chart-grid">
       <div class="chart-card">
-        <div class="chart-hd"><div class="chart-title">Tempo médio (min)</div></div>
+        <div class="chart-hd"><div class="chart-title">Tempo medio (min)</div></div>
         <div class="chart-wrap h240"><canvas id="chTboMedia"></canvas></div>
       </div>
       <div class="chart-card">
-        <div class="chart-hd"><div class="chart-title">Mínimo / Máximo (min)</div></div>
+        <div class="chart-hd"><div class="chart-title">Minimo / maximo (min)</div></div>
         <div class="chart-wrap h240"><canvas id="chTboMinMax"></canvas></div>
       </div>
     </div>
@@ -176,13 +243,17 @@ async function buscar() {
   atualizaBadge();
   const qs = buildFiltros();
   document.getElementById('kpi-area').innerHTML = '<div class="loading-box"><div class="spinner"></div></div>';
-
+  document.getElementById('dash-resumo-integrado').innerHTML = '<div class="loading-box"><div class="spinner"></div></div>';
+  document.getElementById('dash-insights').innerHTML = '';
   try {
     dados = await apiGet('/api/dashboard?' + qs);
+    renderResumoIntegrado();
     renderKPIs();
     renderGraficos();
   } catch(e) {
-    document.getElementById('kpi-area').innerHTML = `<div class="empty"><div class="empty-icon"><img src="/static/icons/alerta.svg" alt="⚠" class="icon-svg">️</div><p>Erro ao carregar: ${e.message}</p></div>`;
+    const erro = `<div class="empty"><div class="empty-icon"><img src="/static/icons/alerta.svg" alt="" class="icon-svg"></div><p>Erro ao carregar: ${e.message}</p></div>`;
+    document.getElementById('kpi-area').innerHTML = erro;
+    document.getElementById('dash-resumo-integrado').innerHTML = erro;
   }
 }
 
@@ -195,20 +266,18 @@ function buildFiltros() {
   document.querySelectorAll('.pill input[type=checkbox]:checked').forEach(cb => {
     const id = cb.id;
     if(id.startsWith('tipo_')) p.append('tipo', cb.value);
-    else if(id.startsWith('loc_'))  p.append('localidade', cb.value);
-    else if(id.startsWith('ag_'))   p.append('agente', cb.value);
+    else if(id.startsWith('loc_')) p.append('localidade', cb.value);
+    else if(id.startsWith('ag_')) p.append('agente', cb.value);
   });
   return p.toString();
 }
 
 function atualizaBadge() {
   const n = document.querySelectorAll('.pill input:checked').length;
-  const badge = document.getElementById('f-badge');
-  badge.textContent = n ? `(${n} filtro${n>1?'s':''} ativo${n>1?'s':''})` : '';
+  document.getElementById('f-badge').textContent = n ? `(${n} filtro${n>1?'s':''} ativo${n>1?'s':''})` : '';
   const di = document.getElementById('d_ini').value;
   const df = document.getElementById('d_fim').value;
-  const fp = document.getElementById('f-periodo');
-  if(di && df) fp.textContent = `${fmtDate(di)} → ${fmtDate(df)}`;
+  document.getElementById('f-periodo').textContent = di && df ? `${fmtDate(di)} -> ${fmtDate(df)}` : '';
 }
 
 function resetFiltros() {
@@ -218,152 +287,205 @@ function resetFiltros() {
   buscar();
 }
 
+function renderResumoIntegrado() {
+  const k = dados.kpi || {};
+  const espResumo = dados.esporotricose?.resumo || {};
+  const espTotais = espResumo.totais || {};
+  const espAnimais = espResumo.animais || {};
+  const totalCampo = (k.total || 0) + (espTotais.visitas || 0);
+  const positividade = espAnimais.total ? Math.round((espAnimais.com_feridas || 0) / espAnimais.total * 100) : 0;
+  document.getElementById('dash-resumo-integrado').innerHTML = `
+    <div class="dash-overview-card primary">
+      <span>Campo integrado</span>
+      <strong>${fmtNum(totalCampo)}</strong>
+      <small>${fmtNum(k.total || 0)} visitas de vetores + ${fmtNum(espTotais.visitas || 0)} visitas de esporotricose</small>
+    </div>
+    <div class="dash-overview-card">
+      <span>Vetores</span>
+      <strong>${fmtNum(k.total || 0)}</strong>
+      <small>${fmtNum(k.normais || 0)} normais no periodo</small>
+    </div>
+    <div class="dash-overview-card">
+      <span>Esporotricose</span>
+      <strong>${fmtNum(espAnimais.total || 0)}</strong>
+      <small>${fmtNum(espAnimais.com_feridas || 0)} animais com feridas (${positividade}%)</small>
+    </div>
+    <div class="dash-overview-card">
+      <span>Territorio</span>
+      <strong>${fmtNum((k.quarteiroes || 0) + (espTotais.localidades || 0))}</strong>
+      <small>quarteiroes e localidades com registros</small>
+    </div>
+  `;
+  const tbo = dados.tbo_duracao || {};
+  document.getElementById('dash-insights').innerHTML = `
+    <div class="dash-insight"><strong>${fmtNum(k.fechados || 0)} fechados</strong><span>Imoveis nao acessados em visitas de vetores.</span></div>
+    <div class="dash-insight"><strong>${fmtNum(espTotais.fechadas || 0)} visitas fechadas</strong><span>Ocorrencias de esporotricose sem acesso ao domicilio.</span></div>
+    <div class="dash-insight"><strong>${tbo.n ? fmtMin(tbo.media) : 'sem dados'}</strong><span>Tempo medio das visitas TBO no filtro atual.</span></div>
+  `;
+}
+
 function renderKPIs() {
   const k = dados.kpi || {};
   const d = dados.depositos || {};
   const tv = k.total || 0;
   const norm = k.normais || 0;
-  const taxa_norm = tv ? Math.round(norm/tv*100) : 0;
-
+  const taxaNorm = tv ? Math.round(norm / tv * 100) : 0;
   const tbo = dados.tbo_duracao || {};
-  const fmtMin = m => m != null ? (m < 60 ? `${m}min` : `${Math.floor(m/60)}h${String(Math.round(m%60)).padStart(2,'0')}min`) : '—';
-
   document.getElementById('kpi-area').innerHTML = `
-    <div class="kpi"><div class="kpi-icon"><img src="/static/icons/prancheta.svg" alt="📋" class="icon-svg"></div><div class="kpi-label">Total de visitas</div><div class="kpi-val">${fmtNum(tv)}</div></div>
-    <div class="kpi green"><div class="kpi-icon"><img src="/static/icons/check.svg" alt="✓" class="icon-svg"></div><div class="kpi-label">Normais</div><div class="kpi-val">${fmtNum(norm)}</div><div class="kpi-sub">${taxa_norm}% do total</div></div>
-    <div class="kpi amber"><div class="kpi-icon"><img src="/static/icons/porta.svg" alt="🚪" class="icon-svg"></div><div class="kpi-label">Fechados</div><div class="kpi-val">${fmtNum(k.fechados||0)}</div></div>
-    <div class="kpi cyan"><div class="kpi-icon"><img src="/static/icons/atualizar.svg" alt="🔄" class="icon-svg"></div><div class="kpi-label">Recuperados</div><div class="kpi-val">${fmtNum(k.recuperados||0)}</div></div>
-    <div class="kpi red"><div class="kpi-icon"><img src="/static/icons/erro.svg" alt="✗" class="icon-svg"></div><div class="kpi-label">Recusas</div><div class="kpi-val">${fmtNum(k.recusados||0)}</div></div>
-    <div class="kpi"><div class="kpi-icon"><img src="/static/icons/calendario.svg" alt="📅" class="icon-svg"></div><div class="kpi-label">Dias trabalhados</div><div class="kpi-val">${fmtNum(k.dias||0)}</div></div>
-    <div class="kpi purple"><div class="kpi-icon"><img src="/static/icons/casas.svg" alt="🏘" class="icon-svg"></div><div class="kpi-label">Quarteirões</div><div class="kpi-val">${fmtNum(k.quarteiroes||0)}</div></div>
-    <div class="kpi teal"><div class="kpi-icon"><img src="/static/icons/balde.svg" alt="🪣" class="icon-svg"></div><div class="kpi-label">Dep. inspecionados</div><div class="kpi-val">${fmtNum(d.inspecionados||0)}</div></div>
-    ${tbo.n > 0 ? `
-    <div class="kpi teal"><div class="kpi-icon">⏱</div><div class="kpi-label">TBO — Tempo médio</div><div class="kpi-val">${fmtMin(tbo.media)}</div><div class="kpi-sub">${fmtNum(tbo.n)} visitas</div></div>
-    <div class="kpi"><div class="kpi-icon">⬇</div><div class="kpi-label">TBO — Mínimo</div><div class="kpi-val">${fmtMin(tbo.minimo)}</div></div>
-    <div class="kpi"><div class="kpi-icon">⬆</div><div class="kpi-label">TBO — Máximo</div><div class="kpi-val">${fmtMin(tbo.maximo)}</div></div>
-    ` : ''}
+    <div class="kpi"><div class="kpi-icon"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"></div><div class="kpi-label">Total de visitas</div><div class="kpi-val">${fmtNum(tv)}</div></div>
+    <div class="kpi green"><div class="kpi-icon"><img src="/static/icons/check.svg" alt="" class="icon-svg"></div><div class="kpi-label">Normais</div><div class="kpi-val">${fmtNum(norm)}</div><div class="kpi-sub">${taxaNorm}% do total</div></div>
+    <div class="kpi amber"><div class="kpi-icon"><img src="/static/icons/porta.svg" alt="" class="icon-svg"></div><div class="kpi-label">Fechados</div><div class="kpi-val">${fmtNum(k.fechados || 0)}</div></div>
+    <div class="kpi cyan"><div class="kpi-icon"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"></div><div class="kpi-label">Recuperados</div><div class="kpi-val">${fmtNum(k.recuperados || 0)}</div></div>
+    <div class="kpi red"><div class="kpi-icon"><img src="/static/icons/erro.svg" alt="" class="icon-svg"></div><div class="kpi-label">Recusas</div><div class="kpi-val">${fmtNum(k.recusados || 0)}</div></div>
+    <div class="kpi purple"><div class="kpi-icon"><img src="/static/icons/casas.svg" alt="" class="icon-svg"></div><div class="kpi-label">Quarteiroes</div><div class="kpi-val">${fmtNum(k.quarteiroes || 0)}</div></div>
+    <div class="kpi teal"><div class="kpi-icon"><img src="/static/icons/balde.svg" alt="" class="icon-svg"></div><div class="kpi-label">Dep. inspecionados</div><div class="kpi-val">${fmtNum(d.inspecionados || 0)}</div></div>
+    <div class="kpi"><div class="kpi-icon"><img src="/static/icons/relogio.svg" alt="" class="icon-svg"></div><div class="kpi-label">TBO medio</div><div class="kpi-val">${tbo.n ? fmtMin(tbo.media) : '-'}</div><div class="kpi-sub">${fmtNum(tbo.n || 0)} visitas</div></div>
   `;
 }
 
 function renderGraficos() {
-  const tbo = dados.tbo_duracao || {};
-  // Evolução semanal
-  const ev = dados.evolucao || [];
-  mkChart('chEvolucao', {
+  renderGeral();
+  renderVetores();
+  renderEsporotricose();
+  renderTerritorioEquipe();
+  renderDepositos();
+}
+
+function renderGeral() {
+  const comp = dados.comparativo_mensal || [];
+  mkChart('chComparativo', {
     type: 'line',
     data: {
-      labels: ev.map(r => r.sem.replace(/(\d{4})-(\d+)/,'S$2/$1')),
-      datasets: [{ label:'Visitas/semana', data: ev.map(r=>r.total),
-        borderColor:PAL[0], backgroundColor:PAL[0]+'22', fill:true,
-        borderWidth:2, pointRadius:3, tension:.35 }]
+      labels: comp.map(r => r.mes),
+      datasets: [
+        { label:'Vetores', data:comp.map(r=>r.vetores), borderColor:PAL[0], backgroundColor:PAL[0]+'22', fill:true, tension:.32, borderWidth:2 },
+        { label:'Esporotricose', data:comp.map(r=>r.esporotricose), borderColor:PAL[6], backgroundColor:PAL[6]+'18', fill:true, tension:.32, borderWidth:2 },
+      ]
     },
-    options: { scales: eixos() }
+    options:{ scales:eixos(), plugins:{ legend:{ position:'top', labels:{ color:'var(--text2)' } } } }
   });
+  const ev = dados.evolucao || [];
+  mkChart('chEvolucao', {
+    type:'line',
+    data:{ labels:ev.map(r => String(r.sem).replace(/(\d{4})-(\d+)/,'S$2/$1')),
+      datasets:[{ label:'Visitas/semana', data:ev.map(r=>r.total), borderColor:PAL[0], backgroundColor:PAL[0]+'22', fill:true, borderWidth:2, pointRadius:3, tension:.35 }] },
+    options:{ scales:eixos() }
+  });
+}
 
-  // Por tipo (donut)
+function renderVetores() {
   const pt = dados.por_tipo || [];
   mkChart('chTipo', {
-    type: 'doughnut',
-    data: {
-      labels: pt.map(r=>r.tipo),
-      datasets: [{ data: pt.map(r=>r.total),
-        backgroundColor: pt.map(r=>WORK_TYPE_COLORS[r.tipo]||'#64748b'),
-        borderColor:'var(--surface)', borderWidth:2 }]
-    },
-    options: { cutout:'60%', plugins:{ legend:{ position:'right', labels:{font:{size:11}} } } }
+    type:'doughnut',
+    data:{ labels:pt.map(r=>r.tipo), datasets:[{ data:pt.map(r=>r.total), backgroundColor:pt.map(r=>WORK_TYPE_COLORS[r.tipo] || '#64748b'), borderColor:'var(--surface)', borderWidth:2 }] },
+    options:{ cutout:'60%', plugins:{ legend:{ position:'right', labels:{font:{size:11}} } } }
   });
-
-  // Status visita (bar horizontal)
   const ps = dados.por_status || [];
   const statusLabel = {normal:'Normal',fechado:'Fechado',recuperado:'Recuperado',recusa:'Recusa','sem info':'Sem info'};
-  const statusCor   = {normal:'#22c55e',fechado:'#f59e0b',recuperado:'#3b82f6',recusa:'#ef4444','sem info':'#94a3b8'};
+  const statusCor = {normal:'#22c55e',fechado:'#f59e0b',recuperado:'#3b82f6',recusa:'#ef4444','sem info':'#94a3b8'};
   mkChart('chStatus', {
-    type: 'bar',
-    data: {
-      labels: ps.map(r => statusLabel[r.visita] || r.visita),
-      datasets: [{ label:'Visitas', data: ps.map(r=>r.total),
-        backgroundColor: ps.map(r=>statusCor[r.visita]||'#94a3b8'),
-        borderRadius:4 }]
-    },
-    options: {
-      indexAxis:'y', plugins:{ legend:{display:false} },
-      scales: eixos({x:{}, y:{grid:{display:false}}})
-    }
+    type:'bar',
+    data:{ labels:ps.map(r => statusLabel[r.visita] || r.visita), datasets:[{ label:'Visitas', data:ps.map(r=>r.total), backgroundColor:ps.map(r=>statusCor[r.visita] || '#94a3b8'), borderRadius:4 }] },
+    options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:eixos({x:{}, y:{grid:{display:false}}}) }
   });
-
-  // Tipo imóvel (pie)
   const pi = dados.por_imovel || [];
   mkChart('chImovel', {
-    type: 'pie',
-    data: {
-      labels: pi.map(r=>r.tipo_imovel),
-      datasets:[{ data:pi.map(r=>r.total), backgroundColor:PAL, borderColor:'var(--surface)', borderWidth:2 }]
-    },
+    type:'pie',
+    data:{ labels:pi.map(r=>r.tipo_imovel || 'Sem info'), datasets:[{ data:pi.map(r=>r.total), backgroundColor:PAL, borderColor:'var(--surface)', borderWidth:2 }] },
     options:{ plugins:{ legend:{ position:'right', labels:{font:{size:10}} } } }
   });
+}
 
-  // Por localidade (bar horizontal)
+function renderEsporotricose() {
+  const resumo = dados.esporotricose?.resumo || {};
+  const totais = resumo.totais || {};
+  const animais = resumo.animais || {};
+  const dash = dados.esporotricose?.dashboard || {};
+  document.getElementById('esporo-kpi-area').innerHTML = `
+    <div class="dash-mini-card"><span>Visitas</span><strong>${fmtNum(totais.visitas || 0)}</strong></div>
+    <div class="dash-mini-card"><span>Animais</span><strong>${fmtNum(animais.total || 0)}</strong></div>
+    <div class="dash-mini-card"><span>Caes</span><strong>${fmtNum(animais.caes || 0)}</strong></div>
+    <div class="dash-mini-card"><span>Gatos</span><strong>${fmtNum(animais.gatos || 0)}</strong></div>
+    <div class="dash-mini-card"><span>Com feridas</span><strong>${fmtNum(animais.com_feridas || 0)}</strong></div>
+  `;
+  const evolucao = dash.evolucao || [];
+  mkChart('chEspEvolucao', {
+    type:'line',
+    data:{ labels:evolucao.map(r=>r.mes), datasets:[{ label:'Visitas', data:evolucao.map(r=>r.visitas), borderColor:PAL[6], backgroundColor:PAL[6]+'22', fill:true, tension:.32, borderWidth:2 }] },
+    options:{ scales:eixos() }
+  });
+  const status = dash.status || [];
+  mkChart('chEspStatus', {
+    type:'doughnut',
+    data:{ labels:status.map(r=>r.nome), datasets:[{ data:status.map(r=>r.total), backgroundColor:PAL, borderColor:'var(--surface)', borderWidth:2 }] },
+    options:{ cutout:'58%', plugins:{ legend:{ position:'right', labels:{font:{size:10}} } } }
+  });
+  const especies = dash.especies || [];
+  mkChart('chEspEspecies', {
+    type:'pie',
+    data:{ labels:especies.map(r=>r.nome), datasets:[{ data:especies.map(r=>r.total), backgroundColor:[PAL[6], PAL[0], PAL[4], PAL[2]], borderColor:'var(--surface)', borderWidth:2 }] },
+    options:{ plugins:{ legend:{ position:'right', labels:{font:{size:10}} } } }
+  });
+  const saude = dash.saude || [];
+  mkChart('chEspSaude', {
+    type:'bar',
+    data:{ labels:saude.map(r=>r.grupo), datasets:[
+      { label:'Sim', data:saude.map(r=>r.sim), backgroundColor:'#22c55ecc', borderRadius:4 },
+      { label:'Nao', data:saude.map(r=>r.nao), backgroundColor:'#ef4444cc', borderRadius:4 },
+      { label:'Desconhecido', data:saude.map(r=>r.desconhecido), backgroundColor:'#94a3b8cc', borderRadius:4 },
+    ] },
+    options:{ scales:eixos(), plugins:{ legend:{ position:'top', labels:{ color:'var(--text2)' } } } }
+  });
+  const locs = dash.localidades || [];
+  mkChart('chEspLocalidades', {
+    type:'bar',
+    data:{ labels:locs.map(r=>r.nome), datasets:[
+      { label:'Visitas', data:locs.map(r=>r.visitas), backgroundColor:PAL[6]+'cc', borderRadius:4 },
+      { label:'Animais', data:locs.map(r=>r.animais), backgroundColor:PAL[0]+'cc', borderRadius:4 },
+    ] },
+    options:{ indexAxis:'y', scales:eixos({y:{grid:{display:false}}}), plugins:{ legend:{ position:'top', labels:{ color:'var(--text2)' } } } }
+  });
+}
+
+function renderTerritorioEquipe() {
   const pl = dados.por_loc || [];
   mkChart('chLocal', {
-    type: 'bar',
-    data: {
-      labels: pl.map(r=>r.loc||'—'),
-      datasets:[{ label:'Visitas', data:pl.map(r=>r.total),
-        backgroundColor: PAL[0]+'cc', borderRadius:4 }]
-    },
+    type:'bar',
+    data:{ labels:pl.map(r=>r.loc || '-'), datasets:[{ label:'Visitas', data:pl.map(r=>r.total), backgroundColor:PAL[0]+'cc', borderRadius:4 }] },
     options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:eixos({y:{grid:{display:false}}}) }
   });
-
-  // Por agente (bar)
   const pa = dados.por_agente || [];
   mkChart('chAgente', {
-    type: 'bar',
-    data: {
-      labels: pa.map(r=>r.nome),
-      datasets:[{ label:'Visitas', data:pa.map(r=>r.total),
-        backgroundColor: pa.map((_,i)=>PAL[i%PAL.length]+'cc'), borderRadius:4 }]
-    },
+    type:'bar',
+    data:{ labels:pa.map(r=>r.nome), datasets:[{ label:'Visitas', data:pa.map(r=>r.total), backgroundColor:pa.map((_,i)=>PAL[i%PAL.length]+'cc'), borderRadius:4 }] },
     options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:eixos({y:{grid:{display:false}}}) }
   });
-
-  // Ranking agentes
-  const total_geral = pa.reduce((s,r)=>s+r.total,0);
-  const tbody = document.querySelector('#t-agentes tbody');
-  tbody.innerHTML = pa.map((r,i)=>`
+  const totalGeral = pa.reduce((s,r)=>s+r.total,0);
+  document.querySelector('#t-agentes tbody').innerHTML = pa.map((r,i)=>`
     <tr>
       <td><strong>#${i+1}</strong></td>
-      <td>${r.nome}</td>
+      <td>${escapeHtml(r.nome || '-')}</td>
       <td><strong>${fmtNum(r.total)}</strong></td>
-      <td>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <div style="flex:1;height:6px;background:var(--border);border-radius:3px;min-width:60px;">
-            <div style="width:${total_geral?Math.round(r.total/total_geral*100):0}%;height:100%;background:var(--brand);border-radius:3px;"></div>
-          </div>
-          <span class="dim small">${total_geral?Math.round(r.total/total_geral*100):0}%</span>
-        </div>
-      </td>
+      <td><span class="dim small">${totalGeral ? Math.round(r.total / totalGeral * 100) : 0}%</span></td>
     </tr>
   `).join('');
+}
 
-  // Depósitos por tipo (bar)
+function renderDepositos() {
   const dt = dados.dep_por_tipo || [];
   mkChart('chDepTipo', {
-    type: 'bar',
-    data: {
-      labels: dt.map(r=>r.tipo_deposito),
-      datasets:[{ label:'Inspecionados', data:dt.map(r=>r.insp),
-        backgroundColor: dt.map((_,i)=>PAL[i%PAL.length]+'cc'), borderRadius:4 }]
-    },
+    type:'bar',
+    data:{ labels:dt.map(r=>r.tipo_deposito), datasets:[{ label:'Inspecionados', data:dt.map(r=>r.insp), backgroundColor:dt.map((_,i)=>PAL[i%PAL.length]+'cc'), borderRadius:4 }] },
     options:{ plugins:{legend:{display:false}}, scales:eixos() }
   });
-
-  // Resumo depósitos
   const dep = dados.depositos || {};
   document.getElementById('dep-resumo').innerHTML = `
     <div style="display:flex;flex-direction:column;gap:16px;padding:8px 0;">
-      ${[['<img src="/static/icons/busca.svg" alt="🔍" class="icon-svg"> Inspecionados', dep.inspecionados||0, 'brand'],
-         ['<img src="/static/icons/lixeira.svg" alt="🗑" class="icon-svg"> Eliminados',    dep.eliminados||0,    'green'],
-         ['<img src="/static/icons/comprimido.svg" alt="💊" class="icon-svg"> Tratados',      dep.tratados||0,      'purple']].map(([lb,vl,cor])=>`
+      ${[
+        ['Inspecionados', dep.inspecionados || 0, 'brand'],
+        ['Eliminados', dep.eliminados || 0, 'green'],
+        ['Tratados', dep.tratados || 0, 'purple'],
+      ].map(([lb,vl,cor])=>`
         <div>
           <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px;">${lb}</div>
           <div style="font-size:2rem;font-weight:700;color:var(--${cor})">${fmtNum(vl)}</div>
@@ -371,52 +493,42 @@ function renderGraficos() {
       `).join('')}
     </div>
   `;
-
-  // TBO — tempo por grupo
-  const tboGrupos = tbo.por_grupo || {};
-  const acess  = tboGrupos.acessados    || {};
-  const nAcess = tboGrupos.nao_acessados|| {};
+  const tbo = dados.tbo_duracao || {};
+  const grupos = tbo.por_grupo || {};
+  const acess = grupos.acessados || {};
+  const nAcess = grupos.nao_acessados || {};
+  document.getElementById('secao-tbo').style.display = tbo.n > 0 && (acess.n || nAcess.n) ? 'block' : 'none';
   if (tbo.n > 0 && (acess.n || nAcess.n)) {
-    document.getElementById('secao-tbo').style.display = 'block';
-    const grupos = ['Acessados\n(Normal/Recuperado)', 'Não acessados\n(Fechado/Recusa)'];
+    const labels = ['Acessados', 'Nao acessados'];
     mkChart('chTboMedia', {
-      type: 'bar',
-      data: {
-        labels: grupos,
-        datasets:[{
-          label: 'Tempo médio (min)',
-          data: [acess.media||0, nAcess.media||0],
-          backgroundColor: ['#10b981cc','#f59e0bcc'],
-          borderColor:     ['#10b981','#f59e0b'],
-          borderWidth: 1, borderRadius: 4,
-        }]
-      },
-      options: {
-        scales: { ...eixos(), y:{ ...eixos().y, title:{ display:true, text:'minutos', color:'var(--text3)', font:{size:10} } } },
-        plugins: { legend:{ display:false } }
-      }
+      type:'bar',
+      data:{ labels, datasets:[{ label:'Tempo medio (min)', data:[acess.media || 0, nAcess.media || 0], backgroundColor:['#10b981cc','#f59e0bcc'], borderRadius:4 }] },
+      options:{ plugins:{legend:{display:false}}, scales:eixos() }
     });
     mkChart('chTboMinMax', {
-      type: 'bar',
-      data: {
-        labels: grupos,
-        datasets:[
-          { label:'Mínimo', data:[acess.minimo||0, nAcess.minimo||0], backgroundColor:'#3b82f6cc', borderRadius:4 },
-          { label:'Máximo', data:[acess.maximo||0, nAcess.maximo||0], backgroundColor:'#ef4444cc', borderRadius:4 },
-        ]
-      },
-      options: {
-        scales: { ...eixos(), y:{ ...eixos().y, title:{ display:true, text:'minutos', color:'var(--text3)', font:{size:10} } } },
-        plugins: { legend:{ position:'top', labels:{ color:'var(--text2)', font:{size:11} } } }
-      }
+      type:'bar',
+      data:{ labels, datasets:[
+        { label:'Minimo', data:[acess.minimo || 0, nAcess.minimo || 0], backgroundColor:'#3b82f6cc', borderRadius:4 },
+        { label:'Maximo', data:[acess.maximo || 0, nAcess.maximo || 0], backgroundColor:'#ef4444cc', borderRadius:4 },
+      ] },
+      options:{ scales:eixos(), plugins:{ legend:{ position:'top', labels:{ color:'var(--text2)' } } } }
     });
   }
 }
 
-// Auto-busca ao mudar datas
+function fmtMin(m) {
+  if (m === null || m === undefined) return '-';
+  return m < 60 ? `${Math.round(m)}min` : `${Math.floor(m/60)}h${String(Math.round(m%60)).padStart(2,'0')}min`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[c]));
+}
+
 document.getElementById('d_ini').addEventListener('change', buscar);
 document.getElementById('d_fim').addEventListener('change', buscar);
-
 buscar();
 </script>
 {% endblock %}

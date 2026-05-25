@@ -505,21 +505,41 @@ def _where(filtros):
     if filtros.get("d_fim"):
         clauses.append("v.data <= ?")
         params.append(filtros["d_fim"])
-    if filtros.get("localidade"):
-        clauses.append("v.localidade = ?")
-        params.append(filtros["localidade"])
+    localidade = filtros.get("localidade")
+    if localidade:
+        if isinstance(localidade, (list, tuple)):
+            valores = [v for v in localidade if v]
+            if valores:
+                clauses.append(f"v.localidade IN ({','.join('?' * len(valores))})")
+                params.extend(valores)
+        else:
+            clauses.append("v.localidade = ?")
+            params.append(localidade)
     if filtros.get("visita"):
         clauses.append("v.visita = ?")
         params.append(filtros["visita"])
-    if filtros.get("agente"):
-        clauses.append(
-            """EXISTS (
-                SELECT 1 FROM esporotricose_visita_agentes va
-                JOIN agentes ag ON ag.id_agente = va.id_agente
-                WHERE va.id_visita = v.id_visita AND ag.nome = ?
-            )"""
-        )
-        params.append(filtros["agente"])
+    agente = filtros.get("agente")
+    if agente:
+        if isinstance(agente, (list, tuple)):
+            valores = [v for v in agente if v]
+            if valores:
+                clauses.append(
+                    f"""EXISTS (
+                        SELECT 1 FROM esporotricose_visita_agentes va
+                        JOIN agentes ag ON ag.id_agente = va.id_agente
+                        WHERE va.id_visita = v.id_visita AND ag.nome IN ({','.join('?' * len(valores))})
+                    )"""
+                )
+                params.extend(valores)
+        else:
+            clauses.append(
+                """EXISTS (
+                    SELECT 1 FROM esporotricose_visita_agentes va
+                    JOIN agentes ag ON ag.id_agente = va.id_agente
+                    WHERE va.id_visita = v.id_visita AND ag.nome = ?
+                )"""
+            )
+            params.append(agente)
     return "WHERE " + " AND ".join(clauses), params
 
 

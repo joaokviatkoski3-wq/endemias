@@ -2,6 +2,7 @@ import logging
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 
+from app_core import esporotricose as esporotricose_core
 from app_core import auth as auth_core
 from app_core import db as db_core
 from app_core import utils as utils_core
@@ -27,6 +28,20 @@ def request_int_arg(nome, default, minimo=None, maximo=None):
 
 def build_where(params_dict, alias_v="v", alias_l="l", alias_a="a"):
     return utils_core.build_visit_where(params_dict, alias_v, alias_l)
+
+
+def _dashboard_esporotricose_filtros(args):
+    filtros = {
+        "d_ini": args.get("d_ini", ""),
+        "d_fim": args.get("d_fim", ""),
+    }
+    localidades = [v for v in args.getlist("localidade") if v]
+    agentes = [v for v in args.getlist("agente") if v]
+    if localidades:
+        filtros["localidade"] = localidades
+    if agentes:
+        filtros["agente"] = agentes
+    return filtros
 
 
 @bp.route("/dashboard")
@@ -103,6 +118,10 @@ def api_dashboard():
                 f"SELECT strftime('%Y-%W',v.data) as sem, COUNT(DISTINCT v.id_visita) as total {base} GROUP BY sem ORDER BY sem",
                 params,
             ).fetchall()
+            evolucao_mes = conn.execute(
+                f"SELECT substr(v.data,1,7) as mes, COUNT(DISTINCT v.id_visita) as visitas {base} GROUP BY mes ORDER BY mes",
+                params,
+            ).fetchall()
             por_agente = conn.execute(
                 f"SELECT a.nome, COUNT(DISTINCT v.id_visita) as total {base} AND a.nome IS NOT NULL GROUP BY a.nome ORDER BY total DESC",
                 params,
@@ -156,6 +175,21 @@ def api_dashboard():
         finally:
             conn.close()
 
+        esporo_filtros = _dashboard_esporotricose_filtros(request.args)
+        esporo_resumo = esporotricose_core.resumo(_db_path(), esporo_filtros)
+        esporo_dash = esporotricose_core.dashboard(_db_path(), esporo_filtros)
+        vetores_mes = {dict(r)["mes"]: dict(r)["visitas"] for r in evolucao_mes}
+        esporo_mes = {r["mes"]: r.get("visitas", 0) for r in esporo_dash.get("evolucao", [])}
+        meses = sorted(set(vetores_mes) | set(esporo_mes))
+        comparativo_mensal = [
+            {
+                "mes": mes,
+                "vetores": vetores_mes.get(mes, 0),
+                "esporotricose": esporo_mes.get(mes, 0),
+            }
+            for mes in meses
+        ]
+
         return jsonify({
             "kpi": dict(kpi) if kpi else {},
             "depositos": {
@@ -183,8 +217,14 @@ def api_dashboard():
             "por_loc": [dict(r) for r in por_loc],
             "por_status": [dict(r) for r in por_status],
             "evolucao": [dict(r) for r in evolucao],
+            "evolucao_mensal": [dict(r) for r in evolucao_mes],
+            "comparativo_mensal": comparativo_mensal,
             "por_agente": [dict(r) for r in por_agente],
             "por_imovel": [dict(r) for r in por_imovel],
+            "esporotricose": {
+                "resumo": esporo_resumo,
+                "dashboard": esporo_dash,
+            },
         })
     except Exception:
         logging.exception("Erro em api_dashboard")
