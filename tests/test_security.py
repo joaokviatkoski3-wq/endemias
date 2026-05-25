@@ -656,6 +656,26 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("Saúde do ambiente", html)
         self.assertIn("Backups recentes", html)
 
+    def test_home_operacional_renderiza_blocos_principais(self):
+        client = _client_logado()
+        resp = client.get("/")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Painel operacional", html)
+        self.assertIn("Ritmo dos últimos 14 dias", html)
+        self.assertIn("Atalhos do sistema", html)
+
+    def test_home_admin_exibe_blocos_operacionais_restritos(self):
+        client = _client_logado("admin")
+        resp = client.get("/")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Importações recentes", html)
+        self.assertIn("Backups", html)
+        self.assertIn("/admin/sistema", html)
+
     def test_processar_exibe_historico_de_importacoes(self):
         client = _client_logado("admin")
         resp = client.get("/processar")
