@@ -686,6 +686,9 @@ class MainPagesSmokeTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
+        self.assertIn("Central do agente", html)
+        self.assertIn("agent-workspace", html)
+        self.assertIn("agente_busca", html)
         self.assertIn("Produção de esporotricose", html)
         self.assertIn("médias agregadas dos demais agentes", html)
 
@@ -1234,6 +1237,20 @@ class MainApisSmokeTests(unittest.TestCase):
             primeiro = next(iter(dados.values()))
             self.assertIn("tipos", primeiro)
             self.assertIsInstance(primeiro["tipos"], dict)
+            self.assertIn("esporo_visitas", primeiro)
+            self.assertIn("esporo_animais", primeiro)
+            self.assertIn("esporo_feridas", primeiro)
+
+    def test_mapa_exibe_camadas_de_esporotricose(self):
+        client = _client_logado()
+        resp = client.get("/mapa")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn('data-modo="esporotricose"', html)
+        self.assertIn('data-modo="atencao"', html)
+        self.assertIn("kpi-esporo-visitas", html)
+        self.assertIn("kpi-esporo-feridas", html)
 
     def test_mapa_usa_blueprint_proprio(self):
         endpoints = {

@@ -3,33 +3,77 @@
 {% block page_title %}Relatório por Agente{% endblock %}
 
 {% block extra_css %}<style>
-.agent-selector {
-  background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow);
-  padding:20px; margin-bottom:18px; display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end;
+.agent-workspace {
+  display:grid; grid-template-columns:minmax(240px,300px) 1fr; gap:16px; align-items:start;
 }
-.agent-grid { display:flex; flex-wrap:wrap; gap:8px; flex:1; min-width:200px; }
+.agent-panel, .agent-period-panel {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:var(--shadow);
+}
+.agent-panel { position:sticky; top:84px; overflow:hidden; }
+.agent-panel-hd {
+  padding:16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:10px;
+}
+.agent-panel-title { font-size:13px; font-weight:800; color:var(--text); }
+.agent-count { font-size:11px; color:var(--text3); font-weight:700; }
+.agent-search { padding:12px 14px; border-bottom:1px solid var(--border); }
+.agent-search input { width:100%; }
+.agent-grid {
+  display:flex; flex-direction:column; gap:6px; max-height:460px; overflow:auto; padding:10px;
+}
 .agent-pill {
-  padding:6px 14px; border-radius:20px; border:2px solid var(--border);
-  font-size:12.5px; font-weight:600; cursor:pointer; transition:all .15s;
-  background:var(--surface2); color:var(--text2);
+  width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--border);
+  font-size:12.5px; font-weight:700; cursor:pointer; transition:all .15s;
+  background:var(--surface); color:var(--text2); text-align:left;
+  display:flex; align-items:center; gap:8px; min-height:38px;
 }
-.agent-pill:hover { border-color:var(--brand); color:var(--brand); }
+.agent-pill::before {
+  content:""; width:8px; height:8px; border-radius:50%; background:var(--border); flex-shrink:0;
+}
+.agent-pill:hover { border-color:var(--brand); color:var(--brand); background:var(--surface2); }
 .agent-pill.active { background:var(--brand); color:#fff; border-color:var(--brand); }
+.agent-pill.active::before { background:var(--brand); }
+.agent-pill[hidden] { display:none; }
 
+.agent-main { min-width:0; }
+.agent-period-panel {
+  padding:16px; margin-bottom:16px; display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap;
+}
 .periodo-inputs { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
+.periodo-presets { display:flex; gap:8px; flex-wrap:wrap; }
+.selected-agent-note { color:var(--text2); font-size:12px; min-width:160px; }
+.selected-agent-note strong { color:var(--text); display:block; font-size:14px; margin-top:2px; }
 
 /* Header agente */
 .agent-header {
   background:linear-gradient(135deg,var(--brand) 0%,#0c3080 100%);
   border-radius:var(--radius-lg); padding:24px 28px; margin-bottom:18px; color:#fff;
-  display:flex; align-items:center; gap:20px;
+  display:flex; align-items:center; justify-content:space-between; gap:20px;
 }
+.agent-identity { display:flex; align-items:center; gap:20px; min-width:0; }
 .agent-avatar {
   width:60px; height:60px; border-radius:50%; background:rgba(255,255,255,.2);
   display:flex; align-items:center; justify-content:center; font-size:28px; flex-shrink:0;
 }
 .agent-header-info h2 { font-size:22px; font-weight:700; margin-bottom:4px; }
 .agent-header-info .sub { font-size:12px; color:rgba(255,255,255,.65); }
+.agent-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.agent-actions .btn { background:rgba(255,255,255,.14); color:#fff; border-color:rgba(255,255,255,.32); }
+.agent-actions .btn:hover { background:rgba(255,255,255,.22); }
+
+.agent-overview {
+  display:grid; grid-template-columns:repeat(4,minmax(140px,1fr)); gap:10px; margin-bottom:18px;
+}
+.overview-item {
+  background:var(--surface); border:1px solid var(--border); border-left:4px solid var(--brand);
+  border-radius:var(--radius); padding:13px 14px; box-shadow:var(--shadow);
+}
+.overview-item.teal { border-left-color:var(--teal); }
+.overview-item.amber { border-left-color:var(--amber); }
+.overview-item.red { border-left-color:var(--red); }
+.overview-item span { display:block; color:var(--text3); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; }
+.overview-item strong { display:block; color:var(--text); font-size:22px; margin:4px 0 2px; }
+.overview-item small { color:var(--text2); font-size:11px; }
 
 .perf-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; margin-bottom:18px; }
 
@@ -39,6 +83,17 @@
 
 .chart-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
 @media(max-width:700px) { .chart-row { grid-template-columns:1fr; } }
+@media(max-width:900px) {
+  .agent-workspace { grid-template-columns:1fr; }
+  .agent-panel { position:static; }
+  .agent-grid { max-height:220px; }
+  .agent-overview { grid-template-columns:repeat(2,minmax(130px,1fr)); }
+  .agent-header { align-items:flex-start; flex-direction:column; }
+  .agent-actions { justify-content:flex-start; }
+}
+@media(max-width:520px) {
+  .agent-overview { grid-template-columns:1fr; }
+}
 .ra-section-title {
   font-size:13px; font-weight:800; color:var(--text); margin:18px 0 10px;
   display:flex; align-items:center; gap:8px;
@@ -61,48 +116,65 @@
 {% block content %}
 <div class="page-header">
   <h1><span class="icon"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"></span> Relatório por Agente</h1>
-  <div class="sub">Desempenho individual: visitas, produtividade, depósitos, laboratório e esporotricose</div>
+  <div class="sub">Central do agente com produção individual, esporotricose, gráficos e relatórios por período</div>
 </div>
 
-<!-- Seletor de agente + período -->
-<div class="agent-selector">
-  <div style="flex:1;">
-    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Selecione o agente</div>
-    <div class="agent-grid" id="agente-pills">
+<div class="agent-workspace">
+  <aside class="agent-panel">
+    <div class="agent-panel-hd">
+      <div class="agent-panel-title">Agentes</div>
+      <div class="agent-count"><span id="agentes-visiveis">{{ agentes_glob|length }}</span>/{{ agentes_glob|length }}</div>
+    </div>
+    <div class="agent-search">
+      <input type="search" id="agente_busca" placeholder="Buscar agente">
+    </div>
+    <div class="agent-grid" id="agente-pills" aria-label="Lista de agentes">
       {% for a in agentes_glob %}
       <button type="button"
         class="agent-pill {{ 'active' if a == agente_sel }}"
-        onclick="selecionarAgente('{{ a }}')">{{ a }}</button>
+        data-agent="{{ a }}"
+        onclick="selecionarAgente(this.dataset.agent)">{{ a }}</button>
       {% endfor %}
     </div>
-  </div>
-  <div class="periodo-inputs">
-    <div class="f-g">
-      <label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Início</label>
-      <input type="date" id="ra_d_ini" value="{{ d_ini }}">
-    </div>
-    <div class="f-g">
-      <label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Fim</label>
-      <input type="date" id="ra_d_fim" value="{{ d_fim }}">
-    </div>
-    <button class="btn btn-primary" onclick="buscar()"><img src="/static/icons/atualizar.svg" alt="🔄" class="icon-svg"> Atualizar</button>
-    {% for periodo, label in [('7','7 dias'),('30','30 dias'),('90','90 dias'),('365','1 ano')] %}
-    <button class="btn btn-ghost btn-sm" onclick="setPeriodo({{ periodo }})">{{ label }}</button>
-    {% endfor %}
-  </div>
-</div>
+  </aside>
 
-<!-- Área de resultado -->
-<div id="ra-area">
-  {% if agente_sel %}
-  <div class="loading-box"><div class="spinner"></div></div>
-  {% else %}
-  <div class="empty-agent">
-    <div class="big-icon"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"></div>
-    <p style="font-size:15px;font-weight:600;margin-bottom:6px;">Selecione um agente acima</p>
-    <p>O relatório de desempenho será carregado automaticamente.</p>
-  </div>
-  {% endif %}
+  <main class="agent-main">
+    <div class="agent-period-panel">
+      <div class="selected-agent-note">
+        Agente selecionado
+        <strong id="agente-selecionado-label">{{ agente_sel or 'Nenhum agente selecionado' }}</strong>
+      </div>
+      <div class="periodo-inputs">
+        <div class="f-g">
+          <label>Início</label>
+          <input type="date" id="ra_d_ini" value="{{ d_ini }}">
+        </div>
+        <div class="f-g">
+          <label>Fim</label>
+          <input type="date" id="ra_d_fim" value="{{ d_fim }}">
+        </div>
+        <button class="btn btn-primary" onclick="buscar()"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+      </div>
+      <div class="periodo-presets">
+        {% for periodo, label in [('7','7 dias'),('30','30 dias'),('90','90 dias'),('365','1 ano')] %}
+        <button class="btn btn-ghost btn-sm" onclick="setPeriodo({{ periodo }})">{{ label }}</button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Área de resultado -->
+    <div id="ra-area">
+      {% if agente_sel %}
+      <div class="loading-box"><div class="spinner"></div></div>
+      {% else %}
+      <div class="empty-agent">
+        <div class="big-icon"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"></div>
+        <p style="font-size:15px;font-weight:700;margin-bottom:6px;">Escolha um agente para abrir a central</p>
+        <p>Depois de selecionar, o painel mostra produção, esporotricose, comparativos agregados e atalhos de relatório.</p>
+      </div>
+      {% endif %}
+    </div>
+  </main>
 </div>
 
 <script>
@@ -110,10 +182,28 @@ let agenteAtual = '{{ agente_sel | e }}';
 
 function selecionarAgente(nome) {
   agenteAtual = nome;
-  document.querySelectorAll('.agent-pill').forEach(p => {
-    p.classList.toggle('active', p.textContent.trim() === nome);
-  });
+  atualizarSelecaoVisual();
   buscar();
+}
+
+function atualizarSelecaoVisual() {
+  document.querySelectorAll('.agent-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.agent === agenteAtual);
+  });
+  const label = document.getElementById('agente-selecionado-label');
+  if (label) label.textContent = agenteAtual || 'Nenhum agente selecionado';
+}
+
+function filtrarAgentes() {
+  const termo = (document.getElementById('agente_busca')?.value || '').toLowerCase().trim();
+  let visiveis = 0;
+  document.querySelectorAll('.agent-pill').forEach(p => {
+    const mostrar = !termo || (p.dataset.agent || '').toLowerCase().includes(termo);
+    p.hidden = !mostrar;
+    if (mostrar) visiveis += 1;
+  });
+  const total = document.getElementById('agentes-visiveis');
+  if (total) total.textContent = visiveis;
 }
 
 function setPeriodo(dias) {
@@ -157,10 +247,39 @@ function renderRelatorio(d) {
   let html = `
     <!-- Header agente -->
     <div class="agent-header">
-      <div class="agent-avatar"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"></div>
-      <div class="agent-header-info">
-        <h2>${d.agente}</h2>
-        <div class="sub">Agente de Endemias · Período: ${diasStr}</div>
+      <div class="agent-identity">
+        <div class="agent-avatar"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"></div>
+        <div class="agent-header-info">
+          <h2>${d.agente}</h2>
+          <div class="sub">Agente de Endemias · Período: ${diasStr}</div>
+        </div>
+      </div>
+      <div class="agent-actions">
+        <button class="btn btn-sm" onclick="buscar()"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+        <button class="btn btn-sm" onclick="gerarPDF()"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> Relatório</button>
+      </div>
+    </div>
+
+    <div class="agent-overview">
+      <div class="overview-item">
+        <span>Produção vetorial</span>
+        <strong>${fmtNum(t.total)}</strong>
+        <small>${fmtNum(t.dias)} dias · ${t.media_dia} visitas/dia</small>
+      </div>
+      <div class="overview-item teal">
+        <span>Esporotricose</span>
+        <strong>${fmtNum(espT.visitas||0)}</strong>
+        <small>${fmtNum(espA.total||0)} animais cadastrados</small>
+      </div>
+      <div class="overview-item amber">
+        <span>Acesso pendente</span>
+        <strong>${fmtNum((t.fechados||0) + (t.recusados||0))}</strong>
+        <small>${fmtNum(t.fechados||0)} fechados · ${fmtNum(t.recusados||0)} recusas</small>
+      </div>
+      <div class="overview-item red">
+        <span>Animais com feridas</span>
+        <strong>${fmtNum(espA.com_feridas||0)}</strong>
+        <small>${espA.taxa_feridas||0}% dos animais de esporotricose</small>
       </div>
     </div>
 
@@ -295,9 +414,7 @@ function renderRelatorio(d) {
         </div>
       </div>
     </div>
-
-    <!-- Botão PDF -->
-    <div style="margin-top:16px;display:flex;gap:10px;">
+    <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end;">
       <button class="btn btn-outline" onclick="gerarPDF()" style="gap:6px;">
         <img src="/static/icons/documento.svg" alt="📄" class="icon-svg"> Baixar PDF
       </button>
@@ -426,8 +543,11 @@ function gerarPDF() {
 // Data inputs
 document.getElementById('ra_d_ini').addEventListener('change', buscar);
 document.getElementById('ra_d_fim').addEventListener('change', buscar);
+document.getElementById('agente_busca').addEventListener('input', filtrarAgentes);
 
 // Auto-load se agente já selecionado
+atualizarSelecaoVisual();
+filtrarAgentes();
 if(agenteAtual) buscar();
 </script>
 {% endblock %}

@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify, render_template, request
 
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
+from app_core import esporotricose as esporotricose_core
 from app_core import work_types
 
 
@@ -94,6 +95,39 @@ def api_mapa():
                 """,
                 params_f,
             ).fetchall()
+
+            esporotricose_core.ensure_schema(conn)
+            where_e = "WHERE v.quarteirao IS NOT NULL AND v.id_localidade IS NOT NULL"
+            params_e = []
+            if locs:
+                where_e += f" AND l3.nome IN ({','.join('?' * len(locs))})"
+                params_e += locs
+            if d_ini:
+                where_e += " AND v.data>=?"
+                params_e.append(d_ini)
+            if d_fim:
+                where_e += " AND v.data<=?"
+                params_e.append(d_fim)
+
+            rows_e = conn.execute(
+                f"""
+                SELECT
+                    v.id_localidade,
+                    v.quarteirao,
+                    COUNT(DISTINCT v.id_visita) AS esporo_visitas,
+                    COUNT(DISTINCT a.id_animal) AS esporo_animais,
+                    COUNT(DISTINCT CASE WHEN LOWER(COALESCE(a.feridas,''))='sim' THEN a.id_animal END) AS esporo_feridas,
+                    COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='fechado' THEN v.id_visita END) AS esporo_fechadas,
+                    COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='recusa' THEN v.id_visita END) AS esporo_recusas,
+                    MAX(v.data) AS ultimo_esporotricose
+                FROM esporotricose_visitas v
+                LEFT JOIN localidades l3 ON l3.id_localidade = v.id_localidade
+                LEFT JOIN esporotricose_animais a ON a.id_visita = v.id_visita
+                {where_e}
+                GROUP BY v.id_localidade, v.quarteirao
+                """,
+                params_e,
+            ).fetchall()
         finally:
             conn.close()
 
@@ -109,6 +143,12 @@ def api_mapa():
                 "ultimo_trabalho": None,
                 "focos": 0,
                 "focos_pendentes": 0,
+                "esporo_visitas": 0,
+                "esporo_animais": 0,
+                "esporo_feridas": 0,
+                "esporo_fechadas": 0,
+                "esporo_recusas": 0,
+                "ultimo_esporotricose": None,
             }
             for codigo in work_types.WORK_TYPE_COLORS:
                 entry[codigo.lower()] = 0
@@ -136,6 +176,17 @@ def api_mapa():
                 dados[chave] = mapa_entry_vazio()
             dados[chave]["focos"] = r["total_focos"]
             dados[chave]["focos_pendentes"] = r["focos_pendentes"]
+
+        for r in rows_e:
+            chave = f"{r['id_localidade']}:{r['quarteirao']}"
+            if chave not in dados:
+                dados[chave] = mapa_entry_vazio()
+            dados[chave]["esporo_visitas"] = r["esporo_visitas"] or 0
+            dados[chave]["esporo_animais"] = r["esporo_animais"] or 0
+            dados[chave]["esporo_feridas"] = r["esporo_feridas"] or 0
+            dados[chave]["esporo_fechadas"] = r["esporo_fechadas"] or 0
+            dados[chave]["esporo_recusas"] = r["esporo_recusas"] or 0
+            dados[chave]["ultimo_esporotricose"] = r["ultimo_esporotricose"]
 
         return jsonify(dados)
     except Exception:
