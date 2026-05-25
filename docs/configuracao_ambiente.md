@@ -34,3 +34,30 @@ python app.py
 ```
 
 Antes de mudar o banco real de lugar, pare o sistema, copie `endemias.db` e os arquivos `*.db-wal`/`*.db-shm` se existirem, e so entao inicie apontando para o novo caminho.
+
+## Backup do banco
+
+Para gerar uma copia consistente do SQLite, use o script de backup. Ele usa a API nativa do SQLite, funciona melhor com WAL do que copiar apenas o arquivo `.db`, valida o resultado com `PRAGMA integrity_check` e grava um `.json` de metadados ao lado do backup.
+
+```powershell
+python scripts\backup_banco.py
+```
+
+Por padrao, o arquivo sera salvo em `backups/` ao lado do banco configurado. Para escolher origem e destino:
+
+```powershell
+python scripts\backup_banco.py --db "D:\dados\endemias.db" --destino "E:\Backups\Endemias"
+```
+
+Para manter somente os ultimos 30 backups:
+
+```powershell
+python scripts\backup_banco.py --manter 30
+```
+
+Boa rotina operacional:
+
+- fazer backup antes de importar planilhas grandes ou rodar migracoes;
+- guardar copia em outro disco ou servidor;
+- testar restauracao periodicamente em uma pasta separada;
+- nunca versionar `backups/`, `*.db`, `*.db-wal`, `*.db-shm` ou `secret.key`.

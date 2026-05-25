@@ -22,6 +22,7 @@ import app as endemias_app
 import etl
 from app_core import audit as audit_core
 from app_core import auth as auth_core
+from app_core import backup as backup_core
 from app_core import esporotricose as esporotricose_core
 from app_core import db as db_core
 from app_core import modules as modules_core
@@ -256,6 +257,56 @@ class DatabaseConnectionTests(unittest.TestCase):
                 self.assertEqual(conn.execute("PRAGMA journal_mode").fetchone()[0].lower(), "wal")
             finally:
                 conn.close()
+
+
+class BackupTests(unittest.TestCase):
+    def _criar_db_minimo(self, db_path):
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute("CREATE TABLE dados (id INTEGER PRIMARY KEY, nome TEXT)")
+            conn.execute("INSERT INTO dados (nome) VALUES ('registro')")
+            conn.commit()
+        finally:
+            conn.close()
+
+    def test_cria_backup_sqlite_validado_com_metadados(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "origem.db"
+            destino = Path(tmpdir) / "backups"
+            self._criar_db_minimo(db_path)
+
+            info = backup_core.criar_backup_sqlite(db_path, destino_dir=destino, manter=10)
+
+            backup_path = Path(info["arquivo"])
+            meta_path = backup_path.with_suffix(backup_path.suffix + ".json")
+            self.assertTrue(backup_path.exists())
+            self.assertTrue(meta_path.exists())
+            self.assertEqual(info["integridade"], "ok")
+            conn = sqlite3.connect(backup_path)
+            try:
+                self.assertEqual(conn.execute("SELECT nome FROM dados").fetchone()[0], "registro")
+            finally:
+                conn.close()
+
+    def test_limpa_backups_antigos_respeitando_retencao(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destino = Path(tmpdir)
+            criados = []
+            for i in range(4):
+                arquivo = destino / f"endemias_20260101_00000{i}.db"
+                arquivo.write_text("x", encoding="utf-8")
+                arquivo.with_suffix(".db.json").write_text("{}", encoding="utf-8")
+                os.utime(arquivo, (100 + i, 100 + i))
+                os.utime(arquivo.with_suffix(".db.json"), (100 + i, 100 + i))
+                criados.append(arquivo)
+
+            removidos = backup_core.limpar_backups_antigos(destino, manter=2)
+
+            self.assertEqual([p.name for p in removidos], [criados[1].name, criados[0].name])
+            self.assertFalse(criados[0].exists())
+            self.assertFalse(criados[0].with_suffix(".db.json").exists())
+            self.assertTrue(criados[2].exists())
+            self.assertTrue(criados[3].exists())
 
 
 class CriarBancoScriptTests(unittest.TestCase):
