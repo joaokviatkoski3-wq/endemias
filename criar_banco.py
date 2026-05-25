@@ -375,7 +375,7 @@ def main():
     print("\n[OK] Tabelas:")
     for t in TABELAS_ESPERADAS:
         cur.execute(f'SELECT COUNT(*) FROM "{t}"')
-        print(f"  ✓  {t:<30} {cur.fetchone()[0]} registro(s)")
+        print(f"  [OK] {t:<30} {cur.fetchone()[0]} registro(s)")
 
     # Criar admin inicial se não existir nenhum usuário
     cur.execute("SELECT COUNT(*) FROM usuarios")
@@ -392,7 +392,7 @@ def main():
         print(f"\n[OK] Usuário admin criado.")
         print(f"     Login : admin")
         print(f"     Senha : {senha_gerada}")
-        print(f"     ⚠  Anote esta senha — ela não será exibida novamente.")
+        print("     [!] Anote esta senha — ela não será exibida novamente.")
     else:
         print("\n[OK] Usuários existentes mantidos.")
 

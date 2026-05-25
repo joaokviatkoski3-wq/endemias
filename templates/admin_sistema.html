@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Central do Sistema{% endblock %}
+{% block page_title %}Central do Sistema{% endblock %}
+
+{% block content %}
+<div class="system-shell">
+  <section class="system-hero">
+    <div>
+      <div class="system-kicker">Operacao e manutencao</div>
+      <h1>Central do Sistema</h1>
+      <p>Um painel rapido para conferir saude do banco, backups, importacoes e eventos administrativos.</p>
+    </div>
+    <div class="system-hero-actions">
+      <a class="btn btn-primary" href="/processar"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Processar</a>
+      <a class="btn btn-outline" href="/admin/auditoria"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> Auditoria</a>
+    </div>
+  </section>
+
+  <div class="system-metrics">
+    <div class="system-metric">
+      <span>Banco</span>
+      <strong>{{ "OK" if db_status.integridade == "ok" else "Atenção" }}</strong>
+      <small>{{ db_status.tamanho }} · {{ db_status.tabelas }} tabelas</small>
+    </div>
+    <div class="system-metric">
+      <span>Backups</span>
+      <strong>{{ backups|length }}</strong>
+      <small>{{ backup_dir }}</small>
+    </div>
+    <div class="system-metric">
+      <span>Notificações pendentes</span>
+      <strong>{{ contagens.focos_pendentes }}</strong>
+      <small>Focos aguardando entrega</small>
+    </div>
+    <div class="system-metric">
+      <span>Usuários ativos</span>
+      <strong>{{ contagens.usuarios_ativos }}</strong>
+      <small>{{ contagens.eventos_auditoria }} eventos auditados</small>
+    </div>
+  </div>
+
+  <div class="system-grid">
+    <section class="system-panel system-panel-wide">
+      <div class="system-panel-hd">
+        <div>
+          <h2>Saúde do ambiente</h2>
+          <p>{{ app_version }}</p>
+        </div>
+        <span class="system-status {{ 'ok' if db_status.integridade == 'ok' else 'warn' }}">{{ db_status.integridade }}</span>
+      </div>
+      <dl class="system-facts">
+        <div><dt>Banco</dt><dd>{{ db_status.path }}</dd></div>
+        <div><dt>Instância</dt><dd>{{ instance_dir }}</dd></div>
+        <div><dt>Uploads temporários</dt><dd>{{ upload_temp }}</dd></div>
+        <div><dt>Log</dt><dd>{{ log_path }}</dd></div>
+        <div><dt>WAL ativo</dt><dd>{{ "Sim" if db_status.wal else "Não" }}</dd></div>
+        <div><dt>SHM ativo</dt><dd>{{ "Sim" if db_status.shm else "Não" }}</dd></div>
+      </dl>
+    </section>
+
+    <section class="system-panel">
+      <div class="system-panel-hd">
+        <div>
+          <h2>Backups recentes</h2>
+          <p>Arquivos mais novos na pasta configurada</p>
+        </div>
+      </div>
+      {% if backups %}
+      <div class="system-list">
+        {% for backup in backups %}
+        <div class="system-list-row">
+          <div>
+            <strong>{{ backup.nome }}</strong>
+            <span>{{ backup.modificado_em[:16].replace("T", " ") }} · {{ format_bytes(backup.tamanho_bytes) }}</span>
+          </div>
+          <em class="{{ 'ok' if backup.integridade == 'ok' else '' }}">{{ backup.integridade }}</em>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="system-empty">Nenhum backup encontrado ainda.</div>
+      {% endif %}
+    </section>
+
+    <section class="system-panel">
+      <div class="system-panel-hd">
+        <div>
+          <h2>Importações recentes</h2>
+          <p>Últimos processamentos registrados</p>
+        </div>
+      </div>
+      {% if importacoes %}
+      <div class="system-list">
+        {% for imp in importacoes %}
+        <div class="system-list-row">
+          <div>
+            <strong>{{ imp.status_label }}</strong>
+            <span>{{ imp.criado_em[:16].replace("T", " ") }} · {{ imp.usuario or "sem usuário" }}</span>
+          </div>
+          <em>{{ imp.arquivos|length }} arq.</em>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="system-empty">Nenhuma importação registrada ainda.</div>
+      {% endif %}
+    </section>
+
+    <section class="system-panel system-panel-wide">
+      <div class="system-panel-hd">
+        <div>
+          <h2>Auditoria recente</h2>
+          <p>Últimos eventos sensíveis do sistema</p>
+        </div>
+        <a href="/admin/auditoria" class="system-panel-link">Ver tudo</a>
+      </div>
+      {% if eventos %}
+      <div class="system-timeline">
+        {% for ev in eventos %}
+        <div class="system-event">
+          <span></span>
+          <div>
+            <strong>{{ ev.acao }}</strong>
+            <p>{{ ev.criado_em[:16].replace("T", " ") }} · {{ ev.usuario_nome or "sem usuário" }}{% if ev.entidade %} · {{ ev.entidade }}{% endif %}</p>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="system-empty">Nenhum evento de auditoria registrado ainda.</div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

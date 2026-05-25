@@ -3,14 +3,18 @@ import json
 import secrets
 import string
 from datetime import datetime
+from pathlib import Path
 
 import openpyxl
-from flask import Blueprint, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_file, session, url_for
 from openpyxl.styles import Font, PatternFill
 
 from app_core import audit
 from app_core import auth as auth_core
+from app_core import backup as backup_core
 from app_core import blueprint_helpers as bh
+from app_core import import_history
+from app_core import version as version_core
 
 
 bp = Blueprint("admin", __name__)
@@ -33,12 +37,94 @@ def _excel_safe(value):
     return "'" + text if text[:1] in ("=", "+", "-", "@") else text
 
 
+def _bytes_label(value):
+    value = int(value or 0)
+    unidades = ("B", "KB", "MB", "GB")
+    tamanho = float(value)
+    for unidade in unidades:
+        if tamanho < 1024 or unidade == unidades[-1]:
+            return f"{tamanho:.1f} {unidade}" if unidade != "B" else f"{value} B"
+        tamanho /= 1024
+
+
+def _db_status():
+    db_path = Path(current_app.config["DB_PATH"])
+    wal_path = Path(str(db_path) + "-wal")
+    shm_path = Path(str(db_path) + "-shm")
+    status = {
+        "path": str(db_path),
+        "nome": db_path.name,
+        "existe": db_path.exists(),
+        "tamanho": _bytes_label(db_path.stat().st_size) if db_path.exists() else "0 B",
+        "wal": wal_path.exists(),
+        "shm": shm_path.exists(),
+        "integridade": "nao verificado",
+        "tabelas": 0,
+    }
+    if not db_path.exists():
+        return status
+
+    conn = bh.get_db()
+    try:
+        status["integridade"] = conn.execute("PRAGMA integrity_check").fetchone()[0]
+        status["tabelas"] = conn.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    return status
+
+
+def _contagens_sistema():
+    conn = bh.get_db()
+    try:
+        return {
+            "usuarios_ativos": conn.execute("SELECT COUNT(*) FROM usuarios WHERE ativo=1").fetchone()[0],
+            "visitas_total": conn.execute("SELECT COUNT(*) FROM visitas").fetchone()[0],
+            "focos_pendentes": conn.execute(
+                "SELECT COUNT(*) FROM focos_positivos WHERE status_notificacao='pendente' AND gera_notificacao=1"
+            ).fetchone()[0],
+            "eventos_auditoria": conn.execute(
+                "SELECT COUNT(*) FROM auditoria_eventos"
+            ).fetchone()[0] if conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='auditoria_eventos'"
+            ).fetchone() else 0,
+        }
+    finally:
+        conn.close()
+
+
 @bp.route("/admin/usuarios")
 @login_required
 @nivel_min("admin")
 def admin_usuarios():
     usuarios = bh.q("SELECT * FROM usuarios ORDER BY nivel, nome")
     return render_template("admin_usuarios.html", usuarios=usuarios)
+
+
+@bp.route("/admin/sistema")
+@login_required
+@nivel_min("admin")
+def admin_sistema():
+    db_path = Path(current_app.config["DB_PATH"])
+    backup_dir = db_path.parent / "backups"
+    backups = backup_core.listar_backups(backup_dir, limite=5)
+    importacoes = import_history.listar_importacoes_recentes(bh.get_db, limite=5)
+    eventos = audit.listar_eventos(bh.get_db, limite=8)
+    return render_template(
+        "admin_sistema.html",
+        db_status=_db_status(),
+        contagens=_contagens_sistema(),
+        backups=backups,
+        backup_dir=str(backup_dir),
+        importacoes=importacoes,
+        eventos=eventos,
+        app_version=version_core.APP_VERSION_LABEL,
+        instance_dir=current_app.config["INSTANCE_DIR"],
+        upload_temp=current_app.config["UPLOAD_TEMP"],
+        log_path=current_app.config["LOG_PATH"],
+        format_bytes=_bytes_label,
+    )
 
 
 @bp.route("/admin/auditoria")

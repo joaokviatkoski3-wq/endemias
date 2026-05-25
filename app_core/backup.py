@@ -46,6 +46,37 @@ def limpar_backups_antigos(destino_dir, manter=10, padrao="*.db"):
     return removidos
 
 
+def listar_backups(destino_dir, limite=5):
+    destino = Path(destino_dir)
+    if not destino.exists():
+        return []
+
+    arquivos = sorted(
+        (p for p in destino.glob("*.db") if p.is_file()),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    backups = []
+    for arquivo in arquivos[: max(1, int(limite or 5))]:
+        stat = arquivo.stat()
+        meta = {}
+        meta_path = arquivo.with_suffix(arquivo.suffix + ".json")
+        if meta_path.exists():
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                meta = {}
+        backups.append({
+            "arquivo": str(arquivo),
+            "nome": arquivo.name,
+            "tamanho_bytes": stat.st_size,
+            "modificado_em": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            "integridade": meta.get("integridade", "nao verificado"),
+            "validado": meta.get("validado"),
+        })
+    return backups
+
+
 def criar_backup_sqlite(db_path, destino_dir=None, prefixo="endemias", manter=10, validar=True, agora=None):
     origem = Path(db_path)
     if not origem.exists():

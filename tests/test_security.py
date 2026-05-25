@@ -308,6 +308,22 @@ class BackupTests(unittest.TestCase):
             self.assertTrue(criados[2].exists())
             self.assertTrue(criados[3].exists())
 
+    def test_lista_backups_com_metadados(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destino = Path(tmpdir)
+            arquivo = destino / "endemias_20260101_000000.db"
+            arquivo.write_text("x", encoding="utf-8")
+            arquivo.with_suffix(".db.json").write_text(
+                json.dumps({"integridade": "ok", "validado": True}),
+                encoding="utf-8",
+            )
+
+            backups = backup_core.listar_backups(destino)
+
+            self.assertEqual(backups[0]["nome"], arquivo.name)
+            self.assertEqual(backups[0]["integridade"], "ok")
+            self.assertTrue(backups[0]["validado"])
+
 
 class CriarBancoScriptTests(unittest.TestCase):
     def test_criar_banco_roda_em_base_nova_com_hash_moderno(self):
@@ -629,6 +645,16 @@ class MainPagesSmokeTests(unittest.TestCase):
                 resp = client.get(rota)
                 self.assertEqual(resp.status_code, 200)
                 self.assertIn("text/html", resp.content_type)
+
+    def test_central_do_sistema_admin_responde_200(self):
+        client = _client_logado("admin")
+        resp = client.get("/admin/sistema")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Central do Sistema", html)
+        self.assertIn("Saúde do ambiente", html)
+        self.assertIn("Backups recentes", html)
 
     def test_processar_exibe_historico_de_importacoes(self):
         client = _client_logado("admin")
@@ -1177,9 +1203,10 @@ class MainApisSmokeTests(unittest.TestCase):
         endpoints = {
             str(rule): rule.endpoint
             for rule in endemias_app.app.url_map.iter_rules()
-            if str(rule) in {"/admin/auditoria", "/admin/auditoria/exportar"}
+            if str(rule) in {"/admin/sistema", "/admin/auditoria", "/admin/auditoria/exportar"}
         }
 
+        self.assertEqual(endpoints["/admin/sistema"], "admin.admin_sistema")
         self.assertEqual(endpoints["/admin/auditoria"], "admin.admin_auditoria")
         self.assertEqual(endpoints["/admin/auditoria/exportar"], "admin.admin_auditoria_exportar")
 
@@ -1258,6 +1285,7 @@ class PermissionMatrixTests(unittest.TestCase):
         client = _client_logado("visualizador")
         rotas = [
             "/processar",
+            "/admin/sistema",
             "/admin/usuarios",
             "/admin/auditoria",
         ]
@@ -1271,6 +1299,7 @@ class PermissionMatrixTests(unittest.TestCase):
         client = _client_logado("admin")
         rotas = [
             "/processar",
+            "/admin/sistema",
             "/admin/usuarios",
             "/admin/auditoria",
         ]
