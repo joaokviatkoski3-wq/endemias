@@ -269,6 +269,7 @@ def create_app(config_overrides=None):
         MAX_CONTENT_LENGTH=64 * 1024 * 1024,
         WTF_CSRF_TIME_LIMIT=3600,
         WTF_CSRF_CHECK_DEFAULT=True,
+        CSP_REPORT_ONLY=True,
     )
     if config_overrides:
         flask_app.config.update(config_overrides)

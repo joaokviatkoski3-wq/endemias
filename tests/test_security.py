@@ -528,6 +528,23 @@ class ProtectedRouteTests(unittest.TestCase):
         self.assertEqual(resp.headers["X-Content-Type-Options"], "nosniff")
         self.assertEqual(resp.headers["Referrer-Policy"], "same-origin")
         self.assertEqual(resp.headers["X-Frame-Options"], "SAMEORIGIN")
+        self.assertIn("camera=()", resp.headers["Permissions-Policy"])
+        csp = resp.headers["Content-Security-Policy-Report-Only"]
+        self.assertIn("default-src 'self'", csp)
+        self.assertIn("frame-ancestors 'self'", csp)
+        self.assertIn("form-action 'self'", csp)
+
+    def test_csp_pode_ser_ativada_em_modo_bloqueante(self):
+        app_temp = endemias_app.create_app({
+            "TESTING": True,
+            "DB_PATH": endemias_app.DB_PATH,
+            "CSP_REPORT_ONLY": False,
+        })
+        with app_temp.test_client() as client:
+            resp = client.get("/login")
+
+        self.assertIn("default-src 'self'", resp.headers["Content-Security-Policy"])
+        self.assertNotIn("Content-Security-Policy-Report-Only", resp.headers)
 
     def test_logout_nao_aceita_get(self):
         client = _client_logado()

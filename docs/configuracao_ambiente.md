@@ -61,3 +61,15 @@ Boa rotina operacional:
 - guardar copia em outro disco ou servidor;
 - testar restauracao periodicamente em uma pasta separada;
 - nunca versionar `backups/`, `*.db`, `*.db-wal`, `*.db-shm` ou `secret.key`.
+
+## Politica de seguranca de conteudo
+
+O sistema envia `Content-Security-Policy-Report-Only` por padrao. Esse modo registra a politica no navegador sem bloquear telas, porque ainda existem scripts e estilos inline em alguns templates.
+
+Para testar CSP bloqueante em um ambiente controlado, configure:
+
+```python
+app = create_app({"CSP_REPORT_ONLY": False})
+```
+
+Antes de ativar em producao, valide as telas principais no navegador. A etapa seguinte de endurecimento e mover JavaScript inline para arquivos em `static/js/` e trocar atributos `onclick`/`onchange` por listeners.
