@@ -113,13 +113,26 @@ def get_default_conta_ovos(db_path):
         SELECT data, quarteirao
           FROM visitas
          WHERE tipo='TBO'
-           AND CONTAOVOS_STATUS = 0
+           AND COALESCE(CONTAOVOS_STATUS, 0) = 0
            AND quarteirao IS NOT NULL
          GROUP BY data, quarteirao
          ORDER BY data DESC, COUNT(*) DESC
          LIMIT 1
         """,
     )
+    if not row:
+        row = db_core.query_one(
+            db_path,
+            """
+            SELECT data, quarteirao
+              FROM visitas
+             WHERE tipo='TBO'
+               AND quarteirao IS NOT NULL
+             GROUP BY data, quarteirao
+             ORDER BY data DESC, COUNT(*) DESC
+             LIMIT 1
+            """,
+        )
     return row or {"data": date.today().isoformat(), "quarteirao": ""}
 
 
@@ -183,6 +196,8 @@ def pendencias_envio(db_path, limite_grupos=None):
 
 def salvar_status_conta_ovos(db_path, data, quarteirao, id_localidade=None):
     data = parse_iso_date(data)
+    if quarteirao in (None, ""):
+        return {"ok": True, "atualizados": 0, "data": data, "quarteirao": None}
     quarteirao = parse_int(quarteirao, "quarteirao", 0)
     id_localidade = optional_localidade(id_localidade)
 
@@ -213,6 +228,8 @@ def salvar_status_conta_ovos(db_path, data, quarteirao, id_localidade=None):
 
 def conta_ovos(db_path, data, quarteirao, id_localidade=None):
     data = parse_iso_date(data)
+    if quarteirao in (None, ""):
+        return _conta_ovos_vazio(data, None)
     quarteirao = parse_int(quarteirao, "quarteirao", 0)
     id_localidade = optional_localidade(id_localidade)
 
@@ -310,6 +327,22 @@ def conta_ovos(db_path, data, quarteirao, id_localidade=None):
         "imoveis": imoveis,
         "depositos": depositos,
         "total_visitas": sum(v["visitas"] + v["pendencias"] for v in imoveis.values()),
+    }
+
+
+def _conta_ovos_vazio(data, quarteirao):
+    return {
+        "data": data,
+        "quarteirao": quarteirao,
+        "imoveis": {
+            key: {"visitas": 0, "pendencias": 0, "positivas": 0, "tratadas": 0}
+            for key in ("residencia", "comercio", "tb", "pe", "outros")
+        },
+        "depositos": {
+            code.lower(): {"quantidade": 0, "eliminado": 0, "tratado": 0, "larvicida_mg": 0}
+            for code in DEPOSIT_TYPES
+        },
+        "total_visitas": 0,
     }
 
 

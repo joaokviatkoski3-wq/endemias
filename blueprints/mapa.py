@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, render_template, request
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import esporotricose as esporotricose_core
+from app_core import pontos_estrategicos as pe_core
 from app_core import work_types
 
 
@@ -128,6 +129,44 @@ def api_mapa():
                 """,
                 params_e,
             ).fetchall()
+
+            pe_core.ensure_schema(conn)
+            where_pe = "WHERE pe.id_localidade IS NOT NULL AND pe.quarteirao IS NOT NULL"
+            params_pe = []
+            if locs:
+                where_pe += f" AND pe.localidade IN ({','.join('?' * len(locs))})"
+                params_pe += locs
+            rows_pe = conn.execute(
+                f"""
+                SELECT
+                    pe.id_localidade,
+                    pe.quarteirao,
+                    COUNT(*) AS pes_total,
+                    SUM(CASE WHEN pe.situacao=1 THEN 1 ELSE 0 END) AS pes_ativos,
+                    SUM(CASE WHEN pe.situacao=0 THEN 1 ELSE 0 END) AS pes_inativos,
+                    SUM(CASE WHEN pe.situacao=1 AND (pe.latitude IS NULL OR pe.longitude IS NULL) THEN 1 ELSE 0 END) AS pes_sem_coordenada,
+                    SUM(CASE WHEN pe.situacao=1 AND (
+                        (
+                            SELECT MAX(v.data)
+                              FROM visitas v
+                             WHERE v.tipo='PE'
+                               AND v.id_localidade=pe.id_localidade
+                               AND v.quarteirao=pe.quarteirao
+                        ) IS NULL
+                        OR julianday('now') - julianday((
+                            SELECT MAX(v2.data)
+                              FROM visitas v2
+                             WHERE v2.tipo='PE'
+                               AND v2.id_localidade=pe.id_localidade
+                               AND v2.quarteirao=pe.quarteirao
+                        )) > 20
+                    ) THEN 1 ELSE 0 END) AS pes_atrasados
+                FROM pontos_estrategicos pe
+                {where_pe}
+                GROUP BY pe.id_localidade, pe.quarteirao
+                """,
+                params_pe,
+            ).fetchall()
         finally:
             conn.close()
 
@@ -149,6 +188,11 @@ def api_mapa():
                 "esporo_fechadas": 0,
                 "esporo_recusas": 0,
                 "ultimo_esporotricose": None,
+                "pes_total": 0,
+                "pes_ativos": 0,
+                "pes_inativos": 0,
+                "pes_sem_coordenada": 0,
+                "pes_atrasados": 0,
             }
             for codigo in work_types.WORK_TYPE_COLORS:
                 entry[codigo.lower()] = 0
@@ -187,6 +231,16 @@ def api_mapa():
             dados[chave]["esporo_fechadas"] = r["esporo_fechadas"] or 0
             dados[chave]["esporo_recusas"] = r["esporo_recusas"] or 0
             dados[chave]["ultimo_esporotricose"] = r["ultimo_esporotricose"]
+
+        for r in rows_pe:
+            chave = f"{r['id_localidade']}:{r['quarteirao']}"
+            if chave not in dados:
+                dados[chave] = mapa_entry_vazio()
+            dados[chave]["pes_total"] = r["pes_total"] or 0
+            dados[chave]["pes_ativos"] = r["pes_ativos"] or 0
+            dados[chave]["pes_inativos"] = r["pes_inativos"] or 0
+            dados[chave]["pes_sem_coordenada"] = r["pes_sem_coordenada"] or 0
+            dados[chave]["pes_atrasados"] = r["pes_atrasados"] or 0
 
         return jsonify(dados)
     except Exception:

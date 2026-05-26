@@ -41,6 +41,17 @@
 }
 .dash-insight strong { display:block; color:var(--text); font-size:13px; margin-bottom:3px; }
 .dash-insight span { color:var(--text3); font-size:11.5px; }
+.dash-pendencias {
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:10px;
+}
+.dash-pendencia {
+  border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface2);
+  padding:11px 12px; display:flex; justify-content:space-between; gap:12px; align-items:flex-start;
+}
+.dash-pendencia strong { display:block; color:var(--text); font-size:13px; line-height:1.25; }
+.dash-pendencia span { display:block; color:var(--text3); font-size:11px; margin-top:2px; }
+.dash-pend-tags { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:4px; min-width:90px; }
+.dash-pend-tag { border-radius:999px; padding:2px 7px; background:rgba(245,158,11,.14); color:#b45309; font-size:10px; font-weight:800; white-space:nowrap; }
 @media(max-width:900px){ .dash-overview,.dash-insights { grid-template-columns:1fr 1fr; } }
 @media(max-width:560px){ .dash-overview,.dash-insights { grid-template-columns:1fr; } }
 </style>{% endblock %}
@@ -117,6 +128,14 @@
 </div>
 
 <div id="dash-insights" class="dash-insights"></div>
+
+<div class="chart-card" id="dash-pe-pendencias-card" style="display:none;margin-bottom:16px;">
+  <div class="chart-hd">
+    <div class="chart-title"><img src="/static/icons/alerta.svg" alt="" class="icon-svg"> Pendências de Pontos Estratégicos</div>
+    <a class="btn btn-outline btn-sm" href="/pontos-estrategicos"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"> Abrir PEs</a>
+  </div>
+  <div class="dash-pendencias" id="dash-pe-pendencias"></div>
+</div>
 
 <div id="kpi-area" class="kpi-grid">
   <div class="loading-box"><div class="spinner"></div></div>
@@ -248,6 +267,7 @@ async function buscar() {
   try {
     dados = await apiGet('/api/dashboard?' + qs);
     renderResumoIntegrado();
+    renderPendenciasPE();
     renderKPIs();
     renderGraficos();
   } catch(e) {
@@ -292,6 +312,7 @@ function renderResumoIntegrado() {
   const espResumo = dados.esporotricose?.resumo || {};
   const espTotais = espResumo.totais || {};
   const espAnimais = espResumo.animais || {};
+  const peTotais = dados.pontos_estrategicos?.totais || {};
   const totalCampo = (k.total || 0) + (espTotais.visitas || 0);
   const positividade = espAnimais.total ? Math.round((espAnimais.com_feridas || 0) / espAnimais.total * 100) : 0;
   document.getElementById('dash-resumo-integrado').innerHTML = `
@@ -311,22 +332,23 @@ function renderResumoIntegrado() {
       <small>${fmtNum(espAnimais.com_feridas || 0)} animais com feridas (${positividade}%)</small>
     </div>
     <div class="dash-overview-card">
-      <span>Territorio</span>
-      <strong>${fmtNum((k.quarteiroes || 0) + (espTotais.localidades || 0))}</strong>
-      <small>quarteiroes e localidades com registros</small>
+      <span>Pontos estratégicos</span>
+      <strong>${fmtNum(peTotais.ativos || 0)}</strong>
+      <small>${fmtNum(peTotais.visitados_periodo || 0)} visitados e ${fmtNum(peTotais.bri_periodo || 0)} com BRI no período</small>
     </div>
   `;
   const tbo = dados.tbo_duracao || {};
   document.getElementById('dash-insights').innerHTML = `
     <div class="dash-insight"><strong>${fmtNum(k.fechados || 0)} fechados</strong><span>Imoveis nao acessados em visitas de vetores.</span></div>
-    <div class="dash-insight"><strong>${fmtNum(espTotais.fechadas || 0)} visitas fechadas</strong><span>Ocorrencias de esporotricose sem acesso ao domicilio.</span></div>
-    <div class="dash-insight"><strong>${tbo.n ? fmtMin(tbo.media) : 'sem dados'}</strong><span>Tempo medio das visitas TBO no filtro atual.</span></div>
+    <div class="dash-insight"><strong>${fmtNum(peTotais.atrasados || 0)} PEs atrasados</strong><span>Sem visita PE há mais de 20 dias ou sem histórico.</span></div>
+    <div class="dash-insight"><strong>${fmtNum(peTotais.ativos_sem_coordenada || 0)} sem coordenada</strong><span>Cadastro de PE ainda incompleto para mapa pontual.</span></div>
   `;
 }
 
 function renderKPIs() {
   const k = dados.kpi || {};
   const d = dados.depositos || {};
+  const peTotais = dados.pontos_estrategicos?.totais || {};
   const tv = k.total || 0;
   const norm = k.normais || 0;
   const taxaNorm = tv ? Math.round(norm / tv * 100) : 0;
@@ -340,7 +362,36 @@ function renderKPIs() {
     <div class="kpi purple"><div class="kpi-icon"><img src="/static/icons/casas.svg" alt="" class="icon-svg"></div><div class="kpi-label">Quarteiroes</div><div class="kpi-val">${fmtNum(k.quarteiroes || 0)}</div></div>
     <div class="kpi teal"><div class="kpi-icon"><img src="/static/icons/balde.svg" alt="" class="icon-svg"></div><div class="kpi-label">Dep. inspecionados</div><div class="kpi-val">${fmtNum(d.inspecionados || 0)}</div></div>
     <div class="kpi"><div class="kpi-icon"><img src="/static/icons/relogio.svg" alt="" class="icon-svg"></div><div class="kpi-label">TBO medio</div><div class="kpi-val">${tbo.n ? fmtMin(tbo.media) : '-'}</div><div class="kpi-sub">${fmtNum(tbo.n || 0)} visitas</div></div>
+    <div class="kpi green"><div class="kpi-icon"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"></div><div class="kpi-label">PEs visitados</div><div class="kpi-val">${fmtNum(peTotais.visitados_periodo || 0)}</div><div class="kpi-sub">${fmtNum(peTotais.ativos || 0)} ativos</div></div>
+    <div class="kpi amber"><div class="kpi-icon"><img src="/static/icons/borrifador.svg" alt="" class="icon-svg"></div><div class="kpi-label">PEs com BRI</div><div class="kpi-val">${fmtNum(peTotais.bri_periodo || 0)}</div><div class="kpi-sub">${fmtNum(peTotais.focos_periodo || 0)} com foco no período</div></div>
   `;
+}
+
+function renderPendenciasPE() {
+  const pendencias = dados.pontos_estrategicos?.pendencias || [];
+  const card = document.getElementById('dash-pe-pendencias-card');
+  const box = document.getElementById('dash-pe-pendencias');
+  if (!pendencias.length) {
+    card.style.display = 'none';
+    box.innerHTML = '';
+    return;
+  }
+  card.style.display = 'block';
+  box.innerHTML = pendencias.map(pe => {
+    const tags = [];
+    if (pe.visita_atrasada) tags.push('visita atrasada');
+    (pe.pendencias_cadastro || []).forEach(p => tags.push(p));
+    const subtitulo = [pe.localidade, pe.quarteirao ? `Q ${pe.quarteirao}` : '', pe.ultima_visita_pe ? `última ${pe.ultima_visita_pe}` : 'sem visita'].filter(Boolean).join(' · ');
+    return `
+      <div class="dash-pendencia">
+        <div>
+          <strong>${escapeHtml(pe.codigo_pe || '-')} · ${escapeHtml(pe.nome || '-')}</strong>
+          <span>${escapeHtml(subtitulo)}</span>
+        </div>
+        <div class="dash-pend-tags">${tags.slice(0,3).map(t => `<span class="dash-pend-tag">${escapeHtml(t)}</span>`).join('')}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 function renderGraficos() {

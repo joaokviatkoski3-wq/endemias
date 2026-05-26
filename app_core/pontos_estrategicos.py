@@ -97,18 +97,56 @@ def listar(db_path, filtros=None):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     ensure_schema(conn)
+    _ensure_optional_modules(conn)
     where, params = _where(filtros)
     try:
         rows = [
-            dict(r)
+            _completar_status_operacional(dict(r))
             for r in conn.execute(
-                f"""SELECT * FROM pontos_estrategicos pe
+                f"""SELECT pe.*,
+                        (
+                            SELECT MAX(v.data)
+                              FROM visitas v
+                             WHERE v.tipo='PE'
+                               AND v.id_localidade=pe.id_localidade
+                               AND v.quarteirao=pe.quarteirao
+                        ) AS ultima_visita_pe,
+                        (
+                            SELECT COUNT(DISTINCT v.id_visita)
+                              FROM visitas v
+                             WHERE v.tipo='PE'
+                               AND v.id_localidade=pe.id_localidade
+                               AND v.quarteirao=pe.quarteirao
+                        ) AS visitas_pe_total,
+                        (
+                            SELECT MAX(b.data)
+                              FROM bri_registros b
+                             WHERE b.destino_tratamento='Ponto Estratégico'
+                               AND b.id_localidade=pe.id_localidade
+                               AND b.quarteirao=pe.quarteirao
+                        ) AS ultimo_bri,
+                        (
+                            SELECT COUNT(*)
+                              FROM bri_registros b
+                             WHERE b.destino_tratamento='Ponto Estratégico'
+                               AND b.id_localidade=pe.id_localidade
+                               AND b.quarteirao=pe.quarteirao
+                        ) AS bri_total,
+                        (
+                            SELECT COUNT(*)
+                              FROM focos_positivos f
+                             WHERE f.gera_notificacao=1
+                               AND f.id_localidade=pe.id_localidade
+                               AND f.quarteirao=pe.quarteirao
+                        ) AS focos_total
+                    FROM pontos_estrategicos pe
                     {where}
                     ORDER BY situacao DESC, localidade, quarteirao, nome
                     LIMIT 1000""",
                 params,
             )
         ]
+        rows = _filtrar_status_calculado(rows, filtros)
         totais = dict(
             conn.execute(
                 f"""SELECT
@@ -125,7 +163,137 @@ def listar(db_path, filtros=None):
         )
     finally:
         conn.close()
-    return {"registros": rows, "total": len(rows), "totais": {k: (v or 0) for k, v in totais.items()}}
+    totais = {k: (v or 0) for k, v in totais.items()}
+    if filtros.get("atrasados") or filtros.get("pendencias"):
+        totais = _totais_de_rows(rows)
+    return {"registros": rows, "total": len(rows), "totais": totais}
+
+
+def resumo_operacional(db_path, filtros=None):
+    filtros = filtros or {}
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    ensure_schema(conn)
+    _ensure_optional_modules(conn)
+    where, params = _where(filtros)
+    d_ini = filtros.get("d_ini") or "0001-01-01"
+    d_fim = filtros.get("d_fim") or "9999-12-31"
+    try:
+        totais = dict(conn.execute(
+            f"""SELECT
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN pe.situacao=1 THEN 1 ELSE 0 END) AS ativos,
+                    SUM(CASE WHEN pe.situacao=0 THEN 1 ELSE 0 END) AS inativos,
+                    SUM(CASE WHEN pe.situacao=1 AND (pe.latitude IS NULL OR pe.longitude IS NULL) THEN 1 ELSE 0 END) AS ativos_sem_coordenada,
+                    SUM(CASE WHEN pe.situacao=1 AND (pe.tipo IS NULL OR TRIM(pe.tipo)='') THEN 1 ELSE 0 END) AS ativos_sem_tipo,
+                    SUM(CASE WHEN pe.situacao=1 AND (pe.telefone IS NULL OR TRIM(pe.telefone)='') THEN 1 ELSE 0 END) AS ativos_sem_telefone
+               FROM pontos_estrategicos pe
+               {where}""",
+            params,
+        ).fetchone())
+
+        visitados_periodo = conn.execute(
+            f"""SELECT COUNT(DISTINCT pe.id_pe)
+                  FROM pontos_estrategicos pe
+                  JOIN visitas v ON v.tipo='PE'
+                   AND v.id_localidade=pe.id_localidade
+                   AND v.quarteirao=pe.quarteirao
+                 {where}
+                   AND v.data BETWEEN ? AND ?""",
+            params + [d_ini, d_fim],
+        ).fetchone()[0]
+
+        bri_periodo = conn.execute(
+            f"""SELECT COUNT(DISTINCT pe.id_pe)
+                  FROM pontos_estrategicos pe
+                  JOIN bri_registros b ON b.destino_tratamento='Ponto Estratégico'
+                   AND b.id_localidade=pe.id_localidade
+                   AND b.quarteirao=pe.quarteirao
+                 {where}
+                   AND b.data BETWEEN ? AND ?""",
+            params + [d_ini, d_fim],
+        ).fetchone()[0]
+
+        focos_periodo = conn.execute(
+            f"""SELECT COUNT(DISTINCT pe.id_pe)
+                  FROM pontos_estrategicos pe
+                  JOIN focos_positivos f ON f.gera_notificacao=1
+                   AND f.id_localidade=pe.id_localidade
+                   AND f.quarteirao=pe.quarteirao
+                 {where}
+                   AND f.data BETWEEN ? AND ?""",
+            params + [d_ini, d_fim],
+        ).fetchone()[0]
+
+        atrasados = conn.execute(
+            f"""SELECT COUNT(*) FROM (
+                    SELECT pe.id_pe, MAX(v.data) AS ultima_visita
+                      FROM pontos_estrategicos pe
+                      LEFT JOIN visitas v ON v.tipo='PE'
+                       AND v.id_localidade=pe.id_localidade
+                       AND v.quarteirao=pe.quarteirao
+                     {where}
+                       AND pe.situacao=1
+                     GROUP BY pe.id_pe
+                    HAVING ultima_visita IS NULL OR julianday('now') - julianday(ultima_visita) > 20
+                ) sub""",
+            params,
+        ).fetchone()[0]
+
+        pendencias = [
+            _completar_status_operacional(dict(r))
+            for r in conn.execute(
+                f"""SELECT pe.*,
+                        MAX(v.data) AS ultima_visita_pe,
+                        COUNT(DISTINCT v.id_visita) AS visitas_pe_total,
+                        (
+                            SELECT MAX(b.data) FROM bri_registros b
+                             WHERE b.destino_tratamento='Ponto Estratégico'
+                               AND b.id_localidade=pe.id_localidade
+                               AND b.quarteirao=pe.quarteirao
+                        ) AS ultimo_bri,
+                        (
+                            SELECT COUNT(*) FROM bri_registros b
+                             WHERE b.destino_tratamento='Ponto Estratégico'
+                               AND b.id_localidade=pe.id_localidade
+                               AND b.quarteirao=pe.quarteirao
+                        ) AS bri_total,
+                        (
+                            SELECT COUNT(*) FROM focos_positivos f
+                             WHERE f.gera_notificacao=1
+                               AND f.id_localidade=pe.id_localidade
+                               AND f.quarteirao=pe.quarteirao
+                        ) AS focos_total
+                    FROM pontos_estrategicos pe
+                    LEFT JOIN visitas v ON v.tipo='PE'
+                     AND v.id_localidade=pe.id_localidade
+                     AND v.quarteirao=pe.quarteirao
+                    {where}
+                      AND pe.situacao=1
+                    GROUP BY pe.id_pe
+                   HAVING ultima_visita_pe IS NULL OR julianday('now') - julianday(ultima_visita_pe) > 20
+                       OR pe.latitude IS NULL OR pe.longitude IS NULL
+                       OR pe.tipo IS NULL OR TRIM(pe.tipo)=''
+                   ORDER BY
+                       CASE WHEN ultima_visita_pe IS NULL THEN 0 ELSE 1 END,
+                       ultima_visita_pe,
+                       pe.localidade,
+                       pe.quarteirao
+                   LIMIT 12""",
+                params,
+            )
+        ]
+    finally:
+        conn.close()
+
+    dados = {k: (v or 0) for k, v in totais.items()}
+    dados.update({
+        "visitados_periodo": visitados_periodo or 0,
+        "bri_periodo": bri_periodo or 0,
+        "focos_periodo": focos_periodo or 0,
+        "atrasados": atrasados or 0,
+    })
+    return {"totais": dados, "pendencias": pendencias}
 
 
 def opcoes(db_path):
@@ -286,13 +454,66 @@ def chave_origem(payload):
     return hashlib.md5(base.encode("utf-8")).hexdigest()
 
 
+def _completar_status_operacional(row):
+    ultima = row.get("ultima_visita_pe")
+    if ultima:
+        try:
+            dias = (datetime.now().date() - datetime.fromisoformat(str(ultima)).date()).days
+        except Exception:
+            dias = None
+    else:
+        dias = None
+    row["dias_sem_visita"] = dias
+    row["visita_atrasada"] = int(row.get("situacao") == 1 and (dias is None or dias > 20))
+    row["pendencias_cadastro"] = [
+        label
+        for label, ok in (
+            ("sem tipo", bool(_text(row.get("tipo")))),
+            ("sem telefone", bool(_text(row.get("telefone")))),
+            ("sem coordenada", row.get("latitude") is not None and row.get("longitude") is not None),
+        )
+        if not ok
+    ]
+    return row
+
+
+def _filtrar_status_calculado(rows, filtros):
+    if filtros.get("atrasados") in ("1", 1, True, "true", "sim"):
+        rows = [r for r in rows if r.get("visita_atrasada")]
+    if filtros.get("pendencias") in ("1", 1, True, "true", "sim"):
+        rows = [r for r in rows if r.get("visita_atrasada") or r.get("pendencias_cadastro")]
+    return rows
+
+
+def _totais_de_rows(rows):
+    return {
+        "total": len(rows),
+        "ativos": sum(1 for r in rows if r.get("situacao") == 1),
+        "inativos": sum(1 for r in rows if r.get("situacao") == 0),
+        "sem_tipo": sum(1 for r in rows if not _text(r.get("tipo"))),
+        "sem_telefone": sum(1 for r in rows if not _text(r.get("telefone"))),
+        "sem_coordenadas": sum(1 for r in rows if r.get("latitude") is None or r.get("longitude") is None),
+    }
+
+
+def _ensure_optional_modules(conn):
+    from app_core import bri as bri_core
+
+    bri_core.ensure_schema(conn)
+
+
 def _where(filtros):
     clauses = ["WHERE 1=1"]
     params = []
     if filtros.get("situacao") in ("0", "1", 0, 1):
         clauses.append("AND pe.situacao=?")
         params.append(int(filtros["situacao"]))
-    if filtros.get("localidade"):
+    if isinstance(filtros.get("localidade"), (list, tuple)):
+        valores = [v for v in filtros.get("localidade") if v]
+        if valores:
+            clauses.append(f"AND pe.localidade IN ({','.join('?' * len(valores))})")
+            params.extend(valores)
+    elif filtros.get("localidade"):
         clauses.append("AND pe.localidade=?")
         params.append(filtros["localidade"])
     if filtros.get("tipo"):

@@ -5,6 +5,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 from app_core import esporotricose as esporotricose_core
 from app_core import auth as auth_core
 from app_core import db as db_core
+from app_core import pontos_estrategicos as pe_core
 from app_core import utils as utils_core
 from app_core import work_types
 
@@ -178,6 +179,11 @@ def api_dashboard():
         esporo_filtros = _dashboard_esporotricose_filtros(request.args)
         esporo_resumo = esporotricose_core.resumo(_db_path(), esporo_filtros)
         esporo_dash = esporotricose_core.dashboard(_db_path(), esporo_filtros)
+        pe_resumo = pe_core.resumo_operacional(_db_path(), {
+            "d_ini": request.args.get("d_ini", ""),
+            "d_fim": request.args.get("d_fim", ""),
+            "localidade": request.args.getlist("localidade"),
+        })
         vetores_mes = {dict(r)["mes"]: dict(r)["visitas"] for r in evolucao_mes}
         esporo_mes = {r["mes"]: r.get("visitas", 0) for r in esporo_dash.get("evolucao", [])}
         meses = sorted(set(vetores_mes) | set(esporo_mes))
@@ -225,6 +231,7 @@ def api_dashboard():
                 "resumo": esporo_resumo,
                 "dashboard": esporo_dash,
             },
+            "pontos_estrategicos": pe_resumo,
         })
     except Exception:
         logging.exception("Erro em api_dashboard")

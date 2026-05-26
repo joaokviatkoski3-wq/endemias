@@ -207,6 +207,9 @@
         <button class="modo-btn" data-modo="esporotricose" onclick="setModo(this)">
           <span class="modo-dot" style="background:#06b6d4;"></span> Esporotricose
         </button>
+        <button class="modo-btn" data-modo="pes" onclick="setModo(this)">
+          <span class="modo-dot" style="background:#166534;"></span> Pontos estratégicos
+        </button>
         <button class="modo-btn" data-modo="atencao" onclick="setModo(this)">
           <span class="modo-dot" style="background:#991b1b;"></span> Áreas de atenção
         </button>
@@ -252,6 +255,8 @@
         <div class="map-kpi"><div class="val" id="kpi-focos" style="color:#ef4444;">—</div><div class="lbl">Focos</div></div>
         <div class="map-kpi teal"><div class="val" id="kpi-esporo-visitas">—</div><div class="lbl">Esporotricose</div></div>
         <div class="map-kpi red"><div class="val" id="kpi-esporo-feridas">—</div><div class="lbl">Animais c/ feridas</div></div>
+        <div class="map-kpi"><div class="val" id="kpi-pes">—</div><div class="lbl">PEs ativos</div></div>
+        <div class="map-kpi amber"><div class="val" id="kpi-pes-atrasados">—</div><div class="lbl">PEs atrasados</div></div>
       </div>
     </div>
 
@@ -328,12 +333,19 @@ function corEsporotricose(d) {
   if (d.esporo_animais > 0) return { fill:'#22d3ee', border:'#0891b2' };
   return { fill:'#bae6fd', border:'#0284c7' };
 }
+function corPEs(d) {
+  if (!d || !d.pes_ativos) return { fill:'#94a3b8', border:'#64748b' };
+  if (d.pes_atrasados > 0) return { fill:'#f59e0b', border:'#b45309' };
+  if (d.pes_ativos === 1) return { fill:'#86efac', border:'#16a34a' };
+  return { fill:'#15803d', border:'#166534' };
+}
 function pontuacaoAtencao(d) {
   if (!d) return 0;
   let score = 0;
   score += Math.min(d.focos || 0, 4) * 2;
   score += Math.min(d.focos_pendentes || 0, 3) * 2;
   score += Math.min(d.esporo_feridas || 0, 4) * 2;
+  score += Math.min(d.pes_atrasados || 0, 3) * 2;
   score += Math.min((d.fechados || 0) + (d.esporo_fechadas || 0) + (d.esporo_recusas || 0), 6);
   return score;
 }
@@ -351,6 +363,7 @@ function obterCor(d) {
     case 'focos':      return corFocos(d);
     case 'fechados':   return corFechados(d);
     case 'esporotricose': return corEsporotricose(d);
+    case 'pes':        return corPEs(d);
     case 'atencao':    return corAtencao(d);
     default:           return { fill:'#94a3b8', border:'#64748b' };
   }
@@ -389,6 +402,12 @@ const LEGENDAS = {
     { cor:'#bae6fd', texto:'Visita sem animal cadastrado' },
     { cor:'#22d3ee', texto:'Animais cadastrados' },
     { cor:'#ef4444', texto:'Animal com feridas' },
+  ],
+  pes: [
+    { cor:'#94a3b8', texto:'Sem PE ativo' },
+    { cor:'#86efac', texto:'1 PE ativo em dia' },
+    { cor:'#15803d', texto:'2 ou mais PEs ativos' },
+    { cor:'#f59e0b', texto:'PE com visita atrasada' },
   ],
   atencao: [
     { cor:'#94a3b8', texto:'Sem alerta no período' },
@@ -484,7 +503,7 @@ function mostrarDetalhe(props) {
   const d  = dadosAPI[`${props.Localidade}:${props.id_quart}`];
   const el = document.getElementById('sel-info');
 
-  if (!d || (d.total === 0 && d.esporo_visitas === 0 && d.focos === 0)) {
+  if (!d || (d.total === 0 && d.esporo_visitas === 0 && d.focos === 0 && d.pes_ativos === 0)) {
     el.innerHTML = `<strong>Quarteirão ${props.id_quart}</strong><br>
       <span style="color:var(--text3)">Sem registros no período.</span>`;
     return;
@@ -506,6 +525,7 @@ function mostrarDetalhe(props) {
       <div class="detalhe-metric"><span>Visitas</span><strong>${d.total}</strong></div>
       <div class="detalhe-metric red"><span>Focos</span><strong>${d.focos}</strong></div>
       <div class="detalhe-metric teal"><span>Esporotricose</span><strong>${d.esporo_visitas || 0}</strong></div>
+      <div class="detalhe-metric"><span>PEs ativos</span><strong>${d.pes_ativos || 0}</strong></div>
       <div class="detalhe-metric red"><span>Animais c/ feridas</span><strong>${d.esporo_feridas || 0}</strong></div>
     </div>
     <div class="detalhe-bloco">
@@ -524,6 +544,13 @@ function mostrarDetalhe(props) {
       ${d.ultimo_esporotricose ? `<div class="popup-linha"><span>Última visita</span><span>${d.ultimo_esporotricose}</span></div>` : ''}
     </div>
     <div class="detalhe-bloco">
+      <div class="detalhe-subtitulo">Pontos estratégicos</div>
+      <div class="popup-linha"><span>Ativos</span><span>${d.pes_ativos || 0}</span></div>
+      <div class="popup-linha"><span>Inativos</span><span>${d.pes_inativos || 0}</span></div>
+      <div class="popup-linha"><span>Atrasados</span><span>${d.pes_atrasados || 0}</span></div>
+      <div class="popup-linha"><span>Sem coordenada</span><span>${d.pes_sem_coordenada || 0}</span></div>
+    </div>
+    <div class="detalhe-bloco">
       <div class="detalhe-subtitulo">Atenção territorial</div>
       <div class="popup-linha"><span>Pontuação</span><span>${pontuacaoAtencao(d)}</span></div>
     </div>
@@ -535,7 +562,7 @@ function mostrarDetalhe(props) {
 // ═══════════════════════════════════════════════════════════════════
 function atualizarKPIs() {
   if (!geojsonData) return;
-  let trabalhados = 0, visitas = 0, focos = 0, esporoVisitas = 0, esporoFeridas = 0;
+  let trabalhados = 0, visitas = 0, focos = 0, esporoVisitas = 0, esporoFeridas = 0, pesAtivos = 0, pesAtrasados = 0;
   const total = geojsonData.features.length;
   geojsonData.features.forEach(f => {
     const d = dadosAPI[`${f.properties.Localidade}:${f.properties.id_quart}`];
@@ -545,6 +572,8 @@ function atualizarKPIs() {
       focos += d.focos || 0;
       esporoVisitas += d.esporo_visitas || 0;
       esporoFeridas += d.esporo_feridas || 0;
+      pesAtivos += d.pes_ativos || 0;
+      pesAtrasados += d.pes_atrasados || 0;
     }
   });
   document.getElementById('kpi-trabalhados').textContent = trabalhados.toLocaleString('pt-BR');
@@ -553,6 +582,8 @@ function atualizarKPIs() {
   document.getElementById('kpi-focos').textContent       = focos.toLocaleString('pt-BR');
   document.getElementById('kpi-esporo-visitas').textContent = esporoVisitas.toLocaleString('pt-BR');
   document.getElementById('kpi-esporo-feridas').textContent = esporoFeridas.toLocaleString('pt-BR');
+  document.getElementById('kpi-pes').textContent = pesAtivos.toLocaleString('pt-BR');
+  document.getElementById('kpi-pes-atrasados').textContent = pesAtrasados.toLocaleString('pt-BR');
 }
 
 // ═══════════════════════════════════════════════════════════════════

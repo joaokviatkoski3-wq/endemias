@@ -46,6 +46,8 @@
   <div class="bri-kpi"><div class="bri-kpi-label">Carga</div><div class="bri-kpi-value" id="bri-carga">0</div></div>
   <div class="bri-kpi"><div class="bri-kpi-label">Ovitrampas</div><div class="bri-kpi-value" id="bri-ovi">0</div></div>
   <div class="bri-kpi"><div class="bri-kpi-label">Pontos estratégicos</div><div class="bri-kpi-value" id="bri-pe">0</div></div>
+  <div class="bri-kpi"><div class="bri-kpi-label">PEs vinculados</div><div class="bri-kpi-value" id="bri-pe-vinc">0</div></div>
+  <div class="bri-kpi"><div class="bri-kpi-label">PEs ambíguos</div><div class="bri-kpi-value" id="bri-pe-amb">0</div></div>
   <div class="bri-kpi"><div class="bri-kpi-label">Outros</div><div class="bri-kpi-value" id="bri-outros">0</div></div>
   <div class="bri-kpi"><div class="bri-kpi-label">Imóveis extras</div><div class="bri-kpi-value" id="bri-extras">0</div></div>
 </div>
@@ -62,7 +64,7 @@
     </div>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Data</th><th>SISPNCD</th><th>Agentes</th><th>Destino</th><th>Localidade</th><th>Endereço</th><th>Ovitrampa</th><th>Carga</th><th>Extra</th><th>Origem</th></tr></thead>
+        <thead><tr><th>Data</th><th>SISPNCD</th><th>Agentes</th><th>Destino</th><th>PE</th><th>Localidade</th><th>Endereço</th><th>Ovitrampa</th><th>Carga</th><th>Extra</th><th>Origem</th></tr></thead>
         <tbody id="bri-body"></tbody>
       </table>
     </div>
@@ -107,6 +109,8 @@ async function carregarBri(){
   document.getElementById('bri-carga').textContent = briFmt.format((t.carga || 0) + (t.carga_extra || 0));
   document.getElementById('bri-ovi').textContent = briFmt.format(t.ovitrampas || 0);
   document.getElementById('bri-pe').textContent = briFmt.format(t.pontos_estrategicos || 0);
+  document.getElementById('bri-pe-vinc').textContent = briFmt.format(t.vinculados_pe || 0);
+  document.getElementById('bri-pe-amb').textContent = briFmt.format(t.ambiguos_pe || 0);
   document.getElementById('bri-outros').textContent = briFmt.format(t.outros || 0);
   document.getElementById('bri-extras').textContent = briFmt.format(t.extras || 0);
   renderBriResumo('bri-destinos', d.por_destino || [], 'destino');
@@ -124,11 +128,13 @@ async function carregarListaBri(){
   document.getElementById('bri-body').innerHTML = (d.registros || []).map(r => {
     const endereco = [r.logradouro, r.numero].filter(Boolean).join(', ') || '-';
     const carga = Number(r.quantidade_carga || 0) + Number(r.quantidade_carga_extra || 0);
+    const peInfo = renderBriPE(r);
     return `<tr>
       <td>${r.data || '-'}</td>
       <td>${r.sispncd || '-'}</td>
       <td>${r.agentes || r.agentes_texto || '-'}</td>
       <td>${r.destino_tratamento || '-'}</td>
+      <td>${peInfo}</td>
       <td>${r.localidade || '-'}</td>
       <td>${endereco}</td>
       <td>${r.numero_ovitrampa || '-'}</td>
@@ -136,7 +142,14 @@ async function carregarListaBri(){
       <td><span class="bri-tag ${r.tratou_imovel_extra === 'Sim' ? 'ok' : ''}">${r.tratou_imovel_extra || '-'}</span></td>
       <td><span class="bri-tag">${r.origem_estrutura === 'legada' ? 'Legado' : 'Kobo'}</span></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:18px;">Nenhum registro encontrado.</td></tr>';
+  }).join('') || '<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:18px;">Nenhum registro encontrado.</td></tr>';
+}
+function renderBriPE(r){
+  if (r.destino_tratamento !== 'Ponto Estratégico') return '-';
+  const vinculos = Number(r.pe_vinculos || 0);
+  if (vinculos === 0) return '<span class="bri-tag">sem vínculo</span>';
+  if (vinculos > 1) return `<span class="bri-tag">${vinculos} possíveis</span><br><span style="color:var(--text3);font-size:11px;">${r.codigo_pe || ''} como referência</span>`;
+  return `<strong>${r.codigo_pe || '-'}</strong><br><span style="color:var(--text3);font-size:11px;">${r.ponto_estrategico || ''}</span>`;
 }
 document.getElementById('bri-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarListaBri(); });
 carregarBri().catch(e => toast('Erro ao carregar BRI: ' + e.message, 'error'));

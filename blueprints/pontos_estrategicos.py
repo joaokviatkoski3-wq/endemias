@@ -120,6 +120,8 @@ def _filtros():
         "situacao": request.args.get("situacao", ""),
         "localidade": request.args.get("localidade", ""),
         "tipo": request.args.get("tipo", ""),
+        "atrasados": request.args.get("atrasados", ""),
+        "pendencias": request.args.get("pendencias", ""),
         "busca": request.args.get("busca", "").strip(),
     }
 

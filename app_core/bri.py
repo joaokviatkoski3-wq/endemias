@@ -4,6 +4,7 @@ import os
 import pandas as pd
 
 from app_core import recolhimentos as agentes_core
+from app_core import pontos_estrategicos as pe_core
 
 
 TABLE = "bri_registros"
@@ -147,6 +148,7 @@ def resumo(db_path, filtros=None):
     conn = __import__("sqlite3").connect(db_path)
     conn.row_factory = __import__("sqlite3").Row
     ensure_schema(conn)
+    pe_core.ensure_schema(conn)
     where, params = _where(filtros)
     try:
         totais = dict(conn.execute(
@@ -158,8 +160,24 @@ def resumo(db_path, filtros=None):
                     SUM(CASE WHEN destino_tratamento='Ponto Estratégico' THEN 1 ELSE 0 END) AS pontos_estrategicos,
                     SUM(CASE WHEN destino_tratamento='Outro' THEN 1 ELSE 0 END) AS outros,
                     SUM(CASE WHEN tratou_imovel_extra='Sim' THEN 1 ELSE 0 END) AS extras,
-                    COUNT(DISTINCT localidade) AS localidades
-                FROM bri_registros b {where}""",
+                    COUNT(DISTINCT b.localidade) AS localidades,
+                    SUM(CASE WHEN b.destino_tratamento='Ponto Estratégico' AND (
+                        SELECT COUNT(*) FROM pontos_estrategicos pe
+                         WHERE pe.id_localidade=b.id_localidade
+                           AND pe.quarteirao=b.quarteirao
+                    ) = 1 THEN 1 ELSE 0 END) AS vinculados_pe,
+                    SUM(CASE WHEN b.destino_tratamento='Ponto Estratégico' AND (
+                        SELECT COUNT(*) FROM pontos_estrategicos pe
+                         WHERE pe.id_localidade=b.id_localidade
+                           AND pe.quarteirao=b.quarteirao
+                    ) > 1 THEN 1 ELSE 0 END) AS ambiguos_pe,
+                    SUM(CASE WHEN b.destino_tratamento='Ponto Estratégico' AND (
+                        SELECT COUNT(*) FROM pontos_estrategicos pe
+                         WHERE pe.id_localidade=b.id_localidade
+                           AND pe.quarteirao=b.quarteirao
+                    ) = 0 THEN 1 ELSE 0 END) AS sem_vinculo_pe
+                FROM bri_registros b
+                {where}""",
             params,
         ).fetchone())
         por_destino = [dict(r) for r in conn.execute(
@@ -190,15 +208,36 @@ def listar(db_path, filtros=None):
     conn = __import__("sqlite3").connect(db_path)
     conn.row_factory = __import__("sqlite3").Row
     ensure_schema(conn)
+    pe_core.ensure_schema(conn)
     where, params = _where(filtros, busca=True)
     try:
         rows = [dict(r) for r in conn.execute(
             f"""SELECT b.*,
+                       CASE WHEN b.destino_tratamento='Ponto Estratégico' THEN (
+                           SELECT COUNT(*) FROM pontos_estrategicos pe
+                            WHERE pe.id_localidade=b.id_localidade
+                              AND pe.quarteirao=b.quarteirao
+                       ) ELSE 0 END AS pe_vinculos,
+                       CASE WHEN b.destino_tratamento='Ponto Estratégico' THEN (
+                           SELECT pe.codigo_pe FROM pontos_estrategicos pe
+                            WHERE pe.id_localidade=b.id_localidade
+                              AND pe.quarteirao=b.quarteirao
+                            ORDER BY pe.situacao DESC, pe.codigo_pe
+                            LIMIT 1
+                       ) END AS codigo_pe,
+                       CASE WHEN b.destino_tratamento='Ponto Estratégico' THEN (
+                           SELECT pe.nome FROM pontos_estrategicos pe
+                            WHERE pe.id_localidade=b.id_localidade
+                              AND pe.quarteirao=b.quarteirao
+                            ORDER BY pe.situacao DESC, pe.codigo_pe
+                            LIMIT 1
+                       ) END AS ponto_estrategico,
                        (SELECT GROUP_CONCAT(a.nome, ', ')
                           FROM bri_agentes ba
                           JOIN agentes a ON a.id_agente=ba.id_agente
                          WHERE ba.id_bri=b.id_bri) AS agentes
-                  FROM bri_registros b {where}
+                  FROM bri_registros b
+                  {where}
                  ORDER BY b.data DESC, b.hora DESC, b.localidade
                  LIMIT 500""",
             params,
