@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Pontos Estratégicos{% endblock %}
+{% block page_title %}Pontos Estratégicos{% endblock %}
+
+{% block extra_css %}<style>
+.pe-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;}
+.pe-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);}
+.pe-kpi-label{font-size:10px;color:var(--text3);font-weight:800;text-transform:uppercase;letter-spacing:.4px;}
+.pe-kpi-value{font-size:26px;color:#166534;font-weight:800;line-height:1.1;margin-top:4px;font-variant-numeric:tabular-nums;}
+.pe-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;}
+.pe-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;}
+.pe-status{display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:800;background:rgba(34,197,94,.12);color:#15803d;}
+.pe-status.off{background:rgba(148,163,184,.18);color:#475569;}
+.pe-code{font-weight:900;color:#166534;font-variant-numeric:tabular-nums;}
+.pe-muted{color:var(--text3);font-size:11px;}
+.pe-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+.pe-form .full{grid-column:1/-1;}
+.pe-modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:80;padding:18px;}
+.pe-modal.open{display:flex;}
+.pe-dialog{width:min(860px,100%);max-height:92vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-lg);}
+.pe-dialog-hd{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border);}
+.pe-dialog-bd{padding:16px;}
+.pe-dialog-ft{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--border);}
+@media(max-width:720px){.pe-form{grid-template-columns:1fr;}.pe-actions{justify-content:stretch}.pe-actions .btn{flex:1;}}
+</style>{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><span class="icon"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"></span> Pontos Estratégicos</h1>
+  <div class="sub">Cadastro mestre dos locais fixos visitados quinzenalmente</div>
+</div>
+
+<div class="filter-card" style="margin-bottom:16px;">
+  <div class="filter-body open">
+    <div class="pe-filters">
+      <div class="f-g"><label>Pesquisa</label><input type="search" id="pe-busca" placeholder="Código, local, endereço, CNPJ..."></div>
+      <div class="f-g"><label>Localidade</label><select id="pe-localidade"><option value="">Todas</option>{% for loc in opcoes.localidades %}<option value="{{ loc }}">{{ loc }}</option>{% endfor %}</select></div>
+      <div class="f-g"><label>Tipo</label><select id="pe-tipo"><option value="">Todos</option>{% for tipo in opcoes.tipos %}<option value="{{ tipo }}">{{ tipo }}</option>{% endfor %}</select></div>
+      <div class="f-g"><label>Situação</label><select id="pe-situacao"><option value="">Todas</option><option value="1">Ativos</option><option value="0">Inativos</option></select></div>
+      <div class="pe-actions">
+        <button class="btn btn-outline" type="button" onclick="carregarPEs()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button>
+        <button class="btn btn-primary" type="button" onclick="abrirPE()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Novo PE</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="pe-grid">
+  <div class="pe-kpi"><div class="pe-kpi-label">Total</div><div class="pe-kpi-value" id="pe-total">0</div></div>
+  <div class="pe-kpi"><div class="pe-kpi-label">Ativos</div><div class="pe-kpi-value" id="pe-ativos">0</div></div>
+  <div class="pe-kpi"><div class="pe-kpi-label">Inativos</div><div class="pe-kpi-value" id="pe-inativos">0</div></div>
+  <div class="pe-kpi"><div class="pe-kpi-label">Sem tipo</div><div class="pe-kpi-value" id="pe-sem-tipo">0</div></div>
+  <div class="pe-kpi"><div class="pe-kpi-label">Sem telefone</div><div class="pe-kpi-value" id="pe-sem-telefone">0</div></div>
+  <div class="pe-kpi"><div class="pe-kpi-label">Sem coordenadas</div><div class="pe-kpi-value" id="pe-sem-coordenadas">0</div></div>
+</div>
+
+<div class="chart-card">
+  <div class="chart-hd">
+    <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Cadastro de PEs</div>
+    <span class="table-info" id="pe-info"></span>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Código</th><th>Local</th><th>Localidade</th><th>Quadra</th><th>Endereço</th><th>Tipo</th><th>Contato</th><th>Situação</th><th>Ações</th></tr></thead>
+      <tbody id="pe-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="pe-modal" id="pe-modal" aria-hidden="true">
+  <div class="pe-dialog">
+    <div class="pe-dialog-hd">
+      <strong id="pe-modal-title">Novo PE</strong>
+      <button class="btn btn-icon" type="button" onclick="fecharPE()" title="Fechar"><img src="/static/icons/fechar.svg" alt="" class="icon-svg"></button>
+    </div>
+    <div class="pe-dialog-bd">
+      <input type="hidden" id="pe-id">
+      <div class="pe-form">
+        <div class="f-g"><label>Código</label><input id="pe-codigo" placeholder="Automático" disabled></div>
+        <div class="f-g"><label>Situação</label><select id="pe-form-situacao"><option value="1">Ativo</option><option value="0">Inativo</option></select></div>
+        <div class="f-g full"><label>Local</label><input id="pe-nome" required></div>
+        <div class="f-g"><label>Localidade</label><input id="pe-form-localidade" list="pe-localidades-list"></div>
+        <div class="f-g"><label>Quarteirão</label><input id="pe-quarteirao" type="number" min="0"></div>
+        <div class="f-g"><label>Logradouro</label><input id="pe-logradouro"></div>
+        <div class="f-g"><label>Número</label><input id="pe-numero"></div>
+        <div class="f-g"><label>Tipo</label><input id="pe-form-tipo" list="pe-tipos-list"></div>
+        <div class="f-g"><label>Telefone</label><input id="pe-telefone"></div>
+        <div class="f-g"><label>CNPJ</label><input id="pe-cnpj"></div>
+        <div class="f-g"><label>Razão social</label><input id="pe-razao-social"></div>
+        <div class="f-g"><label>Latitude</label><input id="pe-latitude" inputmode="decimal"></div>
+        <div class="f-g"><label>Longitude</label><input id="pe-longitude" inputmode="decimal"></div>
+        <div class="f-g"><label>Data inclusão</label><input id="pe-data-inclusao" type="date"></div>
+        <div class="f-g"><label>Data desativação</label><input id="pe-data-desativacao" type="date"></div>
+        <div class="f-g full"><label>Observações</label><textarea id="pe-observacoes" rows="3"></textarea></div>
+      </div>
+      <datalist id="pe-localidades-list">{% for loc in opcoes.localidades %}<option value="{{ loc }}"></option>{% endfor %}</datalist>
+      <datalist id="pe-tipos-list">{% for tipo in opcoes.tipos %}<option value="{{ tipo }}"></option>{% endfor %}</datalist>
+    </div>
+    <div class="pe-dialog-ft">
+      <button class="btn btn-outline" type="button" onclick="fecharPE()">Cancelar</button>
+      <button class="btn btn-primary" type="button" onclick="salvarPE()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}<script>
+const peFmt = new Intl.NumberFormat('pt-BR');
+const peCampos = ['nome','quarteirao','logradouro','numero','telefone','cnpj','latitude','longitude','observacoes'];
+function peParams(){
+  const p = new URLSearchParams();
+  ['busca','localidade','tipo','situacao'].forEach(k => {
+    const el = document.getElementById('pe-' + k);
+    if (el && el.value) p.set(k, el.value);
+  });
+  return p;
+}
+async function peJson(url, opts={}){
+  const resp = await fetch(url, opts);
+  const data = await resp.json().catch(() => ({}));
+  if(!resp.ok) throw new Error(data.erro || `HTTP ${resp.status}`);
+  return data;
+}
+async function carregarPEs(){
+  const d = await peJson('/api/pontos-estrategicos?' + peParams().toString());
+  const t = d.totais || {};
+  [['total','total'],['ativos','ativos'],['inativos','inativos'],['sem-tipo','sem_tipo'],['sem-telefone','sem_telefone'],['sem-coordenadas','sem_coordenadas']].forEach(([id,k]) => {
+    document.getElementById('pe-' + id).textContent = peFmt.format(t[k] || 0);
+  });
+  document.getElementById('pe-info').textContent = `${peFmt.format(d.total || 0)} registro(s)`;
+  document.getElementById('pe-body').innerHTML = (d.registros || []).map(r => {
+    const endereco = [r.logradouro, r.numero].filter(Boolean).join(', ') || '-';
+    const contato = [r.telefone, r.cnpj].filter(Boolean).join(' | ') || '<span class="pe-muted">sem contato</span>';
+    return `<tr>
+      <td><span class="pe-code">${r.codigo_pe || '-'}</span></td>
+      <td><strong>${r.nome || '-'}</strong><div class="pe-muted">${r.razao_social || ''}</div></td>
+      <td>${r.localidade || '-'}</td>
+      <td>${r.quarteirao ?? '-'}</td>
+      <td>${endereco}</td>
+      <td>${r.tipo || '<span class="pe-muted">sem tipo</span>'}</td>
+      <td>${contato}</td>
+      <td><span class="pe-status ${Number(r.situacao) === 1 ? '' : 'off'}">${Number(r.situacao) === 1 ? 'Ativo' : 'Inativo'}</span></td>
+      <td>
+        <button class="btn btn-icon" type="button" onclick="editarPE(${r.id_pe})" title="Editar"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button>
+        <button class="btn btn-icon" type="button" onclick="alternarPE(${r.id_pe}, ${Number(r.situacao) === 1 ? 0 : 1})" title="${Number(r.situacao) === 1 ? 'Inativar' : 'Reativar'}"><img src="/static/icons/${Number(r.situacao) === 1 ? 'lixeira.svg' : 'check.svg'}" alt="" class="icon-svg"></button>
+      </td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:18px;">Nenhum PE encontrado.</td></tr>';
+}
+function abrirPE(reg={}){
+  document.getElementById('pe-modal-title').textContent = reg.id_pe ? 'Editar PE' : 'Novo PE';
+  document.getElementById('pe-id').value = reg.id_pe || '';
+  document.getElementById('pe-codigo').value = reg.codigo_pe || '';
+  document.getElementById('pe-form-situacao').value = String(reg.situacao ?? 1);
+  document.getElementById('pe-form-localidade').value = reg.localidade || '';
+  document.getElementById('pe-form-tipo').value = reg.tipo || '';
+  document.getElementById('pe-data-inclusao').value = reg.data_inclusao || '';
+  document.getElementById('pe-data-desativacao').value = reg.data_desativacao || '';
+  document.getElementById('pe-razao-social').value = reg.razao_social || '';
+  peCampos.forEach(c => document.getElementById('pe-' + c.replace('_','-')).value = reg[c] ?? '');
+  document.getElementById('pe-modal').classList.add('open');
+}
+function fecharPE(){ document.getElementById('pe-modal').classList.remove('open'); }
+async function editarPE(id){
+  abrirPE(await peJson(`/api/pontos-estrategicos/${id}`));
+}
+function payloadPE(){
+  return {
+    nome: document.getElementById('pe-nome').value.trim(),
+    situacao: document.getElementById('pe-form-situacao').value,
+    localidade: document.getElementById('pe-form-localidade').value.trim(),
+    quarteirao: document.getElementById('pe-quarteirao').value,
+    logradouro: document.getElementById('pe-logradouro').value.trim(),
+    numero: document.getElementById('pe-numero').value.trim(),
+    tipo: document.getElementById('pe-form-tipo').value.trim(),
+    telefone: document.getElementById('pe-telefone').value.trim(),
+    cnpj: document.getElementById('pe-cnpj').value.trim(),
+    razao_social: document.getElementById('pe-razao-social').value.trim(),
+    latitude: document.getElementById('pe-latitude').value,
+    longitude: document.getElementById('pe-longitude').value,
+    data_inclusao: document.getElementById('pe-data-inclusao').value,
+    data_desativacao: document.getElementById('pe-data-desativacao').value,
+    observacoes: document.getElementById('pe-observacoes').value.trim(),
+  };
+}
+async function salvarPE(){
+  const id = document.getElementById('pe-id').value;
+  const data = payloadPE();
+  if(!data.nome){ toast('Informe o local do PE.', 'error'); return; }
+  await peJson(id ? `/api/pontos-estrategicos/${id}` : '/api/pontos-estrategicos', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+    body:JSON.stringify(data)
+  });
+  fecharPE();
+  toast('PE salvo com sucesso.', 'success');
+  carregarPEs();
+}
+async function alternarPE(id, situacao){
+  await peJson(`/api/pontos-estrategicos/${id}/situacao`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+    body:JSON.stringify({situacao})
+  });
+  carregarPEs();
+}
+document.getElementById('pe-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarPEs(); });
+carregarPEs().catch(e => toast('Erro ao carregar PEs: ' + e.message, 'error'));
+</script>{% endblock %}

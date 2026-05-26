@@ -21,7 +21,9 @@ from app_core import utils as utils_core
 from app_core import work_types
 from blueprints.admin import bp as admin_bp
 from blueprints.agenda import bp as agenda_bp
+from blueprints.amostras_animais import bp as amostras_animais_bp
 from blueprints.auth import bp as auth_bp
+from blueprints.bri import bp as bri_bp
 from blueprints.consultas import bp as consultas_bp
 from blueprints.conta_ovos_sispncd import bp as conta_ovos_sispncd_bp
 from blueprints.esporotricose import bp as esporotricose_bp
@@ -30,6 +32,8 @@ from blueprints.home import bp as home_bp
 from blueprints.mapa import bp as mapa_bp
 from blueprints.notificacoes import bp as notificacoes_bp
 from blueprints.processar import bp as processar_bp
+from blueprints.pontos_estrategicos import bp as pontos_estrategicos_bp
+from blueprints.recolhimentos import bp as recolhimentos_bp
 from blueprints.relatorio_agente import bp as relatorio_agente_bp
 
 
@@ -104,6 +108,8 @@ def _register_blueprints(flask_app):
     flask_app.register_blueprint(auth_bp)
     flask_app.register_blueprint(admin_bp)
     flask_app.register_blueprint(agenda_bp)
+    flask_app.register_blueprint(amostras_animais_bp)
+    flask_app.register_blueprint(bri_bp)
     flask_app.register_blueprint(conta_ovos_sispncd_bp)
     flask_app.register_blueprint(consultas_bp)
     flask_app.register_blueprint(esporotricose_bp)
@@ -112,6 +118,8 @@ def _register_blueprints(flask_app):
     flask_app.register_blueprint(mapa_bp)
     flask_app.register_blueprint(notificacoes_bp)
     flask_app.register_blueprint(processar_bp)
+    flask_app.register_blueprint(pontos_estrategicos_bp)
+    flask_app.register_blueprint(recolhimentos_bp)
     flask_app.register_blueprint(relatorio_agente_bp)
 
 

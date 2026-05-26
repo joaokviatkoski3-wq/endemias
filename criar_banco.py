@@ -13,6 +13,7 @@ import sqlite3, os
 from datetime import datetime
 
 from app_core import auth as auth_core
+from app_core import pontos_estrategicos as pe_core
 
 BANCO = "endemias.db"
 
@@ -312,7 +313,7 @@ TABELAS_ESPERADAS = [
     "usuarios", "localidades", "agentes", "visitas", "visita_agentes",
     "depositos_inspecionados", "tratamentos", "coletas",
     "resultados_laboratorio", "focos_positivos", "agenda_eventos",
-    "importacoes",
+    "importacoes", "pontos_estrategicos",
 ]
 
 
@@ -335,6 +336,7 @@ def main():
     conn = sqlite3.connect(BANCO)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SQL)
+    pe_core.ensure_schema(conn)
     conn.commit()
 
     # Migração: adicionar coluna 'codigo' se banco já existia sem ela

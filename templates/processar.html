@@ -15,7 +15,7 @@
   <div class="chart-card" style="margin-bottom:18px;">
     <div class="chart-hd">
       <div class="chart-title"><img src="/static/icons/pasta.svg" alt="📂" class="icon-svg"> Arquivos</div>
-      <div style="font-size:11px;color:var(--text3);">PE_, TB_, TBO_, PVE_, ESPOROTRICOSE_ e LARVAS_</div>
+      <div style="font-size:11px;color:var(--text3);">PE_, TB_, TBO_, PVE_, ESPOROTRICOSE_, RECOLHIMENTO_, AMOSTRA_ANIMAIS_, BRI_ e LARVAS_</div>
     </div>
 
     <div id="dropzone"
@@ -44,6 +44,15 @@
       <span style="background:#14b8a618;color:#14b8a6;border:1px solid #14b8a640;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
         ESPOROTRICOSE_ Visitas de esporotricose
       </span>
+      <span style="background:#f59e0b18;color:#b45309;border:1px solid #f59e0b40;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
+        RECOLHIMENTO_ Materiais
+      </span>
+      <span style="background:#8b5cf618;color:#7c3aed;border:1px solid #8b5cf640;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
+        AMOSTRA_ANIMAIS_ Amostra de animais
+      </span>
+      <span style="background:#06b6d418;color:#0e7490;border:1px solid #06b6d440;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
+        BRI_ Borrifamento residual
+      </span>
     </div>
 
     <div style="display:flex;gap:10px;align-items:center;">
@@ -53,6 +62,19 @@
       </button>
     </div>
   </div>
+</div>
+
+<div class="chart-card" style="margin-bottom:18px;" id="card-consolidados">
+  <div class="chart-hd">
+    <div>
+      <div class="chart-title"><img src="/static/icons/grafico_barra.svg" alt="Consolidados" class="icon-svg"> Consolidados Excel</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;">Gerados somente quando solicitado; cada arquivo tem abas Visitas e Coletas.</div>
+    </div>
+    <button class="btn btn-primary btn-sm" id="btn-gerar-todos" onclick="gerarConsolidados('TODOS')">
+      <img src="/static/icons/importar.svg" alt="" class="icon-svg"> Gerar todos
+    </button>
+  </div>
+  <div class="consolidados-list" data-context="principal"></div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════
@@ -187,16 +209,15 @@
 
   <div class="chart-card" style="margin-top:14px;" id="card-downloads" style="display:none;">
     <div class="chart-hd">
-      <div class="chart-title"><img src="/static/icons/grafico_barra.svg" alt="📊" class="icon-svg"> Consolidados Excel</div>
-      <div style="font-size:11px;color:var(--text3);">Gerados automaticamente após o processamento</div>
+      <div>
+        <div class="chart-title"><img src="/static/icons/grafico_barra.svg" alt="Consolidados" class="icon-svg"> Consolidados Excel</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;">A importação foi concluída. Gere os consolidados agora se precisar atualizar os arquivos.</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="gerarConsolidados('TODOS')">
+        <img src="/static/icons/importar.svg" alt="" class="icon-svg"> Gerar todos
+      </button>
     </div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;padding:4px 0 8px;">
-      {% for tipo in TIPOS_TRABALHO %}
-      <a href="/saida/download/{{ tipo.codigo }}" class="btn btn-outline" style="border-color:{{ tipo.cor }};color:{{ tipo.cor }};">
-        <img src="/static/icons/importar.svg" alt="📥" class="icon-svg"> {{ tipo.codigo }}_consolidado.xlsx
-      </a>
-      {% endfor %}
-    </div>
+    <div class="consolidados-list" data-context="commit"></div>
   </div>
 </div>
 
@@ -222,6 +243,12 @@
 .imp-cinza{background:var(--surface2);color:var(--text3);border:1px solid var(--border);}
 .imp-arquivos{display:flex;flex-wrap:wrap;gap:4px;max-width:520px;}
 .imp-arquivos span{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:11px;color:var(--text2);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.consolidado-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;}
+.consolidado-item{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);padding:10px;display:flex;flex-direction:column;gap:8px;min-height:112px;}
+.consolidado-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+.consolidado-codigo{font-size:13px;font-weight:800;color:var(--text);}
+.consolidado-meta{font-size:11px;color:var(--text3);line-height:1.45;}
+.consolidado-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;}
 </style>
 
 <script>
@@ -230,7 +257,8 @@ let arquivos = [];
 let currentJobId = null;
 let logDryRun = '';
 
-const CORES = Object.assign({}, WORK_TYPE_COLORS, {LARVAS:'#ef4444', ESPOROTRICOSE:'#14b8a6'});
+const CORES = Object.assign({}, WORK_TYPE_COLORS, {LARVAS:'#ef4444', ESPOROTRICOSE:'#14b8a6', RECOLHIMENTO:'#f59e0b', AMOSTRA_ANIMAIS:'#8b5cf6', BRI:'#06b6d4'});
+const WORK_TYPES = {{ TIPOS_TRABALHO|map(attribute='codigo')|list|tojson }};
 
 // ── Helpers de tela ───────────────────────────────────────────────────────────
 function mostrar(id) {
@@ -357,17 +385,30 @@ function finalizarDryRun(ok, sumario) {
   document.getElementById('sumario-ok').style.display    = ok ? 'block' : 'none';
 
   // Tabela sumário
-  let html = '<table class="sumario-table"><thead><tr><th>Arquivo</th><th>Tipo</th><th>Visitas novas</th><th>Coletas/animais</th></tr></thead><tbody>';
+  let html = '<table class="sumario-table"><thead><tr><th>Arquivo</th><th>Tipo</th><th>Registros novos</th><th>Coletas/animais/materiais</th></tr></thead><tbody>';
   if (sumario.length) {
     sumario.forEach(s => {
       const cor = CORES[s.tipo] || '#64748b';
       const label = s.tipo === 'ESPOROTRICOSE' ? 'Esporotricose' : (WORK_TYPE_LABELS[s.tipo] || s.tipo);
+      const labelFinal = s.tipo === 'RECOLHIMENTO'
+        ? 'Recolhimento de materiais'
+        : s.tipo === 'AMOSTRA_ANIMAIS'
+          ? 'Amostra de animais'
+        : s.tipo === 'BRI'
+          ? 'BRI'
+          : label;
       const secundarios = s.tipo === 'ESPOROTRICOSE'
         ? (s.animais_novos ?? s.coletas_novas ?? 0)
+        : s.tipo === 'RECOLHIMENTO'
+          ? (s.materiais_novos ?? 0)
+        : s.tipo === 'AMOSTRA_ANIMAIS'
+          ? (s.animais_novos ?? s.coletas_novas ?? 0)
+        : s.tipo === 'BRI'
+          ? (s.carga_nova ?? 0)
         : (s.coletas_novas ?? s.coletas ?? 0);
       html += `<tr>
         <td style="font-size:12px;">${s.arquivo}</td>
-        <td><span class="sumario-tipo" style="background:${cor}18;color:${cor};">${s.tipo} - ${label}</span></td>
+        <td><span class="sumario-tipo" style="background:${cor}18;color:${cor};">${s.tipo} - ${labelFinal}</span></td>
         <td style="font-weight:700;">${s.visitas_novas ?? s.visitas ?? 0}</td>
         <td>${secundarios}</td>
       </tr>`;
@@ -429,6 +470,7 @@ async function confirmar() {
         badge.className = 'badge badge-entregue'; badge.textContent = 'Gravado com sucesso';
         toast('Dados gravados no banco com sucesso!', 'success');
         document.getElementById('card-downloads').style.display = 'block';
+        carregarStatusConsolidados();
       } else {
         badge.className = 'badge badge-naoloc'; badge.textContent = 'Concluído com erros';
         toast('Importação concluída com erros.', 'error');
@@ -447,6 +489,67 @@ async function confirmar() {
 }
 
 // ── Helpers de log ────────────────────────────────────────────────────────────
+async function carregarStatusConsolidados() {
+  try {
+    const resp = await fetch('/saida/consolidados/status');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    renderConsolidados(data.tipos || []);
+  } catch (e) {
+    renderConsolidados([]);
+  }
+}
+
+function renderConsolidados(tipos) {
+  const porTipo = new Map((tipos || []).map(t => [t.tipo, t]));
+  const html = `<div class="consolidado-grid">${WORK_TYPES.map(tipo => {
+    const info = porTipo.get(tipo) || {tipo, existe:false, gerado_em:null};
+    const cor = WORK_TYPE_COLORS[tipo] || '#64748b';
+    const status = info.existe
+      ? `Gerado em ${info.gerado_em || '-'}`
+      : 'Ainda não gerado';
+    const download = info.existe
+      ? `<a href="/saida/download/${tipo}" class="btn btn-outline btn-sm" style="border-color:${cor};color:${cor};"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Baixar</a>`
+      : `<button class="btn btn-outline btn-sm" disabled>Baixar</button>`;
+    return `<div class="consolidado-item">
+      <div class="consolidado-top">
+        <div>
+          <div class="consolidado-codigo">${tipo}_consolidado.xlsx</div>
+          <div class="consolidado-meta">Abas: Visitas e Coletas<br>${status}</div>
+        </div>
+        <span class="sumario-tipo" style="background:${cor}18;color:${cor};">${tipo}</span>
+      </div>
+      <div class="consolidado-actions">
+        <button class="btn btn-ghost btn-sm" onclick="gerarConsolidados('${tipo}')">Gerar</button>
+        ${download}
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+  document.querySelectorAll('.consolidados-list').forEach(el => { el.innerHTML = html; });
+}
+
+async function gerarConsolidados(tipo) {
+  const btnTodos = document.getElementById('btn-gerar-todos');
+  if (btnTodos) btnTodos.disabled = true;
+  toast(tipo === 'TODOS' ? 'Gerando consolidados...' : `Gerando consolidado ${tipo}...`, 'info');
+  try {
+    const resp = await fetch('/saida/gerar-consolidados', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify({tipo})
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) throw new Error(data.erro || `HTTP ${resp.status}`);
+    renderConsolidados(data.tipos || []);
+    const gerados = (data.resultados || []).filter(r => r.caminho).length;
+    toast(gerados ? 'Consolidados atualizados.' : 'Não há dados para gerar consolidados.', gerados ? 'success' : 'info');
+  } catch (e) {
+    toast('Erro ao gerar consolidados: ' + e.message, 'error');
+  } finally {
+    if (btnTodos) btnTodos.disabled = false;
+  }
+}
+
 async function responseToEventSource(response) {
   const stream = { onmessage: null, onerror: null, close() {} };
   const reader = response.body.getReader();
@@ -503,5 +606,7 @@ function novoProcessamento() {
   renderFileList();
   mostrar('area-upload');
 }
+
+carregarStatusConsolidados();
 </script>
 {% endblock %}

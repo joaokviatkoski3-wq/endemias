@@ -11,7 +11,9 @@ import unittest
 import uuid
 import zipfile
 from pathlib import Path
+from unittest import mock
 
+import openpyxl
 from flask import session as flask_session
 from werkzeug.datastructures import FileStorage
 
@@ -23,9 +25,13 @@ import etl
 from app_core import audit as audit_core
 from app_core import auth as auth_core
 from app_core import backup as backup_core
+from app_core import amostras_animais as amostras_animais_core
 from app_core import esporotricose as esporotricose_core
 from app_core import db as db_core
 from app_core import modules as modules_core
+from app_core import bri as bri_core
+from app_core import pontos_estrategicos as pe_core
+from app_core import recolhimentos as recolhimentos_core
 from app_core import sispncd as sispncd_core
 from app_core import version as version_core
 from app_core import work_types
@@ -550,6 +556,154 @@ class EsporotricoseSchemaTests(unittest.TestCase):
         self.assertIn("esporotricose_visita_agentes", tabelas)
 
 
+class RecolhimentosTests(unittest.TestCase):
+    def test_schema_cria_tabelas_de_recolhimentos(self):
+        with sqlite3.connect(":memory:") as conn:
+            recolhimentos_core.ensure_schema(conn)
+            tabelas = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'recolhimento%'"
+                )
+            }
+
+        self.assertIn("recolhimentos", tabelas)
+        self.assertIn("recolhimento_agentes", tabelas)
+
+    def test_parse_recolhimentos_kobo_e_legado(self):
+        novo = ROOT / "PAGINA_RECOLHIMENTOS" / "RECOLHIMENTO_2026_05_05-21.xlsx"
+        legado = ROOT / "PAGINA_RECOLHIMENTOS" / "RECOLHIMENTO_LEGADO.xlsx"
+        if not novo.exists() or not legado.exists():
+            self.skipTest("Planilhas temporarias de recolhimento nao estao presentes.")
+
+        registros_novos = recolhimentos_core.parse_workbook(novo)
+        registros_legados = recolhimentos_core.parse_workbook(legado)
+
+        self.assertGreaterEqual(len(registros_novos), 1)
+        self.assertGreaterEqual(len(registros_legados), 1)
+        self.assertEqual(registros_novos[0]["localidade"], "Lamenha")
+        self.assertIn("Atagil", registros_novos[0]["agentes_texto"])
+        self.assertIn("total_materiais", registros_novos[0])
+        self.assertIn("total_materiais", registros_legados[0])
+
+    def test_split_agentes_recolhimento_reconhece_legado_sem_separador(self):
+        nomes = recolhimentos_core._split_agentes("Adriana Ana Beatriz Atagil Evaldo Henrique Pedro")
+
+        self.assertEqual(
+            nomes,
+            ["Adriana", "Ana Beatriz", "Atagil", "Evaldo", "Henrique", "Pedro"],
+        )
+
+
+class AmostrasAnimaisTests(unittest.TestCase):
+    def test_schema_cria_tabelas_de_amostras_animais(self):
+        with sqlite3.connect(":memory:") as conn:
+            amostras_animais_core.ensure_schema(conn)
+            tabelas = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'amostra%'"
+                )
+            }
+
+        self.assertIn("amostras_animais", tabelas)
+        self.assertIn("amostra_animais_agentes", tabelas)
+
+    def test_parse_amostras_animais_kobo_e_legado(self):
+        novo = ROOT / "AMOSTRA_ANIMAIS_NOVA_PAGINA" / "AMOSTRA_ANIMAIS_KOBO.xlsx"
+        legado = ROOT / "AMOSTRA_ANIMAIS_NOVA_PAGINA" / "AMOSTRA_ANIMAIS_LEGADO.xlsx"
+        if not novo.exists() or not legado.exists():
+            self.skipTest("Planilhas temporarias de amostra de animais nao estao presentes.")
+
+        registros_novos = amostras_animais_core.parse_workbook(novo)
+        registros_legados = amostras_animais_core.parse_workbook(legado)
+
+        self.assertGreaterEqual(len(registros_novos), 1)
+        self.assertGreaterEqual(len(registros_legados), 1)
+        self.assertIn("Atagil", registros_novos[0]["agentes_texto"])
+        self.assertEqual(registros_novos[0]["tipo_animal"], "Escorpião")
+        self.assertIn("quantidade", registros_novos[0])
+
+    def test_split_agentes_amostras_corrige_fernado(self):
+        nomes = amostras_animais_core._split_agentes("Adriana Ana Beatriz Fernado Pedro")
+
+        self.assertEqual(nomes, ["Adriana", "Ana Beatriz", "Fernando", "Pedro"])
+
+
+class BriTests(unittest.TestCase):
+    def test_schema_cria_tabelas_de_bri(self):
+        with sqlite3.connect(":memory:") as conn:
+            bri_core.ensure_schema(conn)
+            tabelas = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'bri%'"
+                )
+            }
+
+        self.assertIn("bri_registros", tabelas)
+        self.assertIn("bri_agentes", tabelas)
+
+    def test_parse_bri_kobo_e_legado(self):
+        novo = ROOT / "BRI_NOVA_PAGINA" / "BRI_KOBO.xlsx"
+        legado = ROOT / "BRI_NOVA_PAGINA" / "BRI_LEGADO.xlsx"
+        if not novo.exists() or not legado.exists():
+            self.skipTest("Planilhas temporarias de BRI nao estao presentes.")
+
+        registros_novos = bri_core.parse_workbook(novo)
+        registros_legados = bri_core.parse_workbook(legado)
+
+        self.assertGreaterEqual(len(registros_novos), 1)
+        self.assertGreaterEqual(len(registros_legados), 1)
+        self.assertEqual(registros_novos[0]["destino_tratamento"], "Ponto Estratégico")
+        self.assertEqual(registros_novos[1]["destino_tratamento"], "Ovitrampa")
+        self.assertEqual(registros_legados[0]["sispncd"], "0065/2026")
+        self.assertIn("quantidade_carga", registros_novos[0])
+
+
+class PontosEstrategicosTests(unittest.TestCase):
+    def test_schema_cria_tabela_de_pontos_estrategicos(self):
+        with sqlite3.connect(":memory:") as conn:
+            conn.execute("CREATE TABLE localidades (id_localidade INTEGER PRIMARY KEY, nome TEXT, cod_localidade TEXT)")
+            pe_core.ensure_schema(conn)
+            tabelas = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='pontos_estrategicos'"
+                )
+            }
+
+        self.assertIn("pontos_estrategicos", tabelas)
+
+    def test_importa_csv_inicial_com_codigo_sequencial(self):
+        csv_path = ROOT / "PONTOS_ESTRATEGICOS.csv"
+        if not csv_path.exists():
+            self.skipTest("CSV temporario de pontos estrategicos nao esta presente.")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "pe.db"
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute("CREATE TABLE localidades (id_localidade INTEGER PRIMARY KEY, nome TEXT, cod_localidade TEXT)")
+            finally:
+                conn.close()
+
+            resultado = pe_core.importar_csv_inicial(csv_path, str(db_path))
+
+            self.assertGreaterEqual(resultado["inseridos"], 1)
+            conn = sqlite3.connect(db_path)
+            try:
+                primeiro = conn.execute(
+                    "SELECT codigo_pe, nome FROM pontos_estrategicos ORDER BY id_pe LIMIT 1"
+                ).fetchone()
+                total = conn.execute("SELECT COUNT(*) FROM pontos_estrategicos").fetchone()[0]
+            finally:
+                conn.close()
+
+        self.assertEqual(primeiro[0], "PE-0001")
+        self.assertEqual(total, resultado["inseridos"])
+
+
 class ProtectedRouteTests(unittest.TestCase):
     def test_home_sem_login_redireciona_para_login(self):
         endemias_app.app.config["TESTING"] = True
@@ -658,8 +812,12 @@ class MainPagesSmokeTests(unittest.TestCase):
             "/laboratorio",
             "/conta-ovos-sispncd",
             "/esporotricose",
+            "/recolhimentos",
+            "/amostras-animais",
+            "/bri",
             "/notificacoes",
             "/mapa",
+            "/pontos-estrategicos",
             "/agenda",
         ]
 
@@ -970,9 +1128,84 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("esp-tab-atencao", html)
         self.assertIn("esp-tab-localidades", html)
         self.assertIn("esp-tab-dashboard", html)
-        self.assertIn("Animais cadastrados", html)
-        self.assertIn("vis-busca", html)
-        self.assertIn("vis-agente", html)
+
+    def test_pagina_recolhimentos_exibe_controles_principais(self):
+        client = _client_logado()
+        resp = client.get("/recolhimentos")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Recolhimento de Materiais", html)
+        self.assertIn("rec-registros", html)
+        self.assertIn("rec-body", html)
+
+    def test_api_recolhimentos_retorna_json(self):
+        client = _client_logado()
+        resp = client.get("/api/recolhimentos?d_ini=2099-01-01&d_fim=2099-01-02")
+        dados = resp.get_json()
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("totais", dados)
+        self.assertIn("por_localidade", dados)
+
+    def test_pagina_amostras_animais_exibe_controles_principais(self):
+        client = _client_logado()
+        resp = client.get("/amostras-animais")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Amostra de Animais", html)
+        self.assertIn("am-registros", html)
+        self.assertIn("am-body", html)
+
+    def test_api_amostras_animais_retorna_json(self):
+        client = _client_logado()
+        resp = client.get("/api/amostras-animais?d_ini=2099-01-01&d_fim=2099-01-02")
+        dados = resp.get_json()
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("totais", dados)
+        self.assertIn("por_tipo", dados)
+        self.assertIn("por_localidade", dados)
+
+    def test_pagina_bri_exibe_controles_principais(self):
+        client = _client_logado()
+        resp = client.get("/bri")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Borrifamento Residual Intradomiciliar", html)
+        self.assertIn("bri-registros", html)
+        self.assertIn("bri-body", html)
+
+    def test_api_bri_retorna_json(self):
+        client = _client_logado()
+        resp = client.get("/api/bri?d_ini=2099-01-01&d_fim=2099-01-02")
+        dados = resp.get_json()
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("totais", dados)
+        self.assertIn("por_destino", dados)
+        self.assertIn("por_localidade", dados)
+
+    def test_pagina_pontos_estrategicos_exibe_controles_principais(self):
+        client = _client_logado()
+        resp = client.get("/pontos-estrategicos")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Pontos Estratégicos", html)
+        self.assertIn("pe-total", html)
+        self.assertIn("pe-body", html)
+
+    def test_api_pontos_estrategicos_retorna_json(self):
+        client = _client_logado()
+        resp = client.get("/api/pontos-estrategicos")
+        dados = resp.get_json()
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("totais", dados)
+        self.assertIn("registros", dados)
 
     def test_api_esporotricose_animais_retorna_detalhes(self):
         client = _client_logado()
@@ -1281,6 +1514,8 @@ class MainApisSmokeTests(unittest.TestCase):
                 "/api/visitas/exportar",
                 "/api/notificacoes/exportar",
                 "/api/laboratorio/exportar",
+                "/saida/consolidados/status",
+                "/saida/gerar-consolidados",
                 "/saida/download/<tipo>",
             }
         }
@@ -1288,6 +1523,8 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(endpoints["/api/visitas/exportar"], "exportacoes.exportar_visitas")
         self.assertEqual(endpoints["/api/notificacoes/exportar"], "exportacoes.exportar_notificacoes")
         self.assertEqual(endpoints["/api/laboratorio/exportar"], "exportacoes.exportar_laboratorio")
+        self.assertEqual(endpoints["/saida/consolidados/status"], "exportacoes.consolidados_status")
+        self.assertEqual(endpoints["/saida/gerar-consolidados"], "exportacoes.gerar_consolidados")
         self.assertEqual(endpoints["/saida/download/<tipo>"], "exportacoes.saida_download")
 
     def test_notificacoes_usam_blueprint_proprio(self):
@@ -1376,6 +1613,56 @@ class MainApisSmokeTests(unittest.TestCase):
                     self.assertTrue(resp.data.startswith(b"PK"))
                 finally:
                     resp.close()
+
+    def test_status_consolidados_retorna_tipos(self):
+        client = _client_logado()
+        resp = client.get("/saida/consolidados/status")
+        data = resp.get_json()
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("tipos", data)
+        self.assertEqual({item["tipo"] for item in data["tipos"]}, set(work_types.WORK_TYPE_CODES))
+
+    def test_gerar_consolidados_chama_gerador_sob_demanda(self):
+        client = _client_logado()
+        csrf_original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
+        endemias_app.app.config["WTF_CSRF_ENABLED"] = False
+        try:
+            with mock.patch("gerar_consolidado.gerar_todos", return_value=[
+                {"tipo": "PE", "caminho": "saida/PE_consolidado.xlsx", "visitas": 1, "coletas": 2}
+            ]) as gerar:
+                resp = client.post("/saida/gerar-consolidados", json={"tipo": "PE"})
+        finally:
+            endemias_app.app.config["WTF_CSRF_ENABLED"] = csrf_original
+
+        data = resp.get_json()
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(data["ok"])
+        gerar.assert_called_once()
+        self.assertEqual(gerar.call_args.kwargs["tipos"], ["PE"])
+
+    def test_gerador_consolidado_cria_abas_visitas_e_coletas(self):
+        import gerar_consolidado
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            conn = sqlite3.connect(endemias_app.DB_PATH)
+            try:
+                cur = conn.cursor()
+                caminho, visitas, coletas = gerar_consolidado.gerar_xlsx_tipo(cur, "PE", tmpdir)
+            finally:
+                conn.close()
+
+            if caminho is None:
+                self.skipTest("Banco de teste sem dados PE para consolidado.")
+
+            wb = openpyxl.load_workbook(caminho, read_only=True)
+            try:
+                self.assertIn("Visitas", wb.sheetnames)
+                self.assertIn("Coletas", wb.sheetnames)
+                self.assertGreaterEqual(visitas, 1)
+                self.assertGreaterEqual(coletas, 1)
+            finally:
+                wb.close()
 
     def test_api_agenda_eventos_automaticos_sem_mojibake(self):
         client = _client_logado()

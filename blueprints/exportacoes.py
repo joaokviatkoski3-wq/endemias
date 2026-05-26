@@ -29,6 +29,10 @@ def _base_dir():
     return current_app.root_path
 
 
+def _saida_dir():
+    return os.path.join(_base_dir(), "saida")
+
+
 def build_where(params_dict, alias_v="v", alias_l="l"):
     return utils_core.build_visit_where(params_dict, alias_v, alias_l)
 
@@ -189,13 +193,76 @@ def _gerar_xlsx(cabecalho, rows, nome):
     )
 
 
+def _info_consolidado(tipo):
+    caminho = os.path.join(_saida_dir(), f"{tipo}_consolidado.xlsx")
+    if not os.path.exists(caminho):
+        return {
+            "tipo": tipo,
+            "existe": False,
+            "download": f"/saida/download/{tipo}",
+            "gerado_em": None,
+            "tamanho": 0,
+        }
+    mtime = os.path.getmtime(caminho)
+    return {
+        "tipo": tipo,
+        "existe": True,
+        "download": f"/saida/download/{tipo}",
+        "gerado_em": datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %H:%M"),
+        "tamanho": os.path.getsize(caminho),
+    }
+
+
+@bp.route("/saida/consolidados/status")
+@login_required
+def consolidados_status():
+    return jsonify({
+        "tipos": [_info_consolidado(tipo) for tipo in work_types.WORK_TYPE_CODES]
+    })
+
+
+@bp.route("/saida/gerar-consolidados", methods=["POST"])
+@login_required
+def gerar_consolidados():
+    try:
+        payload = request.get_json(silent=True) or {}
+        tipo = (payload.get("tipo") or "TODOS").upper()
+        tipos = list(work_types.WORK_TYPE_CODES) if tipo == "TODOS" else [tipo]
+        if any(t not in work_types.WORK_TYPE_CODES for t in tipos):
+            abort(404)
+
+        from gerar_consolidado import gerar_todos
+
+        logs = []
+
+        class JsonLogger:
+            def log(self, texto, tag="normal"):
+                logs.append({"msg": texto, "tag": tag})
+
+        resultados = gerar_todos(
+            logger=JsonLogger(),
+            banco_dados=_db_path(),
+            pasta_saida=_saida_dir(),
+            tipos=tipos,
+        ) or []
+        return jsonify({
+            "ok": True,
+            "logs": logs,
+            "resultados": resultados,
+            "tipos": [_info_consolidado(t) for t in work_types.WORK_TYPE_CODES],
+        })
+    except Exception:
+        logging.exception("Erro ao gerar consolidados")
+        return jsonify({"ok": False, "erro": "Erro interno. Verifique endemias.log"}), 500
+
+
 @bp.route("/saida/download/<tipo>")
 @login_required
 def saida_download(tipo):
     tipo = (tipo or "").upper()
     if tipo not in work_types.WORK_TYPE_CODES:
         abort(404)
-    caminho = os.path.join(_base_dir(), "saida", f"{tipo}_consolidado.xlsx")
+    caminho = os.path.join(_saida_dir(), f"{tipo}_consolidado.xlsx")
     if not os.path.exists(caminho):
         return f"Arquivo {tipo}_consolidado.xlsx ainda nao gerado. Execute um processamento primeiro.", 404
     return send_file(
