@@ -33,6 +33,7 @@ from app_core import bri as bri_core
 from app_core import pontos_estrategicos as pe_core
 from app_core import recolhimentos as recolhimentos_core
 from app_core import sispncd as sispncd_core
+from app_core import sispncd_indice as sispncd_indice_core
 from app_core import version as version_core
 from app_core import work_types
 from blueprints import processar as processar_bp
@@ -702,6 +703,73 @@ class PontosEstrategicosTests(unittest.TestCase):
 
         self.assertEqual(primeiro[0], "PE-0001")
         self.assertEqual(total, resultado["inseridos"])
+
+
+class SispncdIndiceTests(unittest.TestCase):
+    def _criar_planilha_indice(self, path):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "indice"
+        ws.append(["TIPO", "SISPNCD", "DATA", "LOCALIDADE"])
+        ws.append(["PE", "0000/0000", "2026-02-06", "Lamenha"])
+        ws.append(["PE", "0006/2006", "2026-01-06", "São João Batista"])
+        ws.append(["TBO", "0163/2026", "2026-04-13", "Graziela"])
+        wb.save(path)
+
+    def _criar_banco_visitas(self, path):
+        conn = sqlite3.connect(path)
+        try:
+            conn.executescript("""
+                CREATE TABLE localidades (
+                    id_localidade INTEGER PRIMARY KEY,
+                    nome TEXT NOT NULL
+                );
+                CREATE TABLE visitas (
+                    id_visita TEXT PRIMARY KEY,
+                    tipo TEXT NOT NULL,
+                    data TEXT NOT NULL,
+                    localidade TEXT,
+                    id_localidade INTEGER,
+                    SISPNCD TEXT
+                );
+                INSERT INTO localidades(id_localidade, nome) VALUES
+                    (1, 'Lamenha'),
+                    (2, 'São João Batista'),
+                    (3, 'Graziela');
+                INSERT INTO visitas(id_visita, tipo, data, localidade, id_localidade, SISPNCD) VALUES
+                    ('v1', 'PE', '2026-02-06', 'Lamenha', 1, NULL),
+                    ('v2', 'PE', '2026-01-06', 'São João Batista', 2, NULL),
+                    ('v3', 'TBO', '2026-04-13', 'Graziela', 3, NULL),
+                    ('v4', 'TB', '2026-04-13', 'Graziela', 3, NULL);
+            """)
+            conn.commit()
+        finally:
+            conn.close()
+
+    def test_indice_corrige_codigo_e_aplica_0000(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "endemias.db"
+            xlsx_path = Path(tmpdir) / "INDICE_SISPNCD.xlsx"
+            self._criar_banco_visitas(db_path)
+            self._criar_planilha_indice(xlsx_path)
+
+            previa = sispncd_indice_core.previsualizar(str(db_path), str(xlsx_path))
+            resultado = sispncd_indice_core.aplicar(str(db_path), str(xlsx_path))
+
+            conn = sqlite3.connect(db_path)
+            try:
+                valores = dict(conn.execute("SELECT id_visita, SISPNCD FROM visitas").fetchall())
+            finally:
+                conn.close()
+
+        self.assertEqual(previa["visitas_atualizaveis"], 3)
+        self.assertEqual(previa["correcoes"][0]["de"], "0006/2006")
+        self.assertEqual(previa["correcoes"][0]["para"], "0006/2026")
+        self.assertEqual(resultado["atualizados"], 3)
+        self.assertEqual(valores["v1"], "0000/0000")
+        self.assertEqual(valores["v2"], "0006/2026")
+        self.assertEqual(valores["v3"], "0163/2026")
+        self.assertIsNone(valores["v4"])
 
 
 class ProtectedRouteTests(unittest.TestCase):
@@ -1377,13 +1445,13 @@ class MainApisSmokeTests(unittest.TestCase):
                 row = conn.execute(
                     """SELECT data, tipo
                         FROM visitas
-                        WHERE SISPNCD IS NULL
+                        WHERE SISPNCD IS NULL OR TRIM(SISPNCD)=''
                         ORDER BY data DESC
                         LIMIT 1"""
                 ).fetchone()
                 conn.close()
                 self.assertIsNotNone(row)
-                ano, semana, _ = sispncd_core.date.fromisoformat(row[0]).isocalendar()
+                ano, semana = sispncd_core.epidemiological_week_for_date(row[0])
 
                 client = _client_logado("admin")
                 codigo = "9999/2026"
@@ -1401,13 +1469,13 @@ class MainApisSmokeTests(unittest.TestCase):
                         "SELECT COUNT(*) FROM visitas WHERE SISPNCD=?",
                         (codigo,),
                     ).fetchone()[0]
-                    nulos_restantes_no_codigo = conn.execute(
-                        "SELECT COUNT(*) FROM visitas WHERE SISPNCD IS NULL"
+                    pendentes_restantes_no_codigo = conn.execute(
+                        "SELECT COUNT(*) FROM visitas WHERE SISPNCD IS NULL OR TRIM(SISPNCD)=''"
                     ).fetchone()[0]
                 finally:
                     conn.close()
                 self.assertEqual(gravados, atualizados)
-                self.assertGreaterEqual(nulos_restantes_no_codigo, 0)
+                self.assertGreaterEqual(pendentes_restantes_no_codigo, 0)
             finally:
                 endemias_app.app.config["DB_PATH"] = original_db
                 endemias_app.app.config["WTF_CSRF_ENABLED"] = csrf_original
@@ -1420,6 +1488,11 @@ class MainApisSmokeTests(unittest.TestCase):
         dados = resp.get_json()
         self.assertIn("conta_ovos", dados)
         self.assertIn("sispncd", dados)
+        self.assertGreaterEqual(dados["sispncd"]["total"], 0)
+        for grupo in dados["sispncd"]["grupos"]:
+            self.assertIn("ano", grupo)
+            self.assertIn("semana", grupo)
+            self.assertIn("id_localidade", grupo)
         self.assertIn("total", dados["conta_ovos"])
         self.assertIn("grupos", dados["sispncd"])
 
@@ -1443,6 +1516,165 @@ class MainApisSmokeTests(unittest.TestCase):
             ))
             self.assertTrue(all("id_localidade" in g for g in grupos))
 
+    def test_sispncd_0000_nao_conta_como_pendente(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "sispncd.db"
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.executescript("""
+                    CREATE TABLE localidades (id_localidade INTEGER PRIMARY KEY, nome TEXT);
+                    CREATE TABLE visitas (
+                        id_visita TEXT PRIMARY KEY,
+                        tipo TEXT,
+                        data TEXT,
+                        quarteirao INTEGER,
+                        localidade TEXT,
+                        id_localidade INTEGER,
+                        SISPNCD TEXT,
+                        CONTAOVOS_STATUS INTEGER
+                    );
+                    INSERT INTO localidades(id_localidade, nome) VALUES (1, 'Centro');
+                    INSERT INTO visitas VALUES
+                        ('a', 'PE', '2026-05-03', 1, 'Centro', 1, '0000/0000', NULL),
+                        ('b', 'PE', '2026-05-04', 1, 'Centro', 1, NULL, NULL),
+                        ('c', 'PE', '2026-05-05', 1, 'Centro', 1, '', NULL);
+                """)
+                conn.commit()
+            finally:
+                conn.close()
+
+            pendencias = sispncd_core.pendencias_envio(str(db_path))
+            resultado = sispncd_core.salvar_sispncd(str(db_path), 2026, 18, ["PE"], "0123/2026", id_localidade=1)
+
+            conn = sqlite3.connect(db_path)
+            try:
+                valores = dict(conn.execute("SELECT id_visita, SISPNCD FROM visitas").fetchall())
+            finally:
+                conn.close()
+
+        self.assertEqual(pendencias["sispncd"]["total"], 2)
+        self.assertEqual(resultado["atualizados"], 2)
+        self.assertEqual(valores["a"], "0000/0000")
+        self.assertEqual(valores["b"], "0123/2026")
+        self.assertEqual(valores["c"], "0123/2026")
+
+    def test_sispncd_usa_semana_epidemiologica_domingo_sabado(self):
+        self.assertEqual(
+            sispncd_core.epidemiological_week_range(2026, 1),
+            ("2026-01-04", "2026-01-10"),
+        )
+        self.assertEqual(
+            sispncd_core.epidemiological_week_range(2026, 18),
+            ("2026-05-03", "2026-05-09"),
+        )
+        self.assertEqual(
+            sispncd_core.epidemiological_week_range(2026, 52),
+            ("2026-12-27", "2027-01-02"),
+        )
+        self.assertEqual(
+            sispncd_core.epidemiological_week_for_date("2026-01-03"),
+            (2025, 53),
+        )
+        self.assertEqual(
+            sispncd_core.epidemiological_week_for_date("2026-01-04"),
+            (2026, 1),
+        )
+
+    def test_sispncd_inclui_bri_pendente_e_salva_codigo(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "sispncd_bri.db"
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                conn.executescript("""
+                    CREATE TABLE localidades (id_localidade INTEGER PRIMARY KEY, nome TEXT);
+                    CREATE TABLE visitas (
+                        id_visita TEXT PRIMARY KEY,
+                        tipo TEXT,
+                        data TEXT,
+                        quarteirao INTEGER,
+                        localidade TEXT,
+                        id_localidade INTEGER,
+                        tipo_imovel TEXT,
+                        visita TEXT,
+                        SISPNCD TEXT,
+                        CONTAOVOS_STATUS INTEGER
+                    );
+                    CREATE TABLE depositos_inspecionados (
+                        id_visita TEXT,
+                        tipo_deposito TEXT,
+                        inspecionado INTEGER,
+                        eliminado INTEGER,
+                        tratado INTEGER,
+                        qtd_carga REAL
+                    );
+                    CREATE TABLE tratamentos (
+                        id INTEGER PRIMARY KEY,
+                        id_visita TEXT,
+                        tipo TEXT,
+                        quantidade_carga REAL
+                    );
+                    CREATE TABLE coletas (
+                        id_coleta TEXT PRIMARY KEY,
+                        id_visita TEXT,
+                        tipo_deposito TEXT
+                    );
+                    CREATE TABLE resultados_laboratorio (
+                        id_coleta TEXT,
+                        aegypt_larvas INTEGER,
+                        aegypt_pupas INTEGER,
+                        aegypt_exuvias INTEGER,
+                        aegypt_adulto INTEGER,
+                        albopictus_larvas INTEGER,
+                        albopictus_pupas INTEGER,
+                        albopictus_exuvias INTEGER,
+                        albopictus_adulto INTEGER,
+                        outra_larvas INTEGER,
+                        outra_pupas INTEGER,
+                        outra_exuvias INTEGER,
+                        outra_adulto INTEGER
+                    );
+                    CREATE TABLE visita_agentes (
+                        id_visita TEXT,
+                        id_agente INTEGER
+                    );
+                    INSERT INTO localidades(id_localidade, nome) VALUES (1, 'Centro');
+                """)
+                bri_core.ensure_schema(conn)
+                conn.executescript("""
+                    INSERT INTO bri_registros (
+                        id_bri, sispncd, data, id_localidade, localidade, destino_tratamento,
+                        quantidade_carga, quantidade_carga_extra, origem_estrutura, processado_em
+                    ) VALUES
+                        ('bri1', NULL, '2026-05-24', 1, 'Centro', 'Ovitrampa', 10, 0, 'nova', '2026-05-24T08:00:00'),
+                        ('bri2', '', '2026-05-25', 1, 'Centro', 'Ponto Estratégico', 20, 5, 'nova', '2026-05-25T08:00:00'),
+                        ('bri3', '0000/0000', '2026-05-26', 1, 'Centro', 'Outro', 30, 0, 'nova', '2026-05-26T08:00:00');
+                """)
+                conn.commit()
+            finally:
+                conn.close()
+
+            pendencias = sispncd_core.pendencias_envio(str(db_path))
+            consulta = sispncd_core.sispncd(str(db_path), 2026, 21, ["BRI"], id_localidade=1)
+            resultado = sispncd_core.salvar_sispncd(str(db_path), 2026, 21, ["BRI"], "0456/2026", id_localidade=1)
+
+            conn = sqlite3.connect(db_path)
+            try:
+                valores = dict(conn.execute("SELECT id_bri, sispncd FROM bri_registros").fetchall())
+            finally:
+                conn.close()
+
+        grupos_bri = [g for g in pendencias["sispncd"]["grupos"] if g["tipo"] == "BRI"]
+        self.assertEqual(pendencias["sispncd"]["total"], 2)
+        self.assertEqual(grupos_bri[0]["semana"], 21)
+        self.assertEqual(consulta["dados_gerais"]["bri"]["registros"], 3)
+        self.assertEqual(consulta["dados_gerais"]["bri"]["pendentes_sispncd"], 2)
+        self.assertEqual(resultado["atualizados"], 2)
+        self.assertEqual(resultado["bri_atualizados"], 2)
+        self.assertEqual(valores["bri1"], "0456/2026")
+        self.assertEqual(valores["bri2"], "0456/2026")
+        self.assertEqual(valores["bri3"], "0000/0000")
+
     def test_conta_ovos_pendencias_sao_clicaveis_para_filtrar(self):
         client = _client_logado()
         resp = client.get("/conta-ovos-sispncd")
@@ -1450,8 +1682,11 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
         self.assertIn("selecionarPendenciaContaOvos", html)
+        self.assertIn("selecionarPendenciaSisPNCD", html)
         self.assertIn("data-localidade-id", html)
+        self.assertIn("sis-bri", html)
         self.assertIn("await buscarContaOvos()", html)
+        self.assertIn("await buscarSisPNCD()", html)
 
     def test_api_visitas_tem_campos_de_paginacao(self):
         client = _client_logado()

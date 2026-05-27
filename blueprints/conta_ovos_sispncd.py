@@ -21,14 +21,15 @@ def _json_error(exc, status=400):
 @login_required
 def page():
     today = date.today()
+    default_ano, default_semana = sispncd.epidemiological_week_for_date(today)
     default_conta_ovos = sispncd.get_default_conta_ovos(bh.db_path())
     localidades = bh.q("SELECT id_localidade, nome FROM localidades ORDER BY nome")
     return render_template(
         "conta_ovos_sispncd.html",
         localidades=localidades,
         default_conta_ovos=default_conta_ovos,
-        default_semana=today.isocalendar()[1],
-        default_ano=today.year,
+        default_semana=default_semana,
+        default_ano=default_ano,
     )
 
 
@@ -71,7 +72,7 @@ def api_pendencias_envio():
 
 @bp.route("/api/sispncd/salvar", methods=["POST"])
 @login_required
-@nivel_min("admin")
+@nivel_min("operador")
 def api_sispncd_salvar():
     data = request.json or {}
     try:

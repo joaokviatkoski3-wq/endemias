@@ -1,11 +1,14 @@
-from datetime import date
+from collections import defaultdict
+from datetime import date, timedelta
 
+from app_core import bri as bri_core
 from app_core import db as db_core
 from app_core import work_types
 
 
 DEPOSIT_TYPES = ("A1", "A2", "B", "C", "D1", "D2", "E")
-WORK_TYPES_ALLOWED = set(work_types.WORK_TYPE_CODES)
+BRI_TYPE = "BRI"
+WORK_TYPES_ALLOWED = set(work_types.WORK_TYPE_CODES) | {BRI_TYPE}
 
 
 class ValidationError(ValueError):
@@ -34,12 +37,34 @@ def parse_int(value, field_name, minimo=None, maximo=None):
 def epidemiological_week_range(year, week):
     year = parse_int(year, "ano", 2020, 2099)
     week = parse_int(week, "semana", 1, 53)
-    try:
-        start = date.fromisocalendar(year, week, 1)
-        end = date.fromisocalendar(year, week, 7)
-    except ValueError:
+    year_start = _epidemiological_year_start(year)
+    next_year_start = _epidemiological_year_start(year + 1)
+    start = year_start + timedelta(days=(week - 1) * 7)
+    end = start + timedelta(days=6)
+    if start >= next_year_start:
         raise ValidationError("Semana epidemiologica invalida para o ano informado.")
     return start.isoformat(), end.isoformat()
+
+
+def epidemiological_week_for_date(value):
+    if not isinstance(value, date):
+        value = date.fromisoformat(str(value))
+    year = value.year
+    year_start = _epidemiological_year_start(year)
+    if value < year_start:
+        year -= 1
+        year_start = _epidemiological_year_start(year)
+    elif value >= _epidemiological_year_start(year + 1):
+        year += 1
+        year_start = _epidemiological_year_start(year)
+    week = ((value - year_start).days // 7) + 1
+    return year, week
+
+
+def _epidemiological_year_start(year):
+    jan4 = date(year, 1, 4)
+    days_since_sunday = (jan4.weekday() + 1) % 7
+    return jan4 - timedelta(days=days_since_sunday)
 
 
 def normalize_work_types(values):
@@ -60,6 +85,10 @@ def normalize_work_types(values):
     if not selected:
         raise ValidationError("Selecione ao menos um tipo de trabalho.")
     return selected
+
+
+def split_sispncd_work_types(tipos):
+    return [tipo for tipo in tipos if tipo != BRI_TYPE], BRI_TYPE in tipos
 
 
 def optional_localidade(value):
@@ -163,28 +192,30 @@ def pendencias_envio(db_path, limite_grupos=None):
             for row in conn.execute(conta_sql, conta_params)
         ]
 
-        sispncd_total = conn.execute(
-            "SELECT COUNT(*) FROM visitas WHERE SISPNCD IS NULL"
-        ).fetchone()[0] or 0
-        sispncd_sql = """
-                SELECT tipo,
-                       COALESCE(localidade, '-') AS localidade,
-                       MIN(data) AS data_inicio,
-                       MAX(data) AS data_fim,
-                       COUNT(*) AS total
-                  FROM visitas
-                 WHERE SISPNCD IS NULL
-                 GROUP BY tipo, COALESCE(localidade, '-')
-                 ORDER BY total DESC, tipo, localidade
-                """
-        sispncd_params = ()
-        if limite_grupos:
-            sispncd_sql += " LIMIT ?"
-            sispncd_params = (limite_grupos,)
-        sispncd_grupos = [
-            dict(row)
-            for row in conn.execute(sispncd_sql, sispncd_params)
-        ]
+        sispncd_rows = conn.execute(
+            """
+            SELECT v.tipo,
+                   v.data,
+                   v.id_localidade,
+                   COALESCE(v.localidade, l.nome, '-') AS localidade
+              FROM visitas v
+              LEFT JOIN localidades l ON l.id_localidade = v.id_localidade
+             WHERE v.SISPNCD IS NULL OR TRIM(v.SISPNCD)=''
+            """
+        ).fetchall()
+        bri_core.ensure_schema(conn)
+        sispncd_rows += conn.execute(
+            """
+            SELECT 'BRI' AS tipo,
+                   b.data,
+                   b.id_localidade,
+                   COALESCE(b.localidade, '-') AS localidade
+              FROM bri_registros b
+             WHERE b.sispncd IS NULL OR TRIM(b.sispncd)=''
+            """
+        ).fetchall()
+        sispncd_total = len(sispncd_rows)
+        sispncd_grupos = _agrupar_pendencias_sispncd(sispncd_rows, limite_grupos)
     finally:
         conn.close()
 
@@ -349,8 +380,12 @@ def _conta_ovos_vazio(data, quarteirao):
 def sispncd(db_path, year, week, tipos, id_localidade=None):
     data_inicio, data_fim = epidemiological_week_range(year, week)
     tipos = normalize_work_types(tipos)
+    visita_tipos, inclui_bri = split_sispncd_work_types(tipos)
     id_localidade = optional_localidade(id_localidade)
-    where, params = _base_where(data_inicio, data_fim, tipos, id_localidade)
+    where, params = (
+        _base_where(data_inicio, data_fim, visita_tipos, id_localidade)
+        if visita_tipos else ("1=0", [])
+    )
     kind_expr = _kind_sql("v")
 
     dados = {
@@ -366,6 +401,7 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
         "tratamentos": [],
         "total_agentes": 0,
         "total_dias": 0,
+        "bri": _bri_empty(),
     }
     lab = {
         "depositos_aegypti": [],
@@ -383,7 +419,8 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
 
     conn = db_core.connect(db_path)
     try:
-        tb_types = [t for t in tipos if t in ("TB", "TBO")]
+        bri_core.ensure_schema(conn)
+        tb_types = [t for t in visita_tipos if t in ("TB", "TBO")]
         if tb_types:
             tb_where, tb_params = _base_where(data_inicio, data_fim, tb_types, id_localidade)
             dados["total_quarteiroes"] = conn.execute(
@@ -439,7 +476,7 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
         ):
             dados["pendencias"][row["tipo_pendencia"]] = row["total"] or 0
 
-        dep_types = [t for t in tipos if t != "TBO"]
+        dep_types = [t for t in visita_tipos if t != "TBO"]
         if dep_types:
             dep_where, dep_params = _base_where(data_inicio, data_fim, dep_types, id_localidade)
             for row in conn.execute(
@@ -504,6 +541,11 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
         ).fetchone()[0] or 0
 
         _fill_laboratorio(conn, lab, where, params, kind_expr)
+        if inclui_bri:
+            dados["bri"] = _bri_sispncd_stats(conn, data_inicio, data_fim, id_localidade)
+            if not visita_tipos:
+                dados["total_dias"] = dados["bri"]["dias"]
+                dados["total_agentes"] = dados["bri"]["agentes"]
     finally:
         conn.close()
 
@@ -521,6 +563,7 @@ def salvar_sispncd(db_path, year, week, tipos, codigo, id_localidade=None):
     if isinstance(tipos, str):
         tipos = [tipos]
     tipos = normalize_work_types(tipos)
+    visita_tipos, inclui_bri = split_sispncd_work_types(tipos)
     id_localidade = optional_localidade(id_localidade)
     codigo = (codigo or "").strip()
     if not codigo:
@@ -528,34 +571,142 @@ def salvar_sispncd(db_path, year, week, tipos, codigo, id_localidade=None):
     if len(codigo) > 20:
         raise ValidationError("Codigo SisPNCD muito longo.")
 
-    clauses = [
-        "data BETWEEN ? AND ?",
-        f"tipo IN ({_placeholders(tipos)})",
-    ]
-    params = [data_inicio, data_fim] + list(tipos)
-    if id_localidade:
-        clauses.append("id_localidade = ?")
-        params.append(id_localidade)
-    where = " AND ".join(clauses)
+    atualizados_visitas = 0
+    atualizados_bri = 0
     conn = db_core.connect(db_path)
     try:
-        cur = conn.execute(
-            f"UPDATE visitas SET SISPNCD = ? WHERE {where} AND SISPNCD IS NULL",
-            [codigo] + params,
-        )
+        if visita_tipos:
+            clauses = [
+                "data BETWEEN ? AND ?",
+                f"tipo IN ({_placeholders(visita_tipos)})",
+            ]
+            params = [data_inicio, data_fim] + list(visita_tipos)
+            if id_localidade:
+                clauses.append("id_localidade = ?")
+                params.append(id_localidade)
+            where = " AND ".join(clauses)
+            cur = conn.execute(
+                f"UPDATE visitas SET SISPNCD = ? WHERE {where} AND (SISPNCD IS NULL OR TRIM(SISPNCD)='')",
+                [codigo] + params,
+            )
+            atualizados_visitas = cur.rowcount if cur.rowcount is not None else 0
+        if inclui_bri:
+            bri_core.ensure_schema(conn)
+            bri_where, bri_params = _bri_where(data_inicio, data_fim, id_localidade, alias=None)
+            cur = conn.execute(
+                f"UPDATE bri_registros SET sispncd = ? WHERE {bri_where} AND (sispncd IS NULL OR TRIM(sispncd)='')",
+                [codigo] + bri_params,
+            )
+            atualizados_bri = cur.rowcount if cur.rowcount is not None else 0
         conn.commit()
-        atualizados = cur.rowcount if cur.rowcount is not None else 0
     finally:
         conn.close()
 
     return {
         "ok": True,
-        "atualizados": atualizados,
+        "atualizados": atualizados_visitas + atualizados_bri,
+        "visitas_atualizadas": atualizados_visitas,
+        "bri_atualizados": atualizados_bri,
         "codigo": codigo,
         "data_inicio": data_inicio,
         "data_fim": data_fim,
         "tipos": tipos,
     }
+
+
+def _agrupar_pendencias_sispncd(rows, limite_grupos=None):
+    grupos = defaultdict(lambda: {
+        "tipo": "",
+        "ano": 0,
+        "semana": 0,
+        "id_localidade": None,
+        "localidade": "-",
+        "data_inicio": None,
+        "data_fim": None,
+        "total": 0,
+    })
+    for row in rows:
+        try:
+            data = date.fromisoformat(row["data"])
+        except (TypeError, ValueError):
+            continue
+        ano, semana = epidemiological_week_for_date(data)
+        chave = (row["tipo"], ano, semana, row["id_localidade"], row["localidade"] or "-")
+        grupo = grupos[chave]
+        grupo.update({
+            "tipo": row["tipo"],
+            "ano": ano,
+            "semana": semana,
+            "id_localidade": row["id_localidade"],
+            "localidade": row["localidade"] or "-",
+        })
+        grupo["data_inicio"] = min(grupo["data_inicio"] or row["data"], row["data"])
+        grupo["data_fim"] = max(grupo["data_fim"] or row["data"], row["data"])
+        grupo["total"] += 1
+
+    result = sorted(
+        grupos.values(),
+        key=lambda g: (-g["ano"], -g["semana"], -g["total"], g["tipo"] or "", g["localidade"] or ""),
+    )
+    if limite_grupos:
+        result = result[:limite_grupos]
+    return result
+
+
+def _bri_empty():
+    return {
+        "registros": 0,
+        "pendentes_sispncd": 0,
+        "carga": 0,
+        "ovitrampas": 0,
+        "pontos_estrategicos": 0,
+        "outros": 0,
+        "extras": 0,
+        "dias": 0,
+        "agentes": 0,
+    }
+
+
+def _bri_where(data_inicio, data_fim, id_localidade=None, alias="b"):
+    prefix = f"{alias}." if alias else ""
+    clauses = [f"{prefix}data BETWEEN ? AND ?"]
+    params = [data_inicio, data_fim]
+    if id_localidade:
+        clauses.append(f"{prefix}id_localidade = ?")
+        params.append(id_localidade)
+    return " AND ".join(clauses), params
+
+
+def _bri_sispncd_stats(conn, data_inicio, data_fim, id_localidade=None):
+    where, params = _bri_where(data_inicio, data_fim, id_localidade)
+    row = conn.execute(
+        f"""
+        SELECT COUNT(*) AS registros,
+               SUM(CASE WHEN b.sispncd IS NULL OR TRIM(b.sispncd)='' THEN 1 ELSE 0 END) AS pendentes_sispncd,
+               COALESCE(SUM(b.quantidade_carga + b.quantidade_carga_extra), 0) AS carga,
+               SUM(CASE WHEN b.destino_tratamento='Ovitrampa' THEN 1 ELSE 0 END) AS ovitrampas,
+               SUM(CASE WHEN b.destino_tratamento='Ponto Estratégico' THEN 1 ELSE 0 END) AS pontos_estrategicos,
+               SUM(CASE WHEN b.destino_tratamento='Outro' THEN 1 ELSE 0 END) AS outros,
+               SUM(CASE WHEN b.tratou_imovel_extra='Sim' THEN 1 ELSE 0 END) AS extras,
+               COUNT(DISTINCT b.data) AS dias
+          FROM bri_registros b
+         WHERE {where}
+        """,
+        params,
+    ).fetchone()
+    agentes = conn.execute(
+        f"""
+        SELECT COUNT(DISTINCT ba.id_agente)
+          FROM bri_agentes ba
+          JOIN bri_registros b ON b.id_bri=ba.id_bri
+         WHERE {where}
+        """,
+        params,
+    ).fetchone()[0] or 0
+    result = _bri_empty()
+    result.update({key: (row[key] or 0) for key in result if key != "agentes"})
+    result["agentes"] = agentes
+    return result
 
 
 def _species_condition(prefix):

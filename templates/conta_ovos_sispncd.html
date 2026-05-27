@@ -231,6 +231,7 @@ td.value-positive {
           <div class="pill"><input type="checkbox" id="sis-tb-tbo" value="TB/TBO" checked><label for="sis-tb-tbo"><span class="dot"></span>TB/TBO</label></div>
           <div class="pill"><input type="checkbox" id="sis-pve" value="PVE" checked><label for="sis-pve"><span class="dot"></span>PVE</label></div>
           <div class="pill"><input type="checkbox" id="sis-pe" value="PE" checked><label for="sis-pe"><span class="dot"></span>PE</label></div>
+          <div class="pill"><input type="checkbox" id="sis-bri" value="BRI" checked><label for="sis-bri"><span class="dot"></span>BRI</label></div>
         </div>
       </div>
       <div class="sispncd-actions">
@@ -257,6 +258,9 @@ td.value-positive {
       <div class="metric"><div class="metric-label">Coletas</div><div class="metric-value" id="sis-total-coletas">0</div></div>
       <div class="metric"><div class="metric-label">Agentes</div><div class="metric-value" id="sis-total-agentes">0</div></div>
       <div class="metric"><div class="metric-label">Dias trabalhados</div><div class="metric-value" id="sis-total-dias">0</div></div>
+      <div class="metric"><div class="metric-label">BRI</div><div class="metric-value" id="sis-bri-registros">0</div></div>
+      <div class="metric"><div class="metric-label">BRI pendente</div><div class="metric-value" id="sis-bri-pendentes">0</div></div>
+      <div class="metric"><div class="metric-label">Carga BRI</div><div class="metric-value" id="sis-bri-carga">0</div></div>
     </div>
 
     <div class="split-grid">
@@ -418,10 +422,15 @@ function renderPendencias(d) {
     : '<div class="empty-inline">Sem TBO pendente para Conta Ovos.</div>';
 
   const sisRows = (sis.grupos || []).map(r => `
-    <div class="pending-item">
-      <span><strong>${escapeHtml(r.tipo || '-')}</strong> - ${escapeHtml(r.localidade || '-')} - ${fmtDate(r.data_inicio)} a ${fmtDate(r.data_fim)}</span>
+    <button class="pending-item clickable" type="button"
+            data-tipo="${escapeHtml(r.tipo || '')}"
+            data-ano="${escapeHtml(r.ano || '')}"
+            data-semana="${escapeHtml(r.semana || '')}"
+            data-localidade-id="${escapeHtml(r.id_localidade ?? '')}"
+            onclick="selecionarPendenciaSisPNCD(this)">
+      <span><strong>${escapeHtml(r.tipo || '-')}</strong> - S${escapeHtml(r.semana || '-')} / ${escapeHtml(r.ano || '-')} - ${escapeHtml(r.localidade || '-')}<br><small>${fmtDate(r.data_inicio)} a ${fmtDate(r.data_fim)}</small></span>
       <span class="pending-count${Number(r.total || 0) > 0 ? ' value-positive' : ''}">${fmtNum(r.total)}</span>
-    </div>
+    </button>
   `);
   document.getElementById('pend-sis-list').innerHTML = sisRows.length
     ? sisRows.join('')
@@ -439,6 +448,24 @@ async function selecionarPendenciaContaOvos(item) {
   const contaOvosTab = document.querySelector('.module-tab-btn');
   openModuleTab('tab-conta-ovos', contaOvosTab);
   await buscarContaOvos();
+}
+
+async function selecionarPendenciaSisPNCD(item) {
+  document.querySelectorAll('#pend-sis-list .pending-item').forEach(el => el.classList.remove('active'));
+  item.classList.add('active');
+
+  document.getElementById('sis-ano').value = item.dataset.ano || '';
+  document.getElementById('sis-semana').value = item.dataset.semana || '';
+  document.getElementById('sis-localidade').value = item.dataset.localidadeId || '';
+  const tipo = item.dataset.tipo || '';
+  document.getElementById('sis-tb-tbo').checked = tipo === 'TB' || tipo === 'TBO';
+  document.getElementById('sis-pve').checked = tipo === 'PVE';
+  document.getElementById('sis-pe').checked = tipo === 'PE';
+  document.getElementById('sis-bri').checked = tipo === 'BRI';
+
+  const sispncdTab = document.querySelectorAll('.module-tab-btn')[1];
+  openModuleTab('tab-sispncd', sispncdTab);
+  await buscarSisPNCD();
 }
 
 async function buscarContaOvos() {
@@ -501,6 +528,7 @@ function tiposSisSelecionados() {
   if (document.getElementById('sis-tb-tbo').checked) tipos.push('TB/TBO');
   if (document.getElementById('sis-pve').checked) tipos.push('PVE');
   if (document.getElementById('sis-pe').checked) tipos.push('PE');
+  if (document.getElementById('sis-bri').checked) tipos.push('BRI');
   return tipos;
 }
 
@@ -539,7 +567,7 @@ async function salvarSisPNCD() {
   if (!confirm('Gravar este codigo SisPNCD nas visitas pendentes do filtro atual?')) return;
   try {
     const d = await apiPost('/api/sispncd/salvar', body);
-    toast(`${fmtNum(d.atualizados)} visita(s) atualizada(s) no SisPNCD.`, 'success');
+    toast(`${fmtNum(d.atualizados)} registro(s) atualizado(s) no SisPNCD.`, 'success');
     await buscarSisPNCD();
     await carregarPendencias();
   } catch(e) {
@@ -556,6 +584,10 @@ function renderSisPNCD(d) {
   setText('sis-total-coletas', g.total_coletas);
   setText('sis-total-agentes', g.total_agentes);
   setText('sis-total-dias', g.total_dias);
+  const bri = g.bri || {};
+  setText('sis-bri-registros', bri.registros);
+  setText('sis-bri-pendentes', bri.pendentes_sispncd);
+  setText('sis-bri-carga', bri.carga);
   Object.keys(KIND_LABELS).forEach(k => setText(`sis-imoveis-${k}`, (g.imoveis || {})[k]));
   setText('sis-imoveis-tratados', g.imoveis_tratados);
   setText('sis-total-eliminados', g.total_eliminados);
