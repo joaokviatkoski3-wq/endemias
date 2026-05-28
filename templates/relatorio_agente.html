@@ -235,6 +235,9 @@ function renderRelatorio(d) {
   const espT = esp.totais || {};
   const espA = esp.animais || {};
   const espCmp = d.comparacao_esporotricose || {};
+  const prod = d.producao_operacional || {};
+  const prodT = prod.totais || {};
+  const atividades = prod.por_atividade || [];
   const cmp = d.comparacao || {};
   const diasStr = `${fmtDate(d.d_ini)} → ${fmtDate(d.d_fim)}`;
   const taxaN  = t.total ? Math.round((t.normais||0)/t.total*100) : 0;
@@ -251,7 +254,7 @@ function renderRelatorio(d) {
         <div class="agent-avatar"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"></div>
         <div class="agent-header-info">
           <h2>${d.agente}</h2>
-          <div class="sub">Agente de Endemias · Período: ${diasStr}</div>
+          <div class="sub">Agente de Combate a Endemias · Período: ${diasStr}</div>
         </div>
       </div>
       <div class="agent-actions">
@@ -262,9 +265,9 @@ function renderRelatorio(d) {
 
     <div class="agent-overview">
       <div class="overview-item">
-        <span>Produção vetorial</span>
-        <strong>${fmtNum(t.total)}</strong>
-        <small>${fmtNum(t.dias)} dias · ${t.media_dia} visitas/dia</small>
+        <span>Produção operacional</span>
+        <strong>${fmtNum(prodT.registros_total || t.total)}</strong>
+        <small>${fmtNum(prodT.dias || t.dias)} dias · ${fmtNum(prodT.localidades || 0)} localidades</small>
       </div>
       <div class="overview-item teal">
         <span>Esporotricose</span>
@@ -282,6 +285,38 @@ function renderRelatorio(d) {
         <small>${espA.taxa_feridas||0}% dos animais de esporotricose</small>
       </div>
     </div>
+
+    <div class="ra-section-title"><img src="/static/icons/raio.svg" alt="" class="icon-svg"> Produção operacional integrada</div>
+    <div class="privacy-note">
+      Esta seção integra visitas de vetores, esporotricose, recolhimentos, amostras de animais e BRI vinculados ao agente selecionado.
+    </div>
+    <div class="perf-grid">
+      ${atividades.map(a => cardAtividade(a)).join('')}
+    </div>
+    ${atividades.length ? `
+    <div class="table-wrap" style="margin-bottom:14px;">
+      <div class="table-hd"><span class="table-title"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Produção por frente</span></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Frente</th><th>Total</th><th>Detalhes</th><th>Distribuição</th></tr></thead>
+        <tbody>
+          ${atividades.map(a => `
+            <tr>
+              <td><strong>${escapeHtml(a.nome || a.codigo)}</strong></td>
+              <td><strong>${fmtNum(a.registros || 0)}</strong></td>
+              <td>${escapeHtml(detalheAtividade(a))}</td>
+              <td style="width:120px;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <div style="flex:1;height:6px;background:var(--border);border-radius:3px;">
+                    <div style="width:${a.percentual || 0}%;height:100%;background:var(--brand);border-radius:3px;"></div>
+                  </div>
+                  <span class="dim small">${a.percentual || 0}%</span>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table></div>
+    </div>` : ''}
 
     <!-- KPIs -->
     <div class="perf-grid">
@@ -530,6 +565,48 @@ function linhaComparacao(label, valor, media, maiorMelhor) {
     <td>${fmtNum(media)}</td>
     <td><span class="${cls}">${sinal}${diff}</span></td>
   </tr>`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[ch]));
+}
+
+function cardAtividade(a) {
+  const classes = {VETORES:'', ESPOROTRICOSE:'teal', RECOLHIMENTO:'amber', AMOSTRA_ANIMAIS:'purple', BRI:'red'};
+  return `
+    <div class="kpi ${classes[a.codigo] || ''}">
+      <div class="kpi-icon"><img src="/static/icons/${iconeAtividade(a.codigo)}" alt="" class="icon-svg"></div>
+      <div class="kpi-label">${escapeHtml(a.nome || a.codigo)}</div>
+      <div class="kpi-val">${fmtNum(a.registros || 0)}</div>
+      <div class="kpi-sub">${escapeHtml(detalheAtividade(a))}</div>
+    </div>
+  `;
+}
+
+function iconeAtividade(codigo) {
+  return {
+    VETORES:'mosquito.svg',
+    ESPOROTRICOSE:'pets.svg',
+    RECOLHIMENTO:'pneu.svg',
+    AMOSTRA_ANIMAIS:'amostra_animal.svg',
+    BRI:'borrifador.svg',
+  }[codigo] || 'prancheta.svg';
+}
+
+function detalheAtividade(a) {
+  const e = a.extras || {};
+  if (a.codigo === 'VETORES') return `${fmtNum(e.normais || 0)} normais, ${fmtNum(e.fechados || 0)} fechados`;
+  if (a.codigo === 'ESPOROTRICOSE') return `${fmtNum(e.animais || 0)} animais, ${fmtNum(e.animais_com_feridas || 0)} com feridas`;
+  if (a.codigo === 'RECOLHIMENTO') return `${fmtNum(e.materiais || 0)} materiais, ${fmtNum(e.pneus || 0)} pneus`;
+  if (a.codigo === 'AMOSTRA_ANIMAIS') return `${fmtNum(e.animais || 0)} animais, ${fmtNum(e.acidentes || 0)} acidentes`;
+  if (a.codigo === 'BRI') return `${fmtNum(e.carga || 0)} carga`;
+  return '';
 }
 
 function gerarPDF() {

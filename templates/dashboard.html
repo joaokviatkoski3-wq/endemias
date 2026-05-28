@@ -173,6 +173,10 @@
       <div class="chart-hd"><div class="chart-title"><img src="/static/icons/casa.svg" alt="" class="icon-svg"> Tipo de imovel</div></div>
       <div class="chart-wrap h240"><canvas id="chImovel"></canvas></div>
     </div>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/raio.svg" alt="" class="icon-svg"> Produção por frente</div></div>
+      <div class="chart-wrap h240"><canvas id="chAtividade"></canvas></div>
+    </div>
   </div>
 </div>
 
@@ -205,7 +209,7 @@
 <div class="tab-pane" id="tab-local">
   <div class="chart-grid">
     <div class="chart-card full">
-      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"> Visitas por localidade</div></div>
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"> Produção por localidade</div></div>
       <div class="chart-wrap h360"><canvas id="chLocal"></canvas></div>
     </div>
   </div>
@@ -221,7 +225,7 @@
   <div id="ranking-agentes" class="table-wrap">
     <div class="table-hd"><span class="table-title">Ranking de producao</span></div>
     <div class="table-scroll"><table id="t-agentes">
-      <thead><tr><th>#</th><th>Agente</th><th>Visitas</th><th>%</th></tr></thead>
+      <thead><tr><th>#</th><th>Agente</th><th>Produção</th><th>%</th></tr></thead>
       <tbody></tbody>
     </table></div>
   </div>
@@ -309,17 +313,22 @@ function resetFiltros() {
 
 function renderResumoIntegrado() {
   const k = dados.kpi || {};
+  const prod = dados.producao_operacional || {};
+  const prodTotais = prod.totais || {};
   const espResumo = dados.esporotricose?.resumo || {};
   const espTotais = espResumo.totais || {};
   const espAnimais = espResumo.animais || {};
   const peTotais = dados.pontos_estrategicos?.totais || {};
-  const totalCampo = (k.total || 0) + (espTotais.visitas || 0);
+  const rec = atividadeResumo('RECOLHIMENTO');
+  const am = atividadeResumo('AMOSTRA_ANIMAIS');
+  const bri = atividadeResumo('BRI');
+  const totalCampo = prodTotais.registros_total || ((k.total || 0) + (espTotais.visitas || 0));
   const positividade = espAnimais.total ? Math.round((espAnimais.com_feridas || 0) / espAnimais.total * 100) : 0;
   document.getElementById('dash-resumo-integrado').innerHTML = `
     <div class="dash-overview-card primary">
-      <span>Campo integrado</span>
+      <span>Producao operacional</span>
       <strong>${fmtNum(totalCampo)}</strong>
-      <small>${fmtNum(k.total || 0)} visitas de vetores + ${fmtNum(espTotais.visitas || 0)} visitas de esporotricose</small>
+      <small>${fmtNum(prodTotais.dias || 0)} dias, ${fmtNum(prodTotais.agentes || 0)} agentes e ${fmtNum(prodTotais.localidades || 0)} localidades</small>
     </div>
     <div class="dash-overview-card">
       <span>Vetores</span>
@@ -341,8 +350,12 @@ function renderResumoIntegrado() {
   document.getElementById('dash-insights').innerHTML = `
     <div class="dash-insight"><strong>${fmtNum(k.fechados || 0)} fechados</strong><span>Imoveis nao acessados em visitas de vetores.</span></div>
     <div class="dash-insight"><strong>${fmtNum(peTotais.atrasados || 0)} PEs atrasados</strong><span>Sem visita PE há mais de 20 dias ou sem histórico.</span></div>
-    <div class="dash-insight"><strong>${fmtNum(peTotais.ativos_sem_coordenada || 0)} sem coordenada</strong><span>Cadastro de PE ainda incompleto para mapa pontual.</span></div>
+    <div class="dash-insight"><strong>${fmtNum((rec.extras?.materiais || 0) + (am.extras?.animais || 0))} itens extras</strong><span>Materiais recolhidos e animais registrados nas novas frentes.</span></div>
   `;
+}
+
+function atividadeResumo(codigo) {
+  return (dados.producao_operacional?.por_atividade || []).find(r => r.codigo === codigo) || {registros:0, extras:{}};
 }
 
 function renderKPIs() {
@@ -422,6 +435,12 @@ function renderGeral() {
       datasets:[{ label:'Visitas/semana', data:ev.map(r=>r.total), borderColor:PAL[0], backgroundColor:PAL[0]+'22', fill:true, borderWidth:2, pointRadius:3, tension:.35 }] },
     options:{ scales:eixos() }
   });
+  const atividades = dados.producao_operacional?.por_atividade || [];
+  mkChart('chAtividade', {
+    type:'doughnut',
+    data:{ labels:atividades.map(r=>r.nome), datasets:[{ data:atividades.map(r=>r.registros), backgroundColor:[PAL[0], PAL[6], PAL[2], PAL[4], PAL[5]], borderColor:'var(--surface)', borderWidth:2 }] },
+    options:{ cutout:'58%', plugins:{ legend:{ position:'right', labels:{font:{size:10}} } } }
+  });
 }
 
 function renderVetores() {
@@ -499,25 +518,25 @@ function renderEsporotricose() {
 }
 
 function renderTerritorioEquipe() {
-  const pl = dados.por_loc || [];
+  const pl = dados.producao_operacional?.por_localidade || dados.por_loc || [];
   mkChart('chLocal', {
     type:'bar',
-    data:{ labels:pl.map(r=>r.loc || '-'), datasets:[{ label:'Visitas', data:pl.map(r=>r.total), backgroundColor:PAL[0]+'cc', borderRadius:4 }] },
+    data:{ labels:pl.map(r=>r.localidade || r.loc || '-'), datasets:[{ label:'Producao', data:pl.map(r=>r.registros ?? r.total), backgroundColor:PAL[0]+'cc', borderRadius:4 }] },
     options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:eixos({y:{grid:{display:false}}}) }
   });
-  const pa = dados.por_agente || [];
+  const pa = dados.producao_operacional?.por_agente || dados.por_agente || [];
   mkChart('chAgente', {
     type:'bar',
-    data:{ labels:pa.map(r=>r.nome), datasets:[{ label:'Visitas', data:pa.map(r=>r.total), backgroundColor:pa.map((_,i)=>PAL[i%PAL.length]+'cc'), borderRadius:4 }] },
+    data:{ labels:pa.map(r=>r.agente || r.nome), datasets:[{ label:'Producao', data:pa.map(r=>r.registros ?? r.total), backgroundColor:pa.map((_,i)=>PAL[i%PAL.length]+'cc'), borderRadius:4 }] },
     options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:eixos({y:{grid:{display:false}}}) }
   });
-  const totalGeral = pa.reduce((s,r)=>s+r.total,0);
+  const totalGeral = pa.reduce((s,r)=>s+(r.registros ?? r.total),0);
   document.querySelector('#t-agentes tbody').innerHTML = pa.map((r,i)=>`
     <tr>
       <td><strong>#${i+1}</strong></td>
-      <td>${escapeHtml(r.nome || '-')}</td>
-      <td><strong>${fmtNum(r.total)}</strong></td>
-      <td><span class="dim small">${totalGeral ? Math.round(r.total / totalGeral * 100) : 0}%</span></td>
+      <td>${escapeHtml(r.agente || r.nome || '-')}</td>
+      <td><strong>${fmtNum(r.registros ?? r.total)}</strong></td>
+      <td><span class="dim small">${totalGeral ? Math.round((r.registros ?? r.total) / totalGeral * 100) : 0}%</span></td>
     </tr>
   `).join('');
 }

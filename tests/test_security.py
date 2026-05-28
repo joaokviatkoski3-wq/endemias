@@ -905,6 +905,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("Esporotricose", html)
         self.assertIn("Pendências de Pontos Estratégicos", html)
         self.assertIn("chComparativo", html)
+        self.assertIn("chAtividade", html)
         self.assertIn("chEspEvolucao", html)
 
     def test_relatorio_agente_exibe_esporotricose_e_aviso_de_privacidade(self):
@@ -916,8 +917,12 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("Central do agente", html)
         self.assertIn("agent-workspace", html)
         self.assertIn("agente_busca", html)
+        self.assertIn("function escapeHtml", html)
+        self.assertIn("Agente de Combate a Endemias", html)
+        self.assertIn("Produção operacional integrada", html)
         self.assertIn("Produção de esporotricose", html)
         self.assertIn("médias agregadas dos demais agentes", html)
+        self.assertNotIn("pend. SisPNCD", html)
 
     def test_pdf_relatorio_agente_inclui_esporotricose_sem_identificar_demais(self):
         client = _client_logado()
@@ -929,9 +934,16 @@ class MainPagesSmokeTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
+        self.assertIn("Agente de Combate a Endemias", html)
+        self.assertIn("Produção operacional integrada", html)
+        self.assertIn("Rua Bertolina Kendrik de Oliveira, 681", html)
+        self.assertIn("break-inside:avoid", html)
+        self.assertIn("page-break-inside:avoid", html)
+        self.assertGreaterEqual(html.count('class="bloco-relatorio"'), 6)
         self.assertIn("Produção de esporotricose", html)
         self.assertIn("Comparação agregada de esporotricose", html)
         self.assertIn("Outros agentes não são listados nem identificados", html)
+        self.assertNotIn("SisPNCD", html)
 
     def test_central_do_sistema_admin_responde_200(self):
         client = _client_logado("admin")
@@ -1127,10 +1139,29 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("comparativo_mensal", dados)
         self.assertIn("esporotricose", dados)
         self.assertIn("pontos_estrategicos", dados)
+        self.assertIn("producao_operacional", dados)
         self.assertIn("resumo", dados["esporotricose"])
         self.assertIn("dashboard", dados["esporotricose"])
         self.assertIn("evolucao", dados["esporotricose"]["dashboard"])
         self.assertIn("totais", dados["pontos_estrategicos"])
+        self.assertIn("por_atividade", dados["producao_operacional"])
+
+    def test_api_producao_operacional_retorna_central_integrada(self):
+        client = _client_logado()
+        resp = client.get("/api/producao-operacional?d_ini=2026-05-01&d_fim=2026-05-31")
+
+        self.assertEqual(resp.status_code, 200)
+        dados = resp.get_json()
+        self.assertIn("totais", dados)
+        self.assertIn("por_atividade", dados)
+        self.assertIn("por_localidade", dados)
+        self.assertIn("por_agente", dados)
+        codigos = {item["codigo"] for item in dados["por_atividade"]}
+        self.assertIn("VETORES", codigos)
+        self.assertIn("ESPOROTRICOSE", codigos)
+        self.assertIn("RECOLHIMENTO", codigos)
+        self.assertIn("AMOSTRA_ANIMAIS", codigos)
+        self.assertIn("BRI", codigos)
 
     def test_api_relatorio_agente_inclui_esporotricose_sem_expor_outros_agentes(self):
         client = _client_logado()
@@ -1143,10 +1174,16 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         dados = resp.get_json()
         self.assertIn("esporotricose", dados)
+        self.assertIn("producao_operacional", dados)
+        self.assertIn("por_atividade", dados["producao_operacional"])
         self.assertIn("totais", dados["esporotricose"])
         self.assertIn("animais", dados["esporotricose"])
         self.assertIn("comparacao_esporotricose", dados)
         self.assertNotIn("recentes", dados["esporotricose"])
+        self.assertNotIn(
+            "sispncd",
+            json.dumps(dados["producao_operacional"], ensure_ascii=False).lower(),
+        )
 
         conn = sqlite3.connect(endemias_app.DB_PATH)
         try:

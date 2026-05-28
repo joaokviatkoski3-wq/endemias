@@ -6,6 +6,7 @@ from app_core import esporotricose as esporotricose_core
 from app_core import auth as auth_core
 from app_core import db as db_core
 from app_core import pontos_estrategicos as pe_core
+from app_core import producao_operacional
 from app_core import utils as utils_core
 from app_core import work_types
 
@@ -184,6 +185,7 @@ def api_dashboard():
             "d_fim": request.args.get("d_fim", ""),
             "localidade": request.args.getlist("localidade"),
         })
+        producao = producao_operacional.resumo(_db_path(), request.args)
         vetores_mes = {dict(r)["mes"]: dict(r)["visitas"] for r in evolucao_mes}
         esporo_mes = {r["mes"]: r.get("visitas", 0) for r in esporo_dash.get("evolucao", [])}
         meses = sorted(set(vetores_mes) | set(esporo_mes))
@@ -232,9 +234,20 @@ def api_dashboard():
                 "dashboard": esporo_dash,
             },
             "pontos_estrategicos": pe_resumo,
+            "producao_operacional": producao,
         })
     except Exception:
         logging.exception("Erro em api_dashboard")
+        return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
+
+
+@bp.route("/api/producao-operacional")
+@login_required
+def api_producao_operacional():
+    try:
+        return jsonify(producao_operacional.resumo(_db_path(), request.args))
+    except Exception:
+        logging.exception("Erro em api_producao_operacional")
         return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
 
 

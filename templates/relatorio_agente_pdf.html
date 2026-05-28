@@ -26,7 +26,11 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#000;background
 .cab-titulo .org{font-size:10pt;font-weight:700;margin-bottom:2pt;}
 .cab-titulo .sub{font-size:8pt;color:#444;line-height:1.5;}
 
-.secao{font-size:11pt;font-weight:700;color:#1a4fba;border-bottom:2px solid #1a4fba;padding-bottom:3pt;margin:14pt 0 8pt;}
+.secao{font-size:11pt;font-weight:700;color:#1a4fba;border-bottom:2px solid #1a4fba;padding-bottom:3pt;margin:14pt 0 8pt;break-after:avoid;page-break-after:avoid;}
+.secao,.hero,.kpi,.chart-box,.tbo-card,.periodo-card,.dia-item,tr{break-inside:avoid;page-break-inside:avoid;}
+.bloco-relatorio{break-inside:avoid;page-break-inside:avoid;margin-bottom:8pt;}
+.bloco-relatorio > :first-child{margin-top:0;}
+.quebra-antes{break-before:auto;page-break-before:auto;}
 
 .hero{background:#f0f4ff;border:1px solid #c7d4f5;border-radius:6pt;padding:12pt;margin-bottom:14pt;}
 .hero-nome{font-size:16pt;font-weight:700;color:#1a4fba;margin-bottom:2pt;}
@@ -49,7 +53,10 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#000;background
 .periodo-val{font-size:18pt;font-weight:700;color:#1a4fba;}
 .periodo-sub{font-size:8pt;color:#555;margin-top:2pt;}
 
-table{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:12pt;}
+table{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:12pt;break-inside:avoid;page-break-inside:avoid;}
+thead{display:table-header-group;}
+tfoot{display:table-footer-group;}
+tbody{break-inside:avoid;page-break-inside:avoid;}
 th{background:#1a4fba;color:#fff;padding:5pt 7pt;text-align:left;font-weight:700;}
 td{padding:4pt 7pt;border-bottom:1px solid #e5e7eb;}
 tr:nth-child(even) td{background:#f8faff;}
@@ -83,6 +90,15 @@ tr:nth-child(even) td{background:#f8faff;}
 @media print{
   .screen-bar,.spacer{display:none!important;}
   .pagina{max-width:100%;margin:0;padding:1cm 1.5cm;border:none;}
+  .bloco-relatorio,.hero,.chart-row,.chart-box,.kpi-grid,.periodo-grid,.tbo-cards,.dias-grid,table,tbody,tr,canvas{
+    break-inside:avoid!important;
+    page-break-inside:avoid!important;
+  }
+  .secao,.chart-titulo,.tbo-card-titulo{
+    break-after:avoid!important;
+    page-break-after:avoid!important;
+  }
+  .rodape{break-before:avoid;page-break-before:avoid;}
   @page{margin:1cm 1.5cm;}
 }
 </style>
@@ -112,14 +128,55 @@ tr:nth-child(even) td{background:#f8faff;}
   <div class="hero">
     <div class="hero-nome">{{ agente }}</div>
     <div class="hero-sub">
-      Agente de Endemias &nbsp;·&nbsp;
+      Agente de Combate a Endemias &nbsp;·&nbsp;
       {% set pi = d_ini.split('-') %}{% set pf = d_fim.split('-') %}
       Período: {{ pi[2] }}/{{ pi[1] }}/{{ pi[0] }} a {{ pf[2] }}/{{ pf[1] }}/{{ pf[0] }} &nbsp;·&nbsp;
       Gerado em: {{ now }}
     </div>
   </div>
 
+  <!-- Produção operacional integrada -->
+  {% set prod_t = producao_operacional.totais %}
+  <div class="bloco-relatorio">
+  <div class="secao">Produção operacional integrada</div>
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-val">{{ prod_t.registros_total or totais.total or 0 }}</div><div class="kpi-lbl">Registros operacionais</div></div>
+    <div class="kpi"><div class="kpi-val">{{ prod_t.dias or totais.dias or 0 }}</div><div class="kpi-lbl">Dias com produção</div></div>
+    <div class="kpi"><div class="kpi-val">{{ prod_t.localidades or 0 }}</div><div class="kpi-lbl">Localidades</div></div>
+    <div class="kpi"><div class="kpi-val">{{ prod_t.agentes or 1 }}</div><div class="kpi-lbl">Agente selecionado</div></div>
+  </div>
+  <table>
+    <thead><tr><th>Frente</th><th class="center">Total</th><th>Detalhes</th><th class="right">Distribuição</th></tr></thead>
+    <tbody>
+    {% for atividade in producao_operacional.por_atividade %}
+    {% set e = atividade.extras %}
+    <tr>
+      <td><strong>{{ atividade.nome }}</strong></td>
+      <td class="center">{{ atividade.registros }}</td>
+      <td>
+        {% if atividade.codigo == 'VETORES' %}
+          {{ e.normais or 0 }} normais, {{ e.fechados or 0 }} fechados
+        {% elif atividade.codigo == 'ESPOROTRICOSE' %}
+          {{ e.animais or 0 }} animais, {{ e.animais_com_feridas or 0 }} com feridas
+        {% elif atividade.codigo == 'RECOLHIMENTO' %}
+          {{ e.materiais or 0 }} materiais, {{ e.pneus or 0 }} pneus
+        {% elif atividade.codigo == 'AMOSTRA_ANIMAIS' %}
+          {{ e.animais or 0 }} animais, {{ e.acidentes or 0 }} acidentes
+        {% elif atividade.codigo == 'BRI' %}
+          {{ e.carga or 0 }} carga
+        {% else %}
+          -
+        {% endif %}
+      </td>
+      <td class="right">{{ atividade.percentual or 0 }}%</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
   <!-- KPIs gerais -->
+  <div class="bloco-relatorio">
   <div class="secao">Resumo geral</div>
   <div class="kpi-grid">
     <div class="kpi"><div class="kpi-val">{{ totais.total or 0 }}</div><div class="kpi-lbl">Total de visitas</div></div>
@@ -141,8 +198,10 @@ tr:nth-child(even) td{background:#f8faff;}
     <div class="kpi"><div class="kpi-val">{{ ((col.pos_aeg / col.total) * 100) | round(1) if col.total else 0 }}%</div><div class="kpi-lbl">Índice positividade</div></div>
     {% endif %}
   </div>
+  </div>
 
   <!-- Esporotricose -->
+  <div class="bloco-relatorio">
   <div class="secao">Produção de esporotricose</div>
   {% set esp_t = esporotricose.totais %}
   {% set esp_a = esporotricose.animais %}
@@ -161,9 +220,11 @@ tr:nth-child(even) td{background:#f8faff;}
     <div class="kpi"><div class="kpi-val">{{ esp_a.caes }}</div><div class="kpi-lbl">Cães</div></div>
     <div class="kpi"><div class="kpi-val">{{ esp_a.gatos }}</div><div class="kpi-lbl">Gatos</div></div>
   </div>
+  </div>
 
   <!-- Média por período -->
   {% if por_periodo %}
+  <div class="bloco-relatorio">
   <div class="secao">Média por período do dia</div>
   <div class="periodo-grid">
     <div class="periodo-card">
@@ -177,9 +238,11 @@ tr:nth-child(even) td{background:#f8faff;}
       <div class="periodo-sub">visitas &nbsp;·&nbsp; media {{ por_periodo.tarde.media if por_periodo.tarde else '—' }} / dia com visitas vespertinas</div>
     </div>
   </div>
+  </div>
   {% endif %}
 
   <!-- Por tipo de trabalho -->
+  <div class="bloco-relatorio">
   <div class="secao">Visitas por tipo de trabalho</div>
   <table>
     <thead><tr>
@@ -197,8 +260,10 @@ tr:nth-child(even) td{background:#f8faff;}
     {% endfor %}
     </tbody>
   </table>
+  </div>
 
   <!-- Por localidade -->
+  <div class="bloco-relatorio">
   <div class="secao">Visitas por localidade</div>
   <table>
     <thead><tr><th>Localidade</th><th class="right">Visitas</th><th class="right">% do total</th></tr></thead>
@@ -212,8 +277,10 @@ tr:nth-child(even) td{background:#f8faff;}
     {% endfor %}
     </tbody>
   </table>
+  </div>
 
   <!-- Gráficos distribuição -->
+  <div class="bloco-relatorio">
   <div class="secao">Gráficos de distribuição</div>
   <div class="chart-row">
     <div class="chart-box">
@@ -236,9 +303,11 @@ tr:nth-child(even) td{background:#f8faff;}
       <canvas id="chEspLoc" height="160"></canvas>
     </div>
   </div>
+  </div>
 
   <!-- Tempo TBO -->
   {% if tbo_por_grupo %}
+  <div class="bloco-relatorio">
   <div class="secao">Tempo por visita TBO — Acessados vs Não acessados</div>
   <div class="tbo-cards">
     {% if tbo_por_grupo.acessados %}
@@ -273,10 +342,12 @@ tr:nth-child(even) td{background:#f8faff;}
     </div>
   </div>
   {% endif %}
+  </div>
   {% endif %}
 
   <!-- Comparacao com media agregada dos demais agentes -->
   {% if comparacao and comparacao.num_agentes > 0 %}
+  <div class="bloco-relatorio">
   <div class="secao">Comparação com a média agregada dos demais agentes</div>
   <p style="font-size:8.5pt;color:#555;margin-bottom:8pt;">
     Baseado em {{ comparacao.num_agentes }} outros agentes com registros no mesmo período. Nenhum agente é identificado individualmente.
@@ -364,9 +435,11 @@ tr:nth-child(even) td{background:#f8faff;}
     Verde = favorável em relação à média &nbsp;|&nbsp; Vermelho = desfavorável &nbsp;|&nbsp;
     Para fechados e recusas, valores menores são considerados favoráveis.
   </p>
+  </div>
   {% endif %}
 
   {% if comparacao_esporotricose and comparacao_esporotricose.num_agentes > 0 %}
+  <div class="bloco-relatorio">
   <div class="secao">Comparação agregada de esporotricose</div>
   <p style="font-size:8.5pt;color:#555;margin-bottom:8pt;">
     Baseado em médias dos demais agentes com registros de esporotricose no período. Outros agentes não são listados nem identificados.
@@ -402,9 +475,11 @@ tr:nth-child(even) td{background:#f8faff;}
     {% endfor %}
     </tbody>
   </table>
+  </div>
   {% endif %}
 
   <!-- Produção diária -->
+  <div class="bloco-relatorio">
   <div class="secao">Produção diária</div>
   <div class="dias-grid">
     {% for r in por_dia %}
@@ -415,10 +490,11 @@ tr:nth-child(even) td{background:#f8faff;}
     </div>
     {% endfor %}
   </div>
+  </div>
 
   <!-- Rodapé -->
   <div class="rodape">
-    Rua Bertolina Kendrick de Oliveira, 681 – Vila Santa Terezinha – Almirante Tamandaré/PR &nbsp;|&nbsp;
+    Rua Bertolina Kendrik de Oliveira, 681 – Vila Santa Terezinha – Almirante Tamandaré/PR &nbsp;|&nbsp;
     CEP 83501-150 &nbsp;|&nbsp; endemias@tamandare.pr.gov.br
   </div>
 

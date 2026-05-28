@@ -6,6 +6,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 from app_core import auth as auth_core
 from app_core import db as db_core
 from app_core import esporotricose as esporotricose_core
+from app_core import producao_operacional
 from app_core import utils as utils_core
 from app_core import work_types
 
@@ -49,6 +50,22 @@ def _resumo_esporotricose_agente(nome, d_ini, d_fim):
         },
         "dashboard": dashboard,
     }
+
+
+def _resumo_producao_agente(nome, d_ini, d_fim):
+    resumo = producao_operacional.resumo(
+        current_app.config["DB_PATH"],
+        {"agente": [nome], "d_ini": d_ini, "d_fim": d_fim},
+    )
+    atividades = resumo.get("por_atividade", [])
+    total = utils_core.safe_int(resumo.get("totais", {}).get("registros_total", 0))
+    for atividade in atividades:
+        registros = utils_core.safe_int(atividade.get("registros", 0))
+        atividade["percentual"] = round(registros / total * 100, 1) if total else 0
+        atividade.get("extras", {}).pop("pendentes_sispncd", None)
+    resumo["por_agente"] = [{"agente": nome, "registros": total}]
+    resumo.setdefault("totais", {})["agentes"] = 1 if total else 0
+    return resumo
 
 
 def _obter_dados(nome, d_ini, d_fim):
@@ -219,6 +236,7 @@ def _obter_dados(nome, d_ini, d_fim):
         }
 
     esporotricose = _resumo_esporotricose_agente(nome, d_ini, d_fim)
+    producao = _resumo_producao_agente(nome, d_ini, d_fim)
     comparacao_esporotricose = {}
     if comparacao_esporo_raw:
         ce = dict(comparacao_esporo_raw)
@@ -246,6 +264,7 @@ def _obter_dados(nome, d_ini, d_fim):
         "media_dia": round(tv / dias, 1) if dias else 0,
         "por_periodo": por_periodo,
         "comparacao": comparacao,
+        "producao_operacional": producao,
         "esporotricose": esporotricose,
         "comparacao_esporotricose": comparacao_esporotricose,
         "totais_api": {
@@ -320,6 +339,7 @@ def api():
             "por_dia": dados["por_dia"],
             "evolucao": dados["evolucao"],
             "comparacao": dados["comparacao"],
+            "producao_operacional": dados["producao_operacional"],
             "esporotricose": dados["esporotricose"],
             "comparacao_esporotricose": dados["comparacao_esporotricose"],
         })
