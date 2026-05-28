@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatorio do Setor</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#111;background:#fff;}
+.screen-bar{position:fixed;top:0;left:0;right:0;z-index:999;background:#1a4fba;color:#fff;display:flex;align-items:center;gap:12px;padding:10px 20px;font-size:13px;}
+.screen-bar button{background:#fff;color:#1a4fba;border:none;border-radius:6px;padding:6px 16px;font-size:13px;font-weight:700;cursor:pointer;}
+.screen-bar a{color:rgba(255,255,255,.75);text-decoration:none;font-size:12px;}
+.spacer{height:46px;}
+.pagina{max-width:21cm;margin:20px auto;padding:1.5cm 1.7cm;border:1px solid #ccc;}
+.cab{display:flex;align-items:center;margin-bottom:18pt;}
+.cab-logo{width:3cm;text-align:center;flex-shrink:0;}
+.cab-logo img{max-height:2.5cm;max-width:2.5cm;object-fit:contain;}
+.cab-titulo{flex:1;text-align:center;padding:0 8px;}
+.cab-titulo .org{font-size:10pt;font-weight:700;margin-bottom:2pt;}
+.cab-titulo .sub{font-size:8pt;color:#444;line-height:1.5;}
+.hero{background:#f0f4ff;border:1px solid #c7d4f5;border-radius:6pt;padding:12pt;margin-bottom:14pt;break-inside:avoid;page-break-inside:avoid;}
+.hero-nome{font-size:16pt;font-weight:700;color:#1a4fba;margin-bottom:2pt;}
+.hero-sub{font-size:9pt;color:#555;}
+.secao{font-size:11pt;font-weight:700;color:#1a4fba;border-bottom:2px solid #1a4fba;padding-bottom:3pt;margin:14pt 0 8pt;break-after:avoid;page-break-after:avoid;}
+.bloco-relatorio{break-inside:avoid;page-break-inside:avoid;margin-bottom:8pt;}
+.bloco-relatorio > :first-child{margin-top:0;}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8pt;margin-bottom:12pt;}
+.kpi{background:#f8faff;border:1px solid #dde4f5;border-radius:4pt;padding:8pt;text-align:center;break-inside:avoid;page-break-inside:avoid;}
+.kpi-val{font-size:16pt;font-weight:700;color:#1a4fba;}
+.kpi-lbl{font-size:7.5pt;color:#555;text-transform:uppercase;letter-spacing:.3px;margin-top:2pt;}
+.kpi.teal .kpi-val{color:#0d9488;}
+.kpi.amber .kpi-val{color:#d97706;}
+.kpi.red .kpi-val{color:#dc2626;}
+table{width:100%;border-collapse:collapse;font-size:8.7pt;margin-bottom:12pt;break-inside:avoid;page-break-inside:avoid;}
+thead{display:table-header-group;}
+tbody{break-inside:avoid;page-break-inside:avoid;}
+th{background:#1a4fba;color:#fff;padding:5pt 6pt;text-align:left;font-weight:700;}
+td{padding:4pt 6pt;border-bottom:1px solid #e5e7eb;vertical-align:top;}
+tr{break-inside:avoid;page-break-inside:avoid;}
+tr:nth-child(even) td{background:#f8faff;}
+.center{text-align:center;}
+.right{text-align:right;}
+.small{font-size:7.7pt;color:#555;}
+.agente-card{border:1px solid #dde4f5;border-radius:5pt;margin-bottom:8pt;break-inside:avoid;page-break-inside:avoid;overflow:hidden;}
+.agente-card-hd{background:#f0f4ff;padding:7pt 8pt;display:flex;justify-content:space-between;gap:8pt;align-items:center;}
+.agente-nome{font-weight:700;color:#1a4fba;font-size:10pt;}
+.agente-meta{font-size:7.8pt;color:#555;}
+.mini-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:0;border-top:1px solid #dde4f5;}
+.mini-item{padding:6pt;border-right:1px solid #dde4f5;text-align:center;}
+.mini-item:last-child{border-right:none;}
+.mini-val{font-weight:700;color:#111;font-size:11pt;}
+.mini-lbl{font-size:6.8pt;color:#666;margin-top:2pt;}
+.rodape{font-size:7pt;color:#888;text-align:center;margin-top:20pt;border-top:1px solid #e5e7eb;padding-top:6pt;break-before:avoid;page-break-before:avoid;}
+@media print{
+  .screen-bar,.spacer{display:none!important;}
+  .pagina{max-width:100%;margin:0;padding:1cm 1.3cm;border:none;}
+  .bloco-relatorio,.hero,.kpi-grid,.kpi,table,tbody,tr,.agente-card,.mini-grid{
+    break-inside:avoid!important;
+    page-break-inside:avoid!important;
+  }
+  .secao,.agente-card-hd{break-after:avoid!important;page-break-after:avoid!important;}
+  @page{margin:1cm 1.3cm;}
+}
+</style>
+</head>
+<body>
+<div class="screen-bar">
+  <button onclick="window.print()">Imprimir / Salvar PDF</button>
+  <a href="javascript:window.close()">&#10005; Fechar</a>
+  <span style="margin-left:auto;opacity:.65;font-size:11px;">Use "Salvar como PDF" no dialogo de impressao</span>
+</div>
+<div class="spacer"></div>
+
+<div class="pagina">
+  <div class="cab">
+    <div class="cab-logo"><img src="/static/img/logo_prefeitura.png" alt=""></div>
+    <div class="cab-titulo">
+      <div class="org">PREFEITURA MUNICIPAL DE ALMIRANTE TAMANDARE</div>
+      <div class="sub">Secretaria Municipal de Saude<br>Vigilancia Ambiental em Saude - Setor de Endemias</div>
+    </div>
+    <div class="cab-logo"><img src="/static/img/logo_endemias.png" alt=""></div>
+  </div>
+
+  <div class="hero">
+    <div class="hero-nome">Relatorio Geral do Setor</div>
+    <div class="hero-sub">
+      {% set pi = d_ini.split('-') %}{% set pf = d_fim.split('-') %}
+      Periodo: {{ pi[2] }}/{{ pi[1] }}/{{ pi[0] }} a {{ pf[2] }}/{{ pf[1] }}/{{ pf[0] }} &nbsp;|&nbsp;
+      Gerado em: {{ now }}
+    </div>
+  </div>
+
+  {% set prod = producao_operacional %}
+  {% set totais = prod.totais %}
+
+  <div class="bloco-relatorio">
+    <div class="secao">Resumo do setor</div>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-val">{{ totais.registros_total or 0 }}</div><div class="kpi-lbl">Registros operacionais</div></div>
+      <div class="kpi teal"><div class="kpi-val">{{ totais.agentes or 0 }}</div><div class="kpi-lbl">Agentes com producao</div></div>
+      <div class="kpi amber"><div class="kpi-val">{{ totais.dias or 0 }}</div><div class="kpi-lbl">Dias com registros</div></div>
+      <div class="kpi red"><div class="kpi-val">{{ totais.localidades or 0 }}</div><div class="kpi-lbl">Localidades</div></div>
+    </div>
+  </div>
+
+  <div class="bloco-relatorio">
+    <div class="secao">Producao por frente de trabalho</div>
+    <table>
+      <thead><tr><th>Frente</th><th class="center">Total</th><th>Detalhes</th><th class="right">Distribuicao</th></tr></thead>
+      <tbody>
+      {% for atividade in prod.por_atividade %}
+      <tr>
+        <td><strong>{{ atividade.nome }}</strong></td>
+        <td class="center">{{ atividade.registros }}</td>
+        <td>{{ atividade.detalhe or '-' }}</td>
+        <td class="right">{{ atividade.percentual or 0 }}%</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="bloco-relatorio">
+    <div class="secao">Ranking geral de producao por agente</div>
+    <table>
+      <thead><tr><th>Agente</th><th class="right">Registros</th><th class="right">% do setor</th></tr></thead>
+      <tbody>
+      {% for agente in prod.por_agente %}
+      <tr>
+        <td>{{ agente.agente }}</td>
+        <td class="right">{{ agente.registros }}</td>
+        <td class="right">{{ ((agente.registros / totais.registros_total) * 100) | round(1) if totais.registros_total else 0 }}%</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="secao">Producao individual por agente</div>
+  {% for agente in agentes %}
+  <div class="agente-card">
+    <div class="agente-card-hd">
+      <div>
+        <div class="agente-nome">{{ agente.nome }}</div>
+        <div class="agente-meta">{{ agente.dias }} dias com registros | {{ agente.localidades }} localidades</div>
+      </div>
+      <div class="right">
+        <div class="agente-nome">{{ agente.total }}</div>
+        <div class="agente-meta">registros</div>
+      </div>
+    </div>
+    <div class="mini-grid">
+      {% for atividade in agente.atividades %}
+      <div class="mini-item">
+        <div class="mini-val">{{ atividade.registros }}</div>
+        <div class="mini-lbl">{{ atividade.nome }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="bloco-relatorio">
+    <div class="secao">Principais localidades no periodo</div>
+    <table>
+      <thead><tr><th>Localidade</th><th class="right">Registros</th><th class="right">% do setor</th></tr></thead>
+      <tbody>
+      {% for local in prod.por_localidade[:15] %}
+      <tr>
+        <td>{{ local.localidade }}</td>
+        <td class="right">{{ local.registros }}</td>
+        <td class="right">{{ ((local.registros / totais.registros_total) * 100) | round(1) if totais.registros_total else 0 }}%</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="rodape">
+    Rua Bertolina Kendrik de Oliveira, 681 - Vila Santa Terezinha - Almirante Tamandare/PR &nbsp;|&nbsp;
+    CEP 83501-150 &nbsp;|&nbsp; endemias@tamandare.pr.gov.br
+  </div>
+</div>
+</body>
+</html>

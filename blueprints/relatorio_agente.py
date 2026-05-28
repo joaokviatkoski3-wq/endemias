@@ -57,15 +57,68 @@ def _resumo_producao_agente(nome, d_ini, d_fim):
         current_app.config["DB_PATH"],
         {"agente": [nome], "d_ini": d_ini, "d_fim": d_fim},
     )
+    _preparar_resumo_producao_relatorio(resumo)
+    total = utils_core.safe_int(resumo.get("totais", {}).get("registros_total", 0))
+    resumo["por_agente"] = [{"agente": nome, "registros": total}]
+    resumo.setdefault("totais", {})["agentes"] = 1 if total else 0
+    return resumo
+
+
+def _preparar_resumo_producao_relatorio(resumo):
     atividades = resumo.get("por_atividade", [])
     total = utils_core.safe_int(resumo.get("totais", {}).get("registros_total", 0))
     for atividade in atividades:
         registros = utils_core.safe_int(atividade.get("registros", 0))
         atividade["percentual"] = round(registros / total * 100, 1) if total else 0
         atividade.get("extras", {}).pop("pendentes_sispncd", None)
-    resumo["por_agente"] = [{"agente": nome, "registros": total}]
-    resumo.setdefault("totais", {})["agentes"] = 1 if total else 0
     return resumo
+
+
+def _detalhe_atividade(atividade):
+    extras = atividade.get("extras") or {}
+    codigo = atividade.get("codigo")
+    if codigo == "VETORES":
+        return f"{utils_core.safe_int(extras.get('normais'))} normais, {utils_core.safe_int(extras.get('fechados'))} fechados"
+    if codigo == "ESPOROTRICOSE":
+        return f"{utils_core.safe_int(extras.get('animais'))} animais, {utils_core.safe_int(extras.get('animais_com_feridas'))} com feridas"
+    if codigo == "RECOLHIMENTO":
+        return f"{utils_core.safe_int(extras.get('materiais'))} materiais, {utils_core.safe_int(extras.get('pneus'))} pneus"
+    if codigo == "AMOSTRA_ANIMAIS":
+        return f"{utils_core.safe_int(extras.get('animais'))} animais, {utils_core.safe_int(extras.get('acidentes'))} acidentes"
+    if codigo == "BRI":
+        return f"{utils_core.safe_int(extras.get('carga'))} carga"
+    return ""
+
+
+def _obter_dados_setor(d_ini, d_fim):
+    resumo = producao_operacional.resumo(
+        current_app.config["DB_PATH"],
+        {"d_ini": d_ini, "d_fim": d_fim},
+    )
+    _preparar_resumo_producao_relatorio(resumo)
+    agentes = []
+    for item in resumo.get("por_agente", []):
+        nome = item.get("agente")
+        if not nome or nome == "-":
+            continue
+        prod_agente = _resumo_producao_agente(nome, d_ini, d_fim)
+        agentes.append({
+            "nome": nome,
+            "total": utils_core.safe_int(prod_agente.get("totais", {}).get("registros_total")),
+            "dias": utils_core.safe_int(prod_agente.get("totais", {}).get("dias")),
+            "localidades": utils_core.safe_int(prod_agente.get("totais", {}).get("localidades")),
+            "atividades": prod_agente.get("por_atividade", []),
+        })
+    agentes.sort(key=lambda item: (-item["total"], item["nome"]))
+    for atividade in resumo.get("por_atividade", []):
+        atividade["detalhe"] = _detalhe_atividade(atividade)
+    return {
+        "d_ini": d_ini,
+        "d_fim": d_fim,
+        "producao_operacional": resumo,
+        "agentes": agentes,
+        "now": datetime.now().strftime("%d/%m/%Y %H:%M"),
+    }
 
 
 def _obter_dados(nome, d_ini, d_fim):
@@ -313,6 +366,19 @@ def pdf():
         logging.exception("Erro em relatorio_agente.pdf")
         return f"Erro ao gerar relatorio: {exc}", 500
     return render_template("relatorio_agente_pdf.html", **dados)
+
+
+@bp.route("/relatorio-agente/setor/pdf")
+@login_required
+def pdf_setor():
+    d_ini = request.args.get("d_ini", utils_core.data_n_dias(30))
+    d_fim = request.args.get("d_fim", utils_core.hoje())
+    try:
+        dados = _obter_dados_setor(d_ini, d_fim)
+    except Exception as exc:
+        logging.exception("Erro em relatorio_agente.pdf_setor")
+        return f"Erro ao gerar relatorio do setor: {exc}", 500
+    return render_template("relatorio_setor_pdf.html", **dados)
 
 
 @bp.route("/api/relatorio-agente")

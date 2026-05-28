@@ -154,6 +154,7 @@
           <input type="date" id="ra_d_fim" value="{{ d_fim }}">
         </div>
         <button class="btn btn-primary" onclick="buscar()"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+        <button class="btn btn-outline" onclick="gerarPDFSetor()"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> Relatório do setor</button>
       </div>
       <div class="periodo-presets">
         {% for periodo, label in [('7','7 dias'),('30','30 dias'),('90','90 dias'),('365','1 ano')] %}
@@ -615,6 +616,12 @@ function gerarPDF() {
   const ini = encodeURIComponent(document.getElementById('ra_d_ini').value);
   const fim = encodeURIComponent(document.getElementById('ra_d_fim').value);
   window.open(`/relatorio-agente/pdf?agente=${ag}&d_ini=${ini}&d_fim=${fim}`, '_blank');
+}
+
+function gerarPDFSetor() {
+  const ini = encodeURIComponent(document.getElementById('ra_d_ini').value);
+  const fim = encodeURIComponent(document.getElementById('ra_d_fim').value);
+  window.open(`/relatorio-agente/setor/pdf?d_ini=${ini}&d_fim=${fim}`, '_blank');
 }
 
 // Data inputs

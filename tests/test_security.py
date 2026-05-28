@@ -920,6 +920,8 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("function escapeHtml", html)
         self.assertIn("Agente de Combate a Endemias", html)
         self.assertIn("Produção operacional integrada", html)
+        self.assertIn("Relatório do setor", html)
+        self.assertIn("gerarPDFSetor", html)
         self.assertIn("Produção de esporotricose", html)
         self.assertIn("médias agregadas dos demais agentes", html)
         self.assertNotIn("pend. SisPNCD", html)
@@ -943,6 +945,26 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("Produção de esporotricose", html)
         self.assertIn("Comparação agregada de esporotricose", html)
         self.assertIn("Outros agentes não são listados nem identificados", html)
+        self.assertNotIn("SisPNCD", html)
+
+    def test_pdf_relatorio_setor_inclui_producao_geral_e_por_agente(self):
+        client = _client_logado()
+        resp = client.get(
+            "/relatorio-agente/setor/pdf",
+            query_string={"d_ini": "2020-01-01", "d_fim": "2030-12-31"},
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Relatorio Geral do Setor", html)
+        self.assertIn("Resumo do setor", html)
+        self.assertIn("Producao por frente de trabalho", html)
+        self.assertIn("Ranking geral de producao por agente", html)
+        self.assertIn("Producao individual por agente", html)
+        self.assertIn("Vetores", html)
+        self.assertIn("Esporotricose", html)
+        self.assertIn("BRI", html)
+        self.assertIn("bloco-relatorio", html)
         self.assertNotIn("SisPNCD", html)
 
     def test_central_do_sistema_admin_responde_200(self):
