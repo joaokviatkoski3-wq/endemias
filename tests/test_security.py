@@ -704,6 +704,50 @@ class PontosEstrategicosTests(unittest.TestCase):
         self.assertEqual(primeiro[0], "PE-0001")
         self.assertEqual(total, resultado["inseridos"])
 
+    def test_exporta_pontos_estrategicos_filtrados_xlsx_e_pdf(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            pe_core.salvar(str(db_path), {
+                "nome": "Ferro Velho Central",
+                "localidade": "Centro",
+                "quarteirao": 10,
+                "logradouro": "Rua A",
+                "numero": "123",
+                "tipo": "Ferro velho",
+                "telefone": "41999990000",
+                "situacao": 1,
+            })
+            pe_core.salvar(str(db_path), {
+                "nome": "Borracharia Norte",
+                "localidade": "Norte",
+                "quarteirao": 20,
+                "tipo": "Borracharia",
+                "situacao": 1,
+            })
+            app_temp = endemias_app.create_app({"TESTING": True, "DB_PATH": db_path})
+            client = app_temp.test_client()
+            _login_client_com_usuario(client, {"id_usuario": 1, "nome": "Administrador", "nivel": "admin"})
+
+            resp_xlsx = client.get("/api/pontos-estrategicos/exportar?localidade=Sede&formato=xlsx")
+            resp_pdf = client.get("/api/pontos-estrategicos/exportar?localidade=Sede&formato=pdf")
+
+        self.assertEqual(resp_xlsx.status_code, 200)
+        self.assertIn(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            resp_xlsx.content_type,
+        )
+        self.assertTrue(resp_xlsx.data.startswith(b"PK"))
+        wb = openpyxl.load_workbook(io.BytesIO(resp_xlsx.data))
+        ws = wb.active
+        valores = [cell.value for cell in ws["B"]]
+        self.assertIn("Ferro Velho Central", valores)
+        self.assertNotIn("Borracharia Norte", valores)
+
+        self.assertEqual(resp_pdf.status_code, 200)
+        html = resp_pdf.data.decode("utf-8")
+        self.assertIn("Ferro Velho Central", html)
+        self.assertNotIn("Borracharia Norte", html)
+
 
 class SispncdIndiceTests(unittest.TestCase):
     def _criar_planilha_indice(self, path):
@@ -887,6 +931,7 @@ class MainPagesSmokeTests(unittest.TestCase):
             "/mapa",
             "/pontos-estrategicos",
             "/agenda",
+            "/admin/agentes",
         ]
 
         for rota in rotas:
@@ -961,11 +1006,28 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("Producao por frente de trabalho", html)
         self.assertIn("Ranking geral de producao por agente", html)
         self.assertIn("Producao individual por agente", html)
+        self.assertIn("Visitas vetoriais: situacao e tipo de trabalho", html)
+        self.assertIn("Tempo das visitas", html)
+        self.assertIn("Depositos e laboratorio", html)
+        self.assertIn("Graficos analiticos", html)
+        self.assertIn("chDuracaoTipo", html)
+        self.assertIn("chAgentes", html)
         self.assertIn("Vetores", html)
         self.assertIn("Esporotricose", html)
         self.assertIn("BRI", html)
         self.assertIn("bloco-relatorio", html)
         self.assertNotIn("SisPNCD", html)
+
+    def test_controle_pessoal_exibe_cadastro_e_historico(self):
+        client = _client_logado("admin")
+        resp = client.get("/admin/agentes")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Controle de Pessoal", html)
+        self.assertIn("Novo agente", html)
+        self.assertIn("Historico de trabalho", html)
+        self.assertIn("/api/agentes/", html)
 
     def test_central_do_sistema_admin_responde_200(self):
         client = _client_logado("admin")
@@ -1221,6 +1283,34 @@ class MainApisSmokeTests(unittest.TestCase):
         payload = json.dumps(dados, ensure_ascii=False)
         for outro in outros:
             self.assertNotIn(outro, payload)
+
+    def test_api_historico_agente_retorna_frentes_operacionais(self):
+        client = _client_logado("admin")
+        conn = sqlite3.connect(endemias_app.DB_PATH)
+        try:
+            row = conn.execute(
+                """SELECT a.id_agente
+                   FROM agentes a
+                   LEFT JOIN visita_agentes va ON va.id_agente=a.id_agente
+                   LEFT JOIN esporotricose_visita_agentes ea ON ea.id_agente=a.id_agente
+                   WHERE va.id_agente IS NOT NULL OR ea.id_agente IS NOT NULL
+                   LIMIT 1"""
+            ).fetchone()
+        finally:
+            conn.close()
+        self.assertIsNotNone(row)
+
+        resp = client.get(
+            f"/api/agentes/{row[0]}/historico",
+            query_string={"d_ini": "2020-01-01", "d_fim": "2030-12-31"},
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        dados = resp.get_json()
+        self.assertIn("agente", dados)
+        self.assertIn("dias", dados)
+        self.assertIn("por_origem", dados)
+        self.assertGreaterEqual(dados["total"], 1)
 
     def test_api_conta_ovos_e_sispncd_consultas_retornam_json(self):
         client = _client_logado()

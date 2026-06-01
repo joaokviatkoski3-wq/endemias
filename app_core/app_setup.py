@@ -110,7 +110,7 @@ def register_context_processors(app):
     def inject_globals():
         db_path = current_app.config["DB_PATH"]
         localidades = _cached_q("localidades", "SELECT nome FROM localidades ORDER BY nome")
-        agentes = _cached_q("agentes", "SELECT nome FROM agentes ORDER BY nome")
+        agentes = _cached_q("agentes", "SELECT nome FROM agentes WHERE ativo=1 ORDER BY nome")
         tipos_v = _cached_q("tipos_visita", "SELECT DISTINCT tipo FROM visitas WHERE tipo IS NOT NULL ORDER BY tipo")
         pendentes = db_core.scalar(
             db_path,

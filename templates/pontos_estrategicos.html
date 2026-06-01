@@ -44,6 +44,8 @@
       <div class="f-g"><label>Revisão</label><select id="pe-revisao"><option value="">Todos</option><option value="atrasados">Atrasados</option><option value="pendencias">Com pendência</option></select></div>
       <div class="pe-actions">
         <button class="btn btn-outline" type="button" onclick="carregarPEs()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button>
+        <button class="btn btn-outline" type="button" onclick="exportarPEs('xlsx')" title="Exportar resultados filtrados para Excel"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> XLSX</button>
+        <button class="btn btn-outline" type="button" onclick="exportarPEs('pdf')" title="Abrir resultados filtrados para imprimir ou salvar em PDF"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> PDF</button>
         <button class="btn btn-primary" type="button" onclick="abrirPE()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Novo PE</button>
       </div>
     </div>
@@ -158,6 +160,16 @@ async function carregarPEs(){
       </td>
     </tr>`;
   }).join('') || '<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:18px;">Nenhum PE encontrado.</td></tr>';
+}
+function exportarPEs(formato){
+  const p = peParams();
+  p.set('formato', formato);
+  const url = '/api/pontos-estrategicos/exportar?' + p.toString();
+  if (formato === 'pdf') {
+    window.open(url, '_blank');
+    return;
+  }
+  window.location = url;
 }
 function abrirPE(reg={}){
   document.getElementById('pe-modal-title').textContent = reg.id_pe ? 'Editar PE' : 'Novo PE';

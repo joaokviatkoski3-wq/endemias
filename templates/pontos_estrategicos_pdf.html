@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Pontos Estrategicos</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#111;background:#fff;}
+.screen-bar{position:fixed;top:0;left:0;right:0;z-index:999;background:#166534;color:#fff;display:flex;align-items:center;gap:12px;padding:10px 20px;font-size:13px;}
+.screen-bar button{background:#fff;color:#166534;border:none;border-radius:6px;padding:6px 16px;font-size:13px;font-weight:700;cursor:pointer;}
+.screen-bar a{color:rgba(255,255,255,.75);text-decoration:none;font-size:12px;}
+.spacer{height:46px;}
+.pagina{max-width:29.7cm;margin:20px auto;padding:1.2cm;border:1px solid #ccc;}
+.cab{display:flex;align-items:center;margin-bottom:16pt;}
+.cab-logo{width:3cm;text-align:center;flex-shrink:0;}
+.cab-logo img{max-height:2.5cm;max-width:2.5cm;object-fit:contain;}
+.cab-titulo{flex:1;text-align:center;padding:0 8px;}
+.cab-titulo .org{font-size:10pt;font-weight:700;margin-bottom:2pt;}
+.cab-titulo .sub{font-size:8pt;color:#444;line-height:1.5;}
+.hero{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5pt;padding:10pt;margin-bottom:12pt;break-inside:avoid;page-break-inside:avoid;}
+.hero-nome{font-size:15pt;font-weight:700;color:#166534;margin-bottom:2pt;}
+.hero-sub{font-size:8.5pt;color:#555;line-height:1.5;}
+.filtros{margin-top:5pt;color:#333;}
+.kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6pt;margin-bottom:10pt;}
+.kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:4pt;padding:7pt;text-align:center;break-inside:avoid;page-break-inside:avoid;}
+.kpi-val{font-size:13pt;font-weight:700;color:#166534;}
+.kpi-lbl{font-size:6.8pt;color:#555;text-transform:uppercase;letter-spacing:.3px;margin-top:2pt;}
+table{width:100%;border-collapse:collapse;font-size:7.5pt;break-inside:auto;page-break-inside:auto;}
+thead{display:table-header-group;}
+th{background:#166534;color:#fff;padding:4pt 5pt;text-align:left;font-weight:700;}
+td{padding:3.5pt 5pt;border-bottom:1px solid #e5e7eb;vertical-align:top;}
+tr{break-inside:avoid;page-break-inside:avoid;}
+tr:nth-child(even) td{background:#f8fafc;}
+.right{text-align:right;}
+.center{text-align:center;}
+.small{font-size:7pt;color:#555;}
+.pend{color:#b45309;font-weight:700;}
+.rodape{font-size:7pt;color:#888;text-align:center;margin-top:16pt;border-top:1px solid #e5e7eb;padding-top:6pt;}
+@media print{
+  .screen-bar,.spacer{display:none!important;}
+  .pagina{max-width:100%;margin:0;padding:.8cm;border:none;}
+  @page{size:A4 landscape;margin:.8cm;}
+}
+</style>
+</head>
+<body>
+<div class="screen-bar">
+  <button onclick="window.print()">Imprimir / Salvar PDF</button>
+  <a href="javascript:window.close()">&#10005; Fechar</a>
+  <span style="margin-left:auto;opacity:.75;font-size:11px;">Use "Salvar como PDF" no dialogo de impressao</span>
+</div>
+<div class="spacer"></div>
+
+<div class="pagina">
+  <div class="cab">
+    <div class="cab-logo"><img src="/static/img/logo_prefeitura.png" alt=""></div>
+    <div class="cab-titulo">
+      <div class="org">PREFEITURA MUNICIPAL DE ALMIRANTE TAMANDARE</div>
+      <div class="sub">Secretaria Municipal de Saude<br>Vigilancia Ambiental em Saude - Setor de Endemias</div>
+    </div>
+    <div class="cab-logo"><img src="/static/img/logo_endemias.png" alt=""></div>
+  </div>
+
+  <div class="hero">
+    <div class="hero-nome">Pontos Estrategicos</div>
+    <div class="hero-sub">Gerado em: {{ now }} | {{ registros|length }} registro(s)</div>
+    <div class="filtros">Filtros: {{ filtros|join(' | ') }}</div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-val">{{ totais.total or 0 }}</div><div class="kpi-lbl">Total</div></div>
+    <div class="kpi"><div class="kpi-val">{{ totais.ativos or 0 }}</div><div class="kpi-lbl">Ativos</div></div>
+    <div class="kpi"><div class="kpi-val">{{ totais.inativos or 0 }}</div><div class="kpi-lbl">Inativos</div></div>
+    <div class="kpi"><div class="kpi-val">{{ totais.sem_tipo or 0 }}</div><div class="kpi-lbl">Sem tipo</div></div>
+    <div class="kpi"><div class="kpi-val">{{ totais.sem_telefone or 0 }}</div><div class="kpi-lbl">Sem telefone</div></div>
+    <div class="kpi"><div class="kpi-val">{{ totais.sem_coordenadas or 0 }}</div><div class="kpi-lbl">Sem coordenadas</div></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Codigo</th>
+        <th>Local</th>
+        <th>Localidade</th>
+        <th class="right">Quadra</th>
+        <th>Endereco</th>
+        <th>Tipo</th>
+        <th>Ultima PE</th>
+        <th>BRI</th>
+        <th>Pendencias</th>
+        <th>Situacao</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in registros %}
+      {% set endereco = [r.logradouro, r.numero]|select|join(', ') %}
+      {% set pendencias = [] %}
+      {% if r.visita_atrasada %}{% set _ = pendencias.append('visita atrasada') %}{% endif %}
+      {% for p in r.pendencias_cadastro or [] %}{% set _ = pendencias.append(p) %}{% endfor %}
+      <tr>
+        <td><strong>{{ r.codigo_pe or '-' }}</strong></td>
+        <td>{{ r.nome or '-' }}<div class="small">{{ [r.razao_social, r.telefone]|select|join(' | ') }}</div></td>
+        <td>{{ r.localidade or '-' }}</td>
+        <td class="right">{{ r.quarteirao if r.quarteirao is not none else '-' }}</td>
+        <td>{{ endereco or '-' }}</td>
+        <td>{{ r.tipo or '-' }}</td>
+        <td>{{ r.ultima_visita_pe or 'sem visita' }}{% if r.dias_sem_visita is not none %}<div class="small">{{ r.dias_sem_visita }} dia(s)</div>{% endif %}</td>
+        <td>{{ r.ultimo_bri or 'sem BRI' }}<div class="small">{{ r.bri_total or 0 }} registro(s)</div></td>
+        <td class="pend">{{ pendencias|join(', ') if pendencias else 'ok' }}</td>
+        <td class="center">{{ 'Ativo' if r.situacao == 1 else 'Inativo' }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="10" class="center">Nenhum PE encontrado.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="rodape">
+    Rua Bertolina Kendrik de Oliveira, 681 - Vila Santa Terezinha - Almirante Tamandare/PR | CEP 83501-150 | endemias@tamandare.pr.gov.br
+  </div>
+</div>
+</body>
+</html>

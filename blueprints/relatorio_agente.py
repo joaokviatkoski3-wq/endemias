@@ -96,28 +96,241 @@ def _obter_dados_setor(d_ini, d_fim):
         {"d_ini": d_ini, "d_fim": d_fim},
     )
     _preparar_resumo_producao_relatorio(resumo)
-    agentes = []
-    for item in resumo.get("por_agente", []):
-        nome = item.get("agente")
-        if not nome or nome == "-":
-            continue
-        prod_agente = _resumo_producao_agente(nome, d_ini, d_fim)
-        agentes.append({
-            "nome": nome,
-            "total": utils_core.safe_int(prod_agente.get("totais", {}).get("registros_total")),
-            "dias": utils_core.safe_int(prod_agente.get("totais", {}).get("dias")),
-            "localidades": utils_core.safe_int(prod_agente.get("totais", {}).get("localidades")),
-            "atividades": prod_agente.get("por_atividade", []),
-        })
-    agentes.sort(key=lambda item: (-item["total"], item["nome"]))
     for atividade in resumo.get("por_atividade", []):
         atividade["detalhe"] = _detalhe_atividade(atividade)
     return {
         "d_ini": d_ini,
         "d_fim": d_fim,
         "producao_operacional": resumo,
-        "agentes": agentes,
+        "visitas_setor": _metricas_visitas_setor(d_ini, d_fim),
+        "agentes": _producao_agentes_setor(d_ini, d_fim),
         "now": datetime.now().strftime("%d/%m/%Y %H:%M"),
+    }
+
+
+def _producao_agentes_setor(d_ini, d_fim):
+    conn = _get_db()
+    try:
+        agentes = {}
+        fontes = [
+            fonte for fonte in producao_operacional.FONTES
+            if producao_operacional._table_exists(conn, fonte["tabela"])
+            and producao_operacional._table_exists(conn, fonte["agente_table"])
+        ]
+        for fonte in fontes:
+            alias = fonte["alias"]
+            id_expr = f"{alias}.{fonte['id_col']}"
+            data_expr = f"{alias}.{fonte['data_col']}"
+            localidade_expr = fonte["localidade_expr"]
+            joins = fonte.get("joins") or ""
+            rows = conn.execute(
+                f"""
+                SELECT ag.nome AS agente,
+                       COUNT(DISTINCT {id_expr}) AS registros,
+                       GROUP_CONCAT(DISTINCT {data_expr}) AS dias,
+                       GROUP_CONCAT(DISTINCT COALESCE({localidade_expr}, '')) AS localidades
+                  FROM {fonte['tabela']} {alias}
+                  JOIN {fonte['agente_table']} pa ON pa.{fonte['agente_fk']}={id_expr}
+                  JOIN agentes ag ON ag.id_agente=pa.id_agente
+                  {joins}
+                 WHERE {data_expr} BETWEEN ? AND ?
+                 GROUP BY ag.nome
+                """,
+                (d_ini, d_fim),
+            ).fetchall()
+            for row in rows:
+                nome = row["agente"]
+                item = agentes.setdefault(nome, {
+                    "nome": nome,
+                    "total": 0,
+                    "dias_set": set(),
+                    "localidades_set": set(),
+                    "atividades": {
+                        f["codigo"]: {"codigo": f["codigo"], "nome": f["nome"], "registros": 0}
+                        for f in producao_operacional.FONTES
+                    },
+                })
+                registros = utils_core.safe_int(row["registros"])
+                item["total"] += registros
+                item["atividades"][fonte["codigo"]]["registros"] = registros
+                item["dias_set"].update(part for part in (row["dias"] or "").split(",") if part)
+                item["localidades_set"].update(part for part in (row["localidades"] or "").split(",") if part)
+    finally:
+        conn.close()
+
+    resultado = []
+    for item in agentes.values():
+        resultado.append({
+            "nome": item["nome"],
+            "total": item["total"],
+            "dias": len(item["dias_set"]),
+            "localidades": len(item["localidades_set"]),
+            "atividades": list(item["atividades"].values()),
+        })
+    return sorted(resultado, key=lambda item: (-item["total"], item["nome"]))
+
+
+def _metricas_visitas_setor(d_ini, d_fim):
+    conn = _get_db()
+    try:
+        totais = conn.execute(
+            """
+            SELECT COUNT(DISTINCT v.id_visita) AS total,
+                   COUNT(DISTINCT v.data) AS dias,
+                   COUNT(DISTINCT v.quarteirao) AS quarteiroes,
+                   COUNT(DISTINCT COALESCE(l.nome, v.localidade)) AS localidades,
+                   COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='normal' THEN v.id_visita END) AS normais,
+                   COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='fechado' THEN v.id_visita END) AS fechados,
+                   COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='recuperado' THEN v.id_visita END) AS recuperados,
+                   COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='recusa' THEN v.id_visita END) AS recusados
+              FROM visitas v
+              LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
+             WHERE v.data BETWEEN ? AND ?
+            """,
+            (d_ini, d_fim),
+        ).fetchone()
+
+        por_tipo = conn.execute(
+            """
+            SELECT v.tipo,
+                   COUNT(DISTINCT v.id_visita) AS total,
+                   COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='normal' THEN v.id_visita END) AS normais,
+                   COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='fechado' THEN v.id_visita END) AS fechados,
+                   COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='recuperado' THEN v.id_visita END) AS recuperados,
+                   COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='recusa' THEN v.id_visita END) AS recusados
+              FROM visitas v
+             WHERE v.data BETWEEN ? AND ?
+             GROUP BY v.tipo
+             ORDER BY total DESC, v.tipo
+            """,
+            (d_ini, d_fim),
+        ).fetchall()
+
+        por_status = conn.execute(
+            """
+            SELECT COALESCE(NULLIF(TRIM(v.visita),''), '-') AS status,
+                   COUNT(DISTINCT v.id_visita) AS total
+              FROM visitas v
+             WHERE v.data BETWEEN ? AND ?
+             GROUP BY COALESCE(NULLIF(TRIM(v.visita),''), '-')
+             ORDER BY total DESC, status
+            """,
+            (d_ini, d_fim),
+        ).fetchall()
+
+        por_periodo = conn.execute(
+            """
+            SELECT CASE WHEN v.hora_inicio < '12:00' THEN 'Manha' ELSE 'Tarde' END AS periodo,
+                   COUNT(DISTINCT v.id_visita) AS total,
+                   COUNT(DISTINCT v.data) AS dias
+              FROM visitas v
+             WHERE v.data BETWEEN ? AND ?
+               AND v.hora_inicio IS NOT NULL
+               AND TRIM(v.hora_inicio)<>''
+             GROUP BY periodo
+             ORDER BY periodo
+            """,
+            (d_ini, d_fim),
+        ).fetchall()
+
+        duracao_por_tipo = conn.execute(
+            """
+            SELECT tipo, COUNT(*) AS n,
+                   ROUND(AVG(dur),1) AS media,
+                   ROUND(MIN(dur),1) AS minimo,
+                   ROUND(MAX(dur),1) AS maximo
+              FROM (
+                    SELECT v.tipo,
+                           (julianday(v.data||' '||v.hora_fim)-julianday(v.data||' '||v.hora_inicio))*24*60 AS dur
+                      FROM visitas v
+                     WHERE v.data BETWEEN ? AND ?
+                       AND v.hora_inicio IS NOT NULL AND v.hora_fim IS NOT NULL
+                   ) base
+             WHERE dur BETWEEN 1 AND 240
+             GROUP BY tipo
+             ORDER BY media DESC, tipo
+            """,
+            (d_ini, d_fim),
+        ).fetchall()
+
+        duracao_por_acesso = conn.execute(
+            """
+            SELECT grupo, COUNT(*) AS n,
+                   ROUND(AVG(dur),1) AS media,
+                   ROUND(MIN(dur),1) AS minimo,
+                   ROUND(MAX(dur),1) AS maximo
+              FROM (
+                    SELECT CASE WHEN LOWER(COALESCE(v.visita,'')) IN ('normal','recuperado')
+                                THEN 'Acessados' ELSE 'Nao acessados' END AS grupo,
+                           (julianday(v.data||' '||v.hora_fim)-julianday(v.data||' '||v.hora_inicio))*24*60 AS dur
+                      FROM visitas v
+                     WHERE v.data BETWEEN ? AND ?
+                       AND v.hora_inicio IS NOT NULL AND v.hora_fim IS NOT NULL
+                   ) base
+             WHERE dur BETWEEN 1 AND 240
+             GROUP BY grupo
+             ORDER BY grupo
+            """,
+            (d_ini, d_fim),
+        ).fetchall()
+
+        dep = conn.execute(
+            """
+            SELECT COALESCE(SUM(inspecionado),0) AS inspecionados,
+                   COALESCE(SUM(eliminado),0) AS eliminados,
+                   COALESCE(SUM(tratado),0) AS tratados
+              FROM depositos_inspecionados d
+              JOIN visitas v ON v.id_visita=d.id_visita
+             WHERE v.data BETWEEN ? AND ?
+            """,
+            (d_ini, d_fim),
+        ).fetchone()
+
+        coletas = conn.execute(
+            """
+            SELECT COUNT(DISTINCT c.id_coleta) AS total,
+                   COUNT(DISTINCT CASE WHEN rl.aegypt_larvas>0 OR rl.aegypt_pupas>0
+                         OR rl.aegypt_exuvias>0 OR rl.aegypt_adulto>0 THEN c.id_coleta END) AS pos_aeg,
+                   COUNT(DISTINCT CASE WHEN rl.albopictus_larvas>0 OR rl.albopictus_pupas>0
+                         OR rl.albopictus_exuvias>0 OR rl.albopictus_adulto>0 THEN c.id_coleta END) AS pos_alb
+              FROM coletas c
+              JOIN visitas v ON v.id_visita=c.id_visita
+              LEFT JOIN resultados_laboratorio rl ON rl.id_coleta=c.id_coleta
+             WHERE v.data BETWEEN ? AND ?
+            """,
+            (d_ini, d_fim),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    totais_d = dict(totais) if totais else {}
+    total = utils_core.safe_int(totais_d.get("total"))
+    dias = utils_core.safe_int(totais_d.get("dias"))
+    coletas_d = dict(coletas) if coletas else {}
+    total_coletas = utils_core.safe_int(coletas_d.get("total"))
+    pos_aeg = utils_core.safe_int(coletas_d.get("pos_aeg"))
+    return {
+        "totais": {
+            **totais_d,
+            "media_dia": round(total / dias, 1) if dias else 0,
+            "taxa_acesso": round(
+                (utils_core.safe_int(totais_d.get("normais")) + utils_core.safe_int(totais_d.get("recuperados"))) / total * 100,
+                1,
+            ) if total else 0,
+        },
+        "por_tipo": [dict(row) for row in por_tipo],
+        "por_status": [dict(row) for row in por_status],
+        "por_periodo": [
+            {**dict(row), "media_dia": round((row["total"] or 0) / (row["dias"] or 1), 1)}
+            for row in por_periodo
+        ],
+        "duracao_por_tipo": [dict(row) for row in duracao_por_tipo],
+        "duracao_por_acesso": [dict(row) for row in duracao_por_acesso],
+        "depositos": dict(dep) if dep else {},
+        "coletas": {
+            **coletas_d,
+            "indice": round(pos_aeg / total_coletas * 100, 1) if total_coletas else 0,
+        },
     }
 
 

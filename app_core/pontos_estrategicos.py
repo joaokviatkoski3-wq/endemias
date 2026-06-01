@@ -92,13 +92,17 @@ def registro_de_linha_csv(row):
     return payload
 
 
-def listar(db_path, filtros=None):
+def listar(db_path, filtros=None, limite=1000):
     filtros = filtros or {}
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     ensure_schema(conn)
     _ensure_optional_modules(conn)
     where, params = _where(filtros)
+    limit_clause = "" if limite is None else "LIMIT ?"
+    query_params = list(params)
+    if limite is not None:
+        query_params.append(int(limite))
     try:
         rows = [
             _completar_status_operacional(dict(r))
@@ -142,8 +146,8 @@ def listar(db_path, filtros=None):
                     FROM pontos_estrategicos pe
                     {where}
                     ORDER BY situacao DESC, localidade, quarteirao, nome
-                    LIMIT 1000""",
-                params,
+                    {limit_clause}""",
+                query_params,
             )
         ]
         rows = _filtrar_status_calculado(rows, filtros)

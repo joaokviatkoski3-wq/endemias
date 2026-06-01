@@ -1,4 +1,10 @@
-from flask import Blueprint, current_app, jsonify, render_template, request
+import io
+import logging
+from datetime import datetime
+
+import openpyxl
+from flask import Blueprint, current_app, jsonify, render_template, request, send_file
+from openpyxl.styles import Alignment, Font, PatternFill
 
 from app_core import audit
 from app_core import auth as auth_core
@@ -40,6 +46,28 @@ def page():
 @login_required
 def api_listar():
     return jsonify(pe_core.listar(_db_path(), _filtros()))
+
+
+@bp.route("/api/pontos-estrategicos/exportar")
+@login_required
+def api_exportar():
+    try:
+        filtros = _filtros()
+        dados = pe_core.listar(_db_path(), filtros, limite=None)
+        registros = dados.get("registros") or []
+        formato = (request.args.get("formato") or "xlsx").lower()
+        if formato == "pdf":
+            return render_template(
+                "pontos_estrategicos_pdf.html",
+                registros=registros,
+                totais=dados.get("totais") or {},
+                filtros=_filtros_legiveis(filtros),
+                now=datetime.now().strftime("%d/%m/%Y %H:%M"),
+            )
+        return _gerar_xlsx(registros)
+    except Exception:
+        logging.exception("Erro em api_exportar pontos estrategicos")
+        return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
 
 
 @bp.route("/api/pontos-estrategicos/opcoes")
@@ -124,6 +152,86 @@ def _filtros():
         "pendencias": request.args.get("pendencias", ""),
         "busca": request.args.get("busca", "").strip(),
     }
+
+
+def _filtros_legiveis(filtros):
+    partes = []
+    if filtros.get("busca"):
+        partes.append(f"Pesquisa: {filtros['busca']}")
+    if filtros.get("localidade"):
+        partes.append(f"Localidade: {filtros['localidade']}")
+    if filtros.get("tipo"):
+        partes.append(f"Tipo: {filtros['tipo']}")
+    if filtros.get("situacao") == "1":
+        partes.append("Situacao: Ativos")
+    elif filtros.get("situacao") == "0":
+        partes.append("Situacao: Inativos")
+    if filtros.get("atrasados"):
+        partes.append("Revisao: Atrasados")
+    if filtros.get("pendencias"):
+        partes.append("Revisao: Com pendencia")
+    return partes or ["Todos os registros"]
+
+
+def _valor(row, chave, padrao=""):
+    value = row.get(chave)
+    return padrao if value is None else value
+
+
+def _pendencias(row):
+    itens = []
+    if row.get("visita_atrasada"):
+        itens.append("visita atrasada")
+    itens.extend(row.get("pendencias_cadastro") or [])
+    return ", ".join(itens)
+
+
+def _gerar_xlsx(registros):
+    cabecalho = [
+        "Codigo", "Local", "Localidade", "Quarteirao", "Logradouro", "Numero",
+        "Tipo", "Situacao", "Telefone", "CNPJ", "Razao social", "Latitude",
+        "Longitude", "Data inclusao", "Data desativacao", "Ultima PE",
+        "Dias sem visita", "Total visitas PE", "Ultimo BRI", "Total BRI",
+        "Focos", "Pendencias", "Observacoes",
+    ]
+    campos = [
+        "codigo_pe", "nome", "localidade", "quarteirao", "logradouro", "numero",
+        "tipo", "situacao_label", "telefone", "cnpj", "razao_social", "latitude",
+        "longitude", "data_inclusao", "data_desativacao", "ultima_visita_pe",
+        "dias_sem_visita", "visitas_pe_total", "ultimo_bri", "bri_total",
+        "focos_total", "pendencias", "observacoes",
+    ]
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Pontos Estrategicos"
+    fill = PatternFill("solid", fgColor="166534")
+    for ci, col in enumerate(cabecalho, 1):
+        cell = ws.cell(1, ci, col)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = fill
+        cell.alignment = Alignment(horizontal="center")
+
+    for ri, row in enumerate(registros, 2):
+        linha = dict(row)
+        linha["situacao_label"] = "Ativo" if int(linha.get("situacao") or 0) == 1 else "Inativo"
+        linha["pendencias"] = _pendencias(linha)
+        for ci, campo in enumerate(campos, 1):
+            ws.cell(ri, ci, _valor(linha, campo))
+
+    for col in ws.columns:
+        width = max((len(str(cell.value or "")) for cell in col), default=8)
+        ws.column_dimensions[col[0].column_letter].width = min(width + 2, 42)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=f"pontos_estrategicos_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 def _payload_valido(payload):

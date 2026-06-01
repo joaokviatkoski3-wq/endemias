@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Relatorio do Setor</title>
+<script src="/static/vendor/chartjs/chart.umd.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#111;background:#fff;}
@@ -40,6 +41,10 @@ tr:nth-child(even) td{background:#f8faff;}
 .center{text-align:center;}
 .right{text-align:right;}
 .small{font-size:7.7pt;color:#555;}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:10pt;margin-bottom:12pt;}
+.chart-box{background:#f8faff;border:1px solid #dde4f5;border-radius:4pt;padding:9pt;break-inside:avoid;page-break-inside:avoid;}
+.chart-title{font-size:9pt;font-weight:700;color:#1a4fba;margin-bottom:7pt;}
+.note{font-size:8pt;color:#555;line-height:1.4;margin-bottom:8pt;}
 .agente-card{border:1px solid #dde4f5;border-radius:5pt;margin-bottom:8pt;break-inside:avoid;page-break-inside:avoid;overflow:hidden;}
 .agente-card-hd{background:#f0f4ff;padding:7pt 8pt;display:flex;justify-content:space-between;gap:8pt;align-items:center;}
 .agente-nome{font-weight:700;color:#1a4fba;font-size:10pt;}
@@ -53,11 +58,11 @@ tr:nth-child(even) td{background:#f8faff;}
 @media print{
   .screen-bar,.spacer{display:none!important;}
   .pagina{max-width:100%;margin:0;padding:1cm 1.3cm;border:none;}
-  .bloco-relatorio,.hero,.kpi-grid,.kpi,table,tbody,tr,.agente-card,.mini-grid{
+  .bloco-relatorio,.hero,.kpi-grid,.kpi,table,tbody,tr,.agente-card,.mini-grid,.chart-row,.chart-box,canvas{
     break-inside:avoid!important;
     page-break-inside:avoid!important;
   }
-  .secao,.agente-card-hd{break-after:avoid!important;page-break-after:avoid!important;}
+  .secao,.agente-card-hd,.chart-title{break-after:avoid!important;page-break-after:avoid!important;}
   @page{margin:1cm 1.3cm;}
 }
 </style>
@@ -91,6 +96,8 @@ tr:nth-child(even) td{background:#f8faff;}
 
   {% set prod = producao_operacional %}
   {% set totais = prod.totais %}
+  {% set visitas = visitas_setor %}
+  {% set vt = visitas.totais %}
 
   <div class="bloco-relatorio">
     <div class="secao">Resumo do setor</div>
@@ -99,6 +106,12 @@ tr:nth-child(even) td{background:#f8faff;}
       <div class="kpi teal"><div class="kpi-val">{{ totais.agentes or 0 }}</div><div class="kpi-lbl">Agentes com producao</div></div>
       <div class="kpi amber"><div class="kpi-val">{{ totais.dias or 0 }}</div><div class="kpi-lbl">Dias com registros</div></div>
       <div class="kpi red"><div class="kpi-val">{{ totais.localidades or 0 }}</div><div class="kpi-lbl">Localidades</div></div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-val">{{ vt.total or 0 }}</div><div class="kpi-lbl">Visitas vetoriais</div></div>
+      <div class="kpi teal"><div class="kpi-val">{{ vt.media_dia or 0 }}</div><div class="kpi-lbl">Media visitas/dia</div></div>
+      <div class="kpi amber"><div class="kpi-val">{{ vt.taxa_acesso or 0 }}%</div><div class="kpi-lbl">Taxa de acesso</div></div>
+      <div class="kpi red"><div class="kpi-val">{{ vt.quarteiroes or 0 }}</div><div class="kpi-lbl">Quarteiroes</div></div>
     </div>
   </div>
 
@@ -117,6 +130,115 @@ tr:nth-child(even) td{background:#f8faff;}
       {% endfor %}
       </tbody>
     </table>
+  </div>
+
+  <div class="bloco-relatorio">
+    <div class="secao">Visitas vetoriais: situacao e tipo de trabalho</div>
+    <div class="kpi-grid">
+      <div class="kpi teal"><div class="kpi-val">{{ vt.normais or 0 }}</div><div class="kpi-lbl">Normais</div></div>
+      <div class="kpi amber"><div class="kpi-val">{{ vt.fechados or 0 }}</div><div class="kpi-lbl">Fechados</div></div>
+      <div class="kpi"><div class="kpi-val">{{ vt.recuperados or 0 }}</div><div class="kpi-lbl">Recuperados</div></div>
+      <div class="kpi red"><div class="kpi-val">{{ vt.recusados or 0 }}</div><div class="kpi-lbl">Recusas</div></div>
+    </div>
+    <table>
+      <thead><tr><th>Tipo</th><th class="right">Total</th><th class="right">Normais</th><th class="right">Fechados</th><th class="right">Recuperados</th><th class="right">Recusas</th></tr></thead>
+      <tbody>
+      {% for row in visitas.por_tipo %}
+      <tr>
+        <td><strong>{{ row.tipo }}</strong> - {{ TIPO_LABELS.get(row.tipo, row.tipo) }}</td>
+        <td class="right">{{ row.total }}</td>
+        <td class="right">{{ row.normais }}</td>
+        <td class="right">{{ row.fechados }}</td>
+        <td class="right">{{ row.recuperados }}</td>
+        <td class="right">{{ row.recusados }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="bloco-relatorio">
+    <div class="secao">Tempo das visitas</div>
+    <p class="note">Calculo feito apenas em registros com hora de inicio e fim validas, considerando duracoes entre 1 e 240 minutos.</p>
+    <div class="chart-row">
+      <div>
+        <table>
+          <thead><tr><th>Tipo</th><th class="right">Visitas</th><th class="right">Media</th><th class="right">Min.</th><th class="right">Max.</th></tr></thead>
+          <tbody>
+          {% for row in visitas.duracao_por_tipo %}
+          <tr>
+            <td>{{ row.tipo }}</td>
+            <td class="right">{{ row.n }}</td>
+            <td class="right">{{ row.media }} min</td>
+            <td class="right">{{ row.minimo }} min</td>
+            <td class="right">{{ row.maximo }} min</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <table>
+          <thead><tr><th>Acesso</th><th class="right">Visitas</th><th class="right">Media</th><th class="right">Min.</th><th class="right">Max.</th></tr></thead>
+          <tbody>
+          {% for row in visitas.duracao_por_acesso %}
+          <tr>
+            <td>{{ row.grupo }}</td>
+            <td class="right">{{ row.n }}</td>
+            <td class="right">{{ row.media }} min</td>
+            <td class="right">{{ row.minimo }} min</td>
+            <td class="right">{{ row.maximo }} min</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>Periodo do dia</th><th class="right">Visitas</th><th class="right">Dias</th><th class="right">Media/dia</th></tr></thead>
+      <tbody>
+      {% for row in visitas.por_periodo %}
+      <tr>
+        <td>{{ row.periodo }}</td>
+        <td class="right">{{ row.total }}</td>
+        <td class="right">{{ row.dias }}</td>
+        <td class="right">{{ row.media_dia }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="bloco-relatorio">
+    <div class="secao">Depositos e laboratorio</div>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-val">{{ visitas.depositos.inspecionados or 0 }}</div><div class="kpi-lbl">Dep. inspecionados</div></div>
+      <div class="kpi teal"><div class="kpi-val">{{ visitas.depositos.eliminados or 0 }}</div><div class="kpi-lbl">Dep. eliminados</div></div>
+      <div class="kpi amber"><div class="kpi-val">{{ visitas.depositos.tratados or 0 }}</div><div class="kpi-lbl">Dep. tratados</div></div>
+      <div class="kpi red"><div class="kpi-val">{{ visitas.coletas.indice or 0 }}%</div><div class="kpi-lbl">Indice positividade</div></div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-val">{{ visitas.coletas.total or 0 }}</div><div class="kpi-lbl">Coletas</div></div>
+      <div class="kpi red"><div class="kpi-val">{{ visitas.coletas.pos_aeg or 0 }}</div><div class="kpi-lbl">Ae. aegypti positivas</div></div>
+      <div class="kpi amber"><div class="kpi-val">{{ visitas.coletas.pos_alb or 0 }}</div><div class="kpi-lbl">Ae. albopictus positivas</div></div>
+      <div class="kpi teal"><div class="kpi-val">{{ (visitas.coletas.total or 0) - (visitas.coletas.pos_aeg or 0) }}</div><div class="kpi-lbl">Coletas sem aegypti</div></div>
+    </div>
+  </div>
+
+  <div class="bloco-relatorio">
+    <div class="secao">Graficos analiticos</div>
+    <div class="chart-row">
+      <div class="chart-box"><div class="chart-title">Producao por frente</div><canvas id="chAtividades" height="165"></canvas></div>
+      <div class="chart-box"><div class="chart-title">Visitas por situacao</div><canvas id="chStatus" height="165"></canvas></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-box"><div class="chart-title">Tempo medio por tipo</div><canvas id="chDuracaoTipo" height="165"></canvas></div>
+      <div class="chart-box"><div class="chart-title">Top agentes por producao</div><canvas id="chAgentes" height="165"></canvas></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-box"><div class="chart-title">Top localidades</div><canvas id="chLocalidades" height="165"></canvas></div>
+      <div class="chart-box"><div class="chart-title">Evolucao mensal integrada</div><canvas id="chMeses" height="165"></canvas></div>
+    </div>
   </div>
 
   <div class="bloco-relatorio">
@@ -180,5 +302,73 @@ tr:nth-child(even) td{background:#f8faff;}
     CEP 83501-150 &nbsp;|&nbsp; endemias@tamandare.pr.gov.br
   </div>
 </div>
+<script>
+const prod = {{ prod | tojson }};
+const visitas = {{ visitas | tojson }};
+const pal = ['#1a4fba','#0d9488','#d97706','#dc2626','#8b5cf6','#06b6d4','#f97316'];
+
+function chart(id, cfg) {
+  const el = document.getElementById(id);
+  if (!el || typeof Chart === 'undefined') return;
+  new Chart(el, cfg);
+}
+
+function axis(extra) {
+  return Object.assign({
+    x:{ticks:{font:{size:8}}},
+    y:{beginAtZero:true,ticks:{font:{size:8}}}
+  }, extra || {});
+}
+
+chart('chAtividades', {
+  type:'bar',
+  data:{
+    labels:(prod.por_atividade || []).map(r => r.nome),
+    datasets:[{data:(prod.por_atividade || []).map(r => r.registros), backgroundColor:pal.map(c => c + 'cc'), borderRadius:3}]
+  },
+  options:{plugins:{legend:{display:false}}, scales:axis()}
+});
+
+chart('chStatus', {
+  type:'doughnut',
+  data:{
+    labels:(visitas.por_status || []).map(r => r.status),
+    datasets:[{data:(visitas.por_status || []).map(r => r.total), backgroundColor:pal.map(c => c + 'cc')}]
+  },
+  options:{plugins:{legend:{position:'bottom', labels:{font:{size:8}}}}}
+});
+
+chart('chDuracaoTipo', {
+  type:'bar',
+  data:{
+    labels:(visitas.duracao_por_tipo || []).map(r => r.tipo),
+    datasets:[{label:'Minutos', data:(visitas.duracao_por_tipo || []).map(r => r.media), backgroundColor:'#0d9488cc', borderRadius:3}]
+  },
+  options:{plugins:{legend:{display:false}}, scales:axis()}
+});
+
+const topAgentes = (prod.por_agente || []).slice(0, 10).reverse();
+chart('chAgentes', {
+  type:'bar',
+  data:{labels:topAgentes.map(r => r.agente), datasets:[{data:topAgentes.map(r => r.registros), backgroundColor:'#1a4fbacc', borderRadius:3}]},
+  options:{indexAxis:'y', plugins:{legend:{display:false}}, scales:axis({y:{ticks:{font:{size:7}}}})}
+});
+
+const topLoc = (prod.por_localidade || []).slice(0, 10).reverse();
+chart('chLocalidades', {
+  type:'bar',
+  data:{labels:topLoc.map(r => r.localidade), datasets:[{data:topLoc.map(r => r.registros), backgroundColor:'#d97706cc', borderRadius:3}]},
+  options:{indexAxis:'y', plugins:{legend:{display:false}}, scales:axis({y:{ticks:{font:{size:7}}}})}
+});
+
+chart('chMeses', {
+  type:'line',
+  data:{
+    labels:(prod.por_mes || []).map(r => r.mes),
+    datasets:[{label:'Registros', data:(prod.por_mes || []).map(r => r.registros), borderColor:'#1a4fba', backgroundColor:'#1a4fba22', fill:true, tension:.3}]
+  },
+  options:{plugins:{legend:{display:false}}, scales:axis()}
+});
+</script>
 </body>
 </html>

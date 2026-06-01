@@ -13,6 +13,7 @@ from flask import Flask, current_app, has_app_context, request, session
 from flask_wtf.csrf import CSRFProtect
 
 from app_core import app_setup
+from app_core import agentes as agentes_core
 from app_core import auth as auth_core
 from app_core import db as db_core
 from app_core import import_history
@@ -26,6 +27,7 @@ from blueprints.auth import bp as auth_bp
 from blueprints.bri import bp as bri_bp
 from blueprints.consultas import bp as consultas_bp
 from blueprints.conta_ovos_sispncd import bp as conta_ovos_sispncd_bp
+from blueprints.controle_pessoal import bp as controle_pessoal_bp
 from blueprints.esporotricose import bp as esporotricose_bp
 from blueprints.exportacoes import bp as exportacoes_bp
 from blueprints.home import bp as home_bp
@@ -111,6 +113,7 @@ def _register_blueprints(flask_app):
     flask_app.register_blueprint(amostras_animais_bp)
     flask_app.register_blueprint(bri_bp)
     flask_app.register_blueprint(conta_ovos_sispncd_bp)
+    flask_app.register_blueprint(controle_pessoal_bp)
     flask_app.register_blueprint(consultas_bp)
     flask_app.register_blueprint(esporotricose_bp)
     flask_app.register_blueprint(exportacoes_bp)
@@ -284,6 +287,7 @@ def create_app(config_overrides=None):
 
     _configure_logging(flask_app.config["LOG_PATH"])
     _configure_secret_key(flask_app, flask_app.config["SECRET_KEY_PATH"])
+    agentes_core.ensure_schema(flask_app.config["DB_PATH"])
     csrf.init_app(flask_app)
 
     flask_app.extensions["invalidar_cache_globals"] = invalidar_cache_globals
