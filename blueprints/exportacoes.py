@@ -8,13 +8,16 @@ from flask import Blueprint, abort, current_app, jsonify, request, send_file
 from openpyxl.styles import Alignment, Font, PatternFill
 
 from app_core import auth as auth_core
+from app_core import blueprint_helpers as bh
 from app_core import db as db_core
+from app_core.excel import excel_safe
 from app_core import utils as utils_core
 from app_core import work_types
 
 
 bp = Blueprint("exportacoes", __name__)
 login_required = auth_core.login_required
+nivel_min = bh.nivel_min
 
 
 def _db_path():
@@ -177,7 +180,7 @@ def _gerar_xlsx(cabecalho, rows, nome):
     for ri, row in enumerate(rows, 2):
         vals = list(row.values()) if isinstance(row, dict) else list(row)
         for ci, value in enumerate(vals, 1):
-            ws.cell(ri, ci, value)
+            ws.cell(ri, ci, excel_safe(value))
     for col in ws.columns:
         width = max((len(str(cell.value or "")) for cell in col), default=8)
         ws.column_dimensions[col[0].column_letter].width = min(width + 2, 40)
@@ -223,6 +226,7 @@ def consolidados_status():
 
 @bp.route("/saida/gerar-consolidados", methods=["POST"])
 @login_required
+@nivel_min("operador")
 def gerar_consolidados():
     try:
         payload = request.get_json(silent=True) or {}

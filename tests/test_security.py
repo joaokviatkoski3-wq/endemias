@@ -173,6 +173,37 @@ class LoginRateLimitTests(unittest.TestCase):
             auth_core.limpar_login_falhas_db(get_db, chave)
             self.assertFalse(auth_core.login_bloqueado_db(get_db, chave, agora=121))
 
+    def test_senha_minima_centralizada(self):
+        self.assertFalse(auth_core.senha_valida("123456"))
+        self.assertTrue(auth_core.senha_valida("1234567890"))
+        self.assertIn(str(auth_core.PASSWORD_MIN_LENGTH), auth_core.mensagem_senha_invalida())
+
+    def test_chave_login_ignora_x_forwarded_for_sem_proxy_confiavel(self):
+        app_temp = endemias_app.create_app({
+            "TESTING": True,
+            "DB_PATH": endemias_app.DB_PATH,
+            "TRUST_PROXY_HEADERS": False,
+        })
+        with app_temp.test_request_context(
+            "/login",
+            environ_base={"REMOTE_ADDR": "10.0.0.5"},
+            headers={"X-Forwarded-For": "203.0.113.9"},
+        ):
+            self.assertEqual(auth_core.chave_login("Admin"), "10.0.0.5:admin")
+
+    def test_chave_login_usa_x_forwarded_for_quando_proxy_confiavel(self):
+        app_temp = endemias_app.create_app({
+            "TESTING": True,
+            "DB_PATH": endemias_app.DB_PATH,
+            "TRUST_PROXY_HEADERS": True,
+        })
+        with app_temp.test_request_context(
+            "/login",
+            environ_base={"REMOTE_ADDR": "10.0.0.5"},
+            headers={"X-Forwarded-For": "203.0.113.9, 10.0.0.5"},
+        ):
+            self.assertEqual(auth_core.chave_login("Admin"), "203.0.113.9:admin")
+
 
 class UploadValidationTests(unittest.TestCase):
     def _xlsx_minimo(self):
@@ -825,6 +856,19 @@ class ProtectedRouteTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/login", resp.headers["Location"])
 
+    def test_sessao_com_usuario_inexistente_redireciona_para_login(self):
+        endemias_app.app.config["TESTING"] = True
+        with endemias_app.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["uid"] = 999999999
+                sess["nome"] = "Usuario removido"
+                sess["nivel"] = "admin"
+
+            resp = client.get("/")
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/login", resp.headers["Location"])
+
     def test_respostas_incluem_headers_basicos_de_seguranca(self):
         endemias_app.app.config["TESTING"] = True
         with endemias_app.app.test_client() as client:
@@ -850,6 +894,28 @@ class ProtectedRouteTests(unittest.TestCase):
 
         self.assertIn("default-src 'self'", resp.headers["Content-Security-Policy"])
         self.assertNotIn("Content-Security-Policy-Report-Only", resp.headers)
+
+    def test_csp_pode_remover_inline_quando_configurada(self):
+        app_temp = endemias_app.create_app({
+            "TESTING": True,
+            "DB_PATH": endemias_app.DB_PATH,
+            "CSP_ALLOW_INLINE": False,
+        })
+        with app_temp.test_client() as client:
+            resp = client.get("/login")
+
+        csp = resp.headers["Content-Security-Policy-Report-Only"]
+        self.assertIn("script-src 'self'", csp)
+        self.assertNotIn("'unsafe-inline'", csp)
+
+    def test_cookie_secure_pode_ser_ativado_por_config(self):
+        app_temp = endemias_app.create_app({
+            "TESTING": True,
+            "DB_PATH": endemias_app.DB_PATH,
+            "SESSION_COOKIE_SECURE": True,
+        })
+
+        self.assertTrue(app_temp.config["SESSION_COOKIE_SECURE"])
 
     def test_logout_nao_aceita_get(self):
         client = _client_logado()
@@ -898,6 +964,17 @@ class ProtectedRouteTests(unittest.TestCase):
                     self.assertEqual(resp.status_code, 404)
         finally:
             endemias_app.app.config["WTF_CSRF_ENABLED"] = original
+
+    def test_visualizador_nao_gera_consolidados(self):
+        client = _client_logado("visualizador")
+        original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
+        endemias_app.app.config["WTF_CSRF_ENABLED"] = False
+        try:
+            resp = client.post("/saida/gerar-consolidados", json={"tipo": "PE"})
+        finally:
+            endemias_app.app.config["WTF_CSRF_ENABLED"] = original
+
+        self.assertEqual(resp.status_code, 403)
 
     def test_impressao_html_individual_nao_aceita_get(self):
         client = _client_logado("admin")
@@ -1438,6 +1515,18 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("totais", dados)
         for registro in dados["registros"]:
             self.assertTrue(registro.get("visita_atrasada") or registro.get("pendencias_cadastro"))
+
+    def test_api_pontos_estrategicos_situacao_invalida_retorna_400(self):
+        client = _client_logado("admin")
+        original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
+        endemias_app.app.config["WTF_CSRF_ENABLED"] = False
+        try:
+            resp = client.post("/api/pontos-estrategicos/1/situacao", json={"situacao": "abc"})
+        finally:
+            endemias_app.app.config["WTF_CSRF_ENABLED"] = original
+
+        self.assertEqual(resp.status_code, 400)
+        self.assertTrue(resp.is_json)
 
     def test_api_esporotricose_animais_retorna_detalhes(self):
         client = _client_logado()
@@ -2018,6 +2107,21 @@ class MainApisSmokeTests(unittest.TestCase):
                 finally:
                     resp.close()
 
+    def test_exportacao_xlsx_escapa_formulas(self):
+        rows = [{"campo": "=HYPERLINK(\"http://exemplo\")"}]
+        with endemias_app.app.test_request_context("/"):
+            from blueprints.exportacoes import _gerar_xlsx
+
+            resposta = _gerar_xlsx(["Campo"], rows, "teste")
+            resposta.direct_passthrough = False
+            data = resposta.get_data()
+
+        wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True)
+        try:
+            self.assertEqual(wb.active["A2"].value, "'=HYPERLINK(\"http://exemplo\")")
+        finally:
+            wb.close()
+
     def test_status_consolidados_retorna_tipos(self):
         client = _client_logado()
         resp = client.get("/saida/consolidados/status")
@@ -2028,7 +2132,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual({item["tipo"] for item in data["tipos"]}, set(work_types.WORK_TYPE_CODES))
 
     def test_gerar_consolidados_chama_gerador_sob_demanda(self):
-        client = _client_logado()
+        client = _client_logado("admin")
         csrf_original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
         endemias_app.app.config["WTF_CSRF_ENABLED"] = False
         try:
@@ -2087,6 +2191,21 @@ class MainApisSmokeTests(unittest.TestCase):
             ]
             for texto in textos:
                 self.assertFalse(any(c in texto for c in proibidos), texto)
+
+    def test_api_agenda_lembrete_invalido_retorna_400(self):
+        client = _client_logado("admin")
+        original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
+        endemias_app.app.config["WTF_CSRF_ENABLED"] = False
+        try:
+            resp = client.post(
+                "/api/agenda/eventos",
+                json={"titulo": "Teste", "data_inicio": "2026-06-01", "lembrete_min": "abc"},
+            )
+        finally:
+            endemias_app.app.config["WTF_CSRF_ENABLED"] = original
+
+        self.assertEqual(resp.status_code, 400)
+        self.assertTrue(resp.is_json)
 
 
 class PermissionMatrixTests(unittest.TestCase):

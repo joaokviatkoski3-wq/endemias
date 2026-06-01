@@ -4,12 +4,15 @@ from datetime import datetime
 from functools import wraps
 from urllib.parse import urljoin, urlparse
 
-from flask import redirect, render_template, request, session, url_for
+from flask import current_app, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
+
+from app_core import db as db_core
 
 
 LOGIN_MAX_TENTATIVAS = 5
 LOGIN_JANELA_SEG = 15 * 60
+PASSWORD_MIN_LENGTH = 10
 login_tentativas = {}
 
 
@@ -38,6 +41,14 @@ def hash_senha(senha):
     return generate_password_hash(senha, method="pbkdf2:sha256", salt_length=16)
 
 
+def senha_valida(senha):
+    return bool(senha) and len(senha) >= PASSWORD_MIN_LENGTH
+
+
+def mensagem_senha_invalida():
+    return f"A senha deve ter ao menos {PASSWORD_MIN_LENGTH} caracteres."
+
+
 def verificar_senha(senha_digitada, hash_armazenado):
     if hash_armazenado and hash_armazenado.startswith("pbkdf2:"):
         return check_password_hash(hash_armazenado, senha_digitada), None
@@ -56,7 +67,16 @@ def usuario_atual(query_one):
 def login_required(view):
     @wraps(view)
     def dec(*args, **kwargs):
-        if not session.get("uid"):
+        uid = session.get("uid")
+        if not uid:
+            return redirect(url_for("auth.login", next=request.path))
+        usuario = db_core.query_one(
+            current_app.config["DB_PATH"],
+            "SELECT id_usuario FROM usuarios WHERE id_usuario=? AND ativo=1",
+            (uid,),
+        )
+        if not usuario:
+            session.clear()
             return redirect(url_for("auth.login", next=request.path))
         return view(*args, **kwargs)
     return dec
@@ -85,9 +105,17 @@ def url_segura(target):
 
 
 def chave_login(usuario):
-    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "")
-    ip = ip.split(",", 1)[0].strip()
+    ip = client_ip()
     return f"{ip}:{(usuario or '').strip().lower()}"
+
+
+def client_ip():
+    ip = request.remote_addr or ""
+    if current_app.config.get("TRUST_PROXY_HEADERS", False):
+        forwarded = request.headers.get("X-Forwarded-For", "")
+        ip = forwarded or ip
+    ip = ip.split(",", 1)[0].strip()
+    return ip
 
 
 def login_bloqueado(chave, agora=None):

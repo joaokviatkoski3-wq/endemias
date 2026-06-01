@@ -77,17 +77,19 @@ def register_template_filters(app):
 
 
 def register_security_headers(app):
-    csp = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data:; "
-        "font-src 'self'; "
-        "connect-src 'self'; "
-        "frame-ancestors 'self'; "
-        "base-uri 'self'; "
-        "form-action 'self'"
-    )
+    def _csp():
+        inline = " 'unsafe-inline'" if current_app.config.get("CSP_ALLOW_INLINE", True) else ""
+        return (
+            "default-src 'self'; "
+            f"script-src 'self'{inline}; "
+            f"style-src 'self'{inline}; "
+            "img-src 'self' data:; "
+            "font-src 'self'; "
+            "connect-src 'self'; "
+            "frame-ancestors 'self'; "
+            "base-uri 'self'; "
+            "form-action 'self'"
+        )
 
     @app.after_request
     def add_security_headers(response):
@@ -98,6 +100,7 @@ def register_security_headers(app):
             "Permissions-Policy",
             "camera=(), microphone=(), geolocation=(), payment=()",
         )
+        csp = _csp()
         if current_app.config.get("CSP_REPORT_ONLY", True):
             response.headers.setdefault("Content-Security-Policy-Report-Only", csp)
         else:

@@ -125,8 +125,8 @@ def minha_senha():
         senha_ok, _ = _verificar_senha(atual, u["senha_hash"])
         if not senha_ok:
             erro = "Senha atual incorreta."
-        elif len(nova) < 6:
-            erro = "A nova senha deve ter ao menos 6 caracteres."
+        elif not auth_core.senha_valida(nova):
+            erro = auth_core.mensagem_senha_invalida()
         elif nova != conf:
             erro = "As senhas nao coincidem."
         else:

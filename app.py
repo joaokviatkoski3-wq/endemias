@@ -42,6 +42,13 @@ from blueprints.relatorio_agente import bp as relatorio_agente_bp
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+def _env_bool(env, name, default=False):
+    value = env.get(name)
+    if value is None:
+        return default
+    return str(value).strip().lower() in ("1", "true", "yes", "on", "sim")
+
+
 def resolve_paths(env=None, base_dir=BASE_DIR):
     env = env or os.environ
     instance_dir = os.path.abspath(env.get("ENDEMIAS_INSTANCE_DIR", base_dir))
@@ -62,6 +69,10 @@ CONFIG_PATH = PATHS["CONFIG_PATH"]
 UPLOAD_TEMP = PATHS["UPLOAD_TEMP"]
 LOG_PATH = PATHS["LOG_PATH"]
 SECRET_KEY_PATH = PATHS["SECRET_KEY_PATH"]
+SESSION_COOKIE_SECURE_DEFAULT = _env_bool(os.environ, "ENDEMIAS_SESSION_COOKIE_SECURE", False)
+TRUST_PROXY_HEADERS_DEFAULT = _env_bool(os.environ, "ENDEMIAS_TRUST_PROXY_HEADERS", False)
+CSP_REPORT_ONLY_DEFAULT = _env_bool(os.environ, "ENDEMIAS_CSP_REPORT_ONLY", True)
+CSP_ALLOW_INLINE_DEFAULT = _env_bool(os.environ, "ENDEMIAS_CSP_ALLOW_INLINE", True)
 
 csrf = CSRFProtect()
 
@@ -277,10 +288,13 @@ def create_app(config_overrides=None):
         PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=SESSION_COOKIE_SECURE_DEFAULT,
         MAX_CONTENT_LENGTH=64 * 1024 * 1024,
         WTF_CSRF_TIME_LIMIT=3600,
         WTF_CSRF_CHECK_DEFAULT=True,
-        CSP_REPORT_ONLY=True,
+        TRUST_PROXY_HEADERS=TRUST_PROXY_HEADERS_DEFAULT,
+        CSP_REPORT_ONLY=CSP_REPORT_ONLY_DEFAULT,
+        CSP_ALLOW_INLINE=CSP_ALLOW_INLINE_DEFAULT,
     )
     if config_overrides:
         flask_app.config.update(config_overrides)

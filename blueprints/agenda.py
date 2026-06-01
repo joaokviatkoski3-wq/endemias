@@ -20,6 +20,13 @@ def _admin_required_json():
     return u, None
 
 
+def _int_json(value, default):
+    try:
+        return int(value if value is not None and value != "" else default)
+    except (TypeError, ValueError):
+        raise ValueError("Valor numerico invalido")
+
+
 @bp.route("/agenda")
 @login_required
 def page():
@@ -41,7 +48,10 @@ def api_eventos():
         data_inicio = d.get("data_inicio", "")
         data_fim = d.get("data_fim") or None
         dia_inteiro = int(bool(d.get("dia_inteiro", False)))
-        lembrete_min = int(d.get("lembrete_min") or 60)
+        try:
+            lembrete_min = _int_json(d.get("lembrete_min"), 60)
+        except ValueError:
+            return jsonify({"erro": "Lembrete invalido"}), 400
         descricao = (d.get("descricao") or "").strip() or None
         cor = work_types.AGENDA_TYPE_COLORS.get(tipo, "#64748b")
         if not titulo or not data_inicio:
@@ -187,7 +197,10 @@ def api_evento(id_evento):
     data_inicio = d.get("data_inicio", "")
     data_fim = d.get("data_fim") or None
     dia_inteiro = int(bool(d.get("dia_inteiro", False)))
-    lembrete_min = int(d.get("lembrete_min") or 60)
+    try:
+        lembrete_min = _int_json(d.get("lembrete_min"), 60)
+    except ValueError:
+        return jsonify({"erro": "Lembrete invalido"}), 400
     descricao = (d.get("descricao") or "").strip() or None
     cor = work_types.AGENDA_TYPE_COLORS.get(tipo, "#64748b")
     if not titulo or not data_inicio:

@@ -190,8 +190,8 @@ def admin_criar_usuario():
     erro = None
     if not usuario or not nome or not senha:
         erro = "Preencha todos os campos."
-    elif len(senha) < 6:
-        erro = "A senha deve ter ao menos 6 caracteres."
+    elif not auth_core.senha_valida(senha):
+        erro = auth_core.mensagem_senha_invalida()
     elif nivel not in ("admin", "operador", "visualizador"):
         erro = "Nivel invalido."
     else:
@@ -233,7 +233,7 @@ def admin_editar_usuario(uid):
             conn.close()
             return jsonify({"erro": "Voce nao pode desativar sua propria conta."}), 400
         conn.execute("UPDATE usuarios SET ativo=? WHERE id_usuario=?", (int(valor), uid))
-    elif campo == "senha" and len(valor) >= 6:
+    elif campo == "senha" and auth_core.senha_valida(valor):
         conn.execute("UPDATE usuarios SET senha_hash=? WHERE id_usuario=?", (auth_core.hash_senha(valor), uid))
     else:
         conn.close()
@@ -261,7 +261,8 @@ def admin_editar_usuario(uid):
 @login_required
 @nivel_min("admin")
 def admin_resetar_senha(uid):
-    nova = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
+    tamanho = max(auth_core.PASSWORD_MIN_LENGTH, 12)
+    nova = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(tamanho))
     conn = bh.get_db()
     alvo = conn.execute("SELECT usuario,nome FROM usuarios WHERE id_usuario=?", (uid,)).fetchone()
     conn.execute("UPDATE usuarios SET senha_hash=? WHERE id_usuario=?", (auth_core.hash_senha(nova), uid))

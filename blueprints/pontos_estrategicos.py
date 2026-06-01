@@ -9,6 +9,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from app_core import audit
 from app_core import auth as auth_core
 from app_core import db as db_core
+from app_core.excel import excel_safe
 from app_core import pontos_estrategicos as pe_core
 
 
@@ -127,7 +128,10 @@ def api_atualizar(id_pe):
 @nivel_min("operador")
 def api_situacao(id_pe):
     payload = request.get_json(silent=True) or {}
-    situacao = int(payload.get("situacao", 1))
+    try:
+        situacao = int(payload.get("situacao", 1))
+    except (TypeError, ValueError):
+        return jsonify({"erro": "Situacao invalida."}), 400
     if situacao not in (0, 1):
         return jsonify({"erro": "Situacao invalida."}), 400
     atualizado = pe_core.definir_situacao(_db_path(), id_pe, situacao)
@@ -217,7 +221,7 @@ def _gerar_xlsx(registros):
         linha["situacao_label"] = "Ativo" if int(linha.get("situacao") or 0) == 1 else "Inativo"
         linha["pendencias"] = _pendencias(linha)
         for ci, campo in enumerate(campos, 1):
-            ws.cell(ri, ci, _valor(linha, campo))
+            ws.cell(ri, ci, excel_safe(_valor(linha, campo)))
 
     for col in ws.columns:
         width = max((len(str(cell.value or "")) for cell in col), default=8)

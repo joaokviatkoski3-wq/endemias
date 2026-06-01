@@ -3,6 +3,8 @@ from datetime import datetime
 
 from flask import request, session
 
+from app_core import auth as auth_core
+
 
 def garantir_tabela_auditoria(get_db, conn=None):
     fechar = conn is None
@@ -32,8 +34,7 @@ def registrar_evento(get_db, acao, entidade=None, entidade_id=None, detalhes=Non
     agora = datetime.now().isoformat()
     usuario_id = session.get("uid")
     usuario_nome = session.get("nome", "")
-    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "")
-    ip = ip.split(",", 1)[0].strip()
+    ip = auth_core.client_ip()
 
     conn = get_db()
     try:

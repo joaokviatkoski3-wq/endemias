@@ -4,6 +4,31 @@
 function openSidebar()  { document.getElementById('sidebar-mobile').classList.add('open'); document.getElementById('overlay').classList.add('open'); }
 function closeSidebar() { document.getElementById('sidebar-mobile').classList.remove('open'); document.getElementById('overlay').classList.remove('open'); }
 
+function setDesktopNav(open) {
+  const shell = document.getElementById('app-shell');
+  const btn = document.getElementById('sidebarToggle');
+  if (!shell) return;
+  shell.classList.toggle('sidebar-open', open);
+  if (btn) {
+    btn.classList.toggle('active', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btn.setAttribute('aria-label', open ? 'Ocultar navegacao' : 'Mostrar navegacao');
+    btn.setAttribute('title', open ? 'Ocultar navegacao' : 'Mostrar navegacao');
+  }
+}
+
+function toggleDesktopNav() {
+  const shell = document.getElementById('app-shell');
+  const open = !(shell && shell.classList.contains('sidebar-open'));
+  setDesktopNav(open);
+  localStorage.setItem('desktop_nav_open', open ? '1' : '0');
+}
+window.toggleDesktopNav = toggleDesktopNav;
+
+document.addEventListener('DOMContentLoaded', () => {
+  setDesktopNav(localStorage.getItem('desktop_nav_open') === '1');
+});
+
 function toggleUserMenu() {
   const m = document.getElementById('user-menu');
   if (!m) return;
