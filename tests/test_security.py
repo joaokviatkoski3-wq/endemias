@@ -926,6 +926,101 @@ class PontosEstrategicosTests(unittest.TestCase):
         self.assertIn("Ferro Velho Central", html)
         self.assertNotIn("Borracharia Norte", html)
 
+    def test_aliases_de_pe_resolvem_logradouros_antigos(self):
+        with sqlite3.connect(":memory:") as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.execute("CREATE TABLE localidades (id_localidade INTEGER PRIMARY KEY, nome TEXT, cod_localidade TEXT)")
+            pe_core.ensure_schema(conn)
+            for codigo, nome, localidade in (
+                ("PE-0007", "Borracharia Mauricio", "Tranqueira"),
+                ("PE-0042", "Cemiterio Prado", "Rosana"),
+                ("PE-0043", "Condominio Jersey City - LYX", "Rosana"),
+            ):
+                pe_core.inserir(conn, {"codigo_pe": codigo, "nome": nome, "localidade": localidade})
+            pe_core.ensure_schema(conn)
+
+            self.assertEqual(
+                pe_core.resolver_alias_visita(
+                    conn,
+                    "Borracharia (prox celeste) -  Rodovia Dos Minérios",
+                    "Tranqueira",
+                )["codigo_pe"],
+                "PE-0007",
+            )
+            self.assertEqual(pe_core.resolver_alias_visita(conn, "CEMITERIO", "Rosana")["codigo_pe"], "PE-0042")
+            self.assertEqual(pe_core.resolver_alias_visita(conn, "CONDOMINIO", "Rosana")["codigo_pe"], "PE-0043")
+            self.assertEqual(pe_core.resolver_alias_visita(conn, "LYX", "Rosana")["codigo_pe"], "PE-0043")
+            self.assertIsNone(pe_core.resolver_alias_visita(conn, "cemitério", "São Venâncio"))
+
+    def test_listagem_de_pe_prioriza_vinculo_direto_da_visita(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            pe_core.salvar(str(db_path), {
+                "codigo_pe": "PE-9001",
+                "nome": "PE Principal",
+                "localidade": "Centro",
+                "quarteirao": 10,
+                "situacao": 1,
+            })
+            pe_core.salvar(str(db_path), {
+                "codigo_pe": "PE-9002",
+                "nome": "PE Mesmo Quarteirao",
+                "localidade": "Centro",
+                "quarteirao": 10,
+                "situacao": 1,
+            })
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                pe_core.ensure_schema(conn)
+                pe1 = conn.execute("SELECT id_pe FROM pontos_estrategicos WHERE codigo_pe='PE-9001'").fetchone()["id_pe"]
+                conn.execute(
+                    """INSERT INTO visitas (
+                           id_visita, kobo_uuid, tipo, data, id_localidade, localidade,
+                           quarteirao, logradouro, processado_em, id_pe, codigo_pe
+                       ) VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                    ("v-pe", "uuid-pe", "PE", "2026-06-01", 1, "Centro", 10, "Alias", "agora", pe1, "PE-9001"),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            dados = pe_core.listar(str(db_path), limite=None)["registros"]
+            por_codigo = {row["codigo_pe"]: row for row in dados if row["codigo_pe"] in ("PE-9001", "PE-9002")}
+
+        self.assertEqual(por_codigo["PE-9001"]["visitas_pe_total"], 1)
+        self.assertEqual(por_codigo["PE-9002"]["visitas_pe_total"], 0)
+
+    def test_vincula_visitas_antigas_de_pe_por_alias(self):
+        with sqlite3.connect(":memory:") as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.execute("CREATE TABLE localidades (id_localidade INTEGER PRIMARY KEY, nome TEXT, cod_localidade TEXT)")
+            conn.execute(
+                """CREATE TABLE visitas (
+                       id_visita TEXT PRIMARY KEY,
+                       tipo TEXT,
+                       data TEXT,
+                       localidade TEXT,
+                       logradouro TEXT
+                   )"""
+            )
+            pe_core.ensure_schema(conn)
+            pe_core.inserir(conn, {"codigo_pe": "PE-0007", "nome": "Borracharia Mauricio", "localidade": "Tranqueira"})
+            pe_core.ensure_schema(conn)
+            conn.execute(
+                """INSERT INTO visitas(id_visita, tipo, data, localidade, logradouro)
+                   VALUES ('v1', 'PE', '2026-06-01', 'Tranqueira',
+                           'Borracharia (prox celeste) -  Rodovia Dos Minérios')"""
+            )
+
+            resultado = pe_core.vincular_visitas_existentes_por_alias(conn)
+            visita = conn.execute("SELECT codigo_pe FROM visitas WHERE id_visita='v1'").fetchone()
+
+        self.assertEqual(resultado["atualizadas"], 1)
+        self.assertEqual(visita["codigo_pe"], "PE-0007")
+
 
 class SispncdIndiceTests(unittest.TestCase):
     def _criar_planilha_indice(self, path):

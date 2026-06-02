@@ -14,6 +14,7 @@ from openpyxl.utils import column_index_from_string
 from app_core import esporotricose as esporotricose_core
 from app_core import amostras_animais as amostras_animais_core
 from app_core import bri as bri_core
+from app_core import pontos_estrategicos as pe_core
 from app_core import recolhimentos as recolhimentos_core
 from app_core import work_types
 
@@ -375,14 +376,17 @@ def inserir_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso):
 
     col_seq = cfg_tipo.get("col_sequencia")
     loc_bruto = val_str(row.get(cfg_tipo["col_localidade"]))
+    logradouro = val_str(row.get("Logradouro") or row.get("logradouro"))
+    pe_vinculo = pe_core.resolver_alias_visita(cur.connection, logradouro, loc_bruto) if tipo == "PE" else None
 
     cur.execute("""
         INSERT OR IGNORE INTO visitas (
             id_visita, kobo_uuid, kobo_id, tipo, data,
             hora_inicio, hora_fim, ciclo, localidade, id_localidade, logradouro,
             numero, quarteirao, sequencia, morador, tipo_imovel,
-            visita, lado, agua_sanepar, observacoes, submission_time, processado_em
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            visita, lado, agua_sanepar, observacoes, submission_time, processado_em,
+            id_pe, codigo_pe
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """, (
         id_visita, val_str(kobo_uuid), val_int(row.get("_id")), tipo,
         normalizar_data(row.get(col_data)),
@@ -390,7 +394,7 @@ def inserir_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso):
         val_int(row.get("Ciclo") or row.get("ciclo")),
         loc_bruto,
         obter_ou_criar_localidade(cur, loc_bruto),
-        val_str(row.get("Logradouro") or row.get("logradouro")),
+        logradouro,
         val_str(row.get("Número") or row.get("numero")),
         val_int(row.get("Quarteirão") or row.get("quarteirao")),
         val_str(row.get(col_seq)) if col_seq else None,
@@ -402,6 +406,8 @@ def inserir_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso):
         val_str(row.get("Observações") or row.get("observacoes")),
         val_str(row.get("_submission_time")),
         agora_iso,
+        pe_vinculo.get("id_pe") if pe_vinculo else None,
+        pe_vinculo.get("codigo_pe") if pe_vinculo else None,
     ))
     return cur.rowcount > 0
 
@@ -741,6 +747,7 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
     esporotricose_core.ensure_schema(conn)
     amostras_animais_core.ensure_schema(conn)
     bri_core.ensure_schema(conn)
+    pe_core.ensure_schema(conn)
     recolhimentos_core.ensure_schema(conn)
 
     # FIX ETL-01: UMA transação para todos os arquivos — garante atomicidade total

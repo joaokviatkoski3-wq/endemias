@@ -11,7 +11,67 @@ from app_core import recolhimentos as normalizadores
 TABLE = "pontos_estrategicos"
 
 
+PE_ALIAS_SEED = (
+    ("Barracão Reciclar e Limpar - Rua Aides Ângelo de Oliveira", None, "PE-0026"),
+    ("Borracharia (Antunes - pai) - Rodovia dos Minérios", None, "PE-0021"),
+    ("Borracharia (Davi) - Rodovia dos Minérios", None, "PE-0023"),
+    ("Borracharia (prox celeste) - Rodovia Dos Minérios", None, "PE-0007"),
+    ("Borracharia - Rio Tanguá", None, "PE-0008"),
+    ("Borracharia DPC - Rodovia dos Minérios", None, "PE-0022"),
+    ("Borracharia Maurício - Rodovia Dos Minérios", None, "PE-0007"),
+    ("Borracharia Nezinho - Rodovia dos Minérios - 7643", None, "PE-0012"),
+    ("Borracharia Pedra Branca - Rodovia dos Minérios - KM16", None, "PE-0010"),
+    ("Borracharia Polaco - Antonio Stochero", None, "PE-0006"),
+    ("Borracharia do Nei - Rodovia Dos Minérios - 14365", None, "PE-0001"),
+    ("Borracharia do Nei - Rodovia Dos Minérios - 14745", None, "PE-0001"),
+    ("Cal Barigui - Pedro Teixeira Alves", None, "PE-0019"),
+    ("Cal Chimelli - Antonio Stochero", None, "PE-0005"),
+    ("Cal Eloi - Pedro Teixeira Alves", None, "PE-0018"),
+    ("CEMITERIO", "Rosana", "PE-0042"),
+    ("Cemitério - Cel. João Cândido de Oliveira - 750", None, "PE-0015"),
+    ("Cemitério - João Berquó", None, "PE-0002"),
+    ("Cemitério Evangélico - Mauricio Rosseman - S/N", None, "PE-0041"),
+    ("Cemitério Prado - Prof Alberto Piekarz", None, "PE-0042"),
+    ("Cemitério Vaticano - Mauricio Rosseman - 665", None, "PE-0040"),
+    ("CONDOMINIO", "Rosana", "PE-0043"),
+    ("Conserto Máquinas", None, "PE-0024"),
+    ("Conserto Máquinas - Rua Barigui", None, "PE-0024"),
+    ("Ferro Velho (Proprietário Bruno) - Rua São Gabriel", None, "PE-0025"),
+    ("Ferro Velho - Alisson", None, "PE-0029"),
+    ("Ferro Velho Brito - Rodovia dos Minérios", None, "PE-0034"),
+    ("Ferro Velho Campo Grande - Gervásio Czeluziniak", None, "PE-0004"),
+    ("Ferro Velho Nunes - Contorno Norte - S/N", None, "PE-0039"),
+    ("Ferro Velho Nunes - Rod. Vereador Admar Bertolli - S/N", None, "PE-0039"),
+    ("Ferro Velho Pernambuco - Rod. Edmar Bertolli - 74", None, "PE-0032"),
+    ("Ferro Velho Pernambuco - Rod. Vereador Admar Bertolli - 74", None, "PE-0032"),
+    ("Ferro Velho do Paulo - Rua Campo de Minas", None, "PE-0031"),
+    ("Ferro Velho do Paulo - Rua Campos de Minas", None, "PE-0031"),
+    ("LYX", "Rosana", "PE-0043"),
+    ("Lyx New Jersey - José Real Prado - 3715", "Rosana", "PE-0043"),
+    ("Meio Ambiente - Trav. Rio Cachoeirinha", None, "PE-0009"),
+    ("Metalurgica - Pref. Eurípedes de Siqueira", None, "PE-0011"),
+    ("Metalurgica - Prof. Eurípedes de Siqueira", None, "PE-0011"),
+    ("ORPEC - Wadislau Bugalski", None, "PE-0028"),
+    ("Patio de Obras - Pedro Teixeira Alves", None, "PE-0017"),
+    ("Posto Rodoviário - Rodovia Dos Minérios - KM21", None, "PE-0003"),
+    ("Reciclagem (Valdecir) - Rua Alexandre de Cristo", None, "PE-0027"),
+    ("Reciclagem - Carlos", None, "PE-0030"),
+    ("Reciclagem Antenor - Rodovia dos Minérios", None, "PE-0035"),
+    ("Reciclagem Ernesto Silva - Antonio Soares de Britto - 85", None, "PE-0033"),
+    ("Reciclagem Garcia - Iraydes da Cruz Guimarães - 7733", None, "PE-0038"),
+    ("Reciclagem Ilha Nova - José Platner - 24", None, "PE-0014"),
+    ("Reciclagem Marques - Francisco Kriger - 36", None, "PE-0036"),
+    ("Reciclagem Marques - Francisco Kruger - 36", None, "PE-0036"),
+    ("Reciclagem da Ilha - Constância Wolf", None, "PE-0013"),
+    ("Reciclagem no TB - Constância Wolf", None, "PE-0013"),
+    ("Reciclagrem Carlos", None, "PE-0030"),
+    ("Tas Construtora - Iraydes da Cruz Guimarães", None, "PE-0037"),
+    ("Terreno ao Lado Câmara Municipal - José Carlos Colodel", None, "PE-0016"),
+)
+
+
 def ensure_schema(conn):
+    em_transacao = conn.in_transaction
     conn.executescript(
         """
         CREATE TABLE IF NOT EXISTS pontos_estrategicos (
@@ -42,8 +102,165 @@ def ensure_schema(conn):
         CREATE INDEX IF NOT EXISTS idx_pe_situacao ON pontos_estrategicos(situacao);
         CREATE INDEX IF NOT EXISTS idx_pe_localidade ON pontos_estrategicos(id_localidade);
         CREATE INDEX IF NOT EXISTS idx_pe_tipo ON pontos_estrategicos(tipo);
+
+        CREATE TABLE IF NOT EXISTS pontos_estrategicos_alias (
+            id_alias              INTEGER PRIMARY KEY AUTOINCREMENT,
+            alias_logradouro      TEXT NOT NULL,
+            alias_normalizado     TEXT NOT NULL,
+            localidade            TEXT,
+            localidade_normalizada TEXT NOT NULL DEFAULT '',
+            codigo_pe             TEXT NOT NULL REFERENCES pontos_estrategicos(codigo_pe),
+            observacoes           TEXT,
+            ativo                 INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)),
+            criado_em             TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em         TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(alias_normalizado, localidade_normalizada)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_pe_alias_lookup
+            ON pontos_estrategicos_alias(alias_normalizado, localidade_normalizada, ativo);
         """
     )
+    _ensure_visitas_vinculo_schema(conn)
+    _seed_aliases(conn)
+    if not em_transacao and conn.in_transaction:
+        conn.commit()
+
+
+def _ensure_visitas_vinculo_schema(conn):
+    if not _table_exists(conn, "visitas"):
+        return
+    cols = _table_columns(conn, "visitas")
+    if "id_pe" not in cols:
+        conn.execute("ALTER TABLE visitas ADD COLUMN id_pe INTEGER")
+    if "codigo_pe" not in cols:
+        conn.execute("ALTER TABLE visitas ADD COLUMN codigo_pe TEXT")
+    conn.executescript(
+        """
+        CREATE INDEX IF NOT EXISTS idx_visitas_id_pe ON visitas(id_pe);
+        CREATE INDEX IF NOT EXISTS idx_visitas_codigo_pe ON visitas(codigo_pe);
+        """
+    )
+
+
+def _seed_aliases(conn):
+    agora = datetime.now().isoformat(timespec="seconds")
+    for alias, localidade, codigo_pe in PE_ALIAS_SEED:
+        if not conn.execute("SELECT 1 FROM pontos_estrategicos WHERE codigo_pe=?", (codigo_pe,)).fetchone():
+            continue
+        conn.execute(
+            """INSERT OR IGNORE INTO pontos_estrategicos_alias (
+                   alias_logradouro, alias_normalizado, localidade, localidade_normalizada,
+                   codigo_pe, observacoes, ativo, criado_em, atualizado_em
+               ) VALUES (?,?,?,?,?,?,?,?,?)""",
+            (
+                _text(alias),
+                normalizar_alias(alias),
+                _text(localidade),
+                normalizar_alias(localidade),
+                codigo_pe,
+                "alias inicial para visitas PE antigas",
+                1,
+                agora,
+                agora,
+            ),
+        )
+
+
+def resolver_alias_visita(conn, logradouro, localidade=None):
+    alias = normalizar_alias(logradouro)
+    if not alias:
+        return None
+    localidade_norm = normalizar_alias(localidade)
+    row = None
+    if localidade_norm:
+        row = conn.execute(
+            """SELECT pe.id_pe, pe.codigo_pe
+                 FROM pontos_estrategicos_alias a
+                 JOIN pontos_estrategicos pe ON pe.codigo_pe=a.codigo_pe
+                WHERE a.ativo=1
+                  AND a.alias_normalizado=?
+                  AND a.localidade_normalizada=?
+                ORDER BY pe.situacao DESC, pe.codigo_pe
+                LIMIT 1""",
+            (alias, localidade_norm),
+        ).fetchone()
+    if not row:
+        row = conn.execute(
+            """SELECT pe.id_pe, pe.codigo_pe
+                 FROM pontos_estrategicos_alias a
+                 JOIN pontos_estrategicos pe ON pe.codigo_pe=a.codigo_pe
+                WHERE a.ativo=1
+                  AND a.alias_normalizado=?
+                  AND a.localidade_normalizada=''
+                ORDER BY pe.situacao DESC, pe.codigo_pe
+                LIMIT 1""",
+            (alias,),
+        ).fetchone()
+    if not row:
+        return None
+    try:
+        return {"id_pe": row["id_pe"], "codigo_pe": row["codigo_pe"]}
+    except (TypeError, IndexError):
+        return {"id_pe": row[0], "codigo_pe": row[1]}
+
+
+def vincular_visitas_existentes_por_alias(conn):
+    if not _table_exists(conn, "visitas"):
+        return {"atualizadas": 0, "sem_alias": 0}
+    ensure_schema(conn)
+    rows = conn.execute(
+        """SELECT id_visita, logradouro, localidade
+             FROM visitas
+            WHERE tipo='PE'
+              AND (id_pe IS NULL OR codigo_pe IS NULL)
+              AND logradouro IS NOT NULL
+              AND TRIM(logradouro)<>''"""
+    ).fetchall()
+    atualizadas = sem_alias = 0
+    for row in rows:
+        try:
+            id_visita = row["id_visita"]
+            logradouro = row["logradouro"]
+            localidade = row["localidade"]
+        except (TypeError, IndexError):
+            id_visita, logradouro, localidade = row[0], row[1], row[2]
+        vinculo = resolver_alias_visita(conn, logradouro, localidade)
+        if not vinculo:
+            sem_alias += 1
+            continue
+        conn.execute(
+            "UPDATE visitas SET id_pe=?, codigo_pe=? WHERE id_visita=?",
+            (vinculo["id_pe"], vinculo["codigo_pe"], id_visita),
+        )
+        atualizadas += 1
+    return {"atualizadas": atualizadas, "sem_alias": sem_alias}
+
+
+def normalizar_alias(value):
+    text = _text(value)
+    if not text:
+        return ""
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = text.lower()
+    text = text.replace("rod.", "rodovia").replace("trav.", "travessa")
+    text = text.replace("prof.", "professor").replace("pref.", "prefeito")
+    text = text.replace("  ", " ")
+    text = " ".join(text.split())
+    text = text.replace(" -  ", " - ").replace("  - ", " - ").replace("-  ", "- ")
+    return text
+
+
+def _table_exists(conn, table):
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+        (table,),
+    ).fetchone() is not None
+
+
+def _table_columns(conn, table):
+    return {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
 
 
 def importar_csv_inicial(csv_path, db_path):
@@ -61,6 +278,7 @@ def importar_csv_inicial(csv_path, db_path):
                 inseridos += 1
             else:
                 duplicados += 1
+        _seed_aliases(conn)
         conn.execute("COMMIT")
     except Exception:
         conn.execute("ROLLBACK")
@@ -110,17 +328,21 @@ def listar(db_path, filtros=None, limite=1000):
                 f"""SELECT pe.*,
                         (
                             SELECT MAX(v.data)
-                              FROM visitas v
+                             FROM visitas v
                              WHERE v.tipo='PE'
-                               AND v.id_localidade=pe.id_localidade
-                               AND v.quarteirao=pe.quarteirao
+                               AND (
+                                   v.id_pe=pe.id_pe
+                                   OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao)
+                               )
                         ) AS ultima_visita_pe,
                         (
                             SELECT COUNT(DISTINCT v.id_visita)
                               FROM visitas v
                              WHERE v.tipo='PE'
-                               AND v.id_localidade=pe.id_localidade
-                               AND v.quarteirao=pe.quarteirao
+                               AND (
+                                   v.id_pe=pe.id_pe
+                                   OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao)
+                               )
                         ) AS visitas_pe_total,
                         (
                             SELECT MAX(b.data)
@@ -200,8 +422,10 @@ def resumo_operacional(db_path, filtros=None):
             f"""SELECT COUNT(DISTINCT pe.id_pe)
                   FROM pontos_estrategicos pe
                   JOIN visitas v ON v.tipo='PE'
-                   AND v.id_localidade=pe.id_localidade
-                   AND v.quarteirao=pe.quarteirao
+                   AND (
+                       v.id_pe=pe.id_pe
+                       OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao)
+                   )
                  {where}
                    AND v.data BETWEEN ? AND ?""",
             params + [d_ini, d_fim],
@@ -234,8 +458,10 @@ def resumo_operacional(db_path, filtros=None):
                     SELECT pe.id_pe, MAX(v.data) AS ultima_visita
                       FROM pontos_estrategicos pe
                       LEFT JOIN visitas v ON v.tipo='PE'
-                       AND v.id_localidade=pe.id_localidade
-                       AND v.quarteirao=pe.quarteirao
+                       AND (
+                           v.id_pe=pe.id_pe
+                           OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao)
+                       )
                      {where}
                        AND pe.situacao=1
                      GROUP BY pe.id_pe
@@ -270,8 +496,10 @@ def resumo_operacional(db_path, filtros=None):
                         ) AS focos_total
                     FROM pontos_estrategicos pe
                     LEFT JOIN visitas v ON v.tipo='PE'
-                     AND v.id_localidade=pe.id_localidade
-                     AND v.quarteirao=pe.quarteirao
+                     AND (
+                         v.id_pe=pe.id_pe
+                         OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao)
+                     )
                     {where}
                       AND pe.situacao=1
                     GROUP BY pe.id_pe
