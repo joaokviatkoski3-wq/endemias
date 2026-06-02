@@ -839,6 +839,57 @@ class BriTests(unittest.TestCase):
         self.assertEqual(registros_legados[0]["sispncd"], "0065/2026")
         self.assertIn("quantidade_carga", registros_novos[0])
 
+    def test_bri_de_ponto_estrategico_vincula_por_alias(self):
+        with sqlite3.connect(":memory:") as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.execute("CREATE TABLE localidades (id_localidade INTEGER PRIMARY KEY, nome TEXT, cod_localidade TEXT)")
+            conn.execute("CREATE TABLE agentes (id_agente INTEGER PRIMARY KEY, nome TEXT UNIQUE)")
+            pe_core.ensure_schema(conn)
+            bri_core.ensure_schema(conn)
+            pe_core.inserir(conn, {
+                "codigo_pe": "PE-0009",
+                "nome": "Meio Ambiente",
+                "localidade": "Paraíso",
+                "quarteirao": 481,
+            })
+            pe_core.ensure_schema(conn)
+            conn.execute(
+                """INSERT INTO bri_registros (
+                       id_bri, data, destino_tratamento, localidade, id_localidade,
+                       quarteirao, local_tratamento, logradouro, processado_em
+                   ) VALUES (?,?,?,?,?,?,?,?,?)""",
+                (
+                    "bri-pe",
+                    "2026-06-01",
+                    "Ponto Estratégico",
+                    "Paraíso",
+                    1,
+                    129,
+                    "Meio Ambiente",
+                    "Trav. Rio Cachoeirinha",
+                    "agora",
+                ),
+            )
+
+            resultado = bri_core.vincular_registros_pe_por_alias(conn)
+            bri = conn.execute("SELECT codigo_pe FROM bri_registros WHERE id_bri='bri-pe'").fetchone()
+            row = conn.execute(
+                """SELECT pe.codigo_pe,
+                          (SELECT COUNT(*) FROM bri_registros b
+                            WHERE b.destino_tratamento='Ponto Estratégico'
+                              AND (
+                                  b.id_pe=pe.id_pe
+                                  OR (b.id_pe IS NULL AND b.id_localidade=pe.id_localidade AND b.quarteirao=pe.quarteirao)
+                              )) AS bri_total
+                     FROM pontos_estrategicos pe
+                    WHERE pe.codigo_pe='PE-0009'"""
+            ).fetchone()
+
+        self.assertEqual(resultado["atualizados"], 1)
+        self.assertEqual(bri["codigo_pe"], "PE-0009")
+        self.assertEqual(row["bri_total"], 1)
+
 
 class PontosEstrategicosTests(unittest.TestCase):
     def test_schema_cria_tabela_de_pontos_estrategicos(self):

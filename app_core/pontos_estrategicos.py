@@ -346,17 +346,21 @@ def listar(db_path, filtros=None, limite=1000):
                         ) AS visitas_pe_total,
                         (
                             SELECT MAX(b.data)
-                              FROM bri_registros b
+                             FROM bri_registros b
                              WHERE b.destino_tratamento='Ponto Estratégico'
-                               AND b.id_localidade=pe.id_localidade
-                               AND b.quarteirao=pe.quarteirao
+                               AND (
+                                   b.id_pe=pe.id_pe
+                                   OR (b.id_pe IS NULL AND b.id_localidade=pe.id_localidade AND b.quarteirao=pe.quarteirao)
+                               )
                         ) AS ultimo_bri,
                         (
                             SELECT COUNT(*)
                               FROM bri_registros b
                              WHERE b.destino_tratamento='Ponto Estratégico'
-                               AND b.id_localidade=pe.id_localidade
-                               AND b.quarteirao=pe.quarteirao
+                               AND (
+                                   b.id_pe=pe.id_pe
+                                   OR (b.id_pe IS NULL AND b.id_localidade=pe.id_localidade AND b.quarteirao=pe.quarteirao)
+                               )
                         ) AS bri_total,
                         (
                             SELECT COUNT(*)
@@ -435,8 +439,10 @@ def resumo_operacional(db_path, filtros=None):
             f"""SELECT COUNT(DISTINCT pe.id_pe)
                   FROM pontos_estrategicos pe
                   JOIN bri_registros b ON b.destino_tratamento='Ponto Estratégico'
-                   AND b.id_localidade=pe.id_localidade
-                   AND b.quarteirao=pe.quarteirao
+                   AND (
+                       b.id_pe=pe.id_pe
+                       OR (b.id_pe IS NULL AND b.id_localidade=pe.id_localidade AND b.quarteirao=pe.quarteirao)
+                   )
                  {where}
                    AND b.data BETWEEN ? AND ?""",
             params + [d_ini, d_fim],
@@ -478,15 +484,19 @@ def resumo_operacional(db_path, filtros=None):
                         COUNT(DISTINCT v.id_visita) AS visitas_pe_total,
                         (
                             SELECT MAX(b.data) FROM bri_registros b
-                             WHERE b.destino_tratamento='Ponto Estratégico'
-                               AND b.id_localidade=pe.id_localidade
-                               AND b.quarteirao=pe.quarteirao
+                            WHERE b.destino_tratamento='Ponto Estratégico'
+                               AND (
+                                   b.id_pe=pe.id_pe
+                                   OR (b.id_pe IS NULL AND b.id_localidade=pe.id_localidade AND b.quarteirao=pe.quarteirao)
+                               )
                         ) AS ultimo_bri,
                         (
                             SELECT COUNT(*) FROM bri_registros b
                              WHERE b.destino_tratamento='Ponto Estratégico'
-                               AND b.id_localidade=pe.id_localidade
-                               AND b.quarteirao=pe.quarteirao
+                               AND (
+                                   b.id_pe=pe.id_pe
+                                   OR (b.id_pe IS NULL AND b.id_localidade=pe.id_localidade AND b.quarteirao=pe.quarteirao)
+                               )
                         ) AS bri_total,
                         (
                             SELECT COUNT(*) FROM focos_positivos f

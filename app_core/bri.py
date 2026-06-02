@@ -56,6 +56,21 @@ def ensure_schema(conn):
         CREATE INDEX IF NOT EXISTS idx_bri_agentes_agente ON bri_agentes(id_agente);
         """
     )
+    _ensure_vinculo_pe_schema(conn)
+
+
+def _ensure_vinculo_pe_schema(conn):
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(bri_registros)")}
+    if "id_pe" not in cols:
+        conn.execute("ALTER TABLE bri_registros ADD COLUMN id_pe INTEGER")
+    if "codigo_pe" not in cols:
+        conn.execute("ALTER TABLE bri_registros ADD COLUMN codigo_pe TEXT")
+    conn.executescript(
+        """
+        CREATE INDEX IF NOT EXISTS idx_bri_id_pe ON bri_registros(id_pe);
+        CREATE INDEX IF NOT EXISTS idx_bri_codigo_pe ON bri_registros(codigo_pe);
+        """
+    )
 
 
 def is_new_format(path):
@@ -163,18 +178,18 @@ def resumo(db_path, filtros=None):
                     COUNT(DISTINCT b.localidade) AS localidades,
                     SUM(CASE WHEN b.destino_tratamento='Ponto Estratégico' AND (
                         SELECT COUNT(*) FROM pontos_estrategicos pe
-                         WHERE pe.id_localidade=b.id_localidade
-                           AND pe.quarteirao=b.quarteirao
+                         WHERE pe.id_pe=b.id_pe
+                            OR (b.id_pe IS NULL AND pe.id_localidade=b.id_localidade AND pe.quarteirao=b.quarteirao)
                     ) = 1 THEN 1 ELSE 0 END) AS vinculados_pe,
                     SUM(CASE WHEN b.destino_tratamento='Ponto Estratégico' AND (
                         SELECT COUNT(*) FROM pontos_estrategicos pe
-                         WHERE pe.id_localidade=b.id_localidade
-                           AND pe.quarteirao=b.quarteirao
+                         WHERE pe.id_pe=b.id_pe
+                            OR (b.id_pe IS NULL AND pe.id_localidade=b.id_localidade AND pe.quarteirao=b.quarteirao)
                     ) > 1 THEN 1 ELSE 0 END) AS ambiguos_pe,
                     SUM(CASE WHEN b.destino_tratamento='Ponto Estratégico' AND (
                         SELECT COUNT(*) FROM pontos_estrategicos pe
-                         WHERE pe.id_localidade=b.id_localidade
-                           AND pe.quarteirao=b.quarteirao
+                         WHERE pe.id_pe=b.id_pe
+                            OR (b.id_pe IS NULL AND pe.id_localidade=b.id_localidade AND pe.quarteirao=b.quarteirao)
                     ) = 0 THEN 1 ELSE 0 END) AS sem_vinculo_pe
                 FROM bri_registros b
                 {where}""",
@@ -215,20 +230,20 @@ def listar(db_path, filtros=None):
             f"""SELECT b.*,
                        CASE WHEN b.destino_tratamento='Ponto Estratégico' THEN (
                            SELECT COUNT(*) FROM pontos_estrategicos pe
-                            WHERE pe.id_localidade=b.id_localidade
-                              AND pe.quarteirao=b.quarteirao
+                            WHERE pe.id_pe=b.id_pe
+                               OR (b.id_pe IS NULL AND pe.id_localidade=b.id_localidade AND pe.quarteirao=b.quarteirao)
                        ) ELSE 0 END AS pe_vinculos,
                        CASE WHEN b.destino_tratamento='Ponto Estratégico' THEN (
                            SELECT pe.codigo_pe FROM pontos_estrategicos pe
-                            WHERE pe.id_localidade=b.id_localidade
-                              AND pe.quarteirao=b.quarteirao
+                            WHERE pe.id_pe=b.id_pe
+                               OR (b.id_pe IS NULL AND pe.id_localidade=b.id_localidade AND pe.quarteirao=b.quarteirao)
                             ORDER BY pe.situacao DESC, pe.codigo_pe
                             LIMIT 1
                        ) END AS codigo_pe,
                        CASE WHEN b.destino_tratamento='Ponto Estratégico' THEN (
                            SELECT pe.nome FROM pontos_estrategicos pe
-                            WHERE pe.id_localidade=b.id_localidade
-                              AND pe.quarteirao=b.quarteirao
+                            WHERE pe.id_pe=b.id_pe
+                               OR (b.id_pe IS NULL AND pe.id_localidade=b.id_localidade AND pe.quarteirao=b.quarteirao)
                             ORDER BY pe.situacao DESC, pe.codigo_pe
                             LIMIT 1
                        ) END AS ponto_estrategico,
@@ -245,6 +260,42 @@ def listar(db_path, filtros=None):
     finally:
         conn.close()
     return {"registros": rows, "total": len(rows)}
+
+
+def vincular_registros_pe_por_alias(conn):
+    ensure_schema(conn)
+    pe_core.ensure_schema(conn)
+    rows = conn.execute(
+        """SELECT id_bri, logradouro, local_tratamento, localidade
+             FROM bri_registros
+            WHERE destino_tratamento='Ponto Estratégico'
+              AND (id_pe IS NULL OR codigo_pe IS NULL)
+              AND logradouro IS NOT NULL
+              AND TRIM(logradouro)<>''"""
+    ).fetchall()
+    atualizados = sem_alias = 0
+    for row in rows:
+        try:
+            id_bri = row["id_bri"]
+            logradouro = row["logradouro"]
+            local_tratamento = row["local_tratamento"]
+            localidade = row["localidade"]
+        except (TypeError, IndexError):
+            id_bri, logradouro, local_tratamento, localidade = row[0], row[1], row[2], row[3]
+        vinculo = _resolver_pe_vinculo(conn, {
+            "logradouro": logradouro,
+            "local_tratamento": local_tratamento,
+            "localidade": localidade,
+        })
+        if not vinculo:
+            sem_alias += 1
+            continue
+        conn.execute(
+            "UPDATE bri_registros SET id_pe=?, codigo_pe=? WHERE id_bri=?",
+            (vinculo["id_pe"], vinculo["codigo_pe"], id_bri),
+        )
+        atualizados += 1
+    return {"atualizados": atualizados, "sem_alias": sem_alias}
 
 
 def localidades(db_path):
@@ -343,6 +394,7 @@ def _endereco(row, destino, estrutura):
 
 def _inserir_bri(conn, registro, agora_iso):
     cur = conn.cursor()
+    pe_vinculo = _resolver_pe_vinculo(conn, registro) if registro.get("destino_tratamento") == "Ponto Estratégico" else None
     cur.execute(
         """INSERT OR IGNORE INTO bri_registros (
             id_bri, kobo_uuid, kobo_id, sispncd, data, hora, inicio_registro, fim_registro,
@@ -350,8 +402,8 @@ def _inserir_bri(conn, registro, agora_iso):
             logradouro, quarteirao, numero, numero_ovitrampa, quantidade_carga,
             tratou_imovel_extra, qual_imovel_extra, depositos_tratados_extra,
             quantidade_carga_extra, origem_estrutura, arquivo_origem, submission_time,
-            processado_em
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            processado_em, id_pe, codigo_pe
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             registro["id_bri"], registro.get("kobo_uuid"), registro.get("kobo_id"),
             registro.get("sispncd"), registro["data"], registro.get("hora"),
@@ -365,9 +417,23 @@ def _inserir_bri(conn, registro, agora_iso):
             registro.get("depositos_tratados_extra"), registro.get("quantidade_carga_extra", 0),
             registro.get("origem_estrutura", "nova"), registro.get("arquivo_origem"),
             registro.get("submission_time"), agora_iso,
+            pe_vinculo.get("id_pe") if pe_vinculo else None,
+            pe_vinculo.get("codigo_pe") if pe_vinculo else None,
         ),
     )
     return cur.rowcount > 0
+
+
+def _resolver_pe_vinculo(conn, registro):
+    logradouro = registro.get("logradouro")
+    localidade = registro.get("localidade")
+    vinculo = pe_core.resolver_alias_visita(conn, logradouro, localidade)
+    if vinculo:
+        return vinculo
+    local = registro.get("local_tratamento")
+    if local and logradouro:
+        return pe_core.resolver_alias_visita(conn, f"{local} - {logradouro}", localidade)
+    return None
 
 
 def _inserir_agentes(conn, id_bri, agentes_texto):
