@@ -11,6 +11,7 @@ from flask import Blueprint, Response, current_app, jsonify, render_template, re
 
 from app_core import audit
 from app_core import auth as auth_core
+from app_core import backup as backup_core
 from app_core import db as db_core
 from app_core import import_history
 from app_core import uploads
@@ -210,6 +211,7 @@ def processar_stream(job_id):
         q_log = queue.Queue()
         done = threading.Event()
         result = [None]
+        backup_pre_import = [None]
 
         def cb(msg, tag):
             q_log.put((msg, tag))
@@ -290,14 +292,26 @@ def processar_confirmar(job_id):
         def worker():
             try:
                 lg = Logger(callback=cb)
-                result[0] = processar_upload(
-                    arquivos_trabalho,
-                    arquivos_larvas,
-                    db_path,
-                    config_path,
-                    lg,
-                    dry_run=False,
-                )
+                with backup_core.operacao_exclusiva():
+                    backup_info = backup_core.criar_backup_sqlite(
+                        db_path,
+                        destino_dir=os.path.join(os.path.dirname(db_path), "backups"),
+                        prefixo="pre_import",
+                        manter=20,
+                    )
+                    cb(
+                        f"Backup de seguranca criado antes da importacao: {os.path.basename(backup_info['arquivo'])}",
+                        "ok",
+                    )
+                    backup_pre_import[0] = os.path.basename(backup_info["arquivo"])
+                    result[0] = processar_upload(
+                        arquivos_trabalho,
+                        arquivos_larvas,
+                        db_path,
+                        config_path,
+                        lg,
+                        dry_run=False,
+                    )
             except Exception as exc:
                 logging.exception("Falha na confirmacao de importacao")
                 q_log.put((f"Erro inesperado ao gravar no banco: {exc}", "erro"))
@@ -335,7 +349,11 @@ def processar_confirmar(job_id):
                 "importacao_confirmada",
                 entidade="importacoes",
                 entidade_id=job_id,
-                detalhes={"ok": ok, "itens": len(sumario or [])},
+                detalhes={
+                    "ok": ok,
+                    "itens": len(sumario or []),
+                    "backup_pre_import": backup_pre_import[0],
+                },
             )
         except Exception:
             logging.exception("Falha ao atualizar historico de importacao")

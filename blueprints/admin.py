@@ -108,7 +108,7 @@ def admin_usuarios():
 def admin_sistema():
     db_path = Path(current_app.config["DB_PATH"])
     backup_dir = db_path.parent / "backups"
-    backups = backup_core.listar_backups(backup_dir, limite=5)
+    backups = backup_core.listar_backups(backup_dir, limite=20)
     importacoes = import_history.listar_importacoes_recentes(bh.get_db, limite=5)
     eventos = audit.listar_eventos(bh.get_db, limite=8)
     return render_template(
@@ -123,8 +123,106 @@ def admin_sistema():
         instance_dir=current_app.config["INSTANCE_DIR"],
         upload_temp=current_app.config["UPLOAD_TEMP"],
         log_path=current_app.config["LOG_PATH"],
+        backup_ok=request.args.get("backup_ok", "").strip(),
+        backup_erro=request.args.get("backup_erro", "").strip(),
         format_bytes=_bytes_label,
     )
+
+
+@bp.route("/admin/sistema/backups/criar", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def admin_criar_backup():
+    db_path = Path(current_app.config["DB_PATH"])
+    backup_dir = db_path.parent / "backups"
+    try:
+        with backup_core.operacao_exclusiva():
+            info = backup_core.criar_backup_sqlite(db_path, destino_dir=backup_dir, prefixo="endemias", manter=20)
+        audit.registrar_evento(
+            bh.get_db,
+            "backup_criado",
+            entidade="backups",
+            entidade_id=Path(info["arquivo"]).name,
+            detalhes={
+                "arquivo": Path(info["arquivo"]).name,
+                "tamanho_bytes": info["tamanho_bytes"],
+                "integridade": info["integridade"],
+            },
+        )
+        msg = f"Backup criado: {Path(info['arquivo']).name}"
+        return redirect(url_for("admin.admin_sistema", backup_ok=msg))
+    except Exception as exc:
+        return redirect(url_for("admin.admin_sistema", backup_erro=f"Erro ao criar backup: {exc}"))
+
+
+@bp.route("/admin/sistema/backups/restaurar", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def admin_restaurar_backup():
+    db_path = Path(current_app.config["DB_PATH"])
+    backup_dir = db_path.parent / "backups"
+    nome_backup = request.form.get("backup", "").strip()
+    try:
+        with backup_core.operacao_exclusiva():
+            backup_path = backup_core.resolver_backup(backup_dir, nome_backup)
+            seguranca = backup_core.criar_backup_sqlite(
+                db_path,
+                destino_dir=backup_dir,
+                prefixo="pre_restore",
+                manter=20,
+            )
+            info = backup_core.restaurar_backup_sqlite(db_path, backup_path)
+        audit.registrar_evento(
+            bh.get_db,
+            "backup_restaurado",
+            entidade="backups",
+            entidade_id=backup_path.name,
+            detalhes={
+                "backup_restaurado": backup_path.name,
+                "backup_seguranca": Path(seguranca["arquivo"]).name,
+                "integridade": info["integridade"],
+            },
+        )
+        msg = f"Backup restaurado: {backup_path.name}. Copia de seguranca criada: {Path(seguranca['arquivo']).name}"
+        return redirect(url_for("admin.admin_sistema", backup_ok=msg))
+    except Exception as exc:
+        return redirect(url_for("admin.admin_sistema", backup_erro=f"Erro ao restaurar backup: {exc}"))
+
+
+@bp.route("/admin/sistema/backups/baixar/<nome_backup>")
+@login_required
+@nivel_min("admin")
+def admin_baixar_backup(nome_backup):
+    db_path = Path(current_app.config["DB_PATH"])
+    backup_dir = db_path.parent / "backups"
+    try:
+        backup_path = backup_core.resolver_backup(backup_dir, nome_backup)
+        return send_file(backup_path, as_attachment=True, download_name=backup_path.name)
+    except Exception as exc:
+        return redirect(url_for("admin.admin_sistema", backup_erro=f"Erro ao baixar backup: {exc}"))
+
+
+@bp.route("/admin/sistema/backups/excluir", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def admin_excluir_backup():
+    db_path = Path(current_app.config["DB_PATH"])
+    backup_dir = db_path.parent / "backups"
+    nome_backup = request.form.get("backup", "").strip()
+    try:
+        with backup_core.operacao_exclusiva():
+            backup_path = backup_core.resolver_backup(backup_dir, nome_backup)
+            backup_core.excluir_backup(backup_path)
+        audit.registrar_evento(
+            bh.get_db,
+            "backup_excluido",
+            entidade="backups",
+            entidade_id=backup_path.name,
+            detalhes={"arquivo": backup_path.name},
+        )
+        return redirect(url_for("admin.admin_sistema", backup_ok=f"Backup excluido: {backup_path.name}"))
+    except Exception as exc:
+        return redirect(url_for("admin.admin_sistema", backup_erro=f"Erro ao excluir backup: {exc}"))
 
 
 @bp.route("/admin/auditoria")

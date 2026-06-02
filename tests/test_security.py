@@ -385,6 +385,40 @@ class BackupTests(unittest.TestCase):
             self.assertEqual(backups[0]["integridade"], "ok")
             self.assertTrue(backups[0]["validado"])
 
+    def test_restaura_backup_sqlite_validado(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "origem.db"
+            destino = Path(tmpdir) / "backups"
+            self._criar_db_minimo(db_path)
+            info = backup_core.criar_backup_sqlite(db_path, destino_dir=destino, manter=10)
+
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute("UPDATE dados SET nome='alterado' WHERE id=1")
+                conn.commit()
+            finally:
+                conn.close()
+
+            restore = backup_core.restaurar_backup_sqlite(db_path, info["arquivo"])
+
+            self.assertEqual(restore["integridade"], "ok")
+            conn = sqlite3.connect(db_path)
+            try:
+                self.assertEqual(conn.execute("SELECT nome FROM dados").fetchone()[0], "registro")
+            finally:
+                conn.close()
+
+    def test_resolver_backup_rejeita_caminho_fora_da_pasta(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with self.assertRaises(ValueError):
+                backup_core.resolver_backup(Path(tmpdir) / "backups", "../origem.db")
+
+    def test_operacao_exclusiva_rejeita_concorrencia(self):
+        with backup_core.operacao_exclusiva():
+            with self.assertRaises(RuntimeError):
+                with backup_core.operacao_exclusiva():
+                    pass
+
 
 class CriarBancoScriptTests(unittest.TestCase):
     def test_criar_banco_roda_em_base_nova_com_hash_moderno(self):
@@ -408,6 +442,116 @@ class CriarBancoScriptTests(unittest.TestCase):
         self.assertTrue(usuario[1].startswith("pbkdf2:"))
         self.assertIsNotNone(agenda)
         self.assertEqual(total_admin, 1)
+
+
+class AdminBackupRoutesTests(unittest.TestCase):
+    def _app_e_cliente_admin(self, tmpdir):
+        db_path = _executar_criar_banco_em(tmpdir)
+        app_temp = endemias_app.create_app({
+            "TESTING": True,
+            "DB_PATH": db_path,
+            "WTF_CSRF_ENABLED": False,
+        })
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            usuario = conn.execute(
+                "SELECT id_usuario, nome, nivel FROM usuarios WHERE usuario='admin'"
+            ).fetchone()
+        finally:
+            conn.close()
+        client = app_temp.test_client()
+        _login_client_com_usuario(client, dict(usuario))
+        return app_temp, client, Path(db_path)
+
+    def test_admin_cria_backup_pela_central_do_sistema(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = self._app_e_cliente_admin(tmpdir)
+            with app_temp.app_context():
+                resp = client.post("/admin/sistema/backups/criar")
+
+            self.assertEqual(resp.status_code, 302)
+            backups = list((db_path.parent / "backups").glob("endemias_*.db"))
+            self.assertEqual(len(backups), 1)
+            self.assertTrue(backups[0].with_suffix(".db.json").exists())
+
+    def test_admin_restaura_backup_pela_central_do_sistema(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = self._app_e_cliente_admin(tmpdir)
+            backup_dir = db_path.parent / "backups"
+            info = backup_core.criar_backup_sqlite(db_path, destino_dir=backup_dir, manter=10)
+            nome_backup = Path(info["arquivo"]).name
+
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute("UPDATE usuarios SET nome='Depois' WHERE usuario='admin'")
+                conn.commit()
+            finally:
+                conn.close()
+
+            with app_temp.app_context():
+                resp = client.post("/admin/sistema/backups/restaurar", data={"backup": nome_backup})
+
+            self.assertEqual(resp.status_code, 302)
+            conn = sqlite3.connect(db_path)
+            try:
+                nome = conn.execute("SELECT nome FROM usuarios WHERE usuario='admin'").fetchone()[0]
+            finally:
+                conn.close()
+            self.assertNotEqual(nome, "Depois")
+            self.assertTrue(list(backup_dir.glob("pre_restore_*.db")))
+
+    def test_admin_baixa_backup_pela_central_do_sistema(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = self._app_e_cliente_admin(tmpdir)
+            backup_dir = db_path.parent / "backups"
+            info = backup_core.criar_backup_sqlite(db_path, destino_dir=backup_dir, manter=10)
+            nome_backup = Path(info["arquivo"]).name
+
+            with app_temp.app_context():
+                resp = client.get(f"/admin/sistema/backups/baixar/{nome_backup}")
+
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn("attachment", resp.headers.get("Content-Disposition", ""))
+            data = resp.get_data()
+            resp.close()
+            self.assertGreater(len(data), 0)
+
+    def test_admin_exclui_backup_pela_central_do_sistema(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = self._app_e_cliente_admin(tmpdir)
+            backup_dir = db_path.parent / "backups"
+            info = backup_core.criar_backup_sqlite(db_path, destino_dir=backup_dir, manter=10)
+            backup_path = Path(info["arquivo"])
+
+            with app_temp.app_context():
+                resp = client.post("/admin/sistema/backups/excluir", data={"backup": backup_path.name})
+
+            self.assertEqual(resp.status_code, 302)
+            self.assertFalse(backup_path.exists())
+            self.assertFalse(backup_path.with_suffix(".db.json").exists())
+
+    def test_confirmar_importacao_cria_backup_pre_import(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = self._app_e_cliente_admin(tmpdir)
+            upload_temp = Path(tmpdir) / "uploads"
+            app_temp.config["UPLOAD_TEMP"] = str(upload_temp)
+            job_id = str(uuid.uuid4())
+            job_dir = upload_temp / job_id
+            job_dir.mkdir(parents=True)
+            (job_dir / "TB_teste.xlsx").write_bytes(b"teste")
+
+            with mock.patch("etl.processar_upload", return_value=(True, [])):
+                with app_temp.app_context():
+                    resp = client.post(f"/processar/confirmar/{job_id}")
+                    data = resp.get_data(as_text=True)
+                    resp.close()
+
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn("Backup de seguranca criado antes da importacao", data)
+            backups = list((db_path.parent / "backups").glob("pre_import_*.db"))
+            self.assertEqual(len(backups), 1)
+            self.assertTrue(backups[0].with_suffix(".db.json").exists())
 
 
 class AuditLogTests(unittest.TestCase):
@@ -1113,8 +1257,14 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
         self.assertIn("Central do Sistema", html)
-        self.assertIn("Saúde do ambiente", html)
-        self.assertIn("Backups recentes", html)
+        self.assertIn("Saude do ambiente", html)
+        self.assertIn("Backups gerenciados", html)
+        self.assertIn("/admin/sistema/backups/criar", html)
+        self.assertIn("/admin/sistema/backups/excluir", html)
+        self.assertIn('id="sidebarToggle"', html)
+        self.assertIn("data-confirm=", html)
+        self.assertNotIn("onclick=", html)
+        self.assertNotIn("onsubmit=", html)
 
     def test_home_operacional_renderiza_blocos_principais(self):
         client = _client_logado()
@@ -1141,7 +1291,12 @@ class MainPagesSmokeTests(unittest.TestCase):
         resp = client.get("/processar")
 
         self.assertEqual(resp.status_code, 200)
-        self.assertIn(b"Ultimas importacoes", resp.data)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Ultimas importacoes", html)
+        self.assertIn("data-gerar-consolidado", html)
+        self.assertIn("configurarAcoesProcessamento()", html)
+        self.assertNotIn("onclick=", html)
+        self.assertNotIn("onchange=", html)
 
     def test_assets_compartilhados_respondem_200(self):
         client = _client_logado()
@@ -1224,6 +1379,10 @@ class MainPagesSmokeTests(unittest.TestCase):
         html = resp.data.decode("utf-8")
         self.assertNotIn("background-color: var(--fc-event-bg-color) !important", html)
         self.assertIn("style.setProperty('background-color', bg, 'important')", html)
+        self.assertIn('id="btn-agenda-novo"', html)
+        self.assertIn("addEventListener('click', abrirModalNovo)", html)
+        self.assertNotIn("onclick=", html)
+        self.assertNotIn("onchange=", html)
 
 
 class MainApisSmokeTests(unittest.TestCase):

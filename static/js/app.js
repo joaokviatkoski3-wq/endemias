@@ -27,6 +27,27 @@ window.toggleDesktopNav = toggleDesktopNav;
 
 document.addEventListener('DOMContentLoaded', () => {
   setDesktopNav(localStorage.getItem('desktop_nav_open') === '1');
+
+  const overlay = document.getElementById('overlay');
+  const mobileClose = document.getElementById('sidebarMobileClose');
+  const mobileOpen = document.getElementById('sidebarMobileOpen');
+  const desktopToggle = document.getElementById('sidebarToggle');
+  const userToggle = document.getElementById('userMenuToggle');
+  const themeToggle = document.getElementById('btnDark');
+
+  if (overlay) overlay.addEventListener('click', closeSidebar);
+  if (mobileClose) mobileClose.addEventListener('click', closeSidebar);
+  if (mobileOpen) mobileOpen.addEventListener('click', openSidebar);
+  if (desktopToggle) desktopToggle.addEventListener('click', toggleDesktopNav);
+  if (userToggle) userToggle.addEventListener('click', toggleUserMenu);
+  if (themeToggle) themeToggle.addEventListener('click', toggleDark);
+
+  document.querySelectorAll('form[data-confirm]').forEach(form => {
+    form.addEventListener('submit', event => {
+      const message = form.getAttribute('data-confirm');
+      if (message && !window.confirm(message)) event.preventDefault();
+    });
+  });
 });
 
 function toggleUserMenu() {

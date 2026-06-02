@@ -11,16 +11,27 @@
       <p>Um painel rapido para conferir saude do banco, backups, importacoes e eventos administrativos.</p>
     </div>
     <div class="system-hero-actions">
+      <form method="POST" action="/admin/sistema/backups/criar">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-primary" type="submit"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Criar backup</button>
+      </form>
       <a class="btn btn-primary" href="/processar"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Processar</a>
       <a class="btn btn-outline" href="/admin/auditoria"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> Auditoria</a>
     </div>
   </section>
 
+  {% if backup_ok %}
+  <div class="system-message ok">{{ backup_ok }}</div>
+  {% endif %}
+  {% if backup_erro %}
+  <div class="system-message warn">{{ backup_erro }}</div>
+  {% endif %}
+
   <div class="system-metrics">
     <div class="system-metric">
       <span>Banco</span>
-      <strong>{{ "OK" if db_status.integridade == "ok" else "Atenção" }}</strong>
-      <small>{{ db_status.tamanho }} · {{ db_status.tabelas }} tabelas</small>
+      <strong>{{ "OK" if db_status.integridade == "ok" else "Atencao" }}</strong>
+      <small>{{ db_status.tamanho }} - {{ db_status.tabelas }} tabelas</small>
     </div>
     <div class="system-metric">
       <span>Backups</span>
@@ -28,12 +39,12 @@
       <small>{{ backup_dir }}</small>
     </div>
     <div class="system-metric">
-      <span>Notificações pendentes</span>
+      <span>Notificacoes pendentes</span>
       <strong>{{ contagens.focos_pendentes }}</strong>
       <small>Focos aguardando entrega</small>
     </div>
     <div class="system-metric">
-      <span>Usuários ativos</span>
+      <span>Usuarios ativos</span>
       <strong>{{ contagens.usuarios_ativos }}</strong>
       <small>{{ contagens.eventos_auditoria }} eventos auditados</small>
     </div>
@@ -43,27 +54,31 @@
     <section class="system-panel system-panel-wide">
       <div class="system-panel-hd">
         <div>
-          <h2>Saúde do ambiente</h2>
+          <h2>Saude do ambiente</h2>
           <p>{{ app_version }}</p>
         </div>
         <span class="system-status {{ 'ok' if db_status.integridade == 'ok' else 'warn' }}">{{ db_status.integridade }}</span>
       </div>
       <dl class="system-facts">
         <div><dt>Banco</dt><dd>{{ db_status.path }}</dd></div>
-        <div><dt>Instância</dt><dd>{{ instance_dir }}</dd></div>
-        <div><dt>Uploads temporários</dt><dd>{{ upload_temp }}</dd></div>
+        <div><dt>Instancia</dt><dd>{{ instance_dir }}</dd></div>
+        <div><dt>Uploads temporarios</dt><dd>{{ upload_temp }}</dd></div>
         <div><dt>Log</dt><dd>{{ log_path }}</dd></div>
-        <div><dt>WAL ativo</dt><dd>{{ "Sim" if db_status.wal else "Não" }}</dd></div>
-        <div><dt>SHM ativo</dt><dd>{{ "Sim" if db_status.shm else "Não" }}</dd></div>
+        <div><dt>WAL ativo</dt><dd>{{ "Sim" if db_status.wal else "Nao" }}</dd></div>
+        <div><dt>SHM ativo</dt><dd>{{ "Sim" if db_status.shm else "Nao" }}</dd></div>
       </dl>
     </section>
 
     <section class="system-panel">
       <div class="system-panel-hd">
         <div>
-          <h2>Backups recentes</h2>
-          <p>Arquivos mais novos na pasta configurada</p>
+          <h2>Backups gerenciados</h2>
+          <p>Ate 20 arquivos mais novos na pasta configurada</p>
         </div>
+        <form method="POST" action="/admin/sistema/backups/criar">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-outline" type="submit"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Novo</button>
+        </form>
       </div>
       {% if backups %}
       <div class="system-list">
@@ -71,9 +86,22 @@
         <div class="system-list-row">
           <div>
             <strong>{{ backup.nome }}</strong>
-            <span>{{ backup.modificado_em[:16].replace("T", " ") }} · {{ format_bytes(backup.tamanho_bytes) }}</span>
+            <span>{{ backup.modificado_em[:16].replace("T", " ") }} - {{ format_bytes(backup.tamanho_bytes) }}</span>
           </div>
-          <em class="{{ 'ok' if backup.integridade == 'ok' else '' }}">{{ backup.integridade }}</em>
+          <div class="system-backup-actions">
+            <em class="{{ 'ok' if backup.integridade == 'ok' else '' }}">{{ backup.integridade }}</em>
+            <a class="btn btn-outline" href="{{ url_for('admin.admin_baixar_backup', nome_backup=backup.nome) }}">Baixar</a>
+            <form method="POST" action="/admin/sistema/backups/restaurar" data-confirm="Restaurar este backup substituira o banco atual. Um backup de seguranca sera criado antes. Continuar?">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="backup" value="{{ backup.nome }}">
+              <button class="btn btn-outline" type="submit">Restaurar</button>
+            </form>
+            <form method="POST" action="/admin/sistema/backups/excluir" data-confirm="Excluir este backup permanentemente?">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="backup" value="{{ backup.nome }}">
+              <button class="btn btn-outline danger" type="submit">Excluir</button>
+            </form>
+          </div>
         </div>
         {% endfor %}
       </div>
@@ -85,8 +113,8 @@
     <section class="system-panel">
       <div class="system-panel-hd">
         <div>
-          <h2>Importações recentes</h2>
-          <p>Últimos processamentos registrados</p>
+          <h2>Importacoes recentes</h2>
+          <p>Ultimos processamentos registrados</p>
         </div>
       </div>
       {% if importacoes %}
@@ -95,14 +123,14 @@
         <div class="system-list-row">
           <div>
             <strong>{{ imp.status_label }}</strong>
-            <span>{{ imp.criado_em[:16].replace("T", " ") }} · {{ imp.usuario or "sem usuário" }}</span>
+            <span>{{ imp.criado_em[:16].replace("T", " ") }} - {{ imp.usuario or "sem usuario" }}</span>
           </div>
           <em>{{ imp.arquivos|length }} arq.</em>
         </div>
         {% endfor %}
       </div>
       {% else %}
-      <div class="system-empty">Nenhuma importação registrada ainda.</div>
+      <div class="system-empty">Nenhuma importacao registrada ainda.</div>
       {% endif %}
     </section>
 
@@ -110,7 +138,7 @@
       <div class="system-panel-hd">
         <div>
           <h2>Auditoria recente</h2>
-          <p>Últimos eventos sensíveis do sistema</p>
+          <p>Ultimos eventos sensiveis do sistema</p>
         </div>
         <a href="/admin/auditoria" class="system-panel-link">Ver tudo</a>
       </div>
@@ -121,7 +149,7 @@
           <span></span>
           <div>
             <strong>{{ ev.acao }}</strong>
-            <p>{{ ev.criado_em[:16].replace("T", " ") }} · {{ ev.usuario_nome or "sem usuário" }}{% if ev.entidade %} · {{ ev.entidade }}{% endif %}</p>
+            <p>{{ ev.criado_em[:16].replace("T", " ") }} - {{ ev.usuario_nome or "sem usuario" }}{% if ev.entidade %} - {{ ev.entidade }}{% endif %}</p>
           </div>
         </div>
         {% endfor %}

@@ -56,8 +56,8 @@
     </div>
 
     <div style="display:flex;gap:10px;align-items:center;">
-      <button id="btn-processar" class="btn btn-primary" disabled onclick="iniciarProcessamento()">▶ Verificar e processar</button>
-      <button id="btn-limpar" class="btn btn-ghost" onclick="limparArquivos()" style="display:none;">
+      <button id="btn-processar" class="btn btn-primary" disabled type="button">Verificar e processar</button>
+      <button id="btn-limpar" class="btn btn-ghost" type="button" style="display:none;">
         <img src="/static/icons/fechar.svg" alt="✕" class="icon-svg"> Limpar
       </button>
     </div>
@@ -70,7 +70,7 @@
       <div class="chart-title"><img src="/static/icons/grafico_barra.svg" alt="Consolidados" class="icon-svg"> Consolidados Excel</div>
       <div style="font-size:11px;color:var(--text3);margin-top:2px;">Gerados somente quando solicitado; cada arquivo tem abas Visitas e Coletas.</div>
     </div>
-    <button class="btn btn-primary btn-sm" id="btn-gerar-todos" onclick="gerarConsolidados('TODOS')">
+    <button class="btn btn-primary btn-sm" id="btn-gerar-todos" type="button" data-gerar-consolidado="TODOS">
       <img src="/static/icons/importar.svg" alt="" class="icon-svg"> Gerar todos
     </button>
   </div>
@@ -144,7 +144,7 @@
       <div id="log-cursor" style="display:inline-block;width:8px;height:13px;background:var(--brand);vertical-align:text-bottom;animation:blink .8s step-end infinite;"></div>
     </div>
     <div style="padding:10px 0 0;display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn btn-ghost btn-sm" onclick="copiarLog()"><img src="/static/icons/prancheta.svg" alt="📋" class="icon-svg"> Copiar log</button>
+      <button class="btn btn-ghost btn-sm" id="btn-copiar-log" type="button"><img src="/static/icons/prancheta.svg" alt="Log" class="icon-svg"> Copiar log</button>
     </div>
   </div>
 </div>
@@ -172,13 +172,13 @@
     <div id="sumario-tabela" style="margin-bottom:16px;"></div>
 
     <div style="padding:4px 0 0;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
-      <button id="btn-confirmar" class="btn btn-primary" onclick="confirmar()" style="background:var(--green,#16a34a);border-color:var(--green,#16a34a);">
+      <button id="btn-confirmar" class="btn btn-primary" type="button" style="background:var(--green,#16a34a);border-color:var(--green,#16a34a);">
         <img src="/static/icons/check.svg" alt="✓" class="icon-svg"> Confirmar e gravar no banco
       </button>
-      <button class="btn btn-ghost" onclick="cancelar()" style="color:var(--red,#ef4444);border-color:var(--red,#ef4444);">
+      <button class="btn btn-ghost" id="btn-cancelar-processamento" type="button" style="color:var(--red,#ef4444);border-color:var(--red,#ef4444);">
         <img src="/static/icons/fechar.svg" alt="✕" class="icon-svg"> Cancelar
       </button>
-      <button class="btn btn-ghost btn-sm" onclick="voltarLog()">
+      <button class="btn btn-ghost btn-sm" id="btn-voltar-log" type="button">
         ← Ver log completo novamente
       </button>
     </div>
@@ -202,8 +202,8 @@
       <div id="commit-cursor" style="display:inline-block;width:8px;height:13px;background:var(--brand);vertical-align:text-bottom;animation:blink .8s step-end infinite;"></div>
     </div>
     <div style="padding:10px 0 0;display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn btn-ghost btn-sm" onclick="copiarLogCommit()"><img src="/static/icons/prancheta.svg" alt="📋" class="icon-svg"> Copiar log</button>
-      <button class="btn btn-ghost btn-sm" id="btn-novo" style="display:none;" onclick="novoProcessamento()">+ Novo processamento</button>
+      <button class="btn btn-ghost btn-sm" id="btn-copiar-log-commit" type="button"><img src="/static/icons/prancheta.svg" alt="Log" class="icon-svg"> Copiar log</button>
+      <button class="btn btn-ghost btn-sm" id="btn-novo" type="button" style="display:none;">+ Novo processamento</button>
     </div>
   </div>
 
@@ -213,7 +213,7 @@
         <div class="chart-title"><img src="/static/icons/grafico_barra.svg" alt="Consolidados" class="icon-svg"> Consolidados Excel</div>
         <div style="font-size:11px;color:var(--text3);margin-top:2px;">A importação foi concluída. Gere os consolidados agora se precisar atualizar os arquivos.</div>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="gerarConsolidados('TODOS')">
+      <button class="btn btn-primary btn-sm" type="button" data-gerar-consolidado="TODOS">
         <img src="/static/icons/importar.svg" alt="" class="icon-svg"> Gerar todos
       </button>
     </div>
@@ -303,13 +303,36 @@ function renderFileList() {
       <span style="background:${cor}18;color:${cor};border-radius:4px;padding:2px 7px;font-size:10.5px;font-weight:700;">${prefixo}</span>
       <span style="flex:1;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.name}</span>
       <span style="font-size:11px;color:var(--text3);">${(f.size/1024).toFixed(0)} KB</span>
-      <button onclick="removerArquivo(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;line-height:1;padding:0 2px;">&times;</button>`;
+      <button type="button" data-remover-arquivo="${i}" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;line-height:1;padding:0 2px;">&times;</button>`;
     container.appendChild(el);
   });
 }
 
 function removerArquivo(i) { arquivos.splice(i, 1); renderFileList(); }
 function limparArquivos()   { arquivos = []; renderFileList(); }
+
+function configurarAcoesProcessamento() {
+  document.getElementById('btn-processar')?.addEventListener('click', iniciarProcessamento);
+  document.getElementById('btn-limpar')?.addEventListener('click', limparArquivos);
+  document.getElementById('btn-copiar-log')?.addEventListener('click', copiarLog);
+  document.getElementById('btn-confirmar')?.addEventListener('click', confirmar);
+  document.getElementById('btn-cancelar-processamento')?.addEventListener('click', cancelar);
+  document.getElementById('btn-voltar-log')?.addEventListener('click', voltarLog);
+  document.getElementById('btn-copiar-log-commit')?.addEventListener('click', copiarLogCommit);
+  document.getElementById('btn-novo')?.addEventListener('click', novoProcessamento);
+
+  document.addEventListener('click', event => {
+    const removeBtn = event.target.closest('[data-remover-arquivo]');
+    if (removeBtn) {
+      removerArquivo(Number(removeBtn.dataset.removerArquivo));
+      return;
+    }
+    const gerarBtn = event.target.closest('[data-gerar-consolidado]');
+    if (gerarBtn && !gerarBtn.disabled) {
+      gerarConsolidados(gerarBtn.dataset.gerarConsolidado);
+    }
+  });
+}
 
 // ── FASE 1 — DRY-RUN ─────────────────────────────────────────────────────────
 async function iniciarProcessamento() {
@@ -520,7 +543,7 @@ function renderConsolidados(tipos) {
         <span class="sumario-tipo" style="background:${cor}18;color:${cor};">${tipo}</span>
       </div>
       <div class="consolidado-actions">
-        <button class="btn btn-ghost btn-sm" onclick="gerarConsolidados('${tipo}')">Gerar</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-gerar-consolidado="${tipo}">Gerar</button>
         ${download}
       </div>
     </div>`;
@@ -607,6 +630,7 @@ function novoProcessamento() {
   mostrar('area-upload');
 }
 
+configurarAcoesProcessamento();
 carregarStatusConsolidados();
 </script>
 {% endblock %}

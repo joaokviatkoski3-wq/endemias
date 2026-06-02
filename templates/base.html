@@ -18,12 +18,12 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
 <body>
 <div class="app">
 
-<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+<div class="overlay" id="overlay"></div>
 
 <aside class="sidebar-mobile" id="sidebar-mobile">
   <div class="sidebar-mobile-hd">
     <img src="/static/img/logo_endemias.png" alt="">
-    <button class="sidebar-mobile-close" onclick="closeSidebar()"><img src="/static/icons/fechar.svg" alt="Fechar" class="icon-svg"></button>
+    <button class="sidebar-mobile-close" id="sidebarMobileClose" type="button"><img src="/static/icons/fechar.svg" alt="Fechar" class="icon-svg"></button>
   </div>
   <nav class="sidebar-mobile-nav">
     {% for group in sidebar_groups %}
@@ -51,7 +51,7 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
 
 <header class="topbar">
   <div class="topbar-brand">
-    <button class="btn-icon sidebar-toggle-desktop" id="sidebarToggle" onclick="toggleDesktopNav()" title="Mostrar navegacao" aria-label="Mostrar navegacao" aria-expanded="false">
+    <button class="btn-icon sidebar-toggle-desktop" id="sidebarToggle" type="button" title="Mostrar navegacao" aria-label="Mostrar navegacao" aria-expanded="false">
       <img src="/static/icons/menu.svg" alt="" class="icon-svg">
     </button>
     <img src="/static/img/logo_endemias.png" alt="Endemias">
@@ -65,7 +65,7 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
     <span class="topbar-clock" id="clock"></span>
     {% if usuario_atual %}
     <div class="user-menu-wrap" id="user-menu-wrap">
-      <button class="btn-icon topbar-user" onclick="toggleUserMenu()" title="{{ usuario_atual.nome }}">
+      <button class="btn-icon topbar-user" id="userMenuToggle" type="button" title="{{ usuario_atual.nome }}">
         <img src="/static/icons/usuario.svg" alt="Usuario" class="icon-svg"> <span>{{ usuario_atual.nome.split()[0] }}</span>
       </button>
       <div id="user-menu" class="user-menu">
@@ -78,8 +78,8 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
       </div>
     </div>
     {% endif %}
-    <button class="btn-icon" onclick="toggleDark()" id="btnDark" title="Alternar tema"><img src="/static/icons/lua.svg" alt="Tema" class="icon-svg"></button>
-    <button class="btn-hamburger" onclick="openSidebar()"><img src="/static/icons/menu.svg" alt="Menu" class="icon-svg"></button>
+    <button class="btn-icon" type="button" id="btnDark" title="Alternar tema"><img src="/static/icons/lua.svg" alt="Tema" class="icon-svg"></button>
+    <button class="btn-hamburger" type="button" id="sidebarMobileOpen"><img src="/static/icons/menu.svg" alt="Menu" class="icon-svg"></button>
   </div>
 </header>
 
