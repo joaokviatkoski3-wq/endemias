@@ -1306,6 +1306,7 @@ class MainPagesSmokeTests(unittest.TestCase):
             "/static/css/app.css",
             "/static/js/app.js",
             "/static/js/processar.js",
+            "/static/js/agenda.js",
             "/static/vendor/chartjs/chart.umd.min.js",
             "/static/vendor/chartjs-plugin-datalabels/chartjs-plugin-datalabels.min.js",
             "/static/vendor/leaflet/leaflet.min.css",
@@ -1381,9 +1382,15 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
         self.assertNotIn("background-color: var(--fc-event-bg-color) !important", html)
-        self.assertIn("style.setProperty('background-color', bg, 'important')", html)
+        self.assertNotIn("style.setProperty('background-color', bg, 'important')", html)
+        js_resp = client.get("/static/js/agenda.js")
+        js = js_resp.data.decode("utf-8")
+        js_resp.close()
+        self.assertIn("style.setProperty('background-color', bg, 'important')", js)
         self.assertIn('id="btn-agenda-novo"', html)
-        self.assertIn("addEventListener('click', abrirModalNovo)", html)
+        self.assertIn('id="agenda-config"', html)
+        self.assertIn('src="/static/js/agenda.js"', html)
+        self.assertNotIn("addEventListener('click', abrirModalNovo)", html)
         self.assertNotIn("onclick=", html)
         self.assertNotIn("onchange=", html)
 
