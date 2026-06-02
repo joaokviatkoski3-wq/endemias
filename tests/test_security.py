@@ -549,6 +549,9 @@ class AdminBackupRoutesTests(unittest.TestCase):
 
             self.assertEqual(resp.status_code, 200)
             self.assertIn("Backup de seguranca criado antes da importacao", data)
+            self.assertIn('"done": true, "ok": true', data)
+            self.assertNotIn("backup_pre_import", data)
+            self.assertNotIn("Erro inesperado ao gravar no banco", data)
             backups = list((db_path.parent / "backups").glob("pre_import_*.db"))
             self.assertEqual(len(backups), 1)
             self.assertTrue(backups[0].with_suffix(".db.json").exists())
@@ -1293,12 +1296,35 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
         self.assertIn("Ultimas importacoes", html)
+        self.assertIn("LARVAS_ Resultados de Laborat\u00f3rio", html)
         self.assertIn("data-gerar-consolidado", html)
         self.assertIn('id="processar-work-types"', html)
         self.assertIn('src="/static/js/processar.js"', html)
         self.assertNotIn("configurarAcoesProcessamento()", html)
         self.assertNotIn("onclick=", html)
         self.assertNotIn("onchange=", html)
+        proibidos = (
+            "\u00c3\u00a7",
+            "\u00c3\u00a3",
+            "\u00c3\u00a1",
+            "\u00c3\u00a9",
+            "\u00c3\u00b3",
+            "\u00c3\u00ba",
+            "\u00c3\u00ad",
+            "\u00c3\u00aa",
+            "\u00c3\u2021",
+            "\u00c3\u0192",
+            "\u00e2\u0153",
+            "\u00e2\u2020",
+            "\u00e2\u20ac\u00a6",
+            "\u00f0\u0178",
+        )
+        self.assertFalse(any(c in html for c in proibidos), html[:500])
+
+        js_resp = client.get("/static/js/processar.js")
+        js = js_resp.data.decode("utf-8")
+        js_resp.close()
+        self.assertFalse(any(c in js for c in proibidos), js[:500])
 
     def test_assets_compartilhados_respondem_200(self):
         client = _client_logado()

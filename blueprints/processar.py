@@ -211,7 +211,6 @@ def processar_stream(job_id):
         q_log = queue.Queue()
         done = threading.Event()
         result = [None]
-        backup_pre_import = [None]
 
         def cb(msg, tag):
             q_log.put((msg, tag))
@@ -285,6 +284,7 @@ def processar_confirmar(job_id):
         q_log = queue.Queue()
         done = threading.Event()
         result = [None]
+        backup_pre_import = [None]
 
         def cb(msg, tag):
             q_log.put((msg, tag))

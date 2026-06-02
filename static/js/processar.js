@@ -1,4 +1,4 @@
-﻿// â”€â”€ Estado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Estado ────────────────────────────────────────────────────────────────────
 let arquivos = [];
 let currentJobId = null;
 let logDryRun = '';
@@ -6,14 +6,14 @@ let logDryRun = '';
 const CORES = Object.assign({}, WORK_TYPE_COLORS, {LARVAS:'#ef4444', ESPOROTRICOSE:'#14b8a6', RECOLHIMENTO:'#f59e0b', AMOSTRA_ANIMAIS:'#8b5cf6', BRI:'#06b6d4'});
 const WORK_TYPES = JSON.parse(document.getElementById('processar-work-types').textContent || '[]');
 
-// â”€â”€ Helpers de tela â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Helpers de tela ───────────────────────────────────────────────────────────
 function mostrar(id) {
   ['area-upload','area-log','area-confirmar','area-commit'].forEach(x =>
     document.getElementById(x).style.display = (x === id ? 'block' : 'none')
   );
 }
 
-// â”€â”€ Dropzone â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Dropzone ──────────────────────────────────────────────────────────────────
 const dropzone  = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
 
@@ -80,14 +80,14 @@ function configurarAcoesProcessamento() {
   });
 }
 
-// â”€â”€ FASE 1 â€” DRY-RUN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── FASE 1 — DRY-RUN ─────────────────────────────────────────────────────────
 async function iniciarProcessamento() {
   if (!arquivos.length) return;
   document.getElementById('log-linhas').innerHTML = '';
   document.getElementById('log-cursor').style.display = 'inline-block';
   document.getElementById('log-status-badge').style.display = 'none';
   document.querySelector('#area-log .chart-hd .chart-title').innerHTML =
-    '<img src="/static/icons/rolar.svg" alt="ðŸ“œ" class="icon-svg"> Verificando planilhasâ€¦';
+    '<img src="/static/icons/rolar.svg" alt="📜" class="icon-svg"> Verificando planilhas…';
   mostrar('area-log');
 
   const formData = new FormData();
@@ -106,7 +106,7 @@ async function iniciarProcessamento() {
     currentJobId = jobId;
     appendLog(`Upload: ${d.arquivos.length} arquivo(s) recebido(s).`, 'ok');
   } catch(e) {
-    appendLog('ERRO de comunicaÃ§Ã£o: ' + e.message, 'erro'); finalizarDryRun(false, []); return;
+    appendLog('ERRO de comunicação: ' + e.message, 'erro'); finalizarDryRun(false, []); return;
   }
 
   let sse;
@@ -118,7 +118,7 @@ async function iniciarProcessamento() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     sse = await responseToEventSource(response);
   } catch(e) {
-    appendLog('\n[ERRO] ConexÃ£o interrompida.', 'erro');
+    appendLog('\n[ERRO] Conexão interrompida.', 'erro');
     finalizarDryRun(false, []);
     return;
   }
@@ -131,7 +131,7 @@ async function iniciarProcessamento() {
     }
     if (d.msg !== undefined) appendLog(d.msg, d.tag || 'normal');
   };
-  sse.onerror = () => { sse.close(); appendLog('\n[ERRO] ConexÃ£o interrompida.', 'erro'); finalizarDryRun(false, []); };
+  sse.onerror = () => { sse.close(); appendLog('\n[ERRO] Conexão interrompida.', 'erro'); finalizarDryRun(false, []); };
 }
 
 function finalizarDryRun(ok, sumario) {
@@ -139,21 +139,21 @@ function finalizarDryRun(ok, sumario) {
   const badge = document.getElementById('log-status-badge');
   badge.style.display = 'inline-flex';
   if (ok) {
-    badge.className = 'badge badge-entregue'; badge.textContent = 'VerificaÃ§Ã£o OK';
+    badge.className = 'badge badge-entregue'; badge.textContent = 'Verificação OK';
   } else {
-    badge.className = 'badge badge-naoloc'; badge.textContent = 'VerificaÃ§Ã£o com erros';
+    badge.className = 'badge badge-naoloc'; badge.textContent = 'Verificação com erros';
   }
   document.querySelector('#area-log .chart-hd .chart-title').innerHTML =
-    '<img src="/static/icons/rolar.svg" alt="ðŸ“œ" class="icon-svg"> Log de verificaÃ§Ã£o';
+    '<img src="/static/icons/rolar.svg" alt="📜" class="icon-svg"> Log de verificação';
 
-  // Salvar log texto para exibiÃ§Ã£o eventual
+  // Salvar log texto para exibição eventual
   logDryRun = document.getElementById('log-linhas').textContent;
 
-  // Montar tela de confirmaÃ§Ã£o
+  // Montar tela de confirmação
   document.getElementById('sumario-erros').style.display = ok ? 'none' : 'block';
   document.getElementById('sumario-ok').style.display    = ok ? 'block' : 'none';
 
-  // Tabela sumÃ¡rio
+  // Tabela sumário
   let html = '<table class="sumario-table"><thead><tr><th>Arquivo</th><th>Tipo</th><th>Registros novos</th><th>Coletas/animais/materiais</th></tr></thead><tbody>';
   if (sumario.length) {
     sumario.forEach(s => {
@@ -188,11 +188,11 @@ function finalizarDryRun(ok, sumario) {
   html += '</tbody></table>';
   document.getElementById('sumario-tabela').innerHTML = html;
 
-  // Ir para confirmaÃ§Ã£o apÃ³s pequeno delay para o usuÃ¡rio ver o log
+  // Ir para confirmação após pequeno delay para o usuário ver o log
   setTimeout(() => mostrar('area-confirmar'), 600);
 }
 
-// â”€â”€ FASE 2 â€” CONFIRMAÃ‡ÃƒO / CANCELAMENTO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── FASE 2 — CONFIRMAÇÃO / CANCELAMENTO ──────────────────────────────────────
 function voltarLog() { mostrar('area-log'); }
 
 async function cancelar() {
@@ -221,7 +221,7 @@ async function confirmar() {
     headers: { 'X-CSRFToken': getCsrf() }
   });
   if (!response.ok) {
-    appendCommitLog('\n[ERRO] ConexÃ£o interrompida.', 'erro');
+    appendCommitLog('\n[ERRO] Conexão interrompida.', 'erro');
     document.getElementById('commit-cursor').style.display = 'none';
     document.getElementById('btn-novo').style.display = 'inline-flex';
     return;
@@ -241,8 +241,8 @@ async function confirmar() {
         document.getElementById('card-downloads').style.display = 'block';
         carregarStatusConsolidados();
       } else {
-        badge.className = 'badge badge-naoloc'; badge.textContent = 'ConcluÃ­do com erros';
-        toast('ImportaÃ§Ã£o concluÃ­da com erros.', 'error');
+        badge.className = 'badge badge-naoloc'; badge.textContent = 'Concluído com erros';
+        toast('Importação concluída com erros.', 'error');
       }
       currentJobId = null;
       return;
@@ -251,13 +251,13 @@ async function confirmar() {
   };
   sse.onerror = () => {
     sse.close();
-    appendCommitLog('\n[ERRO] ConexÃ£o interrompida.', 'erro');
+    appendCommitLog('\n[ERRO] Conexão interrompida.', 'erro');
     document.getElementById('commit-cursor').style.display = 'none';
     document.getElementById('btn-novo').style.display = 'inline-flex';
   };
 }
 
-// â”€â”€ Helpers de log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Helpers de log ────────────────────────────────────────────────────────────
 async function carregarStatusConsolidados() {
   try {
     const resp = await fetch('/saida/consolidados/status');
@@ -276,7 +276,7 @@ function renderConsolidados(tipos) {
     const cor = WORK_TYPE_COLORS[tipo] || '#64748b';
     const status = info.existe
       ? `Gerado em ${info.gerado_em || '-'}`
-      : 'Ainda nÃ£o gerado';
+      : 'Ainda não gerado';
     const download = info.existe
       ? `<a href="/saida/download/${tipo}" class="btn btn-outline btn-sm" style="border-color:${cor};color:${cor};"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Baixar</a>`
       : `<button class="btn btn-outline btn-sm" disabled>Baixar</button>`;
@@ -311,7 +311,7 @@ async function gerarConsolidados(tipo) {
     if (!resp.ok || !data.ok) throw new Error(data.erro || `HTTP ${resp.status}`);
     renderConsolidados(data.tipos || []);
     const gerados = (data.resultados || []).filter(r => r.caminho).length;
-    toast(gerados ? 'Consolidados atualizados.' : 'NÃ£o hÃ¡ dados para gerar consolidados.', gerados ? 'success' : 'info');
+    toast(gerados ? 'Consolidados atualizados.' : 'Não há dados para gerar consolidados.', gerados ? 'success' : 'info');
   } catch (e) {
     toast('Erro ao gerar consolidados: ' + e.message, 'error');
   } finally {

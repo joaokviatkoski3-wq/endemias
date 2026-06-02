@@ -1,27 +1,27 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% block title %}Processar Planilhas{% endblock %}
 {% block page_title %}Processar Planilhas{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <h1><span class="icon"><img src="/static/icons/importar.svg" alt="ðŸ“¥" class="icon-svg"></span> Processar Planilhas KoboToolbox</h1>
-  <div class="sub">FaÃ§a o upload dos arquivos Excel (.xlsx) exportados do KoboToolbox</div>
+  <h1><span class="icon"><img src="/static/icons/importar.svg" alt="📥" class="icon-svg"></span> Processar Planilhas KoboToolbox</h1>
+  <div class="sub">Faça o upload dos arquivos Excel (.xlsx) exportados do KoboToolbox</div>
 </div>
 
-<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-     TELA 1 â€” UPLOAD
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<!-- ════════════════════════════════════════════════════════════
+     TELA 1 — UPLOAD
+════════════════════════════════════════════════════════════ -->
 <div id="area-upload">
   <div class="chart-card" style="margin-bottom:18px;">
     <div class="chart-hd">
-      <div class="chart-title"><img src="/static/icons/pasta.svg" alt="ðŸ“‚" class="icon-svg"> Arquivos</div>
+      <div class="chart-title"><img src="/static/icons/pasta.svg" alt="📂" class="icon-svg"> Arquivos</div>
       <div style="font-size:11px;color:var(--text3);">PE_, TB_, TBO_, PVE_, ESPOROTRICOSE_, RECOLHIMENTO_, AMOSTRA_ANIMAIS_, BRI_ e LARVAS_</div>
     </div>
 
     <div id="dropzone"
          style="border:2.5px dashed var(--border2);border-radius:var(--radius);padding:40px 20px;
                 text-align:center;cursor:pointer;transition:all .2s;margin-bottom:14px;background:var(--surface2);">
-      <div style="font-size:32px;margin-bottom:8px;"><img src="/static/icons/prancheta.svg" alt="ðŸ“‹" class="icon-svg"></div>
+      <div style="font-size:32px;margin-bottom:8px;"><img src="/static/icons/prancheta.svg" alt="📋" class="icon-svg"></div>
       <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px;">Arraste os arquivos aqui</div>
       <div style="font-size:12px;color:var(--text3);">ou clique para selecionar</div>
       <input type="file" id="file-input" multiple accept=".xlsx" style="display:none;">
@@ -39,7 +39,7 @@
       </span>
       {% endfor %}
       <span style="background:#ef444418;color:#ef4444;border:1px solid #ef444440;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
-        LARVAS_ Resultados de LaboratÃ³rio
+        LARVAS_ Resultados de Laboratório
       </span>
       <span style="background:#14b8a618;color:#14b8a6;border:1px solid #14b8a640;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
         ESPOROTRICOSE_ Visitas de esporotricose
@@ -58,7 +58,7 @@
     <div style="display:flex;gap:10px;align-items:center;">
       <button id="btn-processar" class="btn btn-primary" disabled type="button">Verificar e processar</button>
       <button id="btn-limpar" class="btn btn-ghost" type="button" style="display:none;">
-        <img src="/static/icons/fechar.svg" alt="âœ•" class="icon-svg"> Limpar
+        <img src="/static/icons/fechar.svg" alt="✕" class="icon-svg"> Limpar
       </button>
     </div>
   </div>
@@ -77,9 +77,9 @@
   <div class="consolidados-list" data-context="principal"></div>
 </div>
 
-<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-     TELA 2 â€” LOG DO DRY-RUN
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<!-- ════════════════════════════════════════════════════════════
+     TELA 2 — LOG DO DRY-RUN
+════════════════════════════════════════════════════════════ -->
 <div class="chart-card" style="margin-bottom:18px;">
   <div class="chart-hd">
     <div class="chart-title"><img src="/static/icons/rolar.svg" alt="Historico" class="icon-svg"> Ultimas importacoes</div>
@@ -102,7 +102,7 @@
         <tr>
           <td>{{ imp.criado_em[:16].replace('T', ' ') }}</td>
           <td><span class="imp-status imp-{{ imp.status_classe }}">{{ imp.status_label }}</span></td>
-          <td>{{ imp.usuario or 'â€”' }}</td>
+          <td>{{ imp.usuario or '—' }}</td>
           <td>
             <div class="imp-arquivos">
               {% for arq in imp.arquivos[:3] %}
@@ -129,11 +129,11 @@
 <div id="area-log" style="display:none;">
   <div class="chart-card" style="margin-bottom:14px;">
     <div class="chart-hd">
-      <div class="chart-title"><img src="/static/icons/rolar.svg" alt="ðŸ“œ" class="icon-svg"> Verificando planilhasâ€¦</div>
+      <div class="chart-title"><img src="/static/icons/rolar.svg" alt="📜" class="icon-svg"> Verificando planilhas…</div>
       <span id="log-status-badge" class="badge" style="display:none;"></span>
     </div>
     <div style="background:var(--amber-xs,#fef9ec);border:1px solid var(--amber,#f59e0b);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--text2);">
-      <strong>PrÃ©-visualizaÃ§Ã£o â€” nenhum dado foi gravado ainda.</strong>
+      <strong>Pré-visualização — nenhum dado foi gravado ainda.</strong>
       Revise o log abaixo e confirme para salvar no banco de dados.
     </div>
     <div id="log-container"
@@ -149,49 +149,49 @@
   </div>
 </div>
 
-<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-     TELA 3 â€” CONFIRMAÃ‡ÃƒO
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<!-- ════════════════════════════════════════════════════════════
+     TELA 3 — CONFIRMAÇÃO
+════════════════════════════════════════════════════════════ -->
 <div id="area-confirmar" style="display:none;">
 
-  <!-- SumÃ¡rio do dry-run -->
+  <!-- Sumário do dry-run -->
   <div class="chart-card" style="margin-bottom:14px;">
     <div class="chart-hd">
-      <div class="chart-title"><img src="/static/icons/check.svg" alt="âœ“" class="icon-svg"> Resumo da verificaÃ§Ã£o</div>
+      <div class="chart-title"><img src="/static/icons/check.svg" alt="✓" class="icon-svg"> Resumo da verificação</div>
     </div>
 
     <div id="sumario-erros" style="display:none;background:var(--red-xs,#fef2f2);border:1px solid var(--red,#ef4444);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:var(--red,#ef4444);">
-      <strong>âš  Foram encontrados erros durante a verificaÃ§Ã£o.</strong>
-      VocÃª ainda pode confirmar, mas os registros com erro nÃ£o serÃ£o inseridos.
+      <strong>⚠ Foram encontrados erros durante a verificação.</strong>
+      Você ainda pode confirmar, mas os registros com erro não serão inseridos.
     </div>
 
     <div id="sumario-ok" style="display:none;background:var(--green-xs,#f0fdf4);border:1px solid var(--green,#16a34a);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:var(--green,#16a34a);">
-      <strong>âœ“ VerificaÃ§Ã£o concluÃ­da sem erros.</strong> Todos os registros estÃ£o prontos para importaÃ§Ã£o.
+      <strong>✓ Verificação concluída sem erros.</strong> Todos os registros estão prontos para importação.
     </div>
 
     <div id="sumario-tabela" style="margin-bottom:16px;"></div>
 
     <div style="padding:4px 0 0;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
       <button id="btn-confirmar" class="btn btn-primary" type="button" style="background:var(--green,#16a34a);border-color:var(--green,#16a34a);">
-        <img src="/static/icons/check.svg" alt="âœ“" class="icon-svg"> Confirmar e gravar no banco
+        <img src="/static/icons/check.svg" alt="✓" class="icon-svg"> Confirmar e gravar no banco
       </button>
       <button class="btn btn-ghost" id="btn-cancelar-processamento" type="button" style="color:var(--red,#ef4444);border-color:var(--red,#ef4444);">
-        <img src="/static/icons/fechar.svg" alt="âœ•" class="icon-svg"> Cancelar
+        <img src="/static/icons/fechar.svg" alt="✕" class="icon-svg"> Cancelar
       </button>
       <button class="btn btn-ghost btn-sm" id="btn-voltar-log" type="button">
-        â† Ver log completo novamente
+        ← Ver log completo novamente
       </button>
     </div>
   </div>
 </div>
 
-<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-     TELA 4 â€” LOG DO COMMIT REAL
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<!-- ════════════════════════════════════════════════════════════
+     TELA 4 — LOG DO COMMIT REAL
+════════════════════════════════════════════════════════════ -->
 <div id="area-commit" style="display:none;">
   <div class="chart-card" style="margin-bottom:14px;">
     <div class="chart-hd">
-      <div class="chart-title"><img src="/static/icons/rolar.svg" alt="ðŸ“œ" class="icon-svg"> Gravando no bancoâ€¦</div>
+      <div class="chart-title"><img src="/static/icons/rolar.svg" alt="📜" class="icon-svg"> Gravando no banco…</div>
       <span id="commit-badge" class="badge" style="display:none;"></span>
     </div>
     <div id="commit-log-container"
@@ -211,7 +211,7 @@
     <div class="chart-hd">
       <div>
         <div class="chart-title"><img src="/static/icons/grafico_barra.svg" alt="Consolidados" class="icon-svg"> Consolidados Excel</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px;">A importaÃ§Ã£o foi concluÃ­da. Gere os consolidados agora se precisar atualizar os arquivos.</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;">A importação foi concluída. Gere os consolidados agora se precisar atualizar os arquivos.</div>
       </div>
       <button class="btn btn-primary btn-sm" type="button" data-gerar-consolidado="TODOS">
         <img src="/static/icons/importar.svg" alt="" class="icon-svg"> Gerar todos
