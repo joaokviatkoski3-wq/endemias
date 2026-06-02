@@ -1294,7 +1294,9 @@ class MainPagesSmokeTests(unittest.TestCase):
         html = resp.data.decode("utf-8")
         self.assertIn("Ultimas importacoes", html)
         self.assertIn("data-gerar-consolidado", html)
-        self.assertIn("configurarAcoesProcessamento()", html)
+        self.assertIn('id="processar-work-types"', html)
+        self.assertIn('src="/static/js/processar.js"', html)
+        self.assertNotIn("configurarAcoesProcessamento()", html)
         self.assertNotIn("onclick=", html)
         self.assertNotIn("onchange=", html)
 
@@ -1303,6 +1305,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         for rota in (
             "/static/css/app.css",
             "/static/js/app.js",
+            "/static/js/processar.js",
             "/static/vendor/chartjs/chart.umd.min.js",
             "/static/vendor/chartjs-plugin-datalabels/chartjs-plugin-datalabels.min.js",
             "/static/vendor/leaflet/leaflet.min.css",
