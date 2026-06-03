@@ -201,7 +201,30 @@
       <div class="f-g"><label>Data inicial</label><input type="date" id="ate-d-ini" value="{{ d_ini }}"></div>
       <div class="f-g"><label>Data final</label><input type="date" id="ate-d-fim" value="{{ d_fim }}"></div>
       <div class="f-g"><label>Localidade</label><select id="ate-localidade"><option value="">Todas</option>{% for loc in localidades %}<option value="{{ loc.nome }}">{{ loc.nome }}</option>{% endfor %}</select></div>
-      <div class="esporo-filter-actions"><button class="btn btn-primary" type="button" onclick="carregarEspAtencao()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button></div>
+      <div class="f-g">
+        <label>Espécie</label>
+        <select id="ate-especie" onchange="carregarEspAtencao()">
+          <option value="">Todas</option>
+          <option value="Cão">Cão</option>
+          <option value="Gato">Gato</option>
+          <option value="Outro">Outro</option>
+        </select>
+      </div>
+      <div class="f-g">
+        <label>Motivo</label>
+        <select id="ate-motivo-atencao" onchange="carregarEspAtencao()">
+          <option value="">Todos</option>
+          <option value="Ferida informada">Ferida informada</option>
+          <option value="Feridas sem confirmação">Feridas sem confirmação</option>
+          <option value="Vacina sem confirmação">Vacina sem confirmação</option>
+          <option value="Castração sem confirmação">Castração sem confirmação</option>
+          <option value="Ambiente não informado">Ambiente não informado</option>
+        </select>
+      </div>
+      <div class="esporo-filter-actions">
+        <button class="btn btn-outline" type="button" onclick="imprimirEspAtencao()"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Imprimir</button>
+        <button class="btn btn-primary" type="button" onclick="carregarEspAtencao()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button>
+      </div>
     </div>
     <div class="table-scroll">
       <table>
@@ -310,16 +333,22 @@ function espParams(prefix) {
   const visitaEl = document.getElementById(`${prefix}-visita`);
   const agenteEl = document.getElementById(`${prefix}-agente`);
   const buscaEl = document.getElementById(`${prefix}-busca`);
+  const especieEl = document.getElementById(`${prefix}-especie`);
+  const motivoEl = document.getElementById(`${prefix}-motivo-atencao`);
   if (di) p.set('d_ini', di.value || '');
   if (df) p.set('d_fim', df.value || '');
   const loc = locEl ? locEl.value : '';
   const visita = visitaEl ? visitaEl.value : '';
   const agente = agenteEl ? agenteEl.value : '';
   const busca = buscaEl ? buscaEl.value.trim() : '';
+  const especie = especieEl ? especieEl.value : '';
+  const motivo = motivoEl ? motivoEl.value : '';
   if (loc) p.set('localidade', loc);
   if (visita) p.set('visita', visita);
   if (agente) p.set('agente', agente);
   if (busca) p.set('busca', busca);
+  if (especie) p.set('especie', especie);
+  if (motivo) p.set('motivo_atencao', motivo);
   return p;
 }
 function espAnimalParams() {
@@ -507,6 +536,51 @@ function renderEspAtencao(rows, total) {
       <td class="esporo-address">${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', ') || '-')}</td>
     </tr>
   `).join('') : '<tr><td colspan="9" class="empty-inline">Nenhum registro de atenção encontrado.</td></tr>';
+}
+async function imprimirEspAtencao() {
+  try {
+    const p = espParams('ate');
+    p.set('prioritarios', '1');
+    const d = await apiGet('/api/esporotricose/animais?' + p.toString());
+    const rows = d.registros || [];
+    const periodo = `${fmtDate(document.getElementById('ate-d-ini').value)} a ${fmtDate(document.getElementById('ate-d-fim').value)}`;
+    const filtros = [
+      document.getElementById('ate-localidade').value && `Localidade: ${document.getElementById('ate-localidade').value}`,
+      document.getElementById('ate-especie').value && `Espécie: ${document.getElementById('ate-especie').value}`,
+      document.getElementById('ate-motivo-atencao').value && `Motivo: ${document.getElementById('ate-motivo-atencao').value}`,
+      document.getElementById('ate-busca').value.trim() && `Busca: ${document.getElementById('ate-busca').value.trim()}`,
+    ].filter(Boolean).join(' | ') || 'Todos os motivos de atenção';
+    const htmlRows = rows.length ? rows.map(r => `
+      <tr>
+        <td>${escapeHtml(r.motivo_atencao || 'Revisar cadastro')}</td>
+        <td>${fmtDate(r.data)}</td>
+        <td>${escapeHtml(r.nome || '-')}</td>
+        <td>${escapeHtml(r.especie || r.outro_animal || '-')}</td>
+        <td>${escapeHtml(r.feridas || '-')}</td>
+        <td>${escapeHtml(r.vacinado || '-')}</td>
+        <td>${escapeHtml(r.castrado || '-')}</td>
+        <td>${escapeHtml(r.morador || '-')}</td>
+        <td>${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', ') || '-')}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="9">Nenhum registro encontrado.</td></tr>';
+    const win = window.open('', '_blank');
+    if (!win) { toast('O navegador bloqueou a janela de impressão.', 'error'); return; }
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Esporotricose - Atenção</title>
+      <style>
+        body{font-family:Arial,sans-serif;color:#111827;margin:24px;font-size:12px;}
+        h1{font-size:20px;margin:0 0 4px;} .meta{color:#4b5563;margin-bottom:14px;}
+        table{width:100%;border-collapse:collapse;} th,td{border:1px solid #d1d5db;padding:6px;text-align:left;vertical-align:top;}
+        th{background:#f3f4f6;font-size:11px;text-transform:uppercase;} @media print{body{margin:12mm;}}
+      </style></head><body>
+      <h1>Esporotricose - Animais e cadastros para atenção</h1>
+      <div class="meta">Período: ${escapeHtml(periodo)}<br>Filtros: ${escapeHtml(filtros)}<br>Total: ${fmtNum(d.total || 0)} registro(s), ${fmtNum(rows.length)} impresso(s)</div>
+      <table><thead><tr><th>Motivo</th><th>Data</th><th>Animal</th><th>Espécie</th><th>Feridas</th><th>Vacina</th><th>Castração</th><th>Morador</th><th>Endereço</th></tr></thead><tbody>${htmlRows}</tbody></table>
+      <script>window.addEventListener('load',()=>setTimeout(()=>window.print(),250));<\/script>
+      </body></html>`);
+    win.document.close();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
 }
 function renderEspLocalidadesDetalhe(rows) {
   document.getElementById('esp-localidades-info').textContent = `${fmtNum(rows.length)} localidade(s)`;

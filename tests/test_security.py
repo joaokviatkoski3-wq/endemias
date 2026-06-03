@@ -985,6 +985,7 @@ class PontosEstrategicosTests(unittest.TestCase):
             pe_core.ensure_schema(conn)
             for codigo, nome, localidade in (
                 ("PE-0007", "Borracharia Mauricio", "Tranqueira"),
+                ("PE-0020", "Cal Eloi", "Sede"),
                 ("PE-0042", "Cemiterio Prado", "Rosana"),
                 ("PE-0043", "Condominio Jersey City - LYX", "Rosana"),
             ):
@@ -998,6 +999,10 @@ class PontosEstrategicosTests(unittest.TestCase):
                     "Tranqueira",
                 )["codigo_pe"],
                 "PE-0007",
+            )
+            self.assertEqual(
+                pe_core.resolver_alias_visita(conn, "Cal Eloi -  Pedro Teixeira Alves", "Sede")["codigo_pe"],
+                "PE-0020",
             )
             self.assertEqual(pe_core.resolver_alias_visita(conn, "CEMITERIO", "Rosana")["codigo_pe"], "PE-0042")
             self.assertEqual(pe_core.resolver_alias_visita(conn, "CONDOMINIO", "Rosana")["codigo_pe"], "PE-0043")
@@ -1766,6 +1771,9 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("esp-tab-atencao", html)
         self.assertIn("esp-tab-localidades", html)
         self.assertIn("esp-tab-dashboard", html)
+        self.assertIn("ate-especie", html)
+        self.assertIn("ate-motivo-atencao", html)
+        self.assertIn("imprimirEspAtencao", html)
 
     def test_pagina_recolhimentos_exibe_controles_principais(self):
         client = _client_logado()
@@ -1837,6 +1845,10 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("Pontos Estratégicos", html)
         self.assertIn("pe-total", html)
         self.assertIn("pe-body", html)
+        self.assertIn("function peData", html)
+        self.assertIn("function peIsoData", html)
+        self.assertIn('placeholder="DD-MM-AAAA"', html)
+        self.assertIn("${partes[2]}-${partes[1]}-${partes[0]}", html)
 
     def test_api_pontos_estrategicos_retorna_json(self):
         client = _client_logado()
@@ -1881,6 +1893,26 @@ class MainApisSmokeTests(unittest.TestCase):
         if dados["registros"]:
             self.assertIn("nome", dados["registros"][0])
             self.assertIn("morador", dados["registros"][0])
+
+    def test_api_esporotricose_animais_filtra_motivo_atencao_e_data(self):
+        client = _client_logado()
+        resp = client.get(
+            "/api/esporotricose/animais"
+            "?prioritarios=1"
+            "&d_ini=2026-06-02"
+            "&d_fim=2026-06-02"
+            "&especie=C%C3%A3o"
+            "&motivo_atencao=Ferida%20informada"
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.is_json)
+        dados = resp.get_json()
+        self.assertIn("registros", dados)
+        for registro in dados["registros"]:
+            self.assertEqual(registro.get("data"), "2026-06-02")
+            self.assertEqual(registro.get("especie"), "Cão")
+            self.assertEqual(registro.get("motivo_atencao"), "Ferida informada")
 
     def test_api_esporotricose_visitas_retorna_agentes_e_busca(self):
         client = _client_logado()

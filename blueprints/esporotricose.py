@@ -100,6 +100,7 @@ def api_animais():
         "vacinado": request.args.get("vacinado", ""),
         "castrado": request.args.get("castrado", ""),
         "ambiente": request.args.get("ambiente", ""),
+        "motivo_atencao": request.args.get("motivo_atencao", ""),
         "prioritarios": request.args.get("prioritarios", ""),
     }
     return jsonify(esporotricose_core.listar_animais(_db_path(), filtros))

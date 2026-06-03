@@ -26,7 +26,7 @@ PE_ALIAS_SEED = (
     ("Borracharia do Nei - Rodovia Dos Minérios - 14745", None, "PE-0001"),
     ("Cal Barigui - Pedro Teixeira Alves", None, "PE-0019"),
     ("Cal Chimelli - Antonio Stochero", None, "PE-0005"),
-    ("Cal Eloi - Pedro Teixeira Alves", None, "PE-0018"),
+    ("Cal Eloi - Pedro Teixeira Alves", None, "PE-0020"),
     ("CEMITERIO", "Rosana", "PE-0042"),
     ("Cemitério - Cel. João Cândido de Oliveira - 750", None, "PE-0015"),
     ("Cemitério - João Berquó", None, "PE-0002"),
@@ -163,6 +163,25 @@ def _seed_aliases(conn):
                 1,
                 agora,
                 agora,
+            ),
+        )
+        conn.execute(
+            """UPDATE pontos_estrategicos_alias
+                  SET alias_logradouro=?,
+                      localidade=?,
+                      codigo_pe=?,
+                      ativo=1,
+                      atualizado_em=?
+                WHERE alias_normalizado=?
+                  AND localidade_normalizada=?
+                  AND (observacoes IS NULL OR observacoes='alias inicial para visitas PE antigas')""",
+            (
+                _text(alias),
+                _text(localidade),
+                codigo_pe,
+                agora,
+                normalizar_alias(alias),
+                normalizar_alias(localidade),
             ),
         )
 

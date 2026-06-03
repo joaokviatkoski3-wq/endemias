@@ -10,6 +10,14 @@ ANIMAIS_TABLE = "esporotricose_animais"
 VISITA_AGENTES_TABLE = "esporotricose_visita_agentes"
 NORMAL_IMPORT_MARKER = "esporotricose_kobo_v2"
 LEGACY_IMPORT_MARKER = "esporotricose_historico_legado"
+MOTIVO_ATENCAO_SQL = """CASE
+    WHEN LOWER(COALESCE(a.feridas,'')) = 'sim' THEN 'Ferida informada'
+    WHEN a.feridas IS NULL OR LOWER(COALESCE(a.feridas,'')) = 'desconhecido' THEN 'Feridas sem confirma\u00e7\u00e3o'
+    WHEN a.vacinado IS NULL OR LOWER(COALESCE(a.vacinado,'')) = 'desconhecido' THEN 'Vacina sem confirma\u00e7\u00e3o'
+    WHEN a.castrado IS NULL OR LOWER(COALESCE(a.castrado,'')) = 'desconhecido' THEN 'Castra\u00e7\u00e3o sem confirma\u00e7\u00e3o'
+    WHEN a.ambiente IS NULL OR TRIM(COALESCE(a.ambiente,'')) = '' THEN 'Ambiente n\u00e3o informado'
+    ELSE ''
+END"""
 
 AGENTE_COMPOSTO = {
     "ana beatriz": "Ana Beatriz",
@@ -361,14 +369,7 @@ def listar_animais(db_path, filtros=None):
                     a.id_animal, a.especie, a.outro_animal, a.nome, a.raca, a.sexo,
                     a.ambiente, a.vacinado, a.castrado, a.feridas, a.regiao_ferida,
                     a.atendimento_veterinario, a.data_atendimento, a.evolucao_caso,
-                    CASE
-                        WHEN LOWER(COALESCE(a.feridas,'')) = 'sim' THEN 'Ferida informada'
-                        WHEN a.feridas IS NULL OR LOWER(COALESCE(a.feridas,'')) = 'desconhecido' THEN 'Feridas sem confirmação'
-                        WHEN a.vacinado IS NULL OR LOWER(COALESCE(a.vacinado,'')) = 'desconhecido' THEN 'Vacina sem confirmação'
-                        WHEN a.castrado IS NULL OR LOWER(COALESCE(a.castrado,'')) = 'desconhecido' THEN 'Castração sem confirmação'
-                        WHEN a.ambiente IS NULL OR TRIM(COALESCE(a.ambiente,'')) = '' THEN 'Ambiente não informado'
-                        ELSE ''
-                    END AS motivo_atencao,
+                    {MOTIVO_ATENCAO_SQL} AS motivo_atencao,
                     v.data, v.localidade, v.quarteirao, v.logradouro, v.numero,
                     v.morador, v.telefone, v.visita
                 FROM esporotricose_animais a
@@ -600,19 +601,11 @@ def _where_animais(filtros):
     if filtros.get("ambiente"):
         clauses.append("a.ambiente = ?")
         params.append(filtros["ambiente"])
+    if filtros.get("motivo_atencao"):
+        clauses.append(f"({MOTIVO_ATENCAO_SQL}) = ?")
+        params.append(filtros["motivo_atencao"])
     if filtros.get("prioritarios"):
-        clauses.append(
-            """(
-                LOWER(COALESCE(a.feridas,'')) = 'sim'
-                OR a.feridas IS NULL
-                OR LOWER(COALESCE(a.feridas,'')) = 'desconhecido'
-                OR a.vacinado IS NULL
-                OR LOWER(COALESCE(a.vacinado,'')) = 'desconhecido'
-                OR a.castrado IS NULL
-                OR LOWER(COALESCE(a.castrado,'')) = 'desconhecido'
-                OR a.ambiente IS NULL
-            )"""
-        )
+        clauses.append(f"({MOTIVO_ATENCAO_SQL}) <> ''")
     return "WHERE " + " AND ".join(clauses), params
 
 

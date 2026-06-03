@@ -96,8 +96,8 @@
         <div class="f-g"><label>Razão social</label><input id="pe-razao-social"></div>
         <div class="f-g"><label>Latitude</label><input id="pe-latitude" inputmode="decimal"></div>
         <div class="f-g"><label>Longitude</label><input id="pe-longitude" inputmode="decimal"></div>
-        <div class="f-g"><label>Data inclusão</label><input id="pe-data-inclusao" type="date"></div>
-        <div class="f-g"><label>Data desativação</label><input id="pe-data-desativacao" type="date"></div>
+        <div class="f-g"><label>Data inclusão</label><input id="pe-data-inclusao" type="text" inputmode="numeric" placeholder="DD-MM-AAAA"></div>
+        <div class="f-g"><label>Data desativação</label><input id="pe-data-desativacao" type="text" inputmode="numeric" placeholder="DD-MM-AAAA"></div>
         <div class="f-g full"><label>Observações</label><textarea id="pe-observacoes" rows="3"></textarea></div>
       </div>
       <datalist id="pe-localidades-list">{% for loc in opcoes.localidades %}<option value="{{ loc }}"></option>{% endfor %}</datalist>
@@ -114,6 +114,22 @@
 {% block extra_js %}<script>
 const peFmt = new Intl.NumberFormat('pt-BR');
 const peCampos = ['nome','quarteirao','logradouro','numero','telefone','cnpj','latitude','longitude','observacoes'];
+function peData(valor){
+  if (!valor) return '';
+  const data = String(valor).split('T')[0];
+  const partes = data.split('-');
+  if (partes.length !== 3 || partes[0].length !== 4) return valor;
+  return `${partes[2]}-${partes[1]}-${partes[0]}`;
+}
+function peIsoData(valor){
+  const data = String(valor || '').trim();
+  if (!data) return '';
+  let partes = data.split('-');
+  if (partes.length === 3 && partes[0].length === 4) return data;
+  partes = data.split(/[/-]/);
+  if (partes.length !== 3) return data;
+  return `${partes[2].padStart(4, '0')}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+}
 function peParams(){
   const p = new URLSearchParams();
   ['busca','localidade','tipo','situacao'].forEach(k => {
@@ -150,8 +166,8 @@ async function carregarPEs(){
       <td>${r.quarteirao ?? '-'}</td>
       <td>${endereco}</td>
       <td>${r.tipo || '<span class="pe-muted">sem tipo</span>'}</td>
-      <td>${r.ultima_visita_pe || '<span class="pe-status danger">sem visita</span>'}${r.dias_sem_visita !== null ? `<div class="${r.visita_atrasada ? 'pe-status warn' : 'pe-muted'}">${r.dias_sem_visita} dia(s)</div>` : ''}</td>
-      <td>${r.ultimo_bri || '<span class="pe-muted">sem BRI</span>'}<div class="pe-muted">${peFmt.format(r.bri_total || 0)} registro(s)</div></td>
+      <td>${peData(r.ultima_visita_pe) || '<span class="pe-status danger">sem visita</span>'}${r.dias_sem_visita !== null ? `<div class="${r.visita_atrasada ? 'pe-status warn' : 'pe-muted'}">${r.dias_sem_visita} dia(s)</div>` : ''}</td>
+      <td>${peData(r.ultimo_bri) || '<span class="pe-muted">sem BRI</span>'}<div class="pe-muted">${peFmt.format(r.bri_total || 0)} registro(s)</div></td>
       <td>${pend.length ? pend.map(p => `<span class="pe-status ${p === 'visita atrasada' ? 'warn' : 'off'}" style="margin:1px;">${p}</span>`).join('') : '<span class="pe-muted">ok</span>'}</td>
       <td><span class="pe-status ${Number(r.situacao) === 1 ? '' : 'off'}">${Number(r.situacao) === 1 ? 'Ativo' : 'Inativo'}</span></td>
       <td>
@@ -178,8 +194,8 @@ function abrirPE(reg={}){
   document.getElementById('pe-form-situacao').value = String(reg.situacao ?? 1);
   document.getElementById('pe-form-localidade').value = reg.localidade || '';
   document.getElementById('pe-form-tipo').value = reg.tipo || '';
-  document.getElementById('pe-data-inclusao').value = reg.data_inclusao || '';
-  document.getElementById('pe-data-desativacao').value = reg.data_desativacao || '';
+  document.getElementById('pe-data-inclusao').value = peData(reg.data_inclusao) || '';
+  document.getElementById('pe-data-desativacao').value = peData(reg.data_desativacao) || '';
   document.getElementById('pe-razao-social').value = reg.razao_social || '';
   peCampos.forEach(c => document.getElementById('pe-' + c.replace('_','-')).value = reg[c] ?? '');
   document.getElementById('pe-modal').classList.add('open');
@@ -202,8 +218,8 @@ function payloadPE(){
     razao_social: document.getElementById('pe-razao-social').value.trim(),
     latitude: document.getElementById('pe-latitude').value,
     longitude: document.getElementById('pe-longitude').value,
-    data_inclusao: document.getElementById('pe-data-inclusao').value,
-    data_desativacao: document.getElementById('pe-data-desativacao').value,
+    data_inclusao: peIsoData(document.getElementById('pe-data-inclusao').value),
+    data_desativacao: peIsoData(document.getElementById('pe-data-desativacao').value),
     observacoes: document.getElementById('pe-observacoes').value.trim(),
   };
 }
