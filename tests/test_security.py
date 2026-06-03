@@ -28,6 +28,7 @@ from app_core import backup as backup_core
 from app_core import amostras_animais as amostras_animais_core
 from app_core import esporotricose as esporotricose_core
 from app_core import db as db_core
+from app_core.excel import excel_safe
 from app_core import modules as modules_core
 from app_core import bri as bri_core
 from app_core import pontos_estrategicos as pe_core
@@ -124,38 +125,56 @@ def _login_client_com_usuario(client, usuario):
 
 
 class LoginRateLimitTests(unittest.TestCase):
-    def setUp(self):
-        endemias_app._login_tentativas.clear()
+    def _get_db_temp(self, db_path):
+        def get_db():
+            return db_core.connect(db_path)
 
-    def tearDown(self):
-        endemias_app._login_tentativas.clear()
+        return get_db
 
     def test_bloqueia_apos_limite_de_falhas(self):
-        chave = "127.0.0.1:admin"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            get_db = self._get_db_temp(str(Path(tmpdir) / "login.db"))
+            chave = "127.0.0.1:admin"
 
-        for i in range(endemias_app.LOGIN_MAX_TENTATIVAS):
-            self.assertFalse(endemias_app._login_bloqueado(chave, agora=100 + i))
-            endemias_app._registrar_login_falha(chave, agora=100 + i)
+            for i in range(endemias_app.LOGIN_MAX_TENTATIVAS):
+                self.assertFalse(auth_core.login_bloqueado_db(get_db, chave, agora=100 + i))
+                auth_core.registrar_login_falha_db(get_db, chave, agora=100 + i)
 
-        self.assertTrue(endemias_app._login_bloqueado(chave, agora=120))
+            self.assertTrue(auth_core.login_bloqueado_db(get_db, chave, agora=120))
 
     def test_expira_bloqueio_apos_janela(self):
-        chave = "127.0.0.1:admin"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "login.db")
+            get_db = self._get_db_temp(db_path)
+            chave = "127.0.0.1:admin"
 
-        for i in range(endemias_app.LOGIN_MAX_TENTATIVAS):
-            endemias_app._registrar_login_falha(chave, agora=100 + i)
+            for i in range(endemias_app.LOGIN_MAX_TENTATIVAS):
+                auth_core.registrar_login_falha_db(get_db, chave, agora=100 + i)
 
-        depois_da_janela = 100 + endemias_app.LOGIN_JANELA_SEG + 1
-        self.assertFalse(endemias_app._login_bloqueado(chave, agora=depois_da_janela))
-        self.assertNotIn(chave, endemias_app._login_tentativas)
+            depois_da_janela = 100 + endemias_app.LOGIN_JANELA_SEG + 1
+            self.assertFalse(auth_core.login_bloqueado_db(get_db, chave, agora=depois_da_janela))
+            conn = sqlite3.connect(db_path)
+            try:
+                total = conn.execute("SELECT COUNT(*) FROM login_tentativas WHERE chave=?", (chave,)).fetchone()[0]
+            finally:
+                conn.close()
+            self.assertEqual(total, 0)
 
     def test_sucesso_limpa_falhas(self):
-        chave = "127.0.0.1:admin"
-        endemias_app._registrar_login_falha(chave, agora=100)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "login.db")
+            get_db = self._get_db_temp(db_path)
+            chave = "127.0.0.1:admin"
+            auth_core.registrar_login_falha_db(get_db, chave, agora=100)
 
-        endemias_app._limpar_login_falhas(chave)
+            auth_core.limpar_login_falhas_db(get_db, chave)
 
-        self.assertNotIn(chave, endemias_app._login_tentativas)
+            conn = sqlite3.connect(db_path)
+            try:
+                total = conn.execute("SELECT COUNT(*) FROM login_tentativas WHERE chave=?", (chave,)).fetchone()[0]
+            finally:
+                conn.close()
+            self.assertEqual(total, 0)
 
     def test_rate_limit_persistente_em_sqlite(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -292,6 +311,15 @@ class UploadTempCleanupTests(unittest.TestCase):
             self.assertFalse(antigo.exists())
             self.assertTrue(recente.exists())
             self.assertTrue(nao_job.exists())
+
+
+class ExcelSafetyTests(unittest.TestCase):
+    def test_excel_safe_normaliza_valores_e_escapa_formulas(self):
+        self.assertEqual(excel_safe(None), "")
+        self.assertEqual(excel_safe(123), "123")
+        self.assertEqual(excel_safe("texto"), "texto")
+        self.assertEqual(excel_safe("=1+1"), "'=1+1")
+        self.assertEqual(excel_safe("+cmd"), "'+cmd")
 
 
 class RequestParsingTests(unittest.TestCase):
@@ -432,6 +460,16 @@ class CriarBancoScriptTests(unittest.TestCase):
                 agenda = conn.execute(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name='agenda_eventos'"
                 ).fetchone()
+                conn.execute(
+                    """INSERT INTO agenda_eventos
+                       (titulo, tipo, data_inicio, dia_inteiro, criado_em)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    ("Planejamento teste", "planejamento", "2026-06-03T08:30", 0, "2026-06-03T08:00"),
+                )
+                planejamento = conn.execute(
+                    "SELECT tipo FROM agenda_eventos WHERE titulo=?",
+                    ("Planejamento teste",),
+                ).fetchone()
                 total_admin = conn.execute(
                     "SELECT COUNT(*) FROM usuarios WHERE usuario='admin'"
                 ).fetchone()[0]
@@ -441,6 +479,7 @@ class CriarBancoScriptTests(unittest.TestCase):
         self.assertIsNotNone(usuario)
         self.assertTrue(usuario[1].startswith("pbkdf2:"))
         self.assertIsNotNone(agenda)
+        self.assertEqual(planejamento[0], "planejamento")
         self.assertEqual(total_admin, 1)
 
 
@@ -1551,6 +1590,21 @@ class MainPagesSmokeTests(unittest.TestCase):
             self.assertIn("backgroundColor", evento)
             self.assertIn("borderColor", evento)
             self.assertIn("textColor", evento)
+        fontes_auto = {
+            evento.get("extendedProps", {}).get("fonte")
+            for evento in eventos
+            if evento.get("extendedProps", {}).get("origem") == "auto"
+        }
+        self.assertIn("VETORES", fontes_auto)
+        self.assertIn("BRI", fontes_auto)
+        self.assertIn("ESPOROTRICOSE", fontes_auto)
+        self.assertIn("RECOLHIMENTO", fontes_auto)
+        self.assertIn("AMOSTRA_ANIMAIS", fontes_auto)
+        for evento in eventos:
+            props = evento.get("extendedProps", {})
+            if props.get("fonte") in {"BRI", "ESPOROTRICOSE", "RECOLHIMENTO", "AMOSTRA_ANIMAIS"}:
+                self.assertIn("agenda-auto-importado", evento.get("classNames", []))
+                self.assertIn("fonteLabel", props)
 
     def test_agenda_nao_forca_cor_global_nos_eventos(self):
         client = _client_logado()
@@ -1564,12 +1618,41 @@ class MainPagesSmokeTests(unittest.TestCase):
         js = js_resp.data.decode("utf-8")
         js_resp.close()
         self.assertIn("style.setProperty('background-color', bg, 'important')", js)
+        self.assertIn("eventTimeFormat", js)
+        self.assertIn("minute: '2-digit'", js)
+        self.assertIn("border-left", js)
+        self.assertIn("fonteLabel", js)
         self.assertIn('id="btn-agenda-novo"', html)
         self.assertIn('id="agenda-config"', html)
+        self.assertIn("Planejamento", html)
+        self.assertIn('id="ev-descricao"', html)
+        self.assertIn('rows="7"', html)
+        self.assertIn("max-height:120px", js)
+        self.assertIn("overflow-y:auto", js)
+        self.assertIn("Amostra de animais (auto)", html)
         self.assertIn('src="/static/js/agenda.js"', html)
         self.assertNotIn("addEventListener('click', abrirModalNovo)", html)
         self.assertNotIn("onclick=", html)
         self.assertNotIn("onchange=", html)
+
+    def test_agenda_rejeita_evento_com_fim_antes_do_inicio(self):
+        client = _client_logado("admin")
+        original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
+        endemias_app.app.config["WTF_CSRF_ENABLED"] = False
+        try:
+            resp = client.post("/api/agenda/eventos", json={
+                "titulo": "Evento invalido",
+                "tipo": "outro",
+                "data_inicio": "2026-06-03T14:00",
+                "data_fim": "2026-06-03T08:00",
+                "dia_inteiro": False,
+                "lembrete_min": 0,
+            })
+        finally:
+            endemias_app.app.config["WTF_CSRF_ENABLED"] = original
+
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("Data fim", resp.get_json().get("erro", ""))
 
 
 class MainApisSmokeTests(unittest.TestCase):

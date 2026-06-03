@@ -23,7 +23,6 @@ from app_core import work_types
 
 bp = Blueprint("notificacoes", __name__)
 login_required = auth_core.login_required
-STATUS_OPCOES = work_types.STATUS_OPTIONS
 
 
 def _db_path():
@@ -296,7 +295,7 @@ def foco_atualizar(id_foco):
 @nivel_min("operador")
 def foco_status_rapido(id_foco):
     novo = request.json.get("status") if request.is_json else request.form.get("status")
-    if novo not in STATUS_OPCOES + [None]:
+    if novo not in work_types.STATUS_OPTIONS + [None]:
         return jsonify({"erro": "Status invalido"}), 400
     conn = get_db()
     try:

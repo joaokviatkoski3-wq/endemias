@@ -28,10 +28,6 @@ def request_int_arg(nome, default, minimo=None, maximo=None):
     return utils_core.bounded_int(request.args.get(nome), default, minimo, maximo)
 
 
-def build_where(params_dict, alias_v="v", alias_l="l", alias_a="a"):
-    return utils_core.build_visit_where(params_dict, alias_v, alias_l)
-
-
 def _dashboard_esporotricose_filtros(args):
     filtros = {
         "d_ini": args.get("d_ini", ""),
@@ -86,7 +82,7 @@ def visitas():
 @login_required
 def api_dashboard():
     try:
-        where, params = build_where(request.args)
+        where, params = utils_core.build_visit_where(request.args)
         base = f"""FROM visitas v
                    LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
                    LEFT JOIN visita_agentes va ON va.id_visita=v.id_visita
@@ -377,7 +373,7 @@ def api_laboratorio():
 @login_required
 def api_visitas():
     try:
-        where, params = build_where(request.args)
+        where, params = utils_core.build_visit_where(request.args)
         busca = request.args.get("busca", "").strip()
         if busca:
             where += " AND (v.logradouro LIKE ? OR CAST(v.quarteirao AS TEXT) LIKE ?)"

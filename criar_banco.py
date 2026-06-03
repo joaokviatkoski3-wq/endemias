@@ -213,7 +213,7 @@ CREATE TABLE IF NOT EXISTS agenda_eventos (
     titulo       TEXT    NOT NULL,
     descricao    TEXT,
     tipo         TEXT    NOT NULL DEFAULT 'outro'
-                 CHECK(tipo IN ('reuniao','campo','prazo','treinamento','tarefa','outro')),
+                 CHECK(tipo IN ('reuniao','planejamento','campo','prazo','treinamento','tarefa','outro')),
     data_inicio  TEXT    NOT NULL,
     data_fim     TEXT,
     dia_inteiro  INTEGER NOT NULL DEFAULT 0 CHECK(dia_inteiro IN (0,1)),
@@ -428,7 +428,7 @@ def migrar_agenda(conn):
         titulo       TEXT    NOT NULL,
         descricao    TEXT,
         tipo         TEXT    NOT NULL DEFAULT 'outro'
-                     CHECK(tipo IN ('reuniao','campo','prazo','treinamento','tarefa','outro')),
+                     CHECK(tipo IN ('reuniao','planejamento','campo','prazo','treinamento','tarefa','outro')),
         data_inicio  TEXT    NOT NULL,
         data_fim     TEXT,
         dia_inteiro  INTEGER NOT NULL DEFAULT 0 CHECK(dia_inteiro IN (0,1)),

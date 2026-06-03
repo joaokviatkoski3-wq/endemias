@@ -23,6 +23,11 @@ document.addEventListener('DOMContentLoaded', () => {
     firstDay:  0,
     navLinks:  true,
     editable:  false,
+    eventTimeFormat: {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    },
 
     events: function(fetchInfo, successCb, failureCb) {
       fetch(`/api/agenda/eventos?start=${fetchInfo.startStr}&end=${fetchInfo.endStr}`)
@@ -54,7 +59,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const orig = info.event.extendedProps.origem;
       if (orig === 'auto') {
         info.el.style.opacity = '0.85';
-        info.el.title = info.event.extendedProps.descricao;
+        info.el.style.setProperty('border-left', `4px solid ${border}`, 'important');
+        info.el.title = `${info.event.extendedProps.fonteLabel || 'Atividade importada'}: ${info.event.title}`;
       }
     },
   });
@@ -83,7 +89,7 @@ function mostrarPopup(event, jsEvent) {
       border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700;">
       ${props.tipoLabel || props.tipo}
     </span>
-    ${props.origem === 'auto' ? '<span style="font-size:10px;color:var(--text3);margin-left:6px;">automático</span>' : ''}
+    ${props.origem === 'auto' ? `<span style="font-size:10px;color:var(--text3);margin-left:6px;">automático · ${escHtml(props.fonteLabel || 'importado')}</span>` : ''}
   </div>`;
 
   // Datas
@@ -118,7 +124,9 @@ function mostrarPopup(event, jsEvent) {
       html += `</div>`;
     }
   } else {
-    if (props.descricao) html += `<div style="margin-top:6px;white-space:pre-wrap;">${escHtml(props.descricao)}</div>`;
+    if (props.descricao) {
+      html += `<div style="margin-top:6px;max-height:120px;overflow-y:auto;white-space:pre-wrap;padding-right:6px;">${escHtml(props.descricao)}</div>`;
+    }
     if (props.lembrete_min > 0) {
       const labels = {0:'—',15:'15 min',30:'30 min',60:'1 hora',120:'2 horas',1440:'1 dia'};
       html += `<div style="margin-top:4px;color:var(--text3);font-size:11px;">🔔 Lembrete: ${labels[props.lembrete_min] || props.lembrete_min + ' min'} antes</div>`;
@@ -258,7 +266,13 @@ async function salvarEvento() {
       headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
       body: JSON.stringify(payload)
     });
-    const d = await r.json();
+    const texto = await r.text();
+    let d = {};
+    try {
+      d = texto ? JSON.parse(texto) : {};
+    } catch(e) {
+      d = {};
+    }
     if (!r.ok) { toast(d.erro || 'Erro ao salvar.', 'error'); return; }
     fecharModal();
     calendario.refetchEvents();
@@ -313,4 +327,3 @@ document.getElementById('btn-excluir')?.addEventListener('click', excluirEvento)
 document.getElementById('btn-agenda-fechar-popup')?.addEventListener('click', fecharPopup);
 document.getElementById('ev-tipo')?.addEventListener('change', atualizarCor);
 document.getElementById('ev-dia-inteiro')?.addEventListener('change', toggleDiaInteiro);
-

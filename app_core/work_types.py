@@ -99,6 +99,7 @@ STATUS_COLORS = {
 
 AGENDA_TYPE_COLORS = {
     "reuniao": "#1a4fba",
+    "planejamento": "#7c3aed",
     "campo": "#10b981",
     "prazo": "#ef4444",
     "treinamento": "#8b5cf6",
@@ -108,6 +109,7 @@ AGENDA_TYPE_COLORS = {
 
 AGENDA_TYPE_LABELS = {
     "reuniao": "Reuni\u00e3o",
+    "planejamento": "Planejamento",
     "campo": "Campo",
     "prazo": "Prazo",
     "treinamento": "Treinamento",
@@ -117,6 +119,7 @@ AGENDA_TYPE_LABELS = {
 
 AGENDA_FORM_LABELS = {
     "reuniao": "Reuni\u00e3o",
+    "planejamento": "Planejamento",
     "campo": "Campo / Atividade",
     "prazo": "Prazo / Entrega",
     "treinamento": "Treinamento",

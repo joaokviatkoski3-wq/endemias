@@ -36,15 +36,11 @@ def _saida_dir():
     return os.path.join(_base_dir(), "saida")
 
 
-def build_where(params_dict, alias_v="v", alias_l="l"):
-    return utils_core.build_visit_where(params_dict, alias_v, alias_l)
-
-
 @bp.route("/api/visitas/exportar")
 @login_required
 def exportar_visitas():
     try:
-        where, params = build_where(request.args)
+        where, params = utils_core.build_visit_where(request.args)
         busca = request.args.get("busca", "").strip()
         if busca:
             where += " AND (v.logradouro LIKE ? OR CAST(v.quarteirao AS TEXT) LIKE ?)"

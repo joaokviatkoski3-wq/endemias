@@ -19,7 +19,6 @@ from app_core import db as db_core
 from app_core import import_history
 from app_core import uploads as uploads_core
 from app_core import utils as utils_core
-from app_core import work_types
 from blueprints.admin import bp as admin_bp
 from blueprints.agenda import bp as agenda_bp
 from blueprints.amostras_animais import bp as amostras_animais_bp
@@ -137,17 +136,6 @@ def _register_blueprints(flask_app):
     flask_app.register_blueprint(relatorio_agente_bp)
 
 
-STATUS_OPCOES = work_types.STATUS_OPTIONS
-STATUS_CORES = work_types.STATUS_COLORS
-TIPO_CORES = work_types.WORK_TYPE_COLORS
-TIPO_LABELS = work_types.WORK_TYPE_LABELS
-TIPOS_TRABALHO = work_types.WORK_TYPES
-AGENDA_TIPO_COR = work_types.AGENDA_TYPE_COLORS
-AGENDA_TIPO_LABEL = work_types.AGENDA_TYPE_LABELS
-AGENDA_TIPOS = work_types.AGENDA_TYPES
-AGENDA_FORM_LABEL = work_types.AGENDA_FORM_LABELS
-
-
 # Banco e wrappers de compatibilidade.
 def _db_path():
     if has_app_context():
@@ -202,51 +190,6 @@ def listar_importacoes_recentes(limite=10):
 
 LOGIN_MAX_TENTATIVAS = auth_core.LOGIN_MAX_TENTATIVAS
 LOGIN_JANELA_SEG = auth_core.LOGIN_JANELA_SEG
-_login_tentativas = auth_core.login_tentativas
-
-
-def _hash_legado(senha):
-    return auth_core.hash_legado(senha)
-
-
-def _hash(senha):
-    return auth_core.hash_senha(senha)
-
-
-def _verificar_senha(senha_digitada, hash_armazenado):
-    return auth_core.verificar_senha(senha_digitada, hash_armazenado)
-
-
-def usuario_atual():
-    return auth_core.usuario_atual(q1)
-
-
-def login_required(f):
-    return auth_core.login_required(f)
-
-
-def nivel_min(nivel):
-    return auth_core.nivel_min(nivel, usuario_atual)
-
-
-def _url_segura(target):
-    return auth_core.url_segura(target)
-
-
-def _chave_login(usuario):
-    return auth_core.chave_login(usuario)
-
-
-def _login_bloqueado(chave, agora=None):
-    return auth_core.login_bloqueado(chave, agora)
-
-
-def _registrar_login_falha(chave, agora=None):
-    return auth_core.registrar_login_falha(chave, agora)
-
-
-def _limpar_login_falhas(chave):
-    return auth_core.limpar_login_falhas(chave)
 
 
 def hoje():
@@ -267,10 +210,6 @@ def safe_int(v, default=0):
 
 def request_int_arg(nome, default, minimo=None, maximo=None):
     return utils_core.bounded_int(request.args.get(nome), default, minimo, maximo)
-
-
-def build_where(params_dict, alias_v="v", alias_l="l", alias_a="a"):
-    return utils_core.build_visit_where(params_dict, alias_v, alias_l)
 
 
 def create_app(config_overrides=None):
