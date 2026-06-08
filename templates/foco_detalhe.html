@@ -146,13 +146,11 @@
   <div class="save-bar">
     <button type="button" class="btn btn-primary" onclick="salvar()"><img src="/static/icons/salvar.svg" alt="💾" class="icon-svg"> Salvar alterações</button>
     <button type="button" class="btn btn-ghost" onclick="window.location.reload()">↩ Descartar</button>
-    <form method="POST" action="/notificacoes/imprimir" style="margin:0;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="ids" value="{{ foco.id_foco }}">
-      <button type="submit" class="btn btn-outline" {% if not foco.gera_notificacao %}disabled title="Este foco não gera notificação"{% endif %}>
-        <img src="/static/icons/imprimir.svg" alt="🖨" class="icon-svg">️ Imprimir DOCX
+    <div style="margin:0;">
+      <button type="button" class="btn btn-outline" onclick="imprimirNotificacaoHtml()" {% if not foco.gera_notificacao %}disabled title="Este foco não gera notificação"{% endif %}>
+        <img src="/static/icons/imprimir.svg" alt="🖨" class="icon-svg">️ Imprimir
       </button>
-    </form>
+    </div>
     <span class="dim small" id="save-msg"></span>
   </div>
   </form>
@@ -229,6 +227,21 @@ async function salvar() {
     toast('Erro de comunicação', 'error');
   }
   btn.disabled = false; btn.innerHTML = originalHtml;
+}
+
+function imprimirNotificacaoHtml() {
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/notificacoes/foco/{{ foco.id_foco }}/imprimir-html';
+  form.target = '_blank';
+  const csrf = document.createElement('input');
+  csrf.type = 'hidden';
+  csrf.name = 'csrf_token';
+  csrf.value = getCsrf();
+  form.appendChild(csrf);
+  document.body.appendChild(form);
+  form.submit();
+  document.body.removeChild(form);
 }
 
 // Atalho de teclado

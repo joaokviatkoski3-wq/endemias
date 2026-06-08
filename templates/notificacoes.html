@@ -166,7 +166,7 @@
 </div>
 
 <!-- TABELA DE FOCOS -->
-<form id="notif-form" method="POST" action="/notificacoes/imprimir">
+<form id="notif-form" method="POST" action="/notificacoes/imprimir-html" target="_blank">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="table-wrap">
     <div class="table-hd">
@@ -213,10 +213,9 @@
               {% endfor %}
             </select>
             <a href="/notificacoes/foco/{{ f.id_foco }}" class="btn btn-xs btn-outline" title="Abrir detalhes"><img src="/static/icons/editar.svg" alt="✏" class="icon-svg">️</a>
-            <form method="POST" action="/notificacoes/foco/{{ f.id_foco }}/imprimir-html" target="_blank" style="display:inline-flex;margin:0;">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit" class="btn btn-xs btn-outline" title="Imprimir esta notificação"><img src="/static/icons/imprimir.svg" alt="🖨" class="icon-svg">️</button>
-            </form>
+            <span style="display:inline-flex;margin:0;">
+              <button type="button" class="btn btn-xs btn-outline" title="Imprimir esta notificação" onclick="imprimirNotificacaoHtml('{{ f.id_foco }}')"><img src="/static/icons/imprimir.svg" alt="🖨" class="icon-svg">️</button>
+            </span>
           </div>
         </div>
         {% endfor %}
@@ -230,11 +229,11 @@
       <input type="checkbox" id="sel-all" onchange="toggleAll(this)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--brand)" title="Selecionar todos">
       <label for="sel-all" style="font-size:12px;cursor:pointer;">Selecionar todos</label>
       <span class="sel-count" id="sel-count"></span>
-      <button type="button" class="btn btn-primary btn-sm" id="btn-imprimir-html" disabled
-              onclick="imprimirHtmlSelecionados()">
+      <button type="submit" class="btn btn-primary btn-sm" id="btn-imprimir-html" disabled>
         <img src="/static/icons/imprimir.svg" alt="🖨" class="icon-svg">️ Imprimir selecionados
       </button>
-      <button type="submit" class="btn btn-ghost btn-sm" id="btn-imprimir" disabled>
+      <button type="submit" class="btn btn-ghost btn-sm" id="btn-imprimir-docx" disabled
+              formaction="/notificacoes/imprimir" formtarget="_self">
         <img src="/static/icons/documento.svg" alt="📄" class="icon-svg"> Gerar DOCX selecionados
       </button>
     </div>
@@ -270,17 +269,17 @@ function toggleAll(cb) {
 
 function updateSelCount() {
   const n    = document.querySelectorAll('.foco-check:checked').length;
-  const btn  = document.getElementById('btn-imprimir');
   const btnH = document.getElementById('btn-imprimir-html');
+  const btnD = document.getElementById('btn-imprimir-docx');
   const cnt  = document.getElementById('sel-count');
   if (n > 0) {
     cnt.textContent = `${n} selecionado${n>1?'s':''}`;
-    btn.disabled  = false;
     btnH.disabled = false;
+    btnD.disabled = false;
   } else {
     cnt.textContent = '';
-    btn.disabled  = true;
     btnH.disabled = true;
+    btnD.disabled = true;
   }
   document.getElementById('sel-all').indeterminate =
     n > 0 && n < document.querySelectorAll('.foco-check').length;
@@ -302,6 +301,21 @@ function imprimirHtmlSelecionados() {
     inp.type = 'hidden'; inp.name = 'ids'; inp.value = id;
     form.appendChild(inp);
   });
+  document.body.appendChild(form);
+  form.submit();
+  document.body.removeChild(form);
+}
+
+function imprimirNotificacaoHtml(id) {
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = `/notificacoes/foco/${id}/imprimir-html`;
+  form.target = '_blank';
+  const csrf = document.createElement('input');
+  csrf.type = 'hidden';
+  csrf.name = 'csrf_token';
+  csrf.value = getCsrf();
+  form.appendChild(csrf);
   document.body.appendChild(form);
   form.submit();
   document.body.removeChild(form);
@@ -339,6 +353,7 @@ function filtrarStatus(st) {
 // Confirma antes de gerar DOCX
 document.getElementById('notif-form').addEventListener('submit', function(e) {
   const n = document.querySelectorAll('.foco-check:checked').length;
+  if(!e.submitter || e.submitter.id !== 'btn-imprimir-docx') return;
   if(!confirm(`Gerar notificação DOCX para ${n} foco${n>1?'s':''}?\n\nOs focos pendentes serão marcados como "impressa".`)) {
     e.preventDefault();
   }

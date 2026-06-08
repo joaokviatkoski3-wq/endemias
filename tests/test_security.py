@@ -1685,6 +1685,39 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertNotIn("&lt;img", html)
         self.assertIn('src="/static/icons/salvar.svg"', html)
 
+    def test_notificacoes_impressao_padrao_abre_html_e_docx_fica_separado(self):
+        client = _client_logado()
+        resp = client.get("/notificacoes")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn('id="notif-form" method="POST" action="/notificacoes/imprimir-html" target="_blank"', html)
+        self.assertIn('id="btn-imprimir-html"', html)
+        self.assertIn('id="btn-imprimir-docx"', html)
+        self.assertIn('formaction="/notificacoes/imprimir"', html)
+        self.assertIn("function imprimirNotificacaoHtml(id)", html)
+        self.assertIn("onclick=\"imprimirNotificacaoHtml('", html)
+        self.assertNotIn('action="/notificacoes/foco/', html)
+
+    def test_detalhe_notificacao_imprimir_usa_html_sem_form_aninhado(self):
+        client = _client_logado()
+        conn = sqlite3.connect(endemias_app.DB_PATH)
+        try:
+            row = conn.execute(
+                "SELECT id_foco FROM focos_positivos WHERE gera_notificacao=1 LIMIT 1"
+            ).fetchone()
+        finally:
+            conn.close()
+        self.assertIsNotNone(row)
+
+        resp = client.get(f"/notificacoes/foco/{row[0]}")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("function imprimirNotificacaoHtml()", html)
+        self.assertIn(f"/notificacoes/foco/{row[0]}/imprimir-html", html)
+        self.assertNotIn('action="/notificacoes/imprimir"', html)
+
     def test_agenda_eventos_expoem_cores_para_fullcalendar(self):
         client = _client_logado()
         resp = client.get("/api/agenda/eventos?start=2026-01-01&end=2026-12-31")
