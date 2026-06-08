@@ -406,6 +406,8 @@ def main():
 
     migrar_agenda(conn)
     print("[OK] Tabela agenda_eventos verificada.")
+    migrar_boletim_mensal(conn)
+    print("[OK] Tabela boletim_mensal_itens verificada.")
 
     # FIX DB-04: Definir WAL mode persistentemente UMA VEZ no banco
     # A partir daqui, WAL persiste mesmo sem o PRAGMA por conexão
@@ -438,6 +440,29 @@ def migrar_agenda(conn):
         criado_em    TEXT    NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_agenda_inicio ON agenda_eventos(data_inicio);
+    """)
+    conn.commit()
+
+
+def migrar_boletim_mensal(conn):
+    """Adiciona tabela de itens editaveis do boletim mensal."""
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS boletim_mensal_itens (
+        id_item     INTEGER PRIMARY KEY AUTOINCREMENT,
+        ano_mes     TEXT NOT NULL,
+        chave       TEXT NOT NULL,
+        origem      TEXT NOT NULL DEFAULT 'manual'
+                   CHECK(origem IN ('auto','manual')),
+        ordem       INTEGER NOT NULL DEFAULT 0,
+        indicador   TEXT NOT NULL,
+        quantidade  INTEGER NOT NULL DEFAULT 0,
+        unidade     TEXT,
+        ativo       INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)),
+        atualizado_em TEXT NOT NULL,
+        UNIQUE(ano_mes, chave)
+    );
+    CREATE INDEX IF NOT EXISTS idx_boletim_mensal_mes
+        ON boletim_mensal_itens(ano_mes, ordem);
     """)
     conn.commit()
 

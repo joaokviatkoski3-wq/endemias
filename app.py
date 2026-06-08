@@ -24,6 +24,7 @@ from blueprints.agenda import bp as agenda_bp
 from blueprints.amostras_animais import bp as amostras_animais_bp
 from blueprints.auth import bp as auth_bp
 from blueprints.bri import bp as bri_bp
+from blueprints.boletim_mensal import bp as boletim_mensal_bp
 from blueprints.consultas import bp as consultas_bp
 from blueprints.conta_ovos_sispncd import bp as conta_ovos_sispncd_bp
 from blueprints.controle_pessoal import bp as controle_pessoal_bp
@@ -122,6 +123,7 @@ def _register_blueprints(flask_app):
     flask_app.register_blueprint(agenda_bp)
     flask_app.register_blueprint(amostras_animais_bp)
     flask_app.register_blueprint(bri_bp)
+    flask_app.register_blueprint(boletim_mensal_bp)
     flask_app.register_blueprint(conta_ovos_sispncd_bp)
     flask_app.register_blueprint(controle_pessoal_bp)
     flask_app.register_blueprint(consultas_bp)
@@ -257,6 +259,9 @@ app = create_app()
 
 if __name__ == "__main__":
     import socket
+    from werkzeug.serving import make_server
+
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
     hostname = socket.gethostname()
     try:
@@ -264,15 +269,19 @@ if __name__ == "__main__":
     except OSError:
         ip = "127.0.0.1"
 
-    print("=" * 54)
-    print("  ENDEMIAS - Sistema de Gestao Integrado v3")
-    print("  Setor de Endemias - Almirante Tamandare-PR")
-    print("=" * 54)
-    print(f"\n  Banco de dados: {DB_PATH}")
-    print("\n  Acesse no navegador:")
-    print("    Este computador : http://localhost:5000")
-    print(f"    Rede local      : http://{ip}:5000")
-    print("\n  Para encerrar: Ctrl+C ou feche esta janela")
-    print("=" * 54 + "\n")
+    print("=" * 54, flush=True)
+    print("  ENDEMIAS - Sistema de Gestao Integrado v3", flush=True)
+    print("  Setor de Endemias - Almirante Tamandare-PR", flush=True)
+    print("=" * 54, flush=True)
+    print(f"\n  Banco de dados: {DB_PATH}", flush=True)
+    print("\n  Acesse no navegador:", flush=True)
+    print("    Este computador : http://localhost:5000", flush=True)
+    print(f"    Rede local      : http://{ip}:5000", flush=True)
+    print("\n  Para encerrar: Ctrl+C ou feche esta janela", flush=True)
+    print("=" * 54 + "\n", flush=True)
 
-    app.run(debug=False, host="0.0.0.0", port=5000, threaded=True)
+    servidor = make_server("0.0.0.0", 5000, app, threaded=True)
+    try:
+        servidor.serve_forever()
+    except KeyboardInterrupt:
+        pass

@@ -45,6 +45,13 @@ def _erro_banco_agenda(exc):
     return jsonify({"erro": "Erro ao gravar evento na agenda."}), 500
 
 
+def _tipo_evento_json(value):
+    tipo = value or "outro"
+    if tipo not in work_types.AGENDA_TYPE_COLORS:
+        raise ValueError("Tipo de evento invalido")
+    return tipo
+
+
 def _parse_data_evento(value, dia_inteiro=False):
     if not value:
         return None
@@ -140,7 +147,10 @@ def api_eventos():
 
         d = request.json or {}
         titulo = (d.get("titulo") or "").strip()
-        tipo = d.get("tipo", "outro")
+        try:
+            tipo = _tipo_evento_json(d.get("tipo", "outro"))
+        except ValueError:
+            return jsonify({"erro": "Tipo de evento invalido"}), 400
         data_inicio = d.get("data_inicio", "")
         data_fim = d.get("data_fim") or None
         dia_inteiro = int(bool(d.get("dia_inteiro", False)))
@@ -434,7 +444,10 @@ def api_evento(id_evento):
 
     d = request.json or {}
     titulo = (d.get("titulo") or "").strip()
-    tipo = d.get("tipo", "outro")
+    try:
+        tipo = _tipo_evento_json(d.get("tipo", "outro"))
+    except ValueError:
+        return jsonify({"erro": "Tipo de evento invalido"}), 400
     data_inicio = d.get("data_inicio", "")
     data_fim = d.get("data_fim") or None
     dia_inteiro = int(bool(d.get("dia_inteiro", False)))

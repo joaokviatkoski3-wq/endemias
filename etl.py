@@ -118,6 +118,52 @@ def val_str(val):
     return s if s and s.lower() not in ("nan", "none", "") else None
 
 
+def auditar_larvas_sem_coleta(conn, larvas_origens, logger, limite=80):
+    """Confere se cada resultado de larvas tem coleta/visita correspondente no banco."""
+    if not larvas_origens:
+        return []
+
+    vistos = set()
+    pendentes = []
+    for item in larvas_origens:
+        tubo = str(item.get("tubo") or "").strip()
+        data = item.get("data")
+        if not tubo or not data:
+            continue
+        chave = (tubo, data)
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        row = conn.execute("""
+            SELECT c.id_coleta, v.id_visita
+              FROM coletas c
+              JOIN visitas v ON v.id_visita = c.id_visita
+             WHERE TRIM(COALESCE(c.num_tubo,'')) = ?
+               AND v.data = ?
+             LIMIT 1
+        """, (tubo, data)).fetchone()
+        if not row:
+            pendentes.append(item)
+
+    if not pendentes:
+        logger.log("  Auditoria de larvas: todos os tubos conferidos possuem visita/coleta no banco.", "ok")
+        return []
+
+    logger.log(
+        f"  [AVISO] {len(pendentes)} resultado(s) de larvas sem visita/coleta correspondente no banco.",
+        "aviso",
+    )
+    logger.log("  Tubos sem vinculo encontrado:", "aviso")
+    for item in pendentes[:limite]:
+        logger.log(
+            f"    - Tubo {item['tubo']} | coleta {item['data']} | arquivo {item['arquivo']}",
+            "aviso",
+        )
+    if len(pendentes) > limite:
+        logger.log(f"    ... mais {len(pendentes) - limite} tubo(s) nao exibido(s).", "aviso")
+    return pendentes
+
+
 # =============================================================================
 #  NORMALIZAÇÃO DE LOCALIDADE
 # =============================================================================
@@ -717,6 +763,7 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
     # Carregar larvas
     logger.log("\n[2/4] Carregando resultados de larvas...", "titulo")
     larvas = {}
+    larvas_origens = []
     for caminho in arquivos_larvas:
         try:
             df = pd.read_excel(
@@ -724,12 +771,19 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
                 dtype={cfg_larvas["col_numero_tubo"]: str},
                 engine="openpyxl"  # FIX ETL-04
             ).dropna(how="all")
+            registros_arquivo = 0
             for _, row in df.iterrows():
                 tubo = str(row.get(cfg_larvas["col_numero_tubo"], "")).strip()
                 data = normalizar_data(row.get(cfg_larvas["col_data_coleta"]))
                 if tubo and data:
                     larvas[(tubo, data)] = row
-            logger.log(f"  '{os.path.basename(caminho)}' — {len(larvas)} registro(s).", "ok")
+                    larvas_origens.append({
+                        "tubo": tubo,
+                        "data": data,
+                        "arquivo": os.path.basename(caminho),
+                    })
+                    registros_arquivo += 1
+            logger.log(f"  '{os.path.basename(caminho)}' - {registros_arquivo} registro(s).", "ok")
         except Exception as e:
             logger.log(f"  [ERRO] '{os.path.basename(caminho)}': {e}", "erro")
 
@@ -741,6 +795,7 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
     conn = sqlite3.connect(banco_path)
     conn.execute("PRAGMA foreign_keys = ON")   # FIX DB-01: FK ativas em toda a sessão ETL
     conn.execute("PRAGMA journal_mode = WAL")  # FIX DB-04: consistência com app.py
+    auditar_larvas_sem_coleta(conn, larvas_origens, logger)
 
     houve_erro = False
     sumario = []  # preview para tela de confirmação

@@ -322,6 +322,47 @@ class ExcelSafetyTests(unittest.TestCase):
         self.assertEqual(excel_safe("+cmd"), "'+cmd")
 
 
+class LarvasAuditTests(unittest.TestCase):
+    def test_audita_larvas_sem_coleta_correspondente(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "larvas.db"
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.executescript(
+                    """
+                    CREATE TABLE visitas (
+                        id_visita TEXT PRIMARY KEY,
+                        data TEXT
+                    );
+                    CREATE TABLE coletas (
+                        id_coleta TEXT PRIMARY KEY,
+                        id_visita TEXT,
+                        num_tubo TEXT
+                    );
+                    INSERT INTO visitas (id_visita, data)
+                    VALUES ('v1', '2026-06-01');
+                    INSERT INTO coletas (id_coleta, id_visita, num_tubo)
+                    VALUES ('c1', 'v1', '123');
+                    """
+                )
+                logger = etl.Logger()
+                pendentes = etl.auditar_larvas_sem_coleta(
+                    conn,
+                    [
+                        {"tubo": "123", "data": "2026-06-01", "arquivo": "LARVAS_ok.xlsx"},
+                        {"tubo": "999", "data": "2026-06-02", "arquivo": "LARVAS_falta.xlsx"},
+                    ],
+                    logger,
+                )
+            finally:
+                conn.close()
+
+        self.assertEqual([item["tubo"] for item in pendentes], ["999"])
+        texto_log = "\n".join(mensagem for mensagem, _ in logger.linhas)
+        self.assertIn("Tubo 999", texto_log)
+        self.assertIn("LARVAS_falta.xlsx", texto_log)
+
+
 class RequestParsingTests(unittest.TestCase):
     def test_request_int_arg_usa_default_quando_invalido(self):
         with endemias_app.app.test_request_context("/?pagina=abc"):
@@ -460,6 +501,9 @@ class CriarBancoScriptTests(unittest.TestCase):
                 agenda = conn.execute(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name='agenda_eventos'"
                 ).fetchone()
+                boletim = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='boletim_mensal_itens'"
+                ).fetchone()
                 conn.execute(
                     """INSERT INTO agenda_eventos
                        (titulo, tipo, data_inicio, dia_inteiro, criado_em)
@@ -479,6 +523,7 @@ class CriarBancoScriptTests(unittest.TestCase):
         self.assertIsNotNone(usuario)
         self.assertTrue(usuario[1].startswith("pbkdf2:"))
         self.assertIsNotNone(agenda)
+        self.assertIsNotNone(boletim)
         self.assertEqual(planejamento[0], "planejamento")
         self.assertEqual(total_admin, 1)
 
@@ -2578,6 +2623,126 @@ class MainApisSmokeTests(unittest.TestCase):
         finally:
             wb.close()
 
+    def test_boletim_mensal_api_retorna_indicadores(self):
+        client = _client_logado()
+        resp = client.get("/api/boletim-mensal?mes=2026-06&modo=auto")
+        dados = resp.get_json()
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("periodo", dados)
+        self.assertIn("linhas", dados)
+        self.assertIn("total", dados)
+        chaves = {item["chave"] for item in dados["linhas"]}
+        self.assertIn("visitas_pve", chaves)
+        self.assertIn("visitas_tbo", chaves)
+        texto = "\n".join(item["indicador"] for item in dados["linhas"])
+        for esperado in ("denúncias", "transmissão", "imóveis", "Depósitos", "laboratório", "louças", "plásticos", "vigilância", "saúde", "reclamações"):
+            self.assertIn(esperado, texto)
+        for proibido in ("denuncias", "transmissao", "imoveis", "Depositos", "laboratorio", "loucas", "plasticos", "vigilancia", "saude", "reclamacoes", "Ã", "â€", "�"):
+            self.assertNotIn(proibido, texto)
+
+    def test_boletim_mensal_pagina_pdf_e_xlsx(self):
+        client = _client_logado()
+        rotas = [
+            ("/boletim-mensal", "text/html"),
+            ("/boletim-mensal/pdf?mes=2026-06", "text/html"),
+            (
+                "/api/boletim-mensal/exportar?mes=2026-06",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ),
+        ]
+
+        for rota, content_type in rotas:
+            with self.subTest(rota=rota):
+                resp = client.get(rota)
+                try:
+                    self.assertEqual(resp.status_code, 200)
+                    self.assertIn(content_type, resp.content_type)
+                    if content_type == "text/html":
+                        html = resp.data.decode("utf-8")
+                        self.assertNotIn("Ã", html)
+                        self.assertNotIn("â€", html)
+                        self.assertNotIn("�", html)
+                        self.assertIn("Boletim Mensal", html)
+                finally:
+                    resp.close()
+
+    def test_boletim_mensal_salva_linha_manual(self):
+        client = _client_logado("admin")
+        original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
+        endemias_app.app.config["WTF_CSRF_ENABLED"] = False
+        chave = "manual_teste_unitario"
+        try:
+            resp = client.post(
+                "/api/boletim-mensal",
+                json={
+                    "mes": "2099-12",
+                    "linhas": [{
+                        "chave": chave,
+                        "origem": "manual",
+                        "ordem": 10,
+                        "indicador": "Ação educativa teste",
+                        "quantidade": 3,
+                        "unidade": "acoes",
+                        "ativo": True,
+                    }],
+                },
+            )
+            dados = resp.get_json()
+        finally:
+            endemias_app.app.config["WTF_CSRF_ENABLED"] = original
+            conn = sqlite3.connect(endemias_app.DB_PATH)
+            try:
+                conn.execute(
+                    "DELETE FROM boletim_mensal_itens WHERE ano_mes=? AND chave=?",
+                    ("2099-12", chave),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(dados["ok"])
+        self.assertEqual(dados["total"], 3)
+
+    def test_boletim_mensal_normaliza_indicador_antigo_sem_acento(self):
+        from app_core import boletim_mensal as boletim_core
+
+        client = _client_logado()
+        boletim_core.ensure_schema(endemias_app.DB_PATH)
+        conn = sqlite3.connect(endemias_app.DB_PATH)
+        try:
+            conn.execute("""
+                INSERT OR REPLACE INTO boletim_mensal_itens
+                    (ano_mes, chave, origem, ordem, indicador, quantidade, unidade, ativo, atualizado_em)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                "2099-11",
+                "visitas_pve",
+                "auto",
+                10,
+                "Vistorias de denuncias e focos suspeitos do Aedes aegypti (PVE - Pesquisa Vetorial Especial)",
+                7,
+                "visitas",
+                1,
+                "2099-11-01T08:00:00",
+            ))
+            conn.commit()
+            resp = client.get("/api/boletim-mensal?mes=2099-11")
+            dados = resp.get_json()
+        finally:
+            conn.execute(
+                "DELETE FROM boletim_mensal_itens WHERE ano_mes=? AND chave=?",
+                ("2099-11", "visitas_pve"),
+            )
+            conn.commit()
+            conn.close()
+
+        self.assertEqual(resp.status_code, 200)
+        linha = next(item for item in dados["linhas"] if item["chave"] == "visitas_pve")
+        self.assertIn("denúncias", linha["indicador"])
+        self.assertNotIn("denuncias", linha["indicador"])
+
     def test_status_consolidados_retorna_tipos(self):
         client = _client_logado()
         resp = client.get("/saida/consolidados/status")
@@ -2656,6 +2821,25 @@ class MainApisSmokeTests(unittest.TestCase):
             resp = client.post(
                 "/api/agenda/eventos",
                 json={"titulo": "Teste", "data_inicio": "2026-06-01", "lembrete_min": "abc"},
+            )
+        finally:
+            endemias_app.app.config["WTF_CSRF_ENABLED"] = original
+
+        self.assertEqual(resp.status_code, 400)
+        self.assertTrue(resp.is_json)
+
+    def test_api_agenda_tipo_invalido_retorna_400(self):
+        client = _client_logado("admin")
+        original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
+        endemias_app.app.config["WTF_CSRF_ENABLED"] = False
+        try:
+            resp = client.post(
+                "/api/agenda/eventos",
+                json={
+                    "titulo": "Teste",
+                    "tipo": "planejamento-invalido",
+                    "data_inicio": "2026-06-01",
+                },
             )
         finally:
             endemias_app.app.config["WTF_CSRF_ENABLED"] = original

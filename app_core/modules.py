@@ -153,6 +153,18 @@ MODULES: Tuple[AppModule, ...] = (
         endpoints=("relatorio_agente", "relatorio_agente.page"),
     ),
     AppModule(
+        key="boletim_mensal",
+        title="Boletim Mensal",
+        href="/boletim-mensal",
+        endpoint="boletim_mensal.page",
+        icon="documento.svg",
+        nav_section="Analise",
+        description="Boletim mensal de producao com indicadores automaticos, linhas manuais e exportacao.",
+        tags=("Mensal", "WhatsApp", "XLSX"),
+        min_level="visualizador",
+        endpoints=("boletim_mensal", "boletim_mensal.page"),
+    ),
+    AppModule(
         key="notificacoes",
         title="Notificacoes",
         href="/notificacoes",

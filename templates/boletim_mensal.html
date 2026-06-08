@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+{% block title %}Boletim Mensal{% endblock %}
+{% block page_title %}Boletim Mensal{% endblock %}
+
+{% block extra_css %}
+<style>
+.bm-toolbar{display:grid;grid-template-columns:minmax(180px,220px) 1fr;gap:12px;align-items:end;margin-bottom:14px}
+.bm-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.bm-shell{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
+.bm-panel{background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.bm-panel-hd{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);background:var(--bg2)}
+.bm-panel-title{font-weight:800;color:var(--text)}
+.bm-table-wrap{overflow:auto}
+.bm-table{width:100%;border-collapse:collapse;table-layout:fixed}
+.bm-table th,.bm-table td{border-bottom:1px solid var(--border);padding:8px;vertical-align:top}
+.bm-table th{background:var(--green-l);color:#14532d;font-size:12px;text-transform:uppercase;letter-spacing:.02em}
+.bm-table th:nth-child(1){width:44px}
+.bm-table th:nth-child(3){width:122px}
+.bm-table th:nth-child(4){width:110px}
+.bm-table th:nth-child(5){width:74px}
+.bm-table textarea,.bm-table input{width:100%;border:1px solid var(--border);border-radius:6px;background:var(--input-bg,var(--card));color:var(--text);font:inherit}
+.bm-table textarea{min-height:58px;resize:vertical;padding:7px}
+.bm-table input{padding:7px}
+.bm-qty{text-align:right}
+.bm-check{display:grid;place-items:center}
+.bm-origin{font-size:11px;color:var(--text3);margin-top:4px}
+.bm-preview{padding:14px}
+.bm-card{background:#fff!important;color:#111827!important;border:1px solid #94a3b8;border-radius:0;max-width:760px;margin:0 auto;font-family:Arial,Helvetica,sans-serif}
+.bm-card *{color:inherit}
+.bm-card-title{background:#14532d!important;color:#fff!important;text-align:center;font-weight:800;letter-spacing:.06em;padding:8px 10px;font-size:16px}
+.bm-card-sub{background:#fff!important;color:#0f4ea8!important;text-align:center;font-style:italic;font-size:12px;padding:6px;border-bottom:1px solid #d1d5db}
+.bm-card-month{background:#fff!important;color:#111827!important;text-align:center;font-weight:700;padding:6px;border-bottom:1px solid #d1d5db}
+.bm-preview-table{width:100%;border-collapse:collapse;font-size:13px;background:#fff!important;color:#111827!important}
+.bm-preview-table thead tr{background:#b6d7a8!important}
+.bm-preview-table th{background:#b6d7a8!important;color:#111!important;border:1px solid #111!important;padding:5px;text-align:center}
+.bm-preview-table td{background:#fff!important;color:#111827!important;border:1px solid #111!important;padding:5px;vertical-align:middle}
+.bm-preview-table td:last-child{text-align:right;white-space:nowrap;font-weight:700}
+.bm-preview-table tfoot td{background:#d9ead3!important;color:#111!important;font-weight:800;text-align:center}
+.bm-preview-table tbody tr:hover td{background:#fff!important;color:#111827!important}
+.bm-help{font-size:12px;color:var(--text2);line-height:1.45}
+.bm-textarea{min-height:260px;width:100%;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);padding:10px;font:12px/1.45 Consolas,monospace}
+.bm-side-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+@media(max-width:1050px){.bm-shell{grid-template-columns:1fr}.bm-actions{justify-content:flex-start}.bm-toolbar{grid-template-columns:1fr}}
+@media(max-width:720px){.bm-table th:nth-child(4),.bm-table td:nth-child(4){display:none}.bm-table th:nth-child(3){width:96px}.bm-table th:nth-child(5){width:56px}}
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+  <div>
+    <h1><span class="icon"><img src="/static/icons/documento.svg" alt="" class="icon-svg"></span> Boletim Mensal de Produção</h1>
+    <div class="sub">Indicadores mensais automáticos, editáveis e prontos para WhatsApp.</div>
+  </div>
+</section>
+
+<div class="bm-toolbar">
+  <label class="field-label">Mês do boletim
+    <input type="month" id="bm-mes">
+  </label>
+  <div class="bm-actions">
+    <button class="btn btn-primary" type="button" onclick="carregarBoletim(false)"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+    <button class="btn btn-outline" type="button" onclick="carregarBoletim(true)"><img src="/static/icons/raio.svg" alt="" class="icon-svg"> Recalcular automático</button>
+    <button class="btn btn-outline" type="button" onclick="adicionarLinha()"><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Linha manual</button>
+    <button class="btn btn-primary" type="button" onclick="salvarBoletim()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar mês</button>
+  </div>
+</div>
+
+<div class="bm-shell">
+  <section class="bm-panel">
+    <div class="bm-panel-hd">
+      <div>
+        <div class="bm-panel-title">Itens do boletim</div>
+        <div class="bm-help">Edite nomes e quantidades antes de exportar. Desmarque linhas que não devem entrar no total.</div>
+      </div>
+      <strong id="bm-total">Total: 0</strong>
+    </div>
+    <div class="bm-table-wrap">
+      <table class="bm-table">
+        <thead>
+          <tr>
+            <th>Usar</th>
+            <th>Indicador</th>
+            <th>Quantidade</th>
+            <th>Unidade</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody id="bm-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <aside class="bm-panel">
+    <div class="bm-panel-hd">
+      <div class="bm-panel-title">Prévia e envio</div>
+    </div>
+    <div class="bm-preview">
+      <div id="bm-card" class="bm-card"></div>
+      <div class="bm-side-actions">
+        <button class="btn btn-outline btn-sm" type="button" onclick="copiarWhatsApp()"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Copiar texto</button>
+        <button class="btn btn-outline btn-sm" type="button" onclick="baixarImagem()"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Imagem</button>
+        <button class="btn btn-outline btn-sm" type="button" onclick="baixarXlsx()"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Excel</button>
+        <button class="btn btn-outline btn-sm" type="button" onclick="abrirPdf()"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> PDF</button>
+      </div>
+      <p class="bm-help">A imagem é gerada no navegador para envio rápido pelo WhatsApp. O PDF abre em uma tela pronta para imprimir/salvar.</p>
+      <textarea id="bm-whatsapp" class="bm-textarea" readonly></textarea>
+    </div>
+  </aside>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let bmDados = null;
+
+function mesAtual() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function csrfToken() {
+  return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+}
+
+function fmt(n) {
+  return Number(n || 0).toLocaleString('pt-BR');
+}
+
+async function carregarBoletim(auto) {
+  const mes = document.getElementById('bm-mes').value || mesAtual();
+  const url = `/api/boletim-mensal?mes=${encodeURIComponent(mes)}${auto ? '&modo=auto' : ''}`;
+  const resp = await fetch(url);
+  const dados = await resp.json();
+  if (!resp.ok) throw new Error(dados.erro || 'Falha ao carregar boletim');
+  bmDados = dados;
+  renderTabela();
+  renderPreview();
+}
+
+function linhaHtml(item, idx) {
+  const checked = item.ativo ? 'checked' : '';
+  const manual = item.origem === 'manual';
+  return `
+    <tr data-idx="${idx}" data-chave="${item.chave}" data-origem="${item.origem}">
+      <td class="bm-check"><input type="checkbox" class="bm-ativo" ${checked} onchange="coletarTabela();renderPreview()"></td>
+      <td>
+        <textarea class="bm-indicador" oninput="coletarTabela();renderPreview()">${escapeHtml(item.indicador || '')}</textarea>
+        <div class="bm-origin">${manual ? 'manual' : (item.ajustado ? 'automático ajustado' : 'automático')}</div>
+      </td>
+      <td><input class="bm-quantidade bm-qty" type="number" min="0" step="1" value="${Number(item.quantidade || 0)}" oninput="coletarTabela();renderPreview()"></td>
+      <td><input class="bm-unidade" value="${escapeHtml(item.unidade || '')}" oninput="coletarTabela();renderPreview()"></td>
+      <td><button class="btn btn-xs btn-ghost" type="button" onclick="removerLinha(${idx})"><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"></button></td>
+    </tr>
+  `;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function renderTabela() {
+  document.getElementById('bm-body').innerHTML = (bmDados.linhas || []).map(linhaHtml).join('');
+}
+
+function coletarTabela() {
+  const rows = [...document.querySelectorAll('#bm-body tr')];
+  bmDados.linhas = rows.map((tr, idx) => ({
+    chave: tr.dataset.chave,
+    origem: tr.dataset.origem || 'manual',
+    ordem: (idx + 1) * 10,
+    indicador: tr.querySelector('.bm-indicador').value.trim(),
+    quantidade: Number(tr.querySelector('.bm-quantidade').value || 0),
+    unidade: tr.querySelector('.bm-unidade').value.trim(),
+    ativo: tr.querySelector('.bm-ativo').checked
+  }));
+  bmDados.total = bmDados.linhas.filter(i => i.ativo).reduce((acc, i) => acc + Number(i.quantidade || 0), 0);
+}
+
+function renderPreview() {
+  coletarTabela();
+  document.getElementById('bm-total').textContent = `Total: ${fmt(bmDados.total)}`;
+  const linhas = bmDados.linhas.filter(i => i.ativo);
+  const trs = linhas.map(i => `
+    <tr>
+      <td>${escapeHtml(i.indicador)}</td>
+      <td>${fmt(i.quantidade)}${i.unidade ? ' ' + escapeHtml(i.unidade) : ''}</td>
+    </tr>
+  `).join('');
+  document.getElementById('bm-card').innerHTML = `
+    <div class="bm-card-title">PREFEITURA MUNICIPAL DE ALMIRANTE TAMANDARÉ</div>
+    <div class="bm-card-sub">SECRETARIA MUNICIPAL DE SAÚDE - VIGILÂNCIA AMBIENTAL<br>BOLETIM MENSAL - ARBOVIROSES E ZOONOSES</div>
+    <div class="bm-card-month">${escapeHtml(bmDados.periodo.label)}</div>
+    <table class="bm-preview-table">
+      <thead><tr><th>Indicador</th><th>Quantidade</th></tr></thead>
+      <tbody>${trs || '<tr><td colspan="2">Nenhum indicador ativo.</td></tr>'}</tbody>
+      <tfoot><tr><td>TOTAL</td><td>${fmt(bmDados.total)}</td></tr></tfoot>
+    </table>
+  `;
+  document.getElementById('bm-whatsapp').value = textoWhatsApp();
+}
+
+function textoWhatsApp() {
+  const linhas = bmDados.linhas.filter(i => i.ativo);
+  const partes = [
+    `BOLETIM MENSAL - ARBOVIROSES E ZOONOSES`,
+    `Mês: ${bmDados.periodo.label}`,
+    ''
+  ];
+  linhas.forEach(i => partes.push(`${i.indicador}: ${fmt(i.quantidade)}${i.unidade ? ' ' + i.unidade : ''}`));
+  partes.push('', `TOTAL: ${fmt(bmDados.total)}`);
+  return partes.join('\n');
+}
+
+function adicionarLinha() {
+  if (!bmDados) return;
+  bmDados.linhas.push({
+    chave: `manual_${Date.now()}`,
+    origem: 'manual',
+    ordem: (bmDados.linhas.length + 1) * 10,
+    indicador: 'Novo indicador manual',
+    quantidade: 0,
+    unidade: '',
+    ativo: true
+  });
+  renderTabela();
+  renderPreview();
+}
+
+function removerLinha(idx) {
+  bmDados.linhas.splice(idx, 1);
+  renderTabela();
+  renderPreview();
+}
+
+async function salvarBoletim() {
+  coletarTabela();
+  const resp = await fetch('/api/boletim-mensal', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken()},
+    body: JSON.stringify({mes: document.getElementById('bm-mes').value, linhas: bmDados.linhas})
+  });
+  const dados = await resp.json();
+  if (!resp.ok) {
+    toast(dados.erro || 'Falha ao salvar boletim', 'error');
+    return;
+  }
+  bmDados = dados;
+  renderTabela();
+  renderPreview();
+  toast('Boletim salvo.', 'success');
+}
+
+async function copiarWhatsApp() {
+  await navigator.clipboard.writeText(document.getElementById('bm-whatsapp').value);
+  toast('Texto copiado para o WhatsApp.', 'success');
+}
+
+function baixarXlsx() {
+  const mes = document.getElementById('bm-mes').value;
+  window.location = `/api/boletim-mensal/exportar?mes=${encodeURIComponent(mes)}`;
+}
+
+function abrirPdf() {
+  const mes = document.getElementById('bm-mes').value;
+  window.open(`/boletim-mensal/pdf?mes=${encodeURIComponent(mes)}`, '_blank');
+}
+
+function baixarImagem() {
+  coletarTabela();
+  const linhas = bmDados.linhas.filter(i => i.ativo);
+  const w = 900;
+  const lineHeights = linhas.map(i => Math.max(42, Math.ceil(String(i.indicador).length / 58) * 22 + 16));
+  const h = 126 + 34 + lineHeights.reduce((a, b) => a + b, 0) + 42;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#14532d';
+  ctx.fillRect(0, 0, w, 42);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 22px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('PREFEITURA MUNICIPAL DE ALMIRANTE TAMANDARÉ', w / 2, 28);
+  ctx.fillStyle = '#0f4ea8';
+  ctx.font = 'italic 16px Arial';
+  ctx.fillText('SECRETARIA MUNICIPAL DE SAÚDE - VIGILÂNCIA AMBIENTAL', w / 2, 66);
+  ctx.fillText('BOLETIM MENSAL - ARBOVIROSES E ZOONOSES', w / 2, 90);
+  ctx.fillStyle = '#111827';
+  ctx.font = 'bold 16px Arial';
+  ctx.fillText(bmDados.periodo.label, w / 2, 116);
+  let y = 126;
+  drawCell(ctx, 0, y, 690, 34, '#b6d7a8', 'Indicador', true, 'center');
+  drawCell(ctx, 690, y, 210, 34, '#b6d7a8', 'Quantidade', true, 'center');
+  y += 34;
+  linhas.forEach((item, idx) => {
+    const rh = lineHeights[idx];
+    drawWrappedCell(ctx, 0, y, 690, rh, '#ffffff', item.indicador);
+    drawCell(ctx, 690, y, 210, rh, '#ffffff', `${fmt(item.quantidade)}${item.unidade ? ' ' + item.unidade : ''}`, true, 'right');
+    y += rh;
+  });
+  drawCell(ctx, 0, y, 690, 42, '#d9ead3', 'TOTAL', true, 'center');
+  drawCell(ctx, 690, y, 210, 42, '#d9ead3', fmt(bmDados.total), true, 'right');
+  const link = document.createElement('a');
+  link.download = `boletim_mensal_${bmDados.periodo.ano_mes}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+function drawCell(ctx, x, y, w, h, bg, text, bold, align) {
+  ctx.fillStyle = bg;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#111';
+  ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = '#111';
+  ctx.font = `${bold ? 'bold ' : ''}15px Arial`;
+  ctx.textAlign = align || 'left';
+  const tx = align === 'right' ? x + w - 10 : align === 'center' ? x + w / 2 : x + 8;
+  ctx.fillText(text, tx, y + h / 2 + 5);
+}
+
+function drawWrappedCell(ctx, x, y, w, h, bg, text) {
+  ctx.fillStyle = bg;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#111';
+  ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = '#111';
+  ctx.font = '15px Arial';
+  ctx.textAlign = 'left';
+  const words = String(text).split(' ');
+  let line = '';
+  let yy = y + 22;
+  words.forEach(word => {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width > w - 18 && line) {
+      ctx.fillText(line, x + 8, yy);
+      line = word;
+      yy += 20;
+    } else {
+      line = test;
+    }
+  });
+  if (line) ctx.fillText(line, x + 8, yy);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('bm-mes').value = mesAtual();
+  carregarBoletim(false).catch(err => toast(err.message, 'error'));
+});
+</script>
+{% endblock %}

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Boletim Mensal - {{ periodo.label }}</title>
+<style>
+@page{size:A4 portrait;margin:1.2cm}
+body{font-family:Arial,Helvetica,sans-serif;color:#111827;background:#fff}
+.actions{position:fixed;right:16px;top:12px}
+.actions button{border:0;background:#14532d;color:#fff;border-radius:6px;padding:8px 12px;font-weight:700;cursor:pointer}
+.boletim{border:1px solid #111;max-width:19cm;margin:0 auto}
+.title{background:#14532d;color:#fff;text-align:center;font-weight:800;letter-spacing:.06em;padding:8px 10px;font-size:16px}
+.sub{text-align:center;color:#0f4ea8;font-style:italic;font-size:12px;padding:6px;border-bottom:1px solid #d1d5db;line-height:1.5}
+.month{text-align:center;font-weight:700;padding:7px;border-bottom:1px solid #d1d5db}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{background:#b6d7a8;border:1px solid #111;padding:5px;text-align:center}
+td{border:1px solid #111;padding:5px;vertical-align:middle}
+td:last-child{text-align:right;white-space:nowrap;font-weight:700}
+tfoot td{background:#d9ead3;font-weight:800;text-align:center}
+.meta{text-align:right;color:#64748b;font-size:10px;margin:.4cm auto 0;max-width:19cm}
+@media print{.actions{display:none}}
+</style>
+</head>
+<body>
+<div class="actions"><button onclick="window.print()">Imprimir / salvar PDF</button></div>
+<main class="boletim">
+  <div class="title">PREFEITURA MUNICIPAL DE ALMIRANTE TAMANDARÉ</div>
+  <div class="sub">SECRETARIA MUNICIPAL DE SAÚDE - VIGILÂNCIA AMBIENTAL<br>BOLETIM MENSAL - ARBOVIROSES E ZOONOSES</div>
+  <div class="month">{{ periodo.label }}</div>
+  <table>
+    <thead><tr><th>Indicador</th><th>Quantidade</th></tr></thead>
+    <tbody>
+      {% for item in linhas if item.ativo %}
+      <tr>
+        <td>{{ item.indicador }}</td>
+        <td>{{ "{:,}".format(item.quantidade).replace(",", ".") }}{% if item.unidade %} {{ item.unidade }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr><td>TOTAL</td><td>{{ "{:,}".format(total).replace(",", ".") }}</td></tr>
+    </tfoot>
+  </table>
+</main>
+<div class="meta">Gerado em {{ gerado_em.replace("T", " ") }}</div>
+</body>
+</html>

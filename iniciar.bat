@@ -1,77 +1,83 @@
 @echo off
-chcp 65001 >nul
-title Endemias — Sistema de Gestão Integrado v3
+title Endemias - Sistema de Gestao Integrado v3
 
-:: ============================================================
-::  INICIAR.BAT — Servidor do Sistema de Endemias
-::
-::  Este script roda UMA VEZ, em UM computador.
-::  Os outros computadores acessam pelo navegador via IP.
-::
-::  ⚠ NÃO copie este arquivo para outros computadores.
-::     Eles devem acessar http://IP_DESTE_PC:5000
-:: ============================================================
+rem ============================================================
+rem  INICIAR.BAT - Servidor do Sistema de Endemias
+rem
+rem  Este script deve rodar em apenas UM computador.
+rem  Os outros computadores acessam pelo navegador usando o IP
+rem  mostrado nesta tela.
+rem ============================================================
 
 cd /d "%~dp0"
 cls
 
 echo.
 echo  ===================================================
-echo  ENDEMIAS -- Sistema de Gestao Integrado v3
-echo  Setor de Endemias -- Almirante Tamandare-PR
+echo  ENDEMIAS - Sistema de Gestao Integrado v3
+echo  Setor de Endemias - Almirante Tamandare-PR
 echo  ===================================================
 echo.
 
-:: Verificar se Python está disponível
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo  [ERRO] Python não encontrado.
-    echo  Instale o Python em python.org e tente novamente.
+    echo  [ATENCAO] Python nao encontrado.
+    echo  Instale o Python e tente novamente.
+    echo.
     pause
     exit /b 1
 )
 
-:: Verificar banco de dados
 if not exist "endemias.db" (
-    echo  [AVISO] Banco de dados não encontrado.
+    echo  Banco de dados nao encontrado.
     echo  Criando banco inicial...
     python criar_banco.py
     if errorlevel 1 (
-        echo  [ERRO] Falha ao criar o banco de dados.
+        echo.
+        echo  [ATENCAO] Nao foi possivel criar o banco de dados.
+        echo  Avise o responsavel pelo sistema.
+        echo.
         pause
         exit /b 1
     )
     echo.
 )
 
-:: Instalar dependências se necessário
 if not exist ".deps_ok" (
-    echo  Verificando dependências Python...
-    pip install -r requirements.txt 2>nul
-    echo. > .deps_ok
+    echo  Verificando componentes do sistema...
+    python -c "import flask, flask_wtf, openpyxl, pandas, docx, werkzeug" >nul 2>nul
+    if errorlevel 1 (
+        echo  Instalando componentes. Aguarde...
+        pip install -r requirements.txt >nul 2>nul
+        if errorlevel 1 (
+            echo.
+            echo  [ATENCAO] Nao foi possivel instalar os componentes do sistema.
+            echo  Verifique a internet ou avise o responsavel pelo sistema.
+            echo.
+            pause
+            exit /b 1
+        )
+    )
+    echo ok > .deps_ok
     echo.
 )
 
-:: Obter IP local
-for /f "tokens=*" %%i in ('python -c "import socket; print(socket.gethostbyname(socket.gethostname()))"') do set LOCAL_IP=%%i
+python -c "import socket, sys; s=socket.socket(); sys.exit(0 if s.connect_ex(('127.0.0.1', 5000)) == 0 else 1)" >nul 2>nul
+if not errorlevel 1 (
+    echo  O sistema ja parece estar aberto neste computador.
+    echo  Use o navegador em: http://localhost:5000
+    echo.
+    pause
+    exit /b 0
+)
 
-:: Data/hora sem vírgula para o nome do backup
-set DATA=%date:~6,4%%date:~3,2%%date:~0,2%
-set HORA=%time:~0,2%%time:~3,2%%time:~6,2%
-set HORA=%HORA: =0%
-
-echo  ════════════════════════════════════════════════════
-echo  Banco de dados : endemias.db (local neste computador)
-echo  Acesso na rede : http://%LOCAL_IP%:5000
-echo  Este computador: http://localhost:5000
-echo  ════════════════════════════════════════════════════
+echo  Iniciando o sistema...
 echo.
-echo  Pressione Ctrl+C para encerrar o servidor.
+echo  Mantenha esta janela aberta enquanto o sistema estiver em uso.
 echo.
 
-:: Iniciar Flask
 python app.py
 
 echo.
-echo  Servidor encerrado.
+echo  Sistema encerrado.
 pause

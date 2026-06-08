@@ -17,6 +17,7 @@ Página Conta Ovos - SisPNCD/
 *Conta Ovos - SisPNCD/
 tmp/
 temp/
+.deps_ok
 
 # Python
 __pycache__/
