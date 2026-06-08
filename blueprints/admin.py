@@ -13,6 +13,7 @@ from app_core import audit
 from app_core import auth as auth_core
 from app_core import backup as backup_core
 from app_core import blueprint_helpers as bh
+from app_core import dbml as dbml_core
 from app_core import import_history
 from app_core import version as version_core
 
@@ -200,6 +201,31 @@ def admin_baixar_backup(nome_backup):
         return send_file(backup_path, as_attachment=True, download_name=backup_path.name)
     except Exception as exc:
         return redirect(url_for("admin.admin_sistema", backup_erro=f"Erro ao baixar backup: {exc}"))
+
+
+@bp.route("/admin/sistema/dbml")
+@login_required
+@nivel_min("admin")
+def admin_baixar_dbml():
+    try:
+        db_path = Path(current_app.config["DB_PATH"])
+        conteudo = dbml_core.gerar_dbml(db_path)
+        nome = f"{db_path.stem}_schema.dbml"
+        audit.registrar_evento(
+            bh.get_db,
+            "dbml_baixado",
+            entidade="banco",
+            entidade_id=db_path.name,
+            detalhes={"arquivo": nome},
+        )
+        return send_file(
+            io.BytesIO(conteudo.encode("utf-8")),
+            as_attachment=True,
+            download_name=nome,
+            mimetype="text/plain; charset=utf-8",
+        )
+    except Exception as exc:
+        return redirect(url_for("admin.admin_sistema", backup_erro=f"Erro ao gerar DBML: {exc}"))
 
 
 @bp.route("/admin/sistema/backups/excluir", methods=["POST"])

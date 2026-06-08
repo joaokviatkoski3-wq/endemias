@@ -28,6 +28,7 @@ from app_core import backup as backup_core
 from app_core import amostras_animais as amostras_animais_core
 from app_core import esporotricose as esporotricose_core
 from app_core import db as db_core
+from app_core import dbml as dbml_core
 from app_core.excel import excel_safe
 from app_core import modules as modules_core
 from app_core import bri as bri_core
@@ -389,6 +390,52 @@ class DatabaseConnectionTests(unittest.TestCase):
                 conn.close()
 
 
+class DbmlGenerationTests(unittest.TestCase):
+    def test_gerar_dbml_inclui_tabelas_indices_e_referencias(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "schema.db"
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.executescript(
+                    """
+                    CREATE TABLE pais (
+                        id INTEGER PRIMARY KEY,
+                        nome TEXT NOT NULL UNIQUE
+                    );
+                    CREATE TABLE filhos (
+                        id INTEGER PRIMARY KEY,
+                        pais_id INTEGER NOT NULL,
+                        nome TEXT DEFAULT 'sem nome',
+                        FOREIGN KEY (pais_id) REFERENCES pais(id)
+                    );
+                    CREATE TABLE leituras (
+                        tubo TEXT NOT NULL,
+                        data TEXT NOT NULL,
+                        resultado TEXT,
+                        PRIMARY KEY (tubo, data)
+                    );
+                    CREATE INDEX idx_filhos_nome ON filhos(nome);
+                    """
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            dbml = dbml_core.gerar_dbml(db_path, project_name="Teste")
+
+        self.assertIn("Project Teste", dbml)
+        self.assertIn("Table pais", dbml)
+        self.assertIn("id INTEGER [pk]", dbml)
+        self.assertIn("nome TEXT [not null]", dbml)
+        self.assertIn("Table filhos", dbml)
+        self.assertIn("default: `'sem nome'`", dbml)
+        self.assertIn("idx_filhos_nome", dbml)
+        self.assertIn("Ref: filhos.pais_id > pais.id", dbml)
+        self.assertIn("Table leituras", dbml)
+        self.assertIn("(tubo, data) [pk]", dbml)
+        self.assertNotIn("pk_order", dbml)
+
+
 class BackupTests(unittest.TestCase):
     def _criar_db_minimo(self, db_path):
         conn = sqlite3.connect(db_path)
@@ -600,6 +647,21 @@ class AdminBackupRoutesTests(unittest.TestCase):
             data = resp.get_data()
             resp.close()
             self.assertGreater(len(data), 0)
+
+    def test_admin_baixa_dbml_pela_central_do_sistema(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, _db_path = self._app_e_cliente_admin(tmpdir)
+
+            with app_temp.app_context():
+                resp = client.get("/admin/sistema/dbml")
+
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn("attachment", resp.headers.get("Content-Disposition", ""))
+            self.assertIn("schema.dbml", resp.headers.get("Content-Disposition", ""))
+            texto = resp.get_data(as_text=True)
+            resp.close()
+            self.assertIn("Project Endemias", texto)
+            self.assertIn("Table usuarios", texto)
 
     def test_admin_exclui_backup_pela_central_do_sistema(self):
         with tempfile.TemporaryDirectory() as tmpdir:
