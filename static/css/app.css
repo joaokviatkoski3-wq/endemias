@@ -1412,6 +1412,14 @@ table tbody tr:hover {
   padding:5px 8px !important;
 }
 
+.pill input[type=checkbox]:checked + label {
+  background:var(--brand-xs) !important;
+  border-color:var(--brand) !important;
+  color:var(--brand) !important;
+  font-weight:700 !important;
+  box-shadow:inset 0 0 0 1px var(--brand) !important;
+}
+
 .pill label .dot,
 .filter-chip .dot,
 .quick-filter .dot {
