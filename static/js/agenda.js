@@ -10,15 +10,14 @@ const TIPO_COR = JSON.parse(document.getElementById('agenda-tipo-cores').textCon
 const TIPO_LABEL = JSON.parse(document.getElementById('agenda-form-labels').textContent || '{}');
 
 function agendaEpiYearStart(year) {
-  const jan4 = new Date(year, 0, 4);
-  const start = new Date(year, 0, 4 - jan4.getDay());
-  start.setHours(0, 0, 0, 0);
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const start = new Date(Date.UTC(year, 0, 4 - jan4.getUTCDay()));
   return start;
 }
 
 function agendaEpiWeek(date) {
-  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  let year = day.getFullYear();
+  const day = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  let year = day.getUTCFullYear();
   let start = agendaEpiYearStart(year);
   const nextStart = agendaEpiYearStart(year + 1);
   if (day < start) {
@@ -51,12 +50,12 @@ document.addEventListener('DOMContentLoaded', () => {
     height:    '100%',
     firstDay:  0,
     weekNumbers: true,
-    weekText: 'SE',
+    weekText: 'Semana',
     weekNumberCalculation: date => agendaEpiWeek(date).week,
     weekNumberContent: arg => {
       const epi = agendaEpiWeek(arg.date);
       const week = String(epi.week).padStart(2, '0');
-      return { html: `<span title="Semana epidemiológica ${week} de ${epi.year}">SE ${week}/${epi.year}</span>` };
+      return { html: `<span title="Semana epidemiológica ${week} de ${epi.year}">SEMANA ${week}</span>` };
     },
     navLinks:  true,
     editable:  false,

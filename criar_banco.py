@@ -213,7 +213,7 @@ CREATE TABLE IF NOT EXISTS agenda_eventos (
     titulo       TEXT    NOT NULL,
     descricao    TEXT,
     tipo         TEXT    NOT NULL DEFAULT 'outro'
-                 CHECK(tipo IN ('reuniao','planejamento','campo','prazo','treinamento','tarefa','outro')),
+                 CHECK(tipo IN ('reuniao','planejamento','campo','prazo','treinamento','tarefa','ferias','outro')),
     data_inicio  TEXT    NOT NULL,
     data_fim     TEXT,
     dia_inteiro  INTEGER NOT NULL DEFAULT 0 CHECK(dia_inteiro IN (0,1)),
@@ -433,7 +433,7 @@ def migrar_agenda(conn):
         titulo       TEXT    NOT NULL,
         descricao    TEXT,
         tipo         TEXT    NOT NULL DEFAULT 'outro'
-                     CHECK(tipo IN ('reuniao','planejamento','campo','prazo','treinamento','tarefa','outro')),
+                     CHECK(tipo IN ('reuniao','planejamento','campo','prazo','treinamento','tarefa','ferias','outro')),
         data_inicio  TEXT    NOT NULL,
         data_fim     TEXT,
         dia_inteiro  INTEGER NOT NULL DEFAULT 0 CHECK(dia_inteiro IN (0,1)),
@@ -452,6 +452,52 @@ def migrar_agenda(conn):
         conn.execute("ALTER TABLE agenda_eventos ADD COLUMN recorrencia TEXT NOT NULL DEFAULT 'nenhuma'")
     if "recorrencia_fim" not in cols:
         conn.execute("ALTER TABLE agenda_eventos ADD COLUMN recorrencia_fim TEXT")
+    sql = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='agenda_eventos'"
+    ).fetchone()
+    if sql and "ferias" not in (sql[0] or ""):
+        conn.executescript("""
+        ALTER TABLE agenda_eventos RENAME TO agenda_eventos_old;
+        CREATE TABLE agenda_eventos (
+            id_evento    INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo       TEXT    NOT NULL,
+            descricao    TEXT,
+            tipo         TEXT    NOT NULL DEFAULT 'outro'
+                         CHECK(tipo IN ('reuniao','planejamento','campo','prazo','treinamento','tarefa','ferias','outro')),
+            data_inicio  TEXT    NOT NULL,
+            data_fim     TEXT,
+            dia_inteiro  INTEGER NOT NULL DEFAULT 0 CHECK(dia_inteiro IN (0,1)),
+            lembrete_min INTEGER DEFAULT 60,
+            cor          TEXT    DEFAULT '#1a4fba',
+            criado_por   TEXT,
+            criado_em    TEXT    NOT NULL,
+            recorrencia  TEXT    NOT NULL DEFAULT 'nenhuma',
+            recorrencia_fim TEXT
+        );
+        INSERT INTO agenda_eventos (
+            id_evento, titulo, descricao, tipo, data_inicio, data_fim, dia_inteiro,
+            lembrete_min, cor, criado_por, criado_em, recorrencia, recorrencia_fim
+        )
+        SELECT
+            id_evento, titulo, descricao, tipo, data_inicio, data_fim, dia_inteiro,
+            lembrete_min, cor, criado_por, criado_em,
+            COALESCE(recorrencia, 'nenhuma'), recorrencia_fim
+        FROM agenda_eventos_old;
+        DROP TABLE agenda_eventos_old;
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_agenda_inicio ON agenda_eventos(data_inicio)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_agenda_recorrencia ON agenda_eventos(recorrencia, recorrencia_fim)")
+    conn.execute(
+        """UPDATE agenda_eventos
+              SET tipo='ferias', cor='#06b6d4'
+            WHERE tipo <> 'ferias'
+              AND (
+                  lower(titulo) LIKE '%ferias%'
+                  OR lower(titulo) LIKE '%férias%'
+                  OR titulo LIKE '%Férias%'
+                  OR titulo LIKE '%FÉRIAS%'
+              )"""
+    )
     conn.commit()
 
 

@@ -1803,11 +1803,14 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('id="btn-agenda-buscar-ano"', html)
         self.assertIn('id="agenda-busca-status"', html)
         self.assertIn('id="agenda-resultados-ano"', html)
+        self.assertIn("Férias", html)
         self.assertIn("Resultados no ano inteiro", html)
         self.assertIn("Buscar no ano inteiro", html)
         self.assertIn("weekNumbers: true", js)
         self.assertIn("weekNumberContent", js)
-        self.assertIn("SE ${week}/${epi.year}", js)
+        self.assertIn("getUTCDay", js)
+        self.assertIn("getUTCFullYear", js)
+        self.assertIn("SEMANA ${week}", js)
         self.assertIn("fmtDataRange", js)
         self.assertIn("recorrencia_fim", js)
         self.assertIn("normalizarBusca", js)
@@ -1886,6 +1889,69 @@ class MainPagesSmokeTests(unittest.TestCase):
             self.assertTrue(all(evento["end"] > evento["start"] for evento in eventos))
             self.assertEqual({evento["extendedProps"]["recorrencia"] for evento in eventos}, {"semanal"})
             self.assertEqual({evento["extendedProps"]["recorrencia_fim"] for evento in eventos}, {"2026-06-30"})
+
+    def test_agenda_aceita_tipo_ferias(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _, client, _ = _client_admin_com_banco_temporario(tmpdir)
+            resp = client.post("/api/agenda/eventos", json={
+                "titulo": "Férias - Vanessa",
+                "tipo": "ferias",
+                "data_inicio": "2026-07-13",
+                "data_fim": "2026-07-27",
+                "dia_inteiro": True,
+                "lembrete_min": 0,
+                "recorrencia": "nenhuma",
+            })
+            self.assertEqual(resp.status_code, 201)
+
+            resp = client.get("/api/agenda/eventos?start=2026-07-01&end=2026-08-01")
+            self.assertEqual(resp.status_code, 200)
+            eventos = [
+                evento for evento in resp.get_json()
+                if evento.get("title") == "Férias - Vanessa"
+            ]
+            self.assertEqual(len(eventos), 1)
+            self.assertEqual(eventos[0]["extendedProps"]["tipo"], "ferias")
+            self.assertEqual(eventos[0]["extendedProps"]["tipoLabel"], "Férias")
+
+    def test_agenda_migra_eventos_com_ferias_no_titulo_para_tipo_ferias(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute(
+                    """INSERT INTO agenda_eventos
+                       (titulo, descricao, tipo, data_inicio, data_fim, dia_inteiro,
+                        lembrete_min, cor, criado_por, criado_em, recorrencia, recorrencia_fim)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        "Ferias antigas",
+                        None,
+                        "outro",
+                        "2026-01-12",
+                        "2026-01-20",
+                        1,
+                        0,
+                        "#64748b",
+                        "teste",
+                        "2026-01-01T08:00:00",
+                        "nenhuma",
+                        None,
+                    ),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            resp = client.get("/api/agenda/eventos?start=2026-01-01&end=2026-02-01")
+            self.assertEqual(resp.status_code, 200)
+            eventos = [
+                evento for evento in resp.get_json()
+                if evento.get("title") == "Ferias antigas"
+            ]
+            self.assertEqual(len(eventos), 1)
+            self.assertEqual(eventos[0]["extendedProps"]["tipo"], "ferias")
+            self.assertEqual(eventos[0]["extendedProps"]["tipoLabel"], "Férias")
 
     def test_agenda_rejeita_evento_com_fim_antes_do_inicio(self):
         client = _client_logado("admin")

@@ -104,6 +104,7 @@ AGENDA_TYPE_COLORS = {
     "prazo": "#ef4444",
     "treinamento": "#8b5cf6",
     "tarefa": "#f59e0b",
+    "ferias": "#06b6d4",
     "outro": "#64748b",
 }
 
@@ -114,6 +115,7 @@ AGENDA_TYPE_LABELS = {
     "prazo": "Prazo",
     "treinamento": "Treinamento",
     "tarefa": "Tarefa",
+    "ferias": "Férias",
     "outro": "Outro",
 }
 
@@ -124,6 +126,7 @@ AGENDA_FORM_LABELS = {
     "prazo": "Prazo / Entrega",
     "treinamento": "Treinamento",
     "tarefa": "Tarefa interna",
+    "ferias": "Férias",
     "outro": "Outro",
 }
 
