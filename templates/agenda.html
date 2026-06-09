@@ -43,11 +43,16 @@
     <h1><img src="/static/icons/calendario.svg" alt="📅" class="icon-svg"> Agenda</h1>
     <div class="sub">Eventos manuais e atividades de campo registradas no sistema</div>
   </div>
-  {% if usuario_atual and usuario_atual.nivel == 'admin' %}
-  <button class="btn btn-primary" type="button" id="btn-agenda-novo">
-    <img src="/static/icons/mais.svg" alt="+" class="icon-svg"> Novo evento
-  </button>
-  {% endif %}
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+    <button class="btn btn-ghost" type="button" id="btn-agenda-imprimir">
+      <img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Imprimir mês
+    </button>
+    {% if usuario_atual and usuario_atual.nivel == 'admin' %}
+    <button class="btn btn-primary" type="button" id="btn-agenda-novo">
+      <img src="/static/icons/mais.svg" alt="+" class="icon-svg"> Novo evento
+    </button>
+    {% endif %}
+  </div>
 </div>
 
 <!-- Legenda -->

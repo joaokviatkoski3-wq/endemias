@@ -480,6 +480,13 @@ function abrirResultadoAno(event) {
   calendario?.refetchEvents();
 }
 
+function imprimirAgendaMes() {
+  const data = calendario && typeof calendario.getDate === 'function' ? calendario.getDate() : new Date();
+  const ano = data.getFullYear();
+  const mes = data.getMonth() + 1;
+  window.open(`/agenda/imprimir?ano=${ano}&mes=${mes}`, '_blank', 'noopener');
+}
+
 function buscarAgendaNoAnoComEnter(event) {
   if (event.key === 'Enter') {
     event.preventDefault();
@@ -600,6 +607,7 @@ document.getElementById('modal-evento').addEventListener('click', function(e) {
 });
 
 document.getElementById('btn-agenda-novo')?.addEventListener('click', abrirModalNovo);
+document.getElementById('btn-agenda-imprimir')?.addEventListener('click', imprimirAgendaMes);
 document.getElementById('btn-agenda-fechar-modal')?.addEventListener('click', fecharModal);
 document.getElementById('btn-agenda-cancelar')?.addEventListener('click', fecharModal);
 document.getElementById('btn-agenda-salvar')?.addEventListener('click', salvarEvento);

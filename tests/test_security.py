@@ -1797,6 +1797,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('src="/static/js/agenda.js"', html)
         self.assertIn('id="ev-recorrencia"', html)
         self.assertIn('id="ev-recorrencia-fim"', html)
+        self.assertIn('id="btn-agenda-imprimir"', html)
         self.assertIn('id="agenda-busca"', html)
         self.assertIn('id="btn-agenda-limpar-busca"', html)
         self.assertIn('id="agenda-busca-ano"', html)
@@ -1820,7 +1821,10 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("renderResultadosAno", js)
         self.assertIn("agenda-year-result", js)
         self.assertIn("atualizarAnoBuscaAgenda", js)
+        self.assertIn("imprimirAgendaMes", js)
+        self.assertIn("/agenda/imprimir?ano=", js)
         self.assertIn("termos.every", js)
+        self.assertIn("addEventListener('click', imprimirAgendaMes)", js)
         self.assertIn("addEventListener('input', atualizarBuscaAgenda)", js)
         self.assertIn("addEventListener('click', buscarAgendaNoAno)", js)
         self.assertIn("addEventListener('change', atualizarAnoBuscaAgenda)", js)
@@ -1952,6 +1956,30 @@ class MainPagesSmokeTests(unittest.TestCase):
             self.assertEqual(len(eventos), 1)
             self.assertEqual(eventos[0]["extendedProps"]["tipo"], "ferias")
             self.assertEqual(eventos[0]["extendedProps"]["tipoLabel"], "Férias")
+
+    def test_agenda_impressao_mes_abre_html_com_detalhes(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _, client, _ = _client_admin_com_banco_temporario(tmpdir)
+            resp = client.post("/api/agenda/eventos", json={
+                "titulo": "Reunião detalhada",
+                "tipo": "reuniao",
+                "data_inicio": "2026-08-12T08:30",
+                "data_fim": "2026-08-12T10:00",
+                "dia_inteiro": False,
+                "lembrete_min": 0,
+                "descricao": "Observação importante para impressão",
+                "recorrencia": "nenhuma",
+            })
+            self.assertEqual(resp.status_code, 201)
+
+            resp = client.get("/agenda/imprimir?ano=2026&mes=8")
+            self.assertEqual(resp.status_code, 200)
+            html = resp.data.decode("utf-8")
+            self.assertIn("Agenda - Agosto de 2026", html)
+            self.assertIn("Reunião detalhada", html)
+            self.assertIn("Observação importante para impressão", html)
+            self.assertIn("08:30 - 10:00", html)
+            self.assertIn("window.print()", html)
 
     def test_agenda_rejeita_evento_com_fim_antes_do_inicio(self):
         client = _client_logado("admin")

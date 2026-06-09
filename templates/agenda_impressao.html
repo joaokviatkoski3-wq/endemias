@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Agenda - {{ "%02d"|format(mes) }}/{{ ano }}</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f3f4f6;
+      color: #111827;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .actions {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 10px 14px;
+      background: #ffffff;
+      border-bottom: 1px solid #d1d5db;
+    }
+    .actions button {
+      border: 1px solid #1d4ed8;
+      background: #1d4ed8;
+      color: #fff;
+      border-radius: 4px;
+      padding: 7px 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 12px auto;
+      padding: 14mm;
+      background: #fff;
+      box-shadow: 0 8px 30px rgba(15, 23, 42, .15);
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      border-bottom: 2px solid #111827;
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+    h1 {
+      margin: 0 0 4px;
+      font-size: 21px;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+    .muted { color: #6b7280; }
+    .summary {
+      text-align: right;
+      font-size: 11px;
+      color: #374151;
+    }
+    .day {
+      break-inside: avoid;
+      border: 1px solid #d1d5db;
+      margin-bottom: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .day-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 8px;
+      background: #eef2ff;
+      border-bottom: 1px solid #d1d5db;
+      font-weight: 800;
+    }
+    .events {
+      padding: 7px 8px 8px;
+    }
+    .empty {
+      color: #9ca3af;
+      font-style: italic;
+    }
+    .event {
+      break-inside: avoid;
+      border-left: 4px solid var(--event-color, #64748b);
+      padding: 2px 0 6px 8px;
+      margin-bottom: 7px;
+    }
+    .event:last-child { margin-bottom: 0; }
+    .event-title {
+      font-weight: 800;
+      color: #111827;
+    }
+    .event-meta {
+      margin-top: 1px;
+      color: #374151;
+      font-size: 11px;
+    }
+    .event-detail {
+      margin-top: 3px;
+      white-space: pre-wrap;
+      color: #1f2937;
+    }
+    @page {
+      size: A4 portrait;
+      margin: 10mm;
+    }
+    @media print {
+      body { background: #fff; }
+      .actions { display: none; }
+      .page {
+        width: auto;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+      }
+      .day { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="actions">
+    <button type="button" onclick="window.print()">Imprimir</button>
+  </div>
+  <main class="page">
+    {% set meses = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"] %}
+    {% set dias_semana = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"] %}
+    <header>
+      <div>
+        <h1>Agenda - {{ meses[mes] }} de {{ ano }}</h1>
+        <div class="muted">Eventos manuais e atividades registradas no sistema</div>
+      </div>
+      <div class="summary">
+        <div>{{ total_eventos }} evento{{ "s" if total_eventos != 1 else "" }} no mês</div>
+        <div>Gerado em {{ gerado_em.strftime("%d/%m/%Y %H:%M") }}</div>
+      </div>
+    </header>
+
+    {% for dia in dias %}
+    <section class="day">
+      <div class="day-head">
+        <span>{{ "%02d"|format(dia.data.day) }}/{{ "%02d"|format(dia.data.month) }}/{{ dia.data.year }}</span>
+        <span>{{ dias_semana[dia.data.weekday()] }}</span>
+      </div>
+      <div class="events">
+        {% if dia.eventos %}
+          {% for evento in dia.eventos %}
+          <article class="event" style="--event-color: {{ evento.cor }};">
+            <div class="event-title">{{ evento.titulo }}</div>
+            <div class="event-meta">
+              {{ evento.tipo }}
+              {% if evento.hora %} · {{ evento.hora }}{% elif evento.dia_inteiro %} · Dia inteiro{% endif %}
+            </div>
+            {% for detalhe in evento.detalhes %}
+            <div class="event-detail">{{ detalhe }}</div>
+            {% endfor %}
+          </article>
+          {% endfor %}
+        {% else %}
+          <div class="empty">Sem eventos.</div>
+        {% endif %}
+      </div>
+    </section>
+    {% endfor %}
+  </main>
+  <script>
+    window.addEventListener('load', () => setTimeout(() => window.print(), 500));
+  </script>
+</body>
+</html>
