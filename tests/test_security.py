@@ -125,6 +125,30 @@ def _login_client_com_usuario(client, usuario):
         sess["nivel"] = usuario["nivel"]
 
 
+def _client_admin_com_banco_temporario(tmpdir):
+    db_path = _executar_criar_banco_em(tmpdir)
+    app_temp = endemias_app.create_app({
+        "TESTING": True,
+        "DB_PATH": db_path,
+        "WTF_CSRF_ENABLED": False,
+    })
+    client = app_temp.test_client()
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        usuario = conn.execute(
+            "SELECT id_usuario, nome, nivel FROM usuarios WHERE usuario='admin'"
+        ).fetchone()
+    finally:
+        conn.close()
+    if not usuario:
+        raise RuntimeError("Usuario admin nao encontrado no banco temporario.")
+
+    _login_client_com_usuario(client, dict(usuario))
+    return app_temp, client, db_path
+
+
 class LoginRateLimitTests(unittest.TestCase):
     def _get_db_temp(self, db_path):
         def get_db():
@@ -1771,9 +1795,77 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("overflow-y:auto", js)
         self.assertIn("Amostra de animais (auto)", html)
         self.assertIn('src="/static/js/agenda.js"', html)
+        self.assertIn('id="ev-recorrencia"', html)
+        self.assertIn('id="ev-recorrencia-fim"', html)
+        self.assertIn("weekNumbers: true", js)
+        self.assertIn("weekNumberContent", js)
+        self.assertIn("SE ${week}/${epi.year}", js)
+        self.assertIn("fmtDataRange", js)
+        self.assertIn("recorrencia_fim", js)
         self.assertNotIn("addEventListener('click', abrirModalNovo)", html)
         self.assertNotIn("onclick=", html)
         self.assertNotIn("onchange=", html)
+
+    def test_agenda_evento_dia_inteiro_usa_fim_exclusivo_no_fullcalendar(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _, client, _ = _client_admin_com_banco_temporario(tmpdir)
+            resp = client.post("/api/agenda/eventos", json={
+                "titulo": "Férias - Vanessa teste",
+                "tipo": "outro",
+                "data_inicio": "2026-07-13",
+                "data_fim": "2026-07-27",
+                "dia_inteiro": True,
+                "lembrete_min": 0,
+                "recorrencia": "nenhuma",
+            })
+            self.assertEqual(resp.status_code, 201)
+
+            resp = client.get("/api/agenda/eventos?start=2026-07-01&end=2026-08-01")
+            self.assertEqual(resp.status_code, 200)
+            eventos = [
+                evento for evento in resp.get_json()
+                if evento.get("title") == "Férias - Vanessa teste"
+            ]
+            self.assertEqual(len(eventos), 1)
+            evento = eventos[0]
+
+            self.assertEqual(evento["start"], "2026-07-13")
+            self.assertEqual(evento["end"], "2026-07-28")
+            self.assertTrue(evento["allDay"])
+            self.assertEqual(evento["extendedProps"]["data_fim"], "2026-07-27")
+
+    def test_agenda_expande_eventos_recorrentes_na_janela(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _, client, _ = _client_admin_com_banco_temporario(tmpdir)
+            resp = client.post("/api/agenda/eventos", json={
+                "titulo": "Reunião semanal teste",
+                "tipo": "planejamento",
+                "data_inicio": "2026-06-01",
+                "data_fim": "2026-06-01",
+                "dia_inteiro": True,
+                "lembrete_min": 0,
+                "recorrencia": "semanal",
+                "recorrencia_fim": "2026-06-30",
+            })
+            self.assertEqual(resp.status_code, 201)
+
+            resp = client.get("/api/agenda/eventos?start=2026-06-01&end=2026-07-01")
+            self.assertEqual(resp.status_code, 200)
+            eventos = sorted(
+                (
+                    evento for evento in resp.get_json()
+                    if evento.get("title") == "Reunião semanal teste"
+                ),
+                key=lambda evento: evento["start"],
+            )
+
+            self.assertEqual(
+                [evento["start"] for evento in eventos],
+                ["2026-06-01", "2026-06-08", "2026-06-15", "2026-06-22", "2026-06-29"],
+            )
+            self.assertTrue(all(evento["end"] > evento["start"] for evento in eventos))
+            self.assertEqual({evento["extendedProps"]["recorrencia"] for evento in eventos}, {"semanal"})
+            self.assertEqual({evento["extendedProps"]["recorrencia_fim"] for evento in eventos}, {"2026-06-30"})
 
     def test_agenda_rejeita_evento_com_fim_antes_do_inicio(self):
         client = _client_logado("admin")

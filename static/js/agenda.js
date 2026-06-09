@@ -7,6 +7,31 @@ const IS_ADMIN = Boolean(AGENDA_CONFIG.is_admin);
 const TIPO_COR = JSON.parse(document.getElementById('agenda-tipo-cores').textContent || '{}');
 const TIPO_LABEL = JSON.parse(document.getElementById('agenda-form-labels').textContent || '{}');
 
+function agendaEpiYearStart(year) {
+  const jan4 = new Date(year, 0, 4);
+  const start = new Date(year, 0, 4 - jan4.getDay());
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+function agendaEpiWeek(date) {
+  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  let year = day.getFullYear();
+  let start = agendaEpiYearStart(year);
+  const nextStart = agendaEpiYearStart(year + 1);
+  if (day < start) {
+    year -= 1;
+    start = agendaEpiYearStart(year);
+  } else if (day >= nextStart) {
+    year += 1;
+    start = nextStart;
+  }
+  return {
+    year,
+    week: Math.floor((day - start) / (7 * 24 * 60 * 60 * 1000)) + 1,
+  };
+}
+
 // ── Inicializar FullCalendar ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('calendario');
@@ -21,6 +46,14 @@ document.addEventListener('DOMContentLoaded', () => {
     buttonText: { today:'Hoje', month:'Mês', week:'Semana', list:'Lista' },
     height:    '100%',
     firstDay:  0,
+    weekNumbers: true,
+    weekText: 'SE',
+    weekNumberCalculation: date => agendaEpiWeek(date).week,
+    weekNumberContent: arg => {
+      const epi = agendaEpiWeek(arg.date);
+      const week = String(epi.week).padStart(2, '0');
+      return { html: `<span title="Semana epidemiológica ${week} de ${epi.year}">SE ${week}/${epi.year}</span>` };
+    },
     navLinks:  true,
     editable:  false,
     eventTimeFormat: {
@@ -94,8 +127,7 @@ function mostrarPopup(event, jsEvent) {
 
   // Datas
   if (event.allDay) {
-    const s = fmtData(event.startStr);
-    html += `<div>📅 ${s}</div>`;
+    html += `<div>📅 ${fmtDataRange(event.startStr, event.endStr)}</div>`;
   } else {
     html += `<div>📅 ${fmtDT(event.startStr)}${event.end ? ' → ' + fmtDT(event.endStr) : ''}</div>`;
   }
@@ -130,6 +162,9 @@ function mostrarPopup(event, jsEvent) {
     if (props.lembrete_min > 0) {
       const labels = {0:'—',15:'15 min',30:'30 min',60:'1 hora',120:'2 horas',1440:'1 dia'};
       html += `<div style="margin-top:4px;color:var(--text3);font-size:11px;">🔔 Lembrete: ${labels[props.lembrete_min] || props.lembrete_min + ' min'} antes</div>`;
+    }
+    if (props.recorrencia && props.recorrencia !== 'nenhuma') {
+      html += `<div style="margin-top:4px;color:var(--text3);font-size:11px;">Repete: ${escHtml(props.recorrenciaLabel || props.recorrencia)}${props.recorrencia_fim ? ' até ' + fmtData(props.recorrencia_fim) : ''}</div>`;
     }
     if (props.criado_por) html += `<div style="margin-top:4px;color:var(--text3);font-size:11px;">Criado por: ${escHtml(props.criado_por)}</div>`;
   }
@@ -178,26 +213,30 @@ function abrirModalNovo(dataStr) {
 }
 
 function abrirModalEditar(event) {
+  const props = event.extendedProps;
   editandoId = event.extendedProps.id_evento;
   document.getElementById('modal-titulo-h').textContent = 'Editar evento';
   document.getElementById('btn-excluir').style.display  = 'inline-flex';
   limparModal();
 
   document.getElementById('ev-titulo').value    = event.title;
-  document.getElementById('ev-tipo').value      = event.extendedProps.tipo || 'outro';
-  document.getElementById('ev-descricao').value = event.extendedProps.descricao || '';
-  document.getElementById('ev-lembrete').value  = event.extendedProps.lembrete_min || 60;
+  document.getElementById('ev-tipo').value      = props.tipo || 'outro';
+  document.getElementById('ev-descricao').value = props.descricao || '';
+  document.getElementById('ev-lembrete').value  = props.lembrete_min || 60;
+  document.getElementById('ev-recorrencia').value = props.recorrencia || 'nenhuma';
+  document.getElementById('ev-recorrencia-fim').value = props.recorrencia_fim || '';
+  toggleRecorrencia();
 
   const allDay = event.allDay;
   document.getElementById('ev-dia-inteiro').checked = allDay;
   toggleDiaInteiro();
 
   if (allDay) {
-    document.getElementById('ev-inicio-dia').value = event.startStr;
-    document.getElementById('ev-fim-dia').value    = event.endStr ? event.endStr.slice(0,10) : '';
+    document.getElementById('ev-inicio-dia').value = (props.data_inicio || event.startStr || '').slice(0,10);
+    document.getElementById('ev-fim-dia').value    = (props.data_fim || '').slice(0,10);
   } else {
-    document.getElementById('ev-inicio').value = event.startStr ? event.startStr.slice(0,16) : '';
-    document.getElementById('ev-fim').value    = event.endStr   ? event.endStr.slice(0,16)   : '';
+    document.getElementById('ev-inicio').value = props.data_inicio ? props.data_inicio.slice(0,16) : (event.startStr ? event.startStr.slice(0,16) : '');
+    document.getElementById('ev-fim').value    = props.data_fim ? props.data_fim.slice(0,16) : '';
   }
 
   mostrarModal();
@@ -215,13 +254,15 @@ function fecharModal() {
 }
 
 function limparModal() {
-  ['ev-titulo','ev-descricao','ev-inicio','ev-fim','ev-inicio-dia','ev-fim-dia'].forEach(id => {
+  ['ev-titulo','ev-descricao','ev-inicio','ev-fim','ev-inicio-dia','ev-fim-dia','ev-recorrencia-fim'].forEach(id => {
     document.getElementById(id).value = '';
   });
   document.getElementById('ev-tipo').value      = 'reuniao';
   document.getElementById('ev-lembrete').value  = '60';
+  document.getElementById('ev-recorrencia').value = 'nenhuma';
   document.getElementById('ev-dia-inteiro').checked = false;
   toggleDiaInteiro();
+  toggleRecorrencia();
 }
 
 function toggleDiaInteiro() {
@@ -234,12 +275,24 @@ function atualizarCor() {
   // apenas para uso futuro — cor é definida no backend por tipo
 }
 
+function toggleRecorrencia() {
+  const recorrencia = document.getElementById('ev-recorrencia').value;
+  const blocoFim = document.getElementById('bloco-recorrencia-fim');
+  const fim = document.getElementById('ev-recorrencia-fim');
+  const ativa = recorrencia !== 'nenhuma';
+  blocoFim.style.opacity = ativa ? '1' : '.45';
+  fim.disabled = !ativa;
+  if (!ativa) fim.value = '';
+}
+
 async function salvarEvento() {
   const titulo    = document.getElementById('ev-titulo').value.trim();
   const tipo      = document.getElementById('ev-tipo').value;
   const allDay    = document.getElementById('ev-dia-inteiro').checked;
   const lembrete  = document.getElementById('ev-lembrete').value;
   const descricao = document.getElementById('ev-descricao').value.trim();
+  const recorrencia = document.getElementById('ev-recorrencia').value;
+  const recorrenciaFim = document.getElementById('ev-recorrencia-fim').value || null;
 
   let inicio, fim;
   if (allDay) {
@@ -255,7 +308,9 @@ async function salvarEvento() {
 
   const payload = { titulo, tipo, data_inicio: inicio, data_fim: fim,
                     dia_inteiro: allDay, lembrete_min: parseInt(lembrete),
-                    descricao: descricao || null };
+                    descricao: descricao || null,
+                    recorrencia,
+                    recorrencia_fim: recorrencia === 'nenhuma' ? null : recorrenciaFim };
 
   const url    = editandoId ? `/api/agenda/eventos/${editandoId}` : '/api/agenda/eventos';
   const method = editandoId ? 'PUT' : 'POST';
@@ -304,6 +359,15 @@ function fmtData(iso) {
   const [y,m,d] = iso.split('T')[0].split('-');
   return `${d}/${m}/${y}`;
 }
+function fmtDataRange(startIso, endIso) {
+  const inicio = fmtData(startIso);
+  if (!endIso) return inicio;
+  const fim = new Date(endIso.slice(0,10) + 'T00:00:00');
+  fim.setDate(fim.getDate() - 1);
+  const p = n => String(n).padStart(2,'0');
+  const fimTxt = `${p(fim.getDate())}/${p(fim.getMonth()+1)}/${fim.getFullYear()}`;
+  return fimTxt && fimTxt !== inicio ? `${inicio} até ${fimTxt}` : inicio;
+}
 function fmtDT(iso) {
   if (!iso) return '';
   const dt = new Date(iso);
@@ -327,3 +391,4 @@ document.getElementById('btn-excluir')?.addEventListener('click', excluirEvento)
 document.getElementById('btn-agenda-fechar-popup')?.addEventListener('click', fecharPopup);
 document.getElementById('ev-tipo')?.addEventListener('change', atualizarCor);
 document.getElementById('ev-dia-inteiro')?.addEventListener('change', toggleDiaInteiro);
+document.getElementById('ev-recorrencia')?.addEventListener('change', toggleRecorrencia);

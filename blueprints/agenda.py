@@ -1,3 +1,4 @@
+from calendar import monthrange
 from datetime import datetime, timedelta
 import sqlite3
 
@@ -19,6 +20,35 @@ AGENDA_AUTO_FONTES = {
     "RECOLHIMENTO": {"label": "Recolhimento", "cor": "#92400e"},
     "AMOSTRA_ANIMAIS": {"label": "Amostra de animais", "cor": "#0891b2"},
 }
+
+RECORRENCIAS = {
+    "nenhuma": {"label": "Não repetir", "days": None, "months": None},
+    "diaria": {"label": "Diária", "days": 1, "months": None},
+    "semanal": {"label": "Semanal", "days": 7, "months": None},
+    "quinzenal": {"label": "Quinzenal", "days": 14, "months": None},
+    "mensal": {"label": "Mensal", "days": None, "months": 1},
+    "bimestral": {"label": "Bimestral", "days": None, "months": 2},
+    "trimestral": {"label": "Trimestral", "days": None, "months": 3},
+    "semestral": {"label": "Semestral", "days": None, "months": 6},
+    "anual": {"label": "Anual", "days": None, "months": 12},
+}
+
+
+def ensure_schema():
+    conn = bh.get_db()
+    try:
+        cols = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(agenda_eventos)").fetchall()
+        }
+        if "recorrencia" not in cols:
+            conn.execute("ALTER TABLE agenda_eventos ADD COLUMN recorrencia TEXT NOT NULL DEFAULT 'nenhuma'")
+        if "recorrencia_fim" not in cols:
+            conn.execute("ALTER TABLE agenda_eventos ADD COLUMN recorrencia_fim TEXT")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_agenda_recorrencia ON agenda_eventos(recorrencia, recorrencia_fim)")
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _admin_required_json():
@@ -52,6 +82,13 @@ def _tipo_evento_json(value):
     return tipo
 
 
+def _recorrencia_json(value):
+    recorrencia = value or "nenhuma"
+    if recorrencia not in RECORRENCIAS:
+        raise ValueError("Recorrência inválida")
+    return recorrencia
+
+
 def _parse_data_evento(value, dia_inteiro=False):
     if not value:
         return None
@@ -62,27 +99,114 @@ def _parse_data_evento(value, dia_inteiro=False):
             return datetime.strptime(texto[:16] if "T" in texto else texto[:10], formato)
         except ValueError:
             continue
-    raise ValueError("Data invalida")
+    raise ValueError("Data inválida")
 
 
-def _erro_intervalo(data_inicio, data_fim, dia_inteiro):
+def _erro_intervalo(data_inicio, data_fim, dia_inteiro, recorrencia="nenhuma", recorrencia_fim=None):
     try:
         inicio = _parse_data_evento(data_inicio, bool(dia_inteiro))
         fim = _parse_data_evento(data_fim, bool(dia_inteiro)) if data_fim else None
+        fim_recorrencia = _parse_data_evento(recorrencia_fim, True) if recorrencia_fim else None
     except ValueError:
-        return "Data invalida"
+        return "Data inválida"
     if not inicio:
-        return "Titulo e data sao obrigatorios"
+        return "Título e data são obrigatórios"
     if fim and fim < inicio:
-        return "Data fim nao pode ser anterior ao inicio"
+        return "Data fim não pode ser anterior ao início"
+    if recorrencia != "nenhuma" and fim_recorrencia and fim_recorrencia.date() < inicio.date():
+        return "Fim da recorrência não pode ser anterior ao início"
     return None
 
 
-def _fim_evento(row):
-    data_fim = row["data_fim"] or row["data_inicio"]
-    if _erro_intervalo(row["data_inicio"], data_fim, row["dia_inteiro"]):
-        return row["data_inicio"]
-    return data_fim
+def _iso_evento(dt, dia_inteiro):
+    return dt.date().isoformat() if dia_inteiro else dt.isoformat(timespec="minutes")
+
+
+def _fim_fullcalendar(dt, dia_inteiro):
+    if dia_inteiro:
+        return (dt.date() + timedelta(days=1)).isoformat()
+    return dt.isoformat(timespec="minutes")
+
+
+def _add_months(dt, months):
+    month_index = dt.month - 1 + months
+    year = dt.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(dt.day, monthrange(year, month)[1])
+    return dt.replace(year=year, month=month, day=day)
+
+
+def _proxima_ocorrencia(dt, recorrencia):
+    cfg = RECORRENCIAS[recorrencia]
+    if cfg["days"]:
+        return dt + timedelta(days=cfg["days"])
+    return _add_months(dt, cfg["months"])
+
+
+def _evento_manual_dict(row, inicio_dt, fim_dt, ocorrencia=0):
+    cor = row["cor"] or work_types.AGENDA_TYPE_COLORS.get(row["tipo"], "#64748b")
+    recorrencia = row["recorrencia"] or "nenhuma"
+    sufixo = "" if recorrencia == "nenhuma" else f"_{inicio_dt.date().isoformat()}"
+    return {
+        "id": f"manual_{row['id_evento']}{sufixo}",
+        "title": row["titulo"],
+        "start": _iso_evento(inicio_dt, bool(row["dia_inteiro"])),
+        "end": _fim_fullcalendar(fim_dt, bool(row["dia_inteiro"])),
+        "allDay": bool(row["dia_inteiro"]),
+        "color": cor,
+        "backgroundColor": cor,
+        "borderColor": cor,
+        "textColor": "#ffffff",
+        "display": "block",
+        "extendedProps": {
+            "tipo": row["tipo"],
+            "tipoLabel": work_types.AGENDA_TYPE_LABELS.get(row["tipo"], "Outro"),
+            "descricao": row["descricao"] or "",
+            "lembrete_min": row["lembrete_min"],
+            "criado_por": row["criado_por"] or "",
+            "origem": "manual",
+            "id_evento": row["id_evento"],
+            "data_inicio": row["data_inicio"],
+            "data_fim": row["data_fim"] or "",
+            "recorrencia": recorrencia,
+            "recorrenciaLabel": RECORRENCIAS.get(recorrencia, RECORRENCIAS["nenhuma"])["label"],
+            "recorrencia_fim": row["recorrencia_fim"] or "",
+            "ocorrencia": ocorrencia,
+        },
+    }
+
+
+def _eventos_manuais_expandido(row, range_inicio, range_fim):
+    recorrencia = row["recorrencia"] or "nenhuma"
+    inicio_base = _parse_data_evento(row["data_inicio"], bool(row["dia_inteiro"]))
+    fim_base = _parse_data_evento(row["data_fim"], bool(row["dia_inteiro"])) if row["data_fim"] else inicio_base
+    if fim_base < inicio_base:
+        fim_base = inicio_base
+    duracao = fim_base - inicio_base
+
+    if recorrencia == "nenhuma":
+        if fim_base.date() < range_inicio.date() or inicio_base.date() > range_fim.date():
+            return []
+        return [_evento_manual_dict(row, inicio_base, fim_base)]
+
+    fim_recorrencia = _parse_data_evento(row["recorrencia_fim"], True).date() if row["recorrencia_fim"] else None
+    eventos = []
+    atual = inicio_base
+    ocorrencia = 0
+    while atual.date() <= range_fim.date():
+        fim_atual = atual + duracao
+        if fim_recorrencia and atual.date() > fim_recorrencia:
+            break
+        if fim_atual.date() >= range_inicio.date():
+            eventos.append(_evento_manual_dict(row, atual, fim_atual, ocorrencia=ocorrencia))
+        ocorrencia += 1
+        if ocorrencia > 1500:
+            break
+        proxima = _proxima_ocorrencia(atual, recorrencia)
+        if proxima <= atual:
+            break
+        atual = proxima
+    return eventos
 
 
 def _table_exists(table):
@@ -99,11 +223,12 @@ def _localidades_lista(value):
 def _auto_evento(data, fonte_codigo, titulo, total, resumo="", localidades="", agentes="-", tipo=None):
     fonte = AGENDA_AUTO_FONTES[fonte_codigo]
     cor = fonte["cor"]
+    data_dt = _parse_data_evento(data, True)
     return {
         "id": f"auto_{fonte_codigo}_{data}_{tipo or fonte_codigo}",
         "title": titulo,
         "start": data,
-        "end": data,
+        "end": _fim_fullcalendar(data_dt, True),
         "allDay": True,
         "color": cor + "dd",
         "backgroundColor": cor + "dd",
@@ -128,6 +253,7 @@ def _auto_evento(data, fonte_codigo, titulo, total, resumo="", localidades="", a
 @bp.route("/agenda")
 @login_required
 def page():
+    ensure_schema()
     return render_template(
         "agenda.html",
         agenda_auto_fontes=tuple(
@@ -140,6 +266,7 @@ def page():
 @login_required
 def api_eventos():
     """GET: lista eventos. POST: cria evento (admin)."""
+    ensure_schema()
     if request.method == "POST":
         u, erro = _admin_required_json()
         if erro:
@@ -150,19 +277,26 @@ def api_eventos():
         try:
             tipo = _tipo_evento_json(d.get("tipo", "outro"))
         except ValueError:
-            return jsonify({"erro": "Tipo de evento invalido"}), 400
+            return jsonify({"erro": "Tipo de evento inválido"}), 400
         data_inicio = d.get("data_inicio", "")
         data_fim = d.get("data_fim") or None
         dia_inteiro = int(bool(d.get("dia_inteiro", False)))
         try:
             lembrete_min = _int_json(d.get("lembrete_min"), 60)
         except ValueError:
-            return jsonify({"erro": "Lembrete invalido"}), 400
+            return jsonify({"erro": "Lembrete inválido"}), 400
+        try:
+            recorrencia = _recorrencia_json(d.get("recorrencia"))
+        except ValueError:
+            return jsonify({"erro": "Recorrência inválida"}), 400
+        recorrencia_fim = d.get("recorrencia_fim") or None
+        if recorrencia == "nenhuma":
+            recorrencia_fim = None
         descricao = (d.get("descricao") or "").strip() or None
         cor = work_types.AGENDA_TYPE_COLORS.get(tipo, "#64748b")
         if not titulo or not data_inicio:
-            return jsonify({"erro": "Titulo e data sao obrigatorios"}), 400
-        erro_intervalo = _erro_intervalo(data_inicio, data_fim, dia_inteiro)
+            return jsonify({"erro": "Título e data são obrigatórios"}), 400
+        erro_intervalo = _erro_intervalo(data_inicio, data_fim, dia_inteiro, recorrencia, recorrencia_fim)
         if erro_intervalo:
             return jsonify({"erro": erro_intervalo}), 400
 
@@ -171,8 +305,9 @@ def api_eventos():
             conn = bh.get_db()
             cur = conn.execute(
                 """INSERT INTO agenda_eventos
-                (titulo, descricao, tipo, data_inicio, data_fim, dia_inteiro, lembrete_min, cor, criado_por, criado_em)
-                VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (titulo, descricao, tipo, data_inicio, data_fim, dia_inteiro, lembrete_min,
+                 cor, criado_por, criado_em, recorrencia, recorrencia_fim)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     titulo,
                     descricao,
@@ -184,6 +319,8 @@ def api_eventos():
                     cor,
                     u["nome"] if u else "admin",
                     datetime.now().isoformat(),
+                    recorrencia,
+                    recorrencia_fim,
                 ),
             )
             conn.commit()
@@ -201,35 +338,23 @@ def api_eventos():
     fim = request.args.get("end", "")
     eventos = []
 
+    range_inicio = _parse_data_evento(inicio[:10], True)
+    range_fim = _parse_data_evento(fim[:10], True)
     rows = bh.q(
         """SELECT * FROM agenda_eventos
-           WHERE date(data_inicio) <= date(?) AND (data_fim IS NULL OR date(data_fim) >= date(?))
+           WHERE (
+               date(data_inicio) <= date(?)
+               AND (data_fim IS NULL OR date(data_fim) >= date(?))
+           ) OR (
+               COALESCE(recorrencia,'nenhuma') <> 'nenhuma'
+               AND date(data_inicio) <= date(?)
+               AND (recorrencia_fim IS NULL OR date(recorrencia_fim) >= date(?))
+           )
            ORDER BY data_inicio""",
-        (fim, inicio),
+        (fim, inicio, fim, inicio),
     )
     for r in rows:
-        cor = r["cor"] or work_types.AGENDA_TYPE_COLORS.get(r["tipo"], "#64748b")
-        eventos.append({
-            "id": f"manual_{r['id_evento']}",
-            "title": r["titulo"],
-            "start": r["data_inicio"],
-            "end": _fim_evento(r),
-            "allDay": bool(r["dia_inteiro"]),
-            "color": cor,
-            "backgroundColor": cor,
-            "borderColor": cor,
-            "textColor": "#ffffff",
-            "display": "block",
-            "extendedProps": {
-                "tipo": r["tipo"],
-                "tipoLabel": work_types.AGENDA_TYPE_LABELS.get(r["tipo"], "Outro"),
-                "descricao": r["descricao"] or "",
-                "lembrete_min": r["lembrete_min"],
-                "criado_por": r["criado_por"] or "",
-                "origem": "manual",
-                "id_evento": r["id_evento"],
-            },
-        })
+        eventos.extend(_eventos_manuais_expandido(r, range_inicio, range_fim))
 
     auto_rows = bh.q(
         """
@@ -427,6 +552,7 @@ def api_eventos():
 @login_required
 @nivel_min("admin")
 def api_evento(id_evento):
+    ensure_schema()
     if request.method == "DELETE":
         conn = None
         try:
@@ -447,19 +573,26 @@ def api_evento(id_evento):
     try:
         tipo = _tipo_evento_json(d.get("tipo", "outro"))
     except ValueError:
-        return jsonify({"erro": "Tipo de evento invalido"}), 400
+        return jsonify({"erro": "Tipo de evento inválido"}), 400
     data_inicio = d.get("data_inicio", "")
     data_fim = d.get("data_fim") or None
     dia_inteiro = int(bool(d.get("dia_inteiro", False)))
     try:
         lembrete_min = _int_json(d.get("lembrete_min"), 60)
     except ValueError:
-        return jsonify({"erro": "Lembrete invalido"}), 400
+        return jsonify({"erro": "Lembrete inválido"}), 400
+    try:
+        recorrencia = _recorrencia_json(d.get("recorrencia"))
+    except ValueError:
+        return jsonify({"erro": "Recorrência inválida"}), 400
+    recorrencia_fim = d.get("recorrencia_fim") or None
+    if recorrencia == "nenhuma":
+        recorrencia_fim = None
     descricao = (d.get("descricao") or "").strip() or None
     cor = work_types.AGENDA_TYPE_COLORS.get(tipo, "#64748b")
     if not titulo or not data_inicio:
-        return jsonify({"erro": "Titulo e data sao obrigatorios"}), 400
-    erro_intervalo = _erro_intervalo(data_inicio, data_fim, dia_inteiro)
+        return jsonify({"erro": "Título e data são obrigatórios"}), 400
+    erro_intervalo = _erro_intervalo(data_inicio, data_fim, dia_inteiro, recorrencia, recorrencia_fim)
     if erro_intervalo:
         return jsonify({"erro": erro_intervalo}), 400
 
@@ -468,8 +601,21 @@ def api_evento(id_evento):
         conn = bh.get_db()
         conn.execute(
             """UPDATE agenda_eventos SET titulo=?, descricao=?, tipo=?, data_inicio=?,
-               data_fim=?, dia_inteiro=?, lembrete_min=?, cor=? WHERE id_evento=?""",
-            (titulo, descricao, tipo, data_inicio, data_fim, dia_inteiro, lembrete_min, cor, id_evento),
+               data_fim=?, dia_inteiro=?, lembrete_min=?, cor=?, recorrencia=?, recorrencia_fim=?
+               WHERE id_evento=?""",
+            (
+                titulo,
+                descricao,
+                tipo,
+                data_inicio,
+                data_fim,
+                dia_inteiro,
+                lembrete_min,
+                cor,
+                recorrencia,
+                recorrencia_fim,
+                id_evento,
+            ),
         )
         conn.commit()
     except sqlite3.OperationalError as exc:
@@ -486,13 +632,34 @@ def api_evento(id_evento):
 @login_required
 def api_lembretes():
     """Retorna eventos manuais nas proximas 24h para notificacoes do browser."""
+    ensure_schema()
     agora = datetime.now()
     limite = agora + timedelta(hours=24)
     rows = bh.q(
-        """SELECT id_evento, titulo, tipo, data_inicio, dia_inteiro, lembrete_min
+        """SELECT *
            FROM agenda_eventos
-           WHERE data_inicio BETWEEN ? AND ?
+           WHERE (
+               data_inicio BETWEEN ? AND ?
+           ) OR (
+               COALESCE(recorrencia,'nenhuma') <> 'nenhuma'
+               AND date(data_inicio) <= date(?)
+               AND (recorrencia_fim IS NULL OR date(recorrencia_fim) >= date(?))
+           )
            ORDER BY data_inicio""",
-        (agora.isoformat(), limite.isoformat()),
+        (agora.isoformat(), limite.isoformat(), limite.isoformat(), agora.isoformat()),
     )
-    return jsonify(rows)
+    eventos = []
+    for row in rows:
+        for evento in _eventos_manuais_expandido(row, agora, limite):
+            inicio = evento["start"]
+            if evento["allDay"]:
+                inicio = inicio + "T00:00"
+            eventos.append({
+                "id_evento": evento["extendedProps"]["id_evento"],
+                "titulo": evento["title"],
+                "tipo": evento["extendedProps"]["tipo"],
+                "data_inicio": inicio,
+                "dia_inteiro": int(evento["allDay"]),
+                "lembrete_min": evento["extendedProps"]["lembrete_min"],
+            })
+    return jsonify(eventos)

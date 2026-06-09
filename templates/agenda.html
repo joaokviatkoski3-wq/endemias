@@ -138,6 +138,26 @@
         </div>
       </div>
 
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <label class="form-label">Repetir</label>
+          <select id="ev-recorrencia" class="form-control">
+            <option value="nenhuma" selected>Não repetir</option>
+            <option value="diaria">Diariamente</option>
+            <option value="semanal">Semanalmente</option>
+            <option value="quinzenal">Quinzenalmente</option>
+            <option value="mensal">Mensalmente</option>
+            <option value="bimestral">Bimestralmente</option>
+            <option value="trimestral">Trimestralmente</option>
+            <option value="semestral">Semestralmente</option>
+            <option value="anual">Anualmente</option>
+          </select>
+        </div>
+        <div id="bloco-recorrencia-fim">
+          <label class="form-label">Repetir até</label>
+          <input id="ev-recorrencia-fim" type="date" class="form-control">
+        </div>
+      </div>
       <div>
         <label class="form-label">Descrição / observações</label>
         <textarea id="ev-descricao" class="form-control" rows="7" placeholder="Detalhes adicionais..." style="resize:vertical;min-height:150px;"></textarea>
@@ -193,6 +213,19 @@
 }
 .fc-event-title { font-weight: 600; }
 .fc-daygrid-event-dot { display: none; }
+.fc .fc-daygrid-week-number {
+  background:var(--surface2) !important;
+  color:var(--brand) !important;
+  border:1px solid var(--border) !important;
+  border-radius:4px !important;
+  display:inline-block !important;
+  font-size:9px !important;
+  font-weight:700 !important;
+  min-width:54px !important;
+  padding:2px 4px !important;
+  text-align:center !important;
+  white-space:nowrap !important;
+}
 [data-theme="dark"] .fc-scrollgrid { border-color: var(--border) !important; }
 [data-theme="dark"] .fc-col-header-cell,
 [data-theme="dark"] .fc-daygrid-day { border-color: var(--border) !important; }

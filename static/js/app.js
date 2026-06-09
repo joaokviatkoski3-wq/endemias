@@ -66,11 +66,40 @@ document.addEventListener('click', e => {
 /* ═══════════════════════════
    RELÓGIO
 ═══════════════════════════ */
+function epidemiologicalYearStart(year) {
+  const jan4 = new Date(year, 0, 4);
+  const start = new Date(year, 0, 4 - jan4.getDay());
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+function epidemiologicalWeek(date) {
+  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  let year = day.getFullYear();
+  let start = epidemiologicalYearStart(year);
+  const nextStart = epidemiologicalYearStart(year + 1);
+  if (day < start) {
+    year -= 1;
+    start = epidemiologicalYearStart(year);
+  } else if (day >= nextStart) {
+    year += 1;
+    start = nextStart;
+  }
+  return {
+    year,
+    week: Math.floor((day - start) / (7 * 24 * 60 * 60 * 1000)) + 1,
+  };
+}
+
 function tick() {
   const n = new Date();
   const d = n.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'});
   const t = n.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  document.getElementById('clock').textContent = d + ' · ' + t;
+  const epi = epidemiologicalWeek(n);
+  const clock = document.getElementById('clock');
+  if (!clock) return;
+  clock.textContent = d + ' · ' + t + ' · SE ' + String(epi.week).padStart(2, '0') + '/' + epi.year;
+  clock.title = 'Semana epidemiológica ' + String(epi.week).padStart(2, '0') + ' de ' + epi.year;
 }
 tick(); setInterval(tick, 30000);
 

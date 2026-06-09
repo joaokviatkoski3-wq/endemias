@@ -220,9 +220,12 @@ CREATE TABLE IF NOT EXISTS agenda_eventos (
     lembrete_min INTEGER DEFAULT 60,
     cor          TEXT    DEFAULT '#1a4fba',
     criado_por   TEXT,
-    criado_em    TEXT    NOT NULL
+    criado_em    TEXT    NOT NULL,
+    recorrencia  TEXT    NOT NULL DEFAULT 'nenhuma',
+    recorrencia_fim TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_agenda_inicio ON agenda_eventos(data_inicio);
+CREATE INDEX IF NOT EXISTS idx_agenda_recorrencia ON agenda_eventos(recorrencia, recorrencia_fim);
 
 CREATE TABLE IF NOT EXISTS esporotricose_visitas (
     id_visita       TEXT PRIMARY KEY,
@@ -437,10 +440,18 @@ def migrar_agenda(conn):
         lembrete_min INTEGER DEFAULT 60,
         cor          TEXT    DEFAULT '#1a4fba',
         criado_por   TEXT,
-        criado_em    TEXT    NOT NULL
+        criado_em    TEXT    NOT NULL,
+        recorrencia  TEXT    NOT NULL DEFAULT 'nenhuma',
+        recorrencia_fim TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_agenda_inicio ON agenda_eventos(data_inicio);
+    CREATE INDEX IF NOT EXISTS idx_agenda_recorrencia ON agenda_eventos(recorrencia, recorrencia_fim);
     """)
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(agenda_eventos)").fetchall()}
+    if "recorrencia" not in cols:
+        conn.execute("ALTER TABLE agenda_eventos ADD COLUMN recorrencia TEXT NOT NULL DEFAULT 'nenhuma'")
+    if "recorrencia_fim" not in cols:
+        conn.execute("ALTER TABLE agenda_eventos ADD COLUMN recorrencia_fim TEXT")
     conn.commit()
 
 
