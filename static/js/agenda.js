@@ -1,6 +1,8 @@
 // ── Estado ────────────────────────────────────────────────────────────────────
 let calendario;
 let editandoId = null;
+let agendaFiltro = '';
+let agendaBuscaTimer = null;
 const AGENDA_CONFIG = JSON.parse(document.getElementById('agenda-config').textContent || '{}');
 const IS_ADMIN = Boolean(AGENDA_CONFIG.is_admin);
 
@@ -34,6 +36,8 @@ function agendaEpiWeek(date) {
 
 // ── Inicializar FullCalendar ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  const campoAnoBusca = document.getElementById('agenda-busca-ano');
+  if (campoAnoBusca && !campoAnoBusca.value) campoAnoBusca.value = String(new Date().getFullYear());
   const el = document.getElementById('calendario');
   calendario = new FullCalendar.Calendar(el, {
     locale:        'pt-br',
@@ -64,7 +68,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     events: function(fetchInfo, successCb, failureCb) {
       fetch(`/api/agenda/eventos?start=${fetchInfo.startStr}&end=${fetchInfo.endStr}`)
-        .then(r => r.json()).then(successCb).catch(failureCb);
+        .then(r => r.json())
+        .then(eventos => successCb(filtrarEventosAgenda(eventos)))
+        .catch(failureCb);
     },
 
     // Clicar num dia vazio → abre modal novo (só admin)
@@ -275,6 +281,217 @@ function atualizarCor() {
   // apenas para uso futuro — cor é definida no backend por tipo
 }
 
+function atualizarBuscaAgenda() {
+  agendaFiltro = document.getElementById('agenda-busca')?.value || '';
+  if (agendaBuscaTimer) clearTimeout(agendaBuscaTimer);
+  agendaBuscaTimer = setTimeout(() => {
+    calendario?.refetchEvents();
+    if (termosBuscaAgenda().length) {
+      buscarAgendaNoAno();
+    } else {
+      limparResultadosAno();
+    }
+  }, 220);
+}
+
+function limparBuscaAgenda() {
+  const campo = document.getElementById('agenda-busca');
+  if (!campo) return;
+  campo.value = '';
+  agendaFiltro = '';
+  if (agendaBuscaTimer) clearTimeout(agendaBuscaTimer);
+  calendario?.refetchEvents();
+  campo.focus();
+  limparResultadosAno();
+}
+
+function normalizarBusca(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function termosBuscaAgenda() {
+  return normalizarBusca(agendaFiltro).split(/\s+/).filter(Boolean);
+}
+
+function juntarCampoBusca(value) {
+  if (Array.isArray(value)) return value.join(' ');
+  return value || '';
+}
+
+function textoBuscaEvento(evento) {
+  const props = evento.extendedProps || {};
+  const campos = [
+    evento.title,
+    evento.start,
+    evento.end,
+    fmtData(evento.start),
+    fmtData(evento.end),
+    props.tipo,
+    props.tipoLabel,
+    props.descricao,
+    props.criado_por,
+    props.recorrencia,
+    props.recorrenciaLabel,
+    props.recorrencia_fim,
+    props.fonte,
+    props.fonteLabel,
+    props.resumo,
+    props.total,
+    juntarCampoBusca(props.localidades),
+    props.agentes,
+    props.data_inicio,
+    props.data_fim,
+  ];
+  return normalizarBusca(campos.filter(v => v !== null && v !== undefined).join(' '));
+}
+
+function atualizarResumoBusca(total, exibidos, ativa) {
+  const el = document.getElementById('agenda-busca-status');
+  if (!el) return;
+  if (!ativa) {
+    el.textContent = total ? `${total} evento${total === 1 ? '' : 's'}` : '';
+    return;
+  }
+  el.textContent = `${exibidos} de ${total} evento${total === 1 ? '' : 's'}`;
+}
+
+function filtrarEventosAgenda(eventos) {
+  const termos = termosBuscaAgenda();
+  if (!termos.length) {
+    atualizarResumoBusca(eventos.length, eventos.length, false);
+    return eventos;
+  }
+  const filtrados = filtrarEventosPorTermos(eventos, termos);
+  atualizarResumoBusca(eventos.length, filtrados.length, true);
+  return filtrados;
+}
+
+function filtrarEventosPorTermos(eventos, termos) {
+  if (!termos.length) return eventos;
+  return eventos.filter(evento => {
+    const texto = textoBuscaEvento(evento);
+    return termos.every(termo => texto.includes(termo));
+  });
+}
+
+function anoBuscaAgenda() {
+  const campo = document.getElementById('agenda-busca-ano');
+  const dataAtual = calendario && typeof calendario.getDate === 'function' ? calendario.getDate() : null;
+  const fallback = dataAtual ? dataAtual.getFullYear() : new Date().getFullYear();
+  const ano = parseInt(campo?.value || fallback, 10);
+  if (!Number.isFinite(ano) || ano < 2020 || ano > 2099) return fallback;
+  return ano;
+}
+
+function dataOrdenacaoEvento(evento) {
+  return (evento.start || evento.extendedProps?.data_inicio || '').slice(0, 16);
+}
+
+function dataInicioEvento(evento) {
+  return (evento.extendedProps?.data_inicio || evento.start || '').slice(0, 10);
+}
+
+function resumoEventoResultado(evento) {
+  const props = evento.extendedProps || {};
+  const partes = [
+    props.tipoLabel || props.fonteLabel || props.tipo || props.fonte,
+    props.origem === 'auto' ? 'automático' : '',
+    props.recorrencia && props.recorrencia !== 'nenhuma' ? `repete ${props.recorrenciaLabel || props.recorrencia}` : '',
+  ].filter(Boolean);
+  return partes.join(' · ');
+}
+
+function limparResultadosAno() {
+  const box = document.getElementById('agenda-resultados-ano');
+  if (!box) return;
+  box.hidden = false;
+  box.innerHTML = '<div class="agenda-year-results-header"><span>Resultados no ano inteiro</span><span>Digite uma palavra-chave e escolha o ano.</span></div>';
+}
+
+function renderResultadosAno(eventos, ano, termos) {
+  const box = document.getElementById('agenda-resultados-ano');
+  if (!box) return;
+  const busca = termos.join(' ');
+  if (!termos.length) {
+    box.hidden = false;
+    box.innerHTML = '<div class="agenda-year-results-header"><span>Resultados no ano inteiro</span><span>Digite uma palavra-chave e escolha o ano.</span></div>';
+    return;
+  }
+  const total = eventos.length;
+  const header = `<div class="agenda-year-results-header"><span>${total} resultado${total === 1 ? '' : 's'} em ${ano}${busca ? ` para "${escHtml(busca)}"` : ''}</span></div>`;
+  if (!eventos.length) {
+    box.hidden = false;
+    box.innerHTML = header + '<div style="padding:12px;color:var(--text3);font-size:12px;">Nenhum evento encontrado nesse ano.</div>';
+    return;
+  }
+  const itens = eventos.map(evento => {
+    const data = dataInicioEvento(evento);
+    const descricao = evento.extendedProps?.descricao || evento.extendedProps?.resumo || '';
+    return `<button type="button" class="agenda-year-result" data-agenda-date="${escHtml(data)}">
+      <span class="agenda-year-result-date">${fmtData(data)}</span>
+      <span>
+        <span class="agenda-year-result-title">${escHtml(evento.title || 'Evento')}</span>
+        <span class="agenda-year-result-meta">${escHtml(resumoEventoResultado(evento))}</span>
+        ${descricao ? `<span class="agenda-year-result-meta">${escHtml(String(descricao).slice(0, 140))}</span>` : ''}
+      </span>
+    </button>`;
+  }).join('');
+  box.hidden = false;
+  box.innerHTML = header + `<div class="agenda-year-results-list">${itens}</div>`;
+}
+
+async function buscarAgendaNoAno() {
+  const ano = anoBuscaAgenda();
+  const campoAno = document.getElementById('agenda-busca-ano');
+  if (campoAno) campoAno.value = String(ano);
+  agendaFiltro = document.getElementById('agenda-busca')?.value || '';
+  const termos = termosBuscaAgenda();
+  const box = document.getElementById('agenda-resultados-ano');
+  if (box) {
+    box.hidden = false;
+    box.innerHTML = '<div class="agenda-year-results-header">Pesquisando...</div>';
+  }
+  try {
+    const r = await fetch(`/api/agenda/eventos?start=${ano}-01-01&end=${ano}-12-31`);
+    const eventos = await r.json();
+    if (!r.ok) {
+      renderResultadosAno([], ano, termos);
+      toast('Erro ao pesquisar eventos do ano.', 'error');
+      return;
+    }
+    const filtrados = filtrarEventosPorTermos(eventos, termos)
+      .sort((a, b) => dataOrdenacaoEvento(a).localeCompare(dataOrdenacaoEvento(b)));
+    renderResultadosAno(filtrados, ano, termos);
+  } catch(e) {
+    if (box) box.innerHTML = '<div class="agenda-year-results-header">Erro ao pesquisar eventos do ano.</div>';
+    toast('Erro de comunicação.', 'error');
+  }
+}
+
+function abrirResultadoAno(event) {
+  const botao = event.target.closest?.('.agenda-year-result');
+  if (!botao) return;
+  const data = botao.getAttribute('data-agenda-date');
+  if (!data) return;
+  calendario?.gotoDate(data);
+  calendario?.refetchEvents();
+}
+
+function buscarAgendaNoAnoComEnter(event) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    buscarAgendaNoAno();
+  }
+}
+
+function atualizarAnoBuscaAgenda() {
+  if (termosBuscaAgenda().length) buscarAgendaNoAno();
+}
+
 function toggleRecorrencia() {
   const recorrencia = document.getElementById('ev-recorrencia').value;
   const blocoFim = document.getElementById('bloco-recorrencia-fim');
@@ -389,6 +606,13 @@ document.getElementById('btn-agenda-cancelar')?.addEventListener('click', fechar
 document.getElementById('btn-agenda-salvar')?.addEventListener('click', salvarEvento);
 document.getElementById('btn-excluir')?.addEventListener('click', excluirEvento);
 document.getElementById('btn-agenda-fechar-popup')?.addEventListener('click', fecharPopup);
+document.getElementById('agenda-busca')?.addEventListener('input', atualizarBuscaAgenda);
+document.getElementById('agenda-busca')?.addEventListener('keydown', buscarAgendaNoAnoComEnter);
+document.getElementById('btn-agenda-limpar-busca')?.addEventListener('click', limparBuscaAgenda);
+document.getElementById('btn-agenda-buscar-ano')?.addEventListener('click', buscarAgendaNoAno);
+document.getElementById('agenda-busca-ano')?.addEventListener('change', atualizarAnoBuscaAgenda);
+document.getElementById('agenda-busca-ano')?.addEventListener('keydown', buscarAgendaNoAnoComEnter);
+document.getElementById('agenda-resultados-ano')?.addEventListener('click', abrirResultadoAno);
 document.getElementById('ev-tipo')?.addEventListener('change', atualizarCor);
 document.getElementById('ev-dia-inteiro')?.addEventListener('change', toggleDiaInteiro);
 document.getElementById('ev-recorrencia')?.addEventListener('change', toggleRecorrencia);
