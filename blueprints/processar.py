@@ -499,8 +499,8 @@ def kobo_importar_vetores_larvas_iniciar():
 def kobo_importar_formulario_iniciar():
     data = request.json or {}
     tipo = (data.get("tipo") or "").strip().upper()
-    if tipo not in list(kobo_api.VISIT_TYPES) + ["LARVAS"]:
-        return jsonify({"erro": "Por enquanto, a importação direta cobre Vetores e Larvas."}), 400
+    if tipo not in kobo_api.ALL_TYPES:
+        return jsonify({"erro": "Tipo de formulário inválido."}), 400
 
     cfg = kobo_api.load_config(_kobo_config_path())
     asset_uid = ((cfg.get("assets") or {}).get(tipo) or "").strip()

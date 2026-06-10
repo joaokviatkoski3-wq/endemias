@@ -1666,6 +1666,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("/api/kobo/previa", js)
         self.assertIn("koboDetalhesRegistro", js)
         self.assertIn("buscarKoboLote", js)
+        self.assertIn("KOBO_VISIT_TYPES", js)
         self.assertIn("prepararKoboImportacao", js)
         self.assertIn("/api/kobo/importar-vetores-larvas/iniciar", js)
         self.assertIn("/api/kobo/importar-formulario/iniciar", js)
@@ -3680,6 +3681,60 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(len(data["arquivos"]), 1)
             self.assertTrue(data["arquivos"][0].startswith("LARVAS_"))
             self.assertTrue((job_dir / data["arquivos"][0]).exists())
+
+    def test_kobo_importacao_extra_prepara_formulario_bri(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc, tb):
+                return False
+            def read(self):
+                return json.dumps({"results": [{
+                    "_uuid": "bri-api-1",
+                    "_id": 10,
+                    "_submission_time": "2026-06-10T12:00:00",
+                    "start": "2026-06-10T08:00:00",
+                    "end": "2026-06-10T08:30:00",
+                    "Digite a data": "2026-06-10",
+                    "Digite a hora": "08:00",
+                    "Onde vai ser realizado o tratamento?": "Outro",
+                    "Localidade": "Centro",
+                    "Logradouro": "Rua A",
+                    "Número": "10",
+                    "Quantidade de carga": "12",
+                }]}).encode("utf-8")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, _ = _client_admin_com_banco_temporario(tmpdir)
+            app_temp.config["KOBO_CONFIG_PATH"] = str(Path(tmpdir) / "kobo_config.json")
+            app_temp.config["UPLOAD_TEMP"] = str(Path(tmpdir) / "uploads_temp")
+            kobo_api_core.save_config(app_temp.config["KOBO_CONFIG_PATH"], {
+                "server_url": "https://kf.kobotoolbox.org",
+                "api_token": "token",
+                "assets": {"BRI": "asset-bri"},
+            })
+
+            with mock.patch("app_core.kobo_api.request.urlopen", return_value=FakeResponse()):
+                resp = client.post("/api/kobo/importar-formulario/iniciar", json={"tipo": "BRI", "limite": 100})
+
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertEqual(data["por_tipo"]["BRI"], 1)
+            job_dir = Path(app_temp.config["UPLOAD_TEMP"]) / data["job_id"]
+            self.assertEqual(len(data["arquivos"]), 1)
+            self.assertTrue(data["arquivos"][0].startswith("BRI_"))
+            caminho = job_dir / data["arquivos"][0]
+            self.assertTrue(caminho.exists())
+            wb = openpyxl.load_workbook(caminho, read_only=True)
+            try:
+                ws = wb.active
+                headers = [cell.value for cell in next(ws.iter_rows(max_row=1))]
+                values = [cell.value for cell in next(ws.iter_rows(min_row=2, max_row=2))]
+                row = dict(zip(headers, values))
+                self.assertEqual(row["_uuid"], "bri-api-1")
+                self.assertEqual(row["Digite a data"], "2026-06-10")
+            finally:
+                wb.close()
 
     def test_etl_importa_larvas_sozinhas_em_coletas_existentes(self):
         with tempfile.TemporaryDirectory() as tmpdir:

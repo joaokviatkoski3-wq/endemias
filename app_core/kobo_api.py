@@ -395,6 +395,14 @@ def _larva_row(record, cfg_larvas):
     return row
 
 
+def _extra_row(record):
+    row = _flat_record(record)
+    row.setdefault("_uuid", record_uuid(record))
+    row.setdefault("_id", record.get("_id"))
+    row.setdefault("_submission_time", record.get("_submission_time"))
+    return row
+
+
 def write_etl_workbooks(registros_por_tipo, config_path, output_dir, prefix="kobo_api"):
     with open(config_path, "r", encoding="utf-8") as fh:
         cfg = json.load(fh)
@@ -426,6 +434,14 @@ def write_etl_workbooks(registros_por_tipo, config_path, output_dir, prefix="kob
     if larvas:
         path = out / f"LARVAS_{prefix}.xlsx"
         pd.DataFrame([_larva_row(record, cfg_larvas) for record in larvas]).to_excel(path, index=False, engine="openpyxl")
+        arquivos.append(str(path))
+
+    for tipo in ("ESPOROTRICOSE", "BRI", "AMOSTRA_ANIMAIS", "RECOLHIMENTO"):
+        records = registros_por_tipo.get(tipo) or []
+        if not records:
+            continue
+        path = out / f"{tipo}_{prefix}.xlsx"
+        pd.DataFrame([_extra_row(record) for record in records]).to_excel(path, index=False, engine="openpyxl")
         arquivos.append(str(path))
 
     return arquivos
