@@ -1475,6 +1475,7 @@ class MainPagesSmokeTests(unittest.TestCase):
             "/notificacoes",
             "/mapa",
             "/pontos-estrategicos",
+            "/acoes-setor",
             "/agenda",
             "/admin/agentes",
         ]
@@ -1654,6 +1655,7 @@ class MainPagesSmokeTests(unittest.TestCase):
             "/static/js/app.js",
             "/static/js/processar.js",
             "/static/js/agenda.js",
+            "/static/js/acoes_setor.js",
             "/static/vendor/chartjs/chart.umd.min.js",
             "/static/vendor/chartjs-plugin-datalabels/chartjs-plugin-datalabels.min.js",
             "/static/vendor/leaflet/leaflet.min.css",
@@ -1981,6 +1983,176 @@ class MainPagesSmokeTests(unittest.TestCase):
             self.assertIn("08:30 - 10:00", html)
             self.assertIn("window.print()", html)
 
+    def test_acoes_setor_renderiza_cadastro_manual(self):
+        client = _client_logado("admin")
+        resp = client.get("/acoes-setor")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Ações do Setor", html)
+        self.assertIn("Ação educativa / palestra", html)
+        self.assertIn("Ação de limpeza / mutirão", html)
+        self.assertIn('src="/static/icons/acoes_setor.svg"', html)
+        self.assertIn('id="acao-agentes"', html)
+        self.assertIn('id="acao-agentes-busca"', html)
+        self.assertIn('name="acao-agente"', html)
+        self.assertNotIn('id="acao-agentes" multiple', html)
+        self.assertIn('id="acao-anexo-selecionar"', html)
+        self.assertIn('id="acao-anexos-lista"', html)
+        self.assertIn('accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.txt"', html)
+        self.assertIn('placeholder="Todos"', html)
+        self.assertIn('src="/static/js/acoes_setor.js"', html)
+        js_resp = client.get("/static/js/acoes_setor.js")
+        js = js_resp.data.decode("utf-8")
+        js_resp.close()
+        self.assertIn('data-acao-item', js)
+        self.assertIn("let registroAberto = null", js)
+        self.assertIn("function alternarRegistro", js)
+        self.assertIn("function detalhesRegistroHtml", js)
+        self.assertIn("await carregar();\n    limparForm();", js)
+        self.assertNotIn("preencherForm(atualizada);\n      focarRegistroSalvo", js)
+
+    def test_acoes_setor_crud_e_busca_sem_acento(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute("INSERT INTO agentes (nome, ativo) VALUES (?, 1)", ("João Silva",))
+                conn.execute("INSERT INTO localidades (nome) VALUES (?)", ("Centro",))
+                conn.commit()
+                id_agente = conn.execute("SELECT id_agente FROM agentes WHERE nome=?", ("João Silva",)).fetchone()[0]
+            finally:
+                conn.close()
+
+            resp = client.post("/api/acoes-setor", json={
+                "tipo": "educativa",
+                "data": "2026-08-12",
+                "hora_inicio": "09:00",
+                "hora_fim": "10:30",
+                "agentes": [id_agente],
+                "localidade": "Centro",
+                "endereco": "Rua Principal, 100",
+                "local": "Escola Municipal",
+                "publico_aproximado": 45,
+                "tema": "Prevenção da dengue",
+                "contexto": "Palestra para alunos",
+                "observacoes": "Levar folders",
+            })
+            self.assertEqual(resp.status_code, 201)
+            id_acao = resp.get_json()["id_acao"]
+
+            resp = client.get("/api/acoes-setor?ano=2026&busca=prevencao")
+            self.assertEqual(resp.status_code, 200)
+            registros = resp.get_json()["registros"]
+            self.assertEqual(len(registros), 1)
+            self.assertEqual(registros[0]["id_acao"], id_acao)
+            self.assertEqual(registros[0]["agentes"][0]["nome"], "João Silva")
+
+            resp = client.put(f"/api/acoes-setor/{id_acao}", json={
+                "tipo": "limpeza",
+                "data": "2026-08-13",
+                "hora_inicio": "08:00",
+                "agentes": [id_agente],
+                "localidade": "Centro",
+                "local": "Praça Central",
+                "coordenadas": "-25.123, -49.123",
+                "observacoes": "Mutirão finalizado",
+            })
+            self.assertEqual(resp.status_code, 200)
+
+            resp = client.get(f"/api/acoes-setor/{id_acao}")
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.get_json()["tipo"], "limpeza")
+
+    def test_acoes_setor_anexos_ficam_em_pasta_e_podem_ser_excluidos(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, _ = _client_admin_com_banco_temporario(tmpdir)
+            anexos_dir = Path(tmpdir) / "anexos"
+            app_temp.config["ANEXOS_DIR"] = str(anexos_dir)
+
+            resp = client.post("/api/acoes-setor", json={
+                "tipo": "limpeza",
+                "data": "2026-08-12",
+                "localidade": "Centro",
+                "local": "Terreno particular",
+                "observacoes": "Documentação anexada posteriormente",
+            })
+            self.assertEqual(resp.status_code, 201)
+            id_acao = resp.get_json()["id_acao"]
+
+            resp = client.post(
+                f"/api/acoes-setor/{id_acao}/anexos",
+                data={"arquivos": (io.BytesIO(b"conteudo do documento"), "notificacao.pdf")},
+                content_type="multipart/form-data",
+            )
+            self.assertEqual(resp.status_code, 201)
+            anexos = resp.get_json()["anexos"]
+            self.assertEqual(len(anexos), 1)
+            self.assertEqual(anexos[0]["nome_original"], "notificacao.pdf")
+            self.assertEqual(anexos[0]["mime_type"], "application/pdf")
+            id_anexo = anexos[0]["id_anexo"]
+
+            conn = sqlite3.connect(app_temp.config["DB_PATH"])
+            try:
+                row = conn.execute(
+                    "SELECT caminho_rel FROM acoes_setor_anexos WHERE id_anexo=?",
+                    (id_anexo,),
+                ).fetchone()
+            finally:
+                conn.close()
+            self.assertIsNotNone(row)
+            caminho = anexos_dir / row[0]
+            self.assertTrue(caminho.exists())
+            self.assertIn(str(id_acao).zfill(6), str(caminho))
+
+            resp = client.get(f"/acoes-setor/anexos/{id_anexo}/download?inline=1")
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.data, b"conteudo do documento")
+            resp.close()
+
+            resp = client.delete(f"/api/acoes-setor/anexos/{id_anexo}")
+            self.assertEqual(resp.status_code, 200)
+            self.assertFalse(caminho.exists())
+
+    def test_acoes_setor_aparecem_na_agenda_automatica(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute("INSERT INTO agentes (nome, ativo) VALUES (?, 1)", ("Maria Souza",))
+                conn.commit()
+                id_agente = conn.execute("SELECT id_agente FROM agentes WHERE nome=?", ("Maria Souza",)).fetchone()[0]
+            finally:
+                conn.close()
+
+            resp = client.post("/api/acoes-setor", json={
+                "tipo": "educativa",
+                "data": "2026-08-12",
+                "hora_inicio": "09:00",
+                "hora_fim": "10:00",
+                "agentes": [id_agente],
+                "localidade": "Centro",
+                "local": "Escola Municipal",
+                "publico_aproximado": 30,
+                "tema": "Saúde ambiental",
+                "contexto": "Atividade com estudantes",
+            })
+            self.assertEqual(resp.status_code, 201)
+
+            resp = client.get("/api/agenda/eventos?start=2026-08-01&end=2026-09-01")
+            self.assertEqual(resp.status_code, 200)
+            eventos = [
+                evento for evento in resp.get_json()
+                if evento.get("extendedProps", {}).get("fonte") == "ACAO_EDUCATIVA"
+            ]
+            self.assertEqual(len(eventos), 1)
+            self.assertIn("Saúde ambiental", eventos[0]["title"])
+            props = eventos[0]["extendedProps"]
+            self.assertEqual(props["origem"], "auto")
+            self.assertEqual(props["fonteLabel"], "Ação educativa")
+            self.assertIn("Público aproximado: 30", props["resumo"])
+            self.assertEqual(props["agentes"], "Maria Souza")
+
     def test_agenda_rejeita_evento_com_fim_antes_do_inicio(self):
         client = _client_logado("admin")
         original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
@@ -2041,6 +2213,7 @@ class MainApisSmokeTests(unittest.TestCase):
                 "ENDEMIAS_INSTANCE_DIR": tmpdir,
                 "ENDEMIAS_DB_PATH": str(Path(tmpdir) / "dados.db"),
                 "ENDEMIAS_UPLOAD_TEMP": str(Path(tmpdir) / "uploads"),
+                "ENDEMIAS_ANEXOS_DIR": str(Path(tmpdir) / "anexos"),
             }
 
             paths = endemias_app.resolve_paths(env=env, base_dir=str(ROOT))
@@ -2048,6 +2221,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(paths["INSTANCE_DIR"], os.path.abspath(tmpdir))
         self.assertEqual(paths["DB_PATH"], os.path.abspath(env["ENDEMIAS_DB_PATH"]))
         self.assertEqual(paths["UPLOAD_TEMP"], os.path.abspath(env["ENDEMIAS_UPLOAD_TEMP"]))
+        self.assertEqual(paths["ANEXOS_DIR"], os.path.abspath(env["ENDEMIAS_ANEXOS_DIR"]))
         self.assertEqual(paths["CONFIG_PATH"], os.path.abspath(str(ROOT / "config.json")))
         self.assertTrue(paths["LOG_PATH"].endswith("endemias.log"))
         self.assertTrue(paths["SECRET_KEY_PATH"].endswith("secret.key"))

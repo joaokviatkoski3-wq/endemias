@@ -19,6 +19,7 @@ from app_core import db as db_core
 from app_core import import_history
 from app_core import uploads as uploads_core
 from app_core import utils as utils_core
+from blueprints.acoes_setor import bp as acoes_setor_bp
 from blueprints.admin import bp as admin_bp
 from blueprints.agenda import bp as agenda_bp
 from blueprints.amostras_animais import bp as amostras_animais_bp
@@ -55,6 +56,7 @@ def resolve_paths(env=None, base_dir=BASE_DIR):
     return {
         "INSTANCE_DIR": instance_dir,
         "DB_PATH": os.path.abspath(env.get("ENDEMIAS_DB_PATH", os.path.join(instance_dir, "endemias.db"))),
+        "ANEXOS_DIR": os.path.abspath(env.get("ENDEMIAS_ANEXOS_DIR", os.path.join(instance_dir, "anexos"))),
         "CONFIG_PATH": os.path.abspath(env.get("ENDEMIAS_CONFIG_PATH", os.path.join(base_dir, "config.json"))),
         "UPLOAD_TEMP": os.path.abspath(env.get("ENDEMIAS_UPLOAD_TEMP", os.path.join(instance_dir, "uploads_temp"))),
         "LOG_PATH": os.path.abspath(env.get("ENDEMIAS_LOG_PATH", os.path.join(instance_dir, "endemias.log"))),
@@ -69,6 +71,7 @@ CONFIG_PATH = PATHS["CONFIG_PATH"]
 UPLOAD_TEMP = PATHS["UPLOAD_TEMP"]
 LOG_PATH = PATHS["LOG_PATH"]
 SECRET_KEY_PATH = PATHS["SECRET_KEY_PATH"]
+ANEXOS_DIR = PATHS["ANEXOS_DIR"]
 SESSION_COOKIE_SECURE_DEFAULT = _env_bool(os.environ, "ENDEMIAS_SESSION_COOKIE_SECURE", False)
 TRUST_PROXY_HEADERS_DEFAULT = _env_bool(os.environ, "ENDEMIAS_TRUST_PROXY_HEADERS", False)
 CSP_REPORT_ONLY_DEFAULT = _env_bool(os.environ, "ENDEMIAS_CSP_REPORT_ONLY", True)
@@ -119,6 +122,7 @@ def _configure_secret_key(flask_app, key_file):
 
 def _register_blueprints(flask_app):
     flask_app.register_blueprint(auth_bp)
+    flask_app.register_blueprint(acoes_setor_bp)
     flask_app.register_blueprint(admin_bp)
     flask_app.register_blueprint(agenda_bp)
     flask_app.register_blueprint(amostras_animais_bp)
@@ -217,12 +221,14 @@ def request_int_arg(nome, default, minimo=None, maximo=None):
 def create_app(config_overrides=None):
     os.makedirs(UPLOAD_TEMP, exist_ok=True)
     os.makedirs(INSTANCE_DIR, exist_ok=True)
+    os.makedirs(ANEXOS_DIR, exist_ok=True)
 
     flask_app = Flask(__name__, instance_path=INSTANCE_DIR)
     flask_app.config.update(
         DB_PATH=DB_PATH,
         CONFIG_PATH=CONFIG_PATH,
         UPLOAD_TEMP=UPLOAD_TEMP,
+        ANEXOS_DIR=ANEXOS_DIR,
         INSTANCE_DIR=INSTANCE_DIR,
         LOG_PATH=LOG_PATH,
         SECRET_KEY_PATH=SECRET_KEY_PATH,

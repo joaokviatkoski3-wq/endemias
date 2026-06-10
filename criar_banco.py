@@ -306,6 +306,46 @@ CREATE INDEX IF NOT EXISTS idx_importacoes_criado
 CREATE INDEX IF NOT EXISTS idx_importacoes_status
     ON importacoes(status);
 
+CREATE TABLE IF NOT EXISTS acoes_setor (
+    id_acao INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT NOT NULL CHECK(tipo IN ('educativa','limpeza')),
+    data TEXT NOT NULL,
+    hora_inicio TEXT,
+    hora_fim TEXT,
+    localidade TEXT,
+    endereco TEXT,
+    local TEXT,
+    publico_aproximado INTEGER,
+    tema TEXT,
+    contexto TEXT,
+    coordenadas TEXT,
+    observacoes TEXT,
+    criado_por TEXT,
+    criado_em TEXT NOT NULL,
+    atualizado_em TEXT
+);
+CREATE TABLE IF NOT EXISTS acoes_setor_agentes (
+    id_acao INTEGER NOT NULL REFERENCES acoes_setor(id_acao) ON DELETE CASCADE,
+    id_agente INTEGER NOT NULL REFERENCES agentes(id_agente),
+    PRIMARY KEY (id_acao, id_agente)
+);
+CREATE TABLE IF NOT EXISTS acoes_setor_anexos (
+    id_anexo INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_acao INTEGER NOT NULL REFERENCES acoes_setor(id_acao) ON DELETE CASCADE,
+    nome_original TEXT NOT NULL,
+    nome_arquivo TEXT NOT NULL,
+    caminho_rel TEXT NOT NULL,
+    mime_type TEXT,
+    tamanho INTEGER NOT NULL DEFAULT 0,
+    criado_por TEXT,
+    criado_em TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_acoes_setor_data ON acoes_setor(data);
+CREATE INDEX IF NOT EXISTS idx_acoes_setor_tipo ON acoes_setor(tipo);
+CREATE INDEX IF NOT EXISTS idx_acoes_setor_localidade ON acoes_setor(localidade);
+CREATE INDEX IF NOT EXISTS idx_acoes_setor_agente ON acoes_setor_agentes(id_agente);
+CREATE INDEX IF NOT EXISTS idx_acoes_setor_anexo_acao ON acoes_setor_anexos(id_acao);
+
 -- FIX DB-05: Índices compostos para queries mais frequentes
 -- context_processor usa esse índice em toda requisição
 CREATE INDEX IF NOT EXISTS idx_foco_notif
@@ -322,7 +362,8 @@ TABELAS_ESPERADAS = [
     "usuarios", "localidades", "agentes", "visitas", "visita_agentes",
     "depositos_inspecionados", "tratamentos", "coletas",
     "resultados_laboratorio", "focos_positivos", "agenda_eventos",
-    "importacoes", "pontos_estrategicos",
+    "importacoes", "pontos_estrategicos", "acoes_setor", "acoes_setor_agentes",
+    "acoes_setor_anexos",
 ]
 
 
@@ -411,6 +452,8 @@ def main():
     print("[OK] Tabela agenda_eventos verificada.")
     migrar_boletim_mensal(conn)
     print("[OK] Tabela boletim_mensal_itens verificada.")
+    migrar_acoes_setor(conn)
+    print("[OK] Tabelas acoes_setor verificadas.")
 
     # FIX DB-04: Definir WAL mode persistentemente UMA VEZ no banco
     # A partir daqui, WAL persiste mesmo sem o PRAGMA por conexão
@@ -520,6 +563,52 @@ def migrar_boletim_mensal(conn):
     );
     CREATE INDEX IF NOT EXISTS idx_boletim_mensal_mes
         ON boletim_mensal_itens(ano_mes, ordem);
+    """)
+    conn.commit()
+
+
+def migrar_acoes_setor(conn):
+    """Adiciona tabelas de registros manuais do setor."""
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS acoes_setor (
+        id_acao INTEGER PRIMARY KEY AUTOINCREMENT,
+        tipo TEXT NOT NULL CHECK(tipo IN ('educativa','limpeza')),
+        data TEXT NOT NULL,
+        hora_inicio TEXT,
+        hora_fim TEXT,
+        localidade TEXT,
+        endereco TEXT,
+        local TEXT,
+        publico_aproximado INTEGER,
+        tema TEXT,
+        contexto TEXT,
+        coordenadas TEXT,
+        observacoes TEXT,
+        criado_por TEXT,
+        criado_em TEXT NOT NULL,
+        atualizado_em TEXT
+    );
+    CREATE TABLE IF NOT EXISTS acoes_setor_agentes (
+        id_acao INTEGER NOT NULL REFERENCES acoes_setor(id_acao) ON DELETE CASCADE,
+        id_agente INTEGER NOT NULL REFERENCES agentes(id_agente),
+        PRIMARY KEY (id_acao, id_agente)
+    );
+    CREATE TABLE IF NOT EXISTS acoes_setor_anexos (
+        id_anexo INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_acao INTEGER NOT NULL REFERENCES acoes_setor(id_acao) ON DELETE CASCADE,
+        nome_original TEXT NOT NULL,
+        nome_arquivo TEXT NOT NULL,
+        caminho_rel TEXT NOT NULL,
+        mime_type TEXT,
+        tamanho INTEGER NOT NULL DEFAULT 0,
+        criado_por TEXT,
+        criado_em TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_acoes_setor_data ON acoes_setor(data);
+    CREATE INDEX IF NOT EXISTS idx_acoes_setor_tipo ON acoes_setor(tipo);
+    CREATE INDEX IF NOT EXISTS idx_acoes_setor_localidade ON acoes_setor(localidade);
+    CREATE INDEX IF NOT EXISTS idx_acoes_setor_agente ON acoes_setor_agentes(id_agente);
+    CREATE INDEX IF NOT EXISTS idx_acoes_setor_anexo_acao ON acoes_setor_anexos(id_acao);
     """)
     conn.commit()
 

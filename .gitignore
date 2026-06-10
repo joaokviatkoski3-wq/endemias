@@ -7,6 +7,7 @@ secret.key
 # Pastas de dados sensiveis
 backups/
 uploads_temp/
+anexos/
 notificacoes_geradas/
 saida/
 instance/

@@ -20,6 +20,8 @@ AGENDA_AUTO_FONTES = {
     "ESPOROTRICOSE": {"label": "Esporotricose", "cor": "#be123c"},
     "RECOLHIMENTO": {"label": "Recolhimento", "cor": "#92400e"},
     "AMOSTRA_ANIMAIS": {"label": "Amostra de animais", "cor": "#0891b2"},
+    "ACAO_EDUCATIVA": {"label": "Ação educativa", "cor": "#0f766e"},
+    "ACAO_LIMPEZA": {"label": "Ação de limpeza", "cor": "#d97706"},
 }
 
 AGENDA_TIPO_CHECK = "('reuniao','planejamento','campo','prazo','treinamento','tarefa','ferias','outro')"
@@ -276,12 +278,12 @@ def _localidades_lista(value):
     return sorted({item.strip() for item in (value or "-").split(",") if item and item.strip()})
 
 
-def _auto_evento(data, fonte_codigo, titulo, total, resumo="", localidades="", agentes="-", tipo=None):
+def _auto_evento(data, fonte_codigo, titulo, total, resumo="", localidades="", agentes="-", tipo=None, id_extra=None):
     fonte = AGENDA_AUTO_FONTES[fonte_codigo]
     cor = fonte["cor"]
     data_dt = _parse_data_evento(data, True)
     return {
-        "id": f"auto_{fonte_codigo}_{data}_{tipo or fonte_codigo}",
+        "id": f"auto_{fonte_codigo}_{data}_{id_extra or tipo or fonte_codigo}",
         "title": titulo,
         "start": data,
         "end": _fim_fullcalendar(data_dt, True),
@@ -526,6 +528,58 @@ def _eventos_periodo(inicio, fim):
                 resumo=f"Animais: {r['animais'] or 0} | Acidentes: {r['acidentes'] or 0} | Capturas: {r['capturas'] or 0}",
                 localidades=r["localidades"],
                 agentes=r["agentes"] or "-",
+            ))
+
+    if _table_exists("acoes_setor") and _table_exists("acoes_setor_agentes"):
+        acao_rows = bh.q(
+            """
+            SELECT a.*,
+                   (SELECT GROUP_CONCAT(a2.nome, ', ')
+                      FROM (SELECT DISTINCT ag.nome
+                              FROM agentes ag
+                              JOIN acoes_setor_agentes aa ON aa.id_agente=ag.id_agente
+                             WHERE aa.id_acao=a.id_acao
+                             ORDER BY ag.nome) a2) AS agentes
+              FROM acoes_setor a
+             WHERE a.data BETWEEN ? AND ?
+             ORDER BY a.data, COALESCE(a.hora_inicio, ''), a.id_acao
+            """,
+            (inicio[:10], fim[:10]),
+        )
+        for r in acao_rows:
+            educativa = r["tipo"] == "educativa"
+            fonte = "ACAO_EDUCATIVA" if educativa else "ACAO_LIMPEZA"
+            base = "Ação educativa" if educativa else "Mutirão de limpeza"
+            complemento = r["tema"] if educativa else r["local"]
+            if not complemento:
+                complemento = r["localidade"] or r["local"] or ""
+            titulo = f"{base} - {complemento}" if complemento else base
+            resumo_partes = []
+            if r["hora_inicio"] or r["hora_fim"]:
+                hora = " - ".join(x for x in (r["hora_inicio"], r["hora_fim"]) if x)
+                resumo_partes.append(f"Horário: {hora}")
+            if r["local"]:
+                resumo_partes.append(f"Local: {r['local']}")
+            if r["endereco"]:
+                resumo_partes.append(f"Endereço: {r['endereco']}")
+            if r["publico_aproximado"] is not None:
+                resumo_partes.append(f"Público aproximado: {r['publico_aproximado']}")
+            if r["contexto"]:
+                resumo_partes.append(f"Contexto: {r['contexto']}")
+            if r["coordenadas"]:
+                resumo_partes.append(f"Coordenadas: {r['coordenadas']}")
+            if r["observacoes"]:
+                resumo_partes.append(f"Observações: {r['observacoes']}")
+            eventos.append(_auto_evento(
+                r["data"],
+                fonte,
+                titulo,
+                1,
+                resumo=" | ".join(resumo_partes),
+                localidades=r["localidade"],
+                agentes=r["agentes"] or "-",
+                tipo=r["tipo"],
+                id_extra=r["id_acao"],
             ))
 
     return eventos

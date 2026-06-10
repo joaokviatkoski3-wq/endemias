@@ -200,6 +200,18 @@ MODULES: Tuple[AppModule, ...] = (
         endpoints=("pontos_estrategicos", "pontos_estrategicos.page"),
     ),
     AppModule(
+        key="acoes_setor",
+        title="Ações do Setor",
+        href="/acoes-setor",
+        endpoint="acoes_setor.page",
+        icon="acoes_setor.svg",
+        nav_section="Gestao",
+        description="Registro manual de ações educativas, palestras, limpezas e mutirões.",
+        tags=("Manual", "Palestras", "Mutirões"),
+        min_level="operador",
+        endpoints=("acoes_setor.page",),
+    ),
+    AppModule(
         key="agenda",
         title="Agenda",
         href="/agenda",

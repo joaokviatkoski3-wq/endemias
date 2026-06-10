@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Ações do Setor{% endblock %}
+{% block page_title %}Ações do Setor{% endblock %}
+
+{% block extra_css %}<style>
+.acoes-layout{display:grid;grid-template-columns:minmax(340px,420px) minmax(0,1fr);gap:16px;align-items:start;}
+.acoes-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);}
+.acoes-panel-hd{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);}
+.acoes-panel-title{display:flex;align-items:center;gap:8px;font-weight:900;color:var(--text);}
+.acoes-panel-bd{padding:16px;}
+.acoes-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+.acoes-form .full{grid-column:1/-1;}
+.acoes-agent-box{border:1px solid var(--border);border-radius:8px;background:var(--surface);overflow:hidden;}
+.acoes-agent-search{border:0;border-bottom:1px solid var(--border);border-radius:0;width:100%;}
+.acoes-agent-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0;max-height:170px;overflow:auto;}
+.acoes-agent-option{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text);cursor:pointer;}
+.acoes-agent-option:hover{background:var(--surface2);}
+.acoes-agent-option input{width:16px;height:16px;accent-color:#0f766e;}
+.acoes-agent-option.hidden{display:none;}
+.acoes-agent-empty{padding:10px;color:var(--text3);font-size:13px;display:none;}
+.acoes-agent-empty.show{display:block;}
+.acoes-attachments{margin-top:14px;border-top:1px solid var(--border);padding-top:14px;}
+.acoes-attachments-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;}
+.acoes-attachments-title{font-weight:900;color:var(--text);display:flex;align-items:center;gap:8px;}
+.acoes-attachments-disabled{color:var(--text3);font-size:13px;padding:10px;border:1px dashed var(--border);border-radius:8px;}
+.acoes-file-input{display:none;}
+.acoes-anexo-list{display:grid;gap:8px;margin-top:10px;}
+.acoes-anexo{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--surface);}
+.acoes-anexo-main{min-width:0;}
+.acoes-anexo-name{font-weight:800;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.acoes-anexo-meta{font-size:12px;color:var(--text3);margin-top:2px;}
+.acoes-anexo-actions{display:flex;gap:6px;flex-shrink:0;}
+.acoes-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:14px;}
+.acoes-filters{display:grid;grid-template-columns:1.2fr .8fr .6fr auto;gap:10px;align-items:end;}
+.acoes-list{display:grid;gap:10px;margin-top:14px;}
+.acao-item{border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--surface);cursor:pointer;}
+.acao-item.open{box-shadow:inset 3px 0 0 #0f766e;}
+.acao-item-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+.acao-title{font-weight:900;color:var(--text);line-height:1.25;}
+.acao-meta{color:var(--text3);font-size:12px;margin-top:4px;}
+.acao-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:6px 12px;margin-top:10px;color:var(--text2);font-size:13px;}
+.acao-note{margin-top:8px;color:var(--text2);white-space:pre-wrap;}
+.acao-expanded{margin-top:10px;border-top:1px solid var(--border);padding-top:10px;}
+.acao-expanded-title{font-size:12px;font-weight:900;color:var(--text3);text-transform:uppercase;margin:12px 0 6px;}
+.acao-tag{display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:900;background:rgba(13,148,136,.12);color:#0f766e;}
+.acao-tag.limpeza{background:rgba(217,119,6,.14);color:#b45309;}
+.acao-empty{padding:24px;text-align:center;color:var(--text3);border:1px dashed var(--border);border-radius:8px;}
+@media(max-width:980px){.acoes-layout{grid-template-columns:1fr;}.acoes-filters{grid-template-columns:1fr 1fr;}.acoes-filters .btn{width:100%;}}
+@media(max-width:640px){.acoes-form,.acoes-filters{grid-template-columns:1fr;}.acoes-actions .btn{flex:1;}}
+</style>{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><span class="icon"><img src="/static/icons/acoes_setor.svg" alt="" class="icon-svg"></span> Ações do Setor</h1>
+  <div class="sub">Registro manual de ações educativas, palestras, limpezas e mutirões</div>
+</div>
+
+<div class="acoes-layout">
+  <section class="acoes-panel">
+    <div class="acoes-panel-hd">
+      <div class="acoes-panel-title"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> <span id="acao-form-title">Nova ação</span></div>
+      <button class="btn btn-outline" type="button" id="acao-limpar"><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Nova</button>
+    </div>
+    <div class="acoes-panel-bd">
+      <input type="hidden" id="acao-id">
+      <div class="acoes-form">
+        <div class="f-g full">
+          <label>Tipo</label>
+          <select id="acao-tipo">
+            {% for codigo, label in tipos_acao.items() %}<option value="{{ codigo }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="f-g"><label>Data</label><input id="acao-data" type="date" required></div>
+        <div class="f-g"><label>Hora início</label><input id="acao-hora-inicio" type="time"></div>
+        <div class="f-g"><label>Hora fim</label><input id="acao-hora-fim" type="time"></div>
+        <div class="f-g"><label>Público aproximado</label><input id="acao-publico" type="number" min="0" inputmode="numeric"></div>
+        <div class="f-g full">
+          <label>Agentes</label>
+          <div class="acoes-agent-box" id="acao-agentes">
+            <input class="acoes-agent-search" id="acao-agentes-busca" type="search" placeholder="Buscar agente...">
+            <div class="acoes-agent-list" id="acao-agentes-lista">
+              {% for agente in agentes %}
+              <label class="acoes-agent-option" data-agente-nome="{{ agente.nome|lower }}">
+                <input type="checkbox" name="acao-agente" value="{{ agente.id_agente }}">
+                <span>{{ agente.nome }}</span>
+              </label>
+              {% endfor %}
+            </div>
+            <div class="acoes-agent-empty" id="acao-agentes-vazio">Nenhum agente encontrado.</div>
+          </div>
+        </div>
+        <div class="f-g"><label>Localidade</label><input id="acao-localidade" list="acoes-localidades"></div>
+        <div class="f-g"><label>Local</label><input id="acao-local" placeholder="Escola, empresa, praça..."></div>
+        <div class="f-g full"><label>Endereço</label><input id="acao-endereco"></div>
+        <div class="f-g full"><label>Tema</label><input id="acao-tema" placeholder="Aplicável principalmente às ações educativas"></div>
+        <div class="f-g full"><label>Contexto</label><textarea id="acao-contexto" rows="3"></textarea></div>
+        <div class="f-g full"><label>Coordenadas</label><input id="acao-coordenadas" placeholder="-25.123456, -49.123456"></div>
+        <div class="f-g full"><label>Observações</label><textarea id="acao-observacoes" rows="4"></textarea></div>
+      </div>
+      <div class="acoes-actions">
+        <button class="btn btn-outline" type="button" id="acao-cancelar">Cancelar</button>
+        <button class="btn btn-primary" type="button" id="acao-salvar"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar</button>
+      </div>
+      <div class="acoes-attachments">
+        <div class="acoes-attachments-head">
+          <div class="acoes-attachments-title"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> Anexos</div>
+          <button class="btn btn-outline" type="button" id="acao-anexo-selecionar" disabled><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Adicionar</button>
+        </div>
+        <input class="acoes-file-input" type="file" id="acao-anexos-arquivos" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.txt">
+        <div class="acoes-attachments-disabled" id="acao-anexos-aviso">Salve a ação para adicionar fotos e documentos.</div>
+        <div class="acoes-anexo-list" id="acao-anexos-lista"></div>
+      </div>
+      <datalist id="acoes-localidades">{% for loc in localidades %}<option value="{{ loc }}"></option>{% endfor %}</datalist>
+    </div>
+  </section>
+
+  <section class="acoes-panel">
+    <div class="acoes-panel-hd">
+      <div class="acoes-panel-title"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Registros</div>
+      <span class="table-info" id="acoes-total">0 registro(s)</span>
+    </div>
+    <div class="acoes-panel-bd">
+      <div class="acoes-filters">
+        <div class="f-g"><label>Pesquisa</label><input id="acoes-busca" type="search" placeholder="Palavra-chave, local, tema, agente..."></div>
+        <div class="f-g"><label>Tipo</label><select id="acoes-filtro-tipo"><option value="">Todos</option>{% for codigo, label in tipos_acao.items() %}<option value="{{ codigo }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Ano</label><input id="acoes-ano" type="number" min="2020" max="2099" step="1" placeholder="Todos"></div>
+        <button class="btn btn-outline" type="button" id="acoes-buscar"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button>
+      </div>
+      <div class="acoes-list" id="acoes-lista"></div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}<script src="/static/js/acoes_setor.js"></script>{% endblock %}
