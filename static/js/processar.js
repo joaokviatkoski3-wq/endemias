@@ -8,10 +8,13 @@ const WORK_TYPES = JSON.parse(document.getElementById('processar-work-types').te
 const KOBO_CONFIG = JSON.parse(document.getElementById('kobo-config-json')?.textContent || '{}');
 
 // ── Helpers de tela ───────────────────────────────────────────────────────────
-function mostrar(id) {
+function mostrar(id, rolar=false) {
   ['area-upload','area-log','area-confirmar','area-commit'].forEach(x =>
     document.getElementById(x).style.display = (x === id ? 'block' : 'none')
   );
+  if (rolar) {
+    setTimeout(() => document.getElementById(id)?.scrollIntoView({behavior:'smooth', block:'start'}), 40);
+  }
 }
 
 // ── Dropzone ──────────────────────────────────────────────────────────────────
@@ -342,6 +345,8 @@ async function prepararKoboImportacao() {
     currentJobId = data.job_id;
     setKoboStatus('Importação preparada', 'imp-verde');
     const arquivos = (data.arquivos || []).join(', ');
+    document.getElementById('kobo-previa').className = 'kobo-preview-empty';
+    document.getElementById('kobo-previa').textContent = 'Importação preparada. Abrindo a verificação antes da gravação...';
     await executarDryRunJob(data.job_id, `Kobo: ${data.total || 0} registro(s) preparado(s) em ${data.arquivos?.length || 0} arquivo(s): ${arquivos}`);
   } catch (e) {
     setKoboStatus('Erro ao preparar', 'imp-vermelho');
@@ -357,7 +362,7 @@ async function iniciarProcessamento() {
   document.getElementById('log-status-badge').style.display = 'none';
   document.querySelector('#area-log .chart-hd .chart-title').innerHTML =
     '<img src="/static/icons/rolar.svg" alt="📜" class="icon-svg"> Verificando planilhas…';
-  mostrar('area-log');
+  mostrar('area-log', true);
 
   const formData = new FormData();
   arquivos.forEach(f => formData.append('arquivos', f));
@@ -388,7 +393,7 @@ async function executarDryRunJob(jobId, mensagemInicial='') {
     document.getElementById('log-status-badge').style.display = 'none';
     document.querySelector('#area-log .chart-hd .chart-title').innerHTML =
       '<img src="/static/icons/rolar.svg" alt="📜" class="icon-svg"> Verificando dados...';
-    mostrar('area-log');
+    mostrar('area-log', true);
     appendLog(mensagemInicial, 'ok');
   }
   let sse;
@@ -471,7 +476,7 @@ function finalizarDryRun(ok, sumario) {
   document.getElementById('sumario-tabela').innerHTML = html;
 
   // Ir para confirmação após pequeno delay para o usuário ver o log
-  setTimeout(() => mostrar('area-confirmar'), 600);
+  setTimeout(() => mostrar('area-confirmar', true), 600);
 }
 
 // ── FASE 2 — CONFIRMAÇÃO / CANCELAMENTO ──────────────────────────────────────
