@@ -57,6 +57,7 @@ def resolve_paths(env=None, base_dir=BASE_DIR):
         "INSTANCE_DIR": instance_dir,
         "DB_PATH": os.path.abspath(env.get("ENDEMIAS_DB_PATH", os.path.join(instance_dir, "endemias.db"))),
         "ANEXOS_DIR": os.path.abspath(env.get("ENDEMIAS_ANEXOS_DIR", os.path.join(instance_dir, "anexos"))),
+        "KOBO_CONFIG_PATH": os.path.abspath(env.get("ENDEMIAS_KOBO_CONFIG_PATH", os.path.join(instance_dir, "kobo_config.json"))),
         "CONFIG_PATH": os.path.abspath(env.get("ENDEMIAS_CONFIG_PATH", os.path.join(base_dir, "config.json"))),
         "UPLOAD_TEMP": os.path.abspath(env.get("ENDEMIAS_UPLOAD_TEMP", os.path.join(instance_dir, "uploads_temp"))),
         "LOG_PATH": os.path.abspath(env.get("ENDEMIAS_LOG_PATH", os.path.join(instance_dir, "endemias.log"))),
@@ -72,6 +73,7 @@ UPLOAD_TEMP = PATHS["UPLOAD_TEMP"]
 LOG_PATH = PATHS["LOG_PATH"]
 SECRET_KEY_PATH = PATHS["SECRET_KEY_PATH"]
 ANEXOS_DIR = PATHS["ANEXOS_DIR"]
+KOBO_CONFIG_PATH = PATHS["KOBO_CONFIG_PATH"]
 SESSION_COOKIE_SECURE_DEFAULT = _env_bool(os.environ, "ENDEMIAS_SESSION_COOKIE_SECURE", False)
 TRUST_PROXY_HEADERS_DEFAULT = _env_bool(os.environ, "ENDEMIAS_TRUST_PROXY_HEADERS", False)
 CSP_REPORT_ONLY_DEFAULT = _env_bool(os.environ, "ENDEMIAS_CSP_REPORT_ONLY", True)
@@ -229,6 +231,7 @@ def create_app(config_overrides=None):
         CONFIG_PATH=CONFIG_PATH,
         UPLOAD_TEMP=UPLOAD_TEMP,
         ANEXOS_DIR=ANEXOS_DIR,
+        KOBO_CONFIG_PATH=KOBO_CONFIG_PATH,
         INSTANCE_DIR=INSTANCE_DIR,
         LOG_PATH=LOG_PATH,
         SECRET_KEY_PATH=SECRET_KEY_PATH,

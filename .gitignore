@@ -1,5 +1,6 @@
 # Seguranca - NUNCA versionar
 secret.key
+kobo_config.json
 *.db
 *.db-wal
 *.db-shm

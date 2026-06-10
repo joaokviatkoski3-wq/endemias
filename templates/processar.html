@@ -64,6 +64,41 @@
   </div>
 </div>
 
+<div class="chart-card" style="margin-bottom:18px;" id="card-kobo-api">
+  <div class="chart-hd">
+    <div>
+      <div class="chart-title"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Buscar dados do Kobo</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;">Conferência dos registros antes de qualquer gravação no banco.</div>
+    </div>
+    <span class="imp-status imp-cinza" id="kobo-status">Não testado</span>
+  </div>
+  <div class="kobo-preview-row">
+    <div class="f-g"><label>Formulário</label><select id="kobo-preview-tipo">{% for tipo in kobo_config.tipos %}<option value="{{ tipo.codigo }}">{{ tipo.codigo }} - {{ tipo.label }}</option>{% endfor %}</select></div>
+    <div class="f-g"><label>Início</label><input id="kobo-preview-inicio" type="date"></div>
+    <div class="f-g"><label>Fim</label><input id="kobo-preview-fim" type="date"></div>
+    <div class="f-g"><label>Limite</label><input id="kobo-preview-limite" type="number" min="1" max="5000" value="100"></div>
+    <button class="btn btn-primary" type="button" id="btn-kobo-previa"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar prévia</button>
+    <button class="btn btn-outline" type="button" id="btn-kobo-lote"><img src="/static/icons/tubo_ensaio.svg" alt="" class="icon-svg"> Buscar lote Vetores + Larvas</button>
+  </div>
+  <div id="kobo-previa" class="kobo-preview-empty">Nenhuma prévia carregada.</div>
+  <details class="kobo-config-details">
+    <summary><img src="/static/icons/chave.svg" alt="" class="icon-svg"> Configurar conexão com Kobo</summary>
+    <div class="kobo-grid">
+      <div class="f-g"><label>Servidor Kobo</label><input id="kobo-server" value="{{ kobo_config.server_url }}" placeholder="https://kf.kobotoolbox.org"></div>
+      <div class="f-g"><label>Token da API</label><input id="kobo-token" type="password" placeholder="{{ 'Token já configurado' if kobo_config.has_token else 'Cole o token aqui' }}"></div>
+      <div class="kobo-actions">
+        <button class="btn btn-outline" type="button" id="btn-kobo-salvar"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar</button>
+        <button class="btn btn-outline" type="button" id="btn-kobo-testar"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Testar</button>
+      </div>
+    </div>
+    <div class="kobo-assets">
+      {% for tipo in kobo_config.tipos %}
+      <div class="f-g"><label>UID {{ tipo.codigo }}</label><input data-kobo-asset="{{ tipo.codigo }}" value="{{ kobo_config.assets.get(tipo.codigo, '') }}" placeholder="UID do formulário {{ tipo.label }}"></div>
+      {% endfor %}
+    </div>
+  </details>
+</div>
+
 <div class="chart-card" style="margin-bottom:18px;" id="card-consolidados">
   <div class="chart-hd">
     <div>
@@ -249,8 +284,35 @@
 .consolidado-codigo{font-size:13px;font-weight:800;color:var(--text);}
 .consolidado-meta{font-size:11px;color:var(--text3);line-height:1.45;}
 .consolidado-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;}
+.kobo-grid{display:grid;grid-template-columns:minmax(220px,1fr) minmax(220px,1fr) auto;gap:10px;align-items:end;margin-bottom:12px;}
+.kobo-assets{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px;}
+.kobo-actions{display:flex;gap:8px;justify-content:flex-end;}
+.kobo-preview-row{display:grid;grid-template-columns:minmax(130px,.8fr) repeat(3,minmax(120px,.7fr)) auto auto;gap:10px;align-items:end;}
+.kobo-preview-empty{margin-top:12px;border:1px dashed var(--border);border-radius:var(--radius-sm);padding:14px;color:var(--text3);font-size:12.5px;text-align:center;background:var(--surface2);}
+.kobo-preview-box{margin-top:12px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;}
+.kobo-preview-head{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);}
+.kobo-preview-kpi{background:var(--surface2);padding:10px;}
+.kobo-preview-kpi strong{display:block;font-size:20px;color:var(--text);font-variant-numeric:tabular-nums;}
+.kobo-preview-kpi span{font-size:11px;color:var(--text3);font-weight:800;text-transform:uppercase;}
+.kobo-preview-table{width:100%;border-collapse:collapse;font-size:12px;}
+.kobo-preview-table th,.kobo-preview-table td{padding:7px 9px;border-top:1px solid var(--border);text-align:left;}
+.kobo-status-novo{color:var(--green);font-weight:800;}
+.kobo-status-duplicado{color:var(--amber);font-weight:800;}
+.kobo-status-sem_uuid{color:var(--red);font-weight:800;}
+.kobo-status-pendente{color:var(--red);font-weight:800;}
+.kobo-record-main{font-weight:800;color:var(--text);}
+.kobo-record-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+.kobo-problemas{margin:4px 0 0;padding-left:16px;color:var(--red);font-size:11px;}
+.kobo-config-details{margin-top:14px;border-top:1px solid var(--border);padding-top:12px;}
+.kobo-config-details summary{display:inline-flex;align-items:center;gap:7px;color:var(--text2);font-size:12px;font-weight:800;cursor:pointer;}
+.kobo-config-details[open] summary{margin-bottom:12px;}
+.kobo-lote-section{padding:10px;border-top:1px solid var(--border);}
+.kobo-lote-title{font-weight:900;color:var(--text);margin-bottom:8px;}
+.kobo-lote-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px 12px;font-size:12.5px;color:var(--text2);}
+@media(max-width:900px){.kobo-grid,.kobo-preview-row{grid-template-columns:1fr;}.kobo-actions{justify-content:stretch}.kobo-actions .btn,.kobo-preview-row .btn{width:100%;}}
 </style>
 
 <script type="application/json" id="processar-work-types">{{ TIPOS_TRABALHO|map(attribute='codigo')|list|tojson }}</script>
+<script type="application/json" id="kobo-config-json">{{ kobo_config|tojson }}</script>
 <script src="/static/js/processar.js"></script>
 {% endblock %}

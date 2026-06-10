@@ -5,6 +5,7 @@ let logDryRun = '';
 
 const CORES = Object.assign({}, WORK_TYPE_COLORS, {LARVAS:'#ef4444', ESPOROTRICOSE:'#14b8a6', RECOLHIMENTO:'#f59e0b', AMOSTRA_ANIMAIS:'#8b5cf6', BRI:'#06b6d4'});
 const WORK_TYPES = JSON.parse(document.getElementById('processar-work-types').textContent || '[]');
+const KOBO_CONFIG = JSON.parse(document.getElementById('kobo-config-json')?.textContent || '{}');
 
 // ── Helpers de tela ───────────────────────────────────────────────────────────
 function mostrar(id) {
@@ -66,6 +67,10 @@ function configurarAcoesProcessamento() {
   document.getElementById('btn-voltar-log')?.addEventListener('click', voltarLog);
   document.getElementById('btn-copiar-log-commit')?.addEventListener('click', copiarLogCommit);
   document.getElementById('btn-novo')?.addEventListener('click', novoProcessamento);
+  document.getElementById('btn-kobo-salvar')?.addEventListener('click', salvarKoboConfig);
+  document.getElementById('btn-kobo-testar')?.addEventListener('click', testarKobo);
+  document.getElementById('btn-kobo-previa')?.addEventListener('click', buscarKoboPrevia);
+  document.getElementById('btn-kobo-lote')?.addEventListener('click', buscarKoboLote);
 
   document.addEventListener('click', event => {
     const removeBtn = event.target.closest('[data-remover-arquivo]');
@@ -78,6 +83,242 @@ function configurarAcoesProcessamento() {
       gerarConsolidados(gerarBtn.dataset.gerarConsolidado);
     }
   });
+}
+
+function koboPayload() {
+  const assets = {};
+  document.querySelectorAll('[data-kobo-asset]').forEach(input => {
+    assets[input.dataset.koboAsset] = input.value.trim();
+  });
+  return {
+    server_url: document.getElementById('kobo-server').value.trim(),
+    api_token: document.getElementById('kobo-token').value.trim(),
+    assets,
+  };
+}
+
+function setKoboStatus(texto, classe='imp-cinza') {
+  const el = document.getElementById('kobo-status');
+  if (!el) return;
+  el.className = `imp-status ${classe}`;
+  el.textContent = texto;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[ch]));
+}
+
+function koboNum(value) {
+  const n = Number(value || 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+async function salvarKoboConfig() {
+  try {
+    const resp = await fetch('/api/kobo/config', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify(koboPayload())
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
+    document.getElementById('kobo-token').value = '';
+    document.getElementById('kobo-token').placeholder = data.config?.has_token ? 'Token já configurado' : 'Cole o token aqui';
+    setKoboStatus('Configuração salva', 'imp-verde');
+    toast('Configuração do Kobo salva.', 'success');
+  } catch (e) {
+    setKoboStatus('Erro', 'imp-vermelho');
+    toast('Erro ao salvar Kobo: ' + e.message, 'error');
+  }
+}
+
+async function testarKobo() {
+  await salvarKoboConfig();
+  try {
+    setKoboStatus('Testando...', 'imp-azul');
+    const resp = await fetch('/api/kobo/testar', {
+      method: 'POST',
+      headers: {'X-CSRFToken': getCsrf()}
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.erro || data.ok === false) throw new Error(data.erro || `HTTP ${resp.status}`);
+    setKoboStatus('Conectado', 'imp-verde');
+    toast('Conexão com o Kobo funcionando.', 'success');
+  } catch (e) {
+    setKoboStatus('Falha na conexão', 'imp-vermelho');
+    toast('Erro ao conectar no Kobo: ' + e.message, 'error');
+  }
+}
+
+function koboPreviaHtml(data) {
+  const r = data.resumo || {};
+  const tipo = String(data.tipo || '');
+  const linhas = (r.amostra || []).map(item => `
+    <tr>
+      <td>
+        <div class="kobo-record-main">${escapeHtml(item.data || '-')}</div>
+        <div class="kobo-record-sub">Enviado em ${escapeHtml(item.submission_time || '-')}</div>
+      </td>
+      <td>${koboDetalhesRegistro(tipo, item)}</td>
+      <td class="kobo-status-${item.problemas?.length ? 'pendente' : escapeHtml(item.status || '')}">${escapeHtml(item.status_label || item.status || '-')}</td>
+      <td>${koboProblemasHtml(item)}</td>
+    </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text3);">Sem registros na amostra.</td></tr>';
+  return `<div class="kobo-preview-box">
+    <div class="kobo-preview-head">
+      <div class="kobo-preview-kpi"><strong>${koboNum(r.total)}</strong><span>Recebidos</span></div>
+      <div class="kobo-preview-kpi"><strong>${koboNum(r.novos)}</strong><span>Novos</span></div>
+      <div class="kobo-preview-kpi"><strong>${koboNum(r.duplicados)}</strong><span>Já existem</span></div>
+      <div class="kobo-preview-kpi"><strong>${koboNum(r.pendencias || r.sem_uuid)}</strong><span>Com atenção</span></div>
+    </div>
+    <table class="kobo-preview-table">
+      <thead><tr><th>Data</th><th>Dados principais</th><th>Situação</th><th>Conferência</th></tr></thead>
+      <tbody>${linhas}</tbody>
+    </table>
+  </div>`;
+}
+
+function koboLoteHtml(data) {
+  const resumos = data.resumos || {};
+  const totalVisitas = ['PE','TB','TBO','PVE'].reduce((acc, tipo) => acc + koboNum((resumos[tipo] || {}).total), 0);
+  const larvas = resumos.LARVAS || {};
+  const erros = (data.erros || []).length
+    ? `<div class="kobo-lote-section"><div class="kobo-status-pendente">${(data.erros || []).map(escapeHtml).join(' | ')}</div></div>`
+    : '';
+  const linhasVisitas = ['PE','TB','TBO','PVE'].map(tipo => {
+    const r = resumos[tipo] || {};
+    return `<tr><td>${tipo}</td><td>${koboNum(r.total)}</td><td>${koboNum(r.novos)}</td><td>${koboNum(r.duplicados)}</td><td>${koboNum(r.pendencias)}</td></tr>`;
+  }).join('');
+  return `<div class="kobo-preview-box">
+    <div class="kobo-preview-head">
+      <div class="kobo-preview-kpi"><strong>${totalVisitas}</strong><span>Visitas no lote</span></div>
+      <div class="kobo-preview-kpi"><strong>${koboNum(data.tubos_lote)}</strong><span>Tubos nas visitas</span></div>
+      <div class="kobo-preview-kpi"><strong>${koboNum(larvas.total)}</strong><span>Larvas no lote</span></div>
+      <div class="kobo-preview-kpi"><strong>${koboNum(data.larvas_pendentes)}</strong><span>Larvas com atenção</span></div>
+    </div>
+    ${erros}
+    <div class="kobo-lote-section">
+      <div class="kobo-lote-title">Vínculo das larvas</div>
+      <div class="kobo-lote-details">
+        <div><strong>Encontradas no banco:</strong> ${koboNum(data.larvas_vinculadas_banco)}</div>
+        <div><strong>Encontradas neste lote Kobo:</strong> ${koboNum(data.larvas_vinculadas_lote)}</div>
+        <div><strong>Sem visita/coleta:</strong> ${koboNum(data.larvas_pendentes)}</div>
+      </div>
+    </div>
+    <div class="kobo-lote-section">
+      <div class="kobo-lote-title">Resumo das visitas</div>
+      <table class="kobo-preview-table">
+        <thead><tr><th>Tipo</th><th>Recebidas</th><th>Novas</th><th>Já existem</th><th>Com atenção</th></tr></thead>
+        <tbody>${linhasVisitas}</tbody>
+      </table>
+    </div>
+    <div class="kobo-lote-section">
+      <div class="kobo-lote-title">Amostra das larvas</div>
+      ${koboPreviaHtml({tipo:'LARVAS', resumo: larvas})}
+    </div>
+  </div>`;
+}
+
+function koboLine(label, value) {
+  return value && value !== '-' ? `<div><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</div>` : '';
+}
+
+function koboDetalhesRegistro(tipo, item) {
+  const d = item.detalhes || {};
+  const linhas = [];
+  if (tipo === 'LARVAS') {
+    linhas.push(koboLine('Tubo', d.tubo));
+    linhas.push(koboLine('Coleta', d.data_coleta));
+    linhas.push(koboLine('Laboratório', d.laboratorio));
+    linhas.push(koboLine('Resultado', d.resultado));
+    const vinculo = d.vinculo_visita === 'banco'
+      ? 'visita já no sistema'
+      : d.vinculo_visita === 'lote'
+        ? 'visita encontrada neste lote'
+        : d.vinculo_visita === 'encontrada'
+          ? 'visita encontrada'
+          : d.vinculo_visita === 'pendente'
+            ? 'sem visita encontrada'
+            : '';
+    linhas.push(koboLine('Vínculo', vinculo));
+  } else {
+    linhas.push(koboLine('Localidade', d.localidade));
+    linhas.push(koboLine('Endereço', [d.endereco, d.numero].filter(Boolean).join(', ')));
+    linhas.push(koboLine('Quadra', d.quarteirao));
+    linhas.push(koboLine('Agentes', d.agentes));
+    linhas.push(koboLine('Visita', d.visita));
+    linhas.push(koboLine('Tubo', d.tubo));
+  }
+  const corpo = linhas.filter(Boolean).join('');
+  const uuid = item.uuid && item.uuid !== '-' ? `<div class="kobo-record-sub">Kobo: ${escapeHtml(item.uuid)}</div>` : '';
+  return corpo || uuid ? `${corpo}${uuid}` : '<span style="color:var(--text3);">Sem detalhes identificados.</span>';
+}
+
+function koboProblemasHtml(item) {
+  const problemas = item.problemas || [];
+  if (!problemas.length) return '<span style="color:var(--green);font-weight:800;">Sem pendências aparentes</span>';
+  return `<ul class="kobo-problemas">${problemas.map(p => `<li>${escapeHtml(p)}</li>`).join('')}</ul>`;
+}
+
+async function buscarKoboPrevia() {
+  await salvarKoboConfig();
+  const tipo = document.getElementById('kobo-preview-tipo').value;
+  const assetInput = document.querySelector(`[data-kobo-asset="${tipo}"]`);
+  try {
+    document.getElementById('kobo-previa').innerHTML = 'Buscando registros no Kobo...';
+    document.getElementById('kobo-previa').className = 'kobo-preview-empty';
+    const resp = await fetch('/api/kobo/previa', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify({
+        tipo,
+        asset_uid: assetInput?.value || '',
+        inicio: document.getElementById('kobo-preview-inicio').value,
+        fim: document.getElementById('kobo-preview-fim').value,
+        limite: document.getElementById('kobo-preview-limite').value,
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
+    document.getElementById('kobo-previa').className = '';
+    document.getElementById('kobo-previa').innerHTML = koboPreviaHtml(data);
+    setKoboStatus('Prévia carregada', 'imp-verde');
+  } catch (e) {
+    document.getElementById('kobo-previa').className = 'kobo-preview-empty';
+    document.getElementById('kobo-previa').textContent = 'Erro: ' + e.message;
+    setKoboStatus('Erro na prévia', 'imp-vermelho');
+  }
+}
+
+async function buscarKoboLote() {
+  await salvarKoboConfig();
+  try {
+    document.getElementById('kobo-previa').innerHTML = 'Buscando lote de visitas e larvas no Kobo...';
+    document.getElementById('kobo-previa').className = 'kobo-preview-empty';
+    const resp = await fetch('/api/kobo/lote-vetores-larvas', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify({
+        inicio: document.getElementById('kobo-preview-inicio').value,
+        fim: document.getElementById('kobo-preview-fim').value,
+        limite: document.getElementById('kobo-preview-limite').value,
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
+    document.getElementById('kobo-previa').className = '';
+    document.getElementById('kobo-previa').innerHTML = koboLoteHtml(data);
+    setKoboStatus(data.ok ? 'Lote conferido' : 'Lote com avisos', data.ok ? 'imp-verde' : 'imp-azul');
+  } catch (e) {
+    document.getElementById('kobo-previa').className = 'kobo-preview-empty';
+    document.getElementById('kobo-previa').textContent = 'Erro: ' + e.message;
+    setKoboStatus('Erro no lote', 'imp-vermelho');
+  }
 }
 
 // ── FASE 1 — DRY-RUN ─────────────────────────────────────────────────────────

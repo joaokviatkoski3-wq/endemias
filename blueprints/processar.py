@@ -14,11 +14,24 @@ from app_core import auth as auth_core
 from app_core import backup as backup_core
 from app_core import db as db_core
 from app_core import import_history
+from app_core import kobo_api
 from app_core import uploads
 
 
 bp = Blueprint("processar", __name__)
 login_required = auth_core.login_required
+
+KOBO_DUPLICATE_TABLES = {
+    "PE": "visitas",
+    "TB": "visitas",
+    "TBO": "visitas",
+    "PVE": "visitas",
+    "LARVAS": "resultados_laboratorio",
+    "ESPOROTRICOSE": "esporotricose_visitas",
+    "BRI": "bri_registros",
+    "AMOSTRA_ANIMAIS": "amostras_animais",
+    "RECOLHIMENTO": "recolhimentos",
+}
 
 
 def _db_path():
@@ -27,6 +40,10 @@ def _db_path():
 
 def _config_path():
     return current_app.config["CONFIG_PATH"]
+
+
+def _kobo_config_path():
+    return current_app.config["KOBO_CONFIG_PATH"]
 
 
 def _upload_temp():
@@ -140,7 +157,273 @@ def processar_page():
     except Exception:
         logging.exception("Falha ao limpar uploads temporarios antigos")
     importacoes = listar_importacoes_recentes(10)
-    return render_template("processar.html", importacoes=importacoes)
+    kobo_config = kobo_api.public_config(kobo_api.load_config(_kobo_config_path()))
+    return render_template("processar.html", importacoes=importacoes, kobo_config=kobo_config)
+
+
+@bp.route("/api/kobo/config", methods=["GET", "POST"])
+@login_required
+@nivel_min("admin")
+def kobo_config():
+    if request.method == "GET":
+        return jsonify(kobo_api.public_config(kobo_api.load_config(_kobo_config_path())))
+    data = request.json or {}
+    cfg = kobo_api.save_config(_kobo_config_path(), data, keep_token=True)
+    audit.registrar_evento(
+        get_db,
+        "kobo_config_atualizada",
+        entidade="kobo",
+        detalhes={"server_url": cfg.get("server_url"), "assets": cfg.get("assets")},
+    )
+    return jsonify({"ok": True, "config": cfg})
+
+
+@bp.route("/api/kobo/testar", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def kobo_testar():
+    cfg = kobo_api.load_config(_kobo_config_path())
+    try:
+        result = kobo_api.test_connection(cfg)
+    except kobo_api.KoboError as exc:
+        return jsonify({"ok": False, "erro": str(exc)}), 400
+    return jsonify(result)
+
+
+@bp.route("/api/kobo/previa", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def kobo_previa():
+    data = request.json or {}
+    tipo = (data.get("tipo") or "").strip().upper()
+    cfg = kobo_api.load_config(_kobo_config_path())
+    assets = cfg.get("assets") or {}
+    asset_uid = (data.get("asset_uid") or assets.get(tipo) or "").strip()
+    if tipo not in kobo_api.ALL_TYPES:
+        return jsonify({"erro": "Tipo de formulário inválido."}), 400
+    try:
+        records, bruto = kobo_api.fetch_submissions(
+            cfg,
+            asset_uid,
+            limit=data.get("limite") or 100,
+            start=data.get("inicio") or None,
+            end=data.get("fim") or None,
+        )
+    except kobo_api.KoboError as exc:
+        return jsonify({"erro": str(exc)}), 400
+
+    uuids = [kobo_api.record_uuid(r) for r in records if kobo_api.record_uuid(r)]
+    existentes = set()
+    larvas_links = {}
+    if uuids:
+        tabela = KOBO_DUPLICATE_TABLES.get(tipo, "visitas")
+        campo = "kobo_uuid"
+        placeholders = ",".join("?" for _ in uuids)
+        try:
+            conn = get_db()
+            rows = conn.execute(
+                f"SELECT DISTINCT {campo} FROM {tabela} WHERE {campo} IN ({placeholders})",
+                uuids,
+            ).fetchall()
+            existentes = {row[0] for row in rows}
+        except Exception:
+            existentes = set()
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    if tipo == "LARVAS":
+        chaves = set()
+        for record in records:
+            detalhes = kobo_api.record_details(tipo, record)
+            tubo = (detalhes.get("tubo") or "").strip()
+            data_coleta = (detalhes.get("data_coleta") or "").strip()[:10]
+            if tubo and data_coleta:
+                chaves.add((tubo, data_coleta))
+        if chaves:
+            try:
+                conn = get_db()
+                for tubo, data_coleta in chaves:
+                    row = conn.execute(
+                        """SELECT 1
+                             FROM coletas c
+                             JOIN visitas v ON v.id_visita = c.id_visita
+                            WHERE TRIM(COALESCE(c.num_tubo,'')) = ?
+                              AND v.data = ?
+                            LIMIT 1""",
+                        (tubo, data_coleta),
+                    ).fetchone()
+                    larvas_links[(tubo, data_coleta)] = bool(row)
+            except Exception:
+                larvas_links = {}
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    resumo = kobo_api.summarize_submissions(records, existentes, tipo=tipo, larvas_links=larvas_links)
+    audit.registrar_evento(
+        get_db,
+        "kobo_previa",
+        entidade="kobo",
+        entidade_id=tipo,
+        detalhes={"asset_uid": asset_uid, "total": resumo["total"], "novos": resumo["novos"]},
+    )
+    return jsonify({
+        "ok": True,
+        "tipo": tipo,
+        "asset_uid": asset_uid,
+        "resumo": resumo,
+        "next": bruto.get("next") if isinstance(bruto, dict) else None,
+    })
+
+
+def _kobo_existing_uuids(tipo, records):
+    uuids = [kobo_api.record_uuid(r) for r in records if kobo_api.record_uuid(r)]
+    if not uuids:
+        return set()
+    tabela = KOBO_DUPLICATE_TABLES.get(tipo, "visitas")
+    placeholders = ",".join("?" for _ in uuids)
+    try:
+        conn = get_db()
+        rows = conn.execute(
+            f"SELECT DISTINCT kobo_uuid FROM {tabela} WHERE kobo_uuid IN ({placeholders})",
+            uuids,
+        ).fetchall()
+        return {row[0] for row in rows}
+    except Exception:
+        return set()
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _larvas_links_banco(chaves):
+    links = {}
+    if not chaves:
+        return links
+    try:
+        conn = get_db()
+        for tubo, data_coleta in chaves:
+            row = conn.execute(
+                """SELECT 1
+                     FROM coletas c
+                     JOIN visitas v ON v.id_visita = c.id_visita
+                    WHERE TRIM(COALESCE(c.num_tubo,'')) = ?
+                      AND v.data = ?
+                    LIMIT 1""",
+                (tubo, data_coleta),
+            ).fetchone()
+            if row:
+                links[(tubo, data_coleta)] = "banco"
+    except Exception:
+        return {}
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return links
+
+
+@bp.route("/api/kobo/lote-vetores-larvas", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def kobo_lote_vetores_larvas():
+    data = request.json or {}
+    cfg = kobo_api.load_config(_kobo_config_path())
+    assets = cfg.get("assets") or {}
+    limite = data.get("limite") or 100
+    inicio = data.get("inicio") or None
+    fim = data.get("fim") or None
+
+    registros_por_tipo = {}
+    erros = []
+    for tipo in list(kobo_api.VISIT_TYPES) + ["LARVAS"]:
+        asset_uid = (assets.get(tipo) or "").strip()
+        if not asset_uid:
+            erros.append(f"{tipo}: UID não configurado")
+            registros_por_tipo[tipo] = []
+            continue
+        try:
+            registros_por_tipo[tipo], _ = kobo_api.fetch_submissions(
+                cfg,
+                asset_uid,
+                limit=limite,
+                start=inicio,
+                end=fim,
+            )
+        except kobo_api.KoboError as exc:
+            erros.append(f"{tipo}: {exc}")
+            registros_por_tipo[tipo] = []
+
+    tubos_lote = {}
+    for tipo in kobo_api.VISIT_TYPES:
+        for record in registros_por_tipo.get(tipo, []):
+            data_visita = kobo_api.record_date(record)
+            for tubo in kobo_api.record_tubes(record, fallback_date=data_visita):
+                key = (tubo["tubo"], tubo["data"])
+                tubos_lote.setdefault(key, []).append({
+                    "tipo": tipo,
+                    "data": data_visita or tubo["data"],
+                    "uuid": kobo_api.record_uuid(record),
+                })
+
+    larvas_chaves = set()
+    for record in registros_por_tipo.get("LARVAS", []):
+        detalhes = kobo_api.record_details("LARVAS", record)
+        tubo = (detalhes.get("tubo") or "").strip()
+        data_coleta = (detalhes.get("data_coleta") or "").strip()[:10]
+        if tubo and data_coleta:
+            larvas_chaves.add((tubo, data_coleta))
+
+    larvas_links = _larvas_links_banco(larvas_chaves)
+    vinculadas_lote = 0
+    for key in larvas_chaves:
+        if key not in larvas_links and key in tubos_lote:
+            larvas_links[key] = "lote"
+            vinculadas_lote += 1
+
+    resumos = {}
+    for tipo, records in registros_por_tipo.items():
+        links = larvas_links if tipo == "LARVAS" else None
+        resumos[tipo] = kobo_api.summarize_submissions(
+            records,
+            _kobo_existing_uuids(tipo, records),
+            tipo=tipo,
+            larvas_links=links,
+        )
+
+    larvas_resumo = resumos.get("LARVAS", {})
+    vinculadas_banco = sum(1 for value in larvas_links.values() if value == "banco")
+    audit.registrar_evento(
+        get_db,
+        "kobo_lote_vetores_larvas",
+        entidade="kobo",
+        detalhes={
+            "inicio": inicio,
+            "fim": fim,
+            "limite": limite,
+            "tubos_lote": len(tubos_lote),
+            "larvas": larvas_resumo.get("total", 0),
+            "pendencias": larvas_resumo.get("pendencias", 0),
+        },
+    )
+    return jsonify({
+        "ok": not erros,
+        "erros": erros,
+        "periodo": {"inicio": inicio, "fim": fim},
+        "resumos": resumos,
+        "tubos_lote": len(tubos_lote),
+        "larvas_vinculadas_banco": vinculadas_banco,
+        "larvas_vinculadas_lote": vinculadas_lote,
+        "larvas_pendentes": larvas_resumo.get("pendencias", 0),
+    })
 
 
 @bp.route("/processar/iniciar", methods=["POST"])

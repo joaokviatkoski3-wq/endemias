@@ -29,6 +29,7 @@ from app_core import amostras_animais as amostras_animais_core
 from app_core import esporotricose as esporotricose_core
 from app_core import db as db_core
 from app_core import dbml as dbml_core
+from app_core import kobo_api as kobo_api_core
 from app_core.excel import excel_safe
 from app_core import modules as modules_core
 from app_core import bri as bri_core
@@ -1621,6 +1622,19 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("LARVAS_ Resultados de Laborat\u00f3rio", html)
         self.assertIn("data-gerar-consolidado", html)
         self.assertIn('id="processar-work-types"', html)
+        self.assertIn('id="kobo-config-json"', html)
+        self.assertIn('id="card-kobo-api"', html)
+        self.assertIn('id="btn-kobo-previa"', html)
+        self.assertIn('id="btn-kobo-lote"', html)
+        self.assertIn("Buscar dados do Kobo", html)
+        self.assertIn("Configurar conexão com Kobo", html)
+        self.assertIn("<details", html)
+        self.assertIn('data-kobo-asset="PE"', html)
+        self.assertIn('data-kobo-asset="ESPOROTRICOSE"', html)
+        self.assertIn('data-kobo-asset="BRI"', html)
+        self.assertIn('data-kobo-asset="AMOSTRA_ANIMAIS"', html)
+        self.assertIn('data-kobo-asset="RECOLHIMENTO"', html)
+        self.assertIn("BRI - Borrifamento residual", html)
         self.assertIn('src="/static/js/processar.js"', html)
         self.assertNotIn("configurarAcoesProcessamento()", html)
         self.assertNotIn("onclick=", html)
@@ -1647,6 +1661,11 @@ class MainPagesSmokeTests(unittest.TestCase):
         js = js_resp.data.decode("utf-8")
         js_resp.close()
         self.assertFalse(any(c in js for c in proibidos), js[:500])
+        self.assertIn("salvarKoboConfig", js)
+        self.assertIn("/api/kobo/previa", js)
+        self.assertIn("koboDetalhesRegistro", js)
+        self.assertIn("buscarKoboLote", js)
+        self.assertIn("Com atenção", js)
 
     def test_assets_compartilhados_respondem_200(self):
         client = _client_logado()
@@ -2214,6 +2233,7 @@ class MainApisSmokeTests(unittest.TestCase):
                 "ENDEMIAS_DB_PATH": str(Path(tmpdir) / "dados.db"),
                 "ENDEMIAS_UPLOAD_TEMP": str(Path(tmpdir) / "uploads"),
                 "ENDEMIAS_ANEXOS_DIR": str(Path(tmpdir) / "anexos"),
+                "ENDEMIAS_KOBO_CONFIG_PATH": str(Path(tmpdir) / "kobo_config.json"),
             }
 
             paths = endemias_app.resolve_paths(env=env, base_dir=str(ROOT))
@@ -2222,6 +2242,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(paths["DB_PATH"], os.path.abspath(env["ENDEMIAS_DB_PATH"]))
         self.assertEqual(paths["UPLOAD_TEMP"], os.path.abspath(env["ENDEMIAS_UPLOAD_TEMP"]))
         self.assertEqual(paths["ANEXOS_DIR"], os.path.abspath(env["ENDEMIAS_ANEXOS_DIR"]))
+        self.assertEqual(paths["KOBO_CONFIG_PATH"], os.path.abspath(env["ENDEMIAS_KOBO_CONFIG_PATH"]))
         self.assertEqual(paths["CONFIG_PATH"], os.path.abspath(str(ROOT / "config.json")))
         self.assertTrue(paths["LOG_PATH"].endswith("endemias.log"))
         self.assertTrue(paths["SECRET_KEY_PATH"].endswith("secret.key"))
@@ -3321,6 +3342,207 @@ class MainApisSmokeTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 400)
         self.assertTrue(resp.is_json)
+
+    def test_kobo_config_salva_sem_expor_token(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, _ = _client_admin_com_banco_temporario(tmpdir)
+            app_temp.config["KOBO_CONFIG_PATH"] = str(Path(tmpdir) / "kobo_config.json")
+
+            resp = client.post("/api/kobo/config", json={
+                "server_url": "kf.kobotoolbox.org/",
+                "api_token": "segredo-token",
+                "assets": {"PE": "asset-pe", "BRI": "asset-bri"},
+            })
+
+            self.assertEqual(resp.status_code, 200)
+            dados = resp.get_json()
+            self.assertTrue(dados["config"]["has_token"])
+            self.assertNotIn("segredo-token", json.dumps(dados))
+            salvo = kobo_api_core.load_config(app_temp.config["KOBO_CONFIG_PATH"])
+            self.assertEqual(salvo["api_token"], "segredo-token")
+            self.assertEqual(salvo["server_url"], "https://kf.kobotoolbox.org")
+            self.assertEqual(salvo["assets"]["PE"], "asset-pe")
+            self.assertEqual(salvo["assets"]["BRI"], "asset-bri")
+
+    def test_kobo_previa_classifica_novos_e_duplicados(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc, tb):
+                return False
+            def read(self):
+                return json.dumps({
+                    "count": 2,
+                    "results": [
+                        {"_uuid": "uuid-existente", "_id": 1, "_submission_time": "2026-06-10T12:00:00"},
+                        {"_uuid": "uuid-novo", "_id": 2, "_submission_time": "2026-06-10T13:00:00", "Localidade": "Centro"},
+                    ],
+                }).encode("utf-8")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            app_temp.config["KOBO_CONFIG_PATH"] = str(Path(tmpdir) / "kobo_config.json")
+            kobo_api_core.save_config(app_temp.config["KOBO_CONFIG_PATH"], {
+                "server_url": "https://kf.kobotoolbox.org",
+                "api_token": "token",
+                "assets": {"PE": "asset-pe"},
+            })
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute(
+                    """INSERT INTO visitas
+                       (id_visita, kobo_uuid, tipo, data, processado_em)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    ("v-existente", "uuid-existente", "PE", "2026-06-10", "2026-06-10T10:00:00"),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            with mock.patch("app_core.kobo_api.request.urlopen", return_value=FakeResponse()):
+                resp = client.post("/api/kobo/previa", json={"tipo": "PE", "limite": 10})
+
+            self.assertEqual(resp.status_code, 200)
+            resumo = resp.get_json()["resumo"]
+            self.assertEqual(resumo["total"], 2)
+            self.assertEqual(resumo["novos"], 1)
+            self.assertEqual(resumo["duplicados"], 1)
+            self.assertEqual([item["status"] for item in resumo["amostra"]], ["duplicado", "novo"])
+            self.assertEqual(resumo["amostra"][1]["detalhes"]["localidade"], "Centro")
+
+    def test_kobo_previa_usa_tabela_do_modulo_extra(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc, tb):
+                return False
+            def read(self):
+                return json.dumps({
+                    "results": [
+                        {"_uuid": "bri-existente", "_id": 10, "_submission_time": "2026-06-10T12:00:00"},
+                        {"_uuid": "bri-novo", "_id": 11, "_submission_time": "2026-06-10T13:00:00"},
+                    ],
+                }).encode("utf-8")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            app_temp.config["KOBO_CONFIG_PATH"] = str(Path(tmpdir) / "kobo_config.json")
+            kobo_api_core.save_config(app_temp.config["KOBO_CONFIG_PATH"], {
+                "server_url": "https://kf.kobotoolbox.org",
+                "api_token": "token",
+                "assets": {"BRI": "asset-bri"},
+            })
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute("CREATE TABLE IF NOT EXISTS bri_registros (id_bri TEXT PRIMARY KEY, kobo_uuid TEXT UNIQUE)")
+                conn.execute("INSERT INTO bri_registros (id_bri, kobo_uuid) VALUES (?, ?)", ("bri1", "bri-existente"))
+                conn.commit()
+            finally:
+                conn.close()
+
+            with mock.patch("app_core.kobo_api.request.urlopen", return_value=FakeResponse()):
+                resp = client.post("/api/kobo/previa", json={"tipo": "BRI", "limite": 10})
+
+            self.assertEqual(resp.status_code, 200)
+            resumo = resp.get_json()["resumo"]
+            self.assertEqual(resumo["novos"], 1)
+            self.assertEqual(resumo["duplicados"], 1)
+
+    def test_kobo_previa_larvas_mostra_tubo_sem_visita(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc, tb):
+                return False
+            def read(self):
+                return json.dumps({
+                    "results": [
+                        {
+                            "_uuid": "larva-nova",
+                            "_id": 20,
+                            "_submission_time": "2026-06-10T12:00:00",
+                            "Número do tubito": "123",
+                            "Data da coleta": "2026-06-10",
+                        },
+                    ],
+                }).encode("utf-8")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, _ = _client_admin_com_banco_temporario(tmpdir)
+            app_temp.config["KOBO_CONFIG_PATH"] = str(Path(tmpdir) / "kobo_config.json")
+            kobo_api_core.save_config(app_temp.config["KOBO_CONFIG_PATH"], {
+                "server_url": "https://kf.kobotoolbox.org",
+                "api_token": "token",
+                "assets": {"LARVAS": "asset-larvas"},
+            })
+
+            with mock.patch("app_core.kobo_api.request.urlopen", return_value=FakeResponse()):
+                resp = client.post("/api/kobo/previa", json={"tipo": "LARVAS", "limite": 10})
+
+            self.assertEqual(resp.status_code, 200)
+            row = resp.get_json()["resumo"]["amostra"][0]
+            self.assertEqual(row["detalhes"]["tubo"], "123")
+            self.assertEqual(row["detalhes"]["vinculo_visita"], "pendente")
+            self.assertIn("Tubo sem visita/coleta correspondente", row["problemas"][0])
+
+    def test_kobo_lote_vetores_larvas_vincula_larva_no_proprio_lote(self):
+        class FakeResponse:
+            def __init__(self, payload):
+                self.payload = payload
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc, tb):
+                return False
+            def read(self):
+                return json.dumps(self.payload).encode("utf-8")
+
+        def fake_urlopen(req, timeout=30):
+            url = req.full_url
+            if "/asset-tbo/" in url:
+                return FakeResponse({"results": [{
+                    "_uuid": "visita-tbo-1",
+                    "_id": 1,
+                    "_submission_time": "2026-06-10T08:00:00",
+                    "Data": "2026-06-10",
+                    "Localidade": "Centro",
+                    "coletas": [{"Número do tubito": "T-001"}],
+                }]})
+            if "/asset-larvas/" in url:
+                return FakeResponse({"results": [{
+                    "_uuid": "larva-1",
+                    "_id": 2,
+                    "_submission_time": "2026-06-10T12:00:00",
+                    "Número do tubito": "T-001",
+                    "Data da coleta": "2026-06-10",
+                }]})
+            return FakeResponse({"results": []})
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, _ = _client_admin_com_banco_temporario(tmpdir)
+            app_temp.config["KOBO_CONFIG_PATH"] = str(Path(tmpdir) / "kobo_config.json")
+            kobo_api_core.save_config(app_temp.config["KOBO_CONFIG_PATH"], {
+                "server_url": "https://kf.kobotoolbox.org",
+                "api_token": "token",
+                "assets": {
+                    "PE": "asset-pe",
+                    "TB": "asset-tb",
+                    "TBO": "asset-tbo",
+                    "PVE": "asset-pve",
+                    "LARVAS": "asset-larvas",
+                },
+            })
+
+            with mock.patch("app_core.kobo_api.request.urlopen", side_effect=fake_urlopen):
+                resp = client.post("/api/kobo/lote-vetores-larvas", json={"limite": 100})
+
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertEqual(data["tubos_lote"], 1)
+            self.assertEqual(data["larvas_vinculadas_lote"], 1)
+            self.assertEqual(data["larvas_pendentes"], 0)
+            larva = data["resumos"]["LARVAS"]["amostra"][0]
+            self.assertEqual(larva["detalhes"]["vinculo_visita"], "lote")
+            self.assertEqual(larva["problemas"], [])
 
 
 class PermissionMatrixTests(unittest.TestCase):
