@@ -331,11 +331,7 @@ def _larvas_links_banco(chaves):
     return links
 
 
-@bp.route("/api/kobo/lote-vetores-larvas", methods=["POST"])
-@login_required
-@nivel_min("admin")
-def kobo_lote_vetores_larvas():
-    data = request.json or {}
+def _kobo_fetch_registros_vetores_larvas(data):
     cfg = kobo_api.load_config(_kobo_config_path())
     assets = cfg.get("assets") or {}
     limite = data.get("limite") or 100
@@ -361,6 +357,18 @@ def kobo_lote_vetores_larvas():
         except kobo_api.KoboError as exc:
             erros.append(f"{tipo}: {exc}")
             registros_por_tipo[tipo] = []
+    return registros_por_tipo, erros
+
+
+@bp.route("/api/kobo/lote-vetores-larvas", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def kobo_lote_vetores_larvas():
+    data = request.json or {}
+    inicio = data.get("inicio") or None
+    fim = data.get("fim") or None
+    limite = data.get("limite") or 100
+    registros_por_tipo, erros = _kobo_fetch_registros_vetores_larvas(data)
 
     tubos_lote = {}
     for tipo in kobo_api.VISIT_TYPES:
@@ -423,6 +431,65 @@ def kobo_lote_vetores_larvas():
         "larvas_vinculadas_banco": vinculadas_banco,
         "larvas_vinculadas_lote": vinculadas_lote,
         "larvas_pendentes": larvas_resumo.get("pendencias", 0),
+    })
+
+
+@bp.route("/api/kobo/importar-vetores-larvas/iniciar", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def kobo_importar_vetores_larvas_iniciar():
+    data = request.json or {}
+    registros_por_tipo, erros = _kobo_fetch_registros_vetores_larvas(data)
+    if erros:
+        return jsonify({"erro": "Não foi possível preparar a importação.", "detalhes": erros}), 400
+
+    total = sum(len(registros_por_tipo.get(tipo) or []) for tipo in list(kobo_api.VISIT_TYPES) + ["LARVAS"])
+    if total <= 0:
+        return jsonify({"erro": "Nenhum registro encontrado no Kobo para preparar a importação."}), 400
+
+    job_id = str(uuid.uuid4())
+    job_dir = _job_dir(job_id)
+    os.makedirs(job_dir, exist_ok=True)
+    try:
+        caminhos = kobo_api.write_etl_workbooks(
+            registros_por_tipo,
+            _config_path(),
+            job_dir,
+            prefix=job_id[:8],
+        )
+    except Exception as exc:
+        shutil.rmtree(job_dir, ignore_errors=True)
+        logging.exception("Falha ao gerar arquivos temporarios da importacao Kobo")
+        return jsonify({"erro": f"Falha ao preparar arquivos temporários: {exc}"}), 400
+
+    nomes = [os.path.basename(caminho) for caminho in caminhos]
+    if not nomes:
+        shutil.rmtree(job_dir, ignore_errors=True)
+        return jsonify({"erro": "Nenhum arquivo temporário foi gerado para a importação."}), 400
+
+    try:
+        registrar_importacao(job_id, nomes, status="kobo_preparado")
+        audit.registrar_evento(
+            get_db,
+            "kobo_importacao_preparada",
+            entidade="importacoes",
+            entidade_id=job_id,
+            detalhes={
+                "arquivos": nomes,
+                "total": total,
+                "inicio": data.get("inicio") or None,
+                "fim": data.get("fim") or None,
+            },
+        )
+    except Exception:
+        logging.exception("Falha ao registrar historico da importacao Kobo")
+
+    return jsonify({
+        "ok": True,
+        "job_id": job_id,
+        "arquivos": nomes,
+        "total": total,
+        "por_tipo": {tipo: len(registros_por_tipo.get(tipo) or []) for tipo in list(kobo_api.VISIT_TYPES) + ["LARVAS"]},
     })
 
 

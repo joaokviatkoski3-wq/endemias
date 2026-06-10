@@ -5,6 +5,8 @@ from pathlib import Path
 from urllib import error, parse, request
 import unicodedata
 
+import pandas as pd
+
 
 DEFAULT_SERVER_URL = "https://kf.kobotoolbox.org"
 VISIT_TYPES = ("PE", "TB", "TBO", "PVE")
@@ -331,3 +333,99 @@ def summarize_submissions(records, existing_uuids=None, sample_size=20, tipo=Non
         "pendencias": pendencias,
         "amostra": rows,
     }
+
+
+def _flat_record(record):
+    flat = {}
+    for key, value in record.items():
+        if isinstance(value, (dict, list)):
+            continue
+        flat[key] = value
+    return flat
+
+
+def _ensure_visit_columns(row, tipo, cfg_tipo, record):
+    detalhes = record_details(tipo, record)
+    data = detalhes.get("data") if detalhes.get("data") != "-" else record_date(record)
+    col_data = cfg_tipo.get("col_data") or "Data"
+    col_localidade = cfg_tipo.get("col_localidade") or "Localidade"
+    row.setdefault("_uuid", record_uuid(record))
+    row.setdefault("_id", record.get("_id"))
+    row.setdefault("_submission_time", record.get("_submission_time"))
+    if data:
+        row.setdefault(col_data, data)
+        row.setdefault("Data", data)
+        if tipo == "PE":
+            row.setdefault("Digite a data", data)
+    row.setdefault(col_localidade, detalhes.get("localidade"))
+    row.setdefault("Localidade", detalhes.get("localidade"))
+    row.setdefault("localidade", detalhes.get("localidade"))
+    row.setdefault("Logradouro", detalhes.get("endereco"))
+    row.setdefault("Número", detalhes.get("numero"))
+    row.setdefault("Quarteirão", detalhes.get("quarteirao"))
+    row.setdefault("Visita", detalhes.get("visita"))
+    if cfg_tipo.get("col_sequencia"):
+        row.setdefault(cfg_tipo["col_sequencia"], "")
+    return row
+
+
+def _coleta_row(record, tubo, cfg_tipo):
+    uuid = record_uuid(record)
+    col_tubo = cfg_tipo.get("col_numero_tubo_coletas") or "Número do tubito"
+    return {
+        "_uuid": uuid,
+        "submission__uuid": uuid,
+        col_tubo: tubo.get("tubo"),
+        cfg_tipo.get("col_codigo_deposito_coletas", "Código do depósito"): "",
+        cfg_tipo.get("col_nome_deposito_coletas", "Depósito"): "",
+        cfg_tipo.get("col_deposito_eliminado_coletas", "O Depósito onde foi feita a coleta foi eliminado?"): "",
+    }
+
+
+def _larva_row(record, cfg_larvas):
+    row = _flat_record(record)
+    detalhes = record_details("LARVAS", record)
+    row.setdefault("_uuid", record_uuid(record))
+    row.setdefault("_id", record.get("_id"))
+    row.setdefault("_submission_time", record.get("_submission_time"))
+    row.setdefault(cfg_larvas.get("col_numero_tubo", "Número do tubito"), detalhes.get("tubo"))
+    row.setdefault(cfg_larvas.get("col_data_coleta", "Data da coleta"), detalhes.get("data_coleta"))
+    for col in cfg_larvas.get("colunas_resultado", []):
+        row.setdefault(col, "")
+    return row
+
+
+def write_etl_workbooks(registros_por_tipo, config_path, output_dir, prefix="kobo_api"):
+    with open(config_path, "r", encoding="utf-8") as fh:
+        cfg = json.load(fh)
+    tipos_cfg = cfg.get("tipos_trabalho") or {}
+    cfg_larvas = cfg.get("larvas") or {}
+
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    arquivos = []
+
+    for tipo in VISIT_TYPES:
+        records = registros_por_tipo.get(tipo) or []
+        if not records or tipo not in tipos_cfg:
+            continue
+        cfg_tipo = tipos_cfg[tipo]
+        visitas = [_ensure_visit_columns(_flat_record(record), tipo, cfg_tipo, record) for record in records]
+        coletas = []
+        for record in records:
+            data_visita = record_date(record)
+            for tubo in record_tubes(record, fallback_date=data_visita):
+                coletas.append(_coleta_row(record, tubo, cfg_tipo))
+        path = out / f"{tipo}_{prefix}.xlsx"
+        with pd.ExcelWriter(path, engine="openpyxl") as writer:
+            pd.DataFrame(visitas).to_excel(writer, sheet_name="dados", index=False)
+            pd.DataFrame(coletas).to_excel(writer, sheet_name="coletas", index=False)
+        arquivos.append(str(path))
+
+    larvas = registros_por_tipo.get("LARVAS") or []
+    if larvas:
+        path = out / f"LARVAS_{prefix}.xlsx"
+        pd.DataFrame([_larva_row(record, cfg_larvas) for record in larvas]).to_excel(path, index=False, engine="openpyxl")
+        arquivos.append(str(path))
+
+    return arquivos

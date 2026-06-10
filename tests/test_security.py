@@ -1626,6 +1626,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('id="card-kobo-api"', html)
         self.assertIn('id="btn-kobo-previa"', html)
         self.assertIn('id="btn-kobo-lote"', html)
+        self.assertIn('id="btn-kobo-importar"', html)
         self.assertIn("Buscar dados do Kobo", html)
         self.assertIn("Configurar conexão com Kobo", html)
         self.assertIn("<details", html)
@@ -1665,6 +1666,8 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("/api/kobo/previa", js)
         self.assertIn("koboDetalhesRegistro", js)
         self.assertIn("buscarKoboLote", js)
+        self.assertIn("prepararKoboImportacao", js)
+        self.assertIn("/api/kobo/importar-vetores-larvas/iniciar", js)
         self.assertIn("Com atenção", js)
 
     def test_assets_compartilhados_respondem_200(self):
@@ -3543,6 +3546,102 @@ class MainApisSmokeTests(unittest.TestCase):
             larva = data["resumos"]["LARVAS"]["amostra"][0]
             self.assertEqual(larva["detalhes"]["vinculo_visita"], "lote")
             self.assertEqual(larva["problemas"], [])
+
+    def test_kobo_importacao_prepara_job_com_xlsx_temporarios(self):
+        class FakeResponse:
+            def __init__(self, payload):
+                self.payload = payload
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc, tb):
+                return False
+            def read(self):
+                return json.dumps(self.payload).encode("utf-8")
+
+        def fake_urlopen(req, timeout=30):
+            url = req.full_url
+            if "/asset-tbo/" in url:
+                return FakeResponse({"results": [{
+                    "_uuid": "visita-tbo-1",
+                    "_id": 1,
+                    "_submission_time": "2026-06-10T08:00:00",
+                    "Data": "2026-06-10",
+                    "Localidade": "Centro",
+                    "Logradouro": "Rua A",
+                    "Número": "10",
+                    "Quarteirão": "5",
+                    "Visita": "Normal",
+                    "coletas": [{"Número do tubito": "T-001"}],
+                }]})
+            if "/asset-larvas/" in url:
+                return FakeResponse({"results": [{
+                    "_uuid": "larva-1",
+                    "_id": 2,
+                    "_submission_time": "2026-06-10T12:00:00",
+                    "Número do tubito": "T-001",
+                    "Data da coleta": "2026-06-10",
+                    "Aegypt Larvas": "1",
+                }]})
+            return FakeResponse({"results": []})
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            app_temp.config["KOBO_CONFIG_PATH"] = str(Path(tmpdir) / "kobo_config.json")
+            app_temp.config["UPLOAD_TEMP"] = str(Path(tmpdir) / "uploads_temp")
+            kobo_api_core.save_config(app_temp.config["KOBO_CONFIG_PATH"], {
+                "server_url": "https://kf.kobotoolbox.org",
+                "api_token": "token",
+                "assets": {
+                    "PE": "asset-pe",
+                    "TB": "asset-tb",
+                    "TBO": "asset-tbo",
+                    "PVE": "asset-pve",
+                    "LARVAS": "asset-larvas",
+                },
+            })
+
+            with mock.patch("app_core.kobo_api.request.urlopen", side_effect=fake_urlopen):
+                resp = client.post("/api/kobo/importar-vetores-larvas/iniciar", json={"limite": 100})
+
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertTrue(data["ok"])
+            self.assertEqual(data["por_tipo"]["TBO"], 1)
+            self.assertEqual(data["por_tipo"]["LARVAS"], 1)
+            job_dir = Path(app_temp.config["UPLOAD_TEMP"]) / data["job_id"]
+            self.assertTrue((job_dir / data["arquivos"][0]).exists())
+            self.assertTrue(any(nome.startswith("TBO_") for nome in data["arquivos"]))
+            self.assertTrue(any(nome.startswith("LARVAS_") for nome in data["arquivos"]))
+            tbo_path = next(job_dir / nome for nome in data["arquivos"] if nome.startswith("TBO_"))
+            wb = openpyxl.load_workbook(tbo_path, read_only=True)
+            try:
+                self.assertIn("dados", wb.sheetnames)
+                self.assertIn("coletas", wb.sheetnames)
+                coletas = wb["coletas"]
+                headers = [cell.value for cell in next(coletas.iter_rows(max_row=1))]
+                values = [cell.value for cell in next(coletas.iter_rows(min_row=2, max_row=2))]
+                row = dict(zip(headers, values))
+                self.assertEqual(row["Número do tubito"], "T-001")
+                self.assertEqual(row["submission__uuid"], "visita-tbo-1")
+            finally:
+                wb.close()
+
+            caminhos = [str(job_dir / nome) for nome in data["arquivos"]]
+            arquivos_larvas = [c for c in caminhos if Path(c).name.upper().startswith("LARVAS")]
+            arquivos_trabalho = [c for c in caminhos if c not in arquivos_larvas]
+            ok, sumario = etl.processar_upload(
+                arquivos_trabalho,
+                arquivos_larvas,
+                db_path,
+                str(ROOT / "config.json"),
+                etl.Logger(),
+                dry_run=True,
+            )
+            self.assertTrue(ok)
+            self.assertEqual(sumario[0]["tipo"], "TBO")
+            self.assertEqual(sumario[0]["visitas_novas"], 1)
+            self.assertEqual(sumario[0]["coletas_novas"], 1)
+            self.assertEqual(sumario[0]["resultados_novos"], 1)
 
 
 class PermissionMatrixTests(unittest.TestCase):

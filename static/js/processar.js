@@ -71,6 +71,7 @@ function configurarAcoesProcessamento() {
   document.getElementById('btn-kobo-testar')?.addEventListener('click', testarKobo);
   document.getElementById('btn-kobo-previa')?.addEventListener('click', buscarKoboPrevia);
   document.getElementById('btn-kobo-lote')?.addEventListener('click', buscarKoboLote);
+  document.getElementById('btn-kobo-importar')?.addEventListener('click', prepararKoboImportacao);
 
   document.addEventListener('click', event => {
     const removeBtn = event.target.closest('[data-remover-arquivo]');
@@ -321,6 +322,33 @@ async function buscarKoboLote() {
   }
 }
 
+async function prepararKoboImportacao() {
+  await salvarKoboConfig();
+  try {
+    setKoboStatus('Preparando...', 'imp-azul');
+    const resp = await fetch('/api/kobo/importar-vetores-larvas/iniciar', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify({
+        inicio: document.getElementById('kobo-preview-inicio').value,
+        fim: document.getElementById('kobo-preview-fim').value,
+        limite: document.getElementById('kobo-preview-limite').value,
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.erro) {
+      throw new Error(data.erro || (data.detalhes || []).join(' | ') || `HTTP ${resp.status}`);
+    }
+    currentJobId = data.job_id;
+    setKoboStatus('Importação preparada', 'imp-verde');
+    const arquivos = (data.arquivos || []).join(', ');
+    await executarDryRunJob(data.job_id, `Kobo: ${data.total || 0} registro(s) preparado(s) em ${data.arquivos?.length || 0} arquivo(s): ${arquivos}`);
+  } catch (e) {
+    setKoboStatus('Erro ao preparar', 'imp-vermelho');
+    toast('Erro ao preparar importação Kobo: ' + e.message, 'error');
+  }
+}
+
 // ── FASE 1 — DRY-RUN ─────────────────────────────────────────────────────────
 async function iniciarProcessamento() {
   if (!arquivos.length) return;
@@ -350,6 +378,19 @@ async function iniciarProcessamento() {
     appendLog('ERRO de comunicação: ' + e.message, 'erro'); finalizarDryRun(false, []); return;
   }
 
+  await executarDryRunJob(jobId);
+}
+
+async function executarDryRunJob(jobId, mensagemInicial='') {
+  if (mensagemInicial) {
+    document.getElementById('log-linhas').innerHTML = '';
+    document.getElementById('log-cursor').style.display = 'inline-block';
+    document.getElementById('log-status-badge').style.display = 'none';
+    document.querySelector('#area-log .chart-hd .chart-title').innerHTML =
+      '<img src="/static/icons/rolar.svg" alt="📜" class="icon-svg"> Verificando dados...';
+    mostrar('area-log');
+    appendLog(mensagemInicial, 'ok');
+  }
   let sse;
   try {
     const response = await fetch(`/processar/stream/${jobId}`, {

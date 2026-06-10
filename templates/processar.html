@@ -79,6 +79,7 @@
     <div class="f-g"><label>Limite</label><input id="kobo-preview-limite" type="number" min="1" max="5000" value="100"></div>
     <button class="btn btn-primary" type="button" id="btn-kobo-previa"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar prévia</button>
     <button class="btn btn-outline" type="button" id="btn-kobo-lote"><img src="/static/icons/tubo_ensaio.svg" alt="" class="icon-svg"> Buscar lote Vetores + Larvas</button>
+    <button class="btn btn-outline" type="button" id="btn-kobo-importar"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Preparar importação</button>
   </div>
   <div id="kobo-previa" class="kobo-preview-empty">Nenhuma prévia carregada.</div>
   <details class="kobo-config-details">
@@ -287,7 +288,7 @@
 .kobo-grid{display:grid;grid-template-columns:minmax(220px,1fr) minmax(220px,1fr) auto;gap:10px;align-items:end;margin-bottom:12px;}
 .kobo-assets{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px;}
 .kobo-actions{display:flex;gap:8px;justify-content:flex-end;}
-.kobo-preview-row{display:grid;grid-template-columns:minmax(130px,.8fr) repeat(3,minmax(120px,.7fr)) auto auto;gap:10px;align-items:end;}
+.kobo-preview-row{display:grid;grid-template-columns:minmax(130px,.8fr) repeat(3,minmax(120px,.7fr)) auto auto auto;gap:10px;align-items:end;}
 .kobo-preview-empty{margin-top:12px;border:1px dashed var(--border);border-radius:var(--radius-sm);padding:14px;color:var(--text3);font-size:12.5px;text-align:center;background:var(--surface2);}
 .kobo-preview-box{margin-top:12px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;}
 .kobo-preview-head{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);}
