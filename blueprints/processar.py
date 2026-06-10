@@ -493,6 +493,75 @@ def kobo_importar_vetores_larvas_iniciar():
     })
 
 
+@bp.route("/api/kobo/importar-formulario/iniciar", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def kobo_importar_formulario_iniciar():
+    data = request.json or {}
+    tipo = (data.get("tipo") or "").strip().upper()
+    if tipo not in list(kobo_api.VISIT_TYPES) + ["LARVAS"]:
+        return jsonify({"erro": "Por enquanto, a importação direta cobre Vetores e Larvas."}), 400
+
+    cfg = kobo_api.load_config(_kobo_config_path())
+    asset_uid = ((cfg.get("assets") or {}).get(tipo) or "").strip()
+    if not asset_uid:
+        return jsonify({"erro": f"UID do formulário {tipo} não configurado."}), 400
+
+    try:
+        records, _ = kobo_api.fetch_submissions(
+            cfg,
+            asset_uid,
+            limit=data.get("limite") or 100,
+            start=data.get("inicio") or None,
+            end=data.get("fim") or None,
+        )
+    except kobo_api.KoboError as exc:
+        return jsonify({"erro": str(exc)}), 400
+
+    if not records:
+        return jsonify({"erro": f"Nenhum registro encontrado no Kobo para {tipo}."}), 400
+
+    job_id = str(uuid.uuid4())
+    job_dir = _job_dir(job_id)
+    os.makedirs(job_dir, exist_ok=True)
+    try:
+        caminhos = kobo_api.write_etl_workbooks(
+            {tipo: records},
+            _config_path(),
+            job_dir,
+            prefix=job_id[:8],
+        )
+    except Exception as exc:
+        shutil.rmtree(job_dir, ignore_errors=True)
+        logging.exception("Falha ao gerar arquivos temporarios da importacao Kobo")
+        return jsonify({"erro": f"Falha ao preparar arquivos temporários: {exc}"}), 400
+
+    nomes = [os.path.basename(caminho) for caminho in caminhos]
+    if not nomes:
+        shutil.rmtree(job_dir, ignore_errors=True)
+        return jsonify({"erro": "Nenhum arquivo temporário foi gerado para a importação."}), 400
+
+    try:
+        registrar_importacao(job_id, nomes, status="kobo_preparado")
+        audit.registrar_evento(
+            get_db,
+            "kobo_importacao_formulario_preparada",
+            entidade="importacoes",
+            entidade_id=job_id,
+            detalhes={"tipo": tipo, "arquivos": nomes, "total": len(records)},
+        )
+    except Exception:
+        logging.exception("Falha ao registrar historico da importacao Kobo")
+
+    return jsonify({
+        "ok": True,
+        "job_id": job_id,
+        "arquivos": nomes,
+        "total": len(records),
+        "por_tipo": {tipo: len(records)},
+    })
+
+
 @bp.route("/processar/iniciar", methods=["POST"])
 @login_required
 @nivel_min("admin")

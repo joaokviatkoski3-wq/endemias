@@ -1668,6 +1668,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("buscarKoboLote", js)
         self.assertIn("prepararKoboImportacao", js)
         self.assertIn("/api/kobo/importar-vetores-larvas/iniciar", js)
+        self.assertIn("/api/kobo/importar-formulario/iniciar", js)
         self.assertIn("Com atenção", js)
 
     def test_assets_compartilhados_respondem_200(self):
@@ -3642,6 +3643,115 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(sumario[0]["visitas_novas"], 1)
             self.assertEqual(sumario[0]["coletas_novas"], 1)
             self.assertEqual(sumario[0]["resultados_novos"], 1)
+
+    def test_kobo_importacao_larvas_prepara_formulario_selecionado(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc, tb):
+                return False
+            def read(self):
+                return json.dumps({"results": [{
+                    "_uuid": "larva-api-1",
+                    "_id": 2,
+                    "_submission_time": "2026-06-10T12:00:00",
+                    "Número do tubito": "T-001",
+                    "Data da coleta": "2026-06-10",
+                    "Aegypt Larvas": "1",
+                }]}).encode("utf-8")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, _ = _client_admin_com_banco_temporario(tmpdir)
+            app_temp.config["KOBO_CONFIG_PATH"] = str(Path(tmpdir) / "kobo_config.json")
+            app_temp.config["UPLOAD_TEMP"] = str(Path(tmpdir) / "uploads_temp")
+            kobo_api_core.save_config(app_temp.config["KOBO_CONFIG_PATH"], {
+                "server_url": "https://kf.kobotoolbox.org",
+                "api_token": "token",
+                "assets": {"LARVAS": "asset-larvas"},
+            })
+
+            with mock.patch("app_core.kobo_api.request.urlopen", return_value=FakeResponse()):
+                resp = client.post("/api/kobo/importar-formulario/iniciar", json={"tipo": "LARVAS", "limite": 100})
+
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertEqual(data["por_tipo"]["LARVAS"], 1)
+            job_dir = Path(app_temp.config["UPLOAD_TEMP"]) / data["job_id"]
+            self.assertEqual(len(data["arquivos"]), 1)
+            self.assertTrue(data["arquivos"][0].startswith("LARVAS_"))
+            self.assertTrue((job_dir / data["arquivos"][0]).exists())
+
+    def test_etl_importa_larvas_sozinhas_em_coletas_existentes(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute(
+                    """INSERT INTO visitas
+                       (id_visita, kobo_uuid, tipo, data, localidade, quarteirao,
+                        logradouro, numero, processado_em)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    ("visita-1", "uuid-visita-1", "TBO", "2026-06-10", "Centro", 5, "Rua A", "10", "2026-06-10T08:00:00"),
+                )
+                conn.execute(
+                    "INSERT INTO coletas (id_coleta, id_visita, num_tubo, tipo_deposito) VALUES (?, ?, ?, ?)",
+                    ("coleta-1", "visita-1", "T-001", "A1"),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            larvas_path = Path(tmpdir) / "LARVAS_teste.xlsx"
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.append([
+                "_uuid",
+                "Número do tubito",
+                "Data da coleta",
+                "Nome do laboratorista",
+                "Data da leitura",
+                "Aegypt Larvas",
+                "Aegypt Pupas",
+                "Aegypt Exúvias",
+                "Aegypt Adulto",
+                "Albopictus Larvas",
+                "Albopictus Pupas",
+                "Albopictus Exúvias",
+                "Albopictus Adulto",
+                "Outra Espécie Larvas",
+                "Outra Espécie Pupas",
+                "Outra Espécie Exúvias",
+                "Outra Espécie Adulto",
+            ])
+            ws.append(["uuid-larva-1", "T-001", "2026-06-10", "Lab", "2026-06-11", 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+            wb.save(larvas_path)
+
+            ok, sumario = etl.processar_upload(
+                [],
+                [str(larvas_path)],
+                db_path,
+                str(ROOT / "config.json"),
+                etl.Logger(),
+                dry_run=False,
+            )
+            self.assertTrue(ok)
+            self.assertEqual(sumario[0]["tipo"], "LARVAS")
+            self.assertEqual(sumario[0]["resultados_novos"], 1)
+
+            conn = sqlite3.connect(db_path)
+            try:
+                resultado = conn.execute(
+                    "SELECT num_tubo, aegypt_larvas, kobo_uuid FROM resultados_laboratorio WHERE id_coleta=?",
+                    ("coleta-1",),
+                ).fetchone()
+                foco = conn.execute(
+                    "SELECT id_visita, num_tubo, tipo_trabalho, gera_notificacao FROM focos_positivos WHERE id_visita=?",
+                    ("visita-1",),
+                ).fetchone()
+            finally:
+                conn.close()
+            self.assertEqual(resultado, ("T-001", 2, "uuid-larva-1"))
+            self.assertEqual(foco, ("visita-1", "T-001", "TBO", 1))
 
 
 class PermissionMatrixTests(unittest.TestCase):

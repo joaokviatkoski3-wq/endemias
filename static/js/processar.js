@@ -329,10 +329,15 @@ async function prepararKoboImportacao() {
   await salvarKoboConfig();
   try {
     setKoboStatus('Preparando...', 'imp-azul');
-    const resp = await fetch('/api/kobo/importar-vetores-larvas/iniciar', {
+    const tipo = document.getElementById('kobo-preview-tipo').value;
+    const endpoint = tipo === 'LARVAS'
+      ? '/api/kobo/importar-formulario/iniciar'
+      : '/api/kobo/importar-vetores-larvas/iniciar';
+    const resp = await fetch(endpoint, {
       method: 'POST',
       headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
       body: JSON.stringify({
+        tipo,
         inicio: document.getElementById('kobo-preview-inicio').value,
         fim: document.getElementById('kobo-preview-fim').value,
         limite: document.getElementById('kobo-preview-limite').value,
@@ -347,7 +352,8 @@ async function prepararKoboImportacao() {
     const arquivos = (data.arquivos || []).join(', ');
     document.getElementById('kobo-previa').className = 'kobo-preview-empty';
     document.getElementById('kobo-previa').textContent = 'Importação preparada. Abrindo a verificação antes da gravação...';
-    await executarDryRunJob(data.job_id, `Kobo: ${data.total || 0} registro(s) preparado(s) em ${data.arquivos?.length || 0} arquivo(s): ${arquivos}`);
+    const origem = tipo === 'LARVAS' ? 'Kobo LARVAS' : 'Kobo Vetores + Larvas';
+    await executarDryRunJob(data.job_id, `${origem}: ${data.total || 0} registro(s) preparado(s) em ${data.arquivos?.length || 0} arquivo(s): ${arquivos}`);
   } catch (e) {
     setKoboStatus('Erro ao preparar', 'imp-vermelho');
     toast('Erro ao preparar importação Kobo: ' + e.message, 'error');

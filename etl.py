@@ -549,6 +549,132 @@ def inserir_foco_visita(cur, id_visita, positivos, visita_row, tipo, cfg_tipo, a
         ))
 
 
+def get_lab_val(row_larva, nome):
+    v = row_larva.get("[LAB] " + nome, row_larva.get(nome))
+    return val_int(v) or 0
+
+
+def inserir_resultado_larva(cur, id_coleta, row_larva):
+    cur.execute("""
+        INSERT OR IGNORE INTO resultados_laboratorio (
+            id_coleta, num_tubo, data_coleta, laboratorista, data_leitura,
+            aegypt_larvas, aegypt_pupas, aegypt_exuvias, aegypt_adulto,
+            albopictus_larvas, albopictus_pupas, albopictus_exuvias, albopictus_adulto,
+            outra_larvas, outra_pupas, outra_exuvias, outra_adulto, kobo_uuid
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    """, (
+        id_coleta, val_str(row_larva.get("Número do tubito")),
+        normalizar_data(row_larva.get("Data da coleta")),
+        val_str(row_larva.get("Nome do laboratorista")),
+        normalizar_data(row_larva.get("Data da leitura")),
+        get_lab_val(row_larva, "Aegypt Larvas"), get_lab_val(row_larva, "Aegypt Pupas"),
+        get_lab_val(row_larva, "Aegypt Exúvias"), get_lab_val(row_larva, "Aegypt Adulto"),
+        get_lab_val(row_larva, "Albopictus Larvas"), get_lab_val(row_larva, "Albopictus Pupas"),
+        get_lab_val(row_larva, "Albopictus Exúvias"), get_lab_val(row_larva, "Albopictus Adulto"),
+        get_lab_val(row_larva, "Outra Espécie Larvas"), get_lab_val(row_larva, "Outra Espécie Pupas"),
+        get_lab_val(row_larva, "Outra Espécie Exúvias"), get_lab_val(row_larva, "Outra Espécie Adulto"),
+        val_str(row_larva.get("_uuid")),
+    ))
+    inserido = cur.rowcount > 0
+    cur.execute("""
+        SELECT id_resultado,
+               aegypt_larvas+aegypt_pupas+aegypt_exuvias+aegypt_adulto AS total_aegypti
+          FROM resultados_laboratorio
+         WHERE id_coleta=?
+         ORDER BY id_resultado DESC
+         LIMIT 1
+    """, (id_coleta,))
+    return inserido, cur.fetchone()
+
+
+def _visita_row_para_foco(row):
+    return {
+        "Data": row["data"],
+        "Localidade": row["localidade"],
+        "Quarteirão": row["quarteirao"],
+        "Logradouro": row["logradouro"],
+        "Número": row["numero"],
+        "Morador": row["morador"],
+        "Tipo do imóvel": row["tipo_imovel"],
+        "Observações": row["observacoes"],
+    }
+
+
+def processar_larvas_em_coletas_existentes(larvas, conn, logger, agora_iso):
+    if not larvas:
+        return {"ok": True, "resultados_novos": 0, "duplicados": 0, "pendentes": 0, "focos": 0}
+
+    cur = conn.cursor()
+    resultados_novos = duplicados = pendentes = 0
+    positivos_por_visita = {}
+
+    for (tubo, data_coleta), row_larva in larvas.items():
+        row = cur.execute("""
+            SELECT c.id_coleta, c.id_visita, c.num_tubo, c.tipo_deposito,
+                   v.tipo, v.data, v.localidade, v.quarteirao, v.logradouro,
+                   v.numero, v.morador, v.tipo_imovel, v.observacoes
+              FROM coletas c
+              JOIN visitas v ON v.id_visita = c.id_visita
+             WHERE TRIM(COALESCE(c.num_tubo,'')) = ?
+               AND v.data = ?
+             LIMIT 1
+        """, (tubo, data_coleta)).fetchone()
+        if not row:
+            pendentes += 1
+            continue
+
+        inserido, res_row = inserir_resultado_larva(cur, row["id_coleta"], row_larva)
+        if inserido:
+            resultados_novos += 1
+        else:
+            duplicados += 1
+        if res_row and (res_row[1] or 0) > 0:
+            item = {
+                "id_resultado": res_row[0],
+                "id_coleta": row["id_coleta"],
+                "num_tubo": row["num_tubo"],
+                "tipo_deposito": row["tipo_deposito"],
+            }
+            positivos_por_visita.setdefault(row["id_visita"], {"row": row, "positivos": []})["positivos"].append(item)
+
+    focos = 0
+    for id_visita, dados in positivos_por_visita.items():
+        row = dados["row"]
+        cfg_tipo = {
+            "col_data": "Data",
+            "col_localidade": "Localidade",
+            "col_quarteirao": "Quarteirão",
+            "col_logradouro": "Logradouro",
+            "col_numero": "Número",
+        }
+        inserir_foco_visita(
+            cur,
+            id_visita,
+            dados["positivos"],
+            _visita_row_para_foco(row),
+            row["tipo"],
+            cfg_tipo,
+            agora_iso,
+        )
+        focos += 1
+
+    if resultados_novos or duplicados or pendentes:
+        logger.log(
+            f"  Larvas em coletas existentes: {resultados_novos} resultado(s) novo(s), "
+            f"{duplicados} duplicado(s), {pendentes} sem coleta.",
+            "ok" if not pendentes else "aviso",
+        )
+    if focos:
+        logger.log(f"  Focos/notificações atualizados por larvas positivas: {focos}", "ok")
+    return {
+        "ok": True,
+        "resultados_novos": resultados_novos,
+        "duplicados": duplicados,
+        "pendentes": pendentes,
+        "focos": focos,
+    }
+
+
 # =============================================================================
 #  PROCESSAMENTO DE UM ARQUIVO
 # =============================================================================
@@ -637,38 +763,9 @@ def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
 
                 row_larva = larvas.get((num_tubo, data_visita))
                 if row_larva is not None:
-                    def get_lab(nome):
-                        v = row_larva.get("[LAB] " + nome, row_larva.get(nome))
-                        return val_int(v) or 0
-
-                    cur.execute("""
-                        INSERT OR IGNORE INTO resultados_laboratorio (
-                            id_coleta, num_tubo, data_coleta, laboratorista, data_leitura,
-                            aegypt_larvas, aegypt_pupas, aegypt_exuvias, aegypt_adulto,
-                            albopictus_larvas, albopictus_pupas, albopictus_exuvias, albopictus_adulto,
-                            outra_larvas, outra_pupas, outra_exuvias, outra_adulto, kobo_uuid
-                        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                    """, (
-                        id_coleta, val_str(row_larva.get("Número do tubito")),
-                        normalizar_data(row_larva.get("Data da coleta")),
-                        val_str(row_larva.get("Nome do laboratorista")),
-                        normalizar_data(row_larva.get("Data da leitura")),
-                        get_lab("Aegypt Larvas"), get_lab("Aegypt Pupas"),
-                        get_lab("Aegypt Exúvias"), get_lab("Aegypt Adulto"),
-                        get_lab("Albopictus Larvas"), get_lab("Albopictus Pupas"),
-                        get_lab("Albopictus Exúvias"), get_lab("Albopictus Adulto"),
-                        get_lab("Outra Espécie Larvas"), get_lab("Outra Espécie Pupas"),
-                        get_lab("Outra Espécie Exúvias"), get_lab("Outra Espécie Adulto"),
-                        val_str(row_larva.get("_uuid")),
-                    ))
-                    resultados_novos += 1
-
-                    # Verificar se é positivo para aegypti
-                    cur.execute("""
-                        SELECT id_resultado, aegypt_larvas+aegypt_pupas+aegypt_exuvias+aegypt_adulto as total
-                        FROM resultados_laboratorio WHERE id_coleta=? ORDER BY id_resultado DESC LIMIT 1
-                    """, (id_coleta,))
-                    res_row = cur.fetchone()
+                    inserido, res_row = inserir_resultado_larva(cur, id_coleta, row_larva)
+                    if inserido:
+                        resultados_novos += 1
                     if res_row and (res_row[1] or 0) > 0:
                         positivos_visita.append({
                             "id_resultado": res_row[0],
@@ -793,6 +890,7 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
         logger.log("  [AVISO] Nenhuma planilha de trabalho enviada.", "aviso")
 
     conn = sqlite3.connect(banco_path)
+    conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")   # FIX DB-01: FK ativas em toda a sessão ETL
     conn.execute("PRAGMA journal_mode = WAL")  # FIX DB-04: consistência com app.py
     auditar_larvas_sem_coleta(conn, larvas_origens, logger)
@@ -861,6 +959,24 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
                 houve_erro = True
         except Exception as e:
             logger.log(f"  [ERRO] {nome}: {e}", "erro")
+            logger.log(traceback.format_exc(), "erro")
+            houve_erro = True
+
+    if larvas:
+        try:
+            resultado_larvas = processar_larvas_em_coletas_existentes(larvas, conn, logger, agora_iso)
+            if resultado_larvas.get("resultados_novos", 0) or (arquivos_larvas and not arquivos_trabalho):
+                sumario.append({
+                    "arquivo": ", ".join(os.path.basename(c) for c in arquivos_larvas) or "LARVAS",
+                    "tipo": "LARVAS",
+                    "visitas_novas": 0,
+                    "coletas_novas": 0,
+                    "animais_novos": 0,
+                    "materiais_novos": 0,
+                    "resultados_novos": resultado_larvas.get("resultados_novos", 0),
+                })
+        except Exception as e:
+            logger.log(f"  [ERRO] LARVAS: {e}", "erro")
             logger.log(traceback.format_exc(), "erro")
             houve_erro = True
 
