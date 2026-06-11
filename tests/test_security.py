@@ -32,6 +32,7 @@ from app_core import dbml as dbml_core
 from app_core import kobo_api as kobo_api_core
 from app_core.excel import excel_safe
 from app_core import modules as modules_core
+from app_core import ovitrampas as ovitrampas_core
 from app_core import bri as bri_core
 from app_core import pontos_estrategicos as pe_core
 from app_core import recolhimentos as recolhimentos_core
@@ -1469,6 +1470,7 @@ class MainPagesSmokeTests(unittest.TestCase):
             "/visitas",
             "/laboratorio",
             "/conta-ovos-sispncd",
+            "/ovitrampas",
             "/esporotricose",
             "/recolhimentos",
             "/amostras-animais",
@@ -2198,6 +2200,56 @@ class MainPagesSmokeTests(unittest.TestCase):
 
 
 class MainApisSmokeTests(unittest.TestCase):
+    def test_ovitrampas_importa_csv_e_evita_duplicidade(self):
+        csv_text = (
+            "Ovitrampa ID;Estado;Município;Distrito;Rua;Número;Complemento;Localização;"
+            "Latitude;Longitude;Ano;Semana;Data do envio da contagem;Ovos;Quem enviou;"
+            "Observação;Lat_lng;Quarteirão;Data da instalação;Data de coleta\n"
+            "1;Paraná;Almirante Tamandaré;TAMBOARA;Rua A;10;Escola;Parede;"
+            "-25,1;-49,2;2026;21;2026-06-01 17:26:10;53;Vanessa;;-25.1,-49.2;"
+            "1269;2026-05-25;2026-05-29\n"
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            csv_path = Path(tmpdir) / "3918-2026-21.csv"
+            csv_path.write_text(csv_text, encoding="utf-8")
+
+            primeiro = ovitrampas_core.importar_csv(db_path, csv_path)
+            segundo = ovitrampas_core.importar_csv(db_path, csv_path)
+            resumo = ovitrampas_core.resumo(db_path, {"ano": "2026", "semana": "21"})
+            lista = ovitrampas_core.listar(db_path, {"busca": "Escola"})
+
+            self.assertEqual(primeiro["inseridos"], 1)
+            self.assertEqual(segundo["duplicados"], 1)
+            self.assertEqual(resumo["totais"]["leituras"], 1)
+            self.assertEqual(resumo["totais"]["ovos"], 53)
+            self.assertEqual(lista["total"], 1)
+            self.assertEqual(lista["registros"][0]["distrito"], "Tamboara")
+
+    def test_api_ovitrampas_importa_csv(self):
+        csv_bytes = (
+            "Ovitrampa ID;Estado;Município;Distrito;Rua;Número;Complemento;Localização;"
+            "Latitude;Longitude;Ano;Semana;Data do envio da contagem;Ovos;Quem enviou;"
+            "Observação;Lat_lng;Quarteirão;Data da instalação;Data de coleta\n"
+            "2;Paraná;Almirante Tamandaré;GRAZIELA;Rua B;20;Loja;Canto;"
+            "-25,3;-49,4;2026;22;2026-06-08 10:00:00;0;Vanessa;;-25.3,-49.4;"
+            "1300;2026-06-01;2026-06-05\n"
+        ).encode("utf-8")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, _ = _client_admin_com_banco_temporario(tmpdir)
+            resp = client.post(
+                "/api/ovitrampas/importar",
+                data={"arquivos": (io.BytesIO(csv_bytes), "3918-2026-22.csv")},
+                content_type="multipart/form-data",
+            )
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertEqual(data["inseridos"], 1)
+
+            resp = client.get("/api/ovitrampas/listar?busca=Rua+B")
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.get_json()["total"], 1)
+
     def test_create_app_permanece_configuravel(self):
         app_temp = endemias_app.create_app({
             "TESTING": True,
@@ -3818,6 +3870,7 @@ class PermissionMatrixTests(unittest.TestCase):
             "/visitas",
             "/laboratorio",
             "/conta-ovos-sispncd",
+            "/ovitrampas",
             "/esporotricose",
             "/notificacoes",
             "/mapa",

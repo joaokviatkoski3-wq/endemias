@@ -96,6 +96,17 @@ MODULES: Tuple[AppModule, ...] = (
         tags=("TBO", "Leitura"),
     ),
     AppModule(
+        key="ovitrampas",
+        title="Ovitrampas",
+        href="/ovitrampas",
+        endpoint="ovitrampas.page",
+        icon="tubo_ensaio.svg",
+        nav_section="Analise",
+        description="Leituras semanais de ovos exportadas do Conta Ovos.",
+        tags=("Conta Ovos", "CSV"),
+        endpoints=("ovitrampas", "ovitrampas.page"),
+    ),
+    AppModule(
         key="esporotricose",
         title="Esporotricose",
         href="/esporotricose",

@@ -34,6 +34,7 @@ from blueprints.exportacoes import bp as exportacoes_bp
 from blueprints.home import bp as home_bp
 from blueprints.mapa import bp as mapa_bp
 from blueprints.notificacoes import bp as notificacoes_bp
+from blueprints.ovitrampas import bp as ovitrampas_bp
 from blueprints.processar import bp as processar_bp
 from blueprints.pontos_estrategicos import bp as pontos_estrategicos_bp
 from blueprints.recolhimentos import bp as recolhimentos_bp
@@ -138,6 +139,7 @@ def _register_blueprints(flask_app):
     flask_app.register_blueprint(home_bp)
     flask_app.register_blueprint(mapa_bp)
     flask_app.register_blueprint(notificacoes_bp)
+    flask_app.register_blueprint(ovitrampas_bp)
     flask_app.register_blueprint(processar_bp)
     flask_app.register_blueprint(pontos_estrategicos_bp)
     flask_app.register_blueprint(recolhimentos_bp)

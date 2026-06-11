@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Ovitrampas{% endblock %}
+{% block page_title %}Ovitrampas{% endblock %}
+
+{% block extra_css %}<style>
+.ovi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;}
+.ovi-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);}
+.ovi-kpi-label{font-size:10px;color:var(--text3);font-weight:800;text-transform:uppercase;}
+.ovi-kpi-value{font-size:26px;color:#0f766e;font-weight:900;line-height:1.1;margin-top:4px;font-variant-numeric:tabular-nums;}
+.ovi-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end;}
+.ovi-upload{display:grid;grid-template-columns:minmax(260px,1fr) auto;gap:10px;align-items:end;}
+.ovi-layout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);gap:14px;}
+.ovi-list{display:flex;flex-direction:column;gap:8px;}
+.ovi-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--surface2);border-radius:var(--radius-sm);font-size:12px;color:var(--text2);}
+.ovi-item strong{color:var(--text);}
+.ovi-badge{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:2px 8px;border-radius:999px;background:rgba(15,118,110,.14);color:#0f766e;font-weight:900;font-size:12px;}
+.ovi-tag{display:inline-flex;border-radius:999px;background:var(--surface2);border:1px solid var(--border);padding:2px 7px;font-size:11px;font-weight:800;color:var(--text2);}
+.ovi-tag.pos{background:rgba(239,68,68,.12);color:#b91c1c;}
+@media(max-width:920px){.ovi-layout,.ovi-upload{grid-template-columns:1fr;}}
+</style>{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><span class="icon"><img src="/static/icons/tubo_ensaio.svg" alt="" class="icon-svg"></span> Ovitrampas</h1>
+  <div class="sub">Leituras semanais exportadas do Conta Ovos</div>
+</div>
+
+<div class="chart-card" style="margin-bottom:16px;">
+  <div class="chart-hd">
+    <div class="chart-title"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar leituras semanais</div>
+    <span class="imp-status imp-cinza" id="ovi-import-status">Aguardando</span>
+  </div>
+  <form id="ovi-form" class="ovi-upload">
+    <div class="f-g"><label>CSV do Conta Ovos</label><input type="file" id="ovi-arquivos" name="arquivos" accept=".csv,text/csv" multiple></div>
+    <button class="btn btn-primary" type="submit"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar CSV</button>
+  </form>
+</div>
+
+<div class="filter-card" style="margin-bottom:16px;">
+  <div class="filter-body open">
+    <div class="ovi-filters">
+      <div class="f-g"><label>Ano</label><input type="number" id="ovi-ano" min="2020" max="2100"></div>
+      <div class="f-g"><label>Semana</label><input type="number" id="ovi-semana" min="1" max="53"></div>
+      <div class="f-g"><label>Localidade</label><select id="ovi-distrito"><option value="">Todas</option>{% for distrito in distritos %}<option value="{{ distrito }}">{{ distrito }}</option>{% endfor %}</select></div>
+      <div class="f-g"><label>Positivas</label><select id="ovi-positivas"><option value="">Todas</option><option value="1">Somente com ovos</option></select></div>
+      <div class="f-g"><label>Pesquisa</label><input type="search" id="ovi-busca" placeholder="ID, rua, complemento..."></div>
+      <button class="btn btn-outline" type="button" id="ovi-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+    </div>
+  </div>
+</div>
+
+<div class="ovi-grid">
+  <div class="ovi-kpi"><div class="ovi-kpi-label">Leituras</div><div class="ovi-kpi-value" id="ovi-leituras">0</div></div>
+  <div class="ovi-kpi"><div class="ovi-kpi-label">Ovitrampas</div><div class="ovi-kpi-value" id="ovi-total-ovitrampas">0</div></div>
+  <div class="ovi-kpi"><div class="ovi-kpi-label">Ovos</div><div class="ovi-kpi-value" id="ovi-ovos">0</div></div>
+  <div class="ovi-kpi"><div class="ovi-kpi-label">Positivas</div><div class="ovi-kpi-value" id="ovi-positivas-kpi">0</div></div>
+  <div class="ovi-kpi"><div class="ovi-kpi-label">Média de ovos</div><div class="ovi-kpi-value" id="ovi-media">0</div></div>
+</div>
+
+<div class="ovi-layout">
+  <div class="chart-card">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Leituras</div>
+      <span class="table-info" id="ovi-info"></span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Semana</th><th>ID</th><th>Localidade</th><th>Endereço</th><th>Quarteirão</th><th>Instalação</th><th>Coleta</th><th>Ovos</th><th>Enviado por</th></tr></thead>
+        <tbody id="ovi-body"></tbody>
+      </table>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:14px;">
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Por localidade</div></div>
+      <div class="ovi-list" id="ovi-distritos"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/calendario.svg" alt="" class="icon-svg"> Semanas recentes</div></div>
+      <div class="ovi-list" id="ovi-semanas"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}<script>
+const oviFmt = new Intl.NumberFormat('pt-BR');
+function oviEscape(value){ return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+function oviParams(busca=false){
+  const p = new URLSearchParams();
+  ['ano','semana','distrito','positivas'].forEach(k => {
+    const el = document.getElementById('ovi-' + k);
+    if (el?.value) p.set(k, el.value);
+  });
+  const termo = document.getElementById('ovi-busca').value.trim();
+  if (busca && termo) p.set('busca', termo);
+  return p;
+}
+async function oviGet(url){
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return await resp.json();
+}
+async function carregarOvitrampas(){
+  const resumo = await oviGet('/api/ovitrampas?' + oviParams(false).toString());
+  const t = resumo.totais || {};
+  document.getElementById('ovi-leituras').textContent = oviFmt.format(t.leituras || 0);
+  document.getElementById('ovi-total-ovitrampas').textContent = oviFmt.format(t.ovitrampas || 0);
+  document.getElementById('ovi-ovos').textContent = oviFmt.format(t.ovos || 0);
+  document.getElementById('ovi-positivas-kpi').textContent = oviFmt.format(t.positivas || 0);
+  document.getElementById('ovi-media').textContent = oviFmt.format(Number(t.media_ovos || 0).toFixed(1));
+  renderLista('ovi-distritos', resumo.por_distrito || [], r => `${oviEscape(r.distrito)}<br><span>${oviFmt.format(r.leituras || 0)} leitura(s), ${oviFmt.format(r.ovitrampas || 0)} ovitrampa(s)</span>`, r => r.ovos);
+  renderLista('ovi-semanas', resumo.por_semana || [], r => `${r.ano} - Semana ${String(r.semana).padStart(2,'0')}<br><span>${oviFmt.format(r.leituras || 0)} leitura(s), ${oviFmt.format(r.positivas || 0)} positiva(s)</span>`, r => r.ovos);
+  await carregarListaOvitrampas();
+}
+function renderLista(id, rows, labelFn, valueFn){
+  document.getElementById(id).innerHTML = rows.map(r => `<div class="ovi-item"><span><strong>${labelFn(r)}</strong></span><span class="ovi-badge">${oviFmt.format(valueFn(r) || 0)}</span></div>`).join('') || '<div class="empty">Nenhum registro.</div>';
+}
+async function carregarListaOvitrampas(){
+  const data = await oviGet('/api/ovitrampas/listar?' + oviParams(true).toString());
+  document.getElementById('ovi-info').textContent = `${oviFmt.format(data.total || 0)} registro(s)`;
+  document.getElementById('ovi-body').innerHTML = (data.registros || []).map(r => {
+    const endereco = [r.rua, r.numero].filter(Boolean).map(oviEscape).join(', ') || '-';
+    const ovos = Number(r.ovos || 0);
+    return `<tr>
+      <td>${r.ano || '-'} / ${String(r.semana || '').padStart(2,'0')}</td>
+      <td><strong>${oviEscape(r.ovitrampa_id)}</strong></td>
+      <td>${oviEscape(r.distrito || '-')}</td>
+      <td>${endereco}<br><span style="color:var(--text3);font-size:11px;">${oviEscape(r.complemento || r.localizacao || '')}</span></td>
+      <td>${oviEscape(r.quarteirao || '-')}</td>
+      <td>${oviEscape(r.data_instalacao || '-')}</td>
+      <td>${oviEscape(r.data_coleta || '-')}</td>
+      <td><span class="ovi-tag ${ovos > 0 ? 'pos' : ''}">${oviFmt.format(ovos)}</span></td>
+      <td>${oviEscape(r.quem_enviou || '-')}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:18px;">Nenhuma leitura encontrada.</td></tr>';
+}
+document.getElementById('ovi-atualizar').addEventListener('click', () => carregarOvitrampas().catch(e => toast('Erro ao carregar ovitrampas: ' + e.message, 'error')));
+document.getElementById('ovi-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarListaOvitrampas().catch(err => toast('Erro na busca: ' + err.message, 'error')); });
+document.getElementById('ovi-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const files = document.getElementById('ovi-arquivos').files;
+  if (!files.length) return toast('Selecione ao menos um CSV.', 'warning');
+  const status = document.getElementById('ovi-import-status');
+  status.className = 'imp-status imp-azul';
+  status.textContent = 'Importando...';
+  const form = new FormData();
+  Array.from(files).forEach(file => form.append('arquivos', file));
+  try {
+    const resp = await fetch('/api/ovitrampas/importar', {method:'POST', headers:{'X-CSRFToken': getCsrf()}, body:form});
+    const data = await resp.json();
+    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
+    status.className = data.erros?.length ? 'imp-status imp-azul' : 'imp-status imp-verde';
+    status.textContent = `${oviFmt.format(data.inseridos || 0)} novo(s), ${oviFmt.format(data.duplicados || 0)} duplicado(s)`;
+    toast('Importação de ovitrampas concluída.', data.erros?.length ? 'warning' : 'success');
+    await carregarOvitrampas();
+  } catch (err) {
+    status.className = 'imp-status imp-vermelho';
+    status.textContent = 'Erro';
+    toast('Erro ao importar ovitrampas: ' + err.message, 'error');
+  }
+});
+carregarOvitrampas().catch(e => toast('Erro ao carregar ovitrampas: ' + e.message, 'error'));
+</script>{% endblock %}
