@@ -2359,6 +2359,30 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertIn("Instalação de ovitrampas", ovitrampa[0]["title"])
             self.assertEqual(ovitrampa[0]["extendedProps"]["agentes"], "Agente Ovitrampa")
 
+    def test_ovitrampas_calendario_feriado_nao_aparece_na_agenda(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, _ = _client_admin_com_banco_temporario(tmpdir)
+
+            resp = client.post("/api/ovitrampas/calendario/eventos", json={
+                "data": "2026-02-16",
+                "movimento": "feriado",
+                "titulo": "Carnaval",
+                "observacoes": "Sem movimento de campo",
+            })
+            self.assertEqual(resp.status_code, 201)
+            evento = resp.get_json()["evento"]
+            self.assertEqual(evento["movimento_label"], "Feriado")
+            self.assertEqual(evento["titulo"], "Carnaval")
+
+            resp = client.get("/api/ovitrampas/calendario?ano=2026")
+            eventos_calendario = resp.get_json()["eventos"]
+            self.assertTrue(any(e["movimento"] == "feriado" for e in eventos_calendario))
+
+            resp = client.get("/api/agenda/eventos?start=2026-02-01&end=2026-02-28")
+            self.assertEqual(resp.status_code, 200)
+            eventos_agenda = resp.get_json()
+            self.assertFalse(any(e["extendedProps"].get("fonte") == "OVITRAMPA" for e in eventos_agenda))
+
     def test_create_app_permanece_configuravel(self):
         app_temp = endemias_app.create_app({
             "TESTING": True,

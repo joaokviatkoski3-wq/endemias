@@ -17,6 +17,7 @@ MOVIMENTOS = {
     "instalacao": "Instalação",
     "troca": "Troca",
     "retirada": "Retirada",
+    "feriado": "Feriado",
 }
 
 GRUPOS_PADRAO = (
@@ -97,8 +98,9 @@ def ensure_schema(conn):
         CREATE TABLE IF NOT EXISTS ovitrampas_calendario_eventos (
             id_evento     INTEGER PRIMARY KEY AUTOINCREMENT,
             data          DATE NOT NULL UNIQUE,
-            movimento     TEXT NOT NULL CHECK(movimento IN ('instalacao','troca','retirada')),
-            id_grupo      INTEGER NOT NULL REFERENCES ovitrampas_calendario_grupos(id_grupo),
+            movimento     TEXT NOT NULL CHECK(movimento IN ('instalacao','troca','retirada','feriado')),
+            titulo        TEXT,
+            id_grupo      INTEGER REFERENCES ovitrampas_calendario_grupos(id_grupo),
             ciclo         TEXT,
             observacoes   TEXT,
             criado_por    TEXT,
@@ -122,6 +124,7 @@ def ensure_schema(conn):
         "data_leitura": "DATE",
     })
     conn.execute("CREATE INDEX IF NOT EXISTS idx_ovitrampas_laboratorista ON ovitrampas_leituras(id_laboratorista)")
+    _migrar_calendario_schema(conn)
     _semear_grupos_padrao(conn)
 
 
@@ -144,6 +147,42 @@ def _semear_grupos_padrao(conn):
                 VALUES (?, ?, ?, 1, ?, ?)""",
             (nome, localidades, cor, agora, agora),
         )
+
+
+def _migrar_calendario_schema(conn):
+    sql = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+        (CAL_EVENTOS_TABLE,),
+    ).fetchone()
+    if not sql:
+        return
+    table_sql = sql[0] or ""
+    precisa = "feriado" not in table_sql or "id_grupo      INTEGER NOT NULL" in table_sql or "titulo" not in table_sql
+    if not precisa:
+        return
+    conn.executescript(f"""
+        ALTER TABLE {CAL_EVENTOS_TABLE} RENAME TO {CAL_EVENTOS_TABLE}_old;
+        CREATE TABLE {CAL_EVENTOS_TABLE} (
+            id_evento     INTEGER PRIMARY KEY AUTOINCREMENT,
+            data          DATE NOT NULL UNIQUE,
+            movimento     TEXT NOT NULL CHECK(movimento IN ('instalacao','troca','retirada','feriado')),
+            titulo        TEXT,
+            id_grupo      INTEGER REFERENCES {CAL_GRUPOS_TABLE}(id_grupo),
+            ciclo         TEXT,
+            observacoes   TEXT,
+            criado_por    TEXT,
+            criado_em     TEXT NOT NULL,
+            atualizado_em TEXT
+        );
+        INSERT INTO {CAL_EVENTOS_TABLE}
+            (id_evento, data, movimento, titulo, id_grupo, ciclo, observacoes, criado_por, criado_em, atualizado_em)
+        SELECT
+            id_evento, data, movimento, NULL, id_grupo, ciclo, observacoes, criado_por, criado_em, atualizado_em
+        FROM {CAL_EVENTOS_TABLE}_old;
+        DROP TABLE {CAL_EVENTOS_TABLE}_old;
+    """)
+    conn.execute(f"CREATE INDEX IF NOT EXISTS idx_ovitrampas_cal_eventos_data ON {CAL_EVENTOS_TABLE}(data)")
+    conn.execute(f"CREATE INDEX IF NOT EXISTS idx_ovitrampas_cal_eventos_grupo ON {CAL_EVENTOS_TABLE}(id_grupo)")
 
 
 def importar_pasta(db_path, pasta, logger=None):
@@ -386,7 +425,7 @@ def calendario_dados(db_path, ano):
             f"""SELECT e.*, g.nome AS grupo_nome, g.localidades AS grupo_localidades, g.cor AS grupo_cor,
                        GROUP_CONCAT(a.id_agente || ':' || a.nome, '|') AS agentes_raw
                   FROM {CAL_EVENTOS_TABLE} e
-                  JOIN {CAL_GRUPOS_TABLE} g ON g.id_grupo=e.id_grupo
+                  LEFT JOIN {CAL_GRUPOS_TABLE} g ON g.id_grupo=e.id_grupo
                   LEFT JOIN {CAL_AGENTES_TABLE} ea ON ea.id_evento=e.id_evento
                   LEFT JOIN agentes a ON a.id_agente=ea.id_agente
                  WHERE substr(e.data, 1, 4)=?
@@ -465,32 +504,33 @@ def salvar_evento_calendario(db_path, dados, usuario_nome="sistema", id_evento=N
     conn = db_core.connect(db_path)
     try:
         ensure_schema(conn)
-        grupo = conn.execute(
-            f"SELECT id_grupo FROM {CAL_GRUPOS_TABLE} WHERE id_grupo=? AND ativo=1",
-            (payload["id_grupo"],),
-        ).fetchone()
-        if not grupo:
-            raise ValueError("Selecione um grupo ativo.")
+        if payload["movimento"] != "feriado":
+            grupo = conn.execute(
+                f"SELECT id_grupo FROM {CAL_GRUPOS_TABLE} WHERE id_grupo=? AND ativo=1",
+                (payload["id_grupo"],),
+            ).fetchone()
+            if not grupo:
+                raise ValueError("Selecione um grupo ativo.")
         if id_evento:
             existe = conn.execute(f"SELECT 1 FROM {CAL_EVENTOS_TABLE} WHERE id_evento=?", (id_evento,)).fetchone()
             if not existe:
                 raise ValueError("Evento nao encontrado.")
             conn.execute(
                 f"""UPDATE {CAL_EVENTOS_TABLE}
-                       SET data=?, movimento=?, id_grupo=?, ciclo=?, observacoes=?, atualizado_em=?
+                       SET data=?, movimento=?, titulo=?, id_grupo=?, ciclo=?, observacoes=?, atualizado_em=?
                      WHERE id_evento=?""",
                 (
-                    payload["data"], payload["movimento"], payload["id_grupo"], payload["ciclo"],
+                    payload["data"], payload["movimento"], payload["titulo"], payload["id_grupo"], payload["ciclo"],
                     payload["observacoes"], agora, id_evento,
                 ),
             )
         else:
             cur = conn.execute(
                 f"""INSERT INTO {CAL_EVENTOS_TABLE}
-                    (data, movimento, id_grupo, ciclo, observacoes, criado_por, criado_em, atualizado_em)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (data, movimento, titulo, id_grupo, ciclo, observacoes, criado_por, criado_em, atualizado_em)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    payload["data"], payload["movimento"], payload["id_grupo"], payload["ciclo"],
+                    payload["data"], payload["movimento"], payload["titulo"], payload["id_grupo"], payload["ciclo"],
                     payload["observacoes"], usuario_nome, agora, agora,
                 ),
             )
@@ -515,7 +555,7 @@ def calendario_evento(db_path, id_evento):
             f"""SELECT e.*, g.nome AS grupo_nome, g.localidades AS grupo_localidades, g.cor AS grupo_cor,
                        GROUP_CONCAT(a.id_agente || ':' || a.nome, '|') AS agentes_raw
                   FROM {CAL_EVENTOS_TABLE} e
-                  JOIN {CAL_GRUPOS_TABLE} g ON g.id_grupo=e.id_grupo
+                  LEFT JOIN {CAL_GRUPOS_TABLE} g ON g.id_grupo=e.id_grupo
                   LEFT JOIN {CAL_AGENTES_TABLE} ea ON ea.id_evento=e.id_evento
                   LEFT JOIN agentes a ON a.id_agente=ea.id_agente
                  WHERE e.id_evento=?
@@ -557,6 +597,7 @@ def eventos_agenda(db_path, inicio, fim):
                   LEFT JOIN {CAL_AGENTES_TABLE} ea ON ea.id_evento=e.id_evento
                   LEFT JOIN agentes a ON a.id_agente=ea.id_agente
                  WHERE e.data BETWEEN ? AND ?
+                   AND e.movimento <> 'feriado'
                  GROUP BY e.id_evento
                  ORDER BY e.data""",
             (str(inicio)[:10], str(fim)[:10]),
@@ -672,6 +713,10 @@ def _grupo_dict(row):
 def _cal_evento_dict(row):
     item = dict(row)
     item["movimento_label"] = MOVIMENTOS.get(item.get("movimento"), item.get("movimento") or "")
+    if item.get("movimento") == "feriado":
+        item["grupo_nome"] = item.get("titulo") or "Feriado"
+        item["grupo_localidades"] = ""
+        item["grupo_cor"] = "#94a3b8"
     raw = item.pop("agentes_raw", "") or ""
     item["agentes"] = [
         {"id_agente": int(x.split(":", 1)[0]), "nome": x.split(":", 1)[1]}
@@ -690,12 +735,16 @@ def _cal_evento_payload(dados):
     if movimento not in MOVIMENTOS:
         raise ValueError("Movimento invalido.")
     id_grupo = _int(dados.get("id_grupo"))
-    if not id_grupo:
+    if movimento != "feriado" and not id_grupo:
         raise ValueError("Selecione o grupo.")
+    titulo = _text(dados.get("titulo"))
+    if movimento == "feriado" and not titulo:
+        raise ValueError("Informe o título do feriado.")
     return {
         "data": data,
         "movimento": movimento,
-        "id_grupo": id_grupo,
+        "titulo": titulo if movimento == "feriado" else None,
+        "id_grupo": id_grupo if movimento != "feriado" else None,
         "ciclo": _text(dados.get("ciclo")),
         "observacoes": _text(dados.get("observacoes")),
         "agentes": _parse_ids(dados.get("agentes")),

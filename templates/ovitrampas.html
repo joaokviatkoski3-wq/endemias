@@ -211,7 +211,8 @@
     <input type="hidden" id="ovi-cal-id">
     <div class="ovi-modal-grid">
       <div class="f-g"><label>Data</label><input type="date" id="ovi-cal-data"></div>
-      <div class="f-g"><label>Movimento</label><select id="ovi-cal-movimento"><option value="instalacao">Instalação</option><option value="troca">Troca</option><option value="retirada">Retirada</option></select></div>
+      <div class="f-g"><label>Movimento</label><select id="ovi-cal-movimento"><option value="instalacao">Instalação</option><option value="troca">Troca</option><option value="retirada">Retirada</option><option value="feriado">Feriado</option></select></div>
+      <div class="f-g" id="ovi-cal-titulo-wrap" style="display:none;"><label>Título do feriado</label><input type="text" id="ovi-cal-titulo" placeholder="Ex: Carnaval"></div>
       <div class="f-g"><label>Grupo</label><select id="ovi-cal-grupo"></select></div>
       <div class="f-g"><label>Ciclo</label><input type="text" id="ovi-cal-ciclo" placeholder="Ex: Ciclo 1"></div>
     </div>
@@ -304,6 +305,7 @@ function oviGrupoById(id){
   return oviCalState.grupos.find(g => String(g.id_grupo) === String(id));
 }
 function oviEventoTitulo(ev){
+  if (ev.movimento === 'feriado') return `Feriado - ${ev.titulo || ev.grupo_nome || 'Feriado'}`;
   const grupo = ev.grupo_nome || oviGrupoById(ev.id_grupo)?.nome || '';
   return `${ev.movimento_label || ev.movimento} de ovitrampas - ${grupo}`;
 }
@@ -469,12 +471,14 @@ function abrirModalCalendario(data, evento=null){
   document.getElementById('ovi-cal-id').value = evento?.id_evento || '';
   document.getElementById('ovi-cal-data').value = evento?.data || data || oviDateKey(new Date());
   document.getElementById('ovi-cal-movimento').value = evento?.movimento || 'instalacao';
+  document.getElementById('ovi-cal-titulo').value = evento?.titulo || '';
   document.getElementById('ovi-cal-grupo').value = evento?.id_grupo || oviCalState.grupos.find(g => g.ativo)?.id_grupo || '';
   document.getElementById('ovi-cal-ciclo').value = evento?.ciclo || '';
   document.getElementById('ovi-cal-observacoes').value = evento?.observacoes || '';
   document.getElementById('ovi-cal-modal-title').textContent = evento ? 'Editar movimento de ovitrampas' : 'Novo movimento de ovitrampas';
   document.getElementById('ovi-cal-excluir').style.display = evento ? '' : 'none';
   renderAgentesCalendario(evento?.agentes || []);
+  atualizarCamposMovimento();
   document.getElementById('ovi-cal-modal').style.display = 'flex';
 }
 function fecharModalCalendario(){
@@ -487,14 +491,24 @@ function renderAgentesCalendario(selecionados){
   `).join('') || '<div class="empty">Nenhum agente ativo cadastrado.</div>';
 }
 function payloadCalendario(){
+  const movimento = document.getElementById('ovi-cal-movimento').value;
   return {
     data: document.getElementById('ovi-cal-data').value,
-    movimento: document.getElementById('ovi-cal-movimento').value,
-    id_grupo: document.getElementById('ovi-cal-grupo').value,
+    movimento,
+    titulo: document.getElementById('ovi-cal-titulo').value,
+    id_grupo: movimento === 'feriado' ? null : document.getElementById('ovi-cal-grupo').value,
     ciclo: document.getElementById('ovi-cal-ciclo').value,
     observacoes: document.getElementById('ovi-cal-observacoes').value,
-    agentes: Array.from(document.querySelectorAll('#ovi-cal-agentes input:checked')).map(el => el.value),
+    agentes: movimento === 'feriado' ? [] : Array.from(document.querySelectorAll('#ovi-cal-agentes input:checked')).map(el => el.value),
   };
+}
+function atualizarCamposMovimento(){
+  const feriado = document.getElementById('ovi-cal-movimento').value === 'feriado';
+  document.getElementById('ovi-cal-titulo-wrap').style.display = feriado ? '' : 'none';
+  document.getElementById('ovi-cal-grupo').closest('.f-g').style.display = feriado ? 'none' : '';
+  document.getElementById('ovi-cal-agentes').closest('.f-g').style.display = feriado ? 'none' : '';
+  document.getElementById('ovi-cal-ciclo').closest('.f-g').style.display = feriado ? 'none' : '';
+  document.getElementById('ovi-cal-modal-title').textContent = feriado ? 'Feriado no calendário' : 'Movimento de ovitrampas';
 }
 function abrirModalGrupo(grupo=null){
   document.getElementById('ovi-grupo-id').value = grupo?.id_grupo || '';
@@ -536,6 +550,7 @@ document.getElementById('ovi-cal-novo').addEventListener('click', () => abrirMod
 document.getElementById('ovi-grupo-novo').addEventListener('click', () => abrirModalGrupo());
 document.getElementById('ovi-cal-fechar').addEventListener('click', fecharModalCalendario);
 document.getElementById('ovi-cal-cancelar').addEventListener('click', fecharModalCalendario);
+document.getElementById('ovi-cal-movimento').addEventListener('change', atualizarCamposMovimento);
 document.getElementById('ovi-grupo-fechar').addEventListener('click', fecharModalGrupo);
 document.getElementById('ovi-grupo-cancelar').addEventListener('click', fecharModalGrupo);
 document.addEventListener('click', async e => {
