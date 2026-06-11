@@ -310,9 +310,24 @@ function oviEventoTitulo(ev){
   return `${ev.movimento_label || ev.movimento} de ovitrampas - ${grupo}`;
 }
 async function oviGet(url){
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  return await resp.json();
+  return await oviFetchJson(url);
+}
+async function oviFetchJson(url, options={}){
+  const headers = {'X-Requested-With':'XMLHttpRequest', ...(options.headers || {})};
+  const resp = await fetch(url, {...options, headers});
+  const text = await resp.text();
+  let data = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (err) {
+      if (resp.status === 403) throw new Error('Sem permissão para fazer esta ação.');
+      if (resp.status === 400) throw new Error('Não foi possível concluir. Recarregue a página e tente novamente.');
+      throw new Error(`Resposta inesperada do servidor (HTTP ${resp.status}). Recarregue a página e tente novamente.`);
+    }
+  }
+  if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
+  return data;
 }
 async function carregarOvitrampas(){
   const resumo = await oviGet('/api/ovitrampas?' + oviParams(false).toString());
@@ -573,13 +588,11 @@ document.addEventListener('click', async e => {
     data_leitura: document.querySelector(`[data-ovi-data="${CSS.escape(leituraId)}"]`)?.value || null,
   };
   try {
-    const resp = await fetch('/api/ovitrampas/leituras/' + encodeURIComponent(leituraId), {
+    await oviFetchJson('/api/ovitrampas/leituras/' + encodeURIComponent(leituraId), {
       method:'PUT',
       headers:{'Content-Type':'application/json','X-CSRFToken': getCsrf()},
       body: JSON.stringify(payload),
     });
-    const data = await resp.json();
-    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
     toast('Leitura atualizada.', 'success');
   } catch (err) {
     toast('Erro ao salvar leitura: ' + err.message, 'error');
@@ -589,13 +602,11 @@ document.getElementById('ovi-cal-salvar').addEventListener('click', async () => 
   const id = document.getElementById('ovi-cal-id').value;
   const url = id ? `/api/ovitrampas/calendario/eventos/${encodeURIComponent(id)}` : '/api/ovitrampas/calendario/eventos';
   try {
-    const resp = await fetch(url, {
+    await oviFetchJson(url, {
       method: id ? 'PUT' : 'POST',
       headers:{'Content-Type':'application/json','X-CSRFToken': getCsrf()},
       body: JSON.stringify(payloadCalendario()),
     });
-    const data = await resp.json();
-    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
     fecharModalCalendario();
     toast('Movimento de ovitrampas salvo.', 'success');
     await carregarCalendario();
@@ -607,9 +618,7 @@ document.getElementById('ovi-cal-excluir').addEventListener('click', async () =>
   const id = document.getElementById('ovi-cal-id').value;
   if (!id || !confirm('Excluir este movimento de ovitrampas?')) return;
   try {
-    const resp = await fetch(`/api/ovitrampas/calendario/eventos/${encodeURIComponent(id)}`, {method:'DELETE', headers:{'X-CSRFToken': getCsrf()}});
-    const data = await resp.json();
-    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
+    await oviFetchJson(`/api/ovitrampas/calendario/eventos/${encodeURIComponent(id)}`, {method:'DELETE', headers:{'X-CSRFToken': getCsrf()}});
     fecharModalCalendario();
     toast('Movimento excluído.', 'success');
     await carregarCalendario();
@@ -621,13 +630,11 @@ document.getElementById('ovi-grupo-salvar').addEventListener('click', async () =
   const id = document.getElementById('ovi-grupo-id').value;
   const url = id ? `/api/ovitrampas/calendario/grupos/${encodeURIComponent(id)}` : '/api/ovitrampas/calendario/grupos';
   try {
-    const resp = await fetch(url, {
+    await oviFetchJson(url, {
       method: id ? 'PUT' : 'POST',
       headers:{'Content-Type':'application/json','X-CSRFToken': getCsrf()},
       body: JSON.stringify(payloadGrupo()),
     });
-    const data = await resp.json();
-    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
     fecharModalGrupo();
     toast('Grupo salvo.', 'success');
     await carregarCalendario();
@@ -639,9 +646,7 @@ document.getElementById('ovi-grupo-excluir').addEventListener('click', async () 
   const id = document.getElementById('ovi-grupo-id').value;
   if (!id || !confirm('Excluir este grupo?')) return;
   try {
-    const resp = await fetch(`/api/ovitrampas/calendario/grupos/${encodeURIComponent(id)}`, {method:'DELETE', headers:{'X-CSRFToken': getCsrf()}});
-    const data = await resp.json();
-    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
+    await oviFetchJson(`/api/ovitrampas/calendario/grupos/${encodeURIComponent(id)}`, {method:'DELETE', headers:{'X-CSRFToken': getCsrf()}});
     fecharModalGrupo();
     toast('Grupo excluído.', 'success');
     await carregarCalendario();
@@ -659,9 +664,7 @@ document.getElementById('ovi-form').addEventListener('submit', async e => {
   const form = new FormData();
   Array.from(files).forEach(file => form.append('arquivos', file));
   try {
-    const resp = await fetch('/api/ovitrampas/importar', {method:'POST', headers:{'X-CSRFToken': getCsrf()}, body:form});
-    const data = await resp.json();
-    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
+    const data = await oviFetchJson('/api/ovitrampas/importar', {method:'POST', headers:{'X-CSRFToken': getCsrf()}, body:form});
     status.className = data.erros?.length ? 'imp-status imp-azul' : 'imp-status imp-verde';
     status.textContent = `${oviFmt.format(data.inseridos || 0)} novo(s), ${oviFmt.format(data.duplicados || 0)} duplicado(s)`;
     toast('Importação de leituras concluída.', data.erros?.length ? 'warning' : 'success');
@@ -682,9 +685,7 @@ document.getElementById('ovi-arm-form').addEventListener('submit', async e => {
   const form = new FormData();
   form.append('arquivo', file);
   try {
-    const resp = await fetch('/api/ovitrampas/armadilhas/importar', {method:'POST', headers:{'X-CSRFToken': getCsrf()}, body:form});
-    const data = await resp.json();
-    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
+    const data = await oviFetchJson('/api/ovitrampas/armadilhas/importar', {method:'POST', headers:{'X-CSRFToken': getCsrf()}, body:form});
     status.className = data.erros?.length ? 'imp-status imp-azul' : 'imp-status imp-verde';
     status.textContent = `${oviFmt.format(data.inseridos || 0)} nova(s), ${oviFmt.format(data.atualizados || 0)} atualizada(s)`;
     toast('Cadastro de armadilhas atualizado.', data.erros?.length ? 'warning' : 'success');

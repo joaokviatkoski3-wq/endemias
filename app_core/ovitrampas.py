@@ -125,6 +125,7 @@ def ensure_schema(conn):
     })
     conn.execute("CREATE INDEX IF NOT EXISTS idx_ovitrampas_laboratorista ON ovitrampas_leituras(id_laboratorista)")
     _migrar_calendario_schema(conn)
+    _migrar_calendario_agentes_schema(conn)
     _semear_grupos_padrao(conn)
 
 
@@ -183,6 +184,35 @@ def _migrar_calendario_schema(conn):
     """)
     conn.execute(f"CREATE INDEX IF NOT EXISTS idx_ovitrampas_cal_eventos_data ON {CAL_EVENTOS_TABLE}(data)")
     conn.execute(f"CREATE INDEX IF NOT EXISTS idx_ovitrampas_cal_eventos_grupo ON {CAL_EVENTOS_TABLE}(id_grupo)")
+
+
+def _migrar_calendario_agentes_schema(conn):
+    sql = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+        (CAL_AGENTES_TABLE,),
+    ).fetchone()
+    if not sql:
+        return
+    table_sql = sql[0] or ""
+    if f'REFERENCES "{CAL_EVENTOS_TABLE}_old"' not in table_sql and f"REFERENCES {CAL_EVENTOS_TABLE}_old" not in table_sql:
+        return
+    conn.executescript(f"""
+        ALTER TABLE {CAL_AGENTES_TABLE} RENAME TO {CAL_AGENTES_TABLE}_old;
+        CREATE TABLE {CAL_AGENTES_TABLE} (
+            id_evento INTEGER NOT NULL REFERENCES {CAL_EVENTOS_TABLE}(id_evento) ON DELETE CASCADE,
+            id_agente INTEGER NOT NULL REFERENCES agentes(id_agente),
+            PRIMARY KEY (id_evento, id_agente)
+        );
+        INSERT OR IGNORE INTO {CAL_AGENTES_TABLE} (id_evento, id_agente)
+        SELECT old.id_evento, old.id_agente
+          FROM {CAL_AGENTES_TABLE}_old old
+         WHERE EXISTS (
+               SELECT 1 FROM {CAL_EVENTOS_TABLE} e
+                WHERE e.id_evento = old.id_evento
+         );
+        DROP TABLE {CAL_AGENTES_TABLE}_old;
+        CREATE INDEX IF NOT EXISTS idx_ovitrampas_cal_agentes_agente ON {CAL_AGENTES_TABLE}(id_agente);
+    """)
 
 
 def importar_pasta(db_path, pasta, logger=None):

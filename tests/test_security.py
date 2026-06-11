@@ -2383,6 +2383,70 @@ class MainApisSmokeTests(unittest.TestCase):
             eventos_agenda = resp.get_json()
             self.assertFalse(any(e["extendedProps"].get("fonte") == "OVITRAMPA" for e in eventos_agenda))
 
+    def test_ovitrampas_calendario_migra_vinculo_agentes_apontando_tabela_antiga(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            ovitrampas_core.calendario_dados(db_path, 2026)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.executescript(
+                    """
+                    DROP TABLE ovitrampas_calendario_agentes;
+                    CREATE TABLE ovitrampas_calendario_agentes (
+                        id_evento INTEGER NOT NULL REFERENCES "ovitrampas_calendario_eventos_old"(id_evento) ON DELETE CASCADE,
+                        id_agente INTEGER NOT NULL REFERENCES agentes(id_agente),
+                        PRIMARY KEY (id_evento, id_agente)
+                    );
+                    """
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            evento = ovitrampas_core.salvar_evento_calendario(db_path, {
+                "data": "2026-12-25",
+                "movimento": "feriado",
+                "titulo": "Natal",
+            })
+
+            conn = sqlite3.connect(db_path)
+            try:
+                destinos = [row[2] for row in conn.execute("PRAGMA foreign_key_list(ovitrampas_calendario_agentes)")]
+            finally:
+                conn.close()
+            self.assertEqual(evento["titulo"], "Natal")
+            self.assertIn("ovitrampas_calendario_eventos", destinos)
+            self.assertNotIn("ovitrampas_calendario_eventos_old", destinos)
+
+    def test_ovitrampas_fetch_com_csrf_invalido_retorna_json(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            app_temp = endemias_app.create_app({
+                "TESTING": True,
+                "DB_PATH": db_path,
+                "WTF_CSRF_ENABLED": True,
+            })
+            client = app_temp.test_client()
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                usuario = conn.execute(
+                    "SELECT id_usuario, nome, nivel FROM usuarios WHERE usuario='admin'"
+                ).fetchone()
+            finally:
+                conn.close()
+            _login_client_com_usuario(client, dict(usuario))
+
+            resp = client.post(
+                "/api/ovitrampas/calendario/eventos",
+                json={"data": "2026-02-16", "movimento": "feriado", "titulo": "Carnaval"},
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
+
+            self.assertEqual(resp.status_code, 400)
+            self.assertTrue(resp.is_json)
+            self.assertIn("Token de seguranca", resp.get_json()["erro"])
+
     def test_create_app_permanece_configuravel(self):
         app_temp = endemias_app.create_app({
             "TESTING": True,

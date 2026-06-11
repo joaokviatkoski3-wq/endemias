@@ -30,23 +30,32 @@ def invalidar_cache_globals():
 
 
 def register_error_handlers(app):
+    def _quer_json():
+        return request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
     @app.errorhandler(CSRFError)
     def handle_csrf_error(e):
         logging.warning("CSRFError: %s | IP: %s | URL: %s", e.description, request.remote_addr, request.url)
-        if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        if _quer_json():
             return jsonify({"erro": "Token de seguranca expirado. Recarregue a pagina e tente novamente."}), 400
         return render_template("erro_csrf.html"), 400
 
     @app.errorhandler(404)
     def err404(e):
+        if _quer_json():
+            return jsonify({"erro": "Recurso nao encontrado."}), 404
         return render_template("404.html"), 404
 
     @app.errorhandler(500)
     def err500(e):
+        if _quer_json():
+            return jsonify({"erro": "Erro interno do servidor."}), 500
         return render_template("500.html"), 500
 
     @app.errorhandler(403)
     def err403(e):
+        if _quer_json():
+            return jsonify({"erro": "Sem permissao para fazer esta acao."}), 403
         return render_template("403.html"), 403
 
 
