@@ -1,5 +1,6 @@
 import hashlib
 import re
+import unicodedata
 from datetime import datetime
 
 import pandas as pd
@@ -28,6 +29,8 @@ LOCALIDADES_PADRAO = {
     "são venâncio": "São Venâncio",
     "sao venâncio": "São Venâncio",
     "são venancio": "São Venâncio",
+    "grasiela": "Graziela",
+    "graziela": "Graziela",
     "tangua": "Tanguá",
     "tanguá": "Tanguá",
 }
@@ -105,18 +108,59 @@ def ensure_schema(conn):
     )
 
 
+def _norm_col(value):
+    text = unicodedata.normalize("NFD", str(value or ""))
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    return re.sub(r"[^a-z0-9]+", "", text.casefold())
+
+
+def _has_col(columns, candidates):
+    col_norms = [_norm_col(col) for col in columns]
+    for candidate in candidates:
+        wanted = _norm_col(candidate)
+        if any(col == wanted or col.endswith(wanted) for col in col_norms):
+            return True
+    return False
+
+
+def _row_get(row, candidates):
+    for candidate in candidates:
+        if candidate in row.index:
+            value = row.get(candidate)
+            if not _is_empty(value):
+                return value
+    indexed = [(_norm_col(col), col) for col in row.index]
+    for candidate in candidates:
+        wanted = _norm_col(candidate)
+        for col_norm, col in indexed:
+            if col_norm == wanted or col_norm.endswith(wanted):
+                value = row.get(col)
+                if not _is_empty(value):
+                    return value
+    return None
+
+
+def _is_empty(value):
+    if value is None:
+        return True
+    try:
+        if pd.isna(value):
+            return True
+    except Exception:
+        pass
+    return str(value).strip() == ""
+
+
 def is_new_format(path):
     df = pd.read_excel(path, sheet_name=0, nrows=1, engine="openpyxl")
-    columns = set(df.columns)
-    required = {
-        "start",
-        "end",
-        "Dados do morador/Hora Inicio",
-        "Hora Final",
-        "Dados do morador/Agentes",
-        "meta/rootUuid",
-    }
-    return required.issubset(columns)
+    return (
+        _has_col(df.columns, ["start"])
+        and _has_col(df.columns, ["end"])
+        and _has_col(df.columns, ["Dados do morador/Hora Inicio", "Hora_inicio"])
+        and _has_col(df.columns, ["Hora Final", "Hora_fim"])
+        and _has_col(df.columns, ["Dados do morador/Agentes", "Agentes"])
+        and _has_col(df.columns, ["meta/rootUuid", "_uuid", "meta/instanceID"])
+    )
 
 
 def processar_arquivo(path, conn, logger, agora_iso, dry_run=False, aceitar_legado=False):
@@ -160,9 +204,10 @@ def processar_arquivo(path, conn, logger, agora_iso, dry_run=False, aceitar_lega
 
 
 def parse_workbook(path, estrutura=None):
-    xls = pd.ExcelFile(path, engine="openpyxl")
-    main = pd.read_excel(path, sheet_name=xls.sheet_names[0], engine="openpyxl").dropna(how="all")
-    animals_df = pd.read_excel(path, sheet_name=xls.sheet_names[1], engine="openpyxl").dropna(how="all")
+    with pd.ExcelFile(path, engine="openpyxl") as xls:
+        sheet_names = list(xls.sheet_names)
+    main = pd.read_excel(path, sheet_name=sheet_names[0], engine="openpyxl").dropna(how="all")
+    animals_df = pd.read_excel(path, sheet_name=sheet_names[1], engine="openpyxl").dropna(how="all")
     estrutura = estrutura or ("nova" if is_new_format(path) else "legada")
 
     visitas = []
@@ -172,7 +217,7 @@ def parse_workbook(path, estrutura=None):
         uuid = _uuid(row.get("_uuid"))
         if not uuid:
             continue
-        data = _date(row.get("Dados do morador/Data"))
+        data = _date(_row_get(row, ["Dados do morador/Data", "Data"]))
         if not data:
             continue
         id_visita = _hash("esporotricose:visita", uuid)
@@ -181,21 +226,21 @@ def parse_workbook(path, estrutura=None):
             "kobo_uuid": uuid,
             "kobo_id": _int(row.get("_id")),
             "data": data,
-            "hora_inicio": _time(row.get("Dados do morador/Hora Inicio" if estrutura == "nova" else "Dados do morador/Hora")),
-            "hora_fim": _time(row.get("Hora Final")) if estrutura == "nova" else None,
+            "hora_inicio": _time(_row_get(row, ["Dados do morador/Hora Inicio", "Hora_inicio", "Dados do morador/Hora"])),
+            "hora_fim": _time(_row_get(row, ["Hora Final", "Hora_fim"])) if estrutura == "nova" else None,
             "inicio_registro": _datetime(row.get("start")) if estrutura == "nova" else None,
             "fim_registro": _datetime(row.get("end")) if estrutura == "nova" else None,
-            "agentes_texto": _text(row.get("Dados do morador/Agentes" if estrutura == "nova" else "Dados do morador/Nome do(s) agente(s)")),
-            "localidade": _localidade(row.get("Dados do morador/Localidade")),
-            "quarteirao": _int(row.get("Dados do morador/Quarteirão")),
-            "tipo_imovel": _text(row.get("Dados do morador/Tipo do imóvel")),
-            "logradouro": _text(row.get("Dados do morador/Logradouro")),
-            "numero": _text(row.get("Dados do morador/Número")),
-            "morador": _text(row.get("Dados do morador/Morador")),
-            "visita": _text(row.get("Dados do morador/Visita:")),
-            "telefone": _text(row.get("Dados do morador/Telefone")),
-            "observacoes": _text(row.get("Dados do morador/Observações")),
-            "deseja_cadastrar_animal": _text(row.get("Deseja cadastrar um animal?")),
+            "agentes_texto": _text(_row_get(row, ["Dados do morador/Agentes", "Dados do morador/Nome do(s) agente(s)", "Agentes"])),
+            "localidade": _localidade(_row_get(row, ["Dados do morador/Localidade", "Localidade"])),
+            "quarteirao": _int(_row_get(row, ["Dados do morador/Quarteirão", "Quarteirao", "Quarteir_o"])),
+            "tipo_imovel": _text(_row_get(row, ["Dados do morador/Tipo do imóvel", "Tipo_do_im_vel", "Tipo do imovel"])),
+            "logradouro": _text(_row_get(row, ["Dados do morador/Logradouro", "Logradouro"])),
+            "numero": _text(_row_get(row, ["Dados do morador/Número", "Numero", "N_mero"])),
+            "morador": _text(_row_get(row, ["Dados do morador/Morador", "Morador"])),
+            "visita": _text(_row_get(row, ["Dados do morador/Visita:", "Visita"])),
+            "telefone": _text(_row_get(row, ["Dados do morador/Telefone", "Telefone"])),
+            "observacoes": _text(_row_get(row, ["Dados do morador/Observações", "Observacoes", "Observa_es"])),
+            "deseja_cadastrar_animal": _text(_row_get(row, ["Deseja cadastrar um animal?", "Deseja_cadastrar_um_animal"])),
             "submission_time": _datetime(row.get("_submission_time")),
         }
         visitas.append(visita)
@@ -216,19 +261,19 @@ def parse_workbook(path, estrutura=None):
             "id_animal": _hash("esporotricose:animal", animal_uuid),
             "id_visita": id_visita,
             "kobo_uuid": animal_uuid,
-            "especie": _text(row.get("Dados do animal/Escolha o animal a ser cadastrado:")),
-            "outro_animal": _text(row.get("Dados do animal/Qual animal?")),
-            "nome": _text(row.get("Dados do animal/Nome do animal:")),
-            "raca": _text(row.get("Dados do animal/Raça:")),
-            "sexo": _text(row.get("Dados do animal/Sexo:")),
-            "ambiente": _text(row.get("Dados do animal/Classificação quanto ao ambiente em que o animal vive:")),
-            "vacinado": _text(row.get("Dados do animal/Vacinado?")),
-            "castrado": _text(row.get("Dados do animal/Castrado?")),
-            "feridas": _text(row.get("Dados do animal/Apresenta feridas pelo corpo?")),
-            "regiao_ferida": _text(row.get("Dados do animal/Região:")),
-            "atendimento_veterinario": _text(row.get("Dados do animal/Já passou por atendimento veterinário?")),
-            "data_atendimento": _date(row.get("Dados do animal/Data do atendimento:")),
-            "evolucao_caso": _text(row.get("Dados do animal/Evolução do caso:")),
+            "especie": _text(_row_get(row, ["Dados do animal/Escolha o animal a ser cadastrado:", "Escolha_o_animal_a_ser_cadastr"])),
+            "outro_animal": _text(_row_get(row, ["Dados do animal/Qual animal?", "Esp_cie", "Especie"])),
+            "nome": _text(_row_get(row, ["Dados do animal/Nome do animal:", "Nome_do_animal"])),
+            "raca": _text(_row_get(row, ["Dados do animal/Raça:", "Raca", "Ra_a"])),
+            "sexo": _text(_row_get(row, ["Dados do animal/Sexo:", "Sexo"])),
+            "ambiente": _text(_row_get(row, ["Dados do animal/Classificação quanto ao ambiente em que o animal vive:", "Classifica_o_quanto_em_que_o_animal_vive"])),
+            "vacinado": _text(_row_get(row, ["Dados do animal/Vacinado?", "Vacinado"])),
+            "castrado": _text(_row_get(row, ["Dados do animal/Castrado?", "Castrado"])),
+            "feridas": _text(_row_get(row, ["Dados do animal/Apresenta feridas pelo corpo?", "Apresenta_feridas_pelo_corpo"])),
+            "regiao_ferida": _text(_row_get(row, ["Dados do animal/Região:", "Regiao", "Regi_o"])),
+            "atendimento_veterinario": _text(_row_get(row, ["Dados do animal/Já passou por atendimento veterinário?", "J_passou_por_atendimento_vete"])),
+            "data_atendimento": _date(_row_get(row, ["Dados do animal/Data do atendimento:", "Data_do_atendimento"])),
+            "evolucao_caso": _text(_row_get(row, ["Dados do animal/Evolução do caso:", "Evolu_o_do_caso"])),
         })
     return visitas, animais
 

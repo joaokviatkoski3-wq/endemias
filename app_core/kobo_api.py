@@ -344,6 +344,54 @@ def _flat_record(record):
     return flat
 
 
+def _flatten_record(record, prefix=""):
+    flat = {}
+    if not isinstance(record, dict):
+        return flat
+    for key, value in record.items():
+        name = f"{prefix}/{key}" if prefix else str(key)
+        if isinstance(value, dict):
+            flat.update(_flatten_record(value, name))
+        elif not isinstance(value, list):
+            flat[name] = value
+    return flat
+
+
+def _repeat_group_rows(record, parent_uuid, parent_index="0"):
+    rows = []
+    if not isinstance(record, dict):
+        return rows
+    for value in record.values():
+        if isinstance(value, list):
+            for idx, item in enumerate(value, start=1):
+                if not isinstance(item, dict):
+                    continue
+                row = _flatten_record(item)
+                row.setdefault("_submission__uuid", parent_uuid)
+                row.setdefault("_parent_index", parent_index)
+                row.setdefault("_index", str(idx))
+                rows.append(row)
+        elif isinstance(value, dict):
+            rows.extend(_repeat_group_rows(value, parent_uuid, parent_index))
+    return rows
+
+
+def _esporotricose_workbook_rows(records):
+    visitas = []
+    animais = []
+    for pos, record in enumerate(records, start=1):
+        uuid = record_uuid(record)
+        visita = _flatten_record(record)
+        visita.setdefault("_uuid", uuid)
+        visita.setdefault("_id", record.get("_id"))
+        visita.setdefault("_index", str(pos))
+        visita.setdefault("_submission_time", record.get("_submission_time"))
+        visita.setdefault("meta/rootUuid", uuid)
+        visitas.append(visita)
+        animais.extend(_repeat_group_rows(record, uuid, str(pos)))
+    return visitas, animais
+
+
 def _ensure_visit_columns(row, tipo, cfg_tipo, record):
     detalhes = record_details(tipo, record)
     data = detalhes.get("data") if detalhes.get("data") != "-" else record_date(record)
@@ -436,7 +484,16 @@ def write_etl_workbooks(registros_por_tipo, config_path, output_dir, prefix="kob
         pd.DataFrame([_larva_row(record, cfg_larvas) for record in larvas]).to_excel(path, index=False, engine="openpyxl")
         arquivos.append(str(path))
 
-    for tipo in ("ESPOROTRICOSE", "BRI", "AMOSTRA_ANIMAIS", "RECOLHIMENTO"):
+    esporo = registros_por_tipo.get("ESPOROTRICOSE") or []
+    if esporo:
+        path = out / f"ESPOROTRICOSE_{prefix}.xlsx"
+        visitas, animais = _esporotricose_workbook_rows(esporo)
+        with pd.ExcelWriter(path, engine="openpyxl") as writer:
+            pd.DataFrame(visitas).to_excel(writer, sheet_name="dados", index=False)
+            pd.DataFrame(animais).to_excel(writer, sheet_name="Dados do animal", index=False)
+        arquivos.append(str(path))
+
+    for tipo in ("BRI", "AMOSTRA_ANIMAIS", "RECOLHIMENTO"):
         records = registros_por_tipo.get(tipo) or []
         if not records:
             continue

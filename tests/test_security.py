@@ -3985,6 +3985,85 @@ class MainApisSmokeTests(unittest.TestCase):
             finally:
                 wb.close()
 
+    def test_kobo_importacao_esporotricose_prepara_planilha_com_animais(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc, tb):
+                return False
+            def read(self):
+                return json.dumps({"results": [{
+                    "_uuid": "esporo-api-1",
+                    "_id": 20,
+                    "_submission_time": "2026-06-10T12:00:00",
+                    "start": "2026-06-10T08:00:00",
+                    "end": "2026-06-10T08:30:00",
+                    "group_su8jh28/Data": "2026-06-10",
+                    "group_su8jh28/Hora_inicio": "08:00",
+                    "Hora_fim": "08:30",
+                    "group_su8jh28/Agentes": "Agente Teste",
+                    "group_su8jh28/Localidade": "grasiela",
+                    "group_su8jh28/Quarteir_o": "12",
+                    "group_su8jh28/Tipo_do_im_vel": "Residencial",
+                    "group_su8jh28/Logradouro": "Rua A",
+                    "group_su8jh28/N_mero": "10",
+                    "group_su8jh28/Morador": "Pessoa Teste",
+                    "group_su8jh28/Visita": "Realizada",
+                    "Deseja_cadastrar_um_animal": "Sim",
+                    "animais": [{
+                        "group_tl0nq13/Escolha_o_animal_a_ser_cadastr": "c_o",
+                        "group_tl0nq13/Nome_do_animal": "Rex",
+                        "group_tl0nq13/Sexo": "macho",
+                        "group_tl0nq13/Classifica_o_quanto_em_que_o_animal_vive": "domiciliado",
+                        "group_tl0nq13/Vacinado": "sim",
+                        "group_tl0nq13/Castrado": "nao",
+                        "group_tl0nq13/Apresenta_feridas_pelo_corpo": "nao",
+                    }],
+                }]}).encode("utf-8")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            app_temp.config["KOBO_CONFIG_PATH"] = str(Path(tmpdir) / "kobo_config.json")
+            app_temp.config["UPLOAD_TEMP"] = str(Path(tmpdir) / "uploads_temp")
+            kobo_api_core.save_config(app_temp.config["KOBO_CONFIG_PATH"], {
+                "server_url": "https://kf.kobotoolbox.org",
+                "api_token": "token",
+                "assets": {"ESPOROTRICOSE": "asset-esporo"},
+            })
+
+            with mock.patch("app_core.kobo_api.request.urlopen", return_value=FakeResponse()):
+                resp = client.post("/api/kobo/importar-formulario/iniciar", json={"tipo": "ESPOROTRICOSE", "limite": 100})
+
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertEqual(data["por_tipo"]["ESPOROTRICOSE"], 1)
+            job_dir = Path(app_temp.config["UPLOAD_TEMP"]) / data["job_id"]
+            caminho = job_dir / data["arquivos"][0]
+            self.assertTrue(caminho.exists())
+            wb = openpyxl.load_workbook(caminho, read_only=True)
+            try:
+                self.assertIn("dados", wb.sheetnames)
+                self.assertIn("Dados do animal", wb.sheetnames)
+            finally:
+                wb.close()
+
+            import etl
+
+            ok, sumario = etl.processar_upload(
+                [str(caminho)],
+                [],
+                db_path,
+                str(ROOT / "config.json"),
+                etl.Logger(),
+                dry_run=True,
+            )
+            self.assertTrue(ok)
+            self.assertEqual(sumario[0]["tipo"], "ESPOROTRICOSE")
+            self.assertEqual(sumario[0]["visitas_novas"], 1)
+            self.assertEqual(sumario[0]["animais_novos"], 1)
+            visitas, _ = esporotricose_core.parse_workbook(str(caminho), "nova")
+            self.assertEqual(visitas[0]["localidade"], "Graziela")
+
     def test_etl_importa_larvas_sozinhas_em_coletas_existentes(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = _executar_criar_banco_em(tmpdir)
