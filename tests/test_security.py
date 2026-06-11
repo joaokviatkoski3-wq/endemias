@@ -906,6 +906,18 @@ class EsporotricoseSchemaTests(unittest.TestCase):
         self.assertIn("esporotricose_animais", tabelas)
         self.assertIn("esporotricose_visita_agentes", tabelas)
 
+    def test_split_agentes_esporotricose_corrige_cecon(self):
+        with sqlite3.connect(":memory:") as conn:
+            conn.execute("CREATE TABLE agentes (id_agente INTEGER PRIMARY KEY, nome TEXT)")
+            conn.executemany(
+                "INSERT INTO agentes(nome) VALUES (?)",
+                [("Ceccon",), ("cecon",), ("Ana Beatriz",)],
+            )
+
+            nomes = esporotricose_core._split_agentes(conn, "ana beatriz cecon")
+
+        self.assertEqual(nomes, ["Ana Beatriz", "Ceccon"])
+
 
 class RecolhimentosTests(unittest.TestCase):
     def test_schema_cria_tabelas_de_recolhimentos(self):
@@ -3550,7 +3562,7 @@ class MainApisSmokeTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 200)
         self.assertIsInstance(eventos, list)
-        proibidos = ("Â", "â", "ð")
+        proibidos = ("Ã", "Â", "â€", "ðŸ")
         for evento in eventos:
             props = evento.get("extendedProps", {})
             if props.get("origem") != "auto":

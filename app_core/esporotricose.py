@@ -24,6 +24,11 @@ AGENTE_COMPOSTO = {
     "ana beatriz": "Ana Beatriz",
 }
 
+AGENTE_ALIASES = {
+    "cecon": "Ceccon",
+    "ceccon": "Ceccon",
+}
+
 LOCALIDADES_PADRAO = {
     "sao venancio": "Sao Venancio",
     "são venâncio": "São Venâncio",
@@ -773,6 +778,7 @@ def _split_agentes(conn, texto):
     texto = _text(texto)
     if not texto:
         return []
+    texto = _normalizar_agentes_texto(texto)
     cur = conn.cursor()
     conhecidos = [r[0] for r in cur.execute("SELECT nome FROM agentes ORDER BY LENGTH(nome) DESC, nome")]
     restantes = texto
@@ -791,6 +797,13 @@ def _split_agentes(conn, texto):
         if parte and parte not in nomes:
             nomes.append(parte)
     return nomes
+
+
+def _normalizar_agentes_texto(texto):
+    normalizado = texto
+    for original, correto in AGENTE_ALIASES.items():
+        normalizado = re.sub(rf"(^|\s){re.escape(original)}(?=\s|$)", rf"\1{correto}", normalizado, flags=re.I)
+    return normalizado
 
 
 def _localidade(valor):
