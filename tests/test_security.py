@@ -2226,6 +2226,42 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(lista["total"], 1)
             self.assertEqual(lista["registros"][0]["distrito"], "Tamboara")
 
+    def test_ovitrampas_importa_cadastro_armadilhas_e_historico(self):
+        leitura_csv = (
+            "Ovitrampa ID;Estado;MunicÃ­pio;Distrito;Rua;NÃºmero;Complemento;LocalizaÃ§Ã£o;"
+            "Latitude;Longitude;Ano;Semana;Data do envio da contagem;Ovos;Quem enviou;"
+            "ObservaÃ§Ã£o;Lat_lng;QuarteirÃ£o;Data da instalaÃ§Ã£o;Data de coleta\n"
+            "1;ParanÃ¡;Almirante TamandarÃ©;TAMBOARA;Rua A;10;Escola;Parede;"
+            "-25,1;-49,2;2026;21;2026-06-01 17:26:10;53;Vanessa;;-25.1,-49.2;"
+            "1269;2026-05-25;2026-05-29\n"
+        )
+        cadastro_csv = (
+            "ID;Rua;Número do logradouro;Complemento;Bairro;Localização da ovitrampa;"
+            "Setor/Distrito da ovitrampa;Responsável;Quarteirão;Latitude;Longitude\n"
+            "1;Rua A;10;Escola;TAMBOARA;Parede;TAMBOARA;Joel;1269;-25,1;-49,2\n"
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            leitura_path = Path(tmpdir) / "3918-2026-21.csv"
+            cadastro_path = Path(tmpdir) / "almirante-tamandare-pr-ovitraps.csv"
+            cadastro_atualizado_path = Path(tmpdir) / "almirante-tamandare-pr-ovitraps-2.csv"
+            leitura_path.write_text(leitura_csv, encoding="utf-8")
+            cadastro_path.write_text(cadastro_csv, encoding="utf-8")
+            cadastro_atualizado_path.write_text(cadastro_csv.replace("Joel", "Vanessa"), encoding="utf-8")
+
+            ovitrampas_core.importar_csv(db_path, leitura_path)
+            primeiro = ovitrampas_core.importar_armadilhas_csv(db_path, cadastro_path)
+            segundo = ovitrampas_core.importar_armadilhas_csv(db_path, cadastro_atualizado_path)
+            armadilhas = ovitrampas_core.listar_armadilhas(db_path, {"busca": "Vanessa"})
+            historico = ovitrampas_core.historico_armadilha(db_path, "1")
+
+            self.assertEqual(primeiro["inseridos"], 1)
+            self.assertEqual(segundo["atualizados"], 1)
+            self.assertEqual(armadilhas["total"], 1)
+            self.assertEqual(armadilhas["registros"][0]["leituras"], 1)
+            self.assertEqual(historico["armadilha"]["responsavel"], "Vanessa")
+            self.assertEqual(historico["leituras"][0]["ovos"], 53)
+
     def test_api_ovitrampas_importa_csv(self):
         csv_bytes = (
             "Ovitrampa ID;Estado;Município;Distrito;Rua;Número;Complemento;Localização;"
@@ -2249,6 +2285,79 @@ class MainApisSmokeTests(unittest.TestCase):
             resp = client.get("/api/ovitrampas/listar?busca=Rua+B")
             self.assertEqual(resp.status_code, 200)
             self.assertEqual(resp.get_json()["total"], 1)
+
+    def test_api_ovitrampas_atualiza_laboratorista_e_data_leitura(self):
+        csv_bytes = (
+            "Ovitrampa ID;Estado;MunicÃ­pio;Distrito;Rua;NÃºmero;Complemento;LocalizaÃ§Ã£o;"
+            "Latitude;Longitude;Ano;Semana;Data do envio da contagem;Ovos;Quem enviou;"
+            "ObservaÃ§Ã£o;Lat_lng;QuarteirÃ£o;Data da instalaÃ§Ã£o;Data de coleta\n"
+            "2;ParanÃ¡;Almirante TamandarÃ©;GRAZIELA;Rua B;20;Loja;Canto;"
+            "-25,3;-49,4;2026;22;2026-06-08 10:00:00;0;Vanessa;;-25.3,-49.4;"
+            "1300;2026-06-01;2026-06-05\n"
+        ).encode("utf-8")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            resp = client.post(
+                "/api/ovitrampas/importar",
+                data={"arquivos": (io.BytesIO(csv_bytes), "3918-2026-22.csv")},
+                content_type="multipart/form-data",
+            )
+            self.assertEqual(resp.status_code, 200)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute("INSERT INTO agentes (nome, ativo) VALUES (?, 1)", ("Laboratorista Teste",))
+                conn.commit()
+                id_leitura = conn.execute("SELECT id_leitura FROM ovitrampas_leituras").fetchone()[0]
+                agente = conn.execute("SELECT id_agente, nome FROM agentes ORDER BY id_agente LIMIT 1").fetchone()
+            finally:
+                conn.close()
+
+            resp = client.put(
+                f"/api/ovitrampas/leituras/{id_leitura}",
+                json={"id_laboratorista": agente[0], "data_leitura": "2026-06-09"},
+            )
+
+            self.assertEqual(resp.status_code, 200)
+            registro = resp.get_json()["registro"]
+            self.assertEqual(registro["id_laboratorista"], agente[0])
+            self.assertEqual(registro["laboratorista"], agente[1])
+            self.assertEqual(registro["data_leitura"], "2026-06-09")
+
+    def test_ovitrampas_calendario_salva_evento_com_agentes_e_aparece_na_agenda(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute("INSERT INTO agentes (nome, ativo) VALUES (?, 1)", ("Agente Ovitrampa",))
+                conn.commit()
+                id_agente = conn.execute("SELECT id_agente FROM agentes WHERE nome=?", ("Agente Ovitrampa",)).fetchone()[0]
+            finally:
+                conn.close()
+
+            resp = client.get("/api/ovitrampas/calendario?ano=2026")
+            self.assertEqual(resp.status_code, 200)
+            grupo = resp.get_json()["grupos"][0]
+
+            resp = client.post("/api/ovitrampas/calendario/eventos", json={
+                "data": "2026-01-06",
+                "movimento": "instalacao",
+                "id_grupo": grupo["id_grupo"],
+                "ciclo": "Ciclo 1",
+                "observacoes": "Planejado",
+                "agentes": [id_agente],
+            })
+            self.assertEqual(resp.status_code, 201)
+            evento = resp.get_json()["evento"]
+            self.assertEqual(evento["movimento_label"], "Instalação")
+            self.assertEqual(evento["agentes"][0]["nome"], "Agente Ovitrampa")
+
+            resp = client.get("/api/agenda/eventos?start=2026-01-01&end=2026-01-31")
+            self.assertEqual(resp.status_code, 200)
+            eventos = resp.get_json()
+            ovitrampa = [e for e in eventos if e["extendedProps"].get("fonte") == "OVITRAMPA"]
+            self.assertEqual(len(ovitrampa), 1)
+            self.assertIn("Instalação de ovitrampas", ovitrampa[0]["title"])
+            self.assertEqual(ovitrampa[0]["extendedProps"]["agentes"], "Agente Ovitrampa")
 
     def test_create_app_permanece_configuravel(self):
         app_temp = endemias_app.create_app({

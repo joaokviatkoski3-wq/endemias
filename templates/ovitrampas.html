@@ -3,6 +3,10 @@
 {% block page_title %}Ovitrampas{% endblock %}
 
 {% block extra_css %}<style>
+.ovi-tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+.ovi-tab{border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:var(--radius-sm);padding:8px 12px;font-weight:900;cursor:pointer;}
+.ovi-tab.active{background:#0f766e;color:white;border-color:#0f766e;}
+.ovi-panel[hidden]{display:none!important;}
 .ovi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;}
 .ovi-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);}
 .ovi-kpi-label{font-size:10px;color:var(--text3);font-weight:800;text-transform:uppercase;}
@@ -16,76 +20,249 @@
 .ovi-badge{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:2px 8px;border-radius:999px;background:rgba(15,118,110,.14);color:#0f766e;font-weight:900;font-size:12px;}
 .ovi-tag{display:inline-flex;border-radius:999px;background:var(--surface2);border:1px solid var(--border);padding:2px 7px;font-size:11px;font-weight:800;color:var(--text2);}
 .ovi-tag.pos{background:rgba(239,68,68,.12);color:#b91c1c;}
-@media(max-width:920px){.ovi-layout,.ovi-upload{grid-template-columns:1fr;}}
+.ovi-readings-list{display:flex;flex-direction:column;gap:10px;}
+.ovi-reading-card{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);padding:10px;}
+.ovi-reading-top{display:grid;grid-template-columns:minmax(90px,.7fr) minmax(70px,.45fr) minmax(130px,1fr) minmax(180px,1.4fr) minmax(92px,.65fr) minmax(88px,.55fr);gap:8px;align-items:start;}
+.ovi-reading-lab{display:grid;grid-template-columns:minmax(150px,1fr) minmax(128px,.7fr) auto;gap:8px;align-items:end;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+.ovi-field{min-width:0;color:var(--text2);font-size:12px;line-height:1.25;}
+.ovi-field > span{display:block;color:var(--text3);font-size:10px;font-weight:900;text-transform:uppercase;margin-bottom:2px;}
+.ovi-field strong{display:block;color:var(--text);font-size:13px;overflow-wrap:anywhere;}
+.ovi-lab-label{display:block;color:var(--text3);font-size:10px;font-weight:900;text-transform:uppercase;margin-bottom:3px;}
+.ovi-history{margin-top:14px;}
+.ovi-history-head{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:10px;color:var(--text2);font-size:12px;}
+.ovi-history-head strong{display:block;color:var(--text);font-size:13px;}
+.ovi-cal-toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:14px;}
+.ovi-cal-toolbar .f-g{min-width:120px;}
+.ovi-cal-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start;}
+.ovi-year-grid{display:grid;grid-template-columns:repeat(3,minmax(230px,1fr));gap:12px;}
+.ovi-month{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);overflow:hidden;}
+.ovi-month-title{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:9px 10px;background:var(--surface2);border-bottom:1px solid var(--border);font-weight:900;text-transform:uppercase;font-size:12px;}
+.ovi-month-grid{display:grid;grid-template-columns:42px repeat(7,1fr);gap:1px;background:var(--border);font-size:11px;}
+.ovi-week-head,.ovi-day-head,.ovi-week-cell,.ovi-day{background:var(--surface);min-height:28px;display:flex;align-items:center;justify-content:center;padding:2px;}
+.ovi-week-head,.ovi-day-head{font-size:9px;font-weight:900;color:var(--text3);text-transform:uppercase;min-height:22px;}
+.ovi-week-cell{font-size:9px;color:var(--brand);font-weight:800;background:var(--surface2);}
+.ovi-day{position:relative;cursor:pointer;color:var(--text);font-weight:800;border:0;}
+.ovi-day:hover{outline:2px solid var(--brand);outline-offset:-2px;}
+.ovi-day.other{color:var(--text3);font-weight:500;background:var(--surface2);}
+.ovi-day.has-event{color:#111827;}
+.ovi-day.today{box-shadow:inset 0 0 0 2px var(--brand);}
+.ovi-day-num{position:relative;z-index:1;}
+.ovi-day-dot{position:absolute;right:3px;bottom:3px;width:6px;height:6px;border-radius:999px;background:rgba(17,24,39,.45);}
+.ovi-group-list{display:flex;flex-direction:column;gap:8px;}
+.ovi-group-item{border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;background:var(--surface);}
+.ovi-group-head{display:flex;justify-content:space-between;gap:8px;align-items:start;font-size:12px;font-weight:900;}
+.ovi-group-localidades{font-size:11px;color:var(--text3);margin-top:3px;line-height:1.35;}
+.ovi-swatch{width:18px;height:18px;border-radius:4px;border:1px solid rgba(0,0,0,.18);flex-shrink:0;}
+.ovi-agent-picks{border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;max-height:170px;overflow:auto;background:var(--surface2);}
+.ovi-agent-pick{display:flex;align-items:center;gap:7px;font-size:12px;padding:3px 0;}
+.ovi-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+@media(max-width:1180px){.ovi-cal-layout{grid-template-columns:1fr;}.ovi-year-grid{grid-template-columns:repeat(2,minmax(230px,1fr));}}
+@media(max-width:1100px){.ovi-reading-top{grid-template-columns:repeat(3,minmax(0,1fr));}}
+@media(max-width:920px){.ovi-layout,.ovi-upload{grid-template-columns:1fr;}.ovi-reading-lab{grid-template-columns:1fr;}}
+@media(max-width:640px){.ovi-reading-top{grid-template-columns:1fr 1fr;}.ovi-year-grid{grid-template-columns:1fr;}.ovi-modal-grid{grid-template-columns:1fr;}}
 </style>{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <h1><span class="icon"><img src="/static/icons/tubo_ensaio.svg" alt="" class="icon-svg"></span> Ovitrampas</h1>
-  <div class="sub">Leituras semanais exportadas do Conta Ovos</div>
+  <h1><span class="icon"><img src="/static/icons/ovitrampa.svg" alt="" class="icon-svg"></span> Ovitrampas</h1>
+  <div class="sub">Leituras semanais e cadastro de armadilhas do Conta Ovos</div>
 </div>
 
-<div class="chart-card" style="margin-bottom:16px;">
-  <div class="chart-hd">
-    <div class="chart-title"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar leituras semanais</div>
-    <span class="imp-status imp-cinza" id="ovi-import-status">Aguardando</span>
+<div class="ovi-tabs" role="tablist">
+  <button class="ovi-tab active" type="button" data-ovi-tab="leituras">Leituras</button>
+  <button class="ovi-tab" type="button" data-ovi-tab="armadilhas">Armadilhas</button>
+  <button class="ovi-tab" type="button" data-ovi-tab="calendario">Calendário</button>
+</div>
+
+<section class="ovi-panel" id="ovi-panel-leituras">
+  <div class="chart-card" style="margin-bottom:16px;">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar leituras semanais</div>
+      <span class="imp-status imp-cinza" id="ovi-import-status">Aguardando</span>
+    </div>
+    <form id="ovi-form" class="ovi-upload">
+      <div class="f-g"><label>CSV do Conta Ovos</label><input type="file" id="ovi-arquivos" name="arquivos" accept=".csv,text/csv" multiple></div>
+      <button class="btn btn-primary" type="submit"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar CSV</button>
+    </form>
   </div>
-  <form id="ovi-form" class="ovi-upload">
-    <div class="f-g"><label>CSV do Conta Ovos</label><input type="file" id="ovi-arquivos" name="arquivos" accept=".csv,text/csv" multiple></div>
-    <button class="btn btn-primary" type="submit"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar CSV</button>
-  </form>
-</div>
 
-<div class="filter-card" style="margin-bottom:16px;">
-  <div class="filter-body open">
-    <div class="ovi-filters">
-      <div class="f-g"><label>Ano</label><input type="number" id="ovi-ano" min="2020" max="2100"></div>
-      <div class="f-g"><label>Semana</label><input type="number" id="ovi-semana" min="1" max="53"></div>
-      <div class="f-g"><label>Localidade</label><select id="ovi-distrito"><option value="">Todas</option>{% for distrito in distritos %}<option value="{{ distrito }}">{{ distrito }}</option>{% endfor %}</select></div>
-      <div class="f-g"><label>Positivas</label><select id="ovi-positivas"><option value="">Todas</option><option value="1">Somente com ovos</option></select></div>
-      <div class="f-g"><label>Pesquisa</label><input type="search" id="ovi-busca" placeholder="ID, rua, complemento..."></div>
-      <button class="btn btn-outline" type="button" id="ovi-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+  <div class="filter-card" style="margin-bottom:16px;">
+    <div class="filter-body open">
+      <div class="ovi-filters">
+        <div class="f-g"><label>Ano</label><input type="number" id="ovi-ano" min="2020" max="2100"></div>
+        <div class="f-g"><label>Semana</label><input type="number" id="ovi-semana" min="1" max="53"></div>
+        <div class="f-g"><label>Localidade</label><select id="ovi-distrito"><option value="">Todas</option>{% for distrito in distritos %}<option value="{{ distrito }}">{{ distrito }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Positivas</label><select id="ovi-positivas"><option value="">Todas</option><option value="1">Somente com ovos</option></select></div>
+        <div class="f-g"><label>Pesquisa</label><input type="search" id="ovi-busca" placeholder="ID, rua, complemento..."></div>
+        <button class="btn btn-outline" type="button" id="ovi-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+      </div>
     </div>
   </div>
-</div>
 
-<div class="ovi-grid">
-  <div class="ovi-kpi"><div class="ovi-kpi-label">Leituras</div><div class="ovi-kpi-value" id="ovi-leituras">0</div></div>
-  <div class="ovi-kpi"><div class="ovi-kpi-label">Ovitrampas</div><div class="ovi-kpi-value" id="ovi-total-ovitrampas">0</div></div>
-  <div class="ovi-kpi"><div class="ovi-kpi-label">Ovos</div><div class="ovi-kpi-value" id="ovi-ovos">0</div></div>
-  <div class="ovi-kpi"><div class="ovi-kpi-label">Positivas</div><div class="ovi-kpi-value" id="ovi-positivas-kpi">0</div></div>
-  <div class="ovi-kpi"><div class="ovi-kpi-label">Média de ovos</div><div class="ovi-kpi-value" id="ovi-media">0</div></div>
-</div>
+  <div class="ovi-grid">
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Leituras</div><div class="ovi-kpi-value" id="ovi-leituras">0</div></div>
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Ovitrampas</div><div class="ovi-kpi-value" id="ovi-total-ovitrampas">0</div></div>
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Ovos</div><div class="ovi-kpi-value" id="ovi-ovos">0</div></div>
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Positivas</div><div class="ovi-kpi-value" id="ovi-positivas-kpi">0</div></div>
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Média de ovos</div><div class="ovi-kpi-value" id="ovi-media">0</div></div>
+  </div>
 
-<div class="ovi-layout">
+  <div class="ovi-layout">
+    <div class="chart-card">
+      <div class="chart-hd">
+        <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Leituras</div>
+        <span class="table-info" id="ovi-info"></span>
+      </div>
+      <div class="ovi-readings-list" id="ovi-body"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="chart-card">
+        <div class="chart-hd"><div class="chart-title"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Por localidade</div></div>
+        <div class="ovi-list" id="ovi-distritos"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-hd"><div class="chart-title"><img src="/static/icons/calendario.svg" alt="" class="icon-svg"> Semanas recentes</div></div>
+        <div class="ovi-list" id="ovi-semanas"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="ovi-panel" id="ovi-panel-armadilhas" hidden>
+  <div class="chart-card" style="margin-bottom:16px;">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar cadastro de armadilhas</div>
+      <span class="imp-status imp-cinza" id="ovi-arm-import-status">Aguardando</span>
+    </div>
+    <form id="ovi-arm-form" class="ovi-upload">
+      <div class="f-g"><label>CSV de ovitrampas do Conta Ovos</label><input type="file" id="ovi-arm-arquivo" name="arquivo" accept=".csv,text/csv"></div>
+      <button class="btn btn-primary" type="submit"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Atualizar cadastro</button>
+    </form>
+  </div>
+
+  <div class="filter-card" style="margin-bottom:16px;">
+    <div class="filter-body open">
+      <div class="ovi-filters">
+        <div class="f-g"><label>Localidade</label><select id="ovi-arm-distrito"><option value="">Todas</option>{% for distrito in distritos %}<option value="{{ distrito }}">{{ distrito }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Pesquisa</label><input type="search" id="ovi-arm-busca" placeholder="ID, rua, responsável..."></div>
+        <button class="btn btn-outline" type="button" id="ovi-arm-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+      </div>
+    </div>
+  </div>
+
   <div class="chart-card">
     <div class="chart-hd">
-      <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Leituras</div>
-      <span class="table-info" id="ovi-info"></span>
+      <div class="chart-title"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Armadilhas cadastradas</div>
+      <span class="table-info" id="ovi-arm-info"></span>
     </div>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Semana</th><th>ID</th><th>Localidade</th><th>Endereço</th><th>Quarteirão</th><th>Instalação</th><th>Coleta</th><th>Ovos</th><th>Enviado por</th></tr></thead>
-        <tbody id="ovi-body"></tbody>
+        <thead><tr><th>ID</th><th>Localidade</th><th>Endereço</th><th>Quarteirão</th><th>Responsável</th><th>Leituras</th><th>Ovos</th><th>Positivas</th><th>Última coleta</th><th></th></tr></thead>
+        <tbody id="ovi-arm-body"></tbody>
       </table>
     </div>
   </div>
-  <div style="display:flex;flex-direction:column;gap:14px;">
+
+  <div class="chart-card ovi-history" id="ovi-historico" hidden>
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Histórico da armadilha</div>
+      <span class="table-info" id="ovi-hist-info"></span>
+    </div>
+    <div class="ovi-history-head" id="ovi-hist-head"></div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Semana</th><th>Instalação</th><th>Coleta</th><th>Data da leitura</th><th>Laboratorista</th><th>Ovos</th><th>Enviado por</th><th>Arquivo</th></tr></thead>
+        <tbody id="ovi-hist-body"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="ovi-panel" id="ovi-panel-calendario" hidden>
+  <div class="ovi-cal-toolbar">
+    <div class="f-g"><label>Ano</label><input type="number" id="ovi-cal-ano" min="2020" max="2099" step="1"></div>
+    <button class="btn btn-outline" type="button" id="ovi-cal-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+    <button class="btn btn-primary" type="button" id="ovi-cal-novo"><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Novo movimento</button>
+    <button class="btn btn-outline" type="button" id="ovi-grupo-novo"><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Novo grupo</button>
+  </div>
+  <div class="ovi-cal-layout">
     <div class="chart-card">
-      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Por localidade</div></div>
-      <div class="ovi-list" id="ovi-distritos"></div>
+      <div class="chart-hd">
+        <div class="chart-title"><img src="/static/icons/calendario.svg" alt="" class="icon-svg"> Calendário anual de ovitrampas</div>
+        <span class="table-info" id="ovi-cal-info"></span>
+      </div>
+      <div class="ovi-year-grid" id="ovi-year-grid"></div>
     </div>
     <div class="chart-card">
-      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/calendario.svg" alt="" class="icon-svg"> Semanas recentes</div></div>
-      <div class="ovi-list" id="ovi-semanas"></div>
+      <div class="chart-hd">
+        <div class="chart-title"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Grupos</div>
+      </div>
+      <div class="ovi-group-list" id="ovi-grupos-lista"></div>
+    </div>
+  </div>
+</section>
+
+<div id="ovi-cal-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.45);align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-lg);width:min(620px,96vw);max-height:92vh;overflow:auto;padding:20px;">
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:start;margin-bottom:14px;">
+      <h2 id="ovi-cal-modal-title" style="font-size:16px;font-weight:900;">Movimento de ovitrampas</h2>
+      <button type="button" class="btn btn-ghost btn-sm" id="ovi-cal-fechar">Fechar</button>
+    </div>
+    <input type="hidden" id="ovi-cal-id">
+    <div class="ovi-modal-grid">
+      <div class="f-g"><label>Data</label><input type="date" id="ovi-cal-data"></div>
+      <div class="f-g"><label>Movimento</label><select id="ovi-cal-movimento"><option value="instalacao">Instalação</option><option value="troca">Troca</option><option value="retirada">Retirada</option></select></div>
+      <div class="f-g"><label>Grupo</label><select id="ovi-cal-grupo"></select></div>
+      <div class="f-g"><label>Ciclo</label><input type="text" id="ovi-cal-ciclo" placeholder="Ex: Ciclo 1"></div>
+    </div>
+    <div class="f-g" style="margin-top:10px;"><label>Agentes</label><div class="ovi-agent-picks" id="ovi-cal-agentes"></div></div>
+    <div class="f-g" style="margin-top:10px;"><label>Observações</label><textarea id="ovi-cal-observacoes" rows="4"></textarea></div>
+    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:16px;">
+      <button class="btn btn-ghost" type="button" id="ovi-cal-excluir" style="color:var(--red);border-color:var(--red);display:none;">Excluir</button>
+      <div style="display:flex;gap:8px;margin-left:auto;">
+        <button class="btn btn-outline" type="button" id="ovi-cal-cancelar">Cancelar</button>
+        <button class="btn btn-primary" type="button" id="ovi-cal-salvar">Salvar</button>
+      </div>
     </div>
   </div>
 </div>
+
+<div id="ovi-grupo-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.45);align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-lg);width:min(520px,96vw);max-height:92vh;overflow:auto;padding:20px;">
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:start;margin-bottom:14px;">
+      <h2 id="ovi-grupo-modal-title" style="font-size:16px;font-weight:900;">Grupo de localidades</h2>
+      <button type="button" class="btn btn-ghost btn-sm" id="ovi-grupo-fechar">Fechar</button>
+    </div>
+    <input type="hidden" id="ovi-grupo-id">
+    <div class="f-g"><label>Nome</label><input type="text" id="ovi-grupo-nome" placeholder="Ex: Tanguá / Paraíso"></div>
+    <div class="f-g" style="margin-top:10px;"><label>Localidades</label><textarea id="ovi-grupo-localidades" rows="3" placeholder="Ex: Tanguá, Paraíso"></textarea></div>
+    <div class="ovi-modal-grid" style="margin-top:10px;">
+      <div class="f-g"><label>Cor</label><input type="color" id="ovi-grupo-cor" value="#0f766e"></div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:23px;font-size:13px;"><input type="checkbox" id="ovi-grupo-ativo" checked> Grupo ativo</label>
+    </div>
+    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:16px;">
+      <button class="btn btn-ghost" type="button" id="ovi-grupo-excluir" style="color:var(--red);border-color:var(--red);display:none;">Excluir</button>
+      <div style="display:flex;gap:8px;margin-left:auto;">
+        <button class="btn btn-outline" type="button" id="ovi-grupo-cancelar">Cancelar</button>
+        <button class="btn btn-primary" type="button" id="ovi-grupo-salvar">Salvar grupo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="application/json" id="ovi-agentes-json">{{ agentes|tojson }}</script>
 {% endblock %}
 
 {% block extra_js %}<script>
 const oviFmt = new Intl.NumberFormat('pt-BR');
+const oviAgentes = JSON.parse(document.getElementById('ovi-agentes-json').textContent || '[]');
+let oviCalState = {ano:new Date().getFullYear(), grupos:[], eventos:[], eventosPorData:{}};
+const oviMeses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const oviDias = ['D','S','T','Q','Q','S','S'];
 function oviEscape(value){ return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+function oviAgentOptions(selected){
+  return `<option value="">Laboratorista</option>` + oviAgentes.map(a => `<option value="${a.id_agente}" ${String(a.id_agente) === String(selected || '') ? 'selected' : ''}>${oviEscape(a.nome)}</option>`).join('');
+}
 function oviParams(busca=false){
   const p = new URLSearchParams();
   ['ano','semana','distrito','positivas'].forEach(k => {
@@ -95,6 +272,40 @@ function oviParams(busca=false){
   const termo = document.getElementById('ovi-busca').value.trim();
   if (busca && termo) p.set('busca', termo);
   return p;
+}
+function oviArmParams(){
+  const p = new URLSearchParams();
+  const localidade = document.getElementById('ovi-arm-distrito').value;
+  const busca = document.getElementById('ovi-arm-busca').value.trim();
+  if (localidade) p.set('distrito', localidade);
+  if (busca) p.set('busca', busca);
+  return p;
+}
+function oviDateKey(date){
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+function oviSemanaEpi(date){
+  const year = date.getFullYear();
+  const first = new Date(year, 0, 1);
+  const firstSunday = new Date(year, 0, 1 + ((7 - first.getDay()) % 7));
+  if (date < firstSunday) return oviSemanaEpi(new Date(year - 1, 11, 31));
+  return Math.floor((date - firstSunday) / 604800000) + 1;
+}
+function oviContraste(hex){
+  const clean = String(hex || '#0f766e').replace('#','');
+  if (clean.length !== 6) return '#111827';
+  const r = parseInt(clean.slice(0,2),16), g = parseInt(clean.slice(2,4),16), b = parseInt(clean.slice(4,6),16);
+  return ((r * 299 + g * 587 + b * 114) / 1000) > 145 ? '#111827' : '#ffffff';
+}
+function oviGrupoById(id){
+  return oviCalState.grupos.find(g => String(g.id_grupo) === String(id));
+}
+function oviEventoTitulo(ev){
+  const grupo = ev.grupo_nome || oviGrupoById(ev.id_grupo)?.nome || '';
+  return `${ev.movimento_label || ev.movimento} de ovitrampas - ${grupo}`;
 }
 async function oviGet(url){
   const resp = await fetch(url);
@@ -122,21 +333,307 @@ async function carregarListaOvitrampas(){
   document.getElementById('ovi-body').innerHTML = (data.registros || []).map(r => {
     const endereco = [r.rua, r.numero].filter(Boolean).map(oviEscape).join(', ') || '-';
     const ovos = Number(r.ovos || 0);
+    const complemento = r.complemento || r.localizacao || '';
+    return `<div class="ovi-reading-card">
+      <div class="ovi-reading-top">
+        <div class="ovi-field"><span>Semana</span><strong>${r.ano || '-'} / ${String(r.semana || '').padStart(2,'0')}</strong></div>
+        <div class="ovi-field"><span>ID</span><strong>${oviEscape(r.ovitrampa_id)}</strong></div>
+        <div class="ovi-field"><span>Localidade</span><strong>${oviEscape(r.distrito || '-')}</strong></div>
+        <div class="ovi-field"><span>Endereço</span><strong>${endereco}</strong>${complemento ? `<br>${oviEscape(complemento)}` : ''}</div>
+        <div class="ovi-field"><span>Quarteirão</span><strong>${oviEscape(r.quarteirao || '-')}</strong></div>
+        <div class="ovi-field"><span>Ovos</span><strong><span class="ovi-tag ${ovos > 0 ? 'pos' : ''}">${oviFmt.format(ovos)}</span></strong></div>
+        <div class="ovi-field"><span>Instalação</span><strong>${oviEscape(r.data_instalacao || '-')}</strong></div>
+        <div class="ovi-field"><span>Coleta</span><strong>${oviEscape(r.data_coleta || '-')}</strong></div>
+        <div class="ovi-field"><span>Enviado por</span><strong>${oviEscape(r.quem_enviou || '-')}</strong></div>
+      </div>
+      <div class="ovi-reading-lab">
+        <label><span class="ovi-lab-label">Laboratorista</span><select data-ovi-lab="${oviEscape(r.id_leitura)}">${oviAgentOptions(r.id_laboratorista)}</select></label>
+        <label><span class="ovi-lab-label">Data da leitura</span><input type="date" value="${oviEscape(r.data_leitura || '')}" data-ovi-data="${oviEscape(r.id_leitura)}"></label>
+        <button class="btn btn-outline btn-sm" type="button" data-ovi-salvar-leitura="${oviEscape(r.id_leitura)}">Salvar</button>
+      </div>
+    </div>`;
+  }).join('') || '<div class="empty">Nenhuma leitura encontrada.</div>';
+}
+async function carregarArmadilhas(){
+  const data = await oviGet('/api/ovitrampas/armadilhas?' + oviArmParams().toString());
+  document.getElementById('ovi-arm-info').textContent = `${oviFmt.format(data.total || 0)} armadilha(s)`;
+  document.getElementById('ovi-arm-body').innerHTML = (data.registros || []).map(r => {
+    const endereco = [r.rua, r.numero].filter(Boolean).map(oviEscape).join(', ') || '-';
     return `<tr>
-      <td>${r.ano || '-'} / ${String(r.semana || '').padStart(2,'0')}</td>
       <td><strong>${oviEscape(r.ovitrampa_id)}</strong></td>
-      <td>${oviEscape(r.distrito || '-')}</td>
+      <td>${oviEscape(r.localidade || '-')}</td>
       <td>${endereco}<br><span style="color:var(--text3);font-size:11px;">${oviEscape(r.complemento || r.localizacao || '')}</span></td>
       <td>${oviEscape(r.quarteirao || '-')}</td>
+      <td>${oviEscape(r.responsavel || '-')}</td>
+      <td>${oviFmt.format(r.leituras || 0)}</td>
+      <td>${oviFmt.format(r.ovos_total || 0)}</td>
+      <td>${oviFmt.format(r.positivas || 0)}</td>
+      <td>${oviEscape(r.ultima_coleta || '-')}</td>
+      <td><button class="btn btn-outline btn-sm" type="button" data-ovi-historico="${oviEscape(r.ovitrampa_id)}">Histórico</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:18px;">Nenhuma armadilha encontrada.</td></tr>';
+}
+async function abrirHistorico(id){
+  const data = await oviGet('/api/ovitrampas/armadilhas/' + encodeURIComponent(id));
+  const a = data.armadilha || {};
+  const leituras = data.leituras || [];
+  document.getElementById('ovi-historico').hidden = false;
+  document.getElementById('ovi-hist-info').textContent = `${oviFmt.format(leituras.length)} leitura(s)`;
+  document.getElementById('ovi-hist-head').innerHTML = [
+    ['ID', a.ovitrampa_id],
+    ['Localidade', a.localidade],
+    ['Endereço', [a.rua, a.numero].filter(Boolean).join(', ')],
+    ['Complemento', a.complemento || a.localizacao],
+    ['Responsável', a.responsavel],
+    ['Coordenadas', [a.latitude, a.longitude].filter(v => v !== null && v !== undefined).join(', ')],
+  ].map(([k,v]) => `<div><strong>${oviEscape(k)}</strong>${oviEscape(v || '-')}</div>`).join('');
+  document.getElementById('ovi-hist-body').innerHTML = leituras.map(r => {
+    const ovos = Number(r.ovos || 0);
+    return `<tr>
+      <td>${r.ano || '-'} / ${String(r.semana || '').padStart(2,'0')}</td>
       <td>${oviEscape(r.data_instalacao || '-')}</td>
       <td>${oviEscape(r.data_coleta || '-')}</td>
+      <td>${oviEscape(r.data_leitura || '-')}</td>
+      <td>${oviEscape(r.laboratorista || '-')}</td>
       <td><span class="ovi-tag ${ovos > 0 ? 'pos' : ''}">${oviFmt.format(ovos)}</span></td>
       <td>${oviEscape(r.quem_enviou || '-')}</td>
+      <td>${oviEscape(r.arquivo_origem || '-')}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:18px;">Nenhuma leitura encontrada.</td></tr>';
+  }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:18px;">Sem leituras para esta armadilha.</td></tr>';
+  document.getElementById('ovi-historico').scrollIntoView({behavior:'smooth', block:'start'});
 }
+async function carregarCalendario(){
+  const ano = Number(document.getElementById('ovi-cal-ano').value || new Date().getFullYear());
+  const data = await oviGet('/api/ovitrampas/calendario?ano=' + encodeURIComponent(ano));
+  oviCalState = {
+    ano: data.ano,
+    grupos: data.grupos || [],
+    eventos: data.eventos || [],
+    eventosPorData: Object.fromEntries((data.eventos || []).map(ev => [ev.data, ev])),
+  };
+  document.getElementById('ovi-cal-ano').value = oviCalState.ano;
+  document.getElementById('ovi-cal-info').textContent = `${oviFmt.format(oviCalState.eventos.length)} movimento(s)`;
+  renderCalendarioAnual();
+  renderGrupos();
+  renderGrupoOptions();
+}
+function renderCalendarioAnual(){
+  document.getElementById('ovi-year-grid').innerHTML = Array.from({length:12}, (_, mes) => renderMes(oviCalState.ano, mes)).join('');
+}
+function renderMes(ano, mes){
+  const first = new Date(ano, mes, 1);
+  const start = new Date(ano, mes, 1 - first.getDay());
+  const rows = [];
+  rows.push('<div class="ovi-week-head">SE</div>' + oviDias.map(d => `<div class="ovi-day-head">${d}</div>`).join(''));
+  for (let semana = 0; semana < 6; semana++) {
+    const weekDate = new Date(start);
+    weekDate.setDate(start.getDate() + semana * 7);
+    const weekDays = [];
+    rows.push(`<div class="ovi-week-cell">${String(oviSemanaEpi(weekDate)).padStart(2,'0')}</div>`);
+    for (let dia = 0; dia < 7; dia++) {
+      const current = new Date(weekDate);
+      current.setDate(weekDate.getDate() + dia);
+      if (current.getMonth() !== mes) {
+        weekDays.push('<div class="ovi-day other"></div>');
+        continue;
+      }
+      const key = oviDateKey(current);
+      const ev = oviCalState.eventosPorData[key];
+      const today = key === oviDateKey(new Date());
+      const bg = ev?.grupo_cor || '';
+      const style = bg ? `style="background:${oviEscape(bg)};color:${oviContraste(bg)}"` : '';
+      const title = ev ? oviEscape(oviEventoTitulo(ev)) : 'Adicionar movimento';
+      weekDays.push(`<button type="button" class="ovi-day ${today ? 'today' : ''} ${ev ? 'has-event' : ''}" data-ovi-cal-dia="${key}" title="${title}" ${style}><span class="ovi-day-num">${current.getDate()}</span>${ev ? '<span class="ovi-day-dot"></span>' : ''}</button>`);
+    }
+    rows.push(weekDays.join(''));
+  }
+  return `<div class="ovi-month"><div class="ovi-month-title"><span>${oviMeses[mes]}</span><span>${ano}</span></div><div class="ovi-month-grid">${rows.join('')}</div></div>`;
+}
+function renderGrupos(){
+  document.getElementById('ovi-grupos-lista').innerHTML = oviCalState.grupos.map(g => `
+    <div class="ovi-group-item">
+      <div class="ovi-group-head">
+        <div style="display:flex;gap:8px;align-items:start;"><span class="ovi-swatch" style="background:${oviEscape(g.cor)}"></span><span>${oviEscape(g.nome)}${g.ativo ? '' : ' (inativo)'}</span></div>
+        <button class="btn btn-outline btn-sm" type="button" data-ovi-grupo-editar="${g.id_grupo}">Editar</button>
+      </div>
+      <div class="ovi-group-localidades">${oviEscape(g.localidades || '-')}</div>
+    </div>
+  `).join('') || '<div class="empty">Nenhum grupo cadastrado.</div>';
+}
+function renderGrupoOptions(){
+  const options = oviCalState.grupos.filter(g => g.ativo).map(g => `<option value="${g.id_grupo}">${oviEscape(g.nome)}</option>`).join('');
+  document.getElementById('ovi-cal-grupo').innerHTML = options || '<option value="">Cadastre um grupo</option>';
+}
+function abrirModalCalendario(data, evento=null){
+  renderGrupoOptions();
+  document.getElementById('ovi-cal-id').value = evento?.id_evento || '';
+  document.getElementById('ovi-cal-data').value = evento?.data || data || oviDateKey(new Date());
+  document.getElementById('ovi-cal-movimento').value = evento?.movimento || 'instalacao';
+  document.getElementById('ovi-cal-grupo').value = evento?.id_grupo || oviCalState.grupos.find(g => g.ativo)?.id_grupo || '';
+  document.getElementById('ovi-cal-ciclo').value = evento?.ciclo || '';
+  document.getElementById('ovi-cal-observacoes').value = evento?.observacoes || '';
+  document.getElementById('ovi-cal-modal-title').textContent = evento ? 'Editar movimento de ovitrampas' : 'Novo movimento de ovitrampas';
+  document.getElementById('ovi-cal-excluir').style.display = evento ? '' : 'none';
+  renderAgentesCalendario(evento?.agentes || []);
+  document.getElementById('ovi-cal-modal').style.display = 'flex';
+}
+function fecharModalCalendario(){
+  document.getElementById('ovi-cal-modal').style.display = 'none';
+}
+function renderAgentesCalendario(selecionados){
+  const ids = new Set((selecionados || []).map(a => String(a.id_agente)));
+  document.getElementById('ovi-cal-agentes').innerHTML = oviAgentes.map(a => `
+    <label class="ovi-agent-pick"><input type="checkbox" value="${a.id_agente}" ${ids.has(String(a.id_agente)) ? 'checked' : ''}> ${oviEscape(a.nome)}</label>
+  `).join('') || '<div class="empty">Nenhum agente ativo cadastrado.</div>';
+}
+function payloadCalendario(){
+  return {
+    data: document.getElementById('ovi-cal-data').value,
+    movimento: document.getElementById('ovi-cal-movimento').value,
+    id_grupo: document.getElementById('ovi-cal-grupo').value,
+    ciclo: document.getElementById('ovi-cal-ciclo').value,
+    observacoes: document.getElementById('ovi-cal-observacoes').value,
+    agentes: Array.from(document.querySelectorAll('#ovi-cal-agentes input:checked')).map(el => el.value),
+  };
+}
+function abrirModalGrupo(grupo=null){
+  document.getElementById('ovi-grupo-id').value = grupo?.id_grupo || '';
+  document.getElementById('ovi-grupo-nome').value = grupo?.nome || '';
+  document.getElementById('ovi-grupo-localidades').value = grupo?.localidades || '';
+  document.getElementById('ovi-grupo-cor').value = grupo?.cor || '#0f766e';
+  document.getElementById('ovi-grupo-ativo').checked = grupo ? !!grupo.ativo : true;
+  document.getElementById('ovi-grupo-modal-title').textContent = grupo ? 'Editar grupo' : 'Novo grupo';
+  document.getElementById('ovi-grupo-excluir').style.display = grupo ? '' : 'none';
+  document.getElementById('ovi-grupo-modal').style.display = 'flex';
+}
+function fecharModalGrupo(){
+  document.getElementById('ovi-grupo-modal').style.display = 'none';
+}
+function payloadGrupo(){
+  return {
+    nome: document.getElementById('ovi-grupo-nome').value,
+    localidades: document.getElementById('ovi-grupo-localidades').value,
+    cor: document.getElementById('ovi-grupo-cor').value,
+    ativo: document.getElementById('ovi-grupo-ativo').checked,
+  };
+}
+document.querySelectorAll('[data-ovi-tab]').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('[data-ovi-tab]').forEach(b => b.classList.toggle('active', b === btn));
+  const alvo = btn.dataset.oviTab;
+  document.getElementById('ovi-panel-leituras').hidden = alvo !== 'leituras';
+  document.getElementById('ovi-panel-armadilhas').hidden = alvo !== 'armadilhas';
+  document.getElementById('ovi-panel-calendario').hidden = alvo !== 'calendario';
+  if (alvo === 'armadilhas') carregarArmadilhas().catch(e => toast('Erro ao carregar armadilhas: ' + e.message, 'error'));
+  if (alvo === 'calendario') carregarCalendario().catch(e => toast('Erro ao carregar calendário: ' + e.message, 'error'));
+}));
 document.getElementById('ovi-atualizar').addEventListener('click', () => carregarOvitrampas().catch(e => toast('Erro ao carregar ovitrampas: ' + e.message, 'error')));
 document.getElementById('ovi-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarListaOvitrampas().catch(err => toast('Erro na busca: ' + err.message, 'error')); });
+document.getElementById('ovi-arm-atualizar').addEventListener('click', () => carregarArmadilhas().catch(e => toast('Erro ao carregar armadilhas: ' + e.message, 'error')));
+document.getElementById('ovi-arm-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarArmadilhas().catch(err => toast('Erro na busca: ' + err.message, 'error')); });
+document.getElementById('ovi-cal-ano').value = new Date().getFullYear();
+document.getElementById('ovi-cal-atualizar').addEventListener('click', () => carregarCalendario().catch(e => toast('Erro ao carregar calendário: ' + e.message, 'error')));
+document.getElementById('ovi-cal-novo').addEventListener('click', () => abrirModalCalendario(oviDateKey(new Date())));
+document.getElementById('ovi-grupo-novo').addEventListener('click', () => abrirModalGrupo());
+document.getElementById('ovi-cal-fechar').addEventListener('click', fecharModalCalendario);
+document.getElementById('ovi-cal-cancelar').addEventListener('click', fecharModalCalendario);
+document.getElementById('ovi-grupo-fechar').addEventListener('click', fecharModalGrupo);
+document.getElementById('ovi-grupo-cancelar').addEventListener('click', fecharModalGrupo);
+document.addEventListener('click', async e => {
+  const dia = e.target.closest('[data-ovi-cal-dia]')?.dataset.oviCalDia;
+  if (dia) {
+    abrirModalCalendario(dia, oviCalState.eventosPorData[dia] || null);
+    return;
+  }
+  const grupoId = e.target.closest('[data-ovi-grupo-editar]')?.dataset.oviGrupoEditar;
+  if (grupoId) {
+    abrirModalGrupo(oviGrupoById(grupoId));
+    return;
+  }
+  const histId = e.target.closest('[data-ovi-historico]')?.dataset.oviHistorico;
+  if (histId) return abrirHistorico(histId).catch(err => toast('Erro ao abrir histórico: ' + err.message, 'error'));
+  const leituraId = e.target.closest('[data-ovi-salvar-leitura]')?.dataset.oviSalvarLeitura;
+  if (!leituraId) return;
+  const payload = {
+    id_laboratorista: document.querySelector(`[data-ovi-lab="${CSS.escape(leituraId)}"]`)?.value || null,
+    data_leitura: document.querySelector(`[data-ovi-data="${CSS.escape(leituraId)}"]`)?.value || null,
+  };
+  try {
+    const resp = await fetch('/api/ovitrampas/leituras/' + encodeURIComponent(leituraId), {
+      method:'PUT',
+      headers:{'Content-Type':'application/json','X-CSRFToken': getCsrf()},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
+    toast('Leitura atualizada.', 'success');
+  } catch (err) {
+    toast('Erro ao salvar leitura: ' + err.message, 'error');
+  }
+});
+document.getElementById('ovi-cal-salvar').addEventListener('click', async () => {
+  const id = document.getElementById('ovi-cal-id').value;
+  const url = id ? `/api/ovitrampas/calendario/eventos/${encodeURIComponent(id)}` : '/api/ovitrampas/calendario/eventos';
+  try {
+    const resp = await fetch(url, {
+      method: id ? 'PUT' : 'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken': getCsrf()},
+      body: JSON.stringify(payloadCalendario()),
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
+    fecharModalCalendario();
+    toast('Movimento de ovitrampas salvo.', 'success');
+    await carregarCalendario();
+  } catch (err) {
+    toast('Erro ao salvar movimento: ' + err.message, 'error');
+  }
+});
+document.getElementById('ovi-cal-excluir').addEventListener('click', async () => {
+  const id = document.getElementById('ovi-cal-id').value;
+  if (!id || !confirm('Excluir este movimento de ovitrampas?')) return;
+  try {
+    const resp = await fetch(`/api/ovitrampas/calendario/eventos/${encodeURIComponent(id)}`, {method:'DELETE', headers:{'X-CSRFToken': getCsrf()}});
+    const data = await resp.json();
+    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
+    fecharModalCalendario();
+    toast('Movimento excluído.', 'success');
+    await carregarCalendario();
+  } catch (err) {
+    toast('Erro ao excluir movimento: ' + err.message, 'error');
+  }
+});
+document.getElementById('ovi-grupo-salvar').addEventListener('click', async () => {
+  const id = document.getElementById('ovi-grupo-id').value;
+  const url = id ? `/api/ovitrampas/calendario/grupos/${encodeURIComponent(id)}` : '/api/ovitrampas/calendario/grupos';
+  try {
+    const resp = await fetch(url, {
+      method: id ? 'PUT' : 'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken': getCsrf()},
+      body: JSON.stringify(payloadGrupo()),
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
+    fecharModalGrupo();
+    toast('Grupo salvo.', 'success');
+    await carregarCalendario();
+  } catch (err) {
+    toast('Erro ao salvar grupo: ' + err.message, 'error');
+  }
+});
+document.getElementById('ovi-grupo-excluir').addEventListener('click', async () => {
+  const id = document.getElementById('ovi-grupo-id').value;
+  if (!id || !confirm('Excluir este grupo?')) return;
+  try {
+    const resp = await fetch(`/api/ovitrampas/calendario/grupos/${encodeURIComponent(id)}`, {method:'DELETE', headers:{'X-CSRFToken': getCsrf()}});
+    const data = await resp.json();
+    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
+    fecharModalGrupo();
+    toast('Grupo excluído.', 'success');
+    await carregarCalendario();
+  } catch (err) {
+    toast('Erro ao excluir grupo: ' + err.message, 'error');
+  }
+});
 document.getElementById('ovi-form').addEventListener('submit', async e => {
   e.preventDefault();
   const files = document.getElementById('ovi-arquivos').files;
@@ -152,12 +649,35 @@ document.getElementById('ovi-form').addEventListener('submit', async e => {
     if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
     status.className = data.erros?.length ? 'imp-status imp-azul' : 'imp-status imp-verde';
     status.textContent = `${oviFmt.format(data.inseridos || 0)} novo(s), ${oviFmt.format(data.duplicados || 0)} duplicado(s)`;
-    toast('Importação de ovitrampas concluída.', data.erros?.length ? 'warning' : 'success');
+    toast('Importação de leituras concluída.', data.erros?.length ? 'warning' : 'success');
     await carregarOvitrampas();
   } catch (err) {
     status.className = 'imp-status imp-vermelho';
     status.textContent = 'Erro';
-    toast('Erro ao importar ovitrampas: ' + err.message, 'error');
+    toast('Erro ao importar leituras: ' + err.message, 'error');
+  }
+});
+document.getElementById('ovi-arm-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const file = document.getElementById('ovi-arm-arquivo').files[0];
+  if (!file) return toast('Selecione o CSV de ovitrampas.', 'warning');
+  const status = document.getElementById('ovi-arm-import-status');
+  status.className = 'imp-status imp-azul';
+  status.textContent = 'Atualizando...';
+  const form = new FormData();
+  form.append('arquivo', file);
+  try {
+    const resp = await fetch('/api/ovitrampas/armadilhas/importar', {method:'POST', headers:{'X-CSRFToken': getCsrf()}, body:form});
+    const data = await resp.json();
+    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
+    status.className = data.erros?.length ? 'imp-status imp-azul' : 'imp-status imp-verde';
+    status.textContent = `${oviFmt.format(data.inseridos || 0)} nova(s), ${oviFmt.format(data.atualizados || 0)} atualizada(s)`;
+    toast('Cadastro de armadilhas atualizado.', data.erros?.length ? 'warning' : 'success');
+    await carregarArmadilhas();
+  } catch (err) {
+    status.className = 'imp-status imp-vermelho';
+    status.textContent = 'Erro';
+    toast('Erro ao atualizar cadastro: ' + err.message, 'error');
   }
 });
 carregarOvitrampas().catch(e => toast('Erro ao carregar ovitrampas: ' + e.message, 'error'));

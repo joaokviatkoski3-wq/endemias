@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify, render_template, request
 
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
+from app_core import ovitrampas as ovitrampas_core
 from app_core import work_types
 
 
@@ -22,6 +23,7 @@ AGENDA_AUTO_FONTES = {
     "AMOSTRA_ANIMAIS": {"label": "Amostra de animais", "cor": "#0891b2"},
     "ACAO_EDUCATIVA": {"label": "Ação educativa", "cor": "#0f766e"},
     "ACAO_LIMPEZA": {"label": "Ação de limpeza", "cor": "#d97706"},
+    "OVITRAMPA": {"label": "Ovitrampa", "cor": "#0f766e"},
 }
 
 AGENDA_TIPO_CHECK = "('reuniao','planejamento','campo','prazo','treinamento','tarefa','ferias','outro')"
@@ -581,6 +583,35 @@ def _eventos_periodo(inicio, fim):
                 tipo=r["tipo"],
                 id_extra=r["id_acao"],
             ))
+
+    for item in ovitrampas_core.eventos_agenda(bh.db_path(), inicio[:10], fim[:10]):
+        fonte = AGENDA_AUTO_FONTES["OVITRAMPA"]
+        data_dt = _parse_data_evento(item["data"], True)
+        cor = item.get("cor") or fonte["cor"]
+        eventos.append({
+            "id": f"auto_OVITRAMPA_{item['data']}_{item['id_evento']}",
+            "title": item["titulo"],
+            "start": item["data"],
+            "end": _fim_fullcalendar(data_dt, True),
+            "allDay": True,
+            "color": cor + "dd",
+            "backgroundColor": cor + "dd",
+            "borderColor": cor,
+            "textColor": "#ffffff",
+            "display": "block",
+            "classNames": ["agenda-auto-importado", "agenda-auto-ovitrampa"],
+            "extendedProps": {
+                "tipo": "ovitrampa",
+                "tipoLabel": fonte["label"],
+                "fonte": "OVITRAMPA",
+                "fonteLabel": fonte["label"],
+                "resumo": item.get("resumo") or "",
+                "localidades": _localidades_lista(item.get("localidades")),
+                "total": 1,
+                "agentes": item.get("agentes") or "-",
+                "origem": "auto",
+            },
+        })
 
     return eventos
 
