@@ -44,6 +44,7 @@
 .ovi-day{position:relative;cursor:pointer;color:var(--text);font-weight:800;border:0;}
 .ovi-day:hover{outline:2px solid var(--brand);outline-offset:-2px;}
 .ovi-day.other{color:var(--text3);font-weight:500;background:var(--surface2);}
+.ovi-day.weekend:not(.has-event){background:#e5e7eb;color:#475569;}
 .ovi-day.has-event{color:#111827;}
 .ovi-day.today{box-shadow:inset 0 0 0 2px var(--brand);}
 .ovi-day-num{position:relative;z-index:1;}
@@ -457,10 +458,11 @@ function renderMes(ano, mes){
       const key = oviDateKey(current);
       const ev = oviCalState.eventosPorData[key];
       const today = key === oviDateKey(new Date());
+      const weekend = current.getDay() === 0 || current.getDay() === 6;
       const bg = ev?.grupo_cor || '';
       const style = bg ? `style="background:${oviEscape(bg)};color:${oviContraste(bg)}"` : '';
       const title = ev ? oviEscape(oviEventoTitulo(ev)) : 'Adicionar movimento';
-      weekDays.push(`<button type="button" class="ovi-day ${today ? 'today' : ''} ${ev ? 'has-event' : ''}" data-ovi-cal-dia="${key}" title="${title}" ${style}><span class="ovi-day-num">${current.getDate()}</span>${ev ? '<span class="ovi-day-dot"></span>' : ''}</button>`);
+      weekDays.push(`<button type="button" class="ovi-day ${weekend ? 'weekend' : ''} ${today ? 'today' : ''} ${ev ? 'has-event' : ''}" data-ovi-cal-dia="${key}" title="${title}" ${style}><span class="ovi-day-num">${current.getDate()}</span>${ev ? '<span class="ovi-day-dot"></span>' : ''}</button>`);
     }
     rows.push(weekDays.join(''));
   }

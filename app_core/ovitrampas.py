@@ -746,7 +746,7 @@ def _cal_evento_dict(row):
     if item.get("movimento") == "feriado":
         item["grupo_nome"] = item.get("titulo") or "Feriado"
         item["grupo_localidades"] = ""
-        item["grupo_cor"] = "#94a3b8"
+        item["grupo_cor"] = "#64748b"
     raw = item.pop("agentes_raw", "") or ""
     item["agentes"] = [
         {"id_agente": int(x.split(":", 1)[0]), "nome": x.split(":", 1)[1]}
