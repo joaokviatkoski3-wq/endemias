@@ -35,6 +35,44 @@ LOCALIDADES_PADRAO = {
     "tanguá": "Tanguá",
 }
 
+CHOICE_LABELS = {
+    "c_o": "Cão",
+    "cao": "Cão",
+    "cão": "Cão",
+    "gato": "Gato",
+    "outro": "Outro",
+    "outros": "Outros",
+    "macho": "Macho",
+    "f_mea": "Fêmea",
+    "femea": "Fêmea",
+    "fêmea": "Fêmea",
+    "domiciliado": "Domiciliado",
+    "semi_domiciliado": "Semi-domiciliado",
+    "semidomiciliado": "Semi-domiciliado",
+    "de_rua": "De rua",
+    "derua": "De rua",
+    "comunit_rio": "Comunitário",
+    "comunitario": "Comunitário",
+    "comunitário": "Comunitário",
+    "sim": "Sim",
+    "n_o": "Não",
+    "nao": "Não",
+    "não": "Não",
+    "desconhecido": "Desconhecido",
+    "resid_ncia": "Residência",
+    "residencia": "Residência",
+    "residência": "Residência",
+    "com_rcio": "Comércio",
+    "comercio": "Comércio",
+    "comércio": "Comércio",
+    "terreno_baldio": "Terreno Baldio",
+    "terrenobaldio": "Terreno Baldio",
+    "normal": "Normal",
+    "fechado": "Fechado",
+    "recusa": "Recusa",
+    "recuperado": "Recuperado",
+}
+
 
 class ValidationError(Exception):
     pass
@@ -233,11 +271,11 @@ def parse_workbook(path, estrutura=None):
             "agentes_texto": _text(_row_get(row, ["Dados do morador/Agentes", "Dados do morador/Nome do(s) agente(s)", "Agentes"])),
             "localidade": _localidade(_row_get(row, ["Dados do morador/Localidade", "Localidade"])),
             "quarteirao": _int(_row_get(row, ["Dados do morador/Quarteirão", "Quarteirao", "Quarteir_o"])),
-            "tipo_imovel": _text(_row_get(row, ["Dados do morador/Tipo do imóvel", "Tipo_do_im_vel", "Tipo do imovel"])),
+            "tipo_imovel": _choice(_row_get(row, ["Dados do morador/Tipo do imóvel", "Tipo_do_im_vel", "Tipo do imovel"])),
             "logradouro": _text(_row_get(row, ["Dados do morador/Logradouro", "Logradouro"])),
             "numero": _text(_row_get(row, ["Dados do morador/Número", "Numero", "N_mero"])),
             "morador": _text(_row_get(row, ["Dados do morador/Morador", "Morador"])),
-            "visita": _text(_row_get(row, ["Dados do morador/Visita:", "Visita"])),
+            "visita": _choice(_row_get(row, ["Dados do morador/Visita:", "Visita"])),
             "telefone": _text(_row_get(row, ["Dados do morador/Telefone", "Telefone"])),
             "observacoes": _text(_row_get(row, ["Dados do morador/Observações", "Observacoes", "Observa_es"])),
             "deseja_cadastrar_animal": _text(_row_get(row, ["Deseja cadastrar um animal?", "Deseja_cadastrar_um_animal"])),
@@ -261,17 +299,17 @@ def parse_workbook(path, estrutura=None):
             "id_animal": _hash("esporotricose:animal", animal_uuid),
             "id_visita": id_visita,
             "kobo_uuid": animal_uuid,
-            "especie": _text(_row_get(row, ["Dados do animal/Escolha o animal a ser cadastrado:", "Escolha_o_animal_a_ser_cadastr"])),
-            "outro_animal": _text(_row_get(row, ["Dados do animal/Qual animal?", "Esp_cie", "Especie"])),
+            "especie": _choice(_row_get(row, ["Dados do animal/Escolha o animal a ser cadastrado:", "Escolha_o_animal_a_ser_cadastr"])),
+            "outro_animal": _choice(_row_get(row, ["Dados do animal/Qual animal?", "Esp_cie", "Especie"])),
             "nome": _text(_row_get(row, ["Dados do animal/Nome do animal:", "Nome_do_animal"])),
             "raca": _text(_row_get(row, ["Dados do animal/Raça:", "Raca", "Ra_a"])),
-            "sexo": _text(_row_get(row, ["Dados do animal/Sexo:", "Sexo"])),
-            "ambiente": _text(_row_get(row, ["Dados do animal/Classificação quanto ao ambiente em que o animal vive:", "Classifica_o_quanto_em_que_o_animal_vive"])),
-            "vacinado": _text(_row_get(row, ["Dados do animal/Vacinado?", "Vacinado"])),
-            "castrado": _text(_row_get(row, ["Dados do animal/Castrado?", "Castrado"])),
-            "feridas": _text(_row_get(row, ["Dados do animal/Apresenta feridas pelo corpo?", "Apresenta_feridas_pelo_corpo"])),
+            "sexo": _choice(_row_get(row, ["Dados do animal/Sexo:", "Sexo"])),
+            "ambiente": _choice(_row_get(row, ["Dados do animal/Classificação quanto ao ambiente em que o animal vive:", "Classifica_o_quanto_em_que_o_animal_vive"])),
+            "vacinado": _choice(_row_get(row, ["Dados do animal/Vacinado?", "Vacinado"])),
+            "castrado": _choice(_row_get(row, ["Dados do animal/Castrado?", "Castrado"])),
+            "feridas": _choice(_row_get(row, ["Dados do animal/Apresenta feridas pelo corpo?", "Apresenta_feridas_pelo_corpo"])),
             "regiao_ferida": _text(_row_get(row, ["Dados do animal/Região:", "Regiao", "Regi_o"])),
-            "atendimento_veterinario": _text(_row_get(row, ["Dados do animal/Já passou por atendimento veterinário?", "J_passou_por_atendimento_vete"])),
+            "atendimento_veterinario": _choice(_row_get(row, ["Dados do animal/Já passou por atendimento veterinário?", "J_passou_por_atendimento_vete"])),
             "data_atendimento": _date(_row_get(row, ["Dados do animal/Data do atendimento:", "Data_do_atendimento"])),
             "evolucao_caso": _text(_row_get(row, ["Dados do animal/Evolução do caso:", "Evolu_o_do_caso"])),
         })
@@ -760,6 +798,13 @@ def _localidade(valor):
     if not texto:
         return None
     return LOCALIDADES_PADRAO.get(texto.lower(), texto)
+
+
+def _choice(valor):
+    texto = _text(valor)
+    if not texto:
+        return None
+    return CHOICE_LABELS.get(texto.lower(), texto)
 
 
 def _text(valor):

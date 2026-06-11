@@ -4004,11 +4004,11 @@ class MainApisSmokeTests(unittest.TestCase):
                     "group_su8jh28/Agentes": "Agente Teste",
                     "group_su8jh28/Localidade": "grasiela",
                     "group_su8jh28/Quarteir_o": "12",
-                    "group_su8jh28/Tipo_do_im_vel": "Residencial",
+                    "group_su8jh28/Tipo_do_im_vel": "resid_ncia",
                     "group_su8jh28/Logradouro": "Rua A",
                     "group_su8jh28/N_mero": "10",
                     "group_su8jh28/Morador": "Pessoa Teste",
-                    "group_su8jh28/Visita": "Realizada",
+                    "group_su8jh28/Visita": "fechado",
                     "Deseja_cadastrar_um_animal": "Sim",
                     "animais": [{
                         "group_tl0nq13/Escolha_o_animal_a_ser_cadastr": "c_o",
@@ -4063,6 +4063,24 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(sumario[0]["animais_novos"], 1)
             visitas, _ = esporotricose_core.parse_workbook(str(caminho), "nova")
             self.assertEqual(visitas[0]["localidade"], "Graziela")
+            self.assertEqual(visitas[0]["tipo_imovel"], "Residência")
+            self.assertEqual(visitas[0]["visita"], "Fechado")
+            _, animais = esporotricose_core.parse_workbook(str(caminho), "nova")
+            self.assertEqual(animais[0]["especie"], "Cão")
+            self.assertEqual(animais[0]["sexo"], "Macho")
+            self.assertEqual(animais[0]["ambiente"], "Domiciliado")
+            self.assertEqual(animais[0]["vacinado"], "Sim")
+            self.assertEqual(animais[0]["castrado"], "Não")
+            self.assertEqual(animais[0]["feridas"], "Não")
+
+    def test_etl_normaliza_codigos_tecnicos_da_api_kobo(self):
+        import etl
+
+        self.assertEqual(etl.normalizar_localidade("grasiela"), "Graziela")
+        self.assertEqual(etl.normalizar_categoria("resid_ncia"), "Residência")
+        self.assertEqual(etl.normalizar_categoria("com_rcio"), "Comércio")
+        self.assertEqual(etl.normalizar_categoria("fechado"), "Fechado")
+        self.assertEqual(etl.normalizar_categoria("normal"), "Normal")
 
     def test_etl_importa_larvas_sozinhas_em_coletas_existentes(self):
         with tempfile.TemporaryDirectory() as tmpdir:

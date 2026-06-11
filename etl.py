@@ -170,7 +170,7 @@ def auditar_larvas_sem_coleta(conn, larvas_origens, logger, limite=80):
 
 MAPA_LOCALIDADE = {
     "centro": "Sede", "sede": "Sede",
-    "cachoeira": "Cachoeira", "graziela": "Graziela",
+    "cachoeira": "Cachoeira", "graziela": "Graziela", "grasiela": "Graziela",
     "lamenha": "Lamenha",
     "paraiso": "Paraíso", "paraíso": "Paraíso",
     "roma": "Roma", "rosana": "Rosana",
@@ -188,6 +188,29 @@ MAPA_LOCALIDADE = {
 def normalizar_localidade(nome):
     if not nome: return nome
     return MAPA_LOCALIDADE.get(nome.strip().lower(), nome.strip())
+
+
+def normalizar_categoria(valor):
+    texto = val_str(valor)
+    if not texto:
+        return None
+    aliases = {
+        "normal": "Normal",
+        "fechado": "Fechado",
+        "recusa": "Recusa",
+        "recuperado": "Recuperado",
+        "resid_ncia": "Residência",
+        "residencia": "Residência",
+        "residência": "Residência",
+        "residencial": "Residência",
+        "com_rcio": "Comércio",
+        "comercio": "Comércio",
+        "comércio": "Comércio",
+        "terreno_baldio": "Terreno Baldio",
+        "terrenobaldio": "Terreno Baldio",
+        "outros": "Outros",
+    }
+    return aliases.get(texto.strip().lower(), texto)
 
 
 def obter_ou_criar_localidade(cur, nome_bruto):
@@ -445,8 +468,8 @@ def inserir_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso):
         val_int(row.get("Quarteirão") or row.get("quarteirao")),
         val_str(row.get(col_seq)) if col_seq else None,
         val_str(row.get("Morador")),
-        val_str(row.get("Tipo do imóvel") or row.get("Imóvel")),
-        val_str(row.get("Visita") or row.get("visita")),
+        normalizar_categoria(row.get("Tipo do imóvel") or row.get("Imóvel")),
+        normalizar_categoria(row.get("Visita") or row.get("visita")),
         val_str(row.get("Lado") or row.get("lado")),
         val_bool(row.get("O imóvel possui água encanada fornecida pela Sanepar?")),
         val_str(row.get("Observações") or row.get("observacoes")),

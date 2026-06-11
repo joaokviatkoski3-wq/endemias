@@ -45,6 +45,7 @@ LOCALIDADES_PADRAO = {
     "sede": "Sede",
     "centro": "Sede",
     "cachoeira": "Cachoeira",
+    "grasiela": "Graziela",
     "graziela": "Graziela",
     "lamenha": "Lamenha",
     "paraiso": "Paraíso",
