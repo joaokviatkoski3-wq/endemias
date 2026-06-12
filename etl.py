@@ -445,6 +445,7 @@ def inserir_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso):
 
     col_seq = cfg_tipo.get("col_sequencia")
     loc_bruto = val_str(row.get(cfg_tipo["col_localidade"]))
+    loc_nome = normalizar_localidade(loc_bruto) if loc_bruto else None
     logradouro = val_str(row.get("Logradouro") or row.get("logradouro"))
     pe_vinculo = pe_core.resolver_alias_visita(cur.connection, logradouro, loc_bruto) if tipo == "PE" else None
 
@@ -461,8 +462,8 @@ def inserir_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso):
         normalizar_data(row.get(col_data)),
         normalizar_hora(hora_val), normalizar_hora(hora_fim_val),
         val_int(row.get("Ciclo") or row.get("ciclo")),
-        loc_bruto,
-        obter_ou_criar_localidade(cur, loc_bruto),
+        loc_nome,
+        obter_ou_criar_localidade(cur, loc_nome),
         logradouro,
         val_str(row.get("Número") or row.get("numero")),
         val_int(row.get("Quarteirão") or row.get("quarteirao")),

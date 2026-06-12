@@ -1685,6 +1685,9 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("/api/kobo/importar-vetores-larvas/iniciar", js)
         self.assertIn("/api/kobo/importar-formulario/iniciar", js)
         self.assertIn("Com atenção", js)
+        self.assertIn("Resultados de laboratório", js)
+        self.assertIn("s.resultados_novos", js)
+        self.assertIn("resultado(s)", js)
 
     def test_assets_compartilhados_respondem_200(self):
         client = _client_logado()
@@ -3917,9 +3920,12 @@ class MainApisSmokeTests(unittest.TestCase):
                     "_uuid": "larva-api-1",
                     "_id": 2,
                     "_submission_time": "2026-06-10T12:00:00",
-                    "Número do tubito": "T-001",
-                    "Data da coleta": "2026-06-10",
-                    "Aegypt Larvas": "1",
+                    "start": "2026-06-11T08:00:00",
+                    "group_we1tn02/Nome_do_laboratorista": "azimir",
+                    "group_we1tn02/Data_leitura": "2026-06-11",
+                    "group_we1tn02/Numero_tubo": "T-001",
+                    "group_we1tn02/Data_da_coleta": "2026-06-10",
+                    "group_nr95y76/group_mw55v39/Aegypt_Larvas": "1",
                 }]}).encode("utf-8")
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -3941,7 +3947,21 @@ class MainApisSmokeTests(unittest.TestCase):
             job_dir = Path(app_temp.config["UPLOAD_TEMP"]) / data["job_id"]
             self.assertEqual(len(data["arquivos"]), 1)
             self.assertTrue(data["arquivos"][0].startswith("LARVAS_"))
-            self.assertTrue((job_dir / data["arquivos"][0]).exists())
+            caminho = job_dir / data["arquivos"][0]
+            self.assertTrue(caminho.exists())
+            wb = openpyxl.load_workbook(caminho, read_only=True)
+            try:
+                ws = wb.active
+                headers = [cell.value for cell in next(ws.iter_rows(max_row=1))]
+                values = [cell.value for cell in next(ws.iter_rows(min_row=2, max_row=2))]
+                row = dict(zip(headers, values))
+            finally:
+                wb.close()
+            self.assertEqual(str(row["Número do tubito"]), "T-001")
+            self.assertEqual(str(row["Data da coleta"])[:10], "2026-06-10")
+            self.assertEqual(str(row["Data da leitura"])[:10], "2026-06-11")
+            self.assertEqual(str(row["Nome do laboratorista"]), "azimir")
+            self.assertEqual(int(row["Aegypt Larvas"]), 1)
 
     def test_kobo_importacao_extra_prepara_formulario_bri(self):
         class FakeResponse:

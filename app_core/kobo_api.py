@@ -195,7 +195,8 @@ def _date_value(value):
 
 def _norm(value):
     text = unicodedata.normalize("NFD", str(value or ""))
-    return "".join(ch for ch in text if unicodedata.category(ch) != "Mn").casefold()
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    return "".join(ch for ch in text.casefold() if ch.isalnum())
 
 
 def _value(record, candidates):
@@ -228,7 +229,7 @@ def record_tubes(record, fallback_date=None):
         tubo = _value(node, ["Número do tubito", "Numero do tubito", "num_tubo", "tubo", "tubito"])
         if not tubo:
             continue
-        data = _date_value(_value(node, ["Data da coleta", "data_coleta", "Data"])) or fallback_date
+        data = _date_value(_value(node, ["Data da coleta", "data_coleta", "Data_da_coleta"])) or fallback_date
         key = (tubo.strip(), data or "")
         if key in seen:
             continue
@@ -260,7 +261,7 @@ def record_details(tipo, record, larvas_links=None):
     if not tubo and tubos:
         tubo = tubos[0]["tubo"]
     data = record_date(record)
-    data_coleta = _value(record, ["Data da coleta", "data_coleta"]) or (tubos[0]["data"] if tubos else "") or data
+    data_coleta = _value(record, ["Data da coleta", "data_coleta", "Data_da_coleta"]) or (tubos[0]["data"] if tubos else "") or data
     detalhes = {
         "data": data or data_coleta or "-",
         "enviado_em": record.get("_submission_time") or "-",
@@ -436,11 +437,32 @@ def _larva_row(record, cfg_larvas):
     row.setdefault("_uuid", record_uuid(record))
     row.setdefault("_id", record.get("_id"))
     row.setdefault("_submission_time", record.get("_submission_time"))
-    row.setdefault(cfg_larvas.get("col_numero_tubo", "Número do tubito"), detalhes.get("tubo"))
-    row.setdefault(cfg_larvas.get("col_data_coleta", "Data da coleta"), detalhes.get("data_coleta"))
+    _set_if_empty(row, cfg_larvas.get("col_numero_tubo", "Número do tubito"), detalhes.get("tubo"))
+    _set_if_empty(row, cfg_larvas.get("col_data_coleta", "Data da coleta"), detalhes.get("data_coleta"))
+    _set_if_empty(row, "Nome do laboratorista", _value(record, ["Nome do laboratorista", "Nome_do_laboratorista", "laboratorista"]))
+    _set_if_empty(row, "Data da leitura", _value(record, ["Data da leitura", "Data_leitura"]))
+    result_candidates = {
+        "Aegypt Larvas": ["Aegypt Larvas", "Aegypt_Larvas"],
+        "Aegypt Pupas": ["Aegypt Pupas", "Aegypt_Pupas"],
+        "Aegypt Exúvias": ["Aegypt Exuvias", "Aegypt Exúvias", "Aegypt_Exuvias", "Aegypt_Exúvias"],
+        "Aegypt Adulto": ["Aegypt Adulto", "Aegypt_Adulto"],
+        "Albopictus Larvas": ["Albopictus Larvas", "Albopictus_Larvas"],
+        "Albopictus Pupas": ["Albopictus Pupas", "Albopictus_Pupas"],
+        "Albopictus Exúvias": ["Albopictus Exuvias", "Albopictus Exúvias", "Albopictus_Exuvias", "Albopictus_Exúvias"],
+        "Albopictus Adulto": ["Albopictus Adulto", "Albopictus_Adulto"],
+        "Outra Espécie Larvas": ["Outra Especie Larvas", "Outra Espécie Larvas", "Outra_Especie_Larvas", "Outra_Espécie_Larvas"],
+        "Outra Espécie Pupas": ["Outra Especie Pupas", "Outra Espécie Pupas", "Outra_Especie_Pupas", "Outra_Espécie_Pupas"],
+        "Outra Espécie Exúvias": ["Outra Especie Exuvias", "Outra Espécie Exúvias", "Outra_Especie_Exuvias", "Outra_Espécie_Exúvias"],
+        "Outra Espécie Adulto": ["Outra Especie Adulto", "Outra Espécie Adulto", "Outra_Especie_Adulto", "Outra_Espécie_Adulto"],
+    }
     for col in cfg_larvas.get("colunas_resultado", []):
-        row.setdefault(col, "")
+        _set_if_empty(row, col, _value(record, result_candidates.get(col, [col])))
     return row
+
+
+def _set_if_empty(row, key, value):
+    if key and value not in (None, "") and row.get(key) in (None, ""):
+        row[key] = value
 
 
 def _extra_row(record):

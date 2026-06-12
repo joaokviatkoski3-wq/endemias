@@ -449,11 +449,11 @@ function finalizarDryRun(ok, sumario) {
   document.getElementById('sumario-ok').style.display    = ok ? 'block' : 'none';
 
   // Tabela sumário
-  let html = '<table class="sumario-table"><thead><tr><th>Arquivo</th><th>Tipo</th><th>Registros novos</th><th>Coletas/animais/materiais</th></tr></thead><tbody>';
+  let html = '<table class="sumario-table"><thead><tr><th>Arquivo</th><th>Tipo</th><th>Registros novos</th><th>Complementares</th></tr></thead><tbody>';
   if (sumario.length) {
     sumario.forEach(s => {
       const cor = CORES[s.tipo] || '#64748b';
-      const label = s.tipo === 'ESPOROTRICOSE' ? 'Esporotricose' : (WORK_TYPE_LABELS[s.tipo] || s.tipo);
+      const label = s.tipo === 'ESPOROTRICOSE' ? 'Esporotricose' : (s.tipo === 'LARVAS' ? 'Resultados de laboratório' : (WORK_TYPE_LABELS[s.tipo] || s.tipo));
       const labelFinal = s.tipo === 'RECOLHIMENTO'
         ? 'Recolhimento de materiais'
         : s.tipo === 'AMOSTRA_ANIMAIS'
@@ -461,7 +461,12 @@ function finalizarDryRun(ok, sumario) {
         : s.tipo === 'BRI'
           ? 'BRI'
           : label;
-      const secundarios = s.tipo === 'ESPOROTRICOSE'
+      const registros = s.tipo === 'LARVAS'
+        ? (s.resultados_novos ?? 0)
+        : (s.visitas_novas ?? s.visitas ?? 0);
+      const secundarios = s.tipo === 'LARVAS'
+        ? `${s.resultados_novos ?? 0} resultado(s)`
+        : s.tipo === 'ESPOROTRICOSE'
         ? (s.animais_novos ?? s.coletas_novas ?? 0)
         : s.tipo === 'RECOLHIMENTO'
           ? (s.materiais_novos ?? 0)
@@ -473,7 +478,7 @@ function finalizarDryRun(ok, sumario) {
       html += `<tr>
         <td style="font-size:12px;">${s.arquivo}</td>
         <td><span class="sumario-tipo" style="background:${cor}18;color:${cor};">${s.tipo} - ${labelFinal}</span></td>
-        <td style="font-weight:700;">${s.visitas_novas ?? s.visitas ?? 0}</td>
+        <td style="font-weight:700;">${registros}</td>
         <td>${secundarios}</td>
       </tr>`;
     });
