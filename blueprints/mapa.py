@@ -17,7 +17,12 @@ login_required = auth_core.login_required
 @bp.route("/mapa")
 @login_required
 def page():
-    return render_template("mapa.html")
+    conn = bh.get_db()
+    try:
+        localidades = [dict(row) for row in conn.execute("SELECT id_localidade, nome FROM localidades ORDER BY nome")]
+    finally:
+        conn.close()
+    return render_template("mapa.html", localidades_mapa=localidades)
 
 
 @bp.route("/api/mapa")

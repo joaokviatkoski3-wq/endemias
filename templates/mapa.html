@@ -109,6 +109,9 @@
 .ovi-map-tools { display:grid; gap:10px; }
 .ovi-map-line { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .ovi-map-check { display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--text2); }
+.ovi-color-list{display:grid;gap:6px;max-height:170px;overflow:auto;padding-right:2px;}
+.ovi-color-row{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;align-items:center;font-size:11.5px;color:var(--text2);}
+.ovi-color-row input{width:28px;height:24px;padding:0;border:1px solid var(--border);border-radius:4px;background:transparent;}
 .ovi-popup-title { font-size:13px; font-weight:850; color:#312e81; margin-bottom:4px; }
 .ovi-popup-meta { color:#475569; font-size:11px; margin-bottom:6px; }
 .ovi-popup-grid { display:grid; grid-template-columns:1fr 1fr; gap:5px; min-width:190px; }
@@ -282,6 +285,18 @@
             <input type="checkbox" id="ovi-map-positivas" onchange="aplicarFiltros()"> Só positivas
           </label>
         </div>
+        <div class="filtro-g" style="margin-bottom:0;">
+          <label>Cores por localidade</label>
+          <div class="ovi-color-list">
+            {% set ovi_cores = ['#2563eb','#16a34a','#dc2626','#9333ea','#f97316','#0891b2','#be123c','#65a30d','#7c3aed','#0f766e','#ca8a04','#475569','#db2777','#0284c7'] %}
+            {% for loc in localidades_glob %}
+            <label class="ovi-color-row">
+              <input type="color" data-ovi-loc="{{ loc }}" value="{{ ovi_cores[loop.index0 % ovi_cores|length] }}" onchange="salvarCoresOvitrampas(); renderGeoJSON();">
+              <span>{{ loc }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
       </div>
     </div>
 
@@ -332,6 +347,9 @@ let dadosOvi  = { resumo:{}, pontos:[] };
 let modoAtual = 'trabalhado';
 let tiposSel  = new Set({{ TIPOS_TRABALHO|map(attribute='codigo')|list|tojson }});
 let oviDelayHandle = null;
+let coresOvitrampas = {};
+const LOCALIDADES_MAPA = {{ (localidades_mapa or [])|tojson }};
+const LOCALIDADE_NOMES = Object.fromEntries(LOCALIDADES_MAPA.map(l => [String(l.id_localidade), l.nome]));
 
 // ═══════════════════════════════════════════════════════════════════
 //  Cores
@@ -387,6 +405,10 @@ function corOvitrampas(d) {
   if (d.ovi_positivas > 0) return { fill:'#ef4444', border:'#991b1b' };
   if (d.ovi_leituras > 0) return { fill:'#a78bfa', border:'#7c3aed' };
   return { fill:'#ddd6fe', border:'#8b5cf6' };
+}
+function corLocalidadeOvi(localidade) {
+  const nome = LOCALIDADE_NOMES[String(localidade)] || localidade;
+  return coresOvitrampas[nome] || '#7c3aed';
 }
 function pontuacaoAtencao(d) {
   if (!d) return 0;
@@ -537,7 +559,8 @@ function renderGeoJSON() {
       const d   = dadosAPI[`${p.Localidade}:${p.id_quart}`];
       const cor = obterCor(d);
       if (modoAtual === 'ovitrampas') {
-        return { fillColor:'#e2e8f0', fillOpacity:0.12, color:'#94a3b8', weight:0.7, opacity:0.45 };
+        const locCor = corLocalidadeOvi(p.Localidade);
+        return { fillColor:locCor, fillOpacity:0.18, color:locCor, weight:1, opacity:0.65 };
       }
       return { fillColor: cor.fill, fillOpacity: 0.75, color: cor.border, weight: 1, opacity: 1 };
     },
@@ -809,6 +832,26 @@ function salvarEstado() {
   });
 }
 
+function salvarCoresOvitrampas() {
+  coresOvitrampas = {};
+  document.querySelectorAll('[data-ovi-loc]').forEach(input => {
+    coresOvitrampas[input.dataset.oviLoc] = input.value;
+  });
+  localStorage.setItem('mapa_ovi_cores', JSON.stringify(coresOvitrampas));
+}
+
+function restaurarCoresOvitrampas() {
+  try {
+    coresOvitrampas = JSON.parse(localStorage.getItem('mapa_ovi_cores') || '{}') || {};
+  } catch(e) {
+    coresOvitrampas = {};
+  }
+  document.querySelectorAll('[data-ovi-loc]').forEach(input => {
+    if (coresOvitrampas[input.dataset.oviLoc]) input.value = coresOvitrampas[input.dataset.oviLoc];
+    else coresOvitrampas[input.dataset.oviLoc] = input.value;
+  });
+}
+
 function restaurarEstado() {
   const s = carregarFiltros('mapa');
   if (s) {
@@ -873,6 +916,7 @@ function limparFiltros() {
 //  Init
 // ═══════════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', async () => {
+  restaurarCoresOvitrampas();
   atualizarLegenda();
   restaurarEstado();  // carrega estado salvo ou aplica default 1 mês
   atualizarLegenda(); // re-aplica legenda caso modo tenha mudado
