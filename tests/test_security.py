@@ -2428,6 +2428,21 @@ class MainApisSmokeTests(unittest.TestCase):
             })
             self.assertEqual(resp.status_code, 201)
 
+            resp = client.post("/api/ovitrampas/calendario/eventos", json={
+                "data": "2026-04-01",
+                "movimento": "instalacao",
+                "id_grupo": grupo["id_grupo"],
+            })
+            self.assertEqual(resp.status_code, 201)
+
+            dados_impressao = ovitrampas_core.calendario_impressao(
+                app_temp.config["DB_PATH"], 2026
+            )
+            marco = next(m for m in dados_impressao["meses"] if m["numero"] == 3)
+            dias_fora_mes = [d for semana in marco["semanas"] for d in semana["dias"] if d["fora_mes"]]
+            self.assertTrue(dias_fora_mes)
+            self.assertTrue(all(d["evento"] is None and d["dia"] == "" for d in dias_fora_mes))
+
             resp = client.get("/ovitrampas/calendario/imprimir?ano=2026")
             self.assertEqual(resp.status_code, 200)
             html = resp.get_data(as_text=True)

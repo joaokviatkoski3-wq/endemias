@@ -486,12 +486,13 @@ def calendario_impressao(db_path, ano):
             semana = {"se": _semana_epi(dia_atual), "dias": []}
             for _dia in range(7):
                 key = dia_atual.isoformat()
+                fora_mes = dia_atual.month != mes
                 semana["dias"].append({
                     "data": dia_atual,
-                    "dia": dia_atual.day if dia_atual.month == mes else "",
-                    "fora_mes": dia_atual.month != mes,
+                    "dia": "" if fora_mes else dia_atual.day,
+                    "fora_mes": fora_mes,
                     "fim_semana": dia_atual.weekday() in (5, 6),
-                    "evento": eventos_por_data.get(key),
+                    "evento": None if fora_mes else eventos_por_data.get(key),
                 })
                 dia_atual += timedelta(days=1)
             semanas.append(semana)
