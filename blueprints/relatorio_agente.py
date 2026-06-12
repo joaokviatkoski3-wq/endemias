@@ -6,6 +6,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 from app_core import auth as auth_core
 from app_core import db as db_core
 from app_core import esporotricose as esporotricose_core
+from app_core import ovitrampas as ovitrampas_core
 from app_core import producao_operacional
 from app_core import utils as utils_core
 from app_core import work_types
@@ -62,6 +63,65 @@ def _resumo_producao_agente(nome, d_ini, d_fim):
     resumo["por_agente"] = [{"agente": nome, "registros": total}]
     resumo.setdefault("totais", {})["agentes"] = 1 if total else 0
     return resumo
+
+
+def _resumo_ovitrampas_agente(nome, d_ini, d_fim):
+    conn = _get_db()
+    try:
+        ovitrampas_core.ensure_schema(conn)
+        rows = conn.execute(
+            f"""
+            SELECT e.data,
+                   e.movimento,
+                   e.ciclo,
+                   e.observacoes,
+                   g.nome AS grupo,
+                   g.localidades AS localidades
+              FROM {ovitrampas_core.CAL_EVENTOS_TABLE} e
+              JOIN {ovitrampas_core.CAL_AGENTES_TABLE} ea ON ea.id_evento=e.id_evento
+              JOIN agentes ag ON ag.id_agente=ea.id_agente
+              LEFT JOIN {ovitrampas_core.CAL_GRUPOS_TABLE} g ON g.id_grupo=e.id_grupo
+             WHERE ag.nome=?
+               AND e.data BETWEEN ? AND ?
+               AND e.movimento <> 'feriado'
+             ORDER BY e.data, e.id_evento
+            """,
+            (nome, d_ini, d_fim),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    eventos = []
+    por_movimento = {}
+    grupos = set()
+    ciclos = set()
+    dias = set()
+    movimentos = getattr(ovitrampas_core, "MOVIMENTOS", {})
+    for row in rows:
+        item = dict(row)
+        movimento = item.get("movimento") or ""
+        item["movimento_label"] = movimentos.get(movimento, movimento)
+        eventos.append(item)
+        dias.add(item.get("data"))
+        if item.get("grupo"):
+            grupos.add(item["grupo"])
+        if item.get("ciclo"):
+            ciclos.add(item["ciclo"])
+        por_movimento[item["movimento_label"]] = por_movimento.get(item["movimento_label"], 0) + 1
+
+    return {
+        "totais": {
+            "eventos": len(eventos),
+            "dias": len(dias),
+            "grupos": len(grupos),
+            "ciclos": len(ciclos),
+        },
+        "por_movimento": [
+            {"movimento": nome_mov, "total": total}
+            for nome_mov, total in sorted(por_movimento.items())
+        ],
+        "eventos": eventos,
+    }
 
 
 def _preparar_resumo_producao_relatorio(resumo):
@@ -503,6 +563,7 @@ def _obter_dados(nome, d_ini, d_fim):
 
     esporotricose = _resumo_esporotricose_agente(nome, d_ini, d_fim)
     producao = _resumo_producao_agente(nome, d_ini, d_fim)
+    ovitrampas = _resumo_ovitrampas_agente(nome, d_ini, d_fim)
     comparacao_esporotricose = {}
     if comparacao_esporo_raw:
         ce = dict(comparacao_esporo_raw)
@@ -531,6 +592,7 @@ def _obter_dados(nome, d_ini, d_fim):
         "por_periodo": por_periodo,
         "comparacao": comparacao,
         "producao_operacional": producao,
+        "ovitrampas": ovitrampas,
         "esporotricose": esporotricose,
         "comparacao_esporotricose": comparacao_esporotricose,
         "totais_api": {
@@ -619,6 +681,7 @@ def api():
             "evolucao": dados["evolucao"],
             "comparacao": dados["comparacao"],
             "producao_operacional": dados["producao_operacional"],
+            "ovitrampas": dados["ovitrampas"],
             "esporotricose": dados["esporotricose"],
             "comparacao_esporotricose": dados["comparacao_esporotricose"],
         })

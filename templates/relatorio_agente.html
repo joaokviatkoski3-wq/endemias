@@ -239,6 +239,9 @@ function renderRelatorio(d) {
   const prod = d.producao_operacional || {};
   const prodT = prod.totais || {};
   const atividades = prod.por_atividade || [];
+  const ovi = d.ovitrampas || {};
+  const oviT = ovi.totais || {};
+  const oviEventos = ovi.eventos || [];
   const cmp = d.comparacao || {};
   const diasStr = `${fmtDate(d.d_ini)} → ${fmtDate(d.d_fim)}`;
   const taxaN  = t.total ? Math.round((t.normais||0)/t.total*100) : 0;
@@ -313,6 +316,35 @@ function renderRelatorio(d) {
                   <span class="dim small">${a.percentual || 0}%</span>
                 </div>
               </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table></div>
+    </div>` : ''}
+
+    ${oviT.eventos ? `
+    <div class="ra-section-title"><img src="/static/icons/ovitrampa.svg" alt="" class="icon-svg"> Ovitrampas</div>
+    <div class="privacy-note">
+      Movimentos do calendário de ovitrampas vinculados ao agente selecionado. Feriados são ignorados nesta contagem.
+    </div>
+    <div class="perf-grid">
+      <div class="kpi teal"><div class="kpi-icon"><img src="/static/icons/calendario.svg" alt="" class="icon-svg"></div><div class="kpi-label">Dias em ovitrampas</div><div class="kpi-val">${fmtNum(oviT.dias || 0)}</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/ovitrampa.svg" alt="" class="icon-svg"></div><div class="kpi-label">Movimentos</div><div class="kpi-val">${fmtNum(oviT.eventos || 0)}</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"></div><div class="kpi-label">Grupos</div><div class="kpi-val">${fmtNum(oviT.grupos || 0)}</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"></div><div class="kpi-label">Ciclos</div><div class="kpi-val">${fmtNum(oviT.ciclos || 0)}</div></div>
+    </div>
+    <div class="table-wrap" style="margin-bottom:14px;">
+      <div class="table-hd"><span class="table-title"><img src="/static/icons/calendario.svg" alt="" class="icon-svg"> Dias trabalhados em ovitrampas</span></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Data</th><th>Movimento</th><th>Grupo</th><th>Ciclo</th><th>Observações</th></tr></thead>
+        <tbody>
+          ${oviEventos.map(ev => `
+            <tr>
+              <td><strong>${fmtDate(ev.data)}</strong></td>
+              <td>${escapeHtml(ev.movimento_label || ev.movimento || '-')}</td>
+              <td>${escapeHtml(ev.grupo || '-')}</td>
+              <td>${escapeHtml(ev.ciclo || '-')}</td>
+              <td>${escapeHtml(ev.observacoes || '-')}</td>
             </tr>
           `).join('')}
         </tbody>

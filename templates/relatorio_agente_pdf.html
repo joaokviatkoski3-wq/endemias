@@ -175,6 +175,37 @@ tr:nth-child(even) td{background:#f8faff;}
   </table>
   </div>
 
+  {% if ovitrampas.totais.eventos %}
+  <div class="bloco-relatorio">
+  <div class="secao">Ovitrampas</div>
+  <p style="font-size:8.5pt;color:#555;margin-bottom:8pt;">
+    Movimentos do calendÃ¡rio de ovitrampas vinculados ao agente selecionado. Feriados sÃ£o ignorados nesta contagem.
+  </p>
+  {% set ovi_t = ovitrampas.totais %}
+  <div class="kpi-grid">
+    <div class="kpi teal"><div class="kpi-val">{{ ovi_t.dias }}</div><div class="kpi-lbl">Dias em ovitrampas</div></div>
+    <div class="kpi"><div class="kpi-val">{{ ovi_t.eventos }}</div><div class="kpi-lbl">Movimentos</div></div>
+    <div class="kpi"><div class="kpi-val">{{ ovi_t.grupos }}</div><div class="kpi-lbl">Grupos</div></div>
+    <div class="kpi"><div class="kpi-val">{{ ovi_t.ciclos }}</div><div class="kpi-lbl">Ciclos</div></div>
+  </div>
+  <table>
+    <thead><tr><th>Data</th><th>Movimento</th><th>Grupo</th><th>Ciclo</th><th>ObservaÃ§Ãµes</th></tr></thead>
+    <tbody>
+    {% for ev in ovitrampas.eventos %}
+    {% set p = ev.data.split('-') %}
+    <tr>
+      <td>{{ p[2] }}/{{ p[1] }}/{{ p[0] }}</td>
+      <td>{{ ev.movimento_label }}</td>
+      <td>{{ ev.grupo or '-' }}</td>
+      <td>{{ ev.ciclo or '-' }}</td>
+      <td>{{ ev.observacoes or '-' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+
   <!-- KPIs gerais -->
   <div class="bloco-relatorio">
   <div class="secao">Resumo geral</div>

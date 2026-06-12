@@ -2655,6 +2655,60 @@ class MainApisSmokeTests(unittest.TestCase):
         for outro in outros:
             self.assertNotIn(outro, payload)
 
+    def test_relatorio_agente_inclui_ovitrampas_vinculadas_e_ignora_feriados(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute("INSERT INTO agentes (nome, ativo) VALUES (?, 1)", ("Agente Ovi",))
+                conn.commit()
+                id_agente = conn.execute("SELECT id_agente FROM agentes WHERE nome=?", ("Agente Ovi",)).fetchone()[0]
+            finally:
+                conn.close()
+
+            resp = client.get("/api/ovitrampas/calendario?ano=2026")
+            self.assertEqual(resp.status_code, 200)
+            grupo = resp.get_json()["grupos"][0]
+
+            resp = client.post("/api/ovitrampas/calendario/eventos", json={
+                "data": "2026-07-14",
+                "movimento": "troca",
+                "id_grupo": grupo["id_grupo"],
+                "ciclo": "Ciclo 2",
+                "observacoes": "Equipe completa",
+                "agentes": [id_agente],
+            })
+            self.assertEqual(resp.status_code, 201)
+
+            resp = client.post("/api/ovitrampas/calendario/eventos", json={
+                "data": "2026-07-15",
+                "movimento": "feriado",
+                "titulo": "Feriado teste",
+            })
+            self.assertEqual(resp.status_code, 201)
+
+            resp = client.get(
+                "/api/relatorio-agente",
+                query_string={"agente": "Agente Ovi", "d_ini": "2026-07-01", "d_fim": "2026-07-31"},
+            )
+            self.assertEqual(resp.status_code, 200)
+            dados = resp.get_json()
+            self.assertEqual(dados["ovitrampas"]["totais"]["eventos"], 1)
+            self.assertEqual(dados["ovitrampas"]["totais"]["dias"], 1)
+            self.assertEqual(dados["ovitrampas"]["eventos"][0]["movimento_label"], "Troca")
+            self.assertNotIn("Feriado teste", json.dumps(dados, ensure_ascii=False))
+
+            resp = client.get(
+                "/relatorio-agente/pdf",
+                query_string={"agente": "Agente Ovi", "d_ini": "2026-07-01", "d_fim": "2026-07-31"},
+            )
+            self.assertEqual(resp.status_code, 200)
+            html = resp.data.decode("utf-8")
+            self.assertIn("Ovitrampas", html)
+            self.assertIn("Dias em ovitrampas", html)
+            self.assertIn("Equipe completa", html)
+            self.assertNotIn("Feriado teste", html)
+
     def test_api_historico_agente_retorna_frentes_operacionais(self):
         client = _client_logado("admin")
         conn = sqlite3.connect(endemias_app.DB_PATH)
