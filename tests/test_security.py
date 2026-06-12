@@ -1513,6 +1513,13 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("chComparativo", html)
         self.assertIn("chAtividade", html)
         self.assertIn("chEspEvolucao", html)
+        self.assertIn("tab-ovitrampas", html)
+        self.assertIn("chOviSemana", html)
+        self.assertIn("dash-ovi-card", html)
+        self.assertIn("abrirAbaOvitrampas", html)
+        self.assertIn("t-ovi-semanas", html)
+        self.assertIn("t-ovi-localidades-detalhe", html)
+        self.assertIn("datalabels:{ display:false }", html)
 
     def test_relatorio_agente_exibe_esporotricose_e_aviso_de_privacidade(self):
         client = _client_logado()
@@ -2304,7 +2311,7 @@ class MainApisSmokeTests(unittest.TestCase):
         cadastro_csv = (
             "ID;Rua;Número do logradouro;Complemento;Bairro;Localização da ovitrampa;"
             "Setor/Distrito da ovitrampa;Responsável;Quarteirão;Latitude;Longitude\n"
-            "1;Rua A;10;Escola;TAMBOARA;Parede;TAMBOARA;Joel;1269;-25,1;-49,2\n"
+            "1;Rua A;10;Escola;TAMBOARA;Parede;lamenha;Joel;1269;-25,1;-49,2\n"
         )
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = _executar_criar_banco_em(tmpdir)
@@ -2325,6 +2332,7 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(segundo["atualizados"], 1)
             self.assertEqual(armadilhas["total"], 1)
             self.assertEqual(armadilhas["registros"][0]["leituras"], 1)
+            self.assertEqual(armadilhas["registros"][0]["localidade"], "Lamenha")
             self.assertEqual(historico["armadilha"]["responsavel"], "Vanessa")
             self.assertEqual(historico["leituras"][0]["ovos"], 53)
 
@@ -2668,6 +2676,64 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("RECOLHIMENTO", codigos)
         self.assertIn("AMOSTRA_ANIMAIS", codigos)
         self.assertIn("BRI", codigos)
+
+    def test_api_dashboard_inclui_ovitrampas_com_leituras_e_calendario(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute("INSERT INTO agentes (nome, ativo) VALUES (?, 1)", ("Lab Ovi",))
+                conn.execute("INSERT INTO agentes (nome, ativo) VALUES (?, 1)", ("Campo Ovi",))
+                conn.commit()
+                lab_id = conn.execute("SELECT id_agente FROM agentes WHERE nome=?", ("Lab Ovi",)).fetchone()[0]
+                campo_id = conn.execute("SELECT id_agente FROM agentes WHERE nome=?", ("Campo Ovi",)).fetchone()[0]
+                ovitrampas_core.ensure_schema(conn)
+                conn.execute(
+                    """INSERT INTO ovitrampas_armadilhas
+                       (ovitrampa_id, localidade, rua, atualizado_em)
+                       VALUES (?, ?, ?, ?)""",
+                    ("900", "Centro", "Rua Teste", "2026-08-12T08:00:00"),
+                )
+                conn.execute(
+                    """INSERT INTO ovitrampas_leituras
+                       (id_leitura, ovitrampa_id, distrito, ano, semana, data_coleta,
+                        ovos, id_laboratorista, importado_em)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    ("L-900", "900", "Centro", 2026, 33, "2026-08-12", 42, lab_id, "2026-08-12T10:00:00"),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            resp = client.get("/api/ovitrampas/calendario?ano=2026")
+            self.assertEqual(resp.status_code, 200)
+            grupo = resp.get_json()["grupos"][0]
+            resp = client.post("/api/ovitrampas/calendario/eventos", json={
+                "data": "2026-08-13",
+                "movimento": "troca",
+                "id_grupo": grupo["id_grupo"],
+                "agentes": [campo_id],
+            })
+            self.assertEqual(resp.status_code, 201)
+            resp = client.post("/api/ovitrampas/calendario/eventos", json={
+                "data": "2026-08-14",
+                "movimento": "feriado",
+                "titulo": "Feriado dashboard",
+            })
+            self.assertEqual(resp.status_code, 201)
+
+            resp = client.get("/api/dashboard?d_ini=2026-08-01&d_fim=2026-08-31")
+            self.assertEqual(resp.status_code, 200)
+            dados = resp.get_json()
+            self.assertIn("ovitrampas", dados)
+            self.assertEqual(dados["ovitrampas"]["leituras"]["totais"]["leituras"], 1)
+            self.assertEqual(dados["ovitrampas"]["leituras"]["totais"]["positivas"], 1)
+            self.assertEqual(dados["ovitrampas"]["leituras"]["totais"]["ovos"], 42)
+            self.assertEqual(dados["ovitrampas"]["calendario"]["totais"]["movimentos"], 1)
+            self.assertEqual(dados["ovitrampas"]["calendario"]["por_agente"][0]["agente"], "Campo Ovi")
+            agosto = next(item for item in dados["comparativo_mensal"] if item["mes"] == "2026-08")
+            self.assertEqual(agosto["ovitrampas"], 1)
+            self.assertNotIn("Feriado dashboard", json.dumps(dados, ensure_ascii=False))
 
     def test_api_relatorio_agente_inclui_esporotricose_sem_expor_outros_agentes(self):
         client = _client_logado()

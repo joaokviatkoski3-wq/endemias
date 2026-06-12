@@ -129,6 +129,30 @@
 
 <div id="dash-insights" class="dash-insights"></div>
 
+<div class="chart-card" id="dash-ovi-card" style="display:none;margin-bottom:16px;">
+  <div class="chart-hd">
+    <div class="chart-title"><img src="/static/icons/ovitrampa.svg" alt="" class="icon-svg"> Ovitrampas</div>
+    <button class="btn btn-outline btn-sm" type="button" onclick="abrirAbaOvitrampas()"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Ver gráficos</button>
+  </div>
+  <div class="dash-mini-grid" id="dash-ovi-mini"></div>
+  <div class="chart-grid">
+    <div class="table-wrap">
+      <div class="table-hd"><span class="table-title">Localidades com mais ovos</span></div>
+      <div class="table-scroll"><table id="dash-ovi-localidades">
+        <thead><tr><th>Localidade</th><th>Leituras</th><th>Positivas</th><th>Ovos</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-hd"><span class="table-title">Movimentos do calendário</span></div>
+      <div class="table-scroll"><table id="dash-ovi-movimentos">
+        <thead><tr><th>Movimento</th><th>Total</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+
 <div class="chart-card" id="dash-pe-pendencias-card" style="display:none;margin-bottom:16px;">
   <div class="chart-hd">
     <div class="chart-title"><img src="/static/icons/alerta.svg" alt="" class="icon-svg"> Pendências de Pontos Estratégicos</div>
@@ -144,6 +168,7 @@
 <div class="tabs-bar">
   <button class="tab-btn active" onclick="openTab('tab-geral',this)"><img src="/static/icons/grafico_linha.svg" alt="" class="icon-svg"> Geral</button>
   <button class="tab-btn" onclick="openTab('tab-esporo',this)"><img src="/static/icons/pets.svg" alt="" class="icon-svg"> Esporotricose</button>
+  <button class="tab-btn" onclick="openTab('tab-ovitrampas',this)"><img src="/static/icons/ovitrampa.svg" alt="" class="icon-svg"> Ovitrampas</button>
   <button class="tab-btn" onclick="openTab('tab-local',this)"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"> Territorio</button>
   <button class="tab-btn" onclick="openTab('tab-agente',this)"><img src="/static/icons/usuarios.svg" alt="" class="icon-svg"> Equipe</button>
   <button class="tab-btn" onclick="openTab('tab-depositos',this)"><img src="/static/icons/balde.svg" alt="" class="icon-svg"> Depositos</button>
@@ -203,6 +228,49 @@
       <div class="chart-hd"><div class="chart-title"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Visitas e animais por localidade</div></div>
       <div class="chart-wrap h340"><canvas id="chEspLocalidades"></canvas></div>
     </div>
+  </div>
+</div>
+
+<div class="tab-pane" id="tab-ovitrampas">
+  <div id="ovi-kpi-area" class="dash-mini-grid"></div>
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/grafico_linha.svg" alt="" class="icon-svg"> Leituras, ovos e positivas por semana</div></div>
+      <div class="chart-wrap h300"><canvas id="chOviSemana"></canvas></div>
+      <div class="table-wrap" style="margin-top:10px;">
+        <div class="table-hd"><span class="table-title">Dados semanais</span></div>
+        <div class="table-scroll"><table id="t-ovi-semanas">
+          <thead><tr><th>Semana</th><th>Leituras</th><th>Positivas</th><th>Ovos</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Ovitrampas por localidade</div></div>
+      <div class="chart-wrap h340"><canvas id="chOviLocalidade"></canvas></div>
+      <div class="table-wrap" style="margin-top:10px;">
+        <div class="table-hd"><span class="table-title">Dados por localidade</span></div>
+        <div class="table-scroll"><table id="t-ovi-localidades-detalhe">
+          <thead><tr><th>Localidade</th><th>Leituras</th><th>Armadilhas</th><th>Positivas</th><th>Ovos</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/calendario.svg" alt="" class="icon-svg"> Movimentos do calendário</div></div>
+      <div class="chart-wrap h260"><canvas id="chOviMovimento"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/usuarios.svg" alt="" class="icon-svg"> Agentes em movimentos</div></div>
+      <div class="chart-wrap h260"><canvas id="chOviAgentes"></canvas></div>
+    </div>
+  </div>
+  <div class="table-wrap" style="margin-top:14px;">
+    <div class="table-hd"><span class="table-title"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"> Grupos de localidades</span></div>
+    <div class="table-scroll"><table id="t-ovi-grupos">
+      <thead><tr><th>Grupo</th><th>Movimentos</th><th>%</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
   </div>
 </div>
 
@@ -319,6 +387,9 @@ function renderResumoIntegrado() {
   const espTotais = espResumo.totais || {};
   const espAnimais = espResumo.animais || {};
   const peTotais = dados.pontos_estrategicos?.totais || {};
+  const ovi = dados.ovitrampas || {};
+  const oviLei = ovi.leituras?.totais || {};
+  const oviCal = ovi.calendario?.totais || {};
   const rec = atividadeResumo('RECOLHIMENTO');
   const am = atividadeResumo('AMOSTRA_ANIMAIS');
   const bri = atividadeResumo('BRI');
@@ -345,17 +416,71 @@ function renderResumoIntegrado() {
       <strong>${fmtNum(peTotais.ativos || 0)}</strong>
       <small>${fmtNum(peTotais.visitados_periodo || 0)} visitados e ${fmtNum(peTotais.bri_periodo || 0)} com BRI no período</small>
     </div>
+    <div class="dash-overview-card">
+      <span>Ovitrampas</span>
+      <strong>${fmtNum(oviLei.ovitrampas || 0)}</strong>
+      <small>${fmtNum(oviLei.positivas || 0)} positivas, ${fmtNum(oviLei.ovos || 0)} ovos e ${fmtNum(oviCal.movimentos || 0)} movimentos</small>
+    </div>
   `;
   const tbo = dados.tbo_duracao || {};
   document.getElementById('dash-insights').innerHTML = `
     <div class="dash-insight"><strong>${fmtNum(k.fechados || 0)} fechados</strong><span>Imoveis nao acessados em visitas de vetores.</span></div>
     <div class="dash-insight"><strong>${fmtNum(peTotais.atrasados || 0)} PEs atrasados</strong><span>Sem visita PE há mais de 20 dias ou sem histórico.</span></div>
-    <div class="dash-insight"><strong>${fmtNum((rec.extras?.materiais || 0) + (am.extras?.animais || 0))} itens extras</strong><span>Materiais recolhidos e animais registrados nas novas frentes.</span></div>
+    <div class="dash-insight"><strong>${fmtNum(oviLei.ovos || 0)} ovos em ovitrampas</strong><span>${fmtNum(oviLei.leituras || 0)} leituras e ${fmtNum(oviCal.dias || 0)} dias com movimentos.</span></div>
   `;
+  renderResumoOvitrampasTopo();
 }
 
 function atividadeResumo(codigo) {
   return (dados.producao_operacional?.por_atividade || []).find(r => r.codigo === codigo) || {registros:0, extras:{}};
+}
+
+function renderResumoOvitrampasTopo() {
+  const card = document.getElementById('dash-ovi-card');
+  const mini = document.getElementById('dash-ovi-mini');
+  const ovi = dados.ovitrampas || {};
+  const leituras = ovi.leituras || {};
+  const calendario = ovi.calendario || {};
+  const lt = leituras.totais || {};
+  const ct = calendario.totais || {};
+  const temDados = (lt.leituras || 0) || (ct.movimentos || 0);
+  if (!temDados) {
+    card.style.display = 'none';
+    mini.innerHTML = '';
+    document.querySelector('#dash-ovi-localidades tbody').innerHTML = '';
+    document.querySelector('#dash-ovi-movimentos tbody').innerHTML = '';
+    return;
+  }
+  card.style.display = 'block';
+  const taxaPos = lt.leituras ? Math.round((lt.positivas || 0) / lt.leituras * 100) : 0;
+  mini.innerHTML = `
+    <div class="dash-mini-card"><span>Leituras</span><strong>${fmtNum(lt.leituras || 0)}</strong></div>
+    <div class="dash-mini-card"><span>Armadilhas</span><strong>${fmtNum(lt.ovitrampas || 0)}</strong></div>
+    <div class="dash-mini-card"><span>Positivas</span><strong>${fmtNum(lt.positivas || 0)}</strong></div>
+    <div class="dash-mini-card"><span>Ovos</span><strong>${fmtNum(lt.ovos || 0)}</strong></div>
+    <div class="dash-mini-card"><span>Positividade</span><strong>${taxaPos}%</strong></div>
+    <div class="dash-mini-card"><span>Movimentos</span><strong>${fmtNum(ct.movimentos || 0)}</strong></div>
+  `;
+  document.querySelector('#dash-ovi-localidades tbody').innerHTML = (leituras.por_localidade || []).slice(0, 6).map(r => `
+    <tr>
+      <td>${escapeHtml(r.localidade || '-')}</td>
+      <td><strong>${fmtNum(r.leituras || 0)}</strong></td>
+      <td>${fmtNum(r.positivas || 0)}</td>
+      <td>${fmtNum(r.ovos || 0)}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="4" class="dim">Sem leituras no período.</td></tr>';
+  document.querySelector('#dash-ovi-movimentos tbody').innerHTML = (calendario.por_movimento || []).map(r => `
+    <tr>
+      <td>${escapeHtml(r.nome || r.movimento || '-')}</td>
+      <td><strong>${fmtNum(r.total || 0)}</strong></td>
+    </tr>
+  `).join('') || '<tr><td colspan="2" class="dim">Sem movimentos no período.</td></tr>';
+}
+
+function abrirAbaOvitrampas() {
+  const btn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick')?.includes('tab-ovitrampas'));
+  if (btn) openTab('tab-ovitrampas', btn);
+  document.getElementById('tab-ovitrampas')?.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function renderKPIs() {
@@ -411,6 +536,7 @@ function renderGraficos() {
   renderGeral();
   renderVetores();
   renderEsporotricose();
+  renderOvitrampas();
   renderTerritorioEquipe();
   renderDepositos();
 }
@@ -424,6 +550,7 @@ function renderGeral() {
       datasets: [
         { label:'Vetores', data:comp.map(r=>r.vetores), borderColor:PAL[0], backgroundColor:PAL[0]+'22', fill:true, tension:.32, borderWidth:2 },
         { label:'Esporotricose', data:comp.map(r=>r.esporotricose), borderColor:PAL[6], backgroundColor:PAL[6]+'18', fill:true, tension:.32, borderWidth:2 },
+        { label:'Ovitrampas', data:comp.map(r=>r.ovitrampas || 0), borderColor:PAL[5], backgroundColor:PAL[5]+'14', fill:true, tension:.32, borderWidth:2 },
       ]
     },
     options:{ scales:eixos(), plugins:{ legend:{ position:'top', labels:{ color:'var(--text2)' } } } }
@@ -515,6 +642,103 @@ function renderEsporotricose() {
     ] },
     options:{ indexAxis:'y', scales:eixos({y:{grid:{display:false}}}), plugins:{ legend:{ position:'top', labels:{ color:'var(--text2)' } } } }
   });
+}
+
+function renderOvitrampas() {
+  const ovi = dados.ovitrampas || {};
+  const leituras = ovi.leituras || {};
+  const calendario = ovi.calendario || {};
+  const lt = leituras.totais || {};
+  const ct = calendario.totais || {};
+  const taxaPos = lt.leituras ? Math.round((lt.positivas || 0) / lt.leituras * 100) : 0;
+  document.getElementById('ovi-kpi-area').innerHTML = `
+    <div class="dash-mini-card"><span>Leituras</span><strong>${fmtNum(lt.leituras || 0)}</strong></div>
+    <div class="dash-mini-card"><span>Armadilhas</span><strong>${fmtNum(lt.ovitrampas || 0)}</strong></div>
+    <div class="dash-mini-card"><span>Positivas</span><strong>${fmtNum(lt.positivas || 0)}</strong></div>
+    <div class="dash-mini-card"><span>Ovos</span><strong>${fmtNum(lt.ovos || 0)}</strong></div>
+    <div class="dash-mini-card"><span>Positividade</span><strong>${taxaPos}%</strong></div>
+    <div class="dash-mini-card"><span>Movimentos</span><strong>${fmtNum(ct.movimentos || 0)}</strong></div>
+    <div class="dash-mini-card"><span>Dias de campo</span><strong>${fmtNum(ct.dias || 0)}</strong></div>
+    <div class="dash-mini-card"><span>Agentes</span><strong>${fmtNum(ct.agentes || 0)}</strong></div>
+  `;
+
+  const semanas = leituras.por_semana || [];
+  mkChart('chOviSemana', {
+    type:'bar',
+    data:{ labels:semanas.map(r => `${r.ano}-S${String(r.semana).padStart(2,'0')}`), datasets:[
+      { label:'Leituras', data:semanas.map(r=>r.leituras), backgroundColor:PAL[5]+'bb', borderRadius:4 },
+      { label:'Positivas', data:semanas.map(r=>r.positivas), backgroundColor:PAL[3]+'bb', borderRadius:4 },
+      { label:'Ovos', data:semanas.map(r=>r.ovos), type:'line', borderColor:PAL[2], backgroundColor:PAL[2]+'22', yAxisID:'y1', tension:.3 },
+    ] },
+    options:{
+      scales:eixos({y1:{position:'right', beginAtZero:true, grid:{drawOnChartArea:false}}}),
+      plugins:{
+        legend:{ position:'top', labels:{ color:'var(--text2)' } },
+        datalabels:{ display:false },
+      },
+      interaction:{ mode:'index', intersect:false },
+    }
+  });
+  document.querySelector('#t-ovi-semanas tbody').innerHTML = semanas.map(r => `
+    <tr>
+      <td><strong>${r.ano}-S${String(r.semana).padStart(2,'0')}</strong></td>
+      <td>${fmtNum(r.leituras || 0)}</td>
+      <td>${fmtNum(r.positivas || 0)}</td>
+      <td>${fmtNum(r.ovos || 0)}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="4" class="dim">Sem leituras no período.</td></tr>';
+
+  const localidades = leituras.por_localidade || [];
+  mkChart('chOviLocalidade', {
+    type:'bar',
+    data:{ labels:localidades.map(r=>r.localidade || '-'), datasets:[
+      { label:'Ovos', data:localidades.map(r=>r.ovos), backgroundColor:PAL[2]+'cc', borderRadius:4 },
+      { label:'Positivas', data:localidades.map(r=>r.positivas), backgroundColor:PAL[3]+'cc', borderRadius:4 },
+      { label:'Armadilhas', data:localidades.map(r=>r.ovitrampas), backgroundColor:PAL[5]+'aa', borderRadius:4 },
+    ] },
+    options:{
+      indexAxis:'y',
+      scales:eixos({y:{grid:{display:false}}}),
+      plugins:{
+        legend:{ position:'top', labels:{ color:'var(--text2)' } },
+        datalabels:{ display:false },
+      },
+      interaction:{ mode:'index', intersect:false },
+    }
+  });
+  document.querySelector('#t-ovi-localidades-detalhe tbody').innerHTML = localidades.map(r => `
+    <tr>
+      <td><strong>${escapeHtml(r.localidade || '-')}</strong></td>
+      <td>${fmtNum(r.leituras || 0)}</td>
+      <td>${fmtNum(r.ovitrampas || 0)}</td>
+      <td>${fmtNum(r.positivas || 0)}</td>
+      <td>${fmtNum(r.ovos || 0)}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" class="dim">Sem leituras no período.</td></tr>';
+
+  const movimentos = calendario.por_movimento || [];
+  mkChart('chOviMovimento', {
+    type:'doughnut',
+    data:{ labels:movimentos.map(r=>r.nome || r.movimento), datasets:[{ data:movimentos.map(r=>r.total), backgroundColor:[PAL[5], PAL[2], PAL[4], PAL[3]], borderColor:'var(--surface)', borderWidth:2 }] },
+    options:{ cutout:'58%', plugins:{ legend:{ position:'right', labels:{font:{size:10}} } } }
+  });
+
+  const agentes = calendario.por_agente || [];
+  mkChart('chOviAgentes', {
+    type:'bar',
+    data:{ labels:agentes.map(r=>r.agente), datasets:[{ label:'Movimentos', data:agentes.map(r=>r.total), backgroundColor:PAL[5]+'cc', borderRadius:4 }] },
+    options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:eixos({y:{grid:{display:false}}}) }
+  });
+
+  const grupos = calendario.por_grupo || [];
+  const total = grupos.reduce((s,r)=>s+(r.total || 0),0);
+  document.querySelector('#t-ovi-grupos tbody').innerHTML = grupos.map(r => `
+    <tr>
+      <td>${escapeHtml(r.grupo || '-')}</td>
+      <td><strong>${fmtNum(r.total || 0)}</strong></td>
+      <td><span class="dim small">${total ? Math.round((r.total || 0) / total * 100) : 0}%</span></td>
+    </tr>
+  `).join('') || '<tr><td colspan="3" class="dim">Sem movimentos de ovitrampas no período.</td></tr>';
 }
 
 function renderTerritorioEquipe() {

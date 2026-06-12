@@ -132,6 +132,7 @@ def ensure_schema(conn):
     _migrar_calendario_schema(conn)
     _migrar_calendario_agentes_schema(conn)
     _semear_grupos_padrao(conn)
+    _normalizar_localidades_existentes(conn)
 
 
 def _ensure_columns(conn, table, columns):
@@ -153,6 +154,20 @@ def _semear_grupos_padrao(conn):
                 VALUES (?, ?, ?, 1, ?, ?)""",
             (nome, localidades, cor, agora, agora),
         )
+
+
+def _normalizar_localidades_existentes(conn):
+    for table, column in ((TABLE, "distrito"), (ARMADILHAS_TABLE, "localidade")):
+        rows = conn.execute(
+            f"SELECT rowid, {column} FROM {table} WHERE {column} IS NOT NULL AND TRIM({column})<>''"
+        ).fetchall()
+        for rowid, valor in rows:
+            normalizado = _title_distrito(valor)
+            if normalizado and normalizado != valor:
+                conn.execute(
+                    f"UPDATE {table} SET {column}=? WHERE rowid=?",
+                    (normalizado, rowid),
+                )
 
 
 def _migrar_calendario_schema(conn):
@@ -999,4 +1014,7 @@ def _datetime(value):
 
 def _title_distrito(value):
     text = _text(value)
-    return text.title() if text and text.isupper() else text
+    if not text:
+        return None
+    text = " ".join(text.split())
+    return text.title() if text.isupper() or text.islower() else text

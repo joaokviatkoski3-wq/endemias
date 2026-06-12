@@ -5,6 +5,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 from app_core import esporotricose as esporotricose_core
 from app_core import auth as auth_core
 from app_core import db as db_core
+from app_core import ovitrampas as ovitrampas_core
 from app_core import pontos_estrategicos as pe_core
 from app_core import producao_operacional
 from app_core import utils as utils_core
@@ -40,6 +41,159 @@ def _dashboard_esporotricose_filtros(args):
     if agentes:
         filtros["agente"] = agentes
     return filtros
+
+
+def _dashboard_ovitrampas(args):
+    d_ini = args.get("d_ini") or utils_core.data_n_dias(90)
+    d_fim = args.get("d_fim") or utils_core.hoje()
+    localidades = [v for v in args.getlist("localidade") if v]
+    agentes = [v for v in args.getlist("agente") if v]
+    conn = get_db()
+    try:
+        ovitrampas_core.ensure_schema(conn)
+        leitura_where = ["COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) BETWEEN ? AND ?"]
+        leitura_params = [d_ini, d_fim]
+        if localidades:
+            leitura_where.append(f"COALESCE(a.localidade, l.distrito, '-') IN ({','.join('?' * len(localidades))})")
+            leitura_params.extend(localidades)
+        if agentes:
+            leitura_where.append(f"lab.nome IN ({','.join('?' * len(agentes))})")
+            leitura_params.extend(agentes)
+        leitura_where_sql = "WHERE " + " AND ".join(leitura_where)
+        leitura_join = f"""
+            FROM {ovitrampas_core.TABLE} l
+            LEFT JOIN {ovitrampas_core.ARMADILHAS_TABLE} a ON a.ovitrampa_id=l.ovitrampa_id
+            LEFT JOIN agentes lab ON lab.id_agente=l.id_laboratorista
+        """
+
+        leituras_totais = dict(conn.execute(
+            f"""SELECT COUNT(*) AS leituras,
+                       COUNT(DISTINCT l.ovitrampa_id) AS ovitrampas,
+                       COALESCE(SUM(l.ovos),0) AS ovos,
+                       SUM(CASE WHEN l.ovos > 0 THEN 1 ELSE 0 END) AS positivas,
+                       COUNT(DISTINCT l.ano || '-' || l.semana) AS semanas,
+                       COUNT(DISTINCT lab.id_agente) AS laboratoristas
+                  {leitura_join} {leitura_where_sql}""",
+            leitura_params,
+        ).fetchone())
+        por_semana = [dict(row) for row in conn.execute(
+            f"""SELECT l.ano, l.semana,
+                       COUNT(*) AS leituras,
+                       COALESCE(SUM(l.ovos),0) AS ovos,
+                       SUM(CASE WHEN l.ovos > 0 THEN 1 ELSE 0 END) AS positivas
+                  {leitura_join} {leitura_where_sql}
+                 GROUP BY l.ano, l.semana
+                 ORDER BY l.ano, l.semana""",
+            leitura_params,
+        ).fetchall()]
+        por_localidade = [dict(row) for row in conn.execute(
+            f"""SELECT COALESCE(a.localidade, l.distrito, '-') AS localidade,
+                       COUNT(*) AS leituras,
+                       COUNT(DISTINCT l.ovitrampa_id) AS ovitrampas,
+                       COALESCE(SUM(l.ovos),0) AS ovos,
+                       SUM(CASE WHEN l.ovos > 0 THEN 1 ELSE 0 END) AS positivas
+                  {leitura_join} {leitura_where_sql}
+                 GROUP BY COALESCE(a.localidade, l.distrito, '-')
+                 ORDER BY ovos DESC, positivas DESC, leituras DESC
+                 LIMIT 15""",
+            leitura_params,
+        ).fetchall()]
+        por_laboratorista = [dict(row) for row in conn.execute(
+            f"""SELECT COALESCE(lab.nome, 'Sem laboratorista') AS agente,
+                       COUNT(*) AS leituras,
+                       COALESCE(SUM(l.ovos),0) AS ovos,
+                       SUM(CASE WHEN l.ovos > 0 THEN 1 ELSE 0 END) AS positivas
+                  {leitura_join} {leitura_where_sql}
+                 GROUP BY COALESCE(lab.nome, 'Sem laboratorista')
+                 ORDER BY leituras DESC, agente
+                 LIMIT 15""",
+            leitura_params,
+        ).fetchall()]
+
+        cal_where = ["e.data BETWEEN ? AND ?", "e.movimento <> 'feriado'"]
+        cal_params = [d_ini, d_fim]
+        if localidades:
+            loc_clause = " OR ".join(["g.nome=? OR g.localidades LIKE ?" for _ in localidades])
+            cal_where.append(f"({loc_clause})")
+            for loc in localidades:
+                cal_params.extend([loc, f"%{loc}%"])
+        if agentes:
+            cal_where.append(
+                f"""EXISTS (
+                    SELECT 1 FROM {ovitrampas_core.CAL_AGENTES_TABLE} ea2
+                    JOIN agentes ag2 ON ag2.id_agente=ea2.id_agente
+                    WHERE ea2.id_evento=e.id_evento
+                      AND ag2.nome IN ({','.join('?' * len(agentes))})
+                )"""
+            )
+            cal_params.extend(agentes)
+        cal_where_sql = "WHERE " + " AND ".join(cal_where)
+        cal_join = f"""
+            FROM {ovitrampas_core.CAL_EVENTOS_TABLE} e
+            LEFT JOIN {ovitrampas_core.CAL_GRUPOS_TABLE} g ON g.id_grupo=e.id_grupo
+            LEFT JOIN {ovitrampas_core.CAL_AGENTES_TABLE} ea ON ea.id_evento=e.id_evento
+            LEFT JOIN agentes ag ON ag.id_agente=ea.id_agente
+        """
+        calendario_totais = dict(conn.execute(
+            f"""SELECT COUNT(DISTINCT e.id_evento) AS movimentos,
+                       COUNT(DISTINCT e.data) AS dias,
+                       COUNT(DISTINCT e.id_grupo) AS grupos,
+                       COUNT(DISTINCT ag.id_agente) AS agentes
+                  {cal_join} {cal_where_sql}""",
+            cal_params,
+        ).fetchone())
+        por_movimento = [dict(row) for row in conn.execute(
+            f"""SELECT e.movimento, COUNT(DISTINCT e.id_evento) AS total
+                  {cal_join} {cal_where_sql}
+                 GROUP BY e.movimento
+                 ORDER BY total DESC, e.movimento""",
+            cal_params,
+        ).fetchall()]
+        por_grupo = [dict(row) for row in conn.execute(
+            f"""SELECT COALESCE(g.nome, '-') AS grupo, COUNT(DISTINCT e.id_evento) AS total
+                  {cal_join} {cal_where_sql}
+                 GROUP BY COALESCE(g.nome, '-')
+                 ORDER BY total DESC, grupo
+                 LIMIT 12""",
+            cal_params,
+        ).fetchall()]
+        por_agente = [dict(row) for row in conn.execute(
+            f"""SELECT ag.nome AS agente, COUNT(DISTINCT e.id_evento) AS total
+                  {cal_join} {cal_where_sql} AND ag.nome IS NOT NULL
+                 GROUP BY ag.nome
+                 ORDER BY total DESC, agente
+                 LIMIT 15""",
+            cal_params,
+        ).fetchall()]
+        por_mes = [dict(row) for row in conn.execute(
+            f"""SELECT substr(e.data,1,7) AS mes, COUNT(DISTINCT e.id_evento) AS movimentos
+                  {cal_join} {cal_where_sql}
+                 GROUP BY substr(e.data,1,7)
+                 ORDER BY mes""",
+            cal_params,
+        ).fetchall()]
+    finally:
+        conn.close()
+
+    movimentos = getattr(ovitrampas_core, "MOVIMENTOS", {})
+    for row in por_movimento:
+        row["nome"] = movimentos.get(row.get("movimento"), row.get("movimento") or "-")
+
+    return {
+        "leituras": {
+            "totais": leituras_totais,
+            "por_semana": por_semana,
+            "por_localidade": por_localidade,
+            "por_laboratorista": por_laboratorista,
+        },
+        "calendario": {
+            "totais": calendario_totais,
+            "por_movimento": por_movimento,
+            "por_grupo": por_grupo,
+            "por_agente": por_agente,
+            "por_mes": por_mes,
+        },
+    }
 
 
 @bp.route("/dashboard")
@@ -182,14 +336,17 @@ def api_dashboard():
             "localidade": request.args.getlist("localidade"),
         })
         producao = producao_operacional.resumo(_db_path(), request.args)
+        ovitrampas = _dashboard_ovitrampas(request.args)
         vetores_mes = {dict(r)["mes"]: dict(r)["visitas"] for r in evolucao_mes}
         esporo_mes = {r["mes"]: r.get("visitas", 0) for r in esporo_dash.get("evolucao", [])}
-        meses = sorted(set(vetores_mes) | set(esporo_mes))
+        ovi_mes = {r["mes"]: r.get("movimentos", 0) for r in ovitrampas.get("calendario", {}).get("por_mes", [])}
+        meses = sorted(set(vetores_mes) | set(esporo_mes) | set(ovi_mes))
         comparativo_mensal = [
             {
                 "mes": mes,
                 "vetores": vetores_mes.get(mes, 0),
                 "esporotricose": esporo_mes.get(mes, 0),
+                "ovitrampas": ovi_mes.get(mes, 0),
             }
             for mes in meses
         ]
@@ -231,6 +388,7 @@ def api_dashboard():
             },
             "pontos_estrategicos": pe_resumo,
             "producao_operacional": producao,
+            "ovitrampas": ovitrampas,
         })
     except Exception:
         logging.exception("Erro em api_dashboard")
