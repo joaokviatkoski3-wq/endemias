@@ -3456,6 +3456,9 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertIn("esporo_feridas", primeiro)
             self.assertIn("pes_ativos", primeiro)
             self.assertIn("pes_atrasados", primeiro)
+            self.assertIn("ovi_armadilhas", primeiro)
+            self.assertIn("ovi_positivas", primeiro)
+            self.assertIn("ovi_ovos", primeiro)
 
     def test_mapa_exibe_camadas_de_esporotricose(self):
         client = _client_logado()
@@ -3465,9 +3468,11 @@ class MainApisSmokeTests(unittest.TestCase):
         html = resp.data.decode("utf-8")
         self.assertIn('data-modo="esporotricose"', html)
         self.assertIn('data-modo="pes"', html)
+        self.assertIn('data-modo="ovitrampas"', html)
         self.assertIn('data-modo="atencao"', html)
         self.assertIn("kpi-esporo-visitas", html)
         self.assertIn("kpi-pes", html)
+        self.assertIn("kpi-ovi-armadilhas", html)
         self.assertIn("kpi-esporo-feridas", html)
 
     def test_mapa_usa_blueprint_proprio(self):

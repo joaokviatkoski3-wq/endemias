@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, render_template, request
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import esporotricose as esporotricose_core
+from app_core import ovitrampas as ovitrampas_core
 from app_core import pontos_estrategicos as pe_core
 from app_core import work_types
 
@@ -167,6 +168,46 @@ def api_mapa():
                 """,
                 params_pe,
             ).fetchall()
+
+            ovitrampas_core.ensure_schema(conn)
+            join_ovi = "LEFT JOIN ovitrampas_leituras o ON o.ovitrampa_id=a.ovitrampa_id"
+            params_o = []
+            if d_ini or d_fim:
+                on_filters = ["o.ovitrampa_id=a.ovitrampa_id"]
+                if d_ini:
+                    on_filters.append("COALESCE(o.data_coleta, o.data_leitura, o.data_envio_contagem)>=?")
+                    params_o.append(d_ini)
+                if d_fim:
+                    on_filters.append("COALESCE(o.data_coleta, o.data_leitura, o.data_envio_contagem)<=?")
+                    params_o.append(d_fim)
+                join_ovi = "LEFT JOIN ovitrampas_leituras o ON " + " AND ".join(on_filters)
+
+            where_o = "WHERE a.quarteirao IS NOT NULL AND l4.id_localidade IS NOT NULL"
+            if locs:
+                where_o += f" AND l4.nome IN ({','.join('?' * len(locs))})"
+                params_o += locs
+
+            rows_o = conn.execute(
+                f"""
+                SELECT
+                    l4.id_localidade,
+                    a.quarteirao,
+                    COUNT(DISTINCT a.ovitrampa_id) AS ovi_armadilhas,
+                    COUNT(DISTINCT CASE
+                        WHEN a.latitude IS NOT NULL AND a.longitude IS NOT NULL THEN a.ovitrampa_id
+                    END) AS ovi_com_coordenada,
+                    COUNT(DISTINCT o.id_leitura) AS ovi_leituras,
+                    COUNT(DISTINCT CASE WHEN o.ovos > 0 THEN o.id_leitura END) AS ovi_positivas,
+                    COALESCE(SUM(o.ovos), 0) AS ovi_ovos,
+                    MAX(COALESCE(o.data_coleta, o.data_leitura, o.data_envio_contagem)) AS ultimo_ovitrampa
+                FROM ovitrampas_armadilhas a
+                LEFT JOIN localidades l4 ON l4.nome = a.localidade
+                {join_ovi}
+                {where_o}
+                GROUP BY l4.id_localidade, a.quarteirao
+                """,
+                params_o,
+            ).fetchall()
         finally:
             conn.close()
 
@@ -193,6 +234,12 @@ def api_mapa():
                 "pes_inativos": 0,
                 "pes_sem_coordenada": 0,
                 "pes_atrasados": 0,
+                "ovi_armadilhas": 0,
+                "ovi_com_coordenada": 0,
+                "ovi_leituras": 0,
+                "ovi_positivas": 0,
+                "ovi_ovos": 0,
+                "ultimo_ovitrampa": None,
             }
             for codigo in work_types.WORK_TYPE_COLORS:
                 entry[codigo.lower()] = 0
@@ -241,6 +288,17 @@ def api_mapa():
             dados[chave]["pes_inativos"] = r["pes_inativos"] or 0
             dados[chave]["pes_sem_coordenada"] = r["pes_sem_coordenada"] or 0
             dados[chave]["pes_atrasados"] = r["pes_atrasados"] or 0
+
+        for r in rows_o:
+            chave = f"{r['id_localidade']}:{r['quarteirao']}"
+            if chave not in dados:
+                dados[chave] = mapa_entry_vazio()
+            dados[chave]["ovi_armadilhas"] = r["ovi_armadilhas"] or 0
+            dados[chave]["ovi_com_coordenada"] = r["ovi_com_coordenada"] or 0
+            dados[chave]["ovi_leituras"] = r["ovi_leituras"] or 0
+            dados[chave]["ovi_positivas"] = r["ovi_positivas"] or 0
+            dados[chave]["ovi_ovos"] = r["ovi_ovos"] or 0
+            dados[chave]["ultimo_ovitrampa"] = r["ultimo_ovitrampa"]
 
         return jsonify(dados)
     except Exception:
