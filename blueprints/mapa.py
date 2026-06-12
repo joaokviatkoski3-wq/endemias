@@ -304,3 +304,98 @@ def api_mapa():
     except Exception:
         logging.exception("Erro em api_mapa")
         return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
+
+
+@bp.route("/api/mapa/ovitrampas")
+@login_required
+def api_mapa_ovitrampas():
+    try:
+        locs = request.args.getlist("localidade")
+        d_ini = request.args.get("d_ini", "")
+        d_fim = request.args.get("d_fim", "")
+        busca = (request.args.get("busca") or "").strip()
+        somente_positivas = request.args.get("positivas") == "1"
+        min_ovos = _int(request.args.get("min_ovos"))
+
+        conn = bh.get_db()
+        try:
+            ovitrampas_core.ensure_schema(conn)
+            join = "LEFT JOIN ovitrampas_leituras l ON l.ovitrampa_id=a.ovitrampa_id"
+            params = []
+            if d_ini or d_fim:
+                filtros_join = ["l.ovitrampa_id=a.ovitrampa_id"]
+                if d_ini:
+                    filtros_join.append("COALESCE(l.data_coleta, l.data_leitura, l.data_envio_contagem)>=?")
+                    params.append(d_ini)
+                if d_fim:
+                    filtros_join.append("COALESCE(l.data_coleta, l.data_leitura, l.data_envio_contagem)<=?")
+                    params.append(d_fim)
+                join = "LEFT JOIN ovitrampas_leituras l ON " + " AND ".join(filtros_join)
+
+            where = ["a.latitude IS NOT NULL", "a.longitude IS NOT NULL"]
+            if locs:
+                where.append(f"a.localidade IN ({','.join('?' * len(locs))})")
+                params.extend(locs)
+            if busca:
+                termo = f"%{busca}%"
+                where.append(
+                    "(a.ovitrampa_id LIKE ? OR COALESCE(a.rua,'') LIKE ? OR COALESCE(a.localidade,'') LIKE ? "
+                    "OR COALESCE(a.responsavel,'') LIKE ? OR COALESCE(a.quarteirao,'') LIKE ?)"
+                )
+                params.extend([termo] * 5)
+
+            having = []
+            if somente_positivas:
+                having.append("positivas > 0")
+            if min_ovos is not None:
+                having.append("ovos >= ?")
+                params.append(min_ovos)
+
+            sql = f"""
+                SELECT
+                    a.ovitrampa_id,
+                    a.rua,
+                    a.numero,
+                    a.complemento,
+                    a.localidade,
+                    a.bairro,
+                    a.quarteirao,
+                    a.responsavel,
+                    a.latitude,
+                    a.longitude,
+                    COUNT(DISTINCT l.id_leitura) AS leituras,
+                    COUNT(DISTINCT CASE WHEN l.ovos > 0 THEN l.id_leitura END) AS positivas,
+                    COALESCE(SUM(l.ovos), 0) AS ovos,
+                    MAX(COALESCE(l.data_coleta, l.data_leitura, l.data_envio_contagem)) AS ultima_coleta
+                  FROM ovitrampas_armadilhas a
+                  {join}
+                 WHERE {' AND '.join(where)}
+                 GROUP BY a.ovitrampa_id
+            """
+            if having:
+                sql += " HAVING " + " AND ".join(having)
+            sql += " ORDER BY ovos DESC, positivas DESC, CAST(a.ovitrampa_id AS INTEGER), a.ovitrampa_id COLLATE NOCASE"
+            rows = [dict(row) for row in conn.execute(sql, params).fetchall()]
+        finally:
+            conn.close()
+
+        resumo = {
+            "armadilhas": len(rows),
+            "leituras": sum(row["leituras"] or 0 for row in rows),
+            "positivas": sum(row["positivas"] or 0 for row in rows),
+            "ovos": sum(row["ovos"] or 0 for row in rows),
+            "localidades": len({row["localidade"] for row in rows if row["localidade"]}),
+        }
+        return jsonify({"resumo": resumo, "pontos": rows})
+    except Exception:
+        logging.exception("Erro em api_mapa_ovitrampas")
+        return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
+
+
+def _int(value):
+    try:
+        if value in (None, ""):
+            return None
+        return int(float(str(value).replace(",", ".")))
+    except (TypeError, ValueError):
+        return None

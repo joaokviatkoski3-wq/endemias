@@ -106,6 +106,15 @@
 .filtro-checks label.inativo {
   opacity: .4; text-decoration: line-through;
 }
+.ovi-map-tools { display:grid; gap:10px; }
+.ovi-map-line { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.ovi-map-check { display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--text2); }
+.ovi-popup-title { font-size:13px; font-weight:850; color:#312e81; margin-bottom:4px; }
+.ovi-popup-meta { color:#475569; font-size:11px; margin-bottom:6px; }
+.ovi-popup-grid { display:grid; grid-template-columns:1fr 1fr; gap:5px; min-width:190px; }
+.ovi-popup-k { border:1px solid #e2e8f0; border-radius:6px; padding:5px 7px; background:#f8fafc; }
+.ovi-popup-k span { display:block; font-size:9px; text-transform:uppercase; color:#64748b; font-weight:800; }
+.ovi-popup-k strong { display:block; font-size:13px; color:#0f172a; }
 
 /* ── Modos ───────────────────────────────────────────────────────── */
 .modos-wrap { display: grid; grid-template-columns:1fr 1fr; gap: 7px; }
@@ -250,6 +259,33 @@
     </div>
 
     <div class="painel-card compacto">
+      <div class="painel-titulo">Ovitrampas</div>
+      <div class="ovi-map-tools">
+        <div class="filtro-g" style="margin-bottom:0;">
+          <label>Visualização</label>
+          <select id="ovi-map-visual" onchange="aplicarFiltros()">
+            <option value="ambos">Pontos + calor</option>
+            <option value="pontos">Somente pontos</option>
+            <option value="calor">Somente calor por ovos</option>
+          </select>
+        </div>
+        <div class="filtro-g" style="margin-bottom:0;">
+          <label>Buscar ovitrampa</label>
+          <input type="search" id="ovi-map-busca" placeholder="ID, rua, localidade..." oninput="oviFiltroDelay()">
+        </div>
+        <div class="ovi-map-line">
+          <div class="filtro-g" style="margin-bottom:0;">
+            <label>Mín. ovos</label>
+            <input type="number" min="0" id="ovi-map-min-ovos" onchange="aplicarFiltros()">
+          </div>
+          <label class="ovi-map-check" style="align-self:end;margin-bottom:7px;">
+            <input type="checkbox" id="ovi-map-positivas" onchange="aplicarFiltros()"> Só positivas
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="painel-card compacto">
       <div class="painel-titulo">Resumo</div>
       <div class="map-kpis">
         <div class="map-kpi"><div class="val" id="kpi-trabalhados">—</div><div class="lbl">Trabalhados</div></div>
@@ -290,10 +326,12 @@
 // ═══════════════════════════════════════════════════════════════════
 //  Estado
 // ═══════════════════════════════════════════════════════════════════
-let mapaL, geojsonLayer, geojsonData;
+let mapaL, geojsonLayer, geojsonData, oviLayer, oviHeatLayer;
 let dadosAPI  = {};
+let dadosOvi  = { resumo:{}, pontos:[] };
 let modoAtual = 'trabalhado';
 let tiposSel  = new Set({{ TIPOS_TRABALHO|map(attribute='codigo')|list|tojson }});
+let oviDelayHandle = null;
 
 // ═══════════════════════════════════════════════════════════════════
 //  Cores
@@ -498,6 +536,9 @@ function renderGeoJSON() {
       const p   = feature.properties;
       const d   = dadosAPI[`${p.Localidade}:${p.id_quart}`];
       const cor = obterCor(d);
+      if (modoAtual === 'ovitrampas') {
+        return { fillColor:'#e2e8f0', fillOpacity:0.12, color:'#94a3b8', weight:0.7, opacity:0.45 };
+      }
       return { fillColor: cor.fill, fillOpacity: 0.75, color: cor.border, weight: 1, opacity: 1 };
     },
     onEachFeature: (feature, layer) => {
@@ -513,6 +554,102 @@ function renderGeoJSON() {
     mapaL.fitBounds(geojsonLayer.getBounds(), { padding: [10, 10] });
   }
   atualizarKPIs();
+  renderOvitrampasMapa();
+}
+
+function buildOviParams() {
+  const p = new URLSearchParams();
+  const v = id => document.getElementById(id).value;
+  if (v('f-localidade')) p.append('localidade', v('f-localidade'));
+  if (v('f-d-ini')) p.append('d_ini', v('f-d-ini'));
+  if (v('f-d-fim')) p.append('d_fim', v('f-d-fim'));
+  if (v('ovi-map-busca')) p.append('busca', v('ovi-map-busca'));
+  if (v('ovi-map-min-ovos')) p.append('min_ovos', v('ovi-map-min-ovos'));
+  if (document.getElementById('ovi-map-positivas').checked) p.append('positivas', '1');
+  return p;
+}
+
+async function carregarOvitrampasMapa() {
+  const r = await fetch('/api/mapa/ovitrampas?' + buildOviParams());
+  dadosOvi = await r.json();
+}
+
+function oviFiltroDelay() {
+  clearTimeout(oviDelayHandle);
+  oviDelayHandle = setTimeout(aplicarFiltros, 350);
+}
+
+function limparCamadasOvi() {
+  if (oviLayer) { mapaL.removeLayer(oviLayer); oviLayer = null; }
+  if (oviHeatLayer) { mapaL.removeLayer(oviHeatLayer); oviHeatLayer = null; }
+}
+
+function corOviPonto(p) {
+  if ((p.positivas || 0) > 0) return '#dc2626';
+  if ((p.leituras || 0) > 0) return '#7c3aed';
+  return '#64748b';
+}
+
+function renderOvitrampasMapa() {
+  if (!mapaL) return;
+  limparCamadasOvi();
+  if (modoAtual !== 'ovitrampas') return;
+
+  const pontos = (dadosOvi.pontos || []).filter(p => p.latitude !== null && p.longitude !== null);
+  const visual = document.getElementById('ovi-map-visual').value;
+  const maxOvos = Math.max(1, ...pontos.map(p => p.ovos || 0));
+
+  if (visual === 'calor' || visual === 'ambos') {
+    oviHeatLayer = L.layerGroup(pontos.filter(p => (p.ovos || 0) > 0).map(p => {
+      const intensidade = Math.sqrt((p.ovos || 0) / maxOvos);
+      return L.circle([p.latitude, p.longitude], {
+        radius: 45 + intensidade * 170,
+        color: '#f97316',
+        weight: 0,
+        fillColor: (p.positivas || 0) > 0 ? '#ef4444' : '#f59e0b',
+        fillOpacity: 0.14 + intensidade * 0.24,
+        interactive: visual === 'calor',
+      }).bindPopup(oviPopup(p));
+    })).addTo(mapaL);
+  }
+
+  if (visual === 'pontos' || visual === 'ambos') {
+    oviLayer = L.layerGroup(pontos.map(p => {
+      const cor = corOviPonto(p);
+      const raio = Math.min(11, 5 + Math.sqrt(p.ovos || 0) / 6);
+      return L.circleMarker([p.latitude, p.longitude], {
+        radius: raio,
+        color: '#fff',
+        weight: 1.4,
+        fillColor: cor,
+        fillOpacity: 0.9,
+      }).bindPopup(oviPopup(p));
+    })).addTo(mapaL);
+  }
+}
+
+function oviPopup(p) {
+  const endereco = [p.rua, p.numero].filter(Boolean).join(', ');
+  const ultimaColeta = formatarDataIso(p.ultima_coleta);
+  return `
+    <div class="ovi-popup-title">Ovitrampa ${p.ovitrampa_id || '-'}</div>
+    <div class="ovi-popup-meta">${p.localidade || '-'}${p.quarteirao ? ' · Q ' + p.quarteirao : ''}<br>${endereco || '-'}</div>
+    <div class="ovi-popup-grid">
+      <div class="ovi-popup-k"><span>Leituras</span><strong>${p.leituras || 0}</strong></div>
+      <div class="ovi-popup-k"><span>Positivas</span><strong>${p.positivas || 0}</strong></div>
+      <div class="ovi-popup-k"><span>Ovos</span><strong>${p.ovos || 0}</strong></div>
+      <div class="ovi-popup-k"><span>Última</span><strong>${ultimaColeta || '-'}</strong></div>
+    </div>`;
+}
+
+function formatarDataIso(valor) {
+  if (!valor) return '';
+  const texto = String(valor).trim();
+  const match = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+  const br = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  return texto;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -615,8 +752,9 @@ function atualizarKPIs() {
   document.getElementById('kpi-esporo-feridas').textContent = esporoFeridas.toLocaleString('pt-BR');
   document.getElementById('kpi-pes').textContent = pesAtivos.toLocaleString('pt-BR');
   document.getElementById('kpi-pes-atrasados').textContent = pesAtrasados.toLocaleString('pt-BR');
-  document.getElementById('kpi-ovi-armadilhas').textContent = oviArmadilhas.toLocaleString('pt-BR');
-  document.getElementById('kpi-ovi-positivas').textContent = oviPositivas.toLocaleString('pt-BR');
+  const oviResumo = dadosOvi.resumo || {};
+  document.getElementById('kpi-ovi-armadilhas').textContent = (oviResumo.armadilhas ?? oviArmadilhas).toLocaleString('pt-BR');
+  document.getElementById('kpi-ovi-positivas').textContent = (oviResumo.positivas ?? oviPositivas).toLocaleString('pt-BR');
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -629,6 +767,7 @@ function setModo(btn) {
   atualizarLegenda();
   salvarEstado();
   if (geojsonLayer) renderGeoJSON();
+  renderOvitrampasMapa();
 }
 
 function toggleTipo(tipo, label) {
@@ -663,6 +802,10 @@ function salvarEstado() {
     d_fim:     document.getElementById('f-d-fim').value,
     tipos:     [...tiposSel],
     modo:      modoAtual,
+    ovi_visual: document.getElementById('ovi-map-visual').value,
+    ovi_busca: document.getElementById('ovi-map-busca').value,
+    ovi_min_ovos: document.getElementById('ovi-map-min-ovos').value,
+    ovi_positivas: document.getElementById('ovi-map-positivas').checked,
   });
 }
 
@@ -674,6 +817,10 @@ function restaurarEstado() {
     if (s.d_fim)      document.getElementById('f-d-fim').value      = s.d_fim;
     if (s.tipos)      tiposSel = new Set(s.tipos);
     if (s.modo)       modoAtual = s.modo;
+    if (s.ovi_visual) document.getElementById('ovi-map-visual').value = s.ovi_visual;
+    if (s.ovi_busca) document.getElementById('ovi-map-busca').value = s.ovi_busca;
+    if (s.ovi_min_ovos) document.getElementById('ovi-map-min-ovos').value = s.ovi_min_ovos;
+    document.getElementById('ovi-map-positivas').checked = !!s.ovi_positivas;
     // sincronizar botões de modo
     document.querySelectorAll('.modo-btn').forEach(b => {
       b.classList.toggle('ativo', b.dataset.modo === modoAtual);
@@ -695,8 +842,12 @@ async function aplicarFiltros() {
   salvarEstado();
   mostrarLoading();
   try {
-    const r = await fetch('/api/mapa?' + buildParams());
+    const [r, ro] = await Promise.all([
+      fetch('/api/mapa?' + buildParams()),
+      fetch('/api/mapa/ovitrampas?' + buildOviParams()),
+    ]);
     dadosAPI = await r.json();
+    dadosOvi = await ro.json();
     renderGeoJSON();
   } catch(e) { console.error(e); }
   finally { esconderLoading(); }
@@ -708,6 +859,10 @@ function limparFiltros() {
   });
   document.getElementById('f-d-ini').value = _nDiasAtras(30);
   document.getElementById('f-d-fim').value = _hoje();
+  document.getElementById('ovi-map-visual').value = 'ambos';
+  document.getElementById('ovi-map-busca').value = '';
+  document.getElementById('ovi-map-min-ovos').value = '';
+  document.getElementById('ovi-map-positivas').checked = false;
   tiposSel = new Set({{ TIPOS_TRABALHO|map(attribute='codigo')|list|tojson }});
   document.querySelectorAll('.filtro-checks label').forEach(l => l.classList.remove('inativo'));
   limparFiltrosPagina('mapa');
@@ -724,8 +879,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   initMapa();
   // Dados iniciais com os filtros restaurados
   try {
-    const r = await fetch('/api/mapa?' + buildParams());
+    const [r, ro] = await Promise.all([
+      fetch('/api/mapa?' + buildParams()),
+      fetch('/api/mapa/ovitrampas?' + buildOviParams()),
+    ]);
     dadosAPI = await r.json();
+    dadosOvi = await ro.json();
     if (geojsonLayer) renderGeoJSON();
   } catch(e) { console.error(e); }
 });

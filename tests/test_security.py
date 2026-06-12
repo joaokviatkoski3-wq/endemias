@@ -3460,6 +3460,22 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertIn("ovi_positivas", primeiro)
             self.assertIn("ovi_ovos", primeiro)
 
+    def test_api_mapa_ovitrampas_retorna_pontos_com_coordenadas(self):
+        client = _client_logado()
+        resp = client.get("/api/mapa/ovitrampas")
+        dados = resp.get_json()
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("resumo", dados)
+        self.assertIn("pontos", dados)
+        self.assertIn("armadilhas", dados["resumo"])
+        if dados["pontos"]:
+            primeiro = dados["pontos"][0]
+            self.assertIn("latitude", primeiro)
+            self.assertIn("longitude", primeiro)
+            self.assertIn("ovos", primeiro)
+            self.assertIn("positivas", primeiro)
+
     def test_mapa_exibe_camadas_de_esporotricose(self):
         client = _client_logado()
         resp = client.get("/mapa")
@@ -3470,6 +3486,9 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn('data-modo="pes"', html)
         self.assertIn('data-modo="ovitrampas"', html)
         self.assertIn('data-modo="atencao"', html)
+        self.assertIn("ovi-map-visual", html)
+        self.assertIn("/api/mapa/ovitrampas", html)
+        self.assertIn("formatarDataIso", html)
         self.assertIn("kpi-esporo-visitas", html)
         self.assertIn("kpi-pes", html)
         self.assertIn("kpi-ovi-armadilhas", html)
