@@ -6,6 +6,10 @@
   <style>
     :root { color-scheme: light; }
     * { box-sizing: border-box; }
+    .month, .month *, .day, .swatch {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
     body {
       margin: 0;
       background: #f3f4f6;
@@ -121,6 +125,8 @@
     .day.event {
       color: #111827;
       border: 1px solid rgba(17, 24, 39, .15);
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     .legend {
       display: grid;
@@ -153,9 +159,6 @@
     .legend-name {
       font-weight: 800;
       color: #111827;
-    }
-    .legend-localidades {
-      overflow-wrap: anywhere;
     }
     @page {
       size: A4 landscape;
@@ -205,7 +208,7 @@
           {% set ev = dia.evento %}
           <div
             class="day{% if dia.fora_mes %} out{% endif %}{% if dia.fim_semana %} weekend{% endif %}{% if ev %} event{% endif %}"
-            {% if ev %}style="background: {{ ev.grupo_cor }};" title="{{ ev.movimento_label }} - {{ ev.grupo_nome }}"{% endif %}
+            {% if ev %}style="background-color: {{ ev.grupo_cor }}; -webkit-print-color-adjust: exact; print-color-adjust: exact;" title="{{ ev.movimento_label }} - {{ ev.grupo_nome }}"{% endif %}
           >{{ dia.dia }}</div>
           {% endfor %}
           {% endfor %}
@@ -214,10 +217,9 @@
           {% if mes.legenda %}
             {% for item in mes.legenda %}
             <div class="legend-item">
-              <span class="swatch" style="background: {{ item.cor }};"></span>
+              <span class="swatch" style="background-color: {{ item.cor }}; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></span>
               <span>
                 <span class="legend-name">{{ item.nome }}</span>
-                {% if item.localidades %}<span class="legend-localidades"> - {{ item.localidades }}</span>{% endif %}
               </span>
             </div>
             {% endfor %}

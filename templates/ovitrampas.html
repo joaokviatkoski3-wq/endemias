@@ -53,7 +53,6 @@
 .ovi-month-legend-item{display:grid;grid-template-columns:12px minmax(0,1fr);gap:6px;align-items:start;font-size:10px;line-height:1.25;color:var(--text2);}
 .ovi-month-legend-swatch{width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.18);margin-top:1px;}
 .ovi-month-legend-name{font-weight:900;color:var(--text);}
-.ovi-month-legend-localidades{color:var(--text3);overflow-wrap:anywhere;}
 .ovi-month-legend-empty{font-size:10px;color:var(--text3);font-style:italic;}
 .ovi-group-list{display:flex;flex-direction:column;gap:8px;}
 .ovi-group-item{border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;background:var(--surface);}
@@ -501,7 +500,7 @@ function renderLegendaMes(ano, mes){
   return `<div class="ovi-month-legend">${Array.from(legenda.values()).map(item => `
     <div class="ovi-month-legend-item">
       <span class="ovi-month-legend-swatch" style="background:${oviEscape(item.cor)}"></span>
-      <span><span class="ovi-month-legend-name">${oviEscape(item.nome)}</span>${item.localidades ? `<span class="ovi-month-legend-localidades"> - ${oviEscape(item.localidades)}</span>` : ''}</span>
+      <span class="ovi-month-legend-name">${oviEscape(item.nome)}</span>
     </div>
   `).join('')}</div>`;
 }

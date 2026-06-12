@@ -2432,9 +2432,10 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(resp.status_code, 200)
             html = resp.get_data(as_text=True)
             self.assertIn("window.print()", html)
+            self.assertIn("print-color-adjust: exact", html)
             self.assertIn("Calendário de ovitrampas - 2026", html)
             self.assertIn(grupo["nome"], html)
-            self.assertIn(grupo["localidades"], html)
+            self.assertNotIn(f" - {grupo['localidades']}", html)
             self.assertIn("Feriado municipal", html)
 
     def test_ovitrampas_calendario_migra_vinculo_agentes_apontando_tabela_antiga(self):
