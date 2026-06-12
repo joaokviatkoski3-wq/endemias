@@ -49,6 +49,12 @@
 .ovi-day.today{box-shadow:inset 0 0 0 2px var(--brand);}
 .ovi-day-num{position:relative;z-index:1;}
 .ovi-day-dot{position:absolute;right:3px;bottom:3px;width:6px;height:6px;border-radius:999px;background:rgba(17,24,39,.45);}
+.ovi-month-legend{display:grid;gap:5px;padding:7px 8px;border-top:1px solid var(--border);background:var(--surface);}
+.ovi-month-legend-item{display:grid;grid-template-columns:12px minmax(0,1fr);gap:6px;align-items:start;font-size:10px;line-height:1.25;color:var(--text2);}
+.ovi-month-legend-swatch{width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.18);margin-top:1px;}
+.ovi-month-legend-name{font-weight:900;color:var(--text);}
+.ovi-month-legend-localidades{color:var(--text3);overflow-wrap:anywhere;}
+.ovi-month-legend-empty{font-size:10px;color:var(--text3);font-style:italic;}
 .ovi-group-list{display:flex;flex-direction:column;gap:8px;}
 .ovi-group-item{border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;background:var(--surface);}
 .ovi-group-head{display:flex;justify-content:space-between;gap:8px;align-items:start;font-size:12px;font-weight:900;}
@@ -185,6 +191,7 @@
     <button class="btn btn-outline" type="button" id="ovi-cal-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
     <button class="btn btn-primary" type="button" id="ovi-cal-novo"><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Novo movimento</button>
     <button class="btn btn-outline" type="button" id="ovi-grupo-novo"><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Novo grupo</button>
+    <button class="btn btn-outline" type="button" id="ovi-cal-imprimir"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Imprimir</button>
   </div>
   <div class="ovi-cal-layout">
     <div class="chart-card">
@@ -466,7 +473,37 @@ function renderMes(ano, mes){
     }
     rows.push(weekDays.join(''));
   }
-  return `<div class="ovi-month"><div class="ovi-month-title"><span>${oviMeses[mes]}</span><span>${ano}</span></div><div class="ovi-month-grid">${rows.join('')}</div></div>`;
+  return `<div class="ovi-month"><div class="ovi-month-title"><span>${oviMeses[mes]}</span><span>${ano}</span></div><div class="ovi-month-grid">${rows.join('')}</div>${renderLegendaMes(ano, mes)}</div>`;
+}
+function renderLegendaMes(ano, mes){
+  const prefixo = `${ano}-${String(mes + 1).padStart(2, '0')}-`;
+  const legenda = new Map();
+  oviCalState.eventos
+    .filter(ev => (ev.data || '').startsWith(prefixo))
+    .forEach(ev => {
+      if (ev.movimento === 'feriado') {
+        const nome = ev.grupo_nome || ev.titulo || 'Feriado';
+        legenda.set(`feriado:${nome}`, {
+          nome,
+          localidades: '',
+          cor: ev.grupo_cor || '#64748b',
+        });
+        return;
+      }
+      const chave = `grupo:${ev.id_grupo || ev.grupo_nome || ev.titulo}`;
+      legenda.set(chave, {
+        nome: ev.grupo_nome || 'Grupo',
+        localidades: ev.grupo_localidades || '',
+        cor: ev.grupo_cor || '#0f766e',
+      });
+    });
+  if (!legenda.size) return '<div class="ovi-month-legend"><span class="ovi-month-legend-empty">Sem movimentos no mês.</span></div>';
+  return `<div class="ovi-month-legend">${Array.from(legenda.values()).map(item => `
+    <div class="ovi-month-legend-item">
+      <span class="ovi-month-legend-swatch" style="background:${oviEscape(item.cor)}"></span>
+      <span><span class="ovi-month-legend-name">${oviEscape(item.nome)}</span>${item.localidades ? `<span class="ovi-month-legend-localidades"> - ${oviEscape(item.localidades)}</span>` : ''}</span>
+    </div>
+  `).join('')}</div>`;
 }
 function renderGrupos(){
   document.getElementById('ovi-grupos-lista').innerHTML = oviCalState.grupos.map(g => `
@@ -564,6 +601,10 @@ document.getElementById('ovi-arm-busca').addEventListener('keydown', e => { if(e
 document.getElementById('ovi-cal-ano').value = new Date().getFullYear();
 document.getElementById('ovi-cal-atualizar').addEventListener('click', () => carregarCalendario().catch(e => toast('Erro ao carregar calendário: ' + e.message, 'error')));
 document.getElementById('ovi-cal-novo').addEventListener('click', () => abrirModalCalendario(oviDateKey(new Date())));
+document.getElementById('ovi-cal-imprimir').addEventListener('click', () => {
+  const ano = Number(document.getElementById('ovi-cal-ano').value || oviCalState.ano || new Date().getFullYear());
+  window.open('/ovitrampas/calendario/imprimir?ano=' + encodeURIComponent(ano), '_blank', 'noopener');
+});
 document.getElementById('ovi-grupo-novo').addEventListener('click', () => abrirModalGrupo());
 document.getElementById('ovi-cal-fechar').addEventListener('click', fecharModalCalendario);
 document.getElementById('ovi-cal-cancelar').addEventListener('click', fecharModalCalendario);

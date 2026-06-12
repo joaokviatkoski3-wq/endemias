@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Calendário de ovitrampas - {{ ano }}</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f3f4f6;
+      color: #111827;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10px;
+      line-height: 1.25;
+    }
+    .actions {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 10px 14px;
+      background: #fff;
+      border-bottom: 1px solid #d1d5db;
+    }
+    .actions button {
+      border: 1px solid #0f766e;
+      background: #0f766e;
+      color: #fff;
+      border-radius: 4px;
+      padding: 7px 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .page {
+      width: 297mm;
+      min-height: 210mm;
+      margin: 10px auto;
+      padding: 10mm;
+      background: #fff;
+      box-shadow: 0 8px 30px rgba(15, 23, 42, .15);
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      border-bottom: 2px solid #111827;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+    }
+    h1 {
+      margin: 0 0 3px;
+      font-size: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+    .muted { color: #6b7280; }
+    .summary {
+      text-align: right;
+      color: #374151;
+      font-size: 10px;
+    }
+    .year-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 7px;
+    }
+    .month {
+      break-inside: avoid;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .month-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+      padding: 5px 6px;
+      background: #f1f5f9;
+      border-bottom: 1px solid #cbd5e1;
+      font-weight: 900;
+      text-transform: uppercase;
+      font-size: 10px;
+    }
+    .month-grid {
+      display: grid;
+      grid-template-columns: 24px repeat(7, 1fr);
+      gap: 1px;
+      background: #cbd5e1;
+    }
+    .head, .week, .day {
+      min-height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      padding: 1px;
+      font-weight: 800;
+    }
+    .head {
+      min-height: 15px;
+      color: #64748b;
+      font-size: 8px;
+      text-transform: uppercase;
+    }
+    .week {
+      color: #0f766e;
+      background: #f8fafc;
+      font-size: 8px;
+    }
+    .day {
+      position: relative;
+      font-size: 9px;
+    }
+    .day.out { background: #f8fafc; color: transparent; }
+    .day.weekend:not(.event) { background: #e5e7eb; color: #475569; }
+    .day.event {
+      color: #111827;
+      border: 1px solid rgba(17, 24, 39, .15);
+    }
+    .legend {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 3px;
+      padding: 5px 6px;
+      border-top: 1px solid #cbd5e1;
+      min-height: 28px;
+    }
+    .legend-empty {
+      color: #94a3b8;
+      font-style: italic;
+      font-size: 8px;
+    }
+    .legend-item {
+      display: grid;
+      grid-template-columns: 10px minmax(0, 1fr);
+      gap: 4px;
+      align-items: start;
+      color: #334155;
+      font-size: 8px;
+    }
+    .swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      border: 1px solid rgba(0, 0, 0, .18);
+      margin-top: 1px;
+    }
+    .legend-name {
+      font-weight: 800;
+      color: #111827;
+    }
+    .legend-localidades {
+      overflow-wrap: anywhere;
+    }
+    @page {
+      size: A4 landscape;
+      margin: 8mm;
+    }
+    @media print {
+      body { background: #fff; }
+      .actions { display: none; }
+      .page {
+        width: auto;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+      }
+      .month { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="actions">
+    <button type="button" onclick="window.print()">Imprimir</button>
+  </div>
+  <main class="page">
+    {% set dias = ["D", "S", "T", "Q", "Q", "S", "S"] %}
+    <header>
+      <div>
+        <h1>Calendário de ovitrampas - {{ ano }}</h1>
+        <div class="muted">Instalação, troca, retirada e feriados do calendário operacional</div>
+      </div>
+      <div class="summary">
+        <div>{{ total_eventos }} movimento{{ "s" if total_eventos != 1 else "" }} no ano</div>
+        <div>Gerado em {{ gerado_em.strftime("%d/%m/%Y %H:%M") }}</div>
+      </div>
+    </header>
+
+    <section class="year-grid">
+      {% for mes in meses %}
+      <article class="month">
+        <div class="month-title"><span>{{ mes.nome }}</span><span>{{ ano }}</span></div>
+        <div class="month-grid">
+          <div class="head">SE</div>
+          {% for dia_nome in dias %}<div class="head">{{ dia_nome }}</div>{% endfor %}
+          {% for semana in mes.semanas %}
+          <div class="week">{{ "%02d"|format(semana.se) }}</div>
+          {% for dia in semana.dias %}
+          {% set ev = dia.evento %}
+          <div
+            class="day{% if dia.fora_mes %} out{% endif %}{% if dia.fim_semana %} weekend{% endif %}{% if ev %} event{% endif %}"
+            {% if ev %}style="background: {{ ev.grupo_cor }};" title="{{ ev.movimento_label }} - {{ ev.grupo_nome }}"{% endif %}
+          >{{ dia.dia }}</div>
+          {% endfor %}
+          {% endfor %}
+        </div>
+        <div class="legend">
+          {% if mes.legenda %}
+            {% for item in mes.legenda %}
+            <div class="legend-item">
+              <span class="swatch" style="background: {{ item.cor }};"></span>
+              <span>
+                <span class="legend-name">{{ item.nome }}</span>
+                {% if item.localidades %}<span class="legend-localidades"> - {{ item.localidades }}</span>{% endif %}
+              </span>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="legend-empty">Sem movimentos no mês.</div>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+  </main>
+  <script>
+    window.addEventListener('load', () => setTimeout(() => window.print(), 500));
+  </script>
+</body>
+</html>

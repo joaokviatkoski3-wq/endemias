@@ -48,6 +48,13 @@ def page():
     )
 
 
+@bp.route("/ovitrampas/calendario/imprimir")
+@login_required
+def imprimir_calendario():
+    dados = ovitrampas_core.calendario_impressao(_db_path(), request.args.get("ano"))
+    return render_template("ovitrampas_calendario_impressao.html", **dados)
+
+
 @bp.route("/api/ovitrampas")
 @login_required
 def api_resumo():

@@ -1,7 +1,7 @@
 import csv
 import hashlib
 import os
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from app_core import db as db_core
@@ -19,6 +19,11 @@ MOVIMENTOS = {
     "retirada": "Retirada",
     "feriado": "Feriado",
 }
+
+MESES_PT = (
+    "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+)
 
 GRUPOS_PADRAO = (
     ("Tanguá / Paraíso", "Tanguá, Paraíso", "#facc15"),
@@ -468,6 +473,43 @@ def calendario_dados(db_path, ano):
     return {"ano": ano, "grupos": grupos, "eventos": eventos, "movimentos": MOVIMENTOS}
 
 
+def calendario_impressao(db_path, ano):
+    dados = calendario_dados(db_path, ano)
+    ano = dados["ano"]
+    eventos_por_data = {ev["data"]: ev for ev in dados["eventos"]}
+    meses = []
+    for mes in range(1, 13):
+        primeiro = date(ano, mes, 1)
+        semanas = []
+        dia_atual = primeiro - timedelta(days=(primeiro.weekday() + 1) % 7)
+        for _ in range(6):
+            semana = {"se": _semana_epi(dia_atual), "dias": []}
+            for _dia in range(7):
+                key = dia_atual.isoformat()
+                semana["dias"].append({
+                    "data": dia_atual,
+                    "dia": dia_atual.day if dia_atual.month == mes else "",
+                    "fora_mes": dia_atual.month != mes,
+                    "fim_semana": dia_atual.weekday() in (5, 6),
+                    "evento": eventos_por_data.get(key),
+                })
+                dia_atual += timedelta(days=1)
+            semanas.append(semana)
+        eventos_mes = [ev for ev in dados["eventos"] if ev["data"].startswith(f"{ano}-{mes:02d}-")]
+        meses.append({
+            "numero": mes,
+            "nome": MESES_PT[mes],
+            "semanas": semanas,
+            "legenda": _legenda_calendario(eventos_mes),
+        })
+    return {
+        "ano": ano,
+        "meses": meses,
+        "total_eventos": len(dados["eventos"]),
+        "gerado_em": datetime.now(),
+    }
+
+
 def salvar_grupo(db_path, dados, id_grupo=None):
     nome = _text(dados.get("nome"))
     if not nome:
@@ -755,6 +797,36 @@ def _cal_evento_dict(row):
     ]
     item["agentes_nomes"] = ", ".join(a["nome"] for a in item["agentes"])
     return item
+
+
+def _semana_epi(dia):
+    first = date(dia.year, 1, 1)
+    first_sunday = first + timedelta(days=(6 - first.weekday()) % 7)
+    if dia < first_sunday:
+        return _semana_epi(date(dia.year - 1, 12, 31))
+    return ((dia - first_sunday).days // 7) + 1
+
+
+def _legenda_calendario(eventos):
+    legenda = {}
+    for ev in eventos:
+        if ev.get("movimento") == "feriado":
+            chave = f"feriado:{ev.get('grupo_nome') or 'Feriado'}"
+            legenda[chave] = {
+                "nome": ev.get("grupo_nome") or "Feriado",
+                "localidades": "",
+                "cor": ev.get("grupo_cor") or "#64748b",
+                "feriado": True,
+            }
+            continue
+        chave = f"grupo:{ev.get('id_grupo') or ev.get('grupo_nome')}"
+        legenda[chave] = {
+            "nome": ev.get("grupo_nome") or "Grupo",
+            "localidades": ev.get("grupo_localidades") or "",
+            "cor": ev.get("grupo_cor") or "#0f766e",
+            "feriado": False,
+        }
+    return list(legenda.values())
 
 
 def _cal_evento_payload(dados):

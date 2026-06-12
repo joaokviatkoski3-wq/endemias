@@ -2398,6 +2398,45 @@ class MainApisSmokeTests(unittest.TestCase):
             eventos_agenda = resp.get_json()
             self.assertFalse(any(e["extendedProps"].get("fonte") == "OVITRAMPA" for e in eventos_agenda))
 
+    def test_ovitrampas_calendario_impressao_html_com_legenda(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, _ = _client_admin_com_banco_temporario(tmpdir)
+
+            resp = client.get("/ovitrampas")
+            self.assertEqual(resp.status_code, 200)
+            pagina = resp.get_data(as_text=True)
+            self.assertIn('id="ovi-cal-imprimir"', pagina)
+            self.assertIn("/ovitrampas/calendario/imprimir?ano=", pagina)
+            self.assertIn("renderLegendaMes", pagina)
+
+            resp = client.get("/api/ovitrampas/calendario?ano=2026")
+            self.assertEqual(resp.status_code, 200)
+            grupo = resp.get_json()["grupos"][0]
+
+            resp = client.post("/api/ovitrampas/calendario/eventos", json={
+                "data": "2026-03-10",
+                "movimento": "troca",
+                "id_grupo": grupo["id_grupo"],
+                "observacoes": "Troca semanal",
+            })
+            self.assertEqual(resp.status_code, 201)
+
+            resp = client.post("/api/ovitrampas/calendario/eventos", json={
+                "data": "2026-03-19",
+                "movimento": "feriado",
+                "titulo": "Feriado municipal",
+            })
+            self.assertEqual(resp.status_code, 201)
+
+            resp = client.get("/ovitrampas/calendario/imprimir?ano=2026")
+            self.assertEqual(resp.status_code, 200)
+            html = resp.get_data(as_text=True)
+            self.assertIn("window.print()", html)
+            self.assertIn("Calendário de ovitrampas - 2026", html)
+            self.assertIn(grupo["nome"], html)
+            self.assertIn(grupo["localidades"], html)
+            self.assertIn("Feriado municipal", html)
+
     def test_ovitrampas_calendario_migra_vinculo_agentes_apontando_tabela_antiga(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = _executar_criar_banco_em(tmpdir)
