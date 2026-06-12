@@ -1579,6 +1579,57 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("bloco-relatorio", html)
         self.assertNotIn("SisPNCD", html)
 
+    def test_pdf_relatorio_setor_inclui_ovitrampas_e_ignora_feriados(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute("INSERT INTO agentes (nome, ativo) VALUES (?, 1)", ("Agente Setor Ovi",))
+                conn.commit()
+                id_agente = conn.execute("SELECT id_agente FROM agentes WHERE nome=?", ("Agente Setor Ovi",)).fetchone()[0]
+            finally:
+                conn.close()
+
+            resp = client.get("/api/ovitrampas/calendario?ano=2026")
+            self.assertEqual(resp.status_code, 200)
+            grupos = resp.get_json()["grupos"]
+
+            resp = client.post("/api/ovitrampas/calendario/eventos", json={
+                "data": "2026-08-03",
+                "movimento": "instalacao",
+                "id_grupo": grupos[0]["id_grupo"],
+                "ciclo": "Ciclo 3",
+                "agentes": [id_agente],
+            })
+            self.assertEqual(resp.status_code, 201)
+
+            resp = client.post("/api/ovitrampas/calendario/eventos", json={
+                "data": "2026-08-10",
+                "movimento": "retirada",
+                "id_grupo": grupos[1]["id_grupo"],
+                "ciclo": "Ciclo 3",
+            })
+            self.assertEqual(resp.status_code, 201)
+
+            resp = client.post("/api/ovitrampas/calendario/eventos", json={
+                "data": "2026-08-15",
+                "movimento": "feriado",
+                "titulo": "Feriado ignorado",
+            })
+            self.assertEqual(resp.status_code, 201)
+
+            resp = client.get(
+                "/relatorio-agente/setor/pdf",
+                query_string={"d_ini": "2026-08-01", "d_fim": "2026-08-31"},
+            )
+            self.assertEqual(resp.status_code, 200)
+            html = resp.data.decode("utf-8")
+            self.assertIn("Ovitrampas", html)
+            self.assertIn("Dias com movimento", html)
+            self.assertIn("Agente Setor Ovi", html)
+            self.assertIn("Retirada", html)
+            self.assertNotIn("Feriado ignorado", html)
+
     def test_controle_pessoal_exibe_cadastro_e_historico(self):
         client = _client_logado("admin")
         resp = client.get("/admin/agentes")

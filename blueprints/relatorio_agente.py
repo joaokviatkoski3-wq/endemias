@@ -124,6 +124,82 @@ def _resumo_ovitrampas_agente(nome, d_ini, d_fim):
     }
 
 
+def _resumo_ovitrampas_setor(d_ini, d_fim):
+    conn = _get_db()
+    try:
+        ovitrampas_core.ensure_schema(conn)
+        rows = conn.execute(
+            f"""
+            SELECT e.data,
+                   e.movimento,
+                   e.ciclo,
+                   e.observacoes,
+                   g.nome AS grupo,
+                   g.localidades AS localidades,
+                   GROUP_CONCAT(DISTINCT ag.nome) AS agentes
+              FROM {ovitrampas_core.CAL_EVENTOS_TABLE} e
+              LEFT JOIN {ovitrampas_core.CAL_GRUPOS_TABLE} g ON g.id_grupo=e.id_grupo
+              LEFT JOIN {ovitrampas_core.CAL_AGENTES_TABLE} ea ON ea.id_evento=e.id_evento
+              LEFT JOIN agentes ag ON ag.id_agente=ea.id_agente
+             WHERE e.data BETWEEN ? AND ?
+               AND e.movimento <> 'feriado'
+             GROUP BY e.id_evento
+             ORDER BY e.data, e.id_evento
+            """,
+            (d_ini, d_fim),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    eventos = []
+    por_movimento = {}
+    por_grupo = {}
+    por_agente = {}
+    dias = set()
+    grupos = set()
+    ciclos = set()
+    agentes = set()
+    movimentos = getattr(ovitrampas_core, "MOVIMENTOS", {})
+    for row in rows:
+        item = dict(row)
+        movimento = item.get("movimento") or ""
+        item["movimento_label"] = movimentos.get(movimento, movimento)
+        eventos.append(item)
+        dias.add(item.get("data"))
+        if item.get("grupo"):
+            grupos.add(item["grupo"])
+            por_grupo[item["grupo"]] = por_grupo.get(item["grupo"], 0) + 1
+        if item.get("ciclo"):
+            ciclos.add(item["ciclo"])
+        por_movimento[item["movimento_label"]] = por_movimento.get(item["movimento_label"], 0) + 1
+        for agente in [a.strip() for a in (item.get("agentes") or "").split(",") if a.strip()]:
+            agentes.add(agente)
+            por_agente[agente] = por_agente.get(agente, 0) + 1
+
+    return {
+        "totais": {
+            "eventos": len(eventos),
+            "dias": len(dias),
+            "grupos": len(grupos),
+            "ciclos": len(ciclos),
+            "agentes": len(agentes),
+        },
+        "por_movimento": [
+            {"movimento": nome_mov, "total": total}
+            for nome_mov, total in sorted(por_movimento.items())
+        ],
+        "por_grupo": [
+            {"grupo": grupo, "total": total}
+            for grupo, total in sorted(por_grupo.items(), key=lambda item: (-item[1], item[0]))
+        ],
+        "por_agente": [
+            {"agente": agente, "total": total}
+            for agente, total in sorted(por_agente.items(), key=lambda item: (-item[1], item[0]))
+        ],
+        "eventos": eventos,
+    }
+
+
 def _preparar_resumo_producao_relatorio(resumo):
     atividades = resumo.get("por_atividade", [])
     total = utils_core.safe_int(resumo.get("totais", {}).get("registros_total", 0))
@@ -163,6 +239,7 @@ def _obter_dados_setor(d_ini, d_fim):
         "d_fim": d_fim,
         "producao_operacional": resumo,
         "visitas_setor": _metricas_visitas_setor(d_ini, d_fim),
+        "ovitrampas": _resumo_ovitrampas_setor(d_ini, d_fim),
         "agentes": _producao_agentes_setor(d_ini, d_fim),
         "now": datetime.now().strftime("%d/%m/%Y %H:%M"),
     }

@@ -98,6 +98,8 @@ tr:nth-child(even) td{background:#f8faff;}
   {% set totais = prod.totais %}
   {% set visitas = visitas_setor %}
   {% set vt = visitas.totais %}
+  {% set ovi = ovitrampas %}
+  {% set ovi_t = ovi.totais %}
 
   <div class="bloco-relatorio">
     <div class="secao">Resumo do setor</div>
@@ -156,6 +158,61 @@ tr:nth-child(even) td{background:#f8faff;}
       </tbody>
     </table>
   </div>
+
+  {% if ovi_t.eventos %}
+  <div class="bloco-relatorio">
+    <div class="secao">Ovitrampas</div>
+    <p class="note">Movimentos registrados no calendario operacional de ovitrampas. Feriados sao ignorados nesta contagem.</p>
+    <div class="kpi-grid">
+      <div class="kpi teal"><div class="kpi-val">{{ ovi_t.dias }}</div><div class="kpi-lbl">Dias com movimento</div></div>
+      <div class="kpi"><div class="kpi-val">{{ ovi_t.eventos }}</div><div class="kpi-lbl">Movimentos</div></div>
+      <div class="kpi amber"><div class="kpi-val">{{ ovi_t.grupos }}</div><div class="kpi-lbl">Grupos atendidos</div></div>
+      <div class="kpi red"><div class="kpi-val">{{ ovi_t.agentes }}</div><div class="kpi-lbl">Agentes vinculados</div></div>
+    </div>
+    <div class="chart-row">
+      <div>
+        <table>
+          <thead><tr><th>Movimento</th><th class="right">Total</th><th class="right">% das ovitrampas</th></tr></thead>
+          <tbody>
+          {% for row in ovi.por_movimento %}
+          <tr>
+            <td>{{ row.movimento }}</td>
+            <td class="right">{{ row.total }}</td>
+            <td class="right">{{ ((row.total / ovi_t.eventos) * 100) | round(1) if ovi_t.eventos else 0 }}%</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <table>
+          <thead><tr><th>Grupo</th><th class="right">Movimentos</th></tr></thead>
+          <tbody>
+          {% for row in ovi.por_grupo[:10] %}
+          <tr>
+            <td>{{ row.grupo }}</td>
+            <td class="right">{{ row.total }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% if ovi.por_agente %}
+    <table>
+      <thead><tr><th>Agente</th><th class="right">Dias/movimentos vinculados</th></tr></thead>
+      <tbody>
+      {% for row in ovi.por_agente %}
+      <tr>
+        <td>{{ row.agente }}</td>
+        <td class="right">{{ row.total }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+  {% endif %}
 
   <div class="bloco-relatorio">
     <div class="secao">Tempo das visitas</div>
@@ -305,6 +362,7 @@ tr:nth-child(even) td{background:#f8faff;}
 <script>
 const prod = {{ prod | tojson }};
 const visitas = {{ visitas | tojson }};
+const ovitrampas = {{ ovi | tojson }};
 const pal = ['#1a4fba','#0d9488','#d97706','#dc2626','#8b5cf6','#06b6d4','#f97316'];
 
 function chart(id, cfg) {
