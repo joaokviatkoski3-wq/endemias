@@ -5,6 +5,8 @@ from datetime import datetime
 
 import pandas as pd
 
+from app_core import normalizadores
+
 
 TABLE = "recolhimentos"
 AGENTES_TABLE = "recolhimento_agentes"
@@ -373,6 +375,7 @@ def _obter_ou_criar_agente(conn, nome):
 
 
 def _obter_ou_criar_localidade(conn, nome):
+    nome = normalizadores.normalizar_localidade(nome)
     if not nome:
         return None
     row = conn.execute("SELECT id_localidade FROM localidades WHERE nome=?", (nome,)).fetchone()
@@ -506,4 +509,4 @@ def _localidade(value):
     text = _text(value)
     if not text:
         return None
-    return LOCALIDADES_PADRAO.get(text.lower(), text)
+    return normalizadores.normalizar_localidade(text)

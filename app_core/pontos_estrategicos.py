@@ -5,6 +5,7 @@ from datetime import datetime
 
 import pandas as pd
 
+from app_core import normalizadores as localidade_normalizadores
 from app_core import recolhimentos as normalizadores
 
 
@@ -791,6 +792,7 @@ def _where(filtros):
 
 
 def _obter_ou_criar_localidade(conn, nome):
+    nome = localidade_normalizadores.normalizar_localidade(nome)
     if not nome:
         return None
     row = conn.execute("SELECT id_localidade FROM localidades WHERE nome=?", (nome,)).fetchone()

@@ -5,6 +5,8 @@ from datetime import datetime
 
 import pandas as pd
 
+from app_core import normalizadores
+
 
 VISITAS_TABLE = "esporotricose_visitas"
 ANIMAIS_TABLE = "esporotricose_animais"
@@ -755,6 +757,7 @@ def _inserir_animal(conn, animal, agora_iso):
 
 
 def _obter_ou_criar_localidade(cur, nome):
+    nome = normalizadores.normalizar_localidade(nome)
     if not nome:
         return None
     cur.execute("SELECT id_localidade FROM localidades WHERE nome=?", (nome,))
@@ -810,7 +813,7 @@ def _localidade(valor):
     texto = _text(valor)
     if not texto:
         return None
-    return LOCALIDADES_PADRAO.get(texto.lower(), texto)
+    return normalizadores.normalizar_localidade(texto)
 
 
 def _choice(valor):

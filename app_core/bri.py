@@ -4,6 +4,7 @@ import os
 import pandas as pd
 
 from app_core import recolhimentos as agentes_core
+from app_core import normalizadores
 from app_core import pontos_estrategicos as pe_core
 
 
@@ -457,6 +458,7 @@ def _obter_ou_criar_agente(conn, nome):
 
 
 def _obter_ou_criar_localidade(conn, nome):
+    nome = normalizadores.normalizar_localidade(nome)
     if not nome:
         return None
     row = conn.execute("SELECT id_localidade FROM localidades WHERE nome=?", (nome,)).fetchone()

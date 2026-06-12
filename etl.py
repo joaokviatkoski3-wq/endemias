@@ -14,6 +14,7 @@ from openpyxl.utils import column_index_from_string
 from app_core import esporotricose as esporotricose_core
 from app_core import amostras_animais as amostras_animais_core
 from app_core import bri as bri_core
+from app_core import normalizadores
 from app_core import pontos_estrategicos as pe_core
 from app_core import recolhimentos as recolhimentos_core
 from app_core import work_types
@@ -186,8 +187,7 @@ MAPA_LOCALIDADE = {
 
 
 def normalizar_localidade(nome):
-    if not nome: return nome
-    return MAPA_LOCALIDADE.get(nome.strip().lower(), nome.strip())
+    return normalizadores.normalizar_localidade(nome)
 
 
 def normalizar_categoria(valor):

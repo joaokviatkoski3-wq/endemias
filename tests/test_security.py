@@ -4333,8 +4333,11 @@ class MainApisSmokeTests(unittest.TestCase):
 
     def test_etl_normaliza_codigos_tecnicos_da_api_kobo(self):
         import etl
+        from app_core import normalizadores
 
         self.assertEqual(etl.normalizar_localidade("grasiela"), "Graziela")
+        self.assertEqual(normalizadores.normalizar_localidade("lamenha"), "Lamenha")
+        self.assertEqual(normalizadores.normalizar_localidade("Centro"), "Sede")
         self.assertEqual(etl.normalizar_categoria("resid_ncia"), "Residência")
         self.assertEqual(etl.normalizar_categoria("com_rcio"), "Comércio")
         self.assertEqual(etl.normalizar_categoria("fechado"), "Fechado")
