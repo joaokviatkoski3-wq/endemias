@@ -38,6 +38,7 @@ from blueprints.ovitrampas import bp as ovitrampas_bp
 from blueprints.processar import bp as processar_bp
 from blueprints.pontos_estrategicos import bp as pontos_estrategicos_bp
 from blueprints.recolhimentos import bp as recolhimentos_bp
+from blueprints.registro_geografico import bp as registro_geografico_bp
 from blueprints.relatorio_agente import bp as relatorio_agente_bp
 
 
@@ -143,6 +144,7 @@ def _register_blueprints(flask_app):
     flask_app.register_blueprint(processar_bp)
     flask_app.register_blueprint(pontos_estrategicos_bp)
     flask_app.register_blueprint(recolhimentos_bp)
+    flask_app.register_blueprint(registro_geografico_bp)
     flask_app.register_blueprint(relatorio_agente_bp)
 
 
@@ -234,6 +236,7 @@ def create_app(config_overrides=None):
         UPLOAD_TEMP=UPLOAD_TEMP,
         ANEXOS_DIR=ANEXOS_DIR,
         KOBO_CONFIG_PATH=KOBO_CONFIG_PATH,
+        BASE_DIR=BASE_DIR,
         INSTANCE_DIR=INSTANCE_DIR,
         LOG_PATH=LOG_PATH,
         SECRET_KEY_PATH=SECRET_KEY_PATH,
@@ -242,7 +245,7 @@ def create_app(config_overrides=None):
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=SESSION_COOKIE_SECURE_DEFAULT,
         MAX_CONTENT_LENGTH=64 * 1024 * 1024,
-        WTF_CSRF_TIME_LIMIT=3600,
+        WTF_CSRF_TIME_LIMIT=8 * 3600,
         WTF_CSRF_CHECK_DEFAULT=True,
         TRUST_PROXY_HEADERS=TRUST_PROXY_HEADERS_DEFAULT,
         CSP_REPORT_ONLY=CSP_REPORT_ONLY_DEFAULT,

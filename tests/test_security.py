@@ -3006,6 +3006,149 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
         self.assertTrue(resp.is_json)
 
+    def test_pagina_registro_geografico_renderiza(self):
+        client = _client_logado()
+        resp = client.get("/registro-geografico")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Boletim de Registro de Reconhecimento Geogr", html)
+        self.assertIn("rg-panel-consulta", html)
+        self.assertIn("rg-panel-edicao", html)
+
+    def test_api_registro_geografico_retorna_registros_e_salva_edicao(self):
+        client = _client_logado("admin")
+        resp = client.get("/api/registro-geografico?limite=1")
+        self.assertEqual(resp.status_code, 200)
+        dados = resp.get_json()
+        self.assertIn("totais", dados)
+        self.assertIn("registros", dados)
+        if not dados["registros"]:
+            self.skipTest("Sem registros de RG para testar edicao.")
+
+        registro = dados["registros"][0]
+        self.assertEqual(registro.get("ordem"), 1)
+        self.assertEqual(registro.get("quarteirao"), "1")
+        detalhe = client.get(f"/api/registro-geografico/{registro['id_imovel']}").get_json()
+        original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
+        endemias_app.app.config["WTF_CSRF_ENABLED"] = False
+        try:
+            resp_post = client.post(
+                f"/api/registro-geografico/{registro['id_imovel']}",
+                json={
+                    "id_localidade": detalhe["id_localidade"],
+                    "quarteirao": detalhe["quarteirao"],
+                    "logradouro": detalhe["logradouro"],
+                    "numero": detalhe["numero"],
+                    "sequencia": detalhe.get("sequencia") or "",
+                    "lado": detalhe.get("lado") or "",
+                    "tipo": detalhe.get("tipo") or "",
+                    "condominio": detalhe.get("condominio") or "",
+                    "data_atualizacao": detalhe.get("data_atualizacao") or "",
+                    "observacao": detalhe.get("observacao") or "",
+                    "agentes_ids": detalhe.get("agentes_ids") or [],
+                },
+            )
+            self.assertEqual(resp_post.status_code, 200)
+            resp_criar = client.post(
+                "/api/registro-geografico",
+                json={
+                    "after_id": registro["id_imovel"],
+                    "id_localidade": detalhe["id_localidade"],
+                    "quarteirao": detalhe["quarteirao"],
+                    "logradouro": detalhe["logradouro"],
+                    "numero": "TESTE",
+                    "sequencia": "TESTE",
+                    "lado": detalhe.get("lado") or "",
+                    "tipo": detalhe.get("tipo") or "R",
+                    "condominio": "",
+                    "data_atualizacao": "",
+                    "observacao": "Linha temporaria de teste",
+                    "agentes_ids": [],
+                },
+            )
+            self.assertEqual(resp_criar.status_code, 201)
+            criado = resp_criar.get_json()["registro"]
+            resp_ordem = client.get("/api/registro-geografico?limite=3")
+            ids = [r["id_imovel"] for r in resp_ordem.get_json()["registros"]]
+            self.assertEqual(ids[1], criado["id_imovel"])
+            resp_delete = client.delete(f"/api/registro-geografico/{criado['id_imovel']}")
+            self.assertEqual(resp_delete.status_code, 200)
+        finally:
+            endemias_app.app.config["WTF_CSRF_ENABLED"] = original
+        self.assertTrue(resp_post.is_json)
+
+    def test_registro_geografico_edita_quarteirao_e_imprime(self):
+        client = _client_logado("admin")
+        primeiro = client.get("/api/registro-geografico?limite=1").get_json()["registros"][0]
+        original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
+        endemias_app.app.config["WTF_CSRF_ENABLED"] = False
+        try:
+            resp_q = client.get(
+                f"/api/registro-geografico/quarteirao"
+                f"?localidade={primeiro['id_localidade']}&quarteirao={primeiro['quarteirao']}"
+            )
+            self.assertEqual(resp_q.status_code, 200)
+            dados = resp_q.get_json()
+            linhas = dados["registros"][:]
+            linhas.append({
+                "logradouro": linhas[-1]["logradouro"],
+                "numero": "TESTE-Q",
+                "sequencia": "T",
+                "lado": linhas[-1].get("lado") or "",
+                "tipo": "R",
+                "condominio": "",
+                "observacao": "Linha temporaria de teste por quarteirao",
+            })
+            resp_save = client.post(
+                "/api/registro-geografico/quarteirao",
+                json={
+                    "id_localidade": primeiro["id_localidade"],
+                    "quarteirao": primeiro["quarteirao"],
+                    "data_atualizacao": "2026-06-15",
+                    "agentes_ids": dados.get("agentes_ids") or [],
+                    "linhas": linhas,
+                    "deleted_ids": [],
+                },
+            )
+            self.assertEqual(resp_save.status_code, 200)
+            salvo = resp_save.get_json()["quarteirao"]
+            self.assertEqual(salvo["registros"][-1]["numero"], "TESTE-Q")
+            apagado_id = salvo["registros"][-1]["id_imovel"]
+            linhas_limpa = [r for r in salvo["registros"] if r["id_imovel"] != apagado_id]
+            resp_clean = client.post(
+                "/api/registro-geografico/quarteirao",
+                json={
+                    "id_localidade": primeiro["id_localidade"],
+                    "quarteirao": primeiro["quarteirao"],
+                    "data_atualizacao": dados.get("data_atualizacao") or "",
+                    "agentes_ids": dados.get("agentes_ids") or [],
+                    "linhas": linhas_limpa,
+                    "deleted_ids": [apagado_id],
+                },
+            )
+            self.assertEqual(resp_clean.status_code, 200)
+        finally:
+            endemias_app.app.config["WTF_CSRF_ENABLED"] = original
+
+        impressao = client.get(
+            f"/registro-geografico/imprimir?localidade={primeiro['id_localidade']}&quarteirao={primeiro['quarteirao']}"
+        )
+        self.assertEqual(impressao.status_code, 200)
+        html = impressao.data.decode("utf-8")
+        self.assertIn("Boletim de Registro de Reconhecimento Geográfico", html)
+        self.assertNotIn("Reconhecimento Geográfico Digital", html)
+        self.assertIn("Quarteirão: 1", html)
+        self.assertIn("@page{size:A4 portrait", html)
+        self.assertIn("qrcode_mapa.svg", html)
+        self.assertIn("Total geral", html)
+        self.assertIn("considerando condomínios", html)
+        self.assertNotIn("<th>Sem condomínios</th><th>Com condomínios</th>", html)
+
+        quarteiroes = client.get(f"/api/registro-geografico/quarteiroes?localidade={primeiro['id_localidade']}")
+        self.assertEqual(quarteiroes.status_code, 200)
+        self.assertGreaterEqual(len(quarteiroes.get_json()["registros"]), 1)
+
     def test_api_esporotricose_animais_retorna_detalhes(self):
         client = _client_logado()
         resp = client.get("/api/esporotricose/animais?feridas=Sim")

@@ -199,6 +199,18 @@ MODULES: Tuple[AppModule, ...] = (
         endpoints=("mapa", "mapa.page"),
     ),
     AppModule(
+        key="registro_geografico",
+        title="Registro Geografico",
+        short_title="RG",
+        href="/registro-geografico",
+        endpoint="registro_geografico.page",
+        icon="registro_geografico.svg",
+        nav_section="Gestao",
+        description="Boletim de Registro de Reconhecimento Geografico Digital.",
+        tags=("Quarteiroes", "Imoveis", "RG"),
+        endpoints=("registro_geografico", "registro_geografico.page"),
+    ),
+    AppModule(
         key="pontos_estrategicos",
         title="Pontos Estrategicos",
         short_title="PEs",

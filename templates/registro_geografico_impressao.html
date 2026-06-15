@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Registro Geográfico - Impressão</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Arial,Helvetica,sans-serif;font-size:9.4pt;color:#000;background:#fff;}
+.screen-controls{position:fixed;top:0;left:0;right:0;z-index:999;background:#155e75;color:#fff;display:flex;align-items:center;gap:12px;padding:10px 20px;font-size:13px;}
+.screen-controls button{background:#fff;color:#155e75;border:none;border-radius:6px;padding:6px 16px;font-size:13px;font-weight:700;cursor:pointer;}
+.screen-controls span{opacity:.75;font-size:12px;}
+.print-spacer{height:46px;}
+.folha{max-width:19cm;margin:16px auto;padding:1cm 1.1cm;border:1px solid #ccc;background:#fff;}
+.folha:not(:last-child){page-break-after:always;}
+.cab{display:flex;align-items:center;width:100%;margin-bottom:10pt;}
+.cab-logo{width:2.5cm;text-align:center;flex-shrink:0;}
+.cab-logo img{max-height:2.2cm;max-width:2.2cm;object-fit:contain;}
+.cab-titulo{flex:1;text-align:center;padding:0 8px;}
+.cab-titulo .org{font-size:11pt;font-weight:700;margin-bottom:2pt;text-transform:uppercase;}
+.cab-titulo .sub{font-size:8.5pt;color:#333;line-height:1.45;}
+.titulo{text-align:center;font-size:12pt;font-weight:700;margin:8pt 0 4pt;text-transform:uppercase;}
+.meta{text-align:center;font-size:9.4pt;font-weight:700;margin-bottom:9pt;}
+table{width:100%;border-collapse:collapse;font-size:8.2pt;}
+th,td{border:1px solid #000;padding:3px 4px;vertical-align:top;}
+th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
+.rua td{background:#dbeafe;font-weight:700;font-size:8.6pt;}
+.num{width:1.7cm;text-align:center;}
+.seq{width:1.3cm;text-align:center;}
+.lado{width:1.2cm;text-align:center;}
+.tipo{width:1.4cm;text-align:center;}
+.cond{width:1.6cm;text-align:center;}
+.rodape-rg{display:grid;grid-template-columns:1fr 1fr;gap:12pt;margin-top:10pt;font-size:8.7pt;}
+.campo{border:1px solid #000;min-height:26pt;padding:5pt;}
+.campo strong{display:block;font-size:7.5pt;text-transform:uppercase;margin-bottom:4pt;}
+.rg-bottom{display:grid;grid-template-columns:minmax(0,1fr) 3.3cm;gap:12pt;align-items:end;margin-top:10pt;}
+.resumo{font-size:7.8pt;}
+.resumo th,.resumo td{padding:2px 4px;}
+.resumo .total td{font-weight:700;background:#f3f4f6;}
+.qr{text-align:center;font-size:7.8pt;font-weight:700;}
+.qr img{width:2.8cm;height:2.8cm;object-fit:contain;display:block;margin:0 auto 4pt;}
+.rodape{font-size:7.3pt;text-align:center;color:#555;margin-top:8pt;border-top:1px solid #eee;padding-top:6pt;}
+@media print{
+  @page{size:A4 portrait;margin:0.8cm;}
+  .screen-controls,.print-spacer{display:none!important;}
+  .folha{max-width:100%;margin:0;padding:0;border:none;}
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+}
+</style>
+</head>
+<body>
+{% if auto_print %}
+<div class="screen-controls">
+  <button onclick="window.print()">Imprimir</button>
+  <span>{{ dados.localidade.nome }} - {{ dados_lista|length }} RG(s)</span>
+  <span style="margin-left:auto;opacity:.5;">Feche esta aba após imprimir</span>
+</div>
+<div class="print-spacer"></div>
+{% endif %}
+
+{% for dados in dados_lista %}
+<div class="folha">
+  <div class="cab">
+    <div class="cab-logo"><img src="/static/img/logo_prefeitura.png" alt=""></div>
+    <div class="cab-titulo">
+      <div class="org">Prefeitura Municipal de Almirante Tamandaré</div>
+      <div class="sub">Secretaria Municipal de Saúde</div>
+      <div class="sub">Vigilância Ambiental em Saúde - Setor de Endemias</div>
+    </div>
+    <div class="cab-logo"><img src="/static/img/logo_endemias.png" alt=""></div>
+  </div>
+
+  <div class="titulo">Boletim de Registro de Reconhecimento Geográfico</div>
+  <div class="meta">Localidade: {{ dados.localidade.nome }} &nbsp;&nbsp;|&nbsp;&nbsp; Quarteirão: {{ dados.quarteirao }} &nbsp;&nbsp;|&nbsp;&nbsp; Emissão: {{ dados.data_emissao }}</div>
+
+  <table>
+    <thead>
+      <tr><th>Logradouro / Imóvel</th><th class="num">Número</th><th class="seq">Seq.</th><th class="lado">Lado</th><th class="tipo">Tipo</th><th class="cond">Cond.</th><th>Observação</th></tr>
+    </thead>
+    <tbody>
+      {% set ns = namespace(rua='') %}
+      {% for r in dados.registros %}
+        {% if r.logradouro != ns.rua %}
+          {% set ns.rua = r.logradouro %}
+          <tr class="rua"><td colspan="7">{{ r.logradouro or 'Sem logradouro' }}</td></tr>
+        {% endif %}
+        <tr>
+          <td></td>
+          <td class="num">{{ r.numero or 'SN' }}</td>
+          <td class="seq">{{ r.sequencia or '' }}</td>
+          <td class="lado">{{ r.lado or '' }}</td>
+          <td class="tipo">{{ r.tipo or '' }}</td>
+          <td class="cond">{{ r.condominio if r.condominio else '' }}</td>
+          <td>{{ r.observacao or '' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7">Nenhum imóvel cadastrado para este quarteirão.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="rodape-rg">
+    <div class="campo"><strong>Data da última atualização</strong>{{ dados.data_atualizacao_br or '____-____-______' }}</div>
+    <div class="campo"><strong>Agentes da última atualização</strong>{{ dados.agentes or '____________________________________________' }}</div>
+  </div>
+
+  <div class="rg-bottom">
+    <table class="resumo">
+      <thead><tr><th>Resumo</th><th>Quantidade</th></tr></thead>
+      <tbody>
+        {% for item in dados.resumo.linhas %}
+        <tr>
+          <td>{{ item.label }}</td>
+          <td>
+            {{ item.sem_condominio }}
+            {% if item.codigo == 'R' and item.com_condominio != item.sem_condominio %}
+              <span style="font-size:7pt;color:#444;">({{ item.com_condominio }} considerando condomínios)</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        <tr class="total">
+          <td>Total geral</td>
+          <td>
+            {{ dados.resumo.total_sem_condominio }}
+            {% if dados.resumo.total_com_condominio != dados.resumo.total_sem_condominio %}
+              <span style="font-size:7pt;color:#444;">({{ dados.resumo.total_com_condominio }} considerando condomínios)</span>
+            {% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="qr">
+      <img src="/static/img/qrcode_mapa.svg" alt="">
+      <div>Acesse o mapa digital pelo QR Code</div>
+    </div>
+  </div>
+
+  <div class="rodape">Rua Bertholina Kendrick de Oliveira, 681 - Centro - Almirante Tamandaré/PR</div>
+</div>
+{% endfor %}
+
+{% if auto_print %}
+<script>
+window.addEventListener('load', () => setTimeout(() => window.print(), 500));
+</script>
+{% endif %}
+</body>
+</html>

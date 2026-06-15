@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+{% block title %}Registro Geográfico{% endblock %}
+{% block page_title %}Registro Geográfico{% endblock %}
+
+{% block extra_css %}<style>
+.rg-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.rg-tab{border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:var(--radius-sm);padding:8px 12px;font-weight:900;cursor:pointer;}
+.rg-tab.active{background:#155e75;color:white;border-color:#155e75;}
+.rg-panel[hidden]{display:none!important;}
+.rg-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;}
+.rg-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);}
+.rg-kpi-label{font-size:10px;color:var(--text3);font-weight:900;text-transform:uppercase;}
+.rg-kpi-value{font-size:25px;color:#155e75;font-weight:900;margin-top:4px;font-variant-numeric:tabular-nums;}
+.rg-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px;align-items:end;}
+.rg-type{display:inline-flex;align-items:center;justify-content:center;min-width:32px;border-radius:999px;background:#e0f2fe;color:#075985;font-size:11px;font-weight:900;padding:2px 7px;}
+.rg-type.tb{background:#fee2e2;color:#991b1b;}
+.rg-type.pe{background:#dcfce7;color:#166534;}
+.rg-type.a{background:#ffedd5;color:#9a3412;}
+.rg-street-row td{background:var(--surface2);font-weight:900;color:var(--text);border-top:2px solid var(--border);}
+.rg-street-sub{color:var(--text3);font-size:11px;font-weight:800;margin-left:8px;}
+.rg-muted{color:var(--text3);font-size:12px;}
+.rg-edit-head{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;margin-bottom:14px;}
+.rg-edit-meta{display:grid;grid-template-columns:minmax(130px,.6fr) minmax(220px,1fr) minmax(220px,1fr) auto;gap:10px;align-items:end;margin-bottom:14px;}
+.rg-sheet-wrap{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:auto;background:var(--surface);}
+.rg-sheet{width:100%;border-collapse:collapse;font-size:12px;min-width:980px;}
+.rg-sheet th{position:sticky;top:0;z-index:1;background:var(--surface2);color:var(--text3);font-size:10px;text-transform:uppercase;}
+.rg-sheet td,.rg-sheet th{border:1px solid var(--border);padding:4px;vertical-align:middle;}
+.rg-sheet input,.rg-sheet select{width:100%;min-width:0;border:0;background:transparent;color:var(--text);font:inherit;padding:6px 5px;outline:0;}
+.rg-sheet input:focus,.rg-sheet select:focus{background:#fff;box-shadow:inset 0 0 0 2px #155e75;border-radius:4px;}
+[data-theme="dark"] .rg-sheet input:focus,[data-theme="dark"] .rg-sheet select:focus{background:#111827;}
+.rg-sheet .rg-col-logradouro{min-width:260px;}
+.rg-sheet .rg-col-numero{width:90px;}
+.rg-sheet .rg-col-seq{width:80px;}
+.rg-sheet .rg-col-lado{width:80px;}
+.rg-sheet .rg-col-tipo{width:115px;}
+.rg-sheet .rg-col-cond{width:95px;}
+.rg-sheet .rg-col-obs{min-width:240px;}
+.rg-sheet .rg-col-actions{width:120px;text-align:center;white-space:nowrap;}
+.rg-row-del{opacity:.45;text-decoration:line-through;}
+.rg-agent-picks{border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;max-height:120px;overflow:auto;background:var(--surface2);}
+.rg-agent-pick{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px 3px 0;}
+.rg-print-card{display:grid;grid-template-columns:minmax(180px,.7fr) minmax(240px,1fr) auto;gap:10px;align-items:end;}
+.rg-check-list{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);padding:8px;max-height:230px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:4px 10px;}
+.rg-check-item{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);padding:3px 0;}
+@media(max-width:850px){.rg-edit-meta{grid-template-columns:1fr;}}
+</style>{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><span class="icon"><img src="/static/icons/registro_geografico.svg" alt="" class="icon-svg"></span> Boletim de Registro de Reconhecimento Geográfico Digital</h1>
+  <div class="sub">Cadastro mestre de quarteirões, logradouros e imóveis do município</div>
+</div>
+
+{% if opcoes.erro_importacao %}
+<div class="alert alert-warning" style="margin-bottom:14px;">{{ opcoes.erro_importacao }}</div>
+{% endif %}
+
+<div class="rg-tabs" role="tablist">
+  <button class="rg-tab active" type="button" data-rg-tab="consulta">Consulta</button>
+  <button class="rg-tab" type="button" data-rg-tab="edicao">Edição</button>
+  <button class="rg-tab" type="button" data-rg-tab="impressao">Impressão</button>
+</div>
+
+<section class="rg-panel" id="rg-panel-consulta">
+  <div class="filter-card" style="margin-bottom:16px;">
+    <div class="filter-body open">
+      <div class="rg-filters">
+        <div class="f-g"><label>Localidade</label><select id="rg-localidade"><option value="">Todas</option>{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Quarteirão</label><input id="rg-quarteirao" inputmode="numeric" placeholder="1"></div>
+        <div class="f-g"><label>Tipo</label><select id="rg-tipo"><option value="">Todos</option>{% for tipo in opcoes.tipos %}<option value="{{ tipo.codigo }}">{{ tipo.codigo }} - {{ tipo.nome }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Atualização</label><select id="rg-atualizacao"><option value="">Todos</option><option value="atualizados">Atualizados</option><option value="pendentes">Pendentes</option></select></div>
+        <div class="f-g"><label>Agente</label><select id="rg-agente"><option value="">Todos</option>{% for agente in opcoes.agentes %}<option value="{{ agente.id_agente }}">{{ agente.nome }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Pesquisa</label><input type="search" id="rg-busca" placeholder="Rua, número, observação..."></div>
+        <button class="btn btn-outline" type="button" id="rg-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="rg-kpis">
+    <div class="rg-kpi"><div class="rg-kpi-label">Imóveis RG</div><div class="rg-kpi-value" id="rg-kpi-imoveis">0</div></div>
+    <div class="rg-kpi"><div class="rg-kpi-label">Imóveis reais</div><div class="rg-kpi-value" id="rg-kpi-reais">0</div></div>
+    <div class="rg-kpi"><div class="rg-kpi-label">Quarteirões</div><div class="rg-kpi-value" id="rg-kpi-quarteiroes">0</div></div>
+    <div class="rg-kpi"><div class="rg-kpi-label">Atualizados</div><div class="rg-kpi-value" id="rg-kpi-atualizados">0</div></div>
+    <div class="rg-kpi"><div class="rg-kpi-label">PE / TB</div><div class="rg-kpi-value" id="rg-kpi-pe-tb">0 / 0</div></div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/registro_geografico.svg" alt="" class="icon-svg"> Consulta de imóveis</div>
+      <span class="table-info" id="rg-info"></span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Localidade</th><th>Q.</th><th>Lado</th><th>Número</th><th>Seq.</th><th>Tipo</th><th>Cond.</th><th>Atualização</th><th>Agentes</th></tr></thead>
+        <tbody id="rg-body"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="rg-panel" id="rg-panel-edicao" hidden>
+  <div class="chart-card">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Edição por quarteirão</div>
+      <span class="table-info" id="rg-ed-info"></span>
+    </div>
+    <div class="rg-edit-head">
+      <div class="f-g"><label>Localidade</label><select id="rg-ed-localidade">{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
+      <div class="f-g"><label>Quarteirão</label><select id="rg-ed-quarteirao"><option value="">Selecione a localidade</option></select></div>
+      <button class="btn btn-outline" type="button" id="rg-ed-carregar"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Carregar quarteirão</button>
+    </div>
+    <div id="rg-ed-area" hidden>
+      <div class="rg-edit-meta">
+        <div class="f-g"><label>Data da atualização</label><input type="date" id="rg-ed-data"></div>
+        <div class="f-g"><label>Agentes da atualização</label><div class="rg-agent-picks" id="rg-ed-agentes">{% for agente in opcoes.agentes %}<label class="rg-agent-pick"><input type="checkbox" value="{{ agente.id_agente }}"> {{ agente.nome }}</label>{% endfor %}</div></div>
+        <div class="rg-muted">Esses dados serão aplicados para todos os imóveis do quarteirão salvo.</div>
+        <button class="btn btn-primary" type="button" id="rg-ed-salvar"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar quarteirão</button>
+      </div>
+      <div class="rg-sheet-wrap">
+        <table class="rg-sheet">
+          <thead><tr><th>#</th><th class="rg-col-logradouro">Logradouro</th><th class="rg-col-numero">Número</th><th class="rg-col-seq">Seq.</th><th class="rg-col-lado">Lado</th><th class="rg-col-tipo">Tipo</th><th class="rg-col-cond">Cond.</th><th class="rg-col-obs">Observação</th><th class="rg-col-actions"></th></tr></thead>
+          <tbody id="rg-ed-body"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+        <button class="btn btn-outline" type="button" id="rg-ed-add"><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Nova linha</button>
+        <span class="rg-muted" id="rg-ed-status"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="rg-panel" id="rg-panel-impressao" hidden>
+  <div class="chart-card">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Impressão do RG</div>
+    </div>
+    <div class="rg-print-card">
+      <div class="f-g"><label>Localidade</label><select id="rg-imp-localidade">{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
+      <div class="f-g"><label>Quarteirões</label><div id="rg-imp-quarteiroes" class="rg-check-list"><span class="rg-muted">Selecione a localidade</span></div></div>
+      <button class="btn btn-primary" type="button" id="rg-imp-btn"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Abrir impressão</button>
+    </div>
+  </div>
+</section>
+
+<script>
+const rgTipos = {{ opcoes.tipos|tojson }};
+const rgState = { registros: [], q: null };
+const nf = new Intl.NumberFormat('pt-BR');
+function rgCsrf(){ return document.querySelector('meta[name="csrf-token"]')?.content || ''; }
+function rgFmt(n){ return nf.format(Number(n || 0)); }
+function rgEl(id){ return document.getElementById(id); }
+function rgSetText(id, text){ const el = rgEl(id); if(el) el.textContent = text; }
+function rgTipoClass(tipo){ return tipo === 'TB' ? 'tb' : (tipo === 'PE' ? 'pe' : (tipo === 'A' ? 'a' : '')); }
+function rgEscape(v){ return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch])); }
+async function rgJson(resp, fallback){
+  const text = await resp.text();
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; }
+  catch { data = {erro: fallback || `Resposta inesperada do servidor (${resp.status}). Recarregue a pagina e tente novamente.`}; }
+  if(!resp.ok) throw new Error(data.erro || fallback || `Erro HTTP ${resp.status}`);
+  return data;
+}
+function rgParams(){
+  const p = new URLSearchParams();
+  [['localidade','rg-localidade'],['quarteirao','rg-quarteirao'],['tipo','rg-tipo'],['atualizacao','rg-atualizacao'],['agente','rg-agente'],['busca','rg-busca']].forEach(([k,id]) => {
+    const v = rgEl(id).value.trim();
+    if(v) p.set(k, v);
+  });
+  p.set('limite', '500');
+  return p.toString();
+}
+async function rgCarregar(){
+  rgEl('rg-info').textContent = 'Carregando...';
+  const resp = await fetch('/api/registro-geografico?' + rgParams());
+  const data = await resp.json();
+  if(!resp.ok) throw new Error(data.erro || 'Erro ao carregar RG.');
+  rgState.registros = data.registros || [];
+  const t = data.totais || {};
+  rgEl('rg-kpi-imoveis').textContent = rgFmt(t.imoveis);
+  rgEl('rg-kpi-reais').textContent = rgFmt(t.imoveis_reais);
+  rgEl('rg-kpi-quarteiroes').textContent = rgFmt(t.quarteiroes);
+  rgEl('rg-kpi-atualizados').textContent = rgFmt(t.atualizados);
+  rgEl('rg-kpi-pe-tb').textContent = `${rgFmt(t.pe)} / ${rgFmt(t.tb)}`;
+  rgEl('rg-info').textContent = `${rgFmt(rgState.registros.length)} exibidos de ${rgFmt(data.total)}`;
+  rgRenderConsulta();
+}
+function rgRenderConsulta(){
+  const body = rgEl('rg-body');
+  body.innerHTML = '';
+  let last = '';
+  for(const r of rgState.registros){
+    const group = `${r.localidade}|${r.quarteirao}|${r.logradouro}`;
+    if(group !== last){
+      const trg = document.createElement('tr');
+      trg.className = 'rg-street-row';
+      trg.innerHTML = `<td colspan="9">${rgEscape(r.logradouro || 'Sem logradouro')} <span class="rg-street-sub">${rgEscape(r.localidade)} - Q. ${rgEscape(r.quarteirao)}</span></td>`;
+      body.appendChild(trg);
+      last = group;
+    }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${rgEscape(r.localidade)}</td><td>${rgEscape(r.quarteirao)}</td><td>${rgEscape(r.lado)}</td><td>${rgEscape(r.numero)}</td><td>${rgEscape(r.sequencia)}</td><td><span class="rg-type ${rgTipoClass(r.tipo)}">${rgEscape(r.tipo || '-')}</span></td><td>${r.condominio ? rgFmt(r.condominio) : ''}</td><td>${rgEscape(r.data_atualizacao)}</td><td>${rgEscape(r.agentes)}</td>`;
+    body.appendChild(tr);
+  }
+  if(!rgState.registros.length) body.innerHTML = '<tr><td colspan="9" class="empty">Nenhum imóvel encontrado.</td></tr>';
+}
+function rgTipoOptions(valor){
+  return `<option value=""></option>` + rgTipos.map(t => `<option value="${t.codigo}" ${t.codigo === valor ? 'selected' : ''}>${t.codigo}</option>`).join('');
+}
+function rgLinha(row={}){
+  const tr = document.createElement('tr');
+  if(row._delete) tr.classList.add('rg-row-del');
+  tr.dataset.id = row.id_imovel || '';
+  tr.dataset.delete = row._delete ? '1' : '0';
+  tr.innerHTML = `<td class="rg-idx"></td>
+    <td><input class="rg-cell-logradouro" value="${rgEscape(row.logradouro)}"></td>
+    <td><input class="rg-cell-numero" value="${rgEscape(row.numero || 'SN')}"></td>
+    <td><input class="rg-cell-sequencia" value="${rgEscape(row.sequencia)}"></td>
+    <td><input class="rg-cell-lado" value="${rgEscape(row.lado)}"></td>
+    <td><select class="rg-cell-tipo">${rgTipoOptions(row.tipo || 'R')}</select></td>
+    <td><input class="rg-cell-condominio" type="number" min="0" value="${row.condominio || ''}"></td>
+    <td><input class="rg-cell-observacao" value="${rgEscape(row.observacao)}"></td>
+    <td class="rg-col-actions">
+      <button class="btn btn-ghost btn-sm" type="button" title="Inserir linha abaixo" data-rg-insert><img src="/static/icons/mais.svg" alt="" class="icon-svg"></button>
+      <button class="btn btn-ghost btn-sm" type="button" title="Apagar linha" data-rg-remove><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"></button>
+    </td>`;
+  return tr;
+}
+function rgRenumerarGrade(){
+  Array.from(rgEl('rg-ed-body').children).forEach((tr, idx) => tr.querySelector('.rg-idx').textContent = idx + 1);
+}
+function rgRenderGrade(rows){
+  const body = rgEl('rg-ed-body');
+  body.innerHTML = '';
+  rows.forEach(r => body.appendChild(rgLinha(r)));
+  rgRenumerarGrade();
+}
+function rgGradePayload(){
+  const linhas = [];
+  const deleted = [];
+  Array.from(rgEl('rg-ed-body').children).forEach(tr => {
+    const id = tr.dataset.id || '';
+    if(tr.dataset.delete === '1'){
+      if(id) deleted.push(id);
+      return;
+    }
+    linhas.push({
+      id_imovel: id,
+      logradouro: tr.querySelector('.rg-cell-logradouro').value,
+      numero: tr.querySelector('.rg-cell-numero').value,
+      sequencia: tr.querySelector('.rg-cell-sequencia').value,
+      lado: tr.querySelector('.rg-cell-lado').value,
+      tipo: tr.querySelector('.rg-cell-tipo').value,
+      condominio: tr.querySelector('.rg-cell-condominio').value,
+      observacao: tr.querySelector('.rg-cell-observacao').value
+    });
+  });
+  return {
+    id_localidade: rgEl('rg-ed-localidade').value,
+    quarteirao: rgEl('rg-ed-quarteirao').value,
+    data_atualizacao: rgEl('rg-ed-data').value,
+    agentes_ids: Array.from(document.querySelectorAll('#rg-ed-agentes input:checked')).map(i => i.value),
+    linhas,
+    deleted_ids: deleted
+  };
+}
+async function rgCarregarQuarteirao(){
+  const loc = rgEl('rg-ed-localidade').value;
+  const q = rgEl('rg-ed-quarteirao').value.trim();
+  if(!loc || !q){ alert('Informe localidade e quarteirão.'); return; }
+  rgSetText('rg-ed-status', 'Carregando...');
+  const resp = await fetch(`/api/registro-geografico/quarteirao?localidade=${encodeURIComponent(loc)}&quarteirao=${encodeURIComponent(q)}`);
+  const data = await resp.json();
+  if(!resp.ok) throw new Error(data.erro || 'Erro ao carregar quarteirão.');
+  rgState.q = data;
+  rgEl('rg-ed-area').hidden = false;
+  rgSetText('rg-ed-info', `${data.localidade.nome} - Q. ${data.quarteirao}`);
+  rgEl('rg-ed-data').value = data.data_atualizacao || '';
+  const ids = new Set((data.agentes_ids || []).map(String));
+  document.querySelectorAll('#rg-ed-agentes input').forEach(input => input.checked = ids.has(input.value));
+  rgRenderGrade(data.registros || []);
+  rgSetText('rg-ed-status', `${(data.registros || []).length} linha(s) carregada(s).`);
+}
+async function rgSalvarQuarteirao(){
+  rgSetText('rg-ed-status', 'Salvando quarteirão...');
+  rgEl('rg-ed-salvar').disabled = true;
+  try {
+    const resp = await fetch('/api/registro-geografico/quarteirao', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':rgCsrf()},
+      body:JSON.stringify(rgGradePayload())
+    });
+    const data = await rgJson(resp, 'Erro ao salvar quarteirão.');
+    rgState.q = data.quarteirao;
+    rgRenderGrade(rgState.q.registros || []);
+    rgSetText('rg-ed-status', `Quarteirão salvo às ${new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}.`);
+    rgCarregar().catch(() => {});
+  } finally {
+    rgEl('rg-ed-salvar').disabled = false;
+  }
+}
+async function rgCarregarSelectQuarteiroes(localidadeId, selectId){
+  const select = rgEl(selectId);
+  if(!select) return;
+  select.innerHTML = '<option value="">Carregando...</option>';
+  if(!localidadeId){
+    select.innerHTML = '<option value="">Selecione a localidade</option>';
+    return;
+  }
+  const resp = await fetch(`/api/registro-geografico/quarteiroes?localidade=${encodeURIComponent(localidadeId)}`);
+  const data = await resp.json();
+  if(!resp.ok) throw new Error(data.erro || 'Erro ao carregar quarteirões.');
+  const rows = data.registros || [];
+  const isMulti = select.multiple;
+  select.innerHTML = rows.length
+    ? (isMulti ? '' : '<option value="">Selecione</option>') + rows.map(r => `<option value="${rgEscape(r.quarteirao)}">Quarteirão ${rgEscape(r.quarteirao)} (${rgFmt(r.imoveis)} imóveis)</option>`).join('')
+    : '<option value="">Sem quarteirões</option>';
+}
+async function rgCarregarChecksQuarteiroes(localidadeId){
+  const box = rgEl('rg-imp-quarteiroes');
+  if(!box) return;
+  box.innerHTML = '<span class="rg-muted">Carregando...</span>';
+  if(!localidadeId){
+    box.innerHTML = '<span class="rg-muted">Selecione a localidade</span>';
+    return;
+  }
+  const resp = await fetch(`/api/registro-geografico/quarteiroes?localidade=${encodeURIComponent(localidadeId)}`);
+  const data = await resp.json();
+  if(!resp.ok) throw new Error(data.erro || 'Erro ao carregar quarteirões.');
+  const rows = data.registros || [];
+  box.innerHTML = rows.length ? rows.map(r => `
+    <label class="rg-check-item">
+      <input type="checkbox" value="${rgEscape(r.quarteirao)}"> Q. ${rgEscape(r.quarteirao)} <span class="rg-muted">(${rgFmt(r.imoveis)})</span>
+    </label>`).join('') : '<span class="rg-muted">Sem quarteirões</span>';
+}
+function rgAbrirImpressao(){
+  const loc = rgEl('rg-imp-localidade').value;
+  const qs = Array.from(document.querySelectorAll('#rg-imp-quarteiroes input:checked')).map(input => input.value).filter(Boolean);
+  if(!loc || !qs.length){ alert('Informe localidade e selecione ao menos um quarteirão.'); return; }
+  const params = new URLSearchParams();
+  params.set('localidade', loc);
+  qs.forEach(q => params.append('quarteirao', q));
+  window.open(`/registro-geografico/imprimir?${params.toString()}`, '_blank');
+}
+document.querySelectorAll('.rg-tab').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('.rg-tab').forEach(b => b.classList.toggle('active', b === btn));
+  document.querySelectorAll('.rg-panel').forEach(p => p.hidden = p.id !== `rg-panel-${btn.dataset.rgTab}`);
+}));
+rgEl('rg-atualizar').addEventListener('click', () => rgCarregar().catch(err => alert(err.message)));
+rgEl('rg-busca').addEventListener('keydown', ev => { if(ev.key === 'Enter') rgCarregar().catch(err => alert(err.message)); });
+rgEl('rg-ed-localidade').addEventListener('change', ev => rgCarregarSelectQuarteiroes(ev.target.value, 'rg-ed-quarteirao').catch(err => rgSetText('rg-ed-status', err.message)));
+rgEl('rg-imp-localidade').addEventListener('change', ev => rgCarregarChecksQuarteiroes(ev.target.value).catch(err => alert(err.message)));
+rgEl('rg-ed-carregar').addEventListener('click', () => rgCarregarQuarteirao().catch(err => { rgSetText('rg-ed-status', err.message); }));
+rgEl('rg-ed-salvar').addEventListener('click', () => rgSalvarQuarteirao().catch(err => { rgSetText('rg-ed-status', err.message); }));
+rgEl('rg-ed-add').addEventListener('click', () => {
+  const last = Array.from(rgEl('rg-ed-body').children).filter(tr => tr.dataset.delete !== '1').at(-1);
+  rgEl('rg-ed-body').appendChild(rgLinha(last ? {
+    logradouro:last.querySelector('.rg-cell-logradouro').value,
+    lado:last.querySelector('.rg-cell-lado').value,
+    tipo:last.querySelector('.rg-cell-tipo').value,
+    numero:'SN'
+  } : {numero:'SN', tipo:'R'}));
+  rgRenumerarGrade();
+});
+rgEl('rg-ed-body').addEventListener('click', ev => {
+  const insert = ev.target.closest('[data-rg-insert]');
+  if(insert){
+    const tr = insert.closest('tr');
+    const nova = rgLinha({
+      logradouro: tr.querySelector('.rg-cell-logradouro').value,
+      lado: tr.querySelector('.rg-cell-lado').value,
+      tipo: tr.querySelector('.rg-cell-tipo').value,
+      numero: 'SN'
+    });
+    tr.insertAdjacentElement('afterend', nova);
+    rgRenumerarGrade();
+    nova.querySelector('.rg-cell-numero')?.focus();
+    return;
+  }
+  const btn = ev.target.closest('[data-rg-remove]');
+  if(!btn) return;
+  const tr = btn.closest('tr');
+  if(tr.dataset.id){
+    tr.dataset.delete = tr.dataset.delete === '1' ? '0' : '1';
+    tr.classList.toggle('rg-row-del', tr.dataset.delete === '1');
+  }else{
+    tr.remove();
+  }
+  rgRenumerarGrade();
+});
+rgEl('rg-imp-btn').addEventListener('click', rgAbrirImpressao);
+rgCarregarSelectQuarteiroes(rgEl('rg-ed-localidade').value, 'rg-ed-quarteirao').catch(() => {});
+rgCarregarChecksQuarteiroes(rgEl('rg-imp-localidade').value).catch(() => {});
+rgCarregar().catch(err => { rgEl('rg-info').textContent = err.message; });
+</script>
+{% endblock %}
