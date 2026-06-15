@@ -2887,6 +2887,12 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("esporo-tabbar", html)
         self.assertIn("esp-tab-visitas", html)
         self.assertIn("esp-tab-animais", html)
+        self.assertIn("esp-tab-doentes", html)
+        self.assertIn("esporo-doentes-entry", html)
+        self.assertIn("esp-visitas-kpis", html)
+        self.assertIn("doe-kpi-total", html)
+        self.assertIn("gato_doente.svg", html)
+        self.assertIn("Pedir documentos", html)
         self.assertIn("esp-tab-atencao", html)
         self.assertIn("esp-tab-localidades", html)
         self.assertIn("esp-tab-dashboard", html)
@@ -3067,6 +3073,73 @@ class MainApisSmokeTests(unittest.TestCase):
         dados = resp.get_json()
         for chave in ("evolucao", "status", "especies", "ambiente", "localidades", "saude"):
             self.assertIn(chave, dados)
+
+    def test_api_esporotricose_doentes_retorna_registros_e_status(self):
+        client = _client_logado()
+        resp_status = client.get("/api/esporotricose/doentes/status")
+        self.assertEqual(resp_status.status_code, 200)
+        status_dados = resp_status.get_json()
+        self.assertIn("registros", status_dados)
+        status_nomes = [r["nome"] for r in status_dados["registros"]]
+        self.assertIn("Em tratamento", status_nomes)
+        self.assertIn("Aguardando documentos", status_nomes)
+        self.assertIn("Não é esporotricose", status_nomes)
+        self.assertNotIn("Em Tratamento", status_nomes)
+        self.assertNotIn("Não mandou documentos", status_nomes)
+
+        resp = client.get("/api/esporotricose/doentes")
+        self.assertEqual(resp.status_code, 200)
+        dados = resp.get_json()
+        self.assertIn("total", dados)
+        self.assertIn("registros", dados)
+        if dados["registros"]:
+            self.assertIn("whatsapp_documentos", dados["registros"][0])
+            self.assertIn("receitas", dados["registros"][0])
+            self.assertIn("entregas_zoomed_pendentes", dados["registros"][0])
+        notificacoes = [r.get("ultima_notificacao") for r in dados["registros"] if r.get("ultima_notificacao")]
+        self.assertEqual(notificacoes, sorted(notificacoes, reverse=True))
+
+    def test_paginas_esporotricose_doentes_renderizam_fluxo_proprio(self):
+        client = _client_logado()
+        novo = client.get("/esporotricose/doentes/novo")
+        self.assertEqual(novo.status_code, 200)
+        html_novo = novo.data.decode("utf-8")
+        self.assertIn("Novo paciente", html_novo)
+        self.assertIn("Pedido ZooMed", html_novo)
+        self.assertIn("Não é esporotricose", html_novo)
+
+        dados = client.get("/api/esporotricose/doentes").get_json()
+        if dados["registros"]:
+            id_animal = dados["registros"][0]["id_animal_doente"]
+            detalhe = client.get(f"/esporotricose/doentes/{id_animal}")
+            self.assertEqual(detalhe.status_code, 200)
+            html_detalhe = detalhe.data.decode("utf-8")
+            self.assertIn("Dados do paciente", html_detalhe)
+            self.assertIn("Receitas e entregas", html_detalhe)
+            self.assertIn("Entrega cadastrada na ZOOMED", html_detalhe)
+            self.assertIn("whatsapp.svg", html_detalhe)
+            detalhe_json = client.get(f"/api/esporotricose/doentes/{id_animal}").get_json()
+            entregas = [
+                entrega
+                for receita in detalhe_json.get("receitas", [])
+                for entrega in receita.get("entregas", [])
+            ]
+            if entregas:
+                entrega = entregas[0]
+                csrf_original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
+                endemias_app.app.config["WTF_CSRF_ENABLED"] = False
+                try:
+                    resp_put = client.put(
+                        f"/api/esporotricose/doentes/entregas/{entrega['id_entrega']}",
+                        json={
+                            "data_entrega": entrega.get("data_entrega"),
+                            "quantidade": entrega.get("quantidade") or 1,
+                            "baixa_zoomed": entrega.get("baixa_zoomed") or "Sim",
+                        },
+                    )
+                    self.assertEqual(resp_put.status_code, 200)
+                finally:
+                    endemias_app.app.config["WTF_CSRF_ENABLED"] = csrf_original
 
     def test_consultas_sispncd_nao_alteram_coluna_sispncd(self):
         client = _client_logado()

@@ -5,12 +5,18 @@ from datetime import datetime
 
 import pandas as pd
 
+from app_core import db as db_core
 from app_core import normalizadores
 
 
 VISITAS_TABLE = "esporotricose_visitas"
 ANIMAIS_TABLE = "esporotricose_animais"
 VISITA_AGENTES_TABLE = "esporotricose_visita_agentes"
+DOENTES_TABLE = "esporotricose_doentes_animais"
+DOENTES_RECEITAS_TABLE = "esporotricose_doentes_receitas"
+DOENTES_ENTREGAS_TABLE = "esporotricose_doentes_entregas"
+DOENTES_ANEXOS_TABLE = "esporotricose_doentes_anexos"
+DOENTES_STATUS_TABLE = "esporotricose_doentes_status"
 NORMAL_IMPORT_MARKER = "esporotricose_kobo_v2"
 LEGACY_IMPORT_MARKER = "esporotricose_historico_legado"
 MOTIVO_ATENCAO_SQL = """CASE
@@ -80,9 +86,31 @@ CHOICE_LABELS = {
     "recuperado": "Recuperado",
 }
 
+DOENTES_STATUS_PADRAO = (
+    "Em tratamento",
+    "Aguardando documentos",
+    "Aguardando medicação",
+    "Medicação disponível",
+    "Acabou tratamento",
+    "Faleceu",
+    "Outro",
+)
+
 
 class ValidationError(Exception):
     pass
+
+
+DOENTES_STATUS_PADRAO = (
+    "Em tratamento",
+    "Aguardando documentos",
+    "Aguardando medicação",
+    "Medicação disponível",
+    "Acabou tratamento",
+    "Faleceu",
+    "Não é esporotricose",
+    "Outro",
+)
 
 
 def ensure_schema(conn):
@@ -149,8 +177,131 @@ def ensure_schema(conn):
         CREATE INDEX IF NOT EXISTS idx_esporo_visitas_kobo_uuid ON esporotricose_visitas(kobo_uuid);
         CREATE INDEX IF NOT EXISTS idx_esporo_animais_visita ON esporotricose_animais(id_visita);
         CREATE INDEX IF NOT EXISTS idx_esporo_animais_especie ON esporotricose_animais(especie);
+
+        CREATE TABLE IF NOT EXISTS esporotricose_doentes_status (
+            id_status INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL UNIQUE,
+            ativo INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)),
+            criado_em TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS esporotricose_doentes_animais (
+            id_animal_doente INTEGER PRIMARY KEY AUTOINCREMENT,
+            chave TEXT NOT NULL UNIQUE,
+            tutor TEXT,
+            nome TEXT NOT NULL,
+            sexo TEXT,
+            telefone TEXT,
+            localidade TEXT,
+            quarteirao TEXT,
+            endereco TEXT,
+            latitude REAL,
+            longitude REAL,
+            sinan TEXT,
+            status TEXT,
+            bloqueio TEXT,
+            data_bloqueio DATE,
+            observacoes_entomologica TEXT,
+            pedido_zoomed TEXT,
+            criado_em TEXT NOT NULL,
+            atualizado_em TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS esporotricose_doentes_receitas (
+            id_receita INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_animal_doente INTEGER NOT NULL REFERENCES esporotricose_doentes_animais(id_animal_doente) ON DELETE CASCADE,
+            data_notificacao DATE,
+            inicio_sintomas DATE,
+            data_receita DATE,
+            visita_va_veterinario DATE,
+            capsulas_total INTEGER,
+            posologia TEXT,
+            status TEXT,
+            observacoes TEXT,
+            origem_linha INTEGER,
+            criado_em TEXT NOT NULL,
+            atualizado_em TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS esporotricose_doentes_entregas (
+            id_entrega INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_receita INTEGER NOT NULL REFERENCES esporotricose_doentes_receitas(id_receita) ON DELETE CASCADE,
+            quantidade INTEGER NOT NULL,
+            data_entrega DATE,
+            baixa_zoomed TEXT NOT NULL DEFAULT 'Não',
+            observacoes TEXT,
+            criado_em TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS esporotricose_doentes_anexos (
+            id_anexo INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_animal_doente INTEGER NOT NULL REFERENCES esporotricose_doentes_animais(id_animal_doente) ON DELETE CASCADE,
+            id_receita INTEGER REFERENCES esporotricose_doentes_receitas(id_receita) ON DELETE SET NULL,
+            nome_original TEXT NOT NULL,
+            nome_arquivo TEXT NOT NULL,
+            caminho_rel TEXT NOT NULL,
+            mime_type TEXT,
+            tamanho INTEGER NOT NULL,
+            criado_por TEXT,
+            criado_em TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_esporo_doentes_status ON esporotricose_doentes_animais(status);
+        CREATE INDEX IF NOT EXISTS idx_esporo_doentes_localidade ON esporotricose_doentes_animais(localidade);
+        CREATE INDEX IF NOT EXISTS idx_esporo_doentes_receitas_animal ON esporotricose_doentes_receitas(id_animal_doente);
+        CREATE INDEX IF NOT EXISTS idx_esporo_doentes_entregas_receita ON esporotricose_doentes_entregas(id_receita);
+        CREATE INDEX IF NOT EXISTS idx_esporo_doentes_anexos_animal ON esporotricose_doentes_anexos(id_animal_doente);
         """
     )
+    _ensure_column(conn, DOENTES_ENTREGAS_TABLE, "baixa_zoomed", "TEXT NOT NULL DEFAULT 'Sim'")
+    _seed_doentes_status(conn)
+    _normalizar_doentes_existentes(conn)
+    conn.commit()
+
+
+def _ensure_column(conn, table, column, definition):
+    cols = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
+def _seed_doentes_status(conn):
+    agora = datetime.now().isoformat(timespec="seconds")
+    conn.execute(f"UPDATE {DOENTES_STATUS_TABLE} SET ativo=0")
+    for nome in DOENTES_STATUS_PADRAO:
+        conn.execute(
+            f"""INSERT INTO {DOENTES_STATUS_TABLE}(nome, ativo, criado_em)
+                VALUES (?,1,?)
+                ON CONFLICT(nome) DO UPDATE SET ativo=1""",
+            (nome, agora),
+        )
+
+
+def _normalizar_doentes_existentes(conn):
+    for tabela, id_col in ((DOENTES_TABLE, "id_animal_doente"), (DOENTES_RECEITAS_TABLE, "id_receita")):
+        rows = conn.execute(f"SELECT {id_col}, status FROM {tabela}").fetchall()
+        for row in rows:
+            status = _normalizar_status_doente(row["status"])
+            if status != (row["status"] or ""):
+                conn.execute(f"UPDATE {tabela} SET status=? WHERE {id_col}=?", (status, row[id_col]))
+
+    rows = conn.execute(f"SELECT id_animal_doente, pedido_zoomed FROM {DOENTES_TABLE}").fetchall()
+    for row in rows:
+        zoomed = _normalizar_sim_nao(row["pedido_zoomed"])
+        if zoomed != (row["pedido_zoomed"] or ""):
+            conn.execute(
+                f"UPDATE {DOENTES_TABLE} SET pedido_zoomed=? WHERE id_animal_doente=?",
+                (zoomed, row["id_animal_doente"]),
+            )
+
+    rows = conn.execute(f"SELECT id_entrega, baixa_zoomed FROM {DOENTES_ENTREGAS_TABLE}").fetchall()
+    for row in rows:
+        baixa = _normalizar_sim_nao(row["baixa_zoomed"]) or "Sim"
+        if baixa != (row["baixa_zoomed"] or ""):
+            conn.execute(
+                f"UPDATE {DOENTES_ENTREGAS_TABLE} SET baixa_zoomed=? WHERE id_entrega=?",
+                (baixa, row["id_entrega"]),
+            )
 
 
 def _norm_col(value):
@@ -581,6 +732,634 @@ def dashboard(db_path, filtros=None):
         "localidades": localidades,
         "saude": saude,
     }
+
+
+def listar_doentes(db_path, filtros=None):
+    filtros = filtros or {}
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        where = []
+        params = []
+        busca = _text(filtros.get("busca"))
+        status = _text(filtros.get("status"))
+        localidade = _text(filtros.get("localidade"))
+        bloqueio = _normalizar_sim_nao(filtros.get("bloqueio"))
+        pedido_zoomed = _normalizar_sim_nao(filtros.get("pedido_zoomed"))
+        baixa_zoomed = _text(filtros.get("baixa_zoomed"))
+        if status:
+            where.append("d.status=?")
+            params.append(status)
+        if localidade:
+            where.append("d.localidade=?")
+            params.append(localidade)
+        if bloqueio:
+            where.append("d.bloqueio=?")
+            params.append(bloqueio)
+        if pedido_zoomed:
+            where.append("d.pedido_zoomed=?")
+            params.append(pedido_zoomed)
+        if busca:
+            termo = f"%{busca}%"
+            where.append(
+                "(d.tutor LIKE ? OR d.nome LIKE ? OR d.telefone LIKE ? OR d.endereco LIKE ? OR d.sinan LIKE ?)"
+            )
+            params.extend([termo] * 5)
+        sql = """
+            SELECT d.*,
+                   COUNT(DISTINCT r.id_receita) AS receitas,
+                   COUNT(DISTINCT an.id_anexo) AS anexos,
+                   MAX(r.data_notificacao) AS ultima_notificacao,
+                   MAX(r.data_receita) AS ultima_receita,
+                   MAX(e.data_entrega) AS ultima_entrega,
+                   COALESCE(SUM(e.quantidade), 0) AS capsulas_entregues,
+                   COUNT(DISTINCT e.id_entrega) AS entregas,
+                   COUNT(DISTINCT CASE WHEN e.baixa_zoomed='Não' THEN e.id_entrega END) AS entregas_zoomed_pendentes
+              FROM esporotricose_doentes_animais d
+              LEFT JOIN esporotricose_doentes_receitas r ON r.id_animal_doente=d.id_animal_doente
+              LEFT JOIN esporotricose_doentes_entregas e ON e.id_receita=r.id_receita
+              LEFT JOIN esporotricose_doentes_anexos an ON an.id_animal_doente=d.id_animal_doente
+        """
+        if where:
+            sql += " WHERE " + " AND ".join(where)
+        sql += " GROUP BY d.id_animal_doente"
+        if baixa_zoomed == "Pendente":
+            sql += """ HAVING COUNT(DISTINCT CASE WHEN e.baixa_zoomed='Não' THEN e.id_entrega END) > 0
+                        OR (d.status='Em tratamento' AND COUNT(DISTINCT e.id_entrega)=0)"""
+        elif baixa_zoomed == "Sim":
+            sql += """ HAVING COUNT(DISTINCT CASE WHEN e.baixa_zoomed='Não' THEN e.id_entrega END) = 0
+                        AND NOT (d.status='Em tratamento' AND COUNT(DISTINCT e.id_entrega)=0)"""
+        sql += """
+                   ORDER BY COALESCE(MAX(r.data_notificacao), '') DESC,
+                            d.id_animal_doente DESC"""
+        rows = [_doente_row(row) for row in conn.execute(sql, params).fetchall()]
+        return {"registros": rows, "total": len(rows)}
+    finally:
+        conn.close()
+
+
+def obter_doente(db_path, id_animal_doente):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        row = conn.execute(
+            "SELECT * FROM esporotricose_doentes_animais WHERE id_animal_doente=?",
+            (id_animal_doente,),
+        ).fetchone()
+        if not row:
+            return None
+        animal = _doente_row(row)
+        receitas = []
+        for receita in conn.execute(
+            """SELECT * FROM esporotricose_doentes_receitas
+                WHERE id_animal_doente=?
+                ORDER BY COALESCE(data_receita, data_notificacao, criado_em) DESC, id_receita DESC""",
+            (id_animal_doente,),
+        ).fetchall():
+            item = dict(receita)
+            item["prazo_receita_dias"] = _dias_desde(item.get("data_receita"))
+            item["entregas"] = [
+                dict(e) for e in conn.execute(
+                    """SELECT * FROM esporotricose_doentes_entregas
+                        WHERE id_receita=?
+                        ORDER BY data_entrega, id_entrega""",
+                    (item["id_receita"],),
+                ).fetchall()
+            ]
+            receitas.append(item)
+        animal["receitas"] = receitas
+        animal["anexos"] = [_anexo_doente_dict(row) for row in conn.execute(
+            """SELECT * FROM esporotricose_doentes_anexos
+                WHERE id_animal_doente=?
+                ORDER BY criado_em DESC, id_anexo DESC""",
+            (id_animal_doente,),
+        ).fetchall()]
+        return animal
+    finally:
+        conn.close()
+
+
+def salvar_doente(db_path, dados):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        agora = datetime.now().isoformat(timespec="seconds")
+        payload = _doente_payload(dados)
+        id_animal = _int(dados.get("id_animal_doente"))
+        if payload.get("status"):
+            _salvar_status_doente(conn, payload["status"])
+        if id_animal:
+            conn.execute(
+                """UPDATE esporotricose_doentes_animais
+                      SET tutor=?, nome=?, sexo=?, telefone=?, localidade=?, quarteirao=?,
+                          endereco=?, latitude=?, longitude=?, sinan=?, status=?, bloqueio=?,
+                          data_bloqueio=?, observacoes_entomologica=?, pedido_zoomed=?,
+                          atualizado_em=?
+                    WHERE id_animal_doente=?""",
+                (
+                    payload["tutor"], payload["nome"], payload["sexo"], payload["telefone"],
+                    payload["localidade"], payload["quarteirao"], payload["endereco"],
+                    payload["latitude"], payload["longitude"], payload["sinan"], payload["status"],
+                    payload["bloqueio"], payload["data_bloqueio"], payload["observacoes_entomologica"],
+                    payload["pedido_zoomed"], agora, id_animal,
+                ),
+            )
+        else:
+            chave = _doente_chave(payload)
+            cur = conn.execute(
+                """INSERT INTO esporotricose_doentes_animais
+                   (chave, tutor, nome, sexo, telefone, localidade, quarteirao, endereco,
+                    latitude, longitude, sinan, status, bloqueio, data_bloqueio,
+                    observacoes_entomologica, pedido_zoomed, criado_em, atualizado_em)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    chave, payload["tutor"], payload["nome"], payload["sexo"], payload["telefone"],
+                    payload["localidade"], payload["quarteirao"], payload["endereco"],
+                    payload["latitude"], payload["longitude"], payload["sinan"], payload["status"],
+                    payload["bloqueio"], payload["data_bloqueio"], payload["observacoes_entomologica"],
+                    payload["pedido_zoomed"], agora, agora,
+                ),
+            )
+            id_animal = cur.lastrowid
+        conn.commit()
+        return id_animal
+    finally:
+        conn.close()
+
+
+def salvar_receita_doente(db_path, id_animal_doente, dados):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        existe = conn.execute(
+            "SELECT 1 FROM esporotricose_doentes_animais WHERE id_animal_doente=?",
+            (id_animal_doente,),
+        ).fetchone()
+        if not existe:
+            raise ValidationError("Animal doente não encontrado.")
+        agora = datetime.now().isoformat(timespec="seconds")
+        payload = _receita_payload(dados)
+        id_receita = _int(dados.get("id_receita"))
+        if payload.get("status"):
+            _salvar_status_doente(conn, payload["status"])
+        if id_receita:
+            conn.execute(
+                """UPDATE esporotricose_doentes_receitas
+                      SET data_notificacao=?, inicio_sintomas=?, data_receita=?,
+                          visita_va_veterinario=?, capsulas_total=?, posologia=?,
+                          status=?, observacoes=?, atualizado_em=?
+                    WHERE id_receita=? AND id_animal_doente=?""",
+                (
+                    payload["data_notificacao"], payload["inicio_sintomas"], payload["data_receita"],
+                    payload["visita_va_veterinario"], payload["capsulas_total"], payload["posologia"],
+                    payload["status"], payload["observacoes"], agora, id_receita, id_animal_doente,
+                ),
+            )
+        else:
+            cur = conn.execute(
+                """INSERT INTO esporotricose_doentes_receitas
+                   (id_animal_doente, data_notificacao, inicio_sintomas, data_receita,
+                    visita_va_veterinario, capsulas_total, posologia, status, observacoes,
+                    origem_linha, criado_em, atualizado_em)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    id_animal_doente, payload["data_notificacao"], payload["inicio_sintomas"],
+                    payload["data_receita"], payload["visita_va_veterinario"], payload["capsulas_total"],
+                    payload["posologia"], payload["status"], payload["observacoes"], None, agora, agora,
+                ),
+            )
+            id_receita = cur.lastrowid
+        conn.execute(
+            "UPDATE esporotricose_doentes_animais SET atualizado_em=? WHERE id_animal_doente=?",
+            (agora, id_animal_doente),
+        )
+        conn.commit()
+        return id_receita
+    finally:
+        conn.close()
+
+
+def salvar_entrega_doente(db_path, id_receita, dados):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        receita = conn.execute(
+            "SELECT id_animal_doente FROM esporotricose_doentes_receitas WHERE id_receita=?",
+            (id_receita,),
+        ).fetchone()
+        if not receita:
+            raise ValidationError("Receita não encontrada.")
+        quantidade = _int(dados.get("quantidade"))
+        if not quantidade:
+            raise ValidationError("Informe a quantidade de cápsulas.")
+        baixa_zoomed = _normalizar_sim_nao(dados.get("baixa_zoomed")) or "Não"
+        agora = datetime.now().isoformat(timespec="seconds")
+        cur = conn.execute(
+            """INSERT INTO esporotricose_doentes_entregas
+               (id_receita, quantidade, data_entrega, baixa_zoomed, observacoes, criado_em)
+               VALUES (?,?,?,?,?,?)""",
+            (id_receita, quantidade, _date(dados.get("data_entrega")), baixa_zoomed, _text(dados.get("observacoes")), agora),
+        )
+        conn.execute(
+            "UPDATE esporotricose_doentes_animais SET atualizado_em=? WHERE id_animal_doente=?",
+            (agora, receita["id_animal_doente"]),
+        )
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def atualizar_entrega_doente(db_path, id_entrega, dados):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        row = conn.execute(
+            """SELECT e.id_entrega, r.id_animal_doente
+                 FROM esporotricose_doentes_entregas e
+                 JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
+                WHERE e.id_entrega=?""",
+            (id_entrega,),
+        ).fetchone()
+        if not row:
+            raise ValidationError("Entrega não encontrada.")
+        quantidade = _int(dados.get("quantidade"))
+        if not quantidade:
+            raise ValidationError("Informe a quantidade de cápsulas.")
+        baixa_zoomed = _normalizar_sim_nao(dados.get("baixa_zoomed")) or "Não"
+        conn.execute(
+            """UPDATE esporotricose_doentes_entregas
+                  SET quantidade=?, data_entrega=?, baixa_zoomed=?, observacoes=?
+                WHERE id_entrega=?""",
+            (
+                quantidade,
+                _date(dados.get("data_entrega")),
+                baixa_zoomed,
+                _text(dados.get("observacoes")),
+                id_entrega,
+            ),
+        )
+        conn.execute(
+            "UPDATE esporotricose_doentes_animais SET atualizado_em=? WHERE id_animal_doente=?",
+            (datetime.now().isoformat(timespec="seconds"), row["id_animal_doente"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def excluir_entrega_doente(db_path, id_entrega):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        conn.execute("DELETE FROM esporotricose_doentes_entregas WHERE id_entrega=?", (id_entrega,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def status_doentes(db_path):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        rows = [dict(row) for row in conn.execute(
+            "SELECT id_status, nome, ativo FROM esporotricose_doentes_status WHERE ativo=1"
+        )]
+        ordem = {nome: i for i, nome in enumerate(DOENTES_STATUS_PADRAO)}
+        return sorted(rows, key=lambda row: ordem.get(row["nome"], 999))
+    finally:
+        conn.close()
+
+
+def salvar_status_doente(db_path, nome):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        _salvar_status_doente(conn, nome)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def importar_doentes_planilha(db_path, caminho):
+    df = pd.read_excel(caminho, dtype=object, engine="openpyxl")
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        existentes = 0
+        animais_novos = 0
+        receitas_novas = 0
+        entregas_novas = 0
+        for idx, row in df.iterrows():
+            animal_payload = {
+                "tutor": _text(row.get("TUTOR")),
+                "nome": _text(row.get("NOME")),
+                "sexo": _choice(row.get("SEXO")) or _text(row.get("SEXO")),
+                "telefone": _telefone(row.get("TELEFONE")),
+                "localidade": normalizadores.normalizar_localidade(row.get("LOCALIDADE")),
+                "quarteirao": _text(row.get("QUARTEIRÃO")),
+                "endereco": _text(row.get("ENDEREÇO")),
+                "latitude": _real(row.get("LATITUDE")),
+                "longitude": _real(row.get("LONGITUDE")),
+                "sinan": _text(row.get("SINAN")),
+                "status": _status_planilha(row.get("STATUS")),
+                "bloqueio": _text(row.get("BLOQUEIO")),
+                "data_bloqueio": _date(row.get("DATA BLOQUEIO")),
+                "observacoes_entomologica": _text(row.get("OBSERVAÇÕES ENTOMOLOGICA")),
+                "pedido_zoomed": _text(row.get("PEDIDO ZOOMED")),
+            }
+            if not animal_payload["nome"] or not animal_payload["tutor"]:
+                continue
+            chave = _doente_chave(animal_payload)
+            agora = datetime.now().isoformat(timespec="seconds")
+            animal = conn.execute(
+                "SELECT id_animal_doente FROM esporotricose_doentes_animais WHERE chave=?",
+                (chave,),
+            ).fetchone()
+            if animal:
+                id_animal = animal["id_animal_doente"]
+                existentes += 1
+                conn.execute(
+                    """UPDATE esporotricose_doentes_animais
+                          SET telefone=COALESCE(?, telefone), sinan=COALESCE(?, sinan),
+                              status=COALESCE(?, status), atualizado_em=?
+                        WHERE id_animal_doente=?""",
+                    (animal_payload["telefone"], animal_payload["sinan"], animal_payload["status"], agora, id_animal),
+                )
+            else:
+                cur = conn.execute(
+                    """INSERT INTO esporotricose_doentes_animais
+                       (chave, tutor, nome, sexo, telefone, localidade, quarteirao, endereco,
+                        latitude, longitude, sinan, status, bloqueio, data_bloqueio,
+                        observacoes_entomologica, pedido_zoomed, criado_em, atualizado_em)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        chave, animal_payload["tutor"], animal_payload["nome"], animal_payload["sexo"],
+                        animal_payload["telefone"], animal_payload["localidade"], animal_payload["quarteirao"],
+                        animal_payload["endereco"], animal_payload["latitude"], animal_payload["longitude"],
+                        animal_payload["sinan"], animal_payload["status"], animal_payload["bloqueio"],
+                        animal_payload["data_bloqueio"], animal_payload["observacoes_entomologica"],
+                        animal_payload["pedido_zoomed"], agora, agora,
+                    ),
+                )
+                id_animal = cur.lastrowid
+                animais_novos += 1
+            if animal_payload.get("status"):
+                _salvar_status_doente(conn, animal_payload["status"])
+            receita_payload = {
+                "data_notificacao": _date(row.get("DATA NOTIFICAÇÃO")),
+                "inicio_sintomas": _date(row.get("INICIO DOS SINTOMAS")),
+                "data_receita": _date(row.get("RECEITA ")),
+                "visita_va_veterinario": _date(row.get("Visita  VA + Veterinario")),
+                "capsulas_total": _int(row.get("Cápsulas total da receita")),
+                "posologia": _text(row.get("Posologia")),
+                "status": animal_payload["status"],
+                "observacoes": _text(row.get("OBSERVAÇÕES ENTOMOLOGICA")),
+            }
+            cur = conn.execute(
+                """INSERT INTO esporotricose_doentes_receitas
+                   (id_animal_doente, data_notificacao, inicio_sintomas, data_receita,
+                    visita_va_veterinario, capsulas_total, posologia, status, observacoes,
+                    origem_linha, criado_em, atualizado_em)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    id_animal, receita_payload["data_notificacao"], receita_payload["inicio_sintomas"],
+                    receita_payload["data_receita"], receita_payload["visita_va_veterinario"],
+                    receita_payload["capsulas_total"], receita_payload["posologia"], receita_payload["status"],
+                    receita_payload["observacoes"], int(idx) + 2, agora, agora,
+                ),
+            )
+            id_receita = cur.lastrowid
+            receitas_novas += 1
+            for qtd, col in ((10, "Entregue/data\n10"), (30, "Entregue/data\n30"), (60, "Entregue/data\n60"), (90, "Entregue/data\n90")):
+                data_entrega = _date(row.get(col))
+                if data_entrega:
+                    conn.execute(
+                        """INSERT INTO esporotricose_doentes_entregas
+                           (id_receita, quantidade, data_entrega, baixa_zoomed, observacoes, criado_em)
+                           VALUES (?,?,?,?,?,?)""",
+                        (id_receita, qtd, data_entrega, "Sim", None, agora),
+                    )
+                    entregas_novas += 1
+        conn.commit()
+        return {
+            "animais_novos": animais_novos,
+            "animais_existentes": existentes,
+            "receitas_novas": receitas_novas,
+            "entregas_novas": entregas_novas,
+        }
+    finally:
+        conn.close()
+
+
+def _doente_row(row):
+    item = dict(row)
+    if (
+        int(item.get("entregas") or 0) == 0
+        and item.get("status") == "Em tratamento"
+        and int(item.get("entregas_zoomed_pendentes") or 0) == 0
+    ):
+        item["entregas_zoomed_pendentes"] = 1
+    item["prazo_receita_dias"] = _dias_desde(item.get("ultima_receita"))
+    item["whatsapp_documentos"] = whatsapp_documentos_url(item)
+    item["whatsapp_retirada"] = whatsapp_retirada_url(item)
+    return item
+
+
+def _anexo_doente_dict(row):
+    item = dict(row)
+    item["url_download"] = f"/esporotricose/doentes/anexos/{item['id_anexo']}/download"
+    item["url_visualizar"] = f"/esporotricose/doentes/anexos/{item['id_anexo']}/download?inline=1"
+    item["eh_previa"] = (item.get("mime_type") or "").startswith("image/") or item.get("mime_type") == "application/pdf"
+    return item
+
+
+def whatsapp_documentos_url(item):
+    telefone = _telefone(item.get("telefone"))
+    if not telefone:
+        return ""
+    nome = item.get("nome") or "felino(a)"
+    msg = (
+        "Olá! Tudo bem? Aqui é da Vigilância Ambiental da Prefeitura Municipal de Almirante Tamandaré-PR. "
+        f"Recebemos uma notificação do(a) felino(a) {nome}. Por gentileza, para dar andamento do pedido da medicação ao SUS, "
+        "precisamos que nos envie a cópia da receita, do comprovante de endereço atualizado e documento com CPF. "
+        "Obrigado, ficamos à disposição para qualquer dúvida."
+    )
+    return _wa_url(telefone, msg)
+
+
+def whatsapp_retirada_url(item):
+    telefone = _telefone(item.get("telefone"))
+    if not telefone:
+        return ""
+    nome = item.get("nome") or "felino(a)"
+    msg = (
+        f"Olá! Tudo bem? Estamos retornando para informar que chegou a medicação do(a) felino(a) {nome}! "
+        "Local para retirada: Rua Bertholina Kendrick de Oliveira, 681 – Centro – Almirante Tamandaré – PR – CEP 83501-150 - em cima Detran"
+    )
+    return _wa_url(telefone, msg)
+
+
+def _wa_url(telefone, msg):
+    from urllib.parse import quote
+    return f"https://wa.me/{telefone}?text={quote(msg)}"
+
+
+def _normalizar_status_doente(value):
+    text = _text(value)
+    if not text:
+        return "Em tratamento"
+    low = _sem_acentos(text).lower()
+    low = re.sub(r"[^a-z0-9]+", " ", low).strip()
+    if "nao e esporotricose" in low or "nao esporotricose" in low or "nao eh esporotricose" in low:
+        return "Não é esporotricose"
+    if "faleceu" in low or "obito" in low or "morreu" in low:
+        return "Faleceu"
+    if "document" in low or "nao mandou" in low or "nao enviou" in low or low == "aguardando":
+        return "Aguardando documentos"
+    if "aguardando medic" in low or "pedido zoomed" in low or "sus" in low:
+        return "Aguardando medicação"
+    if "medicacao disponivel" in low or "retirada" in low or "chegou" in low or "buscar medicacao" in low:
+        return "Medicação disponível"
+    if "acabou" in low or "final" in low or "conclu" in low or "alta" in low:
+        return "Acabou tratamento"
+    if "tratamento" in low or low in {"ativo", "em andamento"}:
+        return "Em tratamento"
+    for status in DOENTES_STATUS_PADRAO:
+        if _sem_acentos(status).lower() == low:
+            return status
+    return "Outro"
+
+
+def _normalizar_sim_nao(value):
+    text = _text(value)
+    if not text:
+        return ""
+    low = _sem_acentos(text).lower()
+    if low in {"sim", "s", "1", "true", "positivo"}:
+        return "Sim"
+    if low in {"nao", "n", "0", "false", "negativo"}:
+        return "Não"
+    return "Sim" if low.startswith("s") else "Não" if low.startswith("n") else ""
+
+
+def _doente_payload(dados):
+    nome = _text(dados.get("nome"))
+    tutor = _text(dados.get("tutor"))
+    if not nome:
+        raise ValidationError("Informe o nome do animal.")
+    if not tutor:
+        raise ValidationError("Informe o tutor.")
+    status = _normalizar_status_doente(dados.get("status"))
+    return {
+        "tutor": tutor,
+        "nome": nome,
+        "sexo": _text(dados.get("sexo")),
+        "telefone": _telefone(dados.get("telefone")),
+        "localidade": normalizadores.normalizar_localidade(dados.get("localidade")),
+        "quarteirao": _text(dados.get("quarteirao")),
+        "endereco": _text(dados.get("endereco")),
+        "latitude": _real(dados.get("latitude")),
+        "longitude": _real(dados.get("longitude")),
+        "sinan": _text(dados.get("sinan")),
+        "status": status,
+        "bloqueio": _text(dados.get("bloqueio")),
+        "data_bloqueio": _date(dados.get("data_bloqueio")),
+        "observacoes_entomologica": _text(dados.get("observacoes_entomologica")),
+        "pedido_zoomed": _normalizar_sim_nao(dados.get("pedido_zoomed")),
+    }
+
+
+def _receita_payload(dados):
+    return {
+        "data_notificacao": _date(dados.get("data_notificacao")),
+        "inicio_sintomas": _date(dados.get("inicio_sintomas")),
+        "data_receita": _date(dados.get("data_receita")),
+        "visita_va_veterinario": _date(dados.get("visita_va_veterinario")),
+        "capsulas_total": _int(dados.get("capsulas_total")),
+        "posologia": _text(dados.get("posologia")),
+        "status": _normalizar_status_doente(dados.get("status")) if _text(dados.get("status")) else "",
+        "observacoes": _text(dados.get("observacoes")),
+    }
+
+
+def _doente_chave(payload):
+    partes = [
+        payload.get("tutor") or "",
+        payload.get("nome") or "",
+        payload.get("telefone") or "",
+        payload.get("endereco") or "",
+    ]
+    text = "|".join(_norm_col(p) for p in partes)
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()
+
+
+def _salvar_status_doente(conn, nome):
+    nome = _normalizar_status_doente(nome)
+    if not nome:
+        return
+    if nome not in DOENTES_STATUS_PADRAO:
+        nome = "Outro"
+    conn.execute(
+        f"""INSERT INTO {DOENTES_STATUS_TABLE}(nome, ativo, criado_em)
+            VALUES (?,1,?)
+            ON CONFLICT(nome) DO UPDATE SET ativo=1""",
+        (nome, datetime.now().isoformat(timespec="seconds")),
+    )
+
+
+def _status_planilha(value):
+    return _normalizar_status_doente(value)
+    text = _text(value)
+    if not text:
+        return "Em tratamento"
+    low = _sem_acentos(text).lower()
+    if "faleceu" in low or "obito" in low:
+        return "Faleceu"
+    if "acabou" in low or "final" in low:
+        return "Acabou tratamento"
+    if "retirada" in low or "chegou" in low:
+        return "Medicação disponível"
+    return text.title() if text.isupper() or text.islower() else text
+
+
+def _dias_desde(value):
+    data = _date(value)
+    if not data:
+        return None
+    try:
+        return (datetime.now().date() - datetime.fromisoformat(data).date()).days
+    except ValueError:
+        return None
+
+
+def _telefone(value):
+    text = _text(value)
+    if not text:
+        return None
+    digits = re.sub(r"\D+", "", text)
+    if not digits:
+        return None
+    if len(digits) in (10, 11):
+        digits = "55" + digits
+    if len(digits) == 12 and digits.startswith("5541") and digits[4] != "9":
+        pass
+    return digits
+
+
+def _real(value):
+    text = _text(value)
+    if not text:
+        return None
+    try:
+        return float(text.replace(",", "."))
+    except ValueError:
+        return None
+
+
+def _sem_acentos(value):
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    return "".join(ch for ch in text if not unicodedata.combining(ch))
 
 
 def _rows(conn, sql, params):

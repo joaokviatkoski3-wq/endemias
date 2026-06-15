@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Novo paciente' if modo == 'novo' else 'Editar paciente' }}{% endblock %}
+{% block extra_css %}<style>
+.doe-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px;}
+.doe-title{display:flex;align-items:center;gap:10px;}
+.doe-title h1{margin:0;font-size:24px;}
+.doe-form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+.doe-form-grid .full{grid-column:1/-1;}
+.doe-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:14px;}
+@media(max-width:900px){.doe-head{flex-direction:column}.doe-form-grid{grid-template-columns:1fr}.doe-actions{justify-content:stretch}.doe-actions .btn{flex:1}}
+</style>{% endblock %}
+
+{% block content %}
+<div class="doe-head">
+  <div class="doe-title">
+    <img src="/static/icons/gato_doente.svg" alt="" class="icon-svg" style="width:28px;height:28px;">
+    <div>
+      <h1>{{ 'Novo paciente' if modo == 'novo' else 'Editar paciente' }}</h1>
+      <div class="muted">Esporotricose · animais doentes</div>
+    </div>
+  </div>
+  <a class="btn btn-outline" href="{{ '/esporotricose#doentes' if modo == 'novo' else '/esporotricose/doentes/' ~ animal.id_animal_doente }}">Voltar</a>
+</div>
+
+<div class="chart-card">
+  <div class="chart-hd"><div class="chart-title">Cadastro do animal</div></div>
+  <form id="doe-form">
+    <div class="doe-form-grid">
+      <div class="f-g"><label>Animal</label><input id="nome" type="text" required value="{{ animal.nome if animal else '' }}"></div>
+      <div class="f-g"><label>Sexo</label><select id="sexo"><option value="">-</option>{% for opt in ['Macho','Fêmea'] %}<option value="{{ opt }}" {% if animal and animal.sexo == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
+      <div class="f-g"><label>Status</label><select id="status" required>{% for st in status_opcoes %}<option value="{{ st.nome }}" {% if (animal and animal.status == st.nome) or (not animal and st.nome == 'Em tratamento') %}selected{% endif %}>{{ st.nome }}</option>{% endfor %}</select></div>
+      <div class="f-g"><label>Tutor</label><input id="tutor" type="text" required value="{{ animal.tutor if animal else '' }}"></div>
+      <div class="f-g"><label>Telefone</label><input id="telefone" type="text" value="{{ animal.telefone if animal else '' }}"></div>
+      <div class="f-g"><label>SINAN</label><input id="sinan" type="text" value="{{ animal.sinan if animal else '' }}"></div>
+      <div class="f-g"><label>Localidade</label><input id="localidade" type="text" list="localidades-list" value="{{ animal.localidade if animal else '' }}"></div>
+      <div class="f-g"><label>Quarteirão</label><input id="quarteirao" type="text" value="{{ animal.quarteirao if animal else '' }}"></div>
+      <div class="f-g"><label>Pedido ZooMed</label><select id="pedido_zoomed"><option value="">-</option>{% for opt in ['Sim','Não'] %}<option value="{{ opt }}" {% if animal and animal.pedido_zoomed == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
+      <div class="f-g full"><label>Endereço</label><input id="endereco" type="text" value="{{ animal.endereco if animal else '' }}"></div>
+      <div class="f-g"><label>Latitude</label><input id="latitude" type="text" value="{{ animal.latitude if animal and animal.latitude is not none else '' }}"></div>
+      <div class="f-g"><label>Longitude</label><input id="longitude" type="text" value="{{ animal.longitude if animal and animal.longitude is not none else '' }}"></div>
+      <div class="f-g"><label>Bloqueio</label><input id="bloqueio" type="text" value="{{ animal.bloqueio if animal else '' }}"></div>
+      <div class="f-g"><label>Data bloqueio</label><input id="data_bloqueio" type="date" value="{{ animal.data_bloqueio if animal else '' }}"></div>
+      <div class="f-g full"><label>Observações entomológicas</label><textarea id="observacoes_entomologica" rows="4">{{ animal.observacoes_entomologica if animal else '' }}</textarea></div>
+    </div>
+
+    {% if modo == 'novo' %}
+    <div class="chart-card" style="margin-top:14px;background:var(--surface2);">
+      <div class="chart-hd"><div class="chart-title">Primeira receita opcional</div></div>
+      <div class="doe-form-grid">
+        <div class="f-g"><label>Data notificação</label><input id="rec_data_notificacao" type="date"></div>
+        <div class="f-g"><label>Início dos sintomas</label><input id="rec_inicio_sintomas" type="date"></div>
+        <div class="f-g"><label>Receita</label><input id="rec_data_receita" type="date"></div>
+        <div class="f-g"><label>VA + Veterinário</label><input id="rec_visita_va_veterinario" type="date"></div>
+        <div class="f-g"><label>Cápsulas total</label><input id="rec_capsulas_total" type="number" min="0"></div>
+        <div class="f-g"><label>Posologia</label><input id="rec_posologia" type="text"></div>
+        <div class="f-g full"><label>Observações da receita</label><textarea id="rec_observacoes" rows="3"></textarea></div>
+      </div>
+    </div>
+    {% endif %}
+
+    <datalist id="localidades-list">{% for loc in localidades %}<option value="{{ loc.nome }}"></option>{% endfor %}</datalist>
+    <div class="doe-actions">
+      <button class="btn btn-primary" type="submit"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}<script>
+const modo = {{ modo|tojson }};
+const animal = {{ (animal or {})|tojson }};
+function val(id){ return document.getElementById(id)?.value || ''; }
+function payloadAnimal(){
+  return {
+    nome: val('nome'), sexo: val('sexo'), tutor: val('tutor'), telefone: val('telefone'),
+    sinan: val('sinan'), localidade: val('localidade'), quarteirao: val('quarteirao'),
+    endereco: val('endereco'), latitude: val('latitude'), longitude: val('longitude'),
+    status: val('status'), bloqueio: val('bloqueio'), data_bloqueio: val('data_bloqueio'),
+    pedido_zoomed: val('pedido_zoomed'), observacoes_entomologica: val('observacoes_entomologica')
+  };
+}
+function payloadReceita(){
+  return {
+    data_notificacao: val('rec_data_notificacao'), inicio_sintomas: val('rec_inicio_sintomas'),
+    data_receita: val('rec_data_receita'), visita_va_veterinario: val('rec_visita_va_veterinario'),
+    capsulas_total: val('rec_capsulas_total'), posologia: val('rec_posologia'),
+    status: val('status'), observacoes: val('rec_observacoes')
+  };
+}
+function temReceita(payload){ return Object.values(payload).some(v => String(v || '').trim()); }
+document.getElementById('doe-form').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  try {
+    const url = modo === 'editar' ? `/api/esporotricose/doentes/${animal.id_animal_doente}` : '/api/esporotricose/doentes';
+    const method = modo === 'editar' ? 'PUT' : 'POST';
+    const resp = await fetch(url, {method, headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()}, body:JSON.stringify(payloadAnimal())});
+    const data = await resp.json();
+    if(!resp.ok) throw new Error(data.erro || 'Erro ao salvar paciente.');
+    if(modo === 'novo'){
+      const receita = payloadReceita();
+      if(temReceita(receita)){
+        const r = await apiPost(`/api/esporotricose/doentes/${data.id_animal_doente}/receitas`, receita);
+        if(!r.ok && r.erro) throw new Error(r.erro);
+      }
+    }
+    window.location.href = `/esporotricose/doentes/${data.id_animal_doente}`;
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+});
+</script>{% endblock %}

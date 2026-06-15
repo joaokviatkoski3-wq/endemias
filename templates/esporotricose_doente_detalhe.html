@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}Paciente - {{ animal.nome }}{% endblock %}
+{% block extra_css %}<style>
+.doe-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px;}
+.doe-title{display:flex;align-items:center;gap:10px;}
+.doe-title h1{margin:0;font-size:24px;}
+.doe-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+.doe-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;}
+.doe-field{padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);}
+.doe-field span{display:block;font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);margin-bottom:3px;}
+.doe-field strong{font-size:14px;color:var(--text);}
+.doe-layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;align-items:start;margin-top:14px;}
+.doe-receita{border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;background:var(--surface2);margin-bottom:10px;}
+.doe-entregas{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.doe-chip{display:inline-flex;gap:5px;align-items:center;border-radius:999px;background:var(--brand-xs);color:var(--brand);padding:4px 8px;font-size:12px;font-weight:800;}
+.zoomed-badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:900;white-space:nowrap;}
+.zoomed-badge.sim{background:rgba(34,197,94,.16);color:#166534;}
+.zoomed-badge.nao{background:rgba(239,68,68,.15);color:#b91c1c;}
+.zoomed-badge.pendente{background:rgba(245,158,11,.18);color:#92400e;}
+.doe-status{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:900;}
+.doe-status.status-tratamento{background:rgba(14,165,233,.14);color:#0369a1;}
+.doe-status.status-docs{background:rgba(245,158,11,.18);color:#92400e;}
+.doe-status.status-medicacao{background:rgba(139,92,246,.16);color:#6d28d9;}
+.doe-status.status-disponivel{background:rgba(34,197,94,.16);color:#166534;}
+.doe-status.status-finalizado{background:rgba(20,184,166,.16);color:#0f766e;}
+.doe-status.status-faleceu{background:rgba(100,116,139,.18);color:#334155;}
+.doe-status.status-nao-esporo{background:rgba(239,68,68,.15);color:#b91c1c;}
+.doe-status.status-outro{background:rgba(148,163,184,.16);color:#475569;}
+.doe-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.doe-form-grid .full{grid-column:1/-1;}
+.doe-anexo{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);margin-bottom:6px;}
+@media(max-width:1050px){.doe-layout{grid-template-columns:1fr}.doe-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.doe-head{flex-direction:column}.doe-actions .btn{flex:1}.doe-grid,.doe-form-grid{grid-template-columns:1fr}}
+</style>{% endblock %}
+
+{% block content %}
+<div class="doe-head">
+  <div class="doe-title">
+    <img src="/static/icons/gato_doente.svg" alt="" class="icon-svg" style="width:28px;height:28px;">
+    <div>
+      <h1>{{ animal.nome }}</h1>
+      <div class="muted">{{ animal.tutor or 'Tutor não informado' }} · {{ animal.status or '-' }}</div>
+    </div>
+  </div>
+  <div class="doe-actions">
+    <a class="btn btn-outline" href="/esporotricose#doentes">Voltar</a>
+    <a class="btn btn-primary" href="/esporotricose/doentes/{{ animal.id_animal_doente }}/editar"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Editar</a>
+    {% if animal.whatsapp_documentos %}<a class="btn btn-outline" target="_blank" rel="noopener" href="{{ animal.whatsapp_documentos }}"><img src="/static/icons/whatsapp.svg" alt="" class="icon-svg"> Pedir documentos</a>{% endif %}
+    {% if animal.whatsapp_retirada %}<a class="btn btn-outline" target="_blank" rel="noopener" href="{{ animal.whatsapp_retirada }}"><img src="/static/icons/whatsapp.svg" alt="" class="icon-svg"> Avisar retirada</a>{% endif %}
+  </div>
+</div>
+
+<div class="chart-card">
+  <div class="chart-hd"><div class="chart-title">Dados do paciente</div></div>
+  <div class="doe-grid">
+    <div class="doe-field"><span>Animal</span><strong>{{ animal.nome or '-' }}</strong></div>
+    <div class="doe-field"><span>Sexo</span><strong>{{ animal.sexo or '-' }}</strong></div>
+    <div class="doe-field"><span>Status</span><strong><span class="doe-status {{ status_class }}">{{ animal.status or '-' }}</span></strong></div>
+    <div class="doe-field"><span>Pedido ZooMed</span><strong><span class="zoomed-badge {{ 'sim' if animal.pedido_zoomed == 'Sim' else 'nao' }}">{{ animal.pedido_zoomed or '-' }}</span></strong></div>
+    <div class="doe-field"><span>Tutor</span><strong>{{ animal.tutor or '-' }}</strong></div>
+    <div class="doe-field"><span>Telefone</span><strong>{{ animal.telefone or '-' }}</strong></div>
+    <div class="doe-field"><span>SINAN</span><strong>{{ animal.sinan or '-' }}</strong></div>
+    <div class="doe-field"><span>Localidade</span><strong>{{ animal.localidade or '-' }}</strong></div>
+    <div class="doe-field"><span>Quarteirão</span><strong>{{ animal.quarteirao or '-' }}</strong></div>
+    <div class="doe-field"><span>Bloqueio</span><strong>{{ animal.bloqueio or '-' }}</strong></div>
+    <div class="doe-field"><span>Data bloqueio</span><strong>{{ animal.data_bloqueio or '-' }}</strong></div>
+    <div class="doe-field"><span>Coordenadas</span><strong>{{ animal.latitude or '-' }}, {{ animal.longitude or '-' }}</strong></div>
+    <div class="doe-field full" style="grid-column:1/-1;"><span>Endereço</span><strong>{{ animal.endereco or '-' }}</strong></div>
+    <div class="doe-field full" style="grid-column:1/-1;"><span>Observações entomológicas</span><strong>{{ animal.observacoes_entomologica or '-' }}</strong></div>
+  </div>
+</div>
+
+<div class="doe-layout">
+  <div class="chart-card">
+    <div class="chart-hd"><div class="chart-title">Receitas e entregas</div></div>
+    <div id="receitas-list"></div>
+    <div class="doe-receita">
+      <strong>Nova receita</strong>
+      <div class="doe-form-grid" style="margin-top:8px;">
+        <div class="f-g"><label>Notificação</label><input id="rec-data-notificacao" type="date"></div>
+        <div class="f-g"><label>Início sintomas</label><input id="rec-inicio-sintomas" type="date"></div>
+        <div class="f-g"><label>Receita</label><input id="rec-data-receita" type="date"></div>
+        <div class="f-g"><label>VA + Veterinário</label><input id="rec-visita-vet" type="date"></div>
+        <div class="f-g"><label>Cápsulas</label><input id="rec-capsulas" type="number" min="0"></div>
+        <div class="f-g"><label>Posologia</label><input id="rec-posologia" type="text"></div>
+        <div class="f-g full"><label>Observações</label><textarea id="rec-observacoes" rows="3"></textarea></div>
+      </div>
+      <button class="btn btn-primary" type="button" onclick="salvarReceita()" style="margin-top:8px;">Adicionar receita</button>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-hd"><div class="chart-title">Anexos</div></div>
+    <input id="anexos" type="file" multiple>
+    <button class="btn btn-outline" type="button" onclick="enviarAnexos()" style="margin-top:8px;">Enviar anexos</button>
+    <div id="anexos-list" style="margin-top:10px;"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}<script>
+let animal = {{ animal|tojson }};
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function data(v){ return v || '-'; }
+function num(v){ return new Intl.NumberFormat('pt-BR').format(Number(v || 0)); }
+function val(id){ return document.getElementById(id)?.value || ''; }
+function zoomedBadge(valor){
+  const sim = String(valor || '').toLowerCase() === 'sim';
+  return `<span class="zoomed-badge ${sim ? 'sim' : 'pendente'}">${sim ? 'Sim' : 'Pendente'}</span>`;
+}
+function render(){
+  document.getElementById('receitas-list').innerHTML = (animal.receitas || []).map(r => `
+    <div class="doe-receita">
+      <strong>Receita ${data(r.data_receita)}</strong>
+      <div class="muted">Notificação ${data(r.data_notificacao)} · sintomas ${data(r.inicio_sintomas)} · VA + veterinário ${data(r.visita_va_veterinario)}</div>
+      <div style="margin-top:6px;">Cápsulas: <strong>${num(r.capsulas_total)}</strong> · Posologia: ${esc(r.posologia || '-')}</div>
+      <div class="muted">${esc(r.observacoes || '')}</div>
+      <div class="doe-entregas">${(r.entregas || []).map(e => `
+        <span class="doe-chip">${data(e.data_entrega)} · ${num(e.quantidade)} cápsula(s) · Baixa Zoomed ${zoomedBadge(e.baixa_zoomed)}</span>
+        <span class="doe-chip" style="background:var(--surface);color:var(--text2);border:1px solid var(--border);">
+          <input type="date" id="ent-edit-data-${e.id_entrega}" value="${esc(e.data_entrega || '')}" style="max-width:130px;">
+          <input type="number" min="1" id="ent-edit-qtd-${e.id_entrega}" value="${esc(e.quantidade || '')}" style="max-width:78px;">
+          <select id="ent-edit-zoomed-${e.id_entrega}">
+            <option value="Sim" ${e.baixa_zoomed === 'Sim' ? 'selected' : ''}>Zoomed: Sim</option>
+            <option value="Não" ${e.baixa_zoomed === 'Não' ? 'selected' : ''}>Zoomed: Pendente</option>
+          </select>
+          <button class="btn btn-sm" type="button" onclick="atualizarEntrega(${e.id_entrega})">Salvar</button>
+        </span>
+      `).join('') || '<span class="muted">Sem entregas cadastradas.</span>'}</div>
+      <div class="doe-form-grid" style="margin-top:8px;">
+        <div class="f-g"><label>Data entrega</label><input type="date" id="ent-data-${r.id_receita}"></div>
+        <div class="f-g"><label>Cápsulas</label><input type="number" min="1" id="ent-qtd-${r.id_receita}"></div>
+        <div class="f-g"><label>Entrega cadastrada na ZOOMED</label><select id="ent-zoomed-${r.id_receita}"><option value="Não" selected>Pendente</option><option value="Sim">Sim</option></select></div>
+      </div>
+      <button class="btn btn-outline btn-sm" type="button" onclick="salvarEntrega(${r.id_receita})">Adicionar entrega</button>
+    </div>
+  `).join('') || '<div class="empty-inline">Nenhuma receita cadastrada.</div>';
+  document.getElementById('anexos-list').innerHTML = (animal.anexos || []).map(a => `
+    <div class="doe-anexo">
+      <a href="${a.url_visualizar}" target="_blank" rel="noopener">${esc(a.nome_original)}</a>
+      <button class="btn btn-sm" type="button" onclick="excluirAnexo(${a.id_anexo})">Excluir</button>
+    </div>
+  `).join('') || '<div class="empty-inline">Nenhum anexo.</div>';
+}
+async function recarregar(){
+  animal = await apiGet(`/api/esporotricose/doentes/${animal.id_animal_doente}`);
+  render();
+}
+async function salvarReceita(){
+  try {
+    await apiPost(`/api/esporotricose/doentes/${animal.id_animal_doente}/receitas`, {
+      data_notificacao: val('rec-data-notificacao'),
+      inicio_sintomas: val('rec-inicio-sintomas'),
+      data_receita: val('rec-data-receita'),
+      visita_va_veterinario: val('rec-visita-vet'),
+      capsulas_total: val('rec-capsulas'),
+      posologia: val('rec-posologia'),
+      status: animal.status,
+      observacoes: val('rec-observacoes')
+    });
+    await recarregar();
+    toast('Receita adicionada.', 'success');
+  } catch(e){ toast(e.message, 'error'); }
+}
+async function salvarEntrega(idReceita){
+  try {
+    await apiPost(`/api/esporotricose/doentes/receitas/${idReceita}/entregas`, {
+      data_entrega: val(`ent-data-${idReceita}`),
+      quantidade: val(`ent-qtd-${idReceita}`),
+      baixa_zoomed: val(`ent-zoomed-${idReceita}`)
+    });
+    await recarregar();
+    toast('Entrega adicionada.', 'success');
+  } catch(e){ toast(e.message, 'error'); }
+}
+async function atualizarEntrega(idEntrega){
+  try {
+    const resp = await fetch(`/api/esporotricose/doentes/entregas/${idEntrega}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json', 'X-CSRFToken':getCsrf()},
+      body: JSON.stringify({
+        data_entrega: val(`ent-edit-data-${idEntrega}`),
+        quantidade: val(`ent-edit-qtd-${idEntrega}`),
+        baixa_zoomed: val(`ent-edit-zoomed-${idEntrega}`)
+      })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if(!resp.ok) throw new Error(data.erro || 'Erro ao atualizar entrega.');
+    await recarregar();
+    toast('Entrega atualizada.', 'success');
+  } catch(e){ toast(e.message, 'error'); }
+}
+async function enviarAnexos(){
+  const input = document.getElementById('anexos');
+  if(!input.files.length) return;
+  const fd = new FormData();
+  Array.from(input.files).forEach(f => fd.append('arquivos', f));
+  try {
+    await apiPost(`/api/esporotricose/doentes/${animal.id_animal_doente}/anexos`, fd, false);
+    input.value = '';
+    await recarregar();
+    toast('Anexo salvo.', 'success');
+  } catch(e){ toast(e.message, 'error'); }
+}
+async function excluirAnexo(id){
+  if(!confirm('Excluir anexo?')) return;
+  const r = await fetch(`/api/esporotricose/doentes/anexos/${id}`, {method:'DELETE', headers:{'X-CSRFToken':getCsrf()}});
+  if(!r.ok) return toast('Erro ao excluir anexo.', 'error');
+  await recarregar();
+}
+render();
+</script>{% endblock %}

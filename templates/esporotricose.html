@@ -18,6 +18,18 @@
 .esporo-tag.good { background:rgba(34,197,94,.13); color:#15803d; }
 .esporo-tag.bad { background:rgba(239,68,68,.13); color:#b91c1c; }
 .esporo-tag.warn { background:rgba(245,158,11,.16); color:#b45309; }
+.esporo-tag.status-tratamento { background:rgba(14,165,233,.14); color:#0369a1; }
+.esporo-tag.status-docs { background:rgba(245,158,11,.18); color:#92400e; }
+.esporo-tag.status-medicacao { background:rgba(139,92,246,.16); color:#6d28d9; }
+.esporo-tag.status-disponivel { background:rgba(34,197,94,.16); color:#166534; }
+.esporo-tag.status-finalizado { background:rgba(20,184,166,.16); color:#0f766e; }
+.esporo-tag.status-faleceu { background:rgba(100,116,139,.18); color:#334155; }
+.esporo-tag.status-nao-esporo { background:rgba(239,68,68,.15); color:#b91c1c; }
+.esporo-tag.status-outro { background:rgba(148,163,184,.16); color:#475569; }
+.zoomed-badge { display:inline-flex; align-items:center; padding:2px 7px; border-radius:999px; font-size:11px; font-weight:900; white-space:nowrap; }
+.zoomed-badge.sim { background:rgba(34,197,94,.16); color:#166534; }
+.zoomed-badge.nao { background:rgba(239,68,68,.15); color:#b91c1c; }
+.zoomed-badge.pendente { background:rgba(245,158,11,.18); color:#92400e; }
 .esporo-address { min-width:180px; }
 .esporo-nowrap { white-space:nowrap; }
 .esporo-tabbar { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 16px; padding:8px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); }
@@ -25,14 +37,28 @@
 .esporo-tab-btn:hover { border-color:var(--brand); color:var(--brand); background:var(--brand-xs); }
 .esporo-tab-btn.active { background:var(--brand); border-color:var(--brand); color:#fff; }
 .esporo-tab-btn.active .icon-svg { filter:brightness(0) invert(1) !important; }
+.esporo-doentes-entry { display:flex; margin:-6px 0 16px; }
+.esporo-doentes-entry .esporo-tab-btn { background:rgba(15,118,110,.1); border-color:rgba(15,118,110,.28); color:#0f766e; }
 .esporo-pane { display:none; }
 .esporo-pane.active { display:block; }
 .esporo-chart-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
 .esporo-chart-grid .full { grid-column:1 / -1; }
 .esporo-mini-filter { margin-bottom:14px; }
 .esporo-filter-actions { display:flex; justify-content:flex-end; align-items:flex-end; }
+.esporo-doentes-layout { display:grid; grid-template-columns:minmax(0,1fr) 390px; gap:14px; align-items:start; }
+.esporo-doentes-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:12px; }
+.esporo-doente-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.esporo-doente-panel { position:sticky; top:12px; }
+.esporo-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.esporo-form-grid .full { grid-column:1 / -1; }
+.esporo-receita-card { border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px; background:var(--surface2); margin-top:8px; }
+.esporo-entrega-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.esporo-entrega { padding:3px 7px; border-radius:999px; background:var(--brand-xs); color:var(--brand); font-size:11px; font-weight:800; }
+.esporo-anexos { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+.esporo-anexo { display:flex; justify-content:space-between; gap:8px; align-items:center; padding:7px 8px; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12px; }
 @media(max-width:980px) { .esporo-chart-grid { grid-template-columns:1fr; } }
 @media(max-width:980px) { .esporo-layout { grid-template-columns:1fr; } }
+@media(max-width:1100px) { .esporo-doentes-layout { grid-template-columns:1fr; } .esporo-doente-panel { position:static; } }
 </style>{% endblock %}
 
 {% block content %}
@@ -50,7 +76,11 @@
   <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-dashboard', this)"><img src="/static/icons/grafico_linha.svg" alt="" class="icon-svg"> Dashboard</button>
 </div>
 
-<div class="esporo-grid">
+<div class="esporo-doentes-entry">
+  <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-doentes', this)"><img src="/static/icons/gato_doente.svg" alt="" class="icon-svg"> Doentes</button>
+</div>
+
+<div class="esporo-grid" id="esp-visitas-kpis">
   <div class="esporo-kpi"><div class="esporo-kpi-label">Visitas</div><div class="esporo-kpi-value" id="esp-visitas">0</div></div>
   <div class="esporo-kpi"><div class="esporo-kpi-label">Animais</div><div class="esporo-kpi-value" id="esp-animais">0</div></div>
   <div class="esporo-kpi"><div class="esporo-kpi-label">Cães</div><div class="esporo-kpi-value" id="esp-caes">0</div></div>
@@ -190,6 +220,94 @@
   </div>
 </section>
 
+<section class="esporo-pane" id="esp-tab-doentes">
+  <div class="esporo-doentes-kpis">
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Doentes</div><div class="esporo-kpi-value" id="doe-kpi-total">0</div></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Em tratamento</div><div class="esporo-kpi-value" id="doe-kpi-tratamento">0</div></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Medicação disponível</div><div class="esporo-kpi-value" id="doe-kpi-medicacao">0</div></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Receitas</div><div class="esporo-kpi-value" id="doe-kpi-receitas">0</div></div>
+  </div>
+  <div class="chart-card">
+      <div class="chart-hd">
+        <div class="chart-title"><img src="/static/icons/gato_doente.svg" alt="" class="icon-svg"> Animais doentes</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <span class="table-info" id="esp-doentes-info"></span>
+          <a class="btn btn-primary btn-sm" href="/esporotricose/doentes/novo"><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Novo paciente</a>
+        </div>
+      </div>
+      <div class="esporo-animal-filters">
+        <div class="f-g"><label>Pesquisa</label><input type="search" id="doe-busca" placeholder="Tutor, animal, telefone, SINAN..."></div>
+        <div class="f-g"><label>Status</label><select id="doe-status"><option value="">Todos</option></select></div>
+        <div class="f-g"><label>Localidade</label><select id="doe-localidade"><option value="">Todas</option>{% for loc in localidades %}<option value="{{ loc.nome }}">{{ loc.nome }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Bloqueio</label><select id="doe-bloqueio-filtro"><option value="">Todos</option><option value="Sim">Sim</option><option value="Não">Não</option></select></div>
+        <div class="f-g"><label>Pedido Zoomed</label><select id="doe-pedido-zoomed-filtro"><option value="">Todos</option><option value="Sim">Sim</option><option value="Não">Não</option></select></div>
+        <div class="f-g"><label>Baixa Zoomed</label><select id="doe-baixa-zoomed-filtro"><option value="">Todas</option><option value="Pendente">Pendente</option><option value="Sim">Sim</option></select></div>
+        <div class="esporo-filter-actions"><button class="btn btn-primary" type="button" onclick="carregarEspDoentes()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button></div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Animal</th><th>Tutor</th><th>Endereço</th><th>Status</th><th>Tratamento</th><th>Bloqueio</th><th>Pedido Zoomed</th><th>Baixa Zoomed</th><th>Ações</th></tr></thead>
+          <tbody id="esp-doentes-body"></tbody>
+        </table>
+      </div>
+
+    <template id="esp-doente-form-antigo">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Cadastro</div></div>
+      <form id="esp-doente-form" onsubmit="salvarEspDoente(event)">
+        <input type="hidden" id="doe-id">
+        <div class="esporo-form-grid">
+          <div class="f-g"><label>Animal</label><input id="doe-nome" required></div>
+          <div class="f-g"><label>Sexo</label><select id="doe-sexo"><option value="">-</option><option>Macho</option><option>Fêmea</option></select></div>
+          <div class="f-g full"><label>Tutor</label><input id="doe-tutor" required></div>
+          <div class="f-g"><label>Telefone</label><input id="doe-telefone"></div>
+          <div class="f-g"><label>SINAN</label><input id="doe-sinan"></div>
+          <div class="f-g"><label>Localidade</label><input id="doe-form-localidade" list="doe-localidades-list"></div>
+          <div class="f-g"><label>Quarteirão</label><input id="doe-quarteirao"></div>
+          <div class="f-g full"><label>Endereço</label><input id="doe-endereco"></div>
+          <div class="f-g"><label>Latitude</label><input id="doe-latitude"></div>
+          <div class="f-g"><label>Longitude</label><input id="doe-longitude"></div>
+          <div class="f-g"><label>Status</label><input id="doe-form-status" list="doe-status-list"></div>
+          <div class="f-g"><label>Bloqueio</label><input id="doe-bloqueio"></div>
+          <div class="f-g"><label>Data bloqueio</label><input type="date" id="doe-data-bloqueio"></div>
+          <div class="f-g"><label>Pedido ZooMed</label><input id="doe-pedido-zoomed"></div>
+          <div class="f-g full"><label>Observações entomológicas</label><textarea id="doe-observacoes" rows="2"></textarea></div>
+        </div>
+        <datalist id="doe-localidades-list">{% for loc in localidades %}<option value="{{ loc.nome }}"></option>{% endfor %}</datalist>
+        <datalist id="doe-status-list"></datalist>
+        <div class="esporo-doente-actions" style="margin-top:10px;">
+          <button class="btn btn-primary" type="submit"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar</button>
+          <button class="btn btn-ghost" type="button" onclick="novoEspDoente()">Limpar</button>
+          <a class="btn btn-outline" id="doe-wa-doc" target="_blank" rel="noopener"><img src="/static/icons/whatsapp.svg" alt="" class="icon-svg"> Pedir documentos</a>
+          <a class="btn btn-outline" id="doe-wa-ret" target="_blank" rel="noopener"><img src="/static/icons/whatsapp.svg" alt="" class="icon-svg"> Avisar retirada</a>
+        </div>
+      </form>
+
+      <div id="esp-doente-extra" style="display:none;margin-top:14px;">
+        <div class="detalhe-bloco">
+          <div class="detalhe-subtitulo">Nova receita</div>
+          <div class="esporo-form-grid">
+            <div class="f-g"><label>Notificação</label><input type="date" id="rec-data-notificacao"></div>
+            <div class="f-g"><label>Início sintomas</label><input type="date" id="rec-inicio-sintomas"></div>
+            <div class="f-g"><label>Receita</label><input type="date" id="rec-data-receita"></div>
+            <div class="f-g"><label>VA + Veterinário</label><input type="date" id="rec-visita-vet"></div>
+            <div class="f-g"><label>Cápsulas</label><input type="number" id="rec-capsulas"></div>
+            <div class="f-g"><label>Posologia</label><input id="rec-posologia"></div>
+            <div class="f-g full"><label>Observações</label><textarea id="rec-observacoes" rows="2"></textarea></div>
+          </div>
+          <button class="btn btn-primary" type="button" onclick="salvarEspReceita()" style="margin-top:8px;">Adicionar receita</button>
+          <div id="esp-receitas-list"></div>
+        </div>
+        <div class="detalhe-bloco">
+          <div class="detalhe-subtitulo">Anexos</div>
+          <input type="file" id="doe-anexos" multiple>
+          <button class="btn btn-outline" type="button" onclick="enviarEspAnexos()">Enviar anexos</button>
+          <div class="esporo-anexos" id="esp-anexos-list"></div>
+        </div>
+      </div>
+    </template>
+  </div>
+</section>
+
 <section class="esporo-pane" id="esp-tab-atencao">
   <div class="chart-card">
     <div class="chart-hd">
@@ -311,10 +429,12 @@
 {% block extra_js %}<script>
 let espAnimaisCarregados = false;
 let espVisitasCarregadas = false;
+let espDoentesCarregados = false;
 let espAtencaoCarregada = false;
 let espLocalidadesCarregadas = false;
 let espDashboardCarregado = false;
 let espResumo = null;
+let espDoenteAtual = null;
 
 function setEspText(id, value) {
   const el = document.getElementById(id);
@@ -371,8 +491,11 @@ function openEspTab(id, btn) {
   document.querySelectorAll('.esporo-pane').forEach(p => p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   btn.classList.add('active');
+  const visitasKpis = document.getElementById('esp-visitas-kpis');
+  if (visitasKpis) visitasKpis.style.display = id === 'esp-tab-doentes' ? 'none' : 'grid';
   if (id === 'esp-tab-visitas' && !espVisitasCarregadas) carregarEspVisitas();
   if (id === 'esp-tab-animais' && !espAnimaisCarregados) carregarEspAnimais();
+  if (id === 'esp-tab-doentes' && !espDoentesCarregados) carregarEspDoentes();
   if (id === 'esp-tab-atencao' && !espAtencaoCarregada) carregarEspAtencao();
   if (id === 'esp-tab-localidades' && !espLocalidadesCarregadas) carregarEspLocalidadesDetalhe();
   if (id === 'esp-tab-dashboard' && !espDashboardCarregado) carregarEspDashboard();
@@ -381,6 +504,7 @@ async function carregarEsporotricose() {
   try {
     espVisitasCarregadas = false;
     espAnimaisCarregados = false;
+    espDoentesCarregados = false;
     espAtencaoCarregada = false;
     espLocalidadesCarregadas = false;
     espDashboardCarregado = false;
@@ -425,6 +549,230 @@ async function carregarEspVisitas() {
   } catch (e) {
     toast(e.message, 'error');
   }
+}
+async function carregarEspDoentes() {
+  try {
+    const filtros = {
+      busca: document.getElementById('doe-busca')?.value || '',
+      status: document.getElementById('doe-status')?.value || (!espDoentesCarregados ? 'Em tratamento' : ''),
+      localidade: document.getElementById('doe-localidade')?.value || '',
+      bloqueio: document.getElementById('doe-bloqueio-filtro')?.value || '',
+      pedido_zoomed: document.getElementById('doe-pedido-zoomed-filtro')?.value || '',
+      baixa_zoomed: document.getElementById('doe-baixa-zoomed-filtro')?.value || '',
+    };
+    await carregarEspDoentesStatus(filtros.status);
+    document.getElementById('esp-doentes-body').innerHTML = '<tr><td colspan="9"><div class="loading-box"><div class="spinner"></div></div></td></tr>';
+    const p = new URLSearchParams();
+    Object.entries(filtros).forEach(([k, v]) => { if (v) p.set(k, v); });
+    const d = await apiGet('/api/esporotricose/doentes?' + p.toString());
+    espDoentesCarregados = true;
+    renderEspDoentes(d.registros || [], d.total || 0);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+async function carregarEspDoentesStatus(statusSelecionado = '') {
+  const d = await apiGet('/api/esporotricose/doentes/status');
+  const opts = (d.registros || []).map(s => `<option value="${escapeHtml(s.nome)}">${escapeHtml(s.nome)}</option>`).join('');
+  document.getElementById('doe-status').innerHTML = '<option value="">Todos</option>' + opts;
+  document.getElementById('doe-status').value = statusSelecionado;
+  const statusList = document.getElementById('doe-status-list');
+  if (statusList) statusList.innerHTML = opts;
+}
+function renderEspDoentes(rows, total) {
+  document.getElementById('esp-doentes-info').textContent = `${fmtNum(total)} animal(is)`;
+  const emTratamento = rows.filter(r => String(r.status || '').toLowerCase().includes('tratamento')).length;
+  const medicacao = rows.filter(r => String(r.status || '').toLowerCase() === 'medicação disponível').length;
+  const receitas = rows.reduce((acc, r) => acc + Number(r.receitas || 0), 0);
+  setEspText('doe-kpi-total', total);
+  setEspText('doe-kpi-tratamento', emTratamento);
+  setEspText('doe-kpi-medicacao', medicacao);
+  setEspText('doe-kpi-receitas', receitas);
+  document.getElementById('esp-doentes-body').innerHTML = rows.length ? rows.map(r => `
+    <tr>
+      <td><strong>${escapeHtml(r.nome || '-')}</strong><div class="muted">${escapeHtml(r.localidade || '-')} ${r.quarteirao ? '· Q ' + escapeHtml(r.quarteirao) : ''}</div></td>
+      <td>${escapeHtml(r.tutor || '-')}<div class="muted">${escapeHtml(r.telefone || '')}</div></td>
+      <td>${escapeHtml(r.endereco || '-')}<div class="muted">${escapeHtml(r.sinan ? 'SINAN ' + r.sinan : '')}</div></td>
+      <td><span class="esporo-tag ${statusDoenteClass(r.status)}">${escapeHtml(r.status || '-')}</span></td>
+      <td>${fmtNum(r.receitas || 0)} receita(s)<div class="muted">Última: ${fmtDate(r.ultima_receita) || '-'}</div><div class="muted">Entregue: ${fmtNum(r.capsulas_entregues || 0)} cápsula(s)</div></td>
+      <td>${escapeHtml(r.bloqueio || '-')}</td>
+      <td>${zoomedBadge(r.pedido_zoomed)}</td>
+      <td>${zoomedBaixaBadge(r.entregas_zoomed_pendentes || 0)}</td>
+      <td><a class="btn btn-sm" href="/esporotricose/doentes/${r.id_animal_doente}">Abrir</a></td>
+    </tr>
+  `).join('') : '<tr><td colspan="9" class="empty-inline">Nenhum animal doente cadastrado.</td></tr>';
+}
+function statusDoenteClass(status) {
+  const s = String(status || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (s.includes('acabou') || s.includes('final')) return 'status-finalizado';
+  if (s.includes('faleceu') || s.includes('obito')) return 'status-faleceu';
+  if (s.includes('nao e esporotricose')) return 'status-nao-esporo';
+  if (s.includes('document')) return 'status-docs';
+  if (s.includes('aguardando medic')) return 'status-medicacao';
+  if (s.includes('disponivel')) return 'status-disponivel';
+  if (s.includes('tratamento')) return 'status-tratamento';
+  return 'status-outro';
+}
+function zoomedBadge(valor) {
+  const v = String(valor || '').toLowerCase();
+  const sim = v === 'sim';
+  const label = valor || '-';
+  return `<span class="zoomed-badge ${sim ? 'sim' : 'nao'}">${escapeHtml(label)}</span>`;
+}
+function zoomedBaixaBadge(total) {
+  const n = Number(total || 0);
+  return `<span class="zoomed-badge ${n ? 'pendente' : 'sim'}">${n ? 'Pendente' : 'Sim'}</span>`;
+}
+function novoEspDoente() {
+  espDoenteAtual = null;
+  document.getElementById('esp-doente-form').reset();
+  document.getElementById('doe-id').value = '';
+  document.getElementById('esp-doente-extra').style.display = 'none';
+  document.getElementById('doe-wa-doc').removeAttribute('href');
+  document.getElementById('doe-wa-ret').removeAttribute('href');
+}
+async function abrirEspDoente(id) {
+  try {
+    const d = await apiGet(`/api/esporotricose/doentes/${id}`);
+    espDoenteAtual = d;
+    preencherEspDoente(d);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+function preencherEspDoente(d) {
+  const set = (id, v) => document.getElementById(id).value = v || '';
+  set('doe-id', d.id_animal_doente);
+  set('doe-nome', d.nome);
+  set('doe-sexo', d.sexo);
+  set('doe-tutor', d.tutor);
+  set('doe-telefone', d.telefone);
+  set('doe-sinan', d.sinan);
+  set('doe-form-localidade', d.localidade);
+  set('doe-quarteirao', d.quarteirao);
+  set('doe-endereco', d.endereco);
+  set('doe-latitude', d.latitude);
+  set('doe-longitude', d.longitude);
+  set('doe-form-status', d.status);
+  set('doe-bloqueio', d.bloqueio);
+  set('doe-data-bloqueio', d.data_bloqueio);
+  set('doe-pedido-zoomed', d.pedido_zoomed);
+  set('doe-observacoes', d.observacoes_entomologica);
+  document.getElementById('doe-wa-doc').href = d.whatsapp_documentos || '#';
+  document.getElementById('doe-wa-ret').href = d.whatsapp_retirada || '#';
+  document.getElementById('esp-doente-extra').style.display = 'block';
+  renderEspReceitas(d.receitas || []);
+  renderEspAnexos(d.anexos || []);
+}
+function dadosEspDoenteForm() {
+  return {
+    nome: document.getElementById('doe-nome').value,
+    sexo: document.getElementById('doe-sexo').value,
+    tutor: document.getElementById('doe-tutor').value,
+    telefone: document.getElementById('doe-telefone').value,
+    sinan: document.getElementById('doe-sinan').value,
+    localidade: document.getElementById('doe-form-localidade').value,
+    quarteirao: document.getElementById('doe-quarteirao').value,
+    endereco: document.getElementById('doe-endereco').value,
+    latitude: document.getElementById('doe-latitude').value,
+    longitude: document.getElementById('doe-longitude').value,
+    status: document.getElementById('doe-form-status').value,
+    bloqueio: document.getElementById('doe-bloqueio').value,
+    data_bloqueio: document.getElementById('doe-data-bloqueio').value,
+    pedido_zoomed: document.getElementById('doe-pedido-zoomed').value,
+    observacoes_entomologica: document.getElementById('doe-observacoes').value,
+  };
+}
+async function salvarEspDoente(ev) {
+  ev.preventDefault();
+  try {
+    const id = document.getElementById('doe-id').value;
+    const url = id ? `/api/esporotricose/doentes/${id}` : '/api/esporotricose/doentes';
+    const method = id ? 'PUT' : 'POST';
+    const r = await fetch(url, {
+      method,
+      headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify(dadosEspDoenteForm())
+    });
+    if (!r.ok) throw new Error((await r.json()).erro || `HTTP ${r.status}`);
+    const d = await r.json();
+    preencherEspDoente(d);
+    await carregarEspDoentes();
+    toast('Animal salvo.', 'success');
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+function renderEspReceitas(rows) {
+  document.getElementById('esp-receitas-list').innerHTML = rows.length ? rows.map(r => `
+    <div class="esporo-receita-card">
+      <strong>Receita ${fmtDate(r.data_receita) || '-'}</strong>
+      <div class="muted">Notificação ${fmtDate(r.data_notificacao)} · sintomas ${fmtDate(r.inicio_sintomas)} · prazo ${r.prazo_receita_dias ?? '-'} dia(s)</div>
+      <div>Cápsulas: <strong>${escapeHtml(r.capsulas_total ?? '-')}</strong> · Posologia: ${escapeHtml(r.posologia || '-')}</div>
+      <div class="esporo-entrega-list">${(r.entregas || []).map(e => `<span class="esporo-entrega">${fmtDate(e.data_entrega)} · ${fmtNum(e.quantidade)}</span>`).join('') || '<span class="muted">Sem entregas</span>'}</div>
+      <div class="esporo-form-grid" style="margin-top:8px;">
+        <div class="f-g"><label>Data entrega</label><input type="date" id="ent-data-${r.id_receita}"></div>
+        <div class="f-g"><label>Cápsulas</label><input type="number" id="ent-qtd-${r.id_receita}"></div>
+      </div>
+      <button class="btn btn-outline" type="button" onclick="salvarEspEntrega(${r.id_receita})">Adicionar entrega</button>
+    </div>
+  `).join('') : '<div class="empty-inline">Nenhuma receita cadastrada.</div>';
+}
+async function salvarEspReceita() {
+  const id = document.getElementById('doe-id').value;
+  if (!id) return toast('Salve o animal antes da receita.', 'error');
+  const payload = {
+    data_notificacao: document.getElementById('rec-data-notificacao').value,
+    inicio_sintomas: document.getElementById('rec-inicio-sintomas').value,
+    data_receita: document.getElementById('rec-data-receita').value,
+    visita_va_veterinario: document.getElementById('rec-visita-vet').value,
+    capsulas_total: document.getElementById('rec-capsulas').value,
+    posologia: document.getElementById('rec-posologia').value,
+    status: document.getElementById('doe-form-status').value,
+    observacoes: document.getElementById('rec-observacoes').value,
+  };
+  try {
+    await apiPost(`/api/esporotricose/doentes/${id}/receitas`, payload);
+    await abrirEspDoente(id);
+    await carregarEspDoentes();
+    toast('Receita adicionada.', 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+async function salvarEspEntrega(idReceita) {
+  try {
+    await apiPost(`/api/esporotricose/doentes/receitas/${idReceita}/entregas`, {
+      data_entrega: document.getElementById(`ent-data-${idReceita}`).value,
+      quantidade: document.getElementById(`ent-qtd-${idReceita}`).value,
+    });
+    await abrirEspDoente(document.getElementById('doe-id').value);
+    await carregarEspDoentes();
+  } catch(e) { toast(e.message, 'error'); }
+}
+function renderEspAnexos(rows) {
+  document.getElementById('esp-anexos-list').innerHTML = rows.length ? rows.map(a => `
+    <div class="esporo-anexo">
+      <a href="${a.url_visualizar}" target="_blank" rel="noopener">${escapeHtml(a.nome_original)}</a>
+      <button class="btn btn-sm" type="button" onclick="excluirEspAnexo(${a.id_anexo})">Excluir</button>
+    </div>
+  `).join('') : '<div class="empty-inline">Nenhum anexo.</div>';
+}
+async function enviarEspAnexos() {
+  const id = document.getElementById('doe-id').value;
+  const input = document.getElementById('doe-anexos');
+  if (!id || !input.files.length) return;
+  const fd = new FormData();
+  [...input.files].forEach(f => fd.append('arquivos', f));
+  try {
+    await apiPost(`/api/esporotricose/doentes/${id}/anexos`, fd, false);
+    input.value = '';
+    await abrirEspDoente(id);
+  } catch(e) { toast(e.message, 'error'); }
+}
+async function excluirEspAnexo(idAnexo) {
+  if (!confirm('Excluir anexo?')) return;
+  const r = await fetch(`/api/esporotricose/doentes/anexos/${idAnexo}`, {method:'DELETE', headers:{'X-CSRFToken':getCsrf()}});
+  if (!r.ok) return toast('Erro ao excluir anexo.', 'error');
+  await abrirEspDoente(document.getElementById('doe-id').value);
 }
 async function carregarEspAtencao() {
   try {
@@ -661,5 +1009,11 @@ function fmtMes(mes) {
   const [ano, mesNum] = mes.split('-');
   return `${mesNum}/${ano}`;
 }
-document.addEventListener('DOMContentLoaded', carregarEsporotricose);
+document.addEventListener('DOMContentLoaded', () => {
+  carregarEsporotricose();
+  if (window.location.hash === '#doentes') {
+    const btn = document.querySelector('.esporo-doentes-entry .esporo-tab-btn');
+    if (btn) openEspTab('esp-tab-doentes', btn);
+  }
+});
 </script>{% endblock %}
