@@ -17,6 +17,8 @@ TIPOS = {
     "PE": "Ponto estrategico",
     "A": "Pendente para atualizacao",
 }
+MEDIA_PESSOAS_POR_RESIDENCIA = 2.93
+FONTE_POPULACAO = "Fonte: IBGE Censo 2022"
 
 
 def _norm(value):
@@ -476,7 +478,12 @@ def totais(conn, filtros=None):
         """,
         params,
     ).fetchone()
-    return dict(row) if row else {}
+    data = dict(row) if row else {}
+    imoveis_reais = data.get("imoveis_reais") or 0
+    data["media_pessoas_por_residencia"] = MEDIA_PESSOAS_POR_RESIDENCIA
+    data["populacao_aproximada"] = round(imoveis_reais * MEDIA_PESSOAS_POR_RESIDENCIA)
+    data["fonte_populacao"] = FONTE_POPULACAO
+    return data
 
 
 def obter(db_path, id_imovel, base_dir=None):
@@ -575,7 +582,14 @@ def _resumo_quarteirao(registros):
         total_sem += sem
         total_com += com
         resumo.append({"codigo": "", "label": "Sem tipo", "sem_condominio": sem, "com_condominio": com})
-    return {"linhas": resumo, "total_sem_condominio": total_sem, "total_com_condominio": total_com}
+    return {
+        "linhas": resumo,
+        "total_sem_condominio": total_sem,
+        "total_com_condominio": total_com,
+        "media_pessoas_por_residencia": MEDIA_PESSOAS_POR_RESIDENCIA,
+        "populacao_aproximada": round(total_com * MEDIA_PESSOAS_POR_RESIDENCIA),
+        "fonte_populacao": FONTE_POPULACAO,
+    }
 
 
 def _dados_payload(conn, payload, atual=None):

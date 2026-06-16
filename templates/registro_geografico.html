@@ -79,10 +79,13 @@
   <div class="rg-kpis">
     <div class="rg-kpi"><div class="rg-kpi-label">Imóveis RG</div><div class="rg-kpi-value" id="rg-kpi-imoveis">0</div></div>
     <div class="rg-kpi"><div class="rg-kpi-label">Imóveis reais</div><div class="rg-kpi-value" id="rg-kpi-reais">0</div></div>
+    <div class="rg-kpi"><div class="rg-kpi-label">Popula&ccedil;&atilde;o aproximada</div><div class="rg-kpi-value" id="rg-kpi-populacao">0</div></div>
     <div class="rg-kpi"><div class="rg-kpi-label">Quarteirões</div><div class="rg-kpi-value" id="rg-kpi-quarteiroes">0</div></div>
     <div class="rg-kpi"><div class="rg-kpi-label">Atualizados</div><div class="rg-kpi-value" id="rg-kpi-atualizados">0</div></div>
     <div class="rg-kpi"><div class="rg-kpi-label">PE / TB</div><div class="rg-kpi-value" id="rg-kpi-pe-tb">0 / 0</div></div>
   </div>
+
+  <div class="rg-muted" style="margin:-8px 0 16px;font-style:italic;" id="rg-fonte-populacao">Fonte: IBGE Censo 2022</div>
 
   <div class="chart-card">
     <div class="chart-hd">
@@ -179,6 +182,8 @@ async function rgCarregar(){
   const t = data.totais || {};
   rgEl('rg-kpi-imoveis').textContent = rgFmt(t.imoveis);
   rgEl('rg-kpi-reais').textContent = rgFmt(t.imoveis_reais);
+  rgEl('rg-kpi-populacao').textContent = rgFmt(t.populacao_aproximada);
+  rgEl('rg-fonte-populacao').textContent = t.fonte_populacao || 'Fonte: IBGE Censo 2022';
   rgEl('rg-kpi-quarteiroes').textContent = rgFmt(t.quarteiroes);
   rgEl('rg-kpi-atualizados').textContent = rgFmt(t.atualizados);
   rgEl('rg-kpi-pe-tb').textContent = `${rgFmt(t.pe)} / ${rgFmt(t.tb)}`;

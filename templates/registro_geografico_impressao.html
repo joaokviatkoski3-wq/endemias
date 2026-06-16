@@ -127,8 +127,13 @@ th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
             {% endif %}
           </td>
         </tr>
+        <tr>
+          <td>Popula&ccedil;&atilde;o aproximada</td>
+          <td>{{ dados.resumo.populacao_aproximada }}</td>
+        </tr>
       </tbody>
     </table>
+    <div style="font-size:7pt;color:#555;font-style:italic;margin-top:3pt;">{{ dados.resumo.fonte_populacao }}</div>
     <div class="qr">
       <img src="/static/img/qrcode_mapa.svg" alt="">
       <div>Acesse o mapa digital pelo QR Code</div>

@@ -3025,6 +3025,8 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("Boletim de Registro de Reconhecimento Geogr", html)
         self.assertIn("rg-panel-consulta", html)
         self.assertIn("rg-panel-edicao", html)
+        self.assertIn("rg-kpi-populacao", html)
+        self.assertIn("IBGE Censo 2022", html)
 
     def test_api_registro_geografico_retorna_registros_e_salva_edicao(self):
         client = _client_logado("admin")
@@ -3033,6 +3035,11 @@ class MainApisSmokeTests(unittest.TestCase):
         dados = resp.get_json()
         self.assertIn("totais", dados)
         self.assertIn("registros", dados)
+        self.assertIn("populacao_aproximada", dados["totais"])
+        self.assertEqual(
+            dados["totais"]["populacao_aproximada"],
+            round((dados["totais"].get("imoveis_reais") or 0) * 2.93),
+        )
         if not dados["registros"]:
             self.skipTest("Sem registros de RG para testar edicao.")
 
@@ -3152,6 +3159,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("@page{size:A4 portrait", html)
         self.assertIn("qrcode_mapa.svg", html)
         self.assertIn("Total geral", html)
+        self.assertIn("IBGE Censo 2022", html)
         self.assertIn("considerando condomínios", html)
         self.assertNotIn("<th>Sem condomínios</th><th>Com condomínios</th>", html)
 
