@@ -38,7 +38,7 @@
       <div class="f-g full"><label>Endereço</label><input id="endereco" type="text" value="{{ animal.endereco if animal else '' }}"></div>
       <div class="f-g"><label>Latitude</label><input id="latitude" type="text" value="{{ animal.latitude if animal and animal.latitude is not none else '' }}"></div>
       <div class="f-g"><label>Longitude</label><input id="longitude" type="text" value="{{ animal.longitude if animal and animal.longitude is not none else '' }}"></div>
-      <div class="f-g"><label>Bloqueio</label><input id="bloqueio" type="text" value="{{ animal.bloqueio if animal else '' }}"></div>
+      <div class="f-g"><label>Bloqueio</label><select id="bloqueio"><option value="">-</option>{% for opt in ['Realizado','Não realizado','Não necessário'] %}<option value="{{ opt }}" {% if animal and animal.bloqueio == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Data bloqueio</label><input id="data_bloqueio" type="date" value="{{ animal.data_bloqueio if animal else '' }}"></div>
       <div class="f-g full"><label>Observações entomológicas</label><textarea id="observacoes_entomologica" rows="4">{{ animal.observacoes_entomologica if animal else '' }}</textarea></div>
     </div>

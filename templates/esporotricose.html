@@ -240,7 +240,7 @@
         <div class="f-g"><label>Pesquisa</label><input type="search" id="doe-busca" placeholder="Tutor, animal, telefone, SINAN..."></div>
         <div class="f-g"><label>Status</label><select id="doe-status"><option value="">Todos</option></select></div>
         <div class="f-g"><label>Localidade</label><select id="doe-localidade"><option value="">Todas</option>{% for loc in localidades %}<option value="{{ loc.nome }}">{{ loc.nome }}</option>{% endfor %}</select></div>
-        <div class="f-g"><label>Bloqueio</label><select id="doe-bloqueio-filtro"><option value="">Todos</option><option value="Sim">Sim</option><option value="Não">Não</option></select></div>
+        <div class="f-g"><label>Bloqueio</label><select id="doe-bloqueio-filtro"><option value="">Todos</option><option value="Realizado">Realizado</option><option value="Não realizado">Não realizado</option><option value="Não necessário">Não necessário</option></select></div>
         <div class="f-g"><label>Pedido Zoomed</label><select id="doe-pedido-zoomed-filtro"><option value="">Todos</option><option value="Sim">Sim</option><option value="Não">Não</option></select></div>
         <div class="f-g"><label>Baixa Zoomed</label><select id="doe-baixa-zoomed-filtro"><option value="">Todas</option><option value="Pendente">Pendente</option><option value="Sim">Sim</option></select></div>
         <div class="esporo-filter-actions"><button class="btn btn-primary" type="button" onclick="carregarEspDoentes()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button></div>
@@ -268,7 +268,7 @@
           <div class="f-g"><label>Latitude</label><input id="doe-latitude"></div>
           <div class="f-g"><label>Longitude</label><input id="doe-longitude"></div>
           <div class="f-g"><label>Status</label><input id="doe-form-status" list="doe-status-list"></div>
-          <div class="f-g"><label>Bloqueio</label><input id="doe-bloqueio"></div>
+          <div class="f-g"><label>Bloqueio</label><select id="doe-bloqueio"><option value="">-</option><option value="Realizado">Realizado</option><option value="Não realizado">Não realizado</option><option value="Não necessário">Não necessário</option></select></div>
           <div class="f-g"><label>Data bloqueio</label><input type="date" id="doe-data-bloqueio"></div>
           <div class="f-g"><label>Pedido ZooMed</label><input id="doe-pedido-zoomed"></div>
           <div class="f-g full"><label>Observações entomológicas</label><textarea id="doe-observacoes" rows="2"></textarea></div>

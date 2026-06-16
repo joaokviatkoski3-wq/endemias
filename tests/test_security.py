@@ -974,6 +974,38 @@ class EsporotricoseSchemaTests(unittest.TestCase):
         self.assertEqual(rows[0]["longitude"], -49.3)
         self.assertEqual(rows[0]["data_notificacao"], "2026-06-01")
         self.assertEqual(rows[0]["baixa_zoomed"], "Pendente")
+        self.assertEqual(rows[0]["bloqueio"], "Realizado")
+
+    def test_filtro_doentes_bloqueio_usa_status_operacional(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "esporotricose_bloqueio.db"
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                esporotricose_core.ensure_schema(conn)
+                agora = "2026-06-16T10:00:00"
+                for chave, nome, bloqueio in (
+                    ("a", "Mimi", "REALIZADO"),
+                    ("b", "Luna", "NÃO REALIZADO"),
+                    ("c", "Nina", "NÃO NECESSÁRIO"),
+                ):
+                    conn.execute(
+                        """INSERT INTO esporotricose_doentes_animais
+                           (chave, tutor, nome, status, bloqueio, criado_em, atualizado_em)
+                           VALUES (?, 'Tutor', ?, 'Em tratamento', ?, ?, ?)""",
+                        (chave, nome, bloqueio, agora, agora),
+                    )
+                conn.commit()
+            finally:
+                conn.close()
+
+            realizados = esporotricose_core.listar_doentes(str(db_path), {"bloqueio": "Realizado"})
+            nao_realizados = esporotricose_core.listar_doentes(str(db_path), {"bloqueio": "Não realizado"})
+            nao_necessarios = esporotricose_core.listar_doentes(str(db_path), {"bloqueio": "Não necessário"})
+
+        self.assertEqual([r["nome"] for r in realizados["registros"]], ["Mimi"])
+        self.assertEqual([r["nome"] for r in nao_realizados["registros"]], ["Luna"])
+        self.assertEqual([r["nome"] for r in nao_necessarios["registros"]], ["Nina"])
 
 
 class RecolhimentosTests(unittest.TestCase):

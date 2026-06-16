@@ -112,6 +112,12 @@ DOENTES_STATUS_PADRAO = (
     "Outro",
 )
 
+BLOQUEIO_DOENTE_OPCOES = (
+    "Realizado",
+    "Não realizado",
+    "Não necessário",
+)
+
 
 def ensure_schema(conn):
     conn.executescript(
@@ -292,6 +298,15 @@ def _normalizar_doentes_existentes(conn):
             conn.execute(
                 f"UPDATE {DOENTES_TABLE} SET pedido_zoomed=? WHERE id_animal_doente=?",
                 (zoomed, row["id_animal_doente"]),
+            )
+
+    rows = conn.execute(f"SELECT id_animal_doente, bloqueio FROM {DOENTES_TABLE}").fetchall()
+    for row in rows:
+        bloqueio = _normalizar_bloqueio_doente(row["bloqueio"])
+        if bloqueio != (row["bloqueio"] or ""):
+            conn.execute(
+                f"UPDATE {DOENTES_TABLE} SET bloqueio=? WHERE id_animal_doente=?",
+                (bloqueio, row["id_animal_doente"]),
             )
 
     rows = conn.execute(f"SELECT id_entrega, baixa_zoomed FROM {DOENTES_ENTREGAS_TABLE}").fetchall()
@@ -744,7 +759,7 @@ def listar_doentes(db_path, filtros=None):
         busca = _text(filtros.get("busca"))
         status = _text(filtros.get("status"))
         localidade = _text(filtros.get("localidade"))
-        bloqueio = _normalizar_sim_nao(filtros.get("bloqueio"))
+        bloqueio = _normalizar_bloqueio_doente(filtros.get("bloqueio"))
         pedido_zoomed = _normalizar_sim_nao(filtros.get("pedido_zoomed"))
         baixa_zoomed = _text(filtros.get("baixa_zoomed"))
         if status:
@@ -808,7 +823,7 @@ def listar_doentes_csv(db_path, filtros=None):
         busca = _text(filtros.get("busca"))
         status = _text(filtros.get("status"))
         localidade = _text(filtros.get("localidade"))
-        bloqueio = _normalizar_sim_nao(filtros.get("bloqueio"))
+        bloqueio = _normalizar_bloqueio_doente(filtros.get("bloqueio"))
         pedido_zoomed = _normalizar_sim_nao(filtros.get("pedido_zoomed"))
         baixa_zoomed = _text(filtros.get("baixa_zoomed"))
         if status:
@@ -1374,6 +1389,24 @@ def _normalizar_sim_nao(value):
     return "Sim" if low.startswith("s") else "Não" if low.startswith("n") else ""
 
 
+def _normalizar_bloqueio_doente(value):
+    text = _text(value)
+    if not text:
+        return ""
+    low = _sem_acentos(text).lower()
+    low = re.sub(r"[^a-z0-9]+", " ", low).strip()
+    if low in {"sim", "s", "1", "realizado", "feito", "concluido"}:
+        return "Realizado"
+    if low in {"nao", "n", "0", "nao realizado", "pendente", "aguardando"}:
+        return "Não realizado"
+    if low in {"nao necessario", "desnecessario", "dispensado"}:
+        return "Não necessário"
+    for opcao in BLOQUEIO_DOENTE_OPCOES:
+        if _sem_acentos(opcao).lower() == low:
+            return opcao
+    return text
+
+
 def _doente_payload(dados):
     nome = _text(dados.get("nome"))
     tutor = _text(dados.get("tutor"))
@@ -1394,7 +1427,7 @@ def _doente_payload(dados):
         "longitude": _real(dados.get("longitude")),
         "sinan": _text(dados.get("sinan")),
         "status": status,
-        "bloqueio": _text(dados.get("bloqueio")),
+        "bloqueio": _normalizar_bloqueio_doente(dados.get("bloqueio")),
         "data_bloqueio": _date(dados.get("data_bloqueio")),
         "observacoes_entomologica": _text(dados.get("observacoes_entomologica")),
         "pedido_zoomed": _normalizar_sim_nao(dados.get("pedido_zoomed")),
