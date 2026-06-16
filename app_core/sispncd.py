@@ -582,7 +582,6 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
               FROM depositos_inspecionados di
               JOIN visitas v ON v.id_visita = di.id_visita
              WHERE {where}
-               AND {deposito_inspecionado_codigo} IS NOT NULL
             """,
             params,
         ).fetchone()[0] or 0

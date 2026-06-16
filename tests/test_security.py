@@ -3776,7 +3776,8 @@ class MainApisSmokeTests(unittest.TestCase):
                         id_visita, tipo_deposito, inspecionado, eliminado, tratado, qtd_carga
                     ) VALUES
                         ('v_tbo', 'Pneus', 3, 1, 0, 0),
-                        ('v_tb', 'Garrafas, latas e lixo', 5, 2, 0, 0);
+                        ('v_tb', 'Garrafas, latas e lixo', 5, 2, 0, 0),
+                        ('v_tb', 'HISTORICO', 0, 4, 0, 0);
                     INSERT INTO coletas (
                         id_coleta, id_visita, codigo_deposito, tipo_deposito
                     ) VALUES
@@ -3803,9 +3804,11 @@ class MainApisSmokeTests(unittest.TestCase):
             consulta = sispncd_core.sispncd(str(db_path), 2026, 18, ["TB/TBO"], id_localidade=1)
 
         self.assertEqual(conta["depositos"]["d1"]["quantidade"], 3)
+        self.assertEqual(conta["depositos"]["d1"]["eliminado"], 1)
         self.assertEqual(consulta["dados_gerais"]["depositos"]["d1"], 3)
         self.assertEqual(consulta["dados_gerais"]["depositos"]["d2"], 5)
         self.assertEqual(consulta["dados_gerais"]["total_depositos_inspecionados"], 8)
+        self.assertEqual(consulta["dados_gerais"]["total_eliminados"], 7)
         depositos_lab = {
             item["tipo_deposito"]: item["quantidade"]
             for item in consulta["laboratorio"]["depositos_aegypti"]
@@ -3813,6 +3816,64 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(depositos_lab, {"A1": 1, "B": 2, "D1": 1})
         self.assertNotIn("Pneus", depositos_lab)
         self.assertNotIn("Caixa d'agua", depositos_lab)
+
+    def test_extrair_depositos_preserva_eliminados_sem_a1(self):
+        col_eliminados = work_types.etl_fields_for("PE")["depositos_eliminados_col"]
+        row = etl.pd.Series({
+            "A1": 0,
+            "A2": 0,
+            "B": 4,
+            col_eliminados: 2,
+        })
+
+        depositos = etl.extrair_depositos(row, "PE")
+
+        self.assertEqual(len(depositos), 1)
+        self.assertEqual(depositos[0]["tipo_deposito"], "B")
+        self.assertEqual(depositos[0]["inspecionado"], 4)
+        self.assertEqual(depositos[0]["eliminado"], 2)
+
+    def test_reimportacao_depositos_preenche_eliminados_ausentes(self):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("""
+                CREATE TABLE depositos_inspecionados (
+                    id INTEGER PRIMARY KEY,
+                    id_visita TEXT NOT NULL,
+                    tipo_deposito TEXT NOT NULL,
+                    inspecionado INTEGER,
+                    eliminado INTEGER,
+                    tratado INTEGER,
+                    tipo_tratamento TEXT,
+                    qtd_carga REAL,
+                    UNIQUE(id_visita, tipo_deposito)
+                )
+            """)
+            conn.execute("""
+                INSERT INTO depositos_inspecionados
+                    (id_visita, tipo_deposito, inspecionado, eliminado, tratado, tipo_tratamento, qtd_carga)
+                VALUES ('v1', 'B', 4, NULL, NULL, NULL, NULL)
+            """)
+
+            etl._salvar_deposito_inspecionado(conn.cursor(), "v1", {
+                "tipo_deposito": "B",
+                "inspecionado": 4,
+                "eliminado": 2,
+                "tratado": None,
+                "tipo_tratamento": None,
+                "qtd_carga": None,
+            })
+
+            row = conn.execute("""
+                SELECT inspecionado, eliminado
+                  FROM depositos_inspecionados
+                 WHERE id_visita='v1' AND tipo_deposito='B'
+            """).fetchone()
+            self.assertEqual(row["inspecionado"], 4)
+            self.assertEqual(row["eliminado"], 2)
+        finally:
+            conn.close()
 
     def test_sispncd_tratamentos_somam_depositos_e_ignoram_linhas_vazias(self):
         with tempfile.TemporaryDirectory() as tmpdir:

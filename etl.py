@@ -378,18 +378,49 @@ def extrair_depositos(row, tipo):
         col_elim = fields.get("depositos_eliminados_col", "Depósitos eliminados")
         elim_total = val_int(row.get(col_elim))
 
+        eliminados_atribuidos = False
         for dep in TIPOS_DEPOSITO:
             insp = val_int(row.get(dep))
             if insp is not None and insp > 0:
+                eliminado = None
+                if elim_total is not None and not eliminados_atribuidos:
+                    eliminado = elim_total
+                    eliminados_atribuidos = True
                 deps.append({
                     "tipo_deposito": dep,
                     "inspecionado": insp,
-                    # eliminado_total fica no primeiro tipo como aproximação
-                    # (limitação do formulário KoboToolbox — só registra total)
-                    "eliminado": elim_total if dep == TIPOS_DEPOSITO[0] else None,
+                    # O formulario so informa o total eliminado, sem detalhar o tipo.
+                    "eliminado": eliminado,
                     "tratado": None, "tipo_tratamento": None, "qtd_carga": None,
                 })
     return deps
+
+
+def _salvar_deposito_inspecionado(cur, id_visita, deposito):
+    cur.execute("""
+        INSERT INTO depositos_inspecionados
+            (id_visita,tipo_deposito,inspecionado,eliminado,tratado,tipo_tratamento,qtd_carga)
+        VALUES (?,?,?,?,?,?,?)
+        ON CONFLICT(id_visita,tipo_deposito) DO UPDATE SET
+            inspecionado = COALESCE(excluded.inspecionado, depositos_inspecionados.inspecionado),
+            eliminado = CASE
+                WHEN excluded.eliminado IS NOT NULL
+                 AND COALESCE(depositos_inspecionados.eliminado, 0) = 0
+                THEN excluded.eliminado
+                ELSE depositos_inspecionados.eliminado
+            END,
+            tratado = COALESCE(excluded.tratado, depositos_inspecionados.tratado),
+            tipo_tratamento = COALESCE(excluded.tipo_tratamento, depositos_inspecionados.tipo_tratamento),
+            qtd_carga = COALESCE(excluded.qtd_carga, depositos_inspecionados.qtd_carga)
+    """, (
+        id_visita,
+        deposito["tipo_deposito"],
+        deposito["inspecionado"],
+        deposito["eliminado"],
+        deposito["tratado"],
+        normalizar_tipo_tratamento(deposito["tipo_tratamento"]),
+        deposito["qtd_carga"],
+    ))
 
 
 def extrair_tratamentos(row, tipo):
@@ -753,12 +784,7 @@ def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
         eh_mae = visita.get("__eh_mae__", seq_val is None or seq_val == "1")
         if eh_mae:
             for d in extrair_depositos(visita, tipo):
-                cur.execute("""
-                    INSERT OR IGNORE INTO depositos_inspecionados
-                        (id_visita,tipo_deposito,inspecionado,eliminado,tratado,tipo_tratamento,qtd_carga)
-                    VALUES (?,?,?,?,?,?,?)
-                """, (id_visita, d["tipo_deposito"], d["inspecionado"], d["eliminado"],
-                      d["tratado"], normalizar_tipo_tratamento(d["tipo_tratamento"]), d["qtd_carga"]))
+                _salvar_deposito_inspecionado(cur, id_visita, d)
 
             for t in extrair_tratamentos(visita, tipo):
                 # FIX DB-03: INSERT OR IGNORE — UNIQUE(id_visita, tipo) no schema previne duplicatas
@@ -786,7 +812,8 @@ def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
                     val_bool(coleta.get(cfg_tipo.get("col_deposito_eliminado_coletas",
                                                       "O Depósito onde foi feita a coleta foi eliminado?"))),
                 ))
-                coletas_novas += 1
+                if cur.rowcount:
+                    coletas_novas += 1
 
                 row_larva = larvas.get((num_tubo, data_visita))
                 if row_larva is not None:
