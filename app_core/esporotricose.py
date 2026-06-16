@@ -35,6 +35,9 @@ AGENTE_COMPOSTO = {
 AGENTE_ALIASES = {
     "cecon": "Ceccon",
     "ceccon": "Ceccon",
+    "marcio": "Márcio",
+    "m_rcio": "Márcio",
+    "m_arcio": "Márcio",
 }
 
 LOCALIDADES_PADRAO = {
@@ -262,11 +265,12 @@ def ensure_schema(conn):
     _ensure_column(conn, DOENTES_ENTREGAS_TABLE, "baixa_zoomed", "TEXT NOT NULL DEFAULT 'Sim'")
     _seed_doentes_status(conn)
     _normalizar_doentes_existentes(conn)
+    _normalizar_agentes_existentes(conn)
     conn.commit()
 
 
 def _ensure_column(conn, table, column, definition):
-    cols = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    cols = {_db_value(row, "name", 1) for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
     if column not in cols:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
@@ -317,6 +321,76 @@ def _normalizar_doentes_existentes(conn):
                 f"UPDATE {DOENTES_ENTREGAS_TABLE} SET baixa_zoomed=? WHERE id_entrega=?",
                 (baixa, row["id_entrega"]),
             )
+
+
+def _normalizar_agentes_existentes(conn):
+    if not _table_exists(conn, "agentes"):
+        return
+    for alias, correto in AGENTE_ALIASES.items():
+        if _table_exists(conn, VISITAS_TABLE):
+            conn.execute(
+                f"UPDATE {VISITAS_TABLE} SET agentes_texto=REPLACE(agentes_texto, ?, ?) WHERE agentes_texto LIKE ?",
+                (alias, correto, f"%{alias}%"),
+            )
+    for alias, correto in AGENTE_ALIASES.items():
+        alias_norm = _norm_col(alias)
+        rows = conn.execute("SELECT id_agente, nome FROM agentes").fetchall()
+        aliases = [row for row in rows if _norm_col(_db_value(row, "nome", 1)) == alias_norm and _db_value(row, "nome", 1) != correto]
+        if not aliases:
+            continue
+        destino = conn.execute("SELECT id_agente FROM agentes WHERE nome=?", (correto,)).fetchone()
+        if destino:
+            id_destino = _db_value(destino, "id_agente", 0)
+        else:
+            primeiro = aliases[0]
+            id_destino = _db_value(primeiro, "id_agente", 0)
+            conn.execute("UPDATE agentes SET nome=? WHERE id_agente=?", (correto, id_destino))
+            aliases = aliases[1:]
+        for row in aliases:
+            id_origem = _db_value(row, "id_agente", 0)
+            _migrar_vinculos_agente(conn, id_origem, id_destino)
+            conn.execute("DELETE FROM agentes WHERE id_agente=?", (id_origem,))
+
+
+def _migrar_vinculos_agente(conn, id_origem, id_destino):
+    tabelas = (
+        ("visita_agentes", "id_visita"),
+        ("esporotricose_visita_agentes", "id_visita"),
+        ("recolhimento_agentes", "id_recolhimento"),
+        ("amostra_animais_agentes", "id_amostra"),
+        ("bri_agentes", "id_bri"),
+        ("acoes_setor_agentes", "id_acao"),
+        ("ovitrampas_calendario_agentes", "id_evento"),
+        ("registro_geografico_imovel_agentes", "id_imovel"),
+    )
+    for tabela, chave in tabelas:
+        if not _table_exists(conn, tabela):
+            continue
+        rows = conn.execute(
+            f"SELECT {chave} FROM {tabela} WHERE id_agente=?",
+            (id_origem,),
+        ).fetchall()
+        for row in rows:
+            valor_chave = _db_value(row, chave, 0)
+            conn.execute(
+                f"INSERT OR IGNORE INTO {tabela}({chave}, id_agente) VALUES (?, ?)",
+                (valor_chave, id_destino),
+            )
+        conn.execute(f"DELETE FROM {tabela} WHERE id_agente=?", (id_origem,))
+
+
+def _table_exists(conn, table):
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+        (table,),
+    ).fetchone() is not None
+
+
+def _db_value(row, key, index):
+    try:
+        return row[key]
+    except (TypeError, KeyError, IndexError):
+        return row[index]
 
 
 def _norm_col(value):
@@ -1712,6 +1786,9 @@ def _obter_ou_criar_localidade(cur, nome):
 
 
 def _obter_ou_criar_agente(cur, nome):
+    nome = _normalizar_agente_nome(nome)
+    if not nome:
+        return None
     cur.execute("SELECT id_agente FROM agentes WHERE nome=?", (nome,))
     row = cur.fetchone()
     if row:
@@ -1739,7 +1816,7 @@ def _split_agentes(conn, texto):
             nomes.append(normalizado)
             restantes = re.sub(rf"(^|\s){re.escape(original)}(?=\s|$)", " ", restantes, flags=re.I).strip()
     for parte in re.split(r"[,;/]|\s{2,}", restantes):
-        parte = parte.strip()
+        parte = _normalizar_agente_nome(parte.strip())
         if parte and parte not in nomes:
             nomes.append(parte)
     return nomes
@@ -1750,6 +1827,19 @@ def _normalizar_agentes_texto(texto):
     for original, correto in AGENTE_ALIASES.items():
         normalizado = re.sub(rf"(^|\s){re.escape(original)}(?=\s|$)", rf"\1{correto}", normalizado, flags=re.I)
     return normalizado
+
+
+def _normalizar_agente_nome(nome):
+    texto = _text(nome)
+    if not texto:
+        return None
+    chave = _sem_acentos(texto).lower()
+    chave = re.sub(r"[^a-z0-9_]+", " ", chave).strip()
+    if texto.lower() in AGENTE_ALIASES:
+        return AGENTE_ALIASES[texto.lower()]
+    if chave in AGENTE_ALIASES:
+        return AGENTE_ALIASES[chave]
+    return texto
 
 
 def _localidade(valor):

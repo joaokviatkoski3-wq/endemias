@@ -921,12 +921,47 @@ class EsporotricoseSchemaTests(unittest.TestCase):
             conn.execute("CREATE TABLE agentes (id_agente INTEGER PRIMARY KEY, nome TEXT)")
             conn.executemany(
                 "INSERT INTO agentes(nome) VALUES (?)",
-                [("Ceccon",), ("cecon",), ("Ana Beatriz",)],
+                [("Ceccon",), ("cecon",), ("Ana Beatriz",), ("Márcio",)],
             )
 
-            nomes = esporotricose_core._split_agentes(conn, "ana beatriz cecon")
+            nomes = esporotricose_core._split_agentes(conn, "ana beatriz cecon m_rcio")
 
-        self.assertEqual(nomes, ["Ana Beatriz", "Ceccon"])
+        self.assertEqual(nomes, ["Ana Beatriz", "Ceccon", "Márcio"])
+
+    def test_schema_esporotricose_migra_alias_m_rcio_para_marcio(self):
+        with sqlite3.connect(":memory:") as conn:
+            conn.row_factory = sqlite3.Row
+            conn.executescript("""
+                CREATE TABLE agentes (
+                    id_agente INTEGER PRIMARY KEY,
+                    nome TEXT NOT NULL UNIQUE,
+                    ativo INTEGER NOT NULL DEFAULT 1
+                );
+                INSERT INTO agentes(id_agente, nome) VALUES (18, 'Márcio');
+            """)
+            esporotricose_core.ensure_schema(conn)
+            conn.execute("INSERT INTO agentes(id_agente, nome) VALUES (72, 'm_rcio')")
+            conn.execute(
+                """INSERT INTO esporotricose_visitas
+                   (id_visita, kobo_uuid, data, agentes_texto, processado_em)
+                   VALUES ('v1', 'u1', '2026-06-11', 'adilson m_rcio', '2026-06-16')"""
+            )
+            conn.execute(
+                "INSERT INTO esporotricose_visita_agentes(id_visita, id_agente) VALUES ('v1', 72)"
+            )
+            esporotricose_core.ensure_schema(conn)
+
+            agentes = [row["nome"] for row in conn.execute("SELECT nome FROM agentes ORDER BY nome")]
+            vinculos = [
+                row["id_agente"]
+                for row in conn.execute("SELECT id_agente FROM esporotricose_visita_agentes WHERE id_visita='v1'")
+            ]
+            texto = conn.execute("SELECT agentes_texto FROM esporotricose_visitas WHERE id_visita='v1'").fetchone()[0]
+
+        self.assertIn("Márcio", agentes)
+        self.assertNotIn("m_rcio", agentes)
+        self.assertEqual(vinculos, [18])
+        self.assertIn("Márcio", texto)
 
     def test_listar_doentes_csv_exporta_campos_para_qgis(self):
         with tempfile.TemporaryDirectory() as tmpdir:
