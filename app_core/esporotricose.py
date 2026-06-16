@@ -798,6 +798,112 @@ def listar_doentes(db_path, filtros=None):
         conn.close()
 
 
+def listar_doentes_csv(db_path, filtros=None):
+    filtros = filtros or {}
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        where = []
+        params = []
+        busca = _text(filtros.get("busca"))
+        status = _text(filtros.get("status"))
+        localidade = _text(filtros.get("localidade"))
+        bloqueio = _normalizar_sim_nao(filtros.get("bloqueio"))
+        pedido_zoomed = _normalizar_sim_nao(filtros.get("pedido_zoomed"))
+        baixa_zoomed = _text(filtros.get("baixa_zoomed"))
+        if status:
+            where.append("d.status=?")
+            params.append(status)
+        if localidade:
+            where.append("d.localidade=?")
+            params.append(localidade)
+        if bloqueio:
+            where.append("d.bloqueio=?")
+            params.append(bloqueio)
+        if pedido_zoomed:
+            where.append("d.pedido_zoomed=?")
+            params.append(pedido_zoomed)
+        if busca:
+            termo = f"%{busca}%"
+            where.append(
+                "(d.tutor LIKE ? OR d.nome LIKE ? OR d.telefone LIKE ? OR d.endereco LIKE ? OR d.sinan LIKE ?)"
+            )
+            params.extend([termo] * 5)
+        sql = """
+            SELECT d.id_animal_doente,
+                   d.nome AS animal,
+                   d.tutor,
+                   d.telefone,
+                   d.sexo,
+                   d.status,
+                   d.localidade,
+                   d.quarteirao,
+                   d.endereco,
+                   d.latitude,
+                   d.longitude,
+                   d.sinan,
+                   d.bloqueio,
+                   d.data_bloqueio,
+                   d.pedido_zoomed,
+                   d.observacoes_entomologica,
+                   MIN(r.data_notificacao) AS primeira_notificacao,
+                   MAX(r.data_notificacao) AS ultima_notificacao,
+                   MAX(r.data_receita) AS ultima_receita,
+                   COUNT(DISTINCT r.id_receita) AS receitas,
+                   (
+                       SELECT COALESCE(SUM(e.quantidade), 0)
+                         FROM esporotricose_doentes_entregas e
+                         JOIN esporotricose_doentes_receitas re ON re.id_receita=e.id_receita
+                        WHERE re.id_animal_doente=d.id_animal_doente
+                   ) AS capsulas_entregues,
+                   (
+                       SELECT COUNT(*)
+                         FROM esporotricose_doentes_entregas e
+                         JOIN esporotricose_doentes_receitas re ON re.id_receita=e.id_receita
+                        WHERE re.id_animal_doente=d.id_animal_doente
+                   ) AS entregas,
+                   (
+                       SELECT COUNT(*)
+                         FROM esporotricose_doentes_entregas e
+                         JOIN esporotricose_doentes_receitas re ON re.id_receita=e.id_receita
+                        WHERE re.id_animal_doente=d.id_animal_doente
+                          AND e.baixa_zoomed='Não'
+                   ) AS entregas_zoomed_pendentes,
+                   (
+                       SELECT COUNT(*)
+                         FROM esporotricose_doentes_anexos an
+                        WHERE an.id_animal_doente=d.id_animal_doente
+                   ) AS anexos
+              FROM esporotricose_doentes_animais d
+              LEFT JOIN esporotricose_doentes_receitas r ON r.id_animal_doente=d.id_animal_doente
+        """
+        if where:
+            sql += " WHERE " + " AND ".join(where)
+        sql += " GROUP BY d.id_animal_doente"
+        if baixa_zoomed == "Pendente":
+            sql += """ HAVING entregas_zoomed_pendentes > 0
+                        OR (d.status='Em tratamento' AND entregas=0)"""
+        elif baixa_zoomed == "Sim":
+            sql += """ HAVING entregas_zoomed_pendentes = 0
+                        AND NOT (d.status='Em tratamento' AND entregas=0)"""
+        sql += """
+                   ORDER BY COALESCE(MAX(r.data_notificacao), '') DESC,
+                            d.id_animal_doente DESC"""
+        rows = []
+        for row in conn.execute(sql, params).fetchall():
+            item = dict(row)
+            pendentes = int(item.get("entregas_zoomed_pendentes") or 0)
+            entregas = int(item.get("entregas") or 0)
+            if entregas == 0 and item.get("status") == "Em tratamento" and pendentes == 0:
+                pendentes = 1
+            item["baixa_zoomed"] = "Pendente" if pendentes else "Sim"
+            item["data_notificacao"] = item.get("ultima_notificacao") or item.get("primeira_notificacao")
+            rows.append(item)
+        return rows
+    finally:
+        conn.close()
+
+
 def obter_doente(db_path, id_animal_doente):
     conn = db_core.connect(db_path)
     try:

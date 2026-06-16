@@ -928,6 +928,53 @@ class EsporotricoseSchemaTests(unittest.TestCase):
 
         self.assertEqual(nomes, ["Ana Beatriz", "Ceccon"])
 
+    def test_listar_doentes_csv_exporta_campos_para_qgis(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "esporotricose_qgis.db"
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                esporotricose_core.ensure_schema(conn)
+                agora = "2026-06-16T10:00:00"
+                conn.execute(
+                    """INSERT INTO esporotricose_doentes_animais
+                       (chave, tutor, nome, sexo, telefone, localidade, quarteirao, endereco,
+                        latitude, longitude, sinan, status, bloqueio, data_bloqueio,
+                        observacoes_entomologica, pedido_zoomed, criado_em, atualizado_em)
+                       VALUES ('abc', 'Maria', 'Mimi', 'Fêmea', '5541999999999', 'Graziela',
+                               '10', 'Rua Teste, 123', -25.31, -49.30, '12345',
+                               'Em tratamento', 'Sim', '2026-06-10', 'Observação', 'Sim', ?, ?)""",
+                    (agora, agora),
+                )
+                animal_id = conn.execute("SELECT id_animal_doente FROM esporotricose_doentes_animais").fetchone()[0]
+                conn.execute(
+                    """INSERT INTO esporotricose_doentes_receitas
+                       (id_animal_doente, data_notificacao, data_receita, capsulas_total,
+                        status, criado_em, atualizado_em)
+                       VALUES (?, '2026-06-01', '2026-06-02', 30, 'Em tratamento', ?, ?)""",
+                    (animal_id, agora, agora),
+                )
+                receita_id = conn.execute("SELECT id_receita FROM esporotricose_doentes_receitas").fetchone()[0]
+                conn.execute(
+                    """INSERT INTO esporotricose_doentes_entregas
+                       (id_receita, quantidade, data_entrega, baixa_zoomed, criado_em)
+                       VALUES (?, 30, '2026-06-05', 'Não', ?)""",
+                    (receita_id, agora),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            rows = esporotricose_core.listar_doentes_csv(str(db_path), {})
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["animal"], "Mimi")
+        self.assertEqual(rows[0]["tutor"], "Maria")
+        self.assertEqual(rows[0]["latitude"], -25.31)
+        self.assertEqual(rows[0]["longitude"], -49.3)
+        self.assertEqual(rows[0]["data_notificacao"], "2026-06-01")
+        self.assertEqual(rows[0]["baixa_zoomed"], "Pendente")
+
 
 class RecolhimentosTests(unittest.TestCase):
     def test_schema_cria_tabelas_de_recolhimentos(self):
@@ -3278,6 +3325,20 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertIn("entregas_zoomed_pendentes", dados["registros"][0])
         notificacoes = [r.get("ultima_notificacao") for r in dados["registros"] if r.get("ultima_notificacao")]
         self.assertEqual(notificacoes, sorted(notificacoes, reverse=True))
+
+    def test_download_esporotricose_doentes_csv(self):
+        client = _client_logado()
+        resp = client.get("/esporotricose/doentes/casos.csv")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("text/csv", resp.headers.get("Content-Type", ""))
+        self.assertIn("Casos-esporotricose.csv", resp.headers.get("Content-Disposition", ""))
+        texto = resp.data.decode("utf-8-sig")
+        header = texto.splitlines()[0]
+        self.assertIn("latitude", header)
+        self.assertIn("longitude", header)
+        self.assertIn("tutor", header)
+        self.assertIn("animal", header)
 
     def test_paginas_esporotricose_doentes_renderizam_fluxo_proprio(self):
         client = _client_logado()

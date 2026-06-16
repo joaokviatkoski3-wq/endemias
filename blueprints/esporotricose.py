@@ -1,3 +1,5 @@
+import csv
+import io
 import mimetypes
 import os
 import shutil
@@ -6,7 +8,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from flask import Blueprint, abort, current_app, jsonify, render_template, request, send_file
+from flask import Blueprint, Response, abort, current_app, jsonify, render_template, request, send_file
 from werkzeug.utils import secure_filename
 
 from app_core import auth as auth_core
@@ -222,6 +224,50 @@ def api_doentes():
         "baixa_zoomed": request.args.get("baixa_zoomed", ""),
     }
     return jsonify(esporotricose_core.listar_doentes(_db_path(), filtros))
+
+
+@bp.route("/esporotricose/doentes/casos.csv")
+@login_required
+def download_doentes_csv():
+    campos = [
+        "id_animal_doente",
+        "animal",
+        "tutor",
+        "telefone",
+        "sexo",
+        "status",
+        "data_notificacao",
+        "primeira_notificacao",
+        "ultima_notificacao",
+        "ultima_receita",
+        "localidade",
+        "quarteirao",
+        "endereco",
+        "latitude",
+        "longitude",
+        "sinan",
+        "bloqueio",
+        "data_bloqueio",
+        "pedido_zoomed",
+        "baixa_zoomed",
+        "receitas",
+        "capsulas_entregues",
+        "entregas",
+        "anexos",
+        "observacoes_entomologica",
+    ]
+    rows = esporotricose_core.listar_doentes_csv(_db_path(), {})
+    buffer = io.StringIO()
+    buffer.write("\ufeff")
+    writer = csv.DictWriter(buffer, fieldnames=campos, delimiter=";", extrasaction="ignore", lineterminator="\n")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({campo: row.get(campo) for campo in campos})
+    return Response(
+        buffer.getvalue(),
+        content_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=Casos-esporotricose.csv"},
+    )
 
 
 @bp.route("/api/esporotricose/doentes/status", methods=["GET", "POST"])
