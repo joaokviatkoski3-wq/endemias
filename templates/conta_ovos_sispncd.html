@@ -258,9 +258,6 @@ td.value-positive {
       <div class="metric"><div class="metric-label">Coletas</div><div class="metric-value" id="sis-total-coletas">0</div></div>
       <div class="metric"><div class="metric-label">Agentes</div><div class="metric-value" id="sis-total-agentes">0</div></div>
       <div class="metric"><div class="metric-label">Dias trabalhados</div><div class="metric-value" id="sis-total-dias">0</div></div>
-      <div class="metric"><div class="metric-label">BRI</div><div class="metric-value" id="sis-bri-registros">0</div></div>
-      <div class="metric"><div class="metric-label">BRI pendente</div><div class="metric-value" id="sis-bri-pendentes">0</div></div>
-      <div class="metric"><div class="metric-label">Carga BRI</div><div class="metric-value" id="sis-bri-carga">0</div></div>
     </div>
 
     <div class="split-grid">
@@ -287,6 +284,9 @@ td.value-positive {
     <div class="split-grid">
       <div class="chart-card">
         <h2 class="subsection-title"><img src="/static/icons/balde.svg" alt="" class="icon-svg"> Depositos inspecionados</h2>
+        <div class="metric-grid" style="margin-bottom:10px;">
+          <div class="metric"><div class="metric-label">Total</div><div class="metric-value" id="sis-total-depositos-inspecionados">0</div></div>
+        </div>
         <div class="metric-grid" id="sis-depositos-grid"></div>
       </div>
       <div class="chart-card">
@@ -294,10 +294,10 @@ td.value-positive {
         <div class="metric-grid">
           <div class="metric"><div class="metric-label">Imoveis tratados</div><div class="metric-value" id="sis-imoveis-tratados">0</div></div>
           <div class="metric"><div class="metric-label">Depositos eliminados</div><div class="metric-value" id="sis-total-eliminados">0</div></div>
-          <div class="metric"><div class="metric-label">Tratamentos</div><div class="metric-value" id="sis-total-tratados">0</div></div>
+          <div class="metric"><div class="metric-label">Depósitos tratados</div><div class="metric-value" id="sis-total-tratados">0</div></div>
         </div>
         <div class="table-scroll"><table>
-          <thead><tr><th>Tipo</th><th>Quantidade</th><th>Carga</th></tr></thead>
+          <thead><tr><th>Tipo</th><th>Depósitos tratados</th><th>Carga</th></tr></thead>
           <tbody id="sis-tratamentos-body"></tbody>
         </table></div>
       </div>
@@ -584,12 +584,9 @@ function renderSisPNCD(d) {
   setText('sis-total-coletas', g.total_coletas);
   setText('sis-total-agentes', g.total_agentes);
   setText('sis-total-dias', g.total_dias);
-  const bri = g.bri || {};
-  setText('sis-bri-registros', bri.registros);
-  setText('sis-bri-pendentes', bri.pendentes_sispncd);
-  setText('sis-bri-carga', bri.carga);
   Object.keys(KIND_LABELS).forEach(k => setText(`sis-imoveis-${k}`, (g.imoveis || {})[k]));
   setText('sis-imoveis-tratados', g.imoveis_tratados);
+  setText('sis-total-depositos-inspecionados', g.total_depositos_inspecionados);
   setText('sis-total-eliminados', g.total_eliminados);
   setText('sis-total-tratados', g.total_tratados);
   setText('sis-pendencias-recusa', (g.pendencias || {}).recusa);

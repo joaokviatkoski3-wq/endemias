@@ -857,6 +857,16 @@ class WorkTypesConfigTests(unittest.TestCase):
             "qtd_depositos_tratados": 2,
         }])
 
+    def test_etl_nao_cria_tratamento_vazio_com_nan(self):
+        row = {
+            "O imÃ³vel foi Tratado com Larvicida?": "sim",
+            "Tipo L1": None,
+            "Quantidade carga (gr)": float("nan"),
+            "Quantidade depÃ³sitos tratados": None,
+        }
+
+        self.assertEqual(etl.extrair_tratamentos(row, "TB"), [])
+
     def test_etl_tbo_mantem_tratamentos_nos_depositos(self):
         self.assertEqual(etl.extrair_tratamentos({}, "TBO"), [])
 
@@ -3744,7 +3754,9 @@ class MainApisSmokeTests(unittest.TestCase):
                         id_coleta, id_visita, codigo_deposito, tipo_deposito
                     ) VALUES
                         ('c1', 'v_tbo', 'A1', 'Caixa d''agua'),
-                        ('c2', 'v_tbo', NULL, 'Pneus');
+                        ('c2', 'v_tbo', NULL, 'Pneus'),
+                        ('c3', 'v_tbo', 'B', 'Depósito móvel'),
+                        ('c4', 'v_tbo', NULL, 'Vasos e pratos');
                     INSERT INTO resultados_laboratorio (
                         id_coleta,
                         aegypt_larvas, aegypt_pupas, aegypt_exuvias, aegypt_adulto,
@@ -3752,7 +3764,9 @@ class MainApisSmokeTests(unittest.TestCase):
                         outra_larvas, outra_pupas, outra_exuvias, outra_adulto
                     ) VALUES
                         ('c1', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
-                        ('c2', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                        ('c2', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+                        ('c3', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+                        ('c4', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
                 """)
                 conn.commit()
             finally:
@@ -3762,14 +3776,103 @@ class MainApisSmokeTests(unittest.TestCase):
             consulta = sispncd_core.sispncd(str(db_path), 2026, 18, ["TB/TBO"], id_localidade=1)
 
         self.assertEqual(conta["depositos"]["d1"]["quantidade"], 3)
+        self.assertEqual(consulta["dados_gerais"]["depositos"]["d1"], 3)
         self.assertEqual(consulta["dados_gerais"]["depositos"]["d2"], 5)
+        self.assertEqual(consulta["dados_gerais"]["total_depositos_inspecionados"], 8)
         depositos_lab = {
             item["tipo_deposito"]: item["quantidade"]
             for item in consulta["laboratorio"]["depositos_aegypti"]
         }
-        self.assertEqual(depositos_lab, {"A1": 1, "D1": 1})
+        self.assertEqual(depositos_lab, {"A1": 1, "B": 2, "D1": 1})
         self.assertNotIn("Pneus", depositos_lab)
         self.assertNotIn("Caixa d'agua", depositos_lab)
+
+    def test_sispncd_tratamentos_somam_depositos_e_ignoram_linhas_vazias(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "sispncd_tratamentos.db"
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                conn.executescript("""
+                    CREATE TABLE localidades (id_localidade INTEGER PRIMARY KEY, nome TEXT);
+                    CREATE TABLE visitas (
+                        id_visita TEXT PRIMARY KEY,
+                        tipo TEXT,
+                        data TEXT,
+                        quarteirao INTEGER,
+                        localidade TEXT,
+                        id_localidade INTEGER,
+                        tipo_imovel TEXT,
+                        visita TEXT,
+                        SISPNCD TEXT,
+                        CONTAOVOS_STATUS INTEGER
+                    );
+                    CREATE TABLE depositos_inspecionados (
+                        id_visita TEXT,
+                        tipo_deposito TEXT,
+                        inspecionado INTEGER,
+                        eliminado INTEGER,
+                        tratado INTEGER,
+                        qtd_carga REAL
+                    );
+                    CREATE TABLE tratamentos (
+                        id INTEGER PRIMARY KEY,
+                        id_visita TEXT,
+                        tipo TEXT,
+                        quantidade_carga REAL,
+                        qtd_depositos_tratados INTEGER
+                    );
+                    CREATE TABLE coletas (
+                        id_coleta TEXT PRIMARY KEY,
+                        id_visita TEXT,
+                        tipo_deposito TEXT
+                    );
+                    CREATE TABLE resultados_laboratorio (
+                        id_coleta TEXT,
+                        aegypt_larvas INTEGER,
+                        aegypt_pupas INTEGER,
+                        aegypt_exuvias INTEGER,
+                        aegypt_adulto INTEGER,
+                        albopictus_larvas INTEGER,
+                        albopictus_pupas INTEGER,
+                        albopictus_exuvias INTEGER,
+                        albopictus_adulto INTEGER,
+                        outra_larvas INTEGER,
+                        outra_pupas INTEGER,
+                        outra_exuvias INTEGER,
+                        outra_adulto INTEGER
+                    );
+                    CREATE TABLE visita_agentes (
+                        id_visita TEXT,
+                        id_agente INTEGER
+                    );
+                    INSERT INTO localidades(id_localidade, nome) VALUES (1, 'Graziela');
+                    INSERT INTO visitas (
+                        id_visita, tipo, data, quarteirao, localidade, id_localidade,
+                        tipo_imovel, visita, SISPNCD, CONTAOVOS_STATUS
+                    ) VALUES
+                        ('v1', 'PVE', '2026-05-11', 10, 'Graziela', 1, 'Residência', 'Normal', NULL, 1),
+                        ('v2', 'PVE', '2026-05-12', 11, 'Graziela', 1, 'Residência', 'Normal', NULL, 1),
+                        ('v3', 'PVE', '2026-05-13', 12, 'Graziela', 1, 'Residência', 'Normal', NULL, 1);
+                    INSERT INTO tratamentos (
+                        id_visita, tipo, quantidade_carga, qtd_depositos_tratados
+                    ) VALUES
+                        ('v1', 'Natular DT', 1.5, 2),
+                        ('v2', 'Natular DT', 1.0, 3),
+                        ('v3', NULL, NULL, NULL);
+                """)
+                conn.commit()
+            finally:
+                conn.close()
+
+            consulta = sispncd_core.sispncd(str(db_path), 2026, 19, ["PVE"], id_localidade=1)
+
+        self.assertEqual(consulta["dados_gerais"]["imoveis_tratados"], 2)
+        self.assertEqual(consulta["dados_gerais"]["total_tratados"], 5)
+        self.assertEqual(
+            consulta["dados_gerais"]["tratamentos"],
+            [{"tipo": "Natular DT", "quantidade": 5, "carga_kg": 2.5}],
+        )
 
     def test_conta_ovos_pendencias_sao_clicaveis_para_filtrar(self):
         client = _client_logado()
@@ -3781,6 +3884,11 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("selecionarPendenciaSisPNCD", html)
         self.assertIn("data-localidade-id", html)
         self.assertIn("sis-bri", html)
+        self.assertNotIn("sis-bri-registros", html)
+        self.assertNotIn("sis-bri-pendentes", html)
+        self.assertNotIn("sis-bri-carga", html)
+        self.assertIn("sis-total-depositos-inspecionados", html)
+        self.assertIn("Depósitos tratados", html)
         self.assertIn("await buscarContaOvos()", html)
         self.assertIn("await buscarSisPNCD()", html)
 

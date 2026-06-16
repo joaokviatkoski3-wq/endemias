@@ -135,6 +135,16 @@ def _kind_sql(alias="v"):
     )
 
 
+def _tratamento_real_sql(alias="t", tem_qtd_depositos=True):
+    checks = [
+        f"TRIM(COALESCE({alias}.tipo, '')) <> ''",
+        f"COALESCE({alias}.quantidade_carga, 0) > 0",
+    ]
+    if tem_qtd_depositos:
+        checks.append(f"COALESCE({alias}.qtd_depositos_tratados, 0) > 0")
+    return "(" + " OR ".join(checks) + ")"
+
+
 def _deposit_code_sql(tipo_col, codigo_col=None):
     raw_values = []
     if codigo_col:
@@ -356,17 +366,25 @@ def conta_ovos(db_path, data, quarteirao, id_localidade=None):
 
         deposito_rows = conn.execute(
             f"""
-            SELECT {deposito_codigo} AS tipo_deposito,
-                   COALESCE(SUM(di.inspecionado), 0) AS quantidade,
-                   COALESCE(SUM(di.eliminado), 0) AS eliminado,
-                   COALESCE(SUM(di.tratado), 0) AS tratado,
-                   COALESCE(ROUND(SUM(di.qtd_carga), 2), 0) AS larvicida_mg
-              FROM depositos_inspecionados di
-              JOIN visitas v ON v.id_visita = di.id_visita
-             WHERE {where}
-               AND {deposito_codigo} IS NOT NULL
-             GROUP BY tipo_deposito
-             ORDER BY tipo_deposito
+            WITH normalizados AS (
+                SELECT {deposito_codigo} AS codigo,
+                       di.inspecionado,
+                       di.eliminado,
+                       di.tratado,
+                       di.qtd_carga
+                  FROM depositos_inspecionados di
+                  JOIN visitas v ON v.id_visita = di.id_visita
+                 WHERE {where}
+                   AND {deposito_codigo} IS NOT NULL
+            )
+            SELECT codigo AS tipo_deposito,
+                   COALESCE(SUM(inspecionado), 0) AS quantidade,
+                   COALESCE(SUM(eliminado), 0) AS eliminado,
+                   COALESCE(SUM(tratado), 0) AS tratado,
+                   COALESCE(ROUND(SUM(qtd_carga), 2), 0) AS larvicida_mg
+              FROM normalizados
+             GROUP BY codigo
+             ORDER BY codigo
             """,
             params,
         ).fetchall()
@@ -447,6 +465,7 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
         "total_coletas": 0,
         "pendencias": {"recusa": 0, "fechado": 0, "recuperado": 0},
         "depositos": {code.lower(): 0 for code in DEPOSIT_TYPES},
+        "total_depositos_inspecionados": 0,
         "total_eliminados": 0,
         "total_tratados": 0,
         "tratamentos": [],
@@ -471,6 +490,13 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
     conn = db_core.connect(db_path)
     try:
         bri_core.ensure_schema(conn)
+        tem_qtd_depositos_tratados = _has_column(conn, "tratamentos", "qtd_depositos_tratados")
+        tratamento_real = _tratamento_real_sql("t", tem_qtd_depositos_tratados)
+        quantidade_tratamentos_sql = (
+            "COALESCE(SUM(t.qtd_depositos_tratados), 0)"
+            if tem_qtd_depositos_tratados
+            else "COUNT(t.id)"
+        )
         tb_types = [t for t in visita_tipos if t in ("TB", "TBO")]
         if tb_types:
             tb_where, tb_params = _base_where(data_inicio, data_fim, tb_types, id_localidade)
@@ -491,6 +517,7 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
               FROM tratamentos t
               JOIN visitas v ON v.id_visita = t.id_visita
              WHERE {where}
+               AND {tratamento_real}
             """,
             params,
         ).fetchone()[0] or 0
@@ -527,23 +554,27 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
         ):
             dados["pendencias"][row["tipo_pendencia"]] = row["total"] or 0
 
-        dep_types = [t for t in visita_tipos if t != "TBO"]
-        if dep_types:
-            dep_where, dep_params = _base_where(data_inicio, data_fim, dep_types, id_localidade)
+        if visita_tipos:
             for row in conn.execute(
                 f"""
-                SELECT {deposito_inspecionado_codigo} AS tipo_deposito,
-                       COALESCE(SUM(di.inspecionado), 0) AS total
-                  FROM depositos_inspecionados di
-                  JOIN visitas v ON v.id_visita = di.id_visita
-                 WHERE {dep_where}
-                   AND {deposito_inspecionado_codigo} IS NOT NULL
-                 GROUP BY tipo_deposito
-                 ORDER BY tipo_deposito
+                WITH normalizados AS (
+                    SELECT {deposito_inspecionado_codigo} AS codigo,
+                           di.inspecionado
+                      FROM depositos_inspecionados di
+                      JOIN visitas v ON v.id_visita = di.id_visita
+                     WHERE {where}
+                       AND {deposito_inspecionado_codigo} IS NOT NULL
+                )
+                SELECT codigo AS tipo_deposito,
+                       COALESCE(SUM(inspecionado), 0) AS total
+                  FROM normalizados
+                 GROUP BY codigo
+                 ORDER BY codigo
                 """,
-                dep_params,
+                params,
             ):
                 dados["depositos"][str(row["tipo_deposito"]).lower()] = row["total"] or 0
+        dados["total_depositos_inspecionados"] = sum(dados["depositos"].values())
 
         dados["total_eliminados"] = conn.execute(
             f"""
@@ -559,17 +590,18 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
         dados["tratamentos"] = [
             {
                 "tipo": row["tipo_tratamento"] or "Sem tipo",
-                "quantidade": row["quantidade_tratamentos"] or 0,
+                "quantidade": row["depositos_tratados"] or 0,
                 "carga_kg": row["total_carga_kg"] or 0,
             }
             for row in conn.execute(
                 f"""
                 SELECT COALESCE(t.tipo, 'Sem tipo') AS tipo_tratamento,
-                       COUNT(t.id) AS quantidade_tratamentos,
+                       {quantidade_tratamentos_sql} AS depositos_tratados,
                        COALESCE(SUM(t.quantidade_carga), 0) AS total_carga_kg
                   FROM tratamentos t
                   JOIN visitas v ON v.id_visita = t.id_visita
                  WHERE {where}
+                   AND {tratamento_real}
                  GROUP BY COALESCE(t.tipo, 'Sem tipo')
                  ORDER BY tipo_tratamento
                 """,
@@ -784,16 +816,21 @@ def _fill_laboratorio(conn, lab, where, params, kind_expr):
             {"tipo_deposito": row["tipo_deposito"], "quantidade": row["total"] or 0}
             for row in conn.execute(
                 f"""
-                SELECT {deposito_codigo} AS tipo_deposito,
-                       COUNT(DISTINCT c.id_coleta) AS total
-                  FROM coletas c
-                  JOIN resultados_laboratorio rl ON rl.id_coleta = c.id_coleta
-                  JOIN visitas v ON v.id_visita = c.id_visita
-                 WHERE {where}
-                   AND ({condition})
-                   AND {deposito_codigo} IS NOT NULL
-                 GROUP BY tipo_deposito
-                 ORDER BY tipo_deposito
+                WITH normalizados AS (
+                    SELECT {deposito_codigo} AS codigo,
+                           c.id_coleta
+                      FROM coletas c
+                      JOIN resultados_laboratorio rl ON rl.id_coleta = c.id_coleta
+                      JOIN visitas v ON v.id_visita = c.id_visita
+                     WHERE {where}
+                       AND ({condition})
+                       AND {deposito_codigo} IS NOT NULL
+                )
+                SELECT codigo AS tipo_deposito,
+                       COUNT(DISTINCT id_coleta) AS total
+                  FROM normalizados
+                 GROUP BY codigo
+                 ORDER BY codigo
                 """,
                 params,
             )

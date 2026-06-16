@@ -98,8 +98,11 @@ def val_int(val):
 
 
 def val_real(val):
-    try: return float(str(val).replace(",", "."))
-    except Exception: return None
+    try:
+        v = float(str(val).replace(",", "."))
+        return None if pd.isna(v) else v
+    except Exception:
+        return None
 
 
 def val_bool(val):
