@@ -706,7 +706,12 @@ async function salvarEspDoente(ev) {
 function renderEspReceitas(rows) {
   document.getElementById('esp-receitas-list').innerHTML = rows.length ? rows.map(r => `
     <div class="esporo-receita-card">
-      <strong>Receita ${fmtDate(r.data_receita) || '-'}</strong>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px;">
+        <strong>Receita ${fmtDate(r.data_receita) || '-'}</strong>
+        <button class="btn btn-outline btn-sm" type="button" onclick="excluirEspReceita(${r.id_receita}, ${Number((r.entregas || []).length)})">
+          <img src="/static/icons/lixeira.svg" alt="" class="icon-svg"> Apagar
+        </button>
+      </div>
       <div class="muted">Notificação ${fmtDate(r.data_notificacao)} · sintomas ${fmtDate(r.inicio_sintomas)} · prazo ${r.prazo_receita_dias ?? '-'} dia(s)</div>
       <div>Cápsulas: <strong>${escapeHtml(r.capsulas_total ?? '-')}</strong> · Posologia: ${escapeHtml(r.posologia || '-')}</div>
       <div class="esporo-entrega-list">${(r.entregas || []).map(e => `<span class="esporo-entrega">${fmtDate(e.data_entrega)} · ${fmtNum(e.quantidade)}</span>`).join('') || '<span class="muted">Sem entregas</span>'}</div>
@@ -746,6 +751,22 @@ async function salvarEspEntrega(idReceita) {
     });
     await abrirEspDoente(document.getElementById('doe-id').value);
     await carregarEspDoentes();
+  } catch(e) { toast(e.message, 'error'); }
+}
+async function excluirEspReceita(idReceita, totalEntregas) {
+  const entregasTexto = totalEntregas === 1 ? '1 entrega cadastrada' : `${totalEntregas} entregas cadastradas`;
+  if (!confirm(`Apagar esta receita?\n\nIsso tambem apagará ${entregasTexto} vinculada(s) a ela.`)) return;
+  if (!confirm('Confirma definitivamente apagar esta receita? Esta acao nao podera ser desfeita.')) return;
+  try {
+    const r = await fetch(`/api/esporotricose/doentes/receitas/${idReceita}`, {
+      method: 'DELETE',
+      headers: {'X-CSRFToken': getCsrf()}
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.erro || 'Erro ao apagar receita.');
+    await abrirEspDoente(document.getElementById('doe-id').value);
+    await carregarEspDoentes();
+    toast('Receita apagada.', 'success');
   } catch(e) { toast(e.message, 'error'); }
 }
 function renderEspAnexos(rows) {

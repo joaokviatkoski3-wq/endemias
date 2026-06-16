@@ -271,6 +271,16 @@ def api_salvar_receita_doente(id_animal):
     return jsonify({"ok": True, "id_receita": id_receita, "animal": esporotricose_core.obter_doente(_db_path(), id_animal)}), 201
 
 
+@bp.route("/api/esporotricose/doentes/receitas/<int:id_receita>", methods=["DELETE"])
+@login_required
+def api_excluir_receita_doente(id_receita):
+    try:
+        id_animal = esporotricose_core.excluir_receita_doente(_db_path(), id_receita)
+    except esporotricose_core.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 404
+    return jsonify({"ok": True, "id_animal_doente": id_animal})
+
+
 @bp.route("/api/esporotricose/doentes/receitas/<int:id_receita>/entregas", methods=["POST"])
 @login_required
 def api_salvar_entrega_doente(id_receita):

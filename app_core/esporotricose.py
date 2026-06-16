@@ -1008,6 +1008,31 @@ def atualizar_entrega_doente(db_path, id_entrega, dados):
         conn.close()
 
 
+def excluir_receita_doente(db_path, id_receita):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        row = conn.execute(
+            f"SELECT id_animal_doente FROM {DOENTES_RECEITAS_TABLE} WHERE id_receita=?",
+            (id_receita,),
+        ).fetchone()
+        if not row:
+            raise ValidationError("Receita não encontrada.")
+        id_animal_doente = row["id_animal_doente"]
+        conn.execute(
+            f"DELETE FROM {DOENTES_RECEITAS_TABLE} WHERE id_receita=?",
+            (id_receita,),
+        )
+        conn.execute(
+            f"UPDATE {DOENTES_TABLE} SET atualizado_em=? WHERE id_animal_doente=?",
+            (datetime.now().isoformat(timespec="seconds"), id_animal_doente),
+        )
+        conn.commit()
+        return id_animal_doente
+    finally:
+        conn.close()
+
+
 def excluir_entrega_doente(db_path, id_entrega):
     conn = db_core.connect(db_path)
     try:

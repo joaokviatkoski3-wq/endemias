@@ -3261,6 +3261,8 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertIn("Receitas e entregas", html_detalhe)
             self.assertIn("Entrega cadastrada na ZOOMED", html_detalhe)
             self.assertIn("whatsapp.svg", html_detalhe)
+            self.assertIn("excluirReceita", html_detalhe)
+            self.assertIn("/api/esporotricose/doentes/receitas/", html_detalhe)
             detalhe_json = client.get(f"/api/esporotricose/doentes/{id_animal}").get_json()
             entregas = [
                 entrega
@@ -3283,6 +3285,52 @@ class MainApisSmokeTests(unittest.TestCase):
                     self.assertEqual(resp_put.status_code, 200)
                 finally:
                     endemias_app.app.config["WTF_CSRF_ENABLED"] = csrf_original
+
+    def test_excluir_receita_doente_remove_entregas_vinculadas(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "doentes_receitas.db"
+            conn = db_core.connect(db_path)
+            try:
+                esporotricose_core.ensure_schema(conn)
+            finally:
+                conn.close()
+
+            id_animal = esporotricose_core.salvar_doente(
+                str(db_path),
+                {
+                    "nome": "Teste",
+                    "especie": "Gato",
+                    "sexo": "Fêmea",
+                    "tutor": "Tutor",
+                    "endereco": "Rua A",
+                    "localidade": "Centro",
+                    "status": "Em tratamento",
+                    "pedido_zoomed": "Sim",
+                },
+            )
+            id_receita = esporotricose_core.salvar_receita_doente(
+                str(db_path),
+                id_animal,
+                {"data_receita": "2026-06-16", "capsulas_total": 30, "status": "Em tratamento"},
+            )
+            esporotricose_core.salvar_entrega_doente(
+                str(db_path),
+                id_receita,
+                {"data_entrega": "2026-06-16", "quantidade": 30, "baixa_zoomed": "Sim"},
+            )
+            removido_de = esporotricose_core.excluir_receita_doente(str(db_path), id_receita)
+            conn = db_core.connect(db_path)
+            try:
+                receitas = conn.execute("SELECT COUNT(*) FROM esporotricose_doentes_receitas").fetchone()[0]
+                entregas = conn.execute("SELECT COUNT(*) FROM esporotricose_doentes_entregas").fetchone()[0]
+                animais = conn.execute("SELECT COUNT(*) FROM esporotricose_doentes_animais").fetchone()[0]
+            finally:
+                conn.close()
+
+        self.assertEqual(removido_de, id_animal)
+        self.assertEqual(receitas, 0)
+        self.assertEqual(entregas, 0)
+        self.assertEqual(animais, 1)
 
     def test_consultas_sispncd_nao_alteram_coluna_sispncd(self):
         client = _client_logado()
@@ -3620,6 +3668,108 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(valores["bri1"], "0456/2026")
         self.assertEqual(valores["bri2"], "0456/2026")
         self.assertEqual(valores["bri3"], "0000/0000")
+
+    def test_sispncd_e_conta_ovos_normalizam_depositos_por_codigo(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "sispncd_depositos.db"
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                conn.executescript("""
+                    CREATE TABLE localidades (id_localidade INTEGER PRIMARY KEY, nome TEXT);
+                    CREATE TABLE visitas (
+                        id_visita TEXT PRIMARY KEY,
+                        tipo TEXT,
+                        data TEXT,
+                        quarteirao INTEGER,
+                        localidade TEXT,
+                        id_localidade INTEGER,
+                        tipo_imovel TEXT,
+                        visita TEXT,
+                        SISPNCD TEXT,
+                        CONTAOVOS_STATUS INTEGER
+                    );
+                    CREATE TABLE depositos_inspecionados (
+                        id_visita TEXT,
+                        tipo_deposito TEXT,
+                        inspecionado INTEGER,
+                        eliminado INTEGER,
+                        tratado INTEGER,
+                        qtd_carga REAL
+                    );
+                    CREATE TABLE tratamentos (
+                        id INTEGER PRIMARY KEY,
+                        id_visita TEXT,
+                        tipo TEXT,
+                        quantidade_carga REAL
+                    );
+                    CREATE TABLE coletas (
+                        id_coleta TEXT PRIMARY KEY,
+                        id_visita TEXT,
+                        codigo_deposito TEXT,
+                        tipo_deposito TEXT
+                    );
+                    CREATE TABLE resultados_laboratorio (
+                        id_coleta TEXT,
+                        aegypt_larvas INTEGER,
+                        aegypt_pupas INTEGER,
+                        aegypt_exuvias INTEGER,
+                        aegypt_adulto INTEGER,
+                        albopictus_larvas INTEGER,
+                        albopictus_pupas INTEGER,
+                        albopictus_exuvias INTEGER,
+                        albopictus_adulto INTEGER,
+                        outra_larvas INTEGER,
+                        outra_pupas INTEGER,
+                        outra_exuvias INTEGER,
+                        outra_adulto INTEGER
+                    );
+                    CREATE TABLE visita_agentes (
+                        id_visita TEXT,
+                        id_agente INTEGER
+                    );
+                    INSERT INTO localidades(id_localidade, nome) VALUES (1, 'Graziela');
+                    INSERT INTO visitas (
+                        id_visita, tipo, data, quarteirao, localidade, id_localidade,
+                        tipo_imovel, visita, SISPNCD, CONTAOVOS_STATUS
+                    ) VALUES
+                        ('v_tbo', 'TBO', '2026-05-05', 10, 'Graziela', 1, 'Residência', 'Normal', NULL, 0),
+                        ('v_tb', 'TB', '2026-05-05', 10, 'Graziela', 1, 'Terreno Baldio', 'Normal', NULL, 1);
+                    INSERT INTO depositos_inspecionados (
+                        id_visita, tipo_deposito, inspecionado, eliminado, tratado, qtd_carga
+                    ) VALUES
+                        ('v_tbo', 'Pneus', 3, 1, 0, 0),
+                        ('v_tb', 'Garrafas, latas e lixo', 5, 2, 0, 0);
+                    INSERT INTO coletas (
+                        id_coleta, id_visita, codigo_deposito, tipo_deposito
+                    ) VALUES
+                        ('c1', 'v_tbo', 'A1', 'Caixa d''agua'),
+                        ('c2', 'v_tbo', NULL, 'Pneus');
+                    INSERT INTO resultados_laboratorio (
+                        id_coleta,
+                        aegypt_larvas, aegypt_pupas, aegypt_exuvias, aegypt_adulto,
+                        albopictus_larvas, albopictus_pupas, albopictus_exuvias, albopictus_adulto,
+                        outra_larvas, outra_pupas, outra_exuvias, outra_adulto
+                    ) VALUES
+                        ('c1', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+                        ('c2', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                """)
+                conn.commit()
+            finally:
+                conn.close()
+
+            conta = sispncd_core.conta_ovos(str(db_path), "2026-05-05", 10, id_localidade=1)
+            consulta = sispncd_core.sispncd(str(db_path), 2026, 18, ["TB/TBO"], id_localidade=1)
+
+        self.assertEqual(conta["depositos"]["d1"]["quantidade"], 3)
+        self.assertEqual(consulta["dados_gerais"]["depositos"]["d2"], 5)
+        depositos_lab = {
+            item["tipo_deposito"]: item["quantidade"]
+            for item in consulta["laboratorio"]["depositos_aegypti"]
+        }
+        self.assertEqual(depositos_lab, {"A1": 1, "D1": 1})
+        self.assertNotIn("Pneus", depositos_lab)
+        self.assertNotIn("Caixa d'agua", depositos_lab)
 
     def test_conta_ovos_pendencias_sao_clicaveis_para_filtrar(self):
         client = _client_logado()

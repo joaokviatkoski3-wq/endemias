@@ -135,6 +135,54 @@ def _kind_sql(alias="v"):
     )
 
 
+def _deposit_code_sql(tipo_col, codigo_col=None):
+    raw_values = []
+    if codigo_col:
+        raw_values.append(f"UPPER(TRIM(COALESCE({codigo_col}, '')))")
+    raw_values.append(f"UPPER(TRIM(COALESCE({tipo_col}, '')))")
+    text = f"LOWER(TRIM(COALESCE({tipo_col}, '')))"
+    valid_codes = ", ".join(f"'{code}'" for code in DEPOSIT_TYPES)
+    exact_checks = " ".join(
+        f"WHEN {raw} IN ({valid_codes}) THEN {raw}"
+        for raw in raw_values
+    )
+    code_hints = " ".join(
+        f"WHEN {raw} LIKE '%{code}%' THEN '{code}'"
+        for raw in raw_values
+        for code in ("A1", "A2", "D1", "D2")
+    )
+    return (
+        "CASE "
+        f"{exact_checks} "
+        f"{code_hints} "
+        f"WHEN ({text} LIKE '%solo%' OR {text} LIKE '%nivel%') "
+        f" AND ({text} LIKE '%agua%' OR {text} LIKE '%água%' OR {text} LIKE '%tambor%' OR {text} LIKE '%tonel%') THEN 'A2' "
+        f"WHEN ({text} LIKE '%caixa%' OR {text} LIKE '%elevad%') "
+        f" AND ({text} LIKE '%agua%' OR {text} LIKE '%água%') THEN 'A1' "
+        f"WHEN {text} LIKE '%tambor%' OR {text} LIKE '%tonel%' OR {text} LIKE '%barril%' "
+        f" OR {text} LIKE '%cisterna%' OR {text} LIKE '%poco%' OR {text} LIKE '%poço%' THEN 'A2' "
+        f"WHEN {text} LIKE '%pneu%' THEN 'D1' "
+        f"WHEN {text} LIKE '%lixo%' OR {text} LIKE '%sucata%' OR {text} LIKE '%garrafa%' "
+        f" OR {text} LIKE '%lata%' OR {text} LIKE '%plast%' OR {text} LIKE '%entulho%' "
+        f" OR {text} LIKE '%recipiente%' THEN 'D2' "
+        f"WHEN {text} LIKE '%natural%' OR {text} LIKE '%brom%' OR {text} LIKE '%arvore%' "
+        f" OR {text} LIKE '%árvore%' OR {text} LIKE '%rocha%' THEN 'E' "
+        f"WHEN {text} LIKE '%movel%' OR {text} LIKE '%móvel%' OR {text} LIKE '%vaso%' "
+        f" OR {text} LIKE '%prato%' OR {text} LIKE '%bebedouro%' OR {text} LIKE '%flor%' THEN 'B' "
+        f"WHEN {text} LIKE '%fixo%' OR {text} LIKE '%calha%' OR {text} LIKE '%laje%' "
+        f" OR {text} LIKE '%piscina%' OR {text} LIKE '%ralo%' OR {text} LIKE '%sanitario%' "
+        f" OR {text} LIKE '%sanitário%' THEN 'C' "
+        "ELSE NULL END"
+    )
+
+
+def _has_column(conn, table_name, column_name):
+    return any(
+        row["name"] == column_name
+        for row in conn.execute(f"PRAGMA table_info({table_name})")
+    )
+
+
 def get_default_conta_ovos(db_path):
     row = db_core.query_one(
         db_path,
@@ -274,6 +322,7 @@ def conta_ovos(db_path, data, quarteirao, id_localidade=None):
     if id_localidade:
         where += " AND v.id_localidade = ?"
         params.append(id_localidade)
+    deposito_codigo = _deposit_code_sql("di.tipo_deposito")
 
     conn = db_core.connect(db_path)
     try:
@@ -307,7 +356,7 @@ def conta_ovos(db_path, data, quarteirao, id_localidade=None):
 
         deposito_rows = conn.execute(
             f"""
-            SELECT di.tipo_deposito,
+            SELECT {deposito_codigo} AS tipo_deposito,
                    COALESCE(SUM(di.inspecionado), 0) AS quantidade,
                    COALESCE(SUM(di.eliminado), 0) AS eliminado,
                    COALESCE(SUM(di.tratado), 0) AS tratado,
@@ -315,10 +364,11 @@ def conta_ovos(db_path, data, quarteirao, id_localidade=None):
               FROM depositos_inspecionados di
               JOIN visitas v ON v.id_visita = di.id_visita
              WHERE {where}
-               AND di.tipo_deposito IN ({_placeholders(DEPOSIT_TYPES)})
-             GROUP BY di.tipo_deposito
+               AND {deposito_codigo} IS NOT NULL
+             GROUP BY tipo_deposito
+             ORDER BY tipo_deposito
             """,
-            params + list(DEPOSIT_TYPES),
+            params,
         ).fetchall()
     finally:
         conn.close()
@@ -387,6 +437,7 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
         if visita_tipos else ("1=0", [])
     )
     kind_expr = _kind_sql("v")
+    deposito_inspecionado_codigo = _deposit_code_sql("di.tipo_deposito")
 
     dados = {
         "total_quarteiroes": 0,
@@ -481,14 +532,16 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
             dep_where, dep_params = _base_where(data_inicio, data_fim, dep_types, id_localidade)
             for row in conn.execute(
                 f"""
-                SELECT di.tipo_deposito, COALESCE(SUM(di.inspecionado), 0) AS total
+                SELECT {deposito_inspecionado_codigo} AS tipo_deposito,
+                       COALESCE(SUM(di.inspecionado), 0) AS total
                   FROM depositos_inspecionados di
                   JOIN visitas v ON v.id_visita = di.id_visita
                  WHERE {dep_where}
-                   AND di.tipo_deposito IN ({_placeholders(DEPOSIT_TYPES)})
-                 GROUP BY di.tipo_deposito
+                   AND {deposito_inspecionado_codigo} IS NOT NULL
+                 GROUP BY tipo_deposito
+                 ORDER BY tipo_deposito
                 """,
-                dep_params + list(DEPOSIT_TYPES),
+                dep_params,
             ):
                 dados["depositos"][str(row["tipo_deposito"]).lower()] = row["total"] or 0
 
@@ -498,9 +551,9 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
               FROM depositos_inspecionados di
               JOIN visitas v ON v.id_visita = di.id_visita
              WHERE {where}
-               AND di.tipo_deposito IN ({_placeholders(DEPOSIT_TYPES)})
+               AND {deposito_inspecionado_codigo} IS NOT NULL
             """,
-            params + list(DEPOSIT_TYPES),
+            params,
         ).fetchone()[0] or 0
 
         dados["tratamentos"] = [
@@ -723,20 +776,24 @@ def _fill_laboratorio(conn, lab, where, params, kind_expr):
         "aegypti": "aegypt",
         "albopictus": "albopictus",
     }
+    deposito_codigo_col = "c.codigo_deposito" if _has_column(conn, "coletas", "codigo_deposito") else None
+    deposito_codigo = _deposit_code_sql("c.tipo_deposito", deposito_codigo_col)
     for public_name, column_prefix in species.items():
         condition = _species_condition(column_prefix)
         lab[f"depositos_{public_name}"] = [
-            {"tipo_deposito": row["tipo_deposito"] or "Sem tipo", "quantidade": row["total"] or 0}
+            {"tipo_deposito": row["tipo_deposito"], "quantidade": row["total"] or 0}
             for row in conn.execute(
                 f"""
-                SELECT c.tipo_deposito, COUNT(DISTINCT c.id_coleta) AS total
+                SELECT {deposito_codigo} AS tipo_deposito,
+                       COUNT(DISTINCT c.id_coleta) AS total
                   FROM coletas c
                   JOIN resultados_laboratorio rl ON rl.id_coleta = c.id_coleta
                   JOIN visitas v ON v.id_visita = c.id_visita
                  WHERE {where}
                    AND ({condition})
-                 GROUP BY c.tipo_deposito
-                 ORDER BY c.tipo_deposito
+                   AND {deposito_codigo} IS NOT NULL
+                 GROUP BY tipo_deposito
+                 ORDER BY tipo_deposito
                 """,
                 params,
             )

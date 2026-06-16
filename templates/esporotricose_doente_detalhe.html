@@ -11,6 +11,7 @@
 .doe-field strong{font-size:14px;color:var(--text);}
 .doe-layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;align-items:start;margin-top:14px;}
 .doe-receita{border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;background:var(--surface2);margin-bottom:10px;}
+.doe-receita-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px;}
 .doe-entregas{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
 .doe-chip{display:inline-flex;gap:5px;align-items:center;border-radius:999px;background:var(--brand-xs);color:var(--brand);padding:4px 8px;font-size:12px;font-weight:800;}
 .zoomed-badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:900;white-space:nowrap;}
@@ -111,7 +112,12 @@ function zoomedBadge(valor){
 function render(){
   document.getElementById('receitas-list').innerHTML = (animal.receitas || []).map(r => `
     <div class="doe-receita">
-      <strong>Receita ${data(r.data_receita)}</strong>
+      <div class="doe-receita-head">
+        <strong>Receita ${data(r.data_receita)}</strong>
+        <button class="btn btn-outline btn-sm" type="button" onclick="excluirReceita(${r.id_receita}, ${Number((r.entregas || []).length)})">
+          <img src="/static/icons/lixeira.svg" alt="" class="icon-svg"> Apagar receita
+        </button>
+      </div>
       <div class="muted">Notificação ${data(r.data_notificacao)} · sintomas ${data(r.inicio_sintomas)} · VA + veterinário ${data(r.visita_va_veterinario)}</div>
       <div style="margin-top:6px;">Cápsulas: <strong>${num(r.capsulas_total)}</strong> · Posologia: ${esc(r.posologia || '-')}</div>
       <div class="muted">${esc(r.observacoes || '')}</div>
@@ -188,6 +194,21 @@ async function atualizarEntrega(idEntrega){
     if(!resp.ok) throw new Error(data.erro || 'Erro ao atualizar entrega.');
     await recarregar();
     toast('Entrega atualizada.', 'success');
+  } catch(e){ toast(e.message, 'error'); }
+}
+async function excluirReceita(idReceita, totalEntregas){
+  const entregasTexto = totalEntregas === 1 ? '1 entrega cadastrada' : `${totalEntregas} entregas cadastradas`;
+  if(!confirm(`Apagar esta receita?\n\nIsso tambem apagará ${entregasTexto} vinculada(s) a ela.`)) return;
+  if(!confirm('Confirma definitivamente apagar esta receita? Esta acao nao podera ser desfeita.')) return;
+  try {
+    const resp = await fetch(`/api/esporotricose/doentes/receitas/${idReceita}`, {
+      method: 'DELETE',
+      headers: {'X-CSRFToken':getCsrf()}
+    });
+    const data = await resp.json().catch(() => ({}));
+    if(!resp.ok) throw new Error(data.erro || 'Erro ao apagar receita.');
+    await recarregar();
+    toast('Receita apagada.', 'success');
   } catch(e){ toast(e.message, 'error'); }
 }
 async function enviarAnexos(){
