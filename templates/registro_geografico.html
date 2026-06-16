@@ -65,7 +65,7 @@
   <div class="filter-card" style="margin-bottom:16px;">
     <div class="filter-body open">
       <div class="rg-filters">
-        <div class="f-g"><label>Localidade</label><select id="rg-localidade"><option value="">Todas</option>{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Localidades</label><select id="rg-localidade" multiple size="5">{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
         <div class="f-g"><label>Quarteirão</label><input id="rg-quarteirao" inputmode="numeric" placeholder="1"></div>
         <div class="f-g"><label>Tipo</label><select id="rg-tipo"><option value="">Todos</option>{% for tipo in opcoes.tipos %}<option value="{{ tipo.codigo }}">{{ tipo.codigo }} - {{ tipo.nome }}</option>{% endfor %}</select></div>
         <div class="f-g"><label>Atualização</label><select id="rg-atualizacao"><option value="">Todos</option><option value="atualizados">Atualizados</option><option value="pendentes">Pendentes</option></select></div>
@@ -90,7 +90,10 @@
   <div class="chart-card">
     <div class="chart-hd">
       <div class="chart-title"><img src="/static/icons/registro_geografico.svg" alt="" class="icon-svg"> Consulta de imóveis</div>
-      <span class="table-info" id="rg-info"></span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+        <span class="table-info" id="rg-info"></span>
+        <button class="btn btn-outline btn-sm" type="button" id="rg-carregar-todos" hidden>Carregar todos</button>
+      </div>
     </div>
     <div class="table-scroll">
       <table>
@@ -148,7 +151,7 @@
 
 <script>
 const rgTipos = {{ opcoes.tipos|tojson }};
-const rgState = { registros: [], q: null };
+const rgState = { registros: [], q: null, limiteTodos: false };
 const nf = new Intl.NumberFormat('pt-BR');
 function rgCsrf(){ return document.querySelector('meta[name="csrf-token"]')?.content || ''; }
 function rgFmt(n){ return nf.format(Number(n || 0)); }
@@ -166,11 +169,12 @@ async function rgJson(resp, fallback){
 }
 function rgParams(){
   const p = new URLSearchParams();
-  [['localidade','rg-localidade'],['quarteirao','rg-quarteirao'],['tipo','rg-tipo'],['atualizacao','rg-atualizacao'],['agente','rg-agente'],['busca','rg-busca']].forEach(([k,id]) => {
+  Array.from(rgEl('rg-localidade').selectedOptions).map(opt => opt.value).filter(Boolean).forEach(v => p.append('localidade', v));
+  [['quarteirao','rg-quarteirao'],['tipo','rg-tipo'],['atualizacao','rg-atualizacao'],['agente','rg-agente'],['busca','rg-busca']].forEach(([k,id]) => {
     const v = rgEl(id).value.trim();
     if(v) p.set(k, v);
   });
-  p.set('limite', '500');
+  p.set('limite', rgState.limiteTodos ? 'todos' : '200');
   return p.toString();
 }
 async function rgCarregar(){
@@ -188,6 +192,7 @@ async function rgCarregar(){
   rgEl('rg-kpi-atualizados').textContent = rgFmt(t.atualizados);
   rgEl('rg-kpi-pe-tb').textContent = `${rgFmt(t.pe)} / ${rgFmt(t.tb)}`;
   rgEl('rg-info').textContent = `${rgFmt(rgState.registros.length)} exibidos de ${rgFmt(data.total)}`;
+  rgEl('rg-carregar-todos').hidden = rgState.limiteTodos || rgState.registros.length >= Number(data.total || 0);
   rgRenderConsulta();
 }
 function rgRenderConsulta(){
@@ -351,7 +356,14 @@ document.querySelectorAll('.rg-tab').forEach(btn => btn.addEventListener('click'
   document.querySelectorAll('.rg-tab').forEach(b => b.classList.toggle('active', b === btn));
   document.querySelectorAll('.rg-panel').forEach(p => p.hidden = p.id !== `rg-panel-${btn.dataset.rgTab}`);
 }));
-rgEl('rg-atualizar').addEventListener('click', () => rgCarregar().catch(err => alert(err.message)));
+rgEl('rg-atualizar').addEventListener('click', () => {
+  rgState.limiteTodos = false;
+  rgCarregar().catch(err => alert(err.message));
+});
+rgEl('rg-carregar-todos').addEventListener('click', () => {
+  rgState.limiteTodos = true;
+  rgCarregar().catch(err => alert(err.message));
+});
 rgEl('rg-busca').addEventListener('keydown', ev => { if(ev.key === 'Enter') rgCarregar().catch(err => alert(err.message)); });
 rgEl('rg-ed-localidade').addEventListener('change', ev => rgCarregarSelectQuarteiroes(ev.target.value, 'rg-ed-quarteirao').catch(err => rgSetText('rg-ed-status', err.message)));
 rgEl('rg-imp-localidade').addEventListener('change', ev => rgCarregarChecksQuarteiroes(ev.target.value).catch(err => alert(err.message)));

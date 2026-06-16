@@ -200,7 +200,7 @@ def api_excluir(id_imovel):
 def _filtros():
     return {
         "busca": request.args.get("busca", ""),
-        "localidade": request.args.get("localidade", ""),
+        "localidade": request.args.getlist("localidade") or request.args.get("localidade", ""),
         "quarteirao": request.args.get("quarteirao", ""),
         "tipo": request.args.get("tipo", ""),
         "atualizacao": request.args.get("atualizacao", ""),

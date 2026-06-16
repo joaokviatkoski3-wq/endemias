@@ -415,8 +415,13 @@ def _where(filtros):
         where.append("i.busca_normalizada LIKE ?")
         params.append(like)
     if filtros.get("localidade"):
-        where.append("i.id_localidade=?")
-        params.append(filtros["localidade"])
+        localidades = filtros["localidade"]
+        if not isinstance(localidades, (list, tuple)):
+            localidades = [localidades]
+        localidades = [str(item).strip() for item in localidades if str(item or "").strip()]
+        if localidades:
+            where.append(f"i.id_localidade IN ({','.join('?' for _ in localidades)})")
+            params.extend(localidades)
     if filtros.get("quarteirao"):
         where.append("i.quarteirao=?")
         params.append(_quarteirao(filtros["quarteirao"]))
@@ -472,16 +477,17 @@ def totais(conn, filtros=None):
                SUM(CASE WHEN data_atualizacao IS NOT NULL THEN 1 ELSE 0 END) AS atualizados,
                SUM(CASE WHEN tipo='PE' THEN 1 ELSE 0 END) AS pe,
                SUM(CASE WHEN tipo='TB' THEN 1 ELSE 0 END) AS tb,
-               SUM(CASE WHEN COALESCE(condominio,0)>0 THEN condominio ELSE 1 END) AS imoveis_reais
+               SUM(CASE WHEN COALESCE(condominio,0)>0 THEN condominio ELSE 1 END) AS imoveis_reais,
+               SUM(CASE WHEN tipo='R' THEN CASE WHEN COALESCE(condominio,0)>0 THEN condominio ELSE 1 END ELSE 0 END) AS residencias_reais
           FROM registro_geografico_imoveis i
           {where}
         """,
         params,
     ).fetchone()
     data = dict(row) if row else {}
-    imoveis_reais = data.get("imoveis_reais") or 0
+    residencias_reais = data.get("residencias_reais") or 0
     data["media_pessoas_por_residencia"] = MEDIA_PESSOAS_POR_RESIDENCIA
-    data["populacao_aproximada"] = round(imoveis_reais * MEDIA_PESSOAS_POR_RESIDENCIA)
+    data["populacao_aproximada"] = round(residencias_reais * MEDIA_PESSOAS_POR_RESIDENCIA)
     data["fonte_populacao"] = FONTE_POPULACAO
     return data
 
@@ -565,11 +571,13 @@ def _resumo_quarteirao(registros):
     resumo = []
     total_sem = 0
     total_com = 0
+    residencias_com = 0
     for codigo, label in tipos.items():
         itens = [r for r in registros if (r.get("tipo") or "") == codigo]
         sem = len(itens)
         if codigo == "R":
             com = sum((r.get("condominio") or 0) if (r.get("condominio") or 0) > 0 else 1 for r in itens)
+            residencias_com = com
         else:
             com = sem
         total_sem += sem
@@ -586,8 +594,9 @@ def _resumo_quarteirao(registros):
         "linhas": resumo,
         "total_sem_condominio": total_sem,
         "total_com_condominio": total_com,
+        "residencias_com_condominio": residencias_com,
         "media_pessoas_por_residencia": MEDIA_PESSOAS_POR_RESIDENCIA,
-        "populacao_aproximada": round(total_com * MEDIA_PESSOAS_POR_RESIDENCIA),
+        "populacao_aproximada": round(residencias_com * MEDIA_PESSOAS_POR_RESIDENCIA),
         "fonte_populacao": FONTE_POPULACAO,
     }
 

@@ -3026,6 +3026,9 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("rg-panel-consulta", html)
         self.assertIn("rg-panel-edicao", html)
         self.assertIn("rg-kpi-populacao", html)
+        self.assertIn('id="rg-localidade" multiple', html)
+        self.assertIn("rg-carregar-todos", html)
+        self.assertIn("limite', rgState.limiteTodos ? 'todos' : '200'", html)
         self.assertIn("IBGE Censo 2022", html)
 
     def test_api_registro_geografico_retorna_registros_e_salva_edicao(self):
@@ -3038,8 +3041,23 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("populacao_aproximada", dados["totais"])
         self.assertEqual(
             dados["totais"]["populacao_aproximada"],
-            round((dados["totais"].get("imoveis_reais") or 0) * 2.93),
+            round((dados["totais"].get("residencias_reais") or 0) * 2.93),
         )
+        localidades = [
+            str(r["id_localidade"])
+            for r in dados["registros"]
+            if r.get("id_localidade") is not None
+        ]
+        if len(set(localidades)) >= 2:
+            selecionadas = sorted(set(localidades))[:2]
+            resp_multi = client.get(
+                "/api/registro-geografico?limite=5&"
+                + "&".join(f"localidade={item}" for item in selecionadas)
+            )
+            self.assertEqual(resp_multi.status_code, 200)
+            self.assertTrue(
+                set(str(r["id_localidade"]) for r in resp_multi.get_json()["registros"]).issubset(set(selecionadas))
+            )
         if not dados["registros"]:
             self.skipTest("Sem registros de RG para testar edicao.")
 
@@ -3160,6 +3178,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("qrcode_mapa.svg", html)
         self.assertIn("Total geral", html)
         self.assertIn("IBGE Censo 2022", html)
+        self.assertIn("Popula&ccedil;&atilde;o aproximada", html)
         self.assertIn("considerando condomínios", html)
         self.assertNotIn("<th>Sem condomínios</th><th>Com condomínios</th>", html)
 
