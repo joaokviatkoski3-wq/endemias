@@ -8,6 +8,7 @@ from app_core import db as db_core
 from app_core import esporotricose as esporotricose_core
 from app_core import ovitrampas as ovitrampas_core
 from app_core import producao_operacional
+from app_core import registro_geografico as registro_geografico_core
 from app_core import utils as utils_core
 from app_core import work_types
 
@@ -124,6 +125,243 @@ def _resumo_ovitrampas_agente(nome, d_ini, d_fim):
     }
 
 
+def _resumo_registro_geografico_agente(nome, d_ini, d_fim):
+    conn = _get_db()
+    try:
+        registro_geografico_core.ensure_schema(conn, current_app.config.get("BASE_DIR"))
+        if not (
+            producao_operacional._table_exists(conn, "registro_geografico_imoveis")
+            and producao_operacional._table_exists(conn, "registro_geografico_imovel_agentes")
+        ):
+            return _registro_geografico_vazio()
+        base_params = (nome, d_ini, d_fim)
+        totais = conn.execute(
+            """
+            SELECT COUNT(DISTINCT i.id_imovel) AS imoveis,
+                   COUNT(DISTINCT i.data_atualizacao) AS dias,
+                   COUNT(DISTINCT i.id_localidade) AS localidades,
+                   COUNT(DISTINCT i.quarteirao) AS quarteiroes,
+                   SUM(CASE WHEN i.tipo='R' THEN 1 ELSE 0 END) AS residencias,
+                   SUM(CASE WHEN i.tipo='C' THEN 1 ELSE 0 END) AS comercios,
+                   SUM(CASE WHEN i.tipo='TB' THEN 1 ELSE 0 END) AS terrenos_baldios,
+                   SUM(CASE WHEN i.tipo='PE' THEN 1 ELSE 0 END) AS pontos_estrategicos
+              FROM registro_geografico_imoveis i
+              JOIN registro_geografico_imovel_agentes ia ON ia.id_imovel=i.id_imovel
+              JOIN agentes ag ON ag.id_agente=ia.id_agente
+             WHERE ag.nome=? AND i.data_atualizacao BETWEEN ? AND ?
+            """,
+            base_params,
+        ).fetchone()
+        por_tipo = conn.execute(
+            """
+            SELECT COALESCE(NULLIF(i.tipo,''), '-') AS tipo,
+                   COUNT(DISTINCT i.id_imovel) AS total
+              FROM registro_geografico_imoveis i
+              JOIN registro_geografico_imovel_agentes ia ON ia.id_imovel=i.id_imovel
+              JOIN agentes ag ON ag.id_agente=ia.id_agente
+             WHERE ag.nome=? AND i.data_atualizacao BETWEEN ? AND ?
+             GROUP BY COALESCE(NULLIF(i.tipo,''), '-')
+             ORDER BY total DESC, tipo
+            """,
+            base_params,
+        ).fetchall()
+        por_quarteirao = conn.execute(
+            """
+            SELECT i.localidade,
+                   i.quarteirao,
+                   COUNT(DISTINCT i.id_imovel) AS imoveis,
+                   COUNT(DISTINCT NULLIF(TRIM(i.logradouro),'')) AS logradouros,
+                   MAX(i.data_atualizacao) AS ultima_atualizacao
+              FROM registro_geografico_imoveis i
+              JOIN registro_geografico_imovel_agentes ia ON ia.id_imovel=i.id_imovel
+              JOIN agentes ag ON ag.id_agente=ia.id_agente
+             WHERE ag.nome=? AND i.data_atualizacao BETWEEN ? AND ?
+             GROUP BY i.localidade, i.quarteirao
+             ORDER BY ultima_atualizacao DESC, i.localidade, CAST(i.quarteirao AS INTEGER), i.quarteirao
+             LIMIT 40
+            """,
+            base_params,
+        ).fetchall()
+    finally:
+        conn.close()
+
+    data = dict(totais) if totais else {}
+    return {
+        "totais": {key: utils_core.safe_int(data.get(key)) for key in (
+            "imoveis", "dias", "localidades", "quarteiroes",
+            "residencias", "comercios", "terrenos_baldios", "pontos_estrategicos",
+        )},
+        "por_tipo": [dict(row) for row in por_tipo],
+        "por_quarteirao": [
+            {
+                **dict(row),
+                "quarteirao": _quarteirao_display(row["quarteirao"]),
+            }
+            for row in por_quarteirao
+        ],
+    }
+
+
+def _registro_geografico_vazio():
+    return {
+        "totais": {
+            "imoveis": 0,
+            "dias": 0,
+            "localidades": 0,
+            "quarteiroes": 0,
+            "residencias": 0,
+            "comercios": 0,
+            "terrenos_baldios": 0,
+            "pontos_estrategicos": 0,
+        },
+        "por_tipo": [],
+        "por_quarteirao": [],
+    }
+
+
+def _quarteirao_display(value):
+    text = str(value or "").strip()
+    if text.replace(".0", "").isdigit():
+        return str(int(float(text)))
+    return text
+
+
+def _resumo_laboratorio_agente(nome, d_ini, d_fim):
+    conn = _get_db()
+    try:
+        ovitrampas_core.ensure_schema(conn)
+        larvas = _laboratorio_larvas(conn, nome, d_ini, d_fim)
+        ovitrampas = _laboratorio_ovitrampas(conn, nome, d_ini, d_fim)
+    finally:
+        conn.close()
+    total_leituras = larvas["leituras"] + ovitrampas["leituras"]
+    dias = len(set(larvas["dias"]) | set(ovitrampas["dias"]))
+    return {
+        "totais": {
+            "leituras": total_leituras,
+            "dias": dias,
+            "larvas": larvas["leituras"],
+            "tubos": larvas["tubos"],
+            "larvas_positivas": larvas["positivas"],
+            "ovitrampas": ovitrampas["leituras"],
+            "ovitrampas_positivas": ovitrampas["positivas"],
+            "ovos": ovitrampas["ovos"],
+        },
+        "larvas": larvas,
+        "ovitrampas": ovitrampas,
+    }
+
+
+def _laboratorio_larvas(conn, nome, d_ini, d_fim):
+    vazio = {"leituras": 0, "tubos": 0, "positivas": 0, "dias": [], "por_mes": []}
+    if not producao_operacional._table_exists(conn, "resultados_laboratorio"):
+        return vazio
+    params = (nome, d_ini, d_fim)
+    row = conn.execute(
+        """
+        SELECT COUNT(DISTINCT rl.id_resultado) AS leituras,
+               COUNT(DISTINCT rl.num_tubo) AS tubos,
+               COUNT(DISTINCT COALESCE(rl.data_leitura, rl.data_coleta)) AS dias,
+               SUM(CASE WHEN COALESCE(rl.aegypt_larvas,0) + COALESCE(rl.aegypt_pupas,0)
+                           + COALESCE(rl.aegypt_exuvias,0) + COALESCE(rl.aegypt_adulto,0)
+                           + COALESCE(rl.albopictus_larvas,0) + COALESCE(rl.albopictus_pupas,0)
+                           + COALESCE(rl.albopictus_exuvias,0) + COALESCE(rl.albopictus_adulto,0)
+                           + COALESCE(rl.outra_larvas,0) + COALESCE(rl.outra_pupas,0)
+                           + COALESCE(rl.outra_exuvias,0) + COALESCE(rl.outra_adulto,0) > 0
+                        THEN 1 ELSE 0 END) AS positivas
+          FROM resultados_laboratorio rl
+         WHERE lower(trim(rl.laboratorista))=lower(trim(?))
+           AND COALESCE(rl.data_leitura, rl.data_coleta) BETWEEN ? AND ?
+        """,
+        params,
+    ).fetchone()
+    por_mes = conn.execute(
+        """
+        SELECT substr(COALESCE(rl.data_leitura, rl.data_coleta),1,7) AS mes,
+               COUNT(DISTINCT rl.id_resultado) AS leituras
+          FROM resultados_laboratorio rl
+         WHERE lower(trim(rl.laboratorista))=lower(trim(?))
+           AND COALESCE(rl.data_leitura, rl.data_coleta) BETWEEN ? AND ?
+         GROUP BY substr(COALESCE(rl.data_leitura, rl.data_coleta),1,7)
+         ORDER BY mes
+        """,
+        params,
+    ).fetchall()
+    dias = conn.execute(
+        """
+        SELECT DISTINCT COALESCE(rl.data_leitura, rl.data_coleta) AS dia
+          FROM resultados_laboratorio rl
+         WHERE lower(trim(rl.laboratorista))=lower(trim(?))
+           AND COALESCE(rl.data_leitura, rl.data_coleta) BETWEEN ? AND ?
+         ORDER BY dia
+        """,
+        params,
+    ).fetchall()
+    data = dict(row) if row else {}
+    return {
+        "leituras": utils_core.safe_int(data.get("leituras")),
+        "tubos": utils_core.safe_int(data.get("tubos")),
+        "positivas": utils_core.safe_int(data.get("positivas")),
+        "dias": [r["dia"] for r in dias if r["dia"]],
+        "por_mes": [dict(r) for r in por_mes],
+    }
+
+
+def _laboratorio_ovitrampas(conn, nome, d_ini, d_fim):
+    vazio = {"leituras": 0, "positivas": 0, "ovos": 0, "dias": [], "por_mes": []}
+    if not (
+        producao_operacional._table_exists(conn, "ovitrampas_leituras")
+        and producao_operacional._table_exists(conn, "agentes")
+    ):
+        return vazio
+    params = (nome, d_ini, d_fim)
+    row = conn.execute(
+        """
+        SELECT COUNT(DISTINCT l.id_leitura) AS leituras,
+               SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
+               SUM(COALESCE(l.ovos,0)) AS ovos
+          FROM ovitrampas_leituras l
+          JOIN agentes ag ON ag.id_agente=l.id_laboratorista
+         WHERE ag.nome=?
+           AND COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) BETWEEN ? AND ?
+        """,
+        params,
+    ).fetchone()
+    por_mes = conn.execute(
+        """
+        SELECT substr(COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem),1,7) AS mes,
+               COUNT(DISTINCT l.id_leitura) AS leituras,
+               SUM(COALESCE(l.ovos,0)) AS ovos
+          FROM ovitrampas_leituras l
+          JOIN agentes ag ON ag.id_agente=l.id_laboratorista
+         WHERE ag.nome=?
+           AND COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) BETWEEN ? AND ?
+         GROUP BY substr(COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem),1,7)
+         ORDER BY mes
+        """,
+        params,
+    ).fetchall()
+    dias = conn.execute(
+        """
+        SELECT DISTINCT COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) AS dia
+          FROM ovitrampas_leituras l
+          JOIN agentes ag ON ag.id_agente=l.id_laboratorista
+         WHERE ag.nome=?
+           AND COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) BETWEEN ? AND ?
+         ORDER BY dia
+        """,
+        params,
+    ).fetchall()
+    data = dict(row) if row else {}
+    return {
+        "leituras": utils_core.safe_int(data.get("leituras")),
+        "positivas": utils_core.safe_int(data.get("positivas")),
+        "ovos": utils_core.safe_int(data.get("ovos")),
+        "dias": [r["dia"] for r in dias if r["dia"]],
+        "por_mes": [dict(r) for r in por_mes],
+    }
+
+
 def _resumo_ovitrampas_setor(d_ini, d_fim):
     conn = _get_db()
     try:
@@ -223,6 +461,12 @@ def _detalhe_atividade(atividade):
         return f"{utils_core.safe_int(extras.get('animais'))} animais, {utils_core.safe_int(extras.get('acidentes'))} acidentes"
     if codigo == "BRI":
         return f"{utils_core.safe_int(extras.get('carga'))} carga"
+    if codigo == "ACOES_SETOR":
+        return (
+            f"{utils_core.safe_int(extras.get('educativas'))} educativas, "
+            f"{utils_core.safe_int(extras.get('limpezas'))} limpezas, "
+            f"{utils_core.safe_int(extras.get('publico'))} público"
+        )
     return ""
 
 
@@ -641,6 +885,8 @@ def _obter_dados(nome, d_ini, d_fim):
     esporotricose = _resumo_esporotricose_agente(nome, d_ini, d_fim)
     producao = _resumo_producao_agente(nome, d_ini, d_fim)
     ovitrampas = _resumo_ovitrampas_agente(nome, d_ini, d_fim)
+    registro_geografico = _resumo_registro_geografico_agente(nome, d_ini, d_fim)
+    laboratorio = _resumo_laboratorio_agente(nome, d_ini, d_fim)
     comparacao_esporotricose = {}
     if comparacao_esporo_raw:
         ce = dict(comparacao_esporo_raw)
@@ -670,6 +916,8 @@ def _obter_dados(nome, d_ini, d_fim):
         "comparacao": comparacao,
         "producao_operacional": producao,
         "ovitrampas": ovitrampas,
+        "registro_geografico": registro_geografico,
+        "laboratorio": laboratorio,
         "esporotricose": esporotricose,
         "comparacao_esporotricose": comparacao_esporotricose,
         "totais_api": {
@@ -759,6 +1007,8 @@ def api():
             "comparacao": dados["comparacao"],
             "producao_operacional": dados["producao_operacional"],
             "ovitrampas": dados["ovitrampas"],
+            "registro_geografico": dados["registro_geografico"],
+            "laboratorio": dados["laboratorio"],
             "esporotricose": dados["esporotricose"],
             "comparacao_esporotricose": dados["comparacao_esporotricose"],
         })

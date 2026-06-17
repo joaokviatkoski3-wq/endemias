@@ -242,6 +242,11 @@ function renderRelatorio(d) {
   const ovi = d.ovitrampas || {};
   const oviT = ovi.totais || {};
   const oviEventos = ovi.eventos || [];
+  const lab = d.laboratorio || {};
+  const labT = lab.totais || {};
+  const rg = d.registro_geografico || {};
+  const rgT = rg.totais || {};
+  const rgQuadras = rg.por_quarteirao || [];
   const cmp = d.comparacao || {};
   const diasStr = `${fmtDate(d.d_ini)} → ${fmtDate(d.d_fim)}`;
   const taxaN  = t.total ? Math.round((t.normais||0)/t.total*100) : 0;
@@ -292,7 +297,7 @@ function renderRelatorio(d) {
 
     <div class="ra-section-title"><img src="/static/icons/raio.svg" alt="" class="icon-svg"> Produção operacional integrada</div>
     <div class="privacy-note">
-      Esta seção integra visitas de vetores, esporotricose, recolhimentos, amostras de animais e BRI vinculados ao agente selecionado.
+      Esta seção integra visitas de vetores, esporotricose, recolhimentos, amostras de animais, BRI e ações do setor vinculados ao agente selecionado.
     </div>
     <div class="perf-grid">
       ${atividades.map(a => cardAtividade(a)).join('')}
@@ -345,6 +350,47 @@ function renderRelatorio(d) {
               <td>${escapeHtml(ev.grupo || '-')}</td>
               <td>${escapeHtml(ev.ciclo || '-')}</td>
               <td>${escapeHtml(ev.observacoes || '-')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table></div>
+    </div>` : ''}
+
+    ${labT.leituras ? `
+    <div class="ra-section-title"><img src="/static/icons/microscopio.svg" alt="" class="icon-svg"> Laboratório</div>
+    <div class="privacy-note">
+      Leituras laboratoriais vinculadas ao agente como laboratorista. Larvas usam o nome informado na leitura; ovitrampas usam o campo Laboratorista da aba Leituras.
+    </div>
+    <div class="perf-grid">
+      <div class="kpi purple"><div class="kpi-icon"><img src="/static/icons/microscopio.svg" alt="" class="icon-svg"></div><div class="kpi-label">Leituras</div><div class="kpi-val">${fmtNum(labT.leituras || 0)}</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/calendario.svg" alt="" class="icon-svg"></div><div class="kpi-label">Dias de leitura</div><div class="kpi-val">${fmtNum(labT.dias || 0)}</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/tubo_ensaio.svg" alt="" class="icon-svg"></div><div class="kpi-label">Tubos de larvas</div><div class="kpi-val">${fmtNum(labT.tubos || 0)}</div><div class="kpi-sub">${fmtNum(labT.larvas_positivas || 0)} positivos</div></div>
+      <div class="kpi teal"><div class="kpi-icon"><img src="/static/icons/ovitrampa.svg" alt="" class="icon-svg"></div><div class="kpi-label">Ovitrampas lidas</div><div class="kpi-val">${fmtNum(labT.ovitrampas || 0)}</div><div class="kpi-sub">${fmtNum(labT.ovos || 0)} ovos</div></div>
+    </div>` : ''}
+
+    ${rgT.imoveis ? `
+    <div class="ra-section-title"><img src="/static/icons/registro_geografico.svg" alt="" class="icon-svg"> Registro Geográfico</div>
+    <div class="privacy-note">
+      Atividades cadastrais vinculadas ao agente por imóveis atualizados no Reconhecimento Geográfico.
+    </div>
+    <div class="perf-grid">
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/casas.svg" alt="" class="icon-svg"></div><div class="kpi-label">Imóveis atualizados</div><div class="kpi-val">${fmtNum(rgT.imoveis || 0)}</div></div>
+      <div class="kpi teal"><div class="kpi-icon"><img src="/static/icons/calendario.svg" alt="" class="icon-svg"></div><div class="kpi-label">Dias com RG</div><div class="kpi-val">${fmtNum(rgT.dias || 0)}</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"></div><div class="kpi-label">Quarteirões</div><div class="kpi-val">${fmtNum(rgT.quarteiroes || 0)}</div></div>
+      <div class="kpi amber"><div class="kpi-icon"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"></div><div class="kpi-label">Localidades</div><div class="kpi-val">${fmtNum(rgT.localidades || 0)}</div></div>
+    </div>
+    <div class="table-wrap" style="margin-bottom:14px;">
+      <div class="table-hd"><span class="table-title"><img src="/static/icons/lista.svg" alt="" class="icon-svg"> Quarteirões atualizados</span></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Localidade</th><th>Quarteirão</th><th>Imóveis</th><th>Logradouros</th><th>Última atualização</th></tr></thead>
+        <tbody>
+          ${rgQuadras.map(row => `
+            <tr>
+              <td>${escapeHtml(row.localidade || '-')}</td>
+              <td>${escapeHtml(row.quarteirao || '-')}</td>
+              <td><strong>${fmtNum(row.imoveis || 0)}</strong></td>
+              <td>${fmtNum(row.logradouros || 0)}</td>
+              <td>${fmtDate(row.ultima_atualizacao)}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -611,7 +657,7 @@ function escapeHtml(value) {
 }
 
 function cardAtividade(a) {
-  const classes = {VETORES:'', ESPOROTRICOSE:'teal', RECOLHIMENTO:'amber', AMOSTRA_ANIMAIS:'purple', BRI:'red'};
+  const classes = {VETORES:'', ESPOROTRICOSE:'teal', RECOLHIMENTO:'amber', AMOSTRA_ANIMAIS:'purple', BRI:'red', ACOES_SETOR:'teal'};
   return `
     <div class="kpi ${classes[a.codigo] || ''}">
       <div class="kpi-icon"><img src="/static/icons/${iconeAtividade(a.codigo)}" alt="" class="icon-svg"></div>
@@ -629,6 +675,7 @@ function iconeAtividade(codigo) {
     RECOLHIMENTO:'pneu.svg',
     AMOSTRA_ANIMAIS:'amostra_animal.svg',
     BRI:'borrifador.svg',
+    ACOES_SETOR:'acoes_setor.svg',
   }[codigo] || 'prancheta.svg';
 }
 
@@ -639,6 +686,7 @@ function detalheAtividade(a) {
   if (a.codigo === 'RECOLHIMENTO') return `${fmtNum(e.materiais || 0)} materiais, ${fmtNum(e.pneus || 0)} pneus`;
   if (a.codigo === 'AMOSTRA_ANIMAIS') return `${fmtNum(e.animais || 0)} animais, ${fmtNum(e.acidentes || 0)} acidentes`;
   if (a.codigo === 'BRI') return `${fmtNum(e.carga || 0)} carga`;
+  if (a.codigo === 'ACOES_SETOR') return `${fmtNum(e.educativas || 0)} educativas, ${fmtNum(e.limpezas || 0)} limpezas, ${fmtNum(e.publico || 0)} público`;
   return '';
 }
 

@@ -88,6 +88,24 @@ FONTES = (
             "pendentes_sispncd": "SUM(CASE WHEN b.sispncd IS NULL OR TRIM(b.sispncd)='' THEN 1 ELSE 0 END)",
         },
     },
+    {
+        "codigo": "ACOES_SETOR",
+        "nome": "Ações do Setor",
+        "tabela": "acoes_setor",
+        "alias": "ac",
+        "id_col": "id_acao",
+        "data_col": "data",
+        "localidade_expr": "ac.localidade",
+        "joins": "",
+        "agente_table": "acoes_setor_agentes",
+        "agente_fk": "id_acao",
+        "tipo_col": "tipo",
+        "extras": {
+            "educativas": "COUNT(DISTINCT CASE WHEN ac.tipo='educativa' THEN ac.id_acao END)",
+            "limpezas": "COUNT(DISTINCT CASE WHEN ac.tipo='limpeza' THEN ac.id_acao END)",
+            "publico": "COALESCE(SUM(ac.publico_aproximado),0)",
+        },
+    },
 )
 
 

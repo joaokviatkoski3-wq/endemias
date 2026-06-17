@@ -164,6 +164,8 @@ tr:nth-child(even) td{background:#f8faff;}
           {{ e.animais or 0 }} animais, {{ e.acidentes or 0 }} acidentes
         {% elif atividade.codigo == 'BRI' %}
           {{ e.carga or 0 }} carga
+        {% elif atividade.codigo == 'ACOES_SETOR' %}
+          {{ e.educativas or 0 }} educativas, {{ e.limpezas or 0 }} limpezas, {{ e.publico or 0 }} p&uacute;blico
         {% else %}
           -
         {% endif %}
@@ -199,6 +201,55 @@ tr:nth-child(even) td{background:#f8faff;}
       <td>{{ ev.grupo or '-' }}</td>
       <td>{{ ev.ciclo or '-' }}</td>
       <td>{{ ev.observacoes or '-' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+
+  {% if laboratorio.totais.leituras %}
+  <div class="bloco-relatorio">
+  <div class="secao">Laborat&oacute;rio</div>
+  <p style="font-size:8.5pt;color:#555;margin-bottom:8pt;">
+    Leituras laboratoriais vinculadas ao agente como laboratorista. Larvas usam o nome informado na leitura; ovitrampas usam o campo Laboratorista da aba Leituras.
+  </p>
+  {% set lab_t = laboratorio.totais %}
+  <div class="kpi-grid">
+    <div class="kpi purple"><div class="kpi-val">{{ lab_t.leituras }}</div><div class="kpi-lbl">Leituras</div></div>
+    <div class="kpi"><div class="kpi-val">{{ lab_t.dias }}</div><div class="kpi-lbl">Dias de leitura</div></div>
+    <div class="kpi"><div class="kpi-val">{{ lab_t.tubos }}</div><div class="kpi-lbl">Tubos de larvas</div></div>
+    <div class="kpi red"><div class="kpi-val">{{ lab_t.larvas_positivas }}</div><div class="kpi-lbl">Tubos positivos</div></div>
+    <div class="kpi teal"><div class="kpi-val">{{ lab_t.ovitrampas }}</div><div class="kpi-lbl">Ovitrampas lidas</div></div>
+    <div class="kpi"><div class="kpi-val">{{ lab_t.ovos }}</div><div class="kpi-lbl">Ovos contabilizados</div></div>
+  </div>
+  </div>
+  {% endif %}
+
+  {% if registro_geografico.totais.imoveis %}
+  <div class="bloco-relatorio">
+  <div class="secao">Registro Geogr&aacute;fico</div>
+  <p style="font-size:8.5pt;color:#555;margin-bottom:8pt;">
+    Atividades cadastrais vinculadas ao agente por im&oacute;veis atualizados no Reconhecimento Geogr&aacute;fico.
+  </p>
+  {% set rg_t = registro_geografico.totais %}
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-val">{{ rg_t.imoveis }}</div><div class="kpi-lbl">Im&oacute;veis atualizados</div></div>
+    <div class="kpi teal"><div class="kpi-val">{{ rg_t.dias }}</div><div class="kpi-lbl">Dias com RG</div></div>
+    <div class="kpi"><div class="kpi-val">{{ rg_t.quarteiroes }}</div><div class="kpi-lbl">Quarteir&otilde;es</div></div>
+    <div class="kpi amber"><div class="kpi-val">{{ rg_t.localidades }}</div><div class="kpi-lbl">Localidades</div></div>
+  </div>
+  <table>
+    <thead><tr><th>Localidade</th><th>Quarteir&atilde;o</th><th class="center">Im&oacute;veis</th><th class="center">Logradouros</th><th>&Uacute;ltima atualiza&ccedil;&atilde;o</th></tr></thead>
+    <tbody>
+    {% for row in registro_geografico.por_quarteirao %}
+    {% set p = row.ultima_atualizacao.split('-') if row.ultima_atualizacao else [] %}
+    <tr>
+      <td>{{ row.localidade or '-' }}</td>
+      <td>{{ row.quarteirao or '-' }}</td>
+      <td class="center">{{ row.imoveis or 0 }}</td>
+      <td class="center">{{ row.logradouros or 0 }}</td>
+      <td>{% if p|length == 3 %}{{ p[2] }}/{{ p[1] }}/{{ p[0] }}{% else %}{{ row.ultima_atualizacao or '-' }}{% endif %}</td>
     </tr>
     {% endfor %}
     </tbody>

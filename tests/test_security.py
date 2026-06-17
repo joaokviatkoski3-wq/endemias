@@ -38,6 +38,7 @@ from app_core import pontos_estrategicos as pe_core
 from app_core import recolhimentos as recolhimentos_core
 from app_core import sispncd as sispncd_core
 from app_core import sispncd_indice as sispncd_indice_core
+from app_core import registro_geografico as registro_geografico_core
 from app_core import version as version_core
 from app_core import work_types
 from blueprints import processar as processar_bp
@@ -2949,6 +2950,175 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertIn("Dias em ovitrampas", html)
             self.assertIn("Equipe completa", html)
             self.assertNotIn("Feriado teste", html)
+
+    def test_relatorio_agente_inclui_acoes_setor_e_registro_geografico(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                conn.execute("INSERT INTO agentes (nome, ativo) VALUES (?, 1)", ("Agente Integrado",))
+                id_agente = conn.execute(
+                    "SELECT id_agente FROM agentes WHERE nome=?",
+                    ("Agente Integrado",),
+                ).fetchone()["id_agente"]
+                loc = conn.execute("SELECT id_localidade, nome FROM localidades ORDER BY id_localidade LIMIT 1").fetchone()
+                if not loc:
+                    conn.execute("INSERT INTO localidades (nome) VALUES (?)", ("Teste",))
+                    loc = conn.execute("SELECT id_localidade, nome FROM localidades WHERE nome=?", ("Teste",)).fetchone()
+
+                cur = conn.execute(
+                    """INSERT INTO acoes_setor
+                       (tipo, data, hora_inicio, hora_fim, localidade, endereco, local,
+                        publico_aproximado, tema, contexto, coordenadas, observacoes,
+                        criado_por, criado_em, atualizado_em)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        "educativa",
+                        "2026-06-10",
+                        "08:00",
+                        "09:00",
+                        loc["nome"],
+                        "Rua Teste",
+                        "Escola Teste",
+                        35,
+                        "Dengue",
+                        "Palestra",
+                        None,
+                        None,
+                        "teste",
+                        "2026-06-10T08:00:00",
+                        "2026-06-10T08:00:00",
+                    ),
+                )
+                conn.execute(
+                    "INSERT INTO acoes_setor_agentes (id_acao, id_agente) VALUES (?, ?)",
+                    (cur.lastrowid, id_agente),
+                )
+
+                registro_geografico_core.ensure_schema(conn)
+                cur_q = conn.execute(
+                    """INSERT INTO registro_geografico_quarteiroes
+                       (id_localidade, localidade, quarteirao, criado_em, atualizado_em)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (loc["id_localidade"], loc["nome"], "0007", "2026-06-11T08:00:00", "2026-06-11T08:00:00"),
+                )
+                for ordem, numero in enumerate(("10", "12"), 1):
+                    cur_i = conn.execute(
+                        """INSERT INTO registro_geografico_imoveis
+                           (id_quarteirao, ordem, id_localidade, localidade, quarteirao, logradouro,
+                            numero, sequencia, lado, tipo, condominio, observacao, data_atualizacao,
+                            agentes_texto, busca_normalizada, chave_origem, criado_em, atualizado_em)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (
+                            cur_q.lastrowid,
+                            ordem,
+                            loc["id_localidade"],
+                            loc["nome"],
+                            "0007",
+                            "Rua Teste",
+                            numero,
+                            None,
+                            "1",
+                            "R",
+                            None,
+                            None,
+                            "2026-06-11",
+                            "Agente Integrado",
+                            "agente integrado rua teste",
+                            f"teste-rg-{ordem}",
+                            "2026-06-11T08:00:00",
+                            "2026-06-11T08:00:00",
+                        ),
+                    )
+                    conn.execute(
+                        "INSERT INTO registro_geografico_imovel_agentes (id_imovel, id_agente) VALUES (?, ?)",
+                        (cur_i.lastrowid, id_agente),
+                    )
+                conn.execute(
+                    """INSERT INTO resultados_laboratorio
+                       (id_coleta, num_tubo, data_coleta, laboratorista, data_leitura,
+                        aegypt_larvas, aegypt_pupas, aegypt_exuvias, aegypt_adulto,
+                        albopictus_larvas, albopictus_pupas, albopictus_exuvias, albopictus_adulto,
+                        outra_larvas, outra_pupas, outra_exuvias, outra_adulto)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        "coleta-lab-1",
+                        "T-100",
+                        "2026-06-12",
+                        "agente integrado",
+                        "2026-06-13",
+                        1,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                    ),
+                )
+                ovitrampas_core.ensure_schema(conn)
+                conn.execute(
+                    """INSERT INTO ovitrampas_leituras
+                       (id_leitura, ovitrampa_id, ano, semana, distrito, ovos,
+                        id_laboratorista, data_leitura, importado_em)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        "ovi-lab-1",
+                        "OVI-100",
+                        2026,
+                        24,
+                        loc["nome"],
+                        52,
+                        id_agente,
+                        "2026-06-14",
+                        "2026-06-14T08:00:00",
+                    ),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            resp = client.get(
+                "/api/relatorio-agente",
+                query_string={"agente": "Agente Integrado", "d_ini": "2026-06-01", "d_fim": "2026-06-30"},
+            )
+            self.assertEqual(resp.status_code, 200)
+            dados = resp.get_json()
+            atividades = {item["codigo"]: item for item in dados["producao_operacional"]["por_atividade"]}
+            self.assertEqual(atividades["ACOES_SETOR"]["registros"], 1)
+            self.assertEqual(atividades["ACOES_SETOR"]["extras"]["educativas"], 1)
+            self.assertEqual(dados["registro_geografico"]["totais"]["imoveis"], 2)
+            self.assertEqual(dados["registro_geografico"]["totais"]["quarteiroes"], 1)
+            self.assertEqual(dados["laboratorio"]["totais"]["leituras"], 2)
+            self.assertEqual(dados["laboratorio"]["totais"]["tubos"], 1)
+            self.assertEqual(dados["laboratorio"]["totais"]["ovos"], 52)
+
+            resp = client.get(
+                "/api/agentes/{}/historico".format(id_agente),
+                query_string={"d_ini": "2026-06-01", "d_fim": "2026-06-30"},
+            )
+            self.assertEqual(resp.status_code, 200)
+            historico = resp.get_json()
+            self.assertIn("Ações do Setor", historico["por_origem"])
+            self.assertIn("Registro Geográfico", historico["por_origem"])
+            self.assertIn("Laboratório", historico["por_origem"])
+            self.assertIn("Laboratório ovitrampas", historico["por_origem"])
+
+            resp = client.get(
+                "/relatorio-agente/pdf",
+                query_string={"agente": "Agente Integrado", "d_ini": "2026-06-01", "d_fim": "2026-06-30"},
+            )
+            self.assertEqual(resp.status_code, 200)
+            html = resp.data.decode("utf-8")
+            self.assertIn("Ações do Setor", html)
+            self.assertIn("Registro Geogr&aacute;fico", html)
+            self.assertIn("Laborat&oacute;rio", html)
 
     def test_api_historico_agente_retorna_frentes_operacionais(self):
         client = _client_logado("admin")

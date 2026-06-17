@@ -164,6 +164,11 @@ def historico(db_path, id_agente, d_ini=None, d_fim=None):
         eventos.extend(_hist_recolhimentos(conn, id_agente, d_ini, d_fim))
         eventos.extend(_hist_amostras(conn, id_agente, d_ini, d_fim))
         eventos.extend(_hist_bri(conn, id_agente, d_ini, d_fim))
+        eventos.extend(_hist_ovitrampas(conn, id_agente, d_ini, d_fim))
+        eventos.extend(_hist_laboratorio_larvas(conn, id_agente, d_ini, d_fim))
+        eventos.extend(_hist_ovitrampas_leituras(conn, id_agente, d_ini, d_fim))
+        eventos.extend(_hist_acoes_setor(conn, id_agente, d_ini, d_fim))
+        eventos.extend(_hist_registro_geografico(conn, id_agente, d_ini, d_fim))
     finally:
         conn.close()
 
@@ -337,6 +342,198 @@ def _hist_bri(conn, id_agente, d_ini, d_fim):
         }
         for row in rows
     ]
+
+
+def _hist_ovitrampas(conn, id_agente, d_ini, d_fim):
+    tabelas = (
+        "ovitrampas_calendario_eventos",
+        "ovitrampas_calendario_agentes",
+        "ovitrampas_calendario_grupos",
+    )
+    if not all(_table_exists(conn, tabela) for tabela in tabelas):
+        return []
+    rows = conn.execute(
+        """
+        SELECT e.data, e.movimento, e.ciclo, e.observacoes,
+               g.nome AS grupo, g.localidades
+          FROM ovitrampas_calendario_eventos e
+          JOIN ovitrampas_calendario_agentes ea ON ea.id_evento=e.id_evento
+          LEFT JOIN ovitrampas_calendario_grupos g ON g.id_grupo=e.id_grupo
+         WHERE ea.id_agente=?
+           AND e.data BETWEEN ? AND ?
+           AND e.movimento<>'feriado'
+         ORDER BY e.data, e.id_evento
+        """,
+        (id_agente, d_ini, d_fim),
+    ).fetchall()
+    labels = {
+        "instalacao": "Instalação",
+        "troca": "Troca",
+        "retirada": "Retirada",
+    }
+    return [
+        {
+            "data": row["data"],
+            "origem": "Ovitrampas",
+            "tipo": labels.get(row["movimento"], row["movimento"] or "Ovitrampa"),
+            "localidade": row["grupo"] or row["localidades"],
+            "detalhe": _join_detail(row["ciclo"], row["localidades"], row["observacoes"]),
+        }
+        for row in rows
+    ]
+
+
+def _hist_acoes_setor(conn, id_agente, d_ini, d_fim):
+    if not (_table_exists(conn, "acoes_setor") and _table_exists(conn, "acoes_setor_agentes")):
+        return []
+    rows = conn.execute(
+        """
+        SELECT a.data, a.tipo, a.hora_inicio, a.hora_fim, a.localidade,
+               a.endereco, a.local, a.publico_aproximado, a.tema, a.contexto
+          FROM acoes_setor a
+          JOIN acoes_setor_agentes aa ON aa.id_acao=a.id_acao
+         WHERE aa.id_agente=? AND a.data BETWEEN ? AND ?
+         ORDER BY a.data, COALESCE(a.hora_inicio,''), a.localidade
+        """,
+        (id_agente, d_ini, d_fim),
+    ).fetchall()
+    labels = {
+        "educativa": "Ação educativa",
+        "limpeza": "Ação de limpeza",
+    }
+    return [
+        {
+            "data": row["data"],
+            "origem": "Ações do Setor",
+            "tipo": labels.get(row["tipo"], row["tipo"] or "Acao"),
+            "localidade": row["localidade"],
+            "detalhe": _join_detail(
+                _intervalo_hora(row["hora_inicio"], row["hora_fim"]),
+                row["local"],
+                row["endereco"],
+                row["tema"],
+                f"{row['publico_aproximado']} público" if row["publico_aproximado"] is not None else None,
+                row["contexto"],
+            ),
+        }
+        for row in rows
+    ]
+
+
+def _hist_laboratorio_larvas(conn, id_agente, d_ini, d_fim):
+    if not (_table_exists(conn, "resultados_laboratorio") and _table_exists(conn, "agentes")):
+        return []
+    rows = conn.execute(
+        """
+        SELECT COALESCE(rl.data_leitura, rl.data_coleta) AS data,
+               COUNT(DISTINCT rl.id_resultado) AS leituras,
+               COUNT(DISTINCT rl.num_tubo) AS tubos,
+               SUM(CASE WHEN COALESCE(rl.aegypt_larvas,0) + COALESCE(rl.aegypt_pupas,0)
+                           + COALESCE(rl.aegypt_exuvias,0) + COALESCE(rl.aegypt_adulto,0)
+                           + COALESCE(rl.albopictus_larvas,0) + COALESCE(rl.albopictus_pupas,0)
+                           + COALESCE(rl.albopictus_exuvias,0) + COALESCE(rl.albopictus_adulto,0)
+                           + COALESCE(rl.outra_larvas,0) + COALESCE(rl.outra_pupas,0)
+                           + COALESCE(rl.outra_exuvias,0) + COALESCE(rl.outra_adulto,0) > 0
+                        THEN 1 ELSE 0 END) AS positivas
+          FROM resultados_laboratorio rl
+          JOIN agentes ag ON lower(trim(ag.nome)) = lower(trim(rl.laboratorista))
+         WHERE ag.id_agente=?
+           AND COALESCE(rl.data_leitura, rl.data_coleta) BETWEEN ? AND ?
+         GROUP BY COALESCE(rl.data_leitura, rl.data_coleta)
+         ORDER BY data
+        """,
+        (id_agente, d_ini, d_fim),
+    ).fetchall()
+    return [
+        {
+            "data": row["data"],
+            "origem": "Laboratório",
+            "tipo": "Leitura de larvas",
+            "localidade": "",
+            "detalhe": _join_detail(
+                f"{row['leituras'] or 0} leituras",
+                f"{row['tubos'] or 0} tubos",
+                f"{row['positivas'] or 0} positivas",
+            ),
+        }
+        for row in rows
+    ]
+
+
+def _hist_ovitrampas_leituras(conn, id_agente, d_ini, d_fim):
+    if not _table_exists(conn, "ovitrampas_leituras"):
+        return []
+    rows = conn.execute(
+        """
+        SELECT COALESCE(data_leitura, data_coleta, data_envio_contagem) AS data,
+               distrito AS localidade,
+               COUNT(DISTINCT id_leitura) AS leituras,
+               SUM(COALESCE(ovos,0)) AS ovos,
+               SUM(CASE WHEN COALESCE(ovos,0)>0 THEN 1 ELSE 0 END) AS positivas
+          FROM ovitrampas_leituras
+         WHERE id_laboratorista=?
+           AND COALESCE(data_leitura, data_coleta, data_envio_contagem) BETWEEN ? AND ?
+         GROUP BY COALESCE(data_leitura, data_coleta, data_envio_contagem), distrito
+         ORDER BY data, distrito
+        """,
+        (id_agente, d_ini, d_fim),
+    ).fetchall()
+    return [
+        {
+            "data": row["data"],
+            "origem": "Laboratório ovitrampas",
+            "tipo": "Leitura de ovos",
+            "localidade": row["localidade"],
+            "detalhe": _join_detail(
+                f"{row['leituras'] or 0} leituras",
+                f"{row['positivas'] or 0} positivas",
+                f"{row['ovos'] or 0} ovos",
+            ),
+        }
+        for row in rows
+    ]
+
+
+def _hist_registro_geografico(conn, id_agente, d_ini, d_fim):
+    tabelas = ("registro_geografico_imoveis", "registro_geografico_imovel_agentes")
+    if not all(_table_exists(conn, tabela) for tabela in tabelas):
+        return []
+    rows = conn.execute(
+        """
+        SELECT i.data_atualizacao AS data,
+               i.localidade,
+               i.quarteirao,
+               COUNT(DISTINCT i.id_imovel) AS imoveis,
+               COUNT(DISTINCT NULLIF(TRIM(i.logradouro),'')) AS logradouros
+          FROM registro_geografico_imoveis i
+          JOIN registro_geografico_imovel_agentes ia ON ia.id_imovel=i.id_imovel
+         WHERE ia.id_agente=?
+           AND i.data_atualizacao BETWEEN ? AND ?
+         GROUP BY i.data_atualizacao, i.localidade, i.quarteirao
+         ORDER BY i.data_atualizacao, i.localidade, CAST(i.quarteirao AS INTEGER), i.quarteirao
+        """,
+        (id_agente, d_ini, d_fim),
+    ).fetchall()
+    return [
+        {
+            "data": row["data"],
+            "origem": "Registro Geográfico",
+            "tipo": "Atualização de RG",
+            "localidade": row["localidade"],
+            "detalhe": _join_detail(
+                f"Q {int(float(row['quarteirao']))}" if str(row["quarteirao"] or "").replace(".", "", 1).isdigit() else f"Q {row['quarteirao']}",
+                f"{row['imoveis'] or 0} imóveis",
+                f"{row['logradouros'] or 0} logradouros",
+            ),
+        }
+        for row in rows
+    ]
+
+
+def _intervalo_hora(inicio, fim):
+    if inicio and fim:
+        return f"{inicio}-{fim}"
+    return inicio or fim
 
 
 def _join_detail(*parts):
