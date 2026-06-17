@@ -25,6 +25,35 @@ def get_db():
     return db_core.connect(_db_path())
 
 
+def _has_column(conn, table, column):
+    try:
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    except Exception:
+        return False
+    return any(row["name"] == column for row in rows)
+
+
+def _total_tratamentos_depositos_dashboard(conn, where, params):
+    if not _has_column(conn, "tratamentos", "qtd_depositos_tratados"):
+        return 0
+    row = conn.execute(
+        f"""
+        SELECT COALESCE(SUM(qtd),0) AS total
+          FROM (
+                SELECT DISTINCT t.id, COALESCE(t.qtd_depositos_tratados,0) AS qtd
+                  FROM tratamentos t
+                  JOIN visitas v ON v.id_visita=t.id_visita
+                  LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
+                  LEFT JOIN visita_agentes va ON va.id_visita=v.id_visita
+                  LEFT JOIN agentes a ON a.id_agente=va.id_agente
+                  {where}
+               ) base
+        """,
+        params,
+    ).fetchone()
+    return utils_core.safe_int(row["total"] if row else 0)
+
+
 def request_int_arg(nome, default, minimo=None, maximo=None):
     return utils_core.bounded_int(request.args.get(nome), default, minimo, maximo)
 
@@ -286,6 +315,7 @@ def api_dashboard():
                 f"SELECT SUM(d.inspecionado) as insp, SUM(d.eliminado) as elim, SUM(d.tratado) as trat FROM depositos_inspecionados d JOIN visitas v ON v.id_visita=d.id_visita LEFT JOIN localidades l ON l.id_localidade=v.id_localidade LEFT JOIN visita_agentes va ON va.id_visita=v.id_visita LEFT JOIN agentes a ON a.id_agente=va.id_agente {where}",
                 params,
             ).fetchone()
+            dep_tratamentos = _total_tratamentos_depositos_dashboard(conn, where, params)
             dep_tipo = conn.execute(
                 f"SELECT d.tipo_deposito, SUM(d.inspecionado) as insp FROM depositos_inspecionados d JOIN visitas v ON v.id_visita=d.id_visita LEFT JOIN localidades l ON l.id_localidade=v.id_localidade LEFT JOIN visita_agentes va ON va.id_visita=v.id_visita LEFT JOIN agentes a ON a.id_agente=va.id_agente {where} GROUP BY d.tipo_deposito ORDER BY insp DESC",
                 params,
@@ -356,7 +386,7 @@ def api_dashboard():
             "depositos": {
                 "inspecionados": utils_core.safe_int(dep["insp"]) if dep else 0,
                 "eliminados": utils_core.safe_int(dep["elim"]) if dep else 0,
-                "tratados": utils_core.safe_int(dep["trat"]) if dep else 0,
+                "tratados": (utils_core.safe_int(dep["trat"]) if dep else 0) + dep_tratamentos,
             },
             "dep_por_tipo": [dict(r) for r in dep_tipo],
             "tbo_duracao": {

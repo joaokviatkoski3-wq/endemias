@@ -1715,6 +1715,84 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("bloco-relatorio", html)
         self.assertNotIn("SisPNCD", html)
 
+    def test_relatorios_somam_tratamentos_de_depositos_e_tabela_tratamentos(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute("INSERT INTO agentes (nome, ativo) VALUES (?, 1)", ("Agente Tratamento",))
+                id_agente = conn.execute(
+                    "SELECT id_agente FROM agentes WHERE nome=?",
+                    ("Agente Tratamento",),
+                ).fetchone()[0]
+                conn.executemany(
+                    """INSERT INTO visitas
+                       (id_visita, kobo_uuid, tipo, data, visita, processado_em)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    [
+                        ("visita-tbo", "uuid-tbo", "TBO", "2026-04-10", "Normal", "2026-04-10T08:00:00"),
+                        ("visita-pe", "uuid-pe", "PE", "2026-04-11", "Normal", "2026-04-11T08:00:00"),
+                    ],
+                )
+                conn.executemany(
+                    "INSERT INTO visita_agentes (id_visita, id_agente) VALUES (?, ?)",
+                    [("visita-tbo", id_agente), ("visita-pe", id_agente)],
+                )
+                conn.execute(
+                    """INSERT INTO depositos_inspecionados
+                       (id_visita, tipo_deposito, inspecionado, eliminado, tratado)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    ("visita-tbo", "A1", 4, 1, 2),
+                )
+                conn.execute(
+                    """INSERT INTO tratamentos
+                       (id_visita, tipo, quantidade_carga, qtd_depositos_tratados)
+                       VALUES (?, ?, ?, ?)""",
+                    ("visita-pe", "BTI", 1.5, 3),
+                )
+                conn.execute(
+                    """INSERT INTO esporotricose_visitas
+                       (id_visita, kobo_uuid, data, hora_inicio, hora_fim, visita, processado_em)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        "esporo-tempo",
+                        "uuid-esporo-tempo",
+                        "2026-04-12",
+                        "09:00",
+                        "10:30",
+                        "Normal",
+                        "2026-04-12T10:30:00",
+                    ),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            resp = client.get(
+                "/relatorio-agente/setor/pdf",
+                query_string={"d_ini": "2026-04-01", "d_fim": "2026-04-30"},
+            )
+            self.assertEqual(resp.status_code, 200)
+            html = resp.data.decode("utf-8")
+            self.assertIn('<div class="kpi-val">5</div><div class="kpi-lbl">Dep. tratados</div>', html)
+            self.assertIn("Esporotricose", html)
+            self.assertIn("90.0 min", html)
+
+            resp = client.get(
+                "/api/relatorio-agente",
+                query_string={
+                    "agente": "Agente Tratamento",
+                    "d_ini": "2026-04-01",
+                    "d_fim": "2026-04-30",
+                },
+            )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.get_json()["totais"]["tratados"], 5)
+
+            resp = client.get("/api/dashboard?d_ini=2026-04-01&d_fim=2026-04-30")
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.get_json()["depositos"]["tratados"], 5)
+
     def test_pdf_relatorio_setor_inclui_ovitrampas_e_ignora_feriados(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)

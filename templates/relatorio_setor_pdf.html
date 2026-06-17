@@ -23,6 +23,7 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#111;background
 .hero-sub{font-size:9pt;color:#555;}
 .secao{font-size:11pt;font-weight:700;color:#1a4fba;border-bottom:2px solid #1a4fba;padding-bottom:3pt;margin:14pt 0 8pt;break-after:avoid;page-break-after:avoid;}
 .bloco-relatorio{break-inside:avoid;page-break-inside:avoid;margin-bottom:8pt;}
+.bloco-tempo{break-inside:auto;page-break-inside:auto;}
 .bloco-relatorio > :first-child{margin-top:0;}
 .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8pt;margin-bottom:12pt;}
 .kpi{background:#f8faff;border:1px solid #dde4f5;border-radius:4pt;padding:8pt;text-align:center;break-inside:avoid;page-break-inside:avoid;}
@@ -159,6 +160,64 @@ tr:nth-child(even) td{background:#f8faff;}
     </table>
   </div>
 
+  <div class="bloco-relatorio bloco-tempo">
+    <div class="secao">Tempo das visitas</div>
+    <p class="note">Calculo feito apenas em registros com hora de inicio e fim validas, considerando duracoes entre 1 e 240 minutos.</p>
+    <div class="chart-row">
+      <div>
+        <table>
+          <thead><tr><th>Tipo</th><th class="right">Visitas</th><th class="right">Media</th><th class="right">Min.</th><th class="right">Max.</th></tr></thead>
+          <tbody>
+          {% for row in visitas.duracao_por_tipo %}
+          <tr>
+            <td>{{ row.tipo }}</td>
+            <td class="right">{{ row.n }}</td>
+            <td class="right">{{ row.media }} min</td>
+            <td class="right">{{ row.minimo }} min</td>
+            <td class="right">{{ row.maximo }} min</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="center small">Nenhuma visita com tempo valido no periodo.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <table>
+          <thead><tr><th>Acesso</th><th class="right">Visitas</th><th class="right">Media</th><th class="right">Min.</th><th class="right">Max.</th></tr></thead>
+          <tbody>
+          {% for row in visitas.duracao_por_acesso %}
+          <tr>
+            <td>{{ row.grupo }}</td>
+            <td class="right">{{ row.n }}</td>
+            <td class="right">{{ row.media }} min</td>
+            <td class="right">{{ row.minimo }} min</td>
+            <td class="right">{{ row.maximo }} min</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="center small">Nenhuma visita com tempo valido no periodo.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>Periodo do dia</th><th class="right">Visitas</th><th class="right">Dias</th><th class="right">Media/dia</th></tr></thead>
+      <tbody>
+      {% for row in visitas.por_periodo %}
+      <tr>
+        <td>{{ row.periodo }}</td>
+        <td class="right">{{ row.total }}</td>
+        <td class="right">{{ row.dias }}</td>
+        <td class="right">{{ row.media_dia }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="center small">Nenhuma visita no periodo.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
   {% if ovi_t.eventos %}
   <div class="bloco-relatorio">
     <div class="secao">Ovitrampas</div>
@@ -213,58 +272,6 @@ tr:nth-child(even) td{background:#f8faff;}
     {% endif %}
   </div>
   {% endif %}
-
-  <div class="bloco-relatorio">
-    <div class="secao">Tempo das visitas</div>
-    <p class="note">Calculo feito apenas em registros com hora de inicio e fim validas, considerando duracoes entre 1 e 240 minutos.</p>
-    <div class="chart-row">
-      <div>
-        <table>
-          <thead><tr><th>Tipo</th><th class="right">Visitas</th><th class="right">Media</th><th class="right">Min.</th><th class="right">Max.</th></tr></thead>
-          <tbody>
-          {% for row in visitas.duracao_por_tipo %}
-          <tr>
-            <td>{{ row.tipo }}</td>
-            <td class="right">{{ row.n }}</td>
-            <td class="right">{{ row.media }} min</td>
-            <td class="right">{{ row.minimo }} min</td>
-            <td class="right">{{ row.maximo }} min</td>
-          </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      <div>
-        <table>
-          <thead><tr><th>Acesso</th><th class="right">Visitas</th><th class="right">Media</th><th class="right">Min.</th><th class="right">Max.</th></tr></thead>
-          <tbody>
-          {% for row in visitas.duracao_por_acesso %}
-          <tr>
-            <td>{{ row.grupo }}</td>
-            <td class="right">{{ row.n }}</td>
-            <td class="right">{{ row.media }} min</td>
-            <td class="right">{{ row.minimo }} min</td>
-            <td class="right">{{ row.maximo }} min</td>
-          </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <table>
-      <thead><tr><th>Periodo do dia</th><th class="right">Visitas</th><th class="right">Dias</th><th class="right">Media/dia</th></tr></thead>
-      <tbody>
-      {% for row in visitas.por_periodo %}
-      <tr>
-        <td>{{ row.periodo }}</td>
-        <td class="right">{{ row.total }}</td>
-        <td class="right">{{ row.dias }}</td>
-        <td class="right">{{ row.media_dia }}</td>
-      </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
 
   <div class="bloco-relatorio">
     <div class="secao">Depositos e laboratorio</div>

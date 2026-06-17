@@ -21,6 +21,49 @@ def _get_db():
     return db_core.connect(current_app.config["DB_PATH"])
 
 
+def _has_column(conn, table, column):
+    try:
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    except Exception:
+        return False
+    return any(row["name"] == column for row in rows)
+
+
+def _total_tratamentos_depositos_setor(conn, d_ini, d_fim):
+    if not _has_column(conn, "tratamentos", "qtd_depositos_tratados"):
+        return 0
+    row = conn.execute(
+        """
+        SELECT COALESCE(SUM(COALESCE(t.qtd_depositos_tratados,0)),0) AS total
+          FROM tratamentos t
+          JOIN visitas v ON v.id_visita=t.id_visita
+         WHERE v.data BETWEEN ? AND ?
+        """,
+        (d_ini, d_fim),
+    ).fetchone()
+    return utils_core.safe_int(row["total"] if row else 0)
+
+
+def _total_tratamentos_depositos_agente(conn, nome, d_ini, d_fim):
+    if not _has_column(conn, "tratamentos", "qtd_depositos_tratados"):
+        return 0
+    row = conn.execute(
+        """
+        SELECT COALESCE(SUM(qtd),0) AS total
+          FROM (
+                SELECT DISTINCT t.id, COALESCE(t.qtd_depositos_tratados,0) AS qtd
+                  FROM tratamentos t
+                  JOIN visitas v ON v.id_visita=t.id_visita
+                  JOIN visita_agentes va ON va.id_visita=v.id_visita
+                  JOIN agentes a ON a.id_agente=va.id_agente
+                 WHERE a.nome=? AND v.data BETWEEN ? AND ?
+               ) base
+        """,
+        (nome, d_ini, d_fim),
+    ).fetchone()
+    return utils_core.safe_int(row["total"] if row else 0)
+
+
 def _resumo_esporotricose_agente(nome, d_ini, d_fim):
     filtros = {"agente": nome, "d_ini": d_ini, "d_fim": d_fim}
     resumo = esporotricose_core.resumo(current_app.config["DB_PATH"], filtros)
@@ -601,17 +644,32 @@ def _metricas_visitas_setor(d_ini, d_fim):
 
         por_periodo = conn.execute(
             """
-            SELECT CASE WHEN v.hora_inicio < '12:00' THEN 'Manha' ELSE 'Tarde' END AS periodo,
-                   COUNT(DISTINCT v.id_visita) AS total,
-                   COUNT(DISTINCT v.data) AS dias
-              FROM visitas v
-             WHERE v.data BETWEEN ? AND ?
-               AND v.hora_inicio IS NOT NULL
-               AND TRIM(v.hora_inicio)<>''
+            SELECT periodo,
+                   COUNT(DISTINCT fonte || ':' || id_visita) AS total,
+                   COUNT(DISTINCT data) AS dias
+              FROM (
+                    SELECT 'vetor' AS fonte,
+                           v.id_visita,
+                           v.data,
+                           CASE WHEN v.hora_inicio < '12:00' THEN 'Manha' ELSE 'Tarde' END AS periodo
+                      FROM visitas v
+                     WHERE v.data BETWEEN ? AND ?
+                       AND v.hora_inicio IS NOT NULL
+                       AND TRIM(v.hora_inicio)<>''
+                    UNION ALL
+                    SELECT 'esporo' AS fonte,
+                           e.id_visita,
+                           e.data,
+                           CASE WHEN e.hora_inicio < '12:00' THEN 'Manha' ELSE 'Tarde' END AS periodo
+                      FROM esporotricose_visitas e
+                     WHERE e.data BETWEEN ? AND ?
+                       AND e.hora_inicio IS NOT NULL
+                       AND TRIM(e.hora_inicio)<>''
+                   ) base
              GROUP BY periodo
              ORDER BY periodo
             """,
-            (d_ini, d_fim),
+            (d_ini, d_fim, d_ini, d_fim),
         ).fetchall()
 
         duracao_por_tipo = conn.execute(
@@ -621,17 +679,23 @@ def _metricas_visitas_setor(d_ini, d_fim):
                    ROUND(MIN(dur),1) AS minimo,
                    ROUND(MAX(dur),1) AS maximo
               FROM (
-                    SELECT v.tipo,
+                    SELECT v.tipo AS tipo,
                            (julianday(v.data||' '||v.hora_fim)-julianday(v.data||' '||v.hora_inicio))*24*60 AS dur
                       FROM visitas v
                      WHERE v.data BETWEEN ? AND ?
                        AND v.hora_inicio IS NOT NULL AND v.hora_fim IS NOT NULL
+                    UNION ALL
+                    SELECT 'Esporotricose' AS tipo,
+                           (julianday(e.data||' '||e.hora_fim)-julianday(e.data||' '||e.hora_inicio))*24*60 AS dur
+                      FROM esporotricose_visitas e
+                     WHERE e.data BETWEEN ? AND ?
+                       AND e.hora_inicio IS NOT NULL AND e.hora_fim IS NOT NULL
                    ) base
              WHERE dur BETWEEN 1 AND 240
              GROUP BY tipo
              ORDER BY media DESC, tipo
             """,
-            (d_ini, d_fim),
+            (d_ini, d_fim, d_ini, d_fim),
         ).fetchall()
 
         duracao_por_acesso = conn.execute(
@@ -647,12 +711,19 @@ def _metricas_visitas_setor(d_ini, d_fim):
                       FROM visitas v
                      WHERE v.data BETWEEN ? AND ?
                        AND v.hora_inicio IS NOT NULL AND v.hora_fim IS NOT NULL
+                    UNION ALL
+                    SELECT CASE WHEN LOWER(COALESCE(e.visita,'')) IN ('normal','recuperado')
+                                THEN 'Acessados' ELSE 'Nao acessados' END AS grupo,
+                           (julianday(e.data||' '||e.hora_fim)-julianday(e.data||' '||e.hora_inicio))*24*60 AS dur
+                      FROM esporotricose_visitas e
+                     WHERE e.data BETWEEN ? AND ?
+                       AND e.hora_inicio IS NOT NULL AND e.hora_fim IS NOT NULL
                    ) base
              WHERE dur BETWEEN 1 AND 240
              GROUP BY grupo
              ORDER BY grupo
             """,
-            (d_ini, d_fim),
+            (d_ini, d_fim, d_ini, d_fim),
         ).fetchall()
 
         dep = conn.execute(
@@ -666,6 +737,7 @@ def _metricas_visitas_setor(d_ini, d_fim):
             """,
             (d_ini, d_fim),
         ).fetchone()
+        tratamentos_depositos_setor = _total_tratamentos_depositos_setor(conn, d_ini, d_fim)
 
         coletas = conn.execute(
             """
@@ -687,6 +759,11 @@ def _metricas_visitas_setor(d_ini, d_fim):
     totais_d = dict(totais) if totais else {}
     total = utils_core.safe_int(totais_d.get("total"))
     dias = utils_core.safe_int(totais_d.get("dias"))
+    dep_d = dict(dep) if dep else {}
+    dep_d["tratados"] = (
+        utils_core.safe_int(dep_d.get("tratados"))
+        + tratamentos_depositos_setor
+    )
     coletas_d = dict(coletas) if coletas else {}
     total_coletas = utils_core.safe_int(coletas_d.get("total"))
     pos_aeg = utils_core.safe_int(coletas_d.get("pos_aeg"))
@@ -707,7 +784,7 @@ def _metricas_visitas_setor(d_ini, d_fim):
         ],
         "duracao_por_tipo": [dict(row) for row in duracao_por_tipo],
         "duracao_por_acesso": [dict(row) for row in duracao_por_acesso],
-        "depositos": dict(dep) if dep else {},
+        "depositos": dep_d,
         "coletas": {
             **coletas_d,
             "indice": round(pos_aeg / total_coletas * 100, 1) if total_coletas else 0,
@@ -765,6 +842,7 @@ def _obter_dados(nome, d_ini, d_fim):
             JOIN agentes a ON a.id_agente=va.id_agente
             LEFT JOIN depositos_inspecionados d ON d.id_visita=v.id_visita
             WHERE a.nome=? AND v.data BETWEEN ? AND ?""", p).fetchone()
+        tratamentos_depositos_agente = _total_tratamentos_depositos_agente(conn, nome, d_ini, d_fim)
 
         col = conn.execute("""
             SELECT COUNT(DISTINCT c.id_coleta) as total,
@@ -908,6 +986,10 @@ def _obter_dados(nome, d_ini, d_fim):
 
     totais_d = dict(totais) if totais else {}
     dep_d = dict(dep) if dep else {}
+    dep_d["trat"] = (
+        utils_core.safe_int(dep_d.get("trat"))
+        + tratamentos_depositos_agente
+    )
     col_d = dict(col) if col else {}
     tv = utils_core.safe_int(totais_d.get("total", 0))
     dias = utils_core.safe_int(totais_d.get("dias", 0))

@@ -568,6 +568,7 @@ async function salvarSisPNCD() {
   try {
     const d = await apiPost('/api/sispncd/salvar', body);
     toast(`${fmtNum(d.atualizados)} registro(s) atualizado(s) no SisPNCD.`, 'success');
+    document.getElementById('sis-codigo').value = '';
     await buscarSisPNCD();
     await carregarPendencias();
   } catch(e) {
