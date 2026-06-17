@@ -51,7 +51,7 @@ def criar():
             "agente_criado",
             entidade="agentes",
             entidade_id=novo_id,
-            detalhes={"nome": dados.get("nome"), "matricula": dados.get("matricula")},
+            detalhes={"nome": dados.get("nome") or dados.get("nome_completo"), "matricula": dados.get("matricula")},
         )
     except Exception as exc:
         logging.exception("Erro ao criar agente")
@@ -92,18 +92,3 @@ def editar(id_agente):
     except Exception as exc:
         logging.exception("Erro ao editar agente")
         return jsonify({"erro": str(exc)}), 400
-
-
-@bp.route("/api/agentes/<int:id_agente>/historico")
-@login_required
-@nivel_min("admin")
-def historico(id_agente):
-    dados = agentes_core.historico(
-        current_app.config["DB_PATH"],
-        id_agente,
-        request.args.get("d_ini") or utils_core.data_n_dias(30),
-        request.args.get("d_fim") or utils_core.hoje(),
-    )
-    if not dados:
-        return jsonify({"erro": "Agente nao encontrado."}), 404
-    return jsonify(dados)

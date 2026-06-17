@@ -6,6 +6,7 @@ from app_core import utils
 
 EDITABLE_FIELDS = {
     "nome": "TEXT",
+    "nome_completo": "TEXT",
     "matricula": "TEXT",
     "cargo": "TEXT",
     "ativo": "INTEGER",
@@ -33,6 +34,7 @@ def ensure_schema(conn_or_path):
                 CREATE TABLE IF NOT EXISTS agentes (
                     id_agente INTEGER PRIMARY KEY AUTOINCREMENT,
                     nome TEXT NOT NULL UNIQUE,
+                    nome_completo TEXT,
                     matricula TEXT,
                     cargo TEXT,
                     ativo INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)),
@@ -41,8 +43,12 @@ def ensure_schema(conn_or_path):
                     observacoes TEXT
                 )
             """)
+            conn.execute("UPDATE agentes SET nome_completo=nome WHERE nome_completo IS NULL OR TRIM(nome_completo)=''")
             conn.commit()
             return
+        if "nome_completo" not in cols:
+            conn.execute("ALTER TABLE agentes ADD COLUMN nome_completo TEXT")
+            conn.execute("UPDATE agentes SET nome_completo=nome WHERE nome_completo IS NULL OR TRIM(nome_completo)=''")
         if "matricula" not in cols:
             conn.execute("ALTER TABLE agentes ADD COLUMN matricula TEXT")
         if "cargo" not in cols:
@@ -55,6 +61,7 @@ def ensure_schema(conn_or_path):
             conn.execute("ALTER TABLE agentes ADD COLUMN data_saida TEXT")
         if "observacoes" not in cols:
             conn.execute("ALTER TABLE agentes ADD COLUMN observacoes TEXT")
+        conn.execute("UPDATE agentes SET nome_completo=nome WHERE nome_completo IS NULL OR TRIM(nome_completo)=''")
         conn.commit()
     finally:
         if close:
@@ -73,8 +80,8 @@ def listar(db_path, filtros=None):
         where.append("ativo=0")
     busca = (filtros.get("busca") or "").strip()
     if busca:
-        where.append("(nome LIKE ? OR COALESCE(matricula,'') LIKE ?)")
-        params.extend([f"%{busca}%", f"%{busca}%"])
+        where.append("(nome LIKE ? OR COALESCE(nome_completo,'') LIKE ? OR COALESCE(matricula,'') LIKE ?)")
+        params.extend([f"%{busca}%", f"%{busca}%", f"%{busca}%"])
     sql = "SELECT * FROM agentes"
     if where:
         sql += " WHERE " + " AND ".join(where)
@@ -100,17 +107,19 @@ def obter(db_path, id_agente):
 
 def criar(db_path, dados):
     ensure_schema(db_path)
-    nome = (dados.get("nome") or "").strip()
+    nome = (dados.get("nome") or dados.get("nome_completo") or "").strip()
     if not nome:
         raise ValueError("Informe o nome do agente.")
+    nome_completo = (dados.get("nome_completo") or nome).strip()
     ativo = 1 if str(dados.get("ativo", "1")) == "1" else 0
     conn = sqlite3.connect(db_path)
     try:
         cur = conn.execute(
-            """INSERT INTO agentes(nome, matricula, cargo, ativo, data_inicio, data_saida, observacoes)
-               VALUES (?,?,?,?,?,?,?)""",
+            """INSERT INTO agentes(nome, nome_completo, matricula, cargo, ativo, data_inicio, data_saida, observacoes)
+               VALUES (?,?,?,?,?,?,?,?)""",
             (
                 nome,
+                nome_completo,
                 _clean(dados.get("matricula")),
                 _clean(dados.get("cargo")),
                 ativo,
@@ -129,7 +138,7 @@ def atualizar_campo(db_path, id_agente, campo, valor):
     ensure_schema(db_path)
     if campo not in EDITABLE_FIELDS:
         raise ValueError("Campo invalido.")
-    if campo == "nome" and not (valor or "").strip():
+    if campo in {"nome", "nome_completo"} and not (valor or "").strip():
         raise ValueError("O nome nao pode ficar vazio.")
     if campo == "ativo":
         valor = 1 if str(valor) == "1" else 0

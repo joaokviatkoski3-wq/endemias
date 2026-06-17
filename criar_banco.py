@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS localidades (
 CREATE TABLE IF NOT EXISTS agentes (
     id_agente INTEGER PRIMARY KEY AUTOINCREMENT,
     nome      TEXT    NOT NULL UNIQUE,
+    nome_completo TEXT,
     matricula TEXT,
     cargo     TEXT,
     ativo     INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)),

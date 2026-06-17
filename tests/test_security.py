@@ -1774,10 +1774,14 @@ class MainPagesSmokeTests(unittest.TestCase):
         html = resp.data.decode("utf-8")
         self.assertIn("Controle de Pessoal", html)
         self.assertIn("Novo agente", html)
-        self.assertIn("Historico de trabalho", html)
-        self.assertIn("Ver histórico", html)
-        self.assertIn("data-agent-row", html)
-        self.assertIn("/api/agentes/", html)
+        self.assertIn("Nome completo", html)
+        self.assertIn("nome_completo", html)
+        self.assertNotIn("Historico de trabalho", html)
+        self.assertNotIn("Histórico de trabalho", html)
+        self.assertNotIn("Ver histórico", html)
+        self.assertNotIn(">Ver<", html)
+        self.assertNotIn("data-agent-row", html)
+        self.assertNotIn("/api/agentes/", html)
 
     def test_central_do_sistema_admin_responde_200(self):
         client = _client_logado("admin")
@@ -3110,17 +3114,6 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(dados["laboratorio"]["totais"]["ovos"], 52)
 
             resp = client.get(
-                "/api/agentes/{}/historico".format(id_agente),
-                query_string={"d_ini": "2026-06-01", "d_fim": "2026-06-30"},
-            )
-            self.assertEqual(resp.status_code, 200)
-            historico = resp.get_json()
-            self.assertIn("Ações do Setor", historico["por_origem"])
-            self.assertIn("Registro Geográfico", historico["por_origem"])
-            self.assertIn("Laboratório", historico["por_origem"])
-            self.assertIn("Laboratório ovitrampas", historico["por_origem"])
-
-            resp = client.get(
                 "/relatorio-agente/pdf",
                 query_string={"agente": "Agente Integrado", "d_ini": "2026-06-01", "d_fim": "2026-06-30"},
             )
@@ -3129,34 +3122,6 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertIn("Ações do Setor", html)
             self.assertIn("Registro Geogr&aacute;fico", html)
             self.assertIn("Laborat&oacute;rio", html)
-
-    def test_api_historico_agente_retorna_frentes_operacionais(self):
-        client = _client_logado("admin")
-        conn = sqlite3.connect(endemias_app.DB_PATH)
-        try:
-            row = conn.execute(
-                """SELECT a.id_agente
-                   FROM agentes a
-                   LEFT JOIN visita_agentes va ON va.id_agente=a.id_agente
-                   LEFT JOIN esporotricose_visita_agentes ea ON ea.id_agente=a.id_agente
-                   WHERE va.id_agente IS NOT NULL OR ea.id_agente IS NOT NULL
-                   LIMIT 1"""
-            ).fetchone()
-        finally:
-            conn.close()
-        self.assertIsNotNone(row)
-
-        resp = client.get(
-            f"/api/agentes/{row[0]}/historico",
-            query_string={"d_ini": "2020-01-01", "d_fim": "2030-12-31"},
-        )
-
-        self.assertEqual(resp.status_code, 200)
-        dados = resp.get_json()
-        self.assertIn("agente", dados)
-        self.assertIn("dias", dados)
-        self.assertIn("por_origem", dados)
-        self.assertGreaterEqual(dados["total"], 1)
 
     def test_api_conta_ovos_e_sispncd_consultas_retornam_json(self):
         client = _client_logado()

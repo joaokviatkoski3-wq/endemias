@@ -3,41 +3,28 @@
 {% block page_title %}Controle de Pessoal{% endblock %}
 
 {% block extra_css %}<style>
-.pessoal-layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start;}
+.pessoal-layout{display:grid;grid-template-columns:1fr;gap:16px;align-items:start;}
 .pessoal-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);}
 .pessoal-hd{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
 .pessoal-title{font-size:13px;font-weight:800;color:var(--text);}
 .pessoal-body{padding:14px 16px;}
 .filters-inline{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;}
 .agent-row{border-bottom:1px solid var(--border);}
-.agent-row.selected td{background:var(--surface2);}
 .agent-row:last-child{border-bottom:0;}
 .agent-main-cell{min-width:220px;}
 .agent-name{font-weight:800;color:var(--text);}
 .agent-meta{font-size:11px;color:var(--text3);margin-top:3px;}
 .inline-input,.inline-select{width:100%;min-width:90px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);padding:6px 8px;font-size:12px;}
 .inline-input:focus,.inline-select:focus{outline:none;border-color:var(--brand);}
-.history-panel{position:sticky;top:84px;}
-.history-empty{padding:38px 16px;text-align:center;color:var(--text3);font-size:13px;}
-.history-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
-.history-kpi{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;}
-.history-kpi strong{display:block;font-size:18px;color:var(--brand);}
-.history-kpi span{display:block;font-size:10px;color:var(--text3);font-weight:800;text-transform:uppercase;}
-.day-block{border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden;}
-.day-hd{background:var(--surface2);padding:8px 10px;font-weight:800;font-size:12px;color:var(--text);display:flex;justify-content:space-between;gap:8px;}
-.event-item{padding:8px 10px;border-top:1px solid var(--border);font-size:12px;}
-.event-top{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:3px;}
-.event-origin{font-weight:800;color:var(--brand);}
-.event-detail{color:var(--text2);line-height:1.35;}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .form-grid .full{grid-column:1/-1;}
-@media(max-width:980px){.pessoal-layout{grid-template-columns:1fr;}.history-panel{position:static;}.form-grid{grid-template-columns:1fr;}}
+@media(max-width:980px){.form-grid{grid-template-columns:1fr;}}
 </style>{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <h1><span class="icon"><img src="/static/icons/usuarios.svg" alt="" class="icon-svg"></span> Controle de Pessoal</h1>
-  <div class="sub">Cadastro operacional dos agentes, situacao no setor e historico de trabalho por periodo</div>
+  <div class="sub">Cadastro operacional dos agentes, situação no setor e dados administrativos</div>
 </div>
 
 {% if erro %}
@@ -77,21 +64,17 @@
             <th style="padding:10px 8px;text-align:left;">Matricula</th>
             <th style="padding:10px 8px;text-align:left;">Cargo</th>
             <th style="padding:10px 8px;text-align:center;">Situacao</th>
-            <th style="padding:10px 8px;text-align:center;">Historico</th>
           </tr>
         </thead>
         <tbody>
         {% for a in agentes %}
-          <tr class="agent-row" id="agente-{{ a.id_agente }}" data-agent-row="{{ a.id_agente }}">
+          <tr class="agent-row" id="agente-{{ a.id_agente }}">
             <td style="padding:10px 12px;" class="agent-main-cell">
-              <input class="inline-input" value="{{ a.nome }}" onchange="editarAgente({{ a.id_agente }}, 'nome', this.value)">
+              <input class="inline-input" value="{{ a.nome_completo or a.nome }}" onchange="editarAgente({{ a.id_agente }}, 'nome_completo', this.value)">
               <div class="agent-meta">
                 Inicio: <input class="inline-input" style="display:inline-block;width:120px;padding:3px 6px;" type="date" value="{{ a.data_inicio or '' }}" onchange="editarAgente({{ a.id_agente }}, 'data_inicio', this.value)">
                 Saida: <input class="inline-input" style="display:inline-block;width:120px;padding:3px 6px;" type="date" value="{{ a.data_saida or '' }}" onchange="editarAgente({{ a.id_agente }}, 'data_saida', this.value)">
               </div>
-              <button class="btn btn-xs btn-ghost" type="button" style="margin-top:6px;" onclick="abrirHistorico({{ a.id_agente }}, {{ a.nome|tojson }})">
-                <img src="/static/icons/relogio.svg" alt="" class="icon-svg"> Ver histórico
-              </button>
             </td>
             <td style="padding:10px 8px;"><input class="inline-input" value="{{ a.matricula or '' }}" onchange="editarAgente({{ a.id_agente }}, 'matricula', this.value)"></td>
             <td style="padding:10px 8px;"><input class="inline-input" value="{{ a.cargo or '' }}" onchange="editarAgente({{ a.id_agente }}, 'cargo', this.value)" placeholder="ACE"></td>
@@ -101,14 +84,9 @@
                 <option value="0" {{ 'selected' if not a.ativo }}>Inativo</option>
               </select>
             </td>
-            <td style="padding:10px 8px;text-align:center;">
-              <button class="btn btn-xs btn-ghost" onclick="abrirHistorico({{ a.id_agente }}, {{ a.nome|tojson }})">
-                <img src="/static/icons/relogio.svg" alt="" class="icon-svg"> Ver
-              </button>
-            </td>
           </tr>
-          <tr class="agent-row" data-agent-row="{{ a.id_agente }}">
-            <td colspan="5" style="padding:0 12px 10px;">
+          <tr class="agent-row">
+            <td colspan="4" style="padding:0 12px 10px;">
               <textarea class="inline-input" style="min-height:42px;resize:vertical;" placeholder="Observacoes internas" onchange="editarAgente({{ a.id_agente }}, 'observacoes', this.value)">{{ a.observacoes or '' }}</textarea>
             </td>
           </tr>
@@ -118,13 +96,13 @@
     </div>
   </main>
 
-  <aside style="display:flex;flex-direction:column;gap:16px;">
+  <aside>
     <section class="pessoal-card">
       <div class="pessoal-hd"><div class="pessoal-title">Novo agente</div></div>
       <div class="pessoal-body">
         <form method="POST" action="/admin/agentes/criar" class="form-grid">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="f-g full"><label>Nome</label><input class="inline-input" name="nome" required></div>
+          <div class="f-g full"><label>Nome completo</label><input class="inline-input" name="nome_completo" required></div>
           <div class="f-g"><label>Matricula</label><input class="inline-input" name="matricula"></div>
           <div class="f-g"><label>Cargo</label><input class="inline-input" name="cargo" placeholder="ACE"></div>
           <div class="f-g"><label>Inicio</label><input class="inline-input" type="date" name="data_inicio"></div>
@@ -134,29 +112,10 @@
         </form>
       </div>
     </section>
-
-    <section class="pessoal-card history-panel">
-      <div class="pessoal-hd">
-        <div>
-          <div class="pessoal-title">Historico de trabalho</div>
-          <div class="agent-meta" id="hist-agente">Selecione um agente</div>
-        </div>
-      </div>
-      <div class="pessoal-body">
-        <div class="filters-inline" style="margin-bottom:12px;">
-          <div class="f-g"><label>Inicio</label><input class="inline-input" type="date" id="hist_ini" value="{{ d_ini }}"></div>
-          <div class="f-g"><label>Fim</label><input class="inline-input" type="date" id="hist_fim" value="{{ d_fim }}"></div>
-          <button class="btn btn-primary" type="button" onclick="recarregarHistorico()"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
-        </div>
-        <div id="hist-area" class="history-empty">O histórico consolida visitas de vetores, esporotricose, recolhimentos, amostras de animais, BRI, ovitrampas, ações do setor e Registro Geográfico.</div>
-      </div>
-    </section>
   </aside>
 </div>
 
 <script>
-let agenteHistoricoAtual = null;
-
 async function editarAgente(id, campo, valor) {
   const body = new URLSearchParams({ campo, valor });
   const resp = await fetch(`/admin/agentes/${id}/editar`, {
@@ -170,78 +129,6 @@ async function editarAgente(id, campo, valor) {
     return;
   }
   toast('Agente atualizado.', 'success');
-}
-
-function abrirHistorico(id, nome) {
-  agenteHistoricoAtual = id;
-  document.getElementById('hist-agente').textContent = nome;
-  document.querySelectorAll('[data-agent-row]').forEach(row => {
-    row.classList.toggle('selected', row.dataset.agentRow === String(id));
-  });
-  carregarHistorico();
-}
-
-function recarregarHistorico() {
-  if (!agenteHistoricoAtual) {
-    toast('Selecione um agente primeiro.', 'warning');
-    return;
-  }
-  carregarHistorico();
-}
-
-async function carregarHistorico() {
-  const area = document.getElementById('hist-area');
-  area.className = 'history-empty';
-  area.innerHTML = '<div class="spinner"></div>';
-  const ini = encodeURIComponent(document.getElementById('hist_ini').value);
-  const fim = encodeURIComponent(document.getElementById('hist_fim').value);
-  const resp = await fetch(`/api/agentes/${agenteHistoricoAtual}/historico?d_ini=${ini}&d_fim=${fim}`);
-  const dados = await resp.json();
-  if (!resp.ok) {
-    area.textContent = dados.erro || 'Erro ao carregar historico.';
-    return;
-  }
-  renderHistorico(dados);
-}
-
-function renderHistorico(dados) {
-  const area = document.getElementById('hist-area');
-  area.className = '';
-  const origens = Object.entries(dados.por_origem || {}).map(([k,v]) => `<span class="badge">${escapeHtml(k)}: ${v}</span>`).join(' ');
-  area.innerHTML = `
-    <div class="history-summary">
-      <div class="history-kpi"><strong>${dados.total}</strong><span>registros</span></div>
-      <div class="history-kpi"><strong>${dados.dias_trabalhados}</strong><span>dias</span></div>
-      <div class="history-kpi"><strong>${Object.keys(dados.por_origem || {}).length}</strong><span>frentes</span></div>
-    </div>
-    <div style="margin-bottom:10px;display:flex;gap:5px;flex-wrap:wrap;">${origens}</div>
-    ${dados.dias.length ? dados.dias.map(renderDia).join('') : '<div class="history-empty">Sem registros no periodo.</div>'}
-  `;
-}
-
-function renderDia(dia) {
-  return `
-    <div class="day-block">
-      <div class="day-hd"><span>${fmtDate(dia.data)}</span><span>${dia.total} registro(s)</span></div>
-      ${dia.eventos.map(ev => `
-        <div class="event-item">
-          <div class="event-top"><span class="event-origin">${escapeHtml(ev.origem)}</span><span class="badge">${escapeHtml(ev.tipo || '-')}</span></div>
-          <div class="event-detail">${escapeHtml(ev.localidade || '-')}</div>
-          <div class="event-detail">${escapeHtml(ev.detalhe || '')}</div>
-        </div>
-      `).join('')}
-    </div>
-  `;
-}
-
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, ch => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  }[ch]));
 }
 </script>
 {% endblock %}
