@@ -143,7 +143,6 @@ tr:nth-child(even) td{background:#f8faff;}
     <div class="kpi"><div class="kpi-val">{{ prod_t.registros_total or totais.total or 0 }}</div><div class="kpi-lbl">Registros operacionais</div></div>
     <div class="kpi"><div class="kpi-val">{{ prod_t.dias or totais.dias or 0 }}</div><div class="kpi-lbl">Dias com produção</div></div>
     <div class="kpi"><div class="kpi-val">{{ prod_t.localidades or 0 }}</div><div class="kpi-lbl">Localidades</div></div>
-    <div class="kpi"><div class="kpi-val">{{ prod_t.agentes or 1 }}</div><div class="kpi-lbl">Agente selecionado</div></div>
   </div>
   <table>
     <thead><tr><th>Frente</th><th class="center">Total</th><th>Detalhes</th><th class="right">Distribuição</th></tr></thead>
@@ -165,7 +164,7 @@ tr:nth-child(even) td{background:#f8faff;}
         {% elif atividade.codigo == 'BRI' %}
           {{ e.carga or 0 }} carga
         {% elif atividade.codigo == 'ACOES_SETOR' %}
-          {{ e.educativas or 0 }} educativas, {{ e.limpezas or 0 }} limpezas, {{ e.publico or 0 }} p&uacute;blico
+          {{ e.educativas or 0 }} educativas, {{ e.limpezas or 0 }} limpezas
         {% else %}
           -
         {% endif %}
@@ -181,7 +180,7 @@ tr:nth-child(even) td{background:#f8faff;}
   <div class="bloco-relatorio">
   <div class="secao">Ovitrampas</div>
   <p style="font-size:8.5pt;color:#555;margin-bottom:8pt;">
-    Movimentos do calendÃ¡rio de ovitrampas vinculados ao agente selecionado. Feriados sÃ£o ignorados nesta contagem.
+    Movimentos do calendário de ovitrampas vinculados ao agente selecionado. Feriados são ignorados nesta contagem.
   </p>
   {% set ovi_t = ovitrampas.totais %}
   <div class="kpi-grid">
@@ -191,7 +190,7 @@ tr:nth-child(even) td{background:#f8faff;}
     <div class="kpi"><div class="kpi-val">{{ ovi_t.ciclos }}</div><div class="kpi-lbl">Ciclos</div></div>
   </div>
   <table>
-    <thead><tr><th>Data</th><th>Movimento</th><th>Grupo</th><th>Ciclo</th><th>ObservaÃ§Ãµes</th></tr></thead>
+    <thead><tr><th>Data</th><th>Movimento</th><th>Grupo</th><th>Ciclo</th><th>Observações</th></tr></thead>
     <tbody>
     {% for ev in ovitrampas.eventos %}
     {% set p = ev.data.split('-') %}
@@ -387,10 +386,38 @@ tr:nth-child(even) td{background:#f8faff;}
   </div>
   </div>
 
-  <!-- Tempo TBO -->
-  {% if tbo_por_grupo %}
+  <!-- Tempo de visitas -->
+  {% set dur = duracao_visitas %}
+  {% if dur.total.n %}
   <div class="bloco-relatorio">
-  <div class="secao">Tempo por visita TBO — Acessados vs Não acessados</div>
+  <div class="secao">Tempo de visita: TBO, esporotricose e total</div>
+  <div class="tbo-cards">
+    <div class="tbo-card">
+      <div class="tbo-card-titulo">Tempo total TBO + esporotricose — {{ dur.total.n }} visitas</div>
+      <div class="tbo-stat"><span>Tempo médio</span><span class="tbo-stat-val">{{ dur.total.media }}min</span></div>
+      <div class="tbo-stat"><span>Mínimo</span><span class="tbo-stat-val">{{ dur.total.minimo }}min</span></div>
+      <div class="tbo-stat"><span>Máximo</span><span class="tbo-stat-val">{{ dur.total.maximo }}min</span></div>
+    </div>
+    {% if dur.tbo.n %}
+    <div class="tbo-card">
+      <div class="tbo-card-titulo">TBO — {{ dur.tbo.n }} visitas</div>
+      <div class="tbo-stat"><span>Tempo médio</span><span class="tbo-stat-val">{{ dur.tbo.media }}min</span></div>
+      <div class="tbo-stat"><span>Mínimo</span><span class="tbo-stat-val">{{ dur.tbo.minimo }}min</span></div>
+      <div class="tbo-stat"><span>Máximo</span><span class="tbo-stat-val">{{ dur.tbo.maximo }}min</span></div>
+    </div>
+    {% endif %}
+    {% if dur.esporotricose.n %}
+    <div class="tbo-card amber">
+      <div class="tbo-card-titulo">Esporotricose — {{ dur.esporotricose.n }} visitas</div>
+      <div class="tbo-stat"><span>Tempo médio</span><span class="tbo-stat-val">{{ dur.esporotricose.media }}min</span></div>
+      <div class="tbo-stat"><span>Mínimo</span><span class="tbo-stat-val">{{ dur.esporotricose.minimo }}min</span></div>
+      <div class="tbo-stat"><span>Máximo</span><span class="tbo-stat-val">{{ dur.esporotricose.maximo }}min</span></div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if tbo_por_grupo %}
+  <div class="secao" style="font-size:10pt;margin-top:10pt;">Tempo por visita TBO — Acessados vs Não acessados</div>
   <div class="tbo-cards">
     {% if tbo_por_grupo.acessados %}
     {% set ag = tbo_por_grupo.acessados %}
@@ -411,6 +438,7 @@ tr:nth-child(even) td{background:#f8faff;}
     </div>
     {% endif %}
   </div>
+  {% endif %}
 
   {% if tbo_por_grupo.acessados or tbo_por_grupo.nao_acessados %}
   <div class="chart-row">

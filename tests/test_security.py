@@ -1683,6 +1683,10 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("Produção de esporotricose", html)
         self.assertIn("Comparação agregada de esporotricose", html)
         self.assertIn("Outros agentes não são listados nem identificados", html)
+        self.assertIn("Tempo de visita: TBO, esporotricose e total", html)
+        self.assertNotIn("Agente selecionado", html)
+        for proibido in ("ObservaÃ", "calendÃ", "sÃ£", "â€", "�"):
+            self.assertNotIn(proibido, html)
         self.assertNotIn("SisPNCD", html)
 
     def test_pdf_relatorio_setor_inclui_producao_geral_e_por_agente(self):
@@ -1771,6 +1775,8 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("Controle de Pessoal", html)
         self.assertIn("Novo agente", html)
         self.assertIn("Historico de trabalho", html)
+        self.assertIn("Ver histórico", html)
+        self.assertIn("data-agent-row", html)
         self.assertIn("/api/agentes/", html)
 
     def test_central_do_sistema_admin_responde_200(self):
@@ -2876,6 +2882,10 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("totais", dados["esporotricose"])
         self.assertIn("animais", dados["esporotricose"])
         self.assertIn("comparacao_esporotricose", dados)
+        self.assertIn("esporotricose", dados["tbo_duracao"])
+        self.assertIn("total", dados["tbo_duracao"])
+        self.assertIn("n", dados["tbo_duracao"]["esporotricose"])
+        self.assertIn("media", dados["tbo_duracao"]["total"])
         self.assertNotIn("recentes", dados["esporotricose"])
         self.assertNotIn(
             "sispncd",

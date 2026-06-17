@@ -254,6 +254,8 @@ function renderRelatorio(d) {
   const taxaRec = t.total ? Math.round((t.recuperados||0)/t.total*100) : 0;
 
   const tbo = d.tbo_duracao || {};
+  const espDur = tbo.esporotricose || {};
+  const totalDur = tbo.total || {};
   const fmtMin = m => m != null ? (m < 60 ? `${m}min` : `${Math.floor(m/60)}h${String(Math.round(m%60)).padStart(2,'0')}min`) : '—';
 
   let html = `
@@ -414,10 +416,18 @@ function renderRelatorio(d) {
       <div class="kpi red"><div class="kpi-icon"><img src="/static/icons/mosquito.svg" alt="🦟" class="icon-svg"></div><div class="kpi-label">Índice positividade</div><div class="kpi-val">${c.indice}%</div>
         <div class="kpi-sub">${c.pos_aeg} positivos</div>
       </div>` : ''}
+      ${totalDur.n > 0 ? `
+      <div class="kpi teal"><div class="kpi-icon">⏱</div><div class="kpi-label">Tempo total TBO + esporo</div><div class="kpi-val">${fmtMin(totalDur.media)}</div><div class="kpi-sub">${fmtNum(totalDur.n)} visitas</div></div>
+      ` : ''}
       ${tbo.n > 0 ? `
-      <div class="kpi teal"><div class="kpi-icon">⏱</div><div class="kpi-label">TBO — Tempo médio</div><div class="kpi-val">${fmtMin(tbo.media)}</div><div class="kpi-sub">${fmtNum(tbo.n)} visitas</div></div>
+      <div class="kpi"><div class="kpi-icon">⏱</div><div class="kpi-label">TBO — Tempo médio</div><div class="kpi-val">${fmtMin(tbo.media)}</div><div class="kpi-sub">${fmtNum(tbo.n)} visitas</div></div>
       <div class="kpi"><div class="kpi-icon">⬇</div><div class="kpi-label">TBO — Mínimo</div><div class="kpi-val">${fmtMin(tbo.minimo)}</div></div>
       <div class="kpi"><div class="kpi-icon">⬆</div><div class="kpi-label">TBO — Máximo</div><div class="kpi-val">${fmtMin(tbo.maximo)}</div></div>
+      ` : ''}
+      ${espDur.n > 0 ? `
+      <div class="kpi amber"><div class="kpi-icon">⏱</div><div class="kpi-label">Esporotricose — Tempo médio</div><div class="kpi-val">${fmtMin(espDur.media)}</div><div class="kpi-sub">${fmtNum(espDur.n)} visitas</div></div>
+      <div class="kpi"><div class="kpi-icon">⬇</div><div class="kpi-label">Esporo — Mínimo</div><div class="kpi-val">${fmtMin(espDur.minimo)}</div></div>
+      <div class="kpi"><div class="kpi-icon">⬆</div><div class="kpi-label">Esporo — Máximo</div><div class="kpi-val">${fmtMin(espDur.maximo)}</div></div>
       ` : ''}
     </div>
 
@@ -686,7 +696,7 @@ function detalheAtividade(a) {
   if (a.codigo === 'RECOLHIMENTO') return `${fmtNum(e.materiais || 0)} materiais, ${fmtNum(e.pneus || 0)} pneus`;
   if (a.codigo === 'AMOSTRA_ANIMAIS') return `${fmtNum(e.animais || 0)} animais, ${fmtNum(e.acidentes || 0)} acidentes`;
   if (a.codigo === 'BRI') return `${fmtNum(e.carga || 0)} carga`;
-  if (a.codigo === 'ACOES_SETOR') return `${fmtNum(e.educativas || 0)} educativas, ${fmtNum(e.limpezas || 0)} limpezas, ${fmtNum(e.publico || 0)} público`;
+  if (a.codigo === 'ACOES_SETOR') return `${fmtNum(e.educativas || 0)} educativas, ${fmtNum(e.limpezas || 0)} limpezas`;
   return '';
 }
 

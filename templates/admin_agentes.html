@@ -10,6 +10,7 @@
 .pessoal-body{padding:14px 16px;}
 .filters-inline{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;}
 .agent-row{border-bottom:1px solid var(--border);}
+.agent-row.selected td{background:var(--surface2);}
 .agent-row:last-child{border-bottom:0;}
 .agent-main-cell{min-width:220px;}
 .agent-name{font-weight:800;color:var(--text);}
@@ -81,13 +82,16 @@
         </thead>
         <tbody>
         {% for a in agentes %}
-          <tr class="agent-row" id="agente-{{ a.id_agente }}">
+          <tr class="agent-row" id="agente-{{ a.id_agente }}" data-agent-row="{{ a.id_agente }}">
             <td style="padding:10px 12px;" class="agent-main-cell">
               <input class="inline-input" value="{{ a.nome }}" onchange="editarAgente({{ a.id_agente }}, 'nome', this.value)">
               <div class="agent-meta">
                 Inicio: <input class="inline-input" style="display:inline-block;width:120px;padding:3px 6px;" type="date" value="{{ a.data_inicio or '' }}" onchange="editarAgente({{ a.id_agente }}, 'data_inicio', this.value)">
                 Saida: <input class="inline-input" style="display:inline-block;width:120px;padding:3px 6px;" type="date" value="{{ a.data_saida or '' }}" onchange="editarAgente({{ a.id_agente }}, 'data_saida', this.value)">
               </div>
+              <button class="btn btn-xs btn-ghost" type="button" style="margin-top:6px;" onclick="abrirHistorico({{ a.id_agente }}, {{ a.nome|tojson }})">
+                <img src="/static/icons/relogio.svg" alt="" class="icon-svg"> Ver histórico
+              </button>
             </td>
             <td style="padding:10px 8px;"><input class="inline-input" value="{{ a.matricula or '' }}" onchange="editarAgente({{ a.id_agente }}, 'matricula', this.value)"></td>
             <td style="padding:10px 8px;"><input class="inline-input" value="{{ a.cargo or '' }}" onchange="editarAgente({{ a.id_agente }}, 'cargo', this.value)" placeholder="ACE"></td>
@@ -103,7 +107,7 @@
               </button>
             </td>
           </tr>
-          <tr class="agent-row">
+          <tr class="agent-row" data-agent-row="{{ a.id_agente }}">
             <td colspan="5" style="padding:0 12px 10px;">
               <textarea class="inline-input" style="min-height:42px;resize:vertical;" placeholder="Observacoes internas" onchange="editarAgente({{ a.id_agente }}, 'observacoes', this.value)">{{ a.observacoes or '' }}</textarea>
             </td>
@@ -171,6 +175,9 @@ async function editarAgente(id, campo, valor) {
 function abrirHistorico(id, nome) {
   agenteHistoricoAtual = id;
   document.getElementById('hist-agente').textContent = nome;
+  document.querySelectorAll('[data-agent-row]').forEach(row => {
+    row.classList.toggle('selected', row.dataset.agentRow === String(id));
+  });
   carregarHistorico();
 }
 

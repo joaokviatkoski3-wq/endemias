@@ -793,6 +793,62 @@ def _obter_dados(nome, d_ini, d_fim):
             WHERE dur BETWEEN 1 AND 240 GROUP BY grupo""",
             p + [work_types.primary_duration_work_type_code()],
         ).fetchall()
+        esporotricose_core.ensure_schema(conn)
+        duracao_tbo_raw = conn.execute("""
+            SELECT COUNT(*) AS n,
+                   ROUND(AVG(dur),1) AS media,
+                   ROUND(MIN(dur),1) AS minimo,
+                   ROUND(MAX(dur),1) AS maximo
+              FROM (
+                    SELECT (julianday(v.data||' '||v.hora_fim)-julianday(v.data||' '||v.hora_inicio))*24*60 AS dur
+                      FROM visitas v
+                      JOIN visita_agentes va ON va.id_visita=v.id_visita
+                      JOIN agentes a ON a.id_agente=va.id_agente
+                     WHERE a.nome=? AND v.data BETWEEN ? AND ? AND v.tipo=?
+                       AND v.hora_inicio IS NOT NULL AND v.hora_fim IS NOT NULL
+                   ) sub
+             WHERE dur BETWEEN 1 AND 240""",
+            p + [work_types.primary_duration_work_type_code()],
+        ).fetchone()
+        duracao_esporo_raw = conn.execute("""
+            SELECT COUNT(*) AS n,
+                   ROUND(AVG(dur),1) AS media,
+                   ROUND(MIN(dur),1) AS minimo,
+                   ROUND(MAX(dur),1) AS maximo
+              FROM (
+                    SELECT (julianday(e.data||' '||e.hora_fim)-julianday(e.data||' '||e.hora_inicio))*24*60 AS dur
+                      FROM esporotricose_visitas e
+                      JOIN esporotricose_visita_agentes va ON va.id_visita=e.id_visita
+                      JOIN agentes a ON a.id_agente=va.id_agente
+                     WHERE a.nome=? AND e.data BETWEEN ? AND ?
+                       AND e.hora_inicio IS NOT NULL AND e.hora_fim IS NOT NULL
+                   ) sub
+             WHERE dur BETWEEN 1 AND 240""",
+            p,
+        ).fetchone()
+        duracao_total_raw = conn.execute("""
+            SELECT COUNT(*) AS n,
+                   ROUND(AVG(dur),1) AS media,
+                   ROUND(MIN(dur),1) AS minimo,
+                   ROUND(MAX(dur),1) AS maximo
+              FROM (
+                    SELECT (julianday(v.data||' '||v.hora_fim)-julianday(v.data||' '||v.hora_inicio))*24*60 AS dur
+                      FROM visitas v
+                      JOIN visita_agentes va ON va.id_visita=v.id_visita
+                      JOIN agentes a ON a.id_agente=va.id_agente
+                     WHERE a.nome=? AND v.data BETWEEN ? AND ? AND v.tipo=?
+                       AND v.hora_inicio IS NOT NULL AND v.hora_fim IS NOT NULL
+                    UNION ALL
+                    SELECT (julianday(e.data||' '||e.hora_fim)-julianday(e.data||' '||e.hora_inicio))*24*60 AS dur
+                      FROM esporotricose_visitas e
+                      JOIN esporotricose_visita_agentes ea ON ea.id_visita=e.id_visita
+                      JOIN agentes ag ON ag.id_agente=ea.id_agente
+                     WHERE ag.nome=? AND e.data BETWEEN ? AND ?
+                       AND e.hora_inicio IS NOT NULL AND e.hora_fim IS NOT NULL
+                   ) sub
+             WHERE dur BETWEEN 1 AND 240""",
+            p + [work_types.primary_duration_work_type_code()] + p,
+        ).fetchone()
 
         por_periodo_raw = conn.execute(f"""SELECT
             CASE WHEN v.hora_inicio < '12:00' THEN 'manha' ELSE 'tarde' END as periodo,
@@ -823,7 +879,6 @@ def _obter_dados(nome, d_ini, d_fim):
                 GROUP BY a.id_agente
             ) medias""", [d_ini, d_fim, nome]).fetchone()
 
-        esporotricose_core.ensure_schema(conn)
         comparacao_esporo_raw = conn.execute("""
             SELECT
                 AVG(visitas) as media_visitas,
@@ -858,6 +913,9 @@ def _obter_dados(nome, d_ini, d_fim):
     dias = utils_core.safe_int(totais_d.get("dias", 0))
     tc = utils_core.safe_int(col_d.get("total", 0))
     ta = utils_core.safe_int(col_d.get("pos_aeg", 0))
+    duracao_tbo = _duracao_dict(duracao_tbo_raw)
+    duracao_esporo = _duracao_dict(duracao_esporo_raw)
+    duracao_total = _duracao_dict(duracao_total_raw)
 
     por_periodo = {}
     for r in por_periodo_raw:
@@ -910,6 +968,12 @@ def _obter_dados(nome, d_ini, d_fim):
         "dep": dep_d,
         "col": col_d,
         "tbo_por_grupo": {r["grupo"]: dict(r) for r in tbo_raw},
+        "duracao_visitas": {
+            "tbo": duracao_tbo,
+            "esporotricose": duracao_esporo,
+            "total": duracao_total,
+            "por_grupo": {r["grupo"]: dict(r) for r in tbo_raw},
+        },
         "taxa_normal": round(utils_core.safe_int(totais_d.get("normais", 0)) / tv * 100, 1) if tv else 0,
         "media_dia": round(tv / dias, 1) if dias else 0,
         "por_periodo": por_periodo,
@@ -938,6 +1002,16 @@ def _obter_dados(nome, d_ini, d_fim):
             "indice": round(ta / tc * 100, 1) if tc else 0,
         },
         "now": datetime.now().strftime("%d/%m/%Y %H:%M"),
+    }
+
+
+def _duracao_dict(row):
+    data = dict(row) if row else {}
+    return {
+        "n": utils_core.safe_int(data.get("n")),
+        "media": data.get("media") if data.get("media") is not None else None,
+        "minimo": data.get("minimo") if data.get("minimo") is not None else None,
+        "maximo": data.get("maximo") if data.get("maximo") is not None else None,
     }
 
 
@@ -998,7 +1072,10 @@ def api():
             "totais": dados["totais_api"],
             "coletas": dados["coletas_api"],
             "tbo_duracao": {
-                "por_grupo": dados["tbo_por_grupo"],
+                **dados["duracao_visitas"]["tbo"],
+                "por_grupo": dados["duracao_visitas"]["por_grupo"],
+                "esporotricose": dados["duracao_visitas"]["esporotricose"],
+                "total": dados["duracao_visitas"]["total"],
             },
             "por_tipo": dados["por_tipo"],
             "por_loc": dados["por_loc"],
