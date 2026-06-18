@@ -55,6 +55,38 @@
     <section class="system-panel system-panel-wide">
       <div class="system-panel-hd">
         <div>
+          <h2>Diagnóstico do sistema</h2>
+          <p>Verificação automática de integridade, vínculos, pendências e pontos que podem gerar erro operacional.</p>
+        </div>
+        <span class="system-status {{ 'ok' if diagnostico.resumo.status == 'ok' else 'warn' }}">{{ diagnostico.resumo.status_label }}</span>
+      </div>
+      <div class="diag-summary">
+        <div><span>Erros</span><strong class="diag-erro">{{ diagnostico.resumo.contagens.erro }}</strong></div>
+        <div><span>Avisos</span><strong class="diag-aviso">{{ diagnostico.resumo.contagens.aviso }}</strong></div>
+        <div><span>Informações</span><strong>{{ diagnostico.resumo.contagens.info }}</strong></div>
+        <div><span>OK</span><strong class="diag-ok">{{ diagnostico.resumo.contagens.ok }}</strong></div>
+      </div>
+      {% if diagnostico.itens %}
+      <div class="diag-list">
+        {% for item in diagnostico.itens %}
+        <div class="diag-item {{ item.nivel }}">
+          <span>{{ item.nivel|upper }}</span>
+          <div>
+            <strong>{{ item.categoria }} - {{ item.titulo }}</strong>
+            {% if item.detalhe %}<small>{{ item.detalhe }}</small>{% endif %}
+          </div>
+          {% if item.valor is not none %}<em>{{ item.valor }}</em>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="system-empty">Nenhum item de diagnóstico retornado.</div>
+      {% endif %}
+    </section>
+
+    <section class="system-panel system-panel-wide">
+      <div class="system-panel-hd">
+        <div>
           <h2>Saude do ambiente</h2>
           <p>{{ app_version }}</p>
         </div>

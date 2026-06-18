@@ -28,6 +28,7 @@ from app_core import backup as backup_core
 from app_core import amostras_animais as amostras_animais_core
 from app_core import esporotricose as esporotricose_core
 from app_core import db as db_core
+from app_core import diagnostico as diagnostico_core
 from app_core import dbml as dbml_core
 from app_core import kobo_api as kobo_api_core
 from app_core.excel import excel_safe
@@ -689,6 +690,50 @@ class AdminBackupRoutesTests(unittest.TestCase):
             resp.close()
             self.assertIn("Project Endemias", texto)
             self.assertIn("Table usuarios", texto)
+
+    def test_api_diagnostico_retorna_resumo_do_sistema(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = self._app_e_cliente_admin(tmpdir)
+
+            with app_temp.app_context():
+                resp = client.get("/api/admin/sistema/diagnostico")
+
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertIn("resumo", data)
+            self.assertIn("itens", data)
+            self.assertIn(data["resumo"]["status"], {"ok", "atencao", "critico"})
+            self.assertTrue(any(item["categoria"] == "Banco" for item in data["itens"]))
+
+    def test_diagnostico_detecta_pendencias_operacionais(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            backup_dir = Path(tmpdir) / "backups"
+            backup_dir.mkdir()
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                conn.execute(
+                    """INSERT INTO visitas
+                       (id_visita, kobo_uuid, tipo, data, localidade, processado_em)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    ("v-sem-agente", "uuid-sem-agente", "PE", "2026-06-01", "", "2026-06-01T10:00:00"),
+                )
+                conn.execute(
+                    """INSERT INTO tratamentos (id_visita, tipo, quantidade_carga, qtd_depositos_tratados)
+                       VALUES (?, ?, ?, ?)""",
+                    ("v-sem-agente", "Natular DT", None, 3),
+                )
+                conn.commit()
+
+                dados = diagnostico_core.gerar(conn, db_path=db_path, backup_dir=backup_dir)
+            finally:
+                conn.close()
+
+        titulos = {item["titulo"] for item in dados["itens"]}
+        self.assertIn("Visitas sem agente vinculado.", titulos)
+        self.assertIn("Tratamentos com deposito tratado, mas sem carga.", titulos)
+        self.assertIn("Nenhum backup encontrado.", titulos)
 
     def test_admin_exclui_backup_pela_central_do_sistema(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1868,6 +1913,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
         self.assertIn("Central do Sistema", html)
+        self.assertIn("Diagnóstico do sistema", html)
         self.assertIn("Saude do ambiente", html)
         self.assertIn("Backups gerenciados", html)
         self.assertIn("/admin/sistema/backups/criar", html)

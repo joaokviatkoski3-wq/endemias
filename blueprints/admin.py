@@ -13,6 +13,7 @@ from app_core import audit
 from app_core import auth as auth_core
 from app_core import backup as backup_core
 from app_core import blueprint_helpers as bh
+from app_core import diagnostico as diagnostico_core
 from app_core import dbml as dbml_core
 from app_core import import_history
 from app_core import version as version_core
@@ -112,11 +113,17 @@ def admin_sistema():
     backups = backup_core.listar_backups(backup_dir, limite=20)
     importacoes = import_history.listar_importacoes_recentes(bh.get_db, limite=5)
     eventos = audit.listar_eventos(bh.get_db, limite=8)
+    conn = bh.get_db()
+    try:
+        diagnostico = diagnostico_core.gerar(conn, db_path=db_path, backup_dir=backup_dir)
+    finally:
+        conn.close()
     return render_template(
         "admin_sistema.html",
         db_status=_db_status(),
         contagens=_contagens_sistema(),
         backups=backups,
+        diagnostico=diagnostico,
         backup_dir=str(backup_dir),
         importacoes=importacoes,
         eventos=eventos,
@@ -128,6 +135,19 @@ def admin_sistema():
         backup_erro=request.args.get("backup_erro", "").strip(),
         format_bytes=_bytes_label,
     )
+
+
+@bp.route("/api/admin/sistema/diagnostico")
+@login_required
+@nivel_min("admin")
+def api_admin_diagnostico():
+    db_path = Path(current_app.config["DB_PATH"])
+    backup_dir = db_path.parent / "backups"
+    conn = bh.get_db()
+    try:
+        return jsonify(diagnostico_core.gerar(conn, db_path=db_path, backup_dir=backup_dir))
+    finally:
+        conn.close()
 
 
 @bp.route("/admin/sistema/backups/criar", methods=["POST"])
