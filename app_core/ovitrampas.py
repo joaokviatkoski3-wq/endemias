@@ -960,9 +960,9 @@ def _registro(row, arquivo, agora):
         "data_envio_contagem": data_envio,
         "ovos": _int(row.get("Ovos")) or 0,
         "quem_enviou": _text(row.get("Quem enviou")),
-        "observacao": _text(row.get("Observação")),
+        "observacao": _text(_row_value(row, "Observação", "Observacao")),
         "lat_lng": _text(row.get("Lat_lng")),
-        "quarteirao": _text(row.get("Quarteirão")),
+        "quarteirao": _text(_row_value(row, "Quarteirão", "Quarteirao")),
         "data_instalacao": data_instalacao,
         "data_coleta": data_coleta,
         "ocorrencia_codigo": _ocorrencia_codigo(row),
@@ -978,13 +978,13 @@ def _registro_armadilha(row, arquivo, agora):
     return {
         "ovitrampa_id": ovitrampa_id,
         "rua": _text(row.get("Rua")),
-        "numero": _text(row.get("Número do logradouro") or row.get("NÃºmero do logradouro")),
+        "numero": _text(_row_value(row, "Número do logradouro", "Numero do logradouro")),
         "complemento": _text(row.get("Complemento")),
         "bairro": _text(row.get("Bairro")),
-        "localizacao": _text(row.get("Localização da ovitrampa") or row.get("LocalizaÃ§Ã£o da ovitrampa")),
+        "localizacao": _text(_row_value(row, "Localização da ovitrampa", "Localizacao da ovitrampa")),
         "localidade": _title_distrito(row.get("Setor/Distrito da ovitrampa")),
-        "responsavel": _text(row.get("Responsável") or row.get("ResponsÃ¡vel")),
-        "quarteirao": _text(row.get("Quarteirão") or row.get("QuarteirÃ£o")),
+        "responsavel": _text(_row_value(row, "Responsável", "Responsavel")),
+        "quarteirao": _text(_row_value(row, "Quarteirão", "Quarteirao")),
         "latitude": _real(row.get("Latitude")),
         "longitude": _real(row.get("Longitude")),
         "arquivo_origem": arquivo,
@@ -1130,14 +1130,12 @@ def _cor(value):
 
 def _ocorrencia_codigo(row):
     nomes = (
-        "Ocorrência", "Ocorrência da ovitrampa", "Código da ocorrência", "Código ocorrência",
-        "Ocorrência (1 a 9)",
-        "OcorrÃªncia", "Ocorrencia", "OcorrÃªncia da ovitrampa", "Ocorrencia da ovitrampa",
-        "CÃ³digo da ocorrÃªncia", "Codigo da ocorrencia", "CÃ³digo ocorrÃªncia",
-        "Codigo ocorrencia", "OcorrÃªncia (1 a 9)", "Ocorrencia (1 a 9)",
+        "Ocorrência", "Ocorrencia", "Ocorrência da ovitrampa", "Ocorrencia da ovitrampa",
+        "Código da ocorrência", "Codigo da ocorrencia", "Código ocorrência", "Codigo ocorrencia",
+        "Ocorrência (1 a 9)", "Ocorrencia (1 a 9)",
     )
     for nome in nomes:
-        valor = _text(row.get(nome))
+        valor = _text(_row_value(row, nome))
         if not valor:
             continue
         numero = _int(valor)
