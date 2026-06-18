@@ -2,6 +2,7 @@ import csv
 import hashlib
 import os
 import re
+import unicodedata
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from app_core import db as db_core
 
 TABLE = "ovitrampas_leituras"
 ARMADILHAS_TABLE = "ovitrampas_armadilhas"
+OCORRENCIAS_TABLE = "ovitrampas_ocorrencias_conta_ovos"
 CAL_GRUPOS_TABLE = "ovitrampas_calendario_grupos"
 CAL_EVENTOS_TABLE = "ovitrampas_calendario_eventos"
 CAL_AGENTES_TABLE = "ovitrampas_calendario_agentes"
@@ -24,6 +26,18 @@ OCORRENCIAS = {
     7: "Ovitrampa cheia de agua",
     8: "Pouca agua",
     9: "Outros",
+}
+
+CONTA_OVOS_OCORRENCIAS = {
+    2: 1,
+    3: 2,
+    4: 3,
+    5: 4,
+    6: 5,
+    7: 6,
+    8: 7,
+    9: 8,
+    10: 9,
 }
 
 MOVIMENTOS = {
@@ -102,6 +116,29 @@ def ensure_schema(conn):
         CREATE INDEX IF NOT EXISTS idx_ovitrampas_distrito ON ovitrampas_leituras(distrito);
         CREATE INDEX IF NOT EXISTS idx_ovitrampas_coleta ON ovitrampas_leituras(data_coleta);
         CREATE INDEX IF NOT EXISTS idx_ovitrampas_ovos ON ovitrampas_leituras(ovos);
+
+        CREATE TABLE IF NOT EXISTS ovitrampas_ocorrencias_conta_ovos (
+            id_contagem            TEXT PRIMARY KEY,
+            ovitrampa_id           TEXT NOT NULL,
+            ano                    INTEGER NOT NULL,
+            semana                 INTEGER NOT NULL,
+            data                   DATE,
+            data_envio_contagem    TEXT,
+            ovos                   INTEGER DEFAULT 0,
+            resultado              TEXT,
+            codigo_conta_ovos      INTEGER,
+            observacao_conta_ovos  TEXT,
+            ocorrencia_codigo      INTEGER,
+            latitude               REAL,
+            longitude              REAL,
+            lat_lng                TEXT,
+            arquivo_origem         TEXT,
+            importado_em           TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ovi_ocorrencias_ano_semana ON ovitrampas_ocorrencias_conta_ovos(ano, semana);
+        CREATE INDEX IF NOT EXISTS idx_ovi_ocorrencias_id ON ovitrampas_ocorrencias_conta_ovos(ovitrampa_id);
+        CREATE INDEX IF NOT EXISTS idx_ovi_ocorrencias_codigo ON ovitrampas_ocorrencias_conta_ovos(ocorrencia_codigo);
 
         CREATE TABLE IF NOT EXISTS ovitrampas_calendario_grupos (
             id_grupo      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -321,6 +358,43 @@ def importar_armadilhas_csv(db_path, path):
     return result
 
 
+def importar_ocorrencias_csv(db_path, path):
+    result = {
+        "arquivo": os.path.basename(path),
+        "linhas": 0,
+        "inseridos": 0,
+        "atualizados": 0,
+        "sem_alteracao": 0,
+        "ocorrencias": 0,
+        "erros": [],
+    }
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        agora = datetime.now().isoformat(timespec="seconds")
+        with open(path, "r", encoding="utf-8-sig", newline="") as fh:
+            reader = csv.DictReader(fh, delimiter=";")
+            for idx, row in enumerate(reader, start=2):
+                if not any((v or "").strip() for v in row.values()):
+                    continue
+                result["linhas"] += 1
+                try:
+                    registro = _registro_ocorrencia_conta_ovos(row, result["arquivo"], agora)
+                    status = _upsert_ocorrencia(conn, registro)
+                    result[status] += 1
+                    if registro["ocorrencia_codigo"]:
+                        result["ocorrencias"] += 1
+                except Exception as exc:
+                    result["erros"].append(f"Linha {idx}: {exc}")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return result
+
+
 def resumo(db_path, filtros=None):
     filtros = filtros or {}
     conn = db_core.connect(db_path)
@@ -448,8 +522,7 @@ def monitoramento(db_path, filtros=None):
                        COUNT(DISTINCT l.ovitrampa_id) AS armadilhas_lidas,
                        SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
                        COUNT(DISTINCT CASE WHEN COALESCE(l.ovos,0)>0 THEN l.ovitrampa_id END) AS armadilhas_positivas,
-                       COALESCE(SUM(l.ovos),0) AS ovos,
-                       SUM(CASE WHEN l.ocorrencia_codigo BETWEEN 1 AND 9 THEN 1 ELSE 0 END) AS ocorrencias
+                       COALESCE(SUM(l.ovos),0) AS ovos
                   {join_base}""",
             params,
         ).fetchone())
@@ -520,26 +593,16 @@ def monitoramento(db_path, filtros=None):
             params,
         )]
 
-        ocorrencias_resumo = [dict(row) for row in conn.execute(
-            f"""SELECT l.ocorrencia_codigo AS codigo,
-                       COUNT(*) AS total,
-                       COUNT(DISTINCT l.ovitrampa_id) AS armadilhas
-                  {join_base}
-                   AND l.ocorrencia_codigo BETWEEN 1 AND 9
-                 GROUP BY l.ocorrencia_codigo
-                 ORDER BY l.ocorrencia_codigo""",
-            params,
-        )]
-        ocorrencias_detalhes = _monitoramento_ocorrencias_detalhes(conn, join_base, params)
-        for row in ocorrencias_resumo:
-            row["descricao"] = OCORRENCIAS.get(row["codigo"], "Ocorrencia")
-            row["armadilhas_destaque"] = ocorrencias_detalhes.get(row["codigo"], [])
+        ocorrencias_resumo, total_ocorrencias = _monitoramento_ocorrencias(
+            conn, filtros, periodo, join_base, params
+        )
 
         realocar = _armadilhas_realocar(conn, filtros)
     finally:
         conn.close()
 
     total = {key: (value or 0) for key, value in total.items()}
+    total["ocorrencias"] = total_ocorrencias
     total["realocar"] = realocar["total"]
     return {
         "periodo": periodo,
@@ -928,6 +991,38 @@ def _registro_armadilha(row, arquivo, agora):
     }
 
 
+def _registro_ocorrencia_conta_ovos(row, arquivo, agora):
+    id_contagem = _text(_row_value(row, "ID da Contagem"))
+    if not id_contagem:
+        raise ValueError("sem ID da Contagem")
+    ovitrampa_id = _text(_row_value(row, "Número da armadilha", "Numero da armadilha"))
+    if not ovitrampa_id:
+        raise ValueError("sem numero da armadilha")
+    ano = _int(_row_value(row, "Ano"))
+    semana = _int(_row_value(row, "Semana"))
+    if not ano or not semana:
+        raise ValueError("sem ano/semana")
+    codigo_conta_ovos = _int(_row_value(row, "Código da Observação", "Codigo da Observacao"))
+    return {
+        "id_contagem": id_contagem,
+        "ovitrampa_id": ovitrampa_id,
+        "ano": ano,
+        "semana": semana,
+        "data": _date(_row_value(row, "Data")),
+        "data_envio_contagem": _datetime(_row_value(row, "Tempo de Envio da Contagem")),
+        "ovos": _int(_row_value(row, "Ovos")) or 0,
+        "resultado": _text(_row_value(row, "Resultado")),
+        "codigo_conta_ovos": codigo_conta_ovos,
+        "observacao_conta_ovos": _text(_row_value(row, "Observação", "Observacao")),
+        "ocorrencia_codigo": CONTA_OVOS_OCORRENCIAS.get(codigo_conta_ovos),
+        "latitude": _real(_row_value(row, "Latitude")),
+        "longitude": _real(_row_value(row, "Longitude")),
+        "lat_lng": _text(_row_value(row, "Lat_lng")),
+        "arquivo_origem": arquivo,
+        "importado_em": agora,
+    }
+
+
 def _grupo_dict(row):
     item = dict(row)
     item["ativo"] = bool(item.get("ativo"))
@@ -1099,6 +1194,98 @@ def _where_monitoramento(conn, filtros):
     return "WHERE " + " AND ".join(clauses), params, periodo
 
 
+def _where_ocorrencias_monitoramento(filtros, periodo):
+    clauses = ["1=1"]
+    params = []
+    ano = _int(filtros.get("ano")) or periodo.get("ano")
+    semana_ini = _int(filtros.get("semana_ini")) or periodo.get("semana_ini")
+    semana_fim = _int(filtros.get("semana_fim")) or periodo.get("semana_fim")
+    if ano:
+        clauses.append("o.ano=?")
+        params.append(ano)
+    if semana_ini:
+        clauses.append("o.semana>=?")
+        params.append(semana_ini)
+    if semana_fim:
+        clauses.append("o.semana<=?")
+        params.append(semana_fim)
+    distrito = _text(filtros.get("distrito"))
+    if distrito:
+        clauses.append("am.localidade=?")
+        params.append(distrito)
+    return "WHERE " + " AND ".join(clauses), params
+
+
+def _monitoramento_ocorrencias(conn, filtros, periodo, legacy_join_base, legacy_params):
+    where, params = _where_ocorrencias_monitoramento(filtros, periodo)
+    join_base = f"""
+        FROM {OCORRENCIAS_TABLE} o
+        LEFT JOIN {ARMADILHAS_TABLE} am ON am.ovitrampa_id=o.ovitrampa_id
+        {where}
+    """
+    total_importado = conn.execute(
+        f"""SELECT COUNT(*)
+              {join_base}
+             AND o.ocorrencia_codigo BETWEEN 1 AND 9""",
+        params,
+    ).fetchone()[0]
+    if total_importado:
+        resumo = [dict(row) for row in conn.execute(
+            f"""SELECT o.ocorrencia_codigo AS codigo,
+                       COUNT(*) AS total,
+                       COUNT(DISTINCT o.ovitrampa_id) AS armadilhas
+                  {join_base}
+                   AND o.ocorrencia_codigo BETWEEN 1 AND 9
+                 GROUP BY o.ocorrencia_codigo
+                 ORDER BY o.ocorrencia_codigo""",
+            params,
+        )]
+        detalhes = _monitoramento_ocorrencias_detalhes_importadas(conn, join_base, params)
+    else:
+        resumo = [dict(row) for row in conn.execute(
+            f"""SELECT l.ocorrencia_codigo AS codigo,
+                       COUNT(*) AS total,
+                       COUNT(DISTINCT l.ovitrampa_id) AS armadilhas
+                  {legacy_join_base}
+                   AND l.ocorrencia_codigo BETWEEN 1 AND 9
+                 GROUP BY l.ocorrencia_codigo
+                 ORDER BY l.ocorrencia_codigo""",
+            legacy_params,
+        )]
+        detalhes = _monitoramento_ocorrencias_detalhes(conn, legacy_join_base, legacy_params)
+        total_importado = sum(row["total"] or 0 for row in resumo)
+
+    for row in resumo:
+        row["descricao"] = OCORRENCIAS.get(row["codigo"], "Ocorrencia")
+        row["armadilhas_destaque"] = detalhes.get(row["codigo"], [])
+    return resumo, total_importado
+
+
+def _monitoramento_ocorrencias_detalhes_importadas(conn, join_base, params):
+    rows = [dict(row) for row in conn.execute(
+        f"""SELECT o.ocorrencia_codigo AS codigo,
+                   o.ovitrampa_id,
+                   COALESCE(am.localidade, '-') AS localidade,
+                   COALESCE(am.rua, '-') AS rua,
+                   COALESCE(am.numero, '') AS numero,
+                   COALESCE(am.complemento, am.localizacao, '') AS complemento,
+                   COUNT(*) AS total,
+                   MAX(o.ano * 100 + o.semana) AS ultima_chave
+              {join_base}
+               AND o.ocorrencia_codigo BETWEEN 1 AND 9
+             GROUP BY o.ocorrencia_codigo, o.ovitrampa_id
+             ORDER BY o.ocorrencia_codigo, total DESC, ultima_chave DESC, CAST(o.ovitrampa_id AS INTEGER), o.ovitrampa_id""",
+        params,
+    )]
+    por_codigo = {codigo: [] for codigo in OCORRENCIAS}
+    for row in rows:
+        row["ultima"] = _semana_label_from_key(row.pop("ultima_chave", None))
+        codigo = row.get("codigo")
+        if codigo in por_codigo and len(por_codigo[codigo]) < 12:
+            por_codigo[codigo].append(row)
+    return por_codigo
+
+
 def _monitoramento_ocorrencias_detalhes(conn, join_base, params):
     rows = [dict(row) for row in conn.execute(
         f"""SELECT l.ocorrencia_codigo AS codigo,
@@ -1194,6 +1381,31 @@ def _upsert_armadilha(conn, registro):
     return "atualizados"
 
 
+def _upsert_ocorrencia(conn, registro):
+    atual = conn.execute(
+        f"SELECT * FROM {OCORRENCIAS_TABLE} WHERE id_contagem=?",
+        (registro["id_contagem"],),
+    ).fetchone()
+    cols = list(registro.keys())
+    if not atual:
+        placeholders = ",".join("?" for _ in cols)
+        conn.execute(
+            f"INSERT INTO {OCORRENCIAS_TABLE} ({','.join(cols)}) VALUES ({placeholders})",
+            [registro[col] for col in cols],
+        )
+        return "inseridos"
+
+    mudou = any((atual[col] != registro[col]) for col in cols if col not in ("arquivo_origem", "importado_em"))
+    if not mudou:
+        return "sem_alteracao"
+    sets = ",".join(f"{col}=?" for col in cols if col != "id_contagem")
+    conn.execute(
+        f"UPDATE {OCORRENCIAS_TABLE} SET {sets} WHERE id_contagem=?",
+        [registro[col] for col in cols if col != "id_contagem"] + [registro["id_contagem"]],
+    )
+    return "atualizados"
+
+
 def _where(filtros, busca=False):
     clauses = []
     params = []
@@ -1233,6 +1445,21 @@ def _text(value):
         return None
     text = str(value).strip()
     return text if text and text.lower() not in ("nan", "none") else None
+
+
+def _row_value(row, *names):
+    targets = {_norm_header(name) for name in names}
+    for key, value in row.items():
+        if _norm_header(key) in targets:
+            return value
+    return None
+
+
+def _norm_header(value):
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = "".join(ch.lower() if ch.isalnum() else "_" for ch in text)
+    return re.sub(r"_+", "_", text).strip("_")
 
 
 def _int(value):

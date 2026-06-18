@@ -247,6 +247,49 @@ def api_importar_armadilhas():
     return jsonify({"ok": not result["erros"], **result})
 
 
+@bp.route("/api/ovitrampas/ocorrencias/importar", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_importar_ocorrencias():
+    arquivos = request.files.getlist("arquivos")
+    if not arquivos:
+        return jsonify({"erro": "Nenhum CSV enviado."}), 400
+
+    total = {
+        "arquivos": 0,
+        "linhas": 0,
+        "inseridos": 0,
+        "atualizados": 0,
+        "sem_alteracao": 0,
+        "ocorrencias": 0,
+        "erros": [],
+    }
+    with tempfile.TemporaryDirectory() as tmpdir:
+        for arquivo in arquivos:
+            nome = os.path.basename(arquivo.filename or "")
+            if not nome.lower().endswith(".csv"):
+                total["erros"].append(f"{nome or 'arquivo'}: formato invalido")
+                continue
+            destino = Path(tmpdir) / nome
+            arquivo.save(destino)
+            result = ovitrampas_core.importar_ocorrencias_csv(_db_path(), destino)
+            total["arquivos"] += 1
+            total["linhas"] += result["linhas"]
+            total["inseridos"] += result["inseridos"]
+            total["atualizados"] += result["atualizados"]
+            total["sem_alteracao"] += result["sem_alteracao"]
+            total["ocorrencias"] += result["ocorrencias"]
+            total["erros"].extend(f"{nome}: {erro}" for erro in result["erros"])
+
+    audit.registrar_evento(
+        get_db,
+        "ovitrampas_ocorrencias_importacao",
+        entidade="ovitrampas",
+        detalhes=total,
+    )
+    return jsonify({"ok": not total["erros"], **total})
+
+
 def _filtros():
     return {
         "ano": request.args.get("ano", ""),

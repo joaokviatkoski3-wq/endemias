@@ -2651,6 +2651,63 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(ocorrencias[5]["descricao"], "Armadilha seca")
         self.assertEqual(ocorrencias[5]["armadilhas_destaque"][0]["ovitrampa_id"], "2")
 
+    def test_ovitrampas_importa_historico_ocorrencias_conta_ovos(self):
+        leitura_csv = (
+            "Ovitrampa ID;Estado;MunicÃƒÂ­pio;Distrito;Rua;NÃƒÂºmero;Complemento;LocalizaÃƒÂ§ÃƒÂ£o;"
+            "Latitude;Longitude;Ano;Semana;Data do envio da contagem;Ovos;Quem enviou;"
+            "ObservaÃƒÂ§ÃƒÂ£o;Lat_lng;QuarteirÃƒÂ£o;Data da instalaÃƒÂ§ÃƒÂ£o;Data de coleta\n"
+            "2;ParanÃƒÂ¡;Almirante TamandarÃƒÂ©;GRAZIELA;Rua B;20;Loja;Canto;"
+            "-25,3;-49,4;2026;21;2026-06-01 17:30:10;0;Vanessa;;-25.3,-49.4;"
+            "1270;2026-05-25;2026-05-29\n"
+            "3;ParanÃƒÂ¡;Almirante TamandarÃƒÂ©;GRAZIELA;Rua C;30;Casa;Muro;"
+            "-25,5;-49,6;2026;21;2026-06-01 17:31:10;0;Vanessa;;-25.5,-49.6;"
+            "1271;2026-05-25;2026-05-29\n"
+        )
+        cadastro_csv = (
+            "ID;Rua;NÃƒÂºmero do logradouro;Complemento;Bairro;LocalizaÃƒÂ§ÃƒÂ£o da ovitrampa;"
+            "Setor/Distrito da ovitrampa;ResponsÃƒÂ¡vel;QuarteirÃƒÂ£o;Latitude;Longitude\n"
+            "2;Rua B;20;Loja;;Canto;GRAZIELA;Vanessa;1270;-25,3;-49,4\n"
+            "3;Rua C;30;Casa;;Muro;GRAZIELA;Vanessa;1271;-25,5;-49,6\n"
+        )
+        ocorrencias_csv = (
+            "Ciclo;CRS;Município;Código do IBGE;Ano;Número da armadilha;Ovos;Link;"
+            "Latitude;Longitude;Resultado;Semana;Lat_lng;Data;ID da Contagem;"
+            "Tempo de Envio da Contagem;Código da Observação;Observação\n"
+            "Junho;2;Almirante Tamandaré;4100400;2026;2;0;Almirante Tamandaré_2;"
+            "-25,30000;-49,40000;Negativa;21;-25.3,-49.4;2026-05-29;9001;"
+            "2026-06-01 10:00:00;6;Ovitrampa seca\n"
+            "Junho;2;Almirante Tamandaré;4100400;2026;2;0;Almirante Tamandaré_2;"
+            "-25,30000;-49,40000;Negativa;21;-25.3,-49.4;2026-05-29;9002;"
+            "2026-06-01 10:00:00;10;Outra Observação\n"
+            "Junho;2;Almirante Tamandaré;4100400;2026;3;0;Almirante Tamandaré_3;"
+            "-25,50000;-49,60000;Negativa;21;-25.5,-49.6;2026-05-29;9003;"
+            "2026-06-01 10:00:00;1;Sem Observações\n"
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            leitura_path = Path(tmpdir) / "3918-2026-21.csv"
+            cadastro_path = Path(tmpdir) / "almirante-tamandare-pr-ovitraps.csv"
+            ocorrencias_path = Path(tmpdir) / "municipality-3918-2026.csv"
+            leitura_path.write_text(leitura_csv, encoding="utf-8")
+            cadastro_path.write_text(cadastro_csv, encoding="utf-8")
+            ocorrencias_path.write_text(ocorrencias_csv, encoding="utf-8")
+            ovitrampas_core.importar_csv(db_path, leitura_path)
+            ovitrampas_core.importar_armadilhas_csv(db_path, cadastro_path)
+
+            result = ovitrampas_core.importar_ocorrencias_csv(db_path, ocorrencias_path)
+            result_reimportado = ovitrampas_core.importar_ocorrencias_csv(db_path, ocorrencias_path)
+            dados = ovitrampas_core.monitoramento(db_path, {"ano": "2026", "semana_ini": "21", "semana_fim": "21"})
+
+        self.assertEqual(result["linhas"], 3)
+        self.assertEqual(result["inseridos"], 3)
+        self.assertEqual(result["ocorrencias"], 2)
+        self.assertEqual(result_reimportado["sem_alteracao"], 3)
+        self.assertEqual(dados["totais"]["ocorrencias"], 2)
+        ocorrencias = {row["codigo"]: row for row in dados["ocorrencias"]}
+        self.assertEqual(ocorrencias[5]["total"], 1)
+        self.assertEqual(ocorrencias[9]["total"], 1)
+        self.assertEqual(ocorrencias[9]["descricao"], "Outros")
+
     def test_ovitrampas_calendario_salva_evento_com_agentes_e_aparece_na_agenda(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)

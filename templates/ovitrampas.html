@@ -206,7 +206,14 @@
 
     <div class="ovi-monitor-stack">
       <div class="chart-card">
-        <div class="chart-hd"><div class="chart-title"><img src="/static/icons/alerta.svg" alt="" class="icon-svg"> Ocorrências 1 a 9</div></div>
+        <div class="chart-hd">
+          <div class="chart-title"><img src="/static/icons/alerta.svg" alt="" class="icon-svg"> Ocorrências 1 a 9</div>
+          <span class="imp-status imp-cinza" id="ovi-oco-import-status">Aguardando</span>
+        </div>
+        <form id="ovi-oco-form" class="ovi-upload" style="grid-template-columns:1fr;margin-bottom:12px;">
+          <div class="f-g"><label>CSV anual de ocorrências do Conta Ovos</label><input type="file" id="ovi-oco-arquivos" name="arquivos" accept=".csv,text/csv" multiple></div>
+          <button class="btn btn-primary" type="submit"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar ocorrências</button>
+        </form>
         <div id="ovi-mon-ocorrencias-body"></div>
       </div>
 
@@ -901,6 +908,27 @@ document.getElementById('ovi-form').addEventListener('submit', async e => {
     status.className = 'imp-status imp-vermelho';
     status.textContent = 'Erro';
     toast('Erro ao importar leituras: ' + err.message, 'error');
+  }
+});
+document.getElementById('ovi-oco-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const files = document.getElementById('ovi-oco-arquivos').files;
+  if (!files.length) return toast('Selecione ao menos um CSV de ocorrências.', 'warning');
+  const status = document.getElementById('ovi-oco-import-status');
+  status.className = 'imp-status imp-azul';
+  status.textContent = 'Importando...';
+  const form = new FormData();
+  Array.from(files).forEach(file => form.append('arquivos', file));
+  try {
+    const data = await oviFetchJson('/api/ovitrampas/ocorrencias/importar', {method:'POST', headers:{'X-CSRFToken': getCsrf()}, body:form});
+    status.className = data.erros?.length ? 'imp-status imp-azul' : 'imp-status imp-verde';
+    status.textContent = `${oviFmt.format(data.ocorrencias || 0)} ocorrência(s)`;
+    toast('Histórico de ocorrências importado.', data.erros?.length ? 'warning' : 'success');
+    await carregarMonitoramento();
+  } catch (err) {
+    status.className = 'imp-status imp-vermelho';
+    status.textContent = 'Erro';
+    toast('Erro ao importar ocorrências: ' + err.message, 'error');
   }
 });
 document.getElementById('ovi-arm-form').addEventListener('submit', async e => {
