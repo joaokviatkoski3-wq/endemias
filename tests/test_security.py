@@ -703,7 +703,13 @@ class AdminBackupRoutesTests(unittest.TestCase):
             self.assertIn("resumo", data)
             self.assertIn("itens", data)
             self.assertIn(data["resumo"]["status"], {"ok", "atencao", "critico"})
+            self.assertEqual(data["resumo"]["modo"], "rapido")
             self.assertTrue(any(item["categoria"] == "Banco" for item in data["itens"]))
+
+            resp_completo = client.get("/api/admin/sistema/diagnostico?completo=1")
+            self.assertEqual(resp_completo.status_code, 200)
+            data_completo = resp_completo.get_json()
+            self.assertEqual(data_completo["resumo"]["modo"], "completo")
 
     def test_diagnostico_detecta_pendencias_operacionais(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -970,7 +976,7 @@ class EsporotricoseSchemaTests(unittest.TestCase):
                 [("Ceccon",), ("cecon",), ("Ana Beatriz",), ("Márcio",)],
             )
 
-            nomes = esporotricose_core._split_agentes(conn, "ana beatriz cecon m_rcio")
+            nomes = esporotricose_core._split_agentes(conn, "ana beatriz ana_beatriz cecon m_rcio")
 
         self.assertEqual(nomes, ["Ana Beatriz", "Ceccon", "Márcio"])
 

@@ -20,19 +20,20 @@ CORE_TABLES = (
 )
 
 
-def gerar(conn, db_path=None, backup_dir=None):
+def gerar(conn, db_path=None, backup_dir=None, completo=False):
     itens = []
     tabelas = _tables(conn)
 
     _check_integridade(conn, itens)
     _check_tabelas(tabelas, itens)
-    _check_foreign_keys(conn, itens)
+    if completo:
+        _check_foreign_keys(conn, itens)
     _check_vinculos_principais(conn, tabelas, itens)
     _check_dados_operacionais(conn, tabelas, itens)
     _check_duplicidades_textuais(conn, tabelas, itens)
     _check_backups(backup_dir, itens)
 
-    resumo = _resumo(itens, db_path, tabelas)
+    resumo = _resumo(itens, db_path, tabelas, completo)
     return {"resumo": resumo, "itens": itens}
 
 
@@ -153,7 +154,20 @@ def _check_dados_operacionais(conn, tabelas, itens):
                 )""",
         )
         if total:
-            _add(itens, "aviso", "Visitas", "Visitas sem agente vinculado.", valor=total)
+            detalhe = _detalhe_linhas(
+                conn,
+                """SELECT v.id_visita, v.tipo, v.data, COALESCE(l.nome, v.localidade) AS localidade,
+                          v.quarteirao
+                     FROM visitas v
+                     LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
+                    WHERE NOT EXISTS (
+                          SELECT 1 FROM visita_agentes va WHERE va.id_visita=v.id_visita
+                    )
+                    ORDER BY date(v.data) DESC, v.tipo, v.quarteirao
+                    LIMIT 5""",
+                _format_visita,
+            )
+            _add(itens, "aviso", "Visitas", "Visitas sem agente vinculado.", valor=total, detalhe=detalhe)
 
     if "visitas" in tabelas:
         total = _scalar(
@@ -162,7 +176,16 @@ def _check_dados_operacionais(conn, tabelas, itens):
                 WHERE TRIM(COALESCE(localidade,''))='' AND id_localidade IS NULL""",
         )
         if total:
-            _add(itens, "aviso", "Visitas", "Visitas sem localidade.", valor=total)
+            detalhe = _detalhe_linhas(
+                conn,
+                """SELECT id_visita, tipo, data, localidade, quarteirao
+                     FROM visitas
+                    WHERE TRIM(COALESCE(localidade,''))='' AND id_localidade IS NULL
+                    ORDER BY date(data) DESC, tipo, quarteirao
+                    LIMIT 5""",
+                _format_visita,
+            )
+            _add(itens, "aviso", "Visitas", "Visitas sem localidade.", valor=total, detalhe=detalhe)
 
         pendentes = _scalar(
             conn,
@@ -179,13 +202,29 @@ def _check_dados_operacionais(conn, tabelas, itens):
               WHERE rl.id_coleta IS NULL""",
         )
         if total:
+            detalhe = _detalhe_linhas(
+                conn,
+                """SELECT c.id_coleta, c.id_visita, c.num_tubo, c.tipo_deposito, v.tipo, v.data,
+                          COALESCE(l.nome, v.localidade) AS localidade, v.quarteirao
+                     FROM coletas c
+                     LEFT JOIN visitas v ON v.id_visita=c.id_visita
+                     LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
+                     LEFT JOIN resultados_laboratorio rl ON rl.id_coleta=c.id_coleta
+                    WHERE rl.id_coleta IS NULL
+                    ORDER BY date(v.data) DESC, c.num_tubo
+                    LIMIT 5""",
+                _format_coleta,
+            )
             _add(
                 itens,
                 "info",
                 "Laboratorio",
                 "Coletas ainda sem resultado de laboratorio.",
                 valor=total,
-                detalhe="Pode ser normal quando as larvas ainda nao foram lidas.",
+                detalhe=_append_detalhe(
+                    "Pode ser normal quando as larvas ainda nao foram lidas.",
+                    detalhe,
+                ),
             )
 
     if "resultados_laboratorio" in tabelas:
@@ -195,7 +234,23 @@ def _check_dados_operacionais(conn, tabelas, itens):
                 WHERE TRIM(COALESCE(laboratorista,''))='' OR TRIM(COALESCE(data_leitura,''))=''""",
         )
         if total:
-            _add(itens, "aviso", "Laboratorio", "Resultados sem laboratorista ou data de leitura.", valor=total)
+            detalhe = _detalhe_linhas(
+                conn,
+                """SELECT id_resultado, num_tubo, data_coleta, laboratorista, data_leitura
+                     FROM resultados_laboratorio
+                    WHERE TRIM(COALESCE(laboratorista,''))='' OR TRIM(COALESCE(data_leitura,''))=''
+                    ORDER BY date(data_coleta) DESC, num_tubo
+                    LIMIT 5""",
+                _format_resultado_lab,
+            )
+            _add(
+                itens,
+                "aviso",
+                "Laboratorio",
+                "Resultados sem laboratorista ou data de leitura.",
+                valor=total,
+                detalhe=detalhe,
+            )
 
     if "tratamentos" in tabelas:
         total = _scalar(
@@ -205,7 +260,28 @@ def _check_dados_operacionais(conn, tabelas, itens):
                   AND (quantidade_carga IS NULL OR quantidade_carga=0)""",
         ) if _has_column(conn, "tratamentos", "qtd_depositos_tratados") else 0
         if total:
-            _add(itens, "aviso", "SisPNCD", "Tratamentos com deposito tratado, mas sem carga.", valor=total)
+            detalhe = _detalhe_linhas(
+                conn,
+                """SELECT t.id, t.id_visita, t.tipo AS tratamento, t.qtd_depositos_tratados,
+                          v.tipo, v.data, COALESCE(l.nome, v.localidade) AS localidade,
+                          v.quarteirao
+                     FROM tratamentos t
+                     LEFT JOIN visitas v ON v.id_visita=t.id_visita
+                     LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
+                    WHERE COALESCE(t.qtd_depositos_tratados,0)>0
+                      AND (t.quantidade_carga IS NULL OR t.quantidade_carga=0)
+                    ORDER BY date(v.data) DESC, t.id DESC
+                    LIMIT 5""",
+                _format_tratamento,
+            )
+            _add(
+                itens,
+                "aviso",
+                "SisPNCD",
+                "Tratamentos com deposito tratado, mas sem carga.",
+                valor=total,
+                detalhe=detalhe,
+            )
 
     if "depositos_inspecionados" in tabelas:
         total = _scalar(
@@ -215,7 +291,28 @@ def _check_dados_operacionais(conn, tabelas, itens):
                   AND (qtd_carga IS NULL OR qtd_carga=0)""",
         ) if _has_column(conn, "depositos_inspecionados", "qtd_carga") else 0
         if total:
-            _add(itens, "aviso", "SisPNCD", "Depositos tratados sem carga informada.", valor=total)
+            detalhe = _detalhe_linhas(
+                conn,
+                """SELECT d.id, d.id_visita, d.tipo_deposito, d.tratado, d.tipo_tratamento,
+                          v.tipo, v.data, COALESCE(l.nome, v.localidade) AS localidade,
+                          v.quarteirao
+                     FROM depositos_inspecionados d
+                     LEFT JOIN visitas v ON v.id_visita=d.id_visita
+                     LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
+                    WHERE COALESCE(d.tratado,0)>0
+                      AND (d.qtd_carga IS NULL OR d.qtd_carga=0)
+                    ORDER BY date(v.data) DESC, d.id DESC
+                    LIMIT 5""",
+                _format_deposito_tratado,
+            )
+            _add(
+                itens,
+                "aviso",
+                "SisPNCD",
+                "Depositos tratados sem carga informada.",
+                valor=total,
+                detalhe=detalhe,
+            )
 
     if "focos_positivos" in tabelas:
         pendentes = _scalar(
@@ -246,7 +343,23 @@ def _check_dados_operacionais(conn, tabelas, itens):
             "SELECT COUNT(*) FROM ovitrampas_leituras WHERE TRIM(COALESCE(data_leitura,''))=''",
         )
         if sem_data:
-            _add(itens, "info", "Ovitrampas", "Leituras sem data de leitura.", valor=sem_data)
+            detalhe = _detalhe_linhas(
+                conn,
+                """SELECT id_leitura, ovitrampa_id, ano, semana, data_coleta
+                     FROM ovitrampas_leituras
+                    WHERE TRIM(COALESCE(data_leitura,''))=''
+                    ORDER BY ano DESC, semana DESC, ovitrampa_id
+                    LIMIT 5""",
+                _format_leitura_ovitrampa,
+            )
+            _add(
+                itens,
+                "info",
+                "Ovitrampas",
+                "Leituras sem data de leitura.",
+                valor=sem_data,
+                detalhe=detalhe,
+            )
 
     if {"ovitrampas_ocorrencias_conta_ovos", "ovitrampas_leituras"}.issubset(tabelas):
         ocorrencias = _scalar(
@@ -308,7 +421,7 @@ def _check_backups(backup_dir, itens):
         _add(itens, "ok", "Backups", "Backup recente encontrado.", valor=ultimo.name)
 
 
-def _resumo(itens, db_path, tabelas):
+def _resumo(itens, db_path, tabelas, completo):
     contagens = {
         "erro": sum(1 for item in itens if item["nivel"] == "erro"),
         "aviso": sum(1 for item in itens if item["nivel"] == "aviso"),
@@ -332,6 +445,7 @@ def _resumo(itens, db_path, tabelas):
         "tabelas": len(tabelas),
         "banco": str(db_path) if db_path else "",
         "gerado_em": datetime.now().isoformat(timespec="seconds"),
+        "modo": "completo" if completo else "rapido",
     }
 
 
@@ -364,6 +478,89 @@ def _has_column(conn, table, column):
 def _scalar(conn, sql, params=()):
     row = conn.execute(sql, params).fetchone()
     return row[0] if row else 0
+
+
+def _detalhe_linhas(conn, sql, formatter):
+    try:
+        rows = conn.execute(sql).fetchall()
+    except Exception:
+        return ""
+    exemplos = [formatter(row) for row in rows]
+    exemplos = [exemplo for exemplo in exemplos if exemplo]
+    return "Exemplos: " + "; ".join(exemplos) if exemplos else ""
+
+
+def _append_detalhe(*partes):
+    return " ".join(parte for parte in partes if parte)
+
+
+def _row_get(row, key):
+    return row[key] if key in row.keys() else None
+
+
+def _format_data(value):
+    if not value:
+        return ""
+    texto = str(value)
+    try:
+        return datetime.fromisoformat(texto[:10]).strftime("%d/%m/%Y")
+    except ValueError:
+        return texto[:10]
+
+
+def _format_visita(row):
+    id_visita = _row_get(row, "id_visita")
+    partes = [
+        _format_data(_row_get(row, "data")),
+        _row_get(row, "tipo"),
+        _row_get(row, "localidade") or "sem localidade",
+        f"Q{_row_get(row, 'quarteirao')}" if _row_get(row, "quarteirao") not in (None, "") else "",
+        f"id {id_visita}" if id_visita else "",
+    ]
+    return " / ".join(str(parte) for parte in partes if parte)
+
+
+def _format_coleta(row):
+    visita = _format_visita(row)
+    tubo = _row_get(row, "num_tubo") or _row_get(row, "id_coleta")
+    deposito = _row_get(row, "tipo_deposito")
+    extra = " - ".join(str(parte) for parte in (f"tubo {tubo}", deposito) if parte)
+    return _append_detalhe(visita, f"({extra})" if extra else "")
+
+
+def _format_resultado_lab(row):
+    tubo = _row_get(row, "num_tubo") or _row_get(row, "id_resultado")
+    partes = [
+        f"tubo {tubo}",
+        _format_data(_row_get(row, "data_coleta")),
+        "sem laboratorista" if not str(_row_get(row, "laboratorista") or "").strip() else "",
+        "sem data leitura" if not str(_row_get(row, "data_leitura") or "").strip() else "",
+    ]
+    return " / ".join(str(parte) for parte in partes if parte)
+
+
+def _format_tratamento(row):
+    visita = _format_visita(row)
+    tratamento = _row_get(row, "tratamento") or "tratamento sem tipo"
+    qtd = _row_get(row, "qtd_depositos_tratados")
+    return _append_detalhe(visita, f"({tratamento}, {qtd} depositos)")
+
+
+def _format_deposito_tratado(row):
+    visita = _format_visita(row)
+    deposito = _row_get(row, "tipo_deposito") or "deposito sem tipo"
+    tratamento = _row_get(row, "tipo_tratamento") or "tratamento sem tipo"
+    qtd = _row_get(row, "tratado")
+    return _append_detalhe(visita, f"({deposito}, {tratamento}, {qtd} tratados)")
+
+
+def _format_leitura_ovitrampa(row):
+    partes = [
+        f"armadilha {_row_get(row, 'ovitrampa_id')}",
+        f"S{_row_get(row, 'semana')}/{_row_get(row, 'ano')}",
+        _format_data(_row_get(row, "data_coleta")),
+    ]
+    return " / ".join(str(parte) for parte in partes if parte)
 
 
 def _norm(value):

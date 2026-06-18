@@ -33,6 +33,7 @@ AGENTE_COMPOSTO = {
 }
 
 AGENTE_ALIASES = {
+    "ana_beatriz": "Ana Beatriz",
     "cecon": "Ceccon",
     "ceccon": "Ceccon",
     "marcio": "Márcio",

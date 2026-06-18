@@ -143,9 +143,10 @@ def admin_sistema():
 def api_admin_diagnostico():
     db_path = Path(current_app.config["DB_PATH"])
     backup_dir = db_path.parent / "backups"
+    completo = request.args.get("completo", "").strip().lower() in {"1", "sim", "true", "completo"}
     conn = bh.get_db()
     try:
-        return jsonify(diagnostico_core.gerar(conn, db_path=db_path, backup_dir=backup_dir))
+        return jsonify(diagnostico_core.gerar(conn, db_path=db_path, backup_dir=backup_dir, completo=completo))
     finally:
         conn.close()
 
