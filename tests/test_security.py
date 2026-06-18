@@ -1970,6 +1970,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         html = resp.data.decode("utf-8")
         self.assertIn("Central do Sistema", html)
         self.assertIn("Diagnóstico do sistema", html)
+        self.assertIn('id="btn-diag-completo"', html)
         self.assertIn("Saude do ambiente", html)
         self.assertIn("Backups gerenciados", html)
         self.assertIn("/admin/sistema/backups/criar", html)

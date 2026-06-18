@@ -796,6 +796,21 @@ tbody tr:hover td { background:var(--tr-hover); }
   gap:10px;
   margin-bottom:12px;
 }
+.diag-actions {
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.diag-mode {
+  display:block;
+  margin:-4px 0 10px;
+  color:var(--text3);
+  font-size:11px;
+  font-weight:800;
+  text-transform:uppercase;
+}
 .diag-summary div {
   border:1px solid var(--border);
   background:var(--surface2);

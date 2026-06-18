@@ -58,16 +58,20 @@
           <h2>Diagnóstico do sistema</h2>
           <p>Verificação automática de integridade, vínculos, pendências e pontos que podem gerar erro operacional.</p>
         </div>
-        <span class="system-status {{ 'ok' if diagnostico.resumo.status == 'ok' else 'warn' }}">{{ diagnostico.resumo.status_label }}</span>
+        <div class="diag-actions">
+          <button class="btn btn-outline" type="button" id="btn-diag-completo">Verificação completa</button>
+          <span id="diag-status" class="system-status {{ 'ok' if diagnostico.resumo.status == 'ok' else 'warn' }}">{{ diagnostico.resumo.status_label }}</span>
+        </div>
       </div>
-      <div class="diag-summary">
-        <div><span>Erros</span><strong class="diag-erro">{{ diagnostico.resumo.contagens.erro }}</strong></div>
-        <div><span>Avisos</span><strong class="diag-aviso">{{ diagnostico.resumo.contagens.aviso }}</strong></div>
-        <div><span>Informações</span><strong>{{ diagnostico.resumo.contagens.info }}</strong></div>
-        <div><span>OK</span><strong class="diag-ok">{{ diagnostico.resumo.contagens.ok }}</strong></div>
+      <small class="diag-mode" id="diag-mode">Modo {{ diagnostico.resumo.modo }}</small>
+      <div class="diag-summary" id="diag-summary">
+        <div><span>Erros</span><strong class="diag-erro" data-diag-count="erro">{{ diagnostico.resumo.contagens.erro }}</strong></div>
+        <div><span>Avisos</span><strong class="diag-aviso" data-diag-count="aviso">{{ diagnostico.resumo.contagens.aviso }}</strong></div>
+        <div><span>Informações</span><strong data-diag-count="info">{{ diagnostico.resumo.contagens.info }}</strong></div>
+        <div><span>OK</span><strong class="diag-ok" data-diag-count="ok">{{ diagnostico.resumo.contagens.ok }}</strong></div>
       </div>
       {% if diagnostico.itens %}
-      <div class="diag-list">
+      <div class="diag-list" id="diag-list">
         {% for item in diagnostico.itens %}
         <div class="diag-item {{ item.nivel }}">
           <span>{{ item.nivel|upper }}</span>
@@ -80,7 +84,7 @@
         {% endfor %}
       </div>
       {% else %}
-      <div class="system-empty">Nenhum item de diagnóstico retornado.</div>
+      <div class="system-empty" id="diag-list">Nenhum item de diagnóstico retornado.</div>
       {% endif %}
     </section>
 
@@ -193,4 +197,56 @@
     </section>
   </div>
 </div>
+<script>
+(() => {
+  const btn = document.getElementById('btn-diag-completo');
+  const status = document.getElementById('diag-status');
+  const mode = document.getElementById('diag-mode');
+  const list = document.getElementById('diag-list');
+  if (!btn || !status || !mode || !list) return;
+
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+
+  const render = (data) => {
+    const contagens = data?.resumo?.contagens || {};
+    document.querySelectorAll('[data-diag-count]').forEach(el => {
+      el.textContent = contagens[el.dataset.diagCount] ?? 0;
+    });
+    status.textContent = data?.resumo?.status_label || 'Verificado';
+    status.className = 'system-status ' + (data?.resumo?.status === 'ok' ? 'ok' : 'warn');
+    mode.textContent = 'Modo ' + (data?.resumo?.modo || 'completo');
+    const itens = data?.itens || [];
+    list.className = 'diag-list';
+    list.innerHTML = itens.map(item => `
+      <div class="diag-item ${esc(item.nivel)}">
+        <span>${esc(String(item.nivel || '').toUpperCase())}</span>
+        <div>
+          <strong>${esc(item.categoria)} - ${esc(item.titulo)}</strong>
+          ${item.detalhe ? `<small>${esc(item.detalhe)}</small>` : ''}
+        </div>
+        ${item.valor !== null && item.valor !== undefined ? `<em>${esc(item.valor)}</em>` : ''}
+      </div>
+    `).join('') || '<div class="system-empty">Nenhum item de diagnóstico retornado.</div>';
+  };
+
+  btn.addEventListener('click', async () => {
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Verificando...';
+    try {
+      const resp = await fetch('/api/admin/sistema/diagnostico?completo=1');
+      if (!resp.ok) throw new Error('Falha ao verificar');
+      render(await resp.json());
+    } catch (err) {
+      status.textContent = err.message || 'Falha';
+      status.className = 'system-status warn';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  });
+})();
+</script>
 {% endblock %}
