@@ -756,6 +756,7 @@ def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
 
     visitas_novas = coletas_novas = resultados_novos = 0
     tubos_sem_resultado = []
+    ids_visitas_processadas = []
 
     # ── Transação única por arquivo ──────────────────────────────────────────
     for _, visita in df_visitas.iterrows():
@@ -766,6 +767,7 @@ def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
         col_seq = cfg_tipo.get("col_sequencia")
         seq_val = val_str(visita.get(col_seq)) if col_seq else None
         id_visita = gerar_id_visita(kobo_uuid, seq_val)
+        ids_visitas_processadas.append(id_visita)
 
         if inserir_visita(cur, id_visita, kobo_uuid, visita, tipo, cfg_tipo, agora_iso):
             visitas_novas += 1
@@ -851,74 +853,93 @@ def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
         "visitas_novas": visitas_novas,
         "coletas_novas": coletas_novas,
         "resultados_novos": resultados_novos,
+        "ids_visitas_processadas": ids_visitas_processadas,
     }
 
 
-def auditar_pendencias_importacao(conn, logger):
+def auditar_pendencias_importacao(conn, logger, ids_visitas=None):
+    filtrar_visitas = ids_visitas is not None
+    ids_visitas = list(dict.fromkeys(ids_visitas or []))
+    if filtrar_visitas and not ids_visitas:
+        return []
+    placeholders = ",".join("?" * len(ids_visitas))
+    filtro_visita = f" AND v.id_visita IN ({placeholders})" if ids_visitas else ""
+    filtro_visita_sem_alias = f" AND id_visita IN ({placeholders})" if ids_visitas else ""
+    params = tuple(ids_visitas)
     avisos = []
     checks = (
         (
             "Visitas sem agente vinculado",
-            """SELECT v.data, v.tipo, COALESCE(l.nome, v.localidade, '') AS localidade, v.quarteirao
+            f"""SELECT v.data, v.tipo, COALESCE(l.nome, v.localidade, '') AS localidade, v.quarteirao
                  FROM visitas v
                  LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
                 WHERE NOT EXISTS (
                       SELECT 1 FROM visita_agentes va WHERE va.id_visita=v.id_visita
                 )
+                {filtro_visita}
                 ORDER BY date(v.data) DESC, v.tipo, v.quarteirao
                 LIMIT 5""",
-            """SELECT COUNT(*) FROM visitas v
+            f"""SELECT COUNT(*) FROM visitas v
                 WHERE NOT EXISTS (
                       SELECT 1 FROM visita_agentes va WHERE va.id_visita=v.id_visita
-                )""",
+                )
+                {filtro_visita}""",
         ),
         (
             "Visitas sem localidade",
-            """SELECT data, tipo, localidade, quarteirao
+            f"""SELECT data, tipo, localidade, quarteirao
                  FROM visitas
                 WHERE TRIM(COALESCE(localidade,''))='' AND id_localidade IS NULL
+                {filtro_visita_sem_alias}
                 ORDER BY date(data) DESC, tipo, quarteirao
                 LIMIT 5""",
-            """SELECT COUNT(*) FROM visitas
-                WHERE TRIM(COALESCE(localidade,''))='' AND id_localidade IS NULL""",
+            f"""SELECT COUNT(*) FROM visitas
+                WHERE TRIM(COALESCE(localidade,''))='' AND id_localidade IS NULL
+                {filtro_visita_sem_alias}""",
         ),
         (
             "Tratamentos com deposito tratado, mas sem carga",
-            """SELECT v.data, v.tipo, COALESCE(l.nome, v.localidade, '') AS localidade,
+            f"""SELECT v.data, v.tipo, COALESCE(l.nome, v.localidade, '') AS localidade,
                       v.quarteirao, t.tipo AS tratamento, t.qtd_depositos_tratados
                  FROM tratamentos t
                  LEFT JOIN visitas v ON v.id_visita=t.id_visita
                  LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
                 WHERE COALESCE(t.qtd_depositos_tratados,0)>0
                   AND (t.quantidade_carga IS NULL OR t.quantidade_carga=0)
+                  {filtro_visita}
                 ORDER BY date(v.data) DESC, t.id DESC
                 LIMIT 5""",
-            """SELECT COUNT(*) FROM tratamentos
-                WHERE COALESCE(qtd_depositos_tratados,0)>0
-                  AND (quantidade_carga IS NULL OR quantidade_carga=0)""",
+            f"""SELECT COUNT(*) FROM tratamentos t
+                 LEFT JOIN visitas v ON v.id_visita=t.id_visita
+                WHERE COALESCE(t.qtd_depositos_tratados,0)>0
+                  AND (t.quantidade_carga IS NULL OR t.quantidade_carga=0)
+                  {filtro_visita}""",
         ),
         (
             "Depositos tratados sem carga informada",
-            """SELECT v.data, v.tipo, COALESCE(l.nome, v.localidade, '') AS localidade,
+            f"""SELECT v.data, v.tipo, COALESCE(l.nome, v.localidade, '') AS localidade,
                       v.quarteirao, d.tipo_deposito, d.tratado
                  FROM depositos_inspecionados d
                  LEFT JOIN visitas v ON v.id_visita=d.id_visita
                  LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
                 WHERE COALESCE(d.tratado,0)>0
                   AND (d.qtd_carga IS NULL OR d.qtd_carga=0)
+                  {filtro_visita}
                 ORDER BY date(v.data) DESC, d.id DESC
                 LIMIT 5""",
-            """SELECT COUNT(*) FROM depositos_inspecionados
-                WHERE COALESCE(tratado,0)>0
-                  AND (qtd_carga IS NULL OR qtd_carga=0)""",
+            f"""SELECT COUNT(*) FROM depositos_inspecionados d
+                 LEFT JOIN visitas v ON v.id_visita=d.id_visita
+                WHERE COALESCE(d.tratado,0)>0
+                  AND (d.qtd_carga IS NULL OR d.qtd_carga=0)
+                  {filtro_visita}""",
         ),
     )
     for titulo, exemplos_sql, total_sql in checks:
-        total = conn.execute(total_sql).fetchone()[0]
+        total = conn.execute(total_sql, params).fetchone()[0]
         if not total:
             continue
         exemplos = []
-        for row in conn.execute(exemplos_sql).fetchall():
+        for row in conn.execute(exemplos_sql, params).fetchall():
             exemplos.append(_formatar_pendencia(row))
         detalhe = "; ".join(exemplos)
         if detalhe:
@@ -1036,6 +1057,7 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
 
     houve_erro = False
     sumario = []  # preview para tela de confirmação
+    ids_visitas_auditadas = []
     esporotricose_core.ensure_schema(conn)
     amostras_animais_core.ensure_schema(conn)
     bri_core.ensure_schema(conn)
@@ -1082,6 +1104,7 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
                 resultado = processar_arquivo(caminho, tipo, TIPOS[tipo], cfg_larvas, larvas, conn, logger, agora_iso, dry_run=dry_run)
             if isinstance(resultado, dict):
                 ok = resultado.get("ok", False)
+                ids_visitas_auditadas.extend(resultado.get("ids_visitas_processadas") or [])
                 if ok:
                     sumario.append({
                         "arquivo": nome,
@@ -1121,7 +1144,7 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
 
     # Verificar banco dentro da transação (mostra contagens reais mesmo no dry-run)
     logger.log("\n[4/5] Checando pendencias operacionais...", "titulo")
-    auditar_pendencias_importacao(conn, logger)
+    auditar_pendencias_importacao(conn, logger, ids_visitas_auditadas)
 
     logger.log("\n[5/5] Verificando banco...", "titulo")
     cur = conn.cursor()

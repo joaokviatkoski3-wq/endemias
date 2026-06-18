@@ -431,11 +431,15 @@ class LarvasAuditTests(unittest.TestCase):
             logger = etl.Logger()
 
             avisos = etl.auditar_pendencias_importacao(conn, logger)
+            logger_filtrado = etl.Logger()
+            avisos_filtrados = etl.auditar_pendencias_importacao(conn, logger_filtrado, ["outra-visita"])
 
         texto_log = "\n".join(mensagem for mensagem, _ in logger.linhas)
         self.assertEqual(len(avisos), 2)
         self.assertIn("[AVISO OPERACIONAL] Visitas sem agente vinculado: 1", texto_log)
         self.assertIn("[AVISO OPERACIONAL] Tratamentos com deposito tratado, mas sem carga: 1", texto_log)
+        self.assertEqual(avisos_filtrados, [])
+        self.assertEqual(logger_filtrado.linhas, [])
 
 
 class RequestParsingTests(unittest.TestCase):
