@@ -28,6 +28,7 @@
 }
 .metric-label { font-size:10px; color:var(--text3); font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
 .metric-value { font-size:26px; color:var(--brand); font-weight:700; line-height:1.1; margin-top:4px; font-variant-numeric:tabular-nums; }
+.metric-value.list-value { font-size:15px; line-height:1.35; overflow-wrap:anywhere; }
 .subsection-title {
   font-size:12px; font-weight:700; color:var(--brand); text-transform:uppercase;
   letter-spacing:.4px; margin:0 0 10px; display:flex; align-items:center; gap:6px;
@@ -373,6 +374,15 @@ function setText(id, value) {
   el.textContent = fmtNum(value || 0);
   el.classList.toggle('value-positive', Number(value || 0) > 0);
 }
+function setListText(id, values) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const list = Array.isArray(values) ? values.filter(v => v !== null && v !== undefined && String(v).trim() !== '') : [];
+  el.textContent = list.length ? list.join(', ') : '-';
+  el.classList.toggle('value-positive', list.length > 0);
+  el.classList.add('list-value');
+  el.title = list.length ? `${fmtNum(list.length)} quarteirao(oes): ${list.join(', ')}` : '';
+}
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -606,9 +616,9 @@ function renderSisPNCD(d) {
   renderDepositTable('sis-dep-albopictus-body', lab.depositos_albopictus || []);
   renderSpeciesKindTable(lab);
   renderExemplares(lab);
-  setText('sis-quarteiroes-aegypti', lab.quarteiroes_aegypti);
-  setText('sis-quarteiroes-albopictus', lab.quarteiroes_albopictus);
-  setText('sis-quarteiroes-ambas', lab.quarteiroes_ambas);
+  setListText('sis-quarteiroes-aegypti', lab.quarteiroes_aegypti_lista);
+  setListText('sis-quarteiroes-albopictus', lab.quarteiroes_albopictus_lista);
+  setListText('sis-quarteiroes-ambas', lab.quarteiroes_ambas_lista);
 }
 
 function renderDepositTable(id, rows) {

@@ -1,6 +1,7 @@
 import csv
 import hashlib
 import os
+import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -12,6 +13,18 @@ ARMADILHAS_TABLE = "ovitrampas_armadilhas"
 CAL_GRUPOS_TABLE = "ovitrampas_calendario_grupos"
 CAL_EVENTOS_TABLE = "ovitrampas_calendario_eventos"
 CAL_AGENTES_TABLE = "ovitrampas_calendario_agentes"
+
+OCORRENCIAS = {
+    1: "Intervalo maior que 7 dias",
+    2: "Armadilha ou palheta desaparecida",
+    3: "Armadilha ou palheta danificada",
+    4: "Armadilha ou palheta removida",
+    5: "Armadilha seca",
+    6: "Casa fechada",
+    7: "Ovitrampa cheia de agua",
+    8: "Pouca agua",
+    9: "Outros",
+}
 
 MOVIMENTOS = {
     "instalacao": "Instalação",
@@ -127,6 +140,7 @@ def ensure_schema(conn):
     _ensure_columns(conn, TABLE, {
         "id_laboratorista": "INTEGER REFERENCES agentes(id_agente)",
         "data_leitura": "DATE",
+        "ocorrencia_codigo": "INTEGER",
     })
     conn.execute("CREATE INDEX IF NOT EXISTS idx_ovitrampas_laboratorista ON ovitrampas_leituras(id_laboratorista)")
     _migrar_calendario_schema(conn)
@@ -416,6 +430,127 @@ def historico_armadilha(db_path, ovitrampa_id):
     finally:
         conn.close()
     return {"armadilha": dict(armadilha) if armadilha else None, "leituras": leituras}
+
+
+def monitoramento(db_path, filtros=None):
+    filtros = filtros or {}
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        where, params, periodo = _where_monitoramento(conn, filtros)
+        join_base = f"""
+            FROM {TABLE} l
+            LEFT JOIN {ARMADILHAS_TABLE} am ON am.ovitrampa_id=l.ovitrampa_id
+            {where}
+        """
+        total = dict(conn.execute(
+            f"""SELECT COUNT(*) AS leituras,
+                       COUNT(DISTINCT l.ovitrampa_id) AS armadilhas_lidas,
+                       SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
+                       COUNT(DISTINCT CASE WHEN COALESCE(l.ovos,0)>0 THEN l.ovitrampa_id END) AS armadilhas_positivas,
+                       COALESCE(SUM(l.ovos),0) AS ovos,
+                       SUM(CASE WHEN l.ocorrencia_codigo BETWEEN 1 AND 9 THEN 1 ELSE 0 END) AS ocorrencias
+                  {join_base}""",
+            params,
+        ).fetchone())
+
+        positivas_recentes = [dict(row) for row in conn.execute(
+            f"""
+            WITH positivas AS (
+                SELECT l.ovitrampa_id,
+                       COALESCE(am.localidade, l.distrito, '-') AS localidade,
+                       COALESCE(am.rua, l.rua, '-') AS rua,
+                       COALESCE(am.numero, l.numero, '') AS numero,
+                       COALESCE(am.complemento, l.complemento, am.localizacao, l.localizacao, '') AS complemento,
+                       l.quarteirao,
+                       l.ano,
+                       l.semana,
+                       l.ovos,
+                       l.data_coleta,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY l.ovitrampa_id
+                           ORDER BY l.ano DESC, l.semana DESC, COALESCE(l.data_coleta,'') DESC
+                       ) AS rn,
+                       COUNT(*) OVER (PARTITION BY l.ovitrampa_id) AS vezes_positiva,
+                       SUM(l.ovos) OVER (PARTITION BY l.ovitrampa_id) AS ovos_periodo
+                  {join_base}
+                   AND COALESCE(l.ovos,0)>0
+            )
+            SELECT * FROM positivas
+             WHERE rn=1
+             ORDER BY ano DESC, semana DESC, ovos DESC, CAST(ovitrampa_id AS INTEGER), ovitrampa_id
+             LIMIT 80
+            """,
+            params,
+        )]
+
+        ranking_positivas = [dict(row) for row in conn.execute(
+            f"""SELECT l.ovitrampa_id,
+                       COALESCE(am.localidade, l.distrito, '-') AS localidade,
+                       COALESCE(am.rua, l.rua, '-') AS rua,
+                       COALESCE(am.numero, l.numero, '') AS numero,
+                       COALESCE(am.complemento, l.complemento, am.localizacao, l.localizacao, '') AS complemento,
+                       COUNT(*) AS leituras,
+                       SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
+                       COALESCE(SUM(l.ovos),0) AS ovos,
+                       ROUND(100.0 * SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) / COUNT(*), 1) AS positividade,
+                       MAX(CASE WHEN COALESCE(l.ovos,0)>0 THEN l.ano * 100 + l.semana ELSE NULL END) AS ultima_chave
+                  {join_base}
+                 GROUP BY l.ovitrampa_id
+                HAVING positivas > 0
+                 ORDER BY positivas DESC, ovos DESC, positividade DESC, CAST(l.ovitrampa_id AS INTEGER), l.ovitrampa_id
+                 LIMIT 80""",
+            params,
+        )]
+        for row in ranking_positivas:
+            row["ultima_positiva"] = _semana_label_from_key(row.pop("ultima_chave", None))
+
+        localidades = [dict(row) for row in conn.execute(
+            f"""SELECT COALESCE(am.localidade, l.distrito, '-') AS localidade,
+                       COUNT(*) AS leituras,
+                       COUNT(DISTINCT l.ovitrampa_id) AS armadilhas_lidas,
+                       SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
+                       COUNT(DISTINCT CASE WHEN COALESCE(l.ovos,0)>0 THEN l.ovitrampa_id END) AS armadilhas_positivas,
+                       COALESCE(SUM(l.ovos),0) AS ovos,
+                       ROUND(COALESCE(AVG(CASE WHEN COALESCE(l.ovos,0)>0 THEN l.ovos END),0), 1) AS media_ovos_positiva
+                  {join_base}
+                 GROUP BY COALESCE(am.localidade, l.distrito, '-')
+                 ORDER BY ovos DESC, armadilhas_positivas DESC, positivas DESC, localidade
+                 LIMIT 40""",
+            params,
+        )]
+
+        ocorrencias_resumo = [dict(row) for row in conn.execute(
+            f"""SELECT l.ocorrencia_codigo AS codigo,
+                       COUNT(*) AS total,
+                       COUNT(DISTINCT l.ovitrampa_id) AS armadilhas
+                  {join_base}
+                   AND l.ocorrencia_codigo BETWEEN 1 AND 9
+                 GROUP BY l.ocorrencia_codigo
+                 ORDER BY l.ocorrencia_codigo""",
+            params,
+        )]
+        ocorrencias_detalhes = _monitoramento_ocorrencias_detalhes(conn, join_base, params)
+        for row in ocorrencias_resumo:
+            row["descricao"] = OCORRENCIAS.get(row["codigo"], "Ocorrencia")
+            row["armadilhas_destaque"] = ocorrencias_detalhes.get(row["codigo"], [])
+
+        realocar = _armadilhas_realocar(conn, filtros)
+    finally:
+        conn.close()
+
+    total = {key: (value or 0) for key, value in total.items()}
+    total["realocar"] = realocar["total"]
+    return {
+        "periodo": periodo,
+        "ocorrencias_labels": [{"codigo": codigo, "descricao": desc} for codigo, desc in OCORRENCIAS.items()],
+        "totais": total,
+        "positivas_recentes": positivas_recentes,
+        "ranking_positivas": ranking_positivas,
+        "localidades": localidades,
+        "ocorrencias": ocorrencias_resumo,
+        "realocar": realocar,
+    }
 
 
 def atualizar_leitura(db_path, id_leitura, dados):
@@ -766,6 +901,7 @@ def _registro(row, arquivo, agora):
         "quarteirao": _text(row.get("Quarteirão")),
         "data_instalacao": data_instalacao,
         "data_coleta": data_coleta,
+        "ocorrencia_codigo": _ocorrencia_codigo(row),
         "arquivo_origem": arquivo,
         "importado_em": agora,
     }
@@ -894,6 +1030,133 @@ def _cor(value):
     if len(text) == 7 and text.startswith("#") and all(ch in "0123456789abcdefABCDEF" for ch in text[1:]):
         return text
     return None
+
+
+def _ocorrencia_codigo(row):
+    nomes = (
+        "Ocorrência", "Ocorrência da ovitrampa", "Código da ocorrência", "Código ocorrência",
+        "Ocorrência (1 a 9)",
+        "OcorrÃªncia", "Ocorrencia", "OcorrÃªncia da ovitrampa", "Ocorrencia da ovitrampa",
+        "CÃ³digo da ocorrÃªncia", "Codigo da ocorrencia", "CÃ³digo ocorrÃªncia",
+        "Codigo ocorrencia", "OcorrÃªncia (1 a 9)", "Ocorrencia (1 a 9)",
+    )
+    for nome in nomes:
+        valor = _text(row.get(nome))
+        if not valor:
+            continue
+        numero = _int(valor)
+        if numero is None:
+            match = re.match(r"\s*([1-9])\b", valor)
+            numero = int(match.group(1)) if match else None
+        if numero in OCORRENCIAS:
+            return numero
+    return None
+
+
+def _semana_label_from_key(value):
+    try:
+        key = int(value)
+    except (TypeError, ValueError):
+        return "-"
+    ano, semana = divmod(key, 100)
+    return f"{ano} / Semana {semana:02d}"
+
+
+def _where_monitoramento(conn, filtros):
+    clauses = ["1=1"]
+    params = []
+    ano = _int(filtros.get("ano"))
+    semana_ini = _int(filtros.get("semana_ini"))
+    semana_fim = _int(filtros.get("semana_fim"))
+    ultimas = _int(filtros.get("ultimas")) or 8
+    ultimas = max(1, min(ultimas, 52))
+    if ano:
+        clauses.append("l.ano=?")
+        params.append(ano)
+        if semana_ini:
+            clauses.append("l.semana>=?")
+            params.append(semana_ini)
+        if semana_fim:
+            clauses.append("l.semana<=?")
+            params.append(semana_fim)
+        periodo = {"ano": ano, "semana_ini": semana_ini, "semana_fim": semana_fim, "ultimas": None}
+    else:
+        latest = conn.execute(
+            f"SELECT ano, semana FROM {TABLE} ORDER BY ano DESC, semana DESC LIMIT 1"
+        ).fetchone()
+        if latest:
+            ano = latest["ano"]
+            semana_fim = latest["semana"]
+            semana_ini = max(1, semana_fim - ultimas + 1)
+            clauses.append("l.ano=?")
+            clauses.append("l.semana BETWEEN ? AND ?")
+            params.extend([ano, semana_ini, semana_fim])
+        periodo = {"ano": ano, "semana_ini": semana_ini, "semana_fim": semana_fim, "ultimas": ultimas}
+    distrito = _text(filtros.get("distrito"))
+    if distrito:
+        clauses.append("COALESCE(am.localidade, l.distrito)=?")
+        params.append(distrito)
+    return "WHERE " + " AND ".join(clauses), params, periodo
+
+
+def _monitoramento_ocorrencias_detalhes(conn, join_base, params):
+    rows = [dict(row) for row in conn.execute(
+        f"""SELECT l.ocorrencia_codigo AS codigo,
+                   l.ovitrampa_id,
+                   COALESCE(am.localidade, l.distrito, '-') AS localidade,
+                   COALESCE(am.rua, l.rua, '-') AS rua,
+                   COALESCE(am.numero, l.numero, '') AS numero,
+                   COALESCE(am.complemento, l.complemento, am.localizacao, l.localizacao, '') AS complemento,
+                   COUNT(*) AS total,
+                   MAX(l.ano * 100 + l.semana) AS ultima_chave
+              {join_base}
+               AND l.ocorrencia_codigo BETWEEN 1 AND 9
+             GROUP BY l.ocorrencia_codigo, l.ovitrampa_id
+             ORDER BY l.ocorrencia_codigo, total DESC, ultima_chave DESC, CAST(l.ovitrampa_id AS INTEGER), l.ovitrampa_id""",
+        params,
+    )]
+    por_codigo = {codigo: [] for codigo in OCORRENCIAS}
+    for row in rows:
+        row["ultima"] = _semana_label_from_key(row.pop("ultima_chave", None))
+        codigo = row.get("codigo")
+        if codigo in por_codigo and len(por_codigo[codigo]) < 12:
+            por_codigo[codigo].append(row)
+    return por_codigo
+
+
+def _armadilhas_realocar(conn, filtros):
+    clauses = [
+        "(UPPER(COALESCE(a.rua,'') || ' ' || COALESCE(a.numero,'') || ' ' || "
+        "COALESCE(a.complemento,'') || ' ' || COALESCE(a.localizacao,'') || ' ' || "
+        "COALESCE(a.bairro,'') || ' ' || COALESCE(a.responsavel,'')) LIKE '%REALOCAR%')"
+    ]
+    params = []
+    distrito = _text(filtros.get("distrito"))
+    if distrito:
+        clauses.append("a.localidade=?")
+        params.append(distrito)
+    where = "WHERE " + " AND ".join(clauses)
+    rows = [dict(row) for row in conn.execute(
+        f"""SELECT a.*,
+                   COUNT(l.id_leitura) AS leituras,
+                   MAX(l.ano * 100 + l.semana) AS ultima_chave,
+                   COALESCE(SUM(l.ovos),0) AS ovos_total,
+                   SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas
+              FROM {ARMADILHAS_TABLE} a
+              LEFT JOIN {TABLE} l ON l.ovitrampa_id=a.ovitrampa_id
+              {where}
+             GROUP BY a.ovitrampa_id
+             ORDER BY COALESCE(a.localidade,''), CAST(a.ovitrampa_id AS INTEGER), a.ovitrampa_id
+             LIMIT 300""",
+        params,
+    )]
+    total = conn.execute(
+        f"SELECT COUNT(*) FROM {ARMADILHAS_TABLE} a {where}",
+        params,
+    ).fetchone()[0]
+    for row in rows:
+        row["ultima"] = _semana_label_from_key(row.pop("ultima_chave", None))
+    return {"total": total or 0, "registros": rows}
 
 
 def _insert(conn, registro):

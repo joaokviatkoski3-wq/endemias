@@ -76,6 +76,19 @@ def api_armadilhas():
     return jsonify(ovitrampas_core.listar_armadilhas(_db_path(), filtros, limite=request.args.get("limite") or 500))
 
 
+@bp.route("/api/ovitrampas/monitoramento")
+@login_required
+def api_monitoramento():
+    filtros = {
+        "ano": request.args.get("ano", ""),
+        "semana_ini": request.args.get("semana_ini", ""),
+        "semana_fim": request.args.get("semana_fim", ""),
+        "ultimas": request.args.get("ultimas", ""),
+        "distrito": request.args.get("distrito", ""),
+    }
+    return jsonify(ovitrampas_core.monitoramento(_db_path(), filtros))
+
+
 @bp.route("/api/ovitrampas/armadilhas/<path:ovitrampa_id>")
 @login_required
 def api_historico_armadilha(ovitrampa_id):

@@ -2610,6 +2610,47 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(registro["laboratorista"], agente[1])
             self.assertEqual(registro["data_leitura"], "2026-06-09")
 
+    def test_ovitrampas_monitoramento_retorna_analises_operacionais(self):
+        leitura_csv = (
+            "Ovitrampa ID;Estado;MunicÃ­pio;Distrito;Rua;NÃºmero;Complemento;LocalizaÃ§Ã£o;"
+            "Latitude;Longitude;Ano;Semana;Data do envio da contagem;Ovos;Quem enviou;"
+            "ObservaÃ§Ã£o;Lat_lng;QuarteirÃ£o;Data da instalaÃ§Ã£o;Data de coleta;Ocorrencia\n"
+            "1;ParanÃ¡;Almirante TamandarÃ©;GRAZIELA;Rua A;10;Casa;Parede;"
+            "-25,1;-49,2;2026;21;2026-06-01 17:26:10;53;Vanessa;;-25.1,-49.2;"
+            "1269;2026-05-25;2026-05-29;\n"
+            "2;ParanÃ¡;Almirante TamandarÃ©;GRAZIELA;Rua B;20;Loja;Canto;"
+            "-25,3;-49,4;2026;21;2026-06-01 17:30:10;0;Vanessa;;-25.3,-49.4;"
+            "1270;2026-05-25;2026-05-29;5\n"
+            "2;ParanÃ¡;Almirante TamandarÃ©;GRAZIELA;Rua B;20;Loja;Canto;"
+            "-25,3;-49,4;2026;22;2026-06-08 17:30:10;12;Vanessa;;-25.3,-49.4;"
+            "1270;2026-06-01;2026-06-05;2\n"
+        )
+        cadastro_csv = (
+            "ID;Rua;NÃºmero do logradouro;Complemento;Bairro;LocalizaÃ§Ã£o da ovitrampa;"
+            "Setor/Distrito da ovitrampa;ResponsÃ¡vel;QuarteirÃ£o;Latitude;Longitude\n"
+            "1;Rua A;10;Casa;;Parede;GRAZIELA;Joel;1269;-25,1;-49,2\n"
+            "2;REALOCAR;20;Loja;;Canto;GRAZIELA;Vanessa;1270;-25,3;-49,4\n"
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            leitura_path = Path(tmpdir) / "3918-2026-21.csv"
+            cadastro_path = Path(tmpdir) / "almirante-tamandare-pr-ovitraps.csv"
+            leitura_path.write_text(leitura_csv, encoding="utf-8")
+            cadastro_path.write_text(cadastro_csv, encoding="utf-8")
+            ovitrampas_core.importar_csv(db_path, leitura_path)
+            ovitrampas_core.importar_armadilhas_csv(db_path, cadastro_path)
+
+            dados = ovitrampas_core.monitoramento(db_path, {"ano": "2026", "semana_ini": "21", "semana_fim": "22"})
+
+        self.assertEqual(dados["totais"]["leituras"], 3)
+        self.assertEqual(dados["totais"]["armadilhas_positivas"], 2)
+        self.assertEqual(dados["totais"]["ocorrencias"], 2)
+        self.assertEqual(dados["realocar"]["total"], 1)
+        self.assertEqual(dados["ranking_positivas"][0]["ovitrampa_id"], "1")
+        ocorrencias = {row["codigo"]: row for row in dados["ocorrencias"]}
+        self.assertEqual(ocorrencias[5]["descricao"], "Armadilha seca")
+        self.assertEqual(ocorrencias[5]["armadilhas_destaque"][0]["ovitrampa_id"], "2")
+
     def test_ovitrampas_calendario_salva_evento_com_agentes_e_aparece_na_agenda(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
@@ -4127,7 +4168,7 @@ class MainApisSmokeTests(unittest.TestCase):
                         id_visita, tipo_deposito, inspecionado, eliminado, tratado, qtd_carga
                     ) VALUES
                         ('v_tbo', 'Pneus', 3, 1, 0, 0),
-                        ('v_tb', 'Garrafas, latas e lixo', 5, 2, 0, 0),
+                        ('v_tb', 'Garrafas, latas e lixo', 5, 2, 2, 3.5),
                         ('v_tb', 'HISTORICO', 0, 4, 0, 0);
                     INSERT INTO coletas (
                         id_coleta, id_visita, codigo_deposito, tipo_deposito
@@ -4160,11 +4201,20 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(consulta["dados_gerais"]["depositos"]["d2"], 5)
         self.assertEqual(consulta["dados_gerais"]["total_depositos_inspecionados"], 8)
         self.assertEqual(consulta["dados_gerais"]["total_eliminados"], 7)
+        self.assertEqual(consulta["dados_gerais"]["total_tratados"], 2)
+        self.assertEqual(
+            consulta["dados_gerais"]["tratamentos"],
+            [{"tipo": "Sem tipo", "quantidade": 2, "carga_kg": 3.5}],
+        )
         depositos_lab = {
             item["tipo_deposito"]: item["quantidade"]
             for item in consulta["laboratorio"]["depositos_aegypti"]
         }
         self.assertEqual(depositos_lab, {"A1": 1, "B": 2, "D1": 1})
+        self.assertEqual(consulta["laboratorio"]["quarteiroes_aegypti"], 1)
+        self.assertEqual(consulta["laboratorio"]["quarteiroes_aegypti_lista"], [10])
+        self.assertEqual(consulta["laboratorio"]["quarteiroes_albopictus_lista"], [])
+        self.assertEqual(consulta["laboratorio"]["quarteiroes_ambas_lista"], [])
         self.assertNotIn("Pneus", depositos_lab)
         self.assertNotIn("Caixa d'agua", depositos_lab)
 
@@ -4299,6 +4349,19 @@ class MainApisSmokeTests(unittest.TestCase):
                         ('v1', 'Natular DT', 1.5, 2),
                         ('v2', 'Natular DT', 1.0, 3),
                         ('v3', NULL, NULL, NULL);
+                    INSERT INTO coletas (id_coleta, id_visita, tipo_deposito) VALUES
+                        ('c1', 'v1', 'B'),
+                        ('c2', 'v2', 'C'),
+                        ('c3', 'v3', 'D1');
+                    INSERT INTO resultados_laboratorio (
+                        id_coleta,
+                        aegypt_larvas, aegypt_pupas, aegypt_exuvias, aegypt_adulto,
+                        albopictus_larvas, albopictus_pupas, albopictus_exuvias, albopictus_adulto,
+                        outra_larvas, outra_pupas, outra_exuvias, outra_adulto
+                    ) VALUES
+                        ('c1', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+                        ('c2', 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0),
+                        ('c3', 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
                 """)
                 conn.commit()
             finally:
@@ -4312,6 +4375,9 @@ class MainApisSmokeTests(unittest.TestCase):
             consulta["dados_gerais"]["tratamentos"],
             [{"tipo": "Natular DT", "quantidade": 5, "carga_kg": 2.5}],
         )
+        self.assertEqual(consulta["laboratorio"]["quarteiroes_aegypti_lista"], [10, 12])
+        self.assertEqual(consulta["laboratorio"]["quarteiroes_albopictus_lista"], [11, 12])
+        self.assertEqual(consulta["laboratorio"]["quarteiroes_ambas_lista"], [12])
 
     def test_conta_ovos_pendencias_sao_clicaveis_para_filtrar(self):
         client = _client_logado()

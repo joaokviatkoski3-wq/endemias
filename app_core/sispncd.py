@@ -145,6 +145,15 @@ def _tratamento_real_sql(alias="t", tem_qtd_depositos=True):
     return "(" + " OR ".join(checks) + ")"
 
 
+def _tratamento_deposito_real_sql(alias="di", tem_tipo_tratamento=True, tem_qtd_carga=True):
+    checks = [f"COALESCE({alias}.tratado, 0) > 0"]
+    if tem_qtd_carga:
+        checks.append(f"COALESCE({alias}.qtd_carga, 0) > 0")
+    if tem_tipo_tratamento:
+        checks.append(f"TRIM(COALESCE({alias}.tipo_tratamento, '')) <> ''")
+    return "(" + " OR ".join(checks) + ")"
+
+
 def _deposit_code_sql(tipo_col, codigo_col=None):
     raw_values = []
     if codigo_col:
@@ -485,6 +494,9 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
         "quarteiroes_aegypti": 0,
         "quarteiroes_albopictus": 0,
         "quarteiroes_ambas": 0,
+        "quarteiroes_aegypti_lista": [],
+        "quarteiroes_albopictus_lista": [],
+        "quarteiroes_ambas_lista": [],
     }
 
     conn = db_core.connect(db_path)
@@ -492,6 +504,19 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
         bri_core.ensure_schema(conn)
         tem_qtd_depositos_tratados = _has_column(conn, "tratamentos", "qtd_depositos_tratados")
         tratamento_real = _tratamento_real_sql("t", tem_qtd_depositos_tratados)
+        tem_deposito_tipo_tratamento = _has_column(conn, "depositos_inspecionados", "tipo_tratamento")
+        tem_deposito_qtd_carga = _has_column(conn, "depositos_inspecionados", "qtd_carga")
+        tratamento_deposito_real = _tratamento_deposito_real_sql(
+            "di",
+            tem_tipo_tratamento=tem_deposito_tipo_tratamento,
+            tem_qtd_carga=tem_deposito_qtd_carga,
+        )
+        deposito_tipo_tratamento_sql = (
+            "COALESCE(NULLIF(TRIM(di.tipo_tratamento), ''), 'Sem tipo')"
+            if tem_deposito_tipo_tratamento
+            else "'Sem tipo'"
+        )
+        deposito_qtd_carga_sql = "di.qtd_carga" if tem_deposito_qtd_carga else "0"
         quantidade_tratamentos_sql = (
             "COALESCE(SUM(t.qtd_depositos_tratados), 0)"
             if tem_qtd_depositos_tratados
@@ -586,6 +611,7 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
             params,
         ).fetchone()[0] or 0
 
+        tratamento_rows_params = params + params
         dados["tratamentos"] = [
             {
                 "tipo": row["tipo_tratamento"] or "Sem tipo",
@@ -594,17 +620,33 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
             }
             for row in conn.execute(
                 f"""
-                SELECT COALESCE(t.tipo, 'Sem tipo') AS tipo_tratamento,
-                       {quantidade_tratamentos_sql} AS depositos_tratados,
-                       COALESCE(SUM(t.quantidade_carga), 0) AS total_carga_kg
-                  FROM tratamentos t
-                  JOIN visitas v ON v.id_visita = t.id_visita
-                 WHERE {where}
-                   AND {tratamento_real}
-                 GROUP BY COALESCE(t.tipo, 'Sem tipo')
+                WITH tratamentos_unificados AS (
+                    SELECT COALESCE(NULLIF(TRIM(t.tipo), ''), 'Sem tipo') AS tipo_tratamento,
+                           {quantidade_tratamentos_sql} AS depositos_tratados,
+                           COALESCE(SUM(t.quantidade_carga), 0) AS total_carga_kg
+                      FROM tratamentos t
+                      JOIN visitas v ON v.id_visita = t.id_visita
+                     WHERE {where}
+                       AND {tratamento_real}
+                     GROUP BY COALESCE(NULLIF(TRIM(t.tipo), ''), 'Sem tipo')
+                    UNION ALL
+                    SELECT {deposito_tipo_tratamento_sql} AS tipo_tratamento,
+                           COALESCE(SUM(di.tratado), 0) AS depositos_tratados,
+                           COALESCE(SUM({deposito_qtd_carga_sql}), 0) AS total_carga_kg
+                      FROM depositos_inspecionados di
+                      JOIN visitas v ON v.id_visita = di.id_visita
+                     WHERE {where}
+                       AND {tratamento_deposito_real}
+                     GROUP BY {deposito_tipo_tratamento_sql}
+                )
+                SELECT tipo_tratamento,
+                       COALESCE(SUM(depositos_tratados), 0) AS depositos_tratados,
+                       COALESCE(ROUND(SUM(total_carga_kg), 2), 0) AS total_carga_kg
+                  FROM tratamentos_unificados
+                 GROUP BY tipo_tratamento
                  ORDER BY tipo_tratamento
                 """,
-                params,
+                tratamento_rows_params,
             )
         ]
         dados["total_tratados"] = sum(row["quantidade"] for row in dados["tratamentos"])
@@ -802,6 +844,34 @@ def _species_condition(prefix):
     )
 
 
+def _sort_quarteiroes(values):
+    def key(value):
+        text = str(value)
+        try:
+            return (0, int(text), text)
+        except ValueError:
+            return (1, 0, text)
+
+    return sorted([value for value in values if value not in (None, "")], key=key)
+
+
+def _quarteiroes_positivos(conn, where, params, condition):
+    rows = conn.execute(
+        f"""
+        SELECT DISTINCT v.quarteirao
+          FROM visitas v
+          JOIN coletas c ON c.id_visita = v.id_visita
+          JOIN resultados_laboratorio rl ON rl.id_coleta = c.id_coleta
+         WHERE {where}
+           AND ({condition})
+           AND v.quarteirao IS NOT NULL
+           AND TRIM(CAST(v.quarteirao AS TEXT)) <> ''
+        """,
+        params,
+    ).fetchall()
+    return _sort_quarteiroes(row["quarteirao"] for row in rows)
+
+
 def _fill_laboratorio(conn, lab, where, params, kind_expr):
     species = {
         "aegypti": "aegypt",
@@ -863,17 +933,9 @@ def _fill_laboratorio(conn, lab, where, params, kind_expr):
         ).fetchone()
         lab[f"exemplares_{public_name}"] = dict(row)
 
-        lab[f"quarteiroes_{public_name}"] = conn.execute(
-            f"""
-            SELECT COUNT(DISTINCT v.quarteirao)
-              FROM visitas v
-              JOIN coletas c ON c.id_visita = v.id_visita
-              JOIN resultados_laboratorio rl ON rl.id_coleta = c.id_coleta
-             WHERE {where}
-               AND ({condition})
-            """,
-            params,
-        ).fetchone()[0] or 0
+        quarteiroes = _quarteiroes_positivos(conn, where, params, condition)
+        lab[f"quarteiroes_{public_name}_lista"] = quarteiroes
+        lab[f"quarteiroes_{public_name}"] = len(quarteiroes)
 
     outras_condition = _species_condition("outra")
     for row in conn.execute(
@@ -905,17 +967,8 @@ def _fill_laboratorio(conn, lab, where, params, kind_expr):
     ).fetchone()
     lab["exemplares_outras"] = dict(row)
 
-    aegypti = _species_condition("aegypt")
-    albopictus = _species_condition("albopictus")
-    lab["quarteiroes_ambas"] = conn.execute(
-        f"""
-        SELECT COUNT(DISTINCT v.quarteirao)
-          FROM visitas v
-          JOIN coletas c ON c.id_visita = v.id_visita
-          JOIN resultados_laboratorio rl ON rl.id_coleta = c.id_coleta
-         WHERE {where}
-           AND ({aegypti})
-           AND ({albopictus})
-        """,
-        params,
-    ).fetchone()[0] or 0
+    ambas = _sort_quarteiroes(
+        set(lab["quarteiroes_aegypti_lista"]) & set(lab["quarteiroes_albopictus_lista"])
+    )
+    lab["quarteiroes_ambas_lista"] = ambas
+    lab["quarteiroes_ambas"] = len(ambas)
