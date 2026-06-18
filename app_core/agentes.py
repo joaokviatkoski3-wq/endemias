@@ -1,8 +1,23 @@
 import sqlite3
 from collections import defaultdict
+import re
+import unicodedata
 
 from app_core import utils
 
+
+AGENTE_ALIASES = {
+    "ana beatriz": "Ana Beatriz",
+    "ana_beatriz": "Ana Beatriz",
+    "cecon": "Ceccon",
+    "ceccon": "Ceccon",
+    "fernado": "Fernando",
+    "marcio": "Márcio",
+    "m arcio": "Márcio",
+    "m_arcio": "Márcio",
+    "m rcio": "Márcio",
+    "m_rcio": "Márcio",
+}
 
 EDITABLE_FIELDS = {
     "nome": "TEXT",
@@ -14,6 +29,41 @@ EDITABLE_FIELDS = {
     "data_saida": "TEXT",
     "observacoes": "TEXT",
 }
+
+
+def chave_nome(nome):
+    texto = unicodedata.normalize("NFKD", str(nome or ""))
+    texto = "".join(ch for ch in texto if not unicodedata.combining(ch))
+    texto = texto.lower().strip()
+    texto = re.sub(r"[^a-z0-9_]+", " ", texto)
+    return re.sub(r"\s+", " ", texto).strip()
+
+
+def normalizar_nome(nome):
+    texto = str(nome or "").strip()
+    if not texto:
+        return ""
+    chave = chave_nome(texto)
+    return AGENTE_ALIASES.get(chave) or AGENTE_ALIASES.get(chave.replace(" ", "_")) or texto
+
+
+def obter_ou_criar(conn_or_cur, nome):
+    nome = normalizar_nome(nome)
+    if not nome:
+        return None
+    cur = conn_or_cur.execute("SELECT id_agente FROM agentes WHERE nome=?", (nome,))
+    row = cur.fetchone()
+    if row:
+        return row["id_agente"] if isinstance(row, sqlite3.Row) else row[0]
+    try:
+        cols = {row[1] for row in conn_or_cur.execute("PRAGMA table_info(agentes)").fetchall()}
+    except Exception:
+        cols = set()
+    if "nome_completo" in cols:
+        cur = conn_or_cur.execute("INSERT INTO agentes(nome, nome_completo) VALUES (?, ?)", (nome, nome))
+    else:
+        cur = conn_or_cur.execute("INSERT INTO agentes(nome) VALUES (?)", (nome,))
+    return cur.lastrowid
 
 
 def ensure_schema(conn_or_path):

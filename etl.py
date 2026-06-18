@@ -13,6 +13,7 @@ from openpyxl.utils import column_index_from_string
 
 from app_core import esporotricose as esporotricose_core
 from app_core import amostras_animais as amostras_animais_core
+from app_core import agentes as agentes_core
 from app_core import bri as bri_core
 from app_core import normalizadores
 from app_core import pontos_estrategicos as pe_core
@@ -345,11 +346,12 @@ TIPOS_DEPOSITO = ["A1", "A2", "B", "C", "D1", "D2", "E"]
 
 def extrair_agentes(row, cfg_tipo):
     pref = cfg_tipo["prefixo_agente"]
-    return [
-        col.replace(pref, "").strip()
+    nomes = [
+        agentes_core.normalizar_nome(col.replace(pref, "").strip())
         for col in row.index
         if col.startswith(pref) and val_str(row[col]) == "1"
     ]
+    return [nome for nome in nomes if nome]
 
 
 def normalizar_tipo_tratamento(tipo):
@@ -453,11 +455,7 @@ def extrair_tratamentos(row, tipo):
 # =============================================================================
 
 def obter_ou_criar_agente(cur, nome):
-    cur.execute("SELECT id_agente FROM agentes WHERE nome=?", (nome,))
-    row = cur.fetchone()
-    if row: return row[0]
-    cur.execute("INSERT INTO agentes(nome) VALUES (?)", (nome,))
-    return cur.lastrowid
+    return agentes_core.obter_ou_criar(cur, nome)
 
 
 def inserir_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso):

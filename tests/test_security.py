@@ -5020,6 +5020,41 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual([item["status"] for item in resumo["amostra"]], ["duplicado", "novo"])
             self.assertEqual(resumo["amostra"][1]["detalhes"]["localidade"], "Centro")
 
+    def test_kobo_api_marca_agentes_para_etl(self):
+        record = {
+            "_uuid": "uuid-agente",
+            "_id": 33,
+            "_submission_time": "2026-06-10T12:00:00",
+            "Data": "2026-06-10",
+            "Localidade": "Graziela",
+            "Nome do(s) agente(s)": "ana_beatriz",
+            "Nome do(s) agente(s)/m_arcio": "1",
+        }
+        cfg_tipo = {
+            "col_data": "Data",
+            "col_localidade": "Localidade",
+            "prefixo_agente": "Nome do(s) agente(s)/",
+            "col_sequencia": "Sequência",
+        }
+
+        detalhes = kobo_api_core.record_details("PVE", record)
+        row = kobo_api_core._ensure_visit_columns({}, "PVE", cfg_tipo, record)
+
+        self.assertEqual(detalhes["agentes"], "Ana Beatriz, Márcio")
+        self.assertEqual(row["Nome do(s) agente(s)/Ana Beatriz"], 1)
+        self.assertEqual(row["Nome do(s) agente(s)/Márcio"], 1)
+
+    def test_etl_normaliza_nome_de_agente_ao_extrair(self):
+        row = etl.pd.Series({
+            "Nome do(s) agente(s)/m_arcio": 1,
+            "Nome do(s) agente(s)/ana_beatriz": "1",
+            "Nome do(s) agente(s)/Ceccon": 0,
+        })
+
+        nomes = etl.extrair_agentes(row, {"prefixo_agente": "Nome do(s) agente(s)/"})
+
+        self.assertEqual(nomes, ["Márcio", "Ana Beatriz"])
+
     def test_kobo_previa_usa_tabela_do_modulo_extra(self):
         class FakeResponse:
             def __enter__(self):

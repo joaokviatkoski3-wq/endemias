@@ -7,6 +7,8 @@ import unicodedata
 
 import pandas as pd
 
+from app_core import agentes as agentes_core
+
 
 DEFAULT_SERVER_URL = "https://kf.kobotoolbox.org"
 VISIT_TYPES = ("PE", "TB", "TBO", "PVE")
@@ -254,6 +256,39 @@ def _collect_values(record, tokens, limit=4):
     return ", ".join(result)
 
 
+def _marked(value):
+    text = str(value or "").strip().casefold()
+    return text in {"1", "true", "sim", "yes", "x", "on"}
+
+
+def _split_agent_text(value):
+    text = str(value or "").strip()
+    if not text or _marked(text) or text.casefold() in {"nan", "none", "0", "false", "nao", "não"}:
+        return []
+    partes = []
+    for parte in text.replace("\n", ",").replace(";", ",").split(","):
+        nome = agentes_core.normalizar_nome(parte)
+        if nome and nome not in partes:
+            partes.append(nome)
+    return partes
+
+
+def _agent_names(record):
+    nomes = []
+    for key, value in _flatten_record(record).items():
+        if value in (None, "") or "agente" not in _norm(key):
+            continue
+        if "/" in str(key) and _marked(value):
+            nome = agentes_core.normalizar_nome(str(key).rsplit("/", 1)[-1])
+            if nome and _norm(nome) not in {"agente", "agentes", "nomedoagente", "nomedosagentes"} and nome not in nomes:
+                nomes.append(nome)
+            continue
+        for nome in _split_agent_text(value):
+            if nome not in nomes:
+                nomes.append(nome)
+    return nomes
+
+
 def record_details(tipo, record, larvas_links=None):
     larvas_links = larvas_links or {}
     tubos = record_tubes(record)
@@ -265,7 +300,7 @@ def record_details(tipo, record, larvas_links=None):
     detalhes = {
         "data": data or data_coleta or "-",
         "enviado_em": record.get("_submission_time") or "-",
-        "agentes": _collect_values(record, ["agente"]),
+        "agentes": ", ".join(_agent_names(record)) or _collect_values(record, ["agente"]),
         "localidade": _value(record, ["Localidade", "localidade", "bairro"]),
         "endereco": _value(record, ["Logradouro", "Endereco", "Endereço", "Rua"]),
         "numero": _value(record, ["Número", "Numero"]),
@@ -413,6 +448,10 @@ def _ensure_visit_columns(row, tipo, cfg_tipo, record):
     row.setdefault("Número", detalhes.get("numero"))
     row.setdefault("Quarteirão", detalhes.get("quarteirao"))
     row.setdefault("Visita", detalhes.get("visita"))
+    prefixo_agente = cfg_tipo.get("prefixo_agente")
+    if prefixo_agente:
+        for nome in _agent_names(record):
+            row.setdefault(f"{prefixo_agente}{nome}", 1)
     if cfg_tipo.get("col_sequencia"):
         row.setdefault(cfg_tipo["col_sequencia"], "")
     return row
