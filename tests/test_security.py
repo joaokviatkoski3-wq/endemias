@@ -391,6 +391,52 @@ class LarvasAuditTests(unittest.TestCase):
         self.assertIn("Tubo 999", texto_log)
         self.assertIn("LARVAS_falta.xlsx", texto_log)
 
+    def test_etl_audita_pendencias_operacionais(self):
+        with sqlite3.connect(":memory:") as conn:
+            conn.row_factory = sqlite3.Row
+            conn.executescript("""
+                CREATE TABLE localidades (id_localidade INTEGER PRIMARY KEY, nome TEXT);
+                CREATE TABLE visitas (
+                    id_visita TEXT PRIMARY KEY,
+                    data TEXT,
+                    tipo TEXT,
+                    localidade TEXT,
+                    id_localidade INTEGER,
+                    quarteirao INTEGER
+                );
+                CREATE TABLE visita_agentes (id_visita TEXT, id_agente INTEGER);
+                CREATE TABLE tratamentos (
+                    id INTEGER PRIMARY KEY,
+                    id_visita TEXT,
+                    tipo TEXT,
+                    quantidade_carga REAL,
+                    qtd_depositos_tratados INTEGER
+                );
+                CREATE TABLE depositos_inspecionados (
+                    id INTEGER PRIMARY KEY,
+                    id_visita TEXT,
+                    tipo_deposito TEXT,
+                    tratado INTEGER,
+                    qtd_carga REAL
+                );
+            """)
+            conn.execute(
+                "INSERT INTO visitas(id_visita, data, tipo, localidade, quarteirao) VALUES (?,?,?,?,?)",
+                ("v1", "2026-06-10", "PE", "Graziela", 10),
+            )
+            conn.execute(
+                "INSERT INTO tratamentos(id_visita, tipo, quantidade_carga, qtd_depositos_tratados) VALUES (?,?,?,?)",
+                ("v1", "BTI (pó)", None, 2),
+            )
+            logger = etl.Logger()
+
+            avisos = etl.auditar_pendencias_importacao(conn, logger)
+
+        texto_log = "\n".join(mensagem for mensagem, _ in logger.linhas)
+        self.assertEqual(len(avisos), 2)
+        self.assertIn("[AVISO OPERACIONAL] Visitas sem agente vinculado: 1", texto_log)
+        self.assertIn("[AVISO OPERACIONAL] Tratamentos com deposito tratado, mas sem carga: 1", texto_log)
+
 
 class RequestParsingTests(unittest.TestCase):
     def test_request_int_arg_usa_default_quando_invalido(self):

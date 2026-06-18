@@ -854,6 +854,93 @@ def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
     }
 
 
+def auditar_pendencias_importacao(conn, logger):
+    avisos = []
+    checks = (
+        (
+            "Visitas sem agente vinculado",
+            """SELECT v.data, v.tipo, COALESCE(l.nome, v.localidade, '') AS localidade, v.quarteirao
+                 FROM visitas v
+                 LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
+                WHERE NOT EXISTS (
+                      SELECT 1 FROM visita_agentes va WHERE va.id_visita=v.id_visita
+                )
+                ORDER BY date(v.data) DESC, v.tipo, v.quarteirao
+                LIMIT 5""",
+            """SELECT COUNT(*) FROM visitas v
+                WHERE NOT EXISTS (
+                      SELECT 1 FROM visita_agentes va WHERE va.id_visita=v.id_visita
+                )""",
+        ),
+        (
+            "Visitas sem localidade",
+            """SELECT data, tipo, localidade, quarteirao
+                 FROM visitas
+                WHERE TRIM(COALESCE(localidade,''))='' AND id_localidade IS NULL
+                ORDER BY date(data) DESC, tipo, quarteirao
+                LIMIT 5""",
+            """SELECT COUNT(*) FROM visitas
+                WHERE TRIM(COALESCE(localidade,''))='' AND id_localidade IS NULL""",
+        ),
+        (
+            "Tratamentos com deposito tratado, mas sem carga",
+            """SELECT v.data, v.tipo, COALESCE(l.nome, v.localidade, '') AS localidade,
+                      v.quarteirao, t.tipo AS tratamento, t.qtd_depositos_tratados
+                 FROM tratamentos t
+                 LEFT JOIN visitas v ON v.id_visita=t.id_visita
+                 LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
+                WHERE COALESCE(t.qtd_depositos_tratados,0)>0
+                  AND (t.quantidade_carga IS NULL OR t.quantidade_carga=0)
+                ORDER BY date(v.data) DESC, t.id DESC
+                LIMIT 5""",
+            """SELECT COUNT(*) FROM tratamentos
+                WHERE COALESCE(qtd_depositos_tratados,0)>0
+                  AND (quantidade_carga IS NULL OR quantidade_carga=0)""",
+        ),
+        (
+            "Depositos tratados sem carga informada",
+            """SELECT v.data, v.tipo, COALESCE(l.nome, v.localidade, '') AS localidade,
+                      v.quarteirao, d.tipo_deposito, d.tratado
+                 FROM depositos_inspecionados d
+                 LEFT JOIN visitas v ON v.id_visita=d.id_visita
+                 LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
+                WHERE COALESCE(d.tratado,0)>0
+                  AND (d.qtd_carga IS NULL OR d.qtd_carga=0)
+                ORDER BY date(v.data) DESC, d.id DESC
+                LIMIT 5""",
+            """SELECT COUNT(*) FROM depositos_inspecionados
+                WHERE COALESCE(tratado,0)>0
+                  AND (qtd_carga IS NULL OR qtd_carga=0)""",
+        ),
+    )
+    for titulo, exemplos_sql, total_sql in checks:
+        total = conn.execute(total_sql).fetchone()[0]
+        if not total:
+            continue
+        exemplos = []
+        for row in conn.execute(exemplos_sql).fetchall():
+            exemplos.append(_formatar_pendencia(row))
+        detalhe = "; ".join(exemplos)
+        if detalhe:
+            detalhe = f" Exemplos: {detalhe}"
+        logger.log(f"  [AVISO OPERACIONAL] {titulo}: {total}.{detalhe}", "aviso")
+        avisos.append({"titulo": titulo, "total": total, "exemplos": exemplos})
+    return avisos
+
+
+def _formatar_pendencia(row):
+    data = row["data"] if "data" in row.keys() else ""
+    partes = [
+        normalizar_data(data) or data,
+        row["tipo"] if "tipo" in row.keys() else "",
+        row["localidade"] if "localidade" in row.keys() else "",
+        f"Q{row['quarteirao']}" if "quarteirao" in row.keys() and row["quarteirao"] not in (None, "") else "",
+        row["tratamento"] if "tratamento" in row.keys() else "",
+        row["tipo_deposito"] if "tipo_deposito" in row.keys() else "",
+    ]
+    return " / ".join(str(parte) for parte in partes if parte)
+
+
 # =============================================================================
 #  ENTRY POINT — chamado pelo app.py
 # =============================================================================
@@ -890,7 +977,7 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
         return False, []
 
     # Backup automático do banco
-    logger.log("\n[1/4] Backup do banco...", "titulo")
+    logger.log("\n[1/5] Backup do banco...", "titulo")
     try:
         ts      = agora.strftime("%Y%m%d_%H%M%S")
         bk_dir  = os.path.join(os.path.dirname(banco_path), "backups")
@@ -910,7 +997,7 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
         logger.log(f"  [AVISO] Não foi possível criar backup: {e}", "aviso")
 
     # Carregar larvas
-    logger.log("\n[2/4] Carregando resultados de larvas...", "titulo")
+    logger.log("\n[2/5] Carregando resultados de larvas...", "titulo")
     larvas = {}
     larvas_origens = []
     for caminho in arquivos_larvas:
@@ -937,7 +1024,7 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
             logger.log(f"  [ERRO] '{os.path.basename(caminho)}': {e}", "erro")
 
     # Processar planilhas de trabalho
-    logger.log("\n[3/4] Processando planilhas...", "titulo")
+    logger.log("\n[3/5] Processando planilhas...", "titulo")
     if not arquivos_trabalho:
         logger.log("  [AVISO] Nenhuma planilha de trabalho enviada.", "aviso")
 
@@ -1033,7 +1120,10 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
             houve_erro = True
 
     # Verificar banco dentro da transação (mostra contagens reais mesmo no dry-run)
-    logger.log("\n[4/4] Verificando banco...", "titulo")
+    logger.log("\n[4/5] Checando pendencias operacionais...", "titulo")
+    auditar_pendencias_importacao(conn, logger)
+
+    logger.log("\n[5/5] Verificando banco...", "titulo")
     cur = conn.cursor()
     for tabela in ["visitas", "visita_agentes", "depositos_inspecionados",
                    "tratamentos", "coletas", "resultados_laboratorio", "focos_positivos",
