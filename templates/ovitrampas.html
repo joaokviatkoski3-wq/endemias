@@ -31,14 +31,30 @@
 .ovi-history{margin-top:14px;}
 .ovi-history-head{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:10px;color:var(--text2);font-size:12px;}
 .ovi-history-head strong{display:block;color:var(--text);font-size:13px;}
-.ovi-monitor-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,.75fr);gap:14px;align-items:start;}
+.ovi-monitor-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(380px,.95fr);gap:14px;align-items:start;}
 .ovi-monitor-stack{display:flex;flex-direction:column;gap:14px;}
 .ovi-monitor-table td,.ovi-monitor-table th{vertical-align:top;}
+.ovi-panel#ovi-panel-monitoramento .table-scroll{max-height:360px;overflow:auto;}
+.ovi-panel#ovi-panel-monitoramento .table-scroll thead th{position:sticky;top:0;background:var(--surface2);z-index:1;}
 .ovi-muted{color:var(--text3);font-size:11px;line-height:1.35;}
-.ovi-ocorrencia-card{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);padding:10px;margin-bottom:8px;}
-.ovi-ocorrencia-head{display:flex;justify-content:space-between;gap:8px;align-items:start;font-size:12px;font-weight:900;margin-bottom:7px;}
+.ovi-occ-source{display:block;margin:-4px 0 10px;color:var(--text3);font-size:11px;font-weight:700;}
+.ovi-ocorrencias-list{max-height:760px;overflow:auto;padding-right:4px;}
+.ovi-ocorrencia-card{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);margin-bottom:8px;overflow:hidden;}
+.ovi-ocorrencia-card.is-open{border-color:rgba(15,118,110,.55);box-shadow:0 0 0 1px rgba(15,118,110,.16);}
+.ovi-ocorrencia-toggle{width:100%;border:0;background:transparent;color:inherit;text-align:left;padding:10px;cursor:pointer;}
+.ovi-ocorrencia-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start;font-size:12px;font-weight:900;}
 .ovi-ocorrencia-desc{color:var(--text);font-weight:900;}
 .ovi-ocorrencia-meta{color:var(--text3);font-size:11px;font-weight:700;}
+.ovi-ocorrencia-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px;}
+.ovi-occ-mini{border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px;background:var(--surface2);}
+.ovi-occ-mini span{display:block;color:var(--text3);font-size:9px;font-weight:900;text-transform:uppercase;}
+.ovi-occ-mini strong{display:block;color:var(--text);font-size:14px;font-weight:900;margin-top:1px;}
+.ovi-ocorrencia-details{border-top:1px solid var(--border);padding:10px;background:var(--surface2);}
+.ovi-ocorrencia-details[hidden]{display:none!important;}
+.ovi-occ-table-wrap{max-height:280px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);}
+.ovi-occ-table{width:100%;font-size:11px;}
+.ovi-occ-table th{position:sticky;top:0;background:var(--surface);z-index:1;}
+.ovi-occ-table td,.ovi-occ-table th{padding:7px 8px;vertical-align:top;}
 .ovi-chip-list{display:flex;flex-wrap:wrap;gap:5px;}
 .ovi-chip{display:inline-flex;align-items:center;gap:4px;border-radius:999px;border:1px solid var(--border);background:var(--surface2);padding:3px 7px;font-size:11px;color:var(--text2);font-weight:800;}
 .ovi-chip.warn{background:rgba(245,158,11,.13);border-color:rgba(245,158,11,.35);color:#b45309;}
@@ -207,14 +223,15 @@
     <div class="ovi-monitor-stack">
       <div class="chart-card">
         <div class="chart-hd">
-          <div class="chart-title"><img src="/static/icons/alerta.svg" alt="" class="icon-svg"> Ocorrências 1 a 9</div>
-          <span class="imp-status imp-cinza" id="ovi-oco-import-status">Aguardando</span>
+          <div class="chart-title"><img src="/static/icons/alerta.svg" alt="" class="icon-svg"> Histórico de ocorrências</div>
+          <span class="imp-status imp-cinza" id="ovi-oco-import-status">Sem histórico</span>
         </div>
         <form id="ovi-oco-form" class="ovi-upload" style="grid-template-columns:1fr;margin-bottom:12px;">
           <div class="f-g"><label>CSV anual de ocorrências do Conta Ovos</label><input type="file" id="ovi-oco-arquivos" name="arquivos" accept=".csv,text/csv" multiple></div>
           <button class="btn btn-primary" type="submit"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar ocorrências</button>
         </form>
-        <div id="ovi-mon-ocorrencias-body"></div>
+        <span class="ovi-occ-source" id="ovi-mon-ocorrencias-fonte"></span>
+        <div class="ovi-ocorrencias-list" id="ovi-mon-ocorrencias-body"></div>
       </div>
 
       <div class="chart-card">
@@ -473,6 +490,31 @@ function oviEndereco(row){
 function oviEmptyRow(cols, text='Nenhum registro.'){
   return `<tr><td colspan="${cols}" style="text-align:center;color:var(--text3);padding:18px;">${oviEscape(text)}</td></tr>`;
 }
+function oviDash(value){
+  return value === null || value === undefined || value === '' ? '-' : value;
+}
+function oviSemana(row){
+  if (row.ano && row.semana) return `${row.ano} / ${String(row.semana).padStart(2,'0')}`;
+  return row.ultima || '-';
+}
+function oviOcorrenciaDetalhes(label, row){
+  const detalhes = row.armadilhas_destaque || [];
+  if (!detalhes.length) return '<div class="ovi-muted">Sem armadilhas registradas para esta ocorrência no período filtrado.</div>';
+  return `<div class="ovi-occ-table-wrap"><table class="ovi-occ-table">
+    <thead><tr><th>ID</th><th>Localidade</th><th>Endereço</th><th>Última</th><th>Qtd.</th><th>Ovos</th><th>Observação</th></tr></thead>
+    <tbody>${detalhes.map(item => `
+      <tr>
+        <td><strong>${oviEscape(item.ovitrampa_id)}</strong></td>
+        <td>${oviEscape(oviDash(item.localidade))}</td>
+        <td>${oviEndereco(item)}${item.quarteirao ? `<br><span class="ovi-muted">Q ${oviEscape(item.quarteirao)}</span>` : ''}</td>
+        <td>${oviEscape(oviSemana(item))}${item.data ? `<br><span class="ovi-muted">${oviEscape(item.data)}</span>` : ''}</td>
+        <td><span class="ovi-badge">${oviFmt.format(item.total || 0)}</span></td>
+        <td>${oviFmt.format(item.ovos || 0)}</td>
+        <td>${oviEscape(item.observacao || item.resultado || label.descricao || '-')}</td>
+      </tr>
+    `).join('')}</tbody>
+  </table></div>`;
+}
 async function carregarMonitoramento(){
   const data = await oviGet('/api/ovitrampas/monitoramento?' + oviMonitorParams().toString());
   const t = data.totais || {};
@@ -481,6 +523,12 @@ async function carregarMonitoramento(){
   document.getElementById('ovi-mon-ovos').textContent = oviFmt.format(t.ovos || 0);
   document.getElementById('ovi-mon-ocorrencias').textContent = oviFmt.format(t.ocorrencias || 0);
   document.getElementById('ovi-mon-realocar').textContent = oviFmt.format(t.realocar || 0);
+  const occStatus = document.getElementById('ovi-oco-import-status');
+  if (occStatus) {
+    const totalOcorrencias = Number(t.ocorrencias || 0);
+    occStatus.className = totalOcorrencias > 0 ? 'imp-status imp-verde' : 'imp-status imp-cinza';
+    occStatus.textContent = totalOcorrencias > 0 ? 'Com histórico' : 'Sem histórico';
+  }
   const p = data.periodo || {};
   document.getElementById('ovi-mon-periodo').textContent = p.ano ? `${p.ano} / semanas ${String(p.semana_ini || '-').padStart(2,'0')} a ${String(p.semana_fim || '-').padStart(2,'0')}` : 'Sem leituras';
 
@@ -518,15 +566,27 @@ async function carregarMonitoramento(){
     </tr>
   `).join('') || oviEmptyRow(6);
 
+  document.getElementById('ovi-mon-ocorrencias-fonte').textContent = data.ocorrencias_fonte || '';
   document.getElementById('ovi-mon-ocorrencias-body').innerHTML = (data.ocorrencias_labels || []).map(label => {
     const row = (data.ocorrencias || []).find(item => Number(item.codigo) === Number(label.codigo)) || {total:0, armadilhas:0, armadilhas_destaque:[]};
-    const chips = (row.armadilhas_destaque || []).map(item => `<span class="ovi-chip ${Number(label.codigo) === 5 ? 'warn' : ''}">#${oviEscape(item.ovitrampa_id)} · ${oviFmt.format(item.total || 0)}x</span>`).join('');
-    return `<div class="ovi-ocorrencia-card">
-      <div class="ovi-ocorrencia-head">
-        <span><span class="ovi-badge">${label.codigo}</span> <span class="ovi-ocorrencia-desc">${oviEscape(label.descricao)}</span></span>
-        <span class="ovi-ocorrencia-meta">${oviFmt.format(row.total || 0)} ocorrência(s), ${oviFmt.format(row.armadilhas || 0)} armadilha(s)</span>
+    const detalhes = row.armadilhas_destaque || [];
+    const principal = detalhes[0];
+    const codigo = Number(label.codigo);
+    return `<div class="ovi-ocorrencia-card ${row.total ? '' : 'is-empty'}" data-ovi-occ-card="${codigo}">
+      <button class="ovi-ocorrencia-toggle" type="button" data-ovi-occ-toggle="${codigo}" aria-expanded="false">
+        <div class="ovi-ocorrencia-head">
+          <span><span class="ovi-badge">${label.codigo}</span> <span class="ovi-ocorrencia-desc">${oviEscape(label.descricao)}</span></span>
+          <span class="ovi-ocorrencia-meta">${row.total ? 'Ver detalhes' : 'Sem registros'}</span>
+        </div>
+        <div class="ovi-ocorrencia-summary">
+          <div class="ovi-occ-mini"><span>Ocorrências</span><strong>${oviFmt.format(row.total || 0)}</strong></div>
+          <div class="ovi-occ-mini"><span>Armadilhas</span><strong>${oviFmt.format(row.armadilhas || 0)}</strong></div>
+          <div class="ovi-occ-mini"><span>Maior repetição</span><strong>${principal ? `${oviEscape(principal.ovitrampa_id)} (${oviFmt.format(principal.total || 0)}x)` : '-'}</strong></div>
+        </div>
+      </button>
+      <div class="ovi-ocorrencia-details" id="ovi-occ-detail-${codigo}" hidden>
+        ${oviOcorrenciaDetalhes(label, row)}
       </div>
-      <div class="ovi-chip-list">${chips || '<span class="ovi-muted">Sem armadilhas no período.</span>'}</div>
     </div>`;
   }).join('');
 
@@ -804,6 +864,19 @@ document.getElementById('ovi-cal-movimento').addEventListener('change', atualiza
 document.getElementById('ovi-grupo-fechar').addEventListener('click', fecharModalGrupo);
 document.getElementById('ovi-grupo-cancelar').addEventListener('click', fecharModalGrupo);
 document.addEventListener('click', async e => {
+  const occToggle = e.target.closest('[data-ovi-occ-toggle]');
+  if (occToggle) {
+    const card = occToggle.closest('[data-ovi-occ-card]');
+    const detail = card?.querySelector('.ovi-ocorrencia-details');
+    if (!detail) return;
+    const aberto = detail.hidden;
+    detail.hidden = !aberto;
+    occToggle.setAttribute('aria-expanded', aberto ? 'true' : 'false');
+    card.classList.toggle('is-open', aberto);
+    const meta = occToggle.querySelector('.ovi-ocorrencia-meta');
+    if (meta && meta.textContent !== 'Sem registros') meta.textContent = aberto ? 'Ocultar detalhes' : 'Ver detalhes';
+    return;
+  }
   const dia = e.target.closest('[data-ovi-cal-dia]')?.dataset.oviCalDia;
   if (dia) {
     abrirModalCalendario(dia, oviCalState.eventosPorData[dia] || null);

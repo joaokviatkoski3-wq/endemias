@@ -593,7 +593,7 @@ def monitoramento(db_path, filtros=None):
             params,
         )]
 
-        ocorrencias_resumo, total_ocorrencias = _monitoramento_ocorrencias(
+        ocorrencias_resumo, total_ocorrencias, fonte_ocorrencias = _monitoramento_ocorrencias(
             conn, filtros, periodo, join_base, params
         )
 
@@ -606,6 +606,7 @@ def monitoramento(db_path, filtros=None):
     total["realocar"] = realocar["total"]
     return {
         "periodo": periodo,
+        "ocorrencias_fonte": fonte_ocorrencias,
         "ocorrencias_labels": [{"codigo": codigo, "descricao": desc} for codigo, desc in OCORRENCIAS.items()],
         "totais": total,
         "positivas_recentes": positivas_recentes,
@@ -1241,6 +1242,7 @@ def _monitoramento_ocorrencias(conn, filtros, periodo, legacy_join_base, legacy_
             params,
         )]
         detalhes = _monitoramento_ocorrencias_detalhes_importadas(conn, join_base, params)
+        fonte = "Histórico de ocorrências importado do Conta Ovos"
     else:
         resumo = [dict(row) for row in conn.execute(
             f"""SELECT l.ocorrencia_codigo AS codigo,
@@ -1254,59 +1256,92 @@ def _monitoramento_ocorrencias(conn, filtros, periodo, legacy_join_base, legacy_
         )]
         detalhes = _monitoramento_ocorrencias_detalhes(conn, legacy_join_base, legacy_params)
         total_importado = sum(row["total"] or 0 for row in resumo)
+        fonte = "Ocorrências registradas nas leituras semanais"
 
     for row in resumo:
         row["descricao"] = OCORRENCIAS.get(row["codigo"], "Ocorrencia")
         row["armadilhas_destaque"] = detalhes.get(row["codigo"], [])
-    return resumo, total_importado
+    return resumo, total_importado, fonte
 
 
 def _monitoramento_ocorrencias_detalhes_importadas(conn, join_base, params):
     rows = [dict(row) for row in conn.execute(
-        f"""SELECT o.ocorrencia_codigo AS codigo,
-                   o.ovitrampa_id,
-                   COALESCE(am.localidade, '-') AS localidade,
-                   COALESCE(am.rua, '-') AS rua,
-                   COALESCE(am.numero, '') AS numero,
-                   COALESCE(am.complemento, am.localizacao, '') AS complemento,
-                   COUNT(*) AS total,
-                   MAX(o.ano * 100 + o.semana) AS ultima_chave
-              {join_base}
-               AND o.ocorrencia_codigo BETWEEN 1 AND 9
-             GROUP BY o.ocorrencia_codigo, o.ovitrampa_id
-             ORDER BY o.ocorrencia_codigo, total DESC, ultima_chave DESC, CAST(o.ovitrampa_id AS INTEGER), o.ovitrampa_id""",
+        f"""WITH base AS (
+                SELECT o.ocorrencia_codigo AS codigo,
+                       o.ovitrampa_id,
+                       COALESCE(am.localidade, '-') AS localidade,
+                       COALESCE(am.rua, '-') AS rua,
+                       COALESCE(am.numero, '') AS numero,
+                       COALESCE(am.complemento, am.localizacao, '') AS complemento,
+                       COALESCE(am.quarteirao, '') AS quarteirao,
+                       o.ano,
+                       o.semana,
+                       o.data,
+                       o.ovos,
+                       o.resultado,
+                       o.observacao_conta_ovos AS observacao,
+                       COUNT(*) OVER (PARTITION BY o.ocorrencia_codigo, o.ovitrampa_id) AS total,
+                       MAX(o.ano * 100 + o.semana) OVER (PARTITION BY o.ocorrencia_codigo, o.ovitrampa_id) AS ultima_chave,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY o.ocorrencia_codigo, o.ovitrampa_id
+                           ORDER BY o.ano DESC, o.semana DESC, COALESCE(o.data,'') DESC, o.id_contagem DESC
+                       ) AS rn
+                  {join_base}
+                   AND o.ocorrencia_codigo BETWEEN 1 AND 9
+             )
+             SELECT codigo, ovitrampa_id, localidade, rua, numero, complemento, quarteirao,
+                    ano, semana, data, ovos, resultado, observacao, total, ultima_chave
+               FROM base
+              WHERE rn=1
+              ORDER BY codigo, total DESC, ultima_chave DESC, CAST(ovitrampa_id AS INTEGER), ovitrampa_id""",
         params,
     )]
     por_codigo = {codigo: [] for codigo in OCORRENCIAS}
     for row in rows:
         row["ultima"] = _semana_label_from_key(row.pop("ultima_chave", None))
         codigo = row.get("codigo")
-        if codigo in por_codigo and len(por_codigo[codigo]) < 12:
+        if codigo in por_codigo and len(por_codigo[codigo]) < 80:
             por_codigo[codigo].append(row)
     return por_codigo
 
 
 def _monitoramento_ocorrencias_detalhes(conn, join_base, params):
     rows = [dict(row) for row in conn.execute(
-        f"""SELECT l.ocorrencia_codigo AS codigo,
-                   l.ovitrampa_id,
-                   COALESCE(am.localidade, l.distrito, '-') AS localidade,
-                   COALESCE(am.rua, l.rua, '-') AS rua,
-                   COALESCE(am.numero, l.numero, '') AS numero,
-                   COALESCE(am.complemento, l.complemento, am.localizacao, l.localizacao, '') AS complemento,
-                   COUNT(*) AS total,
-                   MAX(l.ano * 100 + l.semana) AS ultima_chave
-              {join_base}
-               AND l.ocorrencia_codigo BETWEEN 1 AND 9
-             GROUP BY l.ocorrencia_codigo, l.ovitrampa_id
-             ORDER BY l.ocorrencia_codigo, total DESC, ultima_chave DESC, CAST(l.ovitrampa_id AS INTEGER), l.ovitrampa_id""",
+        f"""WITH base AS (
+                SELECT l.ocorrencia_codigo AS codigo,
+                       l.ovitrampa_id,
+                       COALESCE(am.localidade, l.distrito, '-') AS localidade,
+                       COALESCE(am.rua, l.rua, '-') AS rua,
+                       COALESCE(am.numero, l.numero, '') AS numero,
+                       COALESCE(am.complemento, l.complemento, am.localizacao, l.localizacao, '') AS complemento,
+                       COALESCE(am.quarteirao, l.quarteirao, '') AS quarteirao,
+                       l.ano,
+                       l.semana,
+                       l.data_coleta AS data,
+                       l.ovos,
+                       CASE WHEN COALESCE(l.ovos,0)>0 THEN 'Positiva' ELSE 'Negativa' END AS resultado,
+                       l.observacao,
+                       COUNT(*) OVER (PARTITION BY l.ocorrencia_codigo, l.ovitrampa_id) AS total,
+                       MAX(l.ano * 100 + l.semana) OVER (PARTITION BY l.ocorrencia_codigo, l.ovitrampa_id) AS ultima_chave,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY l.ocorrencia_codigo, l.ovitrampa_id
+                           ORDER BY l.ano DESC, l.semana DESC, COALESCE(l.data_coleta,'') DESC
+                       ) AS rn
+                  {join_base}
+                   AND l.ocorrencia_codigo BETWEEN 1 AND 9
+             )
+             SELECT codigo, ovitrampa_id, localidade, rua, numero, complemento, quarteirao,
+                    ano, semana, data, ovos, resultado, observacao, total, ultima_chave
+               FROM base
+              WHERE rn=1
+              ORDER BY codigo, total DESC, ultima_chave DESC, CAST(ovitrampa_id AS INTEGER), ovitrampa_id""",
         params,
     )]
     por_codigo = {codigo: [] for codigo in OCORRENCIAS}
     for row in rows:
         row["ultima"] = _semana_label_from_key(row.pop("ultima_chave", None))
         codigo = row.get("codigo")
-        if codigo in por_codigo and len(por_codigo[codigo]) < 12:
+        if codigo in por_codigo and len(por_codigo[codigo]) < 80:
             por_codigo[codigo].append(row)
     return por_codigo
 

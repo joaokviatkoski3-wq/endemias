@@ -2703,10 +2703,13 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(result["ocorrencias"], 2)
         self.assertEqual(result_reimportado["sem_alteracao"], 3)
         self.assertEqual(dados["totais"]["ocorrencias"], 2)
+        self.assertEqual(dados["ocorrencias_fonte"], "Histórico de ocorrências importado do Conta Ovos")
         ocorrencias = {row["codigo"]: row for row in dados["ocorrencias"]}
         self.assertEqual(ocorrencias[5]["total"], 1)
         self.assertEqual(ocorrencias[9]["total"], 1)
         self.assertEqual(ocorrencias[9]["descricao"], "Outros")
+        self.assertEqual(ocorrencias[5]["armadilhas_destaque"][0]["observacao"], "Ovitrampa seca")
+        self.assertEqual(ocorrencias[5]["armadilhas_destaque"][0]["data"], "2026-05-29")
 
     def test_ovitrampas_calendario_salva_evento_com_agentes_e_aparece_na_agenda(self):
         with tempfile.TemporaryDirectory() as tmpdir:
