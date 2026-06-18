@@ -5,6 +5,7 @@ from datetime import datetime
 
 import pandas as pd
 
+from app_core import agentes as agentes_db
 from app_core import db as db_core
 from app_core import normalizadores
 
@@ -1788,14 +1789,7 @@ def _obter_ou_criar_localidade(cur, nome):
 
 def _obter_ou_criar_agente(cur, nome):
     nome = _normalizar_agente_nome(nome)
-    if not nome:
-        return None
-    cur.execute("SELECT id_agente FROM agentes WHERE nome=?", (nome,))
-    row = cur.fetchone()
-    if row:
-        return row[0]
-    cur.execute("INSERT INTO agentes(nome) VALUES (?)", (nome,))
-    return cur.lastrowid
+    return agentes_db.obter_ou_criar(cur, nome)
 
 
 def _split_agentes(conn, texto):
