@@ -5095,6 +5095,20 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(row["Nome do(s) agente(s)/Ana Beatriz"], 1)
         self.assertEqual(row["Nome do(s) agente(s)/Márcio"], 1)
 
+    def test_kobo_previa_normaliza_codigos_de_recolhimento(self):
+        record = {
+            "_uuid": "uuid-recolhimento",
+            "_submission_time": "2026-06-17T18:29:15",
+            "Data": "2026-06-17",
+            "Localidade": "s_o_francisco",
+            "Agentes": "cecon evaldo",
+        }
+
+        detalhes = kobo_api_core.record_details("RECOLHIMENTO", record)
+
+        self.assertEqual(detalhes["localidade"], "S\u00e3o Francisco")
+        self.assertEqual(detalhes["agentes"], "Ceccon, Evaldo")
+
     def test_etl_normaliza_nome_de_agente_ao_extrair(self):
         row = etl.pd.Series({
             "Nome do(s) agente(s)/m_arcio": 1,
@@ -5539,6 +5553,8 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(etl.normalizar_localidade("grasiela"), "Graziela")
         self.assertEqual(normalizadores.normalizar_localidade("lamenha"), "Lamenha")
         self.assertEqual(normalizadores.normalizar_localidade("Centro"), "Sede")
+        self.assertEqual(normalizadores.normalizar_localidade("s_o_francisco"), "S\u00e3o Francisco")
+        self.assertEqual(normalizadores.normalizar_localidade("para_so"), "Para\u00edso")
         self.assertEqual(etl.normalizar_categoria("resid_ncia"), "Residência")
         self.assertEqual(etl.normalizar_categoria("com_rcio"), "Comércio")
         self.assertEqual(etl.normalizar_categoria("fechado"), "Fechado")

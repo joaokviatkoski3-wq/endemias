@@ -11,7 +11,10 @@ AGENTE_ALIASES = {
     "ana_beatriz": "Ana Beatriz",
     "cecon": "Ceccon",
     "ceccon": "Ceccon",
+    "cecilia": "Cec\u00edlia",
     "fernado": "Fernando",
+    "joao": "Jo\u00e3o",
+    "jose": "Jos\u00e9",
     "marcio": "Márcio",
     "m arcio": "Márcio",
     "m_arcio": "Márcio",
@@ -44,7 +47,12 @@ def normalizar_nome(nome):
     if not texto:
         return ""
     chave = chave_nome(texto)
-    return AGENTE_ALIASES.get(chave) or AGENTE_ALIASES.get(chave.replace(" ", "_")) or texto
+    alias = AGENTE_ALIASES.get(chave) or AGENTE_ALIASES.get(chave.replace(" ", "_"))
+    if alias:
+        return alias
+    if " " not in chave and "_" not in chave and (texto.islower() or texto.isupper()):
+        return texto.capitalize()
+    return texto
 
 
 def obter_ou_criar(conn_or_cur, nome):

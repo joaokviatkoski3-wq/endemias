@@ -26,7 +26,7 @@ def normalizar_localidade(value):
     text = _text(value)
     if not text:
         return None
-    key = _sem_acentos(text).lower()
+    key = _chave(text)
     return LOCALIDADES_PADRAO.get(key, text.title() if text.isupper() or text.islower() else text)
 
 
@@ -40,3 +40,15 @@ def _text(value):
 def _sem_acentos(value):
     normalized = unicodedata.normalize("NFKD", value)
     return "".join(ch for ch in normalized if not unicodedata.combining(ch))
+
+
+def _chave(value):
+    text = _sem_acentos(value).lower().replace("_", " ")
+    text = " ".join(text.split())
+    aliases = {
+        "s o francisco": "sao francisco",
+        "s o joao batista": "sao joao batista",
+        "s o venancio": "sao venancio",
+        "para so": "paraiso",
+    }
+    return aliases.get(text, text)

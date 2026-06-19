@@ -8,6 +8,7 @@ import unicodedata
 import pandas as pd
 
 from app_core import agentes as agentes_core
+from app_core import normalizadores
 
 
 DEFAULT_SERVER_URL = "https://kf.kobotoolbox.org"
@@ -267,9 +268,21 @@ def _split_agent_text(value):
         return []
     partes = []
     for parte in text.replace("\n", ",").replace(";", ",").split(","):
-        nome = agentes_core.normalizar_nome(parte)
-        if nome and nome not in partes:
-            partes.append(nome)
+        parte = parte.strip()
+        if not parte:
+            continue
+        chave = agentes_core.chave_nome(parte)
+        if " " in chave and not (
+            agentes_core.AGENTE_ALIASES.get(chave)
+            or agentes_core.AGENTE_ALIASES.get(chave.replace(" ", "_"))
+        ):
+            candidatos = parte.split()
+        else:
+            candidatos = [parte]
+        for candidato in candidatos:
+            nome = agentes_core.normalizar_nome(candidato)
+            if nome and nome not in partes:
+                partes.append(nome)
     return partes
 
 
@@ -301,7 +314,7 @@ def record_details(tipo, record, larvas_links=None):
         "data": data or data_coleta or "-",
         "enviado_em": record.get("_submission_time") or "-",
         "agentes": ", ".join(_agent_names(record)) or _collect_values(record, ["agente"]),
-        "localidade": _value(record, ["Localidade", "localidade", "bairro"]),
+        "localidade": normalizadores.normalizar_localidade(_value(record, ["Localidade", "localidade", "bairro"])),
         "endereco": _value(record, ["Logradouro", "Endereco", "Endereço", "Rua"]),
         "numero": _value(record, ["Número", "Numero"]),
         "quarteirao": _value(record, ["Quarteirão", "Quarteirao"]),
