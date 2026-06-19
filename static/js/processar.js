@@ -164,6 +164,7 @@ async function testarKobo() {
 function koboPreviaHtml(data) {
   const r = data.resumo || {};
   const tipo = String(data.tipo || '');
+  const filtroNovos = r.amostra_filtro === 'novos';
   const linhas = (r.amostra || []).map(item => `
     <tr>
       <td>
@@ -173,7 +174,7 @@ function koboPreviaHtml(data) {
       <td>${koboDetalhesRegistro(tipo, item)}</td>
       <td class="kobo-status-${item.problemas?.length ? 'pendente' : escapeHtml(item.status || '')}">${escapeHtml(item.status_label || item.status || '-')}</td>
       <td>${koboProblemasHtml(item)}</td>
-    </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text3);">Sem registros na amostra.</td></tr>';
+    </tr>`).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--text3);">${filtroNovos ? 'Nenhum registro novo na amostra.' : 'Sem registros na amostra.'}</td></tr>`;
   return `<div class="kobo-preview-box">
     <div class="kobo-preview-head">
       <div class="kobo-preview-kpi"><strong>${koboNum(r.total)}</strong><span>Recebidos</span></div>
@@ -286,6 +287,7 @@ async function buscarKoboPrevia() {
         inicio: document.getElementById('kobo-preview-inicio').value,
         fim: document.getElementById('kobo-preview-fim').value,
         limite: document.getElementById('kobo-preview-limite').value,
+        apenas_novos: document.getElementById('kobo-preview-apenas-novos')?.checked || false,
       })
     });
     const data = await resp.json();

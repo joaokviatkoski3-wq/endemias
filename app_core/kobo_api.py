@@ -335,8 +335,9 @@ def record_details(tipo, record, larvas_links=None):
     return detalhes
 
 
-def summarize_submissions(records, existing_uuids=None, sample_size=20, tipo=None, larvas_links=None):
+def summarize_submissions(records, existing_uuids=None, sample_size=20, tipo=None, larvas_links=None, amostra_filtro=None):
     existing_uuids = existing_uuids or set()
+    amostra_filtro = (amostra_filtro or "").strip().lower()
     rows = []
     novos = duplicados = sem_uuid = 0
     pendencias = 0
@@ -363,13 +364,15 @@ def summarize_submissions(records, existing_uuids=None, sample_size=20, tipo=Non
                 problemas.append("Tubo sem visita/coleta correspondente no sistema")
         if problemas:
             pendencias += 1
-        if len(rows) < sample_size:
+        status = "sem_uuid" if not uuid else ("duplicado" if duplicado else "novo")
+        incluir_na_amostra = amostra_filtro != "novos" or status == "novo"
+        if incluir_na_amostra and len(rows) < sample_size:
             rows.append({
                 "uuid": uuid or "-",
                 "id": record.get("_id") or record.get("_xform_id_string") or "-",
                 "data": detalhes["data"],
                 "submission_time": record.get("_submission_time") or "-",
-                "status": "sem_uuid" if not uuid else ("duplicado" if duplicado else "novo"),
+                "status": status,
                 "status_label": "Precisa de atenção" if problemas else ("Já existe" if duplicado else "Pronto para importar"),
                 "problemas": problemas,
                 "detalhes": detalhes,
@@ -380,6 +383,7 @@ def summarize_submissions(records, existing_uuids=None, sample_size=20, tipo=Non
         "duplicados": duplicados,
         "sem_uuid": sem_uuid,
         "pendencias": pendencias,
+        "amostra_filtro": amostra_filtro,
         "amostra": rows,
     }
 

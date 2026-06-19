@@ -2013,6 +2013,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('id="kobo-config-json"', html)
         self.assertIn('id="card-kobo-api"', html)
         self.assertIn('id="btn-kobo-previa"', html)
+        self.assertIn('id="kobo-preview-apenas-novos"', html)
         self.assertIn('id="btn-kobo-lote"', html)
         self.assertIn('id="btn-kobo-importar"', html)
         self.assertIn("Buscar dados do Kobo", html)
@@ -5069,7 +5070,18 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(resumo["novos"], 1)
             self.assertEqual(resumo["duplicados"], 1)
             self.assertEqual([item["status"] for item in resumo["amostra"]], ["duplicado", "novo"])
-            self.assertEqual(resumo["amostra"][1]["detalhes"]["localidade"], "Centro")
+            self.assertEqual(resumo["amostra"][1]["detalhes"]["localidade"], "Sede")
+
+            with mock.patch("app_core.kobo_api.request.urlopen", return_value=FakeResponse()):
+                resp = client.post("/api/kobo/previa", json={"tipo": "PE", "limite": 10, "apenas_novos": True})
+
+            self.assertEqual(resp.status_code, 200)
+            resumo = resp.get_json()["resumo"]
+            self.assertEqual(resumo["total"], 2)
+            self.assertEqual(resumo["novos"], 1)
+            self.assertEqual(resumo["duplicados"], 1)
+            self.assertEqual(resumo["amostra_filtro"], "novos")
+            self.assertEqual([item["status"] for item in resumo["amostra"]], ["novo"])
 
     def test_kobo_api_marca_agentes_para_etl(self):
         record = {

@@ -264,7 +264,14 @@ def kobo_previa():
                 except Exception:
                     pass
 
-    resumo = kobo_api.summarize_submissions(records, existentes, tipo=tipo, larvas_links=larvas_links)
+    amostra_filtro = "novos" if data.get("apenas_novos") else ""
+    resumo = kobo_api.summarize_submissions(
+        records,
+        existentes,
+        tipo=tipo,
+        larvas_links=larvas_links,
+        amostra_filtro=amostra_filtro,
+    )
     audit.registrar_evento(
         get_db,
         "kobo_previa",
