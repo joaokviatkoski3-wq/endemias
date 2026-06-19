@@ -317,13 +317,14 @@ def record_details(tipo, record, larvas_links=None):
         "agentes": ", ".join(_agent_names(record)) or _collect_values(record, ["agente"]),
         "localidade": normalizadores.normalizar_localidade(_value(record, ["Localidade", "localidade", "bairro"])),
         "endereco": _value(record, ["Logradouro", "Endereco", "Endereço", "Rua"]),
-        "numero": _value(record, ["Número", "Numero"]),
-        "quarteirao": _value(record, ["Quarteirão", "Quarteirao"]),
+        "numero": _value(record, ["Número", "Numero", "N_mero"]),
+        "quarteirao": _value(record, ["Quarteirão", "Quarteirao", "Quarteir_o"]),
         "morador": _value(record, ["Morador", "Responsável", "Responsavel"]),
-        "tipo_imovel": _value(record, ["Tipo do imóvel", "Tipo do imovel", "Imóvel", "Imovel"]),
+        "tipo_imovel": _value(record, ["Tipo do imóvel", "Tipo do imovel", "Imóvel", "Imovel", "Tipo_do_im_vel"]),
         "hora_inicio": _value(record, ["Digite a hora", "Hora", "hora_inicio"]),
         "hora_fim": _value(record, ["Hora final", "hora_fim"]),
         "visita": _value(record, ["Visita", "Situação da visita", "Situacao da visita"]),
+        "observacoes": _value(record, ["Observações", "observacoes", "Observa_es"]),
         "tubo": tubo,
         "data_coleta": data_coleta,
         "laboratorio": _collect_values(record, ["laboratorista", "leitura"]),
@@ -366,6 +367,18 @@ def summarize_submissions(records, existing_uuids=None, sample_size=20, tipo=Non
                 problemas.append("Sem data da coleta")
             if detalhes["vinculo_visita"] == "pendente":
                 problemas.append("Tubo sem visita/coleta correspondente no sistema")
+        if tipo in ("PE", "TB", "TBO", "PVE"):
+            campos_vazios = []
+            if not detalhes.get("hora_inicio") or detalhes["hora_inicio"] == "-":
+                campos_vazios.append("hora")
+            if not detalhes.get("morador") or detalhes["morador"] == "-":
+                campos_vazios.append("morador")
+            if not detalhes.get("quarteirao") or detalhes["quarteirao"] == "-":
+                campos_vazios.append("quarteirão")
+            if not detalhes.get("numero") or detalhes["numero"] == "-":
+                campos_vazios.append("número")
+            if campos_vazios:
+                problemas.append(f"Campos obrigatórios vazios: {', '.join(campos_vazios)}")
         if problemas:
             pendencias += 1
         status = "sem_uuid" if not uuid else ("duplicado" if duplicado else "novo")
@@ -471,6 +484,12 @@ def _ensure_visit_columns(row, tipo, cfg_tipo, record):
     row.setdefault("Morador", detalhes.get("morador"))
     row.setdefault("Tipo do imóvel", detalhes.get("tipo_imovel"))
     row.setdefault("Visita", detalhes.get("visita"))
+    row.setdefault("Observações", detalhes.get("observacoes"))
+    row.setdefault("Observa_es", detalhes.get("observacoes"))
+    row.setdefault("Depósitos Eliminados", _value(record, ["Depósitos eliminados", "Depósitos Eliminados", "Total de Depósitos eliminados", "Dep_sitos_Eliminados"]))
+    row.setdefault("Dep_sitos_Eliminados", _value(record, ["Depósitos eliminados", "Depósitos Eliminados", "Total de Depósitos eliminados", "Dep_sitos_Eliminados"]))
+    row.setdefault("O imóvel foi Tratado com Larvicidaou BRI?", _value(record, ["O imóvel foi Tratado com Larvicida?", "O imóvel foi Tratado com Larvicidaou BRI?", "O_im_vel_foi_Tratado_com_Larvi"]))
+    row.setdefault("O_im_vel_foi_Tratado_com_Larvi", _value(record, ["O imóvel foi Tratado com Larvicida?", "O imóvel foi Tratado com Larvicidaou BRI?", "O_im_vel_foi_Tratado_com_Larvi"]))
     hora_col = cfg_tipo.get("hora_inicio_col") or "Hora"
     if detalhes.get("hora_inicio"):
         row.setdefault(hora_col, detalhes.get("hora_inicio"))
