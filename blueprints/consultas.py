@@ -2,9 +2,13 @@ import logging
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 
+from app_core import agentes as agentes_core
+from app_core import audit
+from app_core import blueprint_helpers as bh
 from app_core import esporotricose as esporotricose_core
 from app_core import auth as auth_core
 from app_core import db as db_core
+from app_core import normalizadores
 from app_core import ovitrampas as ovitrampas_core
 from app_core import pontos_estrategicos as pe_core
 from app_core import producao_operacional
@@ -14,6 +18,7 @@ from app_core import work_types
 
 bp = Blueprint("consultas", __name__)
 login_required = auth_core.login_required
+nivel_min = bh.nivel_min
 DURATION_WORK_TYPE_CODE = work_types.primary_duration_work_type_code()
 
 
@@ -606,3 +611,108 @@ def api_visitas():
     except Exception:
         logging.exception("Erro em api_visitas")
         return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
+
+
+@bp.route("/api/visitas/<id_visita>/editar", methods=["POST"])
+@login_required
+@nivel_min("operador")
+def api_visita_editar(id_visita):
+    dados = request.get_json(silent=True) or {}
+    conn = get_db()
+    try:
+        atual = conn.execute("SELECT * FROM visitas WHERE id_visita=?", (id_visita,)).fetchone()
+        if not atual:
+            return jsonify({"erro": "Visita não encontrada."}), 404
+
+        localidade = normalizadores.normalizar_localidade(dados.get("localidade"))
+        id_localidade = None
+        if localidade:
+            row_loc = conn.execute("SELECT id_localidade FROM localidades WHERE nome=?", (localidade,)).fetchone()
+            if row_loc:
+                id_localidade = row_loc["id_localidade"]
+            else:
+                cur_loc = conn.execute("INSERT INTO localidades(nome, cod_localidade) VALUES (?,NULL)", (localidade,))
+                id_localidade = cur_loc.lastrowid
+
+        payload = {
+            "data": _limpar_texto(dados.get("data")),
+            "hora_inicio": _limpar_texto(dados.get("hora_inicio")),
+            "hora_fim": _limpar_texto(dados.get("hora_fim")),
+            "localidade": localidade,
+            "id_localidade": id_localidade,
+            "logradouro": _limpar_texto(dados.get("logradouro")),
+            "numero": _limpar_texto(dados.get("numero")),
+            "quarteirao": _limpar_int(dados.get("quarteirao")),
+            "sequencia": _limpar_texto(dados.get("sequencia")),
+            "morador": _limpar_texto(dados.get("morador")),
+            "tipo_imovel": _limpar_texto(dados.get("tipo_imovel")),
+            "visita": _limpar_texto(dados.get("visita")),
+            "observacoes": _limpar_texto(dados.get("observacoes")),
+        }
+        if not payload["data"]:
+            return jsonify({"erro": "Informe a data da visita."}), 400
+
+        conn.execute(
+            """UPDATE visitas SET
+                   data=?, hora_inicio=?, hora_fim=?, localidade=?, id_localidade=?,
+                   logradouro=?, numero=?, quarteirao=?, sequencia=?, morador=?,
+                   tipo_imovel=?, visita=?, observacoes=?
+                 WHERE id_visita=?""",
+            (
+                payload["data"], payload["hora_inicio"], payload["hora_fim"],
+                payload["localidade"], payload["id_localidade"], payload["logradouro"],
+                payload["numero"], payload["quarteirao"], payload["sequencia"],
+                payload["morador"], payload["tipo_imovel"], payload["visita"],
+                payload["observacoes"], id_visita,
+            ),
+        )
+
+        nomes_agentes = _split_agentes_edicao(dados.get("agentes"))
+        conn.execute("DELETE FROM visita_agentes WHERE id_visita=?", (id_visita,))
+        for nome in nomes_agentes:
+            id_agente = agentes_core.obter_ou_criar(conn, nome)
+            if id_agente:
+                conn.execute(
+                    "INSERT OR IGNORE INTO visita_agentes(id_visita, id_agente) VALUES (?,?)",
+                    (id_visita, id_agente),
+                )
+        conn.commit()
+        audit.registrar_evento(
+            get_db,
+            "visita_editada",
+            entidade="visitas",
+            entidade_id=id_visita,
+            detalhes={"antes": dict(atual), "depois": payload, "agentes": nomes_agentes},
+        )
+        return jsonify({"ok": True})
+    except Exception:
+        conn.rollback()
+        logging.exception("Erro em api_visita_editar")
+        return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
+    finally:
+        conn.close()
+
+
+def _limpar_texto(valor):
+    texto = str(valor or "").strip()
+    return texto or None
+
+
+def _limpar_int(valor):
+    texto = str(valor or "").strip()
+    if not texto:
+        return None
+    try:
+        return int(float(texto.replace(",", ".")))
+    except ValueError:
+        return None
+
+
+def _split_agentes_edicao(valor):
+    texto = str(valor or "").replace("\n", ",").replace(";", ",")
+    nomes = []
+    for parte in texto.split(","):
+        nome = agentes_core.normalizar_nome(parte)
+        if nome and nome not in nomes:
+            nomes.append(nome)
+    return nomes

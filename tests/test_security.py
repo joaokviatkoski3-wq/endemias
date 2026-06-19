@@ -4572,6 +4572,52 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("pagina", dados)
         self.assertIn("registros", dados)
 
+    def test_api_visitas_edita_dados_principais_e_agentes(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute(
+                    """INSERT INTO visitas
+                       (id_visita, kobo_uuid, tipo, data, localidade, logradouro, processado_em)
+                       VALUES ('v-edit', 'uuid-v-edit', 'PVE', '2026-06-19', 'Lamenha', 'Rua A', '2026-06-19T10:00:00')"""
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            resp = client.post("/api/visitas/v-edit/editar", json={
+                "data": "2026-06-19",
+                "hora_inicio": "09:15",
+                "localidade": "grasiela",
+                "quarteirao": "123",
+                "logradouro": "Rua B",
+                "numero": "45",
+                "morador": "Maria",
+                "tipo_imovel": "Residência",
+                "visita": "Normal",
+                "agentes": "viviane_1, cecon",
+                "observacoes": "corrigido manualmente",
+            })
+
+            self.assertEqual(resp.status_code, 200)
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                visita = conn.execute("SELECT * FROM visitas WHERE id_visita='v-edit'").fetchone()
+                agentes = [r[0] for r in conn.execute(
+                    """SELECT a.nome FROM visita_agentes va
+                       JOIN agentes a ON a.id_agente=va.id_agente
+                      WHERE va.id_visita='v-edit' ORDER BY a.nome"""
+                )]
+            finally:
+                conn.close()
+
+            self.assertEqual(visita["localidade"], "Graziela")
+            self.assertEqual(visita["quarteirao"], 123)
+            self.assertEqual(visita["morador"], "Maria")
+            self.assertEqual(agentes, ["Ceccon", "Viviane"])
+
     def test_api_laboratorio_tem_campos_de_paginacao(self):
         client = _client_logado()
         resp = client.get("/api/laboratorio?pagina=1&por_pagina=5")
@@ -5106,6 +5152,39 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(detalhes["agentes"], "Ana Beatriz, Márcio")
         self.assertEqual(row["Nome do(s) agente(s)/Ana Beatriz"], 1)
         self.assertEqual(row["Nome do(s) agente(s)/Márcio"], 1)
+
+    def test_kobo_api_pve_aproveita_campos_aninhados_para_etl(self):
+        record = {
+            "_uuid": "uuid-pve-nested",
+            "_submission_time": "2026-06-19T12:00:00",
+            "grupo_endereco": {
+                "Localidade": "lamenha",
+                "Quarteirão": "321",
+                "Logradouro": "Rua das Flores",
+                "Número": "55",
+                "Morador": "Joana",
+                "Tipo do imóvel": "Residência",
+            },
+            "grupo_visita": {
+                "Hora": "08:40",
+                "Visita": "Normal",
+            },
+        }
+        cfg_tipo = {
+            "col_data": "Data",
+            "col_localidade": "Localidade",
+            "prefixo_agente": "Nome do(s) agente(s)/",
+            "col_sequencia": "Sequência",
+        }
+
+        detalhes = kobo_api_core.record_details("PVE", record)
+        row = kobo_api_core._ensure_visit_columns({}, "PVE", cfg_tipo, record)
+
+        self.assertEqual(detalhes["localidade"], "Lamenha")
+        self.assertEqual(row["Quarteirão"], "321")
+        self.assertEqual(row["Morador"], "Joana")
+        self.assertEqual(row["Tipo do imóvel"], "Residência")
+        self.assertEqual(row["Hora"], "08:40")
 
     def test_kobo_previa_normaliza_codigos_de_recolhimento(self):
         record = {

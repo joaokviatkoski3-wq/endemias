@@ -73,8 +73,57 @@
   <div class="loading-box"><div class="spinner"></div></div>
 </div>
 
+<div id="visita-edit-modal" class="modal-backdrop" style="display:none;">
+  <div class="modal-card visita-edit-card">
+    <div class="modal-hd">
+      <strong>Editar visita</strong>
+      <button class="btn-icon" type="button" onclick="fecharEditarVisita()">x</button>
+    </div>
+    <div class="visita-edit-grid">
+      <div class="f-g"><label>Data</label><input id="edit_data" type="date"></div>
+      <div class="f-g"><label>Hora inicial</label><input id="edit_hora_inicio" type="time"></div>
+      <div class="f-g"><label>Hora final</label><input id="edit_hora_fim" type="time"></div>
+      <div class="f-g"><label>Localidade</label><input id="edit_localidade" list="visitas-localidades"></div>
+      <div class="f-g"><label>Quarteirão</label><input id="edit_quarteirao" type="number"></div>
+      <div class="f-g"><label>Logradouro</label><input id="edit_logradouro"></div>
+      <div class="f-g"><label>Número</label><input id="edit_numero"></div>
+      <div class="f-g"><label>Sequência</label><input id="edit_sequencia"></div>
+      <div class="f-g"><label>Morador</label><input id="edit_morador"></div>
+      <div class="f-g"><label>Tipo do imóvel</label><input id="edit_tipo_imovel"></div>
+      <div class="f-g"><label>Resultado da visita</label><input id="edit_visita"></div>
+      <div class="f-g wide"><label>Agentes</label><input id="edit_agentes" placeholder="Separe os nomes por vírgula"></div>
+      <div class="f-g wide"><label>Observações</label><textarea id="edit_observacoes" rows="3"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" type="button" onclick="fecharEditarVisita()">Cancelar</button>
+      <button class="btn btn-primary" type="button" onclick="salvarEditarVisita()">Salvar alterações</button>
+    </div>
+  </div>
+</div>
+
+<datalist id="visitas-localidades">
+  {% for l in localidades_glob %}<option value="{{ l }}"></option>{% endfor %}
+</datalist>
+
+<style>
+.modal-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.55);align-items:center;justify-content:center;padding:18px;}
+.modal-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 20px 50px rgba(15,23,42,.25);width:min(880px,100%);max-height:92vh;overflow:auto;}
+.modal-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);}
+.visita-edit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px 16px;}
+.visita-edit-grid .wide{grid-column:1/-1;}
+.visita-edit-grid textarea{resize:vertical;}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--border);}
+@media(max-width:760px){.visita-edit-grid{grid-template-columns:1fr;}}
+</style>
+
 <script>
 let vPagina = 1, vTotal = 0, vTotalPag = 1;
+let visitasCache = [];
+let editandoVisitaId = null;
+
+function vText(v) {
+  return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
 
 function buildFiltros() {
   const p = new URLSearchParams();
@@ -98,7 +147,8 @@ async function buscar(pg=1) {
     const d = await apiGet('/api/visitas?' + qs);
     vTotal = d.total; vTotalPag = d.total_paginas;
     document.getElementById('v-total-info').textContent = `${fmtNum(d.total)} visitas encontradas`;
-    renderTabela(d.registros);
+    visitasCache = d.registros || [];
+    renderTabela(visitasCache);
   } catch(e) {
     document.getElementById('v-tabela-area').innerHTML = `<div class="empty"><div class="empty-icon"><img src="/static/icons/alerta.svg" alt="⚠" class="icon-svg">️</div><p>${e.message}</p></div>`;
   }
@@ -127,7 +177,7 @@ function renderTabela(rows) {
           <th>Data</th><th>Tipo</th><th>Localidade</th>
           <th>Quarteirão</th><th>Endereço</th>
           <th>Resultado</th><th>Morador</th><th>Imóvel</th>
-          <th>Positiva</th><th>Hora</th><th>Agentes</th>
+          <th>Positiva</th><th>Hora</th><th>Agentes</th><th></th>
         </tr></thead>
         <tbody>
           ${rows.map(r => {
@@ -137,24 +187,80 @@ function renderTabela(rows) {
             return `<tr>
               <td class="nowrap">${fmtDate(r.data)}</td>
               <td>${tagTipo(r.tipo)}</td>
-              <td class="nowrap">${r.localidade||'—'}</td>
-              <td class="mono text-center">${r.quarteirao||'—'}</td>
-              <td class="small">${r.logradouro||'—'}${r.numero?', '+r.numero:''}${r.sequencia?' ('+r.sequencia+')':''}</td>
+              <td class="nowrap">${vText(r.localidade)||'—'}</td>
+              <td class="mono text-center">${vText(r.quarteirao)||'—'}</td>
+              <td class="small">${vText(r.logradouro)||'—'}${r.numero?', '+vText(r.numero):''}${r.sequencia?' ('+vText(r.sequencia)+')':''}</td>
               <td><span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:${cor};">
                 <span style="width:8px;height:8px;border-radius:50%;background:${cor};flex-shrink:0;"></span>
-                ${r.visita||'—'}
+                ${vText(r.visita)||'—'}
               </span></td>
-              <td class="small">${r.morador||'—'}</td>
-              <td class="small dim">${r.tipo_imovel||'—'}</td>
+              <td class="small">${vText(r.morador)||'—'}</td>
+              <td class="small dim">${vText(r.tipo_imovel)||'—'}</td>
               <td class="text-center">${pos}</td>
-              <td class="mono small dim nowrap">${r.hora_inicio||'—'}</td>
-              <td class="small dim nowrap">${r.agentes||'—'}</td>
+              <td class="mono small dim nowrap">${vText(r.hora_inicio)||'—'}</td>
+              <td class="small dim nowrap">${vText(r.agentes)||'—'}</td>
+              <td class="nowrap"><button class="btn btn-outline btn-sm" type="button" onclick="abrirEditarVisita('${vText(r.id_visita)}')">Editar</button></td>
             </tr>`;
           }).join('')}
         </tbody>
       </table></div>
       ${paginacao}
     </div>`;
+}
+
+function setEditValue(id, value) {
+  document.getElementById(id).value = value || '';
+}
+
+function abrirEditarVisita(id) {
+  const r = visitasCache.find(item => item.id_visita === id);
+  if(!r) return;
+  editandoVisitaId = id;
+  setEditValue('edit_data', r.data);
+  setEditValue('edit_hora_inicio', r.hora_inicio);
+  setEditValue('edit_hora_fim', r.hora_fim);
+  setEditValue('edit_localidade', r.localidade);
+  setEditValue('edit_quarteirao', r.quarteirao);
+  setEditValue('edit_logradouro', r.logradouro);
+  setEditValue('edit_numero', r.numero);
+  setEditValue('edit_sequencia', r.sequencia);
+  setEditValue('edit_morador', r.morador);
+  setEditValue('edit_tipo_imovel', r.tipo_imovel);
+  setEditValue('edit_visita', r.visita);
+  setEditValue('edit_agentes', r.agentes);
+  setEditValue('edit_observacoes', r.observacoes);
+  document.getElementById('visita-edit-modal').style.display = 'flex';
+}
+
+function fecharEditarVisita() {
+  editandoVisitaId = null;
+  document.getElementById('visita-edit-modal').style.display = 'none';
+}
+
+async function salvarEditarVisita() {
+  if(!editandoVisitaId) return;
+  const payload = {
+    data: document.getElementById('edit_data').value,
+    hora_inicio: document.getElementById('edit_hora_inicio').value,
+    hora_fim: document.getElementById('edit_hora_fim').value,
+    localidade: document.getElementById('edit_localidade').value,
+    quarteirao: document.getElementById('edit_quarteirao').value,
+    logradouro: document.getElementById('edit_logradouro').value,
+    numero: document.getElementById('edit_numero').value,
+    sequencia: document.getElementById('edit_sequencia').value,
+    morador: document.getElementById('edit_morador').value,
+    tipo_imovel: document.getElementById('edit_tipo_imovel').value,
+    visita: document.getElementById('edit_visita').value,
+    agentes: document.getElementById('edit_agentes').value,
+    observacoes: document.getElementById('edit_observacoes').value,
+  };
+  try {
+    await apiPost(`/api/visitas/${encodeURIComponent(editandoVisitaId)}/editar`, payload);
+    fecharEditarVisita();
+    await buscar(vPagina);
+  } catch(e) {
+    alert('Erro ao salvar visita: ' + e.message);
+  }
 }
 
 function renderPag() {

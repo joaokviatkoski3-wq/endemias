@@ -13,6 +13,8 @@ AGENTE_ALIASES = {
     "ceccon": "Ceccon",
     "cecilia": "Cec\u00edlia",
     "fernado": "Fernando",
+    "viviane 1": "Viviane",
+    "viviane_1": "Viviane",
     "joao": "Jo\u00e3o",
     "jose": "Jos\u00e9",
     "marcio": "Márcio",

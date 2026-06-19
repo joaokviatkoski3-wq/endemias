@@ -203,6 +203,7 @@ def _norm(value):
 
 
 def _value(record, candidates):
+    record = _flatten_record(record)
     wanted = {_norm(c) for c in candidates}
     for key, value in record.items():
         if _norm(key) in wanted and value not in (None, ""):
@@ -319,6 +320,9 @@ def record_details(tipo, record, larvas_links=None):
         "numero": _value(record, ["Número", "Numero"]),
         "quarteirao": _value(record, ["Quarteirão", "Quarteirao"]),
         "morador": _value(record, ["Morador", "Responsável", "Responsavel"]),
+        "tipo_imovel": _value(record, ["Tipo do imóvel", "Tipo do imovel", "Imóvel", "Imovel"]),
+        "hora_inicio": _value(record, ["Digite a hora", "Hora", "hora_inicio"]),
+        "hora_fim": _value(record, ["Hora final", "hora_fim"]),
         "visita": _value(record, ["Visita", "Situação da visita", "Situacao da visita"]),
         "tubo": tubo,
         "data_coleta": data_coleta,
@@ -464,7 +468,17 @@ def _ensure_visit_columns(row, tipo, cfg_tipo, record):
     row.setdefault("Logradouro", detalhes.get("endereco"))
     row.setdefault("Número", detalhes.get("numero"))
     row.setdefault("Quarteirão", detalhes.get("quarteirao"))
+    row.setdefault("Morador", detalhes.get("morador"))
+    row.setdefault("Tipo do imóvel", detalhes.get("tipo_imovel"))
     row.setdefault("Visita", detalhes.get("visita"))
+    hora_col = cfg_tipo.get("hora_inicio_col") or "Hora"
+    if detalhes.get("hora_inicio"):
+        row.setdefault(hora_col, detalhes.get("hora_inicio"))
+        row.setdefault("Hora", detalhes.get("hora_inicio"))
+        if tipo == "PE":
+            row.setdefault("Digite a hora", detalhes.get("hora_inicio"))
+    if detalhes.get("hora_fim"):
+        row.setdefault("Hora final", detalhes.get("hora_fim"))
     prefixo_agente = cfg_tipo.get("prefixo_agente")
     if prefixo_agente:
         for nome in _agent_names(record):
