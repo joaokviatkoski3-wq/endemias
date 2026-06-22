@@ -171,7 +171,7 @@ def record_uuid(record):
 
 
 def record_date(record):
-    for key in ("data", "Data", "data_visita", "Data da visita", "start", "_submission_time"):
+    for key in ("data", "Data", "Digite_a_data", "Digite a data", "data_visita", "Data da visita", "start", "_submission_time"):
         value = record.get(key)
         if not value:
             continue
