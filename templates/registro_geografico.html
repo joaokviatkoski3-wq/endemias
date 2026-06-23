@@ -66,7 +66,7 @@
     <div class="filter-body open">
       <div class="rg-filters">
         <div class="f-g"><label>Localidades</label><select id="rg-localidade" multiple size="5">{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
-        <div class="f-g"><label>Quarteirão</label><input id="rg-quarteirao" inputmode="numeric" placeholder="1"></div>
+        <div class="f-g"><label>Quarteirão</label><select id="rg-quarteirao" multiple size="4"><option value="">Selecione a localidade</option></select></div>
         <div class="f-g"><label>Tipo</label><select id="rg-tipo"><option value="">Todos</option>{% for tipo in opcoes.tipos %}<option value="{{ tipo.codigo }}">{{ tipo.codigo }} - {{ tipo.nome }}</option>{% endfor %}</select></div>
         <div class="f-g"><label>Atualização</label><select id="rg-atualizacao"><option value="">Todos</option><option value="atualizados">Atualizados</option><option value="pendentes">Pendentes</option></select></div>
         <div class="f-g"><label>Agente</label><select id="rg-agente"><option value="">Todos</option>{% for agente in opcoes.agentes %}<option value="{{ agente.id_agente }}">{{ agente.nome }}</option>{% endfor %}</select></div>
@@ -170,7 +170,8 @@ async function rgJson(resp, fallback){
 function rgParams(){
   const p = new URLSearchParams();
   Array.from(rgEl('rg-localidade').selectedOptions).map(opt => opt.value).filter(Boolean).forEach(v => p.append('localidade', v));
-  [['quarteirao','rg-quarteirao'],['tipo','rg-tipo'],['atualizacao','rg-atualizacao'],['agente','rg-agente'],['busca','rg-busca']].forEach(([k,id]) => {
+  Array.from(rgEl('rg-quarteirao').selectedOptions).map(opt => opt.value).filter(Boolean).forEach(v => p.append('quarteirao', v));
+  [['tipo','rg-tipo'],['atualizacao','rg-atualizacao'],['agente','rg-agente'],['busca','rg-busca']].forEach(([k,id]) => {
     const v = rgEl(id).value.trim();
     if(v) p.set(k, v);
   });
@@ -365,6 +366,15 @@ rgEl('rg-carregar-todos').addEventListener('click', () => {
   rgCarregar().catch(err => alert(err.message));
 });
 rgEl('rg-busca').addEventListener('keydown', ev => { if(ev.key === 'Enter') rgCarregar().catch(err => alert(err.message)); });
+// Carregar quarteirões dinamicamente quando localidade muda na aba Consulta
+rgEl('rg-localidade').addEventListener('change', ev => {
+  const locId = ev.target.value;
+  if(!locId){
+    rgEl('rg-quarteirao').innerHTML = '<option value="">Selecione a localidade</option>';
+    return;
+  }
+  rgCarregarSelectQuarteiroes(locId, 'rg-quarteirao').catch(err => alert(err.message));
+});
 rgEl('rg-ed-localidade').addEventListener('change', ev => rgCarregarSelectQuarteiroes(ev.target.value, 'rg-ed-quarteirao').catch(err => rgSetText('rg-ed-status', err.message)));
 rgEl('rg-imp-localidade').addEventListener('change', ev => rgCarregarChecksQuarteiroes(ev.target.value).catch(err => alert(err.message)));
 rgEl('rg-ed-carregar').addEventListener('click', () => rgCarregarQuarteirao().catch(err => { rgSetText('rg-ed-status', err.message); }));

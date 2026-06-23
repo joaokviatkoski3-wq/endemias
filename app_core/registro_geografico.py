@@ -423,8 +423,13 @@ def _where(filtros):
             where.append(f"i.id_localidade IN ({','.join('?' for _ in localidades)})")
             params.extend(localidades)
     if filtros.get("quarteirao"):
-        where.append("i.quarteirao=?")
-        params.append(_quarteirao(filtros["quarteirao"]))
+        quarteiroes = filtros["quarteirao"]
+        if not isinstance(quarteiroes, (list, tuple)):
+            quarteiroes = [quarteiroes]
+        quarteiroes = [_quarteirao(str(item).strip()) for item in quarteiroes if str(item or "").strip()]
+        if quarteiroes:
+            where.append(f"i.quarteirao IN ({','.join('?' for _ in quarteiroes)})")
+            params.extend(quarteiroes)
     if filtros.get("tipo"):
         where.append("i.tipo=?")
         params.append(filtros["tipo"])

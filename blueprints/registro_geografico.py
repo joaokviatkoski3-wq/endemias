@@ -201,7 +201,7 @@ def _filtros():
     return {
         "busca": request.args.get("busca", ""),
         "localidade": request.args.getlist("localidade") or request.args.get("localidade", ""),
-        "quarteirao": request.args.get("quarteirao", ""),
+    "quarteirao": request.args.getlist("quarteirao") or request.args.get("quarteirao", ""),
         "tipo": request.args.get("tipo", ""),
         "atualizacao": request.args.get("atualizacao", ""),
         "agente": request.args.get("agente", ""),
