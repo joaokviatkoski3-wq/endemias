@@ -663,9 +663,12 @@ def listar_visitas(db_path, filtros=None):
         ).fetchone()[0]
         registros = [dict(r) for r in conn.execute(
             f"""SELECT
-                    v.id_visita, v.data, v.hora_inicio, v.localidade, v.quarteirao,
+                    v.id_visita, v.kobo_uuid, v.data, v.hora_inicio, v.hora_fim,
+                    v.inicio_registro, v.fim_registro, v.agentes_texto,
+                    v.localidade, v.id_localidade, v.quarteirao, v.tipo_imovel,
                     v.logradouro, v.numero, v.morador, v.telefone, v.visita,
-                    v.tipo_imovel, v.observacoes, COUNT(a.id_animal) AS animais,
+                    v.observacoes, v.deseja_cadastrar_animal, v.submission_time,
+                    v.processado_em, COUNT(a.id_animal) AS animais,
                     COALESCE(GROUP_CONCAT(DISTINCT ag.nome), '') AS agentes
                 FROM esporotricose_visitas v
                 LEFT JOIN esporotricose_animais a ON a.id_visita = v.id_visita
@@ -680,6 +683,54 @@ def listar_visitas(db_path, filtros=None):
     finally:
         conn.close()
     return {"total": total or 0, "registros": registros}
+
+
+def atualizar_visita(db_path, id_visita, dados):
+    campos = []
+    params = []
+    for coluna in ("data", "hora_inicio", "hora_fim", "agentes_texto", "localidade",
+                     "quarteirao", "tipo_imovel", "logradouro", "numero", "morador",
+                     "telefone", "visita", "observacoes", "deseja_cadastrar_animal"):
+        if coluna in dados:
+            campos.append(f"{coluna} = ?")
+            params.append(dados[coluna])
+    if not campos:
+        raise ValueError("Nenhum campo para atualizar.")
+    params.append(id_visita)
+    conn = db_core.connect(db_path)
+    try:
+        conn.execute(
+            f"UPDATE esporotricose_visitas SET {', '.join(campos)} WHERE id_visita = ?",
+            params,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"ok": True}
+
+
+def atualizar_animal(db_path, id_animal, dados):
+    campos = []
+    params = []
+    for coluna in ("especie", "outro_animal", "nome", "raca", "sexo", "ambiente",
+                     "vacinado", "castrado", "feridas", "regiao_ferida",
+                     "atendimento_veterinario", "data_atendimento", "evolucao_caso"):
+        if coluna in dados:
+            campos.append(f"{coluna} = ?")
+            params.append(dados[coluna])
+    if not campos:
+        raise ValueError("Nenhum campo para atualizar.")
+    params.append(id_animal)
+    conn = db_core.connect(db_path)
+    try:
+        conn.execute(
+            f"UPDATE esporotricose_animais SET {', '.join(campos)} WHERE id_animal = ?",
+            params,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"ok": True}
 
 
 def listar_animais(db_path, filtros=None):

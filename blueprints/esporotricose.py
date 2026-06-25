@@ -186,6 +186,36 @@ def api_animais():
     return jsonify(esporotricose_core.listar_animais(_db_path(), filtros))
 
 
+@bp.route("/api/esporotricose/visitas/<id_visita>", methods=["PUT"])
+@login_required
+def api_atualizar_visita(id_visita):
+    try:
+        dados = request.get_json(silent=True) or {}
+        resultado = esporotricose_core.atualizar_visita(_db_path(), id_visita, dados)
+        return jsonify(resultado)
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    except Exception:
+        import logging
+        logging.exception("Erro ao atualizar visita esporotricose")
+        return jsonify({"erro": "Erro interno do servidor."}), 500
+
+
+@bp.route("/api/esporotricose/animais/<id_animal>", methods=["PUT"])
+@login_required
+def api_atualizar_animal(id_animal):
+    try:
+        dados = request.get_json(silent=True) or {}
+        resultado = esporotricose_core.atualizar_animal(_db_path(), id_animal, dados)
+        return jsonify(resultado)
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    except Exception:
+        import logging
+        logging.exception("Erro ao atualizar animal esporotricose")
+        return jsonify({"erro": "Erro interno do servidor."}), 500
+
+
 @bp.route("/api/esporotricose/localidades")
 @login_required
 def api_localidades():

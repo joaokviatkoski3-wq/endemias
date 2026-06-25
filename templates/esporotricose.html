@@ -140,7 +140,7 @@
     </div>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Data</th><th>Agentes</th><th>Localidade</th><th>Quadra</th><th>Endereço</th><th>Morador</th><th>Telefone</th><th>Visita</th><th>Animais</th></tr></thead>
+        <thead><tr><th>Data</th><th>Hora</th><th>Agentes</th><th>Localidade</th><th>Q.</th><th>Tipo</th><th>Endereço</th><th>Morador</th><th>Telefone</th><th>Visita</th><th>Animais</th><th>Cad. Animal</th><th>Ações</th></tr></thead>
         <tbody id="esp-visitas-body"></tbody>
       </table>
     </div>
@@ -204,6 +204,17 @@
           <option value="Comunitário">Comunitário</option>
         </select>
       </div>
+      <div class="f-g">
+        <label>Evolução</label>
+        <select id="esp-animal-evolucao" onchange="carregarEspAnimais()">
+          <option value="">Todas</option>
+          <option value="Curado">Curado</option>
+          <option value="Em tratamento">Em tratamento</option>
+          <option value="Faleceu">Faleceu</option>
+          <option value="Eutanásia">Eutanásia</option>
+          <option value="Outro">Outro</option>
+        </select>
+      </div>
       <div class="esporo-filter-actions"><button class="btn btn-primary" type="button" onclick="carregarEspAnimais()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button></div>
     </div>
     <div class="table-scroll">
@@ -211,7 +222,7 @@
         <thead>
           <tr>
             <th>Animal</th><th>Espécie</th><th>Raça</th><th>Sexo</th><th>Ambiente</th>
-            <th>Feridas</th><th>Vacina</th><th>Castração</th><th>Veterinário</th><th>Morador</th><th>Endereço</th>
+            <th>Feridas</th><th>Região</th><th>Vacina</th><th>Castração</th><th>Veterinário</th><th>Atend.</th><th>Evolução</th><th>Morador</th><th>Endereço</th><th>Ações</th>
           </tr>
         </thead>
         <tbody id="esp-animais-body"></tbody>
@@ -480,6 +491,7 @@ function espAnimalParams() {
     ['vacinado', 'esp-animal-vacinado'],
     ['castrado', 'esp-animal-castrado'],
     ['ambiente', 'esp-animal-ambiente'],
+    ['evolucao', 'esp-animal-evolucao'],
   ];
   campos.forEach(([nome, id]) => {
     const valor = document.getElementById(id).value;
@@ -533,7 +545,7 @@ async function carregarEsporotricose() {
 }
 async function carregarEspAnimais() {
   try {
-    document.getElementById('esp-animais-body').innerHTML = '<tr><td colspan="11"><div class="loading-box"><div class="spinner"></div></div></td></tr>';
+    document.getElementById('esp-animais-body').innerHTML = '<tr><td colspan="15"><div class="loading-box"><div class="spinner"></div></div></td></tr>';
     const d = await apiGet('/api/esporotricose/animais?' + espAnimalParams().toString());
     espAnimaisCarregados = true;
     renderEspAnimais(d.registros || [], d.total || 0, 'esp-animais-body', 'esp-animais-info');
@@ -543,7 +555,7 @@ async function carregarEspAnimais() {
 }
 async function carregarEspVisitas() {
   try {
-    document.getElementById('esp-visitas-body').innerHTML = '<tr><td colspan="9"><div class="loading-box"><div class="spinner"></div></div></td></tr>';
+    document.getElementById('esp-visitas-body').innerHTML = '<tr><td colspan="13"><div class="loading-box"><div class="spinner"></div></div></td></tr>';
     const d = await apiGet('/api/esporotricose/visitas?' + espParams('vis').toString());
     espVisitasCarregadas = true;
     renderEspVisitas(d.registros || [], d.total || 0);
@@ -843,18 +855,22 @@ function renderEspResumoVisitas(rows) {
 }
 function renderEspVisitas(rows, total) {
   document.getElementById('esp-visitas-body').innerHTML = rows.length ? rows.map(r => `
-    <tr>
+    <tr data-id="${escapeHtml(r.id_visita)}">
       <td>${fmtDate(r.data)}</td>
+      <td>${escapeHtml(r.hora_inicio || '-')}</td>
       <td>${escapeHtml(r.agentes || '-')}</td>
       <td>${escapeHtml(r.localidade || '-')}</td>
       <td>${escapeHtml(r.quarteirao ?? '-')}</td>
+      <td>${escapeHtml(r.tipo_imovel || '-')}</td>
       <td class="esporo-address">${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', ') || '-')}</td>
       <td>${escapeHtml(r.morador || '-')}</td>
       <td class="esporo-nowrap">${escapeHtml(r.telefone || '-')}</td>
       <td>${escapeHtml(r.visita || '-')}</td>
       <td><strong>${fmtNum(r.animais)}</strong></td>
+      <td>${escapeHtml(r.deseja_cadastrar_animal || '-')}</td>
+      <td><button class="btn btn-ghost btn-sm" type="button" onclick="editarVisita('${escapeHtml(r.id_visita)}')"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button></td>
     </tr>
-  `).join('') : '<tr><td colspan="9" class="empty-inline">Nenhuma visita encontrada.</td></tr>';
+  `).join('') : '<tr><td colspan="13" class="empty-inline">Nenhuma visita encontrada.</td></tr>';
   document.getElementById('esp-visitas-info').textContent = `${fmtNum(total)} visita(s) · ${fmtNum(rows.length)} exibida(s)`;
 }
 function renderEspLocalidades(rows) {
@@ -876,20 +892,24 @@ function tagStatus(value, mode='positiveGood') {
 function renderEspAnimais(rows, total, bodyId, infoId) {
   document.getElementById(infoId).textContent = `${fmtNum(total)} animal(is) · ${fmtNum(rows.length)} exibido(s)`;
   document.getElementById(bodyId).innerHTML = rows.length ? rows.map(r => `
-    <tr>
+    <tr data-id="${escapeHtml(r.id_animal)}">
       <td><strong>${escapeHtml(r.nome || '-')}</strong><div class="muted">${fmtDate(r.data)} · ${escapeHtml(r.localidade || '-')}</div></td>
       <td>${escapeHtml(r.especie || r.outro_animal || '-')}</td>
       <td>${escapeHtml(r.raca || '-')}</td>
       <td>${escapeHtml(r.sexo || '-')}</td>
       <td>${escapeHtml(r.ambiente || '-')}</td>
       <td>${tagStatus(r.feridas, 'positiveBad')}</td>
+      <td>${escapeHtml(r.regiao_ferida || '-')}</td>
       <td>${tagStatus(r.vacinado)}</td>
       <td>${tagStatus(r.castrado)}</td>
       <td>${tagStatus(r.atendimento_veterinario)}</td>
+      <td>${fmtDate(r.data_atendimento) || '-'}</td>
+      <td><span class="esporo-tag ${statusDoenteClass(r.evolucao_caso)}">${escapeHtml(r.evolucao_caso || 'Não informado')}</span></td>
       <td>${escapeHtml(r.morador || '-')}</td>
       <td class="esporo-address">${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', ') || '-')}</td>
+      <td><button class="btn btn-ghost btn-sm" type="button" onclick="editarAnimal('${escapeHtml(r.id_animal)}')"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button></td>
     </tr>
-  `).join('') : '<tr><td colspan="11" class="empty-inline">Nenhum animal encontrado.</td></tr>';
+  `).join('') : '<tr><td colspan="15" class="empty-inline">Nenhum animal encontrado.</td></tr>';
 }
 function renderEspAtencao(rows, total) {
   document.getElementById('esp-atencao-info').textContent = `${fmtNum(total)} registro(s) · ${fmtNum(rows.length)} exibido(s)`;
@@ -1031,6 +1051,178 @@ function fmtMes(mes) {
   const [ano, mesNum] = mes.split('-');
   return `${mesNum}/${ano}`;
 }
+
+
+function editarVisita(id) {
+  const tr = document.querySelector(`tr[data-id="${id}"]`);
+  if (!tr) return;
+  const cells = tr.querySelectorAll('td');
+  const original = {
+    data: cells[0].textContent,
+    hora_inicio: cells[1].textContent,
+    agentes_texto: cells[2].textContent,
+    localidade: cells[3].textContent,
+    quarteirao: cells[4].textContent,
+    tipo_imovel: cells[5].textContent,
+    logradouro: cells[6].textContent,
+    morador: cells[7].textContent,
+    telefone: cells[8].textContent,
+    visita: cells[9].textContent,
+    deseja_cadastrar_animal: cells[11].textContent,
+  };
+  tr.dataset.original = JSON.stringify(original);
+  cells[0].innerHTML = `<input type="date" value="${original.data.split('/').reverse().join('-')}" style="width:120px">`;
+  cells[1].innerHTML = `<input value="${escapeHtml(original.hora_inicio === '-' ? '' : original.hora_inicio)}" style="width:70px">`;
+  cells[2].innerHTML = `<input value="${escapeHtml(original.agentes_texto === '-' ? '' : original.agentes_texto)}" style="width:100px">`;
+  cells[3].innerHTML = `<input value="${escapeHtml(original.localidade === '-' ? '' : original.localidade)}" style="width:100px">`;
+  cells[4].innerHTML = `<input value="${escapeHtml(original.quarteirao === '-' ? '' : original.quarteirao)}" style="width:50px">`;
+  cells[5].innerHTML = `<input value="${escapeHtml(original.tipo_imovel === '-' ? '' : original.tipo_imovel)}" style="width:80px">`;
+  cells[6].innerHTML = `<input value="${escapeHtml(original.logradouro === '-' ? '' : original.logradouro)}" style="width:150px">`;
+  cells[7].innerHTML = `<input value="${escapeHtml(original.morador === '-' ? '' : original.morador)}" style="width:100px">`;
+  cells[8].innerHTML = `<input value="${escapeHtml(original.telefone === '-' ? '' : original.telefone)}" style="width:100px">`;
+  cells[9].innerHTML = `<select style="width:90px"><option value="Normal" ${original.visita === 'Normal' ? 'selected' : ''}>Normal</option><option value="Fechado" ${original.visita === 'Fechado' ? 'selected' : ''}>Fechado</option><option value="Recusa" ${original.visita === 'Recusa' ? 'selected' : ''}>Recusa</option><option value="Recuperado" ${original.visita === 'Recuperado' ? 'selected' : ''}>Recuperado</option></select>`;
+  cells[11].innerHTML = `<input value="${escapeHtml(original.deseja_cadastrar_animal === '-' ? '' : original.deseja_cadastrar_animal)}" style="width:80px">`;
+  cells[12].innerHTML = `<button class="btn btn-primary btn-sm" type="button" onclick="salvarVisita('${id}')"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"></button> <button class="btn btn-ghost btn-sm" type="button" onclick="cancelarVisita('${id}')">Cancelar</button>`;
+}
+
+function cancelarVisita(id) {
+  const tr = document.querySelector(`tr[data-id="${id}"]`);
+  if (!tr || !tr.dataset.original) return;
+  const original = JSON.parse(tr.dataset.original);
+  const cells = tr.querySelectorAll('td');
+  cells[0].textContent = original.data;
+  cells[1].textContent = original.hora_inicio;
+  cells[2].textContent = original.agentes_texto;
+  cells[3].textContent = original.localidade;
+  cells[4].textContent = original.quarteirao;
+  cells[5].textContent = original.tipo_imovel;
+  cells[6].textContent = original.logradouro;
+  cells[7].textContent = original.morador;
+  cells[8].textContent = original.telefone;
+  cells[9].textContent = original.visita;
+  cells[11].textContent = original.deseja_cadastrar_animal;
+  cells[12].innerHTML = `<button class="btn btn-ghost btn-sm" type="button" onclick="editarVisita('${id}')"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button>`;
+  delete tr.dataset.original;
+}
+
+async function salvarVisita(id) {
+  const tr = document.querySelector(`tr[data-id="${id}"]`);
+  if (!tr) return;
+  const cells = tr.querySelectorAll('td');
+  const dados = {
+    data: cells[0].querySelector('input').value,
+    hora_inicio: cells[1].querySelector('input').value,
+    agentes_texto: cells[2].querySelector('input').value,
+    localidade: cells[3].querySelector('input').value,
+    quarteirao: cells[4].querySelector('input').value,
+    tipo_imovel: cells[5].querySelector('input').value,
+    logradouro: cells[6].querySelector('input').value,
+    morador: cells[7].querySelector('input').value,
+    telefone: cells[8].querySelector('input').value,
+    visita: cells[9].querySelector('select').value,
+    deseja_cadastrar_animal: cells[11].querySelector('input').value,
+  };
+  try {
+    const r = await fetch(`/api/esporotricose/visitas/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify(dados)
+    });
+    if (!r.ok) throw new Error((await r.json()).erro || `HTTP ${r.status}`);
+    toast('Visita salva.', 'success');
+    carregarEspVisitas();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+function editarAnimal(id) {
+  const tr = document.querySelector(`tr[data-id="${id}"]`);
+  if (!tr) return;
+  const cells = tr.querySelectorAll('td');
+  const original = {
+    nome: cells[0].querySelector('strong')?.textContent || '',
+    especie: cells[1].textContent,
+    raca: cells[2].textContent,
+    sexo: cells[3].textContent,
+    ambiente: cells[4].textContent,
+    feridas: cells[5].textContent,
+    regiao_ferida: cells[6].textContent,
+    vacinado: cells[7].textContent,
+    castrado: cells[8].textContent,
+    atendimento_veterinario: cells[9].textContent,
+    data_atendimento: cells[10].textContent,
+    evolucao_caso: cells[11].textContent,
+  };
+  tr.dataset.original = JSON.stringify(original);
+  cells[0].innerHTML = `<input value="${escapeHtml(original.nome === '-' ? '' : original.nome)}" style="width:100px">`;
+  cells[1].innerHTML = `<select style="width:80px"><option value="Cão" ${original.especie === 'Cão' ? 'selected' : ''}>Cão</option><option value="Gato" ${original.especie === 'Gato' ? 'selected' : ''}>Gato</option><option value="Outro" ${original.especie === 'Outro' ? 'selected' : ''}>Outro</option></select>`;
+  cells[2].innerHTML = `<input value="${escapeHtml(original.raca === '-' ? '' : original.raca)}" style="width:80px">`;
+  cells[3].innerHTML = `<select style="width:80px"><option value="Macho" ${original.sexo === 'Macho' ? 'selected' : ''}>Macho</option><option value="Fêmea" ${original.sexo === 'Fêmea' ? 'selected' : ''}>Fêmea</option></select>`;
+  cells[4].innerHTML = `<select style="width:100px"><option value="Domiciliado" ${original.ambiente === 'Domiciliado' ? 'selected' : ''}>Domiciliado</option><option value="Semi-domiciliado" ${original.ambiente === 'Semi-domiciliado' ? 'selected' : ''}>Semi-domiciliado</option><option value="De rua" ${original.ambiente === 'De rua' ? 'selected' : ''}>De rua</option><option value="Comunitário" ${original.ambiente === 'Comunitário' ? 'selected' : ''}>Comunitário</option></select>`;
+  cells[5].innerHTML = `<select style="width:70px"><option value="Sim" ${original.feridas === 'Sim' ? 'selected' : ''}>Sim</option><option value="Não" ${original.feridas === 'Não' ? 'selected' : ''}>Não</option><option value="Desconhecido" ${original.feridas === 'Desconhecido' ? 'selected' : ''}>Desconhecido</option></select>`;
+  cells[6].innerHTML = `<input value="${escapeHtml(original.regiao_ferida === '-' ? '' : original.regiao_ferida)}" style="width:80px">`;
+  cells[7].innerHTML = `<select style="width:70px"><option value="Sim" ${original.vacinado === 'Sim' ? 'selected' : ''}>Sim</option><option value="Não" ${original.vacinado === 'Não' ? 'selected' : ''}>Não</option><option value="Desconhecido" ${original.vacinado === 'Desconhecido' ? 'selected' : ''}>Desconhecido</option></select>`;
+  cells[8].innerHTML = `<select style="width:70px"><option value="Sim" ${original.castrado === 'Sim' ? 'selected' : ''}>Sim</option><option value="Não" ${original.castrado === 'Não' ? 'selected' : ''}>Não</option><option value="Desconhecido" ${original.castrado === 'Desconhecido' ? 'selected' : ''}>Desconhecido</option></select>`;
+  cells[9].innerHTML = `<select style="width:70px"><option value="Sim" ${original.atendimento_veterinario === 'Sim' ? 'selected' : ''}>Sim</option><option value="Não" ${original.atendimento_veterinario === 'Não' ? 'selected' : ''}>Não</option><option value="Desconhecido" ${original.atendimento_veterinario === 'Desconhecido' ? 'selected' : ''}>Desconhecido</option></select>`;
+  cells[10].innerHTML = `<input type="date" value="${original.data_atendimento === '-' ? '' : original.data_atendimento.split('/').reverse().join('-')}" style="width:120px">`;
+  cells[11].innerHTML = `<select style="width:110px"><option value="">-</option><option value="Curado" ${original.evolucao_caso === 'Curado' ? 'selected' : ''}>Curado</option><option value="Em tratamento" ${original.evolucao_caso === 'Em tratamento' ? 'selected' : ''}>Em tratamento</option><option value="Faleceu" ${original.evolucao_caso === 'Faleceu' ? 'selected' : ''}>Faleceu</option><option value="Eutanásia" ${original.evolucao_caso === 'Eutanásia' ? 'selected' : ''}>Eutanásia</option><option value="Outro" ${original.evolucao_caso === 'Outro' ? 'selected' : ''}>Outro</option></select>`;
+  cells[14].innerHTML = `<button class="btn btn-primary btn-sm" type="button" onclick="salvarAnimal('${id}')"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"></button> <button class="btn btn-ghost btn-sm" type="button" onclick="cancelarAnimal('${id}')">Cancelar</button>`;
+}
+
+function cancelarAnimal(id) {
+  const tr = document.querySelector(`tr[data-id="${id}"]`);
+  if (!tr || !tr.dataset.original) return;
+  const original = JSON.parse(tr.dataset.original);
+  const cells = tr.querySelectorAll('td');
+  cells[0].innerHTML = `<strong>${escapeHtml(original.nome)}</strong><div class="muted">${cells[0].querySelector('.muted')?.textContent || ''}</div>`;
+  cells[1].textContent = original.especie;
+  cells[2].textContent = original.raca;
+  cells[3].textContent = original.sexo;
+  cells[4].textContent = original.ambiente;
+  cells[5].innerHTML = tagStatus(original.feridas, 'positiveBad');
+  cells[6].textContent = original.regiao_ferida;
+  cells[7].innerHTML = tagStatus(original.vacinado);
+  cells[8].innerHTML = tagStatus(original.castrado);
+  cells[9].innerHTML = tagStatus(original.atendimento_veterinario);
+  cells[10].textContent = original.data_atendimento;
+  cells[11].innerHTML = `<span class="esporo-tag ${statusDoenteClass(original.evolucao_caso)}">${escapeHtml(original.evolucao_caso || 'Não informado')}</span>`;
+  cells[14].innerHTML = `<button class="btn btn-ghost btn-sm" type="button" onclick="editarAnimal('${id}')"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button>`;
+  delete tr.dataset.original;
+}
+
+async function salvarAnimal(id) {
+  const tr = document.querySelector(`tr[data-id="${id}"]`);
+  if (!tr) return;
+  const cells = tr.querySelectorAll('td');
+  const dados = {
+    nome: cells[0].querySelector('input').value,
+    especie: cells[1].querySelector('select').value,
+    raca: cells[2].querySelector('input').value,
+    sexo: cells[3].querySelector('select').value,
+    ambiente: cells[4].querySelector('select').value,
+    feridas: cells[5].querySelector('select').value,
+    regiao_ferida: cells[6].querySelector('input').value,
+    vacinado: cells[7].querySelector('select').value,
+    castrado: cells[8].querySelector('select').value,
+    atendimento_veterinario: cells[9].querySelector('select').value,
+    data_atendimento: cells[10].querySelector('input').value,
+    evolucao_caso: cells[11].querySelector('select').value,
+  };
+  try {
+    const r = await fetch(`/api/esporotricose/animais/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify(dados)
+    });
+    if (!r.ok) throw new Error((await r.json()).erro || `HTTP ${r.status}`);
+    toast('Animal salvo.', 'success');
+    carregarEspAnimais();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   carregarEsporotricose();
   if (window.location.hash === '#doentes') {
