@@ -1764,6 +1764,9 @@ def _where_animais(filtros):
     if filtros.get("motivo_atencao"):
         clauses.append(f"({MOTIVO_ATENCAO_SQL}) = ?")
         params.append(filtros["motivo_atencao"])
+    if filtros.get("evolucao"):
+        clauses.append("LOWER(COALESCE(a.evolucao_caso, '')) = LOWER(?)")
+        params.append(filtros["evolucao"])
     if filtros.get("prioritarios"):
         clauses.append(f"({MOTIVO_ATENCAO_SQL}) <> ''")
     return "WHERE " + " AND ".join(clauses), params

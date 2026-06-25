@@ -182,6 +182,7 @@ def api_animais():
         "ambiente": request.args.get("ambiente", ""),
         "motivo_atencao": request.args.get("motivo_atencao", ""),
         "prioritarios": request.args.get("prioritarios", ""),
+        "evolucao": request.args.get("evolucao", ""),
     }
     return jsonify(esporotricose_core.listar_animais(_db_path(), filtros))
 
