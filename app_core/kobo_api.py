@@ -554,11 +554,22 @@ def _set_if_empty(row, key, value):
         row[key] = value
 
 
-def _extra_row(record):
+def _recolhimento_row(record):
+    """Traduz campos do Kobo para nomes que o ETL espera."""
     row = _flat_record(record)
     row.setdefault("_uuid", record_uuid(record))
     row.setdefault("_id", record.get("_id"))
     row.setdefault("_submission_time", record.get("_submission_time"))
+    row.setdefault("start", record.get("start"))
+    row.setdefault("end", record.get("end"))
+    # Traduzir campos de materiais (nomes genéricos do Kobo → nomes legíveis)
+    row.setdefault("Pneu", _value(record, ["Pneu", "A1", "group_cw8wz69/A1"]))
+    row.setdefault("Louça Sanitária", _value(record, ["Louça Sanitária", "Louca Sanitaria", "A2", "group_cw8wz69/A2"]))
+    row.setdefault("TV (tubo, carcaça, plástico)", _value(record, ["TV (tubo, carcaça, plástico)", "TV", "B", "group_cw8wz69/B"]))
+    row.setdefault("Parachoque", _value(record, ["Parachoque", "E", "group_cw8wz69/E"]))
+    row.setdefault("Outros", _value(record, ["Outros", "D2", "group_cw8wz69/D2"]))
+    # Traduzir agentes
+    row.setdefault("Nome do(s) agente(s)", _value(record, ["Nome do(s) agente(s)", "Nome_do_s_agente_s"]))
     return row
 
 
@@ -604,12 +615,18 @@ def write_etl_workbooks(registros_por_tipo, config_path, output_dir, prefix="kob
             pd.DataFrame(animais).to_excel(writer, sheet_name="Dados do animal", index=False)
         arquivos.append(str(path))
 
-    for tipo in ("BRI", "AMOSTRA_ANIMAIS", "RECOLHIMENTO"):
+    for tipo in ("BRI", "AMOSTRA_ANIMAIS"):
         records = registros_por_tipo.get(tipo) or []
         if not records:
             continue
         path = out / f"{tipo}_{prefix}.xlsx"
         pd.DataFrame([_extra_row(record) for record in records]).to_excel(path, index=False, engine="openpyxl")
+        arquivos.append(str(path))
+    
+    rec = registros_por_tipo.get("RECOLHIMENTO") or []
+    if rec:
+        path = out / f"RECOLHIMENTO_{prefix}.xlsx"
+        pd.DataFrame([_recolhimento_row(record) for record in rec]).to_excel(path, index=False, engine="openpyxl")
         arquivos.append(str(path))
 
     return arquivos
