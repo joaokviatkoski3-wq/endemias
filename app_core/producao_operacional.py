@@ -313,6 +313,7 @@ def _por_localidade(conn, fonte, filtros):
           {fonte.get('joins') or ''}
          WHERE {where}
          GROUP BY COALESCE({localidade_expr}, '-')
+        HAVING COALESCE({localidade_expr}, '-') <> '-'
          ORDER BY registros DESC, localidade
         """,
         params,
