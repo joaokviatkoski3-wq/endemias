@@ -510,6 +510,8 @@ def _detalhe_atividade(atividade):
             f"{utils_core.safe_int(extras.get('limpezas'))} limpezas, "
             f"{utils_core.safe_int(extras.get('publico'))} público"
         )
+    if codigo == "OVITRAMPAS":
+        return f"{utils_core.safe_int(atividade.get('registros'))} eventos"
     return ""
 
 

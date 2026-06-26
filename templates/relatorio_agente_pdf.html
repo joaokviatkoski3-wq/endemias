@@ -165,6 +165,8 @@ tr:nth-child(even) td{background:#f8faff;}
           {{ e.carga or 0 }} carga
         {% elif atividade.codigo == 'ACOES_SETOR' %}
           {{ e.educativas or 0 }} educativas, {{ e.limpezas or 0 }} limpezas
+        {% elif atividade.codigo == 'OVITRAMPAS' %}
+          {{ atividade.registros }} eventos
         {% else %}
           -
         {% endif %}

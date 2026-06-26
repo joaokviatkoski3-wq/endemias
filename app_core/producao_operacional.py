@@ -106,6 +106,20 @@ FONTES = (
             "publico": "COALESCE(SUM(ac.publico_aproximado),0)",
         },
     },
+    {
+        "codigo": "OVITRAMPAS",
+        "nome": "Ovitrampas",
+        "tabela": "ovitrampas_calendario_eventos",
+        "alias": "e",
+        "id_col": "id_evento",
+        "data_col": "data",
+        "localidade_expr": "COALESCE(g.nome, '-')",
+        "joins": "LEFT JOIN ovitrampas_calendario_grupos g ON g.id_grupo=e.id_grupo",
+        "agente_table": "ovitrampas_calendario_agentes",
+        "agente_fk": "id_evento",
+        "where_extra": "e.movimento <> 'feriado'",
+        "extras": {},
+    },
 )
 
 
@@ -229,6 +243,10 @@ def _where_fonte(fonte, filtros):
     if localidades:
         clauses.append(f"{localidade_expr} IN ({_placeholders(localidades)})")
         params.extend(localidades)
+
+    where_extra = fonte.get("where_extra")
+    if where_extra:
+        clauses.append(where_extra)
 
     agentes = _getlist(filtros, "agente")
     if agentes:

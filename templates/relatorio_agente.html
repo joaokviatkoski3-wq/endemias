@@ -667,7 +667,7 @@ function escapeHtml(value) {
 }
 
 function cardAtividade(a) {
-  const classes = {VETORES:'', ESPOROTRICOSE:'teal', RECOLHIMENTO:'amber', AMOSTRA_ANIMAIS:'purple', BRI:'red', ACOES_SETOR:'teal'};
+  const classes = {VETORES:'', ESPOROTRICOSE:'teal', RECOLHIMENTO:'amber', AMOSTRA_ANIMAIS:'purple', BRI:'red', ACOES_SETOR:'teal', OVITRAMPAS:'teal'};
   return `
     <div class="kpi ${classes[a.codigo] || ''}">
       <div class="kpi-icon"><img src="/static/icons/${iconeAtividade(a.codigo)}" alt="" class="icon-svg"></div>
@@ -686,6 +686,7 @@ function iconeAtividade(codigo) {
     AMOSTRA_ANIMAIS:'amostra_animal.svg',
     BRI:'borrifador.svg',
     ACOES_SETOR:'acoes_setor.svg',
+    OVITRAMPAS:'ovitrampa.svg',
   }[codigo] || 'prancheta.svg';
 }
 
@@ -697,6 +698,7 @@ function detalheAtividade(a) {
   if (a.codigo === 'AMOSTRA_ANIMAIS') return `${fmtNum(e.animais || 0)} animais, ${fmtNum(e.acidentes || 0)} acidentes`;
   if (a.codigo === 'BRI') return `${fmtNum(e.carga || 0)} carga`;
   if (a.codigo === 'ACOES_SETOR') return `${fmtNum(e.educativas || 0)} educativas, ${fmtNum(e.limpezas || 0)} limpezas`;
+  if (a.codigo === 'OVITRAMPAS') return `${fmtNum(a.registros || 0)} eventos`;
   return '';
 }
 
