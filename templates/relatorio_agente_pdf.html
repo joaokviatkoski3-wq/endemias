@@ -611,6 +611,67 @@ tr:nth-child(even) td{background:#f8faff;}
 </div>
 
 <script>
+// Plugin para desenhar valores nos gráficos (visível na impressão)
+const chartLabelsPlugin = {
+  id: 'chartLabelsPlugin',
+  afterDatasetsDraw(chart, args, options) {
+    const { ctx, data, chartArea } = chart;
+    if (!ctx || !chartArea) return;
+    ctx.save();
+    ctx.font = 'bold 9px Arial, Helvetica, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = '#000';
+
+    chart.data.datasets.forEach((dataset, i) => {
+      const meta = chart.getDatasetMeta(i);
+      if (!meta || meta.hidden) return;
+      const isBar = chart.config.type === 'bar';
+      const isLine = chart.config.type === 'line';
+      const isPie = chart.config.type === 'pie' || chart.config.type === 'doughnut';
+      const isHorizontal = chart.options?.indexAxis === 'y';
+
+      meta.data.forEach((element, index) => {
+        const value = dataset.data[index];
+        if (value === null || value === undefined || value === 0) return;
+        const label = String(value);
+
+        if (isPie) {
+          // Para pizza/doughnut: desenha no centro da fatia
+          const arc = element;
+          const centerAngle = (arc.startAngle + arc.endAngle) / 2;
+          const radius = (arc.innerRadius + arc.outerRadius) / 2;
+          const x = arc.x + Math.cos(centerAngle) * radius;
+          const y = arc.y + Math.sin(centerAngle) * radius;
+          ctx.fillStyle = '#fff';
+          ctx.fillText(label, x, y);
+        } else if (isBar) {
+          if (isHorizontal) {
+            // Barras horizontais: desenha à direita da barra
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#000';
+            ctx.fillText(label, element.x + 4, element.y);
+          } else {
+            // Barras verticais: desenha acima da barra
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillStyle = '#000';
+            ctx.fillText(label, element.x, element.y - 3);
+          }
+        } else if (isLine) {
+          // Linha: desenha acima do ponto
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillStyle = '#000';
+          ctx.fillText(label, element.x, element.y - 5);
+        }
+      });
+    });
+    ctx.restore();
+  }
+};
+
 const porTipo  = {{ por_tipo  | tojson }};
 const porLoc   = {{ por_loc   | tojson }};
 const tboGrupo = {{ tbo_por_grupo | tojson }};
@@ -621,7 +682,10 @@ const PAL = ['#1a4fba','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f9731
 function mkChart(id, cfg) {
   const el = document.getElementById(id);
   if (!el) return;
-  new Chart(el, cfg);
+  // Adicionar o plugin a todos os gráficos
+  cfg.plugins = cfg.plugins || {};
+  cfg.plugins.chartLabelsPlugin = {};
+  new Chart(el, { ...cfg, plugins: [chartLabelsPlugin] });
 }
 
 if (porTipo.length) {
