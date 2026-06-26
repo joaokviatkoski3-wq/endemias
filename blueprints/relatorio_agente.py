@@ -405,6 +405,130 @@ def _laboratorio_ovitrampas(conn, nome, d_ini, d_fim):
     }
 
 
+def _resumo_laboratorio_setor(d_ini, d_fim):
+    conn = _get_db()
+    try:
+        ovitrampas_core.ensure_schema(conn)
+        larvas = _laboratorio_larvas_setor(conn, d_ini, d_fim)
+        ovitrampas = _laboratorio_ovitrampas_setor(conn, d_ini, d_fim)
+    finally:
+        conn.close()
+    total_leituras = larvas["leituras"] + ovitrampas["leituras"]
+    dias = len(set(larvas["dias"]) | set(ovitrampas["dias"]))
+    return {
+        "totais": {
+            "leituras": total_leituras,
+            "dias": dias,
+            "larvas": larvas["leituras"],
+            "tubos": larvas["tubos"],
+            "larvas_positivas": larvas["positivas"],
+            "ovitrampas": ovitrampas["leituras"],
+            "ovitrampas_positivas": ovitrampas["positivas"],
+            "ovos": ovitrampas["ovos"],
+        },
+        "larvas": larvas,
+        "ovitrampas": ovitrampas,
+    }
+
+
+def _laboratorio_larvas_setor(conn, d_ini, d_fim):
+    vazio = {"leituras": 0, "tubos": 0, "positivas": 0, "dias": [], "por_mes": []}
+    if not producao_operacional._table_exists(conn, "resultados_laboratorio"):
+        return vazio
+    params = (d_ini, d_fim)
+    row = conn.execute(
+        """
+        SELECT COUNT(DISTINCT rl.id_resultado) AS leituras,
+               COUNT(DISTINCT rl.num_tubo) AS tubos,
+               COUNT(DISTINCT COALESCE(rl.data_leitura, rl.data_coleta)) AS dias,
+               SUM(CASE WHEN COALESCE(rl.aegypt_larvas,0) + COALESCE(rl.aegypt_pupas,0)
+                           + COALESCE(rl.aegypt_exuvias,0) + COALESCE(rl.aegypt_adulto,0)
+                           + COALESCE(rl.albopictus_larvas,0) + COALESCE(rl.albopictus_pupas,0)
+                           + COALESCE(rl.albopictus_exuvias,0) + COALESCE(rl.albopictus_adulto,0)
+                           + COALESCE(rl.outra_larvas,0) + COALESCE(rl.outra_pupas,0)
+                           + COALESCE(rl.outra_exuvias,0) + COALESCE(rl.outra_adulto,0) > 0
+                        THEN 1 ELSE 0 END) AS positivas
+          FROM resultados_laboratorio rl
+         WHERE COALESCE(rl.data_leitura, rl.data_coleta) BETWEEN ? AND ?
+        """,
+        params,
+    ).fetchone()
+    por_mes = conn.execute(
+        """
+        SELECT substr(COALESCE(rl.data_leitura, rl.data_coleta),1,7) AS mes,
+               COUNT(DISTINCT rl.id_resultado) AS leituras
+          FROM resultados_laboratorio rl
+         WHERE COALESCE(rl.data_leitura, rl.data_coleta) BETWEEN ? AND ?
+         GROUP BY substr(COALESCE(rl.data_leitura, rl.data_coleta),1,7)
+         ORDER BY mes
+        """,
+        params,
+    ).fetchall()
+    dias = conn.execute(
+        """
+        SELECT DISTINCT COALESCE(rl.data_leitura, rl.data_coleta) AS dia
+          FROM resultados_laboratorio rl
+         WHERE COALESCE(rl.data_leitura, rl.data_coleta) BETWEEN ? AND ?
+         ORDER BY dia
+        """,
+        params,
+    ).fetchall()
+    data = dict(row) if row else {}
+    return {
+        "leituras": utils_core.safe_int(data.get("leituras")),
+        "tubos": utils_core.safe_int(data.get("tubos")),
+        "positivas": utils_core.safe_int(data.get("positivas")),
+        "dias": [r["dia"] for r in dias if r["dia"]],
+        "por_mes": [dict(r) for r in por_mes],
+    }
+
+
+def _laboratorio_ovitrampas_setor(conn, d_ini, d_fim):
+    vazio = {"leituras": 0, "positivas": 0, "ovos": 0, "dias": [], "por_mes": []}
+    if not producao_operacional._table_exists(conn, "ovitrampas_leituras"):
+        return vazio
+    params = (d_ini, d_fim)
+    row = conn.execute(
+        """
+        SELECT COUNT(DISTINCT l.id_leitura) AS leituras,
+               SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
+               SUM(COALESCE(l.ovos,0)) AS ovos
+          FROM ovitrampas_leituras l
+         WHERE COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) BETWEEN ? AND ?
+        """,
+        params,
+    ).fetchone()
+    por_mes = conn.execute(
+        """
+        SELECT substr(COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem),1,7) AS mes,
+               COUNT(DISTINCT l.id_leitura) AS leituras,
+               SUM(COALESCE(l.ovos,0)) AS ovos
+          FROM ovitrampas_leituras l
+         WHERE COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) BETWEEN ? AND ?
+         GROUP BY substr(COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem),1,7)
+         ORDER BY mes
+        """,
+        params,
+    ).fetchall()
+    dias = conn.execute(
+        """
+        SELECT DISTINCT COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) AS dia
+          FROM ovitrampas_leituras l
+         WHERE COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) BETWEEN ? AND ?
+         ORDER BY dia
+        """,
+        params,
+    ).fetchall()
+    data = dict(row) if row else {}
+    return {
+        "leituras": utils_core.safe_int(data.get("leituras")),
+        "positivas": utils_core.safe_int(data.get("positivas")),
+        "ovos": utils_core.safe_int(data.get("ovos")),
+        "dias": [r["dia"] for r in dias if r["dia"]],
+        "por_mes": [dict(r) for r in por_mes],
+    }
+
+
 def _resumo_ovitrampas_setor(d_ini, d_fim):
     conn = _get_db()
     try:
@@ -529,6 +653,7 @@ def _obter_dados_setor(d_ini, d_fim):
         "producao_operacional": resumo,
         "visitas_setor": _metricas_visitas_setor(d_ini, d_fim),
         "ovitrampas": _resumo_ovitrampas_setor(d_ini, d_fim),
+        "laboratorio": _resumo_laboratorio_setor(d_ini, d_fim),
         "agentes": _producao_agentes_setor(d_ini, d_fim),
         "now": datetime.now().strftime("%d/%m/%Y %H:%M"),
     }

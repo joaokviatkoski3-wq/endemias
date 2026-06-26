@@ -289,6 +289,22 @@ tr:nth-child(even) td{background:#f8faff;}
     </div>
   </div>
 
+  {% if laboratorio.totais.leituras %}
+  <div class="bloco-relatorio">
+    <div class="secao">Laboratorio</div>
+    <p class="note">Leituras laboratoriais do setor no periodo (larvas e ovitrampas).</p>
+    {% set lab_t = laboratorio.totais %}
+    <div class="kpi-grid">
+      <div class="kpi purple"><div class="kpi-val">{{ lab_t.leituras }}</div><div class="kpi-lbl">Leituras totais</div></div>
+      <div class="kpi"><div class="kpi-val">{{ lab_t.dias }}</div><div class="kpi-lbl">Dias de leitura</div></div>
+      <div class="kpi"><div class="kpi-val">{{ lab_t.tubos }}</div><div class="kpi-lbl">Tubos de larvas</div></div>
+      <div class="kpi red"><div class="kpi-val">{{ lab_t.larvas_positivas }}</div><div class="kpi-lbl">Tubos positivos</div></div>
+      <div class="kpi teal"><div class="kpi-val">{{ lab_t.ovitrampas }}</div><div class="kpi-lbl">Ovitrampas lidas</div></div>
+      <div class="kpi"><div class="kpi-val">{{ lab_t.ovos }}</div><div class="kpi-lbl">Ovos contabilizados</div></div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="bloco-relatorio">
     <div class="secao">Graficos analiticos</div>
     <div class="chart-row">
