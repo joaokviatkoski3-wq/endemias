@@ -201,6 +201,7 @@ def ensure_schema(conn):
             chave TEXT NOT NULL UNIQUE,
             tutor TEXT,
             nome TEXT NOT NULL,
+            especie TEXT,
             sexo TEXT,
             telefone TEXT,
             localidade TEXT,
@@ -264,6 +265,7 @@ def ensure_schema(conn):
         CREATE INDEX IF NOT EXISTS idx_esporo_doentes_anexos_animal ON esporotricose_doentes_anexos(id_animal_doente);
         """
     )
+    _ensure_column(conn, DOENTES_TABLE, "especie", "TEXT")
     _ensure_column(conn, DOENTES_ENTREGAS_TABLE, "baixa_zoomed", "TEXT NOT NULL DEFAULT 'Sim'")
     _seed_doentes_status(conn)
     _normalizar_doentes_existentes(conn)
@@ -980,6 +982,7 @@ def listar_doentes_csv(db_path, filtros=None):
                    d.nome AS animal,
                    d.tutor,
                    d.telefone,
+                   d.especie,
                    d.sexo,
                    d.status,
                    d.localidade,
@@ -1044,6 +1047,7 @@ def listar_doentes_csv(db_path, filtros=None):
                 pendentes = 1
             item["baixa_zoomed"] = "Pendente" if pendentes else "Sim"
             item["data_notificacao"] = item.get("ultima_notificacao") or item.get("primeira_notificacao")
+            item["especie"] = _especie_doente(item)
             rows.append(item)
         return rows
     finally:
@@ -1103,13 +1107,13 @@ def salvar_doente(db_path, dados):
         if id_animal:
             conn.execute(
                 """UPDATE esporotricose_doentes_animais
-                      SET tutor=?, nome=?, sexo=?, telefone=?, localidade=?, quarteirao=?,
+                      SET tutor=?, nome=?, especie=?, sexo=?, telefone=?, localidade=?, quarteirao=?,
                           endereco=?, latitude=?, longitude=?, sinan=?, status=?, bloqueio=?,
                           data_bloqueio=?, observacoes_entomologica=?, pedido_zoomed=?,
                           atualizado_em=?
                     WHERE id_animal_doente=?""",
                 (
-                    payload["tutor"], payload["nome"], payload["sexo"], payload["telefone"],
+                    payload["tutor"], payload["nome"], payload["especie"], payload["sexo"], payload["telefone"],
                     payload["localidade"], payload["quarteirao"], payload["endereco"],
                     payload["latitude"], payload["longitude"], payload["sinan"], payload["status"],
                     payload["bloqueio"], payload["data_bloqueio"], payload["observacoes_entomologica"],
@@ -1120,12 +1124,12 @@ def salvar_doente(db_path, dados):
             chave = _doente_chave(payload)
             cur = conn.execute(
                 """INSERT INTO esporotricose_doentes_animais
-                   (chave, tutor, nome, sexo, telefone, localidade, quarteirao, endereco,
+                   (chave, tutor, nome, especie, sexo, telefone, localidade, quarteirao, endereco,
                     latitude, longitude, sinan, status, bloqueio, data_bloqueio,
                     observacoes_entomologica, pedido_zoomed, criado_em, atualizado_em)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    chave, payload["tutor"], payload["nome"], payload["sexo"], payload["telefone"],
+                    chave, payload["tutor"], payload["nome"], payload["especie"], payload["sexo"], payload["telefone"],
                     payload["localidade"], payload["quarteirao"], payload["endereco"],
                     payload["latitude"], payload["longitude"], payload["sinan"], payload["status"],
                     payload["bloqueio"], payload["data_bloqueio"], payload["observacoes_entomologica"],
@@ -1377,6 +1381,7 @@ def importar_doentes_planilha(db_path, caminho):
             animal_payload = {
                 "tutor": _text(row.get("TUTOR")),
                 "nome": _text(row.get("NOME")),
+                "especie": _normalizar_especie_doente(row.get("ESPECIE") or row.get("ESPÉCIE")) or "Gato",
                 "sexo": _choice(row.get("SEXO")) or _text(row.get("SEXO")),
                 "telefone": _telefone(row.get("TELEFONE")),
                 "localidade": normalizadores.normalizar_localidade(row.get("LOCALIDADE")),
@@ -1412,12 +1417,12 @@ def importar_doentes_planilha(db_path, caminho):
             else:
                 cur = conn.execute(
                     """INSERT INTO esporotricose_doentes_animais
-                       (chave, tutor, nome, sexo, telefone, localidade, quarteirao, endereco,
+                       (chave, tutor, nome, especie, sexo, telefone, localidade, quarteirao, endereco,
                         latitude, longitude, sinan, status, bloqueio, data_bloqueio,
                         observacoes_entomologica, pedido_zoomed, criado_em, atualizado_em)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
-                        chave, animal_payload["tutor"], animal_payload["nome"], animal_payload["sexo"],
+                        chave, animal_payload["tutor"], animal_payload["nome"], animal_payload["especie"], animal_payload["sexo"],
                         animal_payload["telefone"], animal_payload["localidade"], animal_payload["quarteirao"],
                         animal_payload["endereco"], animal_payload["latitude"], animal_payload["longitude"],
                         animal_payload["sinan"], animal_payload["status"], animal_payload["bloqueio"],
@@ -1491,11 +1496,28 @@ def _doente_row(row):
 
 
 def _especie_doente(item):
-    nome = _sem_acentos(item.get("nome")).strip().casefold()
+    especie = _normalizar_especie_doente(item.get("especie"))
+    if especie:
+        return especie
+    nome = _sem_acentos(item.get("nome") or item.get("animal")).strip().casefold()
     tutor = _sem_acentos(item.get("tutor")).strip().casefold()
     if nome == "belinha" and tutor == "jose altair natel":
         return "Cão"
     return "Gato"
+
+
+def _normalizar_especie_doente(value):
+    text = _text(value)
+    if not text:
+        return ""
+    low = _sem_acentos(text).strip().casefold()
+    if low in {"gato", "gata", "felino", "felina", "felino a"}:
+        return "Gato"
+    if low in {"cao", "caes", "cachorro", "cachorra", "canino", "canina"}:
+        return "Cão"
+    if low in {"outro", "outros", "outra", "outras"}:
+        return "Outros"
+    return text
 
 
 def _anexo_doente_dict(row):
@@ -1604,6 +1626,7 @@ def _doente_payload(dados):
     return {
         "tutor": tutor,
         "nome": nome,
+        "especie": _normalizar_especie_doente(dados.get("especie")) or "Gato",
         "sexo": _text(dados.get("sexo")),
         "telefone": _telefone(dados.get("telefone")),
         "localidade": normalizadores.normalizar_localidade(dados.get("localidade")),

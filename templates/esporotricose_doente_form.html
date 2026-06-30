@@ -27,6 +27,7 @@
   <form id="doe-form">
     <div class="doe-form-grid">
       <div class="f-g"><label>Animal</label><input id="nome" type="text" required value="{{ animal.nome if animal else '' }}"></div>
+      <div class="f-g"><label>Espécie</label><select id="especie" required>{% for opt in ['Gato','Cão','Outros'] %}<option value="{{ opt }}" {% if (animal and animal.especie == opt) or (not animal and opt == 'Gato') %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Sexo</label><select id="sexo"><option value="">-</option>{% for opt in ['Macho','Fêmea'] %}<option value="{{ opt }}" {% if animal and animal.sexo == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Status</label><select id="status" required>{% for st in status_opcoes %}<option value="{{ st.nome }}" {% if (animal and animal.status == st.nome) or (not animal and st.nome == 'Em tratamento') %}selected{% endif %}>{{ st.nome }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Tutor</label><input id="tutor" type="text" required value="{{ animal.tutor if animal else '' }}"></div>
@@ -72,7 +73,7 @@ const animal = {{ (animal or {})|tojson }};
 function val(id){ return document.getElementById(id)?.value || ''; }
 function payloadAnimal(){
   return {
-    nome: val('nome'), sexo: val('sexo'), tutor: val('tutor'), telefone: val('telefone'),
+    nome: val('nome'), especie: val('especie'), sexo: val('sexo'), tutor: val('tutor'), telefone: val('telefone'),
     sinan: val('sinan'), localidade: val('localidade'), quarteirao: val('quarteirao'),
     endereco: val('endereco'), latitude: val('latitude'), longitude: val('longitude'),
     status: val('status'), bloqueio: val('bloqueio'), data_bloqueio: val('data_bloqueio'),

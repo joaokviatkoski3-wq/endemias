@@ -266,6 +266,7 @@ def download_doentes_csv():
         "animal",
         "tutor",
         "telefone",
+        "especie",
         "sexo",
         "status",
         "data_notificacao",

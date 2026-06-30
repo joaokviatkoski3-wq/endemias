@@ -283,6 +283,7 @@
         <input type="hidden" id="doe-id">
         <div class="esporo-form-grid">
           <div class="f-g"><label>Animal</label><input id="doe-nome" required></div>
+          <div class="f-g"><label>Espécie</label><select id="doe-form-especie"><option value="Gato">Gato</option><option value="Cão">Cão</option><option value="Outros">Outros</option></select></div>
           <div class="f-g"><label>Sexo</label><select id="doe-sexo"><option value="">-</option><option>Macho</option><option>Fêmea</option></select></div>
           <div class="f-g full"><label>Tutor</label><input id="doe-tutor" required></div>
           <div class="f-g"><label>Telefone</label><input id="doe-telefone"></div>
@@ -419,9 +420,6 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
-}
-function jsArg(value) {
-  return JSON.stringify(String(value ?? ''));
 }
 function espParams(prefix) {
   const p = new URLSearchParams();
@@ -593,13 +591,16 @@ function renderEspDoentes(rows, total) {
       <td>
         <div class="esporo-doente-actions">
           <a class="btn btn-sm" href="/esporotricose/doentes/${r.id_animal_doente}">Abrir</a>
-          <button class="btn btn-ghost btn-sm" type="button" onclick="apagarEspDoente(${Number(r.id_animal_doente)}, ${jsArg(r.nome)}, ${jsArg(r.tutor)})">Apagar</button>
+          <button class="btn btn-ghost btn-sm" type="button" data-id="${Number(r.id_animal_doente)}" data-nome="${escapeHtml(r.nome || '')}" data-tutor="${escapeHtml(r.tutor || '')}" onclick="apagarEspDoente(this)">Apagar</button>
         </div>
       </td>
     </tr>
   `).join('') : '<tr><td colspan="10" class="empty-inline">Nenhum animal doente cadastrado.</td></tr>';
 }
-async function apagarEspDoente(id, nome, tutor) {
+async function apagarEspDoente(btn) {
+  const id = Number(btn?.dataset?.id || 0);
+  const nome = btn?.dataset?.nome || '';
+  const tutor = btn?.dataset?.tutor || '';
   if (!id) return;
   const alvo = `${nome || 'animal selecionado'}${tutor ? ' - tutor ' + tutor : ''}`;
   const primeira = confirm(`Apagar o cadastro de ${alvo}?\n\nEsta ação removerá o animal doente e seus registros vinculados.`);
@@ -672,6 +673,7 @@ function preencherEspDoente(d) {
   const set = (id, v) => document.getElementById(id).value = v || '';
   set('doe-id', d.id_animal_doente);
   set('doe-nome', d.nome);
+  set('doe-form-especie', d.especie || 'Gato');
   set('doe-sexo', d.sexo);
   set('doe-tutor', d.tutor);
   set('doe-telefone', d.telefone);
@@ -695,6 +697,7 @@ function preencherEspDoente(d) {
 function dadosEspDoenteForm() {
   return {
     nome: document.getElementById('doe-nome').value,
+    especie: document.getElementById('doe-form-especie').value,
     sexo: document.getElementById('doe-sexo').value,
     tutor: document.getElementById('doe-tutor').value,
     telefone: document.getElementById('doe-telefone').value,

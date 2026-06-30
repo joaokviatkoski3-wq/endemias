@@ -55,6 +55,7 @@
   <div class="chart-hd"><div class="chart-title">Dados do paciente</div></div>
   <div class="doe-grid">
     <div class="doe-field"><span>Animal</span><strong>{{ animal.nome or '-' }}</strong></div>
+    <div class="doe-field"><span>Espécie</span><strong>{{ animal.especie or '-' }}</strong></div>
     <div class="doe-field"><span>Sexo</span><strong>{{ animal.sexo or '-' }}</strong></div>
     <div class="doe-field"><span>Status</span><strong><span class="doe-status {{ status_class }}">{{ animal.status or '-' }}</span></strong></div>
     <div class="doe-field"><span>Pedido ZooMed</span><strong><span class="zoomed-badge {{ 'sim' if animal.pedido_zoomed == 'Sim' else 'nao' }}">{{ animal.pedido_zoomed or '-' }}</span></strong></div>
