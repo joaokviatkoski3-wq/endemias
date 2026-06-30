@@ -631,8 +631,7 @@ def _detalhe_atividade(atividade):
     if codigo == "ACOES_SETOR":
         return (
             f"{utils_core.safe_int(extras.get('educativas'))} educativas, "
-            f"{utils_core.safe_int(extras.get('limpezas'))} limpezas, "
-            f"{utils_core.safe_int(extras.get('publico'))} público"
+            f"{utils_core.safe_int(extras.get('limpezas'))} limpezas"
         )
     if codigo == "OVITRAMPAS":
         return f"{utils_core.safe_int(atividade.get('registros'))} eventos"

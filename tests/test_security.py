@@ -43,6 +43,7 @@ from app_core import registro_geografico as registro_geografico_core
 from app_core import version as version_core
 from app_core import work_types
 from blueprints import processar as processar_bp
+from blueprints import relatorio_agente as relatorio_agente_bp
 
 
 def _usuario_teste(nivel=None):
@@ -1815,6 +1816,16 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("BRI", html)
         self.assertIn("bloco-relatorio", html)
         self.assertNotIn("SisPNCD", html)
+
+    def test_pdf_relatorio_setor_nao_exibe_publico_em_producao_por_frente(self):
+        detalhe = relatorio_agente_bp._detalhe_atividade({
+            "codigo": "ACOES_SETOR",
+            "extras": {"educativas": 2, "limpezas": 1, "publico": 90},
+        })
+
+        self.assertEqual(detalhe, "2 educativas, 1 limpezas")
+        self.assertNotIn("publico", detalhe.lower())
+        self.assertNotIn("público", detalhe.lower())
 
     def test_relatorios_somam_tratamentos_de_depositos_e_tabela_tratamentos(self):
         with tempfile.TemporaryDirectory() as tmpdir:
