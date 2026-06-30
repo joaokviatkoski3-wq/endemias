@@ -263,6 +263,7 @@
       <div class="esporo-animal-filters">
         <div class="f-g"><label>Pesquisa</label><input type="search" id="doe-busca" placeholder="Tutor, animal, telefone, SINAN..."></div>
         <div class="f-g"><label>Status</label><select id="doe-status"><option value="">Todos</option></select></div>
+        <div class="f-g"><label>Espécie</label><select id="doe-especie"><option value="">Todas</option><option value="Gato">Gato</option><option value="Cão">Cão</option><option value="Outros">Outros</option></select></div>
         <div class="f-g"><label>Localidade</label><select id="doe-localidade"><option value="">Todas</option>{% for loc in localidades %}<option value="{{ loc.nome }}">{{ loc.nome }}</option>{% endfor %}</select></div>
         <div class="f-g"><label>Bloqueio</label><select id="doe-bloqueio-filtro"><option value="">Todos</option><option value="Realizado">Realizado</option><option value="Não realizado">Não realizado</option><option value="Não necessário">Não necessário</option></select></div>
         <div class="f-g"><label>Pedido Zoomed</label><select id="doe-pedido-zoomed-filtro"><option value="">Todos</option><option value="Sim">Sim</option><option value="Não">Não</option></select></div>
@@ -271,7 +272,7 @@
       </div>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Animal</th><th>Tutor</th><th>Endereço</th><th>Status</th><th>Tratamento</th><th>Bloqueio</th><th>Pedido Zoomed</th><th>Baixa Zoomed</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Animal</th><th>Espécie</th><th>Tutor</th><th>Endereço</th><th>Status</th><th>Tratamento</th><th>Bloqueio</th><th>Pedido Zoomed</th><th>Baixa Zoomed</th><th>Ações</th></tr></thead>
           <tbody id="esp-doentes-body"></tbody>
         </table>
       </div>
@@ -419,6 +420,9 @@ function escapeHtml(value) {
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
 }
+function jsArg(value) {
+  return JSON.stringify(String(value ?? ''));
+}
 function espParams(prefix) {
   const p = new URLSearchParams();
   const di = document.getElementById(`${prefix}-d-ini`);
@@ -503,6 +507,19 @@ async function carregarEsporotricose() {
     toast(e.message, 'error');
   }
 }
+function renderEspLocalidades(rows) {
+  const el = document.getElementById('esp-localidades');
+  if (!el) return;
+  el.innerHTML = rows.length ? rows.map(r => `
+    <div class="esporo-local-item">
+      <div>
+        <strong>${escapeHtml(r.localidade || '-')}</strong>
+        <div class="muted">${fmtNum(r.visitas || 0)} visita(s) - ${fmtNum(r.animais || 0)} animal(is)</div>
+      </div>
+      <span class="esporo-tag">${fmtNum(r.fechadas || 0)} fechada(s)</span>
+    </div>
+  `).join('') : '<div class="empty-inline">Nenhuma localidade encontrada.</div>';
+}
 async function carregarEspAnimais() {
   try {
     document.getElementById('esp-animais-body').innerHTML = '<tr><td colspan="15"><div class="loading-box"><div class="spinner"></div></div></td></tr>';
@@ -528,13 +545,14 @@ async function carregarEspDoentes() {
     const filtros = {
       busca: document.getElementById('doe-busca')?.value || '',
       status: document.getElementById('doe-status')?.value || (!espDoentesCarregados ? 'Em tratamento' : ''),
+      especie: document.getElementById('doe-especie')?.value || '',
       localidade: document.getElementById('doe-localidade')?.value || '',
       bloqueio: document.getElementById('doe-bloqueio-filtro')?.value || '',
       pedido_zoomed: document.getElementById('doe-pedido-zoomed-filtro')?.value || '',
       baixa_zoomed: document.getElementById('doe-baixa-zoomed-filtro')?.value || '',
     };
     await carregarEspDoentesStatus(filtros.status);
-    document.getElementById('esp-doentes-body').innerHTML = '<tr><td colspan="9"><div class="loading-box"><div class="spinner"></div></div></td></tr>';
+    document.getElementById('esp-doentes-body').innerHTML = '<tr><td colspan="10"><div class="loading-box"><div class="spinner"></div></div></td></tr>';
     const p = new URLSearchParams();
     Object.entries(filtros).forEach(([k, v]) => { if (v) p.set(k, v); });
     const d = await apiGet('/api/esporotricose/doentes?' + p.toString());
@@ -564,6 +582,7 @@ function renderEspDoentes(rows, total) {
   document.getElementById('esp-doentes-body').innerHTML = rows.length ? rows.map(r => `
     <tr>
       <td><strong>${escapeHtml(r.nome || '-')}</strong><div class="muted">${escapeHtml(r.localidade || '-')} ${r.quarteirao ? '· Q ' + escapeHtml(r.quarteirao) : ''}</div></td>
+      <td><span class="esporo-tag">${escapeHtml(r.especie || '-')}</span></td>
       <td>${escapeHtml(r.tutor || '-')}<div class="muted">${escapeHtml(r.telefone || '')}</div></td>
       <td>${escapeHtml(r.endereco || '-')}<div class="muted">${escapeHtml(r.sinan ? 'SINAN ' + r.sinan : '')}</div></td>
       <td><span class="esporo-tag ${statusDoenteClass(r.status)}">${escapeHtml(r.status || '-')}</span></td>
@@ -571,9 +590,34 @@ function renderEspDoentes(rows, total) {
       <td>${escapeHtml(r.bloqueio || '-')}</td>
       <td>${zoomedBadge(r.pedido_zoomed)}</td>
       <td>${zoomedBaixaBadge(r.entregas_zoomed_pendentes || 0)}</td>
-      <td><a class="btn btn-sm" href="/esporotricose/doentes/${r.id_animal_doente}">Abrir</a></td>
+      <td>
+        <div class="esporo-doente-actions">
+          <a class="btn btn-sm" href="/esporotricose/doentes/${r.id_animal_doente}">Abrir</a>
+          <button class="btn btn-ghost btn-sm" type="button" onclick="apagarEspDoente(${Number(r.id_animal_doente)}, ${jsArg(r.nome)}, ${jsArg(r.tutor)})">Apagar</button>
+        </div>
+      </td>
     </tr>
-  `).join('') : '<tr><td colspan="9" class="empty-inline">Nenhum animal doente cadastrado.</td></tr>';
+  `).join('') : '<tr><td colspan="10" class="empty-inline">Nenhum animal doente cadastrado.</td></tr>';
+}
+async function apagarEspDoente(id, nome, tutor) {
+  if (!id) return;
+  const alvo = `${nome || 'animal selecionado'}${tutor ? ' - tutor ' + tutor : ''}`;
+  const primeira = confirm(`Apagar o cadastro de ${alvo}?\n\nEsta ação removerá o animal doente e seus registros vinculados.`);
+  if (!primeira) return;
+  const segunda = confirm(`Confirma definitivamente a exclusão de ${alvo}?\n\nA operação não poderá ser desfeita.`);
+  if (!segunda) return;
+  try {
+    const resp = await fetch(`/api/esporotricose/doentes/${id}`, {
+      method: 'DELETE',
+      headers: {'X-CSRFToken': getCsrf()}
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.erro || 'Não foi possível apagar o animal doente.');
+    toast('Animal doente apagado com sucesso.', 'success');
+    await carregarEspDoentes();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
 }
 function tagStatus(value, mode='positiveGood') {
   const txt = value || '-';

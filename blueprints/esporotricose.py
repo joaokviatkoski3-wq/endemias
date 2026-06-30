@@ -249,6 +249,7 @@ def api_doentes():
     filtros = {
         "busca": request.args.get("busca", ""),
         "status": request.args.get("status", ""),
+        "especie": request.args.get("especie", ""),
         "localidade": request.args.get("localidade", ""),
         "bloqueio": request.args.get("bloqueio", ""),
         "pedido_zoomed": request.args.get("pedido_zoomed", ""),
@@ -312,9 +313,16 @@ def api_doentes_status():
     return jsonify({"registros": esporotricose_core.status_doentes(_db_path())})
 
 
-@bp.route("/api/esporotricose/doentes/<int:id_animal>", methods=["GET", "PUT"])
+@bp.route("/api/esporotricose/doentes/<int:id_animal>", methods=["GET", "PUT", "DELETE"])
 @login_required
 def api_doente(id_animal):
+    if request.method == "DELETE":
+        try:
+            resultado = esporotricose_core.excluir_doente(_db_path(), id_animal)
+        except esporotricose_core.ValidationError as exc:
+            return jsonify({"erro": str(exc)}), 404
+        _remover_arquivos_anexos(resultado.get("anexos", []))
+        return jsonify({"ok": True})
     if request.method == "PUT":
         try:
             dados = dict(request.json or {})

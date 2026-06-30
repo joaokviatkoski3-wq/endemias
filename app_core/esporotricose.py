@@ -885,6 +885,7 @@ def listar_doentes(db_path, filtros=None):
         params = []
         busca = _text(filtros.get("busca"))
         status = _text(filtros.get("status"))
+        especie = _text(filtros.get("especie"))
         localidade = _text(filtros.get("localidade"))
         bloqueio = _normalizar_bloqueio_doente(filtros.get("bloqueio"))
         pedido_zoomed = _normalizar_sim_nao(filtros.get("pedido_zoomed"))
@@ -935,6 +936,9 @@ def listar_doentes(db_path, filtros=None):
                    ORDER BY COALESCE(MAX(r.data_notificacao), '') DESC,
                             d.id_animal_doente DESC"""
         rows = [_doente_row(row) for row in conn.execute(sql, params).fetchall()]
+        if especie:
+            especie_norm = _sem_acentos(especie).strip().casefold()
+            rows = [row for row in rows if _sem_acentos(row.get("especie")).strip().casefold() == especie_norm]
         return {"registros": rows, "total": len(rows)}
     finally:
         conn.close()
@@ -1256,6 +1260,52 @@ def atualizar_entrega_doente(db_path, id_entrega, dados):
         conn.close()
 
 
+def excluir_doente(db_path, id_animal_doente):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        animal = conn.execute(
+            f"SELECT * FROM {DOENTES_TABLE} WHERE id_animal_doente=?",
+            (id_animal_doente,),
+        ).fetchone()
+        if not animal:
+            raise ValidationError("Animal doente não encontrado.")
+        anexos = conn.execute(
+            f"SELECT * FROM {DOENTES_ANEXOS_TABLE} WHERE id_animal_doente=?",
+            (id_animal_doente,),
+        ).fetchall()
+        receitas = conn.execute(
+            f"SELECT id_receita FROM {DOENTES_RECEITAS_TABLE} WHERE id_animal_doente=?",
+            (id_animal_doente,),
+        ).fetchall()
+        receita_ids = [row["id_receita"] for row in receitas]
+        if receita_ids:
+            placeholders = ",".join("?" for _ in receita_ids)
+            conn.execute(
+                f"DELETE FROM {DOENTES_ENTREGAS_TABLE} WHERE id_receita IN ({placeholders})",
+                receita_ids,
+            )
+        conn.execute(
+            f"DELETE FROM {DOENTES_ANEXOS_TABLE} WHERE id_animal_doente=?",
+            (id_animal_doente,),
+        )
+        conn.execute(
+            f"DELETE FROM {DOENTES_RECEITAS_TABLE} WHERE id_animal_doente=?",
+            (id_animal_doente,),
+        )
+        conn.execute(
+            f"DELETE FROM {DOENTES_TABLE} WHERE id_animal_doente=?",
+            (id_animal_doente,),
+        )
+        conn.commit()
+        return {"animal": _doente_row(animal), "anexos": [dict(row) for row in anexos]}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def excluir_receita_doente(db_path, id_receita):
     conn = db_core.connect(db_path)
     try:
@@ -1427,6 +1477,7 @@ def importar_doentes_planilha(db_path, caminho):
 
 def _doente_row(row):
     item = dict(row)
+    item["especie"] = _especie_doente(item)
     if (
         int(item.get("entregas") or 0) == 0
         and item.get("status") == "Em tratamento"
@@ -1437,6 +1488,14 @@ def _doente_row(row):
     item["whatsapp_documentos"] = whatsapp_documentos_url(item)
     item["whatsapp_retirada"] = whatsapp_retirada_url(item)
     return item
+
+
+def _especie_doente(item):
+    nome = _sem_acentos(item.get("nome")).strip().casefold()
+    tutor = _sem_acentos(item.get("tutor")).strip().casefold()
+    if nome == "belinha" and tutor == "jose altair natel":
+        return "Cão"
+    return "Gato"
 
 
 def _anexo_doente_dict(row):
