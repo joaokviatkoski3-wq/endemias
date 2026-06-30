@@ -1,5 +1,5 @@
 @echo off
-title Endemias - Sistema de Gestao Integrado v3
+title Endemias - Sistema de Gestao Integrado
 
 rem ============================================================
 rem  INICIAR.BAT - Servidor do Sistema de Endemias
@@ -14,7 +14,7 @@ cls
 
 echo.
 echo  ===================================================
-echo  ENDEMIAS - Sistema de Gestao Integrado v3
+echo  ENDEMIAS - Sistema de Gestao Integrado
 echo  Setor de Endemias - Almirante Tamandare-PR
 echo  ===================================================
 echo.
