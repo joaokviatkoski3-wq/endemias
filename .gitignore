@@ -1,3 +1,27 @@
 .github_credentials
 GUIA_GITHUB.md
 webbridge-req*.json
+
+# Dados locais e segredos da instalacao
+secret.key
+kobo_config.json
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+
+# Arquivos gerados pelo uso do sistema
+backups/
+anexos/
+uploads_temp/
+notificacoes_geradas/
+saida/
+queries.sql
+.deps_ok
+
+# Cache/runtime local
+__pycache__/
+*.py[cod]
+*$py.class

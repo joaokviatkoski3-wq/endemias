@@ -554,6 +554,32 @@ def _set_if_empty(row, key, value):
         row[key] = value
 
 
+def _extra_row(record):
+    row = _flat_record(record)
+    detalhes = record_details("", record)
+    row.setdefault("_uuid", record_uuid(record))
+    row.setdefault("_id", record.get("_id"))
+    row.setdefault("_submission_time", record.get("_submission_time"))
+    row.setdefault("start", record.get("start"))
+    row.setdefault("end", record.get("end"))
+
+    _set_if_empty(row, "Data", detalhes.get("data"))
+    _set_if_empty(row, "Digite a data", detalhes.get("data"))
+    _set_if_empty(row, "Hora", detalhes.get("hora_inicio"))
+    _set_if_empty(row, "Digite a hora", detalhes.get("hora_inicio"))
+    _set_if_empty(row, "Nome do(s) agente(s)", detalhes.get("agentes"))
+    _set_if_empty(row, "Agentes", detalhes.get("agentes"))
+    _set_if_empty(row, "Localidade", detalhes.get("localidade"))
+    _set_if_empty(row, "Logradouro", detalhes.get("endereco"))
+    _set_if_empty(row, "NÃºmero", detalhes.get("numero"))
+    _set_if_empty(row, "QuarteirÃ£o", detalhes.get("quarteirao"))
+    _set_if_empty(row, "Morador", detalhes.get("morador"))
+    _set_if_empty(row, "Tipo do imÃ³vel", detalhes.get("tipo_imovel"))
+    _set_if_empty(row, "Visita", detalhes.get("visita"))
+    _set_if_empty(row, "ObservaÃ§Ãµes", detalhes.get("observacoes"))
+    return row
+
+
 def _recolhimento_row(record):
     """Traduz campos do Kobo para nomes que o ETL espera."""
     row = _flat_record(record)

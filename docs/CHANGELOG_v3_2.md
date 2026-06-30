@@ -47,10 +47,10 @@
   - `agenda.html` — criar, editar e excluir evento
 - Rotas isentas com `@csrf.exempt` (3 no total):
   - `/login` — não tem sessão prévia para gerar token
-  - `/processar/stream/<job_id>` — SSE via GET
-  - `/processar/confirmar/<job_id>` — SSE via GET
+  - `/processar/stream/<job_id>` — stream de eventos via POST
+  - `/processar/confirmar/<job_id>` — stream de eventos via POST
 - Handler de erro `CSRFError` com resposta JSON para AJAX e template amigável `erro_csrf.html` para formulários
-- Token com validade de 1 hora (`WTF_CSRF_TIME_LIMIT = 3600`)
+- Token com validade atual de 8 horas (`WTF_CSRF_TIME_LIMIT = 8 * 3600`)
 
 ### SEC-04 — Validação real de conteúdo no upload *(alto — concluído)*
 
@@ -132,6 +132,6 @@ CONTAOVOS_STATUS INTEGER CHECK(CONTAOVOS_STATUS IN (0,1))
 
 ## Notas de uso após esta atualização
 
-**Token CSRF expirado:** Se um usuário ficar com a página aberta por mais de 1 hora sem interagir e tentar salvar um formulário, verá a mensagem "Token de segurança expirado. Recarregue a página." — basta recarregar e tentar novamente. Esse comportamento é correto e esperado.
+**Token CSRF expirado:** Se um usuário ficar com a página aberta por mais de 8 horas sem interagir e tentar salvar um formulário, verá a mensagem "Token de segurança expirado. Recarregue a página." — basta recarregar e tentar novamente. Esse comportamento é correto e esperado.
 
 **Upload de arquivo inválido:** Se alguém tentar subir um arquivo que não é realmente um XLSX (ex: um CSV renomeado como .xlsx), receberá a mensagem "Conteúdo não é um arquivo XLSX válido". O arquivo deve ser aberto e salvo novamente como XLSX pelo Excel.

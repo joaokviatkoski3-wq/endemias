@@ -3,17 +3,17 @@
 {% block page_title %}Erro de Segurança{% endblock %}
 {% block content %}
 <div class="page-header">
-  <h1>⚠ Token de segurança expirado</h1>
+  <h1>Token de segurança expirado</h1>
   <p class="sub">A sua sessão de formulário expirou por inatividade.</p>
 </div>
 <div class="chart-card" style="max-width:480px;">
   <p style="font-size:14px;color:var(--text2);margin-bottom:16px;">
-    Por segurança, os formulários do sistema expiram após 1 hora de inatividade.
-    Recarregue a página e tente novamente — seus dados não foram alterados.
+    Por segurança, os formulários do sistema expiram após 8 horas de inatividade.
+    Recarregue a página e tente novamente. Seus dados não foram alterados.
   </p>
   <div style="display:flex;gap:8px;">
-    <button class="btn btn-primary" onclick="history.back()">← Voltar</button>
-    <button class="btn btn-ghost" onclick="location.reload()">↺ Recarregar página</button>
+    <button class="btn btn-primary" onclick="history.back()">Voltar</button>
+    <button class="btn btn-ghost" onclick="location.reload()">Recarregar página</button>
   </div>
 </div>
 {% endblock %}

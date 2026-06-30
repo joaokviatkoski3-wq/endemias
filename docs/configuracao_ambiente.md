@@ -4,6 +4,8 @@ Por padrao, o sistema continua usando os caminhos historicos na raiz do projeto:
 
 - `endemias.db`
 - `config.json`
+- `kobo_config.json`
+- `anexos/`
 - `uploads_temp/`
 - `endemias.log`
 - `secret.key`
@@ -18,6 +20,8 @@ python app.py
 Com isso, o sistema passa a procurar/criar nesta pasta:
 
 - `endemias.db`
+- `kobo_config.json`
+- `anexos/`
 - `uploads_temp/`
 - `endemias.log`
 - `secret.key`
@@ -27,6 +31,8 @@ Tambem e possivel sobrescrever caminhos individualmente:
 ```powershell
 $env:ENDEMIAS_DB_PATH = "D:\dados\endemias.db"
 $env:ENDEMIAS_CONFIG_PATH = "C:\endemias\config.json"
+$env:ENDEMIAS_KOBO_CONFIG_PATH = "D:\dados\kobo_config.json"
+$env:ENDEMIAS_ANEXOS_DIR = "D:\dados\anexos"
 $env:ENDEMIAS_UPLOAD_TEMP = "D:\dados\uploads_temp"
 $env:ENDEMIAS_LOG_PATH = "D:\dados\endemias.log"
 $env:ENDEMIAS_SECRET_KEY_PATH = "D:\dados\secret.key"
@@ -60,7 +66,7 @@ Boa rotina operacional:
 - fazer backup antes de importar planilhas grandes ou rodar migracoes;
 - guardar copia em outro disco ou servidor;
 - testar restauracao periodicamente em uma pasta separada;
-- nunca versionar `backups/`, `*.db`, `*.db-wal`, `*.db-shm` ou `secret.key`.
+- nunca versionar `backups/`, `anexos/`, `uploads_temp/`, `saida/`, `notificacoes_geradas/`, `*.db`, `*.db-wal`, `*.db-shm`, `*.log`, `secret.key` ou `kobo_config.json`.
 
 ## Politica de seguranca de conteudo
 
