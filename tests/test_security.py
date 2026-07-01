@@ -4027,6 +4027,92 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(entregas, 0)
         self.assertEqual(animais, 1)
 
+    def test_receita_doente_exibe_saldo_e_nao_duplica_entregas_por_anexo(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "doentes_saldo.db"
+            conn = db_core.connect(db_path)
+            try:
+                esporotricose_core.ensure_schema(conn)
+            finally:
+                conn.close()
+
+            id_animal = esporotricose_core.salvar_doente(
+                str(db_path),
+                {
+                    "nome": "Mimi",
+                    "especie": "Gato",
+                    "tutor": "Maria",
+                    "endereco": "Rua A",
+                    "localidade": "Centro",
+                    "status": "Em tratamento",
+                    "pedido_zoomed": "Sim",
+                },
+            )
+            id_receita = esporotricose_core.salvar_receita_doente(
+                str(db_path),
+                id_animal,
+                {"data_receita": "2026-06-16", "capsulas_total": 180, "status": "Em tratamento"},
+            )
+            esporotricose_core.salvar_entrega_doente(
+                str(db_path),
+                id_receita,
+                {"data_entrega": "2026-06-16", "quantidade": 30, "baixa_zoomed": "Sim"},
+            )
+            esporotricose_core.salvar_entrega_doente(
+                str(db_path),
+                id_receita,
+                {"data_entrega": "2026-07-01", "quantidade": 30, "baixa_zoomed": "Sim"},
+            )
+            conn = db_core.connect(db_path)
+            try:
+                agora = "2026-07-01T10:00:00"
+                for idx in range(2):
+                    conn.execute(
+                        """INSERT INTO esporotricose_doentes_anexos
+                           (id_animal_doente, id_receita, nome_original, nome_arquivo,
+                            caminho_rel, mime_type, tamanho, criado_por, criado_em)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (
+                            id_animal,
+                            id_receita,
+                            f"receita-{idx}.pdf",
+                            f"receita-{idx}.pdf",
+                            f"teste/receita-{idx}.pdf",
+                            "application/pdf",
+                            10,
+                            "teste",
+                            agora,
+                        ),
+                    )
+                conn.commit()
+            finally:
+                conn.close()
+
+            lista = esporotricose_core.listar_doentes(str(db_path), {})["registros"][0]
+            self.assertEqual(lista["capsulas_entregues"], 60)
+            self.assertEqual(lista["capsulas_receitadas"], 180)
+            self.assertEqual(lista["capsulas_restantes"], 120)
+
+            csv_row = esporotricose_core.listar_doentes_csv(str(db_path), {})[0]
+            self.assertEqual(csv_row["capsulas_entregues"], 60)
+            self.assertEqual(csv_row["capsulas_receitadas"], 180)
+            self.assertEqual(csv_row["capsulas_restantes"], 120)
+
+            detalhe = esporotricose_core.obter_doente(str(db_path), id_animal)
+            receita = detalhe["receitas"][0]
+            self.assertEqual(receita["capsulas_entregues"], 60)
+            self.assertEqual(receita["capsulas_restantes"], 120)
+            self.assertEqual(receita["entregas_count"], 2)
+            self.assertEqual(receita["entregas_observacao"], "Duas entregas feitas")
+            self.assertIn("faltam 120", receita["saldo_observacao"])
+
+            with self.assertRaises(esporotricose_core.ValidationError):
+                esporotricose_core.salvar_entrega_doente(
+                    str(db_path),
+                    id_receita,
+                    {"data_entrega": "2026-07-01", "quantidade": -30, "baixa_zoomed": "Sim"},
+                )
+
     def test_consultas_sispncd_nao_alteram_coluna_sispncd(self):
         client = _client_logado()
         conn = sqlite3.connect(endemias_app.DB_PATH)

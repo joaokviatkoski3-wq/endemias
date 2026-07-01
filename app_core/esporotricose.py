@@ -912,32 +912,45 @@ def listar_doentes(db_path, filtros=None):
             params.extend([termo] * 5)
         sql = """
             SELECT d.*,
-                   COUNT(DISTINCT r.id_receita) AS receitas,
-                   COUNT(DISTINCT an.id_anexo) AS anexos,
-                   MAX(r.data_notificacao) AS ultima_notificacao,
-                   MAX(r.data_receita) AS ultima_receita,
-                   MAX(e.data_entrega) AS ultima_entrega,
-                   COALESCE(SUM(e.quantidade), 0) AS capsulas_entregues,
-                   COUNT(DISTINCT e.id_entrega) AS entregas,
-                   COUNT(DISTINCT CASE WHEN e.baixa_zoomed='Não' THEN e.id_entrega END) AS entregas_zoomed_pendentes
+                   (SELECT COUNT(*) FROM esporotricose_doentes_receitas r
+                     WHERE r.id_animal_doente=d.id_animal_doente) AS receitas,
+                   (SELECT COUNT(*) FROM esporotricose_doentes_anexos an
+                     WHERE an.id_animal_doente=d.id_animal_doente) AS anexos,
+                   (SELECT MAX(r.data_notificacao) FROM esporotricose_doentes_receitas r
+                     WHERE r.id_animal_doente=d.id_animal_doente) AS ultima_notificacao,
+                   (SELECT MAX(r.data_receita) FROM esporotricose_doentes_receitas r
+                     WHERE r.id_animal_doente=d.id_animal_doente) AS ultima_receita,
+                   (SELECT MAX(e.data_entrega)
+                      FROM esporotricose_doentes_entregas e
+                      JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
+                     WHERE r.id_animal_doente=d.id_animal_doente) AS ultima_entrega,
+                   (SELECT COALESCE(SUM(r.capsulas_total), 0) FROM esporotricose_doentes_receitas r
+                     WHERE r.id_animal_doente=d.id_animal_doente) AS capsulas_receitadas,
+                   (SELECT COALESCE(SUM(e.quantidade), 0)
+                      FROM esporotricose_doentes_entregas e
+                      JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
+                     WHERE r.id_animal_doente=d.id_animal_doente) AS capsulas_entregues,
+                   (SELECT COUNT(*)
+                      FROM esporotricose_doentes_entregas e
+                      JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
+                     WHERE r.id_animal_doente=d.id_animal_doente) AS entregas,
+                   (SELECT COUNT(*)
+                      FROM esporotricose_doentes_entregas e
+                      JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
+                     WHERE r.id_animal_doente=d.id_animal_doente
+                       AND COALESCE(e.baixa_zoomed, '') <> 'Sim') AS entregas_zoomed_pendentes
               FROM esporotricose_doentes_animais d
-              LEFT JOIN esporotricose_doentes_receitas r ON r.id_animal_doente=d.id_animal_doente
-              LEFT JOIN esporotricose_doentes_entregas e ON e.id_receita=r.id_receita
-              LEFT JOIN esporotricose_doentes_anexos an ON an.id_animal_doente=d.id_animal_doente
         """
         if where:
             sql += " WHERE " + " AND ".join(where)
-        sql += " GROUP BY d.id_animal_doente"
-        if baixa_zoomed == "Pendente":
-            sql += """ HAVING COUNT(DISTINCT CASE WHEN e.baixa_zoomed='Não' THEN e.id_entrega END) > 0
-                        OR (d.status='Em tratamento' AND COUNT(DISTINCT e.id_entrega)=0)"""
-        elif baixa_zoomed == "Sim":
-            sql += """ HAVING COUNT(DISTINCT CASE WHEN e.baixa_zoomed='Não' THEN e.id_entrega END) = 0
-                        AND NOT (d.status='Em tratamento' AND COUNT(DISTINCT e.id_entrega)=0)"""
         sql += """
-                   ORDER BY COALESCE(MAX(r.data_notificacao), '') DESC,
+                   ORDER BY COALESCE(ultima_notificacao, '') DESC,
                             d.id_animal_doente DESC"""
         rows = [_doente_row(row) for row in conn.execute(sql, params).fetchall()]
+        if baixa_zoomed == "Pendente":
+            rows = [row for row in rows if int(row.get("entregas_zoomed_pendentes") or 0) > 0]
+        elif baixa_zoomed == "Sim":
+            rows = [row for row in rows if int(row.get("entregas_zoomed_pendentes") or 0) == 0]
         if especie:
             especie_norm = _sem_acentos(especie).strip().casefold()
             rows = [row for row in rows if _sem_acentos(row.get("especie")).strip().casefold() == especie_norm]
@@ -1000,6 +1013,11 @@ def listar_doentes_csv(db_path, filtros=None):
                    MAX(r.data_receita) AS ultima_receita,
                    COUNT(DISTINCT r.id_receita) AS receitas,
                    (
+                       SELECT COALESCE(SUM(re.capsulas_total), 0)
+                         FROM esporotricose_doentes_receitas re
+                        WHERE re.id_animal_doente=d.id_animal_doente
+                   ) AS capsulas_receitadas,
+                   (
                        SELECT COALESCE(SUM(e.quantidade), 0)
                          FROM esporotricose_doentes_entregas e
                          JOIN esporotricose_doentes_receitas re ON re.id_receita=e.id_receita
@@ -1048,6 +1066,10 @@ def listar_doentes_csv(db_path, filtros=None):
             item["baixa_zoomed"] = "Pendente" if pendentes else "Sim"
             item["data_notificacao"] = item.get("ultima_notificacao") or item.get("primeira_notificacao")
             item["especie"] = _especie_doente(item)
+            item["capsulas_restantes"] = max(
+                int(item.get("capsulas_receitadas") or 0) - int(item.get("capsulas_entregues") or 0),
+                0,
+            )
             rows.append(item)
         return rows
     finally:
@@ -1082,6 +1104,7 @@ def obter_doente(db_path, id_animal_doente):
                     (item["id_receita"],),
                 ).fetchall()
             ]
+            _preencher_resumo_receita(item)
             receitas.append(item)
         animal["receitas"] = receitas
         animal["anexos"] = [_anexo_doente_dict(row) for row in conn.execute(
@@ -1155,6 +1178,8 @@ def salvar_receita_doente(db_path, id_animal_doente, dados):
             raise ValidationError("Animal doente não encontrado.")
         agora = datetime.now().isoformat(timespec="seconds")
         payload = _receita_payload(dados)
+        if payload.get("capsulas_total") is not None and payload["capsulas_total"] < 0:
+            raise ValidationError("O total de capsulas da receita nao pode ser negativo.")
         id_receita = _int(dados.get("id_receita"))
         if payload.get("status"):
             _salvar_status_doente(conn, payload["status"])
@@ -1206,7 +1231,7 @@ def salvar_entrega_doente(db_path, id_receita, dados):
         if not receita:
             raise ValidationError("Receita não encontrada.")
         quantidade = _int(dados.get("quantidade"))
-        if not quantidade:
+        if not quantidade or quantidade <= 0:
             raise ValidationError("Informe a quantidade de cápsulas.")
         baixa_zoomed = _normalizar_sim_nao(dados.get("baixa_zoomed")) or "Não"
         agora = datetime.now().isoformat(timespec="seconds")
@@ -1240,7 +1265,7 @@ def atualizar_entrega_doente(db_path, id_entrega, dados):
         if not row:
             raise ValidationError("Entrega não encontrada.")
         quantidade = _int(dados.get("quantidade"))
-        if not quantidade:
+        if not quantidade or quantidade <= 0:
             raise ValidationError("Informe a quantidade de cápsulas.")
         baixa_zoomed = _normalizar_sim_nao(dados.get("baixa_zoomed")) or "Não"
         conn.execute(
@@ -1480,9 +1505,49 @@ def importar_doentes_planilha(db_path, caminho):
         conn.close()
 
 
+def _preencher_resumo_receita(item):
+    total = int(item.get("capsulas_total") or 0)
+    entregas = item.get("entregas") or []
+    entregue = sum(int(entrega.get("quantidade") or 0) for entrega in entregas)
+    restante = max(total - entregue, 0) if total else 0
+    excedente = max(entregue - total, 0) if total else 0
+    count = len(entregas)
+    if count == 0:
+        entregas_texto = "Nenhuma entrega feita"
+    elif count == 1:
+        entregas_texto = "Uma entrega feita"
+    elif count == 2:
+        entregas_texto = "Duas entregas feitas"
+    else:
+        entregas_texto = f"{count} entregas feitas"
+    if not total:
+        saldo_texto = f"{entregue} capsula(s) entregue(s); total da receita nao informado"
+    elif excedente:
+        saldo_texto = f"{entregue} de {total} capsula(s) entregue(s); excedente de {excedente}"
+    elif restante:
+        saldo_texto = f"{entregue} de {total} capsula(s) entregue(s); faltam {restante}"
+    else:
+        saldo_texto = f"{entregue} de {total} capsula(s) entregue(s); receita completa"
+    item["capsulas_entregues"] = entregue
+    item["capsulas_restantes"] = restante
+    item["capsulas_excedentes"] = excedente
+    item["entregas_count"] = count
+    item["entregas_observacao"] = entregas_texto
+    item["saldo_observacao"] = saldo_texto
+    return item
+
+
 def _doente_row(row):
     item = dict(row)
     item["especie"] = _especie_doente(item)
+    item["capsulas_restantes"] = max(
+        int(item.get("capsulas_receitadas") or 0) - int(item.get("capsulas_entregues") or 0),
+        0,
+    )
+    item["capsulas_excedentes"] = max(
+        int(item.get("capsulas_entregues") or 0) - int(item.get("capsulas_receitadas") or 0),
+        0,
+    )
     if (
         int(item.get("entregas") or 0) == 0
         and item.get("status") == "Em tratamento"

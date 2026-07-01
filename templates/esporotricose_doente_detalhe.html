@@ -120,7 +120,9 @@ function render(){
         </button>
       </div>
       <div class="muted">Notificação ${data(r.data_notificacao)} · sintomas ${data(r.inicio_sintomas)} · VA + veterinário ${data(r.visita_va_veterinario)}</div>
-      <div style="margin-top:6px;">Cápsulas: <strong>${num(r.capsulas_total)}</strong> · Posologia: ${esc(r.posologia || '-')}</div>
+      <div style="margin-top:6px;">C&aacute;psulas: <strong>${num(r.capsulas_total)}</strong> &middot; Entregues: <strong>${num(r.capsulas_entregues || 0)}</strong> &middot; Faltam: <strong>${num(r.capsulas_restantes || 0)}</strong>${Number(r.capsulas_excedentes || 0) > 0 ? ` &middot; Excedente: <strong>${num(r.capsulas_excedentes)}</strong>` : ''}</div>
+      <div class="muted">${esc(r.entregas_observacao || '')}${r.saldo_observacao ? ` &middot; ${esc(r.saldo_observacao)}` : ''}</div>
+      <div>Posologia: ${esc(r.posologia || '-')}</div>
       <div class="muted">${esc(r.observacoes || '')}</div>
       <div class="doe-entregas">${(r.entregas || []).map(e => `
         <span class="doe-chip">${data(e.data_entrega)} · ${num(e.quantidade)} cápsula(s) · Baixa Zoomed ${zoomedBadge(e.baixa_zoomed)}</span>

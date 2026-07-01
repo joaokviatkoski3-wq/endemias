@@ -744,8 +744,10 @@ function renderEspReceitas(rows) {
         </button>
       </div>
       <div class="muted">Notificação ${fmtDate(r.data_notificacao)} · sintomas ${fmtDate(r.inicio_sintomas)} · prazo ${r.prazo_receita_dias ?? '-'} dia(s)</div>
-      <div>Cápsulas: <strong>${escapeHtml(r.capsulas_total ?? '-')}</strong> · Posologia: ${escapeHtml(r.posologia || '-')}</div>
-      <div class="esporo-entrega-list">${(r.entregas || []).map(e => `<span class="esporo-entrega">${fmtDate(e.data_entrega)} · ${fmtNum(e.quantidade)}</span>`).join('') || '<span class="muted">Sem entregas</span>'}</div>
+      <div>C&aacute;psulas: <strong>${escapeHtml(r.capsulas_total ?? '-')}</strong> &middot; Entregues: <strong>${fmtNum(r.capsulas_entregues || 0)}</strong> &middot; Faltam: <strong>${fmtNum(r.capsulas_restantes || 0)}</strong>${Number(r.capsulas_excedentes || 0) > 0 ? ` &middot; Excedente: <strong>${fmtNum(r.capsulas_excedentes)}</strong>` : ''}</div>
+      <div class="muted">${escapeHtml(r.entregas_observacao || '')}${r.saldo_observacao ? ` &middot; ${escapeHtml(r.saldo_observacao)}` : ''}</div>
+      <div>Posologia: ${escapeHtml(r.posologia || '-')}</div>
+      <div class="esporo-entrega-list">${(r.entregas || []).map(e => `<span class="esporo-entrega">${fmtDate(e.data_entrega)} &middot; ${fmtNum(e.quantidade)}</span>`).join('') || '<span class="muted">Sem entregas</span>'}</div>
       <div class="esporo-form-grid" style="margin-top:8px;">
         <div class="f-g"><label>Data entrega</label><input type="date" id="ent-data-${r.id_receita}"></div>
         <div class="f-g"><label>Cápsulas</label><input type="number" id="ent-qtd-${r.id_receita}"></div>
