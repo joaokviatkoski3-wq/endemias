@@ -3456,12 +3456,12 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("doe-kpi-total", html)
         self.assertIn("gato_doente.svg", html)
         self.assertIn("Pedir documentos", html)
-        self.assertIn("esp-tab-atencao", html)
         self.assertIn("esp-tab-localidades", html)
         self.assertIn("esp-tab-dashboard", html)
-        self.assertIn("ate-especie", html)
-        self.assertIn("ate-motivo-atencao", html)
-        self.assertIn("imprimirEspAtencao", html)
+        self.assertIn("esp-animal-especie", html)
+        self.assertIn("esp-animal-motivo", html)
+        self.assertIn("imprimirEspAnimais", html)
+        self.assertIn("prioritarios", html)
 
     def test_pagina_recolhimentos_exibe_controles_principais(self):
         client = _client_logado()
