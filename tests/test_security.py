@@ -3739,6 +3739,35 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(quarteiroes.status_code, 200)
         self.assertGreaterEqual(len(quarteiroes.get_json()["registros"]), 1)
 
+    def test_registro_geografico_lista_quarteirao_sem_imoveis(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            with app_temp.app_context():
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                try:
+                    registro_geografico_core.ensure_schema(conn)
+                    conn.execute("INSERT INTO localidades(nome, cod_localidade) VALUES (?, ?)", ("Teste RG", 9999))
+                    loc = conn.execute("SELECT id_localidade, nome FROM localidades WHERE nome='Teste RG'").fetchone()
+                    self.assertIsNotNone(loc)
+                    conn.execute(
+                        """INSERT INTO registro_geografico_quarteiroes
+                           (id_localidade, localidade, quarteirao, criado_em, atualizado_em)
+                           VALUES (?, ?, ?, ?, ?)""",
+                        (loc["id_localidade"], loc["nome"], "1406", "2026-07-01T08:00:00", "2026-07-01T08:00:00"),
+                    )
+                    conn.commit()
+                    id_localidade = loc["id_localidade"]
+                finally:
+                    conn.close()
+
+                resp = client.get(f"/api/registro-geografico/quarteiroes?localidade={id_localidade}")
+                self.assertEqual(resp.status_code, 200)
+                registros = resp.get_json()["registros"]
+                item = next((r for r in registros if r["quarteirao"] == "1406"), None)
+                self.assertIsNotNone(item)
+                self.assertEqual(item["imoveis"], 0)
+
     def test_api_esporotricose_animais_retorna_detalhes(self):
         client = _client_logado()
         resp = client.get("/api/esporotricose/animais?feridas=Sim")

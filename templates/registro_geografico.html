@@ -114,6 +114,8 @@
       <div class="f-g"><label>Localidade</label><select id="rg-ed-localidade">{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Quarteirão</label><select id="rg-ed-quarteirao"><option value="">Selecione a localidade</option></select></div>
       <button class="btn btn-outline" type="button" id="rg-ed-carregar"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Carregar quarteirão</button>
+      <div class="f-g"><label>Novo quarteirão</label><input id="rg-ed-novo-quarteirao" type="number" min="0" placeholder="Ex: 1406"></div>
+      <button class="btn btn-outline" type="button" id="rg-ed-novo"><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Adicionar quarteirão</button>
     </div>
     <div id="rg-ed-area" hidden>
       <div class="rg-edit-meta">
@@ -292,6 +294,25 @@ async function rgCarregarQuarteirao(){
   rgRenderGrade(data.registros || []);
   rgSetText('rg-ed-status', `${(data.registros || []).length} linha(s) carregada(s).`);
 }
+async function rgAdicionarQuarteirao(){
+  const loc = rgEl('rg-ed-localidade').value;
+  const q = rgEl('rg-ed-novo-quarteirao').value.trim();
+  if(!loc || !q){ alert('Informe localidade e o novo quarteirÃ£o.'); return; }
+  const select = rgEl('rg-ed-quarteirao');
+  let opt = Array.from(select.options).find(item => item.value === q);
+  if(!opt){
+    opt = new Option(`QuarteirÃ£o ${q} (0 imÃ³veis)`, q);
+    select.appendChild(opt);
+  }
+  select.value = q;
+  rgEl('rg-ed-novo-quarteirao').value = '';
+  await rgCarregarQuarteirao();
+  if(!rgEl('rg-ed-body').children.length){
+    rgEl('rg-ed-body').appendChild(rgLinha({numero:'SN', tipo:'R'}));
+    rgRenumerarGrade();
+    rgSetText('rg-ed-status', `Novo quarteirÃ£o ${q} pronto para cadastro. Adicione os imÃ³veis e salve.`);
+  }
+}
 async function rgSalvarQuarteirao(){
   rgSetText('rg-ed-status', 'Salvando quarteirão...');
   rgEl('rg-ed-salvar').disabled = true;
@@ -378,6 +399,7 @@ rgEl('rg-localidade').addEventListener('change', ev => {
 rgEl('rg-ed-localidade').addEventListener('change', ev => rgCarregarSelectQuarteiroes(ev.target.value, 'rg-ed-quarteirao').catch(err => rgSetText('rg-ed-status', err.message)));
 rgEl('rg-imp-localidade').addEventListener('change', ev => rgCarregarChecksQuarteiroes(ev.target.value).catch(err => alert(err.message)));
 rgEl('rg-ed-carregar').addEventListener('click', () => rgCarregarQuarteirao().catch(err => { rgSetText('rg-ed-status', err.message); }));
+rgEl('rg-ed-novo').addEventListener('click', () => rgAdicionarQuarteirao().catch(err => { rgSetText('rg-ed-status', err.message); }));
 rgEl('rg-ed-salvar').addEventListener('click', () => rgSalvarQuarteirao().catch(err => { rgSetText('rg-ed-status', err.message); }));
 rgEl('rg-ed-add').addEventListener('click', () => {
   const last = Array.from(rgEl('rg-ed-body').children).filter(tr => tr.dataset.delete !== '1').at(-1);

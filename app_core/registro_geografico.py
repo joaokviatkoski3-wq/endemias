@@ -391,11 +391,12 @@ def quarteiroes_por_localidade(db_path, id_localidade, base_dir=None):
     conn = db_core.connect(db_path)
     try:
         rows = conn.execute(
-            """SELECT quarteirao, COUNT(*) AS imoveis
-                 FROM registro_geografico_imoveis
-                WHERE id_localidade=?
-                GROUP BY quarteirao
-                ORDER BY CAST(quarteirao AS INTEGER), quarteirao""",
+            """SELECT q.quarteirao, COUNT(i.id_imovel) AS imoveis
+                 FROM registro_geografico_quarteiroes q
+                 LEFT JOIN registro_geografico_imoveis i ON i.id_quarteirao=q.id_quarteirao
+                WHERE q.id_localidade=?
+                GROUP BY q.id_quarteirao, q.quarteirao
+                ORDER BY CAST(q.quarteirao AS INTEGER), q.quarteirao""",
             (id_localidade,),
         ).fetchall()
         return [
