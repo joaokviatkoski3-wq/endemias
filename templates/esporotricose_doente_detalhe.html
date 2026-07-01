@@ -12,6 +12,8 @@
 .doe-layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;align-items:start;margin-top:14px;}
 .doe-receita{border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;background:var(--surface2);margin-bottom:10px;}
 .doe-receita-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px;}
+.doe-receita-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;}
+.doe-receita-edit{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
 .doe-entregas{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
 .doe-chip{display:inline-flex;gap:5px;align-items:center;border-radius:999px;background:var(--brand-xs);color:var(--brand);padding:4px 8px;font-size:12px;font-weight:800;}
 .zoomed-badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:900;white-space:nowrap;}
@@ -115,15 +117,36 @@ function render(){
     <div class="doe-receita">
       <div class="doe-receita-head">
         <strong>Receita ${data(r.data_receita)}</strong>
-        <button class="btn btn-outline btn-sm" type="button" onclick="excluirReceita(${r.id_receita}, ${Number((r.entregas || []).length)})">
-          <img src="/static/icons/lixeira.svg" alt="" class="icon-svg"> Apagar receita
-        </button>
+        <div class="doe-receita-actions">
+          <button class="btn btn-outline btn-sm" type="button" onclick="toggleReceitaEdit(${r.id_receita})">
+            <img src="/static/icons/editar.svg" alt="" class="icon-svg"> Editar receita
+          </button>
+          <button class="btn btn-outline btn-sm" type="button" onclick="excluirReceita(${r.id_receita}, ${Number((r.entregas || []).length)})">
+            <img src="/static/icons/lixeira.svg" alt="" class="icon-svg"> Apagar receita
+          </button>
+        </div>
       </div>
       <div class="muted">Notificação ${data(r.data_notificacao)} · sintomas ${data(r.inicio_sintomas)} · VA + veterinário ${data(r.visita_va_veterinario)}</div>
       <div style="margin-top:6px;">C&aacute;psulas: <strong>${num(r.capsulas_total)}</strong> &middot; Entregues: <strong>${num(r.capsulas_entregues || 0)}</strong> &middot; Faltam: <strong>${num(r.capsulas_restantes || 0)}</strong>${Number(r.capsulas_excedentes || 0) > 0 ? ` &middot; Excedente: <strong>${num(r.capsulas_excedentes)}</strong>` : ''}</div>
       <div class="muted">${esc(r.entregas_observacao || '')}${r.saldo_observacao ? ` &middot; ${esc(r.saldo_observacao)}` : ''}</div>
       <div>Posologia: ${esc(r.posologia || '-')}</div>
       <div class="muted">${esc(r.observacoes || '')}</div>
+      <div class="doe-receita-edit" id="rec-edit-box-${r.id_receita}">
+        <input type="hidden" id="rec-edit-status-${r.id_receita}" value="${esc(r.status || '')}">
+        <div class="doe-form-grid">
+          <div class="f-g"><label>Notificacao</label><input type="date" id="rec-edit-notificacao-${r.id_receita}" value="${esc(r.data_notificacao || '')}"></div>
+          <div class="f-g"><label>Inicio sintomas</label><input type="date" id="rec-edit-sintomas-${r.id_receita}" value="${esc(r.inicio_sintomas || '')}"></div>
+          <div class="f-g"><label>Receita</label><input type="date" id="rec-edit-receita-${r.id_receita}" value="${esc(r.data_receita || '')}"></div>
+          <div class="f-g"><label>VA + veterinario</label><input type="date" id="rec-edit-vet-${r.id_receita}" value="${esc(r.visita_va_veterinario || '')}"></div>
+          <div class="f-g"><label>Capsulas</label><input type="number" min="0" id="rec-edit-capsulas-${r.id_receita}" value="${esc(r.capsulas_total ?? '')}"></div>
+          <div class="f-g full"><label>Posologia</label><input id="rec-edit-posologia-${r.id_receita}" value="${esc(r.posologia || '')}"></div>
+          <div class="f-g full"><label>Observacoes</label><textarea id="rec-edit-observacoes-${r.id_receita}" rows="2">${esc(r.observacoes || '')}</textarea></div>
+        </div>
+        <div class="doe-receita-actions" style="margin-top:8px;">
+          <button class="btn btn-primary btn-sm" type="button" onclick="salvarReceitaEdit(${r.id_receita})">Salvar edicao</button>
+          <button class="btn btn-outline btn-sm" type="button" onclick="toggleReceitaEdit(${r.id_receita}, false)">Cancelar</button>
+        </div>
+      </div>
       <div class="doe-entregas">${(r.entregas || []).map(e => `
         <span class="doe-chip">${data(e.data_entrega)} · ${num(e.quantidade)} cápsula(s) · Baixa Zoomed ${zoomedBadge(e.baixa_zoomed)}</span>
         <span class="doe-chip" style="background:var(--surface);color:var(--text2);border:1px solid var(--border);">
@@ -151,6 +174,12 @@ function render(){
     </div>
   `).join('') || '<div class="empty-inline">Nenhum anexo.</div>';
 }
+function toggleReceitaEdit(idReceita, force){
+  const box = document.getElementById(`rec-edit-box-${idReceita}`);
+  if(!box) return;
+  const abrir = force === undefined ? box.style.display === 'none' || !box.style.display : !!force;
+  box.style.display = abrir ? 'block' : 'none';
+}
 async function recarregar(){
   animal = await apiGet(`/api/esporotricose/doentes/${animal.id_animal_doente}`);
   render();
@@ -169,6 +198,28 @@ async function salvarReceita(){
     });
     await recarregar();
     toast('Receita adicionada.', 'success');
+  } catch(e){ toast(e.message, 'error'); }
+}
+async function salvarReceitaEdit(idReceita){
+  try {
+    const resp = await fetch(`/api/esporotricose/doentes/receitas/${idReceita}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json', 'X-CSRFToken':getCsrf()},
+      body: JSON.stringify({
+        data_notificacao: val(`rec-edit-notificacao-${idReceita}`),
+        inicio_sintomas: val(`rec-edit-sintomas-${idReceita}`),
+        data_receita: val(`rec-edit-receita-${idReceita}`),
+        visita_va_veterinario: val(`rec-edit-vet-${idReceita}`),
+        capsulas_total: val(`rec-edit-capsulas-${idReceita}`),
+        posologia: val(`rec-edit-posologia-${idReceita}`),
+        status: val(`rec-edit-status-${idReceita}`) || animal.status,
+        observacoes: val(`rec-edit-observacoes-${idReceita}`)
+      })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if(!resp.ok) throw new Error(data.erro || 'Erro ao editar receita.');
+    await recarregar();
+    toast('Receita atualizada.', 'success');
   } catch(e){ toast(e.message, 'error'); }
 }
 async function salvarEntrega(idReceita){

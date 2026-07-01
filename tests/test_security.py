@@ -3957,6 +3957,8 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertIn("Entrega cadastrada na ZOOMED", html_detalhe)
             self.assertIn("whatsapp.svg", html_detalhe)
             self.assertIn("excluirReceita", html_detalhe)
+            self.assertIn("Editar receita", html_detalhe)
+            self.assertIn("salvarReceitaEdit", html_detalhe)
             self.assertIn("/api/esporotricose/doentes/receitas/", html_detalhe)
             detalhe_json = client.get(f"/api/esporotricose/doentes/{id_animal}").get_json()
             entregas = [
@@ -4105,6 +4107,24 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(receita["entregas_count"], 2)
             self.assertEqual(receita["entregas_observacao"], "Duas entregas feitas")
             self.assertIn("faltam 120", receita["saldo_observacao"])
+
+            id_animal_atualizado = esporotricose_core.atualizar_receita_doente(
+                str(db_path),
+                id_receita,
+                {
+                    "data_receita": "2026-07-01",
+                    "capsulas_total": 210,
+                    "posologia": "1 capsula ao dia",
+                    "status": "Em tratamento",
+                    "observacoes": "Receita atualizada",
+                },
+            )
+            self.assertEqual(id_animal_atualizado, id_animal)
+            receita_atualizada = esporotricose_core.obter_doente(str(db_path), id_animal)["receitas"][0]
+            self.assertEqual(receita_atualizada["data_receita"], "2026-07-01")
+            self.assertEqual(receita_atualizada["capsulas_total"], 210)
+            self.assertEqual(receita_atualizada["capsulas_restantes"], 150)
+            self.assertIn("faltam 150", receita_atualizada["saldo_observacao"])
 
             with self.assertRaises(esporotricose_core.ValidationError):
                 esporotricose_core.salvar_entrega_doente(

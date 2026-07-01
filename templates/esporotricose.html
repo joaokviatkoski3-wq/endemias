@@ -52,6 +52,8 @@
 .esporo-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .esporo-form-grid .full { grid-column:1 / -1; }
 .esporo-receita-card { border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px; background:var(--surface2); margin-top:8px; }
+.esporo-receita-edit { display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
+.esporo-receita-actions { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
 .esporo-entrega-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
 .esporo-entrega { padding:3px 7px; border-radius:999px; background:var(--brand-xs); color:var(--brand); font-size:11px; font-weight:800; }
 .esporo-anexos { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
@@ -739,15 +741,36 @@ function renderEspReceitas(rows) {
     <div class="esporo-receita-card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px;">
         <strong>Receita ${fmtDate(r.data_receita) || '-'}</strong>
-        <button class="btn btn-outline btn-sm" type="button" onclick="excluirEspReceita(${r.id_receita}, ${Number((r.entregas || []).length)})">
-          <img src="/static/icons/lixeira.svg" alt="" class="icon-svg"> Apagar
-        </button>
+        <div class="esporo-receita-actions">
+          <button class="btn btn-outline btn-sm" type="button" onclick="toggleEspReceitaEdit(${r.id_receita})">
+            <img src="/static/icons/editar.svg" alt="" class="icon-svg"> Editar
+          </button>
+          <button class="btn btn-outline btn-sm" type="button" onclick="excluirEspReceita(${r.id_receita}, ${Number((r.entregas || []).length)})">
+            <img src="/static/icons/lixeira.svg" alt="" class="icon-svg"> Apagar
+          </button>
+        </div>
       </div>
       <div class="muted">Notificação ${fmtDate(r.data_notificacao)} · sintomas ${fmtDate(r.inicio_sintomas)} · prazo ${r.prazo_receita_dias ?? '-'} dia(s)</div>
       <div>C&aacute;psulas: <strong>${escapeHtml(r.capsulas_total ?? '-')}</strong> &middot; Entregues: <strong>${fmtNum(r.capsulas_entregues || 0)}</strong> &middot; Faltam: <strong>${fmtNum(r.capsulas_restantes || 0)}</strong>${Number(r.capsulas_excedentes || 0) > 0 ? ` &middot; Excedente: <strong>${fmtNum(r.capsulas_excedentes)}</strong>` : ''}</div>
       <div class="muted">${escapeHtml(r.entregas_observacao || '')}${r.saldo_observacao ? ` &middot; ${escapeHtml(r.saldo_observacao)}` : ''}</div>
       <div>Posologia: ${escapeHtml(r.posologia || '-')}</div>
       <div class="esporo-entrega-list">${(r.entregas || []).map(e => `<span class="esporo-entrega">${fmtDate(e.data_entrega)} &middot; ${fmtNum(e.quantidade)}</span>`).join('') || '<span class="muted">Sem entregas</span>'}</div>
+      <div class="esporo-receita-edit" id="rec-edit-box-${r.id_receita}">
+        <input type="hidden" id="rec-edit-status-${r.id_receita}" value="${escapeHtml(r.status || '')}">
+        <div class="esporo-form-grid">
+          <div class="f-g"><label>Notificacao</label><input type="date" id="rec-edit-notificacao-${r.id_receita}" value="${escapeHtml(r.data_notificacao || '')}"></div>
+          <div class="f-g"><label>Inicio sintomas</label><input type="date" id="rec-edit-sintomas-${r.id_receita}" value="${escapeHtml(r.inicio_sintomas || '')}"></div>
+          <div class="f-g"><label>Receita</label><input type="date" id="rec-edit-receita-${r.id_receita}" value="${escapeHtml(r.data_receita || '')}"></div>
+          <div class="f-g"><label>VA + veterinario</label><input type="date" id="rec-edit-vet-${r.id_receita}" value="${escapeHtml(r.visita_va_veterinario || '')}"></div>
+          <div class="f-g"><label>Capsulas</label><input type="number" min="0" id="rec-edit-capsulas-${r.id_receita}" value="${escapeHtml(r.capsulas_total ?? '')}"></div>
+          <div class="f-g full"><label>Posologia</label><input id="rec-edit-posologia-${r.id_receita}" value="${escapeHtml(r.posologia || '')}"></div>
+          <div class="f-g full"><label>Observacoes</label><textarea id="rec-edit-observacoes-${r.id_receita}" rows="2">${escapeHtml(r.observacoes || '')}</textarea></div>
+        </div>
+        <div class="esporo-receita-actions" style="margin-top:8px;">
+          <button class="btn btn-primary btn-sm" type="button" onclick="salvarEspReceitaEdit(${r.id_receita})">Salvar edicao</button>
+          <button class="btn btn-outline btn-sm" type="button" onclick="toggleEspReceitaEdit(${r.id_receita}, false)">Cancelar</button>
+        </div>
+      </div>
       <div class="esporo-form-grid" style="margin-top:8px;">
         <div class="f-g"><label>Data entrega</label><input type="date" id="ent-data-${r.id_receita}"></div>
         <div class="f-g"><label>Cápsulas</label><input type="number" id="ent-qtd-${r.id_receita}"></div>
@@ -755,6 +778,12 @@ function renderEspReceitas(rows) {
       <button class="btn btn-outline" type="button" onclick="salvarEspEntrega(${r.id_receita})">Adicionar entrega</button>
     </div>
   `).join('') : '<div class="empty-inline">Nenhuma receita cadastrada.</div>';
+}
+function toggleEspReceitaEdit(idReceita, force) {
+  const box = document.getElementById(`rec-edit-box-${idReceita}`);
+  if (!box) return;
+  const abrir = force === undefined ? box.style.display === 'none' || !box.style.display : !!force;
+  box.style.display = abrir ? 'block' : 'none';
 }
 async function salvarEspReceita() {
   const id = document.getElementById('doe-id').value;
@@ -774,6 +803,31 @@ async function salvarEspReceita() {
     await abrirEspDoente(id);
     await carregarEspDoentes();
     toast('Receita adicionada.', 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+async function salvarEspReceitaEdit(idReceita) {
+  const id = document.getElementById('doe-id').value;
+  const payload = {
+    data_notificacao: document.getElementById(`rec-edit-notificacao-${idReceita}`).value,
+    inicio_sintomas: document.getElementById(`rec-edit-sintomas-${idReceita}`).value,
+    data_receita: document.getElementById(`rec-edit-receita-${idReceita}`).value,
+    visita_va_veterinario: document.getElementById(`rec-edit-vet-${idReceita}`).value,
+    capsulas_total: document.getElementById(`rec-edit-capsulas-${idReceita}`).value,
+    posologia: document.getElementById(`rec-edit-posologia-${idReceita}`).value,
+    status: document.getElementById(`rec-edit-status-${idReceita}`).value || document.getElementById('doe-form-status').value,
+    observacoes: document.getElementById(`rec-edit-observacoes-${idReceita}`).value,
+  };
+  try {
+    const r = await fetch(`/api/esporotricose/doentes/receitas/${idReceita}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify(payload)
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.erro || 'Erro ao editar receita.');
+    await abrirEspDoente(id);
+    await carregarEspDoentes();
+    toast('Receita atualizada.', 'success');
   } catch(e) { toast(e.message, 'error'); }
 }
 async function salvarEspEntrega(idReceita) {

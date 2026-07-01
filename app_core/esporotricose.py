@@ -1184,7 +1184,7 @@ def salvar_receita_doente(db_path, id_animal_doente, dados):
         if payload.get("status"):
             _salvar_status_doente(conn, payload["status"])
         if id_receita:
-            conn.execute(
+            cur = conn.execute(
                 """UPDATE esporotricose_doentes_receitas
                       SET data_notificacao=?, inicio_sintomas=?, data_receita=?,
                           visita_va_veterinario=?, capsulas_total=?, posologia=?,
@@ -1196,6 +1196,8 @@ def salvar_receita_doente(db_path, id_animal_doente, dados):
                     payload["status"], payload["observacoes"], agora, id_receita, id_animal_doente,
                 ),
             )
+            if cur.rowcount == 0:
+                raise ValidationError("Receita não encontrada.")
         else:
             cur = conn.execute(
                 """INSERT INTO esporotricose_doentes_receitas
@@ -1218,6 +1220,25 @@ def salvar_receita_doente(db_path, id_animal_doente, dados):
         return id_receita
     finally:
         conn.close()
+
+
+def atualizar_receita_doente(db_path, id_receita, dados):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        receita = conn.execute(
+            "SELECT id_animal_doente FROM esporotricose_doentes_receitas WHERE id_receita=?",
+            (id_receita,),
+        ).fetchone()
+        if not receita:
+            raise ValidationError("Receita não encontrada.")
+        payload = dict(dados or {})
+        payload["id_receita"] = id_receita
+        id_animal = receita["id_animal_doente"]
+    finally:
+        conn.close()
+    salvar_receita_doente(db_path, id_animal, payload)
+    return id_animal
 
 
 def salvar_entrega_doente(db_path, id_receita, dados):
