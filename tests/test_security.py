@@ -3768,6 +3768,68 @@ class MainApisSmokeTests(unittest.TestCase):
                 self.assertIsNotNone(item)
                 self.assertEqual(item["imoveis"], 0)
 
+    def test_registro_geografico_move_quarteirao_para_outra_localidade_e_numero(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            with app_temp.app_context():
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                try:
+                    registro_geografico_core.ensure_schema(conn)
+                    conn.execute("INSERT INTO localidades(nome, cod_localidade) VALUES (?, ?)", ("Origem RG", 9001))
+                    conn.execute("INSERT INTO localidades(nome, cod_localidade) VALUES (?, ?)", ("Destino RG", 9002))
+                    origem = conn.execute("SELECT id_localidade, nome FROM localidades WHERE nome='Origem RG'").fetchone()
+                    destino = conn.execute("SELECT id_localidade, nome FROM localidades WHERE nome='Destino RG'").fetchone()
+                    agora = "2026-07-01T09:00:00"
+                    cur = conn.execute(
+                        """INSERT INTO registro_geografico_quarteiroes
+                           (id_localidade, localidade, quarteirao, criado_em, atualizado_em)
+                           VALUES (?, ?, ?, ?, ?)""",
+                        (origem["id_localidade"], origem["nome"], "0100", agora, agora),
+                    )
+                    id_quarteirao = cur.lastrowid
+                    conn.execute(
+                        """INSERT INTO registro_geografico_imoveis
+                           (id_quarteirao, ordem, id_localidade, localidade, quarteirao,
+                            logradouro, numero, tipo, busca_normalizada, chave_origem, criado_em, atualizado_em)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (
+                            id_quarteirao, 1, origem["id_localidade"], origem["nome"], "0100",
+                            "Rua Teste", "10", "R", "origem rg 0100 rua teste 10", "teste-move-rg", agora, agora,
+                        ),
+                    )
+                    conn.commit()
+                    origem_id = origem["id_localidade"]
+                    destino_id = destino["id_localidade"]
+                finally:
+                    conn.close()
+
+                resp = client.get(f"/api/registro-geografico/quarteirao?localidade={origem_id}&quarteirao=0100")
+                self.assertEqual(resp.status_code, 200)
+                dados = resp.get_json()
+                linhas = dados["registros"]
+                resp_save = client.post(
+                    "/api/registro-geografico/quarteirao",
+                    json={
+                        "origem_id_localidade": origem_id,
+                        "origem_quarteirao": "0100",
+                        "id_localidade": destino_id,
+                        "quarteirao": "0200",
+                        "data_atualizacao": "2026-07-01",
+                        "agentes_ids": [],
+                        "linhas": linhas,
+                        "deleted_ids": [],
+                    },
+                )
+                self.assertEqual(resp_save.status_code, 200)
+                salvo = resp_save.get_json()["quarteirao"]
+                self.assertEqual(salvo["localidade"]["id_localidade"], destino_id)
+                self.assertEqual(salvo["quarteirao_raw"], "0200")
+
+                origem_vazia = client.get(f"/api/registro-geografico/quarteirao?localidade={origem_id}&quarteirao=0100")
+                self.assertEqual(origem_vazia.status_code, 200)
+                self.assertEqual(origem_vazia.get_json()["registros"], [])
+
     def test_api_esporotricose_animais_retorna_detalhes(self):
         client = _client_logado()
         resp = client.get("/api/esporotricose/animais?feridas=Sim")

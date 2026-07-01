@@ -120,6 +120,8 @@
     <div id="rg-ed-area" hidden>
       <div class="rg-edit-meta">
         <div class="f-g"><label>Data da atualização</label><input type="date" id="rg-ed-data"></div>
+        <div class="f-g"><label>Salvar na localidade</label><select id="rg-ed-dest-localidade">{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Salvar como quarteirão</label><input id="rg-ed-dest-quarteirao" type="text"></div>
         <div class="f-g"><label>Agentes da atualização</label><div class="rg-agent-picks" id="rg-ed-agentes">{% for agente in opcoes.agentes %}<label class="rg-agent-pick"><input type="checkbox" value="{{ agente.id_agente }}"> {{ agente.nome }}</label>{% endfor %}</div></div>
         <div class="rg-muted">Esses dados serão aplicados para todos os imóveis do quarteirão salvo.</div>
         <button class="btn btn-primary" type="button" id="rg-ed-salvar"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar quarteirão</button>
@@ -269,8 +271,10 @@ function rgGradePayload(){
     });
   });
   return {
-    id_localidade: rgEl('rg-ed-localidade').value,
-    quarteirao: rgEl('rg-ed-quarteirao').value,
+    origem_id_localidade: rgState.q?.localidade?.id_localidade || rgEl('rg-ed-localidade').value,
+    origem_quarteirao: rgState.q?.quarteirao_raw || rgEl('rg-ed-quarteirao').value,
+    id_localidade: rgEl('rg-ed-dest-localidade').value,
+    quarteirao: rgEl('rg-ed-dest-quarteirao').value,
     data_atualizacao: rgEl('rg-ed-data').value,
     agentes_ids: Array.from(document.querySelectorAll('#rg-ed-agentes input:checked')).map(i => i.value),
     linhas,
@@ -288,6 +292,8 @@ async function rgCarregarQuarteirao(){
   rgState.q = data;
   rgEl('rg-ed-area').hidden = false;
   rgSetText('rg-ed-info', `${data.localidade.nome} - Q. ${data.quarteirao}`);
+  rgEl('rg-ed-dest-localidade').value = data.localidade.id_localidade;
+  rgEl('rg-ed-dest-quarteirao').value = data.quarteirao;
   rgEl('rg-ed-data').value = data.data_atualizacao || '';
   const ids = new Set((data.agentes_ids || []).map(String));
   document.querySelectorAll('#rg-ed-agentes input').forEach(input => input.checked = ids.has(input.value));
@@ -324,6 +330,12 @@ async function rgSalvarQuarteirao(){
     });
     const data = await rgJson(resp, 'Erro ao salvar quarteirão.');
     rgState.q = data.quarteirao;
+    rgEl('rg-ed-localidade').value = rgState.q.localidade.id_localidade;
+    await rgCarregarSelectQuarteiroes(rgState.q.localidade.id_localidade, 'rg-ed-quarteirao');
+    rgEl('rg-ed-quarteirao').value = rgState.q.quarteirao;
+    rgEl('rg-ed-dest-localidade').value = rgState.q.localidade.id_localidade;
+    rgEl('rg-ed-dest-quarteirao').value = rgState.q.quarteirao;
+    rgSetText('rg-ed-info', `${rgState.q.localidade.nome} - Q. ${rgState.q.quarteirao}`);
     rgRenderGrade(rgState.q.registros || []);
     rgSetText('rg-ed-status', `Quarteirão salvo às ${new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}.`);
     rgCarregar().catch(() => {});

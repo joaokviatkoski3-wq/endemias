@@ -756,6 +756,8 @@ def salvar_quarteirao(db_path, payload, base_dir=None):
         q = _quarteirao(payload.get("quarteirao"))
         if not q:
             raise ValueError("Informe o quarteirao.")
+        origem_loc_id = int(payload.get("origem_id_localidade") or loc_id)
+        origem_q = _quarteirao(payload.get("origem_quarteirao") or q)
         linhas = payload.get("linhas") or []
         if not isinstance(linhas, list):
             raise ValueError("Linhas invalidas.")
@@ -766,7 +768,7 @@ def salvar_quarteirao(db_path, payload, base_dir=None):
         with conn:
             atuais = conn.execute(
                 "SELECT id_imovel, ordem FROM registro_geografico_imoveis WHERE id_localidade=? AND quarteirao=? ORDER BY COALESCE(ordem,id_imovel)",
-                (loc_id, q),
+                (origem_loc_id, origem_q),
             ).fetchall()
             atuais_ids = {r["id_imovel"] for r in atuais}
             if deleted_ids:
@@ -780,7 +782,7 @@ def salvar_quarteirao(db_path, payload, base_dir=None):
             if novos:
                 conn.execute(
                     "UPDATE registro_geografico_imoveis SET ordem=ordem+? WHERE ordem>=? AND NOT (id_localidade=? AND quarteirao=?)",
-                    (len(novos), base_ordem + len(atuais_validos), loc_id, q),
+                    (len(novos), base_ordem + len(atuais_validos), origem_loc_id, origem_q),
                 )
 
             base = {"loc": loc, "quarteirao": q, "data_atualizacao": data_atualizacao}
@@ -856,6 +858,20 @@ def salvar_quarteirao(db_path, payload, base_dir=None):
             if restantes:
                 placeholders = ",".join("?" for _ in restantes)
                 conn.execute(f"DELETE FROM registro_geografico_imoveis WHERE id_imovel IN ({placeholders})", tuple(restantes))
+            if origem_loc_id != loc_id or origem_q != q:
+                origem_row = conn.execute(
+                    """SELECT q.id_quarteirao, COUNT(i.id_imovel) AS imoveis
+                         FROM registro_geografico_quarteiroes q
+                         LEFT JOIN registro_geografico_imoveis i ON i.id_quarteirao=q.id_quarteirao
+                        WHERE q.id_localidade=? AND q.quarteirao=?
+                        GROUP BY q.id_quarteirao""",
+                    (origem_loc_id, origem_q),
+                ).fetchone()
+                if origem_row and not int(origem_row["imoveis"] or 0):
+                    conn.execute(
+                        "DELETE FROM registro_geografico_quarteiroes WHERE id_quarteirao=?",
+                        (origem_row["id_quarteirao"],),
+                    )
         return quarteirao(db_path, loc_id, q, base_dir)
     finally:
         conn.close()
