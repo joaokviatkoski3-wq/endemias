@@ -11,7 +11,13 @@
 .rg-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);}
 .rg-kpi-label{font-size:10px;color:var(--text3);font-weight:900;text-transform:uppercase;}
 .rg-kpi-value{font-size:25px;color:#155e75;font-weight:900;margin-top:4px;font-variant-numeric:tabular-nums;}
-.rg-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px;align-items:end;}
+.rg-filters{display:grid;grid-template-columns:270px 270px repeat(4,minmax(150px,1fr)) minmax(140px,.7fr);gap:10px;align-items:end;}
+.rg-filters .f-g{min-width:0;}
+.rg-filters input,.rg-filters select:not([multiple]){height:36px;}
+.rg-filters button{height:36px;width:100%;justify-content:center;}
+.rg-filters select[multiple]{height:94px;}
+.rg-filters .rg-check-list{height:94px;max-height:94px;align-content:start;}
+.rg-filter-card{margin-bottom:16px;}
 .rg-type{display:inline-flex;align-items:center;justify-content:center;min-width:32px;border-radius:999px;background:#e0f2fe;color:#075985;font-size:11px;font-weight:900;padding:2px 7px;}
 .rg-type.tb{background:#fee2e2;color:#991b1b;}
 .rg-type.pe{background:#dcfce7;color:#166534;}
@@ -42,7 +48,11 @@
 .rg-row-del{opacity:.45;text-decoration:line-through;}
 .rg-agent-picks{border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;max-height:120px;overflow:auto;background:var(--surface2);}
 .rg-agent-pick{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px 3px 0;}
-.rg-print-card{display:grid;grid-template-columns:minmax(180px,.7fr) minmax(240px,1fr) auto;gap:10px;align-items:end;}
+.rg-print-card{display:grid;grid-template-columns:minmax(260px,360px) minmax(320px,1fr);gap:14px;align-items:start;}
+.rg-print-actions{display:grid;gap:10px;align-content:start;}
+.rg-print-actions select{height:36px;}
+.rg-print-actions .btn{width:100%;height:38px;justify-content:center;}
+.rg-print-card .rg-check-list{height:190px;max-height:190px;align-content:start;}
 .rg-check-list{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);padding:8px;max-height:230px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:4px 10px;}
 .rg-check-item{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);padding:3px 0;}
 .rg-map-grid{display:grid;grid-template-columns:minmax(280px,360px) minmax(0,1fr);gap:14px;min-height:680px;}
@@ -70,8 +80,9 @@
 .rg-map-label::before{display:none;}
 .rg-map-popup{font-size:12px;line-height:1.4;}
 .rg-map-popup strong{font-size:14px;}
+@media(max-width:1400px){.rg-filters{grid-template-columns:repeat(2,minmax(220px,1fr));}.rg-print-card{grid-template-columns:1fr;}}
 @media(max-width:1050px){.rg-map-grid{grid-template-columns:1fr;}.rg-map-shell,#rg-mapa{min-height:62vh;}}
-@media(max-width:850px){.rg-edit-meta{grid-template-columns:1fr;}.rg-map-kpis{grid-template-columns:1fr;}}
+@media(max-width:850px){.rg-edit-meta{grid-template-columns:1fr;}.rg-map-kpis{grid-template-columns:1fr;}.rg-filters{grid-template-columns:1fr;}}
 </style>{% endblock %}
 
 {% block content %}
@@ -92,7 +103,7 @@
 </div>
 
 <section class="rg-panel" id="rg-panel-consulta">
-  <div class="filter-card" style="margin-bottom:16px;">
+  <div class="filter-card rg-filter-card">
     <div class="filter-body open">
       <div class="rg-filters">
         <div class="f-g"><label>Localidades</label><select id="rg-localidade" multiple size="5">{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
@@ -179,9 +190,11 @@
       <div class="chart-title"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Impressão do RG</div>
     </div>
     <div class="rg-print-card">
-      <div class="f-g"><label>Localidade</label><select id="rg-imp-localidade">{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
+      <div class="rg-print-actions">
+        <div class="f-g"><label>Localidade</label><select id="rg-imp-localidade">{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
+        <button class="btn btn-primary" type="button" id="rg-imp-btn"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Abrir impressão</button>
+      </div>
       <div class="f-g"><label>Quarteirões</label><div id="rg-imp-quarteiroes" class="rg-check-list"><span class="rg-muted">Selecione a localidade</span></div></div>
-      <button class="btn btn-primary" type="button" id="rg-imp-btn"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Abrir impressão</button>
     </div>
   </div>
 </section>
@@ -431,9 +444,23 @@ async function rgMapInit(){
   rgMapState.geojson = await geoResp.json();
   rgMapState.data = await dataResp.json();
   rgMapState.map = L.map('rg-mapa', {zoomControl:true});
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  const baseMapa = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap', maxZoom: 19
-  }).addTo(rgMapState.map);
+  });
+  const baseSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '© Esri, Earthstar Geographics', maxZoom: 19
+  });
+  const baseSateliteRuas = L.layerGroup([
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: '© Esri', maxZoom: 19
+    }),
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap', maxZoom: 19, opacity: 0.45
+    })
+  ]);
+  const bases = {'Mapa': baseMapa, 'Satélite': baseSatelite, 'Satélite + ruas': baseSateliteRuas};
+  baseMapa.addTo(rgMapState.map);
+  L.control.layers(bases, {}, {position:'topright', collapsed:false}).addTo(rgMapState.map);
   rgMapRender();
   rgMapState.initialized = true;
   rgEl('rg-map-loading').style.display = 'none';
