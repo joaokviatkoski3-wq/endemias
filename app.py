@@ -1,5 +1,5 @@
 """
-Endemias - Sistema de Gestao Integrado v3
+Endemias - Sistema de Gestao Integrado
 Setor de Endemias / Vigilancia Ambiental - Almirante Tamandare-PR
 
 Servidor unico: rode em um computador e os demais acessam via http://IP:5000
@@ -19,6 +19,7 @@ from app_core import db as db_core
 from app_core import import_history
 from app_core import uploads as uploads_core
 from app_core import utils as utils_core
+from app_core import version as version_core
 from blueprints.acoes_setor import bp as acoes_setor_bp
 from blueprints.admin import bp as admin_bp
 from blueprints.agenda import bp as agenda_bp
@@ -290,7 +291,8 @@ if __name__ == "__main__":
         ip = "127.0.0.1"
 
     print("=" * 54, flush=True)
-    print("  ENDEMIAS - Sistema de Gestao Integrado v3", flush=True)
+    print("  ENDEMIAS - Sistema de Gestao Integrado", flush=True)
+    print(f"  {version_core.APP_VERSION_LABEL}", flush=True)
     print("  Setor de Endemias - Almirante Tamandare-PR", flush=True)
     print("=" * 54, flush=True)
     print(f"\n  Banco de dados: {DB_PATH}", flush=True)

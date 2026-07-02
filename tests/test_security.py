@@ -2190,6 +2190,16 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn(version_core.APP_VERSION_LABEL.encode("utf-8"), home.data)
         self.assertIn(version_core.APP_VERSION_LABEL.encode("utf-8"), login.data)
 
+    def test_iniciar_e_app_usam_versao_centralizada_sem_v3_antigo(self):
+        iniciar = (ROOT / "iniciar.bat").read_text(encoding="utf-8")
+        app_py = (ROOT / "app.py").read_text(encoding="utf-8")
+
+        self.assertIn("from app_core.version import APP_VERSION_LABEL", iniciar)
+        self.assertIn("echo  %APP_VERSION_LABEL%", iniciar)
+        self.assertIn("version_core.APP_VERSION_LABEL", app_py)
+        self.assertNotIn("Sistema de Gestao Integrado v3", iniciar)
+        self.assertNotIn("Sistema de Gestao Integrado v3", app_py)
+
     def test_detalhe_notificacao_renderiza_icones_sem_escape(self):
         client = _client_logado()
         conn = sqlite3.connect(endemias_app.DB_PATH)
@@ -3674,6 +3684,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("function rgMapRenderSelectionDetail", html)
         self.assertIn("Quarteirões selecionados", html)
         self.assertIn("rg-map-selected-list", html)
+        self.assertIn("max-height:230px;overflow:auto", html)
         self.assertIn("World_Imagery/MapServer", html)
         self.assertIn("Satélite + ruas", html)
         self.assertIn("/static/ubs_setor_endemias.geojson", html)

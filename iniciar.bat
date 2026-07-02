@@ -12,9 +12,14 @@ rem ============================================================
 cd /d "%~dp0"
 cls
 
+set "APP_VERSION_LABEL=Endemias"
+for /f "usebackq delims=" %%V in (`python -c "from app_core.version import APP_VERSION_LABEL; print(APP_VERSION_LABEL)" 2^>nul`) do set "APP_VERSION_LABEL=%%V"
+title %APP_VERSION_LABEL%
+
 echo.
 echo  ===================================================
 echo  ENDEMIAS - Sistema de Gestao Integrado
+echo  %APP_VERSION_LABEL%
 echo  Setor de Endemias - Almirante Tamandare-PR
 echo  ===================================================
 echo.
