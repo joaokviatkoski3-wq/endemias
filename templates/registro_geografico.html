@@ -62,7 +62,7 @@
 .rg-map-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
 .rg-map-localidades{display:grid;gap:5px;max-height:210px;overflow:auto;}
 .rg-map-loc{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);padding:3px 0;}
-.rg-map-swatch{width:12px;height:12px;border-radius:3px;border:1px solid rgba(15,23,42,.2);flex:none;}
+.rg-map-color{width:24px;height:22px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:1px;background:transparent;cursor:pointer;flex:none;}
 .rg-map-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
 .rg-map-kpi{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);padding:9px;min-width:0;}
 .rg-map-kpi strong{display:block;font-size:20px;color:#155e75;font-variant-numeric:tabular-nums;line-height:1.1;}
@@ -207,6 +207,7 @@
         <div class="rg-map-actions" style="margin-bottom:10px;">
           <button class="btn btn-outline btn-sm" type="button" id="rg-map-all">Todas</button>
           <button class="btn btn-outline btn-sm" type="button" id="rg-map-none">Limpar</button>
+          <button class="btn btn-outline btn-sm" type="button" id="rg-map-reset-colors">Cores padrão</button>
           <label class="rg-check-item" style="margin-left:auto;"><input type="checkbox" id="rg-map-labels" checked> Rótulos</label>
         </div>
         <div class="rg-map-localidades" id="rg-map-localidades"></div>
@@ -259,9 +260,11 @@ const rgMapState = {
   selectMode: false,
   selected: new Set(),
   visibleLocs: new Set(),
-  layers: new Map()
+  layers: new Map(),
+  colors: {}
 };
 const rgMapPalette = ['#2563eb','#16a34a','#dc2626','#9333ea','#f97316','#0891b2','#be123c','#65a30d','#7c3aed','#0f766e','#ca8a04','#475569','#db2777','#0284c7','#4f46e5','#64748b'];
+const rgMapColorsStorageKey = 'rg_mapa_localidade_cores';
 const nf = new Intl.NumberFormat('pt-BR');
 function rgCsrf(){ return document.querySelector('meta[name="csrf-token"]')?.content || ''; }
 function rgFmt(n){ return nf.format(Number(n || 0)); }
@@ -273,8 +276,37 @@ function rgMapLocName(id){
   return (rgLocalidades.find(loc => String(loc.id_localidade) === String(id)) || {}).nome || `Localidade ${id}`;
 }
 function rgMapLocColor(id){
+  const custom = rgMapState.colors[String(id)];
+  if(custom) return custom;
   const idx = Math.max(0, rgLocalidades.findIndex(loc => String(loc.id_localidade) === String(id)));
   return rgMapPalette[idx % rgMapPalette.length];
+}
+function rgMapDefaultColor(id){
+  const idx = Math.max(0, rgLocalidades.findIndex(loc => String(loc.id_localidade) === String(id)));
+  return rgMapPalette[idx % rgMapPalette.length];
+}
+function rgMapLoadColors(){
+  try {
+    rgMapState.colors = JSON.parse(localStorage.getItem(rgMapColorsStorageKey) || '{}') || {};
+  } catch {
+    rgMapState.colors = {};
+  }
+}
+function rgMapSaveColors(){
+  localStorage.setItem(rgMapColorsStorageKey, JSON.stringify(rgMapState.colors || {}));
+}
+function rgMapSetColor(id, color){
+  rgMapState.colors[String(id)] = color || rgMapDefaultColor(id);
+  rgMapSaveColors();
+  rgMapRender();
+}
+function rgMapResetColors(){
+  rgMapState.colors = {};
+  rgMapSaveColors();
+  document.querySelectorAll('#rg-map-localidades input[type="color"]').forEach(input => {
+    input.value = rgMapDefaultColor(input.dataset.loc);
+  });
+  rgMapRender();
 }
 function rgMapQuart(value){
   const text = String(value ?? '').trim();
@@ -344,17 +376,19 @@ function rgMapStyle(feature){
 }
 function rgMapRenderLocalidades(){
   const box = rgEl('rg-map-localidades');
+  rgMapLoadColors();
   rgMapState.visibleLocs = new Set(rgLocalidades.map(loc => String(loc.id_localidade)));
   box.innerHTML = rgLocalidades.map(loc => `
     <label class="rg-map-loc">
       <input type="checkbox" value="${rgEscape(loc.id_localidade)}" checked>
-      <span class="rg-map-swatch" style="background:${rgMapLocColor(loc.id_localidade)}"></span>
+      <input class="rg-map-color" type="color" value="${rgMapLocColor(loc.id_localidade)}" data-loc="${rgEscape(loc.id_localidade)}">
       <span>${rgEscape(loc.nome)}</span>
     </label>`).join('');
-  box.querySelectorAll('input').forEach(input => input.addEventListener('change', rgMapAplicarFiltroLocalidades));
+  box.querySelectorAll('input[type="checkbox"]').forEach(input => input.addEventListener('change', rgMapAplicarFiltroLocalidades));
+  box.querySelectorAll('input[type="color"]').forEach(input => input.addEventListener('input', ev => rgMapSetColor(ev.target.dataset.loc, ev.target.value)));
 }
 function rgMapAplicarFiltroLocalidades(){
-  rgMapState.visibleLocs = new Set(Array.from(document.querySelectorAll('#rg-map-localidades input:checked')).map(input => input.value));
+  rgMapState.visibleLocs = new Set(Array.from(document.querySelectorAll('#rg-map-localidades input[type="checkbox"]:checked')).map(input => input.value));
   for(const key of Array.from(rgMapState.selected)){
     const loc = key.split(':', 1)[0];
     if(!rgMapState.visibleLocs.has(loc)) rgMapState.selected.delete(key);
@@ -775,13 +809,14 @@ document.querySelectorAll('.rg-tab').forEach(btn => btn.addEventListener('click'
   }
 }));
 rgEl('rg-map-all').addEventListener('click', () => {
-  document.querySelectorAll('#rg-map-localidades input').forEach(input => input.checked = true);
+  document.querySelectorAll('#rg-map-localidades input[type="checkbox"]').forEach(input => input.checked = true);
   rgMapAplicarFiltroLocalidades();
 });
 rgEl('rg-map-none').addEventListener('click', () => {
-  document.querySelectorAll('#rg-map-localidades input').forEach(input => input.checked = false);
+  document.querySelectorAll('#rg-map-localidades input[type="checkbox"]').forEach(input => input.checked = false);
   rgMapAplicarFiltroLocalidades();
 });
+rgEl('rg-map-reset-colors').addEventListener('click', rgMapResetColors);
 rgEl('rg-map-labels').addEventListener('change', rgMapRender);
 rgEl('rg-map-select-mode').addEventListener('click', () => {
   rgMapState.selectMode = !rgMapState.selectMode;
