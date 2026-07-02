@@ -2,7 +2,7 @@
 {% block title %}Registro Geográfico{% endblock %}
 {% block page_title %}Registro Geográfico{% endblock %}
 
-{% block extra_css %}<style>
+{% block extra_css %}<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.min.css"><style>
 .rg-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
 .rg-tab{border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:var(--radius-sm);padding:8px 12px;font-weight:900;cursor:pointer;}
 .rg-tab.active{background:#155e75;color:white;border-color:#155e75;}
@@ -45,7 +45,33 @@
 .rg-print-card{display:grid;grid-template-columns:minmax(180px,.7fr) minmax(240px,1fr) auto;gap:10px;align-items:end;}
 .rg-check-list{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);padding:8px;max-height:230px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:4px 10px;}
 .rg-check-item{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);padding:3px 0;}
-@media(max-width:850px){.rg-edit-meta{grid-template-columns:1fr;}}
+.rg-map-grid{display:grid;grid-template-columns:minmax(280px,360px) minmax(0,1fr);gap:14px;min-height:680px;}
+.rg-map-side{display:flex;flex-direction:column;gap:12px;min-width:0;}
+.rg-map-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;box-shadow:var(--shadow);}
+.rg-map-card-title{font-size:12px;font-weight:900;text-transform:uppercase;color:var(--text3);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.rg-map-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.rg-map-localidades{display:grid;gap:5px;max-height:210px;overflow:auto;}
+.rg-map-loc{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);padding:3px 0;}
+.rg-map-swatch{width:12px;height:12px;border-radius:3px;border:1px solid rgba(15,23,42,.2);flex:none;}
+.rg-map-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.rg-map-kpi{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);padding:9px;min-width:0;}
+.rg-map-kpi strong{display:block;font-size:20px;color:#155e75;font-variant-numeric:tabular-nums;line-height:1.1;}
+.rg-map-kpi span{display:block;font-size:10px;text-transform:uppercase;color:var(--text3);font-weight:900;margin-top:4px;}
+.rg-map-detail{font-size:12px;color:var(--text2);line-height:1.45;}
+.rg-map-detail h3{font-size:16px;color:var(--text);margin:0 0 8px;}
+.rg-map-types{display:grid;gap:6px;margin-top:8px;}
+.rg-map-type-row{display:grid;grid-template-columns:48px 1fr auto;gap:8px;align-items:center;font-size:12px;}
+.rg-map-type-row b{font-size:11px;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:999px;text-align:center;padding:2px 6px;}
+.rg-map-shell{position:relative;min-height:680px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:#e5e7eb;box-shadow:var(--shadow);}
+#rg-mapa{position:absolute;inset:0;min-height:680px;}
+.rg-map-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.86);z-index:500;font-weight:900;color:#155e75;}
+[data-theme="dark"] .rg-map-loading{background:rgba(15,23,42,.86);}
+.rg-map-label{background:rgba(255,255,255,.82);border:1px solid rgba(15,23,42,.18);border-radius:4px;color:#0f172a;font-size:10px;font-weight:900;padding:1px 4px;box-shadow:none;}
+.rg-map-label::before{display:none;}
+.rg-map-popup{font-size:12px;line-height:1.4;}
+.rg-map-popup strong{font-size:14px;}
+@media(max-width:1050px){.rg-map-grid{grid-template-columns:1fr;}.rg-map-shell,#rg-mapa{min-height:62vh;}}
+@media(max-width:850px){.rg-edit-meta{grid-template-columns:1fr;}.rg-map-kpis{grid-template-columns:1fr;}}
 </style>{% endblock %}
 
 {% block content %}
@@ -62,6 +88,7 @@
   <button class="rg-tab active" type="button" data-rg-tab="consulta">Consulta</button>
   <button class="rg-tab" type="button" data-rg-tab="edicao">Edição</button>
   <button class="rg-tab" type="button" data-rg-tab="impressao">Impressão</button>
+  <button class="rg-tab" type="button" data-rg-tab="mapa">Mapa / Análise</button>
 </div>
 
 <section class="rg-panel" id="rg-panel-consulta">
@@ -159,9 +186,69 @@
   </div>
 </section>
 
+<section class="rg-panel" id="rg-panel-mapa" hidden>
+  <div class="rg-map-grid">
+    <div class="rg-map-side">
+      <div class="rg-map-card">
+        <div class="rg-map-card-title"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Localidades</div>
+        <div class="rg-map-actions" style="margin-bottom:10px;">
+          <button class="btn btn-outline btn-sm" type="button" id="rg-map-all">Todas</button>
+          <button class="btn btn-outline btn-sm" type="button" id="rg-map-none">Limpar</button>
+          <label class="rg-check-item" style="margin-left:auto;"><input type="checkbox" id="rg-map-labels" checked> Rótulos</label>
+        </div>
+        <div class="rg-map-localidades" id="rg-map-localidades"></div>
+      </div>
+
+      <div class="rg-map-card">
+        <div class="rg-map-card-title"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"> Seleção</div>
+        <div class="rg-map-actions">
+          <button class="btn btn-primary btn-sm" type="button" id="rg-map-select-mode">Selecionar áreas</button>
+          <button class="btn btn-outline btn-sm" type="button" id="rg-map-clear-selection">Limpar seleção</button>
+        </div>
+        <div class="rg-muted" id="rg-map-status" style="margin-top:8px;">Clique em um quarteirão para ver detalhes.</div>
+      </div>
+
+      <div class="rg-map-card">
+        <div class="rg-map-card-title"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Totais da seleção</div>
+        <div class="rg-map-kpis">
+          <div class="rg-map-kpi"><strong id="rg-map-sel-quarteiroes">0</strong><span>Quarteirões</span></div>
+          <div class="rg-map-kpi"><strong id="rg-map-sel-imoveis">0</strong><span>Imóveis RG</span></div>
+          <div class="rg-map-kpi"><strong id="rg-map-sel-reais">0</strong><span>Imóveis reais</span></div>
+          <div class="rg-map-kpi"><strong id="rg-map-sel-pop">0</strong><span>População</span></div>
+        </div>
+        <div class="rg-map-detail" id="rg-map-sel-tipos"></div>
+      </div>
+
+      <div class="rg-map-card">
+        <div class="rg-map-card-title"><img src="/static/icons/registro_geografico.svg" alt="" class="icon-svg"> Quarteirão</div>
+        <div class="rg-map-detail" id="rg-map-detail">Nenhum quarteirão selecionado.</div>
+      </div>
+    </div>
+
+    <div class="rg-map-shell">
+      <div class="rg-map-loading" id="rg-map-loading">Carregando mapa...</div>
+      <div id="rg-mapa"></div>
+    </div>
+  </div>
+</section>
+
+<script src="/static/vendor/leaflet/leaflet.min.js"></script>
 <script>
 const rgTipos = {{ opcoes.tipos|tojson }};
+const rgLocalidades = {{ opcoes.localidades|tojson }};
 const rgState = { registros: [], q: null, limiteTodos: false };
+const rgMapState = {
+  map: null,
+  geojson: null,
+  layer: null,
+  data: null,
+  initialized: false,
+  selectMode: false,
+  selected: new Set(),
+  visibleLocs: new Set(),
+  layers: new Map()
+};
+const rgMapPalette = ['#2563eb','#16a34a','#dc2626','#9333ea','#f97316','#0891b2','#be123c','#65a30d','#7c3aed','#0f766e','#ca8a04','#475569','#db2777','#0284c7','#4f46e5','#64748b'];
 const nf = new Intl.NumberFormat('pt-BR');
 function rgCsrf(){ return document.querySelector('meta[name="csrf-token"]')?.content || ''; }
 function rgFmt(n){ return nf.format(Number(n || 0)); }
@@ -169,6 +256,188 @@ function rgEl(id){ return document.getElementById(id); }
 function rgSetText(id, text){ const el = rgEl(id); if(el) el.textContent = text; }
 function rgTipoClass(tipo){ return tipo === 'TB' ? 'tb' : (tipo === 'PE' ? 'pe' : (tipo === 'A' ? 'a' : '')); }
 function rgEscape(v){ return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch])); }
+function rgMapLocName(id){
+  return (rgLocalidades.find(loc => String(loc.id_localidade) === String(id)) || {}).nome || `Localidade ${id}`;
+}
+function rgMapLocColor(id){
+  const idx = Math.max(0, rgLocalidades.findIndex(loc => String(loc.id_localidade) === String(id)));
+  return rgMapPalette[idx % rgMapPalette.length];
+}
+function rgMapQuart(value){
+  const text = String(value ?? '').trim();
+  if(/^\d+(\.0)?$/.test(text)) return String(parseInt(text, 10));
+  return text;
+}
+function rgMapKey(props){
+  return `${props.Localidade}:${rgMapQuart(props.id_quart)}`;
+}
+function rgMapData(props){
+  return rgMapState.data?.quarteiroes?.[rgMapKey(props)] || null;
+}
+function rgMapTypeRows(tipos){
+  return Object.values(tipos || {}).sort((a,b) => (b.imoveis || 0) - (a.imoveis || 0) || String(a.codigo).localeCompare(String(b.codigo)));
+}
+function rgMapTypesHtml(tipos){
+  const rows = rgMapTypeRows(tipos);
+  if(!rows.length) return '<div class="rg-muted" style="margin-top:8px;">Sem tipos cadastrados.</div>';
+  return `<div class="rg-map-types">${rows.map(t => `
+    <div class="rg-map-type-row">
+      <b>${rgEscape(t.codigo || '-')}</b>
+      <span>${rgEscape(t.label || 'Sem tipo')}</span>
+      <strong>${rgFmt(t.imoveis)} / ${rgFmt(t.imoveis_reais)}</strong>
+    </div>`).join('')}</div>`;
+}
+function rgMapPopupHtml(props){
+  const item = rgMapData(props);
+  const loc = rgMapLocName(props.Localidade);
+  const q = rgMapQuart(props.id_quart);
+  if(!item){
+    return `<div class="rg-map-popup"><strong>${rgEscape(loc)} - Q. ${rgEscape(q)}</strong><br>Sem cadastro correspondente no RG.</div>`;
+  }
+  return `<div class="rg-map-popup"><strong>${rgEscape(item.localidade)} - Q. ${rgEscape(item.quarteirao)}</strong><br>
+    Imóveis RG: ${rgFmt(item.imoveis)}<br>
+    Imóveis reais: ${rgFmt(item.imoveis_reais)}<br>
+    População: ${rgFmt(item.populacao_aproximada)}</div>`;
+}
+function rgMapRenderDetail(props){
+  const item = rgMapData(props);
+  const loc = rgMapLocName(props.Localidade);
+  const q = rgMapQuart(props.id_quart);
+  if(!item){
+    rgEl('rg-map-detail').innerHTML = `<h3>${rgEscape(loc)} - Q. ${rgEscape(q)}</h3><div class="rg-muted">Este quarteirão existe no mapa, mas não tem cadastro correspondente no Registro Geográfico.</div>`;
+    return;
+  }
+  rgEl('rg-map-detail').innerHTML = `<h3>${rgEscape(item.localidade)} - Q. ${rgEscape(item.quarteirao)}</h3>
+    <div>Imóveis RG: <strong>${rgFmt(item.imoveis)}</strong></div>
+    <div>Imóveis reais: <strong>${rgFmt(item.imoveis_reais)}</strong></div>
+    <div>Residências reais: <strong>${rgFmt(item.residencias_reais)}</strong></div>
+    <div>População aproximada: <strong>${rgFmt(item.populacao_aproximada)}</strong></div>
+    <div>Linhas atualizadas: <strong>${rgFmt(item.atualizados)}</strong></div>
+    ${rgMapTypesHtml(item.tipos)}`;
+}
+function rgMapStyle(feature){
+  const props = feature.properties || {};
+  const key = rgMapKey(props);
+  const selected = rgMapState.selected.has(key);
+  const hasData = !!rgMapData(props);
+  const color = rgMapLocColor(props.Localidade);
+  return {
+    fillColor: color,
+    fillOpacity: hasData ? 0.52 : 0.18,
+    color: selected ? '#0f172a' : (hasData ? color : '#ef4444'),
+    weight: selected ? 3 : 1.1,
+    opacity: selected ? 1 : 0.8
+  };
+}
+function rgMapRenderLocalidades(){
+  const box = rgEl('rg-map-localidades');
+  rgMapState.visibleLocs = new Set(rgLocalidades.map(loc => String(loc.id_localidade)));
+  box.innerHTML = rgLocalidades.map(loc => `
+    <label class="rg-map-loc">
+      <input type="checkbox" value="${rgEscape(loc.id_localidade)}" checked>
+      <span class="rg-map-swatch" style="background:${rgMapLocColor(loc.id_localidade)}"></span>
+      <span>${rgEscape(loc.nome)}</span>
+    </label>`).join('');
+  box.querySelectorAll('input').forEach(input => input.addEventListener('change', rgMapAplicarFiltroLocalidades));
+}
+function rgMapAplicarFiltroLocalidades(){
+  rgMapState.visibleLocs = new Set(Array.from(document.querySelectorAll('#rg-map-localidades input:checked')).map(input => input.value));
+  for(const key of Array.from(rgMapState.selected)){
+    const loc = key.split(':', 1)[0];
+    if(!rgMapState.visibleLocs.has(loc)) rgMapState.selected.delete(key);
+  }
+  rgMapRender();
+}
+function rgMapToggleSelection(feature, layer){
+  const key = rgMapKey(feature.properties || {});
+  if(rgMapState.selected.has(key)) rgMapState.selected.delete(key);
+  else rgMapState.selected.add(key);
+  layer.setStyle(rgMapStyle(feature));
+  rgMapRenderSelection();
+}
+function rgMapAggregateSelection(){
+  const agg = {quarteiroes: rgMapState.selected.size, imoveis:0, imoveis_reais:0, populacao_aproximada:0, tipos:{}};
+  for(const key of rgMapState.selected){
+    const item = rgMapState.data?.quarteiroes?.[key];
+    if(!item) continue;
+    agg.imoveis += item.imoveis || 0;
+    agg.imoveis_reais += item.imoveis_reais || 0;
+    agg.populacao_aproximada += item.populacao_aproximada || 0;
+    for(const tipo of Object.values(item.tipos || {})){
+      const codigo = tipo.codigo || 'sem_tipo';
+      if(!agg.tipos[codigo]) agg.tipos[codigo] = {codigo: tipo.codigo, label: tipo.label, imoveis:0, imoveis_reais:0};
+      agg.tipos[codigo].imoveis += tipo.imoveis || 0;
+      agg.tipos[codigo].imoveis_reais += tipo.imoveis_reais || 0;
+    }
+  }
+  return agg;
+}
+function rgMapRenderSelection(){
+  const agg = rgMapAggregateSelection();
+  rgEl('rg-map-sel-quarteiroes').textContent = rgFmt(agg.quarteiroes);
+  rgEl('rg-map-sel-imoveis').textContent = rgFmt(agg.imoveis);
+  rgEl('rg-map-sel-reais').textContent = rgFmt(agg.imoveis_reais);
+  rgEl('rg-map-sel-pop').textContent = rgFmt(agg.populacao_aproximada);
+  rgEl('rg-map-sel-tipos').innerHTML = agg.quarteiroes ? rgMapTypesHtml(agg.tipos) : '<div class="rg-muted" style="margin-top:8px;">Nenhum quarteirão selecionado.</div>';
+  rgSetText('rg-map-status', rgMapState.selectMode ? `${rgFmt(agg.quarteiroes)} quarteirão(ões) selecionado(s).` : 'Clique em um quarteirão para ver detalhes.');
+}
+function rgMapRender(){
+  if(!rgMapState.map || !rgMapState.geojson) return;
+  if(rgMapState.layer) rgMapState.map.removeLayer(rgMapState.layer);
+  rgMapState.layers.clear();
+  const labels = rgEl('rg-map-labels')?.checked;
+  const filtered = {
+    type: 'FeatureCollection',
+    features: (rgMapState.geojson.features || []).filter(feature => rgMapState.visibleLocs.has(String(feature.properties?.Localidade)))
+  };
+  rgMapState.layer = L.geoJSON(filtered, {
+    style: rgMapStyle,
+    onEachFeature: (feature, layer) => {
+      const props = feature.properties || {};
+      const key = rgMapKey(props);
+      rgMapState.layers.set(key, layer);
+      if(labels) layer.bindTooltip(rgMapQuart(props.id_quart), {permanent:true, direction:'center', className:'rg-map-label'});
+      layer.bindPopup(() => rgMapPopupHtml(props));
+      layer.on({
+        mouseover: e => e.target.setStyle({weight: Math.max(3, rgMapStyle(feature).weight), fillOpacity: 0.72}),
+        mouseout: e => e.target.setStyle(rgMapStyle(feature)),
+        click: e => {
+          if(rgMapState.selectMode){
+            rgMapToggleSelection(feature, e.target);
+            e.target.closePopup();
+          }else{
+            rgMapRenderDetail(props);
+            e.target.openPopup();
+          }
+        }
+      });
+    }
+  }).addTo(rgMapState.map);
+  if(rgMapState.layer.getBounds().isValid()) rgMapState.map.fitBounds(rgMapState.layer.getBounds(), {padding:[12,12]});
+  rgMapRenderSelection();
+}
+async function rgMapInit(){
+  if(rgMapState.initialized){
+    setTimeout(() => rgMapState.map?.invalidateSize(), 80);
+    return;
+  }
+  rgMapRenderLocalidades();
+  const [geoResp, dataResp] = await Promise.all([
+    fetch('/static/quarteiroes.geojson'),
+    fetch('/api/registro-geografico/mapa-resumo')
+  ]);
+  if(!geoResp.ok) throw new Error('Erro ao carregar GeoJSON.');
+  if(!dataResp.ok) throw new Error('Erro ao carregar resumo do RG.');
+  rgMapState.geojson = await geoResp.json();
+  rgMapState.data = await dataResp.json();
+  rgMapState.map = L.map('rg-mapa', {zoomControl:true});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap', maxZoom: 19
+  }).addTo(rgMapState.map);
+  rgMapRender();
+  rgMapState.initialized = true;
+  rgEl('rg-map-loading').style.display = 'none';
+}
 async function rgJson(resp, fallback){
   const text = await resp.text();
   let data = {};
@@ -471,7 +740,34 @@ function rgAbrirImpressao(){
 document.querySelectorAll('.rg-tab').forEach(btn => btn.addEventListener('click', () => {
   document.querySelectorAll('.rg-tab').forEach(b => b.classList.toggle('active', b === btn));
   document.querySelectorAll('.rg-panel').forEach(p => p.hidden = p.id !== `rg-panel-${btn.dataset.rgTab}`);
+  if(btn.dataset.rgTab === 'mapa'){
+    rgMapInit().catch(err => {
+      rgEl('rg-map-loading').textContent = err.message;
+      rgSetText('rg-map-status', err.message);
+    });
+  }
 }));
+rgEl('rg-map-all').addEventListener('click', () => {
+  document.querySelectorAll('#rg-map-localidades input').forEach(input => input.checked = true);
+  rgMapAplicarFiltroLocalidades();
+});
+rgEl('rg-map-none').addEventListener('click', () => {
+  document.querySelectorAll('#rg-map-localidades input').forEach(input => input.checked = false);
+  rgMapAplicarFiltroLocalidades();
+});
+rgEl('rg-map-labels').addEventListener('change', rgMapRender);
+rgEl('rg-map-select-mode').addEventListener('click', () => {
+  rgMapState.selectMode = !rgMapState.selectMode;
+  rgEl('rg-map-select-mode').classList.toggle('btn-primary', rgMapState.selectMode);
+  rgEl('rg-map-select-mode').classList.toggle('btn-outline', !rgMapState.selectMode);
+  rgSetText('rg-map-select-mode', rgMapState.selectMode ? 'Selecionando áreas' : 'Selecionar áreas');
+  rgMapRenderSelection();
+});
+rgEl('rg-map-clear-selection').addEventListener('click', () => {
+  rgMapState.selected.clear();
+  rgMapState.layers.forEach((layer, key) => layer.setStyle(rgMapStyle(layer.feature)));
+  rgMapRenderSelection();
+});
 rgEl('rg-atualizar').addEventListener('click', () => {
   rgState.limiteTodos = false;
   rgCarregar().catch(err => alert(err.message));

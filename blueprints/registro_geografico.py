@@ -133,6 +133,15 @@ def api_salvar_quarteirao():
     return jsonify({"ok": True, "quarteirao": dados})
 
 
+@bp.route("/api/registro-geografico/mapa-resumo")
+@login_required
+def api_mapa_resumo():
+    try:
+        return jsonify(rg_core.resumo_mapa(_db_path(), _base_dir()))
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+
+
 @bp.route("/registro-geografico/imprimir")
 @login_required
 def imprimir_quarteirao():

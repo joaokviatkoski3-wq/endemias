@@ -498,6 +498,90 @@ def totais(conn, filtros=None):
     return data
 
 
+def resumo_mapa(db_path, base_dir=None):
+    ensure_schema(db_path, base_dir)
+    conn = db_core.connect(db_path)
+    try:
+        quarteiroes = {}
+        rows = conn.execute(
+            """
+            SELECT q.id_localidade,
+                   q.localidade,
+                   q.quarteirao,
+                   COUNT(i.id_imovel) AS imoveis,
+                   SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.condominio,0)>0 THEN i.condominio
+                            WHEN i.id_imovel IS NOT NULL THEN 1 ELSE 0 END) AS imoveis_reais,
+                   SUM(CASE WHEN i.tipo='R' THEN CASE WHEN COALESCE(i.condominio,0)>0 THEN i.condominio ELSE 1 END ELSE 0 END) AS residencias_reais,
+                   SUM(CASE WHEN i.data_atualizacao IS NOT NULL THEN 1 ELSE 0 END) AS atualizados
+              FROM registro_geografico_quarteiroes q
+              LEFT JOIN registro_geografico_imoveis i ON i.id_quarteirao=q.id_quarteirao
+             GROUP BY q.id_quarteirao, q.id_localidade, q.localidade, q.quarteirao
+             ORDER BY q.id_localidade, CAST(q.quarteirao AS INTEGER), q.quarteirao
+            """
+        ).fetchall()
+        for row in rows:
+            residencias_reais = row["residencias_reais"] or 0
+            display = _quarteirao_display(row["quarteirao"])
+            chave = f"{row['id_localidade']}:{display}"
+            quarteiroes[chave] = {
+                "chave": chave,
+                "id_localidade": row["id_localidade"],
+                "localidade": row["localidade"],
+                "quarteirao": display,
+                "quarteirao_raw": row["quarteirao"],
+                "imoveis": row["imoveis"] or 0,
+                "imoveis_reais": row["imoveis_reais"] or 0,
+                "residencias_reais": residencias_reais,
+                "populacao_aproximada": round(residencias_reais * MEDIA_PESSOAS_POR_RESIDENCIA),
+                "atualizados": row["atualizados"] or 0,
+                "tipos": {},
+            }
+
+        tipo_rows = conn.execute(
+            """
+            SELECT q.id_localidade,
+                   q.quarteirao,
+                   COALESCE(i.tipo, '') AS tipo,
+                   COUNT(i.id_imovel) AS imoveis,
+                   SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.condominio,0)>0 THEN i.condominio
+                            WHEN i.id_imovel IS NOT NULL THEN 1 ELSE 0 END) AS imoveis_reais
+              FROM registro_geografico_quarteiroes q
+              LEFT JOIN registro_geografico_imoveis i ON i.id_quarteirao=q.id_quarteirao
+             GROUP BY q.id_quarteirao, q.id_localidade, q.quarteirao, COALESCE(i.tipo, '')
+            """
+        ).fetchall()
+        for row in tipo_rows:
+            if not (row["imoveis"] or 0):
+                continue
+            tipo = row["tipo"] or ""
+            chave = f"{row['id_localidade']}:{_quarteirao_display(row['quarteirao'])}"
+            if chave not in quarteiroes:
+                continue
+            quarteiroes[chave]["tipos"][tipo or "sem_tipo"] = {
+                "codigo": tipo,
+                "label": TIPOS.get(tipo, "Sem tipo" if not tipo else tipo),
+                "imoveis": row["imoveis"] or 0,
+                "imoveis_reais": row["imoveis_reais"] or 0,
+            }
+
+        total = {
+            "quarteiroes": len(quarteiroes),
+            "imoveis": sum(item["imoveis"] for item in quarteiroes.values()),
+            "imoveis_reais": sum(item["imoveis_reais"] for item in quarteiroes.values()),
+            "residencias_reais": sum(item["residencias_reais"] for item in quarteiroes.values()),
+            "populacao_aproximada": sum(item["populacao_aproximada"] for item in quarteiroes.values()),
+        }
+        return {
+            "quarteiroes": quarteiroes,
+            "total": total,
+            "tipos": [{"codigo": codigo, "nome": nome} for codigo, nome in TIPOS.items()],
+            "media_pessoas_por_residencia": MEDIA_PESSOAS_POR_RESIDENCIA,
+            "fonte_populacao": FONTE_POPULACAO,
+        }
+    finally:
+        conn.close()
+
+
 def obter(db_path, id_imovel, base_dir=None):
     ensure_schema(db_path, base_dir)
     conn = db_core.connect(db_path)
