@@ -64,7 +64,8 @@ def resolve_paths(env=None, base_dir=BASE_DIR):
         "UPLOAD_TEMP": os.path.abspath(env.get("ENDEMIAS_UPLOAD_TEMP", os.path.join(instance_dir, "uploads_temp"))),
         "LOG_PATH": os.path.abspath(env.get("ENDEMIAS_LOG_PATH", os.path.join(instance_dir, "endemias.log"))),
         "SECRET_KEY_PATH": os.path.abspath(env.get("ENDEMIAS_SECRET_KEY_PATH", os.path.join(instance_dir, "secret.key"))),
-        "BACKUP_COMPLETO_DIR": os.path.abspath(env.get("ENDEMIAS_BACKUP_COMPLETO_DIR", r"D:\BackupsEndemias")),
+        "BACKUP_DIR": os.path.abspath(env.get("ENDEMIAS_BACKUP_DIR", r"D:\BackupsEndemias\backups_banco")),
+        "BACKUP_COMPLETO_DIR": os.path.abspath(env.get("ENDEMIAS_BACKUP_COMPLETO_DIR", r"D:\BackupsEndemias\backups_completos")),
     }
 
 
@@ -75,6 +76,7 @@ CONFIG_PATH = PATHS["CONFIG_PATH"]
 UPLOAD_TEMP = PATHS["UPLOAD_TEMP"]
 LOG_PATH = PATHS["LOG_PATH"]
 SECRET_KEY_PATH = PATHS["SECRET_KEY_PATH"]
+BACKUP_DIR = PATHS["BACKUP_DIR"]
 BACKUP_COMPLETO_DIR = PATHS["BACKUP_COMPLETO_DIR"]
 ANEXOS_DIR = PATHS["ANEXOS_DIR"]
 KOBO_CONFIG_PATH = PATHS["KOBO_CONFIG_PATH"]
@@ -242,6 +244,7 @@ def create_app(config_overrides=None):
         INSTANCE_DIR=INSTANCE_DIR,
         LOG_PATH=LOG_PATH,
         SECRET_KEY_PATH=SECRET_KEY_PATH,
+        BACKUP_DIR=BACKUP_DIR,
         BACKUP_COMPLETO_DIR=BACKUP_COMPLETO_DIR,
         PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
         SESSION_COOKIE_HTTPONLY=True,

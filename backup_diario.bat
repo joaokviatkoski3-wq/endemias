@@ -12,17 +12,24 @@ echo  Backup e Limpeza — Sistema Endemias
 echo ==========================================
 echo.
 
-REM Ajuste o caminho do Python se necessário
-set PYTHON="C:\Users\SMS - ATT\AppData\Local\Programs\Python\Python38\python.exe"
-
-REM Verificar se Python existe
-if not exist %PYTHON% (
-    echo ERRO: Python nao encontrado em %PYTHON%
-    echo Ajuste o caminho neste arquivo .bat
-    pause
-    exit /b 1
+where py >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    set PYTHON=py -3
+    goto python_ok
 )
 
+where python >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    set PYTHON=python
+    goto python_ok
+)
+
+echo ERRO: Python nao encontrado no PATH.
+echo Instale o Python ou ajuste este arquivo .bat com o caminho correto.
+pause
+exit /b 1
+
+:python_ok
 cd /d "%~dp0"
 
 echo [1/3] Criando backup do banco...

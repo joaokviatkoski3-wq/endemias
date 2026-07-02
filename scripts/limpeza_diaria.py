@@ -50,14 +50,14 @@ def limpar_logs(log_path, max_size_mb=50):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Limpeza diária de arquivos temporários do Endemias.")
     parser.add_argument("--upload-dir", default=endemias_app.UPLOAD_TEMP, help="Pasta de uploads temporários.")
-    parser.add_argument("--backup-dir", default=None, help="Pasta de backups (padrão: backups/ ao lado do banco).")
+    parser.add_argument("--backup-dir", default=endemias_app.BACKUP_DIR, help="Pasta dos backups do banco.")
     parser.add_argument("--log-path", default=endemias_app.LOG_PATH, help="Caminho do log.")
     parser.add_argument("--manter-backups", type=int, default=20, help="Quantidade de backups a manter.")
     parser.add_argument("--upload-horas", type=int, default=24, help="Idade máxima de uploads temporários (horas).")
     parser.add_argument("--log-mb", type=int, default=50, help="Tamanho máximo do log (MB).")
     args = parser.parse_args(argv)
 
-    backup_dir = args.backup_dir or os.path.join(os.path.dirname(endemias_app.DB_PATH), "backups")
+    backup_dir = args.backup_dir
 
     print("=== Limpeza Diária — Endemias ===")
     print(f"Iniciada em: {time.strftime('%Y-%m-%d %H:%M:%S')}")

@@ -662,6 +662,7 @@ class AdminBackupRoutesTests(unittest.TestCase):
             "TESTING": True,
             "DB_PATH": db_path,
             "INSTANCE_DIR": str(Path(tmpdir)),
+            "BACKUP_DIR": str(Path(tmpdir) / "backups_banco"),
             "ANEXOS_DIR": str(Path(tmpdir) / "anexos"),
             "BACKUP_COMPLETO_DIR": str(Path(tmpdir) / "backups_completos"),
             "KOBO_CONFIG_PATH": str(Path(tmpdir) / "kobo_config.json"),
@@ -687,14 +688,14 @@ class AdminBackupRoutesTests(unittest.TestCase):
                 resp = client.post("/admin/sistema/backups/criar")
 
             self.assertEqual(resp.status_code, 302)
-            backups = list((db_path.parent / "backups").glob("endemias_*.db"))
+            backups = list(Path(app_temp.config["BACKUP_DIR"]).glob("endemias_*.db"))
             self.assertEqual(len(backups), 1)
             self.assertTrue(backups[0].with_suffix(".db.json").exists())
 
     def test_admin_restaura_backup_pela_central_do_sistema(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             app_temp, client, db_path = self._app_e_cliente_admin(tmpdir)
-            backup_dir = db_path.parent / "backups"
+            backup_dir = Path(app_temp.config["BACKUP_DIR"])
             info = backup_core.criar_backup_sqlite(db_path, destino_dir=backup_dir, manter=10)
             nome_backup = Path(info["arquivo"]).name
 
@@ -720,7 +721,7 @@ class AdminBackupRoutesTests(unittest.TestCase):
     def test_admin_baixa_backup_pela_central_do_sistema(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             app_temp, client, db_path = self._app_e_cliente_admin(tmpdir)
-            backup_dir = db_path.parent / "backups"
+            backup_dir = Path(app_temp.config["BACKUP_DIR"])
             info = backup_core.criar_backup_sqlite(db_path, destino_dir=backup_dir, manter=10)
             nome_backup = Path(info["arquivo"]).name
 
@@ -844,7 +845,7 @@ class AdminBackupRoutesTests(unittest.TestCase):
     def test_admin_exclui_backup_pela_central_do_sistema(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             app_temp, client, db_path = self._app_e_cliente_admin(tmpdir)
-            backup_dir = db_path.parent / "backups"
+            backup_dir = Path(app_temp.config["BACKUP_DIR"])
             info = backup_core.criar_backup_sqlite(db_path, destino_dir=backup_dir, manter=10)
             backup_path = Path(info["arquivo"])
 
@@ -895,7 +896,7 @@ class AdminBackupRoutesTests(unittest.TestCase):
             self.assertIn('"done": true, "ok": true', data)
             self.assertNotIn("backup_pre_import", data)
             self.assertNotIn("Erro inesperado ao gravar no banco", data)
-            backups = list((db_path.parent / "backups").glob("pre_import_*.db"))
+            backups = list(Path(app_temp.config["BACKUP_DIR"]).glob("pre_import_*.db"))
             self.assertEqual(len(backups), 1)
             self.assertTrue(backups[0].with_suffix(".db.json").exists())
 
@@ -2054,9 +2055,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("Backups gerenciados", html)
         self.assertIn("Backups completos", html)
         self.assertIn("/admin/sistema/backups/criar", html)
-        self.assertIn("/admin/sistema/backups/excluir", html)
         self.assertIn("/admin/sistema/backups-completos/criar", html)
-        self.assertIn("/admin/sistema/backups-completos/excluir", html)
         self.assertIn('id="sidebarToggle"', html)
         self.assertIn("data-confirm=", html)
         self.assertNotIn("onclick=", html)

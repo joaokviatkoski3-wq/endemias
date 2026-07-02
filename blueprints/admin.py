@@ -110,7 +110,7 @@ def admin_usuarios():
 @nivel_min("admin")
 def admin_sistema():
     db_path = Path(current_app.config["DB_PATH"])
-    backup_dir = db_path.parent / "backups"
+    backup_dir = Path(current_app.config["BACKUP_DIR"])
     backup_completo_dir = Path(current_app.config["BACKUP_COMPLETO_DIR"])
     backups = backup_core.listar_backups(backup_dir, limite=20)
     backups_completos = backup_completo_core.listar_backups_completos(backup_completo_dir, limite=20)
@@ -147,7 +147,7 @@ def admin_sistema():
 @nivel_min("admin")
 def api_admin_diagnostico():
     db_path = Path(current_app.config["DB_PATH"])
-    backup_dir = db_path.parent / "backups"
+    backup_dir = Path(current_app.config["BACKUP_DIR"])
     completo = request.args.get("completo", "").strip().lower() in {"1", "sim", "true", "completo"}
     conn = bh.get_db()
     try:
@@ -161,7 +161,7 @@ def api_admin_diagnostico():
 @nivel_min("admin")
 def admin_criar_backup():
     db_path = Path(current_app.config["DB_PATH"])
-    backup_dir = db_path.parent / "backups"
+    backup_dir = Path(current_app.config["BACKUP_DIR"])
     try:
         with backup_core.operacao_exclusiva():
             info = backup_core.criar_backup_sqlite(db_path, destino_dir=backup_dir, prefixo="endemias", manter=20)
@@ -187,7 +187,7 @@ def admin_criar_backup():
 @nivel_min("admin")
 def admin_restaurar_backup():
     db_path = Path(current_app.config["DB_PATH"])
-    backup_dir = db_path.parent / "backups"
+    backup_dir = Path(current_app.config["BACKUP_DIR"])
     nome_backup = request.form.get("backup", "").strip()
     try:
         with backup_core.operacao_exclusiva():
@@ -220,8 +220,7 @@ def admin_restaurar_backup():
 @login_required
 @nivel_min("admin")
 def admin_baixar_backup(nome_backup):
-    db_path = Path(current_app.config["DB_PATH"])
-    backup_dir = db_path.parent / "backups"
+    backup_dir = Path(current_app.config["BACKUP_DIR"])
     try:
         backup_path = backup_core.resolver_backup(backup_dir, nome_backup)
         return send_file(backup_path, as_attachment=True, download_name=backup_path.name)
@@ -258,8 +257,7 @@ def admin_baixar_dbml():
 @login_required
 @nivel_min("admin")
 def admin_excluir_backup():
-    db_path = Path(current_app.config["DB_PATH"])
-    backup_dir = db_path.parent / "backups"
+    backup_dir = Path(current_app.config["BACKUP_DIR"])
     nome_backup = request.form.get("backup", "").strip()
     try:
         with backup_core.operacao_exclusiva():

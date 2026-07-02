@@ -1,3 +1,4 @@
+import os
 import shutil
 import sqlite3
 import unicodedata
@@ -7,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = ROOT / "endemias.db"
-BACKUP_DIR = ROOT / "backups"
+BACKUP_DIR = Path(os.environ.get("ENDEMIAS_BACKUP_DIR", r"D:\BackupsEndemias\backups_banco"))
 
 
 def _norm(value):
@@ -37,7 +38,7 @@ def _busca_normalizada(row):
 
 
 def _backup_db():
-    BACKUP_DIR.mkdir(exist_ok=True)
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     destino = BACKUP_DIR / f"endemias_pre_rg_corrige_cachoeira_1412_{stamp}.db"
     shutil.copy2(DB_PATH, destino)

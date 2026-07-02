@@ -707,6 +707,7 @@ def processar_confirmar(job_id):
         db_path = _db_path()
         config_path = _config_path()
         cache_invalidator = _cache_invalidator()
+        backup_dir = current_app.config["BACKUP_DIR"]
         q_log = queue.Queue()
         done = threading.Event()
         result = [None]
@@ -721,7 +722,7 @@ def processar_confirmar(job_id):
                 with backup_core.operacao_exclusiva():
                     backup_info = backup_core.criar_backup_sqlite(
                         db_path,
-                        destino_dir=os.path.join(os.path.dirname(db_path), "backups"),
+                        destino_dir=backup_dir,
                         prefixo="pre_import",
                         manter=20,
                     )

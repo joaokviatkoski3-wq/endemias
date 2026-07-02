@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import shutil
 import sys
 from datetime import datetime
@@ -18,12 +19,12 @@ def main():
     if not arquivos:
         raise SystemExit("Nenhuma planilha legada ESPOROTRICOSE_2025*.xlsx encontrada.")
 
-    backups = ROOT / "backups"
-    backups.mkdir(exist_ok=True)
+    backups = Path(os.environ.get("ENDEMIAS_BACKUP_DIR", r"D:\BackupsEndemias\backups_banco"))
+    backups.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup = backups / f"endemias_pre_esporotricose_historico_{stamp}.db"
     shutil.copy2(banco, backup)
-    print(f"Backup criado: {backup.relative_to(ROOT)}")
+    print(f"Backup criado: {backup}")
 
     logger = Logger(callback=lambda msg, tag="normal": print(msg))
     total = esporotricose.importar_historico(arquivos, str(banco), logger, dry_run=False)

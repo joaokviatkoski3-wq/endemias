@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from flask import Blueprint, current_app, render_template
 
 from app_core import audit
@@ -101,8 +99,7 @@ def page():
 
     admin_info = None
     if is_admin:
-        db_path = Path(current_app.config["DB_PATH"])
-        backups = backup_core.listar_backups(db_path.parent / "backups", limite=3)
+        backups = backup_core.listar_backups(current_app.config["BACKUP_DIR"], limite=3)
         admin_info = {
             "backups": backups,
             "importacoes": import_history.listar_importacoes_recentes(bh.get_db, limite=4),

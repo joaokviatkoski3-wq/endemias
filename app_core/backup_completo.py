@@ -8,7 +8,7 @@ from pathlib import Path
 from app_core import backup as backup_core
 
 
-DEFAULT_DESTINO = Path("D:/BackupsEndemias")
+DEFAULT_DESTINO = Path("D:/BackupsEndemias/backups_completos")
 ZIP_PREFIXO = "endemias_completo"
 IGNORAR_PARTES = {"__pycache__", ".git"}
 IGNORAR_SUFIXOS = {".pyc", ".pyo"}

@@ -1,4 +1,5 @@
 import argparse
+import os
 import shutil
 import sqlite3
 import unicodedata
@@ -31,8 +32,8 @@ def _norm(value):
 
 
 def _backup(db_path):
-    backup_dir = db_path.parent / "backups"
-    backup_dir.mkdir(exist_ok=True)
+    backup_dir = Path(os.environ.get("ENDEMIAS_BACKUP_DIR", r"D:\BackupsEndemias\backups_banco"))
+    backup_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     target = backup_dir / f"{db_path.stem}_pre_rg_sao_francisco_{stamp}{db_path.suffix}"
     shutil.copy2(db_path, target)

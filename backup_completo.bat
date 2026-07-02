@@ -2,10 +2,10 @@
 chcp 65001 >nul
 REM ==========================================
 REM  Backup completo local - Sistema Endemias
-REM  Destino padrao: D:\BackupsEndemias
+REM  Destino padrao: D:\BackupsEndemias\backups_completos
 REM ==========================================
 
-set DESTINO=D:\BackupsEndemias
+set DESTINO=D:\BackupsEndemias\backups_completos
 set MANTER=10
 
 cd /d "%~dp0"

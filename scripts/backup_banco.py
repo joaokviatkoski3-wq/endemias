@@ -13,7 +13,7 @@ from app_core import backup as backup_core
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Gera backup consistente do banco SQLite do Endemias.")
     parser.add_argument("--db", default=endemias_app.DB_PATH, help="Caminho do banco de origem.")
-    parser.add_argument("--destino", default=None, help="Pasta de destino. Padrao: backups/ ao lado do banco.")
+    parser.add_argument("--destino", default=endemias_app.BACKUP_DIR, help="Pasta de destino dos backups do banco.")
     parser.add_argument("--prefixo", default="endemias", help="Prefixo do arquivo de backup.")
     parser.add_argument("--manter", type=int, default=10, help="Quantidade de backups recentes a manter.")
     parser.add_argument("--sem-validar", action="store_true", help="Nao roda PRAGMA integrity_check no backup.")
