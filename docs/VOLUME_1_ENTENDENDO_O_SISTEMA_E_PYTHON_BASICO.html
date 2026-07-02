@@ -1,0 +1,1459 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Volume 1 - Entendendo o Sistema Endemias e Python Basico</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1d1f23;
+      --muted: #5b616e;
+      --line: #d9dde5;
+      --soft: #f5f7fa;
+      --accent: #0b6bcb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #eef1f5;
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11.5pt;
+      line-height: 1.55;
+    }
+    main {
+      width: min(920px, calc(100% - 32px));
+      margin: 28px auto;
+      padding: 44px 56px;
+      background: white;
+      box-shadow: 0 8px 30px rgba(28, 35, 45, .12);
+    }
+    h1, h2, h3 {
+      line-height: 1.2;
+      color: #111827;
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+    h1 { font-size: 24pt; margin: 0 0 14px; }
+    h2 { font-size: 18pt; margin: 34px 0 12px; border-top: 1px solid var(--line); padding-top: 20px; }
+    h3 { font-size: 13.5pt; margin: 22px 0 8px; color: #263241; }
+    p { margin: 0 0 10px; }
+    ul, ol { margin: 8px 0 14px 24px; padding: 0; }
+    li { margin: 3px 0; }
+    code {
+      font-family: Consolas, 'Courier New', monospace;
+      font-size: .92em;
+      background: var(--soft);
+      border: 1px solid #e4e7ec;
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+    pre {
+      margin: 12px 0 16px;
+      padding: 12px 14px;
+      background: #f7f8fb;
+      border: 1px solid #dfe4ec;
+      border-radius: 6px;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    pre code { background: transparent; border: 0; padding: 0; }
+    hr { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
+    strong { color: #101828; }
+    @page {
+      size: A4;
+      margin: 16mm 14mm;
+    }
+    @media print {
+      body { background: white; font-size: 10.5pt; }
+      main { width: auto; margin: 0; padding: 0; box-shadow: none; }
+      h1 { font-size: 21pt; }
+      h2 { font-size: 15.5pt; margin-top: 24px; }
+      h3 { font-size: 12.5pt; }
+      a { color: inherit; text-decoration: none; }
+      pre { white-space: pre-wrap; page-break-inside: avoid; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<main>
+<h1>Volume 1 - Entendendo o Sistema Endemias e Python Basico</h1>
+<p>Material de estudo baseado no Sistema Endemias de Almirante Tamandare-PR.</p>
+<p>Este volume foi pensado para quem esta comecando em programacao e quer aprender usando um sistema real, feito em Python, Flask, SQLite, HTML, CSS e JavaScript.</p>
+<p>Voce nao precisa decorar tudo. A ideia e aprender a ler o sistema, reconhecer padroes e fazer pequenas mudancas com seguranca.</p>
+<hr>
+<h2>Sumario</h2>
+<ol>
+<li>Primeiro mapa mental do sistema</li>
+<li>O que e Python neste sistema</li>
+<li>Imports: trazendo ferramentas para o arquivo</li>
+<li>Variaveis</li>
+<li>Tipos basicos de dados</li>
+<li>Listas</li>
+<li>Dicionarios</li>
+<li>Funcoes</li>
+<li>Condicionais</li>
+<li>Repeticoes</li>
+<li>Tratamento de erros</li>
+<li>Modulos e organizacao</li>
+<li>Flask: paginas e APIs</li>
+<li>Banco de dados com SQLite</li>
+<li>Criacao do banco</li>
+<li>Datas no sistema</li>
+<li>Classes e dataclasses</li>
+<li>Decorators</li>
+<li>Caminhos e arquivos</li>
+<li>Configuracao por variaveis de ambiente</li>
+<li>Autenticacao e permissoes</li>
+<li>Templates</li>
+<li>JavaScript no sistema</li>
+<li>ETL: processamento de planilhas</li>
+<li>Testes automatizados</li>
+<li>Git e seguranca do codigo</li>
+<li>Como estudar o sistema sem medo</li>
+<li>Mini glossario</li>
+<li>Exercicios guiados</li>
+<li>Roteiro de 7 dias</li>
+<li>O que voce deve conseguir fazer</li>
+<li>Proximo volume sugerido</li>
+</ol>
+<h3>Para imprimir</h3>
+<p>Este arquivo esta em Markdown, um formato de texto simples. Voce pode estudar direto por ele, abrir em editores como VS Code ou converter depois para PDF/HTML sem perder a estrutura de capitulos.</p>
+<hr>
+<h2>Como usar este material</h2>
+<p>Leia na ordem. Depois de cada capitulo, abra os arquivos citados no seu projeto e tente encontrar os trechos parecidos.</p>
+<p>Quando aparecer um exercicio, faca primeiro em pensamento. Depois, se quiser praticar de verdade, crie arquivos de teste ou peca ajuda antes de alterar o sistema principal.</p>
+<p>Este volume nao e uma apostila generica de Python. Ele usa o seu sistema como mapa.</p>
+<h3>O que voce vai aprender neste volume</h3>
+<ul>
+<li>O que e Python e por que ele aparece em tantos arquivos do sistema.</li>
+<li>Como o projeto esta organizado.</li>
+<li>O que sao variaveis, funcoes, listas, dicionarios e modulos.</li>
+<li>Como ler trechos simples de codigo Python.</li>
+<li>Como o Flask liga uma URL a uma funcao Python.</li>
+<li>Como o Python conversa com o banco SQLite.</li>
+<li>Como pensar antes de alterar um sistema real.</li>
+</ul>
+<h3>O que fica para volumes futuros</h3>
+<ul>
+<li>HTML, CSS e JavaScript em mais profundidade.</li>
+<li>Flask com formularios, APIs e templates.</li>
+<li>SQL mais completo.</li>
+<li>Processamento de planilhas Kobo com Pandas e OpenPyXL.</li>
+<li>Mapas, GeoJSON e Leaflet.</li>
+<li>Testes automatizados.</li>
+<li>Git, commits, branches e GitHub em mais profundidade.</li>
+<li>Como criar novas funcionalidades.</li>
+</ul>
+<hr>
+<h2>1. Primeiro mapa mental do sistema</h2>
+<p>Seu sistema e uma aplicacao web local. Isso significa:</p>
+<ol>
+<li>Um servidor Python roda no computador.</li>
+<li>O navegador abre paginas do sistema.</li>
+<li>O usuario clica, filtra, cadastra, imprime, importa planilhas.</li>
+<li>O Python recebe essas acoes.</li>
+<li>O Python consulta ou altera o banco <code>endemias.db</code>.</li>
+<li>O Python devolve HTML, JSON, arquivos ou relatorios.</li>
+</ol>
+<p>Uma forma simples de enxergar:</p>
+<pre><code>Navegador
+   |
+   | acessa /registro-geografico ou /api/registro-geografico
+   v
+Flask em app.py
+   |
+   | encaminha para um blueprint
+   v
+blueprints/registro_geografico.py
+   |
+   | chama regras do sistema
+   v
+app_core/registro_geografico.py
+   |
+   | consulta/atualiza
+   v
+endemias.db</code></pre>
+<p>O importante aqui e perceber que cada parte tem uma responsabilidade.</p>
+<h3>Principais pastas do projeto</h3>
+<p>No seu projeto, as pastas mais importantes sao:</p>
+<pre><code>C:\endemias
+  app.py
+  criar_banco.py
+  etl.py
+  config.json
+  requirements.txt
+  app_core\
+  blueprints\
+  templates\
+  static\
+  tests\
+  docs\
+  scripts\</code></pre>
+<h3><code>app.py</code></h3>
+<p>E a porta de entrada do sistema.</p>
+<p>Ele:</p>
+<ul>
+<li>cria o aplicativo Flask;</li>
+<li>configura caminhos de banco, anexos, logs e chaves;</li>
+<li>registra os blueprints;</li>
+<li>ativa protecoes de seguranca;</li>
+<li>inicia o servidor quando voce roda o sistema.</li>
+</ul>
+<p>Trecho real simplificado:</p>
+<pre><code>def create_app(config_overrides=None):
+    flask_app = Flask(__name__, instance_path=INSTANCE_DIR)
+    flask_app.config.update(
+        DB_PATH=DB_PATH,
+        CONFIG_PATH=CONFIG_PATH,
+        UPLOAD_TEMP=UPLOAD_TEMP,
+    )
+    _register_blueprints(flask_app)
+    return flask_app</code></pre>
+<p>Leia assim:</p>
+<ul>
+<li><code>def create_app(...)</code>: define uma funcao.</li>
+<li><code>Flask(__name__)</code>: cria a aplicacao web.</li>
+<li><code>config.update(...)</code>: grava configuracoes.</li>
+<li><code>_register_blueprints(...)</code>: registra as partes do sistema.</li>
+<li><code>return flask_app</code>: devolve o aplicativo pronto.</li>
+</ul>
+<h3><code>blueprints/</code></h3>
+<p>Cada arquivo em <code>blueprints/</code> controla uma area do sistema.</p>
+<p>Exemplos:</p>
+<pre><code>blueprints/admin.py
+blueprints/esporotricose.py
+blueprints/registro_geografico.py
+blueprints/processar.py
+blueprints/mapa.py</code></pre>
+<p>Um blueprint e como um &quot;departamento&quot; do site.</p>
+<p>O arquivo <code>blueprints/registro_geografico.py</code>, por exemplo, define rotas como:</p>
+<pre><code>@bp.route(&quot;/registro-geografico&quot;)
+@login_required
+def page():
+    opcoes = rg_core.opcoes(_db_path(), _base_dir())
+    return render_template(&quot;registro_geografico.html&quot;, opcoes=opcoes)</code></pre>
+<p>Isso significa:</p>
+<ul>
+<li>Quando o navegador abre <code>/registro-geografico</code>,</li>
+<li>o Flask chama a funcao <code>page</code>,</li>
+<li>a funcao busca opcoes no nucleo <code>rg_core</code>,</li>
+<li>e renderiza o HTML <code>registro_geografico.html</code>.</li>
+</ul>
+<h3><code>app_core/</code></h3>
+<p>Aqui ficam as regras principais do sistema.</p>
+<p>Exemplos:</p>
+<pre><code>app_core/db.py
+app_core/auth.py
+app_core/backup.py
+app_core/registro_geografico.py
+app_core/esporotricose.py
+app_core/ovitrampas.py</code></pre>
+<p>Pense assim:</p>
+<ul>
+<li><code>blueprints/</code>: recebe pedido do navegador.</li>
+<li><code>app_core/</code>: faz o trabalho pesado.</li>
+</ul>
+<p>Isso e bom porque separa a interface da logica.</p>
+<h3><code>templates/</code></h3>
+<p>Aqui ficam as paginas HTML.</p>
+<p>Exemplos:</p>
+<pre><code>templates/base.html
+templates/admin_sistema.html
+templates/registro_geografico.html
+templates/esporotricose.html</code></pre>
+<p>Esses arquivos misturam HTML com Jinja, que e a linguagem de templates do Flask.</p>
+<p>Exemplo:</p>
+<pre><code>{% for module in group[&quot;items&quot;] %}
+  &lt;a href=&quot;{{ module.href }}&quot;&gt;{{ module.sidebar_title }}&lt;/a&gt;
+{% endfor %}</code></pre>
+<p>Isso quer dizer:</p>
+<ul>
+<li>para cada modulo da lista,</li>
+<li>crie um link no HTML.</li>
+</ul>
+<h3><code>static/</code></h3>
+<p>Arquivos estaticos sao arquivos que o navegador baixa diretamente:</p>
+<pre><code>static/css/app.css
+static/js/app.js
+static/icons/
+static/img/
+static/quarteiroes.geojson</code></pre>
+<p>Nessa pasta ficam:</p>
+<ul>
+<li>CSS;</li>
+<li>JavaScript;</li>
+<li>imagens;</li>
+<li>icones;</li>
+<li>arquivos de mapa.</li>
+</ul>
+<h3><code>tests/</code></h3>
+<p>Aqui ficam os testes automatizados.</p>
+<p>O arquivo principal e:</p>
+<pre><code>tests/test_security.py</code></pre>
+<p>Apesar do nome, ele testa varias partes do sistema: login, rotas, backups, Registro Geografico, Esporotricose, APIs e permissoes.</p>
+<h3><code>scripts/</code></h3>
+<p>Scripts sao comandos auxiliares.</p>
+<p>Exemplos:</p>
+<pre><code>scripts/backup_banco.py
+scripts/backup_completo.py
+scripts/limpeza_diaria.py</code></pre>
+<p>Eles podem ser executados pelo terminal, sem abrir a interface web.</p>
+<h3><code>endemias.db</code></h3>
+<p>Esse e o banco de dados SQLite.</p>
+<p>Ele guarda dados reais:</p>
+<ul>
+<li>usuarios;</li>
+<li>visitas;</li>
+<li>agentes;</li>
+<li>localidades;</li>
+<li>registro geografico;</li>
+<li>esporotricose;</li>
+<li>ovitrampas;</li>
+<li>auditoria;</li>
+<li>e outras tabelas.</li>
+</ul>
+<p>Ele nao deve ir para o GitHub.</p>
+<hr>
+<h2>2. O que e Python neste sistema</h2>
+<p>Python e a linguagem principal usada para:</p>
+<ul>
+<li>iniciar o sistema;</li>
+<li>receber pedidos do navegador;</li>
+<li>validar dados;</li>
+<li>consultar o banco;</li>
+<li>processar planilhas;</li>
+<li>gerar relatorios;</li>
+<li>fazer backups;</li>
+<li>criar testes.</li>
+</ul>
+<p>Arquivos Python terminam com <code>.py</code>.</p>
+<p>Exemplos:</p>
+<pre><code>app.py
+etl.py
+criar_banco.py
+app_core/db.py
+blueprints/admin.py</code></pre>
+<p>Um arquivo Python normalmente contem:</p>
+<ul>
+<li>imports;</li>
+<li>constantes;</li>
+<li>funcoes;</li>
+<li>classes;</li>
+<li>comandos.</li>
+</ul>
+<p>Exemplo real de <code>app_core/db.py</code>:</p>
+<pre><code>import sqlite3
+
+
+def connect(db_path):
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute(&quot;PRAGMA foreign_keys = ON&quot;)
+    conn.execute(&quot;PRAGMA busy_timeout = 5000&quot;)
+    conn.execute(&quot;PRAGMA journal_mode = WAL&quot;)
+    conn.execute(&quot;PRAGMA synchronous = NORMAL&quot;)
+    return conn</code></pre>
+<p>Mesmo que voce ainda nao entenda tudo, ja da para reconhecer:</p>
+<ul>
+<li><code>import sqlite3</code>: importa uma ferramenta do Python.</li>
+<li><code>def connect(db_path):</code>: cria uma funcao.</li>
+<li><code>conn = ...</code>: cria uma variavel.</li>
+<li><code>conn.execute(...)</code>: executa comandos no banco.</li>
+<li><code>return conn</code>: devolve uma conexao pronta.</li>
+</ul>
+<hr>
+<h2>3. Imports: trazendo ferramentas para o arquivo</h2>
+<p>Em Python, <code>import</code> significa: &quot;quero usar codigo que esta em outro lugar&quot;.</p>
+<p>Exemplos reais:</p>
+<pre><code>import sqlite3</code></pre>
+<p>Traz o modulo SQLite da biblioteca padrao do Python.</p>
+<pre><code>from datetime import date, datetime, timedelta</code></pre>
+<p>Traz ferramentas para trabalhar com datas.</p>
+<pre><code>from flask import Blueprint, current_app, jsonify, render_template, request</code></pre>
+<p>Traz ferramentas do Flask.</p>
+<pre><code>from app_core import db as db_core</code></pre>
+<p>Traz o arquivo <code>app_core/db.py</code>, mas com o apelido <code>db_core</code>.</p>
+<h3>Como ler um import</h3>
+<pre><code>from app_core import registro_geografico as rg_core</code></pre>
+<p>Leia:</p>
+<p>&quot;Do pacote <code>app_core</code>, importe o modulo <code>registro_geografico</code> e chame ele de <code>rg_core</code> dentro deste arquivo.&quot;</p>
+<p>Depois o codigo pode usar:</p>
+<pre><code>rg_core.listar(...)
+rg_core.quarteirao(...)
+rg_core.salvar_quarteirao(...)</code></pre>
+<h3>Exercicio</h3>
+<p>Abra <code>blueprints/registro_geografico.py</code> e procure:</p>
+<pre><code>from app_core import registro_geografico as rg_core</code></pre>
+<p>Depois encontre onde aparece:</p>
+<pre><code>rg_core.opcoes
+rg_core.listar
+rg_core.quarteirao</code></pre>
+<p>A ideia e treinar seu olho para seguir o caminho do codigo.</p>
+<hr>
+<h2>4. Variaveis</h2>
+<p>Variavel e um nome que guarda um valor.</p>
+<p>Exemplo simples:</p>
+<pre><code>nome = &quot;Joao&quot;
+idade = 30
+ativo = True</code></pre>
+<p>No seu sistema:</p>
+<pre><code>BASE_DIR = os.path.dirname(os.path.abspath(__file__))</code></pre>
+<p>Aqui, <code>BASE_DIR</code> guarda o caminho da pasta onde esta o <code>app.py</code>.</p>
+<p>Outro exemplo:</p>
+<pre><code>db_path = Path(current_app.config[&quot;DB_PATH&quot;])</code></pre>
+<p>Aqui:</p>
+<ul>
+<li><code>current_app.config[&quot;DB_PATH&quot;]</code> pega o caminho do banco configurado no Flask;</li>
+<li><code>Path(...)</code> transforma esse texto em um objeto de caminho;</li>
+<li><code>db_path</code> guarda esse caminho.</li>
+</ul>
+<h3>Variaveis com nomes bons</h3>
+<p>Seu sistema tem muitos bons exemplos:</p>
+<pre><code>backup_dir
+backup_completo_dir
+localidade
+quarteiroes
+id_animal_doente
+data_notificacao
+capsulas_total</code></pre>
+<p>Nomes assim ajudam a entender o codigo.</p>
+<h3>Exercicio</h3>
+<p>Explique com suas palavras o que cada variavel provavelmente guarda:</p>
+<pre><code>usuario = bh.usuario_atual()
+is_admin = (usuario or {}).get(&quot;nivel&quot;) == &quot;admin&quot;
+backups = backup_core.listar_backups(...)</code></pre>
+<p>Resposta esperada:</p>
+<ul>
+<li><code>usuario</code>: dados do usuario logado.</li>
+<li><code>is_admin</code>: verdadeiro se o usuario for administrador.</li>
+<li><code>backups</code>: lista de backups encontrados.</li>
+</ul>
+<hr>
+<h2>5. Tipos basicos de dados</h2>
+<p>Python trabalha com varios tipos de valores. Os principais para comecar sao:</p>
+<h3>Texto: <code>str</code></h3>
+<pre><code>nome = &quot;Sede&quot;
+status = &quot;Em tratamento&quot;</code></pre>
+<p>No sistema:</p>
+<pre><code>return f&quot;{date.today().year}-01-01&quot;</code></pre>
+<p>Esse <code>f&quot;...&quot;</code> e uma f-string. Ela permite colocar valores dentro do texto.</p>
+<p>Exemplo:</p>
+<pre><code>ano = 2026
+texto = f&quot;{ano}-01-01&quot;</code></pre>
+<p>Resultado:</p>
+<pre><code>2026-01-01</code></pre>
+<h3>Numeros: <code>int</code> e <code>float</code></h3>
+<pre><code>idade = 30       # int
+media = 2.93     # float</code></pre>
+<p>No sistema:</p>
+<pre><code>MEDIA_PESSOAS_POR_RESIDENCIA = 2.93</code></pre>
+<p>Esse valor e usado para estimar populacao no Registro Geografico.</p>
+<h3>Booleanos: <code>True</code> e <code>False</code></h3>
+<pre><code>ativo = True
+bloqueado = False</code></pre>
+<p>No sistema:</p>
+<pre><code>return bool(senha) and len(senha) &gt;= PASSWORD_MIN_LENGTH</code></pre>
+<p>Essa funcao verifica se a senha existe e tem tamanho minimo.</p>
+<h3>Valor vazio: <code>None</code></h3>
+<p><code>None</code> significa &quot;sem valor&quot;.</p>
+<p>Exemplo:</p>
+<pre><code>def data_ano():
+    return f&quot;{date.today().year}-01-01&quot;</code></pre>
+<p>Aqui nao tem <code>None</code>, mas em muitos pontos o sistema usa:</p>
+<pre><code>return None</code></pre>
+<p>Isso e comum quando uma informacao nao existe ou nao foi encontrada.</p>
+<hr>
+<h2>6. Listas</h2>
+<p>Lista guarda varios valores em ordem.</p>
+<pre><code>localidades = [&quot;Sede&quot;, &quot;Cachoeira&quot;, &quot;Tamboara&quot;]</code></pre>
+<p>No sistema, listas aparecem o tempo todo.</p>
+<p>Exemplo:</p>
+<pre><code>return [dict(r) for r in rows]</code></pre>
+<p>Esse trecho aparece em <code>app_core/db.py</code>.</p>
+<p>Ele significa:</p>
+<ul>
+<li>para cada linha <code>r</code> em <code>rows</code>,</li>
+<li>transforme em dicionario com <code>dict(r)</code>,</li>
+<li>devolva uma lista com todos esses dicionarios.</li>
+</ul>
+<h3>Acessando itens</h3>
+<pre><code>localidades[0]</code></pre>
+<p>Pega o primeiro item.</p>
+<p>Em Python, a contagem comeca em zero.</p>
+<pre><code>localidades[0]  # Sede
+localidades[1]  # Cachoeira
+localidades[2]  # Tamboara</code></pre>
+<h3>Percorrendo uma lista</h3>
+<pre><code>for localidade in localidades:
+    print(localidade)</code></pre>
+<p>Leia:</p>
+<p>&quot;Para cada localidade dentro da lista localidades, imprima a localidade.&quot;</p>
+<h3>Exercicio</h3>
+<p>O que este codigo faz?</p>
+<pre><code>nomes = [&quot;Ana&quot;, &quot;Bruno&quot;, &quot;Carla&quot;]
+for nome in nomes:
+    print(nome)</code></pre>
+<p>Resposta:</p>
+<p>Ele imprime cada nome da lista, um por vez.</p>
+<hr>
+<h2>7. Dicionarios</h2>
+<p>Dicionario guarda pares de chave e valor.</p>
+<pre><code>usuario = {
+    &quot;nome&quot;: &quot;Joao&quot;,
+    &quot;nivel&quot;: &quot;admin&quot;,
+    &quot;ativo&quot;: True,
+}</code></pre>
+<p>No sistema, dicionarios sao essenciais.</p>
+<p>Exemplo de <code>app_core/modules.py</code>:</p>
+<pre><code>LEVEL_ORDER = {
+    &quot;visualizador&quot;: 1,
+    &quot;operador&quot;: 2,
+    &quot;admin&quot;: 3,
+}</code></pre>
+<p>Esse dicionario diz qual nivel vale mais.</p>
+<h3>Acessando valor</h3>
+<pre><code>usuario[&quot;nome&quot;]</code></pre>
+<p>Retorna:</p>
+<pre><code>Joao</code></pre>
+<h3>Usando <code>.get</code></h3>
+<pre><code>usuario.get(&quot;nivel&quot;)</code></pre>
+<p><code>.get</code> e mais seguro porque, se a chave nao existir, ele nao quebra o programa.</p>
+<p>Exemplo real:</p>
+<pre><code>level = (user or {}).get(&quot;nivel&quot;) if isinstance(user, dict) else None</code></pre>
+<p>Esse trecho e mais avancado, mas a ideia e:</p>
+<ul>
+<li>se <code>user</code> for um dicionario, pegue o campo <code>nivel</code>;</li>
+<li>se nao for, use <code>None</code>.</li>
+</ul>
+<h3>Dicionarios em APIs</h3>
+<p>Quando uma API retorna JSON, geralmente ela devolve um dicionario.</p>
+<p>Exemplo conceitual:</p>
+<pre><code>{
+  &quot;ok&quot;: true,
+  &quot;total&quot;: 10,
+  &quot;registros&quot;: []
+}</code></pre>
+<p>No Python, isso se parece com:</p>
+<pre><code>{
+    &quot;ok&quot;: True,
+    &quot;total&quot;: 10,
+    &quot;registros&quot;: [],
+}</code></pre>
+<hr>
+<h2>8. Funcoes</h2>
+<p>Funcao e um bloco de codigo com nome.</p>
+<p>Ela serve para reutilizar uma acao.</p>
+<p>Exemplo simples:</p>
+<pre><code>def somar(a, b):
+    return a + b</code></pre>
+<p>Uso:</p>
+<pre><code>resultado = somar(2, 3)</code></pre>
+<p>Resultado:</p>
+<pre><code>5</code></pre>
+<h3>Funcao real: <code>safe_int</code></h3>
+<p>Em <code>app_core/utils.py</code>:</p>
+<pre><code>def safe_int(value, default=0):
+    try:
+        return int(value) if value is not None else default
+    except (ValueError, TypeError):
+        return default</code></pre>
+<p>Essa funcao tenta transformar um valor em inteiro.</p>
+<p>Se der erro, devolve um padrao.</p>
+<p>Exemplos:</p>
+<pre><code>safe_int(&quot;10&quot;)       # 10
+safe_int(None)       # 0
+safe_int(&quot;abc&quot;)      # 0
+safe_int(&quot;abc&quot;, 99)  # 99</code></pre>
+<h3>Partes de uma funcao</h3>
+<pre><code>def safe_int(value, default=0):</code></pre>
+<ul>
+<li><code>def</code>: palavra que define funcao.</li>
+<li><code>safe_int</code>: nome da funcao.</li>
+<li><code>value</code>: parametro obrigatorio.</li>
+<li><code>default=0</code>: parametro opcional.</li>
+</ul>
+<pre><code>try:</code></pre>
+<p>Tenta executar algo que pode dar erro.</p>
+<pre><code>except (ValueError, TypeError):</code></pre>
+<p>Se der erro de valor ou tipo, execute este bloco.</p>
+<pre><code>return default</code></pre>
+<p>Devolve o valor padrao.</p>
+<h3>Exercicio</h3>
+<p>Antes de ler a resposta, pense no resultado:</p>
+<pre><code>safe_int(&quot;25&quot;)
+safe_int(&quot;&quot;)
+safe_int(None, 7)</code></pre>
+<p>Resposta:</p>
+<pre><code>25
+0
+7</code></pre>
+<hr>
+<h2>9. Condicionais: <code>if</code>, <code>elif</code>, <code>else</code></h2>
+<p>Condicionais permitem tomar decisoes.</p>
+<p>Exemplo:</p>
+<pre><code>if idade &gt;= 18:
+    print(&quot;Maior de idade&quot;)
+else:
+    print(&quot;Menor de idade&quot;)</code></pre>
+<p>No sistema:</p>
+<pre><code>def senha_valida(senha):
+    return bool(senha) and len(senha) &gt;= PASSWORD_MIN_LENGTH</code></pre>
+<p>Esse exemplo usa uma forma curta.</p>
+<p>Outro exemplo, mais visivel:</p>
+<pre><code>if not usuario:
+    return redirect(url_for(&quot;auth.login&quot;))</code></pre>
+<p>Leia:</p>
+<p>&quot;Se nao existir usuario, redirecione para login.&quot;</p>
+<h3><code>if not</code></h3>
+<p><code>not</code> significa &quot;nao&quot;.</p>
+<pre><code>if not uid:</code></pre>
+<p>Leia:</p>
+<p>&quot;Se nao houver uid...&quot;</p>
+<p>No sistema, <code>uid</code> e o ID do usuario guardado na sessao.</p>
+<h3><code>elif</code></h3>
+<p><code>elif</code> significa &quot;senao, se...&quot;</p>
+<p>Exemplo:</p>
+<pre><code>if nivel == &quot;admin&quot;:
+    print(&quot;Acesso total&quot;)
+elif nivel == &quot;operador&quot;:
+    print(&quot;Acesso de edicao&quot;)
+else:
+    print(&quot;Acesso de leitura&quot;)</code></pre>
+<h3>Exercicio</h3>
+<p>Complete mentalmente:</p>
+<pre><code>nivel = &quot;operador&quot;
+
+if nivel == &quot;admin&quot;:
+    print(&quot;Tudo&quot;)
+elif nivel == &quot;operador&quot;:
+    print(&quot;Editar&quot;)
+else:
+    print(&quot;Ler&quot;)</code></pre>
+<p>O que aparece?</p>
+<p>Resposta:</p>
+<pre><code>Editar</code></pre>
+<hr>
+<h2>10. Repeticoes: <code>for</code></h2>
+<p><code>for</code> percorre itens.</p>
+<p>Exemplo:</p>
+<pre><code>for item in lista:
+    print(item)</code></pre>
+<p>No sistema:</p>
+<pre><code>for group in sidebar_groups:</code></pre>
+<p>Esse trecho aparece no template <code>base.html</code>, em Jinja, mas a ideia e parecida com Python.</p>
+<p>Em Python real:</p>
+<pre><code>for row in rows:
+    backups.append(...)</code></pre>
+<p>Leia:</p>
+<p>&quot;Para cada linha em rows, adicione um item na lista backups.&quot;</p>
+<h3><code>for</code> com dicionarios</h3>
+<pre><code>for codigo, cor in AGENDA_TYPE_COLORS.items():</code></pre>
+<p>Leia:</p>
+<p>&quot;Para cada par codigo/cor dentro do dicionario AGENDA_TYPE_COLORS...&quot;</p>
+<h3>Exercicio</h3>
+<p>O que este codigo imprime?</p>
+<pre><code>tipos = [&quot;TB&quot;, &quot;PE&quot;, &quot;TBO&quot;]
+
+for tipo in tipos:
+    print(&quot;Tipo:&quot;, tipo)</code></pre>
+<p>Resposta:</p>
+<pre><code>Tipo: TB
+Tipo: PE
+Tipo: TBO</code></pre>
+<hr>
+<h2>11. Tratamento de erros: <code>try</code>, <code>except</code>, <code>finally</code></h2>
+<p>Sistemas reais precisam lidar com erros.</p>
+<p>Exemplo simples:</p>
+<pre><code>try:
+    numero = int(&quot;abc&quot;)
+except ValueError:
+    numero = 0</code></pre>
+<p>Como <code>&quot;abc&quot;</code> nao vira numero, o Python cai no <code>except</code>.</p>
+<p>No sistema:</p>
+<pre><code>def query(db_path, sql, params=()):
+    conn = connect(db_path)
+    try:
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()</code></pre>
+<p>Esse e um trecho excelente.</p>
+<p>Ele significa:</p>
+<ol>
+<li>Abra uma conexao com o banco.</li>
+<li>Tente executar a consulta.</li>
+<li>Retorne os resultados.</li>
+<li>De qualquer forma, feche a conexao.</li>
+</ol>
+<p><code>finally</code> sempre roda, mesmo se der erro.</p>
+<p>Isso e importante para nao deixar conexoes abertas.</p>
+<h3>Em rotas Flask</h3>
+<p>Exemplo:</p>
+<pre><code>try:
+    return jsonify(rg_core.listar(...))
+except ValueError as exc:
+    return jsonify({&quot;erro&quot;: str(exc)}), 400
+except Exception:
+    logging.exception(&quot;Erro ao listar Registro Geografico&quot;)
+    return jsonify({&quot;erro&quot;: &quot;Erro interno do servidor.&quot;}), 500</code></pre>
+<p>Leia:</p>
+<ul>
+<li>tente listar;</li>
+<li>se for erro esperado, devolva erro 400;</li>
+<li>se for erro inesperado, registre no log e devolva erro 500.</li>
+</ul>
+<h3>Exercicio</h3>
+<p>Por que o sistema nao deve mostrar todos os detalhes de um erro inesperado para o usuario?</p>
+<p>Resposta:</p>
+<p>Porque detalhes internos podem expor caminhos, banco, nomes de tabelas ou informacoes sensiveis. O ideal e registrar no log e mostrar uma mensagem simples.</p>
+<hr>
+<h2>12. Modulos e organizacao</h2>
+<p>Um modulo e um arquivo Python.</p>
+<p>Exemplo:</p>
+<pre><code>app_core/db.py</code></pre>
+<p>Pode ser importado assim:</p>
+<pre><code>from app_core import db as db_core</code></pre>
+<p>Isso permite usar:</p>
+<pre><code>db_core.connect(...)
+db_core.query(...)
+db_core.query_one(...)</code></pre>
+<h3>Por que dividir em arquivos?</h3>
+<p>Porque um sistema grande fica impossivel de manter se tudo ficar em um unico arquivo.</p>
+<p>Seu sistema ja tem uma divisao boa:</p>
+<pre><code>app.py
+  Configura e inicia o Flask
+
+blueprints/
+  Rotas e paginas
+
+app_core/
+  Regras de negocio e banco
+
+templates/
+  HTML
+
+static/
+  CSS, JS, imagens, mapas
+
+tests/
+  Testes automatizados</code></pre>
+<h3>Exemplo de caminho de uma funcionalidade</h3>
+<p>Quando voce abre a pagina Registro Geografico:</p>
+<pre><code>Navegador
+  -&gt; /registro-geografico
+  -&gt; blueprints/registro_geografico.py
+  -&gt; app_core/registro_geografico.py
+  -&gt; templates/registro_geografico.html</code></pre>
+<p>Quando voce clica em &quot;Atualizar&quot; na consulta:</p>
+<pre><code>JavaScript em templates/registro_geografico.html
+  -&gt; chama /api/registro-geografico
+  -&gt; blueprints/registro_geografico.py
+  -&gt; app_core/registro_geografico.py
+  -&gt; banco SQLite
+  -&gt; retorna JSON
+  -&gt; JavaScript atualiza a tabela</code></pre>
+<p>Esse mapa mental e uma das coisas mais importantes para aprender a mexer no sistema.</p>
+<hr>
+<h2>13. Flask: paginas e APIs</h2>
+<p>Flask e a ferramenta Python que transforma funcoes em paginas ou APIs.</p>
+<h3>Rota de pagina</h3>
+<p>Exemplo:</p>
+<pre><code>@bp.route(&quot;/registro-geografico&quot;)
+@login_required
+def page():
+    opcoes = rg_core.opcoes(_db_path(), _base_dir())
+    return render_template(&quot;registro_geografico.html&quot;, opcoes=opcoes)</code></pre>
+<p>Isso cria uma pagina.</p>
+<p>Pontos importantes:</p>
+<ul>
+<li><code>@bp.route(...)</code>: define a URL.</li>
+<li><code>@login_required</code>: exige login.</li>
+<li><code>def page()</code>: funcao chamada quando alguem acessa a URL.</li>
+<li><code>render_template(...)</code>: devolve HTML.</li>
+</ul>
+<h3>Rota de API</h3>
+<p>Exemplo:</p>
+<pre><code>@bp.route(&quot;/api/registro-geografico&quot;)
+@login_required
+def api_listar():
+    return jsonify(rg_core.listar(...))</code></pre>
+<p>Isso cria uma API.</p>
+<p>API geralmente devolve JSON, nao uma pagina pronta.</p>
+<h3>HTML versus JSON</h3>
+<p>HTML e pagina:</p>
+<pre><code>&lt;h1&gt;Registro Geografico&lt;/h1&gt;</code></pre>
+<p>JSON e dado:</p>
+<pre><code>{
+  &quot;total&quot;: 150,
+  &quot;registros&quot;: []
+}</code></pre>
+<p>No sistema:</p>
+<ul>
+<li>paginas usam <code>render_template</code>;</li>
+<li>APIs usam <code>jsonify</code>.</li>
+</ul>
+<h3>Exercicio</h3>
+<p>Classifique:</p>
+<pre><code>return render_template(&quot;admin_sistema.html&quot;, backups=backups)</code></pre>
+<p>Resposta: pagina HTML.</p>
+<pre><code>return jsonify({&quot;ok&quot;: True})</code></pre>
+<p>Resposta: API JSON.</p>
+<hr>
+<h2>14. Banco de dados com SQLite</h2>
+<p>SQLite e o banco usado no sistema.</p>
+<p>Ele fica em um arquivo:</p>
+<pre><code>endemias.db</code></pre>
+<p>O Python conversa com ele usando SQL.</p>
+<h3>Conexao</h3>
+<p>Em <code>app_core/db.py</code>:</p>
+<pre><code>def connect(db_path):
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute(&quot;PRAGMA foreign_keys = ON&quot;)
+    conn.execute(&quot;PRAGMA busy_timeout = 5000&quot;)
+    conn.execute(&quot;PRAGMA journal_mode = WAL&quot;)
+    conn.execute(&quot;PRAGMA synchronous = NORMAL&quot;)
+    return conn</code></pre>
+<p>Essa funcao prepara uma conexao com o banco.</p>
+<h3>Consulta simples</h3>
+<pre><code>rows = conn.execute(&quot;SELECT * FROM usuarios&quot;).fetchall()</code></pre>
+<p>Tradução:</p>
+<p>&quot;Busque todas as linhas da tabela usuarios.&quot;</p>
+<h3>Consulta com parametro</h3>
+<pre><code>row = conn.execute(
+    &quot;SELECT * FROM usuarios WHERE id_usuario=?&quot;,
+    (uid,),
+).fetchone()</code></pre>
+<p>O <code>?</code> e um marcador.</p>
+<p>O valor real vem separado em <code>(uid,)</code>.</p>
+<p>Isso e mais seguro do que montar SQL com texto manualmente.</p>
+<h3>Por que usar parametros?</h3>
+<p>Porque evita problemas de seguranca, como SQL injection.</p>
+<p>Ruim:</p>
+<pre><code>sql = &quot;SELECT * FROM usuarios WHERE usuario=&#x27;&quot; + nome + &quot;&#x27;&quot;</code></pre>
+<p>Bom:</p>
+<pre><code>sql = &quot;SELECT * FROM usuarios WHERE usuario=?&quot;
+params = (nome,)</code></pre>
+<h3><code>fetchone</code> e <code>fetchall</code></h3>
+<pre><code>fetchone()</code></pre>
+<p>Pega uma linha.</p>
+<pre><code>fetchall()</code></pre>
+<p>Pega varias linhas.</p>
+<h3><code>commit</code></h3>
+<p>Quando altera dados, precisa confirmar:</p>
+<pre><code>conn.commit()</code></pre>
+<p>Sem <code>commit</code>, a alteracao pode nao ser gravada.</p>
+<hr>
+<h2>15. Criacao do banco</h2>
+<p>O arquivo <code>criar_banco.py</code> cria as tabelas principais.</p>
+<p>Ele contem muito SQL.</p>
+<p>Exemplo:</p>
+<pre><code>CREATE TABLE IF NOT EXISTS usuarios (
+    id_usuario  INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario     TEXT    NOT NULL UNIQUE,
+    nome        TEXT    NOT NULL,
+    senha_hash  TEXT    NOT NULL,
+    nivel       TEXT    NOT NULL DEFAULT &#x27;visualizador&#x27;,
+    ativo       INTEGER NOT NULL DEFAULT 1,
+    criado_em   TEXT    NOT NULL
+);</code></pre>
+<p>Isso cria a tabela <code>usuarios</code>.</p>
+<h3>Campos</h3>
+<ul>
+<li><code>id_usuario</code>: identificador unico.</li>
+<li><code>usuario</code>: login.</li>
+<li><code>nome</code>: nome da pessoa.</li>
+<li><code>senha_hash</code>: senha protegida.</li>
+<li><code>nivel</code>: permissao.</li>
+<li><code>ativo</code>: se pode acessar.</li>
+<li><code>criado_em</code>: data de criacao.</li>
+</ul>
+<h3><code>PRIMARY KEY</code></h3>
+<p>Identifica uma linha de forma unica.</p>
+<h3><code>UNIQUE</code></h3>
+<p>Nao permite repetir.</p>
+<p>No exemplo:</p>
+<pre><code>usuario TEXT NOT NULL UNIQUE</code></pre>
+<p>Nao podem existir dois usuarios com o mesmo login.</p>
+<h3><code>REFERENCES</code></h3>
+<p>Cria relacionamento entre tabelas.</p>
+<p>Exemplo:</p>
+<pre><code>id_localidade INTEGER REFERENCES localidades(id_localidade)</code></pre>
+<p>Significa:</p>
+<p>&quot;Este campo aponta para uma localidade da tabela localidades.&quot;</p>
+<hr>
+<h2>16. Datas no sistema</h2>
+<p>O sistema usa muitas datas.</p>
+<p>Em <code>app_core/utils.py</code>:</p>
+<pre><code>from datetime import date, datetime, timedelta</code></pre>
+<h3>Data de hoje</h3>
+<pre><code>def hoje():
+    return date.today().isoformat()</code></pre>
+<p>Se hoje fosse 2 de julho de 2026, retornaria:</p>
+<pre><code>2026-07-02</code></pre>
+<h3>Data de N dias atras</h3>
+<pre><code>def data_n_dias(n=30):
+    return (datetime.now() - timedelta(days=n)).strftime(&quot;%Y-%m-%d&quot;)</code></pre>
+<p>Se <code>n=30</code>, pega a data de 30 dias atras.</p>
+<h3>Inicio do ano</h3>
+<pre><code>def data_ano():
+    return f&quot;{date.today().year}-01-01&quot;</code></pre>
+<p>Se o ano atual for 2026:</p>
+<pre><code>2026-01-01</code></pre>
+<h3>Por que o sistema usa <code>YYYY-MM-DD</code>?</h3>
+<p>Porque esse formato:</p>
+<pre><code>2026-07-02</code></pre>
+<p>e facil de ordenar, comparar e salvar no banco.</p>
+<hr>
+<h2>17. Classes e dataclasses</h2>
+<p>Voce nao precisa dominar classes agora, mas e bom reconhecer.</p>
+<p>Em <code>app_core/modules.py</code>:</p>
+<pre><code>from dataclasses import dataclass, field</code></pre>
+<p>Depois:</p>
+<pre><code>@dataclass(frozen=True)
+class AppModule:
+    key: str
+    title: str
+    href: str
+    endpoint: str
+    icon: str
+    nav_section: str</code></pre>
+<p>Essa classe representa um modulo do sistema.</p>
+<p>Exemplo de modulo:</p>
+<pre><code>AppModule(
+    key=&quot;registro_geografico&quot;,
+    title=&quot;Registro Geografico&quot;,
+    href=&quot;/registro-geografico&quot;,
+    endpoint=&quot;registro_geografico.page&quot;,
+    icon=&quot;registro_geografico.svg&quot;,
+    nav_section=&quot;Gestao&quot;,
+)</code></pre>
+<p>Isso e usado para montar menus, permissoes e atalhos.</p>
+<h3>O que e uma classe?</h3>
+<p>Classe e um modelo para criar objetos.</p>
+<p><code>AppModule</code> e um modelo.</p>
+<p>Cada item dentro de <code>MODULES</code> e um objeto desse modelo.</p>
+<h3>Por que usar isso?</h3>
+<p>Porque fica organizado.</p>
+<p>Em vez de espalhar menu em varios lugares, o sistema centraliza os modulos em uma lista.</p>
+<hr>
+<h2>18. Decorators: linhas com <code>@</code></h2>
+<p>No Python, linhas que comecam com <code>@</code> geralmente sao decorators.</p>
+<p>Exemplos:</p>
+<pre><code>@bp.route(&quot;/admin/sistema&quot;)
+@login_required
+@nivel_min(&quot;admin&quot;)
+def admin_sistema():
+    ...</code></pre>
+<p>Leia assim:</p>
+<ul>
+<li>esta funcao responde pela URL <code>/admin/sistema</code>;</li>
+<li>precisa estar logado;</li>
+<li>precisa ter nivel minimo <code>admin</code>.</li>
+</ul>
+<p>Voce nao precisa saber criar decorators agora. Mas precisa reconhecer que eles modificam o comportamento de uma funcao.</p>
+<h3>Exemplo importante</h3>
+<pre><code>@login_required</code></pre>
+<p>Essa linha protege uma pagina.</p>
+<p>Sem login, o usuario e redirecionado.</p>
+<h3>Exercicio</h3>
+<p>Abra <code>blueprints/admin.py</code> e procure:</p>
+<pre><code>@nivel_min(&quot;admin&quot;)</code></pre>
+<p>Pergunta:</p>
+<p>Que tipo de paginas essa protecao deve proteger?</p>
+<p>Resposta:</p>
+<p>Paginas administrativas, como Central do Sistema, usuarios, auditoria e backups.</p>
+<hr>
+<h2>19. Caminhos e arquivos</h2>
+<p>O sistema usa caminhos para encontrar:</p>
+<ul>
+<li>banco;</li>
+<li>anexos;</li>
+<li>configuracoes;</li>
+<li>logs;</li>
+<li>backups.</li>
+</ul>
+<p>Em <code>app.py</code>:</p>
+<pre><code>BASE_DIR = os.path.dirname(os.path.abspath(__file__))</code></pre>
+<p>Isso descobre a pasta do sistema.</p>
+<p>Tambem aparece:</p>
+<pre><code>DB_PATH = PATHS[&quot;DB_PATH&quot;]
+CONFIG_PATH = PATHS[&quot;CONFIG_PATH&quot;]
+UPLOAD_TEMP = PATHS[&quot;UPLOAD_TEMP&quot;]</code></pre>
+<p>Essas variaveis guardam caminhos importantes.</p>
+<h3><code>Path</code></h3>
+<p>Em muitos arquivos aparece:</p>
+<pre><code>from pathlib import Path</code></pre>
+<p><code>Path</code> e uma forma moderna de trabalhar com caminhos.</p>
+<p>Exemplo:</p>
+<pre><code>db_path = Path(current_app.config[&quot;DB_PATH&quot;])
+backup_dir = db_path.parent / &quot;backups&quot;</code></pre>
+<p>Aqui:</p>
+<ul>
+<li><code>db_path.parent</code> pega a pasta onde esta o banco;</li>
+<li><code>/ &quot;backups&quot;</code> adiciona a subpasta <code>backups</code>.</li>
+</ul>
+<h3>Exercicio</h3>
+<p>Se:</p>
+<pre><code>db_path = Path(&quot;C:/endemias/endemias.db&quot;)</code></pre>
+<p>O que e:</p>
+<pre><code>db_path.parent</code></pre>
+<p>Resposta:</p>
+<pre><code>C:/endemias</code></pre>
+<hr>
+<h2>20. Configuracao por variaveis de ambiente</h2>
+<p>No <code>app.py</code>, existe:</p>
+<pre><code>def resolve_paths(env=None, base_dir=BASE_DIR):
+    env = env or os.environ</code></pre>
+<p>Isso permite mudar caminhos usando variaveis de ambiente.</p>
+<p>Exemplo:</p>
+<pre><code>&quot;DB_PATH&quot;: os.path.abspath(env.get(&quot;ENDEMIAS_DB_PATH&quot;, os.path.join(instance_dir, &quot;endemias.db&quot;)))</code></pre>
+<p>Leia:</p>
+<ul>
+<li>procure a variavel <code>ENDEMIAS_DB_PATH</code>;</li>
+<li>se ela existir, use esse valor;</li>
+<li>se nao existir, use <code>endemias.db</code> dentro da pasta da instancia.</li>
+</ul>
+<p>Isso deixa o sistema flexivel.</p>
+<h3>Por que isso importa?</h3>
+<p>Porque em uma instalacao real voce pode querer:</p>
+<ul>
+<li>banco em outro disco;</li>
+<li>anexos em outra pasta;</li>
+<li>backups em outro local;</li>
+<li>logs fora da pasta do codigo.</li>
+</ul>
+<hr>
+<h2>21. Autenticacao e permissoes</h2>
+<p>Autenticacao responde:</p>
+<p>&quot;Quem e o usuario?&quot;</p>
+<p>Permissao responde:</p>
+<p>&quot;O que ele pode fazer?&quot;</p>
+<p>No sistema existem niveis:</p>
+<pre><code>LEVEL_ORDER = {
+    &quot;visualizador&quot;: 1,
+    &quot;operador&quot;: 2,
+    &quot;admin&quot;: 3,
+}</code></pre>
+<h3><code>login_required</code></h3>
+<p>Em <code>app_core/auth.py</code>:</p>
+<pre><code>def login_required(view):
+    @wraps(view)
+    def dec(*args, **kwargs):
+        uid = session.get(&quot;uid&quot;)
+        if not uid:
+            return redirect(url_for(&quot;auth.login&quot;, next=request.path))
+        ...
+        return view(*args, **kwargs)
+    return dec</code></pre>
+<p>Esse decorator protege rotas.</p>
+<p>Se nao houver <code>uid</code> na sessao, manda para login.</p>
+<h3><code>nivel_min</code></h3>
+<pre><code>@nivel_min(&quot;admin&quot;)</code></pre>
+<p>Exige administrador.</p>
+<pre><code>@nivel_min(&quot;operador&quot;)</code></pre>
+<p>Exige operador ou admin.</p>
+<h3>Senhas</h3>
+<p>O sistema usa hash:</p>
+<pre><code>generate_password_hash(...)
+check_password_hash(...)</code></pre>
+<p>Isso e importante porque senha nao deve ser salva em texto puro.</p>
+<hr>
+<h2>22. Templates: Python entregando HTML</h2>
+<p>Quando uma rota usa:</p>
+<pre><code>return render_template(&quot;registro_geografico.html&quot;, opcoes=opcoes)</code></pre>
+<p>O Flask abre:</p>
+<pre><code>templates/registro_geografico.html</code></pre>
+<p>E envia a variavel <code>opcoes</code>.</p>
+<p>No template:</p>
+<pre><code>{% for loc in opcoes.localidades %}
+  &lt;option value=&quot;{{ loc.id_localidade }}&quot;&gt;{{ loc.nome }}&lt;/option&gt;
+{% endfor %}</code></pre>
+<p>Isso cria uma opcao para cada localidade.</p>
+<h3><code>{{ ... }}</code></h3>
+<p>Mostra um valor.</p>
+<pre><code>{{ loc.nome }}</code></pre>
+<h3><code>{% ... %}</code></h3>
+<p>Executa uma instrucao de template.</p>
+<pre><code>{% for loc in opcoes.localidades %}</code></pre>
+<h3>Heranca de template</h3>
+<p>Muitos templates comecam assim:</p>
+<pre><code>{% extends &quot;base.html&quot; %}</code></pre>
+<p>Isso significa:</p>
+<p>&quot;Use o layout principal de <code>base.html</code> e preencha partes especificas.&quot;</p>
+<p>No <code>base.html</code> existem blocos:</p>
+<pre><code>{% block content %}{% endblock %}</code></pre>
+<p>Cada pagina coloca seu conteudo nesse bloco.</p>
+<hr>
+<h2>23. JavaScript no sistema</h2>
+<p>JavaScript roda no navegador.</p>
+<p>Ele e usado para:</p>
+<ul>
+<li>abrir menu;</li>
+<li>alternar tema claro/escuro;</li>
+<li>mostrar toast;</li>
+<li>buscar dados de APIs;</li>
+<li>atualizar tabelas;</li>
+<li>renderizar graficos;</li>
+<li>trabalhar com mapas.</li>
+</ul>
+<p>Exemplo:</p>
+<pre><code>async function rgCarregar(){
+  const resp = await fetch(&#x27;/api/registro-geografico?&#x27; + rgParams());
+  const data = await resp.json();
+  rgState.registros = data.registros || [];
+  rgRenderConsulta();
+}</code></pre>
+<p>Leia:</p>
+<ul>
+<li>chame a API <code>/api/registro-geografico</code>;</li>
+<li>transforme a resposta em JSON;</li>
+<li>guarde os registros;</li>
+<li>renderize a consulta.</li>
+</ul>
+<p>Voce nao precisa dominar JavaScript neste Volume 1, mas precisa reconhecer que:</p>
+<ul>
+<li>Python roda no servidor;</li>
+<li>JavaScript roda no navegador.</li>
+</ul>
+<h3>Fluxo completo com JavaScript</h3>
+<pre><code>Usuario clica em Atualizar
+  -&gt; JavaScript chama fetch(&#x27;/api/registro-geografico&#x27;)
+  -&gt; Flask recebe a API
+  -&gt; Python consulta SQLite
+  -&gt; Flask devolve JSON
+  -&gt; JavaScript atualiza a tabela</code></pre>
+<hr>
+<h2>24. ETL: processamento de planilhas</h2>
+<p>ETL significa:</p>
+<ul>
+<li>Extract: extrair dados;</li>
+<li>Transform: transformar/normalizar;</li>
+<li>Load: carregar no banco.</li>
+</ul>
+<p>No seu sistema, o ETL principal esta em:</p>
+<pre><code>etl.py</code></pre>
+<p>Ele usa:</p>
+<pre><code>import pandas as pd</code></pre>
+<p>Pandas e uma biblioteca para trabalhar com planilhas e tabelas.</p>
+<h3>Funcoes de normalizacao</h3>
+<p>Exemplo:</p>
+<pre><code>def normalizar_data(valor):
+    if valor is None:
+        return None
+    try:
+        if pd.isna(valor):
+            return None
+    except Exception:
+        pass
+    if isinstance(valor, datetime):
+        return valor.date().isoformat()
+    try:
+        return pd.to_datetime(valor).date().isoformat()
+    except Exception:
+        return None</code></pre>
+<p>Essa funcao tenta transformar varios formatos de data em um formato padrao:</p>
+<pre><code>YYYY-MM-DD</code></pre>
+<h3>Por que normalizar?</h3>
+<p>Porque planilhas podem vir com:</p>
+<ul>
+<li>texto;</li>
+<li>data;</li>
+<li>valor vazio;</li>
+<li><code>nan</code>;</li>
+<li>formatos diferentes.</li>
+</ul>
+<p>Antes de salvar no banco, o sistema precisa padronizar.</p>
+<hr>
+<h2>25. Testes automatizados</h2>
+<p>Testes sao codigo que verifica se o sistema continua funcionando.</p>
+<p>Exemplo real:</p>
+<pre><code>def test_pagina_registro_geografico_renderiza(self):
+    client = _client_logado()
+    resp = client.get(&quot;/registro-geografico&quot;)
+
+    self.assertEqual(resp.status_code, 200)
+    html = resp.data.decode(&quot;utf-8&quot;)
+    self.assertIn(&quot;rg-panel-consulta&quot;, html)</code></pre>
+<p>Leia:</p>
+<ul>
+<li>cria um cliente logado;</li>
+<li>acessa <code>/registro-geografico</code>;</li>
+<li>confere se a resposta foi <code>200</code>;</li>
+<li>confere se o HTML contem um trecho esperado.</li>
+</ul>
+<h3>Por que isso e importante?</h3>
+<p>Porque quando voce muda uma tela, pode quebrar outra coisa sem perceber.</p>
+<p>Testes ajudam a pegar isso cedo.</p>
+<h3>Rodando testes</h3>
+<p>Exemplo:</p>
+<pre><code>python -m unittest tests.test_security.MainApisSmokeTests.test_pagina_registro_geografico_renderiza -v</code></pre>
+<p>Esse comando roda um teste especifico.</p>
+<hr>
+<h2>26. Git e seguranca do codigo</h2>
+<p>Git controla versoes do codigo.</p>
+<p>GitHub guarda uma copia remota.</p>
+<p>No seu projeto:</p>
+<ul>
+<li>codigo vai para o GitHub;</li>
+<li>banco real nao vai;</li>
+<li>chaves nao vao;</li>
+<li>arquivos gerados nao vao.</li>
+</ul>
+<p>O arquivo <code>.gitignore</code> define o que fica fora.</p>
+<p>Exemplos:</p>
+<pre><code>secret.key
+kobo_config.json
+*.db
+backups/
+anexos/</code></pre>
+<p>Isso e correto.</p>
+<h3>Commit</h3>
+<p>Commit e um ponto salvo na historia do codigo.</p>
+<h3>Push</h3>
+<p>Push envia os commits para o GitHub.</p>
+<h3>Cuidado</h3>
+<p>Nunca coloque no GitHub:</p>
+<ul>
+<li><code>endemias.db</code>;</li>
+<li><code>secret.key</code>;</li>
+<li><code>kobo_config.json</code>;</li>
+<li>backups completos;</li>
+<li>anexos reais.</li>
+</ul>
+<hr>
+<h2>27. Como estudar o sistema sem medo</h2>
+<p>Use esta ordem:</p>
+<ol>
+<li>Leia o arquivo.</li>
+<li>Entenda o caminho da funcionalidade.</li>
+<li>Identifique se e Python, HTML, JavaScript ou SQL.</li>
+<li>Procure a funcao principal.</li>
+<li>Leia nomes de variaveis.</li>
+<li>Ignore detalhes avancados na primeira leitura.</li>
+<li>Rode testes antes e depois de alterar.</li>
+<li>Faca commits pequenos.</li>
+</ol>
+<h3>Exemplo: entender Registro Geografico</h3>
+<p>Comece por:</p>
+<pre><code>blueprints/registro_geografico.py</code></pre>
+<p>Pergunte:</p>
+<ul>
+<li>Quais URLs existem?</li>
+<li>Quais funcoes chamam <code>rg_core</code>?</li>
+<li>Quais retornam HTML?</li>
+<li>Quais retornam JSON?</li>
+</ul>
+<p>Depois abra:</p>
+<pre><code>app_core/registro_geografico.py</code></pre>
+<p>Pergunte:</p>
+<ul>
+<li>Onde cria tabelas?</li>
+<li>Onde lista registros?</li>
+<li>Onde busca quarteiroes?</li>
+<li>Onde salva edicao?</li>
+</ul>
+<p>Depois abra:</p>
+<pre><code>templates/registro_geografico.html</code></pre>
+<p>Pergunte:</p>
+<ul>
+<li>Onde estao os filtros?</li>
+<li>Onde esta a tabela?</li>
+<li>Onde o JavaScript chama API?</li>
+</ul>
+<hr>
+<h2>28. Mini glossario</h2>
+<h3>Aplicacao web</h3>
+<p>Sistema acessado pelo navegador.</p>
+<h3>Backend</h3>
+<p>Parte que roda no servidor. No seu caso, Python e Flask.</p>
+<h3>Frontend</h3>
+<p>Parte que roda no navegador. HTML, CSS e JavaScript.</p>
+<h3>Rota</h3>
+<p>Endereco do sistema, como <code>/admin/sistema</code>.</p>
+<h3>API</h3>
+<p>Rota que devolve dados, geralmente JSON.</p>
+<h3>Template</h3>
+<p>Arquivo HTML com variaveis do Flask/Jinja.</p>
+<h3>Banco de dados</h3>
+<p>Lugar onde os dados ficam salvos.</p>
+<h3>SQLite</h3>
+<p>Banco de dados em arquivo.</p>
+<h3>Query</h3>
+<p>Consulta SQL.</p>
+<h3>JSON</h3>
+<p>Formato de dados usado entre navegador e servidor.</p>
+<h3>Funcao</h3>
+<p>Bloco de codigo reutilizavel.</p>
+<h3>Modulo</h3>
+<p>Arquivo Python que pode ser importado.</p>
+<h3>Blueprint</h3>
+<p>Forma do Flask organizar rotas por area.</p>
+<h3>Commit</h3>
+<p>Registro de uma alteracao no Git.</p>
+<h3>Teste automatizado</h3>
+<p>Codigo que verifica se outra parte do sistema funciona.</p>
+<hr>
+<h2>29. Exercicios guiados do Volume 1</h2>
+<p>Estes exercicios sao para estudar. Nao altere o sistema real ainda, a menos que voce queira fazer isso acompanhado.</p>
+<h3>Exercicio 1 - Encontre a entrada do sistema</h3>
+<p>Abra:</p>
+<pre><code>app.py</code></pre>
+<p>Procure:</p>
+<pre><code>def create_app</code></pre>
+<p>Responda:</p>
+<ul>
+<li>Quais configuracoes aparecem dentro de <code>flask_app.config.update</code>?</li>
+<li>Onde os blueprints sao registrados?</li>
+<li>Qual variavel representa o banco?</li>
+</ul>
+<h3>Exercicio 2 - Leia uma funcao simples</h3>
+<p>Abra:</p>
+<pre><code>app_core/utils.py</code></pre>
+<p>Leia:</p>
+<pre><code>def bounded_int(value, default, minimo=None, maximo=None):</code></pre>
+<p>Responda:</p>
+<ul>
+<li>O que acontece se o valor for menor que o minimo?</li>
+<li>O que acontece se for maior que o maximo?</li>
+</ul>
+<h3>Exercicio 3 - Siga uma rota</h3>
+<p>Abra:</p>
+<pre><code>blueprints/registro_geografico.py</code></pre>
+<p>Procure:</p>
+<pre><code>@bp.route(&quot;/api/registro-geografico&quot;)</code></pre>
+<p>Responda:</p>
+<ul>
+<li>Qual funcao essa rota chama?</li>
+<li>Ela devolve HTML ou JSON?</li>
+<li>Qual funcao do <code>app_core</code> ela usa?</li>
+</ul>
+<h3>Exercicio 4 - Identifique tipos de dados</h3>
+<p>No trecho:</p>
+<pre><code>LEVEL_ORDER = {
+    &quot;visualizador&quot;: 1,
+    &quot;operador&quot;: 2,
+    &quot;admin&quot;: 3,
+}</code></pre>
+<p>Responda:</p>
+<ul>
+<li>Isso e lista ou dicionario?</li>
+<li>As chaves sao textos ou numeros?</li>
+<li>Os valores sao textos ou numeros?</li>
+</ul>
+<h3>Exercicio 5 - Entenda uma consulta</h3>
+<p>Leia:</p>
+<pre><code>row = conn.execute(
+    &quot;SELECT * FROM usuarios WHERE id_usuario=? AND ativo=1&quot;,
+    (uid,),
+).fetchone()</code></pre>
+<p>Responda:</p>
+<ul>
+<li>Qual tabela esta sendo consultada?</li>
+<li>Qual campo esta sendo filtrado?</li>
+<li>Por que existe um <code>?</code>?</li>
+</ul>
+<h3>Exercicio 6 - Diferencie pagina e API</h3>
+<p>Classifique:</p>
+<pre><code>return render_template(&quot;admin_sistema.html&quot;, backups=backups)</code></pre>
+<pre><code>return jsonify({&quot;ok&quot;: True})</code></pre>
+<h3>Exercicio 7 - Leia um teste</h3>
+<p>Abra:</p>
+<pre><code>tests/test_security.py</code></pre>
+<p>Procure um teste que comece com:</p>
+<pre><code>def test_pagina_</code></pre>
+<p>Responda:</p>
+<ul>
+<li>Qual pagina ele abre?</li>
+<li>O que ele espera encontrar no HTML?</li>
+</ul>
+<hr>
+<h2>30. Pequeno roteiro de 7 dias</h2>
+<h3>Dia 1 - Mapa do projeto</h3>
+<p>Leia os capitulos 1 a 3.</p>
+<p>Abra:</p>
+<pre><code>app.py
+blueprints/
+app_core/
+templates/</code></pre>
+<p>Objetivo: saber onde cada coisa mora.</p>
+<h3>Dia 2 - Python basico</h3>
+<p>Leia capitulos 4 a 11.</p>
+<p>Abra:</p>
+<pre><code>app_core/utils.py
+app_core/db.py</code></pre>
+<p>Objetivo: reconhecer variaveis, funcoes, listas, dicionarios, if, for e try.</p>
+<h3>Dia 3 - Flask</h3>
+<p>Leia capitulos 12 e 13.</p>
+<p>Abra:</p>
+<pre><code>blueprints/registro_geografico.py
+blueprints/admin.py</code></pre>
+<p>Objetivo: entender rotas, paginas e APIs.</p>
+<h3>Dia 4 - Banco SQLite</h3>
+<p>Leia capitulos 14 e 15.</p>
+<p>Abra:</p>
+<pre><code>criar_banco.py
+app_core/db.py</code></pre>
+<p>Objetivo: entender tabelas, consultas e conexoes.</p>
+<h3>Dia 5 - Templates e JavaScript</h3>
+<p>Leia capitulos 22 e 23.</p>
+<p>Abra:</p>
+<pre><code>templates/base.html
+templates/registro_geografico.html
+static/js/app.js</code></pre>
+<p>Objetivo: entender como a tela conversa com o Python.</p>
+<h3>Dia 6 - ETL e configuracoes</h3>
+<p>Leia capitulos 20 e 24.</p>
+<p>Abra:</p>
+<pre><code>etl.py
+config.json
+app_core/work_types.py</code></pre>
+<p>Objetivo: entender processamento de planilhas e configuracoes.</p>
+<h3>Dia 7 - Testes e revisao</h3>
+<p>Leia capitulos 25 a 29.</p>
+<p>Abra:</p>
+<pre><code>tests/test_security.py</code></pre>
+<p>Objetivo: entender como o sistema se protege contra quebras.</p>
+<hr>
+<h2>31. O que voce deve conseguir fazer apos este volume</h2>
+<p>Ao terminar este volume, voce deve conseguir:</p>
+<ul>
+<li>explicar a diferenca entre <code>app.py</code>, <code>blueprints</code>, <code>app_core</code> e <code>templates</code>;</li>
+<li>reconhecer uma funcao Python;</li>
+<li>entender imports simples;</li>
+<li>identificar listas e dicionarios;</li>
+<li>seguir o caminho de uma rota Flask;</li>
+<li>diferenciar HTML de JSON;</li>
+<li>reconhecer uma consulta SQL;</li>
+<li>entender por que o banco nao vai para o GitHub;</li>
+<li>rodar um teste especifico com ajuda;</li>
+<li>ler uma pequena alteracao sem se perder.</li>
+</ul>
+<p>Isso ja e muito.</p>
+<p>O salto principal nao e &quot;decorar Python&quot;. E conseguir abrir um arquivo e nao sentir que ele e uma parede indecifravel.</p>
+<hr>
+<h2>32. Proximo volume sugerido</h2>
+<p>O Volume 2 pode ser:</p>
+<p><strong>Flask, rotas, templates e APIs no Sistema Endemias</strong></p>
+<p>Ele pode ensinar, com mais profundidade:</p>
+<ul>
+<li>como criar uma nova pagina;</li>
+<li>como criar uma nova API;</li>
+<li>como enviar dados do HTML para o Python;</li>
+<li>como validar entrada do usuario;</li>
+<li>como retornar mensagens de erro;</li>
+<li>como usar <code>fetch</code> no JavaScript;</li>
+<li>como proteger rotas com login e nivel de acesso.</li>
+</ul>
+<p>Depois disso, o Volume 3 pode entrar em:</p>
+<p><strong>Banco de dados, SQL e manutencao segura</strong></p>
+<p>E o Volume 4:</p>
+<p><strong>Planilhas Kobo, ETL, Pandas e importacoes</strong></p>
+<hr>
+<p>Fim do Volume 1.</p>
+</main>
+</body>
+</html>
