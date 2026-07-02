@@ -69,6 +69,8 @@
 .rg-map-kpi span{display:block;font-size:10px;text-transform:uppercase;color:var(--text3);font-weight:900;margin-top:4px;}
 .rg-map-detail{font-size:12px;color:var(--text2);line-height:1.45;}
 .rg-map-detail h3{font-size:16px;color:var(--text);margin:0 0 8px;}
+.rg-map-selected-list{display:grid;gap:4px;}
+.rg-map-selected-list div{border-bottom:1px solid var(--border);padding:3px 0;color:var(--text2);}
 .rg-map-types{display:grid;gap:6px;margin-top:8px;}
 .rg-map-type-row{display:grid;grid-template-columns:48px 1fr auto;gap:8px;align-items:center;font-size:12px;}
 .rg-map-type-row b{font-size:11px;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:999px;text-align:center;padding:2px 6px;}
@@ -234,7 +236,7 @@
       </div>
 
       <div class="rg-map-card">
-        <div class="rg-map-card-title"><img src="/static/icons/registro_geografico.svg" alt="" class="icon-svg"> Quarteirão</div>
+        <div class="rg-map-card-title" id="rg-map-detail-title"><img src="/static/icons/registro_geografico.svg" alt="" class="icon-svg"> Quarteirão</div>
         <div class="rg-map-detail" id="rg-map-detail">Nenhum quarteirão selecionado.</div>
       </div>
     </div>
@@ -357,6 +359,7 @@ function rgMapPopupHtml(props){
     População: ${rgFmt(item.populacao_aproximada)}</div>`;
 }
 function rgMapRenderDetail(props){
+  rgEl('rg-map-detail-title').innerHTML = '<img src="/static/icons/registro_geografico.svg" alt="" class="icon-svg"> Quarteirão';
   const item = rgMapData(props);
   const loc = rgMapLocName(props.Localidade);
   const q = rgMapQuart(props.id_quart);
@@ -371,6 +374,37 @@ function rgMapRenderDetail(props){
     <div>População aproximada: <strong>${rgFmt(item.populacao_aproximada)}</strong></div>
     <div>Linhas atualizadas: <strong>${rgFmt(item.atualizados)}</strong></div>
     ${rgMapTypesHtml(item.tipos)}`;
+}
+function rgMapSelectedRows(){
+  const rows = [];
+  for(const key of rgMapState.selected){
+    const item = rgMapState.data?.quarteiroes?.[key];
+    if(item){
+      rows.push({localidade: item.localidade, quarteirao: item.quarteirao});
+      continue;
+    }
+    const [locId, quarteirao] = String(key).split(':');
+    rows.push({localidade: rgMapLocName(locId), quarteirao});
+  }
+  return rows.sort((a,b) => String(a.localidade).localeCompare(String(b.localidade), 'pt-BR') || String(a.quarteirao).localeCompare(String(b.quarteirao), 'pt-BR', {numeric:true}));
+}
+function rgMapRenderSelectionDetail(){
+  const rows = rgMapSelectedRows();
+  if(rows.length > 1){
+    rgEl('rg-map-detail-title').innerHTML = '<img src="/static/icons/registro_geografico.svg" alt="" class="icon-svg"> Quarteirões selecionados';
+    rgEl('rg-map-detail').innerHTML = `<div class="rg-map-selected-list">${rows.map(row => `
+      <div>${rgEscape(row.localidade)} - Q. ${rgEscape(row.quarteirao)}</div>
+    `).join('')}</div>`;
+    return;
+  }
+  if(rows.length === 1){
+    const key = Array.from(rgMapState.selected)[0];
+    const [locId, quarteirao] = String(key).split(':');
+    rgMapRenderDetail({Localidade: locId, id_quart: quarteirao});
+    return;
+  }
+  rgEl('rg-map-detail-title').innerHTML = '<img src="/static/icons/registro_geografico.svg" alt="" class="icon-svg"> Quarteirão';
+  rgEl('rg-map-detail').textContent = 'Nenhum quarteirão selecionado.';
 }
 function rgMapStyle(feature){
   const props = feature.properties || {};
@@ -439,6 +473,7 @@ function rgMapRenderSelection(){
   rgEl('rg-map-sel-pop').textContent = rgFmt(agg.populacao_aproximada);
   rgEl('rg-map-sel-tipos').innerHTML = agg.quarteiroes ? rgMapTypesHtml(agg.tipos) : '<div class="rg-muted" style="margin-top:8px;">Nenhum quarteirão selecionado.</div>';
   rgSetText('rg-map-status', rgMapState.selectMode ? `${rgFmt(agg.quarteiroes)} quarteirão(ões) selecionado(s).` : 'Clique em um quarteirão para ver detalhes.');
+  rgMapRenderSelectionDetail();
 }
 function rgMapRender(){
   if(!rgMapState.map || !rgMapState.geojson) return;
