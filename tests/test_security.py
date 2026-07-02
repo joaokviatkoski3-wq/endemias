@@ -25,6 +25,7 @@ import etl
 from app_core import audit as audit_core
 from app_core import auth as auth_core
 from app_core import backup as backup_core
+from app_core import backup_completo as backup_completo_core
 from app_core import amostras_animais as amostras_animais_core
 from app_core import esporotricose as esporotricose_core
 from app_core import db as db_core
@@ -660,6 +661,11 @@ class AdminBackupRoutesTests(unittest.TestCase):
         app_temp = endemias_app.create_app({
             "TESTING": True,
             "DB_PATH": db_path,
+            "INSTANCE_DIR": str(Path(tmpdir)),
+            "ANEXOS_DIR": str(Path(tmpdir) / "anexos"),
+            "BACKUP_COMPLETO_DIR": str(Path(tmpdir) / "backups_completos"),
+            "KOBO_CONFIG_PATH": str(Path(tmpdir) / "kobo_config.json"),
+            "SECRET_KEY_PATH": str(Path(tmpdir) / "secret.key"),
             "WTF_CSRF_ENABLED": False,
         })
         conn = sqlite3.connect(db_path)
@@ -720,6 +726,49 @@ class AdminBackupRoutesTests(unittest.TestCase):
 
             with app_temp.app_context():
                 resp = client.get(f"/admin/sistema/backups/baixar/{nome_backup}")
+
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn("attachment", resp.headers.get("Content-Disposition", ""))
+            data = resp.get_data()
+            resp.close()
+            self.assertGreater(len(data), 0)
+
+    def test_admin_cria_backup_completo_pela_central_do_sistema(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = self._app_e_cliente_admin(tmpdir)
+            anexos_dir = Path(app_temp.config["ANEXOS_DIR"])
+            anexos_dir.mkdir(parents=True, exist_ok=True)
+            (anexos_dir / "teste.txt").write_text("anexo", encoding="utf-8")
+            Path(app_temp.config["KOBO_CONFIG_PATH"]).write_text("{}", encoding="utf-8")
+
+            with app_temp.app_context():
+                resp = client.post("/admin/sistema/backups-completos/criar")
+
+            self.assertEqual(resp.status_code, 302)
+            backups = list(Path(app_temp.config["BACKUP_COMPLETO_DIR"]).glob("endemias_completo_*.zip"))
+            self.assertEqual(len(backups), 1)
+            itens = backup_completo_core.listar_backups_completos(app_temp.config["BACKUP_COMPLETO_DIR"])
+            self.assertEqual(itens[0]["integridade_banco"], "ok")
+            with zipfile.ZipFile(backups[0]) as zf:
+                nomes = zf.namelist()
+            self.assertTrue(any(nome.startswith("banco/") and nome.endswith(".db") for nome in nomes))
+            self.assertIn("anexos/teste.txt", nomes)
+            self.assertIn("manifesto_backup.json", nomes)
+
+    def test_admin_baixa_backup_completo_pela_central_do_sistema(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = self._app_e_cliente_admin(tmpdir)
+            info = backup_completo_core.criar_backup_completo(
+                destino_dir=app_temp.config["BACKUP_COMPLETO_DIR"],
+                db_path=db_path,
+                raiz=tmpdir,
+                secret_key_path=app_temp.config["SECRET_KEY_PATH"],
+                kobo_config_path=app_temp.config["KOBO_CONFIG_PATH"],
+                anexos_dir=app_temp.config["ANEXOS_DIR"],
+            )
+
+            with app_temp.app_context():
+                resp = client.get(f"/admin/sistema/backups-completos/baixar/{info['nome']}")
 
             self.assertEqual(resp.status_code, 200)
             self.assertIn("attachment", resp.headers.get("Content-Disposition", ""))
@@ -805,6 +854,25 @@ class AdminBackupRoutesTests(unittest.TestCase):
             self.assertEqual(resp.status_code, 302)
             self.assertFalse(backup_path.exists())
             self.assertFalse(backup_path.with_suffix(".db.json").exists())
+
+    def test_admin_exclui_backup_completo_pela_central_do_sistema(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = self._app_e_cliente_admin(tmpdir)
+            info = backup_completo_core.criar_backup_completo(
+                destino_dir=app_temp.config["BACKUP_COMPLETO_DIR"],
+                db_path=db_path,
+                raiz=tmpdir,
+                secret_key_path=app_temp.config["SECRET_KEY_PATH"],
+                kobo_config_path=app_temp.config["KOBO_CONFIG_PATH"],
+                anexos_dir=app_temp.config["ANEXOS_DIR"],
+            )
+            backup_path = Path(info["arquivo"])
+
+            with app_temp.app_context():
+                resp = client.post("/admin/sistema/backups-completos/excluir", data={"backup": backup_path.name})
+
+            self.assertEqual(resp.status_code, 302)
+            self.assertFalse(backup_path.exists())
 
     def test_confirmar_importacao_cria_backup_pre_import(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1984,8 +2052,11 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('id="btn-diag-completo"', html)
         self.assertIn("Saude do ambiente", html)
         self.assertIn("Backups gerenciados", html)
+        self.assertIn("Backups completos", html)
         self.assertIn("/admin/sistema/backups/criar", html)
         self.assertIn("/admin/sistema/backups/excluir", html)
+        self.assertIn("/admin/sistema/backups-completos/criar", html)
+        self.assertIn("/admin/sistema/backups-completos/excluir", html)
         self.assertIn('id="sidebarToggle"', html)
         self.assertIn("data-confirm=", html)
         self.assertNotIn("onclick=", html)

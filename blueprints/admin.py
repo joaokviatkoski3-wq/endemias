@@ -12,6 +12,7 @@ from openpyxl.styles import Font, PatternFill
 from app_core import audit
 from app_core import auth as auth_core
 from app_core import backup as backup_core
+from app_core import backup_completo as backup_completo_core
 from app_core import blueprint_helpers as bh
 from app_core import diagnostico as diagnostico_core
 from app_core import dbml as dbml_core
@@ -110,7 +111,9 @@ def admin_usuarios():
 def admin_sistema():
     db_path = Path(current_app.config["DB_PATH"])
     backup_dir = db_path.parent / "backups"
+    backup_completo_dir = Path(current_app.config["BACKUP_COMPLETO_DIR"])
     backups = backup_core.listar_backups(backup_dir, limite=20)
+    backups_completos = backup_completo_core.listar_backups_completos(backup_completo_dir, limite=20)
     importacoes = import_history.listar_importacoes_recentes(bh.get_db, limite=5)
     eventos = audit.listar_eventos(bh.get_db, limite=8)
     conn = bh.get_db()
@@ -123,8 +126,10 @@ def admin_sistema():
         db_status=_db_status(),
         contagens=_contagens_sistema(),
         backups=backups,
+        backups_completos=backups_completos,
         diagnostico=diagnostico,
         backup_dir=str(backup_dir),
+        backup_completo_dir=str(backup_completo_dir),
         importacoes=importacoes,
         eventos=eventos,
         app_version=version_core.APP_VERSION_LABEL,
@@ -270,6 +275,76 @@ def admin_excluir_backup():
         return redirect(url_for("admin.admin_sistema", backup_ok=f"Backup excluido: {backup_path.name}"))
     except Exception as exc:
         return redirect(url_for("admin.admin_sistema", backup_erro=f"Erro ao excluir backup: {exc}"))
+
+
+@bp.route("/admin/sistema/backups-completos/criar", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def admin_criar_backup_completo():
+    try:
+        with backup_core.operacao_exclusiva():
+            info = backup_completo_core.criar_backup_completo(
+                destino_dir=current_app.config["BACKUP_COMPLETO_DIR"],
+                manter=10,
+                db_path=current_app.config["DB_PATH"],
+                raiz=current_app.config["INSTANCE_DIR"],
+                anexos_dir=current_app.config["ANEXOS_DIR"],
+                kobo_config_path=current_app.config["KOBO_CONFIG_PATH"],
+                secret_key_path=current_app.config["SECRET_KEY_PATH"],
+            )
+        audit.registrar_evento(
+            bh.get_db,
+            "backup_completo_criado",
+            entidade="backups_completos",
+            entidade_id=info["nome"],
+            detalhes={
+                "arquivo": info["nome"],
+                "tamanho_bytes": info["tamanho_bytes"],
+                "integridade_banco": info["integridade_banco"],
+                "destino": current_app.config["BACKUP_COMPLETO_DIR"],
+            },
+        )
+        return redirect(url_for("admin.admin_sistema", backup_ok=f"Backup completo criado: {info['nome']}"))
+    except Exception as exc:
+        return redirect(url_for("admin.admin_sistema", backup_erro=f"Erro ao criar backup completo: {exc}"))
+
+
+@bp.route("/admin/sistema/backups-completos/baixar/<nome_backup>")
+@login_required
+@nivel_min("admin")
+def admin_baixar_backup_completo(nome_backup):
+    try:
+        backup_path = backup_completo_core.resolver_backup_completo(
+            current_app.config["BACKUP_COMPLETO_DIR"],
+            nome_backup,
+        )
+        return send_file(backup_path, as_attachment=True, download_name=backup_path.name)
+    except Exception as exc:
+        return redirect(url_for("admin.admin_sistema", backup_erro=f"Erro ao baixar backup completo: {exc}"))
+
+
+@bp.route("/admin/sistema/backups-completos/excluir", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def admin_excluir_backup_completo():
+    nome_backup = request.form.get("backup", "").strip()
+    try:
+        with backup_core.operacao_exclusiva():
+            backup_path = backup_completo_core.resolver_backup_completo(
+                current_app.config["BACKUP_COMPLETO_DIR"],
+                nome_backup,
+            )
+            backup_completo_core.excluir_backup_completo(backup_path)
+        audit.registrar_evento(
+            bh.get_db,
+            "backup_completo_excluido",
+            entidade="backups_completos",
+            entidade_id=backup_path.name,
+            detalhes={"arquivo": backup_path.name},
+        )
+        return redirect(url_for("admin.admin_sistema", backup_ok=f"Backup completo excluido: {backup_path.name}"))
+    except Exception as exc:
+        return redirect(url_for("admin.admin_sistema", backup_erro=f"Erro ao excluir backup completo: {exc}"))
 
 
 @bp.route("/admin/auditoria")

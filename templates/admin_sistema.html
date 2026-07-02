@@ -11,9 +11,13 @@
       <p>Um painel rapido para conferir saude do banco, backups, importacoes e eventos administrativos.</p>
     </div>
     <div class="system-hero-actions">
+      <form method="POST" action="/admin/sistema/backups-completos/criar" data-confirm="Criar backup completo em {{ backup_completo_dir }}? O arquivo contem banco, anexos e configuracoes sensiveis.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-primary" type="submit"><img src="/static/icons/pasta.svg" alt="" class="icon-svg"> Backup completo</button>
+      </form>
       <form method="POST" action="/admin/sistema/backups/criar">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="btn btn-primary" type="submit"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Criar backup</button>
+        <button class="btn btn-outline" type="submit"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Backup do banco</button>
       </form>
       <a class="btn btn-primary" href="/processar"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Processar</a>
       <a class="btn btn-outline" href="/admin/auditoria"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> Auditoria</a>
@@ -38,6 +42,11 @@
       <span>Backups</span>
       <strong>{{ backups|length }}</strong>
       <small>{{ backup_dir }}</small>
+    </div>
+    <div class="system-metric">
+      <span>Backups completos</span>
+      <strong>{{ backups_completos|length }}</strong>
+      <small>{{ backup_completo_dir }}</small>
     </div>
     <div class="system-metric">
       <span>Notificacoes pendentes</span>
@@ -110,7 +119,7 @@
       <div class="system-panel-hd">
         <div>
           <h2>Backups gerenciados</h2>
-          <p>Ate 20 arquivos mais novos na pasta configurada</p>
+          <p>Somente o banco SQLite, usado para restauracao rapida</p>
         </div>
         <form method="POST" action="/admin/sistema/backups/criar">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -144,6 +153,42 @@
       </div>
       {% else %}
       <div class="system-empty">Nenhum backup encontrado ainda.</div>
+      {% endif %}
+    </section>
+
+    <section class="system-panel">
+      <div class="system-panel-hd">
+        <div>
+          <h2>Backups completos</h2>
+          <p>Banco validado, anexos, configuracoes sensiveis e arquivos gerados em {{ backup_completo_dir }}</p>
+        </div>
+        <form method="POST" action="/admin/sistema/backups-completos/criar" data-confirm="Criar backup completo em {{ backup_completo_dir }}?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-outline" type="submit"><img src="/static/icons/pasta.svg" alt="" class="icon-svg"> Novo</button>
+        </form>
+      </div>
+      {% if backups_completos %}
+      <div class="system-list">
+        {% for backup in backups_completos %}
+        <div class="system-list-row">
+          <div>
+            <strong>{{ backup.nome }}</strong>
+            <span>{{ backup.modificado_em[:16].replace("T", " ") }} - {{ format_bytes(backup.tamanho_bytes) }}</span>
+          </div>
+          <div class="system-backup-actions">
+            <em class="{{ 'ok' if backup.integridade_banco == 'ok' else '' }}">{{ backup.integridade_banco }}</em>
+            <a class="btn btn-outline" href="{{ url_for('admin.admin_baixar_backup_completo', nome_backup=backup.nome) }}">Baixar</a>
+            <form method="POST" action="/admin/sistema/backups-completos/excluir" data-confirm="Excluir este backup completo permanentemente?">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="backup" value="{{ backup.nome }}">
+              <button class="btn btn-outline danger" type="submit">Excluir</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="system-empty">Nenhum backup completo encontrado ainda.</div>
       {% endif %}
     </section>
 
