@@ -3672,11 +3672,26 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("rgMapToggleSelection", html)
         self.assertIn("World_Imagery/MapServer", html)
         self.assertIn("Satélite + ruas", html)
+        self.assertIn("/static/ubs_setor_endemias.geojson", html)
+        self.assertIn("Equipamentos da Saúde", html)
+        self.assertIn("function rgMapRenderPontos", html)
         self.assertIn("rg_mapa_localidade_cores", html)
         self.assertIn("function rgMapResetColors", html)
         self.assertIn("rg-carregar-todos", html)
         self.assertIn("limite', rgState.limiteTodos ? 'todos' : '200'", html)
         self.assertIn("IBGE Censo 2022", html)
+
+    def test_registro_geografico_geojson_pontos_saude(self):
+        client = _client_logado()
+        resp = client.get("/static/ubs_setor_endemias.geojson")
+
+        self.assertEqual(resp.status_code, 200)
+        dados = json.loads(resp.data.decode("utf-8"))
+        resp.close()
+        self.assertEqual(dados["type"], "FeatureCollection")
+        self.assertGreaterEqual(len(dados["features"]), 1)
+        nomes = {f.get("properties", {}).get("Nomes") for f in dados["features"]}
+        self.assertIn("Setor de Endemias", nomes)
 
     def test_api_registro_geografico_mapa_resumo(self):
         client = _client_logado()

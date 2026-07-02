@@ -254,7 +254,9 @@ const rgState = { registros: [], q: null, limiteTodos: false };
 const rgMapState = {
   map: null,
   geojson: null,
+  pontosGeojson: null,
   layer: null,
+  pontosLayer: null,
   data: null,
   initialized: false,
   selectMode: false,
@@ -274,6 +276,9 @@ function rgTipoClass(tipo){ return tipo === 'TB' ? 'tb' : (tipo === 'PE' ? 'pe' 
 function rgEscape(v){ return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch])); }
 function rgMapLocName(id){
   return (rgLocalidades.find(loc => String(loc.id_localidade) === String(id)) || {}).nome || `Localidade ${id}`;
+}
+function rgMapNorm(value){
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 }
 function rgMapLocColor(id){
   const custom = rgMapState.colors[String(id)];
@@ -315,6 +320,13 @@ function rgMapQuart(value){
 }
 function rgMapKey(props){
   return `${props.Localidade}:${rgMapQuart(props.id_quart)}`;
+}
+function rgMapVisibleLocalityNames(){
+  const names = new Set();
+  rgLocalidades.forEach(loc => {
+    if(rgMapState.visibleLocs.has(String(loc.id_localidade))) names.add(rgMapNorm(loc.nome));
+  });
+  return names;
 }
 function rgMapData(props){
   return rgMapState.data?.quarteiroes?.[rgMapKey(props)] || null;
@@ -430,7 +442,11 @@ function rgMapRenderSelection(){
 }
 function rgMapRender(){
   if(!rgMapState.map || !rgMapState.geojson) return;
-  if(rgMapState.layer) rgMapState.map.removeLayer(rgMapState.layer);
+  document.querySelectorAll('#rg-mapa .rg-map-label').forEach(label => label.remove());
+  if(rgMapState.layer){
+    rgMapState.layer.eachLayer(layer => layer.unbindTooltip());
+    rgMapState.map.removeLayer(rgMapState.layer);
+  }
   rgMapState.layers.clear();
   const labels = rgEl('rg-map-labels')?.checked;
   const filtered = {
@@ -462,6 +478,54 @@ function rgMapRender(){
   }).addTo(rgMapState.map);
   if(rgMapState.layer.getBounds().isValid()) rgMapState.map.fitBounds(rgMapState.layer.getBounds(), {padding:[12,12]});
   rgMapRenderSelection();
+  rgMapRenderPontos();
+}
+function rgMapPontoCategoria(props){
+  const nome = rgMapNorm(props.Nomes || props.nome || props.Name);
+  if(nome.includes('endemias')) return 'Endemias';
+  if(nome.startsWith('ubs')) return 'UBS';
+  if(nome.includes('upa') || nome.includes('samu')) return 'Urgência';
+  return 'Saúde';
+}
+function rgMapPontoColor(categoria){
+  if(categoria === 'Endemias') return '#f97316';
+  if(categoria === 'UBS') return '#16a34a';
+  if(categoria === 'Urgência') return '#dc2626';
+  return '#2563eb';
+}
+function rgMapPontoPopup(props){
+  const nome = props.Nomes || props.nome || props.Name || 'Ponto de saúde';
+  const loc = props.Localidade || '-';
+  const categoria = rgMapPontoCategoria(props);
+  return `<div class="rg-map-popup"><strong>${rgEscape(nome)}</strong><br>${rgEscape(categoria)}<br>Localidade: ${rgEscape(loc)}</div>`;
+}
+function rgMapRenderPontos(){
+  if(!rgMapState.pontosLayer || !rgMapState.pontosGeojson) return;
+  const visibleNames = rgMapVisibleLocalityNames();
+  rgMapState.pontosLayer.clearLayers();
+  L.geoJSON(rgMapState.pontosGeojson, {
+    filter: feature => {
+      const loc = rgMapNorm(feature.properties?.Localidade);
+      return !loc || visibleNames.has(loc);
+    },
+    pointToLayer: (feature, latlng) => {
+      const categoria = rgMapPontoCategoria(feature.properties || {});
+      const color = rgMapPontoColor(categoria);
+      return L.circleMarker(latlng, {
+        radius: categoria === 'Endemias' ? 8 : 6,
+        color: '#ffffff',
+        weight: 2,
+        fillColor: color,
+        fillOpacity: 0.95,
+        opacity: 1
+      });
+    },
+    onEachFeature: (feature, layer) => {
+      const props = feature.properties || {};
+      layer.bindPopup(() => rgMapPontoPopup(props));
+      layer.bindTooltip(props.Nomes || 'Ponto de saúde', {direction:'top', sticky:true});
+    }
+  }).eachLayer(layer => rgMapState.pontosLayer.addLayer(layer));
 }
 async function rgMapInit(){
   if(rgMapState.initialized){
@@ -469,14 +533,16 @@ async function rgMapInit(){
     return;
   }
   rgMapRenderLocalidades();
-  const [geoResp, dataResp] = await Promise.all([
+  const [geoResp, dataResp, pontosResp] = await Promise.all([
     fetch('/static/quarteiroes.geojson'),
-    fetch('/api/registro-geografico/mapa-resumo')
+    fetch('/api/registro-geografico/mapa-resumo'),
+    fetch('/static/ubs_setor_endemias.geojson').catch(() => null)
   ]);
   if(!geoResp.ok) throw new Error('Erro ao carregar GeoJSON.');
   if(!dataResp.ok) throw new Error('Erro ao carregar resumo do RG.');
   rgMapState.geojson = await geoResp.json();
   rgMapState.data = await dataResp.json();
+  rgMapState.pontosGeojson = pontosResp?.ok ? await pontosResp.json() : {type:'FeatureCollection', features:[]};
   rgMapState.map = L.map('rg-mapa', {zoomControl:true});
   const baseMapa = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap', maxZoom: 19
@@ -493,8 +559,10 @@ async function rgMapInit(){
     })
   ]);
   const bases = {'Mapa': baseMapa, 'Satélite': baseSatelite, 'Satélite + ruas': baseSateliteRuas};
+  rgMapState.pontosLayer = L.layerGroup();
   baseMapa.addTo(rgMapState.map);
-  L.control.layers(bases, {}, {position:'topright', collapsed:false}).addTo(rgMapState.map);
+  rgMapState.pontosLayer.addTo(rgMapState.map);
+  L.control.layers(bases, {'Equipamentos da Saúde': rgMapState.pontosLayer}, {position:'topright', collapsed:false}).addTo(rgMapState.map);
   rgMapRender();
   rgMapState.initialized = true;
   rgEl('rg-map-loading').style.display = 'none';

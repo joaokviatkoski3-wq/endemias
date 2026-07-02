@@ -1,0 +1,32 @@
+{
+"type": "FeatureCollection",
+"name": "UBSs e setor de endemias",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{"type":"Feature","properties":{"Localidade":"Graziela","Nomes":"UBS Graziela"},"geometry":{"type":"Point","coordinates":[-49.245276449589767,-25.344559870389944]}},
+{"type":"Feature","properties":{"Localidade":"Tamboara","Nomes":"UBS Tamboara"},"geometry":{"type":"Point","coordinates":[-49.252588626602794,-25.346847435729249]}},
+{"type":"Feature","properties":{"Localidade":"São Francisco","Nomes":"UBS São Francisco"},"geometry":{"type":"Point","coordinates":[-49.274433596124709,-25.313294225967997]}},
+{"type":"Feature","properties":{"Localidade":"São Venâncio","Nomes":"UBS São Venâncio"},"geometry":{"type":"Point","coordinates":[-49.264340708827,-25.338356530854423]}},
+{"type":"Feature","properties":{"Localidade":"Roma","Nomes":"UBS Roma"},"geometry":{"type":"Point","coordinates":[-49.273273267113112,-25.326596148149864]}},
+{"type":"Feature","properties":{"Localidade":"Rosana","Nomes":"UBS Rosana"},"geometry":{"type":"Point","coordinates":[-49.263316370451292,-25.31476937178051]}},
+{"type":"Feature","properties":{"Localidade":"São João Batista","Nomes":"UBS São João Batista"},"geometry":{"type":"Point","coordinates":[-49.301145171909361,-25.238327613180051]}},
+{"type":"Feature","properties":{"Localidade":"Cachoeira","Nomes":"UBS Cachoeira"},"geometry":{"type":"Point","coordinates":[-49.272052692374736,-25.339582697734961]}},
+{"type":"Feature","properties":{"Localidade":"Sede","Nomes":"UBS Sede"},"geometry":{"type":"Point","coordinates":[-49.296967631482566,-25.312279149173573]}},
+{"type":"Feature","properties":{"Localidade":"Sede","Nomes":"UPA 24h"},"geometry":{"type":"Point","coordinates":[-49.298936005280396,-25.313520698404286]}},
+{"type":"Feature","properties":{"Localidade":"Sede","Nomes":"Secretaria Municipal de Saúde"},"geometry":{"type":"Point","coordinates":[-49.293735515399007,-25.307313673676902]}},
+{"type":"Feature","properties":{"Localidade":"Sede","Nomes":"CAPS II"},"geometry":{"type":"Point","coordinates":[-49.296502314999081,-25.311526475854215]}},
+{"type":"Feature","properties":{"Localidade":"Sede","Nomes":"CAPS AD"},"geometry":{"type":"Point","coordinates":[-49.294553038204413,-25.306850040984141]}},
+{"type":"Feature","properties":{"Localidade":"Tranqueira","Nomes":"UBS TRANQUEIRA"},"geometry":{"type":"Point","coordinates":[-49.305925720856536,-25.259144230102418]}},
+{"type":"Feature","properties":{"Localidade":"Sede","Nomes":"Setor de Endemias"},"geometry":{"type":"Point","coordinates":[-49.296304207438098,-25.312991698057683]}},
+{"type":"Feature","properties":{"Localidade":"Tanguá","Nomes":"UBS Tanguá"},"geometry":{"type":"Point","coordinates":[-49.309563153748385,-25.371342395876169]}},
+{"type":"Feature","properties":{"Localidade":"Lamenha","Nomes":"UBS Lamenha"},"geometry":{"type":"Point","coordinates":[-49.299361206764601,-25.344327220271349]}},
+{"type":"Feature","properties":{"Localidade":"Sede","Nomes":"Farmácia Central"},"geometry":{"type":"Point","coordinates":[-49.298615393851243,-25.313680021975962]}},
+{"type":"Feature","properties":{"Localidade":"Sede","Nomes":"CTA"},"geometry":{"type":"Point","coordinates":[-49.291526387618539,-25.309794786781705]}},
+{"type":"Feature","properties":{"Localidade":"Tranqueira","Nomes":"Posto de Apoio"},"geometry":{"type":"Point","coordinates":[-49.346930937268517,-25.249029326332142]}},
+{"type":"Feature","properties":{"Localidade":"Paraíso","Nomes":"UBS Paraíso"},"geometry":{"type":"Point","coordinates":[-49.30765158448709,-25.311774751467979]}},
+{"type":"Feature","properties":{"Localidade":"Santa Maria","Nomes":"UBS Santa Maria"},"geometry":{"type":"Point","coordinates":[-49.309122995623085,-25.335342431798885]}},
+{"type":"Feature","properties":{"Localidade":"Sede","Nomes":"SAMU"},"geometry":{"type":"Point","coordinates":[-49.29655408523854,-25.312482394327066]}},
+{"type":"Feature","properties":{"Localidade":"Cachoeira","Nomes":"Centro de Especialidades"},"geometry":{"type":"Point","coordinates":[-49.272560009144257,-25.339721307538611]}},
+{"type":"Feature","properties":{"Localidade":"SEDE","Nomes":"Centro de Saúde da Mulher"},"geometry":{"type":"Point","coordinates":[-49.298671738995075,-25.316408523844476]}}
+]
+}
