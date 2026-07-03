@@ -6198,6 +6198,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(normalizadores.normalizar_localidade("lamenha"), "Lamenha")
         self.assertEqual(normalizadores.normalizar_localidade("Centro"), "Sede")
         self.assertEqual(normalizadores.normalizar_localidade("s_o_francisco"), "S\u00e3o Francisco")
+        self.assertEqual(normalizadores.normalizar_localidade("S_O_Ven_Ncio"), "S\u00e3o Ven\u00e2ncio")
         self.assertEqual(normalizadores.normalizar_localidade("para_so"), "Para\u00edso")
         self.assertEqual(etl.normalizar_categoria("resid_ncia"), "Residência")
         self.assertEqual(etl.normalizar_categoria("com_rcio"), "Comércio")

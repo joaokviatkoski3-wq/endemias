@@ -49,6 +49,7 @@ def _chave(value):
         "s o francisco": "sao francisco",
         "s o joao batista": "sao joao batista",
         "s o venancio": "sao venancio",
+        "s o ven ncio": "sao venancio",
         "para so": "paraiso",
     }
     return aliases.get(text, text)
