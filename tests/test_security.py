@@ -1936,10 +1936,22 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("tab-ovitrampas", html)
         self.assertIn("chOviSemana", html)
         self.assertIn("dash-ovi-card", html)
+        self.assertIn("filter-choice-grid", html)
+        self.assertIn("filter-choice-section", html)
         self.assertIn("abrirAbaOvitrampas", html)
         self.assertIn("t-ovi-semanas", html)
         self.assertIn("t-ovi-localidades-detalhe", html)
         self.assertIn("datalabels:{ display:false }", html)
+
+    def test_pagina_visitas_usa_filtros_modernos(self):
+        client = _client_logado()
+        resp = client.get("/visitas")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Lista de Visitas", html)
+        self.assertIn("filter-choice-grid", html)
+        self.assertIn("filter-choice-section", html)
 
     def test_relatorio_agente_exibe_esporotricose_e_aviso_de_privacidade(self):
         client = _client_logado()

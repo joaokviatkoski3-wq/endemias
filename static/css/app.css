@@ -357,6 +357,21 @@ select[data-multi-picker] { display:none !important; }
 .pill label:hover { border-color:var(--brand-l); color:var(--brand); }
 
 .filter-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.filter-choice-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; margin:12px 0 14px; }
+.filter-choice-section {
+  border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface2);
+  padding:10px; min-width:0;
+}
+.filter-choice-title {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  margin-bottom:8px; color:var(--text3); font-size:10px; font-weight:800;
+  text-transform:uppercase; letter-spacing:.4px;
+}
+.filter-choice-count { color:var(--brand); font-size:10px; font-weight:900; }
+.filter-choice-options {
+  display:flex; flex-wrap:wrap; gap:5px; max-height:118px; overflow:auto; padding-right:2px;
+}
+.filter-choice-options .pill label { background:var(--surface); }
 
 /* ═══════════════════════════════════════════
    BOTÕES

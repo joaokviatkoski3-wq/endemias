@@ -26,9 +26,10 @@
         <input type="text" id="v_busca" placeholder="Pesquisar..." value="">
       </div>
     </div>
-    <div style="margin-bottom:10px;">
-      <div class="f-g" style="margin-bottom:8px;"><label>Tipo de trabalho</label></div>
-      <div class="pill-group">
+    <div class="filter-choice-grid">
+      <section class="filter-choice-section">
+      <div class="filter-choice-title"><span>Tipo de trabalho</span><span class="filter-choice-count">{{ tipos_sel|length }} ativo(s)</span></div>
+      <div class="filter-choice-options">
         {% for t in tipos_glob %}
         <div class="pill">
           <input type="checkbox" id="vt_{{ t }}" value="{{ t }}" {{ 'checked' if t in tipos_sel else '' }} onchange="buscar()">
@@ -36,10 +37,10 @@
         </div>
         {% endfor %}
       </div>
-    </div>
-    <div style="margin-bottom:10px;">
-      <div class="f-g" style="margin-bottom:8px;"><label>Localidade</label></div>
-      <div class="pill-group">
+      </section>
+      <section class="filter-choice-section">
+      <div class="filter-choice-title"><span>Localidade</span><span class="filter-choice-count">{{ locs_sel|length }} ativo(s)</span></div>
+      <div class="filter-choice-options">
         {% for l in localidades_glob %}
         <div class="pill">
           <input type="checkbox" id="vl_{{ loop.index }}" value="{{ l }}" {{ 'checked' if l in locs_sel else '' }} onchange="buscar()">
@@ -47,10 +48,10 @@
         </div>
         {% endfor %}
       </div>
-    </div>
-    <div style="margin-bottom:14px;">
-      <div class="f-g" style="margin-bottom:8px;"><label>Agente</label></div>
-      <div class="pill-group">
+      </section>
+      <section class="filter-choice-section">
+      <div class="filter-choice-title"><span>Agente</span><span class="filter-choice-count">{{ ags_sel|length }} ativo(s)</span></div>
+      <div class="filter-choice-options">
         {% for a in agentes_glob %}
         <div class="pill">
           <input type="checkbox" id="va_{{ loop.index }}" value="{{ a }}" {{ 'checked' if a in ags_sel else '' }} onchange="buscar()">
@@ -58,6 +59,7 @@
         </div>
         {% endfor %}
       </div>
+      </section>
     </div>
     <div class="filter-actions">
       <button class="btn btn-primary" onclick="buscar()"><img src="/static/icons/atualizar.svg" alt="🔄" class="icon-svg"> Atualizar</button>
