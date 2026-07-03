@@ -1033,7 +1033,8 @@ def estoque_medicacao(db_path):
     capsulas_entregues = sum(int(item.get("capsulas_entregues") or 0) for item in doentes)
     saidas_entregas = capsulas_entregues
     saidas = saidas_manuais + saidas_entregas
-    saldo_setor = entradas - saidas
+    saldo_setor = entradas - saidas_manuais
+    saldo_historico_com_entregas = entradas - saidas
     capsulas_receitadas = sum(int(item.get("capsulas_receitadas") or 0) for item in doentes)
     necessidade_tratamento = sum(int(item.get("capsulas_restantes") or 0) for item in em_tratamento)
     sobra_potencial_encerrados = sum(int(item.get("capsulas_entregues") or 0) for item in encerrados)
@@ -1069,6 +1070,7 @@ def estoque_medicacao(db_path):
             "sobras_lancadas": sobras_lancadas,
             "sobra_potencial_encerrados": sobra_potencial_encerrados,
             "saldo_apos_reserva": saldo_setor - necessidade_tratamento,
+            "saldo_historico_com_entregas": saldo_historico_com_entregas,
         },
         "movimentos": movimentos,
         "movimentos_automaticos": movimentos_automaticos,

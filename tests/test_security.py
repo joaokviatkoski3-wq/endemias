@@ -1282,7 +1282,8 @@ class EsporotricoseSchemaTests(unittest.TestCase):
             estoque = esporotricose_core.estoque_medicacao(str(db_path))
 
         self.assertEqual(estoque["totais"]["faltantes_tratamento"], 70)
-        self.assertEqual(estoque["totais"]["saldo_setor"], 20)
+        self.assertEqual(estoque["totais"]["saldo_setor"], 130)
+        self.assertEqual(estoque["totais"]["saldo_historico_com_entregas"], 20)
         self.assertEqual(estoque["totais"]["saidas_entregas"], 110)
         self.assertEqual(estoque["totais"]["saidas_manuais"], 10)
         self.assertEqual(estoque["totais"]["saidas_setor"], 120)
@@ -3661,6 +3662,8 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("initMultiPickers", html)
         self.assertIn("renderEstoqueMovimentoLinha", html)
         self.assertIn("encontrarEspAnimalDetalhe", html)
+        self.assertIn("encontrarEspAnimalLinha", html)
+        self.assertIn("toggleEspAnimalDetalhes(this.dataset.id, event)", html)
         self.assertIn("esp-tab-doentes", html)
         self.assertIn("esp-tab-doentes-resumo", html)
         self.assertIn("esp-tab-doentes-estoque", html)

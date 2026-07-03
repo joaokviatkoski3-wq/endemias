@@ -550,9 +550,6 @@ function escapeHtml(value) {
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
 }
-function jsString(value) {
-  return JSON.stringify(String(value ?? ''));
-}
 function selectedOptions(el) {
   return Array.from(el?.selectedOptions || []).filter(opt => opt.value);
 }
@@ -926,6 +923,7 @@ function renderEspEstoque(d) {
     resumoRow('Saídas do setor', t.saidas_setor),
     resumoRow('Saídas automáticas por entregas', t.saidas_entregas),
     resumoRow('Saídas manuais', t.saidas_manuais),
+    resumoRow('Balanço histórico com entregas', t.saldo_historico_com_entregas),
     resumoRow('Receitadas nos registros', t.receitadas),
     resumoRow('Entregues nos registros', t.entregues),
     resumoRow('Faltantes em tratamento', t.faltantes_tratamento),
@@ -1422,7 +1420,7 @@ function renderEspAnimais(rows, total, bodyId, infoId) {
   document.getElementById(infoId).textContent = `${fmtNum(total)} animal(is) - ${fmtNum(rows.length)} exibido(s)`;
   espAnimaisRowsById = new Map(rows.map(r => [String(r.id_animal), r]));
   document.getElementById(bodyId).innerHTML = rows.length ? rows.map(r => `
-    <tr class="esporo-animal-main-row" data-id="${escapeHtml(r.id_animal)}" onclick="toggleEspAnimalDetalhes(${jsString(r.id_animal)}, event)">
+    <tr class="esporo-animal-main-row" data-id="${escapeHtml(r.id_animal)}" onclick="toggleEspAnimalDetalhes(this.dataset.id, event)">
       <td><strong>${escapeHtml(r.nome || '-')}</strong><div class="muted">${fmtDate(r.data)} - ${escapeHtml(r.localidade || '-')}</div></td>
       <td>${escapeHtml(r.especie || r.outro_animal || '-')}</td>
       <td>${escapeHtml(r.raca || '-')}</td>
@@ -1437,7 +1435,7 @@ function renderEspAnimais(rows, total, bodyId, infoId) {
       <td><span class="esporo-tag ${statusDoenteClass(r.evolucao_caso)}">${escapeHtml(r.evolucao_caso || 'Nao informado')}</span></td>
       <td>${escapeHtml(r.morador || '-')}</td>
       <td class="esporo-address">${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', ') || '-')}</td>
-      <td><div class="esporo-doente-actions"><button class="btn btn-outline btn-sm" type="button" onclick="toggleEspAnimalDetalhes(${jsString(r.id_animal)}, event)">Detalhes</button><button class="btn btn-ghost btn-sm" type="button" onclick="event.stopPropagation(); editarAnimal('${escapeHtml(r.id_animal)}')"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button></div></td>
+      <td><div class="esporo-doente-actions"><button class="btn btn-outline btn-sm" type="button" data-id="${escapeHtml(r.id_animal)}" onclick="toggleEspAnimalDetalhes(this.dataset.id, event)">Detalhes</button><button class="btn btn-ghost btn-sm" type="button" data-id="${escapeHtml(r.id_animal)}" onclick="event.stopPropagation(); editarAnimal(this.dataset.id)"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button></div></td>
     </tr>
     <tr class="esporo-animal-detail-row" data-detail-id="${escapeHtml(r.id_animal)}" style="display:none;">
       <td colspan="15">${renderEspAnimalDetalhe(r)}</td>
@@ -1476,7 +1474,7 @@ function renderEspAnimalDetalhe(r) {
           <div class="f-g"><label>Agente da busca</label><select data-busca-campo="agente">${agenteBuscaOptions(r.busca_ferido_agente)}</select></div>
           <div class="f-g full"><label>Observacoes</label><textarea rows="2" data-busca-campo="observacoes">${escapeHtml(r.busca_ferido_observacoes || '')}</textarea></div>
         </div>
-        <div class="esporo-filter-actions" style="margin-top:8px;"><button class="btn btn-primary btn-sm" type="button" onclick="salvarBuscaFerido(${jsString(r.id_animal)}, event)">Salvar busca</button></div>
+        <div class="esporo-filter-actions" style="margin-top:8px;"><button class="btn btn-primary btn-sm" type="button" data-id="${escapeHtml(r.id_animal)}" onclick="salvarBuscaFerido(this.dataset.id, event)">Salvar busca</button></div>
       </div>
     </div>`;
 }
@@ -1492,6 +1490,9 @@ function toggleEspAnimalDetalhes(id, ev) {
 }
 function encontrarEspAnimalDetalhe(id) {
   return Array.from(document.querySelectorAll('tr[data-detail-id]')).find(row => row.dataset.detailId === String(id));
+}
+function encontrarEspAnimalLinha(id) {
+  return Array.from(document.querySelectorAll('tr[data-id]')).find(row => row.dataset.id === String(id));
 }
 async function salvarBuscaFerido(id, ev) {
   if (ev) ev.stopPropagation();
@@ -1680,7 +1681,7 @@ async function salvarVisita(id) {
 }
 
 function editarAnimal(id) {
-  const tr = document.querySelector(`tr[data-id="${id}"]`);
+  const tr = encontrarEspAnimalLinha(id);
   if (!tr) return;
   const cells = tr.querySelectorAll('td');
   const original = {
@@ -1710,11 +1711,11 @@ function editarAnimal(id) {
   cells[9].innerHTML = `<select style="width:70px"><option value="Sim" ${original.atendimento_veterinario === 'Sim' ? 'selected' : ''}>Sim</option><option value="Não" ${original.atendimento_veterinario === 'Não' ? 'selected' : ''}>Não</option><option value="Desconhecido" ${original.atendimento_veterinario === 'Desconhecido' ? 'selected' : ''}>Desconhecido</option></select>`;
   cells[10].innerHTML = `<input type="date" value="${original.data_atendimento === '-' ? '' : original.data_atendimento.split('/').reverse().join('-')}" style="width:120px">`;
   cells[11].innerHTML = `<select style="width:110px"><option value="">-</option><option value="Curado" ${original.evolucao_caso === 'Curado' ? 'selected' : ''}>Curado</option><option value="Em tratamento" ${original.evolucao_caso === 'Em tratamento' ? 'selected' : ''}>Em tratamento</option><option value="Faleceu" ${original.evolucao_caso === 'Faleceu' ? 'selected' : ''}>Faleceu</option><option value="Eutanásia" ${original.evolucao_caso === 'Eutanásia' ? 'selected' : ''}>Eutanásia</option><option value="Outro" ${original.evolucao_caso === 'Outro' ? 'selected' : ''}>Outro</option></select>`;
-  cells[14].innerHTML = `<button class="btn btn-primary btn-sm" type="button" onclick="salvarAnimal('${id}')"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"></button> <button class="btn btn-ghost btn-sm" type="button" onclick="cancelarAnimal('${id}')">Cancelar</button>`;
+  cells[14].innerHTML = `<button class="btn btn-primary btn-sm" type="button" data-id="${escapeHtml(id)}" onclick="event.stopPropagation(); salvarAnimal(this.dataset.id)"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"></button> <button class="btn btn-ghost btn-sm" type="button" data-id="${escapeHtml(id)}" onclick="event.stopPropagation(); cancelarAnimal(this.dataset.id)">Cancelar</button>`;
 }
 
 function cancelarAnimal(id) {
-  const tr = document.querySelector(`tr[data-id="${id}"]`);
+  const tr = encontrarEspAnimalLinha(id);
   if (!tr || !tr.dataset.original) return;
   const original = JSON.parse(tr.dataset.original);
   const cells = tr.querySelectorAll('td');
@@ -1730,12 +1731,12 @@ function cancelarAnimal(id) {
   cells[9].innerHTML = tagStatus(original.atendimento_veterinario);
   cells[10].textContent = original.data_atendimento;
   cells[11].innerHTML = `<span class="esporo-tag ${statusDoenteClass(original.evolucao_caso)}">${escapeHtml(original.evolucao_caso || 'Não informado')}</span>`;
-  cells[14].innerHTML = `<button class="btn btn-ghost btn-sm" type="button" onclick="editarAnimal('${id}')"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button>`;
+  cells[14].innerHTML = `<button class="btn btn-ghost btn-sm" type="button" data-id="${escapeHtml(id)}" onclick="event.stopPropagation(); editarAnimal(this.dataset.id)"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button>`;
   delete tr.dataset.original;
 }
 
 async function salvarAnimal(id) {
-  const tr = document.querySelector(`tr[data-id="${id}"]`);
+  const tr = encontrarEspAnimalLinha(id);
   if (!tr) return;
   const cells = tr.querySelectorAll('td');
   const dados = {
