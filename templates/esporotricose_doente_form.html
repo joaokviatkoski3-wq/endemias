@@ -32,6 +32,7 @@
       <div class="f-g"><label>Status</label><select id="status" required>{% for st in status_opcoes %}<option value="{{ st.nome }}" {% if (animal and animal.status == st.nome) or (not animal and st.nome == 'Em tratamento') %}selected{% endif %}>{{ st.nome }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Tutor</label><input id="tutor" type="text" required value="{{ animal.tutor if animal else '' }}"></div>
       <div class="f-g"><label>Telefone</label><input id="telefone" type="text" value="{{ animal.telefone if animal else '' }}"></div>
+      <div class="f-g"><label>CPF do tutor</label><input id="cpf" type="text" value="{{ animal.cpf if animal else '' }}"></div>
       <div class="f-g"><label>SINAN</label><input id="sinan" type="text" value="{{ animal.sinan if animal else '' }}"></div>
       <div class="f-g"><label>Localidade</label><input id="localidade" type="text" list="localidades-list" value="{{ animal.localidade if animal else '' }}"></div>
       <div class="f-g"><label>Quarteirão</label><input id="quarteirao" type="text" value="{{ animal.quarteirao if animal else '' }}"></div>
@@ -73,7 +74,7 @@ const animal = {{ (animal or {})|tojson }};
 function val(id){ return document.getElementById(id)?.value || ''; }
 function payloadAnimal(){
   return {
-    nome: val('nome'), especie: val('especie'), sexo: val('sexo'), tutor: val('tutor'), telefone: val('telefone'),
+    nome: val('nome'), especie: val('especie'), sexo: val('sexo'), tutor: val('tutor'), telefone: val('telefone'), cpf: val('cpf'),
     sinan: val('sinan'), localidade: val('localidade'), quarteirao: val('quarteirao'),
     endereco: val('endereco'), latitude: val('latitude'), longitude: val('longitude'),
     status: val('status'), bloqueio: val('bloqueio'), data_bloqueio: val('data_bloqueio'),

@@ -1214,6 +1214,30 @@ class EsporotricoseSchemaTests(unittest.TestCase):
         self.assertEqual([r["nome"] for r in nao_realizados["registros"]], ["Luna"])
         self.assertEqual([r["nome"] for r in nao_necessarios["registros"]], ["Nina"])
 
+    def test_doente_salva_e_retorna_cpf_do_tutor(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "esporotricose_doente_cpf.db"
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                esporotricose_core.ensure_schema(conn)
+            finally:
+                conn.close()
+
+            id_animal = esporotricose_core.salvar_doente(str(db_path), {
+                "nome": "Paciente CPF",
+                "tutor": "Tutor CPF",
+                "telefone": "(41) 99999-0000",
+                "cpf": "123.456.789-09",
+                "status": "Em tratamento",
+            })
+            animal = esporotricose_core.obter_doente(str(db_path), id_animal)
+            filtrados = esporotricose_core.listar_doentes(str(db_path), {"busca": "12345678909"})
+
+        self.assertEqual(animal["cpf"], "12345678909")
+        self.assertEqual(filtrados["total"], 1)
+        self.assertEqual(filtrados["registros"][0]["cpf"], "12345678909")
+
 
 class RecolhimentosTests(unittest.TestCase):
     def test_schema_cria_tabelas_de_recolhimentos(self):
@@ -3528,10 +3552,17 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
         self.assertIn("esporo-tabbar", html)
+        self.assertIn('data-esp-main="visitas"', html)
+        self.assertIn('data-esp-main="doentes"', html)
+        self.assertIn("esp-visitas-tabs", html)
+        self.assertIn("esp-doentes-tabs", html)
         self.assertIn("esp-tab-visitas", html)
         self.assertIn("esp-tab-animais", html)
         self.assertIn("esp-tab-doentes", html)
-        self.assertIn("esporo-doentes-entry", html)
+        self.assertIn("esp-tab-doentes-resumo", html)
+        self.assertIn("doe-res-caps-entregues", html)
+        self.assertIn("CPF do tutor", html)
+        self.assertIn("Cápsulas", html)
         self.assertIn("esp-visitas-kpis", html)
         self.assertIn("doe-kpi-total", html)
         self.assertIn("gato_doente.svg", html)

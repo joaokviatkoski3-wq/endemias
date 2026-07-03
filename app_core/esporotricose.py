@@ -204,6 +204,7 @@ def ensure_schema(conn):
             especie TEXT,
             sexo TEXT,
             telefone TEXT,
+            cpf TEXT,
             localidade TEXT,
             quarteirao TEXT,
             endereco TEXT,
@@ -266,6 +267,7 @@ def ensure_schema(conn):
         """
     )
     _ensure_column(conn, DOENTES_TABLE, "especie", "TEXT")
+    _ensure_column(conn, DOENTES_TABLE, "cpf", "TEXT")
     _ensure_column(conn, DOENTES_ENTREGAS_TABLE, "baixa_zoomed", "TEXT NOT NULL DEFAULT 'Sim'")
     _seed_doentes_status(conn)
     _normalizar_doentes_existentes(conn)
@@ -907,9 +909,9 @@ def listar_doentes(db_path, filtros=None):
         if busca:
             termo = f"%{busca}%"
             where.append(
-                "(d.tutor LIKE ? OR d.nome LIKE ? OR d.telefone LIKE ? OR d.endereco LIKE ? OR d.sinan LIKE ?)"
+                "(d.tutor LIKE ? OR d.nome LIKE ? OR d.telefone LIKE ? OR d.cpf LIKE ? OR d.endereco LIKE ? OR d.sinan LIKE ?)"
             )
-            params.extend([termo] * 5)
+            params.extend([termo] * 6)
         sql = """
             SELECT d.*,
                    (SELECT COUNT(*) FROM esporotricose_doentes_receitas r
@@ -987,9 +989,9 @@ def listar_doentes_csv(db_path, filtros=None):
         if busca:
             termo = f"%{busca}%"
             where.append(
-                "(d.tutor LIKE ? OR d.nome LIKE ? OR d.telefone LIKE ? OR d.endereco LIKE ? OR d.sinan LIKE ?)"
+                "(d.tutor LIKE ? OR d.nome LIKE ? OR d.telefone LIKE ? OR d.cpf LIKE ? OR d.endereco LIKE ? OR d.sinan LIKE ?)"
             )
-            params.extend([termo] * 5)
+            params.extend([termo] * 6)
         sql = """
             SELECT d.id_animal_doente,
                    d.nome AS animal,
@@ -1130,14 +1132,14 @@ def salvar_doente(db_path, dados):
         if id_animal:
             conn.execute(
                 """UPDATE esporotricose_doentes_animais
-                      SET tutor=?, nome=?, especie=?, sexo=?, telefone=?, localidade=?, quarteirao=?,
+                      SET tutor=?, nome=?, especie=?, sexo=?, telefone=?, cpf=?, localidade=?, quarteirao=?,
                           endereco=?, latitude=?, longitude=?, sinan=?, status=?, bloqueio=?,
                           data_bloqueio=?, observacoes_entomologica=?, pedido_zoomed=?,
                           atualizado_em=?
                     WHERE id_animal_doente=?""",
                 (
                     payload["tutor"], payload["nome"], payload["especie"], payload["sexo"], payload["telefone"],
-                    payload["localidade"], payload["quarteirao"], payload["endereco"],
+                    payload["cpf"], payload["localidade"], payload["quarteirao"], payload["endereco"],
                     payload["latitude"], payload["longitude"], payload["sinan"], payload["status"],
                     payload["bloqueio"], payload["data_bloqueio"], payload["observacoes_entomologica"],
                     payload["pedido_zoomed"], agora, id_animal,
@@ -1147,13 +1149,13 @@ def salvar_doente(db_path, dados):
             chave = _doente_chave(payload)
             cur = conn.execute(
                 """INSERT INTO esporotricose_doentes_animais
-                   (chave, tutor, nome, especie, sexo, telefone, localidade, quarteirao, endereco,
+                   (chave, tutor, nome, especie, sexo, telefone, cpf, localidade, quarteirao, endereco,
                     latitude, longitude, sinan, status, bloqueio, data_bloqueio,
                     observacoes_entomologica, pedido_zoomed, criado_em, atualizado_em)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     chave, payload["tutor"], payload["nome"], payload["especie"], payload["sexo"], payload["telefone"],
-                    payload["localidade"], payload["quarteirao"], payload["endereco"],
+                    payload["cpf"], payload["localidade"], payload["quarteirao"], payload["endereco"],
                     payload["latitude"], payload["longitude"], payload["sinan"], payload["status"],
                     payload["bloqueio"], payload["data_bloqueio"], payload["observacoes_entomologica"],
                     payload["pedido_zoomed"], agora, agora,
@@ -1715,6 +1717,7 @@ def _doente_payload(dados):
         "especie": _normalizar_especie_doente(dados.get("especie")) or "Gato",
         "sexo": _text(dados.get("sexo")),
         "telefone": _telefone(dados.get("telefone")),
+        "cpf": _cpf(dados.get("cpf")),
         "localidade": normalizadores.normalizar_localidade(dados.get("localidade")),
         "quarteirao": _text(dados.get("quarteirao")),
         "endereco": _text(dados.get("endereco")),
@@ -1804,6 +1807,14 @@ def _telefone(value):
     if len(digits) == 12 and digits.startswith("5541") and digits[4] != "9":
         pass
     return digits
+
+
+def _cpf(value):
+    text = _text(value)
+    if not text:
+        return None
+    digits = re.sub(r"\D+", "", text)
+    return digits or None
 
 
 def _real(value):

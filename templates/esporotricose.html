@@ -37,10 +37,19 @@
 .esporo-tab-btn:hover { border-color:var(--brand); color:var(--brand); background:var(--brand-xs); }
 .esporo-tab-btn.active { background:var(--brand); border-color:var(--brand); color:#fff; }
 .esporo-tab-btn.active .icon-svg { filter:brightness(0) invert(1) !important; }
-.esporo-doentes-entry { display:flex; margin:-6px 0 16px; }
-.esporo-doentes-entry .esporo-tab-btn { background:rgba(15,118,110,.1); border-color:rgba(15,118,110,.28); color:#0f766e; }
+.esporo-main-tabs { margin-bottom:10px; }
+.esporo-subtabs { margin-bottom:16px; }
+#esp-doentes-tabs { display:none; }
 .esporo-pane { display:none; }
 .esporo-pane.active { display:block; }
+.esporo-doentes-resumo-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.esporo-doentes-resumo-grid .full { grid-column:1 / -1; }
+.esporo-summary-list { display:grid; gap:8px; }
+.esporo-summary-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface2); }
+.esporo-summary-row strong { color:var(--text); }
+.esporo-capsulas { min-width:150px; }
+.esporo-capsulas strong { color:var(--brand); font-size:14px; }
+.esporo-capsulas .warn { color:#b45309; }
 .esporo-chart-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
 .esporo-chart-grid .full { grid-column:1 / -1; }
 .esporo-mini-filter { margin-bottom:14px; }
@@ -58,7 +67,7 @@
 .esporo-entrega { padding:3px 7px; border-radius:999px; background:var(--brand-xs); color:var(--brand); font-size:11px; font-weight:800; }
 .esporo-anexos { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
 .esporo-anexo { display:flex; justify-content:space-between; gap:8px; align-items:center; padding:7px 8px; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12px; }
-@media(max-width:980px) { .esporo-chart-grid { grid-template-columns:1fr; } }
+@media(max-width:980px) { .esporo-chart-grid,.esporo-doentes-resumo-grid { grid-template-columns:1fr; } .esporo-doentes-resumo-grid .full { grid-column:auto; } }
 @media(max-width:980px) { .esporo-layout { grid-template-columns:1fr; } }
 @media(max-width:1100px) { .esporo-doentes-layout { grid-template-columns:1fr; } .esporo-doente-panel { position:static; } }
 </style>{% endblock %}
@@ -69,7 +78,12 @@
   <div class="sub">Visitas domiciliares para coleta de dados sobre moradores e animais</div>
 </div>
 
-<div class="esporo-tabbar" aria-label="Abas de esporotricose">
+<div class="esporo-tabbar esporo-main-tabs" aria-label="Areas de esporotricose">
+  <button class="esporo-tab-btn active" type="button" data-esp-main="visitas" onclick="openEspMain('visitas', this)"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Visitas</button>
+  <button class="esporo-tab-btn" type="button" data-esp-main="doentes" onclick="openEspMain('doentes', this)"><img src="/static/icons/gato_doente.svg" alt="" class="icon-svg"> Doentes</button>
+</div>
+
+<div class="esporo-tabbar esporo-subtabs" id="esp-visitas-tabs" aria-label="Abas de visitas de esporotricose">
   <button class="esporo-tab-btn active" type="button" onclick="openEspTab('esp-tab-resumo', this)"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Resumo</button>
   <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-visitas', this)"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Visitas</button>
   <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-animais', this)"><img src="/static/icons/pets.svg" alt="" class="icon-svg"> Animais</button>
@@ -77,8 +91,9 @@
   <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-dashboard', this)"><img src="/static/icons/grafico_linha.svg" alt="" class="icon-svg"> Dashboard</button>
 </div>
 
-<div class="esporo-doentes-entry">
-  <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-doentes', this)"><img src="/static/icons/gato_doente.svg" alt="" class="icon-svg"> Doentes</button>
+<div class="esporo-tabbar esporo-subtabs" id="esp-doentes-tabs" aria-label="Abas de animais doentes">
+  <button class="esporo-tab-btn active" type="button" onclick="openEspTab('esp-tab-doentes', this)"><img src="/static/icons/gato_doente.svg" alt="" class="icon-svg"> Lista</button>
+  <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-doentes-resumo', this)"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Resumo</button>
 </div>
 
 <div class="esporo-grid" id="esp-visitas-kpis">
@@ -90,7 +105,7 @@
   <div class="esporo-kpi"><div class="esporo-kpi-label">Fechadas</div><div class="esporo-kpi-value" id="esp-fechadas">0</div></div>
 </div>
 
-<section class="esporo-pane active" id="esp-tab-resumo">
+<section class="esporo-pane active" id="esp-tab-resumo" data-esp-area="visitas">
   <div class="filter-card esporo-mini-filter">
     <div class="filter-body open">
       <div class="filter-grid">
@@ -124,7 +139,7 @@
   </div>
 </section>
 
-<section class="esporo-pane" id="esp-tab-visitas">
+<section class="esporo-pane" id="esp-tab-visitas" data-esp-area="visitas">
   <div class="chart-card">
     <div class="chart-hd">
       <div class="chart-title"><img src="/static/icons/casas.svg" alt="" class="icon-svg"> Imóveis visitados</div>
@@ -148,7 +163,7 @@
   </div>
 </section>
 
-<section class="esporo-pane" id="esp-tab-animais">
+<section class="esporo-pane" id="esp-tab-animais" data-esp-area="visitas">
   <div class="chart-card">
     <div class="chart-hd">
       <div class="chart-title"><img src="/static/icons/pets.svg" alt="" class="icon-svg"> Animais cadastrados</div>
@@ -246,7 +261,7 @@
   </div>
 </section>
 
-<section class="esporo-pane" id="esp-tab-doentes">
+<section class="esporo-pane" id="esp-tab-doentes" data-esp-area="doentes">
   <div class="esporo-doentes-kpis">
     <div class="esporo-kpi"><div class="esporo-kpi-label">Doentes</div><div class="esporo-kpi-value" id="doe-kpi-total">0</div></div>
     <div class="esporo-kpi"><div class="esporo-kpi-label">Em tratamento</div><div class="esporo-kpi-value" id="doe-kpi-tratamento">0</div></div>
@@ -263,7 +278,7 @@
         </div>
       </div>
       <div class="esporo-animal-filters">
-        <div class="f-g"><label>Pesquisa</label><input type="search" id="doe-busca" placeholder="Tutor, animal, telefone, SINAN..."></div>
+        <div class="f-g"><label>Pesquisa</label><input type="search" id="doe-busca" placeholder="Tutor, animal, CPF, telefone, SINAN..."></div>
         <div class="f-g"><label>Status</label><select id="doe-status"><option value="">Todos</option></select></div>
         <div class="f-g"><label>Espécie</label><select id="doe-especie"><option value="">Todas</option><option value="Gato">Gato</option><option value="Cão">Cão</option><option value="Outros">Outros</option></select></div>
         <div class="f-g"><label>Localidade</label><select id="doe-localidade"><option value="">Todas</option>{% for loc in localidades %}<option value="{{ loc.nome }}">{{ loc.nome }}</option>{% endfor %}</select></div>
@@ -274,7 +289,7 @@
       </div>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Animal</th><th>Espécie</th><th>Tutor</th><th>Endereço</th><th>Status</th><th>Tratamento</th><th>Bloqueio</th><th>Pedido Zoomed</th><th>Baixa Zoomed</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Animal</th><th>Espécie</th><th>Tutor</th><th>Endereço</th><th>Status</th><th>Cápsulas</th><th>Tratamento</th><th>Bloqueio</th><th>Pedido Zoomed</th><th>Baixa Zoomed</th><th>Ações</th></tr></thead>
           <tbody id="esp-doentes-body"></tbody>
         </table>
       </div>
@@ -289,6 +304,7 @@
           <div class="f-g"><label>Sexo</label><select id="doe-sexo"><option value="">-</option><option>Macho</option><option>Fêmea</option></select></div>
           <div class="f-g full"><label>Tutor</label><input id="doe-tutor" required></div>
           <div class="f-g"><label>Telefone</label><input id="doe-telefone"></div>
+          <div class="f-g"><label>CPF do tutor</label><input id="doe-cpf"></div>
           <div class="f-g"><label>SINAN</label><input id="doe-sinan"></div>
           <div class="f-g"><label>Localidade</label><input id="doe-form-localidade" list="doe-localidades-list"></div>
           <div class="f-g"><label>Quarteirão</label><input id="doe-quarteirao"></div>
@@ -337,7 +353,43 @@
   </div>
 </section>
 
-<section class="esporo-pane" id="esp-tab-localidades">
+<section class="esporo-pane" id="esp-tab-doentes-resumo" data-esp-area="doentes">
+  <div class="esporo-doentes-kpis">
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Doentes</div><div class="esporo-kpi-value" id="doe-res-total">0</div></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Cápsulas entregues</div><div class="esporo-kpi-value" id="doe-res-caps-entregues">0</div></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Cápsulas faltantes</div><div class="esporo-kpi-value" id="doe-res-caps-faltam">0</div></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Entregas</div><div class="esporo-kpi-value" id="doe-res-entregas">0</div></div>
+  </div>
+  <div class="esporo-doentes-resumo-grid">
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Status dos doentes</div></div>
+      <div class="chart-wrap h260"><canvas id="esp-ch-doentes-status"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/pets.svg" alt="" class="icon-svg"> Espécies</div></div>
+      <div class="chart-wrap h260"><canvas id="esp-ch-doentes-especies"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Por localidade</div></div>
+      <div class="esporo-summary-list" id="doe-res-localidades"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Tratamento e entregas</div></div>
+      <div class="esporo-summary-list" id="doe-res-tratamento"></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Atenção rápida</div></div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Animal</th><th>Tutor</th><th>Status</th><th>Cápsulas</th><th>Última receita</th><th>Zoomed</th></tr></thead>
+          <tbody id="doe-res-atencao"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="esporo-pane" id="esp-tab-localidades" data-esp-area="visitas">
   <div class="chart-card">
     <div class="chart-hd">
       <div class="chart-title"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Resumo por localidade</div>
@@ -364,7 +416,7 @@
   </div>
 </section>
 
-<section class="esporo-pane" id="esp-tab-dashboard">
+<section class="esporo-pane" id="esp-tab-dashboard" data-esp-area="visitas">
   <div class="filter-card esporo-mini-filter">
     <div class="filter-body open">
       <div class="filter-grid">
@@ -413,6 +465,7 @@ let espLocalidadesCarregadas = false;
 let espDashboardCarregado = false;
 let espResumo = null;
 let espDoenteAtual = null;
+let espDoentesRows = [];
 
 function setEspText(id, value) {
   const el = document.getElementById(id);
@@ -466,16 +519,31 @@ function espAnimalParams() {
   });
   return p;
 }
-function openEspTab(id, btn) {
-  document.querySelectorAll('.esporo-tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.esporo-pane').forEach(p => p.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  btn.classList.add('active');
+function openEspMain(area, btn) {
+  document.querySelectorAll('[data-esp-main]').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.getElementById('esp-visitas-tabs').style.display = area === 'visitas' ? 'flex' : 'none';
+  document.getElementById('esp-doentes-tabs').style.display = area === 'doentes' ? 'flex' : 'none';
   const visitasKpis = document.getElementById('esp-visitas-kpis');
-  if (visitasKpis) visitasKpis.style.display = id === 'esp-tab-doentes' ? 'none' : 'grid';
+  if (visitasKpis) visitasKpis.style.display = area === 'visitas' ? 'grid' : 'none';
+  document.querySelectorAll('.esporo-pane').forEach(p => p.classList.remove('active'));
+  const tabs = area === 'visitas' ? document.getElementById('esp-visitas-tabs') : document.getElementById('esp-doentes-tabs');
+  const activeBtn = tabs.querySelector('.esporo-tab-btn.active') || tabs.querySelector('.esporo-tab-btn');
+  const match = activeBtn?.getAttribute('onclick')?.match(/'(esp-tab-[^']+)'/);
+  openEspTab(match ? match[1] : (area === 'visitas' ? 'esp-tab-resumo' : 'esp-tab-doentes'), activeBtn);
+}
+function openEspTab(id, btn) {
+  const pane = document.getElementById(id);
+  const area = pane?.dataset?.espArea || 'visitas';
+  document.querySelectorAll(`.esporo-pane[data-esp-area="${area}"]`).forEach(p => p.classList.remove('active'));
+  const tabbar = area === 'doentes' ? document.getElementById('esp-doentes-tabs') : document.getElementById('esp-visitas-tabs');
+  tabbar.querySelectorAll('.esporo-tab-btn').forEach(b => b.classList.remove('active'));
+  pane.classList.add('active');
+  if (btn) btn.classList.add('active');
   if (id === 'esp-tab-visitas' && !espVisitasCarregadas) carregarEspVisitas();
   if (id === 'esp-tab-animais' && !espAnimaisCarregados) carregarEspAnimais();
   if (id === 'esp-tab-doentes' && !espDoentesCarregados) carregarEspDoentes();
+  if (id === 'esp-tab-doentes-resumo') carregarEspDoentesResumo();
   if (id === 'esp-tab-localidades' && !espLocalidadesCarregadas) carregarEspLocalidadesDetalhe();
   if (id === 'esp-tab-dashboard' && !espDashboardCarregado) carregarEspDashboard();
 }
@@ -552,12 +620,16 @@ async function carregarEspDoentes() {
       baixa_zoomed: document.getElementById('doe-baixa-zoomed-filtro')?.value || '',
     };
     await carregarEspDoentesStatus(filtros.status);
-    document.getElementById('esp-doentes-body').innerHTML = '<tr><td colspan="10"><div class="loading-box"><div class="spinner"></div></div></td></tr>';
+    document.getElementById('esp-doentes-body').innerHTML = '<tr><td colspan="11"><div class="loading-box"><div class="spinner"></div></div></td></tr>';
     const p = new URLSearchParams();
     Object.entries(filtros).forEach(([k, v]) => { if (v) p.set(k, v); });
     const d = await apiGet('/api/esporotricose/doentes?' + p.toString());
     espDoentesCarregados = true;
-    renderEspDoentes(d.registros || [], d.total || 0);
+    espDoentesRows = d.registros || [];
+    renderEspDoentes(espDoentesRows, d.total || 0);
+    if (document.getElementById('esp-tab-doentes-resumo')?.classList.contains('active')) {
+      renderEspDoentesResumo(espDoentesRows, d.total || 0);
+    }
   } catch (e) {
     toast(e.message, 'error');
   }
@@ -583,9 +655,10 @@ function renderEspDoentes(rows, total) {
     <tr>
       <td><strong>${escapeHtml(r.nome || '-')}</strong><div class="muted">${escapeHtml(r.localidade || '-')} ${r.quarteirao ? '· Q ' + escapeHtml(r.quarteirao) : ''}</div></td>
       <td><span class="esporo-tag">${escapeHtml(r.especie || '-')}</span></td>
-      <td>${escapeHtml(r.tutor || '-')}<div class="muted">${escapeHtml(r.telefone || '')}</div></td>
+      <td>${escapeHtml(r.tutor || '-')}<div class="muted">${escapeHtml(r.telefone || '')}</div><div class="muted">${r.cpf ? 'CPF ' + escapeHtml(r.cpf) : ''}</div></td>
       <td>${escapeHtml(r.endereco || '-')}<div class="muted">${escapeHtml(r.sinan ? 'SINAN ' + r.sinan : '')}</div></td>
       <td><span class="esporo-tag ${statusDoenteClass(r.status)}">${escapeHtml(r.status || '-')}</span></td>
+      <td class="esporo-capsulas"><strong>${fmtNum(r.capsulas_entregues || 0)}</strong> entregues<div class="muted">${fmtNum(r.capsulas_restantes || 0)} faltam de ${fmtNum(r.capsulas_receitadas || 0)}</div>${Number(r.capsulas_excedentes || 0) > 0 ? `<div class="muted warn">${fmtNum(r.capsulas_excedentes)} excedentes</div>` : ''}</td>
       <td>${fmtNum(r.receitas || 0)} receita(s)<div class="muted">Última: ${fmtDate(r.ultima_receita) || '-'}</div><div class="muted">Entregue: ${fmtNum(r.capsulas_entregues || 0)} cápsula(s)</div></td>
       <td>${escapeHtml(r.bloqueio || '-')}</td>
       <td>${zoomedBadge(r.pedido_zoomed)}</td>
@@ -597,7 +670,79 @@ function renderEspDoentes(rows, total) {
         </div>
       </td>
     </tr>
-  `).join('') : '<tr><td colspan="10" class="empty-inline">Nenhum animal doente cadastrado.</td></tr>';
+  `).join('') : '<tr><td colspan="11" class="empty-inline">Nenhum animal doente cadastrado.</td></tr>';
+}
+async function carregarEspDoentesResumo() {
+  if (!espDoentesCarregados) {
+    await carregarEspDoentes();
+    return;
+  }
+  renderEspDoentesResumo(espDoentesRows, espDoentesRows.length);
+}
+function agruparDoentes(rows, campo, vazio='Não informado') {
+  const mapa = new Map();
+  rows.forEach(r => {
+    const nome = r[campo] || vazio;
+    mapa.set(nome, (mapa.get(nome) || 0) + 1);
+  });
+  return [...mapa.entries()]
+    .map(([nome, total]) => ({nome, total}))
+    .sort((a, b) => b.total - a.total || String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
+}
+function resumoRow(label, valor, detalhe='') {
+  return `<div class="esporo-summary-row"><span>${escapeHtml(label)}${detalhe ? `<div class="muted">${escapeHtml(detalhe)}</div>` : ''}</span><strong>${fmtNum(valor)}</strong></div>`;
+}
+function renderEspDoentesResumo(rows, total) {
+  const capsEntregues = rows.reduce((acc, r) => acc + Number(r.capsulas_entregues || 0), 0);
+  const capsFaltam = rows.reduce((acc, r) => acc + Number(r.capsulas_restantes || 0), 0);
+  const capsReceitadas = rows.reduce((acc, r) => acc + Number(r.capsulas_receitadas || 0), 0);
+  const entregas = rows.reduce((acc, r) => acc + Number(r.entregas || 0), 0);
+  const pendentesZoomed = rows.filter(r => Number(r.entregas_zoomed_pendentes || 0) > 0).length;
+  const semReceita = rows.filter(r => Number(r.receitas || 0) === 0).length;
+  const semEntrega = rows.filter(r => Number(r.entregas || 0) === 0).length;
+  setEspText('doe-res-total', total);
+  setEspText('doe-res-caps-entregues', capsEntregues);
+  setEspText('doe-res-caps-faltam', capsFaltam);
+  setEspText('doe-res-entregas', entregas);
+
+  const status = agruparDoentes(rows, 'status');
+  mkChart('esp-ch-doentes-status', {
+    type: 'doughnut',
+    data: { labels: status.map(r => r.nome), datasets:[{ data:status.map(r => r.total), backgroundColor:PAL, borderColor:'var(--surface)', borderWidth:2 }] },
+    options: { cutout:'58%', plugins:{ legend:{ position:'right', labels:{font:{size:11}} } } }
+  });
+  const especies = agruparDoentes(rows, 'especie');
+  mkChart('esp-ch-doentes-especies', {
+    type: 'pie',
+    data: { labels: especies.map(r => r.nome), datasets:[{ data:especies.map(r => r.total), backgroundColor:PAL2, borderColor:'var(--surface)', borderWidth:2 }] },
+    options: { plugins:{ legend:{ position:'right', labels:{font:{size:11}} } } }
+  });
+
+  const localidades = agruparDoentes(rows, 'localidade').slice(0, 10);
+  document.getElementById('doe-res-localidades').innerHTML = localidades.length
+    ? localidades.map(r => resumoRow(r.nome, r.total)).join('')
+    : '<div class="empty-inline">Nenhuma localidade para exibir.</div>';
+  document.getElementById('doe-res-tratamento').innerHTML = [
+    resumoRow('Cápsulas receitadas', capsReceitadas),
+    resumoRow('Cápsulas entregues', capsEntregues),
+    resumoRow('Cápsulas faltantes', capsFaltam),
+    resumoRow('Animais sem receita', semReceita),
+    resumoRow('Animais sem entrega', semEntrega),
+    resumoRow('Com baixa Zoomed pendente', pendentesZoomed),
+  ].join('');
+  const atencao = rows
+    .filter(r => Number(r.capsulas_restantes || 0) > 0 || Number(r.entregas_zoomed_pendentes || 0) > 0 || Number(r.receitas || 0) === 0)
+    .slice(0, 20);
+  document.getElementById('doe-res-atencao').innerHTML = atencao.length ? atencao.map(r => `
+    <tr>
+      <td><strong>${escapeHtml(r.nome || '-')}</strong><div class="muted">${escapeHtml(r.especie || '-')}</div></td>
+      <td>${escapeHtml(r.tutor || '-')}<div class="muted">${r.cpf ? 'CPF ' + escapeHtml(r.cpf) : escapeHtml(r.telefone || '')}</div></td>
+      <td><span class="esporo-tag ${statusDoenteClass(r.status)}">${escapeHtml(r.status || '-')}</span></td>
+      <td>${fmtNum(r.capsulas_entregues || 0)} entregues<div class="muted">${fmtNum(r.capsulas_restantes || 0)} faltam de ${fmtNum(r.capsulas_receitadas || 0)}</div></td>
+      <td>${fmtDate(r.ultima_receita) || '-'}</td>
+      <td>${zoomedBaixaBadge(r.entregas_zoomed_pendentes || 0)}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="6" class="empty-inline">Nenhuma pendência rápida encontrada.</td></tr>';
 }
 async function apagarEspDoente(btn) {
   const id = Number(btn?.dataset?.id || 0);
@@ -679,6 +824,7 @@ function preencherEspDoente(d) {
   set('doe-sexo', d.sexo);
   set('doe-tutor', d.tutor);
   set('doe-telefone', d.telefone);
+  set('doe-cpf', d.cpf);
   set('doe-sinan', d.sinan);
   set('doe-form-localidade', d.localidade);
   set('doe-quarteirao', d.quarteirao);
@@ -703,6 +849,7 @@ function dadosEspDoenteForm() {
     sexo: document.getElementById('doe-sexo').value,
     tutor: document.getElementById('doe-tutor').value,
     telefone: document.getElementById('doe-telefone').value,
+    cpf: document.getElementById('doe-cpf').value,
     sinan: document.getElementById('doe-sinan').value,
     localidade: document.getElementById('doe-form-localidade').value,
     quarteirao: document.getElementById('doe-quarteirao').value,
@@ -1256,8 +1403,8 @@ async function salvarAnimal(id) {
 document.addEventListener('DOMContentLoaded', () => {
   carregarEsporotricose();
   if (window.location.hash === '#doentes') {
-    const btn = document.querySelector('.esporo-doentes-entry .esporo-tab-btn');
-    if (btn) openEspTab('esp-tab-doentes', btn);
+    const btn = document.querySelector('[data-esp-main="doentes"]');
+    if (btn) openEspMain('doentes', btn);
   }
 });
 </script>{% endblock %}
