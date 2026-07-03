@@ -18,6 +18,7 @@ DOENTES_RECEITAS_TABLE = "esporotricose_doentes_receitas"
 DOENTES_ENTREGAS_TABLE = "esporotricose_doentes_entregas"
 DOENTES_ANEXOS_TABLE = "esporotricose_doentes_anexos"
 DOENTES_STATUS_TABLE = "esporotricose_doentes_status"
+DOENTES_ESTOQUE_TABLE = "esporotricose_estoque_medicacao"
 NORMAL_IMPORT_MARKER = "esporotricose_kobo_v2"
 LEGACY_IMPORT_MARKER = "esporotricose_historico_legado"
 MOTIVO_ATENCAO_SQL = """CASE
@@ -121,6 +122,14 @@ BLOQUEIO_DOENTE_OPCOES = (
     "Realizado",
     "Não realizado",
     "Não necessário",
+)
+
+
+ESTOQUE_MEDICACAO_TIPOS = (
+    "Entrada",
+    "Sa\u00edda",
+    "Sobra devolvida",
+    "Ajuste",
 )
 
 
@@ -264,6 +273,20 @@ def ensure_schema(conn):
         CREATE INDEX IF NOT EXISTS idx_esporo_doentes_receitas_animal ON esporotricose_doentes_receitas(id_animal_doente);
         CREATE INDEX IF NOT EXISTS idx_esporo_doentes_entregas_receita ON esporotricose_doentes_entregas(id_receita);
         CREATE INDEX IF NOT EXISTS idx_esporo_doentes_anexos_animal ON esporotricose_doentes_anexos(id_animal_doente);
+
+        CREATE TABLE IF NOT EXISTS esporotricose_estoque_medicacao (
+            id_movimento INTEGER PRIMARY KEY AUTOINCREMENT,
+            data DATE,
+            tipo TEXT NOT NULL,
+            quantidade INTEGER NOT NULL,
+            descricao TEXT,
+            origem TEXT,
+            observacoes TEXT,
+            criado_em TEXT NOT NULL,
+            atualizado_em TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_esporo_estoque_data ON esporotricose_estoque_medicacao(data);
+        CREATE INDEX IF NOT EXISTS idx_esporo_estoque_tipo ON esporotricose_estoque_medicacao(tipo);
         """
     )
     _ensure_column(conn, DOENTES_TABLE, "especie", "TEXT")
@@ -961,6 +984,136 @@ def listar_doentes(db_path, filtros=None):
         conn.close()
 
 
+def estoque_medicacao(db_path):
+    doentes = listar_doentes(db_path, {})["registros"]
+    em_tratamento = [item for item in doentes if _doente_em_tratamento(item.get("status"))]
+    encerrados = [item for item in doentes if not _doente_em_tratamento(item.get("status"))]
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        movimentos = [dict(row) for row in conn.execute(
+            f"""SELECT id_movimento, data, tipo, quantidade, descricao, origem, observacoes,
+                       criado_em, atualizado_em
+                  FROM {DOENTES_ESTOQUE_TABLE}
+                 ORDER BY COALESCE(data, criado_em) DESC, id_movimento DESC"""
+        ).fetchall()]
+    finally:
+        conn.close()
+
+    entradas = sum(_estoque_delta(item) for item in movimentos if _estoque_delta(item) > 0)
+    saidas = abs(sum(_estoque_delta(item) for item in movimentos if _estoque_delta(item) < 0))
+    saldo_setor = entradas - saidas
+    capsulas_entregues = sum(int(item.get("capsulas_entregues") or 0) for item in doentes)
+    capsulas_receitadas = sum(int(item.get("capsulas_receitadas") or 0) for item in doentes)
+    necessidade_tratamento = sum(int(item.get("capsulas_restantes") or 0) for item in em_tratamento)
+    sobra_potencial_encerrados = sum(int(item.get("capsulas_entregues") or 0) for item in encerrados)
+    sobras_lancadas = sum(
+        int(item.get("quantidade") or 0)
+        for item in movimentos
+        if _normalizar_tipo_estoque(item.get("tipo")) == "Sobra devolvida"
+    )
+    candidatos_sobra = [
+        {
+            "id_animal_doente": item.get("id_animal_doente"),
+            "nome": item.get("nome"),
+            "tutor": item.get("tutor"),
+            "status": item.get("status"),
+            "capsulas_entregues": int(item.get("capsulas_entregues") or 0),
+            "ultima_entrega": item.get("ultima_entrega"),
+        }
+        for item in encerrados
+        if int(item.get("capsulas_entregues") or 0) > 0
+    ]
+    return {
+        "totais": {
+            "animais": len(doentes),
+            "em_tratamento": len(em_tratamento),
+            "receitadas": capsulas_receitadas,
+            "entregues": capsulas_entregues,
+            "faltantes_tratamento": necessidade_tratamento,
+            "saldo_setor": saldo_setor,
+            "entradas_setor": entradas,
+            "saidas_setor": saidas,
+            "sobras_lancadas": sobras_lancadas,
+            "sobra_potencial_encerrados": sobra_potencial_encerrados,
+            "saldo_apos_reserva": saldo_setor - necessidade_tratamento,
+        },
+        "movimentos": movimentos,
+        "candidatos_sobra": candidatos_sobra,
+        "tipos": list(ESTOQUE_MEDICACAO_TIPOS),
+    }
+
+
+def salvar_estoque_medicacao(db_path, dados):
+    tipo = _normalizar_tipo_estoque(dados.get("tipo"))
+    if tipo not in ESTOQUE_MEDICACAO_TIPOS:
+        raise ValidationError("Tipo de movimento de estoque invÃ¡lido.")
+    quantidade = _int(dados.get("quantidade"))
+    if quantidade is None:
+        raise ValidationError("Informe a quantidade de cÃ¡psulas.")
+    if tipo != "Ajuste" and quantidade < 0:
+        raise ValidationError("Use quantidade positiva para entradas, saÃ­das e sobras devolvidas.")
+    if tipo == "Ajuste" and quantidade == 0:
+        raise ValidationError("O ajuste deve informar uma quantidade diferente de zero.")
+    if tipo != "Ajuste" and quantidade == 0:
+        raise ValidationError("A quantidade deve ser maior que zero.")
+    payload = {
+        "data": _date(dados.get("data")),
+        "tipo": tipo,
+        "quantidade": quantidade,
+        "descricao": _text(dados.get("descricao")),
+        "origem": _text(dados.get("origem")),
+        "observacoes": _text(dados.get("observacoes")),
+    }
+    id_movimento = _int(dados.get("id_movimento"))
+    agora = datetime.now().isoformat(timespec="seconds")
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        if id_movimento:
+            cur = conn.execute(
+                f"""UPDATE {DOENTES_ESTOQUE_TABLE}
+                       SET data=?, tipo=?, quantidade=?, descricao=?, origem=?, observacoes=?, atualizado_em=?
+                     WHERE id_movimento=?""",
+                (
+                    payload["data"], payload["tipo"], payload["quantidade"], payload["descricao"],
+                    payload["origem"], payload["observacoes"], agora, id_movimento,
+                ),
+            )
+            if cur.rowcount == 0:
+                raise ValidationError("Movimento de estoque nÃ£o encontrado.")
+        else:
+            cur = conn.execute(
+                f"""INSERT INTO {DOENTES_ESTOQUE_TABLE}
+                    (data, tipo, quantidade, descricao, origem, observacoes, criado_em, atualizado_em)
+                    VALUES (?,?,?,?,?,?,?,?)""",
+                (
+                    payload["data"], payload["tipo"], payload["quantidade"], payload["descricao"],
+                    payload["origem"], payload["observacoes"], agora, agora,
+                ),
+            )
+            id_movimento = cur.lastrowid
+        conn.commit()
+        return id_movimento
+    finally:
+        conn.close()
+
+
+def excluir_estoque_medicacao(db_path, id_movimento):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        cur = conn.execute(
+            f"DELETE FROM {DOENTES_ESTOQUE_TABLE} WHERE id_movimento=?",
+            (id_movimento,),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise ValidationError("Movimento de estoque nÃ£o encontrado.")
+    finally:
+        conn.close()
+
+
 def listar_doentes_csv(db_path, filtros=None):
     filtros = filtros or {}
     conn = db_core.connect(db_path)
@@ -1581,6 +1734,39 @@ def _doente_row(row):
     item["whatsapp_documentos"] = whatsapp_documentos_url(item)
     item["whatsapp_retirada"] = whatsapp_retirada_url(item)
     return item
+
+
+def _doente_em_tratamento(status):
+    low = _sem_acentos(status).lower()
+    if any(term in low for term in ("faleceu", "obito", "nao e esporotricose", "acabou", "final")):
+        return False
+    return bool(low.strip())
+
+
+def _normalizar_tipo_estoque(value):
+    text = _text(value)
+    if not text:
+        return ""
+    low = _sem_acentos(text).strip().casefold()
+    if low in {"entrada", "entradas"}:
+        return "Entrada"
+    if low in {"saida", "saidas", "retirada"}:
+        return "Sa\u00edda"
+    if low in {"sobra devolvida", "sobra", "devolucao", "devolucao sobra", "devolvido"}:
+        return "Sobra devolvida"
+    if low in {"ajuste", "ajustes"}:
+        return "Ajuste"
+    return text
+
+
+def _estoque_delta(item):
+    tipo = _normalizar_tipo_estoque(item.get("tipo"))
+    quantidade = int(item.get("quantidade") or 0)
+    if tipo == "Sa\u00edda":
+        return -abs(quantidade)
+    if tipo == "Ajuste":
+        return quantidade
+    return abs(quantidade)
 
 
 def _especie_doente(item):

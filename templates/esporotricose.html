@@ -50,6 +50,13 @@
 .esporo-capsulas { min-width:150px; }
 .esporo-capsulas strong { color:var(--brand); font-size:14px; }
 .esporo-capsulas .warn { color:#b45309; }
+.esporo-estoque-grid { display:grid; grid-template-columns:minmax(0,1fr) 390px; gap:14px; align-items:start; }
+.esporo-estoque-form { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:12px; }
+.esporo-estoque-form .wide { grid-column:span 2; }
+.esporo-estoque-form .full { grid-column:1 / -1; }
+.esporo-estoque-table input,.esporo-estoque-table select{min-width:110px;}
+.esporo-estoque-alert { border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px; background:var(--surface2); margin-bottom:8px; }
+.esporo-estoque-alert strong{display:block;color:var(--text);margin-bottom:3px;}
 .esporo-chart-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
 .esporo-chart-grid .full { grid-column:1 / -1; }
 .esporo-mini-filter { margin-bottom:14px; }
@@ -63,13 +70,14 @@
 .esporo-receita-card { border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px; background:var(--surface2); margin-top:8px; }
 .esporo-receita-edit { display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
 .esporo-receita-actions { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
-.esporo-entrega-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.esporo-entrega-list { display:grid; gap:6px; margin-top:6px; }
 .esporo-entrega { padding:3px 7px; border-radius:999px; background:var(--brand-xs); color:var(--brand); font-size:11px; font-weight:800; }
 .esporo-anexos { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
 .esporo-anexo { display:flex; justify-content:space-between; gap:8px; align-items:center; padding:7px 8px; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12px; }
 @media(max-width:980px) { .esporo-chart-grid,.esporo-doentes-resumo-grid { grid-template-columns:1fr; } .esporo-doentes-resumo-grid .full { grid-column:auto; } }
 @media(max-width:980px) { .esporo-layout { grid-template-columns:1fr; } }
 @media(max-width:1100px) { .esporo-doentes-layout { grid-template-columns:1fr; } .esporo-doente-panel { position:static; } }
+@media(max-width:1050px) { .esporo-estoque-grid { grid-template-columns:1fr; } .esporo-estoque-form { grid-template-columns:1fr; } .esporo-estoque-form .wide,.esporo-estoque-form .full{grid-column:auto;} }
 </style>{% endblock %}
 
 {% block content %}
@@ -94,6 +102,7 @@
 <div class="esporo-tabbar esporo-subtabs" id="esp-doentes-tabs" aria-label="Abas de animais doentes">
   <button class="esporo-tab-btn active" type="button" onclick="openEspTab('esp-tab-doentes', this)"><img src="/static/icons/gato_doente.svg" alt="" class="icon-svg"> Lista</button>
   <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-doentes-resumo', this)"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Resumo</button>
+  <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-doentes-estoque', this)"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Estoque medicação</button>
 </div>
 
 <div class="esporo-grid" id="esp-visitas-kpis">
@@ -389,6 +398,48 @@
   </div>
 </section>
 
+<section class="esporo-pane" id="esp-tab-doentes-estoque" data-esp-area="doentes">
+  <div class="esporo-doentes-kpis">
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Saldo no setor</div><div class="esporo-kpi-value" id="est-kpi-saldo">0</div></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Necessidade em tratamento</div><div class="esporo-kpi-value" id="est-kpi-necessidade">0</div></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Saldo após reserva</div><div class="esporo-kpi-value" id="est-kpi-reserva">0</div></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Sobras lançadas</div><div class="esporo-kpi-value" id="est-kpi-sobras">0</div></div>
+  </div>
+  <div class="esporo-estoque-grid">
+    <div class="chart-card">
+      <div class="chart-hd">
+        <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Movimentos de estoque</div>
+        <span class="table-info" id="est-info"></span>
+      </div>
+      <div class="esporo-estoque-form">
+        <input type="hidden" id="est-id">
+        <div class="f-g"><label>Data</label><input type="date" id="est-data"></div>
+        <div class="f-g"><label>Tipo</label><select id="est-tipo"><option>Entrada</option><option>Saída</option><option>Sobra devolvida</option><option>Ajuste</option></select></div>
+        <div class="f-g"><label>Cápsulas</label><input type="number" id="est-quantidade" step="1"></div>
+        <div class="f-g wide"><label>Descrição</label><input id="est-descricao" placeholder="Compra, remessa, devolução, ajuste..."></div>
+        <div class="f-g"><label>Origem</label><input id="est-origem" placeholder="Setor, tutor, animal..."></div>
+        <div class="f-g full"><label>Observações</label><textarea id="est-observacoes" rows="2"></textarea></div>
+        <div class="esporo-filter-actions full">
+          <button class="btn btn-outline" type="button" onclick="limparEstoqueForm()">Limpar</button>
+          <button class="btn btn-primary" type="button" onclick="salvarEstoqueMovimento()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar movimento</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="esporo-estoque-table">
+          <thead><tr><th>Data</th><th>Tipo</th><th>Cápsulas</th><th>Descrição</th><th>Origem</th><th>Observações</th><th>Ações</th></tr></thead>
+          <tbody id="est-movimentos-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <aside class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Leitura do estoque</div></div>
+      <div id="est-resumo-list" class="esporo-summary-list"></div>
+      <div class="detalhe-subtitulo" style="margin-top:14px;">Possíveis sobras para conferir</div>
+      <div id="est-candidatos-sobra" class="esporo-summary-list"></div>
+    </aside>
+  </div>
+</section>
+
 <section class="esporo-pane" id="esp-tab-localidades" data-esp-area="visitas">
   <div class="chart-card">
     <div class="chart-hd">
@@ -463,9 +514,11 @@ let espVisitasCarregadas = false;
 let espDoentesCarregados = false;
 let espLocalidadesCarregadas = false;
 let espDashboardCarregado = false;
+let espEstoqueCarregado = false;
 let espResumo = null;
 let espDoenteAtual = null;
 let espDoentesRows = [];
+let espEstoqueDados = null;
 
 function setEspText(id, value) {
   const el = document.getElementById(id);
@@ -544,6 +597,7 @@ function openEspTab(id, btn) {
   if (id === 'esp-tab-animais' && !espAnimaisCarregados) carregarEspAnimais();
   if (id === 'esp-tab-doentes' && !espDoentesCarregados) carregarEspDoentes();
   if (id === 'esp-tab-doentes-resumo') carregarEspDoentesResumo();
+  if (id === 'esp-tab-doentes-estoque') carregarEspEstoque();
   if (id === 'esp-tab-localidades' && !espLocalidadesCarregadas) carregarEspLocalidadesDetalhe();
   if (id === 'esp-tab-dashboard' && !espDashboardCarregado) carregarEspDashboard();
 }
@@ -554,6 +608,7 @@ async function carregarEsporotricose() {
     espDoentesCarregados = false;
     espLocalidadesCarregadas = false;
     espDashboardCarregado = false;
+    espEstoqueCarregado = false;
     const d = await apiGet('/api/esporotricose?' + espParams('res').toString());
     espResumo = d;
     const t = d.totais || {};
@@ -692,9 +747,15 @@ function agruparDoentes(rows, campo, vazio='Não informado') {
 function resumoRow(label, valor, detalhe='') {
   return `<div class="esporo-summary-row"><span>${escapeHtml(label)}${detalhe ? `<div class="muted">${escapeHtml(detalhe)}</div>` : ''}</span><strong>${fmtNum(valor)}</strong></div>`;
 }
+function doenteEmTratamento(status) {
+  const s = String(status || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (!s.trim()) return false;
+  return !(s.includes('faleceu') || s.includes('obito') || s.includes('nao e esporotricose') || s.includes('acabou') || s.includes('final'));
+}
 function renderEspDoentesResumo(rows, total) {
+  const rowsTratamento = rows.filter(r => doenteEmTratamento(r.status));
   const capsEntregues = rows.reduce((acc, r) => acc + Number(r.capsulas_entregues || 0), 0);
-  const capsFaltam = rows.reduce((acc, r) => acc + Number(r.capsulas_restantes || 0), 0);
+  const capsFaltam = rowsTratamento.reduce((acc, r) => acc + Number(r.capsulas_restantes || 0), 0);
   const capsReceitadas = rows.reduce((acc, r) => acc + Number(r.capsulas_receitadas || 0), 0);
   const entregas = rows.reduce((acc, r) => acc + Number(r.entregas || 0), 0);
   const pendentesZoomed = rows.filter(r => Number(r.entregas_zoomed_pendentes || 0) > 0).length;
@@ -725,13 +786,13 @@ function renderEspDoentesResumo(rows, total) {
   document.getElementById('doe-res-tratamento').innerHTML = [
     resumoRow('Cápsulas receitadas', capsReceitadas),
     resumoRow('Cápsulas entregues', capsEntregues),
-    resumoRow('Cápsulas faltantes', capsFaltam),
+    resumoRow('Cápsulas faltantes', capsFaltam, 'somente animais em tratamento'),
     resumoRow('Animais sem receita', semReceita),
     resumoRow('Animais sem entrega', semEntrega),
     resumoRow('Com baixa Zoomed pendente', pendentesZoomed),
   ].join('');
   const atencao = rows
-    .filter(r => Number(r.capsulas_restantes || 0) > 0 || Number(r.entregas_zoomed_pendentes || 0) > 0 || Number(r.receitas || 0) === 0)
+    .filter(r => (doenteEmTratamento(r.status) && Number(r.capsulas_restantes || 0) > 0) || Number(r.entregas_zoomed_pendentes || 0) > 0 || Number(r.receitas || 0) === 0)
     .slice(0, 20);
   document.getElementById('doe-res-atencao').innerHTML = atencao.length ? atencao.map(r => `
     <tr>
@@ -743,6 +804,113 @@ function renderEspDoentesResumo(rows, total) {
       <td>${zoomedBaixaBadge(r.entregas_zoomed_pendentes || 0)}</td>
     </tr>
   `).join('') : '<tr><td colspan="6" class="empty-inline">Nenhuma pendência rápida encontrada.</td></tr>';
+}
+async function carregarEspEstoque() {
+  try {
+    espEstoqueDados = await apiGet('/api/esporotricose/doentes/estoque');
+    espEstoqueCarregado = true;
+    renderEspEstoque(espEstoqueDados);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+function estoqueDelta(mov) {
+  const qtd = Number(mov.quantidade || 0);
+  if (mov.tipo === 'Saída') return -Math.abs(qtd);
+  if (mov.tipo === 'Ajuste') return qtd;
+  return Math.abs(qtd);
+}
+function renderEspEstoque(d) {
+  const t = d.totais || {};
+  setEspText('est-kpi-saldo', t.saldo_setor);
+  setEspText('est-kpi-necessidade', t.faltantes_tratamento);
+  setEspText('est-kpi-reserva', t.saldo_apos_reserva);
+  setEspText('est-kpi-sobras', t.sobras_lancadas);
+  document.getElementById('est-info').textContent = `${fmtNum((d.movimentos || []).length)} movimento(s)`;
+  document.getElementById('est-resumo-list').innerHTML = [
+    resumoRow('Entradas no setor', t.entradas_setor),
+    resumoRow('Saídas do setor', t.saidas_setor),
+    resumoRow('Receitadas nos registros', t.receitadas),
+    resumoRow('Entregues nos registros', t.entregues),
+    resumoRow('Faltantes em tratamento', t.faltantes_tratamento),
+    resumoRow('Sobra potencial em encerrados', t.sobra_potencial_encerrados, 'conferir devolução antes de usar'),
+  ].join('');
+  const candidatos = d.candidatos_sobra || [];
+  document.getElementById('est-candidatos-sobra').innerHTML = candidatos.length ? candidatos.slice(0, 12).map(item => `
+    <div class="esporo-estoque-alert">
+      <strong>${escapeHtml(item.nome || '-')}</strong>
+      <div class="muted">${escapeHtml(item.tutor || '-')} · ${escapeHtml(item.status || '-')}</div>
+      <div>${fmtNum(item.capsulas_entregues || 0)} cápsula(s) entregues${item.ultima_entrega ? ` · última entrega ${fmtDate(item.ultima_entrega)}` : ''}</div>
+    </div>
+  `).join('') : '<div class="empty-inline">Nenhum caso encerrado com entrega registrada.</div>';
+  document.getElementById('est-movimentos-body').innerHTML = (d.movimentos || []).length ? d.movimentos.map(m => `
+    <tr data-est-id="${Number(m.id_movimento)}">
+      <td><input type="date" id="est-row-data-${m.id_movimento}" value="${escapeHtml(m.data || '')}"></td>
+      <td><select id="est-row-tipo-${m.id_movimento}">
+        ${(d.tipos || ['Entrada','Saída','Sobra devolvida','Ajuste']).map(tipo => `<option value="${escapeHtml(tipo)}" ${m.tipo === tipo ? 'selected' : ''}>${escapeHtml(tipo)}</option>`).join('')}
+      </select></td>
+      <td><input type="number" step="1" id="est-row-qtd-${m.id_movimento}" value="${escapeHtml(m.quantidade ?? '')}"><div class="muted">Impacto: ${fmtNum(estoqueDelta(m))}</div></td>
+      <td><input id="est-row-desc-${m.id_movimento}" value="${escapeHtml(m.descricao || '')}"></td>
+      <td><input id="est-row-origem-${m.id_movimento}" value="${escapeHtml(m.origem || '')}"></td>
+      <td><input id="est-row-obs-${m.id_movimento}" value="${escapeHtml(m.observacoes || '')}"></td>
+      <td><div class="esporo-doente-actions"><button class="btn btn-sm btn-primary" type="button" onclick="salvarEstoqueLinha(${Number(m.id_movimento)})">Salvar</button><button class="btn btn-sm btn-ghost" type="button" onclick="excluirEstoqueMovimento(${Number(m.id_movimento)})">Excluir</button></div></td>
+    </tr>
+  `).join('') : '<tr><td colspan="7" class="empty-inline">Nenhum movimento de estoque cadastrado.</td></tr>';
+}
+function limparEstoqueForm() {
+  ['est-id','est-data','est-quantidade','est-descricao','est-origem','est-observacoes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('est-tipo').value = 'Entrada';
+}
+function estoquePayload(prefix) {
+  return {
+    data: document.getElementById(`${prefix}-data`).value,
+    tipo: document.getElementById(`${prefix}-tipo`).value,
+    quantidade: document.getElementById(`${prefix}-quantidade`)?.value ?? document.getElementById(`${prefix}-qtd`)?.value,
+    descricao: document.getElementById(`${prefix}-descricao`)?.value ?? document.getElementById(`${prefix}-desc`)?.value,
+    origem: document.getElementById(`${prefix}-origem`).value,
+    observacoes: document.getElementById(`${prefix}-observacoes`)?.value ?? document.getElementById(`${prefix}-obs`)?.value,
+  };
+}
+async function salvarEstoqueMovimento() {
+  try {
+    const payload = estoquePayload('est');
+    const id = document.getElementById('est-id').value;
+    const url = id ? `/api/esporotricose/doentes/estoque/${id}` : '/api/esporotricose/doentes/estoque';
+    const resp = await fetch(url, {method: id ? 'PUT' : 'POST', headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()}, body:JSON.stringify(payload)});
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.erro || 'Erro ao salvar movimento.');
+    limparEstoqueForm();
+    await carregarEspEstoque();
+    toast('Movimento de estoque salvo.', 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+async function salvarEstoqueLinha(id) {
+  try {
+    const payload = {
+      data: document.getElementById(`est-row-data-${id}`).value,
+      tipo: document.getElementById(`est-row-tipo-${id}`).value,
+      quantidade: document.getElementById(`est-row-qtd-${id}`).value,
+      descricao: document.getElementById(`est-row-desc-${id}`).value,
+      origem: document.getElementById(`est-row-origem-${id}`).value,
+      observacoes: document.getElementById(`est-row-obs-${id}`).value,
+    };
+    const resp = await fetch(`/api/esporotricose/doentes/estoque/${id}`, {method:'PUT', headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()}, body:JSON.stringify(payload)});
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.erro || 'Erro ao atualizar movimento.');
+    await carregarEspEstoque();
+    toast('Movimento atualizado.', 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+async function excluirEstoqueMovimento(id) {
+  if (!confirm('Excluir este movimento de estoque?')) return;
+  const resp = await fetch(`/api/esporotricose/doentes/estoque/${id}`, {method:'DELETE', headers:{'X-CSRFToken':getCsrf()}});
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({}));
+    toast(data.erro || 'Erro ao excluir movimento.', 'error');
+    return;
+  }
+  await carregarEspEstoque();
+  toast('Movimento excluído.', 'success');
 }
 async function apagarEspDoente(btn) {
   const id = Number(btn?.dataset?.id || 0);

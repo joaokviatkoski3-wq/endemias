@@ -316,6 +316,36 @@ def api_doentes_status():
     return jsonify({"registros": esporotricose_core.status_doentes(_db_path())})
 
 
+@bp.route("/api/esporotricose/doentes/estoque", methods=["GET", "POST"])
+@login_required
+def api_doentes_estoque():
+    if request.method == "POST":
+        try:
+            id_movimento = esporotricose_core.salvar_estoque_medicacao(_db_path(), request.json or {})
+        except esporotricose_core.ValidationError as exc:
+            return jsonify({"erro": str(exc)}), 400
+        return jsonify({"ok": True, "id_movimento": id_movimento, **esporotricose_core.estoque_medicacao(_db_path())}), 201
+    return jsonify(esporotricose_core.estoque_medicacao(_db_path()))
+
+
+@bp.route("/api/esporotricose/doentes/estoque/<int:id_movimento>", methods=["PUT", "DELETE"])
+@login_required
+def api_doentes_estoque_item(id_movimento):
+    if request.method == "DELETE":
+        try:
+            esporotricose_core.excluir_estoque_medicacao(_db_path(), id_movimento)
+        except esporotricose_core.ValidationError as exc:
+            return jsonify({"erro": str(exc)}), 404
+        return jsonify({"ok": True})
+    try:
+        dados = dict(request.json or {})
+        dados["id_movimento"] = id_movimento
+        esporotricose_core.salvar_estoque_medicacao(_db_path(), dados)
+    except esporotricose_core.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    return jsonify({"ok": True, **esporotricose_core.estoque_medicacao(_db_path())})
+
+
 @bp.route("/api/esporotricose/doentes/<int:id_animal>", methods=["GET", "PUT", "DELETE"])
 @login_required
 def api_doente(id_animal):

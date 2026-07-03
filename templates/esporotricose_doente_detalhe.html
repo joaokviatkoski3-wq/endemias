@@ -14,7 +14,8 @@
 .doe-receita-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px;}
 .doe-receita-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;}
 .doe-receita-edit{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
-.doe-entregas{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.doe-entregas{display:grid;gap:8px;margin-top:8px;}
+.doe-entrega-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:7px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);}
 .doe-chip{display:inline-flex;gap:5px;align-items:center;border-radius:999px;background:var(--brand-xs);color:var(--brand);padding:4px 8px;font-size:12px;font-weight:800;}
 .zoomed-badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:900;white-space:nowrap;}
 .zoomed-badge.sim{background:rgba(34,197,94,.16);color:#166534;}
@@ -149,8 +150,9 @@ function render(){
         </div>
       </div>
       <div class="doe-entregas">${(r.entregas || []).map(e => `
+        <div class="doe-entrega-row">
         <span class="doe-chip">${data(e.data_entrega)} · ${num(e.quantidade)} cápsula(s) · Baixa Zoomed ${zoomedBadge(e.baixa_zoomed)}</span>
-        <span class="doe-chip" style="background:var(--surface);color:var(--text2);border:1px solid var(--border);">
+        <span class="doe-chip" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border);">
           <input type="date" id="ent-edit-data-${e.id_entrega}" value="${esc(e.data_entrega || '')}" style="max-width:130px;">
           <input type="number" min="1" id="ent-edit-qtd-${e.id_entrega}" value="${esc(e.quantidade || '')}" style="max-width:78px;">
           <select id="ent-edit-zoomed-${e.id_entrega}">
@@ -159,6 +161,7 @@ function render(){
           </select>
           <button class="btn btn-sm" type="button" onclick="atualizarEntrega(${e.id_entrega})">Salvar</button>
         </span>
+        </div>
       `).join('') || '<span class="muted">Sem entregas cadastradas.</span>'}</div>
       <div class="doe-form-grid" style="margin-top:8px;">
         <div class="f-g"><label>Data entrega</label><input type="date" id="ent-data-${r.id_receita}"></div>

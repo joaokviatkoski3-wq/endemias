@@ -1238,6 +1238,55 @@ class EsporotricoseSchemaTests(unittest.TestCase):
         self.assertEqual(filtrados["total"], 1)
         self.assertEqual(filtrados["registros"][0]["cpf"], "12345678909")
 
+    def test_estoque_medicacao_calcula_tratamento_e_movimentos(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "esporotricose_estoque.db"
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                esporotricose_core.ensure_schema(conn)
+            finally:
+                conn.close()
+
+            ativo = esporotricose_core.salvar_doente(str(db_path), {
+                "nome": "Ativo",
+                "tutor": "Tutor Ativo",
+                "status": "Em tratamento",
+            })
+            falecido = esporotricose_core.salvar_doente(str(db_path), {
+                "nome": "Falecido",
+                "tutor": "Tutor Falecido",
+                "status": "Faleceu",
+            })
+            receita_ativo = esporotricose_core.salvar_receita_doente(
+                str(db_path), ativo, {"capsulas_total": 100, "status": "Em tratamento"},
+            )
+            esporotricose_core.salvar_entrega_doente(
+                str(db_path), receita_ativo, {"quantidade": 30, "baixa_zoomed": "Sim"},
+            )
+            receita_falecido = esporotricose_core.salvar_receita_doente(
+                str(db_path), falecido, {"capsulas_total": 200, "status": "Faleceu"},
+            )
+            esporotricose_core.salvar_entrega_doente(
+                str(db_path), receita_falecido, {"quantidade": 80, "baixa_zoomed": "Sim"},
+            )
+            esporotricose_core.salvar_estoque_medicacao(
+                str(db_path), {"tipo": "Entrada", "quantidade": 120, "descricao": "Remessa"},
+            )
+            esporotricose_core.salvar_estoque_medicacao(
+                str(db_path), {"tipo": "Sobra devolvida", "quantidade": 20, "origem": "Falecido"},
+            )
+            esporotricose_core.salvar_estoque_medicacao(
+                str(db_path), {"tipo": "Sa\u00edda", "quantidade": 10, "descricao": "Uso externo"},
+            )
+            estoque = esporotricose_core.estoque_medicacao(str(db_path))
+
+        self.assertEqual(estoque["totais"]["faltantes_tratamento"], 70)
+        self.assertEqual(estoque["totais"]["saldo_setor"], 130)
+        self.assertEqual(estoque["totais"]["sobras_lancadas"], 20)
+        self.assertEqual(estoque["totais"]["sobra_potencial_encerrados"], 80)
+        self.assertEqual(len(estoque["movimentos"]), 3)
+
 
 class RecolhimentosTests(unittest.TestCase):
     def test_schema_cria_tabelas_de_recolhimentos(self):
@@ -3560,6 +3609,8 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("esp-tab-animais", html)
         self.assertIn("esp-tab-doentes", html)
         self.assertIn("esp-tab-doentes-resumo", html)
+        self.assertIn("esp-tab-doentes-estoque", html)
+        self.assertIn("Estoque medicação", html)
         self.assertIn("doe-res-caps-entregues", html)
         self.assertIn("CPF do tutor", html)
         self.assertIn("Cápsulas", html)
@@ -4095,6 +4146,13 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertIn("entregas_zoomed_pendentes", dados["registros"][0])
         notificacoes = [r.get("ultima_notificacao") for r in dados["registros"] if r.get("ultima_notificacao")]
         self.assertEqual(notificacoes, sorted(notificacoes, reverse=True))
+
+        resp_estoque = client.get("/api/esporotricose/doentes/estoque")
+        self.assertEqual(resp_estoque.status_code, 200)
+        estoque = resp_estoque.get_json()
+        self.assertIn("totais", estoque)
+        self.assertIn("movimentos", estoque)
+        self.assertIn("faltantes_tratamento", estoque["totais"])
 
     def test_download_esporotricose_doentes_csv(self):
         client = _client_logado()
