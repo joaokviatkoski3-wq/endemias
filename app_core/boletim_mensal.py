@@ -257,6 +257,20 @@ def linhas_automaticas(db_path, ano_mes):
                 ),
             ])
 
+        if _table_exists(conn, "acoes_setor"):
+            linhas.append(_linha(
+                "acoes_setor_total",
+                "A\u00e7\u00f5es do setor registradas (educativas e limpezas)",
+                _scalar(conn, """
+                    SELECT COUNT(*)
+                      FROM acoes_setor
+                     WHERE data BETWEEN ? AND ?
+                       AND tipo IN ('educativa','limpeza')
+                """, (d_ini, d_fim)),
+                "a\u00e7\u00f5es",
+                170,
+            ))
+
         return linhas
     finally:
         conn.close()

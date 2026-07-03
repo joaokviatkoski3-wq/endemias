@@ -5195,6 +5195,48 @@ class MainApisSmokeTests(unittest.TestCase):
         for proibido in ("denuncias", "transmissao", "imoveis", "Depositos", "laboratorio", "loucas", "plasticos", "vigilancia", "saude", "reclamacoes", "Ã", "â€", "�"):
             self.assertNotIn(proibido, texto)
 
+    def test_boletim_mensal_soma_acoes_do_setor_educativas_e_limpezas(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute("INSERT INTO agentes (nome, ativo) VALUES (?, 1)", ("Agente Boletim",))
+                conn.execute("INSERT INTO localidades (nome) VALUES (?)", ("Centro",))
+                conn.commit()
+                id_agente = conn.execute(
+                    "SELECT id_agente FROM agentes WHERE nome=?",
+                    ("Agente Boletim",),
+                ).fetchone()[0]
+            finally:
+                conn.close()
+
+            base = {
+                "hora_inicio": "09:00",
+                "agentes": [id_agente],
+                "localidade": "Centro",
+                "local": "Unidade de Saude",
+            }
+            educativa = client.post(
+                "/api/acoes-setor",
+                json={**base, "tipo": "educativa", "data": "2099-10-05"},
+            )
+            limpeza = client.post(
+                "/api/acoes-setor",
+                json={**base, "tipo": "limpeza", "data": "2099-10-12"},
+            )
+
+            self.assertEqual(educativa.status_code, 201)
+            self.assertEqual(limpeza.status_code, 201)
+
+            resp = client.get("/api/boletim-mensal?mes=2099-10&modo=auto")
+            dados = resp.get_json()
+
+        self.assertEqual(resp.status_code, 200)
+        linha = next(item for item in dados["linhas"] if item["chave"] == "acoes_setor_total")
+        self.assertEqual(linha["quantidade"], 2)
+        self.assertEqual(linha["unidade"], "a\u00e7\u00f5es")
+        self.assertIn("educativas e limpezas", linha["indicador"])
+
     def test_boletim_mensal_pagina_pdf_e_xlsx(self):
         client = _client_logado()
         rotas = [
