@@ -186,6 +186,9 @@ def ensure_schema(conn):
             atendimento_veterinario TEXT,
             data_atendimento DATE,
             evolucao_caso   TEXT,
+            busca_ferido_data DATE,
+            busca_ferido_agente TEXT,
+            busca_ferido_observacoes TEXT,
             arquivo_origem  TEXT,
             processado_em   TEXT NOT NULL,
             UNIQUE(id_visita, kobo_uuid)
@@ -292,6 +295,9 @@ def ensure_schema(conn):
     _ensure_column(conn, DOENTES_TABLE, "especie", "TEXT")
     _ensure_column(conn, DOENTES_TABLE, "cpf", "TEXT")
     _ensure_column(conn, DOENTES_ENTREGAS_TABLE, "baixa_zoomed", "TEXT NOT NULL DEFAULT 'Sim'")
+    _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_data", "DATE")
+    _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_agente", "TEXT")
+    _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_observacoes", "TEXT")
     _seed_doentes_status(conn)
     _normalizar_doentes_existentes(conn)
     _normalizar_agentes_existentes(conn)
@@ -741,10 +747,11 @@ def atualizar_animal(db_path, id_animal, dados):
     params = []
     for coluna in ("especie", "outro_animal", "nome", "raca", "sexo", "ambiente",
                      "vacinado", "castrado", "feridas", "regiao_ferida",
-                     "atendimento_veterinario", "data_atendimento", "evolucao_caso"):
+                     "atendimento_veterinario", "data_atendimento", "evolucao_caso",
+                     "busca_ferido_data", "busca_ferido_agente", "busca_ferido_observacoes"):
         if coluna in dados:
             campos.append(f"{coluna} = ?")
-            params.append(dados[coluna])
+            params.append(_date(dados[coluna]) if coluna == "busca_ferido_data" else dados[coluna])
     if not campos:
         raise ValueError("Nenhum campo para atualizar.")
     params.append(id_animal)
@@ -779,9 +786,11 @@ def listar_animais(db_path, filtros=None):
                     a.id_animal, a.especie, a.outro_animal, a.nome, a.raca, a.sexo,
                     a.ambiente, a.vacinado, a.castrado, a.feridas, a.regiao_ferida,
                     a.atendimento_veterinario, a.data_atendimento, a.evolucao_caso,
+                    a.busca_ferido_data, a.busca_ferido_agente, a.busca_ferido_observacoes,
                     {MOTIVO_ATENCAO_SQL} AS motivo_atencao,
                     v.data, v.localidade, v.quarteirao, v.logradouro, v.numero,
-                    v.morador, v.telefone, v.visita
+                    v.morador, v.telefone, v.visita, v.hora_inicio, v.hora_fim,
+                    v.agentes_texto, v.tipo_imovel, v.observacoes, v.deseja_cadastrar_animal
                 FROM esporotricose_animais a
                 JOIN esporotricose_visitas v ON v.id_visita = a.id_visita
                 {where}
@@ -1001,9 +1010,11 @@ def estoque_medicacao(db_path):
         conn.close()
 
     entradas = sum(_estoque_delta(item) for item in movimentos if _estoque_delta(item) > 0)
-    saidas = abs(sum(_estoque_delta(item) for item in movimentos if _estoque_delta(item) < 0))
-    saldo_setor = entradas - saidas
+    saidas_manuais = abs(sum(_estoque_delta(item) for item in movimentos if _estoque_delta(item) < 0))
     capsulas_entregues = sum(int(item.get("capsulas_entregues") or 0) for item in doentes)
+    saidas_entregas = capsulas_entregues
+    saidas = saidas_manuais + saidas_entregas
+    saldo_setor = entradas - saidas
     capsulas_receitadas = sum(int(item.get("capsulas_receitadas") or 0) for item in doentes)
     necessidade_tratamento = sum(int(item.get("capsulas_restantes") or 0) for item in em_tratamento)
     sobra_potencial_encerrados = sum(int(item.get("capsulas_entregues") or 0) for item in encerrados)
@@ -1034,6 +1045,8 @@ def estoque_medicacao(db_path):
             "saldo_setor": saldo_setor,
             "entradas_setor": entradas,
             "saidas_setor": saidas,
+            "saidas_manuais": saidas_manuais,
+            "saidas_entregas": saidas_entregas,
             "sobras_lancadas": sobras_lancadas,
             "sobra_potencial_encerrados": sobra_potencial_encerrados,
             "saldo_apos_reserva": saldo_setor - necessidade_tratamento,
@@ -2111,30 +2124,39 @@ def _where_animais(filtros):
             )"""
         )
         params.extend([like] * 9)
-    if filtros.get("especie"):
-        clauses.append("a.especie = ?")
-        params.append(filtros["especie"])
-    if filtros.get("feridas"):
-        clauses.append("a.feridas = ?")
-        params.append(filtros["feridas"])
-    if filtros.get("vacinado"):
-        clauses.append("a.vacinado = ?")
-        params.append(filtros["vacinado"])
-    if filtros.get("castrado"):
-        clauses.append("a.castrado = ?")
-        params.append(filtros["castrado"])
-    if filtros.get("ambiente"):
-        clauses.append("a.ambiente = ?")
-        params.append(filtros["ambiente"])
-    if filtros.get("motivo_atencao"):
-        clauses.append(f"({MOTIVO_ATENCAO_SQL}) = ?")
-        params.append(filtros["motivo_atencao"])
-    if filtros.get("evolucao"):
-        clauses.append("LOWER(COALESCE(a.evolucao_caso, '')) = LOWER(?)")
-        params.append(filtros["evolucao"])
+    _add_valores_filtro(clauses, params, "a.especie", filtros.get("especie"))
+    _add_valores_filtro(clauses, params, "a.feridas", filtros.get("feridas"))
+    _add_valores_filtro(clauses, params, "a.vacinado", filtros.get("vacinado"))
+    _add_valores_filtro(clauses, params, "a.castrado", filtros.get("castrado"))
+    _add_valores_filtro(clauses, params, "a.ambiente", filtros.get("ambiente"))
+    _add_valores_filtro(clauses, params, f"({MOTIVO_ATENCAO_SQL})", filtros.get("motivo_atencao"))
+    _add_valores_filtro(clauses, params, "COALESCE(a.evolucao_caso, '')", filtros.get("evolucao"), nocase=True)
     if filtros.get("prioritarios"):
         clauses.append(f"({MOTIVO_ATENCAO_SQL}) <> ''")
     return "WHERE " + " AND ".join(clauses), params
+
+
+def _valores_filtro(valor):
+    if valor is None:
+        return []
+    if isinstance(valor, (list, tuple, set)):
+        brutos = valor
+    else:
+        brutos = str(valor).split(",")
+    return [v for v in (_text(item) for item in brutos) if v]
+
+
+def _add_valores_filtro(clauses, params, coluna, valor, nocase=False):
+    valores = _valores_filtro(valor)
+    if not valores:
+        return
+    marcadores = ",".join("?" for _ in valores)
+    if nocase:
+        clauses.append(f"LOWER({coluna}) IN ({marcadores})")
+        params.extend(v.lower() for v in valores)
+    else:
+        clauses.append(f"{coluna} IN ({marcadores})")
+        params.extend(valores)
 
 
 def _inserir_visita(conn, visita, agora_iso):

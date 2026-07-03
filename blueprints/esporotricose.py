@@ -168,6 +168,10 @@ def api_visitas():
 @bp.route("/api/esporotricose/animais")
 @login_required
 def api_animais():
+    def multi(nome):
+        valores = [v for v in request.args.getlist(nome) if v]
+        return valores if valores else ""
+
     filtros = {
         "d_ini": request.args.get("d_ini", ""),
         "d_fim": request.args.get("d_fim", ""),
@@ -175,14 +179,14 @@ def api_animais():
         "visita": request.args.get("visita", ""),
         "agente": request.args.get("agente", ""),
         "busca": request.args.get("busca", ""),
-        "especie": request.args.get("especie", ""),
-        "feridas": request.args.get("feridas", ""),
-        "vacinado": request.args.get("vacinado", ""),
-        "castrado": request.args.get("castrado", ""),
-        "ambiente": request.args.get("ambiente", ""),
-        "motivo_atencao": request.args.get("motivo_atencao", ""),
+        "especie": multi("especie"),
+        "feridas": multi("feridas"),
+        "vacinado": multi("vacinado"),
+        "castrado": multi("castrado"),
+        "ambiente": multi("ambiente"),
+        "motivo_atencao": multi("motivo_atencao"),
         "prioritarios": request.args.get("prioritarios", ""),
-        "evolucao": request.args.get("evolucao", ""),
+        "evolucao": multi("evolucao"),
     }
     return jsonify(esporotricose_core.listar_animais(_db_path(), filtros))
 

@@ -1282,10 +1282,57 @@ class EsporotricoseSchemaTests(unittest.TestCase):
             estoque = esporotricose_core.estoque_medicacao(str(db_path))
 
         self.assertEqual(estoque["totais"]["faltantes_tratamento"], 70)
-        self.assertEqual(estoque["totais"]["saldo_setor"], 130)
+        self.assertEqual(estoque["totais"]["saldo_setor"], 20)
+        self.assertEqual(estoque["totais"]["saidas_entregas"], 110)
+        self.assertEqual(estoque["totais"]["saidas_manuais"], 10)
+        self.assertEqual(estoque["totais"]["saidas_setor"], 120)
         self.assertEqual(estoque["totais"]["sobras_lancadas"], 20)
         self.assertEqual(estoque["totais"]["sobra_potencial_encerrados"], 80)
         self.assertEqual(len(estoque["movimentos"]), 3)
+
+    def test_animais_permite_filtro_multiplo_e_busca_ferido(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "esporotricose_animais.db"
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                esporotricose_core.ensure_schema(conn)
+                conn.execute(
+                    """INSERT INTO esporotricose_visitas(
+                        id_visita, kobo_uuid, data, agentes_texto, localidade,
+                        logradouro, numero, morador, origem_estrutura, processado_em
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    ("v1", "uuid-v1", "2026-07-03", "Agente A", "Centro",
+                     "Rua Um", "10", "Tutor", "nova", "2026-07-03T08:00:00"),
+                )
+                conn.executemany(
+                    """INSERT INTO esporotricose_animais(
+                        id_animal, id_visita, especie, nome, feridas, processado_em
+                    ) VALUES (?,?,?,?,?,?)""",
+                    [
+                        ("a1", "v1", "Gato", "Mimi", "Sim", "2026-07-03T08:00:00"),
+                        ("a2", "v1", "Outro", "Nino", "Desconhecido", "2026-07-03T08:00:00"),
+                    ],
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            esporotricose_core.atualizar_animal(str(db_path), "a1", {
+                "busca_ferido_data": "2026-07-04",
+                "busca_ferido_agente": "Agente B",
+                "busca_ferido_observacoes": "Averiguar lesao",
+            })
+            animais = esporotricose_core.listar_animais(str(db_path), {
+                "especie": ["Gato", "Outro"],
+                "feridas": ["Sim", "Desconhecido"],
+            })
+
+        self.assertEqual(animais["total"], 2)
+        animal = next(item for item in animais["registros"] if item["id_animal"] == "a1")
+        self.assertEqual(animal["agentes_texto"], "Agente A")
+        self.assertEqual(animal["busca_ferido_data"], "2026-07-04")
+        self.assertEqual(animal["busca_ferido_agente"], "Agente B")
 
 
 class RecolhimentosTests(unittest.TestCase):
@@ -4066,6 +4113,8 @@ class MainApisSmokeTests(unittest.TestCase):
         if dados["registros"]:
             self.assertIn("nome", dados["registros"][0])
             self.assertIn("morador", dados["registros"][0])
+            self.assertIn("agentes_texto", dados["registros"][0])
+            self.assertIn("busca_ferido_data", dados["registros"][0])
 
     def test_api_esporotricose_animais_filtra_motivo_atencao_e_data(self):
         client = _client_logado()
@@ -4075,6 +4124,7 @@ class MainApisSmokeTests(unittest.TestCase):
             "&d_ini=2026-06-02"
             "&d_fim=2026-06-02"
             "&especie=C%C3%A3o"
+            "&especie=Gato"
             "&motivo_atencao=Ferida%20informada"
         )
 
@@ -4084,7 +4134,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("registros", dados)
         for registro in dados["registros"]:
             self.assertEqual(registro.get("data"), "2026-06-02")
-            self.assertEqual(registro.get("especie"), "Cão")
+            self.assertIn(registro.get("especie"), {"Cão", "Gato"})
             self.assertEqual(registro.get("motivo_atencao"), "Ferida informada")
 
     def test_api_esporotricose_visitas_retorna_agentes_e_busca(self):
