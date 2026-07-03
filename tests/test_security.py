@@ -1274,7 +1274,7 @@ class EsporotricoseSchemaTests(unittest.TestCase):
                 str(db_path), {"tipo": "Entrada", "quantidade": 120, "descricao": "Remessa"},
             )
             esporotricose_core.salvar_estoque_medicacao(
-                str(db_path), {"tipo": "Sobra devolvida", "quantidade": 20, "origem": "Falecido"},
+                str(db_path), {"tipo": "Sobra", "quantidade": 20, "origem": "Falecido"},
             )
             esporotricose_core.salvar_estoque_medicacao(
                 str(db_path), {"tipo": "Sa\u00edda", "quantidade": 10, "descricao": "Uso externo"},

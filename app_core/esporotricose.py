@@ -128,7 +128,7 @@ BLOQUEIO_DOENTE_OPCOES = (
 ESTOQUE_MEDICACAO_TIPOS = (
     "Entrada",
     "Sa\u00edda",
-    "Sobra devolvida",
+    "Sobra",
     "Ajuste",
 )
 
@@ -1010,7 +1010,7 @@ def estoque_medicacao(db_path):
     sobras_lancadas = sum(
         int(item.get("quantidade") or 0)
         for item in movimentos
-        if _normalizar_tipo_estoque(item.get("tipo")) == "Sobra devolvida"
+        if _normalizar_tipo_estoque(item.get("tipo")) == "Sobra"
     )
     candidatos_sobra = [
         {
@@ -1753,7 +1753,7 @@ def _normalizar_tipo_estoque(value):
     if low in {"saida", "saidas", "retirada"}:
         return "Sa\u00edda"
     if low in {"sobra devolvida", "sobra", "devolucao", "devolucao sobra", "devolvido"}:
-        return "Sobra devolvida"
+        return "Sobra"
     if low in {"ajuste", "ajustes"}:
         return "Ajuste"
     return text
