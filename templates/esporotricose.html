@@ -814,12 +814,6 @@ async function carregarEspEstoque() {
     toast(e.message, 'error');
   }
 }
-function estoqueDelta(mov) {
-  const qtd = Number(mov.quantidade || 0);
-  if (mov.tipo === 'Saída') return -Math.abs(qtd);
-  if (mov.tipo === 'Ajuste') return qtd;
-  return Math.abs(qtd);
-}
 function renderEspEstoque(d) {
   const t = d.totais || {};
   setEspText('est-kpi-saldo', t.saldo_setor);
@@ -844,18 +838,31 @@ function renderEspEstoque(d) {
     </div>
   `).join('') : '<div class="empty-inline">Nenhum caso encerrado com entrega registrada.</div>';
   document.getElementById('est-movimentos-body').innerHTML = (d.movimentos || []).length ? d.movimentos.map(m => `
-    <tr data-est-id="${Number(m.id_movimento)}">
-      <td><input type="date" id="est-row-data-${m.id_movimento}" value="${escapeHtml(m.data || '')}"></td>
-      <td><select id="est-row-tipo-${m.id_movimento}">
+    <tr data-est-id="${Number(m.id_movimento)}" data-editando="0">
+      <td><span class="est-read">${fmtDate(m.data) || '-'}</span><input class="est-edit" type="date" id="est-row-data-${m.id_movimento}" value="${escapeHtml(m.data || '')}" style="display:none;"></td>
+      <td><span class="est-read">${escapeHtml(m.tipo || '-')}</span><select class="est-edit" id="est-row-tipo-${m.id_movimento}" style="display:none;">
         ${(d.tipos || ['Entrada','Saída','Sobra','Ajuste']).map(tipo => `<option value="${escapeHtml(tipo)}" ${m.tipo === tipo ? 'selected' : ''}>${escapeHtml(tipo)}</option>`).join('')}
       </select></td>
-      <td><input type="number" step="1" id="est-row-qtd-${m.id_movimento}" value="${escapeHtml(m.quantidade ?? '')}"><div class="muted">Impacto: ${fmtNum(estoqueDelta(m))}</div></td>
-      <td><input id="est-row-desc-${m.id_movimento}" value="${escapeHtml(m.descricao || '')}"></td>
-      <td><input id="est-row-origem-${m.id_movimento}" value="${escapeHtml(m.origem || '')}"></td>
-      <td><input id="est-row-obs-${m.id_movimento}" value="${escapeHtml(m.observacoes || '')}"></td>
-      <td><div class="esporo-doente-actions"><button class="btn btn-sm btn-primary" type="button" onclick="salvarEstoqueLinha(${Number(m.id_movimento)})">Salvar</button><button class="btn btn-sm btn-ghost" type="button" onclick="excluirEstoqueMovimento(${Number(m.id_movimento)})">Excluir</button></div></td>
+      <td><span class="est-read"><strong>${fmtNum(m.quantidade || 0)}</strong></span><input class="est-edit" type="number" step="1" id="est-row-qtd-${m.id_movimento}" value="${escapeHtml(m.quantidade ?? '')}" style="display:none;"></td>
+      <td><span class="est-read">${escapeHtml(m.descricao || '-')}</span><input class="est-edit" id="est-row-desc-${m.id_movimento}" value="${escapeHtml(m.descricao || '')}" style="display:none;"></td>
+      <td><span class="est-read">${escapeHtml(m.origem || '-')}</span><input class="est-edit" id="est-row-origem-${m.id_movimento}" value="${escapeHtml(m.origem || '')}" style="display:none;"></td>
+      <td><span class="est-read">${escapeHtml(m.observacoes || '-')}</span><input class="est-edit" id="est-row-obs-${m.id_movimento}" value="${escapeHtml(m.observacoes || '')}" style="display:none;"></td>
+      <td><div class="esporo-doente-actions"><button class="btn btn-sm btn-outline est-read" type="button" onclick="editarEstoqueLinha(${Number(m.id_movimento)})">Editar</button><button class="btn btn-sm btn-primary est-edit" style="display:none;" type="button" onclick="salvarEstoqueLinha(${Number(m.id_movimento)})">Salvar</button><button class="btn btn-sm btn-ghost est-edit" style="display:none;" type="button" onclick="cancelarEstoqueLinha(${Number(m.id_movimento)})">Cancelar</button><button class="btn btn-sm btn-ghost" type="button" onclick="excluirEstoqueMovimento(${Number(m.id_movimento)})">Excluir</button></div></td>
     </tr>
   `).join('') : '<tr><td colspan="7" class="empty-inline">Nenhum movimento de estoque cadastrado.</td></tr>';
+}
+function setEstoqueLinhaEditando(id, editando) {
+  const tr = document.querySelector(`tr[data-est-id="${id}"]`);
+  if (!tr) return;
+  tr.dataset.editando = editando ? '1' : '0';
+  tr.querySelectorAll('.est-read').forEach(el => el.style.display = editando ? 'none' : '');
+  tr.querySelectorAll('.est-edit').forEach(el => el.style.display = editando ? '' : 'none');
+}
+function editarEstoqueLinha(id) {
+  setEstoqueLinhaEditando(id, true);
+}
+function cancelarEstoqueLinha(id) {
+  renderEspEstoque(espEstoqueDados || {movimentos: [], totais: {}});
 }
 function limparEstoqueForm() {
   ['est-id','est-data','est-quantidade','est-descricao','est-origem','est-observacoes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
