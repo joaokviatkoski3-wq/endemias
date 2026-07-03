@@ -25,8 +25,85 @@ function toggleDesktopNav() {
 }
 window.toggleDesktopNav = toggleDesktopNav;
 
+function escapeAttr(value) {
+  return String(value ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function selectedMultiOptions(select) {
+  return Array.from(select?.selectedOptions || []).filter(opt => opt.value);
+}
+
+function updateMultiPickerLabel(select) {
+  const picker = select.nextElementSibling?.classList?.contains('multi-picker') ? select.nextElementSibling : null;
+  if (!picker) return;
+  const labels = selectedMultiOptions(select).map(opt => opt.textContent.trim());
+  const text = labels.length ? (labels.length <= 2 ? labels.join(', ') : `${labels.length} selecionados`) : (select.dataset.placeholder || 'Todos');
+  picker.querySelector('.multi-picker-label').textContent = text;
+}
+
+function closeMultiPickers(except=null) {
+  document.querySelectorAll('.multi-picker.open').forEach(picker => {
+    if (picker !== except) {
+      picker.classList.remove('open');
+      picker.querySelector('.multi-picker-trigger')?.setAttribute('aria-expanded', 'false');
+    }
+  });
+}
+
+function initMultiPickers() {
+  document.querySelectorAll('select[data-multi-picker][multiple]').forEach(select => {
+    if (select.dataset.multiEnhanced === '1') return;
+    select.dataset.multiEnhanced = '1';
+    select.dataset.placeholder = select.dataset.placeholder || select.querySelector('option[value=""]')?.textContent?.trim() || 'Todos';
+    const picker = document.createElement('div');
+    picker.className = 'multi-picker';
+    const options = Array.from(select.options).filter(opt => opt.value).map(opt => `
+      <label class="multi-picker-option">
+        <input type="checkbox" value="${escapeAttr(opt.value)}" ${opt.selected ? 'checked' : ''}>
+        <span>${escapeAttr(opt.textContent.trim())}</span>
+      </label>
+    `).join('');
+    picker.innerHTML = `
+      <button class="multi-picker-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+        <span class="multi-picker-label"></span>
+      </button>
+      <div class="multi-picker-menu" role="listbox" aria-multiselectable="true">
+        ${options}
+        <button class="btn btn-ghost btn-sm multi-picker-clear" type="button">Limpar</button>
+      </div>`;
+    select.insertAdjacentElement('afterend', picker);
+
+    picker.querySelector('.multi-picker-trigger').addEventListener('click', ev => {
+      ev.stopPropagation();
+      const abrir = !picker.classList.contains('open');
+      closeMultiPickers(picker);
+      picker.classList.toggle('open', abrir);
+      picker.querySelector('.multi-picker-trigger').setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    });
+    picker.querySelectorAll('input[type="checkbox"]').forEach(check => {
+      check.addEventListener('change', () => {
+        const opt = Array.from(select.options).find(item => item.value === check.value);
+        if (opt) opt.selected = check.checked;
+        updateMultiPickerLabel(select);
+        select.dispatchEvent(new Event('change', {bubbles:true}));
+      });
+    });
+    picker.querySelector('.multi-picker-clear').addEventListener('click', ev => {
+      ev.stopPropagation();
+      Array.from(select.options).forEach(opt => opt.selected = false);
+      picker.querySelectorAll('input[type="checkbox"]').forEach(check => check.checked = false);
+      updateMultiPickerLabel(select);
+      select.dispatchEvent(new Event('change', {bubbles:true}));
+    });
+    updateMultiPickerLabel(select);
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   setDesktopNav(localStorage.getItem('desktop_nav_open') === '1');
+  initMultiPickers();
 
   const overlay = document.getElementById('overlay');
   const mobileClose = document.getElementById('sidebarMobileClose');
@@ -49,6 +126,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 });
+
+document.addEventListener('click', () => closeMultiPickers());
 
 function toggleUserMenu() {
   const m = document.getElementById('user-menu');

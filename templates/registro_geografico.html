@@ -15,7 +15,6 @@
 .rg-filters .f-g{min-width:0;}
 .rg-filters input,.rg-filters select:not([multiple]){height:36px;}
 .rg-filters button{height:36px;width:100%;justify-content:center;}
-.rg-filters select[multiple]{height:94px;}
 .rg-filters .rg-check-list{height:94px;max-height:94px;align-content:start;}
 .rg-filter-card{margin-bottom:16px;}
 .rg-type{display:inline-flex;align-items:center;justify-content:center;min-width:32px;border-radius:999px;background:#e0f2fe;color:#075985;font-size:11px;font-weight:900;padding:2px 7px;}
@@ -108,7 +107,7 @@
   <div class="filter-card rg-filter-card">
     <div class="filter-body open">
       <div class="rg-filters">
-        <div class="f-g"><label>Localidades</label><select id="rg-localidade" multiple size="5">{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Localidades</label><select id="rg-localidade" multiple data-multi-picker data-placeholder="Todas">{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
         <div class="f-g"><label>Quarteirão</label><div id="rg-quarteiroes" class="rg-check-list"><span class="rg-muted">Selecione uma localidade</span></div></div>
         <div class="f-g"><label>Tipo</label><select id="rg-tipo"><option value="">Todos</option>{% for tipo in opcoes.tipos %}<option value="{{ tipo.codigo }}">{{ tipo.codigo }} - {{ tipo.nome }}</option>{% endfor %}</select></div>
         <div class="f-g"><label>Atualização</label><select id="rg-atualizacao"><option value="">Todos</option><option value="atualizados">Atualizados</option><option value="pendentes">Pendentes</option></select></div>

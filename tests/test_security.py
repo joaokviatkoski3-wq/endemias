@@ -3807,7 +3807,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("rg-filter-card", html)
         self.assertIn("rg-print-actions", html)
         self.assertIn("rg-kpi-populacao", html)
-        self.assertIn('id="rg-localidade" multiple', html)
+        self.assertIn('id="rg-localidade" multiple data-multi-picker', html)
         self.assertIn('id="rg-quarteiroes"', html)
         self.assertIn("rgCarregarChecksQuarteiroes(selecionadas[0], 'rg-quarteiroes')", html)
         self.assertNotIn('id="rg-quarteirao" multiple', html)
