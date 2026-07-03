@@ -909,16 +909,23 @@ async function carregarEspEstoque() {
 }
 function renderEspEstoque(d) {
   const t = d.totais || {};
+  const movimentosManuais = (d.movimentos || []).map(m => ({...m, automatico:false}));
+  const movimentosAuto = (d.movimentos_automaticos || []).map(m => ({...m, automatico:true}));
+  const movimentos = movimentosManuais.concat(movimentosAuto).sort((a, b) => {
+    const ad = a.data || a.criado_em || '';
+    const bd = b.data || b.criado_em || '';
+    return bd.localeCompare(ad) || Number(b.id_movimento || b.id_entrega || 0) - Number(a.id_movimento || a.id_entrega || 0);
+  });
   setEspText('est-kpi-saldo', t.saldo_setor);
   setEspText('est-kpi-necessidade', t.faltantes_tratamento);
   setEspText('est-kpi-reserva', t.saldo_apos_reserva);
   setEspText('est-kpi-sobras', t.sobras_lancadas);
-  document.getElementById('est-info').textContent = `${fmtNum((d.movimentos || []).length)} movimento(s)`;
+  document.getElementById('est-info').textContent = `${fmtNum(movimentos.length)} movimento(s)`;
   document.getElementById('est-resumo-list').innerHTML = [
     resumoRow('Entradas no setor', t.entradas_setor),
     resumoRow('Saídas do setor', t.saidas_setor),
-    resumoRow('Saidas automaticas por entregas', t.saidas_entregas),
-    resumoRow('Saidas manuais', t.saidas_manuais),
+    resumoRow('Saídas automáticas por entregas', t.saidas_entregas),
+    resumoRow('Saídas manuais', t.saidas_manuais),
     resumoRow('Receitadas nos registros', t.receitadas),
     resumoRow('Entregues nos registros', t.entregues),
     resumoRow('Faltantes em tratamento', t.faltantes_tratamento),
@@ -932,19 +939,33 @@ function renderEspEstoque(d) {
       <div>${fmtNum(item.capsulas_entregues || 0)} cápsula(s) entregues${item.ultima_entrega ? ` · última entrega ${fmtDate(item.ultima_entrega)}` : ''}</div>
     </div>
   `).join('') : '<div class="empty-inline">Nenhum caso encerrado com entrega registrada.</div>';
-  document.getElementById('est-movimentos-body').innerHTML = (d.movimentos || []).length ? d.movimentos.map(m => `
+  document.getElementById('est-movimentos-body').innerHTML = movimentos.length ? movimentos.map(m => renderEstoqueMovimentoLinha(m, d.tipos || ['Entrada','Saída','Sobra','Ajuste'])).join('') : '<tr><td colspan="7" class="empty-inline">Nenhum movimento de estoque cadastrado.</td></tr>';
+}
+function renderEstoqueMovimentoLinha(m, tipos) {
+  if (m.automatico) {
+    return `
+      <tr data-est-auto-id="${Number(m.id_entrega)}">
+        <td>${fmtDate(m.data) || '-'}</td>
+        <td><span class="esporo-tag bad">${escapeHtml(m.tipo || 'Saída automática')}</span></td>
+        <td><strong>${fmtNum(m.quantidade || 0)}</strong></td>
+        <td>${escapeHtml(m.descricao || '-')}</td>
+        <td>${escapeHtml(m.origem || '-')}</td>
+        <td>${escapeHtml(m.observacoes || '-')}</td>
+        <td><span class="muted">Automático</span></td>
+      </tr>`;
+  }
+  return `
     <tr data-est-id="${Number(m.id_movimento)}" data-editando="0">
       <td><span class="est-read">${fmtDate(m.data) || '-'}</span><input class="est-edit" type="date" id="est-row-data-${m.id_movimento}" value="${escapeHtml(m.data || '')}" style="display:none;"></td>
       <td><span class="est-read">${escapeHtml(m.tipo || '-')}</span><select class="est-edit" id="est-row-tipo-${m.id_movimento}" style="display:none;">
-        ${(d.tipos || ['Entrada','Saída','Sobra','Ajuste']).map(tipo => `<option value="${escapeHtml(tipo)}" ${m.tipo === tipo ? 'selected' : ''}>${escapeHtml(tipo)}</option>`).join('')}
+        ${tipos.map(tipo => `<option value="${escapeHtml(tipo)}" ${m.tipo === tipo ? 'selected' : ''}>${escapeHtml(tipo)}</option>`).join('')}
       </select></td>
       <td><span class="est-read"><strong>${fmtNum(m.quantidade || 0)}</strong></span><input class="est-edit" type="number" step="1" id="est-row-qtd-${m.id_movimento}" value="${escapeHtml(m.quantidade ?? '')}" style="display:none;"></td>
       <td><span class="est-read">${escapeHtml(m.descricao || '-')}</span><input class="est-edit" id="est-row-desc-${m.id_movimento}" value="${escapeHtml(m.descricao || '')}" style="display:none;"></td>
       <td><span class="est-read">${escapeHtml(m.origem || '-')}</span><input class="est-edit" id="est-row-origem-${m.id_movimento}" value="${escapeHtml(m.origem || '')}" style="display:none;"></td>
       <td><span class="est-read">${escapeHtml(m.observacoes || '-')}</span><input class="est-edit" id="est-row-obs-${m.id_movimento}" value="${escapeHtml(m.observacoes || '')}" style="display:none;"></td>
       <td><div class="esporo-doente-actions"><button class="btn btn-sm btn-outline est-read" type="button" onclick="editarEstoqueLinha(${Number(m.id_movimento)})">Editar</button><button class="btn btn-sm btn-primary est-edit" style="display:none;" type="button" onclick="salvarEstoqueLinha(${Number(m.id_movimento)})">Salvar</button><button class="btn btn-sm btn-ghost est-edit" style="display:none;" type="button" onclick="cancelarEstoqueLinha(${Number(m.id_movimento)})">Cancelar</button><button class="btn btn-sm btn-ghost" type="button" onclick="excluirEstoqueMovimento(${Number(m.id_movimento)})">Excluir</button></div></td>
-    </tr>
-  `).join('') : '<tr><td colspan="7" class="empty-inline">Nenhum movimento de estoque cadastrado.</td></tr>';
+    </tr>`;
 }
 function setEstoqueLinhaEditando(id, editando) {
   const tr = document.querySelector(`tr[data-est-id="${id}"]`);
@@ -1465,13 +1486,16 @@ function toggleEspAnimalDetalhes(id, ev) {
     const tag = ev.target?.tagName?.toLowerCase();
     if (['input','select','textarea'].includes(tag)) return;
   }
-  const detail = document.querySelector(`tr[data-detail-id="${id}"]`);
+  const detail = encontrarEspAnimalDetalhe(id);
   if (!detail) return;
   detail.style.display = detail.style.display === 'none' ? '' : 'none';
 }
+function encontrarEspAnimalDetalhe(id) {
+  return Array.from(document.querySelectorAll('tr[data-detail-id]')).find(row => row.dataset.detailId === String(id));
+}
 async function salvarBuscaFerido(id, ev) {
   if (ev) ev.stopPropagation();
-  const detail = document.querySelector(`tr[data-detail-id="${id}"]`);
+  const detail = encontrarEspAnimalDetalhe(id);
   if (!detail) return;
   const dados = {
     busca_ferido_data: detail.querySelector('[data-busca-campo="data"]').value,

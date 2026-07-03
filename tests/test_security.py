@@ -1289,6 +1289,9 @@ class EsporotricoseSchemaTests(unittest.TestCase):
         self.assertEqual(estoque["totais"]["sobras_lancadas"], 20)
         self.assertEqual(estoque["totais"]["sobra_potencial_encerrados"], 80)
         self.assertEqual(len(estoque["movimentos"]), 3)
+        self.assertEqual(len(estoque["movimentos_automaticos"]), 2)
+        self.assertEqual(sum(item["quantidade"] for item in estoque["movimentos_automaticos"]), 110)
+        self.assertEqual(estoque["movimentos_automaticos"][0]["tipo"], "Saída automática")
 
     def test_animais_permite_filtro_multiplo_e_busca_ferido(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -3656,6 +3659,8 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("esp-tab-animais", html)
         self.assertIn("esporo-multi-picker", html)
         self.assertIn("initMultiPickers", html)
+        self.assertIn("renderEstoqueMovimentoLinha", html)
+        self.assertIn("encontrarEspAnimalDetalhe", html)
         self.assertIn("esp-tab-doentes", html)
         self.assertIn("esp-tab-doentes-resumo", html)
         self.assertIn("esp-tab-doentes-estoque", html)

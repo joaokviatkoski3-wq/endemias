@@ -1006,6 +1006,25 @@ def estoque_medicacao(db_path):
                   FROM {DOENTES_ESTOQUE_TABLE}
                  ORDER BY COALESCE(data, criado_em) DESC, id_movimento DESC"""
         ).fetchall()]
+        movimentos_automaticos = [dict(row) for row in conn.execute(
+            f"""SELECT
+                       e.id_entrega,
+                       e.data_entrega AS data,
+                       'Saída automática' AS tipo,
+                       e.quantidade,
+                       'Entrega registrada na receita' AS descricao,
+                       TRIM(COALESCE(d.nome, '') || CASE WHEN COALESCE(d.tutor, '') <> '' THEN ' - tutor ' || d.tutor ELSE '' END) AS origem,
+                       e.observacoes,
+                       e.criado_em,
+                       e.criado_em AS atualizado_em,
+                       r.id_receita,
+                       d.id_animal_doente,
+                       d.status
+                  FROM {DOENTES_ENTREGAS_TABLE} e
+                  JOIN {DOENTES_RECEITAS_TABLE} r ON r.id_receita = e.id_receita
+                  JOIN {DOENTES_TABLE} d ON d.id_animal_doente = r.id_animal_doente
+                 ORDER BY COALESCE(e.data_entrega, e.criado_em) DESC, e.id_entrega DESC"""
+        ).fetchall()]
     finally:
         conn.close()
 
@@ -1052,6 +1071,7 @@ def estoque_medicacao(db_path):
             "saldo_apos_reserva": saldo_setor - necessidade_tratamento,
         },
         "movimentos": movimentos,
+        "movimentos_automaticos": movimentos_automaticos,
         "candidatos_sobra": candidatos_sobra,
         "tipos": list(ESTOQUE_MEDICACAO_TIPOS),
     }
