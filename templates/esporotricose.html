@@ -72,7 +72,19 @@
 .esporo-receita-actions { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
 .esporo-entrega-list { display:grid; gap:6px; margin-top:6px; }
 .esporo-entrega { padding:3px 7px; border-radius:999px; background:var(--brand-xs); color:var(--brand); font-size:11px; font-weight:800; }
-.esporo-multi-select { min-height:76px; }
+.esporo-multi-select { display:none; }
+.esporo-multi-picker { position:relative; }
+.esporo-multi-trigger { width:100%; min-height:38px; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface2); color:var(--text); font:inherit; font-size:12px; cursor:pointer; }
+.esporo-multi-trigger:hover { border-color:var(--brand); background:var(--brand-xs); }
+.esporo-multi-trigger::after { content:""; width:8px; height:8px; border-right:2px solid currentColor; border-bottom:2px solid currentColor; transform:rotate(45deg) translateY(-2px); opacity:.65; flex:0 0 auto; }
+.esporo-multi-picker.open .esporo-multi-trigger::after { transform:rotate(225deg) translateY(-2px); }
+.esporo-multi-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; }
+.esporo-multi-menu { position:absolute; z-index:50; top:calc(100% + 6px); left:0; right:0; display:none; max-height:240px; overflow:auto; padding:8px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); box-shadow:var(--shadow); }
+.esporo-multi-picker.open .esporo-multi-menu { display:grid; gap:4px; }
+.esporo-multi-option { display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:var(--radius-sm); color:var(--text2); font-size:12px; cursor:pointer; }
+.esporo-multi-option:hover { background:var(--surface2); color:var(--text); }
+.esporo-multi-option input { width:14px; height:14px; accent-color:var(--brand); }
+.esporo-multi-clear { width:100%; justify-content:center; margin-top:4px; }
 .esporo-animal-main-row { cursor:pointer; }
 .esporo-animal-main-row:hover { background:rgba(59,130,246,.08); }
 .esporo-animal-detail-row td { background:var(--surface2); border-top:0; }
@@ -540,6 +552,72 @@ function escapeHtml(value) {
 }
 function jsString(value) {
   return JSON.stringify(String(value ?? ''));
+}
+function selectedOptions(el) {
+  return Array.from(el?.selectedOptions || []).filter(opt => opt.value);
+}
+function multiSelectedLabels(id) {
+  return selectedOptions(document.getElementById(id)).map(opt => opt.textContent.trim());
+}
+function updateMultiPickerLabel(select) {
+  const picker = select.nextElementSibling?.classList?.contains('esporo-multi-picker') ? select.nextElementSibling : null;
+  if (!picker) return;
+  const labels = selectedOptions(select).map(opt => opt.textContent.trim());
+  const text = labels.length ? (labels.length <= 2 ? labels.join(', ') : `${labels.length} selecionados`) : (select.dataset.placeholder || 'Todos');
+  picker.querySelector('.esporo-multi-label').textContent = text;
+}
+function closeMultiPickers(except=null) {
+  document.querySelectorAll('.esporo-multi-picker.open').forEach(picker => {
+    if (picker !== except) picker.classList.remove('open');
+  });
+}
+function initMultiPickers() {
+  document.querySelectorAll('select.esporo-multi-select').forEach(select => {
+    if (select.dataset.enhanced === '1') return;
+    select.dataset.enhanced = '1';
+    select.dataset.placeholder = select.querySelector('option[value=""]')?.textContent?.trim() || 'Todos';
+    const picker = document.createElement('div');
+    picker.className = 'esporo-multi-picker';
+    const options = Array.from(select.options).filter(opt => opt.value).map(opt => `
+      <label class="esporo-multi-option">
+        <input type="checkbox" value="${escapeHtml(opt.value)}">
+        <span>${escapeHtml(opt.textContent.trim())}</span>
+      </label>
+    `).join('');
+    picker.innerHTML = `
+      <button class="esporo-multi-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+        <span class="esporo-multi-label"></span>
+      </button>
+      <div class="esporo-multi-menu" role="listbox" aria-multiselectable="true">
+        ${options}
+        <button class="btn btn-ghost btn-sm esporo-multi-clear" type="button">Limpar</button>
+      </div>`;
+    select.insertAdjacentElement('afterend', picker);
+    picker.querySelector('.esporo-multi-trigger').addEventListener('click', ev => {
+      ev.stopPropagation();
+      const abrir = !picker.classList.contains('open');
+      closeMultiPickers(picker);
+      picker.classList.toggle('open', abrir);
+      picker.querySelector('.esporo-multi-trigger').setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    });
+    picker.querySelectorAll('input[type="checkbox"]').forEach(check => {
+      check.addEventListener('change', () => {
+        const opt = Array.from(select.options).find(item => item.value === check.value);
+        if (opt) opt.selected = check.checked;
+        updateMultiPickerLabel(select);
+        carregarEspAnimais();
+      });
+    });
+    picker.querySelector('.esporo-multi-clear').addEventListener('click', ev => {
+      ev.stopPropagation();
+      Array.from(select.options).forEach(opt => opt.selected = false);
+      picker.querySelectorAll('input[type="checkbox"]').forEach(check => check.checked = false);
+      updateMultiPickerLabel(select);
+      carregarEspAnimais();
+    });
+    updateMultiPickerLabel(select);
+  });
+  document.addEventListener('click', () => closeMultiPickers());
 }
 function espParams(prefix) {
   const p = new URLSearchParams();
@@ -1230,8 +1308,8 @@ async function imprimirEspAnimais() {
     const periodo = `${fmtDate(document.getElementById('ani-d-ini').value)} a ${fmtDate(document.getElementById('ani-d-fim').value)}`;
     const filtros = [
       document.getElementById('ani-localidade').value && `Localidade: ${document.getElementById('ani-localidade').value}`,
-      document.getElementById('esp-animal-especie').value && `Espécie: ${document.getElementById('esp-animal-especie').value}`,
-      document.getElementById('esp-animal-motivo').value && `Motivo: ${document.getElementById('esp-animal-motivo').value}`,
+      multiSelectedLabels('esp-animal-especie').length && `Espécie: ${multiSelectedLabels('esp-animal-especie').join(', ')}`,
+      multiSelectedLabels('esp-animal-motivo').length && `Motivo: ${multiSelectedLabels('esp-animal-motivo').join(', ')}`,
       document.getElementById('ani-busca').value.trim() && `Busca: ${document.getElementById('ani-busca').value.trim()}`,
     ].filter(Boolean).join(' | ') || 'Todos os animais';
     const htmlRows = rows.length ? rows.map(r => `
@@ -1665,6 +1743,7 @@ async function salvarAnimal(id) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initMultiPickers();
   carregarEsporotricose();
   if (window.location.hash === '#doentes') {
     const btn = document.querySelector('[data-esp-main="doentes"]');

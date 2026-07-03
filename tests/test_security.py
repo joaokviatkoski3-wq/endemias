@@ -3654,6 +3654,8 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("esp-doentes-tabs", html)
         self.assertIn("esp-tab-visitas", html)
         self.assertIn("esp-tab-animais", html)
+        self.assertIn("esporo-multi-picker", html)
+        self.assertIn("initMultiPickers", html)
         self.assertIn("esp-tab-doentes", html)
         self.assertIn("esp-tab-doentes-resumo", html)
         self.assertIn("esp-tab-doentes-estoque", html)
