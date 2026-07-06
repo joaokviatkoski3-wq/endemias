@@ -1282,7 +1282,8 @@ class EsporotricoseSchemaTests(unittest.TestCase):
             estoque = esporotricose_core.estoque_medicacao(str(db_path))
 
         self.assertEqual(estoque["totais"]["faltantes_tratamento"], 70)
-        self.assertEqual(estoque["totais"]["saldo_setor"], 130)
+        self.assertEqual(estoque["totais"]["saldo_setor"], 20)
+        self.assertEqual(estoque["totais"]["saldo_apos_reserva"], -50)
         self.assertEqual(estoque["totais"]["saldo_historico_com_entregas"], 20)
         self.assertEqual(estoque["totais"]["saidas_entregas"], 110)
         self.assertEqual(estoque["totais"]["saidas_manuais"], 10)
