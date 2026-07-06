@@ -1280,8 +1280,10 @@ class EsporotricoseSchemaTests(unittest.TestCase):
                 str(db_path), {"tipo": "Sa\u00edda", "quantidade": 10, "descricao": "Uso externo"},
             )
             estoque = esporotricose_core.estoque_medicacao(str(db_path))
+            doentes = esporotricose_core.listar_doentes(str(db_path), {})
 
         self.assertEqual(estoque["totais"]["faltantes_tratamento"], 70)
+        self.assertEqual(doentes["totais"]["capsulas_baixa_zoomed"], 110)
         self.assertEqual(estoque["totais"]["saldo_setor"], 20)
         self.assertEqual(estoque["totais"]["saldo_apos_reserva"], -50)
         self.assertEqual(estoque["totais"]["saldo_historico_com_entregas"], 20)
@@ -3691,6 +3693,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("esp-tab-doentes-estoque", html)
         self.assertIn("Estoque medicação", html)
         self.assertIn("doe-res-caps-entregues", html)
+        self.assertIn("doe-res-caps-baixa-zoomed", html)
         self.assertIn("CPF do tutor", html)
         self.assertIn("Cápsulas", html)
         self.assertIn("esp-visitas-kpis", html)
@@ -4222,6 +4225,8 @@ class MainApisSmokeTests(unittest.TestCase):
         dados = resp.get_json()
         self.assertIn("total", dados)
         self.assertIn("registros", dados)
+        self.assertIn("totais", dados)
+        self.assertIn("capsulas_baixa_zoomed", dados["totais"])
         if dados["registros"]:
             self.assertIn("whatsapp_documentos", dados["registros"][0])
             self.assertIn("receitas", dados["registros"][0])

@@ -385,6 +385,7 @@
   <div class="esporo-doentes-kpis">
     <div class="esporo-kpi"><div class="esporo-kpi-label">Doentes</div><div class="esporo-kpi-value" id="doe-res-total">0</div></div>
     <div class="esporo-kpi"><div class="esporo-kpi-label">Cápsulas entregues</div><div class="esporo-kpi-value" id="doe-res-caps-entregues">0</div></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Cápsulas baixa Zoomed</div><div class="esporo-kpi-value" id="doe-res-caps-baixa-zoomed">0</div></div>
     <div class="esporo-kpi"><div class="esporo-kpi-label">Cápsulas faltantes</div><div class="esporo-kpi-value" id="doe-res-caps-faltam">0</div></div>
     <div class="esporo-kpi"><div class="esporo-kpi-label">Entregas</div><div class="esporo-kpi-value" id="doe-res-entregas">0</div></div>
   </div>
@@ -537,6 +538,7 @@ let espEstoqueCarregado = false;
 let espResumo = null;
 let espDoenteAtual = null;
 let espDoentesRows = [];
+let espDoentesTotais = {};
 let espEstoqueDados = null;
 let espAnimaisRowsById = new Map();
 const ESP_AGENTES = {{ agentes|tojson }};
@@ -771,9 +773,10 @@ async function carregarEspDoentes() {
     const d = await apiGet('/api/esporotricose/doentes?' + p.toString());
     espDoentesCarregados = true;
     espDoentesRows = d.registros || [];
+    espDoentesTotais = d.totais || {};
     renderEspDoentes(espDoentesRows, d.total || 0);
     if (document.getElementById('esp-tab-doentes-resumo')?.classList.contains('active')) {
-      renderEspDoentesResumo(espDoentesRows, d.total || 0);
+      renderEspDoentesResumo(espDoentesRows, d.total || 0, espDoentesTotais);
     }
   } catch (e) {
     toast(e.message, 'error');
@@ -822,7 +825,7 @@ async function carregarEspDoentesResumo() {
     await carregarEspDoentes();
     return;
   }
-  renderEspDoentesResumo(espDoentesRows, espDoentesRows.length);
+  renderEspDoentesResumo(espDoentesRows, espDoentesRows.length, espDoentesTotais);
 }
 function agruparDoentes(rows, campo, vazio='Não informado') {
   const mapa = new Map();
@@ -842,7 +845,7 @@ function doenteEmTratamento(status) {
   if (!s.trim()) return false;
   return !(s.includes('faleceu') || s.includes('obito') || s.includes('nao e esporotricose') || s.includes('acabou') || s.includes('final'));
 }
-function renderEspDoentesResumo(rows, total) {
+function renderEspDoentesResumo(rows, total, totais={}) {
   const rowsTratamento = rows.filter(r => doenteEmTratamento(r.status));
   const capsEntregues = rows.reduce((acc, r) => acc + Number(r.capsulas_entregues || 0), 0);
   const capsFaltam = rowsTratamento.reduce((acc, r) => acc + Number(r.capsulas_restantes || 0), 0);
@@ -853,6 +856,7 @@ function renderEspDoentesResumo(rows, total) {
   const semEntrega = rows.filter(r => Number(r.entregas || 0) === 0).length;
   setEspText('doe-res-total', total);
   setEspText('doe-res-caps-entregues', capsEntregues);
+  setEspText('doe-res-caps-baixa-zoomed', totais.capsulas_baixa_zoomed || 0);
   setEspText('doe-res-caps-faltam', capsFaltam);
   setEspText('doe-res-entregas', entregas);
 

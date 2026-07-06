@@ -988,7 +988,7 @@ def listar_doentes(db_path, filtros=None):
         if especie:
             especie_norm = _sem_acentos(especie).strip().casefold()
             rows = [row for row in rows if _sem_acentos(row.get("especie")).strip().casefold() == especie_norm]
-        return {"registros": rows, "total": len(rows)}
+        return {"registros": rows, "total": len(rows), "totais": _totais_doentes(conn)}
     finally:
         conn.close()
 
@@ -1094,6 +1094,14 @@ def estoque_medicacao(db_path):
         "candidatos_sobra": candidatos_sobra,
         "tipos": list(ESTOQUE_MEDICACAO_TIPOS),
     }
+
+
+def _totais_doentes(conn):
+    row = conn.execute(
+        f"""SELECT COALESCE(SUM(CASE WHEN COALESCE(baixa_zoomed, '') = 'Sim' THEN quantidade ELSE 0 END), 0) AS capsulas_baixa_zoomed
+              FROM {DOENTES_ENTREGAS_TABLE}"""
+    ).fetchone()
+    return {"capsulas_baixa_zoomed": int(row["capsulas_baixa_zoomed"] or 0)}
 
 
 def salvar_estoque_medicacao(db_path, dados):
