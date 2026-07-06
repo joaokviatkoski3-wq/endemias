@@ -3840,6 +3840,8 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn('id="rg-ed-fill-down"', html)
         self.assertIn('id="rg-ed-fill-empty"', html)
         self.assertIn("function rgFocusCell", html)
+        self.assertIn("rg-row-active", html)
+        self.assertIn("nth-child(even)", html)
         self.assertIn("ev.key === 'ArrowRight'", html)
         self.assertIn("rgFillColumnBelow", html)
         self.assertIn("function rgMapInit", html)
