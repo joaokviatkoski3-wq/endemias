@@ -1028,21 +1028,35 @@ def estoque_medicacao(db_path):
     finally:
         conn.close()
 
-    entradas = sum(_estoque_delta(item) for item in movimentos if _estoque_delta(item) > 0)
-    saidas_manuais = abs(sum(_estoque_delta(item) for item in movimentos if _estoque_delta(item) < 0))
+    entradas_zoomed = sum(
+        abs(int(item.get("quantidade") or 0))
+        for item in movimentos
+        if _normalizar_tipo_estoque(item.get("tipo")) == "Entrada"
+    )
+    sobras_lancadas = sum(
+        abs(int(item.get("quantidade") or 0))
+        for item in movimentos
+        if _normalizar_tipo_estoque(item.get("tipo")) == "Sobra"
+    )
+    ajustes_estoque = sum(
+        _estoque_delta(item)
+        for item in movimentos
+        if _normalizar_tipo_estoque(item.get("tipo")) == "Ajuste"
+    )
+    saidas_manuais = sum(
+        abs(_estoque_delta(item))
+        for item in movimentos
+        if _normalizar_tipo_estoque(item.get("tipo")) == "Sa\u00edda"
+    )
     capsulas_entregues = sum(int(item.get("capsulas_entregues") or 0) for item in doentes)
     saidas_entregas = capsulas_entregues
     saidas = saidas_manuais + saidas_entregas
-    saldo_historico_com_entregas = entradas - saidas
+    entradas = entradas_zoomed + sobras_lancadas + max(ajustes_estoque, 0)
+    saldo_historico_com_entregas = entradas_zoomed + sobras_lancadas + ajustes_estoque - saidas
     saldo_setor = saldo_historico_com_entregas
     capsulas_receitadas = sum(int(item.get("capsulas_receitadas") or 0) for item in doentes)
     necessidade_tratamento = sum(int(item.get("capsulas_restantes") or 0) for item in em_tratamento)
     sobra_potencial_encerrados = sum(int(item.get("capsulas_entregues") or 0) for item in encerrados)
-    sobras_lancadas = sum(
-        int(item.get("quantidade") or 0)
-        for item in movimentos
-        if _normalizar_tipo_estoque(item.get("tipo")) == "Sobra"
-    )
     candidatos_sobra = [
         {
             "id_animal_doente": item.get("id_animal_doente"),
@@ -1064,6 +1078,9 @@ def estoque_medicacao(db_path):
             "faltantes_tratamento": necessidade_tratamento,
             "saldo_setor": saldo_setor,
             "entradas_setor": entradas,
+            "entradas_zoomed": entradas_zoomed,
+            "sobras_retornadas": sobras_lancadas,
+            "ajustes_estoque": ajustes_estoque,
             "saidas_setor": saidas,
             "saidas_manuais": saidas_manuais,
             "saidas_entregas": saidas_entregas,

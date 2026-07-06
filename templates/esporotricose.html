@@ -422,7 +422,7 @@
     <div class="esporo-kpi"><div class="esporo-kpi-label">Saldo no setor</div><div class="esporo-kpi-value" id="est-kpi-saldo">0</div></div>
     <div class="esporo-kpi"><div class="esporo-kpi-label">Necessidade em tratamento</div><div class="esporo-kpi-value" id="est-kpi-necessidade">0</div></div>
     <div class="esporo-kpi"><div class="esporo-kpi-label">Saldo após faltantes</div><div class="esporo-kpi-value" id="est-kpi-reserva">0</div></div>
-    <div class="esporo-kpi"><div class="esporo-kpi-label">Sobras lançadas</div><div class="esporo-kpi-value" id="est-kpi-sobras">0</div></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Sobras retornadas</div><div class="esporo-kpi-value" id="est-kpi-sobras">0</div></div>
   </div>
   <div class="esporo-estoque-grid">
     <div class="chart-card">
@@ -919,11 +919,14 @@ function renderEspEstoque(d) {
   setEspText('est-kpi-sobras', t.sobras_lancadas);
   document.getElementById('est-info').textContent = `${fmtNum(movimentos.length)} movimento(s)`;
   document.getElementById('est-resumo-list').innerHTML = [
-    resumoRow('Entradas no setor', t.entradas_setor),
+    resumoRow('Entradas Zoomed', t.entradas_zoomed),
+    resumoRow('Sobras retornadas', t.sobras_retornadas),
+    resumoRow('Ajustes de inventário', t.ajustes_estoque),
+    resumoRow('Total disponível lançado', t.entradas_setor),
     resumoRow('Saídas do setor', t.saidas_setor),
     resumoRow('Saídas automáticas por entregas', t.saidas_entregas),
     resumoRow('Saídas manuais', t.saidas_manuais),
-    resumoRow('Balanço histórico com entregas', t.saldo_historico_com_entregas),
+    resumoRow('Saldo calculado', t.saldo_historico_com_entregas),
     resumoRow('Receitadas nos registros', t.receitadas),
     resumoRow('Entregues nos registros', t.entregues),
     resumoRow('Faltantes em tratamento', t.faltantes_tratamento),
