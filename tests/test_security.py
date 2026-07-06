@@ -1295,6 +1295,12 @@ class EsporotricoseSchemaTests(unittest.TestCase):
         self.assertEqual(sum(item["quantidade"] for item in estoque["movimentos_automaticos"]), 110)
         self.assertEqual(estoque["movimentos_automaticos"][0]["tipo"], "Saída automática")
 
+    def test_entrega_historica_converte_acumulado_em_quantidade_da_entrega(self):
+        self.assertEqual(esporotricose_core._quantidade_entrega_historica(30, 0), 30)
+        self.assertEqual(esporotricose_core._quantidade_entrega_historica(60, 30), 30)
+        self.assertEqual(esporotricose_core._quantidade_entrega_historica(90, 60), 30)
+        self.assertEqual(esporotricose_core._quantidade_entrega_historica(60, 0), 60)
+
     def test_animais_permite_filtro_multiplo_e_busca_ferido(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "esporotricose_animais.db"

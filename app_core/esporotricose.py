@@ -1695,16 +1695,19 @@ def importar_doentes_planilha(db_path, caminho):
             )
             id_receita = cur.lastrowid
             receitas_novas += 1
+            acumulado_anterior = 0
             for qtd, col in ((10, "Entregue/data\n10"), (30, "Entregue/data\n30"), (60, "Entregue/data\n60"), (90, "Entregue/data\n90")):
                 data_entrega = _date(row.get(col))
                 if data_entrega:
+                    quantidade_entrega = _quantidade_entrega_historica(qtd, acumulado_anterior)
                     conn.execute(
                         """INSERT INTO esporotricose_doentes_entregas
                            (id_receita, quantidade, data_entrega, baixa_zoomed, observacoes, criado_em)
                            VALUES (?,?,?,?,?,?)""",
-                        (id_receita, qtd, data_entrega, "Sim", None, agora),
+                        (id_receita, quantidade_entrega, data_entrega, "Sim", None, agora),
                     )
                     entregas_novas += 1
+                    acumulado_anterior = max(acumulado_anterior, qtd)
         conn.commit()
         return {
             "animais_novos": animais_novos,
@@ -1746,6 +1749,14 @@ def _preencher_resumo_receita(item):
     item["entregas_observacao"] = entregas_texto
     item["saldo_observacao"] = saldo_texto
     return item
+
+
+def _quantidade_entrega_historica(acumulado, acumulado_anterior):
+    acumulado = int(acumulado or 0)
+    acumulado_anterior = int(acumulado_anterior or 0)
+    if acumulado > 30 and acumulado_anterior > 0 and acumulado > acumulado_anterior:
+        return acumulado - acumulado_anterior
+    return acumulado
 
 
 def _doente_row(row):

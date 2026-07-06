@@ -1209,7 +1209,7 @@ function renderEspReceitas(rows) {
       </div>
       <div class="esporo-form-grid" style="margin-top:8px;">
         <div class="f-g"><label>Data entrega</label><input type="date" id="ent-data-${r.id_receita}"></div>
-        <div class="f-g"><label>Cápsulas</label><input type="number" id="ent-qtd-${r.id_receita}"></div>
+        <div class="f-g"><label>Cápsulas desta entrega</label><input type="number" min="1" max="30" step="1" placeholder="30" id="ent-qtd-${r.id_receita}"></div>
       </div>
       <button class="btn btn-outline" type="button" onclick="salvarEspEntrega(${r.id_receita})">Adicionar entrega</button>
     </div>
@@ -1267,10 +1267,13 @@ async function salvarEspReceitaEdit(idReceita) {
   } catch(e) { toast(e.message, 'error'); }
 }
 async function salvarEspEntrega(idReceita) {
+  const qtdEl = document.getElementById(`ent-qtd-${idReceita}`);
+  const qtd = Number(qtdEl.value || 0);
+  if (qtd > 30 && !confirm('O padrão é no máximo 30 cápsulas por entrega. Confirma lançar uma exceção com quantidade maior?')) return;
   try {
     await apiPost(`/api/esporotricose/doentes/receitas/${idReceita}/entregas`, {
       data_entrega: document.getElementById(`ent-data-${idReceita}`).value,
-      quantidade: document.getElementById(`ent-qtd-${idReceita}`).value,
+      quantidade: qtdEl.value,
     });
     await abrirEspDoente(document.getElementById('doe-id').value);
     await carregarEspDoentes();
