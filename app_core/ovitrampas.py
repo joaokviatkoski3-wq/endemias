@@ -651,6 +651,65 @@ def atualizar_leitura(db_path, id_leitura, dados):
         conn.close()
 
 
+def atualizar_leituras_lote(db_path, filtros=None, dados=None):
+    filtros = filtros or {}
+    dados = dados or {}
+    id_laboratorista = _int(dados.get("id_laboratorista"))
+    data_leitura = _date(dados.get("data_leitura"))
+    somente_vazios = bool(dados.get("somente_vazios"))
+    if not id_laboratorista and not data_leitura:
+        raise ValueError("Informe laboratorista ou data da leitura.")
+
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        if id_laboratorista:
+            agente = conn.execute("SELECT id_agente FROM agentes WHERE id_agente=? AND ativo=1", (id_laboratorista,)).fetchone()
+            if not agente:
+                raise ValueError("Laboratorista nao encontrado.")
+        where, params = _where(filtros, busca=True)
+        clauses = []
+        sets = []
+        update_params = []
+        if id_laboratorista:
+            if somente_vazios:
+                sets.append("id_laboratorista=CASE WHEN id_laboratorista IS NULL THEN ? ELSE id_laboratorista END")
+                clauses.append("id_laboratorista IS NULL")
+            else:
+                sets.append("id_laboratorista=?")
+            update_params.append(id_laboratorista)
+        if data_leitura:
+            if somente_vazios:
+                sets.append("data_leitura=CASE WHEN data_leitura IS NULL OR data_leitura='' THEN ? ELSE data_leitura END")
+                clauses.append("(data_leitura IS NULL OR data_leitura='')")
+            else:
+                sets.append("data_leitura=?")
+            update_params.append(data_leitura)
+
+        target_where = where
+        target_params = list(params)
+        if somente_vazios and clauses:
+            target_where = (target_where + " AND " if target_where else "WHERE ") + "(" + " OR ".join(clauses) + ")"
+        total_alvo = conn.execute(f"SELECT COUNT(*) FROM {TABLE} l {target_where}", target_params).fetchone()[0]
+        if not total_alvo:
+            return {"atualizados": 0, "total_alvo": 0}
+        cur = conn.execute(
+            f"""UPDATE {TABLE}
+                   SET {', '.join(sets)}
+                 WHERE id_leitura IN (
+                       SELECT id_leitura FROM {TABLE} l {target_where}
+                 )""",
+            [*update_params, *target_params],
+        )
+        conn.commit()
+        return {"atualizados": cur.rowcount, "total_alvo": total_alvo}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def agentes(db_path):
     conn = db_core.connect(db_path)
     try:

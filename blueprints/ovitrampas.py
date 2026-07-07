@@ -170,6 +170,26 @@ def api_calendario_evento(id_evento):
     return jsonify({"ok": True, "evento": evento})
 
 
+@bp.route("/api/ovitrampas/leituras/lote", methods=["PUT"])
+@login_required
+@nivel_min("operador")
+def api_atualizar_leituras_lote():
+    filtros = _filtros()
+    filtros["busca"] = request.args.get("busca", "")
+    payload = request.get_json(silent=True) or {}
+    try:
+        resultado = ovitrampas_core.atualizar_leituras_lote(_db_path(), filtros, payload)
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(
+        get_db,
+        "ovitrampas_leituras_lote_atualizadas",
+        entidade="ovitrampas",
+        detalhes={"filtros": filtros, **payload, **resultado},
+    )
+    return jsonify({"ok": True, **resultado})
+
+
 @bp.route("/api/ovitrampas/leituras/<id_leitura>", methods=["PUT"])
 @login_required
 @nivel_min("operador")

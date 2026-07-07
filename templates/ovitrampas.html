@@ -24,6 +24,9 @@
 .ovi-reading-card{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);padding:10px;}
 .ovi-reading-top{display:grid;grid-template-columns:minmax(90px,.7fr) minmax(70px,.45fr) minmax(130px,1fr) minmax(180px,1.4fr) minmax(92px,.65fr) minmax(88px,.55fr);gap:8px;align-items:start;}
 .ovi-reading-lab{display:grid;grid-template-columns:minmax(150px,1fr) minmax(128px,.7fr) auto;gap:8px;align-items:end;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+.ovi-batch{display:grid;grid-template-columns:minmax(190px,1fr) minmax(150px,.7fr) minmax(190px,.8fr) auto;gap:10px;align-items:end;margin-bottom:16px;}
+.ovi-batch .check{min-height:36px;align-items:center;}
+.ovi-batch-status{font-size:11px;color:var(--text3);align-self:center;}
 .ovi-field{min-width:0;color:var(--text2);font-size:12px;line-height:1.25;}
 .ovi-field > span{display:block;color:var(--text3);font-size:10px;font-weight:900;text-transform:uppercase;margin-bottom:2px;}
 .ovi-field strong{display:block;color:var(--text);font-size:13px;overflow-wrap:anywhere;}
@@ -92,6 +95,7 @@
 @media(max-width:1180px){.ovi-cal-layout{grid-template-columns:1fr;}.ovi-year-grid{grid-template-columns:repeat(2,minmax(230px,1fr));}}
 @media(max-width:1100px){.ovi-reading-top{grid-template-columns:repeat(3,minmax(0,1fr));}}
 @media(max-width:920px){.ovi-layout,.ovi-upload,.ovi-monitor-layout{grid-template-columns:1fr;}.ovi-reading-lab{grid-template-columns:1fr;}}
+@media(max-width:920px){.ovi-batch{grid-template-columns:1fr;}}
 @media(max-width:640px){.ovi-reading-top{grid-template-columns:1fr 1fr;}.ovi-year-grid{grid-template-columns:1fr;}.ovi-modal-grid{grid-template-columns:1fr;}}
 </style>{% endblock %}
 
@@ -130,6 +134,20 @@
         <div class="f-g"><label>Pesquisa</label><input type="search" id="ovi-busca" placeholder="ID, rua, complemento..."></div>
         <button class="btn btn-outline" type="button" id="ovi-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
       </div>
+    </div>
+  </div>
+
+  <div class="chart-card" style="margin-bottom:16px;">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Edição em lote das leituras filtradas</div>
+      <span class="table-info" id="ovi-lote-info">Use os filtros acima para definir o lote.</span>
+    </div>
+    <div class="ovi-batch">
+      <div class="f-g"><label>Laboratorista</label><select id="ovi-lote-lab"><option value="">Não alterar</option>{% for agente in agentes %}<option value="{{ agente.id_agente }}">{{ agente.nome }}</option>{% endfor %}</select></div>
+      <div class="f-g"><label>Data da leitura</label><input type="date" id="ovi-lote-data"></div>
+      <label class="check"><input type="checkbox" id="ovi-lote-somente-vazios" checked> Preencher somente campos vazios</label>
+      <button class="btn btn-primary" type="button" id="ovi-lote-aplicar"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Aplicar no lote</button>
+      <span class="ovi-batch-status" id="ovi-lote-status"></span>
     </div>
   </div>
 
@@ -381,6 +399,7 @@
 const oviFmt = new Intl.NumberFormat('pt-BR');
 const oviAgentes = JSON.parse(document.getElementById('ovi-agentes-json').textContent || '[]');
 let oviCalState = {ano:new Date().getFullYear(), grupos:[], eventos:[], eventosPorData:{}};
+let oviListaTotal = 0;
 const oviMeses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const oviDias = ['D','S','T','Q','Q','S','S'];
 function oviEscape(value){ return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
@@ -603,7 +622,9 @@ async function carregarMonitoramento(){
 }
 async function carregarListaOvitrampas(){
   const data = await oviGet('/api/ovitrampas/listar?' + oviParams(true).toString());
+  oviListaTotal = Number(data.total || 0);
   document.getElementById('ovi-info').textContent = `${oviFmt.format(data.total || 0)} registro(s)`;
+  document.getElementById('ovi-lote-info').textContent = `${oviFmt.format(oviListaTotal)} leitura(s) filtrada(s).`;
   document.getElementById('ovi-body').innerHTML = (data.registros || []).map(r => {
     const endereco = [r.rua, r.numero].filter(Boolean).map(oviEscape).join(', ') || '-';
     const ovos = Number(r.ovos || 0);
@@ -627,6 +648,36 @@ async function carregarListaOvitrampas(){
       </div>
     </div>`;
   }).join('') || '<div class="empty">Nenhuma leitura encontrada.</div>';
+}
+async function aplicarOviLote(){
+  const idLaboratorista = document.getElementById('ovi-lote-lab').value;
+  const dataLeitura = document.getElementById('ovi-lote-data').value;
+  const somenteVazios = document.getElementById('ovi-lote-somente-vazios').checked;
+  if (!idLaboratorista && !dataLeitura) return toast('Informe laboratorista ou data da leitura para aplicar em lote.', 'warning');
+  if (!oviListaTotal) return toast('Nenhuma leitura filtrada para atualizar.', 'warning');
+  const labNome = idLaboratorista ? (oviAgentes.find(a => String(a.id_agente) === String(idLaboratorista))?.nome || 'laboratorista selecionado') : 'sem alterar laboratorista';
+  const dataTxt = dataLeitura || 'sem alterar data';
+  const escopo = somenteVazios ? 'preenchendo somente campos vazios' : 'sobrescrevendo os campos informados';
+  if (!confirm(`Aplicar em lote nas ${oviFmt.format(oviListaTotal)} leitura(s) filtrada(s)?\n\nLaboratorista: ${labNome}\nData da leitura: ${dataTxt}\nModo: ${escopo}`)) return;
+  const status = document.getElementById('ovi-lote-status');
+  const btn = document.getElementById('ovi-lote-aplicar');
+  status.textContent = 'Aplicando...';
+  btn.disabled = true;
+  try {
+    const data = await oviFetchJson('/api/ovitrampas/leituras/lote?' + oviParams(true).toString(), {
+      method:'PUT',
+      headers:{'Content-Type':'application/json','X-CSRFToken': getCsrf()},
+      body:JSON.stringify({id_laboratorista:idLaboratorista || null, data_leitura:dataLeitura || null, somente_vazios: somenteVazios})
+    });
+    status.textContent = `${oviFmt.format(data.atualizados || 0)} leitura(s) atualizada(s).`;
+    toast(`${oviFmt.format(data.atualizados || 0)} leitura(s) atualizada(s) em lote.`, 'success');
+    await carregarOvitrampas();
+  } catch (err) {
+    status.textContent = '';
+    toast('Erro ao aplicar lote: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
 }
 async function carregarArmadilhas(){
   const data = await oviGet('/api/ovitrampas/armadilhas?' + oviArmParams().toString());
@@ -846,6 +897,7 @@ document.querySelectorAll('[data-ovi-tab]').forEach(btn => btn.addEventListener(
   if (alvo === 'calendario') carregarCalendario().catch(e => toast('Erro ao carregar calendário: ' + e.message, 'error'));
 }));
 document.getElementById('ovi-atualizar').addEventListener('click', () => carregarOvitrampas().catch(e => toast('Erro ao carregar ovitrampas: ' + e.message, 'error')));
+document.getElementById('ovi-lote-aplicar').addEventListener('click', () => aplicarOviLote());
 document.getElementById('ovi-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarListaOvitrampas().catch(err => toast('Erro na busca: ' + err.message, 'error')); });
 document.getElementById('ovi-mon-atualizar').addEventListener('click', () => carregarMonitoramento().catch(e => toast('Erro ao carregar monitoramento: ' + e.message, 'error')));
 document.getElementById('ovi-arm-atualizar').addEventListener('click', () => carregarArmadilhas().catch(e => toast('Erro ao carregar armadilhas: ' + e.message, 'error')));

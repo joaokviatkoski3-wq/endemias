@@ -1955,6 +1955,17 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("t-ovi-localidades-detalhe", html)
         self.assertIn("datalabels:{ display:false }", html)
 
+    def test_pagina_ovitrampas_exibe_edicao_em_lote(self):
+        client = _client_logado()
+        resp = client.get("/ovitrampas")
+
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Edição em lote das leituras filtradas", html)
+        self.assertIn('id="ovi-lote-lab"', html)
+        self.assertIn('id="ovi-lote-somente-vazios"', html)
+        self.assertIn("aplicarOviLote", html)
+
     def test_pagina_visitas_usa_filtros_modernos(self):
         client = _client_logado()
         resp = client.get("/visitas")
@@ -2952,6 +2963,63 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(registro["id_laboratorista"], agente[0])
             self.assertEqual(registro["laboratorista"], agente[1])
             self.assertEqual(registro["data_leitura"], "2026-06-09")
+
+    def test_api_ovitrampas_atualiza_lote_somente_campos_vazios(self):
+        csv_bytes = (
+            "Ovitrampa ID;Estado;MunicÃƒÂ­pio;Distrito;Rua;NÃƒÂºmero;Complemento;LocalizaÃƒÂ§ÃƒÂ£o;"
+            "Latitude;Longitude;Ano;Semana;Data do envio da contagem;Ovos;Quem enviou;"
+            "ObservaÃƒÂ§ÃƒÂ£o;Lat_lng;QuarteirÃƒÂ£o;Data da instalaÃƒÂ§ÃƒÂ£o;Data de coleta\n"
+            "2;ParanÃƒÂ¡;Almirante TamandarÃƒÂ©;GRAZIELA;Rua B;20;Loja;Canto;"
+            "-25,3;-49,4;2026;22;2026-06-08 10:00:00;0;Vanessa;;-25.3,-49.4;"
+            "1300;2026-06-01;2026-06-05\n"
+            "3;ParanÃƒÂ¡;Almirante TamandarÃƒÂ©;GRAZIELA;Rua C;30;Casa;Muro;"
+            "-25,4;-49,5;2026;22;2026-06-08 10:10:00;12;Vanessa;;-25.4,-49.5;"
+            "1301;2026-06-01;2026-06-05\n"
+        ).encode("utf-8")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            resp = client.post(
+                "/api/ovitrampas/importar",
+                data={"arquivos": (io.BytesIO(csv_bytes), "3918-2026-22.csv")},
+                content_type="multipart/form-data",
+            )
+            self.assertEqual(resp.status_code, 200)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute("INSERT INTO agentes (nome, ativo) VALUES (?, 1)", ("Lab Antigo",))
+                conn.execute("INSERT INTO agentes (nome, ativo) VALUES (?, 1)", ("Lab Novo",))
+                agentes = conn.execute("SELECT id_agente, nome FROM agentes ORDER BY id_agente").fetchall()
+                antigo = agentes[-2][0]
+                novo = agentes[-1][0]
+                leitura_preenchida = conn.execute(
+                    "SELECT id_leitura FROM ovitrampas_leituras WHERE ovitrampa_id='2'"
+                ).fetchone()[0]
+                conn.execute(
+                    "UPDATE ovitrampas_leituras SET id_laboratorista=?, data_leitura=? WHERE id_leitura=?",
+                    (antigo, "2026-06-09", leitura_preenchida),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            resp = client.put(
+                "/api/ovitrampas/leituras/lote?ano=2026&semana=22&distrito=Graziela",
+                json={"id_laboratorista": novo, "data_leitura": "2026-06-10", "somente_vazios": True},
+            )
+
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.get_json()["atualizados"], 1)
+            conn = sqlite3.connect(db_path)
+            try:
+                rows = conn.execute(
+                    "SELECT ovitrampa_id, id_laboratorista, data_leitura FROM ovitrampas_leituras ORDER BY ovitrampa_id"
+                ).fetchall()
+            finally:
+                conn.close()
+            self.assertEqual(rows[0][1], antigo)
+            self.assertEqual(rows[0][2], "2026-06-09")
+            self.assertEqual(rows[1][1], novo)
+            self.assertEqual(rows[1][2], "2026-06-10")
 
     def test_ovitrampas_monitoramento_retorna_analises_operacionais(self):
         leitura_csv = (
