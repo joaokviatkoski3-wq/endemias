@@ -6007,6 +6007,12 @@ class MainApisSmokeTests(unittest.TestCase):
                     "Número": "10",
                     "Quarteirão": "5",
                     "Visita": "Normal",
+                    "group_jr1vc40": [{
+                        "N_mero_do_tubito": "T-002",
+                        "C_digo_do_dep_sito": "D1",
+                        "Dep_sito": "Pneu",
+                        "O_Dep_sito_onde_foi_coleta_foi_eliminado": "sim",
+                    }],
                     "coletas": [{"Número do tubito": "T-001"}],
                 }]})
             if "/asset-larvas/" in url:
@@ -6057,8 +6063,18 @@ class MainApisSmokeTests(unittest.TestCase):
                 headers = [cell.value for cell in next(coletas.iter_rows(max_row=1))]
                 values = [cell.value for cell in next(coletas.iter_rows(min_row=2, max_row=2))]
                 row = dict(zip(headers, values))
-                self.assertEqual(row["Número do tubito"], "T-001")
+                self.assertIn(row["Número do tubito"], {"T-001", "T-002"})
                 self.assertEqual(row["submission__uuid"], "visita-tbo-1")
+                rows = [
+                    dict(zip(headers, [cell.value for cell in linha]))
+                    for linha in coletas.iter_rows(min_row=2)
+                ]
+                config = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+                cfg_tbo = config["tipos_trabalho"]["TBO"]
+                row_deposito = next(item for item in rows if item[cfg_tbo["col_numero_tubo_coletas"]] == "T-002")
+                self.assertEqual(row_deposito[cfg_tbo["col_codigo_deposito_coletas"]], "D1")
+                self.assertEqual(row_deposito[cfg_tbo["col_nome_deposito_coletas"]], "Pneu")
+                self.assertEqual(row_deposito[cfg_tbo["col_deposito_eliminado_coletas"]], "sim")
             finally:
                 wb.close()
 
@@ -6076,7 +6092,7 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertTrue(ok)
             self.assertEqual(sumario[0]["tipo"], "TBO")
             self.assertEqual(sumario[0]["visitas_novas"], 1)
-            self.assertEqual(sumario[0]["coletas_novas"], 1)
+            self.assertEqual(sumario[0]["coletas_novas"], 2)
             self.assertEqual(sumario[0]["resultados_novos"], 1)
 
     def test_kobo_importacao_larvas_prepara_formulario_selecionado(self):
@@ -6096,6 +6112,7 @@ class MainApisSmokeTests(unittest.TestCase):
                     "group_we1tn02/Numero_tubo": "T-001",
                     "group_we1tn02/Data_da_coleta": "2026-06-10",
                     "group_nr95y76/group_mw55v39/Aegypt_Larvas": "1",
+                    "group_nr95y76/group_pe3hs09/Outra_Esp_cie_Larvas": "3",
                 }]}).encode("utf-8")
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -6132,6 +6149,12 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(str(row["Data da leitura"])[:10], "2026-06-11")
             self.assertEqual(str(row["Nome do laboratorista"]), "azimir")
             self.assertEqual(int(row["Aegypt Larvas"]), 1)
+            config = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+            col_outra_larvas = next(
+                col for col in config["larvas"]["colunas_resultado"]
+                if "Outra" in col and "Larvas" in col
+            )
+            self.assertEqual(int(row[col_outra_larvas]), 3)
 
     def test_kobo_importacao_extra_prepara_formulario_bri(self):
         class FakeResponse:

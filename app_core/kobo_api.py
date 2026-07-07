@@ -27,6 +27,48 @@ TYPE_LABELS = {
     "RECOLHIMENTO": "Recolhimento",
 }
 
+TUBE_FIELD_CANDIDATES = [
+    "NÃºmero do tubito", "Numero do tubito", "N_mero_do_tubito",
+    "num_tubo", "Numero_tubo", "tubo", "tubito",
+]
+COLLECTION_CODE_CANDIDATES = [
+    "CÃ³digo do depÃ³sito", "Codigo do deposito", "C_digo_do_dep_sito",
+    "codigo_deposito",
+]
+COLLECTION_DEPOSIT_CANDIDATES = [
+    "DepÃ³sito", "Deposito", "Dep_sito", "tipo_deposito",
+]
+COLLECTION_ELIMINATED_CANDIDATES = [
+    "O DepÃ³sito onde foi feita a coleta foi eliminado?",
+    "O Deposito onde foi feita a coleta foi eliminado?",
+    "O_Dep_sito_onde_foi_coleta_foi_eliminado",
+    "deposito_eliminado",
+]
+LAB_RESULT_CANDIDATES = {
+    "Aegypt Larvas": ["Aegypt Larvas", "Aegypt_Larvas"],
+    "Aegypt Pupas": ["Aegypt Pupas", "Aegypt_Pupas"],
+    "Aegypt ExÃºvias": ["Aegypt Exuvias", "Aegypt ExÃºvias", "Aegypt_Exuvias", "Aegypt_ExÃºvias", "Aegypt_Ex_vias"],
+    "Aegypt Adulto": ["Aegypt Adulto", "Aegypt_Adulto"],
+    "Albopictus Larvas": ["Albopictus Larvas", "Albopictus_Larvas"],
+    "Albopictus Pupas": ["Albopictus Pupas", "Albopictus_Pupas"],
+    "Albopictus ExÃºvias": ["Albopictus Exuvias", "Albopictus ExÃºvias", "Albopictus_Exuvias", "Albopictus_ExÃºvias", "Albopictus_Ex_vias"],
+    "Albopictus Adulto": ["Albopictus Adulto", "Albopictus_Adulto"],
+    "Outra EspÃ©cie Larvas": ["Outra Especie Larvas", "Outra EspÃ©cie Larvas", "Outra_Especie_Larvas", "Outra_EspÃ©cie_Larvas", "Outra_Esp_cie_Larvas"],
+    "Outra EspÃ©cie Pupas": ["Outra Especie Pupas", "Outra EspÃ©cie Pupas", "Outra_Especie_Pupas", "Outra_EspÃ©cie_Pupas", "Outra_Esp_cie_Pupas"],
+    "Outra EspÃ©cie ExÃºvias": ["Outra Especie Exuvias", "Outra EspÃ©cie ExÃºvias", "Outra_Especie_Exuvias", "Outra_EspÃ©cie_ExÃºvias", "Outra_Esp_cie_Ex_vias", "Outra_Esp_cie_Exuvias"],
+    "Outra EspÃ©cie Adulto": ["Outra Especie Adulto", "Outra EspÃ©cie Adulto", "Outra_Especie_Adulto", "Outra_EspÃ©cie_Adulto", "Outra_Esp_cie_Adulto"],
+}
+
+
+LAB_RESULT_CANDIDATES_BY_NORM = {
+    "aegyptexuvias": ["Aegypt Exuvias", "Aegypt_Exuvias", "Aegypt_Ex_vias"],
+    "albopictusexuvias": ["Albopictus Exuvias", "Albopictus_Exuvias", "Albopictus_Ex_vias"],
+    "outraespecielarvas": ["Outra Especie Larvas", "Outra_Especie_Larvas", "Outra_Esp_cie_Larvas"],
+    "outraespeciepupas": ["Outra Especie Pupas", "Outra_Especie_Pupas", "Outra_Esp_cie_Pupas"],
+    "outraespecieexuvias": ["Outra Especie Exuvias", "Outra_Especie_Exuvias", "Outra_Esp_cie_Exuvias", "Outra_Esp_cie_Ex_vias"],
+    "outraespecieadulto": ["Outra Especie Adulto", "Outra_Especie_Adulto", "Outra_Esp_cie_Adulto"],
+}
+
 
 class KoboError(RuntimeError):
     pass
@@ -215,6 +257,28 @@ def _value(record, candidates):
     return ""
 
 
+def _leaf_value(record, candidates):
+    record = _flatten_record(record)
+    wanted = {_norm(c) for c in candidates}
+    for key, value in record.items():
+        leaf = str(key).rsplit("/", 1)[-1]
+        if _norm(leaf) in wanted and value not in (None, ""):
+            return str(value).strip()
+    for key, value in record.items():
+        leaf_norm = _norm(str(key).rsplit("/", 1)[-1])
+        if value not in (None, "") and any(c in leaf_norm for c in wanted):
+            return str(value).strip()
+    return _value(record, candidates)
+
+
+def _lab_result_candidates(column_name):
+    return (
+        LAB_RESULT_CANDIDATES_BY_NORM.get(_norm(column_name))
+        or LAB_RESULT_CANDIDATES.get(column_name)
+        or [column_name]
+    )
+
+
 def _iter_dict_nodes(value):
     if isinstance(value, dict):
         yield value
@@ -230,7 +294,7 @@ def record_tubes(record, fallback_date=None):
     tubes = []
     seen = set()
     for node in _iter_dict_nodes(record):
-        tubo = _value(node, ["Número do tubito", "Numero do tubito", "num_tubo", "tubo", "tubito"])
+        tubo = _value(node, TUBE_FIELD_CANDIDATES)
         if not tubo:
             continue
         data = _date_value(_value(node, ["Data da coleta", "data_coleta", "Data_da_coleta"])) or fallback_date
@@ -238,7 +302,13 @@ def record_tubes(record, fallback_date=None):
         if key in seen:
             continue
         seen.add(key)
-        tubes.append({"tubo": key[0], "data": key[1]})
+        tubes.append({
+            "tubo": key[0],
+            "data": key[1],
+            "codigo_deposito": _leaf_value(node, COLLECTION_CODE_CANDIDATES),
+            "deposito": _leaf_value(node, COLLECTION_DEPOSIT_CANDIDATES),
+            "deposito_eliminado": _leaf_value(node, COLLECTION_ELIMINATED_CANDIDATES),
+        })
     return tubes
 
 
@@ -509,14 +579,17 @@ def _ensure_visit_columns(row, tipo, cfg_tipo, record):
 
 def _coleta_row(record, tubo, cfg_tipo):
     uuid = record_uuid(record)
-    col_tubo = cfg_tipo.get("col_numero_tubo_coletas") or "Número do tubito"
+    col_tubo = cfg_tipo.get("col_numero_tubo_coletas") or "Numero do tubito"
+    codigo_col = cfg_tipo.get("col_codigo_deposito_coletas") or "Codigo do deposito"
+    deposito_col = cfg_tipo.get("col_nome_deposito_coletas") or "Deposito"
+    eliminado_col = cfg_tipo.get("col_deposito_eliminado_coletas") or "Deposito eliminado"
     return {
         "_uuid": uuid,
         "submission__uuid": uuid,
         col_tubo: tubo.get("tubo"),
-        cfg_tipo.get("col_codigo_deposito_coletas", "Código do depósito"): "",
-        cfg_tipo.get("col_nome_deposito_coletas", "Depósito"): "",
-        cfg_tipo.get("col_deposito_eliminado_coletas", "O Depósito onde foi feita a coleta foi eliminado?"): "",
+        codigo_col: tubo.get("codigo_deposito") or "",
+        deposito_col: tubo.get("deposito") or "",
+        eliminado_col: tubo.get("deposito_eliminado") or "",
     }
 
 
@@ -545,7 +618,7 @@ def _larva_row(record, cfg_larvas):
         "Outra Espécie Adulto": ["Outra Especie Adulto", "Outra Espécie Adulto", "Outra_Especie_Adulto", "Outra_Espécie_Adulto"],
     }
     for col in cfg_larvas.get("colunas_resultado", []):
-        _set_if_empty(row, col, _value(record, result_candidates.get(col, [col])))
+        _set_if_empty(row, col, _leaf_value(record, _lab_result_candidates(col)))
     return row
 
 
