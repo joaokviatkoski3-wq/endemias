@@ -85,6 +85,26 @@ PE_ALIAS_SEED = (
     ("RUA ALEXANDRE DE CRISTO - RECICLAGEM - VALDECIR", None, "PE-0027"),
     ("RUA ALEXANDRE DE CRISTO - RECICLAGEM VALDECIR", None, "PE-0027"),
     ("RUA SAO GABRIEL - FERRO VELHO BRUNO", None, "PE-0025"),
+    ("ROD. VEREADOR ADMAR BERTOLLI - FERRO VELHO PERNAMBUCO", None, "PE-0032"),
+    ("RUA CAMPOS DE MINAS - FERRO - VELHO DO PAULO", None, "PE-0031"),
+    ("PREF. EURIPEDES DE SIQUEIRA - METALURGICA", None, "PE-0011"),
+    ("RIO TANGUA - BORRACHARIA", None, "PE-0008"),
+    ("TRAV. RIO CACHOEIRINHA - MEIO AMBIENTE", None, "PE-0009"),
+    ("RUA SAO GABRIEL - FERRO VELHO (PROPRIETARIO BRUNO)", None, "PE-0025"),
+    ("PROF. ALBERTO PIEKARZ - CEMITERIO PRADO", None, "PE-0042"),
+    ("CEL. JOAO CANDIDO DE OLIVEIRA - CEMITERIO", None, "PE-0015"),
+    ("PEDRO TEIXEIRA ALVES - CAL BARIGUI", None, "PE-0019"),
+    ("PEDRO TEIXEIRA ALVES - CAL ELOI", None, "PE-0020"),
+    ("PEDRO TEIXEIRA ALVES - PATIO DE OBRAS", None, "PE-0017"),
+    ("RODOVIA DOS MINERIOS - BORRACHARIA (ANTUNES - PAI)", None, "PE-0021"),
+    ("RODOVIA DOS MINERIOS - BORRACHARIA (DAVI)", None, "PE-0023"),
+    ("RODOVIA DOS MINERIOS - BORRACHARIA DPC", None, "PE-0022"),
+    ("CEMITERIO VATICANO - MAURICIO ROSSEMAN", None, "PE-0040"),
+    ("FRANCISCO KRUGER - RECICLAGEM MARQUES", None, "PE-0036"),
+    ("IRAYDES DA CRUZ GUIMARAES - RECICLAGEM GARCIA", None, "PE-0038"),
+    ("IRAYDES DA CRUZ GUIMARAES - TAS CONSTRUTORA", None, "PE-0037"),
+    ("ROD. VEREADOR ADMAR BERTOLLI - FERRO VELHO NUNES", None, "PE-0039"),
+    ("JOSE PLATNER - RECICLAGEM ILHA NOVA", None, "PE-0014"),
 )
 
 
@@ -166,42 +186,96 @@ def _seed_aliases(conn):
     for alias, localidade, codigo_pe in PE_ALIAS_SEED:
         if not conn.execute("SELECT 1 FROM pontos_estrategicos WHERE codigo_pe=?", (codigo_pe,)).fetchone():
             continue
-        conn.execute(
-            """INSERT OR IGNORE INTO pontos_estrategicos_alias (
-                   alias_logradouro, alias_normalizado, localidade, localidade_normalizada,
-                   codigo_pe, observacoes, ativo, criado_em, atualizado_em
-               ) VALUES (?,?,?,?,?,?,?,?,?)""",
-            (
-                _text(alias),
-                normalizar_alias(alias),
-                _text(localidade),
-                normalizar_alias(localidade),
-                codigo_pe,
-                "alias inicial para visitas PE antigas",
-                1,
-                agora,
-                agora,
-            ),
-        )
-        conn.execute(
-            """UPDATE pontos_estrategicos_alias
-                  SET alias_logradouro=?,
-                      localidade=?,
-                      codigo_pe=?,
-                      ativo=1,
-                      atualizado_em=?
-                WHERE alias_normalizado=?
-                  AND localidade_normalizada=?
-                  AND (observacoes IS NULL OR observacoes='alias inicial para visitas PE antigas')""",
-            (
-                _text(alias),
-                _text(localidade),
-                codigo_pe,
-                agora,
-                normalizar_alias(alias),
-                normalizar_alias(localidade),
-            ),
-        )
+        _salvar_alias(conn, alias, localidade, codigo_pe, "alias inicial para visitas PE antigas", agora)
+    for row in conn.execute(
+        """SELECT codigo_pe, nome, logradouro, numero, localidade
+             FROM pontos_estrategicos
+            WHERE situacao=1"""
+    ).fetchall():
+        try:
+            codigo_pe = row["codigo_pe"]
+            localidade = row["localidade"]
+        except (TypeError, IndexError):
+            codigo_pe, localidade = row[0], row[4]
+        for alias in _aliases_automaticos(row):
+            _salvar_alias(conn, alias, localidade, codigo_pe, "alias automatico do cadastro do PE", agora)
+            if " - " in alias:
+                _salvar_alias(conn, alias, None, codigo_pe, "alias automatico do cadastro do PE", agora)
+
+
+def _salvar_alias(conn, alias, localidade, codigo_pe, observacoes, agora):
+    alias_texto = _text(alias)
+    if not alias_texto:
+        return
+    localidade_texto = _text(localidade)
+    alias_norm = normalizar_alias(alias_texto)
+    localidade_norm = normalizar_alias(localidade_texto)
+    conn.execute(
+        """INSERT OR IGNORE INTO pontos_estrategicos_alias (
+               alias_logradouro, alias_normalizado, localidade, localidade_normalizada,
+               codigo_pe, observacoes, ativo, criado_em, atualizado_em
+           ) VALUES (?,?,?,?,?,?,?,?,?)""",
+        (
+            alias_texto,
+            alias_norm,
+            localidade_texto,
+            localidade_norm,
+            codigo_pe,
+            observacoes,
+            1,
+            agora,
+            agora,
+        ),
+    )
+    conn.execute(
+        """UPDATE pontos_estrategicos_alias
+              SET alias_logradouro=?,
+                  localidade=?,
+                  codigo_pe=?,
+                  ativo=1,
+                  atualizado_em=?
+            WHERE alias_normalizado=?
+              AND localidade_normalizada=?
+              AND (observacoes IS NULL
+                   OR observacoes IN ('alias inicial para visitas PE antigas', 'alias automatico do cadastro do PE'))""",
+        (
+            alias_texto,
+            localidade_texto,
+            codigo_pe,
+            agora,
+            alias_norm,
+            localidade_norm,
+        ),
+    )
+
+
+def _aliases_automaticos(row):
+    try:
+        nome = _text(row["nome"])
+        logradouro = _text(row["logradouro"])
+        numero = _text(row["numero"])
+    except (TypeError, IndexError):
+        nome = _text(row[1])
+        logradouro = _text(row[2])
+        numero = _text(row[3])
+    aliases = []
+    if nome:
+        aliases.append(nome)
+    if logradouro:
+        aliases.append(logradouro)
+    if nome and logradouro:
+        aliases.extend([
+            f"{logradouro} - {nome}",
+            f"{nome} - {logradouro}",
+        ])
+        if numero:
+            aliases.extend([
+                f"{logradouro} - {nome} - {numero}",
+                f"{nome} - {logradouro} - {numero}",
+                f"{logradouro} - {nome} {numero}",
+                f"{nome} - {logradouro} {numero}",
+            ])
+    return list(dict.fromkeys(aliases))
 
 
 def resolver_alias_visita(conn, logradouro, localidade=None):

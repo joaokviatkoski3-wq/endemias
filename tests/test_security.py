@@ -1606,6 +1606,13 @@ class PontosEstrategicosTests(unittest.TestCase):
                 ("PE-0043", "Condominio Jersey City - LYX", "Rosana"),
             ):
                 pe_core.inserir(conn, {"codigo_pe": codigo, "nome": nome, "localidade": localidade})
+            pe_core.inserir(conn, {
+                "codigo_pe": "PE-0023",
+                "nome": "Borracharia (Davi)",
+                "localidade": "Roma",
+                "logradouro": "Rodovia dos Minerios",
+                "numero": "5142",
+            })
             pe_core.ensure_schema(conn)
 
             self.assertEqual(
@@ -1619,6 +1626,14 @@ class PontosEstrategicosTests(unittest.TestCase):
             self.assertEqual(
                 pe_core.resolver_alias_visita(conn, "Cal Eloi -  Pedro Teixeira Alves", "Sede")["codigo_pe"],
                 "PE-0020",
+            )
+            self.assertEqual(
+                pe_core.resolver_alias_visita(conn, "Pedro Teixeira Alves - Cal Eloi", "Sede")["codigo_pe"],
+                "PE-0020",
+            )
+            self.assertEqual(
+                pe_core.resolver_alias_visita(conn, "Rodovia dos Minerios - Borracharia (Davi)", "Sede")["codigo_pe"],
+                "PE-0023",
             )
             self.assertEqual(pe_core.resolver_alias_visita(conn, "CEMITERIO", "Rosana")["codigo_pe"], "PE-0042")
             self.assertEqual(pe_core.resolver_alias_visita(conn, "CONDOMINIO", "Rosana")["codigo_pe"], "PE-0043")
