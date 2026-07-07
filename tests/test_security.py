@@ -3905,6 +3905,11 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("Boletim de Registro de Reconhecimento Geogr", html)
         self.assertIn("rg-panel-consulta", html)
         self.assertIn("rg-panel-edicao", html)
+        self.assertIn("rg-panel-lotes", html)
+        self.assertIn("Edição em lotes", html)
+        self.assertIn("/api/registro-geografico/logradouros-similares", html)
+        self.assertIn("/api/registro-geografico/lote/preview", html)
+        self.assertIn("/api/registro-geografico/lote/aplicar", html)
         self.assertIn("rg-panel-mapa", html)
         self.assertIn('id="rg-mapa"', html)
         self.assertIn('id="rg-map-detail-title"', html)
@@ -4220,6 +4225,106 @@ class MainApisSmokeTests(unittest.TestCase):
                 origem_vazia = client.get(f"/api/registro-geografico/quarteirao?localidade={origem_id}&quarteirao=0100")
                 self.assertEqual(origem_vazia.status_code, 200)
                 self.assertEqual(origem_vazia.get_json()["registros"], [])
+
+    def test_registro_geografico_edicao_lotes_detecta_e_substitui_logradouro(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            with app_temp.app_context():
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                try:
+                    registro_geografico_core.ensure_schema(conn)
+                    conn.execute("INSERT INTO localidades(nome, cod_localidade) VALUES (?, ?)", ("Lote RG", 9101))
+                    loc = conn.execute("SELECT id_localidade, nome FROM localidades WHERE nome='Lote RG'").fetchone()
+                    agora = "2026-07-07T08:00:00"
+                    cur_q = conn.execute(
+                        """INSERT INTO registro_geografico_quarteiroes
+                           (id_localidade, localidade, quarteirao, criado_em, atualizado_em)
+                           VALUES (?, ?, ?, ?, ?)""",
+                        (loc["id_localidade"], loc["nome"], "0001", agora, agora),
+                    )
+                    for ordem, logradouro in enumerate(("R. São Gabriel", "Rua Sao Gabriel", "Rua Semelhante"), 1):
+                        item = {
+                            "localidade": loc["nome"],
+                            "quarteirao": "0001",
+                            "logradouro": logradouro,
+                            "numero": str(ordem),
+                            "sequencia": "",
+                            "lado": "",
+                            "tipo": "R",
+                            "observacao": "",
+                            "agentes_texto": "",
+                        }
+                        conn.execute(
+                            """INSERT INTO registro_geografico_imoveis
+                               (id_quarteirao, ordem, id_localidade, localidade, quarteirao,
+                                logradouro, numero, tipo, busca_normalizada, chave_origem, criado_em, atualizado_em)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            (
+                                cur_q.lastrowid,
+                                ordem,
+                                loc["id_localidade"],
+                                loc["nome"],
+                                "0001",
+                                logradouro,
+                                str(ordem),
+                                "R",
+                                registro_geografico_core._busca_normalizada(item),
+                                f"teste-rg-lote-{ordem}",
+                                agora,
+                                agora,
+                            ),
+                        )
+                    conn.commit()
+                    loc_id = loc["id_localidade"]
+                finally:
+                    conn.close()
+
+                similares = client.get(
+                    f"/api/registro-geografico/logradouros-similares?localidade={loc_id}&score_min=78"
+                )
+                self.assertEqual(similares.status_code, 200)
+                pares = similares.get_json()["pares"]
+                encontrados = {
+                    frozenset((par["a"]["logradouro"], par["b"]["logradouro"]))
+                    for par in pares
+                }
+                self.assertIn(frozenset(("R. São Gabriel", "Rua Sao Gabriel")), encontrados)
+
+                payload = {
+                    "campo": "logradouro",
+                    "modo": "exato",
+                    "busca": "R. São Gabriel",
+                    "novo": "Rua Sao Gabriel",
+                    "filtros": {"localidade": [loc_id]},
+                }
+                preview = client.post("/api/registro-geografico/lote/preview", json=payload)
+                self.assertEqual(preview.status_code, 200)
+                self.assertEqual(preview.get_json()["total"], 1)
+
+                aplicado = client.post("/api/registro-geografico/lote/aplicar", json=payload)
+                self.assertEqual(aplicado.status_code, 200)
+                self.assertEqual(aplicado.get_json()["atualizados"], 1)
+
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                try:
+                    antigos = conn.execute(
+                        "SELECT COUNT(*) FROM registro_geografico_imoveis WHERE logradouro=?",
+                        ("R. São Gabriel",),
+                    ).fetchone()[0]
+                    novos = conn.execute(
+                        "SELECT COUNT(*) FROM registro_geografico_imoveis WHERE logradouro=?",
+                        ("Rua Sao Gabriel",),
+                    ).fetchone()[0]
+                    busca = conn.execute(
+                        "SELECT busca_normalizada FROM registro_geografico_imoveis WHERE numero='1'"
+                    ).fetchone()["busca_normalizada"]
+                finally:
+                    conn.close()
+                self.assertEqual(antigos, 0)
+                self.assertEqual(novos, 2)
+                self.assertIn("rua sao gabriel", busca)
 
     def test_api_esporotricose_animais_retorna_detalhes(self):
         client = _client_logado()

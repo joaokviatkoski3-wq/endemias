@@ -51,6 +51,22 @@
 .rg-row-del{opacity:.45;text-decoration:line-through;}
 .rg-agent-picks{border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;max-height:120px;overflow:auto;background:var(--surface2);}
 .rg-agent-pick{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px 3px 0;}
+.rg-batch-grid{display:grid;grid-template-columns:minmax(320px,460px) minmax(0,1fr);gap:14px;align-items:start;}
+.rg-batch-filters{display:grid;gap:10px;margin-bottom:12px;}
+.rg-batch-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;}
+.rg-batch-row button{height:36px;justify-content:center;}
+.rg-batch-pairs{display:grid;gap:8px;max-height:560px;overflow:auto;padding-right:4px;}
+.rg-batch-pair{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);padding:10px;}
+.rg-batch-pair-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
+.rg-batch-score{font-size:11px;font-weight:900;color:#155e75;background:#e0f2fe;border-radius:999px;padding:3px 8px;white-space:nowrap;}
+.rg-batch-street{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;border-top:1px solid var(--border);padding-top:8px;margin-top:8px;}
+.rg-batch-street strong{display:block;color:var(--text);font-size:13px;overflow:hidden;text-overflow:ellipsis;}
+.rg-batch-street span{font-size:11px;color:var(--text3);}
+.rg-batch-form{display:grid;grid-template-columns:repeat(2,minmax(180px,1fr));gap:10px;align-items:end;margin-bottom:12px;}
+.rg-batch-form .wide{grid-column:1/-1;}
+.rg-batch-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;}
+.rg-batch-preview{max-height:420px;overflow:auto;}
+.rg-batch-preview table{min-width:760px;}
 .rg-print-card{display:grid;grid-template-columns:minmax(260px,360px) minmax(320px,1fr);gap:14px;align-items:start;}
 .rg-print-actions{display:grid;gap:10px;align-content:start;}
 .rg-print-actions select{height:36px;}
@@ -87,7 +103,8 @@
 .rg-map-popup strong{font-size:14px;}
 @media(max-width:1400px){.rg-filters{grid-template-columns:repeat(2,minmax(220px,1fr));}.rg-print-card{grid-template-columns:1fr;}}
 @media(max-width:1050px){.rg-map-grid{grid-template-columns:1fr;height:auto;}.rg-map-side{max-height:none;overflow:visible;padding-right:0;}.rg-map-shell,#rg-mapa{height:62vh;min-height:420px;}}
-@media(max-width:850px){.rg-edit-meta{grid-template-columns:1fr;}.rg-map-kpis{grid-template-columns:1fr;}.rg-filters{grid-template-columns:1fr;}}
+@media(max-width:1050px){.rg-batch-grid{grid-template-columns:1fr;}.rg-batch-pairs{max-height:360px;}}
+@media(max-width:850px){.rg-edit-meta{grid-template-columns:1fr;}.rg-map-kpis{grid-template-columns:1fr;}.rg-filters{grid-template-columns:1fr;}.rg-batch-form{grid-template-columns:1fr;}}
 </style>{% endblock %}
 
 {% block content %}
@@ -103,6 +120,7 @@
 <div class="rg-tabs" role="tablist">
   <button class="rg-tab active" type="button" data-rg-tab="consulta">Consulta</button>
   <button class="rg-tab" type="button" data-rg-tab="edicao">Edição</button>
+  <button class="rg-tab" type="button" data-rg-tab="lotes">Edição em lotes</button>
   <button class="rg-tab" type="button" data-rg-tab="impressao">Impressão</button>
   <button class="rg-tab" type="button" data-rg-tab="mapa">Mapa / Análise</button>
 </div>
@@ -189,6 +207,64 @@
   </div>
 </section>
 
+<section class="rg-panel" id="rg-panel-lotes" hidden>
+  <div class="rg-batch-grid">
+    <div class="chart-card">
+      <div class="chart-hd">
+        <div class="chart-title"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Logradouros parecidos</div>
+        <span class="table-info" id="rg-lote-pares-info"></span>
+      </div>
+      <div class="rg-batch-filters">
+        <div class="f-g"><label>Localidades</label><select id="rg-lote-localidade" multiple data-multi-picker data-placeholder="Todas">{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
+        <div class="rg-batch-row">
+          <div class="f-g"><label>Similaridade mínima</label><input type="number" id="rg-lote-score" min="40" max="100" value="78"></div>
+          <div class="f-g"><label>Limite</label><input type="number" id="rg-lote-limite" min="10" max="200" value="80"></div>
+          <button class="btn btn-outline" type="button" id="rg-lote-detectar"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Detectar</button>
+        </div>
+      </div>
+      <div class="rg-batch-pairs" id="rg-lote-pares">
+        <div class="empty">Nenhuma análise executada.</div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-hd">
+        <div class="chart-title"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Substituição em lote</div>
+        <span class="table-info" id="rg-lote-preview-info"></span>
+      </div>
+      <div class="rg-batch-form">
+        <div class="f-g"><label>Campo</label><select id="rg-lote-campo">
+          <option value="logradouro">Logradouro</option>
+          <option value="numero">Número</option>
+          <option value="sequencia">Sequência</option>
+          <option value="lado">Lado</option>
+          <option value="tipo">Tipo</option>
+          <option value="observacao">Observação</option>
+        </select></div>
+        <div class="f-g"><label>Modo</label><select id="rg-lote-modo">
+          <option value="exato">Valor exato</option>
+          <option value="contem">Contém texto</option>
+        </select></div>
+        <div class="f-g wide"><label>Localizar</label><input type="text" id="rg-lote-busca"></div>
+        <div class="f-g wide"><label>Substituir por</label><input type="text" id="rg-lote-novo"></div>
+        <label class="rg-check-item wide"><input type="checkbox" id="rg-lote-case"> Diferenciar maiúsculas/minúsculas</label>
+      </div>
+      <div class="rg-batch-actions">
+        <button class="btn btn-outline" type="button" id="rg-lote-preview"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> Pré-visualizar</button>
+        <button class="btn btn-primary" type="button" id="rg-lote-aplicar" disabled><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Aplicar substituição</button>
+        <button class="btn btn-outline" type="button" id="rg-lote-limpar"><img src="/static/icons/fechar.svg" alt="" class="icon-svg"> Limpar</button>
+        <span class="rg-muted" id="rg-lote-status"></span>
+      </div>
+      <div class="table-scroll rg-batch-preview">
+        <table>
+          <thead><tr><th>Localidade</th><th>Q.</th><th>Imóvel</th><th>Campo</th><th>Antes</th><th>Depois</th></tr></thead>
+          <tbody id="rg-lote-preview-body"><tr><td colspan="6" class="empty">Sem prévia.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="rg-panel" id="rg-panel-impressao" hidden>
   <div class="chart-card">
     <div class="chart-hd">
@@ -256,6 +332,7 @@
 const rgTipos = {{ opcoes.tipos|tojson }};
 const rgLocalidades = {{ opcoes.localidades|tojson }};
 const rgState = { registros: [], q: null, limiteTodos: false };
+const rgBatchState = { preview: null, payload: null };
 const rgMapState = {
   map: null,
   geojson: null,
@@ -613,6 +690,147 @@ async function rgJson(resp, fallback){
   if(!resp.ok) throw new Error(data.erro || fallback || `Erro HTTP ${resp.status}`);
   return data;
 }
+function rgBatchLocalidades(){
+  return Array.from(rgEl('rg-lote-localidade').selectedOptions).map(opt => opt.value).filter(Boolean);
+}
+function rgBatchFiltros(){
+  return {localidade: rgBatchLocalidades()};
+}
+function rgBatchPayload(){
+  return {
+    campo: rgEl('rg-lote-campo').value,
+    modo: rgEl('rg-lote-modo').value,
+    busca: rgEl('rg-lote-busca').value,
+    novo: rgEl('rg-lote-novo').value,
+    case_sensitive: rgEl('rg-lote-case').checked,
+    filtros: rgBatchFiltros()
+  };
+}
+function rgBatchStreetMeta(item){
+  const locs = (item.localidades || []).slice(0, 3).join(', ');
+  const more = (item.localidades || []).length > 3 ? '...' : '';
+  return `${rgFmt(item.imoveis)} imoveis em ${rgFmt(item.quarteiroes)} quarteirao(s)${locs ? ` - ${rgEscape(locs)}${more}` : ''}`;
+}
+function rgBatchFill(busca, novo){
+  rgEl('rg-lote-campo').value = 'logradouro';
+  rgEl('rg-lote-modo').value = 'exato';
+  rgEl('rg-lote-busca').value = busca || '';
+  rgEl('rg-lote-novo').value = novo || '';
+  rgBatchState.preview = null;
+  rgBatchState.payload = null;
+  rgEl('rg-lote-aplicar').disabled = true;
+  rgSetText('rg-lote-status', 'Substituicao preparada.');
+  rgEl('rg-lote-busca').focus();
+}
+function rgBatchRenderPares(data){
+  const box = rgEl('rg-lote-pares');
+  const pares = data.pares || [];
+  rgSetText('rg-lote-pares-info', `${rgFmt(pares.length)} de ${rgFmt(data.total_pares)} par(es)`);
+  if(!pares.length){
+    box.innerHTML = '<div class="empty">Nenhum par encontrado.</div>';
+    return;
+  }
+  box.innerHTML = pares.map((par, idx) => `
+    <div class="rg-batch-pair">
+      <div class="rg-batch-pair-head">
+        <strong>Par ${idx + 1}</strong>
+        <span class="rg-batch-score">${rgFmt(par.score)}%</span>
+      </div>
+      <div class="rg-muted">${rgEscape(par.motivo || '')}</div>
+      <div class="rg-batch-street">
+        <div><strong>${rgEscape(par.a.logradouro)}</strong><span>${rgBatchStreetMeta(par.a)}</span></div>
+        <button class="btn btn-outline btn-sm" type="button" data-rg-lote-busca="${rgEscape(par.b.logradouro)}" data-rg-lote-novo="${rgEscape(par.a.logradouro)}">Usar</button>
+      </div>
+      <div class="rg-batch-street">
+        <div><strong>${rgEscape(par.b.logradouro)}</strong><span>${rgBatchStreetMeta(par.b)}</span></div>
+        <button class="btn btn-outline btn-sm" type="button" data-rg-lote-busca="${rgEscape(par.a.logradouro)}" data-rg-lote-novo="${rgEscape(par.b.logradouro)}">Usar</button>
+      </div>
+    </div>`).join('');
+}
+async function rgBatchDetectar(){
+  rgSetText('rg-lote-pares-info', 'Analisando...');
+  const params = new URLSearchParams();
+  rgBatchLocalidades().forEach(id => params.append('localidade', id));
+  params.set('score_min', rgEl('rg-lote-score').value || '78');
+  params.set('limite', rgEl('rg-lote-limite').value || '80');
+  const resp = await fetch('/api/registro-geografico/logradouros-similares?' + params.toString());
+  const data = await rgJson(resp, 'Erro ao detectar logradouros parecidos.');
+  rgBatchRenderPares(data);
+}
+function rgBatchRenderPreview(data){
+  const body = rgEl('rg-lote-preview-body');
+  const rows = data.amostra || [];
+  rgSetText('rg-lote-preview-info', `${rgFmt(data.total)} alteracao(oes)`);
+  rgEl('rg-lote-aplicar').disabled = !data.total;
+  if(!rows.length){
+    body.innerHTML = '<tr><td colspan="6" class="empty">Nenhuma alteração encontrada.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(row => `
+    <tr>
+      <td>${rgEscape(row.localidade)}</td>
+      <td>${rgEscape(row.quarteirao)}</td>
+      <td>${rgEscape(row.logradouro)} ${rgEscape(row.numero || '')}</td>
+      <td>${rgEscape(row.campo_label)}</td>
+      <td>${rgEscape(row.antes)}</td>
+      <td><strong>${rgEscape(row.depois)}</strong></td>
+    </tr>`).join('');
+}
+async function rgBatchPreview(){
+  const payload = rgBatchPayload();
+  rgSetText('rg-lote-status', 'Gerando previa...');
+  rgEl('rg-lote-aplicar').disabled = true;
+  const resp = await fetch('/api/registro-geografico/lote/preview', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':rgCsrf()},
+    body:JSON.stringify(payload)
+  });
+  const data = await rgJson(resp, 'Erro ao gerar previa.');
+  rgBatchState.preview = data;
+  rgBatchState.payload = payload;
+  rgBatchRenderPreview(data);
+  rgSetText('rg-lote-status', data.total ? 'Previa pronta.' : 'Nenhuma linha sera alterada.');
+}
+async function rgBatchAplicar(){
+  const preview = rgBatchState.preview;
+  if(!preview || !preview.total){
+    alert('Gere uma previa antes de aplicar.');
+    return;
+  }
+  if(!confirm(`Aplicar substituicao em ${rgFmt(preview.total)} imovel(is)?`)) return;
+  const confirmacao = prompt('Digite APLICAR para confirmar a edicao em lote.');
+  if(confirmacao !== 'APLICAR') return;
+  rgSetText('rg-lote-status', 'Aplicando...');
+  rgEl('rg-lote-aplicar').disabled = true;
+  const resp = await fetch('/api/registro-geografico/lote/aplicar', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':rgCsrf()},
+    body:JSON.stringify(rgBatchState.payload || rgBatchPayload())
+  });
+  const data = await rgJson(resp, 'Erro ao aplicar substituicao.');
+  rgBatchState.preview = null;
+  rgBatchState.payload = null;
+  rgBatchRenderPreview({total:0, amostra:[]});
+  rgSetText('rg-lote-status', `${rgFmt(data.atualizados)} linha(s) atualizada(s).`);
+  rgCarregar().catch(() => {});
+  if(rgMapState.initialized){
+    fetch('/api/registro-geografico/mapa-resumo')
+      .then(resp => resp.json())
+      .then(data => { rgMapState.data = data; rgMapRender(); })
+      .catch(() => {});
+  }
+}
+function rgBatchLimpar(){
+  rgEl('rg-lote-busca').value = '';
+  rgEl('rg-lote-novo').value = '';
+  rgEl('rg-lote-case').checked = false;
+  rgBatchState.preview = null;
+  rgBatchState.payload = null;
+  rgEl('rg-lote-aplicar').disabled = true;
+  rgSetText('rg-lote-preview-info', '');
+  rgSetText('rg-lote-status', '');
+  rgEl('rg-lote-preview-body').innerHTML = '<tr><td colspan="6" class="empty">Sem prévia.</td></tr>';
+}
 function rgParams(){
   const p = new URLSearchParams();
   Array.from(rgEl('rg-localidade').selectedOptions).map(opt => opt.value).filter(Boolean).forEach(v => p.append('localidade', v));
@@ -918,6 +1136,23 @@ document.querySelectorAll('.rg-tab').forEach(btn => btn.addEventListener('click'
     });
   }
 }));
+rgEl('rg-lote-detectar').addEventListener('click', () => rgBatchDetectar().catch(err => {
+  rgSetText('rg-lote-pares-info', err.message);
+}));
+rgEl('rg-lote-preview').addEventListener('click', () => rgBatchPreview().catch(err => {
+  rgSetText('rg-lote-status', err.message);
+  rgEl('rg-lote-aplicar').disabled = true;
+}));
+rgEl('rg-lote-aplicar').addEventListener('click', () => rgBatchAplicar().catch(err => {
+  rgSetText('rg-lote-status', err.message);
+  rgEl('rg-lote-aplicar').disabled = false;
+}));
+rgEl('rg-lote-limpar').addEventListener('click', rgBatchLimpar);
+rgEl('rg-lote-pares').addEventListener('click', ev => {
+  const btn = ev.target.closest('[data-rg-lote-busca]');
+  if(!btn) return;
+  rgBatchFill(btn.dataset.rgLoteBusca || '', btn.dataset.rgLoteNovo || '');
+});
 rgEl('rg-map-all').addEventListener('click', () => {
   document.querySelectorAll('#rg-map-localidades input[type="checkbox"]').forEach(input => input.checked = true);
   rgMapAplicarFiltroLocalidades();

@@ -1,5 +1,6 @@
 import csv
 import hashlib
+import re
 import sqlite3
 import unicodedata
 from datetime import datetime
@@ -19,6 +20,65 @@ TIPOS = {
 }
 MEDIA_PESSOAS_POR_RESIDENCIA = 2.93
 FONTE_POPULACAO = "Fonte: IBGE Censo 2022"
+CAMPOS_EDICAO_LOTE = {
+    "logradouro": "Logradouro",
+    "numero": "Numero",
+    "sequencia": "Sequencia",
+    "lado": "Lado",
+    "tipo": "Tipo",
+    "observacao": "Observacao",
+}
+ABREVIACOES_LOGRADOURO = {
+    "r": "rua",
+    "av": "avenida",
+    "aven": "avenida",
+    "rod": "rodovia",
+    "rodv": "rodovia",
+    "estr": "estrada",
+    "tv": "travessa",
+    "trav": "travessa",
+    "prof": "professor",
+    "profa": "professora",
+    "dr": "doutor",
+    "dra": "doutora",
+    "sr": "senhor",
+    "sra": "senhora",
+    "cel": "coronel",
+    "mal": "marechal",
+    "pref": "prefeito",
+    "pres": "presidente",
+    "ver": "vereador",
+    "dep": "deputado",
+    "pe": "padre",
+}
+PREFIXOS_LOGRADOURO = {"rua", "avenida", "rodovia", "estrada", "travessa", "alameda", "viela"}
+PALAVRAS_FRACAS_LOGRADOURO = PREFIXOS_LOGRADOURO | {
+    "da",
+    "de",
+    "do",
+    "das",
+    "dos",
+    "e",
+    "sao",
+    "santo",
+    "santa",
+    "jose",
+    "joao",
+    "maria",
+    "senhor",
+    "senhora",
+    "professor",
+    "professora",
+    "doutor",
+    "doutora",
+    "padre",
+    "coronel",
+    "marechal",
+    "prefeito",
+    "presidente",
+    "vereador",
+    "deputado",
+}
 
 
 def _norm(value):
@@ -26,6 +86,84 @@ def _norm(value):
     text = unicodedata.normalize("NFKD", text)
     text = "".join(ch for ch in text if not unicodedata.combining(ch))
     return " ".join(text.split())
+
+
+def _normalizar_logradouro(value):
+    text = _norm(value)
+    text = re.sub(r"[^\w\s]", " ", text, flags=re.UNICODE)
+    tokens = [ABREVIACOES_LOGRADOURO.get(token, token) for token in text.split()]
+    return " ".join(tokens)
+
+
+def _sem_prefixo_logradouro(value):
+    tokens = _normalizar_logradouro(value).split()
+    while tokens and tokens[0] in PREFIXOS_LOGRADOURO:
+        tokens.pop(0)
+    return " ".join(tokens)
+
+
+def _levenshtein(a, b):
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    anterior = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        atual = [i]
+        for j, cb in enumerate(b, 1):
+            custo = 0 if ca == cb else 1
+            atual.append(min(atual[j - 1] + 1, anterior[j] + 1, anterior[j - 1] + custo))
+        anterior = atual
+    return anterior[-1]
+
+
+def _similaridade_texto(a, b):
+    a = str(a or "")
+    b = str(b or "")
+    if not a and not b:
+        return 100
+    tamanho = max(len(a), len(b), 1)
+    return round((1 - (_levenshtein(a, b) / tamanho)) * 100)
+
+
+def _similaridade_logradouro(a, b):
+    norm_a = _normalizar_logradouro(a)
+    norm_b = _normalizar_logradouro(b)
+    if norm_a == norm_b:
+        return 100, "normalizacao igual"
+    score = _similaridade_texto(norm_a, norm_b)
+    sem_prefixo = _similaridade_texto(_sem_prefixo_logradouro(a), _sem_prefixo_logradouro(b))
+    return max(score, sem_prefixo), "nomes parecidos"
+
+
+def _score_maximo_por_tamanho(a, b):
+    maior = max(len(a or ""), len(b or ""), 1)
+    menor = min(len(a or ""), len(b or ""))
+    return round((menor / maior) * 100)
+
+
+def _similaridade_item_logradouro(item_a, item_b):
+    if item_a["normalizado"] == item_b["normalizado"]:
+        return 100, "normalizacao igual"
+    score = _similaridade_texto(item_a["normalizado"], item_b["normalizado"])
+    sem_prefixo = _similaridade_texto(item_a["sem_prefixo"], item_b["sem_prefixo"])
+    return max(score, sem_prefixo), "nomes parecidos"
+
+
+def _chaves_candidato_logradouro(normalizado, sem_prefixo):
+    chaves = set()
+    if normalizado:
+        chaves.add(f"norm:{normalizado}")
+    if sem_prefixo:
+        chaves.add(f"bare:{sem_prefixo}")
+        if len(sem_prefixo) >= 4:
+            chaves.add(f"prefix:{sem_prefixo[:4]}")
+    for token in set(normalizado.split()) | set(sem_prefixo.split()):
+        if len(token) >= 3 and token not in PALAVRAS_FRACAS_LOGRADOURO:
+            chaves.add(f"token:{token}")
+    return chaves
 
 
 def _now():
@@ -442,6 +580,263 @@ def _where(filtros):
         where.append("EXISTS (SELECT 1 FROM registro_geografico_imovel_agentes ia WHERE ia.id_imovel=i.id_imovel AND ia.id_agente=?)")
         params.append(filtros["agente"])
     return (" WHERE " + " AND ".join(where)) if where else "", params
+
+
+def _where_lote(filtros):
+    filtros = filtros or {}
+    where = []
+    params = []
+    if filtros.get("localidade"):
+        localidades = filtros["localidade"]
+        if not isinstance(localidades, (list, tuple)):
+            localidades = [localidades]
+        localidades = [str(item).strip() for item in localidades if str(item or "").strip()]
+        if localidades:
+            where.append(f"id_localidade IN ({','.join('?' for _ in localidades)})")
+            params.extend(localidades)
+    if filtros.get("quarteirao"):
+        quarteiroes = filtros["quarteirao"]
+        if not isinstance(quarteiroes, (list, tuple)):
+            quarteiroes = [quarteiroes]
+        quarteiroes = [_quarteirao(str(item).strip()) for item in quarteiroes if str(item or "").strip()]
+        if quarteiroes:
+            where.append(f"quarteirao IN ({','.join('?' for _ in quarteiroes)})")
+            params.extend(quarteiroes)
+    return (" WHERE " + " AND ".join(where)) if where else "", params
+
+
+def logradouros_similares(db_path, filtros=None, score_min=78, limite=80, base_dir=None):
+    ensure_schema(db_path, base_dir)
+    score_min = max(0, min(int(score_min or 78), 100))
+    limite = max(1, min(int(limite or 80), 200))
+    conn = db_core.connect(db_path)
+    try:
+        where, params = _where_lote(filtros or {})
+        rows = conn.execute(
+            f"""
+            SELECT logradouro,
+                   COUNT(*) AS imoveis,
+                   COUNT(DISTINCT id_quarteirao) AS quarteiroes,
+                   GROUP_CONCAT(DISTINCT localidade) AS localidades
+              FROM registro_geografico_imoveis
+              {where}
+             WHERE_TRIM
+             GROUP BY logradouro
+             ORDER BY COUNT(*) DESC, logradouro
+            """.replace("WHERE_TRIM", ("AND" if where else "WHERE") + " TRIM(COALESCE(logradouro,''))<>''"),
+            params,
+        ).fetchall()
+        itens = []
+        for row in rows:
+            logradouro = row["logradouro"] or ""
+            normalizado = _normalizar_logradouro(logradouro)
+            sem_prefixo = _sem_prefixo_logradouro(logradouro)
+            itens.append(
+                {
+                    "logradouro": logradouro,
+                    "normalizado": normalizado,
+                    "sem_prefixo": sem_prefixo,
+                    "imoveis": row["imoveis"] or 0,
+                    "quarteiroes": row["quarteiroes"] or 0,
+                    "localidades": sorted([item for item in str(row["localidades"] or "").split(",") if item]),
+                }
+            )
+        indice = {}
+        for idx, item in enumerate(itens):
+            for chave in _chaves_candidato_logradouro(item["normalizado"], item["sem_prefixo"]):
+                indice.setdefault(chave, []).append(idx)
+        candidatos = set()
+        for chave, bucket in indice.items():
+            if len(bucket) > 320 and not chave.startswith(("norm:", "bare:")):
+                continue
+            for pos, idx_a in enumerate(bucket):
+                for idx_b in bucket[pos + 1 :]:
+                    candidatos.add((idx_a, idx_b) if idx_a < idx_b else (idx_b, idx_a))
+        pares = []
+        for idx_a, idx_b in candidatos:
+            item_a = itens[idx_a]
+            item_b = itens[idx_b]
+            if item_a["normalizado"] != item_b["normalizado"]:
+                maximo_possivel = max(
+                    _score_maximo_por_tamanho(item_a["normalizado"], item_b["normalizado"]),
+                    _score_maximo_por_tamanho(item_a["sem_prefixo"], item_b["sem_prefixo"]),
+                )
+                if maximo_possivel < score_min:
+                    continue
+            score, motivo = _similaridade_item_logradouro(item_a, item_b)
+            if score < score_min:
+                continue
+            pares.append({"score": score, "motivo": motivo, "a": item_a, "b": item_b})
+        pares.sort(key=lambda item: (-item["score"], -min(item["a"]["imoveis"], item["b"]["imoveis"]), item["a"]["logradouro"]))
+        return {
+            "pares": pares[:limite],
+            "total_pares": len(pares),
+            "total_logradouros": len(itens),
+            "total_comparacoes": len(candidatos),
+            "score_min": score_min,
+            "limite": limite,
+        }
+    finally:
+        conn.close()
+
+
+def _campo_lote(payload):
+    campo = str((payload or {}).get("campo") or "logradouro").strip()
+    if campo not in CAMPOS_EDICAO_LOTE:
+        raise ValueError("Campo de edicao em lote invalido.")
+    return campo
+
+
+def _modo_lote(payload):
+    modo = str((payload or {}).get("modo") or "exato").strip().lower()
+    if modo not in {"exato", "contem"}:
+        raise ValueError("Modo de substituicao invalido.")
+    return modo
+
+
+def _valor_campo_lote(campo, value):
+    text = str(value or "").strip()
+    if campo == "logradouro":
+        if not text:
+            raise ValueError("Logradouro nao pode ficar vazio.")
+        return text
+    if campo == "numero":
+        return text or "SN"
+    if campo == "tipo":
+        text = text.upper()
+        if text and text not in TIPOS:
+            raise ValueError("Tipo de imovel invalido.")
+        return text or None
+    return text or None
+
+
+def _texto_busca_lote(payload):
+    busca = str((payload or {}).get("busca") or "")
+    if not busca.strip():
+        raise ValueError("Informe o texto que sera localizado.")
+    return busca
+
+
+def _match_lote(valor, busca, modo, case_sensitive=False):
+    valor = str(valor or "")
+    if not case_sensitive:
+        valor_cmp = valor.lower()
+        busca_cmp = busca.lower()
+    else:
+        valor_cmp = valor
+        busca_cmp = busca
+    if modo == "exato":
+        return valor_cmp == busca_cmp
+    return busca_cmp in valor_cmp
+
+
+def _substituir_lote(valor, busca, novo, modo, case_sensitive=False):
+    valor = str(valor or "")
+    if modo == "exato":
+        return novo
+    flags = 0 if case_sensitive else re.IGNORECASE
+    return re.sub(re.escape(busca), novo, valor, flags=flags)
+
+
+def _formatar_alteracao_lote(row, campo, antes, depois):
+    return {
+        "id_imovel": row["id_imovel"],
+        "localidade": row["localidade"],
+        "quarteirao": _quarteirao_display(row["quarteirao"]),
+        "logradouro": row["logradouro"],
+        "numero": row["numero"],
+        "tipo": row["tipo"],
+        "campo": campo,
+        "campo_label": CAMPOS_EDICAO_LOTE[campo],
+        "antes": antes or "",
+        "depois": depois or "",
+    }
+
+
+def _calcular_substituicoes_lote(conn, payload, amostra_limite=150):
+    payload = payload or {}
+    campo = _campo_lote(payload)
+    modo = _modo_lote(payload)
+    busca = _texto_busca_lote(payload)
+    novo = str(payload.get("novo") or "")
+    case_sensitive = bool(payload.get("case_sensitive"))
+    where, params = _where_lote(payload.get("filtros") or {})
+    rows = conn.execute(
+        f"""
+        SELECT id_imovel, id_localidade, localidade, quarteirao, logradouro, numero, sequencia,
+               lado, tipo, observacao, agentes_texto
+          FROM registro_geografico_imoveis
+          {where}
+         ORDER BY localidade, CAST(quarteirao AS INTEGER), quarteirao, COALESCE(ordem, id_imovel), id_imovel
+        """,
+        params,
+    ).fetchall()
+    alteracoes = []
+    amostra = []
+    for row_raw in rows:
+        row = dict(row_raw)
+        antes = row.get(campo) or ""
+        if not _match_lote(antes, busca, modo, case_sensitive):
+            continue
+        depois = _valor_campo_lote(campo, _substituir_lote(antes, busca, novo, modo, case_sensitive))
+        if (row.get(campo) or None) == depois:
+            continue
+        row[campo] = depois
+        alteracao = {
+            "id_imovel": row["id_imovel"],
+            "campo": campo,
+            "depois": depois,
+            "busca_normalizada": _busca_normalizada(row),
+            "amostra": _formatar_alteracao_lote(row, campo, antes, depois),
+        }
+        alteracoes.append(alteracao)
+        if len(amostra) < amostra_limite:
+            amostra.append(alteracao["amostra"])
+    return {
+        "campo": campo,
+        "campo_label": CAMPOS_EDICAO_LOTE[campo],
+        "modo": modo,
+        "total": len(alteracoes),
+        "amostra": amostra,
+        "alteracoes": alteracoes,
+    }
+
+
+def preview_substituicao_lote(db_path, payload, base_dir=None):
+    ensure_schema(db_path, base_dir)
+    conn = db_core.connect(db_path)
+    try:
+        dados = _calcular_substituicoes_lote(conn, payload)
+        dados.pop("alteracoes", None)
+        return dados
+    finally:
+        conn.close()
+
+
+def aplicar_substituicao_lote(db_path, payload, base_dir=None):
+    ensure_schema(db_path, base_dir)
+    conn = db_core.connect(db_path)
+    try:
+        dados = _calcular_substituicoes_lote(conn, payload)
+        campo = dados["campo"]
+        agora = _now()
+        with conn:
+            for item in dados["alteracoes"]:
+                conn.execute(
+                    f"""UPDATE registro_geografico_imoveis
+                           SET {campo}=?, busca_normalizada=?, atualizado_em=?
+                         WHERE id_imovel=?""",
+                    (item["depois"], item["busca_normalizada"], agora, item["id_imovel"]),
+                )
+        return {
+            "ok": True,
+            "campo": campo,
+            "campo_label": dados["campo_label"],
+            "atualizados": len(dados["alteracoes"]),
+            "amostra": dados["amostra"],
+        }
+    finally:
+        conn.close()
 
 
 def listar(db_path, filtros=None, limite=500, base_dir=None):

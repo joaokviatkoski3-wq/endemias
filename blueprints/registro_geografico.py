@@ -142,6 +142,59 @@ def api_mapa_resumo():
         return jsonify({"erro": str(exc)}), 400
 
 
+@bp.route("/api/registro-geografico/logradouros-similares")
+@login_required
+def api_logradouros_similares():
+    try:
+        filtros = {
+            "localidade": request.args.getlist("localidade") or request.args.get("localidade", ""),
+            "quarteirao": request.args.getlist("quarteirao") or request.args.get("quarteirao", ""),
+        }
+        return jsonify(
+            rg_core.logradouros_similares(
+                _db_path(),
+                filtros=filtros,
+                score_min=request.args.get("score_min") or request.args.get("score") or 78,
+                limite=request.args.get("limite") or 80,
+                base_dir=_base_dir(),
+            )
+        )
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+
+
+@bp.route("/api/registro-geografico/lote/preview", methods=["POST"])
+@login_required
+@nivel_min("operador")
+def api_preview_lote():
+    try:
+        return jsonify(rg_core.preview_substituicao_lote(_db_path(), request.get_json(silent=True) or {}, _base_dir()))
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+
+
+@bp.route("/api/registro-geografico/lote/aplicar", methods=["POST"])
+@login_required
+@nivel_min("operador")
+def api_aplicar_lote():
+    payload = request.get_json(silent=True) or {}
+    try:
+        dados = rg_core.aplicar_substituicao_lote(_db_path(), payload, _base_dir())
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(
+        get_db,
+        "registro_geografico_lote_atualizado",
+        entidade="registro_geografico",
+        detalhes={
+            "campo": dados.get("campo"),
+            "atualizados": dados.get("atualizados"),
+            "modo": payload.get("modo"),
+        },
+    )
+    return jsonify(dados)
+
+
 @bp.route("/registro-geografico/imprimir")
 @login_required
 def imprimir_quarteirao():
