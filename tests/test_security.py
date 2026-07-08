@@ -4153,6 +4153,8 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("data-quarteirao", html_mapa)
         self.assertIn("World_Imagery/MapServer", html_mapa)
         self.assertIn("tile.openstreetmap.org", html_mapa)
+        self.assertIn("tileSize:128", html_mapa)
+        self.assertIn("zoomOffset:1", html_mapa)
         self.assertIn("rg-print-map-label", html_mapa)
         self.assertIn("function rgPrintInitMaps", html_mapa)
 
