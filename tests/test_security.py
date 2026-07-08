@@ -3920,6 +3920,8 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("/static/vendor/leaflet/leaflet.min.js", html)
         self.assertIn("rg-filter-card", html)
         self.assertIn("rg-print-actions", html)
+        self.assertIn('id="rg-imp-mini-mapa" checked', html)
+        self.assertIn("params.set('mini_mapa', '1')", html)
         self.assertIn("rg-kpi-populacao", html)
         self.assertIn('id="rg-localidade" multiple data-multi-picker', html)
         self.assertIn('id="rg-quarteiroes"', html)
@@ -4131,6 +4133,24 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("Popula&ccedil;&atilde;o aproximada", html)
         self.assertIn("considerando condomínios", html)
         self.assertNotIn("<th>Sem condomínios</th><th>Com condomínios</th>", html)
+
+        self.assertNotIn("function rgPrintInitMaps", html)
+
+        impressao_mapa = client.get(
+            f"/registro-geografico/imprimir?localidade={primeiro['id_localidade']}"
+            f"&quarteirao={primeiro['quarteirao']}&mini_mapa=1"
+        )
+        self.assertEqual(impressao_mapa.status_code, 200)
+        html_mapa = impressao_mapa.data.decode("utf-8")
+        self.assertIn("/static/vendor/leaflet/leaflet.min.css", html_mapa)
+        self.assertIn("/static/vendor/leaflet/leaflet.min.js", html_mapa)
+        self.assertIn("rg-mini-map", html_mapa)
+        self.assertIn("data-localidade", html_mapa)
+        self.assertIn("data-quarteirao", html_mapa)
+        self.assertIn("World_Imagery/MapServer", html_mapa)
+        self.assertIn("tile.openstreetmap.org", html_mapa)
+        self.assertIn("rg-print-map-label", html_mapa)
+        self.assertIn("function rgPrintInitMaps", html_mapa)
 
         quarteiroes = client.get(f"/api/registro-geografico/quarteiroes?localidade={primeiro['id_localidade']}")
         self.assertEqual(quarteiroes.status_code, 200)

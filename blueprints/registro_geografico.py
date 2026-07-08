@@ -201,6 +201,7 @@ def imprimir_quarteirao():
     try:
         localidade = request.args.get("localidade") or request.args.get("id_localidade")
         quarteiroes = request.args.getlist("quarteirao")
+        incluir_mapa = request.args.get("mini_mapa") in {"1", "true", "sim", "on"}
         if not quarteiroes and request.args.get("quarteirao"):
             quarteiroes = [request.args.get("quarteirao")]
         dados_lista = [
@@ -212,7 +213,13 @@ def imprimir_quarteirao():
             raise ValueError("Selecione ao menos um quarteirao.")
     except ValueError as exc:
         return render_template("500.html", erro=str(exc)), 400
-    return render_template("registro_geografico_impressao.html", dados_lista=dados_lista, dados=dados_lista[0], auto_print=True)
+    return render_template(
+        "registro_geografico_impressao.html",
+        dados_lista=dados_lista,
+        dados=dados_lista[0],
+        auto_print=True,
+        incluir_mapa=incluir_mapa,
+    )
 
 
 @bp.route("/api/registro-geografico/<int:id_imovel>")

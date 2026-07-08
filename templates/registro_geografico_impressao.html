@@ -3,11 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <title>Registro Geográfico - Impressão</title>
+{% if incluir_mapa %}<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.min.css">{% endif %}
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:Arial,Helvetica,sans-serif;font-size:9.4pt;color:#000;background:#fff;}
 .screen-controls{position:fixed;top:0;left:0;right:0;z-index:999;background:#155e75;color:#fff;display:flex;align-items:center;gap:12px;padding:10px 20px;font-size:13px;}
 .screen-controls button{background:#fff;color:#155e75;border:none;border-radius:6px;padding:6px 16px;font-size:13px;font-weight:700;cursor:pointer;}
+.screen-controls button:disabled{opacity:.58;cursor:wait;}
 .screen-controls span{opacity:.75;font-size:12px;}
 .print-spacer{height:46px;}
 .folha{max-width:19cm;margin:16px auto;padding:1cm 1.1cm;border:1px solid #ccc;background:#fff;}
@@ -33,9 +35,17 @@ th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
 .campo{border:1px solid #000;min-height:26pt;padding:5pt;}
 .campo strong{display:block;font-size:7.5pt;text-transform:uppercase;margin-bottom:4pt;}
 .rg-bottom{display:grid;grid-template-columns:minmax(0,1fr) 3.3cm;gap:12pt;align-items:end;margin-top:10pt;}
+.rg-bottom.has-map{grid-template-columns:minmax(0,1fr) 6.2cm 3.1cm;align-items:stretch;}
 .resumo{font-size:7.8pt;}
 .resumo th,.resumo td{padding:2px 4px;}
 .resumo .total td{font-weight:700;background:#f3f4f6;}
+.rg-mini-map-box{border:1px solid #000;min-height:4.15cm;background:#f8fafc;display:flex;flex-direction:column;overflow:hidden;}
+.rg-mini-map-title{font-size:7.2pt;font-weight:700;text-transform:uppercase;background:#e5e7eb;border-bottom:1px solid #000;padding:2px 4px;text-align:center;}
+.rg-mini-map{height:3.72cm;width:100%;position:relative;background:#d1d5db;}
+.rg-mini-map-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:6px;font-size:7.4pt;font-weight:700;color:#155e75;background:rgba(255,255,255,.72);z-index:500;}
+.rg-print-map-label{background:rgba(255,255,255,.9);border:1px solid rgba(0,0,0,.35);border-radius:3px;color:#111;font-size:8pt;font-weight:700;padding:1px 4px;box-shadow:none;}
+.rg-print-map-label::before{display:none;}
+.rg-mini-map .leaflet-control-attribution{font-size:5.8pt;background:rgba(255,255,255,.74);}
 .qr{text-align:center;font-size:7.8pt;font-weight:700;}
 .qr img{width:2.8cm;height:2.8cm;object-fit:contain;display:block;margin:0 auto 4pt;}
 .rodape{font-size:7.3pt;text-align:center;color:#555;margin-top:8pt;border-top:1px solid #eee;padding-top:6pt;}
@@ -44,14 +54,16 @@ th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
   .screen-controls,.print-spacer{display:none!important;}
   .folha{max-width:100%;margin:0;padding:0;border:none;}
   body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .rg-mini-map-status{display:none!important;}
 }
 </style>
 </head>
 <body>
 {% if auto_print %}
 <div class="screen-controls">
-  <button onclick="window.print()">Imprimir</button>
+  <button id="rg-print-btn" onclick="window.print()" {% if incluir_mapa %}disabled{% endif %}>Imprimir</button>
   <span>{{ dados.localidade.nome }} - {{ dados_lista|length }} RG(s)</span>
+  {% if incluir_mapa %}<span id="rg-print-map-status">Carregando mapas...</span>{% endif %}
   <span style="margin-left:auto;opacity:.5;">Feche esta aba após imprimir</span>
 </div>
 <div class="print-spacer"></div>
@@ -103,7 +115,7 @@ th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
     <div class="campo"><strong>Agentes da última atualização</strong>{{ dados.agentes or '____________________________________________' }}</div>
   </div>
 
-  <div class="rg-bottom">
+  <div class="rg-bottom{% if incluir_mapa %} has-map{% endif %}">
     <table class="resumo">
       <thead><tr><th>Resumo</th><th>Quantidade</th></tr></thead>
       <tbody>
@@ -133,6 +145,16 @@ th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
         </tr>
       </tbody>
     </table>
+    {% if incluir_mapa %}
+    <div class="rg-mini-map-box">
+      <div class="rg-mini-map-title">Mapa do quarteirão</div>
+      <div class="rg-mini-map"
+           data-localidade="{{ dados.localidade.id_localidade }}"
+           data-quarteirao="{{ dados.quarteirao }}">
+        <div class="rg-mini-map-status">Carregando mapa...</div>
+      </div>
+    </div>
+    {% endif %}
     <div class="qr">
       <img src="/static/img/qrcode_mapa.svg" alt="">
       <div>Acesse o mapa digital pelo QR Code</div>
@@ -143,9 +165,115 @@ th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
 </div>
 {% endfor %}
 
+{% if incluir_mapa %}
+<script src="/static/vendor/leaflet/leaflet.min.js"></script>
+<script>
+function rgPrintQuart(value){
+  const text = String(value ?? '').trim();
+  if(/^\d+(\.\d+)?$/.test(text)){
+    const parts = text.split('.');
+    const inteiro = String(parseInt(parts[0], 10));
+    return parts.length > 1 ? `${inteiro}.${parts[1]}` : inteiro;
+  }
+  return text;
+}
+function rgPrintWaitTileLayer(layer, timeout=4200){
+  return new Promise(resolve => {
+    let done = false;
+    const finish = () => {
+      if(done) return;
+      done = true;
+      layer.off('load', finish);
+      resolve();
+    };
+    layer.on('load', finish);
+    setTimeout(finish, timeout);
+  });
+}
+function rgPrintFindFeature(features, localidade, quarteirao){
+  const alvoLoc = String(localidade || '');
+  const alvoQ = rgPrintQuart(quarteirao);
+  return features.find(feature => {
+    const props = feature.properties || {};
+    return String(props.Localidade) === alvoLoc && rgPrintQuart(props.id_quart) === alvoQ;
+  });
+}
+async function rgPrintRenderMap(el, geojson){
+  const status = el.querySelector('.rg-mini-map-status');
+  const feature = rgPrintFindFeature(geojson.features || [], el.dataset.localidade, el.dataset.quarteirao);
+  if(!feature){
+    if(status) status.textContent = 'Polígono não encontrado no GeoJSON.';
+    return;
+  }
+  const map = L.map(el, {
+    zoomControl:false,
+    attributionControl:true,
+    dragging:false,
+    scrollWheelZoom:false,
+    doubleClickZoom:false,
+    boxZoom:false,
+    keyboard:false
+  });
+  const satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution:'© Esri', maxZoom:19
+  });
+  const ruas = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution:'© OpenStreetMap', maxZoom:19, opacity:0.45
+  });
+  const carregamentoTiles = Promise.all([rgPrintWaitTileLayer(satelite), rgPrintWaitTileLayer(ruas)]);
+  satelite.addTo(map);
+  ruas.addTo(map);
+  const poligono = L.geoJSON(feature, {
+    style:{
+      color:'#f97316',
+      weight:4,
+      opacity:1,
+      fillColor:'#facc15',
+      fillOpacity:0.24
+    }
+  }).addTo(map);
+  const bounds = poligono.getBounds();
+  map.fitBounds(bounds.pad(0.34), {animate:false});
+  setTimeout(() => map.invalidateSize(), 60);
+  poligono.bindTooltip(`Q. ${rgPrintQuart(el.dataset.quarteirao)}`, {
+    permanent:true,
+    direction:'center',
+    className:'rg-print-map-label'
+  }).openTooltip();
+  await carregamentoTiles;
+  if(status) status.style.display = 'none';
+}
+async function rgPrintInitMaps(){
+  const maps = Array.from(document.querySelectorAll('.rg-mini-map'));
+  if(!maps.length) return;
+  const status = document.getElementById('rg-print-map-status');
+  try {
+    const resp = await fetch('/static/quarteiroes.geojson');
+    if(!resp.ok) throw new Error('Erro ao carregar GeoJSON.');
+    const geojson = await resp.json();
+    await Promise.all(maps.map(el => rgPrintRenderMap(el, geojson)));
+    if(status) status.textContent = 'Mapas carregados.';
+  } catch(err) {
+    if(status) status.textContent = err.message || 'Erro ao carregar mapas.';
+    document.querySelectorAll('.rg-mini-map-status').forEach(el => { el.textContent = 'Mapa indisponível.'; });
+  } finally {
+    const btn = document.getElementById('rg-print-btn');
+    if(btn) btn.disabled = false;
+  }
+}
+</script>
+{% endif %}
+
 {% if auto_print %}
 <script>
-window.addEventListener('load', () => setTimeout(() => window.print(), 500));
+window.addEventListener('load', async () => {
+  if(window.rgPrintInitMaps){
+    await window.rgPrintInitMaps();
+    setTimeout(() => window.print(), 350);
+  }else{
+    setTimeout(() => window.print(), 500);
+  }
+});
 </script>
 {% endif %}
 </body>
