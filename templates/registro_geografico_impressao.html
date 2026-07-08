@@ -35,17 +35,15 @@ th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
 .campo{border:1px solid #000;min-height:26pt;padding:5pt;}
 .campo strong{display:block;font-size:7.5pt;text-transform:uppercase;margin-bottom:4pt;}
 .rg-bottom{display:grid;grid-template-columns:minmax(0,1fr) 3.3cm;gap:12pt;align-items:end;margin-top:10pt;}
-.rg-bottom.has-map{grid-template-columns:minmax(0,1fr) 8.2cm 3.1cm;align-items:stretch;}
+.rg-bottom.has-map{grid-template-columns:minmax(0,1fr) 3.3cm;align-items:end;}
 .resumo{font-size:7.8pt;}
 .resumo th,.resumo td{padding:2px 4px;}
 .resumo .total td{font-weight:700;background:#f3f4f6;}
-.rg-mini-map-stack{display:grid;grid-template-rows:1fr 1fr;gap:4pt;min-height:6.05cm;}
+.rg-mini-map-stack{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:8pt;margin-top:4pt;}
 .rg-mini-map-box{border:1px solid #000;background:#f8fafc;display:flex;flex-direction:column;overflow:hidden;min-height:0;}
-.rg-mini-map-title{font-size:6.8pt;font-weight:700;text-transform:uppercase;background:#e5e7eb;border-bottom:1px solid #000;padding:1px 4px;text-align:center;}
-.rg-mini-map{height:2.76cm;width:100%;position:relative;background:#d1d5db;}
+.rg-mini-map-title{font-size:7.2pt;font-weight:700;text-transform:uppercase;background:#e5e7eb;border-bottom:1px solid #000;padding:2px 4px;text-align:center;}
+.rg-mini-map{height:5.2cm;width:100%;position:relative;background:#d1d5db;}
 .rg-mini-map-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:6px;font-size:7.4pt;font-weight:700;color:#155e75;background:rgba(255,255,255,.72);z-index:500;}
-.rg-print-map-label{background:rgba(255,255,255,.9);border:1px solid rgba(0,0,0,.35);border-radius:3px;color:#111;font-size:8pt;font-weight:700;padding:1px 4px;box-shadow:none;}
-.rg-print-map-label::before{display:none;}
 .rg-mini-map .leaflet-control-attribution{font-size:5.8pt;background:rgba(255,255,255,.74);}
 .qr{text-align:center;font-size:7.8pt;font-weight:700;}
 .qr img{width:2.8cm;height:2.8cm;object-fit:contain;display:block;margin:0 auto 4pt;}
@@ -146,6 +144,10 @@ th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
         </tr>
       </tbody>
     </table>
+    <div class="qr">
+      <img src="/static/img/qrcode_mapa.svg" alt="">
+      <div>Acesse o mapa digital pelo QR Code</div>
+    </div>
     {% if incluir_mapa %}
     <div class="rg-mini-map-stack">
       <div class="rg-mini-map-box">
@@ -168,10 +170,6 @@ th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
       </div>
     </div>
     {% endif %}
-    <div class="qr">
-      <img src="/static/img/qrcode_mapa.svg" alt="">
-      <div>Acesse o mapa digital pelo QR Code</div>
-    </div>
   </div>
 
   <div class="rodape">Rua Bertholina Kendrick de Oliveira, 681 - Centro - Almirante Tamandaré/PR</div>
@@ -246,13 +244,8 @@ async function rgPrintRenderMap(el, geojson){
     }
   }).addTo(map);
   const bounds = poligono.getBounds();
-  map.fitBounds(bounds.pad(0.24), {animate:false});
+  map.fitBounds(bounds.pad(0.08), {animate:false, maxZoom:19});
   setTimeout(() => map.invalidateSize(), 60);
-  poligono.bindTooltip(`Q. ${rgPrintQuart(el.dataset.quarteirao)}`, {
-    permanent:true,
-    direction:'center',
-    className:'rg-print-map-label'
-  }).openTooltip();
   await carregamentoTiles;
   if(status) status.style.display = 'none';
 }

@@ -4143,6 +4143,7 @@ class MainApisSmokeTests(unittest.TestCase):
         )
         self.assertEqual(impressao_mapa.status_code, 200)
         html_mapa = impressao_mapa.data.decode("utf-8")
+        self.assertLess(html_mapa.index('<div class="qr">'), html_mapa.index('<div class="rg-mini-map-stack">'))
         self.assertIn("/static/vendor/leaflet/leaflet.min.css", html_mapa)
         self.assertIn("/static/vendor/leaflet/leaflet.min.js", html_mapa)
         self.assertIn("rg-mini-map-stack", html_mapa)
@@ -4155,7 +4156,9 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("tile.openstreetmap.org", html_mapa)
         self.assertIn("tileSize:128", html_mapa)
         self.assertIn("zoomOffset:1", html_mapa)
-        self.assertIn("rg-print-map-label", html_mapa)
+        self.assertIn("height:5.2cm", html_mapa)
+        self.assertIn("bounds.pad(0.08)", html_mapa)
+        self.assertNotIn("rg-print-map-label", html_mapa)
         self.assertIn("function rgPrintInitMaps", html_mapa)
 
         quarteiroes = client.get(f"/api/registro-geografico/quarteiroes?localidade={primeiro['id_localidade']}")
