@@ -225,7 +225,8 @@ async function rgPrintRenderMap(el, geojson){
     boxZoom:false,
     keyboard:false
   });
-  const base = el.dataset.mapaBase === 'osm'
+  const isOsm = el.dataset.mapaBase === 'osm';
+  const base = isOsm
     ? L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution:'© OpenStreetMap', maxZoom:19, maxNativeZoom:19, tileSize:128, zoomOffset:1
       })
@@ -237,7 +238,7 @@ async function rgPrintRenderMap(el, geojson){
   const poligono = L.geoJSON(feature, {
     style:{
       color:'#f97316',
-      weight:1,
+      weight:isOsm ? 1 : 4,
       opacity:0.9,
       fillColor:'#facc15',
       fillOpacity:0.08
