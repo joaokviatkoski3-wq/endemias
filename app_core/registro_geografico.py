@@ -17,7 +17,9 @@ TIPOS = {
     "TB": "Terreno baldio",
     "PE": "Ponto estrategico",
     "A": "Pendente para atualizacao",
+    "REF": "Referencia do quarteirao",
 }
+TIPOS_NAO_CONTABILIZAVEIS = {"REF"}
 MEDIA_PESSOAS_POR_RESIDENCIA = 2.93
 FONTE_POPULACAO = "Fonte: IBGE Censo 2022"
 CAMPOS_EDICAO_LOTE = {
@@ -172,6 +174,10 @@ def _now():
 
 def _table_cols(conn, table):
     return {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+def _contabilizavel(row):
+    return (row.get("tipo") or "") not in TIPOS_NAO_CONTABILIZAVEIS
 
 
 def ensure_schema(conn_or_path, base_dir=None):
@@ -529,7 +535,8 @@ def quarteiroes_por_localidade(db_path, id_localidade, base_dir=None):
     conn = db_core.connect(db_path)
     try:
         rows = conn.execute(
-            """SELECT q.quarteirao, COUNT(i.id_imovel) AS imoveis
+            """SELECT q.quarteirao,
+                      SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') NOT IN ('REF') THEN 1 ELSE 0 END) AS imoveis
                  FROM registro_geografico_quarteiroes q
                  LEFT JOIN registro_geografico_imoveis i ON i.id_quarteirao=q.id_quarteirao
                 WHERE q.id_localidade=?
@@ -873,12 +880,12 @@ def totais(conn, filtros=None):
     where, params = _where(filtros or {})
     row = conn.execute(
         f"""
-        SELECT COUNT(*) AS imoveis,
+        SELECT SUM(CASE WHEN COALESCE(tipo,'') NOT IN ('REF') THEN 1 ELSE 0 END) AS imoveis,
                COUNT(DISTINCT id_quarteirao) AS quarteiroes,
-               SUM(CASE WHEN data_atualizacao IS NOT NULL THEN 1 ELSE 0 END) AS atualizados,
+               SUM(CASE WHEN data_atualizacao IS NOT NULL AND COALESCE(tipo,'') NOT IN ('REF') THEN 1 ELSE 0 END) AS atualizados,
                SUM(CASE WHEN tipo='PE' THEN 1 ELSE 0 END) AS pe,
                SUM(CASE WHEN tipo='TB' THEN 1 ELSE 0 END) AS tb,
-               SUM(CASE WHEN COALESCE(condominio,0)>0 THEN condominio ELSE 1 END) AS imoveis_reais,
+               SUM(CASE WHEN COALESCE(tipo,'') NOT IN ('REF') THEN CASE WHEN COALESCE(condominio,0)>0 THEN condominio ELSE 1 END ELSE 0 END) AS imoveis_reais,
                SUM(CASE WHEN tipo='R' THEN CASE WHEN COALESCE(condominio,0)>0 THEN condominio ELSE 1 END ELSE 0 END) AS residencias_reais
           FROM registro_geografico_imoveis i
           {where}
@@ -903,11 +910,11 @@ def resumo_mapa(db_path, base_dir=None):
             SELECT q.id_localidade,
                    q.localidade,
                    q.quarteirao,
-                   COUNT(i.id_imovel) AS imoveis,
-                   SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.condominio,0)>0 THEN i.condominio
-                            WHEN i.id_imovel IS NOT NULL THEN 1 ELSE 0 END) AS imoveis_reais,
+                   SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') NOT IN ('REF') THEN 1 ELSE 0 END) AS imoveis,
+                   SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') NOT IN ('REF') AND COALESCE(i.condominio,0)>0 THEN i.condominio
+                            WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') NOT IN ('REF') THEN 1 ELSE 0 END) AS imoveis_reais,
                    SUM(CASE WHEN i.tipo='R' THEN CASE WHEN COALESCE(i.condominio,0)>0 THEN i.condominio ELSE 1 END ELSE 0 END) AS residencias_reais,
-                   SUM(CASE WHEN i.data_atualizacao IS NOT NULL THEN 1 ELSE 0 END) AS atualizados
+                   SUM(CASE WHEN i.data_atualizacao IS NOT NULL AND COALESCE(i.tipo,'') NOT IN ('REF') THEN 1 ELSE 0 END) AS atualizados
               FROM registro_geografico_quarteiroes q
               LEFT JOIN registro_geografico_imoveis i ON i.id_quarteirao=q.id_quarteirao
              GROUP BY q.id_quarteirao, q.id_localidade, q.localidade, q.quarteirao
@@ -937,16 +944,16 @@ def resumo_mapa(db_path, base_dir=None):
             SELECT q.id_localidade,
                    q.quarteirao,
                    COALESCE(i.tipo, '') AS tipo,
-                   COUNT(i.id_imovel) AS imoveis,
-                   SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.condominio,0)>0 THEN i.condominio
-                            WHEN i.id_imovel IS NOT NULL THEN 1 ELSE 0 END) AS imoveis_reais
+                   SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') NOT IN ('REF') THEN 1 ELSE 0 END) AS imoveis,
+                   SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') NOT IN ('REF') AND COALESCE(i.condominio,0)>0 THEN i.condominio
+                            WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') NOT IN ('REF') THEN 1 ELSE 0 END) AS imoveis_reais
               FROM registro_geografico_quarteiroes q
               LEFT JOIN registro_geografico_imoveis i ON i.id_quarteirao=q.id_quarteirao
              GROUP BY q.id_quarteirao, q.id_localidade, q.quarteirao, COALESCE(i.tipo, '')
             """
         ).fetchall()
         for row in tipo_rows:
-            if not (row["imoveis"] or 0):
+            if not (row["imoveis"] or 0) or (row["tipo"] or "") in TIPOS_NAO_CONTABILIZAVEIS:
                 continue
             tipo = row["tipo"] or ""
             chave = f"{row['id_localidade']}:{_quarteirao_display(row['quarteirao'])}"
@@ -1068,7 +1075,10 @@ def _resumo_quarteirao(registros):
         total_sem += sem
         total_com += com
         resumo.append({"codigo": codigo, "label": label, "sem_condominio": sem, "com_condominio": com})
-    outros_codigos = [r for r in registros if (r.get("tipo") or "") not in tipos]
+    outros_codigos = [
+        r for r in registros
+        if (r.get("tipo") or "") not in tipos and _contabilizavel(r)
+    ]
     if outros_codigos:
         sem = len(outros_codigos)
         com = sum((r.get("condominio") or 0) if (r.get("condominio") or 0) > 0 else 1 for r in outros_codigos)

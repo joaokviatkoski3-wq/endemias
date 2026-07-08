@@ -180,7 +180,7 @@ def _resumo_registro_geografico_agente(nome, d_ini, d_fim):
         base_params = (nome, d_ini, d_fim)
         totais = conn.execute(
             """
-            SELECT COUNT(DISTINCT i.id_imovel) AS imoveis,
+            SELECT COUNT(DISTINCT CASE WHEN COALESCE(i.tipo,'') NOT IN ('REF') THEN i.id_imovel END) AS imoveis,
                    COUNT(DISTINCT i.data_atualizacao) AS dias,
                    COUNT(DISTINCT i.id_localidade) AS localidades,
                    COUNT(DISTINCT i.quarteirao) AS quarteiroes,
@@ -203,6 +203,7 @@ def _resumo_registro_geografico_agente(nome, d_ini, d_fim):
               JOIN registro_geografico_imovel_agentes ia ON ia.id_imovel=i.id_imovel
               JOIN agentes ag ON ag.id_agente=ia.id_agente
              WHERE ag.nome=? AND i.data_atualizacao BETWEEN ? AND ?
+               AND COALESCE(i.tipo,'') NOT IN ('REF')
              GROUP BY COALESCE(NULLIF(i.tipo,''), '-')
              ORDER BY total DESC, tipo
             """,

@@ -3907,6 +3907,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("rg-panel-edicao", html)
         self.assertIn("rg-panel-lotes", html)
         self.assertIn("Edição em lotes", html)
+        self.assertIn("REF - Referencia do quarteirao", html)
         self.assertIn("/api/registro-geografico/logradouros-similares", html)
         self.assertIn("/api/registro-geografico/lote/preview", html)
         self.assertIn("/api/registro-geografico/lote/aplicar", html)
@@ -4163,6 +4164,90 @@ class MainApisSmokeTests(unittest.TestCase):
                 item = next((r for r in registros if r["quarteirao"] == "1406"), None)
                 self.assertIsNotNone(item)
                 self.assertEqual(item["imoveis"], 0)
+
+    def test_registro_geografico_ref_nao_contabiliza_como_imovel(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            with app_temp.app_context():
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                try:
+                    registro_geografico_core.ensure_schema(conn)
+                    conn.execute("INSERT INTO localidades(nome, cod_localidade) VALUES (?, ?)", ("Praca RG", 9201))
+                    loc = conn.execute("SELECT id_localidade, nome FROM localidades WHERE nome='Praca RG'").fetchone()
+                    agora = "2026-07-08T08:00:00"
+                    cur_q = conn.execute(
+                        """INSERT INTO registro_geografico_quarteiroes
+                           (id_localidade, localidade, quarteirao, criado_em, atualizado_em)
+                           VALUES (?, ?, ?, ?, ?)""",
+                        (loc["id_localidade"], loc["nome"], "0003", agora, agora),
+                    )
+                    linhas = [
+                        ("Rua A", "SN", "O", "Praca acessivel por tres ruas"),
+                        ("Rua B", "", "REF", "Lado do quarteirao"),
+                        ("Rua C", "", "REF", "Lado do quarteirao"),
+                    ]
+                    for ordem, (logradouro, numero, tipo, observacao) in enumerate(linhas, 1):
+                        item = {
+                            "localidade": loc["nome"],
+                            "quarteirao": "0003",
+                            "logradouro": logradouro,
+                            "numero": numero or "SN",
+                            "sequencia": "",
+                            "lado": "",
+                            "tipo": tipo,
+                            "observacao": observacao,
+                            "agentes_texto": "",
+                        }
+                        conn.execute(
+                            """INSERT INTO registro_geografico_imoveis
+                               (id_quarteirao, ordem, id_localidade, localidade, quarteirao,
+                                logradouro, numero, tipo, observacao, busca_normalizada, chave_origem, criado_em, atualizado_em)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            (
+                                cur_q.lastrowid,
+                                ordem,
+                                loc["id_localidade"],
+                                loc["nome"],
+                                "0003",
+                                logradouro,
+                                numero or "SN",
+                                tipo,
+                                observacao,
+                                registro_geografico_core._busca_normalizada(item),
+                                f"teste-rg-ref-{ordem}",
+                                agora,
+                                agora,
+                            ),
+                        )
+                    conn.commit()
+                    loc_id = loc["id_localidade"]
+                finally:
+                    conn.close()
+
+                lista = client.get(f"/api/registro-geografico?localidade={loc_id}&limite=todos")
+                self.assertEqual(lista.status_code, 200)
+                dados_lista = lista.get_json()
+                self.assertEqual(len([r for r in dados_lista["registros"] if r["quarteirao_raw"] == "0003"]), 3)
+                self.assertEqual(dados_lista["totais"]["imoveis"], 1)
+                self.assertEqual(dados_lista["totais"]["imoveis_reais"], 1)
+
+                quarteiroes = client.get(f"/api/registro-geografico/quarteiroes?localidade={loc_id}")
+                self.assertEqual(quarteiroes.status_code, 200)
+                self.assertEqual(quarteiroes.get_json()["registros"][0]["imoveis"], 1)
+
+                detalhe = client.get(f"/api/registro-geografico/quarteirao?localidade={loc_id}&quarteirao=0003")
+                self.assertEqual(detalhe.status_code, 200)
+                dados = detalhe.get_json()
+                self.assertEqual(len(dados["registros"]), 3)
+                self.assertEqual(dados["resumo"]["total_sem_condominio"], 1)
+                self.assertEqual(dados["resumo"]["linhas"][-1]["codigo"], "O")
+
+                mapa = client.get("/api/registro-geografico/mapa-resumo")
+                self.assertEqual(mapa.status_code, 200)
+                item_mapa = mapa.get_json()["quarteiroes"][f"{loc_id}:3"]
+                self.assertEqual(item_mapa["imoveis"], 1)
+                self.assertNotIn("REF", {v.get("codigo") for v in item_mapa["tipos"].values()})
 
     def test_registro_geografico_move_quarteirao_para_outra_localidade_e_numero(self):
         with tempfile.TemporaryDirectory() as tmpdir:
