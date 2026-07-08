@@ -3934,6 +3934,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn('id="rg-ed-fill-down"', html)
         self.assertIn('id="rg-ed-fill-empty"', html)
         self.assertIn('id="rg-ed-limpar-quarteirao"', html)
+        self.assertIn("Limpar quarteir&atilde;o", html)
         self.assertIn('id="rg-logradouro-suggest"', html)
         self.assertIn("function rgBuscarLogradouroSugestoes", html)
         self.assertIn("function rgLimparQuarteirao", html)

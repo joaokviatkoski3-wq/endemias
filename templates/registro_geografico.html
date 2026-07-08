@@ -208,7 +208,7 @@
         <button class="btn btn-outline" type="button" id="rg-ed-copy-up"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> Copiar de cima</button>
         <button class="btn btn-outline" type="button" id="rg-ed-fill-down"><img src="/static/icons/rolar.svg" alt="" class="icon-svg"> Preencher abaixo</button>
         <button class="btn btn-outline" type="button" id="rg-ed-fill-empty"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Preencher vazios</button>
-        <button class="btn btn-outline rg-danger" type="button" id="rg-ed-limpar-quarteirao"><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"> Limpar quarteirÃ£o</button>
+        <button class="btn btn-outline rg-danger" type="button" id="rg-ed-limpar-quarteirao"><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"> Limpar quarteir&atilde;o</button>
         <span class="rg-muted" id="rg-ed-status"></span>
       </div>
     </div>
@@ -1055,11 +1055,11 @@ async function rgCarregarQuarteirao(){
 async function rgAdicionarQuarteirao(){
   const loc = rgEl('rg-ed-localidade').value;
   const q = rgEl('rg-ed-novo-quarteirao').value.trim();
-  if(!loc || !q){ alert('Informe localidade e o novo quarteirÃ£o.'); return; }
+  if(!loc || !q){ alert('Informe localidade e o novo quarteir\u00e3o.'); return; }
   const select = rgEl('rg-ed-quarteirao');
   let opt = Array.from(select.options).find(item => item.value === q);
   if(!opt){
-    opt = new Option(`QuarteirÃ£o ${q} (0 imÃ³veis)`, q);
+    opt = new Option(`Quarteir\u00e3o ${q} (0 imoveis)`, q);
     select.appendChild(opt);
   }
   select.value = q;
@@ -1068,7 +1068,7 @@ async function rgAdicionarQuarteirao(){
   if(!rgEl('rg-ed-body').children.length){
     rgEl('rg-ed-body').appendChild(rgLinha({numero:'SN', tipo:'R'}));
     rgRenumerarGrade();
-    rgSetText('rg-ed-status', `Novo quarteirÃ£o ${q} pronto para cadastro. Adicione os imÃ³veis e salve.`);
+    rgSetText('rg-ed-status', `Novo quarteir\u00e3o ${q} pronto para cadastro. Adicione os imoveis e salve.`);
   }
 }
 async function rgSalvarQuarteirao(){
@@ -1191,7 +1191,7 @@ function rgAgendarLogradouroSugestoes(input){
   }, 180);
 }
 async function rgLimparQuarteirao(){
-  if(!rgState.q){ alert('Carregue um quarteirÃ£o antes de limpar.'); return; }
+  if(!rgState.q){ alert('Carregue um quarteir\u00e3o antes de limpar.'); return; }
   const locId = rgState.q.localidade?.id_localidade || rgEl('rg-ed-dest-localidade').value;
   const locNome = rgState.q.localidade?.nome || rgEl('rg-ed-dest-localidade').selectedOptions[0]?.textContent || 'localidade selecionada';
   const q = rgState.q.quarteirao_raw || rgState.q.quarteirao || rgEl('rg-ed-dest-quarteirao').value;
