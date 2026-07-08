@@ -4158,6 +4158,8 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("zoomOffset:1", html_mapa)
         self.assertIn("height:5.2cm", html_mapa)
         self.assertIn("bounds.pad(0.08)", html_mapa)
+        self.assertIn("weight:1", html_mapa)
+        self.assertIn("fillOpacity:0.08", html_mapa)
         self.assertNotIn("rg-print-map-label", html_mapa)
         self.assertIn("function rgPrintInitMaps", html_mapa)
 

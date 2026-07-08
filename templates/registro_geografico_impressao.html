@@ -237,10 +237,10 @@ async function rgPrintRenderMap(el, geojson){
   const poligono = L.geoJSON(feature, {
     style:{
       color:'#f97316',
-      weight:4,
-      opacity:1,
+      weight:1,
+      opacity:0.9,
       fillColor:'#facc15',
-      fillOpacity:0.24
+      fillOpacity:0.08
     }
   }).addTo(map);
   const bounds = poligono.getBounds();
