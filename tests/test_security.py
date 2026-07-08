@@ -3909,8 +3909,10 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("Edição em lotes", html)
         self.assertIn("REF - Referencia do quarteirao", html)
         self.assertIn("/api/registro-geografico/logradouros-similares", html)
+        self.assertIn("/api/registro-geografico/logradouros-sugestoes", html)
         self.assertIn("/api/registro-geografico/lote/preview", html)
         self.assertIn("/api/registro-geografico/lote/aplicar", html)
+        self.assertIn("/api/registro-geografico/quarteirao/limpar", html)
         self.assertIn("rg-panel-mapa", html)
         self.assertIn('id="rg-mapa"', html)
         self.assertIn('id="rg-map-detail-title"', html)
@@ -3931,6 +3933,10 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn('id="rg-ed-copy-up"', html)
         self.assertIn('id="rg-ed-fill-down"', html)
         self.assertIn('id="rg-ed-fill-empty"', html)
+        self.assertIn('id="rg-ed-limpar-quarteirao"', html)
+        self.assertIn('id="rg-logradouro-suggest"', html)
+        self.assertIn("function rgBuscarLogradouroSugestoes", html)
+        self.assertIn("function rgLimparQuarteirao", html)
         self.assertIn("function rgFocusCell", html)
         self.assertIn("rg-row-active", html)
         self.assertIn("nth-child(even)", html)
@@ -4443,6 +4449,97 @@ class MainApisSmokeTests(unittest.TestCase):
                 self.assertEqual(antigos, 0)
                 self.assertEqual(novos, 2)
                 self.assertIn("rua sao gabriel", busca)
+
+    def test_registro_geografico_sugere_e_limpa_quarteirao(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            with app_temp.app_context():
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                try:
+                    registro_geografico_core.ensure_schema(conn)
+                    conn.execute("INSERT INTO localidades(nome, cod_localidade) VALUES (?, ?)", ("Sugestao RG", 9301))
+                    loc = conn.execute("SELECT id_localidade, nome FROM localidades WHERE nome='Sugestao RG'").fetchone()
+                    agora = "2026-07-08T10:00:00"
+                    cur_q1 = conn.execute(
+                        """INSERT INTO registro_geografico_quarteiroes
+                           (id_localidade, localidade, quarteirao, criado_em, atualizado_em)
+                           VALUES (?, ?, ?, ?, ?)""",
+                        (loc["id_localidade"], loc["nome"], "0001", agora, agora),
+                    )
+                    cur_q2 = conn.execute(
+                        """INSERT INTO registro_geografico_quarteiroes
+                           (id_localidade, localidade, quarteirao, criado_em, atualizado_em)
+                           VALUES (?, ?, ?, ?, ?)""",
+                        (loc["id_localidade"], loc["nome"], "0002", agora, agora),
+                    )
+                    for ordem, (id_q, q, logradouro) in enumerate(
+                        (
+                            (cur_q1.lastrowid, "0001", "Rua Sao Gabriel"),
+                            (cur_q1.lastrowid, "0001", "Rua Sao Gabriel"),
+                            (cur_q2.lastrowid, "0002", "Rua Outra"),
+                        ),
+                        1,
+                    ):
+                        item = {
+                            "localidade": loc["nome"],
+                            "quarteirao": q,
+                            "logradouro": logradouro,
+                            "numero": str(ordem),
+                            "sequencia": "",
+                            "lado": "",
+                            "tipo": "R",
+                            "observacao": "",
+                            "agentes_texto": "",
+                        }
+                        conn.execute(
+                            """INSERT INTO registro_geografico_imoveis
+                               (id_quarteirao, ordem, id_localidade, localidade, quarteirao,
+                                logradouro, numero, tipo, busca_normalizada, chave_origem, criado_em, atualizado_em)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            (
+                                id_q,
+                                ordem,
+                                loc["id_localidade"],
+                                loc["nome"],
+                                q,
+                                logradouro,
+                                str(ordem),
+                                "R",
+                                registro_geografico_core._busca_normalizada(item),
+                                f"teste-rg-sugestao-{ordem}",
+                                agora,
+                                agora,
+                            ),
+                        )
+                    conn.commit()
+                    loc_id = loc["id_localidade"]
+                finally:
+                    conn.close()
+
+                sugestoes = client.get(f"/api/registro-geografico/logradouros-sugestoes?q=sao%20gab&localidade={loc_id}")
+                self.assertEqual(sugestoes.status_code, 200)
+                dados_sugestoes = sugestoes.get_json()
+                self.assertGreaterEqual(dados_sugestoes["total"], 1)
+                self.assertEqual(dados_sugestoes["sugestoes"][0]["logradouro"], "Rua Sao Gabriel")
+                self.assertTrue(dados_sugestoes["sugestoes"][0]["mesma_localidade"])
+
+                limpar = client.post(
+                    "/api/registro-geografico/quarteirao/limpar",
+                    json={"id_localidade": loc_id, "quarteirao": "0001"},
+                )
+                self.assertEqual(limpar.status_code, 200)
+                dados_limpar = limpar.get_json()["quarteirao"]
+                self.assertEqual(dados_limpar["removidos"], 2)
+                self.assertEqual(dados_limpar["registros"], [])
+
+                q1 = client.get(f"/api/registro-geografico/quarteirao?localidade={loc_id}&quarteirao=0001")
+                self.assertEqual(q1.status_code, 200)
+                self.assertEqual(q1.get_json()["registros"], [])
+
+                q2 = client.get(f"/api/registro-geografico/quarteirao?localidade={loc_id}&quarteirao=0002")
+                self.assertEqual(q2.status_code, 200)
+                self.assertEqual(len(q2.get_json()["registros"]), 1)
 
     def test_api_esporotricose_animais_retorna_detalhes(self):
         client = _client_logado()

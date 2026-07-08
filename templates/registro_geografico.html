@@ -49,7 +49,13 @@
 .rg-sheet .rg-col-obs{min-width:240px;}
 .rg-sheet .rg-col-actions{width:120px;text-align:center;white-space:nowrap;}
 .rg-sheet-tools{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;}
+.rg-sheet-tools .rg-danger{color:var(--red);border-color:var(--red);}
 .rg-row-del{opacity:.45;text-decoration:line-through;}
+.rg-logradouro-suggest{position:fixed;z-index:1200;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow);max-height:240px;overflow:auto;padding:4px;}
+.rg-logradouro-suggest button{display:block;width:100%;border:0;background:transparent;color:var(--text);text-align:left;padding:7px 8px;border-radius:4px;cursor:pointer;}
+.rg-logradouro-suggest button:hover,.rg-logradouro-suggest button:focus{background:var(--surface2);outline:0;}
+.rg-logradouro-suggest strong{display:block;font-size:12px;line-height:1.2;}
+.rg-logradouro-suggest span{display:block;color:var(--text3);font-size:10px;margin-top:2px;}
 .rg-agent-picks{border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;max-height:120px;overflow:auto;background:var(--surface2);}
 .rg-agent-pick{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px 3px 0;}
 .rg-batch-grid{display:grid;grid-template-columns:minmax(320px,460px) minmax(0,1fr);gap:14px;align-items:start;}
@@ -202,6 +208,7 @@
         <button class="btn btn-outline" type="button" id="rg-ed-copy-up"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> Copiar de cima</button>
         <button class="btn btn-outline" type="button" id="rg-ed-fill-down"><img src="/static/icons/rolar.svg" alt="" class="icon-svg"> Preencher abaixo</button>
         <button class="btn btn-outline" type="button" id="rg-ed-fill-empty"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Preencher vazios</button>
+        <button class="btn btn-outline rg-danger" type="button" id="rg-ed-limpar-quarteirao"><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"> Limpar quarteirÃ£o</button>
         <span class="rg-muted" id="rg-ed-status"></span>
       </div>
     </div>
@@ -329,12 +336,15 @@
   </div>
 </section>
 
+<div id="rg-logradouro-suggest" class="rg-logradouro-suggest" hidden></div>
+
 <script src="/static/vendor/leaflet/leaflet.min.js"></script>
 <script>
 const rgTipos = {{ opcoes.tipos|tojson }};
 const rgLocalidades = {{ opcoes.localidades|tojson }};
 const rgState = { registros: [], q: null, limiteTodos: false };
 const rgBatchState = { preview: null, payload: null };
+const rgLogradouroSuggestState = { timer: null, input: null, items: [] };
 const rgMapState = {
   map: null,
   geojson: null,
@@ -1129,6 +1139,99 @@ function rgAbrirImpressao(){
   if(rgEl('rg-imp-mini-mapa').checked) params.set('mini_mapa', '1');
   window.open(`/registro-geografico/imprimir?${params.toString()}`, '_blank');
 }
+function rgLogradouroSuggestBox(){
+  return rgEl('rg-logradouro-suggest');
+}
+function rgHideLogradouroSugestoes(){
+  const box = rgLogradouroSuggestBox();
+  if(box) box.hidden = true;
+  rgLogradouroSuggestState.input = null;
+  rgLogradouroSuggestState.items = [];
+}
+function rgLogradouroMeta(item){
+  const partes = [];
+  if(item.mesma_localidade) partes.push('mesma localidade');
+  partes.push(`${rgFmt(item.imoveis)} imovel(is)`);
+  partes.push(`${rgFmt(item.quarteiroes)} quarteirao(oes)`);
+  return partes.join(' · ');
+}
+function rgRenderLogradouroSugestoes(input, itens){
+  const box = rgLogradouroSuggestBox();
+  if(!box || !input || !itens.length){ rgHideLogradouroSugestoes(); return; }
+  rgLogradouroSuggestState.input = input;
+  rgLogradouroSuggestState.items = itens;
+  const rect = input.getBoundingClientRect();
+  box.style.left = `${rect.left}px`;
+  box.style.top = `${rect.bottom + 4}px`;
+  box.style.width = `${Math.max(rect.width, 300)}px`;
+  box.innerHTML = itens.map((item, idx) => `
+    <button type="button" data-rg-logradouro-sugestao="${idx}">
+      <strong>${rgEscape(item.logradouro)}</strong>
+      <span>${rgEscape(rgLogradouroMeta(item))}</span>
+    </button>`).join('');
+  box.hidden = false;
+}
+async function rgBuscarLogradouroSugestoes(input){
+  const termo = String(input.value || '').trim();
+  if(termo.length < 2){ rgHideLogradouroSugestoes(); return; }
+  const params = new URLSearchParams();
+  params.set('q', termo);
+  params.set('limite', '10');
+  const loc = rgEl('rg-ed-dest-localidade')?.value || rgEl('rg-ed-localidade')?.value || '';
+  if(loc) params.set('localidade', loc);
+  const resp = await fetch('/api/registro-geografico/logradouros-sugestoes?' + params.toString());
+  const data = await rgJson(resp, 'Erro ao buscar sugestoes de logradouro.');
+  if(document.activeElement !== input) return;
+  rgRenderLogradouroSugestoes(input, data.sugestoes || []);
+}
+function rgAgendarLogradouroSugestoes(input){
+  clearTimeout(rgLogradouroSuggestState.timer);
+  rgLogradouroSuggestState.timer = setTimeout(() => {
+    rgBuscarLogradouroSugestoes(input).catch(() => rgHideLogradouroSugestoes());
+  }, 180);
+}
+async function rgLimparQuarteirao(){
+  if(!rgState.q){ alert('Carregue um quarteirÃ£o antes de limpar.'); return; }
+  const locId = rgState.q.localidade?.id_localidade || rgEl('rg-ed-dest-localidade').value;
+  const locNome = rgState.q.localidade?.nome || rgEl('rg-ed-dest-localidade').selectedOptions[0]?.textContent || 'localidade selecionada';
+  const q = rgState.q.quarteirao_raw || rgState.q.quarteirao || rgEl('rg-ed-dest-quarteirao').value;
+  const total = rgEl('rg-ed-body').querySelectorAll('tr').length;
+  if(!confirm(`Limpar todas as linhas do RG de ${locNome} - Q. ${q}?\n\n${total} linha(s) serao removida(s) para permitir preencher este quarteirao do zero.`)) return;
+  const chave = prompt('Confirmacao final: digite LIMPAR para remover definitivamente as linhas deste quarteirao.');
+  if(chave !== 'LIMPAR'){
+    rgSetText('rg-ed-status', 'Limpeza cancelada.');
+    return;
+  }
+  rgSetText('rg-ed-status', 'Limpando quarteirao...');
+  rgEl('rg-ed-limpar-quarteirao').disabled = true;
+  try {
+    const resp = await fetch('/api/registro-geografico/quarteirao/limpar', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':rgCsrf()},
+      body:JSON.stringify({id_localidade:locId, quarteirao:q})
+    });
+    const data = await rgJson(resp, 'Erro ao limpar quarteirao.');
+    rgState.q = data.quarteirao;
+    rgRenderGrade(rgState.q.registros || []);
+    if(!rgEl('rg-ed-body').children.length){
+      rgEl('rg-ed-body').appendChild(rgLinha({numero:'SN', tipo:'R'}));
+      rgRenumerarGrade();
+      rgFocusCell(0, 0, false);
+    }
+    rgSetText('rg-ed-info', `${rgState.q.localidade.nome} - Q. ${rgState.q.quarteirao}`);
+    rgSetText('rg-ed-status', `${rgFmt(data.quarteirao.removidos || 0)} linha(s) removida(s). Primeira linha em branco pronta para preencher.`);
+    rgCarregar().catch(() => {});
+    if(rgMapState.initialized){
+      const mapaResp = await fetch('/api/registro-geografico/mapa-resumo');
+      rgMapState.data = await rgJson(mapaResp, 'Erro ao atualizar resumo do mapa.');
+      rgMapState.selected.clear();
+      rgMapRender();
+      rgMapRenderSelection();
+    }
+  } finally {
+    rgEl('rg-ed-limpar-quarteirao').disabled = false;
+  }
+}
 document.querySelectorAll('.rg-tab').forEach(btn => btn.addEventListener('click', () => {
   document.querySelectorAll('.rg-tab').forEach(b => b.classList.toggle('active', b === btn));
   document.querySelectorAll('.rg-panel').forEach(p => p.hidden = p.id !== `rg-panel-${btn.dataset.rgTab}`);
@@ -1206,6 +1309,7 @@ rgEl('rg-imp-localidade').addEventListener('change', ev => rgCarregarChecksQuart
 rgEl('rg-ed-carregar').addEventListener('click', () => rgCarregarQuarteirao().catch(err => { rgSetText('rg-ed-status', err.message); }));
 rgEl('rg-ed-novo').addEventListener('click', () => rgAdicionarQuarteirao().catch(err => { rgSetText('rg-ed-status', err.message); }));
 rgEl('rg-ed-salvar').addEventListener('click', () => rgSalvarQuarteirao().catch(err => { rgSetText('rg-ed-status', err.message); }));
+rgEl('rg-ed-limpar-quarteirao').addEventListener('click', () => rgLimparQuarteirao().catch(err => { rgSetText('rg-ed-status', err.message); }));
 rgEl('rg-ed-add').addEventListener('click', () => {
   const last = Array.from(rgEl('rg-ed-body').children).filter(tr => tr.dataset.delete !== '1').at(-1);
   const nova = rgLinha(last ? {
@@ -1233,6 +1337,13 @@ rgEl('rg-ed-fill-empty').addEventListener('click', () => {
 rgEl('rg-ed-body').addEventListener('focusin', ev => {
   const info = rgCellInfo(ev.target);
   if(info) rgSetActiveCell(info.cell);
+  if(ev.target.matches?.('.rg-cell-logradouro')) rgAgendarLogradouroSugestoes(ev.target);
+});
+rgEl('rg-ed-body').addEventListener('input', ev => {
+  if(ev.target.matches?.('.rg-cell-logradouro')) rgAgendarLogradouroSugestoes(ev.target);
+});
+rgEl('rg-ed-body').addEventListener('focusout', ev => {
+  if(ev.target.matches?.('.rg-cell-logradouro')) setTimeout(rgHideLogradouroSugestoes, 160);
 });
 rgEl('rg-ed-body').addEventListener('keydown', ev => {
   const info = rgCellInfo(ev.target);
@@ -1285,6 +1396,19 @@ rgEl('rg-ed-body').addEventListener('click', ev => {
   }
   rgRenumerarGrade();
 });
+rgLogradouroSuggestBox().addEventListener('mousedown', ev => {
+  const btn = ev.target.closest('[data-rg-logradouro-sugestao]');
+  if(!btn) return;
+  ev.preventDefault();
+  const item = rgLogradouroSuggestState.items[Number(btn.dataset.rgLogradouroSugestao)];
+  const input = rgLogradouroSuggestState.input;
+  if(item && input){
+    rgSetCellValue(input, item.logradouro);
+    input.focus();
+    rgHideLogradouroSugestoes();
+  }
+});
+window.addEventListener('scroll', rgHideLogradouroSugestoes, true);
 rgEl('rg-imp-btn').addEventListener('click', rgAbrirImpressao);
 rgCarregarSelectQuarteiroes(rgEl('rg-ed-localidade').value, 'rg-ed-quarteirao').catch(() => {});
 rgCarregarChecksQuarteiroes(rgEl('rg-imp-localidade').value).catch(() => {});

@@ -687,6 +687,52 @@ def logradouros_similares(db_path, filtros=None, score_min=78, limite=80, base_d
         conn.close()
 
 
+def sugestoes_logradouros(db_path, busca="", id_localidade=None, limite=12, base_dir=None):
+    ensure_schema(db_path, base_dir)
+    termo = _normalizar_logradouro(busca)
+    if len(termo) < 2:
+        return {"sugestoes": [], "total": 0}
+    limite = max(1, min(int(limite or 12), 30))
+    loc_id = int(id_localidade) if str(id_localidade or "").strip().isdigit() else None
+    conn = db_core.connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT logradouro,
+                   COUNT(*) AS imoveis,
+                   COUNT(DISTINCT id_quarteirao) AS quarteiroes,
+                   GROUP_CONCAT(DISTINCT localidade) AS localidades,
+                   MAX(CASE WHEN id_localidade=? THEN 1 ELSE 0 END) AS mesma_localidade
+              FROM registro_geografico_imoveis
+             WHERE TRIM(COALESCE(logradouro,''))<>''
+             GROUP BY logradouro
+            """,
+            (loc_id or 0,),
+        ).fetchall()
+        sugestoes = []
+        for row in rows:
+            logradouro = row["logradouro"] or ""
+            normalizado = _normalizar_logradouro(logradouro)
+            sem_prefixo = _sem_prefixo_logradouro(logradouro)
+            if termo not in normalizado and termo not in sem_prefixo:
+                continue
+            inicio = normalizado.startswith(termo) or sem_prefixo.startswith(termo)
+            sugestoes.append(
+                {
+                    "logradouro": logradouro,
+                    "imoveis": row["imoveis"] or 0,
+                    "quarteiroes": row["quarteiroes"] or 0,
+                    "localidades": sorted([item for item in str(row["localidades"] or "").split(",") if item]),
+                    "mesma_localidade": bool(row["mesma_localidade"]),
+                    "score": (40 if row["mesma_localidade"] else 0) + (30 if inicio else 0) + min(row["imoveis"] or 0, 30),
+                }
+            )
+        sugestoes.sort(key=lambda item: (-item["score"], -item["imoveis"], item["logradouro"].lower()))
+        return {"sugestoes": sugestoes[:limite], "total": len(sugestoes)}
+    finally:
+        conn.close()
+
+
 def _campo_lote(payload):
     campo = str((payload or {}).get("campo") or "logradouro").strip()
     if campo not in CAMPOS_EDICAO_LOTE:
@@ -1362,6 +1408,53 @@ def salvar_quarteirao(db_path, payload, base_dir=None):
                         (origem_row["id_quarteirao"],),
                     )
         return quarteirao(db_path, loc_id, q, base_dir)
+    finally:
+        conn.close()
+
+
+def limpar_quarteirao(db_path, payload, base_dir=None):
+    ensure_schema(db_path, base_dir)
+    conn = db_core.connect(db_path)
+    try:
+        loc_id = int(payload.get("id_localidade") or 0)
+        loc = conn.execute("SELECT id_localidade, nome FROM localidades WHERE id_localidade=?", (loc_id,)).fetchone()
+        if not loc:
+            raise ValueError("Localidade nao encontrada no cadastro.")
+        q = _quarteirao(payload.get("quarteirao"))
+        if not q:
+            raise ValueError("Informe o quarteirao.")
+        agora = _now()
+        with conn:
+            row_q = conn.execute(
+                "SELECT id_quarteirao FROM registro_geografico_quarteiroes WHERE id_localidade=? AND quarteirao=?",
+                (loc_id, q),
+            ).fetchone()
+            if not row_q:
+                row_q = {"id_quarteirao": _garantir_quarteirao(conn, {"loc": loc, "quarteirao": q}, agora)}
+            ids = [
+                row["id_imovel"]
+                for row in conn.execute(
+                    "SELECT id_imovel FROM registro_geografico_imoveis WHERE id_localidade=? AND quarteirao=?",
+                    (loc_id, q),
+                )
+            ]
+            if ids:
+                placeholders = ",".join("?" for _ in ids)
+                conn.execute(
+                    f"DELETE FROM registro_geografico_imovel_agentes WHERE id_imovel IN ({placeholders})",
+                    tuple(ids),
+                )
+                conn.execute(
+                    f"DELETE FROM registro_geografico_imoveis WHERE id_imovel IN ({placeholders})",
+                    tuple(ids),
+                )
+            conn.execute(
+                "UPDATE registro_geografico_quarteiroes SET atualizado_em=? WHERE id_quarteirao=?",
+                (agora, row_q["id_quarteirao"]),
+            )
+        dados = quarteirao(db_path, loc_id, q, base_dir)
+        dados["removidos"] = len(ids)
+        return dados
     finally:
         conn.close()
 

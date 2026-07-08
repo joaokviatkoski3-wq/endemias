@@ -133,11 +133,50 @@ def api_salvar_quarteirao():
     return jsonify({"ok": True, "quarteirao": dados})
 
 
+@bp.route("/api/registro-geografico/quarteirao/limpar", methods=["POST"])
+@login_required
+@nivel_min("operador")
+def api_limpar_quarteirao():
+    payload = request.get_json(silent=True) or {}
+    try:
+        dados = rg_core.limpar_quarteirao(_db_path(), payload, _base_dir())
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(
+        get_db,
+        "registro_geografico_quarteirao_limpo",
+        entidade="registro_geografico",
+        detalhes={
+            "localidade": dados.get("localidade", {}).get("nome"),
+            "quarteirao": dados.get("quarteirao"),
+            "removidos": dados.get("removidos"),
+        },
+    )
+    return jsonify({"ok": True, "quarteirao": dados})
+
+
 @bp.route("/api/registro-geografico/mapa-resumo")
 @login_required
 def api_mapa_resumo():
     try:
         return jsonify(rg_core.resumo_mapa(_db_path(), _base_dir()))
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+
+
+@bp.route("/api/registro-geografico/logradouros-sugestoes")
+@login_required
+def api_logradouros_sugestoes():
+    try:
+        return jsonify(
+            rg_core.sugestoes_logradouros(
+                _db_path(),
+                busca=request.args.get("q") or request.args.get("busca") or "",
+                id_localidade=request.args.get("localidade") or request.args.get("id_localidade"),
+                limite=request.args.get("limite") or 12,
+                base_dir=_base_dir(),
+            )
+        )
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
 
