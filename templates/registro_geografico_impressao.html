@@ -209,6 +209,10 @@ function rgPrintFindFeature(features, localidade, quarteirao){
     return String(props.Localidade) === alvoLoc && rgPrintQuart(props.id_quart) === alvoQ;
   });
 }
+function rgPrintFitBounds(map, bounds){
+  map.invalidateSize(false);
+  map.fitBounds(bounds.pad(0.02), {animate:false, maxZoom:19, padding:[2,2]});
+}
 async function rgPrintRenderMap(el, geojson){
   const status = el.querySelector('.rg-mini-map-status');
   const feature = rgPrintFindFeature(geojson.features || [], el.dataset.localidade, el.dataset.quarteirao);
@@ -223,7 +227,9 @@ async function rgPrintRenderMap(el, geojson){
     scrollWheelZoom:false,
     doubleClickZoom:false,
     boxZoom:false,
-    keyboard:false
+    keyboard:false,
+    zoomSnap:0.1,
+    zoomDelta:0.1
   });
   const isOsm = el.dataset.mapaBase === 'osm';
   const base = isOsm
@@ -245,9 +251,10 @@ async function rgPrintRenderMap(el, geojson){
     }
   }).addTo(map);
   const bounds = poligono.getBounds();
-  map.fitBounds(bounds.pad(0.08), {animate:false, maxZoom:19});
-  setTimeout(() => map.invalidateSize(), 60);
+  rgPrintFitBounds(map, bounds);
+  setTimeout(() => rgPrintFitBounds(map, bounds), 100);
   await carregamentoTiles;
+  rgPrintFitBounds(map, bounds);
   if(status) status.style.display = 'none';
 }
 async function rgPrintInitMaps(){
