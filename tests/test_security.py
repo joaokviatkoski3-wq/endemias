@@ -4025,11 +4025,13 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("rg-filter-card", html)
         self.assertIn("rg-print-actions", html)
         self.assertIn('id="rg-imp-mini-mapa" checked', html)
+        self.assertIn('id="rg-imp-duplex-recto"', html)
         self.assertIn('id="rg-imp-selecionar-todos"', html)
         self.assertIn('id="rg-imp-limpar-selecao"', html)
         self.assertIn('id="rg-imp-status"', html)
         self.assertIn("Incluir mapas sat", html)
         self.assertIn("params.set('mini_mapa', '1')", html)
+        self.assertIn("params.set('duplex_recto', '1')", html)
         self.assertIn("function rgMarcarQuarteiroesImpressao", html)
         self.assertIn("rgMarcarQuarteiroesImpressao(true)", html)
         self.assertIn("rgMarcarQuarteiroesImpressao(false)", html)
@@ -4287,6 +4289,15 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("fillOpacity:0.08", html_mapa)
         self.assertNotIn("rg-print-map-label", html_mapa)
         self.assertIn("function rgPrintInitMaps", html_mapa)
+
+        impressao_duplex = client.get(
+            f"/registro-geografico/imprimir?localidade={primeiro['id_localidade']}"
+            f"&quarteirao={primeiro['quarteirao']}&quarteirao={primeiro['quarteirao']}&duplex_recto=1"
+        )
+        self.assertEqual(impressao_duplex.status_code, 200)
+        html_duplex = impressao_duplex.data.decode("utf-8")
+        self.assertIn(".folha.duplex-recto{break-before:recto;page-break-before:right;}", html_duplex)
+        self.assertIn('class="folha duplex-recto"', html_duplex)
 
         quarteiroes = client.get(f"/api/registro-geografico/quarteiroes?localidade={primeiro['id_localidade']}")
         self.assertEqual(quarteiroes.status_code, 200)

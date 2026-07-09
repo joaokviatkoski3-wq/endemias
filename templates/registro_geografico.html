@@ -283,6 +283,7 @@
       <div class="rg-print-actions">
         <div class="f-g"><label>Localidade</label><select id="rg-imp-localidade">{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
         <label class="rg-check-item"><input type="checkbox" id="rg-imp-mini-mapa" checked> Incluir mapas satélite e OSM</label>
+        <label class="rg-check-item"><input type="checkbox" id="rg-imp-duplex-recto"> Frente e verso: iniciar cada quarteirão na frente</label>
         <button class="btn btn-primary" type="button" id="rg-imp-btn"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Abrir impressão</button>
       </div>
       <div class="f-g">
@@ -1159,6 +1160,7 @@ function rgAbrirImpressao(){
   params.set('localidade', loc);
   qs.forEach(q => params.append('quarteirao', q));
   if(rgEl('rg-imp-mini-mapa').checked) params.set('mini_mapa', '1');
+  if(rgEl('rg-imp-duplex-recto').checked) params.set('duplex_recto', '1');
   window.open(`/registro-geografico/imprimir?${params.toString()}`, '_blank');
 }
 function rgLogradouroSuggestBox(){

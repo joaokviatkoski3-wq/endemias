@@ -14,6 +14,7 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:9.4pt;color:#000;backgroun
 .print-spacer{height:46px;}
 .folha{max-width:19cm;margin:16px auto;padding:1cm 1.1cm;border:1px solid #ccc;background:#fff;}
 .folha:not(:last-child){page-break-after:always;}
+.folha.duplex-recto{break-before:recto;page-break-before:right;}
 .cab{display:flex;align-items:center;width:100%;margin-bottom:10pt;}
 .cab-logo{width:2.5cm;text-align:center;flex-shrink:0;}
 .cab-logo img{max-height:2.2cm;max-width:2.2cm;object-fit:contain;}
@@ -70,7 +71,7 @@ th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
 {% endif %}
 
 {% for dados in dados_lista %}
-<div class="folha">
+<div class="folha{% if duplex_recto and not loop.first %} duplex-recto{% endif %}">
   <div class="cab">
     <div class="cab-logo"><img src="/static/img/logo_prefeitura.png" alt=""></div>
     <div class="cab-titulo">

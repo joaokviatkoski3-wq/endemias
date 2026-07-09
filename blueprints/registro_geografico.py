@@ -263,6 +263,7 @@ def imprimir_quarteirao():
         localidade = request.args.get("localidade") or request.args.get("id_localidade")
         quarteiroes = request.args.getlist("quarteirao")
         incluir_mapa = request.args.get("mini_mapa") in {"1", "true", "sim", "on"}
+        duplex_recto = request.args.get("duplex_recto") in {"1", "true", "sim", "on"}
         if not quarteiroes and request.args.get("quarteirao"):
             quarteiroes = [request.args.get("quarteirao")]
         dados_lista = [
@@ -280,6 +281,7 @@ def imprimir_quarteirao():
         dados=dados_lista[0],
         auto_print=True,
         incluir_mapa=incluir_mapa,
+        duplex_recto=duplex_recto,
     )
 
 
