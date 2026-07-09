@@ -16,6 +16,7 @@
 .acoes-choice{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);padding:5px 6px;border-radius:6px;cursor:pointer;}
 .acoes-choice:hover{background:var(--surface2);}
 .acoes-choice input{width:16px;height:16px;accent-color:#0f766e;}
+.acoes-educativa-hidden{display:none!important;}
 .acoes-agent-search{border:0;border-bottom:1px solid var(--border);border-radius:0;width:100%;}
 .acoes-agent-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0;max-height:170px;overflow:auto;}
 .acoes-agent-option{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text);cursor:pointer;}
@@ -170,4 +171,25 @@
 </div>
 {% endblock %}
 
-{% block extra_js %}<script src="/static/js/acoes_setor.js"></script>{% endblock %}
+{% block extra_js %}
+<script>
+function atualizarCamposEducativosAcoesSetor(){
+  const select = document.getElementById('acao-tipo');
+  if(!select) return;
+  const educativa = select.value === 'educativa';
+  document.querySelectorAll('.acoes-educativa-only').forEach(el => {
+    el.hidden = !educativa;
+    el.classList.toggle('acoes-educativa-hidden', !educativa);
+    if(!educativa){
+      el.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = false; });
+    }
+  });
+}
+document.addEventListener('DOMContentLoaded', () => {
+  atualizarCamposEducativosAcoesSetor();
+  document.getElementById('acao-tipo')?.addEventListener('change', atualizarCamposEducativosAcoesSetor);
+  document.getElementById('acao-tipo')?.addEventListener('input', atualizarCamposEducativosAcoesSetor);
+});
+</script>
+<script src="/static/js/acoes_setor.js"></script>
+{% endblock %}

@@ -62,6 +62,7 @@
     const educativa = $('acao-tipo').value === 'educativa';
     document.querySelectorAll('.acoes-educativa-only').forEach(el => {
       el.hidden = !educativa;
+      el.classList.toggle('acoes-educativa-hidden', !educativa);
     });
     if(!educativa) limparCamposEducativos();
   }
@@ -345,6 +346,7 @@
     $('acao-limpar').addEventListener('click', limparForm);
     $('acao-cancelar').addEventListener('click', limparForm);
     $('acao-tipo').addEventListener('change', atualizarCamposEducativos);
+    $('acao-tipo').addEventListener('input', atualizarCamposEducativos);
     $('acao-agentes-busca').addEventListener('input', filtrarAgentes);
     $('acao-anexo-selecionar').addEventListener('click', () => $('acao-anexos-arquivos').click());
     $('acao-anexos-arquivos').addEventListener('change', () => enviarAnexos().catch(e => toast(e.message, 'error')));
