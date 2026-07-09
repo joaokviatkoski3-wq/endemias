@@ -37,7 +37,7 @@
 .acoes-anexo-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:10px;}
 .acoes-anexo{border:1px solid var(--border);border-radius:8px;background:var(--surface);overflow:hidden;min-width:0;}
 .acoes-anexo-preview{height:112px;background:var(--surface2);display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--border);}
-.acoes-anexo-preview img{width:100%;height:100%;object-fit:cover;display:block;}
+.acoes-anexo-preview img,.acoes-anexo-preview video{width:100%;height:100%;object-fit:cover;display:block;}
 .acoes-anexo-file{display:grid;place-items:center;width:100%;height:100%;color:var(--text3);font-weight:900;font-size:12px;text-transform:uppercase;letter-spacing:.04em;}
 .acoes-anexo-main{min-width:0;padding:8px 9px;}
 .acoes-anexo-name{font-weight:800;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;}
@@ -162,8 +162,8 @@
             <button class="btn btn-outline" type="button" id="acao-anexo-selecionar" disabled><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Adicionar</button>
           </div>
         </div>
-        <input class="acoes-file-input" type="file" id="acao-anexos-arquivos" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.txt">
-        <div class="acoes-attachments-disabled" id="acao-anexos-aviso">Salve a ação para adicionar fotos e documentos.</div>
+        <input class="acoes-file-input" type="file" id="acao-anexos-arquivos" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.txt,.mp4,.mov,.avi,.mkv,.webm,.m4v,.3gp">
+        <div class="acoes-attachments-disabled" id="acao-anexos-aviso">Salve a ação para adicionar fotos, vídeos e documentos.</div>
         <div class="acoes-anexo-list" id="acao-anexos-lista"></div>
       </div>
       <datalist id="acoes-localidades">{% for loc in localidades %}<option value="{{ loc }}"></option>{% endfor %}</datalist>
@@ -198,7 +198,7 @@
       <div class="acoes-gallery-filters">
         <div class="f-g"><label>Pesquisa</label><input id="acoes-anexos-busca" type="search" placeholder="Arquivo, local, tema..."></div>
         <div class="f-g"><label>Tipo de ação</label><select id="acoes-anexos-tipo-acao"><option value="">Todos</option>{% for codigo, label in tipos_acao.items() %}<option value="{{ codigo }}">{{ label }}</option>{% endfor %}</select></div>
-        <div class="f-g"><label>Tipo de arquivo</label><select id="acoes-anexos-tipo-arquivo"><option value="">Todos</option><option value="imagem">Imagens</option><option value="pdf">PDF</option><option value="documento">Documentos</option></select></div>
+        <div class="f-g"><label>Tipo de arquivo</label><select id="acoes-anexos-tipo-arquivo"><option value="">Todos</option><option value="imagem">Imagens</option><option value="video">Vídeos</option><option value="pdf">PDF</option><option value="documento">Documentos</option></select></div>
         <div class="f-g"><label>Ano</label><input id="acoes-anexos-ano" type="number" min="2020" max="2099" step="1" placeholder="Todos"></div>
         <button class="btn btn-outline" type="button" id="acoes-anexos-buscar"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button>
       </div>

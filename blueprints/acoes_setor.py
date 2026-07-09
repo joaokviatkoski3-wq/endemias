@@ -54,8 +54,12 @@ RECURSOS_UTILIZADOS = {
     "maquete": "Maquete",
     "outros": "Outros",
 }
-ANEXO_EXTENSOES = {".jpg", ".jpeg", ".png", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt"}
-ANEXO_MAX_BYTES = 20 * 1024 * 1024
+ANEXO_EXTENSOES = {
+    ".jpg", ".jpeg", ".png", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt",
+    ".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v", ".3gp",
+}
+ANEXO_VIDEO_EXTENSOES = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v", ".3gp"}
+ANEXO_MAX_BYTES = 200 * 1024 * 1024
 
 
 def _table_cols(conn, table):
@@ -319,7 +323,8 @@ def _anexo_dict(row):
     item = dict(row)
     item["url_download"] = f"/acoes-setor/anexos/{item['id_anexo']}/download"
     item["url_visualizar"] = f"/acoes-setor/anexos/{item['id_anexo']}/download?inline=1"
-    item["eh_previa"] = (item.get("mime_type") or "").startswith("image/") or item.get("mime_type") == "application/pdf"
+    mime_type = item.get("mime_type") or ""
+    item["eh_previa"] = mime_type.startswith("image/") or mime_type.startswith("video/") or mime_type == "application/pdf"
     tipo_acao = item.get("acao_tipo")
     if tipo_acao:
         item["acao_tipo_label"] = TIPOS_ACAO.get(tipo_acao, tipo_acao)
@@ -354,10 +359,14 @@ def _listar_anexos_galeria():
         params.append(ano[:4])
     if tipo_arquivo == "imagem":
         where.append("an.mime_type LIKE 'image/%'")
+    elif tipo_arquivo == "video":
+        video_like = " OR ".join(["lower(an.nome_original) LIKE ?"] * len(ANEXO_VIDEO_EXTENSOES))
+        where.append(f"(an.mime_type LIKE 'video/%' OR {video_like})")
+        params.extend([f"%{ext}" for ext in sorted(ANEXO_VIDEO_EXTENSOES)])
     elif tipo_arquivo == "pdf":
         where.append("an.mime_type='application/pdf'")
     elif tipo_arquivo == "documento":
-        where.append("an.mime_type NOT LIKE 'image/%' AND an.mime_type<>'application/pdf'")
+        where.append("an.mime_type NOT LIKE 'image/%' AND an.mime_type NOT LIKE 'video/%' AND an.mime_type<>'application/pdf'")
     sql = """
         SELECT an.*,
                a.data AS acao_data,
@@ -432,7 +441,7 @@ def _validar_upload_anexo(arquivo):
     if tamanho <= 0:
         return None, "Arquivo vazio."
     if tamanho > ANEXO_MAX_BYTES:
-        return None, "Arquivo maior que 20 MB."
+        return None, "Arquivo maior que 200 MB."
     return {"nome_original": nome_original, "nome_seguro": nome_seguro, "ext": ext, "tamanho": tamanho}, ""
 
 

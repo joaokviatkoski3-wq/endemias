@@ -2695,7 +2695,8 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('id="acoes-panel-anexos"', html)
         self.assertIn('id="acoes-anexos-galeria"', html)
         self.assertIn('id="acoes-anexos-tipo-arquivo"', html)
-        self.assertIn('accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.txt"', html)
+        self.assertIn('accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.txt,.mp4,.mov,.avi,.mkv,.webm,.m4v,.3gp"', html)
+        self.assertIn('<option value="video">', html)
         self.assertIn('placeholder="Todos"', html)
         self.assertIn('src="/static/js/acoes_setor.js"', html)
         js_resp = client.get("/static/js/acoes_setor.js")
@@ -2708,6 +2709,8 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("function atualizarCamposEducativos", js)
         self.assertIn("classList.toggle('acoes-educativa-hidden'", js)
         self.assertIn("function anexoEhImagem", js)
+        self.assertIn("function anexoEhVideo", js)
+        self.assertIn("<video src=", js)
         self.assertIn("function carregarGaleriaAnexos", js)
         self.assertIn("acoes-anexo-preview", js)
         self.assertIn("/api/acoes-setor/anexos?", js)
@@ -2831,6 +2834,16 @@ class MainPagesSmokeTests(unittest.TestCase):
             self.assertEqual(resp_img.status_code, 201)
             self.assertEqual(len(resp_img.get_json()["anexos"]), 2)
 
+            resp_video = client.post(
+                f"/api/acoes-setor/{id_acao}/anexos",
+                data={"arquivos": (io.BytesIO(b"video fake"), "registro.mp4")},
+                content_type="multipart/form-data",
+            )
+            self.assertEqual(resp_video.status_code, 201)
+            anexos_video = resp_video.get_json()["anexos"]
+            self.assertEqual(len(anexos_video), 3)
+            self.assertTrue(any(a["nome_original"] == "registro.mp4" for a in anexos_video))
+
             conn = sqlite3.connect(app_temp.config["DB_PATH"])
             try:
                 row = conn.execute(
@@ -2856,12 +2869,19 @@ class MainPagesSmokeTests(unittest.TestCase):
             self.assertEqual(dados_galeria["anexos"][0]["nome_original"], "foto.png")
             self.assertEqual(dados_galeria["anexos"][0]["acao_tipo"], "limpeza")
 
+            galeria_video = client.get("/api/acoes-setor/anexos?tipo_arquivo=video&busca=registro")
+            self.assertEqual(galeria_video.status_code, 200)
+            dados_video = galeria_video.get_json()
+            self.assertEqual(dados_video["total"], 1)
+            self.assertEqual(dados_video["anexos"][0]["nome_original"], "registro.mp4")
+            self.assertTrue(dados_video["anexos"][0]["eh_previa"])
+
             zip_resp = client.get(f"/api/acoes-setor/{id_acao}/anexos/baixar-todos")
             self.assertEqual(zip_resp.status_code, 200)
             self.assertIn("application/zip", zip_resp.content_type)
             self.assertTrue(zip_resp.data.startswith(b"PK"))
             with zipfile.ZipFile(io.BytesIO(zip_resp.data)) as zf:
-                self.assertEqual(set(zf.namelist()), {"notificacao.pdf", "foto.png"})
+                self.assertEqual(set(zf.namelist()), {"notificacao.pdf", "foto.png", "registro.mp4"})
             zip_resp.close()
 
             resp = client.delete(f"/api/acoes-setor/anexos/{id_anexo}")

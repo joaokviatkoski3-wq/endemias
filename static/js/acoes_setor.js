@@ -173,6 +173,12 @@
     return String(anexo?.mime_type || '').startsWith('image/');
   }
 
+  function anexoEhVideo(anexo){
+    const mime = String(anexo?.mime_type || '');
+    const ext = anexoExtensao(anexo).toLowerCase();
+    return mime.startsWith('video/') || ['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v', '3gp'].includes(ext);
+  }
+
   function anexoExtensao(anexo){
     const nome = String(anexo?.nome_original || '');
     const partes = nome.split('.');
@@ -190,6 +196,7 @@
 
   function anexoCardHtml(a){
     const imagem = anexoEhImagem(a);
+    const video = anexoEhVideo(a);
     const ver = a.eh_previa
       ? `<a class="btn btn-icon" href="${a.url_visualizar}" target="_blank" rel="noopener" title="Visualizar"><img src="/static/icons/busca.svg" alt="" class="icon-svg"></a>`
       : '';
@@ -198,6 +205,8 @@
       <a class="acoes-anexo-preview" href="${a.url_visualizar || a.url_download}" target="_blank" rel="noopener" title="Abrir anexo">
         ${imagem
           ? `<img src="${a.url_visualizar}" alt="${esc(a.nome_original)}" loading="lazy">`
+          : video
+          ? `<video src="${a.url_visualizar}" preload="metadata" muted playsinline></video>`
           : `<div class="acoes-anexo-file">${esc(anexoExtensao(a))}</div>`}
       </a>
       <div class="acoes-anexo-main">
