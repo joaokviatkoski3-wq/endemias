@@ -14,7 +14,9 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:9.4pt;color:#000;backgroun
 .print-spacer{height:46px;}
 .folha{max-width:19cm;margin:16px auto;padding:1cm 1.1cm;border:1px solid #ccc;background:#fff;}
 .folha:not(:last-child){page-break-after:always;}
-.folha.duplex-recto{break-before:recto;page-break-before:right;}
+.rg-duplex-blank{display:none;}
+.rg-print-measure{position:absolute;left:-10000px;top:0;width:194mm;visibility:hidden;z-index:-1;}
+.rg-print-measure .folha{width:194mm;max-width:194mm;margin:0;padding:0;border:0;}
 .cab{display:flex;align-items:center;width:100%;margin-bottom:10pt;}
 .cab-logo{width:2.5cm;text-align:center;flex-shrink:0;}
 .cab-logo img{max-height:2.2cm;max-width:2.2cm;object-fit:contain;}
@@ -55,6 +57,7 @@ th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
   .folha{max-width:100%;margin:0;padding:0;border:none;}
   body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .rg-bottom,.rg-mini-map-stack,.rg-mini-map-box,.rg-mini-map{break-inside:avoid;page-break-inside:avoid;}
+  .rg-duplex-blank{display:block!important;height:281mm;break-after:page;page-break-after:always;}
   .rg-mini-map-status{display:none!important;}
 }
 </style>
@@ -62,7 +65,7 @@ th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
 <body>
 {% if auto_print %}
 <div class="screen-controls">
-  <button id="rg-print-btn" onclick="window.print()" {% if incluir_mapa %}disabled{% endif %}>Imprimir</button>
+  <button id="rg-print-btn" onclick="rgPrintBeforePrint()" {% if incluir_mapa %}disabled{% endif %}>Imprimir</button>
   <span>{{ dados.localidade.nome }} - {{ dados_lista|length }} RG(s)</span>
   {% if incluir_mapa %}<span id="rg-print-map-status">Carregando mapas...</span>{% endif %}
   <span style="margin-left:auto;opacity:.5;">Feche esta aba após imprimir</span>
@@ -71,7 +74,7 @@ th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
 {% endif %}
 
 {% for dados in dados_lista %}
-<div class="folha{% if duplex_recto and not loop.first %} duplex-recto{% endif %}">
+<div class="folha">
   <div class="cab">
     <div class="cab-logo"><img src="/static/img/logo_prefeitura.png" alt=""></div>
     <div class="cab-titulo">
@@ -293,14 +296,51 @@ async function rgPrintInitMaps(){
 </script>
 {% endif %}
 
+<script>
+const RG_PRINT_DUPLEX_RECTO = {{ 'true' if duplex_recto else 'false' }};
+function rgPrintRemoveDuplexBlanks(){
+  document.querySelectorAll('.rg-duplex-blank').forEach(el => el.remove());
+}
+function rgPrintPageHeightPx(){
+  return 281 * 96 / 25.4;
+}
+function rgPrintEstimateFolhaPages(folha){
+  const measure = document.createElement('div');
+  measure.className = 'rg-print-measure';
+  const clone = folha.cloneNode(true);
+  clone.querySelectorAll('.rg-mini-map-status').forEach(el => el.remove());
+  measure.appendChild(clone);
+  document.body.appendChild(measure);
+  const pages = Math.max(1, Math.ceil((clone.scrollHeight - 2) / rgPrintPageHeightPx()));
+  measure.remove();
+  return pages;
+}
+function rgPrintPrepareDuplexRecto(){
+  rgPrintRemoveDuplexBlanks();
+  if(!RG_PRINT_DUPLEX_RECTO) return;
+  const folhas = Array.from(document.querySelectorAll('.folha'));
+  folhas.slice(0, -1).forEach(folha => {
+    const paginas = rgPrintEstimateFolhaPages(folha);
+    if(paginas % 2 === 1){
+      folha.insertAdjacentHTML('afterend', '<div class="rg-duplex-blank" aria-hidden="true"></div>');
+    }
+  });
+}
+function rgPrintBeforePrint(){
+  rgPrintPrepareDuplexRecto();
+  window.print();
+}
+window.addEventListener('beforeprint', rgPrintPrepareDuplexRecto);
+</script>
+
 {% if auto_print %}
 <script>
 window.addEventListener('load', async () => {
   if(window.rgPrintInitMaps){
     await window.rgPrintInitMaps();
-    setTimeout(() => window.print(), 350);
+    setTimeout(() => rgPrintBeforePrint(), 350);
   }else{
-    setTimeout(() => window.print(), 500);
+    setTimeout(() => rgPrintBeforePrint(), 500);
   }
 });
 </script>

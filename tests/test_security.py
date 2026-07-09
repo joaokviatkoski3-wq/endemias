@@ -4296,8 +4296,11 @@ class MainApisSmokeTests(unittest.TestCase):
         )
         self.assertEqual(impressao_duplex.status_code, 200)
         html_duplex = impressao_duplex.data.decode("utf-8")
-        self.assertIn(".folha.duplex-recto{break-before:recto;page-break-before:right;}", html_duplex)
-        self.assertIn('class="folha duplex-recto"', html_duplex)
+        self.assertIn("const RG_PRINT_DUPLEX_RECTO = true;", html_duplex)
+        self.assertIn(".rg-duplex-blank{display:block!important;height:281mm;break-after:page;page-break-after:always;}", html_duplex)
+        self.assertIn("function rgPrintPrepareDuplexRecto", html_duplex)
+        self.assertIn("function rgPrintEstimateFolhaPages", html_duplex)
+        self.assertIn("insertAdjacentHTML('afterend', '<div class=\"rg-duplex-blank\" aria-hidden=\"true\"></div>')", html_duplex)
 
         quarteiroes = client.get(f"/api/registro-geografico/quarteiroes?localidade={primeiro['id_localidade']}")
         self.assertEqual(quarteiroes.status_code, 200)
