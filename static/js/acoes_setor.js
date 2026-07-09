@@ -159,13 +159,29 @@
     return `<div><strong>${label}:</strong> ${esc(valor)}</div>`;
   }
 
+  function anexoEhImagem(anexo){
+    return String(anexo?.mime_type || '').startsWith('image/');
+  }
+
+  function anexoExtensao(anexo){
+    const nome = String(anexo?.nome_original || '');
+    const partes = nome.split('.');
+    return partes.length > 1 ? partes.pop().slice(0, 6) : 'arquivo';
+  }
+
   function anexosHtml(anexos){
     if(anexos === null) return '<div class="acoes-attachments-disabled">Carregando anexos...</div>';
     return (anexos || []).map(a => {
+      const imagem = anexoEhImagem(a);
       const ver = a.eh_previa
         ? `<a class="btn btn-icon" href="${a.url_visualizar}" target="_blank" rel="noopener" title="Visualizar"><img src="/static/icons/busca.svg" alt="" class="icon-svg"></a>`
         : '';
       return `<div class="acoes-anexo">
+        <a class="acoes-anexo-preview" href="${a.url_visualizar || a.url_download}" target="_blank" rel="noopener" title="Abrir anexo">
+          ${imagem
+            ? `<img src="${a.url_visualizar}" alt="${esc(a.nome_original)}" loading="lazy">`
+            : `<div class="acoes-anexo-file">${esc(anexoExtensao(a))}</div>`}
+        </a>
         <div class="acoes-anexo-main">
           <div class="acoes-anexo-name">${esc(a.nome_original)}</div>
           <div class="acoes-anexo-meta">${esc(a.mime_type || 'arquivo')} | ${esc(tamanhoBR(a.tamanho))}</div>

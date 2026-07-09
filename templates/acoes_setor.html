@@ -30,12 +30,15 @@
 .acoes-attachments-title{font-weight:900;color:var(--text);display:flex;align-items:center;gap:8px;}
 .acoes-attachments-disabled{color:var(--text3);font-size:13px;padding:10px;border:1px dashed var(--border);border-radius:8px;}
 .acoes-file-input{display:none;}
-.acoes-anexo-list{display:grid;gap:8px;margin-top:10px;}
-.acoes-anexo{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--surface);}
-.acoes-anexo-main{min-width:0;}
-.acoes-anexo-name{font-weight:800;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.acoes-anexo-meta{font-size:12px;color:var(--text3);margin-top:2px;}
-.acoes-anexo-actions{display:flex;gap:6px;flex-shrink:0;}
+.acoes-anexo-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:10px;}
+.acoes-anexo{border:1px solid var(--border);border-radius:8px;background:var(--surface);overflow:hidden;min-width:0;}
+.acoes-anexo-preview{height:112px;background:var(--surface2);display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--border);}
+.acoes-anexo-preview img{width:100%;height:100%;object-fit:cover;display:block;}
+.acoes-anexo-file{display:grid;place-items:center;width:100%;height:100%;color:var(--text3);font-weight:900;font-size:12px;text-transform:uppercase;letter-spacing:.04em;}
+.acoes-anexo-main{min-width:0;padding:8px 9px;}
+.acoes-anexo-name{font-weight:800;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;}
+.acoes-anexo-meta{font-size:11px;color:var(--text3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.acoes-anexo-actions{display:flex;gap:6px;justify-content:flex-end;border-top:1px solid var(--border);padding:7px 8px;background:var(--surface2);}
 .acoes-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:14px;}
 .acoes-filters{display:grid;grid-template-columns:1.2fr .8fr .6fr auto;gap:10px;align-items:end;}
 .acoes-list{display:grid;gap:10px;margin-top:14px;}
