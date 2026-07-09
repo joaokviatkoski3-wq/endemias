@@ -88,7 +88,7 @@
         <div class="f-g"><label>Hora início <span class="acoes-muted">(opcional)</span></label><input id="acao-hora-inicio" type="time"></div>
         <div class="f-g"><label>Hora fim <span class="acoes-muted">(opcional)</span></label><input id="acao-hora-fim" type="time"></div>
         <div class="f-g"><label>Público aproximado</label><input id="acao-publico" type="number" min="0" inputmode="numeric"></div>
-        <div class="f-g full">
+        <div class="f-g full acoes-educativa-only">
           <label>Tipo de atividade realizada</label>
           <div class="acoes-choice-grid">
             {% for codigo, label in tipos_atividade_realizada.items() %}
@@ -96,7 +96,7 @@
             {% endfor %}
           </div>
         </div>
-        <div class="f-g full">
+        <div class="f-g full acoes-educativa-only">
           <label>Público alvo</label>
           <div class="acoes-choice-grid">
             {% for codigo, label in publicos_alvo.items() %}
@@ -104,7 +104,7 @@
             {% endfor %}
           </div>
         </div>
-        <div class="f-g full">
+        <div class="f-g full acoes-educativa-only">
           <label>Recurso utilizado</label>
           <div class="acoes-choice-grid">
             {% for codigo, label in recursos_utilizados.items() %}

@@ -228,6 +228,7 @@ def _acao_payload(dados):
     tipo = (dados.get("tipo") or "").strip()
     if tipo not in TIPOS_ACAO:
         raise ValueError("Tipo de ação inválido.")
+    educativa = tipo == "educativa"
     payload = {
         "tipo": tipo,
         "data": _parse_data(dados.get("data")),
@@ -238,13 +239,12 @@ def _acao_payload(dados):
         "endereco": (dados.get("endereco") or "").strip() or None,
         "local": (dados.get("local") or "").strip() or None,
         "publico_aproximado": _parse_publico(dados.get("publico_aproximado")),
-        "tipo_atividade_realizada": _parse_multi(
-            dados.get("tipo_atividade_realizada"),
-            TIPOS_ATIVIDADE_REALIZADA,
-            "Tipo de atividade realizada",
+        "tipo_atividade_realizada": (
+            _parse_multi(dados.get("tipo_atividade_realizada"), TIPOS_ATIVIDADE_REALIZADA, "Tipo de atividade realizada")
+            if educativa else []
         ),
-        "publico_alvo": _parse_multi(dados.get("publico_alvo"), PUBLICOS_ALVO, "Público alvo"),
-        "recurso_utilizado": _parse_multi(dados.get("recurso_utilizado"), RECURSOS_UTILIZADOS, "Recurso utilizado"),
+        "publico_alvo": _parse_multi(dados.get("publico_alvo"), PUBLICOS_ALVO, "Público alvo") if educativa else [],
+        "recurso_utilizado": _parse_multi(dados.get("recurso_utilizado"), RECURSOS_UTILIZADOS, "Recurso utilizado") if educativa else [],
         "tema": (dados.get("tema") or "").strip() or None,
         "contexto": (dados.get("contexto") or "").strip() or None,
         "coordenadas": (dados.get("coordenadas") or "").strip() or None,

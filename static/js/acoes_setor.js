@@ -52,6 +52,20 @@
     return (values || []).filter(Boolean).join(', ');
   }
 
+  function limparCamposEducativos(){
+    setCheckedValues('acao-tipo-atividade-realizada', []);
+    setCheckedValues('acao-publico-alvo', []);
+    setCheckedValues('acao-recurso-utilizado', []);
+  }
+
+  function atualizarCamposEducativos(){
+    const educativa = $('acao-tipo').value === 'educativa';
+    document.querySelectorAll('.acoes-educativa-only').forEach(el => {
+      el.hidden = !educativa;
+    });
+    if(!educativa) limparCamposEducativos();
+  }
+
   function params(){
     const p = new URLSearchParams();
     if($('acoes-busca').value.trim()) p.set('busca', $('acoes-busca').value.trim());
@@ -68,6 +82,7 @@
   }
 
   function payload(){
+    const educativa = $('acao-tipo').value === 'educativa';
     const data = {
       tipo: $('acao-tipo').value,
       data: $('acao-data').value,
@@ -75,9 +90,9 @@
       hora_inicio: $('acao-hora-inicio').value,
       hora_fim: $('acao-hora-fim').value,
       publico_aproximado: $('acao-publico').value,
-      tipo_atividade_realizada: checkedValues('acao-tipo-atividade-realizada'),
-      publico_alvo: checkedValues('acao-publico-alvo'),
-      recurso_utilizado: checkedValues('acao-recurso-utilizado'),
+      tipo_atividade_realizada: educativa ? checkedValues('acao-tipo-atividade-realizada') : [],
+      publico_alvo: educativa ? checkedValues('acao-publico-alvo') : [],
+      recurso_utilizado: educativa ? checkedValues('acao-recurso-utilizado') : [],
       agentes: Array.from(document.querySelectorAll('input[name="acao-agente"]:checked')).map(opt => opt.value),
     };
     camposTexto.forEach(campo => {
@@ -95,15 +110,14 @@
     $('acao-hora-inicio').value = '';
     $('acao-hora-fim').value = '';
     $('acao-publico').value = '';
-    setCheckedValues('acao-tipo-atividade-realizada', []);
-    setCheckedValues('acao-publico-alvo', []);
-    setCheckedValues('acao-recurso-utilizado', []);
+    limparCamposEducativos();
     camposTexto.forEach(campo => { $(`acao-${campo}`).value = ''; });
     $('acao-agentes-busca').value = '';
     Array.from(document.querySelectorAll('input[name="acao-agente"]')).forEach(opt => { opt.checked = false; });
     filtrarAgentes();
     renderAnexos([]);
     atualizarEstadoAnexos();
+    atualizarCamposEducativos();
   }
 
   function preencherForm(r){
@@ -123,6 +137,7 @@
     Array.from(document.querySelectorAll('input[name="acao-agente"]')).forEach(opt => { opt.checked = ids.has(opt.value); });
     carregarAnexos(r.id_acao).catch(e => toast('Erro ao carregar anexos: ' + e.message, 'error'));
     atualizarEstadoAnexos();
+    atualizarCamposEducativos();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -329,6 +344,7 @@
     $('acao-salvar').addEventListener('click', () => salvar().catch(e => toast(e.message, 'error')));
     $('acao-limpar').addEventListener('click', limparForm);
     $('acao-cancelar').addEventListener('click', limparForm);
+    $('acao-tipo').addEventListener('change', atualizarCamposEducativos);
     $('acao-agentes-busca').addEventListener('input', filtrarAgentes);
     $('acao-anexo-selecionar').addEventListener('click', () => $('acao-anexos-arquivos').click());
     $('acao-anexos-arquivos').addEventListener('change', () => enviarAnexos().catch(e => toast(e.message, 'error')));

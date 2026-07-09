@@ -2682,6 +2682,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("Tipo de atividade realizada", html)
         self.assertIn("Público alvo", html)
         self.assertIn("Recurso utilizado", html)
+        self.assertIn("acoes-educativa-only", html)
         self.assertIn('id="acao-agentes-busca"', html)
         self.assertIn('name="acao-agente"', html)
         self.assertNotIn('id="acao-agentes" multiple', html)
@@ -2697,6 +2698,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("let registroAberto = null", js)
         self.assertIn("function alternarRegistro", js)
         self.assertIn("function checkedValues", js)
+        self.assertIn("function atualizarCamposEducativos", js)
         self.assertIn("Informe o período da ação.", js)
         self.assertIn("function detalhesRegistroHtml", js)
         self.assertIn("await carregar();\n    limparForm();", js)
@@ -2762,6 +2764,9 @@ class MainPagesSmokeTests(unittest.TestCase):
                 "agentes": [id_agente],
                 "localidade": "Centro",
                 "local": "Praça Central",
+                "tipo_atividade_realizada": ["palestra"],
+                "publico_alvo": ["professores"],
+                "recurso_utilizado": ["banner"],
                 "coordenadas": "-25.123, -49.123",
                 "observacoes": "Mutirão finalizado",
             })
@@ -2771,6 +2776,9 @@ class MainPagesSmokeTests(unittest.TestCase):
             self.assertEqual(resp.status_code, 200)
             self.assertEqual(resp.get_json()["tipo"], "limpeza")
             self.assertEqual(resp.get_json()["periodo_label"], "Tarde")
+            self.assertEqual(resp.get_json()["tipo_atividade_realizada"], [])
+            self.assertEqual(resp.get_json()["publico_alvo"], [])
+            self.assertEqual(resp.get_json()["recurso_utilizado"], [])
 
     def test_acoes_setor_anexos_ficam_em_pasta_e_podem_ser_excluidos(self):
         with tempfile.TemporaryDirectory() as tmpdir:
