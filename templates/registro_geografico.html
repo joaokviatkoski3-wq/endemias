@@ -285,7 +285,15 @@
         <label class="rg-check-item"><input type="checkbox" id="rg-imp-mini-mapa" checked> Incluir mapas satélite e OSM</label>
         <button class="btn btn-primary" type="button" id="rg-imp-btn"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Abrir impressão</button>
       </div>
-      <div class="f-g"><label>Quarteirões</label><div id="rg-imp-quarteiroes" class="rg-check-list"><span class="rg-muted">Selecione a localidade</span></div></div>
+      <div class="f-g">
+        <label>Quarteirões</label>
+        <div class="rg-map-actions" style="margin-bottom:8px;">
+          <button class="btn btn-outline btn-sm" type="button" id="rg-imp-selecionar-todos"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Selecionar todos</button>
+          <button class="btn btn-outline btn-sm" type="button" id="rg-imp-limpar-selecao"><img src="/static/icons/fechar.svg" alt="" class="icon-svg"> Limpar seleção</button>
+          <span class="rg-muted" id="rg-imp-status"></span>
+        </div>
+        <div id="rg-imp-quarteiroes" class="rg-check-list"><span class="rg-muted">Selecione a localidade</span></div>
+      </div>
     </div>
   </div>
 </section>
@@ -1138,6 +1146,11 @@ async function rgCarregarChecksQuarteiroes(localidadeId, boxId='rg-imp-quarteiro
       <input type="checkbox" value="${rgEscape(r.quarteirao)}"> Q. ${rgEscape(r.quarteirao)} <span class="rg-muted">(${rgFmt(r.imoveis)})</span>
     </label>`).join('') : '<span class="rg-muted">Sem quarteirões</span>';
 }
+function rgMarcarQuarteiroesImpressao(marcar){
+  const checks = Array.from(document.querySelectorAll('#rg-imp-quarteiroes input[type="checkbox"]'));
+  checks.forEach(input => { input.checked = marcar; });
+  rgSetText('rg-imp-status', checks.length ? `${rgFmt(checks.length)} quarteirao(s) ${marcar ? 'selecionado(s)' : 'desmarcado(s)'} para impressao.` : '');
+}
 function rgAbrirImpressao(){
   const loc = rgEl('rg-imp-localidade').value;
   const qs = Array.from(document.querySelectorAll('#rg-imp-quarteiroes input:checked')).map(input => input.value).filter(Boolean);
@@ -1451,6 +1464,8 @@ rgLogradouroSuggestBox().addEventListener('mousedown', ev => {
 });
 window.addEventListener('scroll', rgHideLogradouroSugestoes, true);
 rgEl('rg-imp-btn').addEventListener('click', rgAbrirImpressao);
+rgEl('rg-imp-selecionar-todos').addEventListener('click', () => rgMarcarQuarteiroesImpressao(true));
+rgEl('rg-imp-limpar-selecao').addEventListener('click', () => rgMarcarQuarteiroesImpressao(false));
 rgCarregarSelectQuarteiroes(rgEl('rg-ed-localidade').value, 'rg-ed-quarteirao').catch(() => {});
 rgCarregarChecksQuarteiroes(rgEl('rg-imp-localidade').value).catch(() => {});
 rgCarregar().catch(err => { rgEl('rg-info').textContent = err.message; });
