@@ -81,7 +81,7 @@ th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
   </div>
 
   <div class="titulo">Boletim de Registro de Reconhecimento Geográfico</div>
-  <div class="meta">Localidade: {{ dados.localidade.nome }} &nbsp;&nbsp;|&nbsp;&nbsp; Quarteirão: {{ dados.quarteirao }} &nbsp;&nbsp;|&nbsp;&nbsp; Emissão: {{ dados.data_emissao }}</div>
+  <div class="meta">Localidade: {{ dados.localidade.nome }}{% if dados.localidade.cod_localidade not in [none, ''] %} &nbsp;&nbsp;|&nbsp;&nbsp; C&oacute;digo da localidade: {{ dados.localidade.cod_localidade }}{% endif %} &nbsp;&nbsp;|&nbsp;&nbsp; Quarteirão: {{ dados.quarteirao }} &nbsp;&nbsp;|&nbsp;&nbsp; Emissão: {{ dados.data_emissao }}</div>
 
   <table>
     <thead>
@@ -211,7 +211,20 @@ function rgPrintFindFeature(features, localidade, quarteirao){
 }
 function rgPrintFitBounds(map, bounds){
   map.invalidateSize(false);
-  map.fitBounds(bounds.pad(0.02), {animate:false, maxZoom:19, padding:[2,2]});
+  map.fitBounds(bounds.pad(0.02), {animate:false, maxZoom:19, padding:[0,0]});
+}
+function rgPrintStabilizeMap(map, bounds){
+  return new Promise(resolve => {
+    const fit = () => rgPrintFitBounds(map, bounds);
+    fit();
+    requestAnimationFrame(() => {
+      fit();
+      setTimeout(() => {
+        fit();
+        resolve();
+      }, 160);
+    });
+  });
 }
 async function rgPrintRenderMap(el, geojson){
   const status = el.querySelector('.rg-mini-map-status');
@@ -234,10 +247,10 @@ async function rgPrintRenderMap(el, geojson){
   const isOsm = el.dataset.mapaBase === 'osm';
   const base = isOsm
     ? L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution:'© OpenStreetMap', maxZoom:19, maxNativeZoom:19, tileSize:128, zoomOffset:1
+        attribution:'© OpenStreetMap', maxZoom:19, maxNativeZoom:19, keepBuffer:2
       })
     : L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution:'© Esri', maxZoom:19, maxNativeZoom:19, tileSize:128, zoomOffset:1
+        attribution:'© Esri', maxZoom:19, maxNativeZoom:19, keepBuffer:2
       });
   const carregamentoTiles = rgPrintWaitTileLayer(base);
   base.addTo(map);
@@ -251,10 +264,10 @@ async function rgPrintRenderMap(el, geojson){
     }
   }).addTo(map);
   const bounds = poligono.getBounds();
-  rgPrintFitBounds(map, bounds);
-  setTimeout(() => rgPrintFitBounds(map, bounds), 100);
+  await rgPrintStabilizeMap(map, bounds);
   await carregamentoTiles;
-  rgPrintFitBounds(map, bounds);
+  await rgPrintStabilizeMap(map, bounds);
+  await rgPrintWaitTileLayer(base, 1800);
   if(status) status.style.display = 'none';
 }
 async function rgPrintInitMaps(){

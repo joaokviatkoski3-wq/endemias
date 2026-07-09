@@ -1055,7 +1055,11 @@ def quarteirao(db_path, id_localidade, quarteirao_numero, base_dir=None):
     conn = db_core.connect(db_path)
     try:
         q = _quarteirao(quarteirao_numero)
-        loc = conn.execute("SELECT id_localidade, nome FROM localidades WHERE id_localidade=?", (id_localidade,)).fetchone()
+        cols_localidades = _table_cols(conn, "localidades")
+        loc_select = "id_localidade, nome"
+        if "cod_localidade" in cols_localidades:
+            loc_select += ", cod_localidade"
+        loc = conn.execute(f"SELECT {loc_select} FROM localidades WHERE id_localidade=?", (id_localidade,)).fetchone()
         if not loc:
             raise ValueError("Localidade nao encontrada no cadastro.")
         rows = conn.execute(
