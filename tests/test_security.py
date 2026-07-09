@@ -4267,6 +4267,8 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("/static/vendor/leaflet/leaflet.min.js", html_mapa)
         self.assertIn("rg-mini-map-stack", html_mapa)
         self.assertIn("rg-mini-map", html_mapa)
+        self.assertIn(".rg-mini-map-stack{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:8pt;margin-top:4pt;break-inside:avoid;page-break-inside:avoid;}", html_mapa)
+        self.assertIn(".rg-bottom,.rg-mini-map-stack,.rg-mini-map-box,.rg-mini-map{break-inside:avoid;page-break-inside:avoid;}", html_mapa)
         self.assertIn('data-mapa-base="satelite"', html_mapa)
         self.assertIn('data-mapa-base="osm"', html_mapa)
         self.assertIn("data-localidade", html_mapa)
