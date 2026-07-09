@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 import mimetypes
 import os
 from pathlib import Path
@@ -22,8 +23,44 @@ TIPOS_ACAO = {
     "educativa": "Ação educativa / palestra",
     "limpeza": "Ação de limpeza / mutirão",
 }
+PERIODOS_ACAO = {
+    "manha": "Manhã",
+    "tarde": "Tarde",
+}
+TIPOS_ATIVIDADE_REALIZADA = {
+    "palestra": "Palestra",
+    "teatro_educativo": "Teatro Educativo",
+    "exposicao": "Exposição",
+    "oficina": "Oficina",
+    "conversa_educativa": "Conversa Educativa",
+    "outro": "Outro",
+}
+PUBLICOS_ALVO = {
+    "educacao_infantil": "Educação Infantil",
+    "funcionarios": "Funcionários",
+    "ensino_fundamental": "Ensino Fundamental",
+    "comunidade_escolar": "Comunidade Escolar",
+    "professores": "Professores",
+    "outro": "Outro",
+}
+RECURSOS_UTILIZADOS = {
+    "banner": "Banner",
+    "fantasias": "Fantasias",
+    "cartazes": "Cartazes",
+    "material_trabalho_demonstrativo": "Material de trabalho demonstrativo",
+    "videos_imagens_midia_digital": "Vídeos/Imagens/Mídia digital",
+    "maquete": "Maquete",
+    "outros": "Outros",
+}
 ANEXO_EXTENSOES = {".jpg", ".jpeg", ".png", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt"}
 ANEXO_MAX_BYTES = 20 * 1024 * 1024
+
+
+def _table_cols(conn, table):
+    return {
+        row["name"] if hasattr(row, "keys") else row[1]
+        for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+    }
 
 
 def ensure_schema(conn=None):
@@ -37,12 +74,16 @@ def ensure_schema(conn=None):
             id_acao INTEGER PRIMARY KEY AUTOINCREMENT,
             tipo TEXT NOT NULL CHECK(tipo IN ('educativa','limpeza')),
             data TEXT NOT NULL,
+            periodo TEXT,
             hora_inicio TEXT,
             hora_fim TEXT,
             localidade TEXT,
             endereco TEXT,
             local TEXT,
             publico_aproximado INTEGER,
+            tipo_atividade_realizada TEXT,
+            publico_alvo TEXT,
+            recurso_utilizado TEXT,
             tema TEXT,
             contexto TEXT,
             coordenadas TEXT,
@@ -73,6 +114,15 @@ def ensure_schema(conn=None):
         CREATE INDEX IF NOT EXISTS idx_acoes_setor_agente ON acoes_setor_agentes(id_agente);
         CREATE INDEX IF NOT EXISTS idx_acoes_setor_anexo_acao ON acoes_setor_anexos(id_acao);
         """)
+        cols = _table_cols(conn, "acoes_setor")
+        for coluna in (
+            "periodo",
+            "tipo_atividade_realizada",
+            "publico_alvo",
+            "recurso_utilizado",
+        ):
+            if coluna not in cols:
+                conn.execute(f"ALTER TABLE acoes_setor ADD COLUMN {coluna} TEXT")
         conn.commit()
     finally:
         if fechar:
@@ -106,6 +156,13 @@ def _parse_hora(value):
     return texto[:5]
 
 
+def _parse_periodo(value):
+    periodo = str(value or "").strip().lower()
+    if periodo not in PERIODOS_ACAO:
+        raise ValueError("Informe o período da ação.")
+    return periodo
+
+
 def _parse_publico(value):
     if value in (None, ""):
         return None
@@ -130,6 +187,43 @@ def _parse_agentes(value):
     return ids
 
 
+def _parse_multi(value, opcoes, label):
+    if value in (None, ""):
+        return []
+    if isinstance(value, str):
+        raw = [item.strip() for item in value.split(",")]
+    else:
+        raw = value
+    selecionados = []
+    for item in raw or []:
+        codigo = str(item or "").strip()
+        if not codigo:
+            continue
+        if codigo not in opcoes:
+            raise ValueError(f"{label} inválido.")
+        if codigo not in selecionados:
+            selecionados.append(codigo)
+    return selecionados
+
+
+def _multi_db(value):
+    return json.dumps(value or [], ensure_ascii=False)
+
+
+def _multi_from_db(value):
+    if not value:
+        return []
+    try:
+        dados = json.loads(value)
+    except (TypeError, ValueError):
+        dados = [item.strip() for item in str(value).split(",")]
+    return [str(item) for item in dados if str(item or "").strip()]
+
+
+def _labels(codigos, opcoes):
+    return [opcoes.get(codigo, codigo) for codigo in codigos if codigo in opcoes or codigo]
+
+
 def _acao_payload(dados):
     tipo = (dados.get("tipo") or "").strip()
     if tipo not in TIPOS_ACAO:
@@ -137,12 +231,20 @@ def _acao_payload(dados):
     payload = {
         "tipo": tipo,
         "data": _parse_data(dados.get("data")),
+        "periodo": _parse_periodo(dados.get("periodo")),
         "hora_inicio": _parse_hora(dados.get("hora_inicio")),
         "hora_fim": _parse_hora(dados.get("hora_fim")),
         "localidade": (dados.get("localidade") or "").strip() or None,
         "endereco": (dados.get("endereco") or "").strip() or None,
         "local": (dados.get("local") or "").strip() or None,
         "publico_aproximado": _parse_publico(dados.get("publico_aproximado")),
+        "tipo_atividade_realizada": _parse_multi(
+            dados.get("tipo_atividade_realizada"),
+            TIPOS_ATIVIDADE_REALIZADA,
+            "Tipo de atividade realizada",
+        ),
+        "publico_alvo": _parse_multi(dados.get("publico_alvo"), PUBLICOS_ALVO, "Público alvo"),
+        "recurso_utilizado": _parse_multi(dados.get("recurso_utilizado"), RECURSOS_UTILIZADOS, "Recurso utilizado"),
         "tema": (dados.get("tema") or "").strip() or None,
         "contexto": (dados.get("contexto") or "").strip() or None,
         "coordenadas": (dados.get("coordenadas") or "").strip() or None,
@@ -155,6 +257,13 @@ def _acao_payload(dados):
 def _acao_dict(row):
     item = dict(row)
     item["tipo_label"] = TIPOS_ACAO.get(item.get("tipo"), item.get("tipo") or "")
+    item["periodo_label"] = PERIODOS_ACAO.get(item.get("periodo") or "", item.get("periodo") or "")
+    item["tipo_atividade_realizada"] = _multi_from_db(item.get("tipo_atividade_realizada"))
+    item["publico_alvo"] = _multi_from_db(item.get("publico_alvo"))
+    item["recurso_utilizado"] = _multi_from_db(item.get("recurso_utilizado"))
+    item["tipo_atividade_realizada_labels"] = _labels(item["tipo_atividade_realizada"], TIPOS_ATIVIDADE_REALIZADA)
+    item["publico_alvo_labels"] = _labels(item["publico_alvo"], PUBLICOS_ALVO)
+    item["recurso_utilizado_labels"] = _labels(item["recurso_utilizado"], RECURSOS_UTILIZADOS)
     item["agentes"] = [
         {"id_agente": int(x.split(":", 1)[0]), "nome": x.split(":", 1)[1]}
         for x in (item.pop("agentes_raw") or "").split("|")
@@ -264,6 +373,10 @@ def page():
     return render_template(
         "acoes_setor.html",
         tipos_acao=TIPOS_ACAO,
+        periodos_acao=PERIODOS_ACAO,
+        tipos_atividade_realizada=TIPOS_ATIVIDADE_REALIZADA,
+        publicos_alvo=PUBLICOS_ALVO,
+        recursos_utilizados=RECURSOS_UTILIZADOS,
         agentes=agentes,
         localidades=[row["nome"] for row in localidades],
     )
@@ -286,19 +399,24 @@ def api_acoes():
             conn = bh.get_db()
             cur = conn.execute(
                 """INSERT INTO acoes_setor
-                   (tipo, data, hora_inicio, hora_fim, localidade, endereco, local,
-                    publico_aproximado, tema, contexto, coordenadas, observacoes,
+                   (tipo, data, periodo, hora_inicio, hora_fim, localidade, endereco, local,
+                    publico_aproximado, tipo_atividade_realizada, publico_alvo, recurso_utilizado,
+                    tema, contexto, coordenadas, observacoes,
                     criado_por, criado_em, atualizado_em)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     payload["tipo"],
                     payload["data"],
+                    payload["periodo"],
                     payload["hora_inicio"],
                     payload["hora_fim"],
                     payload["localidade"],
                     payload["endereco"],
                     payload["local"],
                     payload["publico_aproximado"],
+                    _multi_db(payload["tipo_atividade_realizada"]),
+                    _multi_db(payload["publico_alvo"]),
+                    _multi_db(payload["recurso_utilizado"]),
                     payload["tema"],
                     payload["contexto"],
                     payload["coordenadas"],
@@ -345,6 +463,8 @@ def api_acoes():
                 termo in _normaliza_busca(" ".join(str(r.get(c) or "") for c in (
                     "tipo_label", "data", "localidade", "endereco", "local", "tema",
                     "contexto", "coordenadas", "observacoes", "agentes_nomes",
+                    "periodo_label", "tipo_atividade_realizada_labels",
+                    "publico_alvo_labels", "recurso_utilizado_labels",
                 )))
                 for termo in termos
             )
@@ -392,19 +512,24 @@ def api_acao(id_acao):
             return jsonify({"erro": str(exc)}), 400
         conn.execute(
             """UPDATE acoes_setor
-                  SET tipo=?, data=?, hora_inicio=?, hora_fim=?, localidade=?,
-                      endereco=?, local=?, publico_aproximado=?, tema=?,
-                      contexto=?, coordenadas=?, observacoes=?, atualizado_em=?
+                  SET tipo=?, data=?, periodo=?, hora_inicio=?, hora_fim=?, localidade=?,
+                      endereco=?, local=?, publico_aproximado=?,
+                      tipo_atividade_realizada=?, publico_alvo=?, recurso_utilizado=?,
+                      tema=?, contexto=?, coordenadas=?, observacoes=?, atualizado_em=?
                 WHERE id_acao=?""",
             (
                 payload["tipo"],
                 payload["data"],
+                payload["periodo"],
                 payload["hora_inicio"],
                 payload["hora_fim"],
                 payload["localidade"],
                 payload["endereco"],
                 payload["local"],
                 payload["publico_aproximado"],
+                _multi_db(payload["tipo_atividade_realizada"]),
+                _multi_db(payload["publico_alvo"]),
+                _multi_db(payload["recurso_utilizado"]),
                 payload["tema"],
                 payload["contexto"],
                 payload["coordenadas"],

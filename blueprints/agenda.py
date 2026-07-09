@@ -1,5 +1,6 @@
 from calendar import monthrange
 from datetime import date, datetime, timedelta
+import json
 import sqlite3
 import unicodedata
 
@@ -27,6 +28,48 @@ AGENDA_AUTO_FONTES = {
 }
 
 AGENDA_TIPO_CHECK = "('reuniao','planejamento','campo','prazo','treinamento','tarefa','ferias','outro')"
+ACOES_MULTI_LABELS = {
+    "tipo_atividade_realizada": {
+        "palestra": "Palestra",
+        "teatro_educativo": "Teatro Educativo",
+        "exposicao": "Exposição",
+        "oficina": "Oficina",
+        "conversa_educativa": "Conversa Educativa",
+        "outro": "Outro",
+    },
+    "publico_alvo": {
+        "educacao_infantil": "Educação Infantil",
+        "funcionarios": "Funcionários",
+        "ensino_fundamental": "Ensino Fundamental",
+        "comunidade_escolar": "Comunidade Escolar",
+        "professores": "Professores",
+        "outro": "Outro",
+    },
+    "recurso_utilizado": {
+        "banner": "Banner",
+        "fantasias": "Fantasias",
+        "cartazes": "Cartazes",
+        "material_trabalho_demonstrativo": "Material de trabalho demonstrativo",
+        "videos_imagens_midia_digital": "Vídeos/Imagens/Mídia digital",
+        "maquete": "Maquete",
+        "outros": "Outros",
+    },
+}
+
+
+def _labels_acoes_setor(value, campo):
+    if not value:
+        return ""
+    try:
+        codigos = json.loads(value)
+    except (TypeError, ValueError):
+        codigos = [item.strip() for item in str(value).split(",")]
+    labels = ACOES_MULTI_LABELS.get(campo, {})
+    return ", ".join(labels.get(str(codigo), str(codigo)) for codigo in codigos if str(codigo or "").strip())
+
+
+def _row_get(row, campo, default=None):
+    return row[campo] if campo in row.keys() else default
 
 RECORRENCIAS = {
     "nenhuma": {"label": "Não repetir", "days": None, "months": None},
@@ -557,6 +600,9 @@ def _eventos_periodo(inicio, fim):
                 complemento = r["localidade"] or r["local"] or ""
             titulo = f"{base} - {complemento}" if complemento else base
             resumo_partes = []
+            periodo = _row_get(r, "periodo")
+            if periodo:
+                resumo_partes.append(f"Período: {'Manhã' if periodo == 'manha' else 'Tarde' if periodo == 'tarde' else periodo}")
             if r["hora_inicio"] or r["hora_fim"]:
                 hora = " - ".join(x for x in (r["hora_inicio"], r["hora_fim"]) if x)
                 resumo_partes.append(f"Horário: {hora}")
@@ -566,6 +612,14 @@ def _eventos_periodo(inicio, fim):
                 resumo_partes.append(f"Endereço: {r['endereco']}")
             if r["publico_aproximado"] is not None:
                 resumo_partes.append(f"Público aproximado: {r['publico_aproximado']}")
+            for coluna, label in (
+                ("tipo_atividade_realizada", "Tipo de atividade"),
+                ("publico_alvo", "Público alvo"),
+                ("recurso_utilizado", "Recurso utilizado"),
+            ):
+                texto = _labels_acoes_setor(_row_get(r, coluna), coluna)
+                if texto:
+                    resumo_partes.append(f"{label}: {texto}")
             if r["contexto"]:
                 resumo_partes.append(f"Contexto: {r['contexto']}")
             if r["coordenadas"]:

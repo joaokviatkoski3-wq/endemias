@@ -2675,6 +2675,13 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("Ação de limpeza / mutirão", html)
         self.assertIn('src="/static/icons/acoes_setor.svg"', html)
         self.assertIn('id="acao-agentes"', html)
+        self.assertIn('name="acao-periodo"', html)
+        self.assertIn('name="acao-tipo-atividade-realizada"', html)
+        self.assertIn('name="acao-publico-alvo"', html)
+        self.assertIn('name="acao-recurso-utilizado"', html)
+        self.assertIn("Tipo de atividade realizada", html)
+        self.assertIn("Público alvo", html)
+        self.assertIn("Recurso utilizado", html)
         self.assertIn('id="acao-agentes-busca"', html)
         self.assertIn('name="acao-agente"', html)
         self.assertNotIn('id="acao-agentes" multiple', html)
@@ -2689,6 +2696,8 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('data-acao-item', js)
         self.assertIn("let registroAberto = null", js)
         self.assertIn("function alternarRegistro", js)
+        self.assertIn("function checkedValues", js)
+        self.assertIn("Informe o período da ação.", js)
         self.assertIn("function detalhesRegistroHtml", js)
         self.assertIn("await carregar();\n    limparForm();", js)
         self.assertNotIn("preencherForm(atualizada);\n      focarRegistroSalvo", js)
@@ -2705,9 +2714,18 @@ class MainPagesSmokeTests(unittest.TestCase):
             finally:
                 conn.close()
 
+            sem_periodo = client.post("/api/acoes-setor", json={
+                "tipo": "educativa",
+                "data": "2026-08-12",
+                "agentes": [id_agente],
+            })
+            self.assertEqual(sem_periodo.status_code, 400)
+            self.assertIn("período", sem_periodo.get_json()["erro"])
+
             resp = client.post("/api/acoes-setor", json={
                 "tipo": "educativa",
                 "data": "2026-08-12",
+                "periodo": "manha",
                 "hora_inicio": "09:00",
                 "hora_fim": "10:30",
                 "agentes": [id_agente],
@@ -2715,6 +2733,9 @@ class MainPagesSmokeTests(unittest.TestCase):
                 "endereco": "Rua Principal, 100",
                 "local": "Escola Municipal",
                 "publico_aproximado": 45,
+                "tipo_atividade_realizada": ["palestra", "conversa_educativa"],
+                "publico_alvo": ["ensino_fundamental", "professores"],
+                "recurso_utilizado": ["banner", "videos_imagens_midia_digital"],
                 "tema": "Prevenção da dengue",
                 "contexto": "Palestra para alunos",
                 "observacoes": "Levar folders",
@@ -2728,10 +2749,15 @@ class MainPagesSmokeTests(unittest.TestCase):
             self.assertEqual(len(registros), 1)
             self.assertEqual(registros[0]["id_acao"], id_acao)
             self.assertEqual(registros[0]["agentes"][0]["nome"], "João Silva")
+            self.assertEqual(registros[0]["periodo"], "manha")
+            self.assertIn("Palestra", registros[0]["tipo_atividade_realizada_labels"])
+            self.assertIn("Ensino Fundamental", registros[0]["publico_alvo_labels"])
+            self.assertIn("Banner", registros[0]["recurso_utilizado_labels"])
 
             resp = client.put(f"/api/acoes-setor/{id_acao}", json={
                 "tipo": "limpeza",
                 "data": "2026-08-13",
+                "periodo": "tarde",
                 "hora_inicio": "08:00",
                 "agentes": [id_agente],
                 "localidade": "Centro",
@@ -2744,6 +2770,7 @@ class MainPagesSmokeTests(unittest.TestCase):
             resp = client.get(f"/api/acoes-setor/{id_acao}")
             self.assertEqual(resp.status_code, 200)
             self.assertEqual(resp.get_json()["tipo"], "limpeza")
+            self.assertEqual(resp.get_json()["periodo_label"], "Tarde")
 
     def test_acoes_setor_anexos_ficam_em_pasta_e_podem_ser_excluidos(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -2754,6 +2781,7 @@ class MainPagesSmokeTests(unittest.TestCase):
             resp = client.post("/api/acoes-setor", json={
                 "tipo": "limpeza",
                 "data": "2026-08-12",
+                "periodo": "manha",
                 "localidade": "Centro",
                 "local": "Terreno particular",
                 "observacoes": "Documentação anexada posteriormente",
@@ -2809,12 +2837,16 @@ class MainPagesSmokeTests(unittest.TestCase):
             resp = client.post("/api/acoes-setor", json={
                 "tipo": "educativa",
                 "data": "2026-08-12",
+                "periodo": "manha",
                 "hora_inicio": "09:00",
                 "hora_fim": "10:00",
                 "agentes": [id_agente],
                 "localidade": "Centro",
                 "local": "Escola Municipal",
                 "publico_aproximado": 30,
+                "tipo_atividade_realizada": ["oficina"],
+                "publico_alvo": ["comunidade_escolar"],
+                "recurso_utilizado": ["maquete"],
                 "tema": "Saúde ambiental",
                 "contexto": "Atividade com estudantes",
             })
@@ -2831,7 +2863,11 @@ class MainPagesSmokeTests(unittest.TestCase):
             props = eventos[0]["extendedProps"]
             self.assertEqual(props["origem"], "auto")
             self.assertEqual(props["fonteLabel"], "Ação educativa")
+            self.assertIn("Período: Manhã", props["resumo"])
             self.assertIn("Público aproximado: 30", props["resumo"])
+            self.assertIn("Tipo de atividade: Oficina", props["resumo"])
+            self.assertIn("Público alvo: Comunidade Escolar", props["resumo"])
+            self.assertIn("Recurso utilizado: Maquete", props["resumo"])
             self.assertEqual(props["agentes"], "Maria Souza")
 
     def test_agenda_rejeita_evento_com_fim_antes_do_inicio(self):
@@ -5793,6 +5829,7 @@ class MainApisSmokeTests(unittest.TestCase):
                 conn.close()
 
             base = {
+                "periodo": "manha",
                 "hora_inicio": "09:00",
                 "agentes": [id_agente],
                 "localidade": "Centro",

@@ -37,6 +37,21 @@
     return r.hora_inicio || r.hora_fim || '';
   }
 
+  function checkedValues(name){
+    return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(opt => opt.value);
+  }
+
+  function setCheckedValues(name, values){
+    const selecionados = new Set((values || []).map(String));
+    Array.from(document.querySelectorAll(`input[name="${name}"]`)).forEach(opt => {
+      opt.checked = selecionados.has(opt.value);
+    });
+  }
+
+  function labelsLista(values){
+    return (values || []).filter(Boolean).join(', ');
+  }
+
   function params(){
     const p = new URLSearchParams();
     if($('acoes-busca').value.trim()) p.set('busca', $('acoes-busca').value.trim());
@@ -56,9 +71,13 @@
     const data = {
       tipo: $('acao-tipo').value,
       data: $('acao-data').value,
+      periodo: document.querySelector('input[name="acao-periodo"]:checked')?.value || '',
       hora_inicio: $('acao-hora-inicio').value,
       hora_fim: $('acao-hora-fim').value,
       publico_aproximado: $('acao-publico').value,
+      tipo_atividade_realizada: checkedValues('acao-tipo-atividade-realizada'),
+      publico_alvo: checkedValues('acao-publico-alvo'),
+      recurso_utilizado: checkedValues('acao-recurso-utilizado'),
       agentes: Array.from(document.querySelectorAll('input[name="acao-agente"]:checked')).map(opt => opt.value),
     };
     camposTexto.forEach(campo => {
@@ -72,9 +91,13 @@
     $('acao-form-title').textContent = 'Nova ação';
     $('acao-tipo').value = 'educativa';
     $('acao-data').value = new Date().toISOString().slice(0, 10);
+    setCheckedValues('acao-periodo', []);
     $('acao-hora-inicio').value = '';
     $('acao-hora-fim').value = '';
     $('acao-publico').value = '';
+    setCheckedValues('acao-tipo-atividade-realizada', []);
+    setCheckedValues('acao-publico-alvo', []);
+    setCheckedValues('acao-recurso-utilizado', []);
     camposTexto.forEach(campo => { $(`acao-${campo}`).value = ''; });
     $('acao-agentes-busca').value = '';
     Array.from(document.querySelectorAll('input[name="acao-agente"]')).forEach(opt => { opt.checked = false; });
@@ -88,9 +111,13 @@
     $('acao-form-title').textContent = 'Editar ação';
     $('acao-tipo').value = r.tipo || 'educativa';
     $('acao-data').value = r.data || '';
+    setCheckedValues('acao-periodo', r.periodo ? [r.periodo] : []);
     $('acao-hora-inicio').value = r.hora_inicio || '';
     $('acao-hora-fim').value = r.hora_fim || '';
     $('acao-publico').value = r.publico_aproximado ?? '';
+    setCheckedValues('acao-tipo-atividade-realizada', r.tipo_atividade_realizada || []);
+    setCheckedValues('acao-publico-alvo', r.publico_alvo || []);
+    setCheckedValues('acao-recurso-utilizado', r.recurso_utilizado || []);
     camposTexto.forEach(campo => { $(`acao-${campo}`).value = r[campo] || ''; });
     const ids = new Set((r.agentes || []).map(a => String(a.id_agente)));
     Array.from(document.querySelectorAll('input[name="acao-agente"]')).forEach(opt => { opt.checked = ids.has(opt.value); });
@@ -143,6 +170,9 @@
       detalhe('Endereço', r.endereco),
       detalhe('Agentes', r.agentes_nomes),
       detalhe('Público aprox.', r.publico_aproximado),
+      detalhe('Tipo de atividade', labelsLista(r.tipo_atividade_realizada_labels)),
+      detalhe('Público alvo', labelsLista(r.publico_alvo_labels)),
+      detalhe('Recurso utilizado', labelsLista(r.recurso_utilizado_labels)),
       detalhe('Coordenadas', r.coordenadas),
     ].join('');
     const notas = [r.contexto, r.observacoes].filter(Boolean).join('\n');
@@ -167,7 +197,7 @@
           <div>
             <span class="acao-tag ${classe}">${esc(r.tipo_label)}</span>
             <div class="acao-title">${esc(titulo)}</div>
-            <div class="acao-meta">${esc(dataBR(r.data))}${horaRange(r) ? ` | ${esc(horaRange(r))}` : ''}</div>
+            <div class="acao-meta">${esc(dataBR(r.data))}${r.periodo_label ? ` | ${esc(r.periodo_label)}` : ''}${horaRange(r) ? ` | ${esc(horaRange(r))}` : ''}</div>
           </div>
           <div style="display:flex;gap:6px;">
             <button class="btn btn-icon" type="button" data-editar="${r.id_acao}" title="Editar"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button>
@@ -230,6 +260,7 @@
   async function salvar(){
     const data = payload();
     if(!data.data){ toast('Informe a data da ação.', 'error'); return; }
+    if(!data.periodo){ toast('Informe o período da ação.', 'error'); return; }
     const id = $('acao-id').value;
     const resp = await api(id ? `/api/acoes-setor/${id}` : '/api/acoes-setor', {
       method: id ? 'PUT' : 'POST',
