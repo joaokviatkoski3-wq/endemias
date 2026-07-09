@@ -1463,6 +1463,55 @@ def limpar_quarteirao(db_path, payload, base_dir=None):
         conn.close()
 
 
+def excluir_quarteirao(db_path, payload, base_dir=None):
+    ensure_schema(db_path, base_dir)
+    conn = db_core.connect(db_path)
+    try:
+        loc_id = int(payload.get("id_localidade") or 0)
+        loc = conn.execute("SELECT id_localidade, nome FROM localidades WHERE id_localidade=?", (loc_id,)).fetchone()
+        if not loc:
+            raise ValueError("Localidade nao encontrada no cadastro.")
+        q = _quarteirao(payload.get("quarteirao"))
+        if not q:
+            raise ValueError("Informe o quarteirao.")
+        with conn:
+            row_q = conn.execute(
+                "SELECT id_quarteirao FROM registro_geografico_quarteiroes WHERE id_localidade=? AND quarteirao=?",
+                (loc_id, q),
+            ).fetchone()
+            if not row_q:
+                raise ValueError("Quarteirao nao encontrado no cadastro.")
+            ids = [
+                row["id_imovel"]
+                for row in conn.execute(
+                    "SELECT id_imovel FROM registro_geografico_imoveis WHERE id_quarteirao=?",
+                    (row_q["id_quarteirao"],),
+                )
+            ]
+            if ids:
+                placeholders = ",".join("?" for _ in ids)
+                conn.execute(
+                    f"DELETE FROM registro_geografico_imovel_agentes WHERE id_imovel IN ({placeholders})",
+                    tuple(ids),
+                )
+                conn.execute(
+                    f"DELETE FROM registro_geografico_imoveis WHERE id_imovel IN ({placeholders})",
+                    tuple(ids),
+                )
+            conn.execute(
+                "DELETE FROM registro_geografico_quarteiroes WHERE id_quarteirao=?",
+                (row_q["id_quarteirao"],),
+            )
+        return {
+            "localidade": dict(loc),
+            "quarteirao": _quarteirao_display(q),
+            "quarteirao_raw": q,
+            "removidos": len(ids),
+        }
+    finally:
+        conn.close()
+
+
 def salvar(db_path, id_imovel, payload, base_dir=None):
     ensure_schema(db_path, base_dir)
     conn = db_core.connect(db_path)

@@ -155,6 +155,28 @@ def api_limpar_quarteirao():
     return jsonify({"ok": True, "quarteirao": dados})
 
 
+@bp.route("/api/registro-geografico/quarteirao/excluir", methods=["POST"])
+@login_required
+@nivel_min("operador")
+def api_excluir_quarteirao():
+    payload = request.get_json(silent=True) or {}
+    try:
+        dados = rg_core.excluir_quarteirao(_db_path(), payload, _base_dir())
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(
+        get_db,
+        "registro_geografico_quarteirao_excluido",
+        entidade="registro_geografico",
+        detalhes={
+            "localidade": dados.get("localidade", {}).get("nome"),
+            "quarteirao": dados.get("quarteirao"),
+            "removidos": dados.get("removidos"),
+        },
+    )
+    return jsonify({"ok": True, "quarteirao": dados})
+
+
 @bp.route("/api/registro-geografico/mapa-resumo")
 @login_required
 def api_mapa_resumo():

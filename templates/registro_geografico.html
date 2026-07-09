@@ -209,6 +209,7 @@
         <button class="btn btn-outline" type="button" id="rg-ed-fill-down"><img src="/static/icons/rolar.svg" alt="" class="icon-svg"> Preencher abaixo</button>
         <button class="btn btn-outline" type="button" id="rg-ed-fill-empty"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Preencher vazios</button>
         <button class="btn btn-outline rg-danger" type="button" id="rg-ed-limpar-quarteirao"><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"> Limpar quarteir&atilde;o</button>
+        <button class="btn btn-outline rg-danger" type="button" id="rg-ed-excluir-quarteirao"><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"> Excluir quarteir&atilde;o</button>
         <span class="rg-muted" id="rg-ed-status"></span>
       </div>
     </div>
@@ -1112,6 +1113,14 @@ async function rgCarregarSelectQuarteiroes(localidadeId, selectId){
     ? (isMulti ? '' : '<option value="">Selecione</option>') + rows.map(r => `<option value="${rgEscape(r.quarteirao)}">Quarteirão ${rgEscape(r.quarteirao)} (${rgFmt(r.imoveis)} imóveis)</option>`).join('')
     : '<option value="">Sem quarteirões</option>';
 }
+async function rgAtualizarMapaResumo(){
+  if(!rgMapState.initialized) return;
+  const mapaResp = await fetch('/api/registro-geografico/mapa-resumo');
+  rgMapState.data = await rgJson(mapaResp, 'Erro ao atualizar resumo do mapa.');
+  rgMapState.selected.clear();
+  rgMapRender();
+  rgMapRenderSelection();
+}
 async function rgCarregarChecksQuarteiroes(localidadeId, boxId='rg-imp-quarteiroes'){
   const box = rgEl(boxId);
   if(!box) return;
@@ -1221,14 +1230,45 @@ async function rgLimparQuarteirao(){
     rgSetText('rg-ed-info', `${rgState.q.localidade.nome} - Q. ${rgState.q.quarteirao}`);
     rgSetText('rg-ed-status', `${rgFmt(data.quarteirao.removidos || 0)} linha(s) removida(s). Primeira linha em branco pronta para preencher.`);
     rgCarregar().catch(() => {});
-    if(rgMapState.initialized){
-      const mapaResp = await fetch('/api/registro-geografico/mapa-resumo');
-      rgMapState.data = await rgJson(mapaResp, 'Erro ao atualizar resumo do mapa.');
-      rgMapState.selected.clear();
-      rgMapRender();
-      rgMapRenderSelection();
-    }
+    await rgAtualizarMapaResumo();
   } finally {
+    rgEl('rg-ed-limpar-quarteirao').disabled = false;
+  }
+}
+async function rgExcluirQuarteirao(){
+  if(!rgState.q){ alert('Carregue um quarteir\u00e3o antes de excluir.'); return; }
+  const locId = rgState.q.localidade?.id_localidade || rgEl('rg-ed-dest-localidade').value;
+  const locNome = rgState.q.localidade?.nome || rgEl('rg-ed-dest-localidade').selectedOptions[0]?.textContent || 'localidade selecionada';
+  const q = rgState.q.quarteirao_raw || rgState.q.quarteirao || rgEl('rg-ed-dest-quarteirao').value;
+  const total = rgEl('rg-ed-body').querySelectorAll('tr').length;
+  if(!confirm(`Excluir completamente o quarteirao ${q} de ${locNome}?\n\nEsta acao remove o quarteirao do cadastro e apaga ${total} linha(s) vinculada(s). Use apenas se esse quarteirao nao deve existir no RG.`)) return;
+  const chave = prompt('Confirmacao final: digite EXCLUIR para apagar definitivamente este quarteirao.');
+  if(chave !== 'EXCLUIR'){
+    rgSetText('rg-ed-status', 'Exclusao cancelada.');
+    return;
+  }
+  rgSetText('rg-ed-status', 'Excluindo quarteirao...');
+  rgEl('rg-ed-excluir-quarteirao').disabled = true;
+  rgEl('rg-ed-limpar-quarteirao').disabled = true;
+  try {
+    const resp = await fetch('/api/registro-geografico/quarteirao/excluir', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':rgCsrf()},
+      body:JSON.stringify({id_localidade:locId, quarteirao:q})
+    });
+    const data = await rgJson(resp, 'Erro ao excluir quarteirao.');
+    rgState.q = null;
+    rgEl('rg-ed-area').hidden = true;
+    rgEl('rg-ed-body').innerHTML = '';
+    rgEl('rg-ed-info').textContent = '';
+    rgEl('rg-ed-quarteirao').value = '';
+    rgEl('rg-ed-dest-quarteirao').value = '';
+    await rgCarregarSelectQuarteiroes(locId, 'rg-ed-quarteirao');
+    rgSetText('rg-ed-status', `Quarteirao excluido. ${rgFmt(data.quarteirao.removidos || 0)} linha(s) removida(s).`);
+    rgCarregar().catch(() => {});
+    await rgAtualizarMapaResumo();
+  } finally {
+    rgEl('rg-ed-excluir-quarteirao').disabled = false;
     rgEl('rg-ed-limpar-quarteirao').disabled = false;
   }
 }
@@ -1310,6 +1350,7 @@ rgEl('rg-ed-carregar').addEventListener('click', () => rgCarregarQuarteirao().ca
 rgEl('rg-ed-novo').addEventListener('click', () => rgAdicionarQuarteirao().catch(err => { rgSetText('rg-ed-status', err.message); }));
 rgEl('rg-ed-salvar').addEventListener('click', () => rgSalvarQuarteirao().catch(err => { rgSetText('rg-ed-status', err.message); }));
 rgEl('rg-ed-limpar-quarteirao').addEventListener('click', () => rgLimparQuarteirao().catch(err => { rgSetText('rg-ed-status', err.message); }));
+rgEl('rg-ed-excluir-quarteirao').addEventListener('click', () => rgExcluirQuarteirao().catch(err => { rgSetText('rg-ed-status', err.message); }));
 rgEl('rg-ed-add').addEventListener('click', () => {
   const last = Array.from(rgEl('rg-ed-body').children).filter(tr => tr.dataset.delete !== '1').at(-1);
   const nova = rgLinha(last ? {

@@ -4014,6 +4014,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("/api/registro-geografico/lote/preview", html)
         self.assertIn("/api/registro-geografico/lote/aplicar", html)
         self.assertIn("/api/registro-geografico/quarteirao/limpar", html)
+        self.assertIn("/api/registro-geografico/quarteirao/excluir", html)
         self.assertIn("rg-panel-mapa", html)
         self.assertIn('id="rg-mapa"', html)
         self.assertIn('id="rg-map-detail-title"', html)
@@ -4035,10 +4036,13 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn('id="rg-ed-fill-down"', html)
         self.assertIn('id="rg-ed-fill-empty"', html)
         self.assertIn('id="rg-ed-limpar-quarteirao"', html)
+        self.assertIn('id="rg-ed-excluir-quarteirao"', html)
         self.assertIn("Limpar quarteir&atilde;o", html)
+        self.assertIn("Excluir quarteir&atilde;o", html)
         self.assertIn('id="rg-logradouro-suggest"', html)
         self.assertIn("function rgBuscarLogradouroSugestoes", html)
         self.assertIn("function rgLimparQuarteirao", html)
+        self.assertIn("function rgExcluirQuarteirao", html)
         self.assertIn("function rgFocusCell", html)
         self.assertIn("rg-row-active", html)
         self.assertIn("nth-child(even)", html)
@@ -4645,6 +4649,40 @@ class MainApisSmokeTests(unittest.TestCase):
                 q2 = client.get(f"/api/registro-geografico/quarteirao?localidade={loc_id}&quarteirao=0002")
                 self.assertEqual(q2.status_code, 200)
                 self.assertEqual(len(q2.get_json()["registros"]), 1)
+
+                excluir = client.post(
+                    "/api/registro-geografico/quarteirao/excluir",
+                    json={"id_localidade": loc_id, "quarteirao": "0002"},
+                )
+                self.assertEqual(excluir.status_code, 200)
+                dados_excluir = excluir.get_json()["quarteirao"]
+                self.assertEqual(dados_excluir["removidos"], 1)
+                self.assertEqual(dados_excluir["quarteirao"], "2")
+
+                lista = client.get(f"/api/registro-geografico/quarteiroes?localidade={loc_id}")
+                self.assertEqual(lista.status_code, 200)
+                quarteiroes = {item["quarteirao_raw"] for item in lista.get_json()["registros"]}
+                self.assertIn("0001", quarteiroes)
+                self.assertNotIn("0002", quarteiroes)
+
+                conn = sqlite3.connect(db_path)
+                try:
+                    self.assertEqual(
+                        conn.execute(
+                            "SELECT COUNT(*) FROM registro_geografico_quarteiroes WHERE id_localidade=? AND quarteirao=?",
+                            (loc_id, "0002"),
+                        ).fetchone()[0],
+                        0,
+                    )
+                    self.assertEqual(
+                        conn.execute(
+                            "SELECT COUNT(*) FROM registro_geografico_imoveis WHERE id_localidade=? AND quarteirao=?",
+                            (loc_id, "0002"),
+                        ).fetchone()[0],
+                        0,
+                    )
+                finally:
+                    conn.close()
 
     def test_api_esporotricose_animais_retorna_detalhes(self):
         client = _client_logado()
