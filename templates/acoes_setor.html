@@ -4,6 +4,10 @@
 
 {% block extra_css %}<style>
 .acoes-layout{display:grid;grid-template-columns:minmax(340px,420px) minmax(0,1fr);gap:16px;align-items:start;}
+.acoes-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.acoes-tab{border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:var(--radius-sm);padding:8px 12px;font-weight:900;cursor:pointer;}
+.acoes-tab.active{background:#0f766e;color:white;border-color:#0f766e;}
+.acoes-tab-panel[hidden]{display:none!important;}
 .acoes-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);}
 .acoes-panel-hd{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);}
 .acoes-panel-title{display:flex;align-items:center;gap:8px;font-weight:900;color:var(--text);}
@@ -41,6 +45,7 @@
 .acoes-anexo-actions{display:flex;gap:6px;justify-content:flex-end;border-top:1px solid var(--border);padding:7px 8px;background:var(--surface2);}
 .acoes-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:14px;}
 .acoes-filters{display:grid;grid-template-columns:1.2fr .8fr .6fr auto;gap:10px;align-items:end;}
+.acoes-gallery-filters{display:grid;grid-template-columns:1.2fr .8fr .8fr .6fr auto;gap:10px;align-items:end;}
 .acoes-list{display:grid;gap:10px;margin-top:14px;}
 .acao-item{border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--surface);cursor:pointer;}
 .acao-item.open{box-shadow:inset 3px 0 0 #0f766e;}
@@ -55,8 +60,8 @@
 .acao-tag{display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:900;background:rgba(13,148,136,.12);color:#0f766e;}
 .acao-tag.limpeza{background:rgba(217,119,6,.14);color:#b45309;}
 .acao-empty{padding:24px;text-align:center;color:var(--text3);border:1px dashed var(--border);border-radius:8px;}
-@media(max-width:980px){.acoes-layout{grid-template-columns:1fr;}.acoes-filters{grid-template-columns:1fr 1fr;}.acoes-filters .btn{width:100%;}}
-@media(max-width:640px){.acoes-form,.acoes-filters{grid-template-columns:1fr;}.acoes-actions .btn{flex:1;}}
+@media(max-width:980px){.acoes-layout{grid-template-columns:1fr;}.acoes-filters,.acoes-gallery-filters{grid-template-columns:1fr 1fr;}.acoes-filters .btn,.acoes-gallery-filters .btn{width:100%;}}
+@media(max-width:640px){.acoes-form,.acoes-filters,.acoes-gallery-filters{grid-template-columns:1fr;}.acoes-actions .btn{flex:1;}}
 </style>{% endblock %}
 
 {% block content %}
@@ -65,6 +70,12 @@
   <div class="sub">Registro manual de ações educativas, palestras, limpezas e mutirões</div>
 </div>
 
+<div class="acoes-tabs" role="tablist">
+  <button class="acoes-tab active" type="button" data-acoes-tab="registros">Registros</button>
+  <button class="acoes-tab" type="button" data-acoes-tab="anexos">Anexos</button>
+</div>
+
+<section class="acoes-tab-panel" id="acoes-panel-registros">
 <div class="acoes-layout">
   <section class="acoes-panel">
     <div class="acoes-panel-hd">
@@ -146,7 +157,10 @@
       <div class="acoes-attachments">
         <div class="acoes-attachments-head">
           <div class="acoes-attachments-title"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> Anexos</div>
-          <button class="btn btn-outline" type="button" id="acao-anexo-selecionar" disabled><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Adicionar</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+            <button class="btn btn-outline" type="button" id="acao-anexos-baixar-todos" disabled><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Baixar todos</button>
+            <button class="btn btn-outline" type="button" id="acao-anexo-selecionar" disabled><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Adicionar</button>
+          </div>
         </div>
         <input class="acoes-file-input" type="file" id="acao-anexos-arquivos" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.txt">
         <div class="acoes-attachments-disabled" id="acao-anexos-aviso">Salve a ação para adicionar fotos e documentos.</div>
@@ -172,6 +186,26 @@
     </div>
   </section>
 </div>
+</section>
+
+<section class="acoes-tab-panel" id="acoes-panel-anexos" hidden>
+  <div class="acoes-panel">
+    <div class="acoes-panel-hd">
+      <div class="acoes-panel-title"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> Galeria de anexos</div>
+      <span class="table-info" id="acoes-anexos-total">0 anexo(s)</span>
+    </div>
+    <div class="acoes-panel-bd">
+      <div class="acoes-gallery-filters">
+        <div class="f-g"><label>Pesquisa</label><input id="acoes-anexos-busca" type="search" placeholder="Arquivo, local, tema..."></div>
+        <div class="f-g"><label>Tipo de ação</label><select id="acoes-anexos-tipo-acao"><option value="">Todos</option>{% for codigo, label in tipos_acao.items() %}<option value="{{ codigo }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Tipo de arquivo</label><select id="acoes-anexos-tipo-arquivo"><option value="">Todos</option><option value="imagem">Imagens</option><option value="pdf">PDF</option><option value="documento">Documentos</option></select></div>
+        <div class="f-g"><label>Ano</label><input id="acoes-anexos-ano" type="number" min="2020" max="2099" step="1" placeholder="Todos"></div>
+        <button class="btn btn-outline" type="button" id="acoes-anexos-buscar"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button>
+      </div>
+      <div class="acoes-anexo-list" id="acoes-anexos-galeria"></div>
+    </div>
+  </div>
+</section>
 {% endblock %}
 
 {% block extra_js %}

@@ -6,6 +6,7 @@
   const fmtData = new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' });
   let registros = [];
   let registroAberto = null;
+  let galeriaAnexosCarregada = false;
   const anexosPorAcao = {};
 
   function esc(valor){
@@ -72,6 +73,15 @@
     if($('acoes-busca').value.trim()) p.set('busca', $('acoes-busca').value.trim());
     if($('acoes-filtro-tipo').value) p.set('tipo', $('acoes-filtro-tipo').value);
     if($('acoes-ano').value) p.set('ano', $('acoes-ano').value);
+    return p.toString();
+  }
+
+  function paramsAnexos(){
+    const p = new URLSearchParams();
+    if($('acoes-anexos-busca').value.trim()) p.set('busca', $('acoes-anexos-busca').value.trim());
+    if($('acoes-anexos-tipo-acao').value) p.set('tipo_acao', $('acoes-anexos-tipo-acao').value);
+    if($('acoes-anexos-tipo-arquivo').value) p.set('tipo_arquivo', $('acoes-anexos-tipo-arquivo').value);
+    if($('acoes-anexos-ano').value) p.set('ano', $('acoes-anexos-ano').value);
     return p.toString();
   }
 
@@ -169,30 +179,43 @@
     return partes.length > 1 ? partes.pop().slice(0, 6) : 'arquivo';
   }
 
+  function anexoContexto(a){
+    return [
+      a.acao_tipo_label,
+      dataBR(a.acao_data),
+      a.acao_titulo,
+      a.acao_localidade,
+    ].filter(Boolean).join(' | ');
+  }
+
+  function anexoCardHtml(a){
+    const imagem = anexoEhImagem(a);
+    const ver = a.eh_previa
+      ? `<a class="btn btn-icon" href="${a.url_visualizar}" target="_blank" rel="noopener" title="Visualizar"><img src="/static/icons/busca.svg" alt="" class="icon-svg"></a>`
+      : '';
+    const contexto = anexoContexto(a);
+    return `<div class="acoes-anexo">
+      <a class="acoes-anexo-preview" href="${a.url_visualizar || a.url_download}" target="_blank" rel="noopener" title="Abrir anexo">
+        ${imagem
+          ? `<img src="${a.url_visualizar}" alt="${esc(a.nome_original)}" loading="lazy">`
+          : `<div class="acoes-anexo-file">${esc(anexoExtensao(a))}</div>`}
+      </a>
+      <div class="acoes-anexo-main">
+        <div class="acoes-anexo-name">${esc(a.nome_original)}</div>
+        <div class="acoes-anexo-meta">${esc(a.mime_type || 'arquivo')} | ${esc(tamanhoBR(a.tamanho))}</div>
+        ${contexto ? `<div class="acoes-anexo-meta">${esc(contexto)}</div>` : ''}
+      </div>
+      <div class="acoes-anexo-actions">
+        ${ver}
+        <a class="btn btn-icon" href="${a.url_download}" title="Baixar"><img src="/static/icons/importar.svg" alt="" class="icon-svg"></a>
+        <button class="btn btn-icon" type="button" data-excluir-anexo="${a.id_anexo}" data-id-acao="${a.id_acao}" title="Excluir anexo"><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"></button>
+      </div>
+    </div>`;
+  }
+
   function anexosHtml(anexos){
     if(anexos === null) return '<div class="acoes-attachments-disabled">Carregando anexos...</div>';
-    return (anexos || []).map(a => {
-      const imagem = anexoEhImagem(a);
-      const ver = a.eh_previa
-        ? `<a class="btn btn-icon" href="${a.url_visualizar}" target="_blank" rel="noopener" title="Visualizar"><img src="/static/icons/busca.svg" alt="" class="icon-svg"></a>`
-        : '';
-      return `<div class="acoes-anexo">
-        <a class="acoes-anexo-preview" href="${a.url_visualizar || a.url_download}" target="_blank" rel="noopener" title="Abrir anexo">
-          ${imagem
-            ? `<img src="${a.url_visualizar}" alt="${esc(a.nome_original)}" loading="lazy">`
-            : `<div class="acoes-anexo-file">${esc(anexoExtensao(a))}</div>`}
-        </a>
-        <div class="acoes-anexo-main">
-          <div class="acoes-anexo-name">${esc(a.nome_original)}</div>
-          <div class="acoes-anexo-meta">${esc(a.mime_type || 'arquivo')} | ${esc(tamanhoBR(a.tamanho))}</div>
-        </div>
-        <div class="acoes-anexo-actions">
-          ${ver}
-          <a class="btn btn-icon" href="${a.url_download}" title="Baixar"><img src="/static/icons/importar.svg" alt="" class="icon-svg"></a>
-          <button class="btn btn-icon" type="button" data-excluir-anexo="${a.id_anexo}" data-id-acao="${a.id_acao}" title="Excluir anexo"><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"></button>
-        </div>
-      </div>`;
-    }).join('') || '<div class="acoes-attachments-disabled">Nenhum anexo cadastrado.</div>';
+    return (anexos || []).map(anexoCardHtml).join('') || '<div class="acoes-attachments-disabled">Nenhum anexo cadastrado.</div>';
   }
 
   function detalhesRegistroHtml(r){
@@ -211,7 +234,10 @@
     return `<div class="acao-expanded">
       <div class="acao-details">${detalhes || '<span style="color:var(--text3);">Sem detalhes adicionais.</span>'}</div>
       ${notas ? `<div class="acao-note">${esc(notas)}</div>` : ''}
-      <div class="acao-expanded-title">Anexos</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+        <div class="acao-expanded-title">Anexos</div>
+        <a class="btn btn-outline btn-sm" href="/api/acoes-setor/${r.id_acao}/anexos/baixar-todos"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Baixar todos</a>
+      </div>
       <div class="acoes-anexo-list">${anexosHtml(anexosPorAcao[r.id_acao])}</div>
     </div>`;
   }
@@ -244,6 +270,7 @@
   function atualizarEstadoAnexos(){
     const temAcao = Boolean($('acao-id').value);
     $('acao-anexo-selecionar').disabled = !temAcao;
+    $('acao-anexos-baixar-todos').disabled = !temAcao;
     $('acao-anexos-aviso').style.display = temAcao ? 'none' : 'block';
   }
 
@@ -256,6 +283,15 @@
     const data = await api(`/api/acoes-setor/${idAcao}/anexos`);
     anexosPorAcao[idAcao] = data.anexos || [];
     renderAnexos(data.anexos || []);
+    if(galeriaAnexosCarregada) carregarGaleriaAnexos().catch(() => {});
+  }
+
+  async function carregarGaleriaAnexos(){
+    const data = await api('/api/acoes-setor/anexos?' + paramsAnexos());
+    const anexos = data.anexos || [];
+    $('acoes-anexos-total').textContent = `${anexos.length} anexo(s)`;
+    $('acoes-anexos-galeria').innerHTML = anexosHtml(anexos);
+    galeriaAnexosCarregada = true;
   }
 
   async function alternarRegistro(idAcao){
@@ -342,6 +378,7 @@
       anexosPorAcao[registroAberto] = data.anexos || [];
       render();
     }
+    if(galeriaAnexosCarregada) await carregarGaleriaAnexos();
     toast('Anexo excluído.', 'success');
   }
 
@@ -358,20 +395,38 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     limparForm();
+    document.querySelectorAll('.acoes-tab').forEach(btn => btn.addEventListener('click', () => {
+      document.querySelectorAll('.acoes-tab').forEach(item => item.classList.toggle('active', item === btn));
+      document.querySelectorAll('.acoes-tab-panel').forEach(panel => {
+        panel.hidden = panel.id !== `acoes-panel-${btn.dataset.acoesTab}`;
+      });
+      if(btn.dataset.acoesTab === 'anexos') carregarGaleriaAnexos().catch(e => toast(e.message, 'error'));
+    }));
     $('acao-salvar').addEventListener('click', () => salvar().catch(e => toast(e.message, 'error')));
     $('acao-limpar').addEventListener('click', limparForm);
     $('acao-cancelar').addEventListener('click', limparForm);
     $('acao-tipo').addEventListener('change', atualizarCamposEducativos);
     $('acao-tipo').addEventListener('input', atualizarCamposEducativos);
     $('acao-agentes-busca').addEventListener('input', filtrarAgentes);
+    $('acao-anexos-baixar-todos').addEventListener('click', () => {
+      const id = $('acao-id').value;
+      if(id) window.location.href = `/api/acoes-setor/${id}/anexos/baixar-todos`;
+    });
     $('acao-anexo-selecionar').addEventListener('click', () => $('acao-anexos-arquivos').click());
     $('acao-anexos-arquivos').addEventListener('change', () => enviarAnexos().catch(e => toast(e.message, 'error')));
     $('acoes-buscar').addEventListener('click', () => carregar().catch(e => toast(e.message, 'error')));
     ['acoes-busca', 'acoes-filtro-tipo', 'acoes-ano'].forEach(id => {
       $(id).addEventListener('change', () => carregar().catch(e => toast(e.message, 'error')));
     });
+    ['acoes-anexos-busca', 'acoes-anexos-tipo-acao', 'acoes-anexos-tipo-arquivo', 'acoes-anexos-ano'].forEach(id => {
+      $(id).addEventListener('change', () => carregarGaleriaAnexos().catch(e => toast(e.message, 'error')));
+    });
+    $('acoes-anexos-buscar').addEventListener('click', () => carregarGaleriaAnexos().catch(e => toast(e.message, 'error')));
     $('acoes-busca').addEventListener('keydown', e => {
       if(e.key === 'Enter') carregar().catch(err => toast(err.message, 'error'));
+    });
+    $('acoes-anexos-busca').addEventListener('keydown', e => {
+      if(e.key === 'Enter') carregarGaleriaAnexos().catch(err => toast(err.message, 'error'));
     });
     $('acoes-lista').addEventListener('click', async e => {
       const editar = e.target.closest('[data-editar]');
@@ -397,6 +452,10 @@
       }
     });
     $('acao-anexos-lista').addEventListener('click', e => {
+      const btn = e.target.closest('[data-excluir-anexo]');
+      if(btn) excluirAnexo(btn.dataset.excluirAnexo).catch(err => toast(err.message, 'error'));
+    });
+    $('acoes-anexos-galeria').addEventListener('click', e => {
       const btn = e.target.closest('[data-excluir-anexo]');
       if(btn) excluirAnexo(btn.dataset.excluirAnexo).catch(err => toast(err.message, 'error'));
     });

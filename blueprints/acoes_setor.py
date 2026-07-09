@@ -1,4 +1,5 @@
 from datetime import datetime
+import io
 import json
 import mimetypes
 import os
@@ -7,6 +8,7 @@ import shutil
 import sqlite3
 import unicodedata
 import uuid
+import zipfile
 
 from flask import Blueprint, abort, current_app, jsonify, render_template, request, send_file
 from werkzeug.utils import secure_filename
@@ -318,6 +320,11 @@ def _anexo_dict(row):
     item["url_download"] = f"/acoes-setor/anexos/{item['id_anexo']}/download"
     item["url_visualizar"] = f"/acoes-setor/anexos/{item['id_anexo']}/download?inline=1"
     item["eh_previa"] = (item.get("mime_type") or "").startswith("image/") or item.get("mime_type") == "application/pdf"
+    tipo_acao = item.get("acao_tipo")
+    if tipo_acao:
+        item["acao_tipo_label"] = TIPOS_ACAO.get(tipo_acao, tipo_acao)
+    if item.get("acao_tema") or item.get("acao_local") or item.get("acao_localidade"):
+        item["acao_titulo"] = item.get("acao_tema") or item.get("acao_local") or item.get("acao_localidade")
     return item
 
 
@@ -330,6 +337,84 @@ def _listar_anexos(id_acao):
             (id_acao,),
         )
     ]
+
+
+def _listar_anexos_galeria():
+    params = []
+    where = []
+    tipo_acao = (request.args.get("tipo_acao") or "").strip()
+    ano = (request.args.get("ano") or "").strip()
+    tipo_arquivo = (request.args.get("tipo_arquivo") or "").strip()
+    busca = (request.args.get("busca") or "").strip()
+    if tipo_acao in TIPOS_ACAO:
+        where.append("a.tipo=?")
+        params.append(tipo_acao)
+    if ano:
+        where.append("substr(a.data, 1, 4)=?")
+        params.append(ano[:4])
+    if tipo_arquivo == "imagem":
+        where.append("an.mime_type LIKE 'image/%'")
+    elif tipo_arquivo == "pdf":
+        where.append("an.mime_type='application/pdf'")
+    elif tipo_arquivo == "documento":
+        where.append("an.mime_type NOT LIKE 'image/%' AND an.mime_type<>'application/pdf'")
+    sql = """
+        SELECT an.*,
+               a.data AS acao_data,
+               a.tipo AS acao_tipo,
+               a.localidade AS acao_localidade,
+               a.local AS acao_local,
+               a.tema AS acao_tema,
+               a.observacoes AS acao_observacoes
+          FROM acoes_setor_anexos an
+          JOIN acoes_setor a ON a.id_acao=an.id_acao
+    """
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY a.data DESC, an.criado_em DESC, an.id_anexo DESC"
+    anexos = [_anexo_dict(row) for row in bh.q(sql, params)]
+    if busca:
+        termos = [_normaliza_busca(t) for t in busca.split() if t.strip()]
+        anexos = [
+            item for item in anexos
+            if all(
+                termo in _normaliza_busca(" ".join(str(item.get(c) or "") for c in (
+                    "nome_original", "mime_type", "acao_tipo_label", "acao_data",
+                    "acao_localidade", "acao_local", "acao_tema", "acao_observacoes",
+                )))
+                for termo in termos
+            )
+        ]
+    return anexos
+
+
+def _zip_anexos(id_acao, rows):
+    buffer = io.BytesIO()
+    usados = set()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for row in rows:
+            caminho = _path_anexo(row["caminho_rel"])
+            if not caminho.exists() or not caminho.is_file():
+                continue
+            nome = secure_filename(row["nome_original"] or row["nome_arquivo"] or caminho.name) or caminho.name
+            base, ext = os.path.splitext(nome)
+            candidato = nome
+            idx = 2
+            while candidato.casefold() in usados:
+                candidato = f"{base}_{idx}{ext}"
+                idx += 1
+            usados.add(candidato.casefold())
+            zf.write(caminho, candidato)
+    if not usados:
+        return None
+    buffer.seek(0)
+    return send_file(
+        buffer,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"acao_{str(id_acao).zfill(6)}_anexos.zip",
+        max_age=0,
+    )
 
 
 def _validar_upload_anexo(arquivo):
@@ -605,6 +690,35 @@ def api_anexos(id_acao):
         if conn:
             conn.close()
     return jsonify({"ok": True, "ids": salvos, "anexos": _listar_anexos(id_acao)}), 201
+
+
+@bp.route("/api/acoes-setor/<int:id_acao>/anexos/baixar-todos")
+@login_required
+@nivel_min("operador")
+def baixar_todos_anexos(id_acao):
+    ensure_schema()
+    acao = bh.q1("SELECT id_acao FROM acoes_setor WHERE id_acao=?", (id_acao,))
+    if not acao:
+        return jsonify({"erro": "Ação não encontrada."}), 404
+    rows = bh.q(
+        """SELECT * FROM acoes_setor_anexos
+           WHERE id_acao=?
+           ORDER BY criado_em DESC, id_anexo DESC""",
+        (id_acao,),
+    )
+    resposta = _zip_anexos(id_acao, rows)
+    if resposta is None:
+        return jsonify({"erro": "Nenhum anexo disponível para download."}), 404
+    return resposta
+
+
+@bp.route("/api/acoes-setor/anexos")
+@login_required
+@nivel_min("operador")
+def api_galeria_anexos():
+    ensure_schema()
+    anexos = _listar_anexos_galeria()
+    return jsonify({"anexos": anexos, "total": len(anexos), "tipos_acao": TIPOS_ACAO})
 
 
 @bp.route("/api/acoes-setor/anexos/<int:id_anexo>", methods=["DELETE"])

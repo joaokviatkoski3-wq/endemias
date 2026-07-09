@@ -2689,7 +2689,12 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('name="acao-agente"', html)
         self.assertNotIn('id="acao-agentes" multiple', html)
         self.assertIn('id="acao-anexo-selecionar"', html)
+        self.assertIn('id="acao-anexos-baixar-todos"', html)
         self.assertIn('id="acao-anexos-lista"', html)
+        self.assertIn('data-acoes-tab="anexos"', html)
+        self.assertIn('id="acoes-panel-anexos"', html)
+        self.assertIn('id="acoes-anexos-galeria"', html)
+        self.assertIn('id="acoes-anexos-tipo-arquivo"', html)
         self.assertIn('accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.txt"', html)
         self.assertIn('placeholder="Todos"', html)
         self.assertIn('src="/static/js/acoes_setor.js"', html)
@@ -2703,7 +2708,10 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("function atualizarCamposEducativos", js)
         self.assertIn("classList.toggle('acoes-educativa-hidden'", js)
         self.assertIn("function anexoEhImagem", js)
+        self.assertIn("function carregarGaleriaAnexos", js)
         self.assertIn("acoes-anexo-preview", js)
+        self.assertIn("/api/acoes-setor/anexos?", js)
+        self.assertIn("/anexos/baixar-todos", js)
         self.assertIn("loading=\"lazy\"", js)
         self.assertIn("Informe o período da ação.", js)
         self.assertIn("function detalhesRegistroHtml", js)
@@ -2815,6 +2823,14 @@ class MainPagesSmokeTests(unittest.TestCase):
             self.assertEqual(anexos[0]["mime_type"], "application/pdf")
             id_anexo = anexos[0]["id_anexo"]
 
+            resp_img = client.post(
+                f"/api/acoes-setor/{id_acao}/anexos",
+                data={"arquivos": (io.BytesIO(b"imagem fake"), "foto.png")},
+                content_type="multipart/form-data",
+            )
+            self.assertEqual(resp_img.status_code, 201)
+            self.assertEqual(len(resp_img.get_json()["anexos"]), 2)
+
             conn = sqlite3.connect(app_temp.config["DB_PATH"])
             try:
                 row = conn.execute(
@@ -2832,6 +2848,21 @@ class MainPagesSmokeTests(unittest.TestCase):
             self.assertEqual(resp.status_code, 200)
             self.assertEqual(resp.data, b"conteudo do documento")
             resp.close()
+
+            galeria = client.get("/api/acoes-setor/anexos?tipo_arquivo=imagem&busca=foto")
+            self.assertEqual(galeria.status_code, 200)
+            dados_galeria = galeria.get_json()
+            self.assertEqual(dados_galeria["total"], 1)
+            self.assertEqual(dados_galeria["anexos"][0]["nome_original"], "foto.png")
+            self.assertEqual(dados_galeria["anexos"][0]["acao_tipo"], "limpeza")
+
+            zip_resp = client.get(f"/api/acoes-setor/{id_acao}/anexos/baixar-todos")
+            self.assertEqual(zip_resp.status_code, 200)
+            self.assertIn("application/zip", zip_resp.content_type)
+            self.assertTrue(zip_resp.data.startswith(b"PK"))
+            with zipfile.ZipFile(io.BytesIO(zip_resp.data)) as zf:
+                self.assertEqual(set(zf.namelist()), {"notificacao.pdf", "foto.png"})
+            zip_resp.close()
 
             resp = client.delete(f"/api/acoes-setor/anexos/{id_anexo}")
             self.assertEqual(resp.status_code, 200)
