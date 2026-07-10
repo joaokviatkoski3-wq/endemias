@@ -52,5 +52,6 @@ def _chave(value):
         "s o venancio": "sao venancio",
         "s o ven ncio": "sao venancio",
         "para so": "paraiso",
+        "tangu": "tangua",
     }
     return aliases.get(text, text)
