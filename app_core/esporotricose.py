@@ -90,6 +90,14 @@ CHOICE_LABELS = {
     "fechado": "Fechado",
     "recusa": "Recusa",
     "recuperado": "Recuperado",
+    "sem_tratamento": "Sem tratamento",
+    "sem tratamento": "Sem tratamento",
+    "em_tratamento": "Em tratamento",
+    "em tratamento": "Em tratamento",
+    "obito_eutanasia": "Óbito/Eutanásia",
+    "obito/eutanasia": "Óbito/Eutanásia",
+    "óbito/eutanásia": "Óbito/Eutanásia",
+    "cura": "Cura",
 }
 
 DOENTES_STATUS_PADRAO = (
@@ -300,6 +308,7 @@ def ensure_schema(conn):
     _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_observacoes", "TEXT")
     _seed_doentes_status(conn)
     _normalizar_doentes_existentes(conn)
+    _normalizar_visitas_animais_existentes(conn)
     _normalizar_agentes_existentes(conn)
     conn.commit()
 
@@ -355,6 +364,73 @@ def _normalizar_doentes_existentes(conn):
             conn.execute(
                 f"UPDATE {DOENTES_ENTREGAS_TABLE} SET baixa_zoomed=? WHERE id_entrega=?",
                 (baixa, row["id_entrega"]),
+            )
+
+
+def _normalizar_visitas_animais_existentes(conn):
+    rows = conn.execute(
+        f"SELECT id_visita, localidade, deseja_cadastrar_animal, tipo_imovel, visita FROM {VISITAS_TABLE}"
+    ).fetchall()
+    for row in rows:
+        localidade = normalizadores.normalizar_localidade(_db_value(row, "localidade", 1))
+        deseja = _choice(_db_value(row, "deseja_cadastrar_animal", 2))
+        tipo_imovel = _choice(_db_value(row, "tipo_imovel", 3))
+        visita = _choice(_db_value(row, "visita", 4))
+        id_localidade = _obter_ou_criar_localidade(conn.cursor(), localidade)
+        if (
+            localidade != (_db_value(row, "localidade", 1) or None)
+            or deseja != (_db_value(row, "deseja_cadastrar_animal", 2) or None)
+            or tipo_imovel != (_db_value(row, "tipo_imovel", 3) or None)
+            or visita != (_db_value(row, "visita", 4) or None)
+        ):
+            conn.execute(
+                f"""UPDATE {VISITAS_TABLE}
+                       SET localidade=?, id_localidade=?, deseja_cadastrar_animal=?,
+                           tipo_imovel=?, visita=?
+                     WHERE id_visita=?""",
+                (
+                    localidade,
+                    id_localidade,
+                    deseja,
+                    tipo_imovel,
+                    visita,
+                    _db_value(row, "id_visita", 0),
+                ),
+            )
+
+    rows = conn.execute(
+        f"""SELECT id_animal, especie, sexo, ambiente, vacinado, castrado, feridas,
+                   atendimento_veterinario, evolucao_caso
+              FROM {ANIMAIS_TABLE}"""
+    ).fetchall()
+    for row in rows:
+        valores = {
+            "especie": _choice(_db_value(row, "especie", 1)),
+            "sexo": _choice(_db_value(row, "sexo", 2)),
+            "ambiente": _choice(_db_value(row, "ambiente", 3)),
+            "vacinado": _choice(_db_value(row, "vacinado", 4)),
+            "castrado": _choice(_db_value(row, "castrado", 5)),
+            "feridas": _choice(_db_value(row, "feridas", 6)),
+            "atendimento_veterinario": _choice(_db_value(row, "atendimento_veterinario", 7)),
+            "evolucao_caso": _choice(_db_value(row, "evolucao_caso", 8)),
+        }
+        if any(valores[col] != (_db_value(row, col, idx) or None) for idx, col in enumerate(valores, start=1)):
+            conn.execute(
+                f"""UPDATE {ANIMAIS_TABLE}
+                       SET especie=?, sexo=?, ambiente=?, vacinado=?, castrado=?, feridas=?,
+                           atendimento_veterinario=?, evolucao_caso=?
+                     WHERE id_animal=?""",
+                (
+                    valores["especie"],
+                    valores["sexo"],
+                    valores["ambiente"],
+                    valores["vacinado"],
+                    valores["castrado"],
+                    valores["feridas"],
+                    valores["atendimento_veterinario"],
+                    valores["evolucao_caso"],
+                    _db_value(row, "id_animal", 0),
+                ),
             )
 
 
@@ -560,7 +636,7 @@ def parse_workbook(path, estrutura=None):
             "visita": _choice(_row_get(row, ["Dados do morador/Visita:", "Visita"])),
             "telefone": _text(_row_get(row, ["Dados do morador/Telefone", "Telefone"])),
             "observacoes": _text(_row_get(row, ["Dados do morador/Observações", "Observacoes", "Observa_es"])),
-            "deseja_cadastrar_animal": _text(_row_get(row, ["Deseja cadastrar um animal?", "Deseja_cadastrar_um_animal"])),
+            "deseja_cadastrar_animal": _choice(_row_get(row, ["Deseja cadastrar um animal?", "Deseja_cadastrar_um_animal"])),
             "submission_time": _datetime(row.get("_submission_time")),
         }
         visitas.append(visita)
@@ -593,7 +669,7 @@ def parse_workbook(path, estrutura=None):
             "regiao_ferida": _text(_row_get(row, ["Dados do animal/Região:", "Regiao", "Regi_o"])),
             "atendimento_veterinario": _choice(_row_get(row, ["Dados do animal/Já passou por atendimento veterinário?", "J_passou_por_atendimento_vete"])),
             "data_atendimento": _date(_row_get(row, ["Dados do animal/Data do atendimento:", "Data_do_atendimento"])),
-            "evolucao_caso": _text(_row_get(row, ["Dados do animal/Evolução do caso:", "Evolu_o_do_caso"])),
+            "evolucao_caso": _choice(_row_get(row, ["Dados do animal/Evolução do caso:", "Evolu_o_do_caso"])),
         })
     return visitas, animais
 

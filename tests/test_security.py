@@ -6728,14 +6728,14 @@ class MainApisSmokeTests(unittest.TestCase):
                     "group_su8jh28/Hora_inicio": "08:00",
                     "Hora_fim": "08:30",
                     "group_su8jh28/Agentes": "Agente Teste",
-                    "group_su8jh28/Localidade": "grasiela",
+                    "group_su8jh28/Localidade": "S_O_Jo_O_Batista",
                     "group_su8jh28/Quarteir_o": "12",
                     "group_su8jh28/Tipo_do_im_vel": "resid_ncia",
                     "group_su8jh28/Logradouro": "Rua A",
                     "group_su8jh28/N_mero": "10",
                     "group_su8jh28/Morador": "Pessoa Teste",
                     "group_su8jh28/Visita": "fechado",
-                    "Deseja_cadastrar_um_animal": "Sim",
+                    "Deseja_cadastrar_um_animal": "n_o",
                     "animais": [{
                         "group_tl0nq13/Escolha_o_animal_a_ser_cadastr": "c_o",
                         "group_tl0nq13/Nome_do_animal": "Rex",
@@ -6744,6 +6744,7 @@ class MainApisSmokeTests(unittest.TestCase):
                         "group_tl0nq13/Vacinado": "sim",
                         "group_tl0nq13/Castrado": "nao",
                         "group_tl0nq13/Apresenta_feridas_pelo_corpo": "nao",
+                        "group_tl0nq13/Evolu_o_do_caso": "sem_tratamento",
                     }],
                 }]}).encode("utf-8")
 
@@ -6788,9 +6789,10 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(sumario[0]["visitas_novas"], 1)
             self.assertEqual(sumario[0]["animais_novos"], 1)
             visitas, _ = esporotricose_core.parse_workbook(str(caminho), "nova")
-            self.assertEqual(visitas[0]["localidade"], "Graziela")
+            self.assertEqual(visitas[0]["localidade"], "S\u00e3o Jo\u00e3o Batista")
             self.assertEqual(visitas[0]["tipo_imovel"], "Residência")
             self.assertEqual(visitas[0]["visita"], "Fechado")
+            self.assertEqual(visitas[0]["deseja_cadastrar_animal"], "N\u00e3o")
             _, animais = esporotricose_core.parse_workbook(str(caminho), "nova")
             self.assertEqual(animais[0]["especie"], "Cão")
             self.assertEqual(animais[0]["sexo"], "Macho")
@@ -6798,6 +6800,8 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(animais[0]["vacinado"], "Sim")
             self.assertEqual(animais[0]["castrado"], "Não")
             self.assertEqual(animais[0]["feridas"], "Não")
+
+            self.assertEqual(animais[0]["evolucao_caso"], "Sem tratamento")
 
     def test_etl_normaliza_codigos_tecnicos_da_api_kobo(self):
         import etl
@@ -6808,6 +6812,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(normalizadores.normalizar_localidade("Centro"), "Sede")
         self.assertEqual(normalizadores.normalizar_localidade("s_o_francisco"), "S\u00e3o Francisco")
         self.assertEqual(normalizadores.normalizar_localidade("S_O_Ven_Ncio"), "S\u00e3o Ven\u00e2ncio")
+        self.assertEqual(normalizadores.normalizar_localidade("S_O_Jo_O_Batista"), "S\u00e3o Jo\u00e3o Batista")
         self.assertEqual(normalizadores.normalizar_localidade("para_so"), "Para\u00edso")
         self.assertEqual(etl.normalizar_categoria("resid_ncia"), "Residência")
         self.assertEqual(etl.normalizar_categoria("com_rcio"), "Comércio")
