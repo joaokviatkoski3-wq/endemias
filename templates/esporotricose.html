@@ -1353,6 +1353,7 @@ async function imprimirEspAnimais() {
         <td>${escapeHtml(r.morador || '-')}</td>
         <td>${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', ') || '-')}</td>
       </tr>
+      <tr class="detail-row"><td colspan="9">${renderEspAnimalDetalheImpressao(r)}</td></tr>
     `).join('') : '<tr><td colspan="9">Nenhum registro encontrado.</td></tr>';
     const win = window.open('', '_blank');
     if (!win) { toast('O navegador bloqueou a janela de impressão.', 'error'); return; }
@@ -1361,7 +1362,16 @@ async function imprimirEspAnimais() {
         body{font-family:Arial,sans-serif;color:#111827;margin:24px;font-size:12px;}
         h1{font-size:20px;margin:0 0 4px;} .meta{color:#4b5563;margin-bottom:14px;}
         table{width:100%;border-collapse:collapse;} th,td{border:1px solid #d1d5db;padding:6px;text-align:left;vertical-align:top;}
-        th{background:#f3f4f6;font-size:11px;text-transform:uppercase;} @media print{body{margin:12mm;}}
+        th{background:#f3f4f6;font-size:11px;text-transform:uppercase;}
+        tr.detail-row td{background:#f9fafb;padding:8px 10px 10px;}
+        .animal-detail-print{break-inside:avoid;page-break-inside:avoid;}
+        .detail-title{font-weight:700;color:#374151;margin:0 0 7px;text-transform:uppercase;font-size:10px;letter-spacing:.04em;}
+        .detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px 10px;}
+        .detail-label{color:#6b7280;font-size:10px;text-transform:uppercase;margin-bottom:1px;}
+        .detail-value{font-weight:600;white-space:pre-wrap;overflow-wrap:anywhere;}
+        .detail-wide{grid-column:1 / -1;}
+        .detail-section{margin-top:8px;border-top:1px solid #e5e7eb;padding-top:7px;}
+        @media print{body{margin:12mm;} tr{break-inside:avoid;page-break-inside:avoid;}}
       </style></head><body>
       <h1>Esporotricose - Animais cadastrados</h1>
       <div class="meta">Período: ${escapeHtml(periodo)}<br>Filtros: ${escapeHtml(filtros)}<br>Total: ${fmtNum(d.total || 0)} registro(s), ${fmtNum(rows.length)} impresso(s)</div>
@@ -1372,6 +1382,39 @@ async function imprimirEspAnimais() {
   } catch (e) {
     toast(e.message, 'error');
   }
+}
+function detalhePrintItem(label, value, wide=false) {
+  return `<div class="detail-item ${wide ? 'detail-wide' : ''}"><div class="detail-label">${escapeHtml(label)}</div><div class="detail-value">${escapeHtml(value || '-')}</div></div>`;
+}
+function renderEspAnimalDetalheImpressao(r) {
+  const endereco = [r.logradouro, r.numero].filter(Boolean).join(', ');
+  const horario = [r.hora_inicio, r.hora_fim].filter(Boolean).join(' - ');
+  return `
+    <div class="animal-detail-print">
+      <div class="detail-title">Detalhes da visita</div>
+      <div class="detail-grid">
+        ${detalhePrintItem('Data da visita', fmtDate(r.data))}
+        ${detalhePrintItem('Horario', horario)}
+        ${detalhePrintItem('Agente(s)', r.agentes_texto)}
+        ${detalhePrintItem('Localidade', r.localidade)}
+        ${detalhePrintItem('Quarteirao', r.quarteirao)}
+        ${detalhePrintItem('Tipo de imovel', r.tipo_imovel)}
+        ${detalhePrintItem('Morador', r.morador)}
+        ${detalhePrintItem('Telefone', r.telefone)}
+        ${detalhePrintItem('Situacao da visita', r.visita)}
+        ${detalhePrintItem('Cadastro animal', r.deseja_cadastrar_animal)}
+        ${detalhePrintItem('Endereco', endereco, true)}
+        ${detalhePrintItem('Observacoes da visita', r.observacoes, true)}
+      </div>
+      <div class="detail-section">
+        <div class="detail-title">Busca ferido</div>
+        <div class="detail-grid">
+          ${detalhePrintItem('Data da busca', fmtDate(r.busca_ferido_data))}
+          ${detalhePrintItem('Agente da busca', r.busca_ferido_agente)}
+          ${detalhePrintItem('Observacoes', r.busca_ferido_observacoes, true)}
+        </div>
+      </div>
+    </div>`;
 }
 async function carregarEspLocalidadesDetalhe() {
   try {

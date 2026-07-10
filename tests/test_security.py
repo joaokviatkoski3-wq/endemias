@@ -3889,6 +3889,8 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("esp-animal-especie", html)
         self.assertIn("esp-animal-motivo", html)
         self.assertIn("imprimirEspAnimais", html)
+        self.assertIn("renderEspAnimalDetalheImpressao", html)
+        self.assertIn("detail-row", html)
         self.assertIn("prioritarios", html)
 
     def test_pagina_recolhimentos_exibe_controles_principais(self):
