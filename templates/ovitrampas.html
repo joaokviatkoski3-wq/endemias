@@ -92,9 +92,21 @@
 .ovi-agent-picks{border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;max-height:170px;overflow:auto;background:var(--surface2);}
 .ovi-agent-pick{display:flex;align-items:center;gap:7px;font-size:12px;padding:3px 0;}
 .ovi-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.ovi-diario-layout{display:grid;grid-template-columns:320px minmax(0,1fr);gap:14px;align-items:start;}
+.ovi-diario-list{display:flex;flex-direction:column;gap:8px;max-height:620px;overflow:auto;padding-right:3px;}
+.ovi-diario-item{width:100%;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:var(--radius-sm);padding:9px 10px;text-align:left;cursor:pointer;}
+.ovi-diario-item.active{border-color:#0f766e;box-shadow:0 0 0 1px rgba(15,118,110,.2);background:rgba(15,118,110,.08);}
+.ovi-diario-item strong{display:block;font-size:13px;}
+.ovi-diario-item span{display:block;color:var(--text3);font-size:11px;margin-top:2px;}
+.ovi-diario-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:end;margin-bottom:10px;}
+.ovi-diario-table input,.ovi-diario-table select{min-width:110px;}
+.ovi-route-buttons{display:flex;gap:4px;flex-wrap:wrap;}
+.ovi-route-buttons .btn{padding:5px 7px;}
+.ovi-diario-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px;}
+.ovi-diario-small-scroll{max-height:340px;overflow:auto;}
 @media(max-width:1180px){.ovi-cal-layout{grid-template-columns:1fr;}.ovi-year-grid{grid-template-columns:repeat(2,minmax(230px,1fr));}}
 @media(max-width:1100px){.ovi-reading-top{grid-template-columns:repeat(3,minmax(0,1fr));}}
-@media(max-width:920px){.ovi-layout,.ovi-upload,.ovi-monitor-layout{grid-template-columns:1fr;}.ovi-reading-lab{grid-template-columns:1fr;}}
+@media(max-width:920px){.ovi-layout,.ovi-upload,.ovi-monitor-layout,.ovi-diario-layout,.ovi-diario-split{grid-template-columns:1fr;}.ovi-reading-lab{grid-template-columns:1fr;}}
 @media(max-width:920px){.ovi-batch{grid-template-columns:1fr;}}
 @media(max-width:640px){.ovi-reading-top{grid-template-columns:1fr 1fr;}.ovi-year-grid{grid-template-columns:1fr;}.ovi-modal-grid{grid-template-columns:1fr;}}
 </style>{% endblock %}
@@ -109,6 +121,7 @@
   <button class="ovi-tab active" type="button" data-ovi-tab="leituras">Leituras</button>
   <button class="ovi-tab" type="button" data-ovi-tab="monitoramento">Monitoramento</button>
   <button class="ovi-tab" type="button" data-ovi-tab="armadilhas">Armadilhas</button>
+  <button class="ovi-tab" type="button" data-ovi-tab="diarios">Diários</button>
   <button class="ovi-tab" type="button" data-ovi-tab="calendario">Calendário</button>
 </div>
 
@@ -276,6 +289,8 @@
     </div>
     <form id="ovi-arm-form" class="ovi-upload">
       <div class="f-g"><label>CSV de ovitrampas do Conta Ovos</label><input type="file" id="ovi-arm-arquivo" name="arquivo" accept=".csv,text/csv"></div>
+      <div class="f-g"><label>Motivo das alterações</label><input type="text" id="ovi-arm-motivo" placeholder="Ex: atualização do Conta Ovos"></div>
+      <div class="f-g"><label>Agentes envolvidos</label><select id="ovi-arm-agentes" multiple size="4">{% for agente in agentes %}<option value="{{ agente.id_agente }}">{{ agente.nome }}</option>{% endfor %}</select></div>
       <button class="btn btn-primary" type="submit"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Atualizar cadastro</button>
     </form>
   </div>
@@ -314,6 +329,83 @@
         <thead><tr><th>Semana</th><th>Instalação</th><th>Coleta</th><th>Data da leitura</th><th>Laboratorista</th><th>Ovos</th><th>Enviado por</th><th>Arquivo</th></tr></thead>
         <tbody id="ovi-hist-body"></tbody>
       </table>
+    </div>
+  </div>
+</section>
+
+<section class="ovi-panel" id="ovi-panel-diarios" hidden>
+  <div class="chart-card" style="margin-bottom:16px;">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar base dos diários</div>
+      <span class="imp-status imp-cinza" id="ovi-dia-import-status">Aguardando</span>
+    </div>
+    <form id="ovi-dia-import-form" class="ovi-upload">
+      <div class="f-g"><label>Planilha XLSX dos diários</label><input type="file" id="ovi-dia-arquivo" name="arquivo" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></div>
+      <button class="btn btn-primary" type="submit"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar diários</button>
+    </form>
+  </div>
+
+  <div class="ovi-grid">
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Diários</div><div class="ovi-kpi-value" id="ovi-dia-total">0</div></div>
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Armadilhas</div><div class="ovi-kpi-value" id="ovi-dia-armadilhas">0</div></div>
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Sem diário</div><div class="ovi-kpi-value" id="ovi-dia-sem">0</div></div>
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Realocar</div><div class="ovi-kpi-value" id="ovi-dia-realocar">0</div></div>
+  </div>
+
+  <div class="ovi-diario-layout">
+    <div class="chart-card">
+      <div class="chart-hd">
+        <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Diários</div>
+        <button class="btn btn-outline btn-sm" type="button" id="ovi-dia-novo"><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Novo</button>
+      </div>
+      <div class="ovi-diario-list" id="ovi-dia-lista"></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-hd">
+        <div class="chart-title"><img src="/static/icons/ovitrampa.svg" alt="" class="icon-svg"> Rota selecionada</div>
+        <span class="table-info" id="ovi-dia-info">Selecione um diário.</span>
+      </div>
+      <div class="ovi-diario-actions">
+        <div class="f-g"><label>Ano</label><input type="number" id="ovi-dia-ano" min="2020" max="2100"></div>
+        <div class="f-g"><label>Semana</label><input type="number" id="ovi-dia-semana" min="1" max="53"></div>
+        <div class="f-g"><label>Movimento</label><select id="ovi-dia-movimento"><option value="instalacao">Instalação</option><option value="troca">Troca</option><option value="retirada">Retirada</option></select></div>
+        <button class="btn btn-outline" type="button" id="ovi-dia-editar"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Editar nome</button>
+        <button class="btn btn-primary" type="button" id="ovi-dia-imprimir"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Imprimir</button>
+      </div>
+      <div class="table-scroll">
+        <table class="ovi-diario-table">
+          <thead><tr><th>Ordem</th><th>ID</th><th>Localidade</th><th>Endereço</th><th>Q.</th><th>Responsável</th><th>Telefone</th><th></th></tr></thead>
+          <tbody id="ovi-dia-rota-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="ovi-diario-split">
+    <div class="chart-card">
+      <div class="chart-hd">
+        <div class="chart-title"><img src="/static/icons/alerta.svg" alt="" class="icon-svg"> Sem diário definido</div>
+        <span class="table-info" id="ovi-dia-sem-info"></span>
+      </div>
+      <div class="ovi-diario-small-scroll">
+        <table>
+          <thead><tr><th>ID</th><th>Localidade</th><th>Endereço</th><th></th></tr></thead>
+          <tbody id="ovi-dia-sem-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd">
+        <div class="chart-title"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"> Realocar</div>
+        <span class="table-info" id="ovi-dia-realocar-info"></span>
+      </div>
+      <div class="ovi-diario-small-scroll">
+        <table>
+          <thead><tr><th>ID</th><th>Origem</th><th>Endereço</th><th>Última</th></tr></thead>
+          <tbody id="ovi-dia-realocar-body"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </section>
@@ -399,6 +491,7 @@
 const oviFmt = new Intl.NumberFormat('pt-BR');
 const oviAgentes = JSON.parse(document.getElementById('ovi-agentes-json').textContent || '[]');
 let oviCalState = {ano:new Date().getFullYear(), grupos:[], eventos:[], eventosPorData:{}};
+let oviDiarioState = {diarios:[], selecionado:null, detalhe:null};
 let oviListaTotal = 0;
 const oviMeses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const oviDias = ['D','S','T','Q','Q','S','S'];
@@ -727,6 +820,155 @@ async function abrirHistorico(id){
   }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:18px;">Sem leituras para esta armadilha.</td></tr>';
   document.getElementById('ovi-historico').scrollIntoView({behavior:'smooth', block:'start'});
 }
+function oviDiarioOptions(selected){
+  return (oviDiarioState.diarios || []).filter(d => d.ativo).map(d => `<option value="${d.id_diario}" ${String(d.id_diario) === String(selected || '') ? 'selected' : ''}>${oviEscape(d.nome)}</option>`).join('');
+}
+async function carregarDiarios(idSelecionado=null){
+  const data = await oviGet('/api/ovitrampas/diarios');
+  oviDiarioState.diarios = data.diarios || [];
+  const t = data.totais || {};
+  document.getElementById('ovi-dia-total').textContent = oviFmt.format(t.diarios || 0);
+  document.getElementById('ovi-dia-armadilhas').textContent = oviFmt.format(t.armadilhas || 0);
+  document.getElementById('ovi-dia-sem').textContent = oviFmt.format(t.sem_diario || 0);
+  document.getElementById('ovi-dia-realocar').textContent = oviFmt.format(t.realocar || 0);
+  renderDiariosLista();
+  renderSemDiario(data.sem_diario || {registros:[], total:0});
+  renderDiariosRealocar(data.realocar || {registros:[], total:0});
+  const alvo = idSelecionado || oviDiarioState.selecionado || oviDiarioState.diarios[0]?.id_diario;
+  if (alvo) await selecionarDiario(alvo);
+}
+function renderDiariosLista(){
+  document.getElementById('ovi-dia-lista').innerHTML = (oviDiarioState.diarios || []).map(d => `
+    <button class="ovi-diario-item ${String(d.id_diario) === String(oviDiarioState.selecionado || '') ? 'active' : ''}" type="button" data-ovi-dia-select="${d.id_diario}">
+      <strong>${oviEscape(d.nome)}${d.ativo ? '' : ' (inativo)'}</strong>
+      <span>${oviFmt.format(d.armadilhas || 0)} armadilha(s)</span>
+    </button>
+  `).join('') || '<div class="empty">Nenhum diário cadastrado.</div>';
+}
+async function selecionarDiario(idDiario){
+  const data = await oviGet('/api/ovitrampas/diarios/' + encodeURIComponent(idDiario));
+  oviDiarioState.selecionado = data.diario?.id_diario;
+  oviDiarioState.detalhe = data;
+  renderDiariosLista();
+  renderDiarioRota(data);
+}
+function renderDiarioRota(data){
+  const diario = data.diario || {};
+  const rows = data.registros || [];
+  document.getElementById('ovi-dia-info').textContent = diario.nome ? `${oviEscape(diario.nome)} - ${oviFmt.format(rows.length)} armadilha(s)` : 'Selecione um diário.';
+  document.getElementById('ovi-dia-rota-body').innerHTML = rows.map(r => `
+    <tr class="${r.realocar ? 'is-muted' : ''}">
+      <td><strong>${oviFmt.format(r.ordem || 0)}</strong></td>
+      <td><strong>${oviEscape(r.ovitrampa_id)}</strong>${r.realocar ? '<br><span class="ovi-chip warn">Realocar</span>' : ''}</td>
+      <td>${oviEscape(r.localidade || '-')}</td>
+      <td>${oviEndereco(r)}<br><span class="ovi-muted">${oviEscape(r.localizacao || '')}</span></td>
+      <td>${oviEscape(r.quarteirao || '-')}</td>
+      <td><input type="text" value="${oviEscape(r.responsavel || '')}" data-ovi-dia-resp="${oviEscape(r.ovitrampa_id)}"></td>
+      <td><input type="text" value="${oviEscape(r.telefone_responsavel || '')}" data-ovi-dia-tel="${oviEscape(r.ovitrampa_id)}"></td>
+      <td>
+        <div class="ovi-route-buttons">
+          <button class="btn btn-outline btn-sm" type="button" data-ovi-dia-mover="subir" data-id="${oviEscape(r.ovitrampa_id)}">↑</button>
+          <button class="btn btn-outline btn-sm" type="button" data-ovi-dia-mover="descer" data-id="${oviEscape(r.ovitrampa_id)}">↓</button>
+          <button class="btn btn-outline btn-sm" type="button" data-ovi-dia-salvar-arm="${oviEscape(r.ovitrampa_id)}">Salvar</button>
+          <button class="btn btn-ghost btn-sm" type="button" data-ovi-dia-remover="${oviEscape(r.ovitrampa_id)}">Remover</button>
+        </div>
+      </td>
+    </tr>
+  `).join('') || oviEmptyRow(8, 'Nenhuma armadilha neste diário.');
+}
+function renderSemDiario(data){
+  document.getElementById('ovi-dia-sem-info').textContent = `${oviFmt.format(data.total || 0)} armadilha(s)`;
+  document.getElementById('ovi-dia-sem-body').innerHTML = (data.registros || []).map(r => `
+    <tr>
+      <td><strong>${oviEscape(r.ovitrampa_id)}</strong></td>
+      <td>${oviEscape(r.localidade || '-')}</td>
+      <td>${oviEndereco(r)}<br><span class="ovi-muted">${oviEscape(r.localizacao || '')}</span></td>
+      <td>
+        <select data-ovi-dia-add-select="${oviEscape(r.ovitrampa_id)}">${oviDiarioOptions(oviDiarioState.selecionado)}</select>
+        <button class="btn btn-outline btn-sm" type="button" data-ovi-dia-add="${oviEscape(r.ovitrampa_id)}">Adicionar</button>
+      </td>
+    </tr>
+  `).join('') || oviEmptyRow(4, 'Nenhuma armadilha sem diário.');
+}
+function renderDiariosRealocar(data){
+  document.getElementById('ovi-dia-realocar-info').textContent = `${oviFmt.format(data.total || 0)} armadilha(s)`;
+  document.getElementById('ovi-dia-realocar-body').innerHTML = (data.registros || []).map(r => `
+    <tr>
+      <td><strong>${oviEscape(r.ovitrampa_id)}</strong></td>
+      <td>${oviEscape(r.localidade || '-')}</td>
+      <td>${oviEndereco(r)}<br><span class="ovi-muted">${oviEscape(r.localizacao || '')}</span></td>
+      <td>${oviEscape(r.ultima || '-')}</td>
+    </tr>
+  `).join('') || oviEmptyRow(4, 'Nenhuma armadilha pendente para realocação.');
+}
+async function salvarDiarioAtual(){
+  const atual = oviDiarioState.detalhe?.diario;
+  const nomeAtual = atual?.nome || '';
+  const nome = prompt('Nome do diário:', nomeAtual);
+  if (!nome) return;
+  const url = atual ? `/api/ovitrampas/diarios/${encodeURIComponent(atual.id_diario)}` : '/api/ovitrampas/diarios';
+  const data = await oviFetchJson(url, {
+    method: atual ? 'PUT' : 'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken': getCsrf()},
+    body: JSON.stringify({nome, ativo:true})
+  });
+  toast('Diário salvo.', 'success');
+  await carregarDiarios(data.diario?.id_diario);
+}
+async function adicionarAoDiario(ovitrampaId){
+  const select = document.querySelector(`[data-ovi-dia-add-select="${CSS.escape(ovitrampaId)}"]`);
+  const idDiario = select?.value || oviDiarioState.selecionado;
+  if (!idDiario) return toast('Selecione um diário.', 'warning');
+  await oviFetchJson('/api/ovitrampas/diarios/vincular', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken': getCsrf()},
+    body: JSON.stringify({id_diario:idDiario, ovitrampa_id:ovitrampaId})
+  });
+  toast('Ovitrampa adicionada ao diário.', 'success');
+  await carregarDiarios(idDiario);
+}
+async function moverNoDiario(ovitrampaId, direcao){
+  if (!oviDiarioState.selecionado) return;
+  const data = await oviFetchJson(`/api/ovitrampas/diarios/${encodeURIComponent(oviDiarioState.selecionado)}/armadilhas/${encodeURIComponent(ovitrampaId)}/mover`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken': getCsrf()},
+    body: JSON.stringify({direcao})
+  });
+  oviDiarioState.detalhe = data;
+  renderDiarioRota(data);
+}
+async function removerDoDiario(ovitrampaId){
+  if (!oviDiarioState.selecionado || !confirm('Remover esta ovitrampa deste diário?')) return;
+  const data = await oviFetchJson(`/api/ovitrampas/diarios/${encodeURIComponent(oviDiarioState.selecionado)}/armadilhas/${encodeURIComponent(ovitrampaId)}`, {
+    method:'DELETE',
+    headers:{'X-CSRFToken': getCsrf()}
+  });
+  toast('Ovitrampa removida do diário.', 'success');
+  oviDiarioState.detalhe = data;
+  await carregarDiarios(oviDiarioState.selecionado);
+}
+async function salvarArmadilhaDiario(ovitrampaId){
+  const responsavel = document.querySelector(`[data-ovi-dia-resp="${CSS.escape(ovitrampaId)}"]`)?.value || '';
+  const telefone = document.querySelector(`[data-ovi-dia-tel="${CSS.escape(ovitrampaId)}"]`)?.value || '';
+  await oviFetchJson('/api/ovitrampas/armadilhas/' + encodeURIComponent(ovitrampaId), {
+    method:'PUT',
+    headers:{'Content-Type':'application/json','X-CSRFToken': getCsrf()},
+    body: JSON.stringify({responsavel, telefone_responsavel:telefone, motivo:'Edicao pelo diario de ovitrampas'})
+  });
+  toast('Dados da armadilha salvos.', 'success');
+  await selecionarDiario(oviDiarioState.selecionado);
+}
+function imprimirDiarioAtual(){
+  if (!oviDiarioState.selecionado) return toast('Selecione um diário para imprimir.', 'warning');
+  const p = new URLSearchParams({id_diario: oviDiarioState.selecionado});
+  const ano = document.getElementById('ovi-dia-ano').value;
+  const semana = document.getElementById('ovi-dia-semana').value;
+  const movimento = document.getElementById('ovi-dia-movimento').value;
+  if (ano) p.set('ano', ano);
+  if (semana) p.set('semana', semana);
+  if (movimento) p.set('movimento', movimento);
+  window.open('/ovitrampas/diarios/imprimir?' + p.toString(), '_blank', 'noopener');
+}
 async function carregarCalendario(){
   const ano = Number(document.getElementById('ovi-cal-ano').value || new Date().getFullYear());
   const data = await oviGet('/api/ovitrampas/calendario?ano=' + encodeURIComponent(ano));
@@ -891,9 +1133,11 @@ document.querySelectorAll('[data-ovi-tab]').forEach(btn => btn.addEventListener(
   document.getElementById('ovi-panel-leituras').hidden = alvo !== 'leituras';
   document.getElementById('ovi-panel-monitoramento').hidden = alvo !== 'monitoramento';
   document.getElementById('ovi-panel-armadilhas').hidden = alvo !== 'armadilhas';
+  document.getElementById('ovi-panel-diarios').hidden = alvo !== 'diarios';
   document.getElementById('ovi-panel-calendario').hidden = alvo !== 'calendario';
   if (alvo === 'monitoramento') carregarMonitoramento().catch(e => toast('Erro ao carregar monitoramento: ' + e.message, 'error'));
   if (alvo === 'armadilhas') carregarArmadilhas().catch(e => toast('Erro ao carregar armadilhas: ' + e.message, 'error'));
+  if (alvo === 'diarios') carregarDiarios().catch(e => toast('Erro ao carregar diários: ' + e.message, 'error'));
   if (alvo === 'calendario') carregarCalendario().catch(e => toast('Erro ao carregar calendário: ' + e.message, 'error'));
 }));
 document.getElementById('ovi-atualizar').addEventListener('click', () => carregarOvitrampas().catch(e => toast('Erro ao carregar ovitrampas: ' + e.message, 'error')));
@@ -902,6 +1146,10 @@ document.getElementById('ovi-busca').addEventListener('keydown', e => { if(e.key
 document.getElementById('ovi-mon-atualizar').addEventListener('click', () => carregarMonitoramento().catch(e => toast('Erro ao carregar monitoramento: ' + e.message, 'error')));
 document.getElementById('ovi-arm-atualizar').addEventListener('click', () => carregarArmadilhas().catch(e => toast('Erro ao carregar armadilhas: ' + e.message, 'error')));
 document.getElementById('ovi-arm-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarArmadilhas().catch(err => toast('Erro na busca: ' + err.message, 'error')); });
+document.getElementById('ovi-dia-ano').value = new Date().getFullYear();
+document.getElementById('ovi-dia-novo').addEventListener('click', () => { oviDiarioState.detalhe = null; salvarDiarioAtual().catch(e => toast('Erro ao criar diário: ' + e.message, 'error')); });
+document.getElementById('ovi-dia-editar').addEventListener('click', () => salvarDiarioAtual().catch(e => toast('Erro ao salvar diário: ' + e.message, 'error')));
+document.getElementById('ovi-dia-imprimir').addEventListener('click', imprimirDiarioAtual);
 document.getElementById('ovi-cal-ano').value = new Date().getFullYear();
 document.getElementById('ovi-cal-atualizar').addEventListener('click', () => carregarCalendario().catch(e => toast('Erro ao carregar calendário: ' + e.message, 'error')));
 document.getElementById('ovi-cal-novo').addEventListener('click', () => abrirModalCalendario(oviDateKey(new Date())));
@@ -929,6 +1177,16 @@ document.addEventListener('click', async e => {
     if (meta && meta.textContent !== 'Sem registros') meta.textContent = aberto ? 'Ocultar detalhes' : 'Ver detalhes';
     return;
   }
+  const diarioSelect = e.target.closest('[data-ovi-dia-select]')?.dataset.oviDiaSelect;
+  if (diarioSelect) return selecionarDiario(diarioSelect).catch(err => toast('Erro ao abrir diário: ' + err.message, 'error'));
+  const diarioAdd = e.target.closest('[data-ovi-dia-add]')?.dataset.oviDiaAdd;
+  if (diarioAdd) return adicionarAoDiario(diarioAdd).catch(err => toast('Erro ao adicionar no diário: ' + err.message, 'error'));
+  const diarioMover = e.target.closest('[data-ovi-dia-mover]');
+  if (diarioMover) return moverNoDiario(diarioMover.dataset.id, diarioMover.dataset.oviDiaMover).catch(err => toast('Erro ao mover ovitrampa: ' + err.message, 'error'));
+  const diarioRemover = e.target.closest('[data-ovi-dia-remover]')?.dataset.oviDiaRemover;
+  if (diarioRemover) return removerDoDiario(diarioRemover).catch(err => toast('Erro ao remover do diário: ' + err.message, 'error'));
+  const diarioSalvar = e.target.closest('[data-ovi-dia-salvar-arm]')?.dataset.oviDiaSalvarArm;
+  if (diarioSalvar) return salvarArmadilhaDiario(diarioSalvar).catch(err => toast('Erro ao salvar armadilha: ' + err.message, 'error'));
   const dia = e.target.closest('[data-ovi-cal-dia]')?.dataset.oviCalDia;
   if (dia) {
     abrirModalCalendario(dia, oviCalState.eventosPorData[dia] || null);
@@ -1056,6 +1314,27 @@ document.getElementById('ovi-oco-form').addEventListener('submit', async e => {
     toast('Erro ao importar ocorrências: ' + err.message, 'error');
   }
 });
+document.getElementById('ovi-dia-import-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const file = document.getElementById('ovi-dia-arquivo').files[0];
+  if (!file) return toast('Selecione a planilha XLSX dos diários.', 'warning');
+  const status = document.getElementById('ovi-dia-import-status');
+  status.className = 'imp-status imp-azul';
+  status.textContent = 'Importando...';
+  const form = new FormData();
+  form.append('arquivo', file);
+  try {
+    const data = await oviFetchJson('/api/ovitrampas/diarios/importar', {method:'POST', headers:{'X-CSRFToken': getCsrf()}, body:form});
+    status.className = data.erros?.length ? 'imp-status imp-azul' : 'imp-status imp-verde';
+    status.textContent = `${oviFmt.format(data.diarios || 0)} diário(s), ${oviFmt.format(data.vinculos || 0)} vínculo(s)`;
+    toast('Base dos diários importada.', data.erros?.length ? 'warning' : 'success');
+    await carregarDiarios();
+  } catch (err) {
+    status.className = 'imp-status imp-vermelho';
+    status.textContent = 'Erro';
+    toast('Erro ao importar diários: ' + err.message, 'error');
+  }
+});
 document.getElementById('ovi-arm-form').addEventListener('submit', async e => {
   e.preventDefault();
   const file = document.getElementById('ovi-arm-arquivo').files[0];
@@ -1065,6 +1344,8 @@ document.getElementById('ovi-arm-form').addEventListener('submit', async e => {
   status.textContent = 'Atualizando...';
   const form = new FormData();
   form.append('arquivo', file);
+  form.append('motivo', document.getElementById('ovi-arm-motivo').value || '');
+  Array.from(document.getElementById('ovi-arm-agentes').selectedOptions || []).forEach(opt => form.append('agentes', opt.value));
   try {
     const data = await oviFetchJson('/api/ovitrampas/armadilhas/importar', {method:'POST', headers:{'X-CSRFToken': getCsrf()}, body:form});
     status.className = data.erros?.length ? 'imp-status imp-azul' : 'imp-status imp-verde';

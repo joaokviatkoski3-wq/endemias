@@ -1979,6 +1979,9 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("Edição em lote das leituras filtradas", html)
         self.assertIn('id="ovi-lote-lab"', html)
         self.assertIn('id="ovi-lote-somente-vazios"', html)
+        self.assertIn('data-ovi-tab="diarios"', html)
+        self.assertIn('id="ovi-dia-import-form"', html)
+        self.assertIn("Sem diário definido", html)
         self.assertIn("aplicarOviLote", html)
 
     def test_pagina_visitas_usa_filtros_modernos(self):
@@ -3018,6 +3021,58 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(armadilhas["registros"][0]["localidade"], "Lamenha")
             self.assertEqual(historico["armadilha"]["responsavel"], "Vanessa")
             self.assertEqual(historico["leituras"][0]["ovos"], 53)
+            self.assertTrue(any(item["campo"] == "responsavel" for item in historico["alteracoes"]))
+
+    def test_ovitrampas_importa_diarios_xlsx_com_ordem_e_realocar(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            cadastro_csv = (
+                "ID;Rua;NÃºmero do logradouro;Complemento;Bairro;LocalizaÃ§Ã£o da ovitrampa;"
+                "Setor/Distrito da ovitrampa;ResponsÃ¡vel;QuarteirÃ£o;Latitude;Longitude\n"
+                "1;Rua A;10;Escola;TAMBOARA;Parede;TAMBOARA;Joel;1269;-25,1;-49,2\n"
+                "2;REALOCAR;20;Loja;;Canto;REALOCAR;Vanessa;1270;-25,3;-49,4\n"
+                "3;Rua C;30;Mercado;;Fundo;TAMBOARA;Maria;1271;-25,5;-49,6\n"
+            )
+            cadastro_path = Path(tmpdir) / "cadastro.csv"
+            cadastro_path.write_text(cadastro_csv, encoding="utf-8")
+            ovitrampas_core.importar_armadilhas_csv(db_path, cadastro_path, motivo="Teste")
+
+            xlsx_path = Path(tmpdir) / "diarios.xlsx"
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Tamboara e Graziela"
+            ws["A21"] = "ID"
+            ws["B21"] = "Endereço"
+            ws["F21"] = "Q."
+            ws["G21"] = "Localização"
+            ws["A22"] = 1
+            ws["B22"] = "Rua A, 10 - Escola"
+            ws["F22"] = "1269"
+            ws["G22"] = "Parede"
+            ws["B23"] = "(41) 99999-0000"
+            ws["D23"] = "Joel"
+            ws["A24"] = "1-A"
+            ws["B24"] = "Rua B, 20 - Comercio"
+            ws["F24"] = "1270"
+            ws["G24"] = "Arvore"
+            ws["B25"] = "(41) 98888-0000"
+            ws["D25"] = "Ana"
+            ws["A26"] = "Ocorrências"
+            wb.save(xlsx_path)
+
+            result = ovitrampas_core.importar_diarios_xlsx(db_path, xlsx_path, usuario="Teste")
+            dados = ovitrampas_core.diarios_dados(db_path)
+            detalhe = ovitrampas_core.diario_detalhe(db_path, dados["diarios"][0]["id_diario"])
+
+            self.assertEqual(result["diarios"], 1)
+            self.assertEqual(result["vinculos"], 2)
+            self.assertEqual(dados["totais"]["realocar"], 1)
+            self.assertEqual(dados["totais"]["sem_diario"], 1)
+            self.assertEqual([r["ovitrampa_id"] for r in detalhe["registros"]], ["1", "1-A"])
+            self.assertEqual(detalhe["registros"][0]["telefone_responsavel"], "(41) 99999-0000")
+
+            impressao = ovitrampas_core.diario_impressao(db_path, dados["diarios"][0]["id_diario"])
+            self.assertEqual([r["ovitrampa_id"] for r in impressao["registros"]], ["1", "1-A"])
 
     def test_api_ovitrampas_importa_csv(self):
         csv_bytes = (

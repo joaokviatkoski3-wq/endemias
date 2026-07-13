@@ -15,6 +15,9 @@ OCORRENCIAS_TABLE = "ovitrampas_ocorrencias_conta_ovos"
 CAL_GRUPOS_TABLE = "ovitrampas_calendario_grupos"
 CAL_EVENTOS_TABLE = "ovitrampas_calendario_eventos"
 CAL_AGENTES_TABLE = "ovitrampas_calendario_agentes"
+DIARIOS_TABLE = "ovitrampas_diarios"
+DIARIO_ARMADILHAS_TABLE = "ovitrampas_diario_armadilhas"
+ARMADILHAS_HISTORICO_TABLE = "ovitrampas_armadilhas_historico"
 
 OCORRENCIAS = {
     1: "Intervalo maior que 7 dias",
@@ -73,9 +76,11 @@ def ensure_schema(conn):
             localizacao     TEXT,
             localidade      TEXT,
             responsavel     TEXT,
+            telefone_responsavel TEXT,
             quarteirao      TEXT,
             latitude        REAL,
             longitude       REAL,
+            ativo           INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)),
             arquivo_origem  TEXT,
             atualizado_em   TEXT NOT NULL
         );
@@ -172,8 +177,48 @@ def ensure_schema(conn):
         CREATE INDEX IF NOT EXISTS idx_ovitrampas_cal_eventos_data ON ovitrampas_calendario_eventos(data);
         CREATE INDEX IF NOT EXISTS idx_ovitrampas_cal_eventos_grupo ON ovitrampas_calendario_eventos(id_grupo);
         CREATE INDEX IF NOT EXISTS idx_ovitrampas_cal_agentes_agente ON ovitrampas_calendario_agentes(id_agente);
+
+        CREATE TABLE IF NOT EXISTS ovitrampas_diarios (
+            id_diario     INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome          TEXT NOT NULL UNIQUE,
+            observacoes   TEXT,
+            ativo         INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)),
+            criado_em     TEXT NOT NULL,
+            atualizado_em TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS ovitrampas_diario_armadilhas (
+            id_diario     INTEGER NOT NULL REFERENCES ovitrampas_diarios(id_diario) ON DELETE CASCADE,
+            ovitrampa_id  TEXT NOT NULL REFERENCES ovitrampas_armadilhas(ovitrampa_id) ON DELETE CASCADE,
+            ordem         INTEGER NOT NULL DEFAULT 0,
+            observacoes   TEXT,
+            criado_em     TEXT NOT NULL,
+            atualizado_em TEXT,
+            PRIMARY KEY (id_diario, ovitrampa_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS ovitrampas_armadilhas_historico (
+            id_historico  INTEGER PRIMARY KEY AUTOINCREMENT,
+            ovitrampa_id  TEXT NOT NULL,
+            campo         TEXT NOT NULL,
+            valor_anterior TEXT,
+            valor_novo    TEXT,
+            motivo        TEXT,
+            agentes       TEXT,
+            usuario       TEXT,
+            arquivo_origem TEXT,
+            criado_em     TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ovi_diario_arm_diario ON ovitrampas_diario_armadilhas(id_diario, ordem);
+        CREATE INDEX IF NOT EXISTS idx_ovi_diario_arm_ovitrampa ON ovitrampas_diario_armadilhas(ovitrampa_id);
+        CREATE INDEX IF NOT EXISTS idx_ovi_arm_hist_ovitrampa ON ovitrampas_armadilhas_historico(ovitrampa_id, criado_em);
         """
     )
+    _ensure_columns(conn, ARMADILHAS_TABLE, {
+        "telefone_responsavel": "TEXT",
+        "ativo": "INTEGER NOT NULL DEFAULT 1",
+    })
     _ensure_columns(conn, TABLE, {
         "id_laboratorista": "INTEGER REFERENCES agentes(id_agente)",
         "data_leitura": "DATE",
@@ -184,6 +229,7 @@ def ensure_schema(conn):
     _migrar_calendario_agentes_schema(conn)
     _semear_grupos_padrao(conn)
     _normalizar_localidades_existentes(conn)
+    _normalizar_ids_armadilhas_existentes(conn)
 
 
 def _ensure_columns(conn, table, columns):
@@ -219,6 +265,76 @@ def _normalizar_localidades_existentes(conn):
                     f"UPDATE {table} SET {column}=? WHERE rowid=?",
                     (normalizado, rowid),
                 )
+
+
+def _normalizar_ids_armadilhas_existentes(conn):
+    rows = conn.execute(f"SELECT * FROM {ARMADILHAS_TABLE}").fetchall()
+    for row in rows:
+        antigo = row["ovitrampa_id"]
+        novo = _normalizar_ovitrampa_id(antigo)
+        if not novo or novo == antigo:
+            continue
+        alvo = conn.execute(f"SELECT * FROM {ARMADILHAS_TABLE} WHERE ovitrampa_id=?", (novo,)).fetchone()
+        if alvo:
+            _fundir_armadilha(conn, antigo, novo, row, alvo)
+        else:
+            _renomear_ovitrampa(conn, antigo, novo)
+
+
+def _renomear_ovitrampa(conn, antigo, novo):
+    row = conn.execute(f"SELECT * FROM {ARMADILHAS_TABLE} WHERE ovitrampa_id=?", (antigo,)).fetchone()
+    if row:
+        cols = list(row.keys())
+        payload = [novo if col == "ovitrampa_id" else row[col] for col in cols]
+        placeholders = ",".join("?" for _ in cols)
+        conn.execute(
+            f"INSERT OR IGNORE INTO {ARMADILHAS_TABLE} ({','.join(cols)}) VALUES ({placeholders})",
+            payload,
+        )
+    for table in (TABLE, OCORRENCIAS_TABLE, DIARIO_ARMADILHAS_TABLE, ARMADILHAS_HISTORICO_TABLE):
+        conn.execute(f"UPDATE {table} SET ovitrampa_id=? WHERE ovitrampa_id=?", (novo, antigo))
+    conn.execute(f"DELETE FROM {ARMADILHAS_TABLE} WHERE ovitrampa_id=?", (antigo,))
+
+
+def _fundir_armadilha(conn, antigo, novo, origem, alvo):
+    payload = {}
+    for key in origem.keys():
+        if key == "ovitrampa_id":
+            continue
+        origem_val = origem[key]
+        alvo_val = alvo[key]
+        if key == "telefone_responsavel":
+            payload[key] = alvo_val or origem_val
+        elif origem_val not in (None, ""):
+            payload[key] = origem_val
+        else:
+            payload[key] = alvo_val
+    sets = ", ".join(f"{key}=?" for key in payload)
+    conn.execute(
+        f"UPDATE {ARMADILHAS_TABLE} SET {sets} WHERE ovitrampa_id=?",
+        [payload[key] for key in payload] + [novo],
+    )
+    conn.execute(f"UPDATE {TABLE} SET ovitrampa_id=? WHERE ovitrampa_id=?", (novo, antigo))
+    conn.execute(f"UPDATE {OCORRENCIAS_TABLE} SET ovitrampa_id=? WHERE ovitrampa_id=?", (novo, antigo))
+    conn.execute(f"UPDATE {ARMADILHAS_HISTORICO_TABLE} SET ovitrampa_id=? WHERE ovitrampa_id=?", (novo, antigo))
+    links = conn.execute(
+        f"SELECT id_diario, ordem, observacoes, criado_em, atualizado_em FROM {DIARIO_ARMADILHAS_TABLE} WHERE ovitrampa_id=?",
+        (antigo,),
+    ).fetchall()
+    for link in links:
+        existe = conn.execute(
+            f"SELECT 1 FROM {DIARIO_ARMADILHAS_TABLE} WHERE id_diario=? AND ovitrampa_id=?",
+            (link["id_diario"], novo),
+        ).fetchone()
+        if not existe:
+            conn.execute(
+                f"""INSERT INTO {DIARIO_ARMADILHAS_TABLE}
+                    (id_diario, ovitrampa_id, ordem, observacoes, criado_em, atualizado_em)
+                    VALUES (?, ?, ?, ?, ?, ?)""",
+                (link["id_diario"], novo, link["ordem"], link["observacoes"], link["criado_em"], link["atualizado_em"]),
+            )
+    conn.execute(f"DELETE FROM {DIARIO_ARMADILHAS_TABLE} WHERE ovitrampa_id=?", (antigo,))
+    conn.execute(f"DELETE FROM {ARMADILHAS_TABLE} WHERE ovitrampa_id=?", (antigo,))
 
 
 def _migrar_calendario_schema(conn):
@@ -331,12 +447,13 @@ def importar_csv(db_path, path):
     return result
 
 
-def importar_armadilhas_csv(db_path, path):
+def importar_armadilhas_csv(db_path, path, motivo=None, agentes=None, usuario=None):
     result = {"arquivo": os.path.basename(path), "linhas": 0, "inseridos": 0, "atualizados": 0, "sem_alteracao": 0, "erros": []}
     conn = db_core.connect(db_path)
     try:
         ensure_schema(conn)
         agora = datetime.now().isoformat(timespec="seconds")
+        contexto = _contexto_historico_importacao(conn, motivo, agentes, usuario, result["arquivo"])
         with open(path, "r", encoding="utf-8-sig", newline="") as fh:
             reader = csv.DictReader(fh, delimiter=";")
             for idx, row in enumerate(reader, start=2):
@@ -345,10 +462,70 @@ def importar_armadilhas_csv(db_path, path):
                 result["linhas"] += 1
                 try:
                     registro = _registro_armadilha(row, result["arquivo"], agora)
-                    status = _upsert_armadilha(conn, registro)
+                    status = _upsert_armadilha(conn, registro, contexto=contexto)
                     result[status] += 1
                 except Exception as exc:
                     result["erros"].append(f"Linha {idx}: {exc}")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return result
+
+
+def importar_diarios_xlsx(db_path, path, usuario=None):
+    try:
+        import openpyxl
+    except ImportError as exc:
+        raise ValueError("Biblioteca openpyxl nao disponivel para ler XLSX.") from exc
+
+    result = {
+        "arquivo": os.path.basename(path),
+        "diarios": 0,
+        "armadilhas": 0,
+        "vinculos": 0,
+        "telefones": 0,
+        "erros": [],
+    }
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        agora = datetime.now().isoformat(timespec="seconds")
+        wb = openpyxl.load_workbook(path, data_only=True)
+        for ws in wb.worksheets:
+            nome = _text(ws.title)
+            if not nome:
+                continue
+            id_diario = _upsert_diario_conn(conn, {"nome": nome, "ativo": True}, agora)
+            result["diarios"] += 1
+            ordem = 0
+            for row in range(22, ws.max_row + 1):
+                raw_id = ws.cell(row, 1).value
+                ovitrampa_id = _normalizar_ovitrampa_id(raw_id)
+                if not ovitrampa_id:
+                    marcador = _text(raw_id)
+                    if marcador and marcador.upper().startswith("OCORR"):
+                        break
+                    continue
+                ordem += 1
+                registro = _registro_armadilha_diario(ws, row, ovitrampa_id, result["arquivo"], agora)
+                contexto = {
+                    "motivo": "Carga inicial dos diarios de ovitrampas",
+                    "agentes": "",
+                    "usuario": usuario or "sistema",
+                    "arquivo_origem": result["arquivo"],
+                    "criado_em": agora,
+                }
+                status = _upsert_armadilha(conn, registro, contexto=contexto, preservar_cadastro_conta_ovos=True)
+                if status == "inseridos":
+                    result["armadilhas"] += 1
+                if registro.get("telefone_responsavel"):
+                    result["telefones"] += 1
+                if _vincular_diario_conn(conn, id_diario, ovitrampa_id, ordem, agora):
+                    result["vinculos"] += 1
+        _reordenar_todos_diarios(conn)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -501,9 +678,235 @@ def historico_armadilha(db_path, ovitrampa_id):
                 ORDER BY l.ano DESC, l.semana DESC, l.data_coleta DESC""",
             (str(ovitrampa_id),),
         )]
+        historico = [dict(row) for row in conn.execute(
+            f"""SELECT *
+                  FROM {ARMADILHAS_HISTORICO_TABLE}
+                 WHERE ovitrampa_id=?
+                 ORDER BY criado_em DESC, id_historico DESC
+                 LIMIT 80""",
+            (str(ovitrampa_id),),
+        )]
     finally:
         conn.close()
-    return {"armadilha": dict(armadilha) if armadilha else None, "leituras": leituras}
+    return {"armadilha": dict(armadilha) if armadilha else None, "leituras": leituras, "alteracoes": historico}
+
+
+def diarios_dados(db_path):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        diarios = [_diario_dict(row) for row in conn.execute(
+            f"""SELECT d.*,
+                       COUNT(da.ovitrampa_id) AS armadilhas
+                  FROM {DIARIOS_TABLE} d
+                  LEFT JOIN {DIARIO_ARMADILHAS_TABLE} da ON da.id_diario=d.id_diario
+                 GROUP BY d.id_diario
+                 ORDER BY d.ativo DESC, d.nome COLLATE NOCASE"""
+        )]
+        realocar = _armadilhas_realocar(conn, {})
+        sem_diario = _armadilhas_sem_diario(conn)
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM {ARMADILHAS_TABLE} WHERE COALESCE(ativo,1)=1"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    return {
+        "diarios": diarios,
+        "sem_diario": sem_diario,
+        "realocar": realocar,
+        "totais": {
+            "diarios": len(diarios),
+            "armadilhas": total or 0,
+            "sem_diario": sem_diario["total"],
+            "realocar": realocar["total"],
+        },
+    }
+
+
+def diario_detalhe(db_path, id_diario, incluir_realocar=True):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        diario = conn.execute(
+            f"SELECT * FROM {DIARIOS_TABLE} WHERE id_diario=?",
+            (_int(id_diario),),
+        ).fetchone()
+        if not diario:
+            raise ValueError("Diario nao encontrado.")
+        rows = [dict(row) for row in conn.execute(
+            f"""SELECT da.ordem, da.observacoes AS observacao_rota,
+                       a.*,
+                       COUNT(l.id_leitura) AS leituras,
+                       MAX(l.ano * 100 + l.semana) AS ultima_chave,
+                       COALESCE(SUM(l.ovos),0) AS ovos_total,
+                       SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas
+                  FROM {DIARIO_ARMADILHAS_TABLE} da
+                  JOIN {ARMADILHAS_TABLE} a ON a.ovitrampa_id=da.ovitrampa_id
+                  LEFT JOIN {TABLE} l ON l.ovitrampa_id=a.ovitrampa_id
+                 WHERE da.id_diario=?
+                   AND COALESCE(a.ativo,1)=1
+                 GROUP BY da.id_diario, da.ovitrampa_id
+                 ORDER BY da.ordem, CAST(a.ovitrampa_id AS INTEGER), a.ovitrampa_id COLLATE NOCASE""",
+            (_int(id_diario),),
+        )]
+        registros = []
+        for row in rows:
+            row["ultima"] = _semana_label_from_key(row.pop("ultima_chave", None))
+            row["realocar"] = _armadilha_realocar(row)
+            if incluir_realocar or not row["realocar"]:
+                registros.append(row)
+    finally:
+        conn.close()
+    return {"diario": _diario_dict(diario), "registros": registros, "total": len(registros)}
+
+
+def salvar_diario(db_path, dados, id_diario=None):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        agora = datetime.now().isoformat(timespec="seconds")
+        id_diario = _upsert_diario_conn(conn, dados, agora, id_diario=id_diario)
+        conn.commit()
+        row = conn.execute(f"SELECT * FROM {DIARIOS_TABLE} WHERE id_diario=?", (id_diario,)).fetchone()
+        return _diario_dict(row)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def vincular_armadilha_diario(db_path, dados):
+    ovitrampa_id = _normalizar_ovitrampa_id(dados.get("ovitrampa_id"))
+    id_diario = _int(dados.get("id_diario"))
+    if not ovitrampa_id or not id_diario:
+        raise ValueError("Informe o diario e a ovitrampa.")
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        agora = datetime.now().isoformat(timespec="seconds")
+        existe = conn.execute(f"SELECT 1 FROM {ARMADILHAS_TABLE} WHERE ovitrampa_id=?", (ovitrampa_id,)).fetchone()
+        if not existe:
+            raise ValueError("Ovitrampa nao encontrada.")
+        diario = conn.execute(f"SELECT 1 FROM {DIARIOS_TABLE} WHERE id_diario=?", (id_diario,)).fetchone()
+        if not diario:
+            raise ValueError("Diario nao encontrado.")
+        ordem = _int(dados.get("ordem")) or _proxima_ordem_diario(conn, id_diario)
+        _vincular_diario_conn(conn, id_diario, ovitrampa_id, ordem, agora, mover_unico=True)
+        _reordenar_diario(conn, id_diario)
+        conn.commit()
+        return diario_detalhe(db_path, id_diario)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def remover_armadilha_diario(db_path, id_diario, ovitrampa_id):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        cur = conn.execute(
+            f"DELETE FROM {DIARIO_ARMADILHAS_TABLE} WHERE id_diario=? AND ovitrampa_id=?",
+            (_int(id_diario), str(ovitrampa_id)),
+        )
+        if cur.rowcount == 0:
+            raise ValueError("Vinculo nao encontrado.")
+        _reordenar_diario(conn, _int(id_diario))
+        conn.commit()
+        return diario_detalhe(db_path, id_diario)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def mover_armadilha_diario(db_path, id_diario, ovitrampa_id, direcao):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        id_diario = _int(id_diario)
+        atual = conn.execute(
+            f"""SELECT ovitrampa_id, ordem
+                  FROM {DIARIO_ARMADILHAS_TABLE}
+                 WHERE id_diario=?
+                 ORDER BY ordem, ovitrampa_id COLLATE NOCASE""",
+            (id_diario,),
+        ).fetchall()
+        ids = [row["ovitrampa_id"] for row in atual]
+        if str(ovitrampa_id) not in ids:
+            raise ValueError("Ovitrampa nao encontrada neste diario.")
+        idx = ids.index(str(ovitrampa_id))
+        delta = -1 if direcao == "subir" else 1
+        novo = idx + delta
+        if novo < 0 or novo >= len(ids):
+            return diario_detalhe(db_path, id_diario)
+        ids[idx], ids[novo] = ids[novo], ids[idx]
+        agora = datetime.now().isoformat(timespec="seconds")
+        for ordem, item_id in enumerate(ids, start=1):
+            conn.execute(
+                f"""UPDATE {DIARIO_ARMADILHAS_TABLE}
+                       SET ordem=?, atualizado_em=?
+                     WHERE id_diario=? AND ovitrampa_id=?""",
+                (ordem, agora, id_diario, item_id),
+            )
+        conn.commit()
+        return diario_detalhe(db_path, id_diario)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def atualizar_armadilha_local(db_path, ovitrampa_id, dados, usuario=None):
+    campos = {
+        "telefone_responsavel": _text(dados.get("telefone_responsavel")),
+        "responsavel": _text(dados.get("responsavel")),
+    }
+    motivo = _text(dados.get("motivo")) or "Edicao manual da armadilha"
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        atual = conn.execute(f"SELECT * FROM {ARMADILHAS_TABLE} WHERE ovitrampa_id=?", (str(ovitrampa_id),)).fetchone()
+        if not atual:
+            raise ValueError("Ovitrampa nao encontrada.")
+        agora = datetime.now().isoformat(timespec="seconds")
+        contexto = {"motivo": motivo, "agentes": "", "usuario": usuario or "sistema", "arquivo_origem": None, "criado_em": agora}
+        for campo, novo in campos.items():
+            if atual[campo] != novo:
+                conn.execute(
+                    f"UPDATE {ARMADILHAS_TABLE} SET {campo}=?, atualizado_em=? WHERE ovitrampa_id=?",
+                    (novo, agora, str(ovitrampa_id)),
+                )
+                _registrar_alteracao_armadilha(conn, str(ovitrampa_id), campo, atual[campo], novo, contexto)
+        conn.commit()
+        row = conn.execute(f"SELECT * FROM {ARMADILHAS_TABLE} WHERE ovitrampa_id=?", (str(ovitrampa_id),)).fetchone()
+        return dict(row)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def diario_impressao(db_path, id_diario, filtros=None):
+    filtros = filtros or {}
+    dados = diario_detalhe(db_path, id_diario, incluir_realocar=False)
+    movimento = _text(filtros.get("movimento")) or "instalacao"
+    if movimento not in ("instalacao", "troca", "retirada"):
+        movimento = "instalacao"
+    return {
+        **dados,
+        "ano": _int(filtros.get("ano")) or datetime.now().year,
+        "semana": _int(filtros.get("semana")),
+        "movimento": movimento,
+        "movimento_label": MOVIMENTOS.get(movimento, movimento.title()),
+        "gerado_em": datetime.now(),
+        "ocorrencias": OCORRENCIAS,
+    }
 
 
 def monitoramento(db_path, filtros=None):
@@ -1031,7 +1434,7 @@ def _registro(row, arquivo, agora):
 
 
 def _registro_armadilha(row, arquivo, agora):
-    ovitrampa_id = _text(row.get("ID"))
+    ovitrampa_id = _normalizar_ovitrampa_id(row.get("ID"))
     if not ovitrampa_id:
         raise ValueError("sem ID da armadilha")
     return {
@@ -1046,6 +1449,30 @@ def _registro_armadilha(row, arquivo, agora):
         "quarteirao": _text(_row_value(row, "Quarteirão", "Quarteirao")),
         "latitude": _real(row.get("Latitude")),
         "longitude": _real(row.get("Longitude")),
+        "arquivo_origem": arquivo,
+        "atualizado_em": agora,
+    }
+
+
+def _registro_armadilha_diario(ws, row, ovitrampa_id, arquivo, agora):
+    endereco = _text(ws.cell(row, 2).value)
+    telefone = _text(ws.cell(row + 1, 2).value)
+    responsavel = _text(ws.cell(row + 1, 4).value)
+    rua, numero, complemento = _separar_endereco_diario(endereco)
+    return {
+        "ovitrampa_id": ovitrampa_id,
+        "rua": rua,
+        "numero": numero,
+        "complemento": complemento,
+        "bairro": None,
+        "localizacao": _text(ws.cell(row, 7).value),
+        "localidade": _localidade_diario(ws.title),
+        "responsavel": responsavel,
+        "telefone_responsavel": telefone,
+        "quarteirao": _text(ws.cell(row, 6).value),
+        "latitude": None,
+        "longitude": None,
+        "ativo": 1,
         "arquivo_origem": arquivo,
         "atualizado_em": agora,
     }
@@ -1404,11 +1831,7 @@ def _monitoramento_ocorrencias_detalhes(conn, join_base, params):
 
 
 def _armadilhas_realocar(conn, filtros):
-    clauses = [
-        "(UPPER(COALESCE(a.rua,'') || ' ' || COALESCE(a.numero,'') || ' ' || "
-        "COALESCE(a.complemento,'') || ' ' || COALESCE(a.localizacao,'') || ' ' || "
-        "COALESCE(a.bairro,'') || ' ' || COALESCE(a.responsavel,'')) LIKE '%REALOCAR%')"
-    ]
+    clauses = [_realocar_sql("a")]
     params = []
     distrito = _text(filtros.get("distrito"))
     if distrito:
@@ -1438,6 +1861,225 @@ def _armadilhas_realocar(conn, filtros):
     return {"total": total or 0, "registros": rows}
 
 
+def _armadilhas_sem_diario(conn, limite=300):
+    where = f"""WHERE COALESCE(a.ativo,1)=1
+                  AND NOT ({_realocar_sql("a")})
+                  AND NOT EXISTS (
+                        SELECT 1 FROM {DIARIO_ARMADILHAS_TABLE} da
+                         WHERE da.ovitrampa_id=a.ovitrampa_id
+                  )"""
+    rows = [dict(row) for row in conn.execute(
+        f"""SELECT a.*,
+                   COUNT(l.id_leitura) AS leituras,
+                   MAX(l.ano * 100 + l.semana) AS ultima_chave,
+                   COALESCE(SUM(l.ovos),0) AS ovos_total,
+                   SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas
+              FROM {ARMADILHAS_TABLE} a
+              LEFT JOIN {TABLE} l ON l.ovitrampa_id=a.ovitrampa_id
+              {where}
+             GROUP BY a.ovitrampa_id
+             ORDER BY COALESCE(a.localidade,''), CAST(a.ovitrampa_id AS INTEGER), a.ovitrampa_id COLLATE NOCASE
+             LIMIT ?""",
+        (limite,),
+    )]
+    total = conn.execute(
+        f"SELECT COUNT(*) FROM {ARMADILHAS_TABLE} a {where}"
+    ).fetchone()[0]
+    for row in rows:
+        row["ultima"] = _semana_label_from_key(row.pop("ultima_chave", None))
+    return {"total": total or 0, "registros": rows}
+
+
+def _diario_dict(row):
+    item = dict(row)
+    item["ativo"] = bool(item.get("ativo"))
+    return item
+
+
+def _upsert_diario_conn(conn, dados, agora, id_diario=None):
+    nome = _text(dados.get("nome"))
+    if not nome:
+        raise ValueError("Informe o nome do diario.")
+    observacoes = _text(dados.get("observacoes"))
+    ativo = 1 if dados.get("ativo", True) in (True, 1, "1", "true", "on") else 0
+    if id_diario:
+        existe = conn.execute(f"SELECT 1 FROM {DIARIOS_TABLE} WHERE id_diario=?", (_int(id_diario),)).fetchone()
+        if not existe:
+            raise ValueError("Diario nao encontrado.")
+        conn.execute(
+            f"""UPDATE {DIARIOS_TABLE}
+                   SET nome=?, observacoes=?, ativo=?, atualizado_em=?
+                 WHERE id_diario=?""",
+            (nome, observacoes, ativo, agora, _int(id_diario)),
+        )
+        return _int(id_diario)
+    atual = conn.execute(f"SELECT id_diario FROM {DIARIOS_TABLE} WHERE nome=?", (nome,)).fetchone()
+    if atual:
+        conn.execute(
+            f"""UPDATE {DIARIOS_TABLE}
+                   SET observacoes=COALESCE(?, observacoes), ativo=?, atualizado_em=?
+                 WHERE id_diario=?""",
+            (observacoes, ativo, agora, atual["id_diario"]),
+        )
+        return atual["id_diario"]
+    cur = conn.execute(
+        f"""INSERT INTO {DIARIOS_TABLE} (nome, observacoes, ativo, criado_em, atualizado_em)
+            VALUES (?, ?, ?, ?, ?)""",
+        (nome, observacoes, ativo, agora, agora),
+    )
+    return cur.lastrowid
+
+
+def _vincular_diario_conn(conn, id_diario, ovitrampa_id, ordem, agora, mover_unico=False):
+    if mover_unico:
+        conn.execute(
+            f"DELETE FROM {DIARIO_ARMADILHAS_TABLE} WHERE ovitrampa_id=? AND id_diario<>?",
+            (ovitrampa_id, id_diario),
+        )
+    atual = conn.execute(
+        f"SELECT ordem FROM {DIARIO_ARMADILHAS_TABLE} WHERE id_diario=? AND ovitrampa_id=?",
+        (id_diario, ovitrampa_id),
+    ).fetchone()
+    if atual:
+        conn.execute(
+            f"""UPDATE {DIARIO_ARMADILHAS_TABLE}
+                   SET ordem=?, atualizado_em=?
+                 WHERE id_diario=? AND ovitrampa_id=?""",
+            (ordem, agora, id_diario, ovitrampa_id),
+        )
+        return False
+    conn.execute(
+        f"""INSERT INTO {DIARIO_ARMADILHAS_TABLE}
+            (id_diario, ovitrampa_id, ordem, criado_em, atualizado_em)
+            VALUES (?, ?, ?, ?, ?)""",
+        (id_diario, ovitrampa_id, ordem, agora, agora),
+    )
+    return True
+
+
+def _proxima_ordem_diario(conn, id_diario):
+    valor = conn.execute(
+        f"SELECT COALESCE(MAX(ordem),0) + 1 FROM {DIARIO_ARMADILHAS_TABLE} WHERE id_diario=?",
+        (id_diario,),
+    ).fetchone()[0]
+    return int(valor or 1)
+
+
+def _reordenar_todos_diarios(conn):
+    ids = [row[0] for row in conn.execute(f"SELECT id_diario FROM {DIARIOS_TABLE}")]
+    for id_diario in ids:
+        _reordenar_diario(conn, id_diario)
+
+
+def _reordenar_diario(conn, id_diario):
+    rows = conn.execute(
+        f"""SELECT ovitrampa_id
+              FROM {DIARIO_ARMADILHAS_TABLE}
+             WHERE id_diario=?
+             ORDER BY ordem, CAST(ovitrampa_id AS INTEGER), ovitrampa_id COLLATE NOCASE""",
+        (id_diario,),
+    ).fetchall()
+    agora = datetime.now().isoformat(timespec="seconds")
+    for ordem, row in enumerate(rows, start=1):
+        conn.execute(
+            f"""UPDATE {DIARIO_ARMADILHAS_TABLE}
+                   SET ordem=?, atualizado_em=?
+                 WHERE id_diario=? AND ovitrampa_id=?""",
+            (ordem, agora, id_diario, row["ovitrampa_id"]),
+        )
+
+
+def _realocar_sql(alias):
+    return (
+        f"(UPPER(COALESCE({alias}.localidade,'') || ' ' || COALESCE({alias}.rua,'') || ' ' || "
+        f"COALESCE({alias}.numero,'') || ' ' || COALESCE({alias}.complemento,'') || ' ' || "
+        f"COALESCE({alias}.localizacao,'') || ' ' || COALESCE({alias}.bairro,'') || ' ' || "
+        f"COALESCE({alias}.responsavel,'')) LIKE '%REALOCAR%')"
+    )
+
+
+def _armadilha_realocar(row):
+    texto = " ".join(str(row.get(campo) or "") for campo in (
+        "localidade", "rua", "numero", "complemento", "localizacao", "bairro", "responsavel"
+    ))
+    return "REALOCAR" in texto.upper()
+
+
+def _normalizar_ovitrampa_id(value):
+    text = _text(value)
+    if not text:
+        return None
+    text = text.replace(".0", "") if re.fullmatch(r"\d+\.0", text) else text
+    text = re.sub(r"\s+", "", text).upper()
+    if re.fullmatch(r"\d+(?:[-/][A-Z]+)?", text):
+        return text.replace("/", "-")
+    return None
+
+
+def _localidade_diario(nome):
+    text = _text(nome) or ""
+    for sufixo in (" 1", " 2", " 3"):
+        if text.endswith(sufixo):
+            text = text[:-len(sufixo)]
+            break
+    return text
+
+
+def _separar_endereco_diario(endereco):
+    text = _text(endereco)
+    if not text:
+        return None, None, None
+    match = re.match(r"(.+?),\s*([0-9A-Za-z\-\/]+)\s*(?:[-(]\s*(.*))?$", text)
+    if not match:
+        return text, None, None
+    rua = _text(match.group(1))
+    numero = _text(match.group(2))
+    complemento = _text(match.group(3))
+    if complemento and complemento.endswith(")"):
+        complemento = complemento[:-1].strip()
+    return rua, numero, complemento
+
+
+def _contexto_historico_importacao(conn, motivo, agentes, usuario, arquivo):
+    agentes_texto = ""
+    ids = [_int(item) for item in (agentes or [])]
+    ids = [item for item in ids if item]
+    if ids:
+        placeholders = ",".join("?" for _ in ids)
+        nomes = [row[0] for row in conn.execute(
+            f"SELECT nome FROM agentes WHERE id_agente IN ({placeholders}) ORDER BY nome COLLATE NOCASE",
+            ids,
+        )]
+        agentes_texto = ", ".join(nomes)
+    return {
+        "motivo": _text(motivo) or "Importacao do cadastro Conta Ovos",
+        "agentes": agentes_texto,
+        "usuario": usuario or "sistema",
+        "arquivo_origem": arquivo,
+        "criado_em": datetime.now().isoformat(timespec="seconds"),
+    }
+
+
+def _registrar_alteracao_armadilha(conn, ovitrampa_id, campo, anterior, novo, contexto=None):
+    contexto = contexto or {}
+    conn.execute(
+        f"""INSERT INTO {ARMADILHAS_HISTORICO_TABLE}
+            (ovitrampa_id, campo, valor_anterior, valor_novo, motivo, agentes, usuario, arquivo_origem, criado_em)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            str(ovitrampa_id),
+            campo,
+            None if anterior is None else str(anterior),
+            None if novo is None else str(novo),
+            contexto.get("motivo"),
+            contexto.get("agentes"),
+            contexto.get("usuario"),
+            contexto.get("arquivo_origem"),
+            contexto.get("criado_em") or datetime.now().isoformat(timespec="seconds"),
+        ),
+    )
+
+
 def _insert(conn, registro):
     cols = list(registro.keys())
     placeholders = ",".join("?" for _ in cols)
@@ -1448,7 +2090,7 @@ def _insert(conn, registro):
     return cur.rowcount > 0
 
 
-def _upsert_armadilha(conn, registro):
+def _upsert_armadilha(conn, registro, contexto=None, preservar_cadastro_conta_ovos=False):
     atual = conn.execute(
         f"SELECT * FROM {ARMADILHAS_TABLE} WHERE ovitrampa_id=?",
         (registro["ovitrampa_id"],),
@@ -1460,15 +2102,28 @@ def _upsert_armadilha(conn, registro):
             f"INSERT INTO {ARMADILHAS_TABLE} ({','.join(cols)}) VALUES ({placeholders})",
             [registro[col] for col in cols],
         )
+        _registrar_alteracao_armadilha(conn, registro["ovitrampa_id"], "cadastro", None, "Armadilha cadastrada", contexto)
         return "inseridos"
 
-    mudou = any((atual[col] != registro[col]) for col in cols if col not in ("arquivo_origem", "atualizado_em"))
+    if preservar_cadastro_conta_ovos:
+        cols_update = [
+            col for col in cols
+            if col in ("telefone_responsavel", "responsavel", "arquivo_origem", "atualizado_em")
+            or (not atual[col] and registro[col] is not None)
+        ]
+    else:
+        cols_update = cols
+
+    mudou = any((atual[col] != registro[col]) for col in cols_update if col not in ("arquivo_origem", "atualizado_em"))
     if not mudou:
         return "sem_alteracao"
-    sets = ",".join(f"{col}=?" for col in cols if col != "ovitrampa_id")
+    for col in cols_update:
+        if col not in ("ovitrampa_id", "arquivo_origem", "atualizado_em") and atual[col] != registro[col]:
+            _registrar_alteracao_armadilha(conn, registro["ovitrampa_id"], col, atual[col], registro[col], contexto)
+    sets = ",".join(f"{col}=?" for col in cols_update if col != "ovitrampa_id")
     conn.execute(
         f"UPDATE {ARMADILHAS_TABLE} SET {sets} WHERE ovitrampa_id=?",
-        [registro[col] for col in cols if col != "ovitrampa_id"] + [registro["ovitrampa_id"]],
+        [registro[col] for col in cols_update if col != "ovitrampa_id"] + [registro["ovitrampa_id"]],
     )
     return "atualizados"
 
