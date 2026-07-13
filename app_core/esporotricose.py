@@ -1,7 +1,7 @@
 import hashlib
 import re
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -1871,6 +1871,7 @@ def _doente_row(row):
         int(item.get("capsulas_entregues") or 0) - int(item.get("capsulas_receitadas") or 0),
         0,
     )
+    item["proxima_entrega"] = _proxima_entrega_doente(item)
     if (
         int(item.get("entregas") or 0) == 0
         and item.get("status") == "Em tratamento"
@@ -1881,6 +1882,20 @@ def _doente_row(row):
     item["whatsapp_documentos"] = whatsapp_documentos_url(item)
     item["whatsapp_retirada"] = whatsapp_retirada_url(item)
     return item
+
+
+def _proxima_entrega_doente(item):
+    if not _doente_em_tratamento(item.get("status")):
+        return None
+    if int(item.get("capsulas_restantes") or 0) <= 0:
+        return None
+    ultima_entrega = _date(item.get("ultima_entrega"))
+    if not ultima_entrega:
+        return None
+    try:
+        return (datetime.fromisoformat(ultima_entrega) + timedelta(days=30)).date().isoformat()
+    except ValueError:
+        return None
 
 
 def _doente_em_tratamento(status):

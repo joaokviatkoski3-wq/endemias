@@ -3880,6 +3880,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("doe-res-caps-baixa-zoomed", html)
         self.assertIn("CPF do tutor", html)
         self.assertIn("Cápsulas", html)
+        self.assertIn("proxima_entrega", html)
         self.assertIn("esp-visitas-kpis", html)
         self.assertIn("doe-kpi-total", html)
         self.assertIn("gato_doente.svg", html)
@@ -4984,6 +4985,7 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(lista["capsulas_entregues"], 60)
             self.assertEqual(lista["capsulas_receitadas"], 180)
             self.assertEqual(lista["capsulas_restantes"], 120)
+            self.assertEqual(lista["proxima_entrega"], "2026-07-31")
 
             csv_row = esporotricose_core.listar_doentes_csv(str(db_path), {})[0]
             self.assertEqual(csv_row["capsulas_entregues"], 60)

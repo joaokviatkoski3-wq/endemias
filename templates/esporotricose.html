@@ -806,7 +806,7 @@ function renderEspDoentes(rows, total) {
       <td>${escapeHtml(r.tutor || '-')}<div class="muted">${escapeHtml(r.telefone || '')}</div><div class="muted">${r.cpf ? 'CPF ' + escapeHtml(r.cpf) : ''}</div></td>
       <td>${escapeHtml(r.endereco || '-')}<div class="muted">${escapeHtml(r.sinan ? 'SINAN ' + r.sinan : '')}</div></td>
       <td><span class="esporo-tag ${statusDoenteClass(r.status)}">${escapeHtml(r.status || '-')}</span></td>
-      <td class="esporo-capsulas"><strong>${fmtNum(r.capsulas_entregues || 0)}</strong> entregues<div class="muted">${fmtNum(r.capsulas_restantes || 0)} faltam de ${fmtNum(r.capsulas_receitadas || 0)}</div>${Number(r.capsulas_excedentes || 0) > 0 ? `<div class="muted warn">${fmtNum(r.capsulas_excedentes)} excedentes</div>` : ''}</td>
+      <td class="esporo-capsulas"><strong>${fmtNum(r.capsulas_entregues || 0)}</strong> entregues<div class="muted">${fmtNum(r.capsulas_restantes || 0)} faltam de ${fmtNum(r.capsulas_receitadas || 0)}</div>${r.proxima_entrega ? `<div class="muted">Próxima: ${fmtDate(r.proxima_entrega)}</div>` : ''}${Number(r.capsulas_excedentes || 0) > 0 ? `<div class="muted warn">${fmtNum(r.capsulas_excedentes)} excedentes</div>` : ''}</td>
       <td>${fmtNum(r.receitas || 0)} receita(s)<div class="muted">Última: ${fmtDate(r.ultima_receita) || '-'}</div><div class="muted">Entregue: ${fmtNum(r.capsulas_entregues || 0)} cápsula(s)</div></td>
       <td>${escapeHtml(r.bloqueio || '-')}</td>
       <td>${zoomedBadge(r.pedido_zoomed)}</td>
