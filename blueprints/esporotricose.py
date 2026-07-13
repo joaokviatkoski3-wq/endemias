@@ -291,6 +291,7 @@ def download_doentes_csv():
         "capsulas_receitadas",
         "capsulas_entregues",
         "capsulas_restantes",
+        "proxima_entrega",
         "entregas",
         "anexos",
         "observacoes_entomologica",

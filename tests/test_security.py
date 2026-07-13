@@ -3881,6 +3881,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("CPF do tutor", html)
         self.assertIn("Cápsulas", html)
         self.assertIn("proxima_entrega", html)
+        self.assertIn("rec-capsulas-dia", html)
         self.assertIn("esp-visitas-kpis", html)
         self.assertIn("doe-kpi-total", html)
         self.assertIn("gato_doente.svg", html)
@@ -4944,7 +4945,13 @@ class MainApisSmokeTests(unittest.TestCase):
             id_receita = esporotricose_core.salvar_receita_doente(
                 str(db_path),
                 id_animal,
-                {"data_receita": "2026-06-16", "capsulas_total": 180, "status": "Em tratamento"},
+                {
+                    "data_receita": "2026-06-16",
+                    "capsulas_total": 180,
+                    "posologia": "2 capsulas ao dia",
+                    "capsulas_por_dia": 2,
+                    "status": "Em tratamento",
+                },
             )
             esporotricose_core.salvar_entrega_doente(
                 str(db_path),
@@ -4985,17 +4992,19 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(lista["capsulas_entregues"], 60)
             self.assertEqual(lista["capsulas_receitadas"], 180)
             self.assertEqual(lista["capsulas_restantes"], 120)
-            self.assertEqual(lista["proxima_entrega"], "2026-07-31")
+            self.assertEqual(lista["proxima_entrega"], "2026-07-16")
 
             csv_row = esporotricose_core.listar_doentes_csv(str(db_path), {})[0]
             self.assertEqual(csv_row["capsulas_entregues"], 60)
             self.assertEqual(csv_row["capsulas_receitadas"], 180)
             self.assertEqual(csv_row["capsulas_restantes"], 120)
+            self.assertEqual(csv_row["proxima_entrega"], "2026-07-16")
 
             detalhe = esporotricose_core.obter_doente(str(db_path), id_animal)
             receita = detalhe["receitas"][0]
             self.assertEqual(receita["capsulas_entregues"], 60)
             self.assertEqual(receita["capsulas_restantes"], 120)
+            self.assertEqual(receita["capsulas_por_dia"], 2)
             self.assertEqual(receita["entregas_count"], 2)
             self.assertEqual(receita["entregas_observacao"], "Duas entregas feitas")
             self.assertIn("faltam 120", receita["saldo_observacao"])
@@ -5007,6 +5016,7 @@ class MainApisSmokeTests(unittest.TestCase):
                     "data_receita": "2026-07-01",
                     "capsulas_total": 210,
                     "posologia": "1 capsula ao dia",
+                    "capsulas_por_dia": 1,
                     "status": "Em tratamento",
                     "observacoes": "Receita atualizada",
                 },
@@ -5015,6 +5025,7 @@ class MainApisSmokeTests(unittest.TestCase):
             receita_atualizada = esporotricose_core.obter_doente(str(db_path), id_animal)["receitas"][0]
             self.assertEqual(receita_atualizada["data_receita"], "2026-07-01")
             self.assertEqual(receita_atualizada["capsulas_total"], 210)
+            self.assertEqual(receita_atualizada["capsulas_por_dia"], 1)
             self.assertEqual(receita_atualizada["capsulas_restantes"], 150)
             self.assertIn("faltam 150", receita_atualizada["saldo_observacao"])
 

@@ -88,7 +88,8 @@
         <div class="f-g"><label>Receita</label><input id="rec-data-receita" type="date"></div>
         <div class="f-g"><label>VA + Veterinário</label><input id="rec-visita-vet" type="date"></div>
         <div class="f-g"><label>Cápsulas</label><input id="rec-capsulas" type="number" min="0"></div>
-        <div class="f-g"><label>Posologia</label><input id="rec-posologia" type="text"></div>
+        <div class="f-g"><label>Posologia</label><input id="rec-posologia" type="text" value="1 cápsula/dia"></div>
+        <div class="f-g"><label>Cápsulas/dia</label><input id="rec-capsulas-dia" type="number" min="0.1" step="0.1" value="1"></div>
         <div class="f-g full"><label>Observações</label><textarea id="rec-observacoes" rows="3"></textarea></div>
       </div>
       <button class="btn btn-primary" type="button" onclick="salvarReceita()" style="margin-top:8px;">Adicionar receita</button>
@@ -131,7 +132,7 @@ function render(){
       <div class="muted">Notificação ${data(r.data_notificacao)} · sintomas ${data(r.inicio_sintomas)} · VA + veterinário ${data(r.visita_va_veterinario)}</div>
       <div style="margin-top:6px;">C&aacute;psulas: <strong>${num(r.capsulas_total)}</strong> &middot; Entregues: <strong>${num(r.capsulas_entregues || 0)}</strong> &middot; Faltam: <strong>${num(r.capsulas_restantes || 0)}</strong>${Number(r.capsulas_excedentes || 0) > 0 ? ` &middot; Excedente: <strong>${num(r.capsulas_excedentes)}</strong>` : ''}</div>
       <div class="muted">${esc(r.entregas_observacao || '')}${r.saldo_observacao ? ` &middot; ${esc(r.saldo_observacao)}` : ''}</div>
-      <div>Posologia: ${esc(r.posologia || '-')}</div>
+      <div>Posologia: ${esc(r.posologia || '-')} &middot; ${num(r.capsulas_por_dia || 1)} c&aacute;psula(s)/dia</div>
       <div class="muted">${esc(r.observacoes || '')}</div>
       <div class="doe-receita-edit" id="rec-edit-box-${r.id_receita}">
         <input type="hidden" id="rec-edit-status-${r.id_receita}" value="${esc(r.status || '')}">
@@ -141,7 +142,8 @@ function render(){
           <div class="f-g"><label>Receita</label><input type="date" id="rec-edit-receita-${r.id_receita}" value="${esc(r.data_receita || '')}"></div>
           <div class="f-g"><label>VA + veterinario</label><input type="date" id="rec-edit-vet-${r.id_receita}" value="${esc(r.visita_va_veterinario || '')}"></div>
           <div class="f-g"><label>Capsulas</label><input type="number" min="0" id="rec-edit-capsulas-${r.id_receita}" value="${esc(r.capsulas_total ?? '')}"></div>
-          <div class="f-g full"><label>Posologia</label><input id="rec-edit-posologia-${r.id_receita}" value="${esc(r.posologia || '')}"></div>
+          <div class="f-g"><label>Posologia</label><input id="rec-edit-posologia-${r.id_receita}" value="${esc(r.posologia || '')}"></div>
+          <div class="f-g"><label>Cápsulas/dia</label><input type="number" min="0.1" step="0.1" id="rec-edit-capsulas-dia-${r.id_receita}" value="${esc(r.capsulas_por_dia || 1)}"></div>
           <div class="f-g full"><label>Observacoes</label><textarea id="rec-edit-observacoes-${r.id_receita}" rows="2">${esc(r.observacoes || '')}</textarea></div>
         </div>
         <div class="doe-receita-actions" style="margin-top:8px;">
@@ -197,6 +199,7 @@ async function salvarReceita(){
       visita_va_veterinario: val('rec-visita-vet'),
       capsulas_total: val('rec-capsulas'),
       posologia: val('rec-posologia'),
+      capsulas_por_dia: val('rec-capsulas-dia'),
       status: animal.status,
       observacoes: val('rec-observacoes')
     });
@@ -216,6 +219,7 @@ async function salvarReceitaEdit(idReceita){
         visita_va_veterinario: val(`rec-edit-vet-${idReceita}`),
         capsulas_total: val(`rec-edit-capsulas-${idReceita}`),
         posologia: val(`rec-edit-posologia-${idReceita}`),
+        capsulas_por_dia: val(`rec-edit-capsulas-dia-${idReceita}`),
         status: val(`rec-edit-status-${idReceita}`) || animal.status,
         observacoes: val(`rec-edit-observacoes-${idReceita}`)
       })

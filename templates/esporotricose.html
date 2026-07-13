@@ -364,7 +364,8 @@
             <div class="f-g"><label>Receita</label><input type="date" id="rec-data-receita"></div>
             <div class="f-g"><label>VA + Veterinário</label><input type="date" id="rec-visita-vet"></div>
             <div class="f-g"><label>Cápsulas</label><input type="number" id="rec-capsulas"></div>
-            <div class="f-g"><label>Posologia</label><input id="rec-posologia"></div>
+            <div class="f-g"><label>Posologia</label><input id="rec-posologia" value="1 cápsula/dia"></div>
+            <div class="f-g"><label>Cápsulas/dia</label><input type="number" min="0.1" step="0.1" id="rec-capsulas-dia" value="1"></div>
             <div class="f-g full"><label>Observações</label><textarea id="rec-observacoes" rows="2"></textarea></div>
           </div>
           <button class="btn btn-primary" type="button" onclick="salvarEspReceita()" style="margin-top:8px;">Adicionar receita</button>
@@ -1196,7 +1197,7 @@ function renderEspReceitas(rows) {
       <div class="muted">Notificação ${fmtDate(r.data_notificacao)} · sintomas ${fmtDate(r.inicio_sintomas)} · prazo ${r.prazo_receita_dias ?? '-'} dia(s)</div>
       <div>C&aacute;psulas: <strong>${escapeHtml(r.capsulas_total ?? '-')}</strong> &middot; Entregues: <strong>${fmtNum(r.capsulas_entregues || 0)}</strong> &middot; Faltam: <strong>${fmtNum(r.capsulas_restantes || 0)}</strong>${Number(r.capsulas_excedentes || 0) > 0 ? ` &middot; Excedente: <strong>${fmtNum(r.capsulas_excedentes)}</strong>` : ''}</div>
       <div class="muted">${escapeHtml(r.entregas_observacao || '')}${r.saldo_observacao ? ` &middot; ${escapeHtml(r.saldo_observacao)}` : ''}</div>
-      <div>Posologia: ${escapeHtml(r.posologia || '-')}</div>
+      <div>Posologia: ${escapeHtml(r.posologia || '-')} &middot; ${fmtNum(r.capsulas_por_dia || 1)} c&aacute;psula(s)/dia</div>
       <div class="esporo-entrega-list">${(r.entregas || []).map(e => `<span class="esporo-entrega">${fmtDate(e.data_entrega)} &middot; ${fmtNum(e.quantidade)}</span>`).join('') || '<span class="muted">Sem entregas</span>'}</div>
       <div class="esporo-receita-edit" id="rec-edit-box-${r.id_receita}">
         <input type="hidden" id="rec-edit-status-${r.id_receita}" value="${escapeHtml(r.status || '')}">
@@ -1206,7 +1207,8 @@ function renderEspReceitas(rows) {
           <div class="f-g"><label>Receita</label><input type="date" id="rec-edit-receita-${r.id_receita}" value="${escapeHtml(r.data_receita || '')}"></div>
           <div class="f-g"><label>VA + veterinario</label><input type="date" id="rec-edit-vet-${r.id_receita}" value="${escapeHtml(r.visita_va_veterinario || '')}"></div>
           <div class="f-g"><label>Capsulas</label><input type="number" min="0" id="rec-edit-capsulas-${r.id_receita}" value="${escapeHtml(r.capsulas_total ?? '')}"></div>
-          <div class="f-g full"><label>Posologia</label><input id="rec-edit-posologia-${r.id_receita}" value="${escapeHtml(r.posologia || '')}"></div>
+          <div class="f-g"><label>Posologia</label><input id="rec-edit-posologia-${r.id_receita}" value="${escapeHtml(r.posologia || '')}"></div>
+          <div class="f-g"><label>Cápsulas/dia</label><input type="number" min="0.1" step="0.1" id="rec-edit-capsulas-dia-${r.id_receita}" value="${escapeHtml(r.capsulas_por_dia || 1)}"></div>
           <div class="f-g full"><label>Observacoes</label><textarea id="rec-edit-observacoes-${r.id_receita}" rows="2">${escapeHtml(r.observacoes || '')}</textarea></div>
         </div>
         <div class="esporo-receita-actions" style="margin-top:8px;">
@@ -1238,6 +1240,7 @@ async function salvarEspReceita() {
     visita_va_veterinario: document.getElementById('rec-visita-vet').value,
     capsulas_total: document.getElementById('rec-capsulas').value,
     posologia: document.getElementById('rec-posologia').value,
+    capsulas_por_dia: document.getElementById('rec-capsulas-dia').value,
     status: document.getElementById('doe-form-status').value,
     observacoes: document.getElementById('rec-observacoes').value,
   };
@@ -1257,6 +1260,7 @@ async function salvarEspReceitaEdit(idReceita) {
     visita_va_veterinario: document.getElementById(`rec-edit-vet-${idReceita}`).value,
     capsulas_total: document.getElementById(`rec-edit-capsulas-${idReceita}`).value,
     posologia: document.getElementById(`rec-edit-posologia-${idReceita}`).value,
+    capsulas_por_dia: document.getElementById(`rec-edit-capsulas-dia-${idReceita}`).value,
     status: document.getElementById(`rec-edit-status-${idReceita}`).value || document.getElementById('doe-form-status').value,
     observacoes: document.getElementById(`rec-edit-observacoes-${idReceita}`).value,
   };

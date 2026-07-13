@@ -1,4 +1,5 @@
 import hashlib
+import math
 import re
 import unicodedata
 from datetime import datetime, timedelta
@@ -249,6 +250,7 @@ def ensure_schema(conn):
             visita_va_veterinario DATE,
             capsulas_total INTEGER,
             posologia TEXT,
+            capsulas_por_dia REAL NOT NULL DEFAULT 1,
             status TEXT,
             observacoes TEXT,
             origem_linha INTEGER,
@@ -302,6 +304,7 @@ def ensure_schema(conn):
     )
     _ensure_column(conn, DOENTES_TABLE, "especie", "TEXT")
     _ensure_column(conn, DOENTES_TABLE, "cpf", "TEXT")
+    _ensure_column(conn, DOENTES_RECEITAS_TABLE, "capsulas_por_dia", "REAL NOT NULL DEFAULT 1")
     _ensure_column(conn, DOENTES_ENTREGAS_TABLE, "baixa_zoomed", "TEXT NOT NULL DEFAULT 'Sim'")
     _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_data", "DATE")
     _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_agente", "TEXT")
@@ -1030,10 +1033,24 @@ def listar_doentes(db_path, filtros=None):
                      WHERE r.id_animal_doente=d.id_animal_doente) AS ultima_notificacao,
                    (SELECT MAX(r.data_receita) FROM esporotricose_doentes_receitas r
                      WHERE r.id_animal_doente=d.id_animal_doente) AS ultima_receita,
-                   (SELECT MAX(e.data_entrega)
+                   (SELECT e.data_entrega
                       FROM esporotricose_doentes_entregas e
                       JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
-                     WHERE r.id_animal_doente=d.id_animal_doente) AS ultima_entrega,
+                     WHERE r.id_animal_doente=d.id_animal_doente
+                     ORDER BY COALESCE(e.data_entrega, e.criado_em) DESC, e.id_entrega DESC
+                     LIMIT 1) AS ultima_entrega,
+                   (SELECT e.quantidade
+                      FROM esporotricose_doentes_entregas e
+                      JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
+                     WHERE r.id_animal_doente=d.id_animal_doente
+                     ORDER BY COALESCE(e.data_entrega, e.criado_em) DESC, e.id_entrega DESC
+                     LIMIT 1) AS ultima_entrega_quantidade,
+                   (SELECT COALESCE(r.capsulas_por_dia, 1)
+                      FROM esporotricose_doentes_entregas e
+                      JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
+                     WHERE r.id_animal_doente=d.id_animal_doente
+                     ORDER BY COALESCE(e.data_entrega, e.criado_em) DESC, e.id_entrega DESC
+                     LIMIT 1) AS ultima_entrega_capsulas_por_dia,
                    (SELECT COALESCE(SUM(r.capsulas_total), 0) FROM esporotricose_doentes_receitas r
                      WHERE r.id_animal_doente=d.id_animal_doente) AS capsulas_receitadas,
                    (SELECT COALESCE(SUM(e.quantidade), 0)
@@ -1315,6 +1332,30 @@ def listar_doentes_csv(db_path, filtros=None):
                         WHERE re.id_animal_doente=d.id_animal_doente
                    ) AS capsulas_entregues,
                    (
+                       SELECT e.data_entrega
+                         FROM esporotricose_doentes_entregas e
+                         JOIN esporotricose_doentes_receitas re ON re.id_receita=e.id_receita
+                        WHERE re.id_animal_doente=d.id_animal_doente
+                        ORDER BY COALESCE(e.data_entrega, e.criado_em) DESC, e.id_entrega DESC
+                        LIMIT 1
+                   ) AS ultima_entrega,
+                   (
+                       SELECT e.quantidade
+                         FROM esporotricose_doentes_entregas e
+                         JOIN esporotricose_doentes_receitas re ON re.id_receita=e.id_receita
+                        WHERE re.id_animal_doente=d.id_animal_doente
+                        ORDER BY COALESCE(e.data_entrega, e.criado_em) DESC, e.id_entrega DESC
+                        LIMIT 1
+                   ) AS ultima_entrega_quantidade,
+                   (
+                       SELECT COALESCE(re.capsulas_por_dia, 1)
+                         FROM esporotricose_doentes_entregas e
+                         JOIN esporotricose_doentes_receitas re ON re.id_receita=e.id_receita
+                        WHERE re.id_animal_doente=d.id_animal_doente
+                        ORDER BY COALESCE(e.data_entrega, e.criado_em) DESC, e.id_entrega DESC
+                        LIMIT 1
+                   ) AS ultima_entrega_capsulas_por_dia,
+                   (
                        SELECT COUNT(*)
                          FROM esporotricose_doentes_entregas e
                          JOIN esporotricose_doentes_receitas re ON re.id_receita=e.id_receita
@@ -1361,6 +1402,7 @@ def listar_doentes_csv(db_path, filtros=None):
                 int(item.get("capsulas_receitadas") or 0) - int(item.get("capsulas_entregues") or 0),
                 0,
             )
+            item["proxima_entrega"] = _proxima_entrega_doente(item)
             rows.append(item)
         return rows
     finally:
@@ -1471,6 +1513,8 @@ def salvar_receita_doente(db_path, id_animal_doente, dados):
         payload = _receita_payload(dados)
         if payload.get("capsulas_total") is not None and payload["capsulas_total"] < 0:
             raise ValidationError("O total de capsulas da receita nao pode ser negativo.")
+        if payload["capsulas_por_dia"] <= 0:
+            raise ValidationError("A posologia deve ser maior que zero capsula por dia.")
         id_receita = _int(dados.get("id_receita"))
         if payload.get("status"):
             _salvar_status_doente(conn, payload["status"])
@@ -1478,13 +1522,14 @@ def salvar_receita_doente(db_path, id_animal_doente, dados):
             cur = conn.execute(
                 """UPDATE esporotricose_doentes_receitas
                       SET data_notificacao=?, inicio_sintomas=?, data_receita=?,
-                          visita_va_veterinario=?, capsulas_total=?, posologia=?,
+                          visita_va_veterinario=?, capsulas_total=?, posologia=?, capsulas_por_dia=?,
                           status=?, observacoes=?, atualizado_em=?
                     WHERE id_receita=? AND id_animal_doente=?""",
                 (
                     payload["data_notificacao"], payload["inicio_sintomas"], payload["data_receita"],
                     payload["visita_va_veterinario"], payload["capsulas_total"], payload["posologia"],
-                    payload["status"], payload["observacoes"], agora, id_receita, id_animal_doente,
+                    payload["capsulas_por_dia"], payload["status"], payload["observacoes"], agora,
+                    id_receita, id_animal_doente,
                 ),
             )
             if cur.rowcount == 0:
@@ -1493,13 +1538,14 @@ def salvar_receita_doente(db_path, id_animal_doente, dados):
             cur = conn.execute(
                 """INSERT INTO esporotricose_doentes_receitas
                    (id_animal_doente, data_notificacao, inicio_sintomas, data_receita,
-                    visita_va_veterinario, capsulas_total, posologia, status, observacoes,
-                    origem_linha, criado_em, atualizado_em)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    visita_va_veterinario, capsulas_total, posologia, capsulas_por_dia, status,
+                    observacoes, origem_linha, criado_em, atualizado_em)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     id_animal_doente, payload["data_notificacao"], payload["inicio_sintomas"],
                     payload["data_receita"], payload["visita_va_veterinario"], payload["capsulas_total"],
-                    payload["posologia"], payload["status"], payload["observacoes"], None, agora, agora,
+                    payload["posologia"], payload["capsulas_por_dia"], payload["status"],
+                    payload["observacoes"], None, agora, agora,
                 ),
             )
             id_receita = cur.lastrowid
@@ -1771,7 +1817,7 @@ def importar_doentes_planilha(db_path, caminho):
                 animais_novos += 1
             if animal_payload.get("status"):
                 _salvar_status_doente(conn, animal_payload["status"])
-            receita_payload = {
+            receita_payload = _receita_payload({
                 "data_notificacao": _date(row.get("DATA NOTIFICAÇÃO")),
                 "inicio_sintomas": _date(row.get("INICIO DOS SINTOMAS")),
                 "data_receita": _date(row.get("RECEITA ")),
@@ -1780,18 +1826,18 @@ def importar_doentes_planilha(db_path, caminho):
                 "posologia": _text(row.get("Posologia")),
                 "status": animal_payload["status"],
                 "observacoes": _text(row.get("OBSERVAÇÕES ENTOMOLOGICA")),
-            }
+            })
             cur = conn.execute(
                 """INSERT INTO esporotricose_doentes_receitas
                    (id_animal_doente, data_notificacao, inicio_sintomas, data_receita,
-                    visita_va_veterinario, capsulas_total, posologia, status, observacoes,
-                    origem_linha, criado_em, atualizado_em)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    visita_va_veterinario, capsulas_total, posologia, capsulas_por_dia, status,
+                    observacoes, origem_linha, criado_em, atualizado_em)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     id_animal, receita_payload["data_notificacao"], receita_payload["inicio_sintomas"],
                     receita_payload["data_receita"], receita_payload["visita_va_veterinario"],
-                    receita_payload["capsulas_total"], receita_payload["posologia"], receita_payload["status"],
-                    receita_payload["observacoes"], int(idx) + 2, agora, agora,
+                    receita_payload["capsulas_total"], receita_payload["posologia"], receita_payload["capsulas_por_dia"],
+                    receita_payload["status"], receita_payload["observacoes"], int(idx) + 2, agora, agora,
                 ),
             )
             id_receita = cur.lastrowid
@@ -1892,10 +1938,39 @@ def _proxima_entrega_doente(item):
     ultima_entrega = _date(item.get("ultima_entrega"))
     if not ultima_entrega:
         return None
+    quantidade = int(item.get("ultima_entrega_quantidade") or 0)
+    capsulas_por_dia = _capsulas_por_dia(item.get("ultima_entrega_capsulas_por_dia"))
+    if quantidade <= 0 or capsulas_por_dia <= 0:
+        return None
+    dias_cobertos = max(1, math.ceil(quantidade / capsulas_por_dia))
     try:
-        return (datetime.fromisoformat(ultima_entrega) + timedelta(days=30)).date().isoformat()
+        return (datetime.fromisoformat(ultima_entrega) + timedelta(days=dias_cobertos)).date().isoformat()
     except ValueError:
         return None
+
+
+def _capsulas_por_dia(valor=None, posologia=None):
+    numero = _real(valor)
+    if numero and numero > 0:
+        return numero
+    texto = _text(posologia)
+    if texto:
+        match = re.search(r"(\d+(?:[,.]\d+)?)", texto)
+        if match:
+            numero = _real(match.group(1))
+            if numero and numero > 0:
+                return numero
+    return 1.0
+
+
+def _posologia_padrao(capsulas_por_dia=1):
+    numero = _capsulas_por_dia(capsulas_por_dia)
+    if float(numero).is_integer():
+        numero_txt = str(int(numero))
+    else:
+        numero_txt = str(numero).replace(".", ",")
+    unidade = "cápsula" if numero == 1 else "cápsulas"
+    return f"{numero_txt} {unidade}/dia"
 
 
 def _doente_em_tratamento(status):
@@ -2081,13 +2156,15 @@ def _doente_payload(dados):
 
 
 def _receita_payload(dados):
+    capsulas_por_dia = _capsulas_por_dia(dados.get("capsulas_por_dia"), dados.get("posologia"))
     return {
         "data_notificacao": _date(dados.get("data_notificacao")),
         "inicio_sintomas": _date(dados.get("inicio_sintomas")),
         "data_receita": _date(dados.get("data_receita")),
         "visita_va_veterinario": _date(dados.get("visita_va_veterinario")),
         "capsulas_total": _int(dados.get("capsulas_total")),
-        "posologia": _text(dados.get("posologia")),
+        "posologia": _text(dados.get("posologia")) or _posologia_padrao(capsulas_por_dia),
+        "capsulas_por_dia": capsulas_por_dia,
         "status": _normalizar_status_doente(dados.get("status")) if _text(dados.get("status")) else "",
         "observacoes": _text(dados.get("observacoes")),
     }
