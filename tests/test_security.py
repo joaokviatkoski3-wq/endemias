@@ -3882,6 +3882,8 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("Cápsulas", html)
         self.assertIn("proxima_entrega", html)
         self.assertIn("rec-capsulas-dia", html)
+        self.assertIn("rec-pendente", html)
+        self.assertIn("Receita pendente", html)
         self.assertIn("esp-visitas-kpis", html)
         self.assertIn("doe-kpi-total", html)
         self.assertIn("gato_doente.svg", html)
@@ -4804,6 +4806,7 @@ class MainApisSmokeTests(unittest.TestCase):
         if dados["registros"]:
             self.assertIn("whatsapp_documentos", dados["registros"][0])
             self.assertIn("receitas", dados["registros"][0])
+            self.assertIn("receita_pendente", dados["registros"][0])
             self.assertIn("entregas_zoomed_pendentes", dados["registros"][0])
         notificacoes = [r.get("ultima_notificacao") for r in dados["registros"] if r.get("ultima_notificacao")]
         self.assertEqual(notificacoes, sorted(notificacoes, reverse=True))
@@ -5035,6 +5038,53 @@ class MainApisSmokeTests(unittest.TestCase):
                     id_receita,
                     {"data_entrega": "2026-07-01", "quantidade": -30, "baixa_zoomed": "Sim"},
                 )
+
+    def test_receita_pendente_com_entrega_nao_gera_excedente_falso(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "doentes_receita_pendente.db"
+            conn = db_core.connect(db_path)
+            try:
+                esporotricose_core.ensure_schema(conn)
+            finally:
+                conn.close()
+
+            id_animal = esporotricose_core.salvar_doente(
+                str(db_path),
+                {
+                    "nome": "Lobo",
+                    "especie": "Gato",
+                    "tutor": "Calina",
+                    "endereco": "Rua A",
+                    "localidade": "São João Batista",
+                    "status": "Em tratamento",
+                },
+            )
+            id_receita = esporotricose_core.salvar_receita_doente(
+                str(db_path),
+                id_animal,
+                {"status": "Em tratamento", "receita_pendente": True},
+            )
+            esporotricose_core.salvar_entrega_doente(
+                str(db_path),
+                id_receita,
+                {"data_entrega": "2026-07-07", "quantidade": 15, "baixa_zoomed": "Não"},
+            )
+
+            lista = esporotricose_core.listar_doentes(str(db_path), {})["registros"][0]
+            self.assertTrue(lista["receita_pendente"])
+            self.assertEqual(lista["capsulas_receitadas"], 0)
+            self.assertEqual(lista["capsulas_entregues"], 15)
+            self.assertEqual(lista["capsulas_restantes"], 0)
+            self.assertEqual(lista["capsulas_excedentes"], 0)
+            self.assertEqual(lista["ultima_receita"], None)
+            self.assertEqual(lista["ultima_entrega"], "2026-07-07")
+            self.assertEqual(lista["proxima_entrega"], "2026-07-22")
+
+            detalhe = esporotricose_core.obter_doente(str(db_path), id_animal)
+            receita = detalhe["receitas"][0]
+            self.assertEqual(receita["receita_pendente"], 1)
+            self.assertEqual(receita["capsulas_excedentes"], 0)
+            self.assertIn("receita pendente", receita["saldo_observacao"])
 
     def test_consultas_sispncd_nao_alteram_coluna_sispncd(self):
         client = _client_logado()

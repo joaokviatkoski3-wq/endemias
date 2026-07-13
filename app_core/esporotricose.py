@@ -251,6 +251,7 @@ def ensure_schema(conn):
             capsulas_total INTEGER,
             posologia TEXT,
             capsulas_por_dia REAL NOT NULL DEFAULT 1,
+            receita_pendente INTEGER NOT NULL DEFAULT 0,
             status TEXT,
             observacoes TEXT,
             origem_linha INTEGER,
@@ -305,6 +306,7 @@ def ensure_schema(conn):
     _ensure_column(conn, DOENTES_TABLE, "especie", "TEXT")
     _ensure_column(conn, DOENTES_TABLE, "cpf", "TEXT")
     _ensure_column(conn, DOENTES_RECEITAS_TABLE, "capsulas_por_dia", "REAL NOT NULL DEFAULT 1")
+    _ensure_column(conn, DOENTES_RECEITAS_TABLE, "receita_pendente", "INTEGER NOT NULL DEFAULT 0")
     _ensure_column(conn, DOENTES_ENTREGAS_TABLE, "baixa_zoomed", "TEXT NOT NULL DEFAULT 'Sim'")
     _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_data", "DATE")
     _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_agente", "TEXT")
@@ -367,6 +369,29 @@ def _normalizar_doentes_existentes(conn):
             conn.execute(
                 f"UPDATE {DOENTES_ENTREGAS_TABLE} SET baixa_zoomed=? WHERE id_entrega=?",
                 (baixa, row["id_entrega"]),
+            )
+
+    for coluna in ("data_notificacao", "inicio_sintomas", "data_receita", "visita_va_veterinario"):
+        conn.execute(
+            f"""UPDATE {DOENTES_RECEITAS_TABLE}
+                   SET {coluna}=NULL
+                 WHERE {coluna} IS NOT NULL
+                   AND (TRIM({coluna})='' OR LOWER(TRIM({coluna}))='nat')"""
+        )
+
+    rows = conn.execute(
+        f"""SELECT r.id_receita, r.data_receita, r.capsulas_total, r.receita_pendente,
+                   COUNT(e.id_entrega) AS entregas
+              FROM {DOENTES_RECEITAS_TABLE} r
+              LEFT JOIN {DOENTES_ENTREGAS_TABLE} e ON e.id_receita=r.id_receita
+             GROUP BY r.id_receita"""
+    ).fetchall()
+    for row in rows:
+        pendente = _receita_pendente_flag(row)
+        if pendente != int(row["receita_pendente"] or 0):
+            conn.execute(
+                f"UPDATE {DOENTES_RECEITAS_TABLE} SET receita_pendente=? WHERE id_receita=?",
+                (pendente, row["id_receita"]),
             )
 
 
@@ -1032,7 +1057,11 @@ def listar_doentes(db_path, filtros=None):
                    (SELECT MAX(r.data_notificacao) FROM esporotricose_doentes_receitas r
                      WHERE r.id_animal_doente=d.id_animal_doente) AS ultima_notificacao,
                    (SELECT MAX(r.data_receita) FROM esporotricose_doentes_receitas r
-                     WHERE r.id_animal_doente=d.id_animal_doente) AS ultima_receita,
+                     WHERE r.id_animal_doente=d.id_animal_doente
+                       AND COALESCE(r.receita_pendente, 0)=0) AS ultima_receita,
+                   (SELECT COUNT(*) FROM esporotricose_doentes_receitas r
+                     WHERE r.id_animal_doente=d.id_animal_doente
+                       AND COALESCE(r.receita_pendente, 0)=1) AS receitas_pendentes,
                    (SELECT e.data_entrega
                       FROM esporotricose_doentes_entregas e
                       JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
@@ -1051,7 +1080,8 @@ def listar_doentes(db_path, filtros=None):
                      WHERE r.id_animal_doente=d.id_animal_doente
                      ORDER BY COALESCE(e.data_entrega, e.criado_em) DESC, e.id_entrega DESC
                      LIMIT 1) AS ultima_entrega_capsulas_por_dia,
-                   (SELECT COALESCE(SUM(r.capsulas_total), 0) FROM esporotricose_doentes_receitas r
+                   (SELECT COALESCE(SUM(CASE WHEN COALESCE(r.receita_pendente, 0)=0 THEN r.capsulas_total ELSE 0 END), 0)
+                      FROM esporotricose_doentes_receitas r
                      WHERE r.id_animal_doente=d.id_animal_doente) AS capsulas_receitadas,
                    (SELECT COALESCE(SUM(e.quantidade), 0)
                       FROM esporotricose_doentes_entregas e
@@ -1318,10 +1348,11 @@ def listar_doentes_csv(db_path, filtros=None):
                    d.observacoes_entomologica,
                    MIN(r.data_notificacao) AS primeira_notificacao,
                    MAX(r.data_notificacao) AS ultima_notificacao,
-                   MAX(r.data_receita) AS ultima_receita,
+                   MAX(CASE WHEN COALESCE(r.receita_pendente, 0)=0 THEN r.data_receita ELSE NULL END) AS ultima_receita,
+                   COUNT(DISTINCT CASE WHEN COALESCE(r.receita_pendente, 0)=1 THEN r.id_receita END) AS receitas_pendentes,
                    COUNT(DISTINCT r.id_receita) AS receitas,
                    (
-                       SELECT COALESCE(SUM(re.capsulas_total), 0)
+                       SELECT COALESCE(SUM(CASE WHEN COALESCE(re.receita_pendente, 0)=0 THEN re.capsulas_total ELSE 0 END), 0)
                          FROM esporotricose_doentes_receitas re
                         WHERE re.id_animal_doente=d.id_animal_doente
                    ) AS capsulas_receitadas,
@@ -1398,8 +1429,13 @@ def listar_doentes_csv(db_path, filtros=None):
             item["baixa_zoomed"] = "Pendente" if pendentes else "Sim"
             item["data_notificacao"] = item.get("ultima_notificacao") or item.get("primeira_notificacao")
             item["especie"] = _especie_doente(item)
+            item["receita_pendente"] = int(item.get("receitas_pendentes") or 0) > 0
             item["capsulas_restantes"] = max(
                 int(item.get("capsulas_receitadas") or 0) - int(item.get("capsulas_entregues") or 0),
+                0,
+            )
+            item["capsulas_excedentes"] = 0 if item["receita_pendente"] else max(
+                int(item.get("capsulas_entregues") or 0) - int(item.get("capsulas_receitadas") or 0),
                 0,
             )
             item["proxima_entrega"] = _proxima_entrega_doente(item)
@@ -1523,13 +1559,13 @@ def salvar_receita_doente(db_path, id_animal_doente, dados):
                 """UPDATE esporotricose_doentes_receitas
                       SET data_notificacao=?, inicio_sintomas=?, data_receita=?,
                           visita_va_veterinario=?, capsulas_total=?, posologia=?, capsulas_por_dia=?,
-                          status=?, observacoes=?, atualizado_em=?
+                          receita_pendente=?, status=?, observacoes=?, atualizado_em=?
                     WHERE id_receita=? AND id_animal_doente=?""",
                 (
                     payload["data_notificacao"], payload["inicio_sintomas"], payload["data_receita"],
                     payload["visita_va_veterinario"], payload["capsulas_total"], payload["posologia"],
-                    payload["capsulas_por_dia"], payload["status"], payload["observacoes"], agora,
-                    id_receita, id_animal_doente,
+                    payload["capsulas_por_dia"], payload["receita_pendente"], payload["status"],
+                    payload["observacoes"], agora, id_receita, id_animal_doente,
                 ),
             )
             if cur.rowcount == 0:
@@ -1538,13 +1574,13 @@ def salvar_receita_doente(db_path, id_animal_doente, dados):
             cur = conn.execute(
                 """INSERT INTO esporotricose_doentes_receitas
                    (id_animal_doente, data_notificacao, inicio_sintomas, data_receita,
-                    visita_va_veterinario, capsulas_total, posologia, capsulas_por_dia, status,
-                    observacoes, origem_linha, criado_em, atualizado_em)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    visita_va_veterinario, capsulas_total, posologia, capsulas_por_dia,
+                    receita_pendente, status, observacoes, origem_linha, criado_em, atualizado_em)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     id_animal_doente, payload["data_notificacao"], payload["inicio_sintomas"],
                     payload["data_receita"], payload["visita_va_veterinario"], payload["capsulas_total"],
-                    payload["posologia"], payload["capsulas_por_dia"], payload["status"],
+                    payload["posologia"], payload["capsulas_por_dia"], payload["receita_pendente"], payload["status"],
                     payload["observacoes"], None, agora, agora,
                 ),
             )
@@ -1830,14 +1866,15 @@ def importar_doentes_planilha(db_path, caminho):
             cur = conn.execute(
                 """INSERT INTO esporotricose_doentes_receitas
                    (id_animal_doente, data_notificacao, inicio_sintomas, data_receita,
-                    visita_va_veterinario, capsulas_total, posologia, capsulas_por_dia, status,
-                    observacoes, origem_linha, criado_em, atualizado_em)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    visita_va_veterinario, capsulas_total, posologia, capsulas_por_dia,
+                    receita_pendente, status, observacoes, origem_linha, criado_em, atualizado_em)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     id_animal, receita_payload["data_notificacao"], receita_payload["inicio_sintomas"],
                     receita_payload["data_receita"], receita_payload["visita_va_veterinario"],
                     receita_payload["capsulas_total"], receita_payload["posologia"], receita_payload["capsulas_por_dia"],
-                    receita_payload["status"], receita_payload["observacoes"], int(idx) + 2, agora, agora,
+                    receita_payload["receita_pendente"], receita_payload["status"],
+                    receita_payload["observacoes"], int(idx) + 2, agora, agora,
                 ),
             )
             id_receita = cur.lastrowid
@@ -1870,8 +1907,9 @@ def _preencher_resumo_receita(item):
     total = int(item.get("capsulas_total") or 0)
     entregas = item.get("entregas") or []
     entregue = sum(int(entrega.get("quantidade") or 0) for entrega in entregas)
-    restante = max(total - entregue, 0) if total else 0
-    excedente = max(entregue - total, 0) if total else 0
+    pendente = bool(_receita_pendente_flag(item))
+    restante = 0 if pendente else (max(total - entregue, 0) if total else 0)
+    excedente = 0 if pendente else (max(entregue - total, 0) if total else 0)
     count = len(entregas)
     if count == 0:
         entregas_texto = "Nenhuma entrega feita"
@@ -1881,7 +1919,9 @@ def _preencher_resumo_receita(item):
         entregas_texto = "Duas entregas feitas"
     else:
         entregas_texto = f"{count} entregas feitas"
-    if not total:
+    if pendente:
+        saldo_texto = f"{entregue} capsula(s) entregue(s); receita pendente"
+    elif not total:
         saldo_texto = f"{entregue} capsula(s) entregue(s); total da receita nao informado"
     elif excedente:
         saldo_texto = f"{entregue} de {total} capsula(s) entregue(s); excedente de {excedente}"
@@ -1892,6 +1932,7 @@ def _preencher_resumo_receita(item):
     item["capsulas_entregues"] = entregue
     item["capsulas_restantes"] = restante
     item["capsulas_excedentes"] = excedente
+    item["receita_pendente"] = 1 if pendente else 0
     item["entregas_count"] = count
     item["entregas_observacao"] = entregas_texto
     item["saldo_observacao"] = saldo_texto
@@ -1909,11 +1950,12 @@ def _quantidade_entrega_historica(acumulado, acumulado_anterior):
 def _doente_row(row):
     item = dict(row)
     item["especie"] = _especie_doente(item)
+    item["receita_pendente"] = int(item.get("receitas_pendentes") or 0) > 0
     item["capsulas_restantes"] = max(
         int(item.get("capsulas_receitadas") or 0) - int(item.get("capsulas_entregues") or 0),
         0,
     )
-    item["capsulas_excedentes"] = max(
+    item["capsulas_excedentes"] = 0 if item["receita_pendente"] else max(
         int(item.get("capsulas_entregues") or 0) - int(item.get("capsulas_receitadas") or 0),
         0,
     )
@@ -1933,7 +1975,7 @@ def _doente_row(row):
 def _proxima_entrega_doente(item):
     if not _doente_em_tratamento(item.get("status")):
         return None
-    if int(item.get("capsulas_restantes") or 0) <= 0:
+    if int(item.get("capsulas_restantes") or 0) <= 0 and not item.get("receita_pendente"):
         return None
     ultima_entrega = _date(item.get("ultima_entrega"))
     if not ultima_entrega:
@@ -1961,6 +2003,34 @@ def _capsulas_por_dia(valor=None, posologia=None):
             if numero and numero > 0:
                 return numero
     return 1.0
+
+
+def _receita_pendente_flag(item):
+    valor = _item_get(item, "receita_pendente")
+    if str(valor).lower() in {"1", "true", "sim", "s", "yes"}:
+        return 1
+    capsulas_total = _int(_item_get(item, "capsulas_total"))
+    if capsulas_total is None or capsulas_total <= 0:
+        return 1
+    return 0
+
+
+def _receita_pendente_payload(valor, capsulas_total, data_receita):
+    texto = str(valor).strip().lower()
+    if texto in {"1", "true", "sim", "s", "yes", "on"}:
+        return 1
+    if capsulas_total is None or capsulas_total <= 0:
+        return 1
+    return 0
+
+
+def _item_get(item, key, default=None):
+    if hasattr(item, "get"):
+        return item.get(key, default)
+    try:
+        return item[key]
+    except Exception:
+        return default
 
 
 def _posologia_padrao(capsulas_por_dia=1):
@@ -2157,14 +2227,18 @@ def _doente_payload(dados):
 
 def _receita_payload(dados):
     capsulas_por_dia = _capsulas_por_dia(dados.get("capsulas_por_dia"), dados.get("posologia"))
+    capsulas_total = _int(dados.get("capsulas_total"))
+    data_receita = _date(dados.get("data_receita"))
+    receita_pendente = _receita_pendente_payload(dados.get("receita_pendente"), capsulas_total, data_receita)
     return {
         "data_notificacao": _date(dados.get("data_notificacao")),
         "inicio_sintomas": _date(dados.get("inicio_sintomas")),
-        "data_receita": _date(dados.get("data_receita")),
+        "data_receita": data_receita,
         "visita_va_veterinario": _date(dados.get("visita_va_veterinario")),
-        "capsulas_total": _int(dados.get("capsulas_total")),
+        "capsulas_total": capsulas_total,
         "posologia": _text(dados.get("posologia")) or _posologia_padrao(capsulas_por_dia),
         "capsulas_por_dia": capsulas_por_dia,
+        "receita_pendente": receita_pendente,
         "status": _normalizar_status_doente(dados.get("status")) if _text(dados.get("status")) else "",
         "observacoes": _text(dados.get("observacoes")),
     }
