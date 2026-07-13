@@ -1984,6 +1984,8 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("data-ovi-dia-drag", html)
         self.assertIn("/reordenar", html)
         self.assertNotIn('id="ovi-dia-movimento"', html)
+        self.assertNotIn('id="ovi-arm-agentes"', html)
+        self.assertIn('id="ovi-hist-alt-body"', html)
         self.assertIn("Sem diário definido", html)
         self.assertIn("aplicarOviLote", html)
 
@@ -3009,7 +3011,13 @@ class MainApisSmokeTests(unittest.TestCase):
             cadastro_atualizado_path = Path(tmpdir) / "almirante-tamandare-pr-ovitraps-2.csv"
             leitura_path.write_text(leitura_csv, encoding="utf-8")
             cadastro_path.write_text(cadastro_csv, encoding="utf-8")
-            cadastro_atualizado_path.write_text(cadastro_csv.replace("Joel", "Vanessa"), encoding="utf-8")
+            cadastro_atualizado_path.write_text(
+                cadastro_csv
+                .replace("Rua A;10;Escola", "Rua B;20;Garagem")
+                .replace("Parede;lamenha", "Portao lateral;lamenha")
+                .replace("Joel;1269", "Vanessa;1270"),
+                encoding="utf-8",
+            )
 
             ovitrampas_core.importar_csv(db_path, leitura_path)
             primeiro = ovitrampas_core.importar_armadilhas_csv(db_path, cadastro_path)
@@ -3022,9 +3030,14 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(armadilhas["total"], 1)
             self.assertEqual(armadilhas["registros"][0]["leituras"], 1)
             self.assertEqual(armadilhas["registros"][0]["localidade"], "Lamenha")
+            self.assertEqual(historico["armadilha"]["rua"], "Rua B")
+            self.assertEqual(historico["armadilha"]["numero"], "20")
+            self.assertEqual(historico["armadilha"]["quarteirao"], "1270")
+            self.assertEqual(historico["armadilha"]["localizacao"], "Portao lateral")
             self.assertEqual(historico["armadilha"]["responsavel"], "Vanessa")
             self.assertEqual(historico["leituras"][0]["ovos"], 53)
-            self.assertTrue(any(item["campo"] == "responsavel" for item in historico["alteracoes"]))
+            campos = {item["campo"] for item in historico["alteracoes"]}
+            self.assertTrue({"rua", "numero", "complemento", "localizacao", "responsavel", "quarteirao"}.issubset(campos))
 
     def test_ovitrampas_importa_diarios_xlsx_com_ordem_e_realocar(self):
         with tempfile.TemporaryDirectory() as tmpdir:

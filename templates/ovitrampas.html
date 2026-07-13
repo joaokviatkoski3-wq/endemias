@@ -295,7 +295,6 @@
     <form id="ovi-arm-form" class="ovi-upload">
       <div class="f-g"><label>CSV de ovitrampas do Conta Ovos</label><input type="file" id="ovi-arm-arquivo" name="arquivo" accept=".csv,text/csv"></div>
       <div class="f-g"><label>Motivo das alterações</label><input type="text" id="ovi-arm-motivo" placeholder="Ex: atualização do Conta Ovos"></div>
-      <div class="f-g"><label>Agentes envolvidos</label><select id="ovi-arm-agentes" multiple size="4">{% for agente in agentes %}<option value="{{ agente.id_agente }}">{{ agente.nome }}</option>{% endfor %}</select></div>
       <button class="btn btn-primary" type="submit"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Atualizar cadastro</button>
     </form>
   </div>
@@ -329,6 +328,12 @@
       <span class="table-info" id="ovi-hist-info"></span>
     </div>
     <div class="ovi-history-head" id="ovi-hist-head"></div>
+    <div class="table-scroll" style="margin-bottom:12px;">
+      <table>
+        <thead><tr><th>Data</th><th>Campo</th><th>Valor anterior</th><th>Valor novo</th><th>Motivo</th><th>Origem</th></tr></thead>
+        <tbody id="ovi-hist-alt-body"></tbody>
+      </table>
+    </div>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Semana</th><th>Instalação</th><th>Coleta</th><th>Data da leitura</th><th>Laboratorista</th><th>Ovos</th><th>Enviado por</th><th>Arquivo</th></tr></thead>
@@ -800,8 +805,9 @@ async function abrirHistorico(id){
   const data = await oviGet('/api/ovitrampas/armadilhas/' + encodeURIComponent(id));
   const a = data.armadilha || {};
   const leituras = data.leituras || [];
+  const alteracoes = data.alteracoes || [];
   document.getElementById('ovi-historico').hidden = false;
-  document.getElementById('ovi-hist-info').textContent = `${oviFmt.format(leituras.length)} leitura(s)`;
+  document.getElementById('ovi-hist-info').textContent = `${oviFmt.format(alteracoes.length)} alteração(ões), ${oviFmt.format(leituras.length)} leitura(s)`;
   document.getElementById('ovi-hist-head').innerHTML = [
     ['ID', a.ovitrampa_id],
     ['Localidade', a.localidade],
@@ -810,6 +816,16 @@ async function abrirHistorico(id){
     ['Responsável', a.responsavel],
     ['Coordenadas', [a.latitude, a.longitude].filter(v => v !== null && v !== undefined).join(', ')],
   ].map(([k,v]) => `<div><strong>${oviEscape(k)}</strong>${oviEscape(v || '-')}</div>`).join('');
+  document.getElementById('ovi-hist-alt-body').innerHTML = alteracoes.map(item => `
+    <tr>
+      <td>${oviEscape((item.criado_em || '').replace('T', ' ') || '-')}</td>
+      <td><strong>${oviEscape(item.campo || '-')}</strong></td>
+      <td>${oviEscape(item.valor_anterior || '-')}</td>
+      <td>${oviEscape(item.valor_novo || '-')}</td>
+      <td>${oviEscape(item.motivo || '-')}</td>
+      <td>${oviEscape(item.arquivo_origem || item.usuario || '-')}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:18px;">Sem alterações registradas para esta armadilha.</td></tr>';
   document.getElementById('ovi-hist-body').innerHTML = leituras.map(r => {
     const ovos = Number(r.ovos || 0);
     return `<tr>
@@ -1411,7 +1427,6 @@ document.getElementById('ovi-arm-form').addEventListener('submit', async e => {
   const form = new FormData();
   form.append('arquivo', file);
   form.append('motivo', document.getElementById('ovi-arm-motivo').value || '');
-  Array.from(document.getElementById('ovi-arm-agentes').selectedOptions || []).forEach(opt => form.append('agentes', opt.value));
   try {
     const data = await oviFetchJson('/api/ovitrampas/armadilhas/importar', {method:'POST', headers:{'X-CSRFToken': getCsrf()}, body:form});
     status.className = data.erros?.length ? 'imp-status imp-azul' : 'imp-status imp-verde';

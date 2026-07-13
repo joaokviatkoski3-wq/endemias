@@ -447,13 +447,13 @@ def importar_csv(db_path, path):
     return result
 
 
-def importar_armadilhas_csv(db_path, path, motivo=None, agentes=None, usuario=None):
+def importar_armadilhas_csv(db_path, path, motivo=None, usuario=None):
     result = {"arquivo": os.path.basename(path), "linhas": 0, "inseridos": 0, "atualizados": 0, "sem_alteracao": 0, "erros": []}
     conn = db_core.connect(db_path)
     try:
         ensure_schema(conn)
         agora = datetime.now().isoformat(timespec="seconds")
-        contexto = _contexto_historico_importacao(conn, motivo, agentes, usuario, result["arquivo"])
+        contexto = _contexto_historico_importacao(motivo, usuario, result["arquivo"])
         with open(path, "r", encoding="utf-8-sig", newline="") as fh:
             reader = csv.DictReader(fh, delimiter=";")
             for idx, row in enumerate(reader, start=2):
@@ -2080,20 +2080,10 @@ def _separar_endereco_diario(endereco):
     return rua, numero, complemento
 
 
-def _contexto_historico_importacao(conn, motivo, agentes, usuario, arquivo):
-    agentes_texto = ""
-    ids = [_int(item) for item in (agentes or [])]
-    ids = [item for item in ids if item]
-    if ids:
-        placeholders = ",".join("?" for _ in ids)
-        nomes = [row[0] for row in conn.execute(
-            f"SELECT nome FROM agentes WHERE id_agente IN ({placeholders}) ORDER BY nome COLLATE NOCASE",
-            ids,
-        )]
-        agentes_texto = ", ".join(nomes)
+def _contexto_historico_importacao(motivo, usuario, arquivo):
     return {
         "motivo": _text(motivo) or "Importacao do cadastro Conta Ovos",
-        "agentes": agentes_texto,
+        "agentes": "",
         "usuario": usuario or "sistema",
         "arquivo_origem": arquivo,
         "criado_em": datetime.now().isoformat(timespec="seconds"),

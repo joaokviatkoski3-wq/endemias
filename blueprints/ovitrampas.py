@@ -389,7 +389,6 @@ def api_importar_armadilhas():
             _db_path(),
             destino,
             motivo=request.form.get("motivo"),
-            agentes=request.form.getlist("agentes"),
             usuario=usuario_nome,
         )
 
