@@ -5,18 +5,18 @@
   <title>Diario de ovitrampas - {{ diario.nome }}</title>
   <style>
     @page{size:A4 portrait;margin:5mm 5mm 6mm;}
-    *{box-sizing:border-box;}
-    html,body{margin:0;padding:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;font-size:8.2px;}
+    *{box-sizing:border-box;font-family:Arial,sans-serif;}
+    html,body{margin:0;padding:0;background:#fff;color:#111;font-family:Arial,sans-serif;font-size:8.2px;}
     body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     .sheet{width:100%;page-break-after:always;}
     .diario-header{position:relative;width:100%;height:79mm;overflow:hidden;background:#fff;}
     .diario-header-img{display:block;width:100%;height:auto;}
-    .dh-field{position:absolute;z-index:2;display:flex;align-items:center;justify-content:center;text-align:center;font-family:Arial,Helvetica,sans-serif;font-weight:900;line-height:1.05;}
+    .dh-field{position:absolute;z-index:2;display:flex;align-items:center;justify-content:center;text-align:center;font-family:Arial,sans-serif;font-weight:700;line-height:1.05;}
     .dh-year{left:47.2%;top:38.4%;width:7.5%;height:6%;background:#fff;font-size:10px;color:#111;}
-    .dh-localidades{left:51.2%;top:67.5%;width:16.4%;height:10.8%;background:#d9d9d9;color:#111;font-size:12px;flex-direction:column;text-transform:uppercase;}
-    .dh-localidades.many{font-size:10px;}
+    .dh-localidades{left:45.4%;top:64.9%;width:14.3%;height:8%;background:#d9d9d9;color:#111;font-size:11px;flex-direction:column;text-transform:uppercase;}
+    .dh-localidades.many{font-size:9px;}
     .dh-semana{left:83.1%;top:59.2%;width:13.4%;height:7.2%;background:#fff;font-size:9px;color:#111;}
-    .dh-armadilhas{left:60.7%;top:83.2%;width:7.1%;height:9.2%;background:#fff;font-size:10px;color:#111;}
+    .dh-armadilhas{left:52.1%;top:78.4%;width:7.2%;height:8.8%;background:#fff;font-size:10px;color:#111;}
     table{width:100%;border-collapse:collapse;table-layout:fixed;}
     tr{break-inside:avoid;page-break-inside:avoid;}
     td,th{border:1px solid #111;padding:1px 3px;vertical-align:middle;overflow:hidden;}
@@ -24,44 +24,46 @@
     .grid col:nth-child(6){width:4.8%}.grid col:nth-child(7){width:8.1%}.grid col:nth-child(8){width:8.9%}.grid col:nth-child(9){width:7.3%}.grid col:nth-child(10){width:9%}
     .grid col:nth-child(11){width:9%}.grid col:nth-child(12){width:9%}.grid col:nth-child(13){width:7.3%}.grid col:nth-child(14){width:6.1%}.grid col:nth-child(15){width:7.3%}
     .no-border{border:0!important;background:#fff!important;}
-    .center{text-align:center}.right{text-align:right}.left{text-align:left}.bold{font-weight:800}.nowrap{white-space:nowrap;}
+    .center{text-align:center}.right{text-align:right}.left{text-align:left}.bold{font-weight:700}.nowrap{white-space:nowrap;}
     .r2{height:15.75pt}.r4,.r5,.r6,.r8,.r9,.r11,.r17,.r18,.r19,.r20,.r21{height:17.25pt}
     .r7{height:33pt}.r10,.r55{height:9pt}.r12{height:22.5pt}.r13,.r14{height:20.25pt}.r15{height:19.5pt}
-    .trap-row{height:15.75pt}.occ-line{height:15.75pt}
+    .trap-row{height:15.75pt}.occ-line{height:22pt}
     .sign-row{height:21.75pt}.alter-title{height:12.75pt}.alter-head{height:12.75pt}.alter-row{height:14.25pt}
     .logo-cell{padding:0 2px;text-align:left;}
     .logo-sus{display:block;width:118px;max-height:38px;object-fit:contain;margin-top:1px;}
-    .main-title{font-size:15px;font-weight:900;text-align:center;letter-spacing:0;}
-    .program-title{font-size:13px;font-weight:900;text-align:center;}
+    .main-title{font-size:15px;font-weight:700;text-align:center;letter-spacing:0;}
+    .program-title{font-size:13px;font-weight:700;text-align:center;}
     .gov{font-size:9px;line-height:1.15;}
-    .sector{font-size:11px;font-weight:800;text-align:center;line-height:1.2;white-space:pre-line;}
-    .year{font-size:10px;font-weight:800;text-align:center;}
-    .gray-dark{background:#999;font-weight:900;text-align:center;}
-    .gray-mid{background:#b7b7b7;font-weight:900;text-align:center;}
-    .gray-soft{background:#ccc;font-weight:900;text-align:center;}
+    .sector{font-size:11px;font-weight:700;text-align:center;line-height:1.2;white-space:pre-line;}
+    .year{font-size:10px;font-weight:700;text-align:center;}
+    .gray-dark{background:#999;font-weight:700;text-align:center;}
+    .gray-mid{background:#b7b7b7;font-weight:700;text-align:center;}
+    .gray-soft{background:#ccc;font-weight:700;text-align:center;}
     .gray-light{background:#d9d9d9;}
-    .local-title{background:#d9d9d9;text-align:center;font-weight:900;font-size:9px;}
-    .local-name{background:#d9d9d9;color:#d64b4b;text-align:center;font-weight:900;font-size:15px;}
-    .week-title{font-weight:900;text-align:center;font-size:9px;}
-    .week-label{font-weight:900;text-align:right;font-size:9px;}
-    .qr-note{font-size:10px;line-height:1.1;font-weight:800;text-align:center;white-space:pre-line;}
+    .local-title{background:#d9d9d9;text-align:center;font-weight:700;font-size:9px;}
+    .local-name{background:#d9d9d9;color:#111;text-align:center;font-weight:700;font-size:15px;}
+    .week-title{font-weight:700;text-align:center;font-size:9px;}
+    .week-label{font-weight:700;text-align:right;font-size:9px;}
+    .qr-note{font-size:10px;line-height:1.1;font-weight:700;text-align:center;white-space:pre-line;}
     .qr-img{display:block;width:66px;height:66px;object-fit:contain;margin:auto;}
-    .count-label{background:#d9d9d9;text-align:center;font-weight:900;font-size:9px;line-height:1.05;white-space:pre-line;}
-    .count-value{font-size:10px;font-weight:900;text-align:center;}
-    .field-head{background:#999;font-weight:900;text-align:center;font-size:9px;}
-    .col-head{background:#b7b7b7;font-weight:900;text-align:center;font-size:8.4px;line-height:1.05;}
-    .trap-id{text-align:center;font-weight:900;font-size:13px;}
+    .count-label{background:#d9d9d9;text-align:center;font-weight:700;font-size:9px;line-height:1.05;white-space:pre-line;}
+    .count-value{font-size:10px;font-weight:700;text-align:center;}
+    .field-head{background:#999;font-weight:700;text-align:center;font-size:9px;}
+    .col-head{background:#b7b7b7;font-weight:700;text-align:center;font-size:8.4px;line-height:1.05;}
+    .trap-id{text-align:center;font-weight:700;font-size:13px;}
     .address{text-align:center;font-size:9.7px;font-weight:400;line-height:1.05;}
-    .address-complement{font-weight:900;}
+    .address-complement{font-weight:700;}
     .subline{text-align:center;font-size:8.4px;font-weight:400;line-height:1.05;}
     .route{text-align:center;font-size:9.2px;line-height:1.05;}
     .shade td{background:#d9d9d9;}
     .shade .write{background:#fff;}
     .write{background:#fff;}
     .slash{text-align:center;font-size:12px;}
-    .occ{background:#999;font-size:7.5px;line-height:1.1;font-weight:800;text-align:left;}
+    .occ{background:#999;font-size:7.8px;line-height:1.18;font-weight:700;text-align:center;padding:2px 5px;}
+    .occ-title{display:block;margin-bottom:1px;}
+    .occ-items{display:block;}
     .signature{font-size:10px;text-align:left;padding-left:4px;}
-    .alter-head-cell{background:#ccc;font-size:7.8px;font-weight:900;text-align:center;line-height:1.05;}
+    .alter-head-cell{background:#ccc;font-size:7.8px;font-weight:700;text-align:center;line-height:1.05;}
     @media print{.sheet:last-child{page-break-after:auto;}}
   </style>
 </head>
@@ -142,8 +144,11 @@
         </tr>
         {% endfor %}
         {% endif %}
-        <tr class="occ-line"><td colspan="15" class="occ">Ocorr&ecirc;ncias: 1 - Intervalo maior que 7 dias, 2 - Armadilha ou palheta desaparecida, 3 - Armadilha ou palheta danificada, 4 - Armadilha ou palheta removida,<br>5 - Armadilha seca, 6 - Casa Fechada, 7 - Ovitrampa cheia de &aacute;gua, 8 - Pouca &aacute;gua</td></tr>
-        <tr class="occ-line"><td colspan="15" class="occ">&nbsp;</td></tr>
+        <tr class="occ-line"><td colspan="15" class="occ">
+          <span class="occ-title">Ocorr&ecirc;ncias</span>
+          <span class="occ-items">1 - Intervalo maior que 7 dias; 2 - Armadilha ou palheta desaparecida; 3 - Armadilha ou palheta danificada; 4 - Armadilha ou palheta removida</span>
+          <span class="occ-items">5 - Armadilha seca; 6 - Casa Fechada; 7 - Ovitrampa cheia de &aacute;gua; 8 - Pouca &aacute;gua</span>
+        </td></tr>
         <tr class="r55"><td colspan="15" class="no-border"></td></tr>
         <tr class="sign-row"><td colspan="15" class="signature">Agentes instala&ccedil;&atilde;o:</td></tr>
         <tr class="sign-row"><td colspan="15" class="signature">Agentes troca:</td></tr>
