@@ -9,6 +9,13 @@
     html,body{margin:0;padding:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;font-size:8.2px;}
     body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     .sheet{width:100%;page-break-after:always;}
+    .diario-header{position:relative;width:100%;height:79mm;overflow:hidden;background:#fff;}
+    .diario-header-img{display:block;width:100%;height:auto;}
+    .dh-field{position:absolute;z-index:2;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:900;line-height:1.05;}
+    .dh-year{left:47.2%;top:38.4%;width:7.5%;height:6%;background:#fff;font-size:10px;color:#111;}
+    .dh-localidades{left:46.5%;top:61.4%;width:18.7%;height:12.8%;background:#d9d9d9;color:#d64b4b;font-size:14px;flex-direction:column;text-transform:uppercase;}
+    .dh-semana{left:83.1%;top:59.2%;width:13.4%;height:7.2%;background:#fff;font-size:9px;color:#111;}
+    .dh-armadilhas{left:64.2%;top:84.3%;width:8%;height:9.4%;background:#fff;font-size:10px;color:#111;}
     table{width:100%;border-collapse:collapse;table-layout:fixed;}
     tr{break-inside:avoid;page-break-inside:avoid;}
     td,th{border:1px solid #111;padding:1px 3px;vertical-align:middle;overflow:hidden;}
@@ -60,81 +67,19 @@
 </head>
 <body>
   <div class="sheet">
+    {% set localidades = diario.nome.split(' e ') if ' e ' in diario.nome else [diario.nome] %}
+    <div class="diario-header">
+      <img class="diario-header-img" src="/static/img/diario_ovitrampas_cabecalho_modelo.svg" alt="">
+      <div class="dh-field dh-year">{{ ano }}</div>
+      <div class="dh-field dh-localidades">
+        {% for nome_localidade in localidades %}<span>{{ nome_localidade }}</span>{% endfor %}
+      </div>
+      <div class="dh-field dh-semana">{{ semana or '' }}</div>
+      <div class="dh-field dh-armadilhas">{{ registros|length }}</div>
+    </div>
     <table class="grid">
       <colgroup>{% for _ in range(15) %}<col>{% endfor %}</colgroup>
       <tbody>
-        {% set localidades = diario.nome.split(' e ') if ' e ' in diario.nome else [diario.nome] %}
-        <tr class="r2">
-          <td colspan="3" rowspan="2" class="no-border logo-cell"><img class="logo-sus" src="/static/img/logo_sus.svg" alt="SUS"></td>
-          <td colspan="4" class="no-border"></td>
-          <td colspan="8" class="no-border main-title">DI&Aacute;RIO DE ARMADILHAS DE OVIPOSI&Ccedil;&Atilde;O - OVITRAMPAS</td>
-        </tr>
-        <tr class="r2"><td colspan="12" class="no-border"></td></tr>
-        <tr class="r10"><td colspan="15" class="no-border"></td></tr>
-        <tr class="r4">
-          <td colspan="3" class="no-border gov">Rep&uacute;blica Federativa do Brasil</td>
-          <td class="no-border"></td>
-          <td colspan="8" class="no-border program-title">SISTEMA DO PROGRAMA NACIONAL DE CONTROLE DA DENGUE</td>
-          <td colspan="3" class="no-border"></td>
-        </tr>
-        <tr class="r5">
-          <td colspan="3" class="no-border gov">Minist&eacute;rio da Sa&uacute;de</td>
-          <td class="no-border"></td>
-          <td colspan="7" class="no-border program-title">VIGIL&Acirc;NCIA ENTOMOL&Oacute;GICA</td>
-          <td colspan="4" class="no-border"></td>
-        </tr>
-        <tr class="r6">
-          <td colspan="3" class="no-border gov">Secretaria de Vigil&acirc;ncia em Sa&uacute;de</td>
-          <td colspan="12" class="no-border"></td>
-        </tr>
-        <tr class="r7">
-          <td colspan="4" class="no-border"></td>
-          <td colspan="7" class="no-border sector">Setor de Combate de Endemias<br>Prefeitura Municipal de Almirante Tamandar&eacute; - PR</td>
-          <td colspan="4" class="no-border"></td>
-        </tr>
-        <tr class="r8">
-          <td colspan="7" class="no-border"></td>
-          <td colspan="2" class="no-border year">{{ ano }}</td>
-          <td colspan="6" class="no-border"></td>
-        </tr>
-        <tr class="r9"><td colspan="15" class="no-border"></td></tr>
-        <tr class="r10"><td colspan="15" class="no-border"></td></tr>
-        <tr class="r11"><td colspan="15" class="no-border"></td></tr>
-        <tr class="r12">
-          <td colspan="4" rowspan="6" class="no-border"></td>
-          <td colspan="2" rowspan="4" class="no-border qr-note">Acesse o mapa<br>das localiza&ccedil;&otilde;es<br>das armadilhas<br>pelo QR Code</td>
-          <td rowspan="4" class="no-border center"><img class="qr-img" src="/static/img/qrcode_ovitrampas.svg" alt="QR Code"></td>
-          <td colspan="2" class="local-title">Localidade{% if localidades|length > 1 %}(s){% endif %}</td>
-          <td colspan="2" class="no-border"></td>
-          <td colspan="4" class="week-title">Semanas Epidemiol&oacute;gicas</td>
-        </tr>
-        <tr class="r13">
-          <td colspan="2" rowspan="2" class="local-name">{% for nome_localidade in localidades %}<div>{{ nome_localidade }}</div>{% endfor %}</td>
-          <td class="no-border"></td>
-          <td class="week-label">Instala&ccedil;&atilde;o:</td>
-          <td colspan="4">{{ semana or '' }}</td>
-        </tr>
-        <tr class="r14">
-          <td class="no-border"></td>
-          <td class="week-label">Troca:</td>
-          <td colspan="4"></td>
-        </tr>
-        <tr class="r15">
-          <td colspan="2" class="no-border"></td>
-          <td class="no-border"></td>
-          <td class="week-label">Retirada:</td>
-          <td colspan="4"></td>
-        </tr>
-        <tr class="r17">
-          <td colspan="3" class="no-border"></td>
-          <td rowspan="2" class="count-label">N&ordm; de<br>Armadilhas:</td>
-          <td rowspan="2" class="count-value">{{ registros|length }}</td>
-          <td colspan="6" class="no-border"></td>
-        </tr>
-        <tr class="r18">
-          <td colspan="9" class="no-border"></td>
-        </tr>
-        <tr class="r19"><td colspan="15" class="no-border"></td></tr>
         <tr class="r20">
           <td colspan="12" class="field-head">Campo</td>
           <td colspan="3" class="field-head">Laborat&oacute;rio</td>
