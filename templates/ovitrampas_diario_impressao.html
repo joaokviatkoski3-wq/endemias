@@ -12,7 +12,6 @@
     .diario-header{position:relative;width:100%;height:79mm;overflow:hidden;background:#fff;}
     .diario-header-img{display:block;width:100%;height:auto;}
     .dh-field{position:absolute;z-index:2;display:flex;align-items:center;justify-content:center;text-align:center;font-family:Arial,sans-serif;font-weight:700;line-height:1.05;}
-    .dh-year{left:47.2%;top:38.4%;width:7.5%;height:6%;background:#fff;font-size:10px;color:#111;}
     .dh-localidades{left:45.4%;top:64.9%;width:14.3%;height:8%;background:transparent;color:#111;font-size:11px;flex-direction:column;text-transform:uppercase;}
     .dh-localidades.many{font-size:9px;}
     .dh-semana{left:83.1%;top:59.2%;width:13.4%;height:7.2%;background:#fff;font-size:9px;color:#111;}
@@ -56,10 +55,10 @@
     .subline{text-align:center;font-size:8.4px;font-weight:400;line-height:1.05;}
     .route{text-align:center;font-size:9.2px;line-height:1.05;}
     .shade td{background:#d9d9d9;}
-    .shade .write{background:#fff;}
+    .shade .write{background:#d9d9d9;}
     .write{background:#fff;}
     .slash{text-align:center;font-size:12px;}
-    .occ{background:#999;font-size:7.8px;line-height:1.18;font-weight:700;text-align:center;padding:2px 5px;}
+    .occ{background:#b7b7b7;font-size:7.8px;line-height:1.18;font-weight:700;text-align:center;padding:2px 5px;}
     .occ-title{display:block;margin-bottom:1px;}
     .occ-items{display:block;}
     .signature{font-size:10px;text-align:left;padding-left:4px;}
@@ -72,7 +71,6 @@
     {% set localidades = diario.nome.split(' e ') if ' e ' in diario.nome else [diario.nome] %}
     <div class="diario-header">
       <img class="diario-header-img" src="/static/img/diario_ovitrampas_cabecalho_modelo.svg" alt="">
-      <div class="dh-field dh-year">{{ ano }}</div>
       <div class="dh-field dh-localidades {% if localidades|length > 1 %}many{% endif %}">
         {% for nome_localidade in localidades %}<span>{{ nome_localidade }}</span>{% endfor %}
       </div>
