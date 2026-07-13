@@ -4,269 +4,256 @@
   <meta charset="utf-8">
   <title>Diario de ovitrampas - {{ diario.nome }}</title>
   <style>
-    @page{size:A4 portrait;margin:7mm 6mm 9mm;}
+    @page{size:A4 portrait;margin:5mm 5mm 6mm;}
     *{box-sizing:border-box;}
-    body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;font-size:9px;background:#fff;}
+    html,body{margin:0;padding:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;font-size:8.2px;}
+    body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     .sheet{width:100%;page-break-after:always;}
     table{width:100%;border-collapse:collapse;table-layout:fixed;}
-    td,th{border:1px solid #111;padding:2px 3px;vertical-align:middle;}
-    .no-border{border:0!important;}
-    .center{text-align:center;}
-    .right{text-align:right;}
-    .bold{font-weight:800;}
-    .title{font-size:15px;font-weight:900;text-align:center;}
-    .subtitle{font-size:13px;font-weight:900;text-align:center;}
-    .small{font-size:8px;}
-    .tiny{font-size:7px;}
-    .gov{line-height:1.35;}
-    .gray-dark{background:#999;color:#111;font-weight:900;text-align:center;}
+    tr{break-inside:avoid;page-break-inside:avoid;}
+    td,th{border:1px solid #111;padding:1px 3px;vertical-align:middle;overflow:hidden;}
+    .grid col:nth-child(1){width:6.1%}.grid col:nth-child(2){width:7.3%}.grid col:nth-child(3){width:8.6%}.grid col:nth-child(4){width:7.3%}.grid col:nth-child(5){width:9.2%}
+    .grid col:nth-child(6){width:4.8%}.grid col:nth-child(7){width:8.1%}.grid col:nth-child(8){width:8.9%}.grid col:nth-child(9){width:7.3%}.grid col:nth-child(10){width:9%}
+    .grid col:nth-child(11){width:9%}.grid col:nth-child(12){width:9%}.grid col:nth-child(13){width:7.3%}.grid col:nth-child(14){width:6.1%}.grid col:nth-child(15){width:7.3%}
+    .no-border{border:0!important;background:#fff!important;}
+    .center{text-align:center}.right{text-align:right}.left{text-align:left}.bold{font-weight:800}.nowrap{white-space:nowrap;}
+    .r2{height:15.75pt}.r4,.r5,.r6,.r8,.r9,.r11,.r17,.r18,.r19,.r20,.r21{height:17.25pt}
+    .r7{height:33pt}.r10,.r55{height:9pt}.r12{height:22.5pt}.r13,.r14{height:20.25pt}.r15{height:19.5pt}
+    .trap-row{height:15.75pt}.occ-line{height:15.75pt}.total-head{height:12.75pt}.total-row{height:24.75pt}
+    .sign-row{height:21.75pt}.alter-title{height:12.75pt}.alter-head{height:12.75pt}.alter-row{height:14.25pt}
+    .logo-cell{padding:0 2px;text-align:left;}
+    .logo-sus{display:block;width:118px;max-height:38px;object-fit:contain;margin-top:1px;}
+    .main-title{font-size:15px;font-weight:900;text-align:center;letter-spacing:0;}
+    .program-title{font-size:13px;font-weight:900;text-align:center;}
+    .gov{font-size:9px;line-height:1.15;}
+    .sector{font-size:11px;font-weight:800;text-align:center;line-height:1.2;white-space:pre-line;}
+    .year{font-size:10px;font-weight:800;text-align:center;}
+    .gray-dark{background:#999;font-weight:900;text-align:center;}
     .gray-mid{background:#b7b7b7;font-weight:900;text-align:center;}
+    .gray-soft{background:#ccc;font-weight:900;text-align:center;}
     .gray-light{background:#d9d9d9;}
-    .local-name{color:#d94b4b;font-size:15px;font-weight:900;text-align:center;}
-    .qrcode-wrap{display:flex;align-items:center;gap:8px;justify-content:center;min-height:58px;}
-    .qrcode-wrap img{width:54px;height:54px;object-fit:contain;}
-    .qr-text{font-size:10px;line-height:1.1;font-weight:800;text-align:center;}
-    .main th{height:21px;}
-    .main td{height:20px;font-size:9px;}
-    .main .trap-id{font-size:13px;font-weight:900;text-align:center;}
-    .main .address{font-size:10px;text-align:center;font-weight:700;}
-    .main .muted{font-size:8px;color:#333;text-align:center;font-weight:400;}
-    .main .route-cell{text-align:center;font-size:10px;}
-    .main .blank{height:21px;}
+    .local-title{background:#d9d9d9;text-align:center;font-weight:900;font-size:9px;}
+    .local-name{background:#d9d9d9;color:#d64b4b;text-align:center;font-weight:900;font-size:15px;}
+    .week-title{font-weight:900;text-align:center;font-size:9px;}
+    .week-label{font-weight:900;text-align:right;font-size:9px;}
+    .qr-note{font-size:10px;line-height:1.1;font-weight:800;text-align:center;white-space:pre-line;}
+    .qr-img{display:block;width:66px;height:66px;object-fit:contain;margin:auto;}
+    .count-label{background:#d9d9d9;text-align:center;font-weight:900;font-size:9px;line-height:1.05;white-space:pre-line;}
+    .count-value{font-size:10px;font-weight:900;text-align:center;}
+    .field-head{background:#999;font-weight:900;text-align:center;font-size:9px;}
+    .col-head{background:#b7b7b7;font-weight:900;text-align:center;font-size:8.4px;line-height:1.05;}
+    .trap-id{text-align:center;font-weight:900;font-size:13px;}
+    .address{text-align:center;font-size:9.7px;font-weight:700;line-height:1.05;}
+    .subline{text-align:center;font-size:8.4px;font-weight:400;line-height:1.05;}
+    .route{text-align:center;font-size:9.2px;line-height:1.05;}
     .shade td{background:#d9d9d9;}
-    .shade td.keep-white{background:#fff;}
-    .slash{font-size:12px;text-align:center;}
-    .occ-row td{height:18px;}
-    .totals td{height:18px;}
-    .sign td{height:24px;font-size:10px;}
-    .changes th,.changes td{height:18px;font-size:8px;}
-    .section-gap{height:5px;border:0!important;padding:0!important;}
-    .nowrap{white-space:nowrap;}
+    .shade .write{background:#fff;}
+    .write{background:#fff;}
+    .slash{text-align:center;font-size:12px;}
+    .occ{background:#999;font-size:7.5px;line-height:1.1;font-weight:800;text-align:left;}
+    .total-label{background:#b7b7b7;font-weight:900;text-align:center;font-size:7.8px;line-height:1.05;}
+    .total-fill{background:#d9d9d9;text-align:center;font-weight:800;}
+    .signature{font-size:10px;text-align:left;padding-left:4px;}
+    .alter-head-cell{background:#ccc;font-size:7.8px;font-weight:900;text-align:center;line-height:1.05;}
     @media print{.sheet:last-child{page-break-after:auto;}}
   </style>
 </head>
 <body>
   <div class="sheet">
-    <table>
-      <colgroup>
-        <col style="width:6.2%"><col style="width:7.4%"><col style="width:8.7%"><col style="width:7.4%"><col style="width:9.3%">
-        <col style="width:4.9%"><col style="width:8.2%"><col style="width:9%"><col style="width:7.4%"><col style="width:9.1%">
-        <col style="width:9.1%"><col style="width:9.1%"><col style="width:7.4%"><col style="width:6.2%"><col style="width:7.4%">
-      </colgroup>
+    <table class="grid">
+      <colgroup>{% for _ in range(15) %}<col>{% endfor %}</colgroup>
       <tbody>
-        <tr>
-          <td colspan="7" class="no-border"></td>
-          <td colspan="8" class="title no-border">DI&Aacute;RIO DE ARMADILHAS DE OVIPOSI&Ccedil;&Atilde;O - OVITRAMPAS</td>
+        {% set localidades = diario.nome.split(' e ') if ' e ' in diario.nome else [diario.nome] %}
+        <tr class="r2">
+          <td colspan="3" rowspan="2" class="no-border logo-cell"><img class="logo-sus" src="/static/img/logo_sus.svg" alt="SUS"></td>
+          <td colspan="4" class="no-border"></td>
+          <td colspan="8" class="no-border main-title">DI&Aacute;RIO DE ARMADILHAS DE OVIPOSI&Ccedil;&Atilde;O - OVITRAMPAS</td>
         </tr>
-        <tr><td colspan="15" class="section-gap"></td></tr>
-        <tr>
-          <td colspan="3" class="gov no-border">Rep&uacute;blica Federativa do Brasil</td>
+        <tr class="r2"><td colspan="12" class="no-border"></td></tr>
+        <tr class="r10"><td colspan="15" class="no-border"></td></tr>
+        <tr class="r4">
+          <td colspan="3" class="no-border gov">Rep&uacute;blica Federativa do Brasil</td>
           <td class="no-border"></td>
-          <td colspan="7" class="subtitle no-border">SISTEMA DO PROGRAMA NACIONAL DE CONTROLE DA DENGUE</td>
-          <td colspan="4" class="no-border"></td>
+          <td colspan="8" class="no-border program-title">SISTEMA DO PROGRAMA NACIONAL DE CONTROLE DA DENGUE</td>
+          <td colspan="3" class="no-border"></td>
         </tr>
-        <tr>
-          <td colspan="3" class="gov no-border">Minist&eacute;rio da Sa&uacute;de</td>
+        <tr class="r5">
+          <td colspan="3" class="no-border gov">Minist&eacute;rio da Sa&uacute;de</td>
           <td class="no-border"></td>
-          <td colspan="7" class="subtitle no-border">VIGIL&Acirc;NCIA ENTOMOL&Oacute;GICA</td>
+          <td colspan="7" class="no-border program-title">VIGIL&Acirc;NCIA ENTOMOL&Oacute;GICA</td>
           <td colspan="4" class="no-border"></td>
         </tr>
-        <tr>
-          <td colspan="3" class="gov no-border">Secretaria de Vigil&acirc;ncia em Sa&uacute;de</td>
-          <td colspan="2" class="no-border"></td>
-          <td colspan="6" rowspan="3" class="center no-border bold">Setor de Combate de Endemias<br>Prefeitura Municipal de Almirante Tamandar&eacute; - PR</td>
+        <tr class="r6">
+          <td colspan="3" class="no-border gov">Secretaria de Vigil&acirc;ncia em Sa&uacute;de</td>
+          <td colspan="12" class="no-border"></td>
+        </tr>
+        <tr class="r7">
+          <td colspan="4" class="no-border"></td>
+          <td colspan="7" class="no-border sector">Setor de Combate de Endemias<br>Prefeitura Municipal de Almirante Tamandar&eacute; - PR</td>
           <td colspan="4" class="no-border"></td>
         </tr>
-        <tr>
-          <td colspan="15" class="no-border">&nbsp;</td>
-        </tr>
-        <tr>
+        <tr class="r8">
           <td colspan="7" class="no-border"></td>
-          <td colspan="8" class="no-border center bold">{{ ano }}</td>
-        </tr>
-        <tr><td colspan="15" class="section-gap"></td></tr>
-        <tr>
-          <td colspan="4" rowspan="5" class="no-border"></td>
-          <td colspan="2" rowspan="4" class="no-border">
-            <div class="qrcode-wrap">
-              <div class="qr-text">Acesse o mapa<br>das localiza&ccedil;&otilde;es<br>das armadilhas<br>pelo QR Code</div>
-            </div>
-          </td>
-          <td rowspan="4" class="no-border center">
-            <img src="/static/img/qrcode_mapa.svg" alt="QR Code do mapa" style="width:58px;height:58px;object-fit:contain;">
-          </td>
-          <td colspan="3" class="gray-light center bold">Localidade</td>
-          <td colspan="5" class="center bold">Semanas Epidemiol&oacute;gicas</td>
-        </tr>
-        <tr>
-          <td colspan="3" rowspan="2" class="gray-light local-name">{{ diario.nome }}</td>
-          <td colspan="2" class="right bold">Instala&ccedil;&atilde;o:</td>
-          <td colspan="3">{{ semana or '' }}</td>
-        </tr>
-        <tr>
-          <td colspan="2" class="right bold">Troca:</td>
-          <td colspan="3"></td>
-        </tr>
-        <tr>
-          <td colspan="3" class="no-border"></td>
-          <td colspan="2" class="right bold">Retirada:</td>
-          <td colspan="3"></td>
-        </tr>
-        <tr>
-          <td colspan="3" class="no-border"></td>
-          <td class="gray-light center bold">N&ordm; de<br>Armadilhas:</td>
-          <td class="center bold">{{ registros|length }}</td>
+          <td colspan="2" class="no-border year">{{ ano }}</td>
           <td colspan="6" class="no-border"></td>
         </tr>
-      </tbody>
-    </table>
-
-    <table class="main">
-      <colgroup>
-        <col style="width:6.2%"><col style="width:7.4%"><col style="width:8.7%"><col style="width:7.4%"><col style="width:9.3%">
-        <col style="width:4.9%"><col style="width:8.2%"><col style="width:9%"><col style="width:7.4%"><col style="width:9.1%">
-        <col style="width:9.1%"><col style="width:9.1%"><col style="width:7.4%"><col style="width:6.2%"><col style="width:7.4%">
-      </colgroup>
-      <thead>
-        <tr>
-          <th colspan="12" class="gray-dark">Campo</th>
-          <th colspan="3" class="gray-dark">Laborat&oacute;rio</th>
+        <tr class="r9"><td colspan="15" class="no-border"></td></tr>
+        <tr class="r10"><td colspan="15" class="no-border"></td></tr>
+        <tr class="r11"><td colspan="15" class="no-border"></td></tr>
+        <tr class="r12">
+          <td colspan="4" rowspan="6" class="no-border"></td>
+          <td colspan="2" rowspan="4" class="no-border qr-note">Acesse o mapa<br>das localiza&ccedil;&otilde;es<br>das armadilhas<br>pelo QR Code</td>
+          <td rowspan="4" class="no-border center"><img class="qr-img" src="/static/img/qrcode_ovitrampas.svg" alt="QR Code"></td>
+          <td colspan="2" class="local-title">Localidade{% if localidades|length > 1 %}(s){% endif %}</td>
+          <td colspan="2" class="no-border"></td>
+          <td colspan="4" class="week-title">Semanas Epidemiol&oacute;gicas</td>
         </tr>
-        <tr>
-          <th class="gray-mid">ID</th>
-          <th colspan="4" class="gray-mid">Endere&ccedil;o</th>
-          <th class="gray-mid">Q.</th>
-          <th colspan="2" class="gray-mid">Localiza&ccedil;&atilde;o</th>
-          <th class="gray-mid">Inst.</th>
-          <th class="gray-mid">Tr.</th>
-          <th class="gray-mid">Ret.</th>
-          <th class="gray-mid">Ocorr.</th>
-          <th class="gray-mid">Ovos</th>
-          <th class="gray-mid">Ovos</th>
-          <th class="gray-mid">Larva</th>
+        <tr class="r13">
+          <td colspan="2" rowspan="2" class="local-name">{% for nome_localidade in localidades %}<div>{{ nome_localidade }}</div>{% endfor %}</td>
+          <td class="no-border"></td>
+          <td class="week-label">Instala&ccedil;&atilde;o:</td>
+          <td colspan="4">{{ semana or '' }}</td>
         </tr>
-      </thead>
-      <tbody>
+        <tr class="r14">
+          <td class="no-border"></td>
+          <td class="week-label">Troca:</td>
+          <td colspan="4"></td>
+        </tr>
+        <tr class="r15">
+          <td colspan="2" class="no-border"></td>
+          <td class="no-border"></td>
+          <td class="week-label">Retirada:</td>
+          <td colspan="4"></td>
+        </tr>
+        <tr class="r17">
+          <td colspan="3" class="no-border"></td>
+          <td rowspan="2" class="count-label">N&ordm; de<br>Armadilhas:</td>
+          <td rowspan="2" class="count-value">{{ registros|length }}</td>
+          <td colspan="6" class="no-border"></td>
+        </tr>
+        <tr class="r18">
+          <td colspan="9" class="no-border"></td>
+        </tr>
+        <tr class="r19"><td colspan="15" class="no-border"></td></tr>
+        <tr class="r20">
+          <td colspan="12" class="field-head">Campo</td>
+          <td colspan="3" class="field-head">Laborat&oacute;rio</td>
+        </tr>
+        <tr class="r21">
+          <th class="col-head">ID</th>
+          <th colspan="4" class="col-head">Endere&ccedil;o</th>
+          <th class="col-head">Q.</th>
+          <th colspan="2" class="col-head">Localiza&ccedil;&atilde;o</th>
+          <th class="col-head">Inst.</th>
+          <th class="col-head">Tr.</th>
+          <th class="col-head">Ret.</th>
+          <th class="col-head">Ocorr.</th>
+          <th class="col-head">Ovos</th>
+          <th class="col-head">Ovos</th>
+          <th class="col-head">Larva</th>
+        </tr>
         {% for item in registros %}
         {% set endereco = [item.rua, item.numero]|select|join(', ') %}
         {% set classe = 'shade' if loop.index is odd else '' %}
-        <tr class="{{ classe }}">
+        <tr class="trap-row {{ classe }}">
           <td rowspan="2" class="trap-id">{{ item.ovitrampa_id }}</td>
-          <td colspan="4" class="address">
-            {{ endereco or '-' }}
-            {% if item.complemento %}<div class="muted">{{ item.complemento }}</div>{% endif %}
-          </td>
-          <td class="route-cell">{{ item.quarteirao or '' }}</td>
-          <td colspan="2" class="route-cell">{{ item.localizacao or '' }}</td>
-          <td class="blank keep-white"></td>
-          <td class="blank keep-white"></td>
-          <td class="blank keep-white"></td>
-          <td class="slash keep-white">/</td>
-          <td class="blank keep-white"></td>
-          <td class="blank keep-white"></td>
-          <td class="blank keep-white"></td>
+          <td colspan="4" class="address">{{ endereco or '-' }}{% if item.complemento %} - {{ item.complemento }}{% endif %}</td>
+          <td rowspan="2" class="route">{{ item.quarteirao or '' }}</td>
+          <td colspan="2" rowspan="2" class="route">{{ item.localizacao or '' }}</td>
+          <td rowspan="2" class="write"></td>
+          <td rowspan="2" class="write"></td>
+          <td rowspan="2" class="write"></td>
+          <td rowspan="2" class="write slash">/</td>
+          <td rowspan="2" class="write"></td>
+          <td rowspan="2" class="write"></td>
+          <td rowspan="2" class="write"></td>
         </tr>
-        <tr class="{{ classe }}">
-          <td colspan="2" class="center">{{ item.telefone_responsavel or '' }}</td>
-          <td colspan="2" class="center">{{ item.responsavel or '' }}</td>
-          <td class="blank"></td>
-          <td colspan="2" class="blank"></td>
-          <td class="blank keep-white"></td>
-          <td class="blank keep-white"></td>
-          <td class="blank keep-white"></td>
-          <td class="blank keep-white"></td>
-          <td class="blank keep-white"></td>
-          <td class="blank keep-white"></td>
-          <td class="blank keep-white"></td>
+        <tr class="trap-row {{ classe }}">
+          <td colspan="2" class="subline">{{ item.telefone_responsavel or '' }}</td>
+          <td colspan="2" class="subline">{{ item.responsavel or '' }}</td>
         </tr>
         {% endfor %}
         {% set linhas_vazias = 14 - (registros|length) %}
         {% if linhas_vazias > 0 %}
         {% for _ in range(linhas_vazias) %}
-        {% set linha_ordem = registros|length + loop.index %}
-        <tr class="{{ 'shade' if linha_ordem is odd else '' }}">
+        {% set linha_ordem = (registros|length) + loop.index %}
+        {% set classe = 'shade' if linha_ordem is odd else '' %}
+        <tr class="trap-row {{ classe }}">
           <td rowspan="2" class="trap-id">&nbsp;</td>
           <td colspan="4" class="address">&nbsp;</td>
-          <td></td><td colspan="2"></td><td></td><td></td><td></td><td class="slash">/</td><td></td><td></td><td></td>
+          <td rowspan="2" class="route"></td>
+          <td colspan="2" rowspan="2" class="route"></td>
+          <td rowspan="2" class="write"></td>
+          <td rowspan="2" class="write"></td>
+          <td rowspan="2" class="write"></td>
+          <td rowspan="2" class="write slash">/</td>
+          <td rowspan="2" class="write"></td>
+          <td rowspan="2" class="write"></td>
+          <td rowspan="2" class="write"></td>
         </tr>
-        <tr class="{{ 'shade' if linha_ordem is odd else '' }}">
-          <td colspan="2"></td><td colspan="2"></td><td></td><td colspan="2"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+        <tr class="trap-row {{ classe }}">
+          <td colspan="2" class="subline"></td>
+          <td colspan="2" class="subline"></td>
         </tr>
         {% endfor %}
         {% endif %}
-      </tbody>
-    </table>
-
-    <table>
-      <colgroup>
-        <col style="width:6.2%"><col style="width:7.4%"><col style="width:8.7%"><col style="width:7.4%"><col style="width:9.3%">
-        <col style="width:4.9%"><col style="width:8.2%"><col style="width:9%"><col style="width:7.4%"><col style="width:9.1%">
-        <col style="width:9.1%"><col style="width:9.1%"><col style="width:7.4%"><col style="width:6.2%"><col style="width:7.4%">
-      </colgroup>
-      <tbody>
-        <tr><td colspan="15" class="section-gap"></td></tr>
-        <tr><td colspan="15" class="gray-dark">Ocorr&ecirc;ncias</td></tr>
-        <tr class="occ-row">
-          <td colspan="15" class="small">
-            {% for codigo, descricao in ocorrencias.items() %}
-              <span class="nowrap">{{ codigo }} - {{ descricao }}</span>{% if not loop.last %}; {% endif %}
-            {% endfor %}
-          </td>
+        <tr class="occ-line"><td colspan="15" class="occ">Ocorr&ecirc;ncias: 1 - Intervalo maior que 7 dias, 2 - Armadilha ou palheta desaparecida, 3 - Armadilha ou palheta danificada, 4 - Armadilha ou palheta removida,<br>5 - Armadilha seca, 6 - Casa Fechada, 7 - Ovitrampa cheia de &aacute;gua, 8 - Pouca &aacute;gua</td></tr>
+        <tr class="occ-line"><td colspan="15" class="occ">&nbsp;</td></tr>
+        <tr class="total-head">
+          <td colspan="3" class="total-label">Total</td>
+          <td colspan="2" class="total-label">Total armadilhas instaladas</td>
+          <td class="no-border"></td>
+          <td colspan="2" class="total-label">Total armadinhas positivas</td>
+          <td class="total-label">Tr.:</td>
+          <td colspan="2" class="total-label">Total de palhetas</td>
+          <td class="total-label">Tr.:</td>
+          <td colspan="2" class="total-label">Total de ovos</td>
+          <td class="total-label">Tr.:</td>
         </tr>
-        <tr><td colspan="15" class="section-gap"></td></tr>
-        <tr class="totals">
-          <td colspan="2" class="gray-mid">Total</td>
-          <td colspan="3" class="gray-mid">Total armadilhas instaladas</td>
-          <td colspan="2" class="gray-mid">Total armadilhas positivas</td>
-          <td class="gray-mid">Tr.:</td>
-          <td colspan="2" class="gray-mid">Total de palhetas</td>
-          <td class="gray-mid">Tr.:</td>
-          <td colspan="2" class="gray-mid">Total de ovos</td>
-          <td class="gray-mid">Tr.:</td>
-          <td class="gray-mid"></td>
+        <tr class="total-row">
+          <td class="total-label">Quart.</td>
+          <td colspan="2" class="total-fill">{{ total_quarteiroes or '' }}</td>
+          <td colspan="2" rowspan="2" class="total-fill"></td>
+          <td class="no-border"></td>
+          <td colspan="2" rowspan="2" class="total-fill"></td>
+          <td class="total-fill"></td>
+          <td colspan="2" rowspan="2" class="total-fill"></td>
+          <td class="total-fill"></td>
+          <td colspan="2" rowspan="2" class="total-fill"></td>
+          <td class="total-fill"></td>
         </tr>
-        <tr class="totals">
-          <td colspan="2" class="gray-light"></td>
-          <td colspan="3" class="gray-light"></td>
-          <td colspan="2" class="gray-light"></td>
-          <td class="gray-mid">Ret.:</td>
-          <td colspan="2" class="gray-light"></td>
-          <td class="gray-mid">Ret.:</td>
-          <td colspan="2" class="gray-light"></td>
-          <td class="gray-mid">Ret.:</td>
-          <td class="gray-light"></td>
+        <tr class="total-row">
+          <td class="total-label">Im&oacute;veis</td>
+          <td colspan="2" class="total-fill">{{ registros|length }}</td>
+          <td class="no-border"></td>
+          <td class="total-label">Ret.:</td>
+          <td class="total-label">Ret.:</td>
+          <td class="total-label">Ret.:</td>
         </tr>
-        <tr><td colspan="15" class="section-gap"></td></tr>
-        <tr class="sign"><td colspan="15">Agentes instala&ccedil;&atilde;o:</td></tr>
-        <tr class="sign"><td colspan="15">Agentes troca:</td></tr>
-        <tr class="sign"><td colspan="15">Agentes retirada:</td></tr>
-        <tr><td colspan="15" class="section-gap"></td></tr>
-        <tr><td colspan="15" class="gray-dark">Altera&ccedil;&otilde;es</td></tr>
-      </tbody>
-    </table>
-
-    <table class="changes">
-      <colgroup>
-        <col style="width:5%"><col style="width:17%"><col style="width:6%"><col style="width:17%"><col style="width:14%"><col style="width:14%">
-        <col style="width:10%"><col style="width:7%"><col style="width:5%"><col style="width:5%">
-      </colgroup>
-      <thead>
-        <tr>
-          <th class="gray-mid">N&ordm;</th>
-          <th class="gray-mid">Endere&ccedil;o</th>
-          <th class="gray-mid">Quart.</th>
-          <th class="gray-mid">Localiza&ccedil;&atilde;o da ovitrampa</th>
-          <th class="gray-mid">Coordenadas Latitude</th>
-          <th class="gray-mid">Longitude</th>
-          <th class="gray-mid">Observa&ccedil;&atilde;o</th>
-          <th class="gray-mid">Agentes</th>
-          <th class="gray-mid">Data</th>
-          <th class="gray-mid">Situa&ccedil;&atilde;o</th>
+        <tr class="r55"><td colspan="15" class="no-border"></td></tr>
+        <tr class="sign-row"><td colspan="15" class="signature">Agentes instala&ccedil;&atilde;o:</td></tr>
+        <tr class="sign-row"><td colspan="15" class="signature">Agentes troca:</td></tr>
+        <tr class="sign-row"><td colspan="15" class="signature">Agentes retirada:</td></tr>
+        <tr class="r55"><td colspan="15" class="no-border"></td></tr>
+        <tr class="alter-title"><td colspan="15" class="gray-dark">ALTERA&Ccedil;&Otilde;ES</td></tr>
+        <tr class="alter-head">
+          <th rowspan="2" class="alter-head-cell">N&ordm;</th>
+          <th colspan="3" rowspan="2" class="alter-head-cell">Endere&ccedil;o</th>
+          <th rowspan="2" class="alter-head-cell">Quart.</th>
+          <th colspan="3" rowspan="2" class="alter-head-cell">Localiza&ccedil;&atilde;o da ovitrampa</th>
+          <th colspan="2" rowspan="2" class="alter-head-cell">Coordenadas<br>Latitude | Longitude</th>
+          <th colspan="2" rowspan="2" class="alter-head-cell">Observa&ccedil;&atilde;o</th>
+          <th rowspan="2" class="alter-head-cell">Agentes</th>
+          <th rowspan="2" class="alter-head-cell">Data</th>
+          <th class="alter-head-cell">Situa&ccedil;&atilde;o</th>
         </tr>
-      </thead>
-      <tbody>
-        {% for _ in range(6) %}
-        <tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr class="alter-head"><th class="alter-head-cell">Di&aacute;rio<br>Conta ovos</th></tr>
+        {% for _ in range(9) %}
+        {% set classe = 'shade' if loop.index is odd else '' %}
+        <tr class="alter-row {{ classe }}">
+          <td rowspan="2"></td><td colspan="3" rowspan="2"></td><td rowspan="2"></td><td colspan="3" rowspan="2"></td><td colspan="2" rowspan="2"></td><td colspan="2" rowspan="2"></td><td rowspan="2"></td><td rowspan="2"></td><td rowspan="2"></td>
+        </tr>
+        <tr class="alter-row {{ classe }}"></tr>
         {% endfor %}
       </tbody>
     </table>

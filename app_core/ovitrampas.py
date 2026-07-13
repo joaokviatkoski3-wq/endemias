@@ -940,10 +940,16 @@ def atualizar_armadilha_local(db_path, ovitrampa_id, dados, usuario=None):
 def diario_impressao(db_path, id_diario, filtros=None):
     filtros = filtros or {}
     dados = diario_detalhe(db_path, id_diario, incluir_realocar=False)
+    quarteiroes = {
+        str(row.get("quarteirao")).strip()
+        for row in dados.get("registros", [])
+        if row.get("quarteirao") not in (None, "")
+    }
     return {
         **dados,
         "ano": _int(filtros.get("ano")) or datetime.now().year,
         "semana": _int(filtros.get("semana")),
+        "total_quarteiroes": len(quarteiroes),
         "gerado_em": datetime.now(),
         "ocorrencias": OCORRENCIAS,
     }
