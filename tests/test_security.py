@@ -3083,7 +3083,6 @@ class MainApisSmokeTests(unittest.TestCase):
 
             impressao = ovitrampas_core.diario_impressao(db_path, dados["diarios"][0]["id_diario"])
             self.assertEqual([r["ovitrampa_id"] for r in impressao["registros"]], ["1-A", "1"])
-            self.assertEqual(impressao["total_quarteiroes"], 2)
             self.assertNotIn("movimento", impressao)
 
     def test_api_ovitrampas_importa_csv(self):

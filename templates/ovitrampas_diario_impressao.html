@@ -11,11 +11,12 @@
     .sheet{width:100%;page-break-after:always;}
     .diario-header{position:relative;width:100%;height:79mm;overflow:hidden;background:#fff;}
     .diario-header-img{display:block;width:100%;height:auto;}
-    .dh-field{position:absolute;z-index:2;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:900;line-height:1.05;}
+    .dh-field{position:absolute;z-index:2;display:flex;align-items:center;justify-content:center;text-align:center;font-family:Arial,Helvetica,sans-serif;font-weight:900;line-height:1.05;}
     .dh-year{left:47.2%;top:38.4%;width:7.5%;height:6%;background:#fff;font-size:10px;color:#111;}
-    .dh-localidades{left:46.5%;top:61.4%;width:18.7%;height:12.8%;background:#d9d9d9;color:#d64b4b;font-size:14px;flex-direction:column;text-transform:uppercase;}
+    .dh-localidades{left:51.2%;top:67.5%;width:16.4%;height:10.8%;background:#d9d9d9;color:#111;font-size:12px;flex-direction:column;text-transform:uppercase;}
+    .dh-localidades.many{font-size:10px;}
     .dh-semana{left:83.1%;top:59.2%;width:13.4%;height:7.2%;background:#fff;font-size:9px;color:#111;}
-    .dh-armadilhas{left:64.2%;top:84.3%;width:8%;height:9.4%;background:#fff;font-size:10px;color:#111;}
+    .dh-armadilhas{left:60.7%;top:83.2%;width:7.1%;height:9.2%;background:#fff;font-size:10px;color:#111;}
     table{width:100%;border-collapse:collapse;table-layout:fixed;}
     tr{break-inside:avoid;page-break-inside:avoid;}
     td,th{border:1px solid #111;padding:1px 3px;vertical-align:middle;overflow:hidden;}
@@ -26,7 +27,7 @@
     .center{text-align:center}.right{text-align:right}.left{text-align:left}.bold{font-weight:800}.nowrap{white-space:nowrap;}
     .r2{height:15.75pt}.r4,.r5,.r6,.r8,.r9,.r11,.r17,.r18,.r19,.r20,.r21{height:17.25pt}
     .r7{height:33pt}.r10,.r55{height:9pt}.r12{height:22.5pt}.r13,.r14{height:20.25pt}.r15{height:19.5pt}
-    .trap-row{height:15.75pt}.occ-line{height:15.75pt}.total-head{height:12.75pt}.total-row{height:24.75pt}
+    .trap-row{height:15.75pt}.occ-line{height:15.75pt}
     .sign-row{height:21.75pt}.alter-title{height:12.75pt}.alter-head{height:12.75pt}.alter-row{height:14.25pt}
     .logo-cell{padding:0 2px;text-align:left;}
     .logo-sus{display:block;width:118px;max-height:38px;object-fit:contain;margin-top:1px;}
@@ -50,7 +51,8 @@
     .field-head{background:#999;font-weight:900;text-align:center;font-size:9px;}
     .col-head{background:#b7b7b7;font-weight:900;text-align:center;font-size:8.4px;line-height:1.05;}
     .trap-id{text-align:center;font-weight:900;font-size:13px;}
-    .address{text-align:center;font-size:9.7px;font-weight:700;line-height:1.05;}
+    .address{text-align:center;font-size:9.7px;font-weight:400;line-height:1.05;}
+    .address-complement{font-weight:900;}
     .subline{text-align:center;font-size:8.4px;font-weight:400;line-height:1.05;}
     .route{text-align:center;font-size:9.2px;line-height:1.05;}
     .shade td{background:#d9d9d9;}
@@ -58,8 +60,6 @@
     .write{background:#fff;}
     .slash{text-align:center;font-size:12px;}
     .occ{background:#999;font-size:7.5px;line-height:1.1;font-weight:800;text-align:left;}
-    .total-label{background:#b7b7b7;font-weight:900;text-align:center;font-size:7.8px;line-height:1.05;}
-    .total-fill{background:#d9d9d9;text-align:center;font-weight:800;}
     .signature{font-size:10px;text-align:left;padding-left:4px;}
     .alter-head-cell{background:#ccc;font-size:7.8px;font-weight:900;text-align:center;line-height:1.05;}
     @media print{.sheet:last-child{page-break-after:auto;}}
@@ -71,7 +71,7 @@
     <div class="diario-header">
       <img class="diario-header-img" src="/static/img/diario_ovitrampas_cabecalho_modelo.svg" alt="">
       <div class="dh-field dh-year">{{ ano }}</div>
-      <div class="dh-field dh-localidades">
+      <div class="dh-field dh-localidades {% if localidades|length > 1 %}many{% endif %}">
         {% for nome_localidade in localidades %}<span>{{ nome_localidade }}</span>{% endfor %}
       </div>
       <div class="dh-field dh-semana">{{ semana or '' }}</div>
@@ -102,7 +102,7 @@
         {% set classe = 'shade' if loop.index is odd else '' %}
         <tr class="trap-row {{ classe }}">
           <td rowspan="2" class="trap-id">{{ item.ovitrampa_id }}</td>
-          <td colspan="4" class="address">{{ endereco or '-' }}{% if item.complemento %} - {{ item.complemento }}{% endif %}</td>
+          <td colspan="4" class="address"><span>{{ endereco or '-' }}</span>{% if item.complemento %}<span class="address-complement"> - {{ item.complemento }}</span>{% endif %}</td>
           <td rowspan="2" class="route">{{ item.quarteirao or '' }}</td>
           <td colspan="2" rowspan="2" class="route">{{ item.localizacao or '' }}</td>
           <td rowspan="2" class="write"></td>
@@ -144,37 +144,6 @@
         {% endif %}
         <tr class="occ-line"><td colspan="15" class="occ">Ocorr&ecirc;ncias: 1 - Intervalo maior que 7 dias, 2 - Armadilha ou palheta desaparecida, 3 - Armadilha ou palheta danificada, 4 - Armadilha ou palheta removida,<br>5 - Armadilha seca, 6 - Casa Fechada, 7 - Ovitrampa cheia de &aacute;gua, 8 - Pouca &aacute;gua</td></tr>
         <tr class="occ-line"><td colspan="15" class="occ">&nbsp;</td></tr>
-        <tr class="total-head">
-          <td colspan="3" class="total-label">Total</td>
-          <td colspan="2" class="total-label">Total armadilhas instaladas</td>
-          <td class="no-border"></td>
-          <td colspan="2" class="total-label">Total armadinhas positivas</td>
-          <td class="total-label">Tr.:</td>
-          <td colspan="2" class="total-label">Total de palhetas</td>
-          <td class="total-label">Tr.:</td>
-          <td colspan="2" class="total-label">Total de ovos</td>
-          <td class="total-label">Tr.:</td>
-        </tr>
-        <tr class="total-row">
-          <td class="total-label">Quart.</td>
-          <td colspan="2" class="total-fill">{{ total_quarteiroes or '' }}</td>
-          <td colspan="2" rowspan="2" class="total-fill"></td>
-          <td class="no-border"></td>
-          <td colspan="2" rowspan="2" class="total-fill"></td>
-          <td class="total-fill"></td>
-          <td colspan="2" rowspan="2" class="total-fill"></td>
-          <td class="total-fill"></td>
-          <td colspan="2" rowspan="2" class="total-fill"></td>
-          <td class="total-fill"></td>
-        </tr>
-        <tr class="total-row">
-          <td class="total-label">Im&oacute;veis</td>
-          <td colspan="2" class="total-fill">{{ registros|length }}</td>
-          <td class="no-border"></td>
-          <td class="total-label">Ret.:</td>
-          <td class="total-label">Ret.:</td>
-          <td class="total-label">Ret.:</td>
-        </tr>
         <tr class="r55"><td colspan="15" class="no-border"></td></tr>
         <tr class="sign-row"><td colspan="15" class="signature">Agentes instala&ccedil;&atilde;o:</td></tr>
         <tr class="sign-row"><td colspan="15" class="signature">Agentes troca:</td></tr>
