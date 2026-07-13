@@ -64,7 +64,6 @@ def imprimir_diario():
         {
             "ano": request.args.get("ano"),
             "semana": request.args.get("semana"),
-            "movimento": request.args.get("movimento"),
         },
     )
     return render_template("ovitrampas_diario_impressao.html", **dados)
@@ -185,6 +184,25 @@ def api_diario_mover_armadilha(id_diario, ovitrampa_id):
         data = ovitrampas_core.mover_armadilha_diario(_db_path(), id_diario, ovitrampa_id, direcao)
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
+    return jsonify({"ok": True, **data})
+
+
+@bp.route("/api/ovitrampas/diarios/<int:id_diario>/reordenar", methods=["POST"])
+@login_required
+@nivel_min("operador")
+def api_diario_reordenar_armadilhas(id_diario):
+    payload = request.get_json(silent=True) or {}
+    try:
+        data = ovitrampas_core.reordenar_armadilhas_diario(_db_path(), id_diario, payload.get("ordem") or [])
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(
+        get_db,
+        "ovitrampas_diario_reordenou",
+        entidade="ovitrampas",
+        entidade_id=id_diario,
+        detalhes={"ordem": payload.get("ordem") or []},
+    )
     return jsonify({"ok": True, **data})
 
 

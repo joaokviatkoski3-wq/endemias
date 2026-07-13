@@ -861,6 +861,51 @@ def mover_armadilha_diario(db_path, id_diario, ovitrampa_id, direcao):
         conn.close()
 
 
+def reordenar_armadilhas_diario(db_path, id_diario, ordem):
+    id_diario = _int(id_diario)
+    ids = []
+    for item in ordem or []:
+        ovitrampa_id = _normalizar_ovitrampa_id(item)
+        if ovitrampa_id and ovitrampa_id not in ids:
+            ids.append(ovitrampa_id)
+    if not id_diario or not ids:
+        raise ValueError("Informe a ordem do diario.")
+
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        atual = [
+            row["ovitrampa_id"]
+            for row in conn.execute(
+                f"""SELECT ovitrampa_id
+                      FROM {DIARIO_ARMADILHAS_TABLE}
+                     WHERE id_diario=?
+                     ORDER BY ordem, CAST(ovitrampa_id AS INTEGER), ovitrampa_id COLLATE NOCASE""",
+                (id_diario,),
+            )
+        ]
+        if not atual:
+            raise ValueError("Diario sem ovitrampas para ordenar.")
+        if set(ids) != set(atual) or len(ids) != len(atual):
+            raise ValueError("A ordem enviada precisa conter todas as ovitrampas do diario.")
+
+        agora = datetime.now().isoformat(timespec="seconds")
+        for posicao, item_id in enumerate(ids, start=1):
+            conn.execute(
+                f"""UPDATE {DIARIO_ARMADILHAS_TABLE}
+                       SET ordem=?, atualizado_em=?
+                     WHERE id_diario=? AND ovitrampa_id=?""",
+                (posicao, agora, id_diario, item_id),
+            )
+        conn.commit()
+        return diario_detalhe(db_path, id_diario)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def atualizar_armadilha_local(db_path, ovitrampa_id, dados, usuario=None):
     campos = {
         "telefone_responsavel": _text(dados.get("telefone_responsavel")),
@@ -895,15 +940,10 @@ def atualizar_armadilha_local(db_path, ovitrampa_id, dados, usuario=None):
 def diario_impressao(db_path, id_diario, filtros=None):
     filtros = filtros or {}
     dados = diario_detalhe(db_path, id_diario, incluir_realocar=False)
-    movimento = _text(filtros.get("movimento")) or "instalacao"
-    if movimento not in ("instalacao", "troca", "retirada"):
-        movimento = "instalacao"
     return {
         **dados,
         "ano": _int(filtros.get("ano")) or datetime.now().year,
         "semana": _int(filtros.get("semana")),
-        "movimento": movimento,
-        "movimento_label": MOVIMENTOS.get(movimento, movimento.title()),
         "gerado_em": datetime.now(),
         "ocorrencias": OCORRENCIAS,
     }

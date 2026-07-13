@@ -102,6 +102,11 @@
 .ovi-diario-table input,.ovi-diario-table select{min-width:110px;}
 .ovi-route-buttons{display:flex;gap:4px;flex-wrap:wrap;}
 .ovi-route-buttons .btn{padding:5px 7px;}
+.ovi-diario-table tbody tr{transition:background .16s ease,opacity .16s ease,box-shadow .16s ease;}
+.ovi-diario-table tbody tr.is-dragging{opacity:.55;background:rgba(59,130,246,.14);}
+.ovi-diario-table tbody tr.is-drop-target{box-shadow:inset 0 2px 0 #2563eb;}
+.ovi-drag-handle{cursor:grab;min-width:34px;}
+.ovi-drag-handle:active{cursor:grabbing;}
 .ovi-diario-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px;}
 .ovi-diario-small-scroll{max-height:340px;overflow:auto;}
 @media(max-width:1180px){.ovi-cal-layout{grid-template-columns:1fr;}.ovi-year-grid{grid-template-columns:repeat(2,minmax(230px,1fr));}}
@@ -369,7 +374,6 @@
       <div class="ovi-diario-actions">
         <div class="f-g"><label>Ano</label><input type="number" id="ovi-dia-ano" min="2020" max="2100"></div>
         <div class="f-g"><label>Semana</label><input type="number" id="ovi-dia-semana" min="1" max="53"></div>
-        <div class="f-g"><label>Movimento</label><select id="ovi-dia-movimento"><option value="instalacao">Instalação</option><option value="troca">Troca</option><option value="retirada">Retirada</option></select></div>
         <button class="btn btn-outline" type="button" id="ovi-dia-editar"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Editar nome</button>
         <button class="btn btn-primary" type="button" id="ovi-dia-imprimir"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Imprimir</button>
       </div>
@@ -492,6 +496,7 @@ const oviFmt = new Intl.NumberFormat('pt-BR');
 const oviAgentes = JSON.parse(document.getElementById('ovi-agentes-json').textContent || '[]');
 let oviCalState = {ano:new Date().getFullYear(), grupos:[], eventos:[], eventosPorData:{}};
 let oviDiarioState = {diarios:[], selecionado:null, detalhe:null};
+let oviDiarioDrag = {id:null, original:[]};
 let oviListaTotal = 0;
 const oviMeses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const oviDias = ['D','S','T','Q','Q','S','S'];
@@ -857,7 +862,7 @@ function renderDiarioRota(data){
   const rows = data.registros || [];
   document.getElementById('ovi-dia-info').textContent = diario.nome ? `${oviEscape(diario.nome)} - ${oviFmt.format(rows.length)} armadilha(s)` : 'Selecione um diário.';
   document.getElementById('ovi-dia-rota-body').innerHTML = rows.map(r => `
-    <tr class="${r.realocar ? 'is-muted' : ''}">
+    <tr class="${r.realocar ? 'is-muted' : ''}" data-ovi-dia-row="${oviEscape(r.ovitrampa_id)}">
       <td><strong>${oviFmt.format(r.ordem || 0)}</strong></td>
       <td><strong>${oviEscape(r.ovitrampa_id)}</strong>${r.realocar ? '<br><span class="ovi-chip warn">Realocar</span>' : ''}</td>
       <td>${oviEscape(r.localidade || '-')}</td>
@@ -867,8 +872,7 @@ function renderDiarioRota(data){
       <td><input type="text" value="${oviEscape(r.telefone_responsavel || '')}" data-ovi-dia-tel="${oviEscape(r.ovitrampa_id)}"></td>
       <td>
         <div class="ovi-route-buttons">
-          <button class="btn btn-outline btn-sm" type="button" data-ovi-dia-mover="subir" data-id="${oviEscape(r.ovitrampa_id)}">↑</button>
-          <button class="btn btn-outline btn-sm" type="button" data-ovi-dia-mover="descer" data-id="${oviEscape(r.ovitrampa_id)}">↓</button>
+          <button class="btn btn-outline btn-sm ovi-drag-handle" type="button" draggable="true" data-ovi-dia-drag="${oviEscape(r.ovitrampa_id)}" title="Arrastar para ordenar"><img src="/static/icons/menu.svg" alt="" class="icon-svg"></button>
           <button class="btn btn-outline btn-sm" type="button" data-ovi-dia-salvar-arm="${oviEscape(r.ovitrampa_id)}">Salvar</button>
           <button class="btn btn-ghost btn-sm" type="button" data-ovi-dia-remover="${oviEscape(r.ovitrampa_id)}">Remover</button>
         </div>
@@ -937,6 +941,37 @@ async function moverNoDiario(ovitrampaId, direcao){
   oviDiarioState.detalhe = data;
   renderDiarioRota(data);
 }
+function ordemAtualDiario(){
+  return Array.from(document.querySelectorAll('#ovi-dia-rota-body [data-ovi-dia-row]')).map(row => row.dataset.oviDiaRow);
+}
+function atualizarOrdemVisualDiario(){
+  document.querySelectorAll('#ovi-dia-rota-body [data-ovi-dia-row]').forEach((row, index) => {
+    const ordemCell = row.querySelector('td:first-child strong');
+    if (ordemCell) ordemCell.textContent = oviFmt.format(index + 1);
+  });
+}
+function alvoDropDiario(container, y){
+  const rows = Array.from(container.querySelectorAll('[data-ovi-dia-row]:not(.is-dragging)'));
+  return rows.reduce((closest, row) => {
+    const box = row.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) return {offset, row};
+    return closest;
+  }, {offset:Number.NEGATIVE_INFINITY, row:null}).row;
+}
+async function persistirOrdemDiario(){
+  const ordem = ordemAtualDiario();
+  if (!oviDiarioState.selecionado || !ordem.length) return;
+  if (ordem.join('|') === oviDiarioDrag.original.join('|')) return;
+  const data = await oviFetchJson(`/api/ovitrampas/diarios/${encodeURIComponent(oviDiarioState.selecionado)}/reordenar`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken': getCsrf()},
+    body: JSON.stringify({ordem})
+  });
+  oviDiarioState.detalhe = data;
+  renderDiarioRota(data);
+  toast('Ordem do diário atualizada.', 'success');
+}
 async function removerDoDiario(ovitrampaId){
   if (!oviDiarioState.selecionado || !confirm('Remover esta ovitrampa deste diário?')) return;
   const data = await oviFetchJson(`/api/ovitrampas/diarios/${encodeURIComponent(oviDiarioState.selecionado)}/armadilhas/${encodeURIComponent(ovitrampaId)}`, {
@@ -963,10 +998,8 @@ function imprimirDiarioAtual(){
   const p = new URLSearchParams({id_diario: oviDiarioState.selecionado});
   const ano = document.getElementById('ovi-dia-ano').value;
   const semana = document.getElementById('ovi-dia-semana').value;
-  const movimento = document.getElementById('ovi-dia-movimento').value;
   if (ano) p.set('ano', ano);
   if (semana) p.set('semana', semana);
-  if (movimento) p.set('movimento', movimento);
   window.open('/ovitrampas/diarios/imprimir?' + p.toString(), '_blank', 'noopener');
 }
 async function carregarCalendario(){
@@ -1163,6 +1196,41 @@ document.getElementById('ovi-cal-cancelar').addEventListener('click', fecharModa
 document.getElementById('ovi-cal-movimento').addEventListener('change', atualizarCamposMovimento);
 document.getElementById('ovi-grupo-fechar').addEventListener('click', fecharModalGrupo);
 document.getElementById('ovi-grupo-cancelar').addEventListener('click', fecharModalGrupo);
+document.getElementById('ovi-dia-rota-body').addEventListener('dragstart', e => {
+  const handle = e.target.closest('[data-ovi-dia-drag]');
+  if (!handle) return;
+  const row = handle.closest('[data-ovi-dia-row]');
+  if (!row) return;
+  oviDiarioDrag = {id: row.dataset.oviDiaRow, original: ordemAtualDiario()};
+  row.classList.add('is-dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', row.dataset.oviDiaRow);
+});
+document.getElementById('ovi-dia-rota-body').addEventListener('dragover', e => {
+  const container = e.currentTarget;
+  const dragging = container.querySelector('.is-dragging');
+  if (!dragging) return;
+  e.preventDefault();
+  container.querySelectorAll('.is-drop-target').forEach(row => row.classList.remove('is-drop-target'));
+  const next = alvoDropDiario(container, e.clientY);
+  if (next) {
+    next.classList.add('is-drop-target');
+    container.insertBefore(dragging, next);
+  } else {
+    container.appendChild(dragging);
+  }
+  atualizarOrdemVisualDiario();
+});
+document.getElementById('ovi-dia-rota-body').addEventListener('drop', e => {
+  e.preventDefault();
+  persistirOrdemDiario().catch(err => {
+    toast('Erro ao reordenar diário: ' + err.message, 'error');
+    if (oviDiarioState.selecionado) selecionarDiario(oviDiarioState.selecionado).catch(() => {});
+  });
+});
+document.getElementById('ovi-dia-rota-body').addEventListener('dragend', e => {
+  e.currentTarget.querySelectorAll('.is-dragging,.is-drop-target').forEach(row => row.classList.remove('is-dragging','is-drop-target'));
+});
 document.addEventListener('click', async e => {
   const occToggle = e.target.closest('[data-ovi-occ-toggle]');
   if (occToggle) {
@@ -1181,8 +1249,6 @@ document.addEventListener('click', async e => {
   if (diarioSelect) return selecionarDiario(diarioSelect).catch(err => toast('Erro ao abrir diário: ' + err.message, 'error'));
   const diarioAdd = e.target.closest('[data-ovi-dia-add]')?.dataset.oviDiaAdd;
   if (diarioAdd) return adicionarAoDiario(diarioAdd).catch(err => toast('Erro ao adicionar no diário: ' + err.message, 'error'));
-  const diarioMover = e.target.closest('[data-ovi-dia-mover]');
-  if (diarioMover) return moverNoDiario(diarioMover.dataset.id, diarioMover.dataset.oviDiaMover).catch(err => toast('Erro ao mover ovitrampa: ' + err.message, 'error'));
   const diarioRemover = e.target.closest('[data-ovi-dia-remover]')?.dataset.oviDiaRemover;
   if (diarioRemover) return removerDoDiario(diarioRemover).catch(err => toast('Erro ao remover do diário: ' + err.message, 'error'));
   const diarioSalvar = e.target.closest('[data-ovi-dia-salvar-arm]')?.dataset.oviDiaSalvarArm;

@@ -1981,6 +1981,9 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('id="ovi-lote-somente-vazios"', html)
         self.assertIn('data-ovi-tab="diarios"', html)
         self.assertIn('id="ovi-dia-import-form"', html)
+        self.assertIn("data-ovi-dia-drag", html)
+        self.assertIn("/reordenar", html)
+        self.assertNotIn('id="ovi-dia-movimento"', html)
         self.assertIn("Sem diário definido", html)
         self.assertIn("aplicarOviLote", html)
 
@@ -3071,8 +3074,16 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual([r["ovitrampa_id"] for r in detalhe["registros"]], ["1", "1-A"])
             self.assertEqual(detalhe["registros"][0]["telefone_responsavel"], "(41) 99999-0000")
 
+            reordenado = ovitrampas_core.reordenar_armadilhas_diario(
+                db_path,
+                dados["diarios"][0]["id_diario"],
+                ["1-A", "1"],
+            )
+            self.assertEqual([r["ovitrampa_id"] for r in reordenado["registros"]], ["1-A", "1"])
+
             impressao = ovitrampas_core.diario_impressao(db_path, dados["diarios"][0]["id_diario"])
-            self.assertEqual([r["ovitrampa_id"] for r in impressao["registros"]], ["1", "1-A"])
+            self.assertEqual([r["ovitrampa_id"] for r in impressao["registros"]], ["1-A", "1"])
+            self.assertNotIn("movimento", impressao)
 
     def test_api_ovitrampas_importa_csv(self):
         csv_bytes = (
