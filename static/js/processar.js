@@ -8,14 +8,6 @@ const WORK_TYPES = JSON.parse(document.getElementById('processar-work-types').te
 const KOBO_CONFIG = JSON.parse(document.getElementById('kobo-config-json')?.textContent || '{}');
 const KOBO_VISIT_TYPES = KOBO_CONFIG.tipos_visita || ['PE','TB','TBO','PVE'];
 
-function prepararLayoutProcessar() {
-  const koboCard = document.getElementById('card-kobo-api');
-  const uploadShell = document.getElementById('area-upload-shell');
-  if (koboCard && uploadShell && uploadShell.parentNode) {
-    uploadShell.parentNode.insertBefore(koboCard, uploadShell);
-  }
-}
-
 // ── Helpers de tela ───────────────────────────────────────────────────────────
 function mostrar(id, rolar=false) {
   ['area-log','area-confirmar','area-commit'].forEach(x =>
@@ -762,6 +754,5 @@ function novoProcessamento() {
   setTimeout(() => document.getElementById('area-upload')?.scrollIntoView({behavior:'smooth', block:'nearest'}), 30);
 }
 
-prepararLayoutProcessar();
 configurarAcoesProcessamento();
 carregarStatusConsolidados();

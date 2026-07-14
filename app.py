@@ -257,6 +257,7 @@ def create_app(config_overrides=None):
         TRUST_PROXY_HEADERS=TRUST_PROXY_HEADERS_DEFAULT,
         CSP_REPORT_ONLY=CSP_REPORT_ONLY_DEFAULT,
         CSP_ALLOW_INLINE=CSP_ALLOW_INLINE_DEFAULT,
+        TEMPLATES_AUTO_RELOAD=True,
     )
     if config_overrides:
         flask_app.config.update(config_overrides)

@@ -15,31 +15,31 @@
 <!-- ════════════════════════════════════════════════════════════
      TELA 1 — UPLOAD
 ════════════════════════════════════════════════════════════ -->
-<div class="chart-card processar-card processar-emergency" id="area-upload-shell" style="margin-bottom:18px;">
+<div class="chart-card processar-card processar-emergency" id="area-upload-shell-old" style="display:none;">
   <div class="processar-emergency-head">
     <div>
       <div class="chart-title"><img src="/static/icons/pasta.svg" alt="" class="icon-svg"> Importa&ccedil;&atilde;o emergencial por planilhas</div>
       <div class="processar-muted">Recurso secund&aacute;rio para arquivos XLSX exportados manualmente do Kobo.</div>
     </div>
   </div>
-  <div id="area-upload" class="processar-emergency-body">
+  <div id="area-upload-old" class="processar-emergency-body">
   <div class="processar-inner-card">
     <div class="chart-hd">
       <div class="chart-title"><img src="/static/icons/pasta.svg" alt="📂" class="icon-svg"> Arquivos</div>
       <div style="font-size:11px;color:var(--text3);">PE_, TB_, TBO_, PVE_, ESPOROTRICOSE_, RECOLHIMENTO_, AMOSTRA_ANIMAIS_, BRI_ e LARVAS_</div>
     </div>
 
-    <div id="dropzone"
+    <div id="dropzone-old"
          style="border:1.5px dashed var(--border2);border-radius:var(--radius-sm);padding:18px 16px;
                 text-align:center;cursor:pointer;transition:all .2s;margin-bottom:14px;background:var(--surface2);">
       <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px;">Arraste os arquivos aqui</div>
       <div style="font-size:12px;color:var(--text3);">ou clique para selecionar</div>
-      <input type="file" id="file-input" multiple accept=".xlsx" style="display:none;">
+      <input type="file" id="file-input-old" multiple accept=".xlsx" style="display:none;">
     </div>
 
-    <div id="file-list" style="display:none;margin-bottom:14px;">
+    <div id="file-list-old" style="display:none;margin-bottom:14px;">
       <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Arquivos selecionados</div>
-      <div id="file-items" style="display:flex;flex-direction:column;gap:6px;"></div>
+      <div id="file-items-old" style="display:flex;flex-direction:column;gap:6px;"></div>
     </div>
 
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
@@ -66,8 +66,8 @@
     </div>
 
     <div style="display:flex;gap:10px;align-items:center;">
-      <button id="btn-processar" class="btn btn-primary" disabled type="button">Verificar e processar</button>
-      <button id="btn-limpar" class="btn btn-ghost" type="button" style="display:none;">
+      <button id="btn-processar-old" class="btn btn-primary" disabled type="button">Verificar e processar</button>
+      <button id="btn-limpar-old" class="btn btn-ghost" type="button" style="display:none;">
         <img src="/static/icons/fechar.svg" alt="✕" class="icon-svg"> Limpar
       </button>
     </div>
@@ -118,6 +118,64 @@
       {% endfor %}
     </div>
   </details>
+</div>
+
+<div class="chart-card processar-card processar-emergency" id="area-upload-shell" style="margin-bottom:18px;">
+  <div class="processar-emergency-head">
+    <div>
+      <div class="chart-title"><img src="/static/icons/pasta.svg" alt="" class="icon-svg"> Importa&ccedil;&atilde;o emergencial por planilhas</div>
+      <div class="processar-muted">Recurso secund&aacute;rio para arquivos XLSX exportados manualmente do Kobo.</div>
+    </div>
+  </div>
+  <div id="area-upload" class="processar-emergency-body">
+    <div class="chart-hd compact-upload-head">
+      <div class="chart-title"><img src="/static/icons/pasta.svg" alt="" class="icon-svg"> Arquivos XLSX</div>
+      <div style="font-size:11px;color:var(--text3);">PE_, TB_, TBO_, PVE_, ESPOROTRICOSE_, RECOLHIMENTO_, AMOSTRA_ANIMAIS_, BRI_ e LARVAS_</div>
+    </div>
+
+    <div id="dropzone"
+         style="border:1.5px dashed var(--border2);border-radius:var(--radius-sm);padding:18px 16px;
+                text-align:center;cursor:pointer;transition:all .2s;margin-bottom:14px;background:var(--surface2);">
+      <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px;">Arraste os arquivos aqui</div>
+      <div style="font-size:12px;color:var(--text3);">ou clique para selecionar</div>
+      <input type="file" id="file-input" multiple accept=".xlsx" style="display:none;">
+    </div>
+
+    <div id="file-list" style="display:none;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Arquivos selecionados</div>
+      <div id="file-items" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+      {% for tipo in TIPOS_TRABALHO %}
+      <span style="background:{{ tipo.cor }}18;color:{{ tipo.cor }};border:1px solid {{ tipo.cor }}40;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
+        {{ tipo.codigo }}_ {{ tipo.label }}
+      </span>
+      {% endfor %}
+      <span style="background:#ef444418;color:#ef4444;border:1px solid #ef444440;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
+        LARVAS_ Resultados de Laborat&oacute;rio
+      </span>
+      <span style="background:#14b8a618;color:#14b8a6;border:1px solid #14b8a640;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
+        ESPOROTRICOSE_ Visitas de esporotricose
+      </span>
+      <span style="background:#f59e0b18;color:#b45309;border:1px solid #f59e0b40;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
+        RECOLHIMENTO_ Materiais
+      </span>
+      <span style="background:#8b5cf618;color:#7c3aed;border:1px solid #8b5cf640;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
+        AMOSTRA_ANIMAIS_ Amostra de animais
+      </span>
+      <span style="background:#06b6d418;color:#0e7490;border:1px solid #06b6d440;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
+        BRI_ Borrifamento residual
+      </span>
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:center;">
+      <button id="btn-processar" class="btn btn-primary" disabled type="button">Verificar e processar</button>
+      <button id="btn-limpar" class="btn btn-ghost" type="button" style="display:none;">
+        <img src="/static/icons/fechar.svg" alt="" class="icon-svg"> Limpar
+      </button>
+    </div>
+  </div>
 </div>
 
 <div class="chart-card" style="margin-bottom:18px;" id="card-consolidados">
