@@ -663,6 +663,12 @@ def inserir_resultado_larva(cur, id_coleta, row_larva):
         val_str(row_larva.get("_uuid")),
     ))
     inserido = cur.rowcount > 0
+    if inserido and cur.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='laboratorio_coletas_status'"
+    ).fetchone():
+        cur.execute(
+            "DELETE FROM laboratorio_coletas_status WHERE id_coleta=?", (id_coleta,)
+        )
     cur.execute("""
         SELECT id_resultado,
                aegypt_larvas+aegypt_pupas+aegypt_exuvias+aegypt_adulto AS total_aegypti

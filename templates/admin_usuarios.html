@@ -23,6 +23,7 @@
           <th style="padding:10px 14px;text-align:left;font-weight:700;color:var(--text2);">Nome</th>
           <th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--text2);">Login</th>
           <th style="padding:10px 8px;text-align:center;font-weight:700;color:var(--text2);">Nível</th>
+          <th style="padding:10px 8px;text-align:center;font-weight:700;color:var(--text2);">Laboratório</th>
           <th style="padding:10px 8px;text-align:center;font-weight:700;color:var(--text2);">Status</th>
           <th style="padding:10px 8px;text-align:center;font-weight:700;color:var(--text2);">Ações</th>
         </tr>
@@ -43,6 +44,13 @@
             <option value="{{ n }}" {{ 'selected' if u.nivel == n }}>{{ n }}</option>
             {% endfor %}
           </select>
+        </td>
+        <td style="padding:10px 8px;text-align:center;">
+          <button class="btn btn-xs btn-ghost"
+                  onclick="editarCampo({{ u.id_usuario }}, 'acesso_laboratorio', {{ '0' if u.acesso_laboratorio else '1' }})"
+                  title="Permitir lançamentos laboratoriais">
+            {% if u.acesso_laboratorio %}<img src="/static/icons/check.svg" alt="" class="icon-svg"> Permitido{% else %}Não permitido{% endif %}
+          </button>
         </td>
         <td style="padding:10px 8px;text-align:center;">
           {% if u.ativo %}
@@ -96,6 +104,10 @@
           <option value="admin">Admin — acesso total</option>
         </select>
       </div>
+      <label class="usuario-permissao">
+        <input type="checkbox" name="acesso_laboratorio" value="1">
+        <span><strong>Lançamentos Laboratório</strong><small>Permitir acesso à fila e ao registro de resultados.</small></span>
+      </label>
       <button type="submit" class="btn btn-primary">Criar usuário</button>
     </form>
   </div>
@@ -122,6 +134,10 @@
 .inp:focus{border-color:var(--brand);}
 .f-g{display:flex;flex-direction:column;gap:5px;}
 .f-g label{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;}
+.usuario-permissao{display:flex;align-items:flex-start;gap:9px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);cursor:pointer;}
+.usuario-permissao input{margin-top:3px;}
+.usuario-permissao span{display:grid;gap:2px;font-size:12px;}
+.usuario-permissao small{color:var(--text3);line-height:1.35;}
 </style>
 
 <script>

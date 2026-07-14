@@ -32,6 +32,7 @@ from app_core import db as db_core
 from app_core import diagnostico as diagnostico_core
 from app_core import dbml as dbml_core
 from app_core import kobo_api as kobo_api_core
+from app_core import laboratorio_lancamentos as laboratorio_lancamentos_core
 from app_core import larvas as larvas_core
 from app_core.excel import excel_safe
 from app_core import modules as modules_core
@@ -7437,6 +7438,148 @@ class MainApisSmokeTests(unittest.TestCase):
 
 
 class PermissionMatrixTests(unittest.TestCase):
+    def test_lancamentos_laboratorio_exige_permissao_especifica(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = sqlite3.connect(db_path)
+            cur = conn.execute(
+                """INSERT INTO usuarios
+                   (usuario,nome,senha_hash,nivel,ativo,criado_em,acesso_laboratorio)
+                   VALUES ('laboratorista','Laboratorista','teste','visualizador',1,?,0)""",
+                ("2026-07-14T12:00:00",),
+            )
+            uid = cur.lastrowid
+            conn.commit()
+            conn.close()
+            _login_client_com_usuario(client, {
+                "id_usuario": uid, "nome": "Laboratorista", "nivel": "visualizador"
+            })
+            self.assertEqual(client.get("/laboratorio/lancamentos").status_code, 403)
+
+            conn = sqlite3.connect(db_path)
+            conn.execute(
+                "UPDATE usuarios SET acesso_laboratorio=1 WHERE id_usuario=?", (uid,)
+            )
+            conn.commit()
+            conn.close()
+            self.assertEqual(client.get("/laboratorio/lancamentos").status_code, 200)
+
+    def test_lancamento_manual_sai_da_fila_e_bloqueia_duplicata_kobo(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = sqlite3.connect(db_path)
+            conn.execute(
+                "INSERT INTO agentes(nome,ativo) VALUES ('Márcio',1)"
+            )
+            id_marcio = conn.execute(
+                "SELECT id_agente FROM agentes WHERE nome='Márcio'"
+            ).fetchone()[0]
+            conn.execute(
+                "INSERT INTO agentes(nome,ativo) VALUES ('Azimir',1)"
+            )
+            id_laboratorista = conn.execute(
+                "SELECT id_agente FROM agentes WHERE nome='Azimir'"
+            ).fetchone()[0]
+            conn.execute(
+                """INSERT INTO visitas
+                   (id_visita,kobo_uuid,kobo_id,tipo,data,localidade,logradouro,
+                    numero,quarteirao,processado_em)
+                   VALUES ('visita-lab','uuid-lab',1,'PVE','2026-07-07','Graziela',
+                           'Rua dos Lírios','29',1383,'2026-07-07T12:00:00')"""
+            )
+            conn.execute(
+                "INSERT INTO visita_agentes(id_visita,id_agente) VALUES ('visita-lab',?)",
+                (id_marcio,),
+            )
+            conn.execute(
+                """INSERT INTO coletas
+                   (id_coleta,id_visita,num_tubo,codigo_deposito,tipo_deposito)
+                   VALUES ('coleta-70','visita-lab','70','D2','Balde')"""
+            )
+            conn.commit()
+            conn.close()
+
+            fila = client.get("/api/laboratorio/lancamentos/pendentes").get_json()
+            self.assertEqual(fila["total"], 1)
+            self.assertEqual(fila["pendentes"][0]["agentes"], "Márcio")
+
+            resp = client.post(
+                "/api/laboratorio/lancamentos/coleta-70/resultado",
+                json={
+                    "id_laboratorista": id_laboratorista,
+                    "data_leitura": "2026-07-14",
+                    "albopictus_larvas": 2,
+                },
+            )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(
+                client.get("/api/laboratorio/lancamentos/pendentes").get_json()["total"], 0
+            )
+            historico = client.get(
+                "/api/laboratorio/lancamentos/historico"
+            ).get_json()["registros"]
+            self.assertEqual(historico[0]["origem"], "sistema")
+            self.assertEqual(historico[0]["laboratorista"], "Azimir")
+
+            conn = db_core.connect(db_path)
+            inserido, _ = etl.inserir_resultado_larva(
+                conn.cursor(),
+                "coleta-70",
+                etl.pd.Series({
+                    "Número do tubito": "70",
+                    "Data da coleta": "2026-07-07",
+                    "Nome do laboratorista": "Kobo",
+                    "Data da leitura": "2026-07-15",
+                    "_uuid": "larva-kobo-70",
+                }),
+            )
+            conn.close()
+            self.assertFalse(inserido)
+
+    def test_coleta_encerrada_sem_resultado_nao_aparece_na_fila(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = db_core.connect(db_path)
+            conn.execute(
+                """INSERT INTO visitas
+                   (id_visita,kobo_uuid,tipo,data,localidade,processado_em)
+                   VALUES ('visita-sem','uuid-sem','PE','2026-05-28','Lamenha',?)""",
+                ("2026-05-28T12:00:00",),
+            )
+            conn.execute(
+                "INSERT INTO coletas(id_coleta,id_visita,num_tubo) VALUES ('coleta-359','visita-sem','359')"
+            )
+            laboratorio_lancamentos_core.encerrar_sem_resultado(
+                conn, "coleta-359", "Pendência histórica sem possibilidade de correção"
+            )
+            conn.commit()
+            self.assertEqual(
+                client.get("/api/laboratorio/lancamentos/pendentes").get_json()["total"], 0
+            )
+            historico = client.get(
+                "/api/laboratorio/lancamentos/historico"
+            ).get_json()["registros"]
+            self.assertEqual(historico[0]["registro_tipo"], "sem_resultado")
+
+            inserido, _ = etl.inserir_resultado_larva(
+                conn.cursor(),
+                "coleta-359",
+                etl.pd.Series({
+                    "Número do tubito": "359",
+                    "Data da coleta": "2026-05-28",
+                    "Nome do laboratorista": "Azimir",
+                    "Data da leitura": "2026-07-14",
+                    "_uuid": "larva-359",
+                }),
+            )
+            conn.commit()
+            status = conn.execute(
+                "SELECT 1 FROM laboratorio_coletas_status WHERE id_coleta='coleta-359'"
+            ).fetchone()
+            conn.close()
+            self.assertTrue(inserido)
+            self.assertIsNone(status)
+
     def test_visualizador_acessa_paginas_de_consulta(self):
         client = _client_logado("visualizador")
         rotas = [

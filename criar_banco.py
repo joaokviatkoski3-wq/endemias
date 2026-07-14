@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     nivel       TEXT    NOT NULL DEFAULT 'visualizador'
                         CHECK(nivel IN ('admin','operador','visualizador')),
     ativo       INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)),
+    acesso_laboratorio INTEGER NOT NULL DEFAULT 0 CHECK(acesso_laboratorio IN (0,1)),
     criado_em   TEXT    NOT NULL
 );
 
@@ -147,6 +148,7 @@ CREATE TABLE IF NOT EXISTS resultados_laboratorio (
     num_tubo           TEXT    NOT NULL,
     data_coleta        DATE    NOT NULL,
     laboratorista      TEXT,
+    id_laboratorista   INTEGER REFERENCES agentes(id_agente),
     data_leitura       DATE,
     aegypt_larvas      INTEGER DEFAULT 0,
     aegypt_pupas       INTEGER DEFAULT 0,
@@ -160,9 +162,22 @@ CREATE TABLE IF NOT EXISTS resultados_laboratorio (
     outra_pupas        INTEGER DEFAULT 0,
     outra_exuvias      INTEGER DEFAULT 0,
     outra_adulto       INTEGER DEFAULT 0,
-    kobo_uuid          TEXT    UNIQUE
+    kobo_uuid          TEXT    UNIQUE,
+    origem             TEXT NOT NULL DEFAULT 'kobo' CHECK(origem IN ('kobo','sistema')),
+    criado_em          TEXT,
+    atualizado_em      TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_lab_tubo_data ON resultados_laboratorio(num_tubo, data_coleta);
+CREATE INDEX IF NOT EXISTS idx_resultado_lab_leitura ON resultados_laboratorio(data_leitura DESC, id_resultado DESC);
+
+CREATE TABLE IF NOT EXISTS laboratorio_coletas_status (
+    id_coleta       TEXT PRIMARY KEY REFERENCES coletas(id_coleta),
+    status          TEXT NOT NULL CHECK(status IN ('sem_resultado')),
+    motivo          TEXT NOT NULL,
+    encerrado_em    TEXT NOT NULL,
+    encerrado_por   INTEGER REFERENCES usuarios(id_usuario)
+);
+CREATE INDEX IF NOT EXISTS idx_lab_status_status ON laboratorio_coletas_status(status);
 
 -- ── FOCOS_POSITIVOS ───────────────────────────────────────────────────────────
 -- Gerado automaticamente quando há resultado positivo para Aedes aegypti.

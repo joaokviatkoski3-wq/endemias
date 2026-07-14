@@ -26,6 +26,7 @@ class AppModule:
     show_sidebar: bool = True
     show_home: bool = True
     badge: Optional[str] = None
+    required_permission: Optional[str] = None
     endpoints: Tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self):
@@ -84,6 +85,18 @@ MODULES: Tuple[AppModule, ...] = (
         description="Resultados de coletas de ovitrampas com analise por especie.",
         tags=("Aegypti", "Albopictus"),
         endpoints=("laboratorio", "consultas.laboratorio"),
+    ),
+    AppModule(
+        key="laboratorio_lancamentos",
+        title="Lançamentos Laboratório",
+        short_title="Lançamentos Lab.",
+        href="/laboratorio/lancamentos",
+        endpoint="laboratorio_lancamentos.page",
+        icon="tubo_ensaio.svg",
+        nav_section="Analise",
+        description="Fila de tubos, lançamento de resultados e histórico laboratorial.",
+        tags=("Tubos", "Leitura"),
+        required_permission="acesso_laboratorio",
     ),
     AppModule(
         key="conta_ovos_sispncd",
@@ -319,7 +332,11 @@ SECTION_ORDER = ("Principal", "Analise", "Gestao", "Administracao")
 
 def can_access(module: AppModule, user) -> bool:
     level = (user or {}).get("nivel") if isinstance(user, dict) else None
-    return LEVEL_ORDER.get(level or "visualizador", 0) >= LEVEL_ORDER.get(module.min_level, 999)
+    if LEVEL_ORDER.get(level or "visualizador", 0) < LEVEL_ORDER.get(module.min_level, 999):
+        return False
+    if module.required_permission and level != "admin":
+        return bool((user or {}).get(module.required_permission))
+    return True
 
 
 def visible_modules(user, area: Optional[str] = None) -> List[AppModule]:

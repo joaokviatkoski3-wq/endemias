@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% block title %}Lançamentos Laboratório{% endblock %}
+{% block page_title %}Lançamentos Laboratório{% endblock %}
+
+{% block extra_css %}
+<style>
+.lab-page{max-width:1180px;margin:0 auto;}
+.lab-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;}
+.lab-head h1{font-size:21px;margin:0;display:flex;align-items:center;gap:9px;}
+.lab-head p{margin:4px 0 0;color:var(--text3);font-size:12px;}
+.lab-tabs{display:flex;gap:4px;padding:4px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;width:max-content;}
+.lab-tab{border:0;background:transparent;color:var(--text2);font:600 12px inherit;padding:8px 13px;border-radius:5px;cursor:pointer;display:flex;align-items:center;gap:7px;}
+.lab-tab.active{background:var(--surface);color:var(--brand);box-shadow:0 1px 3px #00000018;}
+.lab-count{min-width:20px;padding:1px 6px;border-radius:10px;background:var(--surface3);font-size:10px;text-align:center;}
+.lab-tab.active .lab-count{background:var(--brand-l);}
+.lab-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 0;}
+.lab-toolbar strong{font-size:13px;}
+.lab-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:10px;}
+.tube-card{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--brand);border-radius:7px;padding:13px;display:grid;gap:11px;min-width:0;}
+.tube-card.external{border-left-color:#d97706;}
+.tube-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;}
+.tube-id{display:flex;align-items:center;gap:8px;min-width:0;}
+.tube-id img{width:20px;height:20px;}
+.tube-id strong{font-size:19px;line-height:1;}
+.tube-age{font-size:10px;font-weight:700;color:var(--text2);background:var(--surface2);border:1px solid var(--border);padding:4px 7px;border-radius:4px;white-space:nowrap;}
+.tube-agent{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:9px 10px;display:grid;gap:2px;}
+.tube-agent span,.tube-meta span{font-size:9px;text-transform:uppercase;font-weight:700;color:var(--text3);}
+.tube-agent strong{font-size:13px;color:var(--text);overflow-wrap:anywhere;}
+.tube-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;}
+.tube-meta div{display:grid;gap:2px;min-width:0;}
+.tube-meta strong{font-size:11.5px;font-weight:600;overflow-wrap:anywhere;}
+.tube-address{grid-column:1/-1;}
+.tube-action{width:100%;justify-content:center;min-height:38px;}
+.lab-empty{border:1px dashed var(--border);border-radius:7px;padding:44px 20px;text-align:center;color:var(--text3);font-size:13px;grid-column:1/-1;}
+.history-list{display:grid;gap:7px;}
+.history-row{display:grid;grid-template-columns:84px 110px minmax(160px,1fr) minmax(160px,1fr) 120px;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:11.5px;}
+.history-row strong{font-size:13px;}
+.history-result{font-weight:700;color:var(--green);}
+.history-result.positive{color:var(--red);}
+.history-result.closed{color:var(--text3);}
+.lab-dialog{border:0;padding:0;background:transparent;width:min(720px,calc(100% - 24px));max-height:calc(100vh - 24px);}
+.lab-dialog::backdrop{background:#07101e99;backdrop-filter:blur(2px);}
+.lab-sheet{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;overflow:auto;max-height:calc(100vh - 24px);box-shadow:0 18px 60px #0006;}
+.lab-sheet-head{position:sticky;top:0;z-index:2;background:var(--surface);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.lab-sheet-title{display:grid;gap:2px;}.lab-sheet-title strong{font-size:17px;}.lab-sheet-title span{font-size:11px;color:var(--text3);}
+.lab-form{padding:16px;display:grid;gap:14px;}
+.lab-form-main{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.lab-field{display:grid;gap:5px;}.lab-field label{font-size:10px;text-transform:uppercase;font-weight:700;color:var(--text3);}
+.lab-field select,.lab-field input{width:100%;min-height:40px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);padding:8px 10px;font:13px inherit;}
+.species{border-top:1px solid var(--border);padding-top:12px;display:grid;gap:9px;}
+.species-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}.species-head strong{font-size:13px;}
+.counts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.count-field{display:grid;gap:4px;}.count-field label{font-size:9px;text-transform:uppercase;color:var(--text3);font-weight:700;}
+.count-field input{width:100%;min-width:0;height:42px;text-align:center;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);font:700 15px inherit;}
+.lab-form-actions{position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);padding-top:12px;display:flex;justify-content:flex-end;gap:8px;}
+.lab-form-actions .btn{min-height:42px;}
+@media(max-width:720px){
+  .lab-head{align-items:flex-start;flex-direction:column;}.lab-tabs{width:100%;}.lab-tab{flex:1;justify-content:center;}
+  .lab-grid{grid-template-columns:1fr;}.lab-dialog{width:100%;max-height:100vh;margin:0;position:fixed;inset:auto 0 0;}
+  .lab-sheet{border-radius:10px 10px 0 0;max-height:94vh;border-bottom:0;}.lab-form-main{grid-template-columns:1fr;}
+  .counts{grid-template-columns:repeat(2,1fr);}.history-row{grid-template-columns:72px 1fr;}.history-row>*:nth-child(n+3){grid-column:1/-1;}
+  .lab-form-actions{display:grid;grid-template-columns:1fr 1.3fr;}.lab-form-actions .btn{justify-content:center;}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="lab-page">
+  <header class="lab-head">
+    <div>
+      <h1><img src="/static/icons/tubo_ensaio.svg" alt="" class="icon-svg"> Lançamentos Laboratório</h1>
+      <p>Vigilância entomológica</p>
+    </div>
+    <div class="lab-tabs" role="tablist">
+      <button class="lab-tab active" data-tab="pendentes" onclick="abrirAbaLab('pendentes')">Pendentes <span class="lab-count" id="lab-pending-count">-</span></button>
+      <button class="lab-tab" data-tab="historico" onclick="abrirAbaLab('historico')">Histórico</button>
+    </div>
+  </header>
+
+  <section id="lab-pendentes">
+    <div class="lab-toolbar"><strong>Tubos aguardando leitura</strong><button class="btn btn-ghost btn-sm" onclick="carregarPendentes()"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
+    <div class="lab-grid" id="lab-grid"><div class="lab-empty"><div class="spinner"></div></div></div>
+  </section>
+  <section id="lab-historico" hidden>
+    <div class="lab-toolbar"><strong>Leituras e encerramentos</strong><button class="btn btn-ghost btn-sm" onclick="carregarHistorico()"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
+    <div class="history-list" id="lab-history"><div class="lab-empty"><div class="spinner"></div></div></div>
+  </section>
+</div>
+
+<dialog class="lab-dialog" id="lab-dialog">
+  <div class="lab-sheet">
+    <header class="lab-sheet-head">
+      <div class="lab-sheet-title"><strong id="form-tube">Tubo</strong><span id="form-context"></span></div>
+      <button type="button" class="btn-icon" onclick="fecharLancamento()" title="Fechar"><img src="/static/icons/fechar.svg" alt="Fechar" class="icon-svg"></button>
+    </header>
+    <form class="lab-form" id="lab-form" onsubmit="salvarResultado(event)">
+      <input type="hidden" id="form-id-coleta">
+      <div class="lab-form-main">
+        <div class="lab-field"><label>Laboratorista</label><select id="form-laboratorista" required><option value="">Selecione</option>{% for agente in agentes %}<option value="{{ agente.id_agente }}">{{ agente.nome }}</option>{% endfor %}</select></div>
+        <div class="lab-field"><label>Data da leitura</label><input type="date" id="form-data" value="{{ hoje }}" required></div>
+      </div>
+      <button type="button" class="btn btn-outline" onclick="resultadoNegativo()"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Resultado negativo</button>
+      {% set especies = [('aegypt','Aedes aegypti'),('albopictus','Aedes albopictus'),('outra','Outra espécie')] %}
+      {% for prefixo, titulo in especies %}
+      <section class="species">
+        <div class="species-head"><strong>{{ titulo }}</strong><span class="badge" id="total-{{ prefixo }}">0</span></div>
+        <div class="counts">
+          {% for campo, label in [('larvas','Larvas'),('pupas','Pupas'),('exuvias','Exúvias'),('adulto','Adultos')] %}
+          <div class="count-field"><label>{{ label }}</label><input inputmode="numeric" type="number" min="0" max="100000" value="0" name="{{ prefixo }}_{{ campo }}" oninput="atualizarTotais()"></div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endfor %}
+      <div class="lab-form-actions"><button type="button" class="btn btn-ghost" onclick="fecharLancamento()">Cancelar</button><button type="submit" class="btn btn-primary" id="btn-save"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar e próximo</button></div>
+    </form>
+  </div>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let labPendentes = [];
+const labDialog = document.getElementById('lab-dialog');
+const labFields = ['aegypt_larvas','aegypt_pupas','aegypt_exuvias','aegypt_adulto','albopictus_larvas','albopictus_pupas','albopictus_exuvias','albopictus_adulto','outra_larvas','outra_pupas','outra_exuvias','outra_adulto'];
+
+function e(v){ return escapeAttr(v ?? ''); }
+function abrirAbaLab(tab){
+  document.querySelectorAll('.lab-tab').forEach(btn=>btn.classList.toggle('active',btn.dataset.tab===tab));
+  document.getElementById('lab-pendentes').hidden=tab!=='pendentes';
+  document.getElementById('lab-historico').hidden=tab!=='historico';
+  if(tab==='historico') carregarHistorico(); else carregarPendentes();
+}
+async function carregarPendentes(){
+  const grid=document.getElementById('lab-grid');
+  grid.innerHTML='<div class="lab-empty"><div class="spinner"></div></div>';
+  try{
+    const data=await apiGet('/api/laboratorio/lancamentos/pendentes');
+    labPendentes=data.pendentes||[];
+    document.getElementById('lab-pending-count').textContent=data.total||0;
+    if(!labPendentes.length){grid.innerHTML='<div class="lab-empty">Nenhum tubo aguardando leitura.</div>';return;}
+    grid.innerHTML=labPendentes.map((r,i)=>{
+      const externo=(r.agentes||'').toLocaleLowerCase('pt-BR').includes('márcio');
+      return `<article class="tube-card ${externo?'external':''}">
+        <div class="tube-top"><div class="tube-id"><img src="/static/icons/tubo_ensaio.svg" alt=""><strong>Tubo ${e(r.num_tubo)}</strong></div><span class="tube-age">${Number(r.dias_pendente)||0} dia(s)</span></div>
+        <div class="tube-agent"><span>Coletado por</span><strong>${e(r.agentes||'Não informado')}</strong></div>
+        <div class="tube-meta"><div><span>Coleta</span><strong>${fmtDate(r.data)}</strong></div><div><span>Atividade</span><strong>${e(r.tipo)}</strong></div><div><span>Depósito</span><strong>${e(r.tipo_deposito||'-')}</strong></div><div><span>Localidade</span><strong>${e(r.localidade||'-')}</strong></div><div class="tube-address"><span>Endereço</span><strong>${e(r.logradouro||'-')}${r.numero?', '+e(r.numero):''} · Q. ${e(r.quarteirao||'-')}</strong></div></div>
+        <button class="btn btn-primary tube-action" onclick="abrirLancamento(${i})"><img src="/static/icons/microscopio.svg" alt="" class="icon-svg"> Lançar resultado</button>
+      </article>`;
+    }).join('');
+  }catch(err){grid.innerHTML=`<div class="lab-empty">${e(err.message)}</div>`;}
+}
+function abrirLancamento(index){
+  const r=labPendentes[index]; if(!r)return;
+  document.getElementById('lab-form').reset();
+  document.getElementById('form-id-coleta').value=r.id_coleta;
+  document.getElementById('form-tube').textContent=`Tubo ${r.num_tubo}`;
+  document.getElementById('form-context').textContent=`${r.localidade||'-'} · ${fmtDate(r.data)} · ${r.agentes||'Agente não informado'}`;
+  document.getElementById('form-data').value='{{ hoje }}';
+  document.getElementById('form-laboratorista').value=localStorage.getItem('lab_laboratorista')||'';
+  labFields.forEach(name=>document.querySelector(`[name="${name}"]`).value=0);
+  atualizarTotais(); labDialog.showModal();
+}
+function fecharLancamento(){labDialog.close();}
+function resultadoNegativo(){labFields.forEach(name=>document.querySelector(`[name="${name}"]`).value=0);atualizarTotais();toast('Contagens definidas como zero.','info');}
+function atualizarTotais(){
+  ['aegypt','albopictus','outra'].forEach(prefix=>{
+    const total=labFields.filter(n=>n.startsWith(prefix+'_')).reduce((s,n)=>s+(Number(document.querySelector(`[name="${n}"]`).value)||0),0);
+    document.getElementById(`total-${prefix}`).textContent=total;
+  });
+}
+async function salvarResultado(ev){
+  ev.preventDefault(); const btn=document.getElementById('btn-save'); btn.disabled=true;
+  const body={id_laboratorista:document.getElementById('form-laboratorista').value,data_leitura:document.getElementById('form-data').value};
+  if(body.id_laboratorista)localStorage.setItem('lab_laboratorista',body.id_laboratorista);
+  labFields.forEach(name=>body[name]=Number(document.querySelector(`[name="${name}"]`).value)||0);
+  try{
+    const r=await apiPost(`/api/laboratorio/lancamentos/${encodeURIComponent(document.getElementById('form-id-coleta').value)}/resultado`,body);
+    if(r.erro)throw new Error(r.erro); toast('Resultado salvo.','success'); fecharLancamento(); await carregarPendentes();
+    if(labPendentes.length) abrirLancamento(0);
+  }catch(err){toast(err.message||'Não foi possível salvar.','error');}finally{btn.disabled=false;}
+}
+function totalResultado(r,prefix){return ['larvas','pupas','exuvias','adulto'].reduce((s,c)=>s+(Number(r[`${prefix}_${c}`])||0),0);}
+async function carregarHistorico(){
+  const area=document.getElementById('lab-history');area.innerHTML='<div class="lab-empty"><div class="spinner"></div></div>';
+  try{
+    const data=await apiGet('/api/laboratorio/lancamentos/historico?limite=200');const rows=data.registros||[];
+    if(!rows.length){area.innerHTML='<div class="lab-empty">Nenhum lançamento registrado.</div>';return;}
+    area.innerHTML=rows.map(r=>{
+      const encerrado=r.registro_tipo==='sem_resultado';const total=encerrado?0:totalResultado(r,'aegypt')+totalResultado(r,'albopictus')+totalResultado(r,'outra');
+      const result=encerrado?'Sem resultado':total?`${total} exemplar(es)`:'Negativo';
+      return `<article class="history-row"><strong>Tubo ${e(r.num_tubo)}</strong><span>${fmtDate(r.data_leitura||r.data_coleta)}</span><span>${e(r.localidade||'-')} · ${e(r.logradouro||'-')}</span><span>Coletado por <strong>${e(r.agentes||'-')}</strong></span><span class="history-result ${encerrado?'closed':total?'positive':''}">${e(result)}</span></article>`;
+    }).join('');
+  }catch(err){area.innerHTML=`<div class="lab-empty">${e(err.message)}</div>`;}
+}
+labDialog.addEventListener('click',ev=>{if(ev.target===labDialog)fecharLancamento();});
+carregarPendentes();
+</script>
+{% endblock %}

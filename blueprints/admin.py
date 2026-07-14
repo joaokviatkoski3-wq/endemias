@@ -427,6 +427,7 @@ def admin_criar_usuario():
     nome = request.form.get("nome", "").strip()
     nivel = request.form.get("nivel", "visualizador")
     senha = request.form.get("senha", "").strip()
+    acesso_laboratorio = 1 if request.form.get("acesso_laboratorio") == "1" else 0
     erro = None
     if not usuario or not nome or not senha:
         erro = "Preencha todos os campos."
@@ -437,9 +438,11 @@ def admin_criar_usuario():
     else:
         try:
             conn = bh.get_db()
-            cur = conn.execute("""INSERT INTO usuarios (usuario,nome,senha_hash,nivel,ativo,criado_em)
-                                  VALUES (?,?,?,?,1,?)""",
-                               (usuario, nome, auth_core.hash_senha(senha), nivel, datetime.now().isoformat()))
+            cur = conn.execute("""INSERT INTO usuarios
+                                  (usuario,nome,senha_hash,nivel,ativo,criado_em,acesso_laboratorio)
+                                  VALUES (?,?,?,?,1,?,?)""",
+                               (usuario, nome, auth_core.hash_senha(senha), nivel,
+                                datetime.now().isoformat(), acesso_laboratorio))
             conn.commit()
             novo_id = cur.lastrowid
             conn.close()
@@ -448,7 +451,8 @@ def admin_criar_usuario():
                 "usuario_criado",
                 entidade="usuarios",
                 entidade_id=novo_id,
-                detalhes={"usuario": usuario, "nome": nome, "nivel": nivel},
+                detalhes={"usuario": usuario, "nome": nome, "nivel": nivel,
+                          "acesso_laboratorio": acesso_laboratorio},
             )
         except Exception as e:
             erro = f"Erro: {e}"
@@ -465,7 +469,10 @@ def admin_editar_usuario(uid):
     campo = request.form.get("campo")
     valor = request.form.get("valor", "").strip()
     conn = bh.get_db()
-    anterior = conn.execute("SELECT usuario,nome,nivel,ativo FROM usuarios WHERE id_usuario=?", (uid,)).fetchone()
+    anterior = conn.execute(
+        "SELECT usuario,nome,nivel,ativo,acesso_laboratorio FROM usuarios WHERE id_usuario=?",
+        (uid,),
+    ).fetchone()
     if campo == "nivel" and valor in ("admin", "operador", "visualizador"):
         conn.execute("UPDATE usuarios SET nivel=? WHERE id_usuario=?", (valor, uid))
     elif campo == "ativo" and valor in ("0", "1"):
@@ -473,6 +480,11 @@ def admin_editar_usuario(uid):
             conn.close()
             return jsonify({"erro": "Voce nao pode desativar sua propria conta."}), 400
         conn.execute("UPDATE usuarios SET ativo=? WHERE id_usuario=?", (int(valor), uid))
+    elif campo == "acesso_laboratorio" and valor in ("0", "1"):
+        conn.execute(
+            "UPDATE usuarios SET acesso_laboratorio=? WHERE id_usuario=?",
+            (int(valor), uid),
+        )
     elif campo == "senha" and auth_core.senha_valida(valor):
         conn.execute("UPDATE usuarios SET senha_hash=? WHERE id_usuario=?", (auth_core.hash_senha(valor), uid))
     else:
