@@ -118,6 +118,7 @@ function toggleUploadEmergencial(forceOpen=null) {
   const abrir = forceOpen === null ? body.style.display === 'none' : Boolean(forceOpen);
   body.style.display = abrir ? 'block' : 'none';
   btn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+  btn.textContent = abrir ? 'Ocultar planilhas' : 'Abrir planilhas';
   if (abrir) {
     setTimeout(() => body.scrollIntoView({behavior:'smooth', block:'nearest'}), 30);
   }

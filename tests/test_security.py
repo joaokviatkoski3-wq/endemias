@@ -2274,6 +2274,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("Importa&ccedil;&atilde;o emergencial por planilhas", html)
         self.assertIn('id="area-upload-shell"', html)
         self.assertIn('id="btn-toggle-upload"', html)
+        self.assertIn("Abrir planilhas", html)
         self.assertIn("LARVAS_ Resultados de Laborat\u00f3rio", html)
         self.assertIn("data-gerar-consolidado", html)
         self.assertIn('id="processar-work-types"', html)
