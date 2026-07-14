@@ -16,6 +16,7 @@ from app_core import backup_completo as backup_completo_core
 from app_core import blueprint_helpers as bh
 from app_core import diagnostico as diagnostico_core
 from app_core import dbml as dbml_core
+from app_core import db as db_core
 from app_core import import_history
 from app_core import version as version_core
 
@@ -60,9 +61,16 @@ def _db_status():
         "existe": db_path.exists(),
         "tamanho": _bytes_label(db_path.stat().st_size) if db_path.exists() else "0 B",
         "wal": wal_path.exists(),
+        "wal_tamanho": _bytes_label(wal_path.stat().st_size) if wal_path.exists() else "0 B",
         "shm": shm_path.exists(),
+        "shm_tamanho": _bytes_label(shm_path.stat().st_size) if shm_path.exists() else "0 B",
         "integridade": "nao verificado",
         "tabelas": 0,
+        "journal_mode": "-",
+        "synchronous": "-",
+        "busy_timeout_ms": 0,
+        "wal_autocheckpoint": 0,
+        "metricas": db_core.connection_metrics(),
     }
     if not db_path.exists():
         return status
@@ -73,6 +81,13 @@ def _db_status():
         status["tabelas"] = conn.execute(
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
         ).fetchone()[0]
+        status["journal_mode"] = conn.execute("PRAGMA journal_mode").fetchone()[0].upper()
+        synchronous = conn.execute("PRAGMA synchronous").fetchone()[0]
+        status["synchronous"] = {0: "OFF", 1: "NORMAL", 2: "FULL", 3: "EXTRA"}.get(
+            synchronous, str(synchronous)
+        )
+        status["busy_timeout_ms"] = conn.execute("PRAGMA busy_timeout").fetchone()[0]
+        status["wal_autocheckpoint"] = conn.execute("PRAGMA wal_autocheckpoint").fetchone()[0]
     finally:
         conn.close()
     return status

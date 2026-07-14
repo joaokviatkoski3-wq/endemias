@@ -110,8 +110,16 @@
         <div><dt>Instancia</dt><dd>{{ instance_dir }}</dd></div>
         <div><dt>Uploads temporarios</dt><dd>{{ upload_temp }}</dd></div>
         <div><dt>Log</dt><dd>{{ log_path }}</dd></div>
-        <div><dt>WAL ativo</dt><dd>{{ "Sim" if db_status.wal else "Nao" }}</dd></div>
-        <div><dt>SHM ativo</dt><dd>{{ "Sim" if db_status.shm else "Nao" }}</dd></div>
+        <div><dt>Modo de diario</dt><dd>{{ db_status.journal_mode }}</dd></div>
+        <div><dt>Sincronizacao</dt><dd>{{ db_status.synchronous }}</dd></div>
+        <div><dt>Espera por bloqueio</dt><dd>{{ db_status.busy_timeout_ms }} ms</dd></div>
+        <div><dt>Checkpoint automatico</dt><dd>{{ db_status.wal_autocheckpoint }} paginas</dd></div>
+        <div><dt>Arquivo WAL</dt><dd>{{ db_status.wal_tamanho }}</dd></div>
+        <div><dt>Arquivo SHM</dt><dd>{{ db_status.shm_tamanho }}</dd></div>
+        <div><dt>Conexoes criadas nesta execucao</dt><dd>{{ db_status.metricas.connections }}</dd></div>
+        <div><dt>Repeticoes por bloqueio</dt><dd>{{ db_status.metricas.lock_retries }}</dd></div>
+        <div><dt>Falhas por bloqueio</dt><dd>{{ db_status.metricas.lock_failures }}</dd></div>
+        <div><dt>Ultimo bloqueio</dt><dd>{{ db_status.metricas.last_lock_at or "Nenhum nesta execucao" }}</dd></div>
       </dl>
     </section>
 
