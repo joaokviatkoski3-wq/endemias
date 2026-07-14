@@ -1923,6 +1923,22 @@ class ProtectedRouteTests(unittest.TestCase):
 
 
 class MainPagesSmokeTests(unittest.TestCase):
+    def test_favicon_esta_disponivel_no_login_e_no_sistema(self):
+        client = endemias_app.app.test_client()
+        login = client.get("/login")
+        self.assertEqual(login.status_code, 200)
+        self.assertIn('/static/img/favicon.png', login.data.decode("utf-8"))
+
+        favicon = client.get("/static/img/favicon.png")
+        self.assertEqual(favicon.status_code, 200)
+        self.assertEqual(favicon.content_type, "image/png")
+        self.assertGreater(len(favicon.data), 0)
+        favicon.close()
+
+        client_logado = _client_logado()
+        dashboard = client_logado.get("/dashboard")
+        self.assertIn('/static/img/favicon.png', dashboard.data.decode("utf-8"))
+
     def test_paginas_principais_logadas_respondem_200(self):
         client = _client_logado()
         rotas = [
