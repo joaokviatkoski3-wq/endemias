@@ -24,6 +24,11 @@ def ensure_schema(db_path):
                 "ALTER TABLE usuarios ADD COLUMN acesso_laboratorio INTEGER NOT NULL DEFAULT 0 "
                 "CHECK(acesso_laboratorio IN (0,1))"
             )
+        if usuarios and "somente_laboratorio" not in usuarios:
+            conn.execute(
+                "ALTER TABLE usuarios ADD COLUMN somente_laboratorio INTEGER NOT NULL DEFAULT 0 "
+                "CHECK(somente_laboratorio IN (0,1))"
+            )
 
         resultados = (
             _columns(conn, "resultados_laboratorio")

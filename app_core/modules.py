@@ -341,6 +341,12 @@ def can_access(module: AppModule, user) -> bool:
 
 def visible_modules(user, area: Optional[str] = None) -> List[AppModule]:
     modules = [module for module in MODULES if can_access(module, user)]
+    if (
+        isinstance(user, dict)
+        and user.get("nivel") != "admin"
+        and user.get("somente_laboratorio")
+    ):
+        modules = [module for module in modules if module.key == "laboratorio_lancamentos"]
     if area == "topbar":
         modules = [module for module in modules if module.show_topbar]
     elif area == "sidebar":

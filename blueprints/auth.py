@@ -92,7 +92,9 @@ def login():
                     except Exception:
                         pass
                 dest = request.args.get("next", "")
-                if not dest or not _url_segura(dest):
+                if u.get("somente_laboratorio") and u.get("nivel") != "admin":
+                    dest = url_for("laboratorio_lancamentos.page")
+                elif not dest or not _url_segura(dest):
                     dest = url_for("home.page")
                 return redirect(dest)
         erro = "Usuario ou senha incorretos."

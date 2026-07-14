@@ -7464,6 +7464,40 @@ class PermissionMatrixTests(unittest.TestCase):
             conn.close()
             self.assertEqual(client.get("/laboratorio/lancamentos").status_code, 200)
 
+    def test_usuario_exclusivo_laboratorio_nao_acessa_outros_modulos(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = sqlite3.connect(db_path)
+            cur = conn.execute(
+                """INSERT INTO usuarios
+                   (usuario,nome,senha_hash,nivel,ativo,criado_em,
+                    acesso_laboratorio,somente_laboratorio)
+                   VALUES ('lab.exclusivo','Laboratorista','teste','visualizador',1,?,1,1)""",
+                ("2026-07-14T12:00:00",),
+            )
+            uid = cur.lastrowid
+            conn.commit()
+            conn.close()
+            _login_client_com_usuario(client, {
+                "id_usuario": uid, "nome": "Laboratorista", "nivel": "visualizador"
+            })
+
+            pagina = client.get("/laboratorio/lancamentos")
+            self.assertEqual(pagina.status_code, 200)
+            self.assertNotIn(b'href="/dashboard"', pagina.data)
+
+            bloqueada = client.get("/dashboard")
+            self.assertEqual(bloqueada.status_code, 302)
+            self.assertTrue(bloqueada.headers["Location"].endswith("/laboratorio/lancamentos"))
+
+            api_bloqueada = client.get("/api/dashboard")
+            self.assertEqual(api_bloqueada.status_code, 403)
+            self.assertEqual(
+                api_bloqueada.get_json()["erro"],
+                "Esta conta possui acesso exclusivo ao laboratorio.",
+            )
+            self.assertEqual(client.get("/minha-senha").status_code, 200)
+
     def test_lancamento_manual_sai_da_fila_e_bloqueia_duplicata_kobo(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)

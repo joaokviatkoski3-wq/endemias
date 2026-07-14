@@ -278,6 +278,7 @@ def create_app(config_overrides=None):
     app_setup.register_error_handlers(flask_app)
     app_setup.register_template_filters(flask_app)
     app_setup.register_security_headers(flask_app)
+    app_setup.register_access_guards(flask_app)
     app_setup.register_context_processors(flask_app)
     return flask_app
 

@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
                         CHECK(nivel IN ('admin','operador','visualizador')),
     ativo       INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)),
     acesso_laboratorio INTEGER NOT NULL DEFAULT 0 CHECK(acesso_laboratorio IN (0,1)),
+    somente_laboratorio INTEGER NOT NULL DEFAULT 0 CHECK(somente_laboratorio IN (0,1)),
     criado_em   TEXT    NOT NULL
 );
 

@@ -1,7 +1,7 @@
 import logging
 import time
 
-from flask import current_app, jsonify, render_template, request
+from flask import current_app, jsonify, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import CSRFError
 
 from app_core import auth as auth_core
@@ -115,6 +115,37 @@ def register_security_headers(app):
         else:
             response.headers.setdefault("Content-Security-Policy", csp)
         return response
+
+
+def register_access_guards(app):
+    @app.before_request
+    def restringir_usuario_exclusivo_laboratorio():
+        if not session.get("uid"):
+            return None
+
+        endpoint = request.endpoint or ""
+        if (
+            endpoint == "static"
+            or endpoint.startswith("laboratorio_lancamentos.")
+            or endpoint in {"auth.login", "auth.logout", "auth.minha_senha"}
+        ):
+            return None
+
+        usuario = db_core.query_one(
+            current_app.config["DB_PATH"],
+            "SELECT nivel, somente_laboratorio FROM usuarios WHERE id_usuario=? AND ativo=1",
+            (session["uid"],),
+        )
+        if (
+            not usuario
+            or usuario.get("nivel") == "admin"
+            or not usuario.get("somente_laboratorio")
+        ):
+            return None
+
+        if request.path.startswith("/api/"):
+            return jsonify({"erro": "Esta conta possui acesso exclusivo ao laboratorio."}), 403
+        return redirect(url_for("laboratorio_lancamentos.page"))
 
 
 def register_context_processors(app):
