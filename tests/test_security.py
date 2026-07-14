@@ -10,6 +10,7 @@ import time
 import unittest
 import uuid
 import zipfile
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -7514,6 +7515,13 @@ class PermissionMatrixTests(unittest.TestCase):
             id_laboratorista = conn.execute(
                 "SELECT id_agente FROM agentes WHERE nome='Azimir'"
             ).fetchone()[0]
+            uid_laboratorista = conn.execute(
+                """INSERT INTO usuarios
+                   (usuario,nome,senha_hash,nivel,ativo,criado_em,
+                    acesso_laboratorio,somente_laboratorio)
+                   VALUES ('azimir','Azimir','teste','visualizador',1,?,1,1)""",
+                (datetime.now().isoformat(),),
+            ).lastrowid
             conn.execute(
                 """INSERT INTO visitas
                    (id_visita,kobo_uuid,kobo_id,tipo,data,localidade,logradouro,
@@ -7532,16 +7540,27 @@ class PermissionMatrixTests(unittest.TestCase):
             )
             conn.commit()
             conn.close()
+            _login_client_com_usuario(client, {
+                "id_usuario": uid_laboratorista,
+                "nome": "Azimir",
+                "nivel": "visualizador",
+            })
+
+            pagina = client.get("/laboratorio/lancamentos")
+            self.assertNotIn(b"form-laboratorista", pagina.data)
+            self.assertNotIn(b"form-data", pagina.data)
+            self.assertNotIn("Resultado negativo".encode(), pagina.data)
 
             fila = client.get("/api/laboratorio/lancamentos/pendentes").get_json()
             self.assertEqual(fila["total"], 1)
             self.assertEqual(fila["pendentes"][0]["agentes"], "Márcio")
+            self.assertEqual(fila["pendentes"][0]["tipo"], "PVE")
 
             resp = client.post(
                 "/api/laboratorio/lancamentos/coleta-70/resultado",
                 json={
-                    "id_laboratorista": id_laboratorista,
-                    "data_leitura": "2026-07-14",
+                    "id_laboratorista": -1,
+                    "data_leitura": "2000-01-01",
                     "albopictus_larvas": 2,
                 },
             )
@@ -7554,6 +7573,36 @@ class PermissionMatrixTests(unittest.TestCase):
             ).get_json()["registros"]
             self.assertEqual(historico[0]["origem"], "sistema")
             self.assertEqual(historico[0]["laboratorista"], "Azimir")
+            self.assertEqual(historico[0]["data_leitura"], date.today().isoformat())
+            self.assertEqual(historico[0]["id_laboratorista"], id_laboratorista)
+            self.assertEqual(historico[0]["tipo"], "PVE")
+            self.assertFalse(historico[0]["positivo_aegypti"])
+            self.assertTrue(historico[0]["editavel"])
+
+            editado = client.post(
+                f"/api/laboratorio/lancamentos/resultados/{historico[0]['id_resultado']}/editar",
+                json={"aegypt_larvas": 3, "albopictus_larvas": 1},
+            )
+            self.assertEqual(editado.status_code, 200)
+            corrigido = client.get(
+                "/api/laboratorio/lancamentos/historico"
+            ).get_json()["registros"][0]
+            self.assertEqual(corrigido["aegypt_larvas"], 3)
+            self.assertEqual(corrigido["albopictus_larvas"], 1)
+            self.assertTrue(corrigido["positivo_aegypti"])
+
+            conn = sqlite3.connect(db_path)
+            conn.execute(
+                "UPDATE resultados_laboratorio SET criado_em=? WHERE id_resultado=?",
+                ((date.today() - timedelta(days=4)).isoformat(), historico[0]["id_resultado"]),
+            )
+            conn.commit()
+            conn.close()
+            expirado = client.post(
+                f"/api/laboratorio/lancamentos/resultados/{historico[0]['id_resultado']}/editar",
+                json={"aegypt_larvas": 4},
+            )
+            self.assertEqual(expirado.status_code, 403)
 
             conn = db_core.connect(db_path)
             inserido, _ = etl.inserir_resultado_larva(
@@ -7593,7 +7642,7 @@ class PermissionMatrixTests(unittest.TestCase):
             historico = client.get(
                 "/api/laboratorio/lancamentos/historico"
             ).get_json()["registros"]
-            self.assertEqual(historico[0]["registro_tipo"], "sem_resultado")
+            self.assertEqual(historico, [])
 
             inserido, _ = etl.inserir_resultado_larva(
                 conn.cursor(),

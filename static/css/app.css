@@ -1248,6 +1248,35 @@ tbody tr:hover td { background:var(--tr-hover); }
     padding:0 14px;
   }
 
+  .topbar-brand {
+    flex:1 1 auto;
+    min-width:0;
+  }
+
+  .topbar-right {
+    flex:0 0 auto;
+    min-width:0;
+  }
+
+  .btn-hamburger {
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex:0 0 36px;
+    width:36px;
+    height:36px;
+    padding:8px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    background:var(--surface2);
+    color:var(--text);
+  }
+
+  .btn-hamburger .icon-svg {
+    width:18px;
+    height:18px;
+  }
+
   .sidebar-desktop {
     display:none;
   }
@@ -1263,6 +1292,14 @@ tbody tr:hover td { background:var(--tr-hover); }
   .page {
     padding:14px;
     overflow:visible;
+  }
+}
+
+@media (max-width:600px) {
+  .topbar-clock,
+  .topbar-user span,
+  .topbar-brand-txt .t2 {
+    display:none;
   }
 }
 
