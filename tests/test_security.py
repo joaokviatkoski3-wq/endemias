@@ -7550,6 +7550,8 @@ class PermissionMatrixTests(unittest.TestCase):
             self.assertNotIn(b"form-laboratorista", pagina.data)
             self.assertNotIn(b"form-data", pagina.data)
             self.assertNotIn("Resultado negativo".encode(), pagina.data)
+            self.assertNotIn("Salvar e próximo".encode(), pagina.data)
+            self.assertIn("Tem certeza?".encode(), pagina.data)
 
             fila = client.get("/api/laboratorio/lancamentos/pendentes").get_json()
             self.assertEqual(fila["total"], 1)

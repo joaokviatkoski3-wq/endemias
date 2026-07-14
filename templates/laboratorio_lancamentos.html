@@ -42,7 +42,7 @@
 .history-result.positive{color:var(--red);}
 .history-species{display:grid;gap:2px;color:var(--text2);font-size:10.5px;line-height:1.35;}
 .history-species strong{font-size:10.5px;}
-.lab-dialog{border:0;padding:0;background:transparent;width:min(720px,calc(100% - 24px));max-height:calc(100vh - 24px);}
+.lab-dialog{border:0;padding:0;background:transparent;width:min(720px,calc(100% - 24px));max-height:calc(100vh - 24px);margin:auto;position:fixed;inset:0;}
 .lab-dialog::backdrop{background:#07101e99;backdrop-filter:blur(2px);}
 .lab-sheet{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;overflow:auto;max-height:calc(100vh - 24px);box-shadow:0 18px 60px #0006;}
 .lab-sheet-head{position:sticky;top:0;z-index:2;background:var(--surface);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
@@ -55,10 +55,19 @@
 .count-field input{width:100%;min-width:0;height:42px;text-align:center;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);font:700 15px inherit;}
 .lab-form-actions{position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);padding-top:12px;display:flex;justify-content:flex-end;gap:8px;}
 .lab-form-actions .btn{min-height:42px;}
+.lab-confirm-dialog{border:0;padding:0;background:transparent;width:min(390px,calc(100% - 28px));margin:auto;position:fixed;inset:0;}
+.lab-confirm-dialog::backdrop{background:#07101e99;backdrop-filter:blur(2px);}
+.lab-confirm-box{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:22px;box-shadow:0 18px 60px #0006;text-align:center;}
+.lab-confirm-icon{width:42px;height:42px;margin:0 auto 12px;border-radius:50%;display:grid;place-items:center;background:var(--brand-xs);border:1px solid var(--brand-l);}
+.lab-confirm-icon img{width:20px;height:20px;}
+.lab-confirm-box h2{font-size:18px;margin:0 0 7px;}
+.lab-confirm-box p{font-size:12px;color:var(--text2);margin:0;}
+.lab-confirm-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:20px;}
+.lab-confirm-actions .btn{min-height:42px;justify-content:center;}
 @media(max-width:720px){
   .lab-head{align-items:flex-start;flex-direction:column;}.lab-tabs{width:100%;}.lab-tab{flex:1;justify-content:center;}
-  .lab-grid{grid-template-columns:1fr;}.lab-dialog{width:100%;max-height:100vh;margin:0;position:fixed;inset:auto 0 0;}
-  .lab-sheet{border-radius:10px 10px 0 0;max-height:94vh;border-bottom:0;}
+  .lab-grid{grid-template-columns:1fr;}.lab-dialog{width:calc(100% - 20px);max-height:calc(100vh - 20px);margin:auto;inset:0;}
+  .lab-sheet{border-radius:8px;max-height:calc(100vh - 20px);}
   .counts{grid-template-columns:repeat(2,1fr);}.history-row{grid-template-columns:85px 1fr;}.history-row>*:nth-child(n+3){grid-column:1/-1;}
   .lab-form-actions{display:grid;grid-template-columns:1fr 1.3fr;}.lab-form-actions .btn{justify-content:center;}
 }
@@ -108,8 +117,20 @@
         </div>
       </section>
       {% endfor %}
-      <div class="lab-form-actions"><button type="button" class="btn btn-ghost" onclick="fecharLancamento()">Cancelar</button><button type="submit" class="btn btn-primary" id="btn-save"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar e próximo</button></div>
+      <div class="lab-form-actions"><button type="button" class="btn btn-ghost" onclick="fecharLancamento()">Cancelar</button><button type="submit" class="btn btn-primary" id="btn-save"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar</button></div>
     </form>
+  </div>
+</dialog>
+
+<dialog class="lab-confirm-dialog" id="lab-confirm-dialog">
+  <div class="lab-confirm-box">
+    <div class="lab-confirm-icon"><img src="/static/icons/alerta.svg" alt=""></div>
+    <h2>Tem certeza?</h2>
+    <p>Confirme somente após revisar todas as contagens deste tubo.</p>
+    <div class="lab-confirm-actions">
+      <button type="button" class="btn btn-ghost" onclick="fecharConfirmacaoSalvar()">Não</button>
+      <button type="button" class="btn btn-primary" id="btn-confirm-save" onclick="confirmarSalvarResultado()">Sim</button>
+    </div>
   </div>
 </dialog>
 {% endblock %}
@@ -119,6 +140,7 @@
 let labPendentes = [];
 let labHistorico = [];
 const labDialog = document.getElementById('lab-dialog');
+const labConfirmDialog = document.getElementById('lab-confirm-dialog');
 const labFields = ['aegypt_larvas','aegypt_pupas','aegypt_exuvias','aegypt_adulto','albopictus_larvas','albopictus_pupas','albopictus_exuvias','albopictus_adulto','outra_larvas','outra_pupas','outra_exuvias','outra_adulto'];
 
 function e(v){ return escapeAttr(v ?? ''); }
@@ -165,7 +187,12 @@ function atualizarTotais(){
   });
 }
 async function salvarResultado(ev){
-  ev.preventDefault(); const btn=document.getElementById('btn-save'); btn.disabled=true;
+  ev.preventDefault();
+  if(!labConfirmDialog.open)labConfirmDialog.showModal();
+}
+function fecharConfirmacaoSalvar(){labConfirmDialog.close();}
+async function confirmarSalvarResultado(){
+  const btn=document.getElementById('btn-confirm-save');btn.disabled=true;
   const body={};
   labFields.forEach(name=>body[name]=Number(document.querySelector(`[name="${name}"]`).value)||0);
   try{
@@ -175,8 +202,8 @@ async function salvarResultado(ev){
       : `/api/laboratorio/lancamentos/${encodeURIComponent(document.getElementById('form-id-coleta').value)}/resultado`;
     const r=await apiPost(url,body);
     if(r.erro)throw new Error(r.erro);
-    toast(idResultado?'Resultado corrigido.':'Resultado salvo.','success'); fecharLancamento();
-    if(idResultado){await carregarHistorico();}else{await carregarPendentes();if(labPendentes.length)abrirLancamento(0);}
+    toast(idResultado?'Resultado corrigido.':'Resultado salvo.','success');
+    fecharConfirmacaoSalvar();fecharLancamento();abrirAbaLab('pendentes');
   }catch(err){toast(err.message||'Não foi possível salvar.','error');}finally{btn.disabled=false;}
 }
 function resumoEspecie(r,prefix,label){
@@ -213,6 +240,7 @@ async function carregarHistorico(){
   }catch(err){area.innerHTML=`<div class="lab-empty">${e(err.message)}</div>`;}
 }
 labDialog.addEventListener('click',ev=>{if(ev.target===labDialog)fecharLancamento();});
+labConfirmDialog.addEventListener('click',ev=>{if(ev.target===labConfirmDialog)fecharConfirmacaoSalvar();});
 carregarPendentes();
 </script>
 {% endblock %}
