@@ -886,7 +886,7 @@ class AdminBackupRoutesTests(unittest.TestCase):
             job_dir.mkdir(parents=True)
             (job_dir / "TB_teste.xlsx").write_bytes(b"teste")
 
-            with mock.patch("etl.processar_upload", return_value=(True, [])):
+            with mock.patch("etl.processar_upload", return_value=(True, [])) as processar:
                 with app_temp.app_context():
                     resp = client.post(f"/processar/confirmar/{job_id}")
                     data = resp.get_data(as_text=True)
@@ -897,6 +897,7 @@ class AdminBackupRoutesTests(unittest.TestCase):
             self.assertIn('"done": true, "ok": true', data)
             self.assertNotIn("backup_pre_import", data)
             self.assertNotIn("Erro inesperado ao gravar no banco", data)
+            self.assertTrue(processar.call_args.kwargs["backup_confirmado"])
             backups = list(Path(app_temp.config["BACKUP_DIR"]).glob("pre_import_*.db"))
             self.assertEqual(len(backups), 1)
             self.assertTrue(backups[0].with_suffix(".db.json").exists())
@@ -7164,6 +7165,113 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(etl.normalizar_categoria("com_rcio"), "Comércio")
         self.assertEqual(etl.normalizar_categoria("fechado"), "Fechado")
         self.assertEqual(etl.normalizar_categoria("normal"), "Normal")
+
+    def test_etl_prepara_planilhas_antes_de_abrir_transacao(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            eventos = []
+            original_connect = db_core.connect
+
+            def conectar(*args, **kwargs):
+                eventos.append("connect")
+                return original_connect(*args, **kwargs)
+
+            def preparar(*args, **kwargs):
+                eventos.append("prepare")
+                return {"preparado": True}
+
+            def gravar(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn,
+                       logger, agora_iso, dry_run=False, preparado=None):
+                self.assertTrue(conn.in_transaction)
+                self.assertEqual(preparado, {"preparado": True})
+                eventos.append("write")
+                return {"ok": True, "visitas_novas": 0, "coletas_novas": 0}
+
+            with mock.patch("etl.preparar_arquivo", side_effect=preparar), \
+                    mock.patch("etl.processar_arquivo", side_effect=gravar), \
+                    mock.patch("etl.db_core.connect", side_effect=conectar):
+                ok, _ = etl.processar_upload(
+                    [str(Path(tmpdir) / "TB_teste.xlsx")],
+                    [],
+                    db_path,
+                    str(ROOT / "config.json"),
+                    etl.Logger(),
+                    dry_run=True,
+                )
+
+            self.assertTrue(ok)
+            self.assertLess(eventos.index("prepare"), eventos.index("connect"))
+            self.assertLess(eventos.index("connect"), eventos.index("write"))
+
+    def test_importadores_especializados_preservam_transacao_do_lote(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            casos = (
+                (recolhimentos_core, ("nova", [])),
+                (amostras_animais_core, ("nova", [])),
+                (bri_core, ("nova", [])),
+            )
+            for modulo, preparado in casos:
+                conn = db_core.connect(db_path)
+                try:
+                    modulo.ensure_schema(conn)
+                    conn.commit()
+                    conn.execute("BEGIN")
+                    modulo.processar_arquivo(
+                        "ignorado.xlsx", conn, etl.Logger(),
+                        "2026-07-14T12:00:00", preparado=preparado,
+                        schema_ready=True,
+                    )
+                    self.assertTrue(conn.in_transaction, modulo.__name__)
+                    conn.rollback()
+                finally:
+                    conn.close()
+
+    def test_etl_desfaz_primeiro_arquivo_quando_segundo_falha(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            chamadas = 0
+
+            def preparar(*args, **kwargs):
+                return {"preparado": True}
+
+            def gravar(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn,
+                       logger, agora_iso, dry_run=False, preparado=None):
+                nonlocal chamadas
+                chamadas += 1
+                self.assertTrue(conn.in_transaction)
+                if chamadas == 1:
+                    conn.execute(
+                        "INSERT INTO localidades(nome, cod_localidade) VALUES (?, ?)",
+                        ("Localidade transitoria", "TESTE-ROLLBACK"),
+                    )
+                    return {"ok": True, "visitas_novas": 0, "coletas_novas": 0}
+                raise RuntimeError("falha simulada no segundo arquivo")
+
+            with mock.patch("etl.preparar_arquivo", side_effect=preparar), \
+                    mock.patch("etl.processar_arquivo", side_effect=gravar):
+                ok, _ = etl.processar_upload(
+                    [
+                        str(Path(tmpdir) / "TB_primeiro.xlsx"),
+                        str(Path(tmpdir) / "TB_segundo.xlsx"),
+                    ],
+                    [],
+                    db_path,
+                    str(ROOT / "config.json"),
+                    etl.Logger(),
+                    dry_run=False,
+                )
+
+            self.assertFalse(ok)
+            conn = sqlite3.connect(db_path)
+            try:
+                total = conn.execute(
+                    "SELECT COUNT(*) FROM localidades WHERE cod_localidade=?",
+                    ("TESTE-ROLLBACK",),
+                ).fetchone()[0]
+            finally:
+                conn.close()
+            self.assertEqual(total, 0)
 
     def test_etl_importa_larvas_sozinhas_em_coletas_existentes(self):
         with tempfile.TemporaryDirectory() as tmpdir:

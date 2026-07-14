@@ -792,6 +792,7 @@ def processar_confirmar(job_id):
                         config_path,
                         lg,
                         dry_run=False,
+                        backup_confirmado=True,
                     )
             except Exception as exc:
                 logging.exception("Falha na confirmacao de importacao")

@@ -119,12 +119,19 @@ def is_new_format(path):
     return {"start", "end", "Data", "Hora", "Localidade", "_uuid"}.issubset(columns)
 
 
-def processar_arquivo(path, conn, logger, agora_iso, dry_run=False):
+def preparar_arquivo(path):
     estrutura = "nova" if is_new_format(path) else "legada"
     registros = parse_workbook(path, estrutura)
+    return estrutura, registros
+
+
+def processar_arquivo(path, conn, logger, agora_iso, dry_run=False, preparado=None,
+                      schema_ready=False):
+    estrutura, registros = preparado or preparar_arquivo(path)
     logger.log(f"  Estrutura: {estrutura} | Recolhimentos: {len(registros)}")
 
-    ensure_schema(conn)
+    if not schema_ready:
+        ensure_schema(conn)
     inseridos = duplicados = vinculos = materiais_novos = 0
     for registro in registros:
         registro["arquivo_origem"] = os.path.basename(path)

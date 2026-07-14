@@ -6,7 +6,7 @@
 #  Não tem interface gráfica — retorna lista de eventos de log.
 # =============================================================================
 
-import os, glob, json, shutil, hashlib, sqlite3, traceback
+import os, json, hashlib, traceback
 import pandas as pd
 from datetime import datetime
 from openpyxl.utils import column_index_from_string
@@ -15,6 +15,7 @@ from app_core import esporotricose as esporotricose_core
 from app_core import amostras_animais as amostras_animais_core
 from app_core import agentes as agentes_core
 from app_core import bri as bri_core
+from app_core import db as db_core
 from app_core import normalizadores
 from app_core import larvas as larvas_core
 from app_core import pontos_estrategicos as pe_core
@@ -726,21 +727,34 @@ def processar_larvas_em_coletas_existentes(larvas, conn, logger, agora_iso):
 #  PROCESSAMENTO DE UM ARQUIVO
 # =============================================================================
 
-def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger, agora_iso, dry_run=False):
+def preparar_arquivo(caminho, tipo, cfg_tipo, logger):
     df_visitas, df_coletas = ler_planilha_trabalho(caminho, tipo, cfg_tipo)
-    logger.log(f"  Visitas: {len(df_visitas)} | Coletas: {len(df_coletas)}")
-
     col_data = cfg_tipo["col_data"]
     if col_data not in df_visitas.columns:
         logger.log(f"  [ERRO] Coluna de data '{col_data}' não encontrada. Verifique config.json.", "erro")
-        return False
+        return None
 
     df_visitas = expandir_sequencia(df_visitas, cfg_tipo, logger)
-
     coletas_por_uuid = {}
     for _, row in df_coletas.iterrows():
         uuid = str(row.get("__uuid__", "")).strip()
         coletas_por_uuid.setdefault(uuid, []).append(row)
+    return {
+        "df_visitas": df_visitas,
+        "df_coletas": df_coletas,
+        "coletas_por_uuid": coletas_por_uuid,
+    }
+
+
+def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
+                      agora_iso, dry_run=False, preparado=None):
+    preparado = preparado or preparar_arquivo(caminho, tipo, cfg_tipo, logger)
+    if preparado is None:
+        return False
+    df_visitas = preparado["df_visitas"]
+    df_coletas = preparado["df_coletas"]
+    coletas_por_uuid = preparado["coletas_por_uuid"]
+    logger.log(f"  Visitas: {len(df_visitas)} | Coletas: {len(df_coletas)}")
 
     cur = conn.cursor()
     col_tubo = cfg_tipo["col_numero_tubo_coletas"]
@@ -957,7 +971,8 @@ def _formatar_pendencia(row):
 #  ENTRY POINT — chamado pelo app.py
 # =============================================================================
 
-def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path, logger, dry_run=False):
+def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path,
+                     logger, dry_run=False, backup_confirmado=False):
     """
     arquivos_trabalho: lista de caminhos de arquivos .xlsx com prefixos em config.json
     arquivos_larvas:   lista de caminhos de arquivos .xlsx (LARVAS_)
@@ -988,25 +1003,14 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
         logger.log(f"\n[ERRO] Falha ao carregar config.json: {e}", "erro")
         return False, []
 
-    # Backup automático do banco
-    logger.log("\n[1/5] Backup do banco...", "titulo")
-    try:
-        ts      = agora.strftime("%Y%m%d_%H%M%S")
-        bk_dir  = os.path.join(os.path.dirname(banco_path), "backups")
-        os.makedirs(bk_dir, exist_ok=True)
-        bk_path = os.path.join(bk_dir, f"endemias_{ts}.db")
-        shutil.copy2(banco_path, bk_path)
-        logger.log(f"  Backup criado: backups/endemias_{ts}.db", "ok")
-        # FIX ARQ-06: manter apenas os 10 backups mais recentes para não encher o disco
-        todos_bk = sorted(glob.glob(os.path.join(bk_dir, "endemias_*.db")))
-        for antigo in todos_bk[:-10]:
-            try:
-                os.remove(antigo)
-                logger.log(f"  Backup antigo removido: {os.path.basename(antigo)}", "ok")
-            except Exception:
-                pass
-    except Exception as e:
-        logger.log(f"  [AVISO] Não foi possível criar backup: {e}", "aviso")
+    # O backup consistente é criado pela rota de confirmação usando a API do SQLite.
+    logger.log("\n[1/5] Segurança do banco...", "titulo")
+    if dry_run:
+        logger.log("  Simulação sem alterações no banco.", "ok")
+    elif backup_confirmado:
+        logger.log("  Backup de segurança confirmado antes da importação.", "ok")
+    else:
+        logger.log("  [AVISO] Importação direta sem confirmação de backup.", "aviso")
 
     # Carregar larvas
     logger.log("\n[2/5] Carregando resultados de larvas...", "titulo")
@@ -1035,29 +1039,13 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
         except Exception as e:
             logger.log(f"  [ERRO] '{os.path.basename(caminho)}': {e}", "erro")
 
-    # Processar planilhas de trabalho
-    logger.log("\n[3/5] Processando planilhas...", "titulo")
+    # Preparar planilhas antes de abrir a transação de escrita.
+    logger.log("\n[3/5] Preparando planilhas...", "titulo")
     if not arquivos_trabalho:
         logger.log("  [AVISO] Nenhuma planilha de trabalho enviada.", "aviso")
 
-    conn = sqlite3.connect(banco_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")   # FIX DB-01: FK ativas em toda a sessão ETL
-    conn.execute("PRAGMA journal_mode = WAL")  # FIX DB-04: consistência com app.py
-    auditar_larvas_sem_coleta(conn, larvas_origens, logger)
-
     houve_erro = False
-    sumario = []  # preview para tela de confirmação
-    ids_visitas_auditadas = []
-    esporotricose_core.ensure_schema(conn)
-    amostras_animais_core.ensure_schema(conn)
-    bri_core.ensure_schema(conn)
-    pe_core.ensure_schema(conn)
-    recolhimentos_core.ensure_schema(conn)
-
-    # FIX ETL-01: UMA transação para todos os arquivos — garante atomicidade total
-    conn.execute("BEGIN")
-
+    arquivos_preparados = []
     for caminho in arquivos_trabalho:
         nome = os.path.basename(caminho)
         tipo = identificar_tipo(nome, TIPOS)
@@ -1074,25 +1062,69 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
             continue
         logger.log(f"\n  → {nome} ({tipo})")
         try:
+            if tipo == "ESPOROTRICOSE":
+                preparado = esporotricose_core.preparar_arquivo(
+                    caminho, aceitar_legado=False
+                )
+            elif tipo == "RECOLHIMENTO":
+                preparado = recolhimentos_core.preparar_arquivo(caminho)
+            elif tipo == "AMOSTRA_ANIMAIS":
+                preparado = amostras_animais_core.preparar_arquivo(caminho)
+            elif tipo == "BRI":
+                preparado = bri_core.preparar_arquivo(caminho)
+            else:
+                preparado = preparar_arquivo(caminho, tipo, TIPOS[tipo], logger)
+            if preparado is None:
+                houve_erro = True
+            else:
+                arquivos_preparados.append((caminho, nome, tipo, preparado))
+        except Exception as e:
+            logger.log(f"  [ERRO] {nome}: {e}", "erro")
+            logger.log(traceback.format_exc(), "erro")
+            houve_erro = True
+
+    conn = db_core.connect(banco_path)
+    auditar_larvas_sem_coleta(conn, larvas_origens, logger)
+
+    sumario = []  # preview para tela de confirmação
+    ids_visitas_auditadas = []
+    esporotricose_core.ensure_schema(conn)
+    amostras_animais_core.ensure_schema(conn)
+    bri_core.ensure_schema(conn)
+    pe_core.ensure_schema(conn)
+    recolhimentos_core.ensure_schema(conn)
+
+    # FIX ETL-01: UMA transação para todos os arquivos — garante atomicidade total
+    conn.execute("BEGIN")
+
+    for caminho, nome, tipo, preparado in arquivos_preparados:
+        try:
             # FIX ETL-02: processar_arquivo agora retorna contadores reais de inserção
             if tipo == "ESPOROTRICOSE":
                 resultado = esporotricose_core.processar_arquivo(
-                    caminho, conn, logger, agora_iso, dry_run=dry_run, aceitar_legado=False
+                    caminho, conn, logger, agora_iso, dry_run=dry_run,
+                    aceitar_legado=False, preparado=preparado
                 )
             elif tipo == "RECOLHIMENTO":
                 resultado = recolhimentos_core.processar_arquivo(
-                    caminho, conn, logger, agora_iso, dry_run=dry_run
+                    caminho, conn, logger, agora_iso, dry_run=dry_run,
+                    preparado=preparado, schema_ready=True
                 )
             elif tipo == "AMOSTRA_ANIMAIS":
                 resultado = amostras_animais_core.processar_arquivo(
-                    caminho, conn, logger, agora_iso, dry_run=dry_run
+                    caminho, conn, logger, agora_iso, dry_run=dry_run,
+                    preparado=preparado, schema_ready=True
                 )
             elif tipo == "BRI":
                 resultado = bri_core.processar_arquivo(
-                    caminho, conn, logger, agora_iso, dry_run=dry_run
+                    caminho, conn, logger, agora_iso, dry_run=dry_run,
+                    preparado=preparado, schema_ready=True
                 )
             else:
-                resultado = processar_arquivo(caminho, tipo, TIPOS[tipo], cfg_larvas, larvas, conn, logger, agora_iso, dry_run=dry_run)
+                resultado = processar_arquivo(
+                    caminho, tipo, TIPOS[tipo], cfg_larvas, larvas, conn,
+                    logger, agora_iso, dry_run=dry_run, preparado=preparado
+                )
             if isinstance(resultado, dict):
                 ok = resultado.get("ok", False)
                 ids_visitas_auditadas.extend(resultado.get("ids_visitas_processadas") or [])

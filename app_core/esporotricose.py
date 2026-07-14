@@ -587,12 +587,20 @@ def is_new_format(path):
     )
 
 
-def processar_arquivo(path, conn, logger, agora_iso, dry_run=False, aceitar_legado=False):
+def preparar_arquivo(path, aceitar_legado=False):
     estrutura = "nova" if is_new_format(path) else "legada"
     if estrutura != "nova" and not aceitar_legado:
         raise ValidationError("Planilha de esporotricose em formato legado. Use a importacao historica unica.")
 
     visitas, animais = parse_workbook(path, estrutura)
+    return estrutura, visitas, animais
+
+
+def processar_arquivo(path, conn, logger, agora_iso, dry_run=False,
+                      aceitar_legado=False, preparado=None):
+    estrutura, visitas, animais = preparado or preparar_arquivo(
+        path, aceitar_legado=aceitar_legado
+    )
     logger.log(f"  Estrutura: {estrutura} | Visitas: {len(visitas)} | Animais: {len(animais)}")
 
     inseridas = animais_inseridos = vinculos = duplicadas = 0
@@ -703,16 +711,18 @@ def parse_workbook(path, estrutura=None):
 
 
 def importar_historico(paths, db_path, logger, dry_run=False):
-    conn = __import__("sqlite3").connect(db_path)
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
+    preparados = [(path, preparar_arquivo(path, aceitar_legado=True)) for path in paths]
+    conn = db_core.connect(db_path)
     ensure_schema(conn)
     agora_iso = datetime.now().isoformat(timespec="seconds")
     total = {"visitas": 0, "animais": 0}
     try:
         conn.execute("BEGIN")
-        for path in paths:
-            result = processar_arquivo(path, conn, logger, agora_iso, dry_run=dry_run, aceitar_legado=True)
+        for path, preparado in preparados:
+            result = processar_arquivo(
+                path, conn, logger, agora_iso, dry_run=dry_run,
+                aceitar_legado=True, preparado=preparado
+            )
             total["visitas"] += result.get("visitas_novas", 0)
             total["animais"] += result.get("animais_novos", 0)
         if dry_run:
