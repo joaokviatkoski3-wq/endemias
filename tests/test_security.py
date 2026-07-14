@@ -2275,6 +2275,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("Consolidados em planilha", html)
         self.assertIn("Recurso secund&aacute;rio", html)
         self.assertIn('id="area-upload-shell"', html)
+        self.assertIn("processar-planilhas-card", html)
         self.assertNotIn('id="btn-toggle-upload"', html)
         self.assertLess(html.index('id="card-kobo-api"'), html.index('id="area-upload-shell"'))
         self.assertIn("LARVAS_ Resultados de Laborat\u00f3rio", html)

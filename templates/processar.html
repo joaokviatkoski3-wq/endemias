@@ -120,14 +120,14 @@
   </details>
 </div>
 
-<div class="chart-card processar-card processar-emergency" id="area-upload-shell" style="margin-bottom:18px;">
-  <div class="processar-emergency-head">
+<div class="chart-card processar-card processar-planilhas-card" id="area-upload-shell">
+  <div class="processar-planilhas-head">
     <div>
       <div class="chart-title"><img src="/static/icons/pasta.svg" alt="" class="icon-svg"> Importa&ccedil;&atilde;o por Planilhas</div>
       <div class="processar-muted">Recurso secund&aacute;rio para arquivos XLSX exportados manualmente do Kobo.</div>
     </div>
   </div>
-  <div id="area-upload" class="processar-emergency-body">
+  <div id="area-upload" class="processar-planilhas-body">
     <div class="chart-hd compact-upload-head">
       <div class="chart-title"><img src="/static/icons/pasta.svg" alt="" class="icon-svg"> Arquivos XLSX</div>
       <div style="font-size:11px;color:var(--text3);">PE_, TB_, TBO_, PVE_, ESPOROTRICOSE_, RECOLHIMENTO_, AMOSTRA_ANIMAIS_, BRI_ e LARVAS_</div>
@@ -343,10 +343,10 @@
 .processar-muted{font-size:11.5px;color:var(--text3);margin-top:3px;}
 .processar-inner-card{padding:0;}
 #area-upload-shell-old{display:none!important;height:0!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;}
-#area-upload-shell{display:block!important;height:auto!important;min-height:0!important;margin-bottom:22px!important;opacity:.98;overflow:hidden;box-sizing:border-box;}
-#area-upload-shell .processar-emergency-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;background:var(--surface2);border-bottom:1px solid var(--border);}
-#area-upload-shell .processar-emergency-body{display:block;padding:16px;}
-#area-upload-shell #dropzone{display:block;border-width:2px!important;border-radius:var(--radius)!important;padding:28px 20px!important;margin-bottom:14px!important;}
+.processar-planilhas-card{display:block!important;height:auto!important;min-height:390px!important;margin-bottom:22px!important;padding:16px!important;overflow:visible!important;box-sizing:border-box;}
+.processar-planilhas-head{display:flex!important;align-items:center;justify-content:space-between;gap:14px;padding:0 0 12px 0;margin-bottom:14px;border-bottom:1px solid var(--border);}
+.processar-planilhas-body{display:block!important;visibility:visible!important;opacity:1!important;height:auto!important;min-height:210px!important;overflow:visible!important;}
+.processar-planilhas-card #dropzone{display:block!important;visibility:visible!important;min-height:88px!important;border-width:2px!important;border-radius:var(--radius)!important;padding:28px 20px!important;margin-bottom:14px!important;box-sizing:border-box;}
 .kobo-pendencias-panel{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid var(--border);background:var(--surface2);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:12px;}
 .kobo-panel-copy{display:flex;flex-direction:column;gap:3px;}
 .kobo-panel-copy strong{font-size:13px;color:var(--text);}
