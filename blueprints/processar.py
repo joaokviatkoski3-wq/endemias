@@ -288,6 +288,80 @@ def kobo_previa():
     })
 
 
+@bp.route("/api/kobo/pendentes", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def kobo_pendentes():
+    data = request.json or {}
+    cfg = kobo_api.load_config(_kobo_config_path())
+    assets = cfg.get("assets") or {}
+    inicio = data.get("inicio") or None
+    fim = data.get("fim") or None
+    limite = data.get("limite") or 5000
+    itens = []
+
+    for tipo in kobo_api.ALL_TYPES:
+        asset_uid = (assets.get(tipo) or "").strip()
+        item = {
+            "tipo": tipo,
+            "label": kobo_api.TYPE_LABELS.get(tipo, tipo),
+            "asset_uid": asset_uid,
+            "configurado": bool(asset_uid),
+            "total": 0,
+            "novos": 0,
+            "duplicados": 0,
+            "pendencias": 0,
+            "erro": "",
+        }
+        if not asset_uid:
+            item["erro"] = "UID nao configurado"
+            itens.append(item)
+            continue
+        try:
+            records, _ = kobo_api.fetch_submissions(
+                cfg,
+                asset_uid,
+                limit=limite,
+                start=inicio,
+                end=fim,
+            )
+            resumo = kobo_api.summarize_submissions(
+                records,
+                _kobo_existing_uuids(tipo, records),
+                tipo=tipo,
+                sample_size=0,
+            )
+            item.update({
+                "total": resumo.get("total", 0),
+                "novos": resumo.get("novos", 0),
+                "duplicados": resumo.get("duplicados", 0),
+                "pendencias": resumo.get("pendencias", 0),
+            })
+        except kobo_api.KoboError as exc:
+            item["erro"] = str(exc)
+        itens.append(item)
+
+    audit.registrar_evento(
+        get_db,
+        "kobo_pendentes",
+        entidade="kobo",
+        detalhes={
+            "inicio": inicio,
+            "fim": fim,
+            "limite": limite,
+            "novos": sum(item["novos"] for item in itens),
+        },
+    )
+    return jsonify({
+        "ok": True,
+        "periodo": {"inicio": inicio, "fim": fim},
+        "limite": limite,
+        "itens": itens,
+        "total_novos": sum(item["novos"] for item in itens),
+        "total_recebidos": sum(item["total"] for item in itens),
+    })
+
+
 def _kobo_existing_uuids(tipo, records):
     uuids = [kobo_api.record_uuid(r) for r in records if kobo_api.record_uuid(r)]
     if not uuids:

@@ -2270,16 +2270,20 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
         self.assertIn("Ultimas importacoes", html)
+        self.assertIn("Importa&ccedil;&atilde;o Kobo", html)
+        self.assertIn("Importa&ccedil;&atilde;o emergencial por planilhas", html)
         self.assertIn("LARVAS_ Resultados de Laborat\u00f3rio", html)
         self.assertIn("data-gerar-consolidado", html)
         self.assertIn('id="processar-work-types"', html)
         self.assertIn('id="kobo-config-json"', html)
         self.assertIn('id="card-kobo-api"', html)
+        self.assertIn('id="btn-kobo-pendentes"', html)
+        self.assertIn('id="kobo-pendentes"', html)
         self.assertIn('id="btn-kobo-previa"', html)
         self.assertIn('id="kobo-preview-apenas-novos"', html)
         self.assertIn('id="btn-kobo-lote"', html)
         self.assertIn('id="btn-kobo-importar"', html)
-        self.assertIn("Buscar dados do Kobo", html)
+        self.assertIn("Importa&ccedil;&atilde;o via API", html)
         self.assertIn("Configurar conexão com Kobo", html)
         self.assertIn("<details", html)
         self.assertIn('data-kobo-asset="PE"', html)
@@ -2315,6 +2319,8 @@ class MainPagesSmokeTests(unittest.TestCase):
         js_resp.close()
         self.assertFalse(any(c in js for c in proibidos), js[:500])
         self.assertIn("salvarKoboConfig", js)
+        self.assertIn("/api/kobo/pendentes", js)
+        self.assertIn("buscarKoboPendentes", js)
         self.assertIn("/api/kobo/previa", js)
         self.assertIn("koboDetalhesRegistro", js)
         self.assertIn("buscarKoboLote", js)
@@ -6411,6 +6417,61 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(resumo["duplicados"], 1)
             self.assertEqual(resumo["amostra_filtro"], "novos")
             self.assertEqual([item["status"] for item in resumo["amostra"]], ["novo"])
+
+    def test_kobo_pendentes_resume_formularios_configurados(self):
+        class FakeResponse:
+            def __init__(self, payload):
+                self.payload = payload
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc, tb):
+                return False
+            def read(self):
+                return json.dumps(self.payload).encode("utf-8")
+
+        def fake_urlopen(req, timeout=30):
+            url = req.full_url
+            if "/asset-pe/" in url:
+                return FakeResponse({"results": [
+                    {"_uuid": "uuid-existente", "_id": 1, "_submission_time": "2026-07-10T12:00:00"},
+                    {"_uuid": "uuid-novo", "_id": 2, "_submission_time": "2026-07-10T13:00:00"},
+                ]})
+            if "/asset-bri/" in url:
+                return FakeResponse({"results": [
+                    {"_uuid": "bri-novo", "_id": 3, "_submission_time": "2026-07-10T14:00:00"},
+                ]})
+            return FakeResponse({"results": []})
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            app_temp.config["KOBO_CONFIG_PATH"] = str(Path(tmpdir) / "kobo_config.json")
+            kobo_api_core.save_config(app_temp.config["KOBO_CONFIG_PATH"], {
+                "server_url": "https://kf.kobotoolbox.org",
+                "api_token": "token",
+                "assets": {"PE": "asset-pe", "BRI": "asset-bri"},
+            })
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute(
+                    """INSERT INTO visitas
+                       (id_visita, kobo_uuid, tipo, data, processado_em)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    ("v-existente", "uuid-existente", "PE", "2026-07-10", "2026-07-10T10:00:00"),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            with mock.patch("app_core.kobo_api.request.urlopen", side_effect=fake_urlopen):
+                resp = client.post("/api/kobo/pendentes", json={"limite": 10})
+
+            self.assertEqual(resp.status_code, 200)
+            dados = resp.get_json()
+            por_tipo = {item["tipo"]: item for item in dados["itens"]}
+            self.assertEqual(por_tipo["PE"]["novos"], 1)
+            self.assertEqual(por_tipo["PE"]["duplicados"], 1)
+            self.assertEqual(por_tipo["BRI"]["novos"], 1)
+            self.assertEqual(dados["total_novos"], 2)
 
     def test_kobo_api_marca_agentes_para_etl(self):
         record = {

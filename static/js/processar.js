@@ -8,6 +8,15 @@ const WORK_TYPES = JSON.parse(document.getElementById('processar-work-types').te
 const KOBO_CONFIG = JSON.parse(document.getElementById('kobo-config-json')?.textContent || '{}');
 const KOBO_VISIT_TYPES = KOBO_CONFIG.tipos_visita || ['PE','TB','TBO','PVE'];
 
+function prepararLayoutProcessar() {
+  const koboCard = document.getElementById('card-kobo-api');
+  const uploadArea = document.getElementById('area-upload');
+  const uploadDetails = uploadArea?.closest('details');
+  if (koboCard && uploadDetails && uploadDetails.parentNode) {
+    uploadDetails.parentNode.insertBefore(koboCard, uploadDetails);
+  }
+}
+
 // ── Helpers de tela ───────────────────────────────────────────────────────────
 function mostrar(id, rolar=false) {
   ['area-upload','area-log','area-confirmar','area-commit'].forEach(x =>
@@ -73,6 +82,7 @@ function configurarAcoesProcessamento() {
   document.getElementById('btn-novo')?.addEventListener('click', novoProcessamento);
   document.getElementById('btn-kobo-salvar')?.addEventListener('click', salvarKoboConfig);
   document.getElementById('btn-kobo-testar')?.addEventListener('click', testarKobo);
+  document.getElementById('btn-kobo-pendentes')?.addEventListener('click', buscarKoboPendentes);
   document.getElementById('btn-kobo-previa')?.addEventListener('click', buscarKoboPrevia);
   document.getElementById('btn-kobo-lote')?.addEventListener('click', buscarKoboLote);
   document.getElementById('btn-kobo-importar')?.addEventListener('click', prepararKoboImportacao);
@@ -86,6 +96,17 @@ function configurarAcoesProcessamento() {
     const gerarBtn = event.target.closest('[data-gerar-consolidado]');
     if (gerarBtn && !gerarBtn.disabled) {
       gerarConsolidados(gerarBtn.dataset.gerarConsolidado);
+      return;
+    }
+    const koboTipoBtn = event.target.closest('[data-kobo-pendente-tipo]');
+    if (koboTipoBtn) {
+      const select = document.getElementById('kobo-preview-tipo');
+      if (select) select.value = koboTipoBtn.dataset.koboPendenteTipo;
+      if (koboTipoBtn.dataset.koboAcao === 'importar') {
+        prepararKoboImportacao();
+      } else {
+        buscarKoboPrevia();
+      }
     }
   });
 }
@@ -269,6 +290,69 @@ function koboProblemasHtml(item) {
   const problemas = item.problemas || [];
   if (!problemas.length) return '<span style="color:var(--green);font-weight:800;">Sem pendências aparentes</span>';
   return `<ul class="kobo-problemas">${problemas.map(p => `<li>${escapeHtml(p)}</li>`).join('')}</ul>`;
+}
+
+function koboPendentesHtml(data) {
+  const itens = data.itens || [];
+  const linhas = itens.map(item => {
+    const erro = item.erro ? `<span class="kobo-status-pendente">${escapeHtml(item.erro)}</span>` : '';
+    const status = item.erro
+      ? erro
+      : item.novos > 0
+        ? `<span class="kobo-status-novo">${koboNum(item.novos)} novo(s)</span>`
+        : '<span style="color:var(--text3);font-weight:800;">Sem novos</span>';
+    const importarDisabled = item.novos > 0 ? '' : 'disabled';
+    return `<tr>
+      <td><div class="kobo-record-main">${escapeHtml(item.tipo)} - ${escapeHtml(item.label)}</div></td>
+      <td>${koboNum(item.total)}</td>
+      <td>${status}</td>
+      <td>${koboNum(item.duplicados)}</td>
+      <td>${koboNum(item.pendencias)}</td>
+      <td class="kobo-pendente-actions">
+        <button class="btn btn-outline btn-sm" type="button" data-kobo-pendente-tipo="${escapeHtml(item.tipo)}">Pr&eacute;via</button>
+        <button class="btn btn-primary btn-sm" type="button" data-kobo-pendente-tipo="${escapeHtml(item.tipo)}" data-kobo-acao="importar" ${importarDisabled}>Importar</button>
+      </td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text3);">Nenhum formul&aacute;rio configurado.</td></tr>';
+  return `<div class="kobo-preview-box">
+    <div class="kobo-pendentes-total">
+      <div><strong>${koboNum(data.total_recebidos)}</strong><span>Recebidos</span></div>
+      <div><strong>${koboNum(data.total_novos)}</strong><span>Novos</span></div>
+      <div><strong>${itens.filter(item => item.erro).length}</strong><span>Com erro</span></div>
+    </div>
+    <table class="kobo-pendentes-table">
+      <thead><tr><th>Formul&aacute;rio</th><th>Recebidos</th><th>Novos</th><th>J&aacute; existem</th><th>Aten&ccedil;&atilde;o</th><th></th></tr></thead>
+      <tbody>${linhas}</tbody>
+    </table>
+  </div>`;
+}
+
+async function buscarKoboPendentes() {
+  await salvarKoboConfig();
+  const destino = document.getElementById('kobo-pendentes');
+  try {
+    destino.innerHTML = 'Consultando formul&aacute;rios configurados no Kobo...';
+    destino.className = 'kobo-preview-empty';
+    setKoboStatus('Buscando pendencias...', 'imp-azul');
+    const resp = await fetch('/api/kobo/pendentes', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify({
+        inicio: document.getElementById('kobo-preview-inicio').value,
+        fim: document.getElementById('kobo-preview-fim').value,
+        limite: document.getElementById('kobo-preview-limite').value || 5000,
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
+    destino.className = '';
+    destino.innerHTML = koboPendentesHtml(data);
+    setKoboStatus(data.total_novos ? 'Pendencias encontradas' : 'Sem pendencias', data.total_novos ? 'imp-azul' : 'imp-verde');
+  } catch (e) {
+    destino.className = 'kobo-preview-empty';
+    destino.textContent = 'Erro: ' + e.message;
+    setKoboStatus('Erro nas pendencias', 'imp-vermelho');
+  }
 }
 
 async function buscarKoboPrevia() {
@@ -678,5 +762,6 @@ function novoProcessamento() {
   mostrar('area-upload');
 }
 
+prepararLayoutProcessar();
 configurarAcoesProcessamento();
 carregarStatusConsolidados();
