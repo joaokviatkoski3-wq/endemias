@@ -10,16 +10,15 @@ const KOBO_VISIT_TYPES = KOBO_CONFIG.tipos_visita || ['PE','TB','TBO','PVE'];
 
 function prepararLayoutProcessar() {
   const koboCard = document.getElementById('card-kobo-api');
-  const uploadArea = document.getElementById('area-upload');
-  const uploadDetails = uploadArea?.closest('details');
-  if (koboCard && uploadDetails && uploadDetails.parentNode) {
-    uploadDetails.parentNode.insertBefore(koboCard, uploadDetails);
+  const uploadShell = document.getElementById('area-upload-shell');
+  if (koboCard && uploadShell && uploadShell.parentNode) {
+    uploadShell.parentNode.insertBefore(koboCard, uploadShell);
   }
 }
 
 // ── Helpers de tela ───────────────────────────────────────────────────────────
 function mostrar(id, rolar=false) {
-  ['area-upload','area-log','area-confirmar','area-commit'].forEach(x =>
+  ['area-log','area-confirmar','area-commit'].forEach(x =>
     document.getElementById(x).style.display = (x === id ? 'block' : 'none')
   );
   if (rolar) {
@@ -80,6 +79,7 @@ function configurarAcoesProcessamento() {
   document.getElementById('btn-voltar-log')?.addEventListener('click', voltarLog);
   document.getElementById('btn-copiar-log-commit')?.addEventListener('click', copiarLogCommit);
   document.getElementById('btn-novo')?.addEventListener('click', novoProcessamento);
+  document.getElementById('btn-toggle-upload')?.addEventListener('click', () => toggleUploadEmergencial());
   document.getElementById('btn-kobo-salvar')?.addEventListener('click', salvarKoboConfig);
   document.getElementById('btn-kobo-testar')?.addEventListener('click', testarKobo);
   document.getElementById('btn-kobo-pendentes')?.addEventListener('click', buscarKoboPendentes);
@@ -109,6 +109,18 @@ function configurarAcoesProcessamento() {
       }
     }
   });
+}
+
+function toggleUploadEmergencial(forceOpen=null) {
+  const body = document.getElementById('area-upload');
+  const btn = document.getElementById('btn-toggle-upload');
+  if (!body || !btn) return;
+  const abrir = forceOpen === null ? body.style.display === 'none' : Boolean(forceOpen);
+  body.style.display = abrir ? 'block' : 'none';
+  btn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+  if (abrir) {
+    setTimeout(() => body.scrollIntoView({behavior:'smooth', block:'nearest'}), 30);
+  }
 }
 
 function koboPayload() {
@@ -759,7 +771,8 @@ function copiarLogCommit() {
 function novoProcessamento() {
   arquivos = []; currentJobId = null;
   renderFileList();
-  mostrar('area-upload');
+  mostrar('');
+  toggleUploadEmergencial(true);
 }
 
 prepararLayoutProcessar();

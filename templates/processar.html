@@ -15,12 +15,12 @@
 <!-- ════════════════════════════════════════════════════════════
      TELA 1 — UPLOAD
 ════════════════════════════════════════════════════════════ -->
-<details class="chart-card processar-card processar-emergency" style="margin-bottom:18px;">
-  <summary>
+<div class="chart-card processar-card processar-emergency" id="area-upload-shell" style="margin-bottom:18px;">
+  <button class="processar-emergency-toggle" id="btn-toggle-upload" type="button" aria-expanded="false" aria-controls="area-upload">
     <span><img src="/static/icons/pasta.svg" alt="" class="icon-svg"> Importa&ccedil;&atilde;o emergencial por planilhas</span>
     <small>Use apenas quando a API do Kobo n&atilde;o estiver dispon&iacute;vel.</small>
-  </summary>
-  <div id="area-upload" class="processar-emergency-body">
+  </button>
+  <div id="area-upload" class="processar-emergency-body" style="display:none;">
   <div class="processar-inner-card">
     <div class="chart-hd">
       <div class="chart-title"><img src="/static/icons/pasta.svg" alt="📂" class="icon-svg"> Arquivos</div>
@@ -71,8 +71,8 @@
       </button>
     </div>
   </div>
+  </div>
 </div>
-</details>
 
 <div class="chart-card processar-card" style="margin-bottom:18px;" id="card-kobo-api">
   <div class="chart-hd">
@@ -284,11 +284,10 @@
 .processar-muted{font-size:11.5px;color:var(--text3);margin-top:3px;}
 .processar-inner-card{padding:0;}
 .processar-emergency{padding:0;overflow:hidden;}
-.processar-emergency summary{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 16px;cursor:pointer;color:var(--text);font-weight:900;list-style:none;background:var(--surface2);border-bottom:1px solid transparent;}
-.processar-emergency summary::-webkit-details-marker{display:none;}
-.processar-emergency summary span{display:inline-flex;align-items:center;gap:8px;}
-.processar-emergency summary small{font-size:11px;color:var(--text3);font-weight:700;text-align:right;}
-.processar-emergency[open] summary{border-bottom-color:var(--border);}
+.processar-emergency-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 16px;cursor:pointer;color:var(--text);font-weight:900;background:var(--surface2);border:0;border-bottom:1px solid transparent;text-align:left;}
+.processar-emergency-toggle span{display:inline-flex;align-items:center;gap:8px;}
+.processar-emergency-toggle small{font-size:11px;color:var(--text3);font-weight:700;text-align:right;}
+.processar-emergency-toggle[aria-expanded="true"]{border-bottom-color:var(--border);}
 .processar-emergency-body{padding:16px;}
 .kobo-pendencias-panel{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid var(--border);background:var(--surface2);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:12px;}
 .kobo-panel-copy{display:flex;flex-direction:column;gap:3px;}

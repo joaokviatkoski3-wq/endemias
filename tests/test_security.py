@@ -2272,6 +2272,8 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("Ultimas importacoes", html)
         self.assertIn("Importa&ccedil;&atilde;o Kobo", html)
         self.assertIn("Importa&ccedil;&atilde;o emergencial por planilhas", html)
+        self.assertIn('id="area-upload-shell"', html)
+        self.assertIn('id="btn-toggle-upload"', html)
         self.assertIn("LARVAS_ Resultados de Laborat\u00f3rio", html)
         self.assertIn("data-gerar-consolidado", html)
         self.assertIn('id="processar-work-types"', html)
