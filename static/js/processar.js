@@ -79,7 +79,6 @@ function configurarAcoesProcessamento() {
   document.getElementById('btn-voltar-log')?.addEventListener('click', voltarLog);
   document.getElementById('btn-copiar-log-commit')?.addEventListener('click', copiarLogCommit);
   document.getElementById('btn-novo')?.addEventListener('click', novoProcessamento);
-  document.getElementById('btn-toggle-upload')?.addEventListener('click', () => toggleUploadEmergencial());
   document.getElementById('btn-kobo-salvar')?.addEventListener('click', salvarKoboConfig);
   document.getElementById('btn-kobo-testar')?.addEventListener('click', testarKobo);
   document.getElementById('btn-kobo-pendentes')?.addEventListener('click', buscarKoboPendentes);
@@ -109,19 +108,6 @@ function configurarAcoesProcessamento() {
       }
     }
   });
-}
-
-function toggleUploadEmergencial(forceOpen=null) {
-  const body = document.getElementById('area-upload');
-  const btn = document.getElementById('btn-toggle-upload');
-  if (!body || !btn) return;
-  const abrir = forceOpen === null ? body.style.display === 'none' : Boolean(forceOpen);
-  body.style.display = abrir ? 'block' : 'none';
-  btn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
-  btn.textContent = abrir ? 'Ocultar planilhas' : 'Abrir planilhas';
-  if (abrir) {
-    setTimeout(() => body.scrollIntoView({behavior:'smooth', block:'nearest'}), 30);
-  }
 }
 
 function koboPayload() {
@@ -773,7 +759,7 @@ function novoProcessamento() {
   arquivos = []; currentJobId = null;
   renderFileList();
   mostrar('');
-  toggleUploadEmergencial(true);
+  setTimeout(() => document.getElementById('area-upload')?.scrollIntoView({behavior:'smooth', block:'nearest'}), 30);
 }
 
 prepararLayoutProcessar();
