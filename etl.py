@@ -458,7 +458,7 @@ def obter_ou_criar_agente(cur, nome):
     return agentes_core.obter_ou_criar(cur, nome)
 
 
-def inserir_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso):
+def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso):
     col_data      = cfg_tipo["col_data"]
     col_hora_letra = cfg_tipo.get("col_hora_inicio_letra")
     col_hora_fim   = cfg_tipo.get("col_hora_fim_letra")
@@ -481,16 +481,8 @@ def inserir_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso):
     logradouro = val_str(row.get("Logradouro") or row.get("logradouro"))
     pe_vinculo = pe_core.resolver_alias_visita(cur.connection, logradouro, loc_bruto) if tipo == "PE" else None
 
-    cur.execute("""
-        INSERT OR IGNORE INTO visitas (
-            id_visita, kobo_uuid, kobo_id, tipo, data,
-            hora_inicio, hora_fim, ciclo, localidade, id_localidade, logradouro,
-            numero, quarteirao, sequencia, morador, tipo_imovel,
-            visita, lado, agua_sanepar, observacoes, submission_time, processado_em,
-            id_pe, codigo_pe
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    """, (
-        id_visita, val_str(kobo_uuid), val_int(row.get("_id")), tipo,
+    valores = (
+        val_str(kobo_uuid), val_int(row.get("_id")), tipo,
         normalizar_data(row.get(col_data)),
         normalizar_hora(hora_val), normalizar_hora(hora_fim_val),
         val_int(row.get("Ciclo") or row.get("ciclo")),
@@ -507,11 +499,50 @@ def inserir_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso):
         val_bool(row.get("O imóvel possui água encanada fornecida pela Sanepar?")),
         val_str(row.get("Observações") or row.get("observacoes")),
         val_str(row.get("_submission_time")),
-        agora_iso,
         pe_vinculo.get("id_pe") if pe_vinculo else None,
         pe_vinculo.get("codigo_pe") if pe_vinculo else None,
-    ))
-    return cur.rowcount > 0
+    )
+
+    campos_existentes = """id_visita, kobo_uuid, kobo_id, tipo, data, hora_inicio,
+        hora_fim, ciclo, localidade, id_localidade, logradouro, numero, quarteirao,
+        sequencia, morador, tipo_imovel, visita, lado, agua_sanepar, observacoes,
+        submission_time, id_pe, codigo_pe"""
+    cur.execute(f"SELECT {campos_existentes} FROM visitas WHERE id_visita=?", (id_visita,))
+    existente = cur.fetchone()
+    kobo_id = valores[1]
+    if existente is None and tipo == "PE" and kobo_id is not None:
+        cur.execute(
+            f"SELECT {campos_existentes} FROM visitas "
+            "WHERE tipo='PE' AND kobo_id=? ORDER BY processado_em LIMIT 1",
+            (kobo_id,),
+        )
+        existente = cur.fetchone()
+
+    if existente is not None:
+        id_existente = existente[0]
+        if tuple(existente[1:]) == valores:
+            return {"id_visita": id_existente, "inserida": False, "atualizada": False}
+        cur.execute("""
+            UPDATE visitas SET
+                kobo_uuid=?, kobo_id=?, tipo=?, data=?, hora_inicio=?, hora_fim=?,
+                ciclo=?, localidade=?, id_localidade=?, logradouro=?, numero=?,
+                quarteirao=?, sequencia=?, morador=?, tipo_imovel=?, visita=?, lado=?,
+                agua_sanepar=?, observacoes=?, submission_time=?, processado_em=?,
+                id_pe=?, codigo_pe=?
+            WHERE id_visita=?
+        """, valores[:20] + (agora_iso,) + valores[20:] + (id_existente,))
+        return {"id_visita": id_existente, "inserida": False, "atualizada": True}
+
+    cur.execute("""
+        INSERT INTO visitas (
+            id_visita, kobo_uuid, kobo_id, tipo, data,
+            hora_inicio, hora_fim, ciclo, localidade, id_localidade, logradouro,
+            numero, quarteirao, sequencia, morador, tipo_imovel,
+            visita, lado, agua_sanepar, observacoes, submission_time, processado_em,
+            id_pe, codigo_pe
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    """, (id_visita,) + valores[:20] + (agora_iso,) + valores[20:])
+    return {"id_visita": id_visita, "inserida": True, "atualizada": False}
 
 
 def inserir_foco_visita(cur, id_visita, positivos, visita_row, tipo, cfg_tipo, agora_iso):
@@ -757,9 +788,10 @@ def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
     logger.log(f"  Visitas: {len(df_visitas)} | Coletas: {len(df_coletas)}")
 
     cur = conn.cursor()
+    col_data = cfg_tipo["col_data"]
     col_tubo = cfg_tipo["col_numero_tubo_coletas"]
 
-    visitas_novas = coletas_novas = resultados_novos = 0
+    visitas_novas = visitas_atualizadas = coletas_novas = resultados_novos = 0
     tubos_sem_resultado = []
     ids_visitas_processadas = []
 
@@ -772,19 +804,31 @@ def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
         col_seq = cfg_tipo.get("col_sequencia")
         seq_val = val_str(visita.get(col_seq)) if col_seq else None
         id_visita = gerar_id_visita(kobo_uuid, seq_val)
+        resultado_visita = salvar_visita(
+            cur, id_visita, kobo_uuid, visita, tipo, cfg_tipo, agora_iso
+        )
+        id_visita = resultado_visita["id_visita"]
         ids_visitas_processadas.append(id_visita)
 
-        if inserir_visita(cur, id_visita, kobo_uuid, visita, tipo, cfg_tipo, agora_iso):
+        if resultado_visita["inserida"]:
             visitas_novas += 1
+        elif resultado_visita["atualizada"]:
+            visitas_atualizadas += 1
 
         # Agentes
-        for nome in extrair_agentes(visita, cfg_tipo):
-            if nome:
-                id_ag = obter_ou_criar_agente(cur, nome)
-                cur.execute(
-                    "INSERT OR IGNORE INTO visita_agentes(id_visita,id_agente) VALUES(?,?)",
-                    (id_visita, id_ag)
-                )
+        nomes_agentes = [nome for nome in extrair_agentes(visita, cfg_tipo) if nome]
+        ids_agentes = {obter_ou_criar_agente(cur, nome) for nome in nomes_agentes}
+        if resultado_visita["inserida"]:
+            ids_agentes_atuais = set()
+        else:
+            cur.execute("SELECT id_agente FROM visita_agentes WHERE id_visita=?", (id_visita,))
+            ids_agentes_atuais = {row[0] for row in cur.fetchall()}
+        if ids_agentes and ids_agentes != ids_agentes_atuais:
+            cur.execute("DELETE FROM visita_agentes WHERE id_visita=?", (id_visita,))
+            cur.executemany(
+                "INSERT INTO visita_agentes(id_visita,id_agente) VALUES(?,?)",
+                [(id_visita, id_ag) for id_ag in sorted(ids_agentes)],
+            )
 
         eh_mae = visita.get("__eh_mae__", seq_val is None or seq_val == "1")
         if eh_mae:
@@ -844,7 +888,8 @@ def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
         pass  # commit é feito pelo chamador (processar_upload), em transação única
 
     logger.log(
-        f"  Visitas inseridas: {visitas_novas} | Coletas: {coletas_novas} | Resultados: {resultados_novos}",
+        f"  Visitas inseridas: {visitas_novas} | Atualizadas: {visitas_atualizadas} | "
+        f"Coletas: {coletas_novas} | Resultados: {resultados_novos}",
         "ok"
     )
     if tubos_sem_resultado:
@@ -856,6 +901,7 @@ def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
     return {
         "ok": True,
         "visitas_novas": visitas_novas,
+        "visitas_atualizadas": visitas_atualizadas,
         "coletas_novas": coletas_novas,
         "resultados_novos": resultados_novos,
         "ids_visitas_processadas": ids_visitas_processadas,
@@ -1133,6 +1179,7 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
                         "arquivo": nome,
                         "tipo": tipo,
                         "visitas_novas": resultado.get("visitas_novas", 0),
+                        "visitas_atualizadas": resultado.get("visitas_atualizadas", 0),
                         "coletas_novas": resultado.get("coletas_novas", 0),
                         "animais_novos": resultado.get("animais_novos", 0),
                         "materiais_novos": resultado.get("materiais_novos", 0),

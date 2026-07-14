@@ -7166,6 +7166,96 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(etl.normalizar_categoria("fechado"), "Fechado")
         self.assertEqual(etl.normalizar_categoria("normal"), "Normal")
 
+    def test_etl_reimporta_pe_editado_no_kobo_sem_duplicar_visita(self):
+        uuid_antigo = "393d21e4-9a66-4877-88b9-3483ec4e5ee0"
+        uuid_atual = "c796a9db-cbe2-4513-abec-5a92f6cdeec8"
+        kobo_id = 804650646
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            conn = db_core.connect(db_path)
+            id_visita = etl.gerar_id_visita(uuid_antigo, None)
+            conn.execute(
+                """INSERT INTO visitas
+                   (id_visita, kobo_uuid, kobo_id, tipo, data, localidade,
+                    logradouro, numero, quarteirao, processado_em)
+                   VALUES (?, ?, ?, 'PE', '2026-07-07', 'Lamenha',
+                           'WADISLAU BUGALSKI - ORPEC', '4250', 148, ?)""",
+                (id_visita, uuid_antigo, kobo_id, "2026-07-07T18:40:00"),
+            )
+            agente_antigo = etl.obter_ou_criar_agente(conn.cursor(), "Agente antigo")
+            conn.execute(
+                "INSERT INTO visita_agentes(id_visita, id_agente) VALUES (?, ?)",
+                (id_visita, agente_antigo),
+            )
+            conn.commit()
+            conn.close()
+
+            record = {
+                "_uuid": uuid_atual,
+                "_id": kobo_id,
+                "_submission_time": "2026-07-07T18:32:37",
+                "Digite a data": "2026-07-07",
+                "Nome_do_s_agente_s": "adilson ana_beatriz ceccon fernando",
+                "group_zn1kq42/localidade": "Lamenha",
+                "group_zn1kq42/logradouro": "RUA SANTOS DUMONT",
+                "group_zn1kq42/quarteirao": "0257",
+                "group_zn1kq42/numero": "630",
+                "group_zn1kq42/Visita": "normal",
+            }
+            caminhos = kobo_api_core.write_etl_workbooks(
+                {"PE": [record]}, str(ROOT / "config.json"), tmpdir, prefix="corrigido"
+            )
+            with mock.patch(
+                "etl.pe_core.resolver_alias_visita",
+                return_value={"id_pe": 29, "codigo_pe": "PE-0029"},
+            ):
+                logs = []
+                ok, sumario = etl.processar_upload(
+                    caminhos, [], db_path, str(ROOT / "config.json"),
+                    etl.Logger(callback=lambda msg, tag: logs.append((tag, msg))),
+                    dry_run=False, backup_confirmado=True,
+                )
+
+            self.assertTrue(ok, logs)
+            self.assertEqual(sumario[0]["visitas_novas"], 0)
+            self.assertEqual(sumario[0]["visitas_atualizadas"], 1)
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            visitas = conn.execute(
+                "SELECT * FROM visitas WHERE tipo='PE' AND kobo_id=?", (kobo_id,)
+            ).fetchall()
+            self.assertEqual(len(visitas), 1)
+            self.assertEqual(visitas[0]["id_visita"], id_visita)
+            self.assertEqual(visitas[0]["kobo_uuid"], uuid_atual)
+            self.assertEqual(visitas[0]["logradouro"], "RUA SANTOS DUMONT")
+            self.assertEqual(visitas[0]["quarteirao"], 257)
+            self.assertEqual(visitas[0]["codigo_pe"], "PE-0029")
+            agentes = {
+                row[0] for row in conn.execute(
+                    """SELECT a.nome FROM visita_agentes va
+                       JOIN agentes a ON a.id_agente=va.id_agente
+                       WHERE va.id_visita=?""",
+                    (id_visita,),
+                )
+            }
+            conn.close()
+            self.assertNotIn("Agente antigo", agentes)
+            self.assertIn("Adilson", agentes)
+            self.assertIn("Fernando", agentes)
+
+            with mock.patch(
+                "etl.pe_core.resolver_alias_visita",
+                return_value={"id_pe": 29, "codigo_pe": "PE-0029"},
+            ):
+                ok, repeticao = etl.processar_upload(
+                    caminhos, [], db_path, str(ROOT / "config.json"),
+                    etl.Logger(), dry_run=False, backup_confirmado=True,
+                )
+            self.assertTrue(ok)
+            self.assertEqual(repeticao[0]["visitas_novas"], 0)
+            self.assertEqual(repeticao[0]["visitas_atualizadas"], 0)
+
     def test_etl_prepara_planilhas_antes_de_abrir_transacao(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = _executar_criar_banco_em(tmpdir)
