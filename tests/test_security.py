@@ -2254,6 +2254,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("Modo de diario", html)
         self.assertIn("Espera por bloqueio", html)
         self.assertIn("Repeticoes por bloqueio", html)
+        self.assertIn("Indices essenciais", html)
         self.assertIn("Backups gerenciados", html)
         self.assertIn("Backups completos", html)
         self.assertIn("/admin/sistema/backups/criar", html)

@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from app_core import db as db_core
+from app_core import sqlite_maintenance
 
 
 class SQLiteResilienceTests(unittest.TestCase):
@@ -82,6 +83,74 @@ class SQLiteResilienceTests(unittest.TestCase):
                 self.assertEqual(first.execute("SELECT COUNT(*) FROM items").fetchone()[0], 2)
             finally:
                 first.close()
+
+
+class SQLiteMaintenanceTests(unittest.TestCase):
+    def test_ensure_performance_indexes_is_idempotent_and_removes_duplicate(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "maintenance.db"
+            conn = db_core.connect(db_path)
+            conn.executescript(
+                """
+                CREATE TABLE visitas (
+                    id_visita TEXT PRIMARY KEY,
+                    id_localidade INTEGER,
+                    data TEXT,
+                    tipo TEXT,
+                    quarteirao INTEGER
+                );
+                CREATE INDEX visitas_quarteirao_idx ON visitas(quarteirao);
+                CREATE TABLE registro_geografico_imoveis (
+                    id_imovel INTEGER PRIMARY KEY,
+                    id_quarteirao INTEGER,
+                    ordem INTEGER
+                );
+                """
+            )
+            conn.commit()
+            conn.close()
+
+            sqlite_maintenance.ensure_performance_indexes(db_path)
+            sqlite_maintenance.ensure_performance_indexes(db_path)
+
+            conn = db_core.connect(db_path)
+            try:
+                status = sqlite_maintenance.performance_index_status(conn)
+                indexes = {
+                    row[0]
+                    for row in conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='index'"
+                    )
+                }
+                self.assertTrue(status["ok"])
+                self.assertIn("idx_visitas_quarteirao", indexes)
+                self.assertNotIn("visitas_quarteirao_idx", indexes)
+                self.assertEqual(
+                    sqlite_maintenance._index_columns(
+                        conn, "idx_rg_imoveis_quarteirao_ordem"
+                    ),
+                    ("id_quarteirao", "ordem", "id_imovel"),
+                )
+                self.assertEqual(
+                    sqlite_maintenance._index_columns(
+                        conn, "idx_visitas_localidade_data_tipo"
+                    ),
+                    ("id_localidade", "data", "tipo"),
+                )
+            finally:
+                conn.close()
+
+    def test_ensure_performance_indexes_tolerates_database_without_domain_tables(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "empty.db"
+            sqlite_maintenance.ensure_performance_indexes(db_path)
+            conn = db_core.connect(db_path)
+            try:
+                status = sqlite_maintenance.performance_index_status(conn)
+                self.assertFalse(status["ok"])
+                self.assertEqual(status["presentes"], 0)
+            finally:
+                conn.close()
 
 
 if __name__ == "__main__":

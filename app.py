@@ -17,6 +17,7 @@ from app_core import agentes as agentes_core
 from app_core import auth as auth_core
 from app_core import db as db_core
 from app_core import import_history
+from app_core import sqlite_maintenance
 from app_core import uploads as uploads_core
 from app_core import utils as utils_core
 from app_core import version as version_core
@@ -265,6 +266,7 @@ def create_app(config_overrides=None):
     _configure_logging(flask_app.config["LOG_PATH"])
     _configure_secret_key(flask_app, flask_app.config["SECRET_KEY_PATH"])
     agentes_core.ensure_schema(flask_app.config["DB_PATH"])
+    sqlite_maintenance.ensure_performance_indexes(flask_app.config["DB_PATH"])
     csrf.init_app(flask_app)
 
     flask_app.extensions["invalidar_cache_globals"] = invalidar_cache_globals

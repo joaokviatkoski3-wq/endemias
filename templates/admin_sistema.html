@@ -114,6 +114,8 @@
         <div><dt>Sincronizacao</dt><dd>{{ db_status.synchronous }}</dd></div>
         <div><dt>Espera por bloqueio</dt><dd>{{ db_status.busy_timeout_ms }} ms</dd></div>
         <div><dt>Checkpoint automatico</dt><dd>{{ db_status.wal_autocheckpoint }} paginas</dd></div>
+        <div><dt>Indices</dt><dd>{{ db_status.indices }}</dd></div>
+        <div><dt>Indices essenciais</dt><dd>{{ "OK" if db_status.indices_essenciais.ok else db_status.indices_essenciais.presentes ~ "/" ~ db_status.indices_essenciais.total }}</dd></div>
         <div><dt>Arquivo WAL</dt><dd>{{ db_status.wal_tamanho }}</dd></div>
         <div><dt>Arquivo SHM</dt><dd>{{ db_status.shm_tamanho }}</dd></div>
         <div><dt>Conexoes criadas nesta execucao</dt><dd>{{ db_status.metricas.connections }}</dd></div>

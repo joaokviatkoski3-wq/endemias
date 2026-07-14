@@ -18,6 +18,7 @@ from app_core import diagnostico as diagnostico_core
 from app_core import dbml as dbml_core
 from app_core import db as db_core
 from app_core import import_history
+from app_core import sqlite_maintenance
 from app_core import version as version_core
 
 
@@ -70,6 +71,8 @@ def _db_status():
         "synchronous": "-",
         "busy_timeout_ms": 0,
         "wal_autocheckpoint": 0,
+        "indices": 0,
+        "indices_essenciais": {"total": 0, "presentes": 0, "faltantes": [], "ok": False},
         "metricas": db_core.connection_metrics(),
     }
     if not db_path.exists():
@@ -88,6 +91,10 @@ def _db_status():
         )
         status["busy_timeout_ms"] = conn.execute("PRAGMA busy_timeout").fetchone()[0]
         status["wal_autocheckpoint"] = conn.execute("PRAGMA wal_autocheckpoint").fetchone()[0]
+        status["indices"] = conn.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='index'"
+        ).fetchone()[0]
+        status["indices_essenciais"] = sqlite_maintenance.performance_index_status(conn)
     finally:
         conn.close()
     return status

@@ -232,6 +232,7 @@ def ensure_schema(conn_or_path, base_dir=None):
             CREATE INDEX IF NOT EXISTS idx_rg_imoveis_logradouro ON registro_geografico_imoveis(logradouro);
             CREATE INDEX IF NOT EXISTS idx_rg_imoveis_tipo ON registro_geografico_imoveis(tipo);
             CREATE INDEX IF NOT EXISTS idx_rg_imoveis_data ON registro_geografico_imoveis(data_atualizacao);
+            CREATE INDEX IF NOT EXISTS idx_rg_imoveis_quarteirao_ordem ON registro_geografico_imoveis(id_quarteirao, ordem, id_imovel);
             """
         )
         cols = _table_cols(conn, "registro_geografico_imoveis")

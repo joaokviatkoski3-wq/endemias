@@ -91,6 +91,8 @@ CREATE INDEX IF NOT EXISTS idx_visitas_tipo       ON visitas(tipo);
 CREATE INDEX IF NOT EXISTS idx_visitas_localidade ON visitas(id_localidade);
 CREATE INDEX IF NOT EXISTS idx_visitas_quarteirao ON visitas(quarteirao);
 CREATE INDEX IF NOT EXISTS idx_visitas_kobo_uuid  ON visitas(kobo_uuid);
+CREATE INDEX IF NOT EXISTS idx_visitas_localidade_data_tipo
+    ON visitas(id_localidade, data, tipo);
 
 -- ── VISITA_AGENTES ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS visita_agentes (
