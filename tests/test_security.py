@@ -32,6 +32,7 @@ from app_core import db as db_core
 from app_core import diagnostico as diagnostico_core
 from app_core import dbml as dbml_core
 from app_core import kobo_api as kobo_api_core
+from app_core import larvas as larvas_core
 from app_core.excel import excel_safe
 from app_core import modules as modules_core
 from app_core import ovitrampas as ovitrampas_core
@@ -6424,6 +6425,73 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(resumo["amostra_filtro"], "novos")
             self.assertEqual([item["status"] for item in resumo["amostra"]], ["novo"])
 
+    def test_kobo_validacao_de_morador_respeita_tipo_e_situacao_da_visita(self):
+        base = {
+            "_uuid": "uuid-validacao",
+            "_submission_time": "2026-07-14T09:00:00",
+            "Data": "2026-07-14",
+            "Digite a hora": "09:00",
+            "QuarteirÃ£o": "10",
+            "NÃºmero": "20",
+        }
+
+        pe = kobo_api_core.summarize_submissions([base], tipo="PE")["amostra"][0]
+        self.assertFalse(any("morador" in problema for problema in pe["problemas"]))
+
+        fechado = kobo_api_core.summarize_submissions(
+            [{**base, "_uuid": "uuid-fechado", "Visita": "fechado"}],
+            tipo="TB",
+        )["amostra"][0]
+        self.assertFalse(any("morador" in problema for problema in fechado["problemas"]))
+
+        recusa = kobo_api_core.summarize_submissions(
+            [{**base, "_uuid": "uuid-recusa", "Visita": "recusa"}],
+            tipo="PVE",
+        )["amostra"][0]
+        self.assertFalse(any("morador" in problema for problema in recusa["problemas"]))
+
+        normal = kobo_api_core.summarize_submissions(
+            [{**base, "_uuid": "uuid-normal", "Visita": "normal"}],
+            tipo="TB",
+        )["amostra"][0]
+        self.assertTrue(any("morador" in problema for problema in normal["problemas"]))
+
+    def test_larvas_resolvem_lote_com_data_divergente_sem_confundir_tubo_repetido(self):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.executescript("""
+                CREATE TABLE visitas (
+                    id_visita TEXT PRIMARY KEY, tipo TEXT, data TEXT, localidade TEXT,
+                    quarteirao INTEGER, logradouro TEXT, numero TEXT, morador TEXT,
+                    tipo_imovel TEXT, observacoes TEXT
+                );
+                CREATE TABLE coletas (
+                    id_coleta TEXT PRIMARY KEY, id_visita TEXT, num_tubo TEXT,
+                    tipo_deposito TEXT
+                );
+                INSERT INTO visitas (id_visita, tipo, data) VALUES
+                    ('visita-lote', 'PVE', '2026-03-31'),
+                    ('visita-outra', 'PVE', '2026-06-18');
+                INSERT INTO coletas (id_coleta, id_visita, num_tubo) VALUES
+                    ('c693', 'visita-lote', '693'),
+                    ('c674', 'visita-lote', '674'),
+                    ('c360-lote', 'visita-lote', '360'),
+                    ('c360-outra', 'visita-outra', '360');
+            """)
+
+            resolvidas = larvas_core.resolver_coletas(conn, {
+                ("693", "2026-07-03"),
+                ("674", "2026-07-03"),
+                ("360", "2026-07-03"),
+            })
+        finally:
+            conn.close()
+
+        self.assertEqual(len(resolvidas), 3)
+        self.assertEqual(resolvidas[("360", "2026-07-03")]["id_coleta"], "c360-lote")
+        self.assertEqual(resolvidas[("360", "2026-07-03")]["estrategia"], "lote_de_tubos")
+
     def test_kobo_pendentes_resume_formularios_configurados(self):
         class FakeResponse:
             def __init__(self, payload):
@@ -6478,6 +6546,52 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(por_tipo["PE"]["duplicados"], 1)
             self.assertEqual(por_tipo["BRI"]["novos"], 1)
             self.assertEqual(dados["total_novos"], 2)
+
+    def test_kobo_pendentes_aplica_vinculo_resolvido_as_larvas(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc, tb):
+                return False
+            def read(self):
+                return json.dumps({"results": [{
+                    "_uuid": "larva-pendente",
+                    "_submission_time": "2026-07-03T17:01:50",
+                    "NÃºmero do tubito": "693",
+                    "Data da coleta": "2026-07-03",
+                }]}).encode("utf-8")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            app_temp.config["KOBO_CONFIG_PATH"] = str(Path(tmpdir) / "kobo_config.json")
+            kobo_api_core.save_config(app_temp.config["KOBO_CONFIG_PATH"], {
+                "server_url": "https://kf.kobotoolbox.org",
+                "api_token": "token",
+                "assets": {"LARVAS": "asset-larvas"},
+            })
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute(
+                    """INSERT INTO visitas
+                       (id_visita, kobo_uuid, tipo, data, processado_em)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    ("visita-antiga", "visita-antiga-uuid", "PVE", "2026-03-31", "2026-07-07T10:00:00"),
+                )
+                conn.execute(
+                    "INSERT INTO coletas (id_coleta, id_visita, num_tubo) VALUES (?, ?, ?)",
+                    ("coleta-693", "visita-antiga", "693"),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            with mock.patch("app_core.kobo_api.request.urlopen", return_value=FakeResponse()):
+                resp = client.post("/api/kobo/pendentes", json={"limite": 10})
+
+            self.assertEqual(resp.status_code, 200)
+            larvas = next(item for item in resp.get_json()["itens"] if item["tipo"] == "LARVAS")
+            self.assertEqual(larvas["novos"], 1)
+            self.assertEqual(larvas["pendencias"], 0)
 
     def test_kobo_api_marca_agentes_para_etl(self):
         record = {

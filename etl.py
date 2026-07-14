@@ -16,6 +16,7 @@ from app_core import amostras_animais as amostras_animais_core
 from app_core import agentes as agentes_core
 from app_core import bri as bri_core
 from app_core import normalizadores
+from app_core import larvas as larvas_core
 from app_core import pontos_estrategicos as pe_core
 from app_core import recolhimentos as recolhimentos_core
 from app_core import work_types
@@ -130,6 +131,12 @@ def auditar_larvas_sem_coleta(conn, larvas_origens, logger, limite=80):
 
     vistos = set()
     pendentes = []
+    chaves = {
+        (str(item.get("tubo") or "").strip(), item.get("data"))
+        for item in larvas_origens
+        if str(item.get("tubo") or "").strip() and item.get("data")
+    }
+    resolvidas = larvas_core.resolver_coletas(conn, chaves)
     for item in larvas_origens:
         tubo = str(item.get("tubo") or "").strip()
         data = item.get("data")
@@ -139,15 +146,7 @@ def auditar_larvas_sem_coleta(conn, larvas_origens, logger, limite=80):
         if chave in vistos:
             continue
         vistos.add(chave)
-        row = conn.execute("""
-            SELECT c.id_coleta, v.id_visita
-              FROM coletas c
-              JOIN visitas v ON v.id_visita = c.id_visita
-             WHERE TRIM(COALESCE(c.num_tubo,'')) = ?
-               AND v.data = ?
-             LIMIT 1
-        """, (tubo, data)).fetchone()
-        if not row:
+        if chave not in resolvidas:
             pendentes.append(item)
 
     if not pendentes:
@@ -663,18 +662,10 @@ def processar_larvas_em_coletas_existentes(larvas, conn, logger, agora_iso):
     cur = conn.cursor()
     resultados_novos = duplicados = pendentes = 0
     positivos_por_visita = {}
+    coletas_resolvidas = larvas_core.resolver_coletas(conn, larvas.keys())
 
     for (tubo, data_coleta), row_larva in larvas.items():
-        row = cur.execute("""
-            SELECT c.id_coleta, c.id_visita, c.num_tubo, c.tipo_deposito,
-                   v.tipo, v.data, v.localidade, v.quarteirao, v.logradouro,
-                   v.numero, v.morador, v.tipo_imovel, v.observacoes
-              FROM coletas c
-              JOIN visitas v ON v.id_visita = c.id_visita
-             WHERE TRIM(COALESCE(c.num_tubo,'')) = ?
-               AND v.data = ?
-             LIMIT 1
-        """, (tubo, data_coleta)).fetchone()
+        row = coletas_resolvidas.get((tubo, data_coleta))
         if not row:
             pendentes += 1
             continue

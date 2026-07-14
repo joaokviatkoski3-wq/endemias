@@ -441,7 +441,13 @@ def summarize_submissions(records, existing_uuids=None, sample_size=20, tipo=Non
             campos_vazios = []
             if not detalhes.get("hora_inicio") or detalhes["hora_inicio"] == "-":
                 campos_vazios.append("hora")
-            if not detalhes.get("morador") or detalhes["morador"] == "-":
+            visita_norm = _norm(detalhes.get("visita"))
+            sem_atendimento = visita_norm in {
+                "fechado", "fechada", "imovelfechado", "recusa", "recusado", "recusada",
+            }
+            if tipo != "PE" and not sem_atendimento and (
+                not detalhes.get("morador") or detalhes["morador"] == "-"
+            ):
                 campos_vazios.append("morador")
             if not detalhes.get("quarteirao") or detalhes["quarteirao"] == "-":
                 campos_vazios.append("quarteirão")

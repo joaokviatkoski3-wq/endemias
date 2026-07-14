@@ -15,6 +15,7 @@ from app_core import backup as backup_core
 from app_core import db as db_core
 from app_core import import_history
 from app_core import kobo_api
+from app_core import larvas as larvas_core
 from app_core import uploads
 
 
@@ -242,27 +243,7 @@ def kobo_previa():
             data_coleta = (detalhes.get("data_coleta") or "").strip()[:10]
             if tubo and data_coleta:
                 chaves.add((tubo, data_coleta))
-        if chaves:
-            try:
-                conn = get_db()
-                for tubo, data_coleta in chaves:
-                    row = conn.execute(
-                        """SELECT 1
-                             FROM coletas c
-                             JOIN visitas v ON v.id_visita = c.id_visita
-                            WHERE TRIM(COALESCE(c.num_tubo,'')) = ?
-                              AND v.data = ?
-                            LIMIT 1""",
-                        (tubo, data_coleta),
-                    ).fetchone()
-                    larvas_links[(tubo, data_coleta)] = bool(row)
-            except Exception:
-                larvas_links = {}
-            finally:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
+        larvas_links = _larvas_links_banco(chaves)
 
     amostra_filtro = "novos" if data.get("apenas_novos") else ""
     resumo = kobo_api.summarize_submissions(
@@ -325,10 +306,21 @@ def kobo_pendentes():
                 start=inicio,
                 end=fim,
             )
+            larvas_links = None
+            if tipo == "LARVAS":
+                chaves = set()
+                for record in records:
+                    detalhes = kobo_api.record_details(tipo, record)
+                    tubo = (detalhes.get("tubo") or "").strip()
+                    data_coleta = (detalhes.get("data_coleta") or "").strip()[:10]
+                    if tubo and data_coleta:
+                        chaves.add((tubo, data_coleta))
+                larvas_links = _larvas_links_banco(chaves)
             resumo = kobo_api.summarize_submissions(
                 records,
                 _kobo_existing_uuids(tipo, records),
                 tipo=tipo,
+                larvas_links=larvas_links,
                 sample_size=0,
             )
             item.update({
@@ -385,23 +377,11 @@ def _kobo_existing_uuids(tipo, records):
 
 
 def _larvas_links_banco(chaves):
-    links = {}
     if not chaves:
-        return links
+        return {}
     try:
         conn = get_db()
-        for tubo, data_coleta in chaves:
-            row = conn.execute(
-                """SELECT 1
-                     FROM coletas c
-                     JOIN visitas v ON v.id_visita = c.id_visita
-                    WHERE TRIM(COALESCE(c.num_tubo,'')) = ?
-                      AND v.data = ?
-                    LIMIT 1""",
-                (tubo, data_coleta),
-            ).fetchone()
-            if row:
-                links[(tubo, data_coleta)] = "banco"
+        return {chave: "banco" for chave in larvas_core.resolver_coletas(conn, chaves)}
     except Exception:
         return {}
     finally:
