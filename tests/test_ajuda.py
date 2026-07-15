@@ -21,6 +21,17 @@ class AjudaTests(unittest.TestCase):
         resultado = ajuda.consultar(consulta="zxqv sem correspondencia")
         self.assertEqual(resultado["artigos"], [])
 
+    def test_contexto_da_aba_prioriza_artigo_especifico(self):
+        resultado = ajuda.consultar(
+            rota="/registro-geografico", contexto="Edição em lotes"
+        )
+        self.assertEqual(resultado["contexto"][0]["id"], "registro-geografico-logradouros")
+
+    def test_artigo_administrativo_respeita_nivel_do_usuario(self):
+        resultado = ajuda.consultar(consulta="backup", nivel="visualizador")
+        ids = [artigo["id"] for artigo in resultado["artigos"]]
+        self.assertNotIn("central-backup", ids)
+
     def test_api_exige_login_e_retorna_contexto_para_usuario_logado(self):
         endemias_app.app.config["TESTING"] = True
         client = endemias_app.app.test_client()

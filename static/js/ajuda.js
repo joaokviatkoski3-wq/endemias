@@ -17,6 +17,21 @@
   let categoriaAtiva = '';
   let buscaTimer = null;
 
+  function contextoAtivo() {
+    const seletor = [
+      '.rg-tab.active', '.ovi-tab.active', '.esporo-tab-btn.active', '.acoes-tab.active',
+      '.module-tab-btn.active', '.tab-btn.active', '.tab-button.active',
+      '[role="tab"][aria-selected="true"]',
+    ].join(',');
+    return document.querySelector(seletor)?.textContent?.trim() || '';
+  }
+
+  function atualizarRotuloPagina() {
+    const title = document.querySelector('.topbar-brand-txt .t1')?.textContent?.trim();
+    const contextoAtual = contextoAtivo();
+    if (title) pageLabel.textContent = `Ajuda para: ${title}${contextoAtual ? ` - ${contextoAtual}` : ''}`;
+  }
+
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[char]));
@@ -73,6 +88,7 @@
     const params = new URLSearchParams({
       rota: window.location.pathname,
       q: searchInput.value.trim(),
+      contexto: contextoAtivo(),
       limite: '20',
     });
     try {
@@ -81,6 +97,7 @@
       const payload = await response.json();
       artigos = payload.artigos || [];
       contexto = payload.contexto || [];
+      atualizarRotuloPagina();
       renderCategorias();
       renderArtigos();
     } catch (error) {
@@ -130,7 +147,11 @@
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && panel.classList.contains('open')) fecharAjuda();
   });
+  document.addEventListener('click', event => {
+    if (!panel.classList.contains('open')) return;
+    if (!event.target.closest('.rg-tab, .ovi-tab, .esporo-tab-btn, .acoes-tab, .module-tab-btn, .tab-btn, .tab-button, [role="tab"]')) return;
+    window.setTimeout(carregarAjuda, 0);
+  });
 
-  const title = document.querySelector('.topbar-brand-txt .t1')?.textContent?.trim();
-  if (title) pageLabel.textContent = `Ajuda para: ${title}`;
+  atualizarRotuloPagina();
 })();
