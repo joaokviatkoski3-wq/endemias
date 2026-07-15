@@ -18,6 +18,7 @@ from app_core import auth as auth_core
 from app_core import db as db_core
 from app_core import import_history
 from app_core import laboratorio_lancamentos as laboratorio_lancamentos_core
+from app_core import meteorologia as meteorologia_core
 from app_core import sqlite_maintenance
 from app_core import uploads as uploads_core
 from app_core import utils as utils_core
@@ -37,6 +38,7 @@ from blueprints.exportacoes import bp as exportacoes_bp
 from blueprints.home import bp as home_bp
 from blueprints.laboratorio_lancamentos import bp as laboratorio_lancamentos_bp
 from blueprints.mapa import bp as mapa_bp
+from blueprints.meteorologia import bp as meteorologia_bp
 from blueprints.notificacoes import bp as notificacoes_bp
 from blueprints.ovitrampas import bp as ovitrampas_bp
 from blueprints.processar import bp as processar_bp
@@ -148,6 +150,7 @@ def _register_blueprints(flask_app):
     flask_app.register_blueprint(home_bp)
     flask_app.register_blueprint(laboratorio_lancamentos_bp)
     flask_app.register_blueprint(mapa_bp)
+    flask_app.register_blueprint(meteorologia_bp)
     flask_app.register_blueprint(notificacoes_bp)
     flask_app.register_blueprint(ovitrampas_bp)
     flask_app.register_blueprint(processar_bp)
@@ -270,6 +273,7 @@ def create_app(config_overrides=None):
     _configure_secret_key(flask_app, flask_app.config["SECRET_KEY_PATH"])
     agentes_core.ensure_schema(flask_app.config["DB_PATH"])
     laboratorio_lancamentos_core.ensure_schema(flask_app.config["DB_PATH"])
+    meteorologia_core.ensure_schema(flask_app.config["DB_PATH"])
     sqlite_maintenance.ensure_performance_indexes(flask_app.config["DB_PATH"])
     csrf.init_app(flask_app)
 

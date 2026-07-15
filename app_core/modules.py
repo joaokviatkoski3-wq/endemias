@@ -63,6 +63,16 @@ MODULES: Tuple[AppModule, ...] = (
         endpoints=("dashboard", "consultas.dashboard"),
     ),
     AppModule(
+        key="meteorologia",
+        title="Meteorologia",
+        href="/meteorologia",
+        endpoint="meteorologia.page",
+        icon="sol.svg",
+        nav_section="Analise",
+        description="Dados meteorologicos oficiais do INMET para apoio ao planejamento e analise.",
+        tags=("INMET", "Clima"),
+    ),
+    AppModule(
         key="visitas",
         title="Lista de Visitas",
         short_title="Visitas",

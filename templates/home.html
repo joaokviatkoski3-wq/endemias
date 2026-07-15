@@ -56,9 +56,14 @@
       <strong>{{ kpis.conta_ovos_pendente }}</strong>
       <span>leituras TBO com conta-ovos pendente</span>
     </a>
-    <a class="ops-alert" href="/mapa">
-      <strong>{{ kpis.coletas_total }}</strong>
-      <span>coletas registradas no banco</span>
+    <a class="ops-alert" href="/meteorologia">
+      {% if meteorologia %}
+      <strong>{{ meteorologia.temperatura_max|round(0)|int if meteorologia.temperatura_max is not none else '--' }}&deg;</strong>
+      <span>m&aacute;xima regional em {{ meteorologia.data[8:10] }}/{{ meteorologia.data[5:7] }} &middot; {{ meteorologia.precipitacao|round(1) if meteorologia.precipitacao is not none else '--' }} mm</span>
+      {% else %}
+      <strong>--</strong>
+      <span>dados meteorol&oacute;gicos aguardando atualiza&ccedil;&atilde;o</span>
+      {% endif %}
     </a>
   </section>
 

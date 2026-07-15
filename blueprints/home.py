@@ -94,6 +94,14 @@ def page():
             """,
             (hoje,),
         ).fetchall()
+        meteorologia = conn.execute(
+            """
+            SELECT data, temperatura_min, temperatura_max, precipitacao, provisorio
+              FROM meteorologia_resumos_diarios
+             ORDER BY date(data) DESC, id DESC
+             LIMIT 1
+            """
+        ).fetchone()
     finally:
         conn.close()
 
@@ -116,5 +124,6 @@ def page():
         dist_tipo=[dict(r) for r in dist_tipo],
         focos_recentes=[dict(r) for r in focos_rec],
         agenda_proxima=[dict(r) for r in agenda],
+        meteorologia=dict(meteorologia) if meteorologia else None,
         admin_info=admin_info,
     )

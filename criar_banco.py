@@ -13,6 +13,7 @@ import sqlite3, os
 from datetime import datetime
 
 from app_core import auth as auth_core
+from app_core import meteorologia as meteorologia_core
 from app_core import pontos_estrategicos as pe_core
 
 BANCO = "endemias.db"
@@ -382,7 +383,8 @@ TABELAS_ESPERADAS = [
     "depositos_inspecionados", "tratamentos", "coletas",
     "resultados_laboratorio", "focos_positivos", "agenda_eventos",
     "importacoes", "pontos_estrategicos", "acoes_setor", "acoes_setor_agentes",
-    "acoes_setor_anexos",
+    "acoes_setor_anexos", "meteorologia_estacoes", "meteorologia_resumos_diarios",
+    "meteorologia_sincronizacoes",
 ]
 
 
@@ -407,6 +409,7 @@ def main():
     conn.executescript(SQL)
     pe_core.ensure_schema(conn)
     conn.commit()
+    meteorologia_core.ensure_schema(BANCO)
 
     # Migração: adicionar coluna 'codigo' se banco já existia sem ela
     try:

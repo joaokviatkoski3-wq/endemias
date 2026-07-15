@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}Meteorologia{% endblock %}
+{% block page_title %}Meteorologia{% endblock %}
+
+{% block extra_css %}
+<style>
+.met-page{display:flex;flex-direction:column;gap:14px}
+.met-header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.met-header h1{display:flex;align-items:center;gap:9px;margin:0;color:var(--text);font-size:1.45rem}
+.met-header p{margin:5px 0 0;color:var(--text2);font-size:12px}
+.met-actions{display:flex;align-items:end;gap:8px;flex-wrap:wrap}
+.met-actions label{display:grid;gap:4px;color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase}
+.met-actions select{min-width:112px;height:34px;background:var(--surface);color:var(--text)}
+.met-status{display:flex;align-items:center;gap:8px;color:var(--text2);font-size:11px}
+.met-status i{width:8px;height:8px;border-radius:50%;background:var(--text3)}
+.met-status i.ok{background:var(--green)}.met-status i.warn{background:var(--amber)}.met-status i.error{background:var(--red)}
+.met-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.met-kpi{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;min-width:0}
+.met-kpi span{display:block;color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase}
+.met-kpi strong{display:block;margin-top:7px;color:var(--text);font-size:1.55rem;font-variant-numeric:tabular-nums}
+.met-kpi small{display:block;margin-top:3px;color:var(--text2);font-size:11px}
+.met-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(270px,.8fr);gap:14px;align-items:start}
+.met-panel{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.met-panel-hd{padding:12px 14px;border-bottom:1px solid var(--border);background:var(--surface2)}
+.met-panel-hd h2{margin:0;color:var(--text);font-size:13px}.met-panel-hd p{margin:3px 0 0;color:var(--text3);font-size:11px}
+.met-chart{height:310px;padding:14px}
+.met-stations{display:grid;gap:0}
+.met-station{padding:13px 14px;border-bottom:1px solid var(--border)}.met-station:last-child{border-bottom:0}
+.met-station-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.met-station strong{color:var(--text);font-size:13px}.met-station p{margin:5px 0 0;color:var(--text2);font-size:11px;line-height:1.45}
+.met-badge{border:1px solid var(--border2);border-radius:20px;padding:3px 7px;color:var(--brand);font-size:9px;font-weight:800;text-transform:uppercase}
+.met-table-wrap{overflow:auto;max-height:360px}
+.met-table{width:100%;border-collapse:collapse;font-size:11px}
+.met-table th,.met-table td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap}
+.met-table th{position:sticky;top:0;background:var(--surface2);color:var(--text3);font-size:9px;text-transform:uppercase}
+.met-table th:first-child,.met-table td:first-child{text-align:left}
+.met-empty{padding:30px 16px;text-align:center;color:var(--text2);font-size:12px}
+.met-note{padding:11px 13px;background:var(--brand-xs);border:1px solid var(--border);border-radius:8px;color:var(--text2);font-size:11px;line-height:1.5}
+@media(max-width:980px){.met-grid{grid-template-columns:1fr}.met-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.met-header{align-items:flex-start;flex-direction:column}.met-actions{width:100%}.met-actions label{flex:1}.met-actions select{width:100%}.met-actions .btn{flex:1;justify-content:center}.met-kpis{grid-template-columns:1fr 1fr}.met-kpi{padding:11px}.met-kpi strong{font-size:1.25rem}.met-chart{height:260px}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="met-page">
+  <header class="met-header">
+    <div>
+      <h1><img src="/static/icons/sol.svg" alt="" class="icon-svg"> Meteorologia</h1>
+      <p>Refer&ecirc;ncia regional oficial para planejamento e an&aacute;lise epidemiol&oacute;gica.</p>
+    </div>
+    {% if usuario_atual and usuario_atual.nivel == 'admin' %}
+    <div class="met-actions">
+      <label>Per&iacute;odo
+        <select id="met-dias">
+          <option value="7">7 dias</option>
+          <option value="14">14 dias</option>
+          <option value="30">30 dias</option>
+          <option value="60">60 dias</option>
+          <option value="90">90 dias</option>
+        </select>
+      </label>
+      <button class="btn btn-primary" id="met-sync" type="button">
+        <img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar INMET
+      </button>
+    </div>
+    {% endif %}
+  </header>
+
+  {% set sync = painel.ultima_sincronizacao %}
+  <div class="met-status">
+    <i class="{{ 'ok' if sync and sync.status == 'concluido' else 'warn' if sync and sync.status == 'parcial' else 'error' if sync and sync.status == 'erro' else '' }}"></i>
+    {% if sync %}
+      &Uacute;ltima sincroniza&ccedil;&atilde;o: {{ sync.iniciado_em[8:10] }}/{{ sync.iniciado_em[5:7] }}/{{ sync.iniciado_em[:4] }} &agrave;s {{ sync.iniciado_em[11:16] }} &middot; {{ sync.status }}
+    {% else %}
+      Nenhuma sincroniza&ccedil;&atilde;o realizada.
+    {% endif %}
+  </div>
+
+  {% set atual = painel.atual %}
+  <section class="met-kpis">
+    <div class="met-kpi"><span>Temperatura m&iacute;nima</span><strong>{{ atual.temperatura_min|round(1) if atual and atual.temperatura_min is not none else '--' }}&deg;C</strong><small>{{ atual.data[8:10] ~ '/' ~ atual.data[5:7] if atual else 'Sem dados' }}</small></div>
+    <div class="met-kpi"><span>Temperatura m&aacute;xima</span><strong>{{ atual.temperatura_max|round(1) if atual and atual.temperatura_max is not none else '--' }}&deg;C</strong><small>{{ atual.data[8:10] ~ '/' ~ atual.data[5:7] if atual else 'Sem dados' }}</small></div>
+    <div class="met-kpi"><span>Precipita&ccedil;&atilde;o</span><strong>{{ atual.precipitacao|round(1) if atual and atual.precipitacao is not none else '--' }} mm</strong><small>Acumulado informado</small></div>
+    <div class="met-kpi"><span>Umidade m&iacute;nima</span><strong>{{ atual.umidade_min|round(0)|int if atual and atual.umidade_min is not none else '--' }}%</strong><small>{{ 'Dado provis&oacute;rio' if atual and atual.provisorio else 'Dado publicado' }}</small></div>
+  </section>
+
+  <div class="met-grid">
+    <section class="met-panel">
+      <div class="met-panel-hd"><h2>Evolu&ccedil;&atilde;o dos &uacute;ltimos 30 dias</h2><p>Temperaturas e precipita&ccedil;&atilde;o da refer&ecirc;ncia Curitiba.</p></div>
+      {% if painel.serie %}<div class="met-chart"><canvas id="met-chart"></canvas></div>{% else %}<div class="met-empty">Atualize o INMET para carregar a s&eacute;rie meteorol&oacute;gica.</div>{% endif %}
+    </section>
+
+    <section class="met-panel">
+      <div class="met-panel-hd"><h2>Esta&ccedil;&otilde;es de refer&ecirc;ncia</h2><p>Fontes previstas para a integra&ccedil;&atilde;o de observa&ccedil;&otilde;es.</p></div>
+      {% if painel.estacoes %}
+      <div class="met-stations">
+        {% for estacao in painel.estacoes %}
+        <div class="met-station">
+          <div class="met-station-top"><strong>{{ estacao.codigo }} &middot; {{ estacao.nome|title }}</strong><span class="met-badge">{{ estacao.papel }}</span></div>
+          <p>{{ estacao.tipo or 'Esta&ccedil;&atilde;o INMET' }} &middot; {{ estacao.situacao or 'situa&ccedil;&atilde;o n&atilde;o informada' }}<br>{{ estacao.distancia_km|round(1) if estacao.distancia_km is not none else '--' }} km do centro de Almirante Tamandar&eacute;</p>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}<div class="met-empty">Cat&aacute;logo de esta&ccedil;&otilde;es ainda n&atilde;o sincronizado.</div>{% endif %}
+    </section>
+  </div>
+
+  <section class="met-panel">
+    <div class="met-panel-hd"><h2>Resumo di&aacute;rio</h2><p>Valores armazenados localmente com origem e data preservadas.</p></div>
+    {% if painel.serie %}
+    <div class="met-table-wrap"><table class="met-table"><thead><tr><th>Data</th><th>M&iacute;nima</th><th>M&aacute;xima</th><th>Umidade m&iacute;n.</th><th>Chuva</th><th>Situa&ccedil;&atilde;o</th></tr></thead><tbody>
+      {% for dia in painel.serie|reverse %}<tr><td>{{ dia.data[8:10] }}/{{ dia.data[5:7] }}/{{ dia.data[:4] }}</td><td>{{ dia.temperatura_min|round(1) if dia.temperatura_min is not none else '--' }}&deg;C</td><td>{{ dia.temperatura_max|round(1) if dia.temperatura_max is not none else '--' }}&deg;C</td><td>{{ dia.umidade_min|round(0)|int if dia.umidade_min is not none else '--' }}%</td><td>{{ dia.precipitacao|round(1) if dia.precipitacao is not none else '--' }} mm</td><td>{{ 'Provis&oacute;rio' if dia.provisorio else 'Publicado' }}</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% else %}<div class="met-empty">Nenhum resumo di&aacute;rio armazenado.</div>{% endif %}
+  </section>
+
+  <div class="met-note">Os valores di&aacute;rios atuais s&atilde;o uma refer&ecirc;ncia regional de Curitiba, n&atilde;o uma medi&ccedil;&atilde;o por localidade ou quarteir&atilde;o. O banco preserva a fonte e o indicador de dado provis&oacute;rio para evitar interpreta&ccedil;&otilde;es indevidas.</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const metSerie = {{ painel.serie|tojson }};
+if (metSerie.length) {
+  mkChart('met-chart', {
+    type: 'line',
+    data: {
+      labels: metSerie.map(item => item.data.slice(8,10) + '/' + item.data.slice(5,7)),
+      datasets: [
+        {label:'Mínima (°C)', data:metSerie.map(item => item.temperatura_min), borderColor:'#16846b', backgroundColor:'transparent', tension:.25, pointRadius:2, yAxisID:'y'},
+        {label:'Máxima (°C)', data:metSerie.map(item => item.temperatura_max), borderColor:'#d97706', backgroundColor:'transparent', tension:.25, pointRadius:2, yAxisID:'y'},
+        {label:'Chuva (mm)', data:metSerie.map(item => item.precipitacao), borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.14)', fill:true, tension:.2, pointRadius:2, yAxisID:'rain'}
+      ]
+    },
+    options: {
+      interaction:{mode:'index',intersect:false},
+      plugins:{datalabels:{display:false}},
+      scales:{
+        y:{position:'left',title:{display:true,text:'Temperatura (°C)'},grid:{color:'rgba(128,145,170,.16)'}},
+        rain:{position:'right',beginAtZero:true,title:{display:true,text:'Chuva (mm)'},grid:{drawOnChartArea:false}}
+      }
+    }
+  });
+}
+
+const syncButton = document.getElementById('met-sync');
+syncButton?.addEventListener('click', async () => {
+  syncButton.disabled = true;
+  const original = syncButton.innerHTML;
+  syncButton.textContent = 'Atualizando...';
+  try {
+    const response = await fetch('/api/meteorologia/sincronizar', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('meta[name="csrf-token"]').content},
+      body:JSON.stringify({dias:Number(document.getElementById('met-dias').value)})
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.erro || 'Falha ao consultar o INMET.');
+    toast(`${result.resumos} dia(s) atualizado(s).`, result.status === 'parcial' ? 'info' : 'success');
+    setTimeout(() => location.reload(), 700);
+  } catch (error) {
+    toast(error.message, 'error', 5000);
+    syncButton.disabled = false;
+    syncButton.innerHTML = original;
+  }
+});
+</script>
+{% endblock %}
