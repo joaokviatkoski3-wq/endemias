@@ -8,6 +8,13 @@ from app_core import db as db_core
 
 
 API_BASE = "https://apitempo.inmet.gov.br"
+OPEN_METEO_URL = (
+    "https://api.open-meteo.com/v1/forecast"
+    "?latitude=-25.32&longitude=-49.31"
+    "&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,"
+    "precipitation,weather_code,wind_speed_10m"
+    "&timezone=America%2FSao_Paulo"
+)
 MUNICIPIO_LATITUDE = -25.32
 MUNICIPIO_LONGITUDE = -49.31
 ESTACOES_REFERENCIA = {
@@ -50,6 +57,24 @@ CREATE TABLE IF NOT EXISTS meteorologia_resumos_diarios (
     UNIQUE(data, referencia, fonte)
 );
 
+CREATE TABLE IF NOT EXISTS meteorologia_condicoes_atuais (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    observado_em            TEXT NOT NULL,
+    fonte                   TEXT NOT NULL,
+    latitude                REAL,
+    longitude               REAL,
+    temperatura             REAL,
+    sensacao_termica        REAL,
+    umidade                 REAL,
+    precipitacao            REAL,
+    velocidade_vento        REAL,
+    codigo_tempo            INTEGER,
+    periodo_dia             INTEGER CHECK(periodo_dia IN (0,1)),
+    bruto_json              TEXT NOT NULL,
+    importado_em            TEXT NOT NULL,
+    UNIQUE(observado_em, fonte)
+);
+
 CREATE TABLE IF NOT EXISTS meteorologia_sincronizacoes (
     id_sincronizacao INTEGER PRIMARY KEY AUTOINCREMENT,
     fonte            TEXT NOT NULL,
@@ -63,6 +88,8 @@ CREATE TABLE IF NOT EXISTS meteorologia_sincronizacoes (
 
 CREATE INDEX IF NOT EXISTS idx_meteo_resumos_data
     ON meteorologia_resumos_diarios(data DESC);
+CREATE INDEX IF NOT EXISTS idx_meteo_atual_observado
+    ON meteorologia_condicoes_atuais(observado_em DESC);
 CREATE INDEX IF NOT EXISTS idx_meteo_sync_inicio
     ON meteorologia_sincronizacoes(iniciado_em DESC);
 """
@@ -169,13 +196,70 @@ def _capital_record(item, day, imported_at):
     }
 
 
+def _current_record(payload, imported_at):
+    current = payload.get("current") if isinstance(payload, dict) else None
+    if not isinstance(current, dict) or not current.get("time"):
+        raise RuntimeError("O Open-Meteo nao retornou as condicoes atuais esperadas.")
+    return {
+        "observado_em": str(current["time"]),
+        "fonte": "Open-Meteo",
+        "latitude": _parse_number(payload.get("latitude")),
+        "longitude": _parse_number(payload.get("longitude")),
+        "temperatura": _parse_number(current.get("temperature_2m")),
+        "sensacao_termica": _parse_number(current.get("apparent_temperature")),
+        "umidade": _parse_number(current.get("relative_humidity_2m")),
+        "precipitacao": _parse_number(current.get("precipitation")),
+        "velocidade_vento": _parse_number(current.get("wind_speed_10m")),
+        "codigo_tempo": int(current["weather_code"]) if current.get("weather_code") is not None else None,
+        "periodo_dia": int(current["is_day"]) if current.get("is_day") in (0, 1) else None,
+        "bruto_json": json.dumps(payload, ensure_ascii=False, sort_keys=True),
+        "importado_em": imported_at,
+    }
+
+
+def _weather_description(code):
+    if code is None:
+        return "Condicao nao informada"
+    descriptions = {
+        0: "Ceu limpo",
+        1: "Predominio de ceu limpo",
+        2: "Parcialmente nublado",
+        3: "Encoberto",
+        45: "Nevoeiro",
+        48: "Nevoeiro com geada",
+        51: "Garoa leve",
+        53: "Garoa moderada",
+        55: "Garoa intensa",
+        56: "Garoa congelante leve",
+        57: "Garoa congelante intensa",
+        61: "Chuva leve",
+        63: "Chuva moderada",
+        65: "Chuva forte",
+        66: "Chuva congelante leve",
+        67: "Chuva congelante forte",
+        71: "Neve leve",
+        73: "Neve moderada",
+        75: "Neve forte",
+        77: "Graos de neve",
+        80: "Pancadas de chuva leves",
+        81: "Pancadas de chuva moderadas",
+        82: "Pancadas de chuva fortes",
+        85: "Pancadas de neve leves",
+        86: "Pancadas de neve fortes",
+        95: "Tempestade",
+        96: "Tempestade com granizo leve",
+        99: "Tempestade com granizo forte",
+    }
+    return descriptions.get(int(code), "Condicao nao informada")
+
+
 def _begin_sync(db_path, started_at):
     ensure_schema(db_path)
     conn = db_core.connect(db_path)
     try:
         cursor = conn.execute(
             "INSERT INTO meteorologia_sincronizacoes(fonte,status,iniciado_em) VALUES (?,?,?)",
-            ("INMET", "executando", started_at),
+            ("INMET + Open-Meteo", "executando", started_at),
         )
         sync_id = cursor.lastrowid
         conn.commit()
@@ -226,8 +310,14 @@ def sincronizar(db_path, dias=7, hoje=None, fetch_json=None):
             if station["uf"] == "PR" and station["codigo"]:
                 stations.append(station)
 
-        summaries = []
+        current_condition = None
         errors = []
+        try:
+            current_condition = _current_record(fetch(OPEN_METEO_URL), imported_at)
+        except RuntimeError as exc:
+            errors.append(f"condicoes atuais: {exc}")
+
+        summaries = []
         for offset in range(dias - 1, -1, -1):
             day = today - timedelta(days=offset)
             try:
@@ -286,6 +376,26 @@ def sincronizar(db_path, dias=7, hoje=None, fetch_json=None):
                     """,
                     summary,
                 )
+            if current_condition:
+                conn.execute(
+                    """
+                    INSERT INTO meteorologia_condicoes_atuais
+                        (observado_em,fonte,latitude,longitude,temperatura,sensacao_termica,
+                         umidade,precipitacao,velocidade_vento,codigo_tempo,periodo_dia,
+                         bruto_json,importado_em)
+                    VALUES (:observado_em,:fonte,:latitude,:longitude,:temperatura,:sensacao_termica,
+                            :umidade,:precipitacao,:velocidade_vento,:codigo_tempo,:periodo_dia,
+                            :bruto_json,:importado_em)
+                    ON CONFLICT(observado_em,fonte) DO UPDATE SET
+                        latitude=excluded.latitude, longitude=excluded.longitude,
+                        temperatura=excluded.temperatura, sensacao_termica=excluded.sensacao_termica,
+                        umidade=excluded.umidade, precipitacao=excluded.precipitacao,
+                        velocidade_vento=excluded.velocidade_vento,
+                        codigo_tempo=excluded.codigo_tempo, periodo_dia=excluded.periodo_dia,
+                        bruto_json=excluded.bruto_json, importado_em=excluded.importado_em
+                    """,
+                    current_condition,
+                )
             conn.commit()
         except Exception:
             conn.rollback()
@@ -298,6 +408,7 @@ def sincronizar(db_path, dias=7, hoje=None, fetch_json=None):
             "dias_solicitados": dias,
             "resumos": len(summaries),
             "estacoes_pr": len(stations),
+            "condicao_atual": int(current_condition is not None),
             "avisos": errors,
         }
         _finish_sync(db_path, sync_id, status, len(summaries), details)
@@ -313,6 +424,9 @@ def obter_painel(db_path, limite=30):
     try:
         latest = conn.execute(
             "SELECT * FROM meteorologia_resumos_diarios ORDER BY date(data) DESC, id DESC LIMIT 1"
+        ).fetchone()
+        current = conn.execute(
+            "SELECT * FROM meteorologia_condicoes_atuais ORDER BY datetime(observado_em) DESC, id DESC LIMIT 1"
         ).fetchone()
         series = conn.execute(
             """
@@ -335,8 +449,12 @@ def obter_painel(db_path, limite=30):
         ).fetchone()
     finally:
         conn.close()
+    current_item = dict(current) if current else None
+    if current_item:
+        current_item["descricao"] = _weather_description(current_item.get("codigo_tempo"))
     return {
         "atual": dict(latest) if latest else None,
+        "condicao_atual": current_item,
         "serie": [dict(row) for row in reversed(series)],
         "estacoes": [dict(row) for row in stations],
         "ultima_sincronizacao": dict(last_sync) if last_sync else None,

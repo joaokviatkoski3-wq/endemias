@@ -17,6 +17,23 @@ class MeteorologiaTests(unittest.TestCase):
 
     @staticmethod
     def _fake_fetch(url):
+        if url.startswith("https://api.open-meteo.com/"):
+            return {
+                "latitude": -25.32,
+                "longitude": -49.31,
+                "timezone": "America/Sao_Paulo",
+                "current": {
+                    "time": "2026-07-15T14:15",
+                    "interval": 900,
+                    "temperature_2m": 16.4,
+                    "relative_humidity_2m": 72,
+                    "apparent_temperature": 15.8,
+                    "is_day": 1,
+                    "precipitation": 0.0,
+                    "weather_code": 2,
+                    "wind_speed_10m": 7.1,
+                },
+            }
         if url.endswith("/estacoes/T"):
             return [
                 {
@@ -73,6 +90,7 @@ class MeteorologiaTests(unittest.TestCase):
         try:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM meteorologia_resumos_diarios").fetchone()[0], 2)
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM meteorologia_estacoes").fetchone()[0], 2)
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM meteorologia_condicoes_atuais").fetchone()[0], 1)
             row = conn.execute(
                 "SELECT * FROM meteorologia_resumos_diarios WHERE data='2026-07-15'"
             ).fetchone()
@@ -80,6 +98,9 @@ class MeteorologiaTests(unittest.TestCase):
             self.assertEqual(row["precipitacao"], 2.5)
             self.assertEqual(row["provisorio"], 1)
             self.assertIn('"CAPITAL": "CURITIBA"', row["bruto_json"])
+            current = conn.execute("SELECT * FROM meteorologia_condicoes_atuais").fetchone()
+            self.assertEqual(current["temperatura"], 16.4)
+            self.assertEqual(current["sensacao_termica"], 15.8)
         finally:
             conn.close()
 
@@ -95,6 +116,7 @@ class MeteorologiaTests(unittest.TestCase):
         self.assertEqual(stations["B806"]["papel"], "principal")
         self.assertEqual(stations["A807"]["papel"], "apoio")
         self.assertLess(stations["B806"]["distancia_km"], stations["A807"]["distancia_km"])
+        self.assertEqual(panel["condicao_atual"]["descricao"], "Parcialmente nublado")
 
     def test_failed_daily_calls_are_reported_as_partial(self):
         def fetch(url):

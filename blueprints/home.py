@@ -102,6 +102,14 @@ def page():
              LIMIT 1
             """
         ).fetchone()
+        clima_atual = conn.execute(
+            """
+            SELECT observado_em, temperatura, sensacao_termica, umidade
+              FROM meteorologia_condicoes_atuais
+             ORDER BY datetime(observado_em) DESC, id DESC
+             LIMIT 1
+            """
+        ).fetchone()
     finally:
         conn.close()
 
@@ -125,5 +133,6 @@ def page():
         focos_recentes=[dict(r) for r in focos_rec],
         agenda_proxima=[dict(r) for r in agenda],
         meteorologia=dict(meteorologia) if meteorologia else None,
+        clima_atual=dict(clima_atual) if clima_atual else None,
         admin_info=admin_info,
     )

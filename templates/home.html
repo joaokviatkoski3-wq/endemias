@@ -57,7 +57,10 @@
       <span>leituras TBO com conta-ovos pendente</span>
     </a>
     <a class="ops-alert" href="/meteorologia">
-      {% if meteorologia %}
+      {% if clima_atual %}
+      <strong>{{ clima_atual.temperatura|round(0)|int if clima_atual.temperatura is not none else '--' }}&deg;</strong>
+      <span>estimativa atual &middot; sensa&ccedil;&atilde;o {{ clima_atual.sensacao_termica|round(0)|int if clima_atual.sensacao_termica is not none else '--' }}&deg; &middot; umidade {{ clima_atual.umidade|round(0)|int if clima_atual.umidade is not none else '--' }}%</span>
+      {% elif meteorologia %}
       <strong>{{ meteorologia.temperatura_max|round(0)|int if meteorologia.temperatura_max is not none else '--' }}&deg;</strong>
       <span>m&aacute;xima regional em {{ meteorologia.data[8:10] }}/{{ meteorologia.data[5:7] }} &middot; {{ meteorologia.precipitacao|round(1) if meteorologia.precipitacao is not none else '--' }} mm</span>
       {% else %}

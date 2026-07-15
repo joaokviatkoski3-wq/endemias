@@ -384,7 +384,7 @@ TABELAS_ESPERADAS = [
     "resultados_laboratorio", "focos_positivos", "agenda_eventos",
     "importacoes", "pontos_estrategicos", "acoes_setor", "acoes_setor_agentes",
     "acoes_setor_anexos", "meteorologia_estacoes", "meteorologia_resumos_diarios",
-    "meteorologia_sincronizacoes",
+    "meteorologia_condicoes_atuais", "meteorologia_sincronizacoes",
 ]
 
 
