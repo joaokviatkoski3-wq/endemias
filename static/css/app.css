@@ -1733,7 +1733,8 @@ textarea:focus,
 }
 .help-search .icon-svg { width:16px; opacity:.68; flex:0 0 auto; }
 .help-search input { width:100%; min-width:0; border:0 !important; outline:0; box-shadow:none !important; background:transparent; color:var(--text); font:inherit; font-size:13px; }
-.help-categories { display:flex; gap:6px; overflow-x:auto; padding:0 20px 12px; border-bottom:1px solid var(--border); }
+.help-categories { display:flex; gap:6px; overflow-x:auto; overflow-y:hidden; padding:0 20px 12px; border-bottom:1px solid var(--border); -ms-overflow-style:none; scrollbar-width:none; }
+.help-categories::-webkit-scrollbar { display:none; }
 .help-category {
   flex:0 0 auto;
   border:1px solid var(--border);
