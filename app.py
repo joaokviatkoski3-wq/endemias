@@ -26,6 +26,7 @@ from app_core import version as version_core
 from blueprints.acoes_setor import bp as acoes_setor_bp
 from blueprints.admin import bp as admin_bp
 from blueprints.agenda import bp as agenda_bp
+from blueprints.ajuda import bp as ajuda_bp
 from blueprints.amostras_animais import bp as amostras_animais_bp
 from blueprints.auth import bp as auth_bp
 from blueprints.bri import bp as bri_bp
@@ -137,6 +138,7 @@ def _configure_secret_key(flask_app, key_file):
 def _register_blueprints(flask_app):
     flask_app.register_blueprint(auth_bp)
     flask_app.register_blueprint(acoes_setor_bp)
+    flask_app.register_blueprint(ajuda_bp)
     flask_app.register_blueprint(admin_bp)
     flask_app.register_blueprint(agenda_bp)
     flask_app.register_blueprint(amostras_animais_bp)

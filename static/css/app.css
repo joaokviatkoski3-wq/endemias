@@ -1655,3 +1655,119 @@ textarea:focus,
     font-size:1.3rem !important;
   }
 }
+
+/* Ajuda local do sistema */
+.help-launcher {
+  position:fixed;
+  right:22px;
+  bottom:22px;
+  z-index:880;
+  width:46px;
+  height:46px;
+  border:1px solid color-mix(in srgb,var(--brand) 70%,#fff);
+  border-radius:50%;
+  background:var(--brand);
+  color:#fff;
+  box-shadow:0 8px 20px rgba(15,71,150,.28);
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+  font:700 23px/1 Arial,sans-serif;
+}
+.help-launcher:hover { background:var(--brand-d); transform:translateY(-1px); }
+.help-launcher:focus-visible { outline:3px solid color-mix(in srgb,var(--brand) 35%,transparent); outline-offset:3px; }
+.help-backdrop {
+  position:fixed;
+  inset:0;
+  z-index:895;
+  background:rgba(15,23,42,.28);
+}
+.help-panel {
+  position:fixed;
+  top:0;
+  right:0;
+  z-index:900;
+  width:min(410px,100vw);
+  height:100dvh;
+  background:var(--surface);
+  border-left:1px solid var(--border);
+  box-shadow:-16px 0 38px rgba(15,23,42,.18);
+  transform:translateX(102%);
+  transition:transform .2s ease;
+  display:flex;
+  flex-direction:column;
+}
+.help-panel.open { transform:translateX(0); }
+.help-panel-header {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  padding:20px 20px 14px;
+  border-bottom:1px solid var(--border);
+}
+.help-panel-header h2 { margin:0; font-size:17px; line-height:1.2; }
+.help-panel-header p { margin:4px 0 0; color:var(--text3); font-size:11.5px; }
+.help-close {
+  width:32px;
+  height:32px;
+  border:1px solid var(--border);
+  border-radius:6px;
+  background:transparent;
+  color:var(--text2);
+  cursor:pointer;
+  font-size:22px;
+  line-height:1;
+}
+.help-close:hover { background:var(--surface2); color:var(--text); }
+.help-search {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:14px 20px 10px;
+  padding:0 10px;
+  min-height:40px;
+  border:1px solid var(--border2);
+  border-radius:6px;
+  background:var(--surface);
+}
+.help-search .icon-svg { width:16px; opacity:.68; flex:0 0 auto; }
+.help-search input { width:100%; min-width:0; border:0 !important; outline:0; box-shadow:none !important; background:transparent; color:var(--text); font:inherit; font-size:13px; }
+.help-categories { display:flex; gap:6px; overflow-x:auto; padding:0 20px 12px; border-bottom:1px solid var(--border); }
+.help-category {
+  flex:0 0 auto;
+  border:1px solid var(--border);
+  border-radius:6px;
+  background:var(--surface);
+  color:var(--text2);
+  padding:5px 8px;
+  font:700 11px/1.2 inherit;
+  cursor:pointer;
+}
+.help-category:hover,.help-category.active { border-color:var(--brand); background:var(--brand-xs); color:var(--brand); }
+.help-section { padding:16px 20px 0; }
+.help-section h3 { margin:0 0 8px; color:var(--text3); font-size:10px; font-weight:800; letter-spacing:.45px; text-transform:uppercase; }
+.help-all-section { overflow:auto; padding-bottom:20px; }
+.help-article-list { display:grid; gap:8px; }
+.help-article {
+  border:1px solid var(--border);
+  border-radius:6px;
+  background:var(--surface);
+  overflow:hidden;
+}
+.help-article-toggle { width:100%; border:0; background:transparent; color:var(--text); text-align:left; padding:11px 12px; cursor:pointer; }
+.help-article-toggle:hover { background:var(--surface2); }
+.help-article-title { display:block; font-size:13px; font-weight:750; line-height:1.25; }
+.help-article-category { display:block; margin-top:3px; color:var(--text3); font-size:10px; font-weight:700; }
+.help-article-body { display:none; padding:0 12px 12px; border-top:1px solid var(--border); }
+.help-article.open .help-article-body { display:block; }
+.help-article-body p { margin:10px 0 8px; color:var(--text2); font-size:12px; line-height:1.45; }
+.help-article-body ol { margin:0 0 10px; padding-left:18px; color:var(--text2); font-size:11.5px; line-height:1.45; }
+.help-article-body li + li { margin-top:4px; }
+.help-article-link { display:inline-flex; align-items:center; margin-top:2px; color:var(--brand); font-size:11.5px; font-weight:750; }
+.help-empty { padding:18px 12px; border:1px dashed var(--border2); color:var(--text3); font-size:12px; text-align:center; }
+@media (max-width:720px) {
+  .help-launcher { right:16px; bottom:16px; }
+  .help-panel { width:min(100vw,430px); }
+  .help-backdrop[hidden] { display:none; }
+}

@@ -120,9 +120,38 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
 
 <div id="toast-area"></div>
 
+<button id="help-launcher" class="help-launcher" type="button" title="Ajuda do sistema" aria-label="Abrir ajuda do sistema" aria-controls="help-panel" aria-expanded="false">
+  <span aria-hidden="true">?</span>
+</button>
+
+<aside id="help-panel" class="help-panel" aria-label="Ajuda do sistema" aria-hidden="true">
+  <div class="help-panel-header">
+    <div>
+      <h2>Ajuda do sistema</h2>
+      <p id="help-page-label">Orientações desta página</p>
+    </div>
+    <button id="help-close" class="help-close" type="button" aria-label="Fechar ajuda">&times;</button>
+  </div>
+  <label class="help-search" for="help-search-input">
+    <img src="/static/icons/busca.svg" alt="" class="icon-svg">
+    <input id="help-search-input" type="search" autocomplete="off" placeholder="Pesquisar uma dúvida">
+  </label>
+  <div id="help-categories" class="help-categories" aria-label="Categorias da ajuda"></div>
+  <section id="help-context" class="help-section" hidden>
+    <h3>Nesta página</h3>
+    <div id="help-context-list" class="help-article-list"></div>
+  </section>
+  <section class="help-section help-all-section">
+    <h3 id="help-results-title">Tópicos de ajuda</h3>
+    <div id="help-results" class="help-article-list" aria-live="polite"></div>
+  </section>
+</aside>
+<div id="help-backdrop" class="help-backdrop" hidden></div>
+
 </div>
 
 <script src="/static/js/app.js"></script>
+<script src="/static/js/ajuda.js"></script>
 {% block extra_js %}{% endblock %}
 
 </body>
