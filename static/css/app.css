@@ -1737,6 +1737,11 @@ textarea:focus,
 .help-categories::-webkit-scrollbar { display:none; }
 .help-category {
   flex:0 0 auto;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:28px;
+  appearance:none;
   border:1px solid var(--border);
   border-radius:6px;
   background:var(--surface);
@@ -1744,8 +1749,10 @@ textarea:focus,
   padding:5px 8px;
   font:700 11px/1.2 inherit;
   cursor:pointer;
+  outline:0;
 }
 .help-category:hover,.help-category.active { border-color:var(--brand); background:var(--brand-xs); color:var(--brand); }
+.help-category:focus-visible { outline:2px solid color-mix(in srgb,var(--brand) 40%,transparent); outline-offset:2px; }
 .help-section { padding:16px 20px 0; }
 .help-section h3 { margin:0 0 8px; color:var(--text3); font-size:10px; font-weight:800; letter-spacing:.45px; text-transform:uppercase; }
 .help-all-section { overflow:auto; padding-bottom:20px; }
