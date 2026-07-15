@@ -56,8 +56,11 @@
       <strong>{{ kpis.conta_ovos_pendente }}</strong>
       <span>leituras TBO com conta-ovos pendente</span>
     </a>
-    <a class="ops-alert" href="/meteorologia">
-      {% if clima_atual %}
+    <a class="ops-alert {{ 'danger' if clima_alerta and clima_alerta.nivel == 'critico' else 'warn' if clima_alerta else '' }}" href="{{ '/agenda' if clima_alerta else '/meteorologia' }}">
+      {% if clima_alerta %}
+      <strong>!</strong>
+      <span>{{ clima_alerta.nivel_label }} para campo em {{ clima_alerta.data[8:10] }}/{{ clima_alerta.data[5:7] }} &middot; {{ clima_alerta.resumo }}</span>
+      {% elif clima_atual %}
       <strong>{{ clima_atual.temperatura|round(0)|int if clima_atual.temperatura is not none else '--' }}&deg;</strong>
       <span>estimativa atual &middot; sensa&ccedil;&atilde;o {{ clima_atual.sensacao_termica|round(0)|int if clima_atual.sensacao_termica is not none else '--' }}&deg; &middot; umidade {{ clima_atual.umidade|round(0)|int if clima_atual.umidade is not none else '--' }}%</span>
       {% elif meteorologia %}

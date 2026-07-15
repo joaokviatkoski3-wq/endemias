@@ -242,7 +242,8 @@ CREATE TABLE IF NOT EXISTS agenda_eventos (
     criado_por   TEXT,
     criado_em    TEXT    NOT NULL,
     recorrencia  TEXT    NOT NULL DEFAULT 'nenhuma',
-    recorrencia_fim TEXT
+    recorrencia_fim TEXT,
+    atividade_externa INTEGER NOT NULL DEFAULT 0 CHECK(atividade_externa IN (0,1))
 );
 CREATE INDEX IF NOT EXISTS idx_agenda_inicio ON agenda_eventos(data_inicio);
 CREATE INDEX IF NOT EXISTS idx_agenda_recorrencia ON agenda_eventos(recorrencia, recorrencia_fim);
@@ -507,7 +508,8 @@ def migrar_agenda(conn):
         criado_por   TEXT,
         criado_em    TEXT    NOT NULL,
         recorrencia  TEXT    NOT NULL DEFAULT 'nenhuma',
-        recorrencia_fim TEXT
+        recorrencia_fim TEXT,
+        atividade_externa INTEGER NOT NULL DEFAULT 0 CHECK(atividade_externa IN (0,1))
     );
     CREATE INDEX IF NOT EXISTS idx_agenda_inicio ON agenda_eventos(data_inicio);
     CREATE INDEX IF NOT EXISTS idx_agenda_recorrencia ON agenda_eventos(recorrencia, recorrencia_fim);
@@ -517,6 +519,12 @@ def migrar_agenda(conn):
         conn.execute("ALTER TABLE agenda_eventos ADD COLUMN recorrencia TEXT NOT NULL DEFAULT 'nenhuma'")
     if "recorrencia_fim" not in cols:
         conn.execute("ALTER TABLE agenda_eventos ADD COLUMN recorrencia_fim TEXT")
+    if "atividade_externa" not in cols:
+        conn.execute(
+            "ALTER TABLE agenda_eventos ADD COLUMN atividade_externa INTEGER NOT NULL DEFAULT 0 "
+            "CHECK(atividade_externa IN (0,1))"
+        )
+        conn.execute("UPDATE agenda_eventos SET atividade_externa=1 WHERE tipo='campo'")
     sql = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='agenda_eventos'"
     ).fetchone()
@@ -537,16 +545,19 @@ def migrar_agenda(conn):
             criado_por   TEXT,
             criado_em    TEXT    NOT NULL,
             recorrencia  TEXT    NOT NULL DEFAULT 'nenhuma',
-            recorrencia_fim TEXT
+            recorrencia_fim TEXT,
+            atividade_externa INTEGER NOT NULL DEFAULT 0 CHECK(atividade_externa IN (0,1))
         );
         INSERT INTO agenda_eventos (
             id_evento, titulo, descricao, tipo, data_inicio, data_fim, dia_inteiro,
-            lembrete_min, cor, criado_por, criado_em, recorrencia, recorrencia_fim
+            lembrete_min, cor, criado_por, criado_em, recorrencia, recorrencia_fim,
+            atividade_externa
         )
         SELECT
             id_evento, titulo, descricao, tipo, data_inicio, data_fim, dia_inteiro,
             lembrete_min, cor, criado_por, criado_em,
-            COALESCE(recorrencia, 'nenhuma'), recorrencia_fim
+            COALESCE(recorrencia, 'nenhuma'), recorrencia_fim,
+            COALESCE(atividade_externa, CASE WHEN tipo='campo' THEN 1 ELSE 0 END)
         FROM agenda_eventos_old;
         DROP TABLE agenda_eventos_old;
         """)

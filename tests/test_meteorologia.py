@@ -33,6 +33,20 @@ class MeteorologiaTests(unittest.TestCase):
                     "weather_code": 2,
                     "wind_speed_10m": 7.1,
                 },
+                "hourly": {
+                    "time": [
+                        "2026-07-15T08:00", "2026-07-15T09:00", "2026-07-15T19:00",
+                        "2026-07-16T08:00", "2026-07-16T09:00",
+                    ],
+                    "temperature_2m": [15, 16, 13, 17, 19],
+                    "apparent_temperature": [14, 15, 10, 17, 19],
+                    "relative_humidity_2m": [80, 78, 90, 70, 65],
+                    "precipitation_probability": [20, 60, 95, 10, 10],
+                    "precipitation": [0, 1, 8, 0, 0],
+                    "weather_code": [2, 61, 95, 1, 1],
+                    "wind_speed_10m": [10, 20, 70, 8, 9],
+                    "wind_gusts_10m": [20, 45, 100, 15, 18],
+                },
             }
         if url.endswith("/estacoes/T"):
             return [
@@ -91,6 +105,7 @@ class MeteorologiaTests(unittest.TestCase):
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM meteorologia_resumos_diarios").fetchone()[0], 2)
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM meteorologia_estacoes").fetchone()[0], 2)
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM meteorologia_condicoes_atuais").fetchone()[0], 1)
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM meteorologia_previsoes_horarias").fetchone()[0], 5)
             row = conn.execute(
                 "SELECT * FROM meteorologia_resumos_diarios WHERE data='2026-07-15'"
             ).fetchone()
@@ -135,6 +150,39 @@ class MeteorologiaTests(unittest.TestCase):
         self.assertEqual(result["status"], "parcial")
         self.assertEqual(result["resumos"], 1)
         self.assertEqual(len(result["avisos"]), 1)
+
+    def test_work_risk_uses_only_weekdays_and_working_hours(self):
+        meteorologia.sincronizar(
+            self.db_path,
+            dias=1,
+            hoje=date(2026, 7, 15),
+            fetch_json=self._fake_fetch,
+        )
+        panel = meteorologia.resumo_trabalho(
+            self.db_path,
+            inicio=date(2026, 7, 15),
+            dias_uteis=3,
+        )
+        self.assertEqual([item["data"] for item in panel["dias"]], [
+            "2026-07-15", "2026-07-16", "2026-07-17",
+        ])
+        self.assertEqual(panel["dias"][0]["nivel"], "atencao")
+        self.assertNotEqual(panel["dias"][0]["nivel"], "critico")
+        self.assertEqual(panel["dias"][1]["nivel"], "favoravel")
+        self.assertEqual(panel["dias"][2]["nivel"], "sem_dados")
+
+    def test_alert_thresholds_are_configurable_and_validated(self):
+        config = meteorologia.atualizar_configuracao_alertas(
+            self.db_path,
+            {"chuva_atencao_pct": 65, "expediente_inicio": 7, "expediente_fim": 16},
+        )
+        self.assertEqual(config["chuva_atencao_pct"], 65)
+        self.assertEqual(config["expediente_inicio"], 7)
+        with self.assertRaises(ValueError):
+            meteorologia.atualizar_configuracao_alertas(
+                self.db_path,
+                {"expediente_inicio": 18, "expediente_fim": 8},
+            )
 
 
 if __name__ == "__main__":

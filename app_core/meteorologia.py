@@ -13,6 +13,9 @@ OPEN_METEO_URL = (
     "?latitude=-25.32&longitude=-49.31"
     "&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,"
     "precipitation,weather_code,wind_speed_10m"
+    "&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,"
+    "precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m"
+    "&forecast_days=7"
     "&timezone=America%2FSao_Paulo"
 )
 MUNICIPIO_LATITUDE = -25.32
@@ -75,6 +78,37 @@ CREATE TABLE IF NOT EXISTS meteorologia_condicoes_atuais (
     UNIQUE(observado_em, fonte)
 );
 
+CREATE TABLE IF NOT EXISTS meteorologia_previsoes_horarias (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    previsto_em             TEXT NOT NULL,
+    fonte                   TEXT NOT NULL DEFAULT 'Open-Meteo',
+    temperatura             REAL,
+    sensacao_termica        REAL,
+    umidade                 REAL,
+    probabilidade_chuva     REAL,
+    precipitacao            REAL,
+    codigo_tempo            INTEGER,
+    velocidade_vento        REAL,
+    rajada_vento            REAL,
+    importado_em            TEXT NOT NULL,
+    UNIQUE(previsto_em, fonte)
+);
+
+CREATE TABLE IF NOT EXISTS meteorologia_alertas_config (
+    id                          INTEGER PRIMARY KEY CHECK(id = 1),
+    expediente_inicio           INTEGER NOT NULL DEFAULT 8,
+    expediente_fim              INTEGER NOT NULL DEFAULT 17,
+    chuva_atencao_pct            REAL NOT NULL DEFAULT 50,
+    chuva_critica_mm_hora        REAL NOT NULL DEFAULT 5,
+    rajada_atencao_kmh           REAL NOT NULL DEFAULT 40,
+    rajada_critica_kmh           REAL NOT NULL DEFAULT 60,
+    sensacao_frio_atencao_c      REAL NOT NULL DEFAULT 7,
+    sensacao_frio_critica_c      REAL NOT NULL DEFAULT 3,
+    sensacao_calor_atencao_c     REAL NOT NULL DEFAULT 32,
+    sensacao_calor_critica_c     REAL NOT NULL DEFAULT 36,
+    atualizado_em                TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS meteorologia_sincronizacoes (
     id_sincronizacao INTEGER PRIMARY KEY AUTOINCREMENT,
     fonte            TEXT NOT NULL,
@@ -90,8 +124,13 @@ CREATE INDEX IF NOT EXISTS idx_meteo_resumos_data
     ON meteorologia_resumos_diarios(data DESC);
 CREATE INDEX IF NOT EXISTS idx_meteo_atual_observado
     ON meteorologia_condicoes_atuais(observado_em DESC);
+CREATE INDEX IF NOT EXISTS idx_meteo_previsao_hora
+    ON meteorologia_previsoes_horarias(previsto_em);
 CREATE INDEX IF NOT EXISTS idx_meteo_sync_inicio
     ON meteorologia_sincronizacoes(iniciado_em DESC);
+
+INSERT OR IGNORE INTO meteorologia_alertas_config(id, atualizado_em)
+VALUES (1, CURRENT_TIMESTAMP);
 """
 
 
@@ -217,6 +256,39 @@ def _current_record(payload, imported_at):
     }
 
 
+def _forecast_records(payload, imported_at):
+    hourly = payload.get("hourly") if isinstance(payload, dict) else None
+    if not isinstance(hourly, dict):
+        return []
+    times = hourly.get("time") or []
+    fields = {
+        "temperatura": hourly.get("temperature_2m") or [],
+        "sensacao_termica": hourly.get("apparent_temperature") or [],
+        "umidade": hourly.get("relative_humidity_2m") or [],
+        "probabilidade_chuva": hourly.get("precipitation_probability") or [],
+        "precipitacao": hourly.get("precipitation") or [],
+        "codigo_tempo": hourly.get("weather_code") or [],
+        "velocidade_vento": hourly.get("wind_speed_10m") or [],
+        "rajada_vento": hourly.get("wind_gusts_10m") or [],
+    }
+    records = []
+    for index, previsto_em in enumerate(times):
+        if not previsto_em:
+            continue
+        record = {
+            "previsto_em": str(previsto_em),
+            "fonte": "Open-Meteo",
+            "importado_em": imported_at,
+        }
+        for name, values in fields.items():
+            value = values[index] if index < len(values) else None
+            record[name] = _parse_number(value)
+        if record["codigo_tempo"] is not None:
+            record["codigo_tempo"] = int(record["codigo_tempo"])
+        records.append(record)
+    return records
+
+
 def _weather_description(code):
     if code is None:
         return "Condicao nao informada"
@@ -311,11 +383,16 @@ def sincronizar(db_path, dias=7, hoje=None, fetch_json=None):
                 stations.append(station)
 
         current_condition = None
+        forecasts = []
         errors = []
         try:
-            current_condition = _current_record(fetch(OPEN_METEO_URL), imported_at)
+            open_meteo_payload = fetch(OPEN_METEO_URL)
+            current_condition = _current_record(open_meteo_payload, imported_at)
+            forecasts = _forecast_records(open_meteo_payload, imported_at)
+            if not forecasts:
+                errors.append("previsao horaria: nenhum dado retornado")
         except RuntimeError as exc:
-            errors.append(f"condicoes atuais: {exc}")
+            errors.append(f"Open-Meteo: {exc}")
 
         summaries = []
         for offset in range(dias - 1, -1, -1):
@@ -396,6 +473,33 @@ def sincronizar(db_path, dias=7, hoje=None, fetch_json=None):
                     """,
                     current_condition,
                 )
+            for forecast in forecasts:
+                conn.execute(
+                    """
+                    INSERT INTO meteorologia_previsoes_horarias
+                        (previsto_em,fonte,temperatura,sensacao_termica,umidade,
+                         probabilidade_chuva,precipitacao,codigo_tempo,
+                         velocidade_vento,rajada_vento,importado_em)
+                    VALUES (:previsto_em,:fonte,:temperatura,:sensacao_termica,:umidade,
+                            :probabilidade_chuva,:precipitacao,:codigo_tempo,
+                            :velocidade_vento,:rajada_vento,:importado_em)
+                    ON CONFLICT(previsto_em,fonte) DO UPDATE SET
+                        temperatura=excluded.temperatura,
+                        sensacao_termica=excluded.sensacao_termica,
+                        umidade=excluded.umidade,
+                        probabilidade_chuva=excluded.probabilidade_chuva,
+                        precipitacao=excluded.precipitacao,
+                        codigo_tempo=excluded.codigo_tempo,
+                        velocidade_vento=excluded.velocidade_vento,
+                        rajada_vento=excluded.rajada_vento,
+                        importado_em=excluded.importado_em
+                    """,
+                    forecast,
+                )
+            conn.execute(
+                "DELETE FROM meteorologia_previsoes_horarias WHERE datetime(previsto_em) < datetime(?, '-1 day')",
+                (today.isoformat(),),
+            )
             conn.commit()
         except Exception:
             conn.rollback()
@@ -409,6 +513,7 @@ def sincronizar(db_path, dias=7, hoje=None, fetch_json=None):
             "resumos": len(summaries),
             "estacoes_pr": len(stations),
             "condicao_atual": int(current_condition is not None),
+            "previsoes_horarias": len(forecasts),
             "avisos": errors,
         }
         _finish_sync(db_path, sync_id, status, len(summaries), details)
@@ -416,6 +521,188 @@ def sincronizar(db_path, dias=7, hoje=None, fetch_json=None):
     except Exception as exc:
         _finish_sync(db_path, sync_id, "erro", error=str(exc))
         raise
+
+
+ALERTA_CONFIG_FIELDS = {
+    "expediente_inicio": (0, 23, int),
+    "expediente_fim": (1, 24, int),
+    "chuva_atencao_pct": (0, 100, float),
+    "chuva_critica_mm_hora": (0, 100, float),
+    "rajada_atencao_kmh": (0, 200, float),
+    "rajada_critica_kmh": (0, 250, float),
+    "sensacao_frio_atencao_c": (-30, 30, float),
+    "sensacao_frio_critica_c": (-40, 25, float),
+    "sensacao_calor_atencao_c": (15, 60, float),
+    "sensacao_calor_critica_c": (20, 70, float),
+}
+
+
+def obter_configuracao_alertas(db_path):
+    ensure_schema(db_path)
+    conn = db_core.connect(db_path)
+    try:
+        row = conn.execute("SELECT * FROM meteorologia_alertas_config WHERE id=1").fetchone()
+        return dict(row)
+    finally:
+        conn.close()
+
+
+def atualizar_configuracao_alertas(db_path, values):
+    current = obter_configuracao_alertas(db_path)
+    updated = {}
+    for field, (minimum, maximum, converter) in ALERTA_CONFIG_FIELDS.items():
+        raw = values.get(field, current[field])
+        try:
+            value = converter(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Valor invalido para {field}.") from exc
+        if value < minimum or value > maximum:
+            raise ValueError(f"Valor fora do intervalo permitido para {field}.")
+        updated[field] = value
+    if updated["expediente_inicio"] >= updated["expediente_fim"]:
+        raise ValueError("O inicio do expediente deve ser anterior ao fim.")
+    if updated["rajada_atencao_kmh"] >= updated["rajada_critica_kmh"]:
+        raise ValueError("A rajada critica deve ser maior que a rajada de atencao.")
+    if updated["sensacao_frio_critica_c"] >= updated["sensacao_frio_atencao_c"]:
+        raise ValueError("O limite critico de frio deve ser menor que o limite de atencao.")
+    if updated["sensacao_calor_atencao_c"] >= updated["sensacao_calor_critica_c"]:
+        raise ValueError("O limite critico de calor deve ser maior que o limite de atencao.")
+    updated["atualizado_em"] = datetime.now().isoformat(timespec="seconds")
+    conn = db_core.connect(db_path)
+    try:
+        conn.execute(
+            """
+            UPDATE meteorologia_alertas_config SET
+                expediente_inicio=:expediente_inicio,
+                expediente_fim=:expediente_fim,
+                chuva_atencao_pct=:chuva_atencao_pct,
+                chuva_critica_mm_hora=:chuva_critica_mm_hora,
+                rajada_atencao_kmh=:rajada_atencao_kmh,
+                rajada_critica_kmh=:rajada_critica_kmh,
+                sensacao_frio_atencao_c=:sensacao_frio_atencao_c,
+                sensacao_frio_critica_c=:sensacao_frio_critica_c,
+                sensacao_calor_atencao_c=:sensacao_calor_atencao_c,
+                sensacao_calor_critica_c=:sensacao_calor_critica_c,
+                atualizado_em=:atualizado_em
+            WHERE id=1
+            """,
+            updated,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return obter_configuracao_alertas(db_path)
+
+
+def _next_workdays(start, quantity):
+    days = []
+    current = start
+    while len(days) < quantity:
+        if current.weekday() < 5:
+            days.append(current)
+        current += timedelta(days=1)
+    return days
+
+
+def _risk_reasons(rows, config):
+    critical = []
+    attention = []
+    codes = {row["codigo_tempo"] for row in rows if row["codigo_tempo"] is not None}
+    gusts = [row["rajada_vento"] for row in rows if row["rajada_vento"] is not None]
+    feels = [row["sensacao_termica"] for row in rows if row["sensacao_termica"] is not None]
+    probabilities = [row["probabilidade_chuva"] for row in rows if row["probabilidade_chuva"] is not None]
+    precipitation = [row["precipitacao"] for row in rows if row["precipitacao"] is not None]
+
+    if codes.intersection({95, 96, 99}):
+        critical.append("risco de tempestade")
+    elif codes.intersection({51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82}):
+        attention.append("chuva prevista")
+    if precipitation and max(precipitation) >= config["chuva_critica_mm_hora"]:
+        critical.append(f"chuva intensa de até {max(precipitation):.1f} mm/h")
+    elif probabilities and max(probabilities) >= config["chuva_atencao_pct"]:
+        attention.append(f"chance de chuva de até {max(probabilities):.0f}%")
+    if gusts and max(gusts) >= config["rajada_critica_kmh"]:
+        critical.append(f"rajadas de até {max(gusts):.0f} km/h")
+    elif gusts and max(gusts) >= config["rajada_atencao_kmh"]:
+        attention.append(f"rajadas de até {max(gusts):.0f} km/h")
+    if feels and min(feels) <= config["sensacao_frio_critica_c"]:
+        critical.append(f"sensação de até {min(feels):.0f} °C")
+    elif feels and min(feels) <= config["sensacao_frio_atencao_c"]:
+        attention.append(f"sensação de até {min(feels):.0f} °C")
+    if feels and max(feels) >= config["sensacao_calor_critica_c"]:
+        critical.append(f"sensação de até {max(feels):.0f} °C")
+    elif feels and max(feels) >= config["sensacao_calor_atencao_c"]:
+        attention.append(f"sensação de até {max(feels):.0f} °C")
+    return critical, attention
+
+
+def resumo_trabalho(db_path, inicio=None, dias_uteis=5):
+    ensure_schema(db_path)
+    start = date.fromisoformat(inicio) if isinstance(inicio, str) else (inicio or date.today())
+    workdays = _next_workdays(start, max(1, min(int(dias_uteis or 5), 10)))
+    config = obter_configuracao_alertas(db_path)
+    end = workdays[-1]
+    conn = db_core.connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT * FROM meteorologia_previsoes_horarias
+             WHERE date(previsto_em) BETWEEN date(?) AND date(?)
+               AND CAST(strftime('%H', previsto_em) AS INTEGER) >= ?
+               AND CAST(strftime('%H', previsto_em) AS INTEGER) < ?
+             ORDER BY datetime(previsto_em)
+            """,
+            (start.isoformat(), end.isoformat(), config["expediente_inicio"], config["expediente_fim"]),
+        ).fetchall()
+        latest_import = conn.execute(
+            "SELECT MAX(importado_em) FROM meteorologia_previsoes_horarias"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+    grouped = {}
+    for row in rows:
+        grouped.setdefault(row["previsto_em"][:10], []).append(dict(row))
+    labels = ("segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira")
+    days = []
+    for day in workdays:
+        day_rows = grouped.get(day.isoformat(), [])
+        if not day_rows:
+            days.append({
+                "data": day.isoformat(),
+                "dia_semana": labels[day.weekday()],
+                "nivel": "sem_dados",
+                "nivel_label": "Sem previsão",
+                "motivos": [],
+                "janela": f"{config['expediente_inicio']:02d}h-{config['expediente_fim']:02d}h",
+            })
+            continue
+        critical, attention = _risk_reasons(day_rows, config)
+        reasons = critical if critical else attention
+        level = "critico" if critical else ("atencao" if attention else "favoravel")
+        level_label = {"critico": "Crítico", "atencao": "Atenção", "favoravel": "Favorável"}[level]
+        temperatures = [row["temperatura"] for row in day_rows if row["temperatura"] is not None]
+        probabilities = [row["probabilidade_chuva"] for row in day_rows if row["probabilidade_chuva"] is not None]
+        gusts = [row["rajada_vento"] for row in day_rows if row["rajada_vento"] is not None]
+        days.append({
+            "data": day.isoformat(),
+            "dia_semana": labels[day.weekday()],
+            "nivel": level,
+            "nivel_label": level_label,
+            "motivos": reasons,
+            "resumo": "; ".join(reasons) if reasons else "sem risco meteorológico relevante",
+            "temperatura_min": min(temperatures) if temperatures else None,
+            "temperatura_max": max(temperatures) if temperatures else None,
+            "chuva_prob_max": max(probabilities) if probabilities else None,
+            "rajada_max": max(gusts) if gusts else None,
+            "janela": f"{config['expediente_inicio']:02d}h-{config['expediente_fim']:02d}h",
+        })
+    return {
+        "dias": days,
+        "configuracao": config,
+        "previsao_atualizada_em": latest_import,
+        "fonte": "Open-Meteo",
+    }
 
 
 def obter_painel(db_path, limite=30):

@@ -4,6 +4,7 @@ from app_core import audit
 from app_core import backup as backup_core
 from app_core import blueprint_helpers as bh
 from app_core import import_history
+from app_core import meteorologia as meteorologia_core
 from app_core import utils as utils_core
 from app_core.auth import login_required
 
@@ -122,6 +123,14 @@ def page():
             "eventos": audit.listar_eventos(bh.get_db, limite=5),
         }
 
+    clima_trabalho = meteorologia_core.resumo_trabalho(
+        current_app.config["DB_PATH"], dias_uteis=2
+    )
+    clima_alerta = next(
+        (day for day in clima_trabalho["dias"] if day["nivel"] in {"atencao", "critico"}),
+        None,
+    )
+
     atividade_lista = [dict(r) for r in atividade]
     atividade_max = max((r["total"] for r in atividade_lista), default=0)
     return render_template(
@@ -134,5 +143,6 @@ def page():
         agenda_proxima=[dict(r) for r in agenda],
         meteorologia=dict(meteorologia) if meteorologia else None,
         clima_atual=dict(clima_atual) if clima_atual else None,
+        clima_alerta=clima_alerta,
         admin_info=admin_info,
     )

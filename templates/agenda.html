@@ -55,6 +55,27 @@
   </div>
 </div>
 
+<section class="agenda-clima" aria-labelledby="agenda-clima-titulo">
+  <div class="agenda-clima-header">
+    <div>
+      <h2 id="agenda-clima-titulo">Condições para trabalho de campo</h2>
+      <p>Previsão no expediente, de segunda a sexta-feira.</p>
+    </div>
+    <div class="agenda-clima-actions">
+      <span id="agenda-clima-atualizado" class="agenda-clima-updated"></span>
+      {% if usuario_atual and usuario_atual.nivel == 'admin' %}
+      <button class="btn btn-ghost btn-sm" type="button" id="btn-agenda-clima-config">Configurar limites</button>
+      <button class="btn btn-ghost btn-sm" type="button" id="btn-agenda-clima-atualizar">
+        <img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar previsão
+      </button>
+      {% endif %}
+    </div>
+  </div>
+  <div id="agenda-clima-dias" class="agenda-clima-dias" aria-live="polite">
+    <div class="agenda-clima-loading">Carregando previsão...</div>
+  </div>
+</section>
+
 <!-- Legenda -->
 <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center;">
   <span style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;">Legenda:</span>
@@ -138,10 +159,14 @@
         </div>
       </div>
 
-      <div>
+      <div style="display:flex;align-items:center;gap:22px;flex-wrap:wrap;">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
           <input type="checkbox" id="ev-dia-inteiro" style="width:16px;height:16px;">
           Evento de dia inteiro
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+          <input type="checkbox" id="ev-atividade-externa" style="width:16px;height:16px;">
+          Atividade externa
         </label>
       </div>
 
@@ -206,6 +231,34 @@
   </div>
 </div>
 
+<div id="modal-clima-config" style="display:none;position:fixed;inset:0;z-index:1010;background:rgba(0,0,0,.45);align-items:center;justify-content:center;">
+  <div class="agenda-config-modal">
+    <div class="agenda-config-title">
+      <div>
+        <h2>Limites dos alertas</h2>
+        <p>Valores usados apenas no expediente de campo.</p>
+      </div>
+      <button type="button" id="btn-agenda-clima-config-fechar" class="agenda-icon-close" aria-label="Fechar">&times;</button>
+    </div>
+    <div class="agenda-config-grid">
+      <label><span>Início do expediente</span><input id="clima-expediente-inicio" type="number" min="0" max="23" class="form-control"></label>
+      <label><span>Fim do expediente</span><input id="clima-expediente-fim" type="number" min="1" max="24" class="form-control"></label>
+      <label><span>Chuva - atenção (%)</span><input id="clima-chuva-atencao" type="number" min="0" max="100" class="form-control"></label>
+      <label><span>Chuva crítica (mm/h)</span><input id="clima-chuva-critica" type="number" min="0" max="100" step="0.1" class="form-control"></label>
+      <label><span>Rajada - atenção (km/h)</span><input id="clima-rajada-atencao" type="number" min="0" max="200" class="form-control"></label>
+      <label><span>Rajada crítica (km/h)</span><input id="clima-rajada-critica" type="number" min="0" max="250" class="form-control"></label>
+      <label><span>Frio - atenção (°C)</span><input id="clima-frio-atencao" type="number" min="-30" max="30" class="form-control"></label>
+      <label><span>Frio crítico (°C)</span><input id="clima-frio-critico" type="number" min="-40" max="25" class="form-control"></label>
+      <label><span>Calor - atenção (°C)</span><input id="clima-calor-atencao" type="number" min="15" max="60" class="form-control"></label>
+      <label><span>Calor crítico (°C)</span><input id="clima-calor-critico" type="number" min="20" max="70" class="form-control"></label>
+    </div>
+    <div class="agenda-config-footer">
+      <button class="btn btn-ghost" type="button" id="btn-agenda-clima-config-cancelar">Cancelar</button>
+      <button class="btn btn-primary" type="button" id="btn-agenda-clima-config-salvar">Salvar limites</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── POPUP DETALHES ────────────────────────────────────────────────────── -->
 <div id="popup-detalhe" style="display:none;position:fixed;z-index:900;background:var(--surface);
      border:1px solid var(--border2);border-radius:var(--radius);box-shadow:var(--shadow-lg);
@@ -241,6 +294,64 @@
   color: inherit !important;
 }
 .fc-event-title { font-weight: 600; }
+.agenda-clima {
+  margin:0 24px 16px;
+  border:1px solid var(--border);
+  background:var(--surface);
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+.agenda-clima-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:12px 14px;
+  border-bottom:1px solid var(--border);
+}
+.agenda-clima-header h2 { margin:0;font-size:14px;letter-spacing:0; }
+.agenda-clima-header p { margin:3px 0 0;color:var(--text3);font-size:11px; }
+.agenda-clima-actions { display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap; }
+.agenda-clima-updated { color:var(--text3);font-size:10px; }
+.agenda-clima-dias { display:grid;grid-template-columns:repeat(5,minmax(145px,1fr)); }
+.agenda-clima-day { min-height:112px;padding:12px;border-right:1px solid var(--border); }
+.agenda-clima-day:last-child { border-right:0; }
+.agenda-clima-day-top { display:flex;align-items:flex-start;justify-content:space-between;gap:8px; }
+.agenda-clima-date { font-size:12px;font-weight:800;text-transform:capitalize; }
+.agenda-clima-date small { display:block;color:var(--text3);font-size:10px;font-weight:600;margin-top:2px; }
+.agenda-clima-badge { border-radius:4px;padding:3px 6px;font-size:9px;font-weight:800;text-transform:uppercase;white-space:nowrap; }
+.agenda-clima-day.favoravel .agenda-clima-badge { background:#dcfce7;color:#166534; }
+.agenda-clima-day.atencao .agenda-clima-badge { background:#fef3c7;color:#92400e; }
+.agenda-clima-day.critico .agenda-clima-badge { background:#fee2e2;color:#991b1b; }
+.agenda-clima-day.sem_dados .agenda-clima-badge { background:var(--surface2);color:var(--text3); }
+.agenda-clima-reason { margin-top:9px;color:var(--text2);font-size:11px;line-height:1.35; }
+.agenda-clima-metrics { margin-top:8px;color:var(--text3);font-size:10px; }
+.agenda-clima-loading { grid-column:1/-1;padding:20px;text-align:center;color:var(--text3);font-size:12px; }
+.agenda-event-risk-atencao { box-shadow:inset 0 -3px #f59e0b !important; }
+.agenda-event-risk-critico { box-shadow:inset 0 -3px #ef4444 !important; }
+.agenda-popup-clima { margin-top:5px;padding:8px;border-left:3px solid #16a34a;background:var(--surface2);display:grid;gap:2px; }
+.agenda-popup-clima.atencao { border-left-color:#f59e0b; }
+.agenda-popup-clima.critico { border-left-color:#ef4444; }
+.agenda-popup-clima strong { font-size:11px;text-transform:uppercase; }
+.agenda-popup-clima span { font-size:12px; }
+.agenda-popup-clima small { color:var(--text3);font-size:10px; }
+.agenda-config-modal { width:min(650px,94vw);max-height:90vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:20px; }
+.agenda-config-title { display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:16px; }
+.agenda-config-title h2 { margin:0;font-size:16px; }
+.agenda-config-title p { margin:4px 0 0;color:var(--text3);font-size:11px; }
+.agenda-icon-close { border:0;background:none;color:var(--text3);font-size:22px;cursor:pointer; }
+.agenda-config-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+.agenda-config-grid label span { display:block;color:var(--text2);font-size:11px;font-weight:700;margin-bottom:5px; }
+.agenda-config-footer { display:flex;justify-content:flex-end;gap:8px;margin-top:18px; }
+@media (max-width:900px) {
+  .agenda-clima-dias { display:flex;overflow-x:auto; }
+  .agenda-clima-day { min-width:180px; }
+}
+@media (max-width:560px) {
+  .agenda-clima { margin-left:10px;margin-right:10px; }
+  .agenda-clima-header { align-items:flex-start;flex-direction:column; }
+  .agenda-config-grid { grid-template-columns:1fr; }
+}
 .fc-daygrid-event-dot { display: none; }
 .agenda-searchbar {
   display:flex;

@@ -4,10 +4,11 @@ import json
 import sqlite3
 import unicodedata
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, render_template, request
 
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
+from app_core import meteorologia as meteorologia_core
 from app_core import ovitrampas as ovitrampas_core
 from app_core import work_types
 
@@ -95,6 +96,12 @@ def ensure_schema():
             conn.execute("ALTER TABLE agenda_eventos ADD COLUMN recorrencia TEXT NOT NULL DEFAULT 'nenhuma'")
         if "recorrencia_fim" not in cols:
             conn.execute("ALTER TABLE agenda_eventos ADD COLUMN recorrencia_fim TEXT")
+        if "atividade_externa" not in cols:
+            conn.execute(
+                "ALTER TABLE agenda_eventos ADD COLUMN atividade_externa INTEGER NOT NULL DEFAULT 0 "
+                "CHECK(atividade_externa IN (0,1))"
+            )
+            conn.execute("UPDATE agenda_eventos SET atividade_externa=1 WHERE tipo='campo'")
         sql = conn.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='agenda_eventos'"
         ).fetchone()
@@ -115,16 +122,19 @@ def ensure_schema():
                 criado_por   TEXT,
                 criado_em    TEXT    NOT NULL,
                 recorrencia  TEXT    NOT NULL DEFAULT 'nenhuma',
-                recorrencia_fim TEXT
+                recorrencia_fim TEXT,
+                atividade_externa INTEGER NOT NULL DEFAULT 0 CHECK(atividade_externa IN (0,1))
             );
             INSERT INTO agenda_eventos (
                 id_evento, titulo, descricao, tipo, data_inicio, data_fim, dia_inteiro,
-                lembrete_min, cor, criado_por, criado_em, recorrencia, recorrencia_fim
+                lembrete_min, cor, criado_por, criado_em, recorrencia, recorrencia_fim,
+                atividade_externa
             )
             SELECT
                 id_evento, titulo, descricao, tipo, data_inicio, data_fim, dia_inteiro,
                 lembrete_min, cor, criado_por, criado_em,
-                COALESCE(recorrencia, 'nenhuma'), recorrencia_fim
+                COALESCE(recorrencia, 'nenhuma'), recorrencia_fim,
+                COALESCE(atividade_externa, CASE WHEN tipo='campo' THEN 1 ELSE 0 END)
             FROM agenda_eventos_old;
             DROP TABLE agenda_eventos_old;
             """)
@@ -275,6 +285,7 @@ def _evento_manual_dict(row, inicio_dt, fim_dt, ocorrencia=0):
             "recorrenciaLabel": RECORRENCIAS.get(recorrencia, RECORRENCIAS["nenhuma"])["label"],
             "recorrencia_fim": row["recorrencia_fim"] or "",
             "ocorrencia": ocorrencia,
+            "atividade_externa": bool(_row_get(row, "atividade_externa", 0)),
         },
     }
 
@@ -349,8 +360,25 @@ def _auto_evento(data, fonte_codigo, titulo, total, resumo="", localidades="", a
             "total": total,
             "agentes": agentes or "-",
             "origem": "auto",
+            "atividade_externa": True,
         },
     }
+
+
+def _adicionar_clima_eventos(eventos):
+    try:
+        painel = meteorologia_core.resumo_trabalho(current_app.config["DB_PATH"], dias_uteis=5)
+    except (OSError, sqlite3.Error, ValueError):
+        return eventos
+    clima_por_data = {item["data"]: item for item in painel["dias"]}
+    for evento in eventos:
+        props = evento.get("extendedProps") or {}
+        if not props.get("atividade_externa"):
+            continue
+        clima = clima_por_data.get(str(evento.get("start") or "")[:10])
+        if clima and clima.get("nivel") != "sem_dados":
+            props["clima_trabalho"] = clima
+    return eventos
 
 
 @bp.route("/agenda")
@@ -794,6 +822,7 @@ def api_eventos():
         data_inicio = d.get("data_inicio", "")
         data_fim = d.get("data_fim") or None
         dia_inteiro = int(bool(d.get("dia_inteiro", False)))
+        atividade_externa = int(bool(d.get("atividade_externa", tipo == "campo")))
         try:
             lembrete_min = _int_json(d.get("lembrete_min"), 60)
         except ValueError:
@@ -819,8 +848,8 @@ def api_eventos():
             cur = conn.execute(
                 """INSERT INTO agenda_eventos
                 (titulo, descricao, tipo, data_inicio, data_fim, dia_inteiro, lembrete_min,
-                 cor, criado_por, criado_em, recorrencia, recorrencia_fim)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                 cor, criado_por, criado_em, recorrencia, recorrencia_fim, atividade_externa)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     titulo,
                     descricao,
@@ -834,6 +863,7 @@ def api_eventos():
                     datetime.now().isoformat(),
                     recorrencia,
                     recorrencia_fim,
+                    atividade_externa,
                 ),
             )
             conn.commit()
@@ -849,7 +879,7 @@ def api_eventos():
 
     inicio = request.args.get("start", "")
     fim = request.args.get("end", "")
-    return jsonify(_eventos_periodo(inicio, fim))
+    return jsonify(_adicionar_clima_eventos(_eventos_periodo(inicio, fim)))
 
 
 @bp.route("/api/agenda/eventos/<int:id_evento>", methods=["PUT", "DELETE"])
@@ -881,6 +911,7 @@ def api_evento(id_evento):
     data_inicio = d.get("data_inicio", "")
     data_fim = d.get("data_fim") or None
     dia_inteiro = int(bool(d.get("dia_inteiro", False)))
+    atividade_externa = int(bool(d.get("atividade_externa", tipo == "campo")))
     try:
         lembrete_min = _int_json(d.get("lembrete_min"), 60)
     except ValueError:
@@ -905,7 +936,8 @@ def api_evento(id_evento):
         conn = bh.get_db()
         conn.execute(
             """UPDATE agenda_eventos SET titulo=?, descricao=?, tipo=?, data_inicio=?,
-               data_fim=?, dia_inteiro=?, lembrete_min=?, cor=?, recorrencia=?, recorrencia_fim=?
+               data_fim=?, dia_inteiro=?, lembrete_min=?, cor=?, recorrencia=?, recorrencia_fim=?,
+               atividade_externa=?
                WHERE id_evento=?""",
             (
                 titulo,
@@ -918,6 +950,7 @@ def api_evento(id_evento):
                 cor,
                 recorrencia,
                 recorrencia_fim,
+                atividade_externa,
                 id_evento,
             ),
         )
@@ -930,6 +963,34 @@ def api_evento(id_evento):
         if conn:
             conn.close()
     return jsonify({"ok": True})
+
+
+@bp.route("/api/agenda/clima-trabalho")
+@login_required
+def api_clima_trabalho():
+    ensure_schema()
+    try:
+        dias = max(1, min(int(request.args.get("dias") or 5), 10))
+    except (TypeError, ValueError):
+        return jsonify({"erro": "Quantidade de dias invalida."}), 400
+    return jsonify(meteorologia_core.resumo_trabalho(current_app.config["DB_PATH"], dias_uteis=dias))
+
+
+@bp.route("/api/agenda/clima-config", methods=["GET", "PUT"])
+@login_required
+def api_clima_config():
+    if request.method == "GET":
+        return jsonify(meteorologia_core.obter_configuracao_alertas(current_app.config["DB_PATH"]))
+    _, erro = _admin_required_json()
+    if erro:
+        return erro
+    try:
+        config = meteorologia_core.atualizar_configuracao_alertas(
+            current_app.config["DB_PATH"], request.get_json(silent=True) or {}
+        )
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    return jsonify(config)
 
 
 @bp.route("/api/agenda/lembretes")

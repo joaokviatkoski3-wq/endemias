@@ -2588,6 +2588,23 @@ class MainPagesSmokeTests(unittest.TestCase):
             self.assertTrue(evento["allDay"])
             self.assertEqual(evento["extendedProps"]["data_fim"], "2026-07-27")
 
+    def test_agenda_persiste_marcacao_de_atividade_externa(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _, client, _ = _client_admin_com_banco_temporario(tmpdir)
+            resp = client.post("/api/agenda/eventos", json={
+                "titulo": "Vistoria externa",
+                "tipo": "campo",
+                "data_inicio": "2026-07-16T08:00",
+                "data_fim": "2026-07-16T12:00",
+                "atividade_externa": True,
+                "recorrencia": "nenhuma",
+            })
+            self.assertEqual(resp.status_code, 201)
+
+            resp = client.get("/api/agenda/eventos?start=2026-07-01&end=2026-08-01")
+            evento = next(item for item in resp.get_json() if item["title"] == "Vistoria externa")
+            self.assertTrue(evento["extendedProps"]["atividade_externa"])
+
     def test_agenda_expande_eventos_recorrentes_na_janela(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _, client, _ = _client_admin_com_banco_temporario(tmpdir)

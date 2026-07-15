@@ -100,9 +100,15 @@ document.addEventListener('DOMContentLoaded', () => {
         info.el.style.setProperty('border-left', `4px solid ${border}`, 'important');
         info.el.title = `${info.event.extendedProps.fonteLabel || 'Atividade importada'}: ${info.event.title}`;
       }
+      const clima = info.event.extendedProps.clima_trabalho;
+      if (clima?.nivel === 'atencao' || clima?.nivel === 'critico') {
+        info.el.classList.add(`agenda-event-risk-${clima.nivel}`);
+        info.el.title = `${info.el.title ? info.el.title + ' | ' : ''}Clima: ${clima.resumo}`;
+      }
     },
   });
   calendario.render();
+  carregarClimaTrabalho();
 
   // Fechar popup clicando fora
   document.addEventListener('click', e => {
@@ -174,6 +180,18 @@ function mostrarPopup(event, jsEvent) {
     if (props.criado_por) html += `<div style="margin-top:4px;color:var(--text3);font-size:11px;">Criado por: ${escHtml(props.criado_por)}</div>`;
   }
 
+  if (props.atividade_externa) {
+    html += `<div style="margin-top:8px;color:var(--text3);font-size:11px;font-weight:700;">ATIVIDADE EXTERNA</div>`;
+    if (props.clima_trabalho) {
+      const clima = props.clima_trabalho;
+      html += `<div class="agenda-popup-clima ${escHtml(clima.nivel)}">
+        <strong>${escHtml(clima.nivel_label)}</strong>
+        <span>${escHtml(clima.resumo || '')}</span>
+        <small>${escHtml(clima.janela || '')}</small>
+      </div>`;
+    }
+  }
+
   document.getElementById('popup-corpo').innerHTML = html;
 
   // Ações (só admin, só eventos manuais)
@@ -230,6 +248,7 @@ function abrirModalEditar(event) {
   document.getElementById('ev-lembrete').value  = props.lembrete_min || 60;
   document.getElementById('ev-recorrencia').value = props.recorrencia || 'nenhuma';
   document.getElementById('ev-recorrencia-fim').value = props.recorrencia_fim || '';
+  document.getElementById('ev-atividade-externa').checked = Boolean(props.atividade_externa);
   toggleRecorrencia();
 
   const allDay = event.allDay;
@@ -266,6 +285,7 @@ function limparModal() {
   document.getElementById('ev-lembrete').value  = '60';
   document.getElementById('ev-recorrencia').value = 'nenhuma';
   document.getElementById('ev-dia-inteiro').checked = false;
+  document.getElementById('ev-atividade-externa').checked = false;
   toggleDiaInteiro();
   toggleRecorrencia();
 }
@@ -277,7 +297,9 @@ function toggleDiaInteiro() {
 }
 
 function atualizarCor() {
-  // apenas para uso futuro — cor é definida no backend por tipo
+  if (editandoId === null) {
+    document.getElementById('ev-atividade-externa').checked = document.getElementById('ev-tipo').value === 'campo';
+  }
 }
 
 function atualizarBuscaAgenda() {
@@ -514,6 +536,7 @@ async function salvarEvento() {
   const allDay    = document.getElementById('ev-dia-inteiro').checked;
   const lembrete  = document.getElementById('ev-lembrete').value;
   const descricao = document.getElementById('ev-descricao').value.trim();
+  const atividadeExterna = document.getElementById('ev-atividade-externa').checked;
   const recorrencia = document.getElementById('ev-recorrencia').value;
   const recorrenciaFim = document.getElementById('ev-recorrencia-fim').value || null;
 
@@ -532,6 +555,7 @@ async function salvarEvento() {
   const payload = { titulo, tipo, data_inicio: inicio, data_fim: fim,
                     dia_inteiro: allDay, lembrete_min: parseInt(lembrete),
                     descricao: descricao || null,
+                    atividade_externa: atividadeExterna,
                     recorrencia,
                     recorrencia_fim: recorrencia === 'nenhuma' ? null : recorrenciaFim };
 
@@ -577,6 +601,127 @@ async function excluirEvento() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+function renderClimaTrabalho(payload) {
+  const container = document.getElementById('agenda-clima-dias');
+  if (!container) return;
+  const days = payload?.dias || [];
+  if (!days.length) {
+    container.innerHTML = '<div class="agenda-clima-loading">Previsão indisponível.</div>';
+    return;
+  }
+  container.innerHTML = days.map(day => {
+    const date = new Date(`${day.data}T12:00:00`);
+    const dateLabel = date.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'});
+    const reason = day.resumo || (day.nivel === 'sem_dados' ? 'Aguardando atualização da previsão.' : 'Sem risco meteorológico relevante.');
+    const metrics = [];
+    if (day.temperatura_min != null && day.temperatura_max != null) metrics.push(`${Math.round(day.temperatura_min)} a ${Math.round(day.temperatura_max)} °C`);
+    if (day.chuva_prob_max != null) metrics.push(`chuva ${Math.round(day.chuva_prob_max)}%`);
+    if (day.rajada_max != null) metrics.push(`rajadas ${Math.round(day.rajada_max)} km/h`);
+    return `<article class="agenda-clima-day ${escHtml(day.nivel)}">
+      <div class="agenda-clima-day-top">
+        <div class="agenda-clima-date">${escHtml(day.dia_semana)}<small>${dateLabel} · ${escHtml(day.janela)}</small></div>
+        <span class="agenda-clima-badge">${escHtml(day.nivel_label)}</span>
+      </div>
+      <div class="agenda-clima-reason">${escHtml(reason)}</div>
+      <div class="agenda-clima-metrics">${metrics.map(escHtml).join(' · ')}</div>
+    </article>`;
+  }).join('');
+  const updated = document.getElementById('agenda-clima-atualizado');
+  if (updated) {
+    updated.textContent = payload.previsao_atualizada_em
+      ? `Atualizada em ${fmtDT(payload.previsao_atualizada_em)}`
+      : 'Previsão ainda não atualizada';
+  }
+}
+
+async function carregarClimaTrabalho() {
+  try {
+    const response = await fetch('/api/agenda/clima-trabalho?dias=5');
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.erro || 'Falha na previsao');
+    renderClimaTrabalho(payload);
+  } catch (error) {
+    const container = document.getElementById('agenda-clima-dias');
+    if (container) container.innerHTML = '<div class="agenda-clima-loading">Não foi possível carregar a previsão.</div>';
+  }
+}
+
+async function atualizarPrevisaoAgenda() {
+  const button = document.getElementById('btn-agenda-clima-atualizar');
+  if (!button) return;
+  button.disabled = true;
+  try {
+    const response = await fetch('/api/meteorologia/sincronizar', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify({dias: 7}),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.erro || 'Falha ao atualizar');
+    await carregarClimaTrabalho();
+    calendario?.refetchEvents();
+    toast('Previsão atualizada.', 'success');
+  } catch (error) {
+    toast(error.message || 'Erro ao atualizar a previsão.', 'error');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+const CLIMA_CONFIG_INPUTS = {
+  expediente_inicio: 'clima-expediente-inicio',
+  expediente_fim: 'clima-expediente-fim',
+  chuva_atencao_pct: 'clima-chuva-atencao',
+  chuva_critica_mm_hora: 'clima-chuva-critica',
+  rajada_atencao_kmh: 'clima-rajada-atencao',
+  rajada_critica_kmh: 'clima-rajada-critica',
+  sensacao_frio_atencao_c: 'clima-frio-atencao',
+  sensacao_frio_critica_c: 'clima-frio-critico',
+  sensacao_calor_atencao_c: 'clima-calor-atencao',
+  sensacao_calor_critica_c: 'clima-calor-critico',
+};
+
+function fecharConfigClima() {
+  const modal = document.getElementById('modal-clima-config');
+  if (modal) modal.style.display = 'none';
+}
+
+async function abrirConfigClima() {
+  try {
+    const response = await fetch('/api/agenda/clima-config');
+    const config = await response.json();
+    if (!response.ok) throw new Error(config.erro || 'Falha ao carregar limites');
+    Object.entries(CLIMA_CONFIG_INPUTS).forEach(([field, id]) => {
+      document.getElementById(id).value = config[field];
+    });
+    document.getElementById('modal-clima-config').style.display = 'flex';
+  } catch (error) {
+    toast(error.message, 'error');
+  }
+}
+
+async function salvarConfigClima() {
+  const payload = {};
+  Object.entries(CLIMA_CONFIG_INPUTS).forEach(([field, id]) => {
+    payload[field] = Number(document.getElementById(id).value);
+  });
+  try {
+    const response = await fetch('/api/agenda/clima-config', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.erro || 'Falha ao salvar limites');
+    fecharConfigClima();
+    await carregarClimaTrabalho();
+    calendario?.refetchEvents();
+    toast('Limites atualizados.', 'success');
+  } catch (error) {
+    toast(error.message, 'error');
+  }
+}
+
 function fmtData(iso) {
   if (!iso) return '';
   const [y,m,d] = iso.split('T')[0].split('-');
@@ -623,3 +768,11 @@ document.getElementById('agenda-resultados-ano')?.addEventListener('click', abri
 document.getElementById('ev-tipo')?.addEventListener('change', atualizarCor);
 document.getElementById('ev-dia-inteiro')?.addEventListener('change', toggleDiaInteiro);
 document.getElementById('ev-recorrencia')?.addEventListener('change', toggleRecorrencia);
+document.getElementById('btn-agenda-clima-atualizar')?.addEventListener('click', atualizarPrevisaoAgenda);
+document.getElementById('btn-agenda-clima-config')?.addEventListener('click', abrirConfigClima);
+document.getElementById('btn-agenda-clima-config-fechar')?.addEventListener('click', fecharConfigClima);
+document.getElementById('btn-agenda-clima-config-cancelar')?.addEventListener('click', fecharConfigClima);
+document.getElementById('btn-agenda-clima-config-salvar')?.addEventListener('click', salvarConfigClima);
+document.getElementById('modal-clima-config')?.addEventListener('click', function(e) {
+  if (e.target === this) fecharConfigClima();
+});
