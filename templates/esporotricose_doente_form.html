@@ -7,6 +7,8 @@
 .doe-form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
 .doe-form-grid .full{grid-column:1/-1;}
 .doe-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:14px;}
+.doe-origin{display:flex;align-items:flex-start;gap:10px;margin-bottom:14px;padding:11px 12px;border:1px solid var(--brand-l);border-radius:var(--radius-sm);background:var(--brand-xs);color:var(--text2);font-size:12px;line-height:1.45;}
+.doe-origin .icon-svg{flex:0 0 auto;margin-top:1px;}
 @media(max-width:900px){.doe-head{flex-direction:column}.doe-form-grid{grid-template-columns:1fr}.doe-actions{justify-content:stretch}.doe-actions .btn{flex:1}}
 </style>{% endblock %}
 
@@ -19,11 +21,17 @@
       <div class="muted">Esporotricose · animais doentes</div>
     </div>
   </div>
-  <a class="btn btn-outline" href="{{ '/esporotricose#doentes' if modo == 'novo' else '/esporotricose/doentes/' ~ animal.id_animal_doente }}">Voltar</a>
+  <a class="btn btn-outline" href="{{ '/esporotricose#animais' if origem_visita else ('/esporotricose#doentes' if modo == 'novo' else '/esporotricose/doentes/' ~ animal.id_animal_doente) }}">Voltar</a>
 </div>
 
 <div class="chart-card">
   <div class="chart-hd"><div class="chart-title">Cadastro do animal</div></div>
+  {% if origem_visita %}
+  <div class="doe-origin">
+    <img src="/static/icons/prancheta.svg" alt="" class="icon-svg">
+    <div><strong>Cadastro iniciado a partir de uma visita</strong><br>Os dados disponíveis foram preenchidos automaticamente. Revise o cadastro e complete os campos necessários antes de salvar. A visita original não será alterada.</div>
+  </div>
+  {% endif %}
   <form id="doe-form">
     <div class="doe-form-grid">
       <div class="f-g"><label>Animal</label><input id="nome" type="text" required value="{{ animal.nome if animal else '' }}"></div>
@@ -74,6 +82,7 @@ const animal = {{ (animal or {})|tojson }};
 function val(id){ return document.getElementById(id)?.value || ''; }
 function payloadAnimal(){
   return {
+    id_animal_visita: animal?.id_animal_visita || '',
     nome: val('nome'), especie: val('especie'), sexo: val('sexo'), tutor: val('tutor'), telefone: val('telefone'), cpf: val('cpf'),
     sinan: val('sinan'), localidade: val('localidade'), quarteirao: val('quarteirao'),
     endereco: val('endereco'), latitude: val('latitude'), longitude: val('longitude'),

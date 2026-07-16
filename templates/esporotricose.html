@@ -91,6 +91,7 @@
 .esporo-animal-detail { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; padding:12px; }
 .esporo-animal-detail .wide { grid-column:1 / -1; }
 .esporo-busca-ferido { border-top:1px solid var(--border); margin-top:8px; padding-top:10px; }
+.esporo-doente-origin-action { display:flex; align-items:center; justify-content:flex-end; gap:8px; padding-bottom:10px; border-bottom:1px solid var(--border); }
 .esporo-anexos { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
 .esporo-anexo { display:flex; justify-content:space-between; gap:8px; align-items:center; padding:7px 8px; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12px; }
 @media(max-width:980px) { .esporo-chart-grid,.esporo-doentes-resumo-grid { grid-template-columns:1fr; } .esporo-doentes-resumo-grid .full { grid-column:auto; } }
@@ -1535,8 +1536,12 @@ function agenteBuscaOptions(valor) {
 }
 function renderEspAnimalDetalhe(r) {
   const endereco = [r.logradouro, r.numero].filter(Boolean).join(', ');
+  const acaoDoente = r.id_animal_doente
+    ? `<a class="btn btn-outline btn-sm" href="/esporotricose/doentes/${encodeURIComponent(r.id_animal_doente)}" onclick="event.stopPropagation()"><img src="/static/icons/gato_doente.svg" alt="" class="icon-svg"> Abrir cadastro em Doentes</a>`
+    : `<a class="btn btn-primary btn-sm" href="/esporotricose/doentes/novo?origem_animal=${encodeURIComponent(r.id_animal)}" onclick="event.stopPropagation()"><img src="/static/icons/gato_doente.svg" alt="" class="icon-svg"> Cadastrar como doente</a>`;
   return `
     <div class="esporo-animal-detail">
+      <div class="wide esporo-doente-origin-action">${acaoDoente}</div>
       ${detalheItem('Data da visita', fmtDate(r.data))}
       ${detalheItem('Horario', [r.hora_inicio, r.hora_fim].filter(Boolean).join(' - '))}
       ${detalheItem('Agente(s)', r.agentes_texto)}
@@ -1855,6 +1860,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (window.location.hash === '#doentes') {
     const btn = document.querySelector('[data-esp-main="doentes"]');
     if (btn) openEspMain('doentes', btn);
+  } else if (window.location.hash === '#animais') {
+    const visitasBtn = document.querySelector('[data-esp-main="visitas"]');
+    if (visitasBtn) openEspMain('visitas', visitasBtn);
+    const animaisBtn = Array.from(document.querySelectorAll('#esp-visitas-tabs .esporo-tab-btn'))
+      .find(btn => (btn.getAttribute('onclick') || '').includes("esp-tab-animais"));
+    if (animaisBtn) openEspTab('esp-tab-animais', animaisBtn);
   }
 });
 </script>{% endblock %}

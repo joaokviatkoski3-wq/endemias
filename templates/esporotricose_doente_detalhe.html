@@ -73,6 +73,15 @@
     <div class="doe-field"><span>Coordenadas</span><strong>{{ animal.latitude or '-' }}, {{ animal.longitude or '-' }}</strong></div>
     <div class="doe-field full" style="grid-column:1/-1;"><span>Endereço</span><strong>{{ animal.endereco or '-' }}</strong></div>
     <div class="doe-field full" style="grid-column:1/-1;"><span>Observações entomológicas</span><strong>{{ animal.observacoes_entomologica or '-' }}</strong></div>
+    {% if animal.origens_visita %}
+    <div class="doe-field full" style="grid-column:1/-1;">
+      <span>Origem do cadastro</span>
+      {% for origem in animal.origens_visita %}
+      <strong style="display:block;{% if not loop.first %}margin-top:5px;{% endif %}">Visita de {{ origem.data or '-' }} · {{ origem.localidade or '-' }}{% if origem.quarteirao %} · Q. {{ origem.quarteirao }}{% endif %}{% if origem.agentes_texto %} · {{ origem.agentes_texto }}{% endif %}</strong>
+      {% endfor %}
+      <a href="/esporotricose#animais" style="display:inline-block;margin-top:7px;">Abrir animais das visitas</a>
+    </div>
+    {% endif %}
   </div>
 </div>
 

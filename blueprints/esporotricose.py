@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from flask import Blueprint, Response, abort, current_app, jsonify, render_template, request, send_file
+from flask import Blueprint, Response, abort, current_app, jsonify, redirect, render_template, request, send_file
 from werkzeug.utils import secure_filename
 
 from app_core import auth as auth_core
@@ -100,9 +100,21 @@ def page():
 @bp.route("/esporotricose/doentes/novo")
 @login_required
 def page_doente_novo():
+    animal = None
+    origem_visita = None
+    id_animal_visita = (request.args.get("origem_animal") or "").strip()
+    if id_animal_visita:
+        cadastro = esporotricose_core.preparar_doente_de_visita(_db_path(), id_animal_visita)
+        if not cadastro:
+            abort(404)
+        if cadastro.get("id_animal_doente"):
+            return redirect(f"/esporotricose/doentes/{cadastro['id_animal_doente']}")
+        animal = cadastro["animal"]
+        origem_visita = cadastro["origem"]
     return render_template(
         "esporotricose_doente_form.html",
-        animal=None,
+        animal=animal,
+        origem_visita=origem_visita,
         modo="novo",
         status_opcoes=esporotricose_core.status_doentes(_db_path()),
         localidades=_localidades(),
@@ -132,6 +144,7 @@ def page_doente_editar(id_animal):
     return render_template(
         "esporotricose_doente_form.html",
         animal=animal,
+        origem_visita=None,
         modo="editar",
         status_opcoes=esporotricose_core.status_doentes(_db_path()),
         localidades=_localidades(),

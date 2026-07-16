@@ -18,6 +18,7 @@ DOENTES_TABLE = "esporotricose_doentes_animais"
 DOENTES_RECEITAS_TABLE = "esporotricose_doentes_receitas"
 DOENTES_ENTREGAS_TABLE = "esporotricose_doentes_entregas"
 DOENTES_ANEXOS_TABLE = "esporotricose_doentes_anexos"
+DOENTES_ORIGENS_TABLE = "esporotricose_doentes_origens"
 DOENTES_STATUS_TABLE = "esporotricose_doentes_status"
 DOENTES_ESTOQUE_TABLE = "esporotricose_estoque_medicacao"
 NORMAL_IMPORT_MARKER = "esporotricose_kobo_v2"
@@ -287,6 +288,14 @@ def ensure_schema(conn):
         CREATE INDEX IF NOT EXISTS idx_esporo_doentes_receitas_animal ON esporotricose_doentes_receitas(id_animal_doente);
         CREATE INDEX IF NOT EXISTS idx_esporo_doentes_entregas_receita ON esporotricose_doentes_entregas(id_receita);
         CREATE INDEX IF NOT EXISTS idx_esporo_doentes_anexos_animal ON esporotricose_doentes_anexos(id_animal_doente);
+
+        CREATE TABLE IF NOT EXISTS esporotricose_doentes_origens (
+            id_animal_visita TEXT PRIMARY KEY REFERENCES esporotricose_animais(id_animal) ON DELETE CASCADE,
+            id_animal_doente INTEGER NOT NULL REFERENCES esporotricose_doentes_animais(id_animal_doente) ON DELETE CASCADE,
+            vinculado_em TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_esporo_doentes_origens_doente
+            ON esporotricose_doentes_origens(id_animal_doente);
 
         CREATE TABLE IF NOT EXISTS esporotricose_estoque_medicacao (
             id_movimento INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -901,12 +910,15 @@ def listar_animais(db_path, filtros=None):
                     a.ambiente, a.vacinado, a.castrado, a.feridas, a.regiao_ferida,
                     a.atendimento_veterinario, a.data_atendimento, a.evolucao_caso,
                     a.busca_ferido_data, a.busca_ferido_agente, a.busca_ferido_observacoes,
+                    origem.id_animal_doente,
                     {MOTIVO_ATENCAO_SQL} AS motivo_atencao,
                     v.data, v.localidade, v.quarteirao, v.logradouro, v.numero,
                     v.morador, v.telefone, v.visita, v.hora_inicio, v.hora_fim,
                     v.agentes_texto, v.tipo_imovel, v.observacoes, v.deseja_cadastrar_animal
                 FROM esporotricose_animais a
                 JOIN esporotricose_visitas v ON v.id_visita = a.id_visita
+                LEFT JOIN esporotricose_doentes_origens origem
+                       ON origem.id_animal_visita = a.id_animal
                 {where}
                 ORDER BY
                     CASE WHEN LOWER(COALESCE(a.feridas,'')) = 'sim' THEN 0 ELSE 1 END,
@@ -920,6 +932,88 @@ def listar_animais(db_path, filtros=None):
     finally:
         conn.close()
     return {"total": total or 0, "registros": registros}
+
+
+def preparar_doente_de_visita(db_path, id_animal_visita):
+    """Monta o cadastro inicial sem alterar o animal importado do Kobo."""
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        row = conn.execute(
+            f"""SELECT a.*, v.data, v.hora_inicio, v.hora_fim, v.agentes_texto,
+                       v.localidade, v.quarteirao, v.logradouro, v.numero,
+                       v.morador, v.telefone, v.visita, v.tipo_imovel,
+                       v.observacoes AS observacoes_visita,
+                       origem.id_animal_doente
+                  FROM {ANIMAIS_TABLE} a
+                  JOIN {VISITAS_TABLE} v ON v.id_visita=a.id_visita
+                  LEFT JOIN {DOENTES_ORIGENS_TABLE} origem
+                         ON origem.id_animal_visita=a.id_animal
+                 WHERE a.id_animal=?""",
+            (id_animal_visita,),
+        ).fetchone()
+        if not row:
+            return None
+        origem = dict(row)
+        especie = _normalizar_especie_doente(origem.get("especie")) or "Outros"
+        endereco = ", ".join(
+            parte for parte in (_text(origem.get("logradouro")), _text(origem.get("numero"))) if parte
+        )
+        contexto = []
+        if origem.get("data"):
+            contexto.append(f"Visita de origem: {origem['data']}")
+        if origem.get("agentes_texto"):
+            contexto.append(f"Agente(s) da visita: {origem['agentes_texto']}")
+        if especie == "Outros" and origem.get("outro_animal"):
+            contexto.append(f"Espécie informada na visita: {origem['outro_animal']}")
+        if origem.get("raca"):
+            contexto.append(f"Raça: {origem['raca']}")
+        if origem.get("ambiente"):
+            contexto.append(f"Ambiente: {origem['ambiente']}")
+        if origem.get("vacinado"):
+            contexto.append(f"Vacinado: {origem['vacinado']}")
+        if origem.get("castrado"):
+            contexto.append(f"Castrado: {origem['castrado']}")
+        if origem.get("feridas"):
+            contexto.append(f"Feridas informadas: {origem['feridas']}")
+        if origem.get("regiao_ferida"):
+            contexto.append(f"Região da ferida: {origem['regiao_ferida']}")
+        if origem.get("atendimento_veterinario"):
+            contexto.append(f"Atendimento veterinário: {origem['atendimento_veterinario']}")
+        if origem.get("data_atendimento"):
+            contexto.append(f"Data do atendimento: {origem['data_atendimento']}")
+        if origem.get("evolucao_caso"):
+            contexto.append(f"Evolução informada na visita: {origem['evolucao_caso']}")
+        if origem.get("observacoes_visita"):
+            contexto.append(f"Observações da visita: {origem['observacoes_visita']}")
+        observacoes = ". ".join(item.rstrip(". ") for item in contexto if item).strip()
+        animal = {
+            "id_animal_visita": origem["id_animal"],
+            "nome": _text(origem.get("nome")),
+            "especie": especie,
+            "sexo": _text(origem.get("sexo")),
+            "tutor": _text(origem.get("morador")),
+            "telefone": _text(origem.get("telefone")),
+            "cpf": "",
+            "sinan": "",
+            "localidade": _text(origem.get("localidade")),
+            "quarteirao": _text(origem.get("quarteirao")),
+            "endereco": endereco,
+            "latitude": None,
+            "longitude": None,
+            "status": "Aguardando documentos",
+            "bloqueio": "",
+            "data_bloqueio": "",
+            "pedido_zoomed": "",
+            "observacoes_entomologica": observacoes + ("." if observacoes else ""),
+        }
+        return {
+            "animal": animal,
+            "origem": origem,
+            "id_animal_doente": origem.get("id_animal_doente"),
+        }
+    finally:
+        conn.close()
 
 
 def resumo_localidades(db_path, filtros=None):
@@ -1492,6 +1586,17 @@ def obter_doente(db_path, id_animal_doente):
                 ORDER BY criado_em DESC, id_anexo DESC""",
             (id_animal_doente,),
         ).fetchall()]
+        animal["origens_visita"] = [dict(row) for row in conn.execute(
+            f"""SELECT origem.id_animal_visita, origem.vinculado_em,
+                       v.data, v.localidade, v.quarteirao, v.logradouro, v.numero,
+                       v.agentes_texto
+                  FROM {DOENTES_ORIGENS_TABLE} origem
+                  JOIN {ANIMAIS_TABLE} a ON a.id_animal=origem.id_animal_visita
+                  JOIN {VISITAS_TABLE} v ON v.id_visita=a.id_visita
+                 WHERE origem.id_animal_doente=?
+                 ORDER BY v.data DESC, origem.vinculado_em DESC""",
+            (id_animal_doente,),
+        ).fetchall()]
         return animal
     finally:
         conn.close()
@@ -1504,6 +1609,7 @@ def salvar_doente(db_path, dados):
         agora = datetime.now().isoformat(timespec="seconds")
         payload = _doente_payload(dados)
         id_animal = _int(dados.get("id_animal_doente"))
+        id_animal_visita = _text(dados.get("id_animal_visita"))
         if payload.get("status"):
             _salvar_status_doente(conn, payload["status"])
         if id_animal:
@@ -1523,22 +1629,51 @@ def salvar_doente(db_path, dados):
                 ),
             )
         else:
+            if id_animal_visita:
+                origem_existe = conn.execute(
+                    f"SELECT 1 FROM {ANIMAIS_TABLE} WHERE id_animal=?",
+                    (id_animal_visita,),
+                ).fetchone()
+                if not origem_existe:
+                    raise ValidationError("O animal de origem da visita não foi encontrado.")
+                vinculo = conn.execute(
+                    f"SELECT id_animal_doente FROM {DOENTES_ORIGENS_TABLE} WHERE id_animal_visita=?",
+                    (id_animal_visita,),
+                ).fetchone()
+                if vinculo:
+                    return vinculo["id_animal_doente"]
             chave = _doente_chave(payload)
-            cur = conn.execute(
-                """INSERT INTO esporotricose_doentes_animais
-                   (chave, tutor, nome, especie, sexo, telefone, cpf, localidade, quarteirao, endereco,
-                    latitude, longitude, sinan, status, bloqueio, data_bloqueio,
-                    observacoes_entomologica, pedido_zoomed, criado_em, atualizado_em)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (
-                    chave, payload["tutor"], payload["nome"], payload["especie"], payload["sexo"], payload["telefone"],
-                    payload["cpf"], payload["localidade"], payload["quarteirao"], payload["endereco"],
-                    payload["latitude"], payload["longitude"], payload["sinan"], payload["status"],
-                    payload["bloqueio"], payload["data_bloqueio"], payload["observacoes_entomologica"],
-                    payload["pedido_zoomed"], agora, agora,
-                ),
-            )
-            id_animal = cur.lastrowid
+            existente = conn.execute(
+                f"SELECT id_animal_doente FROM {DOENTES_TABLE} WHERE chave=?",
+                (chave,),
+            ).fetchone()
+            if existente:
+                if not id_animal_visita:
+                    raise ValidationError("Já existe um animal doente com estes dados.")
+                id_animal = existente["id_animal_doente"]
+            else:
+                cur = conn.execute(
+                    """INSERT INTO esporotricose_doentes_animais
+                       (chave, tutor, nome, especie, sexo, telefone, cpf, localidade, quarteirao, endereco,
+                        latitude, longitude, sinan, status, bloqueio, data_bloqueio,
+                        observacoes_entomologica, pedido_zoomed, criado_em, atualizado_em)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        chave, payload["tutor"], payload["nome"], payload["especie"], payload["sexo"], payload["telefone"],
+                        payload["cpf"], payload["localidade"], payload["quarteirao"], payload["endereco"],
+                        payload["latitude"], payload["longitude"], payload["sinan"], payload["status"],
+                        payload["bloqueio"], payload["data_bloqueio"], payload["observacoes_entomologica"],
+                        payload["pedido_zoomed"], agora, agora,
+                    ),
+                )
+                id_animal = cur.lastrowid
+            if id_animal_visita:
+                conn.execute(
+                    f"""INSERT INTO {DOENTES_ORIGENS_TABLE}
+                           (id_animal_visita, id_animal_doente, vinculado_em)
+                         VALUES (?,?,?)""",
+                    (id_animal_visita, id_animal, agora),
+                )
         conn.commit()
         return id_animal
     finally:
