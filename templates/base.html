@@ -132,19 +132,30 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
     </div>
     <button id="help-close" class="help-close" type="button" aria-label="Fechar ajuda">&times;</button>
   </div>
-  <label class="help-search" for="help-search-input">
+  <div class="help-search">
     <img src="/static/icons/busca.svg" alt="" class="icon-svg">
-    <input id="help-search-input" type="search" autocomplete="off" placeholder="Pesquisar uma dúvida">
-  </label>
-  <div id="help-categories" class="help-categories" aria-label="Categorias da ajuda"></div>
-  <section id="help-context" class="help-section" hidden>
-    <h3>Nesta página</h3>
-    <div id="help-context-list" class="help-article-list"></div>
-  </section>
-  <section class="help-section help-all-section">
-    <h3 id="help-results-title">Tópicos de ajuda</h3>
-    <div id="help-results" class="help-article-list" aria-live="polite"></div>
-  </section>
+    <input id="help-search-input" type="search" autocomplete="off" placeholder="Pesquisar uma dúvida" aria-label="Pesquisar na ajuda">
+    <button id="help-search-clear" class="help-search-clear" type="button" aria-label="Limpar pesquisa" title="Limpar pesquisa" hidden>&times;</button>
+  </div>
+  <div class="help-filterbar">
+    <label for="help-category-select">
+      <span>Categoria</span>
+      <select id="help-category-select" aria-label="Filtrar ajuda por categoria">
+        <option value="">Todos os tópicos</option>
+      </select>
+    </label>
+    <span id="help-results-count" class="help-results-count" aria-live="polite"></span>
+  </div>
+  <div class="help-content">
+    <section id="help-context" class="help-section" hidden>
+      <h3>Nesta página</h3>
+      <div id="help-context-list" class="help-article-list"></div>
+    </section>
+    <section class="help-section help-all-section">
+      <h3 id="help-results-title">Tópicos de ajuda</h3>
+      <div id="help-results" class="help-article-list" aria-live="polite"></div>
+    </section>
+  </div>
 </aside>
 <div id="help-backdrop" class="help-backdrop" hidden></div>
 

@@ -1,5 +1,6 @@
 import sqlite3
 import unittest
+from pathlib import Path
 
 import app as endemias_app
 from app_core import ajuda
@@ -27,10 +28,32 @@ class AjudaTests(unittest.TestCase):
         )
         self.assertEqual(resultado["contexto"][0]["id"], "registro-geografico-logradouros")
 
+    def test_contexto_composto_reconhece_subaba_ativa(self):
+        resultado = ajuda.consultar(
+            rota="/esporotricose", contexto="Doentes > Lista", limite=120
+        )
+        ids = [artigo["id"] for artigo in resultado["contexto"]]
+        self.assertIn("esporo-data-notificacao", ids)
+
+    def test_catalogo_completo_retorna_categorias_e_total(self):
+        resultado = ajuda.consultar(rota="/", limite=120, nivel="admin")
+        self.assertEqual(resultado["total"], len(ajuda.ARTIGOS))
+        self.assertEqual(len(resultado["artigos"]), len(ajuda.ARTIGOS))
+        self.assertEqual(
+            sum(categoria["total"] for categoria in resultado["categorias"]),
+            resultado["total"],
+        )
+        self.assertIn("Esporotricose", [item["nome"] for item in resultado["categorias"]])
+
+    def test_limite_invalido_usa_padrao_sem_falhar(self):
+        resultado = ajuda.consultar(limite="invalido")
+        self.assertEqual(len(resultado["artigos"]), 12)
+
     def test_artigo_administrativo_respeita_nivel_do_usuario(self):
         resultado = ajuda.consultar(consulta="backup", nivel="visualizador")
         ids = [artigo["id"] for artigo in resultado["artigos"]]
         self.assertNotIn("central-backup", ids)
+        self.assertNotIn("backups", ids)
 
     def test_api_exige_login_e_retorna_contexto_para_usuario_logado(self):
         endemias_app.app.config["TESTING"] = True
@@ -56,7 +79,16 @@ class AjudaTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         html = page.data.decode("utf-8")
         self.assertIn('id="help-launcher"', html)
+        self.assertIn('id="help-category-select"', html)
+        self.assertIn('id="help-search-clear"', html)
+        self.assertIn('id="help-results-count"', html)
         self.assertIn('/static/js/ajuda.js', html)
+
+        javascript = (
+            Path(__file__).resolve().parents[1] / "static" / "js" / "ajuda.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn("limite: '120'", javascript)
+        self.assertIn("join(' > ')", javascript)
 
 
 if __name__ == "__main__":

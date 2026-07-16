@@ -4,7 +4,9 @@
   const closeButton = document.getElementById('help-close');
   const backdrop = document.getElementById('help-backdrop');
   const searchInput = document.getElementById('help-search-input');
-  const categories = document.getElementById('help-categories');
+  const searchClear = document.getElementById('help-search-clear');
+  const categorySelect = document.getElementById('help-category-select');
+  const resultsCount = document.getElementById('help-results-count');
   const contextSection = document.getElementById('help-context');
   const contextList = document.getElementById('help-context-list');
   const results = document.getElementById('help-results');
@@ -14,8 +16,10 @@
 
   let artigos = [];
   let contexto = [];
+  let categorias = [];
   let categoriaAtiva = '';
   let buscaTimer = null;
+  let requestSequence = 0;
 
   function contextoAtivo() {
     const seletor = [
@@ -23,7 +27,11 @@
       '.module-tab-btn.active', '.tab-btn.active', '.tab-button.active',
       '[role="tab"][aria-selected="true"]',
     ].join(',');
-    return document.querySelector(seletor)?.textContent?.trim() || '';
+    const ativos = Array.from(document.querySelectorAll(seletor))
+      .filter(elemento => elemento.offsetParent !== null)
+      .map(elemento => elemento.textContent?.trim())
+      .filter(Boolean);
+    return [...new Set(ativos)].join(' > ');
   }
 
   function atualizarRotuloPagina() {
@@ -40,8 +48,11 @@
     const passos = (artigo.passos || []).map(passo => `<li>${escapeHtml(passo)}</li>`).join('');
     return `<article class="help-article" data-help-id="${escapeHtml(artigo.id)}">
       <button type="button" class="help-article-toggle" aria-expanded="false">
-        <span class="help-article-title">${escapeHtml(artigo.titulo)}</span>
-        <span class="help-article-category">${escapeHtml(artigo.categoria)}</span>
+        <span class="help-article-heading">
+          <span class="help-article-title">${escapeHtml(artigo.titulo)}</span>
+          <span class="help-article-category">${escapeHtml(artigo.categoria)}</span>
+        </span>
+        <span class="help-article-chevron" aria-hidden="true">›</span>
       </button>
       <div class="help-article-body">
         <p>${escapeHtml(artigo.resumo)}</p>
@@ -57,12 +68,13 @@
   }
 
   function renderCategorias() {
-    if (!categories) return;
-    const nomes = [...new Set(artigos.map(artigo => artigo.categoria))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-    categories.innerHTML = ['Todas', ...nomes].map(nome => {
-      const ativa = (nome === 'Todas' && !categoriaAtiva) || nome === categoriaAtiva;
-      return `<button type="button" class="help-category ${ativa ? 'active' : ''}" data-category="${escapeHtml(nome === 'Todas' ? '' : nome)}">${escapeHtml(nome)}</button>`;
-    }).join('');
+    if (!categorySelect) return;
+    categorySelect.innerHTML = '<option value="">Todos os tópicos</option>' + categorias.map(item => (
+      `<option value="${escapeHtml(item.nome)}">${escapeHtml(item.nome)} (${Number(item.total || 0)})</option>`
+    )).join('');
+    const disponivel = Array.from(categorySelect.options).some(option => option.value === categoriaAtiva);
+    if (!disponivel) categoriaAtiva = '';
+    categorySelect.value = categoriaAtiva;
   }
 
   function renderArtigos() {
@@ -71,39 +83,53 @@
     const lista = artigosFiltrados(artigos).filter(artigo => searchInput.value.trim() || !contextIds.has(artigo.id));
     contextSection.hidden = contextuais.length === 0 || Boolean(searchInput.value.trim());
     contextList.innerHTML = contextuais.map(artigoHtml).join('');
-    resultsTitle.textContent = searchInput.value.trim() ? 'Resultados da busca' : 'Outros tópicos';
+    resultsTitle.textContent = searchInput.value.trim()
+      ? 'Resultados da busca'
+      : (categoriaAtiva || (contextuais.length ? 'Outros tópicos' : 'Todos os tópicos'));
     results.innerHTML = lista.length
       ? lista.map(artigoHtml).join('')
       : '<div class="help-empty">Nenhum tópico corresponde à busca.</div>';
+    const totalVisivel = lista.length + (contextSection.hidden ? 0 : contextuais.length);
+    if (resultsCount) resultsCount.textContent = `${totalVisivel} ${totalVisivel === 1 ? 'tópico' : 'tópicos'}`;
   }
 
   function abrirArtigo(button) {
     const article = button.closest('.help-article');
     if (!article) return;
+    panel.querySelectorAll('.help-article.open').forEach(aberto => {
+      if (aberto === article) return;
+      aberto.classList.remove('open');
+      aberto.querySelector('.help-article-toggle')?.setAttribute('aria-expanded', 'false');
+    });
     const aberto = article.classList.toggle('open');
     button.setAttribute('aria-expanded', aberto ? 'true' : 'false');
   }
 
   async function carregarAjuda() {
+    const sequence = ++requestSequence;
     const params = new URLSearchParams({
       rota: window.location.pathname,
       q: searchInput.value.trim(),
       contexto: contextoAtivo(),
-      limite: '20',
+      limite: '120',
     });
     try {
       const response = await fetch(`/api/ajuda?${params.toString()}`);
       if (!response.ok) throw new Error('Falha ao carregar ajuda');
       const payload = await response.json();
+      if (sequence !== requestSequence) return;
       artigos = payload.artigos || [];
       contexto = payload.contexto || [];
+      categorias = payload.categorias || [];
       atualizarRotuloPagina();
       renderCategorias();
       renderArtigos();
     } catch (error) {
+      if (sequence !== requestSequence) return;
       contextSection.hidden = true;
       resultsTitle.textContent = 'Tópicos de ajuda';
       results.innerHTML = '<div class="help-empty">A ajuda não pôde ser carregada agora.</div>';
+      if (resultsCount) resultsCount.textContent = '';
     }
   }
 
@@ -112,6 +138,7 @@
     panel.setAttribute('aria-hidden', 'false');
     launcher.setAttribute('aria-expanded', 'true');
     backdrop.hidden = false;
+    results.innerHTML = '<div class="help-empty">Carregando orientações...</div>';
     carregarAjuda().then(() => searchInput.focus());
   }
 
@@ -130,14 +157,17 @@
   closeButton?.addEventListener('click', fecharAjuda);
   backdrop?.addEventListener('click', fecharAjuda);
   searchInput.addEventListener('input', () => {
+    if (searchClear) searchClear.hidden = !searchInput.value;
     if (buscaTimer) window.clearTimeout(buscaTimer);
     buscaTimer = window.setTimeout(carregarAjuda, 180);
   });
-  categories?.addEventListener('click', event => {
-    const button = event.target.closest('[data-category]');
-    if (!button) return;
-    categoriaAtiva = button.dataset.category || '';
-    renderCategorias();
+  searchClear?.addEventListener('click', () => {
+    searchInput.value = '';
+    searchClear.hidden = true;
+    carregarAjuda().then(() => searchInput.focus());
+  });
+  categorySelect?.addEventListener('change', () => {
+    categoriaAtiva = categorySelect.value || '';
     renderArtigos();
   });
   panel.addEventListener('click', event => {
@@ -151,6 +181,9 @@
     if (!panel.classList.contains('open')) return;
     if (!event.target.closest('.rg-tab, .ovi-tab, .esporo-tab-btn, .acoes-tab, .module-tab-btn, .tab-btn, .tab-button, [role="tab"]')) return;
     window.setTimeout(carregarAjuda, 0);
+  });
+  window.addEventListener('hashchange', () => {
+    if (panel.classList.contains('open')) carregarAjuda();
   });
 
   atualizarRotuloPagina();

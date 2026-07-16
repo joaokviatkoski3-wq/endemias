@@ -248,6 +248,7 @@ ARTIGOS = (
         ),
         "link": "/admin/sistema",
         "link_label": "Abrir Central do Sistema",
+        "nivel_minimo": "admin",
     },
 )
 ARTIGOS_BASE = ARTIGOS
@@ -634,6 +635,97 @@ ARTIGOS += (
               "Leia os detalhes do evento antes de assumir a causa de uma mudança.",
               "Use as informações para corrigir o dado no módulo adequado."),
              "/admin/auditoria", "Abrir Auditoria", nivel_minimo="admin"),
+    _artigo("ajuda-como-usar", "Encontrar uma orientação na Ajuda", "Geral", ("/",),
+             ("ajuda", "pesquisar", "categoria", "duvida", "orientacao", "nesta pagina"),
+             "A Ajuda prioriza orientações da tela e da aba abertas, mas também permite pesquisar todo o manual local do sistema.",
+             ("Abra Ajuda e confira primeiro a seção Nesta página.",
+              "Digite palavras do que deseja fazer, como imprimir diário ou corrigir receita.",
+              "Use a categoria para reduzir os resultados a um módulo específico."),
+             "/", "Abrir início"),
+    _artigo("seguranca-exclusoes", "Entender confirmações para apagar dados", "Geral", ("/",),
+             ("apagar", "excluir", "confirmacao", "dupla", "seguranca", "desfazer"),
+             "Ações que removem registros importantes usam confirmação adicional para reduzir exclusões acidentais.",
+             ("Leia qual registro e quais dados vinculados serão removidos.",
+              "Cancele quando o nome ou o contexto não for exatamente o esperado.",
+              "Confirme definitivamente somente quando a exclusão for intencional; alguns dados não podem ser recuperados sem backup."),
+             "/", "Abrir início"),
+    _artigo("senha-pessoal", "Alterar a própria senha", "Geral", ("/minha-senha",),
+             ("senha", "alterar senha", "conta", "usuario", "acesso", "seguranca"),
+             "Cada usuário pode trocar a própria senha sem acessar a Gestão de Usuários.",
+             ("Abra o menu do usuário no canto superior e escolha Alterar senha.",
+              "Informe a senha atual e a nova senha conforme os requisitos exibidos.",
+              "Não compartilhe a senha nem use a conta de outra pessoa."),
+             "/minha-senha", "Abrir Alterar senha"),
+    _artigo("esporo-data-notificacao", "Usar a data de notificação do animal", "Esporotricose", ("/esporotricose",),
+             ("esporotricose", "doentes", "data", "notificacao", "cadastro", "ordenar", "receita"),
+             "A data de notificação pertence ao cadastro do animal doente, não à receita. Ela identifica quando o caso foi registrado para acompanhamento.",
+             ("Em um novo cadastro, a data atual é preenchida automaticamente.",
+              "Altere a data no cadastro do paciente quando a notificação tiver ocorrido antes.",
+              "Na lista, clique no cabeçalho Data para alternar entre casos mais recentes e mais antigos."),
+             "/esporotricose#doentes", "Abrir Doentes", ("Doentes", "Lista")),
+    _artigo("esporo-buscas-ferido", "Registrar mais de uma busca de animal ferido", "Esporotricose", ("/esporotricose",),
+             ("esporotricose", "animais", "busca ferido", "agenda", "agente", "data", "historico"),
+             "Cada tentativa de busca de um animal ferido fica no histórico dos detalhes da visita e pode gerar acompanhamento na Agenda.",
+             ("Abra Visitas, entre em Animais e use Detalhes no animal desejado.",
+              "Adicione a data, o agente e uma observação para cada tentativa realizada.",
+              "Registre uma nova busca quando houver outra ida ao local; não substitua a anterior."),
+             "/esporotricose#animais", "Abrir Animais", ("Visitas", "Animais", "Busca ferido")),
+    _artigo("esporo-vincular-doente", "Cadastrar um animal visitado como doente", "Esporotricose", ("/esporotricose",),
+             ("esporotricose", "visita", "animal", "doente", "cadastrar", "vincular", "detalhes"),
+             "Um animal encontrado nas visitas pode iniciar um cadastro de doente com os dados já disponíveis, mantendo o vínculo com a visita original.",
+             ("Abra os detalhes do animal na sub-aba Animais.",
+              "Use Cadastrar como doente e revise os dados preenchidos automaticamente.",
+              "Complete as informações clínicas e salve; a visita original permanece inalterada."),
+             "/esporotricose#animais", "Abrir Animais", ("Visitas", "Animais", "Detalhes")),
+    _artigo("ovitrampas-historico", "Consultar alterações das armadilhas", "Ovitrampas", ("/ovitrampas",),
+             ("ovitrampas", "armadilhas", "historico", "endereco", "numero", "quarteirao", "localizacao", "alteracao"),
+             "O histórico registra mudanças relevantes de uma ovitrampa, principalmente número, endereço, quarteirão e localização.",
+             ("Abra a aba Armadilhas e localize a ovitrampa.",
+              "Ao alterar o cadastro, descreva a razão de forma objetiva.",
+              "Consulte o histórico para entender o endereço anterior e quando a mudança ocorreu."),
+             "/ovitrampas", "Abrir Armadilhas", ("Armadilhas", "Histórico")),
+    _artigo("ovitrampas-realocar", "Tratar armadilhas para realocação", "Ovitrampas", ("/ovitrampas",),
+             ("ovitrampas", "realocar", "sem diario", "rota", "conta ovos", "pendente"),
+             "Armadilhas marcadas como REALOCAR ficam fora dos diários até receberem um novo local e uma posição de rota.",
+             ("Atualize o cadastro no Conta Ovos e importe a planilha na aba Diários.",
+              "Localize as armadilhas sem diário definido.",
+              "Depois da realocação, atribua o diário e arraste a armadilha para a posição correta da rota."),
+             "/ovitrampas", "Abrir Diários", ("Diários", "Sem diário", "REALOCAR")),
+    _artigo("rg-logradouro-sugestoes", "Usar sugestões de logradouro no RG", "Registro Geográfico", ("/registro-geografico",),
+             ("rg", "logradouro", "sugestao", "autocompletar", "digitar", "padronizar", "rua"),
+             "Na grade de Edição, o campo de logradouro sugere nomes já existentes para reduzir novas variações de grafia.",
+             ("Comece a digitar o nome da rua e aguarde as sugestões.",
+              "Escolha uma opção existente quando ela representar o mesmo logradouro.",
+              "Quando houver variações antigas, use Edição em lotes para normalizá-las."),
+             "/registro-geografico", "Abrir Edição do RG", ("Edição", "Logradouro")),
+    _artigo("rg-linhas-ref", "Marcar lados do quarteirão com REF", "Registro Geográfico", ("/registro-geografico",),
+             ("rg", "ref", "referencia", "lado", "logradouro", "praca", "triangulo", "imovel"),
+             "O tipo REF cria uma linha apenas de referência para indicar um lado, acesso ou logradouro do quarteirão sem contar como imóvel.",
+             ("Crie uma linha para o logradouro que precisa aparecer como referência.",
+              "Escolha REF no tipo do imóvel.",
+              "Não use REF para residências, comércios ou outros imóveis que devam entrar nos totais."),
+             "/registro-geografico", "Abrir Edição do RG", ("Edição", "REF")),
+    _artigo("laboratorio-corrigir-recente", "Corrigir um resultado laboratorial recente", "Laboratório", ("/laboratorio/lancamentos",),
+             ("laboratorio", "historico", "editar", "corrigir", "resultado", "tubo", "tres dias"),
+             "Resultados enviados nos últimos três dias podem ser corrigidos no histórico quando houver erro de digitação.",
+             ("Abra o Histórico e localize o tubo pelo código ou pela origem.",
+              "Use Editar somente quando o registro estiver dentro do prazo disponível.",
+              "Revise todas as espécies e quantidades antes de salvar a correção."),
+             "/laboratorio/lancamentos", "Abrir Histórico", ("Histórico", "Editar")),
+    _artigo("central-diagnostico", "Verificar a saúde do sistema", "Administração", ("/admin/sistema",),
+             ("central", "sistema", "diagnostico", "integridade", "banco", "backup", "espaco"),
+             "A Central do Sistema mostra verificações operacionais do banco, dos backups e dos arquivos essenciais.",
+             ("Leia primeiro os itens marcados como atenção ou erro.",
+              "Atualize o diagnóstico completo quando precisar de uma conferência mais ampla.",
+              "Crie um backup antes de executar correções administrativas importantes."),
+             "/admin/sistema", "Abrir Central do Sistema", nivel_minimo="admin"),
+    _artigo("central-restaurar", "Restaurar um backup do banco", "Administração", ("/admin/sistema",),
+             ("backup", "restaurar", "banco", "seguranca", "reverter", "central"),
+             "Restaurar substitui o banco atual pelo conteúdo de um backup e deve ser usado somente quando houver uma necessidade confirmada.",
+             ("Confirme a data e o tamanho do backup escolhido.",
+              "Garanta que ninguém esteja alterando dados durante a restauração.",
+              "Após restaurar, confira o diagnóstico e as páginas relacionadas ao problema."),
+             "/admin/sistema", "Abrir Backups", nivel_minimo="admin"),
 )
 
 
@@ -667,7 +759,11 @@ def _publico(artigo):
 def consultar(consulta="", rota="", limite=12, contexto="", nivel="visualizador", somente_laboratorio=False):
     consulta_normalizada = _normalizar(consulta)
     termos = tuple(term for term in consulta_normalizada.split() if len(term) >= 2)
-    contexto_normalizado = _normalizar(contexto)
+    contextos_ativos = tuple(
+        _normalizar(item).strip()
+        for item in str(contexto or "").replace("|", ">").split(">")
+        if _normalizar(item).strip()
+    )
     rota = str(rota or "/").rstrip("/") or "/"
     ordem_niveis = {"visualizador": 1, "operador": 2, "admin": 3}
     resultados = []
@@ -683,13 +779,13 @@ def consultar(consulta="", rota="", limite=12, contexto="", nivel="visualizador"
         )
         if corresponde_contexto:
             score += 100
-            if not contexto_normalizado and artigo in ARTIGOS_BASE:
+            if not contextos_ativos and artigo in ARTIGOS_BASE:
                 score += 30
         contextos_artigo = tuple(_normalizar(item) for item in artigo.get("contextos", ()))
-        if contexto_normalizado:
-            if contexto_normalizado in contextos_artigo:
+        for contexto_ativo in contextos_ativos:
+            if contexto_ativo in contextos_artigo:
                 score += 100
-            elif any(contexto_normalizado in item or item in contexto_normalizado for item in contextos_artigo):
+            elif any(contexto_ativo in item or item in contexto_ativo for item in contextos_artigo):
                 score += 20
         texto = _normalizar(_texto_artigo(artigo))
         titulo = _normalizar(artigo["titulo"])
@@ -706,8 +802,21 @@ def consultar(consulta="", rota="", limite=12, contexto="", nivel="visualizador"
             continue
         resultados.append((score, artigo))
     resultados.sort(key=lambda item: (-item[0], item[1]["titulo"]))
-    contexto = [_publico(artigo) for score, artigo in resultados if score >= 100]
+    contexto_resultado = [_publico(artigo) for score, artigo in resultados if score >= 100]
+    categorias = {}
+    for _, artigo in resultados:
+        categorias[artigo["categoria"]] = categorias.get(artigo["categoria"], 0) + 1
+    try:
+        limite = int(limite or 12)
+    except (TypeError, ValueError):
+        limite = 12
+    limite = max(1, min(limite, 120))
     return {
-        "contexto": contexto[:3],
-        "artigos": [_publico(artigo) for _, artigo in resultados[:max(1, min(int(limite or 12), 30))]],
+        "contexto": contexto_resultado[:5],
+        "artigos": [_publico(artigo) for _, artigo in resultados[:limite]],
+        "categorias": [
+            {"nome": nome, "total": total}
+            for nome, total in sorted(categorias.items(), key=lambda item: _normalizar(item[0]))
+        ],
+        "total": len(resultados),
     }

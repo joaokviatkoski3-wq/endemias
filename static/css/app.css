@@ -1694,7 +1694,7 @@ textarea:focus,
   top:0;
   right:0;
   z-index:900;
-  width:min(410px,100vw);
+  width:min(450px,100vw);
   height:100dvh;
   background:var(--surface);
   border-left:1px solid var(--border);
@@ -1740,29 +1740,44 @@ textarea:focus,
 }
 .help-search .icon-svg { width:16px; opacity:.68; flex:0 0 auto; }
 .help-search input { width:100%; min-width:0; border:0 !important; outline:0; box-shadow:none !important; background:transparent; color:var(--text); font:inherit; font-size:13px; }
-.help-categories { display:flex; gap:6px; overflow-x:auto; overflow-y:hidden; padding:0 20px 12px; border-bottom:1px solid var(--border); -ms-overflow-style:none; scrollbar-width:none; }
-.help-categories::-webkit-scrollbar { display:none; }
-.help-category {
+.help-search input::-webkit-search-cancel-button { display:none; }
+.help-search-clear {
   flex:0 0 auto;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  min-height:28px;
-  appearance:none;
+  width:26px;
+  height:26px;
   border:1px solid var(--border);
-  border-radius:6px;
-  background:var(--surface);
+  border-radius:4px;
+  background:transparent;
   color:var(--text2);
-  padding:5px 8px;
-  font:700 11px/1.2 inherit;
+  font:700 18px/1 Arial,sans-serif;
   cursor:pointer;
-  outline:0;
 }
-.help-category:hover,.help-category.active { border-color:var(--brand); background:var(--brand-xs); color:var(--brand); }
-.help-category:focus-visible { outline:2px solid color-mix(in srgb,var(--brand) 40%,transparent); outline-offset:2px; }
+.help-search-clear:hover { background:var(--surface2); color:var(--text); }
+.help-search-clear[hidden] { display:none; }
+.help-filterbar {
+  display:flex;
+  align-items:flex-end;
+  gap:10px;
+  padding:0 20px 12px;
+  border-bottom:1px solid var(--border);
+}
+.help-filterbar label { flex:1; min-width:0; }
+.help-filterbar label span { display:block; margin-bottom:4px; color:var(--text3); font-size:9.5px; font-weight:800; text-transform:uppercase; }
+.help-filterbar select {
+  width:100%;
+  min-height:34px;
+  border:1px solid var(--border2);
+  border-radius:6px;
+  background:var(--surface2);
+  color:var(--text);
+  padding:5px 30px 5px 9px;
+  font:700 11.5px/1.2 inherit;
+}
+.help-results-count { flex:0 0 auto; padding-bottom:9px; color:var(--text3); font-size:10.5px; font-weight:700; white-space:nowrap; }
+.help-content { flex:1; min-height:0; overflow:auto; padding-bottom:20px; }
 .help-section { padding:16px 20px 0; }
 .help-section h3 { margin:0 0 8px; color:var(--text3); font-size:10px; font-weight:800; letter-spacing:.45px; text-transform:uppercase; }
-.help-all-section { overflow:auto; padding-bottom:20px; }
+.help-all-section { padding-bottom:0; }
 .help-article-list { display:grid; gap:8px; }
 .help-article {
   border:1px solid var(--border);
@@ -1770,10 +1785,13 @@ textarea:focus,
   background:var(--surface);
   overflow:hidden;
 }
-.help-article-toggle { width:100%; border:0; background:transparent; color:var(--text); text-align:left; padding:11px 12px; cursor:pointer; }
+.help-article-toggle { width:100%; border:0; background:transparent; color:var(--text); text-align:left; padding:11px 12px; cursor:pointer; display:flex; align-items:center; gap:10px; }
 .help-article-toggle:hover { background:var(--surface2); }
+.help-article-heading { flex:1; min-width:0; }
 .help-article-title { display:block; font-size:13px; font-weight:750; line-height:1.25; }
 .help-article-category { display:block; margin-top:3px; color:var(--text3); font-size:10px; font-weight:700; }
+.help-article-chevron { flex:0 0 auto; color:var(--text3); font:700 21px/1 Arial,sans-serif; transition:transform .15s ease; }
+.help-article.open .help-article-chevron { transform:rotate(90deg); color:var(--brand); }
 .help-article-body { display:none; padding:0 12px 12px; border-top:1px solid var(--border); }
 .help-article.open .help-article-body { display:block; }
 .help-article-body p { margin:10px 0 8px; color:var(--text2); font-size:12px; line-height:1.45; }
@@ -1783,6 +1801,6 @@ textarea:focus,
 .help-empty { padding:18px 12px; border:1px dashed var(--border2); color:var(--text3); font-size:12px; text-align:center; }
 @media (max-width:720px) {
   .help-launcher { right:16px; bottom:16px; }
-  .help-panel { width:min(100vw,430px); }
+  .help-panel { width:100vw; }
   .help-backdrop[hidden] { display:none; }
 }
