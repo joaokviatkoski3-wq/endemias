@@ -118,30 +118,6 @@
           <td colspan="2" class="subline">{{ item.responsavel or '' }}</td>
         </tr>
         {% endfor %}
-        {% set linhas_vazias = 14 - (registros|length) %}
-        {% if linhas_vazias > 0 %}
-        {% for _ in range(linhas_vazias) %}
-        {% set linha_ordem = (registros|length) + loop.index %}
-        {% set classe = 'shade' if linha_ordem is odd else '' %}
-        <tr class="trap-row {{ classe }}">
-          <td rowspan="2" class="trap-id">&nbsp;</td>
-          <td colspan="4" class="address">&nbsp;</td>
-          <td rowspan="2" class="route"></td>
-          <td colspan="2" rowspan="2" class="route"></td>
-          <td rowspan="2" class="write"></td>
-          <td rowspan="2" class="write"></td>
-          <td rowspan="2" class="write"></td>
-          <td rowspan="2" class="write slash">/</td>
-          <td rowspan="2" class="write"></td>
-          <td rowspan="2" class="write"></td>
-          <td rowspan="2" class="write"></td>
-        </tr>
-        <tr class="trap-row {{ classe }}">
-          <td colspan="2" class="subline"></td>
-          <td colspan="2" class="subline"></td>
-        </tr>
-        {% endfor %}
-        {% endif %}
         <tr class="occ-line"><td colspan="15" class="occ">
           <span class="occ-title">Ocorr&ecirc;ncias</span>
           <span class="occ-items">1 - Intervalo maior que 7 dias; 2 - Armadilha ou palheta desaparecida; 3 - Armadilha ou palheta danificada; 4 - Armadilha ou palheta removida</span>
