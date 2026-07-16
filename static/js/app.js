@@ -101,9 +101,124 @@ function initMultiPickers() {
   });
 }
 
+/* Ordenação acessível e reutilizável para tabelas carregadas no navegador. */
+const tableSortCollator = new Intl.Collator('pt-BR', {
+  sensitivity: 'base',
+  numeric: true,
+});
+
+function tableSortValue(cell, type) {
+  const raw = String(cell?.dataset?.sortValue ?? cell?.textContent ?? '').trim();
+  if (!raw || raw === '-') return {empty:true, value:null};
+  if (type === 'number') {
+    const parsed = Number(raw.replace(',', '.'));
+    return {empty:Number.isNaN(parsed), value:parsed};
+  }
+  if (type === 'date') {
+    const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    const value = iso
+      ? Number(`${iso[1]}${iso[2]}${iso[3]}`)
+      : br ? Number(`${br[3]}${br[2]}${br[1]}`) : Number.NaN;
+    return {empty:Number.isNaN(value), value};
+  }
+  return {empty:false, value:raw};
+}
+
+function tableSortGroups(tbody) {
+  const groups = [];
+  Array.from(tbody?.children || []).forEach(row => {
+    if (row.matches('[data-sort-detail]') && groups.length) {
+      groups[groups.length - 1].rows.push(row);
+    } else {
+      groups.push({rows:[row], originalIndex:groups.length});
+    }
+  });
+  return groups;
+}
+
+function applySortableTable(table) {
+  const column = Number(table?.dataset?.sortColumn);
+  const direction = table?.dataset?.sortDirection;
+  const tbody = table?.tBodies?.[0];
+  const header = table?.tHead?.rows?.[0]?.cells?.[column];
+  if (!tbody || !header || !['asc', 'desc'].includes(direction)) return;
+  const type = header.dataset.sortType || 'text';
+  const groups = tableSortGroups(tbody);
+  groups.sort((a, b) => {
+    const av = tableSortValue(a.rows[0]?.cells?.[column], type);
+    const bv = tableSortValue(b.rows[0]?.cells?.[column], type);
+    if (av.empty !== bv.empty) return av.empty ? 1 : -1;
+    if (av.empty && bv.empty) return a.originalIndex - b.originalIndex;
+    const compared = type === 'text'
+      ? tableSortCollator.compare(av.value, bv.value)
+      : av.value - bv.value;
+    return (direction === 'desc' ? -compared : compared) || (a.originalIndex - b.originalIndex);
+  });
+  const fragment = document.createDocumentFragment();
+  groups.forEach(group => group.rows.forEach(row => fragment.appendChild(row)));
+  tbody.appendChild(fragment);
+}
+
+function updateSortableHeaders(table) {
+  const activeColumn = Number(table.dataset.sortColumn);
+  const direction = table.dataset.sortDirection;
+  table.querySelectorAll('thead th[data-sort-type]').forEach(th => {
+    const active = th.cellIndex === activeColumn && ['asc', 'desc'].includes(direction);
+    th.setAttribute('aria-sort', active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none');
+  });
+}
+
+function activateSortableHeader(header) {
+  const table = header.closest('table[data-sortable-table]');
+  if (!table) return;
+  const sameColumn = Number(table.dataset.sortColumn) === header.cellIndex;
+  const defaultDirection = header.dataset.sortDefault || (header.dataset.sortType === 'text' ? 'asc' : 'desc');
+  table.dataset.sortColumn = String(header.cellIndex);
+  table.dataset.sortDirection = sameColumn
+    ? (table.dataset.sortDirection === 'asc' ? 'desc' : 'asc')
+    : defaultDirection;
+  updateSortableHeaders(table);
+  applySortableTable(table);
+}
+
+function initSortableTables(root=document) {
+  const tables = [];
+  if (root.matches?.('table[data-sortable-table]')) tables.push(root);
+  tables.push(...(root.querySelectorAll?.('table[data-sortable-table]') || []));
+  tables.forEach(table => {
+    table.querySelectorAll('thead th[data-sort-type]').forEach(header => {
+      if (header.dataset.sortReady === '1') return;
+      header.dataset.sortReady = '1';
+      header.classList.add('sort');
+      header.tabIndex = 0;
+      header.setAttribute('aria-sort', 'none');
+      const label = header.dataset.sortLabel || header.textContent.trim();
+      header.title = `Ordenar por ${label}`;
+      header.addEventListener('click', () => activateSortableHeader(header));
+      header.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          activateSortableHeader(header);
+        }
+      });
+    });
+    updateSortableHeaders(table);
+  });
+}
+
+function refreshSortableTable(tableOrId) {
+  const table = typeof tableOrId === 'string' ? document.getElementById(tableOrId) : tableOrId;
+  if (!table) return;
+  initSortableTables(table);
+  applySortableTable(table);
+}
+window.refreshSortableTable = refreshSortableTable;
+
 document.addEventListener('DOMContentLoaded', () => {
   setDesktopNav(localStorage.getItem('desktop_nav_open') === '1');
   initMultiPickers();
+  initSortableTables();
 
   const overlay = document.getElementById('overlay');
   const mobileClose = document.getElementById('sidebarMobileClose');

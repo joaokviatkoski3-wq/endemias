@@ -420,8 +420,15 @@ th {
   padding:9px 12px; font-size:10.5px; font-weight:700; color:var(--th-text);
   text-align:left; letter-spacing:.3px; white-space:nowrap; border:none;
 }
-th.sort { cursor:pointer; user-select:none; }
-th.sort:hover { opacity:.85; }
+th.sort { position:relative; padding-right:28px; cursor:pointer; user-select:none; outline:none; }
+th.sort::after {
+  content:"⇅"; position:absolute; right:10px; top:50%; transform:translateY(-50%);
+  color:var(--text3); font-size:12px; line-height:1; letter-spacing:0; opacity:.72;
+}
+th.sort:hover { color:var(--text); background:var(--tr-hover); }
+th.sort:focus-visible { box-shadow:inset 0 0 0 2px var(--brand); }
+th.sort[aria-sort="ascending"]::after { content:"↑"; color:var(--brand); opacity:1; }
+th.sort[aria-sort="descending"]::after { content:"↓"; color:var(--brand); opacity:1; }
 td {
   padding:8px 12px; border-bottom:1px solid var(--border);
   vertical-align:middle; color:var(--text); border-left:none; border-right:none;

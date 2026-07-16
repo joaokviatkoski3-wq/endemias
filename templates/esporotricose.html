@@ -156,8 +156,8 @@
         <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Visitas recentes</div>
       </div>
       <div class="table-scroll">
-        <table>
-          <thead><tr><th>Data</th><th>Localidade</th><th>Quadra</th><th>Endereço</th><th>Morador</th><th>Visita</th><th>Animais</th></tr></thead>
+        <table id="esp-resumo-visitas-table" data-sortable-table>
+          <thead><tr><th data-sort-type="date">Data</th><th data-sort-type="text">Localidade</th><th data-sort-type="text">Quadra</th><th data-sort-type="text">Endereço</th><th data-sort-type="text">Morador</th><th data-sort-type="text">Visita</th><th data-sort-type="number">Animais</th></tr></thead>
           <tbody id="esp-resumo-visitas-body"></tbody>
         </table>
       </div>
@@ -188,8 +188,8 @@
       <div class="esporo-filter-actions"><button class="btn btn-primary" type="button" onclick="carregarEspVisitas()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button></div>
     </div>
     <div class="table-scroll">
-      <table>
-        <thead><tr><th>Data</th><th>Hora</th><th>Agentes</th><th>Localidade</th><th>Q.</th><th>Tipo</th><th>Endereço</th><th>Morador</th><th>Telefone</th><th>Visita</th><th>Animais</th><th>Cad. Animal</th><th>Ações</th></tr></thead>
+      <table id="esp-visitas-table" data-sortable-table>
+        <thead><tr><th data-sort-type="date">Data</th><th data-sort-type="text">Hora</th><th data-sort-type="text">Agentes</th><th data-sort-type="text">Localidade</th><th data-sort-type="text">Q.</th><th data-sort-type="text">Tipo</th><th data-sort-type="text">Endereço</th><th data-sort-type="text">Morador</th><th data-sort-type="text">Telefone</th><th data-sort-type="text">Visita</th><th data-sort-type="number">Animais</th><th data-sort-type="text">Cad. Animal</th><th>Ações</th></tr></thead>
         <tbody id="esp-visitas-body"></tbody>
       </table>
     </div>
@@ -281,11 +281,11 @@
       </div>
     </div>
     <div class="table-scroll">
-      <table>
+      <table id="esp-animais-table" data-sortable-table>
         <thead>
           <tr>
-            <th>Animal</th><th>Espécie</th><th>Raça</th><th>Sexo</th><th>Ambiente</th>
-            <th>Feridas</th><th>Região</th><th>Vacina</th><th>Castração</th><th>Veterinário</th><th>Atend.</th><th>Evolução</th><th>Morador</th><th>Endereço</th><th>Ações</th>
+            <th data-sort-type="text">Animal</th><th data-sort-type="text">Espécie</th><th data-sort-type="text">Raça</th><th data-sort-type="text">Sexo</th><th data-sort-type="text">Ambiente</th>
+            <th data-sort-type="text">Feridas</th><th data-sort-type="text">Região</th><th data-sort-type="text">Vacina</th><th data-sort-type="text">Castração</th><th data-sort-type="text">Veterinário</th><th data-sort-type="date">Atend.</th><th data-sort-type="text">Evolução</th><th data-sort-type="text">Morador</th><th data-sort-type="text">Endereço</th><th>Ações</th>
           </tr>
         </thead>
         <tbody id="esp-animais-body"></tbody>
@@ -321,8 +321,8 @@
         <div class="esporo-filter-actions"><button class="btn btn-primary" type="button" onclick="carregarEspDoentes()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button></div>
       </div>
       <div class="table-scroll">
-        <table>
-          <thead><tr><th>Animal</th><th>Espécie</th><th>Tutor</th><th>Endereço</th><th>Status</th><th>Cápsulas</th><th>Tratamento</th><th>Bloqueio</th><th>Pedido Zoomed</th><th>Baixa Zoomed</th><th>Ações</th></tr></thead>
+        <table id="esp-doentes-table" data-sortable-table>
+          <thead><tr><th data-sort-type="text">Animal</th><th data-sort-type="text">Espécie</th><th data-sort-type="text">Tutor</th><th data-sort-type="text">Endereço</th><th data-sort-type="text">Status</th><th data-sort-type="number" data-sort-label="cápsulas entregues">Cápsulas</th><th data-sort-type="date" data-sort-label="data exibida no tratamento">Tratamento</th><th data-sort-type="text">Bloqueio</th><th data-sort-type="text">Pedido Zoomed</th><th data-sort-type="number" data-sort-label="baixas pendentes no Zoomed">Baixa Zoomed</th><th>Ações</th></tr></thead>
           <tbody id="esp-doentes-body"></tbody>
         </table>
       </div>
@@ -416,8 +416,8 @@
     <div class="chart-card full">
       <div class="chart-hd"><div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Atenção rápida</div></div>
       <div class="table-scroll">
-        <table>
-          <thead><tr><th>Animal</th><th>Tutor</th><th>Status</th><th>Cápsulas</th><th>Última receita</th><th>Zoomed</th></tr></thead>
+        <table id="doe-res-atencao-table" data-sortable-table>
+          <thead><tr><th data-sort-type="text">Animal</th><th data-sort-type="text">Tutor</th><th data-sort-type="text">Status</th><th data-sort-type="number" data-sort-label="cápsulas entregues">Cápsulas</th><th data-sort-type="date">Última receita</th><th data-sort-type="number" data-sort-label="baixas pendentes no Zoomed">Zoomed</th></tr></thead>
           <tbody id="doe-res-atencao"></tbody>
         </table>
       </div>
@@ -481,11 +481,11 @@
       <div class="esporo-filter-actions"><button class="btn btn-primary" type="button" onclick="carregarEspLocalidadesDetalhe()"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
     </div>
     <div class="table-scroll">
-      <table>
+      <table id="esp-localidades-table" data-sortable-table>
         <thead>
           <tr>
-            <th>Localidade</th><th>Visitas</th><th>Animais</th><th>Cães</th><th>Gatos</th>
-            <th>Com feridas</th><th>Fechadas</th><th>Recusas</th>
+            <th data-sort-type="text">Localidade</th><th data-sort-type="number">Visitas</th><th data-sort-type="number">Animais</th><th data-sort-type="number">Cães</th><th data-sort-type="number">Gatos</th>
+            <th data-sort-type="number">Com feridas</th><th data-sort-type="number">Fechadas</th><th data-sort-type="number">Recusas</th>
           </tr>
         </thead>
         <tbody id="esp-localidades-body"></tbody>
@@ -808,16 +808,16 @@ function renderEspDoentes(rows, total) {
   setEspText('doe-kpi-receitas', receitas);
   document.getElementById('esp-doentes-body').innerHTML = rows.length ? rows.map(r => `
     <tr>
-      <td><strong>${escapeHtml(r.nome || '-')}</strong><div class="muted">${escapeHtml(r.localidade || '-')} ${r.quarteirao ? '· Q ' + escapeHtml(r.quarteirao) : ''}</div></td>
-      <td><span class="esporo-tag">${escapeHtml(r.especie || '-')}</span></td>
-      <td>${escapeHtml(r.tutor || '-')}<div class="muted">${escapeHtml(r.telefone || '')}</div><div class="muted">${r.cpf ? 'CPF ' + escapeHtml(r.cpf) : ''}</div></td>
-      <td>${escapeHtml(r.endereco || '-')}<div class="muted">${escapeHtml(r.sinan ? 'SINAN ' + r.sinan : '')}</div></td>
-      <td><span class="esporo-tag ${statusDoenteClass(r.status)}">${escapeHtml(r.status || '-')}</span></td>
-      <td class="esporo-capsulas">${capsulasDoenteHtml(r)}</td>
-      <td>${tratamentoDoenteHtml(r)}</td>
-      <td>${escapeHtml(r.bloqueio || '-')}</td>
-      <td>${zoomedBadge(r.pedido_zoomed)}</td>
-      <td>${zoomedBaixaBadge(r.entregas_zoomed_pendentes || 0)}</td>
+      <td data-sort-value="${escapeHtml(r.nome || '')}"><strong>${escapeHtml(r.nome || '-')}</strong><div class="muted">${escapeHtml(r.localidade || '-')} ${r.quarteirao ? '· Q ' + escapeHtml(r.quarteirao) : ''}</div></td>
+      <td data-sort-value="${escapeHtml(r.especie || '')}"><span class="esporo-tag">${escapeHtml(r.especie || '-')}</span></td>
+      <td data-sort-value="${escapeHtml(r.tutor || '')}">${escapeHtml(r.tutor || '-')}<div class="muted">${escapeHtml(r.telefone || '')}</div><div class="muted">${r.cpf ? 'CPF ' + escapeHtml(r.cpf) : ''}</div></td>
+      <td data-sort-value="${escapeHtml(r.endereco || '')}">${escapeHtml(r.endereco || '-')}<div class="muted">${escapeHtml(r.sinan ? 'SINAN ' + r.sinan : '')}</div></td>
+      <td data-sort-value="${escapeHtml(r.status || '')}"><span class="esporo-tag ${statusDoenteClass(r.status)}">${escapeHtml(r.status || '-')}</span></td>
+      <td class="esporo-capsulas" data-sort-value="${Number(r.capsulas_entregues || 0)}">${capsulasDoenteHtml(r)}</td>
+      <td data-sort-value="${escapeHtml(r.receita_pendente ? (r.ultima_entrega || '') : (r.ultima_receita || ''))}">${tratamentoDoenteHtml(r)}</td>
+      <td data-sort-value="${escapeHtml(r.bloqueio || '')}">${escapeHtml(r.bloqueio || '-')}</td>
+      <td data-sort-value="${escapeHtml(r.pedido_zoomed || '')}">${zoomedBadge(r.pedido_zoomed)}</td>
+      <td data-sort-value="${Number(r.entregas_zoomed_pendentes || 0)}">${zoomedBaixaBadge(r.entregas_zoomed_pendentes || 0)}</td>
       <td>
         <div class="esporo-doente-actions">
           <a class="btn btn-sm" href="/esporotricose/doentes/${r.id_animal_doente}">Abrir</a>
@@ -826,6 +826,7 @@ function renderEspDoentes(rows, total) {
       </td>
     </tr>
   `).join('') : '<tr><td colspan="11" class="empty-inline">Nenhum animal doente cadastrado.</td></tr>';
+  refreshSortableTable('esp-doentes-table');
 }
 function capsulasDoenteHtml(r) {
   const entregue = `<strong>${fmtNum(r.capsulas_entregues || 0)}</strong> entregues`;
@@ -912,14 +913,15 @@ function renderEspDoentesResumo(rows, total, totais={}) {
     .slice(0, 20);
   document.getElementById('doe-res-atencao').innerHTML = atencao.length ? atencao.map(r => `
     <tr>
-      <td><strong>${escapeHtml(r.nome || '-')}</strong><div class="muted">${escapeHtml(r.especie || '-')}</div></td>
-      <td>${escapeHtml(r.tutor || '-')}<div class="muted">${r.cpf ? 'CPF ' + escapeHtml(r.cpf) : escapeHtml(r.telefone || '')}</div></td>
-      <td><span class="esporo-tag ${statusDoenteClass(r.status)}">${escapeHtml(r.status || '-')}</span></td>
-      <td>${capsulasDoenteHtml(r)}</td>
-      <td>${r.receita_pendente ? '<span class="muted warn">Receita pendente</span>' : (fmtDate(r.ultima_receita) || '-')}</td>
-      <td>${zoomedBaixaBadge(r.entregas_zoomed_pendentes || 0)}</td>
+      <td data-sort-value="${escapeHtml(r.nome || '')}"><strong>${escapeHtml(r.nome || '-')}</strong><div class="muted">${escapeHtml(r.especie || '-')}</div></td>
+      <td data-sort-value="${escapeHtml(r.tutor || '')}">${escapeHtml(r.tutor || '-')}<div class="muted">${r.cpf ? 'CPF ' + escapeHtml(r.cpf) : escapeHtml(r.telefone || '')}</div></td>
+      <td data-sort-value="${escapeHtml(r.status || '')}"><span class="esporo-tag ${statusDoenteClass(r.status)}">${escapeHtml(r.status || '-')}</span></td>
+      <td data-sort-value="${Number(r.capsulas_entregues || 0)}">${capsulasDoenteHtml(r)}</td>
+      <td data-sort-value="${escapeHtml(r.ultima_receita || '')}">${r.receita_pendente ? '<span class="muted warn">Receita pendente</span>' : (fmtDate(r.ultima_receita) || '-')}</td>
+      <td data-sort-value="${Number(r.entregas_zoomed_pendentes || 0)}">${zoomedBaixaBadge(r.entregas_zoomed_pendentes || 0)}</td>
     </tr>
   `).join('') : '<tr><td colspan="6" class="empty-inline">Nenhuma pendência rápida encontrada.</td></tr>';
+  refreshSortableTable('doe-res-atencao-table');
 }
 async function carregarEspEstoque() {
   try {
@@ -1479,62 +1481,65 @@ async function carregarEspDashboard() {
 function renderEspResumoVisitas(rows) {
   const html = rows.length ? rows.map(r => `
     <tr>
-      <td>${fmtDate(r.data)}</td>
-      <td>${escapeHtml(r.localidade || '-')}</td>
-      <td>${escapeHtml(r.quarteirao ?? '-')}</td>
-      <td class="esporo-address">${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', ') || '-')}</td>
-      <td>${escapeHtml(r.morador || '-')}</td>
-      <td>${escapeHtml(r.visita || '-')}</td>
-      <td><strong>${fmtNum(r.animais)}</strong></td>
+      <td data-sort-value="${escapeHtml(r.data || '')}">${fmtDate(r.data)}</td>
+      <td data-sort-value="${escapeHtml(r.localidade || '')}">${escapeHtml(r.localidade || '-')}</td>
+      <td data-sort-value="${escapeHtml(r.quarteirao ?? '')}">${escapeHtml(r.quarteirao ?? '-')}</td>
+      <td class="esporo-address" data-sort-value="${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', '))}">${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', ') || '-')}</td>
+      <td data-sort-value="${escapeHtml(r.morador || '')}">${escapeHtml(r.morador || '-')}</td>
+      <td data-sort-value="${escapeHtml(r.visita || '')}">${escapeHtml(r.visita || '-')}</td>
+      <td data-sort-value="${Number(r.animais || 0)}"><strong>${fmtNum(r.animais)}</strong></td>
     </tr>
   `).join('') : '<tr><td colspan="7" class="empty-inline">Nenhuma visita encontrada.</td></tr>';
   document.getElementById('esp-resumo-visitas-body').innerHTML = html;
+  refreshSortableTable('esp-resumo-visitas-table');
 }
 function renderEspVisitas(rows, total) {
   document.getElementById('esp-visitas-body').innerHTML = rows.length ? rows.map(r => `
     <tr data-id="${escapeHtml(r.id_visita)}">
-      <td>${fmtDate(r.data)}</td>
-      <td>${escapeHtml(r.hora_inicio || '-')}</td>
-      <td>${escapeHtml(r.agentes || '-')}</td>
-      <td>${escapeHtml(r.localidade || '-')}</td>
-      <td>${escapeHtml(r.quarteirao ?? '-')}</td>
-      <td>${escapeHtml(r.tipo_imovel || '-')}</td>
-      <td class="esporo-address">${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', ') || '-')}</td>
-      <td>${escapeHtml(r.morador || '-')}</td>
-      <td class="esporo-nowrap">${escapeHtml(r.telefone || '-')}</td>
-      <td>${escapeHtml(r.visita || '-')}</td>
-      <td><strong>${fmtNum(r.animais)}</strong></td>
-      <td>${escapeHtml(r.deseja_cadastrar_animal || '-')}</td>
+      <td data-sort-value="${escapeHtml(r.data || '')}">${fmtDate(r.data)}</td>
+      <td data-sort-value="${escapeHtml(r.hora_inicio || '')}">${escapeHtml(r.hora_inicio || '-')}</td>
+      <td data-sort-value="${escapeHtml(r.agentes || '')}">${escapeHtml(r.agentes || '-')}</td>
+      <td data-sort-value="${escapeHtml(r.localidade || '')}">${escapeHtml(r.localidade || '-')}</td>
+      <td data-sort-value="${escapeHtml(r.quarteirao ?? '')}">${escapeHtml(r.quarteirao ?? '-')}</td>
+      <td data-sort-value="${escapeHtml(r.tipo_imovel || '')}">${escapeHtml(r.tipo_imovel || '-')}</td>
+      <td class="esporo-address" data-sort-value="${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', '))}">${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', ') || '-')}</td>
+      <td data-sort-value="${escapeHtml(r.morador || '')}">${escapeHtml(r.morador || '-')}</td>
+      <td class="esporo-nowrap" data-sort-value="${escapeHtml(r.telefone || '')}">${escapeHtml(r.telefone || '-')}</td>
+      <td data-sort-value="${escapeHtml(r.visita || '')}">${escapeHtml(r.visita || '-')}</td>
+      <td data-sort-value="${Number(r.animais || 0)}"><strong>${fmtNum(r.animais)}</strong></td>
+      <td data-sort-value="${escapeHtml(r.deseja_cadastrar_animal || '')}">${escapeHtml(r.deseja_cadastrar_animal || '-')}</td>
       <td><button class="btn btn-ghost btn-sm" type="button" onclick="editarVisita('${escapeHtml(r.id_visita)}')"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button></td>
     </tr>
   `).join('') : '<tr><td colspan="13" class="empty-inline">Nenhuma visita encontrada.</td></tr>';
   document.getElementById('esp-visitas-info').textContent = `${fmtNum(total)} visita(s) · ${fmtNum(rows.length)} exibida(s)`;
+  refreshSortableTable('esp-visitas-table');
 }
 function renderEspAnimais(rows, total, bodyId, infoId) {
   document.getElementById(infoId).textContent = `${fmtNum(total)} animal(is) - ${fmtNum(rows.length)} exibido(s)`;
   espAnimaisRowsById = new Map(rows.map(r => [String(r.id_animal), r]));
   document.getElementById(bodyId).innerHTML = rows.length ? rows.map(r => `
-    <tr class="esporo-animal-main-row" data-id="${escapeHtml(r.id_animal)}" onclick="toggleEspAnimalDetalhes(this.dataset.id, event)">
-      <td><strong>${escapeHtml(r.nome || '-')}</strong><div class="muted">${fmtDate(r.data)} - ${escapeHtml(r.localidade || '-')}</div></td>
-      <td>${escapeHtml(r.especie || r.outro_animal || '-')}</td>
-      <td>${escapeHtml(r.raca || '-')}</td>
-      <td>${escapeHtml(r.sexo || '-')}</td>
-      <td>${escapeHtml(r.ambiente || '-')}</td>
-      <td>${tagStatus(r.feridas, 'positiveBad')}</td>
-      <td>${escapeHtml(r.regiao_ferida || '-')}</td>
-      <td>${tagStatus(r.vacinado)}</td>
-      <td>${tagStatus(r.castrado)}</td>
-      <td>${tagStatus(r.atendimento_veterinario)}</td>
-      <td>${fmtDate(r.data_atendimento) || '-'}</td>
-      <td><span class="esporo-tag ${statusDoenteClass(r.evolucao_caso)}">${escapeHtml(r.evolucao_caso || 'Nao informado')}</span></td>
-      <td>${escapeHtml(r.morador || '-')}</td>
-      <td class="esporo-address">${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', ') || '-')}</td>
+    <tr class="esporo-animal-main-row" data-sort-row data-id="${escapeHtml(r.id_animal)}" onclick="toggleEspAnimalDetalhes(this.dataset.id, event)">
+      <td data-sort-value="${escapeHtml(r.nome || '')}"><strong>${escapeHtml(r.nome || '-')}</strong><div class="muted">${fmtDate(r.data)} - ${escapeHtml(r.localidade || '-')}</div></td>
+      <td data-sort-value="${escapeHtml(r.especie || r.outro_animal || '')}">${escapeHtml(r.especie || r.outro_animal || '-')}</td>
+      <td data-sort-value="${escapeHtml(r.raca || '')}">${escapeHtml(r.raca || '-')}</td>
+      <td data-sort-value="${escapeHtml(r.sexo || '')}">${escapeHtml(r.sexo || '-')}</td>
+      <td data-sort-value="${escapeHtml(r.ambiente || '')}">${escapeHtml(r.ambiente || '-')}</td>
+      <td data-sort-value="${escapeHtml(r.feridas || '')}">${tagStatus(r.feridas, 'positiveBad')}</td>
+      <td data-sort-value="${escapeHtml(r.regiao_ferida || '')}">${escapeHtml(r.regiao_ferida || '-')}</td>
+      <td data-sort-value="${escapeHtml(r.vacinado || '')}">${tagStatus(r.vacinado)}</td>
+      <td data-sort-value="${escapeHtml(r.castrado || '')}">${tagStatus(r.castrado)}</td>
+      <td data-sort-value="${escapeHtml(r.atendimento_veterinario || '')}">${tagStatus(r.atendimento_veterinario)}</td>
+      <td data-sort-value="${escapeHtml(r.data_atendimento || '')}">${fmtDate(r.data_atendimento) || '-'}</td>
+      <td data-sort-value="${escapeHtml(r.evolucao_caso || '')}"><span class="esporo-tag ${statusDoenteClass(r.evolucao_caso)}">${escapeHtml(r.evolucao_caso || 'Nao informado')}</span></td>
+      <td data-sort-value="${escapeHtml(r.morador || '')}">${escapeHtml(r.morador || '-')}</td>
+      <td class="esporo-address" data-sort-value="${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', '))}">${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', ') || '-')}</td>
       <td><div class="esporo-doente-actions"><button class="btn btn-outline btn-sm" type="button" data-id="${escapeHtml(r.id_animal)}" onclick="toggleEspAnimalDetalhes(this.dataset.id, event)">Detalhes</button><button class="btn btn-ghost btn-sm" type="button" data-id="${escapeHtml(r.id_animal)}" onclick="event.stopPropagation(); editarAnimal(this.dataset.id)"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button></div></td>
     </tr>
-    <tr class="esporo-animal-detail-row" data-detail-id="${escapeHtml(r.id_animal)}" style="display:none;">
+    <tr class="esporo-animal-detail-row" data-sort-detail data-detail-id="${escapeHtml(r.id_animal)}" style="display:none;">
       <td colspan="15">${renderEspAnimalDetalhe(r)}</td>
     </tr>
   `).join('') : '<tr><td colspan="15" class="empty-inline">Nenhum animal encontrado.</td></tr>';
+  refreshSortableTable('esp-animais-table');
 }
 function detalheItem(label, value) {
   return `<div><div class="muted">${escapeHtml(label)}</div><strong>${escapeHtml(value || '-')}</strong></div>`;
@@ -1649,16 +1654,17 @@ function renderEspLocalidadesDetalhe(rows) {
   document.getElementById('esp-localidades-info').textContent = `${fmtNum(rows.length)} localidade(s)`;
   document.getElementById('esp-localidades-body').innerHTML = rows.length ? rows.map(r => `
     <tr>
-      <td><strong>${escapeHtml(r.localidade || '-')}</strong></td>
-      <td>${fmtNum(r.visitas)}</td>
-      <td>${fmtNum(r.animais)}</td>
-      <td>${fmtNum(r.caes)}</td>
-      <td>${fmtNum(r.gatos)}</td>
-      <td>${r.com_feridas > 0 ? `<span class="esporo-badge warn">${fmtNum(r.com_feridas)}</span>` : fmtNum(r.com_feridas)}</td>
-      <td>${fmtNum(r.fechadas)}</td>
-      <td>${fmtNum(r.recusas)}</td>
+      <td data-sort-value="${escapeHtml(r.localidade || '')}"><strong>${escapeHtml(r.localidade || '-')}</strong></td>
+      <td data-sort-value="${Number(r.visitas || 0)}">${fmtNum(r.visitas)}</td>
+      <td data-sort-value="${Number(r.animais || 0)}">${fmtNum(r.animais)}</td>
+      <td data-sort-value="${Number(r.caes || 0)}">${fmtNum(r.caes)}</td>
+      <td data-sort-value="${Number(r.gatos || 0)}">${fmtNum(r.gatos)}</td>
+      <td data-sort-value="${Number(r.com_feridas || 0)}">${r.com_feridas > 0 ? `<span class="esporo-badge warn">${fmtNum(r.com_feridas)}</span>` : fmtNum(r.com_feridas)}</td>
+      <td data-sort-value="${Number(r.fechadas || 0)}">${fmtNum(r.fechadas)}</td>
+      <td data-sort-value="${Number(r.recusas || 0)}">${fmtNum(r.recusas)}</td>
     </tr>
   `).join('') : '<tr><td colspan="8" class="empty-inline">Sem localidade no período.</td></tr>';
+  refreshSortableTable('esp-localidades-table');
 }
 function renderEspDashboard(d) {
   const ev = d.evolucao || [];
