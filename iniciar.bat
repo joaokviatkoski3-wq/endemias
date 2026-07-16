@@ -69,10 +69,8 @@ if not exist ".deps_ok" (
 
 python -c "import socket, sys; s=socket.socket(); sys.exit(0 if s.connect_ex(('127.0.0.1', 5000)) == 0 else 1)" >nul 2>nul
 if not errorlevel 1 (
-    echo  O sistema ja parece estar aberto neste computador.
-    echo  Use o navegador em: http://localhost:5000
-    echo.
-    pause
+    echo  O sistema ja esta aberto. Abrindo no navegador...
+    start "" http://localhost:5000
     exit /b 0
 )
 
