@@ -38,6 +38,7 @@
       <div class="f-g"><label>Espécie</label><select id="especie" required>{% for opt in ['Gato','Cão','Outros'] %}<option value="{{ opt }}" {% if (animal and animal.especie == opt) or (not animal and opt == 'Gato') %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Sexo</label><select id="sexo"><option value="">-</option>{% for opt in ['Macho','Fêmea'] %}<option value="{{ opt }}" {% if animal and animal.sexo == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Status</label><select id="status" required>{% for st in status_opcoes %}<option value="{{ st.nome }}" {% if (animal and animal.status == st.nome) or (not animal and st.nome == 'Em tratamento') %}selected{% endif %}>{{ st.nome }}</option>{% endfor %}</select></div>
+      <div class="f-g"><label>Data notificação</label><input id="data_notificacao" type="date" required value="{{ animal.data_notificacao if animal else '' }}"></div>
       <div class="f-g"><label>Tutor</label><input id="tutor" type="text" required value="{{ animal.tutor if animal else '' }}"></div>
       <div class="f-g"><label>Telefone</label><input id="telefone" type="text" value="{{ animal.telefone if animal else '' }}"></div>
       <div class="f-g"><label>CPF do tutor</label><input id="cpf" type="text" value="{{ animal.cpf if animal else '' }}"></div>
@@ -57,7 +58,6 @@
     <div class="chart-card" style="margin-top:14px;background:var(--surface2);">
       <div class="chart-hd"><div class="chart-title">Primeira receita opcional</div></div>
       <div class="doe-form-grid">
-        <div class="f-g"><label>Data notificação</label><input id="rec_data_notificacao" type="date"></div>
         <div class="f-g"><label>Início dos sintomas</label><input id="rec_inicio_sintomas" type="date"></div>
         <div class="f-g"><label>Receita</label><input id="rec_data_receita" type="date"></div>
         <div class="f-g"><label>VA + Veterinário</label><input id="rec_visita_va_veterinario" type="date"></div>
@@ -80,19 +80,24 @@
 const modo = {{ modo|tojson }};
 const animal = {{ (animal or {})|tojson }};
 function val(id){ return document.getElementById(id)?.value || ''; }
+if(modo === 'novo' && !val('data_notificacao')){
+  const agora = new Date();
+  agora.setMinutes(agora.getMinutes() - agora.getTimezoneOffset());
+  document.getElementById('data_notificacao').value = agora.toISOString().slice(0, 10);
+}
 function payloadAnimal(){
   return {
     id_animal_visita: animal?.id_animal_visita || '',
     nome: val('nome'), especie: val('especie'), sexo: val('sexo'), tutor: val('tutor'), telefone: val('telefone'), cpf: val('cpf'),
     sinan: val('sinan'), localidade: val('localidade'), quarteirao: val('quarteirao'),
     endereco: val('endereco'), latitude: val('latitude'), longitude: val('longitude'),
-    status: val('status'), bloqueio: val('bloqueio'), data_bloqueio: val('data_bloqueio'),
+    status: val('status'), data_notificacao: val('data_notificacao'), bloqueio: val('bloqueio'), data_bloqueio: val('data_bloqueio'),
     pedido_zoomed: val('pedido_zoomed'), observacoes_entomologica: val('observacoes_entomologica')
   };
 }
 function payloadReceita(){
   return {
-    data_notificacao: val('rec_data_notificacao'), inicio_sintomas: val('rec_inicio_sintomas'),
+    inicio_sintomas: val('rec_inicio_sintomas'),
     data_receita: val('rec_data_receita'), visita_va_veterinario: val('rec_visita_va_veterinario'),
     capsulas_total: val('rec_capsulas_total'), posologia: val('rec_posologia'),
     status: val('status'), observacoes: val('rec_observacoes')

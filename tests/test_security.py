@@ -1150,11 +1150,11 @@ class EsporotricoseSchemaTests(unittest.TestCase):
                 conn.execute(
                     """INSERT INTO esporotricose_doentes_animais
                        (chave, tutor, nome, sexo, telefone, localidade, quarteirao, endereco,
-                        latitude, longitude, sinan, status, bloqueio, data_bloqueio,
+                        latitude, longitude, sinan, status, data_notificacao, bloqueio, data_bloqueio,
                         observacoes_entomologica, pedido_zoomed, criado_em, atualizado_em)
                        VALUES ('abc', 'Maria', 'Mimi', 'Fêmea', '5541999999999', 'Graziela',
                                '10', 'Rua Teste, 123', -25.31, -49.30, '12345',
-                               'Em tratamento', 'Sim', '2026-06-10', 'Observação', 'Sim', ?, ?)""",
+                               'Em tratamento', '2026-06-01', 'Sim', '2026-06-10', 'Observação', 'Sim', ?, ?)""",
                     (agora, agora),
                 )
                 animal_id = conn.execute("SELECT id_animal_doente FROM esporotricose_doentes_animais").fetchone()[0]
@@ -1184,8 +1184,65 @@ class EsporotricoseSchemaTests(unittest.TestCase):
         self.assertEqual(rows[0]["latitude"], -25.31)
         self.assertEqual(rows[0]["longitude"], -49.3)
         self.assertEqual(rows[0]["data_notificacao"], "2026-06-01")
+        self.assertEqual(rows[0]["primeira_notificacao"], "2026-06-01")
+        self.assertEqual(rows[0]["ultima_notificacao"], "2026-06-01")
         self.assertEqual(rows[0]["baixa_zoomed"], "Pendente")
         self.assertEqual(rows[0]["bloqueio"], "Realizado")
+
+    def test_data_notificacao_pertence_ao_doente_e_migra_historico(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "esporotricose_notificacao.db"
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                esporotricose_core.ensure_schema(conn)
+                conn.execute(
+                    """INSERT INTO esporotricose_doentes_animais
+                       (chave, tutor, nome, status, criado_em, atualizado_em)
+                       VALUES ('historico', 'ELISA MARIA YAMAGUICHI', 'MAFALDA',
+                               'Em tratamento', '2026-06-15T10:00:00', '2026-06-15T10:00:00')"""
+                )
+                conn.commit()
+                esporotricose_core.ensure_schema(conn)
+                historico = conn.execute(
+                    "SELECT data_notificacao FROM esporotricose_doentes_animais WHERE chave='historico'"
+                ).fetchone()[0]
+            finally:
+                conn.close()
+
+            novo_id = esporotricose_core.salvar_doente(str(db_path), {
+                "nome": "Novo animal",
+                "tutor": "Novo tutor",
+                "status": "Em tratamento",
+            })
+            receita_id = esporotricose_core.salvar_receita_doente(str(db_path), novo_id, {
+                "data_notificacao": "2020-01-01",
+                "data_receita": "2026-07-16",
+                "capsulas_total": 30,
+            })
+            esporotricose_core.salvar_doente(str(db_path), {
+                "id_animal_doente": novo_id,
+                "nome": "Novo animal",
+                "tutor": "Novo tutor",
+                "status": "Em tratamento",
+                "data_notificacao": "2026-07-10",
+            })
+            conn = sqlite3.connect(db_path)
+            try:
+                data_novo = conn.execute(
+                    "SELECT data_notificacao FROM esporotricose_doentes_animais WHERE id_animal_doente=?",
+                    (novo_id,),
+                ).fetchone()[0]
+                data_receita = conn.execute(
+                    "SELECT data_notificacao FROM esporotricose_doentes_receitas WHERE id_receita=?",
+                    (receita_id,),
+                ).fetchone()[0]
+            finally:
+                conn.close()
+
+        self.assertEqual(historico, "2026-04-07")
+        self.assertEqual(data_novo, "2026-07-10")
+        self.assertIsNone(data_receita)
 
     def test_filtro_doentes_bloqueio_usa_status_operacional(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -4971,6 +5028,9 @@ class MainApisSmokeTests(unittest.TestCase):
         html_novo = novo.data.decode("utf-8")
         self.assertIn("Novo paciente", html_novo)
         self.assertIn("Pedido ZooMed", html_novo)
+        self.assertIn("Data notificação", html_novo)
+        self.assertIn('id="data_notificacao"', html_novo)
+        self.assertNotIn('id="rec_data_notificacao"', html_novo)
         self.assertIn("Não é esporotricose", html_novo)
 
         dados = client.get("/api/esporotricose/doentes").get_json()
@@ -4980,7 +5040,9 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(detalhe.status_code, 200)
             html_detalhe = detalhe.data.decode("utf-8")
             self.assertIn("Dados do paciente", html_detalhe)
+            self.assertIn("Data notificação", html_detalhe)
             self.assertIn("Receitas e entregas", html_detalhe)
+            self.assertNotIn('id="rec-data-notificacao"', html_detalhe)
             self.assertIn("Entrega cadastrada na ZOOMED", html_detalhe)
             self.assertIn("whatsapp.svg", html_detalhe)
             self.assertIn("excluirReceita", html_detalhe)

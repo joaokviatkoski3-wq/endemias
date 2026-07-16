@@ -24,6 +24,47 @@ DOENTES_STATUS_TABLE = "esporotricose_doentes_status"
 DOENTES_ESTOQUE_TABLE = "esporotricose_estoque_medicacao"
 NORMAL_IMPORT_MARKER = "esporotricose_kobo_v2"
 LEGACY_IMPORT_MARKER = "esporotricose_historico_legado"
+DOENTES_DATAS_NOTIFICACAO_HISTORICAS = {
+    ("alexandra socorro de camarao cassaro", "moca"): "2026-01-30",
+    ("ana maria da luz jardeveski", "vitoria"): "2025-10-29",
+    ("ana maria da luz jardeveski", "kelvin"): "2025-11-18",
+    ("ana paula teixeira", "mia"): "2025-05-09",
+    ("anelise marques de paula silva", "amora"): "2025-08-13",
+    ("carla vatrim", "frajola"): "2025-09-09",
+    ("celoni antunes bonfim", "banguela"): "2025-12-16",
+    ("elvira da luz ribeiro geremias", "gato sem nome"): "2025-11-06",
+    ("flavio da silva", "pricesa"): "2025-10-07",
+    ("flavio da silva", "asdrubol"): "2025-10-07",
+    ("giraldo quirama", "antonio"): "2025-06-05",
+    ("juliane alves faria de souza", "mufasa"): "2025-11-03",
+    ("larissa ventura", "fryda"): "2025-08-13",
+    ("lucilene dantas", "lia"): "2026-01-28",
+    ("monica aparecida pereira lima", "mingau"): "2025-09-09",
+    ("rayssa cristine correia nazareno", "marshmallow"): "2025-05-13",
+    ("ronaldo bazan de santana jr", "ellie"): "2025-09-04",
+    ("simone marisa dos santos", "negao"): "2026-01-21",
+    ("valquiria gomes de queiroz", "kiara"): "2025-10-24",
+    ("wellingnton martins dos santos", "kitty"): "2025-07-09",
+    ("celoni antunes bonfim", "mimi"): "2026-03-06",
+    ("elisama diniz", "gata mansa"): "2026-03-30",
+    ("elisa maria yamaguichi", "mafalda"): "2026-04-07",
+    ("elisa maria yamaguichi", "mafalta"): "2026-04-07",
+    ("yuri gabriel miserkowski ribeiro", "zoe"): "2026-04-09",
+    ("yuri gabriel miserkowski ribeiro", "tina"): "2026-04-09",
+    ("yuri gabriel miserkowski ribeiro", "jackinho"): "2026-04-09",
+    ("maria noely pereira", "polaquinho"): "2026-04-09",
+    ("izabelly dias fernandes", "apollo"): "2026-04-13",
+    ("suzana sobrinho", "mamau"): "2026-05-12",
+    ("flavia goncalves dos santos", "buzina"): "2026-05-12",
+    ("jaciara luise dos santos badeluk march", "chita"): "2026-05-20",
+    ("dayane", "sem nome"): "2026-05-13",
+    ("elisama diniz", "genivaldo"): "2026-03-30",
+    ("elisama diniz", "pichama"): "2026-03-30",
+    ("rosilene aparecida a silva", "caramelo"): "2026-06-01",
+    ("joares dos santos", "pretinha"): "2026-06-02",
+    ("marcio andre de lima", "kiara"): "2026-06-02",
+    ("aliciele miriam soares", "candinha"): "2026-06-10",
+}
 MOTIVO_ATENCAO_SQL = """CASE
     WHEN LOWER(COALESCE(a.feridas,'')) = 'sim' THEN 'Ferida informada'
     WHEN a.feridas IS NULL OR LOWER(COALESCE(a.feridas,'')) = 'desconhecido' THEN 'Feridas sem confirma\u00e7\u00e3o'
@@ -239,6 +280,7 @@ def ensure_schema(conn):
             data_bloqueio DATE,
             observacoes_entomologica TEXT,
             pedido_zoomed TEXT,
+            data_notificacao DATE,
             criado_em TEXT NOT NULL,
             atualizado_em TEXT NOT NULL
         );
@@ -315,6 +357,7 @@ def ensure_schema(conn):
     )
     _ensure_column(conn, DOENTES_TABLE, "especie", "TEXT")
     _ensure_column(conn, DOENTES_TABLE, "cpf", "TEXT")
+    _ensure_column(conn, DOENTES_TABLE, "data_notificacao", "DATE")
     _ensure_column(conn, DOENTES_RECEITAS_TABLE, "capsulas_por_dia", "REAL NOT NULL DEFAULT 1")
     _ensure_column(conn, DOENTES_RECEITAS_TABLE, "receita_pendente", "INTEGER NOT NULL DEFAULT 0")
     _ensure_column(conn, DOENTES_ENTREGAS_TABLE, "baixa_zoomed", "TEXT NOT NULL DEFAULT 'Sim'")
@@ -322,6 +365,10 @@ def ensure_schema(conn):
     _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_agente", "TEXT")
     _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_observacoes", "TEXT")
     _ensure_buscas_ferido_schema(conn)
+    conn.execute(
+        f"CREATE INDEX IF NOT EXISTS idx_esporo_doentes_data_notificacao ON {DOENTES_TABLE}(data_notificacao)"
+    )
+    _migrar_datas_notificacao_doentes(conn)
     _seed_doentes_status(conn)
     _normalizar_doentes_existentes(conn)
     _normalizar_visitas_animais_existentes(conn)
@@ -333,6 +380,29 @@ def _ensure_column(conn, table, column, definition):
     cols = {_db_value(row, "name", 1) for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
     if column not in cols:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
+def _migrar_datas_notificacao_doentes(conn):
+    historico = {
+        (_norm_col(tutor), _norm_col(animal)): data
+        for (tutor, animal), data in DOENTES_DATAS_NOTIFICACAO_HISTORICAS.items()
+    }
+    rows = conn.execute(
+        f"""SELECT id_animal_doente, tutor, nome, criado_em
+              FROM {DOENTES_TABLE}
+             WHERE data_notificacao IS NULL OR TRIM(data_notificacao)=''"""
+    ).fetchall()
+    hoje = datetime.now().date().isoformat()
+    for row in rows:
+        chave = (_norm_col(row["tutor"]), _norm_col(row["nome"]))
+        data_notificacao = historico.get(chave) or _date(row["criado_em"]) or hoje
+        conn.execute(
+            f"UPDATE {DOENTES_TABLE} SET data_notificacao=? WHERE id_animal_doente=?",
+            (data_notificacao, row["id_animal_doente"]),
+        )
+    conn.execute(
+        f"UPDATE {DOENTES_RECEITAS_TABLE} SET data_notificacao=NULL WHERE data_notificacao IS NOT NULL"
+    )
 
 
 def _ensure_buscas_ferido_schema(conn):
@@ -422,7 +492,7 @@ def _normalizar_doentes_existentes(conn):
                 (baixa, row["id_entrega"]),
             )
 
-    for coluna in ("data_notificacao", "inicio_sintomas", "data_receita", "visita_va_veterinario"):
+    for coluna in ("inicio_sintomas", "data_receita", "visita_va_veterinario"):
         conn.execute(
             f"""UPDATE {DOENTES_RECEITAS_TABLE}
                    SET {coluna}=NULL
@@ -1300,8 +1370,7 @@ def listar_doentes(db_path, filtros=None):
                      WHERE r.id_animal_doente=d.id_animal_doente) AS receitas,
                    (SELECT COUNT(*) FROM esporotricose_doentes_anexos an
                      WHERE an.id_animal_doente=d.id_animal_doente) AS anexos,
-                   (SELECT MAX(r.data_notificacao) FROM esporotricose_doentes_receitas r
-                     WHERE r.id_animal_doente=d.id_animal_doente) AS ultima_notificacao,
+                   d.data_notificacao AS ultima_notificacao,
                    (SELECT MAX(r.data_receita) FROM esporotricose_doentes_receitas r
                      WHERE r.id_animal_doente=d.id_animal_doente
                        AND COALESCE(r.receita_pendente, 0)=0) AS ultima_receita,
@@ -1347,7 +1416,7 @@ def listar_doentes(db_path, filtros=None):
         if where:
             sql += " WHERE " + " AND ".join(where)
         sql += """
-                   ORDER BY COALESCE(ultima_notificacao, '') DESC,
+                   ORDER BY COALESCE(d.data_notificacao, '') DESC,
                             d.id_animal_doente DESC"""
         rows = [_doente_row(row) for row in conn.execute(sql, params).fetchall()]
         if baixa_zoomed == "Pendente":
@@ -1582,6 +1651,7 @@ def listar_doentes_csv(db_path, filtros=None):
                    d.especie,
                    d.sexo,
                    d.status,
+                   d.data_notificacao,
                    d.localidade,
                    d.quarteirao,
                    d.endereco,
@@ -1592,8 +1662,8 @@ def listar_doentes_csv(db_path, filtros=None):
                    d.data_bloqueio,
                    d.pedido_zoomed,
                    d.observacoes_entomologica,
-                   MIN(r.data_notificacao) AS primeira_notificacao,
-                   MAX(r.data_notificacao) AS ultima_notificacao,
+                   d.data_notificacao AS primeira_notificacao,
+                   d.data_notificacao AS ultima_notificacao,
                    MAX(CASE WHEN COALESCE(r.receita_pendente, 0)=0 THEN r.data_receita ELSE NULL END) AS ultima_receita,
                    COUNT(DISTINCT CASE WHEN COALESCE(r.receita_pendente, 0)=1 THEN r.id_receita END) AS receitas_pendentes,
                    COUNT(DISTINCT r.id_receita) AS receitas,
@@ -1663,7 +1733,7 @@ def listar_doentes_csv(db_path, filtros=None):
             sql += """ HAVING entregas_zoomed_pendentes = 0
                         AND NOT (d.status='Em tratamento' AND entregas=0)"""
         sql += """
-                   ORDER BY COALESCE(MAX(r.data_notificacao), '') DESC,
+                   ORDER BY COALESCE(d.data_notificacao, '') DESC,
                             d.id_animal_doente DESC"""
         rows = []
         for row in conn.execute(sql, params).fetchall():
@@ -1673,7 +1743,6 @@ def listar_doentes_csv(db_path, filtros=None):
             if entregas == 0 and item.get("status") == "Em tratamento" and pendentes == 0:
                 pendentes = 1
             item["baixa_zoomed"] = "Pendente" if pendentes else "Sim"
-            item["data_notificacao"] = item.get("ultima_notificacao") or item.get("primeira_notificacao")
             item["especie"] = _especie_doente(item)
             item["receita_pendente"] = int(item.get("receitas_pendentes") or 0) > 0
             item["capsulas_restantes"] = max(
@@ -1706,7 +1775,7 @@ def obter_doente(db_path, id_animal_doente):
         for receita in conn.execute(
             """SELECT * FROM esporotricose_doentes_receitas
                 WHERE id_animal_doente=?
-                ORDER BY COALESCE(data_receita, data_notificacao, criado_em) DESC, id_receita DESC""",
+                ORDER BY COALESCE(data_receita, criado_em) DESC, id_receita DESC""",
             (id_animal_doente,),
         ).fetchall():
             item = dict(receita)
@@ -1759,7 +1828,7 @@ def salvar_doente(db_path, dados):
                 """UPDATE esporotricose_doentes_animais
                       SET tutor=?, nome=?, especie=?, sexo=?, telefone=?, cpf=?, localidade=?, quarteirao=?,
                           endereco=?, latitude=?, longitude=?, sinan=?, status=?, bloqueio=?,
-                          data_bloqueio=?, observacoes_entomologica=?, pedido_zoomed=?,
+                          data_bloqueio=?, observacoes_entomologica=?, pedido_zoomed=?, data_notificacao=COALESCE(?, data_notificacao),
                           atualizado_em=?
                     WHERE id_animal_doente=?""",
                 (
@@ -1767,7 +1836,7 @@ def salvar_doente(db_path, dados):
                     payload["cpf"], payload["localidade"], payload["quarteirao"], payload["endereco"],
                     payload["latitude"], payload["longitude"], payload["sinan"], payload["status"],
                     payload["bloqueio"], payload["data_bloqueio"], payload["observacoes_entomologica"],
-                    payload["pedido_zoomed"], agora, id_animal,
+                    payload["pedido_zoomed"], payload["data_notificacao"], agora, id_animal,
                 ),
             )
         else:
@@ -1798,14 +1867,14 @@ def salvar_doente(db_path, dados):
                     """INSERT INTO esporotricose_doentes_animais
                        (chave, tutor, nome, especie, sexo, telefone, cpf, localidade, quarteirao, endereco,
                         latitude, longitude, sinan, status, bloqueio, data_bloqueio,
-                        observacoes_entomologica, pedido_zoomed, criado_em, atualizado_em)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        observacoes_entomologica, pedido_zoomed, data_notificacao, criado_em, atualizado_em)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         chave, payload["tutor"], payload["nome"], payload["especie"], payload["sexo"], payload["telefone"],
                         payload["cpf"], payload["localidade"], payload["quarteirao"], payload["endereco"],
                         payload["latitude"], payload["longitude"], payload["sinan"], payload["status"],
                         payload["bloqueio"], payload["data_bloqueio"], payload["observacoes_entomologica"],
-                        payload["pedido_zoomed"], agora, agora,
+                        payload["pedido_zoomed"], payload["data_notificacao"] or agora[:10], agora, agora,
                     ),
                 )
                 id_animal = cur.lastrowid
@@ -1844,12 +1913,12 @@ def salvar_receita_doente(db_path, id_animal_doente, dados):
         if id_receita:
             cur = conn.execute(
                 """UPDATE esporotricose_doentes_receitas
-                      SET data_notificacao=?, inicio_sintomas=?, data_receita=?,
+                      SET inicio_sintomas=?, data_receita=?,
                           visita_va_veterinario=?, capsulas_total=?, posologia=?, capsulas_por_dia=?,
                           receita_pendente=?, status=?, observacoes=?, atualizado_em=?
                     WHERE id_receita=? AND id_animal_doente=?""",
                 (
-                    payload["data_notificacao"], payload["inicio_sintomas"], payload["data_receita"],
+                    payload["inicio_sintomas"], payload["data_receita"],
                     payload["visita_va_veterinario"], payload["capsulas_total"], payload["posologia"],
                     payload["capsulas_por_dia"], payload["receita_pendente"], payload["status"],
                     payload["observacoes"], agora, id_receita, id_animal_doente,
@@ -1860,13 +1929,13 @@ def salvar_receita_doente(db_path, id_animal_doente, dados):
         else:
             cur = conn.execute(
                 """INSERT INTO esporotricose_doentes_receitas
-                   (id_animal_doente, data_notificacao, inicio_sintomas, data_receita,
+                   (id_animal_doente, inicio_sintomas, data_receita,
                     visita_va_veterinario, capsulas_total, posologia, capsulas_por_dia,
                     receita_pendente, status, observacoes, origem_linha, criado_em, atualizado_em)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    id_animal_doente, payload["data_notificacao"], payload["inicio_sintomas"],
-                    payload["data_receita"], payload["visita_va_veterinario"], payload["capsulas_total"],
+                    id_animal_doente, payload["inicio_sintomas"], payload["data_receita"],
+                    payload["visita_va_veterinario"], payload["capsulas_total"],
                     payload["posologia"], payload["capsulas_por_dia"], payload["receita_pendente"], payload["status"],
                     payload["observacoes"], None, agora, agora,
                 ),
@@ -2101,6 +2170,7 @@ def importar_doentes_planilha(db_path, caminho):
                 "data_bloqueio": _date(row.get("DATA BLOQUEIO")),
                 "observacoes_entomologica": _text(row.get("OBSERVAÇÕES ENTOMOLOGICA")),
                 "pedido_zoomed": _text(row.get("PEDIDO ZOOMED")),
+                "data_notificacao": _date(row.get("DATA NOTIFICAÇÃO")),
             }
             if not animal_payload["nome"] or not animal_payload["tutor"]:
                 continue
@@ -2116,24 +2186,28 @@ def importar_doentes_planilha(db_path, caminho):
                 conn.execute(
                     """UPDATE esporotricose_doentes_animais
                           SET telefone=COALESCE(?, telefone), sinan=COALESCE(?, sinan),
-                              status=COALESCE(?, status), atualizado_em=?
+                              status=COALESCE(?, status),
+                              data_notificacao=COALESCE(?, data_notificacao), atualizado_em=?
                         WHERE id_animal_doente=?""",
-                    (animal_payload["telefone"], animal_payload["sinan"], animal_payload["status"], agora, id_animal),
+                    (
+                        animal_payload["telefone"], animal_payload["sinan"], animal_payload["status"],
+                        animal_payload["data_notificacao"], agora, id_animal,
+                    ),
                 )
             else:
                 cur = conn.execute(
                     """INSERT INTO esporotricose_doentes_animais
                        (chave, tutor, nome, especie, sexo, telefone, localidade, quarteirao, endereco,
                         latitude, longitude, sinan, status, bloqueio, data_bloqueio,
-                        observacoes_entomologica, pedido_zoomed, criado_em, atualizado_em)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        observacoes_entomologica, pedido_zoomed, data_notificacao, criado_em, atualizado_em)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         chave, animal_payload["tutor"], animal_payload["nome"], animal_payload["especie"], animal_payload["sexo"],
                         animal_payload["telefone"], animal_payload["localidade"], animal_payload["quarteirao"],
                         animal_payload["endereco"], animal_payload["latitude"], animal_payload["longitude"],
                         animal_payload["sinan"], animal_payload["status"], animal_payload["bloqueio"],
                         animal_payload["data_bloqueio"], animal_payload["observacoes_entomologica"],
-                        animal_payload["pedido_zoomed"], agora, agora,
+                        animal_payload["pedido_zoomed"], animal_payload["data_notificacao"] or agora[:10], agora, agora,
                     ),
                 )
                 id_animal = cur.lastrowid
@@ -2141,7 +2215,6 @@ def importar_doentes_planilha(db_path, caminho):
             if animal_payload.get("status"):
                 _salvar_status_doente(conn, animal_payload["status"])
             receita_payload = _receita_payload({
-                "data_notificacao": _date(row.get("DATA NOTIFICAÇÃO")),
                 "inicio_sintomas": _date(row.get("INICIO DOS SINTOMAS")),
                 "data_receita": _date(row.get("RECEITA ")),
                 "visita_va_veterinario": _date(row.get("Visita  VA + Veterinario")),
@@ -2152,13 +2225,13 @@ def importar_doentes_planilha(db_path, caminho):
             })
             cur = conn.execute(
                 """INSERT INTO esporotricose_doentes_receitas
-                   (id_animal_doente, data_notificacao, inicio_sintomas, data_receita,
+                   (id_animal_doente, inicio_sintomas, data_receita,
                     visita_va_veterinario, capsulas_total, posologia, capsulas_por_dia,
                     receita_pendente, status, observacoes, origem_linha, criado_em, atualizado_em)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    id_animal, receita_payload["data_notificacao"], receita_payload["inicio_sintomas"],
-                    receita_payload["data_receita"], receita_payload["visita_va_veterinario"],
+                    id_animal, receita_payload["inicio_sintomas"], receita_payload["data_receita"],
+                    receita_payload["visita_va_veterinario"],
                     receita_payload["capsulas_total"], receita_payload["posologia"], receita_payload["capsulas_por_dia"],
                     receita_payload["receita_pendente"], receita_payload["status"],
                     receita_payload["observacoes"], int(idx) + 2, agora, agora,
@@ -2509,6 +2582,7 @@ def _doente_payload(dados):
         "data_bloqueio": _date(dados.get("data_bloqueio")),
         "observacoes_entomologica": _text(dados.get("observacoes_entomologica")),
         "pedido_zoomed": _normalizar_sim_nao(dados.get("pedido_zoomed")),
+        "data_notificacao": _date(dados.get("data_notificacao")),
     }
 
 
@@ -2518,7 +2592,6 @@ def _receita_payload(dados):
     data_receita = _date(dados.get("data_receita"))
     receita_pendente = _receita_pendente_payload(dados.get("receita_pendente"), capsulas_total, data_receita)
     return {
-        "data_notificacao": _date(dados.get("data_notificacao")),
         "inicio_sintomas": _date(dados.get("inicio_sintomas")),
         "data_receita": data_receita,
         "visita_va_veterinario": _date(dados.get("visita_va_veterinario")),

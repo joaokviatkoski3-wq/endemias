@@ -322,7 +322,7 @@
       </div>
       <div class="table-scroll">
         <table id="esp-doentes-table" data-sortable-table>
-          <thead><tr><th data-sort-type="text">Animal</th><th data-sort-type="text">Espécie</th><th data-sort-type="text">Tutor</th><th data-sort-type="text">Endereço</th><th data-sort-type="text">Status</th><th data-sort-type="number" data-sort-label="cápsulas entregues">Cápsulas</th><th data-sort-type="date" data-sort-label="data exibida no tratamento">Tratamento</th><th data-sort-type="text">Bloqueio</th><th data-sort-type="text">Pedido Zoomed</th><th data-sort-type="number" data-sort-label="baixas pendentes no Zoomed">Baixa Zoomed</th><th>Ações</th></tr></thead>
+          <thead><tr><th data-sort-type="text">Animal</th><th data-sort-type="date">Data</th><th data-sort-type="text">Espécie</th><th data-sort-type="text">Tutor</th><th data-sort-type="text">Endereço</th><th data-sort-type="text">Status</th><th data-sort-type="number" data-sort-label="cápsulas entregues">Cápsulas</th><th data-sort-type="date" data-sort-label="data exibida no tratamento">Tratamento</th><th data-sort-type="text">Bloqueio</th><th data-sort-type="text">Pedido Zoomed</th><th data-sort-type="number" data-sort-label="baixas pendentes no Zoomed">Baixa Zoomed</th><th>Ações</th></tr></thead>
           <tbody id="esp-doentes-body"></tbody>
         </table>
       </div>
@@ -335,6 +335,7 @@
           <div class="f-g"><label>Animal</label><input id="doe-nome" required></div>
           <div class="f-g"><label>Espécie</label><select id="doe-form-especie"><option value="Gato">Gato</option><option value="Cão">Cão</option><option value="Outros">Outros</option></select></div>
           <div class="f-g"><label>Sexo</label><select id="doe-sexo"><option value="">-</option><option>Macho</option><option>Fêmea</option></select></div>
+          <div class="f-g"><label>Data notificação</label><input type="date" id="doe-data-notificacao" required></div>
           <div class="f-g full"><label>Tutor</label><input id="doe-tutor" required></div>
           <div class="f-g"><label>Telefone</label><input id="doe-telefone"></div>
           <div class="f-g"><label>CPF do tutor</label><input id="doe-cpf"></div>
@@ -364,7 +365,6 @@
         <div class="detalhe-bloco">
           <div class="detalhe-subtitulo">Nova receita</div>
           <div class="esporo-form-grid">
-            <div class="f-g"><label>Notificação</label><input type="date" id="rec-data-notificacao"></div>
             <div class="f-g"><label>Início sintomas</label><input type="date" id="rec-inicio-sintomas"></div>
             <div class="f-g"><label>Receita</label><input type="date" id="rec-data-receita"></div>
             <div class="f-g"><label>VA + Veterinário</label><input type="date" id="rec-visita-vet"></div>
@@ -809,6 +809,7 @@ function renderEspDoentes(rows, total) {
   document.getElementById('esp-doentes-body').innerHTML = rows.length ? rows.map(r => `
     <tr>
       <td data-sort-value="${escapeHtml(r.nome || '')}"><strong>${escapeHtml(r.nome || '-')}</strong><div class="muted">${escapeHtml(r.localidade || '-')} ${r.quarteirao ? '· Q ' + escapeHtml(r.quarteirao) : ''}</div></td>
+      <td data-sort-value="${escapeHtml(r.data_notificacao || '')}">${fmtDate(r.data_notificacao) || '-'}</td>
       <td data-sort-value="${escapeHtml(r.especie || '')}"><span class="esporo-tag">${escapeHtml(r.especie || '-')}</span></td>
       <td data-sort-value="${escapeHtml(r.tutor || '')}">${escapeHtml(r.tutor || '-')}<div class="muted">${escapeHtml(r.telefone || '')}</div><div class="muted">${r.cpf ? 'CPF ' + escapeHtml(r.cpf) : ''}</div></td>
       <td data-sort-value="${escapeHtml(r.endereco || '')}">${escapeHtml(r.endereco || '-')}<div class="muted">${escapeHtml(r.sinan ? 'SINAN ' + r.sinan : '')}</div></td>
@@ -825,7 +826,7 @@ function renderEspDoentes(rows, total) {
         </div>
       </td>
     </tr>
-  `).join('') : '<tr><td colspan="11" class="empty-inline">Nenhum animal doente cadastrado.</td></tr>';
+  `).join('') : '<tr><td colspan="12" class="empty-inline">Nenhum animal doente cadastrado.</td></tr>';
   refreshSortableTable('esp-doentes-table');
 }
 function capsulasDoenteHtml(r) {
@@ -1123,6 +1124,9 @@ function novoEspDoente() {
   espDoenteAtual = null;
   document.getElementById('esp-doente-form').reset();
   document.getElementById('doe-id').value = '';
+  const agora = new Date();
+  agora.setMinutes(agora.getMinutes() - agora.getTimezoneOffset());
+  document.getElementById('doe-data-notificacao').value = agora.toISOString().slice(0, 10);
   document.getElementById('esp-doente-extra').style.display = 'none';
   document.getElementById('doe-wa-doc').removeAttribute('href');
   document.getElementById('doe-wa-ret').removeAttribute('href');
@@ -1142,6 +1146,7 @@ function preencherEspDoente(d) {
   set('doe-nome', d.nome);
   set('doe-form-especie', d.especie || 'Gato');
   set('doe-sexo', d.sexo);
+  set('doe-data-notificacao', d.data_notificacao);
   set('doe-tutor', d.tutor);
   set('doe-telefone', d.telefone);
   set('doe-cpf', d.cpf);
@@ -1167,6 +1172,7 @@ function dadosEspDoenteForm() {
     nome: document.getElementById('doe-nome').value,
     especie: document.getElementById('doe-form-especie').value,
     sexo: document.getElementById('doe-sexo').value,
+    data_notificacao: document.getElementById('doe-data-notificacao').value,
     tutor: document.getElementById('doe-tutor').value,
     telefone: document.getElementById('doe-telefone').value,
     cpf: document.getElementById('doe-cpf').value,
@@ -1217,7 +1223,7 @@ function renderEspReceitas(rows) {
           </button>
         </div>
       </div>
-      <div class="muted">Notificação ${fmtDate(r.data_notificacao)} · sintomas ${fmtDate(r.inicio_sintomas)} · prazo ${r.prazo_receita_dias ?? '-'} dia(s)</div>
+      <div class="muted">Sintomas ${fmtDate(r.inicio_sintomas)} · prazo ${r.prazo_receita_dias ?? '-'} dia(s)</div>
       <div>${capsulasReceitaHtml(r)}</div>
       <div class="muted">${escapeHtml(r.entregas_observacao || '')}${r.saldo_observacao ? ` &middot; ${escapeHtml(r.saldo_observacao)}` : ''}</div>
       <div>Posologia: ${escapeHtml(r.posologia || '-')} &middot; ${fmtNum(r.capsulas_por_dia || 1)} c&aacute;psula(s)/dia</div>
@@ -1225,7 +1231,6 @@ function renderEspReceitas(rows) {
       <div class="esporo-receita-edit" id="rec-edit-box-${r.id_receita}">
         <input type="hidden" id="rec-edit-status-${r.id_receita}" value="${escapeHtml(r.status || '')}">
         <div class="esporo-form-grid">
-          <div class="f-g"><label>Notificacao</label><input type="date" id="rec-edit-notificacao-${r.id_receita}" value="${escapeHtml(r.data_notificacao || '')}"></div>
           <div class="f-g"><label>Inicio sintomas</label><input type="date" id="rec-edit-sintomas-${r.id_receita}" value="${escapeHtml(r.inicio_sintomas || '')}"></div>
           <div class="f-g"><label>Receita</label><input type="date" id="rec-edit-receita-${r.id_receita}" value="${escapeHtml(r.data_receita || '')}"></div>
           <div class="f-g"><label>VA + veterinario</label><input type="date" id="rec-edit-vet-${r.id_receita}" value="${escapeHtml(r.visita_va_veterinario || '')}"></div>
@@ -1264,7 +1269,6 @@ async function salvarEspReceita() {
   const id = document.getElementById('doe-id').value;
   if (!id) return toast('Salve o animal antes da receita.', 'error');
   const payload = {
-    data_notificacao: document.getElementById('rec-data-notificacao').value,
     inicio_sintomas: document.getElementById('rec-inicio-sintomas').value,
     data_receita: document.getElementById('rec-data-receita').value,
     visita_va_veterinario: document.getElementById('rec-visita-vet').value,
@@ -1285,7 +1289,6 @@ async function salvarEspReceita() {
 async function salvarEspReceitaEdit(idReceita) {
   const id = document.getElementById('doe-id').value;
   const payload = {
-    data_notificacao: document.getElementById(`rec-edit-notificacao-${idReceita}`).value,
     inicio_sintomas: document.getElementById(`rec-edit-sintomas-${idReceita}`).value,
     data_receita: document.getElementById(`rec-edit-receita-${idReceita}`).value,
     visita_va_veterinario: document.getElementById(`rec-edit-vet-${idReceita}`).value,

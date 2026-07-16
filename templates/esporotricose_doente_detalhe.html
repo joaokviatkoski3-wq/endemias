@@ -61,6 +61,7 @@
     <div class="doe-field"><span>Espécie</span><strong>{{ animal.especie or '-' }}</strong></div>
     <div class="doe-field"><span>Sexo</span><strong>{{ animal.sexo or '-' }}</strong></div>
     <div class="doe-field"><span>Status</span><strong><span class="doe-status {{ status_class }}">{{ animal.status or '-' }}</span></strong></div>
+    <div class="doe-field"><span>Data notificação</span><strong>{{ animal.data_notificacao | data_br if animal.data_notificacao else '-' }}</strong></div>
     <div class="doe-field"><span>Pedido ZooMed</span><strong><span class="zoomed-badge {{ 'sim' if animal.pedido_zoomed == 'Sim' else 'nao' }}">{{ animal.pedido_zoomed or '-' }}</span></strong></div>
     <div class="doe-field"><span>Tutor</span><strong>{{ animal.tutor or '-' }}</strong></div>
     <div class="doe-field"><span>Telefone</span><strong>{{ animal.telefone or '-' }}</strong></div>
@@ -92,7 +93,6 @@
     <div class="doe-receita">
       <strong>Nova receita</strong>
       <div class="doe-form-grid" style="margin-top:8px;">
-        <div class="f-g"><label>Notificação</label><input id="rec-data-notificacao" type="date"></div>
         <div class="f-g"><label>Início sintomas</label><input id="rec-inicio-sintomas" type="date"></div>
         <div class="f-g"><label>Receita</label><input id="rec-data-receita" type="date"></div>
         <div class="f-g"><label>VA + Veterinário</label><input id="rec-visita-vet" type="date"></div>
@@ -139,7 +139,7 @@ function render(){
           </button>
         </div>
       </div>
-      <div class="muted">Notificação ${data(r.data_notificacao)} · sintomas ${data(r.inicio_sintomas)} · VA + veterinário ${data(r.visita_va_veterinario)}</div>
+      <div class="muted">Sintomas ${data(r.inicio_sintomas)} · VA + veterinário ${data(r.visita_va_veterinario)}</div>
       <div style="margin-top:6px;">${capsulasReceitaHtml(r)}</div>
       <div class="muted">${esc(r.entregas_observacao || '')}${r.saldo_observacao ? ` &middot; ${esc(r.saldo_observacao)}` : ''}</div>
       <div>Posologia: ${esc(r.posologia || '-')} &middot; ${num(r.capsulas_por_dia || 1)} c&aacute;psula(s)/dia</div>
@@ -147,7 +147,6 @@ function render(){
       <div class="doe-receita-edit" id="rec-edit-box-${r.id_receita}">
         <input type="hidden" id="rec-edit-status-${r.id_receita}" value="${esc(r.status || '')}">
         <div class="doe-form-grid">
-          <div class="f-g"><label>Notificacao</label><input type="date" id="rec-edit-notificacao-${r.id_receita}" value="${esc(r.data_notificacao || '')}"></div>
           <div class="f-g"><label>Inicio sintomas</label><input type="date" id="rec-edit-sintomas-${r.id_receita}" value="${esc(r.inicio_sintomas || '')}"></div>
           <div class="f-g"><label>Receita</label><input type="date" id="rec-edit-receita-${r.id_receita}" value="${esc(r.data_receita || '')}"></div>
           <div class="f-g"><label>VA + veterinario</label><input type="date" id="rec-edit-vet-${r.id_receita}" value="${esc(r.visita_va_veterinario || '')}"></div>
@@ -210,7 +209,6 @@ async function recarregar(){
 async function salvarReceita(){
   try {
     await apiPost(`/api/esporotricose/doentes/${animal.id_animal_doente}/receitas`, {
-      data_notificacao: val('rec-data-notificacao'),
       inicio_sintomas: val('rec-inicio-sintomas'),
       data_receita: val('rec-data-receita'),
       visita_va_veterinario: val('rec-visita-vet'),
@@ -231,7 +229,6 @@ async function salvarReceitaEdit(idReceita){
       method: 'PUT',
       headers: {'Content-Type':'application/json', 'X-CSRFToken':getCsrf()},
       body: JSON.stringify({
-        data_notificacao: val(`rec-edit-notificacao-${idReceita}`),
         inicio_sintomas: val(`rec-edit-sintomas-${idReceita}`),
         data_receita: val(`rec-edit-receita-${idReceita}`),
         visita_va_veterinario: val(`rec-edit-vet-${idReceita}`),
