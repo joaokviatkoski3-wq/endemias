@@ -91,6 +91,10 @@
 .esporo-animal-detail { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; padding:12px; }
 .esporo-animal-detail .wide { grid-column:1 / -1; }
 .esporo-busca-ferido { border-top:1px solid var(--border); margin-top:8px; padding-top:10px; }
+.esporo-buscas-list { display:grid; gap:7px; margin:8px 0 14px; }
+.esporo-busca-item { padding:9px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); }
+.esporo-busca-item-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 12px; }
+.esporo-busca-item-observacoes { margin-top:5px; color:var(--text2); font-size:12px; white-space:pre-wrap; }
 .esporo-doente-origin-action { display:flex; align-items:center; justify-content:flex-end; gap:8px; padding-bottom:10px; border-bottom:1px solid var(--border); }
 .esporo-anexos { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
 .esporo-anexo { display:flex; justify-content:space-between; gap:8px; align-items:center; padding:7px 8px; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12px; }
@@ -1419,6 +1423,20 @@ function detalhePrintItem(label, value, wide=false) {
 function renderEspAnimalDetalheImpressao(r) {
   const endereco = [r.logradouro, r.numero].filter(Boolean).join(', ');
   const horario = [r.hora_inicio, r.hora_fim].filter(Boolean).join(' - ');
+  const buscas = Array.isArray(r.buscas_ferido) ? r.buscas_ferido : [];
+  const buscasHtml = buscas.length ? buscas.map((busca, index) => `
+    <div class="detail-section">
+      <div class="detail-title">Busca ${buscas.length - index}</div>
+      <div class="detail-grid">
+        ${detalhePrintItem('Data da busca', fmtDate(busca.data_busca))}
+        ${detalhePrintItem('Agente da busca', busca.agente)}
+        ${detalhePrintItem('Observacoes', busca.observacoes, true)}
+      </div>
+    </div>`).join('') : `
+    <div class="detail-section">
+      <div class="detail-title">Buscas do animal ferido</div>
+      <div class="detail-value">Nenhuma busca registrada.</div>
+    </div>`;
   return `
     <div class="animal-detail-print">
       <div class="detail-title">Detalhes da visita</div>
@@ -1436,14 +1454,7 @@ function renderEspAnimalDetalheImpressao(r) {
         ${detalhePrintItem('Endereco', endereco, true)}
         ${detalhePrintItem('Observacoes da visita', r.observacoes, true)}
       </div>
-      <div class="detail-section">
-        <div class="detail-title">Busca ferido</div>
-        <div class="detail-grid">
-          ${detalhePrintItem('Data da busca', fmtDate(r.busca_ferido_data))}
-          ${detalhePrintItem('Agente da busca', r.busca_ferido_agente)}
-          ${detalhePrintItem('Observacoes', r.busca_ferido_observacoes, true)}
-        </div>
-      </div>
+      ${buscasHtml}
     </div>`;
 }
 async function carregarEspLocalidadesDetalhe() {
@@ -1534,6 +1545,24 @@ function agenteBuscaOptions(valor) {
   const extras = atual && !nomes.includes(atual) ? [atual] : [];
   return [''].concat(extras, nomes).map(nome => `<option value="${escapeHtml(nome)}" ${nome === atual ? 'selected' : ''}>${escapeHtml(nome || 'Selecione')}</option>`).join('');
 }
+function dataLocalIso(data = new Date()) {
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, '0');
+  const dia = String(data.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
+}
+function renderEspBuscasFerido(r) {
+  const buscas = Array.isArray(r.buscas_ferido) ? r.buscas_ferido : [];
+  if (!buscas.length) return '<div class="muted">Nenhuma busca registrada.</div>';
+  return `<div class="esporo-buscas-list">${buscas.map((busca, index) => `
+    <div class="esporo-busca-item">
+      <div class="esporo-busca-item-head">
+        <strong>Busca ${buscas.length - index}</strong>
+        <span>${escapeHtml(fmtDate(busca.data_busca) || '-')} &middot; ${escapeHtml(busca.agente || '-')}</span>
+      </div>
+      ${busca.observacoes ? `<div class="esporo-busca-item-observacoes">${escapeHtml(busca.observacoes)}</div>` : ''}
+    </div>`).join('')}</div>`;
+}
 function renderEspAnimalDetalhe(r) {
   const endereco = [r.logradouro, r.numero].filter(Boolean).join(', ');
   const acaoDoente = r.id_animal_doente
@@ -1555,13 +1584,15 @@ function renderEspAnimalDetalhe(r) {
       ${detalheItem('Endereco', endereco)}
       <div class="wide">${detalheItem('Observacoes da visita', r.observacoes)}</div>
       <div class="wide esporo-busca-ferido">
-        <div class="detalhe-subtitulo">Busca ferido</div>
+        <div class="detalhe-subtitulo">Buscas do animal ferido</div>
+        ${renderEspBuscasFerido(r)}
+        <div class="detalhe-subtitulo">Registrar nova busca</div>
         <div class="esporo-form-grid">
-          <div class="f-g"><label>Data da busca</label><input type="date" data-busca-campo="data" value="${escapeHtml(r.busca_ferido_data || '')}"></div>
-          <div class="f-g"><label>Agente da busca</label><select data-busca-campo="agente">${agenteBuscaOptions(r.busca_ferido_agente)}</select></div>
-          <div class="f-g full"><label>Observacoes</label><textarea rows="2" data-busca-campo="observacoes">${escapeHtml(r.busca_ferido_observacoes || '')}</textarea></div>
+          <div class="f-g"><label>Data da busca</label><input type="date" data-busca-campo="data" value="${dataLocalIso()}"></div>
+          <div class="f-g"><label>Agente da busca</label><select data-busca-campo="agente">${agenteBuscaOptions('')}</select></div>
+          <div class="f-g full"><label>Observacoes</label><textarea rows="2" data-busca-campo="observacoes"></textarea></div>
         </div>
-        <div class="esporo-filter-actions" style="margin-top:8px;"><button class="btn btn-primary btn-sm" type="button" data-id="${escapeHtml(r.id_animal)}" onclick="salvarBuscaFerido(this.dataset.id, event)">Salvar busca</button></div>
+        <div class="esporo-filter-actions" style="margin-top:8px;"><button class="btn btn-primary btn-sm" type="button" data-id="${escapeHtml(r.id_animal)}" onclick="salvarBuscaFerido(this.dataset.id, event)">Adicionar busca</button></div>
       </div>
     </div>`;
 }
@@ -1583,24 +1614,35 @@ function encontrarEspAnimalLinha(id) {
 }
 async function salvarBuscaFerido(id, ev) {
   if (ev) ev.stopPropagation();
+  const botao = ev?.currentTarget;
+  if (botao?.disabled) return;
   const detail = encontrarEspAnimalDetalhe(id);
   if (!detail) return;
   const dados = {
-    busca_ferido_data: detail.querySelector('[data-busca-campo="data"]').value,
-    busca_ferido_agente: detail.querySelector('[data-busca-campo="agente"]').value,
-    busca_ferido_observacoes: detail.querySelector('[data-busca-campo="observacoes"]').value,
+    data_busca: detail.querySelector('[data-busca-campo="data"]').value,
+    agente: detail.querySelector('[data-busca-campo="agente"]').value,
+    observacoes: detail.querySelector('[data-busca-campo="observacoes"]').value,
   };
+  if (!dados.data_busca || !dados.agente) {
+    toast('Informe a data e o agente da busca.', 'warning');
+    return;
+  }
   try {
-    const r = await fetch(`/api/esporotricose/animais/${id}`, {
-      method: 'PUT',
+    if (botao) botao.disabled = true;
+    const r = await fetch(`/api/esporotricose/animais/${encodeURIComponent(id)}/buscas-ferido`, {
+      method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
       body: JSON.stringify(dados)
     });
     if (!r.ok) throw new Error((await r.json()).erro || `HTTP ${r.status}`);
-    toast('Busca do ferido salva.', 'success');
+    toast('Busca salva e incluída na Agenda.', 'success');
     await carregarEspAnimais();
+    const detailAtualizado = encontrarEspAnimalDetalhe(id);
+    if (detailAtualizado) detailAtualizado.style.display = '';
   } catch(e) {
     toast(e.message, 'error');
+  } finally {
+    if (botao?.isConnected) botao.disabled = false;
   }
 }
 function renderEspLocalidadesDetalhe(rows) {

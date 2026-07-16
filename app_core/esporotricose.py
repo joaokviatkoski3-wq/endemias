@@ -13,6 +13,7 @@ from app_core import normalizadores
 
 VISITAS_TABLE = "esporotricose_visitas"
 ANIMAIS_TABLE = "esporotricose_animais"
+BUSCAS_FERIDO_TABLE = "esporotricose_buscas_ferido"
 VISITA_AGENTES_TABLE = "esporotricose_visita_agentes"
 DOENTES_TABLE = "esporotricose_doentes_animais"
 DOENTES_RECEITAS_TABLE = "esporotricose_doentes_receitas"
@@ -320,6 +321,7 @@ def ensure_schema(conn):
     _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_data", "DATE")
     _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_agente", "TEXT")
     _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_observacoes", "TEXT")
+    _ensure_buscas_ferido_schema(conn)
     _seed_doentes_status(conn)
     _normalizar_doentes_existentes(conn)
     _normalizar_visitas_animais_existentes(conn)
@@ -331,6 +333,46 @@ def _ensure_column(conn, table, column, definition):
     cols = {_db_value(row, "name", 1) for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
     if column not in cols:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
+def _ensure_buscas_ferido_schema(conn):
+    conn.executescript(
+        f"""
+        CREATE TABLE IF NOT EXISTS {BUSCAS_FERIDO_TABLE} (
+            id_busca INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_animal TEXT NOT NULL REFERENCES {ANIMAIS_TABLE}(id_animal) ON DELETE CASCADE,
+            data_busca DATE,
+            agente TEXT,
+            observacoes TEXT,
+            origem TEXT NOT NULL DEFAULT 'sistema',
+            criado_em TEXT NOT NULL,
+            atualizado_em TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_esporo_buscas_animal
+            ON {BUSCAS_FERIDO_TABLE}(id_animal, data_busca);
+        CREATE INDEX IF NOT EXISTS idx_esporo_buscas_data
+            ON {BUSCAS_FERIDO_TABLE}(data_busca);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_esporo_buscas_legado
+            ON {BUSCAS_FERIDO_TABLE}(id_animal) WHERE origem='legado';
+        """
+    )
+    _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_data", "DATE")
+    _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_agente", "TEXT")
+    _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_observacoes", "TEXT")
+    agora = datetime.now().isoformat(timespec="seconds")
+    conn.execute(
+        f"""INSERT OR IGNORE INTO {BUSCAS_FERIDO_TABLE}
+               (id_animal, data_busca, agente, observacoes, origem, criado_em, atualizado_em)
+             SELECT id_animal, busca_ferido_data, busca_ferido_agente,
+                    busca_ferido_observacoes, 'legado', ?, ?
+               FROM {ANIMAIS_TABLE} a
+              WHERE (
+                    COALESCE(TRIM(busca_ferido_data), '') <> ''
+                 OR COALESCE(TRIM(busca_ferido_agente), '') <> ''
+                 OR COALESCE(TRIM(busca_ferido_observacoes), '') <> ''
+              )""",
+        (agora, agora),
+    )
 
 
 def _seed_doentes_status(conn):
@@ -870,33 +912,112 @@ def atualizar_animal(db_path, id_animal, dados):
     params = []
     for coluna in ("especie", "outro_animal", "nome", "raca", "sexo", "ambiente",
                      "vacinado", "castrado", "feridas", "regiao_ferida",
-                     "atendimento_veterinario", "data_atendimento", "evolucao_caso",
-                     "busca_ferido_data", "busca_ferido_agente", "busca_ferido_observacoes"):
+                     "atendimento_veterinario", "data_atendimento", "evolucao_caso"):
         if coluna in dados:
             campos.append(f"{coluna} = ?")
-            params.append(_date(dados[coluna]) if coluna == "busca_ferido_data" else dados[coluna])
-    if not campos:
+            params.append(dados[coluna])
+    tem_busca = any(
+        coluna in dados
+        for coluna in ("busca_ferido_data", "busca_ferido_agente", "busca_ferido_observacoes")
+    )
+    if not campos and not tem_busca:
         raise ValueError("Nenhum campo para atualizar.")
-    params.append(id_animal)
     conn = db_core.connect(db_path)
     try:
-        conn.execute(
-            f"UPDATE esporotricose_animais SET {', '.join(campos)} WHERE id_animal = ?",
-            params,
-        )
+        ensure_schema(conn)
+        if campos:
+            conn.execute(
+                f"UPDATE esporotricose_animais SET {', '.join(campos)} WHERE id_animal = ?",
+                [*params, id_animal],
+            )
+        if tem_busca:
+            _inserir_busca_ferido(conn, id_animal, dados)
         conn.commit()
     finally:
         conn.close()
     return {"ok": True}
 
 
+def _busca_ferido_payload(dados):
+    data_busca = _date(dados.get("data_busca", dados.get("busca_ferido_data")))
+    agente = _text(dados.get("agente", dados.get("busca_ferido_agente")))
+    observacoes = _text(dados.get("observacoes", dados.get("busca_ferido_observacoes")))
+    if not data_busca:
+        raise ValidationError("Informe a data da busca.")
+    if not agente:
+        raise ValidationError("Informe o agente responsável pela busca.")
+    return {"data_busca": data_busca, "agente": agente, "observacoes": observacoes}
+
+
+def _inserir_busca_ferido(conn, id_animal, dados):
+    existe = conn.execute(
+        f"SELECT 1 FROM {ANIMAIS_TABLE} WHERE id_animal=?",
+        (id_animal,),
+    ).fetchone()
+    if not existe:
+        raise ValidationError("Animal da visita não encontrado.")
+    payload = _busca_ferido_payload(dados)
+    agora = datetime.now().isoformat(timespec="seconds")
+    cur = conn.execute(
+        f"""INSERT INTO {BUSCAS_FERIDO_TABLE}
+               (id_animal, data_busca, agente, observacoes, origem, criado_em, atualizado_em)
+             VALUES (?,?,?,?,?,?,?)""",
+        (
+            id_animal, payload["data_busca"], payload["agente"], payload["observacoes"],
+            "sistema", agora, agora,
+        ),
+    )
+    return cur.lastrowid
+
+
+def salvar_busca_ferido(db_path, id_animal, dados):
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        id_busca = _inserir_busca_ferido(conn, id_animal, dados)
+        conn.commit()
+        row = conn.execute(
+            f"SELECT * FROM {BUSCAS_FERIDO_TABLE} WHERE id_busca=?",
+            (id_busca,),
+        ).fetchone()
+        return dict(row)
+    finally:
+        conn.close()
+
+
+def _anexar_buscas_ferido(conn, registros):
+    if not registros:
+        return
+    ids = [item["id_animal"] for item in registros]
+    placeholders = ",".join("?" for _ in ids)
+    buscas_por_animal = {id_animal: [] for id_animal in ids}
+    rows = conn.execute(
+        f"""SELECT id_busca, id_animal, data_busca, agente, observacoes, origem,
+                   criado_em, atualizado_em
+              FROM {BUSCAS_FERIDO_TABLE}
+             WHERE id_animal IN ({placeholders})
+             ORDER BY COALESCE(data_busca, criado_em) DESC, id_busca DESC""",
+        ids,
+    ).fetchall()
+    for row in rows:
+        item = dict(row)
+        buscas_por_animal.setdefault(item["id_animal"], []).append(item)
+    for registro in registros:
+        buscas = buscas_por_animal.get(registro["id_animal"], [])
+        registro["buscas_ferido"] = buscas
+        ultima = buscas[0] if buscas else {}
+        registro["busca_ferido_data"] = ultima.get("data_busca")
+        registro["busca_ferido_agente"] = ultima.get("agente")
+        registro["busca_ferido_observacoes"] = ultima.get("observacoes")
+
+
 def listar_animais(db_path, filtros=None):
     filtros = filtros or {}
     conn = __import__("sqlite3").connect(db_path)
     conn.row_factory = __import__("sqlite3").Row
-    ensure_schema(conn)
-    where, params = _where_animais(filtros)
     try:
+        ensure_schema(conn)
+        where, params = _where_animais(filtros)
         total = conn.execute(
             f"""SELECT COUNT(*)
                 FROM esporotricose_animais a
@@ -929,9 +1050,30 @@ def listar_animais(db_path, filtros=None):
                 LIMIT 500""",
             params,
         )]
+        _anexar_buscas_ferido(conn, registros)
     finally:
         conn.close()
     return {"total": total or 0, "registros": registros}
+
+
+def eventos_agenda_buscas_ferido(db_path, inicio, fim):
+    conn = db_core.connect(db_path)
+    try:
+        _ensure_buscas_ferido_schema(conn)
+        conn.commit()
+        return [dict(row) for row in conn.execute(
+            f"""SELECT b.id_busca, b.data_busca AS data, b.agente, b.observacoes,
+                       a.nome AS animal, a.especie, v.localidade, v.quarteirao,
+                       v.logradouro, v.numero
+                  FROM {BUSCAS_FERIDO_TABLE} b
+                  JOIN {ANIMAIS_TABLE} a ON a.id_animal=b.id_animal
+                  JOIN {VISITAS_TABLE} v ON v.id_visita=a.id_visita
+                 WHERE b.data_busca BETWEEN ? AND ?
+                 ORDER BY b.data_busca, b.id_busca""",
+            (str(inicio)[:10], str(fim)[:10]),
+        ).fetchall()]
+    finally:
+        conn.close()
 
 
 def preparar_doente_de_visita(db_path, id_animal_visita):
@@ -2765,6 +2907,8 @@ def _int(valor):
 
 def _date(valor):
     if valor is None:
+        return None
+    if not _text(valor):
         return None
     try:
         if pd.isna(valor):

@@ -8,6 +8,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
+from app_core import esporotricose as esporotricose_core
 from app_core import meteorologia as meteorologia_core
 from app_core import ovitrampas as ovitrampas_core
 from app_core import work_types
@@ -532,6 +533,37 @@ def _eventos_periodo(inicio, fim):
                 resumo=f"Animais: {r['animais'] or 0} | Com feridas: {r['feridas'] or 0}",
                 localidades=r["localidades"],
                 agentes=r["agentes"] or "-",
+            ))
+
+    if _table_exists("esporotricose_animais"):
+        for busca in esporotricose_core.eventos_agenda_buscas_ferido(
+            bh.db_path(), inicio[:10], fim[:10]
+        ):
+            animal = busca.get("animal") or busca.get("especie") or "Animal"
+            endereco = ", ".join(
+                str(parte).strip()
+                for parte in (busca.get("logradouro"), busca.get("numero"))
+                if str(parte or "").strip()
+            )
+            resumo = []
+            if busca.get("especie"):
+                resumo.append(f"Espécie: {busca['especie']}")
+            if busca.get("quarteirao") not in (None, ""):
+                resumo.append(f"Quarteirão: {busca['quarteirao']}")
+            if endereco:
+                resumo.append(f"Endereço: {endereco}")
+            if busca.get("observacoes"):
+                resumo.append(f"Observações: {busca['observacoes']}")
+            eventos.append(_auto_evento(
+                busca["data"],
+                "ESPOROTRICOSE",
+                f"Busca de animal ferido - {animal}",
+                1,
+                resumo=" | ".join(resumo),
+                localidades=busca.get("localidade") or "-",
+                agentes=busca.get("agente") or "-",
+                tipo="busca_ferido",
+                id_extra=f"busca_{busca['id_busca']}",
             ))
 
     if _table_exists("recolhimentos") and _table_exists("recolhimento_agentes"):

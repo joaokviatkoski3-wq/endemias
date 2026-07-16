@@ -226,11 +226,27 @@ def api_atualizar_animal(id_animal):
         dados = request.get_json(silent=True) or {}
         resultado = esporotricose_core.atualizar_animal(_db_path(), id_animal, dados)
         return jsonify(resultado)
-    except ValueError as exc:
+    except (ValueError, esporotricose_core.ValidationError) as exc:
         return jsonify({"erro": str(exc)}), 400
     except Exception:
         import logging
         logging.exception("Erro ao atualizar animal esporotricose")
+        return jsonify({"erro": "Erro interno do servidor."}), 500
+
+
+@bp.route("/api/esporotricose/animais/<id_animal>/buscas-ferido", methods=["POST"])
+@login_required
+def api_salvar_busca_ferido(id_animal):
+    try:
+        busca = esporotricose_core.salvar_busca_ferido(
+            _db_path(), id_animal, request.get_json(silent=True) or {}
+        )
+        return jsonify({"ok": True, "busca": busca}), 201
+    except esporotricose_core.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    except Exception:
+        import logging
+        logging.exception("Erro ao salvar busca de animal ferido")
         return jsonify({"erro": "Erro interno do servidor."}), 500
 
 
