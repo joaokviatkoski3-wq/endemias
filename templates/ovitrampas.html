@@ -1088,8 +1088,12 @@ function reposicionarArrasteDiario(state){
   atualizarOrdemVisualDiario();
 }
 function atualizarCamadaArrasteDiario(state){
-  if (!state.layer || !state.startRect) return;
-  const top = state.lastY - state.pointerOffsetY;
+  if (!state.layer || !state.startRect || !state.container?.isConnected) return;
+  const containerRect = state.container.getBoundingClientRect();
+  const pointerTop = state.lastY - state.pointerOffsetY;
+  const minTop = containerRect.top;
+  const maxTop = Math.max(minTop, containerRect.bottom - state.startRect.height);
+  const top = Math.min(maxTop, Math.max(minTop, pointerTop));
   const deltaY = top - state.startRect.top;
   state.currentTransform = `translate3d(0, ${deltaY}px, 0) scale(1.01)`;
   state.layer.style.transform = state.currentTransform;
@@ -1439,7 +1443,7 @@ oviDiarioRotaBody.addEventListener('pointerdown', e => {
     handle,
     container:e.currentTarget
   });
-  try { handle.setPointerCapture?.(e.pointerId); } catch (_) {}
+  try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch (_) {}
 });
 oviDiarioRotaBody.addEventListener('pointermove', e => {
   const state = oviDiarioDrag;
