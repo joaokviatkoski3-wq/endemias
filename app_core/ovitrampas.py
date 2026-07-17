@@ -230,6 +230,7 @@ def ensure_schema(conn):
     _semear_grupos_padrao(conn)
     _normalizar_localidades_existentes(conn)
     _normalizar_ids_armadilhas_existentes(conn)
+    _normalizar_quarteiroes_existentes(conn)
 
 
 def _ensure_columns(conn, table, columns):
@@ -237,6 +238,43 @@ def _ensure_columns(conn, table, columns):
     for column, definition in columns.items():
         if column not in existentes:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
+def _normalizar_quarteiroes_existentes(conn):
+    agora = datetime.now().isoformat(timespec="seconds")
+    contexto = {
+        "motivo": "Padronizacao automatica do quarteirao em quatro digitos",
+        "agentes": "",
+        "usuario": "sistema",
+        "arquivo_origem": None,
+        "criado_em": agora,
+    }
+    armadilhas = conn.execute(
+        f"SELECT ovitrampa_id, quarteirao FROM {ARMADILHAS_TABLE} WHERE quarteirao IS NOT NULL"
+    ).fetchall()
+    for row in armadilhas:
+        anterior = row["quarteirao"]
+        novo = _normalizar_quarteirao(anterior)
+        if novo == anterior:
+            continue
+        conn.execute(
+            f"UPDATE {ARMADILHAS_TABLE} SET quarteirao=?, atualizado_em=? WHERE ovitrampa_id=?",
+            (novo, agora, row["ovitrampa_id"]),
+        )
+        _registrar_alteracao_armadilha(
+            conn, row["ovitrampa_id"], "quarteirao", anterior, novo, contexto
+        )
+
+    leituras = conn.execute(
+        f"SELECT rowid, quarteirao FROM {TABLE} WHERE quarteirao IS NOT NULL"
+    ).fetchall()
+    for row in leituras:
+        novo = _normalizar_quarteirao(row["quarteirao"])
+        if novo != row["quarteirao"]:
+            conn.execute(
+                f"UPDATE {TABLE} SET quarteirao=? WHERE rowid=?",
+                (novo, row["rowid"]),
+            )
 
 
 def _semear_grupos_padrao(conn):
@@ -1464,7 +1502,7 @@ def _registro(row, arquivo, agora):
         "quem_enviou": _text(row.get("Quem enviou")),
         "observacao": _text(_row_value(row, "Observação", "Observacao")),
         "lat_lng": _text(row.get("Lat_lng")),
-        "quarteirao": _text(_row_value(row, "Quarteirão", "Quarteirao")),
+        "quarteirao": _normalizar_quarteirao(_row_value(row, "Quarteirão", "Quarteirao")),
         "data_instalacao": data_instalacao,
         "data_coleta": data_coleta,
         "ocorrencia_codigo": _ocorrencia_codigo(row),
@@ -1486,7 +1524,7 @@ def _registro_armadilha(row, arquivo, agora):
         "localizacao": _text(_row_value(row, "Localização da ovitrampa", "Localizacao da ovitrampa")),
         "localidade": _title_distrito(row.get("Setor/Distrito da ovitrampa")),
         "responsavel": _text(_row_value(row, "Responsável", "Responsavel")),
-        "quarteirao": _text(_row_value(row, "Quarteirão", "Quarteirao")),
+        "quarteirao": _normalizar_quarteirao(_row_value(row, "Quarteirão", "Quarteirao")),
         "latitude": _real(row.get("Latitude")),
         "longitude": _real(row.get("Longitude")),
         "arquivo_origem": arquivo,
@@ -1509,7 +1547,7 @@ def _registro_armadilha_diario(ws, row, ovitrampa_id, arquivo, agora):
         "localidade": _localidade_diario(ws.title),
         "responsavel": responsavel,
         "telefone_responsavel": telefone,
-        "quarteirao": _text(ws.cell(row, 6).value),
+        "quarteirao": _normalizar_quarteirao(ws.cell(row, 6).value),
         "latitude": None,
         "longitude": None,
         "ativo": 1,
@@ -2222,6 +2260,13 @@ def _text(value):
         return None
     text = str(value).strip()
     return text if text and text.lower() not in ("nan", "none") else None
+
+
+def _normalizar_quarteirao(value):
+    text = _text(value)
+    if text and text.isdigit() and len(text) < 4:
+        return text.zfill(4)
+    return text
 
 
 def _row_value(row, *names):
