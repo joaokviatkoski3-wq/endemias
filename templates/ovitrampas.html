@@ -103,10 +103,23 @@
 .ovi-route-buttons{display:flex;gap:4px;flex-wrap:wrap;}
 .ovi-route-buttons .btn{padding:5px 7px;}
 .ovi-diario-table tbody tr{transition:background .16s ease,opacity .16s ease,box-shadow .16s ease;}
-.ovi-diario-table tbody tr.is-dragging{opacity:.55;background:rgba(59,130,246,.14);}
-.ovi-diario-table tbody tr.is-drop-target{box-shadow:inset 0 2px 0 #2563eb;}
-.ovi-drag-handle{cursor:grab;min-width:34px;}
-.ovi-drag-handle:active{cursor:grabbing;}
+.ovi-diario-table tbody.is-reordering{cursor:grabbing;user-select:none;-webkit-user-select:none;}
+.ovi-diario-table tbody tr.is-drag-placeholder td{color:transparent!important;background:rgba(37,99,235,.09)!important;border-top:2px solid #2563eb;border-bottom:2px solid #2563eb;}
+.ovi-diario-table tbody tr.is-drag-placeholder td:first-child{border-left:2px solid #2563eb;}
+.ovi-diario-table tbody tr.is-drag-placeholder td:last-child{border-right:2px solid #2563eb;}
+.ovi-diario-table tbody tr.is-drag-placeholder td>*{visibility:hidden;}
+.ovi-drag-handle{cursor:grab;min-width:34px;touch-action:none;user-select:none;-webkit-user-select:none;}
+.ovi-drag-handle.is-grabbing,.ovi-drag-handle:active{cursor:grabbing;}
+.ovi-diario-drag-layer{position:fixed;left:0;top:0;z-index:5000;pointer-events:none;overflow:hidden;border:1px solid rgba(37,99,235,.55);border-radius:var(--radius-sm);background:var(--surface);box-shadow:0 12px 28px rgba(15,23,42,.24),0 3px 8px rgba(15,23,42,.16);opacity:.98;transform-origin:center;will-change:transform;animation:ovi-drag-lift .16s ease-out both;}
+.ovi-diario-drag-layer table{width:100%;margin:0;table-layout:fixed;border-collapse:collapse;background:var(--surface);}
+.ovi-diario-drag-layer tbody tr{background:var(--surface)!important;transition:none!important;}
+.ovi-diario-drag-layer td{box-sizing:border-box;}
+.ovi-diario-drag-layer input,.ovi-diario-drag-layer select,.ovi-diario-drag-layer button{pointer-events:none;}
+body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important;-webkit-user-select:none!important;}
+@keyframes ovi-drag-lift{from{opacity:.82;box-shadow:0 3px 8px rgba(15,23,42,.12);}to{opacity:.98;box-shadow:0 12px 28px rgba(15,23,42,.24),0 3px 8px rgba(15,23,42,.16);}}
+@media(prefers-reduced-motion:reduce){
+  .ovi-diario-table tbody tr,.ovi-diario-drag-layer{transition:none!important;animation:none!important;}
+}
 .ovi-diario-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px;}
 .ovi-diario-small-scroll{max-height:340px;overflow:auto;}
 @media(max-width:1180px){.ovi-cal-layout{grid-template-columns:1fr;}.ovi-year-grid{grid-template-columns:repeat(2,minmax(230px,1fr));}}
@@ -501,7 +514,17 @@ const oviFmt = new Intl.NumberFormat('pt-BR');
 const oviAgentes = JSON.parse(document.getElementById('ovi-agentes-json').textContent || '[]');
 let oviCalState = {ano:new Date().getFullYear(), grupos:[], eventos:[], eventosPorData:{}};
 let oviDiarioState = {diarios:[], selecionado:null, detalhe:null};
-let oviDiarioDrag = {id:null, original:[]};
+const oviDiarioReduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || false;
+const oviDiarioDragThreshold = 6;
+function novoEstadoOviDiarioDrag(){
+  return {
+    id:null, original:[], pending:false, active:false, dropping:false,
+    pointerId:null, pointerType:'mouse', startX:0, startY:0, lastY:0,
+    pointerOffsetY:0, row:null, handle:null, container:null, layer:null,
+    startRect:null, currentTransform:'', frame:null, scrollTarget:null
+  };
+}
+let oviDiarioDrag = novoEstadoOviDiarioDrag();
 let oviListaTotal = 0;
 const oviMeses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const oviDias = ['D','S','T','Q','Q','S','S'];
@@ -888,7 +911,7 @@ function renderDiarioRota(data){
       <td><input type="text" value="${oviEscape(r.telefone_responsavel || '')}" data-ovi-dia-tel="${oviEscape(r.ovitrampa_id)}"></td>
       <td>
         <div class="ovi-route-buttons">
-          <button class="btn btn-outline btn-sm ovi-drag-handle" type="button" draggable="true" data-ovi-dia-drag="${oviEscape(r.ovitrampa_id)}" title="Arrastar para ordenar"><img src="/static/icons/menu.svg" alt="" class="icon-svg"></button>
+          <button class="btn btn-outline btn-sm ovi-drag-handle" type="button" data-ovi-dia-drag="${oviEscape(r.ovitrampa_id)}" title="Segure e arraste para ordenar" aria-label="Mover ovitrampa ${oviEscape(r.ovitrampa_id)} na rota" aria-grabbed="false"><img src="/static/icons/menu.svg" alt="" class="icon-svg" draggable="false"></button>
           <button class="btn btn-outline btn-sm" type="button" data-ovi-dia-salvar-arm="${oviEscape(r.ovitrampa_id)}">Salvar</button>
           <button class="btn btn-ghost btn-sm" type="button" data-ovi-dia-remover="${oviEscape(r.ovitrampa_id)}">Remover</button>
         </div>
@@ -967,7 +990,7 @@ function atualizarOrdemVisualDiario(){
   });
 }
 function alvoDropDiario(container, y){
-  const rows = Array.from(container.querySelectorAll('[data-ovi-dia-row]:not(.is-dragging)'));
+  const rows = Array.from(container.querySelectorAll('[data-ovi-dia-row]:not(.is-drag-placeholder)'));
   return rows.reduce((closest, row) => {
     const box = row.getBoundingClientRect();
     const offset = y - box.top - box.height / 2;
@@ -975,10 +998,191 @@ function alvoDropDiario(container, y){
     return closest;
   }, {offset:Number.NEGATIVE_INFINITY, row:null}).row;
 }
-async function persistirOrdemDiario(){
+function criarCamadaArrasteDiario(row, rect){
+  const layer = document.createElement('div');
+  const table = document.createElement('table');
+  const colgroup = document.createElement('colgroup');
+  const tbody = document.createElement('tbody');
+  const clone = row.cloneNode(true);
+  clone.classList.remove('is-drag-placeholder');
+  clone.removeAttribute('data-ovi-dia-row');
+  Array.from(row.cells).forEach(cell => {
+    const col = document.createElement('col');
+    col.style.width = `${cell.getBoundingClientRect().width}px`;
+    colgroup.appendChild(col);
+  });
+  const sourceFields = row.querySelectorAll('input,select,textarea');
+  clone.querySelectorAll('input,select,textarea').forEach((field, index) => {
+    const source = sourceFields[index];
+    if (source) {
+      field.value = source.value;
+      if (field instanceof HTMLInputElement) field.checked = source.checked;
+    }
+    field.tabIndex = -1;
+  });
+  clone.querySelectorAll('button,a').forEach(control => control.tabIndex = -1);
+  table.className = 'ovi-diario-table';
+  table.appendChild(colgroup);
+  tbody.appendChild(clone);
+  table.appendChild(tbody);
+  layer.className = 'ovi-diario-drag-layer';
+  layer.style.width = `${rect.width}px`;
+  layer.style.height = `${rect.height}px`;
+  layer.appendChild(table);
+  document.body.appendChild(layer);
+  return layer;
+}
+function scrollTargetDiario(row){
+  for (let parent = row.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+    const style = getComputedStyle(parent);
+    if (/(auto|scroll)/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight + 2) return parent;
+  }
+  return window;
+}
+function velocidadeAutoScrollDiario(state){
+  const target = state.scrollTarget;
+  const bounds = target === window
+    ? {top:0, bottom:window.innerHeight}
+    : target.getBoundingClientRect();
+  const edge = Math.min(72, Math.max(36, (bounds.bottom - bounds.top) * .18));
+  if (state.lastY < bounds.top + edge) {
+    const ratio = Math.min(1, (bounds.top + edge - state.lastY) / edge);
+    return -Math.ceil(18 * ratio * ratio);
+  }
+  if (state.lastY > bounds.bottom - edge) {
+    const ratio = Math.min(1, (state.lastY - (bounds.bottom - edge)) / edge);
+    return Math.ceil(18 * ratio * ratio);
+  }
+  return 0;
+}
+function animarReposicionamentoDiario(container, before){
+  if (oviDiarioReduceMotion) return;
+  container.querySelectorAll('[data-ovi-dia-row]:not(.is-drag-placeholder)').forEach(row => {
+    const oldTop = before.get(row);
+    if (oldTop == null) return;
+    const delta = oldTop - row.getBoundingClientRect().top;
+    if (Math.abs(delta) < .5) return;
+    const animation = row.animate(
+      [{transform:`translate3d(0, ${delta}px, 0)`}, {transform:'translate3d(0, 0, 0)'}],
+      {duration:180, easing:'cubic-bezier(.2,.8,.2,1)'}
+    );
+    animation.id = 'ovi-diario-reflow';
+  });
+}
+function reposicionarArrasteDiario(state){
+  const container = state.container;
+  const row = state.row;
+  if (!container?.isConnected || !row?.isConnected) return;
+  const next = alvoDropDiario(container, state.lastY);
+  if (next === row.nextElementSibling || (!next && row === container.lastElementChild)) return;
+  const others = Array.from(container.querySelectorAll('[data-ovi-dia-row]:not(.is-drag-placeholder)'));
+  const before = new Map(others.map(item => [item, item.getBoundingClientRect().top]));
+  others.forEach(item => item.getAnimations?.().forEach(animation => {
+    if (animation.id === 'ovi-diario-reflow') animation.cancel();
+  }));
+  if (next) container.insertBefore(row, next);
+  else container.appendChild(row);
+  animarReposicionamentoDiario(container, before);
+  atualizarOrdemVisualDiario();
+}
+function atualizarCamadaArrasteDiario(state){
+  if (!state.layer || !state.startRect) return;
+  const top = state.lastY - state.pointerOffsetY;
+  const deltaY = top - state.startRect.top;
+  state.currentTransform = `translate3d(0, ${deltaY}px, 0) scale(1.01)`;
+  state.layer.style.transform = state.currentTransform;
+}
+function executarFrameArrasteDiario(){
+  const state = oviDiarioDrag;
+  state.frame = null;
+  if (!state.active) return;
+  atualizarCamadaArrasteDiario(state);
+  const speed = velocidadeAutoScrollDiario(state);
+  if (speed) {
+    if (state.scrollTarget === window) window.scrollBy(0, speed);
+    else state.scrollTarget.scrollTop += speed;
+  }
+  reposicionarArrasteDiario(state);
+  if (speed && state.active) state.frame = requestAnimationFrame(executarFrameArrasteDiario);
+}
+function agendarFrameArrasteDiario(){
+  if (!oviDiarioDrag.frame) oviDiarioDrag.frame = requestAnimationFrame(executarFrameArrasteDiario);
+}
+function iniciarArrasteDiario(){
+  const state = oviDiarioDrag;
+  if (!state.pending || state.active || !state.row?.isConnected) return;
+  const rect = state.row.getBoundingClientRect();
+  state.active = true;
+  state.startRect = rect;
+  state.pointerOffsetY = state.startY - rect.top;
+  state.scrollTarget = scrollTargetDiario(state.row);
+  state.layer = criarCamadaArrasteDiario(state.row, rect);
+  state.row.classList.add('is-drag-placeholder');
+  state.container.classList.add('is-reordering');
+  state.handle.classList.add('is-grabbing');
+  state.handle.setAttribute('aria-grabbed', 'true');
+  document.body.classList.add('ovi-diario-is-dragging');
+  atualizarCamadaArrasteDiario(state);
+}
+function restaurarOrdemOriginalDiario(state){
+  if (!state.container || !state.original.length) return;
+  const rows = new Map(Array.from(state.container.querySelectorAll('[data-ovi-dia-row]')).map(row => [row.dataset.oviDiaRow, row]));
+  rows.forEach(row => row.getAnimations?.().forEach(animation => {
+    if (animation.id === 'ovi-diario-reflow') animation.cancel();
+  }));
+  state.original.forEach(id => {
+    const row = rows.get(id);
+    if (row) state.container.appendChild(row);
+  });
+  atualizarOrdemVisualDiario();
+}
+function limparVisualArrasteDiario(state){
+  if (state.frame) cancelAnimationFrame(state.frame);
+  state.container?.classList.remove('is-reordering');
+  state.row?.classList.remove('is-drag-placeholder');
+  state.handle?.classList.remove('is-grabbing');
+  state.handle?.setAttribute('aria-grabbed', 'false');
+  state.layer?.remove();
+  document.body.classList.remove('ovi-diario-is-dragging');
+}
+async function concluirArrasteDiario(cancelado=false){
+  const state = oviDiarioDrag;
+  if (!state.pending || state.dropping) return;
+  state.pending = false;
+  if (!state.active) {
+    limparVisualArrasteDiario(state);
+    oviDiarioDrag = novoEstadoOviDiarioDrag();
+    return;
+  }
+  if (state.frame) cancelAnimationFrame(state.frame);
+  atualizarCamadaArrasteDiario(state);
+  reposicionarArrasteDiario(state);
+  state.active = false;
+  state.dropping = true;
+  if (cancelado) restaurarOrdemOriginalDiario(state);
+  const original = [...state.original];
+  if (!cancelado && state.layer && state.row?.isConnected && !oviDiarioReduceMotion) {
+    const target = state.row.getBoundingClientRect();
+    const targetTransform = `translate3d(${target.left - state.startRect.left}px, ${target.top - state.startRect.top}px, 0) scale(1)`;
+    try {
+      await state.layer.animate(
+        [{transform:state.currentTransform}, {transform:targetTransform}],
+        {duration:180, easing:'cubic-bezier(.2,.8,.2,1)', fill:'forwards'}
+      ).finished;
+    } catch (_) {}
+  }
+  limparVisualArrasteDiario(state);
+  oviDiarioDrag = novoEstadoOviDiarioDrag();
+  if (cancelado) return;
+  persistirOrdemDiario(original).catch(err => {
+    toast('Erro ao reordenar diário: ' + err.message, 'error');
+    if (oviDiarioState.selecionado) selecionarDiario(oviDiarioState.selecionado).catch(() => {});
+  });
+}
+async function persistirOrdemDiario(ordemOriginal=oviDiarioDrag.original){
   const ordem = ordemAtualDiario();
   if (!oviDiarioState.selecionado || !ordem.length) return;
-  if (ordem.join('|') === oviDiarioDrag.original.join('|')) return;
+  if (ordem.join('|') === ordemOriginal.join('|')) return;
   const data = await oviFetchJson(`/api/ovitrampas/diarios/${encodeURIComponent(oviDiarioState.selecionado)}/reordenar`, {
     method:'POST',
     headers:{'Content-Type':'application/json','X-CSRFToken': getCsrf()},
@@ -1212,40 +1416,54 @@ document.getElementById('ovi-cal-cancelar').addEventListener('click', fecharModa
 document.getElementById('ovi-cal-movimento').addEventListener('change', atualizarCamposMovimento);
 document.getElementById('ovi-grupo-fechar').addEventListener('click', fecharModalGrupo);
 document.getElementById('ovi-grupo-cancelar').addEventListener('click', fecharModalGrupo);
-document.getElementById('ovi-dia-rota-body').addEventListener('dragstart', e => {
+const oviDiarioRotaBody = document.getElementById('ovi-dia-rota-body');
+oviDiarioRotaBody.addEventListener('pointerdown', e => {
   const handle = e.target.closest('[data-ovi-dia-drag]');
-  if (!handle) return;
+  if (!handle || oviDiarioDrag.pending || e.button !== 0 || e.isPrimary === false) return;
   const row = handle.closest('[data-ovi-dia-row]');
   if (!row) return;
-  oviDiarioDrag = {id: row.dataset.oviDiaRow, original: ordemAtualDiario()};
-  row.classList.add('is-dragging');
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', row.dataset.oviDiaRow);
-});
-document.getElementById('ovi-dia-rota-body').addEventListener('dragover', e => {
-  const container = e.currentTarget;
-  const dragging = container.querySelector('.is-dragging');
-  if (!dragging) return;
   e.preventDefault();
-  container.querySelectorAll('.is-drop-target').forEach(row => row.classList.remove('is-drop-target'));
-  const next = alvoDropDiario(container, e.clientY);
-  if (next) {
-    next.classList.add('is-drop-target');
-    container.insertBefore(dragging, next);
-  } else {
-    container.appendChild(dragging);
-  }
-  atualizarOrdemVisualDiario();
-});
-document.getElementById('ovi-dia-rota-body').addEventListener('drop', e => {
-  e.preventDefault();
-  persistirOrdemDiario().catch(err => {
-    toast('Erro ao reordenar diário: ' + err.message, 'error');
-    if (oviDiarioState.selecionado) selecionarDiario(oviDiarioState.selecionado).catch(() => {});
+  oviDiarioDrag = novoEstadoOviDiarioDrag();
+  Object.assign(oviDiarioDrag, {
+    id:row.dataset.oviDiaRow,
+    original:ordemAtualDiario(),
+    pending:true,
+    pointerId:e.pointerId,
+    pointerType:e.pointerType || 'mouse',
+    startX:e.clientX,
+    startY:e.clientY,
+    lastY:e.clientY,
+    row,
+    handle,
+    container:e.currentTarget
   });
+  try { handle.setPointerCapture?.(e.pointerId); } catch (_) {}
 });
-document.getElementById('ovi-dia-rota-body').addEventListener('dragend', e => {
-  e.currentTarget.querySelectorAll('.is-dragging,.is-drop-target').forEach(row => row.classList.remove('is-dragging','is-drop-target'));
+oviDiarioRotaBody.addEventListener('pointermove', e => {
+  const state = oviDiarioDrag;
+  if (!state.pending || state.pointerId !== e.pointerId || state.dropping) return;
+  state.lastY = e.clientY;
+  if (!state.active) {
+    const distance = Math.hypot(e.clientX - state.startX, e.clientY - state.startY);
+    const threshold = state.pointerType === 'touch' ? oviDiarioDragThreshold + 2 : oviDiarioDragThreshold;
+    if (distance < threshold) return;
+    iniciarArrasteDiario();
+  }
+  if (!state.active) return;
+  e.preventDefault();
+  agendarFrameArrasteDiario();
+}, {passive:false});
+oviDiarioRotaBody.addEventListener('pointerup', e => {
+  if (!oviDiarioDrag.pending || oviDiarioDrag.pointerId !== e.pointerId) return;
+  oviDiarioDrag.lastY = e.clientY;
+  if (oviDiarioDrag.active) e.preventDefault();
+  concluirArrasteDiario(false);
+});
+oviDiarioRotaBody.addEventListener('pointercancel', e => {
+  if (oviDiarioDrag.pending && oviDiarioDrag.pointerId === e.pointerId) concluirArrasteDiario(true);
+});
+oviDiarioRotaBody.addEventListener('lostpointercapture', e => {
+  if (oviDiarioDrag.pending && !oviDiarioDrag.dropping && oviDiarioDrag.pointerId === e.pointerId) concluirArrasteDiario(true);
 });
 document.addEventListener('click', async e => {
   const occToggle = e.target.closest('[data-ovi-occ-toggle]');
