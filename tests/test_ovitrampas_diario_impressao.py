@@ -44,6 +44,10 @@ class OvitrampasDiarioImpressaoTests(unittest.TestCase):
         self.assertEqual(html.count('class="trap-id"'), len(registros))
         self.assertNotIn("linhas_vazias", html)
         self.assertIn("Ocorr&ecirc;ncias", html)
+        self.assertNotIn("Agentes instala&ccedil;&atilde;o:", html)
+        self.assertNotIn("Agentes troca:", html)
+        self.assertNotIn("Agentes retirada:", html)
+        self.assertIn('class="alter-head-cell">Agentes</th>', html)
 
 
 if __name__ == "__main__":

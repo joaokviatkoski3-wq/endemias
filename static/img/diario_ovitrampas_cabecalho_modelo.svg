@@ -1,22 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" version="1.1" width="595.92" height="842.88" viewBox="0 0 595.92 842.88">
 <defs>
 <clipPath id="clip_1">
-<path transform="matrix(.24,0,0,.24,0,0)" d="M100.45388 29.54526H2379.3782V872.56997H100.45388Z" clip-rule="evenodd"/>
+<path transform="matrix(.24,0,0,.24,0,0)" d="M100.628429 29.596596H2379.5665V907.6289H100.628429Z" clip-rule="evenodd"/>
 </clipPath>
 <clipPath id="clip_2">
-<path transform="matrix(.24,0,0,.24,0,0)" d="M586.9658 74.84799H1938.169V114.24167H586.9658Z" clip-rule="evenodd"/>
+<path transform="matrix(.24,0,0,.24,0,0)" d="M587.9857 74.97804H1937.5905V114.44017H587.9857Z" clip-rule="evenodd"/>
 </clipPath>
 <clipPath id="clip_3">
-<path transform="matrix(.24,0,0,.24,0,0)" d="M100.45388 29.54526H2379.3782V872.56997H100.45388Z" clip-rule="evenodd"/>
+<path transform="matrix(.24,0,0,.24,0,0)" d="M100.628429 29.596596H2379.5665V907.6289H100.628429Z" clip-rule="evenodd"/>
 </clipPath>
 <clipPath id="clip_4">
-<path transform="matrix(.24,0,0,.24,0,0)" d="M1146.356 779.9948H1321.658V868.6306H1146.356Z" clip-rule="evenodd"/>
+<path transform="matrix(.24,0,0,.24,0,0)" d="M1142.4286 814.8929H1318.035V903.6827H1142.4286Z" clip-rule="evenodd"/>
 </clipPath>
 <clipPath id="clip_5">
-<path transform="matrix(.24,0,0,.24,0,0)" d="M100.45388 29.54526H2379.3782V872.56997H100.45388Z" clip-rule="evenodd"/>
+<path transform="matrix(.24,0,0,.24,0,0)" d="M100.628429 29.596596H2379.5665V907.6289H100.628429Z" clip-rule="evenodd"/>
 </clipPath>
 <mask id="mask_6">
-<g transform="matrix(.035690674,0,0,.03587436,487.37858,25.5271)">
+<g transform="matrix(.035752689,0,0,.03593669,487.27833,25.57146)">
 <image id="image_7" width="2000" height="1041" xlink:href="data:image/png;base64,
 iVBORw0KGgoAAAANSUhEUgAAB9AAAAQRCAAAAABUD0wpAAAACXBIWXMAAA7EAAAO
 xAGVKw4bAABpm0lEQVR4nOzdb0hUaf/48RkHNcXQlezPCgZJtRHFYlBCblBELAhC
@@ -588,59 +588,73 @@ RW8pAL1oci+6gJVZH43eUgB60Tmvuef17nL0lgLQi4ZWu9EJrMu219wBCDDwQNCz
 </defs>
 <g>
 <g clip-path="url(#clip_1)">
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M0 0H1154V253H0Z" fill="#ffffff"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M0 253H314V425H0Z" fill="#ffffff"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M447 253H1154V283H447Z" fill="#ffffff"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M447 283H529V402H447Z" fill="#ffffff"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M693 283H767V356H693Z" fill="#ffffff"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M1006 283H1154V356H1006Z" fill="#ffffff"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M529 356H767V379H529Z" fill="#ffffff"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M1006 356H1154V379H1006Z" fill="#ffffff"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M693 379H767V402H693Z" fill="#ffffff"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M1006 379H1154V402H1006Z" fill="#ffffff"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M314 402H529V425H314Z" fill="#ffffff"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M693 402H1154V425H693Z" fill="#ffffff"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M313 252H447V402H313Z" fill="#ffffff"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M528 282H693V356H528Z" fill="#d9d9d9"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M766 282H1006V356H766Z" fill="#ffffff"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M766 355H1006V379H766Z" fill="#ffffff"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M528 378H693V402H528Z" fill="#d9d9d9"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M766 378H1006V402H766Z" fill="#ffffff"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" d="M528 401H693V425H528Z" fill="#d9d9d9"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" stroke-width="1" stroke-linecap="butt" stroke-miterlimit="10" stroke-linejoin="miter" fill="none" stroke="#000000" d="M618 424.5H693M840 332.5H932M840 355.5H932M840 378.5H932"/>
-<path transform="matrix(.4727241,0,0,.4727241,25.054379,8.03631)" stroke-width="3" stroke-linecap="butt" stroke-miterlimit="10" stroke-linejoin="miter" fill="none" stroke="#000000" d="M73 217.5H1080"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M0 0H1152V192H0Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M0 192H756V270H0Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M1078 192H1152V215H1078Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M1078 215H1152V270H1078Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M0 270H311V442H0Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M444 270H756V300H444Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M1078 270H1152V300H1078Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M444 300H526V419H444Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M690 300H756V373H690Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M1078 300H1152V373H1078Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M526 373H756V396H526Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M1078 373H1152V396H1078Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M690 396H756V419H690Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M1078 396H1152V419H1078Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M311 419H526V442H311Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M690 419H756V442H690Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M1078 419H1152V442H1078Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M755 191H1078V215H755Z" fill="#b7b7b7"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M755 214H839V270H755Z" fill="#d9d9d9"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M838 214H1078V270H838Z" fill="#efefef"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M310 269H444V419H310Z" fill="#ffffff"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M755 269H839V300H755Z" fill="#d9d9d9"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M838 269H1078V300H838Z" fill="#efefef"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M525 299H690V373H525Z" fill="#d9d9d9"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M755 299H839V373H755Z" fill="#d9d9d9"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M838 299H1078V373H838Z" fill="#efefef"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M755 372H839V396H755Z" fill="#d9d9d9"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M838 372H1078V396H838Z" fill="#efefef"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M525 395H690V419H525Z" fill="#d9d9d9"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M755 395H839V419H755Z" fill="#d9d9d9"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M838 395H1078V419H838Z" fill="#efefef"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M525 418H690V442H525Z" fill="#d9d9d9"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M755 418H839V442H755Z" fill="#d9d9d9"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" d="M838 418H1078V442H838Z" fill="#efefef"/>
+<path transform="matrix(.47354553,0,0,.47354553,25.097912,8.050274)" stroke-width="1" stroke-linecap="butt" stroke-miterlimit="10" stroke-linejoin="miter" fill="none" stroke="#000000" d="M615 441.5H690M755.5 191V442M838.5 214V442M755 191.5H1078M755 214.5H1078M838 240.5H1078M838 269.5H1078M755 299.5H1078M838 326.5H1078M838 349.5H1078M755 372.5H1078M838 395.5H1078M838 418.5H1078M755 441.5H1078M1077.5 191V442"/>
 </g>
 <g clip-path="url(#clip_2)">
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="21.33" font-family="Arial" font-weight="bold"><tspan y="42" x="275.6561 291.05995 296.98609 312.38993 327.79377 333.7199 356.2372 371.64106 391.79414 407.19798 422.6018 440.36988 455.7737 471.17756 477.1037 490.1329 505.53675 520.94058 541.0936 556.49746 576.6505 593.2417 607.4686 613.3948 627.6217 644.2129 658.4398 664.36599 679.7698 695.1736 717.6909 730.7201 747.3113 761.5382 767.46438 780.4935 795.8974 811.3012 829.0693 841.7131 857.11697">DI&#x00c1;RIODEARMADILHASDEOVIPOSI&#x00c7;&#x00c3;O-OVITRAMPAS</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="21.33" font-family="Arial" font-weight="bold"><tspan y="42" x="272.6561 288.05995 293.98609 309.38993 324.79377 330.7199 353.2372 368.64106 388.79414 404.19798 419.6018 437.36988 452.7737 468.17756 474.1037 487.1329 502.53675 517.94058 538.0936 553.49746 573.6505 590.2417 604.4686 610.3948 624.6217 641.2129 655.4398 661.36599 676.7698 692.1736 714.6909 727.7201 744.3113 758.5382 764.46438 777.4935 792.8974 808.3012 826.0693 838.7131 854.11697">DI&#x00c1;RIODEARMADILHASDEOVIPOSI&#x00c7;&#x00c3;O-OVITRAMPAS</tspan></text>
 </g>
 <g clip-path="url(#clip_3)">
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="16" font-family="Arial"><tspan y="77" x="13.0546879 24.60669 33.50269 42.39869 51.29469 60.19069 63.74269 67.29469 75.29469 84.1907 88.638698 98.414699 107.3107 116.2067 125.10271 130.43071 139.3267 143.7747 147.3267 155.3267 164.2227 168.6707 177.5667 186.46269 190.91069 201.58269 206.91069 215.80669 223.80669 227.35869">Rep&#x00fa;blica Federativa do Brasil</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="16" font-family="Arial"><tspan y="100" x="51.29297 64.62097 68.17297 77.06898 80.62098 88.62098 93.06898 101.96498 107.292987 110.844989 119.74099 124.18899 133.08499 141.98099 146.42899 157.10099 165.99698 174.89298 183.78897">Minist&#x00e9;rio da Sa&#x00fa;de</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="16" font-family="Arial"><tspan y="145" x="463.15626 473.82826 482.72425 487.17225 496.06825 501.39625 505.84425 514.74026 523.6362 528.0842 539.6362 548.5322 561.8602 570.7562 579.6522 584.1002 592.9962 597.4442 606.3402 615.2362 619.6842 630.3562 639.2522 648.1482 657.0442 670.3722 673.9242 682.8202">Setor de Combate de Endemias</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="16" font-family="Arial"><tspan y="164" x="398.69923 409.37123 414.69923 423.5952 428.0432 436.9392 440.4912 444.9392 453.8352 459.1632 468.0592 472.5072 485.8352 494.7312 503.6272 507.1792 515.1792 518.7312 527.6272 536.5232 540.0752 544.5232 553.4192 562.3152 566.7632 577.4352 580.9872 594.3152 597.8672 603.1952 612.0912 620.9872 625.4352 634.3312 638.7792 646.8086 655.7046 669.0326 677.9286 686.8246 695.7206 704.6166 709.9446 718.8406 723.2886 728.6166 733.0646 743.7366">Prefeitura Municipal de Almirante Tamandar&#x00e9; - PR</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="16" font-family="Arial"><tspan y="188" x="555.7031 564.5991 573.4951 582.3911">2026</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="16" font-family="Arial"><tspan y="326" x="764.8086 769.2566 778.1526 786.1526 790.6006 799.4966 803.0486 811.9446 819.9446 828.8406 837.7366">Instala&#x00e7;&#x00e3;o:</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="16" font-family="Arial"><tspan y="349" x="781.125 790.3047 795.6327 804.5287 812.5287 821.4247">Troca:</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="16" font-family="Arial"><tspan y="372" x="771.03909 782.59109 791.48709 795.93508 799.48709 804.81509 813.71109 822.60708 831.50308">Retirada:</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="18.66" font-family="Arial" font-weight="bold"><tspan y="77" x="325.48915 337.93519 343.1195 355.56556 366.9638 379.40986 394.95378 408.4294 413.61378 427.08943 441.60377 446.7881 459.23414 472.70979 487.22413 501.73847 515.2141 528.68978 544.23367 557.7093 562.8936 576.36929 589.8449 603.32058 608.5049 623.0192 636.4949 649.9705 661.3688 666.5531 680.02877 692.4748 697.6591 711.13479 725.6491 739.12478 750.523 763.99868 778.513 789.91128 802.3573 807.5416 821.0173 834.4929 839.67727 853.1529 865.59896 879.0746 893.5889 907.0646">SISTEMA DO PROGRAMA NACIONAL DE CONTROLE DA DENGUE</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="18.66" font-family="Arial" font-weight="bold"><tspan y="100" x="443.44166 455.8877 461.07203 475.58638 480.7707 492.16896 505.6446 519.12026 532.5959 537.7802 551.25588 556.4402 568.8862 582.3619 593.42306 607.9374 623.4813 637.99569 649.3939 663.90829 678.4226 683.60696 697.0826">VIGIL&#x00c2;NCIA ENTOMOL&#x00d3;GICA</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="14.66" font-family="Arial"><tspan y="123" x="9.673637 19.451729 27.604912 34.9349 39.81678 47.969964 52.042978 60.19616 65.07804 68.335018 76.4882 80.56121 88.71439 96.86758 100.94059 110.453838 113.71081 121.86399 125.120967 128.37793 136.53112 144.6843 152.01428 155.27126 163.42444 167.49745 175.65064 187.86252 191.93553 201.71363 209.8668 218.01999 226.17317">Secretaria de Vigil&#x00e2;ncia em Sa&#x00fa;de</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="17.33" font-family="Arial"><tspan y="288" x="320.27589 331.83485 340.49983 350.13795 358.80293 367.4679 377.10603 381.92085 391.55897 396.37379 410.8098 420.44795 430.08607">Acesse o mapa</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="17.33" font-family="Arial"><tspan y="309" x="316.4215 326.05964 335.69776 344.36274 349.17756 353.0277 362.66584 371.3308 380.96894 384.8191 388.66926 397.33424 406.97236 415.63734 425.27546 434.91358">das localiza&#x00e7;&#x00f5;es</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="17.33" font-family="Arial"><tspan y="330" x="321.24055 330.87867 340.51679 349.18177 353.99659 363.6347 369.4057 383.84175 393.47987 403.11799 406.96815 410.8183 420.45643 430.09455">das armadilhas</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="17.33" font-family="Arial"><tspan y="351" x="325.0907 334.72883 344.36695 348.2171 357.85523 362.67005 376.14988 388.66505 393.47987 405.99504 415.63313 425.27125">pelo QR Code</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="17.33" font-family="Arial"><tspan y="351" x="108.09259"> </tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="16" font-family="Arial"><tspan y="77" x="13.0546879 24.60669 33.50269 42.39869 51.29469 60.19069 63.74269 67.29469 75.29469 84.1907 88.638698 98.414699 107.3107 116.2067 125.10271 130.43071 139.3267 143.7747 147.3267 155.3267 164.2227 168.6707 177.5667 186.46269 190.91069 201.58269 206.91069 215.80669 223.80669 227.35869">Rep&#x00fa;blica Federativa do Brasil</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="16" font-family="Arial"><tspan y="100" x="51.29297 64.62097 68.17297 77.06898 80.62098 88.62098 93.06898 101.96498 107.292987 110.844989 119.74099 124.18899 133.08499 141.98099 146.42899 157.10099 165.99698 174.89298 183.78897">Minist&#x00e9;rio da Sa&#x00fa;de</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="16" font-family="Arial"><tspan y="145" x="460.65626 471.32826 480.22425 484.67225 493.56825 498.89625 503.34425 512.24026 521.1362 525.5842 537.1362 546.0322 559.3602 568.2562 577.1522 581.6002 590.4962 594.9442 603.8402 612.7362 617.1842 627.8562 636.7522 645.6482 654.5442 667.8722 671.4242 680.3202">Setor de Combate de Endemias</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="16" font-family="Arial"><tspan y="164" x="396.19923 406.87123 412.19923 421.0952 425.5432 434.4392 437.9912 442.4392 451.3352 456.6632 465.5592 470.0072 483.3352 492.2312 501.1272 504.6792 512.6792 516.2312 525.1272 534.0232 537.5752 542.0232 550.9192 559.8152 564.2632 574.9352 578.4872 591.8152 595.3672 600.6952 609.5912 618.4872 622.9352 631.8312 636.2792 644.3086 653.2046 666.5326 675.4286 684.3246 693.2206 702.1166 707.4446 716.3406 720.7886 726.1166 730.5646 741.2366">Prefeitura Municipal de Almirante Tamandar&#x00e9; - PR</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="16" font-family="Arial"><tspan y="187" x="552.7031 561.5991 570.4951 579.3911">2026</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="16" font-family="Arial"><tspan y="262" x="760.53128 764.97927 773.87527 781.87527 786.32327 795.21926 798.77127 807.66726 815.66726 824.56326">Instala&#x00e7;&#x00e3;o</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="16" font-family="Arial"><tspan y="341" x="776.84768 786.02737 791.35537 800.25137 808.25137">Troca</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="16" font-family="Arial"><tspan y="412" x="766.7617 778.3137 787.2097 791.6577 795.2097 800.5377 809.4337 818.3297">Retirada</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="18.66" font-family="Arial" font-weight="bold"><tspan y="77" x="322.98915 335.43519 340.6195 353.06556 364.4638 376.90986 392.45378 405.9294 411.11378 424.58943 439.10377 444.2881 456.73414 470.20979 484.72413 499.23847 512.7141 526.18978 541.73367 555.2093 560.3936 573.86929 587.3449 600.82058 606.0049 620.5192 633.9949 647.4705 658.8688 664.0531 677.52877 689.9748 695.1591 708.63479 723.1491 736.62478 748.023 761.49868 776.013 787.41128 799.8573 805.0416 818.5173 831.9929 837.17727 850.6529 863.09896 876.5746 891.0889 904.5646">SISTEMA DO PROGRAMA NACIONAL DE CONTROLE DA DENGUE</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="18.66" font-family="Arial" font-weight="bold"><tspan y="100" x="440.94166 453.3877 458.57203 473.08638 478.2707 489.66896 503.1446 516.62026 530.0959 535.2802 548.75588 553.9402 566.3862 579.8619 590.92306 605.4374 620.9813 635.49569 646.8939 661.40829 675.9226 681.10696 694.5826">VIGIL&#x00c2;NCIA ENTOMOL&#x00d3;GICA</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="14.66" font-family="Arial"><tspan y="123" x="9.673637 19.451729 27.604912 34.9349 39.81678 47.969964 52.042978 60.19616 65.07804 68.335018 76.4882 80.56121 88.71439 96.86758 100.94059 110.453838 113.71081 121.86399 125.120967 128.37793 136.53112 144.6843 152.01428 155.27126 163.42444 167.49745 175.65064 187.86252 191.93553 201.71363 209.8668 218.01999 226.17317">Secretaria de Vigil&#x00e2;ncia em Sa&#x00fa;de</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="17.33" font-family="Arial" font-weight="bold"><tspan y="209" x="882.3139 894.8291 905.4149 915.05307 925.6389 931.4099 941.04806">Agentes</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="17.33" font-family="Arial"><tspan y="305" x="317.27589 328.83485 337.49983 347.13795 355.80293 364.4679 374.10603 378.92085 388.55897 393.37379 407.8098 417.44795 427.08607">Acesse o mapa</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="17.33" font-family="Arial"><tspan y="326" x="313.4215 323.05964 332.69776 341.36274 346.17756 350.0277 359.66584 368.3308 377.96894 381.8191 385.66926 394.33424 403.97236 412.63734 422.27546 431.91358">das localiza&#x00e7;&#x00f5;es</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="17.33" font-family="Arial"><tspan y="347" x="318.24055 327.87867 337.51679 346.18177 350.99659 360.6347 366.4057 380.84175 390.47987 400.11799 403.96815 407.8183 417.45643 427.09455">das armadilhas</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="17.33" font-family="Arial"><tspan y="368" x="322.0907 331.72883 341.36695 345.2171 354.85523 359.67005 373.14988 385.66505 390.47987 402.99504 412.63313 422.27125">pelo QR Code</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="17.33" font-family="Arial"><tspan y="368" x="108.09259"> </tspan></text>
 </g>
 <g clip-path="url(#clip_4)">
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="17.33" font-family="Arial"><tspan y="397" x="552.03219 564.54739 570.87686 575.69168 585.3298">N&#x00ba; de</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="17.33" font-family="Arial"><tspan y="418" x="527.75076 539.3097 545.0807 559.5167 569.15487 578.79299 582.6431 586.4933 596.1314 605.76956 614.4345">Armadilhas:</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="17.33" font-family="Arial"><tspan y="414" x="549.03219 561.54739 567.87686 572.69168 582.3298">N&#x00ba; de</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="17.33" font-family="Arial"><tspan y="435" x="524.75076 536.3097 542.0807 556.5167 566.15487 575.79299 579.6431 583.4933 593.1314 602.76956 611.4345">Armadilhas:</tspan></text>
 </g>
 <g clip-path="url(#clip_5)">
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="20" font-family="Arial" font-weight="bold"><tspan y="303" x="558.2637 570.48367 582.7036 593.8236 604.9436 610.5036 616.0636 628.28359 639.40359 651.62356">Localidade</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="17.33" font-family="Arial" font-weight="bold"><tspan y="302" x="776.6849 788.24386 797.88198 813.2911 822.9292 833.515 843.15316 852.79129 857.6061 869.16506 879.75088 884.5657 895.1515 904.7896 920.1987 925.01358 935.59939 940.4142 951 961.5858 966.40066 976.03878 985.6769">Semanas Epidemiol&#x00f3;gicas</tspan></text>
-<text xml:space="preserve" transform="matrix(.4727241 0 0 .4727241 25.054379 8.03631)" font-size="26.66" font-family="Type3 (8 0 R)"><tspan y="388" x="372.18946">&#x21b2;</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="20" font-family="Arial" font-weight="bold"><tspan y="320" x="543.042 555.26199 567.48196 578.6019 589.7219 595.2819 600.8419 613.0619 624.1819 636.40188 647.52188 654.1818 665.3018">Localidade(s)</tspan></text>
+<text xml:space="preserve" transform="matrix(.47354553 0 0 .47354553 25.097912 8.050274)" font-size="26.66" font-family="Type3 (7 0 R)"><tspan y="405" x="369.18946">&#x21b2;</tspan></text>
 <g mask="url(#mask_6)">
-<g transform="matrix(.035690674,0,0,.03587436,487.37858,25.5271)">
+<g transform="matrix(.035752689,0,0,.03593669,487.27833,25.57146)">
 <image id="image_8" width="2000" height="1041" xlink:href="data:image/png;base64,
 iVBORw0KGgoAAAANSUhEUgAAB9AAAAQRCAIAAAD+BoSiAAAACXBIWXMAAA7EAAAO
 xAGVKw4bAADdgklEQVR4nOzd+5fU5Znv7/uHPeu71sws1x73dk/M0swkISYSNSqi
@@ -1827,7 +1841,7 @@ JuvprW+30dxnTx8AAAAAqMzJVZw+OlVGmldNH+2QPX0AAAAAoDL7X2J9Hs1t/gZQ
 0nQN5bZkAAAAAGBML9+Vp4W7NKvaOwt34H//AGxOx7F5Y58fAAAAAElFTkSuQmCC"/>
 </g>
 </g>
-<g transform="matrix(.1126413,0,0,.1126413,73.27225,120.071918)">
+<g transform="matrix(.11283702,0,0,.11283702,73.39955,118.859928)">
 <image id="image_9" width="768" height="768" xlink:href="data:image/jpeg;base64,
 /9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB
 AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/2wBDAQEB
