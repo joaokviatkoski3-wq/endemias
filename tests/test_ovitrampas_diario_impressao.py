@@ -48,6 +48,7 @@ class OvitrampasDiarioImpressaoTests(unittest.TestCase):
         self.assertNotIn("Agentes troca:", html)
         self.assertNotIn("Agentes retirada:", html)
         self.assertIn('class="alter-head-cell">Agentes</th>', html)
+        self.assertNotIn("dh-semana", html)
 
 
 if __name__ == "__main__":
