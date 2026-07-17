@@ -1026,6 +1026,8 @@ function criarCamadaArrasteDiario(row, rect){
   tbody.appendChild(clone);
   table.appendChild(tbody);
   layer.className = 'ovi-diario-drag-layer';
+  layer.style.left = `${rect.left}px`;
+  layer.style.top = `${rect.top}px`;
   layer.style.width = `${rect.width}px`;
   layer.style.height = `${rect.height}px`;
   layer.appendChild(table);

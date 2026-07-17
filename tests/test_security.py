@@ -2063,6 +2063,8 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("addEventListener('pointerdown'", html)
         self.assertIn("addEventListener('pointermove'", html)
         self.assertIn("translate3d", html)
+        self.assertIn("layer.style.left = `${rect.left}px`", html)
+        self.assertIn("layer.style.top = `${rect.top}px`", html)
         self.assertIn("velocidadeAutoScrollDiario", html)
         self.assertIn("prefers-reduced-motion", html)
         self.assertNotIn('draggable="true" data-ovi-dia-drag', html)
