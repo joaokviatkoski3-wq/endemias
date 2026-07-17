@@ -8,6 +8,7 @@ $TaskName = "Endemias - Servidor"
 $RootDir = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $AppPath = Join-Path $RootDir "app.py"
 $OpenPath = Join-Path $RootDir "abrir_endemias.bat"
+$RestartPath = Join-Path $RootDir "reiniciar.bat"
 
 function Test-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -63,26 +64,40 @@ function Find-EndemiasPython {
 }
 
 function Get-ShortcutPath {
+    param([Parameter(Mandatory=$true)][string]$FileName)
     $desktop = [Environment]::GetFolderPath("CommonDesktopDirectory")
     if (-not $desktop) {
         $desktop = [Environment]::GetFolderPath("DesktopDirectory")
     }
-    return (Join-Path $desktop "Endemias.lnk")
+    return (Join-Path $desktop $FileName)
 }
 
 function New-EndemiasShortcut {
-    $shortcutPath = Get-ShortcutPath
+    param(
+        [Parameter(Mandatory=$true)][string]$FileName,
+        [Parameter(Mandatory=$true)][string]$TargetPath,
+        [Parameter(Mandatory=$true)][string]$Description
+    )
+
+    $shortcutPath = Get-ShortcutPath -FileName $FileName
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($shortcutPath)
-    $shortcut.TargetPath = $OpenPath
+    $shortcut.TargetPath = $TargetPath
     $shortcut.WorkingDirectory = $RootDir
-    $shortcut.Description = "Abrir o Sistema Endemias"
+    $shortcut.Description = $Description
     $favicon = Join-Path $RootDir "static\img\favicon.png"
     if (Test-Path -LiteralPath $favicon) {
         $shortcut.IconLocation = "$favicon,0"
     }
     $shortcut.Save()
     return $shortcutPath
+}
+
+function New-EndemiasShortcuts {
+    return @(
+        (New-EndemiasShortcut -FileName "Endemias.lnk" -TargetPath $OpenPath -Description "Abrir o Sistema Endemias"),
+        (New-EndemiasShortcut -FileName "Reiniciar Endemias.lnk" -TargetPath $RestartPath -Description "Reiniciar o servidor do Sistema Endemias")
+    )
 }
 
 if (-not (Test-Administrator)) {
@@ -100,10 +115,12 @@ if ($Remover) {
         Write-Host "A tarefa automatica nao estava instalada."
     }
 
-    $shortcutPath = Get-ShortcutPath
-    if (Test-Path -LiteralPath $shortcutPath) {
-        Remove-Item -LiteralPath $shortcutPath -Force
-        Write-Host "Atalho removido."
+    foreach ($shortcutName in @("Endemias.lnk", "Reiniciar Endemias.lnk")) {
+        $shortcutPath = Get-ShortcutPath -FileName $shortcutName
+        if (Test-Path -LiteralPath $shortcutPath) {
+            Remove-Item -LiteralPath $shortcutPath -Force
+            Write-Host "Atalho removido: $shortcutPath"
+        }
     }
     exit 0
 }
@@ -143,11 +160,13 @@ $task = New-ScheduledTask `
     -Description "Inicia o Sistema Endemias automaticamente com o Windows."
 
 Register-ScheduledTask -TaskName $TaskName -InputObject $task -Force | Out-Null
-$shortcutPath = New-EndemiasShortcut
+$shortcutPaths = New-EndemiasShortcuts
 
 Write-Host "Tarefa '$TaskName' instalada."
 Write-Host "Python: $pythonPath"
-Write-Host "Atalho: $shortcutPath"
+foreach ($shortcutPath in $shortcutPaths) {
+    Write-Host "Atalho: $shortcutPath"
+}
 
 if (-not (Test-EndemiasPort)) {
     Start-ScheduledTask -TaskName $TaskName

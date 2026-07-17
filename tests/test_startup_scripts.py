@@ -26,6 +26,8 @@ class StartupScriptsTests(unittest.TestCase):
         )
 
         self.assertIn('"Endemias.lnk"', script)
+        self.assertIn('"Reiniciar Endemias.lnk"', script)
+        self.assertIn('$RestartPath = Join-Path $RootDir "reiniciar.bat"', script)
         self.assertIn("Unregister-ScheduledTask", script)
         self.assertIn("Remove-Item -LiteralPath $shortcutPath", script)
 
@@ -41,6 +43,21 @@ class StartupScriptsTests(unittest.TestCase):
 
         self.assertIn('start "" http://localhost:5000', iniciar)
         self.assertNotIn("O sistema ja parece estar aberto", iniciar)
+
+    def test_reiniciar_valida_processo_e_reabre_tarefa_automatica(self):
+        reiniciar_bat = (ROOT / "reiniciar.bat").read_text(encoding="utf-8")
+        reiniciar_ps1 = (ROOT / "scripts" / "reiniciar_endemias.ps1").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("-Verb RunAs", reiniciar_bat)
+        self.assertIn("reiniciar_endemias.ps1", reiniciar_bat)
+        self.assertIn('Get-ScheduledTask -TaskName $TaskName', reiniciar_ps1)
+        self.assertIn('Stop-ScheduledTask -TaskName $TaskName', reiniciar_ps1)
+        self.assertIn('Start-ScheduledTask -TaskName $TaskName', reiniciar_ps1)
+        self.assertIn("Get-EndemiasListenerProcess", reiniciar_ps1)
+        self.assertIn("$commandLine.IndexOf($AppPath", reiniciar_ps1)
+        self.assertIn('Start-Process -FilePath "http://localhost:$Port"', reiniciar_ps1)
 
 
 if __name__ == "__main__":
