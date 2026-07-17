@@ -2087,6 +2087,10 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("Lista de Visitas", html)
         self.assertIn("filter-choice-grid", html)
         self.assertIn("filter-choice-section", html)
+        self.assertIn('id="v_agua_sanepar"', html)
+        self.assertIn('id="v_observacoes"', html)
+        self.assertIn("Água Sanepar", html)
+        self.assertIn("visita-observacoes", html)
 
     def test_relatorio_agente_exibe_esporotricose_e_aviso_de_privacidade(self):
         client = _client_logado()

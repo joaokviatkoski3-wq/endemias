@@ -590,7 +590,7 @@ def api_visitas():
                 SELECT DISTINCT v.id_visita, v.data, v.tipo, l.nome as localidade,
                        v.quarteirao, v.logradouro, v.numero, v.visita,
                        v.tipo_imovel, v.ciclo, v.sequencia, v.morador,
-                       v.hora_inicio, v.hora_fim, v.observacoes,
+                       v.hora_inicio, v.hora_fim, v.agua_sanepar, v.observacoes,
                        GROUP_CONCAT(DISTINCT a.nome) as agentes,
                        CASE WHEN EXISTS(
                            SELECT 1 FROM focos_positivos f

@@ -49,7 +49,9 @@ def exportar_visitas():
         rows = q(f"""
             SELECT DISTINCT v.data, v.tipo, l.nome as localidade, v.quarteirao,
                    v.logradouro, v.numero, v.visita, v.morador, v.tipo_imovel,
-                   v.ciclo, v.sequencia, v.hora_inicio, v.hora_fim, v.observacoes,
+                   v.ciclo, v.sequencia, v.hora_inicio, v.hora_fim,
+                   CASE v.agua_sanepar WHEN 1 THEN 'Sim' WHEN 0 THEN 'Não' ELSE NULL END,
+                   v.observacoes,
                    GROUP_CONCAT(DISTINCT a.nome) as agentes
             FROM visitas v
             LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
@@ -59,7 +61,7 @@ def exportar_visitas():
         """, params)
         cabecalho = ["Data", "Tipo", "Localidade", "Quarteirao", "Logradouro", "Numero",
                      "Visita", "Morador", "Tipo Imovel", "Ciclo", "Sequencia",
-                     "Hora Inicio", "Hora Fim", "Observacoes", "Agentes"]
+                     "Hora Inicio", "Hora Fim", "Agua Sanepar", "Observacoes", "Agentes"]
         return _gerar_xlsx(cabecalho, rows, "visitas")
     except Exception:
         logging.exception("Erro em exportar_visitas")

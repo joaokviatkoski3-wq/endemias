@@ -62,6 +62,19 @@ def build_visit_where(params_dict, alias_v="v", alias_l="l"):
         where += f" AND ({cond})"
         params += ags
 
+    agua_sanepar = str(params_dict.get("agua_sanepar") or "").strip().lower()
+    if agua_sanepar in ("1", "sim"):
+        where += f" AND {alias_v}.agua_sanepar=1"
+    elif agua_sanepar in ("0", "nao", "não"):
+        where += f" AND {alias_v}.agua_sanepar=0"
+    elif agua_sanepar == "sem_info":
+        where += f" AND {alias_v}.agua_sanepar IS NULL"
+
+    observacoes = str(params_dict.get("observacoes") or "").strip()
+    if observacoes:
+        where += f" AND COALESCE({alias_v}.observacoes,'') LIKE ?"
+        params.append(f"%{observacoes}%")
+
     return where, params
 
 
