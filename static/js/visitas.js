@@ -131,43 +131,39 @@ function renderVisitasLista(rows) {
     const location = [row.localidade, row.quarteirao ? `Q. ${row.quarteirao}` : null].filter(Boolean).join(' · ') || '-';
     return `
       <article class="visita-registro" data-visita-id="${visitasText(row.id_visita)}">
-        <div class="visita-registro-main">
+        <div class="visita-registro-head">
           <div class="visita-identidade">
-            <div class="visita-data">${fmtDate(row.data)}${row.hora_inicio ? ` · ${visitasText(row.hora_inicio)}` : ''}</div>
-            <div class="visita-tags">
-              <span class="visita-tag">${visitasValue(row.tipo)}</span>
-              <span class="visita-tag status-${visitasStatusClass(row.visita)}">${visitasValue(row.visita)}</span>
-            </div>
+            <div class="visita-data">${fmtDate(row.data)}</div>
+            <div class="visita-time">${row.hora_inicio ? visitasText(row.hora_inicio) : 'Horário não informado'}</div>
           </div>
           <div class="visita-endereco">
-            <span class="visita-field-label">Local e endereço</span>
-            <div class="visita-field-value">${visitasText(location)}</div>
-            <div class="visita-field-sub">${visitasText(address)}${row.sequencia ? ` · Seq. ${visitasText(row.sequencia)}` : ''}</div>
+            <div class="visita-address-main">${visitasText(address)}</div>
+            <div class="visita-address-meta">${visitasText(location)}${row.sequencia ? ` · Sequência ${visitasText(row.sequencia)}` : ''}</div>
           </div>
-          <div class="visita-pessoas">
-            <span class="visita-field-label">Imóvel e morador</span>
-            <div class="visita-field-value">${visitasValue(row.tipo_imovel)}</div>
-            <div class="visita-field-sub">${visitasValue(row.morador)}</div>
-            <span class="visita-field-label">Agentes</span>
-            <div class="visita-field-value">${visitasValue(row.agentes)}</div>
-          </div>
-          <div class="visita-operacao">
-            <div class="visita-metrics">
-              <div class="visita-metric"><strong>${fmtNum(visitasNum(row.depositos_inspecionados))}</strong><span>Inspec.</span></div>
-              <div class="visita-metric"><strong>${fmtNum(visitasNum(row.depositos_eliminados))}</strong><span>Elimin.</span></div>
-              <div class="visita-metric"><strong>${fmtNum(visitasNum(row.depositos_tratados))}</strong><span>Tratados</span></div>
-              <div class="visita-metric"><strong>${fmtNum(visitasNum(row.tratamentos_total))}</strong><span>Produtos</span></div>
-              <div class="visita-metric"><strong>${fmtNum(visitasNum(row.coletas_total))}</strong><span>Coletas</span></div>
-              <div class="visita-metric"><strong>${visitasValue(row.tubos)}</strong><span>Tubos</span></div>
-              <div class="visita-lab-status ${visitasText(row.laboratorio_status)}">${visitasLabLabels[row.laboratorio_status] || 'Sem informação laboratorial'}</div>
+          <div class="visita-classificacao">
+            <div class="visita-tags">
+              <span class="visita-tag visita-tag-type">${visitasValue(row.tipo)}</span>
+              <span class="visita-tag status-${visitasStatusClass(row.visita)}">${visitasValue(row.visita)}</span>
             </div>
+            <div class="visita-property">${visitasValue(row.tipo_imovel)}</div>
           </div>
           <div class="visita-actions">
             <button class="btn btn-outline btn-sm" type="button" data-visita-action="details" data-visita-id="${visitasText(row.id_visita)}">Ver detalhes</button>
             ${visitasConfig.pode_editar ? `<button class="btn btn-ghost btn-sm" type="button" data-visita-action="edit" data-visita-id="${visitasText(row.id_visita)}"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Editar</button>` : ''}
           </div>
         </div>
-        ${row.observacoes ? `<div class="visita-observacao-resumo"><strong>Observação:</strong> ${visitasText(row.observacoes)}</div>` : ''}
+        <div class="visita-registro-body">
+          <div class="visita-context visita-context-agent"><span>Agente</span><strong>${visitasValue(row.agentes)}</strong></div>
+          <div class="visita-context"><span>Morador</span><strong>${visitasValue(row.morador)}</strong></div>
+          <div class="visita-operation-summary">
+            <span><strong>${fmtNum(visitasNum(row.depositos_inspecionados))}</strong> inspecionados</span>
+            <span><strong>${fmtNum(visitasNum(row.depositos_eliminados))}</strong> eliminados</span>
+            <span><strong>${fmtNum(visitasNum(row.depositos_tratados))}</strong> tratados</span>
+            <span><strong>${fmtNum(visitasNum(row.coletas_total))}</strong> coletas</span>
+            ${row.tubos ? `<span>Tubos <strong>${visitasText(row.tubos)}</strong></span>` : ''}
+          </div>
+          <div class="visita-lab-status ${visitasText(row.laboratorio_status)}">${visitasLabLabels[row.laboratorio_status] || 'Sem informação laboratorial'}</div>
+        </div>
         <div class="visita-detail" id="visita-detail-${visitasText(row.id_visita)}" hidden></div>
       </article>`;
   }).join('');
@@ -491,14 +487,16 @@ document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && !document.getElementById('visita-edit-modal').hidden) fecharEditarVisita();
 });
 
-let visitasSearchTimer;
 ['v_busca', 'v_observacoes'].forEach(id => {
-  document.getElementById(id).addEventListener('input', () => {
-    clearTimeout(visitasSearchTimer);
-    visitasSearchTimer = setTimeout(() => buscarVisitas(1), 450);
+  document.getElementById(id).addEventListener('input', atualizarContagemFiltros);
+  document.getElementById(id).addEventListener('keydown', event => {
+    if (event.key === 'Enter') buscarVisitas(1);
   });
 });
-['v_d_ini', 'v_d_fim', 'v_ordem', 'v_por_pagina', ...visitasFilterIds].forEach(id => {
+['v_d_ini', 'v_d_fim', ...visitasFilterIds].forEach(id => {
+  document.getElementById(id)?.addEventListener('change', atualizarContagemFiltros);
+});
+['v_ordem', 'v_por_pagina'].forEach(id => {
   document.getElementById(id)?.addEventListener('change', () => buscarVisitas(1));
 });
 

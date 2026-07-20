@@ -2145,7 +2145,8 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('id="v_tratamento"', html)
         self.assertIn('id="v_laboratorio"', html)
         self.assertIn("Água Sanepar", html)
-        self.assertIn("visitas-kpis", html)
+        self.assertIn("visitas-summary", html)
+        self.assertIn("Mais filtros", html)
         self.assertIn("/static/js/visitas.js", html)
 
     def test_relatorio_agente_exibe_esporotricose_e_aviso_de_privacidade(self):

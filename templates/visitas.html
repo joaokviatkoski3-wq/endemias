@@ -24,7 +24,7 @@
     <span class="filter-toggle open">v</span>
   </div>
   <div class="filter-body open" id="visitas-filtros-corpo">
-    <div class="visitas-search-row">
+    <div class="visitas-filter-primary">
       <div class="f-g visitas-search">
         <label for="v_busca">Pesquisa geral</label>
         <div class="visitas-search-control">
@@ -34,37 +34,31 @@
       </div>
       <div class="f-g"><label for="v_d_ini">Data inicial</label><input type="date" id="v_d_ini" value="{{ d_ini }}"></div>
       <div class="f-g"><label for="v_d_fim">Data final</label><input type="date" id="v_d_fim" value="{{ d_fim }}"></div>
-    </div>
-
-    <div class="visitas-filter-grid">
       <div class="f-g"><label for="v_tipo">Tipo de trabalho</label><select id="v_tipo" multiple data-multi-picker data-placeholder="Todos os tipos">{% for item in opcoes.tipos %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>
       <div class="f-g"><label for="v_localidade">Localidade</label><select id="v_localidade" multiple data-multi-picker data-placeholder="Todas as localidades">{% for item in opcoes.localidades %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>
-      <div class="f-g"><label for="v_agente">Agente</label><select id="v_agente" multiple data-multi-picker data-placeholder="Todos os agentes">{% for item in opcoes.agentes %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>
-      <div class="f-g"><label for="v_resultado">Resultado da visita</label><select id="v_resultado" multiple data-multi-picker data-placeholder="Todos os resultados">{% for item in opcoes.resultados %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>
-      <div class="f-g"><label for="v_imovel">Tipo de imóvel</label><select id="v_imovel" multiple data-multi-picker data-placeholder="Todos os imóveis">{% for item in opcoes.imoveis %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>
-      <div class="f-g"><label for="v_deposito">Tipo de depósito</label><select id="v_deposito" multiple data-multi-picker data-placeholder="Todos os depósitos">{% for item in opcoes.depositos %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>
-      <div class="f-g"><label for="v_tratamento">Produto ou tratamento</label><select id="v_tratamento" multiple data-multi-picker data-placeholder="Todos os produtos">{% for item in opcoes.tratamentos %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>
-      <div class="f-g"><label for="v_coleta">Coleta</label><select id="v_coleta"><option value="">Com ou sem coleta</option><option value="com">Com coleta</option><option value="sem">Sem coleta</option></select></div>
-      <div class="f-g"><label for="v_tratado">Tratamento</label><select id="v_tratado"><option value="">Com ou sem tratamento</option><option value="com">Com tratamento</option><option value="sem">Sem tratamento</option></select></div>
-      <div class="f-g"><label for="v_laboratorio">Situação laboratorial</label><select id="v_laboratorio"><option value="">Todas as situações</option><option value="positivo">Positivo para Aedes aegypti</option><option value="negativo">Negativo para Aedes aegypti</option><option value="pendente">Resultado pendente</option><option value="sem_coleta">Sem coleta</option></select></div>
-      <div class="f-g"><label for="v_agua_sanepar">Água Sanepar</label><select id="v_agua_sanepar"><option value="">Todas as situações</option><option value="1">Sim</option><option value="0">Não</option><option value="sem_info">Sem informação</option></select></div>
-      <div class="f-g"><label for="v_observacoes">Texto nas observações</label><input type="text" id="v_observacoes" placeholder="Pesquisar observação"></div>
     </div>
 
+    <details class="visitas-advanced-filters">
+      <summary><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Mais filtros <span>agente, resultado, imóvel, depósitos e laboratório</span></summary>
+      <div class="visitas-filter-grid">
+        <div class="f-g"><label for="v_agente">Agente</label><select id="v_agente" multiple data-multi-picker data-placeholder="Todos os agentes">{% for item in opcoes.agentes %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label for="v_resultado">Resultado da visita</label><select id="v_resultado" multiple data-multi-picker data-placeholder="Todos os resultados">{% for item in opcoes.resultados %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label for="v_imovel">Tipo de imóvel</label><select id="v_imovel" multiple data-multi-picker data-placeholder="Todos os imóveis">{% for item in opcoes.imoveis %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label for="v_deposito">Tipo de depósito</label><select id="v_deposito" multiple data-multi-picker data-placeholder="Todos os depósitos">{% for item in opcoes.depositos %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label for="v_tratamento">Produto ou tratamento</label><select id="v_tratamento" multiple data-multi-picker data-placeholder="Todos os produtos">{% for item in opcoes.tratamentos %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label for="v_coleta">Coleta</label><select id="v_coleta"><option value="">Com ou sem coleta</option><option value="com">Com coleta</option><option value="sem">Sem coleta</option></select></div>
+        <div class="f-g"><label for="v_tratado">Tratamento</label><select id="v_tratado"><option value="">Com ou sem tratamento</option><option value="com">Com tratamento</option><option value="sem">Sem tratamento</option></select></div>
+        <div class="f-g"><label for="v_laboratorio">Situação laboratorial</label><select id="v_laboratorio"><option value="">Todas as situações</option><option value="positivo">Positivo para Aedes aegypti</option><option value="negativo">Negativo para Aedes aegypti</option><option value="pendente">Resultado pendente</option><option value="sem_coleta">Sem coleta</option></select></div>
+        <div class="f-g"><label for="v_agua_sanepar">Água Sanepar</label><select id="v_agua_sanepar"><option value="">Todas as situações</option><option value="1">Sim</option><option value="0">Não</option><option value="sem_info">Sem informação</option></select></div>
+        <div class="f-g span-2"><label for="v_observacoes">Texto nas observações</label><input type="text" id="v_observacoes" placeholder="Pesquisar nas observações"></div>
+      </div>
+    </details>
+
     <div class="filter-actions visitas-filter-actions">
-      <button class="btn btn-primary" type="button" onclick="buscarVisitas(1)"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+      <button class="btn btn-primary" type="button" onclick="buscarVisitas(1)"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Aplicar filtros</button>
       <button class="btn btn-ghost" type="button" onclick="limparFiltrosVisitas()"><img src="/static/icons/fechar.svg" alt="" class="icon-svg"> Limpar filtros</button>
     </div>
   </div>
-</section>
-
-<section class="visitas-kpis" aria-label="Resumo das visitas filtradas">
-  <div class="visitas-kpi"><span>Visitas</span><strong id="vk-visitas">0</strong></div>
-  <div class="visitas-kpi"><span>Imóveis acessados</span><strong id="vk-acessados">0</strong></div>
-  <div class="visitas-kpi"><span>Depósitos inspecionados</span><strong id="vk-inspecionados">0</strong></div>
-  <div class="visitas-kpi"><span>Depósitos eliminados</span><strong id="vk-eliminados">0</strong></div>
-  <div class="visitas-kpi"><span>Coletas</span><strong id="vk-coletas">0</strong></div>
-  <div class="visitas-kpi visitas-kpi-alert"><span>Visitas positivas</span><strong id="vk-positivas">0</strong></div>
 </section>
 
 <section class="visitas-results" aria-labelledby="visitas-resultados-titulo">
@@ -85,6 +79,15 @@
       <label for="v_por_pagina">Por página</label>
       <select id="v_por_pagina"><option value="20">20</option><option value="30" selected>30</option><option value="50">50</option><option value="100">100</option></select>
     </div>
+  </div>
+  <div class="visitas-summary" aria-label="Resumo do período filtrado">
+    <span class="visitas-summary-title">Resumo do período</span>
+    <span><strong id="vk-visitas">0</strong> visitas</span>
+    <span><strong id="vk-acessados">0</strong> imóveis acessados</span>
+    <span><strong id="vk-inspecionados">0</strong> depósitos inspecionados</span>
+    <span><strong id="vk-eliminados">0</strong> eliminados</span>
+    <span><strong id="vk-coletas">0</strong> coletas</span>
+    <span class="visitas-summary-alert"><strong id="vk-positivas">0</strong> positivas</span>
   </div>
   <div id="visitas-lista" class="visitas-lista"><div class="loading-box"><div class="spinner"></div></div></div>
   <div id="visitas-paginacao"></div>
