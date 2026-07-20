@@ -32,7 +32,14 @@
 .doe-status.status-outro{background:rgba(148,163,184,.16);color:#475569;}
 .doe-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .doe-form-grid .full{grid-column:1/-1;}
-.doe-anexo{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);margin-bottom:6px;}
+.doe-anexos{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px;}
+.doe-anexo{min-width:0;overflow:hidden;border:1px solid var(--border);border-radius:8px;background:var(--surface);}
+.doe-anexo-preview{display:flex;height:112px;align-items:center;justify-content:center;overflow:hidden;background:var(--surface2);border-bottom:1px solid var(--border);}
+.doe-anexo-preview img{width:100%;height:100%;object-fit:cover;display:block;}
+.doe-anexo-fallback{display:none;width:100%;height:100%;place-items:center;color:var(--text3);font-size:13px;font-weight:900;}
+.doe-anexo-info{padding:8px 9px;}
+.doe-anexo-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:800;}
+.doe-anexo-actions{display:flex;justify-content:space-between;gap:6px;margin-top:7px;}
 @media(max-width:1050px){.doe-layout{grid-template-columns:1fr}.doe-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:620px){.doe-head{flex-direction:column}.doe-actions .btn{flex:1}.doe-grid,.doe-form-grid{grid-template-columns:1fr}}
 </style>{% endblock %}
@@ -110,7 +117,7 @@
     <div class="chart-hd"><div class="chart-title">Anexos</div></div>
     <input id="anexos" type="file" multiple>
     <button class="btn btn-outline" type="button" onclick="enviarAnexos()" style="margin-top:8px;">Enviar anexos</button>
-    <div id="anexos-list" style="margin-top:10px;"></div>
+    <div class="doe-anexos" id="anexos-list" style="margin-top:10px;"></div>
   </div>
 </div>
 {% endblock %}
@@ -185,8 +192,17 @@ function render(){
   `).join('') || '<div class="empty-inline">Nenhuma receita cadastrada.</div>';
   document.getElementById('anexos-list').innerHTML = (animal.anexos || []).map(a => `
     <div class="doe-anexo">
-      <a href="${a.url_visualizar}" target="_blank" rel="noopener">${esc(a.nome_original)}</a>
-      <button class="btn btn-sm" type="button" onclick="excluirAnexo(${a.id_anexo})">Excluir</button>
+      <a class="doe-anexo-preview" href="${a.url_visualizar}" target="_blank" rel="noopener" title="Abrir anexo">
+        <img src="${a.url_miniatura}" alt="${esc(a.nome_original)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
+        <span class="doe-anexo-fallback">PDF</span>
+      </a>
+      <div class="doe-anexo-info">
+        <div class="doe-anexo-name" title="${esc(a.nome_original)}">${esc(a.nome_original)}</div>
+        <div class="doe-anexo-actions">
+          <a class="btn btn-sm" href="${a.url_visualizar}" target="_blank" rel="noopener">Abrir</a>
+          <button class="btn btn-sm" type="button" onclick="excluirAnexo(${a.id_anexo})">Excluir</button>
+        </div>
+      </div>
     </div>
   `).join('') || '<div class="empty-inline">Nenhum anexo.</div>';
 }

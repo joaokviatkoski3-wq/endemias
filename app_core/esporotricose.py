@@ -2465,6 +2465,7 @@ def _anexo_doente_dict(row):
     item = dict(row)
     item["url_download"] = f"/esporotricose/doentes/anexos/{item['id_anexo']}/download"
     item["url_visualizar"] = f"/esporotricose/doentes/anexos/{item['id_anexo']}/download?inline=1"
+    item["url_miniatura"] = f"/esporotricose/doentes/anexos/{item['id_anexo']}/miniatura"
     item["eh_previa"] = (item.get("mime_type") or "").startswith("image/") or item.get("mime_type") == "application/pdf"
     return item
 

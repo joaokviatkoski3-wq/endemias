@@ -96,8 +96,14 @@
 .esporo-busca-item-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 12px; }
 .esporo-busca-item-observacoes { margin-top:5px; color:var(--text2); font-size:12px; white-space:pre-wrap; }
 .esporo-doente-origin-action { display:flex; align-items:center; justify-content:flex-end; gap:8px; padding-bottom:10px; border-bottom:1px solid var(--border); }
-.esporo-anexos { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
-.esporo-anexo { display:flex; justify-content:space-between; gap:8px; align-items:center; padding:7px 8px; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12px; }
+.esporo-anexos { display:grid; grid-template-columns:repeat(auto-fill,minmax(145px,1fr)); gap:10px; margin-top:10px; }
+.esporo-anexo { min-width:0; overflow:hidden; background:var(--surface); border:1px solid var(--border); border-radius:8px; }
+.esporo-anexo-preview { position:relative; display:flex; height:112px; align-items:center; justify-content:center; overflow:hidden; background:var(--surface2); border-bottom:1px solid var(--border); }
+.esporo-anexo-preview img { width:100%; height:100%; object-fit:cover; display:block; }
+.esporo-anexo-fallback { display:none; width:100%; height:100%; place-items:center; color:var(--text3); font-size:13px; font-weight:900; }
+.esporo-anexo-info { padding:8px 9px; }
+.esporo-anexo-nome { overflow:hidden; color:var(--text); font-size:12px; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
+.esporo-anexo-acoes { display:flex; justify-content:space-between; gap:6px; margin-top:7px; }
 @media(max-width:980px) { .esporo-chart-grid,.esporo-doentes-resumo-grid { grid-template-columns:1fr; } .esporo-doentes-resumo-grid .full { grid-column:auto; } }
 @media(max-width:980px) { .esporo-layout { grid-template-columns:1fr; } }
 @media(max-width:1100px) { .esporo-doentes-layout { grid-template-columns:1fr; } .esporo-doente-panel { position:static; } }
@@ -1344,8 +1350,17 @@ async function excluirEspReceita(idReceita, totalEntregas) {
 function renderEspAnexos(rows) {
   document.getElementById('esp-anexos-list').innerHTML = rows.length ? rows.map(a => `
     <div class="esporo-anexo">
-      <a href="${a.url_visualizar}" target="_blank" rel="noopener">${escapeHtml(a.nome_original)}</a>
-      <button class="btn btn-sm" type="button" onclick="excluirEspAnexo(${a.id_anexo})">Excluir</button>
+      <a class="esporo-anexo-preview" href="${a.url_visualizar}" target="_blank" rel="noopener" title="Abrir anexo">
+        <img src="${a.url_miniatura}" alt="${escapeHtml(a.nome_original)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
+        <span class="esporo-anexo-fallback">PDF</span>
+      </a>
+      <div class="esporo-anexo-info">
+        <div class="esporo-anexo-nome" title="${escapeHtml(a.nome_original)}">${escapeHtml(a.nome_original)}</div>
+        <div class="esporo-anexo-acoes">
+          <a class="btn btn-sm" href="${a.url_visualizar}" target="_blank" rel="noopener">Abrir</a>
+          <button class="btn btn-sm" type="button" onclick="excluirEspAnexo(${a.id_anexo})">Excluir</button>
+        </div>
+      </div>
     </div>
   `).join('') : '<div class="empty-inline">Nenhum anexo.</div>';
 }

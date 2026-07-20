@@ -11,6 +11,7 @@ from pathlib import Path
 
 from flask import Blueprint, Response, abort, current_app, jsonify, redirect, render_template, request, send_file
 from PIL import Image, ImageOps, UnidentifiedImageError
+import pymupdf
 from werkzeug.utils import secure_filename
 
 from app_core import auth as auth_core
@@ -568,11 +569,37 @@ def baixar_anexo_doente(id_anexo):
     inline = request.args.get("inline") == "1"
     return send_file(
         caminho,
-        mimetype=row.get("mime_type") or None,
+        mimetype=row["mime_type"] or None,
         as_attachment=not inline,
         download_name=row["nome_original"],
         max_age=0,
     )
+
+
+@bp.route("/esporotricose/doentes/anexos/<int:id_anexo>/miniatura")
+@login_required
+def miniatura_anexo_doente(id_anexo):
+    conn = db_core.connect(_db_path())
+    try:
+        row = conn.execute(
+            "SELECT caminho_rel, mime_type FROM esporotricose_doentes_anexos WHERE id_anexo=?",
+            (id_anexo,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row or row["mime_type"] != "application/pdf":
+        abort(404)
+    caminho = _path_anexo(row["caminho_rel"])
+    if not caminho.exists() or not caminho.is_file():
+        abort(404)
+    miniatura = _miniatura_path(caminho)
+    if not miniatura.exists():
+        try:
+            _gerar_miniatura_pdf(caminho, miniatura)
+        except Exception:
+            current_app.logger.exception("Erro ao gerar miniatura do anexo %s", id_anexo)
+            abort(404)
+    return send_file(miniatura, mimetype="image/webp", max_age=86400)
 
 
 def _anexos_base_dir():
@@ -633,6 +660,12 @@ def _salvar_upload_anexo(arquivo, meta, destino_dir):
         tamanho = caminho.stat().st_size
         if tamanho > ANEXO_MAX_BYTES:
             raise AnexoImagemInvalida("O arquivo convertido ficou maior que 20 MB.")
+        if mime_type == "application/pdf":
+            try:
+                _gerar_miniatura_pdf(caminho, _miniatura_path(caminho))
+            except Exception:
+                # O PDF continua valido mesmo quando uma previa nao pode ser produzida.
+                pass
         return {
             "caminho": caminho,
             "nome_original": nome_original,
@@ -685,10 +718,38 @@ def _nome_original_pdf(nome_original, nome_seguro):
     return f"{base}.pdf"
 
 
+def _miniatura_path(caminho):
+    return caminho.with_name(f"{caminho.stem}.thumb.webp")
+
+
+def _gerar_miniatura_pdf(caminho_pdf, caminho_miniatura):
+    temporario = caminho_miniatura.with_name(f".{caminho_miniatura.name}.{uuid.uuid4().hex}.tmp")
+    documento = pymupdf.open(caminho_pdf)
+    try:
+        if documento.page_count < 1:
+            raise ValueError("PDF sem paginas.")
+        pagina_pdf = documento.load_page(0)
+        largura = max(float(pagina_pdf.rect.width), 1.0)
+        altura = max(float(pagina_pdf.rect.height), 1.0)
+        escala = max(0.25, min(2.0, 480.0 / largura, 360.0 / altura))
+        pixmap = pagina_pdf.get_pixmap(matrix=pymupdf.Matrix(escala, escala), alpha=False)
+        imagem = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+        try:
+            imagem.thumbnail((480, 360), Image.Resampling.LANCZOS)
+            imagem.save(temporario, format="WEBP", quality=82, method=4)
+        finally:
+            imagem.close()
+        os.replace(temporario, caminho_miniatura)
+    finally:
+        documento.close()
+        temporario.unlink(missing_ok=True)
+
+
 def _remover_caminhos(caminhos):
     for caminho in caminhos:
         try:
             caminho.unlink(missing_ok=True)
+            _miniatura_path(caminho).unlink(missing_ok=True)
         except OSError:
             pass
 
@@ -699,5 +760,6 @@ def _remover_arquivos_anexos(rows):
             caminho = _path_anexo(row["caminho_rel"])
             if caminho.exists() and caminho.is_file():
                 caminho.unlink()
+            _miniatura_path(caminho).unlink(missing_ok=True)
         except Exception:
             pass
