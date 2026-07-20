@@ -5,10 +5,12 @@ import os
 import shutil
 import sqlite3
 import uuid
+import warnings
 from datetime import datetime
 from pathlib import Path
 
 from flask import Blueprint, Response, abort, current_app, jsonify, redirect, render_template, request, send_file
+from PIL import Image, ImageOps, UnidentifiedImageError
 from werkzeug.utils import secure_filename
 
 from app_core import auth as auth_core
@@ -20,8 +22,13 @@ from app_core import utils as utils_core
 bp = Blueprint("esporotricose", __name__)
 login_required = auth_core.login_required
 
-ANEXO_EXTENSOES = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".doc", ".docx", ".xls", ".xlsx"}
+ANEXO_IMAGEM_EXTENSOES = {".png", ".jpg", ".jpeg", ".jfif", ".webp"}
+ANEXO_EXTENSOES = {".pdf", *ANEXO_IMAGEM_EXTENSOES, ".doc", ".docx", ".xls", ".xlsx"}
 ANEXO_MAX_BYTES = 20 * 1024 * 1024
+
+
+class AnexoImagemInvalida(ValueError):
+    pass
 
 
 def _db_path():
@@ -479,20 +486,24 @@ def api_doente_anexos(id_animal):
     arquivos = request.files.getlist("arquivos")
     if not arquivos:
         return jsonify({"erro": "Nenhum arquivo enviado."}), 400
+    arquivos_validados = []
+    for arquivo in arquivos:
+        meta, erro = _validar_upload_anexo(arquivo)
+        if erro:
+            return jsonify({"erro": erro}), 400
+        arquivos_validados.append((arquivo, meta))
+
     destino_dir = _doente_anexos_dir(id_animal)
     usuario = auth_core.usuario_atual(lambda sql, params=(): db_core.query_one(_db_path(), sql, params)) or {}
     salvos = []
+    caminhos_salvos = []
     conn = db_core.connect(_db_path())
     try:
         esporotricose_core.ensure_schema(conn)
-        for arquivo in arquivos:
-            meta, erro = _validar_upload_anexo(arquivo)
-            if erro:
-                return jsonify({"erro": erro}), 400
-            nome_arquivo = f"{uuid.uuid4().hex}{meta['ext']}"
-            caminho = destino_dir / nome_arquivo
-            arquivo.save(caminho)
-            mime_type = mimetypes.guess_type(meta["nome_seguro"])[0] or "application/octet-stream"
+        for arquivo, meta in arquivos_validados:
+            anexo = _salvar_upload_anexo(arquivo, meta, destino_dir)
+            caminho = anexo["caminho"]
+            caminhos_salvos.append(caminho)
             caminho_rel = str(caminho.relative_to(_anexos_base_dir())).replace("\\", "/")
             cur = conn.execute(
                 """INSERT INTO esporotricose_doentes_anexos
@@ -500,16 +511,26 @@ def api_doente_anexos(id_animal):
                     mime_type, tamanho, criado_por, criado_em)
                    VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    id_animal, meta["nome_original"], nome_arquivo, caminho_rel, mime_type,
-                    meta["tamanho"], usuario.get("nome") or "sistema",
+                    id_animal, anexo["nome_original"], anexo["nome_arquivo"], caminho_rel,
+                    anexo["mime_type"], anexo["tamanho"], usuario.get("nome") or "sistema",
                     datetime.now().isoformat(timespec="seconds"),
                 ),
             )
             salvos.append(cur.lastrowid)
         conn.commit()
+    except AnexoImagemInvalida as exc:
+        conn.rollback()
+        _remover_caminhos(caminhos_salvos)
+        return jsonify({"erro": str(exc)}), 400
     except sqlite3.OperationalError:
         conn.rollback()
+        _remover_caminhos(caminhos_salvos)
         return jsonify({"erro": "Banco de dados ocupado. Tente novamente."}), 503
+    except Exception:
+        conn.rollback()
+        _remover_caminhos(caminhos_salvos)
+        current_app.logger.exception("Erro ao salvar anexo de animal com esporotricose")
+        return jsonify({"erro": "Não foi possível salvar o anexo."}), 500
     finally:
         conn.close()
     return jsonify({"ok": True, "ids": salvos, "anexos": esporotricose_core.obter_doente(_db_path(), id_animal).get("anexos", [])}), 201
@@ -591,6 +612,85 @@ def _validar_upload_anexo(arquivo):
     if tamanho > ANEXO_MAX_BYTES:
         return None, "Arquivo maior que 20 MB."
     return {"nome_original": nome_original, "nome_seguro": nome_seguro, "ext": ext, "tamanho": tamanho}, ""
+
+
+def _salvar_upload_anexo(arquivo, meta, destino_dir):
+    eh_imagem = meta["ext"] in ANEXO_IMAGEM_EXTENSOES
+    extensao_final = ".pdf" if eh_imagem else meta["ext"]
+    nome_arquivo = f"{uuid.uuid4().hex}{extensao_final}"
+    caminho = destino_dir / nome_arquivo
+    try:
+        if eh_imagem:
+            _converter_imagem_para_pdf(arquivo, caminho)
+            nome_original = _nome_original_pdf(meta["nome_original"], meta["nome_seguro"])
+            mime_type = "application/pdf"
+        else:
+            arquivo.stream.seek(0)
+            arquivo.save(caminho)
+            nome_original = meta["nome_original"]
+            mime_type = mimetypes.guess_type(meta["nome_seguro"])[0] or "application/octet-stream"
+
+        tamanho = caminho.stat().st_size
+        if tamanho > ANEXO_MAX_BYTES:
+            raise AnexoImagemInvalida("O arquivo convertido ficou maior que 20 MB.")
+        return {
+            "caminho": caminho,
+            "nome_original": nome_original,
+            "nome_arquivo": nome_arquivo,
+            "mime_type": mime_type,
+            "tamanho": tamanho,
+        }
+    except Exception:
+        caminho.unlink(missing_ok=True)
+        raise
+
+
+def _converter_imagem_para_pdf(arquivo, caminho):
+    try:
+        arquivo.stream.seek(0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(arquivo.stream) as origem:
+                imagem = ImageOps.exif_transpose(origem)
+                imagem.load()
+                if imagem.mode in ("RGBA", "LA") or "transparency" in imagem.info:
+                    rgba = imagem.convert("RGBA")
+                    pagina = Image.new("RGB", rgba.size, "white")
+                    pagina.paste(rgba, mask=rgba.getchannel("A"))
+                    rgba.close()
+                else:
+                    pagina = imagem.convert("RGB")
+                try:
+                    pagina.save(
+                        caminho,
+                        format="PDF",
+                        resolution=150.0,
+                        quality=90,
+                        optimize=True,
+                    )
+                finally:
+                    pagina.close()
+                if imagem is not origem:
+                    imagem.close()
+    except (UnidentifiedImageError, Image.DecompressionBombError, Image.DecompressionBombWarning, OSError, ValueError):
+        caminho.unlink(missing_ok=True)
+        raise AnexoImagemInvalida(
+            "A imagem enviada está corrompida ou não possui um formato válido."
+        ) from None
+
+
+def _nome_original_pdf(nome_original, nome_seguro):
+    nome = (nome_original or "").replace("\\", "/").rsplit("/", 1)[-1]
+    base = Path(nome).stem.strip() or Path(nome_seguro).stem or "anexo"
+    return f"{base}.pdf"
+
+
+def _remover_caminhos(caminhos):
+    for caminho in caminhos:
+        try:
+            caminho.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _remover_arquivos_anexos(rows):
