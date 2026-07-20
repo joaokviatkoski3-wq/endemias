@@ -90,18 +90,13 @@
     </div>
     <button class="btn btn-primary" type="button" id="btn-kobo-pendentes"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Ver pend&ecirc;ncias</button>
   </div>
-  <div id="kobo-pendentes" class="kobo-preview-empty">Clique em "Ver pend&ecirc;ncias" para listar os formul&aacute;rios com registros novos.</div>
-  <div class="kobo-preview-row">
-    <div class="f-g"><label>Formulário</label><select id="kobo-preview-tipo">{% for tipo in kobo_config.tipos %}<option value="{{ tipo.codigo }}">{{ tipo.codigo }} - {{ tipo.label }}</option>{% endfor %}</select></div>
+  <div class="kobo-preview-row kobo-pendencias-filtros">
     <div class="f-g"><label>Início</label><input id="kobo-preview-inicio" type="date"></div>
     <div class="f-g"><label>Fim</label><input id="kobo-preview-fim" type="date"></div>
-    <div class="f-g"><label>Limite</label><input id="kobo-preview-limite" type="number" min="1" max="5000" value="100"></div>
-    <label class="kobo-check"><input id="kobo-preview-apenas-novos" type="checkbox"> <span>S&oacute; novos</span></label>
-    <button class="btn btn-primary" type="button" id="btn-kobo-previa"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar prévia</button>
-    <button class="btn btn-outline" type="button" id="btn-kobo-lote"><img src="/static/icons/tubo_ensaio.svg" alt="" class="icon-svg"> Buscar lote Vetores + Larvas</button>
-    <button class="btn btn-outline" type="button" id="btn-kobo-importar"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Preparar importação</button>
+    <div class="f-g"><label>Limite por formulário</label><input id="kobo-preview-limite" type="number" min="1" max="5000" value="5000"></div>
   </div>
-  <div id="kobo-previa" class="kobo-preview-empty">Nenhuma prévia carregada.</div>
+  <div id="kobo-pendentes" class="kobo-preview-empty">Clique em "Ver pend&ecirc;ncias" para listar os formul&aacute;rios com registros novos.</div>
+  <div id="kobo-previa" class="kobo-preview-empty">Na lista de pend&ecirc;ncias, use Pr&eacute;via para conferir os registros de um formul&aacute;rio.</div>
   <details class="kobo-config-details">
     <summary><img src="/static/icons/chave.svg" alt="" class="icon-svg"> Configurar conexão com Kobo</summary>
     <div class="kobo-grid">
@@ -389,7 +384,8 @@
 .kobo-grid{display:grid;grid-template-columns:minmax(220px,1fr) minmax(220px,1fr) auto;gap:10px;align-items:end;margin-bottom:12px;}
 .kobo-assets{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px;}
 .kobo-actions{display:flex;gap:8px;justify-content:flex-end;}
-.kobo-preview-row{display:grid;grid-template-columns:minmax(130px,.8fr) repeat(3,minmax(120px,.7fr)) auto auto auto auto;gap:10px;align-items:end;}
+.kobo-preview-row{display:grid;gap:10px;align-items:end;}
+.kobo-pendencias-filtros{grid-template-columns:repeat(2,minmax(150px,1fr)) minmax(120px,.5fr);max-width:720px;margin:12px 0;}
 .kobo-check{height:38px;display:flex;align-items:center;gap:7px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);font-size:12px;font-weight:800;color:var(--text2);white-space:nowrap;}
 .kobo-check input{width:15px;height:15px;accent-color:var(--brand);}
 .kobo-preview-empty{margin-top:12px;border:1px dashed var(--border);border-radius:var(--radius-sm);padding:14px;color:var(--text3);font-size:12.5px;text-align:center;background:var(--surface2);}

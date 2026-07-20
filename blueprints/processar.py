@@ -579,8 +579,13 @@ def kobo_importar_formulario_iniciar():
     except kobo_api.KoboError as exc:
         return jsonify({"erro": str(exc)}), 400
 
+    existentes = _kobo_existing_uuids(tipo, records)
+    records = [
+        record for record in records
+        if not kobo_api.record_uuid(record) or kobo_api.record_uuid(record) not in existentes
+    ]
     if not records:
-        return jsonify({"erro": f"Nenhum registro encontrado no Kobo para {tipo}."}), 400
+        return jsonify({"erro": f"Nenhum registro novo encontrado no Kobo para {tipo}."}), 400
 
     job_id = str(uuid.uuid4())
     job_dir = _job_dir(job_id)

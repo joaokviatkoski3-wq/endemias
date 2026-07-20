@@ -6,7 +6,7 @@ let logDryRun = '';
 const CORES = Object.assign({}, WORK_TYPE_COLORS, {LARVAS:'#ef4444', ESPOROTRICOSE:'#14b8a6', RECOLHIMENTO:'#f59e0b', AMOSTRA_ANIMAIS:'#8b5cf6', BRI:'#06b6d4'});
 const WORK_TYPES = JSON.parse(document.getElementById('processar-work-types').textContent || '[]');
 const KOBO_CONFIG = JSON.parse(document.getElementById('kobo-config-json')?.textContent || '{}');
-const KOBO_VISIT_TYPES = KOBO_CONFIG.tipos_visita || ['PE','TB','TBO','PVE'];
+let koboImportacaoEmAndamento = false;
 
 // ── Helpers de tela ───────────────────────────────────────────────────────────
 function mostrar(id, rolar=false) {
@@ -74,11 +74,7 @@ function configurarAcoesProcessamento() {
   document.getElementById('btn-kobo-salvar')?.addEventListener('click', salvarKoboConfig);
   document.getElementById('btn-kobo-testar')?.addEventListener('click', testarKobo);
   document.getElementById('btn-kobo-pendentes')?.addEventListener('click', buscarKoboPendentes);
-  document.getElementById('btn-kobo-previa')?.addEventListener('click', buscarKoboPrevia);
-  document.getElementById('btn-kobo-lote')?.addEventListener('click', buscarKoboLote);
-  document.getElementById('btn-kobo-importar')?.addEventListener('click', prepararKoboImportacao);
-
-  document.addEventListener('click', event => {
+  document.addEventListener('click', async event => {
     const removeBtn = event.target.closest('[data-remover-arquivo]');
     if (removeBtn) {
       removerArquivo(Number(removeBtn.dataset.removerArquivo));
@@ -91,13 +87,14 @@ function configurarAcoesProcessamento() {
     }
     const koboTipoBtn = event.target.closest('[data-kobo-pendente-tipo]');
     if (koboTipoBtn) {
-      const select = document.getElementById('kobo-preview-tipo');
-      if (select) select.value = koboTipoBtn.dataset.koboPendenteTipo;
+      event.preventDefault();
+      const tipo = koboTipoBtn.dataset.koboPendenteTipo;
       if (koboTipoBtn.dataset.koboAcao === 'importar') {
-        prepararKoboImportacao();
+        await prepararKoboImportacao(tipo, koboTipoBtn);
       } else {
-        buscarKoboPrevia();
+        await buscarKoboPrevia(tipo);
       }
+      return;
     }
   });
 }
@@ -346,9 +343,9 @@ async function buscarKoboPendentes() {
   }
 }
 
-async function buscarKoboPrevia() {
+async function buscarKoboPrevia(tipo) {
+  if (!tipo) return;
   await salvarKoboConfig();
-  const tipo = document.getElementById('kobo-preview-tipo').value;
   const assetInput = document.querySelector(`[data-kobo-asset="${tipo}"]`);
   try {
     document.getElementById('kobo-previa').innerHTML = 'Buscando registros no Kobo...';
@@ -362,7 +359,7 @@ async function buscarKoboPrevia() {
         inicio: document.getElementById('kobo-preview-inicio').value,
         fim: document.getElementById('kobo-preview-fim').value,
         limite: document.getElementById('kobo-preview-limite').value,
-        apenas_novos: document.getElementById('kobo-preview-apenas-novos')?.checked || false,
+        apenas_novos: true,
       })
     });
     const data = await resp.json();
@@ -377,42 +374,18 @@ async function buscarKoboPrevia() {
   }
 }
 
-async function buscarKoboLote() {
-  await salvarKoboConfig();
+async function prepararKoboImportacao(tipo, botao) {
+  if (!tipo || koboImportacaoEmAndamento) return;
+  koboImportacaoEmAndamento = true;
+  const botoesImportar = [...document.querySelectorAll('[data-kobo-acao="importar"]')];
+  const estadosBotoes = botoesImportar.map(item => [item, item.disabled]);
+  const textoOriginal = botao?.innerHTML;
+  botoesImportar.forEach(item => { item.disabled = true; });
+  if (botao) botao.textContent = 'Preparando...';
   try {
-    document.getElementById('kobo-previa').innerHTML = 'Buscando lote de visitas e larvas no Kobo...';
-    document.getElementById('kobo-previa').className = 'kobo-preview-empty';
-    const resp = await fetch('/api/kobo/lote-vetores-larvas', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
-      body: JSON.stringify({
-        inicio: document.getElementById('kobo-preview-inicio').value,
-        fim: document.getElementById('kobo-preview-fim').value,
-        limite: document.getElementById('kobo-preview-limite').value,
-      })
-    });
-    const data = await resp.json();
-    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
-    document.getElementById('kobo-previa').className = '';
-    document.getElementById('kobo-previa').innerHTML = koboLoteHtml(data);
-    setKoboStatus(data.ok ? 'Lote conferido' : 'Lote com avisos', data.ok ? 'imp-verde' : 'imp-azul');
-  } catch (e) {
-    document.getElementById('kobo-previa').className = 'kobo-preview-empty';
-    document.getElementById('kobo-previa').textContent = 'Erro: ' + e.message;
-    setKoboStatus('Erro no lote', 'imp-vermelho');
-  }
-}
-
-async function prepararKoboImportacao() {
-  await salvarKoboConfig();
-  try {
+    await salvarKoboConfig();
     setKoboStatus('Preparando...', 'imp-azul');
-    const tipo = document.getElementById('kobo-preview-tipo').value;
-    const usarLoteVetores = KOBO_VISIT_TYPES.includes(tipo);
-    const endpoint = usarLoteVetores
-      ? '/api/kobo/importar-vetores-larvas/iniciar'
-      : '/api/kobo/importar-formulario/iniciar';
-    const resp = await fetch(endpoint, {
+    const resp = await fetch('/api/kobo/importar-formulario/iniciar', {
       method: 'POST',
       headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
       body: JSON.stringify({
@@ -431,11 +404,14 @@ async function prepararKoboImportacao() {
     const arquivos = (data.arquivos || []).join(', ');
     document.getElementById('kobo-previa').className = 'kobo-preview-empty';
     document.getElementById('kobo-previa').textContent = 'Importação preparada. Abrindo a verificação antes da gravação...';
-    const origem = usarLoteVetores ? 'Kobo Vetores + Larvas' : `Kobo ${tipo}`;
-    await executarDryRunJob(data.job_id, `${origem}: ${data.total || 0} registro(s) preparado(s) em ${data.arquivos?.length || 0} arquivo(s): ${arquivos}`);
+    await executarDryRunJob(data.job_id, `Kobo ${tipo}: ${data.total || 0} registro(s) preparado(s) em ${data.arquivos?.length || 0} arquivo(s): ${arquivos}`);
   } catch (e) {
     setKoboStatus('Erro ao preparar', 'imp-vermelho');
     toast('Erro ao preparar importação Kobo: ' + e.message, 'error');
+  } finally {
+    koboImportacaoEmAndamento = false;
+    estadosBotoes.forEach(([item, desabilitado]) => { item.disabled = desabilitado; });
+    if (botao && textoOriginal !== undefined) botao.innerHTML = textoOriginal;
   }
 }
 
