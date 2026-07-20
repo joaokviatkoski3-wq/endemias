@@ -1033,6 +1033,58 @@ class WorkTypesConfigTests(unittest.TestCase):
             "qtd_depositos_tratados": 2,
         }])
 
+    def test_kobo_api_traduz_depositos_e_tratamento_aninhados_de_pe(self):
+        record = {
+            "group_cw8wz69/B": "95",
+            "group_cw8wz69/C": "1",
+            "group_cw8wz69/Total_de_Dep_sitos_eliminados": "42",
+            "group_rb5ho54/Houve_tratamento_quimico": "natular__pastilha",
+            "group_rb5ho54/Quantidade_dep_sitos_tratados": "3",
+        }
+
+        row = kobo_api_core._ensure_visit_columns({}, "PE", {}, record)
+        depositos = etl.extrair_depositos(row, "PE")
+        tratamentos = etl.extrair_tratamentos(row, "PE")
+
+        self.assertEqual(
+            [(item["tipo_deposito"], item["inspecionado"]) for item in depositos],
+            [("B", 95), ("C", 1)],
+        )
+        self.assertEqual(depositos[0]["eliminado"], 42)
+        self.assertEqual(tratamentos, [{
+            "tipo": "natular__pastilha",
+            "quantidade_carga": None,
+            "qtd_depositos_tratados": 3,
+        }])
+
+    def test_kobo_api_traduz_depositos_e_tratamento_aninhados_de_pve(self):
+        record = {
+            "group_cw8wz69/D2": "9",
+            "group_cw8wz69/Dep_sitos_Eliminados": "2",
+            "group_rb5ho54/O_im_vel_foi_Tratado_com_Larvi": "sim",
+            "group_rb5ho54/Tipo_L1": "natular_pastilha",
+            "group_rb5ho54/Quantidade_carga_gr": "1",
+            "group_rb5ho54/Quantidade_dep_sitos_tratados": "1",
+        }
+
+        row = kobo_api_core._ensure_visit_columns({}, "PVE", {}, record)
+        depositos = etl.extrair_depositos(row, "PVE")
+        tratamentos = etl.extrair_tratamentos(row, "PVE")
+
+        self.assertEqual(depositos, [{
+            "tipo_deposito": "D2",
+            "inspecionado": 9,
+            "eliminado": 2,
+            "tratado": None,
+            "tipo_tratamento": None,
+            "qtd_carga": None,
+        }])
+        self.assertEqual(tratamentos, [{
+            "tipo": "natular_pastilha",
+            "quantidade_carga": 1.0,
+            "qtd_depositos_tratados": 1,
+        }])
+
     def test_etl_nao_cria_tratamento_vazio_com_nan(self):
         row = {
             "O imÃ³vel foi Tratado com Larvicida?": "sim",

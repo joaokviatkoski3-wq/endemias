@@ -9,6 +9,7 @@ import pandas as pd
 
 from app_core import agentes as agentes_core
 from app_core import normalizadores
+from app_core import work_types
 
 
 DEFAULT_SERVER_URL = "https://kf.kobotoolbox.org"
@@ -269,6 +270,16 @@ def _leaf_value(record, candidates):
         if value not in (None, "") and any(c in leaf_norm for c in wanted):
             return str(value).strip()
     return _value(record, candidates)
+
+
+def _leaf_exact_value(record, candidates):
+    record = _flatten_record(record)
+    wanted = {_norm(c) for c in candidates if c}
+    for key, value in record.items():
+        leaf = str(key).rsplit("/", 1)[-1]
+        if _norm(leaf) in wanted and value not in (None, ""):
+            return str(value).strip()
+    return ""
 
 
 def _lab_result_candidates(column_name):
@@ -562,10 +573,67 @@ def _ensure_visit_columns(row, tipo, cfg_tipo, record):
     row.setdefault("Visita", detalhes.get("visita"))
     row.setdefault("Observações", detalhes.get("observacoes"))
     row.setdefault("Observa_es", detalhes.get("observacoes"))
-    row.setdefault("Depósitos Eliminados", _value(record, ["Depósitos eliminados", "Depósitos Eliminados", "Total de Depósitos eliminados", "Dep_sitos_Eliminados"]))
-    row.setdefault("Dep_sitos_Eliminados", _value(record, ["Depósitos eliminados", "Depósitos Eliminados", "Total de Depósitos eliminados", "Dep_sitos_Eliminados"]))
-    row.setdefault("O imóvel foi Tratado com Larvicidaou BRI?", _value(record, ["O imóvel foi Tratado com Larvicida?", "O imóvel foi Tratado com Larvicidaou BRI?", "O_im_vel_foi_Tratado_com_Larvi"]))
-    row.setdefault("O_im_vel_foi_Tratado_com_Larvi", _value(record, ["O imóvel foi Tratado com Larvicida?", "O imóvel foi Tratado com Larvicidaou BRI?", "O_im_vel_foi_Tratado_com_Larvi"]))
+    fields = work_types.etl_fields_for(tipo)
+    if fields.get("tratamentos_em_depositos"):
+        for deposito in ("A1", "A2", "B", "C", "D1", "D2", "E"):
+            _set_if_empty(
+                row,
+                f"Inspecionado {deposito}",
+                _leaf_exact_value(record, [f"Inspecionado {deposito}", deposito]),
+            )
+            _set_if_empty(row, f"Eliminado {deposito}", _leaf_exact_value(record, [f"Eliminado {deposito}"]))
+            _set_if_empty(row, f"Tratado {deposito}", _leaf_exact_value(record, [f"Tratado {deposito}"]))
+            _set_if_empty(row, f"Tipo de tratamento {deposito}", _leaf_exact_value(record, [f"Tipo de tratamento {deposito}"]))
+            _set_if_empty(row, f"Quantidade de carga usada {deposito}", _leaf_exact_value(record, [f"Quantidade de carga usada {deposito}"]))
+    else:
+        for deposito in ("A1", "A2", "B", "C", "D1", "D2", "E"):
+            _set_if_empty(row, deposito, _leaf_exact_value(record, [deposito]))
+
+    eliminados = _leaf_value(record, [
+        "Depósitos eliminados", "Depósitos Eliminados",
+        "Total de Depósitos eliminados", "Dep_sitos_Eliminados",
+    ])
+    _set_if_empty(row, fields.get("depositos_eliminados_col"), eliminados)
+    _set_if_empty(row, "Depósitos Eliminados", eliminados)
+    _set_if_empty(row, "Dep_sitos_Eliminados", eliminados)
+
+    houve_col = fields.get("tratamento_houve_col")
+    houve_candidatos = [
+        houve_col,
+        "O imóvel foi Tratado com Larvicida?",
+        "O imóvel foi Tratado com Larvicidaou BRI?",
+        "Houve tratamento químico?",
+        "O_im_vel_foi_Tratado_com_Larvi",
+    ]
+    houve = _leaf_value(record, [item for item in houve_candidatos if item])
+    _set_if_empty(row, houve_col, houve)
+    _set_if_empty(row, "O imóvel foi Tratado com Larvicidaou BRI?", houve)
+    _set_if_empty(row, "O_im_vel_foi_Tratado_com_Larvi", houve)
+
+    for indice, tratamento in enumerate(fields.get("tratamentos", ())):
+        tipo_col = tratamento.get("tipo_col")
+        carga_col = tratamento.get("carga_col")
+        qtd_col = tratamento.get("qtd_depositos_col")
+        tipo_tratamento = _leaf_exact_value(record, [tipo_col])
+        if (
+            not tipo_tratamento
+            and tipo == "PE"
+            and indice == 0
+            and _norm(houve) not in {"", "nao", "no", "sim", "yes"}
+        ):
+            tipo_tratamento = houve
+        carga = _leaf_exact_value(record, [carga_col])
+        if not carga and indice == 0:
+            carga = _leaf_exact_value(record, ["Quantidade usada", "Quantidade carga (gr)", "Quantidade carga"])
+        quantidade = _leaf_exact_value(record, [
+            qtd_col,
+            "Quantidade depósitos tratados",
+            "Quantidade dep_sitos tratados",
+            "Quantidade_dep_sitos_tratados",
+        ])
+        _set_if_empty(row, tipo_col, tipo_tratamento)
+        _set_if_empty(row, carga_col, carga)
+        _set_if_empty(row, qtd_col, quantidade)
     hora_col = cfg_tipo.get("hora_inicio_col") or "Hora"
     if detalhes.get("hora_inicio"):
         row.setdefault(hora_col, detalhes.get("hora_inicio"))

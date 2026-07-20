@@ -356,7 +356,9 @@ def extrair_agentes(row, cfg_tipo):
 
 def normalizar_tipo_tratamento(tipo):
     if not tipo: return tipo
-    if "natular" in tipo.lower(): return "Natular DT"
+    normalizado = tipo.lower().replace("_", " ")
+    if "natular" in normalizado: return "Natular DT"
+    if "bti" in normalizado: return "BTI (pó)"
     return tipo
 
 
