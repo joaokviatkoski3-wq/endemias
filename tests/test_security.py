@@ -5763,7 +5763,7 @@ class MainApisSmokeTests(unittest.TestCase):
                     ) VALUES
                         ('v_tbo', 'Pneus', 3, 1, 0, 0),
                         ('v_tb', 'Garrafas, latas e lixo', 5, 2, 2, 3.5),
-                        ('v_tb', 'HISTORICO', 0, 4, 0, 0);
+                        ('v_tb', 'HISTORICO', 0, 4, 4, 0);
                     INSERT INTO coletas (
                         id_coleta, id_visita, codigo_deposito, tipo_deposito
                     ) VALUES
@@ -5795,6 +5795,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(consulta["dados_gerais"]["depositos"]["d2"], 5)
         self.assertEqual(consulta["dados_gerais"]["total_depositos_inspecionados"], 8)
         self.assertEqual(consulta["dados_gerais"]["total_eliminados"], 7)
+        self.assertEqual(consulta["dados_gerais"]["imoveis_tratados"], 1)
         self.assertEqual(consulta["dados_gerais"]["total_tratados"], 2)
         self.assertEqual(
             consulta["dados_gerais"]["tratamentos"],
@@ -5936,13 +5937,15 @@ class MainApisSmokeTests(unittest.TestCase):
                     ) VALUES
                         ('v1', 'PVE', '2026-05-11', 10, 'Graziela', 1, 'Residência', 'Normal', NULL, 1),
                         ('v2', 'PVE', '2026-05-12', 11, 'Graziela', 1, 'Residência', 'Normal', NULL, 1),
-                        ('v3', 'PVE', '2026-05-13', 12, 'Graziela', 1, 'Residência', 'Normal', NULL, 1);
+                        ('v3', 'PVE', '2026-05-13', 12, 'Graziela', 1, 'Residência', 'Normal', NULL, 1),
+                        ('v4', 'PVE', '2026-05-14', 13, 'Graziela', 1, 'Residência', 'Normal', NULL, 1);
                     INSERT INTO tratamentos (
                         id_visita, tipo, quantidade_carga, qtd_depositos_tratados
                     ) VALUES
                         ('v1', 'Natular DT', 1.5, 2),
                         ('v2', 'Natular DT', 1.0, 3),
-                        ('v3', NULL, NULL, NULL);
+                        ('v3', NULL, NULL, NULL),
+                        ('v4', 'Natular DT', 0, 9);
                     INSERT INTO coletas (id_coleta, id_visita, tipo_deposito) VALUES
                         ('c1', 'v1', 'B'),
                         ('c2', 'v2', 'C'),

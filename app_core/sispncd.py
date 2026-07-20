@@ -135,23 +135,14 @@ def _kind_sql(alias="v"):
     )
 
 
-def _tratamento_real_sql(alias="t", tem_qtd_depositos=True):
-    checks = [
-        f"TRIM(COALESCE({alias}.tipo, '')) <> ''",
-        f"COALESCE({alias}.quantidade_carga, 0) > 0",
-    ]
-    if tem_qtd_depositos:
-        checks.append(f"COALESCE({alias}.qtd_depositos_tratados, 0) > 0")
-    return "(" + " OR ".join(checks) + ")"
+def _tratamento_real_sql(alias="t"):
+    return f"(COALESCE({alias}.quantidade_carga, 0) > 0)"
 
 
-def _tratamento_deposito_real_sql(alias="di", tem_tipo_tratamento=True, tem_qtd_carga=True):
-    checks = [f"COALESCE({alias}.tratado, 0) > 0"]
+def _tratamento_deposito_real_sql(alias="di", tem_qtd_carga=True):
     if tem_qtd_carga:
-        checks.append(f"COALESCE({alias}.qtd_carga, 0) > 0")
-    if tem_tipo_tratamento:
-        checks.append(f"TRIM(COALESCE({alias}.tipo_tratamento, '')) <> ''")
-    return "(" + " OR ".join(checks) + ")"
+        return f"(COALESCE({alias}.qtd_carga, 0) > 0)"
+    return "(0 = 1)"
 
 
 def _deposit_code_sql(tipo_col, codigo_col=None):
@@ -503,12 +494,11 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
     try:
         bri_core.ensure_schema(conn)
         tem_qtd_depositos_tratados = _has_column(conn, "tratamentos", "qtd_depositos_tratados")
-        tratamento_real = _tratamento_real_sql("t", tem_qtd_depositos_tratados)
+        tratamento_real = _tratamento_real_sql("t")
         tem_deposito_tipo_tratamento = _has_column(conn, "depositos_inspecionados", "tipo_tratamento")
         tem_deposito_qtd_carga = _has_column(conn, "depositos_inspecionados", "qtd_carga")
         tratamento_deposito_real = _tratamento_deposito_real_sql(
             "di",
-            tem_tipo_tratamento=tem_deposito_tipo_tratamento,
             tem_qtd_carga=tem_deposito_qtd_carga,
         )
         deposito_tipo_tratamento_sql = (
@@ -538,13 +528,22 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
 
         dados["imoveis_tratados"] = conn.execute(
             f"""
-            SELECT COUNT(DISTINCT t.id_visita)
-              FROM tratamentos t
-              JOIN visitas v ON v.id_visita = t.id_visita
-             WHERE {where}
-               AND {tratamento_real}
+            SELECT COUNT(DISTINCT tr.id_visita)
+              FROM (
+                    SELECT t.id_visita
+                      FROM tratamentos t
+                      JOIN visitas v ON v.id_visita = t.id_visita
+                     WHERE {where}
+                       AND {tratamento_real}
+                    UNION
+                    SELECT di.id_visita
+                      FROM depositos_inspecionados di
+                      JOIN visitas v ON v.id_visita = di.id_visita
+                     WHERE {where}
+                       AND {tratamento_deposito_real}
+                   ) tr
             """,
-            params,
+            params + params,
         ).fetchone()[0] or 0
 
         dados["imoveis_inspecionados"] = conn.execute(
