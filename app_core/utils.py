@@ -36,7 +36,7 @@ def _getlist(params_dict, key):
     return value if isinstance(value, list) else [value]
 
 
-def build_visit_where(params_dict, alias_v="v", alias_l="l"):
+def build_visit_where(params_dict, alias_v="v", alias_l="l", localidade_fallback=False):
     where, params = "WHERE 1=1", []
     d_ini = params_dict.get("d_ini") or data_n_dias(365)
     d_fim = params_dict.get("d_fim") or hoje()
@@ -51,7 +51,11 @@ def build_visit_where(params_dict, alias_v="v", alias_l="l"):
         where += f" AND {alias_v}.tipo IN ({','.join('?' * len(tipos))})"
         params += tipos
     if locs:
-        where += f" AND {alias_l}.nome IN ({','.join('?' * len(locs))})"
+        campo_localidade = (
+            f"COALESCE({alias_l}.nome, {alias_v}.localidade)"
+            if localidade_fallback else f"{alias_l}.nome"
+        )
+        where += f" AND {campo_localidade} IN ({','.join('?' * len(locs))})"
         params += locs
     if ags:
         cond = " OR ".join([

@@ -2136,13 +2136,17 @@ class MainPagesSmokeTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
-        self.assertIn("Lista de Visitas", html)
-        self.assertIn("filter-choice-grid", html)
-        self.assertIn("filter-choice-section", html)
+        self.assertIn("Visitas arboviroses", html)
+        self.assertIn("visitas-filter-grid", html)
+        self.assertIn("data-multi-picker", html)
         self.assertIn('id="v_agua_sanepar"', html)
         self.assertIn('id="v_observacoes"', html)
+        self.assertIn('id="v_deposito"', html)
+        self.assertIn('id="v_tratamento"', html)
+        self.assertIn('id="v_laboratorio"', html)
         self.assertIn("Água Sanepar", html)
-        self.assertIn("visita-observacoes", html)
+        self.assertIn("visitas-kpis", html)
+        self.assertIn("/static/js/visitas.js", html)
 
     def test_relatorio_agente_exibe_esporotricose_e_aviso_de_privacidade(self):
         client = _client_logado()
@@ -6042,6 +6046,81 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(visita["quarteirao"], 123)
             self.assertEqual(visita["morador"], "Maria")
             self.assertEqual(agentes, ["Ceccon", "Viviane"])
+
+    def test_api_visitas_expoe_e_filtra_dados_relacionados(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute(
+                    """INSERT INTO visitas
+                       (id_visita, kobo_uuid, tipo, data, localidade, logradouro, visita, processado_em)
+                       VALUES ('v-completa', 'uuid-v-completa', 'PVE', '2026-07-20',
+                               'Lamenha', 'Rua Completa', 'Normal', '2026-07-20T10:00:00')"""
+                )
+                conn.execute(
+                    """INSERT INTO depositos_inspecionados
+                       (id_visita, tipo_deposito, inspecionado, eliminado, tratado,
+                        tipo_tratamento, qtd_carga)
+                       VALUES ('v-completa', 'B', 3, 1, 2, 'Natular', 4)"""
+                )
+                conn.execute(
+                    """INSERT INTO tratamentos
+                       (id_visita, tipo, quantidade_carga, qtd_depositos_tratados)
+                       VALUES ('v-completa', 'Natular', 4, 2)"""
+                )
+                conn.execute(
+                    """INSERT INTO coletas
+                       (id_coleta, id_visita, num_tubo, codigo_deposito, tipo_deposito, deposito_eliminado)
+                       VALUES ('coleta-completa', 'v-completa', 'T-500', 'B1', 'B', 0)"""
+                )
+                conn.execute(
+                    """INSERT INTO resultados_laboratorio
+                       (id_coleta, num_tubo, data_coleta, data_leitura, aegypt_larvas)
+                       VALUES ('coleta-completa', 'T-500', '2026-07-20', '2026-07-20', 2)"""
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            lista = client.get(
+                "/api/visitas?localidade=Lamenha&deposito=B&tratamento=Natular&coleta=com&laboratorio=positivo"
+            )
+            self.assertEqual(lista.status_code, 200)
+            dados_lista = lista.get_json()
+            self.assertEqual(dados_lista["total"], 1)
+            self.assertEqual(dados_lista["registros"][0]["id_visita"], "v-completa")
+            self.assertEqual(dados_lista["registros"][0]["laboratorio_status"], "positivo")
+
+            detalhe = client.get("/api/visitas/v-completa")
+            self.assertEqual(detalhe.status_code, 200)
+            dados = detalhe.get_json()
+            self.assertEqual(dados["depositos"][0]["inspecionado"], 3)
+            self.assertEqual(dados["tratamentos"][0]["tipo"], "Natular")
+            self.assertEqual(dados["coletas"][0]["aegypt_larvas"], 2)
+
+            edicao = client.post("/api/visitas/v-completa/editar", json={
+                "data": "2026-07-20",
+                "depositos": [{
+                    "tipo_deposito": "A2", "inspecionado": 5, "eliminado": 2,
+                    "tratado": 1, "tipo_tratamento": "Pyriproxyfen", "qtd_carga": 3,
+                }],
+                "tratamentos": [{
+                    "tipo": "Pyriproxyfen", "quantidade_carga": 3,
+                    "qtd_depositos_tratados": 1,
+                }],
+                "coletas": [{
+                    "id_coleta": "coleta-completa", "num_tubo": "T-501",
+                    "codigo_deposito": "A2-1", "tipo_deposito": "A2",
+                    "deposito_eliminado": True,
+                }],
+            })
+            self.assertEqual(edicao.status_code, 200)
+            detalhe_editado = client.get("/api/visitas/v-completa").get_json()
+            self.assertEqual(detalhe_editado["depositos"][0]["tipo_deposito"], "A2")
+            self.assertEqual(detalhe_editado["tratamentos"][0]["tipo"], "Pyriproxyfen")
+            self.assertEqual(detalhe_editado["coletas"][0]["num_tubo"], "T-501")
+            self.assertEqual(detalhe_editado["coletas"][0]["aegypt_larvas"], 2)
 
     def test_api_laboratorio_tem_campos_de_paginacao(self):
         client = _client_logado()

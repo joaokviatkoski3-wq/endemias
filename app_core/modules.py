@@ -74,14 +74,14 @@ MODULES: Tuple[AppModule, ...] = (
     ),
     AppModule(
         key="visitas",
-        title="Lista de Visitas",
-        short_title="Visitas",
+        title="Visitas Arboviroses",
+        short_title="Visitas Arboviroses",
         href="/visitas",
         endpoint="consultas.visitas",
         icon="prancheta.svg",
         nav_section="Analise",
-        description="Tabela completa de todas as visitas com filtros e busca.",
-        tags=("Filtros", "Busca"),
+        description="Consulta completa das visitas de arboviroses, depositos, tratamentos e coletas.",
+        tags=("Filtros", "Busca", "Kobo"),
         endpoints=("visitas", "consultas.visitas"),
     ),
     AppModule(

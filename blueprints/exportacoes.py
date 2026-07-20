@@ -12,6 +12,7 @@ from app_core import blueprint_helpers as bh
 from app_core import db as db_core
 from app_core.excel import excel_safe
 from app_core import utils as utils_core
+from app_core import visitas as visitas_core
 from app_core import work_types
 
 
@@ -40,28 +41,46 @@ def _saida_dir():
 @login_required
 def exportar_visitas():
     try:
-        where, params = utils_core.build_visit_where(request.args)
-        busca = request.args.get("busca", "").strip()
-        if busca:
-            where += " AND (v.logradouro LIKE ? OR CAST(v.quarteirao AS TEXT) LIKE ?)"
-            b = f"%{busca}%"
-            params += [b, b]
+        where, params = visitas_core.build_where(request.args)
         rows = q(f"""
-            SELECT DISTINCT v.data, v.tipo, l.nome as localidade, v.quarteirao,
+            SELECT v.data, v.tipo, COALESCE(l.nome, v.localidade) AS localidade, v.quarteirao,
                    v.logradouro, v.numero, v.visita, v.morador, v.tipo_imovel,
-                   v.ciclo, v.sequencia, v.hora_inicio, v.hora_fim,
+                   v.ciclo, v.sequencia, v.lado, v.hora_inicio, v.hora_fim,
                    CASE v.agua_sanepar WHEN 1 THEN 'Sim' WHEN 0 THEN 'Não' ELSE NULL END,
                    v.observacoes,
-                   GROUP_CONCAT(DISTINCT a.nome) as agentes
+                   (SELECT GROUP_CONCAT(nome, ', ') FROM (
+                        SELECT DISTINCT a.nome AS nome FROM visita_agentes va
+                        JOIN agentes a ON a.id_agente=va.id_agente
+                        WHERE va.id_visita=v.id_visita ORDER BY a.nome
+                   )) AS agentes,
+                   COALESCE((SELECT SUM(d.inspecionado) FROM depositos_inspecionados d WHERE d.id_visita=v.id_visita),0),
+                   COALESCE((SELECT SUM(d.eliminado) FROM depositos_inspecionados d WHERE d.id_visita=v.id_visita),0),
+                   COALESCE((SELECT SUM(d.tratado) FROM depositos_inspecionados d WHERE d.id_visita=v.id_visita),0),
+                   (SELECT GROUP_CONCAT(item, '; ') FROM (
+                        SELECT tipo_deposito || ': ' || COALESCE(inspecionado,0) || ' inspec.; ' ||
+                               COALESCE(eliminado,0) || ' elim.; ' || COALESCE(tratado,0) || ' trat.' AS item
+                          FROM depositos_inspecionados d WHERE d.id_visita=v.id_visita ORDER BY d.id
+                   )),
+                   (SELECT GROUP_CONCAT(item, '; ') FROM (
+                        SELECT COALESCE(tipo,'Sem produto') || ': ' || COALESCE(qtd_depositos_tratados,0) ||
+                               ' depósitos; carga ' || COALESCE(quantidade_carga,0) AS item
+                          FROM tratamentos t WHERE t.id_visita=v.id_visita ORDER BY t.id
+                   )),
+                   (SELECT COUNT(*) FROM coletas c WHERE c.id_visita=v.id_visita),
+                   (SELECT GROUP_CONCAT(num_tubo, ', ') FROM (
+                        SELECT num_tubo FROM coletas c WHERE c.id_visita=v.id_visita ORDER BY c.num_tubo
+                   )),
+                   v.SISPNCD, v.CONTAOVOS_STATUS, v.submission_time, v.processado_em
             FROM visitas v
             LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
-            LEFT JOIN visita_agentes va ON va.id_visita=v.id_visita
-            LEFT JOIN agentes a ON a.id_agente=va.id_agente
-            {where} GROUP BY v.id_visita ORDER BY v.data DESC, v.hora_inicio
+            {where} ORDER BY {visitas_core.order_sql(request.args.get('ordem'))}
         """, params)
         cabecalho = ["Data", "Tipo", "Localidade", "Quarteirao", "Logradouro", "Numero",
                      "Visita", "Morador", "Tipo Imovel", "Ciclo", "Sequencia",
-                     "Hora Inicio", "Hora Fim", "Agua Sanepar", "Observacoes", "Agentes"]
+                     "Lado", "Hora Inicio", "Hora Fim", "Agua Sanepar", "Observacoes", "Agentes",
+                     "Depositos Inspecionados", "Depositos Eliminados", "Depositos Tratados",
+                     "Detalhes dos Depositos", "Produtos e Tratamentos", "Coletas", "Tubos",
+                     "Codigo SisPNCD", "Status Conta Ovos", "Envio Kobo", "Processado em"]
         return _gerar_xlsx(cabecalho, rows, "visitas")
     except Exception:
         logging.exception("Erro em exportar_visitas")

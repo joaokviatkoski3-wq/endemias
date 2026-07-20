@@ -1,4 +1,5 @@
 import logging
+import uuid
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 
@@ -13,6 +14,7 @@ from app_core import ovitrampas as ovitrampas_core
 from app_core import pontos_estrategicos as pe_core
 from app_core import producao_operacional
 from app_core import utils as utils_core
+from app_core import visitas as visitas_core
 from app_core import work_types
 
 
@@ -256,13 +258,16 @@ def laboratorio():
 @bp.route("/visitas")
 @login_required
 def visitas():
+    conn = get_db()
+    try:
+        opcoes = visitas_core.filter_options(conn)
+    finally:
+        conn.close()
     return render_template(
         "visitas.html",
         d_ini=request.args.get("d_ini", utils_core.data_n_dias(7)),
         d_fim=request.args.get("d_fim", utils_core.hoje()),
-        tipos_sel=request.args.getlist("tipo"),
-        locs_sel=request.args.getlist("localidade"),
-        ags_sel=request.args.getlist("agente"),
+        opcoes=opcoes,
     )
 
 
@@ -566,39 +571,82 @@ def api_laboratorio():
 @login_required
 def api_visitas():
     try:
-        where, params = utils_core.build_visit_where(request.args)
-        busca = request.args.get("busca", "").strip()
-        if busca:
-            where += " AND (v.logradouro LIKE ? OR CAST(v.quarteirao AS TEXT) LIKE ?)"
-            b = f"%{busca}%"
-            params += [b, b]
-
+        where, params = visitas_core.build_where(request.args)
         pagina = request_int_arg("pagina", 1, minimo=1)
-        pp = request_int_arg("por_pagina", 100, minimo=1, maximo=500)
+        pp = request_int_arg("por_pagina", 30, minimo=1, maximo=200)
+        ordem = visitas_core.order_sql(request.args.get("ordem"))
         base = f"""FROM visitas v
                    LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
-                   LEFT JOIN visita_agentes va ON va.id_visita=v.id_visita
-                   LEFT JOIN agentes a ON a.id_agente=va.id_agente
                    {where}"""
 
         conn = get_db()
         try:
-            total = conn.execute(f"SELECT COUNT(DISTINCT v.id_visita) {base}", params).fetchone()[0]
+            total = conn.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
             total_pag = max(1, (total + pp - 1) // pp)
             pagina = min(pagina, total_pag)
             rows = conn.execute(f"""
-                SELECT DISTINCT v.id_visita, v.data, v.tipo, l.nome as localidade,
+                SELECT v.id_visita, v.data, v.tipo, COALESCE(l.nome, v.localidade) AS localidade,
                        v.quarteirao, v.logradouro, v.numero, v.visita,
                        v.tipo_imovel, v.ciclo, v.sequencia, v.morador,
-                       v.hora_inicio, v.hora_fim, v.agua_sanepar, v.observacoes,
-                       GROUP_CONCAT(DISTINCT a.nome) as agentes,
-                       CASE WHEN EXISTS(
-                           SELECT 1 FROM focos_positivos f
-                           WHERE f.id_visita=v.id_visita AND f.gera_notificacao=1
-                       ) THEN 1 ELSE 0 END as positiva
-                {base} GROUP BY v.id_visita ORDER BY v.data DESC, v.hora_inicio
+                       v.hora_inicio, v.hora_fim, v.lado, v.agua_sanepar, v.observacoes,
+                       (SELECT GROUP_CONCAT(nome, ', ') FROM (
+                            SELECT DISTINCT ag.nome AS nome
+                              FROM visita_agentes vag
+                              JOIN agentes ag ON ag.id_agente=vag.id_agente
+                             WHERE vag.id_visita=v.id_visita ORDER BY ag.nome
+                       )) AS agentes,
+                       COALESCE((SELECT SUM(di.inspecionado) FROM depositos_inspecionados di
+                                 WHERE di.id_visita=v.id_visita), 0) AS depositos_inspecionados,
+                       COALESCE((SELECT SUM(di.eliminado) FROM depositos_inspecionados di
+                                 WHERE di.id_visita=v.id_visita), 0) AS depositos_eliminados,
+                       COALESCE((SELECT SUM(di.tratado) FROM depositos_inspecionados di
+                                 WHERE di.id_visita=v.id_visita), 0) +
+                       COALESCE((SELECT SUM(t.qtd_depositos_tratados) FROM tratamentos t
+                                 WHERE t.id_visita=v.id_visita), 0) AS depositos_tratados,
+                       COALESCE((SELECT COUNT(*) FROM tratamentos t
+                                 WHERE t.id_visita=v.id_visita), 0) AS tratamentos_total,
+                       COALESCE((SELECT COUNT(*) FROM coletas c
+                                 WHERE c.id_visita=v.id_visita), 0) AS coletas_total,
+                       (SELECT GROUP_CONCAT(num_tubo, ', ') FROM (
+                            SELECT DISTINCT c.num_tubo AS num_tubo FROM coletas c
+                             WHERE c.id_visita=v.id_visita AND TRIM(COALESCE(c.num_tubo, '')) <> ''
+                             ORDER BY c.num_tubo
+                       )) AS tubos,
+                       CASE
+                         WHEN EXISTS(
+                           SELECT 1 FROM coletas c JOIN resultados_laboratorio rl ON rl.id_coleta=c.id_coleta
+                            WHERE c.id_visita=v.id_visita AND ({visitas_core.LAB_AEGYPTI_TOTAL_SQL}) > 0
+                         ) THEN 'positivo'
+                         WHEN EXISTS(
+                           SELECT 1 FROM coletas c LEFT JOIN resultados_laboratorio rl ON rl.id_coleta=c.id_coleta
+                            WHERE c.id_visita=v.id_visita AND rl.id_resultado IS NULL
+                         ) THEN 'pendente'
+                         WHEN EXISTS(
+                           SELECT 1 FROM coletas c JOIN resultados_laboratorio rl ON rl.id_coleta=c.id_coleta
+                            WHERE c.id_visita=v.id_visita
+                         ) THEN 'negativo'
+                         ELSE 'sem_coleta'
+                       END AS laboratorio_status
+                {base} ORDER BY {ordem}
                 LIMIT ? OFFSET ?
             """, params + [pp, (pagina - 1) * pp]).fetchall()
+
+            resumo = conn.execute(f"""
+                WITH filtradas AS (
+                    SELECT v.id_visita {base}
+                )
+                SELECT
+                    COUNT(*) AS visitas,
+                    COALESCE(SUM(CASE WHEN LOWER(COALESCE(v.visita, '')) IN ('normal','recuperado') THEN 1 ELSE 0 END), 0) AS acessados,
+                    COALESCE(SUM((SELECT SUM(di.inspecionado) FROM depositos_inspecionados di WHERE di.id_visita=v.id_visita)), 0) AS depositos_inspecionados,
+                    COALESCE(SUM((SELECT SUM(di.eliminado) FROM depositos_inspecionados di WHERE di.id_visita=v.id_visita)), 0) AS depositos_eliminados,
+                    COALESCE(SUM((SELECT COUNT(*) FROM coletas c WHERE c.id_visita=v.id_visita)), 0) AS coletas,
+                    COALESCE(SUM(CASE WHEN EXISTS(
+                        SELECT 1 FROM coletas c JOIN resultados_laboratorio rl ON rl.id_coleta=c.id_coleta
+                         WHERE c.id_visita=v.id_visita AND ({visitas_core.LAB_AEGYPTI_TOTAL_SQL}) > 0
+                    ) THEN 1 ELSE 0 END), 0) AS positivas
+                  FROM filtradas f JOIN visitas v ON v.id_visita=f.id_visita
+            """, params).fetchone()
         finally:
             conn.close()
 
@@ -606,11 +654,76 @@ def api_visitas():
             "total": total,
             "total_paginas": total_pag,
             "pagina": pagina,
+            "resumo": dict(resumo) if resumo else {},
             "registros": [dict(r) for r in rows],
         })
     except Exception:
         logging.exception("Erro em api_visitas")
         return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
+
+
+@bp.route("/api/visitas/<id_visita>")
+@login_required
+def api_visita_detalhe(id_visita):
+    conn = get_db()
+    try:
+        visita = conn.execute(
+            """
+            SELECT v.*, COALESCE(l.nome, v.localidade) AS localidade_nome,
+                   (SELECT GROUP_CONCAT(nome, ', ') FROM (
+                        SELECT DISTINCT a.nome AS nome
+                          FROM visita_agentes va JOIN agentes a ON a.id_agente=va.id_agente
+                         WHERE va.id_visita=v.id_visita ORDER BY a.nome
+                   )) AS agentes
+              FROM visitas v LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
+             WHERE v.id_visita=?
+            """,
+            (id_visita,),
+        ).fetchone()
+        if not visita:
+            return jsonify({"erro": "Visita não encontrada."}), 404
+
+        depositos = conn.execute(
+            """SELECT id, tipo_deposito, inspecionado, eliminado, tratado,
+                      tipo_tratamento, qtd_carga
+                 FROM depositos_inspecionados WHERE id_visita=? ORDER BY id""",
+            (id_visita,),
+        ).fetchall()
+        tratamentos = conn.execute(
+            """SELECT id, tipo, quantidade_carga, qtd_depositos_tratados
+                 FROM tratamentos WHERE id_visita=? ORDER BY id""",
+            (id_visita,),
+        ).fetchall()
+        coletas = conn.execute(
+            """SELECT c.id_coleta, c.num_tubo, c.codigo_deposito, c.tipo_deposito,
+                      c.deposito_eliminado,
+                      rl.id_resultado, rl.data_coleta, rl.data_leitura, rl.laboratorista,
+                      rl.aegypt_larvas, rl.aegypt_pupas, rl.aegypt_exuvias, rl.aegypt_adulto,
+                      rl.albopictus_larvas, rl.albopictus_pupas, rl.albopictus_exuvias, rl.albopictus_adulto,
+                      rl.outra_larvas, rl.outra_pupas, rl.outra_exuvias, rl.outra_adulto
+                 FROM coletas c
+                 LEFT JOIN resultados_laboratorio rl ON rl.id_coleta=c.id_coleta
+                WHERE c.id_visita=? ORDER BY c.num_tubo, c.id_coleta""",
+            (id_visita,),
+        ).fetchall()
+        focos = conn.execute(
+            """SELECT id_foco, codigo, num_tubo, gera_notificacao, status_notificacao,
+                      data_entrega, observacoes
+                 FROM focos_positivos WHERE id_visita=? ORDER BY id_foco""",
+            (id_visita,),
+        ).fetchall()
+        return jsonify({
+            "visita": dict(visita),
+            "depositos": [dict(row) for row in depositos],
+            "tratamentos": [dict(row) for row in tratamentos],
+            "coletas": [dict(row) for row in coletas],
+            "focos": [dict(row) for row in focos],
+        })
+    except Exception:
+        logging.exception("Erro em api_visita_detalhe")
+        return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
+    finally:
+        conn.close()
 
 
 @bp.route("/api/visitas/<id_visita>/editar", methods=["POST"])
@@ -624,7 +737,9 @@ def api_visita_editar(id_visita):
         if not atual:
             return jsonify({"erro": "Visita não encontrada."}), 404
 
-        localidade = normalizadores.normalizar_localidade(dados.get("localidade"))
+        atual_dict = dict(atual)
+        localidade_bruta = dados.get("localidade", atual_dict.get("localidade"))
+        localidade = normalizadores.normalizar_localidade(localidade_bruta)
         id_localidade = None
         if localidade:
             row_loc = conn.execute("SELECT id_localidade FROM localidades WHERE nome=?", (localidade,)).fetchone()
@@ -635,39 +750,49 @@ def api_visita_editar(id_visita):
                 id_localidade = cur_loc.lastrowid
 
         payload = {
-            "data": _limpar_texto(dados.get("data")),
-            "hora_inicio": _limpar_texto(dados.get("hora_inicio")),
-            "hora_fim": _limpar_texto(dados.get("hora_fim")),
+            "tipo": _limpar_texto(dados.get("tipo", atual_dict.get("tipo"))),
+            "data": _limpar_texto(dados.get("data", atual_dict.get("data"))),
+            "hora_inicio": _limpar_texto(dados.get("hora_inicio", atual_dict.get("hora_inicio"))),
+            "hora_fim": _limpar_texto(dados.get("hora_fim", atual_dict.get("hora_fim"))),
+            "ciclo": _limpar_int(dados.get("ciclo", atual_dict.get("ciclo"))),
             "localidade": localidade,
             "id_localidade": id_localidade,
-            "logradouro": _limpar_texto(dados.get("logradouro")),
-            "numero": _limpar_texto(dados.get("numero")),
-            "quarteirao": _limpar_int(dados.get("quarteirao")),
-            "sequencia": _limpar_texto(dados.get("sequencia")),
-            "morador": _limpar_texto(dados.get("morador")),
-            "tipo_imovel": _limpar_texto(dados.get("tipo_imovel")),
-            "visita": _limpar_texto(dados.get("visita")),
-            "observacoes": _limpar_texto(dados.get("observacoes")),
+            "logradouro": _limpar_texto(dados.get("logradouro", atual_dict.get("logradouro"))),
+            "numero": _limpar_texto(dados.get("numero", atual_dict.get("numero"))),
+            "quarteirao": _limpar_int(dados.get("quarteirao", atual_dict.get("quarteirao"))),
+            "sequencia": _limpar_texto(dados.get("sequencia", atual_dict.get("sequencia"))),
+            "morador": _limpar_texto(dados.get("morador", atual_dict.get("morador"))),
+            "tipo_imovel": _limpar_texto(dados.get("tipo_imovel", atual_dict.get("tipo_imovel"))),
+            "visita": _limpar_texto(dados.get("visita", atual_dict.get("visita"))),
+            "lado": _limpar_texto(dados.get("lado", atual_dict.get("lado"))),
+            "agua_sanepar": _limpar_bool(dados.get("agua_sanepar", atual_dict.get("agua_sanepar"))),
+            "observacoes": _limpar_texto(dados.get("observacoes", atual_dict.get("observacoes"))),
         }
         if not payload["data"]:
             return jsonify({"erro": "Informe a data da visita."}), 400
 
         conn.execute(
             """UPDATE visitas SET
-                   data=?, hora_inicio=?, hora_fim=?, localidade=?, id_localidade=?,
+                   tipo=?, data=?, hora_inicio=?, hora_fim=?, ciclo=?, localidade=?, id_localidade=?,
                    logradouro=?, numero=?, quarteirao=?, sequencia=?, morador=?,
-                   tipo_imovel=?, visita=?, observacoes=?
+                   tipo_imovel=?, visita=?, lado=?, agua_sanepar=?, observacoes=?
                  WHERE id_visita=?""",
             (
-                payload["data"], payload["hora_inicio"], payload["hora_fim"],
+                payload["tipo"], payload["data"], payload["hora_inicio"], payload["hora_fim"], payload["ciclo"],
                 payload["localidade"], payload["id_localidade"], payload["logradouro"],
                 payload["numero"], payload["quarteirao"], payload["sequencia"],
                 payload["morador"], payload["tipo_imovel"], payload["visita"],
-                payload["observacoes"], id_visita,
+                payload["lado"], payload["agua_sanepar"], payload["observacoes"], id_visita,
             ),
         )
 
-        nomes_agentes = _split_agentes_edicao(dados.get("agentes"))
+        agentes_atuais = conn.execute(
+            """SELECT a.nome FROM visita_agentes va JOIN agentes a ON a.id_agente=va.id_agente
+                WHERE va.id_visita=? ORDER BY a.nome""",
+            (id_visita,),
+        ).fetchall()
+        agentes_padrao = ", ".join(row["nome"] for row in agentes_atuais)
+        nomes_agentes = _split_agentes_edicao(dados.get("agentes", agentes_padrao))
         conn.execute("DELETE FROM visita_agentes WHERE id_visita=?", (id_visita,))
         for nome in nomes_agentes:
             id_agente = agentes_core.obter_ou_criar(conn, nome)
@@ -676,13 +801,119 @@ def api_visita_editar(id_visita):
                     "INSERT OR IGNORE INTO visita_agentes(id_visita, id_agente) VALUES (?,?)",
                     (id_visita, id_agente),
                 )
+
+        if "depositos" in dados:
+            conn.execute("DELETE FROM depositos_inspecionados WHERE id_visita=?", (id_visita,))
+            for deposito in dados.get("depositos") or []:
+                tipo_deposito = _limpar_texto(deposito.get("tipo_deposito"))
+                if not tipo_deposito:
+                    continue
+                conn.execute(
+                    """INSERT INTO depositos_inspecionados
+                       (id_visita, tipo_deposito, inspecionado, eliminado, tratado,
+                        tipo_tratamento, qtd_carga)
+                       VALUES (?,?,?,?,?,?,?)""",
+                    (
+                        id_visita, tipo_deposito,
+                        _limpar_int(deposito.get("inspecionado")) or 0,
+                        _limpar_int(deposito.get("eliminado")) or 0,
+                        _limpar_int(deposito.get("tratado")) or 0,
+                        _limpar_texto(deposito.get("tipo_tratamento")),
+                        _limpar_numero(deposito.get("qtd_carga")) or 0,
+                    ),
+                )
+
+        if "tratamentos" in dados:
+            conn.execute("DELETE FROM tratamentos WHERE id_visita=?", (id_visita,))
+            for tratamento in dados.get("tratamentos") or []:
+                tipo_tratamento = _limpar_texto(tratamento.get("tipo"))
+                carga = _limpar_numero(tratamento.get("quantidade_carga")) or 0
+                quantidade = _limpar_int(tratamento.get("qtd_depositos_tratados")) or 0
+                if not tipo_tratamento and not carga and not quantidade:
+                    continue
+                conn.execute(
+                    """INSERT INTO tratamentos
+                       (id_visita, tipo, quantidade_carga, qtd_depositos_tratados)
+                       VALUES (?,?,?,?)""",
+                    (id_visita, tipo_tratamento, carga, quantidade),
+                )
+
+        if "coletas" in dados:
+            existentes = {
+                row["id_coleta"]: dict(row)
+                for row in conn.execute("SELECT * FROM coletas WHERE id_visita=?", (id_visita,))
+            }
+            mantidas = set()
+            for coleta in dados.get("coletas") or []:
+                coleta_id = _limpar_texto(coleta.get("id_coleta"))
+                valores = (
+                    _limpar_texto(coleta.get("num_tubo")),
+                    _limpar_texto(coleta.get("codigo_deposito")),
+                    _limpar_texto(coleta.get("tipo_deposito")),
+                    1 if _limpar_bool(coleta.get("deposito_eliminado")) else 0,
+                )
+                if coleta_id in existentes:
+                    conn.execute(
+                        """UPDATE coletas SET num_tubo=?, codigo_deposito=?, tipo_deposito=?,
+                                  deposito_eliminado=? WHERE id_coleta=? AND id_visita=?""",
+                        valores + (coleta_id, id_visita),
+                    )
+                    conn.execute(
+                        "UPDATE resultados_laboratorio SET num_tubo=? WHERE id_coleta=?",
+                        (valores[0], coleta_id),
+                    )
+                    conn.execute(
+                        "UPDATE focos_positivos SET num_tubo=? WHERE id_coleta=?",
+                        (valores[0], coleta_id),
+                    )
+                    mantidas.add(coleta_id)
+                else:
+                    coleta_id = f"manual-{uuid.uuid4().hex}"
+                    conn.execute(
+                        """INSERT INTO coletas
+                           (id_coleta, id_visita, num_tubo, codigo_deposito, tipo_deposito, deposito_eliminado)
+                           VALUES (?,?,?,?,?,?)""",
+                        (coleta_id, id_visita) + valores,
+                    )
+                    mantidas.add(coleta_id)
+
+            removidas = set(existentes) - mantidas
+            for coleta_id in removidas:
+                possui_resultado = conn.execute(
+                    "SELECT 1 FROM resultados_laboratorio WHERE id_coleta=? LIMIT 1", (coleta_id,)
+                ).fetchone()
+                if possui_resultado:
+                    conn.rollback()
+                    return jsonify({
+                        "erro": "Uma coleta com resultado laboratorial não pode ser removida nesta página."
+                    }), 400
+                conn.execute("DELETE FROM focos_positivos WHERE id_coleta=?", (coleta_id,))
+                conn.execute("DELETE FROM coletas WHERE id_coleta=? AND id_visita=?", (coleta_id, id_visita))
+
+        conn.execute(
+            """UPDATE focos_positivos SET tipo_trabalho=?, data=?, id_localidade=?, localidade=?,
+                      quarteirao=?, logradouro=?, numero=?, nome_morador=?, tipo_imovel=?, agentes=?
+                 WHERE id_visita=?""",
+            (
+                payload["tipo"], payload["data"], payload["id_localidade"], payload["localidade"],
+                payload["quarteirao"], payload["logradouro"], payload["numero"], payload["morador"],
+                payload["tipo_imovel"], ", ".join(nomes_agentes), id_visita,
+            ),
+        )
         conn.commit()
         audit.registrar_evento(
             get_db,
             "visita_editada",
             entidade="visitas",
             entidade_id=id_visita,
-            detalhes={"antes": dict(atual), "depois": payload, "agentes": nomes_agentes},
+            detalhes={
+                "antes": atual_dict,
+                "depois": payload,
+                "agentes": nomes_agentes,
+                "depositos": len(dados.get("depositos") or []) if "depositos" in dados else None,
+                "tratamentos": len(dados.get("tratamentos") or []) if "tratamentos" in dados else None,
+                "coletas": len(dados.get("coletas") or []) if "coletas" in dados else None,
+            },
         )
         return jsonify({"ok": True})
     except Exception:
@@ -706,6 +937,26 @@ def _limpar_int(valor):
         return int(float(texto.replace(",", ".")))
     except ValueError:
         return None
+
+
+def _limpar_numero(valor):
+    texto = str(valor or "").strip().replace(",", ".")
+    if not texto:
+        return None
+    try:
+        return float(texto)
+    except ValueError:
+        return None
+
+
+def _limpar_bool(valor):
+    if valor is None or valor == "":
+        return None
+    if isinstance(valor, bool):
+        return valor
+    if isinstance(valor, (int, float)):
+        return bool(valor)
+    return str(valor).strip().lower() in {"1", "sim", "true", "yes", "on"}
 
 
 def _split_agentes_edicao(valor):
