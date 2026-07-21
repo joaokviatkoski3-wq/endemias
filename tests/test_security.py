@@ -7718,6 +7718,73 @@ class MainApisSmokeTests(unittest.TestCase):
 
 
 class PermissionMatrixTests(unittest.TestCase):
+    def test_fluxo_api_leitura_ovitrampa_ate_envio_conta_ovos(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = db_core.connect(db_path)
+            ovitrampas_core.ensure_schema(conn)
+            agora = datetime.now().isoformat(timespec="seconds")
+            grupo = conn.execute(
+                "SELECT id_grupo FROM ovitrampas_calendario_grupos WHERE localidades LIKE '%Sede%' ORDER BY id_grupo LIMIT 1"
+            ).fetchone()[0]
+            diario = conn.execute(
+                """INSERT INTO ovitrampas_diarios(nome,ativo,criado_em,atualizado_em)
+                   VALUES ('Rota laboratório',1,?,?)""",
+                (agora, agora),
+            ).lastrowid
+            conn.execute(
+                """INSERT INTO ovitrampas_armadilhas
+                   (ovitrampa_id,complemento,localidade,ativo,atualizado_em)
+                   VALUES ('9001','Unidade de teste','Sede',1,?)""",
+                (agora,),
+            )
+            conn.execute(
+                """INSERT INTO ovitrampas_diario_armadilhas
+                   (id_diario,ovitrampa_id,ordem,criado_em,atualizado_em)
+                   VALUES (?,'9001',1,?,?)""",
+                (diario, agora, agora),
+            )
+            conn.execute(
+                """INSERT INTO ovitrampas_calendario_eventos
+                   (data,movimento,id_grupo,ciclo,criado_em,atualizado_em)
+                   VALUES (?,'troca',?,'Teste',?,?)""",
+                (date.today().isoformat(), grupo, agora, agora),
+            )
+            conn.commit()
+            conn.close()
+
+            self.assertIn("Leitura Ovitrampa".encode(), client.get("/laboratorio/lancamentos").data)
+            self.assertIn('data-ovi-tab="laboratorio"'.encode(), client.get("/ovitrampas").data)
+            pendentes = client.get("/api/laboratorio/ovitrampas/lotes")
+            self.assertEqual(pendentes.status_code, 200)
+            lote = pendentes.get_json()["registros"][0]
+            detalhe = client.get(
+                f"/api/laboratorio/ovitrampas/lotes/{lote['id_lote']}"
+            ).get_json()
+            leitura = [{"id_item": detalhe["itens"][0]["id_item"], "ovos": 8}]
+
+            self.assertEqual(client.put(
+                f"/api/laboratorio/ovitrampas/lotes/{lote['id_lote']}/rascunho",
+                json={"leituras": leitura},
+            ).status_code, 200)
+            self.assertEqual(client.post(
+                f"/api/laboratorio/ovitrampas/lotes/{lote['id_lote']}/concluir",
+                json={"leituras": leitura},
+            ).status_code, 200)
+
+            administrativo = client.get("/api/ovitrampas/laboratorio?status=pendente")
+            self.assertEqual(administrativo.status_code, 200)
+            self.assertEqual(administrativo.get_json()["registros"][0]["ovos"], 8)
+            self.assertEqual(client.post(
+                f"/api/ovitrampas/laboratorio/{lote['id_lote']}/enviado",
+                json={},
+            ).status_code, 200)
+            bloqueado = client.put(
+                f"/api/laboratorio/ovitrampas/lotes/{lote['id_lote']}/rascunho",
+                json={"leituras": leitura},
+            )
+            self.assertEqual(bloqueado.status_code, 400)
+
     def test_lancamentos_laboratorio_exige_permissao_especifica(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)

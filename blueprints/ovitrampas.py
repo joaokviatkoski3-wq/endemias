@@ -7,6 +7,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 from app_core import audit
 from app_core import auth as auth_core
 from app_core import ovitrampas as ovitrampas_core
+from app_core import ovitrampas_laboratorio as ovi_lab_core
 
 
 bp = Blueprint("ovitrampas", __name__)
@@ -229,6 +230,50 @@ def api_armadilha_atualizar(ovitrampa_id):
 @login_required
 def api_calendario():
     return jsonify(ovitrampas_core.calendario_dados(_db_path(), request.args.get("ano")))
+
+
+@bp.route("/api/ovitrampas/laboratorio")
+@login_required
+@nivel_min("operador")
+def api_laboratorio_lotes():
+    return jsonify(ovi_lab_core.listar_para_administracao(
+        _db_path(), status=request.args.get("status", "pendente"),
+    ))
+
+
+@bp.route("/api/ovitrampas/laboratorio/<int:id_lote>")
+@login_required
+@nivel_min("operador")
+def api_laboratorio_lote(id_lote):
+    try:
+        return jsonify(ovi_lab_core.obter_lote(_db_path(), id_lote))
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 404
+
+
+@bp.route("/api/ovitrampas/laboratorio/<int:id_lote>/enviado", methods=["POST"])
+@login_required
+@nivel_min("operador")
+def api_laboratorio_marcar_enviado(id_lote):
+    usuario = dict(_usuario_atual() or {})
+    try:
+        lote = ovi_lab_core.marcar_enviado_conta_ovos(_db_path(), id_lote, usuario)
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(
+        get_db,
+        "ovitrampas_leitura_lote_enviado_conta_ovos",
+        entidade="ovitrampas_laboratorio_lotes",
+        entidade_id=id_lote,
+        detalhes={
+            "diario": lote["diario_nome"],
+            "data_movimento": lote["data_movimento"],
+            "armadilhas": lote["armadilhas"],
+            "ovos": lote["ovos"],
+            "enviado_por": lote["enviado_por_nome"],
+        },
+    )
+    return jsonify({"ok": True, "lote": lote})
 
 
 @bp.route("/api/ovitrampas/calendario/grupos", methods=["POST"])

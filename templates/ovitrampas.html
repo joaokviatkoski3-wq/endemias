@@ -122,10 +122,21 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
 }
 .ovi-diario-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px;}
 .ovi-diario-small-scroll{max-height:340px;overflow:auto;}
+.ovi-lab-admin-toolbar{display:flex;align-items:end;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.ovi-lab-admin-list{display:grid;gap:10px;}
+.ovi-lab-admin-card{border:1px solid var(--border);border-left:4px solid #0f766e;border-radius:var(--radius-sm);background:var(--surface);overflow:hidden;}
+.ovi-lab-admin-card.enviado{border-left-color:#64748b;}
+.ovi-lab-admin-head{display:grid;grid-template-columns:minmax(190px,1.2fr) 110px 90px 90px minmax(140px,.8fr) auto;gap:12px;align-items:center;padding:11px 12px;}
+.ovi-lab-admin-main{display:grid;gap:3px;}.ovi-lab-admin-main strong{font-size:14px;}.ovi-lab-admin-main span,.ovi-lab-admin-meta{font-size:11px;color:var(--text3);}
+.ovi-lab-admin-number{font-size:17px;font-weight:900;color:#0f766e;font-variant-numeric:tabular-nums;}.ovi-lab-admin-number small{display:block;font-size:9px;color:var(--text3);text-transform:uppercase;}
+.ovi-lab-admin-detail{border-top:1px solid var(--border);padding:10px 12px;background:var(--surface2);}
+.ovi-lab-admin-detail[hidden]{display:none!important;}.ovi-lab-admin-detail .table-scroll{max-height:520px;}
+.ovi-lab-admin-detail th{position:sticky;top:0;background:var(--surface);z-index:1;}
 @media(max-width:1180px){.ovi-cal-layout{grid-template-columns:1fr;}.ovi-year-grid{grid-template-columns:repeat(2,minmax(230px,1fr));}}
 @media(max-width:1100px){.ovi-reading-top{grid-template-columns:repeat(3,minmax(0,1fr));}}
 @media(max-width:920px){.ovi-layout,.ovi-upload,.ovi-monitor-layout,.ovi-diario-layout,.ovi-diario-split{grid-template-columns:1fr;}.ovi-reading-lab{grid-template-columns:1fr;}}
 @media(max-width:920px){.ovi-batch{grid-template-columns:1fr;}}
+@media(max-width:760px){.ovi-lab-admin-head{grid-template-columns:1fr 1fr;}.ovi-lab-admin-main{grid-column:1/-1;}.ovi-lab-admin-head .btn{width:100%;justify-content:center;}}
 @media(max-width:640px){.ovi-reading-top{grid-template-columns:1fr 1fr;}.ovi-year-grid{grid-template-columns:1fr;}.ovi-modal-grid{grid-template-columns:1fr;}}
 </style>{% endblock %}
 
@@ -140,6 +151,9 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
   <button class="ovi-tab" type="button" data-ovi-tab="monitoramento">Monitoramento</button>
   <button class="ovi-tab" type="button" data-ovi-tab="armadilhas">Armadilhas</button>
   <button class="ovi-tab" type="button" data-ovi-tab="diarios">Diários</button>
+  {% if usuario_atual and usuario_atual.nivel in ['admin', 'operador'] %}
+  <button class="ovi-tab" type="button" data-ovi-tab="laboratorio">Laboratório</button>
+  {% endif %}
   <button class="ovi-tab" type="button" data-ovi-tab="calendario">Calendário</button>
 </div>
 
@@ -432,6 +446,25 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
   </div>
 </section>
 
+{% if usuario_atual and usuario_atual.nivel in ['admin', 'operador'] %}
+<section class="ovi-panel" id="ovi-panel-laboratorio" hidden>
+  <div class="ovi-lab-admin-toolbar">
+    <div class="f-g"><label>Situação</label><select id="ovi-lab-admin-status"><option value="pendente">Aguardando envio ao Conta Ovos</option><option value="enviado">Enviados ao Conta Ovos</option><option value="todos">Todos</option></select></div>
+    <button class="btn btn-outline" type="button" id="ovi-lab-admin-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+  </div>
+  <div class="ovi-grid">
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Rotas exibidas</div><div class="ovi-kpi-value" id="ovi-lab-admin-rotas">0</div></div>
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Armadilhas</div><div class="ovi-kpi-value" id="ovi-lab-admin-armadilhas">0</div></div>
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Positivas</div><div class="ovi-kpi-value" id="ovi-lab-admin-positivas">0</div></div>
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Ovos</div><div class="ovi-kpi-value" id="ovi-lab-admin-ovos">0</div></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-hd"><div class="chart-title"><img src="/static/icons/microscopio.svg" alt="" class="icon-svg"> Leituras recebidas do laboratório</div><span class="table-info" id="ovi-lab-admin-info"></span></div>
+    <div class="ovi-lab-admin-list" id="ovi-lab-admin-list"><div class="empty">Nenhuma leitura carregada.</div></div>
+  </div>
+</section>
+{% endif %}
+
 <section class="ovi-panel" id="ovi-panel-calendario" hidden>
   <div class="ovi-cal-toolbar">
     <div class="f-g"><label>Ano</label><input type="number" id="ovi-cal-ano" min="2020" max="2099" step="1"></div>
@@ -514,6 +547,7 @@ const oviFmt = new Intl.NumberFormat('pt-BR');
 const oviAgentes = JSON.parse(document.getElementById('ovi-agentes-json').textContent || '[]');
 let oviCalState = {ano:new Date().getFullYear(), grupos:[], eventos:[], eventosPorData:{}};
 let oviDiarioState = {diarios:[], selecionado:null, detalhe:null};
+let oviLabAdminLotes = [];
 const oviDiarioReduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || false;
 const oviDiarioDragThreshold = 6;
 function novoEstadoOviDiarioDrag(){
@@ -1386,6 +1420,54 @@ function payloadGrupo(){
     ativo: document.getElementById('ovi-grupo-ativo').checked,
   };
 }
+async function carregarOviLaboratorio(){
+  const area=document.getElementById('ovi-lab-admin-list');
+  if(!area)return;
+  area.innerHTML='<div class="empty"><div class="spinner"></div></div>';
+  const status=document.getElementById('ovi-lab-admin-status').value||'pendente';
+  try{
+    const data=await oviGet('/api/ovitrampas/laboratorio?status='+encodeURIComponent(status));
+    oviLabAdminLotes=data.registros||[];
+    const somar=campo=>oviLabAdminLotes.reduce((total,item)=>total+(Number(item[campo])||0),0);
+    document.getElementById('ovi-lab-admin-rotas').textContent=oviFmt.format(oviLabAdminLotes.length);
+    document.getElementById('ovi-lab-admin-armadilhas').textContent=oviFmt.format(somar('armadilhas'));
+    document.getElementById('ovi-lab-admin-positivas').textContent=oviFmt.format(somar('positivas'));
+    document.getElementById('ovi-lab-admin-ovos').textContent=oviFmt.format(somar('ovos'));
+    document.getElementById('ovi-lab-admin-info').textContent=`${oviFmt.format(oviLabAdminLotes.length)} rota(s)`;
+    if(!oviLabAdminLotes.length){area.innerHTML='<div class="empty">Nenhuma leitura nesta situação.</div>';return;}
+    area.innerHTML=oviLabAdminLotes.map(lote=>`<article class="ovi-lab-admin-card ${lote.status==='enviado_conta_ovos'?'enviado':''}" id="ovi-lab-admin-card-${lote.id_lote}">
+      <div class="ovi-lab-admin-head">
+        <div class="ovi-lab-admin-main"><strong>${oviEscape(lote.diario_nome)}</strong><span>${oviEscape(lote.movimento_label)} em ${fmtDate(lote.data_movimento)}${lote.ciclo?' · Ciclo '+oviEscape(lote.ciclo):''}</span></div>
+        <div class="ovi-lab-admin-number"><small>Armadilhas</small>${oviFmt.format(lote.armadilhas||0)}</div>
+        <div class="ovi-lab-admin-number"><small>Positivas</small>${oviFmt.format(lote.positivas||0)}</div>
+        <div class="ovi-lab-admin-number"><small>Ovos</small>${oviFmt.format(lote.ovos||0)}</div>
+        <div class="ovi-lab-admin-meta">Leitura por <strong>${oviEscape(lote.laboratorista_nome||'-')}</strong><br>${lote.status==='enviado_conta_ovos'?'Enviado por '+oviEscape(lote.enviado_por_nome||'-'):'Aguardando lançamento externo'}</div>
+        <div class="ovi-route-buttons"><button class="btn btn-outline btn-sm" type="button" onclick="alternarOviLabAdmin(${Number(lote.id_lote)})">Ver leituras</button>${lote.status==='concluido'?`<button class="btn btn-primary btn-sm" type="button" onclick="marcarOviLabEnviado(${Number(lote.id_lote)})">Marcar enviado</button>`:''}</div>
+      </div>
+      <div class="ovi-lab-admin-detail" data-ovi-lab-admin-detail="${lote.id_lote}" hidden></div>
+    </article>`).join('');
+  }catch(err){area.innerHTML=`<div class="empty">${oviEscape(err.message)}</div>`;}
+}
+async function alternarOviLabAdmin(id){
+  const area=document.querySelector(`[data-ovi-lab-admin-detail="${id}"]`);
+  if(!area)return;
+  if(!area.hidden){area.hidden=true;return;}
+  area.hidden=false;area.innerHTML='<div class="empty"><div class="spinner"></div></div>';
+  try{
+    const lote=await oviGet(`/api/ovitrampas/laboratorio/${id}`);
+    area.innerHTML=`<div class="table-scroll"><table><thead><tr><th>ID</th><th>Local</th><th>Localidade</th><th>Ovos</th></tr></thead><tbody>${(lote.itens||[]).map(item=>`<tr><td><strong>${oviEscape(item.ovitrampa_id)}</strong></td><td>${oviEscape(item.complemento||'Local sem identificação')}</td><td>${oviEscape(item.localidade||lote.diario_nome)}</td><td><strong>${oviFmt.format(item.ovos||0)}</strong></td></tr>`).join('')}</tbody></table></div>`;
+  }catch(err){area.innerHTML=`<div class="empty">${oviEscape(err.message)}</div>`;}
+}
+async function marcarOviLabEnviado(id){
+  const lote=oviLabAdminLotes.find(item=>Number(item.id_lote)===Number(id));
+  if(!lote)return;
+  if(!confirm(`Confirmar que todas as leituras de ${lote.diario_nome} foram lançadas no Conta Ovos? Após isso o laboratorista não poderá mais corrigi-las.`))return;
+  try{
+    await oviFetchJson(`/api/ovitrampas/laboratorio/${id}/enviado`,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},body:'{}'});
+    toast('Rota marcada como enviada ao Conta Ovos.','success');
+    await carregarOviLaboratorio();
+  }catch(err){toast('Erro ao confirmar envio: '+err.message,'error');}
+}
 document.querySelectorAll('[data-ovi-tab]').forEach(btn => btn.addEventListener('click', () => {
   document.querySelectorAll('[data-ovi-tab]').forEach(b => b.classList.toggle('active', b === btn));
   const alvo = btn.dataset.oviTab;
@@ -1393,10 +1475,13 @@ document.querySelectorAll('[data-ovi-tab]').forEach(btn => btn.addEventListener(
   document.getElementById('ovi-panel-monitoramento').hidden = alvo !== 'monitoramento';
   document.getElementById('ovi-panel-armadilhas').hidden = alvo !== 'armadilhas';
   document.getElementById('ovi-panel-diarios').hidden = alvo !== 'diarios';
+  const painelLaboratorio=document.getElementById('ovi-panel-laboratorio');
+  if(painelLaboratorio)painelLaboratorio.hidden=alvo!=='laboratorio';
   document.getElementById('ovi-panel-calendario').hidden = alvo !== 'calendario';
   if (alvo === 'monitoramento') carregarMonitoramento().catch(e => toast('Erro ao carregar monitoramento: ' + e.message, 'error'));
   if (alvo === 'armadilhas') carregarArmadilhas().catch(e => toast('Erro ao carregar armadilhas: ' + e.message, 'error'));
   if (alvo === 'diarios') carregarDiarios().catch(e => toast('Erro ao carregar diários: ' + e.message, 'error'));
+  if (alvo === 'laboratorio') carregarOviLaboratorio().catch(e => toast('Erro ao carregar laboratório: ' + e.message, 'error'));
   if (alvo === 'calendario') carregarCalendario().catch(e => toast('Erro ao carregar calendário: ' + e.message, 'error'));
 }));
 document.getElementById('ovi-atualizar').addEventListener('click', () => carregarOvitrampas().catch(e => toast('Erro ao carregar ovitrampas: ' + e.message, 'error')));
@@ -1405,6 +1490,8 @@ document.getElementById('ovi-busca').addEventListener('keydown', e => { if(e.key
 document.getElementById('ovi-mon-atualizar').addEventListener('click', () => carregarMonitoramento().catch(e => toast('Erro ao carregar monitoramento: ' + e.message, 'error')));
 document.getElementById('ovi-arm-atualizar').addEventListener('click', () => carregarArmadilhas().catch(e => toast('Erro ao carregar armadilhas: ' + e.message, 'error')));
 document.getElementById('ovi-arm-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarArmadilhas().catch(err => toast('Erro na busca: ' + err.message, 'error')); });
+document.getElementById('ovi-lab-admin-atualizar')?.addEventListener('click',()=>carregarOviLaboratorio());
+document.getElementById('ovi-lab-admin-status')?.addEventListener('change',()=>carregarOviLaboratorio());
 document.getElementById('ovi-dia-ano').value = new Date().getFullYear();
 document.getElementById('ovi-dia-novo').addEventListener('click', () => { oviDiarioState.detalhe = null; salvarDiarioAtual().catch(e => toast('Erro ao criar diário: ' + e.message, 'error')); });
 document.getElementById('ovi-dia-editar').addEventListener('click', () => salvarDiarioAtual().catch(e => toast('Erro ao salvar diário: ' + e.message, 'error')));

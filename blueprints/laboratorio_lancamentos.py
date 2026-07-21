@@ -8,6 +8,7 @@ from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import laboratorio_lancamentos as lab_core
+from app_core import ovitrampas_laboratorio as ovi_lab_core
 
 
 bp = Blueprint("laboratorio_lancamentos", __name__)
@@ -157,6 +158,70 @@ def historico():
         )
         itens.append(item)
     return jsonify({"registros": itens, "total": len(itens)})
+
+
+@bp.route("/api/laboratorio/ovitrampas/lotes")
+@login_required
+@laboratorio_required
+def ovitrampas_lotes():
+    historico = request.args.get("historico") == "1"
+    return jsonify(ovi_lab_core.listar_para_laboratorista(
+        bh.db_path(), historico=historico,
+    ))
+
+
+@bp.route("/api/laboratorio/ovitrampas/lotes/<int:id_lote>")
+@login_required
+@laboratorio_required
+def ovitrampas_lote(id_lote):
+    try:
+        return jsonify(ovi_lab_core.obter_lote(bh.db_path(), id_lote))
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 404
+
+
+@bp.route("/api/laboratorio/ovitrampas/lotes/<int:id_lote>/rascunho", methods=["PUT"])
+@login_required
+@laboratorio_required
+def ovitrampas_lote_rascunho(id_lote):
+    dados = request.get_json(silent=True) or {}
+    usuario = dict(bh.usuario_atual() or {})
+    try:
+        lote = ovi_lab_core.salvar_rascunho(
+            bh.db_path(), id_lote, dados.get("leituras"), usuario,
+        )
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    return jsonify({"ok": True, "lote": lote})
+
+
+@bp.route("/api/laboratorio/ovitrampas/lotes/<int:id_lote>/concluir", methods=["POST"])
+@login_required
+@laboratorio_required
+def ovitrampas_lote_concluir(id_lote):
+    dados = request.get_json(silent=True) or {}
+    usuario = dict(bh.usuario_atual() or {})
+    try:
+        lote = ovi_lab_core.concluir_lote(
+            bh.db_path(), id_lote, dados.get("leituras"), usuario,
+        )
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(
+        bh.get_db,
+        "ovitrampas_leitura_lote_concluido",
+        entidade="ovitrampas_laboratorio_lotes",
+        entidade_id=id_lote,
+        detalhes={
+            "diario": lote["diario_nome"],
+            "data_movimento": lote["data_movimento"],
+            "movimento": lote["movimento"],
+            "armadilhas": lote["armadilhas"],
+            "ovos": lote["ovos"],
+            "laboratorista": lote["laboratorista_nome"],
+        },
+    )
+    return jsonify({"ok": True, "lote": lote})
 
 
 @bp.route("/api/laboratorio/lancamentos/<id_coleta>/resultado", methods=["POST"])

@@ -104,8 +104,8 @@ MODULES: Tuple[AppModule, ...] = (
         endpoint="laboratorio_lancamentos.page",
         icon="tubo_ensaio.svg",
         nav_section="Analise",
-        description="Fila de tubos, lançamento de resultados e histórico laboratorial.",
-        tags=("Tubos", "Leitura"),
+        description="Leitura de tubos e ovitrampas, com filas e históricos do laboratório.",
+        tags=("Tubos", "Ovitrampas", "Leitura"),
         required_permission="acesso_laboratorio",
     ),
     AppModule(

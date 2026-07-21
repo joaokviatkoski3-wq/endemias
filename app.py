@@ -19,6 +19,7 @@ from app_core import db as db_core
 from app_core import import_history
 from app_core import laboratorio_lancamentos as laboratorio_lancamentos_core
 from app_core import meteorologia as meteorologia_core
+from app_core import ovitrampas_laboratorio as ovitrampas_laboratorio_core
 from app_core import sqlite_maintenance
 from app_core import uploads as uploads_core
 from app_core import utils as utils_core
@@ -275,6 +276,7 @@ def create_app(config_overrides=None):
     _configure_secret_key(flask_app, flask_app.config["SECRET_KEY_PATH"])
     agentes_core.ensure_schema(flask_app.config["DB_PATH"])
     laboratorio_lancamentos_core.ensure_schema(flask_app.config["DB_PATH"])
+    ovitrampas_laboratorio_core.ensure_schema(flask_app.config["DB_PATH"])
     meteorologia_core.ensure_schema(flask_app.config["DB_PATH"])
     sqlite_maintenance.ensure_performance_indexes(flask_app.config["DB_PATH"])
     csrf.init_app(flask_app)
