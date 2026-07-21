@@ -2740,6 +2740,30 @@ class MainPagesSmokeTests(unittest.TestCase):
             evento = next(item for item in resp.get_json() if item["title"] == "Vistoria externa")
             self.assertTrue(evento["extendedProps"]["atividade_externa"])
 
+    def test_agenda_exibe_aniversario_de_servidor_automaticamente(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute(
+                    """INSERT INTO agentes (nome, nome_completo, ativo, data_nascimento)
+                       VALUES (?, ?, 1, ?)""",
+                    ("Aniversariante Kobo", "Aniversariante Completo", "1990-07-16"),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            resp = client.get("/api/agenda/eventos?start=2026-07-01&end=2026-08-01")
+            self.assertEqual(resp.status_code, 200)
+            evento = next(
+                item for item in resp.get_json()
+                if item["title"] == "Aniversário - Aniversariante Completo"
+            )
+            self.assertEqual(evento["start"], "2026-07-16")
+            self.assertEqual(evento["extendedProps"]["fonte"], "ANIVERSARIO")
+            self.assertFalse(evento["extendedProps"]["atividade_externa"])
+
     def test_agenda_expande_eventos_recorrentes_na_janela(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _, client, _ = _client_admin_com_banco_temporario(tmpdir)

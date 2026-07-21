@@ -1,5 +1,6 @@
 import sqlite3
 from collections import defaultdict
+from datetime import date
 import re
 import unicodedata
 
@@ -28,6 +29,8 @@ EDITABLE_FIELDS = {
     "nome": "TEXT",
     "nome_completo": "TEXT",
     "matricula": "TEXT",
+    "cpf": "TEXT",
+    "data_nascimento": "TEXT",
     "cargo": "TEXT",
     "ativo": "INTEGER",
     "data_inicio": "TEXT",
@@ -96,6 +99,8 @@ def ensure_schema(conn_or_path):
                     nome TEXT NOT NULL UNIQUE,
                     nome_completo TEXT,
                     matricula TEXT,
+                    cpf TEXT,
+                    data_nascimento TEXT,
                     cargo TEXT,
                     ativo INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)),
                     data_inicio TEXT,
@@ -104,6 +109,10 @@ def ensure_schema(conn_or_path):
                 )
             """)
             conn.execute("UPDATE agentes SET nome_completo=nome WHERE nome_completo IS NULL OR TRIM(nome_completo)=''")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_agentes_cpf_unico "
+                "ON agentes(cpf) WHERE cpf IS NOT NULL AND cpf<>''"
+            )
             conn.commit()
             return
         if "nome_completo" not in cols:
@@ -111,6 +120,10 @@ def ensure_schema(conn_or_path):
             conn.execute("UPDATE agentes SET nome_completo=nome WHERE nome_completo IS NULL OR TRIM(nome_completo)=''")
         if "matricula" not in cols:
             conn.execute("ALTER TABLE agentes ADD COLUMN matricula TEXT")
+        if "cpf" not in cols:
+            conn.execute("ALTER TABLE agentes ADD COLUMN cpf TEXT")
+        if "data_nascimento" not in cols:
+            conn.execute("ALTER TABLE agentes ADD COLUMN data_nascimento TEXT")
         if "cargo" not in cols:
             conn.execute("ALTER TABLE agentes ADD COLUMN cargo TEXT")
         if "ativo" not in cols:
@@ -122,6 +135,10 @@ def ensure_schema(conn_or_path):
         if "observacoes" not in cols:
             conn.execute("ALTER TABLE agentes ADD COLUMN observacoes TEXT")
         conn.execute("UPDATE agentes SET nome_completo=nome WHERE nome_completo IS NULL OR TRIM(nome_completo)=''")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_agentes_cpf_unico "
+            "ON agentes(cpf) WHERE cpf IS NOT NULL AND cpf<>''"
+        )
         conn.commit()
     finally:
         if close:
@@ -140,8 +157,8 @@ def listar(db_path, filtros=None):
         where.append("ativo=0")
     busca = (filtros.get("busca") or "").strip()
     if busca:
-        where.append("(nome LIKE ? OR COALESCE(nome_completo,'') LIKE ? OR COALESCE(matricula,'') LIKE ?)")
-        params.extend([f"%{busca}%", f"%{busca}%", f"%{busca}%"])
+        where.append("(nome LIKE ? OR COALESCE(nome_completo,'') LIKE ? OR COALESCE(matricula,'') LIKE ? OR COALESCE(cpf,'') LIKE ?)")
+        params.extend([f"%{busca}%", f"%{busca}%", f"%{busca}%", f"%{busca}%"])
     sql = "SELECT * FROM agentes"
     if where:
         sql += " WHERE " + " AND ".join(where)
@@ -175,12 +192,15 @@ def criar(db_path, dados):
     conn = sqlite3.connect(db_path)
     try:
         cur = conn.execute(
-            """INSERT INTO agentes(nome, nome_completo, matricula, cargo, ativo, data_inicio, data_saida, observacoes)
-               VALUES (?,?,?,?,?,?,?,?)""",
+            """INSERT INTO agentes
+               (nome, nome_completo, matricula, cpf, data_nascimento, cargo, ativo, data_inicio, data_saida, observacoes)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
             (
                 nome,
                 nome_completo,
                 _clean(dados.get("matricula")),
+                _cpf(dados.get("cpf")),
+                _data_nascimento(dados.get("data_nascimento")),
                 _clean(dados.get("cargo")),
                 ativo,
                 _clean(dados.get("data_inicio")),
@@ -200,6 +220,10 @@ def atualizar_campo(db_path, id_agente, campo, valor):
         raise ValueError("Campo invalido.")
     if campo in {"nome", "nome_completo"} and not (valor or "").strip():
         raise ValueError("O nome nao pode ficar vazio.")
+    if campo == "cpf":
+        valor = _cpf(valor)
+    elif campo == "data_nascimento":
+        valor = _data_nascimento(valor)
     if campo == "ativo":
         valor = 1 if str(valor) == "1" else 0
     else:
@@ -264,6 +288,36 @@ def historico(db_path, id_agente, d_ini=None, d_fim=None):
         "por_origem": dict(sorted(por_origem.items())),
         "dias": dias,
     }
+
+
+def _cpf(value):
+    cpf = re.sub(r"\D", "", str(value or ""))
+    if not cpf:
+        return None
+    if len(cpf) != 11 or cpf == cpf[0] * 11:
+        raise ValueError("Informe um CPF valido.")
+    pesos = (10, 9, 8, 7, 6, 5, 4, 3, 2)
+    primeiro = (sum(int(digito) * peso for digito, peso in zip(cpf[:9], pesos)) * 10) % 11
+    primeiro = 0 if primeiro == 10 else primeiro
+    pesos = (11, 10, 9, 8, 7, 6, 5, 4, 3, 2)
+    segundo = (sum(int(digito) * peso for digito, peso in zip(cpf[:10], pesos)) * 10) % 11
+    segundo = 0 if segundo == 10 else segundo
+    if cpf[-2:] != f"{primeiro}{segundo}":
+        raise ValueError("Informe um CPF valido.")
+    return cpf
+
+
+def _data_nascimento(value):
+    texto = _clean(value)
+    if not texto:
+        return None
+    try:
+        nascimento = date.fromisoformat(texto)
+    except ValueError as exc:
+        raise ValueError("Informe uma data de nascimento valida.") from exc
+    if nascimento > date.today():
+        raise ValueError("A data de nascimento nao pode estar no futuro.")
+    return nascimento.isoformat()
 
 
 def _clean(value):

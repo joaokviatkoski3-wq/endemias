@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from app_core import agentes as agentes_core
 from app_core import registro_geografico as rg_core
 
 
@@ -74,6 +75,23 @@ class RegistroGeograficoAcompanhamentoTests(unittest.TestCase):
 
             filtrado = rg_core.acompanhamento_atualizacoes(str(db_path), {"agente": "1"})
             self.assertEqual([item["quarteirao_raw"] for item in filtrado["registros"]], ["0001", "0002"])
+
+
+class ServidorDadosPessoaisTests(unittest.TestCase):
+    def test_salva_cpf_e_data_nascimento(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "servidores.db"
+            agentes_core.ensure_schema(str(db_path))
+            servidor_id = agentes_core.criar(str(db_path), {
+                "nome": "Maria Kobo",
+                "nome_completo": "Maria da Silva",
+                "cpf": "123.456.789-09",
+                "data_nascimento": "1990-07-16",
+            })
+            servidor = agentes_core.obter(str(db_path), servidor_id)
+
+        self.assertEqual(servidor["cpf"], "12345678909")
+        self.assertEqual(servidor["data_nascimento"], "1990-07-16")
 
 
 if __name__ == "__main__":

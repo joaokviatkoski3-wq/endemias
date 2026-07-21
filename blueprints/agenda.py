@@ -27,6 +27,7 @@ AGENDA_AUTO_FONTES = {
     "ACAO_EDUCATIVA": {"label": "Ação educativa", "cor": "#0f766e"},
     "ACAO_LIMPEZA": {"label": "Ação de limpeza", "cor": "#d97706"},
     "OVITRAMPA": {"label": "Ovitrampa", "cor": "#0f766e"},
+    "ANIVERSARIO": {"label": "Aniversário", "cor": "#db2777"},
 }
 
 AGENDA_TIPO_CHECK = "('reuniao','planejamento','campo','prazo','treinamento','tarefa','ferias','outro')"
@@ -335,7 +336,7 @@ def _localidades_lista(value):
     return sorted({item.strip() for item in (value or "-").split(",") if item and item.strip()})
 
 
-def _auto_evento(data, fonte_codigo, titulo, total, resumo="", localidades="", agentes="-", tipo=None, id_extra=None):
+def _auto_evento(data, fonte_codigo, titulo, total, resumo="", localidades="", agentes="-", tipo=None, id_extra=None, atividade_externa=True):
     fonte = AGENDA_AUTO_FONTES[fonte_codigo]
     cor = fonte["cor"]
     data_dt = _parse_data_evento(data, True)
@@ -361,7 +362,7 @@ def _auto_evento(data, fonte_codigo, titulo, total, resumo="", localidades="", a
             "total": total,
             "agentes": agentes or "-",
             "origem": "auto",
-            "atividade_externa": True,
+            "atividade_externa": atividade_externa,
         },
     }
 
@@ -414,6 +415,39 @@ def _eventos_periodo(inicio, fim):
     )
     for r in rows:
         eventos.extend(_eventos_manuais_expandido(r, range_inicio, range_fim))
+
+    if _table_exists("agentes"):
+        try:
+            aniversariantes = bh.q(
+                """SELECT id_agente,
+                          COALESCE(NULLIF(nome_completo,''), nome) AS nome,
+                          data_nascimento
+                     FROM agentes
+                    WHERE COALESCE(ativo,1)=1
+                      AND data_nascimento IS NOT NULL
+                      AND TRIM(data_nascimento)<>''"""
+            )
+        except sqlite3.Error:
+            aniversariantes = []
+        for servidor in aniversariantes:
+            try:
+                nascimento = date.fromisoformat(str(servidor["data_nascimento"])[:10])
+            except (TypeError, ValueError):
+                continue
+            for ano in range(range_inicio.year, range_fim.year + 1):
+                dia = date(ano, nascimento.month, min(nascimento.day, monthrange(ano, nascimento.month)[1]))
+                if range_inicio <= dia <= range_fim:
+                    eventos.append(_auto_evento(
+                        dia.isoformat(),
+                        "ANIVERSARIO",
+                        f"Aniversário - {servidor['nome']}",
+                        1,
+                        resumo="Aniversário de servidor do Setor de Endemias.",
+                        agentes=servidor["nome"],
+                        tipo="aniversario",
+                        id_extra=f"servidor_{servidor['id_agente']}",
+                        atividade_externa=False,
+                    ))
 
     auto_rows = bh.q(
         """

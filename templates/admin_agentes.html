@@ -88,7 +88,11 @@
           </tr>
           <tr class="agent-row">
             <td colspan="4" style="padding:0 12px 10px;">
-              <textarea class="inline-input" style="min-height:42px;resize:vertical;" placeholder="Observacoes internas" onchange="editarAgente({{ a.id_agente }}, 'observacoes', this.value)">{{ a.observacoes or '' }}</textarea>
+              <div class="form-grid">
+                <div class="f-g"><label>CPF</label><input class="inline-input" inputmode="numeric" value="{{ a.cpf or '' }}" onchange="editarAgente({{ a.id_agente }}, 'cpf', this.value)"></div>
+                <div class="f-g"><label>Data de nascimento</label><input class="inline-input" type="date" value="{{ a.data_nascimento or '' }}" onchange="editarAgente({{ a.id_agente }}, 'data_nascimento', this.value)"></div>
+                <div class="f-g full"><label>Observações</label><textarea class="inline-input" style="min-height:42px;resize:vertical;" placeholder="Observacoes internas" onchange="editarAgente({{ a.id_agente }}, 'observacoes', this.value)">{{ a.observacoes or '' }}</textarea></div>
+              </div>
             </td>
           </tr>
         {% endfor %}
@@ -107,6 +111,8 @@
           <div class="f-g full"><label>Nome usado no Kobo</label><input class="inline-input" name="nome" placeholder="Opcional; se vazio, usa o nome completo"></div>
           <div class="f-g"><label>Matricula</label><input class="inline-input" name="matricula"></div>
           <div class="f-g"><label>Cargo</label><input class="inline-input" name="cargo" placeholder="ACE"></div>
+          <div class="f-g"><label>CPF</label><input class="inline-input" name="cpf" inputmode="numeric"></div>
+          <div class="f-g"><label>Data de nascimento</label><input class="inline-input" name="data_nascimento" type="date"></div>
           <div class="f-g"><label>Inicio</label><input class="inline-input" type="date" name="data_inicio"></div>
           <div class="f-g"><label>Situacao</label><select class="inline-select" name="ativo"><option value="1">Ativo</option><option value="0">Inativo</option></select></div>
           <div class="f-g full"><label>Observacoes</label><textarea class="inline-input" name="observacoes" rows="3"></textarea></div>
