@@ -70,6 +70,9 @@
 .lab-confirm-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:20px;}
 .lab-confirm-actions .btn{min-height:42px;justify-content:center;}
 .ovi-lab-list{display:grid;gap:10px;}
+.ovi-lab-upcoming{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin-bottom:16px;}
+.ovi-lab-upcoming-card{border:1px solid var(--border);border-left:3px solid #64748b;border-radius:6px;background:var(--surface);padding:10px 11px;display:grid;gap:5px;}
+.ovi-lab-upcoming-card strong{font-size:13px;}.ovi-lab-upcoming-card span{font-size:10.5px;color:var(--text3);}.ovi-lab-upcoming-date{font-weight:800;color:var(--text2)!important;}
 .ovi-lab-card{background:var(--surface);border:1px solid var(--border);border-left:4px solid #0f766e;border-radius:7px;overflow:hidden;}
 .ovi-lab-card.alerta{border-left-color:#dc2626;}
 .ovi-lab-card-head{width:100%;border:0;background:transparent;color:var(--text);padding:13px 14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;text-align:left;cursor:pointer;align-items:center;}
@@ -130,6 +133,8 @@
       <button class="lab-tab" data-ovi-lab-tab="historico" onclick="abrirAbaOviLab('historico')">Histórico</button>
     </div>
     <section id="ovi-lab-pendentes">
+      <div class="lab-toolbar"><strong>Leituras desta semana</strong><span class="muted">Programadas no calendário</span></div>
+      <div class="ovi-lab-upcoming" id="ovi-lab-upcoming"><div class="lab-empty"><div class="spinner"></div></div></div>
       <div class="lab-toolbar"><strong>Diários aguardando leitura</strong><button class="btn btn-ghost btn-sm" type="button" onclick="carregarOviLab(false)"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
       <div class="ovi-lab-list" id="ovi-lab-list"><div class="lab-empty"><div class="spinner"></div></div></div>
     </section>
@@ -306,13 +311,23 @@ async function carregarOviLab(historico=false){
     if(historico) oviLabHistorico=lotes; else {
       oviLabLotes=lotes;
       document.getElementById('ovi-lab-pending-count').textContent=data.total||0;
+      renderOviLabProximas(data.proximas||[]);
     }
     if(!lotes.length){
       area.innerHTML=`<div class="lab-empty">${historico?'Nenhuma leitura de ovitrampa concluída.':'Nenhum diário aguardando leitura.'}</div>`;
       return;
     }
     area.innerHTML=lotes.map(lote=>renderOviLabCard(lote,historico)).join('');
-  }catch(err){area.innerHTML=`<div class="lab-empty">${e(err.message)}</div>`;}
+  }catch(err){
+    area.innerHTML=`<div class="lab-empty">${e(err.message)}</div>`;
+    if(!historico){const proximas=document.getElementById('ovi-lab-upcoming');if(proximas)proximas.innerHTML='<div class="lab-empty">Não foi possível carregar a programação desta semana.</div>';}
+  }
+}
+function renderOviLabProximas(proximas){
+  const area=document.getElementById('ovi-lab-upcoming');
+  if(!area)return;
+  if(!proximas.length){area.innerHTML='<div class="lab-empty">Nenhuma troca ou retirada futura nesta semana.</div>';return;}
+  area.innerHTML=proximas.map(item=>`<article class="ovi-lab-upcoming-card"><strong>${e(item.diario_nome)}</strong><span class="ovi-lab-upcoming-date">${e(item.movimento_label)} em ${fmtDate(item.data_movimento)}</span><span>${Number(item.armadilhas)||0} armadilha(s)${item.ciclo?' · Ciclo '+e(item.ciclo):''}</span></article>`).join('');
 }
 function renderOviLabCard(lote,historico){
   const status=lote.status==='enviado_conta_ovos'?'Enviado ao Conta Ovos':lote.status==='concluido'?'Leitura concluída':lote.status==='em_preenchimento'?'Em preenchimento':'Pendente';
