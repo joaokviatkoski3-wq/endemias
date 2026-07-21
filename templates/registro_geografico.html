@@ -220,7 +220,7 @@
     </div>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Situação</th><th>Localidade</th><th>Q.</th><th>Progresso</th><th>Última atualização</th><th>Agentes de campo</th><th>Imóveis reais</th><th>População</th><th></th></tr></thead>
+        <thead><tr><th>Situação</th><th>Localidade</th><th>Q.</th><th>Progresso</th><th>Última atualização</th><th>Atualizado no sistema por</th><th>Agentes de campo</th><th>Imóveis reais</th><th>População</th><th></th></tr></thead>
         <tbody id="rg-acomp-body"></tbody>
       </table>
     </div>
@@ -938,6 +938,7 @@ function rgAcompRender(data){
       <td>${rgEscape(row.quarteirao)}</td>
       <td><div style="display:flex;align-items:center;gap:7px;"><span>${rgFmt(row.atualizadas)} / ${rgFmt(row.linhas)}</span><div class="rg-acomp-progress" title="${rgFmt(row.percentual)}%"><span style="width:${Math.max(0, Math.min(100, Number(row.percentual || 0)))}%"></span></div></div></td>
       <td>${rgEscape(rgAcompData(row.ultima_atualizacao))}</td>
+      <td>${rgEscape(row.atualizado_por_usuario || 'Sem registro')}</td>
       <td class="rg-acomp-agentes">${rgEscape(row.agentes || '-')}</td>
       <td>${rgFmt(row.imoveis_reais)}</td>
       <td>${rgFmt(row.populacao_aproximada)}</td>
@@ -945,7 +946,7 @@ function rgAcompRender(data){
         <button class="btn btn-icon" type="button" title="Abrir na edição" onclick="rgAcompAbrirEdicao(${Number(row.id_localidade)}, '${rgEscape(row.quarteirao_raw)}')"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button>
         <button class="btn btn-icon" type="button" title="Imprimir quarteirão" onclick="rgAcompImprimir(${Number(row.id_localidade)}, '${rgEscape(row.quarteirao_raw)}')"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"></button>
       </div></td>
-    </tr>`).join('') || '<tr><td colspan="9" class="empty">Nenhum quarteirão encontrado.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="10" class="empty">Nenhum quarteirão encontrado.</td></tr>';
 }
 async function rgAcompCarregar(){
   rgEl('rg-acomp-info').textContent = 'Carregando...';

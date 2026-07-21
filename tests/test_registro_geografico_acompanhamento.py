@@ -49,6 +49,7 @@ class RegistroGeograficoAcompanhamentoTests(unittest.TestCase):
                 inserir(quarteiroes[1], 1, "2026-07-20")
                 inserir(quarteiroes[1], 2, None)
                 inserir(quarteiroes[2], 1, None)
+                rg_core._marcar_atualizacao_sistema(conn, quarteiroes[0], 7, "Joao", agora)
                 conn.commit()
             finally:
                 conn.close()
@@ -69,6 +70,7 @@ class RegistroGeograficoAcompanhamentoTests(unittest.TestCase):
             self.assertEqual(por_quarteirao["0003"]["situacao"], "pendente")
             self.assertEqual(por_quarteirao["0004"]["situacao"], "sem_cadastro")
             self.assertEqual(por_quarteirao["0002"]["agentes"], "Agente RG")
+            self.assertEqual(por_quarteirao["0001"]["atualizado_por_usuario"], "Joao")
 
             filtrado = rg_core.acompanhamento_atualizacoes(str(db_path), {"agente": "1"})
             self.assertEqual([item["quarteirao_raw"] for item in filtrado["registros"]], ["0001", "0002"])

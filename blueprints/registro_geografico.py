@@ -36,6 +36,13 @@ def nivel_min(nivel):
     return auth_core.nivel_min(nivel, usuario_atual)
 
 
+def _autor_atualizacao():
+    usuario = usuario_atual()
+    if not usuario:
+        return None, None
+    return usuario["id_usuario"], usuario["nome"] or usuario["usuario"]
+
+
 @bp.route("/registro-geografico")
 @login_required
 def page():
@@ -83,7 +90,10 @@ def api_acompanhamento():
 @nivel_min("operador")
 def api_criar():
     try:
-        registro = rg_core.criar(_db_path(), request.get_json(silent=True) or {}, _base_dir())
+        usuario_id, usuario_nome = _autor_atualizacao()
+        registro = rg_core.criar(
+            _db_path(), request.get_json(silent=True) or {}, _base_dir(), usuario_id, usuario_nome
+        )
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
     audit.registrar_evento(
@@ -141,7 +151,10 @@ def api_quarteirao():
 @nivel_min("operador")
 def api_salvar_quarteirao():
     try:
-        dados = rg_core.salvar_quarteirao(_db_path(), request.get_json(silent=True) or {}, _base_dir())
+        usuario_id, usuario_nome = _autor_atualizacao()
+        dados = rg_core.salvar_quarteirao(
+            _db_path(), request.get_json(silent=True) or {}, _base_dir(), usuario_id, usuario_nome
+        )
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
     audit.registrar_evento(
@@ -159,7 +172,8 @@ def api_salvar_quarteirao():
 def api_limpar_quarteirao():
     payload = request.get_json(silent=True) or {}
     try:
-        dados = rg_core.limpar_quarteirao(_db_path(), payload, _base_dir())
+        usuario_id, usuario_nome = _autor_atualizacao()
+        dados = rg_core.limpar_quarteirao(_db_path(), payload, _base_dir(), usuario_id, usuario_nome)
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
     audit.registrar_evento(
@@ -260,7 +274,8 @@ def api_preview_lote():
 def api_aplicar_lote():
     payload = request.get_json(silent=True) or {}
     try:
-        dados = rg_core.aplicar_substituicao_lote(_db_path(), payload, _base_dir())
+        usuario_id, usuario_nome = _autor_atualizacao()
+        dados = rg_core.aplicar_substituicao_lote(_db_path(), payload, _base_dir(), usuario_id, usuario_nome)
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
     audit.registrar_evento(
@@ -319,7 +334,10 @@ def api_obter(id_imovel):
 @nivel_min("operador")
 def api_salvar(id_imovel):
     try:
-        registro = rg_core.salvar(_db_path(), id_imovel, request.get_json(silent=True) or {}, _base_dir())
+        usuario_id, usuario_nome = _autor_atualizacao()
+        registro = rg_core.salvar(
+            _db_path(), id_imovel, request.get_json(silent=True) or {}, _base_dir(), usuario_id, usuario_nome
+        )
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
     audit.registrar_evento(

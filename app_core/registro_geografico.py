@@ -197,6 +197,9 @@ def ensure_schema(conn_or_path, base_dir=None):
                 quarteirao TEXT NOT NULL,
                 criado_em TEXT NOT NULL,
                 atualizado_em TEXT NOT NULL,
+                atualizado_por_usuario_id INTEGER,
+                atualizado_por_usuario_nome TEXT,
+                atualizado_por_em TEXT,
                 UNIQUE(id_localidade, quarteirao)
             );
 
@@ -242,6 +245,13 @@ def ensure_schema(conn_or_path, base_dir=None):
             conn.execute("ALTER TABLE registro_geografico_imoveis ADD COLUMN agentes_texto TEXT")
         if "busca_normalizada" not in cols:
             conn.execute("ALTER TABLE registro_geografico_imoveis ADD COLUMN busca_normalizada TEXT")
+        cols_quarteiroes = _table_cols(conn, "registro_geografico_quarteiroes")
+        if "atualizado_por_usuario_id" not in cols_quarteiroes:
+            conn.execute("ALTER TABLE registro_geografico_quarteiroes ADD COLUMN atualizado_por_usuario_id INTEGER")
+        if "atualizado_por_usuario_nome" not in cols_quarteiroes:
+            conn.execute("ALTER TABLE registro_geografico_quarteiroes ADD COLUMN atualizado_por_usuario_nome TEXT")
+        if "atualizado_por_em" not in cols_quarteiroes:
+            conn.execute("ALTER TABLE registro_geografico_quarteiroes ADD COLUMN atualizado_por_em TEXT")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_rg_imoveis_ordem ON registro_geografico_imoveis(ordem, id_imovel)")
         if not conn.execute("SELECT 1 FROM registro_geografico_imoveis LIMIT 1").fetchone():
             _importar_csv_inicial(conn, base_dir)
@@ -867,7 +877,7 @@ def preview_substituicao_lote(db_path, payload, base_dir=None):
         conn.close()
 
 
-def aplicar_substituicao_lote(db_path, payload, base_dir=None):
+def aplicar_substituicao_lote(db_path, payload, base_dir=None, usuario_id=None, usuario_nome=None):
     ensure_schema(db_path, base_dir)
     conn = db_core.connect(db_path)
     try:
@@ -875,6 +885,7 @@ def aplicar_substituicao_lote(db_path, payload, base_dir=None):
         campo = dados["campo"]
         agora = _now()
         with conn:
+            quarteiroes_atualizados = set()
             for item in dados["alteracoes"]:
                 conn.execute(
                     f"""UPDATE registro_geografico_imoveis
@@ -882,6 +893,14 @@ def aplicar_substituicao_lote(db_path, payload, base_dir=None):
                          WHERE id_imovel=?""",
                     (item["depois"], item["busca_normalizada"], agora, item["id_imovel"]),
                 )
+                row_q = conn.execute(
+                    "SELECT id_quarteirao FROM registro_geografico_imoveis WHERE id_imovel=?",
+                    (item["id_imovel"],),
+                ).fetchone()
+                if row_q:
+                    quarteiroes_atualizados.add(row_q["id_quarteirao"])
+            for id_quarteirao in quarteiroes_atualizados:
+                _marcar_atualizacao_sistema(conn, id_quarteirao, usuario_id, usuario_nome, agora)
         return {
             "ok": True,
             "campo": campo,
@@ -995,6 +1014,8 @@ def acompanhamento_atualizacoes(db_path, filtros=None, base_dir=None):
             SELECT q.id_localidade,
                    q.localidade,
                    q.quarteirao,
+                   q.atualizado_por_usuario_nome AS atualizado_por_usuario,
+                   q.atualizado_por_em AS atualizado_por_em,
                    SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') <> 'REF' THEN 1 ELSE 0 END) AS linhas,
                    SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') <> 'REF' AND i.data_atualizacao IS NOT NULL THEN 1 ELSE 0 END) AS atualizadas,
                    MAX(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') <> 'REF' THEN i.data_atualizacao END) AS ultima_atualizacao,
@@ -1006,7 +1027,8 @@ def acompanhamento_atualizacoes(db_path, filtros=None, base_dir=None):
               LEFT JOIN registro_geografico_imovel_agentes ia ON ia.id_imovel=i.id_imovel
               LEFT JOIN agentes a ON a.id_agente=ia.id_agente
               {where_sql}
-             GROUP BY q.id_quarteirao, q.id_localidade, q.localidade, q.quarteirao
+             GROUP BY q.id_quarteirao, q.id_localidade, q.localidade, q.quarteirao,
+                      q.atualizado_por_usuario_nome, q.atualizado_por_em
              {having_sql}
              ORDER BY q.localidade, CAST(q.quarteirao AS INTEGER), q.quarteirao
             """,
@@ -1041,6 +1063,8 @@ def acompanhamento_atualizacoes(db_path, filtros=None, base_dir=None):
             "atualizadas": atualizadas,
             "percentual": round((atualizadas / linhas) * 100) if linhas else 0,
             "ultima_atualizacao": item["ultima_atualizacao"] or "",
+            "atualizado_por_usuario": item["atualizado_por_usuario"] or "",
+            "atualizado_por_em": item["atualizado_por_em"] or "",
             "agentes": item["agentes"] or "",
             "imoveis_reais": item["imoveis_reais"] or 0,
             "populacao_aproximada": round(residencias * MEDIA_PESSOAS_POR_RESIDENCIA),
@@ -1321,6 +1345,18 @@ def _garantir_quarteirao(conn, dados, agora):
     return cur.lastrowid
 
 
+def _marcar_atualizacao_sistema(conn, id_quarteirao, usuario_id=None, usuario_nome=None, agora=None):
+    if not usuario_nome:
+        return
+    momento = agora or _now()
+    conn.execute(
+        """UPDATE registro_geografico_quarteiroes
+              SET atualizado_por_usuario_id=?, atualizado_por_usuario_nome=?, atualizado_por_em=?, atualizado_em=?
+            WHERE id_quarteirao=?""",
+        (usuario_id, str(usuario_nome).strip(), momento, momento, id_quarteirao),
+    )
+
+
 def _salvar_agentes_e_busca(conn, id_imovel, dados, agentes_ids):
     conn.execute("DELETE FROM registro_geografico_imovel_agentes WHERE id_imovel=?", (id_imovel,))
     nomes = []
@@ -1349,7 +1385,7 @@ def _salvar_agentes_e_busca(conn, id_imovel, dados, agentes_ids):
     )
 
 
-def criar(db_path, payload, base_dir=None):
+def criar(db_path, payload, base_dir=None, usuario_id=None, usuario_nome=None):
     ensure_schema(db_path, base_dir)
     conn = db_core.connect(db_path)
     try:
@@ -1394,12 +1430,13 @@ def criar(db_path, payload, base_dir=None):
             )
             id_imovel = cur.lastrowid
             _salvar_agentes_e_busca(conn, id_imovel, dados, payload.get("agentes_ids") or [])
+            _marcar_atualizacao_sistema(conn, id_quarteirao, usuario_id, usuario_nome, agora)
         return obter(db_path, id_imovel, base_dir)
     finally:
         conn.close()
 
 
-def salvar_quarteirao(db_path, payload, base_dir=None):
+def salvar_quarteirao(db_path, payload, base_dir=None, usuario_id=None, usuario_nome=None):
     ensure_schema(db_path, base_dir)
     conn = db_core.connect(db_path)
     try:
@@ -1526,12 +1563,13 @@ def salvar_quarteirao(db_path, payload, base_dir=None):
                         "DELETE FROM registro_geografico_quarteiroes WHERE id_quarteirao=?",
                         (origem_row["id_quarteirao"],),
                     )
+            _marcar_atualizacao_sistema(conn, id_quarteirao, usuario_id, usuario_nome, agora)
         return quarteirao(db_path, loc_id, q, base_dir)
     finally:
         conn.close()
 
 
-def limpar_quarteirao(db_path, payload, base_dir=None):
+def limpar_quarteirao(db_path, payload, base_dir=None, usuario_id=None, usuario_nome=None):
     ensure_schema(db_path, base_dir)
     conn = db_core.connect(db_path)
     try:
@@ -1571,6 +1609,7 @@ def limpar_quarteirao(db_path, payload, base_dir=None):
                 "UPDATE registro_geografico_quarteiroes SET atualizado_em=? WHERE id_quarteirao=?",
                 (agora, row_q["id_quarteirao"]),
             )
+            _marcar_atualizacao_sistema(conn, row_q["id_quarteirao"], usuario_id, usuario_nome, agora)
         dados = quarteirao(db_path, loc_id, q, base_dir)
         dados["removidos"] = len(ids)
         return dados
@@ -1627,7 +1666,7 @@ def excluir_quarteirao(db_path, payload, base_dir=None):
         conn.close()
 
 
-def salvar(db_path, id_imovel, payload, base_dir=None):
+def salvar(db_path, id_imovel, payload, base_dir=None, usuario_id=None, usuario_nome=None):
     ensure_schema(db_path, base_dir)
     conn = db_core.connect(db_path)
     try:
@@ -1663,6 +1702,7 @@ def salvar(db_path, id_imovel, payload, base_dir=None):
                 ),
             )
             _salvar_agentes_e_busca(conn, id_imovel, dados, payload.get("agentes_ids") or [])
+            _marcar_atualizacao_sistema(conn, id_quarteirao, usuario_id, usuario_nome, agora)
         return obter(db_path, id_imovel, base_dir)
     finally:
         conn.close()
