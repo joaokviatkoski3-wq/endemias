@@ -17,6 +17,19 @@
 .rg-filters button{height:36px;width:100%;justify-content:center;}
 .rg-filters .rg-check-list{height:94px;max-height:94px;align-content:start;}
 .rg-filter-card{margin-bottom:16px;}
+.rg-acomp-filters{display:grid;grid-template-columns:260px repeat(5,minmax(145px,1fr));gap:10px;align-items:end;}
+.rg-acomp-filters .f-g{min-width:0;}
+.rg-acomp-filters input,.rg-acomp-filters select:not([multiple]),.rg-acomp-filters button{height:36px;}
+.rg-acomp-filters button{width:100%;justify-content:center;}
+.rg-acomp-progress{height:7px;min-width:90px;border-radius:999px;background:var(--surface2);overflow:hidden;border:1px solid var(--border);}
+.rg-acomp-progress span{display:block;height:100%;background:#0f766e;border-radius:inherit;}
+.rg-acomp-status{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:900;white-space:nowrap;}
+.rg-acomp-status.atualizado{background:#dcfce7;color:#166534;}
+.rg-acomp-status.parcial{background:#fef3c7;color:#92400e;}
+.rg-acomp-status.pendente{background:#fee2e2;color:#991b1b;}
+.rg-acomp-status.sem_cadastro{background:#e2e8f0;color:#475569;}
+.rg-acomp-agentes{max-width:260px;white-space:normal;line-height:1.35;}
+.rg-acomp-actions{display:flex;gap:5px;justify-content:flex-end;}
 .rg-type{display:inline-flex;align-items:center;justify-content:center;min-width:32px;border-radius:999px;background:#e0f2fe;color:#075985;font-size:11px;font-weight:900;padding:2px 7px;}
 .rg-type.tb{background:#fee2e2;color:#991b1b;}
 .rg-type.pe{background:#dcfce7;color:#166534;}
@@ -108,10 +121,10 @@
 .rg-map-label::before{display:none;}
 .rg-map-popup{font-size:12px;line-height:1.4;}
 .rg-map-popup strong{font-size:14px;}
-@media(max-width:1400px){.rg-filters{grid-template-columns:repeat(2,minmax(220px,1fr));}.rg-print-card{grid-template-columns:1fr;}}
+@media(max-width:1400px){.rg-filters,.rg-acomp-filters{grid-template-columns:repeat(2,minmax(220px,1fr));}.rg-print-card{grid-template-columns:1fr;}}
 @media(max-width:1050px){.rg-map-grid{grid-template-columns:1fr;height:auto;}.rg-map-side{max-height:none;overflow:visible;padding-right:0;}.rg-map-shell,#rg-mapa{height:62vh;min-height:420px;}}
 @media(max-width:1050px){.rg-batch-grid{grid-template-columns:1fr;}.rg-batch-pairs{max-height:360px;}}
-@media(max-width:850px){.rg-edit-meta{grid-template-columns:1fr;}.rg-map-kpis{grid-template-columns:1fr;}.rg-filters{grid-template-columns:1fr;}.rg-batch-form{grid-template-columns:1fr;}}
+@media(max-width:850px){.rg-edit-meta{grid-template-columns:1fr;}.rg-map-kpis{grid-template-columns:1fr;}.rg-filters,.rg-acomp-filters{grid-template-columns:1fr;}.rg-batch-form{grid-template-columns:1fr;}}
 </style>{% endblock %}
 
 {% block content %}
@@ -128,6 +141,7 @@
   <button class="rg-tab active" type="button" data-rg-tab="consulta">Consulta</button>
   <button class="rg-tab" type="button" data-rg-tab="edicao">Edição</button>
   <button class="rg-tab" type="button" data-rg-tab="lotes">Edição em lotes</button>
+  <button class="rg-tab" type="button" data-rg-tab="acompanhamento">Acompanhamento</button>
   <button class="rg-tab" type="button" data-rg-tab="impressao">Impressão</button>
   <button class="rg-tab" type="button" data-rg-tab="mapa">Mapa / Análise</button>
 </div>
@@ -170,6 +184,44 @@
       <table>
         <thead><tr><th>Localidade</th><th>Q.</th><th>Lado</th><th>Número</th><th>Seq.</th><th>Tipo</th><th>Cond.</th><th>Atualização</th><th>Agentes</th></tr></thead>
         <tbody id="rg-body"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="rg-panel" id="rg-panel-acompanhamento" hidden>
+  <div class="filter-card rg-filter-card">
+    <div class="filter-body open">
+      <div class="rg-acomp-filters">
+        <div class="f-g"><label>Localidades</label><select id="rg-acomp-localidade" multiple data-multi-picker data-placeholder="Todas">{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Situação</label><select id="rg-acomp-situacao"><option value="">Todas</option><option value="atualizado">Atualizados</option><option value="parcial">Parciais</option><option value="pendente">Pendentes</option><option value="sem_cadastro">Sem cadastro</option></select></div>
+        <div class="f-g"><label>Agente de campo</label><select id="rg-acomp-agente"><option value="">Todos</option>{% for agente in opcoes.agentes %}<option value="{{ agente.id_agente }}">{{ agente.nome }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Atualizado de</label><input type="date" id="rg-acomp-d-ini"></div>
+        <div class="f-g"><label>Até</label><input type="date" id="rg-acomp-d-fim"></div>
+        <div class="f-g"><label>Pesquisa</label><input type="search" id="rg-acomp-busca" placeholder="Localidade ou quarteirão"></div>
+        <button class="btn btn-outline" type="button" id="rg-acomp-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="rg-kpis">
+    <div class="rg-kpi"><div class="rg-kpi-label">Quarteirões</div><div class="rg-kpi-value" id="rg-acomp-total">0</div></div>
+    <div class="rg-kpi"><div class="rg-kpi-label">Atualizados</div><div class="rg-kpi-value" id="rg-acomp-atualizados">0</div></div>
+    <div class="rg-kpi"><div class="rg-kpi-label">Parciais</div><div class="rg-kpi-value" id="rg-acomp-parciais">0</div></div>
+    <div class="rg-kpi"><div class="rg-kpi-label">Pendentes</div><div class="rg-kpi-value" id="rg-acomp-pendentes">0</div></div>
+    <div class="rg-kpi"><div class="rg-kpi-label">Sem cadastro</div><div class="rg-kpi-value" id="rg-acomp-sem-cadastro">0</div></div>
+    <div class="rg-kpi"><div class="rg-kpi-label">Concluído</div><div class="rg-kpi-value" id="rg-acomp-percentual">0%</div></div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/registro_geografico.svg" alt="" class="icon-svg"> Situação por quarteirão</div>
+      <span class="table-info" id="rg-acomp-info"></span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Situação</th><th>Localidade</th><th>Q.</th><th>Progresso</th><th>Última atualização</th><th>Agentes de campo</th><th>Imóveis reais</th><th>População</th><th></th></tr></thead>
+        <tbody id="rg-acomp-body"></tbody>
       </table>
     </div>
   </div>
@@ -353,6 +405,7 @@
 const rgTipos = {{ opcoes.tipos|tojson }};
 const rgLocalidades = {{ opcoes.localidades|tojson }};
 const rgState = { registros: [], q: null, limiteTodos: false };
+const rgAcompState = { carregado: false };
 const rgBatchState = { preview: null, payload: null };
 const rgLogradouroSuggestState = { timer: null, input: null, items: [] };
 const rgMapState = {
@@ -853,6 +906,65 @@ function rgBatchLimpar(){
   rgSetText('rg-lote-status', '');
   rgEl('rg-lote-preview-body').innerHTML = '<tr><td colspan="6" class="empty">Sem prévia.</td></tr>';
 }
+function rgAcompParams(){
+  const p = new URLSearchParams();
+  Array.from(rgEl('rg-acomp-localidade').selectedOptions).map(opt => opt.value).filter(Boolean).forEach(v => p.append('localidade', v));
+  [['situacao','rg-acomp-situacao'],['agente','rg-acomp-agente'],['d_ini','rg-acomp-d-ini'],['d_fim','rg-acomp-d-fim'],['busca','rg-acomp-busca']].forEach(([key,id]) => {
+    const value = rgEl(id).value.trim();
+    if(value) p.set(key, value);
+  });
+  return p.toString();
+}
+function rgAcompSituacao(situacao){
+  return ({atualizado:'Atualizado', parcial:'Parcial', pendente:'Pendente', sem_cadastro:'Sem cadastro'})[situacao] || situacao;
+}
+function rgAcompData(data){
+  if(!data) return '-';
+  const [ano, mes, dia] = String(data).split('-');
+  return ano && mes && dia ? `${dia}/${mes}/${ano}` : data;
+}
+function rgAcompRender(data){
+  const totais = data.totais || {};
+  [['total','quarteiroes'],['atualizados','atualizado'],['parciais','parcial'],['pendentes','pendente'],['sem-cadastro','sem_cadastro']].forEach(([id,key]) => {
+    rgEl(`rg-acomp-${id}`).textContent = rgFmt(totais[key]);
+  });
+  rgEl('rg-acomp-percentual').textContent = `${rgFmt(totais.percentual_concluido)}%`;
+  const rows = data.registros || [];
+  rgEl('rg-acomp-info').textContent = `${rgFmt(rows.length)} quarteirão(ões)`;
+  rgEl('rg-acomp-body').innerHTML = rows.map(row => `
+    <tr>
+      <td><span class="rg-acomp-status ${rgEscape(row.situacao)}">${rgEscape(rgAcompSituacao(row.situacao))}</span></td>
+      <td>${rgEscape(row.localidade)}</td>
+      <td>${rgEscape(row.quarteirao)}</td>
+      <td><div style="display:flex;align-items:center;gap:7px;"><span>${rgFmt(row.atualizadas)} / ${rgFmt(row.linhas)}</span><div class="rg-acomp-progress" title="${rgFmt(row.percentual)}%"><span style="width:${Math.max(0, Math.min(100, Number(row.percentual || 0)))}%"></span></div></div></td>
+      <td>${rgEscape(rgAcompData(row.ultima_atualizacao))}</td>
+      <td class="rg-acomp-agentes">${rgEscape(row.agentes || '-')}</td>
+      <td>${rgFmt(row.imoveis_reais)}</td>
+      <td>${rgFmt(row.populacao_aproximada)}</td>
+      <td><div class="rg-acomp-actions">
+        <button class="btn btn-icon" type="button" title="Abrir na edição" onclick="rgAcompAbrirEdicao(${Number(row.id_localidade)}, '${rgEscape(row.quarteirao_raw)}')"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button>
+        <button class="btn btn-icon" type="button" title="Imprimir quarteirão" onclick="rgAcompImprimir(${Number(row.id_localidade)}, '${rgEscape(row.quarteirao_raw)}')"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"></button>
+      </div></td>
+    </tr>`).join('') || '<tr><td colspan="9" class="empty">Nenhum quarteirão encontrado.</td></tr>';
+}
+async function rgAcompCarregar(){
+  rgEl('rg-acomp-info').textContent = 'Carregando...';
+  const resp = await fetch('/api/registro-geografico/acompanhamento?' + rgAcompParams());
+  const data = await rgJson(resp, 'Erro ao carregar acompanhamento.');
+  rgAcompRender(data);
+  rgAcompState.carregado = true;
+}
+async function rgAcompAbrirEdicao(idLocalidade, quarteirao){
+  rgAtivarAba('edicao');
+  rgEl('rg-ed-localidade').value = String(idLocalidade);
+  await rgCarregarSelectQuarteiroes(idLocalidade, 'rg-ed-quarteirao');
+  rgEl('rg-ed-quarteirao').value = String(quarteirao);
+  await rgCarregarQuarteirao();
+}
+function rgAcompImprimir(idLocalidade, quarteirao){
+  const params = new URLSearchParams({localidade:String(idLocalidade), quarteirao:String(quarteirao), mini_mapa:'1'});
+  window.open(`/registro-geografico/imprimir?${params.toString()}`, '_blank');
+}
 function rgParams(){
   const p = new URLSearchParams();
   Array.from(rgEl('rg-localidade').selectedOptions).map(opt => opt.value).filter(Boolean).forEach(v => p.append('localidade', v));
@@ -1287,16 +1399,18 @@ async function rgExcluirQuarteirao(){
     rgEl('rg-ed-limpar-quarteirao').disabled = false;
   }
 }
-document.querySelectorAll('.rg-tab').forEach(btn => btn.addEventListener('click', () => {
-  document.querySelectorAll('.rg-tab').forEach(b => b.classList.toggle('active', b === btn));
-  document.querySelectorAll('.rg-panel').forEach(p => p.hidden = p.id !== `rg-panel-${btn.dataset.rgTab}`);
-  if(btn.dataset.rgTab === 'mapa'){
+function rgAtivarAba(nome){
+  document.querySelectorAll('.rg-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.rgTab === nome));
+  document.querySelectorAll('.rg-panel').forEach(panel => panel.hidden = panel.id !== `rg-panel-${nome}`);
+  if(nome === 'mapa'){
     rgMapInit().catch(err => {
       rgEl('rg-map-loading').textContent = err.message;
       rgSetText('rg-map-status', err.message);
     });
   }
-}));
+  if(nome === 'acompanhamento') rgAcompCarregar().catch(err => { rgEl('rg-acomp-info').textContent = err.message; });
+}
+document.querySelectorAll('.rg-tab').forEach(btn => btn.addEventListener('click', () => rgAtivarAba(btn.dataset.rgTab)));
 rgEl('rg-lote-detectar').addEventListener('click', () => rgBatchDetectar().catch(err => {
   rgSetText('rg-lote-pares-info', err.message);
 }));
@@ -1340,6 +1454,8 @@ rgEl('rg-atualizar').addEventListener('click', () => {
   rgState.limiteTodos = false;
   rgCarregar().catch(err => alert(err.message));
 });
+rgEl('rg-acomp-atualizar').addEventListener('click', () => rgAcompCarregar().catch(err => { rgEl('rg-acomp-info').textContent = err.message; }));
+rgEl('rg-acomp-busca').addEventListener('keydown', ev => { if(ev.key === 'Enter') rgAcompCarregar().catch(err => { rgEl('rg-acomp-info').textContent = err.message; }); });
 rgEl('rg-carregar-todos').addEventListener('click', () => {
   rgState.limiteTodos = true;
   rgCarregar().catch(err => alert(err.message));

@@ -947,6 +947,120 @@ def totais(conn, filtros=None):
     return data
 
 
+def acompanhamento_atualizacoes(db_path, filtros=None, base_dir=None):
+    ensure_schema(db_path, base_dir)
+    filtros = filtros or {}
+    conn = db_core.connect(db_path)
+    try:
+        where = []
+        params = []
+        localidades = filtros.get("localidade") or []
+        if not isinstance(localidades, (list, tuple)):
+            localidades = [localidades]
+        localidades = [str(item).strip() for item in localidades if str(item or "").strip()]
+        if localidades:
+            where.append(f"q.id_localidade IN ({','.join('?' for _ in localidades)})")
+            params.extend(localidades)
+        busca = _norm(filtros.get("busca"))
+        if busca:
+            where.append("(LOWER(q.localidade) LIKE ? OR LOWER(q.quarteirao) LIKE ?)")
+            params.extend([f"%{busca}%", f"%{busca}%"])
+        if filtros.get("agente"):
+            where.append(
+                """EXISTS (
+                    SELECT 1
+                      FROM registro_geografico_imoveis ia_i
+                      JOIN registro_geografico_imovel_agentes ia_a ON ia_a.id_imovel=ia_i.id_imovel
+                     WHERE ia_i.id_quarteirao=q.id_quarteirao
+                       AND ia_i.data_atualizacao IS NOT NULL
+                       AND COALESCE(ia_i.tipo,'') <> 'REF'
+                       AND ia_a.id_agente=?
+                )"""
+            )
+            params.append(filtros["agente"])
+
+        having = []
+        having_params = []
+        if filtros.get("d_ini"):
+            having.append("MAX(CASE WHEN COALESCE(i.tipo,'') <> 'REF' THEN i.data_atualizacao END) >= ?")
+            having_params.append(filtros["d_ini"])
+        if filtros.get("d_fim"):
+            having.append("MAX(CASE WHEN COALESCE(i.tipo,'') <> 'REF' THEN i.data_atualizacao END) <= ?")
+            having_params.append(filtros["d_fim"])
+
+        where_sql = " WHERE " + " AND ".join(where) if where else ""
+        having_sql = " HAVING " + " AND ".join(having) if having else ""
+        rows = conn.execute(
+            f"""
+            SELECT q.id_localidade,
+                   q.localidade,
+                   q.quarteirao,
+                   SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') <> 'REF' THEN 1 ELSE 0 END) AS linhas,
+                   SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') <> 'REF' AND i.data_atualizacao IS NOT NULL THEN 1 ELSE 0 END) AS atualizadas,
+                   MAX(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') <> 'REF' THEN i.data_atualizacao END) AS ultima_atualizacao,
+                   GROUP_CONCAT(DISTINCT CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') <> 'REF' AND i.data_atualizacao IS NOT NULL THEN a.nome END) AS agentes,
+                   SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') <> 'REF' THEN CASE WHEN COALESCE(i.condominio,0)>0 THEN i.condominio ELSE 1 END ELSE 0 END) AS imoveis_reais,
+                   SUM(CASE WHEN i.id_imovel IS NOT NULL AND i.tipo='R' THEN CASE WHEN COALESCE(i.condominio,0)>0 THEN i.condominio ELSE 1 END ELSE 0 END) AS residencias_reais
+              FROM registro_geografico_quarteiroes q
+              LEFT JOIN registro_geografico_imoveis i ON i.id_quarteirao=q.id_quarteirao
+              LEFT JOIN registro_geografico_imovel_agentes ia ON ia.id_imovel=i.id_imovel
+              LEFT JOIN agentes a ON a.id_agente=ia.id_agente
+              {where_sql}
+             GROUP BY q.id_quarteirao, q.id_localidade, q.localidade, q.quarteirao
+             {having_sql}
+             ORDER BY q.localidade, CAST(q.quarteirao AS INTEGER), q.quarteirao
+            """,
+            params + having_params,
+        ).fetchall()
+    finally:
+        conn.close()
+
+    registros = []
+    for row in rows:
+        item = dict(row)
+        linhas = item["linhas"] or 0
+        atualizadas = item["atualizadas"] or 0
+        if not linhas:
+            situacao = "sem_cadastro"
+        elif not atualizadas:
+            situacao = "pendente"
+        elif atualizadas == linhas:
+            situacao = "atualizado"
+        else:
+            situacao = "parcial"
+        if filtros.get("situacao") and filtros["situacao"] != situacao:
+            continue
+        residencias = item["residencias_reais"] or 0
+        registros.append({
+            "id_localidade": item["id_localidade"],
+            "localidade": item["localidade"],
+            "quarteirao": _quarteirao_display(item["quarteirao"]),
+            "quarteirao_raw": item["quarteirao"],
+            "situacao": situacao,
+            "linhas": linhas,
+            "atualizadas": atualizadas,
+            "percentual": round((atualizadas / linhas) * 100) if linhas else 0,
+            "ultima_atualizacao": item["ultima_atualizacao"] or "",
+            "agentes": item["agentes"] or "",
+            "imoveis_reais": item["imoveis_reais"] or 0,
+            "populacao_aproximada": round(residencias * MEDIA_PESSOAS_POR_RESIDENCIA),
+        })
+
+    totais_status = {"atualizado": 0, "parcial": 0, "pendente": 0, "sem_cadastro": 0}
+    for item in registros:
+        totais_status[item["situacao"]] += 1
+    elegiveis = len(registros) - totais_status["sem_cadastro"]
+    concluidos = totais_status["atualizado"]
+    return {
+        "registros": registros,
+        "totais": {
+            "quarteiroes": len(registros),
+            **totais_status,
+            "percentual_concluido": round((concluidos / elegiveis) * 100) if elegiveis else 0,
+        },
+    }
+
+
 def resumo_mapa(db_path, base_dir=None):
     ensure_schema(db_path, base_dir)
     conn = db_core.connect(db_path)

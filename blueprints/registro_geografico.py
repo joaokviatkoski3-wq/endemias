@@ -58,6 +58,26 @@ def api_listar():
         return jsonify({"erro": "Erro interno do servidor."}), 500
 
 
+@bp.route("/api/registro-geografico/acompanhamento")
+@login_required
+def api_acompanhamento():
+    try:
+        filtros = {
+            "localidade": request.args.getlist("localidade") or request.args.get("localidade", ""),
+            "situacao": request.args.get("situacao", ""),
+            "agente": request.args.get("agente", ""),
+            "d_ini": request.args.get("d_ini", ""),
+            "d_fim": request.args.get("d_fim", ""),
+            "busca": request.args.get("busca", ""),
+        }
+        return jsonify(rg_core.acompanhamento_atualizacoes(_db_path(), filtros, _base_dir()))
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    except Exception:
+        logging.exception("Erro ao carregar acompanhamento do Registro Geografico")
+        return jsonify({"erro": "Erro interno do servidor."}), 500
+
+
 @bp.route("/api/registro-geografico", methods=["POST"])
 @login_required
 @nivel_min("operador")

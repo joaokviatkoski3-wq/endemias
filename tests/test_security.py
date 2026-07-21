@@ -4277,6 +4277,7 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("rg-panel-consulta", html)
         self.assertIn("rg-panel-edicao", html)
         self.assertIn("rg-panel-lotes", html)
+        self.assertIn("rg-panel-acompanhamento", html)
         self.assertIn("Edição em lotes", html)
         self.assertIn("REF - Referencia do quarteirao", html)
         self.assertIn("/api/registro-geografico/logradouros-similares", html)
@@ -4285,6 +4286,8 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("/api/registro-geografico/lote/aplicar", html)
         self.assertIn("/api/registro-geografico/quarteirao/limpar", html)
         self.assertIn("/api/registro-geografico/quarteirao/excluir", html)
+        self.assertIn("/api/registro-geografico/acompanhamento", html)
+        self.assertIn("function rgAcompCarregar", html)
         self.assertIn("rg-panel-mapa", html)
         self.assertIn('id="rg-mapa"', html)
         self.assertIn('id="rg-map-detail-title"', html)
@@ -4373,6 +4376,23 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("imoveis_reais", primeiro)
         self.assertIn("populacao_aproximada", primeiro)
         self.assertIn("tipos", primeiro)
+
+    def test_api_registro_geografico_acompanhamento(self):
+        client = _client_logado()
+        resp = client.get("/api/registro-geografico/acompanhamento")
+
+        self.assertEqual(resp.status_code, 200)
+        dados = resp.get_json()
+        self.assertIn("totais", dados)
+        self.assertIn("registros", dados)
+        self.assertIsInstance(dados["registros"], list)
+        for campo in ("quarteiroes", "atualizado", "parcial", "pendente", "sem_cadastro"):
+            self.assertIn(campo, dados["totais"])
+        if dados["registros"]:
+            primeiro = dados["registros"][0]
+            self.assertIn("situacao", primeiro)
+            self.assertIn("atualizadas", primeiro)
+            self.assertIn("linhas", primeiro)
 
     def test_api_registro_geografico_retorna_registros_e_salva_edicao(self):
         client = _client_logado("admin")
