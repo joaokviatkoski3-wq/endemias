@@ -327,15 +327,15 @@ def _por_agente(conn, fonte, filtros):
     id_expr = f"{alias}.{fonte['id_col']}"
     rows = conn.execute(
         f"""
-        SELECT ag.nome AS agente,
+        SELECT COALESCE(NULLIF(ag.nome_completo,''), ag.nome) AS agente,
                COUNT(DISTINCT {id_expr}) AS registros
           FROM {fonte['tabela']} {alias}
           JOIN {fonte['agente_table']} pa ON pa.{fonte['agente_fk']}={id_expr}
           JOIN agentes ag ON ag.id_agente=pa.id_agente
           {fonte.get('joins') or ''}
          WHERE {where}
-         GROUP BY ag.nome
-         ORDER BY registros DESC, ag.nome
+         GROUP BY ag.id_agente, ag.nome, ag.nome_completo
+         ORDER BY registros DESC, agente
         """,
         params,
     ).fetchall()

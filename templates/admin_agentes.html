@@ -24,7 +24,7 @@
 {% block content %}
 <div class="page-header">
   <h1><span class="icon"><img src="/static/icons/usuarios.svg" alt="" class="icon-svg"></span> Controle de Pessoal</h1>
-  <div class="sub">Cadastro operacional dos agentes, situação no setor e dados administrativos</div>
+  <div class="sub">Cadastro dos servidores, situação no setor e dados administrativos</div>
 </div>
 
 {% if erro %}
@@ -37,7 +37,7 @@
   <main class="pessoal-card">
     <div class="pessoal-hd">
       <div>
-        <div class="pessoal-title">Agentes cadastrados</div>
+        <div class="pessoal-title">Servidores cadastrados</div>
         <div class="agent-meta">{{ agentes|length }} registro(s) exibido(s)</div>
       </div>
       <form method="GET" action="/admin/agentes" class="filters-inline">
@@ -60,7 +60,7 @@
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         <thead>
           <tr style="background:var(--surface2);border-bottom:2px solid var(--border);">
-            <th style="padding:10px 12px;text-align:left;">Agente</th>
+            <th style="padding:10px 12px;text-align:left;">Servidor</th>
             <th style="padding:10px 8px;text-align:left;">Matricula</th>
             <th style="padding:10px 8px;text-align:left;">Cargo</th>
             <th style="padding:10px 8px;text-align:center;">Situacao</th>
@@ -72,6 +72,7 @@
             <td style="padding:10px 12px;" class="agent-main-cell">
               <input class="inline-input" value="{{ a.nome_completo or a.nome }}" onchange="editarAgente({{ a.id_agente }}, 'nome_completo', this.value)">
               <div class="agent-meta">
+                Kobo: {{ a.nome }}<br>
                 Inicio: <input class="inline-input" style="display:inline-block;width:120px;padding:3px 6px;" type="date" value="{{ a.data_inicio or '' }}" onchange="editarAgente({{ a.id_agente }}, 'data_inicio', this.value)">
                 Saida: <input class="inline-input" style="display:inline-block;width:120px;padding:3px 6px;" type="date" value="{{ a.data_saida or '' }}" onchange="editarAgente({{ a.id_agente }}, 'data_saida', this.value)">
               </div>
@@ -98,17 +99,18 @@
 
   <aside>
     <section class="pessoal-card">
-      <div class="pessoal-hd"><div class="pessoal-title">Novo agente</div></div>
+      <div class="pessoal-hd"><div class="pessoal-title">Novo servidor</div></div>
       <div class="pessoal-body">
         <form method="POST" action="/admin/agentes/criar" class="form-grid">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="f-g full"><label>Nome completo</label><input class="inline-input" name="nome_completo" required></div>
+          <div class="f-g full"><label>Nome usado no Kobo</label><input class="inline-input" name="nome" placeholder="Opcional; se vazio, usa o nome completo"></div>
           <div class="f-g"><label>Matricula</label><input class="inline-input" name="matricula"></div>
           <div class="f-g"><label>Cargo</label><input class="inline-input" name="cargo" placeholder="ACE"></div>
           <div class="f-g"><label>Inicio</label><input class="inline-input" type="date" name="data_inicio"></div>
           <div class="f-g"><label>Situacao</label><select class="inline-select" name="ativo"><option value="1">Ativo</option><option value="0">Inativo</option></select></div>
           <div class="f-g full"><label>Observacoes</label><textarea class="inline-input" name="observacoes" rows="3"></textarea></div>
-          <button class="btn btn-primary full" type="submit"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Adicionar agente</button>
+          <button class="btn btn-primary full" type="submit"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Adicionar servidor</button>
         </form>
       </div>
     </section>
@@ -128,7 +130,7 @@ async function editarAgente(id, campo, valor) {
     toast(dados.erro || 'Erro ao atualizar agente.', 'error');
     return;
   }
-  toast('Agente atualizado.', 'success');
+  toast('Servidor atualizado.', 'success');
 }
 </script>
 {% endblock %}

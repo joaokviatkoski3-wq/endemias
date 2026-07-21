@@ -49,9 +49,9 @@ def exportar_visitas():
                    CASE v.agua_sanepar WHEN 1 THEN 'Sim' WHEN 0 THEN 'Não' ELSE NULL END,
                    v.observacoes,
                    (SELECT GROUP_CONCAT(nome, ', ') FROM (
-                        SELECT DISTINCT a.nome AS nome FROM visita_agentes va
+                        SELECT DISTINCT COALESCE(NULLIF(a.nome_completo,''), a.nome) AS nome FROM visita_agentes va
                         JOIN agentes a ON a.id_agente=va.id_agente
-                        WHERE va.id_visita=v.id_visita ORDER BY a.nome
+                        WHERE va.id_visita=v.id_visita ORDER BY nome
                    )) AS agentes,
                    COALESCE((SELECT SUM(d.inspecionado) FROM depositos_inspecionados d WHERE d.id_visita=v.id_visita),0),
                    COALESCE((SELECT SUM(d.eliminado) FROM depositos_inspecionados d WHERE d.id_visita=v.id_visita),0),
@@ -164,7 +164,7 @@ def exportar_laboratorio():
                    rl.aegypt_larvas, rl.aegypt_pupas, rl.aegypt_exuvias, rl.aegypt_adulto,
                    rl.albopictus_larvas, rl.albopictus_pupas, rl.albopictus_exuvias, rl.albopictus_adulto,
                    rl.outra_larvas, rl.outra_pupas, rl.outra_exuvias, rl.outra_adulto,
-                   GROUP_CONCAT(DISTINCT a.nome) as agentes
+                   GROUP_CONCAT(DISTINCT COALESCE(NULLIF(a.nome_completo,''), a.nome)) as agentes
             FROM resultados_laboratorio rl
             JOIN coletas c ON c.id_coleta=rl.id_coleta
             JOIN visitas v ON v.id_visita=c.id_visita

@@ -29,6 +29,20 @@ def _has_column(conn, table, column):
     return any(row["name"] == column for row in rows)
 
 
+def _servidores_relatorio():
+    conn = _get_db()
+    try:
+        return [dict(row) for row in conn.execute(
+            """SELECT nome,
+                      COALESCE(NULLIF(nome_completo,''), nome) AS nome_exibicao
+                 FROM agentes
+                WHERE COALESCE(ativo,1)=1
+                ORDER BY nome_exibicao, nome"""
+        ).fetchall()]
+    finally:
+        conn.close()
+
+
 def _total_tratamentos_depositos_setor(conn, d_ini, d_fim):
     if not _has_column(conn, "tratamentos", "qtd_depositos_tratados"):
         return 0
@@ -542,7 +556,7 @@ def _resumo_ovitrampas_setor(d_ini, d_fim):
                    e.observacoes,
                    g.nome AS grupo,
                    g.localidades AS localidades,
-                   GROUP_CONCAT(DISTINCT ag.nome) AS agentes
+                   GROUP_CONCAT(DISTINCT COALESCE(NULLIF(ag.nome_completo,''), ag.nome)) AS agentes
               FROM {ovitrampas_core.CAL_EVENTOS_TABLE} e
               LEFT JOIN {ovitrampas_core.CAL_GRUPOS_TABLE} g ON g.id_grupo=e.id_grupo
               LEFT JOIN {ovitrampas_core.CAL_AGENTES_TABLE} ea ON ea.id_evento=e.id_evento
@@ -676,7 +690,7 @@ def _producao_agentes_setor(d_ini, d_fim):
             joins = fonte.get("joins") or ""
             rows = conn.execute(
                 f"""
-                SELECT ag.nome AS agente,
+                SELECT COALESCE(NULLIF(ag.nome_completo,''), ag.nome) AS agente,
                        COUNT(DISTINCT {id_expr}) AS registros,
                        GROUP_CONCAT(DISTINCT {data_expr}) AS dias,
                        GROUP_CONCAT(DISTINCT COALESCE({localidade_expr}, '')) AS localidades
@@ -685,7 +699,7 @@ def _producao_agentes_setor(d_ini, d_fim):
                   JOIN agentes ag ON ag.id_agente=pa.id_agente
                   {joins}
                  WHERE {data_expr} BETWEEN ? AND ?
-                 GROUP BY ag.nome
+                 GROUP BY ag.id_agente, ag.nome, ag.nome_completo
                 """,
                 (d_ini, d_fim),
             ).fetchall()
@@ -1108,6 +1122,11 @@ def _obter_dados(nome, d_ini, d_fim):
                 WHERE v.data BETWEEN ? AND ? AND ag.nome <> ?
                 GROUP BY ag.id_agente
             ) medias""", [d_ini, d_fim, nome]).fetchone()
+        agente_row = conn.execute(
+            "SELECT COALESCE(NULLIF(nome_completo,''), nome) AS nome_exibicao FROM agentes WHERE nome=?",
+            (nome,),
+        ).fetchone()
+        agente_exibicao = agente_row["nome_exibicao"] if agente_row else nome
     finally:
         conn.close()
 
@@ -1168,7 +1187,7 @@ def _obter_dados(nome, d_ini, d_fim):
         }
 
     return {
-        "agente": nome, "d_ini": d_ini, "d_fim": d_fim,
+        "agente": agente_exibicao, "d_ini": d_ini, "d_fim": d_fim,
         "totais": totais_d,
         "por_tipo": [dict(r) for r in por_tipo],
         "por_loc": [dict(r) for r in por_loc],
@@ -1227,9 +1246,14 @@ def _duracao_dict(row):
 @bp.route("/relatorio-agente")
 @login_required
 def page():
+    servidores = _servidores_relatorio()
+    agente_sel = request.args.get("agente", "")
+    selecionado = next((item for item in servidores if item["nome"] == agente_sel), None)
     return render_template(
         "relatorio_agente.html",
-        agente_sel=request.args.get("agente", ""),
+        agente_sel=agente_sel,
+        agente_sel_nome=(selecionado or {}).get("nome_exibicao", agente_sel),
+        servidores=servidores,
         d_ini=request.args.get("d_ini", utils_core.data_n_dias(30)),
         d_fim=request.args.get("d_fim", utils_core.hoje()),
     )

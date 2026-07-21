@@ -122,18 +122,18 @@
 <div class="agent-workspace">
   <aside class="agent-panel">
     <div class="agent-panel-hd">
-      <div class="agent-panel-title">Agentes</div>
-      <div class="agent-count"><span id="agentes-visiveis">{{ agentes_glob|length }}</span>/{{ agentes_glob|length }}</div>
+      <div class="agent-panel-title">Servidores</div>
+      <div class="agent-count"><span id="agentes-visiveis">{{ servidores|length }}</span>/{{ servidores|length }}</div>
     </div>
     <div class="agent-search">
-      <input type="search" id="agente_busca" placeholder="Buscar agente">
+      <input type="search" id="agente_busca" placeholder="Buscar servidor">
     </div>
     <div class="agent-grid" id="agente-pills" aria-label="Lista de agentes">
-      {% for a in agentes_glob %}
+      {% for a in servidores %}
       <button type="button"
-        class="agent-pill {{ 'active' if a == agente_sel }}"
-        data-agent="{{ a }}"
-        onclick="selecionarAgente(this.dataset.agent)">{{ a }}</button>
+        class="agent-pill {{ 'active' if a.nome == agente_sel }}"
+        data-agent="{{ a.nome }}"
+        onclick="selecionarAgente(this.dataset.agent)">{{ a.nome_exibicao }}</button>
       {% endfor %}
     </div>
   </aside>
@@ -141,8 +141,8 @@
   <main class="agent-main">
     <div class="agent-period-panel">
       <div class="selected-agent-note">
-        Agente selecionado
-        <strong id="agente-selecionado-label">{{ agente_sel or 'Nenhum agente selecionado' }}</strong>
+        Servidor selecionado
+        <strong id="agente-selecionado-label">{{ agente_sel_nome or 'Nenhum servidor selecionado' }}</strong>
       </div>
       <div class="periodo-inputs">
         <div class="f-g">
@@ -192,14 +192,14 @@ function atualizarSelecaoVisual() {
     p.classList.toggle('active', p.dataset.agent === agenteAtual);
   });
   const label = document.getElementById('agente-selecionado-label');
-  if (label) label.textContent = agenteAtual || 'Nenhum agente selecionado';
+  if (label) label.textContent = document.querySelector('.agent-pill.active')?.textContent?.trim() || 'Nenhum servidor selecionado';
 }
 
 function filtrarAgentes() {
   const termo = (document.getElementById('agente_busca')?.value || '').toLowerCase().trim();
   let visiveis = 0;
   document.querySelectorAll('.agent-pill').forEach(p => {
-    const mostrar = !termo || (p.dataset.agent || '').toLowerCase().includes(termo);
+    const mostrar = !termo || (p.dataset.agent || '').toLowerCase().includes(termo) || p.textContent.toLowerCase().includes(termo);
     p.hidden = !mostrar;
     if (mostrar) visiveis += 1;
   });
