@@ -390,6 +390,18 @@ def api_doentes_estoque_item(id_movimento):
     return jsonify({"ok": True, **esporotricose_core.estoque_medicacao(_db_path())})
 
 
+@bp.route("/api/esporotricose/doentes/estoque/automatico/<int:id_entrega>", methods=["PUT"])
+@login_required
+def api_doentes_estoque_automatico(id_entrega):
+    try:
+        esporotricose_core.salvar_observacao_movimento_automatico(
+            _db_path(), id_entrega, (request.json or {}).get("observacoes"),
+        )
+    except esporotricose_core.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 404
+    return jsonify({"ok": True, **esporotricose_core.estoque_medicacao(_db_path())})
+
+
 @bp.route("/api/esporotricose/doentes/<int:id_animal>", methods=["GET", "PUT", "DELETE"])
 @login_required
 def api_doente(id_animal):

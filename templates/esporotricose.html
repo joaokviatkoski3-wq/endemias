@@ -980,14 +980,14 @@ function renderEspEstoque(d) {
 function renderEstoqueMovimentoLinha(m, tipos) {
   if (m.automatico) {
     return `
-      <tr data-est-auto-id="${Number(m.id_entrega)}">
+      <tr data-est-auto-id="${Number(m.id_entrega)}" data-editando="0">
         <td>${fmtDate(m.data) || '-'}</td>
         <td><span class="esporo-tag bad">${escapeHtml(m.tipo || 'Saída automática')}</span></td>
         <td><strong>${fmtNum(m.quantidade || 0)}</strong></td>
         <td>${escapeHtml(m.descricao || '-')}</td>
         <td>${escapeHtml(m.origem || '-')}</td>
-        <td>${escapeHtml(m.observacoes || '-')}</td>
-        <td><span class="muted">Automático</span></td>
+        <td><span class="est-auto-read">${escapeHtml(m.observacoes || '-')}</span><input class="est-auto-edit" id="est-auto-obs-${m.id_entrega}" value="${escapeHtml(m.observacoes || '')}" aria-label="Observação da saída automática" style="display:none;"></td>
+        <td><div class="esporo-doente-actions"><button class="btn btn-sm btn-outline est-auto-read" type="button" onclick="editarObservacaoEstoqueAutomatico(${Number(m.id_entrega)})">Editar observação</button><button class="btn btn-sm btn-primary est-auto-edit" style="display:none;" type="button" onclick="salvarObservacaoEstoqueAutomatico(${Number(m.id_entrega)})">Salvar</button><button class="btn btn-sm btn-ghost est-auto-edit" style="display:none;" type="button" onclick="cancelarObservacaoEstoqueAutomatico(${Number(m.id_entrega)})">Cancelar</button></div></td>
       </tr>`;
   }
   return `
@@ -1014,6 +1014,20 @@ function editarEstoqueLinha(id) {
   setEstoqueLinhaEditando(id, true);
 }
 function cancelarEstoqueLinha(id) {
+  renderEspEstoque(espEstoqueDados || {movimentos: [], totais: {}});
+}
+function setObservacaoEstoqueAutomaticoEditando(id, editando) {
+  const tr = document.querySelector(`tr[data-est-auto-id="${id}"]`);
+  if (!tr) return;
+  tr.dataset.editando = editando ? '1' : '0';
+  tr.querySelectorAll('.est-auto-read').forEach(el => el.style.display = editando ? 'none' : '');
+  tr.querySelectorAll('.est-auto-edit').forEach(el => el.style.display = editando ? '' : 'none');
+  if (editando) tr.querySelector(`#est-auto-obs-${id}`)?.focus();
+}
+function editarObservacaoEstoqueAutomatico(id) {
+  setObservacaoEstoqueAutomaticoEditando(id, true);
+}
+function cancelarObservacaoEstoqueAutomatico(id) {
   renderEspEstoque(espEstoqueDados || {movimentos: [], totais: {}});
 }
 function limparEstoqueForm() {
@@ -1058,6 +1072,20 @@ async function salvarEstoqueLinha(id) {
     if (!resp.ok) throw new Error(data.erro || 'Erro ao atualizar movimento.');
     await carregarEspEstoque();
     toast('Movimento atualizado.', 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+async function salvarObservacaoEstoqueAutomatico(id) {
+  try {
+    const observacoes = document.getElementById(`est-auto-obs-${id}`).value;
+    const resp = await fetch(`/api/esporotricose/doentes/estoque/automatico/${id}`, {
+      method:'PUT',
+      headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+      body:JSON.stringify({observacoes}),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.erro || 'Erro ao atualizar observação.');
+    await carregarEspEstoque();
+    toast('Observação atualizada.', 'success');
   } catch(e) { toast(e.message, 'error'); }
 }
 async function excluirEstoqueMovimento(id) {

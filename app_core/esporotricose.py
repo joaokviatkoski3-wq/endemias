@@ -1612,6 +1612,22 @@ def excluir_estoque_medicacao(db_path, id_movimento):
         conn.close()
 
 
+def salvar_observacao_movimento_automatico(db_path, id_entrega, observacoes):
+    """Atualiza apenas a observação de uma saída criada por entrega de receita."""
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        cur = conn.execute(
+            f"UPDATE {DOENTES_ENTREGAS_TABLE} SET observacoes=? WHERE id_entrega=?",
+            (_text(observacoes), id_entrega),
+        )
+        if cur.rowcount == 0:
+            raise ValidationError("Entrega vinculada ao estoque não encontrada.")
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def listar_doentes_csv(db_path, filtros=None):
     filtros = filtros or {}
     conn = db_core.connect(db_path)
