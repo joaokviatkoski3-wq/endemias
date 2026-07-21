@@ -130,7 +130,7 @@
       <button class="lab-tab" data-ovi-lab-tab="historico" onclick="abrirAbaOviLab('historico')">Histórico</button>
     </div>
     <section id="ovi-lab-pendentes">
-      <div class="lab-toolbar"><strong>Rotas aguardando leitura</strong><button class="btn btn-ghost btn-sm" type="button" onclick="carregarOviLab(false)"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
+      <div class="lab-toolbar"><strong>Diários aguardando leitura</strong><button class="btn btn-ghost btn-sm" type="button" onclick="carregarOviLab(false)"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
       <div class="ovi-lab-list" id="ovi-lab-list"><div class="lab-empty"><div class="spinner"></div></div></div>
     </section>
     <section id="ovi-lab-historico" hidden>
@@ -308,7 +308,7 @@ async function carregarOviLab(historico=false){
       document.getElementById('ovi-lab-pending-count').textContent=data.total||0;
     }
     if(!lotes.length){
-      area.innerHTML=`<div class="lab-empty">${historico?'Nenhuma leitura de ovitrampa concluída.':'Nenhuma rota aguardando leitura.'}</div>`;
+      area.innerHTML=`<div class="lab-empty">${historico?'Nenhuma leitura de ovitrampa concluída.':'Nenhum diário aguardando leitura.'}</div>`;
       return;
     }
     area.innerHTML=lotes.map(lote=>renderOviLabCard(lote,historico)).join('');
@@ -371,11 +371,11 @@ async function salvarRascunhoOviLab(id,historico=false){
 }
 async function concluirOviLab(id){
   clearTimeout(oviLabSaveTimers.get(id));oviLabSaveTimers.delete(id);
-  if(!confirm('Concluir a leitura desta rota? Revise as quantidades antes de confirmar.'))return;
+  if(!confirm('Concluir a leitura deste diário? Revise as quantidades antes de confirmar.'))return;
   try{
     const data=await apiPost(`/api/laboratorio/ovitrampas/lotes/${id}/concluir`,{leituras:leiturasOviLab(id)});
     if(data.erro)throw new Error(data.erro);
-    toast('Leitura da rota concluída.','success');
+    toast('Leitura do diário concluída.','success');
     await carregarOviLab(false);
   }catch(err){toast(err.message||'Não foi possível concluir a leitura.','error');}
 }

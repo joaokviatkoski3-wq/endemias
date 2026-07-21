@@ -400,7 +400,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
 
     <div class="chart-card">
       <div class="chart-hd">
-        <div class="chart-title"><img src="/static/icons/ovitrampa.svg" alt="" class="icon-svg"> Rota selecionada</div>
+        <div class="chart-title"><img src="/static/icons/ovitrampa.svg" alt="" class="icon-svg"> Diário selecionado</div>
         <span class="table-info" id="ovi-dia-info">Selecione um diário.</span>
       </div>
       <div class="ovi-diario-actions">
@@ -453,7 +453,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
     <button class="btn btn-outline" type="button" id="ovi-lab-admin-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
   </div>
   <div class="ovi-grid">
-    <div class="ovi-kpi"><div class="ovi-kpi-label">Rotas exibidas</div><div class="ovi-kpi-value" id="ovi-lab-admin-rotas">0</div></div>
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Diários exibidos</div><div class="ovi-kpi-value" id="ovi-lab-admin-rotas">0</div></div>
     <div class="ovi-kpi"><div class="ovi-kpi-label">Armadilhas</div><div class="ovi-kpi-value" id="ovi-lab-admin-armadilhas">0</div></div>
     <div class="ovi-kpi"><div class="ovi-kpi-label">Positivas</div><div class="ovi-kpi-value" id="ovi-lab-admin-positivas">0</div></div>
     <div class="ovi-kpi"><div class="ovi-kpi-label">Ovos</div><div class="ovi-kpi-value" id="ovi-lab-admin-ovos">0</div></div>
@@ -945,7 +945,7 @@ function renderDiarioRota(data){
       <td><input type="text" value="${oviEscape(r.telefone_responsavel || '')}" data-ovi-dia-tel="${oviEscape(r.ovitrampa_id)}"></td>
       <td>
         <div class="ovi-route-buttons">
-          <button class="btn btn-outline btn-sm ovi-drag-handle" type="button" data-ovi-dia-drag="${oviEscape(r.ovitrampa_id)}" title="Segure e arraste para ordenar" aria-label="Mover ovitrampa ${oviEscape(r.ovitrampa_id)} na rota" aria-grabbed="false"><img src="/static/icons/menu.svg" alt="" class="icon-svg" draggable="false"></button>
+          <button class="btn btn-outline btn-sm ovi-drag-handle" type="button" data-ovi-dia-drag="${oviEscape(r.ovitrampa_id)}" title="Segure e arraste para ordenar" aria-label="Mover ovitrampa ${oviEscape(r.ovitrampa_id)} no diário" aria-grabbed="false"><img src="/static/icons/menu.svg" alt="" class="icon-svg" draggable="false"></button>
           <button class="btn btn-outline btn-sm" type="button" data-ovi-dia-salvar-arm="${oviEscape(r.ovitrampa_id)}">Salvar</button>
           <button class="btn btn-ghost btn-sm" type="button" data-ovi-dia-remover="${oviEscape(r.ovitrampa_id)}">Remover</button>
         </div>
@@ -1433,7 +1433,7 @@ async function carregarOviLaboratorio(){
     document.getElementById('ovi-lab-admin-armadilhas').textContent=oviFmt.format(somar('armadilhas'));
     document.getElementById('ovi-lab-admin-positivas').textContent=oviFmt.format(somar('positivas'));
     document.getElementById('ovi-lab-admin-ovos').textContent=oviFmt.format(somar('ovos'));
-    document.getElementById('ovi-lab-admin-info').textContent=`${oviFmt.format(oviLabAdminLotes.length)} rota(s)`;
+    document.getElementById('ovi-lab-admin-info').textContent=`${oviFmt.format(oviLabAdminLotes.length)} diário(s)`;
     if(!oviLabAdminLotes.length){area.innerHTML='<div class="empty">Nenhuma leitura nesta situação.</div>';return;}
     area.innerHTML=oviLabAdminLotes.map(lote=>`<article class="ovi-lab-admin-card ${lote.status==='enviado_conta_ovos'?'enviado':''}" id="ovi-lab-admin-card-${lote.id_lote}">
       <div class="ovi-lab-admin-head">
@@ -1464,7 +1464,7 @@ async function marcarOviLabEnviado(id){
   if(!confirm(`Confirmar que todas as leituras de ${lote.diario_nome} foram lançadas no Conta Ovos? Após isso o laboratorista não poderá mais corrigi-las.`))return;
   try{
     await oviFetchJson(`/api/ovitrampas/laboratorio/${id}/enviado`,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},body:'{}'});
-    toast('Rota marcada como enviada ao Conta Ovos.','success');
+    toast('Diário marcado como enviado ao Conta Ovos.','success');
     await carregarOviLaboratorio();
   }catch(err){toast('Erro ao confirmar envio: '+err.message,'error');}
 }
