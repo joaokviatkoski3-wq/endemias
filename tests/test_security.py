@@ -2456,7 +2456,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('data-kobo-asset="BRI"', html)
         self.assertIn('data-kobo-asset="AMOSTRA_ANIMAIS"', html)
         self.assertIn('data-kobo-asset="RECOLHIMENTO"', html)
-        self.assertIn("BRI - Borrifamento residual", html)
+        self.assertIn("BRI_ Borrifamento residual", html)
         self.assertIn('src="/static/js/processar.js?v=', html)
         self.assertNotIn("configurarAcoesProcessamento()", html)
         self.assertNotIn("onclick=", html)
@@ -2743,6 +2743,15 @@ class MainPagesSmokeTests(unittest.TestCase):
     def test_agenda_exibe_aniversario_de_servidor_automaticamente(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            evento_manual = client.post("/api/agenda/eventos", json={
+                "titulo": "Compromisso preservado",
+                "tipo": "reuniao",
+                "data_inicio": "2026-07-20T09:00",
+                "data_fim": "2026-07-20T10:00",
+                "dia_inteiro": False,
+                "recorrencia": "nenhuma",
+            })
+            self.assertEqual(evento_manual.status_code, 201)
             conn = sqlite3.connect(db_path)
             try:
                 conn.execute(
@@ -2763,6 +2772,10 @@ class MainPagesSmokeTests(unittest.TestCase):
             self.assertEqual(evento["start"], "2026-07-16")
             self.assertEqual(evento["extendedProps"]["fonte"], "ANIVERSARIO")
             self.assertFalse(evento["extendedProps"]["atividade_externa"])
+            self.assertTrue(any(
+                item["title"] == "Compromisso preservado"
+                for item in resp.get_json()
+            ))
 
     def test_agenda_expande_eventos_recorrentes_na_janela(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -400,6 +400,8 @@ def _eventos_periodo(inicio, fim):
 
     range_inicio = _parse_data_evento(inicio[:10], True)
     range_fim = _parse_data_evento(fim[:10], True)
+    range_inicio_data = range_inicio.date()
+    range_fim_data = range_fim.date()
     rows = bh.q(
         """SELECT * FROM agenda_eventos
            WHERE (
@@ -434,9 +436,9 @@ def _eventos_periodo(inicio, fim):
                 nascimento = date.fromisoformat(str(servidor["data_nascimento"])[:10])
             except (TypeError, ValueError):
                 continue
-            for ano in range(range_inicio.year, range_fim.year + 1):
+            for ano in range(range_inicio_data.year, range_fim_data.year + 1):
                 dia = date(ano, nascimento.month, min(nascimento.day, monthrange(ano, nascimento.month)[1]))
-                if range_inicio <= dia <= range_fim:
+                if range_inicio_data <= dia <= range_fim_data:
                     eventos.append(_auto_evento(
                         dia.isoformat(),
                         "ANIVERSARIO",
