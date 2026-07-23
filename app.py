@@ -278,6 +278,7 @@ def create_app(config_overrides=None):
     laboratorio_lancamentos_core.ensure_schema(flask_app.config["DB_PATH"])
     ovitrampas_laboratorio_core.ensure_schema(flask_app.config["DB_PATH"])
     meteorologia_core.ensure_schema(flask_app.config["DB_PATH"])
+    sqlite_maintenance.ensure_schema_compatibility(flask_app.config["DB_PATH"])
     sqlite_maintenance.ensure_performance_indexes(flask_app.config["DB_PATH"])
     csrf.init_app(flask_app)
 

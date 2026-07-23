@@ -1,8 +1,10 @@
+import hashlib
 import json
 import os
 import shutil
 import sqlite3
 import threading
+import uuid
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -28,8 +30,44 @@ def _timestamp(agora=None):
 
 
 def _backup_name(prefixo, agora=None):
-    seguro = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in prefixo).strip("_")
+    seguro = _prefixo_seguro(prefixo)
     return f"{seguro or 'endemias'}_{_timestamp(agora)}.db"
+
+
+def _prefixo_seguro(prefixo):
+    return "".join(
+        c if c.isalnum() or c in ("-", "_") else "_"
+        for c in str(prefixo or "")
+    ).strip("_")
+
+
+def _caminho_disponivel(destino, nome):
+    caminho = Path(destino) / nome
+    if not caminho.exists():
+        return caminho
+    for numero in range(1, 1000):
+        candidato = caminho.with_name(f"{caminho.stem}_{numero:02d}{caminho.suffix}")
+        if not candidato.exists():
+            return candidato
+    raise RuntimeError("Nao foi possivel reservar um nome para o backup.")
+
+
+def calcular_sha256(path, chunk_size=1024 * 1024):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as arquivo:
+        for bloco in iter(lambda: arquivo.read(chunk_size), b""):
+            digest.update(bloco)
+    return digest.hexdigest()
+
+
+def _ler_metadados(backup_path):
+    meta_path = Path(backup_path).with_suffix(Path(backup_path).suffix + ".json")
+    if not meta_path.exists():
+        return {}
+    try:
+        return json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
 
 
 def validar_backup(db_path):
@@ -81,13 +119,7 @@ def listar_backups(destino_dir, limite=5):
     backups = []
     for arquivo in selecionados:
         stat = arquivo.stat()
-        meta = {}
-        meta_path = arquivo.with_suffix(arquivo.suffix + ".json")
-        if meta_path.exists():
-            try:
-                meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                meta = {}
+        meta = _ler_metadados(arquivo)
         backups.append({
             "arquivo": str(arquivo),
             "nome": arquivo.name,
@@ -95,6 +127,7 @@ def listar_backups(destino_dir, limite=5):
             "modificado_em": datetime.fromtimestamp(stat.st_mtime).isoformat(),
             "integridade": meta.get("integridade", "nao verificado"),
             "validado": meta.get("validado"),
+            "sha256": meta.get("sha256"),
         })
     return backups
 
@@ -131,41 +164,62 @@ def criar_backup_sqlite(db_path, destino_dir=None, prefixo="endemias", manter=10
 
     destino = Path(destino_dir) if destino_dir else origem.parent / "backups"
     destino.mkdir(parents=True, exist_ok=True)
-    backup_path = destino / _backup_name(prefixo, agora)
+    backup_path = _caminho_disponivel(destino, _backup_name(prefixo, agora))
+    temporario = destino / f".{backup_path.name}.{uuid.uuid4().hex}.tmp"
 
-    origem_conn = sqlite3.connect(str(origem))
     try:
-        origem_conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
-        backup_conn = sqlite3.connect(str(backup_path))
+        origem_conn = sqlite3.connect(str(origem), timeout=30)
         try:
-            origem_conn.backup(backup_conn)
+            origem_conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
+            backup_conn = sqlite3.connect(str(temporario))
+            try:
+                origem_conn.backup(backup_conn)
+            finally:
+                backup_conn.close()
         finally:
-            backup_conn.close()
+            origem_conn.close()
+
+        valido = True
+        integridade = "nao verificado"
+        if validar:
+            valido, integridade = validar_backup(temporario)
+            if not valido:
+                raise RuntimeError(
+                    f"Backup invalido: integrity_check retornou {integridade!r}"
+                )
+
+        tamanho_bytes = temporario.stat().st_size
+        sha256 = calcular_sha256(temporario)
+        os.replace(temporario, backup_path)
+        removidos = limpar_backups_antigos(
+            destino,
+            manter=manter,
+            padrao=f"{_prefixo_seguro(prefixo) or 'endemias'}_*.db",
+        )
+        info = {
+            "arquivo": str(backup_path),
+            "origem": str(origem),
+            "tamanho_bytes": tamanho_bytes,
+            "integridade": integridade,
+            "validado": valido,
+            "sha256": sha256,
+            "removidos": [str(p) for p in removidos],
+            "criado_em": datetime.now().isoformat(),
+        }
+
+        meta_path = backup_path.with_suffix(backup_path.suffix + ".json")
+        meta_temp = meta_path.with_name(f".{meta_path.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            meta_temp.write_text(
+                json.dumps(info, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            os.replace(meta_temp, meta_path)
+        finally:
+            meta_temp.unlink(missing_ok=True)
+        return info
     finally:
-        origem_conn.close()
-
-    valido = True
-    integridade = "nao verificado"
-    if validar:
-        valido, integridade = validar_backup(backup_path)
-        if not valido:
-            backup_path.unlink(missing_ok=True)
-            raise RuntimeError(f"Backup invalido: integrity_check retornou {integridade!r}")
-
-    removidos = limpar_backups_antigos(destino, manter=manter, padrao=f"{prefixo}_*.db")
-    info = {
-        "arquivo": str(backup_path),
-        "origem": str(origem),
-        "tamanho_bytes": backup_path.stat().st_size,
-        "integridade": integridade,
-        "validado": valido,
-        "removidos": [str(p) for p in removidos],
-        "criado_em": datetime.now().isoformat(),
-    }
-
-    meta_path = backup_path.with_suffix(backup_path.suffix + ".json")
-    meta_path.write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")
-    return info
+        temporario.unlink(missing_ok=True)
 
 
 def restaurar_backup_sqlite(db_path, backup_path, validar=True):
@@ -180,6 +234,12 @@ def restaurar_backup_sqlite(db_path, backup_path, validar=True):
             raise RuntimeError(f"Backup invalido: integrity_check retornou {integridade!r}")
     else:
         integridade = "nao verificado"
+
+    meta = _ler_metadados(origem)
+    hash_esperado = meta.get("sha256")
+    hash_calculado = calcular_sha256(origem) if hash_esperado else None
+    if hash_esperado and hash_calculado != hash_esperado:
+        raise RuntimeError("Backup alterado ou corrompido: hash SHA-256 divergente.")
 
     destino.parent.mkdir(parents=True, exist_ok=True)
     if destino.exists():
@@ -207,5 +267,6 @@ def restaurar_backup_sqlite(db_path, backup_path, validar=True):
         "arquivo": str(origem),
         "destino": str(destino),
         "integridade": integridade,
+        "sha256": hash_calculado,
         "restaurado_em": datetime.now().isoformat(),
     }

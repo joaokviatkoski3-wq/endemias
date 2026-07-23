@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+import uuid
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +21,17 @@ def _timestamp():
 
 def _zip_name():
     return f"{ZIP_PREFIXO}_{_timestamp()}.zip"
+
+
+def _zip_path_disponivel(destino):
+    caminho = Path(destino) / _zip_name()
+    if not caminho.exists():
+        return caminho
+    for numero in range(1, 1000):
+        candidato = caminho.with_name(f"{caminho.stem}_{numero:02d}{caminho.suffix}")
+        if not candidato.exists():
+            return candidato
+    raise RuntimeError("Nao foi possivel reservar um nome para o backup completo.")
 
 
 def _iso_mtime(path):
@@ -149,7 +161,8 @@ def criar_backup_completo(
     destino.mkdir(parents=True, exist_ok=True)
     raiz = Path(raiz or Path.cwd())
     db_path = Path(db_path or raiz / "endemias.db")
-    zip_path = destino / _zip_name()
+    zip_path = _zip_path_disponivel(destino)
+    zip_temporario = destino / f".{zip_path.name}.{uuid.uuid4().hex}.tmp"
 
     arquivos_locais = [
         (Path(secret_key_path or raiz / "secret.key"), "configuracao/secret.key"),
@@ -186,13 +199,14 @@ def criar_backup_completo(
         banco_meta = banco_backup.with_suffix(banco_backup.suffix + ".json")
         manifesto["integridade_banco"] = banco_info.get("integridade")
 
-        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
+        with zipfile.ZipFile(zip_temporario, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
             tamanho = _zip_write_file(zf, banco_backup, f"banco/{banco_backup.name}")
             manifesto["incluidos"].append({
                 "tipo": "arquivo",
                 "origem": str(db_path),
                 "destino_zip": f"banco/{banco_backup.name}",
                 "bytes": tamanho,
+                "sha256": banco_info.get("sha256"),
                 "observacao": "Backup SQLite consistente e validado",
             })
             if banco_meta.exists():
@@ -235,12 +249,29 @@ def criar_backup_completo(
             zf.writestr("LEIA_RESTAURACAO.txt", restauracao)
             zf.writestr("manifesto_backup.json", json.dumps(manifesto, ensure_ascii=False, indent=2))
 
+        try:
+            with zipfile.ZipFile(zip_temporario) as zf:
+                arquivo_corrompido = zf.testzip()
+                if arquivo_corrompido:
+                    raise RuntimeError(
+                        f"Backup completo corrompido no arquivo {arquivo_corrompido}."
+                    )
+                manifesto_validado = json.loads(
+                    zf.read("manifesto_backup.json").decode("utf-8")
+                )
+                if manifesto_validado.get("tipo") != "backup_completo_endemias":
+                    raise RuntimeError("Manifesto do backup completo invalido.")
+            os.replace(zip_temporario, zip_path)
+        finally:
+            zip_temporario.unlink(missing_ok=True)
+
     removidos = _limpar_zips_antigos(destino, manter)
     return {
         "arquivo": str(zip_path),
         "nome": zip_path.name,
         "tamanho_bytes": zip_path.stat().st_size,
         "integridade_banco": manifesto["integridade_banco"],
+        "sha256": backup_core.calcular_sha256(zip_path),
         "removidos": removidos,
         "manifesto": manifesto,
     }

@@ -86,6 +86,66 @@ class SQLiteResilienceTests(unittest.TestCase):
 
 
 class SQLiteMaintenanceTests(unittest.TestCase):
+    def test_schema_compatibility_preserves_historico_and_removes_obsolete_fk(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "legacy.db"
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.executescript(
+                    """
+                    CREATE TABLE focos_positivos (
+                        id_foco TEXT PRIMARY KEY
+                    );
+                    CREATE TABLE focos_historico (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        id_foco TEXT NOT NULL REFERENCES focos_positivos(id_foco),
+                        campo TEXT NOT NULL,
+                        valor_ant TEXT,
+                        valor_novo TEXT,
+                        usuario TEXT,
+                        alterado_em TEXT NOT NULL
+                    );
+                    CREATE INDEX idx_hist_foco ON focos_historico(id_foco);
+                    CREATE INDEX idx_hist_em ON focos_historico(alterado_em);
+                    INSERT INTO focos_positivos(id_foco) VALUES ('foco-existente');
+                    INSERT INTO focos_historico
+                        (id_foco, campo, valor_novo, usuario, alterado_em)
+                    VALUES
+                        ('foco-existente', 'status', 'pendente', 'Joao', '2026-07-01'),
+                        ('foco-removido', 'status', 'arquivada', 'Joao', '2026-07-02');
+                    """
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            primeira = sqlite_maintenance.ensure_schema_compatibility(db_path)
+            segunda = sqlite_maintenance.ensure_schema_compatibility(db_path)
+
+            conn = db_core.connect(db_path)
+            try:
+                self.assertEqual(primeira, ["focos_historico_sem_fk"])
+                self.assertEqual(segunda, [])
+                self.assertEqual(
+                    conn.execute("SELECT COUNT(*) FROM focos_historico").fetchone()[0],
+                    2,
+                )
+                self.assertEqual(
+                    conn.execute(
+                        "SELECT id_foco FROM focos_historico ORDER BY id"
+                    ).fetchall()[1][0],
+                    "foco-removido",
+                )
+                self.assertEqual(
+                    conn.execute(
+                        "PRAGMA foreign_key_list(focos_historico)"
+                    ).fetchall(),
+                    [],
+                )
+                self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
+            finally:
+                conn.close()
+
     def test_ensure_performance_indexes_is_idempotent_and_removes_duplicate(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "maintenance.db"
