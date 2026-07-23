@@ -4,7 +4,7 @@ from datetime import datetime
 from functools import wraps
 from urllib.parse import urljoin, urlparse
 
-from flask import current_app, redirect, render_template, request, session, url_for
+from flask import current_app, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app_core import db as db_core
@@ -92,6 +92,8 @@ def nivel_min(nivel, usuario_atual_func):
             if not usuario:
                 return redirect(url_for("auth.login"))
             if ordem.get(usuario["nivel"], 0) < ordem.get(nivel, 999):
+                if request.path.startswith("/api/"):
+                    return jsonify({"erro": "Você não tem permissão para realizar esta ação."}), 403
                 return render_template("403.html"), 403
             return view(*args, **kwargs)
         return wrapper

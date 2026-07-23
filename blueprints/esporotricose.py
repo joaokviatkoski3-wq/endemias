@@ -15,6 +15,7 @@ import pymupdf
 from werkzeug.utils import secure_filename
 
 from app_core import auth as auth_core
+from app_core import blueprint_helpers as bh
 from app_core import db as db_core
 from app_core import esporotricose as esporotricose_core
 from app_core import utils as utils_core
@@ -22,6 +23,7 @@ from app_core import utils as utils_core
 
 bp = Blueprint("esporotricose", __name__)
 login_required = auth_core.login_required
+nivel_min = bh.nivel_min
 
 ANEXO_IMAGEM_EXTENSOES = {".png", ".jpg", ".jpeg", ".jfif", ".webp"}
 ANEXO_EXTENSOES = {".pdf", *ANEXO_IMAGEM_EXTENSOES, ".doc", ".docx", ".xls", ".xlsx"}
@@ -107,6 +109,7 @@ def page():
 
 @bp.route("/esporotricose/doentes/novo")
 @login_required
+@nivel_min("operador")
 def page_doente_novo():
     animal = None
     origem_visita = None
@@ -145,6 +148,7 @@ def page_doente_detalhe(id_animal):
 
 @bp.route("/esporotricose/doentes/<int:id_animal>/editar")
 @login_required
+@nivel_min("operador")
 def page_doente_editar(id_animal):
     animal = esporotricose_core.obter_doente(_db_path(), id_animal)
     if not animal:
@@ -214,6 +218,7 @@ def api_animais():
 
 @bp.route("/api/esporotricose/visitas/<id_visita>", methods=["PUT"])
 @login_required
+@nivel_min("operador")
 def api_atualizar_visita(id_visita):
     try:
         dados = request.get_json(silent=True) or {}
@@ -229,6 +234,7 @@ def api_atualizar_visita(id_visita):
 
 @bp.route("/api/esporotricose/animais/<id_animal>", methods=["PUT"])
 @login_required
+@nivel_min("operador")
 def api_atualizar_animal(id_animal):
     try:
         dados = request.get_json(silent=True) or {}
@@ -244,6 +250,7 @@ def api_atualizar_animal(id_animal):
 
 @bp.route("/api/esporotricose/animais/<id_animal>/buscas-ferido", methods=["POST"])
 @login_required
+@nivel_min("operador")
 def api_salvar_busca_ferido(id_animal):
     try:
         busca = esporotricose_core.salvar_busca_ferido(
@@ -349,31 +356,43 @@ def download_doentes_csv():
     )
 
 
-@bp.route("/api/esporotricose/doentes/status", methods=["GET", "POST"])
+@bp.route("/api/esporotricose/doentes/status")
 @login_required
 def api_doentes_status():
-    if request.method == "POST":
-        nome = (request.json or {}).get("nome")
-        if not nome:
-            return jsonify({"erro": "Informe o status."}), 400
-        esporotricose_core.salvar_status_doente(_db_path(), nome)
     return jsonify({"registros": esporotricose_core.status_doentes(_db_path())})
 
 
-@bp.route("/api/esporotricose/doentes/estoque", methods=["GET", "POST"])
+@bp.route("/api/esporotricose/doentes/status", methods=["POST"])
+@login_required
+@nivel_min("operador")
+def api_criar_status_doente():
+    nome = (request.json or {}).get("nome")
+    if not nome:
+        return jsonify({"erro": "Informe o status."}), 400
+    esporotricose_core.salvar_status_doente(_db_path(), nome)
+    return jsonify({"registros": esporotricose_core.status_doentes(_db_path())})
+
+
+@bp.route("/api/esporotricose/doentes/estoque")
 @login_required
 def api_doentes_estoque():
-    if request.method == "POST":
-        try:
-            id_movimento = esporotricose_core.salvar_estoque_medicacao(_db_path(), request.json or {})
-        except esporotricose_core.ValidationError as exc:
-            return jsonify({"erro": str(exc)}), 400
-        return jsonify({"ok": True, "id_movimento": id_movimento, **esporotricose_core.estoque_medicacao(_db_path())}), 201
     return jsonify(esporotricose_core.estoque_medicacao(_db_path()))
+
+
+@bp.route("/api/esporotricose/doentes/estoque", methods=["POST"])
+@login_required
+@nivel_min("operador")
+def api_criar_movimento_estoque():
+    try:
+        id_movimento = esporotricose_core.salvar_estoque_medicacao(_db_path(), request.json or {})
+    except esporotricose_core.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    return jsonify({"ok": True, "id_movimento": id_movimento, **esporotricose_core.estoque_medicacao(_db_path())}), 201
 
 
 @bp.route("/api/esporotricose/doentes/estoque/<int:id_movimento>", methods=["PUT", "DELETE"])
 @login_required
+@nivel_min("operador")
 def api_doentes_estoque_item(id_movimento):
     if request.method == "DELETE":
         try:
@@ -392,6 +411,7 @@ def api_doentes_estoque_item(id_movimento):
 
 @bp.route("/api/esporotricose/doentes/estoque/automatico/<int:id_entrega>", methods=["PUT"])
 @login_required
+@nivel_min("operador")
 def api_doentes_estoque_automatico(id_entrega):
     try:
         esporotricose_core.salvar_observacao_movimento_automatico(
@@ -402,9 +422,19 @@ def api_doentes_estoque_automatico(id_entrega):
     return jsonify({"ok": True, **esporotricose_core.estoque_medicacao(_db_path())})
 
 
-@bp.route("/api/esporotricose/doentes/<int:id_animal>", methods=["GET", "PUT", "DELETE"])
+@bp.route("/api/esporotricose/doentes/<int:id_animal>")
 @login_required
 def api_doente(id_animal):
+    item = esporotricose_core.obter_doente(_db_path(), id_animal)
+    if not item:
+        return jsonify({"erro": "Animal não encontrado."}), 404
+    return jsonify(item)
+
+
+@bp.route("/api/esporotricose/doentes/<int:id_animal>", methods=["PUT", "DELETE"])
+@login_required
+@nivel_min("operador")
+def api_alterar_doente(id_animal):
     if request.method == "DELETE":
         try:
             resultado = esporotricose_core.excluir_doente(_db_path(), id_animal)
@@ -427,6 +457,7 @@ def api_doente(id_animal):
 
 @bp.route("/api/esporotricose/doentes", methods=["POST"])
 @login_required
+@nivel_min("operador")
 def api_criar_doente():
     try:
         id_animal = esporotricose_core.salvar_doente(_db_path(), request.json or {})
@@ -437,6 +468,7 @@ def api_criar_doente():
 
 @bp.route("/api/esporotricose/doentes/<int:id_animal>/receitas", methods=["POST"])
 @login_required
+@nivel_min("operador")
 def api_salvar_receita_doente(id_animal):
     try:
         id_receita = esporotricose_core.salvar_receita_doente(_db_path(), id_animal, request.json or {})
@@ -447,6 +479,7 @@ def api_salvar_receita_doente(id_animal):
 
 @bp.route("/api/esporotricose/doentes/receitas/<int:id_receita>", methods=["DELETE"])
 @login_required
+@nivel_min("operador")
 def api_excluir_receita_doente(id_receita):
     try:
         id_animal = esporotricose_core.excluir_receita_doente(_db_path(), id_receita)
@@ -457,6 +490,7 @@ def api_excluir_receita_doente(id_receita):
 
 @bp.route("/api/esporotricose/doentes/receitas/<int:id_receita>", methods=["PUT"])
 @login_required
+@nivel_min("operador")
 def api_atualizar_receita_doente(id_receita):
     try:
         id_animal = esporotricose_core.atualizar_receita_doente(_db_path(), id_receita, request.json or {})
@@ -467,6 +501,7 @@ def api_atualizar_receita_doente(id_receita):
 
 @bp.route("/api/esporotricose/doentes/receitas/<int:id_receita>/entregas", methods=["POST"])
 @login_required
+@nivel_min("operador")
 def api_salvar_entrega_doente(id_receita):
     try:
         id_entrega = esporotricose_core.salvar_entrega_doente(_db_path(), id_receita, request.json or {})
@@ -477,6 +512,7 @@ def api_salvar_entrega_doente(id_receita):
 
 @bp.route("/api/esporotricose/doentes/entregas/<int:id_entrega>", methods=["PUT", "DELETE"])
 @login_required
+@nivel_min("operador")
 def api_excluir_entrega_doente(id_entrega):
     if request.method == "PUT":
         try:
@@ -488,14 +524,22 @@ def api_excluir_entrega_doente(id_entrega):
     return jsonify({"ok": True})
 
 
-@bp.route("/api/esporotricose/doentes/<int:id_animal>/anexos", methods=["GET", "POST"])
+@bp.route("/api/esporotricose/doentes/<int:id_animal>/anexos")
 @login_required
 def api_doente_anexos(id_animal):
     animal = esporotricose_core.obter_doente(_db_path(), id_animal)
     if not animal:
         return jsonify({"erro": "Animal não encontrado."}), 404
-    if request.method == "GET":
-        return jsonify({"anexos": animal.get("anexos", [])})
+    return jsonify({"anexos": animal.get("anexos", [])})
+
+
+@bp.route("/api/esporotricose/doentes/<int:id_animal>/anexos", methods=["POST"])
+@login_required
+@nivel_min("operador")
+def api_salvar_anexos_doente(id_animal):
+    animal = esporotricose_core.obter_doente(_db_path(), id_animal)
+    if not animal:
+        return jsonify({"erro": "Animal não encontrado."}), 404
     arquivos = request.files.getlist("arquivos")
     if not arquivos:
         return jsonify({"erro": "Nenhum arquivo enviado."}), 400
@@ -551,6 +595,7 @@ def api_doente_anexos(id_animal):
 
 @bp.route("/api/esporotricose/doentes/anexos/<int:id_anexo>", methods=["DELETE"])
 @login_required
+@nivel_min("operador")
 def api_excluir_anexo_doente(id_anexo):
     conn = db_core.connect(_db_path())
     try:
