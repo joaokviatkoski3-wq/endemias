@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from app_core import db as db_core
 from app_core import ovitrampas as ovitrampas_core
@@ -103,49 +103,7 @@ def listar_para_laboratorista(db_path, historico=False, hoje=None):
             (_data(hoje or date.today().isoformat()), *statuses),
         ).fetchall()
         registros = [_lote_dict(row) for row in rows]
-        resultado = {"registros": registros, "total": len(registros)}
-        if not historico:
-            resultado["proximas"] = proximas_leituras_semana(db_path, hoje=hoje)
-        return resultado
-    finally:
-        conn.close()
-
-
-def proximas_leituras_semana(db_path, hoje=None):
-    hoje_data = date.fromisoformat(_data(hoje or date.today().isoformat()))
-    fim_semana = hoje_data + timedelta(days=6 - hoje_data.weekday())
-    if fim_semana <= hoje_data:
-        return []
-    conn = db_core.connect(db_path)
-    try:
-        ovitrampas_core.ensure_schema(conn)
-        eventos = conn.execute(
-            """SELECT e.id_evento, e.data, e.movimento, e.ciclo,
-                      g.localidades AS grupo_localidades
-                 FROM ovitrampas_calendario_eventos e
-                 JOIN ovitrampas_calendario_grupos g ON g.id_grupo=e.id_grupo
-                WHERE e.movimento IN ('troca','retirada')
-                  AND date(e.data) > date(?) AND date(e.data) <= date(?)
-                ORDER BY e.data, e.id_evento""",
-            (hoje_data.isoformat(), fim_semana.isoformat()),
-        ).fetchall()
-        diarios = _diarios_com_armadilhas(conn)
-        proximas = []
-        for evento in eventos:
-            localidades = _localidades(evento["grupo_localidades"])
-            for diario in diarios:
-                if localidades.intersection(diario["localidades"]):
-                    proximas.append({
-                        "id_evento": evento["id_evento"],
-                        "id_diario": diario["id_diario"],
-                        "diario_nome": diario["nome"],
-                        "data_movimento": evento["data"],
-                        "movimento": evento["movimento"],
-                        "movimento_label": "Troca" if evento["movimento"] == "troca" else "Retirada",
-                        "ciclo": evento["ciclo"],
-                        "armadilhas": len(diario["armadilhas"]),
-                    })
-        return proximas
+        return {"registros": registros, "total": len(registros)}
     finally:
         conn.close()
 

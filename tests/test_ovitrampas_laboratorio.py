@@ -116,7 +116,7 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
                 1,
             )
 
-    def test_mostra_trocas_futuras_da_semana_sem_criar_pendencia(self):
+    def test_nao_expoe_programacao_futura_como_pendencia(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = str(Path(tmpdir) / "ovitrampas-proximas.db")
             self._banco(db_path)
@@ -126,11 +126,8 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
             )
 
         self.assertEqual(dados["total"], 0)
-        self.assertEqual(len(dados["proximas"]), 1)
-        self.assertEqual(dados["proximas"][0]["diario_nome"], "Roma 1")
-        self.assertEqual(dados["proximas"][0]["movimento_label"], "Troca")
-        self.assertEqual(dados["proximas"][0]["data_movimento"], "2026-07-24")
-        self.assertEqual(dados["proximas"][0]["armadilhas"], 1)
+        self.assertEqual(dados["registros"], [])
+        self.assertNotIn("proximas", dados)
 
     def test_eventos_anteriores_a_ativacao_nao_geram_lotes(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -7766,7 +7766,10 @@ class PermissionMatrixTests(unittest.TestCase):
             conn.commit()
             conn.close()
 
-            self.assertIn("Leitura Ovitrampa".encode(), client.get("/laboratorio/lancamentos").data)
+            pagina_laboratorio = client.get("/laboratorio/lancamentos").data
+            self.assertIn("Leitura Ovitrampa".encode(), pagina_laboratorio)
+            self.assertIn("Diários aguardando leitura".encode(), pagina_laboratorio)
+            self.assertNotIn("Leituras desta semana".encode(), pagina_laboratorio)
             self.assertIn('data-ovi-tab="laboratorio"'.encode(), client.get("/ovitrampas").data)
             pendentes = client.get("/api/laboratorio/ovitrampas/lotes")
             self.assertEqual(pendentes.status_code, 200)
