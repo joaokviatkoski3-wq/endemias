@@ -79,41 +79,34 @@
       <colgroup>{% for _ in range(15) %}<col>{% endfor %}</colgroup>
       <tbody>
         <tr class="r20">
-          <td colspan="12" class="field-head">Campo</td>
-          <td colspan="3" class="field-head">Laborat&oacute;rio</td>
+          <td colspan="15" class="field-head">Campo</td>
         </tr>
         <tr class="r21">
           <th class="col-head">ID</th>
-          <th colspan="4" class="col-head">Endere&ccedil;o</th>
+          <th colspan="5" class="col-head">Endere&ccedil;o</th>
           <th class="col-head">Q.</th>
-          <th colspan="2" class="col-head">Localiza&ccedil;&atilde;o</th>
+          <th colspan="3" class="col-head">Localiza&ccedil;&atilde;o</th>
           <th class="col-head">Inst.</th>
           <th class="col-head">Tr.</th>
           <th class="col-head">Ret.</th>
-          <th class="col-head">Ocorr.</th>
-          <th class="col-head">Ovos</th>
-          <th class="col-head">Ovos</th>
-          <th class="col-head">Larva</th>
+          <th colspan="2" class="col-head">Ocorr.</th>
         </tr>
         {% for item in registros %}
         {% set endereco = [item.rua, item.numero]|select|join(', ') %}
         {% set classe = 'shade' if loop.index is odd else '' %}
         <tr class="trap-row {{ classe }}">
           <td rowspan="2" class="trap-id">{{ item.ovitrampa_id }}</td>
-          <td colspan="4" class="address"><span>{{ endereco or '-' }}</span>{% if item.complemento %}<span class="address-complement"> - {{ item.complemento }}</span>{% endif %}</td>
+          <td colspan="5" class="address"><span>{{ endereco or '-' }}</span>{% if item.complemento %}<span class="address-complement"> - {{ item.complemento }}</span>{% endif %}</td>
           <td rowspan="2" class="route">{{ item.quarteirao or '' }}</td>
-          <td colspan="2" rowspan="2" class="route">{{ item.localizacao or '' }}</td>
+          <td colspan="3" rowspan="2" class="route">{{ item.localizacao or '' }}</td>
           <td rowspan="2" class="write"></td>
           <td rowspan="2" class="write"></td>
           <td rowspan="2" class="write"></td>
-          <td rowspan="2" class="write slash">/</td>
-          <td rowspan="2" class="write"></td>
-          <td rowspan="2" class="write"></td>
-          <td rowspan="2" class="write"></td>
+          <td colspan="2" rowspan="2" class="write slash">/</td>
         </tr>
         <tr class="trap-row {{ classe }}">
           <td colspan="2" class="subline">{{ item.telefone_responsavel or '' }}</td>
-          <td colspan="2" class="subline">{{ item.responsavel or '' }}</td>
+          <td colspan="3" class="subline">{{ item.responsavel or '' }}</td>
         </tr>
         {% endfor %}
         <tr class="occ-line"><td colspan="15" class="occ">
