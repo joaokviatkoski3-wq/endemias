@@ -24,7 +24,7 @@
     .no-border{border:0!important;background:#fff!important;}
     .center{text-align:center}.right{text-align:right}.left{text-align:left}.bold{font-weight:700}.nowrap{white-space:nowrap;}
     .r2{height:15.75pt}.r4,.r5,.r6,.r8,.r9,.r11,.r17,.r18,.r19,.r20,.r21{height:17.25pt}
-    .r7{height:33pt}.r10,.r55{height:9pt}.r12{height:22.5pt}.r13,.r14{height:20.25pt}.r15{height:19.5pt}
+    .r7{height:33pt}.r10{height:9pt}.r12{height:22.5pt}.r13,.r14{height:20.25pt}.r15{height:19.5pt}
     .trap-row{height:15.75pt}.occ-line{height:22pt}
     .sign-row{height:21.75pt}.alter-title{height:12.75pt}.alter-head{height:12.75pt}.alter-row{height:14.25pt}
     .logo-cell{padding:0 2px;text-align:left;}
@@ -114,21 +114,18 @@
           <span class="occ-items">1 - Intervalo maior que 7 dias; 2 - Armadilha ou palheta desaparecida; 3 - Armadilha ou palheta danificada; 4 - Armadilha ou palheta removida</span>
           <span class="occ-items">5 - Armadilha seca; 6 - Casa Fechada; 7 - Ovitrampa cheia de &aacute;gua; 8 - Pouca &aacute;gua</span>
         </td></tr>
-        <tr class="r55"><td colspan="15" class="no-border"></td></tr>
-        <tr class="r55"><td colspan="15" class="no-border"></td></tr>
         <tr class="alter-title"><td colspan="15" class="gray-dark">ALTERA&Ccedil;&Otilde;ES</td></tr>
         <tr class="alter-head">
-          <th rowspan="2" class="alter-head-cell">N&ordm;</th>
-          <th colspan="3" rowspan="2" class="alter-head-cell">Endere&ccedil;o</th>
-          <th rowspan="2" class="alter-head-cell">Quart.</th>
-          <th colspan="3" rowspan="2" class="alter-head-cell">Localiza&ccedil;&atilde;o da ovitrampa</th>
-          <th colspan="2" rowspan="2" class="alter-head-cell">Coordenadas<br>Latitude | Longitude</th>
-          <th colspan="2" rowspan="2" class="alter-head-cell">Observa&ccedil;&atilde;o</th>
-          <th rowspan="2" class="alter-head-cell">Agentes</th>
-          <th rowspan="2" class="alter-head-cell">Data</th>
+          <th class="alter-head-cell">N&ordm;</th>
+          <th colspan="3" class="alter-head-cell">Endere&ccedil;o</th>
+          <th class="alter-head-cell">Quart.</th>
+          <th colspan="3" class="alter-head-cell">Localiza&ccedil;&atilde;o da ovitrampa</th>
+          <th colspan="2" class="alter-head-cell">Coordenadas<br>Latitude | Longitude</th>
+          <th colspan="2" class="alter-head-cell">Observa&ccedil;&atilde;o</th>
+          <th class="alter-head-cell">Agentes</th>
+          <th class="alter-head-cell">Data</th>
           <th class="alter-head-cell">Situa&ccedil;&atilde;o</th>
         </tr>
-        <tr class="alter-head"><th class="alter-head-cell">Di&aacute;rio<br>Conta ovos</th></tr>
         {% for _ in range(9) %}
         {% set classe = 'shade' if loop.index is odd else '' %}
         <tr class="alter-row {{ classe }}">
