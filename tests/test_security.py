@@ -2924,13 +2924,21 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('id="acao-anexo-selecionar"', html)
         self.assertIn('id="acao-anexos-baixar-todos"', html)
         self.assertIn('id="acao-anexos-lista"', html)
+        self.assertIn('id="acao-dialog"', html)
+        self.assertIn('id="acao-nova"', html)
+        self.assertIn('id="acoes-stat-total"', html)
+        self.assertIn('id="acoes-filtro-localidade"', html)
+        self.assertIn('id="acoes-filtro-agente"', html)
+        self.assertIn('id="acoes-data-inicio"', html)
+        self.assertIn('id="acoes-data-fim"', html)
         self.assertIn('data-acoes-tab="anexos"', html)
         self.assertIn('id="acoes-panel-anexos"', html)
         self.assertIn('id="acoes-anexos-galeria"', html)
         self.assertIn('id="acoes-anexos-tipo-arquivo"', html)
+        self.assertIn('id="acoes-anexos-localidade"', html)
+        self.assertIn('id="acoes-anexos-agente"', html)
         self.assertIn('accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.txt,.mp4,.mov,.avi,.mkv,.webm,.m4v,.3gp"', html)
         self.assertIn('<option value="video">', html)
-        self.assertIn('placeholder="Todos"', html)
         self.assertIn('src="/static/js/acoes_setor.js"', html)
         js_resp = client.get("/static/js/acoes_setor.js")
         js = js_resp.data.decode("utf-8")
@@ -2951,8 +2959,10 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("loading=\"lazy\"", js)
         self.assertIn("Informe o período da ação.", js)
         self.assertIn("function detalhesRegistroHtml", js)
-        self.assertIn("await carregar();\n    limparForm();", js)
-        self.assertNotIn("preencherForm(atualizada);\n      focarRegistroSalvo", js)
+        self.assertIn("function abrirFormularioNovo", js)
+        self.assertIn("function atualizarResumo", js)
+        self.assertIn("function limparFiltrosAnexos", js)
+        self.assertIn("preencherForm(atualizada,false)", js)
 
     def test_acoes_setor_crud_e_busca_sem_acento(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -3005,6 +3015,18 @@ class MainPagesSmokeTests(unittest.TestCase):
             self.assertIn("Palestra", registros[0]["tipo_atividade_realizada_labels"])
             self.assertIn("Ensino Fundamental", registros[0]["publico_alvo_labels"])
             self.assertIn("Banner", registros[0]["recurso_utilizado_labels"])
+            self.assertEqual(registros[0]["total_anexos"], 0)
+
+            filtrado = client.get(
+                f"/api/acoes-setor?periodo=manha&localidade=Centro"
+                f"&id_agente={id_agente}&data_inicio=2026-08-01&data_fim=2026-08-31"
+            )
+            self.assertEqual(filtrado.status_code, 200)
+            self.assertEqual(filtrado.get_json()["total"], 1)
+            fora_periodo = client.get(
+                "/api/acoes-setor?data_inicio=2026-09-01&data_fim=2026-09-30"
+            )
+            self.assertEqual(fora_periodo.get_json()["total"], 0)
 
             resp = client.put(f"/api/acoes-setor/{id_acao}", json={
                 "tipo": "limpeza",
@@ -3076,6 +3098,8 @@ class MainPagesSmokeTests(unittest.TestCase):
             anexos_video = resp_video.get_json()["anexos"]
             self.assertEqual(len(anexos_video), 3)
             self.assertTrue(any(a["nome_original"] == "registro.mp4" for a in anexos_video))
+            lista_acoes = client.get("/api/acoes-setor").get_json()["registros"]
+            self.assertEqual(lista_acoes[0]["total_anexos"], 3)
 
             conn = sqlite3.connect(app_temp.config["DB_PATH"])
             try:
@@ -3101,6 +3125,17 @@ class MainPagesSmokeTests(unittest.TestCase):
             self.assertEqual(dados_galeria["total"], 1)
             self.assertEqual(dados_galeria["anexos"][0]["nome_original"], "foto.png")
             self.assertEqual(dados_galeria["anexos"][0]["acao_tipo"], "limpeza")
+
+            galeria_filtrada = client.get(
+                "/api/acoes-setor/anexos?localidade=Centro"
+                "&data_inicio=2026-08-01&data_fim=2026-08-31"
+            )
+            self.assertEqual(galeria_filtrada.status_code, 200)
+            self.assertEqual(galeria_filtrada.get_json()["total"], 3)
+            galeria_fora_periodo = client.get(
+                "/api/acoes-setor/anexos?data_inicio=2026-09-01&data_fim=2026-09-30"
+            )
+            self.assertEqual(galeria_fora_periodo.get_json()["total"], 0)
 
             galeria_video = client.get("/api/acoes-setor/anexos?tipo_arquivo=video&busca=registro")
             self.assertEqual(galeria_video.status_code, 200)

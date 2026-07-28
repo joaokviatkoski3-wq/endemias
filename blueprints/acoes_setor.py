@@ -282,6 +282,9 @@ def _acao_dict(row):
 def _base_query():
     return """
         SELECT a.*,
+               (SELECT COUNT(*)
+                  FROM acoes_setor_anexos ax
+                 WHERE ax.id_acao=a.id_acao) AS total_anexos,
                GROUP_CONCAT(ag.id_agente || ':' || ag.nome, '|') AS agentes_raw
           FROM acoes_setor a
           LEFT JOIN acoes_setor_agentes aa ON aa.id_acao = a.id_acao
@@ -328,6 +331,10 @@ def _anexo_dict(row):
     tipo_acao = item.get("acao_tipo")
     if tipo_acao:
         item["acao_tipo_label"] = TIPOS_ACAO.get(tipo_acao, tipo_acao)
+    if item.get("acao_periodo"):
+        item["acao_periodo_label"] = PERIODOS_ACAO.get(
+            item["acao_periodo"], item["acao_periodo"]
+        )
     if item.get("acao_tema") or item.get("acao_local") or item.get("acao_localidade"):
         item["acao_titulo"] = item.get("acao_tema") or item.get("acao_local") or item.get("acao_localidade")
     return item
@@ -350,6 +357,10 @@ def _listar_anexos_galeria():
     tipo_acao = (request.args.get("tipo_acao") or "").strip()
     ano = (request.args.get("ano") or "").strip()
     tipo_arquivo = (request.args.get("tipo_arquivo") or "").strip()
+    localidade = (request.args.get("localidade") or "").strip()
+    id_agente = (request.args.get("id_agente") or "").strip()
+    data_inicio = (request.args.get("data_inicio") or "").strip()[:10]
+    data_fim = (request.args.get("data_fim") or "").strip()[:10]
     busca = (request.args.get("busca") or "").strip()
     if tipo_acao in TIPOS_ACAO:
         where.append("a.tipo=?")
@@ -357,6 +368,23 @@ def _listar_anexos_galeria():
     if ano:
         where.append("substr(a.data, 1, 4)=?")
         params.append(ano[:4])
+    if localidade:
+        where.append("a.localidade=?")
+        params.append(localidade)
+    if id_agente.isdigit():
+        where.append(
+            """EXISTS (
+                SELECT 1 FROM acoes_setor_agentes af
+                 WHERE af.id_acao=a.id_acao AND af.id_agente=?
+            )"""
+        )
+        params.append(int(id_agente))
+    if data_inicio:
+        where.append("date(a.data)>=date(?)")
+        params.append(data_inicio)
+    if data_fim:
+        where.append("date(a.data)<=date(?)")
+        params.append(data_fim)
     if tipo_arquivo == "imagem":
         where.append("an.mime_type LIKE 'image/%'")
     elif tipo_arquivo == "video":
@@ -374,7 +402,8 @@ def _listar_anexos_galeria():
                a.localidade AS acao_localidade,
                a.local AS acao_local,
                a.tema AS acao_tema,
-               a.observacoes AS acao_observacoes
+               a.observacoes AS acao_observacoes,
+               a.periodo AS acao_periodo
           FROM acoes_setor_anexos an
           JOIN acoes_setor a ON a.id_acao=an.id_acao
     """
@@ -535,11 +564,36 @@ def api_acoes():
     params = []
     where = []
     tipo = (request.args.get("tipo") or "").strip()
+    periodo = (request.args.get("periodo") or "").strip()
+    localidade = (request.args.get("localidade") or "").strip()
+    id_agente = (request.args.get("id_agente") or "").strip()
+    data_inicio = (request.args.get("data_inicio") or "").strip()[:10]
+    data_fim = (request.args.get("data_fim") or "").strip()[:10]
     ano = (request.args.get("ano") or "").strip()
     busca = (request.args.get("busca") or "").strip()
     if tipo in TIPOS_ACAO:
         where.append("a.tipo=?")
         params.append(tipo)
+    if periodo in PERIODOS_ACAO:
+        where.append("a.periodo=?")
+        params.append(periodo)
+    if localidade:
+        where.append("a.localidade=?")
+        params.append(localidade)
+    if id_agente.isdigit():
+        where.append(
+            """EXISTS (
+                SELECT 1 FROM acoes_setor_agentes af
+                 WHERE af.id_acao=a.id_acao AND af.id_agente=?
+            )"""
+        )
+        params.append(int(id_agente))
+    if data_inicio:
+        where.append("date(a.data)>=date(?)")
+        params.append(data_inicio)
+    if data_fim:
+        where.append("date(a.data)<=date(?)")
+        params.append(data_fim)
     if ano:
         where.append("substr(a.data, 1, 4)=?")
         params.append(ano[:4])
