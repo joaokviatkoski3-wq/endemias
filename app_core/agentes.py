@@ -523,11 +523,14 @@ def _hist_acoes_setor(conn, id_agente, d_ini, d_fim):
     labels = {
         "educativa": "Ação educativa",
         "limpeza": "Ação de limpeza",
+        "vistoria": "Vistoria / atendimento técnico",
+        "reuniao": "Reunião / planejamento",
+        "outro": "Outro registro",
     }
     return [
         {
             "data": row["data"],
-            "origem": "Ações do Setor",
+            "origem": "Ações e Atendimentos",
             "tipo": labels.get(row["tipo"], row["tipo"] or "Acao"),
             "localidade": row["localidade"],
             "detalhe": _join_detail(

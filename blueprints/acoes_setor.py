@@ -24,10 +24,21 @@ nivel_min = bh.nivel_min
 TIPOS_ACAO = {
     "educativa": "Ação educativa / palestra",
     "limpeza": "Ação de limpeza / mutirão",
+    "vistoria": "Vistoria / atendimento técnico",
+    "reuniao": "Reunião / planejamento",
+    "outro": "Outro",
 }
 PERIODOS_ACAO = {
     "manha": "Manhã",
     "tarde": "Tarde",
+    "integral": "Dia inteiro",
+    "nao_informado": "Não informado",
+}
+SITUACOES_ACAO = {
+    "realizada": "Realizada",
+    "em_acompanhamento": "Em acompanhamento",
+    "planejada": "Planejada",
+    "cancelada": "Cancelada",
 }
 TIPOS_ATIVIDADE_REALIZADA = {
     "palestra": "Palestra",
@@ -61,6 +72,96 @@ ANEXO_EXTENSOES = {
 ANEXO_VIDEO_EXTENSOES = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v", ".3gp"}
 ANEXO_MAX_BYTES = 200 * 1024 * 1024
 
+ACOES_SETOR_COLUNAS = (
+    "id_acao", "tipo", "situacao", "data", "data_fim", "periodo",
+    "hora_inicio", "hora_fim", "caso", "localidade", "endereco", "local",
+    "publico_aproximado", "tipo_atividade_realizada", "publico_alvo",
+    "recurso_utilizado", "tema", "contexto", "resultados", "parceiros",
+    "coordenadas", "observacoes", "criado_por", "criado_em", "atualizado_em",
+)
+
+
+def _acoes_setor_table_sql(nome="acoes_setor", if_not_exists=True):
+    prefixo = "CREATE TABLE IF NOT EXISTS" if if_not_exists else "CREATE TABLE"
+    tipos = ",".join(f"'{codigo}'" for codigo in TIPOS_ACAO)
+    situacoes = ",".join(f"'{codigo}'" for codigo in SITUACOES_ACAO)
+    return f"""
+        {prefixo} {nome} (
+            id_acao INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL CHECK(tipo IN ({tipos})),
+            situacao TEXT NOT NULL DEFAULT 'realizada'
+                CHECK(situacao IN ({situacoes})),
+            data TEXT NOT NULL,
+            data_fim TEXT,
+            periodo TEXT,
+            hora_inicio TEXT,
+            hora_fim TEXT,
+            caso TEXT,
+            localidade TEXT,
+            endereco TEXT,
+            local TEXT,
+            publico_aproximado INTEGER,
+            tipo_atividade_realizada TEXT,
+            publico_alvo TEXT,
+            recurso_utilizado TEXT,
+            tema TEXT,
+            contexto TEXT,
+            resultados TEXT,
+            parceiros TEXT,
+            coordenadas TEXT,
+            observacoes TEXT,
+            criado_por TEXT,
+            criado_em TEXT NOT NULL,
+            atualizado_em TEXT
+        )
+    """
+
+
+def _migrar_tabela_acoes_setor(conn):
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='acoes_setor'"
+    ).fetchone()
+    if not row:
+        conn.execute(_acoes_setor_table_sql())
+        return
+
+    sql_atual = (row["sql"] if hasattr(row, "keys") else row[0]) or ""
+    colunas_atuais = _table_cols(conn, "acoes_setor")
+    precisa_recriar = (
+        "'vistoria'" not in sql_atual
+        or "'reuniao'" not in sql_atual
+        or "'outro'" not in sql_atual
+        or "'em_acompanhamento'" not in sql_atual
+    )
+    if not precisa_recriar:
+        return
+
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute("DROP TABLE IF EXISTS acoes_setor_nova")
+        conn.execute(_acoes_setor_table_sql("acoes_setor_nova", if_not_exists=False))
+        comuns = [coluna for coluna in ACOES_SETOR_COLUNAS if coluna in colunas_atuais]
+        colunas_sql = ", ".join(comuns)
+        conn.execute(
+            f"INSERT INTO acoes_setor_nova ({colunas_sql}) "
+            f"SELECT {colunas_sql} FROM acoes_setor"
+        )
+        conn.execute("DROP TABLE acoes_setor")
+        conn.execute("ALTER TABLE acoes_setor_nova RENAME TO acoes_setor")
+        erros_fk = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if erros_fk:
+            raise RuntimeError(
+                "A migração de ações e atendimentos deixaria vínculos inválidos."
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
+
 
 def _table_cols(conn, table):
     return {
@@ -75,29 +176,8 @@ def ensure_schema(conn=None):
         conn = bh.get_db()
         fechar = True
     try:
+        _migrar_tabela_acoes_setor(conn)
         conn.executescript("""
-        CREATE TABLE IF NOT EXISTS acoes_setor (
-            id_acao INTEGER PRIMARY KEY AUTOINCREMENT,
-            tipo TEXT NOT NULL CHECK(tipo IN ('educativa','limpeza')),
-            data TEXT NOT NULL,
-            periodo TEXT,
-            hora_inicio TEXT,
-            hora_fim TEXT,
-            localidade TEXT,
-            endereco TEXT,
-            local TEXT,
-            publico_aproximado INTEGER,
-            tipo_atividade_realizada TEXT,
-            publico_alvo TEXT,
-            recurso_utilizado TEXT,
-            tema TEXT,
-            contexto TEXT,
-            coordenadas TEXT,
-            observacoes TEXT,
-            criado_por TEXT,
-            criado_em TEXT NOT NULL,
-            atualizado_em TEXT
-        );
         CREATE TABLE IF NOT EXISTS acoes_setor_agentes (
             id_acao INTEGER NOT NULL REFERENCES acoes_setor(id_acao) ON DELETE CASCADE,
             id_agente INTEGER NOT NULL REFERENCES agentes(id_agente),
@@ -111,24 +191,41 @@ def ensure_schema(conn=None):
             caminho_rel TEXT NOT NULL,
             mime_type TEXT,
             tamanho INTEGER NOT NULL DEFAULT 0,
+            restrito INTEGER NOT NULL DEFAULT 0 CHECK(restrito IN (0,1)),
             criado_por TEXT,
             criado_em TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_acoes_setor_data ON acoes_setor(data);
         CREATE INDEX IF NOT EXISTS idx_acoes_setor_tipo ON acoes_setor(tipo);
+        CREATE INDEX IF NOT EXISTS idx_acoes_setor_situacao ON acoes_setor(situacao);
+        CREATE INDEX IF NOT EXISTS idx_acoes_setor_caso ON acoes_setor(caso);
         CREATE INDEX IF NOT EXISTS idx_acoes_setor_localidade ON acoes_setor(localidade);
         CREATE INDEX IF NOT EXISTS idx_acoes_setor_agente ON acoes_setor_agentes(id_agente);
         CREATE INDEX IF NOT EXISTS idx_acoes_setor_anexo_acao ON acoes_setor_anexos(id_acao);
         """)
         cols = _table_cols(conn, "acoes_setor")
-        for coluna in (
-            "periodo",
-            "tipo_atividade_realizada",
-            "publico_alvo",
-            "recurso_utilizado",
-        ):
+        colunas_texto = (
+            "data_fim", "periodo", "caso", "tipo_atividade_realizada",
+            "publico_alvo", "recurso_utilizado", "resultados", "parceiros",
+        )
+        for coluna in colunas_texto:
             if coluna not in cols:
                 conn.execute(f"ALTER TABLE acoes_setor ADD COLUMN {coluna} TEXT")
+        if "situacao" not in cols:
+            conn.execute(
+                "ALTER TABLE acoes_setor ADD COLUMN situacao TEXT "
+                "NOT NULL DEFAULT 'realizada'"
+            )
+        anexos_cols = _table_cols(conn, "acoes_setor_anexos")
+        if "restrito" not in anexos_cols:
+            conn.execute(
+                "ALTER TABLE acoes_setor_anexos ADD COLUMN restrito INTEGER "
+                "NOT NULL DEFAULT 0 CHECK(restrito IN (0,1))"
+            )
+        conn.execute(
+            """CREATE INDEX IF NOT EXISTS idx_acoes_setor_anexo_restrito
+               ON acoes_setor_anexos(restrito, id_acao)"""
+        )
         conn.commit()
     finally:
         if fechar:
@@ -143,12 +240,22 @@ def _normaliza_busca(value):
 def _parse_data(value):
     texto = str(value or "").strip()
     if not texto:
-        raise ValueError("Informe a data da ação.")
+        raise ValueError("Informe a data inicial do registro.")
     try:
         datetime.strptime(texto[:10], "%Y-%m-%d")
     except ValueError as exc:
         raise ValueError("Data inválida.") from exc
     return texto[:10]
+
+
+def _parse_data_fim(value, data_inicio):
+    texto = str(value or "").strip()
+    if not texto:
+        return None
+    data_fim = _parse_data(texto)
+    if data_fim < data_inicio:
+        raise ValueError("A data final não pode ser anterior à data inicial.")
+    return data_fim
 
 
 def _parse_hora(value):
@@ -165,8 +272,15 @@ def _parse_hora(value):
 def _parse_periodo(value):
     periodo = str(value or "").strip().lower()
     if periodo not in PERIODOS_ACAO:
-        raise ValueError("Informe o período da ação.")
+        raise ValueError("Informe o período do registro.")
     return periodo
+
+
+def _parse_situacao(value):
+    situacao = str(value or "realizada").strip().lower()
+    if situacao not in SITUACOES_ACAO:
+        raise ValueError("Situação do registro inválida.")
+    return situacao
 
 
 def _parse_publico(value):
@@ -230,17 +344,30 @@ def _labels(codigos, opcoes):
     return [opcoes.get(codigo, codigo) for codigo in codigos if codigo in opcoes or codigo]
 
 
+def _usuario_admin():
+    usuario = bh.usuario_atual() or {}
+    return usuario.get("nivel") == "admin"
+
+
+def _restrito_form_value(value):
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on", "sim"}
+
+
 def _acao_payload(dados):
     tipo = (dados.get("tipo") or "").strip()
     if tipo not in TIPOS_ACAO:
-        raise ValueError("Tipo de ação inválido.")
+        raise ValueError("Tipo de registro inválido.")
     educativa = tipo == "educativa"
+    data_inicio = _parse_data(dados.get("data"))
     payload = {
         "tipo": tipo,
-        "data": _parse_data(dados.get("data")),
+        "situacao": _parse_situacao(dados.get("situacao")),
+        "data": data_inicio,
+        "data_fim": _parse_data_fim(dados.get("data_fim"), data_inicio),
         "periodo": _parse_periodo(dados.get("periodo")),
         "hora_inicio": _parse_hora(dados.get("hora_inicio")),
         "hora_fim": _parse_hora(dados.get("hora_fim")),
+        "caso": (dados.get("caso") or "").strip() or None,
         "localidade": (dados.get("localidade") or "").strip() or None,
         "endereco": (dados.get("endereco") or "").strip() or None,
         "local": (dados.get("local") or "").strip() or None,
@@ -253,6 +380,8 @@ def _acao_payload(dados):
         "recurso_utilizado": _parse_multi(dados.get("recurso_utilizado"), RECURSOS_UTILIZADOS, "Recurso utilizado") if educativa else [],
         "tema": (dados.get("tema") or "").strip() or None,
         "contexto": (dados.get("contexto") or "").strip() or None,
+        "resultados": (dados.get("resultados") or "").strip() or None,
+        "parceiros": (dados.get("parceiros") or "").strip() or None,
         "coordenadas": (dados.get("coordenadas") or "").strip() or None,
         "observacoes": (dados.get("observacoes") or "").strip() or None,
         "agentes": _parse_agentes(dados.get("agentes")),
@@ -263,6 +392,10 @@ def _acao_payload(dados):
 def _acao_dict(row):
     item = dict(row)
     item["tipo_label"] = TIPOS_ACAO.get(item.get("tipo"), item.get("tipo") or "")
+    item["situacao_label"] = SITUACOES_ACAO.get(
+        item.get("situacao") or "realizada",
+        item.get("situacao") or "",
+    )
     item["periodo_label"] = PERIODOS_ACAO.get(item.get("periodo") or "", item.get("periodo") or "")
     item["tipo_atividade_realizada"] = _multi_from_db(item.get("tipo_atividade_realizada"))
     item["publico_alvo"] = _multi_from_db(item.get("publico_alvo"))
@@ -280,11 +413,12 @@ def _acao_dict(row):
 
 
 def _base_query():
-    return """
+    filtro_anexos = "" if _usuario_admin() else " AND COALESCE(ax.restrito,0)=0"
+    return f"""
         SELECT a.*,
                (SELECT COUNT(*)
                   FROM acoes_setor_anexos ax
-                 WHERE ax.id_acao=a.id_acao) AS total_anexos,
+                 WHERE ax.id_acao=a.id_acao{filtro_anexos}) AS total_anexos,
                GROUP_CONCAT(ag.id_agente || ':' || ag.nome, '|') AS agentes_raw
           FROM acoes_setor a
           LEFT JOIN acoes_setor_agentes aa ON aa.id_acao = a.id_acao
@@ -322,8 +456,12 @@ def _path_anexo(caminho_rel):
     return caminho
 
 
-def _anexo_dict(row):
+def _anexo_dict(row, pode_gerenciar_restritos=None):
     item = dict(row)
+    item["restrito"] = bool(item.get("restrito"))
+    if pode_gerenciar_restritos is None:
+        pode_gerenciar_restritos = _usuario_admin()
+    item["pode_gerenciar_restritos"] = pode_gerenciar_restritos
     item["url_download"] = f"/acoes-setor/anexos/{item['id_anexo']}/download"
     item["url_visualizar"] = f"/acoes-setor/anexos/{item['id_anexo']}/download?inline=1"
     mime_type = item.get("mime_type") or ""
@@ -335,17 +473,29 @@ def _anexo_dict(row):
         item["acao_periodo_label"] = PERIODOS_ACAO.get(
             item["acao_periodo"], item["acao_periodo"]
         )
-    if item.get("acao_tema") or item.get("acao_local") or item.get("acao_localidade"):
-        item["acao_titulo"] = item.get("acao_tema") or item.get("acao_local") or item.get("acao_localidade")
+    if (
+        item.get("acao_tema")
+        or item.get("acao_caso")
+        or item.get("acao_local")
+        or item.get("acao_localidade")
+    ):
+        item["acao_titulo"] = (
+            item.get("acao_tema")
+            or item.get("acao_caso")
+            or item.get("acao_local")
+            or item.get("acao_localidade")
+        )
     return item
 
 
 def _listar_anexos(id_acao):
+    admin = _usuario_admin()
+    restricao = "" if admin else " AND COALESCE(restrito,0)=0"
     return [
-        _anexo_dict(row) for row in bh.q(
-            """SELECT * FROM acoes_setor_anexos
-               WHERE id_acao=?
-               ORDER BY criado_em DESC, id_anexo DESC""",
+        _anexo_dict(row, admin) for row in bh.q(
+            f"""SELECT * FROM acoes_setor_anexos
+                WHERE id_acao=?{restricao}
+                ORDER BY criado_em DESC, id_anexo DESC""",
             (id_acao,),
         )
     ]
@@ -358,10 +508,14 @@ def _listar_anexos_galeria():
     ano = (request.args.get("ano") or "").strip()
     tipo_arquivo = (request.args.get("tipo_arquivo") or "").strip()
     localidade = (request.args.get("localidade") or "").strip()
+    caso = (request.args.get("caso") or "").strip()
     id_agente = (request.args.get("id_agente") or "").strip()
     data_inicio = (request.args.get("data_inicio") or "").strip()[:10]
     data_fim = (request.args.get("data_fim") or "").strip()[:10]
     busca = (request.args.get("busca") or "").strip()
+    admin = _usuario_admin()
+    if not admin:
+        where.append("COALESCE(an.restrito,0)=0")
     if tipo_acao in TIPOS_ACAO:
         where.append("a.tipo=?")
         params.append(tipo_acao)
@@ -371,6 +525,9 @@ def _listar_anexos_galeria():
     if localidade:
         where.append("a.localidade=?")
         params.append(localidade)
+    if caso:
+        where.append("a.caso=?")
+        params.append(caso)
     if id_agente.isdigit():
         where.append(
             """EXISTS (
@@ -380,7 +537,7 @@ def _listar_anexos_galeria():
         )
         params.append(int(id_agente))
     if data_inicio:
-        where.append("date(a.data)>=date(?)")
+        where.append("date(COALESCE(a.data_fim,a.data))>=date(?)")
         params.append(data_inicio)
     if data_fim:
         where.append("date(a.data)<=date(?)")
@@ -402,6 +559,7 @@ def _listar_anexos_galeria():
                a.localidade AS acao_localidade,
                a.local AS acao_local,
                a.tema AS acao_tema,
+               a.caso AS acao_caso,
                a.observacoes AS acao_observacoes,
                a.periodo AS acao_periodo
           FROM acoes_setor_anexos an
@@ -410,7 +568,7 @@ def _listar_anexos_galeria():
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY a.data DESC, an.criado_em DESC, an.id_anexo DESC"
-    anexos = [_anexo_dict(row) for row in bh.q(sql, params)]
+    anexos = [_anexo_dict(row, admin) for row in bh.q(sql, params)]
     if busca:
         termos = [_normaliza_busca(t) for t in busca.split() if t.strip()]
         anexos = [
@@ -418,7 +576,8 @@ def _listar_anexos_galeria():
             if all(
                 termo in _normaliza_busca(" ".join(str(item.get(c) or "") for c in (
                     "nome_original", "mime_type", "acao_tipo_label", "acao_data",
-                    "acao_localidade", "acao_local", "acao_tema", "acao_observacoes",
+                    "acao_localidade", "acao_local", "acao_tema", "acao_caso",
+                    "acao_observacoes",
                 )))
                 for termo in termos
             )
@@ -493,15 +652,24 @@ def page():
         "SELECT id_agente, nome FROM agentes WHERE COALESCE(ativo,1)=1 ORDER BY nome"
     )
     localidades = bh.q("SELECT nome FROM localidades ORDER BY nome")
+    casos = bh.q(
+        """SELECT DISTINCT caso
+             FROM acoes_setor
+            WHERE caso IS NOT NULL AND TRIM(caso)<>''
+            ORDER BY caso"""
+    )
     return render_template(
         "acoes_setor.html",
         tipos_acao=TIPOS_ACAO,
         periodos_acao=PERIODOS_ACAO,
+        situacoes_acao=SITUACOES_ACAO,
         tipos_atividade_realizada=TIPOS_ATIVIDADE_REALIZADA,
         publicos_alvo=PUBLICOS_ALVO,
         recursos_utilizados=RECURSOS_UTILIZADOS,
         agentes=agentes,
         localidades=[row["nome"] for row in localidades],
+        casos=[row["caso"] for row in casos],
+        pode_gerenciar_restritos=_usuario_admin(),
     )
 
 
@@ -522,17 +690,21 @@ def api_acoes():
             conn = bh.get_db()
             cur = conn.execute(
                 """INSERT INTO acoes_setor
-                   (tipo, data, periodo, hora_inicio, hora_fim, localidade, endereco, local,
+                   (tipo, situacao, data, data_fim, periodo, hora_inicio, hora_fim,
+                    caso, localidade, endereco, local,
                     publico_aproximado, tipo_atividade_realizada, publico_alvo, recurso_utilizado,
-                    tema, contexto, coordenadas, observacoes,
+                    tema, contexto, resultados, parceiros, coordenadas, observacoes,
                     criado_por, criado_em, atualizado_em)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     payload["tipo"],
+                    payload["situacao"],
                     payload["data"],
+                    payload["data_fim"],
                     payload["periodo"],
                     payload["hora_inicio"],
                     payload["hora_fim"],
+                    payload["caso"],
                     payload["localidade"],
                     payload["endereco"],
                     payload["local"],
@@ -542,6 +714,8 @@ def api_acoes():
                     _multi_db(payload["recurso_utilizado"]),
                     payload["tema"],
                     payload["contexto"],
+                    payload["resultados"],
+                    payload["parceiros"],
                     payload["coordenadas"],
                     payload["observacoes"],
                     usuario.get("nome") or "sistema",
@@ -564,8 +738,10 @@ def api_acoes():
     params = []
     where = []
     tipo = (request.args.get("tipo") or "").strip()
+    situacao = (request.args.get("situacao") or "").strip()
     periodo = (request.args.get("periodo") or "").strip()
     localidade = (request.args.get("localidade") or "").strip()
+    caso = (request.args.get("caso") or "").strip()
     id_agente = (request.args.get("id_agente") or "").strip()
     data_inicio = (request.args.get("data_inicio") or "").strip()[:10]
     data_fim = (request.args.get("data_fim") or "").strip()[:10]
@@ -574,12 +750,18 @@ def api_acoes():
     if tipo in TIPOS_ACAO:
         where.append("a.tipo=?")
         params.append(tipo)
+    if situacao in SITUACOES_ACAO:
+        where.append("a.situacao=?")
+        params.append(situacao)
     if periodo in PERIODOS_ACAO:
         where.append("a.periodo=?")
         params.append(periodo)
     if localidade:
         where.append("a.localidade=?")
         params.append(localidade)
+    if caso:
+        where.append("a.caso=?")
+        params.append(caso)
     if id_agente.isdigit():
         where.append(
             """EXISTS (
@@ -589,7 +771,7 @@ def api_acoes():
         )
         params.append(int(id_agente))
     if data_inicio:
-        where.append("date(a.data)>=date(?)")
+        where.append("date(COALESCE(a.data_fim,a.data))>=date(?)")
         params.append(data_inicio)
     if data_fim:
         where.append("date(a.data)<=date(?)")
@@ -610,8 +792,9 @@ def api_acoes():
             if all(
                 termo in _normaliza_busca(" ".join(str(r.get(c) or "") for c in (
                     "tipo_label", "data", "localidade", "endereco", "local", "tema",
-                    "contexto", "coordenadas", "observacoes", "agentes_nomes",
-                    "periodo_label", "tipo_atividade_realizada_labels",
+                    "caso", "contexto", "resultados", "parceiros", "coordenadas",
+                    "observacoes", "agentes_nomes", "situacao_label", "periodo_label",
+                    "tipo_atividade_realizada_labels",
                     "publico_alvo_labels", "recurso_utilizado_labels",
                 )))
                 for termo in termos
@@ -628,7 +811,7 @@ def api_acao(id_acao):
     if request.method == "GET":
         row = bh.q1(_base_query() + " WHERE a.id_acao=? GROUP BY a.id_acao", (id_acao,))
         if not row:
-            return jsonify({"erro": "Ação não encontrada."}), 404
+            return jsonify({"erro": "Registro não encontrado."}), 404
         return jsonify(_acao_dict(row))
 
     conn = None
@@ -639,8 +822,19 @@ def api_acao(id_acao):
             (id_acao,),
         ).fetchone()
         if not existe:
-            return jsonify({"erro": "Ação não encontrada."}), 404
+            return jsonify({"erro": "Registro não encontrado."}), 404
         if request.method == "DELETE":
+            if not _usuario_admin():
+                tem_restrito = conn.execute(
+                    """SELECT 1 FROM acoes_setor_anexos
+                        WHERE id_acao=? AND COALESCE(restrito,0)=1
+                        LIMIT 1""",
+                    (id_acao,),
+                ).fetchone()
+                if tem_restrito:
+                    return jsonify({
+                        "erro": "Este registro possui anexos restritos e só pode ser excluído pela administração."
+                    }), 403
             anexos = conn.execute(
                 "SELECT caminho_rel FROM acoes_setor_anexos WHERE id_acao=?",
                 (id_acao,),
@@ -660,17 +854,22 @@ def api_acao(id_acao):
             return jsonify({"erro": str(exc)}), 400
         conn.execute(
             """UPDATE acoes_setor
-                  SET tipo=?, data=?, periodo=?, hora_inicio=?, hora_fim=?, localidade=?,
+                  SET tipo=?, situacao=?, data=?, data_fim=?, periodo=?,
+                      hora_inicio=?, hora_fim=?, caso=?, localidade=?,
                       endereco=?, local=?, publico_aproximado=?,
                       tipo_atividade_realizada=?, publico_alvo=?, recurso_utilizado=?,
-                      tema=?, contexto=?, coordenadas=?, observacoes=?, atualizado_em=?
+                      tema=?, contexto=?, resultados=?, parceiros=?, coordenadas=?,
+                      observacoes=?, atualizado_em=?
                 WHERE id_acao=?""",
             (
                 payload["tipo"],
+                payload["situacao"],
                 payload["data"],
+                payload["data_fim"],
                 payload["periodo"],
                 payload["hora_inicio"],
                 payload["hora_fim"],
+                payload["caso"],
                 payload["localidade"],
                 payload["endereco"],
                 payload["local"],
@@ -680,6 +879,8 @@ def api_acao(id_acao):
                 _multi_db(payload["recurso_utilizado"]),
                 payload["tema"],
                 payload["contexto"],
+                payload["resultados"],
+                payload["parceiros"],
                 payload["coordenadas"],
                 payload["observacoes"],
                 datetime.now().isoformat(timespec="seconds"),
@@ -705,13 +906,16 @@ def api_anexos(id_acao):
     ensure_schema()
     acao = bh.q1("SELECT id_acao, data FROM acoes_setor WHERE id_acao=?", (id_acao,))
     if not acao:
-        return jsonify({"erro": "Ação não encontrada."}), 404
+        return jsonify({"erro": "Registro não encontrado."}), 404
     if request.method == "GET":
         return jsonify({"anexos": _listar_anexos(id_acao)})
 
     arquivos = request.files.getlist("arquivos")
     if not arquivos:
         return jsonify({"erro": "Nenhum arquivo enviado."}), 400
+    restrito = _restrito_form_value(request.form.get("restrito"))
+    if restrito and not _usuario_admin():
+        return jsonify({"erro": "Somente administradores podem adicionar anexos restritos."}), 403
     usuario = bh.usuario_atual() or {}
     destino_dir = _acao_anexos_dir(id_acao, acao.get("data"))
     salvos = []
@@ -730,8 +934,8 @@ def api_anexos(id_acao):
             cur = conn.execute(
                 """INSERT INTO acoes_setor_anexos
                    (id_acao, nome_original, nome_arquivo, caminho_rel, mime_type,
-                    tamanho, criado_por, criado_em)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    tamanho, restrito, criado_por, criado_em)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     id_acao,
                     meta["nome_original"],
@@ -739,6 +943,7 @@ def api_anexos(id_acao):
                     caminho_rel,
                     mime_type,
                     meta["tamanho"],
+                    1 if restrito else 0,
                     usuario.get("nome") or "sistema",
                     datetime.now().isoformat(timespec="seconds"),
                 ),
@@ -762,11 +967,12 @@ def baixar_todos_anexos(id_acao):
     ensure_schema()
     acao = bh.q1("SELECT id_acao FROM acoes_setor WHERE id_acao=?", (id_acao,))
     if not acao:
-        return jsonify({"erro": "Ação não encontrada."}), 404
+        return jsonify({"erro": "Registro não encontrado."}), 404
+    restricao = "" if _usuario_admin() else " AND COALESCE(restrito,0)=0"
     rows = bh.q(
-        """SELECT * FROM acoes_setor_anexos
-           WHERE id_acao=?
-           ORDER BY criado_em DESC, id_anexo DESC""",
+        f"""SELECT * FROM acoes_setor_anexos
+            WHERE id_acao=?{restricao}
+            ORDER BY criado_em DESC, id_anexo DESC""",
         (id_acao,),
     )
     resposta = _zip_anexos(id_acao, rows)
@@ -784,7 +990,7 @@ def api_galeria_anexos():
     return jsonify({"anexos": anexos, "total": len(anexos), "tipos_acao": TIPOS_ACAO})
 
 
-@bp.route("/api/acoes-setor/anexos/<int:id_anexo>", methods=["DELETE"])
+@bp.route("/api/acoes-setor/anexos/<int:id_anexo>", methods=["PUT", "DELETE"])
 @login_required
 @nivel_min("operador")
 def api_excluir_anexo(id_anexo):
@@ -797,6 +1003,22 @@ def api_excluir_anexo(id_anexo):
         ).fetchone()
         if not row:
             return jsonify({"erro": "Anexo não encontrado."}), 404
+        if row["restrito"] and not _usuario_admin():
+            return jsonify({"erro": "Anexo restrito à administração."}), 403
+        if request.method == "PUT":
+            if not _usuario_admin():
+                return jsonify({"erro": "Somente administradores podem alterar a restrição."}), 403
+            restrito = bool((request.get_json(silent=True) or {}).get("restrito"))
+            conn.execute(
+                "UPDATE acoes_setor_anexos SET restrito=? WHERE id_anexo=?",
+                (1 if restrito else 0, id_anexo),
+            )
+            conn.commit()
+            atualizado = conn.execute(
+                "SELECT * FROM acoes_setor_anexos WHERE id_anexo=?",
+                (id_anexo,),
+            ).fetchone()
+            return jsonify({"ok": True, "anexo": _anexo_dict(atualizado)})
         conn.execute("DELETE FROM acoes_setor_anexos WHERE id_anexo=?", (id_anexo,))
         conn.commit()
     finally:
@@ -813,6 +1035,8 @@ def baixar_anexo(id_anexo):
     row = bh.q1("SELECT * FROM acoes_setor_anexos WHERE id_anexo=?", (id_anexo,))
     if not row:
         abort(404)
+    if row["restrito"] and not _usuario_admin():
+        abort(403)
     caminho = _path_anexo(row["caminho_rel"])
     if not caminho.exists() or not caminho.is_file():
         abort(404)

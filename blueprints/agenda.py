@@ -26,6 +26,9 @@ AGENDA_AUTO_FONTES = {
     "AMOSTRA_ANIMAIS": {"label": "Amostra de animais", "cor": "#0891b2"},
     "ACAO_EDUCATIVA": {"label": "Ação educativa", "cor": "#0f766e"},
     "ACAO_LIMPEZA": {"label": "Ação de limpeza", "cor": "#d97706"},
+    "ACAO_VISTORIA": {"label": "Vistoria / atendimento técnico", "cor": "#0284c7"},
+    "ACAO_REUNIAO": {"label": "Reunião / planejamento", "cor": "#7c3aed"},
+    "ACAO_OUTRO": {"label": "Outro registro do setor", "cor": "#64748b"},
     "OVITRAMPA": {"label": "Ovitrampa", "cor": "#0f766e"},
     "ANIVERSARIO": {"label": "Aniversário", "cor": "#db2777"},
 }
@@ -688,17 +691,47 @@ def _eventos_periodo(inicio, fim):
             (inicio[:10], fim[:10]),
         )
         for r in acao_rows:
-            educativa = r["tipo"] == "educativa"
-            fonte = "ACAO_EDUCATIVA" if educativa else "ACAO_LIMPEZA"
-            base = "Ação educativa" if educativa else "Mutirão de limpeza"
-            complemento = r["tema"] if educativa else r["local"]
+            tipos_acao = {
+                "educativa": ("ACAO_EDUCATIVA", "Ação educativa"),
+                "limpeza": ("ACAO_LIMPEZA", "Limpeza / mutirão"),
+                "vistoria": ("ACAO_VISTORIA", "Vistoria / atendimento técnico"),
+                "reuniao": ("ACAO_REUNIAO", "Reunião / planejamento"),
+                "outro": ("ACAO_OUTRO", "Outro registro do setor"),
+            }
+            fonte, base = tipos_acao.get(
+                r["tipo"],
+                ("ACAO_OUTRO", "Registro do setor"),
+            )
+            complemento = (
+                r["tema"]
+                or r["local"]
+                or _row_get(r, "caso")
+            )
             if not complemento:
                 complemento = r["localidade"] or r["local"] or ""
             titulo = f"{base} - {complemento}" if complemento else base
             resumo_partes = []
+            situacao = _row_get(r, "situacao")
+            if situacao:
+                situacoes = {
+                    "realizada": "Realizada",
+                    "em_acompanhamento": "Em acompanhamento",
+                    "planejada": "Planejada",
+                    "cancelada": "Cancelada",
+                }
+                resumo_partes.append(f"Situação: {situacoes.get(situacao, situacao)}")
+            data_fim = _row_get(r, "data_fim")
+            if data_fim:
+                resumo_partes.append(f"Data final: {data_fim[8:10]}/{data_fim[5:7]}/{data_fim[:4]}")
             periodo = _row_get(r, "periodo")
             if periodo:
-                resumo_partes.append(f"Período: {'Manhã' if periodo == 'manha' else 'Tarde' if periodo == 'tarde' else periodo}")
+                periodos = {
+                    "manha": "Manhã",
+                    "tarde": "Tarde",
+                    "integral": "Dia inteiro",
+                    "nao_informado": "Não informado",
+                }
+                resumo_partes.append(f"Período: {periodos.get(periodo, periodo)}")
             if r["hora_inicio"] or r["hora_fim"]:
                 hora = " - ".join(x for x in (r["hora_inicio"], r["hora_fim"]) if x)
                 resumo_partes.append(f"Horário: {hora}")
@@ -708,6 +741,8 @@ def _eventos_periodo(inicio, fim):
                 resumo_partes.append(f"Endereço: {r['endereco']}")
             if r["publico_aproximado"] is not None:
                 resumo_partes.append(f"Público aproximado: {r['publico_aproximado']}")
+            if _row_get(r, "caso"):
+                resumo_partes.append(f"Caso / acompanhamento: {r['caso']}")
             for coluna, label in (
                 ("tipo_atividade_realizada", "Tipo de atividade"),
                 ("publico_alvo", "Público alvo"),
@@ -718,6 +753,10 @@ def _eventos_periodo(inicio, fim):
                     resumo_partes.append(f"{label}: {texto}")
             if r["contexto"]:
                 resumo_partes.append(f"Contexto: {r['contexto']}")
+            if _row_get(r, "resultados"):
+                resumo_partes.append(f"Resultados e providências: {r['resultados']}")
+            if _row_get(r, "parceiros"):
+                resumo_partes.append(f"Órgãos e parceiros: {r['parceiros']}")
             if r["coordenadas"]:
                 resumo_partes.append(f"Coordenadas: {r['coordenadas']}")
             if r["observacoes"]:

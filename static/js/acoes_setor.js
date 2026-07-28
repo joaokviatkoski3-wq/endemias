@@ -1,7 +1,8 @@
 (function(){
   const $ = id => document.getElementById(id);
   const camposTexto = [
-    'localidade', 'local', 'endereco', 'tema', 'contexto', 'coordenadas', 'observacoes'
+    'caso', 'localidade', 'local', 'endereco', 'tema', 'contexto',
+    'resultados', 'parceiros', 'coordenadas', 'observacoes'
   ];
   const fmtNumero = new Intl.NumberFormat('pt-BR');
   const fmtMes = new Intl.DateTimeFormat('pt-BR', {month:'short', timeZone:'UTC'});
@@ -79,8 +80,10 @@
     const p=new URLSearchParams();
     setParametro(p,'acoes-busca','busca');
     setParametro(p,'acoes-filtro-tipo','tipo');
+    setParametro(p,'acoes-filtro-situacao','situacao');
     setParametro(p,'acoes-filtro-periodo','periodo');
     setParametro(p,'acoes-filtro-localidade','localidade');
+    setParametro(p,'acoes-filtro-caso','caso');
     setParametro(p,'acoes-filtro-agente','id_agente');
     setParametro(p,'acoes-data-inicio','data_inicio');
     setParametro(p,'acoes-data-fim','data_fim');
@@ -93,6 +96,7 @@
     setParametro(p,'acoes-anexos-tipo-acao','tipo_acao');
     setParametro(p,'acoes-anexos-tipo-arquivo','tipo_arquivo');
     setParametro(p,'acoes-anexos-localidade','localidade');
+    setParametro(p,'acoes-anexos-caso','caso');
     setParametro(p,'acoes-anexos-agente','id_agente');
     setParametro(p,'acoes-anexos-data-inicio','data_inicio');
     setParametro(p,'acoes-anexos-data-fim','data_fim');
@@ -110,7 +114,9 @@
     const educativa=$('acao-tipo').value==='educativa';
     const data={
       tipo:$('acao-tipo').value,
+      situacao:$('acao-situacao').value,
       data:$('acao-data').value,
+      data_fim:$('acao-data-fim').value,
       periodo:document.querySelector('input[name="acao-periodo"]:checked')?.value||'',
       hora_inicio:$('acao-hora-inicio').value,
       hora_fim:$('acao-hora-fim').value,
@@ -141,14 +147,17 @@
 
   function limparForm(){
     $('acao-id').value='';
-    $('acao-form-title').textContent='Nova ação';
-    $('acao-form-contexto').textContent='Cadastro do registro';
+    $('acao-form-title').textContent='Novo registro';
+    $('acao-form-contexto').textContent='Cadastro da atividade';
     $('acao-tipo').value='educativa';
+    $('acao-situacao').value='realizada';
     $('acao-data').value=new Date().toISOString().slice(0,10);
+    $('acao-data-fim').value='';
     setCheckedValues('acao-periodo',[]);
     $('acao-hora-inicio').value='';
     $('acao-hora-fim').value='';
     $('acao-publico').value='';
+    if($('acao-anexos-restritos'))$('acao-anexos-restritos').checked=false;
     limparCamposEducativos();
     camposTexto.forEach(campo=>{$(`acao-${campo}`).value='';});
     $('acao-agentes-busca').value='';
@@ -171,10 +180,12 @@
 
   function preencherForm(r,abrir=true){
     $('acao-id').value=r.id_acao;
-    $('acao-form-title').textContent='Editar ação';
+    $('acao-form-title').textContent='Editar registro';
     $('acao-form-contexto').textContent=`Registro ${String(r.id_acao).padStart(6,'0')} · ${dataBR(r.data)}`;
     $('acao-tipo').value=r.tipo||'educativa';
+    $('acao-situacao').value=r.situacao||'realizada';
     $('acao-data').value=r.data||'';
+    $('acao-data-fim').value=r.data_fim||'';
     setCheckedValues('acao-periodo',r.periodo?[r.periodo]:[]);
     $('acao-hora-inicio').value=r.hora_inicio||'';
     $('acao-hora-fim').value=r.hora_fim||'';
@@ -240,6 +251,7 @@
     return `<article class="acoes-anexo">
       <a class="acoes-anexo-preview" href="${a.url_visualizar||a.url_download}" target="_blank" rel="noopener" title="Abrir anexo">
         <span class="acoes-anexo-kind">${esc(anexoTipoLabel(a))}</span>
+        ${a.restrito?'<span class="acoes-anexo-restrito">Restrito</span>':''}
         ${imagem
           ?`<img src="${a.url_visualizar}" alt="${esc(a.nome_original)}" loading="lazy">`
           :video
@@ -253,6 +265,7 @@
         ${a.criado_em?`<div class="acoes-anexo-meta">Adicionado em ${esc(dataHoraBR(a.criado_em))}</div>`:''}
       </div>
       <div class="acoes-anexo-actions">
+        ${a.pode_gerenciar_restritos?`<button class="btn btn-icon" type="button" data-alternar-restrito="${a.id_anexo}" data-restrito="${a.restrito?'1':'0'}" title="${a.restrito?'Tornar anexo comum':'Restringir à administração'}"><img src="/static/icons/cadeado.svg" alt="" class="icon-svg"></button>`:''}
         ${a.eh_previa?`<a class="btn btn-icon" href="${a.url_visualizar}" target="_blank" rel="noopener" title="Visualizar"><img src="/static/icons/busca.svg" alt="" class="icon-svg"></a>`:''}
         <a class="btn btn-icon" href="${a.url_download}" title="Baixar"><img src="/static/icons/importar.svg" alt="" class="icon-svg"></a>
         <button class="btn btn-icon" type="button" data-excluir-anexo="${a.id_anexo}" data-id-acao="${a.id_acao}" title="Excluir anexo"><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"></button>
@@ -272,18 +285,22 @@
 
   function detalhesRegistroHtml(r){
     const detalhes=[
+      detalhe('Situação',r.situacao_label),
+      detalhe('Caso / acompanhamento',r.caso),
+      detalhe('Data final',r.data_fim?dataBR(r.data_fim):''),
       detalhe('Tipo de atividade',labelsLista(r.tipo_atividade_realizada_labels)),
       detalhe('Público alvo',labelsLista(r.publico_alvo_labels)),
       detalhe('Recurso utilizado',labelsLista(r.recurso_utilizado_labels)),
       detalhe('Endereço',r.endereco),
       detalhe('Coordenadas',r.coordenadas),
+      detalhe('Órgãos e parceiros',r.parceiros),
       detalhe('Registrado por',r.criado_por),
       detalhe('Criado em',dataHoraBR(r.criado_em)),
       detalhe('Atualizado em',dataHoraBR(r.atualizado_em)),
     ].join('');
     return `<div class="acao-details-wrap">
       <div class="acao-detail-grid">${detalhes||'<span class="acoes-toolbar-meta">Sem informações complementares.</span>'}</div>
-      ${(r.contexto||r.observacoes)?`<div class="acao-notes">${r.contexto?`<div class="acao-note"><strong>Contexto</strong>${esc(r.contexto)}</div>`:''}${r.observacoes?`<div class="acao-note"><strong>Observações</strong>${esc(r.observacoes)}</div>`:''}</div>`:''}
+      ${(r.contexto||r.resultados||r.observacoes)?`<div class="acao-notes">${r.contexto?`<div class="acao-note"><strong>Contexto</strong>${esc(r.contexto)}</div>`:''}${r.resultados?`<div class="acao-note"><strong>Resultados e providências</strong>${esc(r.resultados)}</div>`:''}${r.observacoes?`<div class="acao-note"><strong>Observações</strong>${esc(r.observacoes)}</div>`:''}</div>`:''}
       <div class="acao-attachments-head">
         <strong>Anexos (${Number(r.total_anexos)||0})</strong>
         ${Number(r.total_anexos)>0?`<a class="btn btn-outline btn-sm" href="/api/acoes-setor/${r.id_acao}/anexos/baixar-todos"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Baixar todos</a>`:''}
@@ -293,8 +310,16 @@
   }
 
   function tituloRegistro(r){
-    if(r.tipo==='limpeza')return r.local?`Limpeza · ${r.local}`:'Ação de limpeza';
-    return r.tema?`Ação educativa · ${r.tema}`:'Ação educativa';
+    const bases={
+      educativa:'Ação educativa',
+      limpeza:'Limpeza / mutirão',
+      vistoria:'Vistoria / atendimento técnico',
+      reuniao:'Reunião / planejamento',
+      outro:'Outro registro',
+    };
+    const base=bases[r.tipo]||r.tipo_label||'Registro';
+    const complemento=r.tema||r.local||r.caso;
+    return complemento?`${base} · ${complemento}`:base;
   }
 
   function registrosOrdenados(){
@@ -312,6 +337,7 @@
     $('acoes-stat-publico').textContent=fmtNumero.format(totalPublico);
     $('acoes-stat-educativas').textContent=fmtNumero.format(registros.filter(r=>r.tipo==='educativa').length);
     $('acoes-stat-limpezas').textContent=fmtNumero.format(registros.filter(r=>r.tipo==='limpeza').length);
+    $('acoes-stat-outros').textContent=fmtNumero.format(registros.filter(r=>!['educativa','limpeza'].includes(r.tipo)).length);
   }
 
   function render(){
@@ -321,16 +347,16 @@
     $('acoes-lista').innerHTML=lista.map(r=>{
       const data=dataPartes(r.data);
       const aberto=Number(registroAberto)===Number(r.id_acao);
-      const classe=r.tipo==='limpeza'?'limpeza':'';
+      const classe=r.tipo||'';
       const local=[r.localidade,r.local].filter(Boolean).join(' · ')||'Local não informado';
       const momento=[r.periodo_label,horaRange(r)].filter(Boolean).join(' · ')||'Período não informado';
       return `<article class="acao-item ${aberto?'open':''}" data-acao-item="${r.id_acao}">
         <div class="acao-row">
           <div class="acao-date"><strong>${esc(data.dia)}</strong><span>${esc(data.mes)} ${esc(data.ano)}</span></div>
           <div class="acao-main">
-            <div class="acao-main-top"><span class="acao-tag ${classe}">${esc(r.tipo_label)}</span><span class="acao-subtitle">Registro ${String(r.id_acao).padStart(6,'0')}</span></div>
+            <div class="acao-main-top"><span class="acao-tag ${classe}">${esc(r.tipo_label)}</span><span class="acao-subtitle">${esc(r.situacao_label||'')} · Registro ${String(r.id_acao).padStart(6,'0')}</span></div>
             <div class="acao-title">${esc(tituloRegistro(r))}</div>
-            <div class="acao-subtitle">${esc(local)}</div>
+            <div class="acao-subtitle">${esc([r.caso,local].filter(Boolean).join(' · '))}</div>
           </div>
           <div class="acao-info"><span>Equipe</span><strong>${esc(r.agentes_nomes||'Não informada')}</strong><span>Horário</span><strong>${esc(momento)}</strong></div>
           <div class="acao-numbers">
@@ -345,7 +371,7 @@
         </div>
         ${aberto?detalhesRegistroHtml(r):''}
       </article>`;
-    }).join('')||'<div class="acao-empty">Nenhuma ação encontrada com os filtros informados.</div>';
+    }).join('')||'<div class="acao-empty">Nenhum registro encontrado com os filtros informados.</div>';
   }
 
   function atualizarEstadoAnexos(){
@@ -413,18 +439,19 @@
   }
 
   function limparFiltrosRegistros(){
-    ['acoes-busca','acoes-filtro-tipo','acoes-filtro-periodo','acoes-filtro-localidade','acoes-filtro-agente','acoes-data-inicio','acoes-data-fim'].forEach(id=>{$(id).value='';});
+    ['acoes-busca','acoes-filtro-tipo','acoes-filtro-situacao','acoes-filtro-periodo','acoes-filtro-localidade','acoes-filtro-caso','acoes-filtro-agente','acoes-data-inicio','acoes-data-fim'].forEach(id=>{$(id).value='';});
     $('acoes-ordem').value='recentes';
   }
 
   function limparFiltrosAnexos(){
-    ['acoes-anexos-busca','acoes-anexos-tipo-acao','acoes-anexos-tipo-arquivo','acoes-anexos-localidade','acoes-anexos-agente','acoes-anexos-data-inicio','acoes-anexos-data-fim'].forEach(id=>{$(id).value='';});
+    ['acoes-anexos-busca','acoes-anexos-tipo-acao','acoes-anexos-tipo-arquivo','acoes-anexos-localidade','acoes-anexos-caso','acoes-anexos-agente','acoes-anexos-data-inicio','acoes-anexos-data-fim'].forEach(id=>{$(id).value='';});
   }
 
   async function salvar(){
     const dados=payload();
-    if(!dados.data){toast('Informe a data da ação.','error');return;}
-    if(!dados.periodo){toast('Informe o período da ação.','error');return;}
+    if(!dados.data){toast('Informe a data inicial.','error');return;}
+    if(dados.data_fim&&dados.data_fim<dados.data){toast('A data final não pode ser anterior à data inicial.','error');return;}
+    if(!dados.periodo){toast('Informe o período do registro.','error');return;}
     const id=$('acao-id').value;
     const resp=await api(id?`/api/acoes-setor/${id}`:'/api/acoes-setor',{
       method:id?'PUT':'POST',
@@ -437,7 +464,7 @@
     registroAberto=Number(salvoId);
     limparFiltrosRegistros();
     await carregar();
-    toast(id?'Ação atualizada com sucesso.':'Ação criada. Os anexos já podem ser adicionados.','success');
+    toast(id?'Registro atualizado com sucesso.':'Registro criado. Os anexos já podem ser adicionados.','success');
   }
 
   async function enviarAnexos(){
@@ -446,6 +473,7 @@
     if(!id||!arquivos.length)return;
     const form=new FormData();
     arquivos.forEach(arq=>form.append('arquivos',arq));
+    if($('acao-anexos-restritos')?.checked)form.append('restrito','1');
     const resp=await fetch(`/api/acoes-setor/${id}/anexos`,{
       method:'POST',
       headers:{'X-CSRFToken':getCsrf()},
@@ -459,6 +487,28 @@
     atualizarEstadoAnexos();
     await carregar();
     toast(`${arquivos.length} arquivo(s) adicionado(s).`,'success');
+  }
+
+  async function alternarRestricaoAnexo(idAnexo,restritoAtual){
+    const tornarRestrito=!restritoAtual;
+    const mensagem=tornarRestrito
+      ?'Restringir este anexo à administração?'
+      :'Tornar este anexo visível aos operadores?';
+    if(!confirm(mensagem))return;
+    await api(`/api/acoes-setor/anexos/${idAnexo}`,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+      body:JSON.stringify({restrito:tornarRestrito}),
+    });
+    const idAcaoAtual=$('acao-id').value;
+    if(idAcaoAtual)await carregarAnexos(idAcaoAtual);
+    if(registroAberto){
+      const data=await api(`/api/acoes-setor/${registroAberto}/anexos`);
+      anexosPorAcao[registroAberto]=data.anexos||[];
+    }
+    await carregar();
+    if(galeriaAnexosCarregada)await carregarGaleriaAnexos();
+    toast(tornarRestrito?'Anexo restrito à administração.':'Anexo tornado comum.','success');
   }
 
   async function excluirAnexo(idAnexo){
@@ -479,7 +529,7 @@
   }
 
   async function excluir(id){
-    if(!confirm('Excluir esta ação e todos os seus anexos?'))return;
+    if(!confirm('Excluir este registro e todos os seus anexos?'))return;
     if(!confirm('Tem certeza? Esta exclusão não pode ser desfeita.'))return;
     await api(`/api/acoes-setor/${id}`,{
       method:'DELETE',
@@ -487,7 +537,7 @@
     });
     if(Number(registroAberto)===Number(id))registroAberto=null;
     await carregar();
-    toast('Ação excluída.','success');
+    toast('Registro excluído.','success');
   }
 
   function abrirAba(tab){
@@ -533,6 +583,8 @@
       const editar=e.target.closest('[data-editar]');
       const excluirBtn=e.target.closest('[data-excluir]');
       const anexoBtn=e.target.closest('[data-excluir-anexo]');
+      const restritoBtn=e.target.closest('[data-alternar-restrito]');
+      if(restritoBtn){alternarRestricaoAnexo(restritoBtn.dataset.alternarRestrito,restritoBtn.dataset.restrito==='1').catch(err=>toast(err.message,'error'));return;}
       if(anexoBtn){excluirAnexo(anexoBtn.dataset.excluirAnexo).catch(err=>toast(err.message,'error'));return;}
       if(alternar){alternarRegistro(alternar.dataset.alternar).catch(err=>toast(err.message,'error'));return;}
       if(editar){
@@ -544,6 +596,11 @@
     });
     ['acao-anexos-lista','acoes-anexos-galeria'].forEach(id=>{
       $(id).addEventListener('click',e=>{
+        const restritoBtn=e.target.closest('[data-alternar-restrito]');
+        if(restritoBtn){
+          alternarRestricaoAnexo(restritoBtn.dataset.alternarRestrito,restritoBtn.dataset.restrito==='1').catch(err=>toast(err.message,'error'));
+          return;
+        }
         const btn=e.target.closest('[data-excluir-anexo]');
         if(btn)excluirAnexo(btn.dataset.excluirAnexo).catch(err=>toast(err.message,'error'));
       });

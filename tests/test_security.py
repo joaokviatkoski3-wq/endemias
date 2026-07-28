@@ -361,17 +361,27 @@ class LarvasAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "larvas.db"
             conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
             try:
                 conn.executescript(
                     """
                     CREATE TABLE visitas (
                         id_visita TEXT PRIMARY KEY,
-                        data TEXT
+                        data TEXT,
+                        tipo TEXT,
+                        localidade TEXT,
+                        quarteirao TEXT,
+                        logradouro TEXT,
+                        numero TEXT,
+                        morador TEXT,
+                        tipo_imovel TEXT,
+                        observacoes TEXT
                     );
                     CREATE TABLE coletas (
                         id_coleta TEXT PRIMARY KEY,
                         id_visita TEXT,
-                        num_tubo TEXT
+                        num_tubo TEXT,
+                        tipo_deposito TEXT
                     );
                     INSERT INTO visitas (id_visita, data)
                     VALUES ('v1', '2026-06-01');
@@ -1425,6 +1435,10 @@ class EsporotricoseSchemaTests(unittest.TestCase):
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
             try:
+                conn.execute(
+                    "CREATE TABLE localidades ("
+                    "id_localidade INTEGER PRIMARY KEY, nome TEXT UNIQUE, cod_localidade TEXT)"
+                )
                 esporotricose_core.ensure_schema(conn)
                 conn.execute(
                     """INSERT INTO esporotricose_visitas(
@@ -2903,9 +2917,11 @@ class MainPagesSmokeTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
-        self.assertIn("Ações do Setor", html)
+        self.assertIn("Ações e Atendimentos do Setor", html)
         self.assertIn("Ação educativa / palestra", html)
         self.assertIn("Ação de limpeza / mutirão", html)
+        self.assertIn("Vistoria / atendimento técnico", html)
+        self.assertIn("Reunião / planejamento", html)
         self.assertIn('src="/static/icons/acoes_setor.svg"', html)
         self.assertIn('id="acao-agentes"', html)
         self.assertIn('name="acao-periodo"', html)
@@ -2925,8 +2941,17 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('id="acao-anexos-baixar-todos"', html)
         self.assertIn('id="acao-anexos-lista"', html)
         self.assertIn('id="acao-dialog"', html)
+        self.assertIn('id="acao-data-fim"', html)
+        self.assertIn('id="acao-situacao"', html)
+        self.assertIn('id="acao-caso"', html)
+        self.assertIn('id="acao-resultados"', html)
+        self.assertIn('id="acao-parceiros"', html)
+        self.assertIn('id="acao-anexos-restritos"', html)
         self.assertIn('id="acao-nova"', html)
         self.assertIn('id="acoes-stat-total"', html)
+        self.assertIn('id="acoes-stat-outros"', html)
+        self.assertIn('id="acoes-filtro-situacao"', html)
+        self.assertIn('id="acoes-filtro-caso"', html)
         self.assertIn('id="acoes-filtro-localidade"', html)
         self.assertIn('id="acoes-filtro-agente"', html)
         self.assertIn('id="acoes-data-inicio"', html)
@@ -2936,6 +2961,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('id="acoes-anexos-galeria"', html)
         self.assertIn('id="acoes-anexos-tipo-arquivo"', html)
         self.assertIn('id="acoes-anexos-localidade"', html)
+        self.assertIn('id="acoes-anexos-caso"', html)
         self.assertIn('id="acoes-anexos-agente"', html)
         self.assertIn('accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.txt,.mp4,.mov,.avi,.mkv,.webm,.m4v,.3gp"', html)
         self.assertIn('<option value="video">', html)
@@ -2957,12 +2983,13 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("/api/acoes-setor/anexos?", js)
         self.assertIn("/anexos/baixar-todos", js)
         self.assertIn("loading=\"lazy\"", js)
-        self.assertIn("Informe o período da ação.", js)
+        self.assertIn("Informe o período do registro.", js)
         self.assertIn("function detalhesRegistroHtml", js)
         self.assertIn("function abrirFormularioNovo", js)
         self.assertIn("function atualizarResumo", js)
         self.assertIn("function limparFiltrosAnexos", js)
         self.assertIn("preencherForm(atualizada,false)", js)
+        self.assertIn("function alternarRestricaoAnexo", js)
 
     def test_acoes_setor_crud_e_busca_sem_acento(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -3051,6 +3078,136 @@ class MainPagesSmokeTests(unittest.TestCase):
             self.assertEqual(resp.get_json()["tipo_atividade_realizada"], [])
             self.assertEqual(resp.get_json()["publico_alvo"], [])
             self.assertEqual(resp.get_json()["recurso_utilizado"], [])
+
+    def test_acoes_setor_registra_atendimento_agrupado_e_intervalo(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _, client, _ = _client_admin_com_banco_temporario(tmpdir)
+            resp = client.post("/api/acoes-setor", json={
+                "tipo": "vistoria",
+                "situacao": "em_acompanhamento",
+                "data": "2026-08-12",
+                "data_fim": "2026-08-14",
+                "periodo": "integral",
+                "caso": "Acompanhamento sanitário - Centro",
+                "localidade": "Centro",
+                "local": "Imóvel acompanhado",
+                "tema": "Vistoria sanitária",
+                "contexto": "Atendimento decorrente de solicitação.",
+                "resultados": "Orientações prestadas e retorno agendado.",
+                "parceiros": "Meio Ambiente e UBS Centro",
+            })
+            self.assertEqual(resp.status_code, 201)
+            id_acao = resp.get_json()["id_acao"]
+
+            registro = client.get(f"/api/acoes-setor/{id_acao}").get_json()
+            self.assertEqual(registro["tipo_label"], "Vistoria / atendimento técnico")
+            self.assertEqual(registro["situacao_label"], "Em acompanhamento")
+            self.assertEqual(registro["data_fim"], "2026-08-14")
+            self.assertEqual(registro["periodo_label"], "Dia inteiro")
+            self.assertEqual(registro["caso"], "Acompanhamento sanitário - Centro")
+            self.assertIn("retorno", registro["resultados"])
+            self.assertIn("Meio Ambiente", registro["parceiros"])
+
+            filtrado = client.get(
+                "/api/acoes-setor?tipo=vistoria&situacao=em_acompanhamento"
+                "&caso=Acompanhamento%20sanit%C3%A1rio%20-%20Centro"
+                "&data_inicio=2026-08-13&data_fim=2026-08-13"
+            )
+            self.assertEqual(filtrado.status_code, 200)
+            self.assertEqual(filtrado.get_json()["total"], 1)
+
+            data_invalida = client.post("/api/acoes-setor", json={
+                "tipo": "reuniao",
+                "data": "2026-08-14",
+                "data_fim": "2026-08-12",
+                "periodo": "manha",
+            })
+            self.assertEqual(data_invalida.status_code, 400)
+            self.assertIn("data final", data_invalida.get_json()["erro"].lower())
+
+    def test_acoes_setor_migra_tabela_antiga_sem_perder_vinculos(self):
+        from blueprints import acoes_setor as acoes_setor_bp
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "legado.db"
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                conn.executescript("""
+                    PRAGMA foreign_keys=ON;
+                    CREATE TABLE agentes (
+                        id_agente INTEGER PRIMARY KEY,
+                        nome TEXT NOT NULL
+                    );
+                    CREATE TABLE acoes_setor (
+                        id_acao INTEGER PRIMARY KEY AUTOINCREMENT,
+                        tipo TEXT NOT NULL CHECK(tipo IN ('educativa','limpeza')),
+                        data TEXT NOT NULL,
+                        hora_inicio TEXT,
+                        hora_fim TEXT,
+                        localidade TEXT,
+                        endereco TEXT,
+                        local TEXT,
+                        publico_aproximado INTEGER,
+                        tema TEXT,
+                        contexto TEXT,
+                        coordenadas TEXT,
+                        observacoes TEXT,
+                        criado_por TEXT,
+                        criado_em TEXT NOT NULL,
+                        atualizado_em TEXT
+                    );
+                    CREATE TABLE acoes_setor_agentes (
+                        id_acao INTEGER NOT NULL REFERENCES acoes_setor(id_acao) ON DELETE CASCADE,
+                        id_agente INTEGER NOT NULL REFERENCES agentes(id_agente),
+                        PRIMARY KEY (id_acao,id_agente)
+                    );
+                    CREATE TABLE acoes_setor_anexos (
+                        id_anexo INTEGER PRIMARY KEY AUTOINCREMENT,
+                        id_acao INTEGER NOT NULL REFERENCES acoes_setor(id_acao) ON DELETE CASCADE,
+                        nome_original TEXT NOT NULL,
+                        nome_arquivo TEXT NOT NULL,
+                        caminho_rel TEXT NOT NULL,
+                        mime_type TEXT,
+                        tamanho INTEGER NOT NULL DEFAULT 0,
+                        criado_por TEXT,
+                        criado_em TEXT NOT NULL
+                    );
+                    INSERT INTO agentes VALUES (1,'João');
+                    INSERT INTO acoes_setor
+                        (id_acao,tipo,data,tema,criado_por,criado_em)
+                    VALUES (7,'educativa','2025-08-15','Planejamento','João','2026-07-01T10:00:00');
+                    INSERT INTO acoes_setor_agentes VALUES (7,1);
+                    INSERT INTO acoes_setor_anexos
+                        (id_anexo,id_acao,nome_original,nome_arquivo,caminho_rel,tamanho,criado_em)
+                    VALUES (3,7,'ata.docx','ata.docx','acoes/ata.docx',10,'2026-07-01T10:00:00');
+                """)
+                acoes_setor_bp.ensure_schema(conn)
+
+                registro = conn.execute(
+                    "SELECT * FROM acoes_setor WHERE id_acao=7"
+                ).fetchone()
+                self.assertEqual(registro["tema"], "Planejamento")
+                self.assertEqual(registro["situacao"], "realizada")
+                self.assertEqual(
+                    conn.execute(
+                        "SELECT COUNT(*) FROM acoes_setor_agentes WHERE id_acao=7"
+                    ).fetchone()[0],
+                    1,
+                )
+                anexo = conn.execute(
+                    "SELECT * FROM acoes_setor_anexos WHERE id_anexo=3"
+                ).fetchone()
+                self.assertEqual(anexo["restrito"], 0)
+                self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
+                conn.execute(
+                    """INSERT INTO acoes_setor
+                       (tipo,situacao,data,periodo,criado_em)
+                       VALUES ('vistoria','realizada','2026-07-01','manha','2026-07-01T10:00:00')"""
+                )
+                conn.commit()
+            finally:
+                conn.close()
 
     def test_acoes_setor_anexos_ficam_em_pasta_e_podem_ser_excluidos(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -3155,6 +3312,86 @@ class MainPagesSmokeTests(unittest.TestCase):
             resp = client.delete(f"/api/acoes-setor/anexos/{id_anexo}")
             self.assertEqual(resp.status_code, 200)
             self.assertFalse(caminho.exists())
+
+    def test_acoes_setor_anexo_restrito_so_aparece_para_admin(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, admin_client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            app_temp.config["ANEXOS_DIR"] = str(Path(tmpdir) / "anexos")
+
+            criado = admin_client.post("/api/acoes-setor", json={
+                "tipo": "vistoria",
+                "data": "2026-08-12",
+                "periodo": "tarde",
+                "caso": "Caso com documento sensível",
+            })
+            self.assertEqual(criado.status_code, 201)
+            id_acao = criado.get_json()["id_acao"]
+
+            enviado = admin_client.post(
+                f"/api/acoes-setor/{id_acao}/anexos",
+                data={
+                    "restrito": "1",
+                    "arquivos": (io.BytesIO(b"documento restrito"), "documento.pdf"),
+                },
+                content_type="multipart/form-data",
+            )
+            self.assertEqual(enviado.status_code, 201)
+            anexo = enviado.get_json()["anexos"][0]
+            self.assertTrue(anexo["restrito"])
+            id_anexo = anexo["id_anexo"]
+
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                conn.execute(
+                    """INSERT INTO usuarios
+                       (usuario,nome,senha_hash,nivel,ativo,criado_em)
+                       VALUES ('operador_teste','Operador Teste','x','operador',1,?)""",
+                    (datetime.now().isoformat(),),
+                )
+                conn.commit()
+                operador = dict(conn.execute(
+                    """SELECT id_usuario,nome,nivel FROM usuarios
+                        WHERE usuario='operador_teste'"""
+                ).fetchone())
+            finally:
+                conn.close()
+
+            operador_client = app_temp.test_client()
+            _login_client_com_usuario(operador_client, operador)
+            self.assertEqual(
+                operador_client.get(
+                    f"/api/acoes-setor/{id_acao}/anexos"
+                ).get_json()["anexos"],
+                [],
+            )
+            self.assertEqual(
+                operador_client.get("/api/acoes-setor/anexos").get_json()["total"],
+                0,
+            )
+            self.assertEqual(
+                operador_client.get(
+                    f"/acoes-setor/anexos/{id_anexo}/download"
+                ).status_code,
+                403,
+            )
+            self.assertEqual(
+                operador_client.delete(f"/api/acoes-setor/{id_acao}").status_code,
+                403,
+            )
+
+            liberado = admin_client.put(
+                f"/api/acoes-setor/anexos/{id_anexo}",
+                json={"restrito": False},
+            )
+            self.assertEqual(liberado.status_code, 200)
+            self.assertFalse(liberado.get_json()["anexo"]["restrito"])
+            self.assertEqual(
+                len(operador_client.get(
+                    f"/api/acoes-setor/{id_acao}/anexos"
+                ).get_json()["anexos"]),
+                1,
+            )
 
     def test_acoes_setor_aparecem_na_agenda_automatica(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -4164,7 +4401,7 @@ class MainApisSmokeTests(unittest.TestCase):
             )
             self.assertEqual(resp.status_code, 200)
             html = resp.data.decode("utf-8")
-            self.assertIn("Ações do Setor", html)
+            self.assertIn("Ações e Atendimentos", html)
             self.assertIn("Registro Geogr&aacute;fico", html)
             self.assertIn("Laborat&oacute;rio", html)
 
@@ -6650,7 +6887,7 @@ class MainApisSmokeTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 200)
         self.assertIsInstance(eventos, list)
-        proibidos = ("Ã", "Â", "â€", "ðŸ")
+        proibidos = ("Ã", "â€", "ðŸ", "\ufffd")
         for evento in eventos:
             props = evento.get("extendedProps", {})
             if props.get("origem") != "auto":

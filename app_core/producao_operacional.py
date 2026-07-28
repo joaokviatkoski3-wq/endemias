@@ -90,7 +90,7 @@ FONTES = (
     },
     {
         "codigo": "ACOES_SETOR",
-        "nome": "Ações do Setor",
+        "nome": "Ações e Atendimentos",
         "tabela": "acoes_setor",
         "alias": "ac",
         "id_col": "id_acao",
@@ -103,6 +103,8 @@ FONTES = (
         "extras": {
             "educativas": "COUNT(DISTINCT CASE WHEN ac.tipo='educativa' THEN ac.id_acao END)",
             "limpezas": "COUNT(DISTINCT CASE WHEN ac.tipo='limpeza' THEN ac.id_acao END)",
+            "vistorias": "COUNT(DISTINCT CASE WHEN ac.tipo='vistoria' THEN ac.id_acao END)",
+            "reunioes": "COUNT(DISTINCT CASE WHEN ac.tipo='reuniao' THEN ac.id_acao END)",
             "publico": "COALESCE(SUM(ac.publico_aproximado),0)",
         },
     },

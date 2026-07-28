@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Ações do Setor{% endblock %}
-{% block page_title %}Ações do Setor{% endblock %}
+{% block title %}Ações e Atendimentos{% endblock %}
+{% block page_title %}Ações e Atendimentos{% endblock %}
 
 {% block extra_css %}<style>
 .acoes-page{max-width:1500px;margin:0 auto;}
@@ -12,7 +12,7 @@
 .acoes-tab{display:flex;align-items:center;justify-content:center;gap:7px;min-width:120px;border:0;border-radius:5px;padding:8px 13px;background:transparent;color:var(--text2);font:700 12px inherit;cursor:pointer;}
 .acoes-tab.active{background:var(--surface);color:var(--brand);box-shadow:0 1px 3px #00000018;}
 .acoes-tab-panel[hidden]{display:none!important;}
-.acoes-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px;}
+.acoes-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:12px;}
 .acoes-stat{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;padding:12px 14px;border:1px solid var(--border);border-radius:7px;background:var(--surface);}
 .acoes-stat-icon{width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--border);border-radius:6px;background:var(--surface2);}
 .acoes-stat-icon img{width:17px;height:17px;}
@@ -49,6 +49,9 @@
 .acao-attachments-head strong{font-size:11px;text-transform:uppercase;color:var(--text2);}
 .acao-tag{display:inline-flex;align-items:center;border:1px solid #99f6e4;border-radius:4px;padding:2px 6px;background:#ecfdf5;color:#0f766e;font-size:9px;font-weight:800;text-transform:uppercase;}
 .acao-tag.limpeza{border-color:#fed7aa;background:#fff7ed;color:#b45309;}
+.acao-tag.vistoria{border-color:#bae6fd;background:#f0f9ff;color:#0369a1;}
+.acao-tag.reuniao{border-color:#ddd6fe;background:#f5f3ff;color:#6d28d9;}
+.acao-tag.outro{border-color:#cbd5e1;background:#f8fafc;color:#475569;}
 .acao-empty{padding:44px 20px;text-align:center;color:var(--text3);border:1px dashed var(--border);border-radius:7px;font-size:13px;}
 .acoes-anexo-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-top:10px;}
 .acoes-anexo{border:1px solid var(--border);border-radius:7px;background:var(--surface);overflow:hidden;min-width:0;}
@@ -56,6 +59,7 @@
 .acoes-anexo-preview img,.acoes-anexo-preview video{width:100%;height:100%;object-fit:cover;display:block;}
 .acoes-anexo-file{display:grid;place-items:center;width:54px;height:54px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text2);font-weight:900;font-size:11px;text-transform:uppercase;}
 .acoes-anexo-kind{position:absolute;left:7px;top:7px;border:1px solid #ffffff99;border-radius:4px;padding:2px 6px;background:#07101ecc;color:#fff;font-size:9px;font-weight:800;text-transform:uppercase;}
+.acoes-anexo-restrito{position:absolute;right:7px;top:7px;border:1px solid #fecaca;border-radius:4px;padding:2px 6px;background:#7f1d1de6;color:#fff;font-size:9px;font-weight:800;text-transform:uppercase;}
 .acoes-anexo-main{padding:9px 10px;display:grid;gap:3px;min-width:0;}
 .acoes-anexo-name{font-weight:800;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;}
 .acoes-anexo-meta{font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -87,10 +91,13 @@
 .acoes-agent-empty{padding:12px;color:var(--text3);font-size:12px;display:none;}.acoes-agent-empty.show{display:block;}
 .acoes-attachments-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;}
 .acoes-attachments-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;}
+.acoes-restricted-toggle{display:flex;align-items:center;gap:7px;min-height:32px;padding:0 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text2);font-size:11px;font-weight:700;cursor:pointer;}
+.acoes-restricted-toggle input{width:16px;height:16px;accent-color:var(--brand);}
 .acoes-file-input{display:none;}
 .acoes-sheet-actions{display:flex;justify-content:flex-end;gap:8px;padding:11px 16px;border-top:1px solid var(--border);background:var(--surface);box-shadow:0 -4px 12px #0000000a;}
 .acoes-sheet-actions .btn{min-height:39px;}
 @media(max-width:1100px){
+  .acoes-summary{grid-template-columns:repeat(3,minmax(0,1fr));}
   .acoes-filter-grid,.acoes-filter-grid.attachments{grid-template-columns:repeat(3,minmax(0,1fr));}
   .acao-row{grid-template-columns:58px minmax(180px,1fr) minmax(160px,.8fr) auto;}.acao-numbers{display:none;}
   .acao-detail-grid{grid-template-columns:repeat(3,minmax(0,1fr));}
@@ -119,10 +126,10 @@
 <div class="acoes-page">
   <header class="acoes-page-head">
     <div>
-      <h1><img src="/static/icons/acoes_setor.svg" alt="" class="icon-svg"> Ações do Setor</h1>
-      <div class="sub">Registro institucional de ações educativas e limpezas</div>
+      <h1><img src="/static/icons/acoes_setor.svg" alt="" class="icon-svg"> Ações e Atendimentos do Setor</h1>
+      <div class="sub">Registro institucional de ações coletivas, atendimentos técnicos e articulações</div>
     </div>
-    <button class="btn btn-primary" type="button" id="acao-nova"><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Nova ação</button>
+    <button class="btn btn-primary" type="button" id="acao-nova"><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Novo registro</button>
   </header>
 
   <div class="acoes-tabs" role="tablist" aria-label="Conteúdo da página">
@@ -136,14 +143,17 @@
       <div class="acoes-stat"><span class="acoes-stat-icon"><img src="/static/icons/usuario.svg" alt=""></span><div class="acoes-stat-copy"><strong id="acoes-stat-publico">0</strong><span>Público</span></div></div>
       <div class="acoes-stat"><span class="acoes-stat-icon"><img src="/static/icons/nota.svg" alt=""></span><div class="acoes-stat-copy"><strong id="acoes-stat-educativas">0</strong><span>Educativas</span></div></div>
       <div class="acoes-stat"><span class="acoes-stat-icon"><img src="/static/icons/balde.svg" alt=""></span><div class="acoes-stat-copy"><strong id="acoes-stat-limpezas">0</strong><span>Limpezas</span></div></div>
+      <div class="acoes-stat"><span class="acoes-stat-icon"><img src="/static/icons/fichario.svg" alt=""></span><div class="acoes-stat-copy"><strong id="acoes-stat-outros">0</strong><span>Atendimentos e outros</span></div></div>
     </div>
 
     <section class="acoes-filter-panel" aria-label="Filtros dos registros">
       <div class="acoes-filter-grid">
         <div class="f-g"><label>Pesquisa</label><input id="acoes-busca" type="search" placeholder="Local, tema, endereço ou servidor"></div>
         <div class="f-g"><label>Tipo</label><select id="acoes-filtro-tipo"><option value="">Todos</option>{% for codigo, label in tipos_acao.items() %}<option value="{{ codigo }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Situação</label><select id="acoes-filtro-situacao"><option value="">Todas</option>{% for codigo, label in situacoes_acao.items() %}<option value="{{ codigo }}">{{ label }}</option>{% endfor %}</select></div>
         <div class="f-g"><label>Período</label><select id="acoes-filtro-periodo"><option value="">Todos</option>{% for codigo, label in periodos_acao.items() %}<option value="{{ codigo }}">{{ label }}</option>{% endfor %}</select></div>
         <div class="f-g"><label>Localidade</label><select id="acoes-filtro-localidade"><option value="">Todas</option>{% for loc in localidades %}<option value="{{ loc }}">{{ loc }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Caso / acompanhamento</label><select id="acoes-filtro-caso"><option value="">Todos</option>{% for caso in casos %}<option value="{{ caso }}">{{ caso }}</option>{% endfor %}</select></div>
         <div class="f-g"><label>Data inicial</label><input id="acoes-data-inicio" type="date"></div>
         <div class="f-g"><label>Data final</label><input id="acoes-data-fim" type="date"></div>
         <div class="f-g"><label>Servidor</label><select id="acoes-filtro-agente"><option value="">Todos</option>{% for agente in agentes %}<option value="{{ agente.id_agente }}">{{ agente.nome }}</option>{% endfor %}</select></div>
@@ -173,9 +183,10 @@
     <section class="acoes-filter-panel" aria-label="Filtros dos anexos">
       <div class="acoes-filter-grid attachments">
         <div class="f-g"><label>Pesquisa</label><input id="acoes-anexos-busca" type="search" placeholder="Arquivo, local ou tema"></div>
-        <div class="f-g"><label>Tipo de ação</label><select id="acoes-anexos-tipo-acao"><option value="">Todos</option>{% for codigo, label in tipos_acao.items() %}<option value="{{ codigo }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Tipo de registro</label><select id="acoes-anexos-tipo-acao"><option value="">Todos</option>{% for codigo, label in tipos_acao.items() %}<option value="{{ codigo }}">{{ label }}</option>{% endfor %}</select></div>
         <div class="f-g"><label>Tipo de arquivo</label><select id="acoes-anexos-tipo-arquivo"><option value="">Todos</option><option value="imagem">Imagens</option><option value="video">Vídeos</option><option value="pdf">PDF</option><option value="documento">Documentos</option></select></div>
         <div class="f-g"><label>Localidade</label><select id="acoes-anexos-localidade"><option value="">Todas</option>{% for loc in localidades %}<option value="{{ loc }}">{{ loc }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Caso / acompanhamento</label><select id="acoes-anexos-caso"><option value="">Todos</option>{% for caso in casos %}<option value="{{ caso }}">{{ caso }}</option>{% endfor %}</select></div>
         <div class="f-g"><label>Servidor</label><select id="acoes-anexos-agente"><option value="">Todos</option>{% for agente in agentes %}<option value="{{ agente.id_agente }}">{{ agente.nome }}</option>{% endfor %}</select></div>
         <div class="f-g"><label>Data inicial</label><input id="acoes-anexos-data-inicio" type="date"></div>
         <div class="f-g"><label>Data final</label><input id="acoes-anexos-data-fim" type="date"></div>
@@ -197,7 +208,7 @@
 <dialog class="acoes-dialog" id="acao-dialog">
   <div class="acoes-sheet">
     <header class="acoes-sheet-head">
-      <div class="acoes-sheet-title"><strong id="acao-form-title">Nova ação</strong><span id="acao-form-contexto">Cadastro do registro</span></div>
+      <div class="acoes-sheet-title"><strong id="acao-form-title">Novo registro</strong><span id="acao-form-contexto">Cadastro da atividade</span></div>
       <button class="btn btn-icon" type="button" id="acao-fechar" title="Fechar"><img src="/static/icons/fechar.svg" alt="Fechar" class="icon-svg"></button>
     </header>
     <div class="acoes-sheet-body">
@@ -207,7 +218,9 @@
         <div class="acoes-form-section-title"><img src="/static/icons/calendario.svg" alt=""> Identificação</div>
         <div class="acoes-form">
           <div class="f-g span-2"><label>Tipo</label><select id="acao-tipo">{% for codigo, label in tipos_acao.items() %}<option value="{{ codigo }}">{{ label }}</option>{% endfor %}</select></div>
-          <div class="f-g"><label>Data</label><input id="acao-data" type="date" required></div>
+          <div class="f-g span-2"><label>Situação</label><select id="acao-situacao">{% for codigo, label in situacoes_acao.items() %}<option value="{{ codigo }}">{{ label }}</option>{% endfor %}</select></div>
+          <div class="f-g"><label>Data inicial</label><input id="acao-data" type="date" required></div>
+          <div class="f-g"><label>Data final <span class="acoes-muted">(opcional)</span></label><input id="acao-data-fim" type="date"></div>
           <div class="f-g">
             <label>Período</label>
             <div class="acoes-choice-grid compact">{% for codigo, label in periodos_acao.items() %}<label class="acoes-choice"><input type="radio" name="acao-periodo" value="{{ codigo }}" required> {{ label }}</label>{% endfor %}</div>
@@ -215,6 +228,7 @@
           <div class="f-g"><label>Hora início <span class="acoes-muted">(opcional)</span></label><input id="acao-hora-inicio" type="time"></div>
           <div class="f-g"><label>Hora fim <span class="acoes-muted">(opcional)</span></label><input id="acao-hora-fim" type="time"></div>
           <div class="f-g"><label>Público aproximado</label><input id="acao-publico" type="number" min="0" inputmode="numeric"></div>
+          <div class="f-g full"><label>Caso / acompanhamento <span class="acoes-muted">(opcional)</span></label><input id="acao-caso" list="acoes-casos" placeholder="Ex.: Acompanhamento sanitário - Graziela"></div>
         </div>
       </section>
 
@@ -242,6 +256,7 @@
           <div class="f-g"><label>Local</label><input id="acao-local" placeholder="Escola, empresa, praça"></div>
           <div class="f-g span-2"><label>Endereço</label><input id="acao-endereco"></div>
           <div class="f-g span-2"><label>Coordenadas</label><input id="acao-coordenadas" placeholder="-25.123456, -49.123456"></div>
+          <div class="f-g full"><label>Órgãos e parceiros externos</label><input id="acao-parceiros" placeholder="Meio Ambiente, UBS, Defesa Civil"></div>
         </div>
       </section>
 
@@ -250,7 +265,8 @@
         <div class="acoes-form">
           <div class="f-g full"><label>Tema</label><input id="acao-tema"></div>
           <div class="f-g span-2"><label>Contexto</label><textarea id="acao-contexto" rows="4"></textarea></div>
-          <div class="f-g span-2"><label>Observações</label><textarea id="acao-observacoes" rows="4"></textarea></div>
+          <div class="f-g span-2"><label>Resultados e providências</label><textarea id="acao-resultados" rows="4"></textarea></div>
+          <div class="f-g full"><label>Observações</label><textarea id="acao-observacoes" rows="3"></textarea></div>
         </div>
       </section>
 
@@ -258,15 +274,17 @@
         <div class="acoes-attachments-head">
           <div class="acoes-form-section-title flush"><img src="/static/icons/pasta.svg" alt=""> Anexos</div>
           <div class="acoes-attachments-actions">
+            {% if pode_gerenciar_restritos %}<label class="acoes-restricted-toggle"><input type="checkbox" id="acao-anexos-restritos"> Restritos à administração</label>{% endif %}
             <button class="btn btn-outline btn-sm" type="button" id="acao-anexos-baixar-todos" disabled><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Baixar todos</button>
             <button class="btn btn-outline btn-sm" type="button" id="acao-anexo-selecionar" disabled><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Adicionar</button>
           </div>
         </div>
         <input class="acoes-file-input" type="file" id="acao-anexos-arquivos" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.txt,.mp4,.mov,.avi,.mkv,.webm,.m4v,.3gp">
-        <div class="acoes-attachments-disabled" id="acao-anexos-aviso">Disponível após salvar a ação.</div>
+        <div class="acoes-attachments-disabled" id="acao-anexos-aviso">Disponível após salvar o registro.</div>
         <div class="acoes-anexo-list" id="acao-anexos-lista"></div>
       </section>
       <datalist id="acoes-localidades">{% for loc in localidades %}<option value="{{ loc }}"></option>{% endfor %}</datalist>
+      <datalist id="acoes-casos">{% for caso in casos %}<option value="{{ caso }}"></option>{% endfor %}</datalist>
     </div>
     <footer class="acoes-sheet-actions">
       <button class="btn btn-ghost" type="button" id="acao-cancelar">Fechar</button>

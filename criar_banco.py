@@ -329,16 +329,26 @@ CREATE INDEX IF NOT EXISTS idx_importacoes_status
 
 CREATE TABLE IF NOT EXISTS acoes_setor (
     id_acao INTEGER PRIMARY KEY AUTOINCREMENT,
-    tipo TEXT NOT NULL CHECK(tipo IN ('educativa','limpeza')),
+    tipo TEXT NOT NULL CHECK(tipo IN ('educativa','limpeza','vistoria','reuniao','outro')),
+    situacao TEXT NOT NULL DEFAULT 'realizada'
+        CHECK(situacao IN ('realizada','em_acompanhamento','planejada','cancelada')),
     data TEXT NOT NULL,
+    data_fim TEXT,
+    periodo TEXT,
     hora_inicio TEXT,
     hora_fim TEXT,
+    caso TEXT,
     localidade TEXT,
     endereco TEXT,
     local TEXT,
     publico_aproximado INTEGER,
+    tipo_atividade_realizada TEXT,
+    publico_alvo TEXT,
+    recurso_utilizado TEXT,
     tema TEXT,
     contexto TEXT,
+    resultados TEXT,
+    parceiros TEXT,
     coordenadas TEXT,
     observacoes TEXT,
     criado_por TEXT,
@@ -358,11 +368,14 @@ CREATE TABLE IF NOT EXISTS acoes_setor_anexos (
     caminho_rel TEXT NOT NULL,
     mime_type TEXT,
     tamanho INTEGER NOT NULL DEFAULT 0,
+    restrito INTEGER NOT NULL DEFAULT 0 CHECK(restrito IN (0,1)),
     criado_por TEXT,
     criado_em TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_acoes_setor_data ON acoes_setor(data);
 CREATE INDEX IF NOT EXISTS idx_acoes_setor_tipo ON acoes_setor(tipo);
+CREATE INDEX IF NOT EXISTS idx_acoes_setor_situacao ON acoes_setor(situacao);
+CREATE INDEX IF NOT EXISTS idx_acoes_setor_caso ON acoes_setor(caso);
 CREATE INDEX IF NOT EXISTS idx_acoes_setor_localidade ON acoes_setor(localidade);
 CREATE INDEX IF NOT EXISTS idx_acoes_setor_agente ON acoes_setor_agentes(id_agente);
 CREATE INDEX IF NOT EXISTS idx_acoes_setor_anexo_acao ON acoes_setor_anexos(id_acao);
@@ -601,20 +614,33 @@ def migrar_boletim_mensal(conn):
 
 
 def migrar_acoes_setor(conn):
-    """Adiciona tabelas de registros manuais do setor."""
+    """Adiciona e atualiza tabelas de ações e atendimentos do setor."""
+    from blueprints.acoes_setor import _migrar_tabela_acoes_setor
+
+    _migrar_tabela_acoes_setor(conn)
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS acoes_setor (
         id_acao INTEGER PRIMARY KEY AUTOINCREMENT,
-        tipo TEXT NOT NULL CHECK(tipo IN ('educativa','limpeza')),
+        tipo TEXT NOT NULL CHECK(tipo IN ('educativa','limpeza','vistoria','reuniao','outro')),
+        situacao TEXT NOT NULL DEFAULT 'realizada'
+            CHECK(situacao IN ('realizada','em_acompanhamento','planejada','cancelada')),
         data TEXT NOT NULL,
+        data_fim TEXT,
+        periodo TEXT,
         hora_inicio TEXT,
         hora_fim TEXT,
+        caso TEXT,
         localidade TEXT,
         endereco TEXT,
         local TEXT,
         publico_aproximado INTEGER,
+        tipo_atividade_realizada TEXT,
+        publico_alvo TEXT,
+        recurso_utilizado TEXT,
         tema TEXT,
         contexto TEXT,
+        resultados TEXT,
+        parceiros TEXT,
         coordenadas TEXT,
         observacoes TEXT,
         criado_por TEXT,
@@ -634,15 +660,32 @@ def migrar_acoes_setor(conn):
         caminho_rel TEXT NOT NULL,
         mime_type TEXT,
         tamanho INTEGER NOT NULL DEFAULT 0,
+        restrito INTEGER NOT NULL DEFAULT 0 CHECK(restrito IN (0,1)),
         criado_por TEXT,
         criado_em TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_acoes_setor_data ON acoes_setor(data);
     CREATE INDEX IF NOT EXISTS idx_acoes_setor_tipo ON acoes_setor(tipo);
+    CREATE INDEX IF NOT EXISTS idx_acoes_setor_situacao ON acoes_setor(situacao);
+    CREATE INDEX IF NOT EXISTS idx_acoes_setor_caso ON acoes_setor(caso);
     CREATE INDEX IF NOT EXISTS idx_acoes_setor_localidade ON acoes_setor(localidade);
     CREATE INDEX IF NOT EXISTS idx_acoes_setor_agente ON acoes_setor_agentes(id_agente);
     CREATE INDEX IF NOT EXISTS idx_acoes_setor_anexo_acao ON acoes_setor_anexos(id_acao);
     """)
+    anexos_cols = {
+        row[1] for row in conn.execute(
+            "PRAGMA table_info(acoes_setor_anexos)"
+        ).fetchall()
+    }
+    if "restrito" not in anexos_cols:
+        conn.execute(
+            "ALTER TABLE acoes_setor_anexos ADD COLUMN restrito INTEGER "
+            "NOT NULL DEFAULT 0 CHECK(restrito IN (0,1))"
+        )
+    conn.execute(
+        """CREATE INDEX IF NOT EXISTS idx_acoes_setor_anexo_restrito
+           ON acoes_setor_anexos(restrito, id_acao)"""
+    )
     conn.commit()
 
 
