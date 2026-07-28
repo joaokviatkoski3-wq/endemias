@@ -87,17 +87,29 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
             self.assertEqual(len(lote["itens"]), 1)
             self.assertEqual(lote["itens"][0]["ovitrampa_id"], "116")
             self.assertEqual(lote["itens"][0]["complemento"], "Aviário Monte Santo")
+            self.assertIsNone(lote["itens"][0]["ocorrencia"])
 
-            leitura = [{"id_item": lote["itens"][0]["id_item"], "ovos": 12}]
+            leitura = [{
+                "id_item": lote["itens"][0]["id_item"],
+                "ovos": 12,
+                "ocorrencia": 6,
+            }]
             usuario_lab = {"id_usuario": 1, "nome": "Azimir"}
             laboratorio_core.salvar_rascunho(db_path, id_lote, leitura, usuario_lab)
             concluido = laboratorio_core.concluir_lote(db_path, id_lote, leitura, usuario_lab)
             self.assertEqual(concluido["status"], "concluido")
             self.assertEqual(concluido["ovos"], 12)
+            self.assertEqual(concluido["itens"][0]["ocorrencia"], 6)
+            self.assertEqual(concluido["itens"][0]["ocorrencia_label"], "Casa Fechada")
 
-            correcao = [{"id_item": lote["itens"][0]["id_item"], "ovos": 13}]
+            correcao = [{
+                "id_item": lote["itens"][0]["id_item"],
+                "ovos": 13,
+                "ocorrencia": None,
+            }]
             corrigido = laboratorio_core.salvar_rascunho(db_path, id_lote, correcao, usuario_lab)
             self.assertEqual(corrigido["ovos"], 13)
+            self.assertIsNone(corrigido["itens"][0]["ocorrencia"])
             self.assertEqual(
                 laboratorio_core.listar_para_administracao(db_path, hoje="2026-07-24")["total"],
                 1,
@@ -128,6 +140,65 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
         self.assertEqual(dados["total"], 0)
         self.assertEqual(dados["registros"], [])
         self.assertNotIn("proximas", dados)
+
+    def test_rejeita_ocorrencia_fora_do_catalogo(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "ovitrampas-ocorrencia-invalida.db")
+            self._banco(db_path)
+            laboratorio_core.gerar_lotes_pendentes(db_path, hoje="2026-07-24")
+            lote = laboratorio_core.listar_para_laboratorista(
+                db_path, hoje="2026-07-24",
+            )["registros"][0]
+            item = laboratorio_core.obter_lote(db_path, lote["id_lote"])["itens"][0]
+
+            with self.assertRaisesRegex(ValueError, "entre 1 e 8"):
+                laboratorio_core.salvar_rascunho(
+                    db_path,
+                    lote["id_lote"],
+                    [{"id_item": item["id_item"], "ovos": 0, "ocorrencia": 9}],
+                    {"id_usuario": 1, "nome": "Azimir"},
+                )
+
+    def test_migra_itens_existentes_com_ocorrencia_nula(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "ovitrampas-schema-anterior.db")
+            self._banco(db_path)
+            conn = db_core.connect(db_path)
+            conn.executescript("""
+                CREATE TABLE ovitrampas_laboratorio_itens (
+                    id_item INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id_lote INTEGER NOT NULL,
+                    ovitrampa_id TEXT NOT NULL,
+                    complemento TEXT,
+                    localidade TEXT,
+                    ovos INTEGER NOT NULL DEFAULT 0,
+                    atualizado_em TEXT,
+                    UNIQUE(id_lote, ovitrampa_id)
+                );
+                INSERT INTO ovitrampas_laboratorio_itens
+                    (id_lote, ovitrampa_id, complemento, localidade, ovos)
+                VALUES (999, '116', 'Aviário Monte Santo', 'Roma', 4);
+            """)
+            conn.commit()
+            conn.close()
+
+            laboratorio_core.ensure_schema(db_path)
+
+            conn = db_core.connect(db_path)
+            try:
+                colunas = {
+                    row[1] for row in conn.execute(
+                        "PRAGMA table_info(ovitrampas_laboratorio_itens)"
+                    ).fetchall()
+                }
+                item = conn.execute(
+                    "SELECT ovos, ocorrencia FROM ovitrampas_laboratorio_itens"
+                ).fetchone()
+            finally:
+                conn.close()
+            self.assertIn("ocorrencia", colunas)
+            self.assertEqual(item["ovos"], 4)
+            self.assertIsNone(item["ocorrencia"])
 
     def test_eventos_anteriores_a_ativacao_nao_geram_lotes(self):
         with tempfile.TemporaryDirectory() as tmpdir:

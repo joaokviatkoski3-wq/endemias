@@ -77,10 +77,13 @@
 .ovi-lab-card-meta{display:flex;align-items:center;gap:8px;}.ovi-lab-date{font-size:11px;font-weight:700;color:var(--text2);white-space:nowrap;}.ovi-lab-date.alerta{color:#dc2626;}
 .ovi-lab-body{border-top:1px solid var(--border);padding:10px 12px 12px;display:grid;gap:8px;}
 .ovi-lab-body[hidden]{display:none;}
-.ovi-lab-row{display:grid;grid-template-columns:minmax(0,1fr) 88px;gap:10px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--border);}
+.ovi-lab-row{display:grid;grid-template-columns:minmax(0,1fr) 88px minmax(190px,240px);gap:10px;align-items:end;padding:8px 4px;border-bottom:1px solid var(--border);}
 .ovi-lab-row:last-of-type{border-bottom:0;}.ovi-lab-row-label{display:grid;gap:2px;min-width:0;}.ovi-lab-row-label strong{font-size:13px;overflow-wrap:anywhere;}.ovi-lab-row-label span{font-size:10px;color:var(--text3);}
-.ovi-lab-input{width:100%;height:42px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);text-align:center;font:800 17px inherit;font-variant-numeric:tabular-nums;}
-.ovi-lab-input:disabled{opacity:.75;cursor:not-allowed;}.ovi-lab-actions{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface);border-top:1px solid var(--border);padding:11px 2px 2px;}
+.ovi-lab-field{display:grid;gap:4px;min-width:0;}.ovi-lab-field>span{font-size:9px;text-transform:uppercase;color:var(--text3);font-weight:700;}
+.ovi-lab-input,.ovi-lab-occurrence{width:100%;height:42px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);}
+.ovi-lab-input{text-align:center;font:800 17px inherit;font-variant-numeric:tabular-nums;}
+.ovi-lab-occurrence{padding:0 9px;font:600 11px inherit;}
+.ovi-lab-input:disabled,.ovi-lab-occurrence:disabled{opacity:.75;cursor:not-allowed;}.ovi-lab-actions{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface);border-top:1px solid var(--border);padding:11px 2px 2px;}
 .ovi-lab-save-state{font-size:10px;color:var(--text3);}.ovi-lab-total{font-size:11px;color:var(--text2);}.ovi-lab-total strong{font-size:15px;color:var(--text);}
 .ovi-lab-status{font-size:9px;font-weight:800;text-transform:uppercase;padding:3px 6px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);}
 .ovi-lab-status.enviado_conta_ovos{color:#047857;background:#ecfdf5;border-color:#a7f3d0;}
@@ -91,6 +94,7 @@
   .counts{grid-template-columns:repeat(2,1fr);}.history-row{grid-template-columns:85px 1fr;}.history-row>*:nth-child(n+3){grid-column:1/-1;}
   .lab-form-actions{display:grid;grid-template-columns:1fr 1.3fr;}.lab-form-actions .btn{justify-content:center;}
   .ovi-lab-card-head{grid-template-columns:1fr;}.ovi-lab-card-meta{justify-content:space-between;}.ovi-lab-actions{align-items:stretch;flex-direction:column;}.ovi-lab-actions .btn{width:100%;justify-content:center;min-height:44px;}
+  .ovi-lab-row{grid-template-columns:minmax(0,1fr) 76px;}.ovi-lab-field-occurrence{grid-column:1/-1;}
 }
 </style>
 {% endblock %}
@@ -186,6 +190,16 @@ let labHistorico = [];
 let oviLabLotes = [];
 let oviLabHistorico = [];
 const oviLabSaveTimers = new Map();
+const oviLabOcorrencias = [
+  [1,'Intervalo maior que 7 dias'],
+  [2,'Armadilha ou palheta desaparecida'],
+  [3,'Armadilha ou palheta danificada'],
+  [4,'Armadilha ou palheta removida'],
+  [5,'Armadilha seca'],
+  [6,'Casa Fechada'],
+  [7,'Ovitrampa cheia de água'],
+  [8,'Pouca água'],
+];
 const labDialog = document.getElementById('lab-dialog');
 const labConfirmDialog = document.getElementById('lab-confirm-dialog');
 const labFields = ['aegypt_larvas','aegypt_pupas','aegypt_exuvias','aegypt_adulto','albopictus_larvas','albopictus_pupas','albopictus_exuvias','albopictus_adulto','outra_larvas','outra_pupas','outra_exuvias','outra_adulto'];
@@ -342,13 +356,14 @@ async function alternarOviLabLote(id,historico){
 function renderOviLabDetalhe(body,lote,historico){
   const editavel=Boolean(lote.editavel);
   body.innerHTML=`
-    ${(lote.itens||[]).map(item=>`<label class="ovi-lab-row"><span class="ovi-lab-row-label"><strong>${e(item.ovitrampa_id)} - ${e(item.complemento||'Local sem identificação')}</strong><span>${e(item.localidade||lote.diario_nome)}</span></span><input class="ovi-lab-input" data-ovi-lab-item="${item.id_item}" data-ovi-lab-lote="${lote.id_lote}" type="number" inputmode="numeric" min="0" max="100000" value="${Number(item.ovos)||0}" ${editavel?'':'disabled'} oninput="alterouOviLab(${lote.id_lote},${historico?'true':'false'})"></label>`).join('')}
+    ${(lote.itens||[]).map(item=>`<div class="ovi-lab-row" data-ovi-lab-row-lote="${lote.id_lote}" data-ovi-lab-item="${item.id_item}"><span class="ovi-lab-row-label"><strong>${e(item.ovitrampa_id)} - ${e(item.complemento||'Local sem identificação')}</strong><span>${e(item.localidade||lote.diario_nome)}</span></span><label class="ovi-lab-field"><span>Ovos</span><input class="ovi-lab-input" data-ovi-lab-ovos type="number" inputmode="numeric" min="0" max="100000" value="${Number(item.ovos)||0}" ${editavel?'':'disabled'} oninput="alterouOviLab(${lote.id_lote},${historico?'true':'false'})"></label><label class="ovi-lab-field ovi-lab-field-occurrence"><span>Ocorrências</span><select class="ovi-lab-occurrence" data-ovi-lab-ocorrencia ${editavel?'':'disabled'} onchange="alterouOviLab(${lote.id_lote},${historico?'true':'false'})"><option value="">Selecionar ocorrência</option>${oviLabOcorrencias.map(([codigo,label])=>`<option value="${codigo}" ${Number(item.ocorrencia)===codigo?'selected':''}>${codigo} - ${e(label)}</option>`).join('')}</select></label></div>`).join('')}
     <div class="ovi-lab-actions"><div><div class="ovi-lab-total">Total: <strong data-ovi-lab-total="${lote.id_lote}">${Number(lote.ovos)||0}</strong> ovos</div><span class="ovi-lab-save-state" data-ovi-lab-save="${lote.id_lote}">${editavel?(historico?'Correções permitidas até o envio ao Conta Ovos.':'Valores salvos como rascunho.'):'Leitura bloqueada após envio ao Conta Ovos.'}</span></div>${editavel&&!historico?`<button class="btn btn-primary" type="button" onclick="concluirOviLab(${lote.id_lote})"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Concluir leitura</button>`:editavel?'<span class="ovi-lab-status concluido">Correções permitidas</span>':'<span></span>'}</div>`;
 }
 function leiturasOviLab(id){
-  return Array.from(document.querySelectorAll(`[data-ovi-lab-lote="${id}"]`)).map(input=>({
-    id_item:Number(input.dataset.oviLabItem),
-    ovos:Math.max(0,Number(input.value)||0),
+  return Array.from(document.querySelectorAll(`[data-ovi-lab-row-lote="${id}"]`)).map(row=>({
+    id_item:Number(row.dataset.oviLabItem),
+    ovos:Math.max(0,Number(row.querySelector('[data-ovi-lab-ovos]')?.value)||0),
+    ocorrencia:row.querySelector('[data-ovi-lab-ocorrencia]')?.value||null,
   }));
 }
 function alterouOviLab(id,historico){

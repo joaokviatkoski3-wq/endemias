@@ -7769,6 +7769,7 @@ class PermissionMatrixTests(unittest.TestCase):
             pagina_laboratorio = client.get("/laboratorio/lancamentos").data
             self.assertIn("Leitura Ovitrampa".encode(), pagina_laboratorio)
             self.assertIn("Diários aguardando leitura".encode(), pagina_laboratorio)
+            self.assertIn("Selecionar ocorrência".encode(), pagina_laboratorio)
             self.assertNotIn("Leituras desta semana".encode(), pagina_laboratorio)
             self.assertIn(b".ovi-lab-body[hidden]{display:none;}", pagina_laboratorio)
             self.assertIn('data-ovi-tab="laboratorio"'.encode(), client.get("/ovitrampas").data)
@@ -7778,7 +7779,11 @@ class PermissionMatrixTests(unittest.TestCase):
             detalhe = client.get(
                 f"/api/laboratorio/ovitrampas/lotes/{lote['id_lote']}"
             ).get_json()
-            leitura = [{"id_item": detalhe["itens"][0]["id_item"], "ovos": 8}]
+            leitura = [{
+                "id_item": detalhe["itens"][0]["id_item"],
+                "ovos": 8,
+                "ocorrencia": 7,
+            }]
 
             self.assertEqual(client.put(
                 f"/api/laboratorio/ovitrampas/lotes/{lote['id_lote']}/rascunho",
@@ -7792,6 +7797,14 @@ class PermissionMatrixTests(unittest.TestCase):
             administrativo = client.get("/api/ovitrampas/laboratorio?status=pendente")
             self.assertEqual(administrativo.status_code, 200)
             self.assertEqual(administrativo.get_json()["registros"][0]["ovos"], 8)
+            detalhe_administrativo = client.get(
+                f"/api/ovitrampas/laboratorio/{lote['id_lote']}"
+            ).get_json()
+            self.assertEqual(detalhe_administrativo["itens"][0]["ocorrencia"], 7)
+            self.assertEqual(
+                detalhe_administrativo["itens"][0]["ocorrencia_label"],
+                "Ovitrampa cheia de água",
+            )
             self.assertEqual(client.post(
                 f"/api/ovitrampas/laboratorio/{lote['id_lote']}/enviado",
                 json={},

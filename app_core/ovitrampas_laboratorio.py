@@ -10,6 +10,16 @@ LOTES_TABLE = "ovitrampas_laboratorio_lotes"
 ITENS_TABLE = "ovitrampas_laboratorio_itens"
 ATIVO_DESDE = "2026-07-21"
 STATUS_EDITAVEIS = ("pendente", "em_preenchimento", "concluido")
+OCORRENCIAS = {
+    1: "Intervalo maior que 7 dias",
+    2: "Armadilha ou palheta desaparecida",
+    3: "Armadilha ou palheta danificada",
+    4: "Armadilha ou palheta removida",
+    5: "Armadilha seca",
+    6: "Casa Fechada",
+    7: "Ovitrampa cheia de \u00e1gua",
+    8: "Pouca \u00e1gua",
+}
 
 
 def ensure_schema(db_path):
@@ -148,12 +158,14 @@ def obter_lote(db_path, id_lote):
         if not lote:
             raise ValueError("Lote de leitura não encontrado.")
         itens = [dict(row) for row in conn.execute(
-            f"""SELECT id_item, ovitrampa_id, complemento, localidade, ovos
+            f"""SELECT id_item, ovitrampa_id, complemento, localidade, ovos, ocorrencia
                   FROM {ITENS_TABLE}
                  WHERE id_lote=?
                  ORDER BY CAST(ovitrampa_id AS INTEGER), ovitrampa_id COLLATE NOCASE""",
             (lote["id_lote"],),
         ).fetchall()]
+        for item in itens:
+            item["ocorrencia_label"] = OCORRENCIAS.get(item.get("ocorrencia"))
         registro = _lote_dict(lote)
         registro["itens"] = itens
         registro["armadilhas"] = len(itens)
@@ -276,6 +288,7 @@ def _ensure_schema_conn(conn):
             complemento TEXT,
             localidade TEXT,
             ovos INTEGER NOT NULL DEFAULT 0 CHECK(ovos >= 0),
+            ocorrencia INTEGER CHECK(ocorrencia BETWEEN 1 AND 8),
             atualizado_em TEXT,
             UNIQUE(id_lote, ovitrampa_id)
         );
@@ -283,6 +296,14 @@ def _ensure_schema_conn(conn):
         CREATE INDEX IF NOT EXISTS idx_ovi_lab_lotes_evento ON {LOTES_TABLE}(id_evento, id_diario);
         CREATE INDEX IF NOT EXISTS idx_ovi_lab_itens_lote ON {ITENS_TABLE}(id_lote, ovitrampa_id);
     """)
+    colunas_itens = {
+        row[1] for row in conn.execute(f"PRAGMA table_info({ITENS_TABLE})").fetchall()
+    }
+    if "ocorrencia" not in colunas_itens:
+        conn.execute(
+            f"""ALTER TABLE {ITENS_TABLE}
+                ADD COLUMN ocorrencia INTEGER CHECK(ocorrencia BETWEEN 1 AND 8)"""
+        )
 
 
 def _diarios_com_armadilhas(conn):
@@ -333,9 +354,17 @@ def _salvar_itens(conn, id_lote, leituras, agora):
         ovos = _int((leitura or {}).get("ovos"), default=None)
         if ovos is None or ovos < 0 or ovos > 100000:
             raise ValueError("A quantidade de ovos deve estar entre 0 e 100000.")
+        ocorrencia_raw = (leitura or {}).get("ocorrencia")
+        ocorrencia = None
+        if ocorrencia_raw not in (None, ""):
+            ocorrencia = _int(ocorrencia_raw, default=None)
+            if ocorrencia not in OCORRENCIAS:
+                raise ValueError("A ocorr\u00eancia deve estar entre 1 e 8.")
         conn.execute(
-            f"UPDATE {ITENS_TABLE} SET ovos=?, atualizado_em=? WHERE id_item=? AND id_lote=?",
-            (ovos, agora, id_item, id_lote),
+            f"""UPDATE {ITENS_TABLE}
+                   SET ovos=?, ocorrencia=?, atualizado_em=?
+                 WHERE id_item=? AND id_lote=?""",
+            (ovos, ocorrencia, agora, id_item, id_lote),
         )
 
 

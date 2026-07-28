@@ -1455,7 +1455,7 @@ async function alternarOviLabAdmin(id){
   area.hidden=false;area.innerHTML='<div class="empty"><div class="spinner"></div></div>';
   try{
     const lote=await oviGet(`/api/ovitrampas/laboratorio/${id}`);
-    area.innerHTML=`<div class="table-scroll"><table><thead><tr><th>ID</th><th>Local</th><th>Localidade</th><th>Ovos</th></tr></thead><tbody>${(lote.itens||[]).map(item=>`<tr><td><strong>${oviEscape(item.ovitrampa_id)}</strong></td><td>${oviEscape(item.complemento||'Local sem identificação')}</td><td>${oviEscape(item.localidade||lote.diario_nome)}</td><td><strong>${oviFmt.format(item.ovos||0)}</strong></td></tr>`).join('')}</tbody></table></div>`;
+    area.innerHTML=`<div class="table-scroll"><table><thead><tr><th>ID</th><th>Local</th><th>Localidade</th><th>Ovos</th><th>Ocorrência</th></tr></thead><tbody>${(lote.itens||[]).map(item=>`<tr><td><strong>${oviEscape(item.ovitrampa_id)}</strong></td><td>${oviEscape(item.complemento||'Local sem identificação')}</td><td>${oviEscape(item.localidade||lote.diario_nome)}</td><td><strong>${oviFmt.format(item.ovos||0)}</strong></td><td>${item.ocorrencia?`<strong>${oviEscape(item.ocorrencia)}</strong> - ${oviEscape(item.ocorrencia_label||'')}`:'-'}</td></tr>`).join('')}</tbody></table></div>`;
   }catch(err){area.innerHTML=`<div class="empty">${oviEscape(err.message)}</div>`;}
 }
 async function marcarOviLabEnviado(id){
