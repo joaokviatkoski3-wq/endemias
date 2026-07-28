@@ -2957,7 +2957,14 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('id="acoes-data-inicio"', html)
         self.assertIn('id="acoes-data-fim"', html)
         self.assertIn('data-acoes-tab="anexos"', html)
+        self.assertIn('data-acoes-tab="relatorio"', html)
         self.assertIn('id="acoes-panel-anexos"', html)
+        self.assertIn('id="acoes-panel-relatorio"', html)
+        self.assertIn('id="acoes-relatorio-data-inicio"', html)
+        self.assertIn('id="acoes-relatorio-data-fim"', html)
+        self.assertIn('id="acoes-relatorio-imagens"', html)
+        self.assertIn('id="acoes-relatorio-atualizar"', html)
+        self.assertIn('id="acoes-relatorio-gerar"', html)
         self.assertIn('id="acoes-anexos-galeria"', html)
         self.assertIn('id="acoes-anexos-tipo-arquivo"', html)
         self.assertIn('id="acoes-anexos-localidade"', html)
@@ -2990,6 +2997,79 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("function limparFiltrosAnexos", js)
         self.assertIn("preencherForm(atualizada,false)", js)
         self.assertIn("function alternarRestricaoAnexo", js)
+        self.assertIn("function paramsRelatorio", js)
+        self.assertIn("function carregarPreviaRelatorio", js)
+        self.assertIn("/acoes-setor/relatorio/pdf?", js)
+
+    def test_acoes_setor_relatorio_filtra_detalhes_e_imagens(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, _ = _client_admin_com_banco_temporario(tmpdir)
+            anexos_dir = Path(tmpdir) / "anexos"
+            app_temp.config["ANEXOS_DIR"] = str(anexos_dir)
+
+            incluida = client.post("/api/acoes-setor", json={
+                "tipo": "educativa",
+                "situacao": "realizada",
+                "data": "2026-08-12",
+                "periodo": "manha",
+                "localidade": "Centro",
+                "local": "Escola Municipal",
+                "tema": "Ação Centro",
+                "contexto": "Contexto técnico da atividade.",
+                "resultados": "Providências registradas.",
+                "publico_aproximado": 35,
+            })
+            self.assertEqual(incluida.status_code, 201)
+            id_acao = incluida.get_json()["id_acao"]
+
+            excluida = client.post("/api/acoes-setor", json={
+                "tipo": "limpeza",
+                "situacao": "realizada",
+                "data": "2026-08-13",
+                "periodo": "tarde",
+                "localidade": "Outra localidade",
+                "tema": "Ação fora do filtro",
+            })
+            self.assertEqual(excluida.status_code, 201)
+
+            upload = client.post(
+                f"/api/acoes-setor/{id_acao}/anexos",
+                data={"arquivos": (io.BytesIO(b"imagem de teste"), "registro-fotografico.png")},
+                content_type="multipart/form-data",
+            )
+            self.assertEqual(upload.status_code, 201)
+            id_anexo = upload.get_json()["anexos"][0]["id_anexo"]
+
+            resposta = client.get(
+                "/acoes-setor/relatorio/pdf",
+                query_string={
+                    "localidade": "Centro",
+                    "data_inicio": "2026-08-01",
+                    "data_fim": "2026-08-31",
+                    "imagens": "1",
+                },
+            )
+            self.assertEqual(resposta.status_code, 200)
+            html = resposta.data.decode("utf-8")
+            self.assertIn("Relatório Técnico de Ações e Atendimentos", html)
+            self.assertIn("Síntese dos registros", html)
+            self.assertIn("Ação Centro", html)
+            self.assertIn("Contexto técnico da atividade.", html)
+            self.assertIn("Providências registradas.", html)
+            self.assertNotIn("Ação fora do filtro", html)
+            self.assertIn("Registro fotográfico", html)
+            self.assertIn(
+                f"/acoes-setor/anexos/{id_anexo}/download?inline=1",
+                html,
+            )
+
+            sem_imagens = client.get(
+                "/acoes-setor/relatorio/pdf",
+                query_string={"localidade": "Centro", "imagens": "0"},
+            )
+            html_sem_imagens = sem_imagens.data.decode("utf-8")
+            self.assertIn("Imagens: não incluídas", html_sem_imagens)
+            self.assertNotIn("Registro fotográfico", html_sem_imagens)
 
     def test_acoes_setor_crud_e_busca_sem_acento(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -3374,6 +3454,18 @@ class MainPagesSmokeTests(unittest.TestCase):
                     f"/acoes-setor/anexos/{id_anexo}/download"
                 ).status_code,
                 403,
+            )
+            self.assertNotIn(
+                "documento.pdf",
+                operador_client.get(
+                    "/acoes-setor/relatorio/pdf"
+                ).data.decode("utf-8"),
+            )
+            self.assertIn(
+                "documento.pdf",
+                admin_client.get(
+                    "/acoes-setor/relatorio/pdf"
+                ).data.decode("utf-8"),
             )
             self.assertEqual(
                 operador_client.delete(f"/api/acoes-setor/{id_acao}").status_code,

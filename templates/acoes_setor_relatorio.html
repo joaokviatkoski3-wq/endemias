@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="/static/img/favicon.png">
+  <title>Relatório técnico de ações e atendimentos</title>
+  <style>
+    @page{size:A4 portrait;margin:13mm 14mm 15mm;}
+    *{box-sizing:border-box;}
+    html,body{margin:0;padding:0;background:#eef2f6;color:#172033;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;line-height:1.4;}
+    body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .screen-bar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 18px;background:#123f73;color:#fff;box-shadow:0 2px 10px #0002;}
+    .screen-bar button{border:0;border-radius:5px;background:#fff;color:#123f73;padding:8px 14px;font-weight:700;cursor:pointer;}
+    .screen-bar a{color:#dbeafe;text-decoration:none;font-size:9pt;}
+    .screen-bar span{margin-left:auto;color:#bfdbfe;font-size:8pt;}
+    .document{width:210mm;min-height:297mm;margin:14px auto;background:#fff;padding:13mm 14mm 15mm;box-shadow:0 4px 24px #0f172a20;}
+    .institutional-head{display:grid;grid-template-columns:27mm 1fr 27mm;gap:8mm;align-items:center;padding-bottom:8mm;border-bottom:2px solid #123f73;}
+    .institutional-head img{display:block;max-width:27mm;max-height:22mm;margin:auto;object-fit:contain;}
+    .institutional-copy{text-align:center;}
+    .institutional-copy strong{display:block;color:#123f73;font-size:11pt;text-transform:uppercase;}
+    .institutional-copy span{display:block;margin-top:2px;color:#46566d;font-size:8pt;}
+    .report-title{margin:8mm 0 4mm;}
+    .report-title h1{margin:0;color:#123f73;font-size:18pt;line-height:1.15;}
+    .report-title p{margin:4px 0 0;color:#526277;font-size:8.5pt;}
+    .filters{display:flex;flex-wrap:wrap;gap:4px 6px;margin-bottom:6mm;}
+    .filter{border:1px solid #c7d4e4;border-radius:3px;background:#f4f7fb;padding:3px 7px;color:#34465d;font-size:7.7pt;}
+    .section-title{margin:7mm 0 3mm;padding-bottom:2mm;border-bottom:1.5px solid #123f73;color:#123f73;font-size:11pt;font-weight:700;break-after:avoid;page-break-after:avoid;}
+    .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-bottom:5mm;}
+    .kpi{border:1px solid #cbd7e5;border-top:3px solid #123f73;background:#f7f9fc;padding:7px 5px;text-align:center;break-inside:avoid;page-break-inside:avoid;}
+    .kpi strong{display:block;color:#123f73;font-size:14pt;line-height:1;}
+    .kpi span{display:block;margin-top:4px;color:#59697e;font-size:6.7pt;font-weight:700;text-transform:uppercase;}
+    .summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:5mm;align-items:start;}
+    table{width:100%;border-collapse:collapse;margin:0 0 4mm;font-size:8pt;}
+    thead{display:table-header-group;}
+    th{background:#123f73;color:#fff;padding:5px 6px;text-align:left;font-weight:700;}
+    td{border-bottom:1px solid #d9e1eb;padding:4px 6px;vertical-align:top;}
+    tbody tr:nth-child(even) td{background:#f7f9fc;}
+    .num{text-align:right;font-variant-numeric:tabular-nums;}
+    .actions-section{break-before:page;page-break-before:always;}
+    .action{margin:0 0 7mm;border-top:3px solid #123f73;break-inside:auto;page-break-inside:auto;}
+    .action-head{display:grid;grid-template-columns:1fr auto;gap:8px;padding:3mm 0 2.5mm;border-bottom:1px solid #cbd7e5;break-after:avoid;page-break-after:avoid;}
+    .action-title{color:#123f73;font-size:12pt;font-weight:700;}
+    .action-subtitle{margin-top:2px;color:#5a697c;font-size:7.8pt;}
+    .action-id{align-self:start;border:1px solid #aebed1;background:#edf3f9;padding:4px 7px;color:#123f73;font-size:7.5pt;font-weight:700;white-space:nowrap;}
+    .meta-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid #d4deea;border-bottom:0;margin-top:3mm;}
+    .meta{min-height:14mm;padding:5px 7px;border-right:1px solid #d4deea;border-bottom:1px solid #d4deea;}
+    .meta:nth-child(4n){border-right:0;}
+    .meta.wide{grid-column:span 2;}
+    .meta span{display:block;color:#68788d;font-size:6.6pt;font-weight:700;text-transform:uppercase;}
+    .meta strong{display:block;margin-top:2px;color:#1f2d40;font-size:8.3pt;font-weight:600;overflow-wrap:anywhere;}
+    .narratives{display:grid;gap:3mm;margin-top:3mm;}
+    .narrative{border-left:3px solid #7fa4ca;background:#f7f9fc;padding:7px 9px;white-space:pre-wrap;overflow-wrap:anywhere;}
+    .narrative strong{display:block;margin-bottom:3px;color:#123f73;font-size:7pt;text-transform:uppercase;}
+    .attachments-title{margin:4mm 0 2mm;color:#123f73;font-size:8.5pt;font-weight:700;break-after:avoid;page-break-after:avoid;}
+    .document-list{margin:0;padding-left:18px;color:#34465d;font-size:7.8pt;}
+    .document-list li{margin:2px 0;overflow-wrap:anywhere;}
+    .restricted{color:#9b1c1c;font-weight:700;}
+    .image-grid{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-top:2mm;}
+    .image-item{border:1px solid #cbd7e5;background:#f7f9fc;padding:3px;break-inside:avoid;page-break-inside:avoid;}
+    .image-item img{display:block;width:100%;height:auto;max-height:90mm;object-fit:contain;background:#fff;}
+    .image-caption{padding:4px 3px 2px;color:#526277;font-size:6.8pt;overflow-wrap:anywhere;}
+    .empty{border:1px dashed #aebed1;background:#f7f9fc;padding:16mm;text-align:center;color:#68788d;}
+    .audit{margin-top:3mm;color:#758499;font-size:6.8pt;}
+    .footer{margin-top:10mm;padding-top:3mm;border-top:1px solid #cbd7e5;color:#738197;text-align:center;font-size:6.8pt;}
+    @media(max-width:850px){
+      .document{width:100%;min-height:0;margin:0;padding:20px;box-shadow:none;}
+      .kpis{grid-template-columns:repeat(3,1fr);}
+      .summary-grid,.image-grid{grid-template-columns:1fr;}
+      .meta-grid{grid-template-columns:1fr 1fr;}.meta:nth-child(4n){border-right:1px solid #d4deea;}.meta:nth-child(2n){border-right:0;}
+    }
+    @media print{
+      html,body{background:#fff;}
+      .screen-bar{display:none!important;}
+      .document{width:auto;min-height:0;margin:0;padding:0;box-shadow:none;}
+      .institutional-head,.report-title,.filters,.kpis,.summary-grid table,.action-head,.meta,.image-item{break-inside:avoid;page-break-inside:avoid;}
+      .section-title,.attachments-title{break-after:avoid;page-break-after:avoid;}
+    }
+  </style>
+</head>
+<body>
+  <div class="screen-bar">
+    <button type="button" onclick="window.print()">Imprimir / Salvar PDF</button>
+    <a href="javascript:window.close()">Fechar</a>
+    <span>Relatório técnico institucional</span>
+  </div>
+
+  <main class="document">
+    <header class="institutional-head">
+      <img src="/static/img/logo_prefeitura.png" alt="Prefeitura">
+      <div class="institutional-copy">
+        <strong>Prefeitura Municipal de Almirante Tamandaré</strong>
+        <span>Secretaria Municipal de Saúde</span>
+        <span>Vigilância Ambiental em Saúde - Setor de Combate a Endemias</span>
+      </div>
+      <img src="/static/img/logo_endemias.png" alt="Endemias">
+    </header>
+
+    <section class="report-title">
+      <h1>Relatório Técnico de Ações e Atendimentos</h1>
+      <p>Período: {{ periodo_label }} | Ordenação: {{ ordem_label }} | Emitido em {{ gerado_em }}</p>
+    </section>
+
+    <div class="filters">
+      {% for filtro in filtros %}<span class="filter">{{ filtro }}</span>{% endfor %}
+      <span class="filter">Imagens: {{ "incluídas" if incluir_imagens else "não incluídas" }}</span>
+    </div>
+
+    <div class="section-title">Síntese dos registros</div>
+    <section class="kpis">
+      <div class="kpi"><strong>{{ resumo.total }}</strong><span>Registros</span></div>
+      <div class="kpi"><strong>{{ resumo.publico }}</strong><span>Público informado</span></div>
+      <div class="kpi"><strong>{{ resumo.localidades }}</strong><span>Localidades</span></div>
+      <div class="kpi"><strong>{{ resumo.servidores }}</strong><span>Servidores</span></div>
+      <div class="kpi"><strong>{{ resumo.anexos }}</strong><span>Anexos</span></div>
+      <div class="kpi"><strong>{{ resumo.imagens }}</strong><span>Imagens</span></div>
+    </section>
+
+    <section class="summary-grid">
+      <div>
+        <table>
+          <thead><tr><th>Tipo de registro</th><th class="num">Ações</th><th class="num">Público</th></tr></thead>
+          <tbody>
+            {% for linha in resumo.por_tipo %}
+            <tr><td>{{ linha.label }}</td><td class="num">{{ linha.total }}</td><td class="num">{{ linha.publico }}</td></tr>
+            {% else %}
+            <tr><td colspan="3">Nenhum registro.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <table>
+          <thead><tr><th>Situação</th><th class="num">Registros</th></tr></thead>
+          <tbody>
+            {% for linha in resumo.por_situacao %}
+            <tr><td>{{ linha.label }}</td><td class="num">{{ linha.total }}</td></tr>
+            {% else %}
+            <tr><td colspan="2">Nenhum registro.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <table>
+          <thead><tr><th>Localidade</th><th class="num">Registros</th></tr></thead>
+          <tbody>
+            {% for linha in resumo.por_localidade %}
+            <tr><td>{{ linha.label }}</td><td class="num">{{ linha.total }}</td></tr>
+            {% else %}
+            <tr><td colspan="2">Nenhum registro.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <table>
+          <thead><tr><th>Mês</th><th class="num">Registros</th></tr></thead>
+          <tbody>
+            {% for linha in resumo.por_mes %}
+            <tr><td>{{ linha.label }}</td><td class="num">{{ linha.total }}</td></tr>
+            {% else %}
+            <tr><td colspan="2">Nenhum registro.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    {% if registros %}
+    <section class="actions-section">
+      <div class="section-title">Detalhamento das ações e atendimentos</div>
+      {% for item in registros %}
+      <article class="action">
+        <header class="action-head">
+          <div>
+            <div class="action-title">{{ item.tema or item.caso or item.local or item.tipo_label }}</div>
+            <div class="action-subtitle">
+              {{ item.tipo_label }} | {{ item.situacao_label }} |
+              {{ data_br(item.data) }}{% if item.data_fim and item.data_fim != item.data %} a {{ data_br(item.data_fim) }}{% endif %}
+            </div>
+          </div>
+          <div class="action-id">Registro {{ "%06d"|format(item.id_acao) }}</div>
+        </header>
+
+        <div class="meta-grid">
+          <div class="meta"><span>Localidade</span><strong>{{ item.localidade or "Não informada" }}</strong></div>
+          <div class="meta"><span>Local</span><strong>{{ item.local or "Não informado" }}</strong></div>
+          <div class="meta wide"><span>Endereço</span><strong>{{ item.endereco or "Não informado" }}</strong></div>
+          <div class="meta"><span>Período</span><strong>{{ item.periodo_label or "Não informado" }}</strong></div>
+          <div class="meta"><span>Horário</span><strong>{% if item.hora_inicio or item.hora_fim %}{{ item.hora_inicio or "?" }}{% if item.hora_fim %} às {{ item.hora_fim }}{% endif %}{% else %}Não informado{% endif %}</strong></div>
+          <div class="meta"><span>Público aproximado</span><strong>{{ item.publico_aproximado if item.publico_aproximado is not none else "Não informado" }}</strong></div>
+          <div class="meta"><span>Servidores</span><strong>{{ item.agentes_nomes or "Não informados" }}</strong></div>
+          {% if item.caso %}<div class="meta wide"><span>Caso / acompanhamento</span><strong>{{ item.caso }}</strong></div>{% endif %}
+          {% if item.coordenadas %}<div class="meta wide"><span>Coordenadas</span><strong>{{ item.coordenadas }}</strong></div>{% endif %}
+          {% if item.tipo_atividade_realizada_labels %}<div class="meta wide"><span>Atividades realizadas</span><strong>{{ item.tipo_atividade_realizada_labels|join(", ") }}</strong></div>{% endif %}
+          {% if item.publico_alvo_labels %}<div class="meta wide"><span>Público-alvo</span><strong>{{ item.publico_alvo_labels|join(", ") }}</strong></div>{% endif %}
+          {% if item.recurso_utilizado_labels %}<div class="meta wide"><span>Recursos utilizados</span><strong>{{ item.recurso_utilizado_labels|join(", ") }}</strong></div>{% endif %}
+          {% if item.parceiros %}<div class="meta wide"><span>Parceiros</span><strong>{{ item.parceiros }}</strong></div>{% endif %}
+        </div>
+
+        {% if item.contexto or item.resultados or item.observacoes %}
+        <div class="narratives">
+          {% if item.contexto %}<div class="narrative"><strong>Contexto e descrição</strong>{{ item.contexto }}</div>{% endif %}
+          {% if item.resultados %}<div class="narrative"><strong>Resultados e providências</strong>{{ item.resultados }}</div>{% endif %}
+          {% if item.observacoes %}<div class="narrative"><strong>Observações</strong>{{ item.observacoes }}</div>{% endif %}
+        </div>
+        {% endif %}
+
+        {% if item.documentos_relatorio %}
+        <div class="attachments-title">Documentos e outros anexos</div>
+        <ul class="document-list">
+          {% for anexo in item.documentos_relatorio %}
+          <li>{{ anexo.nome_original }}{% if anexo.restrito %} <span class="restricted">(restrito)</span>{% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if item.imagens_relatorio %}
+        <div class="attachments-title">Registro fotográfico</div>
+        <div class="image-grid">
+          {% for anexo in item.imagens_relatorio %}
+          <figure class="image-item">
+            <img src="{{ anexo.url_visualizar }}" alt="{{ anexo.nome_original }}" loading="eager">
+            <figcaption class="image-caption">
+              {{ anexo.nome_original }}{% if anexo.restrito %} <span class="restricted">(restrito)</span>{% endif %}
+            </figcaption>
+          </figure>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="audit">
+          Cadastrado por {{ item.criado_por or "não informado" }}
+          {% if item.criado_em %} em {{ item.criado_em.replace("T", " ") }}{% endif %}
+          {% if item.atualizado_em %} | Última atualização: {{ item.atualizado_em.replace("T", " ") }}{% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+    {% else %}
+    <div class="empty">Nenhuma ação ou atendimento corresponde aos filtros selecionados.</div>
+    {% endif %}
+
+    <footer class="footer">
+      Documento emitido por {{ gerado_por }} em {{ gerado_em }}.
+    </footer>
+  </main>
+</body>
+</html>

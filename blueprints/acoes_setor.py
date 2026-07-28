@@ -1,3 +1,4 @@
+from collections import Counter, defaultdict
 from datetime import datetime
 import io
 import json
@@ -426,6 +427,211 @@ def _base_query():
     """
 
 
+def _consultar_acoes(args):
+    params = []
+    where = []
+    tipo = (args.get("tipo") or "").strip()
+    situacao = (args.get("situacao") or "").strip()
+    periodo = (args.get("periodo") or "").strip()
+    localidade = (args.get("localidade") or "").strip()
+    caso = (args.get("caso") or "").strip()
+    id_agente = (args.get("id_agente") or "").strip()
+    data_inicio = (args.get("data_inicio") or "").strip()[:10]
+    data_fim = (args.get("data_fim") or "").strip()[:10]
+    ano = (args.get("ano") or "").strip()
+    busca = (args.get("busca") or "").strip()
+    ordem = (args.get("ordem") or "recentes").strip()
+
+    if tipo in TIPOS_ACAO:
+        where.append("a.tipo=?")
+        params.append(tipo)
+    if situacao in SITUACOES_ACAO:
+        where.append("a.situacao=?")
+        params.append(situacao)
+    if periodo in PERIODOS_ACAO:
+        where.append("a.periodo=?")
+        params.append(periodo)
+    if localidade:
+        where.append("a.localidade=?")
+        params.append(localidade)
+    if caso:
+        where.append("a.caso=?")
+        params.append(caso)
+    if id_agente.isdigit():
+        where.append(
+            """EXISTS (
+                SELECT 1 FROM acoes_setor_agentes af
+                 WHERE af.id_acao=a.id_acao AND af.id_agente=?
+            )"""
+        )
+        params.append(int(id_agente))
+    if data_inicio:
+        where.append("date(COALESCE(a.data_fim,a.data))>=date(?)")
+        params.append(data_inicio)
+    if data_fim:
+        where.append("date(a.data)<=date(?)")
+        params.append(data_fim)
+    if ano:
+        where.append("substr(a.data, 1, 4)=?")
+        params.append(ano[:4])
+
+    sql = _base_query()
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " GROUP BY a.id_acao"
+    if ordem == "antigas":
+        sql += " ORDER BY a.data, COALESCE(a.hora_inicio,''), a.id_acao"
+    elif ordem == "localidade":
+        sql += " ORDER BY COALESCE(a.localidade,''), a.data DESC, a.id_acao DESC"
+    elif ordem == "tipo":
+        sql += " ORDER BY a.tipo, a.data DESC, a.id_acao DESC"
+    elif ordem == "publico":
+        sql += " ORDER BY COALESCE(a.publico_aproximado,0) DESC, a.data DESC"
+    else:
+        sql += " ORDER BY a.data DESC, COALESCE(a.hora_inicio,'') DESC, a.id_acao DESC"
+
+    registros = [_acao_dict(row) for row in bh.q(sql, params)]
+    if busca:
+        termos = [_normaliza_busca(t) for t in busca.split() if t.strip()]
+        registros = [
+            registro for registro in registros
+            if all(
+                termo in _normaliza_busca(
+                    " ".join(str(registro.get(campo) or "") for campo in (
+                        "tipo_label", "data", "localidade", "endereco", "local",
+                        "tema", "caso", "contexto", "resultados", "parceiros",
+                        "coordenadas", "observacoes", "agentes_nomes",
+                        "situacao_label", "periodo_label",
+                        "tipo_atividade_realizada_labels",
+                        "publico_alvo_labels", "recurso_utilizado_labels",
+                    ))
+                )
+                for termo in termos
+            )
+        ]
+    return registros
+
+
+def _data_br(valor):
+    try:
+        return datetime.strptime(str(valor or "")[:10], "%Y-%m-%d").strftime("%d/%m/%Y")
+    except ValueError:
+        return str(valor or "")
+
+
+def _anexos_relatorio(ids_acoes):
+    ids = sorted({int(item) for item in ids_acoes if int(item) > 0})
+    agrupados = defaultdict(list)
+    if not ids:
+        return agrupados
+    admin = _usuario_admin()
+    placeholders = ",".join("?" for _ in ids)
+    restricao = "" if admin else " AND COALESCE(restrito,0)=0"
+    rows = bh.q(
+        f"""SELECT *
+              FROM acoes_setor_anexos
+             WHERE id_acao IN ({placeholders}){restricao}
+             ORDER BY id_acao, criado_em, id_anexo""",
+        ids,
+    )
+    base = _anexos_base_dir()
+    for row in rows:
+        item = _anexo_dict(row, admin)
+        caminho = (base / item["caminho_rel"]).resolve()
+        if (base not in caminho.parents and caminho != base) or not caminho.is_file():
+            continue
+        item["eh_imagem"] = (item.get("mime_type") or "").startswith("image/")
+        agrupados[int(item["id_acao"])].append(item)
+    return agrupados
+
+
+def _resumo_relatorio(registros):
+    por_tipo = Counter(item.get("tipo") or "outro" for item in registros)
+    publico_tipo = Counter()
+    por_situacao = Counter(item.get("situacao") or "realizada" for item in registros)
+    por_localidade = Counter(item.get("localidade") or "Não informada" for item in registros)
+    localidades_informadas = {
+        item["localidade"] for item in registros if item.get("localidade")
+    }
+    por_mes = Counter()
+    servidores = set()
+    for item in registros:
+        publico_tipo[item.get("tipo") or "outro"] += int(item.get("publico_aproximado") or 0)
+        data = str(item.get("data") or "")
+        if len(data) >= 7:
+            por_mes[f"{data[5:7]}/{data[:4]}"] += 1
+        servidores.update(agente["nome"] for agente in item.get("agentes") or [])
+    return {
+        "total": len(registros),
+        "publico": sum(int(item.get("publico_aproximado") or 0) for item in registros),
+        "anexos": sum(len(item.get("anexos_relatorio") or []) for item in registros),
+        "imagens": sum(len(item.get("imagens_relatorio") or []) for item in registros),
+        "localidades": len(localidades_informadas),
+        "servidores": len(servidores),
+        "por_tipo": [
+            {
+                "codigo": codigo,
+                "label": TIPOS_ACAO[codigo],
+                "total": por_tipo[codigo],
+                "publico": publico_tipo[codigo],
+            }
+            for codigo in TIPOS_ACAO if por_tipo[codigo]
+        ],
+        "por_situacao": [
+            {"label": SITUACOES_ACAO[codigo], "total": por_situacao[codigo]}
+            for codigo in SITUACOES_ACAO if por_situacao[codigo]
+        ],
+        "por_localidade": [
+            {"label": label, "total": total}
+            for label, total in sorted(
+                por_localidade.items(),
+                key=lambda item: (-item[1], item[0].casefold()),
+            )
+        ],
+        "por_mes": [
+            {"label": label, "total": total}
+            for label, total in sorted(
+                por_mes.items(),
+                key=lambda item: (item[0][3:], item[0][:2]),
+            )
+        ],
+    }
+
+
+def _filtros_relatorio(args):
+    itens = []
+    mapas = (
+        ("tipo", "Tipo", TIPOS_ACAO),
+        ("situacao", "Situação", SITUACOES_ACAO),
+        ("periodo", "Período", PERIODOS_ACAO),
+    )
+    for campo, label, opcoes in mapas:
+        valor = (args.get(campo) or "").strip()
+        if valor in opcoes:
+            itens.append(f"{label}: {opcoes[valor]}")
+    campos_texto = (
+        ("localidade", "Localidade"),
+        ("caso", "Caso / acompanhamento"),
+        ("busca", "Pesquisa"),
+    )
+    for campo, label in campos_texto:
+        valor = (args.get(campo) or "").strip()
+        if valor:
+            itens.append(f"{label}: {valor}")
+    data_inicio = (args.get("data_inicio") or "").strip()[:10]
+    data_fim = (args.get("data_fim") or "").strip()[:10]
+    if data_inicio:
+        itens.append(f"Data inicial: {_data_br(data_inicio)}")
+    if data_fim:
+        itens.append(f"Data final: {_data_br(data_fim)}")
+    id_agente = (args.get("id_agente") or "").strip()
+    if id_agente.isdigit():
+        agente = bh.q1("SELECT nome FROM agentes WHERE id_agente=?", (int(id_agente),))
+        if agente:
+            itens.append(f"Servidor: {agente['nome']}")
+    return itens or ["Todos os registros"]
+
+
 def _salvar_agentes(conn, id_acao, agentes):
     conn.execute("DELETE FROM acoes_setor_agentes WHERE id_acao=?", (id_acao,))
     for id_agente in agentes:
@@ -715,6 +921,70 @@ def page():
     )
 
 
+@bp.route("/acoes-setor/relatorio/pdf")
+@login_required
+@nivel_min("operador")
+def relatorio_pdf():
+    ensure_schema()
+    registros = _consultar_acoes(request.args)
+    anexos_por_acao = _anexos_relatorio(
+        item["id_acao"] for item in registros
+    )
+    incluir_imagens = str(request.args.get("imagens", "1")).strip().lower() not in {
+        "0", "false", "nao", "não",
+    }
+    for item in registros:
+        anexos = anexos_por_acao.get(int(item["id_acao"]), [])
+        item["anexos_relatorio"] = anexos
+        item["imagens_relatorio"] = (
+            [anexo for anexo in anexos if anexo["eh_imagem"]]
+            if incluir_imagens else []
+        )
+        item["documentos_relatorio"] = [
+            anexo for anexo in anexos if not anexo["eh_imagem"]
+        ]
+
+    datas_inicio = [item["data"] for item in registros if item.get("data")]
+    datas_fim = [
+        item.get("data_fim") or item.get("data")
+        for item in registros if item.get("data_fim") or item.get("data")
+    ]
+    data_inicio = (
+        (request.args.get("data_inicio") or "").strip()[:10]
+        or (min(datas_inicio) if datas_inicio else "")
+    )
+    data_fim = (
+        (request.args.get("data_fim") or "").strip()[:10]
+        or (max(datas_fim) if datas_fim else "")
+    )
+    periodo_label = (
+        f"{_data_br(data_inicio)} a {_data_br(data_fim)}"
+        if data_inicio and data_fim
+        else "Período não delimitado"
+    )
+    ordem = (request.args.get("ordem") or "recentes").strip()
+    ordem_label = {
+        "recentes": "Mais recentes primeiro",
+        "antigas": "Mais antigas primeiro",
+        "localidade": "Localidade",
+        "tipo": "Tipo de registro",
+        "publico": "Maior público",
+    }.get(ordem, "Mais recentes primeiro")
+    usuario = bh.usuario_atual() or {}
+    return render_template(
+        "acoes_setor_relatorio.html",
+        registros=registros,
+        resumo=_resumo_relatorio(registros),
+        filtros=_filtros_relatorio(request.args),
+        periodo_label=periodo_label,
+        ordem_label=ordem_label,
+        incluir_imagens=incluir_imagens,
+        gerado_por=usuario.get("nome") or "Sistema",
+        gerado_em=datetime.now().strftime("%d/%m/%Y às %H:%M"),
+        data_br=_data_br,
+    )
+
+
 @bp.route("/api/acoes-setor", methods=["GET", "POST"])
 @login_required
 @nivel_min("operador")
@@ -745,71 +1015,7 @@ def api_acoes():
                 conn.close()
         return jsonify({"ok": True, "id_acao": id_acao}), 201
 
-    params = []
-    where = []
-    tipo = (request.args.get("tipo") or "").strip()
-    situacao = (request.args.get("situacao") or "").strip()
-    periodo = (request.args.get("periodo") or "").strip()
-    localidade = (request.args.get("localidade") or "").strip()
-    caso = (request.args.get("caso") or "").strip()
-    id_agente = (request.args.get("id_agente") or "").strip()
-    data_inicio = (request.args.get("data_inicio") or "").strip()[:10]
-    data_fim = (request.args.get("data_fim") or "").strip()[:10]
-    ano = (request.args.get("ano") or "").strip()
-    busca = (request.args.get("busca") or "").strip()
-    if tipo in TIPOS_ACAO:
-        where.append("a.tipo=?")
-        params.append(tipo)
-    if situacao in SITUACOES_ACAO:
-        where.append("a.situacao=?")
-        params.append(situacao)
-    if periodo in PERIODOS_ACAO:
-        where.append("a.periodo=?")
-        params.append(periodo)
-    if localidade:
-        where.append("a.localidade=?")
-        params.append(localidade)
-    if caso:
-        where.append("a.caso=?")
-        params.append(caso)
-    if id_agente.isdigit():
-        where.append(
-            """EXISTS (
-                SELECT 1 FROM acoes_setor_agentes af
-                 WHERE af.id_acao=a.id_acao AND af.id_agente=?
-            )"""
-        )
-        params.append(int(id_agente))
-    if data_inicio:
-        where.append("date(COALESCE(a.data_fim,a.data))>=date(?)")
-        params.append(data_inicio)
-    if data_fim:
-        where.append("date(a.data)<=date(?)")
-        params.append(data_fim)
-    if ano:
-        where.append("substr(a.data, 1, 4)=?")
-        params.append(ano[:4])
-
-    sql = _base_query()
-    if where:
-        sql += " WHERE " + " AND ".join(where)
-    sql += " GROUP BY a.id_acao ORDER BY a.data DESC, COALESCE(a.hora_inicio, '') DESC, a.id_acao DESC"
-    registros = [_acao_dict(row) for row in bh.q(sql, params)]
-    if busca:
-        termos = [_normaliza_busca(t) for t in busca.split() if t.strip()]
-        registros = [
-            r for r in registros
-            if all(
-                termo in _normaliza_busca(" ".join(str(r.get(c) or "") for c in (
-                    "tipo_label", "data", "localidade", "endereco", "local", "tema",
-                    "caso", "contexto", "resultados", "parceiros", "coordenadas",
-                    "observacoes", "agentes_nomes", "situacao_label", "periodo_label",
-                    "tipo_atividade_realizada_labels",
-                    "publico_alvo_labels", "recurso_utilizado_labels",
-                )))
-                for termo in termos
-            )
-        ]
+    registros = _consultar_acoes(request.args)
     return jsonify({"registros": registros, "total": len(registros), "tipos": TIPOS_ACAO})
 
 

@@ -9,6 +9,8 @@
   let registros = [];
   let registroAberto = null;
   let galeriaAnexosCarregada = false;
+  let relatorioCarregado = false;
+  let registrosRelatorio = [];
   const anexosPorAcao = {};
   const dialog = $('acao-dialog');
 
@@ -100,6 +102,22 @@
     setParametro(p,'acoes-anexos-agente','id_agente');
     setParametro(p,'acoes-anexos-data-inicio','data_inicio');
     setParametro(p,'acoes-anexos-data-fim','data_fim');
+    return p.toString();
+  }
+
+  function paramsRelatorio(){
+    const p=new URLSearchParams();
+    setParametro(p,'acoes-relatorio-busca','busca');
+    setParametro(p,'acoes-relatorio-tipo','tipo');
+    setParametro(p,'acoes-relatorio-situacao','situacao');
+    setParametro(p,'acoes-relatorio-periodo','periodo');
+    setParametro(p,'acoes-relatorio-localidade','localidade');
+    setParametro(p,'acoes-relatorio-caso','caso');
+    setParametro(p,'acoes-relatorio-agente','id_agente');
+    setParametro(p,'acoes-relatorio-data-inicio','data_inicio');
+    setParametro(p,'acoes-relatorio-data-fim','data_fim');
+    setParametro(p,'acoes-relatorio-ordem','ordem');
+    p.set('imagens',$('acoes-relatorio-imagens').checked?'1':'0');
     return p.toString();
   }
 
@@ -416,6 +434,57 @@
     galeriaAnexosCarregada=true;
   }
 
+  function renderPreviaRelatorio(){
+    const totalPublico=registrosRelatorio.reduce((total,item)=>total+(Number(item.publico_aproximado)||0),0);
+    const localidades=new Set(registrosRelatorio.map(item=>item.localidade).filter(Boolean));
+    const totalAnexos=registrosRelatorio.reduce((total,item)=>total+(Number(item.total_anexos)||0),0);
+    $('acoes-relatorio-stat-total').textContent=fmtNumero.format(registrosRelatorio.length);
+    $('acoes-relatorio-stat-publico').textContent=fmtNumero.format(totalPublico);
+    $('acoes-relatorio-stat-localidades').textContent=fmtNumero.format(localidades.size);
+    $('acoes-relatorio-stat-anexos').textContent=fmtNumero.format(totalAnexos);
+    $('acoes-relatorio-total').textContent=`${fmtNumero.format(registrosRelatorio.length)} registro(s)`;
+    if(!registrosRelatorio.length){
+      $('acoes-relatorio-previa').innerHTML='<div class="acao-empty">Nenhum registro corresponde aos filtros do relatório.</div>';
+      return;
+    }
+    const linhas=registrosRelatorio.slice(0,12).map(item=>`
+      <div class="acoes-report-preview-row">
+        <span>${esc(dataBR(item.data))}</span>
+        <strong>${esc(tituloRegistro(item))}</strong>
+        <span>${esc(item.localidade||'Localidade não informada')}</span>
+        <span>${esc(item.tipo_label||item.tipo||'')}</span>
+      </div>
+    `).join('');
+    const restantes=registrosRelatorio.length-12;
+    $('acoes-relatorio-previa').innerHTML=`
+      <div class="acoes-report-preview-head"><span>Data</span><span>Registro</span><span>Localidade</span><span>Tipo</span></div>
+      ${linhas}
+      ${restantes>0?`<div class="acao-empty">Mais ${fmtNumero.format(restantes)} registro(s) serão incluídos no relatório.</div>`:''}
+    `;
+  }
+
+  async function carregarPreviaRelatorio(){
+    $('acoes-relatorio-previa').innerHTML='<div class="acao-empty"><div class="spinner"></div></div>';
+    const data=await api(`/api/acoes-setor?${paramsRelatorio()}`);
+    registrosRelatorio=data.registros||[];
+    relatorioCarregado=true;
+    renderPreviaRelatorio();
+  }
+
+  function limparFiltrosRelatorio(){
+    [
+      'acoes-relatorio-busca','acoes-relatorio-tipo','acoes-relatorio-situacao',
+      'acoes-relatorio-periodo','acoes-relatorio-localidade','acoes-relatorio-caso',
+      'acoes-relatorio-agente','acoes-relatorio-data-inicio','acoes-relatorio-data-fim'
+    ].forEach(id=>{$(id).value='';});
+    $('acoes-relatorio-ordem').value='recentes';
+    $('acoes-relatorio-imagens').checked=true;
+  }
+
+  function gerarRelatorio(){
+    window.open(`/acoes-setor/relatorio/pdf?${paramsRelatorio()}`,'_blank','noopener');
+  }
+
   async function alternarRegistro(idAcao){
     if(Number(registroAberto)===Number(idAcao)){
       registroAberto=null;
@@ -546,6 +615,7 @@
     document.querySelectorAll('.acoes-tab').forEach(item=>item.classList.toggle('active',item.dataset.acoesTab===tab));
     document.querySelectorAll('.acoes-tab-panel').forEach(panel=>{panel.hidden=panel.id!==`acoes-panel-${tab}`;});
     if(tab==='anexos')carregarGaleriaAnexos().catch(e=>toast(e.message,'error'));
+    if(tab==='relatorio'&&!relatorioCarregado)carregarPreviaRelatorio().catch(e=>toast(e.message,'error'));
   }
 
   document.addEventListener('DOMContentLoaded',()=>{
@@ -574,11 +644,20 @@
       limparFiltrosAnexos();
       carregarGaleriaAnexos().catch(e=>toast(e.message,'error'));
     });
+    $('acoes-relatorio-atualizar').addEventListener('click',()=>carregarPreviaRelatorio().catch(e=>toast(e.message,'error')));
+    $('acoes-relatorio-limpar').addEventListener('click',()=>{
+      limparFiltrosRelatorio();
+      carregarPreviaRelatorio().catch(e=>toast(e.message,'error'));
+    });
+    $('acoes-relatorio-gerar').addEventListener('click',gerarRelatorio);
     $('acoes-busca').addEventListener('keydown',e=>{
       if(e.key==='Enter')carregar().catch(err=>toast(err.message,'error'));
     });
     $('acoes-anexos-busca').addEventListener('keydown',e=>{
       if(e.key==='Enter')carregarGaleriaAnexos().catch(err=>toast(err.message,'error'));
+    });
+    $('acoes-relatorio-busca').addEventListener('keydown',e=>{
+      if(e.key==='Enter')carregarPreviaRelatorio().catch(err=>toast(err.message,'error'));
     });
     $('acoes-lista').addEventListener('click',async e=>{
       const alternar=e.target.closest('[data-alternar]');

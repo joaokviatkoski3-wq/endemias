@@ -13,6 +13,7 @@
 .acoes-tab.active{background:var(--surface);color:var(--brand);box-shadow:0 1px 3px #00000018;}
 .acoes-tab-panel[hidden]{display:none!important;}
 .acoes-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:12px;}
+.acoes-summary.report{grid-template-columns:repeat(4,minmax(0,1fr));}
 .acoes-stat{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;padding:12px 14px;border:1px solid var(--border);border-radius:7px;background:var(--surface);}
 .acoes-stat-icon{width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--border);border-radius:6px;background:var(--surface2);}
 .acoes-stat-icon img{width:17px;height:17px;}
@@ -24,8 +25,18 @@
 .acoes-filter-panel{border:1px solid var(--border);border-radius:7px;background:var(--surface);padding:12px;}
 .acoes-filter-grid{display:grid;grid-template-columns:minmax(220px,1.5fr) repeat(3,minmax(135px,.75fr)) repeat(2,minmax(135px,.7fr));gap:9px;align-items:end;}
 .acoes-filter-grid.attachments{grid-template-columns:minmax(220px,1.5fr) repeat(4,minmax(130px,.72fr)) repeat(2,minmax(135px,.7fr));}
+.acoes-filter-grid.report{grid-template-columns:minmax(220px,1.4fr) repeat(4,minmax(130px,.72fr));}
 .acoes-filter-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px;}
 .acoes-filter-actions .btn{min-height:36px;}
+.acoes-report-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:11px;}
+.acoes-report-buttons{display:flex;gap:8px;justify-content:flex-end;}
+.acoes-report-toggle{display:flex;align-items:center;gap:8px;min-height:36px;color:var(--text2);font-size:11px;font-weight:700;cursor:pointer;}
+.acoes-report-toggle input{width:17px;height:17px;accent-color:var(--brand);}
+.acoes-report-preview{border:1px solid var(--border);border-radius:7px;background:var(--surface);overflow:hidden;}
+.acoes-report-preview-head{display:grid;grid-template-columns:90px minmax(180px,1.4fr) minmax(140px,.8fr) minmax(140px,.8fr);gap:12px;padding:8px 12px;background:var(--surface2);color:var(--text3);font-size:9px;font-weight:800;text-transform:uppercase;}
+.acoes-report-preview-row{display:grid;grid-template-columns:90px minmax(180px,1.4fr) minmax(140px,.8fr) minmax(140px,.8fr);gap:12px;align-items:center;padding:9px 12px;border-top:1px solid var(--border);font-size:11px;}
+.acoes-report-preview-row strong{font-size:11.5px;overflow-wrap:anywhere;}
+.acoes-report-preview-row span{color:var(--text2);overflow-wrap:anywhere;}
 .acoes-list{display:grid;gap:8px;}
 .acao-item{border:1px solid var(--border);border-radius:7px;background:var(--surface);overflow:hidden;}
 .acao-item.open{border-color:var(--brand-l);box-shadow:inset 3px 0 0 var(--brand);}
@@ -98,14 +109,16 @@
 .acoes-sheet-actions .btn{min-height:39px;}
 @media(max-width:1100px){
   .acoes-summary{grid-template-columns:repeat(3,minmax(0,1fr));}
-  .acoes-filter-grid,.acoes-filter-grid.attachments{grid-template-columns:repeat(3,minmax(0,1fr));}
+  .acoes-summary.report{grid-template-columns:repeat(4,minmax(0,1fr));}
+  .acoes-filter-grid,.acoes-filter-grid.attachments,.acoes-filter-grid.report{grid-template-columns:repeat(3,minmax(0,1fr));}
   .acao-row{grid-template-columns:58px minmax(180px,1fr) minmax(160px,.8fr) auto;}.acao-numbers{display:none;}
   .acao-detail-grid{grid-template-columns:repeat(3,minmax(0,1fr));}
 }
 @media(max-width:760px){
   .acoes-page-head{align-items:stretch;}.acoes-page-head .btn{justify-content:center;}
   .acoes-summary{grid-template-columns:1fr 1fr;}
-  .acoes-filter-grid,.acoes-filter-grid.attachments{grid-template-columns:1fr 1fr;}
+  .acoes-summary.report{grid-template-columns:1fr 1fr;}
+  .acoes-filter-grid,.acoes-filter-grid.attachments,.acoes-filter-grid.report{grid-template-columns:1fr 1fr;}
   .acao-row{grid-template-columns:54px minmax(0,1fr) auto;gap:9px;}.acao-info{grid-column:2/-1;grid-template-columns:1fr 1fr;}.acao-controls{grid-column:3;grid-row:1;}
   .acao-detail-grid{grid-template-columns:1fr 1fr;}.acao-notes{grid-template-columns:1fr;}
   .acoes-dialog{width:calc(100% - 16px);max-height:calc(100vh - 16px);}.acoes-sheet{max-height:calc(100vh - 16px);}
@@ -113,8 +126,10 @@
 }
 @media(max-width:520px){
   .acoes-page-head{flex-direction:column;}.acoes-tabs{width:100%;}.acoes-tab{flex:1;min-width:0;}
-  .acoes-filter-grid,.acoes-filter-grid.attachments{grid-template-columns:1fr;}
+  .acoes-filter-grid,.acoes-filter-grid.attachments,.acoes-filter-grid.report{grid-template-columns:1fr;}
   .acoes-filter-actions{display:grid;grid-template-columns:1fr 1.2fr;}.acoes-filter-actions .btn{justify-content:center;}
+  .acoes-report-actions{align-items:stretch;flex-direction:column;}.acoes-report-buttons{display:grid;grid-template-columns:1fr 1.2fr;}.acoes-report-buttons .btn{justify-content:center;}
+  .acoes-report-preview-head{display:none;}.acoes-report-preview-row{grid-template-columns:1fr 1fr;gap:4px 10px;}.acoes-report-preview-row strong{grid-column:1/-1;}
   .acao-row{grid-template-columns:50px minmax(0,1fr);}.acao-controls{grid-column:1/-1;grid-row:auto;justify-content:flex-end;border-top:1px solid var(--border);padding-top:8px;}.acao-info{grid-column:1/-1;}
   .acao-detail-grid{grid-template-columns:1fr;}.acoes-form{grid-template-columns:1fr;}.acoes-form .span-2,.acoes-form .full{grid-column:1;}
   .acoes-sheet-body{padding-inline:13px;}.acoes-sheet-actions{display:grid;grid-template-columns:1fr 1.3fr;}.acoes-sheet-actions .btn{justify-content:center;}
@@ -135,6 +150,7 @@
   <div class="acoes-tabs" role="tablist" aria-label="Conteúdo da página">
     <button class="acoes-tab active" type="button" data-acoes-tab="registros"><img src="/static/icons/fichario.svg" alt="" class="icon-svg"> Registros</button>
     <button class="acoes-tab" type="button" data-acoes-tab="anexos"><img src="/static/icons/pasta.svg" alt="" class="icon-svg"> Anexos</button>
+    <button class="acoes-tab" type="button" data-acoes-tab="relatorio"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> Relatório de Ações</button>
   </div>
 
   <section class="acoes-tab-panel" id="acoes-panel-registros">
@@ -202,6 +218,46 @@
       <span class="acoes-toolbar-meta" id="acoes-anexos-total">0 anexo(s)</span>
     </div>
     <div class="acoes-anexo-list" id="acoes-anexos-galeria"></div>
+  </section>
+
+  <section class="acoes-tab-panel" id="acoes-panel-relatorio" hidden>
+    <section class="acoes-filter-panel" aria-label="Filtros do relatório de ações">
+      <div class="acoes-filter-grid report">
+        <div class="f-g"><label>Pesquisa</label><input id="acoes-relatorio-busca" type="search" placeholder="Local, tema, endereço ou servidor"></div>
+        <div class="f-g"><label>Tipo</label><select id="acoes-relatorio-tipo"><option value="">Todos</option>{% for codigo, label in tipos_acao.items() %}<option value="{{ codigo }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Situação</label><select id="acoes-relatorio-situacao"><option value="">Todas</option>{% for codigo, label in situacoes_acao.items() %}<option value="{{ codigo }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Período</label><select id="acoes-relatorio-periodo"><option value="">Todos</option>{% for codigo, label in periodos_acao.items() %}<option value="{{ codigo }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Localidade</label><select id="acoes-relatorio-localidade"><option value="">Todas</option>{% for loc in localidades %}<option value="{{ loc }}">{{ loc }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Caso / acompanhamento</label><select id="acoes-relatorio-caso"><option value="">Todos</option>{% for caso in casos %}<option value="{{ caso }}">{{ caso }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Servidor</label><select id="acoes-relatorio-agente"><option value="">Todos</option>{% for agente in agentes %}<option value="{{ agente.id_agente }}">{{ agente.nome }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Data inicial</label><input id="acoes-relatorio-data-inicio" type="date"></div>
+        <div class="f-g"><label>Data final</label><input id="acoes-relatorio-data-fim" type="date"></div>
+        <div class="f-g"><label>Ordenação</label><select id="acoes-relatorio-ordem"><option value="recentes">Mais recentes</option><option value="antigas">Mais antigas</option><option value="localidade">Localidade</option><option value="tipo">Tipo de registro</option><option value="publico">Maior público</option></select></div>
+      </div>
+      <div class="acoes-report-actions">
+        <label class="acoes-report-toggle"><input type="checkbox" id="acoes-relatorio-imagens" checked> Incluir imagens anexadas</label>
+        <div class="acoes-report-buttons">
+          <button class="btn btn-ghost" type="button" id="acoes-relatorio-limpar">Limpar</button>
+          <button class="btn btn-outline" type="button" id="acoes-relatorio-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar prévia</button>
+          <button class="btn btn-primary" type="button" id="acoes-relatorio-gerar"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Gerar relatório</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="acoes-summary report" aria-label="Resumo do relatório">
+      <div class="acoes-stat"><span class="acoes-stat-icon"><img src="/static/icons/fichario.svg" alt=""></span><div class="acoes-stat-copy"><strong id="acoes-relatorio-stat-total">0</strong><span>Registros</span></div></div>
+      <div class="acoes-stat"><span class="acoes-stat-icon"><img src="/static/icons/usuario.svg" alt=""></span><div class="acoes-stat-copy"><strong id="acoes-relatorio-stat-publico">0</strong><span>Público</span></div></div>
+      <div class="acoes-stat"><span class="acoes-stat-icon"><img src="/static/icons/mapa.svg" alt=""></span><div class="acoes-stat-copy"><strong id="acoes-relatorio-stat-localidades">0</strong><span>Localidades</span></div></div>
+      <div class="acoes-stat"><span class="acoes-stat-icon"><img src="/static/icons/pasta.svg" alt=""></span><div class="acoes-stat-copy"><strong id="acoes-relatorio-stat-anexos">0</strong><span>Anexos</span></div></div>
+    </div>
+
+    <div class="acoes-toolbar">
+      <div class="acoes-toolbar-title"><img src="/static/icons/documento.svg" alt=""> Prévia dos registros incluídos</div>
+      <span class="acoes-toolbar-meta" id="acoes-relatorio-total">0 registro(s)</span>
+    </div>
+    <div class="acoes-report-preview" id="acoes-relatorio-previa">
+      <div class="acao-empty">Atualize a prévia para conferir o conteúdo do relatório.</div>
+    </div>
   </section>
 
 </div>
