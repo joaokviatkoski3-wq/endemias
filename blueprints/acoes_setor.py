@@ -14,6 +14,7 @@ from flask import Blueprint, abort, current_app, jsonify, render_template, reque
 from werkzeug.utils import secure_filename
 
 from app_core import auth as auth_core
+from app_core import acoes_historico
 from app_core import blueprint_helpers as bh
 
 
@@ -202,6 +203,19 @@ def ensure_schema(conn=None):
         CREATE INDEX IF NOT EXISTS idx_acoes_setor_localidade ON acoes_setor(localidade);
         CREATE INDEX IF NOT EXISTS idx_acoes_setor_agente ON acoes_setor_agentes(id_agente);
         CREATE INDEX IF NOT EXISTS idx_acoes_setor_anexo_acao ON acoes_setor_anexos(id_acao);
+        CREATE TABLE IF NOT EXISTS acoes_setor_importacoes (
+            id_importacao INTEGER PRIMARY KEY AUTOINCREMENT,
+            fingerprint TEXT NOT NULL UNIQUE,
+            id_acao INTEGER NOT NULL UNIQUE
+                REFERENCES acoes_setor(id_acao) ON DELETE CASCADE,
+            origem TEXT NOT NULL,
+            grupo TEXT NOT NULL,
+            arquivos_json TEXT NOT NULL,
+            criado_por TEXT,
+            criado_em TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_acoes_setor_importacao_acao
+            ON acoes_setor_importacoes(id_acao);
         """)
         cols = _table_cols(conn, "acoes_setor")
         colunas_texto = (
@@ -433,6 +447,48 @@ def _salvar_agentes(conn, id_acao, agentes):
             "INSERT OR IGNORE INTO acoes_setor_agentes (id_acao, id_agente) VALUES (?, ?)",
             (id_acao, id_agente),
         )
+
+
+def _criar_acao(conn, payload, usuario_nome):
+    agora = datetime.now().isoformat(timespec="seconds")
+    cur = conn.execute(
+        """INSERT INTO acoes_setor
+           (tipo, situacao, data, data_fim, periodo, hora_inicio, hora_fim,
+            caso, localidade, endereco, local,
+            publico_aproximado, tipo_atividade_realizada, publico_alvo, recurso_utilizado,
+            tema, contexto, resultados, parceiros, coordenadas, observacoes,
+            criado_por, criado_em, atualizado_em)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            payload["tipo"],
+            payload["situacao"],
+            payload["data"],
+            payload["data_fim"],
+            payload["periodo"],
+            payload["hora_inicio"],
+            payload["hora_fim"],
+            payload["caso"],
+            payload["localidade"],
+            payload["endereco"],
+            payload["local"],
+            payload["publico_aproximado"],
+            _multi_db(payload["tipo_atividade_realizada"]),
+            _multi_db(payload["publico_alvo"]),
+            _multi_db(payload["recurso_utilizado"]),
+            payload["tema"],
+            payload["contexto"],
+            payload["resultados"],
+            payload["parceiros"],
+            payload["coordenadas"],
+            payload["observacoes"],
+            usuario_nome,
+            agora,
+            agora,
+        ),
+    )
+    id_acao = cur.lastrowid
+    _salvar_agentes(conn, id_acao, payload["agentes"])
+    return id_acao
 
 
 def _anexos_base_dir():
@@ -688,43 +744,11 @@ def api_acoes():
         conn = None
         try:
             conn = bh.get_db()
-            cur = conn.execute(
-                """INSERT INTO acoes_setor
-                   (tipo, situacao, data, data_fim, periodo, hora_inicio, hora_fim,
-                    caso, localidade, endereco, local,
-                    publico_aproximado, tipo_atividade_realizada, publico_alvo, recurso_utilizado,
-                    tema, contexto, resultados, parceiros, coordenadas, observacoes,
-                    criado_por, criado_em, atualizado_em)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    payload["tipo"],
-                    payload["situacao"],
-                    payload["data"],
-                    payload["data_fim"],
-                    payload["periodo"],
-                    payload["hora_inicio"],
-                    payload["hora_fim"],
-                    payload["caso"],
-                    payload["localidade"],
-                    payload["endereco"],
-                    payload["local"],
-                    payload["publico_aproximado"],
-                    _multi_db(payload["tipo_atividade_realizada"]),
-                    _multi_db(payload["publico_alvo"]),
-                    _multi_db(payload["recurso_utilizado"]),
-                    payload["tema"],
-                    payload["contexto"],
-                    payload["resultados"],
-                    payload["parceiros"],
-                    payload["coordenadas"],
-                    payload["observacoes"],
-                    usuario.get("nome") or "sistema",
-                    datetime.now().isoformat(timespec="seconds"),
-                    datetime.now().isoformat(timespec="seconds"),
-                ),
+            id_acao = _criar_acao(
+                conn,
+                payload,
+                usuario.get("nome") or "sistema",
             )
-            id_acao = cur.lastrowid
-            _salvar_agentes(conn, id_acao, payload["agentes"])
             conn.commit()
         except sqlite3.OperationalError:
             if conn:
@@ -801,6 +825,179 @@ def api_acoes():
             )
         ]
     return jsonify({"registros": registros, "total": len(registros), "tipos": TIPOS_ACAO})
+
+
+def _localidades_historico():
+    return [
+        row["nome"] for row in bh.q(
+            "SELECT nome FROM localidades WHERE TRIM(COALESCE(nome,''))<>'' ORDER BY nome"
+        )
+    ]
+
+
+@bp.route("/api/acoes-setor/importacao-historica/previa", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_importacao_historica_previa():
+    ensure_schema()
+    diretorio = (request.get_json(silent=True) or {}).get("diretorio")
+    try:
+        inventario = acoes_historico.escanear(
+            diretorio,
+            _localidades_historico(),
+        )
+    except (OSError, ValueError) as exc:
+        return jsonify({"erro": str(exc)}), 400
+    fingerprints = [grupo["fingerprint"] for grupo in inventario["grupos"]]
+    importados = {}
+    if fingerprints:
+        placeholders = ",".join("?" for _ in fingerprints)
+        importados = {
+            row["fingerprint"]: {
+                "id_acao": row["id_acao"],
+                "criado_em": row["criado_em"],
+                "criado_por": row["criado_por"],
+            }
+            for row in bh.q(
+                f"""SELECT fingerprint, id_acao, criado_em, criado_por
+                      FROM acoes_setor_importacoes
+                     WHERE fingerprint IN ({placeholders})""",
+                fingerprints,
+            )
+        }
+    for grupo in inventario["grupos"]:
+        grupo["importacao"] = importados.get(grupo["fingerprint"])
+    return jsonify(inventario)
+
+
+@bp.route("/api/acoes-setor/importacao-historica", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_importacao_historica():
+    ensure_schema()
+    dados = request.get_json(silent=True) or {}
+    diretorio = dados.get("diretorio")
+    id_grupo = str(dados.get("id_grupo") or "").strip()
+    if not id_grupo:
+        return jsonify({"erro": "Grupo histórico não informado."}), 400
+    try:
+        grupo = acoes_historico.localizar_grupo(
+            diretorio,
+            id_grupo,
+            _localidades_historico(),
+        )
+        if not grupo:
+            raise ValueError("O grupo histórico não foi encontrado na pasta.")
+        payload = _acao_payload(dados.get("registro") or {})
+    except (OSError, ValueError) as exc:
+        return jsonify({"erro": str(exc)}), 400
+
+    restrito = bool(dados.get(
+        "anexos_restritos",
+        grupo["anexos_restritos_sugeridos"],
+    ))
+    usuario = bh.usuario_atual() or {}
+    usuario_nome = usuario.get("nome") or "sistema"
+    conn = None
+    destino_dir = None
+    try:
+        conn = bh.get_db()
+        duplicado = conn.execute(
+            """SELECT id_acao FROM acoes_setor_importacoes
+                WHERE fingerprint=?""",
+            (grupo["fingerprint"],),
+        ).fetchone()
+        if duplicado:
+            return jsonify({
+                "erro": "Este conjunto já foi importado.",
+                "id_acao": duplicado["id_acao"],
+            }), 409
+        id_acao = _criar_acao(conn, payload, usuario_nome)
+        destino_dir = _acao_anexos_dir(id_acao, payload["data"])
+        anexos_ids = []
+        agora = datetime.now().isoformat(timespec="seconds")
+        for arquivo in grupo["arquivos"]:
+            origem = acoes_historico.caminho_origem(
+                diretorio,
+                arquivo["caminho_rel"],
+            )
+            extensao = origem.suffix.casefold()
+            if extensao not in ANEXO_EXTENSOES:
+                raise ValueError(f"Tipo de arquivo não permitido: {origem.name}")
+            tamanho = origem.stat().st_size
+            if tamanho <= 0 or tamanho > ANEXO_MAX_BYTES:
+                raise ValueError(f"Tamanho de arquivo inválido: {origem.name}")
+            nome_arquivo = f"{uuid.uuid4().hex}{extensao}"
+            destino = destino_dir / nome_arquivo
+            shutil.copy2(origem, destino)
+            caminho_rel = str(
+                destino.relative_to(_anexos_base_dir())
+            ).replace("\\", "/")
+            cur = conn.execute(
+                """INSERT INTO acoes_setor_anexos
+                   (id_acao, nome_original, nome_arquivo, caminho_rel, mime_type,
+                    tamanho, restrito, criado_por, criado_em)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    id_acao,
+                    origem.name,
+                    nome_arquivo,
+                    caminho_rel,
+                    mimetypes.guess_type(origem.name)[0] or "application/octet-stream",
+                    tamanho,
+                    1 if restrito else 0,
+                    usuario_nome,
+                    agora,
+                ),
+            )
+            anexos_ids.append(cur.lastrowid)
+        conn.execute(
+            """INSERT INTO acoes_setor_importacoes
+               (fingerprint, id_acao, origem, grupo, arquivos_json,
+                criado_por, criado_em)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                grupo["fingerprint"],
+                id_acao,
+                str(Path(diretorio).resolve()),
+                grupo["chave"],
+                json.dumps(
+                    [item["caminho_rel"] for item in grupo["arquivos"]],
+                    ensure_ascii=False,
+                ),
+                usuario_nome,
+                agora,
+            ),
+        )
+        conn.commit()
+    except sqlite3.IntegrityError:
+        if conn:
+            conn.rollback()
+        if destino_dir:
+            shutil.rmtree(destino_dir, ignore_errors=True)
+        return jsonify({"erro": "Este conjunto já foi importado."}), 409
+    except (OSError, ValueError):
+        if conn:
+            conn.rollback()
+        if destino_dir:
+            shutil.rmtree(destino_dir, ignore_errors=True)
+        return jsonify({
+            "erro": "Não foi possível copiar todos os documentos do acervo."
+        }), 400
+    except sqlite3.OperationalError:
+        if conn:
+            conn.rollback()
+        if destino_dir:
+            shutil.rmtree(destino_dir, ignore_errors=True)
+        return jsonify({"erro": "Banco de dados ocupado. Tente novamente."}), 503
+    finally:
+        if conn:
+            conn.close()
+    return jsonify({
+        "ok": True,
+        "id_acao": id_acao,
+        "anexos_importados": len(anexos_ids),
+    }), 201
 
 
 @bp.route("/api/acoes-setor/<int:id_acao>", methods=["GET", "PUT", "DELETE"])

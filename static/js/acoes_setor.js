@@ -9,6 +9,8 @@
   let registros = [];
   let registroAberto = null;
   let galeriaAnexosCarregada = false;
+  let inventarioHistorico = null;
+  let importacaoAtiva = null;
   const anexosPorAcao = {};
   const dialog = $('acao-dialog');
 
@@ -146,9 +148,11 @@
   }
 
   function limparForm(){
+    importacaoAtiva=null;
     $('acao-id').value='';
     $('acao-form-title').textContent='Novo registro';
     $('acao-form-contexto').textContent='Cadastro da atividade';
+    $('acao-salvar').innerHTML='<img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar';
     $('acao-tipo').value='educativa';
     $('acao-situacao').value='realizada';
     $('acao-data').value=new Date().toISOString().slice(0,10);
@@ -179,9 +183,11 @@
   }
 
   function preencherForm(r,abrir=true){
+    importacaoAtiva=null;
     $('acao-id').value=r.id_acao;
     $('acao-form-title').textContent='Editar registro';
     $('acao-form-contexto').textContent=`Registro ${String(r.id_acao).padStart(6,'0')} · ${dataBR(r.data)}`;
+    $('acao-salvar').innerHTML='<img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar';
     $('acao-tipo').value=r.tipo||'educativa';
     $('acao-situacao').value=r.situacao||'realizada';
     $('acao-data').value=r.data||'';
@@ -414,6 +420,82 @@
     galeriaAnexosCarregada=true;
   }
 
+  function renderHistorico(){
+    if(!$('acoes-importacao-lista'))return;
+    const grupos=inventarioHistorico?.grupos||[];
+    const importados=grupos.filter(g=>g.importacao).length;
+    $('acoes-importacao-total').textContent=inventarioHistorico
+      ?`${fmtNumero.format(grupos.length)} conjunto(s) · ${fmtNumero.format(inventarioHistorico.total_arquivos||0)} arquivo(s) · ${fmtNumero.format(importados)} importado(s)`
+      :'Nenhuma pasta conferida';
+    $('acoes-importacao-lista').innerHTML=grupos.map(grupo=>{
+      const s=grupo.sugestao||{};
+      const avisos=grupo.avisos||[];
+      const status=grupo.importacao
+        ?`Importado · Registro ${String(grupo.importacao.id_acao).padStart(6,'0')}`
+        :'Aguardando revisão';
+      const localidades=(grupo.localidades_encontradas||[]).join(', ');
+      return `<article class="acoes-import-card ${grupo.importacao?'imported':''}">
+        <div class="acoes-import-main">
+          <div class="acoes-import-title">
+            <span>${esc(grupo.titulo)}</span>
+            <span class="acao-tag ${esc(s.tipo||'outro')}">${esc(status)}</span>
+            ${grupo.anexos_restritos_sugeridos?'<span class="acoes-import-restricted">Documentos restritos</span>':''}
+          </div>
+          <div class="acoes-import-meta">
+            <span>${esc(s.data?dataBR(s.data):'Data a revisar')}</span>
+            <span>${esc(localidades||s.localidade||'Localidade a revisar')}</span>
+            <span>${fmtNumero.format(grupo.total_arquivos||0)} arquivo(s) · ${esc(tamanhoBR(grupo.total_bytes))}</span>
+          </div>
+          <div class="acoes-import-files">${(grupo.arquivos||[]).map(a=>`<span class="acoes-import-file" title="${esc(a.caminho_rel)}">${esc(a.nome)}</span>`).join('')}</div>
+          ${avisos.map(aviso=>`<div class="acoes-import-warning">${esc(aviso)}</div>`).join('')}
+        </div>
+        <div class="acoes-import-actions">
+          ${grupo.importacao
+            ?`<button class="btn btn-outline btn-sm" type="button" data-importacao-abrir="${grupo.importacao.id_acao}">Abrir registro</button>`
+            :`<button class="btn btn-primary btn-sm" type="button" data-importacao-revisar="${esc(grupo.id_grupo)}"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Revisar</button>`}
+        </div>
+      </article>`;
+    }).join('')||'<div class="acao-empty">Nenhum arquivo compatível foi encontrado.</div>';
+  }
+
+  async function carregarHistorico(){
+    const diretorio=$('acoes-importacao-diretorio')?.value.trim();
+    if(!diretorio){toast('Informe a pasta do acervo histórico.','error');return;}
+    localStorage.setItem('acoesSetorHistoricoDiretorio',diretorio);
+    $('acoes-importacao-lista').innerHTML='<div class="acao-empty"><div class="spinner"></div></div>';
+    const dados=await api('/api/acoes-setor/importacao-historica/previa',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+      body:JSON.stringify({diretorio}),
+    });
+    inventarioHistorico=dados;
+    renderHistorico();
+  }
+
+  function prepararImportacaoHistorica(grupo){
+    limparForm();
+    const s=grupo.sugestao||{};
+    importacaoAtiva=grupo;
+    $('acao-form-title').textContent='Revisar importação histórica';
+    $('acao-form-contexto').textContent=`${grupo.total_arquivos||0} documento(s) do acervo`;
+    $('acao-salvar').innerHTML='<img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar registro';
+    $('acao-tipo').value=s.tipo||'outro';
+    $('acao-situacao').value=s.situacao||'realizada';
+    $('acao-data').value=s.data||'';
+    $('acao-data-fim').value=s.data_fim||'';
+    setCheckedValues('acao-periodo',[s.periodo||'nao_informado']);
+    $('acao-publico').value=s.publico_aproximado??'';
+    camposTexto.forEach(campo=>{$(`acao-${campo}`).value=s[campo]||'';});
+    setCheckedValues('acao-agente',s.agentes||[]);
+    if($('acao-anexos-restritos')){
+      $('acao-anexos-restritos').checked=Boolean(grupo.anexos_restritos_sugeridos);
+    }
+    atualizarCamposEducativos();
+    atualizarEstadoAnexos();
+    if(!dialog.open)dialog.showModal();
+    setTimeout(()=>(s.data?$('acao-tipo'):$('acao-data')).focus(),0);
+  }
+
   async function alternarRegistro(idAcao){
     if(Number(registroAberto)===Number(idAcao)){
       registroAberto=null;
@@ -452,6 +534,31 @@
     if(!dados.data){toast('Informe a data inicial.','error');return;}
     if(dados.data_fim&&dados.data_fim<dados.data){toast('A data final não pode ser anterior à data inicial.','error');return;}
     if(!dados.periodo){toast('Informe o período do registro.','error');return;}
+    if(importacaoAtiva){
+      if(!confirm(`Importar este registro com ${importacaoAtiva.total_arquivos||0} documento(s)?`))return;
+      const diretorio=$('acoes-importacao-diretorio').value.trim();
+      const resp=await api('/api/acoes-setor/importacao-historica',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+        body:JSON.stringify({
+          diretorio,
+          id_grupo:importacaoAtiva.id_grupo,
+          registro:dados,
+          anexos_restritos:Boolean($('acao-anexos-restritos')?.checked),
+        }),
+      });
+      const idImportado=resp.id_acao;
+      importacaoAtiva=null;
+      fecharFormulario();
+      limparFiltrosRegistros();
+      await carregar();
+      await carregarHistorico();
+      abrirAba('registros');
+      registroAberto=null;
+      await alternarRegistro(idImportado);
+      toast(`Registro importado com ${resp.anexos_importados||0} anexo(s).`,'success');
+      return;
+    }
     const id=$('acao-id').value;
     const resp=await api(id?`/api/acoes-setor/${id}`:'/api/acoes-setor',{
       method:id?'PUT':'POST',
@@ -578,6 +685,28 @@
     $('acoes-anexos-busca').addEventListener('keydown',e=>{
       if(e.key==='Enter')carregarGaleriaAnexos().catch(err=>toast(err.message,'error'));
     });
+    if($('acoes-importacao-diretorio')){
+      $('acoes-importacao-diretorio').value=localStorage.getItem('acoesSetorHistoricoDiretorio')||'';
+      $('acoes-importacao-escanear').addEventListener('click',()=>carregarHistorico().catch(e=>toast(e.message,'error')));
+      $('acoes-importacao-diretorio').addEventListener('keydown',e=>{
+        if(e.key==='Enter')carregarHistorico().catch(err=>toast(err.message,'error'));
+      });
+      $('acoes-importacao-lista').addEventListener('click',async e=>{
+        const revisar=e.target.closest('[data-importacao-revisar]');
+        const abrir=e.target.closest('[data-importacao-abrir]');
+        if(revisar){
+          const grupo=(inventarioHistorico?.grupos||[]).find(
+            item=>item.id_grupo===revisar.dataset.importacaoRevisar
+          );
+          if(grupo)prepararImportacaoHistorica(grupo);
+          return;
+        }
+        if(abrir){
+          try{preencherForm(await api(`/api/acoes-setor/${abrir.dataset.importacaoAbrir}`));}
+          catch(err){toast(err.message,'error');}
+        }
+      });
+    }
     $('acoes-lista').addEventListener('click',async e=>{
       const alternar=e.target.closest('[data-alternar]');
       const editar=e.target.closest('[data-editar]');
