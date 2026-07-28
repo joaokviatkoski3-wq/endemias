@@ -24,7 +24,6 @@ sys.path.insert(0, str(ROOT))
 import app as endemias_app
 import etl
 from app_core import audit as audit_core
-from app_core import acoes_historico as acoes_historico_core
 from app_core import auth as auth_core
 from app_core import backup as backup_core
 from app_core import backup_completo as backup_completo_core
@@ -2958,12 +2957,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('id="acoes-data-inicio"', html)
         self.assertIn('id="acoes-data-fim"', html)
         self.assertIn('data-acoes-tab="anexos"', html)
-        self.assertIn('data-acoes-tab="importacao"', html)
         self.assertIn('id="acoes-panel-anexos"', html)
-        self.assertIn('id="acoes-panel-importacao"', html)
-        self.assertIn('id="acoes-importacao-diretorio"', html)
-        self.assertIn('id="acoes-importacao-escanear"', html)
-        self.assertIn('id="acoes-importacao-lista"', html)
         self.assertIn('id="acoes-anexos-galeria"', html)
         self.assertIn('id="acoes-anexos-tipo-arquivo"', html)
         self.assertIn('id="acoes-anexos-localidade"', html)
@@ -2996,9 +2990,6 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("function limparFiltrosAnexos", js)
         self.assertIn("preencherForm(atualizada,false)", js)
         self.assertIn("function alternarRestricaoAnexo", js)
-        self.assertIn("function carregarHistorico", js)
-        self.assertIn("function prepararImportacaoHistorica", js)
-        self.assertIn("/api/acoes-setor/importacao-historica/previa", js)
 
     def test_acoes_setor_crud_e_busca_sem_acento(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -3401,132 +3392,6 @@ class MainPagesSmokeTests(unittest.TestCase):
                 ).get_json()["anexos"]),
                 1,
             )
-
-    def test_acoes_setor_importacao_historica_tem_previa_e_evitar_duplicidade(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
-            anexos_dir = Path(tmpdir) / "anexos"
-            app_temp.config["ANEXOS_DIR"] = str(anexos_dir)
-            origem = Path(tmpdir) / "acervo"
-            conjunto = origem / "Mutirao Centro_01012025"
-            conjunto.mkdir(parents=True)
-            documento = conjunto / "relatorio.pdf"
-            documento.write_bytes(b"%PDF-1.4\nregistro historico\n%%EOF")
-
-            previa = client.post(
-                "/api/acoes-setor/importacao-historica/previa",
-                json={"diretorio": str(origem)},
-            )
-            self.assertEqual(previa.status_code, 200)
-            inventario = previa.get_json()
-            self.assertEqual(inventario["total_grupos"], 1)
-            self.assertEqual(inventario["total_arquivos"], 1)
-            grupo = inventario["grupos"][0]
-            self.assertEqual(grupo["sugestao"]["tipo"], "limpeza")
-            self.assertEqual(grupo["sugestao"]["data"], "2025-01-01")
-            self.assertIsNone(grupo["importacao"])
-
-            registro = {
-                **grupo["sugestao"],
-                "periodo": "manha",
-                "localidade": "Centro",
-                "local": "Área acompanhada",
-                "agentes": [],
-            }
-            importado = client.post(
-                "/api/acoes-setor/importacao-historica",
-                json={
-                    "diretorio": str(origem),
-                    "id_grupo": grupo["id_grupo"],
-                    "registro": registro,
-                    "anexos_restritos": True,
-                },
-            )
-            self.assertEqual(importado.status_code, 201)
-            dados_importados = importado.get_json()
-            self.assertEqual(dados_importados["anexos_importados"], 1)
-            id_acao = dados_importados["id_acao"]
-
-            conn = sqlite3.connect(db_path)
-            conn.row_factory = sqlite3.Row
-            try:
-                acao = conn.execute(
-                    "SELECT * FROM acoes_setor WHERE id_acao=?",
-                    (id_acao,),
-                ).fetchone()
-                anexo = conn.execute(
-                    "SELECT * FROM acoes_setor_anexos WHERE id_acao=?",
-                    (id_acao,),
-                ).fetchone()
-                marcador = conn.execute(
-                    "SELECT * FROM acoes_setor_importacoes WHERE id_acao=?",
-                    (id_acao,),
-                ).fetchone()
-            finally:
-                conn.close()
-            self.assertEqual(acao["tipo"], "limpeza")
-            self.assertEqual(anexo["nome_original"], "relatorio.pdf")
-            self.assertEqual(anexo["restrito"], 1)
-            self.assertIsNotNone(marcador)
-            copia = anexos_dir / anexo["caminho_rel"]
-            self.assertTrue(copia.exists())
-            self.assertEqual(copia.read_bytes(), documento.read_bytes())
-
-            repetida = client.post(
-                "/api/acoes-setor/importacao-historica",
-                json={
-                    "diretorio": str(origem),
-                    "id_grupo": grupo["id_grupo"],
-                    "registro": registro,
-                },
-            )
-            self.assertEqual(repetida.status_code, 409)
-            self.assertEqual(repetida.get_json()["id_acao"], id_acao)
-
-            previa_importada = client.post(
-                "/api/acoes-setor/importacao-historica/previa",
-                json={"diretorio": str(origem)},
-            ).get_json()
-            self.assertEqual(
-                previa_importada["grupos"][0]["importacao"]["id_acao"],
-                id_acao,
-            )
-
-            excluida = client.delete(f"/api/acoes-setor/{id_acao}")
-            self.assertEqual(excluida.status_code, 200)
-            self.assertFalse(copia.exists())
-            previa_liberada = client.post(
-                "/api/acoes-setor/importacao-historica/previa",
-                json={"diretorio": str(origem)},
-            ).get_json()
-            self.assertIsNone(previa_liberada["grupos"][0]["importacao"])
-
-    def test_acoes_historico_interpreta_data_localidade_e_restricao_do_docx(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            origem = Path(tmpdir) / "acervo"
-            origem.mkdir()
-            documento = origem / "Sra Teste_Graziela.docx"
-            xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-              <w:body><w:p><w:r><w:t>
-                RELATÓRIO DE VISITA DOMICILIAR. Aos 25 dias do mês de junho de 2026,
-                foi realizada vistoria no imóvel da Sra. Teste.
-              </w:t></w:r></w:p></w:body>
-            </w:document>"""
-            with zipfile.ZipFile(documento, "w") as arquivo:
-                arquivo.writestr("word/document.xml", xml)
-
-            inventario = acoes_historico_core.escanear(
-                origem,
-                ["Graziela", "Paraíso"],
-            )
-
-        self.assertEqual(inventario["total_grupos"], 1)
-        grupo = inventario["grupos"][0]
-        self.assertEqual(grupo["sugestao"]["data"], "2026-06-25")
-        self.assertEqual(grupo["sugestao"]["tipo"], "vistoria")
-        self.assertEqual(grupo["sugestao"]["localidade"], "Graziela")
-        self.assertTrue(grupo["anexos_restritos_sugeridos"])
 
     def test_acoes_setor_aparecem_na_agenda_automatica(self):
         with tempfile.TemporaryDirectory() as tmpdir:

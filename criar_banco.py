@@ -372,17 +372,6 @@ CREATE TABLE IF NOT EXISTS acoes_setor_anexos (
     criado_por TEXT,
     criado_em TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS acoes_setor_importacoes (
-    id_importacao INTEGER PRIMARY KEY AUTOINCREMENT,
-    fingerprint TEXT NOT NULL UNIQUE,
-    id_acao INTEGER NOT NULL UNIQUE
-        REFERENCES acoes_setor(id_acao) ON DELETE CASCADE,
-    origem TEXT NOT NULL,
-    grupo TEXT NOT NULL,
-    arquivos_json TEXT NOT NULL,
-    criado_por TEXT,
-    criado_em TEXT NOT NULL
-);
 CREATE INDEX IF NOT EXISTS idx_acoes_setor_data ON acoes_setor(data);
 CREATE INDEX IF NOT EXISTS idx_acoes_setor_tipo ON acoes_setor(tipo);
 CREATE INDEX IF NOT EXISTS idx_acoes_setor_situacao ON acoes_setor(situacao);
@@ -390,7 +379,6 @@ CREATE INDEX IF NOT EXISTS idx_acoes_setor_caso ON acoes_setor(caso);
 CREATE INDEX IF NOT EXISTS idx_acoes_setor_localidade ON acoes_setor(localidade);
 CREATE INDEX IF NOT EXISTS idx_acoes_setor_agente ON acoes_setor_agentes(id_agente);
 CREATE INDEX IF NOT EXISTS idx_acoes_setor_anexo_acao ON acoes_setor_anexos(id_acao);
-CREATE INDEX IF NOT EXISTS idx_acoes_setor_importacao_acao ON acoes_setor_importacoes(id_acao);
 
 -- FIX DB-05: Índices compostos para queries mais frequentes
 -- context_processor usa esse índice em toda requisição
@@ -676,17 +664,6 @@ def migrar_acoes_setor(conn):
         criado_por TEXT,
         criado_em TEXT NOT NULL
     );
-    CREATE TABLE IF NOT EXISTS acoes_setor_importacoes (
-        id_importacao INTEGER PRIMARY KEY AUTOINCREMENT,
-        fingerprint TEXT NOT NULL UNIQUE,
-        id_acao INTEGER NOT NULL UNIQUE
-            REFERENCES acoes_setor(id_acao) ON DELETE CASCADE,
-        origem TEXT NOT NULL,
-        grupo TEXT NOT NULL,
-        arquivos_json TEXT NOT NULL,
-        criado_por TEXT,
-        criado_em TEXT NOT NULL
-    );
     CREATE INDEX IF NOT EXISTS idx_acoes_setor_data ON acoes_setor(data);
     CREATE INDEX IF NOT EXISTS idx_acoes_setor_tipo ON acoes_setor(tipo);
     CREATE INDEX IF NOT EXISTS idx_acoes_setor_situacao ON acoes_setor(situacao);
@@ -694,7 +671,6 @@ def migrar_acoes_setor(conn):
     CREATE INDEX IF NOT EXISTS idx_acoes_setor_localidade ON acoes_setor(localidade);
     CREATE INDEX IF NOT EXISTS idx_acoes_setor_agente ON acoes_setor_agentes(id_agente);
     CREATE INDEX IF NOT EXISTS idx_acoes_setor_anexo_acao ON acoes_setor_anexos(id_acao);
-    CREATE INDEX IF NOT EXISTS idx_acoes_setor_importacao_acao ON acoes_setor_importacoes(id_acao);
     """)
     anexos_cols = {
         row[1] for row in conn.execute(
