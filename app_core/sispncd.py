@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import date, timedelta
+from decimal import Decimal
 
 from app_core import bri as bri_core
 from app_core import db as db_core
@@ -187,10 +188,17 @@ def _deposit_code_sql(tipo_col, codigo_col=None):
 
 
 def _has_column(conn, table_name, column_name):
-    return any(
-        row["name"] == column_name
-        for row in conn.execute(f"PRAGMA table_info({table_name})")
-    )
+    return db_core.column_exists(conn, table_name, column_name)
+
+
+def _round_sum(expression, digits=2):
+    return f"ROUND(CAST(SUM({expression}) AS NUMERIC), {int(digits)})"
+
+
+def _number(value):
+    if isinstance(value, Decimal):
+        return float(value)
+    return value
 
 
 def get_default_conta_ovos(db_path):
@@ -246,11 +254,13 @@ def pendencias_envio(db_path, limite_grupos=None):
             conta_sql += " LIMIT ?"
             conta_params = (limite_grupos,)
         conta_grupos = [
-            dict(row)
+            db_core.serialize_row(row)
             for row in conn.execute(conta_sql, conta_params)
         ]
 
-        sispncd_rows = conn.execute(
+        sispncd_rows = [
+            db_core.serialize_row(row)
+            for row in conn.execute(
             """
             SELECT v.tipo,
                    v.data,
@@ -260,18 +270,22 @@ def pendencias_envio(db_path, limite_grupos=None):
               LEFT JOIN localidades l ON l.id_localidade = v.id_localidade
              WHERE v.SISPNCD IS NULL OR TRIM(v.SISPNCD)=''
             """
-        ).fetchall()
+            ).fetchall()
+        ]
         bri_core.ensure_schema(conn)
-        sispncd_rows += conn.execute(
-            """
-            SELECT 'BRI' AS tipo,
-                   b.data,
-                   b.id_localidade,
-                   COALESCE(b.localidade, '-') AS localidade
-              FROM bri_registros b
-             WHERE b.sispncd IS NULL OR TRIM(b.sispncd)=''
-            """
-        ).fetchall()
+        sispncd_rows += [
+            db_core.serialize_row(row)
+            for row in conn.execute(
+                """
+                SELECT 'BRI' AS tipo,
+                       b.data,
+                       b.id_localidade,
+                       COALESCE(b.localidade, '-') AS localidade
+                  FROM bri_registros b
+                 WHERE b.sispncd IS NULL OR TRIM(b.sispncd)=''
+                """
+            ).fetchall()
+        ]
         sispncd_total = len(sispncd_rows)
         sispncd_grupos = _agrupar_pendencias_sispncd(sispncd_rows, limite_grupos)
     finally:
@@ -381,7 +395,7 @@ def conta_ovos(db_path, data, quarteirao, id_localidade=None):
                    COALESCE(SUM(inspecionado), 0) AS quantidade,
                    COALESCE(SUM(eliminado), 0) AS eliminado,
                    COALESCE(SUM(tratado), 0) AS tratado,
-                   COALESCE(ROUND(SUM(qtd_carga), 2), 0) AS larvicida_mg
+                   COALESCE({_round_sum("qtd_carga")}, 0) AS larvicida_mg
               FROM normalizados
              GROUP BY codigo
              ORDER BY codigo
@@ -417,7 +431,7 @@ def conta_ovos(db_path, data, quarteirao, id_localidade=None):
             "quantidade": row["quantidade"] or 0,
             "eliminado": row["eliminado"] or 0,
             "tratado": row["tratado"] or 0,
-            "larvicida_mg": row["larvicida_mg"] or 0,
+            "larvicida_mg": _number(row["larvicida_mg"] or 0),
         }
 
     return {
@@ -615,7 +629,7 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
             {
                 "tipo": row["tipo_tratamento"] or "Sem tipo",
                 "quantidade": row["depositos_tratados"] or 0,
-                "carga_kg": row["total_carga_kg"] or 0,
+                "carga_kg": _number(row["total_carga_kg"] or 0),
             }
             for row in conn.execute(
                 f"""
@@ -640,7 +654,7 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
                 )
                 SELECT tipo_tratamento,
                        COALESCE(SUM(depositos_tratados), 0) AS depositos_tratados,
-                       COALESCE(ROUND(SUM(total_carga_kg), 2), 0) AS total_carga_kg
+                       COALESCE({_round_sum("total_carga_kg")}, 0) AS total_carga_kg
                   FROM tratamentos_unificados
                  GROUP BY tipo_tratamento
                  ORDER BY tipo_tratamento

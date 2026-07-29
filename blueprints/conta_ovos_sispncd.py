@@ -22,7 +22,7 @@ def _json_error(exc, status=400):
 def page():
     today = date.today()
     default_ano, default_semana = sispncd.epidemiological_week_for_date(today)
-    default_conta_ovos = sispncd.get_default_conta_ovos(bh.db_path())
+    default_conta_ovos = sispncd.get_default_conta_ovos(bh.db_target())
     localidades = bh.q("SELECT id_localidade, nome FROM localidades ORDER BY nome")
     return render_template(
         "conta_ovos_sispncd.html",
@@ -38,7 +38,7 @@ def page():
 def api_conta_ovos():
     try:
         result = sispncd.conta_ovos(
-            bh.db_path(),
+            bh.db_target(),
             request.args.get("data"),
             request.args.get("quarteirao"),
             id_localidade=request.args.get("localidade"),
@@ -53,7 +53,7 @@ def api_conta_ovos():
 def api_sispncd_pesquisar():
     try:
         result = sispncd.sispncd(
-            bh.db_path(),
+            bh.db_target(),
             request.args.get("ano"),
             request.args.get("semana") or request.args.get("semana_epidemiologica"),
             request.args.getlist("tipo") or request.args.getlist("tipos_trabalho"),
@@ -67,7 +67,7 @@ def api_sispncd_pesquisar():
 @bp.route("/api/conta-ovos-sispncd/pendencias")
 @login_required
 def api_pendencias_envio():
-    return jsonify(sispncd.pendencias_envio(bh.db_path()))
+    return jsonify(sispncd.pendencias_envio(bh.db_target()))
 
 
 @bp.route("/api/sispncd/salvar", methods=["POST"])
@@ -77,7 +77,7 @@ def api_sispncd_salvar():
     data = request.json or {}
     try:
         result = sispncd.salvar_sispncd(
-            bh.db_path(),
+            bh.db_target(),
             data.get("ano"),
             data.get("semana") or data.get("semana_epidemiologica"),
             data.get("tipo") or data.get("tipos_trabalho"),
@@ -109,7 +109,7 @@ def api_conta_ovos_salvar_status():
     data = request.json or {}
     try:
         result = sispncd.salvar_status_conta_ovos(
-            bh.db_path(),
+            bh.db_target(),
             data.get("data"),
             data.get("quarteirao"),
             id_localidade=data.get("localidade"),

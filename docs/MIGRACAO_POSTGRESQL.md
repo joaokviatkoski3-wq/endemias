@@ -139,8 +139,10 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
    anexos foi homologado na sequencia. A pagina Ovitrampas tambem esta
    concluida: cadastro, historico, leituras, ocorrencias, monitoramento,
    diarios, ordenacao, calendario, lotes do laboratorio e conferencia para o
-   Conta Ovos usam a camada dual. Registro Geografico e a pagina completa de
-   Importacao Kobo permanecem entre os proximos grandes recortes.
+   Conta Ovos usam a camada dual. O espelho Conta Ovos/SisPNCD, incluindo
+   pendencias, consolidacoes e baixas, foi homologado em seguida. Registro
+   Geografico e a pagina completa de Importacao Kobo permanecem entre os
+   proximos grandes recortes.
 6. Ensaiar a migracao com uma copia recente do banco oficial.
 7. Fazer backup, carga final, validacao e troca controlada.
 

@@ -121,6 +121,10 @@ def _qmark_to_pyformat(statement):
                 state = "normal"
                 continue
 
+        if char == "%":
+            result.extend(("%", "%"))
+            index += 1
+            continue
         result.append(char)
         index += 1
     return "".join(result)
@@ -314,7 +318,7 @@ def query(target, sql, params=()):
     conn = connect(target)
     try:
         rows = conn.execute(sql, params).fetchall()
-        return [dict(r) for r in rows]
+        return [serialize_row(r) for r in rows]
     finally:
         conn.close()
 
@@ -323,7 +327,7 @@ def query_one(target, sql, params=()):
     conn = connect(target)
     try:
         row = conn.execute(sql, params).fetchone()
-        return dict(row) if row else None
+        return serialize_row(row) if row else None
     finally:
         conn.close()
 

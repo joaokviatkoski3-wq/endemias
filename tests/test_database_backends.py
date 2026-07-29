@@ -73,6 +73,20 @@ class PostgreSQLAdapterTests(unittest.TestCase):
         self.assertIn("-- ?", translated)
         self.assertIn("/* ? */", translated)
 
+    def test_qmark_translation_escapes_existing_percent_signs(self):
+        statement = (
+            "SELECT * FROM dados "
+            "WHERE descricao LIKE '%pneu%' AND codigo=?"
+        )
+
+        translated = db_core._qmark_to_pyformat(statement)
+
+        self.assertEqual(
+            translated,
+            "SELECT * FROM dados "
+            "WHERE descricao LIKE '%%pneu%%' AND codigo=%s",
+        )
+
     def test_connection_translates_existing_execute_contract(self):
         raw_connection = mock.Mock()
         raw_cursor = mock.Mock()

@@ -373,6 +373,35 @@ tambem abre as paginas e APIs reais em modo somente leitura. Ao final, compara
 as contagens de todas as tabelas publicas para confirmar que a copia de
 homologacao nao foi alterada.
 
+## Conta Ovos e SisPNCD
+
+O espelho operacional **Conta Ovos e SisPNCD** foi homologado nos dois bancos.
+O recorte inclui:
+
+- selecao automatica do grupo TBO pendente mais recente;
+- resumo das pendencias do Conta Ovos e do SisPNCD;
+- agrupamento SisPNCD por semana epidemiologica, tipo e localidade;
+- classificacao dos tipos de imovel e dos depositos;
+- imoveis inspecionados e tratados somente com carga real;
+- consolidacao de tratamentos, agentes, dias e quarteiroes;
+- resultados laboratoriais e quarteiroes positivos por especie;
+- inclusao dos registros BRI;
+- baixa dos grupos enviados ao Conta Ovos;
+- gravacao do codigo SisPNCD sem sobrescrever codigos existentes;
+- suporte central a consultas parametrizadas que contenham padroes `LIKE`;
+- serializacao uniforme de datas e valores decimais.
+
+O ensaio controlado e:
+
+```powershell
+python scripts\testar_conta_ovos_sispncd_postgresql.py `
+  --database endemias_teste
+```
+
+O script valida leitura e escrita em oito tabelas temporarias, abre a pagina e
+as APIs reais em modo somente leitura e confirma que as contagens das tabelas
+publicas permanecem inalteradas.
+
 Por seguranca, outro banco exige:
 
 ```powershell
@@ -411,8 +440,9 @@ agora suas consultas homologadas nos dois bancos. O bloco de visitas de
 Esporotricose, incluindo visitas, animais encontrados, buscas de feridos,
 cadastro clinico, receitas, estoque e anexos, tambem esta homologado. O
 cadastro, as leituras, o monitoramento, os diarios, o calendario e o fluxo
-laboratorial de Ovitrampas tambem estao prontos. O proximo grande recorte pode
-ser o Registro Geografico ou a pagina completa de Importacao Kobo.
+laboratorial de Ovitrampas tambem estao prontos. O espelho Conta Ovos/SisPNCD
+foi homologado na sequencia. O proximo grande recorte pode ser o Registro
+Geografico ou a pagina completa de Importacao Kobo.
 
 Cada lote deve:
 
