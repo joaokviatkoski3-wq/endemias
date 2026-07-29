@@ -34,6 +34,9 @@ o lote seguinte. As visitas de Esporotricose importadas do Kobo, incluindo
 animais encontrados, localidades e buscas de feridos, tambem estao
 homologadas. O cadastro manual de doentes, receitas, entregas, estoque e
 metadados dos anexos completa a cobertura funcional da pagina.
+Ovitrampas, Conta Ovos/SisPNCD e o Registro Geografico tambem estao
+homologados. No Registro Geografico, a cobertura inclui cadastro, edicao,
+acompanhamento, mapa, impressao, sugestoes de logradouros e edicao em lote.
 
 ## Bancos locais
 
@@ -140,9 +143,10 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
    concluida: cadastro, historico, leituras, ocorrencias, monitoramento,
    diarios, ordenacao, calendario, lotes do laboratorio e conferencia para o
    Conta Ovos usam a camada dual. O espelho Conta Ovos/SisPNCD, incluindo
-   pendencias, consolidacoes e baixas, foi homologado em seguida. Registro
-   Geografico e a pagina completa de Importacao Kobo permanecem entre os
-   proximos grandes recortes.
+   pendencias, consolidacoes e baixas, foi homologado em seguida. O Registro
+   Geografico tambem esta concluido, incluindo consultas, acompanhamento,
+   mapa, impressao e todas as operacoes de edicao. A pagina completa de
+   Importacao Kobo e o proximo grande recorte.
 6. Ensaiar a migracao com uma copia recente do banco oficial.
 7. Fazer backup, carga final, validacao e troca controlada.
 

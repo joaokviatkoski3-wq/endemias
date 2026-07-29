@@ -4,6 +4,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 
 from app_core import audit
 from app_core import auth as auth_core
+from app_core import blueprint_helpers as bh
 from app_core import db as db_core
 from app_core import registro_geografico as rg_core
 
@@ -13,7 +14,7 @@ login_required = auth_core.login_required
 
 
 def _db_path():
-    return current_app.config["DB_PATH"]
+    return bh.db_target()
 
 
 def _base_dir():

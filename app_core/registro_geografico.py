@@ -1,8 +1,8 @@
 import csv
 import hashlib
 import re
-import sqlite3
 import unicodedata
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -172,7 +172,48 @@ def _now():
     return datetime.now().isoformat(timespec="seconds")
 
 
+def _manual_origin_key():
+    return f"rg-manual:{uuid.uuid4().hex}"
+
+
+def _is_postgresql(conn):
+    return getattr(conn, "backend", "sqlite") == "postgresql"
+
+
+def _numeric_text_order(conn, expression):
+    if _is_postgresql(conn):
+        return (
+            f"CAST(NULLIF(substring(CAST({expression} AS TEXT) "
+            "FROM '^[0-9]+'), '') AS BIGINT)"
+        )
+    return f"CAST({expression} AS INTEGER)"
+
+
+def _string_aggregate(conn, expression, separator=", ", distinct=False):
+    if _is_postgresql(conn):
+        distinct_sql = "DISTINCT " if distinct else ""
+        cast_expression = f"CAST({expression} AS TEXT)"
+        return (
+            f"string_agg({distinct_sql}{cast_expression}, '{separator}' "
+            f"ORDER BY {cast_expression})"
+        )
+    if distinct:
+        return f"GROUP_CONCAT(DISTINCT {expression})"
+    return f"GROUP_CONCAT({expression}, '{separator}')"
+
+
 def _table_cols(conn, table):
+    if _is_postgresql(conn):
+        return {
+            row["column_name"]
+            for row in conn.execute(
+                """SELECT column_name
+                     FROM information_schema.columns
+                    WHERE table_schema=current_schema()
+                      AND table_name=?""",
+                (table,),
+            ).fetchall()
+        }
     return {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
 
 
@@ -181,13 +222,13 @@ def _contabilizavel(row):
 
 
 def ensure_schema(conn_or_path, base_dir=None):
-    close = False
-    if isinstance(conn_or_path, (str, bytes, Path)):
-        conn = db_core.connect(str(conn_or_path))
-        close = True
-    else:
-        conn = conn_or_path
+    if not hasattr(conn_or_path, "execute") and not db_core.is_sqlite(conn_or_path):
+        return
+    close = not hasattr(conn_or_path, "execute")
+    conn = db_core.connect(conn_or_path) if close else conn_or_path
     try:
+        if _is_postgresql(conn):
+            return
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS registro_geografico_quarteiroes (
@@ -545,18 +586,23 @@ def quarteiroes_por_localidade(db_path, id_localidade, base_dir=None):
     ensure_schema(db_path, base_dir)
     conn = db_core.connect(db_path)
     try:
+        ordem_numerica = _numeric_text_order(conn, "q.quarteirao")
         rows = conn.execute(
-            """SELECT q.quarteirao,
+            f"""SELECT q.quarteirao,
                       SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') NOT IN ('REF') THEN 1 ELSE 0 END) AS imoveis
                  FROM registro_geografico_quarteiroes q
                  LEFT JOIN registro_geografico_imoveis i ON i.id_quarteirao=q.id_quarteirao
                 WHERE q.id_localidade=?
                 GROUP BY q.id_quarteirao, q.quarteirao
-                ORDER BY CAST(q.quarteirao AS INTEGER), q.quarteirao""",
+                ORDER BY {ordem_numerica}, q.quarteirao""",
             (id_localidade,),
         ).fetchall()
         return [
-            {"quarteirao": _quarteirao_display(row["quarteirao"]), "quarteirao_raw": row["quarteirao"], "imoveis": row["imoveis"]}
+            {
+                "quarteirao": _quarteirao_display(row["quarteirao"]),
+                "quarteirao_raw": row["quarteirao"],
+                "imoveis": db_core.serialize_row(row)["imoveis"],
+            }
             for row in rows
         ]
     finally:
@@ -630,12 +676,13 @@ def logradouros_similares(db_path, filtros=None, score_min=78, limite=80, base_d
     conn = db_core.connect(db_path)
     try:
         where, params = _where_lote(filtros or {})
+        localidades_agg = _string_aggregate(conn, "localidade", ",", distinct=True)
         rows = conn.execute(
             f"""
             SELECT logradouro,
                    COUNT(*) AS imoveis,
                    COUNT(DISTINCT id_quarteirao) AS quarteiroes,
-                   GROUP_CONCAT(DISTINCT localidade) AS localidades
+                   {localidades_agg} AS localidades
               FROM registro_geografico_imoveis
               {where}
              WHERE_TRIM
@@ -707,12 +754,13 @@ def sugestoes_logradouros(db_path, busca="", id_localidade=None, limite=12, base
     loc_id = int(id_localidade) if str(id_localidade or "").strip().isdigit() else None
     conn = db_core.connect(db_path)
     try:
+        localidades_agg = _string_aggregate(conn, "localidade", ",", distinct=True)
         rows = conn.execute(
-            """
+            f"""
             SELECT logradouro,
                    COUNT(*) AS imoveis,
                    COUNT(DISTINCT id_quarteirao) AS quarteiroes,
-                   GROUP_CONCAT(DISTINCT localidade) AS localidades,
+                   {localidades_agg} AS localidades,
                    MAX(CASE WHEN id_localidade=? THEN 1 ELSE 0 END) AS mesma_localidade
               FROM registro_geografico_imoveis
              WHERE TRIM(COALESCE(logradouro,''))<>''
@@ -825,13 +873,14 @@ def _calcular_substituicoes_lote(conn, payload, amostra_limite=150):
     novo = str(payload.get("novo") or "")
     case_sensitive = bool(payload.get("case_sensitive"))
     where, params = _where_lote(payload.get("filtros") or {})
+    ordem_numerica = _numeric_text_order(conn, "quarteirao")
     rows = conn.execute(
         f"""
         SELECT id_imovel, id_localidade, localidade, quarteirao, logradouro, numero, sequencia,
                lado, tipo, observacao, agentes_texto
           FROM registro_geografico_imoveis
           {where}
-         ORDER BY localidade, CAST(quarteirao AS INTEGER), quarteirao, COALESCE(ordem, id_imovel), id_imovel
+         ORDER BY localidade, {ordem_numerica}, quarteirao, COALESCE(ordem, id_imovel), id_imovel
         """,
         params,
     ).fetchall()
@@ -923,10 +972,11 @@ def listar(db_path, filtros=None, limite=500, base_dir=None):
         params_lista = list(params)
         if limite_sql:
             params_lista.append(max(1, min(int(limite or 500), 2000)))
+        agentes_agg = _string_aggregate(conn, "a.nome")
         rows = conn.execute(
             f"""
             SELECT i.*,
-                   GROUP_CONCAT(a.nome, ', ') AS agentes
+                   {agentes_agg} AS agentes
               FROM registro_geografico_imoveis i
               LEFT JOIN registro_geografico_imovel_agentes ia ON ia.id_imovel=i.id_imovel
               LEFT JOIN agentes a ON a.id_agente=ia.id_agente
@@ -958,7 +1008,7 @@ def totais(conn, filtros=None):
         """,
         params,
     ).fetchone()
-    data = dict(row) if row else {}
+    data = db_core.serialize_row(row) if row else {}
     residencias_reais = data.get("residencias_reais") or 0
     data["media_pessoas_por_residencia"] = MEDIA_PESSOAS_POR_RESIDENCIA
     data["populacao_aproximada"] = round(residencias_reais * MEDIA_PESSOAS_POR_RESIDENCIA)
@@ -1009,6 +1059,16 @@ def acompanhamento_atualizacoes(db_path, filtros=None, base_dir=None):
 
         where_sql = " WHERE " + " AND ".join(where) if where else ""
         having_sql = " HAVING " + " AND ".join(having) if having else ""
+        agentes_agg = _string_aggregate(
+            conn,
+            """CASE WHEN i.id_imovel IS NOT NULL
+                           AND COALESCE(i.tipo,'') <> 'REF'
+                           AND i.data_atualizacao IS NOT NULL
+                      THEN a.nome END""",
+            ",",
+            distinct=True,
+        )
+        ordem_numerica = _numeric_text_order(conn, "q.quarteirao")
         rows = conn.execute(
             f"""
             SELECT q.id_localidade,
@@ -1019,7 +1079,7 @@ def acompanhamento_atualizacoes(db_path, filtros=None, base_dir=None):
                    SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') <> 'REF' THEN 1 ELSE 0 END) AS linhas,
                    SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') <> 'REF' AND i.data_atualizacao IS NOT NULL THEN 1 ELSE 0 END) AS atualizadas,
                    MAX(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') <> 'REF' THEN i.data_atualizacao END) AS ultima_atualizacao,
-                   GROUP_CONCAT(DISTINCT CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') <> 'REF' AND i.data_atualizacao IS NOT NULL THEN a.nome END) AS agentes,
+                   {agentes_agg} AS agentes,
                    SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') <> 'REF' THEN CASE WHEN COALESCE(i.condominio,0)>0 THEN i.condominio ELSE 1 END ELSE 0 END) AS imoveis_reais,
                    SUM(CASE WHEN i.id_imovel IS NOT NULL AND i.tipo='R' THEN CASE WHEN COALESCE(i.condominio,0)>0 THEN i.condominio ELSE 1 END ELSE 0 END) AS residencias_reais
               FROM registro_geografico_quarteiroes q
@@ -1030,7 +1090,7 @@ def acompanhamento_atualizacoes(db_path, filtros=None, base_dir=None):
              GROUP BY q.id_quarteirao, q.id_localidade, q.localidade, q.quarteirao,
                       q.atualizado_por_usuario_nome, q.atualizado_por_em
              {having_sql}
-             ORDER BY q.localidade, CAST(q.quarteirao AS INTEGER), q.quarteirao
+             ORDER BY q.localidade, {ordem_numerica}, q.quarteirao
             """,
             params + having_params,
         ).fetchall()
@@ -1039,7 +1099,7 @@ def acompanhamento_atualizacoes(db_path, filtros=None, base_dir=None):
 
     registros = []
     for row in rows:
-        item = dict(row)
+        item = db_core.serialize_row(row)
         linhas = item["linhas"] or 0
         atualizadas = item["atualizadas"] or 0
         if not linhas:
@@ -1090,8 +1150,9 @@ def resumo_mapa(db_path, base_dir=None):
     conn = db_core.connect(db_path)
     try:
         quarteiroes = {}
+        ordem_numerica = _numeric_text_order(conn, "q.quarteirao")
         rows = conn.execute(
-            """
+            f"""
             SELECT q.id_localidade,
                    q.localidade,
                    q.quarteirao,
@@ -1103,10 +1164,11 @@ def resumo_mapa(db_path, base_dir=None):
               FROM registro_geografico_quarteiroes q
               LEFT JOIN registro_geografico_imoveis i ON i.id_quarteirao=q.id_quarteirao
              GROUP BY q.id_quarteirao, q.id_localidade, q.localidade, q.quarteirao
-             ORDER BY q.id_localidade, CAST(q.quarteirao AS INTEGER), q.quarteirao
+             ORDER BY q.id_localidade, {ordem_numerica}, q.quarteirao
             """
         ).fetchall()
-        for row in rows:
+        for raw_row in rows:
+            row = db_core.serialize_row(raw_row)
             residencias_reais = row["residencias_reais"] or 0
             display = _quarteirao_display(row["quarteirao"])
             chave = f"{row['id_localidade']}:{display}"
@@ -1137,7 +1199,8 @@ def resumo_mapa(db_path, base_dir=None):
              GROUP BY q.id_quarteirao, q.id_localidade, q.quarteirao, COALESCE(i.tipo, '')
             """
         ).fetchall()
-        for row in tipo_rows:
+        for raw_row in tipo_rows:
+            row = db_core.serialize_row(raw_row)
             if not (row["imoveis"] or 0) or (row["tipo"] or "") in TIPOS_NAO_CONTABILIZAVEIS:
                 continue
             tipo = row["tipo"] or ""
@@ -1201,10 +1264,11 @@ def quarteirao(db_path, id_localidade, quarteirao_numero, base_dir=None):
         loc = conn.execute(f"SELECT {loc_select} FROM localidades WHERE id_localidade=?", (id_localidade,)).fetchone()
         if not loc:
             raise ValueError("Localidade nao encontrada no cadastro.")
+        agentes_agg = _string_aggregate(conn, "a.nome")
         rows = conn.execute(
-            """
+            f"""
             SELECT i.*,
-                   GROUP_CONCAT(a.nome, ', ') AS agentes
+                   {agentes_agg} AS agentes
               FROM registro_geografico_imoveis i
               LEFT JOIN registro_geografico_imovel_agentes ia ON ia.id_imovel=i.id_imovel
               LEFT JOIN agentes a ON a.id_agente=ia.id_agente
@@ -1336,13 +1400,14 @@ def _garantir_quarteirao(conn, dados, agora):
     ).fetchone()
     if row:
         return row["id_quarteirao"]
-    cur = conn.execute(
+    return db_core.insert_and_get_id(
+        conn,
         """INSERT INTO registro_geografico_quarteiroes
            (id_localidade, localidade, quarteirao, criado_em, atualizado_em)
            VALUES (?, ?, ?, ?, ?)""",
         (loc["id_localidade"], loc["nome"], dados["quarteirao"], agora, agora),
+        "id_quarteirao",
     )
-    return cur.lastrowid
 
 
 def _marcar_atualizacao_sistema(conn, id_quarteirao, usuario_id=None, usuario_nome=None, agora=None):
@@ -1365,7 +1430,9 @@ def _salvar_agentes_e_busca(conn, id_imovel, dados, agentes_ids):
         if ag:
             nomes.append(ag["nome"])
             conn.execute(
-                "INSERT OR IGNORE INTO registro_geografico_imovel_agentes (id_imovel, id_agente) VALUES (?, ?)",
+                """INSERT INTO registro_geografico_imovel_agentes (id_imovel, id_agente)
+                   VALUES (?, ?)
+                   ON CONFLICT (id_imovel, id_agente) DO NOTHING""",
                 (id_imovel, id_agente),
             )
     busca_row = {
@@ -1403,7 +1470,8 @@ def criar(db_path, payload, base_dir=None, usuario_id=None, usuario_nome=None):
                 ordem = (conn.execute("SELECT COALESCE(MAX(ordem), 0) FROM registro_geografico_imoveis").fetchone()[0] or 0) + 1
             id_quarteirao = _garantir_quarteirao(conn, dados, agora)
             loc = dados["loc"]
-            cur = conn.execute(
+            id_imovel = db_core.insert_and_get_id(
+                conn,
                 """INSERT INTO registro_geografico_imoveis
                    (id_quarteirao, ordem, id_localidade, localidade, quarteirao, logradouro, numero,
                     sequencia, lado, tipo, condominio, observacao, data_atualizacao,
@@ -1423,12 +1491,12 @@ def criar(db_path, payload, base_dir=None, usuario_id=None, usuario_nome=None):
                     dados["condominio"],
                     dados["observacao"],
                     dados["data_atualizacao"],
-                    f"rg-manual:{agora}:{ordem}",
+                    _manual_origin_key(),
                     agora,
                     agora,
                 ),
+                "id_imovel",
             )
-            id_imovel = cur.lastrowid
             _salvar_agentes_e_busca(conn, id_imovel, dados, payload.get("agentes_ids") or [])
             _marcar_atualizacao_sistema(conn, id_quarteirao, usuario_id, usuario_nome, agora)
         return obter(db_path, id_imovel, base_dir)
@@ -1516,7 +1584,8 @@ def salvar_quarteirao(db_path, payload, base_dir=None, usuario_id=None, usuario_
                         ),
                     )
                 else:
-                    cur = conn.execute(
+                    id_imovel = db_core.insert_and_get_id(
+                        conn,
                         """INSERT INTO registro_geografico_imoveis
                            (id_quarteirao, ordem, id_localidade, localidade, quarteirao, logradouro, numero,
                             sequencia, lado, tipo, condominio, observacao, data_atualizacao,
@@ -1536,12 +1605,12 @@ def salvar_quarteirao(db_path, payload, base_dir=None, usuario_id=None, usuario_
                             dados["condominio"],
                             dados["observacao"],
                             data_atualizacao,
-                            f"rg-manual:{agora}:{ordem}",
+                            _manual_origin_key(),
                             agora,
                             agora,
                         ),
+                        "id_imovel",
                     )
-                    id_imovel = cur.lastrowid
                 _salvar_agentes_e_busca(conn, id_imovel, dados, agentes_ids)
                 salvos.append(id_imovel)
                 ordem += 1
@@ -1725,6 +1794,7 @@ def excluir(db_path, id_imovel, base_dir=None):
 
 
 def _formatar(row):
+    row = db_core.serialize_row(row)
     row["tipo_label"] = TIPOS.get(row.get("tipo") or "", row.get("tipo") or "")
     row["condominio"] = row.get("condominio") or 0
     row["agentes"] = row.get("agentes") or row.get("agentes_texto") or ""

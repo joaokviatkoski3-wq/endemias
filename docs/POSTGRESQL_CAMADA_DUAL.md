@@ -402,6 +402,43 @@ O script valida leitura e escrita em oito tabelas temporarias, abre a pagina e
 as APIs reais em modo somente leitura e confirma que as contagens das tabelas
 publicas permanecem inalteradas.
 
+## Registro Geografico
+
+A pagina **Registro Geografico** foi homologada nos dois bancos. O recorte
+inclui:
+
+- cadastro, consulta, edicao e exclusao individual de imoveis;
+- criacao, edicao, mudanca de localidade ou numero, limpeza e exclusao de
+  quarteiroes;
+- vinculo dos servidores de campo e autoria do usuario que atualizou o
+  quarteirao no sistema;
+- filtros, totais, acompanhamento de atualizacoes e resumo para o mapa;
+- tipos de imovel, condominios e estimativa populacional;
+- sugestoes e deteccao de logradouros semelhantes;
+- previa e aplicacao da edicao em lotes;
+- suporte a quarteiroes numericos, decimais e alfanumericos na ordenacao;
+- agregacao de servidores com `GROUP_CONCAT` no SQLite e `string_agg` no
+  PostgreSQL;
+- recuperacao de identidades com `lastrowid` no SQLite e `RETURNING` no
+  PostgreSQL;
+- serializacao uniforme de datas e valores numericos;
+- manutencao de esquema e importacao inicial por CSV restritas ao SQLite.
+
+Durante a homologacao, tambem foi eliminada uma possibilidade de colisao na
+chave de origem de linhas manuais criadas no mesmo segundo.
+
+O ensaio controlado e:
+
+```powershell
+python scripts\testar_registro_geografico_postgresql.py `
+  --database endemias_teste
+```
+
+O script exercita leitura e escrita em cinco tabelas temporarias, incluindo
+edicao individual e em lote, mudanca, limpeza e exclusao de quarteiroes.
+Depois abre a pagina e as APIs reais somente em leitura e confirma que as
+tabelas publicas permaneceram inalteradas.
+
 Por seguranca, outro banco exige:
 
 ```powershell
@@ -441,8 +478,9 @@ Esporotricose, incluindo visitas, animais encontrados, buscas de feridos,
 cadastro clinico, receitas, estoque e anexos, tambem esta homologado. O
 cadastro, as leituras, o monitoramento, os diarios, o calendario e o fluxo
 laboratorial de Ovitrampas tambem estao prontos. O espelho Conta Ovos/SisPNCD
-foi homologado na sequencia. O proximo grande recorte pode ser o Registro
-Geografico ou a pagina completa de Importacao Kobo.
+foi homologado na sequencia. O Registro Geografico tambem esta coberto,
+incluindo cadastro, edicao, acompanhamento, mapa e impressao. O proximo grande
+recorte e a pagina completa de Importacao Kobo.
 
 Cada lote deve:
 

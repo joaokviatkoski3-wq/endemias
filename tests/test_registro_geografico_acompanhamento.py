@@ -2,6 +2,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from app_core import agentes as agentes_core
 from app_core import registro_geografico as rg_core
@@ -75,6 +76,53 @@ class RegistroGeograficoAcompanhamentoTests(unittest.TestCase):
 
             filtrado = rg_core.acompanhamento_atualizacoes(str(db_path), {"agente": "1"})
             self.assertEqual([item["quarteirao_raw"] for item in filtrado["registros"]], ["0001", "0002"])
+
+    def test_inclusoes_no_mesmo_segundo_recebem_chaves_unicas(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "rg.db"
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.executescript("""
+                    CREATE TABLE localidades (
+                        id_localidade INTEGER PRIMARY KEY,
+                        nome TEXT,
+                        cod_localidade TEXT
+                    );
+                    CREATE TABLE agentes (
+                        id_agente INTEGER PRIMARY KEY,
+                        nome TEXT,
+                        ativo INTEGER
+                    );
+                    INSERT INTO localidades VALUES (1, 'Centro', 'CTR');
+                """)
+                conn.commit()
+            finally:
+                conn.close()
+
+            payload = {
+                "id_localidade": 1,
+                "quarteirao": "0001",
+                "logradouro": "Rua Teste",
+                "numero": "1",
+                "tipo": "R",
+            }
+            with mock.patch.object(
+                rg_core, "_now", return_value="2026-07-29T10:00:00"
+            ):
+                rg_core.criar(str(db_path), payload)
+                rg_core.criar(str(db_path), {**payload, "numero": "2"})
+
+            conn = sqlite3.connect(db_path)
+            try:
+                total, chaves = conn.execute(
+                    """SELECT COUNT(*), COUNT(DISTINCT chave_origem)
+                         FROM registro_geografico_imoveis"""
+                ).fetchone()
+            finally:
+                conn.close()
+
+            self.assertEqual(total, 2)
+            self.assertEqual(chaves, 2)
 
 
 class ServidorDadosPessoaisTests(unittest.TestCase):
