@@ -56,6 +56,20 @@ Para conferir um banco especifico:
 python scripts\verificar_postgresql.py --database endemias_teste
 ```
 
+## Inventario do SQLite
+
+O inventario pode ser refeito enquanto o SQLite continuar como fonte oficial:
+
+```powershell
+python scripts\inventariar_sqlite.py
+```
+
+O resultado detalhado fica em
+`saida/migracao/inventario_sqlite.json`. Ele contem esquema, contagens e
+classes de armazenamento, mas nao exporta os valores das linhas. O diagnostico
+atual e as decisoes de conversao estao em
+`docs/POSTGRESQL_INVENTARIO_SQLITE.md`.
+
 ## Configuracao opcional
 
 Os valores abaixo so afetam as ferramentas de migracao:
