@@ -5,9 +5,9 @@
 O PostgreSQL e uma infraestrutura paralela de migracao. O sistema em producao
 continua usando exclusivamente o arquivo `endemias.db`.
 
-Nenhuma variavel PostgreSQL ativa a troca do banco da aplicacao nesta etapa.
-Isso evita uma mudanca acidental antes da conversao e validacao de todas as
-consultas do sistema.
+O SQLite continua sendo o padrao da aplicacao e do `iniciar.bat`. Existe um
+modo PostgreSQL experimental para testes controlados da camada ja convertida,
+mas ele ainda nao deve ser usado como servidor operacional.
 
 A primeira migracao de esquema ja foi aplicada e validada em
 `endemias_teste`. Ela criou as `59` tabelas do sistema, sem copiar dados. O
@@ -15,6 +15,11 @@ banco recebeu depois uma copia validada de `153.419` registros do SQLite. O
 `endemias_migracao` permanece vazio. Os detalhes estao em
 `docs/POSTGRESQL_SCHEMA_INICIAL.md` e
 `docs/POSTGRESQL_CARGA_TESTE.md`.
+
+A primeira camada dual da aplicacao tambem foi criada. Os helpers comuns e a
+tela de login ja foram testados em modo somente leitura contra
+`endemias_teste`. Os limites atuais estao documentados em
+`docs/POSTGRESQL_CAMADA_DUAL.md`.
 
 ## Bancos locais
 
@@ -79,7 +84,8 @@ atual e as decisoes de conversao estao em
 
 ## Configuracao opcional
 
-Os valores abaixo so afetam as ferramentas de migracao:
+Os valores abaixo atendem as ferramentas de migracao e os testes controlados
+da camada dual:
 
 | Variavel | Padrao |
 | --- | --- |
@@ -89,6 +95,10 @@ Os valores abaixo so afetam as ferramentas de migracao:
 | `ENDEMIAS_PG_USER` | `endemias_app` |
 | `ENDEMIAS_PG_CONNECT_TIMEOUT` | `5` |
 | `ENDEMIAS_PG_SSLMODE` | `prefer` |
+
+`ENDEMIAS_DB_BACKEND=postgresql` seleciona o adaptador experimental. Essa
+variavel nao foi adicionada ao `iniciar.bat` e nao deve ser configurada no
+servidor oficial enquanto os modulos funcionais ainda estiverem em conversao.
 
 As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
 `PGSSLMODE`) tambem sao aceitas. A senha continua sob responsabilidade do
@@ -101,8 +111,8 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
 3. Concluido: copiar os dados para `endemias_teste`, preservando IDs e
    relacionamentos.
 4. Concluido: comparar contagens, checksums e chaves estrangeiras.
-5. Proximo: adaptar e testar a aplicacao completa em ambiente PostgreSQL
-   separado.
+5. Em andamento: adaptar e testar a aplicacao em ambiente PostgreSQL
+   separado. A camada comum e o primeiro teste Flask estao concluidos.
 6. Ensaiar a migracao com uma copia recente do banco oficial.
 7. Fazer backup, carga final, validacao e troca controlada.
 

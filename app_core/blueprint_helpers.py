@@ -9,20 +9,24 @@ def db_path():
     return current_app.config["DB_PATH"]
 
 
+def db_target():
+    return db_core.configured_target(current_app.config)
+
+
 def get_db():
-    return db_core.connect(db_path())
+    return db_core.connect(db_target())
 
 
 def q(sql, params=()):
-    return db_core.query(db_path(), sql, params)
+    return db_core.query(db_target(), sql, params)
 
 
 def q1(sql, params=()):
-    return db_core.query_one(db_path(), sql, params)
+    return db_core.query_one(db_target(), sql, params)
 
 
 def qval(sql, params=()):
-    return db_core.scalar(db_path(), sql, params)
+    return db_core.scalar(db_target(), sql, params)
 
 
 def usuario_atual():

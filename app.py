@@ -92,6 +92,8 @@ SESSION_COOKIE_SECURE_DEFAULT = _env_bool(os.environ, "ENDEMIAS_SESSION_COOKIE_S
 TRUST_PROXY_HEADERS_DEFAULT = _env_bool(os.environ, "ENDEMIAS_TRUST_PROXY_HEADERS", False)
 CSP_REPORT_ONLY_DEFAULT = _env_bool(os.environ, "ENDEMIAS_CSP_REPORT_ONLY", True)
 CSP_ALLOW_INLINE_DEFAULT = _env_bool(os.environ, "ENDEMIAS_CSP_ALLOW_INLINE", True)
+DB_BACKEND_DEFAULT = os.environ.get("ENDEMIAS_DB_BACKEND", "sqlite")
+PG_DATABASE_DEFAULT = os.environ.get("ENDEMIAS_PG_DATABASE", "endemias_teste")
 
 csrf = CSRFProtect()
 
@@ -164,26 +166,32 @@ def _register_blueprints(flask_app):
 
 
 # Banco e wrappers de compatibilidade.
-def _db_path():
+def _db_target():
     if has_app_context():
-        return current_app.config.get("DB_PATH", DB_PATH)
-    return DB_PATH
+        return db_core.configured_target(current_app.config)
+    return db_core.configured_target(
+        {
+            "DB_BACKEND": DB_BACKEND_DEFAULT,
+            "DB_PATH": DB_PATH,
+            "PG_DATABASE": PG_DATABASE_DEFAULT,
+        }
+    )
 
 
 def get_db():
-    return db_core.connect(_db_path())
+    return db_core.connect(_db_target())
 
 
 def q(sql, params=()):
-    return db_core.query(_db_path(), sql, params)
+    return db_core.query(_db_target(), sql, params)
 
 
 def q1(sql, params=()):
-    return db_core.query_one(_db_path(), sql, params)
+    return db_core.query_one(_db_target(), sql, params)
 
 
 def qval(sql, params=()):
-    return db_core.scalar(_db_path(), sql, params)
+    return db_core.scalar(_db_target(), sql, params)
 
 
 def invalidar_cache_globals():
@@ -247,6 +255,8 @@ def create_app(config_overrides=None):
     flask_app = Flask(__name__, instance_path=INSTANCE_DIR)
     flask_app.config.update(
         DB_PATH=DB_PATH,
+        DB_BACKEND=DB_BACKEND_DEFAULT,
+        PG_DATABASE=PG_DATABASE_DEFAULT,
         CONFIG_PATH=CONFIG_PATH,
         UPLOAD_TEMP=UPLOAD_TEMP,
         ANEXOS_DIR=ANEXOS_DIR,
@@ -274,14 +284,17 @@ def create_app(config_overrides=None):
 
     _configure_logging(flask_app.config["LOG_PATH"])
     _configure_secret_key(flask_app, flask_app.config["SECRET_KEY_PATH"])
-    agentes_core.ensure_schema(flask_app.config["DB_PATH"])
-    laboratorio_lancamentos_core.ensure_schema(flask_app.config["DB_PATH"])
-    ovitrampas_laboratorio_core.ensure_schema(flask_app.config["DB_PATH"])
-    meteorologia_core.ensure_schema(flask_app.config["DB_PATH"])
-    sqlite_maintenance.ensure_schema_compatibility(flask_app.config["DB_PATH"])
-    sqlite_maintenance.ensure_performance_indexes(flask_app.config["DB_PATH"])
+    database_target = db_core.configured_target(flask_app.config)
+    if db_core.is_sqlite(database_target):
+        agentes_core.ensure_schema(flask_app.config["DB_PATH"])
+        laboratorio_lancamentos_core.ensure_schema(flask_app.config["DB_PATH"])
+        ovitrampas_laboratorio_core.ensure_schema(flask_app.config["DB_PATH"])
+        meteorologia_core.ensure_schema(flask_app.config["DB_PATH"])
+        sqlite_maintenance.ensure_schema_compatibility(flask_app.config["DB_PATH"])
+        sqlite_maintenance.ensure_performance_indexes(flask_app.config["DB_PATH"])
     csrf.init_app(flask_app)
 
+    flask_app.extensions["database_target"] = database_target
     flask_app.extensions["invalidar_cache_globals"] = invalidar_cache_globals
     _register_blueprints(flask_app)
     app_setup.register_error_handlers(flask_app)

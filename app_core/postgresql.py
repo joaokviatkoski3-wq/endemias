@@ -1,7 +1,7 @@
-"""Infraestrutura isolada para a migracao gradual ao PostgreSQL.
+"""Conexao base usada na migracao gradual ao PostgreSQL.
 
-O sistema de producao ainda usa SQLite. Este modulo atende somente as
-ferramentas de migracao ate que a compatibilidade do aplicativo esteja pronta.
+O sistema de producao ainda usa SQLite. As ferramentas de migracao e a camada
+dual experimental compartilham esta configuracao sem armazenar senhas.
 """
 
 import os

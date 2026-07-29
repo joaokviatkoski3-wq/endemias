@@ -18,10 +18,10 @@ _CACHE_TTL = 60
 
 def _cached_q(key, sql, params=()):
     now = time.monotonic()
-    db_path = current_app.config["DB_PATH"]
-    cache_key = (db_path, key)
+    target = db_core.configured_target(current_app.config)
+    cache_key = (target, key)
     if cache_key not in _glob_cache or now - _glob_cache[cache_key][0] > _CACHE_TTL:
-        _glob_cache[cache_key] = (now, db_core.query(db_path, sql, params))
+        _glob_cache[cache_key] = (now, db_core.query(target, sql, params))
     return _glob_cache[cache_key][1]
 
 
@@ -132,7 +132,7 @@ def register_access_guards(app):
             return None
 
         usuario = db_core.query_one(
-            current_app.config["DB_PATH"],
+            db_core.configured_target(current_app.config),
             "SELECT nivel, somente_laboratorio FROM usuarios WHERE id_usuario=? AND ativo=1",
             (session["uid"],),
         )
@@ -151,15 +151,17 @@ def register_access_guards(app):
 def register_context_processors(app):
     @app.context_processor
     def inject_globals():
-        db_path = current_app.config["DB_PATH"]
+        target = db_core.configured_target(current_app.config)
         localidades = _cached_q("localidades", "SELECT nome FROM localidades ORDER BY nome")
         agentes = _cached_q("agentes", "SELECT nome FROM agentes WHERE ativo=1 ORDER BY nome")
         tipos_v = _cached_q("tipos_visita", "SELECT DISTINCT tipo FROM visitas WHERE tipo IS NOT NULL ORDER BY tipo")
         pendentes = db_core.scalar(
-            db_path,
+            target,
             "SELECT COUNT(*) FROM focos_positivos WHERE status_notificacao='pendente' AND gera_notificacao=1",
         )
-        usuario = auth_core.usuario_atual(lambda sql, params=(): db_core.query_one(db_path, sql, params))
+        usuario = auth_core.usuario_atual(
+            lambda sql, params=(): db_core.query_one(target, sql, params)
+        )
         return dict(
             localidades_glob=[r["nome"] for r in localidades],
             agentes_glob=[r["nome"] for r in agentes],

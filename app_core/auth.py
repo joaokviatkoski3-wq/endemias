@@ -71,7 +71,7 @@ def login_required(view):
         if not uid:
             return redirect(url_for("auth.login", next=request.path))
         usuario = db_core.query_one(
-            current_app.config["DB_PATH"],
+            db_core.configured_target(current_app.config),
             "SELECT id_usuario FROM usuarios WHERE id_usuario=? AND ativo=1",
             (uid,),
         )
