@@ -25,7 +25,9 @@ Existe ainda a tabela tecnica `endemias_schema_migrations`, usada para guardar
 versao, nome, checksum e data de aplicacao das migracoes. Por isso o pgAdmin
 mostra `60` tabelas no schema `public`, embora `59` pertençam ao sistema.
 
-Nenhuma linha de negocio foi copiada nesta etapa.
+Nenhuma linha de negocio foi copiada na etapa de criacao do esquema. A etapa
+seguinte carregou e validou os dados conforme
+`docs/POSTGRESQL_CARGA_TESTE.md`.
 
 ## Diferencas intencionais
 
@@ -93,13 +95,11 @@ python scripts\migrar_postgresql.py `
 Essa confirmacao nao deve ser usada em `endemias_migracao` antes do ensaio
 completo planejado.
 
-## Proxima etapa
+## Etapa de carga concluida
 
-Criar o copiador SQLite para PostgreSQL com:
+O copiador SQLite para PostgreSQL foi criado e executado. Ele usa ordem de
+dependencias, preserva IDs, converte marcadores temporais invalidos, reajusta
+identidades e compara contagens e checksums antes do `COMMIT`.
 
-1. ordem de carga baseada nas chaves estrangeiras;
-2. conversao de strings vazias e `NaT` temporais para `NULL`;
-3. preservacao dos IDs;
-4. reajuste das identidades;
-5. comparacao de contagens por tabela;
-6. validacao de chaves estrangeiras e totais de negocio.
+A proxima etapa e adaptar a camada de acesso ao banco e executar a aplicacao
+completa contra essa copia PostgreSQL separada.
