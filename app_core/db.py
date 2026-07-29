@@ -164,6 +164,8 @@ class ResilientCursor(sqlite3.Cursor):
 
 
 class ResilientConnection(sqlite3.Connection):
+    backend = "sqlite"
+
     def cursor(self, factory=ResilientCursor):
         return super().cursor(factory)
 

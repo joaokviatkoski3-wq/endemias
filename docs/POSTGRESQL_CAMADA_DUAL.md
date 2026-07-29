@@ -22,6 +22,10 @@ operacional.
   comentarios SQL;
 - helpers comuns, autenticacao de leitura e dados globais da interface usando
   o destino configurado;
+- persistencia das tentativas de login e eventos de auditoria;
+- filtros portaveis por data no historico de auditoria;
+- manutencao dessas tabelas em tempo de execucao restrita ao SQLite, pois no
+  PostgreSQL elas sao controladas pelas migracoes;
 - inicializacoes exclusivas do SQLite executadas apenas quando o destino e
   SQLite.
 
@@ -47,6 +51,24 @@ Resultado validado:
 
 O teste usa a propria factory Flask, os helpers compartilhados e o adaptador
 PostgreSQL. Nenhuma linha e inserida, atualizada ou removida.
+
+As escritas de autenticacao e auditoria sao validadas com:
+
+```powershell
+python scripts\testar_auth_postgresql.py --database endemias_teste
+```
+
+Esse teste cria tabelas temporarias com os mesmos contratos das tabelas
+publicas, valida:
+
+- gravacao, leitura, contagem e limpeza das tentativas de login;
+- gravacao do evento de auditoria;
+- serializacao e leitura dos detalhes JSON;
+- filtros de acao e intervalo de datas;
+- preservacao das contagens das tabelas publicas.
+
+As tabelas temporarias existem apenas na conexao do teste e sao descartadas
+automaticamente ao final.
 
 Por seguranca, outro banco exige:
 
@@ -76,7 +98,11 @@ incompativel.
 
 ## Proxima etapa
 
-Migrar os modulos funcionais em lotes. Cada lote deve:
+Autenticacao e auditoria ja possuem leitura e escrita basicas validadas. A
+proxima etapa e migrar o primeiro modulo funcional completo, incluindo sua
+pagina, consultas e gravacoes.
+
+Cada lote deve:
 
 1. substituir manutencao de esquema em tempo de execucao por migracoes;
 2. separar SQL comum das poucas consultas especificas de cada banco;

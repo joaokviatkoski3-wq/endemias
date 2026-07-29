@@ -9,6 +9,10 @@ from app_core import auth as auth_core
 def garantir_tabela_auditoria(get_db, conn=None):
     fechar = conn is None
     conn = conn or get_db()
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        if fechar:
+            conn.close()
+        return
     conn.execute("""
         CREATE TABLE IF NOT EXISTS auditoria_eventos (
             id_evento     INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,10 +80,10 @@ def listar_eventos(get_db, filtros=None, limite=100):
         where.append("entidade = ?")
         params.append(filtros["entidade"])
     if filtros.get("d_ini"):
-        where.append("date(criado_em) >= date(?)")
+        where.append("substr(criado_em, 1, 10) >= ?")
         params.append(filtros["d_ini"])
     if filtros.get("d_fim"):
-        where.append("date(criado_em) <= date(?)")
+        where.append("substr(criado_em, 1, 10) <= ?")
         params.append(filtros["d_fim"])
 
     conn = get_db()
@@ -90,7 +94,7 @@ def listar_eventos(get_db, filtros=None, limite=100):
             SELECT *
               FROM auditoria_eventos
              WHERE {' AND '.join(where)}
-             ORDER BY datetime(criado_em) DESC, id_evento DESC
+             ORDER BY criado_em DESC, id_evento DESC
              LIMIT ?
             """,
             params + [limite],

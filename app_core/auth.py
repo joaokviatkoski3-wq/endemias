@@ -19,6 +19,10 @@ login_tentativas = {}
 def garantir_tabela_login_tentativas(get_db, conn=None):
     fechar = conn is None
     conn = conn or get_db()
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        if fechar:
+            conn.close()
+        return
     conn.execute("""
         CREATE TABLE IF NOT EXISTS login_tentativas (
             chave       TEXT PRIMARY KEY,
