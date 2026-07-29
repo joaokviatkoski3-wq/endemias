@@ -24,6 +24,10 @@ STATUS_CLASSES = {
 def garantir_tabela_importacoes(get_db, conn=None):
     fechar = conn is None
     conn = conn or get_db()
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        if fechar:
+            conn.close()
+        return
     conn.execute("""
         CREATE TABLE IF NOT EXISTS importacoes (
             id_importacao INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,20 +56,22 @@ def registrar_importacao(get_db, job_id, arquivos, status="upload", usuario=""):
     try:
         garantir_tabela_importacoes(get_db, conn)
         conn.execute("""
-            INSERT OR REPLACE INTO importacoes
+            INSERT INTO importacoes
                 (job_id, usuario, arquivos_json, status, criado_em, atualizado_em)
-            VALUES (
-                ?,
-                COALESCE((SELECT usuario FROM importacoes WHERE job_id=?), ?),
-                ?,
-                ?,
-                COALESCE((SELECT criado_em FROM importacoes WHERE job_id=?), ?),
-                ?
-            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(job_id) DO UPDATE SET
+                usuario=COALESCE(importacoes.usuario, excluded.usuario),
+                arquivos_json=excluded.arquivos_json,
+                status=excluded.status,
+                dry_run_ok=NULL,
+                commit_ok=NULL,
+                sumario_json=NULL,
+                erro=NULL,
+                atualizado_em=excluded.atualizado_em
         """, (
-            job_id, job_id, usuario,
+            job_id, usuario,
             json.dumps(list(arquivos), ensure_ascii=False),
-            status, job_id, agora, agora,
+            status, agora, agora,
         ))
         conn.commit()
     finally:
@@ -107,7 +113,7 @@ def listar_importacoes_recentes(get_db, limite=10):
             SELECT job_id, usuario, arquivos_json, status, dry_run_ok, commit_ok,
                    sumario_json, erro, criado_em, atualizado_em
             FROM importacoes
-            ORDER BY datetime(criado_em) DESC, id_importacao DESC
+            ORDER BY criado_em DESC, id_importacao DESC
             LIMIT ?
         """, (limite,)).fetchall()
     finally:

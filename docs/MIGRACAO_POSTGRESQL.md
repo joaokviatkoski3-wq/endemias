@@ -21,7 +21,9 @@ tela de login ja foram testados em modo somente leitura contra
 `endemias_teste`. Tentativas de login e auditoria tambem tiveram suas escritas
 validadas em tabelas PostgreSQL temporarias. O primeiro modulo funcional
 concluido foi o Controle de Pessoal, incluindo CRUD, filtros, historico e
-renderizacao da pagina. Os limites atuais estao documentados em
+renderizacao da pagina. Gestao de Usuarios foi homologada em seguida, e o
+Historico de Importacoes teve seu nucleo convertido para SQL portavel. Os
+limites atuais estao documentados em
 `docs/POSTGRESQL_CAMADA_DUAL.md`.
 
 ## Bancos locais
@@ -117,7 +119,8 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
 5. Em andamento: adaptar e testar a aplicacao em ambiente PostgreSQL
    separado. A camada comum, o primeiro teste Flask, autenticacao e auditoria
    estao concluidos; Controle de Pessoal e o primeiro modulo funcional
-   homologado.
+   homologado, seguido por Gestao de Usuarios e pelo nucleo do Historico de
+   Importacoes.
 6. Ensaiar a migracao com uma copia recente do banco oficial.
 7. Fazer backup, carga final, validacao e troca controlada.
 

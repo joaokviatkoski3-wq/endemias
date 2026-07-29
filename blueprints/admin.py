@@ -19,6 +19,7 @@ from app_core import dbml as dbml_core
 from app_core import db as db_core
 from app_core import import_history
 from app_core import sqlite_maintenance
+from app_core import usuarios as usuarios_core
 from app_core import version as version_core
 
 
@@ -123,7 +124,7 @@ def _contagens_sistema():
 @login_required
 @nivel_min("admin")
 def admin_usuarios():
-    usuarios = bh.q("SELECT * FROM usuarios ORDER BY nivel, nome")
+    usuarios = usuarios_core.listar(bh.db_target())
     return render_template("admin_usuarios.html", usuarios=usuarios)
 
 
@@ -423,47 +424,36 @@ def admin_auditoria_exportar():
 @login_required
 @nivel_min("admin")
 def admin_criar_usuario():
-    usuario = request.form.get("usuario", "").strip().lower()
-    nome = request.form.get("nome", "").strip()
-    nivel = request.form.get("nivel", "visualizador")
-    senha = request.form.get("senha", "").strip()
-    acesso_laboratorio = 1 if request.form.get("acesso_laboratorio") == "1" else 0
-    somente_laboratorio = 1 if request.form.get("somente_laboratorio") == "1" else 0
-    if somente_laboratorio:
-        acesso_laboratorio = 1
+    dados = request.form.to_dict()
     erro = None
-    if not usuario or not nome or not senha:
-        erro = "Preencha todos os campos."
-    elif not auth_core.senha_valida(senha):
-        erro = auth_core.mensagem_senha_invalida()
-    elif nivel not in ("admin", "operador", "visualizador"):
-        erro = "Nivel invalido."
-    else:
-        try:
-            conn = bh.get_db()
-            cur = conn.execute("""INSERT INTO usuarios
-                                  (usuario,nome,senha_hash,nivel,ativo,criado_em,
-                                   acesso_laboratorio,somente_laboratorio)
-                                  VALUES (?,?,?,?,1,?,?,?)""",
-                               (usuario, nome, auth_core.hash_senha(senha), nivel,
-                                datetime.now().isoformat(), acesso_laboratorio,
-                                somente_laboratorio))
-            conn.commit()
-            novo_id = cur.lastrowid
-            conn.close()
-            audit.registrar_evento(
-                bh.get_db,
-                "usuario_criado",
-                entidade="usuarios",
-                entidade_id=novo_id,
-                detalhes={"usuario": usuario, "nome": nome, "nivel": nivel,
-                          "acesso_laboratorio": acesso_laboratorio,
-                          "somente_laboratorio": somente_laboratorio},
-            )
-        except Exception as e:
-            erro = f"Erro: {e}"
+    try:
+        novo_id = usuarios_core.criar(bh.db_target(), dados)
+        somente_laboratorio = (
+            1 if dados.get("somente_laboratorio") == "1" else 0
+        )
+        acesso_laboratorio = (
+            1
+            if somente_laboratorio
+            or dados.get("acesso_laboratorio") == "1"
+            else 0
+        )
+        audit.registrar_evento(
+            bh.get_db,
+            "usuario_criado",
+            entidade="usuarios",
+            entidade_id=novo_id,
+            detalhes={
+                "usuario": dados.get("usuario", "").strip().lower(),
+                "nome": dados.get("nome", "").strip(),
+                "nivel": dados.get("nivel", "visualizador"),
+                "acesso_laboratorio": acesso_laboratorio,
+                "somente_laboratorio": somente_laboratorio,
+            },
+        )
+    except Exception as exc:
+        erro = f"Erro: {exc}"
     if erro:
-        usuarios = bh.q("SELECT * FROM usuarios ORDER BY nivel, nome")
+        usuarios = usuarios_core.listar(bh.db_target())
         return render_template("admin_usuarios.html", usuarios=usuarios, erro=erro)
     return redirect(url_for("admin.admin_usuarios"))
 
@@ -474,49 +464,22 @@ def admin_criar_usuario():
 def admin_editar_usuario(uid):
     campo = request.form.get("campo")
     valor = request.form.get("valor", "").strip()
-    conn = bh.get_db()
-    anterior = conn.execute(
-        "SELECT usuario,nome,nivel,ativo,acesso_laboratorio,somente_laboratorio "
-        "FROM usuarios WHERE id_usuario=?",
-        (uid,),
-    ).fetchone()
-    if campo == "nivel" and valor in ("admin", "operador", "visualizador"):
-        conn.execute("UPDATE usuarios SET nivel=? WHERE id_usuario=?", (valor, uid))
-    elif campo == "ativo" and valor in ("0", "1"):
-        if uid == session.get("uid"):
-            conn.close()
-            return jsonify({"erro": "Voce nao pode desativar sua propria conta."}), 400
-        conn.execute("UPDATE usuarios SET ativo=? WHERE id_usuario=?", (int(valor), uid))
-    elif campo == "acesso_laboratorio" and valor in ("0", "1"):
-        if valor == "0":
-            conn.execute(
-                "UPDATE usuarios SET acesso_laboratorio=0, somente_laboratorio=0 WHERE id_usuario=?",
-                (uid,),
-            )
-        else:
-            conn.execute(
-                "UPDATE usuarios SET acesso_laboratorio=1 WHERE id_usuario=?",
-                (uid,),
-            )
-    elif campo == "somente_laboratorio" and valor in ("0", "1"):
-        conn.execute(
-            "UPDATE usuarios SET somente_laboratorio=?, acesso_laboratorio=1 WHERE id_usuario=?",
-            (int(valor), uid),
+    try:
+        anterior, novo = usuarios_core.editar(
+            bh.db_target(),
+            uid,
+            campo,
+            valor,
+            usuario_atual_id=session.get("uid"),
         )
-    elif campo == "senha" and auth_core.senha_valida(valor):
-        conn.execute("UPDATE usuarios SET senha_hash=? WHERE id_usuario=?", (auth_core.hash_senha(valor), uid))
-    else:
-        conn.close()
-        return jsonify({"erro": "Parametro invalido."}), 400
-    conn.commit()
-    conn.close()
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
     detalhes = {"campo": campo}
-    if anterior:
-        detalhes.update({
-            "usuario": anterior["usuario"],
-            "valor_antigo": anterior[campo] if campo in anterior.keys() else None,
-        })
-    detalhes["valor_novo"] = "***" if campo == "senha" else valor
+    detalhes.update({
+        "usuario": anterior["usuario"],
+        "valor_antigo": anterior.get(campo),
+        "valor_novo": novo,
+    })
     audit.registrar_evento(
         bh.get_db,
         "usuario_editado",
@@ -533,16 +496,15 @@ def admin_editar_usuario(uid):
 def admin_resetar_senha(uid):
     tamanho = max(auth_core.PASSWORD_MIN_LENGTH, 12)
     nova = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(tamanho))
-    conn = bh.get_db()
-    alvo = conn.execute("SELECT usuario,nome FROM usuarios WHERE id_usuario=?", (uid,)).fetchone()
-    conn.execute("UPDATE usuarios SET senha_hash=? WHERE id_usuario=?", (auth_core.hash_senha(nova), uid))
-    conn.commit()
-    conn.close()
+    try:
+        alvo = usuarios_core.resetar_senha(bh.db_target(), uid, nova)
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
     audit.registrar_evento(
         bh.get_db,
         "usuario_senha_resetada",
         entidade="usuarios",
         entidade_id=uid,
-        detalhes={"usuario": alvo["usuario"] if alvo else None, "nome": alvo["nome"] if alvo else None},
+        detalhes={"usuario": alvo["usuario"], "nome": alvo["nome"]},
     )
     return jsonify({"ok": True, "senha": nova})

@@ -109,6 +109,51 @@ Resultado da homologacao:
 O teste de pagina usa um administrador existente somente para estabelecer a
 sessao. Nenhuma senha e lida e nenhum dado publico e alterado.
 
+## Gestao de Usuarios
+
+A pagina **Gestao de Usuarios** e seu nucleo de regras foram migrados. Estao
+validados:
+
+- listagem das contas;
+- criacao com identidade retornada pelo banco;
+- normalizacao do login;
+- hash de senha;
+- niveis de acesso;
+- permissoes de laboratorio e acesso exclusivo;
+- bloqueio da desativacao da propria conta;
+- redefinicao de senha;
+- renderizacao da pagina administrativa.
+
+O ensaio usa uma tabela `usuarios` temporaria:
+
+```powershell
+python scripts\testar_usuarios_postgresql.py --database endemias_teste
+```
+
+Resultado: CRUD, permissoes, protecao da conta, senha e pagina Flask validados.
+A tabela publica `usuarios` permaneceu inalterada.
+
+## Historico de Importacoes
+
+O registro tecnico das importacoes tambem foi convertido:
+
+- `INSERT OR REPLACE` foi substituido por `ON CONFLICT`;
+- usuario e data de criacao originais sao preservados no reprocessamento;
+- arquivos e estado da nova tentativa sao atualizados;
+- campos de resultado anterior sao limpos antes do novo processamento;
+- a ordenacao usa diretamente as datas ISO, sem `datetime()` do SQLite;
+- a criacao de tabela em tempo de execucao fica restrita ao SQLite.
+
+O teste isolado e:
+
+```powershell
+python scripts\testar_importacoes_postgresql.py --database endemias_teste
+```
+
+Ele valida registro, reprocessamento, atualizacao, JSON e listagem em uma
+tabela temporaria. A pagina completa de Importacao Kobo ainda depende de
+outros modulos que serao convertidos em lotes posteriores.
+
 Por seguranca, outro banco exige:
 
 ```powershell
@@ -137,9 +182,9 @@ incompativel.
 
 ## Proxima etapa
 
-Autenticacao, auditoria e Controle de Pessoal ja possuem leitura e escrita
-basicas validadas. A proxima etapa e escolher outro modulo com dependencias
-controladas e repetir a conversao completa.
+Autenticacao, auditoria, Controle de Pessoal e Gestao de Usuarios possuem
+leitura e escrita validadas. O Historico de Importacoes tambem esta pronto,
+embora a pagina completa de Importacao Kobo ainda nao esteja homologada.
 
 Cada lote deve:
 
