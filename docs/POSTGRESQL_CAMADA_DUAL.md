@@ -331,7 +331,42 @@ paginas e APIs reais somente em leitura e confirma que as tabelas publicas
 permaneceram inalteradas.
 
 Com isso, a pagina **Esporotricose** esta funcionalmente coberta pela camada
-dual. As telas operacionais de **Ovitrampas** permanecem para etapas futuras.
+dual.
+
+## Nucleo de Ovitrampas
+
+A primeira parte operacional de **Ovitrampas** foi homologada nos dois bancos.
+O recorte inclui:
+
+- cadastro local e importacao do cadastro de armadilhas;
+- busca sem diferenca entre maiusculas e minusculas;
+- IDs numericos e alfanumericos, como `126-A`, sem erro de conversao;
+- historico das alteracoes de endereco, quarteirao e demais dados;
+- criacao e edicao dos diarios;
+- vinculo, remocao, movimentacao e reordenacao das armadilhas;
+- identificacao de armadilhas a realocar e sem diario;
+- grupos, eventos e agentes do calendario;
+- integracao dos movimentos com a Agenda;
+- agregacao de agentes com `GROUP_CONCAT` no SQLite e `string_agg` no
+  PostgreSQL;
+- recuperacao de IDs com `lastrowid` no SQLite e `RETURNING` no PostgreSQL;
+- serializacao uniforme das datas do calendario.
+
+O ensaio controlado e:
+
+```powershell
+python scripts\testar_ovitrampas_nucleo_postgresql.py `
+  --database endemias_teste
+```
+
+O script exercita cadastro, historico, diarios, ordenacao e calendario em oito
+tabelas temporarias. Ao final, compara as contagens de todas as tabelas
+publicas para confirmar que a copia de homologacao nao foi alterada.
+
+A pagina ainda nao deve ser iniciada integralmente no modo PostgreSQL. Faltam
+homologar as leituras importadas, o monitoramento, os lotes do laboratorio e a
+integracao administrativa com o Conta Ovos antes de trocar o destino usado
+pelas rotas Flask de Ovitrampas.
 
 Por seguranca, outro banco exige:
 
@@ -370,7 +405,9 @@ Dashboard Integrado, Producao Operacional e Resultados Laboratoriais possuem
 agora suas consultas homologadas nos dois bancos. O bloco de visitas de
 Esporotricose, incluindo visitas, animais encontrados, buscas de feridos,
 cadastro clinico, receitas, estoque e anexos, tambem esta homologado. O
-proximo grande recorte operacional e a pagina de Ovitrampas.
+cadastro, o historico, os diarios e o calendario de Ovitrampas tambem estao
+prontos. O proximo recorte e formado pelas leituras, monitoramento, lotes do
+laboratorio e integracao com o Conta Ovos.
 
 Cada lote deve:
 

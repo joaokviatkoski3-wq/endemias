@@ -64,8 +64,52 @@ GRUPOS_PADRAO = (
 )
 
 
+def _is_postgresql(conn):
+    return getattr(conn, "backend", "sqlite") == "postgresql"
+
+
+def _nocase_order(conn, expression):
+    return f"LOWER(CAST({expression} AS TEXT))"
+
+
+def _numeric_text_order(conn, expression):
+    if _is_postgresql(conn):
+        return (
+            f"CAST(NULLIF(substring(CAST({expression} AS TEXT) "
+            "FROM '^[0-9]+'), '') AS BIGINT)"
+        )
+    return f"CAST({expression} AS INTEGER)"
+
+
+def _string_aggregate(conn, expression, separator=", "):
+    if _is_postgresql(conn):
+        return (
+            f"string_agg(CAST({expression} AS TEXT), "
+            f"'{separator}' ORDER BY CAST({expression} AS TEXT))"
+        )
+    return f"GROUP_CONCAT({expression}, '{separator}')"
+
+
+def _calendar_agents_expression(conn, names_only=False):
+    if names_only:
+        value = "a.nome"
+    else:
+        value = "CAST(a.id_agente AS TEXT) || ':' || a.nome"
+    aggregate = _string_aggregate(conn, "agent_names.valor", ", " if names_only else "|")
+    return f"""(
+        SELECT {aggregate}
+          FROM (
+                SELECT {value} AS valor
+                  FROM {CAL_AGENTES_TABLE} ea2
+                  JOIN agentes a ON a.id_agente=ea2.id_agente
+                 WHERE ea2.id_evento=e.id_evento
+                 ORDER BY a.nome
+               ) agent_names
+    )"""
+
+
 def ensure_schema(conn):
-    if getattr(conn, "backend", "sqlite") == "postgresql":
+    if _is_postgresql(conn):
         return
     conn.executescript(
         """
@@ -680,8 +724,10 @@ def listar_armadilhas(db_path, filtros=None, limite=500):
     conn = db_core.connect(db_path)
     try:
         ensure_schema(conn)
-        where, params = _where_armadilhas(filtros)
-        rows = [dict(row) for row in conn.execute(
+        where, params = _where_armadilhas(filtros, conn)
+        id_order = _numeric_text_order(conn, "a.ovitrampa_id")
+        name_order = _nocase_order(conn, "a.ovitrampa_id")
+        rows = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT a.*,
                        COUNT(l.id_leitura) AS leituras,
                        COALESCE(SUM(l.ovos),0) AS ovos_total,
@@ -692,7 +738,7 @@ def listar_armadilhas(db_path, filtros=None, limite=500):
                   LEFT JOIN ovitrampas_leituras l ON l.ovitrampa_id=a.ovitrampa_id
                   {where}
                  GROUP BY a.ovitrampa_id
-                 ORDER BY CAST(a.ovitrampa_id AS INTEGER), a.ovitrampa_id COLLATE NOCASE
+                 ORDER BY {id_order}, {name_order}
                  LIMIT ?""",
             [*params, limite],
         )]
@@ -710,7 +756,7 @@ def historico_armadilha(db_path, ovitrampa_id):
             f"SELECT * FROM {ARMADILHAS_TABLE} WHERE ovitrampa_id=?",
             (str(ovitrampa_id),),
         ).fetchone()
-        leituras = [dict(row) for row in conn.execute(
+        leituras = [db_core.serialize_row(row) for row in conn.execute(
             """SELECT l.*, a.nome AS laboratorista
                  FROM ovitrampas_leituras l
                  LEFT JOIN agentes a ON a.id_agente=l.id_laboratorista
@@ -718,7 +764,7 @@ def historico_armadilha(db_path, ovitrampa_id):
                 ORDER BY l.ano DESC, l.semana DESC, l.data_coleta DESC""",
             (str(ovitrampa_id),),
         )]
-        historico = [dict(row) for row in conn.execute(
+        historico = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT *
                   FROM {ARMADILHAS_HISTORICO_TABLE}
                  WHERE ovitrampa_id=?
@@ -728,20 +774,25 @@ def historico_armadilha(db_path, ovitrampa_id):
         )]
     finally:
         conn.close()
-    return {"armadilha": dict(armadilha) if armadilha else None, "leituras": leituras, "alteracoes": historico}
+    return {
+        "armadilha": db_core.serialize_row(armadilha) if armadilha else None,
+        "leituras": leituras,
+        "alteracoes": historico,
+    }
 
 
 def diarios_dados(db_path):
     conn = db_core.connect(db_path)
     try:
         ensure_schema(conn)
+        diario_order = _nocase_order(conn, "d.nome")
         diarios = [_diario_dict(row) for row in conn.execute(
             f"""SELECT d.*,
                        COUNT(da.ovitrampa_id) AS armadilhas
                   FROM {DIARIOS_TABLE} d
-                  LEFT JOIN {DIARIO_ARMADILHAS_TABLE} da ON da.id_diario=d.id_diario
+                 LEFT JOIN {DIARIO_ARMADILHAS_TABLE} da ON da.id_diario=d.id_diario
                  GROUP BY d.id_diario
-                 ORDER BY d.ativo DESC, d.nome COLLATE NOCASE"""
+                 ORDER BY d.ativo DESC, {diario_order}"""
         )]
         realocar = _armadilhas_realocar(conn, {})
         sem_diario = _armadilhas_sem_diario(conn)
@@ -773,7 +824,9 @@ def diario_detalhe(db_path, id_diario, incluir_realocar=True):
         ).fetchone()
         if not diario:
             raise ValueError("Diario nao encontrado.")
-        rows = [dict(row) for row in conn.execute(
+        id_order = _numeric_text_order(conn, "a.ovitrampa_id")
+        name_order = _nocase_order(conn, "a.ovitrampa_id")
+        rows = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT da.ordem, da.observacoes AS observacao_rota,
                        a.*,
                        COUNT(l.id_leitura) AS leituras,
@@ -785,8 +838,8 @@ def diario_detalhe(db_path, id_diario, incluir_realocar=True):
                   LEFT JOIN {TABLE} l ON l.ovitrampa_id=a.ovitrampa_id
                  WHERE da.id_diario=?
                    AND COALESCE(a.ativo,1)=1
-                 GROUP BY da.id_diario, da.ovitrampa_id
-                 ORDER BY da.ordem, CAST(a.ovitrampa_id AS INTEGER), a.ovitrampa_id COLLATE NOCASE""",
+                 GROUP BY da.id_diario, da.ovitrampa_id, a.ovitrampa_id
+                 ORDER BY da.ordem, {id_order}, {name_order}""",
             (_int(id_diario),),
         )]
         registros = []
@@ -868,11 +921,12 @@ def mover_armadilha_diario(db_path, id_diario, ovitrampa_id, direcao):
     try:
         ensure_schema(conn)
         id_diario = _int(id_diario)
+        name_order = _nocase_order(conn, "ovitrampa_id")
         atual = conn.execute(
             f"""SELECT ovitrampa_id, ordem
-                  FROM {DIARIO_ARMADILHAS_TABLE}
+                 FROM {DIARIO_ARMADILHAS_TABLE}
                  WHERE id_diario=?
-                 ORDER BY ordem, ovitrampa_id COLLATE NOCASE""",
+                 ORDER BY ordem, {name_order}""",
             (id_diario,),
         ).fetchall()
         ids = [row["ovitrampa_id"] for row in atual]
@@ -914,13 +968,15 @@ def reordenar_armadilhas_diario(db_path, id_diario, ordem):
     conn = db_core.connect(db_path)
     try:
         ensure_schema(conn)
+        id_order = _numeric_text_order(conn, "ovitrampa_id")
+        name_order = _nocase_order(conn, "ovitrampa_id")
         atual = [
             row["ovitrampa_id"]
             for row in conn.execute(
                 f"""SELECT ovitrampa_id
                       FROM {DIARIO_ARMADILHAS_TABLE}
                      WHERE id_diario=?
-                     ORDER BY ordem, CAST(ovitrampa_id AS INTEGER), ovitrampa_id COLLATE NOCASE""",
+                     ORDER BY ordem, {id_order}, {name_order}""",
                 (id_diario,),
             )
         ]
@@ -1197,8 +1253,9 @@ def agentes(db_path):
     conn = db_core.connect(db_path)
     try:
         ensure_schema(conn)
+        name_order = _nocase_order(conn, "nome")
         return [dict(row) for row in conn.execute(
-            "SELECT id_agente, nome FROM agentes WHERE ativo=1 ORDER BY nome COLLATE NOCASE"
+            f"SELECT id_agente, nome FROM agentes WHERE ativo=1 ORDER BY {name_order}"
         )]
     finally:
         conn.close()
@@ -1209,18 +1266,17 @@ def calendario_dados(db_path, ano):
     conn = db_core.connect(db_path)
     try:
         ensure_schema(conn)
+        group_order = _nocase_order(conn, "nome")
+        agentes_sql = _calendar_agents_expression(conn)
         grupos = [_grupo_dict(row) for row in conn.execute(
-            f"SELECT * FROM {CAL_GRUPOS_TABLE} ORDER BY ativo DESC, nome COLLATE NOCASE"
+            f"SELECT * FROM {CAL_GRUPOS_TABLE} ORDER BY ativo DESC, {group_order}"
         )]
         eventos = [_cal_evento_dict(row) for row in conn.execute(
             f"""SELECT e.*, g.nome AS grupo_nome, g.localidades AS grupo_localidades, g.cor AS grupo_cor,
-                       GROUP_CONCAT(a.id_agente || ':' || a.nome, '|') AS agentes_raw
+                       {agentes_sql} AS agentes_raw
                   FROM {CAL_EVENTOS_TABLE} e
                   LEFT JOIN {CAL_GRUPOS_TABLE} g ON g.id_grupo=e.id_grupo
-                  LEFT JOIN {CAL_AGENTES_TABLE} ea ON ea.id_evento=e.id_evento
-                  LEFT JOIN agentes a ON a.id_agente=ea.id_agente
-                 WHERE substr(e.data, 1, 4)=?
-                 GROUP BY e.id_evento
+                 WHERE substr(CAST(e.data AS TEXT), 1, 4)=?
                  ORDER BY e.data""",
             (str(ano),),
         )]
@@ -1292,13 +1348,14 @@ def salvar_grupo(db_path, dados, id_grupo=None):
                 (payload["nome"], payload["localidades"], payload["cor"], payload["ativo"], agora, id_grupo),
             )
         else:
-            cur = conn.execute(
+            id_grupo = db_core.insert_and_get_id(
+                conn,
                 f"""INSERT INTO {CAL_GRUPOS_TABLE}
                     (nome, localidades, cor, ativo, criado_em, atualizado_em)
                     VALUES (?, ?, ?, ?, ?, ?)""",
                 (payload["nome"], payload["localidades"], payload["cor"], payload["ativo"], agora, agora),
+                "id_grupo",
             )
-            id_grupo = cur.lastrowid
         conn.commit()
         row = conn.execute(f"SELECT * FROM {CAL_GRUPOS_TABLE} WHERE id_grupo=?", (id_grupo,)).fetchone()
         return _grupo_dict(row)
@@ -1354,7 +1411,8 @@ def salvar_evento_calendario(db_path, dados, usuario_nome="sistema", id_evento=N
                 ),
             )
         else:
-            cur = conn.execute(
+            id_evento = db_core.insert_and_get_id(
+                conn,
                 f"""INSERT INTO {CAL_EVENTOS_TABLE}
                     (data, movimento, titulo, id_grupo, ciclo, observacoes, criado_por, criado_em, atualizado_em)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -1362,13 +1420,13 @@ def salvar_evento_calendario(db_path, dados, usuario_nome="sistema", id_evento=N
                     payload["data"], payload["movimento"], payload["titulo"], payload["id_grupo"], payload["ciclo"],
                     payload["observacoes"], usuario_nome, agora, agora,
                 ),
+                "id_evento",
             )
-            id_evento = cur.lastrowid
         _salvar_cal_agentes(conn, id_evento, payload["agentes"])
         conn.commit()
     except Exception as exc:
         conn.rollback()
-        if isinstance(exc, Exception) and "UNIQUE" in str(exc).upper():
+        if _is_unique_violation(exc):
             raise ValueError("Ja existe um movimento de ovitrampa nessa data.") from exc
         raise
     finally:
@@ -1380,15 +1438,14 @@ def calendario_evento(db_path, id_evento):
     conn = db_core.connect(db_path)
     try:
         ensure_schema(conn)
+        agentes_sql = _calendar_agents_expression(conn)
         row = conn.execute(
             f"""SELECT e.*, g.nome AS grupo_nome, g.localidades AS grupo_localidades, g.cor AS grupo_cor,
-                       GROUP_CONCAT(a.id_agente || ':' || a.nome, '|') AS agentes_raw
+                       {agentes_sql} AS agentes_raw
                   FROM {CAL_EVENTOS_TABLE} e
                   LEFT JOIN {CAL_GRUPOS_TABLE} g ON g.id_grupo=e.id_grupo
-                  LEFT JOIN {CAL_AGENTES_TABLE} ea ON ea.id_evento=e.id_evento
-                  LEFT JOIN agentes a ON a.id_agente=ea.id_agente
                  WHERE e.id_evento=?
-                 GROUP BY e.id_evento""",
+                 """,
             (id_evento,),
         ).fetchone()
         if not row:
@@ -1418,23 +1475,22 @@ def eventos_agenda(db_path, inicio, fim):
     conn = db_core.connect(db_path)
     try:
         ensure_schema(conn)
+        agentes_sql = _calendar_agents_expression(conn, names_only=True)
         rows = conn.execute(
             f"""SELECT e.*, g.nome AS grupo_nome, g.localidades AS grupo_localidades, g.cor AS grupo_cor,
-                       GROUP_CONCAT(a.nome, ', ') AS agentes
+                       {agentes_sql} AS agentes
                   FROM {CAL_EVENTOS_TABLE} e
                   JOIN {CAL_GRUPOS_TABLE} g ON g.id_grupo=e.id_grupo
-                  LEFT JOIN {CAL_AGENTES_TABLE} ea ON ea.id_evento=e.id_evento
-                  LEFT JOIN agentes a ON a.id_agente=ea.id_agente
                  WHERE e.data BETWEEN ? AND ?
                    AND e.movimento <> 'feriado'
-                 GROUP BY e.id_evento
                  ORDER BY e.data""",
             (str(inicio)[:10], str(fim)[:10]),
         ).fetchall()
     finally:
         conn.close()
     eventos = []
-    for row in rows:
+    for raw_row in rows:
+        row = db_core.serialize_row(raw_row)
         movimento_label = MOVIMENTOS.get(row["movimento"], row["movimento"])
         titulo = f"{movimento_label} de ovitrampas - {row['grupo_nome']}"
         detalhes = []
@@ -1591,13 +1647,13 @@ def _registro_ocorrencia_conta_ovos(row, arquivo, agora):
 
 
 def _grupo_dict(row):
-    item = dict(row)
+    item = db_core.serialize_row(row)
     item["ativo"] = bool(item.get("ativo"))
     return item
 
 
 def _cal_evento_dict(row):
-    item = dict(row)
+    item = db_core.serialize_row(row)
     item["movimento_label"] = MOVIMENTOS.get(item.get("movimento"), item.get("movimento") or "")
     if item.get("movimento") == "feriado":
         item["grupo_nome"] = item.get("titulo") or "Feriado"
@@ -1671,9 +1727,21 @@ def _salvar_cal_agentes(conn, id_evento, agentes):
     conn.execute(f"DELETE FROM {CAL_AGENTES_TABLE} WHERE id_evento=?", (id_evento,))
     for id_agente in agentes:
         conn.execute(
-            f"INSERT OR IGNORE INTO {CAL_AGENTES_TABLE} (id_evento, id_agente) VALUES (?, ?)",
+            f"""INSERT INTO {CAL_AGENTES_TABLE} (id_evento, id_agente)
+                VALUES (?, ?)
+                ON CONFLICT (id_evento, id_agente) DO NOTHING""",
             (id_evento, id_agente),
         )
+
+
+def _is_unique_violation(exc):
+    if getattr(exc, "pgcode", None) == "23505":
+        return True
+    cause = getattr(exc, "__cause__", None)
+    if getattr(cause, "pgcode", None) == "23505":
+        return True
+    message = str(exc).upper()
+    return "UNIQUE" in message or "DUPLICATE KEY" in message
 
 
 def _parse_ids(values):
@@ -1911,13 +1979,15 @@ def _monitoramento_ocorrencias_detalhes(conn, join_base, params):
 
 
 def _armadilhas_realocar(conn, filtros):
-    clauses = [_realocar_sql("a")]
+    clauses = [_realocar_sql(conn, "a")]
     params = []
     distrito = _text(filtros.get("distrito"))
     if distrito:
         clauses.append("a.localidade=?")
         params.append(distrito)
     where = "WHERE " + " AND ".join(clauses)
+    id_order = _numeric_text_order(conn, "a.ovitrampa_id")
+    name_order = _nocase_order(conn, "a.ovitrampa_id")
     rows = [dict(row) for row in conn.execute(
         f"""SELECT a.*,
                    COUNT(l.id_leitura) AS leituras,
@@ -1928,7 +1998,7 @@ def _armadilhas_realocar(conn, filtros):
               LEFT JOIN {TABLE} l ON l.ovitrampa_id=a.ovitrampa_id
               {where}
              GROUP BY a.ovitrampa_id
-             ORDER BY COALESCE(a.localidade,''), CAST(a.ovitrampa_id AS INTEGER), a.ovitrampa_id
+             ORDER BY COALESCE(a.localidade,''), {id_order}, {name_order}
              LIMIT 300""",
         params,
     )]
@@ -1943,11 +2013,13 @@ def _armadilhas_realocar(conn, filtros):
 
 def _armadilhas_sem_diario(conn, limite=300):
     where = f"""WHERE COALESCE(a.ativo,1)=1
-                  AND NOT ({_realocar_sql("a")})
+                  AND NOT ({_realocar_sql(conn, "a")})
                   AND NOT EXISTS (
                         SELECT 1 FROM {DIARIO_ARMADILHAS_TABLE} da
                          WHERE da.ovitrampa_id=a.ovitrampa_id
                   )"""
+    id_order = _numeric_text_order(conn, "a.ovitrampa_id")
+    name_order = _nocase_order(conn, "a.ovitrampa_id")
     rows = [dict(row) for row in conn.execute(
         f"""SELECT a.*,
                    COUNT(l.id_leitura) AS leituras,
@@ -1958,7 +2030,7 @@ def _armadilhas_sem_diario(conn, limite=300):
               LEFT JOIN {TABLE} l ON l.ovitrampa_id=a.ovitrampa_id
               {where}
              GROUP BY a.ovitrampa_id
-             ORDER BY COALESCE(a.localidade,''), CAST(a.ovitrampa_id AS INTEGER), a.ovitrampa_id COLLATE NOCASE
+             ORDER BY COALESCE(a.localidade,''), {id_order}, {name_order}
              LIMIT ?""",
         (limite,),
     )]
@@ -1971,7 +2043,7 @@ def _armadilhas_sem_diario(conn, limite=300):
 
 
 def _diario_dict(row):
-    item = dict(row)
+    item = db_core.serialize_row(row)
     item["ativo"] = bool(item.get("ativo"))
     return item
 
@@ -2002,12 +2074,13 @@ def _upsert_diario_conn(conn, dados, agora, id_diario=None):
             (observacoes, ativo, agora, atual["id_diario"]),
         )
         return atual["id_diario"]
-    cur = conn.execute(
+    return db_core.insert_and_get_id(
+        conn,
         f"""INSERT INTO {DIARIOS_TABLE} (nome, observacoes, ativo, criado_em, atualizado_em)
             VALUES (?, ?, ?, ?, ?)""",
         (nome, observacoes, ativo, agora, agora),
+        "id_diario",
     )
-    return cur.lastrowid
 
 
 def _vincular_diario_conn(conn, id_diario, ovitrampa_id, ordem, agora, mover_unico=False):
@@ -2052,11 +2125,13 @@ def _reordenar_todos_diarios(conn):
 
 
 def _reordenar_diario(conn, id_diario):
+    id_order = _numeric_text_order(conn, "ovitrampa_id")
+    name_order = _nocase_order(conn, "ovitrampa_id")
     rows = conn.execute(
         f"""SELECT ovitrampa_id
               FROM {DIARIO_ARMADILHAS_TABLE}
              WHERE id_diario=?
-             ORDER BY ordem, CAST(ovitrampa_id AS INTEGER), ovitrampa_id COLLATE NOCASE""",
+             ORDER BY ordem, {id_order}, {name_order}""",
         (id_diario,),
     ).fetchall()
     agora = datetime.now().isoformat(timespec="seconds")
@@ -2069,13 +2144,16 @@ def _reordenar_diario(conn, id_diario):
         )
 
 
-def _realocar_sql(alias):
-    return (
-        f"(UPPER(COALESCE({alias}.localidade,'') || ' ' || COALESCE({alias}.rua,'') || ' ' || "
+def _realocar_sql(conn, alias):
+    text = (
+        f"UPPER(COALESCE({alias}.localidade,'') || ' ' || COALESCE({alias}.rua,'') || ' ' || "
         f"COALESCE({alias}.numero,'') || ' ' || COALESCE({alias}.complemento,'') || ' ' || "
         f"COALESCE({alias}.localizacao,'') || ' ' || COALESCE({alias}.bairro,'') || ' ' || "
-        f"COALESCE({alias}.responsavel,'')) LIKE '%REALOCAR%')"
+        f"COALESCE({alias}.responsavel,''))"
     )
+    if _is_postgresql(conn):
+        return f"POSITION('REALOCAR' IN {text}) > 0"
+    return f"{text} LIKE '%REALOCAR%'"
 
 
 def _armadilha_realocar(row):
@@ -2244,15 +2322,27 @@ def _where(filtros, busca=False):
     return ("WHERE " + " AND ".join(clauses)) if clauses else "", params
 
 
-def _where_armadilhas(filtros):
+def _where_armadilhas(filtros, conn=None):
     clauses = []
     params = []
     if filtros.get("distrito"):
         clauses.append("a.localidade=?")
         params.append(filtros["distrito"])
     if filtros.get("busca"):
-        term = f"%{filtros['busca'].strip()}%"
-        clauses.append("(a.ovitrampa_id LIKE ? OR a.rua LIKE ? OR a.complemento LIKE ? OR a.localizacao LIKE ? OR a.quarteirao LIKE ? OR a.responsavel LIKE ?)")
+        term = f"%{filtros['busca'].strip().lower()}%"
+        columns = (
+            "a.ovitrampa_id",
+            "a.rua",
+            "a.complemento",
+            "a.localizacao",
+            "a.quarteirao",
+            "a.responsavel",
+        )
+        clauses.append(
+            "(" + " OR ".join(
+                f"LOWER(COALESCE({column},'')) LIKE ?" for column in columns
+            ) + ")"
+        )
         params.extend([term] * 6)
     return ("WHERE " + " AND ".join(clauses)) if clauses else "", params
 
