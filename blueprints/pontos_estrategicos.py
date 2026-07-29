@@ -3,12 +3,12 @@ import logging
 from datetime import datetime
 
 import openpyxl
-from flask import Blueprint, current_app, jsonify, render_template, request, send_file
+from flask import Blueprint, jsonify, render_template, request, send_file
 from openpyxl.styles import Alignment, Font, PatternFill
 
 from app_core import audit
 from app_core import auth as auth_core
-from app_core import db as db_core
+from app_core import blueprint_helpers as bh
 from app_core.excel import excel_safe
 from app_core import pontos_estrategicos as pe_core
 
@@ -17,20 +17,12 @@ bp = Blueprint("pontos_estrategicos", __name__)
 login_required = auth_core.login_required
 
 
-def _db_path():
-    return current_app.config["DB_PATH"]
-
-
 def get_db():
-    return db_core.connect(_db_path())
-
-
-def q1(sql, params=()):
-    return db_core.query_one(_db_path(), sql, params)
+    return bh.get_db()
 
 
 def usuario_atual():
-    return auth_core.usuario_atual(q1)
+    return auth_core.usuario_atual(bh.q1)
 
 
 def nivel_min(nivel):
@@ -40,13 +32,16 @@ def nivel_min(nivel):
 @bp.route("/pontos-estrategicos")
 @login_required
 def page():
-    return render_template("pontos_estrategicos.html", opcoes=pe_core.opcoes(_db_path()))
+    return render_template(
+        "pontos_estrategicos.html",
+        opcoes=pe_core.opcoes(bh.db_target()),
+    )
 
 
 @bp.route("/api/pontos-estrategicos")
 @login_required
 def api_listar():
-    return jsonify(pe_core.listar(_db_path(), _filtros()))
+    return jsonify(pe_core.listar(bh.db_target(), _filtros()))
 
 
 @bp.route("/api/pontos-estrategicos/exportar")
@@ -54,7 +49,7 @@ def api_listar():
 def api_exportar():
     try:
         filtros = _filtros()
-        dados = pe_core.listar(_db_path(), filtros, limite=None)
+        dados = pe_core.listar(bh.db_target(), filtros, limite=None)
         registros = dados.get("registros") or []
         formato = (request.args.get("formato") or "xlsx").lower()
         if formato == "pdf":
@@ -74,13 +69,13 @@ def api_exportar():
 @bp.route("/api/pontos-estrategicos/opcoes")
 @login_required
 def api_opcoes():
-    return jsonify(pe_core.opcoes(_db_path()))
+    return jsonify(pe_core.opcoes(bh.db_target()))
 
 
 @bp.route("/api/pontos-estrategicos/<int:id_pe>")
 @login_required
 def api_obter(id_pe):
-    registro = pe_core.obter(_db_path(), id_pe)
+    registro = pe_core.obter(bh.db_target(), id_pe)
     if not registro:
         return jsonify({"erro": "Ponto estrategico nao encontrado."}), 404
     return jsonify(registro)
@@ -93,7 +88,7 @@ def api_criar():
     payload = request.get_json(silent=True) or {}
     if not _payload_valido(payload):
         return jsonify({"erro": "Informe ao menos o nome/local do PE."}), 400
-    criado = pe_core.salvar(_db_path(), payload)
+    criado = pe_core.salvar(bh.db_target(), payload)
     audit.registrar_evento(
         get_db,
         "pe_criado",
@@ -110,7 +105,7 @@ def api_atualizar(id_pe):
     payload = request.get_json(silent=True) or {}
     if not _payload_valido(payload):
         return jsonify({"erro": "Informe ao menos o nome/local do PE."}), 400
-    atualizado = pe_core.salvar(_db_path(), payload, id_pe=id_pe)
+    atualizado = pe_core.salvar(bh.db_target(), payload, id_pe=id_pe)
     if not atualizado:
         return jsonify({"erro": "Ponto estrategico nao encontrado."}), 404
     audit.registrar_evento(
@@ -134,7 +129,9 @@ def api_situacao(id_pe):
         return jsonify({"erro": "Situacao invalida."}), 400
     if situacao not in (0, 1):
         return jsonify({"erro": "Situacao invalida."}), 400
-    atualizado = pe_core.definir_situacao(_db_path(), id_pe, situacao)
+    atualizado = pe_core.definir_situacao(
+        bh.db_target(), id_pe, situacao
+    )
     if not atualizado:
         return jsonify({"erro": "Ponto estrategico nao encontrado."}), 404
     audit.registrar_evento(

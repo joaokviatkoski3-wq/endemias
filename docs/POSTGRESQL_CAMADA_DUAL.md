@@ -181,6 +181,33 @@ filtros e resumos. Tambem renderiza as duas paginas e consulta suas quatro APIs
 contra os dados publicos em modo somente leitura. As tabelas publicas
 permanecem inalteradas.
 
+## BRI e Pontos Estrategicos
+
+Os modulos **BRI** e **Pontos Estrategicos** foram convertidos no mesmo lote
+para preservar o vinculo entre tratamentos, visitas e o cadastro mestre de PE.
+Estao homologados:
+
+- cadastro, edicao, consulta e alteracao de situacao dos PEs;
+- geracao e resolucao dos aliases de logradouro;
+- vinculacao retroativa de visitas PE por alias;
+- insercao e deduplicacao dos registros BRI;
+- vinculacao direta do BRI ao PE correspondente;
+- filtros e buscas sem diferenca entre maiusculas e minusculas;
+- resumos de visitas, BRI e focos por PE;
+- calculo de atraso com datas nativas dos dois bancos;
+- serializacao uniforme de datas e horarios;
+- paginas e APIs dos dois modulos.
+
+O ensaio controlado e:
+
+```powershell
+python scripts\testar_bri_pe_postgresql.py --database endemias_teste
+```
+
+O script cria copias temporarias das oito tabelas envolvidas, valida todo o
+fluxo integrado e depois consulta as paginas reais em modo somente leitura.
+As contagens das tabelas publicas sao comparadas antes e depois do ensaio.
+
 Por seguranca, outro banco exige:
 
 ```powershell
@@ -211,8 +238,9 @@ incompativel.
 
 Autenticacao, auditoria, Controle de Pessoal, Gestao de Usuarios,
 Recolhimentos de Materiais e Amostras de Animais possuem leitura e escrita
-validadas. O Historico de Importacoes tambem esta pronto, embora a pagina
-completa de Importacao Kobo ainda nao esteja homologada.
+validadas. BRI e Pontos Estrategicos tambem estao homologados, incluindo seus
+vinculos. O Historico de Importacoes esta pronto, embora a pagina completa de
+Importacao Kobo ainda nao esteja homologada.
 
 Cada lote deve:
 

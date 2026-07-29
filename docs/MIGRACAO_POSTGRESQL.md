@@ -25,8 +25,9 @@ renderizacao da pagina. Gestao de Usuarios foi homologada em seguida, e o
 Historico de Importacoes teve seu nucleo convertido para SQL portavel.
 Recolhimentos de Materiais e Amostras de Animais tambem tiveram leitura,
 escrita, filtros, resumos, paginas e APIs homologados. Os limites atuais estao
-documentados em
-`docs/POSTGRESQL_CAMADA_DUAL.md`.
+documentados em `docs/POSTGRESQL_CAMADA_DUAL.md`. BRI e Pontos Estrategicos
+foram homologados em seguida, incluindo aliases e vinculos com visitas, focos
+e tratamentos.
 
 ## Bancos locais
 
@@ -123,7 +124,8 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
    estao concluidos; Controle de Pessoal e o primeiro modulo funcional
    homologado, seguido por Gestao de Usuarios e pelo nucleo do Historico de
    Importacoes. Recolhimentos de Materiais e Amostras de Animais tambem estao
-   homologados.
+   homologados. BRI e Pontos Estrategicos completam o lote seguinte, com seus
+   vinculos operacionais validados.
 6. Ensaiar a migracao com uma copia recente do banco oficial.
 7. Fazer backup, carga final, validacao e troca controlada.
 

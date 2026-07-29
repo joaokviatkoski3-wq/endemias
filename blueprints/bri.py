@@ -1,16 +1,13 @@
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, jsonify, render_template, request
 
 from app_core import auth as auth_core
+from app_core import blueprint_helpers as bh
 from app_core import bri as bri_core
 from app_core import utils as utils_core
 
 
 bp = Blueprint("bri", __name__)
 login_required = auth_core.login_required
-
-
-def _db_path():
-    return current_app.config["DB_PATH"]
 
 
 @bp.route("/bri")
@@ -20,15 +17,15 @@ def page():
         "bri.html",
         d_ini=request.args.get("d_ini", utils_core.data_n_dias(365)),
         d_fim=request.args.get("d_fim", utils_core.hoje()),
-        localidades=bri_core.localidades(_db_path()),
-        agentes=bri_core.agentes(_db_path()),
+        localidades=bri_core.localidades(bh.db_target()),
+        agentes=bri_core.agentes(bh.db_target()),
     )
 
 
 @bp.route("/api/bri")
 @login_required
 def api_resumo():
-    return jsonify(bri_core.resumo(_db_path(), _filtros()))
+    return jsonify(bri_core.resumo(bh.db_target(), _filtros()))
 
 
 @bp.route("/api/bri/listar")
@@ -36,7 +33,7 @@ def api_resumo():
 def api_listar():
     filtros = _filtros()
     filtros["busca"] = request.args.get("busca", "")
-    return jsonify(bri_core.listar(_db_path(), filtros))
+    return jsonify(bri_core.listar(bh.db_target(), filtros))
 
 
 def _filtros():

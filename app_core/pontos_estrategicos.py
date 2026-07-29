@@ -1,10 +1,11 @@
 import hashlib
-import sqlite3
+import os
 import unicodedata
 from datetime import datetime
 
 import pandas as pd
 
+from app_core import db as db_core
 from app_core import normalizadores as localidade_normalizadores
 from app_core import recolhimentos as normalizadores
 
@@ -108,61 +109,68 @@ PE_ALIAS_SEED = (
 )
 
 
-def ensure_schema(conn):
-    em_transacao = conn.in_transaction
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS pontos_estrategicos (
-            id_pe           INTEGER PRIMARY KEY AUTOINCREMENT,
-            codigo_pe       TEXT NOT NULL UNIQUE,
-            localidade      TEXT,
-            id_localidade   INTEGER REFERENCES localidades(id_localidade),
-            quarteirao      INTEGER,
-            nome            TEXT NOT NULL,
-            logradouro      TEXT,
-            numero          TEXT,
-            situacao        INTEGER NOT NULL DEFAULT 1,
-            data_inclusao   DATE,
-            data_desativacao DATE,
-            cnpj            TEXT,
-            razao_social    TEXT,
-            telefone        TEXT,
-            tipo            TEXT,
-            latitude        REAL,
-            longitude       REAL,
-            observacoes     TEXT,
-            chave_origem    TEXT UNIQUE,
-            criado_em       TEXT NOT NULL,
-            atualizado_em   TEXT NOT NULL
-        );
+def ensure_schema(target):
+    conn, close = _open_connection(target)
+    try:
+        if getattr(conn, "backend", "sqlite") == "postgresql":
+            return
+        em_transacao = conn.in_transaction
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS pontos_estrategicos (
+                id_pe           INTEGER PRIMARY KEY AUTOINCREMENT,
+                codigo_pe       TEXT NOT NULL UNIQUE,
+                localidade      TEXT,
+                id_localidade   INTEGER REFERENCES localidades(id_localidade),
+                quarteirao      INTEGER,
+                nome            TEXT NOT NULL,
+                logradouro      TEXT,
+                numero          TEXT,
+                situacao        INTEGER NOT NULL DEFAULT 1,
+                data_inclusao   DATE,
+                data_desativacao DATE,
+                cnpj            TEXT,
+                razao_social    TEXT,
+                telefone        TEXT,
+                tipo            TEXT,
+                latitude        REAL,
+                longitude       REAL,
+                observacoes     TEXT,
+                chave_origem    TEXT UNIQUE,
+                criado_em       TEXT NOT NULL,
+                atualizado_em   TEXT NOT NULL
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_pe_codigo ON pontos_estrategicos(codigo_pe);
-        CREATE INDEX IF NOT EXISTS idx_pe_situacao ON pontos_estrategicos(situacao);
-        CREATE INDEX IF NOT EXISTS idx_pe_localidade ON pontos_estrategicos(id_localidade);
-        CREATE INDEX IF NOT EXISTS idx_pe_tipo ON pontos_estrategicos(tipo);
+            CREATE INDEX IF NOT EXISTS idx_pe_codigo ON pontos_estrategicos(codigo_pe);
+            CREATE INDEX IF NOT EXISTS idx_pe_situacao ON pontos_estrategicos(situacao);
+            CREATE INDEX IF NOT EXISTS idx_pe_localidade ON pontos_estrategicos(id_localidade);
+            CREATE INDEX IF NOT EXISTS idx_pe_tipo ON pontos_estrategicos(tipo);
 
-        CREATE TABLE IF NOT EXISTS pontos_estrategicos_alias (
-            id_alias              INTEGER PRIMARY KEY AUTOINCREMENT,
-            alias_logradouro      TEXT NOT NULL,
-            alias_normalizado     TEXT NOT NULL,
-            localidade            TEXT,
-            localidade_normalizada TEXT NOT NULL DEFAULT '',
-            codigo_pe             TEXT NOT NULL REFERENCES pontos_estrategicos(codigo_pe),
-            observacoes           TEXT,
-            ativo                 INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)),
-            criado_em             TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            atualizado_em         TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(alias_normalizado, localidade_normalizada)
-        );
+            CREATE TABLE IF NOT EXISTS pontos_estrategicos_alias (
+                id_alias              INTEGER PRIMARY KEY AUTOINCREMENT,
+                alias_logradouro      TEXT NOT NULL,
+                alias_normalizado     TEXT NOT NULL,
+                localidade            TEXT,
+                localidade_normalizada TEXT NOT NULL DEFAULT '',
+                codigo_pe             TEXT NOT NULL REFERENCES pontos_estrategicos(codigo_pe),
+                observacoes           TEXT,
+                ativo                 INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)),
+                criado_em             TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                atualizado_em         TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(alias_normalizado, localidade_normalizada)
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_pe_alias_lookup
-            ON pontos_estrategicos_alias(alias_normalizado, localidade_normalizada, ativo);
-        """
-    )
-    _ensure_visitas_vinculo_schema(conn)
-    _seed_aliases(conn)
-    if not em_transacao and conn.in_transaction:
-        conn.commit()
+            CREATE INDEX IF NOT EXISTS idx_pe_alias_lookup
+                ON pontos_estrategicos_alias(alias_normalizado, localidade_normalizada, ativo);
+            """
+        )
+        _ensure_visitas_vinculo_schema(conn)
+        _seed_aliases(conn)
+        if not em_transacao and conn.in_transaction:
+            conn.commit()
+    finally:
+        if close:
+            conn.close()
 
 
 def _ensure_visitas_vinculo_schema(conn):
@@ -211,10 +219,11 @@ def _salvar_alias(conn, alias, localidade, codigo_pe, observacoes, agora):
     alias_norm = normalizar_alias(alias_texto)
     localidade_norm = normalizar_alias(localidade_texto)
     conn.execute(
-        """INSERT OR IGNORE INTO pontos_estrategicos_alias (
+        """INSERT INTO pontos_estrategicos_alias (
                alias_logradouro, alias_normalizado, localidade, localidade_normalizada,
                codigo_pe, observacoes, ativo, criado_em, atualizado_em
-           ) VALUES (?,?,?,?,?,?,?,?,?)""",
+           ) VALUES (?,?,?,?,?,?,?,?,?)
+           ON CONFLICT DO NOTHING""",
         (
             alias_texto,
             alias_norm,
@@ -364,6 +373,16 @@ def normalizar_alias(value):
 
 
 def _table_exists(conn, table):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return conn.execute(
+            """SELECT EXISTS (
+                   SELECT 1
+                     FROM information_schema.tables
+                    WHERE table_schema=ANY(current_schemas(false))
+                      AND table_name=?
+               )""",
+            (table,),
+        ).fetchone()[0]
     return conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
         (table,),
@@ -371,18 +390,26 @@ def _table_exists(conn, table):
 
 
 def _table_columns(conn, table):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return {
+            row[0]
+            for row in conn.execute(
+                """SELECT column_name
+                     FROM information_schema.columns
+                    WHERE table_schema=ANY(current_schemas(false))
+                      AND table_name=?""",
+                (table,),
+            ).fetchall()
+        }
     return {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
 
 
-def importar_csv_inicial(csv_path, db_path):
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    ensure_schema(conn)
+def importar_csv_inicial(csv_path, target):
+    conn, close = _open_connection(target)
     df = pd.read_csv(csv_path, sep=None, engine="python", encoding="utf-8-sig").dropna(how="all")
     inseridos = duplicados = 0
     try:
-        conn.execute("BEGIN")
+        ensure_schema(conn)
         for _, row in df.iterrows():
             payload = registro_de_linha_csv(row)
             if inserir(conn, payload):
@@ -390,12 +417,13 @@ def importar_csv_inicial(csv_path, db_path):
             else:
                 duplicados += 1
         _seed_aliases(conn)
-        conn.execute("COMMIT")
+        conn.commit()
     except Exception:
-        conn.execute("ROLLBACK")
+        conn.rollback()
         raise
     finally:
-        conn.close()
+        if close:
+            conn.close()
     return {"inseridos": inseridos, "duplicados": duplicados}
 
 
@@ -421,20 +449,19 @@ def registro_de_linha_csv(row):
     return payload
 
 
-def listar(db_path, filtros=None, limite=1000):
+def listar(target, filtros=None, limite=1000):
     filtros = filtros or {}
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    ensure_schema(conn)
-    _ensure_optional_modules(conn)
-    where, params = _where(filtros)
-    limit_clause = "" if limite is None else "LIMIT ?"
-    query_params = list(params)
-    if limite is not None:
-        query_params.append(int(limite))
+    conn, close = _open_connection(target)
     try:
+        ensure_schema(conn)
+        _ensure_optional_modules(conn)
+        where, params = _where(filtros)
+        limit_clause = "" if limite is None else "LIMIT ?"
+        query_params = list(params)
+        if limite is not None:
+            query_params.append(int(limite))
         rows = [
-            _completar_status_operacional(dict(r))
+            _completar_status_operacional(normalizadores._serializar_linha(r))
             for r in conn.execute(
                 f"""SELECT pe.*,
                         (
@@ -503,23 +530,24 @@ def listar(db_path, filtros=None, limite=1000):
             ).fetchone()
         )
     finally:
-        conn.close()
+        if close:
+            conn.close()
     totais = {k: (v or 0) for k, v in totais.items()}
     if filtros.get("atrasados") or filtros.get("pendencias"):
         totais = _totais_de_rows(rows)
     return {"registros": rows, "total": len(rows), "totais": totais}
 
 
-def resumo_operacional(db_path, filtros=None):
+def resumo_operacional(target, filtros=None):
     filtros = filtros or {}
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    ensure_schema(conn)
-    _ensure_optional_modules(conn)
-    where, params = _where(filtros)
-    d_ini = filtros.get("d_ini") or "0001-01-01"
-    d_fim = filtros.get("d_fim") or "9999-12-31"
+    conn, close = _open_connection(target)
     try:
+        ensure_schema(conn)
+        _ensure_optional_modules(conn)
+        where, params = _where(filtros)
+        d_ini = filtros.get("d_ini") or "0001-01-01"
+        d_fim = filtros.get("d_fim") or "9999-12-31"
+        atraso_sql = _atraso_sql(conn, "MAX(v.data)")
         totais = dict(conn.execute(
             f"""SELECT
                     COUNT(*) AS total,
@@ -582,13 +610,13 @@ def resumo_operacional(db_path, filtros=None):
                      {where}
                        AND pe.situacao=1
                      GROUP BY pe.id_pe
-                    HAVING ultima_visita IS NULL OR julianday('now') - julianday(ultima_visita) > 20
+                    HAVING MAX(v.data) IS NULL OR {atraso_sql}
                 ) sub""",
             params,
         ).fetchone()[0]
 
         pendencias = [
-            _completar_status_operacional(dict(r))
+            _completar_status_operacional(normalizadores._serializar_linha(r))
             for r in conn.execute(
                 f"""SELECT pe.*,
                         MAX(v.data) AS ultima_visita_pe,
@@ -624,11 +652,11 @@ def resumo_operacional(db_path, filtros=None):
                     {where}
                       AND pe.situacao=1
                     GROUP BY pe.id_pe
-                   HAVING ultima_visita_pe IS NULL OR julianday('now') - julianday(ultima_visita_pe) > 20
+                   HAVING MAX(v.data) IS NULL OR {atraso_sql}
                        OR pe.latitude IS NULL OR pe.longitude IS NULL
                        OR pe.tipo IS NULL OR TRIM(pe.tipo)=''
                    ORDER BY
-                       CASE WHEN ultima_visita_pe IS NULL THEN 0 ELSE 1 END,
+                       CASE WHEN MAX(v.data) IS NULL THEN 0 ELSE 1 END,
                        ultima_visita_pe,
                        pe.localidade,
                        pe.quarteirao
@@ -637,7 +665,8 @@ def resumo_operacional(db_path, filtros=None):
             )
         ]
     finally:
-        conn.close()
+        if close:
+            conn.close()
 
     dados = {k: (v or 0) for k, v in totais.items()}
     dados.update({
@@ -649,11 +678,10 @@ def resumo_operacional(db_path, filtros=None):
     return {"totais": dados, "pendencias": pendencias}
 
 
-def opcoes(db_path):
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    ensure_schema(conn)
+def opcoes(target):
+    conn, close = _open_connection(target)
     try:
+        ensure_schema(conn)
         localidades = [
             r[0]
             for r in conn.execute(
@@ -667,36 +695,37 @@ def opcoes(db_path):
             )
         ]
     finally:
-        conn.close()
+        if close:
+            conn.close()
     return {"localidades": localidades, "tipos": tipos}
 
 
-def obter(db_path, id_pe):
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    ensure_schema(conn)
+def obter(target, id_pe):
+    conn, close = _open_connection(target)
     try:
+        ensure_schema(conn)
         row = conn.execute("SELECT * FROM pontos_estrategicos WHERE id_pe=?", (id_pe,)).fetchone()
-        return dict(row) if row else None
+        return normalizadores._serializar_linha(row) if row else None
     finally:
-        conn.close()
+        if close:
+            conn.close()
 
 
-def salvar(db_path, payload, id_pe=None):
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    ensure_schema(conn)
+def salvar(target, payload, id_pe=None):
+    conn, close = _open_connection(target)
     try:
-        conn.execute("BEGIN")
+        ensure_schema(conn)
         result = atualizar(conn, id_pe, payload) if id_pe else inserir(conn, payload)
-        conn.execute("COMMIT")
+        if result:
+            _seed_aliases(conn)
+        conn.commit()
         return result
     except Exception:
-        conn.execute("ROLLBACK")
+        conn.rollback()
         raise
     finally:
-        conn.close()
+        if close:
+            conn.close()
 
 
 def inserir(conn, payload):
@@ -704,11 +733,12 @@ def inserir(conn, payload):
     codigo = _text(payload.get("codigo_pe")) or proximo_codigo(conn)
     localidade = _localidade(payload.get("localidade"))
     cur = conn.execute(
-        """INSERT OR IGNORE INTO pontos_estrategicos (
+        """INSERT INTO pontos_estrategicos (
             codigo_pe, localidade, id_localidade, quarteirao, nome, logradouro, numero,
             situacao, data_inclusao, data_desativacao, cnpj, razao_social, telefone,
             tipo, latitude, longitude, observacoes, chave_origem, criado_em, atualizado_em
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT DO NOTHING""",
         (
             codigo,
             localidade,
@@ -771,12 +801,11 @@ def atualizar(conn, id_pe, payload):
     return True
 
 
-def definir_situacao(db_path, id_pe, situacao):
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    ensure_schema(conn)
+def definir_situacao(target, id_pe, situacao):
+    conn, close = _open_connection(target)
     data_desativacao = datetime.now().date().isoformat() if int(situacao) == 0 else None
     try:
+        ensure_schema(conn)
         cur = conn.execute(
             """UPDATE pontos_estrategicos
                   SET situacao=?, data_desativacao=?, atualizado_em=?
@@ -786,7 +815,8 @@ def definir_situacao(db_path, id_pe, situacao):
         conn.commit()
         return cur.rowcount > 0
     finally:
-        conn.close()
+        if close:
+            conn.close()
 
 
 def proximo_codigo(conn):
@@ -875,8 +905,12 @@ def _where(filtros):
     if filtros.get("busca"):
         termo = f"%{filtros['busca']}%"
         clauses.append(
-            """AND (pe.codigo_pe LIKE ? OR pe.nome LIKE ? OR pe.logradouro LIKE ?
-                    OR pe.numero LIKE ? OR pe.cnpj LIKE ? OR pe.razao_social LIKE ?)"""
+            """AND (LOWER(COALESCE(pe.codigo_pe,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(pe.nome,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(pe.logradouro,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(pe.numero,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(pe.cnpj,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(pe.razao_social,'')) LIKE LOWER(?))"""
         )
         params.extend([termo] * 6)
     return " ".join(clauses), params
@@ -889,8 +923,26 @@ def _obter_ou_criar_localidade(conn, nome):
     row = conn.execute("SELECT id_localidade FROM localidades WHERE nome=?", (nome,)).fetchone()
     if row:
         return row[0]
-    cur = conn.execute("INSERT INTO localidades(nome, cod_localidade) VALUES (?,NULL)", (nome,))
-    return cur.lastrowid
+    return normalizadores._insert_id(
+        conn,
+        "INSERT INTO localidades(nome, cod_localidade) VALUES (?,NULL)",
+        (nome,),
+        "id_localidade",
+    )
+
+
+def _open_connection(target):
+    if hasattr(target, "execute"):
+        return target, False
+    if isinstance(target, (str, bytes, os.PathLike, db_core.DatabaseTarget)):
+        return db_core.connect(target), True
+    raise TypeError("Destino ou conexao de banco invalido.")
+
+
+def _atraso_sql(conn, expression):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return f"CURRENT_DATE - {expression} > 20"
+    return f"julianday('now') - julianday({expression}) > 20"
 
 
 def _pick(row, names):

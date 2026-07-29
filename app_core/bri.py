@@ -4,6 +4,7 @@ import os
 import pandas as pd
 
 from app_core import agentes as agentes_db
+from app_core import db as db_core
 from app_core import recolhimentos as agentes_core
 from app_core import normalizadores
 from app_core import pontos_estrategicos as pe_core
@@ -13,52 +14,59 @@ TABLE = "bri_registros"
 AGENTES_TABLE = "bri_agentes"
 
 
-def ensure_schema(conn):
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS bri_registros (
-            id_bri                 TEXT PRIMARY KEY,
-            kobo_uuid              TEXT UNIQUE,
-            kobo_id                INTEGER,
-            sispncd                TEXT,
-            data                   DATE NOT NULL,
-            hora                   TIME,
-            inicio_registro        TEXT,
-            fim_registro           TEXT,
-            agentes_texto          TEXT,
-            destino_tratamento     TEXT,
-            local_tratamento       TEXT,
-            localidade             TEXT,
-            id_localidade          INTEGER REFERENCES localidades(id_localidade),
-            logradouro             TEXT,
-            quarteirao             INTEGER,
-            numero                 TEXT,
-            numero_ovitrampa       TEXT,
-            quantidade_carga       REAL DEFAULT 0,
-            tratou_imovel_extra    TEXT,
-            qual_imovel_extra      TEXT,
-            depositos_tratados_extra INTEGER,
-            quantidade_carga_extra REAL DEFAULT 0,
-            origem_estrutura       TEXT NOT NULL DEFAULT 'nova',
-            arquivo_origem         TEXT,
-            submission_time        TEXT,
-            processado_em          TEXT NOT NULL
-        );
+def ensure_schema(target):
+    conn, close = _open_connection(target)
+    try:
+        if getattr(conn, "backend", "sqlite") == "postgresql":
+            return
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS bri_registros (
+                id_bri                 TEXT PRIMARY KEY,
+                kobo_uuid              TEXT UNIQUE,
+                kobo_id                INTEGER,
+                sispncd                TEXT,
+                data                   DATE NOT NULL,
+                hora                   TIME,
+                inicio_registro        TEXT,
+                fim_registro           TEXT,
+                agentes_texto          TEXT,
+                destino_tratamento     TEXT,
+                local_tratamento       TEXT,
+                localidade             TEXT,
+                id_localidade          INTEGER REFERENCES localidades(id_localidade),
+                logradouro             TEXT,
+                quarteirao             INTEGER,
+                numero                 TEXT,
+                numero_ovitrampa       TEXT,
+                quantidade_carga       REAL DEFAULT 0,
+                tratou_imovel_extra    TEXT,
+                qual_imovel_extra      TEXT,
+                depositos_tratados_extra INTEGER,
+                quantidade_carga_extra REAL DEFAULT 0,
+                origem_estrutura       TEXT NOT NULL DEFAULT 'nova',
+                arquivo_origem         TEXT,
+                submission_time        TEXT,
+                processado_em          TEXT NOT NULL
+            );
 
-        CREATE TABLE IF NOT EXISTS bri_agentes (
-            id_bri    TEXT NOT NULL REFERENCES bri_registros(id_bri) ON DELETE CASCADE,
-            id_agente INTEGER NOT NULL REFERENCES agentes(id_agente),
-            PRIMARY KEY (id_bri, id_agente)
-        );
+            CREATE TABLE IF NOT EXISTS bri_agentes (
+                id_bri    TEXT NOT NULL REFERENCES bri_registros(id_bri) ON DELETE CASCADE,
+                id_agente INTEGER NOT NULL REFERENCES agentes(id_agente),
+                PRIMARY KEY (id_bri, id_agente)
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_bri_data ON bri_registros(data);
-        CREATE INDEX IF NOT EXISTS idx_bri_localidade ON bri_registros(id_localidade);
-        CREATE INDEX IF NOT EXISTS idx_bri_destino ON bri_registros(destino_tratamento);
-        CREATE INDEX IF NOT EXISTS idx_bri_sispncd ON bri_registros(sispncd);
-        CREATE INDEX IF NOT EXISTS idx_bri_agentes_agente ON bri_agentes(id_agente);
-        """
-    )
-    _ensure_vinculo_pe_schema(conn)
+            CREATE INDEX IF NOT EXISTS idx_bri_data ON bri_registros(data);
+            CREATE INDEX IF NOT EXISTS idx_bri_localidade ON bri_registros(id_localidade);
+            CREATE INDEX IF NOT EXISTS idx_bri_destino ON bri_registros(destino_tratamento);
+            CREATE INDEX IF NOT EXISTS idx_bri_sispncd ON bri_registros(sispncd);
+            CREATE INDEX IF NOT EXISTS idx_bri_agentes_agente ON bri_agentes(id_agente);
+            """
+        )
+        _ensure_vinculo_pe_schema(conn)
+    finally:
+        if close:
+            conn.close()
 
 
 def _ensure_vinculo_pe_schema(conn):
@@ -167,14 +175,13 @@ def parse_workbook(path, estrutura=None):
     return registros
 
 
-def resumo(db_path, filtros=None):
+def resumo(target, filtros=None):
     filtros = filtros or {}
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
-    ensure_schema(conn)
-    pe_core.ensure_schema(conn)
-    where, params = _where(filtros)
+    conn, close = _open_connection(target)
     try:
+        ensure_schema(conn)
+        pe_core.ensure_schema(conn)
+        where, params = _where(filtros)
         totais = dict(conn.execute(
             f"""SELECT
                     COUNT(*) AS registros,
@@ -223,19 +230,20 @@ def resumo(db_path, filtros=None):
             params,
         )]
     finally:
-        conn.close()
+        if close:
+            conn.close()
     return {"totais": {k: (v or 0) for k, v in totais.items()}, "por_destino": por_destino, "por_localidade": por_localidade}
 
 
-def listar(db_path, filtros=None):
+def listar(target, filtros=None):
     filtros = filtros or {}
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
-    ensure_schema(conn)
-    pe_core.ensure_schema(conn)
-    where, params = _where(filtros, busca=True)
+    conn, close = _open_connection(target)
     try:
-        rows = [dict(r) for r in conn.execute(
+        ensure_schema(conn)
+        pe_core.ensure_schema(conn)
+        where, params = _where(filtros, busca=True)
+        agentes_agg = agentes_core._agentes_aggregate(conn, "a.nome")
+        rows = [agentes_core._serializar_linha(r) for r in conn.execute(
             f"""SELECT b.*,
                        CASE WHEN b.destino_tratamento='Ponto Estratégico' THEN (
                            SELECT COUNT(*) FROM pontos_estrategicos pe
@@ -256,7 +264,7 @@ def listar(db_path, filtros=None):
                             ORDER BY pe.situacao DESC, pe.codigo_pe
                             LIMIT 1
                        ) END AS ponto_estrategico,
-                       (SELECT GROUP_CONCAT(a.nome, ', ')
+                       (SELECT {agentes_agg}
                           FROM bri_agentes ba
                           JOIN agentes a ON a.id_agente=ba.id_agente
                          WHERE ba.id_bri=b.id_bri) AS agentes
@@ -267,7 +275,8 @@ def listar(db_path, filtros=None):
             params,
         )]
     finally:
-        conn.close()
+        if close:
+            conn.close()
     return {"registros": rows, "total": len(rows)}
 
 
@@ -307,15 +316,14 @@ def vincular_registros_pe_por_alias(conn):
     return {"atualizados": atualizados, "sem_alias": sem_alias}
 
 
-def localidades(db_path):
-    return _distinct(db_path, "localidade")
+def localidades(target):
+    return _distinct(target, "localidade")
 
 
-def agentes(db_path):
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
-    ensure_schema(conn)
+def agentes(target):
+    conn, close = _open_connection(target)
     try:
+        ensure_schema(conn)
         return [dict(r) for r in conn.execute(
             """SELECT DISTINCT a.nome
                  FROM bri_agentes ba
@@ -323,14 +331,14 @@ def agentes(db_path):
                 ORDER BY a.nome"""
         )]
     finally:
-        conn.close()
+        if close:
+            conn.close()
 
 
-def _distinct(db_path, coluna):
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
-    ensure_schema(conn)
+def _distinct(target, coluna):
+    conn, close = _open_connection(target)
     try:
+        ensure_schema(conn)
         return [dict(r) for r in conn.execute(
             f"""SELECT DISTINCT {coluna} AS nome
                   FROM bri_registros
@@ -338,7 +346,8 @@ def _distinct(db_path, coluna):
                  ORDER BY {coluna}"""
         )]
     finally:
-        conn.close()
+        if close:
+            conn.close()
 
 
 def _where(filtros, busca=False):
@@ -371,8 +380,12 @@ def _where(filtros, busca=False):
     if busca and filtros.get("busca"):
         termo = f"%{filtros['busca']}%"
         clauses.append(
-            """AND (b.sispncd LIKE ? OR b.localidade LIKE ? OR b.logradouro LIKE ?
-                    OR b.numero_ovitrampa LIKE ? OR b.agentes_texto LIKE ? OR b.local_tratamento LIKE ?)"""
+            """AND (LOWER(COALESCE(b.sispncd,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(b.localidade,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(b.logradouro,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(b.numero_ovitrampa,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(b.agentes_texto,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(b.local_tratamento,'')) LIKE LOWER(?))"""
         )
         params.extend([termo] * 6)
     return " ".join(clauses), params
@@ -405,14 +418,15 @@ def _inserir_bri(conn, registro, agora_iso):
     cur = conn.cursor()
     pe_vinculo = _resolver_pe_vinculo(conn, registro) if registro.get("destino_tratamento") == "Ponto Estratégico" else None
     cur.execute(
-        """INSERT OR IGNORE INTO bri_registros (
+        """INSERT INTO bri_registros (
             id_bri, kobo_uuid, kobo_id, sispncd, data, hora, inicio_registro, fim_registro,
             agentes_texto, destino_tratamento, local_tratamento, localidade, id_localidade,
             logradouro, quarteirao, numero, numero_ovitrampa, quantidade_carga,
             tratou_imovel_extra, qual_imovel_extra, depositos_tratados_extra,
             quantidade_carga_extra, origem_estrutura, arquivo_origem, submission_time,
             processado_em, id_pe, codigo_pe
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT DO NOTHING""",
         (
             registro["id_bri"], registro.get("kobo_uuid"), registro.get("kobo_id"),
             registro.get("sispncd"), registro["data"], registro.get("hora"),
@@ -450,7 +464,9 @@ def _inserir_agentes(conn, id_bri, agentes_texto):
     for nome in _split_agentes(agentes_texto):
         id_agente = _obter_ou_criar_agente(conn, nome)
         cur = conn.execute(
-            "INSERT OR IGNORE INTO bri_agentes(id_bri, id_agente) VALUES (?,?)",
+            """INSERT INTO bri_agentes(id_bri, id_agente)
+               VALUES (?,?)
+               ON CONFLICT DO NOTHING""",
             (id_bri, id_agente),
         )
         total += cur.rowcount
@@ -468,8 +484,20 @@ def _obter_ou_criar_localidade(conn, nome):
     row = conn.execute("SELECT id_localidade FROM localidades WHERE nome=?", (nome,)).fetchone()
     if row:
         return row[0]
-    cur = conn.execute("INSERT INTO localidades(nome, cod_localidade) VALUES (?,NULL)", (nome,))
-    return cur.lastrowid
+    return agentes_core._insert_id(
+        conn,
+        "INSERT INTO localidades(nome, cod_localidade) VALUES (?,NULL)",
+        (nome,),
+        "id_localidade",
+    )
+
+
+def _open_connection(target):
+    if hasattr(target, "execute"):
+        return target, False
+    if isinstance(target, (str, bytes, os.PathLike, db_core.DatabaseTarget)):
+        return db_core.connect(target), True
+    raise TypeError("Destino ou conexao de banco invalido.")
 
 
 def _agentes(row, estrutura):
