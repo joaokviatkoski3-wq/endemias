@@ -154,6 +154,8 @@ def _retry_locked(operation):
 
 
 class ResilientCursor(sqlite3.Cursor):
+    backend = "sqlite"
+
     def execute(self, sql, parameters=()):
         return _retry_locked(lambda: super(ResilientCursor, self).execute(sql, parameters))
 
@@ -180,6 +182,8 @@ class ResilientConnection(sqlite3.Connection):
 
 
 class PostgreSQLCursor:
+    backend = "postgresql"
+
     def __init__(self, cursor):
         self._cursor = cursor
 

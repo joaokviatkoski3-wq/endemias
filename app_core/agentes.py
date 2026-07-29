@@ -1,9 +1,10 @@
-import sqlite3
 from collections import defaultdict
 from datetime import date
+import os
 import re
 import unicodedata
 
+from app_core import db as db_core
 from app_core import utils
 
 
@@ -67,29 +68,42 @@ def obter_ou_criar(conn_or_cur, nome):
     cur = conn_or_cur.execute("SELECT id_agente FROM agentes WHERE nome=?", (nome,))
     row = cur.fetchone()
     if row:
-        return row["id_agente"] if isinstance(row, sqlite3.Row) else row[0]
-    try:
-        cols = {row[1] for row in conn_or_cur.execute("PRAGMA table_info(agentes)").fetchall()}
-    except Exception:
-        cols = set()
-    if "nome_completo" in cols:
-        cur = conn_or_cur.execute("INSERT INTO agentes(nome, nome_completo) VALUES (?, ?)", (nome, nome))
+        try:
+            return row["id_agente"]
+        except (IndexError, KeyError, TypeError):
+            return row[0]
+    cols = set()
+    if getattr(conn_or_cur, "backend", "sqlite") == "sqlite":
+        try:
+            cols = {
+                item[1]
+                for item in conn_or_cur.execute(
+                    "PRAGMA table_info(agentes)"
+                ).fetchall()
+            }
+        except Exception:
+            cols = set()
+    if (
+        getattr(conn_or_cur, "backend", "sqlite") == "postgresql"
+        or "nome_completo" in cols
+    ):
+        statement = (
+            "INSERT INTO agentes(nome, nome_completo) VALUES (?, ?)"
+        )
+        parameters = (nome, nome)
     else:
-        cur = conn_or_cur.execute("INSERT INTO agentes(nome) VALUES (?)", (nome,))
-    return cur.lastrowid
+        statement = "INSERT INTO agentes(nome) VALUES (?)"
+        parameters = (nome,)
+    return _insert_id(conn_or_cur, statement, parameters)
 
 
 def ensure_schema(conn_or_path):
-    close = False
-    if isinstance(conn_or_path, (str, bytes)):
-        conn = sqlite3.connect(conn_or_path)
-        conn.row_factory = sqlite3.Row
-        close = True
-    else:
-        conn = conn_or_path
+    conn, close = _open_connection(conn_or_path)
     try:
+        if getattr(conn, "backend", "sqlite") == "postgresql":
+            return
         cols = {
-            row["name"] if isinstance(row, sqlite3.Row) else row[1]
+            row["name"] if hasattr(row, "keys") else row[1]
             for row in conn.execute("PRAGMA table_info(agentes)").fetchall()
         }
         if not cols:
@@ -145,9 +159,9 @@ def ensure_schema(conn_or_path):
             conn.close()
 
 
-def listar(db_path, filtros=None):
+def listar(target, filtros=None):
     filtros = filtros or {}
-    ensure_schema(db_path)
+    ensure_schema(target)
     where = []
     params = []
     status = filtros.get("status", "ativos")
@@ -157,41 +171,47 @@ def listar(db_path, filtros=None):
         where.append("ativo=0")
     busca = (filtros.get("busca") or "").strip()
     if busca:
-        where.append("(nome LIKE ? OR COALESCE(nome_completo,'') LIKE ? OR COALESCE(matricula,'') LIKE ? OR COALESCE(cpf,'') LIKE ?)")
+        where.append(
+            "(LOWER(nome) LIKE LOWER(?) "
+            "OR LOWER(COALESCE(nome_completo,'')) LIKE LOWER(?) "
+            "OR LOWER(COALESCE(matricula,'')) LIKE LOWER(?) "
+            "OR LOWER(COALESCE(cpf,'')) LIKE LOWER(?))"
+        )
         params.extend([f"%{busca}%", f"%{busca}%", f"%{busca}%", f"%{busca}%"])
     sql = "SELECT * FROM agentes"
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY ativo DESC, nome"
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    conn, close = _open_connection(target)
     try:
         return [dict(row) for row in conn.execute(sql, params).fetchall()]
     finally:
-        conn.close()
+        if close:
+            conn.close()
 
 
-def obter(db_path, id_agente):
-    ensure_schema(db_path)
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+def obter(target, id_agente):
+    ensure_schema(target)
+    conn, close = _open_connection(target)
     try:
         row = conn.execute("SELECT * FROM agentes WHERE id_agente=?", (id_agente,)).fetchone()
         return dict(row) if row else None
     finally:
-        conn.close()
+        if close:
+            conn.close()
 
 
-def criar(db_path, dados):
-    ensure_schema(db_path)
+def criar(target, dados):
+    ensure_schema(target)
     nome = (dados.get("nome") or dados.get("nome_completo") or "").strip()
     if not nome:
         raise ValueError("Informe o nome do agente.")
     nome_completo = (dados.get("nome_completo") or nome).strip()
     ativo = 1 if str(dados.get("ativo", "1")) == "1" else 0
-    conn = sqlite3.connect(db_path)
+    conn, close = _open_connection(target)
     try:
-        cur = conn.execute(
+        novo_id = _insert_id(
+            conn,
             """INSERT INTO agentes
                (nome, nome_completo, matricula, cpf, data_nascimento, cargo, ativo, data_inicio, data_saida, observacoes)
                VALUES (?,?,?,?,?,?,?,?,?,?)""",
@@ -209,13 +229,14 @@ def criar(db_path, dados):
             ),
         )
         conn.commit()
-        return cur.lastrowid
+        return novo_id
     finally:
-        conn.close()
+        if close:
+            conn.close()
 
 
-def atualizar_campo(db_path, id_agente, campo, valor):
-    ensure_schema(db_path)
+def atualizar_campo(target, id_agente, campo, valor):
+    ensure_schema(target)
     if campo not in EDITABLE_FIELDS:
         raise ValueError("Campo invalido.")
     if campo in {"nome", "nome_completo"} and not (valor or "").strip():
@@ -228,8 +249,7 @@ def atualizar_campo(db_path, id_agente, campo, valor):
         valor = 1 if str(valor) == "1" else 0
     else:
         valor = _clean(valor)
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    conn, close = _open_connection(target)
     try:
         anterior = conn.execute("SELECT * FROM agentes WHERE id_agente=?", (id_agente,)).fetchone()
         if not anterior:
@@ -238,15 +258,15 @@ def atualizar_campo(db_path, id_agente, campo, valor):
         conn.commit()
         return dict(anterior), valor
     finally:
-        conn.close()
+        if close:
+            conn.close()
 
 
-def historico(db_path, id_agente, d_ini=None, d_fim=None):
-    ensure_schema(db_path)
+def historico(target, id_agente, d_ini=None, d_fim=None):
+    ensure_schema(target)
     d_ini = d_ini or utils.data_n_dias(30)
     d_fim = d_fim or utils.hoje()
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    conn, close = _open_connection(target)
     try:
         agente = conn.execute("SELECT * FROM agentes WHERE id_agente=?", (id_agente,)).fetchone()
         if not agente:
@@ -263,7 +283,8 @@ def historico(db_path, id_agente, d_ini=None, d_fim=None):
         eventos.extend(_hist_acoes_setor(conn, id_agente, d_ini, d_fim))
         eventos.extend(_hist_registro_geografico(conn, id_agente, d_ini, d_fim))
     finally:
-        conn.close()
+        if close:
+            conn.close()
 
     eventos.sort(key=lambda item: (item["data"], item["origem"], item.get("localidade") or ""))
     por_dia = defaultdict(lambda: {"data": "", "total": 0, "por_origem": defaultdict(int), "eventos": []})
@@ -325,7 +346,45 @@ def _clean(value):
     return text or None
 
 
+def _open_connection(target):
+    if hasattr(target, "execute"):
+        return target, False
+    if isinstance(target, (str, bytes, os.PathLike, db_core.DatabaseTarget)):
+        return db_core.connect(target), True
+    raise TypeError("Destino ou conexao de banco invalido.")
+
+
+def _insert_id(conn_or_cur, statement, parameters):
+    if getattr(conn_or_cur, "backend", "sqlite") == "postgresql":
+        row = conn_or_cur.execute(
+            statement.rstrip().rstrip(";") + " RETURNING id_agente",
+            parameters,
+        ).fetchone()
+        return row[0]
+    return conn_or_cur.execute(statement, parameters).lastrowid
+
+
+def _iso_date(value):
+    if value is None:
+        return ""
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
 def _table_exists(conn, table):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return bool(
+            conn.execute(
+                """
+                SELECT 1
+                  FROM information_schema.tables
+                 WHERE table_schema=current_schema()
+                   AND table_name=?
+                """,
+                (table,),
+            ).fetchone()
+        )
     return bool(conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
         (table,),
@@ -349,7 +408,7 @@ def _hist_vetores(conn, id_agente, d_ini, d_fim):
     ).fetchall()
     return [
         {
-            "data": row["data"],
+            "data": _iso_date(row["data"]),
             "origem": "Vetores",
             "tipo": row["tipo"],
             "localidade": row["localidade"],
@@ -372,14 +431,15 @@ def _hist_esporotricose(conn, id_agente, d_ini, d_fim):
           LEFT JOIN localidades l ON l.id_localidade=e.id_localidade
           LEFT JOIN esporotricose_animais an ON an.id_visita=e.id_visita
          WHERE va.id_agente=? AND e.data BETWEEN ? AND ?
-         GROUP BY e.id_visita
+         GROUP BY e.id_visita, e.data, l.nome, e.localidade, e.quarteirao,
+                  e.logradouro, e.numero, e.visita
          ORDER BY e.data, localidade
         """,
         (id_agente, d_ini, d_fim),
     ).fetchall()
     return [
         {
-            "data": row["data"],
+            "data": _iso_date(row["data"]),
             "origem": "Esporotricose",
             "tipo": "Esporotricose",
             "localidade": row["localidade"],
@@ -404,7 +464,7 @@ def _hist_recolhimentos(conn, id_agente, d_ini, d_fim):
     ).fetchall()
     return [
         {
-            "data": row["data"],
+            "data": _iso_date(row["data"]),
             "origem": "Recolhimentos",
             "tipo": "Recolhimento",
             "localidade": row["localidade"],
@@ -430,7 +490,7 @@ def _hist_amostras(conn, id_agente, d_ini, d_fim):
     ).fetchall()
     return [
         {
-            "data": row["data"],
+            "data": _iso_date(row["data"]),
             "origem": "Amostras animais",
             "tipo": row["tipo_animal"] or "Amostra",
             "localidade": row["localidade"],
@@ -457,7 +517,7 @@ def _hist_bri(conn, id_agente, d_ini, d_fim):
     ).fetchall()
     return [
         {
-            "data": row["data"],
+            "data": _iso_date(row["data"]),
             "origem": "BRI",
             "tipo": row["destino_tratamento"] or "BRI",
             "localidade": row["localidade"],
@@ -496,7 +556,7 @@ def _hist_ovitrampas(conn, id_agente, d_ini, d_fim):
     }
     return [
         {
-            "data": row["data"],
+            "data": _iso_date(row["data"]),
             "origem": "Ovitrampas",
             "tipo": labels.get(row["movimento"], row["movimento"] or "Ovitrampa"),
             "localidade": row["grupo"] or row["localidades"],
@@ -529,7 +589,7 @@ def _hist_acoes_setor(conn, id_agente, d_ini, d_fim):
     }
     return [
         {
-            "data": row["data"],
+            "data": _iso_date(row["data"]),
             "origem": "Ações e Atendimentos",
             "tipo": labels.get(row["tipo"], row["tipo"] or "Acao"),
             "localidade": row["localidade"],
@@ -572,7 +632,7 @@ def _hist_laboratorio_larvas(conn, id_agente, d_ini, d_fim):
     ).fetchall()
     return [
         {
-            "data": row["data"],
+            "data": _iso_date(row["data"]),
             "origem": "Laboratório",
             "tipo": "Leitura de larvas",
             "localidade": "",
@@ -589,24 +649,28 @@ def _hist_laboratorio_larvas(conn, id_agente, d_ini, d_fim):
 def _hist_ovitrampas_leituras(conn, id_agente, d_ini, d_fim):
     if not _table_exists(conn, "ovitrampas_leituras"):
         return []
+    data_expr = (
+        "COALESCE(CAST(data_leitura AS TEXT), "
+        "CAST(data_coleta AS TEXT), data_envio_contagem)"
+    )
     rows = conn.execute(
-        """
-        SELECT COALESCE(data_leitura, data_coleta, data_envio_contagem) AS data,
+        f"""
+        SELECT {data_expr} AS data,
                distrito AS localidade,
                COUNT(DISTINCT id_leitura) AS leituras,
                SUM(COALESCE(ovos,0)) AS ovos,
                SUM(CASE WHEN COALESCE(ovos,0)>0 THEN 1 ELSE 0 END) AS positivas
           FROM ovitrampas_leituras
          WHERE id_laboratorista=?
-           AND COALESCE(data_leitura, data_coleta, data_envio_contagem) BETWEEN ? AND ?
-         GROUP BY COALESCE(data_leitura, data_coleta, data_envio_contagem), distrito
+           AND {data_expr} BETWEEN ? AND ?
+         GROUP BY {data_expr}, distrito
          ORDER BY data, distrito
         """,
         (id_agente, d_ini, d_fim),
     ).fetchall()
     return [
         {
-            "data": row["data"],
+            "data": _iso_date(row["data"]),
             "origem": "Laboratório ovitrampas",
             "tipo": "Leitura de ovos",
             "localidade": row["localidade"],
@@ -636,13 +700,13 @@ def _hist_registro_geografico(conn, id_agente, d_ini, d_fim):
          WHERE ia.id_agente=?
            AND i.data_atualizacao BETWEEN ? AND ?
          GROUP BY i.data_atualizacao, i.localidade, i.quarteirao
-         ORDER BY i.data_atualizacao, i.localidade, CAST(i.quarteirao AS INTEGER), i.quarteirao
+         ORDER BY i.data_atualizacao, i.localidade, i.quarteirao
         """,
         (id_agente, d_ini, d_fim),
     ).fetchall()
     return [
         {
-            "data": row["data"],
+            "data": _iso_date(row["data"]),
             "origem": "Registro Geográfico",
             "tipo": "Atualização de RG",
             "localidade": row["localidade"],

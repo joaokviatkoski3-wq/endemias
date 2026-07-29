@@ -19,8 +19,9 @@ banco recebeu depois uma copia validada de `153.419` registros do SQLite. O
 A primeira camada dual da aplicacao tambem foi criada. Os helpers comuns e a
 tela de login ja foram testados em modo somente leitura contra
 `endemias_teste`. Tentativas de login e auditoria tambem tiveram suas escritas
-validadas em tabelas PostgreSQL temporarias. Os limites atuais estao
-documentados em
+validadas em tabelas PostgreSQL temporarias. O primeiro modulo funcional
+concluido foi o Controle de Pessoal, incluindo CRUD, filtros, historico e
+renderizacao da pagina. Os limites atuais estao documentados em
 `docs/POSTGRESQL_CAMADA_DUAL.md`.
 
 ## Bancos locais
@@ -115,7 +116,8 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
 4. Concluido: comparar contagens, checksums e chaves estrangeiras.
 5. Em andamento: adaptar e testar a aplicacao em ambiente PostgreSQL
    separado. A camada comum, o primeiro teste Flask, autenticacao e auditoria
-   estao concluidos.
+   estao concluidos; Controle de Pessoal e o primeiro modulo funcional
+   homologado.
 6. Ensaiar a migracao com uma copia recente do banco oficial.
 7. Fazer backup, carga final, validacao e troca controlada.
 

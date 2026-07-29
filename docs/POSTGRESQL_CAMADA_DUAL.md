@@ -70,6 +70,45 @@ publicas, valida:
 As tabelas temporarias existem apenas na conexao do teste e sao descartadas
 automaticamente ao final.
 
+## Controle de Pessoal
+
+O primeiro modulo funcional completo migrado foi o **Controle de Pessoal**.
+Estao compativeis com os dois bancos:
+
+- listagem e filtros por situacao;
+- busca por nome, nome completo, matricula e CPF;
+- busca sem diferenca entre letras maiusculas e minusculas;
+- cadastro com recuperacao segura do novo ID;
+- consulta individual e edicao dos campos permitidos;
+- normalizacao e criacao de servidores vindos das importacoes;
+- CPF, data de nascimento e nome completo;
+- historico consolidado das frentes de trabalho;
+- renderizacao da pagina administrativa.
+
+No PostgreSQL, a tabela `agentes` e administrada exclusivamente pelas
+migracoes. O SQLite preserva a manutencao de compatibilidade usada pelos bancos
+antigos.
+
+O teste controlado e executado com:
+
+```powershell
+python scripts\testar_servidores_postgresql.py --database endemias_teste
+```
+
+Resultado da homologacao:
+
+| Verificacao | Resultado |
+| --- | ---: |
+| CRUD em tabela temporaria | `OK` |
+| Busca sem diferenca de caixa | `OK` |
+| Eventos lidos no historico real | `2.868` |
+| Origens presentes no historico | `8` |
+| Pagina Controle de Pessoal | `HTTP 200` |
+| Tabela publica `agentes` | Preservada |
+
+O teste de pagina usa um administrador existente somente para estabelecer a
+sessao. Nenhuma senha e lida e nenhum dado publico e alterado.
+
 Por seguranca, outro banco exige:
 
 ```powershell
@@ -98,9 +137,9 @@ incompativel.
 
 ## Proxima etapa
 
-Autenticacao e auditoria ja possuem leitura e escrita basicas validadas. A
-proxima etapa e migrar o primeiro modulo funcional completo, incluindo sua
-pagina, consultas e gravacoes.
+Autenticacao, auditoria e Controle de Pessoal ja possuem leitura e escrita
+basicas validadas. A proxima etapa e escolher outro modulo com dependencias
+controladas e repetir a conversao completa.
 
 Cada lote deve:
 

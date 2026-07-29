@@ -28,7 +28,7 @@ def page():
         "status": request.args.get("status", "ativos"),
         "busca": request.args.get("busca", ""),
     }
-    agentes = agentes_core.listar(current_app.config["DB_PATH"], filtros)
+    agentes = agentes_core.listar(bh.db_target(), filtros)
     return render_template(
         "admin_agentes.html",
         agentes=agentes,
@@ -44,7 +44,7 @@ def page():
 def criar():
     dados = request.form.to_dict()
     try:
-        novo_id = agentes_core.criar(current_app.config["DB_PATH"], dados)
+        novo_id = agentes_core.criar(bh.db_target(), dados)
         _invalidate_globals()
         audit.registrar_evento(
             bh.get_db,
@@ -58,7 +58,7 @@ def criar():
         filtros = {"status": "todos", "busca": ""}
         return render_template(
             "admin_agentes.html",
-            agentes=agentes_core.listar(current_app.config["DB_PATH"], filtros),
+            agentes=agentes_core.listar(bh.db_target(), filtros),
             filtros=filtros,
             d_ini=utils_core.data_n_dias(30),
             d_fim=utils_core.hoje(),
@@ -74,7 +74,12 @@ def editar(id_agente):
     campo = request.form.get("campo", "")
     valor = request.form.get("valor", "")
     try:
-        anterior, novo = agentes_core.atualizar_campo(current_app.config["DB_PATH"], id_agente, campo, valor)
+        anterior, novo = agentes_core.atualizar_campo(
+            bh.db_target(),
+            id_agente,
+            campo,
+            valor,
+        )
         _invalidate_globals()
         audit.registrar_evento(
             bh.get_db,
