@@ -1048,18 +1048,15 @@ def _inserir_busca_ferido(conn, id_animal, dados):
     sql = f"""INSERT INTO {BUSCAS_FERIDO_TABLE}
                  (id_animal, data_busca, agente, observacoes, origem, criado_em, atualizado_em)
                VALUES (?,?,?,?,?,?,?)"""
-    if getattr(conn, "backend", "sqlite") == "postgresql":
-        sql += " RETURNING id_busca"
-    cur = conn.execute(
+    return db_core.insert_and_get_id(
+        conn,
         sql,
         (
             id_animal, payload["data_busca"], payload["agente"], payload["observacoes"],
             "sistema", agora, agora,
         ),
+        "id_busca",
     )
-    if getattr(conn, "backend", "sqlite") == "postgresql":
-        return cur.fetchone()[0]
-    return cur.lastrowid
 
 
 def salvar_busca_ferido(target, id_animal, dados):
@@ -1168,9 +1165,9 @@ def eventos_agenda_buscas_ferido(target, inicio, fim):
         conn.close()
 
 
-def preparar_doente_de_visita(db_path, id_animal_visita):
+def preparar_doente_de_visita(target, id_animal_visita):
     """Monta o cadastro inicial sem alterar o animal importado do Kobo."""
-    conn = db_core.connect(db_path)
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         row = conn.execute(
@@ -1353,9 +1350,9 @@ def dashboard(target, filtros=None):
     }
 
 
-def listar_doentes(db_path, filtros=None):
+def listar_doentes(target, filtros=None):
     filtros = filtros or {}
-    conn = db_core.connect(db_path)
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         where = []
@@ -1380,9 +1377,16 @@ def listar_doentes(db_path, filtros=None):
             where.append("d.pedido_zoomed=?")
             params.append(pedido_zoomed)
         if busca:
-            termo = f"%{busca}%"
+            termo = f"%{busca.lower()}%"
             where.append(
-                "(d.tutor LIKE ? OR d.nome LIKE ? OR d.telefone LIKE ? OR d.cpf LIKE ? OR d.endereco LIKE ? OR d.sinan LIKE ?)"
+                """(
+                    LOWER(COALESCE(d.tutor, '')) LIKE ?
+                    OR LOWER(COALESCE(d.nome, '')) LIKE ?
+                    OR LOWER(COALESCE(d.telefone, '')) LIKE ?
+                    OR LOWER(COALESCE(d.cpf, '')) LIKE ?
+                    OR LOWER(COALESCE(d.endereco, '')) LIKE ?
+                    OR LOWER(COALESCE(d.sinan, '')) LIKE ?
+                )"""
             )
             params.extend([termo] * 6)
         sql = """
@@ -1402,19 +1406,22 @@ def listar_doentes(db_path, filtros=None):
                       FROM esporotricose_doentes_entregas e
                       JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
                      WHERE r.id_animal_doente=d.id_animal_doente
-                     ORDER BY COALESCE(e.data_entrega, e.criado_em) DESC, e.id_entrega DESC
+                     ORDER BY COALESCE(CAST(e.data_entrega AS TEXT), e.criado_em) DESC,
+                              e.id_entrega DESC
                      LIMIT 1) AS ultima_entrega,
                    (SELECT e.quantidade
                       FROM esporotricose_doentes_entregas e
                       JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
                      WHERE r.id_animal_doente=d.id_animal_doente
-                     ORDER BY COALESCE(e.data_entrega, e.criado_em) DESC, e.id_entrega DESC
+                     ORDER BY COALESCE(CAST(e.data_entrega AS TEXT), e.criado_em) DESC,
+                              e.id_entrega DESC
                      LIMIT 1) AS ultima_entrega_quantidade,
                    (SELECT COALESCE(r.capsulas_por_dia, 1)
                       FROM esporotricose_doentes_entregas e
                       JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
                      WHERE r.id_animal_doente=d.id_animal_doente
-                     ORDER BY COALESCE(e.data_entrega, e.criado_em) DESC, e.id_entrega DESC
+                     ORDER BY COALESCE(CAST(e.data_entrega AS TEXT), e.criado_em) DESC,
+                              e.id_entrega DESC
                      LIMIT 1) AS ultima_entrega_capsulas_por_dia,
                    (SELECT COALESCE(SUM(CASE WHEN COALESCE(r.receita_pendente, 0)=0 THEN r.capsulas_total ELSE 0 END), 0)
                       FROM esporotricose_doentes_receitas r
@@ -1437,7 +1444,7 @@ def listar_doentes(db_path, filtros=None):
         if where:
             sql += " WHERE " + " AND ".join(where)
         sql += """
-                   ORDER BY COALESCE(d.data_notificacao, '') DESC,
+                   ORDER BY COALESCE(CAST(d.data_notificacao AS TEXT), '') DESC,
                             d.id_animal_doente DESC"""
         rows = [_doente_row(row) for row in conn.execute(sql, params).fetchall()]
         if baixa_zoomed == "Pendente":
@@ -1452,20 +1459,21 @@ def listar_doentes(db_path, filtros=None):
         conn.close()
 
 
-def estoque_medicacao(db_path):
-    doentes = listar_doentes(db_path, {})["registros"]
+def estoque_medicacao(target):
+    doentes = listar_doentes(target, {})["registros"]
     em_tratamento = [item for item in doentes if _doente_em_tratamento(item.get("status"))]
     encerrados = [item for item in doentes if not _doente_em_tratamento(item.get("status"))]
-    conn = db_core.connect(db_path)
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
-        movimentos = [dict(row) for row in conn.execute(
+        movimentos = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT id_movimento, data, tipo, quantidade, descricao, origem, observacoes,
                        criado_em, atualizado_em
                   FROM {DOENTES_ESTOQUE_TABLE}
-                 ORDER BY COALESCE(data, criado_em) DESC, id_movimento DESC"""
+                 ORDER BY COALESCE(CAST(data AS TEXT), criado_em) DESC,
+                          id_movimento DESC"""
         ).fetchall()]
-        movimentos_automaticos = [dict(row) for row in conn.execute(
+        movimentos_automaticos = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT
                        e.id_entrega,
                        e.data_entrega AS data,
@@ -1482,7 +1490,8 @@ def estoque_medicacao(db_path):
                   FROM {DOENTES_ENTREGAS_TABLE} e
                   JOIN {DOENTES_RECEITAS_TABLE} r ON r.id_receita = e.id_receita
                   JOIN {DOENTES_TABLE} d ON d.id_animal_doente = r.id_animal_doente
-                 ORDER BY COALESCE(e.data_entrega, e.criado_em) DESC, e.id_entrega DESC"""
+                 ORDER BY COALESCE(CAST(e.data_entrega AS TEXT), e.criado_em) DESC,
+                          e.id_entrega DESC"""
         ).fetchall()]
     finally:
         conn.close()
@@ -1563,7 +1572,7 @@ def _totais_doentes(conn):
     return {"capsulas_baixa_zoomed": int(row["capsulas_baixa_zoomed"] or 0)}
 
 
-def salvar_estoque_medicacao(db_path, dados):
+def salvar_estoque_medicacao(target, dados):
     tipo = _normalizar_tipo_estoque(dados.get("tipo"))
     if tipo not in ESTOQUE_MEDICACAO_TIPOS:
         raise ValidationError("Tipo de movimento de estoque invÃ¡lido.")
@@ -1586,7 +1595,7 @@ def salvar_estoque_medicacao(db_path, dados):
     }
     id_movimento = _int(dados.get("id_movimento"))
     agora = datetime.now().isoformat(timespec="seconds")
-    conn = db_core.connect(db_path)
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         if id_movimento:
@@ -1602,7 +1611,8 @@ def salvar_estoque_medicacao(db_path, dados):
             if cur.rowcount == 0:
                 raise ValidationError("Movimento de estoque nÃ£o encontrado.")
         else:
-            cur = conn.execute(
+            id_movimento = db_core.insert_and_get_id(
+                conn,
                 f"""INSERT INTO {DOENTES_ESTOQUE_TABLE}
                     (data, tipo, quantidade, descricao, origem, observacoes, criado_em, atualizado_em)
                     VALUES (?,?,?,?,?,?,?,?)""",
@@ -1610,16 +1620,16 @@ def salvar_estoque_medicacao(db_path, dados):
                     payload["data"], payload["tipo"], payload["quantidade"], payload["descricao"],
                     payload["origem"], payload["observacoes"], agora, agora,
                 ),
+                "id_movimento",
             )
-            id_movimento = cur.lastrowid
         conn.commit()
         return id_movimento
     finally:
         conn.close()
 
 
-def excluir_estoque_medicacao(db_path, id_movimento):
-    conn = db_core.connect(db_path)
+def excluir_estoque_medicacao(target, id_movimento):
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         cur = conn.execute(
@@ -1633,9 +1643,9 @@ def excluir_estoque_medicacao(db_path, id_movimento):
         conn.close()
 
 
-def salvar_observacao_movimento_automatico(db_path, id_entrega, observacoes):
+def salvar_observacao_movimento_automatico(target, id_entrega, observacoes):
     """Atualiza apenas a observação de uma saída criada por entrega de receita."""
-    conn = db_core.connect(db_path)
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         cur = conn.execute(
@@ -1649,9 +1659,9 @@ def salvar_observacao_movimento_automatico(db_path, id_entrega, observacoes):
         conn.close()
 
 
-def listar_doentes_csv(db_path, filtros=None):
+def listar_doentes_csv(target, filtros=None):
     filtros = filtros or {}
-    conn = db_core.connect(db_path)
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         where = []
@@ -1675,9 +1685,16 @@ def listar_doentes_csv(db_path, filtros=None):
             where.append("d.pedido_zoomed=?")
             params.append(pedido_zoomed)
         if busca:
-            termo = f"%{busca}%"
+            termo = f"%{busca.lower()}%"
             where.append(
-                "(d.tutor LIKE ? OR d.nome LIKE ? OR d.telefone LIKE ? OR d.cpf LIKE ? OR d.endereco LIKE ? OR d.sinan LIKE ?)"
+                """(
+                    LOWER(COALESCE(d.tutor, '')) LIKE ?
+                    OR LOWER(COALESCE(d.nome, '')) LIKE ?
+                    OR LOWER(COALESCE(d.telefone, '')) LIKE ?
+                    OR LOWER(COALESCE(d.cpf, '')) LIKE ?
+                    OR LOWER(COALESCE(d.endereco, '')) LIKE ?
+                    OR LOWER(COALESCE(d.sinan, '')) LIKE ?
+                )"""
             )
             params.extend([termo] * 6)
         sql = """
@@ -1720,7 +1737,8 @@ def listar_doentes_csv(db_path, filtros=None):
                          FROM esporotricose_doentes_entregas e
                          JOIN esporotricose_doentes_receitas re ON re.id_receita=e.id_receita
                         WHERE re.id_animal_doente=d.id_animal_doente
-                        ORDER BY COALESCE(e.data_entrega, e.criado_em) DESC, e.id_entrega DESC
+                        ORDER BY COALESCE(CAST(e.data_entrega AS TEXT), e.criado_em) DESC,
+                                 e.id_entrega DESC
                         LIMIT 1
                    ) AS ultima_entrega,
                    (
@@ -1728,7 +1746,8 @@ def listar_doentes_csv(db_path, filtros=None):
                          FROM esporotricose_doentes_entregas e
                          JOIN esporotricose_doentes_receitas re ON re.id_receita=e.id_receita
                         WHERE re.id_animal_doente=d.id_animal_doente
-                        ORDER BY COALESCE(e.data_entrega, e.criado_em) DESC, e.id_entrega DESC
+                        ORDER BY COALESCE(CAST(e.data_entrega AS TEXT), e.criado_em) DESC,
+                                 e.id_entrega DESC
                         LIMIT 1
                    ) AS ultima_entrega_quantidade,
                    (
@@ -1736,7 +1755,8 @@ def listar_doentes_csv(db_path, filtros=None):
                          FROM esporotricose_doentes_entregas e
                          JOIN esporotricose_doentes_receitas re ON re.id_receita=e.id_receita
                         WHERE re.id_animal_doente=d.id_animal_doente
-                        ORDER BY COALESCE(e.data_entrega, e.criado_em) DESC, e.id_entrega DESC
+                        ORDER BY COALESCE(CAST(e.data_entrega AS TEXT), e.criado_em) DESC,
+                                 e.id_entrega DESC
                         LIMIT 1
                    ) AS ultima_entrega_capsulas_por_dia,
                    (
@@ -1763,22 +1783,20 @@ def listar_doentes_csv(db_path, filtros=None):
         if where:
             sql += " WHERE " + " AND ".join(where)
         sql += " GROUP BY d.id_animal_doente"
-        if baixa_zoomed == "Pendente":
-            sql += """ HAVING entregas_zoomed_pendentes > 0
-                        OR (d.status='Em tratamento' AND entregas=0)"""
-        elif baixa_zoomed == "Sim":
-            sql += """ HAVING entregas_zoomed_pendentes = 0
-                        AND NOT (d.status='Em tratamento' AND entregas=0)"""
         sql += """
-                   ORDER BY COALESCE(d.data_notificacao, '') DESC,
+                   ORDER BY COALESCE(CAST(d.data_notificacao AS TEXT), '') DESC,
                             d.id_animal_doente DESC"""
         rows = []
         for row in conn.execute(sql, params).fetchall():
-            item = dict(row)
+            item = db_core.serialize_row(row)
             pendentes = int(item.get("entregas_zoomed_pendentes") or 0)
             entregas = int(item.get("entregas") or 0)
             if entregas == 0 and item.get("status") == "Em tratamento" and pendentes == 0:
                 pendentes = 1
+            if baixa_zoomed == "Pendente" and pendentes == 0:
+                continue
+            if baixa_zoomed == "Sim" and pendentes > 0:
+                continue
             item["baixa_zoomed"] = "Pendente" if pendentes else "Sim"
             item["especie"] = _especie_doente(item)
             item["receita_pendente"] = int(item.get("receitas_pendentes") or 0) > 0
@@ -1797,8 +1815,8 @@ def listar_doentes_csv(db_path, filtros=None):
         conn.close()
 
 
-def obter_doente(db_path, id_animal_doente):
-    conn = db_core.connect(db_path)
+def obter_doente(target, id_animal_doente):
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         row = conn.execute(
@@ -1812,13 +1830,14 @@ def obter_doente(db_path, id_animal_doente):
         for receita in conn.execute(
             """SELECT * FROM esporotricose_doentes_receitas
                 WHERE id_animal_doente=?
-                ORDER BY COALESCE(data_receita, criado_em) DESC, id_receita DESC""",
+                ORDER BY COALESCE(CAST(data_receita AS TEXT), criado_em) DESC,
+                         id_receita DESC""",
             (id_animal_doente,),
         ).fetchall():
-            item = dict(receita)
+            item = db_core.serialize_row(receita)
             item["prazo_receita_dias"] = _dias_desde(item.get("data_receita"))
             item["entregas"] = [
-                dict(e) for e in conn.execute(
+                db_core.serialize_row(e) for e in conn.execute(
                     """SELECT * FROM esporotricose_doentes_entregas
                         WHERE id_receita=?
                         ORDER BY data_entrega, id_entrega""",
@@ -1834,7 +1853,7 @@ def obter_doente(db_path, id_animal_doente):
                 ORDER BY criado_em DESC, id_anexo DESC""",
             (id_animal_doente,),
         ).fetchall()]
-        animal["origens_visita"] = [dict(row) for row in conn.execute(
+        animal["origens_visita"] = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT origem.id_animal_visita, origem.vinculado_em,
                        v.data, v.localidade, v.quarteirao, v.logradouro, v.numero,
                        v.agentes_texto
@@ -1850,8 +1869,8 @@ def obter_doente(db_path, id_animal_doente):
         conn.close()
 
 
-def salvar_doente(db_path, dados):
-    conn = db_core.connect(db_path)
+def salvar_doente(target, dados):
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         agora = datetime.now().isoformat(timespec="seconds")
@@ -1900,7 +1919,8 @@ def salvar_doente(db_path, dados):
                     raise ValidationError("Já existe um animal doente com estes dados.")
                 id_animal = existente["id_animal_doente"]
             else:
-                cur = conn.execute(
+                id_animal = db_core.insert_and_get_id(
+                    conn,
                     """INSERT INTO esporotricose_doentes_animais
                        (chave, tutor, nome, especie, sexo, telefone, cpf, localidade, quarteirao, endereco,
                         latitude, longitude, sinan, status, bloqueio, data_bloqueio,
@@ -1913,8 +1933,8 @@ def salvar_doente(db_path, dados):
                         payload["bloqueio"], payload["data_bloqueio"], payload["observacoes_entomologica"],
                         payload["pedido_zoomed"], payload["data_notificacao"] or agora[:10], agora, agora,
                     ),
+                    "id_animal_doente",
                 )
-                id_animal = cur.lastrowid
             if id_animal_visita:
                 conn.execute(
                     f"""INSERT INTO {DOENTES_ORIGENS_TABLE}
@@ -1928,8 +1948,8 @@ def salvar_doente(db_path, dados):
         conn.close()
 
 
-def salvar_receita_doente(db_path, id_animal_doente, dados):
-    conn = db_core.connect(db_path)
+def salvar_receita_doente(target, id_animal_doente, dados):
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         existe = conn.execute(
@@ -1964,7 +1984,8 @@ def salvar_receita_doente(db_path, id_animal_doente, dados):
             if cur.rowcount == 0:
                 raise ValidationError("Receita não encontrada.")
         else:
-            cur = conn.execute(
+            id_receita = db_core.insert_and_get_id(
+                conn,
                 """INSERT INTO esporotricose_doentes_receitas
                    (id_animal_doente, inicio_sintomas, data_receita,
                     visita_va_veterinario, capsulas_total, posologia, capsulas_por_dia,
@@ -1976,8 +1997,8 @@ def salvar_receita_doente(db_path, id_animal_doente, dados):
                     payload["posologia"], payload["capsulas_por_dia"], payload["receita_pendente"], payload["status"],
                     payload["observacoes"], None, agora, agora,
                 ),
+                "id_receita",
             )
-            id_receita = cur.lastrowid
         conn.execute(
             "UPDATE esporotricose_doentes_animais SET atualizado_em=? WHERE id_animal_doente=?",
             (agora, id_animal_doente),
@@ -1988,8 +2009,8 @@ def salvar_receita_doente(db_path, id_animal_doente, dados):
         conn.close()
 
 
-def atualizar_receita_doente(db_path, id_receita, dados):
-    conn = db_core.connect(db_path)
+def atualizar_receita_doente(target, id_receita, dados):
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         receita = conn.execute(
@@ -2003,12 +2024,12 @@ def atualizar_receita_doente(db_path, id_receita, dados):
         id_animal = receita["id_animal_doente"]
     finally:
         conn.close()
-    salvar_receita_doente(db_path, id_animal, payload)
+    salvar_receita_doente(target, id_animal, payload)
     return id_animal
 
 
-def salvar_entrega_doente(db_path, id_receita, dados):
-    conn = db_core.connect(db_path)
+def salvar_entrega_doente(target, id_receita, dados):
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         receita = conn.execute(
@@ -2022,24 +2043,26 @@ def salvar_entrega_doente(db_path, id_receita, dados):
             raise ValidationError("Informe a quantidade de cápsulas.")
         baixa_zoomed = _normalizar_sim_nao(dados.get("baixa_zoomed")) or "Não"
         agora = datetime.now().isoformat(timespec="seconds")
-        cur = conn.execute(
+        id_entrega = db_core.insert_and_get_id(
+            conn,
             """INSERT INTO esporotricose_doentes_entregas
                (id_receita, quantidade, data_entrega, baixa_zoomed, observacoes, criado_em)
                VALUES (?,?,?,?,?,?)""",
             (id_receita, quantidade, _date(dados.get("data_entrega")), baixa_zoomed, _text(dados.get("observacoes")), agora),
+            "id_entrega",
         )
         conn.execute(
             "UPDATE esporotricose_doentes_animais SET atualizado_em=? WHERE id_animal_doente=?",
             (agora, receita["id_animal_doente"]),
         )
         conn.commit()
-        return cur.lastrowid
+        return id_entrega
     finally:
         conn.close()
 
 
-def atualizar_entrega_doente(db_path, id_entrega, dados):
-    conn = db_core.connect(db_path)
+def atualizar_entrega_doente(target, id_entrega, dados):
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         row = conn.execute(
@@ -2076,8 +2099,8 @@ def atualizar_entrega_doente(db_path, id_entrega, dados):
         conn.close()
 
 
-def excluir_doente(db_path, id_animal_doente):
-    conn = db_core.connect(db_path)
+def excluir_doente(target, id_animal_doente):
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         animal = conn.execute(
@@ -2114,7 +2137,10 @@ def excluir_doente(db_path, id_animal_doente):
             (id_animal_doente,),
         )
         conn.commit()
-        return {"animal": _doente_row(animal), "anexos": [dict(row) for row in anexos]}
+        return {
+            "animal": _doente_row(animal),
+            "anexos": [db_core.serialize_row(row) for row in anexos],
+        }
     except Exception:
         conn.rollback()
         raise
@@ -2122,8 +2148,8 @@ def excluir_doente(db_path, id_animal_doente):
         conn.close()
 
 
-def excluir_receita_doente(db_path, id_receita):
-    conn = db_core.connect(db_path)
+def excluir_receita_doente(target, id_receita):
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         row = conn.execute(
@@ -2147,8 +2173,8 @@ def excluir_receita_doente(db_path, id_receita):
         conn.close()
 
 
-def excluir_entrega_doente(db_path, id_entrega):
-    conn = db_core.connect(db_path)
+def excluir_entrega_doente(target, id_entrega):
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         conn.execute("DELETE FROM esporotricose_doentes_entregas WHERE id_entrega=?", (id_entrega,))
@@ -2157,11 +2183,11 @@ def excluir_entrega_doente(db_path, id_entrega):
         conn.close()
 
 
-def status_doentes(db_path):
-    conn = db_core.connect(db_path)
+def status_doentes(target):
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
-        rows = [dict(row) for row in conn.execute(
+        rows = [db_core.serialize_row(row) for row in conn.execute(
             "SELECT id_status, nome, ativo FROM esporotricose_doentes_status WHERE ativo=1"
         )]
         ordem = {nome: i for i, nome in enumerate(DOENTES_STATUS_PADRAO)}
@@ -2170,12 +2196,87 @@ def status_doentes(db_path):
         conn.close()
 
 
-def salvar_status_doente(db_path, nome):
-    conn = db_core.connect(db_path)
+def salvar_status_doente(target, nome):
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         _salvar_status_doente(conn, nome)
         conn.commit()
+    finally:
+        conn.close()
+
+
+def salvar_anexos_doente(target, id_animal_doente, anexos, criado_por):
+    conn = db_core.connect(target)
+    try:
+        ensure_schema(conn)
+        existe = conn.execute(
+            f"SELECT 1 FROM {DOENTES_TABLE} WHERE id_animal_doente=?",
+            (id_animal_doente,),
+        ).fetchone()
+        if not existe:
+            raise ValidationError("Animal doente não encontrado.")
+        ids = []
+        agora = datetime.now().isoformat(timespec="seconds")
+        for anexo in anexos:
+            ids.append(
+                db_core.insert_and_get_id(
+                    conn,
+                    f"""INSERT INTO {DOENTES_ANEXOS_TABLE}
+                           (id_animal_doente, id_receita, nome_original,
+                            nome_arquivo, caminho_rel, mime_type, tamanho,
+                            criado_por, criado_em)
+                         VALUES (?,?,?,?,?,?,?,?,?)""",
+                    (
+                        id_animal_doente,
+                        _int(anexo.get("id_receita")),
+                        _text(anexo.get("nome_original")),
+                        _text(anexo.get("nome_arquivo")),
+                        _text(anexo.get("caminho_rel")),
+                        _text(anexo.get("mime_type")),
+                        int(anexo.get("tamanho") or 0),
+                        _text(criado_por) or "sistema",
+                        agora,
+                    ),
+                    "id_anexo",
+                )
+            )
+        conn.commit()
+        return ids
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def obter_anexo_doente(target, id_anexo):
+    conn = db_core.connect(target)
+    try:
+        row = conn.execute(
+            f"SELECT * FROM {DOENTES_ANEXOS_TABLE} WHERE id_anexo=?",
+            (id_anexo,),
+        ).fetchone()
+        return db_core.serialize_row(row) if row else None
+    finally:
+        conn.close()
+
+
+def excluir_anexo_doente(target, id_anexo):
+    conn = db_core.connect(target)
+    try:
+        row = conn.execute(
+            f"SELECT * FROM {DOENTES_ANEXOS_TABLE} WHERE id_anexo=?",
+            (id_anexo,),
+        ).fetchone()
+        if not row:
+            raise ValidationError("Anexo não encontrado.")
+        conn.execute(
+            f"DELETE FROM {DOENTES_ANEXOS_TABLE} WHERE id_anexo=?",
+            (id_anexo,),
+        )
+        conn.commit()
+        return db_core.serialize_row(row)
     finally:
         conn.close()
 
@@ -2345,7 +2446,7 @@ def _quantidade_entrega_historica(acumulado, acumulado_anterior):
 
 
 def _doente_row(row):
-    item = dict(row)
+    item = db_core.serialize_row(row)
     item["especie"] = _especie_doente(item)
     item["receita_pendente"] = int(item.get("receitas_pendentes") or 0) > 0
     item["capsulas_restantes"] = max(
@@ -2499,7 +2600,7 @@ def _normalizar_especie_doente(value):
 
 
 def _anexo_doente_dict(row):
-    item = dict(row)
+    item = db_core.serialize_row(row)
     item["url_download"] = f"/esporotricose/doentes/anexos/{item['id_anexo']}/download"
     item["url_visualizar"] = f"/esporotricose/doentes/anexos/{item['id_anexo']}/download?inline=1"
     item["url_miniatura"] = f"/esporotricose/doentes/anexos/{item['id_anexo']}/miniatura"

@@ -297,9 +297,41 @@ O script valida leitura e escrita em sete tabelas temporarias, consulta a
 pagina e as APIs reais somente em leitura e compara todas as contagens
 publicas antes e depois.
 
-O cadastro manual de animais doentes, receitas, entregas, anexos e estoque de
-medicacao ainda permanece no bloco SQLite e sera convertido separadamente.
-As telas operacionais de **Ovitrampas** tambem permanecem para etapas futuras.
+## Cadastro Clinico de Esporotricose
+
+O cadastro manual de animais doentes tambem foi homologado nos dois bancos.
+O recorte inclui:
+
+- cadastro, consulta, edicao e exclusao de animais doentes;
+- vinculo opcional com animais encontrados nas visitas do Kobo;
+- filtros, resumos, indicadores e exportacao CSV;
+- status, data de notificacao, CPF e dados operacionais;
+- cadastro, edicao e exclusao de receitas e entregas;
+- posologia, capsulas entregues, faltantes, excedentes e proxima entrega;
+- baixa no Zoomed e total de capsulas baixadas;
+- estoque manual e saidas automaticas geradas pelas entregas;
+- edicao das observacoes das saidas automaticas;
+- metadados, consulta e exclusao dos anexos;
+- recuperacao de identidades com `lastrowid` no SQLite e `RETURNING` no
+  PostgreSQL;
+- serializacao uniforme de datas e valores numericos.
+
+Os PDFs e suas miniaturas continuam armazenados na pasta de anexos. O banco
+guarda apenas os metadados e vinculos, como ja ocorria no SQLite.
+
+O ensaio controlado e:
+
+```powershell
+python scripts\testar_esporotricose_clinica_postgresql.py `
+  --database endemias_teste
+```
+
+O script exercita o fluxo completo em nove tabelas temporarias, consulta as
+paginas e APIs reais somente em leitura e confirma que as tabelas publicas
+permaneceram inalteradas.
+
+Com isso, a pagina **Esporotricose** esta funcionalmente coberta pela camada
+dual. As telas operacionais de **Ovitrampas** permanecem para etapas futuras.
 
 Por seguranca, outro banco exige:
 
@@ -336,9 +368,9 @@ homologados, incluindo seus vinculos. O Historico de Importacoes esta pronto,
 embora a pagina completa de Importacao Kobo ainda nao esteja homologada.
 Dashboard Integrado, Producao Operacional e Resultados Laboratoriais possuem
 agora suas consultas homologadas nos dois bancos. O bloco de visitas de
-Esporotricose, seus animais, localidades e buscas de feridos tambem esta
-homologado. O proximo recorte sensivel da pagina e o cadastro manual de
-doentes, com receitas, estoque e anexos.
+Esporotricose, incluindo visitas, animais encontrados, buscas de feridos,
+cadastro clinico, receitas, estoque e anexos, tambem esta homologado. O
+proximo grande recorte operacional e a pagina de Ovitrampas.
 
 Cada lote deve:
 

@@ -388,3 +388,15 @@ def serialize_row(row):
         elif hasattr(value, "isoformat"):
             data[key] = value.isoformat()
     return data
+
+
+def insert_and_get_id(conn, statement, params, id_column):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        sql = statement.rstrip().rstrip(";")
+        row = conn.execute(f"{sql} RETURNING {id_column}", params).fetchone()
+        if not row:
+            raise DatabaseCompatibilityError(
+                f"O INSERT nao retornou a coluna {id_column}."
+            )
+        return row[0]
+    return conn.execute(statement, params).lastrowid

@@ -32,7 +32,8 @@ listagem, detalhes e edicao homologados nos dois bancos. Dashboard Integrado,
 Producao Operacional e a consulta geral de Resultados Laboratoriais completam
 o lote seguinte. As visitas de Esporotricose importadas do Kobo, incluindo
 animais encontrados, localidades e buscas de feridos, tambem estao
-homologadas.
+homologadas. O cadastro manual de doentes, receitas, entregas, estoque e
+metadados dos anexos completa a cobertura funcional da pagina.
 
 ## Bancos locais
 
@@ -134,8 +135,9 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
    posterior. Dashboard Integrado, Producao Operacional e a consulta
    laboratorial geral tambem estao homologados. O bloco de visitas de
    Esporotricose, seus animais e buscas de feridos completa o lote seguinte.
-   O cadastro manual de doentes, receitas, estoque e anexos, alem das telas
-   operacionais de Ovitrampas, permanece para etapas futuras.
+   O cadastro manual de doentes, receitas, entregas, estoque e metadados dos
+   anexos foi homologado na sequencia. As telas operacionais de Ovitrampas
+   permanecem para etapas futuras.
 6. Ensaiar a migracao com uma copia recente do banco oficial.
 7. Fazer backup, carga final, validacao e troca controlada.
 

@@ -6,7 +6,6 @@ import shutil
 import sqlite3
 import uuid
 import warnings
-from datetime import datetime
 from pathlib import Path
 
 from flask import Blueprint, Response, abort, current_app, jsonify, redirect, render_template, request, send_file
@@ -32,10 +31,6 @@ ANEXO_MAX_BYTES = 20 * 1024 * 1024
 
 class AnexoImagemInvalida(ValueError):
     pass
-
-
-def _db_path():
-    return current_app.config["DB_PATH"]
 
 
 def _localidades():
@@ -115,7 +110,7 @@ def page_doente_novo():
     origem_visita = None
     id_animal_visita = (request.args.get("origem_animal") or "").strip()
     if id_animal_visita:
-        cadastro = esporotricose_core.preparar_doente_de_visita(_db_path(), id_animal_visita)
+        cadastro = esporotricose_core.preparar_doente_de_visita(bh.db_target(), id_animal_visita)
         if not cadastro:
             abort(404)
         if cadastro.get("id_animal_doente"):
@@ -127,7 +122,7 @@ def page_doente_novo():
         animal=animal,
         origem_visita=origem_visita,
         modo="novo",
-        status_opcoes=esporotricose_core.status_doentes(_db_path()),
+        status_opcoes=esporotricose_core.status_doentes(bh.db_target()),
         localidades=_localidades(),
     )
 
@@ -135,13 +130,13 @@ def page_doente_novo():
 @bp.route("/esporotricose/doentes/<int:id_animal>")
 @login_required
 def page_doente_detalhe(id_animal):
-    animal = esporotricose_core.obter_doente(_db_path(), id_animal)
+    animal = esporotricose_core.obter_doente(bh.db_target(), id_animal)
     if not animal:
         abort(404)
     return render_template(
         "esporotricose_doente_detalhe.html",
         animal=animal,
-        status_opcoes=esporotricose_core.status_doentes(_db_path()),
+        status_opcoes=esporotricose_core.status_doentes(bh.db_target()),
         status_class=_status_doente_class(animal.get("status")),
     )
 
@@ -150,7 +145,7 @@ def page_doente_detalhe(id_animal):
 @login_required
 @nivel_min("operador")
 def page_doente_editar(id_animal):
-    animal = esporotricose_core.obter_doente(_db_path(), id_animal)
+    animal = esporotricose_core.obter_doente(bh.db_target(), id_animal)
     if not animal:
         abort(404)
     return render_template(
@@ -158,7 +153,7 @@ def page_doente_editar(id_animal):
         animal=animal,
         origem_visita=None,
         modo="editar",
-        status_opcoes=esporotricose_core.status_doentes(_db_path()),
+        status_opcoes=esporotricose_core.status_doentes(bh.db_target()),
         localidades=_localidades(),
     )
 
@@ -303,7 +298,7 @@ def api_doentes():
         "pedido_zoomed": request.args.get("pedido_zoomed", ""),
         "baixa_zoomed": request.args.get("baixa_zoomed", ""),
     }
-    return jsonify(esporotricose_core.listar_doentes(_db_path(), filtros))
+    return jsonify(esporotricose_core.listar_doentes(bh.db_target(), filtros))
 
 
 @bp.route("/esporotricose/doentes/casos.csv")
@@ -342,7 +337,7 @@ def download_doentes_csv():
         "anexos",
         "observacoes_entomologica",
     ]
-    rows = esporotricose_core.listar_doentes_csv(_db_path(), {})
+    rows = esporotricose_core.listar_doentes_csv(bh.db_target(), {})
     buffer = io.StringIO()
     buffer.write("\ufeff")
     writer = csv.DictWriter(buffer, fieldnames=campos, delimiter=";", extrasaction="ignore", lineterminator="\n")
@@ -359,7 +354,7 @@ def download_doentes_csv():
 @bp.route("/api/esporotricose/doentes/status")
 @login_required
 def api_doentes_status():
-    return jsonify({"registros": esporotricose_core.status_doentes(_db_path())})
+    return jsonify({"registros": esporotricose_core.status_doentes(bh.db_target())})
 
 
 @bp.route("/api/esporotricose/doentes/status", methods=["POST"])
@@ -369,14 +364,14 @@ def api_criar_status_doente():
     nome = (request.json or {}).get("nome")
     if not nome:
         return jsonify({"erro": "Informe o status."}), 400
-    esporotricose_core.salvar_status_doente(_db_path(), nome)
-    return jsonify({"registros": esporotricose_core.status_doentes(_db_path())})
+    esporotricose_core.salvar_status_doente(bh.db_target(), nome)
+    return jsonify({"registros": esporotricose_core.status_doentes(bh.db_target())})
 
 
 @bp.route("/api/esporotricose/doentes/estoque")
 @login_required
 def api_doentes_estoque():
-    return jsonify(esporotricose_core.estoque_medicacao(_db_path()))
+    return jsonify(esporotricose_core.estoque_medicacao(bh.db_target()))
 
 
 @bp.route("/api/esporotricose/doentes/estoque", methods=["POST"])
@@ -384,10 +379,10 @@ def api_doentes_estoque():
 @nivel_min("operador")
 def api_criar_movimento_estoque():
     try:
-        id_movimento = esporotricose_core.salvar_estoque_medicacao(_db_path(), request.json or {})
+        id_movimento = esporotricose_core.salvar_estoque_medicacao(bh.db_target(), request.json or {})
     except esporotricose_core.ValidationError as exc:
         return jsonify({"erro": str(exc)}), 400
-    return jsonify({"ok": True, "id_movimento": id_movimento, **esporotricose_core.estoque_medicacao(_db_path())}), 201
+    return jsonify({"ok": True, "id_movimento": id_movimento, **esporotricose_core.estoque_medicacao(bh.db_target())}), 201
 
 
 @bp.route("/api/esporotricose/doentes/estoque/<int:id_movimento>", methods=["PUT", "DELETE"])
@@ -396,17 +391,17 @@ def api_criar_movimento_estoque():
 def api_doentes_estoque_item(id_movimento):
     if request.method == "DELETE":
         try:
-            esporotricose_core.excluir_estoque_medicacao(_db_path(), id_movimento)
+            esporotricose_core.excluir_estoque_medicacao(bh.db_target(), id_movimento)
         except esporotricose_core.ValidationError as exc:
             return jsonify({"erro": str(exc)}), 404
         return jsonify({"ok": True})
     try:
         dados = dict(request.json or {})
         dados["id_movimento"] = id_movimento
-        esporotricose_core.salvar_estoque_medicacao(_db_path(), dados)
+        esporotricose_core.salvar_estoque_medicacao(bh.db_target(), dados)
     except esporotricose_core.ValidationError as exc:
         return jsonify({"erro": str(exc)}), 400
-    return jsonify({"ok": True, **esporotricose_core.estoque_medicacao(_db_path())})
+    return jsonify({"ok": True, **esporotricose_core.estoque_medicacao(bh.db_target())})
 
 
 @bp.route("/api/esporotricose/doentes/estoque/automatico/<int:id_entrega>", methods=["PUT"])
@@ -415,17 +410,17 @@ def api_doentes_estoque_item(id_movimento):
 def api_doentes_estoque_automatico(id_entrega):
     try:
         esporotricose_core.salvar_observacao_movimento_automatico(
-            _db_path(), id_entrega, (request.json or {}).get("observacoes"),
+            bh.db_target(), id_entrega, (request.json or {}).get("observacoes"),
         )
     except esporotricose_core.ValidationError as exc:
         return jsonify({"erro": str(exc)}), 404
-    return jsonify({"ok": True, **esporotricose_core.estoque_medicacao(_db_path())})
+    return jsonify({"ok": True, **esporotricose_core.estoque_medicacao(bh.db_target())})
 
 
 @bp.route("/api/esporotricose/doentes/<int:id_animal>")
 @login_required
 def api_doente(id_animal):
-    item = esporotricose_core.obter_doente(_db_path(), id_animal)
+    item = esporotricose_core.obter_doente(bh.db_target(), id_animal)
     if not item:
         return jsonify({"erro": "Animal não encontrado."}), 404
     return jsonify(item)
@@ -437,7 +432,7 @@ def api_doente(id_animal):
 def api_alterar_doente(id_animal):
     if request.method == "DELETE":
         try:
-            resultado = esporotricose_core.excluir_doente(_db_path(), id_animal)
+            resultado = esporotricose_core.excluir_doente(bh.db_target(), id_animal)
         except esporotricose_core.ValidationError as exc:
             return jsonify({"erro": str(exc)}), 404
         _remover_arquivos_anexos(resultado.get("anexos", []))
@@ -446,10 +441,10 @@ def api_alterar_doente(id_animal):
         try:
             dados = dict(request.json or {})
             dados["id_animal_doente"] = id_animal
-            esporotricose_core.salvar_doente(_db_path(), dados)
+            esporotricose_core.salvar_doente(bh.db_target(), dados)
         except esporotricose_core.ValidationError as exc:
             return jsonify({"erro": str(exc)}), 400
-    item = esporotricose_core.obter_doente(_db_path(), id_animal)
+    item = esporotricose_core.obter_doente(bh.db_target(), id_animal)
     if not item:
         return jsonify({"erro": "Animal não encontrado."}), 404
     return jsonify(item)
@@ -460,10 +455,10 @@ def api_alterar_doente(id_animal):
 @nivel_min("operador")
 def api_criar_doente():
     try:
-        id_animal = esporotricose_core.salvar_doente(_db_path(), request.json or {})
+        id_animal = esporotricose_core.salvar_doente(bh.db_target(), request.json or {})
     except esporotricose_core.ValidationError as exc:
         return jsonify({"erro": str(exc)}), 400
-    return jsonify(esporotricose_core.obter_doente(_db_path(), id_animal)), 201
+    return jsonify(esporotricose_core.obter_doente(bh.db_target(), id_animal)), 201
 
 
 @bp.route("/api/esporotricose/doentes/<int:id_animal>/receitas", methods=["POST"])
@@ -471,10 +466,10 @@ def api_criar_doente():
 @nivel_min("operador")
 def api_salvar_receita_doente(id_animal):
     try:
-        id_receita = esporotricose_core.salvar_receita_doente(_db_path(), id_animal, request.json or {})
+        id_receita = esporotricose_core.salvar_receita_doente(bh.db_target(), id_animal, request.json or {})
     except esporotricose_core.ValidationError as exc:
         return jsonify({"erro": str(exc)}), 400
-    return jsonify({"ok": True, "id_receita": id_receita, "animal": esporotricose_core.obter_doente(_db_path(), id_animal)}), 201
+    return jsonify({"ok": True, "id_receita": id_receita, "animal": esporotricose_core.obter_doente(bh.db_target(), id_animal)}), 201
 
 
 @bp.route("/api/esporotricose/doentes/receitas/<int:id_receita>", methods=["DELETE"])
@@ -482,7 +477,7 @@ def api_salvar_receita_doente(id_animal):
 @nivel_min("operador")
 def api_excluir_receita_doente(id_receita):
     try:
-        id_animal = esporotricose_core.excluir_receita_doente(_db_path(), id_receita)
+        id_animal = esporotricose_core.excluir_receita_doente(bh.db_target(), id_receita)
     except esporotricose_core.ValidationError as exc:
         return jsonify({"erro": str(exc)}), 404
     return jsonify({"ok": True, "id_animal_doente": id_animal})
@@ -493,10 +488,10 @@ def api_excluir_receita_doente(id_receita):
 @nivel_min("operador")
 def api_atualizar_receita_doente(id_receita):
     try:
-        id_animal = esporotricose_core.atualizar_receita_doente(_db_path(), id_receita, request.json or {})
+        id_animal = esporotricose_core.atualizar_receita_doente(bh.db_target(), id_receita, request.json or {})
     except esporotricose_core.ValidationError as exc:
         return jsonify({"erro": str(exc)}), 400
-    return jsonify({"ok": True, "id_animal_doente": id_animal, "animal": esporotricose_core.obter_doente(_db_path(), id_animal)})
+    return jsonify({"ok": True, "id_animal_doente": id_animal, "animal": esporotricose_core.obter_doente(bh.db_target(), id_animal)})
 
 
 @bp.route("/api/esporotricose/doentes/receitas/<int:id_receita>/entregas", methods=["POST"])
@@ -504,7 +499,7 @@ def api_atualizar_receita_doente(id_receita):
 @nivel_min("operador")
 def api_salvar_entrega_doente(id_receita):
     try:
-        id_entrega = esporotricose_core.salvar_entrega_doente(_db_path(), id_receita, request.json or {})
+        id_entrega = esporotricose_core.salvar_entrega_doente(bh.db_target(), id_receita, request.json or {})
     except esporotricose_core.ValidationError as exc:
         return jsonify({"erro": str(exc)}), 400
     return jsonify({"ok": True, "id_entrega": id_entrega}), 201
@@ -516,18 +511,18 @@ def api_salvar_entrega_doente(id_receita):
 def api_excluir_entrega_doente(id_entrega):
     if request.method == "PUT":
         try:
-            esporotricose_core.atualizar_entrega_doente(_db_path(), id_entrega, request.json or {})
+            esporotricose_core.atualizar_entrega_doente(bh.db_target(), id_entrega, request.json or {})
         except esporotricose_core.ValidationError as exc:
             return jsonify({"erro": str(exc)}), 400
         return jsonify({"ok": True})
-    esporotricose_core.excluir_entrega_doente(_db_path(), id_entrega)
+    esporotricose_core.excluir_entrega_doente(bh.db_target(), id_entrega)
     return jsonify({"ok": True})
 
 
 @bp.route("/api/esporotricose/doentes/<int:id_animal>/anexos")
 @login_required
 def api_doente_anexos(id_animal):
-    animal = esporotricose_core.obter_doente(_db_path(), id_animal)
+    animal = esporotricose_core.obter_doente(bh.db_target(), id_animal)
     if not animal:
         return jsonify({"erro": "Animal não encontrado."}), 404
     return jsonify({"anexos": animal.get("anexos", [])})
@@ -537,7 +532,7 @@ def api_doente_anexos(id_animal):
 @login_required
 @nivel_min("operador")
 def api_salvar_anexos_doente(id_animal):
-    animal = esporotricose_core.obter_doente(_db_path(), id_animal)
+    animal = esporotricose_core.obter_doente(bh.db_target(), id_animal)
     if not animal:
         return jsonify({"erro": "Animal não encontrado."}), 404
     arquivos = request.files.getlist("arquivos")
@@ -551,61 +546,61 @@ def api_salvar_anexos_doente(id_animal):
         arquivos_validados.append((arquivo, meta))
 
     destino_dir = _doente_anexos_dir(id_animal)
-    usuario = auth_core.usuario_atual(lambda sql, params=(): db_core.query_one(_db_path(), sql, params)) or {}
-    salvos = []
+    usuario = auth_core.usuario_atual(
+        lambda sql, params=(): db_core.query_one(bh.db_target(), sql, params)
+    ) or {}
     caminhos_salvos = []
-    conn = db_core.connect(_db_path())
+    anexos_salvos = []
     try:
-        esporotricose_core.ensure_schema(conn)
         for arquivo, meta in arquivos_validados:
             anexo = _salvar_upload_anexo(arquivo, meta, destino_dir)
             caminho = anexo["caminho"]
             caminhos_salvos.append(caminho)
             caminho_rel = str(caminho.relative_to(_anexos_base_dir())).replace("\\", "/")
-            cur = conn.execute(
-                """INSERT INTO esporotricose_doentes_anexos
-                   (id_animal_doente, id_receita, nome_original, nome_arquivo, caminho_rel,
-                    mime_type, tamanho, criado_por, criado_em)
-                   VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    id_animal, anexo["nome_original"], anexo["nome_arquivo"], caminho_rel,
-                    anexo["mime_type"], anexo["tamanho"], usuario.get("nome") or "sistema",
-                    datetime.now().isoformat(timespec="seconds"),
-                ),
+            anexos_salvos.append(
+                {
+                    "nome_original": anexo["nome_original"],
+                    "nome_arquivo": anexo["nome_arquivo"],
+                    "caminho_rel": caminho_rel,
+                    "mime_type": anexo["mime_type"],
+                    "tamanho": anexo["tamanho"],
+                }
             )
-            salvos.append(cur.lastrowid)
-        conn.commit()
+        salvos = esporotricose_core.salvar_anexos_doente(
+            bh.db_target(),
+            id_animal,
+            anexos_salvos,
+            usuario.get("nome") or "sistema",
+        )
     except AnexoImagemInvalida as exc:
-        conn.rollback()
         _remover_caminhos(caminhos_salvos)
         return jsonify({"erro": str(exc)}), 400
     except sqlite3.OperationalError:
-        conn.rollback()
         _remover_caminhos(caminhos_salvos)
         return jsonify({"erro": "Banco de dados ocupado. Tente novamente."}), 503
     except Exception:
-        conn.rollback()
         _remover_caminhos(caminhos_salvos)
         current_app.logger.exception("Erro ao salvar anexo de animal com esporotricose")
         return jsonify({"erro": "Não foi possível salvar o anexo."}), 500
-    finally:
-        conn.close()
-    return jsonify({"ok": True, "ids": salvos, "anexos": esporotricose_core.obter_doente(_db_path(), id_animal).get("anexos", [])}), 201
+    return jsonify({
+        "ok": True,
+        "ids": salvos,
+        "anexos": esporotricose_core.obter_doente(
+            bh.db_target(), id_animal
+        ).get("anexos", []),
+    }), 201
 
 
 @bp.route("/api/esporotricose/doentes/anexos/<int:id_anexo>", methods=["DELETE"])
 @login_required
 @nivel_min("operador")
 def api_excluir_anexo_doente(id_anexo):
-    conn = db_core.connect(_db_path())
     try:
-        row = conn.execute("SELECT * FROM esporotricose_doentes_anexos WHERE id_anexo=?", (id_anexo,)).fetchone()
-        if not row:
-            return jsonify({"erro": "Anexo não encontrado."}), 404
-        conn.execute("DELETE FROM esporotricose_doentes_anexos WHERE id_anexo=?", (id_anexo,))
-        conn.commit()
-    finally:
-        conn.close()
+        row = esporotricose_core.excluir_anexo_doente(
+            bh.db_target(), id_anexo
+        )
+    except esporotricose_core.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 404
     _remover_arquivos_anexos([row])
     return jsonify({"ok": True})
 
@@ -613,11 +608,7 @@ def api_excluir_anexo_doente(id_anexo):
 @bp.route("/esporotricose/doentes/anexos/<int:id_anexo>/download")
 @login_required
 def baixar_anexo_doente(id_anexo):
-    conn = db_core.connect(_db_path())
-    try:
-        row = conn.execute("SELECT * FROM esporotricose_doentes_anexos WHERE id_anexo=?", (id_anexo,)).fetchone()
-    finally:
-        conn.close()
+    row = esporotricose_core.obter_anexo_doente(bh.db_target(), id_anexo)
     if not row:
         abort(404)
     caminho = _path_anexo(row["caminho_rel"])
@@ -636,14 +627,7 @@ def baixar_anexo_doente(id_anexo):
 @bp.route("/esporotricose/doentes/anexos/<int:id_anexo>/miniatura")
 @login_required
 def miniatura_anexo_doente(id_anexo):
-    conn = db_core.connect(_db_path())
-    try:
-        row = conn.execute(
-            "SELECT caminho_rel, mime_type FROM esporotricose_doentes_anexos WHERE id_anexo=?",
-            (id_anexo,),
-        ).fetchone()
-    finally:
-        conn.close()
+    row = esporotricose_core.obter_anexo_doente(bh.db_target(), id_anexo)
     if not row or row["mime_type"] != "application/pdf":
         abort(404)
     caminho = _path_anexo(row["caminho_rel"])
