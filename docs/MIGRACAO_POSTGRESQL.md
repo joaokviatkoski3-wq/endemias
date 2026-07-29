@@ -27,7 +27,8 @@ Recolhimentos de Materiais e Amostras de Animais tambem tiveram leitura,
 escrita, filtros, resumos, paginas e APIs homologados. Os limites atuais estao
 documentados em `docs/POSTGRESQL_CAMADA_DUAL.md`. BRI e Pontos Estrategicos
 foram homologados em seguida, incluindo aliases e vinculos com visitas, focos
-e tratamentos.
+e tratamentos. A pagina Visitas de Arboviroses tambem possui agora filtros,
+listagem, detalhes e edicao homologados nos dois bancos.
 
 ## Bancos locais
 
@@ -125,7 +126,9 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
    homologado, seguido por Gestao de Usuarios e pelo nucleo do Historico de
    Importacoes. Recolhimentos de Materiais e Amostras de Animais tambem estao
    homologados. BRI e Pontos Estrategicos completam o lote seguinte, com seus
-   vinculos operacionais validados.
+   vinculos operacionais validados. Visitas de Arboviroses completa o lote
+   atual, preservando para etapas posteriores o Dashboard Integrado e a
+   consulta laboratorial geral.
 6. Ensaiar a migracao com uma copia recente do banco oficial.
 7. Fazer backup, carga final, validacao e troca controlada.
 

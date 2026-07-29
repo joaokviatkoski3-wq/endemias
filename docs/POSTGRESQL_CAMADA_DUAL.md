@@ -208,6 +208,35 @@ O script cria copias temporarias das oito tabelas envolvidas, valida todo o
 fluxo integrado e depois consulta as paginas reais em modo somente leitura.
 As contagens das tabelas publicas sao comparadas antes e depois do ensaio.
 
+## Visitas de Arboviroses
+
+A pagina **Visitas de Arboviroses** teve seu nucleo de consulta e edicao
+convertido para a camada dual. Estao homologados:
+
+- opcoes de filtro e busca textual sem diferenca entre maiusculas e
+  minusculas;
+- ordenacao, paginacao e resumo dos registros filtrados;
+- agregacao de agentes e numeros de tubos;
+- situacao laboratorial das coletas;
+- detalhe completo de depositos, tratamentos, coletas e focos;
+- edicao da visita, localidade, agentes, depositos, tratamentos e coletas;
+- sincronizacao do numero do tubo com resultados e focos;
+- protecao e rollback ao tentar remover uma coleta que ja possui resultado;
+- serializacao uniforme de datas e horarios nas APIs;
+- auditoria da edicao pela rota Flask.
+
+O ensaio controlado e:
+
+```powershell
+python scripts\testar_visitas_postgresql.py --database endemias_teste
+```
+
+O script valida leitura e escrita em nove tabelas temporarias e consulta a
+pagina, a listagem e o detalhe reais em modo somente leitura. As contagens das
+tabelas publicas sao verificadas antes e depois. O **Dashboard Integrado** e a
+consulta geral de **Resultados Laboratoriais** ainda nao fazem parte deste
+lote.
+
 Por seguranca, outro banco exige:
 
 ```powershell
@@ -237,10 +266,10 @@ incompativel.
 ## Proxima etapa
 
 Autenticacao, auditoria, Controle de Pessoal, Gestao de Usuarios,
-Recolhimentos de Materiais e Amostras de Animais possuem leitura e escrita
-validadas. BRI e Pontos Estrategicos tambem estao homologados, incluindo seus
-vinculos. O Historico de Importacoes esta pronto, embora a pagina completa de
-Importacao Kobo ainda nao esteja homologada.
+Recolhimentos de Materiais, Amostras de Animais e Visitas de Arboviroses
+possuem leitura e escrita validadas. BRI e Pontos Estrategicos tambem estao
+homologados, incluindo seus vinculos. O Historico de Importacoes esta pronto,
+embora a pagina completa de Importacao Kobo ainda nao esteja homologada.
 
 Cada lote deve:
 

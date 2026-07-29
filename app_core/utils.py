@@ -76,7 +76,10 @@ def build_visit_where(params_dict, alias_v="v", alias_l="l", localidade_fallback
 
     observacoes = str(params_dict.get("observacoes") or "").strip()
     if observacoes:
-        where += f" AND COALESCE({alias_v}.observacoes,'') LIKE ?"
+        where += (
+            f" AND LOWER(COALESCE({alias_v}.observacoes,'')) "
+            "LIKE LOWER(?)"
+        )
         params.append(f"%{observacoes}%")
 
     return where, params

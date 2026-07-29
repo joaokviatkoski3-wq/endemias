@@ -14,7 +14,10 @@ class VisitFiltersTests(unittest.TestCase):
         })
 
         self.assertIn("v.agua_sanepar=0", where)
-        self.assertIn("COALESCE(v.observacoes,'') LIKE ?", where)
+        self.assertIn(
+            "LOWER(COALESCE(v.observacoes,'')) LIKE LOWER(?)",
+            where,
+        )
         self.assertEqual(params[-1], "%caixa destampada%")
 
     def test_filtra_agua_sanepar_sem_informacao(self):
