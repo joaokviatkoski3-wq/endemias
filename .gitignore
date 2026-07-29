@@ -1,6 +1,11 @@
 .github_credentials
 GUIA_GITHUB.md
 webbridge-req*.json
+.env
+.env.*
+!.env.example
+*.pgpass
+pgpass.conf
 
 # Dados locais e segredos da instalacao
 secret.key
