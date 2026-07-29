@@ -39,7 +39,7 @@ def _db_path():
 
 
 def _localidades():
-    conn = db_core.connect(_db_path())
+    conn = db_core.connect(bh.db_target())
     esporotricose_core.ensure_schema(conn)
     try:
         return [
@@ -61,7 +61,7 @@ def _localidades():
 
 
 def _agentes():
-    conn = db_core.connect(_db_path())
+    conn = db_core.connect(bh.db_target())
     esporotricose_core.ensure_schema(conn)
     try:
         return [
@@ -173,7 +173,7 @@ def api_resumo():
         "visita": request.args.get("visita", ""),
         "agente": request.args.get("agente", ""),
     }
-    return jsonify(esporotricose_core.resumo(_db_path(), filtros))
+    return jsonify(esporotricose_core.resumo(bh.db_target(), filtros))
 
 
 @bp.route("/api/esporotricose/visitas")
@@ -187,7 +187,7 @@ def api_visitas():
         "agente": request.args.get("agente", ""),
         "busca": request.args.get("busca", ""),
     }
-    return jsonify(esporotricose_core.listar_visitas(_db_path(), filtros))
+    return jsonify(esporotricose_core.listar_visitas(bh.db_target(), filtros))
 
 
 @bp.route("/api/esporotricose/animais")
@@ -213,7 +213,7 @@ def api_animais():
         "prioritarios": request.args.get("prioritarios", ""),
         "evolucao": multi("evolucao"),
     }
-    return jsonify(esporotricose_core.listar_animais(_db_path(), filtros))
+    return jsonify(esporotricose_core.listar_animais(bh.db_target(), filtros))
 
 
 @bp.route("/api/esporotricose/visitas/<id_visita>", methods=["PUT"])
@@ -222,7 +222,7 @@ def api_animais():
 def api_atualizar_visita(id_visita):
     try:
         dados = request.get_json(silent=True) or {}
-        resultado = esporotricose_core.atualizar_visita(_db_path(), id_visita, dados)
+        resultado = esporotricose_core.atualizar_visita(bh.db_target(), id_visita, dados)
         return jsonify(resultado)
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
@@ -238,7 +238,7 @@ def api_atualizar_visita(id_visita):
 def api_atualizar_animal(id_animal):
     try:
         dados = request.get_json(silent=True) or {}
-        resultado = esporotricose_core.atualizar_animal(_db_path(), id_animal, dados)
+        resultado = esporotricose_core.atualizar_animal(bh.db_target(), id_animal, dados)
         return jsonify(resultado)
     except (ValueError, esporotricose_core.ValidationError) as exc:
         return jsonify({"erro": str(exc)}), 400
@@ -254,7 +254,7 @@ def api_atualizar_animal(id_animal):
 def api_salvar_busca_ferido(id_animal):
     try:
         busca = esporotricose_core.salvar_busca_ferido(
-            _db_path(), id_animal, request.get_json(silent=True) or {}
+            bh.db_target(), id_animal, request.get_json(silent=True) or {}
         )
         return jsonify({"ok": True, "busca": busca}), 201
     except esporotricose_core.ValidationError as exc:
@@ -275,7 +275,7 @@ def api_localidades():
         "visita": request.args.get("visita", ""),
         "agente": request.args.get("agente", ""),
     }
-    return jsonify(esporotricose_core.resumo_localidades(_db_path(), filtros))
+    return jsonify(esporotricose_core.resumo_localidades(bh.db_target(), filtros))
 
 
 @bp.route("/api/esporotricose/dashboard")
@@ -288,7 +288,7 @@ def api_dashboard():
         "visita": request.args.get("visita", ""),
         "agente": request.args.get("agente", ""),
     }
-    return jsonify(esporotricose_core.dashboard(_db_path(), filtros))
+    return jsonify(esporotricose_core.dashboard(bh.db_target(), filtros))
 
 
 @bp.route("/api/esporotricose/doentes")

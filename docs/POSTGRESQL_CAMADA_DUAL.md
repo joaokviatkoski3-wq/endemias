@@ -270,9 +270,36 @@ Ele valida um cenario temporario com dois servidores, consulta o Dashboard
 integrado e as APIs reais em modo somente leitura e compara as contagens das
 `60` tabelas publicas antes e depois.
 
-As telas operacionais completas de **Esporotricose** e **Ovitrampas** ainda
-possuem rotinas SQLite fora deste recorte. Apenas as consultas usadas pelo
-Dashboard integrado foram convertidas neste lote.
+## Visitas de Esporotricose
+
+O bloco operacional importado do Kobo na pagina **Esporotricose** foi
+homologado nos dois bancos. Estao compativeis:
+
+- resumo das visitas e dos animais encontrados;
+- filtros por periodo, localidade, situacao, servidor e busca textual;
+- busca textual por datas e numeros de quarteirao;
+- listagem detalhada das visitas e dos animais;
+- agregacao de servidores sem multiplicar os animais da visita;
+- edicao dos dados da visita e do animal;
+- resumos por localidade e series do painel;
+- registro de multiplas buscas de animais feridos;
+- exibicao das buscas nos detalhes do animal e integracao com a Agenda;
+- serializacao uniforme de datas e horarios nas APIs.
+
+O ensaio controlado e:
+
+```powershell
+python scripts\testar_esporotricose_visitas_postgresql.py `
+  --database endemias_teste
+```
+
+O script valida leitura e escrita em sete tabelas temporarias, consulta a
+pagina e as APIs reais somente em leitura e compara todas as contagens
+publicas antes e depois.
+
+O cadastro manual de animais doentes, receitas, entregas, anexos e estoque de
+medicacao ainda permanece no bloco SQLite e sera convertido separadamente.
+As telas operacionais de **Ovitrampas** tambem permanecem para etapas futuras.
 
 Por seguranca, outro banco exige:
 
@@ -308,7 +335,10 @@ possuem leitura e escrita validadas. BRI e Pontos Estrategicos tambem estao
 homologados, incluindo seus vinculos. O Historico de Importacoes esta pronto,
 embora a pagina completa de Importacao Kobo ainda nao esteja homologada.
 Dashboard Integrado, Producao Operacional e Resultados Laboratoriais possuem
-agora suas consultas homologadas nos dois bancos.
+agora suas consultas homologadas nos dois bancos. O bloco de visitas de
+Esporotricose, seus animais, localidades e buscas de feridos tambem esta
+homologado. O proximo recorte sensivel da pagina e o cadastro manual de
+doentes, com receitas, estoque e anexos.
 
 Cada lote deve:
 

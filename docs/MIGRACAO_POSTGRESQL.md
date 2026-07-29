@@ -30,7 +30,9 @@ foram homologados em seguida, incluindo aliases e vinculos com visitas, focos
 e tratamentos. A pagina Visitas de Arboviroses tambem possui agora filtros,
 listagem, detalhes e edicao homologados nos dois bancos. Dashboard Integrado,
 Producao Operacional e a consulta geral de Resultados Laboratoriais completam
-o lote seguinte.
+o lote seguinte. As visitas de Esporotricose importadas do Kobo, incluindo
+animais encontrados, localidades e buscas de feridos, tambem estao
+homologadas.
 
 ## Bancos locais
 
@@ -130,8 +132,10 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
    homologados. BRI e Pontos Estrategicos completam o lote seguinte, com seus
    vinculos operacionais validados. Visitas de Arboviroses completa o lote
    posterior. Dashboard Integrado, Producao Operacional e a consulta
-   laboratorial geral tambem estao homologados. As telas operacionais
-   completas de Esporotricose e Ovitrampas permanecem para etapas futuras.
+   laboratorial geral tambem estao homologados. O bloco de visitas de
+   Esporotricose, seus animais e buscas de feridos completa o lote seguinte.
+   O cadastro manual de doentes, receitas, estoque e anexos, alem das telas
+   operacionais de Ovitrampas, permanece para etapas futuras.
 6. Ensaiar a migracao com uma copia recente do banco oficial.
 7. Fazer backup, carga final, validacao e troca controlada.
 

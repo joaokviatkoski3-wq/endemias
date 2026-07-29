@@ -576,7 +576,7 @@ def _eventos_periodo(inicio, fim):
 
     if _table_exists("esporotricose_animais"):
         for busca in esporotricose_core.eventos_agenda_buscas_ferido(
-            bh.db_path(), inicio[:10], fim[:10]
+            bh.db_target(), inicio[:10], fim[:10]
         ):
             animal = busca.get("animal") or busca.get("especie") or "Animal"
             endereco = ", ".join(

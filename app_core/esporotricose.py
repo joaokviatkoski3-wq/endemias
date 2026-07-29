@@ -408,6 +408,8 @@ def _migrar_datas_notificacao_doentes(conn):
 
 
 def _ensure_buscas_ferido_schema(conn):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return
     conn.executescript(
         f"""
         CREATE TABLE IF NOT EXISTS {BUSCAS_FERIDO_TABLE} (
@@ -919,32 +921,46 @@ def resumo(target, filtros=None):
     }
 
 
-def listar_visitas(db_path, filtros=None):
+def listar_visitas(target, filtros=None):
     filtros = filtros or {}
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
+    conn = db_core.connect(target)
     ensure_schema(conn)
     where, params = _where_visitas(filtros)
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        agentes_sql = (
+            "string_agg(agentes_unicos.nome, ', ' "
+            "ORDER BY agentes_unicos.nome)"
+        )
+    else:
+        agentes_sql = "GROUP_CONCAT(agentes_unicos.nome, ', ')"
     try:
         total = conn.execute(
             f"SELECT COUNT(*) FROM esporotricose_visitas v {where}",
             params,
         ).fetchone()[0]
-        registros = [dict(r) for r in conn.execute(
+        registros = [db_core.serialize_row(r) for r in conn.execute(
             f"""SELECT
                     v.id_visita, v.kobo_uuid, v.data, v.hora_inicio, v.hora_fim,
                     v.inicio_registro, v.fim_registro, v.agentes_texto,
                     v.localidade, v.id_localidade, v.quarteirao, v.tipo_imovel,
                     v.logradouro, v.numero, v.morador, v.telefone, v.visita,
                     v.observacoes, v.deseja_cadastrar_animal, v.submission_time,
-                    v.processado_em, COUNT(a.id_animal) AS animais,
-                    COALESCE(GROUP_CONCAT(DISTINCT ag.nome), '') AS agentes
+                    v.processado_em,
+                    (SELECT COUNT(*)
+                       FROM esporotricose_animais a
+                      WHERE a.id_visita=v.id_visita) AS animais,
+                    COALESCE((
+                        SELECT {agentes_sql}
+                          FROM (
+                                SELECT DISTINCT ag.nome
+                                  FROM esporotricose_visita_agentes va
+                                  JOIN agentes ag ON ag.id_agente=va.id_agente
+                                 WHERE va.id_visita=v.id_visita
+                                 ORDER BY ag.nome
+                               ) agentes_unicos
+                    ), '') AS agentes
                 FROM esporotricose_visitas v
-                LEFT JOIN esporotricose_animais a ON a.id_visita = v.id_visita
-                LEFT JOIN esporotricose_visita_agentes va ON va.id_visita = v.id_visita
-                LEFT JOIN agentes ag ON ag.id_agente = va.id_agente
                 {where}
-                GROUP BY v.id_visita
                 ORDER BY v.data DESC, v.hora_inicio DESC, v.localidade, v.quarteirao
                 LIMIT 500""",
             params,
@@ -954,7 +970,7 @@ def listar_visitas(db_path, filtros=None):
     return {"total": total or 0, "registros": registros}
 
 
-def atualizar_visita(db_path, id_visita, dados):
+def atualizar_visita(target, id_visita, dados):
     campos = []
     params = []
     for coluna in ("data", "hora_inicio", "hora_fim", "agentes_texto", "localidade",
@@ -966,7 +982,7 @@ def atualizar_visita(db_path, id_visita, dados):
     if not campos:
         raise ValueError("Nenhum campo para atualizar.")
     params.append(id_visita)
-    conn = db_core.connect(db_path)
+    conn = db_core.connect(target)
     try:
         conn.execute(
             f"UPDATE esporotricose_visitas SET {', '.join(campos)} WHERE id_visita = ?",
@@ -978,7 +994,7 @@ def atualizar_visita(db_path, id_visita, dados):
     return {"ok": True}
 
 
-def atualizar_animal(db_path, id_animal, dados):
+def atualizar_animal(target, id_animal, dados):
     campos = []
     params = []
     for coluna in ("especie", "outro_animal", "nome", "raca", "sexo", "ambiente",
@@ -993,7 +1009,7 @@ def atualizar_animal(db_path, id_animal, dados):
     )
     if not campos and not tem_busca:
         raise ValueError("Nenhum campo para atualizar.")
-    conn = db_core.connect(db_path)
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         if campos:
@@ -1029,20 +1045,25 @@ def _inserir_busca_ferido(conn, id_animal, dados):
         raise ValidationError("Animal da visita não encontrado.")
     payload = _busca_ferido_payload(dados)
     agora = datetime.now().isoformat(timespec="seconds")
+    sql = f"""INSERT INTO {BUSCAS_FERIDO_TABLE}
+                 (id_animal, data_busca, agente, observacoes, origem, criado_em, atualizado_em)
+               VALUES (?,?,?,?,?,?,?)"""
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        sql += " RETURNING id_busca"
     cur = conn.execute(
-        f"""INSERT INTO {BUSCAS_FERIDO_TABLE}
-               (id_animal, data_busca, agente, observacoes, origem, criado_em, atualizado_em)
-             VALUES (?,?,?,?,?,?,?)""",
+        sql,
         (
             id_animal, payload["data_busca"], payload["agente"], payload["observacoes"],
             "sistema", agora, agora,
         ),
     )
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return cur.fetchone()[0]
     return cur.lastrowid
 
 
-def salvar_busca_ferido(db_path, id_animal, dados):
-    conn = db_core.connect(db_path)
+def salvar_busca_ferido(target, id_animal, dados):
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         id_busca = _inserir_busca_ferido(conn, id_animal, dados)
@@ -1051,7 +1072,7 @@ def salvar_busca_ferido(db_path, id_animal, dados):
             f"SELECT * FROM {BUSCAS_FERIDO_TABLE} WHERE id_busca=?",
             (id_busca,),
         ).fetchone()
-        return dict(row)
+        return db_core.serialize_row(row)
     finally:
         conn.close()
 
@@ -1067,11 +1088,12 @@ def _anexar_buscas_ferido(conn, registros):
                    criado_em, atualizado_em
               FROM {BUSCAS_FERIDO_TABLE}
              WHERE id_animal IN ({placeholders})
-             ORDER BY COALESCE(data_busca, criado_em) DESC, id_busca DESC""",
+             ORDER BY COALESCE(CAST(data_busca AS TEXT), criado_em) DESC,
+                      id_busca DESC""",
         ids,
     ).fetchall()
     for row in rows:
-        item = dict(row)
+        item = db_core.serialize_row(row)
         buscas_por_animal.setdefault(item["id_animal"], []).append(item)
     for registro in registros:
         buscas = buscas_por_animal.get(registro["id_animal"], [])
@@ -1082,10 +1104,9 @@ def _anexar_buscas_ferido(conn, registros):
         registro["busca_ferido_observacoes"] = ultima.get("observacoes")
 
 
-def listar_animais(db_path, filtros=None):
+def listar_animais(target, filtros=None):
     filtros = filtros or {}
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
+    conn = db_core.connect(target)
     try:
         ensure_schema(conn)
         where, params = _where_animais(filtros)
@@ -1096,7 +1117,7 @@ def listar_animais(db_path, filtros=None):
                 {where}""",
             params,
         ).fetchone()[0]
-        registros = [dict(r) for r in conn.execute(
+        registros = [db_core.serialize_row(r) for r in conn.execute(
             f"""SELECT
                     a.id_animal, a.especie, a.outro_animal, a.nome, a.raca, a.sexo,
                     a.ambiente, a.vacinado, a.castrado, a.feridas, a.regiao_ferida,
@@ -1127,12 +1148,12 @@ def listar_animais(db_path, filtros=None):
     return {"total": total or 0, "registros": registros}
 
 
-def eventos_agenda_buscas_ferido(db_path, inicio, fim):
-    conn = db_core.connect(db_path)
+def eventos_agenda_buscas_ferido(target, inicio, fim):
+    conn = db_core.connect(target)
     try:
         _ensure_buscas_ferido_schema(conn)
         conn.commit()
-        return [dict(row) for row in conn.execute(
+        return [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT b.id_busca, b.data_busca AS data, b.agente, b.observacoes,
                        a.nome AS animal, a.especie, v.localidade, v.quarteirao,
                        v.logradouro, v.numero
@@ -1229,14 +1250,13 @@ def preparar_doente_de_visita(db_path, id_animal_visita):
         conn.close()
 
 
-def resumo_localidades(db_path, filtros=None):
+def resumo_localidades(target, filtros=None):
     filtros = filtros or {}
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
+    conn = db_core.connect(target)
     ensure_schema(conn)
     where, params = _where(filtros)
     try:
-        registros = [dict(r) for r in conn.execute(
+        registros = [db_core.serialize_row(r) for r in conn.execute(
             f"""SELECT
                     COALESCE(v.localidade, '-') AS localidade,
                     COUNT(DISTINCT v.id_visita) AS visitas,
@@ -2773,8 +2793,8 @@ def _where_visitas(filtros):
                 OR LOWER(COALESCE(v.numero,'')) LIKE ?
                 OR LOWER(COALESCE(v.morador,'')) LIKE ?
                 OR LOWER(COALESCE(v.telefone,'')) LIKE ?
-                OR LOWER(COALESCE(v.data,'')) LIKE ?
-                OR LOWER(COALESCE(v.quarteirao,'')) LIKE ?
+                OR LOWER(COALESCE(CAST(v.data AS TEXT),'')) LIKE ?
+                OR LOWER(COALESCE(CAST(v.quarteirao AS TEXT),'')) LIKE ?
                 OR LOWER(COALESCE(v.visita,'')) LIKE ?
             )"""
         )
@@ -2795,7 +2815,7 @@ def _where_animais(filtros):
                 OR LOWER(COALESCE(v.numero,'')) LIKE ?
                 OR LOWER(COALESCE(v.morador,'')) LIKE ?
                 OR LOWER(COALESCE(v.telefone,'')) LIKE ?
-                OR LOWER(COALESCE(v.data,'')) LIKE ?
+                OR LOWER(COALESCE(CAST(v.data AS TEXT),'')) LIKE ?
                 OR LOWER(COALESCE(a.nome,'')) LIKE ?
                 OR LOWER(COALESCE(a.raca,'')) LIKE ?
                 OR LOWER(COALESCE(a.especie,'')) LIKE ?
