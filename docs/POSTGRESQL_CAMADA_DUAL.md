@@ -234,8 +234,45 @@ python scripts\testar_visitas_postgresql.py --database endemias_teste
 O script valida leitura e escrita em nove tabelas temporarias e consulta a
 pagina, a listagem e o detalhe reais em modo somente leitura. As contagens das
 tabelas publicas sao verificadas antes e depois. O **Dashboard Integrado** e a
-consulta geral de **Resultados Laboratoriais** ainda nao fazem parte deste
-lote.
+consulta geral de **Resultados Laboratoriais** foram tratados no lote
+seguinte, descrito abaixo.
+
+## Dashboard Integrado e Resultados Laboratoriais
+
+O **Dashboard Integrado**, a API de **Producao Operacional** e a consulta geral
+de **Resultados Laboratoriais** foram homologados nos dois bancos. O lote
+inclui:
+
+- indicadores vetoriais, evolucao semanal e mensal;
+- distribuicoes por tipo, localidade, situacao, servidor e tipo de imovel;
+- depositos inspecionados, eliminados e tratados;
+- duracao das visitas TBO nos dialetos de data e hora de cada banco;
+- resumos de Esporotricose, Pontos Estrategicos e Producao Operacional;
+- leituras e calendario de Ovitrampas no painel integrado;
+- comparativo mensal entre vetores, Esporotricose e Ovitrampas;
+- filtros, paginacao, totais, especies e series da consulta laboratorial;
+- agregacao de servidores com `GROUP_CONCAT` no SQLite e `string_agg` no
+  PostgreSQL;
+- serializacao uniforme de datas, horarios e valores decimais.
+
+O refatoramento tambem corrigiu a multiplicacao silenciosa de visitas,
+depositos e resultados quando um registro possuia mais de um servidor
+vinculado.
+
+O ensaio controlado e:
+
+```powershell
+python scripts\testar_dashboard_laboratorio_postgresql.py `
+  --database endemias_teste
+```
+
+Ele valida um cenario temporario com dois servidores, consulta o Dashboard
+integrado e as APIs reais em modo somente leitura e compara as contagens das
+`60` tabelas publicas antes e depois.
+
+As telas operacionais completas de **Esporotricose** e **Ovitrampas** ainda
+possuem rotinas SQLite fora deste recorte. Apenas as consultas usadas pelo
+Dashboard integrado foram convertidas neste lote.
 
 Por seguranca, outro banco exige:
 
@@ -270,6 +307,8 @@ Recolhimentos de Materiais, Amostras de Animais e Visitas de Arboviroses
 possuem leitura e escrita validadas. BRI e Pontos Estrategicos tambem estao
 homologados, incluindo seus vinculos. O Historico de Importacoes esta pronto,
 embora a pagina completa de Importacao Kobo ainda nao esteja homologada.
+Dashboard Integrado, Producao Operacional e Resultados Laboratoriais possuem
+agora suas consultas homologadas nos dois bancos.
 
 Cada lote deve:
 

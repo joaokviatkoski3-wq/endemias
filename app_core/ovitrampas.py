@@ -65,6 +65,8 @@ GRUPOS_PADRAO = (
 
 
 def ensure_schema(conn):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return
     conn.executescript(
         """
         CREATE TABLE IF NOT EXISTS ovitrampas_armadilhas (

@@ -100,7 +100,7 @@ Aplicacao Flask usa `app.py` como entrada principal e ja expoe `create_app()` pa
   - paginas administrativas ficam ocultas para visualizador;
   - badges de notificacoes e agenda foram preservadas.
 - Versao semantica inicial definida como `1.0.0` (`maio/2026`) e exibida no rodape das paginas.
-- Versao atual: `1.12.0` (`julho/2026`), com estoque de esporotricose, mapa analitico do RG, backups no disco D, filtros modernos, melhorias de edicao/visualizacao, Diarios de Ovitrampas com impressao compacta e resultados laboratoriais registrados somente no sistema, leitura laboratorial de ovitrampas, Acoes e Atendimentos com acervo historico e relatorio tecnico institucional, alem de reforcos de integridade do SQLite e dos backups.
+- Versao atual: `1.12.1` (`julho/2026`), com estoque de esporotricose, mapa analitico do RG, backups no disco D, filtros modernos, melhorias de edicao/visualizacao, Diarios de Ovitrampas com impressao compacta e resultados laboratoriais registrados somente no sistema, leitura laboratorial de ovitrampas, Acoes e Atendimentos com acervo historico e relatorio tecnico institucional, alem de reforcos de integridade do SQLite, dos backups e da consistencia dos indicadores do Dashboard.
 - Marco `v1.1.0`: liberacao de gravacao Conta Ovos/SisPNCD.
 - Gravacao em SisPNCD foi liberada apos o marco `v1.0.0`:
   - `/api/sispncd/salvar` grava o codigo somente em visitas pendentes com `SISPNCD IS NULL`;

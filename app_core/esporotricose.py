@@ -186,6 +186,8 @@ ESTOQUE_MEDICACAO_TIPOS = (
 
 
 def ensure_schema(conn):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return
     conn.executescript(
         """
         CREATE TABLE IF NOT EXISTS esporotricose_visitas (
@@ -861,10 +863,9 @@ def importar_historico(paths, db_path, logger, dry_run=False):
     return total
 
 
-def resumo(db_path, filtros=None):
+def resumo(target, filtros=None):
     filtros = filtros or {}
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
+    conn = db_core.connect(target)
     ensure_schema(conn)
     where, params = _where(filtros)
     try:
@@ -883,8 +884,8 @@ def resumo(db_path, filtros=None):
         animais = dict(conn.execute(
             f"""SELECT
                 COUNT(a.id_animal) AS total,
-                SUM(CASE WHEN LOWER(COALESCE(a.especie,'')) LIKE 'c%' THEN 1 ELSE 0 END) AS caes,
-                SUM(CASE WHEN LOWER(COALESCE(a.especie,'')) LIKE 'gato%' THEN 1 ELSE 0 END) AS gatos,
+                SUM(CASE WHEN substr(LOWER(COALESCE(a.especie,'')),1,1)='c' THEN 1 ELSE 0 END) AS caes,
+                SUM(CASE WHEN substr(LOWER(COALESCE(a.especie,'')),1,4)='gato' THEN 1 ELSE 0 END) AS gatos,
                 SUM(CASE WHEN LOWER(COALESCE(a.feridas,''))='sim' THEN 1 ELSE 0 END) AS com_feridas
               FROM esporotricose_visitas v
               LEFT JOIN esporotricose_animais a ON a.id_visita=v.id_visita
@@ -897,7 +898,7 @@ def resumo(db_path, filtros=None):
                 GROUP BY COALESCE(v.localidade,'-') ORDER BY total DESC, localidade LIMIT 12""",
             params,
         )]
-        recentes = [dict(r) for r in conn.execute(
+        recentes = [db_core.serialize_row(r) for r in conn.execute(
             f"""SELECT v.id_visita, v.data, v.localidade, v.quarteirao, v.logradouro, v.numero,
                        v.morador, v.telefone, v.visita, COUNT(a.id_animal) AS animais
                 FROM esporotricose_visitas v
@@ -1240,8 +1241,8 @@ def resumo_localidades(db_path, filtros=None):
                     COALESCE(v.localidade, '-') AS localidade,
                     COUNT(DISTINCT v.id_visita) AS visitas,
                     COUNT(a.id_animal) AS animais,
-                    SUM(CASE WHEN LOWER(COALESCE(a.especie,'')) LIKE 'c%' THEN 1 ELSE 0 END) AS caes,
-                    SUM(CASE WHEN LOWER(COALESCE(a.especie,'')) LIKE 'gato%' THEN 1 ELSE 0 END) AS gatos,
+                    SUM(CASE WHEN substr(LOWER(COALESCE(a.especie,'')),1,1)='c' THEN 1 ELSE 0 END) AS caes,
+                    SUM(CASE WHEN substr(LOWER(COALESCE(a.especie,'')),1,4)='gato' THEN 1 ELSE 0 END) AS gatos,
                     SUM(CASE WHEN LOWER(COALESCE(a.feridas,'')) = 'sim' THEN 1 ELSE 0 END) AS com_feridas,
                     COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,'')) = 'fechado' THEN v.id_visita END) AS fechadas,
                     COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,'')) = 'recusa' THEN v.id_visita END) AS recusas
@@ -1257,17 +1258,17 @@ def resumo_localidades(db_path, filtros=None):
     return {"registros": [{k: (v or 0) if k != "localidade" else v for k, v in row.items()} for row in registros]}
 
 
-def dashboard(db_path, filtros=None):
+def dashboard(target, filtros=None):
     filtros = filtros or {}
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
+    conn = db_core.connect(target)
     ensure_schema(conn)
     where, params = _where(filtros)
+    mes_expr = db_core.month_expression("v.data")
     try:
         evolucao = _rows(conn, f"""
-            SELECT substr(v.data, 1, 7) AS mes, COUNT(*) AS visitas
+            SELECT {mes_expr} AS mes, COUNT(*) AS visitas
             FROM esporotricose_visitas v {where}
-            GROUP BY substr(v.data, 1, 7)
+            GROUP BY {mes_expr}
             ORDER BY mes
         """, params)
         status = _rows(conn, f"""

@@ -1,6 +1,6 @@
-import sqlite3
 from collections import defaultdict
 
+from app_core import db as db_core
 from app_core import utils
 
 
@@ -125,10 +125,9 @@ FONTES = (
 )
 
 
-def resumo(db_path, filtros=None):
+def resumo(target, filtros=None):
     filtros = filtros or {}
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    conn = db_core.connect(target)
     try:
         fontes = [
             _resumo_fonte(conn, fonte, filtros)
@@ -166,10 +165,7 @@ def resumo(db_path, filtros=None):
 
 
 def _table_exists(conn, table_name):
-    return bool(conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
-        (table_name,),
-    ).fetchone())
+    return db_core.table_exists(conn, table_name)
 
 
 def _fonte_vazia(fonte):
@@ -287,14 +283,15 @@ def _por_mes(conn, fonte, filtros):
     alias = fonte["alias"]
     id_expr = f"{alias}.{fonte['id_col']}"
     data_expr = f"{alias}.{fonte['data_col']}"
+    mes_expr = db_core.month_expression(data_expr)
     rows = conn.execute(
         f"""
-        SELECT substr({data_expr},1,7) AS mes,
+        SELECT {mes_expr} AS mes,
                COUNT(DISTINCT {id_expr}) AS registros
           FROM {fonte['tabela']} {alias}
           {fonte.get('joins') or ''}
          WHERE {where}
-         GROUP BY substr({data_expr},1,7)
+         GROUP BY {mes_expr}
          ORDER BY mes
         """,
         params,

@@ -2,6 +2,7 @@ import sqlite3
 import threading
 import time
 from dataclasses import dataclass
+from decimal import Decimal
 
 from app_core import postgresql
 
@@ -334,3 +335,56 @@ def scalar(target, sql, params=()):
         return val[0] if val else 0
     finally:
         conn.close()
+
+
+def table_exists(conn, table_name):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return bool(
+            conn.execute(
+                """SELECT 1
+                     FROM information_schema.tables
+                    WHERE table_schema=current_schema()
+                      AND table_name=?""",
+                (table_name,),
+            ).fetchone()
+        )
+    return bool(
+        conn.execute(
+            """SELECT 1
+                 FROM sqlite_master
+                WHERE type='table' AND name=?""",
+            (table_name,),
+        ).fetchone()
+    )
+
+
+def column_exists(conn, table_name, column_name):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return bool(
+            conn.execute(
+                """SELECT 1
+                     FROM information_schema.columns
+                    WHERE table_schema=current_schema()
+                      AND table_name=?
+                      AND column_name=?""",
+                (table_name, column_name),
+            ).fetchone()
+        )
+    return any(
+        row["name"] == column_name
+        for row in conn.execute(f"PRAGMA table_info({table_name})")
+    )
+
+
+def month_expression(expression):
+    return f"substr(CAST({expression} AS TEXT), 1, 7)"
+
+
+def serialize_row(row):
+    data = dict(row)
+    for key, value in data.items():
+        if isinstance(value, Decimal):
+            data[key] = float(value)
+        elif hasattr(value, "isoformat"):
+            data[key] = value.isoformat()
+    return data
