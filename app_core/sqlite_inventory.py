@@ -95,6 +95,14 @@ def _columns(conn, table):
 def _indexes(conn, table):
     indexes = []
     for row in conn.execute(f"PRAGMA index_list({_ident(table)})").fetchall():
+        schema_row = conn.execute(
+            """
+            SELECT sql
+            FROM sqlite_master
+            WHERE type = 'index' AND name = ?
+            """,
+            (row["name"],),
+        ).fetchone()
         columns = [
             info["name"]
             for info in conn.execute(
@@ -109,6 +117,7 @@ def _indexes(conn, table):
                 "origin": row["origin"],
                 "partial": bool(row["partial"]),
                 "columns": columns,
+                "create_sql": schema_row["sql"] if schema_row else None,
             }
         )
     return indexes

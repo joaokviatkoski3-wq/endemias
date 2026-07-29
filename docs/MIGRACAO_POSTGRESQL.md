@@ -9,6 +9,11 @@ Nenhuma variavel PostgreSQL ativa a troca do banco da aplicacao nesta etapa.
 Isso evita uma mudanca acidental antes da conversao e validacao de todas as
 consultas do sistema.
 
+A primeira migracao de esquema ja foi aplicada e validada em
+`endemias_teste`. Ela criou as `59` tabelas do sistema, sem copiar dados. O
+banco `endemias_migracao` permanece vazio. Os detalhes estao em
+`docs/POSTGRESQL_SCHEMA_INICIAL.md`.
+
 ## Bancos locais
 
 - `endemias_teste`: criacao de esquema, cargas descartaveis e testes.
@@ -89,9 +94,10 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
 
 ## Sequencia prevista
 
-1. Inventariar o esquema e os dados reais do SQLite.
-2. Criar migracoes SQL versionadas para o PostgreSQL.
-3. Copiar os dados para `endemias_teste`, preservando IDs e relacionamentos.
+1. Concluido: inventariar o esquema e os dados reais do SQLite.
+2. Concluido: criar e validar a migracao inicial em `endemias_teste`.
+3. Proximo: copiar os dados para `endemias_teste`, preservando IDs e
+   relacionamentos.
 4. Comparar contagens, chaves estrangeiras e totais de negocio.
 5. Adaptar e testar a aplicacao completa em ambiente PostgreSQL separado.
 6. Ensaiar a migracao com uma copia recente do banco oficial.

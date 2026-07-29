@@ -118,8 +118,11 @@ tratada pela camada de banco, sem substituicoes cegas dentro de textos SQL.
   pelo pgAdmin.
 - Rotinas SQLite de manutencao e criacao dinamica nao rodarao no PostgreSQL.
 
-## Proxima etapa
+## Etapa de esquema concluida
 
-Gerar a primeira migracao SQL PostgreSQL a partir deste inventario, aplicar em
-`endemias_teste` vazio e comparar automaticamente tabelas, colunas, chaves,
-restricoes e indices antes de copiar qualquer linha.
+A primeira migracao foi gerada, aplicada em `endemias_teste` e comparada
+automaticamente. Tabelas, colunas, chaves, restricoes e indices coincidem com
+o plano documentado. Consulte `docs/POSTGRESQL_SCHEMA_INICIAL.md`.
+
+A proxima etapa e copiar os dados para `endemias_teste`, aplicar as limpezas
+temporais descritas acima e validar as contagens e os relacionamentos.
