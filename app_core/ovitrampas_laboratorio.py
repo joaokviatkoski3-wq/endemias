@@ -46,7 +46,7 @@ def gerar_lotes_pendentes(db_path, hoje=None):
                  FROM ovitrampas_calendario_eventos e
                  JOIN ovitrampas_calendario_grupos g ON g.id_grupo=e.id_grupo
                 WHERE e.movimento IN ('troca','retirada')
-                  AND date(e.data) BETWEEN date(?) AND date(?)
+                  AND e.data BETWEEN ? AND ?
                 ORDER BY e.data, e.id_evento""",
             (ATIVO_DESDE, hoje),
         ).fetchall()
@@ -59,10 +59,11 @@ def gerar_lotes_pendentes(db_path, hoje=None):
                 if not localidades.intersection(diario["localidades"]):
                     continue
                 cur = conn.execute(
-                    f"""INSERT OR IGNORE INTO {LOTES_TABLE}
+                    f"""INSERT INTO {LOTES_TABLE}
                         (id_evento, id_diario, diario_nome, data_movimento, movimento,
                          ciclo, status, criado_em, atualizado_em)
-                        VALUES (?,?,?,?,?,?,'pendente',?,?)""",
+                        VALUES (?,?,?,?,?,?,'pendente',?,?)
+                        ON CONFLICT (id_evento, id_diario) DO NOTHING""",
                     (
                         evento["id_evento"], diario["id_diario"], diario["nome"],
                         evento["data"], evento["movimento"], evento["ciclo"], agora, agora,
@@ -76,9 +77,10 @@ def gerar_lotes_pendentes(db_path, hoje=None):
                 ).fetchone()
                 for armadilha in diario["armadilhas"]:
                     conn.execute(
-                        f"""INSERT OR IGNORE INTO {ITENS_TABLE}
+                        f"""INSERT INTO {ITENS_TABLE}
                             (id_lote, ovitrampa_id, complemento, localidade, ovos)
-                            VALUES (?,?,?,?,0)""",
+                            VALUES (?,?,?,?,0)
+                            ON CONFLICT (id_lote, ovitrampa_id) DO NOTHING""",
                         (
                             lote["id_lote"], armadilha["ovitrampa_id"],
                             armadilha["complemento"], armadilha["localidade"],
@@ -100,16 +102,18 @@ def listar_para_laboratorista(db_path, historico=False, hoje=None):
         _ensure_schema_conn(conn)
         statuses = ("concluido", "enviado_conta_ovos") if historico else ("pendente", "em_preenchimento")
         placeholders = ",".join("?" for _ in statuses)
+        dias_sql = _dias_desde_movimento_sql(conn)
+        name_order = ovitrampas_core._nocase_order(conn, "l.diario_nome")
         rows = conn.execute(
             f"""SELECT l.*,
                        COUNT(i.id_item) AS armadilhas,
                        COALESCE(SUM(i.ovos),0) AS ovos,
-                       CAST(julianday(?) - julianday(l.data_movimento) AS INTEGER) AS dias_desde_movimento
+                       {dias_sql} AS dias_desde_movimento
                   FROM {LOTES_TABLE} l
                   LEFT JOIN {ITENS_TABLE} i ON i.id_lote=l.id_lote
                  WHERE l.status IN ({placeholders})
                  GROUP BY l.id_lote
-                 ORDER BY date(l.data_movimento) {'DESC' if historico else 'ASC'}, l.diario_nome COLLATE NOCASE""",
+                 ORDER BY l.data_movimento {'DESC' if historico else 'ASC'}, {name_order}""",
             (_data(hoje or date.today().isoformat()), *statuses),
         ).fetchall()
         registros = [_lote_dict(row) for row in rows]
@@ -129,17 +133,19 @@ def listar_para_administracao(db_path, status="pendente", hoje=None):
             where = "l.status='concluido'"
         elif status == "enviado":
             where = "l.status='enviado_conta_ovos'"
+        dias_sql = _dias_desde_movimento_sql(conn)
+        name_order = ovitrampas_core._nocase_order(conn, "l.diario_nome")
         rows = conn.execute(
             f"""SELECT l.*,
                        COUNT(i.id_item) AS armadilhas,
                        COALESCE(SUM(i.ovos),0) AS ovos,
                        SUM(CASE WHEN i.ovos > 0 THEN 1 ELSE 0 END) AS positivas,
-                       CAST(julianday(?) - julianday(l.data_movimento) AS INTEGER) AS dias_desde_movimento
+                       {dias_sql} AS dias_desde_movimento
                   FROM {LOTES_TABLE} l
                   LEFT JOIN {ITENS_TABLE} i ON i.id_lote=l.id_lote
                  WHERE {where}
                  GROUP BY l.id_lote
-                 ORDER BY date(l.data_movimento) DESC, l.diario_nome COLLATE NOCASE""",
+                 ORDER BY l.data_movimento DESC, {name_order}""",
             params,
         ).fetchall()
         registros = [_lote_dict(row) for row in rows]
@@ -157,11 +163,13 @@ def obter_lote(db_path, id_lote):
         ).fetchone()
         if not lote:
             raise ValueError("Lote de leitura não encontrado.")
-        itens = [dict(row) for row in conn.execute(
+        id_order = ovitrampas_core._numeric_text_order(conn, "ovitrampa_id")
+        name_order = ovitrampas_core._nocase_order(conn, "ovitrampa_id")
+        itens = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT id_item, ovitrampa_id, complemento, localidade, ovos, ocorrencia
                   FROM {ITENS_TABLE}
                  WHERE id_lote=?
-                 ORDER BY CAST(ovitrampa_id AS INTEGER), ovitrampa_id COLLATE NOCASE""",
+                 ORDER BY {id_order}, {name_order}""",
             (lote["id_lote"],),
         ).fetchall()]
         for item in itens:
@@ -260,6 +268,8 @@ def marcar_enviado_conta_ovos(db_path, id_lote, usuario):
 
 
 def _ensure_schema_conn(conn):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return
     conn.executescript(f"""
         CREATE TABLE IF NOT EXISTS {LOTES_TABLE} (
             id_lote INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -307,15 +317,17 @@ def _ensure_schema_conn(conn):
 
 
 def _diarios_com_armadilhas(conn):
+    diario_order = ovitrampas_core._nocase_order(conn, "d.nome")
+    id_order = ovitrampas_core._numeric_text_order(conn, "a.ovitrampa_id")
+    name_order = ovitrampas_core._nocase_order(conn, "a.ovitrampa_id")
     rows = conn.execute(
-        """SELECT d.id_diario, d.nome, a.ovitrampa_id, a.complemento, a.localidade,
+        f"""SELECT d.id_diario, d.nome, a.ovitrampa_id, a.complemento, a.localidade,
                   a.rua, a.numero, a.localizacao, a.bairro, a.responsavel
              FROM ovitrampas_diarios d
              JOIN ovitrampas_diario_armadilhas da ON da.id_diario=d.id_diario
-             JOIN ovitrampas_armadilhas a ON a.ovitrampa_id=da.ovitrampa_id
+            JOIN ovitrampas_armadilhas a ON a.ovitrampa_id=da.ovitrampa_id
             WHERE d.ativo=1 AND COALESCE(a.ativo,1)=1
-            ORDER BY d.nome COLLATE NOCASE, da.ordem,
-                     CAST(a.ovitrampa_id AS INTEGER), a.ovitrampa_id COLLATE NOCASE"""
+            ORDER BY {diario_order}, da.ordem, {id_order}, {name_order}"""
     ).fetchall()
     diarios = {}
     for raw in rows:
@@ -380,12 +392,18 @@ def _lote_editavel(conn, id_lote):
 
 
 def _lote_dict(row):
-    item = dict(row)
+    item = db_core.serialize_row(row)
     item["movimento_label"] = "Troca" if item.get("movimento") == "troca" else "Retirada"
     dias = int(item.get("dias_desde_movimento") or 0)
     item["alerta"] = dias > 2 and item.get("status") in ("pendente", "em_preenchimento")
     item["editavel"] = item.get("status") in STATUS_EDITAVEIS
     return item
+
+
+def _dias_desde_movimento_sql(conn):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return "CAST(? AS DATE) - l.data_movimento"
+    return "CAST(julianday(?) - julianday(l.data_movimento) AS INTEGER)"
 
 
 def _localidades(value):

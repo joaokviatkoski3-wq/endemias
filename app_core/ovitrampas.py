@@ -90,6 +90,14 @@ def _string_aggregate(conn, expression, separator=", "):
     return f"GROUP_CONCAT({expression}, '{separator}')"
 
 
+def _date_order(expression):
+    return f"COALESCE(CAST({expression} AS TEXT), '')"
+
+
+def _round_one(expression):
+    return f"ROUND(CAST(({expression}) AS NUMERIC), 1)"
+
+
 def _calendar_agents_expression(conn, names_only=False):
     if names_only:
         value = "a.nome"
@@ -662,7 +670,7 @@ def resumo(db_path, filtros=None):
     try:
         ensure_schema(conn)
         where, params = _where(filtros)
-        totais = dict(conn.execute(
+        totais = db_core.serialize_row(conn.execute(
             f"""SELECT COUNT(*) AS leituras,
                        COUNT(DISTINCT ovitrampa_id) AS ovitrampas,
                        COALESCE(SUM(ovos),0) AS ovos,
@@ -673,7 +681,7 @@ def resumo(db_path, filtros=None):
                   FROM ovitrampas_leituras l {where}""",
             params,
         ).fetchone())
-        por_distrito = [dict(row) for row in conn.execute(
+        por_distrito = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT COALESCE(l.distrito,'-') AS distrito, COUNT(*) AS leituras,
                        COUNT(DISTINCT l.ovitrampa_id) AS ovitrampas, COALESCE(SUM(l.ovos),0) AS ovos
                   FROM ovitrampas_leituras l {where}
@@ -682,7 +690,7 @@ def resumo(db_path, filtros=None):
                  LIMIT 12""",
             params,
         )]
-        por_semana = [dict(row) for row in conn.execute(
+        por_semana = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT l.ano, l.semana, COUNT(*) AS leituras, COALESCE(SUM(l.ovos),0) AS ovos,
                        SUM(CASE WHEN l.ovos > 0 THEN 1 ELSE 0 END) AS positivas
                   FROM ovitrampas_leituras l {where}
@@ -703,12 +711,13 @@ def listar(db_path, filtros=None, limite=500):
     try:
         ensure_schema(conn)
         where, params = _where(filtros, busca=True)
-        rows = [dict(row) for row in conn.execute(
+        name_order = _nocase_order(conn, "ovitrampa_id")
+        rows = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT l.*, a.nome AS laboratorista
                   FROM ovitrampas_leituras l
                   LEFT JOIN agentes a ON a.id_agente=l.id_laboratorista
                   {where}
-                 ORDER BY ano DESC, semana DESC, ovitrampa_id COLLATE NOCASE
+                 ORDER BY ano DESC, semana DESC, {name_order}
                  LIMIT ?""",
             [*params, limite],
         )]
@@ -1051,12 +1060,21 @@ def monitoramento(db_path, filtros=None):
     try:
         ensure_schema(conn)
         where, params, periodo = _where_monitoramento(conn, filtros)
+        id_order = _numeric_text_order(conn, "ovitrampa_id")
+        reading_id_order = _numeric_text_order(conn, "l.ovitrampa_id")
+        coleta_order = _date_order("l.data_coleta")
+        positividade = _round_one(
+            "100.0 * SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) / COUNT(*)"
+        )
+        media_positiva = _round_one(
+            "COALESCE(AVG(CASE WHEN COALESCE(l.ovos,0)>0 THEN l.ovos END),0)"
+        )
         join_base = f"""
             FROM {TABLE} l
             LEFT JOIN {ARMADILHAS_TABLE} am ON am.ovitrampa_id=l.ovitrampa_id
             {where}
         """
-        total = dict(conn.execute(
+        total = db_core.serialize_row(conn.execute(
             f"""SELECT COUNT(*) AS leituras,
                        COUNT(DISTINCT l.ovitrampa_id) AS armadilhas_lidas,
                        SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
@@ -1066,7 +1084,7 @@ def monitoramento(db_path, filtros=None):
             params,
         ).fetchone())
 
-        positivas_recentes = [dict(row) for row in conn.execute(
+        positivas_recentes = [db_core.serialize_row(row) for row in conn.execute(
             f"""
             WITH positivas AS (
                 SELECT l.ovitrampa_id,
@@ -1081,22 +1099,22 @@ def monitoramento(db_path, filtros=None):
                        l.data_coleta,
                        ROW_NUMBER() OVER (
                            PARTITION BY l.ovitrampa_id
-                           ORDER BY l.ano DESC, l.semana DESC, COALESCE(l.data_coleta,'') DESC
+                           ORDER BY l.ano DESC, l.semana DESC, {coleta_order} DESC
                        ) AS rn,
                        COUNT(*) OVER (PARTITION BY l.ovitrampa_id) AS vezes_positiva,
                        SUM(l.ovos) OVER (PARTITION BY l.ovitrampa_id) AS ovos_periodo
                   {join_base}
                    AND COALESCE(l.ovos,0)>0
             )
-            SELECT * FROM positivas
+             SELECT * FROM positivas
              WHERE rn=1
-             ORDER BY ano DESC, semana DESC, ovos DESC, CAST(ovitrampa_id AS INTEGER), ovitrampa_id
+             ORDER BY ano DESC, semana DESC, ovos DESC, {id_order}, ovitrampa_id
              LIMIT 80
             """,
             params,
         )]
 
-        ranking_positivas = [dict(row) for row in conn.execute(
+        ranking_positivas = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT l.ovitrampa_id,
                        COALESCE(am.localidade, l.distrito, '-') AS localidade,
                        COALESCE(am.rua, l.rua, '-') AS rua,
@@ -1105,26 +1123,33 @@ def monitoramento(db_path, filtros=None):
                        COUNT(*) AS leituras,
                        SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
                        COALESCE(SUM(l.ovos),0) AS ovos,
-                       ROUND(100.0 * SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) / COUNT(*), 1) AS positividade,
+                       {positividade} AS positividade,
                        MAX(CASE WHEN COALESCE(l.ovos,0)>0 THEN l.ano * 100 + l.semana ELSE NULL END) AS ultima_chave
                   {join_base}
-                 GROUP BY l.ovitrampa_id
-                HAVING positivas > 0
-                 ORDER BY positivas DESC, ovos DESC, positividade DESC, CAST(l.ovitrampa_id AS INTEGER), l.ovitrampa_id
+                 GROUP BY l.ovitrampa_id,
+                          COALESCE(am.localidade, l.distrito, '-'),
+                          COALESCE(am.rua, l.rua, '-'),
+                          COALESCE(am.numero, l.numero, ''),
+                          COALESCE(
+                              am.complemento, l.complemento,
+                              am.localizacao, l.localizacao, ''
+                          )
+                HAVING SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) > 0
+                 ORDER BY positivas DESC, ovos DESC, positividade DESC, {reading_id_order}, l.ovitrampa_id
                  LIMIT 80""",
             params,
         )]
         for row in ranking_positivas:
             row["ultima_positiva"] = _semana_label_from_key(row.pop("ultima_chave", None))
 
-        localidades = [dict(row) for row in conn.execute(
+        localidades = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT COALESCE(am.localidade, l.distrito, '-') AS localidade,
                        COUNT(*) AS leituras,
                        COUNT(DISTINCT l.ovitrampa_id) AS armadilhas_lidas,
                        SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
                        COUNT(DISTINCT CASE WHEN COALESCE(l.ovos,0)>0 THEN l.ovitrampa_id END) AS armadilhas_positivas,
                        COALESCE(SUM(l.ovos),0) AS ovos,
-                       ROUND(COALESCE(AVG(CASE WHEN COALESCE(l.ovos,0)>0 THEN l.ovos END),0), 1) AS media_ovos_positiva
+                       {media_positiva} AS media_ovos_positiva
                   {join_base}
                  GROUP BY COALESCE(am.localidade, l.distrito, '-')
                  ORDER BY ovos DESC, armadilhas_positivas DESC, positivas DESC, localidade
@@ -1182,7 +1207,7 @@ def atualizar_leitura(db_path, id_leitura, dados):
                 WHERE l.id_leitura=?""",
             (id_leitura,),
         ).fetchone()
-        return dict(row)
+        return db_core.serialize_row(row)
     except Exception:
         conn.rollback()
         raise
@@ -1210,6 +1235,11 @@ def atualizar_leituras_lote(db_path, filtros=None, dados=None):
         clauses = []
         sets = []
         update_params = []
+        data_vazia = (
+            "data_leitura IS NULL"
+            if _is_postgresql(conn)
+            else "(data_leitura IS NULL OR data_leitura='')"
+        )
         if id_laboratorista:
             if somente_vazios:
                 sets.append("id_laboratorista=CASE WHEN id_laboratorista IS NULL THEN ? ELSE id_laboratorista END")
@@ -1219,8 +1249,10 @@ def atualizar_leituras_lote(db_path, filtros=None, dados=None):
             update_params.append(id_laboratorista)
         if data_leitura:
             if somente_vazios:
-                sets.append("data_leitura=CASE WHEN data_leitura IS NULL OR data_leitura='' THEN ? ELSE data_leitura END")
-                clauses.append("(data_leitura IS NULL OR data_leitura='')")
+                sets.append(
+                    f"data_leitura=CASE WHEN {data_vazia} THEN ? ELSE data_leitura END"
+                )
+                clauses.append(data_vazia)
             else:
                 sets.append("data_leitura=?")
             update_params.append(data_leitura)
@@ -1897,7 +1929,9 @@ def _monitoramento_ocorrencias(conn, filtros, periodo, legacy_join_base, legacy_
 
 
 def _monitoramento_ocorrencias_detalhes_importadas(conn, join_base, params):
-    rows = [dict(row) for row in conn.execute(
+    data_order = _date_order("o.data")
+    id_order = _numeric_text_order(conn, "ovitrampa_id")
+    rows = [db_core.serialize_row(row) for row in conn.execute(
         f"""WITH base AS (
                 SELECT o.ocorrencia_codigo AS codigo,
                        o.ovitrampa_id,
@@ -1916,16 +1950,16 @@ def _monitoramento_ocorrencias_detalhes_importadas(conn, join_base, params):
                        MAX(o.ano * 100 + o.semana) OVER (PARTITION BY o.ocorrencia_codigo, o.ovitrampa_id) AS ultima_chave,
                        ROW_NUMBER() OVER (
                            PARTITION BY o.ocorrencia_codigo, o.ovitrampa_id
-                           ORDER BY o.ano DESC, o.semana DESC, COALESCE(o.data,'') DESC, o.id_contagem DESC
+                           ORDER BY o.ano DESC, o.semana DESC, {data_order} DESC, o.id_contagem DESC
                        ) AS rn
                   {join_base}
                    AND o.ocorrencia_codigo BETWEEN 1 AND 9
              )
              SELECT codigo, ovitrampa_id, localidade, rua, numero, complemento, quarteirao,
                     ano, semana, data, ovos, resultado, observacao, total, ultima_chave
-               FROM base
+              FROM base
               WHERE rn=1
-              ORDER BY codigo, total DESC, ultima_chave DESC, CAST(ovitrampa_id AS INTEGER), ovitrampa_id""",
+              ORDER BY codigo, total DESC, ultima_chave DESC, {id_order}, ovitrampa_id""",
         params,
     )]
     por_codigo = {codigo: [] for codigo in OCORRENCIAS}
@@ -1938,7 +1972,9 @@ def _monitoramento_ocorrencias_detalhes_importadas(conn, join_base, params):
 
 
 def _monitoramento_ocorrencias_detalhes(conn, join_base, params):
-    rows = [dict(row) for row in conn.execute(
+    data_order = _date_order("l.data_coleta")
+    id_order = _numeric_text_order(conn, "ovitrampa_id")
+    rows = [db_core.serialize_row(row) for row in conn.execute(
         f"""WITH base AS (
                 SELECT l.ocorrencia_codigo AS codigo,
                        l.ovitrampa_id,
@@ -1957,16 +1993,16 @@ def _monitoramento_ocorrencias_detalhes(conn, join_base, params):
                        MAX(l.ano * 100 + l.semana) OVER (PARTITION BY l.ocorrencia_codigo, l.ovitrampa_id) AS ultima_chave,
                        ROW_NUMBER() OVER (
                            PARTITION BY l.ocorrencia_codigo, l.ovitrampa_id
-                           ORDER BY l.ano DESC, l.semana DESC, COALESCE(l.data_coleta,'') DESC
+                           ORDER BY l.ano DESC, l.semana DESC, {data_order} DESC
                        ) AS rn
                   {join_base}
                    AND l.ocorrencia_codigo BETWEEN 1 AND 9
              )
              SELECT codigo, ovitrampa_id, localidade, rua, numero, complemento, quarteirao,
                     ano, semana, data, ovos, resultado, observacao, total, ultima_chave
-               FROM base
+              FROM base
               WHERE rn=1
-              ORDER BY codigo, total DESC, ultima_chave DESC, CAST(ovitrampa_id AS INTEGER), ovitrampa_id""",
+              ORDER BY codigo, total DESC, ultima_chave DESC, {id_order}, ovitrampa_id""",
         params,
     )]
     por_codigo = {codigo: [] for codigo in OCORRENCIAS}
@@ -2232,7 +2268,8 @@ def _insert(conn, registro):
     cols = list(registro.keys())
     placeholders = ",".join("?" for _ in cols)
     cur = conn.execute(
-        f"INSERT OR IGNORE INTO {TABLE} ({','.join(cols)}) VALUES ({placeholders})",
+        f"""INSERT INTO {TABLE} ({','.join(cols)}) VALUES ({placeholders})
+            ON CONFLICT (id_leitura) DO NOTHING""",
         [registro[col] for col in cols],
     )
     return cur.rowcount > 0
@@ -2290,7 +2327,12 @@ def _upsert_ocorrencia(conn, registro):
         )
         return "inseridos"
 
-    mudou = any((atual[col] != registro[col]) for col in cols if col not in ("arquivo_origem", "importado_em"))
+    atual_serializado = db_core.serialize_row(atual)
+    mudou = any(
+        atual_serializado[col] != registro[col]
+        for col in cols
+        if col not in ("arquivo_origem", "importado_em")
+    )
     if not mudou:
         return "sem_alteracao"
     sets = ",".join(f"{col}=?" for col in cols if col != "id_contagem")
@@ -2316,8 +2358,19 @@ def _where(filtros, busca=False):
     if filtros.get("positivas") == "1":
         clauses.append("l.ovos > 0")
     if busca and filtros.get("busca"):
-        term = f"%{filtros['busca'].strip()}%"
-        clauses.append("(l.ovitrampa_id LIKE ? OR l.rua LIKE ? OR l.complemento LIKE ? OR l.localizacao LIKE ? OR l.quarteirao LIKE ?)")
+        term = f"%{filtros['busca'].strip().lower()}%"
+        columns = (
+            "l.ovitrampa_id",
+            "l.rua",
+            "l.complemento",
+            "l.localizacao",
+            "l.quarteirao",
+        )
+        clauses.append(
+            "(" + " OR ".join(
+                f"LOWER(COALESCE({column},'')) LIKE ?" for column in columns
+            ) + ")"
+        )
         params.extend([term] * 5)
     return ("WHERE " + " AND ".join(clauses)) if clauses else "", params
 

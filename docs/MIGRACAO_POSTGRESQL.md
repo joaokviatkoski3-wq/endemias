@@ -136,11 +136,11 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
    laboratorial geral tambem estao homologados. O bloco de visitas de
    Esporotricose, seus animais e buscas de feridos completa o lote seguinte.
    O cadastro manual de doentes, receitas, entregas, estoque e metadados dos
-   anexos foi homologado na sequencia. Em Ovitrampas, o cadastro das
-   armadilhas, o historico, os diarios, a ordenacao e o calendario tambem
-   foram homologados. Leituras, monitoramento, laboratorio de ovitrampas e
-   Conta Ovos formam o proximo recorte antes de habilitar a pagina inteira no
-   modo PostgreSQL.
+   anexos foi homologado na sequencia. A pagina Ovitrampas tambem esta
+   concluida: cadastro, historico, leituras, ocorrencias, monitoramento,
+   diarios, ordenacao, calendario, lotes do laboratorio e conferencia para o
+   Conta Ovos usam a camada dual. Registro Geografico e a pagina completa de
+   Importacao Kobo permanecem entre os proximos grandes recortes.
 6. Ensaiar a migracao com uma copia recente do banco oficial.
 7. Fazer backup, carga final, validacao e troca controlada.
 

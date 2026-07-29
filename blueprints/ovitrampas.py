@@ -2,10 +2,11 @@ import os
 import tempfile
 from pathlib import Path
 
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, jsonify, render_template, request
 
 from app_core import audit
 from app_core import auth as auth_core
+from app_core import blueprint_helpers as bh
 from app_core import ovitrampas as ovitrampas_core
 from app_core import ovitrampas_laboratorio as ovi_lab_core
 
@@ -15,7 +16,7 @@ login_required = auth_core.login_required
 
 
 def _db_path():
-    return current_app.config["DB_PATH"]
+    return bh.db_target()
 
 
 def get_db():

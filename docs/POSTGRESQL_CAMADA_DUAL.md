@@ -333,12 +333,15 @@ permaneceram inalteradas.
 Com isso, a pagina **Esporotricose** esta funcionalmente coberta pela camada
 dual.
 
-## Nucleo de Ovitrampas
+## Ovitrampas
 
-A primeira parte operacional de **Ovitrampas** foi homologada nos dois bancos.
-O recorte inclui:
+A pagina **Ovitrampas** foi homologada nos dois bancos. O recorte inclui:
 
 - cadastro local e importacao do cadastro de armadilhas;
+- importacao idempotente das leituras e ocorrencias do Conta Ovos;
+- resumo, listagem, filtros e edicao individual ou em lote das leituras;
+- indicadores, ranking, positivas recentes e monitoramento por localidade;
+- ocorrencias historicas e armadilhas marcadas para realocacao;
 - busca sem diferenca entre maiusculas e minusculas;
 - IDs numericos e alfanumericos, como `126-A`, sem erro de conversao;
 - historico das alteracoes de endereco, quarteirao e demais dados;
@@ -347,6 +350,11 @@ O recorte inclui:
 - identificacao de armadilhas a realocar e sem diario;
 - grupos, eventos e agentes do calendario;
 - integracao dos movimentos com a Agenda;
+- geracao dos lotes de leitura a partir do calendario e dos diarios;
+- rascunho e conclusao das contagens pelo laboratorista;
+- registro das ocorrencias de campo junto com a quantidade de ovos;
+- conferencia administrativa e marcacao do envio ao Conta Ovos;
+- tela compartilhada de lancamentos laboratoriais em modo PostgreSQL;
 - agregacao de agentes com `GROUP_CONCAT` no SQLite e `string_agg` no
   PostgreSQL;
 - recuperacao de IDs com `lastrowid` no SQLite e `RETURNING` no PostgreSQL;
@@ -355,18 +363,15 @@ O recorte inclui:
 O ensaio controlado e:
 
 ```powershell
-python scripts\testar_ovitrampas_nucleo_postgresql.py `
+python scripts\testar_ovitrampas_postgresql.py `
   --database endemias_teste
 ```
 
-O script exercita cadastro, historico, diarios, ordenacao e calendario em oito
-tabelas temporarias. Ao final, compara as contagens de todas as tabelas
-publicas para confirmar que a copia de homologacao nao foi alterada.
-
-A pagina ainda nao deve ser iniciada integralmente no modo PostgreSQL. Faltam
-homologar as leituras importadas, o monitoramento, os lotes do laboratorio e a
-integracao administrativa com o Conta Ovos antes de trocar o destino usado
-pelas rotas Flask de Ovitrampas.
+O script exercita cadastro, historico, leituras, ocorrencias, monitoramento,
+diarios, ordenacao, calendario e laboratorio em onze tabelas temporarias. Ele
+tambem abre as paginas e APIs reais em modo somente leitura. Ao final, compara
+as contagens de todas as tabelas publicas para confirmar que a copia de
+homologacao nao foi alterada.
 
 Por seguranca, outro banco exige:
 
@@ -405,9 +410,9 @@ Dashboard Integrado, Producao Operacional e Resultados Laboratoriais possuem
 agora suas consultas homologadas nos dois bancos. O bloco de visitas de
 Esporotricose, incluindo visitas, animais encontrados, buscas de feridos,
 cadastro clinico, receitas, estoque e anexos, tambem esta homologado. O
-cadastro, o historico, os diarios e o calendario de Ovitrampas tambem estao
-prontos. O proximo recorte e formado pelas leituras, monitoramento, lotes do
-laboratorio e integracao com o Conta Ovos.
+cadastro, as leituras, o monitoramento, os diarios, o calendario e o fluxo
+laboratorial de Ovitrampas tambem estao prontos. O proximo grande recorte pode
+ser o Registro Geografico ou a pagina completa de Importacao Kobo.
 
 Cada lote deve:
 

@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify, render_template, request
 from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
+from app_core import db as db_core
 from app_core import laboratorio_lancamentos as lab_core
 from app_core import ovitrampas_laboratorio as ovi_lab_core
 
@@ -43,14 +44,32 @@ def _int_nao_negativo(value, field):
     return number
 
 
-def _agentes_coleta_sql():
-    return """SELECT GROUP_CONCAT(nome, ', ') FROM (
-                SELECT DISTINCT a.nome
-                  FROM visita_agentes va
-                  JOIN agentes a ON a.id_agente=va.id_agente
-                 WHERE va.id_visita=v.id_visita
-                 ORDER BY a.nome
-              )"""
+def _agentes_coleta_sql(conn):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        aggregate = "string_agg(nomes.nome, ', ' ORDER BY nomes.nome)"
+    else:
+        aggregate = "GROUP_CONCAT(nomes.nome, ', ')"
+    return f"""SELECT {aggregate} FROM (
+                   SELECT DISTINCT a.nome
+                     FROM visita_agentes va
+                     JOIN agentes a ON a.id_agente=va.id_agente
+                    WHERE va.id_visita=v.id_visita
+                ) nomes"""
+
+
+def _dias_pendente_sql(conn):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return "CURRENT_DATE - v.data"
+    return "CAST(julianday('now', 'localtime') - julianday(v.data) AS INTEGER)"
+
+
+def _numeric_text_order(conn, expression):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return (
+            f"CAST(NULLIF(substring(CAST({expression} AS TEXT) "
+            "FROM '^[0-9]+'), '') AS BIGINT)"
+        )
+    return f"CAST({expression} AS INTEGER)"
 
 
 def _contagens(dados):
@@ -101,24 +120,30 @@ def page():
 def pendentes():
     conn = bh.get_db()
     try:
+        agentes_sql = _agentes_coleta_sql(conn)
+        dias_sql = _dias_pendente_sql(conn)
+        tubo_order = _numeric_text_order(conn, "c.num_tubo")
         rows = conn.execute(f"""
             SELECT c.id_coleta, c.num_tubo, c.codigo_deposito, c.tipo_deposito,
                    c.deposito_eliminado, v.id_visita, v.data, v.tipo,
                    COALESCE(l.nome, v.localidade) AS localidade, v.quarteirao,
                    v.logradouro, v.numero, v.visita, v.observacoes,
-                   CAST(julianday('now', 'localtime') - julianday(v.data) AS INTEGER) AS dias_pendente,
-                   ({_agentes_coleta_sql()}) AS agentes
+                   {dias_sql} AS dias_pendente,
+                   ({agentes_sql}) AS agentes
               FROM coletas c
               JOIN visitas v ON v.id_visita=c.id_visita
               LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
               LEFT JOIN resultados_laboratorio rl ON rl.id_coleta=c.id_coleta
-              LEFT JOIN {lab_core.STATUS_TABLE} st ON st.id_coleta=c.id_coleta
+             LEFT JOIN {lab_core.STATUS_TABLE} st ON st.id_coleta=c.id_coleta
              WHERE rl.id_coleta IS NULL AND st.id_coleta IS NULL
-             ORDER BY date(v.data), CAST(c.num_tubo AS INTEGER), c.num_tubo
+             ORDER BY v.data, {tubo_order}, c.num_tubo
         """).fetchall()
     finally:
         conn.close()
-    return jsonify({"pendentes": [dict(row) for row in rows], "total": len(rows)})
+    return jsonify({
+        "pendentes": [db_core.serialize_row(row) for row in rows],
+        "total": len(rows),
+    })
 
 
 @bp.route("/api/laboratorio/lancamentos/historico")
@@ -128,6 +153,7 @@ def historico():
     limite = min(max(int(request.args.get("limite", 100)), 1), 500)
     conn = bh.get_db()
     try:
+        agentes_sql = _agentes_coleta_sql(conn)
         resultados = conn.execute(f"""
             SELECT 'resultado' AS registro_tipo, rl.id_resultado, rl.id_coleta,
                    rl.num_tubo, rl.data_coleta, rl.data_leitura, rl.laboratorista,
@@ -139,19 +165,19 @@ def historico():
                    rl.outra_larvas, rl.outra_pupas, rl.outra_exuvias, rl.outra_adulto,
                    v.tipo, COALESCE(l.nome, v.localidade) AS localidade,
                    v.logradouro, v.numero, v.quarteirao,
-                   ({_agentes_coleta_sql()}) AS agentes
+                   ({agentes_sql}) AS agentes
               FROM resultados_laboratorio rl
               JOIN coletas c ON c.id_coleta=rl.id_coleta
               JOIN visitas v ON v.id_visita=c.id_visita
               LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
-             ORDER BY date(rl.data_leitura) DESC, rl.id_resultado DESC
+             ORDER BY rl.data_leitura DESC, rl.id_resultado DESC
              LIMIT ?
         """, (limite,)).fetchall()
     finally:
         conn.close()
     itens = []
     for row in resultados:
-        item = dict(row)
+        item = db_core.serialize_row(row)
         item["editavel"] = _resultado_editavel(row)
         item["positivo_aegypti"] = any(
             int(item.get(nome) or 0) > 0 for nome in CAMPOS_CONTAGEM[:4]
@@ -166,7 +192,7 @@ def historico():
 def ovitrampas_lotes():
     historico = request.args.get("historico") == "1"
     return jsonify(ovi_lab_core.listar_para_laboratorista(
-        bh.db_path(), historico=historico,
+        bh.db_target(), historico=historico,
     ))
 
 
@@ -175,7 +201,7 @@ def ovitrampas_lotes():
 @laboratorio_required
 def ovitrampas_lote(id_lote):
     try:
-        return jsonify(ovi_lab_core.obter_lote(bh.db_path(), id_lote))
+        return jsonify(ovi_lab_core.obter_lote(bh.db_target(), id_lote))
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 404
 
@@ -188,7 +214,7 @@ def ovitrampas_lote_rascunho(id_lote):
     usuario = dict(bh.usuario_atual() or {})
     try:
         lote = ovi_lab_core.salvar_rascunho(
-            bh.db_path(), id_lote, dados.get("leituras"), usuario,
+            bh.db_target(), id_lote, dados.get("leituras"), usuario,
         )
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
@@ -203,7 +229,7 @@ def ovitrampas_lote_concluir(id_lote):
     usuario = dict(bh.usuario_atual() or {})
     try:
         lote = ovi_lab_core.concluir_lote(
-            bh.db_path(), id_lote, dados.get("leituras"), usuario,
+            bh.db_target(), id_lote, dados.get("leituras"), usuario,
         )
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
@@ -261,17 +287,21 @@ def salvar_resultado(id_coleta):
         data_leitura = date.today().isoformat()
         colunas = ", ".join(campos)
         placeholders = ", ".join("?" for _ in campos)
-        cur = conn.execute(f"""
-            INSERT INTO resultados_laboratorio (
-                id_coleta, num_tubo, data_coleta, laboratorista, id_laboratorista,
-                data_leitura, {colunas}, origem, criado_em, atualizado_em
-            ) VALUES (?, ?, ?, ?, ?, ?, {placeholders}, 'sistema', ?, ?)
-        """, (
-            id_coleta, coleta["num_tubo"], coleta["data"], agente["nome"],
-            agente["id_agente"], data_leitura, *campos.values(), agora, agora,
-        ))
+        id_resultado = db_core.insert_and_get_id(
+            conn,
+            f"""
+                INSERT INTO resultados_laboratorio (
+                    id_coleta, num_tubo, data_coleta, laboratorista, id_laboratorista,
+                    data_leitura, {colunas}, origem, criado_em, atualizado_em
+                ) VALUES (?, ?, ?, ?, ?, ?, {placeholders}, 'sistema', ?, ?)
+            """,
+            (
+                id_coleta, coleta["num_tubo"], coleta["data"], agente["nome"],
+                agente["id_agente"], data_leitura, *campos.values(), agora, agora,
+            ),
+            "id_resultado",
+        )
         conn.commit()
-        id_resultado = cur.lastrowid
     except Exception:
         conn.rollback()
         logging.exception("Erro ao salvar resultado laboratorial")
