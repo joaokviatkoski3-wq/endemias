@@ -12,6 +12,7 @@ from flask import Blueprint, Response, current_app, jsonify, render_template, re
 from app_core import audit
 from app_core import auth as auth_core
 from app_core import backup as backup_core
+from app_core import blueprint_helpers as bh
 from app_core import db as db_core
 from app_core import import_history
 from app_core import kobo_api
@@ -36,7 +37,7 @@ KOBO_DUPLICATE_TABLES = {
 
 
 def _db_path():
-    return current_app.config["DB_PATH"]
+    return bh.db_target()
 
 
 def _config_path():
@@ -779,17 +780,23 @@ def processar_confirmar(job_id):
             try:
                 lg = Logger(callback=cb)
                 with backup_core.operacao_exclusiva():
-                    backup_info = backup_core.criar_backup_sqlite(
-                        db_path,
-                        destino_dir=backup_dir,
-                        prefixo="pre_import",
-                        manter=20,
-                    )
-                    cb(
-                        f"Backup de seguranca criado antes da importacao: {os.path.basename(backup_info['arquivo'])}",
-                        "ok",
-                    )
-                    backup_pre_import[0] = os.path.basename(backup_info["arquivo"])
+                    if db_core.is_sqlite(db_path):
+                        backup_info = backup_core.criar_backup_sqlite(
+                            db_path.location,
+                            destino_dir=backup_dir,
+                            prefixo="pre_import",
+                            manter=20,
+                        )
+                        cb(
+                            f"Backup de seguranca criado antes da importacao: {os.path.basename(backup_info['arquivo'])}",
+                            "ok",
+                        )
+                        backup_pre_import[0] = os.path.basename(backup_info["arquivo"])
+                    else:
+                        cb(
+                            "Importacao PostgreSQL protegida por transacao atomica.",
+                            "ok",
+                        )
                     result[0] = processar_upload(
                         arquivos_trabalho,
                         arquivos_larvas,

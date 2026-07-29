@@ -8,7 +8,7 @@
 
 import os, json, hashlib, traceback
 import pandas as pd
-from datetime import datetime
+from datetime import date, datetime, time
 from openpyxl.utils import column_index_from_string
 
 from app_core import esporotricose as esporotricose_core
@@ -125,6 +125,34 @@ def val_str(val):
     return s if s and s.lower() not in ("nan", "none", "") else None
 
 
+def _is_postgresql(conn_or_cursor):
+    return getattr(conn_or_cursor, "backend", "sqlite") == "postgresql"
+
+
+def _string_aggregate(conn_or_cursor, expression, separator=" / "):
+    if _is_postgresql(conn_or_cursor):
+        cast_expression = f"CAST({expression} AS TEXT)"
+        return (
+            f"string_agg({cast_expression}, '{separator}' "
+            f"ORDER BY {cast_expression})"
+        )
+    return f"GROUP_CONCAT({expression}, '{separator}')"
+
+
+def _date_order(expression):
+    return f"COALESCE(CAST({expression} AS TEXT), '')"
+
+
+def _comparable_db_value(value):
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, time):
+        return value.strftime("%H:%M")
+    return value
+
+
 def auditar_larvas_sem_coleta(conn, larvas_origens, logger, limite=80):
     """Confere se cada resultado de larvas tem coleta/visita correspondente no banco."""
     if not larvas_origens:
@@ -223,8 +251,12 @@ def obter_ou_criar_localidade(cur, nome_bruto):
     cur.execute("SELECT id_localidade FROM localidades WHERE nome=?", (nome,))
     row = cur.fetchone()
     if row: return row[0]
-    cur.execute("INSERT INTO localidades (nome, cod_localidade) VALUES (?,NULL)", (nome,))
-    return cur.lastrowid
+    return db_core.insert_and_get_id(
+        cur,
+        "INSERT INTO localidades (nome, cod_localidade) VALUES (?,NULL)",
+        (nome,),
+        "id_localidade",
+    )
 
 
 # =============================================================================
@@ -460,7 +492,7 @@ def obter_ou_criar_agente(cur, nome):
     return agentes_core.obter_ou_criar(cur, nome)
 
 
-def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso):
+def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso, conn=None):
     col_data      = cfg_tipo["col_data"]
     col_hora_letra = cfg_tipo.get("col_hora_inicio_letra")
     col_hora_fim   = cfg_tipo.get("col_hora_fim_letra")
@@ -481,7 +513,8 @@ def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso):
     loc_bruto = val_str(row.get(cfg_tipo["col_localidade"]))
     loc_nome = normalizar_localidade(loc_bruto) if loc_bruto else None
     logradouro = val_str(row.get("Logradouro") or row.get("logradouro"))
-    pe_vinculo = pe_core.resolver_alias_visita(cur.connection, logradouro, loc_bruto) if tipo == "PE" else None
+    pe_conn = conn if conn is not None else cur.connection
+    pe_vinculo = pe_core.resolver_alias_visita(pe_conn, logradouro, loc_bruto) if tipo == "PE" else None
 
     valores = (
         val_str(kobo_uuid), val_int(row.get("_id")), tipo,
@@ -522,7 +555,10 @@ def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso):
 
     if existente is not None:
         id_existente = existente[0]
-        if tuple(existente[1:]) == valores:
+        existentes_comparaveis = tuple(
+            _comparable_db_value(value) for value in existente[1:]
+        )
+        if existentes_comparaveis == valores:
             return {"id_visita": id_existente, "inserida": False, "atualizada": False}
         cur.execute("""
             UPDATE visitas SET
@@ -588,8 +624,9 @@ def inserir_foco_visita(cur, id_visita, positivos, visita_row, tipo, cfg_tipo, a
     col_loc   = cfg_tipo.get("col_localidade")
     loc_bruto = val_str(visita_row.get(col_loc)) if col_loc else None
 
-    cur.execute("""
-        SELECT GROUP_CONCAT(a.nome, ' / ')
+    agentes_agg = _string_aggregate(cur, "a.nome")
+    cur.execute(f"""
+        SELECT {agentes_agg}
         FROM visita_agentes va JOIN agentes a ON a.id_agente=va.id_agente
         WHERE va.id_visita=?
     """, (id_visita,))
@@ -645,12 +682,13 @@ def get_lab_val(row_larva, nome):
 
 def inserir_resultado_larva(cur, id_coleta, row_larva):
     cur.execute("""
-        INSERT OR IGNORE INTO resultados_laboratorio (
+        INSERT INTO resultados_laboratorio (
             id_coleta, num_tubo, data_coleta, laboratorista, data_leitura,
             aegypt_larvas, aegypt_pupas, aegypt_exuvias, aegypt_adulto,
             albopictus_larvas, albopictus_pupas, albopictus_exuvias, albopictus_adulto,
             outra_larvas, outra_pupas, outra_exuvias, outra_adulto, kobo_uuid
         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT DO NOTHING
     """, (
         id_coleta, val_str(row_larva.get("Número do tubito")),
         normalizar_data(row_larva.get("Data da coleta")),
@@ -665,9 +703,7 @@ def inserir_resultado_larva(cur, id_coleta, row_larva):
         val_str(row_larva.get("_uuid")),
     ))
     inserido = cur.rowcount > 0
-    if inserido and cur.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='laboratorio_coletas_status'"
-    ).fetchone():
+    if inserido and db_core.table_exists(cur, "laboratorio_coletas_status"):
         cur.execute(
             "DELETE FROM laboratorio_coletas_status WHERE id_coleta=?", (id_coleta,)
         )
@@ -813,7 +849,7 @@ def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
         seq_val = val_str(visita.get(col_seq)) if col_seq else None
         id_visita = gerar_id_visita(kobo_uuid, seq_val)
         resultado_visita = salvar_visita(
-            cur, id_visita, kobo_uuid, visita, tipo, cfg_tipo, agora_iso
+            cur, id_visita, kobo_uuid, visita, tipo, cfg_tipo, agora_iso, conn
         )
         id_visita = resultado_visita["id_visita"]
         ids_visitas_processadas.append(id_visita)
@@ -844,10 +880,11 @@ def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
                 _salvar_deposito_inspecionado(cur, id_visita, d)
 
             for t in extrair_tratamentos(visita, tipo):
-                # FIX DB-03: INSERT OR IGNORE — UNIQUE(id_visita, tipo) no schema previne duplicatas
+                # A chave UNIQUE(id_visita, tipo) no schema previne duplicatas.
                 cur.execute("""
-                    INSERT OR IGNORE INTO tratamentos (id_visita,tipo,quantidade_carga,qtd_depositos_tratados)
+                    INSERT INTO tratamentos (id_visita,tipo,quantidade_carga,qtd_depositos_tratados)
                     VALUES (?,?,?,?)
+                    ON CONFLICT DO NOTHING
                 """, (id_visita, normalizar_tipo_tratamento(t["tipo"]),
                       t["quantidade_carga"], t["qtd_depositos_tratados"]))
 
@@ -859,9 +896,10 @@ def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
                 id_coleta = gerar_id_coleta(kobo_uuid, num_tubo, i)
                 tipo_dep  = val_str(coleta.get(cfg_tipo.get("col_nome_deposito_coletas", "Depósito")))
                 cur.execute("""
-                    INSERT OR IGNORE INTO coletas
+                    INSERT INTO coletas
                         (id_coleta,id_visita,num_tubo,codigo_deposito,tipo_deposito,deposito_eliminado)
                     VALUES (?,?,?,?,?,?)
+                    ON CONFLICT DO NOTHING
                 """, (
                     id_coleta, id_visita, val_str(coleta.get(col_tubo)),
                     val_str(coleta.get(cfg_tipo.get("col_codigo_deposito_coletas", "Código do depósito"))),
@@ -926,6 +964,8 @@ def auditar_pendencias_importacao(conn, logger, ids_visitas=None):
     filtro_visita_sem_alias = f" AND id_visita IN ({placeholders})" if ids_visitas else ""
     params = tuple(ids_visitas)
     avisos = []
+    data_visita_ordem = _date_order("v.data")
+    data_ordem = _date_order("data")
     checks = (
         (
             "Visitas sem agente vinculado",
@@ -936,7 +976,7 @@ def auditar_pendencias_importacao(conn, logger, ids_visitas=None):
                       SELECT 1 FROM visita_agentes va WHERE va.id_visita=v.id_visita
                 )
                 {filtro_visita}
-                ORDER BY date(v.data) DESC, v.tipo, v.quarteirao
+                ORDER BY {data_visita_ordem} DESC, v.tipo, v.quarteirao
                 LIMIT 5""",
             f"""SELECT COUNT(*) FROM visitas v
                 WHERE NOT EXISTS (
@@ -950,7 +990,7 @@ def auditar_pendencias_importacao(conn, logger, ids_visitas=None):
                  FROM visitas
                 WHERE TRIM(COALESCE(localidade,''))='' AND id_localidade IS NULL
                 {filtro_visita_sem_alias}
-                ORDER BY date(data) DESC, tipo, quarteirao
+                ORDER BY {data_ordem} DESC, tipo, quarteirao
                 LIMIT 5""",
             f"""SELECT COUNT(*) FROM visitas
                 WHERE TRIM(COALESCE(localidade,''))='' AND id_localidade IS NULL
@@ -966,7 +1006,7 @@ def auditar_pendencias_importacao(conn, logger, ids_visitas=None):
                 WHERE COALESCE(t.qtd_depositos_tratados,0)>0
                   AND (t.quantidade_carga IS NULL OR t.quantidade_carga=0)
                   {filtro_visita}
-                ORDER BY date(v.data) DESC, t.id DESC
+                ORDER BY {data_visita_ordem} DESC, t.id DESC
                 LIMIT 5""",
             f"""SELECT COUNT(*) FROM tratamentos t
                  LEFT JOIN visitas v ON v.id_visita=t.id_visita
@@ -984,7 +1024,7 @@ def auditar_pendencias_importacao(conn, logger, ids_visitas=None):
                 WHERE COALESCE(d.tratado,0)>0
                   AND (d.qtd_carga IS NULL OR d.qtd_carga=0)
                   {filtro_visita}
-                ORDER BY date(v.data) DESC, d.id DESC
+                ORDER BY {data_visita_ordem} DESC, d.id DESC
                 LIMIT 5""",
             f"""SELECT COUNT(*) FROM depositos_inspecionados d
                  LEFT JOIN visitas v ON v.id_visita=d.id_visita
@@ -1030,7 +1070,7 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
     """
     arquivos_trabalho: lista de caminhos de arquivos .xlsx com prefixos em config.json
     arquivos_larvas:   lista de caminhos de arquivos .xlsx (LARVAS_)
-    banco_path:        caminho do endemias.db
+    banco_path:        destino SQLite ou PostgreSQL aceito por app_core.db
     config_path:       caminho do config.json
     logger:            instância de Logger
     """
@@ -1149,7 +1189,11 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
     recolhimentos_core.ensure_schema(conn)
 
     # FIX ETL-01: UMA transação para todos os arquivos — garante atomicidade total
+    postgresql = _is_postgresql(conn)
+    if postgresql:
+        conn.rollback()
     conn.execute("BEGIN")
+    transacao_abortada = False
 
     for caminho, nome, tipo, preparado in arquivos_preparados:
         try:
@@ -1201,8 +1245,12 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
             logger.log(f"  [ERRO] {nome}: {e}", "erro")
             logger.log(traceback.format_exc(), "erro")
             houve_erro = True
+            if postgresql:
+                conn.rollback()
+                transacao_abortada = True
+                break
 
-    if larvas:
+    if larvas and not transacao_abortada:
         try:
             resultado_larvas = processar_larvas_em_coletas_existentes(larvas, conn, logger, agora_iso)
             if resultado_larvas.get("resultados_novos", 0) or (arquivos_larvas and not arquivos_trabalho):
@@ -1219,30 +1267,40 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
             logger.log(f"  [ERRO] LARVAS: {e}", "erro")
             logger.log(traceback.format_exc(), "erro")
             houve_erro = True
+            if postgresql:
+                conn.rollback()
+                transacao_abortada = True
 
     # Verificar banco dentro da transação (mostra contagens reais mesmo no dry-run)
-    logger.log("\n[4/5] Checando pendencias operacionais...", "titulo")
-    auditar_pendencias_importacao(conn, logger, ids_visitas_auditadas)
+    if not transacao_abortada:
+        logger.log("\n[4/5] Checando pendencias operacionais...", "titulo")
+        auditar_pendencias_importacao(conn, logger, ids_visitas_auditadas)
 
-    logger.log("\n[5/5] Verificando banco...", "titulo")
-    cur = conn.cursor()
-    for tabela in ["visitas", "visita_agentes", "depositos_inspecionados",
-                   "tratamentos", "coletas", "resultados_laboratorio", "focos_positivos",
-                   "esporotricose_visitas", "esporotricose_animais", "recolhimentos",
-                   "amostras_animais", "bri_registros"]:
-        cur.execute(f'SELECT COUNT(*) FROM "{tabela}"')
-        qtd = cur.fetchone()[0]
-        logger.log(f"  {tabela:<35} {qtd} registro(s)", "ok")
+        logger.log("\n[5/5] Verificando banco...", "titulo")
+        cur = conn.cursor()
+        for tabela in ["visitas", "visita_agentes", "depositos_inspecionados",
+                       "tratamentos", "coletas", "resultados_laboratorio", "focos_positivos",
+                       "esporotricose_visitas", "esporotricose_animais", "recolhimentos",
+                       "amostras_animais", "bri_registros"]:
+            cur.execute(f'SELECT COUNT(*) FROM "{tabela}"')
+            qtd = cur.fetchone()[0]
+            logger.log(f"  {tabela:<35} {qtd} registro(s)", "ok")
+    else:
+        logger.log(
+            "\n[4/5] Lote interrompido e transacao PostgreSQL revertida.",
+            "aviso",
+        )
 
     # FIX ETL-01: commit ou rollback único — nunca ficam dados parciais
     if dry_run or houve_erro:
-        conn.execute("ROLLBACK")  # descarta tudo — banco fica intocado
+        if not transacao_abortada:
+            conn.rollback()
         if dry_run:
             logger.log("\n[DRY-RUN] Simulação concluída. Banco não foi alterado.", "aviso")
         else:
             logger.log("\n[ATENÇÃO] Erros detectados. Rollback executado — banco não alterado.", "erro")
     else:
-        conn.execute("COMMIT")
+        conn.commit()
         logger.log("\n✓ Dados gravados com sucesso.", "ok")
 
     conn.close()

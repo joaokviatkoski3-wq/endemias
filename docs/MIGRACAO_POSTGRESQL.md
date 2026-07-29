@@ -37,6 +37,9 @@ metadados dos anexos completa a cobertura funcional da pagina.
 Ovitrampas, Conta Ovos/SisPNCD e o Registro Geografico tambem estao
 homologados. No Registro Geografico, a cobertura inclui cadastro, edicao,
 acompanhamento, mapa, impressao, sugestoes de logradouros e edicao em lote.
+A Importacao Kobo tambem foi homologada de ponta a ponta: simulacao,
+processamento transacional, normalizacao, reimportacao idempotente, resultados
+de larvas, focos positivos, pendencias e renderizacao da pagina.
 
 ## Bancos locais
 
@@ -145,8 +148,9 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
    Conta Ovos usam a camada dual. O espelho Conta Ovos/SisPNCD, incluindo
    pendencias, consolidacoes e baixas, foi homologado em seguida. O Registro
    Geografico tambem esta concluido, incluindo consultas, acompanhamento,
-   mapa, impressao e todas as operacoes de edicao. A pagina completa de
-   Importacao Kobo e o proximo grande recorte.
+   mapa, impressao e todas as operacoes de edicao. A Importacao Kobo tambem
+   esta concluida, incluindo o ETL principal, simulacao, confirmacao,
+   reimportacao, larvas, pendencias e historico.
 6. Ensaiar a migracao com uma copia recente do banco oficial.
 7. Fazer backup, carga final, validacao e troca controlada.
 

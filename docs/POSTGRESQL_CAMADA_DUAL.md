@@ -151,8 +151,37 @@ python scripts\testar_importacoes_postgresql.py --database endemias_teste
 ```
 
 Ele valida registro, reprocessamento, atualizacao, JSON e listagem em uma
-tabela temporaria. A pagina completa de Importacao Kobo ainda depende de
-outros modulos que serao convertidos em lotes posteriores.
+tabela temporaria.
+
+## Importacao Kobo
+
+A pagina **Importacao Kobo** e o ETL principal foram homologados nos dois
+bancos. A cobertura inclui:
+
+- uso do destino de banco configurado nas previas, pendencias, processamento
+  e historico;
+- criacao de localidades com `RETURNING` no PostgreSQL;
+- agregacao portavel dos agentes e ordenacao por datas nativas;
+- insercoes idempotentes de depositos, tratamentos, coletas e resultados;
+- comparacao uniforme de datas e horarios em reimportacoes;
+- simulacao e confirmacao protegidas por uma unica transacao;
+- rollback integral do lote quando uma operacao PostgreSQL falha;
+- importacao isolada de resultados de larvas, criacao de focos e encerramento
+  da pendencia do tubo;
+- backup pre-importacao preservado no SQLite e protecao transacional no
+  PostgreSQL;
+- renderizacao da pagina e leitura da configuracao Kobo.
+
+O ensaio controlado e:
+
+```powershell
+python scripts\testar_importacao_kobo_postgresql.py --database endemias_teste
+```
+
+Ele cria copias temporarias das tabelas operacionais, gera uma planilha Kobo
+sintetica, executa dry-run, confirmacao e reimportacao e processa um resultado
+laboratorial. Ao final, compara as tabelas publicas para garantir que nenhum
+dado real foi alterado.
 
 ## Recolhimentos e Amostras de Animais
 
@@ -470,8 +499,8 @@ incompativel.
 Autenticacao, auditoria, Controle de Pessoal, Gestao de Usuarios,
 Recolhimentos de Materiais, Amostras de Animais e Visitas de Arboviroses
 possuem leitura e escrita validadas. BRI e Pontos Estrategicos tambem estao
-homologados, incluindo seus vinculos. O Historico de Importacoes esta pronto,
-embora a pagina completa de Importacao Kobo ainda nao esteja homologada.
+homologados, incluindo seus vinculos. O Historico de Importacoes e a pagina
+completa de Importacao Kobo tambem estao homologados.
 Dashboard Integrado, Producao Operacional e Resultados Laboratoriais possuem
 agora suas consultas homologadas nos dois bancos. O bloco de visitas de
 Esporotricose, incluindo visitas, animais encontrados, buscas de feridos,
@@ -480,7 +509,8 @@ cadastro, as leituras, o monitoramento, os diarios, o calendario e o fluxo
 laboratorial de Ovitrampas tambem estao prontos. O espelho Conta Ovos/SisPNCD
 foi homologado na sequencia. O Registro Geografico tambem esta coberto,
 incluindo cadastro, edicao, acompanhamento, mapa e impressao. O proximo grande
-recorte e a pagina completa de Importacao Kobo.
+recorte e concluir os modulos administrativos e auxiliares restantes, seguido
+por um ensaio integrado com uma copia recente do SQLite oficial.
 
 Cada lote deve:
 
