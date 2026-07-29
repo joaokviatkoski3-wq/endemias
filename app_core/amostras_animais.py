@@ -5,6 +5,7 @@ import re
 import pandas as pd
 
 from app_core import agentes as agentes_db
+from app_core import db as db_core
 from app_core import recolhimentos as agentes_core
 from app_core import normalizadores
 
@@ -21,63 +22,70 @@ ESPECIE_COLS = (
 )
 
 
-def ensure_schema(conn):
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS amostras_animais (
-            id_amostra       TEXT PRIMARY KEY,
-            kobo_uuid        TEXT UNIQUE,
-            kobo_id          INTEGER,
-            data             DATE NOT NULL,
-            hora             TIME,
-            inicio_registro  TEXT,
-            fim_registro     TEXT,
-            agentes_texto    TEXT,
-            motivo_visita    TEXT,
-            animal_motivador TEXT,
-            animal_motivador_outro TEXT,
-            localidade       TEXT,
-            id_localidade    INTEGER REFERENCES localidades(id_localidade),
-            quarteirao       INTEGER,
-            tipo_imovel      TEXT,
-            visita           TEXT,
-            logradouro       TEXT,
-            numero           TEXT,
-            sequencia        TEXT,
-            morador          TEXT,
-            ocorrencia_residencia TEXT,
-            onde             TEXT,
-            houve_acidente   TEXT,
-            houve_captura    TEXT,
-            local_captura    TEXT,
-            tipo_animal      TEXT,
-            animal_capturado TEXT,
-            especie_serpente TEXT,
-            especie_escorpiao TEXT,
-            especie_lagarta  TEXT,
-            especie_aranha   TEXT,
-            especie_carrapato TEXT,
-            especie_resumo   TEXT,
-            quantidade       INTEGER DEFAULT 0,
-            origem_estrutura TEXT NOT NULL DEFAULT 'nova',
-            arquivo_origem   TEXT,
-            submission_time  TEXT,
-            processado_em    TEXT NOT NULL
-        );
+def ensure_schema(target):
+    conn, close = _open_connection(target)
+    try:
+        if getattr(conn, "backend", "sqlite") == "postgresql":
+            return
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS amostras_animais (
+                id_amostra       TEXT PRIMARY KEY,
+                kobo_uuid        TEXT UNIQUE,
+                kobo_id          INTEGER,
+                data             DATE NOT NULL,
+                hora             TIME,
+                inicio_registro  TEXT,
+                fim_registro     TEXT,
+                agentes_texto    TEXT,
+                motivo_visita    TEXT,
+                animal_motivador TEXT,
+                animal_motivador_outro TEXT,
+                localidade       TEXT,
+                id_localidade    INTEGER REFERENCES localidades(id_localidade),
+                quarteirao       INTEGER,
+                tipo_imovel      TEXT,
+                visita           TEXT,
+                logradouro       TEXT,
+                numero           TEXT,
+                sequencia        TEXT,
+                morador          TEXT,
+                ocorrencia_residencia TEXT,
+                onde             TEXT,
+                houve_acidente   TEXT,
+                houve_captura    TEXT,
+                local_captura    TEXT,
+                tipo_animal      TEXT,
+                animal_capturado TEXT,
+                especie_serpente TEXT,
+                especie_escorpiao TEXT,
+                especie_lagarta  TEXT,
+                especie_aranha   TEXT,
+                especie_carrapato TEXT,
+                especie_resumo   TEXT,
+                quantidade       INTEGER DEFAULT 0,
+                origem_estrutura TEXT NOT NULL DEFAULT 'nova',
+                arquivo_origem   TEXT,
+                submission_time  TEXT,
+                processado_em    TEXT NOT NULL
+            );
 
-        CREATE TABLE IF NOT EXISTS amostra_animais_agentes (
-            id_amostra TEXT NOT NULL REFERENCES amostras_animais(id_amostra) ON DELETE CASCADE,
-            id_agente  INTEGER NOT NULL REFERENCES agentes(id_agente),
-            PRIMARY KEY (id_amostra, id_agente)
-        );
+            CREATE TABLE IF NOT EXISTS amostra_animais_agentes (
+                id_amostra TEXT NOT NULL REFERENCES amostras_animais(id_amostra) ON DELETE CASCADE,
+                id_agente  INTEGER NOT NULL REFERENCES agentes(id_agente),
+                PRIMARY KEY (id_amostra, id_agente)
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_amostras_animais_data ON amostras_animais(data);
-        CREATE INDEX IF NOT EXISTS idx_amostras_animais_localidade ON amostras_animais(id_localidade);
-        CREATE INDEX IF NOT EXISTS idx_amostras_animais_tipo ON amostras_animais(tipo_animal);
-        CREATE INDEX IF NOT EXISTS idx_amostras_animais_motivo ON amostras_animais(motivo_visita);
-        CREATE INDEX IF NOT EXISTS idx_amostra_animais_agentes_agente ON amostra_animais_agentes(id_agente);
-        """
-    )
+            CREATE INDEX IF NOT EXISTS idx_amostras_animais_data ON amostras_animais(data);
+            CREATE INDEX IF NOT EXISTS idx_amostras_animais_localidade ON amostras_animais(id_localidade);
+            CREATE INDEX IF NOT EXISTS idx_amostras_animais_tipo ON amostras_animais(tipo_animal);
+            CREATE INDEX IF NOT EXISTS idx_amostras_animais_motivo ON amostras_animais(motivo_visita);
+            CREATE INDEX IF NOT EXISTS idx_amostra_animais_agentes_agente ON amostra_animais_agentes(id_agente);
+            """
+        )
+    finally:
+        if close:
+            conn.close()
 
 
 def is_new_format(path):
@@ -188,13 +196,12 @@ def parse_workbook(path, estrutura=None):
     return registros
 
 
-def resumo(db_path, filtros=None):
+def resumo(target, filtros=None):
     filtros = filtros or {}
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
-    ensure_schema(conn)
-    where, params = _where(filtros)
+    conn, close = _open_connection(target)
     try:
+        ensure_schema(conn)
+        where, params = _where(filtros)
         totais = dict(conn.execute(
             f"""SELECT
                     COUNT(*) AS registros,
@@ -222,20 +229,21 @@ def resumo(db_path, filtros=None):
             params,
         )]
     finally:
-        conn.close()
+        if close:
+            conn.close()
     return {"totais": {k: (v or 0) for k, v in totais.items()}, "por_tipo": por_tipo, "por_localidade": por_localidade}
 
 
-def listar(db_path, filtros=None):
+def listar(target, filtros=None):
     filtros = filtros or {}
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
-    ensure_schema(conn)
-    where, params = _where(filtros, busca=True)
+    conn, close = _open_connection(target)
     try:
-        rows = [dict(r) for r in conn.execute(
+        ensure_schema(conn)
+        where, params = _where(filtros, busca=True)
+        agentes_agg = agentes_core._agentes_aggregate(conn, "ag.nome")
+        rows = [agentes_core._serializar_linha(r) for r in conn.execute(
             f"""SELECT a.*,
-                       (SELECT GROUP_CONCAT(ag.nome, ', ')
+                       (SELECT {agentes_agg}
                           FROM amostra_animais_agentes aa
                           JOIN agentes ag ON ag.id_agente=aa.id_agente
                          WHERE aa.id_amostra=a.id_amostra) AS agentes
@@ -245,19 +253,19 @@ def listar(db_path, filtros=None):
             params,
         )]
     finally:
-        conn.close()
+        if close:
+            conn.close()
     return {"registros": rows, "total": len(rows)}
 
 
-def localidades(db_path):
-    return _distinct(db_path, "localidade")
+def localidades(target):
+    return _distinct(target, "localidade")
 
 
-def agentes(db_path):
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
-    ensure_schema(conn)
+def agentes(target):
+    conn, close = _open_connection(target)
     try:
+        ensure_schema(conn)
         return [dict(r) for r in conn.execute(
             """SELECT DISTINCT ag.nome
                  FROM amostra_animais_agentes aa
@@ -265,20 +273,20 @@ def agentes(db_path):
                 ORDER BY ag.nome"""
         )]
     finally:
-        conn.close()
+        if close:
+            conn.close()
 
 
-def opcoes(db_path, coluna):
+def opcoes(target, coluna):
     if coluna not in {"motivo_visita", "tipo_animal", "animal_motivador"}:
         return []
-    return _distinct(db_path, coluna)
+    return _distinct(target, coluna)
 
 
-def _distinct(db_path, coluna):
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
-    ensure_schema(conn)
+def _distinct(target, coluna):
+    conn, close = _open_connection(target)
     try:
+        ensure_schema(conn)
         return [dict(r) for r in conn.execute(
             f"""SELECT DISTINCT {coluna} AS nome
                   FROM amostras_animais
@@ -286,7 +294,8 @@ def _distinct(db_path, coluna):
                  ORDER BY {coluna}"""
         )]
     finally:
-        conn.close()
+        if close:
+            conn.close()
 
 
 def _where(filtros, busca=False):
@@ -322,8 +331,12 @@ def _where(filtros, busca=False):
     if busca and filtros.get("busca"):
         termo = f"%{filtros['busca']}%"
         clauses.append(
-            """AND (a.localidade LIKE ? OR a.logradouro LIKE ? OR a.morador LIKE ?
-                    OR a.agentes_texto LIKE ? OR a.tipo_animal LIKE ? OR a.especie_resumo LIKE ?)"""
+            """AND (LOWER(COALESCE(a.localidade,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(a.logradouro,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(a.morador,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(a.agentes_texto,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(a.tipo_animal,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(a.especie_resumo,'')) LIKE LOWER(?))"""
         )
         params.extend([termo] * 6)
     return " ".join(clauses), params
@@ -332,7 +345,7 @@ def _where(filtros, busca=False):
 def _inserir_amostra(conn, registro, agora_iso):
     cur = conn.cursor()
     cur.execute(
-        """INSERT OR IGNORE INTO amostras_animais (
+        """INSERT INTO amostras_animais (
             id_amostra, kobo_uuid, kobo_id, data, hora, inicio_registro, fim_registro,
             agentes_texto, motivo_visita, animal_motivador, animal_motivador_outro,
             localidade, id_localidade, quarteirao, tipo_imovel, visita, logradouro,
@@ -341,7 +354,8 @@ def _inserir_amostra(conn, registro, agora_iso):
             especie_serpente, especie_escorpiao, especie_lagarta, especie_aranha,
             especie_carrapato, especie_resumo, quantidade, origem_estrutura,
             arquivo_origem, submission_time, processado_em
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT DO NOTHING""",
         (
             registro["id_amostra"], registro.get("kobo_uuid"), registro.get("kobo_id"),
             registro["data"], registro.get("hora"), registro.get("inicio_registro"),
@@ -370,7 +384,9 @@ def _inserir_agentes(conn, id_amostra, agentes_texto):
     for nome in _split_agentes(agentes_texto):
         id_agente = _obter_ou_criar_agente(conn, nome)
         cur = conn.execute(
-            "INSERT OR IGNORE INTO amostra_animais_agentes(id_amostra, id_agente) VALUES (?,?)",
+            """INSERT INTO amostra_animais_agentes(id_amostra, id_agente)
+               VALUES (?,?)
+               ON CONFLICT DO NOTHING""",
             (id_amostra, id_agente),
         )
         total += cur.rowcount
@@ -388,8 +404,20 @@ def _obter_ou_criar_localidade(conn, nome):
     row = conn.execute("SELECT id_localidade FROM localidades WHERE nome=?", (nome,)).fetchone()
     if row:
         return row[0]
-    cur = conn.execute("INSERT INTO localidades(nome, cod_localidade) VALUES (?,NULL)", (nome,))
-    return cur.lastrowid
+    return agentes_core._insert_id(
+        conn,
+        "INSERT INTO localidades(nome, cod_localidade) VALUES (?,NULL)",
+        (nome,),
+        "id_localidade",
+    )
+
+
+def _open_connection(target):
+    if hasattr(target, "execute"):
+        return target, False
+    if isinstance(target, (str, bytes, os.PathLike, db_core.DatabaseTarget)):
+        return db_core.connect(target), True
+    raise TypeError("Destino ou conexao de banco invalido.")
 
 
 def _agentes(row, estrutura):

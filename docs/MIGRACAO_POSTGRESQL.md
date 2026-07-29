@@ -22,8 +22,10 @@ tela de login ja foram testados em modo somente leitura contra
 validadas em tabelas PostgreSQL temporarias. O primeiro modulo funcional
 concluido foi o Controle de Pessoal, incluindo CRUD, filtros, historico e
 renderizacao da pagina. Gestao de Usuarios foi homologada em seguida, e o
-Historico de Importacoes teve seu nucleo convertido para SQL portavel. Os
-limites atuais estao documentados em
+Historico de Importacoes teve seu nucleo convertido para SQL portavel.
+Recolhimentos de Materiais e Amostras de Animais tambem tiveram leitura,
+escrita, filtros, resumos, paginas e APIs homologados. Os limites atuais estao
+documentados em
 `docs/POSTGRESQL_CAMADA_DUAL.md`.
 
 ## Bancos locais
@@ -120,7 +122,8 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
    separado. A camada comum, o primeiro teste Flask, autenticacao e auditoria
    estao concluidos; Controle de Pessoal e o primeiro modulo funcional
    homologado, seguido por Gestao de Usuarios e pelo nucleo do Historico de
-   Importacoes.
+   Importacoes. Recolhimentos de Materiais e Amostras de Animais tambem estao
+   homologados.
 6. Ensaiar a migracao com uma copia recente do banco oficial.
 7. Fazer backup, carga final, validacao e troca controlada.
 

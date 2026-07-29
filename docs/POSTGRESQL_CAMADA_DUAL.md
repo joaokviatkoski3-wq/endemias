@@ -154,6 +154,33 @@ Ele valida registro, reprocessamento, atualizacao, JSON e listagem em uma
 tabela temporaria. A pagina completa de Importacao Kobo ainda depende de
 outros modulos que serao convertidos em lotes posteriores.
 
+## Recolhimentos e Amostras de Animais
+
+Os modulos **Recolhimentos de Materiais** e **Amostras de Animais** foram
+homologados nos dois bancos. A conversao inclui:
+
+- conexoes abertas pelo destino configurado da aplicacao;
+- consultas de resumo, listagem e opcoes de filtro;
+- busca textual sem diferenca entre maiusculas e minusculas;
+- agregacao dos agentes com `GROUP_CONCAT` no SQLite e `string_agg` no
+  PostgreSQL;
+- insercao idempotente com `ON CONFLICT DO NOTHING`;
+- criacao de localidades com `RETURNING` no PostgreSQL;
+- agrupamento mensal compativel com colunas `DATE`;
+- serializacao uniforme de datas e horarios nas APIs;
+- criacao e manutencao de esquema em tempo de execucao restritas ao SQLite.
+
+O ensaio controlado e executado com:
+
+```powershell
+python scripts\testar_campo_operacional_postgresql.py --database endemias_teste
+```
+
+O teste usa tabelas temporarias para validar insercao, deduplicacao, agentes,
+filtros e resumos. Tambem renderiza as duas paginas e consulta suas quatro APIs
+contra os dados publicos em modo somente leitura. As tabelas publicas
+permanecem inalteradas.
+
 Por seguranca, outro banco exige:
 
 ```powershell
@@ -182,9 +209,10 @@ incompativel.
 
 ## Proxima etapa
 
-Autenticacao, auditoria, Controle de Pessoal e Gestao de Usuarios possuem
-leitura e escrita validadas. O Historico de Importacoes tambem esta pronto,
-embora a pagina completa de Importacao Kobo ainda nao esteja homologada.
+Autenticacao, auditoria, Controle de Pessoal, Gestao de Usuarios,
+Recolhimentos de Materiais e Amostras de Animais possuem leitura e escrita
+validadas. O Historico de Importacoes tambem esta pronto, embora a pagina
+completa de Importacao Kobo ainda nao esteja homologada.
 
 Cada lote deve:
 

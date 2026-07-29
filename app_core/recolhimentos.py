@@ -6,6 +6,7 @@ from datetime import datetime
 import pandas as pd
 
 from app_core import agentes as agentes_db
+from app_core import db as db_core
 from app_core import normalizadores
 
 
@@ -73,44 +74,51 @@ class ValidationError(Exception):
     pass
 
 
-def ensure_schema(conn):
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS recolhimentos (
-            id_recolhimento TEXT PRIMARY KEY,
-            kobo_uuid       TEXT UNIQUE,
-            kobo_id         INTEGER,
-            data            DATE NOT NULL,
-            hora            TIME,
-            inicio_registro TEXT,
-            fim_registro    TEXT,
-            localidade      TEXT,
-            id_localidade   INTEGER REFERENCES localidades(id_localidade),
-            agentes_texto   TEXT,
-            pneu            INTEGER DEFAULT 0,
-            louca_sanitaria INTEGER DEFAULT 0,
-            tv              INTEGER DEFAULT 0,
-            parachoque      INTEGER DEFAULT 0,
-            outros          INTEGER DEFAULT 0,
-            total_materiais INTEGER DEFAULT 0,
-            origem_estrutura TEXT NOT NULL DEFAULT 'nova',
-            arquivo_origem  TEXT,
-            submission_time TEXT,
-            processado_em   TEXT NOT NULL
-        );
+def ensure_schema(target):
+    conn, close = _open_connection(target)
+    try:
+        if getattr(conn, "backend", "sqlite") == "postgresql":
+            return
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS recolhimentos (
+                id_recolhimento TEXT PRIMARY KEY,
+                kobo_uuid       TEXT UNIQUE,
+                kobo_id         INTEGER,
+                data            DATE NOT NULL,
+                hora            TIME,
+                inicio_registro TEXT,
+                fim_registro    TEXT,
+                localidade      TEXT,
+                id_localidade   INTEGER REFERENCES localidades(id_localidade),
+                agentes_texto   TEXT,
+                pneu            INTEGER DEFAULT 0,
+                louca_sanitaria INTEGER DEFAULT 0,
+                tv              INTEGER DEFAULT 0,
+                parachoque      INTEGER DEFAULT 0,
+                outros          INTEGER DEFAULT 0,
+                total_materiais INTEGER DEFAULT 0,
+                origem_estrutura TEXT NOT NULL DEFAULT 'nova',
+                arquivo_origem  TEXT,
+                submission_time TEXT,
+                processado_em   TEXT NOT NULL
+            );
 
-        CREATE TABLE IF NOT EXISTS recolhimento_agentes (
-            id_recolhimento TEXT NOT NULL REFERENCES recolhimentos(id_recolhimento) ON DELETE CASCADE,
-            id_agente       INTEGER NOT NULL REFERENCES agentes(id_agente),
-            PRIMARY KEY (id_recolhimento, id_agente)
-        );
+            CREATE TABLE IF NOT EXISTS recolhimento_agentes (
+                id_recolhimento TEXT NOT NULL REFERENCES recolhimentos(id_recolhimento) ON DELETE CASCADE,
+                id_agente       INTEGER NOT NULL REFERENCES agentes(id_agente),
+                PRIMARY KEY (id_recolhimento, id_agente)
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_recolhimentos_data ON recolhimentos(data);
-        CREATE INDEX IF NOT EXISTS idx_recolhimentos_localidade ON recolhimentos(id_localidade);
-        CREATE INDEX IF NOT EXISTS idx_recolhimentos_origem ON recolhimentos(origem_estrutura);
-        CREATE INDEX IF NOT EXISTS idx_recolhimento_agentes_agente ON recolhimento_agentes(id_agente);
-        """
-    )
+            CREATE INDEX IF NOT EXISTS idx_recolhimentos_data ON recolhimentos(data);
+            CREATE INDEX IF NOT EXISTS idx_recolhimentos_localidade ON recolhimentos(id_localidade);
+            CREATE INDEX IF NOT EXISTS idx_recolhimentos_origem ON recolhimentos(origem_estrutura);
+            CREATE INDEX IF NOT EXISTS idx_recolhimento_agentes_agente ON recolhimento_agentes(id_agente);
+            """
+        )
+    finally:
+        if close:
+            conn.close()
 
 
 def is_new_format(path):
@@ -193,13 +201,12 @@ def parse_workbook(path, estrutura=None):
     return registros
 
 
-def resumo(db_path, filtros=None):
+def resumo(target, filtros=None):
     filtros = filtros or {}
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
-    ensure_schema(conn)
-    where, params = _where(filtros)
+    conn, close = _open_connection(target)
     try:
+        ensure_schema(conn)
+        where, params = _where(filtros)
         totais = dict(conn.execute(
             f"""SELECT
                     COUNT(*) AS registros,
@@ -224,15 +231,17 @@ def resumo(db_path, filtros=None):
                  LIMIT 12""",
             params,
         )]
+        mes_expr = _month_expression(conn, "data")
         por_mes = [dict(r) for r in conn.execute(
-            f"""SELECT substr(data,1,7) AS mes, COALESCE(SUM(total_materiais),0) AS total
+            f"""SELECT {mes_expr} AS mes, COALESCE(SUM(total_materiais),0) AS total
                   FROM recolhimentos r {where}
-                 GROUP BY substr(data,1,7)
+                 GROUP BY {mes_expr}
                  ORDER BY mes""",
             params,
         )]
     finally:
-        conn.close()
+        if close:
+            conn.close()
     return {
         "totais": {k: (v or 0) for k, v in totais.items()},
         "por_localidade": por_localidade,
@@ -240,16 +249,16 @@ def resumo(db_path, filtros=None):
     }
 
 
-def listar(db_path, filtros=None):
+def listar(target, filtros=None):
     filtros = filtros or {}
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
-    ensure_schema(conn)
-    where, params = _where(filtros, busca=True)
+    conn, close = _open_connection(target)
     try:
-        rows = [dict(r) for r in conn.execute(
+        ensure_schema(conn)
+        where, params = _where(filtros, busca=True)
+        agentes_agg = _agentes_aggregate(conn, "a.nome")
+        rows = [_serializar_linha(r) for r in conn.execute(
             f"""SELECT r.*,
-                       (SELECT GROUP_CONCAT(a.nome, ', ')
+                       (SELECT {agentes_agg}
                           FROM recolhimento_agentes ra
                           JOIN agentes a ON a.id_agente=ra.id_agente
                          WHERE ra.id_recolhimento=r.id_recolhimento) AS agentes
@@ -260,15 +269,15 @@ def listar(db_path, filtros=None):
             params,
         )]
     finally:
-        conn.close()
+        if close:
+            conn.close()
     return {"registros": rows, "total": len(rows)}
 
 
-def localidades(db_path):
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
-    ensure_schema(conn)
+def localidades(target):
+    conn, close = _open_connection(target)
     try:
+        ensure_schema(conn)
         return [dict(r) for r in conn.execute(
             """SELECT DISTINCT localidade AS nome
                FROM recolhimentos
@@ -276,14 +285,14 @@ def localidades(db_path):
               ORDER BY localidade"""
         )]
     finally:
-        conn.close()
+        if close:
+            conn.close()
 
 
-def agentes(db_path):
-    conn = __import__("sqlite3").connect(db_path)
-    conn.row_factory = __import__("sqlite3").Row
-    ensure_schema(conn)
+def agentes(target):
+    conn, close = _open_connection(target)
     try:
+        ensure_schema(conn)
         return [dict(r) for r in conn.execute(
             """SELECT DISTINCT a.nome
                  FROM recolhimento_agentes ra
@@ -291,7 +300,8 @@ def agentes(db_path):
                 ORDER BY a.nome"""
         )]
     finally:
-        conn.close()
+        if close:
+            conn.close()
 
 
 def _where(filtros, busca=False):
@@ -321,7 +331,9 @@ def _where(filtros, busca=False):
     if busca and filtros.get("busca"):
         termo = f"%{filtros['busca']}%"
         clauses.append(
-            "AND (r.localidade LIKE ? OR r.agentes_texto LIKE ? OR r.arquivo_origem LIKE ?)"
+            """AND (LOWER(COALESCE(r.localidade,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(r.agentes_texto,'')) LIKE LOWER(?)
+                    OR LOWER(COALESCE(r.arquivo_origem,'')) LIKE LOWER(?))"""
         )
         params.extend([termo, termo, termo])
     return " ".join(clauses), params
@@ -330,12 +342,13 @@ def _where(filtros, busca=False):
 def _inserir_recolhimento(conn, registro, agora_iso):
     cur = conn.cursor()
     cur.execute(
-        """INSERT OR IGNORE INTO recolhimentos (
+        """INSERT INTO recolhimentos (
             id_recolhimento, kobo_uuid, kobo_id, data, hora, inicio_registro, fim_registro,
             localidade, id_localidade, agentes_texto, pneu, louca_sanitaria, tv,
             parachoque, outros, total_materiais, origem_estrutura, arquivo_origem,
             submission_time, processado_em
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT DO NOTHING""",
         (
             registro["id_recolhimento"],
             registro.get("kobo_uuid"),
@@ -367,7 +380,9 @@ def _inserir_agentes(conn, id_recolhimento, agentes_texto):
     for nome in _split_agentes(agentes_texto):
         id_agente = _obter_ou_criar_agente(conn, nome)
         cur = conn.execute(
-            "INSERT OR IGNORE INTO recolhimento_agentes(id_recolhimento, id_agente) VALUES (?,?)",
+            """INSERT INTO recolhimento_agentes(id_recolhimento, id_agente)
+               VALUES (?,?)
+               ON CONFLICT DO NOTHING""",
             (id_recolhimento, id_agente),
         )
         total += cur.rowcount
@@ -385,8 +400,50 @@ def _obter_ou_criar_localidade(conn, nome):
     row = conn.execute("SELECT id_localidade FROM localidades WHERE nome=?", (nome,)).fetchone()
     if row:
         return row[0]
-    cur = conn.execute("INSERT INTO localidades(nome, cod_localidade) VALUES (?,NULL)", (nome,))
-    return cur.lastrowid
+    return _insert_id(
+        conn,
+        "INSERT INTO localidades(nome, cod_localidade) VALUES (?,NULL)",
+        (nome,),
+        "id_localidade",
+    )
+
+
+def _open_connection(target):
+    if hasattr(target, "execute"):
+        return target, False
+    if isinstance(target, (str, bytes, os.PathLike, db_core.DatabaseTarget)):
+        return db_core.connect(target), True
+    raise TypeError("Destino ou conexao de banco invalido.")
+
+
+def _insert_id(conn, statement, parameters, id_column):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        row = conn.execute(
+            statement.rstrip().rstrip(";") + f" RETURNING {id_column}",
+            parameters,
+        ).fetchone()
+        return row[0]
+    return conn.execute(statement, parameters).lastrowid
+
+
+def _agentes_aggregate(conn, expression):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return f"string_agg({expression}, ', ' ORDER BY {expression})"
+    return f"GROUP_CONCAT({expression}, ', ')"
+
+
+def _month_expression(conn, expression):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return f"to_char({expression}, 'YYYY-MM')"
+    return f"substr({expression},1,7)"
+
+
+def _serializar_linha(row):
+    data = dict(row)
+    for key, value in data.items():
+        if hasattr(value, "isoformat"):
+            data[key] = value.isoformat()
+    return data
 
 
 def _agentes(row, estrutura):
