@@ -137,7 +137,15 @@ VALUES (1, CURRENT_TIMESTAMP);
 def ensure_schema(db_path):
     conn = db_core.connect(db_path)
     try:
-        conn.executescript(SCHEMA_SQL)
+        if db_core.is_sqlite(db_path):
+            conn.executescript(SCHEMA_SQL)
+        else:
+            conn.execute(
+                """INSERT INTO meteorologia_alertas_config(id, atualizado_em)
+                   VALUES (?,?)
+                   ON CONFLICT(id) DO NOTHING""",
+                (1, datetime.now().isoformat(timespec="seconds")),
+            )
         conn.commit()
     finally:
         conn.close()
@@ -329,11 +337,14 @@ def _begin_sync(db_path, started_at):
     ensure_schema(db_path)
     conn = db_core.connect(db_path)
     try:
-        cursor = conn.execute(
-            "INSERT INTO meteorologia_sincronizacoes(fonte,status,iniciado_em) VALUES (?,?,?)",
+        sync_id = db_core.insert_and_get_id(
+            conn,
+            """INSERT INTO meteorologia_sincronizacoes(
+                   fonte,status,iniciado_em
+               ) VALUES (?,?,?)""",
             ("INMET + Open-Meteo", "executando", started_at),
+            "id_sincronizacao",
         )
-        sync_id = cursor.lastrowid
         conn.commit()
         return sync_id
     finally:
@@ -415,15 +426,14 @@ def sincronizar(db_path, dias=7, hoje=None, fetch_json=None):
 
         conn = db_core.connect(db_path)
         try:
-            conn.execute("BEGIN IMMEDIATE")
+            conn.execute("BEGIN IMMEDIATE" if db_core.is_sqlite(db_path) else "BEGIN")
             for station in stations:
                 conn.execute(
                     """
                     INSERT INTO meteorologia_estacoes
                         (codigo,nome,uf,situacao,tipo,entidade,latitude,longitude,altitude,
                          distancia_km,papel,inicio_operacao,fim_operacao,fonte,atualizado_em)
-                    VALUES (:codigo,:nome,:uf,:situacao,:tipo,:entidade,:latitude,:longitude,:altitude,
-                            :distancia_km,:papel,:inicio_operacao,:fim_operacao,'INMET',:atualizado_em)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'INMET',?)
                     ON CONFLICT(codigo) DO UPDATE SET
                         nome=excluded.nome, uf=excluded.uf, situacao=excluded.situacao,
                         tipo=excluded.tipo, entidade=excluded.entidade, latitude=excluded.latitude,
@@ -432,7 +442,22 @@ def sincronizar(db_path, dias=7, hoje=None, fetch_json=None):
                         inicio_operacao=excluded.inicio_operacao, fim_operacao=excluded.fim_operacao,
                         atualizado_em=excluded.atualizado_em
                     """,
-                    station,
+                    (
+                        station["codigo"],
+                        station["nome"],
+                        station["uf"],
+                        station["situacao"],
+                        station["tipo"],
+                        station["entidade"],
+                        station["latitude"],
+                        station["longitude"],
+                        station["altitude"],
+                        station["distancia_km"],
+                        station["papel"],
+                        station["inicio_operacao"],
+                        station["fim_operacao"],
+                        station["atualizado_em"],
+                    ),
                 )
             for summary in summaries:
                 conn.execute(
@@ -440,8 +465,7 @@ def sincronizar(db_path, dias=7, hoje=None, fetch_json=None):
                     INSERT INTO meteorologia_resumos_diarios
                         (data,referencia,fonte,temperatura_min,temperatura_max,umidade_min,
                          precipitacao,provisorio,bruto_json,importado_em)
-                    VALUES (:data,:referencia,:fonte,:temperatura_min,:temperatura_max,:umidade_min,
-                            :precipitacao,:provisorio,:bruto_json,:importado_em)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)
                     ON CONFLICT(data,referencia,fonte) DO UPDATE SET
                         temperatura_min=excluded.temperatura_min,
                         temperatura_max=excluded.temperatura_max,
@@ -451,7 +475,18 @@ def sincronizar(db_path, dias=7, hoje=None, fetch_json=None):
                         bruto_json=excluded.bruto_json,
                         importado_em=excluded.importado_em
                     """,
-                    summary,
+                    (
+                        summary["data"],
+                        summary["referencia"],
+                        summary["fonte"],
+                        summary["temperatura_min"],
+                        summary["temperatura_max"],
+                        summary["umidade_min"],
+                        summary["precipitacao"],
+                        summary["provisorio"],
+                        summary["bruto_json"],
+                        summary["importado_em"],
+                    ),
                 )
             if current_condition:
                 conn.execute(
@@ -460,9 +495,7 @@ def sincronizar(db_path, dias=7, hoje=None, fetch_json=None):
                         (observado_em,fonte,latitude,longitude,temperatura,sensacao_termica,
                          umidade,precipitacao,velocidade_vento,codigo_tempo,periodo_dia,
                          bruto_json,importado_em)
-                    VALUES (:observado_em,:fonte,:latitude,:longitude,:temperatura,:sensacao_termica,
-                            :umidade,:precipitacao,:velocidade_vento,:codigo_tempo,:periodo_dia,
-                            :bruto_json,:importado_em)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                     ON CONFLICT(observado_em,fonte) DO UPDATE SET
                         latitude=excluded.latitude, longitude=excluded.longitude,
                         temperatura=excluded.temperatura, sensacao_termica=excluded.sensacao_termica,
@@ -471,7 +504,21 @@ def sincronizar(db_path, dias=7, hoje=None, fetch_json=None):
                         codigo_tempo=excluded.codigo_tempo, periodo_dia=excluded.periodo_dia,
                         bruto_json=excluded.bruto_json, importado_em=excluded.importado_em
                     """,
-                    current_condition,
+                    (
+                        current_condition["observado_em"],
+                        current_condition["fonte"],
+                        current_condition["latitude"],
+                        current_condition["longitude"],
+                        current_condition["temperatura"],
+                        current_condition["sensacao_termica"],
+                        current_condition["umidade"],
+                        current_condition["precipitacao"],
+                        current_condition["velocidade_vento"],
+                        current_condition["codigo_tempo"],
+                        current_condition["periodo_dia"],
+                        current_condition["bruto_json"],
+                        current_condition["importado_em"],
+                    ),
                 )
             for forecast in forecasts:
                 conn.execute(
@@ -480,9 +527,7 @@ def sincronizar(db_path, dias=7, hoje=None, fetch_json=None):
                         (previsto_em,fonte,temperatura,sensacao_termica,umidade,
                          probabilidade_chuva,precipitacao,codigo_tempo,
                          velocidade_vento,rajada_vento,importado_em)
-                    VALUES (:previsto_em,:fonte,:temperatura,:sensacao_termica,:umidade,
-                            :probabilidade_chuva,:precipitacao,:codigo_tempo,
-                            :velocidade_vento,:rajada_vento,:importado_em)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
                     ON CONFLICT(previsto_em,fonte) DO UPDATE SET
                         temperatura=excluded.temperatura,
                         sensacao_termica=excluded.sensacao_termica,
@@ -494,11 +539,25 @@ def sincronizar(db_path, dias=7, hoje=None, fetch_json=None):
                         rajada_vento=excluded.rajada_vento,
                         importado_em=excluded.importado_em
                     """,
-                    forecast,
+                    (
+                        forecast["previsto_em"],
+                        forecast["fonte"],
+                        forecast["temperatura"],
+                        forecast["sensacao_termica"],
+                        forecast["umidade"],
+                        forecast["probabilidade_chuva"],
+                        forecast["precipitacao"],
+                        forecast["codigo_tempo"],
+                        forecast["velocidade_vento"],
+                        forecast["rajada_vento"],
+                        forecast["importado_em"],
+                    ),
                 )
+            cutoff = (today - timedelta(days=1)).isoformat()
             conn.execute(
-                "DELETE FROM meteorologia_previsoes_horarias WHERE datetime(previsto_em) < datetime(?, '-1 day')",
-                (today.isoformat(),),
+                """DELETE FROM meteorologia_previsoes_horarias
+                    WHERE substr(CAST(previsto_em AS TEXT),1,10) < ?""",
+                (cutoff,),
             )
             conn.commit()
         except Exception:
@@ -573,20 +632,32 @@ def atualizar_configuracao_alertas(db_path, values):
         conn.execute(
             """
             UPDATE meteorologia_alertas_config SET
-                expediente_inicio=:expediente_inicio,
-                expediente_fim=:expediente_fim,
-                chuva_atencao_pct=:chuva_atencao_pct,
-                chuva_critica_mm_hora=:chuva_critica_mm_hora,
-                rajada_atencao_kmh=:rajada_atencao_kmh,
-                rajada_critica_kmh=:rajada_critica_kmh,
-                sensacao_frio_atencao_c=:sensacao_frio_atencao_c,
-                sensacao_frio_critica_c=:sensacao_frio_critica_c,
-                sensacao_calor_atencao_c=:sensacao_calor_atencao_c,
-                sensacao_calor_critica_c=:sensacao_calor_critica_c,
-                atualizado_em=:atualizado_em
+                expediente_inicio=?,
+                expediente_fim=?,
+                chuva_atencao_pct=?,
+                chuva_critica_mm_hora=?,
+                rajada_atencao_kmh=?,
+                rajada_critica_kmh=?,
+                sensacao_frio_atencao_c=?,
+                sensacao_frio_critica_c=?,
+                sensacao_calor_atencao_c=?,
+                sensacao_calor_critica_c=?,
+                atualizado_em=?
             WHERE id=1
             """,
-            updated,
+            (
+                updated["expediente_inicio"],
+                updated["expediente_fim"],
+                updated["chuva_atencao_pct"],
+                updated["chuva_critica_mm_hora"],
+                updated["rajada_atencao_kmh"],
+                updated["rajada_critica_kmh"],
+                updated["sensacao_frio_atencao_c"],
+                updated["sensacao_frio_critica_c"],
+                updated["sensacao_calor_atencao_c"],
+                updated["sensacao_calor_critica_c"],
+                updated["atualizado_em"],
+            ),
         )
         conn.commit()
     finally:
@@ -644,13 +715,19 @@ def resumo_trabalho(db_path, inicio=None, dias_uteis=5):
     end = workdays[-1]
     conn = db_core.connect(db_path)
     try:
+        if db_core.is_sqlite(db_path):
+            hour_expression = "CAST(strftime('%H', previsto_em) AS INTEGER)"
+        else:
+            hour_expression = (
+                "EXTRACT(HOUR FROM CAST(previsto_em AS timestamp))"
+            )
         rows = conn.execute(
-            """
+            f"""
             SELECT * FROM meteorologia_previsoes_horarias
-             WHERE date(previsto_em) BETWEEN date(?) AND date(?)
-               AND CAST(strftime('%H', previsto_em) AS INTEGER) >= ?
-               AND CAST(strftime('%H', previsto_em) AS INTEGER) < ?
-             ORDER BY datetime(previsto_em)
+             WHERE substr(CAST(previsto_em AS TEXT),1,10) BETWEEN ? AND ?
+               AND {hour_expression} >= ?
+               AND {hour_expression} < ?
+             ORDER BY previsto_em
             """,
             (start.isoformat(), end.isoformat(), config["expediente_inicio"], config["expediente_fim"]),
         ).fetchall()
@@ -710,16 +787,18 @@ def obter_painel(db_path, limite=30):
     conn = db_core.connect(db_path)
     try:
         latest = conn.execute(
-            "SELECT * FROM meteorologia_resumos_diarios ORDER BY date(data) DESC, id DESC LIMIT 1"
+            """SELECT * FROM meteorologia_resumos_diarios
+               ORDER BY data DESC, id DESC LIMIT 1"""
         ).fetchone()
         current = conn.execute(
-            "SELECT * FROM meteorologia_condicoes_atuais ORDER BY datetime(observado_em) DESC, id DESC LIMIT 1"
+            """SELECT * FROM meteorologia_condicoes_atuais
+               ORDER BY observado_em DESC, id DESC LIMIT 1"""
         ).fetchone()
         series = conn.execute(
             """
             SELECT data, temperatura_min, temperatura_max, umidade_min, precipitacao, provisorio
               FROM meteorologia_resumos_diarios
-             ORDER BY date(data) DESC, id DESC
+             ORDER BY data DESC, id DESC
              LIMIT ?
             """,
             (limite,),
@@ -736,13 +815,17 @@ def obter_painel(db_path, limite=30):
         ).fetchone()
     finally:
         conn.close()
-    current_item = dict(current) if current else None
+    current_item = db_core.serialize_row(current) if current else None
     if current_item:
         current_item["descricao"] = _weather_description(current_item.get("codigo_tempo"))
     return {
-        "atual": dict(latest) if latest else None,
+        "atual": db_core.serialize_row(latest) if latest else None,
         "condicao_atual": current_item,
-        "serie": [dict(row) for row in reversed(series)],
-        "estacoes": [dict(row) for row in stations],
-        "ultima_sincronizacao": dict(last_sync) if last_sync else None,
+        "serie": [
+            db_core.serialize_row(row) for row in reversed(series)
+        ],
+        "estacoes": [db_core.serialize_row(row) for row in stations],
+        "ultima_sincronizacao": (
+            db_core.serialize_row(last_sync) if last_sync else None
+        ),
     }

@@ -1,4 +1,4 @@
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, jsonify, render_template, request
 
 from app_core import audit
 from app_core import blueprint_helpers as bh
@@ -13,7 +13,7 @@ nivel_min = bh.nivel_min
 @bp.route("/meteorologia")
 @login_required
 def page():
-    painel = meteorologia_core.obter_painel(current_app.config["DB_PATH"], limite=30)
+    painel = meteorologia_core.obter_painel(bh.db_target(), limite=30)
     return render_template("meteorologia.html", painel=painel)
 
 
@@ -28,7 +28,9 @@ def sincronizar():
         return jsonify({"erro": "Quantidade de dias invalida."}), 400
 
     try:
-        resultado = meteorologia_core.sincronizar(current_app.config["DB_PATH"], dias=dias)
+        resultado = meteorologia_core.sincronizar(
+            bh.db_target(), dias=dias
+        )
     except RuntimeError as exc:
         return jsonify({"erro": str(exc)}), 502
 

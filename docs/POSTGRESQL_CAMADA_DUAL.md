@@ -183,6 +183,36 @@ sintetica, executa dry-run, confirmacao e reimportacao e processa um resultado
 laboratorial. Ao final, compara as tabelas publicas para garantir que nenhum
 dado real foi alterado.
 
+## Agenda, Pagina Inicial e Meteorologia
+
+O conjunto formado pela **Agenda**, **Pagina Inicial** e **Meteorologia** foi
+homologado nos dois bancos. A cobertura inclui:
+
+- eventos manuais, recorrencias, edicao, exclusao, impressao e lembretes;
+- eventos automaticos de visitas, BRI, Esporotricose, recolhimentos, amostras,
+  acoes do setor, aniversarios e Ovitrampas;
+- agregacao portavel de localidades e agentes;
+- tratamento uniforme das colunas `DATE` retornadas pelo PostgreSQL;
+- sincronizacao idempotente dos dados INMET e Open-Meteo;
+- gravacao das estacoes, resumos, condicao atual e previsoes horarias;
+- configuracao dos limites de chuva, vento, frio e calor;
+- classificacao do risco meteorologico no horario de trabalho;
+- cards, atividade recente, Agenda, clima e blocos administrativos da Pagina
+  Inicial;
+- recuperacao de identidades por `RETURNING` no PostgreSQL;
+- manutencao de esquema em tempo de execucao restrita ao SQLite.
+
+O ensaio controlado e:
+
+```powershell
+python scripts\testar_agenda_home_postgresql.py --database endemias_teste
+```
+
+O script sincroniza dados meteorologicos sinteticos duas vezes, exercita o
+CRUD da Agenda pelas APIs reais, abre as tres paginas em modo PostgreSQL e
+compara as tabelas publicas antes e depois. Todas as escritas acontecem em
+tabelas temporarias.
+
 ## Recolhimentos e Amostras de Animais
 
 Os modulos **Recolhimentos de Materiais** e **Amostras de Animais** foram
@@ -509,8 +539,9 @@ cadastro, as leituras, o monitoramento, os diarios, o calendario e o fluxo
 laboratorial de Ovitrampas tambem estao prontos. O espelho Conta Ovos/SisPNCD
 foi homologado na sequencia. O Registro Geografico tambem esta coberto,
 incluindo cadastro, edicao, acompanhamento, mapa e impressao. O proximo grande
-recorte e concluir os modulos administrativos e auxiliares restantes, seguido
-por um ensaio integrado com uma copia recente do SQLite oficial.
+recorte e **Acoes e Atendimentos do Setor**, seguido pelos demais relatorios,
+modulos auxiliares e por um ensaio integrado com uma copia recente do SQLite
+oficial.
 
 Cada lote deve:
 

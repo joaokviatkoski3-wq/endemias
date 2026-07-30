@@ -1,13 +1,13 @@
 from calendar import monthrange
 from datetime import date, datetime, timedelta
 import json
-import sqlite3
 import unicodedata
 
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, jsonify, render_template, request
 
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
+from app_core import db as db_core
 from app_core import esporotricose as esporotricose_core
 from app_core import meteorologia as meteorologia_core
 from app_core import ovitrampas as ovitrampas_core
@@ -91,6 +91,8 @@ RECORRENCIAS = {
 
 
 def ensure_schema():
+    if not db_core.is_sqlite(bh.db_target()):
+        return
     conn = bh.get_db()
     try:
         cols = {
@@ -328,11 +330,29 @@ def _eventos_manuais_expandido(row, range_inicio, range_fim):
     return eventos
 
 
-def _table_exists(table):
-    return bool(bh.q(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
-        (table,),
-    ))
+def _existing_tables(tables):
+    conn = bh.get_db()
+    try:
+        return {
+            table for table in tables
+            if db_core.table_exists(conn, table)
+        }
+    finally:
+        conn.close()
+
+
+def _string_aggregate(expression, separator=", ", distinct=False, order=None):
+    if not db_core.is_sqlite(bh.db_target()):
+        cast_expression = f"CAST({expression} AS TEXT)"
+        distinct_sql = "DISTINCT " if distinct else ""
+        order_sql = f" ORDER BY {order}" if order else ""
+        return (
+            f"string_agg({distinct_sql}{cast_expression}, "
+            f"'{separator}'{order_sql})"
+        )
+    if distinct:
+        return f"GROUP_CONCAT(DISTINCT {expression})"
+    return f"GROUP_CONCAT({expression}, '{separator}')"
 
 
 def _localidades_lista(value):
@@ -342,11 +362,12 @@ def _localidades_lista(value):
 def _auto_evento(data, fonte_codigo, titulo, total, resumo="", localidades="", agentes="-", tipo=None, id_extra=None, atividade_externa=True):
     fonte = AGENDA_AUTO_FONTES[fonte_codigo]
     cor = fonte["cor"]
-    data_dt = _parse_data_evento(data, True)
+    data_iso = data.isoformat() if hasattr(data, "isoformat") else str(data)[:10]
+    data_dt = _parse_data_evento(data_iso, True)
     return {
-        "id": f"auto_{fonte_codigo}_{data}_{id_extra or tipo or fonte_codigo}",
+        "id": f"auto_{fonte_codigo}_{data_iso}_{id_extra or tipo or fonte_codigo}",
         "title": titulo,
-        "start": data,
+        "start": data_iso,
         "end": _fim_fullcalendar(data_dt, True),
         "allDay": True,
         "color": cor + "dd",
@@ -372,8 +393,10 @@ def _auto_evento(data, fonte_codigo, titulo, total, resumo="", localidades="", a
 
 def _adicionar_clima_eventos(eventos):
     try:
-        painel = meteorologia_core.resumo_trabalho(current_app.config["DB_PATH"], dias_uteis=5)
-    except (OSError, sqlite3.Error, ValueError):
+        painel = meteorologia_core.resumo_trabalho(
+            bh.db_target(), dias_uteis=5
+        )
+    except Exception:
         return eventos
     clima_por_data = {item["data"]: item for item in painel["dias"]}
     for evento in eventos:
@@ -408,12 +431,18 @@ def _eventos_periodo(inicio, fim):
     rows = bh.q(
         """SELECT * FROM agenda_eventos
            WHERE (
-               date(data_inicio) <= date(?)
-               AND (data_fim IS NULL OR date(data_fim) >= date(?))
+               substr(CAST(data_inicio AS TEXT),1,10) <= ?
+               AND (
+                   data_fim IS NULL
+                   OR substr(CAST(data_fim AS TEXT),1,10) >= ?
+               )
            ) OR (
                COALESCE(recorrencia,'nenhuma') <> 'nenhuma'
-               AND date(data_inicio) <= date(?)
-               AND (recorrencia_fim IS NULL OR date(recorrencia_fim) >= date(?))
+               AND substr(CAST(data_inicio AS TEXT),1,10) <= ?
+               AND (
+                   recorrencia_fim IS NULL
+                   OR substr(CAST(recorrencia_fim AS TEXT),1,10) >= ?
+               )
            )
            ORDER BY data_inicio""",
         (fim, inicio, fim, inicio),
@@ -421,7 +450,22 @@ def _eventos_periodo(inicio, fim):
     for r in rows:
         eventos.extend(_eventos_manuais_expandido(r, range_inicio, range_fim))
 
-    if _table_exists("agentes"):
+    existing_tables = _existing_tables({
+        "agentes",
+        "bri_registros",
+        "bri_agentes",
+        "esporotricose_visitas",
+        "esporotricose_visita_agentes",
+        "esporotricose_animais",
+        "recolhimentos",
+        "recolhimento_agentes",
+        "amostras_animais",
+        "amostra_animais_agentes",
+        "acoes_setor",
+        "acoes_setor_agentes",
+    })
+
+    if "agentes" in existing_tables:
         try:
             aniversariantes = bh.q(
                 """SELECT id_agente,
@@ -432,7 +476,7 @@ def _eventos_periodo(inicio, fim):
                       AND data_nascimento IS NOT NULL
                       AND TRIM(data_nascimento)<>''"""
             )
-        except sqlite3.Error:
+        except Exception:
             aniversariantes = []
         for servidor in aniversariantes:
             try:
@@ -454,8 +498,14 @@ def _eventos_periodo(inicio, fim):
                         atividade_externa=False,
                     ))
 
+    visitas_localidades = _string_aggregate(
+        "COALESCE(v.localidade, '-')", distinct=True
+    )
+    agentes_agregados = _string_aggregate(
+        "a2.nome", order="a2.nome"
+    )
     auto_rows = bh.q(
-        """
+        f"""
         SELECT
             v.data,
             v.tipo,
@@ -464,8 +514,8 @@ def _eventos_periodo(inicio, fim):
             COUNT(DISTINCT CASE WHEN LOWER(v.visita)='fechado'    THEN v.id_visita END) as fechados,
             COUNT(DISTINCT CASE WHEN LOWER(v.visita)='recuperado' THEN v.id_visita END) as recuperados,
             COUNT(DISTINCT CASE WHEN LOWER(v.visita)='recusa'     THEN v.id_visita END) as recusados,
-            GROUP_CONCAT(DISTINCT COALESCE(v.localidade, '-')) as localidades,
-            (SELECT GROUP_CONCAT(a2.nome, ', ')
+            {visitas_localidades} as localidades,
+            (SELECT {agentes_agregados}
              FROM (SELECT DISTINCT a2.nome FROM agentes a2
                    JOIN visita_agentes va2 ON va2.id_agente = a2.id_agente
                    WHERE va2.id_visita IN (
@@ -505,14 +555,17 @@ def _eventos_periodo(inicio, fim):
             tipo=tipo,
         ))
 
-    if _table_exists("bri_registros") and _table_exists("bri_agentes"):
+    if {"bri_registros", "bri_agentes"} <= existing_tables:
+        bri_localidades = _string_aggregate(
+            "COALESCE(b.localidade, '-')", distinct=True
+        )
         bri_rows = bh.q(
-            """
+            f"""
             SELECT b.data,
                    COUNT(DISTINCT b.id_bri) AS total,
-                   GROUP_CONCAT(DISTINCT COALESCE(b.localidade, '-')) AS localidades,
+                   {bri_localidades} AS localidades,
                    SUM(COALESCE(b.quantidade_carga,0) + COALESCE(b.quantidade_carga_extra,0)) AS carga,
-                   (SELECT GROUP_CONCAT(a2.nome, ', ')
+                   (SELECT {agentes_agregados}
                       FROM (SELECT DISTINCT ag.nome
                               FROM agentes ag
                               JOIN bri_agentes ba ON ba.id_agente=ag.id_agente
@@ -539,15 +592,21 @@ def _eventos_periodo(inicio, fim):
                 agentes=r["agentes"] or "-",
             ))
 
-    if _table_exists("esporotricose_visitas") and _table_exists("esporotricose_visita_agentes"):
+    if {
+        "esporotricose_visitas",
+        "esporotricose_visita_agentes",
+    } <= existing_tables:
+        esporo_localidades = _string_aggregate(
+            "COALESCE(v.localidade, '-')", distinct=True
+        )
         esporo_rows = bh.q(
-            """
+            f"""
             SELECT v.data,
                    COUNT(DISTINCT v.id_visita) AS total,
                    COUNT(DISTINCT a.id_animal) AS animais,
                    COUNT(DISTINCT CASE WHEN LOWER(COALESCE(a.feridas,''))='sim' THEN a.id_animal END) AS feridas,
-                   GROUP_CONCAT(DISTINCT COALESCE(v.localidade, '-')) AS localidades,
-                   (SELECT GROUP_CONCAT(a2.nome, ', ')
+                   {esporo_localidades} AS localidades,
+                   (SELECT {agentes_agregados}
                       FROM (SELECT DISTINCT ag.nome
                               FROM agentes ag
                               JOIN esporotricose_visita_agentes va ON va.id_agente=ag.id_agente
@@ -574,7 +633,7 @@ def _eventos_periodo(inicio, fim):
                 agentes=r["agentes"] or "-",
             ))
 
-    if _table_exists("esporotricose_animais"):
+    if "esporotricose_animais" in existing_tables:
         for busca in esporotricose_core.eventos_agenda_buscas_ferido(
             bh.db_target(), inicio[:10], fim[:10]
         ):
@@ -605,15 +664,21 @@ def _eventos_periodo(inicio, fim):
                 id_extra=f"busca_{busca['id_busca']}",
             ))
 
-    if _table_exists("recolhimentos") and _table_exists("recolhimento_agentes"):
+    if {
+        "recolhimentos",
+        "recolhimento_agentes",
+    } <= existing_tables:
+        recolhimento_localidades = _string_aggregate(
+            "COALESCE(r.localidade, '-')", distinct=True
+        )
         recolhimento_rows = bh.q(
-            """
+            f"""
             SELECT r.data,
                    COUNT(DISTINCT r.id_recolhimento) AS total,
                    COALESCE(SUM(r.total_materiais),0) AS materiais,
                    COALESCE(SUM(r.pneu),0) AS pneus,
-                   GROUP_CONCAT(DISTINCT COALESCE(r.localidade, '-')) AS localidades,
-                   (SELECT GROUP_CONCAT(a2.nome, ', ')
+                   {recolhimento_localidades} AS localidades,
+                   (SELECT {agentes_agregados}
                       FROM (SELECT DISTINCT ag.nome
                               FROM agentes ag
                               JOIN recolhimento_agentes ra ON ra.id_agente=ag.id_agente
@@ -639,16 +704,22 @@ def _eventos_periodo(inicio, fim):
                 agentes=r["agentes"] or "-",
             ))
 
-    if _table_exists("amostras_animais") and _table_exists("amostra_animais_agentes"):
+    if {
+        "amostras_animais",
+        "amostra_animais_agentes",
+    } <= existing_tables:
+        amostra_localidades = _string_aggregate(
+            "COALESCE(am.localidade, '-')", distinct=True
+        )
         amostra_rows = bh.q(
-            """
+            f"""
             SELECT am.data,
                    COUNT(DISTINCT am.id_amostra) AS total,
                    COALESCE(SUM(am.quantidade),0) AS animais,
                    SUM(CASE WHEN LOWER(COALESCE(am.houve_acidente,''))='sim' THEN 1 ELSE 0 END) AS acidentes,
                    SUM(CASE WHEN LOWER(COALESCE(am.houve_captura,''))='sim' THEN 1 ELSE 0 END) AS capturas,
-                   GROUP_CONCAT(DISTINCT COALESCE(am.localidade, '-')) AS localidades,
-                   (SELECT GROUP_CONCAT(a2.nome, ', ')
+                   {amostra_localidades} AS localidades,
+                   (SELECT {agentes_agregados}
                       FROM (SELECT DISTINCT ag.nome
                               FROM agentes ag
                               JOIN amostra_animais_agentes aa ON aa.id_agente=ag.id_agente
@@ -674,11 +745,11 @@ def _eventos_periodo(inicio, fim):
                 agentes=r["agentes"] or "-",
             ))
 
-    if _table_exists("acoes_setor") and _table_exists("acoes_setor_agentes"):
+    if {"acoes_setor", "acoes_setor_agentes"} <= existing_tables:
         acao_rows = bh.q(
-            """
+            f"""
             SELECT a.*,
-                   (SELECT GROUP_CONCAT(a2.nome, ', ')
+                   (SELECT {agentes_agregados}
                       FROM (SELECT DISTINCT ag.nome
                               FROM agentes ag
                               JOIN acoes_setor_agentes aa ON aa.id_agente=ag.id_agente
@@ -722,7 +793,12 @@ def _eventos_periodo(inicio, fim):
                 resumo_partes.append(f"Situação: {situacoes.get(situacao, situacao)}")
             data_fim = _row_get(r, "data_fim")
             if data_fim:
-                resumo_partes.append(f"Data final: {data_fim[8:10]}/{data_fim[5:7]}/{data_fim[:4]}")
+                data_fim_texto = str(data_fim)
+                resumo_partes.append(
+                    "Data final: "
+                    f"{data_fim_texto[8:10]}/{data_fim_texto[5:7]}/"
+                    f"{data_fim_texto[:4]}"
+                )
             periodo = _row_get(r, "periodo")
             if periodo:
                 periodos = {
@@ -773,7 +849,9 @@ def _eventos_periodo(inicio, fim):
                 id_extra=r["id_acao"],
             ))
 
-    for item in ovitrampas_core.eventos_agenda(bh.db_path(), inicio[:10], fim[:10]):
+    for item in ovitrampas_core.eventos_agenda(
+        bh.db_target(), inicio[:10], fim[:10]
+    ):
         fonte = AGENDA_AUTO_FONTES["OVITRAMPA"]
         data_dt = _parse_data_evento(item["data"], True)
         cor = item.get("cor") or fonte["cor"]
@@ -952,7 +1030,8 @@ def api_eventos():
         conn = None
         try:
             conn = bh.get_db()
-            cur = conn.execute(
+            novo_id = db_core.insert_and_get_id(
+                conn,
                 """INSERT INTO agenda_eventos
                 (titulo, descricao, tipo, data_inicio, data_fim, dia_inteiro, lembrete_min,
                  cor, criado_por, criado_em, recorrencia, recorrencia_fim, atividade_externa)
@@ -972,10 +1051,10 @@ def api_eventos():
                     recorrencia_fim,
                     atividade_externa,
                 ),
+                "id_evento",
             )
             conn.commit()
-            novo_id = cur.lastrowid
-        except sqlite3.OperationalError as exc:
+        except Exception as exc:
             if conn:
                 conn.rollback()
             return _erro_banco_agenda(exc)
@@ -1000,7 +1079,7 @@ def api_evento(id_evento):
             conn = bh.get_db()
             conn.execute("DELETE FROM agenda_eventos WHERE id_evento=?", (id_evento,))
             conn.commit()
-        except sqlite3.OperationalError as exc:
+        except Exception as exc:
             if conn:
                 conn.rollback()
             return _erro_banco_agenda(exc)
@@ -1062,7 +1141,7 @@ def api_evento(id_evento):
             ),
         )
         conn.commit()
-    except sqlite3.OperationalError as exc:
+    except Exception as exc:
         if conn:
             conn.rollback()
         return _erro_banco_agenda(exc)
@@ -1080,20 +1159,26 @@ def api_clima_trabalho():
         dias = max(1, min(int(request.args.get("dias") or 5), 10))
     except (TypeError, ValueError):
         return jsonify({"erro": "Quantidade de dias invalida."}), 400
-    return jsonify(meteorologia_core.resumo_trabalho(current_app.config["DB_PATH"], dias_uteis=dias))
+    return jsonify(
+        meteorologia_core.resumo_trabalho(
+            bh.db_target(), dias_uteis=dias
+        )
+    )
 
 
 @bp.route("/api/agenda/clima-config", methods=["GET", "PUT"])
 @login_required
 def api_clima_config():
     if request.method == "GET":
-        return jsonify(meteorologia_core.obter_configuracao_alertas(current_app.config["DB_PATH"]))
+        return jsonify(
+            meteorologia_core.obter_configuracao_alertas(bh.db_target())
+        )
     _, erro = _admin_required_json()
     if erro:
         return erro
     try:
         config = meteorologia_core.atualizar_configuracao_alertas(
-            current_app.config["DB_PATH"], request.get_json(silent=True) or {}
+            bh.db_target(), request.get_json(silent=True) or {}
         )
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
@@ -1114,8 +1199,11 @@ def api_lembretes():
                data_inicio BETWEEN ? AND ?
            ) OR (
                COALESCE(recorrencia,'nenhuma') <> 'nenhuma'
-               AND date(data_inicio) <= date(?)
-               AND (recorrencia_fim IS NULL OR date(recorrencia_fim) >= date(?))
+               AND substr(CAST(data_inicio AS TEXT),1,10) <= ?
+               AND (
+                   recorrencia_fim IS NULL
+                   OR substr(CAST(recorrencia_fim AS TEXT),1,10) >= ?
+               )
            )
            ORDER BY data_inicio""",
         (agora.isoformat(), limite.isoformat(), limite.isoformat(), agora.isoformat()),

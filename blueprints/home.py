@@ -3,6 +3,7 @@ from flask import Blueprint, current_app, render_template
 from app_core import audit
 from app_core import backup as backup_core
 from app_core import blueprint_helpers as bh
+from app_core import db as db_core
 from app_core import import_history
 from app_core import meteorologia as meteorologia_core
 from app_core import utils as utils_core
@@ -21,6 +22,7 @@ def page():
     try:
         ano_ini = utils_core.data_ano()
         hoje = utils_core.hoje()
+        limite_foco_atrasado = utils_core.data_n_dias(7)
         kpis = {
             "visitas_hoje": conn.execute(
                 "SELECT COUNT(*) FROM visitas WHERE data=?",
@@ -39,9 +41,11 @@ def page():
                 SELECT COUNT(*) FROM focos_positivos
                  WHERE status_notificacao='pendente'
                    AND gera_notificacao=1
-                   AND date(COALESCE(processado_em, data)) <= date(?, '-7 days')
+                   AND substr(
+                       CAST(COALESCE(processado_em, data) AS TEXT),1,10
+                   ) <= ?
                 """,
-                (hoje,),
+                (limite_foco_atrasado,),
             ).fetchone()[0],
             "conta_ovos_pendente": conn.execute(
                 "SELECT COUNT(*) FROM visitas WHERE tipo='TBO' AND COALESCE(CONTAOVOS_STATUS,0)=0"
@@ -89,8 +93,8 @@ def page():
             """
             SELECT titulo, tipo, data_inicio, data_fim
               FROM agenda_eventos
-             WHERE date(data_inicio) >= date(?)
-             ORDER BY datetime(data_inicio), id_evento
+             WHERE substr(CAST(data_inicio AS TEXT),1,10) >= ?
+             ORDER BY data_inicio, id_evento
              LIMIT 5
             """,
             (hoje,),
@@ -99,7 +103,7 @@ def page():
             """
             SELECT data, temperatura_min, temperatura_max, precipitacao, provisorio
               FROM meteorologia_resumos_diarios
-             ORDER BY date(data) DESC, id DESC
+             ORDER BY data DESC, id DESC
              LIMIT 1
             """
         ).fetchone()
@@ -107,7 +111,7 @@ def page():
             """
             SELECT observado_em, temperatura, sensacao_termica, umidade
               FROM meteorologia_condicoes_atuais
-             ORDER BY datetime(observado_em) DESC, id DESC
+             ORDER BY observado_em DESC, id DESC
              LIMIT 1
             """
         ).fetchone()
@@ -124,25 +128,29 @@ def page():
         }
 
     clima_trabalho = meteorologia_core.resumo_trabalho(
-        current_app.config["DB_PATH"], dias_uteis=2
+        bh.db_target(), dias_uteis=2
     )
     clima_alerta = next(
         (day for day in clima_trabalho["dias"] if day["nivel"] in {"atencao", "critico"}),
         None,
     )
 
-    atividade_lista = [dict(r) for r in atividade]
+    atividade_lista = [db_core.serialize_row(r) for r in atividade]
     atividade_max = max((r["total"] for r in atividade_lista), default=0)
     return render_template(
         "home.html",
         kpis=kpis,
         atividade=atividade_lista,
         atividade_max=atividade_max,
-        dist_tipo=[dict(r) for r in dist_tipo],
-        focos_recentes=[dict(r) for r in focos_rec],
-        agenda_proxima=[dict(r) for r in agenda],
-        meteorologia=dict(meteorologia) if meteorologia else None,
-        clima_atual=dict(clima_atual) if clima_atual else None,
+        dist_tipo=[db_core.serialize_row(r) for r in dist_tipo],
+        focos_recentes=[db_core.serialize_row(r) for r in focos_rec],
+        agenda_proxima=[db_core.serialize_row(r) for r in agenda],
+        meteorologia=(
+            db_core.serialize_row(meteorologia) if meteorologia else None
+        ),
+        clima_atual=(
+            db_core.serialize_row(clima_atual) if clima_atual else None
+        ),
         clima_alerta=clima_alerta,
         admin_info=admin_info,
     )

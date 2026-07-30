@@ -40,6 +40,9 @@ acompanhamento, mapa, impressao, sugestoes de logradouros e edicao em lote.
 A Importacao Kobo tambem foi homologada de ponta a ponta: simulacao,
 processamento transacional, normalizacao, reimportacao idempotente, resultados
 de larvas, focos positivos, pendencias e renderizacao da pagina.
+Agenda, Pagina Inicial e Meteorologia completam o lote seguinte, incluindo
+eventos manuais e automaticos, recorrencias, alertas para trabalho de campo,
+sincronizacao meteorologica e os resumos operacionais da tela inicial.
 
 ## Bancos locais
 
@@ -150,7 +153,9 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
    Geografico tambem esta concluido, incluindo consultas, acompanhamento,
    mapa, impressao e todas as operacoes de edicao. A Importacao Kobo tambem
    esta concluida, incluindo o ETL principal, simulacao, confirmacao,
-   reimportacao, larvas, pendencias e historico.
+   reimportacao, larvas, pendencias e historico. Agenda, Pagina Inicial e
+   Meteorologia foram homologadas na sequencia, com leituras e escritas
+   isoladas em tabelas temporarias.
 6. Ensaiar a migracao com uma copia recente do banco oficial.
 7. Fazer backup, carga final, validacao e troca controlada.
 
