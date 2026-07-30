@@ -60,6 +60,14 @@ def _env_bool(env, name, default=False):
     return str(value).strip().lower() in ("1", "true", "yes", "on", "sim")
 
 
+def _env_port(env, name="ENDEMIAS_PORT", default=5000):
+    try:
+        port = int(env.get(name, default))
+    except (TypeError, ValueError):
+        return default
+    return port if 1 <= port <= 65535 else default
+
+
 def resolve_paths(env=None, base_dir=BASE_DIR):
     env = env or os.environ
     instance_dir = os.path.abspath(env.get("ENDEMIAS_INSTANCE_DIR", base_dir))
@@ -94,6 +102,7 @@ CSP_REPORT_ONLY_DEFAULT = _env_bool(os.environ, "ENDEMIAS_CSP_REPORT_ONLY", True
 CSP_ALLOW_INLINE_DEFAULT = _env_bool(os.environ, "ENDEMIAS_CSP_ALLOW_INLINE", True)
 DB_BACKEND_DEFAULT = os.environ.get("ENDEMIAS_DB_BACKEND", "sqlite")
 PG_DATABASE_DEFAULT = os.environ.get("ENDEMIAS_PG_DATABASE", "endemias_teste")
+SERVER_PORT_DEFAULT = _env_port(os.environ)
 
 csrf = CSRFProtect()
 
@@ -327,12 +336,12 @@ if __name__ == "__main__":
     print("=" * 54, flush=True)
     print(f"\n  Banco de dados: {DB_PATH}", flush=True)
     print("\n  Acesse no navegador:", flush=True)
-    print("    Este computador : http://localhost:5000", flush=True)
-    print(f"    Rede local      : http://{ip}:5000", flush=True)
+    print(f"    Este computador : http://localhost:{SERVER_PORT_DEFAULT}", flush=True)
+    print(f"    Rede local      : http://{ip}:{SERVER_PORT_DEFAULT}", flush=True)
     print("\n  Para encerrar: Ctrl+C ou feche esta janela", flush=True)
     print("=" * 54 + "\n", flush=True)
 
-    servidor = make_server("0.0.0.0", 5000, app, threaded=True)
+    servidor = make_server("0.0.0.0", SERVER_PORT_DEFAULT, app, threaded=True)
     try:
         servidor.serve_forever()
     except KeyboardInterrupt:

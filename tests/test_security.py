@@ -4139,6 +4139,12 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertTrue(paths["LOG_PATH"].endswith("endemias.log"))
         self.assertTrue(paths["SECRET_KEY_PATH"].endswith("secret.key"))
 
+    def test_porta_do_servidor_aceita_override_seguro(self):
+        self.assertEqual(endemias_app._env_port({}), 5000)
+        self.assertEqual(endemias_app._env_port({"ENDEMIAS_PORT": "5002"}), 5002)
+        self.assertEqual(endemias_app._env_port({"ENDEMIAS_PORT": "invalida"}), 5000)
+        self.assertEqual(endemias_app._env_port({"ENDEMIAS_PORT": "70000"}), 5000)
+
     def test_apis_principais_logadas_retornam_json(self):
         client = _client_logado()
         rotas = [

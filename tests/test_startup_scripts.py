@@ -41,7 +41,9 @@ class StartupScriptsTests(unittest.TestCase):
     def test_iniciar_abre_navegador_quando_servidor_ja_esta_ativo(self):
         iniciar = (ROOT / "iniciar.bat").read_text(encoding="utf-8")
 
-        self.assertIn('start "" http://localhost:5000', iniciar)
+        self.assertIn('set "ENDEMIAS_PORT=5002"', iniciar)
+        self.assertIn('start "" http://localhost:%ENDEMIAS_PORT%', iniciar)
+        self.assertIn('set "ENDEMIAS_DB_PATH=%~dp0endemias.db"', iniciar)
         self.assertNotIn("O sistema ja parece estar aberto", iniciar)
 
     def test_reiniciar_valida_processo_e_reabre_tarefa_automatica(self):
