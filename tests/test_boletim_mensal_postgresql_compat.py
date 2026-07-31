@@ -215,6 +215,49 @@ class BoletimMensalPostgreSQLCompatTests(unittest.TestCase):
         conn.rollback.assert_called_once_with()
         conn.close.assert_called_once_with()
 
+    def test_conflito_de_escrita_retorna_resposta_retentavel(self):
+        class PostgreSQLConflict(Exception):
+            pgcode = "55P03"
+
+        app = Flask(__name__)
+        app.secret_key = "teste"
+        target = db_core.DatabaseTarget("postgresql", "endemias_teste")
+        app.config["DB_TARGET"] = target
+        conn = mock.Mock()
+        conn.backend = "postgresql"
+
+        with (
+            app.test_request_context(
+                "/api/boletim-mensal",
+                method="POST",
+                json={"mes": "2026-07", "linhas": []},
+            ),
+            mock.patch.object(boletim_mensal.bh, "get_db", return_value=conn),
+            mock.patch.object(boletim_mensal.boletim_core, "ensure_schema"),
+            mock.patch.object(
+                boletim_mensal.boletim_core,
+                "substituir_itens",
+                side_effect=PostgreSQLConflict("could not obtain lock"),
+            ),
+            mock.patch.object(
+                boletim_mensal.logging,
+                "exception",
+            ) as log_exception,
+        ):
+            response, status = _view_sem_decoradores(
+                boletim_mensal.api_salvar
+            )()
+
+        self.assertEqual(status, 503)
+        self.assertEqual(
+            response.get_json()["erro"],
+            "Banco de dados ocupado. Tente novamente.",
+        )
+        conn.commit.assert_not_called()
+        conn.rollback.assert_called_once_with()
+        conn.close.assert_called_once_with()
+        log_exception.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -10,6 +10,7 @@ from app_core import audit
 from app_core import auth as auth_core
 from app_core import boletim_mensal as boletim_core
 from app_core import blueprint_helpers as bh
+from app_core import db as db_core
 from app_core.excel import excel_safe
 
 
@@ -75,9 +76,13 @@ def api_salvar():
             usar_salvos=True,
         )
         return jsonify({"ok": True, **boletim})
-    except Exception:
+    except Exception as exc:
         if conn is not None:
             conn.rollback()
+        if db_core.is_concurrency_error(exc):
+            return jsonify({
+                "erro": "Banco de dados ocupado. Tente novamente."
+            }), 503
         logging.exception("Erro ao salvar boletim mensal")
         return jsonify({"erro": "Erro ao salvar boletim mensal."}), 500
     finally:

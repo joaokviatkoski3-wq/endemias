@@ -545,6 +545,7 @@ O **Boletim Mensal** foi homologado nos dois bancos. O recorte inclui:
 - pagina, relatorio para PDF e exportacao XLSX;
 - permissao de leitura para visualizador e edicao a partir de operador;
 - auditoria gravada na mesma transacao do fechamento;
+- conflitos transitorios de escrita tratados com resposta para nova tentativa;
 - manutencao de esquema em tempo de execucao restrita ao SQLite;
 - deteccao de tabelas pelo helper compativel com ambos os bancos.
 
@@ -558,7 +559,7 @@ python scripts\testar_boletim_mensal_postgresql.py `
 O script exercita todas as fontes operacionais, ajustes, linhas manuais, PDF,
 XLSX, permissoes e auditoria em treze tabelas temporarias. Ao final, confirma
 que as contagens das `60` tabelas publicas permaneceram inalteradas. A
-regressao ampla do lote teve `405` testes aprovados e `5` ignorados.
+regressao ampla do lote teve `407` testes aprovados e `5` ignorados.
 
 Por seguranca, outro banco exige:
 

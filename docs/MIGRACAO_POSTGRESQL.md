@@ -165,7 +165,7 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
    lote seguinte, incluindo CRUD, filtros, servidores, anexos, relatorio,
    permissoes e auditoria. O Boletim Mensal foi homologado na sequencia, com
    indicadores automaticos, fechamento, linhas manuais, PDF, XLSX, permissoes
-   e auditoria. A regressao ampla deste lote teve 405 testes aprovados e 5
+   e auditoria. A regressao ampla deste lote teve 407 testes aprovados e 5
    ignorados; as 60 tabelas publicas permaneceram inalteradas no ensaio
    PostgreSQL.
 6. Ensaiar a migracao com uma copia recente do banco oficial.

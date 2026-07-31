@@ -57,6 +57,28 @@ class DatabaseTargetTests(unittest.TestCase):
 
 
 class PostgreSQLAdapterTests(unittest.TestCase):
+    def test_detecta_conflitos_transitorios_nos_dois_backends(self):
+        class PostgreSQLConflict(Exception):
+            sqlstate = "40P01"
+
+        wrapped = RuntimeError("falha ao concluir a transacao")
+        wrapped.__cause__ = PostgreSQLConflict("deadlock detected")
+
+        self.assertTrue(db_core.is_concurrency_error(wrapped))
+        self.assertTrue(
+            db_core.is_concurrency_error(
+                RuntimeError("canceling statement due to lock timeout")
+            )
+        )
+        self.assertTrue(
+            db_core.is_concurrency_error(
+                RuntimeError("database is locked")
+            )
+        )
+        self.assertFalse(
+            db_core.is_concurrency_error(RuntimeError("connection refused"))
+        )
+
     def test_qmark_translation_ignores_literals_and_comments(self):
         statement = (
             "SELECT '?' AS literal, \"?\" AS identifier "

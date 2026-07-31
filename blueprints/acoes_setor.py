@@ -921,37 +921,8 @@ def _remover_caminhos(caminhos):
             pass
 
 
-def _erro_concorrencia(exc):
-    codigos_postgresql = {"40001", "40P01", "55P03"}
-    mensagens = (
-        "database is locked",
-        "database table is locked",
-        "deadlock detected",
-        "could not serialize access",
-        "could not obtain lock",
-        "lock timeout",
-    )
-    atual = exc
-    visitados = set()
-    while atual is not None and id(atual) not in visitados:
-        visitados.add(id(atual))
-        codigo = (
-            getattr(atual, "pgcode", None)
-            or getattr(atual, "sqlstate", None)
-        )
-        if str(codigo or "").upper() in codigos_postgresql:
-            return True
-        mensagem = str(atual).lower()
-        if any(texto in mensagem for texto in mensagens):
-            return True
-        atual = getattr(atual, "__cause__", None) or getattr(
-            atual, "__context__", None
-        )
-    return False
-
-
 def _erro_banco(exc, operacao):
-    if _erro_concorrencia(exc):
+    if db_core.is_concurrency_error(exc):
         return jsonify({"erro": "Banco de dados ocupado. Tente novamente."}), 503
     current_app.logger.exception("Erro ao %s em Acoes do Setor", operacao)
     return jsonify({"erro": "Nao foi possivel concluir a operacao."}), 500

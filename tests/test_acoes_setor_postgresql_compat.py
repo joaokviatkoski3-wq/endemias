@@ -181,24 +181,21 @@ class AcoesSetorPostgreSQLCompatTests(unittest.TestCase):
         self.assertEqual(item["criado_em"], "2026-07-31")
         self.assertFalse(item["restrito"])
 
-    def test_erros_concorrentes_postgresql_sao_retentaveis(self):
+    def test_erro_concorrente_retorna_resposta_retentavel(self):
         class PostgreSQLConflict(Exception):
             pgcode = "40P01"
 
-        self.assertTrue(
-            acoes_setor._erro_concorrencia(
-                PostgreSQLConflict("deadlock detected")
+        app = Flask(__name__)
+        with app.app_context():
+            response, status = acoes_setor._erro_banco(
+                PostgreSQLConflict("deadlock detected"),
+                "salvar registro",
             )
-        )
-        self.assertTrue(
-            acoes_setor._erro_concorrencia(
-                RuntimeError(
-                    "canceling statement due to lock timeout"
-                )
-            )
-        )
-        self.assertFalse(
-            acoes_setor._erro_concorrencia(RuntimeError("connection refused"))
+
+        self.assertEqual(status, 503)
+        self.assertEqual(
+            response.get_json()["erro"],
+            "Banco de dados ocupado. Tente novamente.",
         )
 
     def test_falha_ao_abrir_conexao_de_anexo_retorna_json(self):

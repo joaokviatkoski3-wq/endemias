@@ -9,6 +9,15 @@ from app_core import postgresql
 
 BUSY_TIMEOUT_MS = 5000
 _RETRY_DELAYS_SECONDS = (0.05, 0.15)
+_POSTGRESQL_CONCURRENCY_CODES = {"40001", "40P01", "55P03"}
+_CONCURRENCY_MESSAGES = (
+    "database is locked",
+    "database table is locked",
+    "deadlock detected",
+    "could not serialize access",
+    "could not obtain lock",
+    "lock timeout",
+)
 _metrics_lock = threading.Lock()
 _metrics = {
     "connections": 0,
@@ -130,12 +139,40 @@ def _qmark_to_pyformat(statement):
     return "".join(result)
 
 
+def is_concurrency_error(exc):
+    """Identifica conflitos transitorios de escrita nos dois backends."""
+    current = exc
+    visited = set()
+    while current is not None and id(current) not in visited:
+        visited.add(id(current))
+        sqlite_error_code = getattr(current, "sqlite_errorcode", None)
+        if sqlite_error_code is not None and (
+            sqlite_error_code & 0xFF
+        ) in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+            return True
+
+        diag = getattr(current, "diag", None)
+        postgresql_code = (
+            getattr(current, "pgcode", None)
+            or getattr(current, "sqlstate", None)
+            or getattr(diag, "sqlstate", None)
+        )
+        if str(postgresql_code or "").upper() in _POSTGRESQL_CONCURRENCY_CODES:
+            return True
+
+        message = str(current).lower()
+        if any(text in message for text in _CONCURRENCY_MESSAGES):
+            return True
+        current = getattr(current, "__cause__", None) or getattr(
+            current,
+            "__context__",
+            None,
+        )
+    return False
+
+
 def _is_lock_error(exc):
-    error_code = getattr(exc, "sqlite_errorcode", None)
-    if error_code is not None:
-        return (error_code & 0xFF) in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED)
-    message = str(exc).lower()
-    return "database is locked" in message or "database table is locked" in message
+    return is_concurrency_error(exc)
 
 
 def _record_lock(metric):
