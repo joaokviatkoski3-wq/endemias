@@ -604,9 +604,9 @@ foi homologado na sequencia. O Registro Geografico tambem esta coberto,
 incluindo cadastro, edicao, acompanhamento, mapa e impressao. Acoes e
 Atendimentos do Setor tambem esta homologado, incluindo anexos e relatorio
 tecnico. O Boletim Mensal tambem esta homologado, incluindo indicadores,
-fechamento, PDF e XLSX. O proximo grande recorte e o **Mapa geral** fora do
-Registro Geografico, seguido pelos demais relatorios, modulos auxiliares e por
-um ensaio integrado com uma copia recente do SQLite oficial.
+fechamento, PDF e XLSX. O proximo lote agrupa **Mapa geral**, **Notificacoes**
+e **Relatorio por Servidor**, seguido por exportacoes, modulos administrativos
+e por um ensaio integrado com uma copia recente do SQLite oficial.
 
 Cada lote deve:
 

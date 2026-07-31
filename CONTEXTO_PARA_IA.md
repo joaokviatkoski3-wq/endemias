@@ -97,22 +97,23 @@ b5ff38b feat: concluir migracao de ovitrampas para postgres
 
 ## Proxima tarefa recomendada
 
-Migrar o **Mapa geral** de `blueprints/mapa.py` para a camada dual, incluindo:
+O novo padrao de trabalho e agrupar 2 ou 3 modulos relacionados por branch
+antes da revisao do Claude. O proximo lote recomendado reune:
 
-- pagina, estatisticas por quarteirao e filtros territoriais;
-- camadas de visitas, focos e cobertura por localidade;
-- API e visualizacao das Ovitrampas;
-- normalizacao das datas e agregacoes nos dois bancos;
-- teste PostgreSQL isolado em tabelas temporarias;
-- garantia de que tabelas publicas de `endemias_teste` nao sejam alteradas.
+1. **Mapa geral** de `blueprints/mapa.py`;
+2. **Notificacoes** de `blueprints/notificacoes.py`;
+3. **Relatorio por Servidor** de `blueprints/relatorio_agente.py`.
+
+O lote deve preservar paginas, APIs, filtros, exportacoes, permissoes e
+auditoria aplicaveis, normalizar datas e agregacoes nos dois bancos e usar
+ensaios PostgreSQL isolados. As tabelas publicas de `endemias_teste` nao podem
+ser alteradas.
 
 Depois, prosseguir com:
 
-1. Notificacoes;
-2. Relatorio por Servidor;
-3. exportacoes e consolidados;
-4. Central do Sistema, diagnosticos e rotinas administrativas;
-5. auditoria final de SQL exclusivo do SQLite.
+1. exportacoes e consolidados;
+2. Central do Sistema, diagnosticos e rotinas administrativas;
+3. auditoria final de SQL exclusivo do SQLite.
 
 ## O que falta para abandonar o SQLite
 
@@ -162,9 +163,10 @@ apos a migracao funcional terminar.
 
 Fluxo futuro pretendido:
 
-1. Codex implementa em `codex/nome-da-tarefa` e faz push.
+1. Codex implementa 2 ou 3 modulos relacionados em `codex/nome-do-lote` e faz
+   push.
 2. Claude revisa o diff contra `master`, sem alterar por padrao.
-3. Codex corrige os achados na branch da tarefa.
+3. Codex corrige os achados na branch do lote.
 4. Usuario testa em ambiente isolado.
 5. So depois ocorre merge e push para `master`.
 

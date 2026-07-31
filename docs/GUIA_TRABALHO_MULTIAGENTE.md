@@ -55,20 +55,31 @@ adotado, a sugestao e:
 ```powershell
 cd C:\endemias
 git fetch origin
-git worktree add C:\endemias-codex -b codex/nome-da-tarefa master
+git worktree add C:\endemias-codex -b codex/nome-do-lote master
 ```
 
-Nao execute esse comando com `codex/nome-da-tarefa` ja existente. Nesse caso,
+Nao execute esse comando com `codex/nome-do-lote` ja existente. Nesse caso,
 use a branch existente ou escolha outro nome.
 
-## Fluxo completo de uma tarefa
+## Tamanho dos lotes
+
+Por acordo entre o usuario, o Codex e o Claude, o padrao da migracao passa a
+ser implementar **2 a 3 modulos relacionados por branch** antes de solicitar
+uma revisao. O objetivo e reduzir o custo de contexto e o tempo de revisao sem
+perder a separacao entre implementacao, revisao e integracao.
+
+Um modulo de risco alto, uma mudanca destrutiva ou um conjunto que fique grande
+demais para revisao clara pode continuar em uma branch isolada. O usuario
+tambem pode definir outro recorte expressamente.
+
+## Fluxo completo de um lote
 
 1. Atualizar a `master` oficial e confirmar que esta limpa.
-2. Criar uma branch `codex/nome-curto-da-tarefa` a partir da `master`.
-3. Codex implementa somente nessa branch.
+2. Criar uma branch `codex/nome-curto-do-lote` a partir da `master`.
+3. Codex implementa os 2 ou 3 modulos relacionados somente nessa branch.
 4. Codex executa testes, cria commit e faz push da branch.
 5. Claude executa `git fetch origin` em `C:\endemias-revisao`.
-6. Claude revisa `master...origin/codex/nome-curto-da-tarefa` sem editar.
+6. Claude revisa `master...origin/codex/nome-curto-do-lote` sem editar.
 7. Usuario leva os achados ao Codex.
 8. Codex corrige na mesma branch, testa, commita e faz push.
 9. Claude revisa novamente somente os novos commits ou o diff completo.
@@ -83,9 +94,9 @@ use a branch existente ou escolha outro nome.
 ```powershell
 cd C:\endemias-revisao
 git fetch origin
-git log --oneline master..origin/codex/nome-da-tarefa
-git diff --stat master...origin/codex/nome-da-tarefa
-git diff master...origin/codex/nome-da-tarefa
+git log --oneline master..origin/codex/nome-do-lote
+git diff --stat master...origin/codex/nome-do-lote
+git diff master...origin/codex/nome-do-lote
 ```
 
 O Claude nao precisa trocar de branch para revisar. Isso evita perder as
@@ -100,7 +111,7 @@ git diff HASH_ANTERIOR..HASH_NOVO
 ## Teste da implementacao
 
 O teste funcional deve ocorrer no worktree do Codex ou num worktree temporario
-baseado na branch da tarefa. Nao use a pasta oficial para testar codigo ainda
+baseado na branch do lote. Nao use a pasta oficial para testar codigo ainda
 nao aprovado.
 
 Cada ambiente precisa ter:
@@ -173,8 +184,9 @@ Uma IA revisora pode se enganar. O Codex deve validar tecnicamente cada achado.
 - Nao use `git reset --hard` ou `git checkout --` para resolver divergencias.
 - Nao force push em branches compartilhadas.
 - Nao faca merge da branch `revisao` inteira na `master`.
-- Nao misture duas funcionalidades grandes na mesma branch.
-- Se a `master` mudar durante uma tarefa, atualize a branch com cuidado e
+- Nao misture modulos sem relacao. O lote padrao pode reunir 2 ou 3 modulos
+  relacionados, desde que o diff continue claro e testavel.
+- Se a `master` mudar durante um lote, atualize a branch com cuidado e
   execute novamente os testes.
 - Commits devem ser pequenos o suficiente para revisao, mas representar uma
   unidade funcional coerente.

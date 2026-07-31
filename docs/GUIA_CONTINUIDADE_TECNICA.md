@@ -109,20 +109,23 @@ das tabelas publicas.
 
 ## Protocolo recomendado para o proximo lote
 
-Para o **Mapa geral**:
+O proximo lote agrupa **Mapa geral**, **Notificacoes** e **Relatorio por
+Servidor**:
 
-1. Inspecionar `blueprints/mapa.py`, `templates/mapa.html`, testes e todas as
-   fontes das duas APIs do modulo.
+1. Inspecionar `blueprints/mapa.py`, `blueprints/notificacoes.py`,
+   `blueprints/relatorio_agente.py`, templates, testes e fontes das APIs.
 2. Inventariar SQL exclusivo do SQLite, agregacoes, datas, filtros e tabelas
-   opcionais usadas nas camadas territoriais.
-3. Passar pagina e APIs a usar o destino configurado pela camada dual.
-4. Preservar as regras de quarteirao, localidade, visitas, focos, cobertura e
-   Ovitrampas.
-5. Normalizar datas e valores nativos antes da serializacao JSON.
-6. Criar um ensaio PostgreSQL isolado com tabelas temporarias e abrir a pagina
-   e as duas APIs reais.
-7. Executar testes focados, regressao ampla e comparacao de esquema.
-8. Atualizar os documentos PostgreSQL, fazer commit e push da branch.
+   opcionais usadas pelos tres modulos.
+3. Passar paginas, APIs e exportacoes a usar o destino da camada dual.
+4. Preservar as regras territoriais de visitas, focos, cobertura e Ovitrampas.
+5. Preservar o fluxo de notificacoes, tentativas, entregas, permissoes e
+   auditoria.
+6. Preservar os indicadores e filtros individuais do Relatorio por Servidor.
+7. Normalizar datas e valores nativos antes de JSON, PDF, CSV ou XLSX.
+8. Criar ensaios PostgreSQL isolados com tabelas temporarias e abrir as rotas
+   reais dos tres modulos.
+9. Executar testes focados, regressao ampla e comparacao de esquema.
+10. Atualizar os documentos, fazer commit e push da branch do lote.
 
 ## Operacao durante a migracao
 
@@ -195,5 +198,6 @@ Essas ideias foram discutidas, mas nao autorizam remover os fluxos atuais.
 3. Confirmar que SQLite segue como producao.
 4. Ler o final de `docs/POSTGRESQL_CAMADA_DUAL.md`.
 5. Verificar o PostgreSQL sem escrever em tabelas publicas.
-6. Retomar o Mapa geral como proximo lote, salvo nova orientacao.
+6. Retomar o lote Mapa, Notificacoes e Relatorio por Servidor, salvo nova
+   orientacao.
 7. Manter o usuario informado durante exploracao, edicao, testes e push.
