@@ -33,6 +33,7 @@ Leia tambem:
 - `docs/POSTGRESQL_CAMADA_DUAL.md`;
 - `docs/POSTGRESQL_SCHEMA_INICIAL.md`;
 - `docs/POSTGRESQL_CARGA_TESTE.md`.
+- `docs/POSTGRESQL_AUDITORIA_SQL_FINAL.md`.
 
 ## Estado da migracao PostgreSQL
 
@@ -56,7 +57,7 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A ultima regressao ampla registrada teve 432 testes aprovados e 5 ignorados.
+A ultima regressao ampla registrada teve 441 testes aprovados e 5 ignorados.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
 conexoes SQLite em testes de Ovitrampas; nao confundir automaticamente com uma
 regressao nova.
@@ -92,8 +93,8 @@ regressao nova.
 - Exportacoes e consolidados: XLSX de visitas, notificacoes e laboratorio,
   alem dos consolidados PE, TB, TBO e PVE sob demanda.
 - Central do Sistema: status do backend, contagens e diagnostico rapido/completo.
-  As rotinas internas de backup, restauracao, backup completo e DBML continuam
-  exclusivas do SQLite e ficam bloqueadas quando o PostgreSQL esta ativo.
+  Backup, restauracao e backup completo usam `pg_dump`/`pg_restore` quando o
+  PostgreSQL esta ativo; o DBML continua exclusivo do SQLite.
 
 Commits mais recentes da migracao:
 
@@ -113,34 +114,25 @@ b5ff38b feat: concluir migracao de ovitrampas para postgres
 ## Proxima tarefa recomendada
 
 O novo padrao de trabalho e agrupar 2 ou 3 modulos relacionados por branch
-antes da revisao do Claude. O proximo lote recomendado reune:
-
-1. auditoria final de SQL exclusivo do SQLite;
-2. backup e restauracao PostgreSQL com `pg_dump`/`pg_restore`, incluindo a
-   integracao segura com a Central do Sistema.
-
-Depois, prosseguir com o ensaio integrado usando uma copia recente do SQLite
-oficial em `endemias_migracao`.
+antes da revisao do Claude. A proxima tarefa recomendada e o ensaio integrado
+usando uma copia recente do SQLite oficial em `endemias_migracao`, seguido dos
+testes de concorrencia e da preparacao operacional do servico Windows.
 
 ## O que falta para abandonar o SQLite
 
-Mesmo apos os modulos restantes, ainda sera necessario:
+Mesmo apos os modulos funcionais e as rotinas de backup, ainda sera necessario:
 
-1. Implementar backup PostgreSQL com `pg_dump`.
-2. Implementar restauracao com `pg_restore`.
-3. Adaptar o botao de backup da Central do Sistema.
-4. Configurar credenciais PostgreSQL protegidas para a conta Windows `SYSTEM`.
-5. Configurar o servico automatico para iniciar com PostgreSQL.
-6. Testar concorrencia realista com 4 ou 5 usuarios.
-7. Buscar `PRAGMA`, `sqlite_master`, `executescript`, `lastrowid`,
-   `INSERT OR IGNORE/REPLACE`, `GROUP_CONCAT`, `COLLATE NOCASE` e funcoes de
-   data exclusivas do SQLite.
-8. Ensaiar com copia recente do SQLite em `endemias_migracao`.
-9. Comparar contagens, checksums, FKs e sequencias de identidade.
-10. Executar smoke CRUD de toda a aplicacao em PostgreSQL.
-11. Fazer congelamento curto de escrita, carga final e validacao.
-12. Somente entao definir `ENDEMIAS_DB_BACKEND=postgresql` no servidor oficial.
-13. Preservar o `endemias.db` final congelado como rollback; nao apagar.
+1. Configurar credenciais PostgreSQL protegidas para a conta Windows `SYSTEM`.
+2. Configurar o servico automatico para iniciar com PostgreSQL.
+3. Testar concorrencia realista com 4 ou 5 usuarios.
+4. Ensaiar com copia recente do SQLite em `endemias_migracao`.
+5. Comparar contagens, checksums, FKs e sequencias de identidade.
+6. Executar smoke CRUD de toda a aplicacao em PostgreSQL.
+7. Executar uma restauracao real somente em banco descartavel criado para o
+   ensaio; `endemias_app` nao possui hoje permissao `CREATEDB`.
+8. Fazer congelamento curto de escrita, carga final e validacao.
+9. Somente entao definir `ENDEMIAS_DB_BACKEND=postgresql` no servidor oficial.
+10. Preservar o `endemias.db` final congelado como rollback; nao apagar.
 
 ## Regras para testes PostgreSQL
 

@@ -1,3 +1,4 @@
+import tempfile
 import unittest
 from unittest import mock
 
@@ -124,11 +125,12 @@ class DiagnosticoPostgreSQLCompatTests(unittest.TestCase):
         self.assertEqual(tabelas, {"usuarios", "visitas"})
         self.assertIn("information_schema.tables", conn.execute.call_args.args[0])
 
-    def test_backup_postgresql_e_informativo_sem_inspecionar_sqlite(self):
-        itens = []
-        diagnostico._check_backups("pasta-inexistente", itens, "postgresql")
+    def test_backup_postgresql_e_verificado_sem_inspecionar_sqlite(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            itens = []
+            diagnostico._check_backups(tmpdir, itens, "postgresql")
 
-        self.assertEqual(itens[0]["nivel"], "info")
+        self.assertEqual(itens[0]["nivel"], "aviso")
         self.assertIn("PostgreSQL", itens[0]["titulo"])
 
     def test_notificacoes_atrasadas_comparam_data_pura_nos_dois_bancos(self):
@@ -195,16 +197,31 @@ class AdminPostgreSQLCompatTests(unittest.TestCase):
         self.assertIn("falha de consulta", status["erro"])
         conn.close.assert_called_once_with()
 
-    def test_operacao_sqlite_e_bloqueada_com_postgresql(self):
+    def test_backup_postgresql_usa_ferramenta_especifica(self):
         app = self._app_postgresql()
         app.secret_key = "teste"
+        app.config["BACKUP_DIR"] = "backups_teste"
         app.register_blueprint(admin.bp)
 
-        with app.test_request_context("/admin/sistema/backups/criar", method="POST"):
+        info = {
+            "arquivo": "backups_teste/endemias_teste.dump",
+            "tamanho_bytes": 100,
+            "integridade": "catalogo validado",
+        }
+        with (
+            app.test_request_context("/admin/sistema/backups/criar", method="POST"),
+            mock.patch.object(
+                admin.postgresql_backup,
+                "criar_backup_postgresql",
+                return_value=info,
+            ) as criar,
+            mock.patch.object(admin.audit, "registrar_evento"),
+        ):
             response = _view_sem_decoradores(admin.admin_criar_backup)()
 
         self.assertEqual(response.status_code, 302)
-        self.assertIn("indispon%C3%ADvel", response.location)
+        criar.assert_called_once()
+        self.assertEqual(criar.call_args.args[0], "endemias_teste")
 
     def test_gerador_recebe_database_target_postgresql(self):
         app = Flask(__name__)

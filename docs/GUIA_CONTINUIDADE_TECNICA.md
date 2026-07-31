@@ -134,24 +134,26 @@ aprovados e `5` ignorados.
 
 ## Protocolo recomendado para o proximo lote
 
-O proximo lote deve fazer a auditoria final de SQL exclusivo e implementar as
-rotinas operacionais PostgreSQL de backup/restauracao:
+O proximo lote e o ensaio integrado com uma copia recente do SQLite oficial:
 
-1. Inventariar usos restantes de `PRAGMA`, `sqlite_master`, `executescript`,
-   `lastrowid`, `GROUP_CONCAT`, `COLLATE NOCASE` e funcoes de data SQLite.
-2. Classificar cada ocorrencia como caminho SQLite intencional ou pendencia de
-   caminho funcional dual.
-3. Implementar `pg_dump` e `pg_restore` sem expor senha na linha de comando ou
-   nos logs.
-4. Validar executaveis, banco de destino, formato e integridade antes de
-   oferecer a operacao na Central.
-5. Manter os controles PostgreSQL desativados enquanto qualquer etapa estiver
-   incompleta; nunca reutilizar o arquivo `endemias.db` como se fosse o banco
-   ativo.
-6. Ensaiar somente contra banco descartavel, com confirmacao explicita e prova
-   de que as tabelas publicas de homologacao foram preservadas.
-7. Executar testes focados, regressao ampla e comparacao de esquema.
+1. Criar uma nova copia protegida do SQLite sem interromper a producao.
+2. Recriar `endemias_migracao` ou outro banco explicitamente descartavel.
+3. Executar inventario, carga, comparacao de contagens, checksums, FKs e
+   identidades.
+4. Rodar smoke CRUD de todos os modulos e concorrencia com 4 ou 5 sessoes.
+5. Testar `pg_restore` apenas em um segundo banco descartavel. A conta
+   `endemias_app` atual nao possui `CREATEDB`; solicitar previamente ao
+   administrador a criacao desse destino, sem elevar a conta da aplicacao.
+6. Configurar `pgpass` e executaveis PostgreSQL para a conta Windows `SYSTEM`.
+7. Nao alterar `ENDEMIAS_DB_BACKEND` no sistema oficial durante o ensaio.
 8. Atualizar os documentos, fazer commit e push da branch do lote.
+
+As rotinas PostgreSQL de backup usam formato custom, `--no-password`, SHA-256
+e validacao por `pg_restore --list`. A restauracao exige o nome exato do banco,
+gera dump de seguranca e usa `--clean --if-exists --single-transaction
+--exit-on-error`. Os caminhos podem ser configurados por `ENDEMIAS_PG_BIN`,
+`ENDEMIAS_PG_DUMP` e `ENDEMIAS_PG_RESTORE`; credenciais continuam a cargo do
+`pgpass`/libpq e nunca entram na linha de comando.
 
 ## Operacao durante a migracao
 

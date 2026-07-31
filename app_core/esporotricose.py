@@ -2958,16 +2958,23 @@ def _add_valores_filtro(clauses, params, coluna, valor, nocase=False):
         params.extend(valores)
 
 
+def _insert_ignore_sql(conn_or_cursor, statement):
+    statement = statement.strip()
+    if getattr(conn_or_cursor, "backend", "sqlite") == "postgresql":
+        return statement + " ON CONFLICT DO NOTHING"
+    return statement.replace("INSERT INTO", "INSERT OR IGNORE INTO", 1)
+
+
 def _inserir_visita(conn, visita, agora_iso):
     cur = conn.cursor()
     id_localidade = _obter_ou_criar_localidade(cur, visita.get("localidade"))
     cur.execute(
-        """INSERT OR IGNORE INTO esporotricose_visitas (
+        _insert_ignore_sql(cur, """INSERT INTO esporotricose_visitas (
             id_visita, kobo_uuid, kobo_id, data, hora_inicio, hora_fim, inicio_registro,
             fim_registro, agentes_texto, localidade, id_localidade, quarteirao, tipo_imovel,
             logradouro, numero, morador, visita, telefone, observacoes, deseja_cadastrar_animal,
             origem_estrutura, arquivo_origem, submission_time, processado_em
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""),
         (
             visita["id_visita"], visita["kobo_uuid"], visita.get("kobo_id"), visita["data"],
             visita.get("hora_inicio"), visita.get("hora_fim"), visita.get("inicio_registro"),
@@ -2988,7 +2995,10 @@ def _inserir_agentes(conn, id_visita, agentes_texto):
     for nome in nomes:
         id_agente = _obter_ou_criar_agente(cur, nome)
         cur.execute(
-            "INSERT OR IGNORE INTO esporotricose_visita_agentes(id_visita, id_agente) VALUES (?,?)",
+            _insert_ignore_sql(
+                cur,
+                "INSERT INTO esporotricose_visita_agentes(id_visita, id_agente) VALUES (?,?)",
+            ),
             (id_visita, id_agente),
         )
         count += cur.rowcount
@@ -2998,11 +3008,11 @@ def _inserir_agentes(conn, id_visita, agentes_texto):
 def _inserir_animal(conn, animal, agora_iso):
     cur = conn.cursor()
     cur.execute(
-        """INSERT OR IGNORE INTO esporotricose_animais (
+        _insert_ignore_sql(cur, """INSERT INTO esporotricose_animais (
             id_animal, id_visita, kobo_uuid, especie, outro_animal, nome, raca, sexo,
             ambiente, vacinado, castrado, feridas, regiao_ferida, atendimento_veterinario,
             data_atendimento, evolucao_caso, arquivo_origem, processado_em
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""),
         (
             animal["id_animal"], animal["id_visita"], animal.get("kobo_uuid"),
             animal.get("especie"), animal.get("outro_animal"), animal.get("nome"),
@@ -3023,8 +3033,12 @@ def _obter_ou_criar_localidade(cur, nome):
     row = cur.fetchone()
     if row:
         return row[0]
-    cur.execute("INSERT INTO localidades(nome, cod_localidade) VALUES (?,NULL)", (nome,))
-    return cur.lastrowid
+    return db_core.insert_and_get_id(
+        cur,
+        "INSERT INTO localidades(nome, cod_localidade) VALUES (?,NULL)",
+        (nome,),
+        "id_localidade",
+    )
 
 
 def _obter_ou_criar_agente(cur, nome):

@@ -601,11 +601,12 @@ textuais preservam a comparacao sem diferenciar caixa e os agrupamentos foram
 ajustados para as regras estritas do PostgreSQL.
 
 A Central identifica o backend ativo, exibe status, tamanho, tabelas e indices
-PostgreSQL e executa o diagnostico rapido ou completo sem `PRAGMA`. As rotinas
-internas de backup/restauracao, backup completo e DBML continuam explicitamente
-SQLite-only: quando o PostgreSQL esta ativo, os controles de criacao e
-restauracao somem e as rotas recusam a operacao. Backups historicos continuam
-disponiveis para download e exclusao.
+PostgreSQL e executa o diagnostico rapido ou completo sem `PRAGMA`. Backup e
+backup completo usam `pg_dump` em formato custom, publicam o arquivo somente
+depois de `pg_restore --list` e registram SHA-256. A restauracao exige a
+confirmacao digitada do banco, cria um dump `pre_restore` e executa
+`pg_restore` com limpeza, parada no primeiro erro e transacao unica. Senhas nao
+entram nos argumentos nem nos metadados. O DBML continua SQLite-only.
 
 O ensaio controlado e:
 
@@ -616,9 +617,8 @@ python scripts\testar_exportacoes_admin_postgresql.py `
 
 O script cria sombras temporarias das tabelas, confere valores reais nas tres
 planilhas, gera um consolidado PE, abre a Central e o diagnostico completo e
-prova que o backup SQLite fica bloqueado. As `60` tabelas publicas permanecem
-inalteradas. A regressao ampla do lote teve `432` testes aprovados e `5`
-ignorados.
+gera um dump PostgreSQL real em pasta temporaria, validado por `pg_restore
+--list`. As `60` tabelas publicas permanecem inalteradas.
 
 Por seguranca, outro banco exige:
 
@@ -630,17 +630,11 @@ python scripts\testar_app_postgresql.py `
 
 ## Limites atuais
 
-A camada nao tenta reescrever automaticamente todo o dialeto SQLite. Os
-seguintes recursos ainda precisam ser tratados nos respectivos modulos:
-
-- `PRAGMA` e consultas a `sqlite_master`;
-- `executescript`;
-- `INSERT OR IGNORE` e `INSERT OR REPLACE`;
-- `GROUP_CONCAT`;
-- `COLLATE NOCASE`;
-- funcoes e modificadores SQLite de `date()` e `datetime()`;
-- recuperacao de IDs por `lastrowid`;
-- criacao ou alteracao de esquema durante o inicio da aplicacao.
+A camada nao reescreve automaticamente o dialeto SQLite. As ocorrencias
+restantes foram classificadas em `docs/POSTGRESQL_AUDITORIA_SQL_FINAL.md` como
+infraestrutura SQLite, manutencao de esquema restrita, ferramentas historicas
+ou helpers com alternativa explicita para PostgreSQL. Novas ocorrencias sem
+classificacao fazem `scripts/auditar_sql_sqlite.py` falhar.
 
 Ao encontrar `executescript` no PostgreSQL, o adaptador interrompe a operacao
 com uma mensagem explicita. Isso evita uma execucao parcial de uma rotina
@@ -665,11 +659,12 @@ Atendimentos do Setor tambem esta homologado, incluindo anexos e relatorio
 tecnico. O Boletim Mensal tambem esta homologado, incluindo indicadores,
 fechamento, PDF e XLSX. Mapa geral, Notificacoes e Relatorio por Servidor
 tambem estao homologados, incluindo escrita auditada, relatorios individual e
-do setor e os blocos operacionais complementares. Exportacoes, consolidados e
-o diagnostico da Central do Sistema tambem estao homologados. O proximo lote e
-a auditoria final de SQL exclusivo junto das rotinas PostgreSQL de backup e
-restauracao; depois vem o ensaio integrado com uma copia recente do SQLite
-oficial.
+do setor e os blocos operacionais complementares. Exportacoes, consolidados,
+diagnostico, backup e restauracao da Central do Sistema tambem estao
+implementados. A auditoria final do SQL exclusivo encontrou e corrigiu a
+importacao ativa de Esporotricose. O proximo lote e o ensaio integrado com uma
+copia recente do SQLite oficial, seguido de concorrencia e preparacao do
+servico Windows.
 
 Cada lote deve:
 

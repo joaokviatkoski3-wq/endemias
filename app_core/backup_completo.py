@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 
 from app_core import backup as backup_core
+from app_core import db as db_core
+from app_core import postgresql_backup
 
 
 DEFAULT_DESTINO = Path("D:/BackupsEndemias/backups_completos")
@@ -156,11 +158,16 @@ def criar_backup_completo(
     anexos_dir=None,
     kobo_config_path=None,
     secret_key_path=None,
+    db_target=None,
 ):
     destino = Path(destino_dir)
     destino.mkdir(parents=True, exist_ok=True)
     raiz = Path(raiz or Path.cwd())
-    db_path = Path(db_path or raiz / "endemias.db")
+    target = db_target or db_core.DatabaseTarget(
+        "sqlite",
+        str(db_path or raiz / "endemias.db"),
+    )
+    db_path = Path(target.location) if target.backend == "sqlite" else None
     zip_path = _zip_path_disponivel(destino)
     zip_temporario = destino / f".{zip_path.name}.{uuid.uuid4().hex}.tmp"
 
@@ -179,7 +186,8 @@ def criar_backup_completo(
         "tipo": "backup_completo_endemias",
         "criado_em": datetime.now().isoformat(timespec="seconds"),
         "origem": str(raiz),
-        "banco_origem": str(db_path),
+        "banco_origem": target.location,
+        "backend_banco": target.backend,
         "destino": str(zip_path),
         "incluidos": [],
         "ausentes": [],
@@ -188,13 +196,23 @@ def criar_backup_completo(
 
     with tempfile.TemporaryDirectory(prefix="endemias_backup_") as tmp:
         tmp_dir = Path(tmp)
-        banco_info = backup_core.criar_backup_sqlite(
-            db_path,
-            destino_dir=tmp_dir,
-            prefixo="endemias",
-            manter=None,
-            validar=True,
-        )
+        if target.backend == "postgresql":
+            banco_info = postgresql_backup.criar_backup_postgresql(
+                target.location,
+                destino_dir=tmp_dir,
+                prefixo="endemias",
+                manter=None,
+            )
+            observacao_banco = "Backup PostgreSQL custom validado por pg_restore"
+        else:
+            banco_info = backup_core.criar_backup_sqlite(
+                db_path,
+                destino_dir=tmp_dir,
+                prefixo="endemias",
+                manter=None,
+                validar=True,
+            )
+            observacao_banco = "Backup SQLite consistente e validado"
         banco_backup = Path(banco_info["arquivo"])
         banco_meta = banco_backup.with_suffix(banco_backup.suffix + ".json")
         manifesto["integridade_banco"] = banco_info.get("integridade")
@@ -203,11 +221,11 @@ def criar_backup_completo(
             tamanho = _zip_write_file(zf, banco_backup, f"banco/{banco_backup.name}")
             manifesto["incluidos"].append({
                 "tipo": "arquivo",
-                "origem": str(db_path),
+                "origem": target.location,
                 "destino_zip": f"banco/{banco_backup.name}",
                 "bytes": tamanho,
                 "sha256": banco_info.get("sha256"),
-                "observacao": "Backup SQLite consistente e validado",
+                "observacao": observacao_banco,
             })
             if banco_meta.exists():
                 _zip_write_file(zf, banco_meta, f"banco/{banco_meta.name}")
@@ -236,10 +254,15 @@ def criar_backup_completo(
                 else:
                     manifesto["ausentes"].append(str(origem))
 
+            banco_descricao = (
+                "dump PostgreSQL em formato custom"
+                if target.backend == "postgresql"
+                else "copia consistente e validada do endemias.db"
+            )
             restauracao = (
                 "Backup completo do Sistema Endemias\n\n"
                 "Conteudo principal:\n"
-                "- banco/: copia consistente e validada do endemias.db\n"
+                f"- banco/: {banco_descricao}\n"
                 "- anexos/: arquivos anexados no sistema\n"
                 "- configuracao/: chaves e configuracoes locais sensiveis\n"
                 "- notificacoes_geradas/ e saida/: arquivos gerados/exportados\n\n"

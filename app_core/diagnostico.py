@@ -438,24 +438,31 @@ def _check_duplicidades_textuais(conn, tabelas, itens):
 
 
 def _check_backups(backup_dir, itens, backend="sqlite"):
-    if backend == "postgresql":
-        _add(
-            itens,
-            "info",
-            "Backups",
-            "Backup PostgreSQL ainda depende do procedimento operacional externo.",
-            detalhe="A Central não executa rotinas SQLite sobre o banco PostgreSQL.",
-        )
-        return
     if not backup_dir:
         return
     pasta = Path(backup_dir)
     if not pasta.exists():
         _add(itens, "aviso", "Backups", "Pasta de backups ainda nao existe.", detalhe=str(pasta))
         return
-    backups = sorted(pasta.glob("*.db"), key=lambda p: p.stat().st_mtime, reverse=True)
+    padrao = "*.dump" if backend == "postgresql" else "*.db"
+    backups = sorted(
+        pasta.glob(padrao),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
     if not backups:
-        _add(itens, "aviso", "Backups", "Nenhum backup encontrado.", detalhe=str(pasta))
+        titulo = (
+            "Nenhum backup PostgreSQL encontrado."
+            if backend == "postgresql"
+            else "Nenhum backup encontrado."
+        )
+        _add(
+            itens,
+            "aviso",
+            "Backups",
+            titulo,
+            detalhe=str(pasta),
+        )
         return
     ultimo = backups[0]
     modificado = datetime.fromtimestamp(ultimo.stat().st_mtime)

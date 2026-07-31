@@ -253,6 +253,57 @@ def _test_temporary_data(target):
         if not painel["evolucao"] or not painel["localidades"]:
             raise RuntimeError("O painel de visitas nao retornou as series.")
 
+        visita_importada = {
+            "id_visita": "visita-importada-pg",
+            "kobo_uuid": "uuid-importada-pg",
+            "data": "2026-07-30",
+            "localidade": "Nova Localidade PG",
+            "agentes_texto": "Agente A",
+            "origem_estrutura": "nova",
+        }
+        if not esporotricose._inserir_visita(
+            conn,
+            visita_importada,
+            "2026-07-30T10:00:00",
+        ):
+            raise RuntimeError("A visita importada nao foi inserida.")
+        if esporotricose._inserir_visita(
+            conn,
+            visita_importada,
+            "2026-07-30T10:00:00",
+        ):
+            raise RuntimeError("A visita duplicada nao foi ignorada.")
+        if esporotricose._inserir_agentes(
+            conn,
+            "visita-importada-pg",
+            "Agente A",
+        ) != 1:
+            raise RuntimeError("O agente importado nao foi vinculado.")
+        if esporotricose._inserir_agentes(
+            conn,
+            "visita-importada-pg",
+            "Agente A",
+        ) != 0:
+            raise RuntimeError("O vinculo duplicado do agente nao foi ignorado.")
+        animal_importado = {
+            "id_animal": "animal-importado-pg",
+            "id_visita": "visita-importada-pg",
+            "kobo_uuid": "uuid-animal-importado-pg",
+            "especie": "Gato",
+        }
+        if not esporotricose._inserir_animal(
+            conn,
+            animal_importado,
+            "2026-07-30T10:00:00",
+        ):
+            raise RuntimeError("O animal importado nao foi inserido.")
+        if esporotricose._inserir_animal(
+            conn,
+            animal_importado,
+            "2026-07-30T10:00:00",
+        ):
+            raise RuntimeError("O animal duplicado nao foi ignorado.")
+
         after = _public_counts(conn)
         if before != after:
             raise RuntimeError("Uma tabela publica foi alterada.")

@@ -242,9 +242,12 @@ def _test_routes(database, create_app):
             ):
                 raise RuntimeError("A saude da conexao PostgreSQL nao foi confirmada.")
 
-            bloqueio = client.post("/admin/sistema/backups/criar")
-            if bloqueio.status_code != 302 or "indispon" not in bloqueio.location:
-                raise RuntimeError("A Central nao bloqueou o backup interno SQLite.")
+            backup_response = client.post("/admin/sistema/backups/criar")
+            if backup_response.status_code != 302:
+                raise RuntimeError("A Central nao concluiu o backup PostgreSQL.")
+            dumps = list((base / "backups").glob("endemias_*.dump"))
+            if len(dumps) != 1 or not dumps[0].with_suffix(".dump.json").is_file():
+                raise RuntimeError("O dump PostgreSQL validado nao foi publicado.")
         except Exception:
             if os.path.exists(log_path):
                 print(Path(log_path).read_text(encoding="utf-8", errors="replace"))
@@ -300,7 +303,7 @@ def main(argv=None):
     print(f"Banco: {args.database}")
     print("Tres exportacoes XLSX e valores agregados: OK")
     print("Consolidado PE com abas e totais: OK")
-    print("Central, diagnostico e bloqueio de operacoes SQLite: OK")
+    print("Central, diagnostico e backup PostgreSQL validado: OK")
     print(f"Tabelas publicas preservadas: {total}")
     print("\n[OK] Lote validado somente em tabelas temporarias.")
     return 0

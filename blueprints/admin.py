@@ -18,6 +18,7 @@ from app_core import diagnostico as diagnostico_core
 from app_core import dbml as dbml_core
 from app_core import db as db_core
 from app_core import import_history
+from app_core import postgresql_backup
 from app_core import sqlite_maintenance
 from app_core import usuarios as usuarios_core
 from app_core import version as version_core
@@ -67,6 +68,18 @@ def _sqlite_only_message(operacao):
             "operacional homologado para esse banco."
         ),
     ))
+
+
+def _listar_backups_ativos(destino, limite=20):
+    if _db_target().backend == "postgresql":
+        return postgresql_backup.listar_backups(destino, limite=limite)
+    return backup_core.listar_backups(destino, limite=limite)
+
+
+def _resolver_backup_ativo(destino, nome):
+    if _db_target().backend == "postgresql":
+        return postgresql_backup.resolver_backup(destino, nome)
+    return backup_core.resolver_backup(destino, nome)
 
 
 def _db_status():
@@ -200,7 +213,7 @@ def admin_sistema():
     db_path = Path(target.location) if target.backend == "sqlite" else target.location
     backup_dir = Path(current_app.config["BACKUP_DIR"])
     backup_completo_dir = Path(current_app.config["BACKUP_COMPLETO_DIR"])
-    backups = backup_core.listar_backups(backup_dir, limite=20)
+    backups = _listar_backups_ativos(backup_dir, limite=20)
     backups_completos = backup_completo_core.listar_backups_completos(backup_completo_dir, limite=20)
     importacoes = import_history.listar_importacoes_recentes(bh.get_db, limite=5)
     eventos = audit.listar_eventos(bh.get_db, limite=8)
@@ -228,6 +241,8 @@ def admin_sistema():
         backup_erro=request.args.get("backup_erro", "").strip(),
         format_bytes=_bytes_label,
         sqlite_operations=target.backend == "sqlite",
+        postgresql_operations=target.backend == "postgresql",
+        database_name=target.location,
     )
 
 
@@ -250,14 +265,24 @@ def api_admin_diagnostico():
 @login_required
 @nivel_min("admin")
 def admin_criar_backup():
-    bloqueio = _sqlite_only_message("Backup interno")
-    if bloqueio:
-        return bloqueio
-    db_path = Path(current_app.config["DB_PATH"])
+    target = _db_target()
     backup_dir = Path(current_app.config["BACKUP_DIR"])
     try:
         with backup_core.operacao_exclusiva():
-            info = backup_core.criar_backup_sqlite(db_path, destino_dir=backup_dir, prefixo="endemias", manter=20)
+            if target.backend == "postgresql":
+                info = postgresql_backup.criar_backup_postgresql(
+                    target.location,
+                    destino_dir=backup_dir,
+                    prefixo="endemias",
+                    manter=20,
+                )
+            else:
+                info = backup_core.criar_backup_sqlite(
+                    Path(target.location),
+                    destino_dir=backup_dir,
+                    prefixo="endemias",
+                    manter=20,
+                )
         audit.registrar_evento(
             bh.get_db,
             "backup_criado",
@@ -267,6 +292,7 @@ def admin_criar_backup():
                 "arquivo": Path(info["arquivo"]).name,
                 "tamanho_bytes": info["tamanho_bytes"],
                 "integridade": info["integridade"],
+                "backend": target.backend,
             },
         )
         msg = f"Backup criado: {Path(info['arquivo']).name}"
@@ -279,22 +305,33 @@ def admin_criar_backup():
 @login_required
 @nivel_min("admin")
 def admin_restaurar_backup():
-    bloqueio = _sqlite_only_message("Restauração interna")
-    if bloqueio:
-        return bloqueio
-    db_path = Path(current_app.config["DB_PATH"])
+    target = _db_target()
     backup_dir = Path(current_app.config["BACKUP_DIR"])
     nome_backup = request.form.get("backup", "").strip()
     try:
         with backup_core.operacao_exclusiva():
-            backup_path = backup_core.resolver_backup(backup_dir, nome_backup)
-            seguranca = backup_core.criar_backup_sqlite(
-                db_path,
-                destino_dir=backup_dir,
-                prefixo="pre_restore",
-                manter=20,
-            )
-            info = backup_core.restaurar_backup_sqlite(db_path, backup_path)
+            backup_path = _resolver_backup_ativo(backup_dir, nome_backup)
+            if target.backend == "postgresql":
+                info = postgresql_backup.restaurar_backup_postgresql(
+                    target.location,
+                    backup_path,
+                    confirmacao=request.form.get("confirmacao", ""),
+                    backup_dir=backup_dir,
+                    manter=20,
+                )
+                seguranca_nome = info["backup_seguranca"]
+            else:
+                seguranca = backup_core.criar_backup_sqlite(
+                    Path(target.location),
+                    destino_dir=backup_dir,
+                    prefixo="pre_restore",
+                    manter=20,
+                )
+                info = backup_core.restaurar_backup_sqlite(
+                    Path(target.location),
+                    backup_path,
+                )
+                seguranca_nome = Path(seguranca["arquivo"]).name
         audit.registrar_evento(
             bh.get_db,
             "backup_restaurado",
@@ -302,11 +339,12 @@ def admin_restaurar_backup():
             entidade_id=backup_path.name,
             detalhes={
                 "backup_restaurado": backup_path.name,
-                "backup_seguranca": Path(seguranca["arquivo"]).name,
+                "backup_seguranca": seguranca_nome,
                 "integridade": info["integridade"],
+                "backend": target.backend,
             },
         )
-        msg = f"Backup restaurado: {backup_path.name}. Copia de seguranca criada: {Path(seguranca['arquivo']).name}"
+        msg = f"Backup restaurado: {backup_path.name}. Copia de seguranca criada: {seguranca_nome}"
         return redirect(url_for("admin.admin_sistema", backup_ok=msg))
     except Exception as exc:
         return redirect(url_for("admin.admin_sistema", backup_erro=f"Erro ao restaurar backup: {exc}"))
@@ -318,7 +356,7 @@ def admin_restaurar_backup():
 def admin_baixar_backup(nome_backup):
     backup_dir = Path(current_app.config["BACKUP_DIR"])
     try:
-        backup_path = backup_core.resolver_backup(backup_dir, nome_backup)
+        backup_path = _resolver_backup_ativo(backup_dir, nome_backup)
         return send_file(backup_path, as_attachment=True, download_name=backup_path.name)
     except Exception as exc:
         return redirect(url_for("admin.admin_sistema", backup_erro=f"Erro ao baixar backup: {exc}"))
@@ -360,7 +398,7 @@ def admin_excluir_backup():
     nome_backup = request.form.get("backup", "").strip()
     try:
         with backup_core.operacao_exclusiva():
-            backup_path = backup_core.resolver_backup(backup_dir, nome_backup)
+            backup_path = _resolver_backup_ativo(backup_dir, nome_backup)
             backup_core.excluir_backup(backup_path)
         audit.registrar_evento(
             bh.get_db,
@@ -378,9 +416,7 @@ def admin_excluir_backup():
 @login_required
 @nivel_min("admin")
 def admin_criar_backup_completo():
-    bloqueio = _sqlite_only_message("Backup completo interno")
-    if bloqueio:
-        return bloqueio
+    target = _db_target()
     try:
         with backup_core.operacao_exclusiva():
             info = backup_completo_core.criar_backup_completo(
@@ -391,6 +427,7 @@ def admin_criar_backup_completo():
                 anexos_dir=current_app.config["ANEXOS_DIR"],
                 kobo_config_path=current_app.config["KOBO_CONFIG_PATH"],
                 secret_key_path=current_app.config["SECRET_KEY_PATH"],
+                db_target=target,
             )
         audit.registrar_evento(
             bh.get_db,
@@ -402,6 +439,7 @@ def admin_criar_backup_completo():
                 "tamanho_bytes": info["tamanho_bytes"],
                 "integridade_banco": info["integridade_banco"],
                 "destino": current_app.config["BACKUP_COMPLETO_DIR"],
+                "backend": target.backend,
             },
         )
         return redirect(url_for("admin.admin_sistema", backup_ok=f"Backup completo criado: {info['nome']}"))
