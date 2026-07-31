@@ -72,7 +72,8 @@ Os scripts existentes sao a referencia, especialmente:
 - `scripts/testar_importacao_kobo_postgresql.py`;
 - `scripts/testar_ovitrampas_postgresql.py`;
 - `scripts/testar_registro_geografico_postgresql.py`;
-- `scripts/testar_agenda_home_postgresql.py`.
+- `scripts/testar_agenda_home_postgresql.py`;
+- `scripts/testar_acoes_setor_postgresql.py`.
 
 Um novo ensaio deve:
 
@@ -93,23 +94,25 @@ $py = 'C:\Users\Geoprocessamento\AppData\Local\Python\pythoncore-3.14-64\python.
 & $py scripts\verificar_postgresql.py --database endemias_teste
 ```
 
-Nao presuma que a regressao continua em 389 testes: o numero cresce. Registre
+Nao presuma que a regressao continua em 395 testes: o numero cresce. Registre
 no documento da migracao o resultado atual de cada lote.
 
 ## Protocolo recomendado para o proximo lote
 
-Para **Acoes e Atendimentos do Setor**:
+Para **Boletim Mensal**:
 
-1. Inspecionar `blueprints/acoes_setor.py`, template, testes e tabelas atuais.
-2. Inventariar todas as operacoes SQL e caminhos de anexos/relatorios.
-3. Identificar manutencao de esquema embutida no blueprint.
-4. Levar a persistencia para padroes portaveis, sem refatoracao visual alheia.
-5. Preservar os registros historicos importados da pasta antiga de mutiroes.
-6. Testar filtros, CRUD, servidores, anexos, ZIP/download e relatorio PDF/HTML.
-7. Criar `scripts/testar_acoes_setor_postgresql.py` no padrao isolado.
+1. Inspecionar `blueprints/boletim_mensal.py`, `app_core/boletim_mensal.py`,
+   templates, testes e tabela de itens mensais.
+2. Inventariar os indicadores automaticos e todas as tabelas operacionais que
+   alimentam o boletim.
+3. Restringir a manutencao de esquema em tempo de execucao ao SQLite.
+4. Levar consultas, itens manuais e persistencia para o destino dual.
+5. Preservar precedencia, ativacao, ordem, unidades e ajustes manuais.
+6. Testar pagina, APIs, fechamento mensal, PDF e exportacao XLSX.
+7. Criar `scripts/testar_boletim_mensal_postgresql.py` no padrao isolado.
 8. Executar testes focados, ensaio PostgreSQL, regressao ampla e comparacao de
    esquema.
-9. Atualizar os dois documentos PostgreSQL e este checkpoint se necessario.
+9. Atualizar os documentos PostgreSQL e este checkpoint se necessario.
 10. Commitar e fazer push.
 
 ## Operacao durante a migracao
@@ -183,5 +186,5 @@ Essas ideias foram discutidas, mas nao autorizam remover os fluxos atuais.
 3. Confirmar que SQLite segue como producao.
 4. Ler o final de `docs/POSTGRESQL_CAMADA_DUAL.md`.
 5. Verificar o PostgreSQL sem escrever em tabelas publicas.
-6. Retomar Acoes e Atendimentos como proximo lote, salvo nova orientacao.
+6. Retomar Boletim Mensal como proximo lote, salvo nova orientacao.
 7. Manter o usuario informado durante exploracao, edicao, testes e push.

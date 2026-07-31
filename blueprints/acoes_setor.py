@@ -6,7 +6,6 @@ import mimetypes
 import os
 from pathlib import Path
 import shutil
-import sqlite3
 import unicodedata
 import uuid
 import zipfile
@@ -14,8 +13,10 @@ import zipfile
 from flask import Blueprint, abort, current_app, jsonify, render_template, request, send_file
 from werkzeug.utils import secure_filename
 
+from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
+from app_core import db as db_core
 
 
 bp = Blueprint("acoes_setor", __name__)
@@ -174,8 +175,12 @@ def _table_cols(conn, table):
 def ensure_schema(conn=None):
     fechar = False
     if conn is None:
+        if not db_core.is_sqlite(bh.db_target()):
+            return
         conn = bh.get_db()
         fechar = True
+    elif getattr(conn, "backend", "sqlite") != "sqlite":
+        return
     try:
         _migrar_tabela_acoes_setor(conn)
         conn.executescript("""
@@ -391,7 +396,7 @@ def _acao_payload(dados):
 
 
 def _acao_dict(row):
-    item = dict(row)
+    item = db_core.serialize_row(row)
     item["tipo_label"] = TIPOS_ACAO.get(item.get("tipo"), item.get("tipo") or "")
     item["situacao_label"] = SITUACOES_ACAO.get(
         item.get("situacao") or "realizada",
@@ -413,14 +418,22 @@ def _acao_dict(row):
     return item
 
 
+def _agentes_aggregate_sql():
+    expression = "CAST(ag.id_agente AS TEXT) || ':' || ag.nome"
+    if db_core.is_sqlite(bh.db_target()):
+        return f"GROUP_CONCAT({expression}, '|')"
+    return f"string_agg({expression}, '|' ORDER BY ag.nome, ag.id_agente)"
+
+
 def _base_query():
     filtro_anexos = "" if _usuario_admin() else " AND COALESCE(ax.restrito,0)=0"
+    agentes_aggregate = _agentes_aggregate_sql()
     return f"""
         SELECT a.*,
                (SELECT COUNT(*)
                   FROM acoes_setor_anexos ax
                  WHERE ax.id_acao=a.id_acao{filtro_anexos}) AS total_anexos,
-               GROUP_CONCAT(ag.id_agente || ':' || ag.nome, '|') AS agentes_raw
+               {agentes_aggregate} AS agentes_raw
           FROM acoes_setor a
           LEFT JOIN acoes_setor_agentes aa ON aa.id_acao = a.id_acao
           LEFT JOIN agentes ag ON ag.id_agente = aa.id_agente
@@ -466,10 +479,10 @@ def _consultar_acoes(args):
         )
         params.append(int(id_agente))
     if data_inicio:
-        where.append("date(COALESCE(a.data_fim,a.data))>=date(?)")
+        where.append("COALESCE(a.data_fim,a.data)>=?")
         params.append(data_inicio)
     if data_fim:
-        where.append("date(a.data)<=date(?)")
+        where.append("a.data<=?")
         params.append(data_fim)
     if ano:
         where.append("substr(a.data, 1, 4)=?")
@@ -636,14 +649,16 @@ def _salvar_agentes(conn, id_acao, agentes):
     conn.execute("DELETE FROM acoes_setor_agentes WHERE id_acao=?", (id_acao,))
     for id_agente in agentes:
         conn.execute(
-            "INSERT OR IGNORE INTO acoes_setor_agentes (id_acao, id_agente) VALUES (?, ?)",
+            """INSERT INTO acoes_setor_agentes (id_acao, id_agente)
+               VALUES (?, ?) ON CONFLICT DO NOTHING""",
             (id_acao, id_agente),
         )
 
 
 def _criar_acao(conn, payload, usuario_nome):
     agora = datetime.now().isoformat(timespec="seconds")
-    cur = conn.execute(
+    id_acao = db_core.insert_and_get_id(
+        conn,
         """INSERT INTO acoes_setor
            (tipo, situacao, data, data_fim, periodo, hora_inicio, hora_fim,
             caso, localidade, endereco, local,
@@ -677,8 +692,8 @@ def _criar_acao(conn, payload, usuario_nome):
             agora,
             agora,
         ),
+        "id_acao",
     )
-    id_acao = cur.lastrowid
     _salvar_agentes(conn, id_acao, payload["agentes"])
     return id_acao
 
@@ -785,10 +800,10 @@ def _listar_anexos_galeria():
         )
         params.append(int(id_agente))
     if data_inicio:
-        where.append("date(COALESCE(a.data_fim,a.data))>=date(?)")
+        where.append("COALESCE(a.data_fim,a.data)>=?")
         params.append(data_inicio)
     if data_fim:
-        where.append("date(a.data)<=date(?)")
+        where.append("a.data<=?")
         params.append(data_fim)
     if tipo_arquivo == "imagem":
         where.append("an.mime_type LIKE 'image/%'")
@@ -889,6 +904,34 @@ def _remover_arquivos_anexos(rows):
                 caminho.unlink()
         except Exception:
             pass
+
+
+def _remover_caminhos(caminhos):
+    for caminho in caminhos:
+        try:
+            if caminho.exists() and caminho.is_file():
+                caminho.unlink()
+        except OSError:
+            pass
+
+
+def _erro_banco(exc, operacao):
+    mensagem = str(exc).lower()
+    if "database is locked" in mensagem or "database table is locked" in mensagem:
+        return jsonify({"erro": "Banco de dados ocupado. Tente novamente."}), 503
+    current_app.logger.exception("Erro ao %s em Acoes do Setor", operacao)
+    return jsonify({"erro": "Nao foi possivel concluir a operacao."}), 500
+
+
+def _auditar(conn, acao, entidade_id, detalhes=None):
+    audit.registrar_evento(
+        bh.get_db,
+        acao,
+        entidade="acoes_setor",
+        entidade_id=entidade_id,
+        detalhes=detalhes or {},
+        conn=conn,
+    )
 
 
 @bp.route("/acoes-setor")
@@ -1005,11 +1048,22 @@ def api_acoes():
                 payload,
                 usuario.get("nome") or "sistema",
             )
+            _auditar(
+                conn,
+                "acoes_setor_criou",
+                id_acao,
+                {
+                    "tipo": payload["tipo"],
+                    "situacao": payload["situacao"],
+                    "data": payload["data"],
+                    "agentes": len(payload["agentes"]),
+                },
+            )
             conn.commit()
-        except sqlite3.OperationalError:
+        except Exception as exc:
             if conn:
                 conn.rollback()
-            return jsonify({"erro": "Banco de dados ocupado. Tente novamente."}), 503
+            return _erro_banco(exc, "criar registro")
         finally:
             if conn:
                 conn.close()
@@ -1034,7 +1088,7 @@ def api_acao(id_acao):
     try:
         conn = bh.get_db()
         existe = conn.execute(
-            "SELECT 1 FROM acoes_setor WHERE id_acao=?",
+            "SELECT tipo, situacao, data FROM acoes_setor WHERE id_acao=?",
             (id_acao,),
         ).fetchone()
         if not existe:
@@ -1056,6 +1110,17 @@ def api_acao(id_acao):
                 (id_acao,),
             ).fetchall()
             conn.execute("DELETE FROM acoes_setor WHERE id_acao=?", (id_acao,))
+            _auditar(
+                conn,
+                "acoes_setor_excluiu",
+                id_acao,
+                {
+                    "tipo": existe["tipo"],
+                    "situacao": existe["situacao"],
+                    "data": existe["data"],
+                    "anexos": len(anexos),
+                },
+            )
             conn.commit()
             _remover_arquivos_anexos(anexos)
             try:
@@ -1104,11 +1169,22 @@ def api_acao(id_acao):
             ),
         )
         _salvar_agentes(conn, id_acao, payload["agentes"])
+        _auditar(
+            conn,
+            "acoes_setor_atualizou",
+            id_acao,
+            {
+                "tipo": payload["tipo"],
+                "situacao": payload["situacao"],
+                "data": payload["data"],
+                "agentes": len(payload["agentes"]),
+            },
+        )
         conn.commit()
-    except sqlite3.OperationalError:
+    except Exception as exc:
         if conn:
             conn.rollback()
-        return jsonify({"erro": "Banco de dados ocupado. Tente novamente."}), 503
+        return _erro_banco(exc, "alterar registro")
     finally:
         if conn:
             conn.close()
@@ -1132,22 +1208,28 @@ def api_anexos(id_acao):
     restrito = _restrito_form_value(request.form.get("restrito"))
     if restrito and not _usuario_admin():
         return jsonify({"erro": "Somente administradores podem adicionar anexos restritos."}), 403
+    arquivos_validados = []
+    for arquivo in arquivos:
+        meta, erro = _validar_upload_anexo(arquivo)
+        if erro:
+            return jsonify({"erro": erro}), 400
+        arquivos_validados.append((arquivo, meta))
     usuario = bh.usuario_atual() or {}
     destino_dir = _acao_anexos_dir(id_acao, acao.get("data"))
     salvos = []
+    caminhos_salvos = []
     conn = None
     try:
         conn = bh.get_db()
-        for arquivo in arquivos:
-            meta, erro = _validar_upload_anexo(arquivo)
-            if erro:
-                return jsonify({"erro": erro}), 400
+        for arquivo, meta in arquivos_validados:
             nome_arquivo = f"{uuid.uuid4().hex}{meta['ext']}"
             caminho = destino_dir / nome_arquivo
             arquivo.save(caminho)
+            caminhos_salvos.append(caminho)
             mime_type = mimetypes.guess_type(meta["nome_seguro"])[0] or "application/octet-stream"
             caminho_rel = str(caminho.relative_to(_anexos_base_dir())).replace("\\", "/")
-            cur = conn.execute(
+            id_anexo = db_core.insert_and_get_id(
+                conn,
                 """INSERT INTO acoes_setor_anexos
                    (id_acao, nome_original, nome_arquivo, caminho_rel, mime_type,
                     tamanho, restrito, criado_por, criado_em)
@@ -1163,13 +1245,21 @@ def api_anexos(id_acao):
                     usuario.get("nome") or "sistema",
                     datetime.now().isoformat(timespec="seconds"),
                 ),
+                "id_anexo",
             )
-            salvos.append(cur.lastrowid)
+            salvos.append(id_anexo)
+        _auditar(
+            conn,
+            "acoes_setor_anexos_adicionou",
+            id_acao,
+            {"quantidade": len(salvos), "restrito": restrito},
+        )
         conn.commit()
-    except sqlite3.OperationalError:
+    except Exception as exc:
         if conn:
             conn.rollback()
-        return jsonify({"erro": "Banco de dados ocupado. Tente novamente."}), 503
+        _remover_caminhos(caminhos_salvos)
+        return _erro_banco(exc, "salvar anexos")
     finally:
         if conn:
             conn.close()
@@ -1212,6 +1302,7 @@ def api_galeria_anexos():
 def api_excluir_anexo(id_anexo):
     ensure_schema()
     conn = bh.get_db()
+    row = None
     try:
         row = conn.execute(
             "SELECT * FROM acoes_setor_anexos WHERE id_anexo=?",
@@ -1229,6 +1320,12 @@ def api_excluir_anexo(id_anexo):
                 "UPDATE acoes_setor_anexos SET restrito=? WHERE id_anexo=?",
                 (1 if restrito else 0, id_anexo),
             )
+            _auditar(
+                conn,
+                "acoes_setor_anexo_restricao_atualizou",
+                row["id_acao"],
+                {"id_anexo": id_anexo, "restrito": restrito},
+            )
             conn.commit()
             atualizado = conn.execute(
                 "SELECT * FROM acoes_setor_anexos WHERE id_anexo=?",
@@ -1236,7 +1333,20 @@ def api_excluir_anexo(id_anexo):
             ).fetchone()
             return jsonify({"ok": True, "anexo": _anexo_dict(atualizado)})
         conn.execute("DELETE FROM acoes_setor_anexos WHERE id_anexo=?", (id_anexo,))
+        _auditar(
+            conn,
+            "acoes_setor_anexo_excluiu",
+            row["id_acao"],
+            {
+                "id_anexo": id_anexo,
+                "nome_original": row["nome_original"],
+                "restrito": bool(row["restrito"]),
+            },
+        )
         conn.commit()
+    except Exception as exc:
+        conn.rollback()
+        return _erro_banco(exc, "alterar anexo")
     finally:
         conn.close()
     _remover_arquivos_anexos([row])

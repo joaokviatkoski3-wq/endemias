@@ -47,6 +47,27 @@ class PostgreSQLSchemaRuntimeTests(unittest.TestCase):
         )
         conn.close.assert_called_once()
 
+    @mock.patch("app_core.audit.auth_core.client_ip", return_value="127.0.0.1")
+    @mock.patch("app_core.audit.session", {"uid": 7, "nome": "Teste"})
+    def test_audit_accepts_existing_transaction(self, _client_ip):
+        conn = mock.Mock()
+        conn.backend = "postgresql"
+
+        audit.registrar_evento(
+            lambda: (_ for _ in ()).throw(
+                AssertionError("Nao deve abrir outra conexao.")
+            ),
+            "acoes_setor_criou",
+            entidade="acoes_setor",
+            entidade_id=41,
+            conn=conn,
+        )
+
+        conn.execute.assert_called_once()
+        conn.commit.assert_not_called()
+        conn.rollback.assert_not_called()
+        conn.close.assert_not_called()
+
     def test_sqlite_connection_exposes_backend(self):
         self.assertEqual(db_core.ResilientConnection.backend, "sqlite")
 

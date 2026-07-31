@@ -43,6 +43,9 @@ de larvas, focos positivos, pendencias e renderizacao da pagina.
 Agenda, Pagina Inicial e Meteorologia completam o lote seguinte, incluindo
 eventos manuais e automaticos, recorrencias, alertas para trabalho de campo,
 sincronizacao meteorologica e os resumos operacionais da tela inicial.
+Acoes e Atendimentos do Setor tambem esta homologado: CRUD, filtros,
+servidores, anexos, galeria, downloads, relatorio tecnico, permissoes e
+auditoria foram exercitados com escritas somente em tabelas temporarias.
 
 ## Bancos locais
 
@@ -155,7 +158,11 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
    esta concluida, incluindo o ETL principal, simulacao, confirmacao,
    reimportacao, larvas, pendencias e historico. Agenda, Pagina Inicial e
    Meteorologia foram homologadas na sequencia, com leituras e escritas
-   isoladas em tabelas temporarias.
+   isoladas em tabelas temporarias. Acoes e Atendimentos do Setor completa o
+   lote seguinte, incluindo CRUD, filtros, servidores, anexos, relatorio,
+   permissoes e auditoria. A regressao ampla deste lote teve 395 testes
+   aprovados e 5 ignorados; as 60 tabelas publicas permaneceram inalteradas no
+   ensaio PostgreSQL.
 6. Ensaiar a migracao com uma copia recente do banco oficial.
 7. Fazer backup, carga final, validacao e troca controlada.
 

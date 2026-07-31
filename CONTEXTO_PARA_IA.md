@@ -56,7 +56,7 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A ultima regressao ampla registrada teve 389 testes aprovados e 5 ignorados.
+A ultima regressao ampla registrada teve 395 testes aprovados e 5 ignorados.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
 conexoes SQLite em testes de Ovitrampas; nao confundir automaticamente com uma
 regressao nova.
@@ -77,7 +77,9 @@ regressao nova.
   diarios, calendario e laboratorio;
 - Conta Ovos/SisPNCD;
 - Registro Geografico completo;
-- Agenda, Pagina Inicial e Meteorologia.
+- Agenda, Pagina Inicial e Meteorologia;
+- Acoes e Atendimentos do Setor: CRUD, filtros, servidores, anexos, galeria,
+  relatorio tecnico, auditoria e permissoes.
 
 Commits mais recentes da migracao:
 
@@ -91,26 +93,24 @@ b5ff38b feat: concluir migracao de ovitrampas para postgres
 
 ## Proxima tarefa recomendada
 
-Migrar **Acoes e Atendimentos do Setor** para a camada dual, incluindo:
+Migrar **Boletim Mensal** para a camada dual, incluindo:
 
-- cadastro, edicao, listagem, filtros e exclusao;
-- vinculos com servidores;
-- anexos, downloads e galeria;
-- relatorio tecnico com imagens;
+- indicadores automaticos e itens manuais;
+- consulta, edicao e persistencia do fechamento mensal;
+- geracao do PDF e exportacao XLSX;
+- leitura das fontes operacionais nos dois bancos;
 - auditoria e permissoes;
-- leitura e escrita nos dois bancos;
 - teste PostgreSQL isolado em tabelas temporarias;
 - garantia de que tabelas publicas de `endemias_teste` nao sejam alteradas.
 
 Depois, prosseguir com:
 
-1. Boletim Mensal;
-2. mapa geral fora do Registro Geografico;
-3. Notificacoes;
-4. Relatorio por Servidor;
-5. exportacoes e consolidados;
-6. Central do Sistema, diagnosticos e rotinas administrativas;
-7. auditoria final de SQL exclusivo do SQLite.
+1. mapa geral fora do Registro Geografico;
+2. Notificacoes;
+3. Relatorio por Servidor;
+4. exportacoes e consolidados;
+5. Central do Sistema, diagnosticos e rotinas administrativas;
+6. auditoria final de SQL exclusivo do SQLite.
 
 ## O que falta para abandonar o SQLite
 

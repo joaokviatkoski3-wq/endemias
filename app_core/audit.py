@@ -28,19 +28,27 @@ def garantir_tabela_auditoria(get_db, conn=None):
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_auditoria_criado ON auditoria_eventos(criado_em)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_auditoria_acao ON auditoria_eventos(acao)")
-    conn.commit()
     if fechar:
+        conn.commit()
         conn.close()
 
 
-def registrar_evento(get_db, acao, entidade=None, entidade_id=None, detalhes=None):
+def registrar_evento(
+    get_db,
+    acao,
+    entidade=None,
+    entidade_id=None,
+    detalhes=None,
+    conn=None,
+):
     detalhes = detalhes or {}
     agora = datetime.now().isoformat()
     usuario_id = session.get("uid")
     usuario_nome = session.get("nome", "")
     ip = auth_core.client_ip()
 
-    conn = get_db()
+    fechar = conn is None
+    conn = conn or get_db()
     try:
         garantir_tabela_auditoria(get_db, conn)
         conn.execute(
@@ -60,9 +68,15 @@ def registrar_evento(get_db, acao, entidade=None, entidade_id=None, detalhes=Non
                 agora,
             ),
         )
-        conn.commit()
+        if fechar:
+            conn.commit()
+    except Exception:
+        if fechar:
+            conn.rollback()
+        raise
     finally:
-        conn.close()
+        if fechar:
+            conn.close()
 
 
 def listar_eventos(get_db, filtros=None, limite=100):

@@ -498,6 +498,40 @@ edicao individual e em lote, mudanca, limpeza e exclusao de quarteiroes.
 Depois abre a pagina e as APIs reais somente em leitura e confirma que as
 tabelas publicas permaneceram inalteradas.
 
+## Acoes e Atendimentos do Setor
+
+A pagina **Acoes e Atendimentos do Setor** foi homologada nos dois bancos. O
+recorte inclui:
+
+- cadastro, consulta, edicao, filtros e exclusao dos registros;
+- intervalos de datas, situacoes, casos e busca sem acentos;
+- vinculo de multiplos servidores sem duplicacao;
+- anexos publicos e restritos, galeria, visualizacao e downloads individuais;
+- geracao de ZIP e relatorio tecnico com imagens;
+- permissoes de administrador, operador e visualizador;
+- auditoria atomica de criacao, edicao, exclusao e alteracoes nos anexos;
+- agregacao de servidores com `GROUP_CONCAT` no SQLite e `string_agg` no
+  PostgreSQL;
+- insercao idempotente dos vinculos com `ON CONFLICT DO NOTHING`;
+- recuperacao das identidades de acoes e anexos pelo helper portavel;
+- comparacao direta das datas ISO, sem funcoes exclusivas do SQLite;
+- manutencao de esquema em tempo de execucao restrita ao SQLite;
+- validacao previa dos arquivos e remocao dos caminhos gravados se a transacao
+  de metadados falhar.
+
+O ensaio controlado e:
+
+```powershell
+python scripts\testar_acoes_setor_postgresql.py `
+  --database endemias_teste
+```
+
+O script exercita pagina, CRUD, filtros, servidores, anexos, galeria, ZIP,
+download, relatorio, permissoes e auditoria em seis tabelas temporarias. Ao
+final, confirma que as contagens das `60` tabelas publicas permaneceram
+inalteradas. A regressao ampla do lote teve `395` testes aprovados e `5`
+ignorados.
+
 Por seguranca, outro banco exige:
 
 ```powershell
@@ -538,10 +572,11 @@ cadastro clinico, receitas, estoque e anexos, tambem esta homologado. O
 cadastro, as leituras, o monitoramento, os diarios, o calendario e o fluxo
 laboratorial de Ovitrampas tambem estao prontos. O espelho Conta Ovos/SisPNCD
 foi homologado na sequencia. O Registro Geografico tambem esta coberto,
-incluindo cadastro, edicao, acompanhamento, mapa e impressao. O proximo grande
-recorte e **Acoes e Atendimentos do Setor**, seguido pelos demais relatorios,
-modulos auxiliares e por um ensaio integrado com uma copia recente do SQLite
-oficial.
+incluindo cadastro, edicao, acompanhamento, mapa e impressao. Acoes e
+Atendimentos do Setor tambem esta homologado, incluindo anexos e relatorio
+tecnico. O proximo grande recorte e **Boletim Mensal**, seguido pelos demais
+relatorios, modulos auxiliares e por um ensaio integrado com uma copia recente
+do SQLite oficial.
 
 Cada lote deve:
 
