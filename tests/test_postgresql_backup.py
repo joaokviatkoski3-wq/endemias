@@ -115,7 +115,11 @@ class PostgreSQLBackupTests(unittest.TestCase):
             backup = Path(tmpdir) / "teste.dump"
             backup.write_bytes(b"PGDMP")
             backup.with_suffix(".dump.json").write_text(
-                json.dumps({"origem": {"database": "outro_banco"}}),
+                json.dumps({
+                    "backend": "postgresql",
+                    "origem": {"database": "outro_banco"},
+                    "sha256": backup_core.calcular_sha256(backup),
+                }),
                 encoding="utf-8",
             )
             with (
@@ -138,12 +142,44 @@ class PostgreSQLBackupTests(unittest.TestCase):
                 )
             criar_seguranca.assert_not_called()
 
+    def test_restauracao_rejeita_backup_sem_metadados(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            backup = Path(tmpdir) / "teste.dump"
+            backup.write_bytes(b"PGDMP")
+            with (
+                mock.patch.object(
+                    postgresql_backup,
+                    "validar_backup",
+                ) as validar,
+                mock.patch.object(
+                    postgresql_backup,
+                    "criar_backup_postgresql",
+                ) as criar_seguranca,
+                self.assertRaisesRegex(ValueError, "metadados completos"),
+            ):
+                postgresql_backup.restaurar_backup_postgresql(
+                    "endemias_teste",
+                    backup,
+                    confirmacao="endemias_teste",
+                    backup_dir=tmpdir,
+                )
+            validar.assert_not_called()
+            criar_seguranca.assert_not_called()
+
     def test_restauracao_usa_transacao_unica_e_backup_previo(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             raiz = Path(tmpdir)
             env = self._env_e_executaveis(raiz)
             arquivo = raiz / "origem.dump"
             arquivo.write_bytes(b"PGDMP restauracao")
+            arquivo.with_suffix(".dump.json").write_text(
+                json.dumps({
+                    "backend": "postgresql",
+                    "origem": {"database": "endemias_teste"},
+                    "sha256": backup_core.calcular_sha256(arquivo),
+                }),
+                encoding="utf-8",
+            )
             seguranca = raiz / "pre_restore.dump"
             seguranca.write_bytes(b"PGDMP seguranca")
 

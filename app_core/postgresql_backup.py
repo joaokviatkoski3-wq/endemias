@@ -314,19 +314,29 @@ def restaurar_backup_postgresql(
             "Confirme o nome exato do banco PostgreSQL antes de restaurar."
         )
     arquivo = Path(backup_path)
-    validar_backup(arquivo, env=env)
     meta = _ler_metadados(arquivo)
     origem = meta.get("origem") or {}
     banco_origem = origem.get("database") if isinstance(origem, dict) else None
-    if banco_origem and banco_origem != str(database):
+    hash_esperado = meta.get("sha256")
+    if (
+        meta.get("backend") != "postgresql"
+        or not banco_origem
+        or not isinstance(hash_esperado, str)
+        or not hash_esperado.strip()
+    ):
+        raise ValueError(
+            "O backup PostgreSQL nao possui metadados completos e nao pode "
+            "ser restaurado pela Central."
+        )
+    if banco_origem != str(database):
         raise ValueError(
             "O backup pertence a outro banco PostgreSQL e nao pode ser "
             "restaurado pela Central."
         )
-    hash_esperado = meta.get("sha256")
     hash_atual = backup_core.calcular_sha256(arquivo)
-    if hash_esperado and hash_atual != hash_esperado:
+    if hash_atual != hash_esperado:
         raise RuntimeError("Backup alterado ou corrompido: hash SHA-256 divergente.")
+    validar_backup(arquivo, env=env)
 
     seguranca = criar_backup_postgresql(
         database,

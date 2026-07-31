@@ -149,7 +149,8 @@ O proximo lote e o ensaio integrado com uma copia recente do SQLite oficial:
 8. Atualizar os documentos, fazer commit e push da branch do lote.
 
 As rotinas PostgreSQL de backup usam formato custom, `--no-password`, SHA-256
-e validacao por `pg_restore --list`. A restauracao exige o nome exato do banco,
+e validacao por `pg_restore --list`. A restauracao aceita somente dumps com os
+metadados gerenciados completos, exige o nome exato do banco,
 gera dump de seguranca e usa `--clean --if-exists --single-transaction
 --exit-on-error`. Os caminhos podem ser configurados por `ENDEMIAS_PG_BIN`,
 `ENDEMIAS_PG_DUMP` e `ENDEMIAS_PG_RESTORE`; credenciais continuam a cargo do

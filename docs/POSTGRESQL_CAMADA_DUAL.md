@@ -603,8 +603,9 @@ ajustados para as regras estritas do PostgreSQL.
 A Central identifica o backend ativo, exibe status, tamanho, tabelas e indices
 PostgreSQL e executa o diagnostico rapido ou completo sem `PRAGMA`. Backup e
 backup completo usam `pg_dump` em formato custom, publicam o arquivo somente
-depois de `pg_restore --list` e registram SHA-256. A restauracao exige a
-confirmacao digitada do banco, cria um dump `pre_restore` e executa
+depois de `pg_restore --list` e registram SHA-256. A restauracao recusa dumps
+sem os metadados gerenciados completos, exige a confirmacao digitada do banco,
+cria um dump `pre_restore` e executa
 `pg_restore` com limpeza, parada no primeiro erro e transacao unica. Senhas nao
 entram nos argumentos nem nos metadados. O DBML continua SQLite-only.
 
