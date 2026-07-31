@@ -663,9 +663,11 @@ tambem estao homologados, incluindo escrita auditada, relatorios individual e
 do setor e os blocos operacionais complementares. Exportacoes, consolidados,
 diagnostico, backup e restauracao da Central do Sistema tambem estao
 implementados. A auditoria final do SQL exclusivo encontrou e corrigiu a
-importacao ativa de Esporotricose. O proximo lote e o ensaio integrado com uma
-copia recente do SQLite oficial, seguido de concorrencia e preparacao do
-servico Windows.
+importacao ativa de Esporotricose. O ensaio integrado tambem foi concluido em
+`endemias_migracao`: 154.217 registros, 20 smokes, 34 identidades e cinco
+sessoes concorrentes sem alterar tabelas do sistema. O proximo lote e a
+preparacao da conta Windows `SYSTEM`, o restore em segundo banco descartavel e
+o planejamento da virada controlada.
 
 Cada lote deve:
 

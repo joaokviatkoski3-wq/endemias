@@ -11,8 +11,9 @@ mas ele ainda nao deve ser usado como servidor operacional.
 
 A primeira migracao de esquema ja foi aplicada e validada em
 `endemias_teste`. Ela criou as `59` tabelas do sistema, sem copiar dados. O
-banco recebeu depois uma copia validada de `153.419` registros do SQLite. O
-`endemias_migracao` permanece vazio. Os detalhes estao em
+banco recebeu depois uma copia validada de `153.419` registros do SQLite. Em
+31/07/2026, `endemias_migracao` recebeu o snapshot recente com `154.217`
+registros e passou pelo smoke integrado. Os detalhes estao em
 `docs/POSTGRESQL_SCHEMA_INICIAL.md` e
 `docs/POSTGRESQL_CARGA_TESTE.md`.
 
@@ -145,7 +146,7 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
 3. Concluido: copiar os dados para `endemias_teste`, preservando IDs e
    relacionamentos.
 4. Concluido: comparar contagens, checksums e chaves estrangeiras.
-5. Em andamento: adaptar e testar a aplicacao em ambiente PostgreSQL
+5. Concluido: adaptar e testar a aplicacao em ambiente PostgreSQL
    separado. A camada comum, o primeiro teste Flask, autenticacao e auditoria
    estao concluidos; Controle de Pessoal e o primeiro modulo funcional
    homologado, seguido por Gestao de Usuarios e pelo nucleo do Historico de
@@ -176,7 +177,10 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
    complementares. A regressao ampla deste lote teve 419 testes aprovados e 5
    ignorados; as 60 tabelas publicas permaneceram inalteradas no ensaio
    PostgreSQL.
-6. Ensaiar a migracao com uma copia recente do banco oficial.
-7. Fazer backup, carga final, validacao e troca controlada.
+6. Concluido: ensaiar a migracao recente em `endemias_migracao`, validar
+   checksums, constraints, 34 identidades, 20 smokes e cinco sessoes
+   concorrentes sem alterar tabelas publicas.
+7. Pendente: validar restore em segundo banco descartavel e preparar a conta
+   `SYSTEM` antes do backup, carga final, validacao e troca controlada.
 
 O SQLite final sera preservado como ponto de recuperacao e nao sera apagado.

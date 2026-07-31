@@ -244,6 +244,37 @@ def _postgres_table_checksum(cursor, table, columns, sql_module):
     return count, table_checksum(digests)
 
 
+def postgres_snapshot_results(pg_conn, inventory, progress=None):
+    """Calcula contagens e checksums atuais sem alterar o PostgreSQL."""
+    try:
+        from psycopg2 import sql
+    except ImportError as exc:
+        raise DataMigrationError("Driver psycopg2 nao esta disponivel.") from exc
+
+    table_map = {table["name"]: table for table in inventory["tables"]}
+    order = table_load_order(inventory)
+    results = {}
+    with pg_conn.cursor() as cursor:
+        for position, table_name in enumerate(order, start=1):
+            columns = sorted(
+                table_map[table_name]["columns"],
+                key=lambda item: item["position"],
+            )
+            row_count, checksum = _postgres_table_checksum(
+                cursor,
+                table_name,
+                columns,
+                sql,
+            )
+            results[table_name] = {
+                "rows": row_count,
+                "checksum": checksum,
+            }
+            if progress:
+                progress(position, len(order), table_name, row_count)
+    return results
+
+
 def migrate_snapshot(
     sqlite_path,
     pg_conn,

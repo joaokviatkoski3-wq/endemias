@@ -132,21 +132,38 @@ modulos, exercita escrita e auditoria de Notificacoes e confirma que as `60`
 tabelas publicas ficaram inalteradas. A regressao ampla teve `419` testes
 aprovados e `5` ignorados.
 
+## Ensaio integrado concluido
+
+A copia consistente mais recente do SQLite foi carregada em
+`endemias_migracao`: 59 tabelas, 154.217 registros, 34 identidades alinhadas e
+zero divergencias de contagem/checksum ou constraints nao validadas. Os
+comandos reproduziveis sao:
+
+```powershell
+python scripts\validar_migracao_integrada_postgresql.py `
+  --database endemias_migracao `
+  --confirmar-banco endemias_migracao
+python scripts\testar_smoke_integrado_postgresql.py `
+  --database endemias_migracao `
+  --confirmar-banco endemias_migracao
+python scripts\testar_concorrencia_postgresql.py `
+  --database endemias_migracao `
+  --confirmar-banco endemias_migracao
+```
+
+O smoke executa os 20 ensaios homologados. A concorrencia usa cinco sessoes,
+uma tabela efemera e limpeza garantida; nao grava nas tabelas do sistema.
+
 ## Protocolo recomendado para o proximo lote
 
-O proximo lote e o ensaio integrado com uma copia recente do SQLite oficial:
-
-1. Criar uma nova copia protegida do SQLite sem interromper a producao.
-2. Recriar `endemias_migracao` ou outro banco explicitamente descartavel.
-3. Executar inventario, carga, comparacao de contagens, checksums, FKs e
-   identidades.
-4. Rodar smoke CRUD de todos os modulos e concorrencia com 4 ou 5 sessoes.
-5. Testar `pg_restore` apenas em um segundo banco descartavel. A conta
+1. Testar `pg_restore` apenas em um segundo banco descartavel. A conta
    `endemias_app` atual nao possui `CREATEDB`; solicitar previamente ao
    administrador a criacao desse destino, sem elevar a conta da aplicacao.
-6. Configurar `pgpass` e executaveis PostgreSQL para a conta Windows `SYSTEM`.
-7. Nao alterar `ENDEMIAS_DB_BACKEND` no sistema oficial durante o ensaio.
-8. Atualizar os documentos, fazer commit e push da branch do lote.
+2. Configurar `pgpass` e executaveis PostgreSQL para a conta Windows `SYSTEM`.
+3. Preparar a tarefa automatica para receber as variaveis PostgreSQL somente
+   na janela de virada, mantendo o `iniciar.bat` em SQLite ate la.
+4. Planejar congelamento, snapshot final, carga final, validacao e rollback.
+5. Atualizar os documentos, fazer commit e push da branch do lote.
 
 As rotinas PostgreSQL de backup usam formato custom, `--no-password`, SHA-256
 e validacao por `pg_restore --list`. A restauracao aceita somente dumps com os

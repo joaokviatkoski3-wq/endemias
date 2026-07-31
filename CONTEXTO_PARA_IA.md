@@ -38,13 +38,13 @@ Leia tambem:
 ## Estado da migracao PostgreSQL
 
 A migracao e gradual e dual: cada modulo convertido deve continuar funcionando
-em SQLite e PostgreSQL. A cobertura funcional esta em aproximadamente 98%.
+em SQLite e PostgreSQL. A cobertura funcional esta em aproximadamente 99%.
 
 Bancos conhecidos:
 
 - `endemias.db`: fonte oficial enquanto a migracao estiver em andamento;
 - `endemias_teste`: esquema, carga de homologacao e ensaios descartaveis;
-- `endemias_migracao`: reservado para o ensaio completo antes da virada.
+- `endemias_migracao`: carga recente e ensaio completo antes da virada.
 
 Infraestrutura ja validada no PostgreSQL:
 
@@ -57,7 +57,7 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A ultima regressao ampla registrada teve 442 testes aprovados e 5 ignorados.
+A ultima regressao ampla registrada teve 448 testes aprovados e 5 ignorados.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
 conexoes SQLite em testes de Ovitrampas; nao confundir automaticamente com uma
 regressao nova.
@@ -114,9 +114,11 @@ b5ff38b feat: concluir migracao de ovitrampas para postgres
 ## Proxima tarefa recomendada
 
 O novo padrao de trabalho e agrupar 2 ou 3 modulos relacionados por branch
-antes da revisao do Claude. A proxima tarefa recomendada e o ensaio integrado
-usando uma copia recente do SQLite oficial em `endemias_migracao`, seguido dos
-testes de concorrencia e da preparacao operacional do servico Windows.
+antes da revisao do Claude. O ensaio integrado com a copia recente foi
+concluido. A proxima tarefa recomendada e preparar credenciais e inicializacao
+PostgreSQL para a conta Windows `SYSTEM`, testar uma restauracao real em um
+segundo banco descartavel criado pelo administrador e planejar a janela de
+congelamento/carga final.
 
 ## O que falta para abandonar o SQLite
 
@@ -124,15 +126,16 @@ Mesmo apos os modulos funcionais e as rotinas de backup, ainda sera necessario:
 
 1. Configurar credenciais PostgreSQL protegidas para a conta Windows `SYSTEM`.
 2. Configurar o servico automatico para iniciar com PostgreSQL.
-3. Testar concorrencia realista com 4 ou 5 usuarios.
-4. Ensaiar com copia recente do SQLite em `endemias_migracao`.
-5. Comparar contagens, checksums, FKs e sequencias de identidade.
-6. Executar smoke CRUD de toda a aplicacao em PostgreSQL.
-7. Executar uma restauracao real somente em banco descartavel criado para o
+3. Executar uma restauracao real somente em banco descartavel criado para o
    ensaio; `endemias_app` nao possui hoje permissao `CREATEDB`.
-8. Fazer congelamento curto de escrita, carga final e validacao.
-9. Somente entao definir `ENDEMIAS_DB_BACKEND=postgresql` no servidor oficial.
-10. Preservar o `endemias.db` final congelado como rollback; nao apagar.
+4. Fazer congelamento curto de escrita, carga final e validacao.
+5. Somente entao definir `ENDEMIAS_DB_BACKEND=postgresql` no servidor oficial.
+6. Preservar o `endemias.db` final congelado como rollback; nao apagar.
+
+Concluidos em `endemias_migracao`: snapshot recente, 59 tabelas e 154.217
+registros com contagens/checksums identicos, 34 identidades alinhadas, zero
+constraints nao validadas, smoke dos 20 ensaios de modulos e concorrencia com
+cinco sessoes. Os testes temporarios nao mudaram as tabelas publicas.
 
 ## Regras para testes PostgreSQL
 

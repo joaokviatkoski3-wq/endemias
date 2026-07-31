@@ -1,25 +1,29 @@
 # Primeira carga de dados no PostgreSQL
 
-## Estado em 29/07/2026
+## Estado atualizado em 31/07/2026
 
 Uma copia consistente do banco SQLite oficial foi carregada em
 `endemias_teste`.
 
 O sistema em producao continua usando `endemias.db`. O banco
-`endemias_migracao` permanece vazio.
+Uma copia consistente mais recente foi carregada em `endemias_migracao` para o
+ensaio integrado. O SQLite oficial permaneceu aberto somente para leitura.
 
 ## Resultado
 
 | Verificacao | Resultado |
 | --- | ---: |
 | Tabelas carregadas | `59` |
-| Registros no snapshot | `153.419` |
+| Registros no snapshot integrado | `154.217` |
 | Identidades reajustadas | `34` |
 | Conversoes temporais para `NULL` | `51` |
 | Divergencias de contagem | `0` |
 | Divergencias de checksum | `0` |
 | Restricoes PostgreSQL nao validadas | `0` |
-| Tabelas com proprietario incorreto | `0` |
+| Constraints nao validadas | `0` |
+| Identidades desalinhadas | `0` de `34` |
+| Smokes de modulos aprovados | `20` de `20` |
+| Sessoes concorrentes | `5` |
 
 Os `51` valores convertidos foram:
 
@@ -87,8 +91,19 @@ esta fora do versionamento e nao contem valores das linhas.
 - Backups operacionais continuam protegendo o SQLite oficial.
 - Nenhuma credencial ou dado do banco foi enviado ao GitHub.
 
+## Validacao integrada
+
+Depois da carga, `scripts/validar_migracao_integrada_postgresql.py` recalculou
+as contagens e checksums das 59 tabelas, conferiu constraints e o estado das 34
+identidades. `scripts/testar_smoke_integrado_postgresql.py` executou os 20
+ensaios funcionais homologados. Uma nova validacao depois do smoke confirmou
+que os 154.217 registros permaneciam identicos.
+
+`scripts/testar_concorrencia_postgresql.py` abriu cinco sessoes e confirmou 25
+escritas numa tabela efemera, exercitando retries de lock e removendo a tabela
+ao final. Nenhuma tabela publica do sistema foi alterada pelos testes.
+
 ## Proxima etapa
 
-Criar uma camada de acesso compativel com ambos os bancos e iniciar os testes
-da aplicacao completa contra a copia PostgreSQL. A troca do banco oficial so
-acontecera depois de todos os modulos funcionarem nessa instancia separada.
+Preparar a conta Windows `SYSTEM`, homologar `pg_restore` em um segundo banco
+descartavel e planejar a janela curta de congelamento, carga final e virada.
