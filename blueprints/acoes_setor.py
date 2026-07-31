@@ -414,6 +414,12 @@ def _acao_dict(row):
         for x in (item.pop("agentes_raw") or "").split("|")
         if ":" in x
     ]
+    item["agentes"].sort(
+        key=lambda agente: (
+            _normaliza_busca(agente["nome"]),
+            agente["id_agente"],
+        )
+    )
     item["agentes_nomes"] = ", ".join(a["nome"] for a in item["agentes"])
     return item
 
@@ -479,10 +485,10 @@ def _consultar_acoes(args):
         )
         params.append(int(id_agente))
     if data_inicio:
-        where.append("COALESCE(a.data_fim,a.data)>=?")
+        where.append("substr(COALESCE(a.data_fim,a.data),1,10)>=?")
         params.append(data_inicio)
     if data_fim:
-        where.append("a.data<=?")
+        where.append("substr(a.data,1,10)<=?")
         params.append(data_fim)
     if ano:
         where.append("substr(a.data, 1, 4)=?")
@@ -720,7 +726,7 @@ def _path_anexo(caminho_rel):
 
 
 def _anexo_dict(row, pode_gerenciar_restritos=None):
-    item = dict(row)
+    item = db_core.serialize_row(row)
     item["restrito"] = bool(item.get("restrito"))
     if pode_gerenciar_restritos is None:
         pode_gerenciar_restritos = _usuario_admin()
@@ -800,10 +806,10 @@ def _listar_anexos_galeria():
         )
         params.append(int(id_agente))
     if data_inicio:
-        where.append("COALESCE(a.data_fim,a.data)>=?")
+        where.append("substr(COALESCE(a.data_fim,a.data),1,10)>=?")
         params.append(data_inicio)
     if data_fim:
-        where.append("a.data<=?")
+        where.append("substr(a.data,1,10)<=?")
         params.append(data_fim)
     if tipo_arquivo == "imagem":
         where.append("an.mime_type LIKE 'image/%'")
@@ -915,9 +921,37 @@ def _remover_caminhos(caminhos):
             pass
 
 
+def _erro_concorrencia(exc):
+    codigos_postgresql = {"40001", "40P01", "55P03"}
+    mensagens = (
+        "database is locked",
+        "database table is locked",
+        "deadlock detected",
+        "could not serialize access",
+        "could not obtain lock",
+        "lock timeout",
+    )
+    atual = exc
+    visitados = set()
+    while atual is not None and id(atual) not in visitados:
+        visitados.add(id(atual))
+        codigo = (
+            getattr(atual, "pgcode", None)
+            or getattr(atual, "sqlstate", None)
+        )
+        if str(codigo or "").upper() in codigos_postgresql:
+            return True
+        mensagem = str(atual).lower()
+        if any(texto in mensagem for texto in mensagens):
+            return True
+        atual = getattr(atual, "__cause__", None) or getattr(
+            atual, "__context__", None
+        )
+    return False
+
+
 def _erro_banco(exc, operacao):
-    mensagem = str(exc).lower()
-    if "database is locked" in mensagem or "database table is locked" in mensagem:
+    if _erro_concorrencia(exc):
         return jsonify({"erro": "Banco de dados ocupado. Tente novamente."}), 503
     current_app.logger.exception("Erro ao %s em Acoes do Setor", operacao)
     return jsonify({"erro": "Nao foi possivel concluir a operacao."}), 500
@@ -1301,9 +1335,10 @@ def api_galeria_anexos():
 @nivel_min("operador")
 def api_excluir_anexo(id_anexo):
     ensure_schema()
-    conn = bh.get_db()
+    conn = None
     row = None
     try:
+        conn = bh.get_db()
         row = conn.execute(
             "SELECT * FROM acoes_setor_anexos WHERE id_anexo=?",
             (id_anexo,),
@@ -1345,10 +1380,12 @@ def api_excluir_anexo(id_anexo):
         )
         conn.commit()
     except Exception as exc:
-        conn.rollback()
+        if conn:
+            conn.rollback()
         return _erro_banco(exc, "alterar anexo")
     finally:
-        conn.close()
+        if conn:
+            conn.close()
     _remover_arquivos_anexos([row])
     return jsonify({"ok": True})
 

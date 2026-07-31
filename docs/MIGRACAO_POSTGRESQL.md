@@ -160,7 +160,7 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
    Meteorologia foram homologadas na sequencia, com leituras e escritas
    isoladas em tabelas temporarias. Acoes e Atendimentos do Setor completa o
    lote seguinte, incluindo CRUD, filtros, servidores, anexos, relatorio,
-   permissoes e auditoria. A regressao ampla deste lote teve 395 testes
+   permissoes e auditoria. A regressao ampla deste lote teve 399 testes
    aprovados e 5 ignorados; as 60 tabelas publicas permaneceram inalteradas no
    ensaio PostgreSQL.
 6. Ensaiar a migracao com uma copia recente do banco oficial.

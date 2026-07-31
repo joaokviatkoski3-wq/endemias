@@ -94,7 +94,7 @@ $py = 'C:\Users\Geoprocessamento\AppData\Local\Python\pythoncore-3.14-64\python.
 & $py scripts\verificar_postgresql.py --database endemias_teste
 ```
 
-Nao presuma que a regressao continua em 395 testes: o numero cresce. Registre
+Nao presuma que a regressao continua em 399 testes: o numero cresce. Registre
 no documento da migracao o resultado atual de cada lote.
 
 ## Protocolo recomendado para o proximo lote

@@ -529,7 +529,7 @@ python scripts\testar_acoes_setor_postgresql.py `
 O script exercita pagina, CRUD, filtros, servidores, anexos, galeria, ZIP,
 download, relatorio, permissoes e auditoria em seis tabelas temporarias. Ao
 final, confirma que as contagens das `60` tabelas publicas permaneceram
-inalteradas. A regressao ampla do lote teve `395` testes aprovados e `5`
+inalteradas. A regressao ampla do lote teve `399` testes aprovados e `5`
 ignorados.
 
 Por seguranca, outro banco exige:

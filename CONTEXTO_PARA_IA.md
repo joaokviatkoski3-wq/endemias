@@ -56,7 +56,7 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A ultima regressao ampla registrada teve 395 testes aprovados e 5 ignorados.
+A ultima regressao ampla registrada teve 399 testes aprovados e 5 ignorados.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
 conexoes SQLite em testes de Ovitrampas; nao confundir automaticamente com uma
 regressao nova.
