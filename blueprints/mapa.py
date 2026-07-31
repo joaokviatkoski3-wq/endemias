@@ -1,9 +1,11 @@
 import logging
+from datetime import date, timedelta
 
 from flask import Blueprint, jsonify, render_template, request
 
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
+from app_core import db as db_core
 from app_core import esporotricose as esporotricose_core
 from app_core import ovitrampas as ovitrampas_core
 from app_core import pontos_estrategicos as pe_core
@@ -14,12 +16,28 @@ bp = Blueprint("mapa", __name__)
 login_required = auth_core.login_required
 
 
+def _ovitrampa_date_expression(alias):
+    return (
+        f"COALESCE(CAST({alias}.data_coleta AS TEXT), "
+        f"CAST({alias}.data_leitura AS TEXT), "
+        f"CAST({alias}.data_envio_contagem AS TEXT))"
+    )
+
+
+def _serialize_rows(cursor):
+    return [db_core.serialize_row(row) for row in cursor.fetchall()]
+
+
 @bp.route("/mapa")
 @login_required
 def page():
     conn = bh.get_db()
     try:
-        localidades = [dict(row) for row in conn.execute("SELECT id_localidade, nome FROM localidades ORDER BY nome")]
+        localidades = _serialize_rows(
+            conn.execute(
+                "SELECT id_localidade, nome FROM localidades ORDER BY nome"
+            )
+        )
     finally:
         conn.close()
     return render_template("mapa.html", localidades_mapa=localidades)
@@ -56,8 +74,9 @@ def api_mapa():
 
         conn = bh.get_db()
         try:
-            rows_v = conn.execute(
-                f"""
+            rows_v = _serialize_rows(
+                conn.execute(
+                    f"""
                 SELECT
                     v.id_localidade,
                     v.quarteirao,
@@ -72,8 +91,9 @@ def api_mapa():
                 {where_v}
                 GROUP BY v.id_localidade, v.quarteirao, v.tipo
                 """,
-                params_v,
-            ).fetchall()
+                    params_v,
+                )
+            )
 
             where_f = "WHERE f.quarteirao IS NOT NULL AND f.id_localidade IS NOT NULL AND f.gera_notificacao=1"
             params_f = []
@@ -90,8 +110,9 @@ def api_mapa():
                 where_f += f" AND f.tipo_trabalho IN ({','.join('?' * len(tipos))})"
                 params_f += tipos
 
-            rows_f = conn.execute(
-                f"""
+            rows_f = _serialize_rows(
+                conn.execute(
+                    f"""
                 SELECT f.id_localidade, f.quarteirao,
                        COUNT(*) AS total_focos,
                        COUNT(CASE WHEN f.status_notificacao='pendente' THEN 1 END) AS focos_pendentes
@@ -100,8 +121,9 @@ def api_mapa():
                 {where_f}
                 GROUP BY f.id_localidade, f.quarteirao
                 """,
-                params_f,
-            ).fetchall()
+                    params_f,
+                )
+            )
 
             esporotricose_core.ensure_schema(conn)
             where_e = "WHERE v.quarteirao IS NOT NULL AND v.id_localidade IS NOT NULL"
@@ -116,8 +138,9 @@ def api_mapa():
                 where_e += " AND v.data<=?"
                 params_e.append(d_fim)
 
-            rows_e = conn.execute(
-                f"""
+            rows_e = _serialize_rows(
+                conn.execute(
+                    f"""
                 SELECT
                     v.id_localidade,
                     v.quarteirao,
@@ -133,17 +156,19 @@ def api_mapa():
                 {where_e}
                 GROUP BY v.id_localidade, v.quarteirao
                 """,
-                params_e,
-            ).fetchall()
+                    params_e,
+                )
+            )
 
             pe_core.ensure_schema(conn)
             where_pe = "WHERE pe.id_localidade IS NOT NULL AND pe.quarteirao IS NOT NULL"
-            params_pe = []
+            params_pe = [(date.today() - timedelta(days=20)).isoformat()]
             if locs:
                 where_pe += f" AND pe.localidade IN ({','.join('?' * len(locs))})"
                 params_pe += locs
-            rows_pe = conn.execute(
-                f"""
+            rows_pe = _serialize_rows(
+                conn.execute(
+                    f"""
                 SELECT
                     pe.id_localidade,
                     pe.quarteirao,
@@ -152,38 +177,36 @@ def api_mapa():
                     SUM(CASE WHEN pe.situacao=0 THEN 1 ELSE 0 END) AS pes_inativos,
                     SUM(CASE WHEN pe.situacao=1 AND (pe.latitude IS NULL OR pe.longitude IS NULL) THEN 1 ELSE 0 END) AS pes_sem_coordenada,
                     SUM(CASE WHEN pe.situacao=1 AND (
-                        (
-                            SELECT MAX(v.data)
-                              FROM visitas v
-                             WHERE v.tipo='PE'
-                               AND v.id_localidade=pe.id_localidade
-                               AND v.quarteirao=pe.quarteirao
-                        ) IS NULL
-                        OR julianday('now') - julianday((
-                            SELECT MAX(v2.data)
+                        (SELECT MAX(v.data)
+                           FROM visitas v
+                          WHERE v.tipo='PE'
+                            AND v.id_localidade=pe.id_localidade
+                            AND v.quarteirao=pe.quarteirao) IS NULL
+                        OR (SELECT MAX(v2.data)
                               FROM visitas v2
                              WHERE v2.tipo='PE'
                                AND v2.id_localidade=pe.id_localidade
-                               AND v2.quarteirao=pe.quarteirao
-                        )) > 20
+                               AND v2.quarteirao=pe.quarteirao) < ?
                     ) THEN 1 ELSE 0 END) AS pes_atrasados
                 FROM pontos_estrategicos pe
                 {where_pe}
                 GROUP BY pe.id_localidade, pe.quarteirao
                 """,
-                params_pe,
-            ).fetchall()
+                    params_pe,
+                )
+            )
 
             ovitrampas_core.ensure_schema(conn)
+            data_ovitrampa = _ovitrampa_date_expression("o")
             join_ovi = "LEFT JOIN ovitrampas_leituras o ON o.ovitrampa_id=a.ovitrampa_id"
             params_o = []
             if d_ini or d_fim:
                 on_filters = ["o.ovitrampa_id=a.ovitrampa_id"]
                 if d_ini:
-                    on_filters.append("COALESCE(o.data_coleta, o.data_leitura, o.data_envio_contagem)>=?")
+                    on_filters.append(f"{data_ovitrampa}>=?")
                     params_o.append(d_ini)
                 if d_fim:
-                    on_filters.append("COALESCE(o.data_coleta, o.data_leitura, o.data_envio_contagem)<=?")
+                    on_filters.append(f"{data_ovitrampa}<=?")
                     params_o.append(d_fim)
                 join_ovi = "LEFT JOIN ovitrampas_leituras o ON " + " AND ".join(on_filters)
 
@@ -192,8 +215,9 @@ def api_mapa():
                 where_o += f" AND l4.nome IN ({','.join('?' * len(locs))})"
                 params_o += locs
 
-            rows_o = conn.execute(
-                f"""
+            rows_o = _serialize_rows(
+                conn.execute(
+                    f"""
                 SELECT
                     l4.id_localidade,
                     a.quarteirao,
@@ -204,15 +228,16 @@ def api_mapa():
                     COUNT(DISTINCT o.id_leitura) AS ovi_leituras,
                     COUNT(DISTINCT CASE WHEN o.ovos > 0 THEN o.id_leitura END) AS ovi_positivas,
                     COALESCE(SUM(o.ovos), 0) AS ovi_ovos,
-                    MAX(COALESCE(o.data_coleta, o.data_leitura, o.data_envio_contagem)) AS ultimo_ovitrampa
+                    MAX({data_ovitrampa}) AS ultimo_ovitrampa
                 FROM ovitrampas_armadilhas a
                 LEFT JOIN localidades l4 ON l4.nome = a.localidade
                 {join_ovi}
                 {where_o}
                 GROUP BY l4.id_localidade, a.quarteirao
                 """,
-                params_o,
-            ).fetchall()
+                    params_o,
+                )
+            )
         finally:
             conn.close()
 
@@ -325,15 +350,16 @@ def api_mapa_ovitrampas():
         conn = bh.get_db()
         try:
             ovitrampas_core.ensure_schema(conn)
+            data_ovitrampa = _ovitrampa_date_expression("l")
             join = "LEFT JOIN ovitrampas_leituras l ON l.ovitrampa_id=a.ovitrampa_id"
             params = []
             if d_ini or d_fim:
                 filtros_join = ["l.ovitrampa_id=a.ovitrampa_id"]
                 if d_ini:
-                    filtros_join.append("COALESCE(l.data_coleta, l.data_leitura, l.data_envio_contagem)>=?")
+                    filtros_join.append(f"{data_ovitrampa}>=?")
                     params.append(d_ini)
                 if d_fim:
-                    filtros_join.append("COALESCE(l.data_coleta, l.data_leitura, l.data_envio_contagem)<=?")
+                    filtros_join.append(f"{data_ovitrampa}<=?")
                     params.append(d_fim)
                 join = "LEFT JOIN ovitrampas_leituras l ON " + " AND ".join(filtros_join)
 
@@ -344,17 +370,27 @@ def api_mapa_ovitrampas():
             if busca:
                 termo = f"%{busca}%"
                 where.append(
-                    "(a.ovitrampa_id LIKE ? OR COALESCE(a.rua,'') LIKE ? OR COALESCE(a.localidade,'') LIKE ? "
-                    "OR COALESCE(a.responsavel,'') LIKE ? OR COALESCE(a.quarteirao,'') LIKE ?)"
+                    "(LOWER(COALESCE(CAST(a.ovitrampa_id AS TEXT),'')) LIKE LOWER(?) "
+                    "OR LOWER(COALESCE(CAST(a.rua AS TEXT),'')) LIKE LOWER(?) "
+                    "OR LOWER(COALESCE(CAST(a.localidade AS TEXT),'')) LIKE LOWER(?) "
+                    "OR LOWER(COALESCE(CAST(a.responsavel AS TEXT),'')) LIKE LOWER(?) "
+                    "OR LOWER(COALESCE(CAST(a.quarteirao AS TEXT),'')) LIKE LOWER(?))"
                 )
                 params.extend([termo] * 5)
 
             having = []
             if somente_positivas:
-                having.append("positivas > 0")
+                having.append(
+                    "COUNT(DISTINCT CASE WHEN l.ovos > 0 THEN l.id_leitura END) > 0"
+                )
             if min_ovos is not None:
-                having.append("ovos >= ?")
+                having.append("COALESCE(SUM(l.ovos), 0) >= ?")
                 params.append(min_ovos)
+
+            numeric_order = ovitrampas_core._numeric_text_order(
+                conn, "a.ovitrampa_id"
+            )
+            nocase_order = ovitrampas_core._nocase_order(conn, "a.ovitrampa_id")
 
             sql = f"""
                 SELECT
@@ -371,7 +407,7 @@ def api_mapa_ovitrampas():
                     COUNT(DISTINCT l.id_leitura) AS leituras,
                     COUNT(DISTINCT CASE WHEN l.ovos > 0 THEN l.id_leitura END) AS positivas,
                     COALESCE(SUM(l.ovos), 0) AS ovos,
-                    MAX(COALESCE(l.data_coleta, l.data_leitura, l.data_envio_contagem)) AS ultima_coleta
+                    MAX({data_ovitrampa}) AS ultima_coleta
                   FROM ovitrampas_armadilhas a
                   {join}
                  WHERE {' AND '.join(where)}
@@ -379,8 +415,11 @@ def api_mapa_ovitrampas():
             """
             if having:
                 sql += " HAVING " + " AND ".join(having)
-            sql += " ORDER BY ovos DESC, positivas DESC, CAST(a.ovitrampa_id AS INTEGER), a.ovitrampa_id COLLATE NOCASE"
-            rows = [dict(row) for row in conn.execute(sql, params).fetchall()]
+            sql += (
+                " ORDER BY ovos DESC, positivas DESC, "
+                f"{numeric_order}, {nocase_order}"
+            )
+            rows = _serialize_rows(conn.execute(sql, params))
         finally:
             conn.close()
 

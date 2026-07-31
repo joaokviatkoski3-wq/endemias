@@ -17,28 +17,87 @@ bp = Blueprint("relatorio_agente", __name__)
 login_required = auth_core.login_required
 
 
+def _db_target():
+    return db_core.configured_target(current_app.config)
+
+
 def _get_db():
-    return db_core.connect(current_app.config["DB_PATH"])
+    return db_core.connect(_db_target())
 
 
 def _has_column(conn, table, column):
     try:
-        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        return db_core.column_exists(conn, table, column)
     except Exception:
         return False
-    return any(row["name"] == column for row in rows)
+
+
+def _row_dict(row):
+    return db_core.serialize_row(row) if row else {}
+
+
+def _rows_dict(rows):
+    return [db_core.serialize_row(row) for row in rows]
+
+
+def _is_postgresql(conn):
+    return getattr(conn, "backend", "sqlite") == "postgresql"
+
+
+def _duration_expression(conn, alias):
+    if _is_postgresql(conn):
+        return (
+            f"EXTRACT(EPOCH FROM ({alias}.hora_fim - {alias}.hora_inicio)) "
+            "/ 60.0"
+        )
+    return (
+        f"(julianday({alias}.data||' '||{alias}.hora_fim)-"
+        f"julianday({alias}.data||' '||{alias}.hora_inicio))*24*60"
+    )
+
+
+def _week_start_expression(conn, expression):
+    if _is_postgresql(conn):
+        return (
+            "to_char(date_trunc('week', "
+            f"CAST({expression} AS timestamp)), 'YYYY-MM-DD')"
+        )
+    return f"strftime('%Y-%m-%d',{expression},'weekday 0','-6 days')"
+
+
+def _distinct_aggregate(conn, expression):
+    if _is_postgresql(conn):
+        return f"string_agg(DISTINCT CAST({expression} AS TEXT), ',')"
+    return f"GROUP_CONCAT(DISTINCT {expression})"
+
+
+def _numeric_text_order(conn, expression):
+    if _is_postgresql(conn):
+        return (
+            f"CAST(NULLIF(substring(CAST({expression} AS TEXT) "
+            "FROM '^[0-9]+'), '') AS BIGINT)"
+        )
+    return f"CAST({expression} AS INTEGER)"
+
+
+def _ovitrampa_date_expression(alias):
+    return (
+        f"COALESCE(CAST({alias}.data_leitura AS TEXT), "
+        f"CAST({alias}.data_coleta AS TEXT), "
+        f"CAST({alias}.data_envio_contagem AS TEXT))"
+    )
 
 
 def _servidores_relatorio():
     conn = _get_db()
     try:
-        return [dict(row) for row in conn.execute(
+        return _rows_dict(conn.execute(
             """SELECT nome,
                       COALESCE(NULLIF(nome_completo,''), nome) AS nome_exibicao
                  FROM agentes
                 WHERE COALESCE(ativo,1)=1
                 ORDER BY nome_exibicao, nome"""
-        ).fetchall()]
+        ).fetchall())
     finally:
         conn.close()
 
@@ -80,8 +139,8 @@ def _total_tratamentos_depositos_agente(conn, nome, d_ini, d_fim):
 
 def _resumo_esporotricose_agente(nome, d_ini, d_fim):
     filtros = {"agente": nome, "d_ini": d_ini, "d_fim": d_fim}
-    resumo = esporotricose_core.resumo(current_app.config["DB_PATH"], filtros)
-    dashboard = esporotricose_core.dashboard(current_app.config["DB_PATH"], filtros)
+    resumo = esporotricose_core.resumo(_db_target(), filtros)
+    dashboard = esporotricose_core.dashboard(_db_target(), filtros)
     totais = resumo.get("totais", {})
     animais = resumo.get("animais", {})
     visitas = utils_core.safe_int(totais.get("visitas", 0))
@@ -113,7 +172,7 @@ def _resumo_esporotricose_agente(nome, d_ini, d_fim):
 
 def _resumo_producao_agente(nome, d_ini, d_fim):
     resumo = producao_operacional.resumo(
-        current_app.config["DB_PATH"],
+        _db_target(),
         {"agente": [nome], "d_ini": d_ini, "d_fim": d_fim},
     )
     _preparar_resumo_producao_relatorio(resumo)
@@ -156,7 +215,7 @@ def _resumo_ovitrampas_agente(nome, d_ini, d_fim):
     dias = set()
     movimentos = getattr(ovitrampas_core, "MOVIMENTOS", {})
     for row in rows:
-        item = dict(row)
+        item = _row_dict(row)
         movimento = item.get("movimento") or ""
         item["movimento_label"] = movimentos.get(movimento, movimento)
         eventos.append(item)
@@ -223,8 +282,9 @@ def _resumo_registro_geografico_agente(nome, d_ini, d_fim):
             """,
             base_params,
         ).fetchall()
+        quarteirao_order = _numeric_text_order(conn, "i.quarteirao")
         por_quarteirao = conn.execute(
-            """
+            f"""
             SELECT i.localidade,
                    i.quarteirao,
                    COUNT(DISTINCT i.id_imovel) AS imoveis,
@@ -235,7 +295,8 @@ def _resumo_registro_geografico_agente(nome, d_ini, d_fim):
               JOIN agentes ag ON ag.id_agente=ia.id_agente
              WHERE ag.nome=? AND i.data_atualizacao BETWEEN ? AND ?
              GROUP BY i.localidade, i.quarteirao
-             ORDER BY ultima_atualizacao DESC, i.localidade, CAST(i.quarteirao AS INTEGER), i.quarteirao
+             ORDER BY ultima_atualizacao DESC, i.localidade,
+                      {quarteirao_order}, LOWER(CAST(i.quarteirao AS TEXT))
              LIMIT 40
             """,
             base_params,
@@ -243,16 +304,16 @@ def _resumo_registro_geografico_agente(nome, d_ini, d_fim):
     finally:
         conn.close()
 
-    data = dict(totais) if totais else {}
+    data = _row_dict(totais)
     return {
         "totais": {key: utils_core.safe_int(data.get(key)) for key in (
             "imoveis", "dias", "localidades", "quarteiroes",
             "residencias", "comercios", "terrenos_baldios", "pontos_estrategicos",
         )},
-        "por_tipo": [dict(row) for row in por_tipo],
+        "por_tipo": _rows_dict(por_tipo),
         "por_quarteirao": [
             {
-                **dict(row),
+                **_row_dict(row),
                 "quarteirao": _quarteirao_display(row["quarteirao"]),
             }
             for row in por_quarteirao
@@ -315,6 +376,9 @@ def _laboratorio_larvas(conn, nome, d_ini, d_fim):
     if not producao_operacional._table_exists(conn, "resultados_laboratorio"):
         return vazio
     params = (nome, d_ini, d_fim)
+    mes_expr = db_core.month_expression(
+        "COALESCE(rl.data_leitura, rl.data_coleta)"
+    )
     row = conn.execute(
         """
         SELECT COUNT(DISTINCT rl.id_resultado) AS leituras,
@@ -334,13 +398,13 @@ def _laboratorio_larvas(conn, nome, d_ini, d_fim):
         params,
     ).fetchone()
     por_mes = conn.execute(
-        """
-        SELECT substr(COALESCE(rl.data_leitura, rl.data_coleta),1,7) AS mes,
+        f"""
+        SELECT {mes_expr} AS mes,
                COUNT(DISTINCT rl.id_resultado) AS leituras
           FROM resultados_laboratorio rl
          WHERE lower(trim(rl.laboratorista))=lower(trim(?))
            AND COALESCE(rl.data_leitura, rl.data_coleta) BETWEEN ? AND ?
-         GROUP BY substr(COALESCE(rl.data_leitura, rl.data_coleta),1,7)
+         GROUP BY {mes_expr}
          ORDER BY mes
         """,
         params,
@@ -355,13 +419,14 @@ def _laboratorio_larvas(conn, nome, d_ini, d_fim):
         """,
         params,
     ).fetchall()
-    data = dict(row) if row else {}
+    data = _row_dict(row)
+    dias_data = _rows_dict(dias)
     return {
         "leituras": utils_core.safe_int(data.get("leituras")),
         "tubos": utils_core.safe_int(data.get("tubos")),
         "positivas": utils_core.safe_int(data.get("positivas")),
-        "dias": [r["dia"] for r in dias if r["dia"]],
-        "por_mes": [dict(r) for r in por_mes],
+        "dias": [r["dia"] for r in dias_data if r["dia"]],
+        "por_mes": _rows_dict(por_mes),
     }
 
 
@@ -373,50 +438,53 @@ def _laboratorio_ovitrampas(conn, nome, d_ini, d_fim):
     ):
         return vazio
     params = (nome, d_ini, d_fim)
+    data_expr = _ovitrampa_date_expression("l")
+    mes_expr = db_core.month_expression(data_expr)
     row = conn.execute(
-        """
+        f"""
         SELECT COUNT(DISTINCT l.id_leitura) AS leituras,
                SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
                SUM(COALESCE(l.ovos,0)) AS ovos
           FROM ovitrampas_leituras l
           JOIN agentes ag ON ag.id_agente=l.id_laboratorista
          WHERE ag.nome=?
-           AND COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) BETWEEN ? AND ?
+           AND {data_expr} BETWEEN ? AND ?
         """,
         params,
     ).fetchone()
     por_mes = conn.execute(
-        """
-        SELECT substr(COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem),1,7) AS mes,
+        f"""
+        SELECT {mes_expr} AS mes,
                COUNT(DISTINCT l.id_leitura) AS leituras,
                SUM(COALESCE(l.ovos,0)) AS ovos
           FROM ovitrampas_leituras l
           JOIN agentes ag ON ag.id_agente=l.id_laboratorista
          WHERE ag.nome=?
-           AND COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) BETWEEN ? AND ?
-         GROUP BY substr(COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem),1,7)
+           AND {data_expr} BETWEEN ? AND ?
+         GROUP BY {mes_expr}
          ORDER BY mes
         """,
         params,
     ).fetchall()
     dias = conn.execute(
-        """
-        SELECT DISTINCT COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) AS dia
+        f"""
+        SELECT DISTINCT {data_expr} AS dia
           FROM ovitrampas_leituras l
           JOIN agentes ag ON ag.id_agente=l.id_laboratorista
          WHERE ag.nome=?
-           AND COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) BETWEEN ? AND ?
+           AND {data_expr} BETWEEN ? AND ?
          ORDER BY dia
         """,
         params,
     ).fetchall()
-    data = dict(row) if row else {}
+    data = _row_dict(row)
+    dias_data = _rows_dict(dias)
     return {
         "leituras": utils_core.safe_int(data.get("leituras")),
         "positivas": utils_core.safe_int(data.get("positivas")),
         "ovos": utils_core.safe_int(data.get("ovos")),
-        "dias": [r["dia"] for r in dias if r["dia"]],
-        "por_mes": [dict(r) for r in por_mes],
+        "dias": [r["dia"] for r in dias_data if r["dia"]],
+        "por_mes": _rows_dict(por_mes),
     }
 
 
@@ -451,6 +519,9 @@ def _laboratorio_larvas_setor(conn, d_ini, d_fim):
     if not producao_operacional._table_exists(conn, "resultados_laboratorio"):
         return vazio
     params = (d_ini, d_fim)
+    mes_expr = db_core.month_expression(
+        "COALESCE(rl.data_leitura, rl.data_coleta)"
+    )
     row = conn.execute(
         """
         SELECT COUNT(DISTINCT rl.id_resultado) AS leituras,
@@ -469,12 +540,12 @@ def _laboratorio_larvas_setor(conn, d_ini, d_fim):
         params,
     ).fetchone()
     por_mes = conn.execute(
-        """
-        SELECT substr(COALESCE(rl.data_leitura, rl.data_coleta),1,7) AS mes,
+        f"""
+        SELECT {mes_expr} AS mes,
                COUNT(DISTINCT rl.id_resultado) AS leituras
           FROM resultados_laboratorio rl
          WHERE COALESCE(rl.data_leitura, rl.data_coleta) BETWEEN ? AND ?
-         GROUP BY substr(COALESCE(rl.data_leitura, rl.data_coleta),1,7)
+         GROUP BY {mes_expr}
          ORDER BY mes
         """,
         params,
@@ -488,13 +559,14 @@ def _laboratorio_larvas_setor(conn, d_ini, d_fim):
         """,
         params,
     ).fetchall()
-    data = dict(row) if row else {}
+    data = _row_dict(row)
+    dias_data = _rows_dict(dias)
     return {
         "leituras": utils_core.safe_int(data.get("leituras")),
         "tubos": utils_core.safe_int(data.get("tubos")),
         "positivas": utils_core.safe_int(data.get("positivas")),
-        "dias": [r["dia"] for r in dias if r["dia"]],
-        "por_mes": [dict(r) for r in por_mes],
+        "dias": [r["dia"] for r in dias_data if r["dia"]],
+        "por_mes": _rows_dict(por_mes),
     }
 
 
@@ -503,44 +575,47 @@ def _laboratorio_ovitrampas_setor(conn, d_ini, d_fim):
     if not producao_operacional._table_exists(conn, "ovitrampas_leituras"):
         return vazio
     params = (d_ini, d_fim)
+    data_expr = _ovitrampa_date_expression("l")
+    mes_expr = db_core.month_expression(data_expr)
     row = conn.execute(
-        """
+        f"""
         SELECT COUNT(DISTINCT l.id_leitura) AS leituras,
                SUM(CASE WHEN COALESCE(l.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
                SUM(COALESCE(l.ovos,0)) AS ovos
           FROM ovitrampas_leituras l
-         WHERE COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) BETWEEN ? AND ?
+         WHERE {data_expr} BETWEEN ? AND ?
         """,
         params,
     ).fetchone()
     por_mes = conn.execute(
-        """
-        SELECT substr(COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem),1,7) AS mes,
+        f"""
+        SELECT {mes_expr} AS mes,
                COUNT(DISTINCT l.id_leitura) AS leituras,
                SUM(COALESCE(l.ovos,0)) AS ovos
           FROM ovitrampas_leituras l
-         WHERE COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) BETWEEN ? AND ?
-         GROUP BY substr(COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem),1,7)
+         WHERE {data_expr} BETWEEN ? AND ?
+         GROUP BY {mes_expr}
          ORDER BY mes
         """,
         params,
     ).fetchall()
     dias = conn.execute(
-        """
-        SELECT DISTINCT COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) AS dia
+        f"""
+        SELECT DISTINCT {data_expr} AS dia
           FROM ovitrampas_leituras l
-         WHERE COALESCE(l.data_leitura, l.data_coleta, l.data_envio_contagem) BETWEEN ? AND ?
+         WHERE {data_expr} BETWEEN ? AND ?
          ORDER BY dia
         """,
         params,
     ).fetchall()
-    data = dict(row) if row else {}
+    data = _row_dict(row)
+    dias_data = _rows_dict(dias)
     return {
         "leituras": utils_core.safe_int(data.get("leituras")),
         "positivas": utils_core.safe_int(data.get("positivas")),
         "ovos": utils_core.safe_int(data.get("ovos")),
-        "dias": [r["dia"] for r in dias if r["dia"]],
-        "por_mes": [dict(r) for r in por_mes],
+        "dias": [r["dia"] for r in dias_data if r["dia"]],
+        "por_mes": _rows_dict(por_mes),
     }
 
 
@@ -548,6 +623,10 @@ def _resumo_ovitrampas_setor(d_ini, d_fim):
     conn = _get_db()
     try:
         ovitrampas_core.ensure_schema(conn)
+        agentes_agg = _distinct_aggregate(
+            conn,
+            "COALESCE(NULLIF(ag.nome_completo,''), ag.nome)",
+        )
         rows = conn.execute(
             f"""
             SELECT e.data,
@@ -556,14 +635,15 @@ def _resumo_ovitrampas_setor(d_ini, d_fim):
                    e.observacoes,
                    g.nome AS grupo,
                    g.localidades AS localidades,
-                   GROUP_CONCAT(DISTINCT COALESCE(NULLIF(ag.nome_completo,''), ag.nome)) AS agentes
+                   {agentes_agg} AS agentes
               FROM {ovitrampas_core.CAL_EVENTOS_TABLE} e
               LEFT JOIN {ovitrampas_core.CAL_GRUPOS_TABLE} g ON g.id_grupo=e.id_grupo
               LEFT JOIN {ovitrampas_core.CAL_AGENTES_TABLE} ea ON ea.id_evento=e.id_evento
               LEFT JOIN agentes ag ON ag.id_agente=ea.id_agente
              WHERE e.data BETWEEN ? AND ?
                AND e.movimento <> 'feriado'
-             GROUP BY e.id_evento
+             GROUP BY e.id_evento, e.data, e.movimento, e.ciclo,
+                      e.observacoes, g.nome, g.localidades
              ORDER BY e.data, e.id_evento
             """,
             (d_ini, d_fim),
@@ -581,7 +661,7 @@ def _resumo_ovitrampas_setor(d_ini, d_fim):
     agentes = set()
     movimentos = getattr(ovitrampas_core, "MOVIMENTOS", {})
     for row in rows:
-        item = dict(row)
+        item = _row_dict(row)
         movimento = item.get("movimento") or ""
         item["movimento_label"] = movimentos.get(movimento, movimento)
         eventos.append(item)
@@ -655,7 +735,7 @@ def _detalhe_atividade(atividade):
 
 def _obter_dados_setor(d_ini, d_fim):
     resumo = producao_operacional.resumo(
-        current_app.config["DB_PATH"],
+        _db_target(),
         {"d_ini": d_ini, "d_fim": d_fim},
     )
     _preparar_resumo_producao_relatorio(resumo)
@@ -688,12 +768,17 @@ def _producao_agentes_setor(d_ini, d_fim):
             data_expr = f"{alias}.{fonte['data_col']}"
             localidade_expr = fonte["localidade_expr"]
             joins = fonte.get("joins") or ""
+            dias_agg = _distinct_aggregate(conn, data_expr)
+            localidades_agg = _distinct_aggregate(
+                conn,
+                f"COALESCE({localidade_expr}, '')",
+            )
             rows = conn.execute(
                 f"""
                 SELECT COALESCE(NULLIF(ag.nome_completo,''), ag.nome) AS agente,
                        COUNT(DISTINCT {id_expr}) AS registros,
-                       GROUP_CONCAT(DISTINCT {data_expr}) AS dias,
-                       GROUP_CONCAT(DISTINCT COALESCE({localidade_expr}, '')) AS localidades
+                       {dias_agg} AS dias,
+                       {localidades_agg} AS localidades
                   FROM {fonte['tabela']} {alias}
                   JOIN {fonte['agente_table']} pa ON pa.{fonte['agente_fk']}={id_expr}
                   JOIN agentes ag ON ag.id_agente=pa.id_agente
@@ -738,6 +823,8 @@ def _producao_agentes_setor(d_ini, d_fim):
 def _metricas_visitas_setor(d_ini, d_fim):
     conn = _get_db()
     try:
+        duracao_v = _duration_expression(conn, "v")
+        duracao_e = _duration_expression(conn, "e")
         totais = conn.execute(
             """
             SELECT COUNT(DISTINCT v.id_visita) AS total,
@@ -786,7 +873,7 @@ def _metricas_visitas_setor(d_ini, d_fim):
         por_periodo = conn.execute(
             """
             SELECT periodo,
-                   COUNT(DISTINCT fonte || ':' || id_visita) AS total,
+                   COUNT(DISTINCT fonte || ':' || CAST(id_visita AS TEXT)) AS total,
                    COUNT(DISTINCT data) AS dias
               FROM (
                     SELECT 'vetor' AS fonte,
@@ -796,7 +883,7 @@ def _metricas_visitas_setor(d_ini, d_fim):
                       FROM visitas v
                      WHERE v.data BETWEEN ? AND ?
                        AND v.hora_inicio IS NOT NULL
-                       AND TRIM(v.hora_inicio)<>''
+                       AND TRIM(CAST(v.hora_inicio AS TEXT))<>''
                     UNION ALL
                     SELECT 'esporo' AS fonte,
                            e.id_visita,
@@ -805,7 +892,7 @@ def _metricas_visitas_setor(d_ini, d_fim):
                       FROM esporotricose_visitas e
                      WHERE e.data BETWEEN ? AND ?
                        AND e.hora_inicio IS NOT NULL
-                       AND TRIM(e.hora_inicio)<>''
+                       AND TRIM(CAST(e.hora_inicio AS TEXT))<>''
                    ) base
              GROUP BY periodo
              ORDER BY periodo
@@ -814,20 +901,20 @@ def _metricas_visitas_setor(d_ini, d_fim):
         ).fetchall()
 
         duracao_por_tipo = conn.execute(
-            """
+            f"""
             SELECT tipo, COUNT(*) AS n,
                    ROUND(AVG(dur),1) AS media,
                    ROUND(MIN(dur),1) AS minimo,
                    ROUND(MAX(dur),1) AS maximo
               FROM (
                     SELECT v.tipo AS tipo,
-                           (julianday(v.data||' '||v.hora_fim)-julianday(v.data||' '||v.hora_inicio))*24*60 AS dur
+                           {duracao_v} AS dur
                       FROM visitas v
                      WHERE v.data BETWEEN ? AND ?
                        AND v.hora_inicio IS NOT NULL AND v.hora_fim IS NOT NULL
                     UNION ALL
                     SELECT 'Esporotricose' AS tipo,
-                           (julianday(e.data||' '||e.hora_fim)-julianday(e.data||' '||e.hora_inicio))*24*60 AS dur
+                           {duracao_e} AS dur
                       FROM esporotricose_visitas e
                      WHERE e.data BETWEEN ? AND ?
                        AND e.hora_inicio IS NOT NULL AND e.hora_fim IS NOT NULL
@@ -840,7 +927,7 @@ def _metricas_visitas_setor(d_ini, d_fim):
         ).fetchall()
 
         duracao_por_acesso = conn.execute(
-            """
+            f"""
             SELECT grupo, COUNT(*) AS n,
                    ROUND(AVG(dur),1) AS media,
                    ROUND(MIN(dur),1) AS minimo,
@@ -848,14 +935,14 @@ def _metricas_visitas_setor(d_ini, d_fim):
               FROM (
                     SELECT CASE WHEN LOWER(COALESCE(v.visita,'')) IN ('normal','recuperado')
                                 THEN 'Acessados' ELSE 'Nao acessados' END AS grupo,
-                           (julianday(v.data||' '||v.hora_fim)-julianday(v.data||' '||v.hora_inicio))*24*60 AS dur
+                           {duracao_v} AS dur
                       FROM visitas v
                      WHERE v.data BETWEEN ? AND ?
                        AND v.hora_inicio IS NOT NULL AND v.hora_fim IS NOT NULL
                     UNION ALL
                     SELECT CASE WHEN LOWER(COALESCE(e.visita,'')) IN ('normal','recuperado')
                                 THEN 'Acessados' ELSE 'Nao acessados' END AS grupo,
-                           (julianday(e.data||' '||e.hora_fim)-julianday(e.data||' '||e.hora_inicio))*24*60 AS dur
+                           {duracao_e} AS dur
                       FROM esporotricose_visitas e
                      WHERE e.data BETWEEN ? AND ?
                        AND e.hora_inicio IS NOT NULL AND e.hora_fim IS NOT NULL
@@ -897,15 +984,15 @@ def _metricas_visitas_setor(d_ini, d_fim):
     finally:
         conn.close()
 
-    totais_d = dict(totais) if totais else {}
+    totais_d = _row_dict(totais)
     total = utils_core.safe_int(totais_d.get("total"))
     dias = utils_core.safe_int(totais_d.get("dias"))
-    dep_d = dict(dep) if dep else {}
+    dep_d = _row_dict(dep)
     dep_d["tratados"] = (
         utils_core.safe_int(dep_d.get("tratados"))
         + tratamentos_depositos_setor
     )
-    coletas_d = dict(coletas) if coletas else {}
+    coletas_d = _row_dict(coletas)
     total_coletas = utils_core.safe_int(coletas_d.get("total"))
     pos_aeg = utils_core.safe_int(coletas_d.get("pos_aeg"))
     return {
@@ -917,14 +1004,17 @@ def _metricas_visitas_setor(d_ini, d_fim):
                 1,
             ) if total else 0,
         },
-        "por_tipo": [dict(row) for row in por_tipo],
-        "por_status": [dict(row) for row in por_status],
+        "por_tipo": _rows_dict(por_tipo),
+        "por_status": _rows_dict(por_status),
         "por_periodo": [
-            {**dict(row), "media_dia": round((row["total"] or 0) / (row["dias"] or 1), 1)}
+            {
+                **_row_dict(row),
+                "media_dia": round((row["total"] or 0) / (row["dias"] or 1), 1),
+            }
             for row in por_periodo
         ],
-        "duracao_por_tipo": [dict(row) for row in duracao_por_tipo],
-        "duracao_por_acesso": [dict(row) for row in duracao_por_acesso],
+        "duracao_por_tipo": _rows_dict(duracao_por_tipo),
+        "duracao_por_acesso": _rows_dict(duracao_por_acesso),
         "depositos": dep_d,
         "coletas": {
             **coletas_d,
@@ -935,6 +1025,9 @@ def _metricas_visitas_setor(d_ini, d_fim):
 
 def _obter_dados(nome, d_ini, d_fim):
     conn = _get_db()
+    duracao_v = _duration_expression(conn, "v")
+    duracao_e = _duration_expression(conn, "e")
+    semana_expr = _week_start_expression(conn, "v.data")
     p = [nome, d_ini, d_fim]
     base_w = (
         "FROM visitas v "
@@ -973,7 +1066,7 @@ def _obter_dados(nome, d_ini, d_fim):
         ).fetchall()
 
         evolucao = conn.execute(
-            f"SELECT strftime('%Y-%m-%d',v.data,'weekday 0','-6 days') as semana, "
+            f"SELECT {semana_expr} as semana, "
             f"COUNT(DISTINCT v.id_visita) as total {base_w} GROUP BY semana ORDER BY semana", p
         ).fetchall()
 
@@ -997,14 +1090,14 @@ def _obter_dados(nome, d_ini, d_fim):
             LEFT JOIN resultados_laboratorio rl ON rl.id_coleta=c.id_coleta
             WHERE a.nome=? AND v.data BETWEEN ? AND ?""", p).fetchone()
 
-        tbo_raw = conn.execute("""
+        tbo_raw = conn.execute(f"""
             SELECT
                 CASE WHEN LOWER(sub.visita) IN ('normal','recuperado') THEN 'acessados'
                      ELSE 'nao_acessados' END as grupo,
                 COUNT(*) as n, ROUND(AVG(dur),1) as media,
                 ROUND(MIN(dur),1) as minimo, ROUND(MAX(dur),1) as maximo
             FROM (SELECT v.visita,
-                  (julianday(v.data||' '||v.hora_fim)-julianday(v.data||' '||v.hora_inicio))*24*60 AS dur
+                  {duracao_v} AS dur
                   FROM visitas v JOIN visita_agentes va ON va.id_visita=v.id_visita
                   JOIN agentes a ON a.id_agente=va.id_agente
                   WHERE a.nome=? AND v.data BETWEEN ? AND ? AND v.tipo=?
@@ -1013,13 +1106,13 @@ def _obter_dados(nome, d_ini, d_fim):
             p + [work_types.primary_duration_work_type_code()],
         ).fetchall()
         esporotricose_core.ensure_schema(conn)
-        duracao_tbo_raw = conn.execute("""
+        duracao_tbo_raw = conn.execute(f"""
             SELECT COUNT(*) AS n,
                    ROUND(AVG(dur),1) AS media,
                    ROUND(MIN(dur),1) AS minimo,
                    ROUND(MAX(dur),1) AS maximo
               FROM (
-                    SELECT (julianday(v.data||' '||v.hora_fim)-julianday(v.data||' '||v.hora_inicio))*24*60 AS dur
+                    SELECT {duracao_v} AS dur
                       FROM visitas v
                       JOIN visita_agentes va ON va.id_visita=v.id_visita
                       JOIN agentes a ON a.id_agente=va.id_agente
@@ -1029,13 +1122,13 @@ def _obter_dados(nome, d_ini, d_fim):
              WHERE dur BETWEEN 1 AND 240""",
             p + [work_types.primary_duration_work_type_code()],
         ).fetchone()
-        duracao_esporo_raw = conn.execute("""
+        duracao_esporo_raw = conn.execute(f"""
             SELECT COUNT(*) AS n,
                    ROUND(AVG(dur),1) AS media,
                    ROUND(MIN(dur),1) AS minimo,
                    ROUND(MAX(dur),1) AS maximo
               FROM (
-                    SELECT (julianday(e.data||' '||e.hora_fim)-julianday(e.data||' '||e.hora_inicio))*24*60 AS dur
+                    SELECT {duracao_e} AS dur
                       FROM esporotricose_visitas e
                       JOIN esporotricose_visita_agentes va ON va.id_visita=e.id_visita
                       JOIN agentes a ON a.id_agente=va.id_agente
@@ -1045,20 +1138,20 @@ def _obter_dados(nome, d_ini, d_fim):
              WHERE dur BETWEEN 1 AND 240""",
             p,
         ).fetchone()
-        duracao_total_raw = conn.execute("""
+        duracao_total_raw = conn.execute(f"""
             SELECT COUNT(*) AS n,
                    ROUND(AVG(dur),1) AS media,
                    ROUND(MIN(dur),1) AS minimo,
                    ROUND(MAX(dur),1) AS maximo
               FROM (
-                    SELECT (julianday(v.data||' '||v.hora_fim)-julianday(v.data||' '||v.hora_inicio))*24*60 AS dur
+                    SELECT {duracao_v} AS dur
                       FROM visitas v
                       JOIN visita_agentes va ON va.id_visita=v.id_visita
                       JOIN agentes a ON a.id_agente=va.id_agente
                      WHERE a.nome=? AND v.data BETWEEN ? AND ? AND v.tipo=?
                        AND v.hora_inicio IS NOT NULL AND v.hora_fim IS NOT NULL
                     UNION ALL
-                    SELECT (julianday(e.data||' '||e.hora_fim)-julianday(e.data||' '||e.hora_inicio))*24*60 AS dur
+                    SELECT {duracao_e} AS dur
                       FROM esporotricose_visitas e
                       JOIN esporotricose_visita_agentes ea ON ea.id_visita=e.id_visita
                       JOIN agentes ag ON ag.id_agente=ea.id_agente
@@ -1130,13 +1223,14 @@ def _obter_dados(nome, d_ini, d_fim):
     finally:
         conn.close()
 
-    totais_d = dict(totais) if totais else {}
-    dep_d = dict(dep) if dep else {}
+    totais_d = _row_dict(totais)
+    dep_d = _row_dict(dep)
     dep_d["trat"] = (
         utils_core.safe_int(dep_d.get("trat"))
         + tratamentos_depositos_agente
     )
-    col_d = dict(col) if col else {}
+    col_d = _row_dict(col)
+    tbo_rows = _rows_dict(tbo_raw)
     tv = utils_core.safe_int(totais_d.get("total", 0))
     dias = utils_core.safe_int(totais_d.get("dias", 0))
     tc = utils_core.safe_int(col_d.get("total", 0))
@@ -1147,7 +1241,7 @@ def _obter_dados(nome, d_ini, d_fim):
 
     por_periodo = {}
     for r in por_periodo_raw:
-        rd = dict(r)
+        rd = _row_dict(r)
         dias_p = utils_core.safe_int(rd.get("dias_periodo")) or 1
         por_periodo[rd["periodo"]] = {
             "total": utils_core.safe_int(rd.get("total", 0)),
@@ -1156,7 +1250,7 @@ def _obter_dados(nome, d_ini, d_fim):
 
     comparacao = {}
     if media_geral_raw:
-        mg = dict(media_geral_raw)
+        mg = _row_dict(media_geral_raw)
         n_ag = utils_core.safe_int(mg.get("num_agentes"))
         comparacao = {
             "media_total": round(mg.get("media_total") or 0, 1),
@@ -1175,7 +1269,7 @@ def _obter_dados(nome, d_ini, d_fim):
     laboratorio = _resumo_laboratorio_agente(nome, d_ini, d_fim)
     comparacao_esporotricose = {}
     if comparacao_esporo_raw:
-        ce = dict(comparacao_esporo_raw)
+        ce = _row_dict(comparacao_esporo_raw)
         comparacao_esporotricose = {
             "media_visitas": round(ce.get("media_visitas") or 0, 1),
             "media_dia": round(ce.get("media_dia") or 0, 1),
@@ -1189,18 +1283,18 @@ def _obter_dados(nome, d_ini, d_fim):
     return {
         "agente": agente_exibicao, "d_ini": d_ini, "d_fim": d_fim,
         "totais": totais_d,
-        "por_tipo": [dict(r) for r in por_tipo],
-        "por_loc": [dict(r) for r in por_loc],
-        "por_dia": [dict(r) for r in por_dia],
-        "evolucao": [dict(r) for r in evolucao],
+        "por_tipo": _rows_dict(por_tipo),
+        "por_loc": _rows_dict(por_loc),
+        "por_dia": _rows_dict(por_dia),
+        "evolucao": _rows_dict(evolucao),
         "dep": dep_d,
         "col": col_d,
-        "tbo_por_grupo": {r["grupo"]: dict(r) for r in tbo_raw},
+        "tbo_por_grupo": {r["grupo"]: r for r in tbo_rows},
         "duracao_visitas": {
             "tbo": duracao_tbo,
             "esporotricose": duracao_esporo,
             "total": duracao_total,
-            "por_grupo": {r["grupo"]: dict(r) for r in tbo_raw},
+            "por_grupo": {r["grupo"]: r for r in tbo_rows},
         },
         "taxa_normal": round(utils_core.safe_int(totais_d.get("normais", 0)) / tv * 100, 1) if tv else 0,
         "media_dia": round(tv / dias, 1) if dias else 0,
@@ -1234,7 +1328,7 @@ def _obter_dados(nome, d_ini, d_fim):
 
 
 def _duracao_dict(row):
-    data = dict(row) if row else {}
+    data = _row_dict(row)
     return {
         "n": utils_core.safe_int(data.get("n")),
         "media": data.get("media") if data.get("media") is not None else None,

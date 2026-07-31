@@ -37,7 +37,7 @@ Leia tambem:
 ## Estado da migracao PostgreSQL
 
 A migracao e gradual e dual: cada modulo convertido deve continuar funcionando
-em SQLite e PostgreSQL. A cobertura funcional esta em aproximadamente 92%.
+em SQLite e PostgreSQL. A cobertura funcional esta em aproximadamente 96%.
 
 Bancos conhecidos:
 
@@ -56,7 +56,7 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A ultima regressao ampla registrada teve 407 testes aprovados e 5 ignorados.
+A ultima regressao ampla registrada teve 419 testes aprovados e 5 ignorados.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
 conexoes SQLite em testes de Ovitrampas; nao confundir automaticamente com uma
 regressao nova.
@@ -82,10 +82,20 @@ regressao nova.
   relatorio tecnico, auditoria e permissoes.
 - Boletim Mensal: indicadores automaticos, ajustes e itens manuais, fechamento,
   PDF, XLSX, auditoria e permissoes.
+- Mapa geral: visitas, focos, Esporotricose, Pontos Estrategicos e camada de
+  Ovitrampas, incluindo filtros, datas e ordenacao alfanumerica.
+- Notificacoes: pagina, filtros, detalhe, historico, atualizacao de status,
+  impressoes HTML/DOCX e auditoria atomica.
+- Relatorio por Servidor: relatorio individual e consolidado do setor,
+  duracoes, evolucao semanal, producao operacional, laboratorio,
+  Esporotricose, Ovitrampas e Registro Geografico.
 
 Commits mais recentes da migracao:
 
 ```text
+2d175f9 docs: agrupar modulos nas revisoes multiagente
+ac23b99 fix: tratar concorrencia no boletim mensal
+44a87f2 feat: migrar boletim mensal para postgres
 7972bde fix: corrigir achados da revisao de acoes
 64930d1 feat: migrar acoes do setor para postgres
 4de3738 feat: migrar agenda e meteorologia para postgres
@@ -100,20 +110,20 @@ b5ff38b feat: concluir migracao de ovitrampas para postgres
 O novo padrao de trabalho e agrupar 2 ou 3 modulos relacionados por branch
 antes da revisao do Claude. O proximo lote recomendado reune:
 
-1. **Mapa geral** de `blueprints/mapa.py`;
-2. **Notificacoes** de `blueprints/notificacoes.py`;
-3. **Relatorio por Servidor** de `blueprints/relatorio_agente.py`.
+1. **Exportacoes e consolidados** de `blueprints/exportacoes.py` e rotinas
+   relacionadas;
+2. **Central do Sistema e administracao** de `blueprints/admin.py`, incluindo
+   diagnosticos e manutencao compativel com o backend selecionado.
 
-O lote deve preservar paginas, APIs, filtros, exportacoes, permissoes e
-auditoria aplicaveis, normalizar datas e agregacoes nos dois bancos e usar
-ensaios PostgreSQL isolados. As tabelas publicas de `endemias_teste` nao podem
-ser alteradas.
+O lote deve preservar paginas, downloads, permissoes e rotinas operacionais,
+separar backup/diagnostico por backend e usar ensaios PostgreSQL isolados. As
+tabelas publicas de `endemias_teste` nao podem ser alteradas.
 
 Depois, prosseguir com:
 
-1. exportacoes e consolidados;
-2. Central do Sistema, diagnosticos e rotinas administrativas;
-3. auditoria final de SQL exclusivo do SQLite.
+1. auditoria final de SQL exclusivo do SQLite;
+2. backup e restauracao PostgreSQL;
+3. ensaio integrado com uma copia recente do SQLite oficial.
 
 ## O que falta para abandonar o SQLite
 

@@ -107,25 +107,45 @@ com auditoria na mesma transacao. O ensaio isolado cobre permissao de leitura,
 bloqueio de edicao para visualizador, persistencia por operador e preservacao
 das tabelas publicas.
 
+## Lote concluido: Mapa, Notificacoes e Relatorio por Servidor
+
+O lote usa agora o destino dual nas paginas e APIs dos tres modulos. O Mapa
+normaliza datas de visitas e Ovitrampas, calcula PE atrasado sem `julianday` e
+usa filtros, `HAVING` e ordenacao alfanumerica portaveis. Notificacoes usa
+buscas case-insensitive nos dois bancos, `string_agg` no historico PostgreSQL
+e grava mudancas e auditoria na mesma transacao, com resposta retentavel para
+conflitos. O Relatorio por Servidor possui expressoes especificas por backend
+para duracao e semana, agregacoes portaveis e serializacao de datas e valores
+decimais.
+
+O ensaio integrado e:
+
+```powershell
+python scripts\testar_mapa_notificacoes_relatorio_postgresql.py `
+  --database endemias_teste
+```
+
+Ele cria tabelas temporarias para todo o esquema, abre as rotas reais dos tres
+modulos, exercita escrita e auditoria de Notificacoes e confirma que as `60`
+tabelas publicas ficaram inalteradas. A regressao ampla teve `419` testes
+aprovados e `5` ignorados.
+
 ## Protocolo recomendado para o proximo lote
 
-O proximo lote agrupa **Mapa geral**, **Notificacoes** e **Relatorio por
-Servidor**:
+O proximo lote agrupa **Exportacoes e consolidados** e **Central do Sistema**:
 
-1. Inspecionar `blueprints/mapa.py`, `blueprints/notificacoes.py`,
-   `blueprints/relatorio_agente.py`, templates, testes e fontes das APIs.
-2. Inventariar SQL exclusivo do SQLite, agregacoes, datas, filtros e tabelas
-   opcionais usadas pelos tres modulos.
-3. Passar paginas, APIs e exportacoes a usar o destino da camada dual.
-4. Preservar as regras territoriais de visitas, focos, cobertura e Ovitrampas.
-5. Preservar o fluxo de notificacoes, tentativas, entregas, permissoes e
-   auditoria.
-6. Preservar os indicadores e filtros individuais do Relatorio por Servidor.
-7. Normalizar datas e valores nativos antes de JSON, PDF, CSV ou XLSX.
-8. Criar ensaios PostgreSQL isolados com tabelas temporarias e abrir as rotas
-   reais dos tres modulos.
-9. Executar testes focados, regressao ampla e comparacao de esquema.
-10. Atualizar os documentos, fazer commit e push da branch do lote.
+1. Inspecionar `blueprints/exportacoes.py`, `blueprints/admin.py`, templates,
+   testes e os helpers de backup, diagnostico e manutencao.
+2. Inventariar acessos diretos ao arquivo SQLite e SQL exclusivo do backend.
+3. Passar consultas e exportacoes a usar o destino da camada dual.
+4. Manter downloads, nomes de arquivos, filtros e permissoes atuais.
+5. Separar diagnosticos e manutencao que continuem exclusivos do SQLite das
+   alternativas PostgreSQL.
+6. Nao ativar backup/restauracao PostgreSQL incompletos no sistema oficial.
+7. Criar ensaios PostgreSQL isolados e confirmar preservacao das tabelas
+   publicas.
+8. Executar testes focados, regressao ampla e comparacao de esquema.
+9. Atualizar os documentos, fazer commit e push da branch do lote.
 
 ## Operacao durante a migracao
 
@@ -198,6 +218,6 @@ Essas ideias foram discutidas, mas nao autorizam remover os fluxos atuais.
 3. Confirmar que SQLite segue como producao.
 4. Ler o final de `docs/POSTGRESQL_CAMADA_DUAL.md`.
 5. Verificar o PostgreSQL sem escrever em tabelas publicas.
-6. Retomar o lote Mapa, Notificacoes e Relatorio por Servidor, salvo nova
+6. Retomar o lote Exportacoes/Consolidados e Central do Sistema, salvo nova
    orientacao.
 7. Manter o usuario informado durante exploracao, edicao, testes e push.

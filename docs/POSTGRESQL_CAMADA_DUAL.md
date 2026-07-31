@@ -561,6 +561,37 @@ XLSX, permissoes e auditoria em treze tabelas temporarias. Ao final, confirma
 que as contagens das `60` tabelas publicas permaneceram inalteradas. A
 regressao ampla do lote teve `407` testes aprovados e `5` ignorados.
 
+## Mapa, Notificacoes e Relatorio por Servidor
+
+Os tres modulos foram homologados nos dois bancos. O recorte inclui:
+
+- Mapa geral com visitas, focos, Esporotricose, Pontos Estrategicos e
+  Ovitrampas;
+- calculo de PE atrasado sem funcoes de data exclusivas do SQLite;
+- filtros case-insensitive, `HAVING` e ordenacao alfanumerica portaveis;
+- serializacao uniforme de datas nativas, intervalos e valores decimais;
+- pagina, filtros, detalhe, historico e impressoes de Notificacoes;
+- atualizacao e auditoria de Notificacoes na mesma transacao;
+- resposta para nova tentativa em conflitos transitorios de escrita;
+- Relatorio por Servidor e consolidado do setor;
+- duracoes com `julianday` no SQLite e intervalos no PostgreSQL;
+- evolucao semanal, producao operacional, laboratorio, Esporotricose,
+  Ovitrampas e Registro Geografico;
+- agregacoes distintas com `GROUP_CONCAT` no SQLite e `string_agg` no
+  PostgreSQL.
+
+O ensaio controlado e:
+
+```powershell
+python scripts\testar_mapa_notificacoes_relatorio_postgresql.py `
+  --database endemias_teste
+```
+
+O script cria tabelas temporarias para todo o esquema, abre paginas e APIs
+reais, grava apenas nas tabelas temporarias de Notificacoes e compara as
+contagens publicas antes e depois. As `60` tabelas publicas permaneceram
+inalteradas. A regressao ampla teve `419` testes aprovados e `5` ignorados.
+
 Por seguranca, outro banco exige:
 
 ```powershell
@@ -604,9 +635,12 @@ foi homologado na sequencia. O Registro Geografico tambem esta coberto,
 incluindo cadastro, edicao, acompanhamento, mapa e impressao. Acoes e
 Atendimentos do Setor tambem esta homologado, incluindo anexos e relatorio
 tecnico. O Boletim Mensal tambem esta homologado, incluindo indicadores,
-fechamento, PDF e XLSX. O proximo lote agrupa **Mapa geral**, **Notificacoes**
-e **Relatorio por Servidor**, seguido por exportacoes, modulos administrativos
-e por um ensaio integrado com uma copia recente do SQLite oficial.
+fechamento, PDF e XLSX. Mapa geral, Notificacoes e Relatorio por Servidor
+tambem estao homologados, incluindo escrita auditada, relatorios individual e
+do setor e os blocos operacionais complementares. O proximo lote agrupa
+**Exportacoes e consolidados** e **Central do Sistema**, seguido pela auditoria
+final de SQL exclusivo, backup/restauracao PostgreSQL e por um ensaio integrado
+com uma copia recente do SQLite oficial.
 
 Cada lote deve:
 

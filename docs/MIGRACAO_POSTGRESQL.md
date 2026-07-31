@@ -49,6 +49,11 @@ auditoria foram exercitados com escritas somente em tabelas temporarias.
 O Boletim Mensal completa o lote seguinte, incluindo todos os indicadores
 automaticos, ajustes e itens manuais, fechamento mensal, PDF, XLSX, permissoes
 e auditoria transacional.
+Mapa geral, Notificacoes e Relatorio por Servidor completam o lote seguinte.
+Foram homologados filtros e camadas territoriais, historico e escritas
+auditadas de Notificacoes, relatorios individual e do setor, duracoes,
+evolucao semanal e os blocos de laboratorio, Esporotricose, Ovitrampas e
+Registro Geografico.
 
 ## Bancos locais
 
@@ -165,7 +170,10 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
    lote seguinte, incluindo CRUD, filtros, servidores, anexos, relatorio,
    permissoes e auditoria. O Boletim Mensal foi homologado na sequencia, com
    indicadores automaticos, fechamento, linhas manuais, PDF, XLSX, permissoes
-   e auditoria. A regressao ampla deste lote teve 407 testes aprovados e 5
+   e auditoria. Mapa geral, Notificacoes e Relatorio por Servidor foram
+   homologados na sequencia, incluindo consultas territoriais, escrita e
+   auditoria de Notificacoes, relatorios individual e consolidado e os blocos
+   complementares. A regressao ampla deste lote teve 419 testes aprovados e 5
    ignorados; as 60 tabelas publicas permaneceram inalteradas no ensaio
    PostgreSQL.
 6. Ensaiar a migracao com uma copia recente do banco oficial.

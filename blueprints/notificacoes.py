@@ -25,8 +25,8 @@ bp = Blueprint("notificacoes", __name__)
 login_required = auth_core.login_required
 
 
-def _db_path():
-    return current_app.config["DB_PATH"]
+def _db_target():
+    return db_core.configured_target(current_app.config)
 
 
 def _base_dir():
@@ -44,15 +44,33 @@ def _saida_dir():
 
 
 def get_db():
-    return db_core.connect(_db_path())
+    return db_core.connect(_db_target())
 
 
 def q(sql, params=()):
-    return db_core.query(_db_path(), sql, params)
+    return db_core.query(_db_target(), sql, params)
 
 
 def q1(sql, params=()):
-    return db_core.query_one(_db_path(), sql, params)
+    return db_core.query_one(_db_target(), sql, params)
+
+
+def _auditar(conn, acao, entidade_id=None, detalhes=None):
+    audit.registrar_evento(
+        get_db,
+        acao,
+        entidade="focos_positivos",
+        entidade_id=entidade_id,
+        detalhes=detalhes or {},
+        conn=conn,
+    )
+
+
+def _erro_banco(exc, operacao):
+    if db_core.is_concurrency_error(exc):
+        return jsonify({"erro": "Banco de dados ocupado. Tente novamente."}), 503
+    current_app.logger.exception("Erro ao %s em Notificacoes", operacao)
+    return jsonify({"erro": "Nao foi possivel concluir a operacao."}), 500
 
 
 def usuario_atual():
@@ -105,13 +123,21 @@ def page():
         where += f" AND l.nome IN ({','.join('?' * len(fl))})"
         params += fl
     if fa:
-        cond = " OR ".join(["f.agentes LIKE ?" for _ in fa])
+        cond = " OR ".join(
+            [
+                "LOWER(COALESCE(CAST(f.agentes AS TEXT),'')) LIKE LOWER(?)"
+                for _ in fa
+            ]
+        )
         where += f" AND ({cond})"
         params += [f"%{a}%" for a in fa]
     if busca:
         where += (
-            " AND (f.logradouro LIKE ? OR f.num_tubo LIKE ? OR f.nome_morador LIKE ? "
-            "OR CAST(f.quarteirao AS TEXT) LIKE ? OR f.codigo LIKE ?)"
+            " AND (LOWER(COALESCE(CAST(f.logradouro AS TEXT),'')) LIKE LOWER(?) "
+            "OR LOWER(COALESCE(CAST(f.num_tubo AS TEXT),'')) LIKE LOWER(?) "
+            "OR LOWER(COALESCE(CAST(f.nome_morador AS TEXT),'')) LIKE LOWER(?) "
+            "OR LOWER(COALESCE(CAST(f.quarteirao AS TEXT),'')) LIKE LOWER(?) "
+            "OR LOWER(COALESCE(CAST(f.codigo AS TEXT),'')) LIKE LOWER(?))"
         )
         b = f"%{busca}%"
         params += [b, b, b, b, b]
@@ -161,7 +187,7 @@ def page():
 
     return render_template(
         "notificacoes.html",
-        focos=[dict(f) for f in focos],
+        focos=[db_core.serialize_row(f) for f in focos],
         contadores=contadores,
         tipos=tipos_n,
         localidades_n=locs_n,
@@ -194,9 +220,13 @@ def foco_detalhe(id_foco):
         abort(404)
     historico = []
     if foco.get("logradouro"):
+        if db_core.is_sqlite(_db_target()):
+            agentes_agg = "GROUP_CONCAT(DISTINCT a.nome)"
+        else:
+            agentes_agg = "string_agg(DISTINCT CAST(a.nome AS TEXT), ', ')"
         historico = q(
-            """
-            SELECT v.data, v.tipo, v.visita, GROUP_CONCAT(DISTINCT a.nome) as agentes
+            f"""
+            SELECT v.data, v.tipo, v.visita, {agentes_agg} as agentes
             FROM visitas v
             LEFT JOIN visita_agentes va ON va.id_visita=v.id_visita
             LEFT JOIN agentes a ON a.id_agente=va.id_agente
@@ -239,8 +269,11 @@ def foco_atualizar(id_foco):
         "agentes",
     ]
     vals = {c: request.form.get(c) or None for c in campos}
-    conn = get_db()
+    conn = None
+    anterior = None
+    alterados = []
     try:
+        conn = get_db()
         anterior = conn.execute(
             f"SELECT {','.join(campos)} FROM focos_positivos WHERE id_foco=?",
             (id_foco,),
@@ -260,7 +293,6 @@ def foco_atualizar(id_foco):
         if anterior:
             usuario = session.get("nome", "desconhecido")
             agora = datetime.now().isoformat()
-            alterados = []
             for i, campo in enumerate(campos):
                 ant = anterior[i]
                 nov = vals[campo]
@@ -275,16 +307,20 @@ def foco_atualizar(id_foco):
                         (id_foco, campo, ant, nov, usuario, agora),
                     )
 
+        _auditar(
+            conn,
+            "notificacao_atualizada",
+            entidade_id=id_foco,
+            detalhes={"campos": alterados if anterior else []},
+        )
         conn.commit()
+    except Exception as exc:
+        if conn is not None:
+            conn.rollback()
+        return _erro_banco(exc, "atualizar notificacao")
     finally:
-        conn.close()
-    audit.registrar_evento(
-        get_db,
-        "notificacao_atualizada",
-        entidade="focos_positivos",
-        entidade_id=id_foco,
-        detalhes={"campos": alterados if anterior else []},
-    )
+        if conn is not None:
+            conn.close()
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return jsonify({"ok": True})
     return redirect(url_for("notificacoes.foco_detalhe", id_foco=id_foco))
@@ -297,8 +333,10 @@ def foco_status_rapido(id_foco):
     novo = request.json.get("status") if request.is_json else request.form.get("status")
     if novo not in work_types.STATUS_OPTIONS + [None]:
         return jsonify({"erro": "Status invalido"}), 400
-    conn = get_db()
+    conn = None
+    ant = None
     try:
+        conn = get_db()
         ant_row = conn.execute(
             "SELECT status_notificacao FROM focos_positivos WHERE id_foco=?",
             (id_foco,),
@@ -322,16 +360,20 @@ def foco_status_rapido(id_foco):
                     datetime.now().isoformat(),
                 ),
             )
+        _auditar(
+            conn,
+            "notificacao_status_atualizado",
+            entidade_id=id_foco,
+            detalhes={"status_antigo": ant, "status_novo": novo},
+        )
         conn.commit()
+    except Exception as exc:
+        if conn is not None:
+            conn.rollback()
+        return _erro_banco(exc, "atualizar status da notificacao")
     finally:
-        conn.close()
-    audit.registrar_evento(
-        get_db,
-        "notificacao_status_atualizado",
-        entidade="focos_positivos",
-        entidade_id=id_foco,
-        detalhes={"status_antigo": ant, "status_novo": novo},
-    )
+        if conn is not None:
+            conn.close()
     return jsonify({"ok": True, "status": novo})
 
 
@@ -342,41 +384,46 @@ def imprimir():
     ids = request.form.getlist("ids")
     if not ids:
         return redirect(url_for("notificacoes.page"))
-    conn = get_db()
+    conn = None
     focos = []
-    for id_foco in ids:
-        row = conn.execute(
-            """
-            SELECT f.*, l.nome AS localidade_nome FROM focos_positivos f
-            LEFT JOIN localidades l ON l.id_localidade=f.id_localidade
-            WHERE f.id_foco=? AND f.gera_notificacao=1
-            """,
-            (id_foco,),
-        ).fetchone()
-        if row:
-            focos.append(dict(row))
-    if not focos:
-        conn.close()
-        return "Nenhum foco valido.", 400
     try:
-        caminho = gerar_docx(focos)
-    except Exception as exc:
-        conn.close()
-        return f"Erro ao gerar DOCX: {exc}", 500
-    for foco in focos:
-        conn.execute(
-            """UPDATE focos_positivos SET status_notificacao='impressa'
-               WHERE id_foco=? AND COALESCE(status_notificacao,'pendente')='pendente'""",
-            (foco["id_foco"],),
+        conn = get_db()
+        for id_foco in ids:
+            row = conn.execute(
+                """
+                SELECT f.*, l.nome AS localidade_nome FROM focos_positivos f
+                LEFT JOIN localidades l ON l.id_localidade=f.id_localidade
+                WHERE f.id_foco=? AND f.gera_notificacao=1
+                """,
+                (id_foco,),
+            ).fetchone()
+            if row:
+                focos.append(db_core.serialize_row(row))
+        if not focos:
+            return "Nenhum foco valido.", 400
+        try:
+            caminho = gerar_docx(focos)
+        except Exception as exc:
+            return f"Erro ao gerar DOCX: {exc}", 500
+        for foco in focos:
+            conn.execute(
+                """UPDATE focos_positivos SET status_notificacao='impressa'
+                   WHERE id_foco=? AND COALESCE(status_notificacao,'pendente')='pendente'""",
+                (foco["id_foco"],),
+            )
+        _auditar(
+            conn,
+            "notificacao_docx_impressa",
+            detalhes={"ids": [f["id_foco"] for f in focos], "total": len(focos)},
         )
-    conn.commit()
-    conn.close()
-    audit.registrar_evento(
-        get_db,
-        "notificacao_docx_impressa",
-        entidade="focos_positivos",
-        detalhes={"ids": [f["id_foco"] for f in focos], "total": len(focos)},
-    )
+        conn.commit()
+    except Exception as exc:
+        if conn is not None:
+            conn.rollback()
+        return _erro_banco(exc, "imprimir notificacoes em DOCX")
+    finally:
+        if conn is not None:
+            conn.close()
     return send_file(
         caminho,
         as_attachment=True,
@@ -611,7 +658,7 @@ def _focos_para_impressao(ids):
                 (id_foco,),
             ).fetchone()
             if row:
-                focos.append(dict(row))
+                focos.append(db_core.serialize_row(row))
     finally:
         conn.close()
     return focos
@@ -624,23 +671,28 @@ def imprimir_html_single(id_foco):
     focos = _focos_para_impressao([id_foco])
     if not focos:
         abort(404)
-    conn = get_db()
+    conn = None
     try:
+        conn = get_db()
         conn.execute(
             """UPDATE focos_positivos SET status_notificacao='impressa'
                WHERE id_foco=? AND COALESCE(status_notificacao,'pendente')='pendente'""",
             (id_foco,),
         )
+        _auditar(
+            conn,
+            "notificacao_html_impressa",
+            entidade_id=id_foco,
+            detalhes={"total": 1},
+        )
         conn.commit()
+    except Exception as exc:
+        if conn is not None:
+            conn.rollback()
+        return _erro_banco(exc, "imprimir notificacao em HTML")
     finally:
-        conn.close()
-    audit.registrar_evento(
-        get_db,
-        "notificacao_html_impressa",
-        entidade="focos_positivos",
-        entidade_id=id_foco,
-        detalhes={"total": 1},
-    )
+        if conn is not None:
+            conn.close()
     return render_template(
         "notificacao_print.html",
         focos=focos,
@@ -659,23 +711,28 @@ def imprimir_html_lote():
     focos = _focos_para_impressao(ids)
     if not focos:
         return "Nenhum foco valido.", 400
-    conn = get_db()
+    conn = None
     try:
+        conn = get_db()
         for foco in focos:
             conn.execute(
                 """UPDATE focos_positivos SET status_notificacao='impressa'
                    WHERE id_foco=? AND COALESCE(status_notificacao,'pendente')='pendente'""",
                 (foco["id_foco"],),
             )
+        _auditar(
+            conn,
+            "notificacao_html_impressa",
+            detalhes={"ids": [f["id_foco"] for f in focos], "total": len(focos)},
+        )
         conn.commit()
+    except Exception as exc:
+        if conn is not None:
+            conn.rollback()
+        return _erro_banco(exc, "imprimir notificacoes em HTML")
     finally:
-        conn.close()
-    audit.registrar_evento(
-        get_db,
-        "notificacao_html_impressa",
-        entidade="focos_positivos",
-        detalhes={"ids": [f["id_foco"] for f in focos], "total": len(focos)},
-    )
+        if conn is not None:
+            conn.close()
     return render_template(
         "notificacao_print.html",
         focos=focos,
