@@ -37,7 +37,7 @@ Leia tambem:
 ## Estado da migracao PostgreSQL
 
 A migracao e gradual e dual: cada modulo convertido deve continuar funcionando
-em SQLite e PostgreSQL. A cobertura funcional esta em aproximadamente 90%.
+em SQLite e PostgreSQL. A cobertura funcional esta em aproximadamente 92%.
 
 Bancos conhecidos:
 
@@ -56,7 +56,7 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A ultima regressao ampla registrada teve 399 testes aprovados e 5 ignorados.
+A ultima regressao ampla registrada teve 405 testes aprovados e 5 ignorados.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
 conexoes SQLite em testes de Ovitrampas; nao confundir automaticamente com uma
 regressao nova.
@@ -80,10 +80,14 @@ regressao nova.
 - Agenda, Pagina Inicial e Meteorologia;
 - Acoes e Atendimentos do Setor: CRUD, filtros, servidores, anexos, galeria,
   relatorio tecnico, auditoria e permissoes.
+- Boletim Mensal: indicadores automaticos, ajustes e itens manuais, fechamento,
+  PDF, XLSX, auditoria e permissoes.
 
 Commits mais recentes da migracao:
 
 ```text
+7972bde fix: corrigir achados da revisao de acoes
+64930d1 feat: migrar acoes do setor para postgres
 4de3738 feat: migrar agenda e meteorologia para postgres
 bfa38c8 feat: migrar importacao kobo para postgres
 409be89 feat: migrar registro geografico para postgres
@@ -93,24 +97,22 @@ b5ff38b feat: concluir migracao de ovitrampas para postgres
 
 ## Proxima tarefa recomendada
 
-Migrar **Boletim Mensal** para a camada dual, incluindo:
+Migrar o **Mapa geral** de `blueprints/mapa.py` para a camada dual, incluindo:
 
-- indicadores automaticos e itens manuais;
-- consulta, edicao e persistencia do fechamento mensal;
-- geracao do PDF e exportacao XLSX;
-- leitura das fontes operacionais nos dois bancos;
-- auditoria e permissoes;
+- pagina, estatisticas por quarteirao e filtros territoriais;
+- camadas de visitas, focos e cobertura por localidade;
+- API e visualizacao das Ovitrampas;
+- normalizacao das datas e agregacoes nos dois bancos;
 - teste PostgreSQL isolado em tabelas temporarias;
 - garantia de que tabelas publicas de `endemias_teste` nao sejam alteradas.
 
 Depois, prosseguir com:
 
-1. mapa geral fora do Registro Geografico;
-2. Notificacoes;
-3. Relatorio por Servidor;
-4. exportacoes e consolidados;
-5. Central do Sistema, diagnosticos e rotinas administrativas;
-6. auditoria final de SQL exclusivo do SQLite.
+1. Notificacoes;
+2. Relatorio por Servidor;
+3. exportacoes e consolidados;
+4. Central do Sistema, diagnosticos e rotinas administrativas;
+5. auditoria final de SQL exclusivo do SQLite.
 
 ## O que falta para abandonar o SQLite
 

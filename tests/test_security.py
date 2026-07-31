@@ -6847,11 +6847,9 @@ class MainApisSmokeTests(unittest.TestCase):
                     resp.close()
 
     def test_boletim_mensal_salva_linha_manual(self):
-        client = _client_logado("admin")
-        original = endemias_app.app.config.get("WTF_CSRF_ENABLED", True)
-        endemias_app.app.config["WTF_CSRF_ENABLED"] = False
-        chave = "manual_teste_unitario"
-        try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            chave = "manual_teste_unitario"
             resp = client.post(
                 "/api/boletim-mensal",
                 json={
@@ -6868,21 +6866,22 @@ class MainApisSmokeTests(unittest.TestCase):
                 },
             )
             dados = resp.get_json()
-        finally:
-            endemias_app.app.config["WTF_CSRF_ENABLED"] = original
-            conn = sqlite3.connect(endemias_app.DB_PATH)
+            conn = sqlite3.connect(db_path)
             try:
-                conn.execute(
-                    "DELETE FROM boletim_mensal_itens WHERE ano_mes=? AND chave=?",
-                    ("2099-12", chave),
-                )
-                conn.commit()
+                evento = conn.execute(
+                    """SELECT acao, entidade_id
+                         FROM auditoria_eventos
+                        WHERE acao='boletim_mensal_salvou'
+                        ORDER BY id_evento DESC
+                        LIMIT 1"""
+                ).fetchone()
             finally:
                 conn.close()
 
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(dados["ok"])
         self.assertEqual(dados["total"], 3)
+        self.assertEqual(evento, ("boletim_mensal_salvou", "2099-12"))
 
     def test_boletim_mensal_normaliza_indicador_antigo_sem_acento(self):
         from app_core import boletim_mensal as boletim_core

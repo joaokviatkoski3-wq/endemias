@@ -73,7 +73,8 @@ Os scripts existentes sao a referencia, especialmente:
 - `scripts/testar_ovitrampas_postgresql.py`;
 - `scripts/testar_registro_geografico_postgresql.py`;
 - `scripts/testar_agenda_home_postgresql.py`;
-- `scripts/testar_acoes_setor_postgresql.py`.
+- `scripts/testar_acoes_setor_postgresql.py`;
+- `scripts/testar_boletim_mensal_postgresql.py`.
 
 Um novo ensaio deve:
 
@@ -94,26 +95,34 @@ $py = 'C:\Users\Geoprocessamento\AppData\Local\Python\pythoncore-3.14-64\python.
 & $py scripts\verificar_postgresql.py --database endemias_teste
 ```
 
-Nao presuma que a regressao continua em 399 testes: o numero cresce. Registre
-no documento da migracao o resultado atual de cada lote.
+Nao presuma que a regressao continua no ultimo total registrado: o numero
+cresce. Registre no documento da migracao o resultado atual de cada lote.
+
+## Lote concluido: Boletim Mensal
+
+O Boletim Mensal usa agora o destino dual em pagina, APIs, PDF e XLSX. A
+manutencao do esquema ficou restrita ao SQLite, os indicadores leem as fontes
+operacionais nos dois bancos e o fechamento grava ajustes e linhas manuais
+com auditoria na mesma transacao. O ensaio isolado cobre permissao de leitura,
+bloqueio de edicao para visualizador, persistencia por operador e preservacao
+das tabelas publicas.
 
 ## Protocolo recomendado para o proximo lote
 
-Para **Boletim Mensal**:
+Para o **Mapa geral**:
 
-1. Inspecionar `blueprints/boletim_mensal.py`, `app_core/boletim_mensal.py`,
-   templates, testes e tabela de itens mensais.
-2. Inventariar os indicadores automaticos e todas as tabelas operacionais que
-   alimentam o boletim.
-3. Restringir a manutencao de esquema em tempo de execucao ao SQLite.
-4. Levar consultas, itens manuais e persistencia para o destino dual.
-5. Preservar precedencia, ativacao, ordem, unidades e ajustes manuais.
-6. Testar pagina, APIs, fechamento mensal, PDF e exportacao XLSX.
-7. Criar `scripts/testar_boletim_mensal_postgresql.py` no padrao isolado.
-8. Executar testes focados, ensaio PostgreSQL, regressao ampla e comparacao de
-   esquema.
-9. Atualizar os documentos PostgreSQL e este checkpoint se necessario.
-10. Commitar e fazer push.
+1. Inspecionar `blueprints/mapa.py`, `templates/mapa.html`, testes e todas as
+   fontes das duas APIs do modulo.
+2. Inventariar SQL exclusivo do SQLite, agregacoes, datas, filtros e tabelas
+   opcionais usadas nas camadas territoriais.
+3. Passar pagina e APIs a usar o destino configurado pela camada dual.
+4. Preservar as regras de quarteirao, localidade, visitas, focos, cobertura e
+   Ovitrampas.
+5. Normalizar datas e valores nativos antes da serializacao JSON.
+6. Criar um ensaio PostgreSQL isolado com tabelas temporarias e abrir a pagina
+   e as duas APIs reais.
+7. Executar testes focados, regressao ampla e comparacao de esquema.
+8. Atualizar os documentos PostgreSQL, fazer commit e push da branch.
 
 ## Operacao durante a migracao
 
@@ -186,5 +195,5 @@ Essas ideias foram discutidas, mas nao autorizam remover os fluxos atuais.
 3. Confirmar que SQLite segue como producao.
 4. Ler o final de `docs/POSTGRESQL_CAMADA_DUAL.md`.
 5. Verificar o PostgreSQL sem escrever em tabelas publicas.
-6. Retomar Boletim Mensal como proximo lote, salvo nova orientacao.
+6. Retomar o Mapa geral como proximo lote, salvo nova orientacao.
 7. Manter o usuario informado durante exploracao, edicao, testes e push.

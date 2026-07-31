@@ -26,8 +26,11 @@ LEGACY_INDICADORES = {
 }
 
 
-def ensure_schema(db_path):
-    conn = db_core.connect(db_path)
+def ensure_schema(target):
+    if not db_core.is_sqlite(target):
+        return
+
+    conn = db_core.connect(target)
     try:
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS boletim_mensal_itens (
@@ -71,10 +74,7 @@ def periodo_mes(ano_mes):
 
 
 def _table_exists(conn, table):
-    return bool(conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
-        (table,),
-    ).fetchone())
+    return db_core.table_exists(conn, table)
 
 
 def _scalar(conn, sql, params=(), default=0):
@@ -102,10 +102,10 @@ def _linha(chave, indicador, quantidade, unidade="", ordem=0, origem="auto", ati
     }
 
 
-def linhas_automaticas(db_path, ano_mes):
+def linhas_automaticas(target, ano_mes):
     periodo = periodo_mes(ano_mes)
     d_ini, d_fim = periodo["d_ini"], periodo["d_fim"]
-    conn = db_core.connect(db_path)
+    conn = db_core.connect(target)
     try:
         linhas = [
             _linha(
@@ -276,9 +276,9 @@ def linhas_automaticas(db_path, ano_mes):
         conn.close()
 
 
-def _salvos(db_path, ano_mes):
-    ensure_schema(db_path)
-    conn = db_core.connect(db_path)
+def _salvos(target, ano_mes):
+    ensure_schema(target)
+    conn = db_core.connect(target)
     try:
         rows = conn.execute("""
             SELECT chave, origem, ordem, indicador, quantidade, unidade, ativo
@@ -291,13 +291,13 @@ def _salvos(db_path, ano_mes):
         conn.close()
 
 
-def boletim(db_path, ano_mes, usar_salvos=True):
+def boletim(target, ano_mes, usar_salvos=True):
     periodo = periodo_mes(ano_mes)
-    autos = linhas_automaticas(db_path, periodo["ano_mes"])
+    autos = linhas_automaticas(target, periodo["ano_mes"])
     if not usar_salvos:
         linhas = autos
     else:
-        salvos = _salvos(db_path, periodo["ano_mes"])
+        salvos = _salvos(target, periodo["ano_mes"])
         por_chave = {row["chave"]: row for row in salvos}
         linhas = []
         for auto in autos:
@@ -338,39 +338,60 @@ def boletim(db_path, ano_mes, usar_salvos=True):
     }
 
 
-def salvar(db_path, ano_mes, linhas):
+def substituir_itens(conn, ano_mes, linhas):
+    """Substitui os itens do mes usando a transacao controlada pelo chamador."""
     periodo = periodo_mes(ano_mes)
-    ensure_schema(db_path)
     agora = datetime.now().isoformat(timespec="seconds")
-    conn = db_core.connect(db_path)
+    conn.execute(
+        "DELETE FROM boletim_mensal_itens WHERE ano_mes=?",
+        (periodo["ano_mes"],),
+    )
+    inseridos = 0
+    ativos = 0
+    for idx, item in enumerate(linhas or [], 1):
+        indicador = (item.get("indicador") or "").strip()
+        if not indicador:
+            continue
+        chave = (item.get("chave") or "").strip() or f"manual_{uuid.uuid4().hex}"
+        origem = item.get("origem") if item.get("origem") in ("auto", "manual") else "manual"
+        try:
+            quantidade = int(item.get("quantidade") or 0)
+        except (TypeError, ValueError):
+            quantidade = 0
+        ativo = 1 if item.get("ativo", True) else 0
+        conn.execute("""
+            INSERT INTO boletim_mensal_itens
+                (ano_mes, chave, origem, ordem, indicador, quantidade, unidade, ativo, atualizado_em)
+            VALUES (?,?,?,?,?,?,?,?,?)
+        """, (
+            periodo["ano_mes"],
+            chave,
+            origem,
+            int(item.get("ordem") or idx * 10),
+            indicador,
+            quantidade,
+            (item.get("unidade") or "").strip(),
+            ativo,
+            agora,
+        ))
+        inseridos += 1
+        ativos += ativo
+    return {
+        "ano_mes": periodo["ano_mes"],
+        "itens": inseridos,
+        "ativos": ativos,
+    }
+
+
+def salvar(target, ano_mes, linhas):
+    ensure_schema(target)
+    conn = db_core.connect(target)
     try:
-        conn.execute("DELETE FROM boletim_mensal_itens WHERE ano_mes=?", (periodo["ano_mes"],))
-        for idx, item in enumerate(linhas or [], 1):
-            indicador = (item.get("indicador") or "").strip()
-            if not indicador:
-                continue
-            chave = (item.get("chave") or "").strip() or f"manual_{uuid.uuid4().hex}"
-            origem = item.get("origem") if item.get("origem") in ("auto", "manual") else "manual"
-            try:
-                quantidade = int(item.get("quantidade") or 0)
-            except (TypeError, ValueError):
-                quantidade = 0
-            conn.execute("""
-                INSERT INTO boletim_mensal_itens
-                    (ano_mes, chave, origem, ordem, indicador, quantidade, unidade, ativo, atualizado_em)
-                VALUES (?,?,?,?,?,?,?,?,?)
-            """, (
-                periodo["ano_mes"],
-                chave,
-                origem,
-                int(item.get("ordem") or idx * 10),
-                indicador,
-                quantidade,
-                (item.get("unidade") or "").strip(),
-                1 if item.get("ativo", True) else 0,
-                agora,
-            ))
+        resumo = substituir_itens(conn, ano_mes, linhas)
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
-    return boletim(db_path, periodo["ano_mes"], usar_salvos=True)
+    return boletim(target, resumo["ano_mes"], usar_salvos=True)

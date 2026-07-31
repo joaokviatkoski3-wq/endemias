@@ -3,9 +3,10 @@ import logging
 from datetime import datetime
 
 import openpyxl
-from flask import Blueprint, current_app, jsonify, render_template, request, send_file
+from flask import Blueprint, jsonify, render_template, request, send_file
 from openpyxl.styles import Alignment, Font, PatternFill
 
+from app_core import audit
 from app_core import auth as auth_core
 from app_core import boletim_mensal as boletim_core
 from app_core import blueprint_helpers as bh
@@ -17,10 +18,6 @@ login_required = auth_core.login_required
 nivel_min = bh.nivel_min
 
 
-def _db_path():
-    return current_app.config["DB_PATH"]
-
-
 def _mes_arg():
     return request.args.get("mes") or request.form.get("mes") or ""
 
@@ -28,7 +25,7 @@ def _mes_arg():
 @bp.route("/boletim-mensal")
 @login_required
 def page():
-    boletim_core.ensure_schema(_db_path())
+    boletim_core.ensure_schema(bh.db_target())
     return render_template("boletim_mensal.html")
 
 
@@ -36,7 +33,13 @@ def page():
 @login_required
 def api_boletim():
     usar_salvos = request.args.get("modo") != "auto"
-    return jsonify(boletim_core.boletim(_db_path(), _mes_arg(), usar_salvos=usar_salvos))
+    return jsonify(
+        boletim_core.boletim(
+            bh.db_target(),
+            _mes_arg(),
+            usar_salvos=usar_salvos,
+        )
+    )
 
 
 @bp.route("/api/boletim-mensal", methods=["POST"])
@@ -44,25 +47,63 @@ def api_boletim():
 @nivel_min("operador")
 def api_salvar():
     dados = request.get_json(silent=True) or {}
+    target = bh.db_target()
+    conn = None
     try:
-        boletim = boletim_core.salvar(_db_path(), dados.get("mes", ""), dados.get("linhas", []))
+        boletim_core.ensure_schema(target)
+        conn = bh.get_db()
+        resumo = boletim_core.substituir_itens(
+            conn,
+            dados.get("mes", ""),
+            dados.get("linhas", []),
+        )
+        audit.registrar_evento(
+            bh.get_db,
+            "boletim_mensal_salvou",
+            entidade="boletim_mensal_itens",
+            entidade_id=resumo["ano_mes"],
+            detalhes={
+                "itens": resumo["itens"],
+                "ativos": resumo["ativos"],
+            },
+            conn=conn,
+        )
+        conn.commit()
+        boletim = boletim_core.boletim(
+            target,
+            resumo["ano_mes"],
+            usar_salvos=True,
+        )
         return jsonify({"ok": True, **boletim})
     except Exception:
+        if conn is not None:
+            conn.rollback()
         logging.exception("Erro ao salvar boletim mensal")
         return jsonify({"erro": "Erro ao salvar boletim mensal."}), 500
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 @bp.route("/boletim-mensal/pdf")
 @login_required
 def pdf():
-    dados = boletim_core.boletim(_db_path(), _mes_arg(), usar_salvos=True)
+    dados = boletim_core.boletim(
+        bh.db_target(),
+        _mes_arg(),
+        usar_salvos=True,
+    )
     return render_template("boletim_mensal_pdf.html", **dados)
 
 
 @bp.route("/api/boletim-mensal/exportar")
 @login_required
 def exportar_xlsx():
-    dados = boletim_core.boletim(_db_path(), _mes_arg(), usar_salvos=True)
+    dados = boletim_core.boletim(
+        bh.db_target(),
+        _mes_arg(),
+        usar_salvos=True,
+    )
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Boletim Mensal"

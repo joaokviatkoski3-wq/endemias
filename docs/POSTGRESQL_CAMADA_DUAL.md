@@ -532,6 +532,34 @@ final, confirma que as contagens das `60` tabelas publicas permaneceram
 inalteradas. A regressao ampla do lote teve `399` testes aprovados e `5`
 ignorados.
 
+## Boletim Mensal
+
+O **Boletim Mensal** foi homologado nos dois bancos. O recorte inclui:
+
+- indicadores automaticos de visitas PVE, TB, TBO e PE;
+- depositos inspecionados e eliminados, coletas e focos positivos;
+- visitas e animais de Esporotricose;
+- recolhimentos, pneus, BRI, amostras de animais e Acoes do Setor;
+- ajustes dos indicadores automaticos e inclusao de linhas manuais;
+- ordem, unidade, ativacao e total do fechamento mensal;
+- pagina, relatorio para PDF e exportacao XLSX;
+- permissao de leitura para visualizador e edicao a partir de operador;
+- auditoria gravada na mesma transacao do fechamento;
+- manutencao de esquema em tempo de execucao restrita ao SQLite;
+- deteccao de tabelas pelo helper compativel com ambos os bancos.
+
+O ensaio controlado e:
+
+```powershell
+python scripts\testar_boletim_mensal_postgresql.py `
+  --database endemias_teste
+```
+
+O script exercita todas as fontes operacionais, ajustes, linhas manuais, PDF,
+XLSX, permissoes e auditoria em treze tabelas temporarias. Ao final, confirma
+que as contagens das `60` tabelas publicas permaneceram inalteradas. A
+regressao ampla do lote teve `405` testes aprovados e `5` ignorados.
+
 Por seguranca, outro banco exige:
 
 ```powershell
@@ -574,9 +602,10 @@ laboratorial de Ovitrampas tambem estao prontos. O espelho Conta Ovos/SisPNCD
 foi homologado na sequencia. O Registro Geografico tambem esta coberto,
 incluindo cadastro, edicao, acompanhamento, mapa e impressao. Acoes e
 Atendimentos do Setor tambem esta homologado, incluindo anexos e relatorio
-tecnico. O proximo grande recorte e **Boletim Mensal**, seguido pelos demais
-relatorios, modulos auxiliares e por um ensaio integrado com uma copia recente
-do SQLite oficial.
+tecnico. O Boletim Mensal tambem esta homologado, incluindo indicadores,
+fechamento, PDF e XLSX. O proximo grande recorte e o **Mapa geral** fora do
+Registro Geografico, seguido pelos demais relatorios, modulos auxiliares e por
+um ensaio integrado com uma copia recente do SQLite oficial.
 
 Cada lote deve:
 
