@@ -2,6 +2,10 @@
 
 Estas instrucoes se aplicam a todo o repositorio.
 
+Antes de iniciar qualquer trabalho, leia `CONTEXTO_PARA_IA.md`. Ele registra o
+estado atual do projeto, a migracao gradual para PostgreSQL, os modulos ja
+homologados, as pendencias e os cuidados operacionais.
+
 ## Versionamento do sistema
 
 Agentes de IA tem autonomia para atualizar a numeracao da versao do sistema quando julgarem que o conjunto de alteracoes justifica uma nova versao. Nao e necessario solicitar confirmacao previa exclusivamente para essa atualizacao.
