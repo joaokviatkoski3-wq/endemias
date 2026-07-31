@@ -131,15 +131,73 @@ class DiagnosticoPostgreSQLCompatTests(unittest.TestCase):
         self.assertEqual(itens[0]["nivel"], "info")
         self.assertIn("PostgreSQL", itens[0]["titulo"])
 
+    def test_notificacoes_atrasadas_comparam_data_pura_nos_dois_bancos(self):
+        conn = mock.Mock(backend="postgresql")
+        conn.execute.side_effect = [
+            _Cursor(row=(1,)),
+            _Cursor(row=(1,)),
+        ]
+        itens = []
+
+        diagnostico._check_dados_operacionais(
+            conn,
+            {"focos_positivos"},
+            itens,
+        )
+
+        statement = conn.execute.call_args_list[1].args[0]
+        self.assertIn("AS date", statement)
+        self.assertIn("CURRENT_DATE - 7", statement)
+        self.assertNotIn("CURRENT_TIMESTAMP", statement)
+
 
 class AdminPostgreSQLCompatTests(unittest.TestCase):
-    def test_operacao_sqlite_e_bloqueada_com_postgresql(self):
+    def _app_postgresql(self):
         app = Flask(__name__)
-        app.secret_key = "teste"
         app.config["DB_TARGET"] = db_core.DatabaseTarget(
             "postgresql",
             "endemias_teste",
         )
+        return app
+
+    def test_status_so_confirma_integridade_apos_consultas_postgresql(self):
+        app = self._app_postgresql()
+        conn = mock.Mock(backend="postgresql")
+        conn.execute.side_effect = [
+            _Cursor(row=("endemias_teste", 2048, "18.4")),
+            _Cursor(row=(59,)),
+            _Cursor(row=(105,)),
+        ]
+
+        with (
+            app.app_context(),
+            mock.patch.object(admin.bh, "get_db", return_value=conn),
+        ):
+            status = admin._db_status()
+
+        self.assertEqual(status["integridade"], "ok")
+        self.assertTrue(status["existe"])
+        conn.close.assert_called_once_with()
+
+    def test_status_postgresql_retorna_erro_se_verificacao_falhar(self):
+        app = self._app_postgresql()
+        conn = mock.Mock(backend="postgresql")
+        conn.execute.side_effect = RuntimeError("falha de consulta")
+
+        with (
+            app.app_context(),
+            mock.patch.object(admin.bh, "get_db", return_value=conn),
+        ):
+            status = admin._db_status()
+
+        self.assertEqual(status["integridade"], "erro")
+        self.assertFalse(status["existe"])
+        self.assertIn("falha de consulta", status["erro"])
+        conn.close.assert_called_once_with()
+
+    def test_operacao_sqlite_e_bloqueada_com_postgresql(self):
+        app = self._app_postgresql()
+        app.secret_key = "teste"
         app.register_blueprint(admin.bp)
 
         with app.test_request_context("/admin/sistema/backups/criar", method="POST"):

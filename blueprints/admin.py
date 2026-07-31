@@ -82,7 +82,7 @@ def _db_status():
             "wal_tamanho": "N/A",
             "shm": False,
             "shm_tamanho": "N/A",
-            "integridade": "ok",
+            "integridade": "nao verificado",
             "tabelas": 0,
             "journal_mode": "PostgreSQL WAL",
             "synchronous": "Servidor",
@@ -92,8 +92,9 @@ def _db_status():
             "indices_essenciais": {"total": 0, "presentes": 0, "faltantes": [], "ok": True},
             "metricas": db_core.connection_metrics(),
         }
-        conn = bh.get_db()
+        conn = None
         try:
+            conn = bh.get_db()
             row = conn.execute(
                 """SELECT current_database(), pg_database_size(current_database()),
                           current_setting('server_version')"""
@@ -108,8 +109,14 @@ def _db_status():
             status["indices"] = conn.execute(
                 "SELECT COUNT(*) FROM pg_indexes WHERE schemaname=current_schema()"
             ).fetchone()[0]
+            status["integridade"] = "ok"
+        except Exception as exc:
+            status["existe"] = False
+            status["integridade"] = "erro"
+            status["erro"] = str(exc)
         finally:
-            conn.close()
+            if conn is not None:
+                conn.close()
         return status
 
     db_path = Path(current_app.config["DB_PATH"])

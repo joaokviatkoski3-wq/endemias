@@ -361,8 +361,8 @@ def _check_dados_operacionais(conn, tabelas, itens):
             sql_atrasados = """SELECT COUNT(*) FROM focos_positivos
                 WHERE status_notificacao='pendente'
                   AND gera_notificacao=1
-                  AND CAST(COALESCE(NULLIF(processado_em,''), CAST(data AS TEXT)) AS timestamp)
-                      <= CURRENT_TIMESTAMP - INTERVAL '7 days'"""
+                  AND CAST(COALESCE(NULLIF(processado_em,''), CAST(data AS TEXT)) AS date)
+                      <= CURRENT_DATE - 7"""
         else:
             sql_atrasados = """SELECT COUNT(*) FROM focos_positivos
                 WHERE status_notificacao='pendente'

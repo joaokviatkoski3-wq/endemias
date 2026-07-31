@@ -617,7 +617,7 @@ python scripts\testar_exportacoes_admin_postgresql.py `
 O script cria sombras temporarias das tabelas, confere valores reais nas tres
 planilhas, gera um consolidado PE, abre a Central e o diagnostico completo e
 prova que o backup SQLite fica bloqueado. As `60` tabelas publicas permanecem
-inalteradas. A regressao ampla do lote teve `429` testes aprovados e `5`
+inalteradas. A regressao ampla do lote teve `432` testes aprovados e `5`
 ignorados.
 
 Por seguranca, outro banco exige:
