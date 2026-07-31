@@ -53,11 +53,70 @@ def _bytes_label(value):
         tamanho /= 1024
 
 
+def _db_target():
+    return db_core.configured_target(current_app.config)
+
+
+def _sqlite_only_message(operacao):
+    if _db_target().backend == "sqlite":
+        return None
+    return redirect(url_for(
+        "admin.admin_sistema",
+        backup_erro=(
+            f"{operacao} indisponível com PostgreSQL: use o procedimento "
+            "operacional homologado para esse banco."
+        ),
+    ))
+
+
 def _db_status():
+    target = _db_target()
+    if target.backend == "postgresql":
+        status = {
+            "backend": "postgresql",
+            "path": target.location,
+            "nome": target.location,
+            "existe": True,
+            "tamanho": "0 B",
+            "wal": False,
+            "wal_tamanho": "N/A",
+            "shm": False,
+            "shm_tamanho": "N/A",
+            "integridade": "ok",
+            "tabelas": 0,
+            "journal_mode": "PostgreSQL WAL",
+            "synchronous": "Servidor",
+            "busy_timeout_ms": 0,
+            "wal_autocheckpoint": 0,
+            "indices": 0,
+            "indices_essenciais": {"total": 0, "presentes": 0, "faltantes": [], "ok": True},
+            "metricas": db_core.connection_metrics(),
+        }
+        conn = bh.get_db()
+        try:
+            row = conn.execute(
+                """SELECT current_database(), pg_database_size(current_database()),
+                          current_setting('server_version')"""
+            ).fetchone()
+            status["nome"] = row[0]
+            status["path"] = f"PostgreSQL: {row[0]} (servidor {row[2]})"
+            status["tamanho"] = _bytes_label(row[1])
+            status["tabelas"] = conn.execute(
+                """SELECT COUNT(*) FROM information_schema.tables
+                    WHERE table_schema=current_schema() AND table_type='BASE TABLE'"""
+            ).fetchone()[0]
+            status["indices"] = conn.execute(
+                "SELECT COUNT(*) FROM pg_indexes WHERE schemaname=current_schema()"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        return status
+
     db_path = Path(current_app.config["DB_PATH"])
     wal_path = Path(str(db_path) + "-wal")
     shm_path = Path(str(db_path) + "-shm")
     status = {
+        "backend": "sqlite",
         "path": str(db_path),
         "nome": db_path.name,
         "existe": db_path.exists(),
@@ -112,9 +171,7 @@ def _contagens_sistema():
             ).fetchone()[0],
             "eventos_auditoria": conn.execute(
                 "SELECT COUNT(*) FROM auditoria_eventos"
-            ).fetchone()[0] if conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='auditoria_eventos'"
-            ).fetchone() else 0,
+            ).fetchone()[0] if db_core.table_exists(conn, "auditoria_eventos") else 0,
         }
     finally:
         conn.close()
@@ -132,7 +189,8 @@ def admin_usuarios():
 @login_required
 @nivel_min("admin")
 def admin_sistema():
-    db_path = Path(current_app.config["DB_PATH"])
+    target = _db_target()
+    db_path = Path(target.location) if target.backend == "sqlite" else target.location
     backup_dir = Path(current_app.config["BACKUP_DIR"])
     backup_completo_dir = Path(current_app.config["BACKUP_COMPLETO_DIR"])
     backups = backup_core.listar_backups(backup_dir, limite=20)
@@ -162,6 +220,7 @@ def admin_sistema():
         backup_ok=request.args.get("backup_ok", "").strip(),
         backup_erro=request.args.get("backup_erro", "").strip(),
         format_bytes=_bytes_label,
+        sqlite_operations=target.backend == "sqlite",
     )
 
 
@@ -169,7 +228,8 @@ def admin_sistema():
 @login_required
 @nivel_min("admin")
 def api_admin_diagnostico():
-    db_path = Path(current_app.config["DB_PATH"])
+    target = _db_target()
+    db_path = Path(target.location) if target.backend == "sqlite" else target.location
     backup_dir = Path(current_app.config["BACKUP_DIR"])
     completo = request.args.get("completo", "").strip().lower() in {"1", "sim", "true", "completo"}
     conn = bh.get_db()
@@ -183,6 +243,9 @@ def api_admin_diagnostico():
 @login_required
 @nivel_min("admin")
 def admin_criar_backup():
+    bloqueio = _sqlite_only_message("Backup interno")
+    if bloqueio:
+        return bloqueio
     db_path = Path(current_app.config["DB_PATH"])
     backup_dir = Path(current_app.config["BACKUP_DIR"])
     try:
@@ -209,6 +272,9 @@ def admin_criar_backup():
 @login_required
 @nivel_min("admin")
 def admin_restaurar_backup():
+    bloqueio = _sqlite_only_message("Restauração interna")
+    if bloqueio:
+        return bloqueio
     db_path = Path(current_app.config["DB_PATH"])
     backup_dir = Path(current_app.config["BACKUP_DIR"])
     nome_backup = request.form.get("backup", "").strip()
@@ -255,6 +321,9 @@ def admin_baixar_backup(nome_backup):
 @login_required
 @nivel_min("admin")
 def admin_baixar_dbml():
+    bloqueio = _sqlite_only_message("Exportação DBML SQLite")
+    if bloqueio:
+        return bloqueio
     try:
         db_path = Path(current_app.config["DB_PATH"])
         conteudo = dbml_core.gerar_dbml(db_path)
@@ -302,6 +371,9 @@ def admin_excluir_backup():
 @login_required
 @nivel_min("admin")
 def admin_criar_backup_completo():
+    bloqueio = _sqlite_only_message("Backup completo interno")
+    if bloqueio:
+        return bloqueio
     try:
         with backup_core.operacao_exclusiva():
             info = backup_completo_core.criar_backup_completo(

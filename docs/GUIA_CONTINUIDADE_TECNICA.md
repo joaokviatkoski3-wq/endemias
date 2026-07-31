@@ -75,6 +75,8 @@ Os scripts existentes sao a referencia, especialmente:
 - `scripts/testar_agenda_home_postgresql.py`;
 - `scripts/testar_acoes_setor_postgresql.py`;
 - `scripts/testar_boletim_mensal_postgresql.py`.
+- `scripts/testar_mapa_notificacoes_relatorio_postgresql.py`;
+- `scripts/testar_exportacoes_admin_postgresql.py`.
 
 Um novo ensaio deve:
 
@@ -132,20 +134,24 @@ aprovados e `5` ignorados.
 
 ## Protocolo recomendado para o proximo lote
 
-O proximo lote agrupa **Exportacoes e consolidados** e **Central do Sistema**:
+O proximo lote deve fazer a auditoria final de SQL exclusivo e implementar as
+rotinas operacionais PostgreSQL de backup/restauracao:
 
-1. Inspecionar `blueprints/exportacoes.py`, `blueprints/admin.py`, templates,
-   testes e os helpers de backup, diagnostico e manutencao.
-2. Inventariar acessos diretos ao arquivo SQLite e SQL exclusivo do backend.
-3. Passar consultas e exportacoes a usar o destino da camada dual.
-4. Manter downloads, nomes de arquivos, filtros e permissoes atuais.
-5. Separar diagnosticos e manutencao que continuem exclusivos do SQLite das
-   alternativas PostgreSQL.
-6. Nao ativar backup/restauracao PostgreSQL incompletos no sistema oficial.
-7. Criar ensaios PostgreSQL isolados e confirmar preservacao das tabelas
-   publicas.
-8. Executar testes focados, regressao ampla e comparacao de esquema.
-9. Atualizar os documentos, fazer commit e push da branch do lote.
+1. Inventariar usos restantes de `PRAGMA`, `sqlite_master`, `executescript`,
+   `lastrowid`, `GROUP_CONCAT`, `COLLATE NOCASE` e funcoes de data SQLite.
+2. Classificar cada ocorrencia como caminho SQLite intencional ou pendencia de
+   caminho funcional dual.
+3. Implementar `pg_dump` e `pg_restore` sem expor senha na linha de comando ou
+   nos logs.
+4. Validar executaveis, banco de destino, formato e integridade antes de
+   oferecer a operacao na Central.
+5. Manter os controles PostgreSQL desativados enquanto qualquer etapa estiver
+   incompleta; nunca reutilizar o arquivo `endemias.db` como se fosse o banco
+   ativo.
+6. Ensaiar somente contra banco descartavel, com confirmacao explicita e prova
+   de que as tabelas publicas de homologacao foram preservadas.
+7. Executar testes focados, regressao ampla e comparacao de esquema.
+8. Atualizar os documentos, fazer commit e push da branch do lote.
 
 ## Operacao durante a migracao
 

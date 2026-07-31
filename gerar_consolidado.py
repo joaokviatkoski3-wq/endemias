@@ -5,11 +5,12 @@
 # =============================================================================
 
 import os
-import sqlite3
 from datetime import datetime
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+
+from app_core import db as db_core
 
 import os as _os
 BANCO_DADOS  = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "endemias.db")
@@ -41,7 +42,7 @@ _QUERY_BASE = """
     SELECT
         v.data, v.hora_inicio, v.localidade, v.quarteirao,
         v.logradouro, v.numero, v.visita, v.morador,
-        (SELECT GROUP_CONCAT(a2.nome, ', ')
+        (SELECT /*AGENTES_AGG*/
          FROM (SELECT DISTINCT a2.nome FROM agentes a2
                JOIN visita_agentes va2 ON va2.id_agente = a2.id_agente
                WHERE va2.id_visita = v.id_visita ORDER BY a2.nome) a2
@@ -54,7 +55,7 @@ _QUERY_BASE = """
         MAX(CASE WHEN d.tipo_deposito='D2' THEN d.inspecionado END),
         MAX(CASE WHEN d.tipo_deposito='E'  THEN d.inspecionado END),
         MAX(d.eliminado),
-        (SELECT GROUP_CONCAT(tp, ", ") FROM (SELECT DISTINCT t2.tipo AS tp FROM tratamentos t2 WHERE t2.id_visita=v.id_visita)) AS trat_tipo,
+        (SELECT /*TRATAMENTOS_AGG*/ FROM (SELECT DISTINCT t2.tipo AS tp FROM tratamentos t2 WHERE t2.id_visita=v.id_visita) tratamentos_ordenados) AS trat_tipo,
         MAX(t.quantidade_carga)        AS trat_carga,
         MAX(t.qtd_depositos_tratados)  AS trat_dep,
         c.num_tubo, c.codigo_deposito, c.tipo_deposito,
@@ -71,7 +72,7 @@ _QUERY_BASE = """
     LEFT JOIN tratamentos t           ON t.id_visita   = v.id_visita
     LEFT JOIN resultados_laboratorio r ON r.id_coleta  = c.id_coleta
     WHERE v.tipo = ?
-    GROUP BY v.id_visita, c.id_coleta
+    GROUP BY v.id_visita, c.id_coleta, r.id_resultado
     ORDER BY v.data, v.localidade, v.quarteirao, v.logradouro, v.numero
 """
 
@@ -92,7 +93,7 @@ _QUERY_VISITAS_BASE = """
     SELECT
         v.data, v.hora_inicio, v.localidade, v.quarteirao,
         v.logradouro, v.numero, v.visita, v.morador,
-        (SELECT GROUP_CONCAT(a2.nome, ', ')
+        (SELECT /*AGENTES_AGG*/
          FROM (SELECT DISTINCT a2.nome FROM agentes a2
                JOIN visita_agentes va2 ON va2.id_agente = a2.id_agente
                WHERE va2.id_visita = v.id_visita ORDER BY a2.nome) a2
@@ -105,29 +106,30 @@ _QUERY_VISITAS_BASE = """
         MAX(CASE WHEN d.tipo_deposito='D2' THEN d.inspecionado END),
         MAX(CASE WHEN d.tipo_deposito='E'  THEN d.inspecionado END),
         MAX(d.eliminado),
-        (SELECT GROUP_CONCAT(tp, ", ") FROM (SELECT DISTINCT t2.tipo AS tp FROM tratamentos t2 WHERE t2.id_visita=v.id_visita)) AS trat_tipo,
+        (SELECT /*TRATAMENTOS_AGG*/ FROM (SELECT DISTINCT t2.tipo AS tp FROM tratamentos t2 WHERE t2.id_visita=v.id_visita) tratamentos_ordenados) AS trat_tipo,
         MAX(t.quantidade_carga)        AS trat_carga,
         MAX(t.qtd_depositos_tratados)  AS trat_dep,
         (SELECT COUNT(*) FROM coletas c2 WHERE c2.id_visita=v.id_visita) AS qtd_coletas,
-        (SELECT GROUP_CONCAT(num_tubo, ', ')
+        (SELECT /*TUBOS_AGG*/
          FROM (SELECT c2.num_tubo FROM coletas c2
                WHERE c2.id_visita=v.id_visita AND c2.num_tubo IS NOT NULL AND TRIM(c2.num_tubo)<>''
-               ORDER BY c2.num_tubo)) AS tubos,
-        (SELECT GROUP_CONCAT(dep, '; ')
-         FROM (SELECT COALESCE(c2.codigo_deposito || ' - ', '') || COALESCE(c2.tipo_deposito, '') AS dep
+               ORDER BY c2.num_tubo) tubos_ordenados) AS tubos,
+        (SELECT /*DEPOSITOS_AGG*/
+         FROM (SELECT COALESCE(c2.codigo_deposito || ' - ', '') || COALESCE(c2.tipo_deposito, '') AS dep,
+                      c2.num_tubo
                FROM coletas c2
                WHERE c2.id_visita=v.id_visita
-               ORDER BY c2.num_tubo)) AS depositos_coletados,
+               ORDER BY c2.num_tubo) depositos_ordenados) AS depositos_coletados,
         (SELECT SUM(CASE WHEN c2.deposito_eliminado=1 THEN 1 ELSE 0 END)
          FROM coletas c2 WHERE c2.id_visita=v.id_visita) AS depositos_eliminados_coleta,
         (SELECT MAX(r2.data_leitura)
          FROM coletas c2 JOIN resultados_laboratorio r2 ON r2.id_coleta=c2.id_coleta
          WHERE c2.id_visita=v.id_visita) AS data_ultima_leitura,
-        (SELECT GROUP_CONCAT(lab, ', ')
+        (SELECT /*LABORATORISTAS_AGG*/
          FROM (SELECT DISTINCT r2.laboratorista AS lab
                FROM coletas c2 JOIN resultados_laboratorio r2 ON r2.id_coleta=c2.id_coleta
                WHERE c2.id_visita=v.id_visita AND r2.laboratorista IS NOT NULL AND TRIM(r2.laboratorista)<>''
-               ORDER BY r2.laboratorista)) AS laboratoristas,
+               ORDER BY r2.laboratorista) laboratoristas_ordenados) AS laboratoristas,
         (SELECT COALESCE(SUM(r2.aegypt_larvas),0) FROM coletas c2 JOIN resultados_laboratorio r2 ON r2.id_coleta=c2.id_coleta WHERE c2.id_visita=v.id_visita),
         (SELECT COALESCE(SUM(r2.aegypt_pupas),0) FROM coletas c2 JOIN resultados_laboratorio r2 ON r2.id_coleta=c2.id_coleta WHERE c2.id_visita=v.id_visita),
         (SELECT COALESCE(SUM(r2.aegypt_exuvias),0) FROM coletas c2 JOIN resultados_laboratorio r2 ON r2.id_coleta=c2.id_coleta WHERE c2.id_visita=v.id_visita),
@@ -208,17 +210,44 @@ _QUERY_EXTRAS = {
         MAX(CASE WHEN d.tipo_deposito='E'  THEN d.qtd_carga    END),""",
 }
 
-def montar_query(tipo):
-    extras_select = _QUERY_EXTRAS.get(tipo, "")
-    if extras_select:
-        return _QUERY_BASE.replace("/*EXTRAS*/", extras_select + "\n        ")
-    return _QUERY_BASE.replace("/*EXTRAS*/", "")
+def _aplicar_agregacoes(query, backend):
+    if backend == "postgresql":
+        agregacoes = {
+            "/*AGENTES_AGG*/": "string_agg(a2.nome, ', ' ORDER BY a2.nome)",
+            "/*TRATAMENTOS_AGG*/": "string_agg(tp, ', ' ORDER BY tp)",
+            "/*TUBOS_AGG*/": "string_agg(CAST(num_tubo AS TEXT), ', ' ORDER BY num_tubo)",
+            "/*DEPOSITOS_AGG*/": "string_agg(dep, '; ' ORDER BY num_tubo)",
+            "/*LABORATORISTAS_AGG*/": "string_agg(lab, ', ' ORDER BY lab)",
+        }
+    else:
+        agregacoes = {
+            "/*AGENTES_AGG*/": "GROUP_CONCAT(a2.nome, ', ')",
+            "/*TRATAMENTOS_AGG*/": "GROUP_CONCAT(tp, ', ')",
+            "/*TUBOS_AGG*/": "GROUP_CONCAT(num_tubo, ', ')",
+            "/*DEPOSITOS_AGG*/": "GROUP_CONCAT(dep, '; ')",
+            "/*LABORATORISTAS_AGG*/": "GROUP_CONCAT(lab, ', ')",
+        }
+    for marcador, expressao in agregacoes.items():
+        query = query.replace(marcador, expressao)
+    return query
 
-def montar_query_visitas(tipo):
+
+def montar_query(tipo, backend="sqlite"):
     extras_select = _QUERY_EXTRAS.get(tipo, "")
     if extras_select:
-        return _QUERY_VISITAS_BASE.replace("/*EXTRAS*/", extras_select + "\n        ")
-    return _QUERY_VISITAS_BASE.replace("/*EXTRAS*/", "")
+        query = _QUERY_BASE.replace("/*EXTRAS*/", extras_select + "\n        ")
+    else:
+        query = _QUERY_BASE.replace("/*EXTRAS*/", "")
+    return _aplicar_agregacoes(query, backend)
+
+
+def montar_query_visitas(tipo, backend="sqlite"):
+    extras_select = _QUERY_EXTRAS.get(tipo, "")
+    if extras_select:
+        query = _QUERY_VISITAS_BASE.replace("/*EXTRAS*/", extras_select + "\n        ")
+    else:
+        query = _QUERY_VISITAS_BASE.replace("/*EXTRAS*/", "")
+    return _aplicar_agregacoes(query, backend)
 
 def montar_cabecalho(tipo):
     base = list(_CABECALHO_BASE)
@@ -336,14 +365,15 @@ def _preencher_aba(ws, cabecalho, rows, tipo):
     ajustar_larguras(ws, cabecalho)
 
 
-def gerar_xlsx_tipo(cur, tipo, pasta_saida):
+def gerar_xlsx_tipo(cur, tipo, pasta_saida, backend=None):
+    backend = backend or getattr(cur, "backend", "sqlite")
     cabecalho_visitas = montar_cabecalho_visitas(tipo)
     cabecalho_coletas = montar_cabecalho(tipo)
 
-    cur.execute(montar_query_visitas(tipo), (tipo,))
+    cur.execute(montar_query_visitas(tipo, backend), (tipo,))
     rows_visitas = cur.fetchall()
 
-    cur.execute(montar_query(tipo), (tipo,))
+    cur.execute(montar_query(tipo, backend), (tipo,))
     rows_coletas = cur.fetchall()
 
     if not rows_visitas and not rows_coletas:
@@ -377,12 +407,17 @@ def gerar_todos(logger=None, banco_dados=None, pasta_saida=None, tipos=None):
     pasta_saida = pasta_saida or PASTA_SAIDA
     tipos = tipos or ["PE", "TB", "TBO", "PVE"]
 
-    if not os.path.exists(banco_dados):
-        log("[ERRO] Banco '%s' não encontrado." % banco_dados, "erro")
+    target = (
+        banco_dados
+        if isinstance(banco_dados, db_core.DatabaseTarget)
+        else db_core.DatabaseTarget("sqlite", str(banco_dados))
+    )
+    if target.backend == "sqlite" and not os.path.exists(target.location):
+        log("[ERRO] Banco '%s' não encontrado." % target.location, "erro")
         return
 
     os.makedirs(pasta_saida, exist_ok=True)
-    conn = sqlite3.connect(banco_dados)
+    conn = db_core.connect(target)
     cur  = conn.cursor()
 
     resultados = []
@@ -390,7 +425,12 @@ def gerar_todos(logger=None, banco_dados=None, pasta_saida=None, tipos=None):
 
     for tipo in tipos:
         try:
-            caminho, qtd_visitas, qtd_coletas = gerar_xlsx_tipo(cur, tipo, pasta_saida)
+            caminho, qtd_visitas, qtd_coletas = gerar_xlsx_tipo(
+                cur,
+                tipo,
+                pasta_saida,
+                backend=target.backend,
+            )
             if caminho:
                 log("  ✓ %s — %d visita(s), %d coleta(s) → %s" % (tipo, qtd_visitas, qtd_coletas, caminho), "ok")
                 resultados.append({

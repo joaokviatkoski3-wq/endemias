@@ -21,12 +21,26 @@ login_required = auth_core.login_required
 nivel_min = bh.nivel_min
 
 
-def _db_path():
-    return current_app.config["DB_PATH"]
+def _db_target():
+    return db_core.configured_target(current_app.config)
 
 
 def q(sql, params=()):
-    return db_core.query(_db_path(), sql, params)
+    return db_core.query(_db_target(), sql, params)
+
+
+def _string_aggregates():
+    if _db_target().backend == "postgresql":
+        return {
+            "agentes": "string_agg(nome, ', ' ORDER BY nome)",
+            "itens": "string_agg(item, '; ' ORDER BY ordem)",
+            "tubos": "string_agg(CAST(num_tubo AS TEXT), ', ' ORDER BY num_tubo)",
+        }
+    return {
+        "agentes": "GROUP_CONCAT(nome, ', ')",
+        "itens": "GROUP_CONCAT(item, '; ')",
+        "tubos": "GROUP_CONCAT(num_tubo, ', ')",
+    }
 
 
 def _base_dir():
@@ -34,7 +48,7 @@ def _base_dir():
 
 
 def _saida_dir():
-    return os.path.join(_base_dir(), "saida")
+    return current_app.config.get("SAIDA_DIR") or os.path.join(_base_dir(), "saida")
 
 
 @bp.route("/api/visitas/exportar")
@@ -42,34 +56,39 @@ def _saida_dir():
 def exportar_visitas():
     try:
         where, params = visitas_core.build_where(request.args)
+        aggregates = _string_aggregates()
         rows = q(f"""
             SELECT v.data, v.tipo, COALESCE(l.nome, v.localidade) AS localidade, v.quarteirao,
                    v.logradouro, v.numero, v.visita, v.morador, v.tipo_imovel,
                    v.ciclo, v.sequencia, v.lado, v.hora_inicio, v.hora_fim,
                    CASE v.agua_sanepar WHEN 1 THEN 'Sim' WHEN 0 THEN 'Não' ELSE NULL END,
                    v.observacoes,
-                   (SELECT GROUP_CONCAT(nome, ', ') FROM (
+                   (SELECT {aggregates['agentes']} FROM (
                         SELECT DISTINCT COALESCE(NULLIF(a.nome_completo,''), a.nome) AS nome FROM visita_agentes va
                         JOIN agentes a ON a.id_agente=va.id_agente
                         WHERE va.id_visita=v.id_visita ORDER BY nome
-                   )) AS agentes,
+                   ) agentes_ordenados) AS agentes,
                    COALESCE((SELECT SUM(d.inspecionado) FROM depositos_inspecionados d WHERE d.id_visita=v.id_visita),0),
                    COALESCE((SELECT SUM(d.eliminado) FROM depositos_inspecionados d WHERE d.id_visita=v.id_visita),0),
                    COALESCE((SELECT SUM(d.tratado) FROM depositos_inspecionados d WHERE d.id_visita=v.id_visita),0),
-                   (SELECT GROUP_CONCAT(item, '; ') FROM (
-                        SELECT tipo_deposito || ': ' || COALESCE(inspecionado,0) || ' inspec.; ' ||
-                               COALESCE(eliminado,0) || ' elim.; ' || COALESCE(tratado,0) || ' trat.' AS item
+                   (SELECT {aggregates['itens']} FROM (
+                        SELECT tipo_deposito || ': ' || CAST(COALESCE(inspecionado,0) AS TEXT) || ' inspec.; ' ||
+                               CAST(COALESCE(eliminado,0) AS TEXT) || ' elim.; ' ||
+                               CAST(COALESCE(tratado,0) AS TEXT) || ' trat.' AS item,
+                               d.id AS ordem
                           FROM depositos_inspecionados d WHERE d.id_visita=v.id_visita ORDER BY d.id
-                   )),
-                   (SELECT GROUP_CONCAT(item, '; ') FROM (
-                        SELECT COALESCE(tipo,'Sem produto') || ': ' || COALESCE(qtd_depositos_tratados,0) ||
-                               ' depósitos; carga ' || COALESCE(quantidade_carga,0) AS item
+                   ) depositos_ordenados),
+                   (SELECT {aggregates['itens']} FROM (
+                        SELECT COALESCE(tipo,'Sem produto') || ': ' ||
+                               CAST(COALESCE(qtd_depositos_tratados,0) AS TEXT) ||
+                               ' depósitos; carga ' || CAST(COALESCE(quantidade_carga,0) AS TEXT) AS item,
+                               t.id AS ordem
                           FROM tratamentos t WHERE t.id_visita=v.id_visita ORDER BY t.id
-                   )),
+                   ) tratamentos_ordenados),
                    (SELECT COUNT(*) FROM coletas c WHERE c.id_visita=v.id_visita),
-                   (SELECT GROUP_CONCAT(num_tubo, ', ') FROM (
+                   (SELECT {aggregates['tubos']} FROM (
                         SELECT num_tubo FROM coletas c WHERE c.id_visita=v.id_visita ORDER BY c.num_tubo
-                   )),
+                   ) tubos_ordenados),
                    v.SISPNCD, v.CONTAOVOS_STATUS, v.submission_time, v.processado_em
             FROM visitas v
             LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
@@ -114,7 +133,7 @@ def exportar_notificacoes():
             where += f" AND l.nome IN ({','.join('?' * len(fl))})"
             params += fl
         if busca:
-            where += " AND (f.logradouro LIKE ? OR f.num_tubo LIKE ? OR f.nome_morador LIKE ? OR f.codigo LIKE ?)"
+            where += " AND (LOWER(f.logradouro) LIKE LOWER(?) OR LOWER(f.num_tubo) LIKE LOWER(?) OR LOWER(f.nome_morador) LIKE LOWER(?) OR LOWER(f.codigo) LIKE LOWER(?))"
             b = f"%{busca}%"
             params += [b, b, b, b]
         rows = q(f"""
@@ -155,23 +174,28 @@ def exportar_laboratorio():
             where += f" AND l.nome IN ({','.join('?' * len(locs))})"
             params += locs
         if tubo:
-            where += " AND c.num_tubo LIKE ?"
+            where += " AND LOWER(c.num_tubo) LIKE LOWER(?)"
             params.append(f"%{tubo}%")
+        aggregates = _string_aggregates()
         rows = q(f"""
-            SELECT DISTINCT v.data, v.tipo, l.nome as localidade, v.quarteirao,
+            SELECT v.data, v.tipo, l.nome as localidade, v.quarteirao,
                    v.logradouro, v.numero, c.num_tubo, c.tipo_deposito,
                    rl.data_leitura, rl.laboratorista,
                    rl.aegypt_larvas, rl.aegypt_pupas, rl.aegypt_exuvias, rl.aegypt_adulto,
                    rl.albopictus_larvas, rl.albopictus_pupas, rl.albopictus_exuvias, rl.albopictus_adulto,
                    rl.outra_larvas, rl.outra_pupas, rl.outra_exuvias, rl.outra_adulto,
-                   GROUP_CONCAT(DISTINCT COALESCE(NULLIF(a.nome_completo,''), a.nome)) as agentes
+                   (SELECT {aggregates['agentes']} FROM (
+                        SELECT DISTINCT COALESCE(NULLIF(a.nome_completo,''), a.nome) AS nome
+                          FROM visita_agentes va
+                          JOIN agentes a ON a.id_agente=va.id_agente
+                         WHERE va.id_visita=v.id_visita
+                         ORDER BY nome
+                   ) agentes_ordenados) AS agentes
             FROM resultados_laboratorio rl
             JOIN coletas c ON c.id_coleta=rl.id_coleta
             JOIN visitas v ON v.id_visita=c.id_visita
             LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
-            LEFT JOIN visita_agentes va ON va.id_visita=v.id_visita
-            LEFT JOIN agentes a ON a.id_agente=va.id_agente
-            {where} GROUP BY rl.id_resultado ORDER BY v.data DESC
+            {where} ORDER BY v.data DESC
         """, params)
         cabecalho = ["Data", "Tipo", "Localidade", "Quarteirao", "Logradouro", "Numero",
                      "Tubo", "Deposito", "Data Leitura", "Laboratorista",
@@ -262,7 +286,7 @@ def gerar_consolidados():
 
         resultados = gerar_todos(
             logger=JsonLogger(),
-            banco_dados=_db_path(),
+            banco_dados=_db_target(),
             pasta_saida=_saida_dir(),
             tipos=tipos,
         ) or []

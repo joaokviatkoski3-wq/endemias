@@ -592,6 +592,34 @@ reais, grava apenas nas tabelas temporarias de Notificacoes e compara as
 contagens publicas antes e depois. As `60` tabelas publicas permaneceram
 inalteradas. A regressao ampla teve `419` testes aprovados e `5` ignorados.
 
+## Exportacoes, Consolidados e Central do Sistema
+
+As exportacoes XLSX de visitas, notificacoes e laboratorio e os consolidados
+PE, TB, TBO e PVE usam agora o destino configurado na camada dual. Agregacoes
+ordenadas usam `GROUP_CONCAT` no SQLite e `string_agg` no PostgreSQL, buscas
+textuais preservam a comparacao sem diferenciar caixa e os agrupamentos foram
+ajustados para as regras estritas do PostgreSQL.
+
+A Central identifica o backend ativo, exibe status, tamanho, tabelas e indices
+PostgreSQL e executa o diagnostico rapido ou completo sem `PRAGMA`. As rotinas
+internas de backup/restauracao, backup completo e DBML continuam explicitamente
+SQLite-only: quando o PostgreSQL esta ativo, os controles de criacao e
+restauracao somem e as rotas recusam a operacao. Backups historicos continuam
+disponiveis para download e exclusao.
+
+O ensaio controlado e:
+
+```powershell
+python scripts\testar_exportacoes_admin_postgresql.py `
+  --database endemias_teste
+```
+
+O script cria sombras temporarias das tabelas, confere valores reais nas tres
+planilhas, gera um consolidado PE, abre a Central e o diagnostico completo e
+prova que o backup SQLite fica bloqueado. As `60` tabelas publicas permanecem
+inalteradas. A regressao ampla do lote teve `429` testes aprovados e `5`
+ignorados.
+
 Por seguranca, outro banco exige:
 
 ```powershell
@@ -637,10 +665,11 @@ Atendimentos do Setor tambem esta homologado, incluindo anexos e relatorio
 tecnico. O Boletim Mensal tambem esta homologado, incluindo indicadores,
 fechamento, PDF e XLSX. Mapa geral, Notificacoes e Relatorio por Servidor
 tambem estao homologados, incluindo escrita auditada, relatorios individual e
-do setor e os blocos operacionais complementares. O proximo lote agrupa
-**Exportacoes e consolidados** e **Central do Sistema**, seguido pela auditoria
-final de SQL exclusivo, backup/restauracao PostgreSQL e por um ensaio integrado
-com uma copia recente do SQLite oficial.
+do setor e os blocos operacionais complementares. Exportacoes, consolidados e
+o diagnostico da Central do Sistema tambem estao homologados. O proximo lote e
+a auditoria final de SQL exclusivo junto das rotinas PostgreSQL de backup e
+restauracao; depois vem o ensaio integrado com uma copia recente do SQLite
+oficial.
 
 Cada lote deve:
 

@@ -3,6 +3,8 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 
+from app_core import db as db_core
+
 
 CORE_TABLES = (
     "usuarios",
@@ -23,6 +25,7 @@ CORE_TABLES = (
 def gerar(conn, db_path=None, backup_dir=None, completo=False):
     itens = []
     tabelas = _tables(conn)
+    backend = getattr(conn, "backend", "sqlite")
 
     _check_integridade(conn, itens)
     _check_tabelas(tabelas, itens)
@@ -31,13 +34,30 @@ def gerar(conn, db_path=None, backup_dir=None, completo=False):
     _check_vinculos_principais(conn, tabelas, itens)
     _check_dados_operacionais(conn, tabelas, itens)
     _check_duplicidades_textuais(conn, tabelas, itens)
-    _check_backups(backup_dir, itens)
+    _check_backups(backup_dir, itens, backend)
 
-    resumo = _resumo(itens, db_path, tabelas, completo)
+    resumo = _resumo(itens, db_path, tabelas, completo, backend)
     return {"resumo": resumo, "itens": itens}
 
 
 def _check_integridade(conn, itens):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        try:
+            banco, versao = conn.execute(
+                "SELECT current_database(), current_setting('server_version')"
+            ).fetchone()
+        except Exception as exc:
+            _add(itens, "erro", "Banco", "Falha ao verificar a conexão PostgreSQL.", detalhe=str(exc))
+            return
+        _add(
+            itens,
+            "ok",
+            "Banco",
+            "Conexão PostgreSQL confirmada.",
+            valor=banco,
+            detalhe=f"Servidor {versao}",
+        )
+        return
     try:
         valor = conn.execute("PRAGMA integrity_check").fetchone()[0]
     except Exception as exc:
@@ -65,6 +85,24 @@ def _check_tabelas(tabelas, itens):
 
 
 def _check_foreign_keys(conn, itens):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        try:
+            rows = conn.execute(
+                """SELECT conrelid::regclass::text AS tabela, conname
+                     FROM pg_constraint
+                    WHERE connamespace=current_schema()::regnamespace
+                      AND contype='f' AND NOT convalidated
+                    ORDER BY conrelid::regclass::text, conname"""
+            ).fetchall()
+        except Exception as exc:
+            _add(itens, "aviso", "Vinculos", "Não foi possível verificar constraints PostgreSQL.", detalhe=str(exc))
+            return
+        if rows:
+            detalhe = "; ".join(f"{row['tabela']}.{row['conname']}" for row in rows[:8])
+            _add(itens, "erro", "Vinculos", "Há chaves estrangeiras PostgreSQL não validadas.", valor=len(rows), detalhe=detalhe)
+        else:
+            _add(itens, "ok", "Vinculos", "Todas as chaves estrangeiras PostgreSQL estão validadas.")
+        return
     try:
         rows = conn.execute("PRAGMA foreign_key_check").fetchall()
     except Exception as exc:
@@ -163,7 +201,7 @@ def _check_dados_operacionais(conn, tabelas, itens):
                     WHERE NOT EXISTS (
                           SELECT 1 FROM visita_agentes va WHERE va.id_visita=v.id_visita
                     )
-                    ORDER BY date(v.data) DESC, v.tipo, v.quarteirao
+                    ORDER BY CAST(v.data AS TEXT) DESC, v.tipo, v.quarteirao
                     LIMIT 5""",
                 _format_visita,
             )
@@ -181,7 +219,7 @@ def _check_dados_operacionais(conn, tabelas, itens):
                 """SELECT id_visita, tipo, data, localidade, quarteirao
                      FROM visitas
                     WHERE TRIM(COALESCE(localidade,''))='' AND id_localidade IS NULL
-                    ORDER BY date(data) DESC, tipo, quarteirao
+                    ORDER BY CAST(data AS TEXT) DESC, tipo, quarteirao
                     LIMIT 5""",
                 _format_visita,
             )
@@ -211,7 +249,7 @@ def _check_dados_operacionais(conn, tabelas, itens):
                      LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
                      LEFT JOIN resultados_laboratorio rl ON rl.id_coleta=c.id_coleta
                     WHERE rl.id_coleta IS NULL
-                    ORDER BY date(v.data) DESC, c.num_tubo
+                    ORDER BY CAST(v.data AS TEXT) DESC, c.num_tubo
                     LIMIT 5""",
                 _format_coleta,
             )
@@ -231,15 +269,15 @@ def _check_dados_operacionais(conn, tabelas, itens):
         total = _scalar(
             conn,
             """SELECT COUNT(*) FROM resultados_laboratorio
-                WHERE TRIM(COALESCE(laboratorista,''))='' OR TRIM(COALESCE(data_leitura,''))=''""",
+                WHERE TRIM(COALESCE(laboratorista,''))='' OR TRIM(COALESCE(CAST(data_leitura AS TEXT),''))=''""",
         )
         if total:
             detalhe = _detalhe_linhas(
                 conn,
                 """SELECT id_resultado, num_tubo, data_coleta, laboratorista, data_leitura
                      FROM resultados_laboratorio
-                    WHERE TRIM(COALESCE(laboratorista,''))='' OR TRIM(COALESCE(data_leitura,''))=''
-                    ORDER BY date(data_coleta) DESC, num_tubo
+                    WHERE TRIM(COALESCE(laboratorista,''))='' OR TRIM(COALESCE(CAST(data_leitura AS TEXT),''))=''
+                    ORDER BY CAST(data_coleta AS TEXT) DESC, num_tubo
                     LIMIT 5""",
                 _format_resultado_lab,
             )
@@ -270,7 +308,7 @@ def _check_dados_operacionais(conn, tabelas, itens):
                      LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
                     WHERE COALESCE(t.qtd_depositos_tratados,0)>0
                       AND (t.quantidade_carga IS NULL OR t.quantidade_carga=0)
-                    ORDER BY date(v.data) DESC, t.id DESC
+                    ORDER BY CAST(v.data AS TEXT) DESC, t.id DESC
                     LIMIT 5""",
                 _format_tratamento,
             )
@@ -301,7 +339,7 @@ def _check_dados_operacionais(conn, tabelas, itens):
                      LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
                     WHERE COALESCE(d.tratado,0)>0
                       AND (d.qtd_carga IS NULL OR d.qtd_carga=0)
-                    ORDER BY date(v.data) DESC, d.id DESC
+                    ORDER BY CAST(v.data AS TEXT) DESC, d.id DESC
                     LIMIT 5""",
                 _format_deposito_tratado,
             )
@@ -319,13 +357,18 @@ def _check_dados_operacionais(conn, tabelas, itens):
             conn,
             "SELECT COUNT(*) FROM focos_positivos WHERE status_notificacao='pendente' AND gera_notificacao=1",
         )
-        atrasados = _scalar(
-            conn,
-            """SELECT COUNT(*) FROM focos_positivos
+        if getattr(conn, "backend", "sqlite") == "postgresql":
+            sql_atrasados = """SELECT COUNT(*) FROM focos_positivos
                 WHERE status_notificacao='pendente'
                   AND gera_notificacao=1
-                  AND date(COALESCE(processado_em, data)) <= date('now', '-7 days')""",
-        )
+                  AND CAST(COALESCE(NULLIF(processado_em,''), CAST(data AS TEXT)) AS timestamp)
+                      <= CURRENT_TIMESTAMP - INTERVAL '7 days'"""
+        else:
+            sql_atrasados = """SELECT COUNT(*) FROM focos_positivos
+                WHERE status_notificacao='pendente'
+                  AND gera_notificacao=1
+                  AND date(COALESCE(processado_em, data)) <= date('now', '-7 days')"""
+        atrasados = _scalar(conn, sql_atrasados)
         if atrasados:
             _add(itens, "aviso", "Notificacoes", "Notificacoes pendentes ha 7 dias ou mais.", valor=atrasados)
         elif pendentes:
@@ -340,14 +383,14 @@ def _check_dados_operacionais(conn, tabelas, itens):
             _add(itens, "info", "Ovitrampas", "Leituras sem laboratorista.", valor=sem_laboratorista)
         sem_data = _scalar(
             conn,
-            "SELECT COUNT(*) FROM ovitrampas_leituras WHERE TRIM(COALESCE(data_leitura,''))=''",
+            "SELECT COUNT(*) FROM ovitrampas_leituras WHERE TRIM(COALESCE(CAST(data_leitura AS TEXT),''))=''",
         )
         if sem_data:
             detalhe = _detalhe_linhas(
                 conn,
                 """SELECT id_leitura, ovitrampa_id, ano, semana, data_coleta
                      FROM ovitrampas_leituras
-                    WHERE TRIM(COALESCE(data_leitura,''))=''
+                    WHERE TRIM(COALESCE(CAST(data_leitura AS TEXT),''))=''
                     ORDER BY ano DESC, semana DESC, ovitrampa_id
                     LIMIT 5""",
                 _format_leitura_ovitrampa,
@@ -394,7 +437,16 @@ def _check_duplicidades_textuais(conn, tabelas, itens):
             _add(itens, "aviso", categoria, titulo, valor=len(suspeitos), detalhe=detalhe)
 
 
-def _check_backups(backup_dir, itens):
+def _check_backups(backup_dir, itens, backend="sqlite"):
+    if backend == "postgresql":
+        _add(
+            itens,
+            "info",
+            "Backups",
+            "Backup PostgreSQL ainda depende do procedimento operacional externo.",
+            detalhe="A Central não executa rotinas SQLite sobre o banco PostgreSQL.",
+        )
+        return
     if not backup_dir:
         return
     pasta = Path(backup_dir)
@@ -421,7 +473,7 @@ def _check_backups(backup_dir, itens):
         _add(itens, "ok", "Backups", "Backup recente encontrado.", valor=ultimo.name)
 
 
-def _resumo(itens, db_path, tabelas, completo):
+def _resumo(itens, db_path, tabelas, completo, backend="sqlite"):
     contagens = {
         "erro": sum(1 for item in itens if item["nivel"] == "erro"),
         "aviso": sum(1 for item in itens if item["nivel"] == "aviso"),
@@ -444,6 +496,7 @@ def _resumo(itens, db_path, tabelas, completo):
         "total_itens": len(itens),
         "tabelas": len(tabelas),
         "banco": str(db_path) if db_path else "",
+        "backend": backend,
         "gerado_em": datetime.now().isoformat(timespec="seconds"),
         "modo": "completo" if completo else "rapido",
     }
@@ -460,6 +513,16 @@ def _add(itens, nivel, categoria, titulo, valor=None, detalhe=""):
 
 
 def _tables(conn):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return {
+            row[0]
+            for row in conn.execute(
+                """SELECT table_name
+                     FROM information_schema.tables
+                    WHERE table_schema=current_schema()
+                      AND table_type='BASE TABLE'"""
+            )
+        }
     return {
         row["name"]
         for row in conn.execute(
@@ -470,7 +533,7 @@ def _tables(conn):
 
 def _has_column(conn, table, column):
     try:
-        return column in {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+        return db_core.column_exists(conn, table, column)
     except Exception:
         return False
 

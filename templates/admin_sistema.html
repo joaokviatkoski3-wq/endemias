@@ -11,6 +11,7 @@
       <p>Um painel rapido para conferir saude do banco, backups, importacoes e eventos administrativos.</p>
     </div>
     <div class="system-hero-actions">
+      {% if sqlite_operations %}
       <form method="POST" action="/admin/sistema/backups-completos/criar" data-confirm="Criar backup completo em {{ backup_completo_dir }}? O arquivo contem banco, anexos e configuracoes sensiveis.">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-primary" type="submit"><img src="/static/icons/pasta.svg" alt="" class="icon-svg"> Backup completo</button>
@@ -19,9 +20,12 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-outline" type="submit"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Backup do banco</button>
       </form>
+      {% endif %}
       <a class="btn btn-primary" href="/processar"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Processar</a>
       <a class="btn btn-outline" href="/admin/auditoria"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> Auditoria</a>
+      {% if sqlite_operations %}
       <a class="btn btn-outline" href="/admin/sistema/dbml"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> Baixar DBML</a>
+      {% endif %}
     </div>
   </section>
 
@@ -30,6 +34,9 @@
   {% endif %}
   {% if backup_erro %}
   <div class="system-message warn">{{ backup_erro }}</div>
+  {% endif %}
+  {% if not sqlite_operations %}
+  <div class="system-message warn">O banco ativo é PostgreSQL. Backup, restauração, backup completo e DBML internos permanecem desativados até a homologação das rotinas PostgreSQL; os arquivos antigos continuam disponíveis para download e gestão.</div>
   {% endif %}
 
   <div class="system-metrics">
@@ -110,14 +117,17 @@
         <div><dt>Instancia</dt><dd>{{ instance_dir }}</dd></div>
         <div><dt>Uploads temporarios</dt><dd>{{ upload_temp }}</dd></div>
         <div><dt>Log</dt><dd>{{ log_path }}</dd></div>
+        <div><dt>Backend</dt><dd>{{ db_status.backend }}</dd></div>
         <div><dt>Modo de diario</dt><dd>{{ db_status.journal_mode }}</dd></div>
         <div><dt>Sincronizacao</dt><dd>{{ db_status.synchronous }}</dd></div>
+        <div><dt>Indices</dt><dd>{{ db_status.indices }}</dd></div>
+        {% if sqlite_operations %}
         <div><dt>Espera por bloqueio</dt><dd>{{ db_status.busy_timeout_ms }} ms</dd></div>
         <div><dt>Checkpoint automatico</dt><dd>{{ db_status.wal_autocheckpoint }} paginas</dd></div>
-        <div><dt>Indices</dt><dd>{{ db_status.indices }}</dd></div>
         <div><dt>Indices essenciais</dt><dd>{{ "OK" if db_status.indices_essenciais.ok else db_status.indices_essenciais.presentes ~ "/" ~ db_status.indices_essenciais.total }}</dd></div>
         <div><dt>Arquivo WAL</dt><dd>{{ db_status.wal_tamanho }}</dd></div>
         <div><dt>Arquivo SHM</dt><dd>{{ db_status.shm_tamanho }}</dd></div>
+        {% endif %}
         <div><dt>Conexoes criadas nesta execucao</dt><dd>{{ db_status.metricas.connections }}</dd></div>
         <div><dt>Repeticoes por bloqueio</dt><dd>{{ db_status.metricas.lock_retries }}</dd></div>
         <div><dt>Falhas por bloqueio</dt><dd>{{ db_status.metricas.lock_failures }}</dd></div>
@@ -129,12 +139,12 @@
       <div class="system-panel-hd">
         <div>
           <h2>Backups gerenciados</h2>
-          <p>Somente o banco SQLite, usado para restauracao rapida</p>
+          <p>{% if sqlite_operations %}Somente o banco SQLite, usado para restauracao rapida{% else %}Backups SQLite históricos; não restauram o PostgreSQL ativo{% endif %}</p>
         </div>
-        <form method="POST" action="/admin/sistema/backups/criar">
+        {% if sqlite_operations %}<form method="POST" action="/admin/sistema/backups/criar">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn-outline" type="submit"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Novo</button>
-        </form>
+        </form>{% endif %}
       </div>
       {% if backups %}
       <div class="system-list">
@@ -147,11 +157,11 @@
           <div class="system-backup-actions">
             <em class="{{ 'ok' if backup.integridade == 'ok' else '' }}">{{ backup.integridade }}</em>
             <a class="btn btn-outline" href="{{ url_for('admin.admin_baixar_backup', nome_backup=backup.nome) }}">Baixar</a>
-            <form method="POST" action="/admin/sistema/backups/restaurar" data-confirm="Restaurar este backup substituira o banco atual. Um backup de seguranca sera criado antes. Continuar?">
+            {% if sqlite_operations %}<form method="POST" action="/admin/sistema/backups/restaurar" data-confirm="Restaurar este backup substituira o banco atual. Um backup de seguranca sera criado antes. Continuar?">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="backup" value="{{ backup.nome }}">
               <button class="btn btn-outline" type="submit">Restaurar</button>
-            </form>
+            </form>{% endif %}
             <form method="POST" action="/admin/sistema/backups/excluir" data-confirm="Excluir este backup permanentemente?">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="backup" value="{{ backup.nome }}">
@@ -170,12 +180,12 @@
       <div class="system-panel-hd">
         <div>
           <h2>Backups completos</h2>
-          <p>Banco validado, anexos, configuracoes sensiveis e arquivos gerados em {{ backup_completo_dir }}</p>
+          <p>{% if sqlite_operations %}Banco validado, anexos, configuracoes sensiveis e arquivos gerados em {{ backup_completo_dir }}{% else %}Pacotes históricos; novos pacotes aguardam suporte ao backup PostgreSQL{% endif %}</p>
         </div>
-        <form method="POST" action="/admin/sistema/backups-completos/criar" data-confirm="Criar backup completo em {{ backup_completo_dir }}?">
+        {% if sqlite_operations %}<form method="POST" action="/admin/sistema/backups-completos/criar" data-confirm="Criar backup completo em {{ backup_completo_dir }}?">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn-outline" type="submit"><img src="/static/icons/pasta.svg" alt="" class="icon-svg"> Novo</button>
-        </form>
+        </form>{% endif %}
       </div>
       {% if backups_completos %}
       <div class="system-list">
