@@ -6,6 +6,10 @@ Antes de iniciar qualquer trabalho, leia `CONTEXTO_PARA_IA.md`. Ele registra o
 estado atual do projeto, a migracao gradual para PostgreSQL, os modulos ja
 homologados, as pendencias e os cuidados operacionais.
 
+Quando houver colaboracao entre Codex e Claude Code, leia tambem
+`docs/GUIA_TRABALHO_MULTIAGENTE.md` e respeite a separacao entre implementacao,
+revisao e integracao na `master`.
+
 ## Versionamento do sistema
 
 Agentes de IA tem autonomia para atualizar a numeracao da versao do sistema quando julgarem que o conjunto de alteracoes justifica uma nova versao. Nao e necessario solicitar confirmacao previa exclusivamente para essa atualizacao.

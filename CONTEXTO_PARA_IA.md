@@ -28,6 +28,7 @@ Leia tambem:
 
 - `AGENTS.md`;
 - `docs/GUIA_CONTINUIDADE_TECNICA.md`;
+- `docs/GUIA_TRABALHO_MULTIAGENTE.md`;
 - `docs/MIGRACAO_POSTGRESQL.md`;
 - `docs/POSTGRESQL_CAMADA_DUAL.md`;
 - `docs/POSTGRESQL_SCHEMA_INICIAL.md`;
