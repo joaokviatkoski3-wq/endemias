@@ -214,6 +214,7 @@ class ContaOvosCredentialAndHealthTests(unittest.TestCase):
                     "verified": True,
                     "ok": True,
                     "checked_at": "2026-08-03T12:00:00",
+                    "credential_format": "documented",
                     "scopes": [{"municipality": "Almirante Tamandare"}],
                 },
                 "ok",
@@ -225,6 +226,22 @@ class ContaOvosCredentialAndHealthTests(unittest.TestCase):
                 diagnostico._check_contaovos(items, status)
                 self.assertEqual(expected_level, items[0]["nivel"])
                 self.assertEqual("Conta Ovos", items[0]["categoria"])
+
+    def test_diagnostico_avisa_sobre_formato_aceito_nao_documentado(self):
+        items = []
+        diagnostico._check_contaovos(
+            items,
+            {
+                "configured": True,
+                "verified": True,
+                "ok": True,
+                "checked_at": "2026-08-03T12:00:00",
+                "credential_format": "accepted_non_documented_format",
+                "scopes": [{"municipality": "Almirante Tamandare"}],
+            },
+        )
+        self.assertEqual("aviso", items[0]["nivel"])
+        self.assertIn("diferente do documentado", items[0]["titulo"])
 
 
 class ContaOvosSchemaAndScriptsTests(unittest.TestCase):
@@ -271,6 +288,43 @@ class ContaOvosSchemaAndScriptsTests(unittest.TestCase):
                 conn.close()
             inventory = sqlite_inventory.build_inventory(path)
         self.assertEqual(["dominio"], [table["name"] for table in inventory["tables"]])
+
+    def test_consultas_de_comparacao_interpolam_tabelas_internas(self):
+        statements = []
+
+        def connection(*, fetchone=None, fetchall=None):
+            cursor = mock.MagicMock()
+            cursor.__enter__.return_value = cursor
+            cursor.execute.side_effect = lambda sql: statements.append(sql)
+            if fetchone is not None:
+                cursor.fetchone.side_effect = fetchone
+            if fetchall is not None:
+                cursor.fetchall.side_effect = fetchall
+            conn = mock.MagicMock()
+            conn.cursor.return_value = cursor
+            return conn
+
+        postgresql_schema_compare._actual_columns(connection(fetchall=[[]]))
+        postgresql_schema_compare._actual_summary(
+            connection(
+                fetchone=[(59,), (691,), (34,)],
+                fetchall=[[('p', 59)]],
+            )
+        )
+        postgresql_schema_compare._actual_constraint_names(
+            connection(fetchall=[[]])
+        )
+        postgresql_schema_compare._actual_explicit_index_names(
+            connection(fetchall=[[]])
+        )
+
+        self.assertEqual(7, len(statements))
+        for sql in statements:
+            normalized = sql.strip()
+            self.assertIn("'contaovos_sync_cursor'", normalized)
+            self.assertIn("'contaovos_execucoes'", normalized)
+            self.assertNotIn("{INTERNAL_TABLES_SQL}", normalized)
+            self.assertFalse(normalized.endswith("\nf"))
 
     def test_scripts_nao_recebem_chave_em_argumento(self):
         root = Path(__file__).resolve().parents[1]

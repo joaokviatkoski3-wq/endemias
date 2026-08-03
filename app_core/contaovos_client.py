@@ -11,6 +11,7 @@ BASE_URL = "https://contaovos.com/en-us/api"
 DEFAULT_TIMEOUT_SECONDS = 60
 DEFAULT_MAX_ATTEMPTS = 3
 MAX_PAGE = 100
+# Codigo IBGE de Almirante Tamandare/PR, escopo territorial oficial do sistema.
 EXPECTED_MUNICIPALITY_CODE = "4100400"
 EXPECTED_STATE_CODE = "PR"
 TEST_NETWORK_GUARD = "ENDEMIAS_TEST_BLOCK_CONTAOVOS_NETWORK"

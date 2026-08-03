@@ -26,7 +26,7 @@ def _actual_columns(conn):
             WHERE table_schema = 'public'
               AND table_name NOT IN ({INTERNAL_TABLES_SQL})
             ORDER BY table_name, ordinal_position
-            f"""
+            """
         )
         return {
             (row[0], row[1]): {
@@ -43,26 +43,26 @@ def _actual_columns(conn):
 def _actual_summary(conn):
     with conn.cursor() as cursor:
         cursor.execute(
-            """
+            f"""
             SELECT COUNT(*)
             FROM information_schema.tables
             WHERE table_schema = 'public'
               AND table_type = 'BASE TABLE'
               AND table_name NOT IN ({INTERNAL_TABLES_SQL})
-            f"""
+            """
         )
         tables = cursor.fetchone()[0]
         cursor.execute(
-            """
+            f"""
             SELECT COUNT(*)
             FROM information_schema.columns
             WHERE table_schema = 'public'
               AND table_name NOT IN ({INTERNAL_TABLES_SQL})
-            f"""
+            """
         )
         columns = cursor.fetchone()[0]
         cursor.execute(
-            """
+            f"""
             SELECT contype, COUNT(*)
             FROM pg_constraint c
             JOIN pg_namespace n ON n.oid = c.connamespace
@@ -70,17 +70,17 @@ def _actual_summary(conn):
               AND c.conrelid::regclass::text NOT IN ({INTERNAL_TABLES_SQL})
               AND contype IN ('p', 'u', 'f', 'c')
             GROUP BY contype
-            f"""
+            """
         )
         constraints = dict(cursor.fetchall())
         cursor.execute(
-            """
+            f"""
             SELECT COUNT(*)
             FROM information_schema.columns
             WHERE table_schema = 'public'
               AND table_name NOT IN ({INTERNAL_TABLES_SQL})
               AND is_identity = 'YES'
-            f"""
+            """
         )
         identities = cursor.fetchone()[0]
     return {
@@ -97,14 +97,14 @@ def _actual_summary(conn):
 def _actual_constraint_names(conn):
     with conn.cursor() as cursor:
         cursor.execute(
-            """
+            f"""
             SELECT c.contype, c.conname
             FROM pg_constraint c
             JOIN pg_namespace n ON n.oid = c.connamespace
             WHERE n.nspname = 'public'
               AND c.conrelid::regclass::text NOT IN ({INTERNAL_TABLES_SQL})
               AND c.contype IN ('p', 'u', 'f', 'c')
-            f"""
+            """
         )
         result = {"p": set(), "u": set(), "f": set(), "c": set()}
         for constraint_type, name in cursor.fetchall():
@@ -115,7 +115,7 @@ def _actual_constraint_names(conn):
 def _actual_explicit_index_names(conn):
     with conn.cursor() as cursor:
         cursor.execute(
-            """
+            f"""
             SELECT index_class.relname
             FROM pg_index index_data
             JOIN pg_class table_class

@@ -61,9 +61,9 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A suite passou de 498 para 515 testes com a fundacao somente leitura da API
+A suite passou de 498 para 517 testes com a fundacao somente leitura da API
 Conta Ovos. A regressao ampla foi confirmada no worktree da branch usando uma
-copia temporaria isolada de `C:\endemias\endemias.db`: os 515 testes
+copia temporaria isolada de `C:\endemias\endemias.db`: os 517 testes
 terminaram com `OK`, 5 foram ignorados e o hash do SQLite oficial permaneceu
 inalterado.
 Ela cria uma copia SQLite temporaria antes de importar a aplicacao; nunca rode

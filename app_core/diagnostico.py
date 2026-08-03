@@ -595,13 +595,24 @@ def _check_contaovos(itens, status):
     scopes = status.get("scopes") or []
     scope = scopes[0] if scopes else {}
     municipio = scope.get("municipality") or scope.get("municipality_code") or "escopo confirmado"
+    documented_format = status.get("credential_format") == "documented"
     _add(
         itens,
-        "ok",
+        "ok" if documented_format else "aviso",
         "Conta Ovos",
-        "Credencial privada validada somente em leitura.",
+        (
+            "Credencial privada validada somente em leitura."
+            if documented_format
+            else "Credencial validada, mas com formato diferente do documentado."
+        ),
         valor=municipio,
-        detalhe=f"Ultima verificacao: {status.get('checked_at') or '-'}.",
+        detalhe=(
+            f"Ultima verificacao: {status.get('checked_at') or '-'}; "
+            "a API aceitou a credencial, mas o formato deve ser confirmado "
+            "com o fornecedor antes de automatizar a integracao."
+            if not documented_format
+            else f"Ultima verificacao: {status.get('checked_at') or '-'}."
+        ),
     )
 
 
