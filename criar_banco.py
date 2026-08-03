@@ -13,6 +13,7 @@ import sqlite3, os
 from datetime import datetime
 
 from app_core import auth as auth_core
+from app_core import contaovos_integracao
 from app_core import meteorologia as meteorologia_core
 from app_core import pontos_estrategicos as pe_core
 
@@ -489,6 +490,8 @@ def main():
     migrar_boletim_mensal(conn)
     print("[OK] Tabela boletim_mensal_itens verificada.")
     migrar_acoes_setor(conn)
+    contaovos_integracao.ensure_schema(conn)
+    conn.commit()
     print("[OK] Tabelas acoes_setor verificadas.")
 
     # FIX DB-04: Definir WAL mode persistentemente UMA VEZ no banco

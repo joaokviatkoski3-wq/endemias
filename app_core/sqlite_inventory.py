@@ -6,6 +6,8 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+from app_core import schema_metadata
+
 
 def _ident(name):
     return '"' + str(name).replace('"', '""') + '"'
@@ -194,13 +196,15 @@ def build_inventory(db_path):
             conn.execute("PRAGMA foreign_key_check").fetchall()
         )
         table_rows = conn.execute(
-            """
+            f"""
             SELECT name, sql
             FROM sqlite_master
             WHERE type = 'table'
               AND name NOT LIKE 'sqlite_%'
+              AND name NOT IN ({','.join('?' for _ in schema_metadata.INTERNAL_TABLES)})
             ORDER BY name
-            """
+            """,
+            schema_metadata.INTERNAL_TABLES,
         ).fetchall()
 
         tables = []

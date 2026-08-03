@@ -9,7 +9,7 @@ que assumir o projeto em outra conta ou conversa.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.15.0`, definida em `app_core/version.py`.
+- Versao atual: `1.16.0`, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -61,9 +61,9 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A suite passou de 464 para 498 testes com o lote de saude dos backups e as
-correcoes da revisao. A regressao ampla foi confirmada no worktree da branch
-usando uma copia temporaria isolada de `C:\endemias\endemias.db`: os 498 testes
+A suite passou de 498 para 517 testes com a fundacao somente leitura da API
+Conta Ovos. A regressao ampla foi confirmada no worktree da branch usando uma
+copia temporaria isolada de `C:\endemias\endemias.db`: os 517 testes
 terminaram com `OK`, 5 foram ignorados e o hash do SQLite oficial permaneceu
 inalterado.
 Ela cria uma copia SQLite temporaria antes de importar a aplicacao; nunca rode
@@ -151,14 +151,20 @@ por um console elevado antes de concluir que um backup falhou.
 
 ## Proxima tarefa recomendada
 
-Monitorar a estabilizacao e preparar o ensaio de recuperacao:
+Concluir a fundacao somente leitura da API privada Conta Ovos:
 
-1. acompanhar por alguns dias o painel "Saude dos backups automaticos" da
-   Central e o diagnostico completo;
-2. confirmar que o dump diario e o backup completo semanal continuam dentro dos
-   limites de idade;
-3. planejar um ensaio seguro de restauracao do dump automatico em um banco
-   PostgreSQL descartavel, sem tocar em `endemias`.
+1. revisar `codex/integrar-api-conta-ovos-base` contra `master`;
+2. executar `configurar_contaovos.bat` como administrador e confirmar a unica
+   consulta privada somente leitura como `SYSTEM`;
+3. aplicar a migracao `0002_integracao_contaovos.sql` somente depois da
+   aprovacao e antes de ativar o painel oficial;
+4. preservar CSVs, marcacoes manuais e todos os endpoints atuais como fallback;
+5. depois da homologacao, iniciar a sincronizacao incremental por
+   `counting_id`, ainda sem chamadas POST.
+
+O desenho e as regras operacionais estao em `docs/CONTA_OVOS_API.md`. O cliente
+do primeiro lote possui apenas GET. A suite bloqueia rede real para
+`contaovos.com`; chamadas reais exigem o script supervisionado.
 
 Qualquer rollback precisa ser decidido pelo administrador: primeiro interrompa
 novas escritas PostgreSQL e so depois remova a tarefa/marcador. Nunca abra o
