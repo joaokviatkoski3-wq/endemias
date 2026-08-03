@@ -22,6 +22,11 @@ class StartupScriptsTests(unittest.TestCase):
         self.assertIn("-RestartCount 5", script)
         self.assertIn("Start-ScheduledTask -TaskName $TaskName", script)
 
+        wrapper = (ROOT / "configurar_inicializacao_automatica.bat").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("-Backend postgresql -Database endemias", wrapper)
+
     def test_configurador_cria_atalho_e_pode_ser_desfeito(self):
         script = (ROOT / "scripts" / "configurar_inicializacao_automatica.ps1").read_text(
             encoding="utf-8"

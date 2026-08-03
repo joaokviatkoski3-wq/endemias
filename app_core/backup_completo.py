@@ -159,6 +159,7 @@ def criar_backup_completo(
     kobo_config_path=None,
     secret_key_path=None,
     db_target=None,
+    postgresql_env=None,
 ):
     destino = Path(destino_dir)
     destino.mkdir(parents=True, exist_ok=True)
@@ -197,11 +198,16 @@ def criar_backup_completo(
     with tempfile.TemporaryDirectory(prefix="endemias_backup_") as tmp:
         tmp_dir = Path(tmp)
         if target.backend == "postgresql":
+            backup_kwargs = {
+                "destino_dir": tmp_dir,
+                "prefixo": "endemias",
+                "manter": None,
+            }
+            if postgresql_env is not None:
+                backup_kwargs["env"] = postgresql_env
             banco_info = postgresql_backup.criar_backup_postgresql(
                 target.location,
-                destino_dir=tmp_dir,
-                prefixo="endemias",
-                manter=None,
+                **backup_kwargs,
             )
             observacao_banco = "Backup PostgreSQL custom validado por pg_restore"
         else:

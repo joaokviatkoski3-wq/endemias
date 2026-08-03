@@ -284,6 +284,7 @@ def listar_backups(destino_dir, limite=20):
             "validado": meta.get("validado"),
             "sha256": meta.get("sha256"),
             "backend": "postgresql",
+            "origem": meta.get("origem"),
         })
     return resultado
 

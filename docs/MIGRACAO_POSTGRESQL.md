@@ -97,6 +97,31 @@ python scripts\verificar_postgresql.py
 O comando verifica os dois bancos, a versao, a codificacao, o fuso horario e a
 permissao de escrita por meio de uma tabela temporaria desfeita ao final.
 
+## Backup automatico
+
+Os comandos `scripts\backup_banco.py` e `scripts\backup_completo.py` aceitam
+`--backend sqlite` ou `--backend postgresql`. No modo PostgreSQL, o nome do
+banco e obrigatorio, a credencial vem do `pgpass` e o dump sempre e validado por
+`pg_restore --list` antes de ser publicado.
+
+O configurador operacional registra um dump diario e um backup completo
+semanal sob `SYSTEM`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File `
+  scripts\configurar_backup_automatico_postgresql.ps1 `
+  -Database endemias -ExecutarAgora
+```
+
+`-ValidarSomente` confere Python, `pg_dump`, `pg_restore`, caminhos e credencial
+sem alterar tarefas ou pastas. `-Remover` desregistra somente as duas tarefas e
+preserva todos os arquivos existentes. A instalacao no servidor oficial fica
+pendente ate a aprovacao da branch que introduziu essa rotina.
+
+Na instalacao, as duas pastas de destino recebem ACL protegida com acesso
+somente para `SYSTEM` e Administradores. Isso evita que dumps e ZIPs contendo
+dados/configuracoes reais herdem a permissao ampla do disco de backups.
+
 Para conferir apenas a leitura:
 
 ```powershell

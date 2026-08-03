@@ -10,7 +10,7 @@ if errorlevel 1 (
     exit /b
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\configurar_inicializacao_automatica.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\configurar_inicializacao_automatica.ps1" -Backend postgresql -Database endemias
 set "RESULTADO=%errorlevel%"
 echo.
 if "%RESULTADO%"=="0" (

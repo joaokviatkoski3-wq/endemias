@@ -250,6 +250,24 @@ gera dump de seguranca e usa `--clean --if-exists --single-transaction
 `ENDEMIAS_PG_DUMP` e `ENDEMIAS_PG_RESTORE`; credenciais continuam a cargo do
 `pgpass`/libpq e nunca entram na linha de comando.
 
+O lote `codex/automatizar-backups-postgresql` prepara duas tarefas sob
+`SYSTEM`: dump diario as 02:00 com retencao de 30 arquivos e backup completo
+semanal aos domingos as 03:00 com retencao de 8 ZIPs. O instalador e
+`configurar_backup_postgresql.bat`; ele tambem pode criar e validar os primeiros
+artefatos imediatamente. Antes do merge/revisao, as tarefas nao devem ser
+instaladas no computador oficial.
+
+O configurador protege as pastas de destino com ACL exclusiva para `SYSTEM` e
+Administradores, inclusive por heranca nos novos artefatos. A verificacao
+manual precisa ser executada numa sessao elevada.
+
+O verificador abaixo nao conecta ao banco. Ele recalcula SHA-256, executa
+`pg_restore --list` no dump, testa o ZIP e confere o hash do dump interno:
+
+```powershell
+Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -Command "cd C:\endemias; python scripts\verificar_backups_postgresql.py"'
+```
+
 ## Operacao depois da migracao
 
 - PostgreSQL `endemias` e o banco oficial.

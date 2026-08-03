@@ -100,7 +100,7 @@ Aplicacao Flask usa `app.py` como entrada principal e ja expoe `create_app()` pa
   - paginas administrativas ficam ocultas para visualizador;
   - badges de notificacoes e agenda foram preservadas.
 - Versao semantica inicial definida como `1.0.0` (`maio/2026`) e exibida no rodape das paginas.
-- Versao atual: `1.13.0` (`agosto/2026`), com PostgreSQL como backend oficial, SQLite congelado para rollback, estoque de esporotricose, mapa analitico do RG, backups no disco D, filtros modernos, melhorias de edicao/visualizacao, Diarios de Ovitrampas com impressao compacta e resultados laboratoriais registrados somente no sistema, leitura laboratorial de ovitrampas, Acoes e Atendimentos com acervo historico e relatorio tecnico institucional, alem de reforcos de integridade dos bancos, dos backups e da consistencia dos indicadores do Dashboard.
+- Versao atual: `1.14.0` (`agosto/2026`), com PostgreSQL como backend oficial, backups PostgreSQL automaticos preparados para execucao sob `SYSTEM`, SQLite congelado para rollback, estoque de esporotricose, mapa analitico do RG, backups no disco D, filtros modernos, melhorias de edicao/visualizacao, Diarios de Ovitrampas com impressao compacta e resultados laboratoriais registrados somente no sistema, leitura laboratorial de ovitrampas, Acoes e Atendimentos com acervo historico e relatorio tecnico institucional, alem de reforcos de integridade dos bancos, dos backups e da consistencia dos indicadores do Dashboard.
 - Marco `v1.1.0`: liberacao de gravacao Conta Ovos/SisPNCD.
 - Gravacao em SisPNCD foi liberada apos o marco `v1.0.0`:
   - `/api/sispncd/salvar` grava o codigo somente em visitas pendentes com `SISPNCD IS NULL`;
@@ -194,7 +194,7 @@ escritas durante a regressao.
 Ultimo resultado conhecido:
 
 ```text
-Ran 457 tests
+Ran 464 tests
 OK (skipped=5)
 ```
 

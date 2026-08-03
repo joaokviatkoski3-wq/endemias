@@ -43,29 +43,50 @@ Antes de mudar o banco real de lugar, pare o sistema, copie `endemias.db` e os a
 
 ## Backup do banco
 
-Para gerar uma copia consistente do SQLite, use o script de backup. Ele usa a API nativa do SQLite, funciona melhor com WAL do que copiar apenas o arquivo `.db`, valida o resultado com `PRAGMA integrity_check` e grava um `.json` de metadados ao lado do backup.
+O script seleciona SQLite ou PostgreSQL explicitamente. No SQLite, usa a API
+nativa e `PRAGMA integrity_check`. No PostgreSQL, usa `pg_dump` custom,
+`pg_restore --list` e SHA-256. Nos dois casos, grava metadados `.json` ao lado
+do backup.
 
 ```powershell
-python scripts\backup_banco.py
+python scripts\backup_banco.py --backend sqlite
 ```
 
-Por padrao, o arquivo sera salvo em `backups/` ao lado do banco configurado. Para escolher origem e destino:
+Para escolher origem e destino SQLite:
 
 ```powershell
-python scripts\backup_banco.py --db "D:\dados\endemias.db" --destino "E:\Backups\Endemias"
+python scripts\backup_banco.py --backend sqlite `
+  --db "D:\dados\endemias.db" --destino "E:\Backups\Endemias"
 ```
 
-Para manter somente os ultimos 30 backups:
+Para PostgreSQL, informe o banco e use o `pgpass` protegido:
 
 ```powershell
-python scripts\backup_banco.py --manter 30
+python scripts\backup_banco.py --backend postgresql `
+  --database endemias `
+  --pgpass-file "C:\ProgramData\Endemias\pgpass.conf" `
+  --destino "D:\BackupsEndemias\backups_banco" `
+  --manter 30
 ```
+
+O servidor oficial pode registrar as tarefas diaria e semanal executando
+`configurar_backup_postgresql.bat` como administrador. A validacao posterior e:
+
+```powershell
+Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -Command "cd C:\endemias; python scripts\verificar_backups_postgresql.py"'
+```
+
+No servidor oficial, as pastas de backup ficam restritas a `SYSTEM` e
+Administradores porque os arquivos contem dados reais e configuracoes
+sensiveis.
 
 Boa rotina operacional:
 
 - fazer backup antes de importar planilhas grandes ou rodar migracoes;
 - guardar copia em outro disco ou servidor;
 - testar restauracao periodicamente em uma pasta separada;
+- manter uma copia externa protegida, pois o backup completo contem dados e
+  configuracoes sensiveis;
 - nunca versionar `backups/`, `anexos/`, `uploads_temp/`, `saida/`, `notificacoes_geradas/`, `*.db`, `*.db-wal`, `*.db-shm`, `*.log`, `secret.key` ou `kobo_config.json`.
 
 ## Politica de seguranca de conteudo

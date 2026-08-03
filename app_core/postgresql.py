@@ -1,7 +1,7 @@
-"""Conexao base usada na migracao gradual ao PostgreSQL.
+"""Conexao base do backend PostgreSQL oficial e da camada dual.
 
-O sistema de producao ainda usa SQLite. As ferramentas de migracao e a camada
-dual experimental compartilham esta configuracao sem armazenar senhas.
+As ferramentas operacionais e os testes compartilham esta configuracao sem
+armazenar senhas; o SQLite permanece apenas para testes e rollback controlado.
 """
 
 import os

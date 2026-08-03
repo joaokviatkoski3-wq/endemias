@@ -9,7 +9,7 @@ que assumir o projeto em outra conta ou conversa.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.13.0`, definida em `app_core/version.py`.
+- Versao atual: `1.14.0`, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -61,7 +61,7 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A ultima regressao ampla registrada teve 457 testes aprovados e 5 ignorados.
+A ultima regressao ampla registrada teve 464 testes aprovados e 5 ignorados.
 Ela cria uma copia SQLite temporaria antes de importar a aplicacao; nunca rode
 testes contra o `endemias.db` congelado.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
@@ -125,8 +125,13 @@ b5ff38b feat: concluir migracao de ovitrampas para postgres
 
 ## Proxima tarefa recomendada
 
-Monitorar a estabilizacao do PostgreSQL, confirmar os backups automaticos e
-observar logs/diagnosticos nos primeiros dias. Qualquer rollback precisa ser
+Submeter `codex/automatizar-backups-postgresql` a revisao. O lote torna os
+scripts de backup dual-backend, adiciona verificacao independente dos dumps e
+prepara tarefas `SYSTEM` diaria/semanal. Essas tarefas ainda nao foram
+instaladas e nenhum dump de producao foi criado por esta branch. Depois da
+aprovacao, executar `configurar_backup_postgresql.bat`, validar o primeiro dump
+e o primeiro backup completo e observar logs/diagnosticos nos primeiros dias.
+Qualquer rollback precisa ser
 decidido pelo administrador: primeiro interrompa novas escritas PostgreSQL e
 so depois remova a tarefa/marcador. Nunca abra o SQLite congelado em paralelo.
 

@@ -609,6 +609,12 @@ cria um dump `pre_restore` e executa
 `pg_restore` com limpeza, parada no primeiro erro e transacao unica. Senhas nao
 entram nos argumentos nem nos metadados. O DBML continua SQLite-only.
 
+Os scripts operacionais de backup tambem usam agora a camada dual sem importar
+`app.py`. Isso evita inicializar a aplicacao ou executar manutencao de esquema
+num processo cuja unica funcao e gerar um backup. O instalador automatico
+agenda dump diario e backup completo semanal sob `SYSTEM`; o verificador dos
+artefatos funciona apenas sobre arquivos e nao precisa autenticar no banco.
+
 O ensaio controlado e:
 
 ```powershell

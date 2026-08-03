@@ -54,7 +54,10 @@ O sistema cria uma cópia do banco automaticamente.
 ### 3.3 Verifique a data
 Certifique-se de que o backup foi criado hoje.
 
-> 💡 **Dica**: O sistema já faz backup automático antes de toda importação. Só faça manual se estiver com medo de algo dar errado.
+> 💡 **Dica**: O servidor PostgreSQL possui tarefas próprias de backup diário e
+> backup completo semanal depois que o administrador executa o configurador.
+> Importações são protegidas por transação, mas um backup manual continua
+> recomendado antes de uma operação excepcional.
 
 ---
 
@@ -93,4 +96,4 @@ Certifique-se de que o backup foi criado hoje.
 
 > Se você não tem certeza do que está fazendo, **pare e pergunte**. É melhor esperar 10 minutos por ajuda do que corrigir um erro que pode levar horas.
 
-**Boa sorte! O sistema está estável e com backup automático. Siga os passos com calma.**
+**Boa sorte! Confirme na Central do Sistema que os backups automáticos estão recentes e siga os passos com calma.**
