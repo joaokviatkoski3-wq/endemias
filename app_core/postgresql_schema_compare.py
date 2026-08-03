@@ -1,12 +1,19 @@
 """Comparacao do esquema PostgreSQL com o inventario SQLite de origem."""
 
 from app_core import postgresql_schema
+from app_core import schema_metadata
+
+
+INTERNAL_TABLES_SQL = ", ".join(
+    "'" + name.replace("'", "''") + "'"
+    for name in schema_metadata.INTERNAL_TABLES
+)
 
 
 def _actual_columns(conn):
     with conn.cursor() as cursor:
         cursor.execute(
-            """
+            f"""
             SELECT
                 table_name,
                 column_name,
@@ -17,9 +24,9 @@ def _actual_columns(conn):
                 column_default
             FROM information_schema.columns
             WHERE table_schema = 'public'
-              AND table_name <> 'endemias_schema_migrations'
+              AND table_name NOT IN ({INTERNAL_TABLES_SQL})
             ORDER BY table_name, ordinal_position
-            """
+            f"""
         )
         return {
             (row[0], row[1]): {
@@ -41,8 +48,8 @@ def _actual_summary(conn):
             FROM information_schema.tables
             WHERE table_schema = 'public'
               AND table_type = 'BASE TABLE'
-              AND table_name <> 'endemias_schema_migrations'
-            """
+              AND table_name NOT IN ({INTERNAL_TABLES_SQL})
+            f"""
         )
         tables = cursor.fetchone()[0]
         cursor.execute(
@@ -50,8 +57,8 @@ def _actual_summary(conn):
             SELECT COUNT(*)
             FROM information_schema.columns
             WHERE table_schema = 'public'
-              AND table_name <> 'endemias_schema_migrations'
-            """
+              AND table_name NOT IN ({INTERNAL_TABLES_SQL})
+            f"""
         )
         columns = cursor.fetchone()[0]
         cursor.execute(
@@ -60,10 +67,10 @@ def _actual_summary(conn):
             FROM pg_constraint c
             JOIN pg_namespace n ON n.oid = c.connamespace
             WHERE n.nspname = 'public'
-              AND c.conrelid <> 'endemias_schema_migrations'::regclass
+              AND c.conrelid::regclass::text NOT IN ({INTERNAL_TABLES_SQL})
               AND contype IN ('p', 'u', 'f', 'c')
             GROUP BY contype
-            """
+            f"""
         )
         constraints = dict(cursor.fetchall())
         cursor.execute(
@@ -71,9 +78,9 @@ def _actual_summary(conn):
             SELECT COUNT(*)
             FROM information_schema.columns
             WHERE table_schema = 'public'
-              AND table_name <> 'endemias_schema_migrations'
+              AND table_name NOT IN ({INTERNAL_TABLES_SQL})
               AND is_identity = 'YES'
-            """
+            f"""
         )
         identities = cursor.fetchone()[0]
     return {
@@ -95,9 +102,9 @@ def _actual_constraint_names(conn):
             FROM pg_constraint c
             JOIN pg_namespace n ON n.oid = c.connamespace
             WHERE n.nspname = 'public'
-              AND c.conrelid <> 'endemias_schema_migrations'::regclass
+              AND c.conrelid::regclass::text NOT IN ({INTERNAL_TABLES_SQL})
               AND c.contype IN ('p', 'u', 'f', 'c')
-            """
+            f"""
         )
         result = {"p": set(), "u": set(), "f": set(), "c": set()}
         for constraint_type, name in cursor.fetchall():
@@ -120,7 +127,7 @@ def _actual_explicit_index_names(conn):
             LEFT JOIN pg_constraint constraint_data
               ON constraint_data.conindid = index_class.oid
             WHERE namespace.nspname = 'public'
-              AND table_class.relname <> 'endemias_schema_migrations'
+              AND table_class.relname NOT IN ({INTERNAL_TABLES_SQL})
               AND constraint_data.oid IS NULL
             """
         )

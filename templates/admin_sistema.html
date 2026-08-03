@@ -189,6 +189,32 @@
     </section>
     {% endif %}
 
+    <section class="system-panel system-panel-wide">
+      <div class="system-panel-hd">
+        <div>
+          <h2>Integração Conta Ovos</h2>
+          <p>Estado da credencial privada e da última consulta supervisionada somente leitura.</p>
+        </div>
+        <span class="system-status {{ 'ok' if contaovos_status.ok else 'warn' }}">
+          {% if contaovos_status.ok %}Validada{% elif contaovos_status.configured %}Pendente{% else %}Não configurada{% endif %}
+        </span>
+      </div>
+      <dl class="system-facts">
+        <div><dt>Credencial protegida</dt><dd>{{ "Configurada" if contaovos_status.configured else "Não configurada" }}</dd></div>
+        <div><dt>Última verificação</dt><dd>{{ contaovos_status.checked_at or "Ainda não executada" }}</dd></div>
+        <div><dt>Registros conferidos</dt><dd>{{ contaovos_status.page_items if contaovos_status.page_items is not none else "-" }}</dd></div>
+        <div><dt>Formato aceito</dt><dd>{{ contaovos_status.credential_format or "Não verificado" }}</dd></div>
+        {% if contaovos_status.scopes %}
+        {% set contaovos_scope = contaovos_status.scopes[0] %}
+        <div><dt>Escopo</dt><dd>{{ contaovos_scope.municipality }} / {{ contaovos_scope.state_code }} ({{ contaovos_scope.municipality_code }})</dd></div>
+        {% endif %}
+        {% if contaovos_status.error %}
+        <div><dt>Último resultado</dt><dd>{{ contaovos_status.error }}</dd></div>
+        {% endif %}
+      </dl>
+      <p class="dim small">Esta versão não envia, altera ou exclui registros no Conta Ovos. Os fluxos CSV e manuais continuam ativos.</p>
+    </section>
+
     <section class="system-panel">
       <div class="system-panel-hd">
         <div>

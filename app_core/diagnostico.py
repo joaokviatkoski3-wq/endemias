@@ -39,6 +39,7 @@ def gerar(
     backup_completo_dir=None,
     database=None,
     saude_backups=None,
+    contaovos_status=None,
 ):
     itens = []
     tabelas = _tables(conn)
@@ -68,10 +69,15 @@ def gerar(
     else:
         _check_backups(backup_dir, itens, backend)
 
+    if contaovos_status is not None:
+        _check_contaovos(itens, contaovos_status)
+
     resumo = _resumo(itens, db_path, tabelas, completo, backend)
     resultado = {"resumo": resumo, "itens": itens}
     if saude_backups is not None:
         resultado["saude_backups"] = saude_backups
+    if contaovos_status is not None:
+        resultado["contaovos"] = contaovos_status
     return resultado
 
 
@@ -555,6 +561,48 @@ def _check_saude_backups(itens, saude):
             valor=tarefa.get("estado") or None,
             detalhe="; ".join(partes),
         )
+
+
+def _check_contaovos(itens, status):
+    if not status.get("configured"):
+        _add(
+            itens,
+            "info",
+            "Conta Ovos",
+            "Credencial privada ainda nao configurada.",
+            detalhe="A integracao permanece desativada e os fluxos manuais continuam disponiveis.",
+        )
+        return
+    if not status.get("verified"):
+        _add(
+            itens,
+            "aviso",
+            "Conta Ovos",
+            "Credencial configurada, mas ainda nao validada.",
+            detalhe="Execute a verificacao supervisionada somente leitura como SYSTEM.",
+        )
+        return
+    if not status.get("ok"):
+        _add(
+            itens,
+            "aviso",
+            "Conta Ovos",
+            "Ultima verificacao privada falhou.",
+            valor=status.get("checked_at"),
+            detalhe=status.get("error") or "Consulte o responsavel tecnico.",
+        )
+        return
+    scopes = status.get("scopes") or []
+    scope = scopes[0] if scopes else {}
+    municipio = scope.get("municipality") or scope.get("municipality_code") or "escopo confirmado"
+    _add(
+        itens,
+        "ok",
+        "Conta Ovos",
+        "Credencial privada validada somente em leitura.",
+        valor=municipio,
+        detalhe=f"Ultima verificacao: {status.get('checked_at') or '-'}.",
+    )
 
 
 def _resumo(itens, db_path, tabelas, completo, backend="sqlite"):

@@ -687,6 +687,12 @@ oficial roda sob `SYSTEM` e enxerga tudo.
 
 ## Proxima etapa
 
+A fundacao da API privada Conta Ovos adiciona a migracao
+`0002_integracao_contaovos.sql`, com cursor por fluxo e historico sanitizado de
+execucoes. O equivalente SQLite e criado por
+`app_core/contaovos_integracao.py`. Nenhuma fila ou escrita remota pertence a
+essa migracao; detalhes em `docs/CONTA_OVOS_API.md`.
+
 Autenticacao, auditoria, Controle de Pessoal, Gestao de Usuarios,
 Recolhimentos de Materiais, Amostras de Animais e Visitas de Arboviroses
 possuem leitura e escrita validadas. BRI e Pontos Estrategicos tambem estao

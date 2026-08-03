@@ -15,6 +15,7 @@ from app_core import backup as backup_core
 from app_core import backup_completo as backup_completo_core
 from app_core import blueprint_helpers as bh
 from app_core import backup_health
+from app_core import contaovos_health
 from app_core import diagnostico as diagnostico_core
 from app_core import dbml as dbml_core
 from app_core import db as db_core
@@ -256,6 +257,7 @@ def admin_sistema():
         backup_completo_dir,
         backup_health.MODO_RAPIDO,
     )
+    contaovos_status = contaovos_health.read_status()
     conn = bh.get_db()
     try:
         diagnostico = diagnostico_core.gerar(
@@ -265,12 +267,14 @@ def admin_sistema():
             backup_completo_dir=backup_completo_dir,
             database=target.location,
             saude_backups=saude_backups,
+            contaovos_status=contaovos_status,
         )
     finally:
         conn.close()
     return render_template(
         "admin_sistema.html",
         saude_backups=saude_backups,
+        contaovos_status=contaovos_status,
         db_status=_db_status(),
         contagens=_contagens_sistema(),
         backups=backups,
@@ -308,6 +312,7 @@ def api_admin_diagnostico():
         backup_completo_dir,
         backup_health.MODO_COMPLETO if completo else backup_health.MODO_RAPIDO,
     )
+    contaovos_status = contaovos_health.read_status()
     conn = bh.get_db()
     try:
         return jsonify(
@@ -319,6 +324,7 @@ def api_admin_diagnostico():
                 backup_completo_dir=backup_completo_dir,
                 database=target.location,
                 saude_backups=saude_backups,
+                contaovos_status=contaovos_status,
             )
         )
     finally:
