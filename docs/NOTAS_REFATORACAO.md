@@ -100,7 +100,7 @@ Aplicacao Flask usa `app.py` como entrada principal e ja expoe `create_app()` pa
   - paginas administrativas ficam ocultas para visualizador;
   - badges de notificacoes e agenda foram preservadas.
 - Versao semantica inicial definida como `1.0.0` (`maio/2026`) e exibida no rodape das paginas.
-- Versao atual: `1.16.0` (`agosto/2026`), com PostgreSQL como backend oficial, backups PostgreSQL automaticos sob `SYSTEM`, SQLite congelado para rollback e fundacao somente leitura da API privada Conta Ovos. O primeiro lote protege a chave para `SYSTEM`, bloqueia rede real na suite, valida autenticacao/escopo por uma unica consulta supervisionada e exibe somente estado sanitizado na Central; sincronizacao e escrita remota continuam desativadas.
+- Versao atual: `1.17.0` (`agosto/2026`), com PostgreSQL como backend oficial, backups PostgreSQL automaticos sob `SYSTEM`, SQLite congelado para rollback e integracao privada Conta Ovos somente GET. A credencial foi validada sob `SYSTEM`; a sincronizacao incremental pagina defensivamente, valida escopo, normaliza ovitrampas, deduplica por `counting_id` e preserva o CSV. Escrita remota continua desativada.
 - Marco `v1.1.0`: liberacao de gravacao Conta Ovos/SisPNCD.
 - Gravacao em SisPNCD foi liberada apos o marco `v1.0.0`:
   - `/api/sispncd/salvar` grava o codigo somente em visitas pendentes com `SISPNCD IS NULL`;

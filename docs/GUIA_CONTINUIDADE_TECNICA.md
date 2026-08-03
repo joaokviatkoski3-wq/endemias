@@ -315,8 +315,9 @@ Ao ver um arquivo sensivel como nao rastreado, nao o adicione. Confira
 - Ovitrampas/Laboratorio: espelho local preenchido pelo laboratorista antes do
   lancamento externo.
 - Conta Ovos/SisPNCD: apoio operacional; a fundacao privada somente leitura
-  existe em `codex/integrar-api-conta-ovos-base`, mas sincronizacao e envio
-  continuam desativados ate revisao e homologacao. Consulte
+  esta em `master`, e a sincronizacao GET das contagens esta na branch
+  `codex/sincronizar-contagens-conta-ovos`. Envios continuam desativados ate
+  revisao e homologacao. Consulte
   `docs/CONTA_OVOS_API.md`.
 - Esporotricose/Visitas: dados importados do Kobo.
 - Esporotricose/Doentes: cadastro clinico manual, receitas e estoque.
@@ -328,8 +329,8 @@ Ao ver um arquivo sensivel como nao rastreado, nao o adicione. Confira
 
 Nao misture estas ideias com o fechamento da migracao PostgreSQL:
 
-- sincronizacao incremental e envio pela API privada do Conta Ovos, apos a
-  fundacao somente leitura ser homologada;
+- fila e envio pela API privada do Conta Ovos, depois de homologar a
+  sincronizacao GET incremental;
 - diarios digitais offline para agentes em tablets;
 - formularios proprios para substituir gradualmente o Kobo;
 - PostgreSQL remoto/VPS;

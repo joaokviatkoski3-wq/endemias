@@ -1,8 +1,9 @@
 # Integracao privada com a API Conta Ovos
 
-Estado em 03/08/2026: fundacao somente leitura implementada na branch
-`codex/integrar-api-conta-ovos-base`. Nenhum endpoint de escrita faz parte
-deste lote.
+Estado em 03/08/2026: fundacao somente leitura integrada a `master`, credencial
+protegida e escopo privado validados. A sincronizacao GET das contagens esta em
+`codex/sincronizar-contagens-conta-ovos`. Nenhum endpoint de escrita remota faz
+parte destes lotes.
 
 ## Regras de seguranca
 
@@ -68,10 +69,41 @@ As filas de contagens e visitas nao pertencem a este lote. Elas serao tabelas
 especificas por dominio, com FKs e estados de recuperacao, antes das primeiras
 escritas remotas.
 
+`migrations/postgresql/0003_contaovos_sync_lock.sql` acrescenta ao cursor o
+token e o instante da execucao corrente. A aquisicao e atomica nos dois bancos;
+uma trava abandonada pode ser retomada depois de 30 minutos, e a execucao
+interrompida fica registrada como erro sanitizado.
+
+## Sincronizacao GET das contagens
+
+`app_core/contaovos_sync.py` pagina `/lastcounting`, valida o municipio em cada
+item, normaliza o identificador da ovitrampa com a mesma regra do modulo
+Ovitrampas e grava por `counting_id` na tabela historica ja alimentada pelo CSV.
+A leitura de todas as paginas termina antes da primeira escrita local. Se o
+limite de 100 paginas for atingido, nenhuma contagem e gravada e o operador deve
+informar um intervalo de datas menor.
+
+O endpoint privado documentado nao aceita filtro por `counting_id`. Portanto o
+ID remoto funciona como cursor, chave idempotente e detector de novos itens,
+mas nao e enviado como parametro inventado. A paginacao pode ser completa ou
+limitada por `date_start`/`date_end`. O importador CSV permanece disponivel.
+
+O comando supervisionado e `sincronizar_contaovos.bat`. No modo rotineiro ele
+consulta os ultimos 45 dias, com sobreposicao; a reconciliacao anual permanece
+como escolha deliberada para conferir o ano corrente inteiro. Primeiro o script
+consulta sem alterar o banco; somente depois de confirmacao humana repete a
+consulta e atualiza o historico local. A operacao e exclusivamente GET na API.
+
+Zeros a esquerda continuam preservados no identificador persistido. Para
+comparar a API com o cadastro local, uma chave separada ignora apenas essa
+variacao. Quando ha exatamente um cadastro correspondente, o historico usa o ID
+local existente; duas variantes locais equivalentes interrompem o lote como
+ambiguidade, sem gravacao parcial.
+
 ## Proximos lotes
 
-1. Sincronizacao incremental de contagens por `counting_id`, com normalizacao
-   de `ovitrampa_id`, single-flight e CSV preservado como fallback.
+1. Revisar e homologar a sincronizacao incremental GET, inclusive o ensaio em
+   tabelas temporarias de `endemias_teste`.
 2. Fila de leituras do laboratorio, por item, com reconciliacao antes de
    confirmar. O mapa de ocorrencias sera derivado da fonte existente em
    `app_core/ovitrampas.py`.

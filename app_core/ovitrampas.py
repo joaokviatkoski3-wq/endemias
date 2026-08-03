@@ -363,7 +363,7 @@ def _normalizar_ids_armadilhas_existentes(conn):
     rows = conn.execute(f"SELECT * FROM {ARMADILHAS_TABLE}").fetchall()
     for row in rows:
         antigo = row["ovitrampa_id"]
-        novo = _normalizar_ovitrampa_id(antigo)
+        novo = normalizar_ovitrampa_id(antigo)
         if not novo or novo == antigo:
             continue
         alvo = conn.execute(f"SELECT * FROM {ARMADILHAS_TABLE} WHERE ovitrampa_id=?", (novo,)).fetchone()
@@ -595,7 +595,7 @@ def importar_diarios_xlsx(db_path, path, usuario=None):
             ordem = 0
             for row in range(22, ws.max_row + 1):
                 raw_id = ws.cell(row, 1).value
-                ovitrampa_id = _normalizar_ovitrampa_id(raw_id)
+                ovitrampa_id = normalizar_ovitrampa_id(raw_id)
                 if not ovitrampa_id:
                     marcador = _text(raw_id)
                     if marcador and marcador.upper().startswith("OCORR"):
@@ -649,7 +649,7 @@ def importar_ocorrencias_csv(db_path, path):
                 result["linhas"] += 1
                 try:
                     registro = _registro_ocorrencia_conta_ovos(row, result["arquivo"], agora)
-                    status = _upsert_ocorrencia(conn, registro)
+                    status = upsert_ocorrencia_conta_ovos(conn, registro)
                     result[status] += 1
                     if registro["ocorrencia_codigo"]:
                         result["ocorrencias"] += 1
@@ -879,7 +879,7 @@ def salvar_diario(db_path, dados, id_diario=None):
 
 
 def vincular_armadilha_diario(db_path, dados):
-    ovitrampa_id = _normalizar_ovitrampa_id(dados.get("ovitrampa_id"))
+    ovitrampa_id = normalizar_ovitrampa_id(dados.get("ovitrampa_id"))
     id_diario = _int(dados.get("id_diario"))
     if not ovitrampa_id or not id_diario:
         raise ValueError("Informe o diario e a ovitrampa.")
@@ -968,7 +968,7 @@ def reordenar_armadilhas_diario(db_path, id_diario, ordem):
     id_diario = _int(id_diario)
     ids = []
     for item in ordem or []:
-        ovitrampa_id = _normalizar_ovitrampa_id(item)
+        ovitrampa_id = normalizar_ovitrampa_id(item)
         if ovitrampa_id and ovitrampa_id not in ids:
             ids.append(ovitrampa_id)
     if not id_diario or not ids:
@@ -1602,7 +1602,7 @@ def _registro(row, arquivo, agora):
 
 
 def _registro_armadilha(row, arquivo, agora):
-    ovitrampa_id = _normalizar_ovitrampa_id(row.get("ID"))
+    ovitrampa_id = normalizar_ovitrampa_id(row.get("ID"))
     if not ovitrampa_id:
         raise ValueError("sem ID da armadilha")
     return {
@@ -2199,7 +2199,7 @@ def _armadilha_realocar(row):
     return "REALOCAR" in texto.upper()
 
 
-def _normalizar_ovitrampa_id(value):
+def normalizar_ovitrampa_id(value):
     text = _text(value)
     if not text:
         return None
@@ -2208,6 +2208,16 @@ def _normalizar_ovitrampa_id(value):
     if re.fullmatch(r"\d+(?:[-/][A-Z]+)?", text):
         return text.replace("/", "-")
     return None
+
+
+def chave_comparacao_ovitrampa_id(value):
+    """Compara variantes numericas sem alterar o identificador persistido."""
+    normalized = normalizar_ovitrampa_id(value)
+    if not normalized:
+        return None
+    number, separator, suffix = normalized.partition("-")
+    number = str(int(number))
+    return f"{number}-{suffix}" if separator else number
 
 
 def _localidade_diario(nome):
@@ -2313,7 +2323,7 @@ def _upsert_armadilha(conn, registro, contexto=None, preservar_cadastro_conta_ov
     return "atualizados"
 
 
-def _upsert_ocorrencia(conn, registro):
+def upsert_ocorrencia_conta_ovos(conn, registro):
     atual = conn.execute(
         f"SELECT * FROM {OCORRENCIAS_TABLE} WHERE id_contagem=?",
         (registro["id_contagem"],),
