@@ -133,6 +133,62 @@
       </dl>
     </section>
 
+    {% if postgresql_operations and saude_backups %}
+    <section class="system-panel system-panel-wide">
+      <div class="system-panel-hd">
+        <div>
+          <h2>Saude dos backups automaticos</h2>
+          <p>
+            Dump diario, backup completo semanal e tarefas do Agendador.
+            Conferencia {{ saude_backups.modo }}; use o diagnostico completo
+            para revalidar hashes e catalogo.
+          </p>
+        </div>
+        <span class="system-status {{ 'ok' if saude_backups.nivel == 'ok' else ('warn' if saude_backups.nivel in ['erro', 'aviso'] else '') }}">
+          {{ {'ok': 'Estavel', 'aviso': 'Com avisos', 'erro': 'Precisa de atencao', 'desconhecido': 'Nao verificado'}.get(saude_backups.nivel, saude_backups.nivel) }}
+        </span>
+      </div>
+      <div class="diag-list">
+        {% for bloco in [saude_backups.dump, saude_backups.completo] %}
+        {% if bloco %}
+        <div class="diag-item {{ bloco.nivel }}">
+          <span>{{ bloco.nivel|upper }}</span>
+          <div>
+            <strong>{{ bloco.titulo }}</strong>
+            {% if bloco.detalhe %}<small>{{ bloco.detalhe }}</small>{% endif %}
+          </div>
+          {% if bloco.tamanho_bytes %}<em>{{ format_bytes(bloco.tamanho_bytes) }}</em>{% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% for tarefa in saude_backups.tarefas %}
+        <div class="diag-item {{ tarefa.nivel }}">
+          <span>{{ tarefa.nivel|upper }}</span>
+          <div>
+            <strong>{{ tarefa.nome }} - {{ tarefa.situacao }}</strong>
+            <small>
+              Ultima execucao: {{ tarefa.ultima_execucao or "sem registro" }}.
+              Proxima: {{ tarefa.proxima_execucao or "sem agendamento" }}.
+              {% if tarefa.resultado is not none %}Codigo: {{ tarefa.resultado }}.{% endif %}
+              {% if tarefa.detalhe %}{{ tarefa.detalhe }}{% endif %}
+            </small>
+          </div>
+          {% if tarefa.estado %}<em>{{ tarefa.estado }}</em>{% endif %}
+        </div>
+        {% endfor %}
+        {% if not saude_backups.tarefas %}
+        <div class="diag-item info">
+          <span>INFO</span>
+          <div>
+            <strong>Tarefas agendadas nao consultadas</strong>
+            <small>O Agendador nao pode ser lido nesta consulta. Isso nao indica falha de backup.</small>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </section>
+    {% endif %}
+
     <section class="system-panel">
       <div class="system-panel-hd">
         <div>

@@ -23,6 +23,10 @@ decisoes tecnicas e operacionais ja consolidadas.
 - `app.py`: fabrica Flask, configuracao, caminhos e inicializacao do servidor.
 - `app_core/db.py`: adaptador dual e conexoes SQLite/PostgreSQL.
 - `app_core/postgresql.py`: configuracao e conexao PostgreSQL.
+- `app_core/backup_health.py`: regra unica de saude dos backups, compartilhada
+  pelo verificador de linha de comando, pela Central e pelo diagnostico.
+- `app_core/backup_tasks.py`: leitura somente consulta das tarefas de backup no
+  Agendador do Windows; nunca cria, altera, inicia nem remove tarefa.
 - `app_core/`: regras de negocio e persistencia por dominio.
 - `blueprints/`: rotas, APIs e coordenacao HTTP.
 - `templates/`: paginas Jinja e parte relevante do JavaScript de cada modulo.

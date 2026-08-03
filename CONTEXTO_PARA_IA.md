@@ -9,7 +9,7 @@ que assumir o projeto em outra conta ou conversa.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.14.0`, definida em `app_core/version.py`.
+- Versao atual: `1.15.0`, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -61,7 +61,10 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A ultima regressao ampla registrada teve 464 testes aprovados e 5 ignorados.
+A suite passou de 464 para 493 testes com o lote de saude dos backups. A
+regressao ampla precisa ser reconfirmada em `C:\endemias`, porque parte dos
+testes depende dos dados reais: num worktree com banco recem-criado, 15 testes
+falham por falta de dados, exatamente os mesmos antes e depois deste lote.
 Ela cria uma copia SQLite temporaria antes de importar a aplicacao; nunca rode
 testes contra o `endemias.db` congelado.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
@@ -101,6 +104,10 @@ regressao nova.
 - Central do Sistema: status do backend, contagens e diagnostico rapido/completo.
   Backup, restauracao e backup completo usam `pg_dump`/`pg_restore` quando o
   PostgreSQL esta ativo; o DBML continua exclusivo do SQLite.
+- Saude dos backups: `app_core/backup_health.py` avalia dump diario e backup
+  completo em modo rapido ou completo, e `app_core/backup_tasks.py` le o estado
+  das tarefas agendadas sem nunca altera-las. A Central e o diagnostico
+  administrativo consomem essa camada.
 
 Commits mais recentes da migracao:
 
@@ -123,17 +130,38 @@ bfa38c8 feat: migrar importacao kobo para postgres
 b5ff38b feat: concluir migracao de ovitrampas para postgres
 ```
 
+## Backups automaticos em operacao
+
+O lote `codex/automatizar-backups-postgresql` foi revisado, aprovado e
+integrado a `master` no commit `c97a299`. Segundo o administrador do setor:
+
+- as tarefas `Endemias - Backup PostgreSQL Diario` (02:00, retencao 30) e
+  `Endemias - Backup Completo PostgreSQL` (domingo 03:00, retencao 8) foram
+  instaladas sob a conta `SYSTEM`;
+- o primeiro dump e o primeiro backup completo foram criados e aprovados pelo
+  verificador `scripts/verificar_backups_postgresql.py`.
+
+Cuidado ao conferir esse estado: uma sessao sem privilegio administrativo nao
+enxerga tarefas registradas para `SYSTEM` e recebe "tarefa nao encontrada" tanto
+para tarefa ausente quanto para tarefa apenas invisivel. As pastas em
+`D:\BackupsEndemias` tambem tem ACL exclusiva de `SYSTEM` e Administradores e
+respondem "acesso negado" para contas comuns. Confirme sempre pelo servico ou
+por um console elevado antes de concluir que um backup falhou.
+
 ## Proxima tarefa recomendada
 
-Submeter `codex/automatizar-backups-postgresql` a revisao. O lote torna os
-scripts de backup dual-backend, adiciona verificacao independente dos dumps e
-prepara tarefas `SYSTEM` diaria/semanal. Essas tarefas ainda nao foram
-instaladas e nenhum dump de producao foi criado por esta branch. Depois da
-aprovacao, executar `configurar_backup_postgresql.bat`, validar o primeiro dump
-e o primeiro backup completo e observar logs/diagnosticos nos primeiros dias.
-Qualquer rollback precisa ser
-decidido pelo administrador: primeiro interrompa novas escritas PostgreSQL e
-so depois remova a tarefa/marcador. Nunca abra o SQLite congelado em paralelo.
+Monitorar a estabilizacao e preparar o ensaio de recuperacao:
+
+1. acompanhar por alguns dias o painel "Saude dos backups automaticos" da
+   Central e o diagnostico completo;
+2. confirmar que o dump diario e o backup completo semanal continuam dentro dos
+   limites de idade;
+3. planejar um ensaio seguro de restauracao do dump automatico em um banco
+   PostgreSQL descartavel, sem tocar em `endemias`.
+
+Qualquer rollback precisa ser decidido pelo administrador: primeiro interrompa
+novas escritas PostgreSQL e so depois remova a tarefa/marcador. Nunca abra o
+SQLite congelado em paralelo.
 
 ## Virada concluida
 

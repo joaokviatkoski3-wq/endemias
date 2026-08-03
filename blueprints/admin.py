@@ -14,6 +14,7 @@ from app_core import auth as auth_core
 from app_core import backup as backup_core
 from app_core import backup_completo as backup_completo_core
 from app_core import blueprint_helpers as bh
+from app_core import backup_health
 from app_core import diagnostico as diagnostico_core
 from app_core import dbml as dbml_core
 from app_core import db as db_core
@@ -68,6 +69,38 @@ def _sqlite_only_message(operacao):
             "operacional homologado para esse banco."
         ),
     ))
+
+
+def _saude_backups(target, backup_dir, backup_completo_dir, modo):
+    """Avalia a saude dos backups PostgreSQL sem interromper a Central."""
+    if target.backend != "postgresql":
+        return None
+    try:
+        return backup_health.avaliar(
+            backup_dir,
+            backup_completo_dir,
+            database=target.location,
+            modo=modo,
+        )
+    except Exception:
+        current_app.logger.exception("Falha ao avaliar a saude dos backups")
+        motivo = "Nao foi possivel avaliar os backups nesta consulta."
+        return {
+            "backend": "postgresql",
+            "modo": modo,
+            "nivel": backup_health.NIVEL_DESCONHECIDO,
+            "dump": {
+                "nivel": backup_health.NIVEL_DESCONHECIDO,
+                "titulo": "Dump diario nao verificado",
+                "detalhe": motivo,
+            },
+            "completo": {
+                "nivel": backup_health.NIVEL_DESCONHECIDO,
+                "titulo": "Backup completo nao verificado",
+                "detalhe": motivo,
+            },
+            "tarefas": [],
+        }
 
 
 def _listar_backups_ativos(destino, limite=20):
@@ -217,13 +250,27 @@ def admin_sistema():
     backups_completos = backup_completo_core.listar_backups_completos(backup_completo_dir, limite=20)
     importacoes = import_history.listar_importacoes_recentes(bh.get_db, limite=5)
     eventos = audit.listar_eventos(bh.get_db, limite=8)
+    saude_backups = _saude_backups(
+        target,
+        backup_dir,
+        backup_completo_dir,
+        backup_health.MODO_RAPIDO,
+    )
     conn = bh.get_db()
     try:
-        diagnostico = diagnostico_core.gerar(conn, db_path=db_path, backup_dir=backup_dir)
+        diagnostico = diagnostico_core.gerar(
+            conn,
+            db_path=db_path,
+            backup_dir=backup_dir,
+            backup_completo_dir=backup_completo_dir,
+            database=target.location,
+            saude_backups=saude_backups,
+        )
     finally:
         conn.close()
     return render_template(
         "admin_sistema.html",
+        saude_backups=saude_backups,
         db_status=_db_status(),
         contagens=_contagens_sistema(),
         backups=backups,
@@ -253,10 +300,27 @@ def api_admin_diagnostico():
     target = _db_target()
     db_path = Path(target.location) if target.backend == "sqlite" else target.location
     backup_dir = Path(current_app.config["BACKUP_DIR"])
+    backup_completo_dir = Path(current_app.config["BACKUP_COMPLETO_DIR"])
     completo = request.args.get("completo", "").strip().lower() in {"1", "sim", "true", "completo"}
+    saude_backups = _saude_backups(
+        target,
+        backup_dir,
+        backup_completo_dir,
+        backup_health.MODO_COMPLETO if completo else backup_health.MODO_RAPIDO,
+    )
     conn = bh.get_db()
     try:
-        return jsonify(diagnostico_core.gerar(conn, db_path=db_path, backup_dir=backup_dir, completo=completo))
+        return jsonify(
+            diagnostico_core.gerar(
+                conn,
+                db_path=db_path,
+                backup_dir=backup_dir,
+                completo=completo,
+                backup_completo_dir=backup_completo_dir,
+                database=target.location,
+                saude_backups=saude_backups,
+            )
+        )
     finally:
         conn.close()
 

@@ -647,6 +647,44 @@ Ao encontrar `executescript` no PostgreSQL, o adaptador interrompe a operacao
 com uma mensagem explicita. Isso evita uma execucao parcial de uma rotina
 incompativel.
 
+## Saude e observabilidade dos backups
+
+A regra de validacao dos backups vive em `app_core/backup_health.py` e e
+compartilhada por tres consumidores: `scripts/verificar_backups_postgresql.py`,
+a Central do Sistema e o diagnostico administrativo. O verificador passou a ser
+apenas a interface de linha de comando dessa camada.
+
+Existem dois modos:
+
+- **rapido**: le somente metadados baratos (arquivo, data, tamanho, JSON de
+  acompanhamento do dump e manifesto do ZIP). Abre a Central sem recalcular
+  SHA-256 de arquivos grandes e sem executar `pg_restore`;
+- **completo**: recalcula o SHA-256 do dump, confere o catalogo com
+  `pg_restore --list`, testa o ZIP e recalcula o SHA-256 do dump interno. E o
+  modo de `/api/admin/sistema/diagnostico?completo=1`.
+
+O estado das duas tarefas agendadas vem de `app_core/backup_tasks.py`, que so
+consulta o Agendador. A consulta roda com tempo limite, sem janela de console,
+com os nomes das tarefas passados por variavel de ambiente (nada e interpolado
+na linha de comando) e com cache curto para nao abrir um processo a cada
+abertura da pagina. A interface nunca cria, altera, inicia ou remove tarefas.
+
+A camada distingue tres situacoes que nao podem ser confundidas:
+
+- **ok**: artefato presente, recente e integro;
+- **aviso/erro**: problema comprovado, como backup ausente, atrasado, invalido,
+  de outro banco, tarefa desabilitada ou com codigo de falha;
+- **desconhecido**: nao foi possivel verificar. Entra no diagnostico como
+  informativo e nao pinta o painel de amarelo ou vermelho.
+
+O terceiro caso e comum e precisa ser lido com cuidado. As pastas de
+`D:\BackupsEndemias` tem ACL exclusiva de `SYSTEM` e Administradores, e o
+Agendador responde "tarefa nao encontrada" tanto para tarefa inexistente quanto
+para tarefa de `SYSTEM` que a conta atual nao enxerga. Por isso a consulta
+informa se o processo tem privilegio administrativo: sem privilegio, a ausencia
+vira "nao foi possivel confirmar"; com privilegio, vira aviso real. O servidor
+oficial roda sob `SYSTEM` e enxerga tudo.
+
 ## Proxima etapa
 
 Autenticacao, auditoria, Controle de Pessoal, Gestao de Usuarios,

@@ -3,8 +3,17 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 
+from app_core import backup_health
 from app_core import db as db_core
 
+
+# Um item apenas informativo nunca deve pintar o painel de amarelo ou vermelho.
+_NIVEL_DIAGNOSTICO = {
+    backup_health.NIVEL_OK: "ok",
+    backup_health.NIVEL_AVISO: "aviso",
+    backup_health.NIVEL_ERRO: "erro",
+    backup_health.NIVEL_DESCONHECIDO: "info",
+}
 
 CORE_TABLES = (
     "usuarios",
@@ -22,7 +31,15 @@ CORE_TABLES = (
 )
 
 
-def gerar(conn, db_path=None, backup_dir=None, completo=False):
+def gerar(
+    conn,
+    db_path=None,
+    backup_dir=None,
+    completo=False,
+    backup_completo_dir=None,
+    database=None,
+    saude_backups=None,
+):
     itens = []
     tabelas = _tables(conn)
     backend = getattr(conn, "backend", "sqlite")
@@ -34,10 +51,28 @@ def gerar(conn, db_path=None, backup_dir=None, completo=False):
     _check_vinculos_principais(conn, tabelas, itens)
     _check_dados_operacionais(conn, tabelas, itens)
     _check_duplicidades_textuais(conn, tabelas, itens)
-    _check_backups(backup_dir, itens, backend)
+
+    if backend == "postgresql":
+        if saude_backups is None:
+            saude_backups = backup_health.avaliar(
+                backup_dir,
+                backup_completo_dir,
+                database=database or "endemias",
+                modo=(
+                    backup_health.MODO_COMPLETO
+                    if completo
+                    else backup_health.MODO_RAPIDO
+                ),
+            )
+        _check_saude_backups(itens, saude_backups)
+    else:
+        _check_backups(backup_dir, itens, backend)
 
     resumo = _resumo(itens, db_path, tabelas, completo, backend)
-    return {"resumo": resumo, "itens": itens}
+    resultado = {"resumo": resumo, "itens": itens}
+    if saude_backups is not None:
+        resultado["saude_backups"] = saude_backups
+    return resultado
 
 
 def _check_integridade(conn, itens):
@@ -478,6 +513,48 @@ def _check_backups(backup_dir, itens, backend="sqlite"):
         )
     else:
         _add(itens, "ok", "Backups", "Backup recente encontrado.", valor=ultimo.name)
+
+
+def _check_saude_backups(itens, saude):
+    """Publica a saude dos backups PostgreSQL e das tarefas agendadas.
+
+    Um estado ``desconhecido`` entra como informativo: nao conseguir verificar
+    e diferente de ter encontrado uma falha.
+    """
+    if not saude:
+        return
+
+    for chave, rotulo in (("dump", "dump diario"), ("completo", "backup completo")):
+        bloco = saude.get(chave) or {}
+        if not bloco:
+            continue
+        nivel = _NIVEL_DIAGNOSTICO.get(bloco.get("nivel"), "info")
+        _add(
+            itens,
+            nivel,
+            "Backups",
+            bloco.get("titulo") or f"Estado do {rotulo}.",
+            valor=bloco.get("nome"),
+            detalhe=bloco.get("detalhe", ""),
+        )
+
+    for tarefa in saude.get("tarefas") or []:
+        nivel = _NIVEL_DIAGNOSTICO.get(tarefa.get("nivel"), "info")
+        partes = []
+        if tarefa.get("ultima_execucao"):
+            partes.append(f"ultima execucao {tarefa['ultima_execucao']}")
+        if tarefa.get("proxima_execucao"):
+            partes.append(f"proxima {tarefa['proxima_execucao']}")
+        if tarefa.get("detalhe"):
+            partes.append(tarefa["detalhe"])
+        _add(
+            itens,
+            nivel,
+            "Backups",
+            f"{tarefa.get('nome', 'Tarefa')}: {tarefa.get('situacao') or 'sem estado'}.",
+            valor=tarefa.get("estado") or None,
+            detalhe="; ".join(partes),
+        )
 
 
 def _resumo(itens, db_path, tabelas, completo, backend="sqlite"):
