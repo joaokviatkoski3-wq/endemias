@@ -100,7 +100,7 @@ Aplicacao Flask usa `app.py` como entrada principal e ja expoe `create_app()` pa
   - paginas administrativas ficam ocultas para visualizador;
   - badges de notificacoes e agenda foram preservadas.
 - Versao semantica inicial definida como `1.0.0` (`maio/2026`) e exibida no rodape das paginas.
-- Versao atual: `1.12.1` (`julho/2026`), com estoque de esporotricose, mapa analitico do RG, backups no disco D, filtros modernos, melhorias de edicao/visualizacao, Diarios de Ovitrampas com impressao compacta e resultados laboratoriais registrados somente no sistema, leitura laboratorial de ovitrampas, Acoes e Atendimentos com acervo historico e relatorio tecnico institucional, alem de reforcos de integridade do SQLite, dos backups e da consistencia dos indicadores do Dashboard.
+- Versao atual: `1.13.0` (`agosto/2026`), com PostgreSQL como backend oficial, SQLite congelado para rollback, estoque de esporotricose, mapa analitico do RG, backups no disco D, filtros modernos, melhorias de edicao/visualizacao, Diarios de Ovitrampas com impressao compacta e resultados laboratoriais registrados somente no sistema, leitura laboratorial de ovitrampas, Acoes e Atendimentos com acervo historico e relatorio tecnico institucional, alem de reforcos de integridade dos bancos, dos backups e da consistencia dos indicadores do Dashboard.
 - Marco `v1.1.0`: liberacao de gravacao Conta Ovos/SisPNCD.
 - Gravacao em SisPNCD foi liberada apos o marco `v1.0.0`:
   - `/api/sispncd/salvar` grava o codigo somente em visitas pendentes com `SISPNCD IS NULL`;
@@ -187,11 +187,15 @@ python -m py_compile app.py etl.py app_core\app_setup.py app_core\auth.py app_co
 python -m unittest discover -s tests -v
 ```
 
+A bateria usa automaticamente uma copia SQLite temporaria. O arquivo
+`endemias.db` do repositorio serve apenas como referencia e nao deve sofrer
+escritas durante a regressao.
+
 Ultimo resultado conhecido:
 
 ```text
-Ran 58 tests
-OK
+Ran 457 tests
+OK (skipped=5)
 ```
 
 ## Proximos passos recomendados

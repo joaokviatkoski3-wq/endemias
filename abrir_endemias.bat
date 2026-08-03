@@ -11,6 +11,13 @@ schtasks /run /tn "Endemias - Servidor" >nul 2>nul
 call :aguardar_servidor
 if not errorlevel 1 goto abrir
 
+rem Depois da virada, nunca use o fallback SQLite. Solicita elevacao para
+rem reiniciar a tarefa PostgreSQL quando o usuario comum nao puder dispara-la.
+if exist "C:\ProgramData\Endemias\postgresql.enabled" (
+    start "" "%~dp0reiniciar.bat"
+    exit /b 0
+)
+
 rem Plano de emergencia: inicia pelo metodo manual existente.
 start "Servidor Endemias" cmd /c call "%~dp0iniciar.bat"
 call :aguardar_servidor

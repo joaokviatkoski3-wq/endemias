@@ -22,6 +22,9 @@ $AppPath = Join-Path $RootDir "app.py"
 $LauncherPath = Join-Path $PSScriptRoot "iniciar_servidor.ps1"
 $OpenPath = Join-Path $RootDir "abrir_endemias.bat"
 $RestartPath = Join-Path $RootDir "reiniciar.bat"
+$BackendMarkerPath = Join-Path `
+    ([Environment]::GetFolderPath("CommonApplicationData")) `
+    "Endemias\postgresql.enabled"
 
 function Test-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -142,6 +145,68 @@ function New-EndemiasShortcuts {
     )
 }
 
+function Set-PostgreSQLMarker {
+    param([Parameter(Mandatory=$true)][bool]$Enabled)
+    if (-not $Enabled) {
+        Remove-Item `
+            -LiteralPath $BackendMarkerPath `
+            -Force `
+            -ErrorAction SilentlyContinue
+        return
+    }
+
+    $directory = Split-Path -Parent $BackendMarkerPath
+    New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    $temporary = Join-Path `
+        $directory `
+        (".postgresql.enabled.{0}.tmp" -f [guid]::NewGuid())
+    try {
+        [System.IO.File]::WriteAllText(
+            $temporary,
+            "postgresql",
+            (New-Object System.Text.UTF8Encoding($false))
+        )
+        $acl = New-Object System.Security.AccessControl.FileSecurity
+        $acl.SetAccessRuleProtection($true, $false)
+        $systemSid = New-Object System.Security.Principal.SecurityIdentifier(
+            "S-1-5-18"
+        )
+        $administratorsSid = New-Object System.Security.Principal.SecurityIdentifier(
+            "S-1-5-32-544"
+        )
+        $usersSid = New-Object System.Security.Principal.SecurityIdentifier(
+            "S-1-5-32-545"
+        )
+        foreach ($sid in @($systemSid, $administratorsSid)) {
+            $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+                $sid,
+                [System.Security.AccessControl.FileSystemRights]::FullControl,
+                [System.Security.AccessControl.AccessControlType]::Allow
+            )
+            $acl.AddAccessRule($rule)
+        }
+        $readRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+            $usersSid,
+            [System.Security.AccessControl.FileSystemRights]::ReadAndExecute,
+            [System.Security.AccessControl.AccessControlType]::Allow
+        )
+        $acl.AddAccessRule($readRule)
+        $acl.SetOwner($administratorsSid)
+        Set-Acl -LiteralPath $temporary -AclObject $acl
+        Move-Item `
+            -LiteralPath $temporary `
+            -Destination $BackendMarkerPath `
+            -Force
+        Set-Acl -LiteralPath $BackendMarkerPath -AclObject $acl
+    }
+    finally {
+        Remove-Item `
+            -LiteralPath $temporary `
+            -Force `
+            -ErrorAction SilentlyContinue
+    }
+}
+
 if (-not (Test-Administrator)) {
     throw "Execute este configurador como administrador."
 }
@@ -164,6 +229,7 @@ if ($Remover) {
             Write-Host "Atalho removido: $shortcutPath"
         }
     }
+    Set-PostgreSQLMarker -Enabled $false
     exit 0
 }
 
@@ -250,7 +316,13 @@ $task = New-ScheduledTask `
     -Settings $settings `
     -Description "Inicia o Sistema Endemias automaticamente com backend $Backend."
 
+if ($Backend -eq "postgresql") {
+    Set-PostgreSQLMarker -Enabled $true
+}
 Register-ScheduledTask -TaskName $TaskName -InputObject $task -Force | Out-Null
+if ($Backend -eq "sqlite") {
+    Set-PostgreSQLMarker -Enabled $false
+}
 $shortcutPaths = New-EndemiasShortcuts
 
 Write-Host "Tarefa '$TaskName' instalada."

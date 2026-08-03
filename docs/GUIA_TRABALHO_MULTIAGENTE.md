@@ -224,13 +224,14 @@ AGENTS.md, CONTEXTO_PARA_IA.md, docs/GUIA_CONTINUIDADE_TECNICA.md,
 docs/GUIA_TRABALHO_MULTIAGENTE.md e a documentacao PostgreSQL indicada por
 eles. Confira git status e os commits recentes.
 
-SQLite ainda e producao e nao pode ser substituido ate a migracao estar
-completa. Nunca altere dados reais nos testes PostgreSQL. Toda modificacao deve
-terminar em commit e push. Mantenha compatibilidade dual.
+PostgreSQL e producao. O SQLite esta congelado como rollback e nunca pode ser
+aberto em paralelo ou receber novas escritas. Nunca altere dados reais nos
+testes PostgreSQL. Toda modificacao deve terminar em commit e push. Mantenha a
+compatibilidade dual para testes e rollback controlado.
 
-Primeiro, apenas confirme resumidamente o estado que encontrou, a proxima etapa
-da migracao e os cuidados que seguira. Nao modifique nada nessa primeira
-resposta. Depois eu autorizarei a continuacao.
+Primeiro, apenas confirme resumidamente o estado que encontrou, a proxima
+etapa e os cuidados que seguira. Nao modifique nada nessa primeira resposta.
+Depois eu autorizarei a continuacao.
 ```
 
 ## Mensagem inicial recomendada para o Claude Code

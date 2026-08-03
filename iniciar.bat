@@ -12,6 +12,16 @@ rem ============================================================
 cd /d "%~dp0"
 cls
 
+if exist "C:\ProgramData\Endemias\postgresql.enabled" (
+    echo.
+    echo  [ATENCAO] Este servidor esta configurado para PostgreSQL.
+    echo  O modo SQLite foi bloqueado para evitar divergencia de dados.
+    echo  Use o atalho Reiniciar Endemias como administrador.
+    echo.
+    pause
+    exit /b 2
+)
+
 set "APP_VERSION_LABEL=Endemias"
 for /f "usebackq delims=" %%V in (`python -c "from app_core.version import APP_VERSION_LABEL; print(APP_VERSION_LABEL)" 2^>nul`) do set "APP_VERSION_LABEL=%%V"
 title %APP_VERSION_LABEL%

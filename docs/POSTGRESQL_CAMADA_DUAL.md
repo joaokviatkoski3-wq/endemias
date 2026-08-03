@@ -5,9 +5,9 @@
 A aplicacao possui agora uma primeira camada de conexao capaz de consultar
 SQLite ou PostgreSQL sem alterar a assinatura usada pelo codigo existente.
 
-O SQLite continua sendo o banco padrao e o `iniciar.bat` nao foi alterado.
-O modo PostgreSQL ainda e experimental e nao deve ser usado como servidor
-operacional.
+Este era o estado inicial em 29/07. Desde 03/08/2026, PostgreSQL e o backend
+oficial. A camada SQLite foi preservada para testes e rollback controlado, e
+`iniciar.bat` recusa o SQLite quando o marcador operacional esta presente.
 
 ## O que foi implementado
 
@@ -667,11 +667,13 @@ importacao ativa de Esporotricose. O ensaio integrado tambem foi concluido em
 `endemias_migracao`: 154.217 registros, 20 smokes, 34 identidades e cinco
 sessoes concorrentes sem alterar tabelas do sistema. O restore real tambem foi
 homologado em `endemias_teste`, preservando 59 tabelas e 153.419 registros por
-checksum. O banco final `endemias` foi criado e recebeu uma carga preliminar de
-154.240 registros, com checksums, constraints, 34 identidades e 20 smokes
-validados. A credencial protegida foi instalada e autenticada realmente sob a
-conta Windows `SYSTEM`; a tarefa oficial segue propositalmente ausente. Resta
-congelar o SQLite, repetir a carga final e executar a virada controlada.
+checksum. O banco final `endemias` recebeu primeiro uma carga preliminar de
+154.240 registros. Na virada, ela foi substituida por 154.250 registros, com
+checksums, constraints, 34 identidades e 20 smokes validados novamente. A
+credencial protegida foi autenticada sob `SYSTEM`, a tarefa oficial foi ativada
+com PostgreSQL e o SQLite ficou congelado para rollback. Depois que uma
+regressao legada tocou metadados desse arquivo, ele foi restaurado do backup
+consistente e os testes passaram a usar uma copia temporaria automatica.
 
 Cada lote deve:
 
@@ -679,4 +681,4 @@ Cada lote deve:
 2. separar SQL comum das poucas consultas especificas de cada banco;
 3. validar leituras e gravacoes em ambos os bancos;
 4. testar a pagina correspondente contra `endemias_teste`;
-5. manter o SQLite oficial como padrao ate a homologacao completa.
+5. manter a compatibilidade SQLite sem permitir uso paralelo ao PostgreSQL.

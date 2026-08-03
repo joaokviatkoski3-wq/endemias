@@ -2,21 +2,19 @@
 
 ## Estado atual
 
-O PostgreSQL e uma infraestrutura paralela de migracao. O sistema em producao
-continua usando exclusivamente o arquivo `endemias.db`.
-
-O SQLite continua sendo o padrao da aplicacao e do `iniciar.bat`. Existe um
-modo PostgreSQL experimental para testes controlados da camada ja convertida,
-mas ele ainda nao deve ser usado como servidor operacional.
+O PostgreSQL e o backend oficial de producao desde 03/08/2026. O arquivo
+`endemias.db` foi congelado na virada e permanece somente como rollback.
+O marcador `C:\ProgramData\Endemias\postgresql.enabled` impede que
+`iniciar.bat` reabra o SQLite por engano.
 
 A primeira migracao de esquema ja foi aplicada e validada em
 `endemias_teste`. Ela criou as `59` tabelas do sistema, sem copiar dados. O
 banco recebeu depois uma copia validada de `153.419` registros do SQLite. Em
 31/07/2026, `endemias_migracao` recebeu o snapshot recente com `154.217`
 registros e passou pelo smoke integrado. Em 03/08/2026, o banco final
-`endemias` foi criado e recebeu uma carga preliminar de `154.240` registros,
-tambem validada por contagem/checksum, constraints, identidades e smoke. Os
-detalhes estao em
+`endemias` foi criado e recebeu uma carga preliminar de `154.240` registros.
+Na virada, essa carga foi substituida pelo snapshot final de `154.250`
+registros, validado antes e depois dos 20 smokes. Os detalhes estao em
 `docs/POSTGRESQL_SCHEMA_INICIAL.md` e
 `docs/POSTGRESQL_CARGA_TESTE.md`.
 
@@ -63,8 +61,8 @@ Registro Geografico.
 
 - `endemias_teste`: criacao de esquema, cargas descartaveis e testes.
 - `endemias_migracao`: ensaios completos e validados antes da troca definitiva.
-- `endemias`: destino final criado e validado preliminarmente, ainda inativo.
-- `endemias.db`: fonte oficial enquanto a migracao estiver em andamento.
+- `endemias`: banco PostgreSQL oficial de producao.
+- `endemias.db`: snapshot final congelado, somente para rollback.
 
 ## Credenciais
 
@@ -79,14 +77,14 @@ Senhas nao devem ser colocadas em scripts, arquivos `.sql`, configuracoes
 versionadas ou URLs de conexao. O repositorio ignora `pgpass.conf`, arquivos
 `*.pgpass` e arquivos `.env` como protecao adicional.
 
-O servidor automatico usara a conta `SYSTEM`. Em 03/08/2026, a credencial
+O servidor automatico usa a conta `SYSTEM`. Em 03/08/2026, a credencial
 propria foi instalada por `scripts/configurar_credencial_postgresql_system.ps1`
 em `C:\ProgramData\Endemias\pgpass.conf`, com ACL somente para `SYSTEM` e
 Administradores. A autenticacao foi comprovada por uma tarefa temporaria
 executada realmente como `SYSTEM`. O `pgpass.conf` do usuario
-`Geoprocessamento` atende apenas as ferramentas interativas desta fase. A
-tarefa oficial ainda nao foi registrada, para nao iniciar a carga preliminar
-em caso de reinicializacao inesperada.
+`Geoprocessamento` atende apenas ferramentas interativas. A tarefa oficial foi
+registrada com backend PostgreSQL e iniciou com sucesso depois da validacao da
+carga final.
 
 ## Diagnostico
 
@@ -113,7 +111,7 @@ python scripts\verificar_postgresql.py --database endemias_teste
 
 ## Inventario do SQLite
 
-O inventario pode ser refeito enquanto o SQLite continuar como fonte oficial:
+O inventario do SQLite congelado pode ser refeito somente em leitura:
 
 ```powershell
 python scripts\inventariar_sqlite.py
@@ -127,8 +125,7 @@ atual e as decisoes de conversao estao em
 
 ## Configuracao opcional
 
-Os valores abaixo atendem as ferramentas de migracao e os testes controlados
-da camada dual:
+Os valores abaixo atendem as ferramentas e os testes controlados da camada dual:
 
 | Variavel | Padrao |
 | --- | --- |
@@ -139,9 +136,9 @@ da camada dual:
 | `ENDEMIAS_PG_CONNECT_TIMEOUT` | `5` |
 | `ENDEMIAS_PG_SSLMODE` | `prefer` |
 
-`ENDEMIAS_DB_BACKEND=postgresql` seleciona o adaptador experimental. Essa
-variavel nao foi adicionada ao `iniciar.bat` e nao deve ser configurada no
-servidor oficial enquanto os modulos funcionais ainda estiverem em conversao.
+`ENDEMIAS_DB_BACKEND=postgresql` seleciona o adaptador PostgreSQL. No servidor
+oficial ela e definida somente no processo filho da tarefa agendada; nao fica
+gravada globalmente e nao deve ser adicionada manualmente ao `iniciar.bat`.
 
 As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
 `PGSSLMODE`) tambem sao aceitas. A senha continua sob responsabilidade do
@@ -195,7 +192,9 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
 9. Concluido preliminarmente: carregar 59 tabelas e 154.240 registros no banco
    final, validar checksums, constraints, identidades e os 20 smokes sem alterar
    tabelas publicas.
-10. Pendente: congelar as escritas no SQLite, refazer a carga final, validar,
-    registrar a tarefa sem iniciar e executar a troca controlada.
+10. Concluido: congelar o SQLite, criar backup consistente, carregar 154.250
+    registros, validar novamente depois do smoke, registrar a tarefa sob
+    `SYSTEM` e ativar o PostgreSQL.
 
-O SQLite final sera preservado como ponto de recuperacao e nao sera apagado.
+O SQLite final e o backup `endemias_pre_virada_postgresql` serao preservados
+como pontos de recuperacao e nao serao apagados nem usados em paralelo.

@@ -8,8 +8,9 @@ A migracao `0001_schema_inicial.sql` foi aplicada somente no banco
 Este era o estado inicial em 29/07. Em 31/07/2026, a mesma migracao foi aplicada
 em `endemias_migracao` e recebeu a carga integrada descrita em
 `docs/POSTGRESQL_CARGA_TESTE.md`. Em 03/08/2026, ela tambem foi aplicada no
-banco final `endemias`, que recebeu a carga preliminar validada. O sistema em
-producao continua usando exclusivamente `endemias.db`.
+banco final `endemias`, que recebeu a carga preliminar validada. Ainda em
+03/08/2026, a carga final foi aplicada e PostgreSQL passou a ser o backend de
+producao; o `endemias.db` ficou congelado como rollback.
 
 ## Estrutura validada
 
@@ -104,6 +105,6 @@ O copiador SQLite para PostgreSQL foi criado e executado. Ele usa ordem de
 dependencias, preserva IDs, converte marcadores temporais invalidos, reajusta
 identidades e compara contagens e checksums antes do `COMMIT`.
 
-A camada dual, o ensaio integrado e o restore descartavel foram concluidos. O
-banco final e a credencial da conta `SYSTEM` tambem estao preparados. Restam a
-carga final durante o congelamento, o registro da tarefa e a virada controlada.
+A camada dual, o ensaio integrado, o restore descartavel, a carga final e a
+ativacao da tarefa `SYSTEM` foram concluidos. O esquema oficial PostgreSQL foi
+validado com 59 tabelas, 154.250 registros e 34 identidades alinhadas.

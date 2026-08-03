@@ -21,15 +21,24 @@ Não é necessário abrir a pasta `C:\endemias` nem manter uma janela preta aber
 O configurador cria a tarefa **Endemias - Servidor** no Agendador de Tarefas e o
 atalho **Endemias** na área de trabalho pública.
 
+No servidor oficial, a tarefa usa PostgreSQL e o arquivo
+`C:\ProgramData\Endemias\postgresql.enabled` impede que o modo SQLite seja
+aberto por engano. O configurador protege esse marcador com escrita restrita a
+`SYSTEM` e Administradores; usuarios comuns possuem apenas leitura.
+
 ## Alternativa de emergência
 
-Se o atalho não conseguir recuperar o servidor, execute `iniciar.bat`. Essa forma
-continua disponível e exige que a janela permaneça aberta.
+Se o atalho não conseguir recuperar o servidor, use **Reiniciar Endemias** e
+aceite a solicitação de administrador. Não execute `iniciar.bat` no servidor
+oficial: após a virada para PostgreSQL, esse script recusa o modo SQLite para
+evitar que os dois bancos recebam dados diferentes.
 
 ## Como desfazer
 
 Execute `remover_inicializacao_automatica.bat` como administrador. A tarefa e o
 atalho serão removidos, sem apagar o banco de dados ou qualquer arquivo do sistema.
+Esse comando também remove o bloqueio do modo SQLite e, portanto, só deve ser
+usado num rollback expressamente autorizado.
 
 ## Verificação rápida
 

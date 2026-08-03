@@ -1,13 +1,11 @@
-# Primeira carga de dados no PostgreSQL
+# Cargas de dados no PostgreSQL
 
 ## Estado atualizado em 31/07/2026
 
-Uma copia consistente do banco SQLite oficial foi carregada em
-`endemias_teste`.
-
-O sistema em producao continua usando `endemias.db`. O banco
-Uma copia consistente mais recente foi carregada em `endemias_migracao` para o
-ensaio integrado. O SQLite oficial permaneceu aberto somente para leitura.
+Uma copia consistente do banco SQLite foi carregada em `endemias_teste`. Uma
+copia mais recente foi carregada em `endemias_migracao` para o ensaio
+integrado. Esses resultados abaixo registram a fase de homologacao anterior a
+virada.
 
 ## Resultado
 
@@ -84,11 +82,11 @@ saida/migracao/carga_postgresql_teste.json
 Ele contem somente contagens, checksums e estatisticas de conversao. O arquivo
 esta fora do versionamento e nao contem valores das linhas.
 
-## O que ainda nao mudou
+## Estado depois da virada
 
-- A aplicacao nao abre conexoes PostgreSQL durante o uso normal.
-- `iniciar.bat` continua iniciando a versao SQLite.
-- Backups operacionais continuam protegendo o SQLite oficial.
+- A aplicacao oficial abre conexoes PostgreSQL por meio da tarefa `SYSTEM`.
+- O `iniciar.bat` bloqueia SQLite quando `postgresql.enabled` existe.
+- O SQLite final e o backup consistente da virada permanecem como rollback.
 - Nenhuma credencial ou dado do banco foi enviado ao GitHub.
 
 ## Validacao integrada
@@ -103,11 +101,14 @@ que os 154.217 registros permaneciam identicos.
 escritas numa tabela efemera, exercitando retries de lock e removendo a tabela
 ao final. Nenhuma tabela publica do sistema foi alterada pelos testes.
 
-## Proxima etapa
+## Carga final
 
-O `pg_restore` real ja foi homologado em `endemias_teste`, preservando as 59
-tabelas e 153.419 registros existentes nesse banco. O banco final `endemias`
-tambem ja existe e recebeu uma carga preliminar validada de 59 tabelas e
-154.240 registros. A credencial protegida foi autenticada sob `SYSTEM`, mas a
-tarefa oficial ainda nao foi registrada. Resta combinar a janela curta de
-congelamento, repetir a carga final, validar e executar a virada.
+Em 03/08/2026, o SQLite foi congelado e recebeu backup consistente validado. O
+banco `endemias` foi recarregado com 59 tabelas e 154.250 registros. Contagens,
+checksums, constraints e 34 identidades passaram antes do smoke; os 20 ensaios
+passaram e a validacao completa foi repetida depois. A tarefa PostgreSQL foi
+ativada sob `SYSTEM` e o hash do SQLite permaneceu inalterado durante a carga e
+os smokes. Uma regressao legada posterior tocou metadados no arquivo de
+rollback, sem atingir o PostgreSQL. O SQLite foi restaurado atomicamente do
+backup consistente, validado com `PRAGMA integrity_check`, e a suite passou a
+usar automaticamente uma copia temporaria.

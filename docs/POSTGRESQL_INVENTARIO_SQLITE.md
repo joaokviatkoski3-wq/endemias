@@ -108,7 +108,8 @@ tratada pela camada de banco, sem substituicoes cegas dentro de textos SQL.
 
 ## Decisoes de seguranca
 
-- SQLite continua sendo a fonte oficial.
+- Este inventario registra a fase anterior a virada. Desde 03/08/2026,
+  PostgreSQL e a fonte oficial e o SQLite esta congelado como rollback.
 - Nenhum dado pessoal faz parte deste documento ou do inventario versionado.
 - O JSON local contem somente esquema, contagens e classes de armazenamento,
   sem nomes, enderecos, CPF, telefones ou valores das linhas.

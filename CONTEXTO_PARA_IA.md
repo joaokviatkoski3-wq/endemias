@@ -9,12 +9,14 @@ que assumir o projeto em outra conta ou conversa.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.12.1`, definida em `app_core/version.py`.
+- Versao atual: `1.13.0`, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
-- SQLite ainda e a base oficial de producao ate a virada final.
-- `iniciar.bat` oficial deve continuar usando SQLite ate a migracao completa.
+- PostgreSQL e a base oficial de producao desde 03/08/2026.
+- `endemias.db` esta congelado como rollback e nao pode receber novas escritas.
+- `iniciar.bat` recusa o modo SQLite quando o marcador operacional PostgreSQL
+  esta instalado.
 - Credenciais, bancos, anexos, backups e tokens nao podem ser versionados.
 
 Antes de trabalhar, execute:
@@ -37,15 +39,16 @@ Leia tambem:
 
 ## Estado da migracao PostgreSQL
 
-A migracao e gradual e dual: cada modulo convertido deve continuar funcionando
-em SQLite e PostgreSQL. A cobertura funcional esta em aproximadamente 99%.
+A migracao funcional e operacional foi concluida. A camada continua dual para
+preservar a possibilidade de rollback controlado e os testes SQLite, mas o
+backend oficial e PostgreSQL.
 
 Bancos conhecidos:
 
-- `endemias.db`: fonte oficial enquanto a migracao estiver em andamento;
+- `endemias.db`: snapshot final congelado para rollback, somente leitura;
 - `endemias_teste`: esquema, carga de homologacao e ensaios descartaveis;
 - `endemias_migracao`: carga recente e ensaio completo antes da virada;
-- `endemias`: banco final criado, ainda nao ativado como producao.
+- `endemias`: banco PostgreSQL oficial de producao.
 
 Infraestrutura ja validada no PostgreSQL:
 
@@ -58,7 +61,9 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A ultima regressao ampla registrada teve 455 testes aprovados e 5 ignorados.
+A ultima regressao ampla registrada teve 457 testes aprovados e 5 ignorados.
+Ela cria uma copia SQLite temporaria antes de importar a aplicacao; nunca rode
+testes contra o `endemias.db` congelado.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
 conexoes SQLite em testes de Ovitrampas; nao confundir automaticamente com uma
 regressao nova.
@@ -100,6 +105,7 @@ regressao nova.
 Commits mais recentes da migracao:
 
 ```text
+6bab11d feat: configurar banco final postgres
 8fe6eed feat: preparar operacao postgres no windows
 8ecbed8 test: validar ensaio integrado postgres
 7b6095f fix: exigir metadados no restore postgres
@@ -119,42 +125,50 @@ b5ff38b feat: concluir migracao de ovitrampas para postgres
 
 ## Proxima tarefa recomendada
 
-O novo padrao de trabalho e agrupar 2 ou 3 modulos relacionados por branch
-antes da revisao do Claude. O banco final `endemias` ja foi criado com
-`endemias_app` como proprietario, recebeu uma carga preliminar validada e teve
-a autenticacao protegida da conta `SYSTEM` comprovada. A tarefa oficial ainda
-nao foi registrada para evitar que uma reinicializacao acione uma copia que
-pode ficar desatualizada. A proxima etapa e combinar a janela sem escritas,
-refazer a carga a partir do SQLite congelado, validar e somente entao registrar
-e ativar a tarefa PostgreSQL.
+Monitorar a estabilizacao do PostgreSQL, confirmar os backups automaticos e
+observar logs/diagnosticos nos primeiros dias. Qualquer rollback precisa ser
+decidido pelo administrador: primeiro interrompa novas escritas PostgreSQL e
+so depois remova a tarefa/marcador. Nunca abra o SQLite congelado em paralelo.
 
-## O que falta para abandonar o SQLite
+## Virada concluida
 
-Os modulos funcionais, as rotinas de backup, o banco final e a credencial de
-servico estao prontos. Ainda sera necessario:
+Em 03/08/2026:
 
-1. Combinar e iniciar uma janela curta sem escritas no SQLite oficial.
-2. Gerar o snapshot final, recarregar `endemias` e repetir as validacoes.
-3. Registrar a tarefa automatica PostgreSQL sem inicia-la.
-4. Ativar a tarefa PostgreSQL durante a virada coordenada pelo usuario.
-5. Preservar o `endemias.db` final congelado como rollback; nao apagar.
+1. o servidor SQLite foi parado e a porta 5000 ficou fechada;
+2. o `endemias.db` foi congelado com SHA-256
+   `7AE434197BE4500B9BDCDB2A32B06C27FA3F825977B6AB9DD7663A0051061A90`;
+3. foi criado backup consistente e validado em
+   `D:\BackupsEndemias\backups_banco`, prefixo
+   `endemias_pre_virada_postgresql`;
+4. o banco `endemias` recebeu 59 tabelas e 154.250 registros;
+5. contagens/checksums, zero constraints pendentes, 34 identidades e os 20
+   smokes foram validados, inclusive nova validacao depois do smoke;
+6. a tarefa `Endemias - Servidor` foi registrada para PostgreSQL sob `SYSTEM`;
+7. a aplicacao foi iniciada pela tarefa, respondeu HTTP 200 e o hash do SQLite
+   permaneceu inalterado durante a carga e os smokes PostgreSQL;
+8. uma regressao legada executada depois da virada revelou escritas de
+   manutencao no SQLite padrao. O PostgreSQL nao foi afetado. O `endemias.db`
+   foi restaurado atomicamente do backup consistente, passou em
+   `PRAGMA integrity_check` e agora tem SHA-256
+   `0600F6A70072320BC7FDE270848535EF428341AA1F093997EE4940F85376F63F`.
+   A suite passou a isolar automaticamente o banco em uma copia temporaria.
 
 Concluidos em `endemias_migracao`: snapshot recente, 59 tabelas e 154.217
 registros com contagens/checksums identicos, 34 identidades alinhadas, zero
 constraints nao validadas, smoke dos 20 ensaios de modulos e concorrencia com
 cinco sessoes. Os testes temporarios nao mudaram as tabelas publicas.
 O restore real foi homologado em `endemias_teste`, preservando por checksum as
-59 tabelas e 153.419 registros. Em 03/08/2026, `endemias` recebeu uma carga
-preliminar de 59 tabelas e 154.240 registros, com contagens e checksums
-identicos, 34 identidades alinhadas e zero constraints nao validadas. O smoke
-dos 20 modulos preservou todas as tabelas publicas. A credencial protegida foi
-instalada em `C:\ProgramData\Endemias\pgpass.conf`, com ACL exclusiva para
-`SYSTEM` e Administradores, e autenticada realmente por tarefa temporaria sob
-`SYSTEM`. A tarefa oficial `Endemias - Servidor` ainda nao esta registrada.
+59 tabelas e 153.419 registros. A carga preliminar de 154.240 registros foi
+substituida pela carga final de 154.250 registros descrita acima. A credencial
+protegida permanece em `C:\ProgramData\Endemias\pgpass.conf`, com ACL exclusiva
+para `SYSTEM` e Administradores. O marcador
+`C:\ProgramData\Endemias\postgresql.enabled` impede fallback acidental para
+SQLite.
 
 ## Regras para testes PostgreSQL
 
 - Nunca use dados reais em operacoes destrutivas.
+- Nunca execute ensaios destrutivos no banco final `endemias`.
 - Prefira tabelas temporarias e transacoes revertidas.
 - Os scripts `scripts/testar_*_postgresql.py` sao o padrao existente.
 - O Python usado neste computador e:
