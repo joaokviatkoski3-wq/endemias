@@ -44,7 +44,8 @@ Bancos conhecidos:
 
 - `endemias.db`: fonte oficial enquanto a migracao estiver em andamento;
 - `endemias_teste`: esquema, carga de homologacao e ensaios descartaveis;
-- `endemias_migracao`: carga recente e ensaio completo antes da virada.
+- `endemias_migracao`: carga recente e ensaio completo antes da virada;
+- `endemias`: banco final criado, ainda nao ativado como producao.
 
 Infraestrutura ja validada no PostgreSQL:
 
@@ -57,7 +58,7 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A ultima regressao ampla registrada teve 453 testes aprovados e 5 ignorados.
+A ultima regressao ampla registrada teve 455 testes aprovados e 5 ignorados.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
 conexoes SQLite em testes de Ovitrampas; nao confundir automaticamente com uma
 regressao nova.
@@ -99,6 +100,11 @@ regressao nova.
 Commits mais recentes da migracao:
 
 ```text
+8fe6eed feat: preparar operacao postgres no windows
+8ecbed8 test: validar ensaio integrado postgres
+7b6095f fix: exigir metadados no restore postgres
+87a0e2e feat: concluir auditoria e backups postgres
+3b14422 fix: corrigir diagnosticos postgresql da central
 2d175f9 docs: agrupar modulos nas revisoes multiagente
 ac23b99 fix: tratar concorrencia no boletim mensal
 44a87f2 feat: migrar boletim mensal para postgres
@@ -114,30 +120,37 @@ b5ff38b feat: concluir migracao de ovitrampas para postgres
 ## Proxima tarefa recomendada
 
 O novo padrao de trabalho e agrupar 2 ou 3 modulos relacionados por branch
-antes da revisao do Claude. O ensaio integrado com a copia recente e o restore
-real em `endemias_teste` foram concluidos. Os scripts para credencial protegida
-e tarefa da conta `SYSTEM` tambem estao preparados, mas nao foram aplicados. A
-proxima tarefa depende do administrador: definir o banco final, instalar a
-credencial local e planejar a janela de congelamento/carga final.
+antes da revisao do Claude. O banco final `endemias` ja foi criado com
+`endemias_app` como proprietario, recebeu uma carga preliminar validada e teve
+a autenticacao protegida da conta `SYSTEM` comprovada. A tarefa oficial ainda
+nao foi registrada para evitar que uma reinicializacao acione uma copia que
+pode ficar desatualizada. A proxima etapa e combinar a janela sem escritas,
+refazer a carga a partir do SQLite congelado, validar e somente entao registrar
+e ativar a tarefa PostgreSQL.
 
 ## O que falta para abandonar o SQLite
 
-Mesmo apos os modulos funcionais e as rotinas de backup, ainda sera necessario:
+Os modulos funcionais, as rotinas de backup, o banco final e a credencial de
+servico estao prontos. Ainda sera necessario:
 
-1. Definir/criar o banco PostgreSQL final com o administrador.
-2. Instalar a credencial protegida para a conta Windows `SYSTEM`.
-3. Validar e registrar a tarefa automatica PostgreSQL sem inicia-la.
-4. Fazer congelamento curto de escrita, carga final e validacao.
-5. Somente entao ativar a tarefa PostgreSQL no servidor oficial.
-6. Preservar o `endemias.db` final congelado como rollback; nao apagar.
+1. Combinar e iniciar uma janela curta sem escritas no SQLite oficial.
+2. Gerar o snapshot final, recarregar `endemias` e repetir as validacoes.
+3. Registrar a tarefa automatica PostgreSQL sem inicia-la.
+4. Ativar a tarefa PostgreSQL durante a virada coordenada pelo usuario.
+5. Preservar o `endemias.db` final congelado como rollback; nao apagar.
 
 Concluidos em `endemias_migracao`: snapshot recente, 59 tabelas e 154.217
 registros com contagens/checksums identicos, 34 identidades alinhadas, zero
 constraints nao validadas, smoke dos 20 ensaios de modulos e concorrencia com
 cinco sessoes. Os testes temporarios nao mudaram as tabelas publicas.
 O restore real foi homologado em `endemias_teste`, preservando por checksum as
-59 tabelas e 153.419 registros. Neste computador, a tarefa agendada ainda nao
-esta instalada e a credencial `SYSTEM` ainda nao foi criada.
+59 tabelas e 153.419 registros. Em 03/08/2026, `endemias` recebeu uma carga
+preliminar de 59 tabelas e 154.240 registros, com contagens e checksums
+identicos, 34 identidades alinhadas e zero constraints nao validadas. O smoke
+dos 20 modulos preservou todas as tabelas publicas. A credencial protegida foi
+instalada em `C:\ProgramData\Endemias\pgpass.conf`, com ACL exclusiva para
+`SYSTEM` e Administradores, e autenticada realmente por tarefa temporaria sob
+`SYSTEM`. A tarefa oficial `Endemias - Servidor` ainda nao esta registrada.
 
 ## Regras para testes PostgreSQL
 

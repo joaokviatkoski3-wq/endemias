@@ -108,6 +108,25 @@ class PostgreSQLReadinessTests(unittest.TestCase):
             )
         run.assert_not_called()
 
+    def test_smoke_no_banco_final_exige_frase_adicional(self):
+        with (
+            mock.patch.object(
+                testar_smoke_integrado_postgresql.subprocess,
+                "run",
+            ) as run,
+            mock.patch("builtins.print"),
+        ):
+            self.assertEqual(
+                testar_smoke_integrado_postgresql.main([
+                    "--database",
+                    "endemias",
+                    "--confirmar-banco",
+                    "endemias",
+                ]),
+                2,
+            )
+        run.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

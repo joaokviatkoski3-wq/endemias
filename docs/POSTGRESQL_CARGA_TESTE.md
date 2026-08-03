@@ -106,6 +106,8 @@ ao final. Nenhuma tabela publica do sistema foi alterada pelos testes.
 ## Proxima etapa
 
 O `pg_restore` real ja foi homologado em `endemias_teste`, preservando as 59
-tabelas e 153.419 registros existentes nesse banco. Restam definir o banco
-final, aplicar a credencial/tarefa da conta Windows `SYSTEM` e planejar a janela
-curta de congelamento, carga final e virada.
+tabelas e 153.419 registros existentes nesse banco. O banco final `endemias`
+tambem ja existe e recebeu uma carga preliminar validada de 59 tabelas e
+154.240 registros. A credencial protegida foi autenticada sob `SYSTEM`, mas a
+tarefa oficial ainda nao foi registrada. Resta combinar a janela curta de
+congelamento, repetir a carga final, validar e executar a virada.

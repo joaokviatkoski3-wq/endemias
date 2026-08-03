@@ -7,8 +7,9 @@ A migracao `0001_schema_inicial.sql` foi aplicada somente no banco
 
 Este era o estado inicial em 29/07. Em 31/07/2026, a mesma migracao foi aplicada
 em `endemias_migracao` e recebeu a carga integrada descrita em
-`docs/POSTGRESQL_CARGA_TESTE.md`. O sistema em producao continua usando
-exclusivamente `endemias.db`.
+`docs/POSTGRESQL_CARGA_TESTE.md`. Em 03/08/2026, ela tambem foi aplicada no
+banco final `endemias`, que recebeu a carga preliminar validada. O sistema em
+producao continua usando exclusivamente `endemias.db`.
 
 ## Estrutura validada
 
@@ -94,8 +95,8 @@ python scripts\migrar_postgresql.py `
   --confirmar-banco NOME_DO_BANCO
 ```
 
-Essa confirmacao foi usada em `endemias_migracao` somente no ensaio integrado
-explicitamente autorizado e documentado.
+Essa confirmacao foi usada nos ensaios explicitamente autorizados e
+documentados em `endemias_migracao` e no banco final `endemias`.
 
 ## Etapa de carga concluida
 
@@ -103,5 +104,6 @@ O copiador SQLite para PostgreSQL foi criado e executado. Ele usa ordem de
 dependencias, preserva IDs, converte marcadores temporais invalidos, reajusta
 identidades e compara contagens e checksums antes do `COMMIT`.
 
-A camada dual e o ensaio integrado foram concluidos. Restam a preparacao
-operacional da conta `SYSTEM`, o restore descartavel e a virada controlada.
+A camada dual, o ensaio integrado e o restore descartavel foram concluidos. O
+banco final e a credencial da conta `SYSTEM` tambem estao preparados. Restam a
+carga final durante o congelamento, o registro da tarefa e a virada controlada.

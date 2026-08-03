@@ -13,7 +13,10 @@ A primeira migracao de esquema ja foi aplicada e validada em
 `endemias_teste`. Ela criou as `59` tabelas do sistema, sem copiar dados. O
 banco recebeu depois uma copia validada de `153.419` registros do SQLite. Em
 31/07/2026, `endemias_migracao` recebeu o snapshot recente com `154.217`
-registros e passou pelo smoke integrado. Os detalhes estao em
+registros e passou pelo smoke integrado. Em 03/08/2026, o banco final
+`endemias` foi criado e recebeu uma carga preliminar de `154.240` registros,
+tambem validada por contagem/checksum, constraints, identidades e smoke. Os
+detalhes estao em
 `docs/POSTGRESQL_SCHEMA_INICIAL.md` e
 `docs/POSTGRESQL_CARGA_TESTE.md`.
 
@@ -60,6 +63,7 @@ Registro Geografico.
 
 - `endemias_teste`: criacao de esquema, cargas descartaveis e testes.
 - `endemias_migracao`: ensaios completos e validados antes da troca definitiva.
+- `endemias`: destino final criado e validado preliminarmente, ainda inativo.
 - `endemias.db`: fonte oficial enquanto a migracao estiver em andamento.
 
 ## Credenciais
@@ -75,11 +79,14 @@ Senhas nao devem ser colocadas em scripts, arquivos `.sql`, configuracoes
 versionadas ou URLs de conexao. O repositorio ignora `pgpass.conf`, arquivos
 `*.pgpass` e arquivos `.env` como protecao adicional.
 
-O servidor automatico usara a conta `SYSTEM`. A credencial propria e protegida
-sera criada por `scripts/configurar_credencial_postgresql_system.ps1` somente
-depois de definido o banco final. O `pgpass.conf` do usuario
-`Geoprocessamento` atende apenas as ferramentas interativas desta fase. Em
-03/08/2026, a tarefa e a credencial `SYSTEM` ainda nao estavam instaladas.
+O servidor automatico usara a conta `SYSTEM`. Em 03/08/2026, a credencial
+propria foi instalada por `scripts/configurar_credencial_postgresql_system.ps1`
+em `C:\ProgramData\Endemias\pgpass.conf`, com ACL somente para `SYSTEM` e
+Administradores. A autenticacao foi comprovada por uma tarefa temporaria
+executada realmente como `SYSTEM`. O `pgpass.conf` do usuario
+`Geoprocessamento` atende apenas as ferramentas interativas desta fase. A
+tarefa oficial ainda nao foi registrada, para nao iniciar a carga preliminar
+em caso de reinicializacao inesperada.
 
 ## Diagnostico
 
@@ -183,9 +190,12 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
    concorrentes sem alterar tabelas publicas.
 7. Concluido: validar restore real em `endemias_teste`, preservando 59 tabelas
    e 153.419 registros por checksum.
-8. Preparado em codigo: launcher com ambiente por processo, credencial
-   protegida por ACL e instalador com `-ValidarSomente`/`-NaoIniciar`.
-9. Pendente: definir o banco final, aplicar a configuracao `SYSTEM` como
-   administrador e executar backup, carga final, validacao e troca controlada.
+8. Concluido: criar o banco final `endemias`, instalar a credencial protegida
+   por ACL e validar a autenticacao realmente sob `SYSTEM`.
+9. Concluido preliminarmente: carregar 59 tabelas e 154.240 registros no banco
+   final, validar checksums, constraints, identidades e os 20 smokes sem alterar
+   tabelas publicas.
+10. Pendente: congelar as escritas no SQLite, refazer a carga final, validar,
+    registrar a tarefa sem iniciar e executar a troca controlada.
 
 O SQLite final sera preservado como ponto de recuperacao e nao sera apagado.

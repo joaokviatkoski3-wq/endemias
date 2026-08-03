@@ -8,6 +8,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SAFE_DATABASE = "endemias_migracao"
+FINAL_DATABASE = "endemias"
+FINAL_CONFIRMATION = "TESTAR BANCO FINAL SEM ALTERAR DADOS"
 MODULE_SCRIPTS = (
     "testar_app_postgresql.py",
     "testar_auth_postgresql.py",
@@ -34,22 +36,35 @@ MODULE_SCRIPTS = (
 
 def _parser():
     parser = argparse.ArgumentParser(
-        description="Executa o smoke integrado em endemias_migracao."
+        description="Executa o smoke integrado em um banco autorizado."
     )
     parser.add_argument("--database", default=SAFE_DATABASE)
     parser.add_argument("--confirmar-banco")
+    parser.add_argument("--autorizar-banco-final")
     return parser
 
 
 def main(argv=None):
     args = _parser().parse_args(argv)
-    if args.database != SAFE_DATABASE:
-        print(f"[ERRO] Este smoke so pode usar {SAFE_DATABASE}.")
+    if args.database not in {SAFE_DATABASE, FINAL_DATABASE}:
+        print(
+            f"[ERRO] Este smoke so pode usar {SAFE_DATABASE} ou "
+            f"{FINAL_DATABASE}."
+        )
         return 2
     if args.confirmar_banco != args.database:
         print(
-            "[ERRO] Informe --confirmar-banco endemias_migracao para executar "
+            f"[ERRO] Informe --confirmar-banco {args.database} para executar "
             "os ensaios temporarios."
+        )
+        return 2
+    if (
+        args.database == FINAL_DATABASE
+        and args.autorizar_banco_final != FINAL_CONFIRMATION
+    ):
+        print(
+            "[ERRO] O banco final exige --autorizar-banco-final com a frase "
+            "literal documentada."
         )
         return 2
 

@@ -57,6 +57,20 @@ class PostgreSQLOperationTests(unittest.TestCase):
         self.assertIn('New-ScheduledTaskPrincipal `', content)
         self.assertIn('-UserId "SYSTEM"', content)
         self.assertIn("iniciar_servidor.ps1", content)
+        self.assertIn('"$($_.Name).0"', content)
+        self.assertNotIn("[version]$_.Name", content)
+
+    def test_credencial_e_validada_por_tarefa_system_temporaria(self):
+        content = (
+            self.ROOT / "scripts" / "testar_credencial_postgresql_system.ps1"
+        ).read_text(encoding="utf-8")
+        self.assertIn('-UserId "SYSTEM"', content)
+        self.assertIn("$env:PGPASSFILE = $PgPassFile", content)
+        self.assertIn("[switch]$Worker", content)
+        self.assertIn("Unregister-ScheduledTask", content)
+        self.assertIn("[System.IO.File]::Move", content)
+        self.assertIn("finally", content)
+        self.assertNotIn("PGPASSWORD", content)
 
     def test_restore_real_exige_dupla_confirmacao(self):
         with (

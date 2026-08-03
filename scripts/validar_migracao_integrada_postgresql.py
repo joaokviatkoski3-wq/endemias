@@ -48,7 +48,7 @@ def main(argv=None):
     if args.confirmar_banco != args.database:
         print(
             "[ERRO] Informe --confirmar-banco com o nome exato do banco "
-            "descartavel."
+            "validado."
         )
         return 2
     report_path = Path(args.report)

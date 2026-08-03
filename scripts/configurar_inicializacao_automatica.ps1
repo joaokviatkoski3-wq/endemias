@@ -85,7 +85,16 @@ function Find-PostgreSQLTool {
     $root = Join-Path $env:ProgramFiles "PostgreSQL"
     if (Test-Path -LiteralPath $root -PathType Container) {
         $candidate = Get-ChildItem -LiteralPath $root -Directory |
-            Sort-Object { [version]$_.Name } -Descending |
+            Where-Object { $_.Name -match '^\d+(\.\d+)*$' } |
+            Sort-Object {
+                $versionText = if ($_.Name.Contains(".")) {
+                    $_.Name
+                }
+                else {
+                    "$($_.Name).0"
+                }
+                [version]$versionText
+            } -Descending |
             ForEach-Object { Join-Path $_.FullName ("bin\{0}" -f $Name) } |
             Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
             Select-Object -First 1

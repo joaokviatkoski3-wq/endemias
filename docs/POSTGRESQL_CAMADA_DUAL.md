@@ -667,9 +667,11 @@ importacao ativa de Esporotricose. O ensaio integrado tambem foi concluido em
 `endemias_migracao`: 154.217 registros, 20 smokes, 34 identidades e cinco
 sessoes concorrentes sem alterar tabelas do sistema. O restore real tambem foi
 homologado em `endemias_teste`, preservando 59 tabelas e 153.419 registros por
-checksum. O launcher e o instalador da conta Windows `SYSTEM` estao preparados,
-mas nao aplicados. Restam definir o banco final com o administrador, instalar a
-credencial protegida e executar a virada controlada.
+checksum. O banco final `endemias` foi criado e recebeu uma carga preliminar de
+154.240 registros, com checksums, constraints, 34 identidades e 20 smokes
+validados. A credencial protegida foi instalada e autenticada realmente sob a
+conta Windows `SYSTEM`; a tarefa oficial segue propositalmente ausente. Resta
+congelar o SQLite, repetir a carga final e executar a virada controlada.
 
 Cada lote deve:
 

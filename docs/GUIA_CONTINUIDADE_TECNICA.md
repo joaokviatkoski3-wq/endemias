@@ -153,6 +153,20 @@ python scripts\testar_concorrencia_postgresql.py `
 
 O smoke executa os 20 ensaios homologados. A concorrencia usa cinco sessoes,
 uma tabela efemera e limpeza garantida; nao grava nas tabelas do sistema.
+No banco final ja criado, o smoke exige uma terceira confirmacao:
+
+```powershell
+python scripts\testar_smoke_integrado_postgresql.py `
+  --database endemias `
+  --confirmar-banco endemias `
+  --autorizar-banco-final "TESTAR BANCO FINAL SEM ALTERAR DADOS"
+```
+
+Em 03/08/2026, uma carga preliminar no banco final `endemias` preservou as 59
+tabelas e 154.240 registros por contagem/checksum, alinhou as 34 identidades e
+nao deixou constraints sem validacao. Os 20 ensaios do smoke passaram e
+confirmaram que as tabelas publicas permaneceram inalteradas. Essa carga ainda
+nao substitui a carga final feita durante a janela sem escritas.
 
 ## Restore e preparacao da conta SYSTEM
 
@@ -168,18 +182,17 @@ python scripts\testar_restore_real_postgresql.py `
 O comando preservou as 59 tabelas e 153.419 registros por checksum, incluindo
 dump validado, SHA-256, backup `pre_restore` e `pg_restore` transacional.
 
-Para a futura conta `SYSTEM`, primeiro defina o banco final com o administrador
-e execute como administrador:
+Para configurar a conta `SYSTEM`, execute como administrador:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File `
   scripts\configurar_credencial_postgresql_system.ps1 `
-  -Database NOME_BANCO_FINAL
+  -Database endemias
 
 powershell -ExecutionPolicy Bypass -File `
   scripts\configurar_inicializacao_automatica.ps1 `
   -Backend postgresql `
-  -Database NOME_BANCO_FINAL `
+  -Database endemias `
   -ValidarSomente
 ```
 
@@ -188,6 +201,15 @@ para `SYSTEM` e Administradores. A senha e solicitada como `SecureString` e nao
 entra nos argumentos, na tarefa ou no repositorio. O launcher define backend,
 banco e `PGPASSFILE` apenas no processo filho.
 
+Valide a autenticacao realmente sob a conta de servico, sem iniciar a
+aplicacao, usando uma tarefa temporaria removida ao final:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File `
+  scripts\testar_credencial_postgresql_system.ps1 `
+  -Database endemias
+```
+
 Depois da validacao e ainda antes da janela de virada, a tarefa pode ser
 registrada sem iniciar:
 
@@ -195,22 +217,25 @@ registrada sem iniciar:
 powershell -ExecutionPolicy Bypass -File `
   scripts\configurar_inicializacao_automatica.ps1 `
   -Backend postgresql `
-  -Database NOME_BANCO_FINAL `
+  -Database endemias `
   -NaoIniciar
 ```
 
-No estado conferido em 03/08/2026, a tarefa agendada e a credencial `SYSTEM`
-nao estavam instaladas. Nao execute os comandos acima ate o banco final estar
-definido e a janela operacional estar aprovada.
+No estado conferido em 03/08/2026, o banco final e a credencial protegida ja
+estavam instalados e a autenticacao sob `SYSTEM` havia passado. A tarefa
+oficial ainda nao estava registrada, de proposito: ela so deve existir depois
+da carga final para que uma reinicializacao inesperada nao abra uma copia
+preliminar e desatualizada.
 
 ## Protocolo recomendado para o proximo lote
 
-1. Definir/criar o banco final com o administrador, sem dar `CREATEDB` ou
-   superusuario a `endemias_app`.
-2. Instalar a credencial e validar a tarefa com `-ValidarSomente`.
-3. Planejar congelamento, snapshot final, carga final, validacao e rollback.
-4. Registrar com `-NaoIniciar`; ativar somente durante a virada aprovada.
-5. Atualizar os documentos, fazer commit e push da branch do lote.
+1. Combinar a janela de congelamento e impedir novas escritas no SQLite.
+2. Gerar o snapshot final, recarregar `endemias` e validar checksums,
+   constraints, identidades e smoke.
+3. Registrar a tarefa com `-NaoIniciar`.
+4. Ativar somente durante a virada aprovada; o usuario cuida da reinicializacao.
+5. Preservar o SQLite congelado como rollback, atualizar os documentos e fazer
+   commit/push da branch do lote.
 
 As rotinas PostgreSQL de backup usam formato custom, `--no-password`, SHA-256
 e validacao por `pg_restore --list`. A restauracao aceita somente dumps com os
