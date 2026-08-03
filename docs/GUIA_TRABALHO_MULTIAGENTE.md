@@ -34,6 +34,36 @@ dados reais ou publicar codigo ainda nao revisado.
 - decide se os achados foram resolvidos;
 - autoriza a integracao na versao oficial.
 
+## Excecao: Claude como implementador
+
+O usuario pode pedir diretamente ao Claude que intervenha no codigo em uma
+tarefa excepcional. Essa autorizacao substitui o modo somente leitura apenas
+para o escopo informado e deve indicar a branch de trabalho. Um achado de
+revisao, uma sugestao do Codex ou uma solicitacao indireta nao contam como essa
+autorizacao.
+
+Quando receber essa autorizacao, o Claude pode:
+
+- investigar e editar os arquivos incluidos no escopo;
+- criar ou ajustar os testes necessarios;
+- executar a regressao proporcional ao risco;
+- criar commit e fazer push somente na branch autorizada;
+- entregar ao usuario o resumo das mudancas, testes e riscos residuais.
+
+A excecao preserva os seguintes limites:
+
+- Codex e Claude nao trabalham simultaneamente na mesma branch ou nos mesmos
+  arquivos;
+- a implementacao do Claude recebe revisao independente, normalmente do Codex
+  ou de outro revisor indicado pelo usuario, antes da integracao;
+- autorizacao para editar, commitar e publicar a branch nao autoriza por si so
+  merge ou push na `master`;
+- alteracoes em dados reais, credenciais, tarefas do Windows, reinicializacao
+  do sistema e outras acoes operacionais ou destrutivas exigem autorizacao
+  especifica do usuario;
+- encerrada a tarefa excepcional, o Claude volta automaticamente ao papel de
+  revisor somente leitura.
+
 ## Estado atual das pastas
 
 ```text

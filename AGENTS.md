@@ -10,6 +10,11 @@ Quando houver colaboracao entre Codex e Claude Code, leia tambem
 `docs/GUIA_TRABALHO_MULTIAGENTE.md` e respeite a separacao entre implementacao,
 revisao e integracao na `master`.
 
+Claude Code atua somente como revisor por padrao. O usuario pode, como excecao,
+pedir diretamente que ele implemente ou corrija codigo em uma branch definida.
+Essa autorizacao excepcional deve seguir os limites de escopo, revisao
+independente e integracao descritos em `docs/GUIA_TRABALHO_MULTIAGENTE.md`.
+
 ## Versionamento do sistema
 
 Agentes de IA tem autonomia para atualizar a numeracao da versao do sistema quando julgarem que o conjunto de alteracoes justifica uma nova versao. Nao e necessario solicitar confirmacao previa exclusivamente para essa atualizacao.

@@ -206,6 +206,13 @@ Fluxo futuro pretendido:
 4. Usuario testa em ambiente isolado.
 5. So depois ocorre merge e push para `master`.
 
+Por excecao, o usuario pode solicitar diretamente ao Claude que implemente ou
+corrija codigo. Nesse caso, o Claude pode editar, testar, criar commit e fazer
+push somente na branch e no escopo autorizados. A excecao nao permite trabalho
+simultaneo com o Codex nos mesmos arquivos, nem autoriza implicitamente merge
+na `master`, alteracao de dados reais ou outra acao operacional. A implementacao
+excepcional deve receber revisao independente antes da integracao.
+
 Enquanto esse fluxo ainda nao estiver oficialmente adotado, siga a orientacao
 expressa do usuario sobre trabalhar diretamente na `master` e sempre fazer
 push.
