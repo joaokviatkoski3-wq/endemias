@@ -35,8 +35,6 @@ RESULTADO_SEM_MAIS_EXECUCOES = 267012  # 0x00041304 SCHED_S_TASK_NO_MORE_RUNS
 
 _RESULTADOS_NEUTROS = {
     RESULTADO_PRONTA,
-    RESULTADO_EM_EXECUCAO,
-    RESULTADO_SEM_MAIS_EXECUCOES,
 }
 
 _VARIAVEL_TAREFAS = "ENDEMIAS_TAREFAS_CONSULTA_JSON"
@@ -265,10 +263,31 @@ def _classificar_tarefa(bruto):
         tarefa["detalhe"] = "O Agendador nao informou o resultado da ultima execucao."
         return tarefa
 
+    if estado_normalizado == "running" or resultado == RESULTADO_EM_EXECUCAO:
+        tarefa["nivel"] = NIVEL_OK
+        tarefa["situacao"] = "Em execucao"
+        return tarefa
+
+    if resultado == RESULTADO_SEM_MAIS_EXECUCOES:
+        tarefa["nivel"] = NIVEL_AVISO
+        tarefa["situacao"] = "Sem proximas execucoes"
+        tarefa["detalhe"] = (
+            "A tarefa nao possui outro disparo agendado. Revise o gatilho."
+        )
+        return tarefa
+
     if resultado == RESULTADO_SUCESSO:
         if tarefa["ultima_execucao"]:
-            tarefa["nivel"] = NIVEL_OK
-            tarefa["situacao"] = "Ultima execucao concluida"
+            if tarefa["proxima_execucao"]:
+                tarefa["nivel"] = NIVEL_OK
+                tarefa["situacao"] = "Ultima execucao concluida"
+            else:
+                tarefa["nivel"] = NIVEL_AVISO
+                tarefa["situacao"] = "Sem proxima execucao"
+                tarefa["detalhe"] = (
+                    "A ultima execucao terminou, mas nao ha outro disparo "
+                    "agendado. Revise o gatilho."
+                )
         else:
             tarefa["nivel"] = NIVEL_AVISO
             tarefa["situacao"] = "Ainda nao executou"
@@ -282,10 +301,18 @@ def _classificar_tarefa(bruto):
         return tarefa
 
     if resultado in _RESULTADOS_NEUTROS:
-        tarefa["nivel"] = NIVEL_OK if tarefa["ultima_execucao"] else NIVEL_DESCONHECIDO
-        tarefa["situacao"] = (
-            "Em execucao" if resultado == RESULTADO_EM_EXECUCAO else "Aguardando gatilho"
-        )
+        if not tarefa["proxima_execucao"]:
+            tarefa["nivel"] = NIVEL_AVISO
+            tarefa["situacao"] = "Sem proxima execucao"
+            tarefa["detalhe"] = (
+                "O Agendador informa que a tarefa esta pronta, mas nao ha "
+                "outro disparo agendado. Revise o gatilho."
+            )
+        else:
+            tarefa["nivel"] = (
+                NIVEL_OK if tarefa["ultima_execucao"] else NIVEL_DESCONHECIDO
+            )
+            tarefa["situacao"] = "Aguardando gatilho"
         return tarefa
 
     tarefa["nivel"] = NIVEL_ERRO

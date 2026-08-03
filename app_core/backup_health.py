@@ -209,7 +209,10 @@ def _manifesto_postgresql(zip_path, database, verificar_conteudo=True):
             if manifesto.get("backend_banco") != "postgresql":
                 return None
             if manifesto.get("banco_origem") != database:
-                return None
+                raise _ProblemaBackup(
+                    "O backup completo PostgreSQL mais recente pertence a "
+                    "outro banco."
+                )
             if manifesto.get("integridade_banco") != "catalogo validado":
                 raise _ProblemaBackup(
                     "O backup completo PostgreSQL nao registra catalogo validado."

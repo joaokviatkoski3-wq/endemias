@@ -61,10 +61,11 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A suite passou de 464 para 493 testes com o lote de saude dos backups. A
-regressao ampla precisa ser reconfirmada em `C:\endemias`, porque parte dos
-testes depende dos dados reais: num worktree com banco recem-criado, 15 testes
-falham por falta de dados, exatamente os mesmos antes e depois deste lote.
+A suite passou de 464 para 498 testes com o lote de saude dos backups e as
+correcoes da revisao. A regressao ampla foi confirmada no worktree da branch
+usando uma copia temporaria isolada de `C:\endemias\endemias.db`: os 498 testes
+terminaram com `OK`, 5 foram ignorados e o hash do SQLite oficial permaneceu
+inalterado.
 Ela cria uma copia SQLite temporaria antes de importar a aplicacao; nunca rode
 testes contra o `endemias.db` congelado.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de

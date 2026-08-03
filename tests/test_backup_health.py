@@ -44,6 +44,7 @@ def _criar_zip_completo(
     database="endemias",
     nome="endemias_completo_20260803_030000.zip",
     corromper=False,
+    backend="postgresql",
 ):
     destino.mkdir(parents=True, exist_ok=True)
     arquivo = destino / nome
@@ -51,7 +52,7 @@ def _criar_zip_completo(
     digest = hashlib.sha256(interno).hexdigest()
     manifesto = {
         "tipo": "backup_completo_endemias",
-        "backend_banco": "postgresql",
+        "backend_banco": backend,
         "banco_origem": database,
         "integridade_banco": "catalogo validado",
         "incluidos": [{
@@ -179,6 +180,53 @@ class SaudeDosArtefatosTests(unittest.TestCase):
 
         self.assertEqual(bloco["nivel"], backup_health.NIVEL_ERRO)
         self.assertIn("dias", bloco["detalhe"])
+
+    def test_zip_postgresql_mais_recente_de_outro_banco_e_recusado(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            raiz = Path(tmpdir) / "completos"
+            correto = _criar_zip_completo(
+                raiz,
+                database="endemias",
+                nome="endemias_completo_correto.zip",
+            )
+            _envelhecer(correto, horas=1)
+            _criar_zip_completo(
+                raiz,
+                database="endemias_teste",
+                nome="endemias_completo_errado.zip",
+            )
+
+            bloco = backup_health.avaliar_backup_completo(
+                raiz,
+                database="endemias",
+            )
+
+        self.assertEqual(bloco["nivel"], backup_health.NIVEL_ERRO)
+        self.assertIn("outro banco", bloco["detalhe"])
+
+    def test_zip_sqlite_legado_mais_recente_e_ignorado(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            raiz = Path(tmpdir) / "completos"
+            correto = _criar_zip_completo(
+                raiz,
+                database="endemias",
+                nome="endemias_completo_postgresql.zip",
+            )
+            _envelhecer(correto, horas=1)
+            _criar_zip_completo(
+                raiz,
+                database="endemias.db",
+                nome="endemias_completo_sqlite_legado.zip",
+                backend="sqlite",
+            )
+
+            bloco = backup_health.avaliar_backup_completo(
+                raiz,
+                database="endemias",
+            )
+
+        self.assertEqual(bloco["nivel"], backup_health.NIVEL_OK)
+        self.assertEqual(bloco["nome"], correto.name)
 
     def test_acesso_negado_nao_vira_alarme_de_backup(self):
         with mock.patch.object(
@@ -320,6 +368,53 @@ class TarefasAgendadasTests(unittest.TestCase):
 
         self.assertEqual(tarefas[0]["nivel"], backup_tasks.NIVEL_ERRO)
         self.assertIn("1", tarefas[0]["detalhe"])
+
+    def test_tarefa_sem_mais_execucoes_gera_aviso(self):
+        brutos = [_tarefa_bruta(
+            backup_tasks.TAREFA_BACKUP_COMPLETO,
+            ultima_execucao="2026-08-03T03:00:00",
+            resultado=backup_tasks.RESULTADO_SEM_MAIS_EXECUCOES,
+        )]
+        tarefas = backup_tasks.consultar_tarefas(
+            nomes=[backup_tasks.TAREFA_BACKUP_COMPLETO],
+            consultar=lambda _: brutos,
+        )
+
+        self.assertEqual(tarefas[0]["nivel"], backup_tasks.NIVEL_AVISO)
+        self.assertIn("sem proximas", tarefas[0]["situacao"].lower())
+
+    def test_tarefa_concluida_sem_proxima_execucao_gera_aviso(self):
+        brutos = [_tarefa_bruta(
+            backup_tasks.TAREFA_DUMP_DIARIO,
+            ultima_execucao="2026-08-03T02:00:00",
+            proxima_execucao="",
+            resultado=0,
+        )]
+        tarefas = backup_tasks.consultar_tarefas(
+            nomes=[backup_tasks.TAREFA_DUMP_DIARIO],
+            consultar=lambda _: brutos,
+        )
+
+        self.assertEqual(tarefas[0]["nivel"], backup_tasks.NIVEL_AVISO)
+        self.assertIn("sem proxima", tarefas[0]["situacao"].lower())
+
+    def test_tarefa_em_execucao_sem_proxima_data_nao_gera_aviso(self):
+        brutos = [_tarefa_bruta(
+            backup_tasks.TAREFA_DUMP_DIARIO,
+            estado="Running",
+            ultima_execucao="2026-08-03T02:00:00",
+            proxima_execucao="",
+            # Durante a execucao, o Agendador pode conservar o resultado
+            # anterior ate o processo terminar.
+            resultado=0,
+        )]
+        tarefas = backup_tasks.consultar_tarefas(
+            nomes=[backup_tasks.TAREFA_DUMP_DIARIO],
+            consultar=lambda _: brutos,
+        )
+
+        self.assertEqual(tarefas[0]["nivel"], backup_tasks.NIVEL_OK)
+        self.assertEqual(tarefas[0]["situacao"], "Em execucao")
 
     def test_tarefa_desabilitada_gera_aviso(self):
         brutos = [_tarefa_bruta(
