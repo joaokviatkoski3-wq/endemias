@@ -697,8 +697,9 @@ A sincronizacao GET das contagens adiciona a migracao
 `0003_contaovos_sync_lock.sql`. O cursor ganhou token e instante de execucao
 para exclusao mutua atomica e recuperacao de processos interrompidos. O job
 pagina e valida todo o retorno antes da primeira escrita local, deduplica por
-`counting_id`, normaliza `ovitrampa_id`, recusa escopo territorial divergente e
-usa a tabela historica ja alimentada pelo CSV. O ensaio PostgreSQL cria apenas
+`counting_id`, reconcilia variantes de `ovitrampa_id` sem renomear o cadastro,
+recusa escopo territorial divergente e usa a tabela historica ja alimentada
+pelo CSV. O ensaio PostgreSQL cria apenas
 tabelas temporarias em `endemias_teste` e confere que as tabelas publicas nao
 mudaram.
 

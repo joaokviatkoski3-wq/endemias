@@ -61,9 +61,9 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A suite passou de 517 para 534 testes com a sincronizacao incremental das
+A suite passou de 517 para 536 testes com a sincronizacao incremental das
 contagens privadas do Conta Ovos. A regressao ampla foi confirmada no worktree
-da branch usando uma copia temporaria isolada de `C:\endemias\endemias.db`: os 534 testes
+da branch usando uma copia temporaria isolada de `C:\endemias\endemias.db`: os 536 testes
 terminaram com `OK`, 5 foram ignorados e o hash do SQLite oficial permaneceu
 inalterado.
 Ela cria uma copia SQLite temporaria antes de importar a aplicacao; nunca rode
@@ -154,8 +154,8 @@ por um console elevado antes de concluir que um backup falhou.
 Revisar `codex/sincronizar-contagens-conta-ovos` contra `master`. O lote:
 
 1. pagina o endpoint privado somente por filtros documentados;
-2. normaliza `ovitrampa_id`, valida o escopo em cada linha e deduplica por
-   `counting_id`;
+2. reconcilia `ovitrampa_id` sem alterar zeros persistidos, valida o escopo em
+   cada linha e deduplica por `counting_id`;
 3. atualiza o historico local de ocorrencias de forma atomica e idempotente;
 4. mantem cursor, historico sanitizado e trava single-flight recuperavel;
 5. preserva a importacao CSV e nao possui qualquer chamada POST.

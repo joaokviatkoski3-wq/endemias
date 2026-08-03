@@ -42,13 +42,19 @@ class ContaOvosNormalizationTests(unittest.TestCase):
         )
 
         self.assertEqual("101", result["id_contagem"])
-        self.assertEqual("97", result["ovitrampa_id"])
+        self.assertEqual("00097", result["ovitrampa_id"])
         self.assertEqual("2026-08-03", result["data"])
         self.assertEqual(6, result["codigo_conta_ovos"])
         self.assertEqual(
             ovitrampas.CONTA_OVOS_OCORRENCIAS[6], result["ocorrencia_codigo"]
         )
         self.assertEqual("-25.31,-49.29", result["lat_lng"])
+
+    def test_comparacao_remove_zeros_sem_mudar_id_persistido(self):
+        self.assertEqual("0097-A", ovitrampas.normalizar_ovitrampa_id("0097/A"))
+        self.assertEqual(
+            "97-A", ovitrampas.chave_comparacao_ovitrampa_id("0097/A")
+        )
 
     def test_recusa_escopo_divergente(self):
         with self.assertRaises(contaovos_sync.ContaOvosSyncError) as ctx:
@@ -121,6 +127,11 @@ class ContaOvosSynchronizationTests(unittest.TestCase):
         try:
             ovitrampas.ensure_schema(conn)
             contaovos_integracao.ensure_schema(conn)
+            conn.execute(
+                "INSERT INTO ovitrampas_armadilhas "
+                "(ovitrampa_id, atualizado_em) VALUES (?, ?)",
+                ("97", "2026-08-03T14:00:00"),
+            )
             conn.commit()
         finally:
             conn.close()
@@ -163,7 +174,7 @@ class ContaOvosSynchronizationTests(unittest.TestCase):
                 conn.close()
 
         self.assertEqual(1, first["inseridos"])
-        self.assertEqual(1, first["ovitrampas_nao_cadastradas"])
+        self.assertEqual(0, first["ovitrampas_nao_cadastradas"])
         self.assertEqual(1, second["sem_alteracao"])
         self.assertEqual("97", stored["ovitrampa_id"])
         self.assertEqual("101", cursor["ultimo_id_remoto"])
@@ -304,6 +315,37 @@ class ContaOvosSynchronizationTests(unittest.TestCase):
                 )
         fetcher.assert_not_called()
 
+    def test_recusa_ids_locais_ambiguos_sem_fragmentar_historico(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._database(directory)
+            conn = sqlite3.connect(path)
+            try:
+                conn.execute(
+                    "INSERT INTO ovitrampas_armadilhas "
+                    "(ovitrampa_id, atualizado_em) VALUES (?, ?)",
+                    ("00097", "2026-08-03T14:00:00"),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+            with self.assertRaises(contaovos_sync.ContaOvosSyncError) as ctx:
+                contaovos_sync.synchronize_countings(
+                    path,
+                    key="segredo-teste",
+                    page_fetcher=self._fetcher([_remote_row()]),
+                    now=datetime(2026, 8, 3, 15, 0, 0),
+                )
+            conn = sqlite3.connect(path)
+            try:
+                count = conn.execute(
+                    "SELECT COUNT(*) FROM ovitrampas_ocorrencias_conta_ovos"
+                ).fetchone()[0]
+            finally:
+                conn.close()
+
+        self.assertEqual("ambiguous_ovitrap_id", ctx.exception.kind)
+        self.assertEqual(0, count)
+
     def test_single_flight_recupera_trava_abandonada(self):
         with tempfile.TemporaryDirectory() as directory:
             path = self._database(directory)
@@ -377,7 +419,9 @@ class ContaOvosSyncScriptTests(unittest.TestCase):
         wrapper = (root / "sincronizar_contaovos.bat").read_text(
             encoding="utf-8"
         )
-        self.assertIn("choice /M", wrapper)
+        self.assertIn("choice /C 12", wrapper)
+        self.assertIn("AddDays(-45)", wrapper)
+        self.assertIn("%ANO_ATUAL%-01-01", wrapper)
         self.assertIn("--confirmar-banco endemias", wrapper)
         self.assertNotIn("postcounting", wrapper.lower())
         self.assertNotIn("postdelete", wrapper.lower())

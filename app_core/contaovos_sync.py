@@ -339,6 +339,38 @@ def _cursor_value(conn):
         ) from None
 
 
+def _local_ovitrap_ids(conn):
+    by_comparison_key = {}
+    rows = conn.execute(
+        f"SELECT ovitrampa_id FROM {ovitrampas.ARMADILHAS_TABLE}"
+    ).fetchall()
+    for row in rows:
+        local_id = str(row[0])
+        key = ovitrampas.chave_comparacao_ovitrampa_id(local_id)
+        if key:
+            by_comparison_key.setdefault(key, set()).add(local_id)
+    return by_comparison_key
+
+
+def _resolve_local_ovitrap_id(record, local_ids):
+    comparison_key = ovitrampas.chave_comparacao_ovitrampa_id(
+        record["ovitrampa_id"]
+    )
+    candidates = sorted(local_ids.get(comparison_key, ()))
+    if len(candidates) > 1:
+        raise ContaOvosSyncError(
+            "Existem cadastros locais ambiguos para uma ovitrampa remota.",
+            kind="ambiguous_ovitrap_id",
+        )
+    if not candidates:
+        return record, False
+    if candidates[0] == record["ovitrampa_id"]:
+        return record, True
+    resolved = dict(record)
+    resolved["ovitrampa_id"] = candidates[0]
+    return resolved, True
+
+
 def _finish_with_error(conn, execution_id, token, exc, key):
     try:
         conn.rollback()
@@ -421,11 +453,11 @@ def synchronize_countings(
         )
         counts = {"inseridos": 0, "atualizados": 0, "sem_alteracao": 0}
         missing_ovitraps = set()
+        local_ovitrap_ids = _local_ovitrap_ids(conn)
         for record in fetched["records"]:
-            exists = conn.execute(
-                f"SELECT 1 FROM {ovitrampas.ARMADILHAS_TABLE} WHERE ovitrampa_id=?",
-                (record["ovitrampa_id"],),
-            ).fetchone()
+            record, exists = _resolve_local_ovitrap_id(
+                record, local_ovitrap_ids
+            )
             if not exists:
                 missing_ovitraps.add(record["ovitrampa_id"])
             status = ovitrampas.upsert_ocorrencia_conta_ovos(conn, record)

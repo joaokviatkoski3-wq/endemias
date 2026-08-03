@@ -2205,12 +2205,19 @@ def normalizar_ovitrampa_id(value):
         return None
     text = text.replace(".0", "") if re.fullmatch(r"\d+\.0", text) else text
     text = re.sub(r"\s+", "", text).upper()
-    match = re.fullmatch(r"(?P<number>\d+)(?:[-/](?P<suffix>[A-Z]+))?", text)
-    if match:
-        number = str(int(match.group("number")))
-        suffix = match.group("suffix")
-        return f"{number}-{suffix}" if suffix else number
+    if re.fullmatch(r"\d+(?:[-/][A-Z]+)?", text):
+        return text.replace("/", "-")
     return None
+
+
+def chave_comparacao_ovitrampa_id(value):
+    """Compara variantes numericas sem alterar o identificador persistido."""
+    normalized = normalizar_ovitrampa_id(value)
+    if not normalized:
+        return None
+    number, separator, suffix = normalized.partition("-")
+    number = str(int(number))
+    return f"{number}-{suffix}" if separator else number
 
 
 def _localidade_diario(nome):

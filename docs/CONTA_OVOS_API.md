@@ -88,9 +88,17 @@ ID remoto funciona como cursor, chave idempotente e detector de novos itens,
 mas nao e enviado como parametro inventado. A paginacao pode ser completa ou
 limitada por `date_start`/`date_end`. O importador CSV permanece disponivel.
 
-O comando supervisionado e `sincronizar_contaovos.bat`. Primeiro ele consulta o
-ano corrente sem alterar o banco; somente depois de confirmacao humana repete a
+O comando supervisionado e `sincronizar_contaovos.bat`. No modo rotineiro ele
+consulta os ultimos 45 dias, com sobreposicao; a reconciliacao anual permanece
+como escolha deliberada para conferir o ano corrente inteiro. Primeiro o script
+consulta sem alterar o banco; somente depois de confirmacao humana repete a
 consulta e atualiza o historico local. A operacao e exclusivamente GET na API.
+
+Zeros a esquerda continuam preservados no identificador persistido. Para
+comparar a API com o cadastro local, uma chave separada ignora apenas essa
+variacao. Quando ha exatamente um cadastro correspondente, o historico usa o ID
+local existente; duas variantes locais equivalentes interrompem o lote como
+ambiguidade, sem gravacao parcial.
 
 ## Proximos lotes
 

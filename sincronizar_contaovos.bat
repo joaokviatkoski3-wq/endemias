@@ -13,11 +13,19 @@ if errorlevel 1 (
 set "PGPASSFILE=C:\ProgramData\Endemias\pgpass.conf"
 for /f %%Y in ('powershell -NoProfile -Command "(Get-Date).Year"') do set "ANO_ATUAL=%%Y"
 for /f %%D in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd"') do set "HOJE=%%D"
-set "DATA_INICIAL=%ANO_ATUAL%-01-01"
+for /f %%D in ('powershell -NoProfile -Command "Get-Date (Get-Date).AddDays(-45) -Format yyyy-MM-dd"') do set "ROTINA_INICIAL=%%D"
+set "DATA_INICIAL=%ROTINA_INICIAL%"
 set "DATA_FINAL=%HOJE%"
 
 echo.
 echo  Este processo faz somente consultas GET na API Conta Ovos.
+echo  [1] Rotina: ultimos 45 dias, com sobreposicao segura.
+echo  [2] Reconciliacao: ano corrente inteiro, mais demorada.
+echo.
+choice /C 12 /N /M "Escolha 1 ou 2: "
+if errorlevel 2 set "DATA_INICIAL=%ANO_ATUAL%-01-01"
+
+echo.
 echo  Primeiro sera conferido o periodo %DATA_INICIAL% a %DATA_FINAL%.
 echo  Nenhum dado local sera alterado durante essa conferencia.
 echo.
