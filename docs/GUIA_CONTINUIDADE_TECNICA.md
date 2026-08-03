@@ -154,15 +154,62 @@ python scripts\testar_concorrencia_postgresql.py `
 O smoke executa os 20 ensaios homologados. A concorrencia usa cinco sessoes,
 uma tabela efemera e limpeza garantida; nao grava nas tabelas do sistema.
 
+## Restore e preparacao da conta SYSTEM
+
+O restore real foi homologado somente em `endemias_teste`:
+
+```powershell
+python scripts\testar_restore_real_postgresql.py `
+  --database endemias_teste `
+  --confirmar-banco endemias_teste `
+  --autorizar-restore "RESTAURAR BANCO DESCARTAVEL"
+```
+
+O comando preservou as 59 tabelas e 153.419 registros por checksum, incluindo
+dump validado, SHA-256, backup `pre_restore` e `pg_restore` transacional.
+
+Para a futura conta `SYSTEM`, primeiro defina o banco final com o administrador
+e execute como administrador:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File `
+  scripts\configurar_credencial_postgresql_system.ps1 `
+  -Database NOME_BANCO_FINAL
+
+powershell -ExecutionPolicy Bypass -File `
+  scripts\configurar_inicializacao_automatica.ps1 `
+  -Backend postgresql `
+  -Database NOME_BANCO_FINAL `
+  -ValidarSomente
+```
+
+A credencial vai para `C:\ProgramData\Endemias\pgpass.conf`, com ACL somente
+para `SYSTEM` e Administradores. A senha e solicitada como `SecureString` e nao
+entra nos argumentos, na tarefa ou no repositorio. O launcher define backend,
+banco e `PGPASSFILE` apenas no processo filho.
+
+Depois da validacao e ainda antes da janela de virada, a tarefa pode ser
+registrada sem iniciar:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File `
+  scripts\configurar_inicializacao_automatica.ps1 `
+  -Backend postgresql `
+  -Database NOME_BANCO_FINAL `
+  -NaoIniciar
+```
+
+No estado conferido em 03/08/2026, a tarefa agendada e a credencial `SYSTEM`
+nao estavam instaladas. Nao execute os comandos acima ate o banco final estar
+definido e a janela operacional estar aprovada.
+
 ## Protocolo recomendado para o proximo lote
 
-1. Testar `pg_restore` apenas em um segundo banco descartavel. A conta
-   `endemias_app` atual nao possui `CREATEDB`; solicitar previamente ao
-   administrador a criacao desse destino, sem elevar a conta da aplicacao.
-2. Configurar `pgpass` e executaveis PostgreSQL para a conta Windows `SYSTEM`.
-3. Preparar a tarefa automatica para receber as variaveis PostgreSQL somente
-   na janela de virada, mantendo o `iniciar.bat` em SQLite ate la.
-4. Planejar congelamento, snapshot final, carga final, validacao e rollback.
+1. Definir/criar o banco final com o administrador, sem dar `CREATEDB` ou
+   superusuario a `endemias_app`.
+2. Instalar a credencial e validar a tarefa com `-ValidarSomente`.
+3. Planejar congelamento, snapshot final, carga final, validacao e rollback.
+4. Registrar com `-NaoIniciar`; ativar somente durante a virada aprovada.
 5. Atualizar os documentos, fazer commit e push da branch do lote.
 
 As rotinas PostgreSQL de backup usam formato custom, `--no-password`, SHA-256

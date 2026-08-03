@@ -75,10 +75,11 @@ Senhas nao devem ser colocadas em scripts, arquivos `.sql`, configuracoes
 versionadas ou URLs de conexao. O repositorio ignora `pgpass.conf`, arquivos
 `*.pgpass` e arquivos `.env` como protecao adicional.
 
-O servidor automatico atual roda pela conta `SYSTEM`. Antes da troca definitiva,
-sera configurada uma credencial propria e protegida para essa conta. O
-`pgpass.conf` do usuario `Geoprocessamento` atende apenas as ferramentas
-interativas desta fase.
+O servidor automatico usara a conta `SYSTEM`. A credencial propria e protegida
+sera criada por `scripts/configurar_credencial_postgresql_system.ps1` somente
+depois de definido o banco final. O `pgpass.conf` do usuario
+`Geoprocessamento` atende apenas as ferramentas interativas desta fase. Em
+03/08/2026, a tarefa e a credencial `SYSTEM` ainda nao estavam instaladas.
 
 ## Diagnostico
 
@@ -180,7 +181,11 @@ As variaveis padrao do libpq (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e
 6. Concluido: ensaiar a migracao recente em `endemias_migracao`, validar
    checksums, constraints, 34 identidades, 20 smokes e cinco sessoes
    concorrentes sem alterar tabelas publicas.
-7. Pendente: validar restore em segundo banco descartavel e preparar a conta
-   `SYSTEM` antes do backup, carga final, validacao e troca controlada.
+7. Concluido: validar restore real em `endemias_teste`, preservando 59 tabelas
+   e 153.419 registros por checksum.
+8. Preparado em codigo: launcher com ambiente por processo, credencial
+   protegida por ACL e instalador com `-ValidarSomente`/`-NaoIniciar`.
+9. Pendente: definir o banco final, aplicar a configuracao `SYSTEM` como
+   administrador e executar backup, carga final, validacao e troca controlada.
 
 O SQLite final sera preservado como ponto de recuperacao e nao sera apagado.

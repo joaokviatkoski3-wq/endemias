@@ -665,9 +665,11 @@ diagnostico, backup e restauracao da Central do Sistema tambem estao
 implementados. A auditoria final do SQL exclusivo encontrou e corrigiu a
 importacao ativa de Esporotricose. O ensaio integrado tambem foi concluido em
 `endemias_migracao`: 154.217 registros, 20 smokes, 34 identidades e cinco
-sessoes concorrentes sem alterar tabelas do sistema. O proximo lote e a
-preparacao da conta Windows `SYSTEM`, o restore em segundo banco descartavel e
-o planejamento da virada controlada.
+sessoes concorrentes sem alterar tabelas do sistema. O restore real tambem foi
+homologado em `endemias_teste`, preservando 59 tabelas e 153.419 registros por
+checksum. O launcher e o instalador da conta Windows `SYSTEM` estao preparados,
+mas nao aplicados. Restam definir o banco final com o administrador, instalar a
+credencial protegida e executar a virada controlada.
 
 Cada lote deve:
 

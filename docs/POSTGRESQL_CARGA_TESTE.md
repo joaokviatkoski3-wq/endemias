@@ -105,5 +105,7 @@ ao final. Nenhuma tabela publica do sistema foi alterada pelos testes.
 
 ## Proxima etapa
 
-Preparar a conta Windows `SYSTEM`, homologar `pg_restore` em um segundo banco
-descartavel e planejar a janela curta de congelamento, carga final e virada.
+O `pg_restore` real ja foi homologado em `endemias_teste`, preservando as 59
+tabelas e 153.419 registros existentes nesse banco. Restam definir o banco
+final, aplicar a credencial/tarefa da conta Windows `SYSTEM` e planejar a janela
+curta de congelamento, carga final e virada.

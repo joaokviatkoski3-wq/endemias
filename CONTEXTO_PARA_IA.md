@@ -1,6 +1,6 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 31/07/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 03/08/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa.
 
 ## Projeto e forma de trabalho
@@ -57,7 +57,7 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A ultima regressao ampla registrada teve 448 testes aprovados e 5 ignorados.
+A ultima regressao ampla registrada teve 453 testes aprovados e 5 ignorados.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
 conexoes SQLite em testes de Ovitrampas; nao confundir automaticamente com uma
 regressao nova.
@@ -114,28 +114,30 @@ b5ff38b feat: concluir migracao de ovitrampas para postgres
 ## Proxima tarefa recomendada
 
 O novo padrao de trabalho e agrupar 2 ou 3 modulos relacionados por branch
-antes da revisao do Claude. O ensaio integrado com a copia recente foi
-concluido. A proxima tarefa recomendada e preparar credenciais e inicializacao
-PostgreSQL para a conta Windows `SYSTEM`, testar uma restauracao real em um
-segundo banco descartavel criado pelo administrador e planejar a janela de
-congelamento/carga final.
+antes da revisao do Claude. O ensaio integrado com a copia recente e o restore
+real em `endemias_teste` foram concluidos. Os scripts para credencial protegida
+e tarefa da conta `SYSTEM` tambem estao preparados, mas nao foram aplicados. A
+proxima tarefa depende do administrador: definir o banco final, instalar a
+credencial local e planejar a janela de congelamento/carga final.
 
 ## O que falta para abandonar o SQLite
 
 Mesmo apos os modulos funcionais e as rotinas de backup, ainda sera necessario:
 
-1. Configurar credenciais PostgreSQL protegidas para a conta Windows `SYSTEM`.
-2. Configurar o servico automatico para iniciar com PostgreSQL.
-3. Executar uma restauracao real somente em banco descartavel criado para o
-   ensaio; `endemias_app` nao possui hoje permissao `CREATEDB`.
+1. Definir/criar o banco PostgreSQL final com o administrador.
+2. Instalar a credencial protegida para a conta Windows `SYSTEM`.
+3. Validar e registrar a tarefa automatica PostgreSQL sem inicia-la.
 4. Fazer congelamento curto de escrita, carga final e validacao.
-5. Somente entao definir `ENDEMIAS_DB_BACKEND=postgresql` no servidor oficial.
+5. Somente entao ativar a tarefa PostgreSQL no servidor oficial.
 6. Preservar o `endemias.db` final congelado como rollback; nao apagar.
 
 Concluidos em `endemias_migracao`: snapshot recente, 59 tabelas e 154.217
 registros com contagens/checksums identicos, 34 identidades alinhadas, zero
 constraints nao validadas, smoke dos 20 ensaios de modulos e concorrencia com
 cinco sessoes. Os testes temporarios nao mudaram as tabelas publicas.
+O restore real foi homologado em `endemias_teste`, preservando por checksum as
+59 tabelas e 153.419 registros. Neste computador, a tarefa agendada ainda nao
+esta instalada e a credencial `SYSTEM` ainda nao foi criada.
 
 ## Regras para testes PostgreSQL
 

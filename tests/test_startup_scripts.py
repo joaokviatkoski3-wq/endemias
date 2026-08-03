@@ -16,7 +16,9 @@ class StartupScriptsTests(unittest.TestCase):
         self.assertIn('-UserId "SYSTEM"', script)
         self.assertIn("-LogonType ServiceAccount", script)
         self.assertIn("-WorkingDirectory $RootDir", script)
-        self.assertIn("-Argument ('\"{0}\"' -f $AppPath)", script)
+        self.assertIn("-Execute $powershellPath", script)
+        self.assertIn("-Argument $actionArguments", script)
+        self.assertIn("iniciar_servidor.ps1", script)
         self.assertIn("-RestartCount 5", script)
         self.assertIn("Start-ScheduledTask -TaskName $TaskName", script)
 

@@ -1,12 +1,25 @@
 [CmdletBinding()]
 param(
-    [switch]$Remover
+    [switch]$Remover,
+    [ValidateSet("sqlite", "postgresql")]
+    [string]$Backend = "sqlite",
+    [string]$Database = "",
+    [string]$PgHost = "127.0.0.1",
+    [ValidateRange(1, 65535)]
+    [int]$PgPort = 5432,
+    [string]$PgUser = "endemias_app",
+    [ValidateSet("disable", "allow", "prefer", "require", "verify-ca", "verify-full")]
+    [string]$PgSslMode = "prefer",
+    [string]$PgPassFile = "C:\ProgramData\Endemias\pgpass.conf",
+    [switch]$NaoIniciar,
+    [switch]$ValidarSomente
 )
 
 $ErrorActionPreference = "Stop"
 $TaskName = "Endemias - Servidor"
 $RootDir = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $AppPath = Join-Path $RootDir "app.py"
+$LauncherPath = Join-Path $PSScriptRoot "iniciar_servidor.ps1"
 $OpenPath = Join-Path $RootDir "abrir_endemias.bat"
 $RestartPath = Join-Path $RootDir "reiniciar.bat"
 
@@ -61,6 +74,26 @@ function Find-EndemiasPython {
     }
 
     throw "Python com os componentes do Endemias nao foi encontrado. Execute iniciar.bat antes de configurar."
+}
+
+function Find-PostgreSQLTool {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    $command = Get-Command $Name -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+    $root = Join-Path $env:ProgramFiles "PostgreSQL"
+    if (Test-Path -LiteralPath $root -PathType Container) {
+        $candidate = Get-ChildItem -LiteralPath $root -Directory |
+            Sort-Object { [version]$_.Name } -Descending |
+            ForEach-Object { Join-Path $_.FullName ("bin\{0}" -f $Name) } |
+            Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+            Select-Object -First 1
+        if ($candidate) {
+            return $candidate
+        }
+    }
+    throw "$Name nao foi encontrado."
 }
 
 function Get-ShortcutPath {
@@ -128,11 +161,60 @@ if ($Remover) {
 if (-not (Test-Path -LiteralPath $AppPath -PathType Leaf)) {
     throw "app.py nao foi encontrado em $RootDir."
 }
+if (-not (Test-Path -LiteralPath $LauncherPath -PathType Leaf)) {
+    throw "iniciar_servidor.ps1 nao foi encontrado em $PSScriptRoot."
+}
+if ($Backend -eq "postgresql") {
+    if (-not $Database.Trim()) {
+        throw "Informe -Database para configurar o backend PostgreSQL."
+    }
+    if ($Database -notmatch '^[A-Za-z0-9_.-]+$') {
+        throw "O nome do banco PostgreSQL contem caracteres nao permitidos."
+    }
+    if ($PgHost -notmatch '^[A-Za-z0-9.:-]+$') {
+        throw "O host PostgreSQL contem caracteres nao permitidos."
+    }
+    if ($PgUser -notmatch '^[A-Za-z0-9_.-]+$') {
+        throw "O usuario PostgreSQL contem caracteres nao permitidos."
+    }
+    if (-not (Test-Path -LiteralPath $PgPassFile -PathType Leaf)) {
+        throw "Credencial SYSTEM nao encontrada em $PgPassFile."
+    }
+    $null = Find-PostgreSQLTool -Name "pg_dump.exe"
+    $null = Find-PostgreSQLTool -Name "pg_restore.exe"
+}
 
 $pythonPath = Find-EndemiasPython
+$powershellPath = (Get-Process -Id $PID).Path
+$actionArguments = @(
+    "-NoProfile",
+    "-NonInteractive",
+    "-ExecutionPolicy Bypass",
+    ('-File "{0}"' -f $LauncherPath),
+    ('-Backend "{0}"' -f $Backend),
+    ('-Database "{0}"' -f $Database),
+    ('-HostName "{0}"' -f $PgHost),
+    ('-Port {0}' -f $PgPort),
+    ('-UserName "{0}"' -f $PgUser),
+    ('-SslMode "{0}"' -f $PgSslMode),
+    ('-PgPassFile "{0}"' -f $PgPassFile),
+    ('-PythonPath "{0}"' -f $pythonPath)
+) -join " "
+
+Write-Host "Validacao operacional concluida."
+Write-Host "Backend planejado: $Backend"
+if ($Backend -eq "postgresql") {
+    Write-Host "Banco planejado: $Database"
+    Write-Host "Credencial protegida: $PgPassFile"
+}
+if ($ValidarSomente) {
+    Write-Host "Nenhuma tarefa foi criada ou alterada."
+    exit 0
+}
+
 $action = New-ScheduledTaskAction `
-    -Execute $pythonPath `
-    -Argument ('"{0}"' -f $AppPath) `
+    -Execute $powershellPath `
+    -Argument $actionArguments `
     -WorkingDirectory $RootDir
 
 $trigger = New-ScheduledTaskTrigger -AtStartup
@@ -157,15 +239,21 @@ $task = New-ScheduledTask `
     -Trigger $trigger `
     -Principal $principal `
     -Settings $settings `
-    -Description "Inicia o Sistema Endemias automaticamente com o Windows."
+    -Description "Inicia o Sistema Endemias automaticamente com backend $Backend."
 
 Register-ScheduledTask -TaskName $TaskName -InputObject $task -Force | Out-Null
 $shortcutPaths = New-EndemiasShortcuts
 
 Write-Host "Tarefa '$TaskName' instalada."
 Write-Host "Python: $pythonPath"
+Write-Host "Backend: $Backend"
 foreach ($shortcutPath in $shortcutPaths) {
     Write-Host "Atalho: $shortcutPath"
+}
+
+if ($NaoIniciar) {
+    Write-Host "A tarefa foi preparada, mas nao iniciada."
+    exit 0
 }
 
 if (-not (Test-EndemiasPort)) {
