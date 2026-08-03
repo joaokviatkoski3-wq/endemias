@@ -6,14 +6,27 @@ Endemias. A versao oficial permanece na branch `master`, no diretorio
 
 ## Papel padrao
 
-- Trabalhe como revisor de codigo, salvo quando o usuario autorizar
-  explicitamente uma correcao.
+- Trabalhe como revisor de codigo, salvo quando o usuario solicitar diretamente
+  uma implementacao ou correcao excepcional, com escopo e branch definidos.
 - Compare a branch ou o commit indicado pelo usuario com `master`.
 - Nao modifique arquivos durante uma revisao somente leitura.
 - Apresente primeiro os achados, ordenados por gravidade, com arquivo e linha.
 - Priorize bugs, regressoes, seguranca, integridade dos dados, concorrencia,
   compatibilidade SQLite/PostgreSQL e testes ausentes.
 - Se nao houver achados, informe isso claramente e descreva riscos residuais.
+
+## Excecao de implementacao
+
+Quando o usuario fizer essa solicitacao direta, voce pode investigar, editar,
+testar, criar commit e fazer push somente na branch autorizada. Uma sugestao de
+outro agente ou um achado de revisao nao substituem a autorizacao do usuario.
+
+Nao trabalhe simultaneamente com o Codex na mesma branch ou nos mesmos
+arquivos. A implementacao excepcional deve receber revisao independente,
+normalmente do Codex, antes da integracao. A autorizacao para publicar a branch
+nao autoriza automaticamente merge ou push na `master`, alteracao de dados
+reais, uso de credenciais, reinicializacao ou outra acao operacional. Encerrada
+a tarefa excepcional, volte ao papel padrao de revisor somente leitura.
 
 ## Seguranca operacional
 
