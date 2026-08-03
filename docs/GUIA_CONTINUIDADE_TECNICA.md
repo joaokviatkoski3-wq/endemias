@@ -314,10 +314,10 @@ Ao ver um arquivo sensivel como nao rastreado, nao o adicione. Confira
 - Ovitrampas/Leituras importadas: historico vindo do Conta Ovos por CSV.
 - Ovitrampas/Laboratorio: espelho local preenchido pelo laboratorista antes do
   lancamento externo.
-- Conta Ovos/SisPNCD: apoio operacional; a fundacao privada somente leitura
-  esta em `master`, e a sincronizacao GET das contagens esta na branch
-  `codex/sincronizar-contagens-conta-ovos`. Envios continuam desativados ate
-  revisao e homologacao. Consulte
+- Conta Ovos/SisPNCD: apoio operacional; a fundacao privada e a sincronizacao
+  GET das contagens estao em `master`. A fila local das leituras esta na branch
+  `codex/enfileirar-leituras-conta-ovos`. Envios remotos continuam desativados
+  ate revisao, prova da semana epidemiologica e homologacao. Consulte
   `docs/CONTA_OVOS_API.md`.
 - Esporotricose/Visitas: dados importados do Kobo.
 - Esporotricose/Doentes: cadastro clinico manual, receitas e estoque.

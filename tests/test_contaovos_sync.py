@@ -394,6 +394,18 @@ class ContaOvosSynchronizationTests(unittest.TestCase):
 
 
 class ContaOvosSyncScriptTests(unittest.TestCase):
+    def test_divide_reconciliacao_em_meses_inclusive(self):
+        self.assertEqual(
+            [
+                ("2026-01-20", "2026-01-31"),
+                ("2026-02-01", "2026-02-28"),
+                ("2026-03-01", "2026-03-03"),
+            ],
+            sincronizar_contagens_contaovos._periods(
+                "2026-01-20", "2026-03-03", True
+            ),
+        )
+
     def test_script_exige_confirmacoes_antes_de_ler_credencial(self):
         with (
             mock.patch.object(
@@ -422,6 +434,7 @@ class ContaOvosSyncScriptTests(unittest.TestCase):
         self.assertIn("choice /C 12", wrapper)
         self.assertIn("AddDays(-45)", wrapper)
         self.assertIn("%ANO_ATUAL%-01-01", wrapper)
+        self.assertIn("--dividir-por-mes", wrapper)
         self.assertIn("--confirmar-banco endemias", wrapper)
         self.assertNotIn("postcounting", wrapper.lower())
         self.assertNotIn("postdelete", wrapper.lower())

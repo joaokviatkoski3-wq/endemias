@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify, render_template, request
 from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
+from app_core import contaovos_fila
 from app_core import ovitrampas as ovitrampas_core
 from app_core import ovitrampas_laboratorio as ovi_lab_core
 
@@ -237,9 +238,18 @@ def api_calendario():
 @login_required
 @nivel_min("operador")
 def api_laboratorio_lotes():
-    return jsonify(ovi_lab_core.listar_para_administracao(
+    result = ovi_lab_core.listar_para_administracao(
         _db_path(), status=request.args.get("status", "pendente"),
-    ))
+    )
+    conn = get_db()
+    try:
+        for lote in result["registros"]:
+            lote["fila_conta_ovos"] = contaovos_fila.lot_queue_status(
+                conn, lote["id_lote"]
+            )
+    finally:
+        conn.close()
+    return jsonify(result)
 
 
 @bp.route("/api/ovitrampas/laboratorio/<int:id_lote>")
@@ -247,9 +257,51 @@ def api_laboratorio_lotes():
 @nivel_min("operador")
 def api_laboratorio_lote(id_lote):
     try:
-        return jsonify(ovi_lab_core.obter_lote(_db_path(), id_lote))
+        lote = ovi_lab_core.obter_lote(_db_path(), id_lote)
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 404
+    conn = get_db()
+    try:
+        lote["fila_conta_ovos"] = contaovos_fila.lot_queue_status(conn, id_lote)
+    finally:
+        conn.close()
+    return jsonify(lote)
+
+
+@bp.route(
+    "/api/ovitrampas/laboratorio/<int:id_lote>/preparar-conta-ovos",
+    methods=["POST"],
+)
+@login_required
+@nivel_min("operador")
+def api_laboratorio_preparar_conta_ovos(id_lote):
+    conn = get_db()
+    try:
+        result = contaovos_fila.prepare_and_reconcile(conn, id_lote)
+        audit.registrar_evento(
+            get_db,
+            "conta_ovos_fila_contagens_preparada",
+            entidade="ovitrampas_laboratorio_lotes",
+            entidade_id=id_lote,
+            detalhes=result,
+            conn=conn,
+        )
+        conn.commit()
+    except contaovos_fila.ContaOvosQueueError as exc:
+        conn.rollback()
+        return jsonify(
+            {"erro": str(exc), "tipo": exc.kind, "pendencias": exc.issues}
+        ), 400
+    except Exception as exc:
+        conn.rollback()
+        if ovitrampas_core.db_core.is_concurrency_error(exc):
+            return jsonify(
+                {"erro": "O banco esta ocupado. Tente novamente em instantes."}
+            ), 503
+        raise
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "fila": result})
 
 
 @bp.route("/api/ovitrampas/laboratorio/<int:id_lote>/enviado", methods=["POST"])
