@@ -15,7 +15,9 @@ def ensure_schema(conn):
         CREATE TABLE IF NOT EXISTS {CURSOR_TABLE} (
             fluxo TEXT PRIMARY KEY,
             ultimo_id_remoto TEXT,
-            atualizado_em TEXT NOT NULL
+            atualizado_em TEXT NOT NULL,
+            em_execucao_desde TEXT,
+            execucao_token TEXT
         );
         CREATE TABLE IF NOT EXISTS {EXECUTIONS_TABLE} (
             id_execucao INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,6 +34,12 @@ def ensure_schema(conn):
             ON {EXECUTIONS_TABLE}(iniciado_em DESC, id_execucao DESC);
         """
     )
+    existing_columns = {
+        row[1] for row in conn.execute(f"PRAGMA table_info({CURSOR_TABLE})")
+    }
+    for column in ("em_execucao_desde", "execucao_token"):
+        if column not in existing_columns:
+            conn.execute(f"ALTER TABLE {CURSOR_TABLE} ADD COLUMN {column} TEXT")
 
 
 def schema_status(conn):
