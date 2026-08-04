@@ -2071,6 +2071,7 @@ class MainPagesSmokeTests(unittest.TestCase):
             "/dashboard",
             "/visitas",
             "/laboratorio",
+            "/conta-ovos",
             "/conta-ovos-sispncd",
             "/ovitrampas",
             "/esporotricose",

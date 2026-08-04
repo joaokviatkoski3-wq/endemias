@@ -33,6 +33,7 @@ from blueprints.auth import bp as auth_bp
 from blueprints.bri import bp as bri_bp
 from blueprints.boletim_mensal import bp as boletim_mensal_bp
 from blueprints.consultas import bp as consultas_bp
+from blueprints.conta_ovos import bp as conta_ovos_bp
 from blueprints.conta_ovos_sispncd import bp as conta_ovos_sispncd_bp
 from blueprints.controle_pessoal import bp as controle_pessoal_bp
 from blueprints.esporotricose import bp as esporotricose_bp
@@ -147,6 +148,7 @@ def _register_blueprints(flask_app):
     flask_app.register_blueprint(amostras_animais_bp)
     flask_app.register_blueprint(bri_bp)
     flask_app.register_blueprint(boletim_mensal_bp)
+    flask_app.register_blueprint(conta_ovos_bp)
     flask_app.register_blueprint(conta_ovos_sispncd_bp)
     flask_app.register_blueprint(controle_pessoal_bp)
     flask_app.register_blueprint(consultas_bp)
