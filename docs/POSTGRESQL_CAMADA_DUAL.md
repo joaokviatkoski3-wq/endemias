@@ -703,6 +703,16 @@ pelo CSV. O ensaio PostgreSQL cria apenas
 tabelas temporarias em `endemias_teste` e confere que as tabelas publicas nao
 mudaram.
 
+A fila local de leituras adiciona a migracao
+`0004_contaovos_fila_contagens.sql`. Cada item de
+`ovitrampas_laboratorio_itens` possui no maximo uma entrada, com estado,
+tentativas, ID remoto, erro sanitizado e hash do payload. A preparacao valida o
+lote inteiro, inclusive coordenadas e mapeamento de ocorrencias, antes de
+gravar; depois reconcilia somente contra o historico GET ja sincronizado. A
+rota de preparacao inclui auditoria na mesma transacao. Nenhum `POST` remoto
+foi implementado. O ensaio `scripts/testar_contaovos_fila_postgresql.py` usa
+somente tabelas temporarias no banco descartavel.
+
 Autenticacao, auditoria, Controle de Pessoal, Gestao de Usuarios,
 Recolhimentos de Materiais, Amostras de Animais e Visitas de Arboviroses
 possuem leitura e escrita validadas. BRI e Pontos Estrategicos tambem estao

@@ -1,8 +1,9 @@
 # Integracao privada com a API Conta Ovos
 
-Estado em 03/08/2026: fundacao somente leitura integrada a `master`, credencial
-protegida e escopo privado validados. A sincronizacao GET das contagens esta em
-`codex/sincronizar-contagens-conta-ovos`. Nenhum endpoint de escrita remota faz
+Estado em 03/08/2026: fundacao e sincronizacao GET integradas a `master`,
+credencial protegida, escopo privado e idempotencia real validados. A fila
+local das leituras do laboratorio esta em
+`codex/enfileirar-leituras-conta-ovos`. Nenhum endpoint de escrita remota faz
 parte destes lotes.
 
 ## Regras de seguranca
@@ -90,9 +91,11 @@ limitada por `date_start`/`date_end`. O importador CSV permanece disponivel.
 
 O comando supervisionado e `sincronizar_contaovos.bat`. No modo rotineiro ele
 consulta os ultimos 45 dias, com sobreposicao; a reconciliacao anual permanece
-como escolha deliberada para conferir o ano corrente inteiro. Primeiro o script
-consulta sem alterar o banco; somente depois de confirmacao humana repete a
-consulta e atualiza o historico local. A operacao e exclusivamente GET na API.
+como escolha deliberada para conferir o ano corrente inteiro e agora divide o
+periodo em meses, pois o ensaio real encontrou mais de 100 paginas no ano.
+Primeiro o script consulta todos os periodos sem alterar o banco; somente depois
+de confirmacao humana repete as consultas e atualiza o historico local. A
+operacao e exclusivamente GET na API.
 
 Zeros a esquerda continuam preservados no identificador persistido. Para
 comparar a API com o cadastro local, uma chave separada ignora apenas essa
@@ -100,13 +103,41 @@ variacao. Quando ha exatamente um cadastro correspondente, o historico usa o ID
 local existente; duas variantes locais equivalentes interrompem o lote como
 ambiguidade, sem gravacao parcial.
 
+Em 03/08/2026, `0002` e `0003` foram aplicadas nos bancos `endemias` e
+`endemias_teste`. O ensaio PostgreSQL temporario passou e a reconciliacao real
+de 2026 processou 5.383 contagens: 1.452 inseridas e 3.931 atualizadas. A
+repeticao dos ultimos 45 dias terminou com 1.108 itens sem alteracao e cursor
+`3569727`, comprovando a idempotencia no ambiente oficial.
+
+## Fila local das leituras do laboratorio
+
+`migrations/postgresql/0004_contaovos_fila_contagens.sql` e
+`app_core/contaovos_fila.py` preparam uma linha de fila para cada item concluido
+do laboratorio. A fila guarda estado, tentativas, ID remoto, erro sanitizado e
+SHA-256 do payload esperado. O payload nao e enviado neste lote.
+
+A preparacao bloqueia o lote inteiro antes da primeira escrita quando falta
+coordenada, quando a ocorrencia nao possui mapeamento seguro ou quando um item
+ja confirmado foi alterado. O codigo remoto e derivado por inversao de
+`ovitrampas.CONTA_OVOS_OCORRENCIAS`; o laboratorio continua limitado aos oito
+codigos que possuem correspondencia conhecida. Leituras iguais no historico
+GET ficam `confirmado`, ausentes ficam `pendente` e divergencias ficam `erro`.
+Uma tentativa futura interrompida nunca volta automaticamente a pendente sem
+reconciliacao.
+
+O botao **Preparar e conferir** na administracao de Ovitrampas apenas grava e
+reconcilia a fila local. O fluxo manual **Marcar envio manual** permanece como
+contingencia. `scripts/verificar_semanas_contaovos.py` compara por GET os campos
+brutos `date/year/week` da API com o algoritmo local; essa prova supervisionada
+e condicao para qualquer lote posterior que habilite `/postcounting`.
+
 ## Proximos lotes
 
-1. Revisar e homologar a sincronizacao incremental GET, inclusive o ensaio em
+1. Revisar e homologar a fila local, aplicar `0004` e executar o ensaio em
    tabelas temporarias de `endemias_teste`.
-2. Fila de leituras do laboratorio, por item, com reconciliacao antes de
-   confirmar. O mapa de ocorrencias sera derivado da fonte existente em
-   `app_core/ovitrampas.py`.
+2. Executar a prova real somente GET da semana epidemiologica; somente depois
+   implementar o envio serial `/postcounting`, sempre reconciliando antes de
+   confirmar e sem exclusao automatica.
 3. Envio TBO por quarteirao somente depois de validar IDs remotos, tipos de
    imovel, unidade de larvicida e semana epidemiologica do servidor.
 

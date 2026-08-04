@@ -9,7 +9,7 @@ que assumir o projeto em outra conta ou conversa.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.17.0`, definida em `app_core/version.py`.
+- Versao atual: `1.18.0`, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -61,11 +61,11 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A suite passou de 517 para 536 testes com a sincronizacao incremental das
-contagens privadas do Conta Ovos. A regressao ampla foi confirmada no worktree
-da branch usando uma copia temporaria isolada de `C:\endemias\endemias.db`: os 536 testes
-terminaram com `OK`, 5 foram ignorados e o hash do SQLite oficial permaneceu
-inalterado.
+A suite passou de 536 para 551 testes com a fila local e a reconciliacao das
+leituras do laboratorio para o Conta Ovos. A regressao ampla foi confirmada no
+worktree da branch usando uma copia temporaria isolada de
+`C:\endemias\endemias.db`: os 551 testes terminaram com `OK`, 5 foram ignorados
+e o hash do SQLite oficial permaneceu inalterado.
 Ela cria uma copia SQLite temporaria antes de importar a aplicacao; nunca rode
 testes contra o `endemias.db` congelado.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
@@ -151,21 +151,25 @@ por um console elevado antes de concluir que um backup falhou.
 
 ## Proxima tarefa recomendada
 
-Revisar `codex/sincronizar-contagens-conta-ovos` contra `master`. O lote:
+Revisar `codex/enfileirar-leituras-conta-ovos` contra `master`. O lote:
 
-1. pagina o endpoint privado somente por filtros documentados;
-2. reconcilia `ovitrampa_id` sem alterar zeros persistidos, valida o escopo em
-   cada linha e deduplica por `counting_id`;
-3. atualiza o historico local de ocorrencias de forma atomica e idempotente;
-4. mantem cursor, historico sanitizado e trava single-flight recuperavel;
-5. preserva a importacao CSV e nao possui qualquer chamada POST.
+1. adiciona `0004_contaovos_fila_contagens.sql`, com uma fila especifica por
+   item do laboratorio, hash do payload e estados recuperaveis;
+2. valida o lote inteiro antes de enfileirar e bloqueia coordenadas ausentes,
+   ocorrencias sem mapeamento e alteracao posterior de item confirmado;
+3. reconcilia somente contra o historico GET local, sem chamar endpoint de
+   escrita, e registra a preparacao na auditoria na mesma transacao;
+4. inclui um verificador supervisionado que compara `date/year/week` brutos da
+   API com a regra epidemiologica local, sempre por GET;
+5. divide a reconciliacao anual em meses para respeitar o limite de 100 paginas.
 
-A chave foi validada sob `SYSTEM` em 03/08/2026: a primeira pagina retornou 30
-registros de Almirante Tamandare/PR, codigo IBGE `4100400`. A migracao `0002`
-precisa ser confirmada no banco oficial pelo administrador; o novo lote ainda
-adiciona a `0003_contaovos_sync_lock.sql`. Depois da revisao, execute o ensaio
-temporario em `endemias_teste`, aplique a `0003` e somente entao homologue o
-`sincronizar_contaovos.bat` no banco oficial.
+A sincronizacao GET foi homologada no banco oficial em 03/08/2026. As migracoes
+`0002` e `0003` estao aplicadas em `endemias` e `endemias_teste`; o ensaio
+temporario passou sem alterar tabelas publicas. Foram reconciliadas 5.383
+contagens de 2026: 1.452 inseridas e 3.931 atualizadas. Uma segunda execucao dos
+ultimos 45 dias retornou 1.108 itens sem qualquer alteracao, confirmando a
+idempotencia real. O cursor ficou em `3569727`. A migracao `0004` pertence a
+branch nova e ainda nao deve ser aplicada antes da revisao.
 
 Qualquer rollback precisa ser decidido pelo administrador: primeiro interrompa
 novas escritas PostgreSQL e so depois remova a tarefa/marcador. Nunca abra o
@@ -250,8 +254,9 @@ push.
 
 - A credencial privada Conta Ovos foi recebida, protegida para `SYSTEM` e
   Administradores e validada em uma consulta supervisionada somente leitura.
-- A sincronizacao GET de contagens esta em implementacao; importacoes CSV e
-  marcacoes manuais continuam como fallback ate homologacao completa.
+- A sincronizacao GET de contagens esta homologada; importacoes CSV e marcacoes
+  manuais continuam como fallback. A fila local de leituras esta em revisao e
+  nenhum POST remoto foi habilitado.
 - O plano futuro inclui diarios digitais offline em tablets, com revisao de
   alteracoes cadastrais e sincronizacao posterior; isso nao faz parte da
   migracao PostgreSQL atual.
