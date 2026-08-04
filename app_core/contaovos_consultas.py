@@ -7,6 +7,10 @@ altera filas, cadastros ou contagens durante a navegacao.
 from app_core import db as db_core
 
 
+class EspelhoContaOvosIndisponivel(RuntimeError):
+    """O schema local necessario para consulta ainda nao esta disponivel."""
+
+
 def _limit(value, default=100, maximum=500):
     try:
         return max(1, min(int(value or default), maximum))
@@ -31,7 +35,7 @@ def _prepare(conn):
         ) if not db_core.table_exists(conn, table)
     ]
     if missing:
-        raise RuntimeError(
+        raise EspelhoContaOvosIndisponivel(
             "O espelho local Conta Ovos ainda nao esta preparado: " + ", ".join(missing)
         )
     return db_core.table_exists(conn, "contaovos_execucoes")

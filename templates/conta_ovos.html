@@ -93,7 +93,7 @@ let contagensAtuais = [], ovitrampasAtuais = [];
 const label = key => ({id_contagem:'ID Conta Ovos',ovitrampa_id:'Ovitrampa',data_envio_contagem:'Enviado em',codigo_conta_ovos:'Codigo Conta Ovos',observacao_conta_ovos:'Observacao Conta Ovos',ocorrencia_codigo:'Ocorrencia local',arquivo_origem:'Arquivo de origem',importado_em:'Importado em',lat_lng:'Latitude / longitude',telefone_responsavel:'Telefone',armadilha_ativa:'Armadilha ativa',ultima_contagem:'Ultima contagem',ovos_total:'Ovos no historico'})[key] || key.replaceAll('_',' ');
 function mostrarDetalhes(titulo, dados) { document.querySelector('#titulo-detalhes').textContent=titulo; document.querySelector('#campos-detalhes').innerHTML=Object.entries(dados).filter(([,v])=>v!==null&&v!=='').map(([k,v])=>`<div><dt>${esc(label(k))}</dt><dd>${fmt(v)}</dd></div>`).join(''); document.querySelector('#detalhes-contaovos').hidden=false; document.querySelector('#detalhes-contaovos').scrollIntoView({behavior:'smooth',block:'nearest'}); }
 
-function kpi(titulo, valor, detalhe='') { return `<section class="kpi-card"><div class="kpi-label">${titulo}</div><div class="kpi-value">${fmt(valor)}</div><div class="muted small">${fmt(detalhe)}</div></section>`; }
+function kpi(titulo, valor, detalhe='') { return `<section class="kpi-card"><div class="kpi-label">${esc(titulo)}</div><div class="kpi-value">${fmt(valor)}</div><div class="muted small">${fmt(detalhe)}</div></section>`; }
 async function carregarResumo() {
   const data = await api('/api/conta-ovos/central/resumo'); const t = data.totais || {};
   document.querySelector('#kpis-contaovos').innerHTML = [

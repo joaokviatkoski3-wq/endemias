@@ -1,10 +1,14 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
+
+from flask import Flask
 
 from app_core import contaovos_consultas
 from app_core import db as db_core
 from app_core import ovitrampas
+from blueprints import conta_ovos
 
 
 class ContaOvosCentralTests(unittest.TestCase):
@@ -70,3 +74,21 @@ class ContaOvosCentralTests(unittest.TestCase):
     def test_rejeita_filtro_numerico_invalido(self):
         with self.assertRaisesRegex(ValueError, "numeros inteiros"):
             contaovos_consultas.listar_contagens(self.db_path, {"semana": "trinta"})
+
+    def test_rotas_retorna_503_quando_espelho_nao_esta_preparado(self):
+        app = Flask(__name__)
+        app.config["DB_PATH"] = str(self.db_path)
+        erro = contaovos_consultas.EspelhoContaOvosIndisponivel("Espelho indisponivel")
+        cases = (
+            ("/api/conta-ovos/central/resumo", conta_ovos.api_resumo, (), "resumo"),
+            ("/api/conta-ovos/central/contagens", conta_ovos.api_contagens, (), "listar_contagens"),
+            ("/api/conta-ovos/central/ovitrampas", conta_ovos.api_ovitrampas, (), "listar_ovitrampas"),
+            ("/api/conta-ovos/central/ovitrampas/97", conta_ovos.api_ovitrampa, ("97",), "detalhes_ovitrampa"),
+        )
+        for path, view, args, service in cases:
+            with self.subTest(path=path), app.test_request_context(path), mock.patch.object(
+                contaovos_consultas, service, side_effect=erro
+            ):
+                response, status = view.__wrapped__(*args)
+                self.assertEqual(503, status)
+                self.assertEqual("Espelho indisponivel", response.get_json()["erro"])
