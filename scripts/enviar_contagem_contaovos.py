@@ -33,6 +33,7 @@ def _parser():
     parser.add_argument("--confirmar-banco")
     parser.add_argument("--confirmar-item")
     parser.add_argument("--autorizar-envio")
+    parser.add_argument("--autorizar-mudanca-coordenadas")
     return parser
 
 
@@ -58,13 +59,13 @@ def _list(args):
             f"{row['tentativas']}"
         )
     print("\nItens 'enviando' sao apenas reconciliados; nunca sao reenviados.")
-    return 0
+    return len(rows)
 
 
 def _read_interactive(args):
-    list_result = _list(args)
-    if list_result:
-        return list_result
+    listed = _list(args)
+    if listed == 0:
+        return 0
     print("\nA operacao pode criar uma leitura irreversivel no Conta Ovos.")
     queue_text = input("Digite o ID_FILA exato do item piloto: ").strip()
     if not queue_text.isdigit() or int(queue_text) < 1:
@@ -88,6 +89,52 @@ def _read_interactive(args):
     return None
 
 
+def _send(args, key):
+    try:
+        return contaovos_envio.send_one(
+            _target(args.database),
+            queue_id=args.id_fila,
+            operator_name=args.operador,
+            key=key,
+            allow_remote_write=True,
+            coordinate_authorization=args.autorizar_mudanca_coordenadas,
+        )
+    except contaovos_envio.ContaOvosSendError as exc:
+        if (
+            not args.interativo
+            or exc.kind != "coordinate_change_confirmation_required"
+        ):
+            raise
+        details = exc.details
+        print("\n[ATENCAO] O POST alterara a posicao cadastrada da ovitrampa:")
+        print(
+            "  Conta Ovos: "
+            f"{details['remote_lat']:.6f}, {details['remote_lng']:.6f}"
+        )
+        print(
+            "  Cadastro local: "
+            f"{details['local_lat']:.6f}, {details['local_lng']:.6f}"
+        )
+        typed = input(
+            "Para autorizar conscientemente a mudanca, digite exatamente:\n"
+            f'"{exc.required_confirmation}"\n> '
+        ).strip()
+        if typed != exc.required_confirmation:
+            raise contaovos_envio.ContaOvosSendError(
+                "Mudanca de coordenadas nao autorizada; nenhum POST foi enviado.",
+                kind="coordinate_change_not_authorized",
+            ) from None
+        args.autorizar_mudanca_coordenadas = typed
+        return contaovos_envio.send_one(
+            _target(args.database),
+            queue_id=args.id_fila,
+            operator_name=args.operador,
+            key=key,
+            allow_remote_write=True,
+            coordinate_authorization=typed,
+        )
+
+
 def main(argv=None):
     args = _parser().parse_args(argv)
     if args.database != OFFICIAL_DATABASE:
@@ -106,7 +153,8 @@ def main(argv=None):
             return interactive_result
     if args.listar:
         try:
-            return _list(args)
+            _list(args)
+            return 0
         except Exception as exc:
             print(f"[ERRO] {contaovos_client.sanitize_message(exc)}")
             return 1
@@ -132,13 +180,7 @@ def main(argv=None):
     key = None
     try:
         key = contaovos_credencial.read_key()
-        result = contaovos_envio.send_one(
-            _target(args.database),
-            queue_id=args.id_fila,
-            operator_name=args.operador,
-            key=key,
-            allow_remote_write=True,
-        )
+        result = _send(args, key)
         if result["sent"]:
             print(
                 "[OK] Uma contagem foi enviada e confirmada por GET. "

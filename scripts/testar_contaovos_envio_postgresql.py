@@ -87,10 +87,10 @@ def _create_temp_schema(raw_conn):
             "VALUES (1, DATE '2026-08-02', 'concluido')"
         )
         cursor.execute(
-            "INSERT INTO ovitrampas_laboratorio_itens VALUES (11,1,'097',7,5)"
+            "INSERT INTO ovitrampas_laboratorio_itens VALUES (11,1,'97',7,5)"
         )
         cursor.execute(
-            "INSERT INTO ovitrampas_armadilhas VALUES ('097',-25.1,-49.2)"
+            "INSERT INTO ovitrampas_armadilhas VALUES ('97',-25.1,-49.2)"
         )
     raw_conn.commit()
 
@@ -155,6 +155,19 @@ def main(argv=None):
             ).fetchone()[0]
             return {"accepted": True, "status_code": 200}
 
+        def ovitrap_fetcher(**params):
+            if params["page"] > 1:
+                return []
+            return [
+                {
+                    "ovitrap_group_id": "97",
+                    "ovitrap_lat": -25.1,
+                    "ovitrap_lng": -49.2,
+                    "municipality_code": "4100400",
+                    "state_code": "PR",
+                }
+            ]
+
         result = contaovos_envio.send_one(
             connection=conn,
             queue_id=queue_id,
@@ -162,6 +175,7 @@ def main(argv=None):
             key="chave-falsa",
             allow_remote_write=True,
             page_fetcher=fetcher,
+            ovitrap_fetcher=ovitrap_fetcher,
             poster=poster,
         )
         status = conn.execute(

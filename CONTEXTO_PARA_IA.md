@@ -63,10 +63,11 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A suite passou de 556 para 581 testes com a reestruturacao da central Conta
-Ovos e a fundacao GET do cadastro remoto de ovitrampas. A regressao desta
-branch deve ser reexecutada depois do rebase, sempre em copia temporaria
-isolada de `C:\endemias\endemias.db`.
+A `master` atingiu 581 testes com a reestruturacao da central Conta Ovos e a
+fundacao GET do cadastro remoto de ovitrampas; a antiga versao desta branch
+teve 573 testes aprovados antes de receber a central. A regressao desta branch
+deve ser reexecutada depois do rebase, sempre em copia temporaria isolada de
+`C:\endemias\endemias.db`.
 Ela cria uma copia SQLite temporaria antes de importar a aplicacao; nunca rode
 testes contra o `endemias.db` congelado.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
@@ -173,6 +174,14 @@ eleva para ler as credenciais protegidas e nunca envia mais de um item. Toda
 tentativa gera auditoria; erro de rede, HTTP 500, sucesso sem confirmacao GET ou
 falha na reconciliacao mantem o item bloqueado em `enviando`. Uma execucao
 posterior apenas reconcilia esse estado e nunca repete o POST.
+
+Depois da primeira revisao, o envio passou tambem a consultar o cadastro remoto
+por `GET /getmunicipalityovitrapspublic` antes do POST. Ovitrampa ausente ou ID
+exato divergente bloqueiam a operacao para impedir criacao acidental. Se a
+posicao remota divergir da local, o operador precisa digitar uma segunda frase
+que mostra as coordenadas anterior e nova; a autorizacao fica na auditoria. A
+primeira pagina real desse endpoint foi conferida em 03/08/2026 e retornou os
+campos esperados somente no escopo `4100400/PR`.
 
 Os testes usam transporte falso e o ensaio PostgreSQL usa tabelas temporarias
 em `endemias_teste`. Nenhum POST real deve ser executado antes da revisao do

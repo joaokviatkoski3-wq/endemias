@@ -754,6 +754,12 @@ risco sem criar nova migracao: ela reutiliza os estados e metadados da fila
 recalcula o payload e seu hash, consulta por GET toda a semana epidemiologica e
 so permite POST quando nao existe leitura nem conflito remoto.
 
+Uma consulta paginada ao cadastro publico de ovitrampas completa a verificacao
+anterior ao POST. O identificador precisa existir e coincidir exatamente, para
+que o endpoint privado nao crie uma armadilha incompleta. Coordenadas
+divergentes exigem uma segunda frase humana com as posicoes remota e local; essa
+decisao fica registrada na auditoria da tentativa.
+
 O estado `enviando`, a tentativa e a auditoria operacional sao commitados antes
 do acesso de escrita a API. O POST nao possui retry. Uma segunda reconciliacao
 GET e a unica confirmacao aceita; falhas de transporte, HTTP 500 ou ausencia da

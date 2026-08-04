@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -61,9 +62,9 @@ class ContaOvosEnvioTests(unittest.TestCase):
             INSERT INTO ovitrampas_laboratorio_lotes
                 VALUES (1,'2026-08-02','concluido');
             INSERT INTO ovitrampas_laboratorio_itens
-                VALUES (11,1,'097',7,5);
+                VALUES (11,1,'97',7,5);
             INSERT INTO ovitrampas_armadilhas
-                VALUES ('097',-25.1,-49.2);
+                VALUES ('97',-25.1,-49.2);
             """
         )
         contaovos_fila.ensure_schema_connection(self.conn)
@@ -74,8 +75,17 @@ class ContaOvosEnvioTests(unittest.TestCase):
         self.queue_id = self.conn.execute(
             "SELECT id_fila FROM contaovos_fila_contagens"
         ).fetchone()[0]
+        self.ovitrap_patcher = mock.patch.object(
+            contaovos_client,
+            "public_ovitraps_page",
+            side_effect=lambda **params: (
+                [self._remote_ovitrap()] if params["page"] == 1 else []
+            ),
+        )
+        self.ovitrap_patcher.start()
 
     def tearDown(self):
+        self.ovitrap_patcher.stop()
         self.conn.close()
         self.temp.cleanup()
 
@@ -93,6 +103,16 @@ class ContaOvosEnvioTests(unittest.TestCase):
             "counting_observation_id": observation,
             "latitude": latitude,
             "longitude": -49.2,
+        }
+
+    @staticmethod
+    def _remote_ovitrap(group_id="97", latitude=-25.1, longitude=-49.2):
+        return {
+            "ovitrap_group_id": group_id,
+            "ovitrap_lat": latitude,
+            "ovitrap_lng": longitude,
+            "municipality_code": "4100400",
+            "state_code": "PR",
         }
 
     def _fetch_rounds(self, rounds):
@@ -332,6 +352,91 @@ class ContaOvosEnvioTests(unittest.TestCase):
         fetcher.assert_not_called()
         poster.assert_not_called()
 
+    def test_coordenada_remota_divergente_exige_confirmacao_antes_do_post(self):
+        poster = mock.Mock()
+        fetcher = lambda **params: (
+            [self._remote_ovitrap(latitude=-25.2)] if params["page"] == 1 else []
+        )
+        with self.assertRaises(contaovos_envio.ContaOvosSendError) as ctx:
+            contaovos_envio.send_one(
+                connection=self.conn,
+                queue_id=self.queue_id,
+                operator_name="Operador",
+                key="segredo",
+                allow_remote_write=True,
+                page_fetcher=self._fetch_rounds([[]]),
+                ovitrap_fetcher=fetcher,
+                poster=poster,
+            )
+        self.assertEqual(
+            "coordinate_change_confirmation_required", ctx.exception.kind
+        )
+        self.assertIn("MOVER OVITRAMPA", ctx.exception.required_confirmation)
+        poster.assert_not_called()
+        row = self.conn.execute(
+            "SELECT status, tentativas FROM contaovos_fila_contagens"
+        ).fetchone()
+        self.assertEqual(("pendente", 0), tuple(row))
+
+    def test_mudanca_de_coordenada_autorizada_fica_na_auditoria(self):
+        fetcher = lambda **params: (
+            [self._remote_ovitrap(latitude=-25.2)] if params["page"] == 1 else []
+        )
+        position = {
+            "remote_lat": -25.2,
+            "remote_lng": -49.2,
+            "local_lat": -25.1,
+            "local_lng": -49.2,
+        }
+        phrase = contaovos_envio._coordinate_confirmation(self.queue_id, position)
+        result = contaovos_envio.send_one(
+            connection=self.conn,
+            queue_id=self.queue_id,
+            operator_name="Operador",
+            key="segredo",
+            allow_remote_write=True,
+            coordinate_authorization=phrase,
+            page_fetcher=self._fetch_rounds([[], [self._remote()]]),
+            ovitrap_fetcher=fetcher,
+            poster=lambda *args, **kwargs: {"accepted": True},
+        )
+        self.assertTrue(result["sent"])
+        details = json.loads(
+            self.conn.execute(
+                "SELECT detalhes_json FROM auditoria_eventos "
+                "WHERE acao='conta_ovos_envio_contagem_iniciado'"
+            ).fetchone()[0]
+        )
+        self.assertTrue(details["mudanca_coordenadas"]["autorizada"])
+        self.assertEqual(-25.2, details["mudanca_coordenadas"]["latitude_remota"])
+
+    def test_ovitrampa_ausente_ou_id_exato_divergente_bloqueia_criacao(self):
+        cases = (
+            (lambda **params: [], "remote_ovitrap_not_found"),
+            (
+                lambda **params: (
+                    [self._remote_ovitrap(group_id="097")]
+                    if params["page"] == 1
+                    else []
+                ),
+                "remote_ovitrap_id_mismatch",
+            ),
+        )
+        for fetcher, expected_kind in cases:
+            with self.subTest(expected_kind=expected_kind):
+                with self.assertRaises(contaovos_envio.ContaOvosSendError) as ctx:
+                    contaovos_envio.send_one(
+                        connection=self.conn,
+                        queue_id=self.queue_id,
+                        operator_name="Operador",
+                        key="segredo",
+                        allow_remote_write=True,
+                        page_fetcher=self._fetch_rounds([[]]),
+                        ovitrap_fetcher=fetcher,
+                        poster=mock.Mock(),
+                    )
+                self.assertEqual(expected_kind, ctx.exception.kind)
+
     def test_script_recusa_sem_confirmacoes_antes_de_ler_chave(self):
         with (
             mock.patch.object(
@@ -357,7 +462,7 @@ class ContaOvosEnvioTests(unittest.TestCase):
     def test_modo_interativo_cancela_antes_de_ler_chave(self):
         with (
             mock.patch.object(
-                enviar_contagem_contaovos, "_list", return_value=0
+                enviar_contagem_contaovos, "_list", return_value=1
             ),
             mock.patch("builtins.input", side_effect=["1", "Operador", "ERRADO"]),
             mock.patch.object(
@@ -368,6 +473,61 @@ class ContaOvosEnvioTests(unittest.TestCase):
             result = enviar_contagem_contaovos.main(["--interativo"])
         self.assertEqual(2, result)
         read_key.assert_not_called()
+
+    def test_modo_interativo_para_quando_fila_esta_vazia(self):
+        with (
+            mock.patch.object(enviar_contagem_contaovos, "_list", return_value=0),
+            mock.patch("builtins.input") as user_input,
+            mock.patch.object(
+                enviar_contagem_contaovos.contaovos_credencial, "read_key"
+            ) as read_key,
+            mock.patch("builtins.print"),
+        ):
+            result = enviar_contagem_contaovos.main(["--interativo"])
+        self.assertEqual(0, result)
+        user_input.assert_not_called()
+        read_key.assert_not_called()
+
+    def test_modo_interativo_repete_preflight_com_autorizacao_de_coordenada(self):
+        phrase = "MOVER OVITRAMPA DA FILA 1 DE -25.200000,-49.200000 PARA -25.100000,-49.200000"
+        coordinate_error = contaovos_envio.ContaOvosSendError(
+            "coordenadas divergentes",
+            kind="coordinate_change_confirmation_required",
+            required_confirmation=phrase,
+            details={
+                "remote_lat": -25.2,
+                "remote_lng": -49.2,
+                "local_lat": -25.1,
+                "local_lng": -49.2,
+            },
+        )
+        args = enviar_contagem_contaovos._parser().parse_args(
+            [
+                "--interativo",
+                "--id-fila",
+                "1",
+                "--operador",
+                "Operador",
+            ]
+        )
+        with (
+            mock.patch.object(
+                enviar_contagem_contaovos.contaovos_envio,
+                "send_one",
+                side_effect=[
+                    coordinate_error,
+                    {"ok": True, "sent": True, "id_remoto": "999"},
+                ],
+            ) as send,
+            mock.patch("builtins.input", return_value=phrase),
+            mock.patch("builtins.print"),
+        ):
+            result = enviar_contagem_contaovos._send(args, "segredo")
+        self.assertTrue(result["sent"])
+        self.assertEqual(2, send.call_count)
+        self.assertEqual(
+            phrase, send.call_args_list[1].kwargs["coordinate_authorization"]
+        )
 
     def test_ensaio_postgresql_recusa_banco_oficial(self):
         with mock.patch.object(

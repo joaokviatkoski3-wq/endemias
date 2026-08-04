@@ -45,6 +45,22 @@ def _http_error(code):
 
 
 class ContaOvosClientTests(unittest.TestCase):
+    def test_consulta_publica_de_ovitrampas_filtra_municipio_sem_chave(self):
+        seen = {}
+
+        def opener(req, timeout):
+            seen["url"] = req.full_url
+            seen["method"] = req.get_method()
+            return _Response([{"ovitrap_group_id": "97"}])
+
+        rows = contaovos_client.public_ovitraps_page(page=2, opener=opener)
+        self.assertEqual([{"ovitrap_group_id": "97"}], rows)
+        self.assertEqual("GET", seen["method"])
+        self.assertIn("getmunicipalityovitrapspublic", seen["url"])
+        self.assertIn("municipality=Almirante+Tamandar", seen["url"])
+        self.assertIn("page=2", seen["url"])
+        self.assertNotIn("key=", seen["url"])
+
     def test_post_unitario_exige_autorizacao_e_usa_formulario(self):
         payload = {
             "ovitrap_group_id": "97",

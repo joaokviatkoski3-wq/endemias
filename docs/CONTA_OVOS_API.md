@@ -207,6 +207,20 @@ reconciliacao viram erro para revisao humana. A API nao devolve todos os campos
 em todos os exemplos documentados, por isso campos ausentes nao sao inventados
 na comparacao.
 
+Antes de chegar ao POST, o fluxo consulta tambem
+`GET /getmunicipalityovitrapspublic`, pagina o cadastro municipal e exige uma
+unica correspondencia exata de `ovitrap_group_id`. Isso impede que um erro de
+identificador instale automaticamente uma nova ovitrampa com cadastro
+incompleto. A primeira pagina real foi validada com 30 registros, campos de
+coordenadas presentes e escopo exclusivo `4100400/PR`.
+
+Quando as coordenadas remotas diferem das locais alem da tolerancia de
+`0.00001`, a primeira tentativa para antes de mudar a fila ou chamar o POST. O
+modo interativo mostra as duas posicoes e exige que o operador digite uma frase
+especifica contendo ID da fila e coordenadas anterior/nova. A segunda passagem
+repete todas as reconciliacoes; se autorizada, registra as duas posicoes na
+auditoria `conta_ovos_envio_contagem_iniciado`.
+
 O comando operacional e encapsulado por `enviar_contagem_contaovos.bat`. Ele
 exige elevacao, lista a fila, solicita um unico `ID_FILA`, registra o nome do
 operador e pede confirmacao final. A chave continua sendo lida do arquivo com

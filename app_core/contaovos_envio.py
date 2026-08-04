@@ -17,10 +17,20 @@ COORDINATE_TOLERANCE = 0.00001
 
 
 class ContaOvosSendError(RuntimeError):
-    def __init__(self, message, *, kind="send_error", outcome_uncertain=False):
+    def __init__(
+        self,
+        message,
+        *,
+        kind="send_error",
+        outcome_uncertain=False,
+        required_confirmation=None,
+        details=None,
+    ):
         super().__init__(message)
         self.kind = kind
         self.outcome_uncertain = bool(outcome_uncertain)
+        self.required_confirmation = required_confirmation
+        self.details = dict(details or {})
 
 
 def _now_text(now=None):
@@ -154,9 +164,94 @@ def _optional_float_matches(remote_value, expected):
     if remote_value in (None, ""):
         return True
     try:
-        return abs(float(str(remote_value).replace(",", ".")) - float(expected)) <= COORDINATE_TOLERANCE
+        return (
+            abs(float(str(remote_value).replace(",", ".")) - float(expected))
+            <= COORDINATE_TOLERANCE
+        )
     except (TypeError, ValueError):
         return False
+
+
+def _remote_ovitrap_position(payload, *, ovitrap_fetcher=None):
+    ovitrap_fetcher = ovitrap_fetcher or contaovos_client.public_ovitraps_page
+    comparison_key = ovitrampas.chave_comparacao_ovitrampa_id(
+        payload["ovitrap_group_id"]
+    )
+    found = []
+    for page in range(1, MAX_RECONCILIATION_PAGES + 1):
+        rows = ovitrap_fetcher(page=page)
+        if not isinstance(rows, list):
+            raise ContaOvosSendError(
+                "A consulta publica de ovitrampas retornou formato inesperado.",
+                kind="unexpected_ovitrap_payload",
+            )
+        if not rows:
+            break
+        for row in rows:
+            if not isinstance(row, dict) or not _scope_ok(row):
+                raise ContaOvosSendError(
+                    "A consulta publica retornou ovitrampa fora do municipio esperado.",
+                    kind="ovitrap_scope_mismatch",
+                )
+            remote_id = str(row.get("ovitrap_group_id") or "").strip()
+            if ovitrampas.chave_comparacao_ovitrampa_id(remote_id) == comparison_key:
+                found.append(row)
+    else:
+        raise ContaOvosSendError(
+            "A consulta publica de ovitrampas atingiu o limite de paginas.",
+            kind="ovitrap_pagination_limit",
+        )
+    if not found:
+        raise ContaOvosSendError(
+            "A ovitrampa nao foi localizada no cadastro remoto; o envio foi bloqueado "
+            "para impedir uma instalacao automatica incompleta.",
+            kind="remote_ovitrap_not_found",
+        )
+    if len(found) > 1:
+        raise ContaOvosSendError(
+            "Mais de uma ovitrampa remota corresponde ao identificador local.",
+            kind="ambiguous_remote_ovitrap",
+        )
+    row = found[0]
+    remote_group_id = str(row.get("ovitrap_group_id") or "").strip()
+    if remote_group_id != str(payload["ovitrap_group_id"]):
+        raise ContaOvosSendError(
+            "O identificador remoto da ovitrampa difere do payload preparado; "
+            "alinhe o cadastro antes do envio.",
+            kind="remote_ovitrap_id_mismatch",
+            details={
+                "identificador_local": str(payload["ovitrap_group_id"]),
+                "identificador_remoto": remote_group_id,
+            },
+        )
+    try:
+        remote_lat = float(str(row["ovitrap_lat"]).replace(",", "."))
+        remote_lng = float(str(row["ovitrap_lng"]).replace(",", "."))
+    except (KeyError, TypeError, ValueError):
+        raise ContaOvosSendError(
+            "A ovitrampa remota nao possui coordenadas validas.",
+            kind="invalid_remote_ovitrap_coordinates",
+        ) from None
+    local_lat = float(payload["ovitrap_lat"])
+    local_lng = float(payload["ovitrap_lng"])
+    return {
+        "remote_lat": remote_lat,
+        "remote_lng": remote_lng,
+        "local_lat": local_lat,
+        "local_lng": local_lng,
+        "coordinates_match": (
+            abs(remote_lat - local_lat) <= COORDINATE_TOLERANCE
+            and abs(remote_lng - local_lng) <= COORDINATE_TOLERANCE
+        ),
+    }
+
+
+def _coordinate_confirmation(queue_id, position):
+    return (
+        f"MOVER OVITRAMPA DA FILA {int(queue_id)} DE "
+        f"{position['remote_lat']:.6f},{position['remote_lng']:.6f} PARA "
+        f"{position['local_lat']:.6f},{position['local_lng']:.6f}"
+    )
 
 
 def _classify_remote(payload, rows):
@@ -212,7 +307,17 @@ def _audit(conn, action, row, operator_name, details, now_text):
     )
 
 
-def _finish(conn, row, *, status, remote_id, error_message, operator_name, action, now_text):
+def _finish(
+    conn,
+    row,
+    *,
+    status,
+    remote_id,
+    error_message,
+    operator_name,
+    action,
+    now_text,
+):
     confirmed_at = now_text if status == contaovos_fila.STATUS_CONFIRMED else None
     conn.execute(
         f"""UPDATE {contaovos_fila.QUEUE_TABLE}
@@ -247,7 +352,9 @@ def send_one(
     key=None,
     allow_remote_write=False,
     page_fetcher=None,
+    ovitrap_fetcher=None,
     poster=None,
+    coordinate_authorization=None,
     connection=None,
     now=None,
 ):
@@ -334,6 +441,30 @@ def send_one(
                 "O estado atual da fila nao permite envio.", kind="invalid_state"
             )
 
+        position = _remote_ovitrap_position(
+            payload, ovitrap_fetcher=ovitrap_fetcher
+        )
+        coordinate_change = None
+        if not position["coordinates_match"]:
+            required_confirmation = _coordinate_confirmation(
+                row["id_fila"], position
+            )
+            if coordinate_authorization != required_confirmation:
+                raise ContaOvosSendError(
+                    "As coordenadas locais divergem do cadastro Conta Ovos. "
+                    "O envio so pode continuar com autorizacao humana explicita.",
+                    kind="coordinate_change_confirmation_required",
+                    required_confirmation=required_confirmation,
+                    details=position,
+                )
+            coordinate_change = {
+                "autorizada": True,
+                "latitude_remota": position["remote_lat"],
+                "longitude_remota": position["remote_lng"],
+                "latitude_local": position["local_lat"],
+                "longitude_local": position["local_lng"],
+            }
+
         updated = conn.execute(
             f"""UPDATE {contaovos_fila.QUEUE_TABLE}
                    SET status=?, tentativas=tentativas+1, erro_sanitizado=NULL,
@@ -359,7 +490,11 @@ def send_one(
             "conta_ovos_envio_contagem_iniciado",
             row,
             operator_name,
-            {"status": contaovos_fila.STATUS_SENDING, "payload_hash": digest},
+            {
+                "status": contaovos_fila.STATUS_SENDING,
+                "payload_hash": digest,
+                "mudanca_coordenadas": coordinate_change,
+            },
             moment,
         )
         conn.commit()
