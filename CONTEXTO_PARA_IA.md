@@ -9,7 +9,7 @@ que assumir o projeto em outra conta ou conversa.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.18.0`, definida em `app_core/version.py`.
+- Versao atual: `1.19.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -151,8 +151,15 @@ por um console elevado antes de concluir que um backup falhou.
 
 ## Proxima tarefa recomendada
 
-Preparar em nova branch o envio serial supervisionado de leituras por
-`/postcounting`. O lote precisa preservar o contrato ja homologado da fila:
+Preparar em nova branch a central de consulta **Conta Ovos**, usando apenas o
+espelho local sincronizado. Ela deve manter a pagina Ovitrampas como area de
+operacao local e reservar EDLs, quarteiroes e acoes para evolucao posterior.
+Nao ativar escrita remota, automatizacao ou chamada da API durante o
+carregamento da pagina. A decisao de arquitetura fica em
+`docs/CONTA_OVOS_INTERFACE.md` para revisao independente.
+
+O envio serial supervisionado de leituras por `/postcounting` continua sendo
+um lote futuro separado. Ele precisa preservar o contrato ja homologado da fila:
 
 1. reconciliar antes de qualquer envio e confirmar somente pelo GET posterior;
 2. marcar `enviando` e commitar antes da chamada remota;
@@ -259,8 +266,9 @@ push.
 - A credencial privada Conta Ovos foi recebida, protegida para `SYSTEM` e
   Administradores e validada em uma consulta supervisionada somente leitura.
 - A sincronizacao GET de contagens esta homologada; importacoes CSV e marcacoes
-  manuais continuam como fallback. A fila local de leituras esta em revisao e
-  nenhum POST remoto foi habilitado.
+  manuais continuam como fallback. A fila local de leituras esta homologada
+  para preparacao e conferencia; a central Conta Ovos e somente leitura.
+  Nenhum POST remoto esta habilitado na `master`.
 - O plano futuro inclui diarios digitais offline em tablets, com revisao de
   alteracoes cadastrais e sincronizacao posterior; isso nao faz parte da
   migracao PostgreSQL atual.

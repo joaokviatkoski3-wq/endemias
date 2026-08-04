@@ -136,6 +136,14 @@ da fila passou sem alterar a tabela publica. A prova real percorreu 5.405
 contagens brutas de 2026 por GET e encontrou zero divergencias entre
 `date/year/week` remotos e o algoritmo epidemiologico local.
 
+## Central de consulta no Endemias
+
+A interface `Conta Ovos` e uma camada separada de consulta do espelho local.
+Ela mostra contagens, cadastro e historico sanitizado de sincronizacoes sem
+fazer chamadas remotas durante a navegacao. A arquitetura, a separacao em
+relacao a pagina operacional de Ovitrampas e a evolucao prevista para EDLs e
+quarteiroes estao em `docs/CONTA_OVOS_INTERFACE.md`.
+
 ## Proximos lotes
 
 1. Implementar o envio serial `/postcounting`, sempre reconciliando antes e

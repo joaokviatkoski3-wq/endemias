@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Conta Ovos{% endblock %}
+{% block page_title %}Conta Ovos{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Conta Ovos</h1>
+    <p class="muted">Central de consulta do espelho local sincronizado. Esta pagina nao envia nem altera dados no Conta Ovos.</p>
+  </div>
+  <a class="btn btn-secondary" href="/ovitrampas">Abrir operacao de Ovitrampas</a>
+</div>
+
+<div class="tabs" role="tablist" aria-label="Secoes do Conta Ovos">
+  <button class="tab active" data-tab="visao" type="button">Visao geral</button>
+  <button class="tab" data-tab="contagens" type="button">Ovitrampas: contagens</button>
+  <button class="tab" data-tab="cadastro" type="button">Ovitrampas: cadastro</button>
+</div>
+
+<section class="tab-pane active" id="tab-visao">
+  <div class="kpi-grid" id="kpis-contaovos"></div>
+  <div class="grid-2 mt-16">
+    <section class="card">
+      <h2>Ultimas semanas sincronizadas</h2>
+      <div class="table-wrap"><table><thead><tr><th>Ano</th><th>Semana</th><th>Contagens</th><th>Ovos</th><th>Positivas</th></tr></thead><tbody id="semanas-contaovos"></tbody></table></div>
+    </section>
+    <section class="card">
+      <h2>Historico de sincronizacao</h2>
+      <div class="table-wrap"><table><thead><tr><th>Inicio</th><th>Tipo</th><th>Status</th><th>Itens</th></tr></thead><tbody id="execucoes-contaovos"></tbody></table></div>
+      <p class="muted small">A sincronizacao e feita por processo supervisionado, fora desta tela.</p>
+    </section>
+  </div>
+  <section class="card mt-16">
+    <h2>Estrutura preparada para a plataforma</h2>
+    <div class="grid-3">
+      <div><strong>Ovitrampas</strong><p class="muted">Contagens e cadastro ja sincronizados podem ser consultados nas abas acima.</p></div>
+      <div><strong>EDLs</strong><p class="muted">Reservado para implementacao futura, sem dados ou rotinas ativadas nesta etapa.</p></div>
+      <div><strong>Quarteiroes e acoes</strong><p class="muted">Reservado para futuras consultas e automatizacoes, apos validacao independente.</p></div>
+    </div>
+  </section>
+</section>
+
+<section class="tab-pane" id="tab-contagens" hidden>
+  <section class="card">
+    <h2>Contagens de ovitrampas</h2>
+    <form class="filter-grid" id="filtro-contagens">
+      <label>Busca<input name="busca" type="search" placeholder="ID, rua, localidade ou quarteirao"></label>
+      <label>Ano<input name="ano" type="number" min="2000" max="2100"></label>
+      <label>Semana<input name="semana" type="number" min="1" max="53"></label>
+      <label>De<input name="data_inicio" type="date"></label>
+      <label>Ate<input name="data_fim" type="date"></label>
+      <label>Resultado<input name="resultado" type="search" placeholder="Ex.: positivo"></label>
+      <label class="check-label"><input name="positivas" value="1" type="checkbox"> Somente positivas</label>
+      <div class="filter-actions"><button class="btn btn-primary" type="submit">Consultar</button><button class="btn btn-secondary" type="button" id="limpar-contagens">Limpar</button></div>
+    </form>
+    <p id="total-contagens" class="muted"></p>
+    <div class="table-wrap"><table><thead><tr><th>Data</th><th>Semana</th><th>Ovitrampa</th><th>Ovos</th><th>Resultado</th><th>Ocorrencia</th><th>Localidade</th><th>ID Conta Ovos</th><th></th></tr></thead><tbody id="lista-contagens"></tbody></table></div>
+  </section>
+</section>
+
+<section class="tab-pane" id="tab-cadastro" hidden>
+  <section class="card">
+    <h2>Cadastro local importado</h2>
+    <form class="filter-grid" id="filtro-ovitrampas">
+      <label>Busca<input name="busca" type="search" placeholder="ID, rua, localidade, responsavel ou quarteirao"></label>
+      <label>Localidade<input name="localidade" type="search"></label>
+      <label>Situacao<select name="ativo"><option value="">Todas</option><option value="1">Ativas</option><option value="0">Inativas</option></select></label>
+      <div class="filter-actions"><button class="btn btn-primary" type="submit">Consultar</button><button class="btn btn-secondary" type="button" id="limpar-ovitrampas">Limpar</button></div>
+    </form>
+    <p id="total-ovitrampas" class="muted"></p>
+    <div class="table-wrap"><table><thead><tr><th>Ovitrampa</th><th>Endereco</th><th>Localidade</th><th>Quarteirao</th><th>Responsavel</th><th>Situacao</th><th>Contagens</th><th>Ultima</th><th></th></tr></thead><tbody id="lista-ovitrampas"></tbody></table></div>
+  </section>
+</section>
+<section class="card mt-16" id="detalhes-contaovos" hidden>
+  <div class="card-header"><h2 id="titulo-detalhes">Detalhes</h2><button class="btn btn-secondary" type="button" id="fechar-detalhes">Fechar</button></div>
+  <dl class="details-grid" id="campos-detalhes"></dl>
+</section>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.mt-16{margin-top:16px}.small{font-size:.85rem}.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;align-items:end}.filter-grid label{display:flex;flex-direction:column;gap:5px;font-size:.85rem;font-weight:600}.filter-grid input,.filter-grid select{width:100%}.filter-actions{display:flex;gap:8px;align-items:end}.check-label{flex-direction:row!important;align-items:center;padding-bottom:8px}.check-label input{width:auto!important}.tab-pane[hidden]{display:none}.details-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.details-grid div{border-left:3px solid var(--border,#d1d5db);padding-left:9px}.details-grid dt{font-size:.78rem;color:var(--muted,#64748b);font-weight:700}.details-grid dd{margin:3px 0 0;word-break:break-word}@media(max-width:800px){.grid-2,.grid-3{grid-template-columns:1fr}.filter-actions{padding-top:4px}}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const esc = value => String(value ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = value => value == null || value === '' ? '-' : esc(value);
+const api = async url => { const r = await fetch(url); const data = await r.json(); if (!r.ok) throw new Error(data.erro || 'Falha ao consultar dados.'); return data; };
+const formQuery = form => { const p = new URLSearchParams(); new FormData(form).forEach((v,k)=>{if(v) p.set(k,v)}); return p; };
+let contagensAtuais = [], ovitrampasAtuais = [];
+const label = key => ({id_contagem:'ID Conta Ovos',ovitrampa_id:'Ovitrampa',data_envio_contagem:'Enviado em',codigo_conta_ovos:'Codigo Conta Ovos',observacao_conta_ovos:'Observacao Conta Ovos',ocorrencia_codigo:'Ocorrencia local',arquivo_origem:'Arquivo de origem',importado_em:'Importado em',lat_lng:'Latitude / longitude',telefone_responsavel:'Telefone',armadilha_ativa:'Armadilha ativa',ultima_contagem:'Ultima contagem',ovos_total:'Ovos no historico'})[key] || key.replaceAll('_',' ');
+function mostrarDetalhes(titulo, dados) { document.querySelector('#titulo-detalhes').textContent=titulo; document.querySelector('#campos-detalhes').innerHTML=Object.entries(dados).filter(([,v])=>v!==null&&v!=='').map(([k,v])=>`<div><dt>${esc(label(k))}</dt><dd>${fmt(v)}</dd></div>`).join(''); document.querySelector('#detalhes-contaovos').hidden=false; document.querySelector('#detalhes-contaovos').scrollIntoView({behavior:'smooth',block:'nearest'}); }
+
+function kpi(titulo, valor, detalhe='') { return `<section class="kpi-card"><div class="kpi-label">${esc(titulo)}</div><div class="kpi-value">${fmt(valor)}</div><div class="muted small">${fmt(detalhe)}</div></section>`; }
+async function carregarResumo() {
+  const data = await api('/api/conta-ovos/central/resumo'); const t = data.totais || {};
+  document.querySelector('#kpis-contaovos').innerHTML = [
+    kpi('Armadilhas cadastradas', t.armadilhas, `${t.armadilhas_ativas || 0} ativas`),
+    kpi('Contagens sincronizadas', t.contagens, `${t.ovitrampas_com_contagem || 0} ovitrampas com historico`),
+    kpi('Ovos no historico', t.ovos, `${t.positivas || 0} contagens positivas`),
+    kpi('Ultima contagem', t.ultima_data, `Importacao local: ${t.ultima_importacao || '-'}`),
+  ].join('');
+  document.querySelector('#semanas-contaovos').innerHTML = (data.semanas || []).map(r => `<tr><td>${fmt(r.ano)}</td><td>${fmt(r.semana)}</td><td>${fmt(r.contagens)}</td><td>${fmt(r.ovos)}</td><td>${fmt(r.positivas)}</td></tr>`).join('') || '<tr><td colspan="5">Nenhuma contagem sincronizada.</td></tr>';
+  document.querySelector('#execucoes-contaovos').innerHTML = (data.execucoes || []).map(r => `<tr title="${esc(r.resumo_sanitizado || '')}"><td>${fmt(r.iniciado_em)}</td><td>${fmt(r.tipo)}</td><td>${fmt(r.status)}</td><td>${fmt(r.itens_ok)} OK / ${fmt(r.itens_erro)} erro</td></tr>`).join('') || '<tr><td colspan="4">Nenhuma execucao registrada.</td></tr>';
+}
+async function carregarContagens() {
+  const p = formQuery(document.querySelector('#filtro-contagens')); p.set('limite','500'); const data = await api('/api/conta-ovos/central/contagens?' + p);
+  document.querySelector('#total-contagens').textContent = `${data.total} registro(s) encontrado(s); exibindo ate 500.`;
+  contagensAtuais=data.registros; document.querySelector('#lista-contagens').innerHTML = data.registros.map((r,i) => `<tr><td>${fmt(r.data)}</td><td>${fmt(r.ano)}/${fmt(r.semana)}</td><td>${fmt(r.ovitrampa_id)}</td><td>${fmt(r.ovos)}</td><td>${fmt(r.resultado)}</td><td>${fmt(r.ocorrencia_codigo)}</td><td>${fmt(r.localidade)}</td><td>${fmt(r.id_contagem)}</td><td><button class="btn btn-secondary btn-small" type="button" data-contagem="${i}">Ver</button></td></tr>`).join('') || '<tr><td colspan="9">Nenhum registro encontrado.</td></tr>';
+}
+async function carregarOvitrampas() {
+  const p = formQuery(document.querySelector('#filtro-ovitrampas')); p.set('limite','500'); const data = await api('/api/conta-ovos/central/ovitrampas?' + p);
+  document.querySelector('#total-ovitrampas').textContent = `${data.total} cadastro(s) encontrado(s); exibindo ate 500.`;
+  ovitrampasAtuais=data.registros; document.querySelector('#lista-ovitrampas').innerHTML = data.registros.map((r,i) => `<tr><td>${fmt(r.ovitrampa_id)}</td><td>${fmt([r.rua,r.numero,r.complemento].filter(Boolean).join(', '))}</td><td>${fmt(r.localidade)}</td><td>${fmt(r.quarteirao)}</td><td>${fmt(r.responsavel)}</td><td>${r.ativo ? 'Ativa' : 'Inativa'}</td><td>${fmt(r.contagens)}</td><td>${fmt(r.ultima_contagem)}</td><td><button class="btn btn-secondary btn-small" type="button" data-ovitrampa="${i}">Ver</button></td></tr>`).join('') || '<tr><td colspan="9">Nenhum cadastro encontrado.</td></tr>';
+}
+document.querySelectorAll('[data-tab]').forEach(button => button.addEventListener('click', () => { document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b===button)); document.querySelectorAll('.tab-pane').forEach(p=>{const active=p.id==='tab-'+button.dataset.tab;p.hidden=!active;p.classList.toggle('active',active)}); if(button.dataset.tab==='contagens') carregarContagens(); if(button.dataset.tab==='cadastro') carregarOvitrampas(); }));
+document.querySelector('#filtro-contagens').addEventListener('submit', e => {e.preventDefault(); carregarContagens().catch(e=>alert(e.message));});
+document.querySelector('#filtro-ovitrampas').addEventListener('submit', e => {e.preventDefault(); carregarOvitrampas().catch(e=>alert(e.message));});
+document.querySelector('#limpar-contagens').addEventListener('click', () => {document.querySelector('#filtro-contagens').reset(); carregarContagens();});
+document.querySelector('#limpar-ovitrampas').addEventListener('click', () => {document.querySelector('#filtro-ovitrampas').reset(); carregarOvitrampas();});
+document.addEventListener('click', event => { const c=event.target.closest('[data-contagem]'), o=event.target.closest('[data-ovitrampa]'); if(c) mostrarDetalhes('Detalhes da contagem',contagensAtuais[Number(c.dataset.contagem)]); if(o) mostrarDetalhes('Detalhes do cadastro',ovitrampasAtuais[Number(o.dataset.ovitrampa)]); });
+document.querySelector('#fechar-detalhes').addEventListener('click', () => document.querySelector('#detalhes-contaovos').hidden=true);
+carregarResumo().catch(e => alert(e.message));
+</script>
+{% endblock %}
