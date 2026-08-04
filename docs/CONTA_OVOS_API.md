@@ -1,10 +1,9 @@
 # Integracao privada com a API Conta Ovos
 
-Estado em 03/08/2026: fundacao e sincronizacao GET integradas a `master`,
-credencial protegida, escopo privado e idempotencia real validados. A fila
-local das leituras do laboratorio esta em
-`codex/enfileirar-leituras-conta-ovos`. Nenhum endpoint de escrita remota faz
-parte destes lotes.
+Estado em 03/08/2026: fundacao, sincronizacao GET e fila local das leituras do
+laboratorio integradas a `master`; credencial protegida, escopo privado,
+idempotencia real e semana epidemiologica validados. Nenhum endpoint de escrita
+remota faz parte destes lotes.
 
 ## Regras de seguranca
 
@@ -131,14 +130,17 @@ contingencia. `scripts/verificar_semanas_contaovos.py` compara por GET os campos
 brutos `date/year/week` da API com o algoritmo local; essa prova supervisionada
 e condicao para qualquer lote posterior que habilite `/postcounting`.
 
+O lote foi aprovado sem achados e integrado no merge `c81b6aa`. A migracao
+`0004` foi aplicada nos bancos `endemias_teste` e `endemias`. O ensaio isolado
+da fila passou sem alterar a tabela publica. A prova real percorreu 5.405
+contagens brutas de 2026 por GET e encontrou zero divergencias entre
+`date/year/week` remotos e o algoritmo epidemiologico local.
+
 ## Proximos lotes
 
-1. Revisar e homologar a fila local, aplicar `0004` e executar o ensaio em
-   tabelas temporarias de `endemias_teste`.
-2. Executar a prova real somente GET da semana epidemiologica; somente depois
-   implementar o envio serial `/postcounting`, sempre reconciliando antes de
-   confirmar e sem exclusao automatica.
-3. Envio TBO por quarteirao somente depois de validar IDs remotos, tipos de
+1. Implementar o envio serial `/postcounting`, sempre reconciliando antes e
+   depois da chamada, sem exclusao automatica e com piloto supervisionado.
+2. Envio TBO por quarteirao somente depois de validar IDs remotos, tipos de
    imovel, unidade de larvicida e semana epidemiologica do servidor.
 
 Endpoints `postdelete*` permanecem fora do planejamento inicial.

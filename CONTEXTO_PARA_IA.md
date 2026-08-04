@@ -151,25 +151,29 @@ por um console elevado antes de concluir que um backup falhou.
 
 ## Proxima tarefa recomendada
 
-Revisar `codex/enfileirar-leituras-conta-ovos` contra `master`. O lote:
+Preparar em nova branch o envio serial supervisionado de leituras por
+`/postcounting`. O lote precisa preservar o contrato ja homologado da fila:
 
-1. adiciona `0004_contaovos_fila_contagens.sql`, com uma fila especifica por
-   item do laboratorio, hash do payload e estados recuperaveis;
-2. valida o lote inteiro antes de enfileirar e bloqueia coordenadas ausentes,
-   ocorrencias sem mapeamento e alteracao posterior de item confirmado;
-3. reconcilia somente contra o historico GET local, sem chamar endpoint de
-   escrita, e registra a preparacao na auditoria na mesma transacao;
-4. inclui um verificador supervisionado que compara `date/year/week` brutos da
-   API com a regra epidemiologica local, sempre por GET;
-5. divide a reconciliacao anual em meses para respeitar o limite de 100 paginas.
+1. reconciliar antes de qualquer envio e confirmar somente pelo GET posterior;
+2. marcar `enviando` e commitar antes da chamada remota;
+3. nunca reenviar automaticamente um item de resultado incerto;
+4. tratar 404/duplicidade por reconciliacao e manter 400/403/409 para revisao
+   humana;
+5. continuar sem exclusoes automaticas e sem chamadas reais na suite.
 
 A sincronizacao GET foi homologada no banco oficial em 03/08/2026. As migracoes
 `0002` e `0003` estao aplicadas em `endemias` e `endemias_teste`; o ensaio
 temporario passou sem alterar tabelas publicas. Foram reconciliadas 5.383
 contagens de 2026: 1.452 inseridas e 3.931 atualizadas. Uma segunda execucao dos
 ultimos 45 dias retornou 1.108 itens sem qualquer alteracao, confirmando a
-idempotencia real. O cursor ficou em `3569727`. A migracao `0004` pertence a
-branch nova e ainda nao deve ser aplicada antes da revisao.
+idempotencia real. O cursor ficou em `3569727`.
+
+A fila local foi aprovada sem achados e integrada a `master` no merge
+`c81b6aa`. A migracao `0004` foi aplicada em `endemias_teste` e `endemias`; o
+ensaio PostgreSQL confirmou tabelas temporarias e preservacao da tabela publica.
+Na prova real somente GET, 5.405 contagens brutas de 2026 foram comparadas e
+nao houve divergencia entre `date/year/week` remotos e a semana epidemiologica
+local. Nenhum POST foi executado.
 
 Qualquer rollback precisa ser decidido pelo administrador: primeiro interrompa
 novas escritas PostgreSQL e so depois remova a tarefa/marcador. Nunca abra o
