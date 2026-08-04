@@ -8,7 +8,7 @@
   <div class="sub">Central de consulta do espelho local sincronizado &mdash; esta tela nao envia nem altera dados no Conta Ovos</div>
 </div>
 
-<div class="tabs-bar co-tabs">
+<div class="tabs-bar">
   <button class="tab-btn active" type="button" data-co-tab="visao"><img src="/static/icons/grafico_linha.svg" alt="" class="icon-svg"> Visao geral</button>
   <button class="tab-btn" type="button" data-co-tab="contagens"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Contagens</button>
   <button class="tab-btn" type="button" data-co-tab="cadastro"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"> Cadastro</button>
@@ -232,11 +232,6 @@
 
 {% block extra_css %}
 <style>
-/* main.page e flex column com altura fixa no desktop. Como .tabs-bar usa
-   overflow-x:auto, seu min-height:auto vira 0 e o flex a esmagava ate 1px
-   quando o conteudo da aba estourava a altura. Trava o encolhimento. */
-.co-tabs{flex:0 0 auto;min-height:38px;align-items:stretch}
-.co-tabs .tab-btn{flex:0 0 auto;white-space:nowrap}
 .co-filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px 16px;align-items:end}
 /* .f-g global cobre apenas date/text/select; escopo local completa search e number */
 .co-filters .f-g input{padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text);background:var(--surface2);outline:none;transition:border-color .15s;width:100%}

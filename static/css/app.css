@@ -484,8 +484,12 @@ tbody tr:hover td { background:var(--tr-hover); }
 /* ═══════════════════════════════════════════
    TABS
 ═══════════════════════════════════════════ */
-.tabs-bar { display:flex; gap:2px; margin-bottom:16px; border-bottom:2px solid var(--border); overflow-x:auto; }
+/* flex:0 0 auto e obrigatorio: main.page e flex column com altura fixa e o
+   overflow-x:auto abaixo zera o min-height:auto da barra, permitindo que o
+   flex a esmague ate a borda quando o conteudo da aba estoura a altura. */
+.tabs-bar { display:flex; flex:0 0 auto; gap:2px; margin-bottom:16px; border-bottom:2px solid var(--border); overflow-x:auto; }
 .tab-btn {
+  flex:0 0 auto;
   padding:8px 18px; border:none; background:none; cursor:pointer;
   font-size:12.5px; font-weight:600; color:var(--text3);
   border-bottom:3px solid transparent; margin-bottom:-2px;
