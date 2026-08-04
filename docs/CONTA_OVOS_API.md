@@ -1,9 +1,11 @@
 # Integracao privada com a API Conta Ovos
 
-Estado em 03/08/2026: fundacao, sincronizacao GET e fila local das leituras do
-laboratorio integradas a `master`; credencial protegida, escopo privado,
-idempotencia real e semana epidemiologica validados. Nenhum endpoint de escrita
-remota faz parte destes lotes.
+Estado em 04/08/2026: fundacao, sincronizacao GET, fila local das leituras do
+laboratorio e fundacao GET do cadastro remoto de ovitrampas; credencial
+protegida, escopo privado, idempotencia real e semana epidemiologica
+validados. A central de consulta foi reestruturada para separar visao geral,
+Ovitrampas (com sub-areas de proveniencia API), EDLs e Quarteiroes/acoes
+reservados. Nenhum endpoint de escrita remota faz parte destes lotes.
 
 ## Regras de seguranca
 
@@ -136,13 +138,41 @@ da fila passou sem alterar a tabela publica. A prova real percorreu 5.405
 contagens brutas de 2026 por GET e encontrou zero divergencias entre
 `date/year/week` remotos e o algoritmo epidemiologico local.
 
+## Fundacao GET do cadastro remoto de ovitrampas
+
+`app_core/contaovos_registro.py` mantem um espelho local separado,
+`contaovos_registro_ovitrampas` (migracao `0005`), do endpoint publico
+`getmunicipalityovitrapspublic`. Esse endpoint e publico: nao exige `key`, ao
+contrario de `lastcounting`. A fundacao pagina ate lista vazia ou o limite de
+100 paginas, valida municipio/estado de cada registro e so escreve depois de
+validar tudo, com upsert atomico por `ovitrampa_id_remoto` (zeros a esquerda
+preservados, como devolvido pela API).
+
+A tabela guarda somente campos remotos (coordenadas, `ovitrap_id` interno,
+media de ovos, IDs de grupo/bloco/usuario remotos, instante de sincronizacao).
+Responsavel, telefone e demais complementos continuam exclusivos de
+`ovitrampas_armadilhas` e nunca sao gravados nem sobrescritos por este
+sincronizador. A reconciliacao entre ID remoto e ID local usa a mesma chave de
+comparacao ja homologada em `ovitrampas.chave_comparacao_ovitrampa_id`.
+
+`scripts/sincronizar_registro_ovitrampas_contaovos.py` e o comando
+supervisionado, com confirmacao explicita e banco padrao `endemias_teste` (a
+mesma exigencia de `--confirmar-banco` para qualquer banco diferente ao
+aplicar). Nao existe botao na interface para disparar esta sincronizacao. A
+migracao `0005` foi aplicada e o ensaio PostgreSQL temporario passou sem
+alterar tabelas publicas; a primeira sincronizacao real do cadastro, se e
+quando o setor decidir usa-la, e uma decisao operacional separada deste lote.
+
 ## Central de consulta no Endemias
 
-A interface `Conta Ovos` e uma camada separada de consulta do espelho local.
-Ela mostra contagens, cadastro e historico sanitizado de sincronizacoes sem
-fazer chamadas remotas durante a navegacao. A arquitetura, a separacao em
-relacao a pagina operacional de Ovitrampas e a evolucao prevista para EDLs e
-quarteiroes estao em `docs/CONTA_OVOS_INTERFACE.md`.
+A interface `Conta Ovos` reorganizou-se em `Visao geral`, `Ovitrampas`
+(Contagens, Monitoramento, Cadastro remoto, Mapa, Sincronizacao e
+divergencias), `EDLs` (reservado) e `Quarteiroes e acoes` (reservado). Ela
+mostra somente o espelho local sem fazer chamadas remotas durante a
+navegacao; Contagens e Monitoramento dentro de Ovitrampas filtram sempre por
+proveniencia API. A arquitetura completa, a separacao em relacao a pagina
+operacional de Ovitrampas e o criterio para adicionar novos dominios remotos
+estao em `docs/CONTA_OVOS_INTERFACE.md`.
 
 ## Proximos lotes
 
@@ -150,5 +180,9 @@ quarteiroes estao em `docs/CONTA_OVOS_INTERFACE.md`.
    depois da chamada, sem exclusao automatica e com piloto supervisionado.
 2. Envio TBO por quarteirao somente depois de validar IDs remotos, tipos de
    imovel, unidade de larvicida e semana epidemiologica do servidor.
+3. Avaliar EDLs e Quarteiroes/acoes como novos dominios de consulta, pelo
+   mesmo criterio da fundacao de cadastro remoto: endpoint documentado,
+   schema/migracao proprios e sincronizacao GET supervisionada antes de
+   qualquer escrita.
 
 Endpoints `postdelete*` permanecem fora do planejamento inicial.

@@ -14,6 +14,8 @@ MAX_PAGE = 100
 # Codigo IBGE de Almirante Tamandare/PR, escopo territorial oficial do sistema.
 EXPECTED_MUNICIPALITY_CODE = "4100400"
 EXPECTED_STATE_CODE = "PR"
+EXPECTED_MUNICIPALITY_NAME = "Almirante Tamandaré"
+EXPECTED_COUNTRY = "Brasil"
 TEST_NETWORK_GUARD = "ENDEMIAS_TEST_BLOCK_CONTAOVOS_NETWORK"
 
 
@@ -40,6 +42,12 @@ def _private_url(path, key, params=None):
     query = {"key": key}
     query.update(params or {})
     return f"{BASE_URL}/{path.lstrip('/')}?{parse.urlencode(query)}"
+
+
+def _public_url(path, params=None):
+    query = parse.urlencode(params or {})
+    suffix = f"?{query}" if query else ""
+    return f"{BASE_URL}/{path.lstrip('/')}{suffix}"
 
 
 def _decode_json(body):
@@ -137,6 +145,48 @@ def private_counts_page(
     if not isinstance(data, list):
         raise ContaOvosError(
             "A API Conta Ovos respondeu HTTP 200 sem retornar uma lista.",
+            kind="unexpected_payload",
+        )
+    return data
+
+
+def public_ovitraps_page(
+    *,
+    page=1,
+    country=EXPECTED_COUNTRY,
+    state=EXPECTED_STATE_CODE,
+    municipality=EXPECTED_MUNICIPALITY_NAME,
+    timeout=DEFAULT_TIMEOUT_SECONDS,
+    max_attempts=DEFAULT_MAX_ATTEMPTS,
+    opener=None,
+    sleep=None,
+):
+    """Consulta o cadastro publico de ovitrampas (sem chave privada).
+
+    Endpoint publico documentado: GET /getmunicipalityovitrapspublic.
+    """
+    try:
+        page = int(page)
+    except (TypeError, ValueError):
+        page = 1
+    page = max(1, min(page, MAX_PAGE))
+    params = {"page": page}
+    if country:
+        params["country"] = str(country)
+    if state:
+        params["state"] = str(state)
+    if municipality:
+        params["municipality"] = str(municipality)
+    data = _open_json(
+        _public_url("getmunicipalityovitrapspublic", params),
+        timeout=timeout,
+        max_attempts=max_attempts,
+        opener=opener,
+        sleep=sleep,
+    )
+    if not isinstance(data, list):
+        raise ContaOvosError(
+            "A API Conta Ovos respondeu sem retornar uma lista de ovitrampas.",
             kind="unexpected_payload",
         )
     return data

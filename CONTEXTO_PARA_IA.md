@@ -1,6 +1,6 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 03/08/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 04/08/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa.
 
 ## Projeto e forma de trabalho
@@ -9,7 +9,7 @@ que assumir o projeto em outra conta ou conversa.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.19.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.20.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -61,11 +61,12 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A suite passou de 536 para 551 testes com a fila local e a reconciliacao das
-leituras do laboratorio para o Conta Ovos. A regressao ampla foi confirmada no
-worktree da branch usando uma copia temporaria isolada de
-`C:\endemias\endemias.db`: os 551 testes terminaram com `OK`, 5 foram ignorados
-e o hash do SQLite oficial permaneceu inalterado.
+A suite passou de 556 para 581 testes com a reestruturacao da central Conta
+Ovos e a fundacao GET do cadastro remoto de ovitrampas. A regressao ampla foi
+confirmada no worktree da branch usando uma copia temporaria isolada de
+`C:\endemias\endemias.db`: os 581 testes terminaram com `OK`, 5 foram ignorados
+e o hash do SQLite oficial permaneceu inalterado
+(`0600F6A70072320BC7FDE270848535EF428341AA1F093997EE4940F85376F63F`).
 Ela cria uma copia SQLite temporaria antes de importar a aplicacao; nunca rode
 testes contra o `endemias.db` congelado.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
@@ -151,11 +152,33 @@ por um console elevado antes de concluir que um backup falhou.
 
 ## Proxima tarefa recomendada
 
-Preparar em nova branch a central de consulta **Conta Ovos**, usando apenas o
-espelho local sincronizado. Ela deve manter a pagina Ovitrampas como area de
-operacao local e reservar EDLs, quarteiroes e acoes para evolucao posterior.
-Nao ativar escrita remota, automatizacao ou chamada da API durante o
-carregamento da pagina. A decisao de arquitetura fica em
+Revisar `claude/reestruturar-central-contaovos-remota` contra `master`. O
+lote reestrutura a central Conta Ovos para reutilizar a organizacao visual
+madura de `/ovitrampas` na sub-area `Ovitrampas`, com cinco abas internas
+(Contagens, Monitoramento, Cadastro remoto, Mapa, Sincronizacao e
+divergencias), mais `Visao geral`, `EDLs` e `Quarteiroes e acoes` (ambos
+reservados, sem funcionalidade simulada) no nivel superior:
+
+1. Contagens e Monitoramento dentro de Ovitrampas passam a filtrar sempre por
+   proveniencia API (`arquivo_origem`), nunca misturando com CSV legado.
+2. Nova fundacao GET do cadastro remoto (`app_core/contaovos_registro.py`,
+   migracao `0005_contaovos_registro_ovitrampas.sql`) consulta o endpoint
+   publico `getmunicipalityovitrapspublic` (sem chave) e mantem espelho
+   proprio, sem gravar responsavel/telefone/complementos locais.
+3. Mapa mostra coordenadas remotas com quarteirao/localidade lidos do
+   cadastro local (nunca recalculados a partir da API).
+4. Sincronizacao e divergencias mostra o estado de cada fluxo GET e tres
+   comparacoes informativas (sem cadastro local, coordenadas divergentes,
+   contagens sem cadastro remoto), sem qualquer resolucao automatica.
+5. Nenhum botao de sincronizacao na interface; execucao continua por script
+   supervisionado (`scripts/sincronizar_registro_ovitrampas_contaovos.py`),
+   com confirmacao explicita e banco padrao `endemias_teste`.
+
+A migracao `0005` foi aplicada em `endemias_teste` (nao em `endemias`; cabe
+ao administrador decidir quando aplicar em producao) e o ensaio PostgreSQL
+temporario passou sem alterar tabelas publicas. Versao `1.20.0`. A decisao de
+arquitetura completa, incluindo o criterio para adicionar EDLs/Quarteiroes
+como novos dominios remotos no futuro, fica em
 `docs/CONTA_OVOS_INTERFACE.md` para revisao independente.
 
 O envio serial supervisionado de leituras por `/postcounting` continua sendo
