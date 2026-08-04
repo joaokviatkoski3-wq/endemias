@@ -4,124 +4,541 @@
 
 {% block content %}
 <div class="page-header">
-  <div>
-    <h1>Conta Ovos</h1>
-    <p class="muted">Central de consulta do espelho local sincronizado. Esta pagina nao envia nem altera dados no Conta Ovos.</p>
-  </div>
-  <a class="btn btn-secondary" href="/ovitrampas">Abrir operacao de Ovitrampas</a>
+  <h1><span class="icon"><img src="/static/icons/ovitrampa.svg" alt="Conta Ovos" class="icon-svg"></span> Conta Ovos</h1>
+  <div class="sub">Central de consulta do espelho local sincronizado &mdash; esta tela nao envia nem altera dados no Conta Ovos</div>
 </div>
 
-<div class="tabs" role="tablist" aria-label="Secoes do Conta Ovos">
-  <button class="tab active" data-tab="visao" type="button">Visao geral</button>
-  <button class="tab" data-tab="contagens" type="button">Ovitrampas: contagens</button>
-  <button class="tab" data-tab="cadastro" type="button">Ovitrampas: cadastro</button>
+<div class="tabs-bar">
+  <button class="tab-btn active" type="button" data-co-tab="visao"><img src="/static/icons/grafico_linha.svg" alt="" class="icon-svg"> Visao geral</button>
+  <button class="tab-btn" type="button" data-co-tab="contagens"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Contagens</button>
+  <button class="tab-btn" type="button" data-co-tab="cadastro"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"> Cadastro</button>
 </div>
 
-<section class="tab-pane active" id="tab-visao">
-  <div class="kpi-grid" id="kpis-contaovos"></div>
-  <div class="grid-2 mt-16">
-    <section class="card">
-      <h2>Ultimas semanas sincronizadas</h2>
-      <div class="table-wrap"><table><thead><tr><th>Ano</th><th>Semana</th><th>Contagens</th><th>Ovos</th><th>Positivas</th></tr></thead><tbody id="semanas-contaovos"></tbody></table></div>
-    </section>
-    <section class="card">
-      <h2>Historico de sincronizacao</h2>
-      <div class="table-wrap"><table><thead><tr><th>Inicio</th><th>Tipo</th><th>Status</th><th>Itens</th></tr></thead><tbody id="execucoes-contaovos"></tbody></table></div>
-      <p class="muted small">A sincronizacao e feita por processo supervisionado, fora desta tela.</p>
-    </section>
-  </div>
-  <section class="card mt-16">
-    <h2>Estrutura preparada para a plataforma</h2>
-    <div class="grid-3">
-      <div><strong>Ovitrampas</strong><p class="muted">Contagens e cadastro ja sincronizados podem ser consultados nas abas acima.</p></div>
-      <div><strong>EDLs</strong><p class="muted">Reservado para implementacao futura, sem dados ou rotinas ativadas nesta etapa.</p></div>
-      <div><strong>Quarteiroes e acoes</strong><p class="muted">Reservado para futuras consultas e automatizacoes, apos validacao independente.</p></div>
+<!-- ══════════════════ VISAO GERAL ══════════════════ -->
+<div class="tab-pane active" id="co-tab-visao">
+  <div class="kpi-grid" id="co-kpis"></div>
+
+  <div class="chart-grid">
+    <div class="chart-card span2">
+      <div class="chart-hd">
+        <div class="chart-title"><img src="/static/icons/grafico_linha.svg" alt="" class="icon-svg"> Evolucao por semana epidemiologica</div>
+        <span class="table-info" id="co-evolucao-info"></span>
+      </div>
+      <div class="chart-wrap h280"><canvas id="coChEvolucao"></canvas></div>
     </div>
-  </section>
-</section>
+    <div class="chart-card">
+      <div class="chart-hd">
+        <div class="chart-title"><img src="/static/icons/mosquito.svg" alt="" class="icon-svg"> Positividade acumulada</div>
+      </div>
+      <div class="chart-wrap h240"><canvas id="coChPositividade"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd">
+        <div class="chart-title"><img src="/static/icons/casas.svg" alt="" class="icon-svg"> Situacao do cadastro</div>
+      </div>
+      <div class="chart-wrap h240"><canvas id="coChCadastro"></canvas></div>
+    </div>
+  </div>
 
-<section class="tab-pane" id="tab-contagens" hidden>
-  <section class="card">
-    <h2>Contagens de ovitrampas</h2>
-    <form class="filter-grid" id="filtro-contagens">
-      <label>Busca<input name="busca" type="search" placeholder="ID, rua, localidade ou quarteirao"></label>
-      <label>Ano<input name="ano" type="number" min="2000" max="2100"></label>
-      <label>Semana<input name="semana" type="number" min="1" max="53"></label>
-      <label>De<input name="data_inicio" type="date"></label>
-      <label>Ate<input name="data_fim" type="date"></label>
-      <label>Resultado<input name="resultado" type="search" placeholder="Ex.: positivo"></label>
-      <label class="check-label"><input name="positivas" value="1" type="checkbox"> Somente positivas</label>
-      <div class="filter-actions"><button class="btn btn-primary" type="submit">Consultar</button><button class="btn btn-secondary" type="button" id="limpar-contagens">Limpar</button></div>
-    </form>
-    <p id="total-contagens" class="muted"></p>
-    <div class="table-wrap"><table><thead><tr><th>Data</th><th>Semana</th><th>Ovitrampa</th><th>Ovos</th><th>Resultado</th><th>Ocorrencia</th><th>Localidade</th><th>ID Conta Ovos</th><th></th></tr></thead><tbody id="lista-contagens"></tbody></table></div>
-  </section>
-</section>
+  <div class="chart-grid cols2">
+    <div class="table-wrap">
+      <div class="table-hd">
+        <div class="table-title">Ultimas semanas sincronizadas</div>
+        <span class="table-info" id="co-semanas-info"></span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Ano</th><th>Semana</th><th>Contagens</th><th>Ovos</th><th>Positivas</th><th>% Pos.</th></tr></thead>
+          <tbody id="co-semanas"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-hd">
+        <div class="table-title">Historico de sincronizacao</div>
+        <span class="table-info">Processo supervisionado, fora desta tela</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Inicio</th><th>Tipo</th><th>Status</th><th>Itens</th></tr></thead>
+          <tbody id="co-execucoes"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
-<section class="tab-pane" id="tab-cadastro" hidden>
-  <section class="card">
-    <h2>Cadastro local importado</h2>
-    <form class="filter-grid" id="filtro-ovitrampas">
-      <label>Busca<input name="busca" type="search" placeholder="ID, rua, localidade, responsavel ou quarteirao"></label>
-      <label>Localidade<input name="localidade" type="search"></label>
-      <label>Situacao<select name="ativo"><option value="">Todas</option><option value="1">Ativas</option><option value="0">Inativas</option></select></label>
-      <div class="filter-actions"><button class="btn btn-primary" type="submit">Consultar</button><button class="btn btn-secondary" type="button" id="limpar-ovitrampas">Limpar</button></div>
-    </form>
-    <p id="total-ovitrampas" class="muted"></p>
-    <div class="table-wrap"><table><thead><tr><th>Ovitrampa</th><th>Endereco</th><th>Localidade</th><th>Quarteirao</th><th>Responsavel</th><th>Situacao</th><th>Contagens</th><th>Ultima</th><th></th></tr></thead><tbody id="lista-ovitrampas"></tbody></table></div>
-  </section>
-</section>
-<section class="card mt-16" id="detalhes-contaovos" hidden>
-  <div class="card-header"><h2 id="titulo-detalhes">Detalhes</h2><button class="btn btn-secondary" type="button" id="fechar-detalhes">Fechar</button></div>
-  <dl class="details-grid" id="campos-detalhes"></dl>
-</section>
+  <div class="chart-card">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/fichario.svg" alt="" class="icon-svg"> Estrutura da plataforma</div>
+    </div>
+    <div class="co-estrutura">
+      <div class="co-estrutura-item co-on">
+        <div class="co-estrutura-tit">Ovitrampas</div>
+        <p>Contagens e cadastro sincronizados, disponiveis nas abas acima.</p>
+        <span class="badge badge-entregue">Ativo</span>
+      </div>
+      <div class="co-estrutura-item">
+        <div class="co-estrutura-tit">EDLs</div>
+        <p>Reservado para implementacao futura, sem dados ou rotinas ativadas.</p>
+        <span class="badge badge-arquivada">Planejado</span>
+      </div>
+      <div class="co-estrutura-item">
+        <div class="co-estrutura-tit">Quarteiroes e acoes</div>
+        <p>Reservado para consultas e automatizacoes apos validacao independente.</p>
+        <span class="badge badge-arquivada">Planejado</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ CONTAGENS ══════════════════ -->
+<div class="tab-pane" id="co-tab-contagens">
+  <div class="filter-card" style="margin-bottom:16px;">
+    <div class="filter-body open">
+      <form class="co-filters" id="co-form-contagens">
+        <div class="f-g"><label>Pesquisa</label><input type="search" name="busca" placeholder="ID, rua, localidade, quarteirao"></div>
+        <div class="f-g"><label>Ano</label><input type="number" name="ano" min="2000" max="2100"></div>
+        <div class="f-g"><label>Semana</label><input type="number" name="semana" min="1" max="53"></div>
+        <div class="f-g"><label>De</label><input type="date" name="data_inicio"></div>
+        <div class="f-g"><label>Ate</label><input type="date" name="data_fim"></div>
+        <div class="f-g"><label>Resultado</label><input type="search" name="resultado" placeholder="Ex.: Positiva"></div>
+        <div class="f-g"><label>Somente positivas</label><select name="positivas"><option value="">Nao</option><option value="1">Sim</option></select></div>
+        <div class="f-g"><label>Buscar ate</label><select name="limite"><option value="100">100</option><option value="250">250</option><option value="500" selected>500</option></select></div>
+        <div class="co-filter-actions">
+          <button class="btn btn-primary" type="submit"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Consultar</button>
+          <button class="btn btn-ghost" type="button" id="co-limpar-contagens"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Limpar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="kpi-grid" id="co-kpis-contagens"></div>
+
+  <div class="chart-card" style="margin-bottom:16px;">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Ovos por localidade (resultado filtrado)</div>
+      <span class="table-info">Top 10</span>
+    </div>
+    <div class="chart-wrap h280"><canvas id="coChLocalidades"></canvas></div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-hd">
+      <div class="table-title">Contagens de ovitrampas</div>
+      <div class="co-table-tools">
+        <span class="table-info" id="co-total-contagens"></span>
+        <label class="co-rows">Linhas
+          <select id="co-rows-contagens">
+            <option value="10">10</option><option value="25" selected>25</option>
+            <option value="50">50</option><option value="100">100</option>
+            <option value="0">Todas</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th class="co-sort" data-sort="data">Data</th>
+          <th class="co-sort" data-sort="semana">Semana</th>
+          <th class="co-sort" data-sort="ovitrampa_id">Ovitrampa</th>
+          <th class="co-sort" data-sort="ovos">Ovos</th>
+          <th>Resultado</th>
+          <th class="co-sort" data-sort="ocorrencia_codigo">Ocorr.</th>
+          <th class="co-sort" data-sort="localidade">Localidade</th>
+          <th class="co-sort" data-sort="id_contagem">ID Conta Ovos</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="co-lista-contagens"></tbody>
+      </table>
+    </div>
+    <div class="co-pager" id="co-pager-contagens"></div>
+  </div>
+</div>
+
+<!-- ══════════════════ CADASTRO ══════════════════ -->
+<div class="tab-pane" id="co-tab-cadastro">
+  <div class="filter-card" style="margin-bottom:16px;">
+    <div class="filter-body open">
+      <form class="co-filters" id="co-form-ovitrampas">
+        <div class="f-g"><label>Pesquisa</label><input type="search" name="busca" placeholder="ID, rua, localidade, responsavel"></div>
+        <div class="f-g"><label>Localidade</label><input type="search" name="localidade"></div>
+        <div class="f-g"><label>Situacao</label><select name="ativo"><option value="">Todas</option><option value="1">Ativas</option><option value="0">Inativas</option></select></div>
+        <div class="f-g"><label>Buscar ate</label><select name="limite"><option value="100">100</option><option value="250">250</option><option value="500" selected>500</option></select></div>
+        <div class="co-filter-actions">
+          <button class="btn btn-primary" type="submit"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Consultar</button>
+          <button class="btn btn-ghost" type="button" id="co-limpar-ovitrampas"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Limpar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="kpi-grid" id="co-kpis-cadastro"></div>
+
+  <div class="chart-card" style="margin-bottom:16px;">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Armadilhas por localidade</div>
+      <span class="table-info">Top 10</span>
+    </div>
+    <div class="chart-wrap h280"><canvas id="coChCadastroLoc"></canvas></div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-hd">
+      <div class="table-title">Cadastro local importado</div>
+      <div class="co-table-tools">
+        <span class="table-info" id="co-total-ovitrampas"></span>
+        <label class="co-rows">Linhas
+          <select id="co-rows-ovitrampas">
+            <option value="10">10</option><option value="25" selected>25</option>
+            <option value="50">50</option><option value="100">100</option>
+            <option value="0">Todas</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th class="co-sort" data-sort="ovitrampa_id">Ovitrampa</th>
+          <th>Endereco</th>
+          <th class="co-sort" data-sort="localidade">Localidade</th>
+          <th class="co-sort" data-sort="quarteirao">Quarteirao</th>
+          <th>Responsavel</th>
+          <th>Situacao</th>
+          <th class="co-sort" data-sort="contagens">Contagens</th>
+          <th class="co-sort" data-sort="ultima_contagem">Ultima</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="co-lista-ovitrampas"></tbody>
+      </table>
+    </div>
+    <div class="co-pager" id="co-pager-ovitrampas"></div>
+  </div>
+</div>
+
+<!-- ══════════════════ DETALHES ══════════════════ -->
+<div class="co-drawer" id="co-drawer" hidden>
+  <div class="co-drawer-bg" id="co-drawer-bg"></div>
+  <aside class="co-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="co-drawer-tit">
+    <div class="co-drawer-hd">
+      <div class="chart-title" id="co-drawer-tit">Detalhes</div>
+      <button class="btn-icon" type="button" id="co-drawer-fechar" aria-label="Fechar"><img src="/static/icons/fechar.svg" alt="" class="icon-svg"></button>
+    </div>
+    <dl class="co-details" id="co-drawer-campos"></dl>
+  </aside>
+</div>
 {% endblock %}
 
 {% block extra_css %}
 <style>
-.mt-16{margin-top:16px}.small{font-size:.85rem}.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;align-items:end}.filter-grid label{display:flex;flex-direction:column;gap:5px;font-size:.85rem;font-weight:600}.filter-grid input,.filter-grid select{width:100%}.filter-actions{display:flex;gap:8px;align-items:end}.check-label{flex-direction:row!important;align-items:center;padding-bottom:8px}.check-label input{width:auto!important}.tab-pane[hidden]{display:none}.details-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.details-grid div{border-left:3px solid var(--border,#d1d5db);padding-left:9px}.details-grid dt{font-size:.78rem;color:var(--muted,#64748b);font-weight:700}.details-grid dd{margin:3px 0 0;word-break:break-word}@media(max-width:800px){.grid-2,.grid-3{grid-template-columns:1fr}.filter-actions{padding-top:4px}}
+.co-filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px 16px;align-items:end}
+/* .f-g global cobre apenas date/text/select; escopo local completa search e number */
+.co-filters .f-g input{padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text);background:var(--surface2);outline:none;transition:border-color .15s;width:100%}
+.co-filters .f-g input:focus{border-color:var(--brand)}
+.co-filter-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:end;grid-column:1/-1}
+.co-table-tools{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.co-rows{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px}
+.co-rows select{padding:4px 8px;font-size:11.5px;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text)}
+.co-sort{cursor:pointer;user-select:none;white-space:nowrap}
+.co-sort::after{content:'\2195';opacity:.35;margin-left:4px;font-size:10px}
+.co-sort.asc::after{content:'\2191';opacity:1}
+.co-sort.desc::after{content:'\2193';opacity:1}
+.co-pager{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-top:1px solid var(--border);flex-wrap:wrap}
+.co-pager-info{font-size:11px;color:var(--text3)}
+.co-pager-btns{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.co-pager-num{font-size:11.5px;color:var(--text2);font-weight:600;padding:0 4px}
+.co-estrutura{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;padding:14px 16px}
+.co-estrutura-item{border:1.5px solid var(--border);border-left-width:4px;border-radius:var(--radius-sm);padding:12px 14px;background:var(--surface2)}
+.co-estrutura-item.co-on{border-left-color:var(--green)}
+.co-estrutura-tit{font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:5px}
+.co-estrutura-item p{margin:0 0 9px;font-size:11.5px;color:var(--text3);line-height:1.45}
+.co-drawer{position:fixed;inset:0;z-index:1200}
+.co-drawer-bg{position:absolute;inset:0;background:rgba(15,23,42,.42)}
+.co-drawer-panel{position:absolute;top:0;right:0;height:100%;width:min(430px,100%);background:var(--surface);border-left:1px solid var(--border);box-shadow:var(--shadow-md);display:flex;flex-direction:column;animation:coSlide .18s ease-out}
+@keyframes coSlide{from{transform:translateX(22px);opacity:.4}to{transform:none;opacity:1}}
+.co-drawer-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.co-details{margin:0;padding:14px 16px;overflow-y:auto;display:grid;gap:10px}
+.co-details div{border-left:3px solid var(--border2);padding-left:10px}
+.co-details dt{font-size:9.5px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.co-details dd{margin:3px 0 0;font-size:12.5px;color:var(--text);word-break:break-word}
+.co-empty{text-align:center;color:var(--text3);font-size:12px;padding:22px 8px}
+@media(max-width:820px){.chart-grid.cols2{grid-template-columns:1fr}.chart-card.span2{grid-column:auto}}
 </style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-const esc = value => String(value ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmt = value => value == null || value === '' ? '-' : esc(value);
-const api = async url => { const r = await fetch(url); const data = await r.json(); if (!r.ok) throw new Error(data.erro || 'Falha ao consultar dados.'); return data; };
-const formQuery = form => { const p = new URLSearchParams(); new FormData(form).forEach((v,k)=>{if(v) p.set(k,v)}); return p; };
-let contagensAtuais = [], ovitrampasAtuais = [];
-const label = key => ({id_contagem:'ID Conta Ovos',ovitrampa_id:'Ovitrampa',data_envio_contagem:'Enviado em',codigo_conta_ovos:'Codigo Conta Ovos',observacao_conta_ovos:'Observacao Conta Ovos',ocorrencia_codigo:'Ocorrencia local',arquivo_origem:'Arquivo de origem',importado_em:'Importado em',lat_lng:'Latitude / longitude',telefone_responsavel:'Telefone',armadilha_ativa:'Armadilha ativa',ultima_contagem:'Ultima contagem',ovos_total:'Ovos no historico'})[key] || key.replaceAll('_',' ');
-function mostrarDetalhes(titulo, dados) { document.querySelector('#titulo-detalhes').textContent=titulo; document.querySelector('#campos-detalhes').innerHTML=Object.entries(dados).filter(([,v])=>v!==null&&v!=='').map(([k,v])=>`<div><dt>${esc(label(k))}</dt><dd>${fmt(v)}</dd></div>`).join(''); document.querySelector('#detalhes-contaovos').hidden=false; document.querySelector('#detalhes-contaovos').scrollIntoView({behavior:'smooth',block:'nearest'}); }
+(function(){
+'use strict';
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = v => (v === null || v === undefined || v === '') ? '-' : esc(v);
+const num = v => { const n = Number(v || 0); return (typeof fmtNum === 'function') ? fmtNum(n) : String(n); };
+const $ = sel => document.querySelector(sel);
 
-function kpi(titulo, valor, detalhe='') { return `<section class="kpi-card"><div class="kpi-label">${esc(titulo)}</div><div class="kpi-value">${fmt(valor)}</div><div class="muted small">${fmt(detalhe)}</div></section>`; }
-async function carregarResumo() {
-  const data = await api('/api/conta-ovos/central/resumo'); const t = data.totais || {};
-  document.querySelector('#kpis-contaovos').innerHTML = [
-    kpi('Armadilhas cadastradas', t.armadilhas, `${t.armadilhas_ativas || 0} ativas`),
-    kpi('Contagens sincronizadas', t.contagens, `${t.ovitrampas_com_contagem || 0} ovitrampas com historico`),
-    kpi('Ovos no historico', t.ovos, `${t.positivas || 0} contagens positivas`),
-    kpi('Ultima contagem', t.ultima_data, `Importacao local: ${t.ultima_importacao || '-'}`),
+async function api(url){
+  const r = await fetch(url);
+  let data = {};
+  try { data = await r.json(); } catch(e) { throw new Error('Resposta invalida do servidor.'); }
+  if(!r.ok) throw new Error(data.erro || 'Falha ao consultar dados.');
+  return data;
+}
+function erro(el, msg, cols){
+  $(el).innerHTML = `<tr><td colspan="${cols}"><div class="co-empty">${esc(msg)}</div></td></tr>`;
+}
+const LABELS = {id_contagem:'ID Conta Ovos',ovitrampa_id:'Ovitrampa',data_envio_contagem:'Enviado em',codigo_conta_ovos:'Codigo Conta Ovos',observacao_conta_ovos:'Observacao Conta Ovos',ocorrencia_codigo:'Ocorrencia local',arquivo_origem:'Arquivo de origem',importado_em:'Importado em',lat_lng:'Latitude / longitude',telefone_responsavel:'Telefone',armadilha_ativa:'Armadilha ativa',ultima_contagem:'Ultima contagem',ovos_total:'Ovos no historico',data:'Data',ano:'Ano',semana:'Semana',ovos:'Ovos',resultado:'Resultado'};
+const label = k => LABELS[k] || k.replace(/_/g,' ');
+
+/* ── Drawer de detalhes ─────────────────────────────── */
+function abrirDrawer(titulo, dados){
+  $('#co-drawer-tit').textContent = titulo;
+  $('#co-drawer-campos').innerHTML = Object.entries(dados)
+    .filter(([,v]) => v !== null && v !== undefined && v !== '')
+    .map(([k,v]) => `<div><dt>${esc(label(k))}</dt><dd>${fmt(v)}</dd></div>`).join('')
+    || '<div class="co-empty">Sem campos preenchidos.</div>';
+  $('#co-drawer').hidden = false;
+}
+function fecharDrawer(){ $('#co-drawer').hidden = true; }
+$('#co-drawer-fechar').addEventListener('click', fecharDrawer);
+$('#co-drawer-bg').addEventListener('click', fecharDrawer);
+document.addEventListener('keydown', e => { if(e.key === 'Escape') fecharDrawer(); });
+
+/* ── Tabela cliente: ordenacao + paginacao ──────────── */
+function Tabela(cfg){
+  const st = {dados:[], pag:1, linhas:Number($(cfg.rows).value), ord:cfg.ordemPadrao, dir:cfg.dirPadrao || 'desc'};
+  function valor(row, campo){
+    if(campo === 'semana') return Number(row.ano || 0) * 100 + Number(row.semana || 0);
+    const v = row[campo];
+    if(v === null || v === undefined || v === '') return null;
+    return isNaN(Number(v)) ? String(v).toLowerCase() : Number(v);
+  }
+  function ordenar(){
+    if(!st.ord) return;
+    const s = st.dir === 'asc' ? 1 : -1;
+    st.dados.sort((a,b) => {
+      const x = valor(a, st.ord), y = valor(b, st.ord);
+      if(x === null && y === null) return 0;
+      if(x === null) return 1;
+      if(y === null) return -1;
+      if(typeof x === 'number' && typeof y === 'number') return (x - y) * s;
+      return String(x).localeCompare(String(y), 'pt-BR') * s;
+    });
+  }
+  function marcarCabecalho(){
+    document.querySelectorAll(cfg.pane + ' .co-sort').forEach(th => {
+      th.classList.toggle('asc', th.dataset.sort === st.ord && st.dir === 'asc');
+      th.classList.toggle('desc', th.dataset.sort === st.ord && st.dir === 'desc');
+    });
+  }
+  function render(){
+    ordenar();
+    const total = st.dados.length;
+    const porPag = st.linhas > 0 ? st.linhas : (total || 1);
+    const paginas = Math.max(1, Math.ceil(total / porPag));
+    if(st.pag > paginas) st.pag = paginas;
+    const ini = (st.pag - 1) * porPag;
+    const fatia = st.dados.slice(ini, ini + porPag);
+    $(cfg.tbody).innerHTML = fatia.length
+      ? fatia.map(cfg.linha).join('')
+      : `<tr><td colspan="${cfg.colunas}"><div class="co-empty">Nenhum registro encontrado.</div></td></tr>`;
+    $(cfg.pager).innerHTML = total
+      ? `<span class="co-pager-info">Exibindo ${num(ini + 1)}&ndash;${num(ini + fatia.length)} de ${num(total)}</span>
+         <span class="co-pager-btns">
+           <button class="btn btn-ghost btn-xs" type="button" data-co-pag="1" ${st.pag === 1 ? 'disabled' : ''}>&laquo;</button>
+           <button class="btn btn-ghost btn-xs" type="button" data-co-pag="${st.pag - 1}" ${st.pag === 1 ? 'disabled' : ''}>Anterior</button>
+           <span class="co-pager-num">${num(st.pag)} / ${num(paginas)}</span>
+           <button class="btn btn-ghost btn-xs" type="button" data-co-pag="${st.pag + 1}" ${st.pag === paginas ? 'disabled' : ''}>Proxima</button>
+           <button class="btn btn-ghost btn-xs" type="button" data-co-pag="${paginas}" ${st.pag === paginas ? 'disabled' : ''}>&raquo;</button>
+         </span>`
+      : '';
+    marcarCabecalho();
+  }
+  $(cfg.rows).addEventListener('change', () => { st.linhas = Number($(cfg.rows).value); st.pag = 1; render(); });
+  $(cfg.pager).addEventListener('click', e => {
+    const b = e.target.closest('[data-co-pag]');
+    if(b && !b.disabled){ st.pag = Number(b.dataset.coPag); render(); }
+  });
+  document.querySelectorAll(cfg.pane + ' .co-sort').forEach(th => th.addEventListener('click', () => {
+    const campo = th.dataset.sort;
+    if(st.ord === campo) st.dir = st.dir === 'asc' ? 'desc' : 'asc';
+    else { st.ord = campo; st.dir = 'asc'; }
+    st.pag = 1; render();
+  }));
+  return { definir(dados){ st.dados = dados || []; st.pag = 1; render(); }, dados: () => st.dados };
+}
+
+/* ── Visao geral ─────────────────────────────────────── */
+function kpi(cor, icone, rotulo, valor, sub){
+  return `<div class="kpi ${cor}"><div class="kpi-icon"><img src="/static/icons/${icone}" alt="" class="icon-svg"></div>
+    <div class="kpi-label">${esc(rotulo)}</div><div class="kpi-val">${valor}</div>
+    ${sub ? `<div class="kpi-sub">${esc(sub)}</div>` : ''}</div>`;
+}
+async function carregarResumo(){
+  let data;
+  try { data = await api('/api/conta-ovos/central/resumo'); }
+  catch(e){
+    $('#co-kpis').innerHTML = `<div class="co-empty">${esc(e.message)}</div>`;
+    erro('#co-semanas', e.message, 6); erro('#co-execucoes', e.message, 4);
+    return;
+  }
+  const t = data.totais || {};
+  const pos = Number(t.positivas || 0), cont = Number(t.contagens || 0);
+  const pct = cont > 0 ? Math.round(pos / cont * 100) : 0;
+  const inativas = Math.max(0, Number(t.armadilhas || 0) - Number(t.armadilhas_ativas || 0));
+  $('#co-kpis').innerHTML = [
+    kpi('', 'casas.svg', 'Armadilhas cadastradas', num(t.armadilhas), `${num(t.armadilhas_ativas)} ativas`),
+    kpi('cyan', 'prancheta.svg', 'Contagens sincronizadas', num(cont), `${num(t.ovitrampas_com_contagem)} ovitrampas com historico`),
+    kpi('amber', 'mosquito.svg', 'Ovos no historico', num(t.ovos), `${num(pos)} contagens positivas`),
+    kpi(pct >= 50 ? 'red' : 'green', 'grafico_barra.svg', 'Positividade', pct + '%', `${num(pos)} de ${num(cont)}`),
+    kpi('', 'calendario.svg', 'Ultima contagem', fmt(t.ultima_data), `Importado: ${t.ultima_importacao || '-'}`),
   ].join('');
-  document.querySelector('#semanas-contaovos').innerHTML = (data.semanas || []).map(r => `<tr><td>${fmt(r.ano)}</td><td>${fmt(r.semana)}</td><td>${fmt(r.contagens)}</td><td>${fmt(r.ovos)}</td><td>${fmt(r.positivas)}</td></tr>`).join('') || '<tr><td colspan="5">Nenhuma contagem sincronizada.</td></tr>';
-  document.querySelector('#execucoes-contaovos').innerHTML = (data.execucoes || []).map(r => `<tr title="${esc(r.resumo_sanitizado || '')}"><td>${fmt(r.iniciado_em)}</td><td>${fmt(r.tipo)}</td><td>${fmt(r.status)}</td><td>${fmt(r.itens_ok)} OK / ${fmt(r.itens_erro)} erro</td></tr>`).join('') || '<tr><td colspan="4">Nenhuma execucao registrada.</td></tr>';
+
+  const semanas = (data.semanas || []).slice().reverse();
+  $('#co-evolucao-info').textContent = semanas.length ? `${semanas.length} semanas` : '';
+  $('#co-semanas-info').textContent = semanas.length ? `${semanas.length} registros` : '';
+  $('#co-semanas').innerHTML = semanas.length ? semanas.slice().reverse().map(r => {
+    const p = Number(r.contagens || 0) > 0 ? Math.round(Number(r.positivas || 0) / Number(r.contagens) * 100) : 0;
+    return `<tr><td>${fmt(r.ano)}</td><td><strong>${fmt(r.semana)}</strong></td><td>${num(r.contagens)}</td>
+      <td>${num(r.ovos)}</td><td>${num(r.positivas)}</td>
+      <td><span class="badge ${p >= 50 ? 'badge-pos' : 'badge-neg'}">${p}%</span></td></tr>`;
+  }).join('') : '<tr><td colspan="6"><div class="co-empty">Nenhuma contagem sincronizada.</div></td></tr>';
+
+  $('#co-execucoes').innerHTML = (data.execucoes || []).length
+    ? data.execucoes.map(r => `<tr title="${esc(r.resumo_sanitizado || '')}"><td>${fmt(r.iniciado_em)}</td><td>${fmt(r.tipo)}</td>
+        <td><span class="badge ${r.status === 'concluido' ? 'badge-entregue' : (r.status === 'erro' ? 'badge-naoloc' : 'badge-pendente')}">${fmt(r.status)}</span></td>
+        <td>${num(r.itens_ok)} OK / ${num(r.itens_erro)} erro</td></tr>`).join('')
+    : '<tr><td colspan="4"><div class="co-empty">Nenhuma execucao registrada.</div></td></tr>';
+
+  if(typeof mkChart === 'function'){
+    mkChart('coChEvolucao', {
+      type:'bar',
+      data:{ labels: semanas.map(r => `${r.ano}/S${r.semana}`),
+        datasets:[
+          {label:'Ovos', data:semanas.map(r => Number(r.ovos||0)), backgroundColor:'#1a4fba', borderRadius:4, order:2},
+          {label:'Positivas', type:'line', data:semanas.map(r => Number(r.positivas||0)), borderColor:'#dc2626', backgroundColor:'#dc2626', tension:.3, yAxisID:'y2', order:1},
+        ]},
+      options:{ scales:{ y:{beginAtZero:true, title:{display:true, text:'Ovos'}},
+        y2:{beginAtZero:true, position:'right', grid:{drawOnChartArea:false}, title:{display:true, text:'Positivas'}}}}
+    });
+    mkChart('coChPositividade', {
+      type:'doughnut',
+      data:{ labels:['Positivas','Negativas'], datasets:[{data:[pos, Math.max(0, cont - pos)], backgroundColor:['#dc2626','#16a34a']}]}
+    });
+    mkChart('coChCadastro', {
+      type:'doughnut',
+      data:{ labels:['Ativas','Inativas'], datasets:[{data:[Number(t.armadilhas_ativas||0), inativas], backgroundColor:['#1a4fba','#94a3b8']}]}
+    });
+  }
 }
-async function carregarContagens() {
-  const p = formQuery(document.querySelector('#filtro-contagens')); p.set('limite','500'); const data = await api('/api/conta-ovos/central/contagens?' + p);
-  document.querySelector('#total-contagens').textContent = `${data.total} registro(s) encontrado(s); exibindo ate 500.`;
-  contagensAtuais=data.registros; document.querySelector('#lista-contagens').innerHTML = data.registros.map((r,i) => `<tr><td>${fmt(r.data)}</td><td>${fmt(r.ano)}/${fmt(r.semana)}</td><td>${fmt(r.ovitrampa_id)}</td><td>${fmt(r.ovos)}</td><td>${fmt(r.resultado)}</td><td>${fmt(r.ocorrencia_codigo)}</td><td>${fmt(r.localidade)}</td><td>${fmt(r.id_contagem)}</td><td><button class="btn btn-secondary btn-small" type="button" data-contagem="${i}">Ver</button></td></tr>`).join('') || '<tr><td colspan="9">Nenhum registro encontrado.</td></tr>';
+
+/* ── Agregacao para graficos das abas ────────────────── */
+function topLocalidades(registros, campo){
+  const mapa = new Map();
+  registros.forEach(r => {
+    const chave = (r.localidade || 'Sem localidade').toString();
+    mapa.set(chave, (mapa.get(chave) || 0) + Number(r[campo] || (campo === '_count' ? 1 : 0)));
+  });
+  return [...mapa.entries()].sort((a,b) => b[1] - a[1]).slice(0, 10);
 }
-async function carregarOvitrampas() {
-  const p = formQuery(document.querySelector('#filtro-ovitrampas')); p.set('limite','500'); const data = await api('/api/conta-ovos/central/ovitrampas?' + p);
-  document.querySelector('#total-ovitrampas').textContent = `${data.total} cadastro(s) encontrado(s); exibindo ate 500.`;
-  ovitrampasAtuais=data.registros; document.querySelector('#lista-ovitrampas').innerHTML = data.registros.map((r,i) => `<tr><td>${fmt(r.ovitrampa_id)}</td><td>${fmt([r.rua,r.numero,r.complemento].filter(Boolean).join(', '))}</td><td>${fmt(r.localidade)}</td><td>${fmt(r.quarteirao)}</td><td>${fmt(r.responsavel)}</td><td>${r.ativo ? 'Ativa' : 'Inativa'}</td><td>${fmt(r.contagens)}</td><td>${fmt(r.ultima_contagem)}</td><td><button class="btn btn-secondary btn-small" type="button" data-ovitrampa="${i}">Ver</button></td></tr>`).join('') || '<tr><td colspan="9">Nenhum cadastro encontrado.</td></tr>';
+function barra(id, dados, rotulo, cor){
+  if(typeof mkChart !== 'function') return;
+  mkChart(id, {
+    type:'bar',
+    data:{ labels: dados.map(d => d[0]), datasets:[{label: rotulo, data: dados.map(d => d[1]), backgroundColor: cor, borderRadius:4}]},
+    options:{ indexAxis:'y', scales:{ x:{beginAtZero:true}}, plugins:{legend:{display:false}}}
+  });
 }
-document.querySelectorAll('[data-tab]').forEach(button => button.addEventListener('click', () => { document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b===button)); document.querySelectorAll('.tab-pane').forEach(p=>{const active=p.id==='tab-'+button.dataset.tab;p.hidden=!active;p.classList.toggle('active',active)}); if(button.dataset.tab==='contagens') carregarContagens(); if(button.dataset.tab==='cadastro') carregarOvitrampas(); }));
-document.querySelector('#filtro-contagens').addEventListener('submit', e => {e.preventDefault(); carregarContagens().catch(e=>alert(e.message));});
-document.querySelector('#filtro-ovitrampas').addEventListener('submit', e => {e.preventDefault(); carregarOvitrampas().catch(e=>alert(e.message));});
-document.querySelector('#limpar-contagens').addEventListener('click', () => {document.querySelector('#filtro-contagens').reset(); carregarContagens();});
-document.querySelector('#limpar-ovitrampas').addEventListener('click', () => {document.querySelector('#filtro-ovitrampas').reset(); carregarOvitrampas();});
-document.addEventListener('click', event => { const c=event.target.closest('[data-contagem]'), o=event.target.closest('[data-ovitrampa]'); if(c) mostrarDetalhes('Detalhes da contagem',contagensAtuais[Number(c.dataset.contagem)]); if(o) mostrarDetalhes('Detalhes do cadastro',ovitrampasAtuais[Number(o.dataset.ovitrampa)]); });
-document.querySelector('#fechar-detalhes').addEventListener('click', () => document.querySelector('#detalhes-contaovos').hidden=true);
-carregarResumo().catch(e => alert(e.message));
+
+/* ── Contagens ───────────────────────────────────────── */
+const tabContagens = Tabela({
+  pane:'#co-tab-contagens', tbody:'#co-lista-contagens', pager:'#co-pager-contagens',
+  rows:'#co-rows-contagens', colunas:9, ordemPadrao:'data', dirPadrao:'desc',
+  linha:(r,i) => `<tr><td>${fmt(r.data)}</td><td>${fmt(r.ano)}/<strong>${fmt(r.semana)}</strong></td>
+    <td><strong>${fmt(r.ovitrampa_id)}</strong></td><td><strong>${num(r.ovos)}</strong></td>
+    <td><span class="badge ${Number(r.ovos||0) > 0 ? 'badge-pos' : 'badge-neg'}">${fmt(r.resultado)}</span></td>
+    <td>${fmt(r.ocorrencia_codigo)}</td><td>${fmt(r.localidade)}</td><td>${fmt(r.id_contagem)}</td>
+    <td><button class="btn btn-outline btn-xs" type="button" data-co-det="contagem" data-co-id="${esc(r.id_contagem)}">Ver</button></td></tr>`,
+});
+async function carregarContagens(){
+  const p = new URLSearchParams();
+  new FormData($('#co-form-contagens')).forEach((v,k) => { if(v) p.set(k,v); });
+  let data;
+  try { data = await api('/api/conta-ovos/central/contagens?' + p); }
+  catch(e){ erro('#co-lista-contagens', e.message, 9); $('#co-total-contagens').textContent = ''; return; }
+  const regs = data.registros || [];
+  $('#co-total-contagens').textContent = `${num(data.total)} registro(s); carregados ${num(regs.length)}`;
+  const ovos = regs.reduce((a,r) => a + Number(r.ovos||0), 0);
+  const pos = regs.filter(r => Number(r.ovos||0) > 0).length;
+  $('#co-kpis-contagens').innerHTML = [
+    kpi('cyan', 'prancheta.svg', 'Contagens carregadas', num(regs.length)),
+    kpi('amber', 'mosquito.svg', 'Ovos', num(ovos)),
+    kpi(pos > regs.length/2 ? 'red' : 'green', 'grafico_barra.svg', 'Positivas', num(pos), regs.length ? Math.round(pos/regs.length*100) + '% do filtro' : ''),
+    kpi('', 'casas.svg', 'Ovitrampas distintas', num(new Set(regs.map(r => r.ovitrampa_id)).size)),
+  ].join('');
+  tabContagens.definir(regs);
+  barra('coChLocalidades', topLocalidades(regs, 'ovos'), 'Ovos', '#1a4fba');
+}
+
+/* ── Cadastro ────────────────────────────────────────── */
+const tabOvitrampas = Tabela({
+  pane:'#co-tab-cadastro', tbody:'#co-lista-ovitrampas', pager:'#co-pager-ovitrampas',
+  rows:'#co-rows-ovitrampas', colunas:9, ordemPadrao:'ovitrampa_id', dirPadrao:'asc',
+  linha:(r) => `<tr><td><strong>${fmt(r.ovitrampa_id)}</strong></td>
+    <td>${fmt([r.rua, r.numero, r.complemento].filter(Boolean).join(', '))}</td>
+    <td>${fmt(r.localidade)}</td><td>${fmt(r.quarteirao)}</td><td>${fmt(r.responsavel)}</td>
+    <td><span class="badge ${r.ativo ? 'badge-entregue' : 'badge-arquivada'}">${r.ativo ? 'Ativa' : 'Inativa'}</span></td>
+    <td>${num(r.contagens)}</td><td>${fmt(r.ultima_contagem)}</td>
+    <td><button class="btn btn-outline btn-xs" type="button" data-co-det="ovitrampa" data-co-id="${esc(r.ovitrampa_id)}">Ver</button></td></tr>`,
+});
+async function carregarOvitrampas(){
+  const p = new URLSearchParams();
+  new FormData($('#co-form-ovitrampas')).forEach((v,k) => { if(v) p.set(k,v); });
+  let data;
+  try { data = await api('/api/conta-ovos/central/ovitrampas?' + p); }
+  catch(e){ erro('#co-lista-ovitrampas', e.message, 9); $('#co-total-ovitrampas').textContent = ''; return; }
+  const regs = data.registros || [];
+  $('#co-total-ovitrampas').textContent = `${num(data.total)} cadastro(s); carregados ${num(regs.length)}`;
+  const ativas = regs.filter(r => r.ativo).length;
+  const comHist = regs.filter(r => Number(r.contagens||0) > 0).length;
+  $('#co-kpis-cadastro').innerHTML = [
+    kpi('', 'casas.svg', 'Cadastros carregados', num(regs.length)),
+    kpi('green', 'check.svg', 'Ativas', num(ativas), regs.length ? Math.round(ativas/regs.length*100) + '% do filtro' : ''),
+    kpi('cyan', 'prancheta.svg', 'Com historico', num(comHist)),
+    kpi('amber', 'mosquito.svg', 'Ovos acumulados', num(regs.reduce((a,r) => a + Number(r.ovos_total||0), 0))),
+  ].join('');
+  tabOvitrampas.definir(regs);
+  barra('coChCadastroLoc', topLocalidades(regs, '_count'), 'Armadilhas', '#0891b2');
+}
+
+/* ── Detalhes por clique ─────────────────────────────── */
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-co-det]');
+  if(!b) return;
+  const id = b.dataset.coId;
+  if(b.dataset.coDet === 'contagem'){
+    const r = tabContagens.dados().find(x => String(x.id_contagem) === id);
+    if(r) abrirDrawer('Contagem ' + id, r);
+  } else {
+    const r = tabOvitrampas.dados().find(x => String(x.ovitrampa_id) === id);
+    if(r) abrirDrawer('Ovitrampa ' + id, r);
+  }
+});
+
+/* ── Abas ────────────────────────────────────────────── */
+const carregado = {contagens:false, cadastro:false};
+document.querySelectorAll('[data-co-tab]').forEach(btn => btn.addEventListener('click', () => {
+  const alvo = btn.dataset.coTab;
+  document.querySelectorAll('[data-co-tab]').forEach(b => b.classList.toggle('active', b === btn));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'co-tab-' + alvo));
+  if(alvo === 'contagens' && !carregado.contagens){ carregado.contagens = true; carregarContagens(); }
+  if(alvo === 'cadastro' && !carregado.cadastro){ carregado.cadastro = true; carregarOvitrampas(); }
+}));
+$('#co-form-contagens').addEventListener('submit', e => { e.preventDefault(); carregarContagens(); });
+$('#co-form-ovitrampas').addEventListener('submit', e => { e.preventDefault(); carregarOvitrampas(); });
+$('#co-limpar-contagens').addEventListener('click', () => { $('#co-form-contagens').reset(); carregarContagens(); });
+$('#co-limpar-ovitrampas').addEventListener('click', () => { $('#co-form-ovitrampas').reset(); carregarOvitrampas(); });
+
+carregarResumo();
+})();
 </script>
 {% endblock %}
