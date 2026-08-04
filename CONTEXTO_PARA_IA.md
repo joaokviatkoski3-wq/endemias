@@ -64,10 +64,11 @@ Infraestrutura ja validada no PostgreSQL:
 - 105/105 indices.
 
 A `master` atingiu 581 testes com a reestruturacao da central Conta Ovos e a
-fundacao GET do cadastro remoto de ovitrampas; a antiga versao desta branch
-teve 573 testes aprovados antes de receber a central. A regressao desta branch
-deve ser reexecutada depois do rebase, sempre em copia temporaria isolada de
-`C:\endemias\endemias.db`.
+fundacao GET do cadastro remoto de ovitrampas. Depois do rebase, a branch de
+envio supervisionado passou a regressao ampla com 603 testes aprovados e 5
+ignorados, em copia temporaria isolada de `C:\endemias\endemias.db`; o SHA-256
+do SQLite congelado permaneceu
+`0600F6A70072320BC7FDE270848535EF428341AA1F093997EE4940F85376F63F`.
 Ela cria uma copia SQLite temporaria antes de importar a aplicacao; nunca rode
 testes contra o `endemias.db` congelado.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
