@@ -11,6 +11,7 @@ from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core.excel import excel_safe
 from app_core import pontos_estrategicos as pe_core
+from app_core import sispncd
 
 
 bp = Blueprint("pontos_estrategicos", __name__)
@@ -32,16 +33,23 @@ def nivel_min(nivel):
 @bp.route("/pontos-estrategicos")
 @login_required
 def page():
+    default_ano, default_semana = sispncd.epidemiological_week_for_date(datetime.now().date())
     return render_template(
         "pontos_estrategicos.html",
         opcoes=pe_core.opcoes(bh.db_target()),
+        default_ano=default_ano,
+        default_semana=default_semana,
     )
 
 
 @bp.route("/api/pontos-estrategicos")
 @login_required
 def api_listar():
-    return jsonify(pe_core.listar(bh.db_target(), _filtros()))
+    try:
+        filtros = _filtros()
+    except sispncd.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    return jsonify(pe_core.listar(bh.db_target(), filtros))
 
 
 @bp.route("/api/pontos-estrategicos/exportar")
@@ -49,6 +57,9 @@ def api_listar():
 def api_exportar():
     try:
         filtros = _filtros()
+    except sispncd.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    try:
         dados = pe_core.listar(bh.db_target(), filtros, limite=None)
         registros = dados.get("registros") or []
         formato = (request.args.get("formato") or "xlsx").lower()
@@ -145,14 +156,24 @@ def api_situacao(id_pe):
 
 
 def _filtros():
-    return {
+    filtros = {
         "situacao": request.args.get("situacao", ""),
         "localidade": request.args.get("localidade", ""),
         "tipo": request.args.get("tipo", ""),
         "atrasados": request.args.get("atrasados", ""),
         "pendencias": request.args.get("pendencias", ""),
+        "pendentes_periodo": request.args.get("pendentes_periodo", ""),
         "busca": request.args.get("busca", "").strip(),
     }
+    ano = request.args.get("ano", "").strip()
+    semana = request.args.get("semana", "").strip()
+    if ano and semana:
+        inicio, fim = sispncd.epidemiological_week_range(ano, semana)
+        filtros["ano"] = int(ano)
+        filtros["semana"] = int(semana)
+        filtros["periodo_inicio"] = inicio
+        filtros["periodo_fim"] = fim
+    return filtros
 
 
 def _filtros_legiveis(filtros):
@@ -171,6 +192,10 @@ def _filtros_legiveis(filtros):
         partes.append("Revisao: Atrasados")
     if filtros.get("pendencias"):
         partes.append("Revisao: Com pendencia")
+    if filtros.get("ano") and filtros.get("semana"):
+        partes.append(f"Semana epidemiologica: {filtros['semana']}/{filtros['ano']}")
+    if filtros.get("pendentes_periodo"):
+        partes.append("Somente pendentes na semana")
     return partes or ["Todos os registros"]
 
 
@@ -193,14 +218,14 @@ def _gerar_xlsx(registros):
         "Tipo", "Situacao", "Telefone", "CNPJ", "Razao social", "Latitude",
         "Longitude", "Data inclusao", "Data desativacao", "Ultima PE",
         "Dias sem visita", "Total visitas PE", "Ultimo BRI", "Total BRI",
-        "Focos", "Pendencias", "Observacoes",
+        "Focos", "Semana selecionada", "Pendencias", "Observacoes",
     ]
     campos = [
         "codigo_pe", "nome", "localidade", "quarteirao", "logradouro", "numero",
         "tipo", "situacao_label", "telefone", "cnpj", "razao_social", "latitude",
         "longitude", "data_inclusao", "data_desativacao", "ultima_visita_pe",
         "dias_sem_visita", "visitas_pe_total", "ultimo_bri", "bri_total",
-        "focos_total", "pendencias", "observacoes",
+        "focos_total", "status_periodo_label", "pendencias", "observacoes",
     ]
 
     wb = openpyxl.Workbook()
@@ -217,6 +242,10 @@ def _gerar_xlsx(registros):
         linha = dict(row)
         linha["situacao_label"] = "Ativo" if int(linha.get("situacao") or 0) == 1 else "Inativo"
         linha["pendencias"] = _pendencias(linha)
+        visitado = linha.get("visitado_periodo_selecionado")
+        linha["status_periodo_label"] = (
+            "" if visitado is None else ("Feito" if visitado else "Pendente")
+        )
         for ci, campo in enumerate(campos, 1):
             ws.cell(ri, ci, excel_safe(_valor(linha, campo)))
 

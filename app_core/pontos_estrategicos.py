@@ -456,8 +456,9 @@ def listar(target, filtros=None, limite=1000):
         ensure_schema(conn)
         _ensure_optional_modules(conn)
         where, params = _where(filtros)
+        periodo_col, periodo_params = _periodo_selecionado_sql(filtros)
         limit_clause = "" if limite is None else "LIMIT ?"
-        query_params = list(params)
+        query_params = list(periodo_params) + list(params)
         if limite is not None:
             query_params.append(int(limite))
         rows = [
@@ -506,7 +507,8 @@ def listar(target, filtros=None, limite=1000):
                              WHERE f.gera_notificacao=1
                                AND f.id_localidade=pe.id_localidade
                                AND f.quarteirao=pe.quarteirao
-                        ) AS focos_total
+                        ) AS focos_total,
+                        {periodo_col}
                     FROM pontos_estrategicos pe
                     {where}
                     ORDER BY situacao DESC, localidade, quarteirao, nome
@@ -514,6 +516,11 @@ def listar(target, filtros=None, limite=1000):
                 query_params,
             )
         ]
+        for row in rows:
+            visitas_periodo = row.get("visitas_periodo_selecionado")
+            row["visitado_periodo_selecionado"] = (
+                None if visitas_periodo is None else int(visitas_periodo) > 0
+            )
         rows = _filtrar_status_calculado(rows, filtros)
         totais = dict(
             conn.execute(
@@ -533,8 +540,12 @@ def listar(target, filtros=None, limite=1000):
         if close:
             conn.close()
     totais = {k: (v or 0) for k, v in totais.items()}
-    if filtros.get("atrasados") or filtros.get("pendencias"):
+    if filtros.get("atrasados") or filtros.get("pendencias") or filtros.get("pendentes_periodo"):
         totais = _totais_de_rows(rows)
+    if filtros.get("periodo_inicio") and filtros.get("periodo_fim"):
+        ativos = [r for r in rows if r.get("situacao") == 1]
+        totais["feitos_periodo"] = sum(1 for r in ativos if r.get("visitado_periodo_selecionado"))
+        totais["pendentes_periodo"] = sum(1 for r in ativos if not r.get("visitado_periodo_selecionado"))
     return {"registros": rows, "total": len(rows), "totais": totais}
 
 
@@ -865,7 +876,31 @@ def _filtrar_status_calculado(rows, filtros):
         rows = [r for r in rows if r.get("visita_atrasada")]
     if filtros.get("pendencias") in ("1", 1, True, "true", "sim"):
         rows = [r for r in rows if r.get("visita_atrasada") or r.get("pendencias_cadastro")]
+    if filtros.get("pendentes_periodo") in ("1", 1, True, "true", "sim") and (
+        filtros.get("periodo_inicio") and filtros.get("periodo_fim")
+    ):
+        rows = [r for r in rows if not r.get("visitado_periodo_selecionado")]
     return rows
+
+
+def _periodo_selecionado_sql(filtros):
+    inicio = filtros.get("periodo_inicio")
+    fim = filtros.get("periodo_fim")
+    if not inicio or not fim:
+        return "NULL AS visitas_periodo_selecionado", []
+    return (
+        """(
+            SELECT COUNT(DISTINCT v.id_visita)
+              FROM visitas v
+             WHERE v.tipo='PE'
+               AND (
+                   v.id_pe=pe.id_pe
+                   OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao)
+               )
+               AND v.data BETWEEN ? AND ?
+        ) AS visitas_periodo_selecionado""",
+        [inicio, fim],
+    )
 
 
 def _totais_de_rows(rows):
