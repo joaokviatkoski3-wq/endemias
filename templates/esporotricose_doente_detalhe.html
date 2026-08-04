@@ -10,6 +10,7 @@
 .doe-field span{display:block;font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);margin-bottom:3px;}
 .doe-field strong{font-size:14px;color:var(--text);}
 .doe-layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;align-items:start;margin-top:14px;}
+.doe-layout>.chart-card{min-width:0;}
 .doe-receita{border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;background:var(--surface2);margin-bottom:10px;}
 .doe-receita-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px;}
 .doe-receita-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;}
@@ -40,6 +41,22 @@
 .doe-anexo-info{padding:8px 9px;}
 .doe-anexo-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:800;}
 .doe-anexo-actions{display:flex;justify-content:space-between;gap:6px;margin-top:7px;}
+.doe-dropzone{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;border:2px dashed var(--border2);border-radius:var(--radius);background:var(--surface2);padding:26px 16px;text-align:center;cursor:pointer;transition:border-color .15s ease,background .15s ease,transform .1s ease;}
+.doe-dropzone-title{min-width:0;max-width:100%;}
+.doe-dropzone:hover{border-color:var(--brand);}
+.doe-dropzone.is-dragover{border-color:var(--brand);background:var(--brand-xs);transform:scale(1.01);}
+.doe-dropzone input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;}
+.doe-dropzone-icon{width:32px;height:32px;opacity:.5;margin-bottom:4px;}
+.doe-dropzone.is-dragover .doe-dropzone-icon{opacity:.85;}
+.doe-dropzone-title{font-size:13.5px;font-weight:800;color:var(--text);}
+.doe-dropzone-title b{color:var(--brand);font-weight:900;}
+.doe-dropzone-sub{font-size:11.5px;color:var(--text3);margin-top:1px;}
+.doe-dropzone-files{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:12px;max-width:100%;}
+.doe-dropzone-chip{position:relative;display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:4px 10px;font-size:11.5px;font-weight:700;color:var(--text2);max-width:210px;}
+.doe-dropzone-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.doe-dropzone-chip button{position:relative;z-index:1;border:0;background:none;cursor:pointer;color:var(--text3);font-size:14px;line-height:1;padding:0;font-weight:900;}
+.doe-dropzone-chip button:hover{color:#dc2626;}
+.doe-dropzone-actions{display:flex;justify-content:center;margin-top:12px;}
 @media(max-width:1050px){.doe-layout{grid-template-columns:1fr}.doe-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:620px){.doe-head{flex-direction:column}.doe-actions .btn{flex:1}.doe-grid,.doe-form-grid{grid-template-columns:1fr}}
 </style>{% endblock %}
@@ -115,8 +132,16 @@
 
   <div class="chart-card">
     <div class="chart-hd"><div class="chart-title">Anexos</div></div>
-    <input id="anexos" type="file" multiple>
-    <button class="btn btn-outline" type="button" onclick="enviarAnexos()" style="margin-top:8px;">Enviar anexos</button>
+    <div class="doe-dropzone" id="anexos-dropzone">
+      <img src="/static/icons/importar.svg" alt="" class="icon-svg doe-dropzone-icon">
+      <div class="doe-dropzone-title">Arraste os arquivos aqui ou <b>clique para selecionar</b></div>
+      <div class="doe-dropzone-sub">Imagens e PDFs</div>
+      <input id="anexos" type="file" multiple>
+    </div>
+    <div class="doe-dropzone-files" id="anexos-pendentes"></div>
+    <div class="doe-dropzone-actions">
+      <button class="btn btn-outline" type="button" id="anexos-enviar-btn" onclick="enviarAnexos()" style="display:none;">Enviar anexos</button>
+    </div>
     <div class="doe-anexos" id="anexos-list" style="margin-top:10px;"></div>
   </div>
 </div>
@@ -305,6 +330,40 @@ async function excluirReceita(idReceita, totalEntregas){
     toast('Receita apagada.', 'success');
   } catch(e){ toast(e.message, 'error'); }
 }
+function renderAnexosPendentes(){
+  const input = document.getElementById('anexos');
+  const wrap = document.getElementById('anexos-pendentes');
+  const btn = document.getElementById('anexos-enviar-btn');
+  const arquivos = Array.from(input.files || []);
+  wrap.innerHTML = arquivos.map((f, i) => `
+    <span class="doe-dropzone-chip">
+      <span title="${esc(f.name)}">${esc(f.name)}</span>
+      <button type="button" title="Remover" onclick="removerAnexoPendente(${i})">&times;</button>
+    </span>
+  `).join('');
+  btn.style.display = arquivos.length ? 'inline-flex' : 'none';
+  if(arquivos.length) btn.textContent = arquivos.length === 1 ? 'Enviar 1 anexo' : `Enviar ${arquivos.length} anexos`;
+}
+function removerAnexoPendente(indice){
+  const input = document.getElementById('anexos');
+  const dt = new DataTransfer();
+  Array.from(input.files).forEach((f, i) => { if(i !== indice) dt.items.add(f); });
+  input.files = dt.files;
+  renderAnexosPendentes();
+}
+function configurarDropzoneAnexos(){
+  const zona = document.getElementById('anexos-dropzone');
+  const input = document.getElementById('anexos');
+  input.addEventListener('change', renderAnexosPendentes);
+  ['dragenter', 'dragover'].forEach(evento => zona.addEventListener(evento, e => {
+    e.preventDefault();
+    zona.classList.add('is-dragover');
+  }));
+  ['dragleave', 'drop'].forEach(evento => zona.addEventListener(evento, e => {
+    if(evento === 'dragleave' && zona.contains(e.relatedTarget)) return;
+    zona.classList.remove('is-dragover');
+  }));
+}
 async function enviarAnexos(){
   const input = document.getElementById('anexos');
   if(!input.files.length) return;
@@ -313,6 +372,7 @@ async function enviarAnexos(){
   try {
     await apiPost(`/api/esporotricose/doentes/${animal.id_animal_doente}/anexos`, fd, false);
     input.value = '';
+    renderAnexosPendentes();
     await recarregar();
     toast('Anexo salvo.', 'success');
   } catch(e){ toast(e.message, 'error'); }
@@ -323,5 +383,6 @@ async function excluirAnexo(id){
   if(!r.ok) return toast('Erro ao excluir anexo.', 'error');
   await recarregar();
 }
+configurarDropzoneAnexos();
 render();
 </script>{% endblock %}
