@@ -5,7 +5,8 @@ laboratorio e fundacao GET do cadastro remoto de ovitrampas; credencial
 protegida, escopo privado, idempotencia real e semana epidemiologica
 validados. A central de consulta foi reestruturada para separar visao geral,
 Ovitrampas (com sub-areas de proveniencia API), EDLs e Quarteiroes/acoes
-reservados. Nenhum endpoint de escrita remota faz parte destes lotes.
+reservados. A branch `codex/enviar-leituras-conta-ovos` prepara o primeiro
+operador de escrita unitaria, ainda sem qualquer POST real.
 
 ## Regras de seguranca
 
@@ -176,13 +177,39 @@ estao em `docs/CONTA_OVOS_INTERFACE.md`.
 
 ## Proximos lotes
 
-1. Implementar o envio serial `/postcounting`, sempre reconciliando antes e
-   depois da chamada, sem exclusao automatica e com piloto supervisionado.
-2. Envio TBO por quarteirao somente depois de validar IDs remotos, tipos de
+1. Revisar o envio serial `/postcounting` e, somente depois da aprovacao,
+   escolher uma leitura piloto para a primeira operacao real supervisionada.
+2. Depois do piloto, decidir se o envio continua unitario ou ganha lote pequeno
+   com limite, intervalo entre requisicoes e circuit breaker.
+3. Envio TBO por quarteirao somente depois de validar IDs remotos, tipos de
    imovel, unidade de larvicida e semana epidemiologica do servidor.
-3. Avaliar EDLs e Quarteiroes/acoes como novos dominios de consulta, pelo
+4. Avaliar EDLs e Quarteiroes/acoes como novos dominios de consulta, pelo
    mesmo criterio da fundacao de cadastro remoto: endpoint documentado,
    schema/migracao proprios e sincronizacao GET supervisionada antes de
    qualquer escrita.
 
 Endpoints `postdelete*` permanecem fora do planejamento inicial.
+
+## Envio unitario supervisionado em revisao
+
+`app_core/contaovos_envio.py` consulta a semana epidemiologica inteira antes do
+POST. Se encontrar uma leitura igual, confirma a fila sem escrever remotamente;
+se encontrar divergencia, interrompe para revisao humana. Somente um item
+`pendente`, com o mesmo hash preparado, pode passar para `enviando`. Essa troca
+e a auditoria sao commitadas antes da chamada remota.
+
+O cliente envia formulario para `/postcounting` uma unica vez e nunca aplica
+retry de escrita. Depois de qualquer resposta ou excecao, um novo GET decide o
+resultado. Apenas uma leitura encontrada com o mesmo municipio, ovitrampa,
+semana, ovos e, quando devolvidos pela API, ocorrencia e coordenadas, vira
+`confirmado`. Resultados incertos ficam bloqueados; HTTP 400/403/404/409 sem
+reconciliacao viram erro para revisao humana. A API nao devolve todos os campos
+em todos os exemplos documentados, por isso campos ausentes nao sao inventados
+na comparacao.
+
+O comando operacional e encapsulado por `enviar_contagem_contaovos.bat`. Ele
+exige elevacao, lista a fila, solicita um unico `ID_FILA`, registra o nome do
+operador e pede confirmacao final. A chave continua sendo lida do arquivo com
+ACL restrita e nunca passa em argumento. O ensaio
+`scripts/testar_contaovos_envio_postgresql.py` usa transporte falso e tabelas
+temporarias exclusivamente em `endemias_teste`.

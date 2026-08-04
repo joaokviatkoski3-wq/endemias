@@ -79,6 +79,43 @@ def registrar_evento(
             conn.close()
 
 
+def registrar_evento_operacional(
+    conn,
+    acao,
+    *,
+    operador_nome,
+    entidade=None,
+    entidade_id=None,
+    detalhes=None,
+    criado_em=None,
+):
+    """Registra uma operacao supervisionada executada fora de uma requisicao."""
+    operador_nome = str(operador_nome or "").strip()
+    if not operador_nome:
+        raise ValueError("Informe o nome do operador responsavel.")
+    if len(operador_nome) > 120:
+        raise ValueError("O nome do operador responsavel e muito longo.")
+    garantir_tabela_auditoria(lambda: conn, conn)
+    conn.execute(
+        """
+        INSERT INTO auditoria_eventos
+            (acao, entidade, entidade_id, usuario_id, usuario_nome, ip,
+             detalhes_json, criado_em)
+        VALUES (?,?,?,?,?,?,?,?)
+        """,
+        (
+            acao,
+            entidade,
+            str(entidade_id) if entidade_id is not None else None,
+            None,
+            operador_nome,
+            "operacao-local-supervisionada",
+            json.dumps(detalhes or {}, ensure_ascii=False, sort_keys=True),
+            criado_em or datetime.now().isoformat(timespec="seconds"),
+        ),
+    )
+
+
 def listar_eventos(get_db, filtros=None, limite=100):
     filtros = filtros or {}
     limite = max(1, min(int(limite or 100), 500))

@@ -1,4 +1,4 @@
-"""Cliente HTTP somente leitura para a API privada Conta Ovos."""
+"""Cliente HTTP defensivo para a API privada Conta Ovos."""
 
 import json
 import os
@@ -20,11 +20,20 @@ TEST_NETWORK_GUARD = "ENDEMIAS_TEST_BLOCK_CONTAOVOS_NETWORK"
 
 
 class ContaOvosError(RuntimeError):
-    def __init__(self, message, *, status_code=None, retriable=False, kind="error"):
+    def __init__(
+        self,
+        message,
+        *,
+        status_code=None,
+        retriable=False,
+        kind="error",
+        outcome_uncertain=False,
+    ):
         super().__init__(message)
         self.status_code = status_code
         self.retriable = bool(retriable)
         self.kind = kind
+        self.outcome_uncertain = bool(outcome_uncertain)
 
 
 def sanitize_message(value, key=None):
@@ -190,6 +199,82 @@ def public_ovitraps_page(
             kind="unexpected_payload",
         )
     return data
+
+
+def post_counting(
+    key,
+    payload,
+    *,
+    allow_remote_write=False,
+    timeout=DEFAULT_TIMEOUT_SECONDS,
+    opener=None,
+):
+    """Envia uma unica leitura, sem qualquer repeticao automatica.
+
+    O retorno do POST nunca e usado como confirmacao. O chamador precisa
+    reconciliar a leitura por GET, inclusive quando esta funcao falhar.
+    """
+    if allow_remote_write is not True:
+        raise ContaOvosError(
+            "A escrita remota Conta Ovos nao foi autorizada explicitamente.",
+            kind="write_not_authorized",
+        )
+    required = (
+        "ovitrap_group_id",
+        "ovitrap_lat",
+        "ovitrap_lng",
+        "date",
+        "counting_observation_id",
+        "counting_observation",
+        "counting_eggs",
+    )
+    if not isinstance(payload, dict) or any(field not in payload for field in required):
+        raise ContaOvosError(
+            "O payload da contagem esta incompleto.", kind="invalid_write_payload"
+        )
+    if opener is None and os.environ.get(TEST_NETWORK_GUARD) == "1":
+        raise ContaOvosError(
+            "Chamadas reais ao Conta Ovos estao bloqueadas durante os testes.",
+            kind="test_network_blocked",
+        )
+    opener = request.urlopen if opener is None else opener
+    body = parse.urlencode({field: payload[field] for field in required}).encode(
+        "utf-8"
+    )
+    req = request.Request(
+        _private_url("postcounting", key),
+        data=body,
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "Endemias/ContaOvos",
+        },
+        method="POST",
+    )
+    try:
+        with opener(req, timeout=timeout) as response:
+            response.read()
+            status_code = getattr(response, "status", None)
+            if status_code is None and hasattr(response, "getcode"):
+                status_code = response.getcode()
+            return {"accepted": True, "status_code": int(status_code or 200)}
+    except error.HTTPError as exc:
+        status_code = int(exc.code)
+        exc.close()
+        raise ContaOvosError(
+            f"A API Conta Ovos recusou o envio (HTTP {status_code}).",
+            status_code=status_code,
+            retriable=False,
+            kind="write_http_error",
+            outcome_uncertain=status_code >= 500,
+        ) from None
+    except (error.URLError, TimeoutError, OSError):
+        raise ContaOvosError(
+            "A conexao foi interrompida durante o envio ao Conta Ovos.",
+            retriable=False,
+            kind="write_network_error",
+            outcome_uncertain=True,
+        ) from None
 
 
 def validate_private_access(

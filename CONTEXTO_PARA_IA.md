@@ -9,7 +9,9 @@ que assumir o projeto em outra conta ou conversa.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.20.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual nesta branch de envio supervisionado: `1.21.0`, definida em
+  `app_core/version.py`. A `master` permanece em `1.20.0` ate a aprovacao e
+  integracao deste lote.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -62,11 +64,9 @@ Infraestrutura ja validada no PostgreSQL:
 - 105/105 indices.
 
 A suite passou de 556 para 581 testes com a reestruturacao da central Conta
-Ovos e a fundacao GET do cadastro remoto de ovitrampas. A regressao ampla foi
-confirmada no worktree da branch usando uma copia temporaria isolada de
-`C:\endemias\endemias.db`: os 581 testes terminaram com `OK`, 5 foram ignorados
-e o hash do SQLite oficial permaneceu inalterado
-(`0600F6A70072320BC7FDE270848535EF428341AA1F093997EE4940F85376F63F`).
+Ovos e a fundacao GET do cadastro remoto de ovitrampas. A regressao desta
+branch deve ser reexecutada depois do rebase, sempre em copia temporaria
+isolada de `C:\endemias\endemias.db`.
 Ela cria uma copia SQLite temporaria antes de importar a aplicacao; nunca rode
 testes contra o `endemias.db` congelado.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
@@ -152,37 +152,12 @@ por um console elevado antes de concluir que um backup falhou.
 
 ## Proxima tarefa recomendada
 
-Revisar `claude/reestruturar-central-contaovos-remota` contra `master`. O
-lote reestrutura a central Conta Ovos para reutilizar a organizacao visual
-madura de `/ovitrampas` na sub-area `Ovitrampas`, com cinco abas internas
-(Contagens, Monitoramento, Cadastro remoto, Mapa, Sincronizacao e
-divergencias), mais `Visao geral`, `EDLs` e `Quarteiroes e acoes` (ambos
-reservados, sem funcionalidade simulada) no nivel superior:
-
-1. Contagens e Monitoramento dentro de Ovitrampas passam a filtrar sempre por
-   proveniencia API (`arquivo_origem`), nunca misturando com CSV legado.
-2. Nova fundacao GET do cadastro remoto (`app_core/contaovos_registro.py`,
-   migracao `0005_contaovos_registro_ovitrampas.sql`) consulta o endpoint
-   publico `getmunicipalityovitrapspublic` (sem chave) e mantem espelho
-   proprio, sem gravar responsavel/telefone/complementos locais.
-3. Mapa mostra coordenadas remotas com quarteirao/localidade lidos do
-   cadastro local (nunca recalculados a partir da API).
-4. Sincronizacao e divergencias mostra o estado de cada fluxo GET e tres
-   comparacoes informativas (sem cadastro local, coordenadas divergentes,
-   contagens sem cadastro remoto), sem qualquer resolucao automatica.
-5. Nenhum botao de sincronizacao na interface; execucao continua por script
-   supervisionado (`scripts/sincronizar_registro_ovitrampas_contaovos.py`),
-   com confirmacao explicita e banco padrao `endemias_teste`.
-
-A migracao `0005` foi aplicada em `endemias_teste` (nao em `endemias`; cabe
-ao administrador decidir quando aplicar em producao) e o ensaio PostgreSQL
-temporario passou sem alterar tabelas publicas. Versao `1.20.0`. A decisao de
-arquitetura completa, incluindo o criterio para adicionar EDLs/Quarteiroes
-como novos dominios remotos no futuro, fica em
-`docs/CONTA_OVOS_INTERFACE.md` para revisao independente.
-
-O envio serial supervisionado de leituras por `/postcounting` continua sendo
-um lote futuro separado. Ele precisa preservar o contrato ja homologado da fila:
+A central Conta Ovos e a fundacao GET do cadastro remoto de ovitrampas ja estao
+integradas na `master`; a migracao `0005` foi aplicada em `endemias_teste` e no
+banco oficial `endemias`. A proxima tarefa e revisar a branch
+`codex/enviar-leituras-conta-ovos`, atualizada sobre esta base, que prepara o
+envio serial supervisionado de uma leitura por `/postcounting`. O lote preserva
+o contrato ja homologado da fila:
 
 1. reconciliar antes de qualquer envio e confirmar somente pelo GET posterior;
 2. marcar `enviando` e commitar antes da chamada remota;
@@ -190,6 +165,18 @@ um lote futuro separado. Ele precisa preservar o contrato ja homologado da fila:
 4. tratar 404/duplicidade por reconciliacao e manter 400/403/409 para revisao
    humana;
 5. continuar sem exclusoes automaticas e sem chamadas reais na suite.
+
+O operador novo exige o banco oficial, o ID exato da fila, o nome do operador,
+confirmacao do banco e uma frase literal para cada unica tentativa. O atalho
+`enviar_contagem_contaovos.bat` lista apenas itens pendentes ou inconclusivos,
+eleva para ler as credenciais protegidas e nunca envia mais de um item. Toda
+tentativa gera auditoria; erro de rede, HTTP 500, sucesso sem confirmacao GET ou
+falha na reconciliacao mantem o item bloqueado em `enviando`. Uma execucao
+posterior apenas reconcilia esse estado e nunca repete o POST.
+
+Os testes usam transporte falso e o ensaio PostgreSQL usa tabelas temporarias
+em `endemias_teste`. Nenhum POST real deve ser executado antes da revisao do
+Claude e da escolha humana de uma leitura piloto.
 
 A sincronizacao GET foi homologada no banco oficial em 03/08/2026. As migracoes
 `0002` e `0003` estao aplicadas em `endemias` e `endemias_teste`; o ensaio
@@ -203,7 +190,7 @@ A fila local foi aprovada sem achados e integrada a `master` no merge
 ensaio PostgreSQL confirmou tabelas temporarias e preservacao da tabela publica.
 Na prova real somente GET, 5.405 contagens brutas de 2026 foram comparadas e
 nao houve divergencia entre `date/year/week` remotos e a semana epidemiologica
-local. Nenhum POST foi executado.
+local. Nenhum POST real foi executado ate a preparacao desta branch.
 
 Qualquer rollback precisa ser decidido pelo administrador: primeiro interrompa
 novas escritas PostgreSQL e so depois remova a tarefa/marcador. Nunca abra o

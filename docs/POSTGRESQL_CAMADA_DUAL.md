@@ -709,9 +709,10 @@ A fila local de leituras adiciona a migracao
 tentativas, ID remoto, erro sanitizado e hash do payload. A preparacao valida o
 lote inteiro, inclusive coordenadas e mapeamento de ocorrencias, antes de
 gravar; depois reconcilia somente contra o historico GET ja sincronizado. A
-rota de preparacao inclui auditoria na mesma transacao. Nenhum `POST` remoto
-foi implementado. O ensaio `scripts/testar_contaovos_fila_postgresql.py` usa
-somente tabelas temporarias no banco descartavel.
+rota de preparacao inclui auditoria na mesma transacao. Na `master`, nenhum
+`POST` remoto foi implementado. O ensaio
+`scripts/testar_contaovos_fila_postgresql.py` usa somente tabelas temporarias
+no banco descartavel.
 
 Autenticacao, auditoria, Controle de Pessoal, Gestao de Usuarios,
 Recolhimentos de Materiais, Amostras de Animais e Visitas de Arboviroses
@@ -744,6 +745,27 @@ credencial protegida foi autenticada sob `SYSTEM`, a tarefa oficial foi ativada
 com PostgreSQL e o SQLite ficou congelado para rollback. Depois que uma
 regressao legada tocou metadados desse arquivo, ele foi restaurado do backup
 consistente e os testes passaram a usar uma copia temporaria automatica.
+
+## Envio supervisionado de uma contagem Conta Ovos
+
+A branch `codex/enviar-leituras-conta-ovos` acrescenta uma operacao de alto
+risco sem criar nova migracao: ela reutiliza os estados e metadados da fila
+`0004`. `app_core/contaovos_envio.py` aceita uma unica linha por chamada,
+recalcula o payload e seu hash, consulta por GET toda a semana epidemiologica e
+so permite POST quando nao existe leitura nem conflito remoto.
+
+O estado `enviando`, a tentativa e a auditoria operacional sao commitados antes
+do acesso de escrita a API. O POST nao possui retry. Uma segunda reconciliacao
+GET e a unica confirmacao aceita; falhas de transporte, HTTP 500 ou ausencia da
+leitura depois de uma resposta bem-sucedida deixam o item bloqueado para impedir
+duplicidade. Um item que ja estava `enviando` nunca volta automaticamente para
+`pendente` e nunca e reenviado.
+
+O ensaio `scripts/testar_contaovos_envio_postgresql.py` cria sombras temporarias
+da fila, laboratorio, armadilhas, historico e auditoria em `endemias_teste`.
+Transportes falsos simulam GET e POST, inclusive a prova de que o commit de
+`enviando` ocorreu antes da chamada. As tabelas `public` sao comparadas antes e
+depois. Nenhum teste conhece a chave ou acessa a rede real.
 
 Cada lote deve:
 

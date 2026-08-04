@@ -31,6 +31,8 @@ class _Response:
     def read(self):
         return json.dumps(self.payload).encode("utf-8")
 
+    status = 200
+
 
 def _http_error(code):
     return error.HTTPError(
@@ -43,6 +45,63 @@ def _http_error(code):
 
 
 class ContaOvosClientTests(unittest.TestCase):
+    def test_post_unitario_exige_autorizacao_e_usa_formulario(self):
+        payload = {
+            "ovitrap_group_id": "97",
+            "ovitrap_lat": -25.1,
+            "ovitrap_lng": -49.2,
+            "date": "2026-08-02",
+            "counting_observation_id": 6,
+            "counting_observation": "",
+            "counting_eggs": 7,
+        }
+        with self.assertRaises(contaovos_client.ContaOvosError) as ctx:
+            contaovos_client.post_counting("segredo", payload)
+        self.assertEqual("write_not_authorized", ctx.exception.kind)
+
+        seen = {}
+
+        def opener(req, timeout):
+            seen["method"] = req.get_method()
+            seen["url"] = req.full_url
+            seen["body"] = req.data.decode("utf-8")
+            return _Response({"ok": True})
+
+        result = contaovos_client.post_counting(
+            "segredo-teste",
+            payload,
+            allow_remote_write=True,
+            opener=opener,
+        )
+        self.assertTrue(result["accepted"])
+        self.assertEqual("POST", seen["method"])
+        self.assertIn("key=segredo-teste", seen["url"])
+        self.assertIn("counting_observation=", seen["body"])
+        self.assertIn("counting_eggs=7", seen["body"])
+
+    def test_post_nao_repete_erro_e_bloqueia_rede_real_na_suite(self):
+        payload = {field: "1" for field in (
+            "ovitrap_group_id", "ovitrap_lat", "ovitrap_lng", "date",
+            "counting_observation_id", "counting_observation", "counting_eggs",
+        )}
+        attempts = []
+
+        def opener(req, timeout):
+            attempts.append(1)
+            raise _http_error(500)
+
+        with self.assertRaises(contaovos_client.ContaOvosError) as ctx:
+            contaovos_client.post_counting(
+                "segredo", payload, allow_remote_write=True, opener=opener
+            )
+        self.assertEqual(1, len(attempts))
+        self.assertTrue(ctx.exception.outcome_uncertain)
+        with self.assertRaises(contaovos_client.ContaOvosError) as blocked:
+            contaovos_client.post_counting(
+                "nao-usar", payload, allow_remote_write=True
+            )
+        self.assertEqual("test_network_blocked", blocked.exception.kind)
+
     def test_consulta_privada_usa_get_query_string_e_formato_lista(self):
         seen = {}
 
