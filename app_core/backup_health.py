@@ -24,6 +24,7 @@ indisponivel) nunca vira alarme de backup: ela produz o nivel
 
 import hashlib
 import json
+import os
 import re
 import zipfile
 from datetime import datetime
@@ -91,6 +92,25 @@ class _BackupIndisponivel(RuntimeError):
     """O artefato nao pode ser inspecionado neste ambiente."""
 
 
+def _pasta_ilegivel(destino):
+    """Diz se a pasta existe mas nao pode ser lida pela conta atual.
+
+    ``Path.glob`` engole o erro de permissao e devolve uma sequencia vazia, o
+    que tornaria a pasta protegida por ACL do SYSTEM (a configuracao correta
+    em producao) indistinguivel de uma pasta legitimamente sem backups.
+    ``os.scandir`` propaga o erro e permite separar os dois casos.
+    """
+    caminho = Path(destino)
+    try:
+        if not caminho.is_dir():
+            return False
+        with os.scandir(caminho) as entradas:
+            next(iter(entradas), None)
+    except OSError:  # inclui PermissionError
+        return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Dump diario
 # ---------------------------------------------------------------------------
@@ -109,6 +129,10 @@ def _coletar_dump(destino, database, max_horas, agora, modo, env):
         ) from exc
 
     if not backups:
+        if _pasta_ilegivel(destino):
+            raise _BackupIndisponivel(
+                "Sem permissao para listar a pasta de dumps PostgreSQL."
+            )
         raise _ProblemaBackup("Nenhum dump PostgreSQL foi encontrado.")
 
     info = backups[0]
@@ -285,6 +309,10 @@ def _coletar_backup_completo(destino, database, max_dias, agora, modo):
                 else "manifesto conferido"
             ),
         }
+    if not candidatos and _pasta_ilegivel(destino):
+        raise _BackupIndisponivel(
+            "Sem permissao para listar a pasta de backups completos."
+        )
     raise _ProblemaBackup("Nenhum backup completo PostgreSQL foi encontrado.")
 
 

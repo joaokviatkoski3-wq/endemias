@@ -167,6 +167,23 @@ class SaudeDosArtefatosTests(unittest.TestCase):
         self.assertEqual(bloco["nivel"], backup_health.NIVEL_ERRO)
         self.assertIn("Nenhum backup completo", bloco["detalhe"])
 
+    def test_pasta_de_completos_sem_permissao_nao_vira_alarme(self):
+        with (
+            mock.patch.object(
+                backup_health.backup_completo,
+                "listar_backups_completos",
+                return_value=[],
+            ),
+            mock.patch.object(
+                backup_health.os, "scandir", side_effect=PermissionError("negado")
+            ),
+            mock.patch.object(backup_health.Path, "is_dir", return_value=True),
+        ):
+            bloco = backup_health.avaliar_backup_completo("pasta-protegida")
+
+        self.assertEqual(bloco["nivel"], backup_health.NIVEL_DESCONHECIDO)
+        self.assertIn("permissao", bloco["detalhe"].lower())
+
     def test_zip_antigo_e_reportado_como_erro(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             raiz = Path(tmpdir)
@@ -238,6 +255,30 @@ class SaudeDosArtefatosTests(unittest.TestCase):
 
         self.assertEqual(bloco["nivel"], backup_health.NIVEL_DESCONHECIDO)
         self.assertIn("permissao", bloco["detalhe"].lower())
+
+    def test_pasta_sem_permissao_de_listagem_nao_vira_alarme(self):
+        # Path.glob engole PermissionError e devolve lista vazia, entao a pasta
+        # protegida por ACL do SYSTEM chegava aqui como "nenhum dump".
+        with (
+            mock.patch.object(
+                backup_health.postgresql_backup, "listar_backups", return_value=[]
+            ),
+            mock.patch.object(
+                backup_health.os, "scandir", side_effect=PermissionError("negado")
+            ),
+            mock.patch.object(backup_health.Path, "is_dir", return_value=True),
+        ):
+            bloco = backup_health.avaliar_dump("pasta-protegida")
+
+        self.assertEqual(bloco["nivel"], backup_health.NIVEL_DESCONHECIDO)
+        self.assertIn("permissao", bloco["detalhe"].lower())
+
+    def test_pasta_legivel_e_vazia_continua_sendo_erro_real(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bloco = backup_health.avaliar_dump(tmpdir)
+
+        self.assertEqual(bloco["nivel"], backup_health.NIVEL_ERRO)
+        self.assertIn("Nenhum dump", bloco["detalhe"])
 
     def test_mensagem_de_erro_nao_expoe_segredos(self):
         with mock.patch.object(

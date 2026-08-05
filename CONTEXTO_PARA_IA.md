@@ -150,6 +150,13 @@ para tarefa ausente quanto para tarefa apenas invisivel. As pastas em
 respondem "acesso negado" para contas comuns. Confirme sempre pelo servico ou
 por um console elevado antes de concluir que um backup falhou.
 
+Desde `claude/backup-health-acl-ferias`, a pasta inacessivel deixou de virar
+alarme falso: `app_core/backup_health.py` distingue "pasta protegida por ACL"
+de "pasta sem backups" e devolve o nivel `desconhecido` com o motivo, em vez do
+antigo `erro` "Nenhum dump PostgreSQL foi encontrado". A causa era o
+`Path.glob`, que engole o erro de permissao e devolve lista vazia. Uma pasta
+legivel e realmente vazia continua sendo `erro`.
+
 ## Estabilizacao operacional para ferias
 
 O commit marcado por `operacao-ferias-2026-08-05` e a base oficial de operacao
