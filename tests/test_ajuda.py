@@ -49,6 +49,36 @@ class AjudaTests(unittest.TestCase):
         resultado = ajuda.consultar(limite="invalido")
         self.assertEqual(len(resultado["artigos"]), 12)
 
+    def test_identificadores_sao_unicos(self):
+        ids = [artigo["id"] for artigo in ajuda.ARTIGOS]
+        self.assertEqual(len(ids), len(set(ids)))
+
+    def test_todo_artigo_tem_os_campos_publicos(self):
+        for artigo in ajuda.consultar(rota="/", limite=120, nivel="admin")["artigos"]:
+            for campo in ("id", "titulo", "categoria", "resumo", "passos", "atencao", "link"):
+                self.assertIn(campo, artigo, artigo.get("id"))
+            self.assertTrue(artigo["passos"], artigo["id"])
+
+    def test_bloco_de_atencao_e_opcional_e_pesquisavel(self):
+        # Artigos antigos seguem sem o bloco; os novos expoem os cuidados e o
+        # texto do bloco tambem alimenta a busca.
+        com_atencao = [a for a in ajuda.ARTIGOS if a.get("atencao")]
+        self.assertTrue(com_atencao)
+        sem_atencao = [a for a in ajuda.ARTIGOS if not a.get("atencao")]
+        self.assertTrue(sem_atencao)
+        resultado = ajuda.consultar(consulta="duplicidade", rota="/", limite=120)
+        self.assertIn("nada-aparece", [a["id"] for a in resultado["artigos"]])
+
+    def test_central_conta_ovos_tem_ajuda_de_contexto(self):
+        resultado = ajuda.consultar(rota="/conta-ovos", limite=120)
+        self.assertIn("conta-ovos-central", [a["id"] for a in resultado["contexto"]])
+
+    def test_topicos_novos_de_campo_aparecem_na_pagina_certa(self):
+        pe = ajuda.consultar(rota="/pontos-estrategicos", limite=120)
+        self.assertIn("pe-semana-feitos", [a["id"] for a in pe["contexto"]])
+        esporo = ajuda.consultar(rota="/esporotricose", limite=120)
+        self.assertIn("esporo-anexos-arrastar", [a["id"] for a in esporo["artigos"]])
+
     def test_artigo_administrativo_respeita_nivel_do_usuario(self):
         resultado = ajuda.consultar(consulta="backup", nivel="visualizador")
         ids = [artigo["id"] for artigo in resultado["artigos"]]
