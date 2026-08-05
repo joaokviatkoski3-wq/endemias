@@ -47,10 +47,15 @@ C:\endemias-revisao
   ambiente auxiliar do Claude
   porta 5002
   banco SQLite local de teste
+
+C:\endemias-codex
+  branch codex/enviar-leituras-conta-ovos
+  lote futuro de envio Conta Ovos, fora da producao
 ```
 
-A pasta dedicada do Codex ainda nao foi criada. Quando o fluxo revisado for
-adotado, a sugestao e:
+O worktree `C:\endemias-codex` existe e deve permanecer fora de qualquer banco
+ou servidor de producao. Quando for necessario iniciar outro lote, crie um
+worktree distinto a partir da `master` atualizada:
 
 ```powershell
 cd C:\endemias

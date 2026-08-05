@@ -1,6 +1,6 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 04/08/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 05/08/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa.
 
 ## Projeto e forma de trabalho
@@ -150,39 +150,35 @@ para tarefa ausente quanto para tarefa apenas invisivel. As pastas em
 respondem "acesso negado" para contas comuns. Confirme sempre pelo servico ou
 por um console elevado antes de concluir que um backup falhou.
 
-## Proxima tarefa recomendada
+## Estabilizacao operacional para ferias
 
-Revisar `claude/reestruturar-central-contaovos-remota` contra `master`. O
-lote reestrutura a central Conta Ovos para reutilizar a organizacao visual
-madura de `/ovitrampas` na sub-area `Ovitrampas`, com cinco abas internas
-(Contagens, Monitoramento, Cadastro remoto, Mapa, Sincronizacao e
-divergencias), mais `Visao geral`, `EDLs` e `Quarteiroes e acoes` (ambos
-reservados, sem funcionalidade simulada) no nivel superior:
+O commit marcado por `operacao-ferias-2026-08-05` e a base oficial de operacao
+durante a ausencia programada do responsavel. A `master` continua em producao
+com PostgreSQL; o SQLite congelado segue somente como rollback controlado.
 
-1. Contagens e Monitoramento dentro de Ovitrampas passam a filtrar sempre por
-   proveniencia API (`arquivo_origem`), nunca misturando com CSV legado.
-2. Nova fundacao GET do cadastro remoto (`app_core/contaovos_registro.py`,
-   migracao `0005_contaovos_registro_ovitrampas.sql`) consulta o endpoint
-   publico `getmunicipalityovitrapspublic` (sem chave) e mantem espelho
-   proprio, sem gravar responsavel/telefone/complementos locais.
-3. Mapa mostra coordenadas remotas com quarteirao/localidade lidos do
-   cadastro local (nunca recalculados a partir da API).
-4. Sincronizacao e divergencias mostra o estado de cada fluxo GET e tres
-   comparacoes informativas (sem cadastro local, coordenadas divergentes,
-   contagens sem cadastro remoto), sem qualquer resolucao automatica.
-5. Nenhum botao de sincronizacao na interface; execucao continua por script
-   supervisionado (`scripts/sincronizar_registro_ovitrampas_contaovos.py`),
-   com confirmacao explicita e banco padrao `endemias_teste`.
+Durante esse periodo, nao integrar funcionalidades novas, migracoes, scripts
+operacionais, sincronizacoes Conta Ovos, importacoes em massa ou alteracoes de
+permissao sem uma necessidade operacional concreta. Correcao de indisponibilidade
+ou perda de acesso deve ser pequena, documentada, testada e publicada em branch
+propria antes de qualquer merge.
 
-A migracao `0005` foi aplicada em `endemias_teste` (nao em `endemias`; cabe
-ao administrador decidir quando aplicar em producao) e o ensaio PostgreSQL
-temporario passou sem alterar tabelas publicas. Versao `1.20.0`. A decisao de
-arquitetura completa, incluindo o criterio para adicionar EDLs/Quarteiroes
-como novos dominios remotos no futuro, fica em
-`docs/CONTA_OVOS_INTERFACE.md` para revisao independente.
+A central Conta Ovos ja esta integrada na `master`; a migracao
+`0005_contaovos_registro_ovitrampas.sql` foi aplicada em `endemias_teste` e no
+banco oficial `endemias`. A primeira sincronizacao real do cadastro remoto
+continua pendente por decisao operacional e nao deve ser disparada durante a
+estabilizacao. Sem ela, Cadastro remoto, Mapa e parte das divergencias podem
+permanecer vazios, sem afetar a rotina local de Ovitrampas.
 
-O envio serial supervisionado de leituras por `/postcounting` continua sendo
-um lote futuro separado. Ele precisa preservar o contrato ja homologado da fila:
+A branch `codex/enviar-leituras-conta-ovos` preserva o envio unitario
+supervisionado de uma leitura por `/postcounting`, mas esta fora da `master` e
+nao deve ser integrada antes do retorno. Ela devera receber a `master` atual,
+repetir o ensaio PostgreSQL em `endemias_teste`, passar por revisao independente
+e somente entao escolher uma leitura piloto.
+
+## Retomada apos as ferias
+
+O envio serial supervisionado de leituras por `/postcounting` continua sendo o
+proximo lote de integracao, preservando o contrato ja homologado da fila:
 
 1. reconciliar antes de qualquer envio e confirmar somente pelo GET posterior;
 2. marcar `enviando` e commitar antes da chamada remota;
