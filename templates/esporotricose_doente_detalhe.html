@@ -359,10 +359,19 @@ function configurarDropzoneAnexos(){
     e.preventDefault();
     zona.classList.add('is-dragover');
   }));
-  ['dragleave', 'drop'].forEach(evento => zona.addEventListener(evento, e => {
-    if(evento === 'dragleave' && zona.contains(e.relatedTarget)) return;
+  zona.addEventListener('dragleave', e => {
+    if(zona.contains(e.relatedTarget)) return;
     zona.classList.remove('is-dragover');
-  }));
+  });
+  zona.addEventListener('drop', e => {
+    e.preventDefault();
+    zona.classList.remove('is-dragover');
+    const arquivos = e.dataTransfer?.files;
+    if(arquivos && arquivos.length){
+      input.files = arquivos;
+      renderAnexosPendentes();
+    }
+  });
 }
 async function enviarAnexos(){
   const input = document.getElementById('anexos');
