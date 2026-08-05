@@ -46,6 +46,7 @@
 
   function artigoHtml(artigo) {
     const passos = (artigo.passos || []).map(passo => `<li>${escapeHtml(passo)}</li>`).join('');
+    const atencao = (artigo.atencao || []).map(item => `<li>${escapeHtml(item)}</li>`).join('');
     return `<article class="help-article" data-help-id="${escapeHtml(artigo.id)}">
       <button type="button" class="help-article-toggle" aria-expanded="false">
         <span class="help-article-heading">
@@ -57,6 +58,7 @@
       <div class="help-article-body">
         <p>${escapeHtml(artigo.resumo)}</p>
         ${passos ? `<ol>${passos}</ol>` : ''}
+        ${atencao ? `<div class="help-article-warn"><strong>Atenção</strong><ul>${atencao}</ul></div>` : ''}
         ${artigo.link ? `<a class="help-article-link" href="${escapeHtml(artigo.link)}">${escapeHtml(artigo.link_label || 'Abrir página')}</a>` : ''}
       </div>
     </article>`;
