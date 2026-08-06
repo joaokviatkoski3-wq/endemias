@@ -53,6 +53,30 @@ def _criar_banco(caminho):
             id_agente INTEGER NOT NULL,
             PRIMARY KEY (id_acao, id_agente)
         );
+        CREATE TABLE registro_geografico_imoveis (
+            id_imovel INTEGER PRIMARY KEY AUTOINCREMENT,
+            localidade TEXT,
+            data_atualizacao DATE
+        );
+        CREATE TABLE registro_geografico_imovel_agentes (
+            id_imovel INTEGER NOT NULL,
+            id_agente INTEGER NOT NULL,
+            PRIMARY KEY (id_imovel, id_agente)
+        );
+        CREATE TABLE resultados_laboratorio (
+            id_resultado INTEGER PRIMARY KEY AUTOINCREMENT,
+            data_coleta DATE,
+            data_leitura DATE,
+            id_laboratorista INTEGER
+        );
+        CREATE TABLE ovitrampas_leituras (
+            id_leitura TEXT PRIMARY KEY,
+            distrito TEXT,
+            ovos INTEGER,
+            data_coleta DATE,
+            data_leitura DATE,
+            id_laboratorista INTEGER
+        );
         """
     )
     conn.execute("INSERT INTO agentes (nome, ativo) VALUES ('Marlon', 1)")
@@ -130,6 +154,74 @@ class ProducaoDiariaTests(unittest.TestCase):
         dias = [item["dia"] for item in resumo["por_dia"]]
         self.assertNotIn("2026-07-12", dias)  # dia do Rafael
 
+    def test_dia_de_registro_geografico_conta_como_producao(self):
+        self.conn.execute(
+            "INSERT INTO registro_geografico_imoveis (localidade,data_atualizacao)"
+            " VALUES ('Sede','2026-07-20')"
+        )
+        self.conn.execute("INSERT INTO registro_geografico_imovel_agentes VALUES (1, 1)")
+        self.conn.commit()
+        dias = [item["dia"] for item in self._resumo("Marlon")["por_dia"]]
+        self.assertIn("2026-07-20", dias)
+
+    def test_quantidade_de_imoveis_nao_muda_o_numero_de_dias(self):
+        # Um dia de RG e um dia de producao, tenha ele 1 ou 300 imoveis.
+        for _ in range(300):
+            cur = self.conn.execute(
+                "INSERT INTO registro_geografico_imoveis (localidade,data_atualizacao)"
+                " VALUES ('Sede','2026-07-21')"
+            )
+            self.conn.execute(
+                "INSERT INTO registro_geografico_imovel_agentes VALUES (?, 1)",
+                (cur.lastrowid,),
+            )
+        self.conn.commit()
+        resumo = self._resumo("Marlon")
+        dias = [item["dia"] for item in resumo["por_dia"]]
+        self.assertEqual(dias.count("2026-07-21"), 1)
+        self.assertEqual(len(dias), resumo["totais"]["dias"])
+
+    def test_leitura_de_laboratorio_conta_mesmo_sem_tabela_de_vinculo(self):
+        # O laboratorista fica numa coluna da propria leitura.
+        self.conn.execute(
+            "INSERT INTO resultados_laboratorio (data_leitura,id_laboratorista)"
+            " VALUES ('2026-07-22', 1)"
+        )
+        self.conn.commit()
+        dias = [item["dia"] for item in self._resumo("Marlon")["por_dia"]]
+        self.assertIn("2026-07-22", dias)
+
+    def test_leitura_sem_data_de_leitura_usa_a_data_da_coleta(self):
+        self.conn.execute(
+            "INSERT INTO resultados_laboratorio (data_coleta,data_leitura,id_laboratorista)"
+            " VALUES ('2026-07-23', NULL, 1)"
+        )
+        self.conn.commit()
+        dias = [item["dia"] for item in self._resumo("Marlon")["por_dia"]]
+        self.assertIn("2026-07-23", dias)
+
+    def test_leitura_de_ovitrampa_conta_como_producao(self):
+        self.conn.execute(
+            "INSERT INTO ovitrampas_leituras (id_leitura,distrito,ovos,data_leitura,id_laboratorista)"
+            " VALUES ('L1','Sede',12,'2026-07-24', 1)"
+        )
+        self.conn.commit()
+        resumo = self._resumo("Marlon")
+        self.assertIn("2026-07-24", [item["dia"] for item in resumo["por_dia"]])
+        leitura = next(
+            a for a in resumo["por_atividade"] if a["codigo"] == "OVITRAMPAS_LEITURA"
+        )
+        self.assertEqual(leitura["extras"]["ovos"], 12)
+
+    def test_agente_de_outro_laboratorio_nao_entra(self):
+        self.conn.execute(
+            "INSERT INTO resultados_laboratorio (data_leitura,id_laboratorista)"
+            " VALUES ('2026-07-25', 2)"
+        )
+        self.conn.commit()
+        dias = [item["dia"] for item in self._resumo("Marlon")["por_dia"]]
+        self.assertNotIn("2026-07-25", dias)
+
 
 class ServidoresDoRelatorioTests(unittest.TestCase):
     def setUp(self):
@@ -170,6 +262,16 @@ class ServidoresDoRelatorioTests(unittest.TestCase):
     def test_sem_periodo_mantem_somente_ativos(self):
         nomes = [item["nome"] for item in self._servidores(None, None)]
         self.assertEqual(nomes, ["Marlon"])
+
+    def test_inativo_reaparece_por_producao_de_laboratorio(self):
+        # A busca precisa enxergar tambem as fontes ligadas por coluna direta.
+        self.conn.execute(
+            "INSERT INTO resultados_laboratorio (data_leitura,id_laboratorista)"
+            " VALUES ('2026-08-05', 2)"
+        )
+        self.conn.commit()
+        nomes = [item["nome"] for item in self._servidores("2026-08-01", "2026-08-31")]
+        self.assertIn("Rafael", nomes)
 
 
 if __name__ == "__main__":

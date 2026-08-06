@@ -106,20 +106,31 @@ def _servidores_relatorio(d_ini=None, d_fim=None):
         ).fetchall())
         inativos = []
         if d_ini and d_fim:
-            vinculos = [
-                (fonte["tabela"], fonte["alias"], fonte["id_col"],
-                 fonte["data_col"], fonte["agente_table"], fonte["agente_fk"])
-                for fonte in producao_operacional.FONTES
-            ]
-            existe = " OR ".join(
-                f"""EXISTS (SELECT 1
-                              FROM {tabela} {alias}
-                              JOIN {vinculo} pa ON pa.{fk}={alias}.{id_col}
-                             WHERE pa.id_agente=ag.id_agente
-                               AND {alias}.{data_col} BETWEEN ? AND ?)"""
-                for tabela, alias, id_col, data_col, vinculo, fk in vinculos
-                if db_core.table_exists(conn, tabela) and db_core.table_exists(conn, vinculo)
-            )
+            partes = []
+            for fonte in producao_operacional.FONTES:
+                if not db_core.table_exists(conn, fonte["tabela"]):
+                    continue
+                alias = fonte["alias"]
+                data_expr = producao_operacional._data_expr(fonte)
+                if fonte.get("agente_col"):
+                    vinculo_sql = f"{alias}.{fonte['agente_col']}=ag.id_agente"
+                    origem = f"{fonte['tabela']} {alias}"
+                elif db_core.table_exists(conn, fonte["agente_table"]):
+                    vinculo_sql = "pa.id_agente=ag.id_agente"
+                    origem = (
+                        f"{fonte['tabela']} {alias} "
+                        f"JOIN {fonte['agente_table']} pa "
+                        f"ON pa.{fonte['agente_fk']}={alias}.{fonte['id_col']}"
+                    )
+                else:
+                    continue
+                partes.append(
+                    f"""EXISTS (SELECT 1
+                                  FROM {origem}
+                                 WHERE {vinculo_sql}
+                                   AND {data_expr} BETWEEN ? AND ?)"""
+                )
+            existe = " OR ".join(partes)
             if existe:
                 params = []
                 for _ in range(existe.count("BETWEEN")):
@@ -793,19 +804,28 @@ def _obter_dados_setor(d_ini, d_fim):
     }
 
 
+def _join_agente_fonte(fonte, id_expr):
+    """JOIN com agentes, seja por tabela de vinculo ou por coluna direta."""
+    if fonte.get("agente_col"):
+        return f"JOIN agentes ag ON ag.id_agente={fonte['alias']}.{fonte['agente_col']}"
+    return (
+        f"JOIN {fonte['agente_table']} pa ON pa.{fonte['agente_fk']}={id_expr} "
+        f"JOIN agentes ag ON ag.id_agente=pa.id_agente"
+    )
+
+
 def _producao_agentes_setor(d_ini, d_fim):
     conn = _get_db()
     try:
         agentes = {}
         fontes = [
             fonte for fonte in producao_operacional.FONTES
-            if producao_operacional._table_exists(conn, fonte["tabela"])
-            and producao_operacional._table_exists(conn, fonte["agente_table"])
+            if producao_operacional._fonte_disponivel(conn, fonte)
         ]
         for fonte in fontes:
             alias = fonte["alias"]
             id_expr = f"{alias}.{fonte['id_col']}"
-            data_expr = f"{alias}.{fonte['data_col']}"
+            data_expr = producao_operacional._data_expr(fonte)
             localidade_expr = fonte["localidade_expr"]
             joins = fonte.get("joins") or ""
             dias_agg = _distinct_aggregate(conn, data_expr)
@@ -820,8 +840,7 @@ def _producao_agentes_setor(d_ini, d_fim):
                        {dias_agg} AS dias,
                        {localidades_agg} AS localidades
                   FROM {fonte['tabela']} {alias}
-                  JOIN {fonte['agente_table']} pa ON pa.{fonte['agente_fk']}={id_expr}
-                  JOIN agentes ag ON ag.id_agente=pa.id_agente
+                  {_join_agente_fonte(fonte, id_expr)}
                   {joins}
                  WHERE {data_expr} BETWEEN ? AND ?
                  GROUP BY ag.id_agente, ag.nome, ag.nome_completo

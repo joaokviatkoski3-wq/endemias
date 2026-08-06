@@ -122,7 +122,63 @@ FONTES = (
         "where_extra": "e.movimento <> 'feriado'",
         "extras": {},
     },
+    {
+        "codigo": "REGISTRO_GEOGRAFICO",
+        "nome": "Registro Geográfico",
+        "tabela": "registro_geografico_imoveis",
+        "alias": "rg",
+        "id_col": "id_imovel",
+        "data_col": "data_atualizacao",
+        "localidade_expr": "rg.localidade",
+        "joins": "",
+        "agente_table": "registro_geografico_imovel_agentes",
+        "agente_fk": "id_imovel",
+        "extras": {},
+    },
+    {
+        # O laboratorista e uma coluna da propria leitura, sem tabela de
+        # ligacao, e a data util pode estar na leitura ou na coleta.
+        "codigo": "LABORATORIO",
+        "nome": "Leituras de laboratório",
+        "tabela": "resultados_laboratorio",
+        "alias": "rl",
+        "id_col": "id_resultado",
+        "data_col": "data_leitura",
+        "data_expr": "COALESCE(rl.data_leitura, rl.data_coleta)",
+        "localidade_expr": "CAST(NULL AS TEXT)",
+        "joins": "",
+        "agente_col": "id_laboratorista",
+        "extras": {},
+    },
+    {
+        "codigo": "OVITRAMPAS_LEITURA",
+        "nome": "Leituras de ovitrampas",
+        "tabela": "ovitrampas_leituras",
+        "alias": "ol",
+        "id_col": "id_leitura",
+        "data_col": "data_leitura",
+        "data_expr": "COALESCE(ol.data_leitura, ol.data_coleta)",
+        "localidade_expr": "ol.distrito",
+        "joins": "",
+        "agente_col": "id_laboratorista",
+        "extras": {
+            "ovos": "COALESCE(SUM(ol.ovos),0)",
+        },
+    },
 )
+
+
+def _data_expr(fonte):
+    """Data util da fonte, permitindo COALESCE entre colunas."""
+    return fonte.get("data_expr") or f"{fonte['alias']}.{fonte['data_col']}"
+
+
+def _fonte_disponivel(conn, fonte):
+    if not _table_exists(conn, fonte["tabela"]):
+        return False
+    if fonte.get("agente_col"):
+        return True
+    return _table_exists(conn, fonte["agente_table"])
 
 
 def resumo(target, filtros=None):
@@ -131,7 +187,7 @@ def resumo(target, filtros=None):
     try:
         fontes = [
             _resumo_fonte(conn, fonte, filtros)
-            if _table_exists(conn, fonte["tabela"]) and _table_exists(conn, fonte["agente_table"])
+            if _fonte_disponivel(conn, fonte)
             else _fonte_vazia(fonte)
             for fonte in FONTES
         ]
@@ -190,7 +246,7 @@ def _resumo_fonte(conn, fonte, filtros):
     where, params = _where_fonte(fonte, filtros)
     alias = fonte["alias"]
     id_expr = f"{alias}.{fonte['id_col']}"
-    data_expr = f"{alias}.{fonte['data_col']}"
+    data_expr = _data_expr(fonte)
     localidade_expr = fonte["localidade_expr"]
     joins = " ".join(part for part in (fonte.get("joins"), fonte.get("extra_joins")) if part)
     extras_sql = "".join(f", {expr} AS {nome}" for nome, expr in fonte.get("extras", {}).items())
@@ -229,7 +285,7 @@ def _resumo_fonte(conn, fonte, filtros):
 
 def _where_fonte(fonte, filtros):
     alias = fonte["alias"]
-    data_col = f"{alias}.{fonte['data_col']}"
+    data_col = _data_expr(fonte)
     localidade_expr = fonte["localidade_expr"]
     d_ini = filtros.get("d_ini") or utils.data_n_dias(365)
     d_fim = filtros.get("d_fim") or utils.hoje()
@@ -252,15 +308,26 @@ def _where_fonte(fonte, filtros):
 
     agentes = _getlist(filtros, "agente")
     if agentes:
-        clauses.append(
-            f"""EXISTS (
-                    SELECT 1
-                      FROM {fonte['agente_table']} pa
-                      JOIN agentes ag ON ag.id_agente=pa.id_agente
-                     WHERE pa.{fonte['agente_fk']}={alias}.{fonte['id_col']}
-                       AND ag.nome IN ({_placeholders(agentes)})
-                )"""
-        )
+        if fonte.get("agente_col"):
+            # Fontes como o laboratorio guardam o agente na propria linha.
+            clauses.append(
+                f"""EXISTS (
+                        SELECT 1
+                          FROM agentes ag
+                         WHERE ag.id_agente={alias}.{fonte['agente_col']}
+                           AND ag.nome IN ({_placeholders(agentes)})
+                    )"""
+            )
+        else:
+            clauses.append(
+                f"""EXISTS (
+                        SELECT 1
+                          FROM {fonte['agente_table']} pa
+                          JOIN agentes ag ON ag.id_agente=pa.id_agente
+                         WHERE pa.{fonte['agente_fk']}={alias}.{fonte['id_col']}
+                           AND ag.nome IN ({_placeholders(agentes)})
+                    )"""
+            )
         params.extend(agentes)
 
     return " AND ".join(clauses), params
@@ -286,7 +353,7 @@ def _por_mes(conn, fonte, filtros):
     where, params = _where_fonte(fonte, filtros)
     alias = fonte["alias"]
     id_expr = f"{alias}.{fonte['id_col']}"
-    data_expr = f"{alias}.{fonte['data_col']}"
+    data_expr = _data_expr(fonte)
     mes_expr = db_core.month_expression(data_expr)
     rows = conn.execute(
         f"""
@@ -310,7 +377,7 @@ def _por_dia(conn, fonte, filtros):
     id_expr = f"{alias}.{fonte['id_col']}"
     # O texto mantem o mesmo formato nos dois bancos e permite somar os dias
     # de fontes diferentes sem misturar date com string.
-    dia_expr = f"CAST({alias}.{fonte['data_col']} AS TEXT)"
+    dia_expr = f"CAST({_data_expr(fonte)} AS TEXT)"
     rows = conn.execute(
         f"""
         SELECT {dia_expr} AS dia,
@@ -351,13 +418,19 @@ def _por_agente(conn, fonte, filtros):
     where, params = _where_fonte(fonte, filtros)
     alias = fonte["alias"]
     id_expr = f"{alias}.{fonte['id_col']}"
+    if fonte.get("agente_col"):
+        join_agente = f"JOIN agentes ag ON ag.id_agente={alias}.{fonte['agente_col']}"
+    else:
+        join_agente = (
+            f"JOIN {fonte['agente_table']} pa ON pa.{fonte['agente_fk']}={id_expr} "
+            f"JOIN agentes ag ON ag.id_agente=pa.id_agente"
+        )
     rows = conn.execute(
         f"""
         SELECT COALESCE(NULLIF(ag.nome_completo,''), ag.nome) AS agente,
                COUNT(DISTINCT {id_expr}) AS registros
           FROM {fonte['tabela']} {alias}
-          JOIN {fonte['agente_table']} pa ON pa.{fonte['agente_fk']}={id_expr}
-          JOIN agentes ag ON ag.id_agente=pa.id_agente
+          {join_agente}
           {fonte.get('joins') or ''}
          WHERE {where}
          GROUP BY ag.id_agente, ag.nome, ag.nome_completo
