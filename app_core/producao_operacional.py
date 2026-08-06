@@ -154,34 +154,52 @@ FONTES = (
         "extras": {},
     },
     {
-        "codigo": "OVITRAMPAS_LEITURA",
-        "nome": "Leituras de ovitrampas",
-        "tabela": "ovitrampas_leituras",
-        "alias": "ol",
-        "id_col": "id_leitura",
+        # Uma palheta lida e uma ovitrampa lida: um lote com 30 ovitrampas
+        # vale 30 leituras. Por isso a unidade aqui e a palheta, nao o lote.
+        #
+        # O mesmo trabalho vive em duas tabelas de epocas diferentes, e as
+        # duas ja guardam uma linha por ovitrampa. Elas viram uma fonte so,
+        # para o relatorio nao mostrar duas linhas que dizem a mesma coisa:
+        #
+        #   ovitrampas_laboratorio_itens
+        #       fluxo atual; data e laboratorista vem do lote. O
+        #       id_laboratorista do lote e do USUARIO logado, nao do agente,
+        #       entao o vinculo usa o nome gravado.
+        #   ovitrampas_leituras
+        #       historico importado; ali o id aponta mesmo para agentes e e
+        #       resolvido para nome, deixando as duas partes com o mesmo
+        #       formato.
+        "codigo": "OVITRAMPAS_PALHETA",
+        "nome": "Leituras de palhetas",
+        "tabela": """(
+            SELECT li.id_item AS id_palheta,
+                   lt.data_movimento AS data_leitura,
+                   lt.laboratorista_nome AS laboratorista_nome,
+                   li.ovos AS ovos
+              FROM ovitrampas_laboratorio_itens li
+              JOIN ovitrampas_laboratorio_lotes lt ON lt.id_lote=li.id_lote
+            UNION ALL
+            SELECT ol.id_leitura AS id_palheta,
+                   COALESCE(ol.data_leitura, ol.data_coleta) AS data_leitura,
+                   (SELECT ag2.nome FROM agentes ag2
+                     WHERE ag2.id_agente=ol.id_laboratorista) AS laboratorista_nome,
+                   ol.ovos AS ovos
+              FROM ovitrampas_leituras ol
+        )""",
+        "tabelas_requeridas": (
+            "ovitrampas_laboratorio_itens",
+            "ovitrampas_laboratorio_lotes",
+            "ovitrampas_leituras",
+        ),
+        "alias": "pal",
+        "id_col": "id_palheta",
         "data_col": "data_leitura",
-        "data_expr": "COALESCE(ol.data_leitura, ol.data_coleta)",
-        "localidade_expr": "ol.distrito",
-        "joins": "",
-        "agente_col": "id_laboratorista",
-        "extras": {
-            "ovos": "COALESCE(SUM(ol.ovos),0)",
-        },
-    },
-    {
-        # Fluxo atual do laboratorio de ovitrampas. O id_laboratorista aqui e
-        # o id do USUARIO logado, nao o do agente: juntar por ele credita a
-        # pessoa errada. Por isso o vinculo e pelo nome gravado no lote.
-        "codigo": "OVITRAMPAS_LOTE",
-        "nome": "Lotes de ovitrampas",
-        "tabela": "ovitrampas_laboratorio_lotes",
-        "alias": "lt",
-        "id_col": "id_lote",
-        "data_col": "data_movimento",
         "localidade_expr": "CAST(NULL AS TEXT)",
         "joins": "",
         "agente_nome_col": "laboratorista_nome",
-        "extras": {},
+        "extras": {
+            "ovos": "COALESCE(SUM(pal.ovos),0)",
+        },
     },
 )
 
@@ -224,7 +242,10 @@ def _vinculo_agente_sql(fonte, alias):
 
 
 def _fonte_disponivel(conn, fonte):
-    if not _table_exists(conn, fonte["tabela"]):
+    # Fontes montadas por subconsulta declaram as tabelas que usam, ja que
+    # nao ha um nome unico para checar.
+    requeridas = fonte.get("tabelas_requeridas") or (fonte["tabela"],)
+    if not all(_table_exists(conn, tabela) for tabela in requeridas):
         return False
     if fonte.get("agente_col") or fonte.get("agente_nome_col"):
         return True

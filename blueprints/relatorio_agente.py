@@ -108,7 +108,7 @@ def _servidores_relatorio(d_ini=None, d_fim=None):
         if d_ini and d_fim:
             partes = []
             for fonte in producao_operacional.FONTES:
-                if not db_core.table_exists(conn, fonte["tabela"]):
+                if not producao_operacional._fonte_disponivel(conn, fonte):
                     continue
                 alias = fonte["alias"]
                 data_expr = producao_operacional._data_expr(fonte)
