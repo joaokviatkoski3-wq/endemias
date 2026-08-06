@@ -138,6 +138,7 @@ def resumo(target, filtros=None):
     finally:
         conn.close()
 
+    por_dia = _somar_series(fontes, "por_dia", "dia")
     por_mes = _somar_series(fontes, "por_mes", "mes")
     por_localidade = _somar_series(fontes, "por_localidade", "localidade")
     por_agente = _somar_series(fontes, "por_agente", "agente")
@@ -158,6 +159,7 @@ def resumo(target, filtros=None):
             }
             for item in fontes
         ],
+        "por_dia": por_dia,
         "por_mes": por_mes,
         "por_localidade": por_localidade[:15],
         "por_agente": por_agente,
@@ -177,6 +179,7 @@ def _fonte_vazia(fonte):
         "dias_trabalhados": [],
         "localidades_trabalhadas": [],
         "agentes_trabalharam": [],
+        "por_dia": [],
         "por_mes": [],
         "por_localidade": [],
         "por_agente": [],
@@ -217,6 +220,7 @@ def _resumo_fonte(conn, fonte, filtros):
         "dias_trabalhados": _distinct(conn, fonte, filtros, data_expr, "dia"),
         "localidades_trabalhadas": _distinct(conn, fonte, filtros, localidade_expr, "localidade"),
         "agentes_trabalharam": [r["agente"] for r in _por_agente(conn, fonte, filtros)],
+        "por_dia": _por_dia(conn, fonte, filtros),
         "por_mes": _por_mes(conn, fonte, filtros),
         "por_localidade": _por_localidade(conn, fonte, filtros),
         "por_agente": _por_agente(conn, fonte, filtros),
@@ -299,6 +303,29 @@ def _por_mes(conn, fonte, filtros):
     return [dict(row) for row in rows]
 
 
+def _por_dia(conn, fonte, filtros):
+    """Producao diaria da fonte, para somar os dias de todas as atividades."""
+    where, params = _where_fonte(fonte, filtros)
+    alias = fonte["alias"]
+    id_expr = f"{alias}.{fonte['id_col']}"
+    # O texto mantem o mesmo formato nos dois bancos e permite somar os dias
+    # de fontes diferentes sem misturar date com string.
+    dia_expr = f"CAST({alias}.{fonte['data_col']} AS TEXT)"
+    rows = conn.execute(
+        f"""
+        SELECT {dia_expr} AS dia,
+               COUNT(DISTINCT {id_expr}) AS registros
+          FROM {fonte['tabela']} {alias}
+          {fonte.get('joins') or ''}
+         WHERE {where}
+         GROUP BY {dia_expr}
+         ORDER BY dia
+        """,
+        params,
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def _por_localidade(conn, fonte, filtros):
     where, params = _where_fonte(fonte, filtros)
     alias = fonte["alias"]
@@ -349,7 +376,7 @@ def _somar_series(fontes, key, nome_coluna):
             acumulado[nome] += row["registros"] or 0
     sort_key = (
         (lambda item: item[0])
-        if nome_coluna == "mes"
+        if nome_coluna in ("mes", "dia")
         else (lambda item: (-item[1], item[0]))
     )
     return [

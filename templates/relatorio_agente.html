@@ -402,8 +402,8 @@ function renderRelatorio(d) {
     <!-- KPIs -->
     <div class="perf-grid">
       <div class="kpi"><div class="kpi-icon"><img src="/static/icons/prancheta.svg" alt="📋" class="icon-svg"></div><div class="kpi-label">Total visitas</div><div class="kpi-val">${fmtNum(t.total)}</div></div>
-      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/calendario.svg" alt="📅" class="icon-svg"></div><div class="kpi-label">Dias trabalhados</div><div class="kpi-val">${fmtNum(t.dias)}</div></div>
-      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/raio.svg" alt="⚡" class="icon-svg"></div><div class="kpi-label">Média/dia</div><div class="kpi-val">${t.media_dia}</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/calendario.svg" alt="📅" class="icon-svg"></div><div class="kpi-label">Dias com visitas</div><div class="kpi-val">${fmtNum(t.dias)}</div><div class="kpi-sub">${fmtNum(prodT.dias || t.dias)} com produção</div></div>
+      <div class="kpi"><div class="kpi-icon"><img src="/static/icons/raio.svg" alt="⚡" class="icon-svg"></div><div class="kpi-label">Visitas/dia</div><div class="kpi-val">${t.media_dia}</div></div>
       <div class="kpi"><div class="kpi-icon"><img src="/static/icons/casas.svg" alt="🏘" class="icon-svg"></div><div class="kpi-label">Quarteirões</div><div class="kpi-val">${fmtNum(t.quarteiroes)}</div></div>
       <div class="kpi green"><div class="kpi-icon"><img src="/static/icons/check.svg" alt="✓" class="icon-svg"></div><div class="kpi-label">Normais</div><div class="kpi-val">${fmtNum(t.normais)}</div><div class="kpi-sub">${taxaN}%</div></div>
       <div class="kpi amber"><div class="kpi-icon"><img src="/static/icons/porta.svg" alt="🚪" class="icon-svg"></div><div class="kpi-label">Fechados</div><div class="kpi-val">${fmtNum(t.fechados)}</div><div class="kpi-sub">${taxaF}%</div></div>
@@ -548,13 +548,18 @@ function renderRelatorio(d) {
   document.getElementById('ra-area').innerHTML = html;
 
   // Gráficos
-  const porDia = d.por_dia || [];
+  // A produção diária soma as sete atividades (vetores, esporotricose,
+  // recolhimentos, amostras, BRI, ações e ovitrampas). Antes vinha apenas de
+  // visitas, então os dias em que o agente fez outro trabalho sumiam daqui.
+  const porDia = (prod.por_dia && prod.por_dia.length)
+    ? prod.por_dia.map(r => ({data: r.dia, total: r.registros}))
+    : (d.por_dia || []);
   mkChart('raChDia', {
     type:'bar',
     data:{
       labels: porDia.map(r=>fmtDate(r.data)),
       datasets:[{
-        label:'Visitas', data:porDia.map(r=>r.total),
+        label:'Registros', data:porDia.map(r=>r.total),
         backgroundColor: PAL[0]+'cc', borderRadius:3
       }]
     },

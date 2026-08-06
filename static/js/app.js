@@ -412,6 +412,14 @@ function mkChart(id, cfg) {
   cfg.options.responsive = true;
   cfg.options.maintainAspectRatio = false;
 
+  // O Chart.js desenha na resolucao da tela (quase sempre 1x). Na impressao a
+  // impressora amplia esse bitmap e o grafico sai serrilhado, junto com as
+  // etiquetas. Gerar em 3x deixa traco e texto nitidos no papel, sem mudar o
+  // tamanho aparente na tela.
+  if (cfg.options.devicePixelRatio === undefined) {
+    cfg.options.devicePixelRatio = Math.max(window.devicePixelRatio || 1, 3);
+  }
+
   // ── Datalabels automáticos por tipo ──────────────────────────────────
   const tipo = cfg.type;
   const tc = darkMode ? '#c8d8f0' : '#1a2540';

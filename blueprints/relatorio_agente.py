@@ -88,16 +88,56 @@ def _ovitrampa_date_expression(alias):
     )
 
 
-def _servidores_relatorio():
+def _servidores_relatorio(d_ini=None, d_fim=None):
+    """Lista os agentes que podem ter relatorio no periodo consultado.
+
+    Alem dos ativos, inclui os inativos que registraram producao no intervalo:
+    sem isso o historico de quem saiu da equipe fica inacessivel pela tela,
+    mesmo continuando integro no banco.
+    """
     conn = _get_db()
     try:
-        return _rows_dict(conn.execute(
+        ativos = _rows_dict(conn.execute(
             """SELECT nome,
-                      COALESCE(NULLIF(nome_completo,''), nome) AS nome_exibicao
+                      COALESCE(NULLIF(nome_completo,''), nome) AS nome_exibicao,
+                      1 AS ativo
                  FROM agentes
-                WHERE COALESCE(ativo,1)=1
-                ORDER BY nome_exibicao, nome"""
+                WHERE COALESCE(ativo,1)=1"""
         ).fetchall())
+        inativos = []
+        if d_ini and d_fim:
+            vinculos = [
+                (fonte["tabela"], fonte["alias"], fonte["id_col"],
+                 fonte["data_col"], fonte["agente_table"], fonte["agente_fk"])
+                for fonte in producao_operacional.FONTES
+            ]
+            existe = " OR ".join(
+                f"""EXISTS (SELECT 1
+                              FROM {tabela} {alias}
+                              JOIN {vinculo} pa ON pa.{fk}={alias}.{id_col}
+                             WHERE pa.id_agente=ag.id_agente
+                               AND {alias}.{data_col} BETWEEN ? AND ?)"""
+                for tabela, alias, id_col, data_col, vinculo, fk in vinculos
+                if db_core.table_exists(conn, tabela) and db_core.table_exists(conn, vinculo)
+            )
+            if existe:
+                params = []
+                for _ in range(existe.count("BETWEEN")):
+                    params.extend([d_ini, d_fim])
+                inativos = _rows_dict(conn.execute(
+                    f"""SELECT ag.nome,
+                               COALESCE(NULLIF(ag.nome_completo,''), ag.nome) AS nome_exibicao,
+                               0 AS ativo
+                          FROM agentes ag
+                         WHERE COALESCE(ag.ativo,1)=0
+                           AND ({existe})""",
+                    params,
+                ).fetchall())
+        for item in inativos:
+            item["nome_exibicao"] = f"{item['nome_exibicao']} (inativo)"
+        servidores = ativos + inativos
+        servidores.sort(key=lambda item: (item["nome_exibicao"], item["nome"]))
+        return servidores
     finally:
         conn.close()
 
@@ -1280,12 +1320,23 @@ def _obter_dados(nome, d_ini, d_fim):
             "num_agentes": utils_core.safe_int(ce.get("num_agentes")),
         }
 
+    # A producao diaria precisa somar as sete atividades. A consulta acima olha
+    # so a tabela visitas, entao dias de esporotricose, recolhimento, amostra,
+    # BRI, acao ou ovitrampa nao apareciam. Mantemos a serie de visitas como
+    # reserva para o caso de a producao vir vazia.
+    por_dia_visitas = _rows_dict(por_dia)
+    por_dia_producao = [
+        {"data": item.get("dia"), "total": item.get("registros", 0)}
+        for item in (producao.get("por_dia") or [])
+    ]
+
     return {
         "agente": agente_exibicao, "d_ini": d_ini, "d_fim": d_fim,
         "totais": totais_d,
         "por_tipo": _rows_dict(por_tipo),
         "por_loc": _rows_dict(por_loc),
-        "por_dia": _rows_dict(por_dia),
+        "por_dia": por_dia_producao or por_dia_visitas,
+        "por_dia_visitas": por_dia_visitas,
         "evolucao": _rows_dict(evolucao),
         "dep": dep_d,
         "col": col_d,
@@ -1340,7 +1391,9 @@ def _duracao_dict(row):
 @bp.route("/relatorio-agente")
 @login_required
 def page():
-    servidores = _servidores_relatorio()
+    d_ini = request.args.get("d_ini", utils_core.data_n_dias(30))
+    d_fim = request.args.get("d_fim", utils_core.hoje())
+    servidores = _servidores_relatorio(d_ini, d_fim)
     agente_sel = request.args.get("agente", "")
     selecionado = next((item for item in servidores if item["nome"] == agente_sel), None)
     return render_template(
@@ -1348,8 +1401,8 @@ def page():
         agente_sel=agente_sel,
         agente_sel_nome=(selecionado or {}).get("nome_exibicao", agente_sel),
         servidores=servidores,
-        d_ini=request.args.get("d_ini", utils_core.data_n_dias(30)),
-        d_fim=request.args.get("d_fim", utils_core.hoje()),
+        d_ini=d_ini,
+        d_fim=d_fim,
     )
 
 
