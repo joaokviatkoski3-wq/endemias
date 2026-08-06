@@ -172,7 +172,10 @@ FONTES = (
         "codigo": "OVITRAMPAS_PALHETA",
         "nome": "Leituras de palhetas",
         "tabela": """(
-            SELECT li.id_item AS id_palheta,
+            -- O historico usa id_leitura textual e datas nativas. Converter
+            -- ambos os lados evita que o UNION dependa das conversoes
+            -- permissivas do SQLite e continue valido no PostgreSQL.
+            SELECT CAST(li.id_item AS TEXT) AS id_palheta,
                    COALESCE(
                        NULLIF(SUBSTR(CAST(lt.concluido_em AS TEXT), 1, 10), ''),
                        CAST(lt.data_movimento AS TEXT)
@@ -183,8 +186,8 @@ FONTES = (
               JOIN ovitrampas_laboratorio_lotes lt ON lt.id_lote=li.id_lote
              WHERE lt.status IN ('concluido', 'enviado_conta_ovos')
             UNION ALL
-            SELECT ol.id_leitura AS id_palheta,
-                   COALESCE(ol.data_leitura, ol.data_coleta) AS data_leitura,
+            SELECT CAST(ol.id_leitura AS TEXT) AS id_palheta,
+                   CAST(COALESCE(ol.data_leitura, ol.data_coleta) AS TEXT) AS data_leitura,
                    (SELECT ag2.nome FROM agentes ag2
                      WHERE ag2.id_agente=ol.id_laboratorista) AS laboratorista_nome,
                    ol.ovos AS ovos

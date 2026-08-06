@@ -282,6 +282,17 @@ class ProducaoDiariaTests(unittest.TestCase):
                         if a["codigo"] == "OVITRAMPAS_PALHETA")
         self.assertEqual(palhetas["registros"], 4)
 
+    def test_palheta_normaliza_tipos_para_uniao_postgresql(self):
+        fonte = next(
+            fonte for fonte in producao_operacional.FONTES
+            if fonte["codigo"] == "OVITRAMPAS_PALHETA"
+        )
+        self.assertIn("CAST(li.id_item AS TEXT)", fonte["tabela"])
+        self.assertIn(
+            "CAST(COALESCE(ol.data_leitura, ol.data_coleta) AS TEXT)",
+            fonte["tabela"],
+        )
+
     def test_lote_credita_pelo_nome_e_nao_pelo_id_do_usuario(self):
         # O id_laboratorista do lote e o id do USUARIO logado. Marlon e o
         # agente 1; gravar id 2 (que em agentes e o Rafael) nao pode roubar
