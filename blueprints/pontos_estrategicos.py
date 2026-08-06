@@ -163,6 +163,10 @@ def _filtros():
         "atrasados": request.args.get("atrasados", ""),
         "pendencias": request.args.get("pendencias", ""),
         "pendentes_periodo": request.args.get("pendentes_periodo", ""),
+        "pendencias_cadastro": [
+            codigo for codigo in request.args.getlist("pendencia")
+            if codigo in pe_core.PENDENCIAS_POR_CODIGO
+        ],
         "busca": request.args.get("busca", "").strip(),
     }
     ano = request.args.get("ano", "").strip()
@@ -196,6 +200,13 @@ def _filtros_legiveis(filtros):
         partes.append(f"Semana epidemiologica: {filtros['semana']}/{filtros['ano']}")
     if filtros.get("pendentes_periodo"):
         partes.append("Somente pendentes na semana")
+    marcadas = [
+        pe_core.PENDENCIAS_POR_CODIGO[codigo][0]
+        for codigo in (filtros.get("pendencias_cadastro") or [])
+        if codigo in pe_core.PENDENCIAS_POR_CODIGO
+    ]
+    if marcadas:
+        partes.append("Pendencias: " + ", ".join(marcadas))
     return partes or ["Todos os registros"]
 
 

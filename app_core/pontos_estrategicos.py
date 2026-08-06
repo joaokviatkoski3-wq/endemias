@@ -522,15 +522,20 @@ def listar(target, filtros=None, limite=1000):
                 None if visitas_periodo is None else int(visitas_periodo) > 0
             )
         rows = _filtrar_status_calculado(rows, filtros)
+        # A contagem segue exatamente as mesmas linhas da listagem, para o
+        # cartao nunca divergir do que a tabela mostra. Para ver so os ativos,
+        # o operador usa o filtro Situacao, que vale para os dois.
+        contagens_pendencia = ", ".join(
+            f"SUM(CASE WHEN {sql} THEN 1 ELSE 0 END) AS {codigo}"
+            for codigo, _, sql in PENDENCIAS_CADASTRO
+        )
         totais = dict(
             conn.execute(
                 f"""SELECT
                         COUNT(*) AS total,
                         SUM(CASE WHEN situacao=1 THEN 1 ELSE 0 END) AS ativos,
                         SUM(CASE WHEN situacao=0 THEN 1 ELSE 0 END) AS inativos,
-                        SUM(CASE WHEN tipo IS NULL OR TRIM(tipo)='' THEN 1 ELSE 0 END) AS sem_tipo,
-                        SUM(CASE WHEN telefone IS NULL OR TRIM(telefone)='' THEN 1 ELSE 0 END) AS sem_telefone,
-                        SUM(CASE WHEN latitude IS NULL OR longitude IS NULL THEN 1 ELSE 0 END) AS sem_coordenadas
+                        {contagens_pendencia}
                    FROM pontos_estrategicos pe
                    {where}""",
                 params,
@@ -708,7 +713,11 @@ def opcoes(target):
     finally:
         if close:
             conn.close()
-    return {"localidades": localidades, "tipos": tipos}
+    return {
+        "localidades": localidades,
+        "tipos": tipos,
+        "pendencias": pendencias_disponiveis(),
+    }
 
 
 def obter(target, id_pe):
@@ -903,21 +912,74 @@ def _periodo_selecionado_sql(filtros):
     )
 
 
+def _pendencia_do_registro(row, codigo):
+    """Mesma regra do SQL, para quando os totais saem das linhas ja filtradas."""
+    if codigo == "sem_coordenadas":
+        return row.get("latitude") is None or row.get("longitude") is None
+    coluna = codigo[len("sem_"):]
+    return not _text(row.get(coluna))
+
+
 def _totais_de_rows(rows):
-    return {
+    totais = {
         "total": len(rows),
         "ativos": sum(1 for r in rows if r.get("situacao") == 1),
         "inativos": sum(1 for r in rows if r.get("situacao") == 0),
-        "sem_tipo": sum(1 for r in rows if not _text(r.get("tipo"))),
-        "sem_telefone": sum(1 for r in rows if not _text(r.get("telefone"))),
-        "sem_coordenadas": sum(1 for r in rows if r.get("latitude") is None or r.get("longitude") is None),
     }
+    for codigo, _, _sql in PENDENCIAS_CADASTRO:
+        totais[codigo] = sum(1 for r in rows if _pendencia_do_registro(r, codigo))
+    return totais
 
 
 def _ensure_optional_modules(conn):
     from app_core import bri as bri_core
 
     bri_core.ensure_schema(conn)
+
+
+def _vazio(coluna):
+    return f"(pe.{coluna} IS NULL OR TRIM(CAST(pe.{coluna} AS TEXT))='')"
+
+
+# Pendencias de cadastro filtraveis, na ordem em que aparecem na tela. A
+# condicao entra direto no SQL para que os totais acompanhem o filtro.
+# Campos sempre preenchidos (nome, logradouro, quarteirao) ficam de fora, e
+# data_desativacao tambem: num PE ativo o normal e estar vazia.
+PENDENCIAS_CADASTRO = (
+    ("sem_cnpj", "Sem CNPJ", _vazio("cnpj")),
+    ("sem_razao_social", "Sem razão social", _vazio("razao_social")),
+    ("sem_telefone", "Sem telefone", _vazio("telefone")),
+    ("sem_tipo", "Sem tipo", _vazio("tipo")),
+    ("sem_coordenadas", "Sem coordenadas", "(pe.latitude IS NULL OR pe.longitude IS NULL)"),
+    ("sem_numero", "Sem número", _vazio("numero")),
+    ("sem_data_inclusao", "Sem data de inclusão", _vazio("data_inclusao")),
+    ("sem_observacoes", "Sem observações", _vazio("observacoes")),
+)
+
+PENDENCIAS_POR_CODIGO = {codigo: (rotulo, sql) for codigo, rotulo, sql in PENDENCIAS_CADASTRO}
+
+
+def pendencias_disponiveis():
+    return [{"codigo": codigo, "nome": rotulo} for codigo, rotulo, _ in PENDENCIAS_CADASTRO]
+
+
+def _clausula_pendencias(filtros):
+    """Monta a condicao das pendencias marcadas.
+
+    Combina com OU: marcar CNPJ e telefone lista quem tem qualquer uma das
+    duas faltando, que e como o setor cobra a regularizacao.
+    """
+    codigos = filtros.get("pendencias_cadastro")
+    if isinstance(codigos, str):
+        codigos = [codigos]
+    condicoes = [
+        PENDENCIAS_POR_CODIGO[codigo][1]
+        for codigo in (codigos or [])
+        if codigo in PENDENCIAS_POR_CODIGO
+    ]
+    if not condicoes:
+        return None
+    return "(" + " OR ".join(condicoes) + ")"
 
 
 def _where(filtros):
@@ -948,6 +1010,9 @@ def _where(filtros):
                     OR LOWER(COALESCE(pe.razao_social,'')) LIKE LOWER(?))"""
         )
         params.extend([termo] * 6)
+    pendencias = _clausula_pendencias(filtros)
+    if pendencias:
+        clauses.append(f"AND {pendencias}")
     return " ".join(clauses), params
 
 

@@ -42,6 +42,7 @@
       <div class="f-g"><label>Tipo</label><select id="pe-tipo"><option value="">Todos</option>{% for tipo in opcoes.tipos %}<option value="{{ tipo }}">{{ tipo }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Situação</label><select id="pe-situacao"><option value="">Todas</option><option value="1">Ativos</option><option value="0">Inativos</option></select></div>
       <div class="f-g"><label>Revisão</label><select id="pe-revisao"><option value="">Todos</option><option value="atrasados">Atrasados</option><option value="pendencias">Com pendência</option></select></div>
+      <div class="f-g"><label>Pendências de cadastro</label><select id="pe-pendencias" multiple size="4" title="Segure Ctrl para marcar mais de uma. Lista quem tem qualquer uma das marcadas faltando.">{% for p in opcoes.pendencias %}<option value="{{ p.codigo }}">{{ p.nome }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Ano (semana epid.)</label><input type="number" id="pe-ano" min="2020" max="2099" value="{{ default_ano }}"></div>
       <div class="f-g"><label>Semana epidemiológica</label><input type="number" id="pe-semana" min="1" max="53" value="{{ default_semana }}"></div>
       <div class="f-g"><label>Na semana</label><select id="pe-semana-status"><option value="">Feitos e pendentes</option><option value="pendentes">Somente pendentes</option></select></div>
@@ -145,6 +146,9 @@ function peParams(){
   if (revisao === 'atrasados') p.set('atrasados', '1');
   if (revisao === 'pendencias') p.set('pendencias', '1');
   if (document.getElementById('pe-semana-status').value === 'pendentes') p.set('pendentes_periodo', '1');
+  // Cada pendência marcada vira um parâmetro próprio; o backend combina com OU.
+  Array.from(document.getElementById('pe-pendencias').selectedOptions)
+    .forEach(op => p.append('pendencia', op.value));
   return p;
 }
 async function peJson(url, opts={}){

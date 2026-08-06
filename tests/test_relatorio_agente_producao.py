@@ -67,7 +67,8 @@ def _criar_banco(caminho):
             id_resultado INTEGER PRIMARY KEY AUTOINCREMENT,
             data_coleta DATE,
             data_leitura DATE,
-            id_laboratorista INTEGER
+            id_laboratorista INTEGER,
+            laboratorista TEXT
         );
         CREATE TABLE ovitrampas_leituras (
             id_leitura TEXT PRIMARY KEY,
@@ -76,6 +77,13 @@ def _criar_banco(caminho):
             data_coleta DATE,
             data_leitura DATE,
             id_laboratorista INTEGER
+        );
+        CREATE TABLE ovitrampas_laboratorio_lotes (
+            id_lote INTEGER PRIMARY KEY AUTOINCREMENT,
+            data_movimento DATE,
+            status TEXT,
+            id_laboratorista INTEGER,
+            laboratorista_nome TEXT
         );
         """
     )
@@ -212,6 +220,43 @@ class ProducaoDiariaTests(unittest.TestCase):
             a for a in resumo["por_atividade"] if a["codigo"] == "OVITRAMPAS_LEITURA"
         )
         self.assertEqual(leitura["extras"]["ovos"], 12)
+
+    def test_lote_credita_pelo_nome_e_nao_pelo_id_do_usuario(self):
+        # O id_laboratorista do lote e o id do USUARIO logado. Marlon e o
+        # agente 1; gravar id 2 (que em agentes e o Rafael) nao pode roubar
+        # o credito dele, porque o nome no lote diz Marlon.
+        self.conn.execute(
+            "INSERT INTO ovitrampas_laboratorio_lotes"
+            " (data_movimento,status,id_laboratorista,laboratorista_nome)"
+            " VALUES ('2026-07-26','concluido', 2, 'Marlon')"
+        )
+        self.conn.commit()
+        self.assertIn("2026-07-26", [i["dia"] for i in self._resumo("Marlon")["por_dia"]])
+        self.assertNotIn("2026-07-26", [i["dia"] for i in self._resumo("Rafael")["por_dia"]])
+
+    def test_nome_do_lote_ignora_caixa_e_espacos(self):
+        self.conn.execute(
+            "INSERT INTO ovitrampas_laboratorio_lotes"
+            " (data_movimento,laboratorista_nome) VALUES ('2026-07-27', '  marlon ')"
+        )
+        self.conn.commit()
+        self.assertIn("2026-07-27", [i["dia"] for i in self._resumo("Marlon")["por_dia"]])
+
+    def test_lote_sem_nome_nao_credita_ninguem(self):
+        self.conn.execute(
+            "INSERT INTO ovitrampas_laboratorio_lotes"
+            " (data_movimento,laboratorista_nome) VALUES ('2026-07-28', '')"
+        )
+        self.conn.commit()
+        self.assertNotIn("2026-07-28", [i["dia"] for i in self._resumo("Marlon")["por_dia"]])
+
+    def test_laboratorio_casa_pelo_nome_quando_o_id_esta_vazio(self):
+        self.conn.execute(
+            "INSERT INTO resultados_laboratorio (data_leitura,id_laboratorista,laboratorista)"
+            " VALUES ('2026-07-29', NULL, 'marlon')"
+        )
+        self.conn.commit()
+        self.assertIn("2026-07-29", [i["dia"] for i in self._resumo("Marlon")["por_dia"]])
 
     def test_agente_de_outro_laboratorio_nao_entra(self):
         self.conn.execute(

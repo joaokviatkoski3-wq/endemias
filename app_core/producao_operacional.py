@@ -147,7 +147,10 @@ FONTES = (
         "data_expr": "COALESCE(rl.data_leitura, rl.data_coleta)",
         "localidade_expr": "CAST(NULL AS TEXT)",
         "joins": "",
+        # O id fica vazio na maioria das leituras; o nome do laboratorista e
+        # o que sempre vem preenchido.
         "agente_col": "id_laboratorista",
+        "agente_nome_col": "laboratorista",
         "extras": {},
     },
     {
@@ -165,6 +168,21 @@ FONTES = (
             "ovos": "COALESCE(SUM(ol.ovos),0)",
         },
     },
+    {
+        # Fluxo atual do laboratorio de ovitrampas. O id_laboratorista aqui e
+        # o id do USUARIO logado, nao o do agente: juntar por ele credita a
+        # pessoa errada. Por isso o vinculo e pelo nome gravado no lote.
+        "codigo": "OVITRAMPAS_LOTE",
+        "nome": "Lotes de ovitrampas",
+        "tabela": "ovitrampas_laboratorio_lotes",
+        "alias": "lt",
+        "id_col": "id_lote",
+        "data_col": "data_movimento",
+        "localidade_expr": "CAST(NULL AS TEXT)",
+        "joins": "",
+        "agente_nome_col": "laboratorista_nome",
+        "extras": {},
+    },
 )
 
 
@@ -173,10 +191,42 @@ def _data_expr(fonte):
     return fonte.get("data_expr") or f"{fonte['alias']}.{fonte['data_col']}"
 
 
+def _chave_nome_sql(expressao):
+    """Compara nomes ignorando caixa e espacos das pontas."""
+    return f"LOWER(TRIM(COALESCE({expressao}, '')))"
+
+
+def _vinculo_agente_sql(fonte, alias):
+    """Condicao que liga a linha da fonte ao agente ``ag``.
+
+    Ha duas formas diretas no banco, e a diferenca importa:
+
+    ``agente_col``
+        Id que aponta mesmo para ``agentes``.
+    ``agente_nome_col``
+        Nome gravado na propria linha. Usado quando o id esta vazio na maior
+        parte das linhas (``resultados_laboratorio``) ou quando ele aponta
+        para ``usuarios``, nao para ``agentes`` - o caso dos lotes de
+        laboratorio, em que juntar pelo id credita a pessoa errada.
+
+    Quando a fonte declara as duas, basta uma casar.
+    """
+    partes = []
+    if fonte.get("agente_col"):
+        partes.append(f"ag.id_agente={alias}.{fonte['agente_col']}")
+    if fonte.get("agente_nome_col"):
+        coluna = f"{alias}.{fonte['agente_nome_col']}"
+        partes.append(
+            f"({_chave_nome_sql(coluna)} <> '' "
+            f"AND {_chave_nome_sql(coluna)}={_chave_nome_sql('ag.nome')})"
+        )
+    return "(" + " OR ".join(partes) + ")" if partes else None
+
+
 def _fonte_disponivel(conn, fonte):
     if not _table_exists(conn, fonte["tabela"]):
         return False
-    if fonte.get("agente_col"):
+    if fonte.get("agente_col") or fonte.get("agente_nome_col"):
         return True
     return _table_exists(conn, fonte["agente_table"])
 
@@ -308,13 +358,13 @@ def _where_fonte(fonte, filtros):
 
     agentes = _getlist(filtros, "agente")
     if agentes:
-        if fonte.get("agente_col"):
-            # Fontes como o laboratorio guardam o agente na propria linha.
+        vinculo_direto = _vinculo_agente_sql(fonte, alias)
+        if vinculo_direto:
             clauses.append(
                 f"""EXISTS (
                         SELECT 1
                           FROM agentes ag
-                         WHERE ag.id_agente={alias}.{fonte['agente_col']}
+                         WHERE {vinculo_direto}
                            AND ag.nome IN ({_placeholders(agentes)})
                     )"""
             )
@@ -418,8 +468,9 @@ def _por_agente(conn, fonte, filtros):
     where, params = _where_fonte(fonte, filtros)
     alias = fonte["alias"]
     id_expr = f"{alias}.{fonte['id_col']}"
-    if fonte.get("agente_col"):
-        join_agente = f"JOIN agentes ag ON ag.id_agente={alias}.{fonte['agente_col']}"
+    vinculo_direto = _vinculo_agente_sql(fonte, alias)
+    if vinculo_direto:
+        join_agente = f"JOIN agentes ag ON {vinculo_direto}"
     else:
         join_agente = (
             f"JOIN {fonte['agente_table']} pa ON pa.{fonte['agente_fk']}={id_expr} "

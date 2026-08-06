@@ -112,8 +112,9 @@ def _servidores_relatorio(d_ini=None, d_fim=None):
                     continue
                 alias = fonte["alias"]
                 data_expr = producao_operacional._data_expr(fonte)
-                if fonte.get("agente_col"):
-                    vinculo_sql = f"{alias}.{fonte['agente_col']}=ag.id_agente"
+                vinculo_direto = producao_operacional._vinculo_agente_sql(fonte, alias)
+                if vinculo_direto:
+                    vinculo_sql = vinculo_direto
                     origem = f"{fonte['tabela']} {alias}"
                 elif db_core.table_exists(conn, fonte["agente_table"]):
                     vinculo_sql = "pa.id_agente=ag.id_agente"
@@ -805,9 +806,10 @@ def _obter_dados_setor(d_ini, d_fim):
 
 
 def _join_agente_fonte(fonte, id_expr):
-    """JOIN com agentes, seja por tabela de vinculo ou por coluna direta."""
-    if fonte.get("agente_col"):
-        return f"JOIN agentes ag ON ag.id_agente={fonte['alias']}.{fonte['agente_col']}"
+    """JOIN com agentes, seja por tabela de vinculo ou direto na linha."""
+    vinculo_direto = producao_operacional._vinculo_agente_sql(fonte, fonte["alias"])
+    if vinculo_direto:
+        return f"JOIN agentes ag ON {vinculo_direto}"
     return (
         f"JOIN {fonte['agente_table']} pa ON pa.{fonte['agente_fk']}={id_expr} "
         f"JOIN agentes ag ON ag.id_agente=pa.id_agente"
