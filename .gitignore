@@ -11,6 +11,7 @@ pgpass.conf
 secret.key
 kobo_config.json
 *.db
+*.db.*
 *.db-wal
 *.db-shm
 *.sqlite

@@ -83,7 +83,8 @@ def _criar_banco(caminho):
             data_movimento DATE,
             status TEXT,
             id_laboratorista INTEGER,
-            laboratorista_nome TEXT
+            laboratorista_nome TEXT,
+            concluido_em TEXT
         );
         CREATE TABLE ovitrampas_laboratorio_itens (
             id_item INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -228,11 +229,16 @@ class ProducaoDiariaTests(unittest.TestCase):
         self.assertEqual(leitura["registros"], 1)
         self.assertEqual(leitura["extras"]["ovos"], 12)
 
-    def _lote_com_itens(self, data, nome, quantidade, id_usuario=None):
+    def _lote_com_itens(
+        self, data, nome, quantidade, id_usuario=None, status="concluido",
+        concluido_em=None,
+    ):
+        concluido_em = concluido_em or f"{data}T12:00:00"
         cur = self.conn.execute(
             "INSERT INTO ovitrampas_laboratorio_lotes"
-            " (data_movimento,id_laboratorista,laboratorista_nome) VALUES (?,?,?)",
-            (data, id_usuario, nome),
+            " (data_movimento,status,id_laboratorista,laboratorista_nome,concluido_em)"
+            " VALUES (?,?,?,?,?)",
+            (data, status, id_usuario, nome, concluido_em),
         )
         for _ in range(quantidade):
             self.conn.execute(
@@ -248,6 +254,22 @@ class ProducaoDiariaTests(unittest.TestCase):
         palhetas = next(a for a in resumo["por_atividade"]
                         if a["codigo"] == "OVITRAMPAS_PALHETA")
         self.assertEqual(palhetas["registros"], 30)
+
+    def test_palheta_usa_o_dia_da_conclusao_do_lote(self):
+        self._lote_com_itens(
+            "2026-07-25", "Marlon", 2, concluido_em="2026-07-26T09:30:00"
+        )
+        dias = [item["dia"] for item in self._resumo("Marlon")["por_dia"]]
+        self.assertIn("2026-07-26", dias)
+        self.assertNotIn("2026-07-25", dias)
+
+    def test_lote_nao_concluido_nao_conta_palhetas_lidas(self):
+        self._lote_com_itens(
+            "2026-07-25", "Marlon", 30, status="em_preenchimento"
+        )
+        palhetas = next(a for a in self._resumo("Marlon")["por_atividade"]
+                        if a["codigo"] == "OVITRAMPAS_PALHETA")
+        self.assertEqual(palhetas["registros"], 0)
 
     def test_palheta_reune_o_historico_e_o_fluxo_atual(self):
         self._lote_com_itens("2026-07-25", "Marlon", 3)
@@ -266,8 +288,8 @@ class ProducaoDiariaTests(unittest.TestCase):
         # o credito dele, porque o nome no lote diz Marlon.
         self.conn.execute(
             "INSERT INTO ovitrampas_laboratorio_lotes"
-            " (data_movimento,status,id_laboratorista,laboratorista_nome)"
-            " VALUES ('2026-07-26','concluido', 2, 'Marlon')"
+            " (data_movimento,status,id_laboratorista,laboratorista_nome,concluido_em)"
+            " VALUES ('2026-07-26','concluido', 2, 'Marlon', '2026-07-26T10:00:00')"
         )
         self.conn.execute("INSERT INTO ovitrampas_laboratorio_itens (id_lote,ovos) VALUES (last_insert_rowid(),0)")
         self.conn.commit()
@@ -277,7 +299,8 @@ class ProducaoDiariaTests(unittest.TestCase):
     def test_nome_do_lote_ignora_caixa_e_espacos(self):
         self.conn.execute(
             "INSERT INTO ovitrampas_laboratorio_lotes"
-            " (data_movimento,laboratorista_nome) VALUES ('2026-07-27', '  marlon ')"
+            " (data_movimento,status,laboratorista_nome,concluido_em)"
+            " VALUES ('2026-07-27', 'concluido', '  marlon ', '2026-07-27T10:00:00')"
         )
         self.conn.execute("INSERT INTO ovitrampas_laboratorio_itens (id_lote,ovos) VALUES (last_insert_rowid(),0)")
         self.conn.commit()

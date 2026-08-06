@@ -184,7 +184,7 @@ Rodar apos cada corte:
 
 ```powershell
 python -m py_compile app.py etl.py app_core\app_setup.py app_core\auth.py app_core\blueprint_helpers.py app_core\db.py app_core\import_history.py app_core\modules.py app_core\sispncd.py app_core\uploads.py app_core\utils.py app_core\version.py app_core\work_types.py blueprints\admin.py blueprints\agenda.py blueprints\auth.py blueprints\consultas.py blueprints\conta_ovos_sispncd.py blueprints\esporotricose.py blueprints\exportacoes.py blueprints\home.py blueprints\mapa.py blueprints\notificacoes.py blueprints\processar.py blueprints\relatorio_agente.py tests\test_security.py
-python -m unittest discover -s tests -v
+python -m unittest discover -s tests -t . -v
 ```
 
 A bateria usa automaticamente uma copia SQLite temporaria. O arquivo

@@ -173,11 +173,15 @@ FONTES = (
         "nome": "Leituras de palhetas",
         "tabela": """(
             SELECT li.id_item AS id_palheta,
-                   lt.data_movimento AS data_leitura,
+                   COALESCE(
+                       NULLIF(SUBSTR(CAST(lt.concluido_em AS TEXT), 1, 10), ''),
+                       CAST(lt.data_movimento AS TEXT)
+                   ) AS data_leitura,
                    lt.laboratorista_nome AS laboratorista_nome,
                    li.ovos AS ovos
               FROM ovitrampas_laboratorio_itens li
               JOIN ovitrampas_laboratorio_lotes lt ON lt.id_lote=li.id_lote
+             WHERE lt.status IN ('concluido', 'enviado_conta_ovos')
             UNION ALL
             SELECT ol.id_leitura AS id_palheta,
                    COALESCE(ol.data_leitura, ol.data_coleta) AS data_leitura,

@@ -98,13 +98,15 @@ Comandos usuais no computador do setor:
 
 ```powershell
 $py = 'C:\Users\Geoprocessamento\AppData\Local\Python\pythoncore-3.14-64\python.exe'
-& $py -m unittest discover -s tests
+& $py -m unittest discover -s tests -t .
 & $py scripts\verificar_postgresql.py --database endemias_teste
 ```
 
-A descoberta de testes cria automaticamente uma copia temporaria do SQLite de
-referencia antes de importar a aplicacao. Isso impede que rotinas de
+A descoberta deve usar ``-t .`` para importar ``tests`` como pacote. Ela cria
+automaticamente uma copia temporaria do SQLite de referencia antes de importar
+a aplicacao. Isso impede que rotinas de
 compatibilidade e testes legados de escrita alterem o `endemias.db` congelado.
+Nao execute arquivos de teste diretamente nem omita ``-t .``.
 
 Nao presuma que a regressao continua no ultimo total registrado: o numero
 cresce. Registre no documento da migracao o resultado atual de cada lote.
