@@ -1277,10 +1277,14 @@ def _obter_dados(nome, d_ini, d_fim):
                 GROUP BY ag.id_agente
             ) medias""", [d_ini, d_fim, nome]).fetchone()
         agente_row = conn.execute(
-            "SELECT COALESCE(NULLIF(nome_completo,''), nome) AS nome_exibicao FROM agentes WHERE nome=?",
+            """SELECT COALESCE(NULLIF(nome_completo,''), nome) AS nome_exibicao,
+                      NULLIF(TRIM(cargo),'') AS cargo
+                 FROM agentes
+                WHERE nome=?""",
             (nome,),
         ).fetchone()
         agente_exibicao = agente_row["nome_exibicao"] if agente_row else nome
+        agente_cargo = agente_row["cargo"] if agente_row else None
     finally:
         conn.close()
 
@@ -1352,7 +1356,10 @@ def _obter_dados(nome, d_ini, d_fim):
     ]
 
     return {
-        "agente": agente_exibicao, "d_ini": d_ini, "d_fim": d_fim,
+        "agente": agente_exibicao,
+        "cargo": agente_cargo,
+        "d_ini": d_ini,
+        "d_fim": d_fim,
         "totais": totais_d,
         "por_tipo": _rows_dict(por_tipo),
         "por_loc": _rows_dict(por_loc),
@@ -1468,6 +1475,7 @@ def api():
         dados = _obter_dados(nome, d_ini, d_fim)
         return jsonify({
             "agente": dados["agente"],
+            "cargo": dados["cargo"],
             "d_ini": dados["d_ini"],
             "d_fim": dados["d_fim"],
             "totais": dados["totais_api"],

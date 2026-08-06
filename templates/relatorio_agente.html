@@ -249,6 +249,7 @@ function renderRelatorio(d) {
   const rgQuadras = rg.por_quarteirao || [];
   const cmp = d.comparacao || {};
   const diasStr = `${fmtDate(d.d_ini)} → ${fmtDate(d.d_fim)}`;
+  const cargo = d.cargo || 'Função não informada';
   const taxaN  = t.total ? Math.round((t.normais||0)/t.total*100) : 0;
   const taxaF  = t.total ? Math.round((t.fechados||0)/t.total*100) : 0;
   const taxaRec = t.total ? Math.round((t.recuperados||0)/t.total*100) : 0;
@@ -265,7 +266,7 @@ function renderRelatorio(d) {
         <div class="agent-avatar"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"></div>
         <div class="agent-header-info">
           <h2>${d.agente}</h2>
-          <div class="sub">Agente de Combate a Endemias · Período: ${diasStr}</div>
+          <div class="sub">${escapeHtml(cargo)} · Período: ${diasStr}</div>
         </div>
       </div>
       <div class="agent-actions">

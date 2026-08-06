@@ -129,7 +129,7 @@ tr:nth-child(even) td{background:#f8faff;}
   <div class="hero">
     <div class="hero-nome">{{ agente }}</div>
     <div class="hero-sub">
-      Agente de Combate a Endemias &nbsp;·&nbsp;
+      {{ cargo or 'Função não informada' }} &nbsp;·&nbsp;
       {% set pi = d_ini.split('-') %}{% set pf = d_fim.split('-') %}
       Período: {{ pi[2] }}/{{ pi[1] }}/{{ pi[0] }} a {{ pf[2] }}/{{ pf[1] }}/{{ pf[0] }} &nbsp;·&nbsp;
       Gerado em: {{ now }}

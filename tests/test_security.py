@@ -113,6 +113,18 @@ def _agente_relatorio_teste():
     return row[0]
 
 
+def _cargo_agente_relatorio_teste(nome):
+    conn = sqlite3.connect(endemias_app.DB_PATH)
+    try:
+        row = conn.execute(
+            "SELECT NULLIF(TRIM(cargo),'') FROM agentes WHERE nome=?",
+            (nome,),
+        ).fetchone()
+    finally:
+        conn.close()
+    return row[0] if row else None
+
+
 def _executar_criar_banco_em(tmpdir, vezes=1):
     import criar_banco
 
@@ -2175,7 +2187,8 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("agent-workspace", html)
         self.assertIn("agente_busca", html)
         self.assertIn("function escapeHtml", html)
-        self.assertIn("Agente de Combate a Endemias", html)
+        self.assertIn("d.cargo", html)
+        self.assertNotIn("Agente de Combate a Endemias", html)
         self.assertIn("Produção operacional integrada", html)
         self.assertIn("Relatório do setor", html)
         self.assertIn("gerarPDFSetor", html)
@@ -2193,7 +2206,10 @@ class MainPagesSmokeTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
-        self.assertIn("Agente de Combate a Endemias", html)
+        self.assertIn(
+            _cargo_agente_relatorio_teste(agente) or "Função não informada",
+            html,
+        )
         self.assertIn("Produção operacional integrada", html)
         self.assertIn("Rua Bertolina Kendrik de Oliveira, 681", html)
         self.assertIn("break-inside:avoid", html)
@@ -4255,6 +4271,7 @@ class MainApisSmokeTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 200)
         dados = resp.get_json()
+        self.assertEqual(dados["cargo"], _cargo_agente_relatorio_teste(agente))
         self.assertIn("esporotricose", dados)
         self.assertIn("producao_operacional", dados)
         self.assertIn("por_atividade", dados["producao_operacional"])
