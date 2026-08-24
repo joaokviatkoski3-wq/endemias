@@ -445,8 +445,12 @@ def registro_de_linha_csv(row):
         "logradouro": _text(_pick(row, ("Logradouro",))),
         "numero": _text(_pick(row, ("Número", "Numero"))),
         "situacao": _situacao(_pick(row, ("Situação", "Situacao"))),
-        "data_inclusao": _date(_pick(row, ("DATA INCLUSÃO", "DATA INCLUSAO", "Data Inclusão"))),
-        "data_desativacao": _date(_pick(row, ("DATA DESATIVAÇÃO", "DATA DESATIVACAO", "Data Desativação"))),
+        "data_inclusao": _date_importacao(
+            _pick(row, ("DATA INCLUSÃO", "DATA INCLUSAO", "Data Inclusão"))
+        ),
+        "data_desativacao": _date_importacao(
+            _pick(row, ("DATA DESATIVAÇÃO", "DATA DESATIVACAO", "Data Desativação"))
+        ),
         "cnpj": _text(_pick(row, ("CNPJ",))),
         "razao_social": _text(_pick(row, ("RAZÃO SOCIAL", "RAZAO SOCIAL", "Razão Social"))),
         "telefone": _text(_pick(row, ("TELEFONE", "Telefone"))),
@@ -1125,13 +1129,18 @@ def _date(value):
             return None
     except Exception:
         pass
+    data = pd.to_datetime(value)
+    if pd.isna(data):
+        return None
+    return data.date().isoformat()
+
+
+def _date_importacao(value):
+    """Mantem a tolerancia historica do CSV sem afrouxar o cadastro web."""
     try:
-        data = pd.to_datetime(value)
-        if pd.isna(data):
-            return None
-        return data.date().isoformat()
+        return _date(value)
     except (TypeError, ValueError, OverflowError):
-        raise
+        return None
 
 
 def _normalizar_datas_payload(payload):

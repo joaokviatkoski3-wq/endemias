@@ -131,6 +131,24 @@ class PontosEstrategicosDatasTests(unittest.TestCase):
         ).fetchone()
         self.assertEqual(row["data_inclusao"], "2026-08-01")
 
+    def test_importacao_historica_conserva_data_invalida_como_null(self):
+        csv_path = Path(self.temp.name) / "pontos_historico.csv"
+        csv_path.write_text(
+            "Local;DATA INCLUSÃO;DATA DESATIVAÇÃO\n"
+            "PE historico;data livre;31/02/2026\n",
+            encoding="utf-8",
+        )
+
+        resultado = pe_core.importar_csv_inicial(csv_path, self.conn)
+
+        self.assertEqual(resultado, {"inseridos": 1, "duplicados": 0})
+        row = self.conn.execute(
+            """SELECT data_inclusao, data_desativacao
+                 FROM pontos_estrategicos WHERE nome='PE historico'"""
+        ).fetchone()
+        self.assertIsNone(row["data_inclusao"])
+        self.assertIsNone(row["data_desativacao"])
+
     def test_rotas_de_data_invalida_retornam_400_sem_erro_interno(self):
         app = Flask(__name__)
         payload = self._payload("PE-HTTP-DATA", data_inclusao="31/02/2026")

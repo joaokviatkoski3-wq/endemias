@@ -134,8 +134,9 @@ As regras de fonte de verdade e a arquitetura da tela estao em
    mascarar excecoes de banco, auditoria, permissao ou concorrencia. Criacao e
    edicao foram cobertas
    em SQLite e no ensaio seguro PostgreSQL com tabelas temporarias em
-   `endemias_teste`; a regressao terminou com 637 testes `OK` e 5 ignorados.
-   O lote aguarda revisao somente-leitura do Claude e autorizacao do usuario.
+   `endemias_teste`; a regressao posterior a correcao da revisao terminou com
+   639 testes `OK` e 5 ignorados. O lote aguarda releitura somente-leitura do
+   novo commit pelo Claude e autorizacao do usuario.
    As edicoes dos PEs 1 e 24 que falharam em 13 e 17/08 nao foram gravadas pela
    transacao original e continuam precisando ser refeitas manualmente depois da
    integracao.

@@ -267,6 +267,9 @@ Estao homologados:
   falhas reais de banco, auditoria, permissao ou concorrencia em erro de data;
 - apresentacao da mensagem devolvida pela API na tela de cadastro, sem mudar
   o desenho do formulario;
+- preservacao da tolerancia da importacao historica CSV: data nao interpretavel
+  e preenchida continua convertida para `NULL`, sem afrouxar a validacao das
+  rotas de criacao e edicao;
 - paginas e APIs dos dois modulos.
 
 O ensaio controlado e:
