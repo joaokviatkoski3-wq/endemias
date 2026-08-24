@@ -1743,6 +1743,7 @@ class PontosEstrategicosTests(unittest.TestCase):
                 ("PE-0020", "Cal Eloi", "Sede"),
                 ("PE-0042", "Cemiterio Prado", "Rosana"),
                 ("PE-0043", "Condominio Jersey City - LYX", "Rosana"),
+                ("PE-0045", "Borracharia Garagem Oculta", "Graziela"),
             ):
                 pe_core.inserir(conn, {"codigo_pe": codigo, "nome": nome, "localidade": localidade})
             pe_core.inserir(conn, {
@@ -1777,6 +1778,14 @@ class PontosEstrategicosTests(unittest.TestCase):
             self.assertEqual(pe_core.resolver_alias_visita(conn, "CEMITERIO", "Rosana")["codigo_pe"], "PE-0042")
             self.assertEqual(pe_core.resolver_alias_visita(conn, "CONDOMINIO", "Rosana")["codigo_pe"], "PE-0043")
             self.assertEqual(pe_core.resolver_alias_visita(conn, "LYX", "Rosana")["codigo_pe"], "PE-0043")
+            self.assertEqual(
+                pe_core.resolver_alias_visita(
+                    conn,
+                    "RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA",
+                    "Graziela",
+                )["codigo_pe"],
+                "PE-0045",
+            )
             self.assertIsNone(pe_core.resolver_alias_visita(conn, "cemitério", "São Venâncio"))
 
     def test_listagem_de_pe_prioriza_vinculo_direto_da_visita(self):
@@ -1834,18 +1843,33 @@ class PontosEstrategicosTests(unittest.TestCase):
             )
             pe_core.ensure_schema(conn)
             pe_core.inserir(conn, {"codigo_pe": "PE-0007", "nome": "Borracharia Mauricio", "localidade": "Tranqueira"})
+            pe_core.inserir(conn, {
+                "codigo_pe": "PE-0045",
+                "nome": "Borracharia Garagem Oculta",
+                "localidade": "Graziela",
+                "logradouro": "Rua Campos de Minas",
+                "numero": "753",
+                "quarteirao": 1336,
+            })
             pe_core.ensure_schema(conn)
             conn.execute(
                 """INSERT INTO visitas(id_visita, tipo, data, localidade, logradouro)
                    VALUES ('v1', 'PE', '2026-06-01', 'Tranqueira',
                            'Borracharia (prox celeste) -  Rodovia Dos Minérios')"""
             )
+            conn.execute(
+                """INSERT INTO visitas(id_visita, tipo, data, localidade, logradouro)
+                   VALUES ('v2', 'PE', '2026-08-24', 'Graziela',
+                           'RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA')"""
+            )
 
             resultado = pe_core.vincular_visitas_existentes_por_alias(conn)
             visita = conn.execute("SELECT codigo_pe FROM visitas WHERE id_visita='v1'").fetchone()
+            visita_pe_0045 = conn.execute("SELECT codigo_pe FROM visitas WHERE id_visita='v2'").fetchone()
 
-        self.assertEqual(resultado["atualizadas"], 1)
+        self.assertEqual(resultado["atualizadas"], 2)
         self.assertEqual(visita["codigo_pe"], "PE-0007")
+        self.assertEqual(visita_pe_0045["codigo_pe"], "PE-0045")
 
 
 class SispncdIndiceTests(unittest.TestCase):

@@ -87,6 +87,17 @@ def _test_data(target):
         if pe.salvar(conn, payload):
             raise RuntimeError("O PE duplicado foi inserido.")
 
+        if not pe.salvar(conn, {
+            "codigo_pe": "PE-0045",
+            "nome": "Borracharia Garagem Oculta",
+            "localidade": "Graziela",
+            "quarteirao": 1336,
+            "logradouro": "Rua Campos de Minas",
+            "numero": "753",
+            "situacao": 1,
+        }):
+            raise RuntimeError("O PE-0045 temporario nao foi criado.")
+
         registro_pe = conn.execute(
             """SELECT id_pe, id_localidade
                  FROM pontos_estrategicos
@@ -116,6 +127,13 @@ def _test_data(target):
         )
         if not vinculo or vinculo["id_pe"] != id_pe:
             raise RuntimeError("O alias automatico do PE nao foi resolvido.")
+        vinculo_pe_0045 = pe.resolver_alias_visita(
+            conn,
+            "RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA",
+            "Graziela",
+        )
+        if not vinculo_pe_0045 or vinculo_pe_0045["codigo_pe"] != "PE-0045":
+            raise RuntimeError("O alias Kobo do PE-0045 nao foi resolvido.")
 
         hoje = date.today().isoformat()
         conn.execute(
@@ -135,14 +153,36 @@ def _test_data(target):
                 f"{hoje}T10:00:00",
             ),
         )
+        conn.execute(
+            """INSERT INTO visitas (
+                   id_visita, kobo_uuid, tipo, data, localidade,
+                   quarteirao, logradouro, processado_em
+               ) VALUES (?,?,?,?,?,?,?,?)""",
+            (
+                "visita-pe-0045-pg",
+                "uuid-visita-pe-0045-pg",
+                "PE",
+                hoje,
+                "Graziela",
+                1336,
+                "RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA",
+                f"{hoje}T10:01:00",
+            ),
+        )
         vinculacao = pe.vincular_visitas_existentes_por_alias(conn)
         visita = conn.execute(
             """SELECT id_pe, codigo_pe
                  FROM visitas
                 WHERE id_visita='visita-pe-pg'"""
         ).fetchone()
-        if vinculacao["atualizadas"] != 1 or visita["id_pe"] != id_pe:
+        if vinculacao["atualizadas"] != 2 or visita["id_pe"] != id_pe:
             raise RuntimeError("A visita PE nao foi vinculada pelo alias.")
+        visita_pe_0045 = conn.execute(
+            """SELECT codigo_pe FROM visitas
+                 WHERE id_visita='visita-pe-0045-pg'"""
+        ).fetchone()
+        if visita_pe_0045["codigo_pe"] != "PE-0045":
+            raise RuntimeError("A visita Kobo do PE-0045 nao foi vinculada.")
 
         registro_bri = {
             "id_bri": "bri-pg-1",

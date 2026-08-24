@@ -272,6 +272,14 @@ Estao homologados:
   rotas de criacao e edicao;
 - paginas e APIs dos dois modulos.
 
+O XLSForm operacional de Pontos Estrategicos deve manter um identificador de
+logradouro distinto quando dois PEs compartilham o mesmo quarteirao. O PE-0045
+**Borracharia Garagem Oculta** (Graziela, Rua Campos de Minas, 753,
+quarteirao 1336) usa o identificador Kobo
+`RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA`; esse valor e alias
+explicito do PE-0045 para que as visitas importadas sejam vinculadas nos dois
+backends.
+
 O ensaio controlado e:
 
 ```powershell

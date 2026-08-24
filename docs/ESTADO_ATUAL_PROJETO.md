@@ -127,7 +127,18 @@ As regras de fonte de verdade e a arquitetura da tela estao em
 
 ## Pendencia concreta e proxima ordem recomendada
 
-1. **Concluida: correcao de Pontos Estrategicos:** a branch
+1. **Concluida: inclusao do PE-0045 no fluxo Kobo:** a branch
+   `codex/adicionar-pe-0045-kobo` atualiza o XLSForm operacional com
+   **Borracharia Garagem Oculta** (Graziela, Rua Campos de Minas, 753,
+   quarteirao 1336). O identificador de logradouro do formulario e distinto
+   para nao colidir com outro PE do quarteirao e foi registrado como alias do
+   PE-0045 no sistema. Assim, uma visita importada do Kobo e vinculada ao
+   cadastro existente nos backends SQLite e PostgreSQL. A suite completa
+   terminou com 639 testes `OK` e 5 ignorados; o ensaio seguro em
+   `endemias_teste` usou somente tabelas temporarias e preservou as tabelas
+   publicas. A publicacao do XLSForm no Kobo continua sendo uma acao externa e
+   manual, depois da revisao e da autorizacao de integracao.
+2. **Concluida: correcao de Pontos Estrategicos:** a branch
    `codex/corrigir-datas-pe`, aprovada pelo Claude e autorizada pelo usuario,
    normaliza `None`, campos vazios, espacos, `NaT` textual e `pandas.NaT` para
    `NULL` antes de persistir. Data preenchida mas invalida retorna HTTP 400 e
@@ -139,17 +150,17 @@ As regras de fonte de verdade e a arquitetura da tela estao em
    As edicoes dos PEs 1 e 24 que falharam em 13 e 17/08 nao foram gravadas pela
    transacao original e continuam precisando ser refeitas manualmente depois da
    integracao.
-2. **Consolidar a leitura Conta Ovos:** quando o usuario autorizar, executar
+3. **Consolidar a leitura Conta Ovos:** quando o usuario autorizar, executar
    primeiro o sincronizador supervisionado do cadastro remoto e conferir as
    divergencias na central. Novos dominios de consulta (EDLs e Quarteiroes/
    acoes) devem vir antes de qualquer nova escrita remota, cada um com GET,
    schema/espelho, ensaio e tela local.
-3. **Escrita remota somente mais adiante:** decidir um piloto unitario de
+4. **Escrita remota somente mais adiante:** decidir um piloto unitario de
    leitura depois de revalidar a branch preparada. Para TBO `/postaction`,
    inventariar antes todos os efeitos colaterais documentados (quarteirao,
    coordenadas, tipo de imovel, larvicida e semana); nao transformar o envio
    unitario em lote por um simples laco.
-4. **Fora deste eixo:** formulario/OCR de Registro Geografico, diarios offline
+5. **Fora deste eixo:** formulario/OCR de Registro Geografico, diarios offline
    e substituicoes graduais do Kobo sao projetos separados. GeoJSON + Registro
    Geografico permanecem a fonte territorial; Conta Ovos nao os sobrescreve.
 
