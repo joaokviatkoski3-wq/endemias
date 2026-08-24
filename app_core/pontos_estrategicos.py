@@ -13,6 +13,16 @@ from app_core import recolhimentos as normalizadores
 TABLE = "pontos_estrategicos"
 
 
+class DataValidationError(ValueError):
+    """Indica uma data informada pelo usuario que nao pode ser persistida."""
+
+    def __init__(self, campo):
+        self.campo = campo
+        super().__init__(
+            f"{campo} invalida. Informe uma data valida ou deixe o campo vazio."
+        )
+
+
 PE_ALIAS_SEED = (
     ("Barracão Reciclar e Limpar - Rua Aides Ângelo de Oliveira", None, "PE-0026"),
     ("Borracharia (Antunes - pai) - Rodovia dos Minérios", None, "PE-0021"),
@@ -732,6 +742,7 @@ def obter(target, id_pe):
 
 
 def salvar(target, payload, id_pe=None):
+    payload = _normalizar_datas_payload(payload)
     conn, close = _open_connection(target)
     try:
         ensure_schema(conn)
@@ -1105,7 +1116,9 @@ def _real(value):
 
 
 def _date(value):
-    if value is None:
+    if value is None or (
+        isinstance(value, str) and value.strip().lower() in ("", "nat")
+    ):
         return None
     try:
         if pd.isna(value):
@@ -1113,9 +1126,25 @@ def _date(value):
     except Exception:
         pass
     try:
-        return pd.to_datetime(value).date().isoformat()
-    except Exception:
-        return None
+        data = pd.to_datetime(value)
+        if pd.isna(data):
+            return None
+        return data.date().isoformat()
+    except (TypeError, ValueError, OverflowError):
+        raise
+
+
+def _normalizar_datas_payload(payload):
+    normalizado = dict(payload)
+    for campo, rotulo in (
+        ("data_inclusao", "Data de inclusao"),
+        ("data_desativacao", "Data de desativacao"),
+    ):
+        try:
+            normalizado[campo] = _date(normalizado.get(campo))
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise DataValidationError(rotulo) from exc
+    return normalizado
 
 
 def _situacao(value):

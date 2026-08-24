@@ -127,13 +127,18 @@ As regras de fonte de verdade e a arquitetura da tela estao em
 
 ## Pendencia concreta e proxima ordem recomendada
 
-1. **Corrigir Pontos Estrategicos:** em 13 e 17/08 houve tentativas de salvar
-   datas com o texto `NaT`, que PostgreSQL recusou com erro 500. A transacao fez
-   rollback integral, portanto nao houve corrupcao nem gravacao parcial, mas
-   os ajustes tentados precisam ser refeitos depois da correcao. O lote deve
-   normalizar `NaT`/datas invalidas no servidor, ter teste de criacao e edicao
-   e, se couber no diff, validar a entrada no navegador para informar o usuario
-   sem 500.
+1. **Revisar a correcao de Pontos Estrategicos:** a branch
+   `codex/corrigir-datas-pe` normaliza `None`, campos vazios, espacos, `NaT`
+   textual e `pandas.NaT` para `NULL` antes de persistir. Data preenchida mas
+   invalida agora retorna HTTP 400 e a tela mostra a mensagem clara, sem
+   mascarar excecoes de banco, auditoria, permissao ou concorrencia. Criacao e
+   edicao foram cobertas
+   em SQLite e no ensaio seguro PostgreSQL com tabelas temporarias em
+   `endemias_teste`; a regressao terminou com 637 testes `OK` e 5 ignorados.
+   O lote aguarda revisao somente-leitura do Claude e autorizacao do usuario.
+   As edicoes dos PEs 1 e 24 que falharam em 13 e 17/08 nao foram gravadas pela
+   transacao original e continuam precisando ser refeitas manualmente depois da
+   integracao.
 2. **Consolidar a leitura Conta Ovos:** quando o usuario autorizar, executar
    primeiro o sincronizador supervisionado do cadastro remoto e conferir as
    divergencias na central. Novos dominios de consulta (EDLs e Quarteiroes/

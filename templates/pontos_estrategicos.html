@@ -238,14 +238,18 @@ async function salvarPE(){
   const id = document.getElementById('pe-id').value;
   const data = payloadPE();
   if(!data.nome){ toast('Informe o local do PE.', 'error'); return; }
-  await peJson(id ? `/api/pontos-estrategicos/${id}` : '/api/pontos-estrategicos', {
-    method:'POST',
-    headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
-    body:JSON.stringify(data)
-  });
-  fecharPE();
-  toast('PE salvo com sucesso.', 'success');
-  carregarPEs();
+  try {
+    await peJson(id ? `/api/pontos-estrategicos/${id}` : '/api/pontos-estrategicos', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+      body:JSON.stringify(data)
+    });
+    fecharPE();
+    toast('PE salvo com sucesso.', 'success');
+    carregarPEs();
+  } catch (erro) {
+    toast(erro.message || 'Nao foi possivel salvar o PE.', 'error');
+  }
 }
 async function alternarPE(id, situacao){
   await peJson(`/api/pontos-estrategicos/${id}/situacao`, {

@@ -95,6 +95,20 @@ def _test_data(target):
         id_pe = registro_pe["id_pe"]
         id_localidade = registro_pe["id_localidade"]
 
+        payload["data_inclusao"] = "NaT"
+        payload["data_desativacao"] = " "
+        if not pe.salvar(conn, payload, id_pe=id_pe):
+            raise RuntimeError("A normalizacao de datas vazias do PE falhou.")
+        datas_vazias = conn.execute(
+            """SELECT data_inclusao, data_desativacao
+                 FROM pontos_estrategicos WHERE id_pe=?""",
+            (id_pe,),
+        ).fetchone()
+        if datas_vazias["data_inclusao"] is not None or datas_vazias["data_desativacao"] is not None:
+            raise RuntimeError("Datas vazias/NaT do PE nao foram gravadas como NULL.")
+        payload["data_inclusao"] = "2026-08-20"
+        payload["data_desativacao"] = None
+
         vinculo = pe.resolver_alias_visita(
             conn,
             "Rua Alfa - PE Temporario",
@@ -196,6 +210,20 @@ def _test_data(target):
         if atualizado["nome"] != "PE Temporario Atualizado":
             raise RuntimeError("A atualizacao do PE divergiu.")
 
+        try:
+            pe.salvar(
+                conn,
+                {**payload, "data_inclusao": "31/02/2026"},
+                id_pe=id_pe,
+            )
+        except pe.DataValidationError:
+            pass
+        else:
+            raise RuntimeError("A data invalida do PE nao foi recusada.")
+        data_apos_erro = pe.obter(conn, id_pe)["data_inclusao"]
+        if str(data_apos_erro) != "2026-08-20":
+            raise RuntimeError("A data invalida alterou o PE temporario.")
+
         if not pe.definir_situacao(conn, id_pe, 0):
             raise RuntimeError("A situacao do PE nao foi alterada.")
         inativo = pe.obter(conn, id_pe)
@@ -274,6 +302,17 @@ def _test_pages(database, target):
                     raise RuntimeError(
                         f"{route} nao apresentou o conteudo esperado."
                     )
+
+            resposta_data_invalida = client.post(
+                "/api/pontos-estrategicos",
+                json={"nome": "PE com data invalida", "data_inclusao": "31/02/2026"},
+            )
+            if resposta_data_invalida.status_code != 400:
+                raise RuntimeError(
+                    "A API de PE nao respondeu HTTP 400 para data invalida."
+                )
+            if b"Data de inclusao invalida" not in resposta_data_invalida.data:
+                raise RuntimeError("A API de PE nao informou claramente a data invalida.")
         finally:
             for handler in list(logging.getLogger().handlers):
                 if (
@@ -309,6 +348,7 @@ def main(argv=None):
     print(f"Banco: {args.database}")
     print(f"Identidade temporaria do PE: {id_pe}")
     print("Cadastro, edicao e situacao do PE: OK")
+    print("Datas vazias/NaT como NULL e data invalida com HTTP 400: OK")
     print("Aliases e vinculos de visita/BRI: OK")
     print("Filtros, resumos, focos e atrasos: OK")
     print("Paginas e APIs: HTTP 200")

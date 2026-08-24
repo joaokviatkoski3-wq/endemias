@@ -261,6 +261,12 @@ Estao homologados:
 - resumos de visitas, BRI e focos por PE;
 - calculo de atraso com datas nativas dos dois bancos;
 - serializacao uniforme de datas e horarios;
+- normalizacao de `None`, campo vazio, espacos, `NaT` textual e `pandas.NaT`
+  para `NULL` antes da persistencia das datas do cadastro;
+- rejeicao de data preenchida mas invalida com HTTP 400 claro, sem converter
+  falhas reais de banco, auditoria, permissao ou concorrencia em erro de data;
+- apresentacao da mensagem devolvida pela API na tela de cadastro, sem mudar
+  o desenho do formulario;
 - paginas e APIs dos dois modulos.
 
 O ensaio controlado e:
@@ -270,8 +276,10 @@ python scripts\testar_bri_pe_postgresql.py --database endemias_teste
 ```
 
 O script cria copias temporarias das oito tabelas envolvidas, valida todo o
-fluxo integrado e depois consulta as paginas reais em modo somente leitura.
-As contagens das tabelas publicas sao comparadas antes e depois do ensaio.
+fluxo integrado, inclusive criacao/edicao com datas vazias ou `NaT` e resposta
+HTTP 400 para data invalida, e depois consulta as paginas reais em modo somente
+leitura. As contagens das tabelas publicas sao comparadas antes e depois do
+ensaio.
 
 ## Visitas de Arboviroses
 

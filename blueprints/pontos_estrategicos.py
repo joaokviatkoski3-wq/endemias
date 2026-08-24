@@ -99,7 +99,10 @@ def api_criar():
     payload = request.get_json(silent=True) or {}
     if not _payload_valido(payload):
         return jsonify({"erro": "Informe ao menos o nome/local do PE."}), 400
-    criado = pe_core.salvar(bh.db_target(), payload)
+    try:
+        criado = pe_core.salvar(bh.db_target(), payload)
+    except pe_core.DataValidationError as exc:
+        return jsonify({"erro": str(exc)}), 400
     audit.registrar_evento(
         get_db,
         "pe_criado",
@@ -116,7 +119,10 @@ def api_atualizar(id_pe):
     payload = request.get_json(silent=True) or {}
     if not _payload_valido(payload):
         return jsonify({"erro": "Informe ao menos o nome/local do PE."}), 400
-    atualizado = pe_core.salvar(bh.db_target(), payload, id_pe=id_pe)
+    try:
+        atualizado = pe_core.salvar(bh.db_target(), payload, id_pe=id_pe)
+    except pe_core.DataValidationError as exc:
+        return jsonify({"erro": str(exc)}), 400
     if not atualizado:
         return jsonify({"erro": "Ponto estrategico nao encontrado."}), 404
     audit.registrar_evento(
