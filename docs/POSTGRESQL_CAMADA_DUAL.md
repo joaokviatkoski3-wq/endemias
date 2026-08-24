@@ -1,6 +1,12 @@
 # Camada dual SQLite e PostgreSQL
 
-## Estado em 29/07/2026
+## Registro historico e estado atual
+
+Este documento registra a conversao historica iniciada em 29/07/2026. A
+migracao foi concluida em 03/08/2026 e PostgreSQL e producao. Para nao tratar
+um lote ja entregue como proxima etapa, leia primeiro
+`docs/ESTADO_ATUAL_PROJETO.md`; mantenha este arquivo como evidencia tecnica
+das adaptacoes e ensaios que tornam a camada dual segura.
 
 A aplicacao possui agora uma primeira camada de conexao capaz de consultar
 SQLite ou PostgreSQL sem alterar a assinatura usada pelo codigo existente.
@@ -685,7 +691,12 @@ informa se o processo tem privilegio administrativo: sem privilegio, a ausencia
 vira "nao foi possivel confirmar"; com privilegio, vira aviso real. O servidor
 oficial roda sob `SYSTEM` e enxerga tudo.
 
-## Proxima etapa
+## Historico da integracao Conta Ovos e conclusao da migracao
+
+As secoes abaixo descrevem lotes ja implementados e homologados. O trabalho
+atual da Conta Ovos e de consulta local e sincronizacao GET supervisionada;
+nenhum POST remoto esta em `master`. As prioridades posteriores a migracao
+ficam em `docs/ESTADO_ATUAL_PROJETO.md` e `docs/CONTA_OVOS_API.md`.
 
 A fundacao da API privada Conta Ovos adiciona a migracao
 `0002_integracao_contaovos.sql`, com cursor por fluxo e historico sanitizado de

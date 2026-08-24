@@ -1,11 +1,16 @@
 # Integracao privada com a API Conta Ovos
 
-Estado em 04/08/2026: fundacao, sincronizacao GET, fila local das leituras do
-laboratorio e fundacao GET do cadastro remoto de ovitrampas; credencial
-protegida, escopo privado, idempotencia real e semana epidemiologica
-validados. A central de consulta foi reestruturada para separar visao geral,
+Estado em 24/08/2026: fundacao, sincronizacao GET, fila local das leituras do
+laboratorio e fundacao GET do cadastro remoto de ovitrampas estao
+implementadas; credencial protegida, escopo privado, idempotencia real e semana
+epidemiologica foram validados. A central de consulta separa visao geral,
 Ovitrampas (com sub-areas de proveniencia API), EDLs e Quarteiroes/acoes
-reservados. Nenhum endpoint de escrita remota faz parte destes lotes.
+reservados. Nenhum endpoint de escrita remota esta em `master`.
+
+A preferencia operacional atual e ampliar e usar primeiro a **leitura local do
+espelho**, nao escrever na API. A primeira sincronizacao real do cadastro remoto
+de ovitrampas ainda aguarda autorizacao operacional. Leia tambem
+`docs/ESTADO_ATUAL_PROJETO.md` para a prioridade vigente antes de iniciar lote.
 
 ## Regras de seguranca
 
@@ -174,15 +179,21 @@ proveniencia API. A arquitetura completa, a separacao em relacao a pagina
 operacional de Ovitrampas e o criterio para adicionar novos dominios remotos
 estao em `docs/CONTA_OVOS_INTERFACE.md`.
 
-## Proximos lotes
+## Ordem futura recomendada
 
-1. Implementar o envio serial `/postcounting`, sempre reconciliando antes e
-   depois da chamada, sem exclusao automatica e com piloto supervisionado.
-2. Envio TBO por quarteirao somente depois de validar IDs remotos, tipos de
-   imovel, unidade de larvicida e semana epidemiologica do servidor.
-3. Avaliar EDLs e Quarteiroes/acoes como novos dominios de consulta, pelo
-   mesmo criterio da fundacao de cadastro remoto: endpoint documentado,
-   schema/migracao proprios e sincronizacao GET supervisionada antes de
-   qualquer escrita.
+1. Quando o usuario autorizar, executar e conferir a primeira sincronizacao
+   real do cadastro remoto de ovitrampas; a interface continuara lendo somente
+   o espelho local.
+2. Avaliar EDLs e Quarteiroes/acoes como novos dominios de **consulta**, pelo
+   mesmo criterio da fundacao de cadastro remoto: endpoint GET documentado,
+   schema/migracao proprios e sincronizacao supervisionada antes de qualquer
+   escrita.
+3. Somente depois da decisao explicita de escrever, recuperar e revalidar a
+   branch de envio serial unitario `/postcounting`, com reconciliacao GET antes
+   e depois, sem exclusao automatica e com piloto supervisionado. Nao criar um
+   envio em lote por simples repeticao do comando unitario.
+4. Envio TBO por quarteirao somente depois de inventariar e validar IDs
+   remotos, tipos de imovel, unidade de larvicida, semana epidemiologica e
+   todos os efeitos colaterais documentados de `/postaction`.
 
 Endpoints `postdelete*` permanecem fora do planejamento inicial.

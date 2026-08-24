@@ -1,6 +1,6 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 05/08/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 24/08/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa.
 
 ## Projeto e forma de trabalho
@@ -36,6 +36,13 @@ Leia tambem:
 - `docs/POSTGRESQL_SCHEMA_INICIAL.md`;
 - `docs/POSTGRESQL_CARGA_TESTE.md`.
 - `docs/POSTGRESQL_AUDITORIA_SQL_FINAL.md`.
+- `docs/ESTADO_ATUAL_PROJETO.md` (estado operacional atual, papeis e
+  prioridades; leia antes de assumir qualquer lote).
+
+O registro em `docs/ESTADO_ATUAL_PROJETO.md` prevalece sobre secoes antigas
+deste arquivo que descrevem a estabilizacao de ferias ou uma proxima etapa ja
+executada. Os documentos historicos nao devem ser apagados: eles explicam como
+a migracao foi feita e como recuperar ou auditar sua evidencia.
 
 ## Estado da migracao PostgreSQL
 
@@ -61,11 +68,10 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A suite passou de 556 para 581 testes com a reestruturacao da central Conta
-Ovos e a fundacao GET do cadastro remoto de ovitrampas. A regressao ampla foi
-confirmada no worktree da branch usando uma copia temporaria isolada de
-`C:\endemias\endemias.db`: os 581 testes terminaram com `OK`, 5 foram ignorados
-e o hash do SQLite oficial permaneceu inalterado
+A ultima regressao ampla registrada depois dos lotes posteriores a central Conta
+Ovos terminou com `632` testes em `OK` e `5` ignorados, usando uma copia
+temporaria isolada de `C:\endemias\endemias.db`; o hash do SQLite oficial
+permaneceu inalterado
 (`0600F6A70072320BC7FDE270848535EF428341AA1F093997EE4940F85376F63F`).
 Ela cria uma copia SQLite temporaria antes de importar a aplicacao; nunca rode
 testes contra o `endemias.db` congelado.
@@ -157,59 +163,21 @@ antigo `erro` "Nenhum dump PostgreSQL foi encontrado". A causa era o
 `Path.glob`, que engole o erro de permissao e devolve lista vazia. Uma pasta
 legivel e realmente vazia continua sendo `erro`.
 
-## Estabilizacao operacional para ferias
+## Estado pos-ferias e prioridades vigentes
 
-O commit marcado por `operacao-ferias-2026-08-05` e a base oficial de operacao
-durante a ausencia programada do responsavel. A `master` continua em producao
-com PostgreSQL; o SQLite congelado segue somente como rollback controlado.
+O congelamento operacional de ferias terminou. A `master` continua em producao
+com PostgreSQL e o SQLite congelado segue somente como rollback controlado. A
+tag `operacao-ferias-2026-08-05` e um marco historico, nao uma instrucao para
+manter o desenvolvimento bloqueado.
 
-Durante esse periodo, nao integrar funcionalidades novas, migracoes, scripts
-operacionais, sincronizacoes Conta Ovos, importacoes em massa ou alteracoes de
-permissao sem uma necessidade operacional concreta. Correcao de indisponibilidade
-ou perda de acesso deve ser pequena, documentada, testada e publicada em branch
-propria antes de qualquer merge.
+O estado efetivamente atual, as pendencias encontradas depois do retorno, o
+status da central Conta Ovos e a proxima ordem recomendada estao concentrados
+em `docs/ESTADO_ATUAL_PROJETO.md`. Em particular, nenhum POST Conta Ovos esta
+habilitado na `master`; a prioridade imediata registrada e a correcao segura de
+datas `NaT` em Pontos Estrategicos.
 
-A central Conta Ovos ja esta integrada na `master`; a migracao
-`0005_contaovos_registro_ovitrampas.sql` foi aplicada em `endemias_teste` e no
-banco oficial `endemias`. A primeira sincronizacao real do cadastro remoto
-continua pendente por decisao operacional e nao deve ser disparada durante a
-estabilizacao. Sem ela, Cadastro remoto, Mapa e parte das divergencias podem
-permanecer vazios, sem afetar a rotina local de Ovitrampas.
-
-A branch `codex/enviar-leituras-conta-ovos` preserva o envio unitario
-supervisionado de uma leitura por `/postcounting`, mas esta fora da `master` e
-nao deve ser integrada antes do retorno. Ela devera receber a `master` atual,
-repetir o ensaio PostgreSQL em `endemias_teste`, passar por revisao independente
-e somente entao escolher uma leitura piloto.
-
-## Retomada apos as ferias
-
-O envio serial supervisionado de leituras por `/postcounting` continua sendo o
-proximo lote de integracao, preservando o contrato ja homologado da fila:
-
-1. reconciliar antes de qualquer envio e confirmar somente pelo GET posterior;
-2. marcar `enviando` e commitar antes da chamada remota;
-3. nunca reenviar automaticamente um item de resultado incerto;
-4. tratar 404/duplicidade por reconciliacao e manter 400/403/409 para revisao
-   humana;
-5. continuar sem exclusoes automaticas e sem chamadas reais na suite.
-
-A sincronizacao GET foi homologada no banco oficial em 03/08/2026. As migracoes
-`0002` e `0003` estao aplicadas em `endemias` e `endemias_teste`; o ensaio
-temporario passou sem alterar tabelas publicas. Foram reconciliadas 5.383
-contagens de 2026: 1.452 inseridas e 3.931 atualizadas. Uma segunda execucao dos
-ultimos 45 dias retornou 1.108 itens sem qualquer alteracao, confirmando a
-idempotencia real. O cursor ficou em `3569727`.
-
-A fila local foi aprovada sem achados e integrada a `master` no merge
-`c81b6aa`. A migracao `0004` foi aplicada em `endemias_teste` e `endemias`; o
-ensaio PostgreSQL confirmou tabelas temporarias e preservacao da tabela publica.
-Na prova real somente GET, 5.405 contagens brutas de 2026 foram comparadas e
-nao houve divergencia entre `date/year/week` remotos e a semana epidemiologica
-local. Nenhum POST foi executado.
-
-Qualquer rollback precisa ser decidido pelo administrador: primeiro interrompa
-novas escritas PostgreSQL e so depois remova a tarefa/marcador. Nunca abra o
+Qualquer rollback continua sendo decisao do administrador: primeiro interrompa
+novas escritas PostgreSQL e so depois remova tarefa e marcador. Nunca abra o
 SQLite congelado em paralelo.
 
 ## Virada concluida
@@ -274,26 +242,28 @@ Os commits `eae9b37` e `75c8f04` pertencem apenas a `revisao`; nao estao na
 `master`. A configuracao PostgreSQL isolada da revisao ainda devera ser feita
 apos a migracao funcional terminar.
 
-Fluxo futuro pretendido:
+Fluxo vigente:
 
 1. Codex implementa 2 ou 3 modulos relacionados em `codex/nome-do-lote` e faz
    push.
-2. Claude revisa o diff contra `master`, sem alterar por padrao.
+2. Claude revisa o diff contra `master`, somente em leitura.
 3. Codex corrige os achados na branch do lote.
 4. Usuario testa em ambiente isolado.
 5. So depois ocorre merge e push para `master`.
 
-Enquanto esse fluxo ainda nao estiver oficialmente adotado, siga a orientacao
-expressa do usuario sobre trabalhar diretamente na `master` e sempre fazer
-push.
+Claude so pode editar e publicar uma correcao se o usuario pedir isso a ele
+diretamente. Nessa excecao, use uma branch `claude/nome-da-tarefa`, nao edite a
+mesma branch pelo Codex e registre o motivo no guia multiagente. Fora disso,
+Codex permanece o unico operador/implementador.
 
 ## Decisoes futuras ja discutidas
 
 - A credencial privada Conta Ovos foi recebida, protegida para `SYSTEM` e
   Administradores e validada em uma consulta supervisionada somente leitura.
 - A sincronizacao GET de contagens esta homologada; importacoes CSV e marcacoes
-  manuais continuam como fallback. A fila local de leituras esta homologada
-  para preparacao e conferencia; a central Conta Ovos e somente leitura.
+  manuais continuam como fallback. A central Conta Ovos e somente leitura do
+  espelho local. Cadastro remoto possui schema e ensaio aprovados, mas a
+  primeira sincronizacao real ainda depende de autorizacao operacional.
   Nenhum POST remoto esta habilitado na `master`.
 - O plano futuro inclui diarios digitais offline em tablets, com revisao de
   alteracoes cadastrais e sincronizacao posterior; isso nao faz parte da

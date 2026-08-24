@@ -2,6 +2,12 @@
 
 ## Estado atual
 
+A migracao ja esta concluida. Para o estado vivo de producao, dos backups e
+das pendencias posteriores a virada, leia `docs/ESTADO_ATUAL_PROJETO.md` antes
+de executar qualquer comando desta documentacao. As secoes seguintes preservam
+o historico e os comandos reproduziveis da migracao; nao representam uma lista
+de passos ainda pendentes.
+
 O PostgreSQL e o backend oficial de producao desde 03/08/2026. O arquivo
 `endemias.db` foi congelado na virada e permanece somente como rollback.
 O marcador `C:\ProgramData\Endemias\postgresql.enabled` impede que
