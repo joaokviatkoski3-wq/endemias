@@ -133,6 +133,8 @@ As regras de fonte de verdade e a arquitetura da tela estao em
    quarteirao 1336) e desativa aliases automaticos ambiguos. Quando dois PEs
    ativos compartilham a mesma rua/localidade, uma visita com a rua isolada
    fica sem vinculo para triagem; ela nunca e atribuida por ordem de cadastro.
+   A deteccao tambem agrupa as variantes cadastrais conhecidas `Rua Campo de
+   Minas` e `Rua Campos de Minas`, sem alterar nenhum dos dois cadastros.
    O identificador Kobo esperado e
    `RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA`.
    Esta branch **nao altera nem publica** o XLSForm no Kobo: essa atualizacao

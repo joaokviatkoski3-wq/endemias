@@ -287,6 +287,10 @@ pela ordem do cadastro. A semeadura ordena os codigos de PE e e executada no
 fluxo de vinculacao PostgreSQL, que nao chama a manutencao SQLite. A existencia
 do PE referido continua sendo pre-condicao: aliases de `PE_ALIAS_SEED` sem
 cadastro correspondente sao ignorados para preservar a chave estrangeira.
+As variantes cadastrais conhecidas `Rua Campo de Minas` e `Rua Campos de
+Minas` sao comparadas como uma mesma rua apenas nessa deteccao; os valores dos
+cadastros nao sao alterados e os aliases qualificados por estabelecimento
+continuam resolvidos normalmente.
 
 O ensaio controlado e:
 

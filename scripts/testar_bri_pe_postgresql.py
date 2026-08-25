@@ -121,7 +121,7 @@ def _test_data(target):
             "nome": "Ferro Velho do Paulo",
             "localidade": "Graziela",
             "quarteirao": 1336,
-            "logradouro": "Rua Campos de Minas",
+            "logradouro": "Rua Campo de Minas",
             "numero": "753",
             "situacao": 1,
         }):
@@ -186,6 +186,22 @@ def _test_data(target):
                 f"{hoje}T10:02:00",
             ),
         )
+        conn.execute(
+            """INSERT INTO visitas (
+                   id_visita, kobo_uuid, tipo, data, localidade,
+                   quarteirao, logradouro, processado_em
+               ) VALUES (?,?,?,?,?,?,?,?)""",
+            (
+                "visita-pe-ambigua-singular-pg",
+                "uuid-visita-pe-ambigua-singular-pg",
+                "PE",
+                hoje,
+                "Graziela",
+                1336,
+                "Rua Campo de Minas",
+                f"{hoje}T10:03:00",
+            ),
+        )
         vinculacao = pe.vincular_visitas_existentes_por_alias(conn)
         visita = conn.execute(
             """SELECT id_pe, codigo_pe
@@ -206,8 +222,15 @@ def _test_data(target):
         ).fetchone()
         if visita_ambigua["codigo_pe"] is not None:
             raise RuntimeError("A visita de rua ambigua foi vinculada a um PE arbitrario.")
-        if pe.resolver_alias_visita(conn, "Rua Campos de Minas", "Graziela") is not None:
-            raise RuntimeError("O alias automatico ambiguo deveria permanecer inativo.")
+        visita_ambigua_singular = conn.execute(
+            """SELECT codigo_pe FROM visitas
+                 WHERE id_visita='visita-pe-ambigua-singular-pg'"""
+        ).fetchone()
+        if visita_ambigua_singular["codigo_pe"] is not None:
+            raise RuntimeError("A visita de rua ambigua singular foi vinculada a um PE arbitrario.")
+        for alias in ("Rua Campo de Minas", "Rua Campos de Minas"):
+            if pe.resolver_alias_visita(conn, alias, "Graziela") is not None:
+                raise RuntimeError("O alias automatico ambiguo deveria permanecer inativo.")
         vinculo_pe_0045 = pe.resolver_alias_visita(
             conn,
             "RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA",

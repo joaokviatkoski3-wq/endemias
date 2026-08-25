@@ -14,6 +14,11 @@ TABLE = "pontos_estrategicos"
 OBS_ALIAS_INICIAL = "alias inicial para visitas PE antigas"
 OBS_ALIAS_AUTOMATICO = "alias automatico do cadastro do PE"
 OBS_ALIAS_AUTOMATICO_AMBIGUO = "alias automatico ambiguo entre PEs ativos"
+# Variantes cadastrais conhecidas da mesma rua. Elas so participam da
+# deteccao de ambiguidade de aliases automaticos; nao alteram o cadastro.
+PE_VARIANTES_ALIAS_AUTOMATICO = {
+    "rua campo de minas": "rua campos de minas",
+}
 
 
 class DataValidationError(ValueError):
@@ -238,15 +243,17 @@ def _seed_aliases(conn):
         if len(candidato["codigos_pe"]) > 1:
             _marcar_alias_automatico_ambiguo(conn, candidato, agora)
             continue
-        _salvar_alias(
-            conn,
-            candidato["alias"],
-            candidato["localidade"],
-            next(iter(candidato["codigos_pe"])),
-            OBS_ALIAS_AUTOMATICO,
-            agora,
-            automatico=True,
-        )
+        codigo_pe = next(iter(candidato["codigos_pe"]))
+        for alias in candidato["aliases"].values():
+            _salvar_alias(
+                conn,
+                alias["alias"],
+                alias["localidade"],
+                codigo_pe,
+                OBS_ALIAS_AUTOMATICO,
+                agora,
+                automatico=True,
+            )
 
 
 def _adicionar_candidato_automatico(candidatos, alias, localidade, codigo_pe):
@@ -254,16 +261,24 @@ def _adicionar_candidato_automatico(candidatos, alias, localidade, codigo_pe):
     if not alias_texto:
         return
     localidade_texto = _text(localidade)
-    chave = (normalizar_alias(alias_texto), normalizar_alias(localidade_texto))
+    alias_norm = normalizar_alias(alias_texto)
+    localidade_norm = normalizar_alias(localidade_texto)
+    chave = (
+        PE_VARIANTES_ALIAS_AUTOMATICO.get(alias_norm, alias_norm),
+        localidade_norm,
+    )
     candidato = candidatos.setdefault(
         chave,
         {
-            "alias": alias_texto,
-            "localidade": localidade_texto,
             "codigos_pe": set(),
+            "aliases": {},
         },
     )
     candidato["codigos_pe"].add(codigo_pe)
+    candidato["aliases"].setdefault(
+        (alias_norm, localidade_norm),
+        {"alias": alias_texto, "localidade": localidade_texto},
+    )
 
 
 def _observacao_automatica(observacoes):
@@ -271,34 +286,42 @@ def _observacao_automatica(observacoes):
 
 
 def _marcar_alias_automatico_ambiguo(conn, candidato, agora):
-    alias_norm = normalizar_alias(candidato["alias"])
-    localidade_norm = normalizar_alias(candidato["localidade"])
-    existente = conn.execute(
-        """SELECT codigo_pe, observacoes
-             FROM pontos_estrategicos_alias
-            WHERE alias_normalizado=? AND localidade_normalizada=?""",
-        (alias_norm, localidade_norm),
-    ).fetchone()
-    if not existente:
+    for (alias_norm, localidade_norm), alias in candidato["aliases"].items():
+        existente = conn.execute(
+            """SELECT codigo_pe, observacoes
+                 FROM pontos_estrategicos_alias
+                WHERE alias_normalizado=? AND localidade_normalizada=?""",
+            (alias_norm, localidade_norm),
+        ).fetchone()
+        if not existente:
+            conn.execute(
+                """INSERT INTO pontos_estrategicos_alias (
+                       alias_logradouro, alias_normalizado, localidade,
+                       localidade_normalizada, codigo_pe, observacoes, ativo,
+                       criado_em, atualizado_em
+                   ) VALUES (?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT DO NOTHING""",
+                (
+                    alias["alias"], alias_norm, alias["localidade"],
+                    localidade_norm, min(candidato["codigos_pe"]),
+                    OBS_ALIAS_AUTOMATICO_AMBIGUO, 0, agora, agora,
+                ),
+            )
+            continue
         conn.execute(
-            """INSERT INTO pontos_estrategicos_alias (
-                   alias_logradouro, alias_normalizado, localidade,
-                   localidade_normalizada, codigo_pe, observacoes, ativo,
-                   criado_em, atualizado_em
-               ) VALUES (?,?,?,?,?,?,?,?,?)""",
+            """UPDATE pontos_estrategicos_alias
+                  SET ativo=0, observacoes=?, atualizado_em=?
+                WHERE alias_normalizado=? AND localidade_normalizada=?
+                  AND observacoes IN (?, ?)""",
             (
-                candidato["alias"], alias_norm, candidato["localidade"],
-                localidade_norm, min(candidato["codigos_pe"]),
-                OBS_ALIAS_AUTOMATICO_AMBIGUO, 0, agora, agora,
+                OBS_ALIAS_AUTOMATICO_AMBIGUO,
+                agora,
+                alias_norm,
+                localidade_norm,
+                OBS_ALIAS_AUTOMATICO,
+                OBS_ALIAS_AUTOMATICO_AMBIGUO,
             ),
         )
-        return
-    conn.execute(
-        """UPDATE pontos_estrategicos_alias
-              SET ativo=0, observacoes=?, atualizado_em=?
-            WHERE alias_normalizado=? AND localidade_normalizada=?""",
-        (OBS_ALIAS_AUTOMATICO_AMBIGUO, agora, alias_norm, localidade_norm),
-    )
 
 
 def _salvar_alias(conn, alias, localidade, codigo_pe, observacoes, agora, automatico=False):
@@ -352,7 +375,8 @@ def _salvar_alias(conn, alias, localidade, codigo_pe, observacoes, agora, automa
         """INSERT INTO pontos_estrategicos_alias (
                alias_logradouro, alias_normalizado, localidade, localidade_normalizada,
                codigo_pe, observacoes, ativo, criado_em, atualizado_em
-           ) VALUES (?,?,?,?,?,?,?,?,?)""",
+           ) VALUES (?,?,?,?,?,?,?,?,?)
+           ON CONFLICT DO NOTHING""",
         (
             alias_texto,
             alias_norm,

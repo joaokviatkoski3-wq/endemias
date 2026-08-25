@@ -1812,31 +1812,35 @@ class PontosEstrategicosTests(unittest.TestCase):
                         "codigo_pe": codigo,
                         "nome": nome,
                         "localidade": "Graziela",
-                        "logradouro": "Rua Campos de Minas",
+                        "logradouro": (
+                            "Rua Campo de Minas"
+                            if codigo == "PE-0031"
+                            else "Rua Campos de Minas"
+                        ),
                         "numero": "753",
                         "quarteirao": 1336,
                     })
                     pe_core.ensure_schema(conn)
 
-                ambiguo = pe_core.resolver_alias_visita(
-                    conn, "Rua Campos de Minas", "Graziela"
-                )
+                for alias in ("Rua Campo de Minas", "Rua Campos de Minas"):
+                    self.assertIsNone(pe_core.resolver_alias_visita(conn, alias, "Graziela"))
                 alias_ambiguo = conn.execute(
-                    """SELECT codigo_pe, ativo, observacoes FROM pontos_estrategicos_alias
-                         WHERE alias_normalizado=? AND localidade_normalizada=?""",
-                    ("rua campos de minas", "graziela"),
-                ).fetchone()
-                resultados.append((
-                    ambiguo,
-                    alias_ambiguo["codigo_pe"],
-                    alias_ambiguo["ativo"],
-                    alias_ambiguo["observacoes"],
-                ))
+                    """SELECT alias_normalizado, ativo, observacoes
+                         FROM pontos_estrategicos_alias
+                        WHERE alias_normalizado IN (?, ?)
+                          AND localidade_normalizada=?
+                        ORDER BY alias_normalizado""",
+                    ("rua campo de minas", "rua campos de minas", "graziela"),
+                ).fetchall()
+                resultados.append([
+                    (row["alias_normalizado"], row["ativo"], row["observacoes"])
+                    for row in alias_ambiguo
+                ])
 
                 self.assertEqual(
                     pe_core.resolver_alias_visita(
                         conn,
-                        "Rua Campos de Minas - Ferro Velho do Paulo",
+                        "RUA CAMPOS DE MINAS - FERRO - VELHO DO PAULO",
                         "Graziela",
                     )["codigo_pe"],
                     "PE-0031",
@@ -1855,8 +1859,14 @@ class PontosEstrategicosTests(unittest.TestCase):
         self.assertEqual(
             resultados,
             [
-                (None, "PE-0031", 0, pe_core.OBS_ALIAS_AUTOMATICO_AMBIGUO),
-                (None, "PE-0045", 0, pe_core.OBS_ALIAS_AUTOMATICO_AMBIGUO),
+                [
+                    ("rua campo de minas", 0, pe_core.OBS_ALIAS_AUTOMATICO_AMBIGUO),
+                    ("rua campos de minas", 0, pe_core.OBS_ALIAS_AUTOMATICO_AMBIGUO),
+                ],
+                [
+                    ("rua campo de minas", 0, pe_core.OBS_ALIAS_AUTOMATICO_AMBIGUO),
+                    ("rua campos de minas", 0, pe_core.OBS_ALIAS_AUTOMATICO_AMBIGUO),
+                ],
             ],
         )
 
