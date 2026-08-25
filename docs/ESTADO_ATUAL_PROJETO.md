@@ -127,7 +127,28 @@ As regras de fonte de verdade e a arquitetura da tela estao em
 
 ## Pendencia concreta e proxima ordem recomendada
 
-1. **Concluida: correcao de Pontos Estrategicos:** a branch
+1. **Em revisao: mapeamento do PE-0045 para visitas Kobo:** a branch
+   `codex/adicionar-pe-0045-kobo` registra aliases qualificados para
+   **Borracharia Garagem Oculta** (Graziela, Rua Campos de Minas, 753,
+   quarteirao 1336) e desativa aliases automaticos ambiguos. Quando dois PEs
+   ativos compartilham a mesma rua/localidade, uma visita com a rua isolada
+   fica sem vinculo para triagem; ela nunca e atribuida por ordem de cadastro.
+   A deteccao tambem agrupa as variantes cadastrais conhecidas `Rua Campo de
+   Minas` e `Rua Campos de Minas`, sem alterar nenhum dos dois cadastros.
+   A tela e as exportacoes de PE apresentam a grafia oficial `Rua Campos de
+   Minas`, mesmo enquanto um cadastro historico conservar a variante singular.
+   Abrir e salvar o PE para editar outro campo preserva o logradouro armazenado;
+   a grafia cadastrada so muda quando o operador edita esse campo explicitamente.
+   O identificador Kobo esperado e
+   `RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA`.
+   Esta branch **nao altera nem publica** o XLSForm no Kobo: essa atualizacao
+   externa continua manual, depois da revisao e da autorizacao de integracao.
+   Antes de integrar, o operador deve confirmar no PostgreSQL de producao que
+   o cadastro `PE-0045` existe e esta ativo; sem esse cadastro, a semeadura do
+   alias e ignorada para preservar a chave estrangeira. A regressao desta
+   revisao terminou com 641 testes `OK` e 5 ignorados; o ensaio PostgreSQL em
+   `endemias_teste` usou tabelas temporarias e preservou as tabelas publicas.
+2. **Concluida: correcao de Pontos Estrategicos:** a branch
    `codex/corrigir-datas-pe`, aprovada pelo Claude e autorizada pelo usuario,
    normaliza `None`, campos vazios, espacos, `NaT` textual e `pandas.NaT` para
    `NULL` antes de persistir. Data preenchida mas invalida retorna HTTP 400 e
@@ -139,17 +160,17 @@ As regras de fonte de verdade e a arquitetura da tela estao em
    As edicoes dos PEs 1 e 24 que falharam em 13 e 17/08 nao foram gravadas pela
    transacao original e continuam precisando ser refeitas manualmente depois da
    integracao.
-2. **Consolidar a leitura Conta Ovos:** quando o usuario autorizar, executar
+3. **Consolidar a leitura Conta Ovos:** quando o usuario autorizar, executar
    primeiro o sincronizador supervisionado do cadastro remoto e conferir as
    divergencias na central. Novos dominios de consulta (EDLs e Quarteiroes/
    acoes) devem vir antes de qualquer nova escrita remota, cada um com GET,
    schema/espelho, ensaio e tela local.
-3. **Escrita remota somente mais adiante:** decidir um piloto unitario de
+4. **Escrita remota somente mais adiante:** decidir um piloto unitario de
    leitura depois de revalidar a branch preparada. Para TBO `/postaction`,
    inventariar antes todos os efeitos colaterais documentados (quarteirao,
    coordenadas, tipo de imovel, larvicida e semana); nao transformar o envio
    unitario em lote por um simples laco.
-4. **Fora deste eixo:** formulario/OCR de Registro Geografico, diarios offline
+5. **Fora deste eixo:** formulario/OCR de Registro Geografico, diarios offline
    e substituicoes graduais do Kobo sao projetos separados. GeoJSON + Registro
    Geografico permanecem a fonte territorial; Conta Ovos nao os sobrescreve.
 

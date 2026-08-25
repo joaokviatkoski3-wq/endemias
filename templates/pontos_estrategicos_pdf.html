@@ -97,7 +97,7 @@ tr:nth-child(even) td{background:#f8fafc;}
     </thead>
     <tbody>
     {% for r in registros %}
-      {% set endereco = [r.logradouro, r.numero]|select|join(', ') %}
+      {% set endereco = [r.logradouro_exibicao or r.logradouro, r.numero]|select|join(', ') %}
       {% set pendencias = [] %}
       {% if r.visita_atrasada %}{% set _ = pendencias.append('visita atrasada') %}{% endif %}
       {% for p in r.pendencias_cadastro or [] %}{% set _ = pendencias.append(p) %}{% endfor %}

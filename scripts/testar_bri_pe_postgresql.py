@@ -116,7 +116,26 @@ def _test_data(target):
         )
         if not vinculo or vinculo["id_pe"] != id_pe:
             raise RuntimeError("O alias automatico do PE nao foi resolvido.")
-
+        if not pe.inserir(conn, {
+            "codigo_pe": "PE-0031",
+            "nome": "Ferro Velho do Paulo",
+            "localidade": "Graziela",
+            "quarteirao": 1336,
+            "logradouro": "Rua Campo de Minas",
+            "numero": "753",
+            "situacao": 1,
+        }):
+            raise RuntimeError("O PE-0031 temporario nao foi criado.")
+        if not pe.inserir(conn, {
+            "codigo_pe": "PE-0045",
+            "nome": "Borracharia Garagem Oculta",
+            "localidade": "Graziela",
+            "quarteirao": 1336,
+            "logradouro": "Rua Campos de Minas",
+            "numero": "753",
+            "situacao": 1,
+        }):
+            raise RuntimeError("O PE-0045 temporario nao foi criado.")
         hoje = date.today().isoformat()
         conn.execute(
             """INSERT INTO visitas (
@@ -135,14 +154,109 @@ def _test_data(target):
                 f"{hoje}T10:00:00",
             ),
         )
+        conn.execute(
+            """INSERT INTO visitas (
+                   id_visita, kobo_uuid, tipo, data, localidade,
+                   quarteirao, logradouro, processado_em
+               ) VALUES (?,?,?,?,?,?,?,?)""",
+            (
+                "visita-pe-0045-pg",
+                "uuid-visita-pe-0045-pg",
+                "PE",
+                hoje,
+                "Graziela",
+                1336,
+                "RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA",
+                f"{hoje}T10:01:00",
+            ),
+        )
+        conn.execute(
+            """INSERT INTO visitas (
+                   id_visita, kobo_uuid, tipo, data, localidade,
+                   quarteirao, logradouro, processado_em
+               ) VALUES (?,?,?,?,?,?,?,?)""",
+            (
+                "visita-pe-ambigua-pg",
+                "uuid-visita-pe-ambigua-pg",
+                "PE",
+                hoje,
+                "Graziela",
+                1336,
+                "Rua Campos de Minas",
+                f"{hoje}T10:02:00",
+            ),
+        )
+        conn.execute(
+            """INSERT INTO visitas (
+                   id_visita, kobo_uuid, tipo, data, localidade,
+                   quarteirao, logradouro, processado_em
+               ) VALUES (?,?,?,?,?,?,?,?)""",
+            (
+                "visita-pe-ambigua-singular-pg",
+                "uuid-visita-pe-ambigua-singular-pg",
+                "PE",
+                hoje,
+                "Graziela",
+                1336,
+                "Rua Campo de Minas",
+                f"{hoje}T10:03:00",
+            ),
+        )
         vinculacao = pe.vincular_visitas_existentes_por_alias(conn)
         visita = conn.execute(
             """SELECT id_pe, codigo_pe
                  FROM visitas
                 WHERE id_visita='visita-pe-pg'"""
         ).fetchone()
-        if vinculacao["atualizadas"] != 1 or visita["id_pe"] != id_pe:
+        if vinculacao["atualizadas"] != 2 or visita["id_pe"] != id_pe:
             raise RuntimeError("A visita PE nao foi vinculada pelo alias.")
+        visita_pe_0045 = conn.execute(
+            """SELECT codigo_pe FROM visitas
+                 WHERE id_visita='visita-pe-0045-pg'"""
+        ).fetchone()
+        if visita_pe_0045["codigo_pe"] != "PE-0045":
+            raise RuntimeError("A visita Kobo do PE-0045 nao foi vinculada.")
+        visita_ambigua = conn.execute(
+            """SELECT codigo_pe FROM visitas
+                 WHERE id_visita='visita-pe-ambigua-pg'"""
+        ).fetchone()
+        if visita_ambigua["codigo_pe"] is not None:
+            raise RuntimeError("A visita de rua ambigua foi vinculada a um PE arbitrario.")
+        visita_ambigua_singular = conn.execute(
+            """SELECT codigo_pe FROM visitas
+                 WHERE id_visita='visita-pe-ambigua-singular-pg'"""
+        ).fetchone()
+        if visita_ambigua_singular["codigo_pe"] is not None:
+            raise RuntimeError("A visita de rua ambigua singular foi vinculada a um PE arbitrario.")
+        for alias in ("Rua Campo de Minas", "Rua Campos de Minas"):
+            if pe.resolver_alias_visita(conn, alias, "Graziela") is not None:
+                raise RuntimeError("O alias automatico ambiguo deveria permanecer inativo.")
+        vinculo_pe_0045 = pe.resolver_alias_visita(
+            conn,
+            "RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA",
+            "Graziela",
+        )
+        if not vinculo_pe_0045 or vinculo_pe_0045["codigo_pe"] != "PE-0045":
+            raise RuntimeError("O alias Kobo do PE-0045 nao foi resolvido.")
+        pe_0031 = conn.execute(
+            "SELECT id_pe FROM pontos_estrategicos WHERE codigo_pe='PE-0031'"
+        ).fetchone()
+        pe_0031_registro = pe.obter(conn, pe_0031["id_pe"])
+        if pe_0031_registro["logradouro_exibicao"] != "Rua Campos de Minas":
+            raise RuntimeError("A grafia oficial da rua do PE-0031 nao foi apresentada.")
+        if not pe.salvar(
+            conn,
+            {
+                **pe_0031_registro,
+                "logradouro": "Rua Campos de Minas",
+                "telefone": "(41) 99999-9999",
+                "preservar_logradouro_original": True,
+            },
+            id_pe=pe_0031["id_pe"],
+        ):
+            raise RuntimeError("A edicao preservada do PE-0031 falhou.")
+        if pe.obter(conn, pe_0031["id_pe"])["logradouro"] != "Rua Campo de Minas":
+            raise RuntimeError("A edicao visual regravou o logradouro historico.")
 
         registro_bri = {
             "id_bri": "bri-pg-1",
@@ -183,7 +297,7 @@ def _test_data(target):
         pe_lista = pe.listar(conn, {"busca": "pe temporario"}, limite=None)
         pe_resumo = pe.resumo_operacional(
             conn,
-            {"d_ini": hoje, "d_fim": hoje},
+            {"d_ini": hoje, "d_fim": hoje, "localidade": "Tamboara"},
         )
 
         if bri_resumo["totais"]["registros"] != 1:
