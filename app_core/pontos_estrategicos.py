@@ -16,8 +16,8 @@ OBS_ALIAS_AUTOMATICO = "alias automatico do cadastro do PE"
 OBS_ALIAS_AUTOMATICO_AMBIGUO = "alias automatico ambiguo entre PEs ativos"
 # Variantes cadastrais conhecidas da mesma rua. Elas so participam da
 # deteccao de ambiguidade de aliases automaticos; nao alteram o cadastro.
-PE_VARIANTES_ALIAS_AUTOMATICO = {
-    "rua campo de minas": "rua campos de minas",
+PE_VARIANTES_LOGRADOURO = {
+    "rua campo de minas": "Rua Campos de Minas",
 }
 
 
@@ -263,10 +263,8 @@ def _adicionar_candidato_automatico(candidatos, alias, localidade, codigo_pe):
     localidade_texto = _text(localidade)
     alias_norm = normalizar_alias(alias_texto)
     localidade_norm = normalizar_alias(localidade_texto)
-    chave = (
-        PE_VARIANTES_ALIAS_AUTOMATICO.get(alias_norm, alias_norm),
-        localidade_norm,
-    )
+    alias_agrupado = PE_VARIANTES_LOGRADOURO.get(alias_norm, alias_norm)
+    chave = (normalizar_alias(alias_agrupado), localidade_norm)
     candidato = candidatos.setdefault(
         chave,
         {
@@ -934,6 +932,14 @@ def atualizar(conn, id_pe, payload):
     if not atual:
         return False
     localidade = _localidade(payload.get("localidade"))
+    preservar_logradouro = str(
+        payload.get("preservar_logradouro_original") or ""
+    ).strip().lower() in ("1", "true", "sim")
+    logradouro = (
+        _text(atual["logradouro"])
+        if preservar_logradouro
+        else _text(payload.get("logradouro"))
+    )
     agora = datetime.now().isoformat(timespec="seconds")
     conn.execute(
         """UPDATE pontos_estrategicos SET
@@ -946,7 +952,7 @@ def atualizar(conn, id_pe, payload):
             _obter_ou_criar_localidade(conn, localidade),
             _int(payload.get("quarteirao")),
             _text(payload.get("nome")) or "Ponto estrategico",
-            _text(payload.get("logradouro")),
+            logradouro,
             _text(payload.get("numero")),
             _situacao(payload.get("situacao")),
             _date(payload.get("data_inclusao")),
@@ -1027,9 +1033,7 @@ def _completar_status_operacional(row):
 
 def _logradouro_exibicao(value):
     texto = _text(value)
-    if normalizar_alias(texto) == "rua campo de minas":
-        return "Rua Campos de Minas"
-    return texto
+    return PE_VARIANTES_LOGRADOURO.get(normalizar_alias(texto), texto)
 
 
 def _filtrar_status_calculado(rows, filtros):

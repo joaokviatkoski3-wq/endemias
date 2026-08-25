@@ -211,6 +211,8 @@ function abrirPE(reg={}){
   peCampos.forEach(c => document.getElementById('pe-' + c.replace('_','-')).value = (
     c === 'logradouro' ? (reg.logradouro_exibicao || reg.logradouro || '') : (reg[c] ?? '')
   ));
+  const logradouro = document.getElementById('pe-logradouro');
+  logradouro.dataset.editado = '0';
   document.getElementById('pe-modal').classList.add('open');
 }
 function fecharPE(){ document.getElementById('pe-modal').classList.remove('open'); }
@@ -218,12 +220,14 @@ async function editarPE(id){
   abrirPE(await peJson(`/api/pontos-estrategicos/${id}`));
 }
 function payloadPE(){
+  const logradouro = document.getElementById('pe-logradouro');
   return {
     nome: document.getElementById('pe-nome').value.trim(),
     situacao: document.getElementById('pe-form-situacao').value,
     localidade: document.getElementById('pe-form-localidade').value.trim(),
     quarteirao: document.getElementById('pe-quarteirao').value,
-    logradouro: document.getElementById('pe-logradouro').value.trim(),
+    logradouro: logradouro.value.trim(),
+    preservar_logradouro_original: logradouro.dataset.editado !== '1',
     numero: document.getElementById('pe-numero').value.trim(),
     tipo: document.getElementById('pe-form-tipo').value.trim(),
     telefone: document.getElementById('pe-telefone').value.trim(),
@@ -236,6 +240,9 @@ function payloadPE(){
     observacoes: document.getElementById('pe-observacoes').value.trim(),
   };
 }
+document.getElementById('pe-logradouro').addEventListener('input', () => {
+  document.getElementById('pe-logradouro').dataset.editado = '1';
+});
 async function salvarPE(){
   const id = document.getElementById('pe-id').value;
   const data = payloadPE();

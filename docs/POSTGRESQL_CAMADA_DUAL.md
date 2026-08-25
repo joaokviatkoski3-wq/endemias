@@ -293,7 +293,8 @@ cadastros nao sao alterados e os aliases qualificados por estabelecimento
 continuam resolvidos normalmente.
 A tela e as exportacoes de PE usam `logradouro_exibicao` para apresentar a
 grafia oficial `Rua Campos de Minas`, sem reescrever automaticamente o valor
-historico armazenado.
+historico armazenado. A edicao envia uma indicacao explicita para preservar o
+logradouro original enquanto o operador nao alterar o proprio campo.
 
 O ensaio controlado e:
 

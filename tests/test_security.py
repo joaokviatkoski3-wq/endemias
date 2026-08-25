@@ -1889,10 +1889,38 @@ class PontosEstrategicosTests(unittest.TestCase):
             )
             obtido = pe_core.obter(str(db_path), registro["id_pe"])
 
+            # A tela apresenta a grafia oficial, mas sinaliza ao backend que
+            # ela nao foi editada quando o operador salvou outro campo.
+            payload_preservado = {
+                **obtido,
+                "logradouro": "Rua Campos de Minas",
+                "telefone": "(41) 99999-9999",
+                "preservar_logradouro_original": True,
+            }
+            self.assertTrue(
+                pe_core.salvar(
+                    str(db_path), payload_preservado, id_pe=registro["id_pe"]
+                )
+            )
+            preservado = pe_core.obter(str(db_path), registro["id_pe"])
+
+            # Quando o campo e alterado explicitamente, a nova grafia deve ser
+            # persistida como em qualquer outra edicao de cadastro.
+            payload_preservado["preservar_logradouro_original"] = False
+            self.assertTrue(
+                pe_core.salvar(
+                    str(db_path), payload_preservado, id_pe=registro["id_pe"]
+                )
+            )
+            alterado = pe_core.obter(str(db_path), registro["id_pe"])
+
         self.assertEqual(registro["logradouro"], "Rua Campo de Minas")
         self.assertEqual(registro["logradouro_exibicao"], "Rua Campos de Minas")
         self.assertEqual(obtido["logradouro"], "Rua Campo de Minas")
         self.assertEqual(obtido["logradouro_exibicao"], "Rua Campos de Minas")
+        self.assertEqual(preservado["logradouro"], "Rua Campo de Minas")
+        self.assertEqual(preservado["telefone"], "(41) 99999-9999")
+        self.assertEqual(alterado["logradouro"], "Rua Campos de Minas")
 
     def test_listagem_de_pe_prioriza_vinculo_direto_da_visita(self):
         with tempfile.TemporaryDirectory() as tmpdir:

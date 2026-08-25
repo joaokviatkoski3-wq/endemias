@@ -137,6 +137,8 @@ As regras de fonte de verdade e a arquitetura da tela estao em
    Minas` e `Rua Campos de Minas`, sem alterar nenhum dos dois cadastros.
    A tela e as exportacoes de PE apresentam a grafia oficial `Rua Campos de
    Minas`, mesmo enquanto um cadastro historico conservar a variante singular.
+   Abrir e salvar o PE para editar outro campo preserva o logradouro armazenado;
+   a grafia cadastrada so muda quando o operador edita esse campo explicitamente.
    O identificador Kobo esperado e
    `RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA`.
    Esta branch **nao altera nem publica** o XLSForm no Kobo: essa atualizacao

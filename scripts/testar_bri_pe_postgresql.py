@@ -241,8 +241,22 @@ def _test_data(target):
         pe_0031 = conn.execute(
             "SELECT id_pe FROM pontos_estrategicos WHERE codigo_pe='PE-0031'"
         ).fetchone()
-        if pe.obter(conn, pe_0031["id_pe"])["logradouro_exibicao"] != "Rua Campos de Minas":
+        pe_0031_registro = pe.obter(conn, pe_0031["id_pe"])
+        if pe_0031_registro["logradouro_exibicao"] != "Rua Campos de Minas":
             raise RuntimeError("A grafia oficial da rua do PE-0031 nao foi apresentada.")
+        if not pe.salvar(
+            conn,
+            {
+                **pe_0031_registro,
+                "logradouro": "Rua Campos de Minas",
+                "telefone": "(41) 99999-9999",
+                "preservar_logradouro_original": True,
+            },
+            id_pe=pe_0031["id_pe"],
+        ):
+            raise RuntimeError("A edicao preservada do PE-0031 falhou.")
+        if pe.obter(conn, pe_0031["id_pe"])["logradouro"] != "Rua Campo de Minas":
+            raise RuntimeError("A edicao visual regravou o logradouro historico.")
 
         registro_bri = {
             "id_bri": "bri-pg-1",
