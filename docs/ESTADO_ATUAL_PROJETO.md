@@ -127,17 +127,21 @@ As regras de fonte de verdade e a arquitetura da tela estao em
 
 ## Pendencia concreta e proxima ordem recomendada
 
-1. **Concluida: inclusao do PE-0045 no fluxo Kobo:** a branch
-   `codex/adicionar-pe-0045-kobo` atualiza o XLSForm operacional com
+1. **Em revisao: mapeamento do PE-0045 para visitas Kobo:** a branch
+   `codex/adicionar-pe-0045-kobo` registra aliases qualificados para
    **Borracharia Garagem Oculta** (Graziela, Rua Campos de Minas, 753,
-   quarteirao 1336). O identificador de logradouro do formulario e distinto
-   para nao colidir com outro PE do quarteirao e foi registrado como alias do
-   PE-0045 no sistema. Assim, uma visita importada do Kobo e vinculada ao
-   cadastro existente nos backends SQLite e PostgreSQL. A suite completa
-   terminou com 639 testes `OK` e 5 ignorados; o ensaio seguro em
-   `endemias_teste` usou somente tabelas temporarias e preservou as tabelas
-   publicas. A publicacao do XLSForm no Kobo continua sendo uma acao externa e
-   manual, depois da revisao e da autorizacao de integracao.
+   quarteirao 1336) e desativa aliases automaticos ambiguos. Quando dois PEs
+   ativos compartilham a mesma rua/localidade, uma visita com a rua isolada
+   fica sem vinculo para triagem; ela nunca e atribuida por ordem de cadastro.
+   O identificador Kobo esperado e
+   `RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA`.
+   Esta branch **nao altera nem publica** o XLSForm no Kobo: essa atualizacao
+   externa continua manual, depois da revisao e da autorizacao de integracao.
+   Antes de integrar, o operador deve confirmar no PostgreSQL de producao que
+   o cadastro `PE-0045` existe e esta ativo; sem esse cadastro, a semeadura do
+   alias e ignorada para preservar a chave estrangeira. A regressao desta
+   revisao terminou com 640 testes `OK` e 5 ignorados; o ensaio PostgreSQL em
+   `endemias_teste` usou tabelas temporarias e preservou as tabelas publicas.
 2. **Concluida: correcao de Pontos Estrategicos:** a branch
    `codex/corrigir-datas-pe`, aprovada pelo Claude e autorizada pelo usuario,
    normaliza `None`, campos vazios, espacos, `NaT` textual e `pandas.NaT` para

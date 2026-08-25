@@ -280,6 +280,14 @@ quarteirao 1336) usa o identificador Kobo
 explicito do PE-0045 para que as visitas importadas sejam vinculadas nos dois
 backends.
 
+Alias automatico de rua isolada e ativo somente quando identifica um unico PE
+ativo na localidade. Havendo mais de um candidato, o alias e marcado inativo e
+a importacao deixa a visita sem vinculo para triagem, em vez de escolher um PE
+pela ordem do cadastro. A semeadura ordena os codigos de PE e e executada no
+fluxo de vinculacao PostgreSQL, que nao chama a manutencao SQLite. A existencia
+do PE referido continua sendo pre-condicao: aliases de `PE_ALIAS_SEED` sem
+cadastro correspondente sao ignorados para preservar a chave estrangeira.
+
 O ensaio controlado e:
 
 ```powershell

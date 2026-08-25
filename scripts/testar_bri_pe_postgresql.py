@@ -87,17 +87,6 @@ def _test_data(target):
         if pe.salvar(conn, payload):
             raise RuntimeError("O PE duplicado foi inserido.")
 
-        if not pe.salvar(conn, {
-            "codigo_pe": "PE-0045",
-            "nome": "Borracharia Garagem Oculta",
-            "localidade": "Graziela",
-            "quarteirao": 1336,
-            "logradouro": "Rua Campos de Minas",
-            "numero": "753",
-            "situacao": 1,
-        }):
-            raise RuntimeError("O PE-0045 temporario nao foi criado.")
-
         registro_pe = conn.execute(
             """SELECT id_pe, id_localidade
                  FROM pontos_estrategicos
@@ -127,14 +116,26 @@ def _test_data(target):
         )
         if not vinculo or vinculo["id_pe"] != id_pe:
             raise RuntimeError("O alias automatico do PE nao foi resolvido.")
-        vinculo_pe_0045 = pe.resolver_alias_visita(
-            conn,
-            "RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA",
-            "Graziela",
-        )
-        if not vinculo_pe_0045 or vinculo_pe_0045["codigo_pe"] != "PE-0045":
-            raise RuntimeError("O alias Kobo do PE-0045 nao foi resolvido.")
-
+        if not pe.inserir(conn, {
+            "codigo_pe": "PE-0031",
+            "nome": "Ferro Velho do Paulo",
+            "localidade": "Graziela",
+            "quarteirao": 1336,
+            "logradouro": "Rua Campos de Minas",
+            "numero": "753",
+            "situacao": 1,
+        }):
+            raise RuntimeError("O PE-0031 temporario nao foi criado.")
+        if not pe.inserir(conn, {
+            "codigo_pe": "PE-0045",
+            "nome": "Borracharia Garagem Oculta",
+            "localidade": "Graziela",
+            "quarteirao": 1336,
+            "logradouro": "Rua Campos de Minas",
+            "numero": "753",
+            "situacao": 1,
+        }):
+            raise RuntimeError("O PE-0045 temporario nao foi criado.")
         hoje = date.today().isoformat()
         conn.execute(
             """INSERT INTO visitas (
@@ -169,6 +170,22 @@ def _test_data(target):
                 f"{hoje}T10:01:00",
             ),
         )
+        conn.execute(
+            """INSERT INTO visitas (
+                   id_visita, kobo_uuid, tipo, data, localidade,
+                   quarteirao, logradouro, processado_em
+               ) VALUES (?,?,?,?,?,?,?,?)""",
+            (
+                "visita-pe-ambigua-pg",
+                "uuid-visita-pe-ambigua-pg",
+                "PE",
+                hoje,
+                "Graziela",
+                1336,
+                "Rua Campos de Minas",
+                f"{hoje}T10:02:00",
+            ),
+        )
         vinculacao = pe.vincular_visitas_existentes_por_alias(conn)
         visita = conn.execute(
             """SELECT id_pe, codigo_pe
@@ -183,6 +200,21 @@ def _test_data(target):
         ).fetchone()
         if visita_pe_0045["codigo_pe"] != "PE-0045":
             raise RuntimeError("A visita Kobo do PE-0045 nao foi vinculada.")
+        visita_ambigua = conn.execute(
+            """SELECT codigo_pe FROM visitas
+                 WHERE id_visita='visita-pe-ambigua-pg'"""
+        ).fetchone()
+        if visita_ambigua["codigo_pe"] is not None:
+            raise RuntimeError("A visita de rua ambigua foi vinculada a um PE arbitrario.")
+        if pe.resolver_alias_visita(conn, "Rua Campos de Minas", "Graziela") is not None:
+            raise RuntimeError("O alias automatico ambiguo deveria permanecer inativo.")
+        vinculo_pe_0045 = pe.resolver_alias_visita(
+            conn,
+            "RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA",
+            "Graziela",
+        )
+        if not vinculo_pe_0045 or vinculo_pe_0045["codigo_pe"] != "PE-0045":
+            raise RuntimeError("O alias Kobo do PE-0045 nao foi resolvido.")
 
         registro_bri = {
             "id_bri": "bri-pg-1",
@@ -223,7 +255,7 @@ def _test_data(target):
         pe_lista = pe.listar(conn, {"busca": "pe temporario"}, limite=None)
         pe_resumo = pe.resumo_operacional(
             conn,
-            {"d_ini": hoje, "d_fim": hoje},
+            {"d_ini": hoje, "d_fim": hoje, "localidade": "Tamboara"},
         )
 
         if bri_resumo["totais"]["registros"] != 1:
