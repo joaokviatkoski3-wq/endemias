@@ -135,6 +135,8 @@ As regras de fonte de verdade e a arquitetura da tela estao em
    fica sem vinculo para triagem; ela nunca e atribuida por ordem de cadastro.
    A deteccao tambem agrupa as variantes cadastrais conhecidas `Rua Campo de
    Minas` e `Rua Campos de Minas`, sem alterar nenhum dos dois cadastros.
+   A tela e as exportacoes de PE apresentam a grafia oficial `Rua Campos de
+   Minas`, mesmo enquanto um cadastro historico conservar a variante singular.
    O identificador Kobo esperado e
    `RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA`.
    Esta branch **nao altera nem publica** o XLSForm no Kobo: essa atualizacao
@@ -142,7 +144,7 @@ As regras de fonte de verdade e a arquitetura da tela estao em
    Antes de integrar, o operador deve confirmar no PostgreSQL de producao que
    o cadastro `PE-0045` existe e esta ativo; sem esse cadastro, a semeadura do
    alias e ignorada para preservar a chave estrangeira. A regressao desta
-   revisao terminou com 640 testes `OK` e 5 ignorados; o ensaio PostgreSQL em
+   revisao terminou com 641 testes `OK` e 5 ignorados; o ensaio PostgreSQL em
    `endemias_teste` usou tabelas temporarias e preservou as tabelas publicas.
 2. **Concluida: correcao de Pontos Estrategicos:** a branch
    `codex/corrigir-datas-pe`, aprovada pelo Claude e autorizada pelo usuario,

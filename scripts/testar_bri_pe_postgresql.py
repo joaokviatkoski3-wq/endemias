@@ -238,6 +238,11 @@ def _test_data(target):
         )
         if not vinculo_pe_0045 or vinculo_pe_0045["codigo_pe"] != "PE-0045":
             raise RuntimeError("O alias Kobo do PE-0045 nao foi resolvido.")
+        pe_0031 = conn.execute(
+            "SELECT id_pe FROM pontos_estrategicos WHERE codigo_pe='PE-0031'"
+        ).fetchone()
+        if pe.obter(conn, pe_0031["id_pe"])["logradouro_exibicao"] != "Rua Campos de Minas":
+            raise RuntimeError("A grafia oficial da rua do PE-0031 nao foi apresentada.")
 
         registro_bri = {
             "id_bri": "bri-pg-1",

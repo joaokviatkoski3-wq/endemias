@@ -864,7 +864,11 @@ def obter(target, id_pe):
     try:
         ensure_schema(conn)
         row = conn.execute("SELECT * FROM pontos_estrategicos WHERE id_pe=?", (id_pe,)).fetchone()
-        return normalizadores._serializar_linha(row) if row else None
+        if not row:
+            return None
+        registro = normalizadores._serializar_linha(row)
+        registro["logradouro_exibicao"] = _logradouro_exibicao(registro.get("logradouro"))
+        return registro
     finally:
         if close:
             conn.close()
@@ -998,6 +1002,7 @@ def chave_origem(payload):
 
 
 def _completar_status_operacional(row):
+    row["logradouro_exibicao"] = _logradouro_exibicao(row.get("logradouro"))
     ultima = row.get("ultima_visita_pe")
     if ultima:
         try:
@@ -1018,6 +1023,13 @@ def _completar_status_operacional(row):
         if not ok
     ]
     return row
+
+
+def _logradouro_exibicao(value):
+    texto = _text(value)
+    if normalizar_alias(texto) == "rua campo de minas":
+        return "Rua Campos de Minas"
+    return texto
 
 
 def _filtrar_status_calculado(rows, filtros):

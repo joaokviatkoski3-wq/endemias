@@ -291,6 +291,9 @@ As variantes cadastrais conhecidas `Rua Campo de Minas` e `Rua Campos de
 Minas` sao comparadas como uma mesma rua apenas nessa deteccao; os valores dos
 cadastros nao sao alterados e os aliases qualificados por estabelecimento
 continuam resolvidos normalmente.
+A tela e as exportacoes de PE usam `logradouro_exibicao` para apresentar a
+grafia oficial `Rua Campos de Minas`, sem reescrever automaticamente o valor
+historico armazenado.
 
 O ensaio controlado e:
 

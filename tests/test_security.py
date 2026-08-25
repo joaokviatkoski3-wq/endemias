@@ -1870,6 +1870,30 @@ class PontosEstrategicosTests(unittest.TestCase):
             ],
         )
 
+    def test_pe_exibe_grafia_oficial_sem_reescrever_logradouro_historico(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            pe_core.salvar(str(db_path), {
+                "codigo_pe": "PE-0031",
+                "nome": "Ferro Velho do Paulo",
+                "localidade": "Graziela",
+                "logradouro": "Rua Campo de Minas",
+                "numero": "753",
+                "quarteirao": 1336,
+                "situacao": 1,
+            })
+            registro = next(
+                row
+                for row in pe_core.listar(str(db_path), limite=None)["registros"]
+                if row["codigo_pe"] == "PE-0031"
+            )
+            obtido = pe_core.obter(str(db_path), registro["id_pe"])
+
+        self.assertEqual(registro["logradouro"], "Rua Campo de Minas")
+        self.assertEqual(registro["logradouro_exibicao"], "Rua Campos de Minas")
+        self.assertEqual(obtido["logradouro"], "Rua Campo de Minas")
+        self.assertEqual(obtido["logradouro_exibicao"], "Rua Campos de Minas")
+
     def test_listagem_de_pe_prioriza_vinculo_direto_da_visita(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = _executar_criar_banco_em(tmpdir)

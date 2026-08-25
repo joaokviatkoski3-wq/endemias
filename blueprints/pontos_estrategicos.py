@@ -238,7 +238,7 @@ def _gerar_xlsx(registros):
         "Focos", "Semana selecionada", "Pendencias", "Observacoes",
     ]
     campos = [
-        "codigo_pe", "nome", "localidade", "quarteirao", "logradouro", "numero",
+        "codigo_pe", "nome", "localidade", "quarteirao", "logradouro_exibicao", "numero",
         "tipo", "situacao_label", "telefone", "cnpj", "razao_social", "latitude",
         "longitude", "data_inclusao", "data_desativacao", "ultima_visita_pe",
         "dias_sem_visita", "visitas_pe_total", "ultimo_bri", "bri_total",

@@ -165,7 +165,7 @@ async function carregarPEs(){
   });
   document.getElementById('pe-info').textContent = `${peFmt.format(d.total || 0)} registro(s)`;
   document.getElementById('pe-body').innerHTML = (d.registros || []).map(r => {
-    const endereco = [r.logradouro, r.numero].filter(Boolean).join(', ') || '-';
+    const endereco = [r.logradouro_exibicao || r.logradouro, r.numero].filter(Boolean).join(', ') || '-';
     const pend = [];
     if (r.visita_atrasada) pend.push('visita atrasada');
     (r.pendencias_cadastro || []).forEach(p => pend.push(p));
@@ -208,7 +208,9 @@ function abrirPE(reg={}){
   document.getElementById('pe-data-inclusao').value = peData(reg.data_inclusao) || '';
   document.getElementById('pe-data-desativacao').value = peData(reg.data_desativacao) || '';
   document.getElementById('pe-razao-social').value = reg.razao_social || '';
-  peCampos.forEach(c => document.getElementById('pe-' + c.replace('_','-')).value = reg[c] ?? '');
+  peCampos.forEach(c => document.getElementById('pe-' + c.replace('_','-')).value = (
+    c === 'logradouro' ? (reg.logradouro_exibicao || reg.logradouro || '') : (reg[c] ?? '')
+  ));
   document.getElementById('pe-modal').classList.add('open');
 }
 function fecharPE(){ document.getElementById('pe-modal').classList.remove('open'); }
