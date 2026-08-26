@@ -108,6 +108,20 @@ class StartupScriptsTests(unittest.TestCase):
         self.assertIn("python criar_banco.py", testar)
         self.assertLess(testar.index("choice /C CN"), testar.index("copy /Y"))
 
+    def test_testar_tem_segunda_barreira_por_identidade_do_banco(self):
+        testar = (ROOT / "testar.bat").read_text(encoding="utf-8")
+
+        definicao = 'set "ENDEMIAS_DB_PATH=%~dp0endemias.db"'
+        verificacao = (
+            'python scripts\\validar_banco_teste.py "%ENDEMIAS_DB_PATH%" '
+            '"C:\\endemias\\endemias.db"'
+        )
+        self.assertIn(verificacao, testar)
+        self.assertLess(testar.index(definicao), testar.index(verificacao))
+        self.assertLess(testar.index(verificacao), testar.index("ENDEMIAS_ANEXOS_DIR"))
+        self.assertIn("O banco de teste resolve para o SQLite oficial", testar)
+        self.assertIn("exit /b 4", testar)
+
     def test_reiniciar_valida_processo_e_reabre_tarefa_automatica(self):
         reiniciar_bat = (ROOT / "reiniciar.bat").read_text(encoding="utf-8")
         reiniciar_ps1 = (ROOT / "scripts" / "reiniciar_endemias.ps1").read_text(

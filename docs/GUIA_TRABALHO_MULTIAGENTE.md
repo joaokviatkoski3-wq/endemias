@@ -153,7 +153,9 @@ Depois que a branch `codex/ambiente-de-teste-padrao` for revisada e integrada,
 o caminho normal para o teste funcional sera executar `testar.bat` na raiz do
 worktree. O arquivo:
 
-- recusa execucao em `C:\endemias`, que e exclusivamente producao;
+- recusa execucao em `C:\endemias`, que e exclusivamente producao, e possui
+  uma segunda barreira por identidade de arquivo para nunca usar o SQLite
+  oficial por UNC, caminho curto, juncao, link simbolico ou hard link;
 - fixa a porta `5002` e avisa se ela ja estiver ocupada. Por isso apenas um
   worktree usa o iniciador padrao por vez; o segundo nao inicia parcialmente;
 - fixa o backend SQLite e direciona banco, anexos, temporarios, log, chave,
@@ -161,7 +163,8 @@ worktree. O arquivo:
 - cria um banco vazio por padrao. A copia do SQLite oficial e uma escolha
   manual, nunca automatica, porque contem dados reais de saude;
 - define `ENDEMIAS_AMBIENTE=teste`, que ativa a faixa visual permanente de
-  dados nao oficiais. A faixa nao participa de impressoes ou PDFs.
+  dados nao oficiais. Porta diferente de `5000` tambem ativa essa faixa como
+  defesa adicional; ela nao participa de impressoes ou PDFs.
 
 Ao copiar a massa real, mantenha o worktree restrito, nao versione o banco e
 apague a copia quando descartar a branch. O arquivo oficial e origem somente

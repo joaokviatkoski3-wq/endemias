@@ -22,7 +22,30 @@ set "ENDEMIAS_AMBIENTE=teste"
 set "ENDEMIAS_PORT=5002"
 set "ENDEMIAS_DB_BACKEND=sqlite"
 set "ENDEMIAS_INSTANCE_DIR=%~dp0"
+
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo  [ATENCAO] Python nao encontrado.
+    echo  Instale o Python e tente novamente.
+    echo.
+    pause
+    exit /b 1
+)
+
 set "ENDEMIAS_DB_PATH=%~dp0endemias.db"
+python scripts\validar_banco_teste.py "%ENDEMIAS_DB_PATH%" "C:\endemias\endemias.db" >nul
+if errorlevel 1 (
+    echo.
+    echo  ==============================================================
+    echo  [BLOQUEADO] O banco de teste resolve para o SQLite oficial.
+    echo  O arquivo C:\endemias\endemias.db e rollback congelado.
+    echo  Nenhuma inicializacao ou escrita foi realizada.
+    echo  ==============================================================
+    echo.
+    pause
+    exit /b 4
+)
+
 set "ENDEMIAS_ANEXOS_DIR=%~dp0anexos"
 set "ENDEMIAS_UPLOAD_TEMP=%~dp0uploads_temp"
 set "ENDEMIAS_LOG_PATH=%~dp0endemias.log"
@@ -39,15 +62,6 @@ echo  Acesso:   http://localhost:%ENDEMIAS_PORT%
 echo  Banco:    %ENDEMIAS_DB_PATH%
 echo  ==============================================================
 echo.
-
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo  [ATENCAO] Python nao encontrado.
-    echo  Instale o Python e tente novamente.
-    echo.
-    pause
-    exit /b 1
-)
 
 python -c "import socket, sys; s=socket.socket(); s.settimeout(1); sys.exit(0 if s.connect_ex(('127.0.0.1', 5002)) == 0 else 1)" >nul 2>nul
 if not errorlevel 1 (

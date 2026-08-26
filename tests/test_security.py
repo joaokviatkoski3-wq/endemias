@@ -4321,28 +4321,39 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(endemias_app._env_port({"ENDEMIAS_PORT": "0"}), 5000)
         self.assertEqual(endemias_app._env_port({"ENDEMIAS_PORT": "65536"}), 5000)
 
-    def test_faixa_de_teste_depende_de_ambiente_explicito(self):
-        cliente_producao = _client_logado()
-        login_producao = endemias_app.app.test_client().get("/login")
-        home_producao = cliente_producao.get("/")
-        app_teste = endemias_app.create_app({
-            "TESTING": True,
-            "DB_PATH": endemias_app.DB_PATH,
-            "AMBIENTE": "teste",
-        })
-        cliente_teste = app_teste.test_client()
-        login_teste = cliente_teste.get("/login")
-        _login_client_com_usuario(cliente_teste, _usuario_teste())
-        home_teste = cliente_teste.get("/")
-
-        self.assertNotIn(b'id="ambiente-teste-faixa"', login_producao.data)
-        self.assertNotIn(b'id="ambiente-teste-faixa"', home_producao.data)
-        self.assertIn(b'id="ambiente-teste-faixa"', login_teste.data)
-        self.assertIn(b'id="ambiente-teste-faixa"', home_teste.data)
-        self.assertIn(
-            "dados exibidos não são os dados oficiais".encode("utf-8"),
-            home_teste.data,
+    def test_faixa_de_teste_soma_ambiente_explicito_e_porta(self):
+        casos = (
+            ("producao", 5000, False),
+            ("teste", 5002, True),
+            (None, 5002, True),
+            ("producao", 5100, True),
         )
+
+        for ambiente, porta, deve_exibir in casos:
+            with self.subTest(ambiente=ambiente, porta=porta):
+                config = {
+                    "TESTING": True,
+                    "DB_PATH": endemias_app.DB_PATH,
+                    "AMBIENTE": ambiente,
+                    "SERVER_PORT": porta,
+                }
+                app_caso = endemias_app.create_app(config)
+                cliente = app_caso.test_client()
+                login = cliente.get("/login")
+                _login_client_com_usuario(cliente, _usuario_teste())
+                home = cliente.get("/")
+
+                for resposta in (login, home):
+                    if deve_exibir:
+                        self.assertIn(b'id="ambiente-teste-faixa"', resposta.data)
+                    else:
+                        self.assertNotIn(b'id="ambiente-teste-faixa"', resposta.data)
+
+                if deve_exibir:
+                    self.assertIn(
+                        "dados exibidos não são os dados oficiais".encode("utf-8"),
+                        home.data,
+                    )
         css = (ROOT / "static" / "css" / "app.css").read_text(encoding="utf-8")
         self.assertIn("@media print", css)
         self.assertIn(".ambiente-teste-faixa { display:none !important; }", css)
