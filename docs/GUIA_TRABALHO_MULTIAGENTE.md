@@ -147,6 +147,27 @@ Cada ambiente precisa ter:
 Separar branch nao separa banco automaticamente. Esse e o risco operacional
 mais importante do fluxo multiagente.
 
+### Inicializacao padrao de um worktree de teste
+
+Depois que a branch `codex/ambiente-de-teste-padrao` for revisada e integrada,
+o caminho normal para o teste funcional sera executar `testar.bat` na raiz do
+worktree. O arquivo:
+
+- recusa execucao em `C:\endemias`, que e exclusivamente producao;
+- fixa a porta `5002` e avisa se ela ja estiver ocupada. Por isso apenas um
+  worktree usa o iniciador padrao por vez; o segundo nao inicia parcialmente;
+- fixa o backend SQLite e direciona banco, anexos, temporarios, log, chave,
+  configuracao Kobo e backups para a propria pasta;
+- cria um banco vazio por padrao. A copia do SQLite oficial e uma escolha
+  manual, nunca automatica, porque contem dados reais de saude;
+- define `ENDEMIAS_AMBIENTE=teste`, que ativa a faixa visual permanente de
+  dados nao oficiais. A faixa nao participa de impressoes ou PDFs.
+
+Ao copiar a massa real, mantenha o worktree restrito, nao versione o banco e
+apague a copia quando descartar a branch. O arquivo oficial e origem somente
+leitura. O `iniciar.bat` continua reservado ao comportamento historico da
+instalacao oficial e nao recebe excecao para o marcador PostgreSQL.
+
 ## PostgreSQL nos ambientes
 
 Quando a migracao estiver concluida:

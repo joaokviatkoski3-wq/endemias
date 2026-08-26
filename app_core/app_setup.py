@@ -152,6 +152,7 @@ def register_context_processors(app):
     @app.context_processor
     def inject_globals():
         target = db_core.configured_target(current_app.config)
+        ambiente = str(current_app.config.get("AMBIENTE") or "producao").strip().lower()
         localidades = _cached_q("localidades", "SELECT nome FROM localidades ORDER BY nome")
         agentes = _cached_q("agentes", "SELECT nome FROM agentes WHERE ativo=1 ORDER BY nome")
         tipos_v = _cached_q("tipos_visita", "SELECT DISTINCT tipo FROM visitas WHERE tipo IS NOT NULL ORDER BY tipo")
@@ -184,4 +185,6 @@ def register_context_processors(app):
             APP_VERSION=version_core.APP_VERSION,
             APP_VERSION_DATE=version_core.APP_VERSION_DATE,
             APP_VERSION_LABEL=version_core.APP_VERSION_LABEL,
+            AMBIENTE_TESTE=ambiente != "producao",
+            AMBIENTE_NOME=ambiente,
         )
