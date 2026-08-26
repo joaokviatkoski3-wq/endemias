@@ -11,6 +11,24 @@ from app_core import recolhimentos as normalizadores
 
 
 TABLE = "pontos_estrategicos"
+OBS_ALIAS_INICIAL = "alias inicial para visitas PE antigas"
+OBS_ALIAS_AUTOMATICO = "alias automatico do cadastro do PE"
+OBS_ALIAS_AUTOMATICO_AMBIGUO = "alias automatico ambiguo entre PEs ativos"
+# Variantes cadastrais conhecidas da mesma rua. Elas so participam da
+# deteccao de ambiguidade de aliases automaticos; nao alteram o cadastro.
+PE_VARIANTES_LOGRADOURO = {
+    "rua campo de minas": "Rua Campos de Minas",
+}
+
+
+class DataValidationError(ValueError):
+    """Indica uma data informada pelo usuario que nao pode ser persistida."""
+
+    def __init__(self, campo):
+        self.campo = campo
+        super().__init__(
+            f"{campo} invalida. Informe uma data valida ou deixe o campo vazio."
+        )
 
 
 PE_ALIAS_SEED = (
@@ -88,6 +106,10 @@ PE_ALIAS_SEED = (
     ("RUA SAO GABRIEL - FERRO VELHO BRUNO", None, "PE-0025"),
     ("ROD. VEREADOR ADMAR BERTOLLI - FERRO VELHO PERNAMBUCO", None, "PE-0032"),
     ("RUA CAMPOS DE MINAS - FERRO - VELHO DO PAULO", None, "PE-0031"),
+    ("Borracharia Garagem Oculta", "Graziela", "PE-0045"),
+    ("Borracharia Garagem Oculta - Rua Campos de Minas", "Graziela", "PE-0045"),
+    ("Borracharia Garagem Oculta - Rua Campos de Minas - 753", "Graziela", "PE-0045"),
+    ("RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA", "Graziela", "PE-0045"),
     ("PREF. EURIPEDES DE SIQUEIRA - METALURGICA", None, "PE-0011"),
     ("RIO TANGUA - BORRACHARIA", None, "PE-0008"),
     ("TRAV. RIO CACHOEIRINHA - MEIO AMBIENTE", None, "PE-0009"),
@@ -194,11 +216,14 @@ def _seed_aliases(conn):
     for alias, localidade, codigo_pe in PE_ALIAS_SEED:
         if not conn.execute("SELECT 1 FROM pontos_estrategicos WHERE codigo_pe=?", (codigo_pe,)).fetchone():
             continue
-        _salvar_alias(conn, alias, localidade, codigo_pe, "alias inicial para visitas PE antigas", agora)
+        _salvar_alias(conn, alias, localidade, codigo_pe, OBS_ALIAS_INICIAL, agora)
+
+    candidatos_automaticos = {}
     for row in conn.execute(
         """SELECT codigo_pe, nome, logradouro, numero, localidade
              FROM pontos_estrategicos
-            WHERE situacao=1"""
+            WHERE situacao=1
+            ORDER BY codigo_pe"""
     ).fetchall():
         try:
             codigo_pe = row["codigo_pe"]
@@ -206,18 +231,144 @@ def _seed_aliases(conn):
         except (TypeError, IndexError):
             codigo_pe, localidade = row[0], row[4]
         for alias in _aliases_automaticos(row):
-            _salvar_alias(conn, alias, localidade, codigo_pe, "alias automatico do cadastro do PE", agora)
+            _adicionar_candidato_automatico(
+                candidatos_automaticos, alias, localidade, codigo_pe
+            )
             if " - " in alias:
-                _salvar_alias(conn, alias, None, codigo_pe, "alias automatico do cadastro do PE", agora)
+                _adicionar_candidato_automatico(
+                    candidatos_automaticos, alias, None, codigo_pe
+                )
+
+    for candidato in candidatos_automaticos.values():
+        if len(candidato["codigos_pe"]) > 1:
+            _marcar_alias_automatico_ambiguo(conn, candidato, agora)
+            continue
+        codigo_pe = next(iter(candidato["codigos_pe"]))
+        for alias in candidato["aliases"].values():
+            _salvar_alias(
+                conn,
+                alias["alias"],
+                alias["localidade"],
+                codigo_pe,
+                OBS_ALIAS_AUTOMATICO,
+                agora,
+                automatico=True,
+            )
 
 
-def _salvar_alias(conn, alias, localidade, codigo_pe, observacoes, agora):
+def _adicionar_candidato_automatico(candidatos, alias, localidade, codigo_pe):
     alias_texto = _text(alias)
     if not alias_texto:
         return
     localidade_texto = _text(localidade)
     alias_norm = normalizar_alias(alias_texto)
     localidade_norm = normalizar_alias(localidade_texto)
+    alias_agrupado = PE_VARIANTES_LOGRADOURO.get(alias_norm, alias_norm)
+    chave = (normalizar_alias(alias_agrupado), localidade_norm)
+    candidato = candidatos.setdefault(
+        chave,
+        {
+            "codigos_pe": set(),
+            "aliases": {},
+        },
+    )
+    candidato["codigos_pe"].add(codigo_pe)
+    candidato["aliases"].setdefault(
+        (alias_norm, localidade_norm),
+        {"alias": alias_texto, "localidade": localidade_texto},
+    )
+
+
+def _observacao_automatica(observacoes):
+    return observacoes in (OBS_ALIAS_AUTOMATICO, OBS_ALIAS_AUTOMATICO_AMBIGUO)
+
+
+def _marcar_alias_automatico_ambiguo(conn, candidato, agora):
+    for (alias_norm, localidade_norm), alias in candidato["aliases"].items():
+        existente = conn.execute(
+            """SELECT codigo_pe, observacoes
+                 FROM pontos_estrategicos_alias
+                WHERE alias_normalizado=? AND localidade_normalizada=?""",
+            (alias_norm, localidade_norm),
+        ).fetchone()
+        if not existente:
+            conn.execute(
+                """INSERT INTO pontos_estrategicos_alias (
+                       alias_logradouro, alias_normalizado, localidade,
+                       localidade_normalizada, codigo_pe, observacoes, ativo,
+                       criado_em, atualizado_em
+                   ) VALUES (?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT DO NOTHING""",
+                (
+                    alias["alias"], alias_norm, alias["localidade"],
+                    localidade_norm, min(candidato["codigos_pe"]),
+                    OBS_ALIAS_AUTOMATICO_AMBIGUO, 0, agora, agora,
+                ),
+            )
+            continue
+        conn.execute(
+            """UPDATE pontos_estrategicos_alias
+                  SET ativo=0, observacoes=?, atualizado_em=?
+                WHERE alias_normalizado=? AND localidade_normalizada=?
+                  AND observacoes IN (?, ?)""",
+            (
+                OBS_ALIAS_AUTOMATICO_AMBIGUO,
+                agora,
+                alias_norm,
+                localidade_norm,
+                OBS_ALIAS_AUTOMATICO,
+                OBS_ALIAS_AUTOMATICO_AMBIGUO,
+            ),
+        )
+
+
+def _salvar_alias(conn, alias, localidade, codigo_pe, observacoes, agora, automatico=False):
+    alias_texto = _text(alias)
+    if not alias_texto:
+        return
+    localidade_texto = _text(localidade)
+    alias_norm = normalizar_alias(alias_texto)
+    localidade_norm = normalizar_alias(localidade_texto)
+    existente = conn.execute(
+        """SELECT codigo_pe, observacoes
+             FROM pontos_estrategicos_alias
+            WHERE alias_normalizado=? AND localidade_normalizada=?""",
+        (alias_norm, localidade_norm),
+    ).fetchone()
+    if existente:
+        try:
+            codigo_existente = existente["codigo_pe"]
+            observacoes_existentes = existente["observacoes"]
+        except (TypeError, IndexError):
+            codigo_existente, observacoes_existentes = existente[0], existente[1]
+        if codigo_existente != codigo_pe:
+            if automatico and observacoes_existentes == OBS_ALIAS_AUTOMATICO_AMBIGUO:
+                conn.execute(
+                    """UPDATE pontos_estrategicos_alias
+                          SET alias_logradouro=?, localidade=?, codigo_pe=?, ativo=1,
+                              observacoes=?, atualizado_em=?
+                        WHERE alias_normalizado=? AND localidade_normalizada=?""",
+                    (alias_texto, localidade_texto, codigo_pe, observacoes, agora,
+                     alias_norm, localidade_norm),
+                )
+            elif automatico and observacoes_existentes == OBS_ALIAS_AUTOMATICO:
+                conn.execute(
+                    """UPDATE pontos_estrategicos_alias
+                          SET ativo=0, observacoes=?, atualizado_em=?
+                        WHERE alias_normalizado=? AND localidade_normalizada=?""",
+                    (OBS_ALIAS_AUTOMATICO_AMBIGUO, agora, alias_norm, localidade_norm),
+                )
+            return
+        if not automatico or not _observacao_automatica(observacoes_existentes):
+            return
+        conn.execute(
+            """UPDATE pontos_estrategicos_alias
+                  SET alias_logradouro=?, localidade=?, ativo=1, observacoes=?,
+                      atualizado_em=?
+                WHERE alias_normalizado=? AND localidade_normalizada=?""",
+            (alias_texto, localidade_texto, observacoes, agora, alias_norm, localidade_norm),
+        )
+        return
     conn.execute(
         """INSERT INTO pontos_estrategicos_alias (
                alias_logradouro, alias_normalizado, localidade, localidade_normalizada,
@@ -234,26 +385,6 @@ def _salvar_alias(conn, alias, localidade, codigo_pe, observacoes, agora):
             1,
             agora,
             agora,
-        ),
-    )
-    conn.execute(
-        """UPDATE pontos_estrategicos_alias
-              SET alias_logradouro=?,
-                  localidade=?,
-                  codigo_pe=?,
-                  ativo=1,
-                  atualizado_em=?
-            WHERE alias_normalizado=?
-              AND localidade_normalizada=?
-              AND (observacoes IS NULL
-                   OR observacoes IN ('alias inicial para visitas PE antigas', 'alias automatico do cadastro do PE'))""",
-        (
-            alias_texto,
-            localidade_texto,
-            codigo_pe,
-            agora,
-            alias_norm,
-            localidade_norm,
         ),
     )
 
@@ -329,6 +460,8 @@ def vincular_visitas_existentes_por_alias(conn):
     if not _table_exists(conn, "visitas"):
         return {"atualizadas": 0, "sem_alias": 0}
     ensure_schema(conn)
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        _seed_aliases(conn)
     rows = conn.execute(
         """SELECT id_visita, logradouro, localidade
              FROM visitas
@@ -435,8 +568,12 @@ def registro_de_linha_csv(row):
         "logradouro": _text(_pick(row, ("Logradouro",))),
         "numero": _text(_pick(row, ("Número", "Numero"))),
         "situacao": _situacao(_pick(row, ("Situação", "Situacao"))),
-        "data_inclusao": _date(_pick(row, ("DATA INCLUSÃO", "DATA INCLUSAO", "Data Inclusão"))),
-        "data_desativacao": _date(_pick(row, ("DATA DESATIVAÇÃO", "DATA DESATIVACAO", "Data Desativação"))),
+        "data_inclusao": _date_importacao(
+            _pick(row, ("DATA INCLUSÃO", "DATA INCLUSAO", "Data Inclusão"))
+        ),
+        "data_desativacao": _date_importacao(
+            _pick(row, ("DATA DESATIVAÇÃO", "DATA DESATIVACAO", "Data Desativação"))
+        ),
         "cnpj": _text(_pick(row, ("CNPJ",))),
         "razao_social": _text(_pick(row, ("RAZÃO SOCIAL", "RAZAO SOCIAL", "Razão Social"))),
         "telefone": _text(_pick(row, ("TELEFONE", "Telefone"))),
@@ -456,8 +593,9 @@ def listar(target, filtros=None, limite=1000):
         ensure_schema(conn)
         _ensure_optional_modules(conn)
         where, params = _where(filtros)
+        periodo_col, periodo_params = _periodo_selecionado_sql(filtros)
         limit_clause = "" if limite is None else "LIMIT ?"
-        query_params = list(params)
+        query_params = list(periodo_params) + list(params)
         if limite is not None:
             query_params.append(int(limite))
         rows = [
@@ -506,7 +644,8 @@ def listar(target, filtros=None, limite=1000):
                              WHERE f.gera_notificacao=1
                                AND f.id_localidade=pe.id_localidade
                                AND f.quarteirao=pe.quarteirao
-                        ) AS focos_total
+                        ) AS focos_total,
+                        {periodo_col}
                     FROM pontos_estrategicos pe
                     {where}
                     ORDER BY situacao DESC, localidade, quarteirao, nome
@@ -514,16 +653,26 @@ def listar(target, filtros=None, limite=1000):
                 query_params,
             )
         ]
+        for row in rows:
+            visitas_periodo = row.get("visitas_periodo_selecionado")
+            row["visitado_periodo_selecionado"] = (
+                None if visitas_periodo is None else int(visitas_periodo) > 0
+            )
         rows = _filtrar_status_calculado(rows, filtros)
+        # A contagem segue exatamente as mesmas linhas da listagem, para o
+        # cartao nunca divergir do que a tabela mostra. Para ver so os ativos,
+        # o operador usa o filtro Situacao, que vale para os dois.
+        contagens_pendencia = ", ".join(
+            f"SUM(CASE WHEN {sql} THEN 1 ELSE 0 END) AS {codigo}"
+            for codigo, _, sql in PENDENCIAS_CADASTRO
+        )
         totais = dict(
             conn.execute(
                 f"""SELECT
                         COUNT(*) AS total,
                         SUM(CASE WHEN situacao=1 THEN 1 ELSE 0 END) AS ativos,
                         SUM(CASE WHEN situacao=0 THEN 1 ELSE 0 END) AS inativos,
-                        SUM(CASE WHEN tipo IS NULL OR TRIM(tipo)='' THEN 1 ELSE 0 END) AS sem_tipo,
-                        SUM(CASE WHEN telefone IS NULL OR TRIM(telefone)='' THEN 1 ELSE 0 END) AS sem_telefone,
-                        SUM(CASE WHEN latitude IS NULL OR longitude IS NULL THEN 1 ELSE 0 END) AS sem_coordenadas
+                        {contagens_pendencia}
                    FROM pontos_estrategicos pe
                    {where}""",
                 params,
@@ -533,8 +682,12 @@ def listar(target, filtros=None, limite=1000):
         if close:
             conn.close()
     totais = {k: (v or 0) for k, v in totais.items()}
-    if filtros.get("atrasados") or filtros.get("pendencias"):
+    if filtros.get("atrasados") or filtros.get("pendencias") or filtros.get("pendentes_periodo"):
         totais = _totais_de_rows(rows)
+    if filtros.get("periodo_inicio") and filtros.get("periodo_fim"):
+        ativos = [r for r in rows if r.get("situacao") == 1]
+        totais["feitos_periodo"] = sum(1 for r in ativos if r.get("visitado_periodo_selecionado"))
+        totais["pendentes_periodo"] = sum(1 for r in ativos if not r.get("visitado_periodo_selecionado"))
     return {"registros": rows, "total": len(rows), "totais": totais}
 
 
@@ -697,7 +850,11 @@ def opcoes(target):
     finally:
         if close:
             conn.close()
-    return {"localidades": localidades, "tipos": tipos}
+    return {
+        "localidades": localidades,
+        "tipos": tipos,
+        "pendencias": pendencias_disponiveis(),
+    }
 
 
 def obter(target, id_pe):
@@ -705,13 +862,18 @@ def obter(target, id_pe):
     try:
         ensure_schema(conn)
         row = conn.execute("SELECT * FROM pontos_estrategicos WHERE id_pe=?", (id_pe,)).fetchone()
-        return normalizadores._serializar_linha(row) if row else None
+        if not row:
+            return None
+        registro = normalizadores._serializar_linha(row)
+        registro["logradouro_exibicao"] = _logradouro_exibicao(registro.get("logradouro"))
+        return registro
     finally:
         if close:
             conn.close()
 
 
 def salvar(target, payload, id_pe=None):
+    payload = _normalizar_datas_payload(payload)
     conn, close = _open_connection(target)
     try:
         ensure_schema(conn)
@@ -770,6 +932,14 @@ def atualizar(conn, id_pe, payload):
     if not atual:
         return False
     localidade = _localidade(payload.get("localidade"))
+    preservar_logradouro = str(
+        payload.get("preservar_logradouro_original") or ""
+    ).strip().lower() in ("1", "true", "sim")
+    logradouro = (
+        _text(atual["logradouro"])
+        if preservar_logradouro
+        else _text(payload.get("logradouro"))
+    )
     agora = datetime.now().isoformat(timespec="seconds")
     conn.execute(
         """UPDATE pontos_estrategicos SET
@@ -782,7 +952,7 @@ def atualizar(conn, id_pe, payload):
             _obter_ou_criar_localidade(conn, localidade),
             _int(payload.get("quarteirao")),
             _text(payload.get("nome")) or "Ponto estrategico",
-            _text(payload.get("logradouro")),
+            logradouro,
             _text(payload.get("numero")),
             _situacao(payload.get("situacao")),
             _date(payload.get("data_inclusao")),
@@ -838,6 +1008,7 @@ def chave_origem(payload):
 
 
 def _completar_status_operacional(row):
+    row["logradouro_exibicao"] = _logradouro_exibicao(row.get("logradouro"))
     ultima = row.get("ultima_visita_pe")
     if ultima:
         try:
@@ -860,29 +1031,111 @@ def _completar_status_operacional(row):
     return row
 
 
+def _logradouro_exibicao(value):
+    texto = _text(value)
+    return PE_VARIANTES_LOGRADOURO.get(normalizar_alias(texto), texto)
+
+
 def _filtrar_status_calculado(rows, filtros):
     if filtros.get("atrasados") in ("1", 1, True, "true", "sim"):
         rows = [r for r in rows if r.get("visita_atrasada")]
     if filtros.get("pendencias") in ("1", 1, True, "true", "sim"):
         rows = [r for r in rows if r.get("visita_atrasada") or r.get("pendencias_cadastro")]
+    if filtros.get("pendentes_periodo") in ("1", 1, True, "true", "sim") and (
+        filtros.get("periodo_inicio") and filtros.get("periodo_fim")
+    ):
+        rows = [r for r in rows if not r.get("visitado_periodo_selecionado")]
     return rows
 
 
+def _periodo_selecionado_sql(filtros):
+    inicio = filtros.get("periodo_inicio")
+    fim = filtros.get("periodo_fim")
+    if not inicio or not fim:
+        return "NULL AS visitas_periodo_selecionado", []
+    return (
+        """(
+            SELECT COUNT(DISTINCT v.id_visita)
+              FROM visitas v
+             WHERE v.tipo='PE'
+               AND (
+                   v.id_pe=pe.id_pe
+                   OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao)
+               )
+               AND v.data BETWEEN ? AND ?
+        ) AS visitas_periodo_selecionado""",
+        [inicio, fim],
+    )
+
+
+def _pendencia_do_registro(row, codigo):
+    """Mesma regra do SQL, para quando os totais saem das linhas ja filtradas."""
+    if codigo == "sem_coordenadas":
+        return row.get("latitude") is None or row.get("longitude") is None
+    coluna = codigo[len("sem_"):]
+    return not _text(row.get(coluna))
+
+
 def _totais_de_rows(rows):
-    return {
+    totais = {
         "total": len(rows),
         "ativos": sum(1 for r in rows if r.get("situacao") == 1),
         "inativos": sum(1 for r in rows if r.get("situacao") == 0),
-        "sem_tipo": sum(1 for r in rows if not _text(r.get("tipo"))),
-        "sem_telefone": sum(1 for r in rows if not _text(r.get("telefone"))),
-        "sem_coordenadas": sum(1 for r in rows if r.get("latitude") is None or r.get("longitude") is None),
     }
+    for codigo, _, _sql in PENDENCIAS_CADASTRO:
+        totais[codigo] = sum(1 for r in rows if _pendencia_do_registro(r, codigo))
+    return totais
 
 
 def _ensure_optional_modules(conn):
     from app_core import bri as bri_core
 
     bri_core.ensure_schema(conn)
+
+
+def _vazio(coluna):
+    return f"(pe.{coluna} IS NULL OR TRIM(CAST(pe.{coluna} AS TEXT))='')"
+
+
+# Pendencias de cadastro filtraveis, na ordem em que aparecem na tela. A
+# condicao entra direto no SQL para que os totais acompanhem o filtro.
+# Campos sempre preenchidos (nome, logradouro, quarteirao) ficam de fora, e
+# data_desativacao tambem: num PE ativo o normal e estar vazia.
+PENDENCIAS_CADASTRO = (
+    ("sem_cnpj", "Sem CNPJ", _vazio("cnpj")),
+    ("sem_razao_social", "Sem razão social", _vazio("razao_social")),
+    ("sem_telefone", "Sem telefone", _vazio("telefone")),
+    ("sem_tipo", "Sem tipo", _vazio("tipo")),
+    ("sem_coordenadas", "Sem coordenadas", "(pe.latitude IS NULL OR pe.longitude IS NULL)"),
+    ("sem_numero", "Sem número", _vazio("numero")),
+    ("sem_data_inclusao", "Sem data de inclusão", _vazio("data_inclusao")),
+    ("sem_observacoes", "Sem observações", _vazio("observacoes")),
+)
+
+PENDENCIAS_POR_CODIGO = {codigo: (rotulo, sql) for codigo, rotulo, sql in PENDENCIAS_CADASTRO}
+
+
+def pendencias_disponiveis():
+    return [{"codigo": codigo, "nome": rotulo} for codigo, rotulo, _ in PENDENCIAS_CADASTRO]
+
+
+def _clausula_pendencias(filtros):
+    """Monta a condicao das pendencias marcadas.
+
+    Combina com OU: marcar CNPJ e telefone lista quem tem qualquer uma das
+    duas faltando, que e como o setor cobra a regularizacao.
+    """
+    codigos = filtros.get("pendencias_cadastro")
+    if isinstance(codigos, str):
+        codigos = [codigos]
+    condicoes = [
+        PENDENCIAS_POR_CODIGO[codigo][1]
+        for codigo in (codigos or [])
+        if codigo in PENDENCIAS_POR_CODIGO
+    ]
+    if not condicoes:
+        return None
+    return "(" + " OR ".join(condicoes) + ")"
 
 
 def _where(filtros):
@@ -913,6 +1166,9 @@ def _where(filtros):
                     OR LOWER(COALESCE(pe.razao_social,'')) LIKE LOWER(?))"""
         )
         params.extend([termo] * 6)
+    pendencias = _clausula_pendencias(filtros)
+    if pendencias:
+        clauses.append(f"AND {pendencias}")
     return " ".join(clauses), params
 
 
@@ -1005,17 +1261,40 @@ def _real(value):
 
 
 def _date(value):
-    if value is None:
+    if value is None or (
+        isinstance(value, str) and value.strip().lower() in ("", "nat")
+    ):
         return None
     try:
         if pd.isna(value):
             return None
     except Exception:
         pass
-    try:
-        return pd.to_datetime(value).date().isoformat()
-    except Exception:
+    data = pd.to_datetime(value)
+    if pd.isna(data):
         return None
+    return data.date().isoformat()
+
+
+def _date_importacao(value):
+    """Mantem a tolerancia historica do CSV sem afrouxar o cadastro web."""
+    try:
+        return _date(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _normalizar_datas_payload(payload):
+    normalizado = dict(payload)
+    for campo, rotulo in (
+        ("data_inclusao", "Data de inclusao"),
+        ("data_desativacao", "Data de desativacao"),
+    ):
+        try:
+            normalizado[campo] = _date(normalizado.get(campo))
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise DataValidationError(rotulo) from exc
+    return normalizado
 
 
 def _situacao(value):

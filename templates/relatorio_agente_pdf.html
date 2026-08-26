@@ -129,7 +129,7 @@ tr:nth-child(even) td{background:#f8faff;}
   <div class="hero">
     <div class="hero-nome">{{ agente }}</div>
     <div class="hero-sub">
-      Agente de Combate a Endemias &nbsp;·&nbsp;
+      {{ cargo or 'Função não informada' }} &nbsp;·&nbsp;
       {% set pi = d_ini.split('-') %}{% set pf = d_fim.split('-') %}
       Período: {{ pi[2] }}/{{ pi[1] }}/{{ pi[0] }} a {{ pf[2] }}/{{ pf[1] }}/{{ pf[0] }} &nbsp;·&nbsp;
       Gerado em: {{ now }}
@@ -264,8 +264,8 @@ tr:nth-child(even) td{background:#f8faff;}
   <div class="secao">Resumo geral</div>
   <div class="kpi-grid">
     <div class="kpi"><div class="kpi-val">{{ totais.total or 0 }}</div><div class="kpi-lbl">Total de visitas</div></div>
-    <div class="kpi"><div class="kpi-val">{{ totais.dias or 0 }}</div><div class="kpi-lbl">Dias trabalhados</div></div>
-    <div class="kpi"><div class="kpi-val">{{ media_dia }}</div><div class="kpi-lbl">Média / dia</div></div>
+    <div class="kpi"><div class="kpi-val">{{ totais.dias or 0 }}</div><div class="kpi-lbl">Dias com visitas</div></div>
+    <div class="kpi"><div class="kpi-val">{{ media_dia }}</div><div class="kpi-lbl">Visitas / dia</div></div>
     <div class="kpi"><div class="kpi-val">{{ totais.quarteiroes or 0 }}</div><div class="kpi-lbl">Quarteirões</div></div>
     <div class="kpi green"><div class="kpi-val">{{ totais.normais or 0 }}</div><div class="kpi-lbl">Normais ({{ taxa_normal }}%)</div></div>
     <div class="kpi amber"><div class="kpi-val">{{ totais.fechados or 0 }}</div><div class="kpi-lbl">Fechados</div></div>

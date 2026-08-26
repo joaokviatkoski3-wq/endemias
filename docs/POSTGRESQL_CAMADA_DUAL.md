@@ -1,6 +1,12 @@
 # Camada dual SQLite e PostgreSQL
 
-## Estado em 29/07/2026
+## Registro historico e estado atual
+
+Este documento registra a conversao historica iniciada em 29/07/2026. A
+migracao foi concluida em 03/08/2026 e PostgreSQL e producao. Para nao tratar
+um lote ja entregue como proxima etapa, leia primeiro
+`docs/ESTADO_ATUAL_PROJETO.md`; mantenha este arquivo como evidencia tecnica
+das adaptacoes e ensaios que tornam a camada dual segura.
 
 A aplicacao possui agora uma primeira camada de conexao capaz de consultar
 SQLite ou PostgreSQL sem alterar a assinatura usada pelo codigo existente.
@@ -255,7 +261,40 @@ Estao homologados:
 - resumos de visitas, BRI e focos por PE;
 - calculo de atraso com datas nativas dos dois bancos;
 - serializacao uniforme de datas e horarios;
+- normalizacao de `None`, campo vazio, espacos, `NaT` textual e `pandas.NaT`
+  para `NULL` antes da persistencia das datas do cadastro;
+- rejeicao de data preenchida mas invalida com HTTP 400 claro, sem converter
+  falhas reais de banco, auditoria, permissao ou concorrencia em erro de data;
+- apresentacao da mensagem devolvida pela API na tela de cadastro, sem mudar
+  o desenho do formulario;
+- preservacao da tolerancia da importacao historica CSV: data nao interpretavel
+  e preenchida continua convertida para `NULL`, sem afrouxar a validacao das
+  rotas de criacao e edicao;
 - paginas e APIs dos dois modulos.
+
+O XLSForm operacional de Pontos Estrategicos deve manter um identificador de
+logradouro distinto quando dois PEs compartilham o mesmo quarteirao. O PE-0045
+**Borracharia Garagem Oculta** (Graziela, Rua Campos de Minas, 753,
+quarteirao 1336) usa o identificador Kobo
+`RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA`; esse valor e alias
+explicito do PE-0045 para que as visitas importadas sejam vinculadas nos dois
+backends.
+
+Alias automatico de rua isolada e ativo somente quando identifica um unico PE
+ativo na localidade. Havendo mais de um candidato, o alias e marcado inativo e
+a importacao deixa a visita sem vinculo para triagem, em vez de escolher um PE
+pela ordem do cadastro. A semeadura ordena os codigos de PE e e executada no
+fluxo de vinculacao PostgreSQL, que nao chama a manutencao SQLite. A existencia
+do PE referido continua sendo pre-condicao: aliases de `PE_ALIAS_SEED` sem
+cadastro correspondente sao ignorados para preservar a chave estrangeira.
+As variantes cadastrais conhecidas `Rua Campo de Minas` e `Rua Campos de
+Minas` sao comparadas como uma mesma rua apenas nessa deteccao; os valores dos
+cadastros nao sao alterados e os aliases qualificados por estabelecimento
+continuam resolvidos normalmente.
+A tela e as exportacoes de PE usam `logradouro_exibicao` para apresentar a
+grafia oficial `Rua Campos de Minas`, sem reescrever automaticamente o valor
+historico armazenado. A edicao envia uma indicacao explicita para preservar o
+logradouro original enquanto o operador nao alterar o proprio campo.
 
 O ensaio controlado e:
 
@@ -264,8 +303,10 @@ python scripts\testar_bri_pe_postgresql.py --database endemias_teste
 ```
 
 O script cria copias temporarias das oito tabelas envolvidas, valida todo o
-fluxo integrado e depois consulta as paginas reais em modo somente leitura.
-As contagens das tabelas publicas sao comparadas antes e depois do ensaio.
+fluxo integrado, inclusive criacao/edicao com datas vazias ou `NaT` e resposta
+HTTP 400 para data invalida, e depois consulta as paginas reais em modo somente
+leitura. As contagens das tabelas publicas sao comparadas antes e depois do
+ensaio.
 
 ## Visitas de Arboviroses
 
@@ -685,7 +726,12 @@ informa se o processo tem privilegio administrativo: sem privilegio, a ausencia
 vira "nao foi possivel confirmar"; com privilegio, vira aviso real. O servidor
 oficial roda sob `SYSTEM` e enxerga tudo.
 
-## Proxima etapa
+## Historico da integracao Conta Ovos e conclusao da migracao
+
+As secoes abaixo descrevem lotes ja implementados e homologados. O trabalho
+atual da Conta Ovos e de consulta local e sincronizacao GET supervisionada;
+nenhum POST remoto esta em `master`. As prioridades posteriores a migracao
+ficam em `docs/ESTADO_ATUAL_PROJETO.md` e `docs/CONTA_OVOS_API.md`.
 
 A fundacao da API privada Conta Ovos adiciona a migracao
 `0002_integracao_contaovos.sql`, com cursor por fluxo e historico sanitizado de

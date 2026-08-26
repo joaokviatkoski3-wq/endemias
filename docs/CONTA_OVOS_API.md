@@ -1,12 +1,20 @@
 # Integracao privada com a API Conta Ovos
 
-Estado em 04/08/2026: fundacao, sincronizacao GET, fila local das leituras do
-laboratorio e fundacao GET do cadastro remoto de ovitrampas; credencial
-protegida, escopo privado, idempotencia real e semana epidemiologica
-validados. A central de consulta foi reestruturada para separar visao geral,
+Estado em 24/08/2026: fundacao, sincronizacao GET, fila local das leituras do
+laboratorio e fundacao GET do cadastro remoto de ovitrampas estao
+implementadas; credencial protegida, escopo privado, idempotencia real e semana
+epidemiologica foram validados. A central de consulta separa visao geral,
 Ovitrampas (com sub-areas de proveniencia API), EDLs e Quarteiroes/acoes
-reservados. A branch `codex/enviar-leituras-conta-ovos` prepara o primeiro
-operador de escrita unitaria, ainda sem qualquer POST real.
+reservados. Nenhum endpoint de escrita remota esta em `master`.
+
+A preferencia operacional atual e ampliar e usar primeiro a **leitura local do
+espelho**, nao escrever na API. A primeira sincronizacao real do cadastro remoto
+de ovitrampas ainda aguarda autorizacao operacional. Leia tambem
+`docs/ESTADO_ATUAL_PROJETO.md` para a prioridade vigente antes de iniciar lote.
+
+A branch `codex/enviar-leituras-conta-ovos` conserva uma proposta de envio
+unitario para revisao futura. Ela nao esta integrada, nao habilita escrita remota
+e nao substitui a ordem operacional acima.
 
 ## Regras de seguranca
 
@@ -175,22 +183,31 @@ proveniencia API. A arquitetura completa, a separacao em relacao a pagina
 operacional de Ovitrampas e o criterio para adicionar novos dominios remotos
 estao em `docs/CONTA_OVOS_INTERFACE.md`.
 
-## Proximos lotes
+## Ordem futura recomendada
 
-1. Revisar o envio serial `/postcounting` e, somente depois da aprovacao,
-   escolher uma leitura piloto para a primeira operacao real supervisionada.
-2. Depois do piloto, decidir se o envio continua unitario ou ganha lote pequeno
-   com limite, intervalo entre requisicoes e circuit breaker.
-3. Envio TBO por quarteirao somente depois de validar IDs remotos, tipos de
-   imovel, unidade de larvicida e semana epidemiologica do servidor.
-4. Avaliar EDLs e Quarteiroes/acoes como novos dominios de consulta, pelo
-   mesmo criterio da fundacao de cadastro remoto: endpoint documentado,
-   schema/migracao proprios e sincronizacao GET supervisionada antes de
-   qualquer escrita.
+1. Quando o usuario autorizar, executar e conferir a primeira sincronizacao
+   real do cadastro remoto de ovitrampas; a interface continuara lendo somente
+   o espelho local.
+2. Avaliar EDLs e Quarteiroes/acoes como novos dominios de **consulta**, pelo
+   mesmo criterio da fundacao de cadastro remoto: endpoint GET documentado,
+   schema/migracao proprios e sincronizacao supervisionada antes de qualquer
+   escrita.
+3. Somente depois da decisao explicita de escrever, recuperar e revalidar a
+   branch de envio serial unitario `/postcounting`, com reconciliacao GET antes
+   e depois, sem exclusao automatica e com piloto supervisionado. Nao criar um
+   envio em lote por simples repeticao do comando unitario.
+4. Envio TBO por quarteirao somente depois de inventariar e validar IDs
+   remotos, tipos de imovel, unidade de larvicida, semana epidemiologica e
+   todos os efeitos colaterais documentados de `/postaction`.
 
 Endpoints `postdelete*` permanecem fora do planejamento inicial.
 
 ## Envio unitario supervisionado em revisao
+
+O conteudo desta secao descreve exclusivamente a proposta da branch
+`codex/enviar-leituras-conta-ovos`. Ele ainda nao pertence a `master`, nao
+autoriza qualquer POST real e so podera ser considerado apos nova revisao,
+decisao explicita de escrita e escolha humana de um piloto unitario.
 
 `app_core/contaovos_envio.py` consulta a semana epidemiologica inteira antes do
 POST. Se encontrar uma leitura igual, confirma a fila sem escrever remotamente;

@@ -42,6 +42,10 @@
       <div class="f-g"><label>Tipo</label><select id="pe-tipo"><option value="">Todos</option>{% for tipo in opcoes.tipos %}<option value="{{ tipo }}">{{ tipo }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Situação</label><select id="pe-situacao"><option value="">Todas</option><option value="1">Ativos</option><option value="0">Inativos</option></select></div>
       <div class="f-g"><label>Revisão</label><select id="pe-revisao"><option value="">Todos</option><option value="atrasados">Atrasados</option><option value="pendencias">Com pendência</option></select></div>
+      <div class="f-g"><label>Pendências de cadastro</label><select id="pe-pendencias" multiple size="4" title="Segure Ctrl para marcar mais de uma. Lista quem tem qualquer uma das marcadas faltando.">{% for p in opcoes.pendencias %}<option value="{{ p.codigo }}">{{ p.nome }}</option>{% endfor %}</select></div>
+      <div class="f-g"><label>Ano (semana epid.)</label><input type="number" id="pe-ano" min="2020" max="2099" value="{{ default_ano }}"></div>
+      <div class="f-g"><label>Semana epidemiológica</label><input type="number" id="pe-semana" min="1" max="53" value="{{ default_semana }}"></div>
+      <div class="f-g"><label>Na semana</label><select id="pe-semana-status"><option value="">Feitos e pendentes</option><option value="pendentes">Somente pendentes</option></select></div>
       <div class="pe-actions">
         <button class="btn btn-outline" type="button" onclick="carregarPEs()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button>
         <button class="btn btn-outline" type="button" onclick="exportarPEs('xlsx')" title="Exportar resultados filtrados para Excel"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> XLSX</button>
@@ -59,6 +63,8 @@
   <div class="pe-kpi"><div class="pe-kpi-label">Sem tipo</div><div class="pe-kpi-value" id="pe-sem-tipo">0</div></div>
   <div class="pe-kpi"><div class="pe-kpi-label">Sem telefone</div><div class="pe-kpi-value" id="pe-sem-telefone">0</div></div>
   <div class="pe-kpi"><div class="pe-kpi-label">Sem coordenadas</div><div class="pe-kpi-value" id="pe-sem-coordenadas">0</div></div>
+  <div class="pe-kpi"><div class="pe-kpi-label">Feitos na semana</div><div class="pe-kpi-value" id="pe-feitos-periodo">0</div></div>
+  <div class="pe-kpi"><div class="pe-kpi-label">Pendentes na semana</div><div class="pe-kpi-value" id="pe-pendentes-periodo">0</div></div>
 </div>
 
 <div class="chart-card">
@@ -68,7 +74,7 @@
   </div>
   <div class="table-scroll">
     <table>
-      <thead><tr><th>Código</th><th>Local</th><th>Localidade</th><th>Quadra</th><th>Endereço</th><th>Tipo</th><th>Última PE</th><th>BRI</th><th>Pendências</th><th>Situação</th><th>Ações</th></tr></thead>
+      <thead><tr><th>Código</th><th>Local</th><th>Localidade</th><th>Quadra</th><th>Endereço</th><th>Tipo</th><th>Última PE</th><th>Semana selecionada</th><th>BRI</th><th>Pendências</th><th>Situação</th><th>Ações</th></tr></thead>
       <tbody id="pe-body"></tbody>
     </table>
   </div>
@@ -132,13 +138,17 @@ function peIsoData(valor){
 }
 function peParams(){
   const p = new URLSearchParams();
-  ['busca','localidade','tipo','situacao'].forEach(k => {
+  ['busca','localidade','tipo','situacao','ano','semana'].forEach(k => {
     const el = document.getElementById('pe-' + k);
     if (el && el.value) p.set(k, el.value);
   });
   const revisao = document.getElementById('pe-revisao').value;
   if (revisao === 'atrasados') p.set('atrasados', '1');
   if (revisao === 'pendencias') p.set('pendencias', '1');
+  if (document.getElementById('pe-semana-status').value === 'pendentes') p.set('pendentes_periodo', '1');
+  // Cada pendência marcada vira um parâmetro próprio; o backend combina com OU.
+  Array.from(document.getElementById('pe-pendencias').selectedOptions)
+    .forEach(op => p.append('pendencia', op.value));
   return p;
 }
 async function peJson(url, opts={}){
@@ -150,16 +160,16 @@ async function peJson(url, opts={}){
 async function carregarPEs(){
   const d = await peJson('/api/pontos-estrategicos?' + peParams().toString());
   const t = d.totais || {};
-  [['total','total'],['ativos','ativos'],['inativos','inativos'],['sem-tipo','sem_tipo'],['sem-telefone','sem_telefone'],['sem-coordenadas','sem_coordenadas']].forEach(([id,k]) => {
+  [['total','total'],['ativos','ativos'],['inativos','inativos'],['sem-tipo','sem_tipo'],['sem-telefone','sem_telefone'],['sem-coordenadas','sem_coordenadas'],['feitos-periodo','feitos_periodo'],['pendentes-periodo','pendentes_periodo']].forEach(([id,k]) => {
     document.getElementById('pe-' + id).textContent = peFmt.format(t[k] || 0);
   });
   document.getElementById('pe-info').textContent = `${peFmt.format(d.total || 0)} registro(s)`;
   document.getElementById('pe-body').innerHTML = (d.registros || []).map(r => {
-    const endereco = [r.logradouro, r.numero].filter(Boolean).join(', ') || '-';
+    const endereco = [r.logradouro_exibicao || r.logradouro, r.numero].filter(Boolean).join(', ') || '-';
     const pend = [];
     if (r.visita_atrasada) pend.push('visita atrasada');
     (r.pendencias_cadastro || []).forEach(p => pend.push(p));
-    return `<tr class="${r.visita_atrasada ? 'pe-row-alert' : ''}">
+    return `<tr class="${r.visita_atrasada || r.visitado_periodo_selecionado === false ? 'pe-row-alert' : ''}">
       <td><span class="pe-code">${r.codigo_pe || '-'}</span></td>
       <td><strong>${r.nome || '-'}</strong><div class="pe-muted">${[r.razao_social, r.telefone].filter(Boolean).join(' | ')}</div></td>
       <td>${r.localidade || '-'}</td>
@@ -167,6 +177,7 @@ async function carregarPEs(){
       <td>${endereco}</td>
       <td>${r.tipo || '<span class="pe-muted">sem tipo</span>'}</td>
       <td>${peData(r.ultima_visita_pe) || '<span class="pe-status danger">sem visita</span>'}${r.dias_sem_visita !== null ? `<div class="${r.visita_atrasada ? 'pe-status warn' : 'pe-muted'}">${r.dias_sem_visita} dia(s)</div>` : ''}</td>
+      <td>${r.visitado_periodo_selecionado === null ? '<span class="pe-muted">-</span>' : (r.visitado_periodo_selecionado ? '<span class="pe-status">Feito</span>' : '<span class="pe-status danger">Pendente</span>')}</td>
       <td>${peData(r.ultimo_bri) || '<span class="pe-muted">sem BRI</span>'}<div class="pe-muted">${peFmt.format(r.bri_total || 0)} registro(s)</div></td>
       <td>${pend.length ? pend.map(p => `<span class="pe-status ${p === 'visita atrasada' ? 'warn' : 'off'}" style="margin:1px;">${p}</span>`).join('') : '<span class="pe-muted">ok</span>'}</td>
       <td><span class="pe-status ${Number(r.situacao) === 1 ? '' : 'off'}">${Number(r.situacao) === 1 ? 'Ativo' : 'Inativo'}</span></td>
@@ -175,7 +186,7 @@ async function carregarPEs(){
         <button class="btn btn-icon" type="button" onclick="alternarPE(${r.id_pe}, ${Number(r.situacao) === 1 ? 0 : 1})" title="${Number(r.situacao) === 1 ? 'Inativar' : 'Reativar'}"><img src="/static/icons/${Number(r.situacao) === 1 ? 'lixeira.svg' : 'check.svg'}" alt="" class="icon-svg"></button>
       </td>
     </tr>`;
-  }).join('') || '<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:18px;">Nenhum PE encontrado.</td></tr>';
+  }).join('') || '<tr><td colspan="12" style="text-align:center;color:var(--text3);padding:18px;">Nenhum PE encontrado.</td></tr>';
 }
 function exportarPEs(formato){
   const p = peParams();
@@ -197,7 +208,11 @@ function abrirPE(reg={}){
   document.getElementById('pe-data-inclusao').value = peData(reg.data_inclusao) || '';
   document.getElementById('pe-data-desativacao').value = peData(reg.data_desativacao) || '';
   document.getElementById('pe-razao-social').value = reg.razao_social || '';
-  peCampos.forEach(c => document.getElementById('pe-' + c.replace('_','-')).value = reg[c] ?? '');
+  peCampos.forEach(c => document.getElementById('pe-' + c.replace('_','-')).value = (
+    c === 'logradouro' ? (reg.logradouro_exibicao || reg.logradouro || '') : (reg[c] ?? '')
+  ));
+  const logradouro = document.getElementById('pe-logradouro');
+  logradouro.dataset.editado = '0';
   document.getElementById('pe-modal').classList.add('open');
 }
 function fecharPE(){ document.getElementById('pe-modal').classList.remove('open'); }
@@ -205,12 +220,14 @@ async function editarPE(id){
   abrirPE(await peJson(`/api/pontos-estrategicos/${id}`));
 }
 function payloadPE(){
+  const logradouro = document.getElementById('pe-logradouro');
   return {
     nome: document.getElementById('pe-nome').value.trim(),
     situacao: document.getElementById('pe-form-situacao').value,
     localidade: document.getElementById('pe-form-localidade').value.trim(),
     quarteirao: document.getElementById('pe-quarteirao').value,
-    logradouro: document.getElementById('pe-logradouro').value.trim(),
+    logradouro: logradouro.value.trim(),
+    preservar_logradouro_original: logradouro.dataset.editado !== '1',
     numero: document.getElementById('pe-numero').value.trim(),
     tipo: document.getElementById('pe-form-tipo').value.trim(),
     telefone: document.getElementById('pe-telefone').value.trim(),
@@ -223,18 +240,25 @@ function payloadPE(){
     observacoes: document.getElementById('pe-observacoes').value.trim(),
   };
 }
+document.getElementById('pe-logradouro').addEventListener('input', () => {
+  document.getElementById('pe-logradouro').dataset.editado = '1';
+});
 async function salvarPE(){
   const id = document.getElementById('pe-id').value;
   const data = payloadPE();
   if(!data.nome){ toast('Informe o local do PE.', 'error'); return; }
-  await peJson(id ? `/api/pontos-estrategicos/${id}` : '/api/pontos-estrategicos', {
-    method:'POST',
-    headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
-    body:JSON.stringify(data)
-  });
-  fecharPE();
-  toast('PE salvo com sucesso.', 'success');
-  carregarPEs();
+  try {
+    await peJson(id ? `/api/pontos-estrategicos/${id}` : '/api/pontos-estrategicos', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+      body:JSON.stringify(data)
+    });
+    fecharPE();
+    toast('PE salvo com sucesso.', 'success');
+    carregarPEs();
+  } catch (erro) {
+    toast(erro.message || 'Nao foi possivel salvar o PE.', 'error');
+  }
 }
 async function alternarPE(id, situacao){
   await peJson(`/api/pontos-estrategicos/${id}/situacao`, {
@@ -245,5 +269,6 @@ async function alternarPE(id, situacao){
   carregarPEs();
 }
 document.getElementById('pe-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarPEs(); });
+['pe-ano','pe-semana'].forEach(id => document.getElementById(id).addEventListener('keydown', e => { if(e.key === 'Enter') carregarPEs(); }));
 carregarPEs().catch(e => toast('Erro ao carregar PEs: ' + e.message, 'error'));
 </script>{% endblock %}

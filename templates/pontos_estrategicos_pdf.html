@@ -22,7 +22,7 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#111;background:
 .hero-nome{font-size:15pt;font-weight:700;color:#166534;margin-bottom:2pt;}
 .hero-sub{font-size:8.5pt;color:#555;line-height:1.5;}
 .filtros{margin-top:5pt;color:#333;}
-.kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6pt;margin-bottom:10pt;}
+.kpi-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6pt;margin-bottom:10pt;}
 .kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:4pt;padding:7pt;text-align:center;break-inside:avoid;page-break-inside:avoid;}
 .kpi-val{font-size:13pt;font-weight:700;color:#166534;}
 .kpi-lbl{font-size:6.8pt;color:#555;text-transform:uppercase;letter-spacing:.3px;margin-top:2pt;}
@@ -75,6 +75,8 @@ tr:nth-child(even) td{background:#f8fafc;}
     <div class="kpi"><div class="kpi-val">{{ totais.sem_tipo or 0 }}</div><div class="kpi-lbl">Sem tipo</div></div>
     <div class="kpi"><div class="kpi-val">{{ totais.sem_telefone or 0 }}</div><div class="kpi-lbl">Sem telefone</div></div>
     <div class="kpi"><div class="kpi-val">{{ totais.sem_coordenadas or 0 }}</div><div class="kpi-lbl">Sem coordenadas</div></div>
+    <div class="kpi"><div class="kpi-val">{{ totais.feitos_periodo or 0 }}</div><div class="kpi-lbl">Feitos na semana</div></div>
+    <div class="kpi"><div class="kpi-val">{{ totais.pendentes_periodo or 0 }}</div><div class="kpi-lbl">Pendentes na semana</div></div>
   </div>
 
   <table>
@@ -87,6 +89,7 @@ tr:nth-child(even) td{background:#f8fafc;}
         <th>Endereco</th>
         <th>Tipo</th>
         <th>Ultima PE</th>
+        <th>Semana selecionada</th>
         <th>BRI</th>
         <th>Pendencias</th>
         <th>Situacao</th>
@@ -94,7 +97,7 @@ tr:nth-child(even) td{background:#f8fafc;}
     </thead>
     <tbody>
     {% for r in registros %}
-      {% set endereco = [r.logradouro, r.numero]|select|join(', ') %}
+      {% set endereco = [r.logradouro_exibicao or r.logradouro, r.numero]|select|join(', ') %}
       {% set pendencias = [] %}
       {% if r.visita_atrasada %}{% set _ = pendencias.append('visita atrasada') %}{% endif %}
       {% for p in r.pendencias_cadastro or [] %}{% set _ = pendencias.append(p) %}{% endfor %}
@@ -106,12 +109,13 @@ tr:nth-child(even) td{background:#f8fafc;}
         <td>{{ endereco or '-' }}</td>
         <td>{{ r.tipo or '-' }}</td>
         <td>{{ r.ultima_visita_pe or 'sem visita' }}{% if r.dias_sem_visita is not none %}<div class="small">{{ r.dias_sem_visita }} dia(s)</div>{% endif %}</td>
+        <td{% if r.visitado_periodo_selecionado == false %} class="pend"{% endif %}>{% if r.visitado_periodo_selecionado is none %}-{% elif r.visitado_periodo_selecionado %}Feito{% else %}Pendente{% endif %}</td>
         <td>{{ r.ultimo_bri or 'sem BRI' }}<div class="small">{{ r.bri_total or 0 }} registro(s)</div></td>
         <td class="pend">{{ pendencias|join(', ') if pendencias else 'ok' }}</td>
         <td class="center">{{ 'Ativo' if r.situacao == 1 else 'Inativo' }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="10" class="center">Nenhum PE encontrado.</td></tr>
+      <tr><td colspan="11" class="center">Nenhum PE encontrado.</td></tr>
     {% endfor %}
     </tbody>
   </table>

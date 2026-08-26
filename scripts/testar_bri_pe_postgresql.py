@@ -95,6 +95,20 @@ def _test_data(target):
         id_pe = registro_pe["id_pe"]
         id_localidade = registro_pe["id_localidade"]
 
+        payload["data_inclusao"] = "NaT"
+        payload["data_desativacao"] = " "
+        if not pe.salvar(conn, payload, id_pe=id_pe):
+            raise RuntimeError("A normalizacao de datas vazias do PE falhou.")
+        datas_vazias = conn.execute(
+            """SELECT data_inclusao, data_desativacao
+                 FROM pontos_estrategicos WHERE id_pe=?""",
+            (id_pe,),
+        ).fetchone()
+        if datas_vazias["data_inclusao"] is not None or datas_vazias["data_desativacao"] is not None:
+            raise RuntimeError("Datas vazias/NaT do PE nao foram gravadas como NULL.")
+        payload["data_inclusao"] = "2026-08-20"
+        payload["data_desativacao"] = None
+
         vinculo = pe.resolver_alias_visita(
             conn,
             "Rua Alfa - PE Temporario",
@@ -102,7 +116,26 @@ def _test_data(target):
         )
         if not vinculo or vinculo["id_pe"] != id_pe:
             raise RuntimeError("O alias automatico do PE nao foi resolvido.")
-
+        if not pe.inserir(conn, {
+            "codigo_pe": "PE-0031",
+            "nome": "Ferro Velho do Paulo",
+            "localidade": "Graziela",
+            "quarteirao": 1336,
+            "logradouro": "Rua Campo de Minas",
+            "numero": "753",
+            "situacao": 1,
+        }):
+            raise RuntimeError("O PE-0031 temporario nao foi criado.")
+        if not pe.inserir(conn, {
+            "codigo_pe": "PE-0045",
+            "nome": "Borracharia Garagem Oculta",
+            "localidade": "Graziela",
+            "quarteirao": 1336,
+            "logradouro": "Rua Campos de Minas",
+            "numero": "753",
+            "situacao": 1,
+        }):
+            raise RuntimeError("O PE-0045 temporario nao foi criado.")
         hoje = date.today().isoformat()
         conn.execute(
             """INSERT INTO visitas (
@@ -121,14 +154,109 @@ def _test_data(target):
                 f"{hoje}T10:00:00",
             ),
         )
+        conn.execute(
+            """INSERT INTO visitas (
+                   id_visita, kobo_uuid, tipo, data, localidade,
+                   quarteirao, logradouro, processado_em
+               ) VALUES (?,?,?,?,?,?,?,?)""",
+            (
+                "visita-pe-0045-pg",
+                "uuid-visita-pe-0045-pg",
+                "PE",
+                hoje,
+                "Graziela",
+                1336,
+                "RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA",
+                f"{hoje}T10:01:00",
+            ),
+        )
+        conn.execute(
+            """INSERT INTO visitas (
+                   id_visita, kobo_uuid, tipo, data, localidade,
+                   quarteirao, logradouro, processado_em
+               ) VALUES (?,?,?,?,?,?,?,?)""",
+            (
+                "visita-pe-ambigua-pg",
+                "uuid-visita-pe-ambigua-pg",
+                "PE",
+                hoje,
+                "Graziela",
+                1336,
+                "Rua Campos de Minas",
+                f"{hoje}T10:02:00",
+            ),
+        )
+        conn.execute(
+            """INSERT INTO visitas (
+                   id_visita, kobo_uuid, tipo, data, localidade,
+                   quarteirao, logradouro, processado_em
+               ) VALUES (?,?,?,?,?,?,?,?)""",
+            (
+                "visita-pe-ambigua-singular-pg",
+                "uuid-visita-pe-ambigua-singular-pg",
+                "PE",
+                hoje,
+                "Graziela",
+                1336,
+                "Rua Campo de Minas",
+                f"{hoje}T10:03:00",
+            ),
+        )
         vinculacao = pe.vincular_visitas_existentes_por_alias(conn)
         visita = conn.execute(
             """SELECT id_pe, codigo_pe
                  FROM visitas
                 WHERE id_visita='visita-pe-pg'"""
         ).fetchone()
-        if vinculacao["atualizadas"] != 1 or visita["id_pe"] != id_pe:
+        if vinculacao["atualizadas"] != 2 or visita["id_pe"] != id_pe:
             raise RuntimeError("A visita PE nao foi vinculada pelo alias.")
+        visita_pe_0045 = conn.execute(
+            """SELECT codigo_pe FROM visitas
+                 WHERE id_visita='visita-pe-0045-pg'"""
+        ).fetchone()
+        if visita_pe_0045["codigo_pe"] != "PE-0045":
+            raise RuntimeError("A visita Kobo do PE-0045 nao foi vinculada.")
+        visita_ambigua = conn.execute(
+            """SELECT codigo_pe FROM visitas
+                 WHERE id_visita='visita-pe-ambigua-pg'"""
+        ).fetchone()
+        if visita_ambigua["codigo_pe"] is not None:
+            raise RuntimeError("A visita de rua ambigua foi vinculada a um PE arbitrario.")
+        visita_ambigua_singular = conn.execute(
+            """SELECT codigo_pe FROM visitas
+                 WHERE id_visita='visita-pe-ambigua-singular-pg'"""
+        ).fetchone()
+        if visita_ambigua_singular["codigo_pe"] is not None:
+            raise RuntimeError("A visita de rua ambigua singular foi vinculada a um PE arbitrario.")
+        for alias in ("Rua Campo de Minas", "Rua Campos de Minas"):
+            if pe.resolver_alias_visita(conn, alias, "Graziela") is not None:
+                raise RuntimeError("O alias automatico ambiguo deveria permanecer inativo.")
+        vinculo_pe_0045 = pe.resolver_alias_visita(
+            conn,
+            "RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA",
+            "Graziela",
+        )
+        if not vinculo_pe_0045 or vinculo_pe_0045["codigo_pe"] != "PE-0045":
+            raise RuntimeError("O alias Kobo do PE-0045 nao foi resolvido.")
+        pe_0031 = conn.execute(
+            "SELECT id_pe FROM pontos_estrategicos WHERE codigo_pe='PE-0031'"
+        ).fetchone()
+        pe_0031_registro = pe.obter(conn, pe_0031["id_pe"])
+        if pe_0031_registro["logradouro_exibicao"] != "Rua Campos de Minas":
+            raise RuntimeError("A grafia oficial da rua do PE-0031 nao foi apresentada.")
+        if not pe.salvar(
+            conn,
+            {
+                **pe_0031_registro,
+                "logradouro": "Rua Campos de Minas",
+                "telefone": "(41) 99999-9999",
+                "preservar_logradouro_original": True,
+            },
+            id_pe=pe_0031["id_pe"],
+        ):
+            raise RuntimeError("A edicao preservada do PE-0031 falhou.")
+        if pe.obter(conn, pe_0031["id_pe"])["logradouro"] != "Rua Campo de Minas":
+            raise RuntimeError("A edicao visual regravou o logradouro historico.")
 
         registro_bri = {
             "id_bri": "bri-pg-1",
@@ -169,7 +297,7 @@ def _test_data(target):
         pe_lista = pe.listar(conn, {"busca": "pe temporario"}, limite=None)
         pe_resumo = pe.resumo_operacional(
             conn,
-            {"d_ini": hoje, "d_fim": hoje},
+            {"d_ini": hoje, "d_fim": hoje, "localidade": "Tamboara"},
         )
 
         if bri_resumo["totais"]["registros"] != 1:
@@ -195,6 +323,20 @@ def _test_data(target):
         atualizado = pe.obter(conn, id_pe)
         if atualizado["nome"] != "PE Temporario Atualizado":
             raise RuntimeError("A atualizacao do PE divergiu.")
+
+        try:
+            pe.salvar(
+                conn,
+                {**payload, "data_inclusao": "31/02/2026"},
+                id_pe=id_pe,
+            )
+        except pe.DataValidationError:
+            pass
+        else:
+            raise RuntimeError("A data invalida do PE nao foi recusada.")
+        data_apos_erro = pe.obter(conn, id_pe)["data_inclusao"]
+        if str(data_apos_erro) != "2026-08-20":
+            raise RuntimeError("A data invalida alterou o PE temporario.")
 
         if not pe.definir_situacao(conn, id_pe, 0):
             raise RuntimeError("A situacao do PE nao foi alterada.")
@@ -274,6 +416,17 @@ def _test_pages(database, target):
                     raise RuntimeError(
                         f"{route} nao apresentou o conteudo esperado."
                     )
+
+            resposta_data_invalida = client.post(
+                "/api/pontos-estrategicos",
+                json={"nome": "PE com data invalida", "data_inclusao": "31/02/2026"},
+            )
+            if resposta_data_invalida.status_code != 400:
+                raise RuntimeError(
+                    "A API de PE nao respondeu HTTP 400 para data invalida."
+                )
+            if b"Data de inclusao invalida" not in resposta_data_invalida.data:
+                raise RuntimeError("A API de PE nao informou claramente a data invalida.")
         finally:
             for handler in list(logging.getLogger().handlers):
                 if (
@@ -309,6 +462,7 @@ def main(argv=None):
     print(f"Banco: {args.database}")
     print(f"Identidade temporaria do PE: {id_pe}")
     print("Cadastro, edicao e situacao do PE: OK")
+    print("Datas vazias/NaT como NULL e data invalida com HTTP 400: OK")
     print("Aliases e vinculos de visita/BRI: OK")
     print("Filtros, resumos, focos e atrasos: OK")
     print("Paginas e APIs: HTTP 200")

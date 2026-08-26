@@ -113,6 +113,18 @@ def _agente_relatorio_teste():
     return row[0]
 
 
+def _cargo_agente_relatorio_teste(nome):
+    conn = sqlite3.connect(endemias_app.DB_PATH)
+    try:
+        row = conn.execute(
+            "SELECT NULLIF(TRIM(cargo),'') FROM agentes WHERE nome=?",
+            (nome,),
+        ).fetchone()
+    finally:
+        conn.close()
+    return row[0] if row else None
+
+
 def _executar_criar_banco_em(tmpdir, vezes=1):
     import criar_banco
 
@@ -1731,6 +1743,7 @@ class PontosEstrategicosTests(unittest.TestCase):
                 ("PE-0020", "Cal Eloi", "Sede"),
                 ("PE-0042", "Cemiterio Prado", "Rosana"),
                 ("PE-0043", "Condominio Jersey City - LYX", "Rosana"),
+                ("PE-0045", "Borracharia Garagem Oculta", "Graziela"),
             ):
                 pe_core.inserir(conn, {"codigo_pe": codigo, "nome": nome, "localidade": localidade})
             pe_core.inserir(conn, {
@@ -1765,7 +1778,149 @@ class PontosEstrategicosTests(unittest.TestCase):
             self.assertEqual(pe_core.resolver_alias_visita(conn, "CEMITERIO", "Rosana")["codigo_pe"], "PE-0042")
             self.assertEqual(pe_core.resolver_alias_visita(conn, "CONDOMINIO", "Rosana")["codigo_pe"], "PE-0043")
             self.assertEqual(pe_core.resolver_alias_visita(conn, "LYX", "Rosana")["codigo_pe"], "PE-0043")
+            self.assertEqual(
+                pe_core.resolver_alias_visita(
+                    conn,
+                    "RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA",
+                    "Graziela",
+                )["codigo_pe"],
+                "PE-0045",
+            )
             self.assertIsNone(pe_core.resolver_alias_visita(conn, "cemitério", "São Venâncio"))
+
+    def test_alias_automatico_ambiguo_nao_depende_da_ordem_de_cadastro(self):
+        resultados = []
+        for cadastros in (
+            (
+                ("PE-0031", "Ferro Velho do Paulo"),
+                ("PE-0045", "Borracharia Garagem Oculta"),
+            ),
+            (
+                ("PE-0045", "Borracharia Garagem Oculta"),
+                ("PE-0031", "Ferro Velho do Paulo"),
+            ),
+        ):
+            with sqlite3.connect(":memory:") as conn:
+                conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA foreign_keys = ON")
+                conn.execute(
+                    "CREATE TABLE localidades (id_localidade INTEGER PRIMARY KEY, nome TEXT, cod_localidade TEXT)"
+                )
+                pe_core.ensure_schema(conn)
+                for codigo, nome in cadastros:
+                    pe_core.inserir(conn, {
+                        "codigo_pe": codigo,
+                        "nome": nome,
+                        "localidade": "Graziela",
+                        "logradouro": (
+                            "Rua Campo de Minas"
+                            if codigo == "PE-0031"
+                            else "Rua Campos de Minas"
+                        ),
+                        "numero": "753",
+                        "quarteirao": 1336,
+                    })
+                    pe_core.ensure_schema(conn)
+
+                for alias in ("Rua Campo de Minas", "Rua Campos de Minas"):
+                    self.assertIsNone(pe_core.resolver_alias_visita(conn, alias, "Graziela"))
+                alias_ambiguo = conn.execute(
+                    """SELECT alias_normalizado, ativo, observacoes
+                         FROM pontos_estrategicos_alias
+                        WHERE alias_normalizado IN (?, ?)
+                          AND localidade_normalizada=?
+                        ORDER BY alias_normalizado""",
+                    ("rua campo de minas", "rua campos de minas", "graziela"),
+                ).fetchall()
+                resultados.append([
+                    (row["alias_normalizado"], row["ativo"], row["observacoes"])
+                    for row in alias_ambiguo
+                ])
+
+                self.assertEqual(
+                    pe_core.resolver_alias_visita(
+                        conn,
+                        "RUA CAMPOS DE MINAS - FERRO - VELHO DO PAULO",
+                        "Graziela",
+                    )["codigo_pe"],
+                    "PE-0031",
+                )
+                for alias in (
+                    "Borracharia Garagem Oculta",
+                    "Borracharia Garagem Oculta - Rua Campos de Minas",
+                    "Borracharia Garagem Oculta - Rua Campos de Minas - 753",
+                    "RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA",
+                ):
+                    self.assertEqual(
+                        pe_core.resolver_alias_visita(conn, alias, "Graziela")["codigo_pe"],
+                        "PE-0045",
+                    )
+
+        self.assertEqual(
+            resultados,
+            [
+                [
+                    ("rua campo de minas", 0, pe_core.OBS_ALIAS_AUTOMATICO_AMBIGUO),
+                    ("rua campos de minas", 0, pe_core.OBS_ALIAS_AUTOMATICO_AMBIGUO),
+                ],
+                [
+                    ("rua campo de minas", 0, pe_core.OBS_ALIAS_AUTOMATICO_AMBIGUO),
+                    ("rua campos de minas", 0, pe_core.OBS_ALIAS_AUTOMATICO_AMBIGUO),
+                ],
+            ],
+        )
+
+    def test_pe_exibe_grafia_oficial_sem_reescrever_logradouro_historico(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            pe_core.salvar(str(db_path), {
+                "codigo_pe": "PE-0031",
+                "nome": "Ferro Velho do Paulo",
+                "localidade": "Graziela",
+                "logradouro": "Rua Campo de Minas",
+                "numero": "753",
+                "quarteirao": 1336,
+                "situacao": 1,
+            })
+            registro = next(
+                row
+                for row in pe_core.listar(str(db_path), limite=None)["registros"]
+                if row["codigo_pe"] == "PE-0031"
+            )
+            obtido = pe_core.obter(str(db_path), registro["id_pe"])
+
+            # A tela apresenta a grafia oficial, mas sinaliza ao backend que
+            # ela nao foi editada quando o operador salvou outro campo.
+            payload_preservado = {
+                **obtido,
+                "logradouro": "Rua Campos de Minas",
+                "telefone": "(41) 99999-9999",
+                "preservar_logradouro_original": True,
+            }
+            self.assertTrue(
+                pe_core.salvar(
+                    str(db_path), payload_preservado, id_pe=registro["id_pe"]
+                )
+            )
+            preservado = pe_core.obter(str(db_path), registro["id_pe"])
+
+            # Quando o campo e alterado explicitamente, a nova grafia deve ser
+            # persistida como em qualquer outra edicao de cadastro.
+            payload_preservado["preservar_logradouro_original"] = False
+            self.assertTrue(
+                pe_core.salvar(
+                    str(db_path), payload_preservado, id_pe=registro["id_pe"]
+                )
+            )
+            alterado = pe_core.obter(str(db_path), registro["id_pe"])
+
+        self.assertEqual(registro["logradouro"], "Rua Campo de Minas")
+        self.assertEqual(registro["logradouro_exibicao"], "Rua Campos de Minas")
+        self.assertEqual(obtido["logradouro"], "Rua Campo de Minas")
+        self.assertEqual(obtido["logradouro_exibicao"], "Rua Campos de Minas")
+        self.assertEqual(preservado["logradouro"], "Rua Campo de Minas")
+        self.assertEqual(preservado["telefone"], "(41) 99999-9999")
+        self.assertEqual(alterado["logradouro"], "Rua Campos de Minas")
 
     def test_listagem_de_pe_prioriza_vinculo_direto_da_visita(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1822,18 +1977,33 @@ class PontosEstrategicosTests(unittest.TestCase):
             )
             pe_core.ensure_schema(conn)
             pe_core.inserir(conn, {"codigo_pe": "PE-0007", "nome": "Borracharia Mauricio", "localidade": "Tranqueira"})
+            pe_core.inserir(conn, {
+                "codigo_pe": "PE-0045",
+                "nome": "Borracharia Garagem Oculta",
+                "localidade": "Graziela",
+                "logradouro": "Rua Campos de Minas",
+                "numero": "753",
+                "quarteirao": 1336,
+            })
             pe_core.ensure_schema(conn)
             conn.execute(
                 """INSERT INTO visitas(id_visita, tipo, data, localidade, logradouro)
                    VALUES ('v1', 'PE', '2026-06-01', 'Tranqueira',
                            'Borracharia (prox celeste) -  Rodovia Dos Minérios')"""
             )
+            conn.execute(
+                """INSERT INTO visitas(id_visita, tipo, data, localidade, logradouro)
+                   VALUES ('v2', 'PE', '2026-08-24', 'Graziela',
+                           'RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA')"""
+            )
 
             resultado = pe_core.vincular_visitas_existentes_por_alias(conn)
             visita = conn.execute("SELECT codigo_pe FROM visitas WHERE id_visita='v1'").fetchone()
+            visita_pe_0045 = conn.execute("SELECT codigo_pe FROM visitas WHERE id_visita='v2'").fetchone()
 
-        self.assertEqual(resultado["atualizadas"], 1)
+        self.assertEqual(resultado["atualizadas"], 2)
         self.assertEqual(visita["codigo_pe"], "PE-0007")
+        self.assertEqual(visita_pe_0045["codigo_pe"], "PE-0045")
 
 
 class SispncdIndiceTests(unittest.TestCase):
@@ -2175,7 +2345,8 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn("agent-workspace", html)
         self.assertIn("agente_busca", html)
         self.assertIn("function escapeHtml", html)
-        self.assertIn("Agente de Combate a Endemias", html)
+        self.assertIn("d.cargo", html)
+        self.assertNotIn("Agente de Combate a Endemias", html)
         self.assertIn("Produção operacional integrada", html)
         self.assertIn("Relatório do setor", html)
         self.assertIn("gerarPDFSetor", html)
@@ -2193,7 +2364,10 @@ class MainPagesSmokeTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
-        self.assertIn("Agente de Combate a Endemias", html)
+        self.assertIn(
+            _cargo_agente_relatorio_teste(agente) or "Função não informada",
+            html,
+        )
         self.assertIn("Produção operacional integrada", html)
         self.assertIn("Rua Bertolina Kendrik de Oliveira, 681", html)
         self.assertIn("break-inside:avoid", html)
@@ -4255,6 +4429,7 @@ class MainApisSmokeTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 200)
         dados = resp.get_json()
+        self.assertEqual(dados["cargo"], _cargo_agente_relatorio_teste(agente))
         self.assertIn("esporotricose", dados)
         self.assertIn("producao_operacional", dados)
         self.assertIn("por_atividade", dados["producao_operacional"])

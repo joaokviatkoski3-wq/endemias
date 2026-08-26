@@ -6,9 +6,22 @@ Antes de iniciar qualquer trabalho, leia `CONTEXTO_PARA_IA.md`. Ele registra o
 estado atual do projeto, a migracao gradual para PostgreSQL, os modulos ja
 homologados, as pendencias e os cuidados operacionais.
 
+Leia em seguida `docs/ESTADO_ATUAL_PROJETO.md`. Ele e o registro curto e
+atualizavel da passagem de contexto entre conversas: define os papeis vigentes
+de Codex e Claude, a situacao de producao e as proximas prioridades. Os guias
+historicos de PostgreSQL continuam sendo referencia tecnica, mas nao devem ser
+interpretados como autorizacao para repetir uma etapa ja concluida.
+
 Quando houver colaboracao entre Codex e Claude Code, leia tambem
 `docs/GUIA_TRABALHO_MULTIAGENTE.md` e respeite a separacao entre implementacao,
 revisao e integracao na `master`.
+
+No fluxo vigente, Codex e o operador/implementador principal e Claude Code e
+revisor independente somente-leitura. Claude so pode editar, criar commits ou
+publicar uma correcao quando o usuario o solicitar diretamente e de forma
+expressa; essa excecao deve ficar registrada no guia multiagente e na branch
+propria do Claude. Ela nao autoriza os dois agentes a editarem a mesma branch
+ou os mesmos arquivos ao mesmo tempo.
 
 ## Versionamento do sistema
 

@@ -3,6 +3,12 @@
 Complementa `CONTEXTO_PARA_IA.md`. Use este documento para evitar redescobrir
 decisoes tecnicas e operacionais ja consolidadas.
 
+Antes de usar este guia como plano de trabalho, leia
+`docs/ESTADO_ATUAL_PROJETO.md`. Ele separa o estado vigente do registro
+historico abaixo e define os papeis atuais: Codex e o operador/implementador;
+Claude e revisor somente-leitura, salvo pedido direto e excepcional do usuario
+para que implemente uma tarefa isolada.
+
 ## Perfil do usuario e colaboracao
 
 - Responda em portugues.
@@ -17,6 +23,9 @@ decisoes tecnicas e operacionais ja consolidadas.
 - Nao sobrescreva mudancas inesperadas; podem ter sido feitas pelo usuario.
 - Evite interromper o sistema oficial na porta 5000.
 - Dados de saude, CPF, telefones, anexos e bancos sao sensiveis.
+- Claude nao deve editar codigo, dados, configuracoes ou Git por padrao. Se o
+  usuario autorizar Claude diretamente a implementar, a excecao fica limitada a
+  uma branch `claude/nome-da-tarefa`; Codex nao trabalha nela ao mesmo tempo.
 
 ## Estrutura principal
 
@@ -98,13 +107,15 @@ Comandos usuais no computador do setor:
 
 ```powershell
 $py = 'C:\Users\Geoprocessamento\AppData\Local\Python\pythoncore-3.14-64\python.exe'
-& $py -m unittest discover -s tests
+& $py -m unittest discover -s tests -t .
 & $py scripts\verificar_postgresql.py --database endemias_teste
 ```
 
-A descoberta de testes cria automaticamente uma copia temporaria do SQLite de
-referencia antes de importar a aplicacao. Isso impede que rotinas de
+A descoberta deve usar ``-t .`` para importar ``tests`` como pacote. Ela cria
+automaticamente uma copia temporaria do SQLite de referencia antes de importar
+a aplicacao. Isso impede que rotinas de
 compatibilidade e testes legados de escrita alterem o `endemias.db` congelado.
+Nao execute arquivos de teste diretamente nem omita ``-t .``.
 
 Nao presuma que a regressao continua no ultimo total registrado: o numero
 cresce. Registre no documento da migracao o resultado atual de cada lote.
@@ -304,10 +315,13 @@ Ao ver um arquivo sensivel como nao rastreado, nao o adicione. Confira
 - `revisao` e um worktree auxiliar, nao a versao de producao.
 - A branch `revisao` possui alteracoes proprias para porta 5002; nao faca merge
   cego dela na `master`.
-- No futuro, implementacoes grandes devem ir para `codex/nome-da-tarefa`, ser
-  revisadas e so depois integradas.
-- Enquanto o usuario nao declarar a mudanca definitiva do fluxo, confirme a
-  branch atual e siga a instrucao mais recente dele.
+- Implementacoes devem ir para `codex/nome-da-tarefa`, ser revisadas pelo
+  Claude somente em leitura e so depois integradas por Codex mediante
+  autorizacao do usuario.
+- A unica excecao e uma solicitacao direta do usuario para Claude implementar
+  uma correcao delimitada em `claude/nome-da-tarefa`; nesse caso nao ha edicao
+  simultanea e Claude nao revisa o proprio trabalho.
+- Confirme sempre a branch atual e a instrucao mais recente do usuario.
 
 ## Fluxos de negocio que nao devem ser confundidos
 
@@ -332,8 +346,8 @@ Ao ver um arquivo sensivel como nao rastreado, nao o adicione. Confira
 
 Nao misture estas ideias com o fechamento da migracao PostgreSQL:
 
-- fila e envio pela API privada do Conta Ovos, depois de homologar a
-  sincronizacao GET incremental;
+- novos dominios GET da API Conta Ovos (EDLs e Quarteiroes/acoes) e somente
+  depois o piloto unitario de escrita, que continua fora da `master`;
 - diarios digitais offline para agentes em tablets;
 - formularios proprios para substituir gradualmente o Kobo;
 - PostgreSQL remoto/VPS;
@@ -344,11 +358,11 @@ Essas ideias foram discutidas, mas nao autorizam remover os fluxos atuais.
 ## Checklist da primeira resposta do novo agente
 
 1. Ler `AGENTS.md` e `CONTEXTO_PARA_IA.md`.
-2. Conferir `git status`, branch e ultimos commits.
-3. Confirmar que PostgreSQL segue como producao e que o marcador esta ativo.
-4. Confirmar que o SQLite congelado nao recebeu escritas.
-5. Ler o final de `docs/POSTGRESQL_CAMADA_DUAL.md`.
-6. Verificar o PostgreSQL sem escrever em tabelas publicas.
-7. Retomar a estabilizacao, os backups automaticos e os diagnosticos, salvo
-   nova orientacao.
-8. Manter o usuario informado durante exploracao, edicao, testes e push.
+2. Ler `docs/ESTADO_ATUAL_PROJETO.md` e confirmar os papeis vigentes.
+3. Conferir `git status`, branch e ultimos commits.
+4. Confirmar que PostgreSQL segue como producao e que o marcador esta ativo.
+5. Confirmar que o SQLite congelado nao recebeu escritas.
+6. Ler o final de `docs/POSTGRESQL_CAMADA_DUAL.md`.
+7. Verificar o PostgreSQL sem escrever em tabelas publicas.
+8. Retomar a prioridade indicada no estado atual, salvo nova orientacao.
+9. Manter o usuario informado durante exploracao, edicao, testes e push.

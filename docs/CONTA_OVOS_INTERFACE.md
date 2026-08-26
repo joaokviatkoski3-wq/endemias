@@ -6,6 +6,13 @@
 
 Isso e deliberado, nao uma limitacao temporaria: a API Conta Ovos nao tem SLA, nao documenta limite de requisicoes e o setor precisa de uma tela responsiva mesmo se o fornecedor estiver fora do ar. O espelho local e a fonte de leitura da interface; a API e a fonte de verdade dos dados que ela administra, e a sincronizacao GET e o unico canal que atualiza o espelho.
 
+**Estado em 24/08/2026:** as contagens GET ja foram sincronizadas e alimentam
+Contagens e Monitoramento. O schema e o ensaio do cadastro remoto de ovitrampas
+tambem estao prontos, mas sua primeira sincronizacao real ainda nao foi
+executada por decisao operacional. Por isso Cadastro remoto, Mapa e parte das
+divergencias podem estar vazios sem que a interface esteja com defeito. Nenhum
+POST remoto esta habilitado na `master`.
+
 ## Estrutura desta etapa
 
 ```text

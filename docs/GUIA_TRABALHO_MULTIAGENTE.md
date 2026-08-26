@@ -5,7 +5,7 @@ dados reais ou publicar codigo ainda nao revisado.
 
 ## Papeis
 
-### Codex: implementador principal
+### Codex: operador e implementador principal
 
 - investiga o codigo existente;
 - implementa a solicitacao;
@@ -16,7 +16,12 @@ dados reais ou publicar codigo ainda nao revisado.
 - cria commits e faz push da branch de trabalho;
 - integra na `master` somente depois da aprovacao.
 
-### Claude Code: revisor independente
+Codex e o unico agente que altera codigo por padrao. Ele tambem e responsavel
+por manter `docs/ESTADO_ATUAL_PROJETO.md` fiel ao ponto em que o projeto parou,
+para que uma nova conversa nao repita etapas ou trate planos antigos como
+pendencias atuais.
+
+### Claude Code: revisor independente somente-leitura
 
 - compara a branch do Codex com `master`;
 - trabalha somente em leitura por padrao;
@@ -24,8 +29,19 @@ dados reais ou publicar codigo ainda nao revisado.
 - confere concorrencia e compatibilidade SQLite/PostgreSQL;
 - valida se os testes cobrem as regras alteradas;
 - apresenta achados por gravidade, com arquivo e linha;
-- nao faz merge nem push para `master`;
-- nao reimplementa a tarefa, salvo autorizacao expressa.
+- nao edita arquivos, nao cria commits, nao faz push nem faz merge;
+- nao altera dados reais, configuracoes, tarefas Windows ou credenciais;
+- nao reimplementa a tarefa, salvo autorizacao expressa e direta do usuario.
+
+#### Excecao expressa para Claude implementar
+
+Somente quando o usuario pedir diretamente ao Claude que realize uma correcao,
+ele pode atuar como implementador **daquela tarefa delimitada**. Deve criar ou
+usar uma branch `claude/nome-da-tarefa`, manter o trabalho isolado, executar os
+testes aplicaveis, fazer commit e push. Nao pode editar `master` diretamente.
+Nesse intervalo, Claude nao revisa o proprio diff; Codex nao edita a mesma
+branch nem os mesmos arquivos. Depois da entrega, o fluxo normal volta a valer
+e o usuario decide quem revisa/testa e quem integra.
 
 ### Usuario: aprovacao operacional
 
@@ -47,10 +63,15 @@ C:\endemias-revisao
   ambiente auxiliar do Claude
   porta 5002
   banco SQLite local de teste
+
+C:\endemias-codex
+  branch codex/enviar-leituras-conta-ovos
+  lote futuro de envio Conta Ovos, fora da producao
 ```
 
-A pasta dedicada do Codex ainda nao foi criada. Quando o fluxo revisado for
-adotado, a sugestao e:
+O worktree `C:\endemias-codex` existe e deve permanecer fora de qualquer banco
+ou servidor de producao. Quando for necessario iniciar outro lote, crie um
+worktree distinto a partir da `master` atualizada:
 
 ```powershell
 cd C:\endemias
@@ -181,6 +202,9 @@ Uma IA revisora pode se enganar. O Codex deve validar tecnicamente cada achado.
 
 - Nunca deixe Codex e Claude editarem o mesmo arquivo simultaneamente.
 - Uma branch deve ter um implementador responsavel.
+- A autorizacao excepcional de escrita para Claude vale so para a tarefa e a
+  branch indicadas pelo usuario; ela nao transforma Claude em coimplementador
+  permanente nem permite alterar arquivos em paralelo com Codex.
 - Nao use `git reset --hard` ou `git checkout --` para resolver divergencias.
 - Nao force push em branches compartilhadas.
 - Nao faca merge da branch `revisao` inteira na `master`.
@@ -221,8 +245,9 @@ Agrupe pequenas correcoes relacionadas num lote para economizar uso do Claude.
 Voce sera o implementador principal do projeto Endemias. O repositorio esta em
 C:\endemias e a branch oficial e master. Antes de qualquer acao, leia
 AGENTS.md, CONTEXTO_PARA_IA.md, docs/GUIA_CONTINUIDADE_TECNICA.md,
-docs/GUIA_TRABALHO_MULTIAGENTE.md e a documentacao PostgreSQL indicada por
-eles. Confira git status e os commits recentes.
+docs/GUIA_TRABALHO_MULTIAGENTE.md, docs/ESTADO_ATUAL_PROJETO.md e a
+documentacao PostgreSQL indicada por eles. Confira git status e os commits
+recentes.
 
 PostgreSQL e producao. O SQLite esta congelado como rollback e nunca pode ser
 aberto em paralelo ou receber novas escritas. Nunca altere dados reais nos
@@ -239,12 +264,15 @@ Depois eu autorizarei a continuacao.
 ```text
 Voce sera o revisor independente do projeto Endemias. Abra
 C:\endemias-revisao e leia CLAUDE.md, AGENTS.md, CONTEXTO_PARA_IA.md,
-docs/GUIA_CONTINUIDADE_TECNICA.md e docs/GUIA_TRABALHO_MULTIAGENTE.md.
+docs/GUIA_CONTINUIDADE_TECNICA.md, docs/GUIA_TRABALHO_MULTIAGENTE.md e
+docs/ESTADO_ATUAL_PROJETO.md.
 
 Seu papel padrao e somente leitura: comparar branches do Codex com master,
 procurar bugs, regressoes, falhas de seguranca, riscos de perda de dados,
 problemas de concorrencia e incompatibilidades SQLite/PostgreSQL. Nao edite,
-nao faca merge e nao envie nada para master sem minha autorizacao expressa.
+nao crie commits, nao faca push, nao altere dados e nao faca merge. Voce so
+pode implementar uma correcao em branch propria se eu pedir isso diretamente e
+de forma expressa.
 
 Primeiro, confira o repositorio e confirme resumidamente que entendeu seu papel
 e o estado atual. Nao revise nenhuma branch ate eu informar o nome dela.

@@ -122,7 +122,141 @@ FONTES = (
         "where_extra": "e.movimento <> 'feriado'",
         "extras": {},
     },
+    {
+        "codigo": "REGISTRO_GEOGRAFICO",
+        "nome": "Registro Geográfico",
+        "tabela": "registro_geografico_imoveis",
+        "alias": "rg",
+        "id_col": "id_imovel",
+        "data_col": "data_atualizacao",
+        "localidade_expr": "rg.localidade",
+        "joins": "",
+        "agente_table": "registro_geografico_imovel_agentes",
+        "agente_fk": "id_imovel",
+        "extras": {},
+    },
+    {
+        # O laboratorista e uma coluna da propria leitura, sem tabela de
+        # ligacao, e a data util pode estar na leitura ou na coleta.
+        "codigo": "LABORATORIO",
+        "nome": "Leituras de laboratório",
+        "tabela": "resultados_laboratorio",
+        "alias": "rl",
+        "id_col": "id_resultado",
+        "data_col": "data_leitura",
+        "data_expr": "COALESCE(rl.data_leitura, rl.data_coleta)",
+        "localidade_expr": "CAST(NULL AS TEXT)",
+        "joins": "",
+        # O id fica vazio na maioria das leituras; o nome do laboratorista e
+        # o que sempre vem preenchido.
+        "agente_col": "id_laboratorista",
+        "agente_nome_col": "laboratorista",
+        "extras": {},
+    },
+    {
+        # Uma palheta lida e uma ovitrampa lida: um lote com 30 ovitrampas
+        # vale 30 leituras. Por isso a unidade aqui e a palheta, nao o lote.
+        #
+        # O mesmo trabalho vive em duas tabelas de epocas diferentes, e as
+        # duas ja guardam uma linha por ovitrampa. Elas viram uma fonte so,
+        # para o relatorio nao mostrar duas linhas que dizem a mesma coisa:
+        #
+        #   ovitrampas_laboratorio_itens
+        #       fluxo atual; data e laboratorista vem do lote. O
+        #       id_laboratorista do lote e do USUARIO logado, nao do agente,
+        #       entao o vinculo usa o nome gravado.
+        #   ovitrampas_leituras
+        #       historico importado; ali o id aponta mesmo para agentes e e
+        #       resolvido para nome, deixando as duas partes com o mesmo
+        #       formato.
+        "codigo": "OVITRAMPAS_PALHETA",
+        "nome": "Leituras de palhetas",
+        "tabela": """(
+            -- O historico usa id_leitura textual e datas nativas. Converter
+            -- ambos os lados evita que o UNION dependa das conversoes
+            -- permissivas do SQLite e continue valido no PostgreSQL.
+            SELECT CAST(li.id_item AS TEXT) AS id_palheta,
+                   COALESCE(
+                       NULLIF(SUBSTR(CAST(lt.concluido_em AS TEXT), 1, 10), ''),
+                       CAST(lt.data_movimento AS TEXT)
+                   ) AS data_leitura,
+                   lt.laboratorista_nome AS laboratorista_nome,
+                   li.ovos AS ovos
+              FROM ovitrampas_laboratorio_itens li
+              JOIN ovitrampas_laboratorio_lotes lt ON lt.id_lote=li.id_lote
+             WHERE lt.status IN ('concluido', 'enviado_conta_ovos')
+            UNION ALL
+            SELECT CAST(ol.id_leitura AS TEXT) AS id_palheta,
+                   CAST(COALESCE(ol.data_leitura, ol.data_coleta) AS TEXT) AS data_leitura,
+                   (SELECT ag2.nome FROM agentes ag2
+                     WHERE ag2.id_agente=ol.id_laboratorista) AS laboratorista_nome,
+                   ol.ovos AS ovos
+              FROM ovitrampas_leituras ol
+        )""",
+        "tabelas_requeridas": (
+            "ovitrampas_laboratorio_itens",
+            "ovitrampas_laboratorio_lotes",
+            "ovitrampas_leituras",
+        ),
+        "alias": "pal",
+        "id_col": "id_palheta",
+        "data_col": "data_leitura",
+        "localidade_expr": "CAST(NULL AS TEXT)",
+        "joins": "",
+        "agente_nome_col": "laboratorista_nome",
+        "extras": {
+            "ovos": "COALESCE(SUM(pal.ovos),0)",
+        },
+    },
 )
+
+
+def _data_expr(fonte):
+    """Data util da fonte, permitindo COALESCE entre colunas."""
+    return fonte.get("data_expr") or f"{fonte['alias']}.{fonte['data_col']}"
+
+
+def _chave_nome_sql(expressao):
+    """Compara nomes ignorando caixa e espacos das pontas."""
+    return f"LOWER(TRIM(COALESCE({expressao}, '')))"
+
+
+def _vinculo_agente_sql(fonte, alias):
+    """Condicao que liga a linha da fonte ao agente ``ag``.
+
+    Ha duas formas diretas no banco, e a diferenca importa:
+
+    ``agente_col``
+        Id que aponta mesmo para ``agentes``.
+    ``agente_nome_col``
+        Nome gravado na propria linha. Usado quando o id esta vazio na maior
+        parte das linhas (``resultados_laboratorio``) ou quando ele aponta
+        para ``usuarios``, nao para ``agentes`` - o caso dos lotes de
+        laboratorio, em que juntar pelo id credita a pessoa errada.
+
+    Quando a fonte declara as duas, basta uma casar.
+    """
+    partes = []
+    if fonte.get("agente_col"):
+        partes.append(f"ag.id_agente={alias}.{fonte['agente_col']}")
+    if fonte.get("agente_nome_col"):
+        coluna = f"{alias}.{fonte['agente_nome_col']}"
+        partes.append(
+            f"({_chave_nome_sql(coluna)} <> '' "
+            f"AND {_chave_nome_sql(coluna)}={_chave_nome_sql('ag.nome')})"
+        )
+    return "(" + " OR ".join(partes) + ")" if partes else None
+
+
+def _fonte_disponivel(conn, fonte):
+    # Fontes montadas por subconsulta declaram as tabelas que usam, ja que
+    # nao ha um nome unico para checar.
+    requeridas = fonte.get("tabelas_requeridas") or (fonte["tabela"],)
+    if not all(_table_exists(conn, tabela) for tabela in requeridas):
+        return False
+    if fonte.get("agente_col") or fonte.get("agente_nome_col"):
+        return True
+    return _table_exists(conn, fonte["agente_table"])
 
 
 def resumo(target, filtros=None):
@@ -131,13 +265,14 @@ def resumo(target, filtros=None):
     try:
         fontes = [
             _resumo_fonte(conn, fonte, filtros)
-            if _table_exists(conn, fonte["tabela"]) and _table_exists(conn, fonte["agente_table"])
+            if _fonte_disponivel(conn, fonte)
             else _fonte_vazia(fonte)
             for fonte in FONTES
         ]
     finally:
         conn.close()
 
+    por_dia = _somar_series(fontes, "por_dia", "dia")
     por_mes = _somar_series(fontes, "por_mes", "mes")
     por_localidade = _somar_series(fontes, "por_localidade", "localidade")
     por_agente = _somar_series(fontes, "por_agente", "agente")
@@ -158,6 +293,7 @@ def resumo(target, filtros=None):
             }
             for item in fontes
         ],
+        "por_dia": por_dia,
         "por_mes": por_mes,
         "por_localidade": por_localidade[:15],
         "por_agente": por_agente,
@@ -177,6 +313,7 @@ def _fonte_vazia(fonte):
         "dias_trabalhados": [],
         "localidades_trabalhadas": [],
         "agentes_trabalharam": [],
+        "por_dia": [],
         "por_mes": [],
         "por_localidade": [],
         "por_agente": [],
@@ -187,7 +324,7 @@ def _resumo_fonte(conn, fonte, filtros):
     where, params = _where_fonte(fonte, filtros)
     alias = fonte["alias"]
     id_expr = f"{alias}.{fonte['id_col']}"
-    data_expr = f"{alias}.{fonte['data_col']}"
+    data_expr = _data_expr(fonte)
     localidade_expr = fonte["localidade_expr"]
     joins = " ".join(part for part in (fonte.get("joins"), fonte.get("extra_joins")) if part)
     extras_sql = "".join(f", {expr} AS {nome}" for nome, expr in fonte.get("extras", {}).items())
@@ -217,6 +354,7 @@ def _resumo_fonte(conn, fonte, filtros):
         "dias_trabalhados": _distinct(conn, fonte, filtros, data_expr, "dia"),
         "localidades_trabalhadas": _distinct(conn, fonte, filtros, localidade_expr, "localidade"),
         "agentes_trabalharam": [r["agente"] for r in _por_agente(conn, fonte, filtros)],
+        "por_dia": _por_dia(conn, fonte, filtros),
         "por_mes": _por_mes(conn, fonte, filtros),
         "por_localidade": _por_localidade(conn, fonte, filtros),
         "por_agente": _por_agente(conn, fonte, filtros),
@@ -225,7 +363,7 @@ def _resumo_fonte(conn, fonte, filtros):
 
 def _where_fonte(fonte, filtros):
     alias = fonte["alias"]
-    data_col = f"{alias}.{fonte['data_col']}"
+    data_col = _data_expr(fonte)
     localidade_expr = fonte["localidade_expr"]
     d_ini = filtros.get("d_ini") or utils.data_n_dias(365)
     d_fim = filtros.get("d_fim") or utils.hoje()
@@ -248,15 +386,26 @@ def _where_fonte(fonte, filtros):
 
     agentes = _getlist(filtros, "agente")
     if agentes:
-        clauses.append(
-            f"""EXISTS (
-                    SELECT 1
-                      FROM {fonte['agente_table']} pa
-                      JOIN agentes ag ON ag.id_agente=pa.id_agente
-                     WHERE pa.{fonte['agente_fk']}={alias}.{fonte['id_col']}
-                       AND ag.nome IN ({_placeholders(agentes)})
-                )"""
-        )
+        vinculo_direto = _vinculo_agente_sql(fonte, alias)
+        if vinculo_direto:
+            clauses.append(
+                f"""EXISTS (
+                        SELECT 1
+                          FROM agentes ag
+                         WHERE {vinculo_direto}
+                           AND ag.nome IN ({_placeholders(agentes)})
+                    )"""
+            )
+        else:
+            clauses.append(
+                f"""EXISTS (
+                        SELECT 1
+                          FROM {fonte['agente_table']} pa
+                          JOIN agentes ag ON ag.id_agente=pa.id_agente
+                         WHERE pa.{fonte['agente_fk']}={alias}.{fonte['id_col']}
+                           AND ag.nome IN ({_placeholders(agentes)})
+                    )"""
+            )
         params.extend(agentes)
 
     return " AND ".join(clauses), params
@@ -282,7 +431,7 @@ def _por_mes(conn, fonte, filtros):
     where, params = _where_fonte(fonte, filtros)
     alias = fonte["alias"]
     id_expr = f"{alias}.{fonte['id_col']}"
-    data_expr = f"{alias}.{fonte['data_col']}"
+    data_expr = _data_expr(fonte)
     mes_expr = db_core.month_expression(data_expr)
     rows = conn.execute(
         f"""
@@ -293,6 +442,29 @@ def _por_mes(conn, fonte, filtros):
          WHERE {where}
          GROUP BY {mes_expr}
          ORDER BY mes
+        """,
+        params,
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def _por_dia(conn, fonte, filtros):
+    """Producao diaria da fonte, para somar os dias de todas as atividades."""
+    where, params = _where_fonte(fonte, filtros)
+    alias = fonte["alias"]
+    id_expr = f"{alias}.{fonte['id_col']}"
+    # O texto mantem o mesmo formato nos dois bancos e permite somar os dias
+    # de fontes diferentes sem misturar date com string.
+    dia_expr = f"CAST({_data_expr(fonte)} AS TEXT)"
+    rows = conn.execute(
+        f"""
+        SELECT {dia_expr} AS dia,
+               COUNT(DISTINCT {id_expr}) AS registros
+          FROM {fonte['tabela']} {alias}
+          {fonte.get('joins') or ''}
+         WHERE {where}
+         GROUP BY {dia_expr}
+         ORDER BY dia
         """,
         params,
     ).fetchall()
@@ -324,13 +496,20 @@ def _por_agente(conn, fonte, filtros):
     where, params = _where_fonte(fonte, filtros)
     alias = fonte["alias"]
     id_expr = f"{alias}.{fonte['id_col']}"
+    vinculo_direto = _vinculo_agente_sql(fonte, alias)
+    if vinculo_direto:
+        join_agente = f"JOIN agentes ag ON {vinculo_direto}"
+    else:
+        join_agente = (
+            f"JOIN {fonte['agente_table']} pa ON pa.{fonte['agente_fk']}={id_expr} "
+            f"JOIN agentes ag ON ag.id_agente=pa.id_agente"
+        )
     rows = conn.execute(
         f"""
         SELECT COALESCE(NULLIF(ag.nome_completo,''), ag.nome) AS agente,
                COUNT(DISTINCT {id_expr}) AS registros
           FROM {fonte['tabela']} {alias}
-          JOIN {fonte['agente_table']} pa ON pa.{fonte['agente_fk']}={id_expr}
-          JOIN agentes ag ON ag.id_agente=pa.id_agente
+          {join_agente}
           {fonte.get('joins') or ''}
          WHERE {where}
          GROUP BY ag.id_agente, ag.nome, ag.nome_completo
@@ -349,7 +528,7 @@ def _somar_series(fontes, key, nome_coluna):
             acumulado[nome] += row["registros"] or 0
     sort_key = (
         (lambda item: item[0])
-        if nome_coluna == "mes"
+        if nome_coluna in ("mes", "dia")
         else (lambda item: (-item[1], item[0]))
     )
     return [
