@@ -122,6 +122,21 @@ class StartupScriptsTests(unittest.TestCase):
         self.assertIn("O banco de teste resolve para o SQLite oficial", testar)
         self.assertIn("exit /b 4", testar)
 
+    def test_testar_recusa_subir_com_sqlite_incompleto(self):
+        testar = (ROOT / "testar.bat").read_text(encoding="utf-8")
+
+        schema = 'python scripts\\validar_banco_teste.py --schema "%ENDEMIAS_DB_PATH%"'
+        arquivar = (
+            'python scripts\\validar_banco_teste.py --arquivar-invalido '
+            '"%ENDEMIAS_DB_PATH%"'
+        )
+        self.assertIn(schema, testar)
+        self.assertIn(arquivar, testar)
+        self.assertIn("vazio, corrompido ou incompleto", testar)
+        self.assertIn("ENDEMIAS_PREPARAR_BANCO=1", testar)
+        self.assertLess(testar.index(schema), testar.index("python app.py"))
+        self.assertLess(testar.index(arquivar), testar.index("python app.py"))
+
     def test_reiniciar_valida_processo_e_reabre_tarefa_automatica(self):
         reiniciar_bat = (ROOT / "reiniciar.bat").read_text(encoding="utf-8")
         reiniciar_ps1 = (ROOT / "scripts" / "reiniciar_endemias.ps1").read_text(

@@ -73,7 +73,27 @@ if not errorlevel 1 (
     exit /b 3
 )
 
-if not exist "%ENDEMIAS_DB_PATH%" (
+set "ENDEMIAS_PREPARAR_BANCO="
+if exist "%ENDEMIAS_DB_PATH%" (
+    python scripts\validar_banco_teste.py --schema "%ENDEMIAS_DB_PATH%" >nul
+    if errorlevel 1 (
+        echo  [ATENCAO] O banco local existe, mas esta vazio, corrompido ou incompleto.
+        echo  Ele sera arquivado nesta pasta antes de preparar um banco valido.
+        python scripts\validar_banco_teste.py --arquivar-invalido "%ENDEMIAS_DB_PATH%"
+        if errorlevel 1 (
+            echo  [ATENCAO] Nao foi possivel arquivar o banco local invalido.
+            echo  Nenhum servidor foi iniciado.
+            echo.
+            pause
+            exit /b 5
+        )
+        set "ENDEMIAS_PREPARAR_BANCO=1"
+    )
+) else (
+    set "ENDEMIAS_PREPARAR_BANCO=1"
+)
+
+if defined ENDEMIAS_PREPARAR_BANCO (
     call :preparar_banco
     if errorlevel 1 (
         echo.

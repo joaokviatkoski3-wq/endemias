@@ -99,6 +99,8 @@ Execute `testar.bat` na raiz do worktree. Ele:
 - usa SQLite e direciona banco, anexos, temporarios, log, chave, configuracao
   Kobo e backups para o proprio worktree;
 - cria banco vazio ou oferece copia manual e explicita do snapshot real;
+- valida o esquema minimo de banco existente e arquiva localmente um arquivo
+  vazio, corrompido ou incompleto antes de preparar uma massa valida;
 - define `ENDEMIAS_AMBIENTE=teste` e exibe faixa de dados nao oficiais;
 - esconde a faixa de impressoes e PDFs.
 

@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import sqlite3
 
 from scripts import validar_banco_teste
 
@@ -40,6 +41,33 @@ class ValidarBancoTesteTests(unittest.TestCase):
 
             self.assertFalse(validar_banco_teste.mesmo_arquivo(alvo, oficial))
             self.assertEqual(validar_banco_teste.main([str(alvo), str(oficial)]), 0)
+
+    def test_schema_minimo_distingue_banco_completo_de_incompleto(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            banco = Path(temp_dir) / "teste.db"
+            conn = sqlite3.connect(banco)
+            try:
+                conn.execute("CREATE TABLE localidades (id INTEGER)")
+                conn.commit()
+                self.assertFalse(validar_banco_teste.schema_minimo_valido(banco))
+                conn.execute("CREATE TABLE usuarios (id INTEGER)")
+                conn.execute("CREATE TABLE visitas (id INTEGER)")
+                conn.commit()
+            finally:
+                conn.close()
+
+            self.assertTrue(validar_banco_teste.schema_minimo_valido(banco))
+
+    def test_arquiva_banco_invalido_sem_perder_conteudo(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            banco = Path(temp_dir) / "endemias.db"
+            banco.write_bytes(b"banco incompleto")
+
+            arquivado = validar_banco_teste.arquivar_invalido(banco)
+
+            self.assertFalse(banco.exists())
+            self.assertTrue(arquivado.name.startswith("endemias.invalido-"))
+            self.assertEqual(arquivado.read_bytes(), b"banco incompleto")
 
 
 if __name__ == "__main__":

@@ -48,7 +48,7 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
   O `-t .` importa `tests` como pacote e isola automaticamente uma copia
   temporaria do SQLite. Nunca rode um arquivo de teste diretamente nem omita
   essa opcao.
-- A ultima regressao ampla registrada terminou com `648` testes em `OK` e `5`
+- A ultima regressao ampla registrada terminou com `651` testes em `OK` e `5`
   ignorados, preservando o hash do SQLite congelado. Reexecute a regressao
   aplicavel depois de qualquer lote; a contagem pode crescer.
 - Backups automaticos PostgreSQL estao instalados sob `SYSTEM`: dump diario
@@ -146,6 +146,9 @@ O comportamento proposto e:
 - banco, anexos, uploads, log, chave, configuracao Kobo e backups apontam para
   o proprio worktree. Na primeira execucao, o usuario escolhe explicitamente
   entre um banco vazio e uma copia local do SQLite congelado;
+- um arquivo SQLite existente so e aceito quando contem o esquema minimo do
+  sistema. Banco vazio, corrompido ou incompleto e arquivado no proprio
+  worktree antes de voltar a escolha de uma massa valida;
 - a copia opcional e identificada como dado real de saude, permanece restrita
   ao worktree e deve ser apagada junto com ele. A origem
   `C:\endemias\endemias.db` e somente lida pelo comando de copia;
@@ -157,10 +160,10 @@ O comportamento proposto e:
   continua bloqueando qualquer inicializacao SQLite.
 
 O smoke isolado respondeu HTTP 200 em `localhost:5002`, mostrou a faixa e fez
-uma segunda execucao do batch recusar a porta ocupada com mensagem clara. Os 9
-testes de scripts de inicializacao, os 268 testes de seguranca e os 2 testes da
-identidade do banco passaram; a regressao completa terminou com 648 testes
-aprovados e 5 ignorados. O hash do
+uma segunda execucao do batch recusar a porta ocupada com mensagem clara. Os 10
+testes de scripts de inicializacao, os 268 testes de seguranca e os 4 testes da
+identidade/esquema do banco passaram; a regressao completa terminou com 651
+testes aprovados e 5 ignorados. O hash do
 SQLite oficial permaneceu
 `0600F6A70072320BC7FDE270848535EF428341AA1F093997EE4940F85376F63F`.
 
