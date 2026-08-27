@@ -102,6 +102,20 @@ body {
   transition:background .25s,color .25s;
   line-height:1.5;
 }
+body.ambiente-teste-ativo { padding-top:34px; }
+.ambiente-teste-ativo .app { height:calc(100vh - 34px); }
+.ambiente-teste-faixa {
+  position:fixed; top:0; left:0; right:0; z-index:10000;
+  min-height:34px; padding:7px 14px;
+  background:#9a3412; color:#fff; text-align:center;
+  font-size:12px; font-weight:800; letter-spacing:.03em;
+  box-shadow:0 2px 8px rgba(0,0,0,.25);
+}
+@media print {
+  .ambiente-teste-faixa { display:none !important; }
+  body.ambiente-teste-ativo { padding-top:0; }
+  .ambiente-teste-ativo .app { height:auto; overflow:visible; }
+}
 a { color:var(--brand); text-decoration:none; }
 a:hover { text-decoration:underline; }
 button { font-family:inherit; cursor:pointer; }

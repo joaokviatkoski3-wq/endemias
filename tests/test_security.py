@@ -4314,6 +4314,50 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertTrue(paths["LOG_PATH"].endswith("endemias.log"))
         self.assertTrue(paths["SECRET_KEY_PATH"].endswith("secret.key"))
 
+    def test_porta_do_servidor_aceita_override_seguro(self):
+        self.assertEqual(endemias_app._env_port({}), 5000)
+        self.assertEqual(endemias_app._env_port({"ENDEMIAS_PORT": "5002"}), 5002)
+        self.assertEqual(endemias_app._env_port({"ENDEMIAS_PORT": "invalida"}), 5000)
+        self.assertEqual(endemias_app._env_port({"ENDEMIAS_PORT": "0"}), 5000)
+        self.assertEqual(endemias_app._env_port({"ENDEMIAS_PORT": "65536"}), 5000)
+
+    def test_faixa_de_teste_soma_ambiente_explicito_e_porta(self):
+        casos = (
+            ("producao", 5000, False),
+            ("teste", 5002, True),
+            (None, 5002, True),
+            ("producao", 5100, True),
+        )
+
+        for ambiente, porta, deve_exibir in casos:
+            with self.subTest(ambiente=ambiente, porta=porta):
+                config = {
+                    "TESTING": True,
+                    "DB_PATH": endemias_app.DB_PATH,
+                    "AMBIENTE": ambiente,
+                    "SERVER_PORT": porta,
+                }
+                app_caso = endemias_app.create_app(config)
+                cliente = app_caso.test_client()
+                login = cliente.get("/login")
+                _login_client_com_usuario(cliente, _usuario_teste())
+                home = cliente.get("/")
+
+                for resposta in (login, home):
+                    if deve_exibir:
+                        self.assertIn(b'id="ambiente-teste-faixa"', resposta.data)
+                    else:
+                        self.assertNotIn(b'id="ambiente-teste-faixa"', resposta.data)
+
+                if deve_exibir:
+                    self.assertIn(
+                        "dados exibidos não são os dados oficiais".encode("utf-8"),
+                        home.data,
+                    )
+        css = (ROOT / "static" / "css" / "app.css").read_text(encoding="utf-8")
+        self.assertIn("@media print", css)
+        self.assertIn(".ambiente-teste-faixa { display:none !important; }", css)
+
     def test_apis_principais_logadas_retornam_json(self):
         client = _client_logado()
         rotas = [

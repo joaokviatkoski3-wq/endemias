@@ -49,7 +49,7 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
   O `-t .` importa `tests` como pacote e isola automaticamente uma copia
   temporaria do SQLite. Nunca rode um arquivo de teste diretamente nem omita
   essa opcao.
-- A ultima regressao ampla registrada terminou com `632` testes em `OK` e `5`
+- A ultima regressao ampla registrada terminou com `645` testes em `OK` e `5`
   ignorados, preservando o hash do SQLite congelado. Reexecute a regressao
   aplicavel depois de qualquer lote; a contagem pode crescer.
 - Backups automaticos PostgreSQL estao instalados sob `SYSTEM`: dump diario
@@ -126,6 +126,55 @@ As regras de fonte de verdade e a arquitetura da tela estao em
 `docs/CONTA_OVOS_API.md`.
 
 ## Pendencia concreta e proxima ordem recomendada
+
+### Ambiente de teste padrao em revisao
+
+A branch `codex/ambiente-de-teste-padrao`, criada a partir de `f64c866`, porta
+para a aplicacao a configuracao segura de porta que antes existia somente na
+branch `revisao` e acrescenta `testar.bat` na raiz. A branch ainda nao integra
+a `master` e deve ser revisada pelo Claude em modo somente leitura.
+
+O comportamento proposto e:
+
+- `app.py` usa `ENDEMIAS_PORT` quando ela representa uma porta de 1 a 65535;
+  valor ausente, invalido ou fora da faixa conserva o padrao `5000`;
+- `testar.bat` usa sempre `5002`, recusa antes de qualquer outra acao quando
+  esta em `C:\endemias` e avisa claramente quando outro ambiente ja ocupa a
+  porta. Uma segunda barreira independente compara a identidade do banco de
+  teste com `C:\endemias\endemias.db`, cobrindo tambem caminho curto, UNC,
+  juncao, link simbolico e hard link; se a comparacao falhar, o batch recusa a
+  inicializacao em vez de prosseguir;
+- banco, anexos, uploads, log, chave, configuracao Kobo e backups apontam para
+  o proprio worktree. Na primeira execucao, o usuario escolhe explicitamente
+  entre um banco vazio e uma copia local do SQLite congelado;
+- a copia opcional e identificada como dado real de saude, permanece restrita
+  ao worktree e deve ser apagada junto com ele. A origem
+  `C:\endemias\endemias.db` e somente lida pelo comando de copia;
+- `ENDEMIAS_AMBIENTE=teste` exibe em todas as telas, inclusive login, uma faixa
+  fixa informando que os dados nao sao oficiais. Como defesa adicional, uma
+  porta diferente de `5000` tambem ativa a faixa, mesmo sem a variavel ou com
+  `producao` declarada. A faixa e escondida por CSS de impressao;
+- `iniciar.bat` nao foi alterado: na pasta oficial, o marcador PostgreSQL
+  continua bloqueando qualquer inicializacao SQLite.
+
+O smoke isolado respondeu HTTP 200 em `localhost:5002`, mostrou a faixa e fez
+uma segunda execucao do batch recusar a porta ocupada com mensagem clara. Os 9
+testes de scripts de inicializacao, os 268 testes de seguranca e os 2 testes da
+identidade do banco passaram; a regressao completa terminou com 648 testes
+aprovados e 5 ignorados. O hash do
+SQLite oficial permaneceu
+`0600F6A70072320BC7FDE270848535EF428341AA1F093997EE4940F85376F63F`.
+
+Esta branch permanece em `1.20.0`, pois nao muda a execucao oficial: a porta
+padrao continua `5000`, `iniciar.bat` permanece intacto e a faixa nao aparece
+na configuracao de producao normal. A sequencia planejada, ainda sem integrar
+nenhuma branch, e: integrar primeiro este ambiente sem subir versao; depois,
+quando houver homologacao visual contra o QGIS, o mapa de bloqueio de
+Esporotricose assume `1.21.0`; se o envio Conta Ovos vier em seguida, sua versao
+deve ser reavaliada para `1.22.0`, evitando duas branches reivindicarem o mesmo
+minor. Depois da integracao deste lote, o mapa deve receber a `master` por merge
+normal, passar novamente por regressao e ensaio PostgreSQL e continuar fora da
+`master` ate a homologacao expressa do usuario.
 
 1. **Em revisao: mapeamento do PE-0045 para visitas Kobo:** a branch
    `codex/adicionar-pe-0045-kobo` registra aliases qualificados para

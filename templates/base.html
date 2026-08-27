@@ -16,7 +16,8 @@ const WORK_TYPE_LABELS = {{ TIPO_LABELS|tojson }};
 const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
 </script>
 </head>
-<body>
+<body class="{{ 'ambiente-teste-ativo' if AMBIENTE_TESTE else '' }}">
+{% include "_ambiente_teste_faixa.html" %}
 <div class="app">
 
 <div class="overlay" id="overlay"></div>
