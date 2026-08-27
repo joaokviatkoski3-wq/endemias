@@ -69,7 +69,7 @@ Infraestrutura ja validada no PostgreSQL:
 - 105/105 indices.
 
 A regressao ampla executada na `master` depois da integracao do ambiente de
-teste padrao terminou com `651` testes em `OK` e `5` ignorados, usando uma copia
+teste padrao terminou com `652` testes em `OK` e `5` ignorados, usando uma copia
 temporaria isolada de `C:\endemias\endemias.db`; o hash do SQLite oficial
 permaneceu inalterado
 (`0600F6A70072320BC7FDE270848535EF428341AA1F093997EE4940F85376F63F`).

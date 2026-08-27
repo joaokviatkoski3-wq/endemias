@@ -137,6 +137,23 @@ class StartupScriptsTests(unittest.TestCase):
         self.assertLess(testar.index(schema), testar.index("python app.py"))
         self.assertLess(testar.index(arquivar), testar.index("python app.py"))
 
+    def test_parar_test_encerra_somente_python_app_na_porta_5002(self):
+        batch = (ROOT / "parar_test.bat").read_text(encoding="utf-8")
+        script = (ROOT / "scripts" / "parar_ambiente_teste.ps1").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("parar_ambiente_teste.ps1", batch)
+        self.assertIn("-Port 5002", batch)
+        self.assertIn("porta 5000 nao sera alterada", batch)
+        self.assertIn("if ($Port -eq 5000)", script)
+        self.assertIn("Get-NetTCPConnection", script)
+        self.assertIn("Get-CimInstance Win32_Process", script)
+        self.assertIn("app\\.py", script)
+        self.assertIn("Stop-Process -Id", script)
+        self.assertNotIn("taskkill", batch.lower())
+        self.assertNotIn("taskkill", script.lower())
+
     def test_reiniciar_valida_processo_e_reabre_tarefa_automatica(self):
         reiniciar_bat = (ROOT / "reiniciar.bat").read_text(encoding="utf-8")
         reiniciar_ps1 = (ROOT / "scripts" / "reiniciar_endemias.ps1").read_text(

@@ -104,6 +104,11 @@ Execute `testar.bat` na raiz do worktree. Ele:
 - define `ENDEMIAS_AMBIENTE=teste` e exibe faixa de dados nao oficiais;
 - esconde a faixa de impressoes e PDFs.
 
+Para encerrar, execute `parar_test.bat` no worktree. Ele atua somente na porta
+reservada `5002`, valida que o processo e um servidor Python `app.py`, recusa
+outro programa e nunca encerra a producao na porta `5000`. Fechar apenas o
+navegador nao encerra o servidor.
+
 A copia opcional de `C:\endemias\endemias.db` contem dados reais de saude. Deve
 ficar restrita ao worktree, nunca ser versionada e ser apagada quando o ambiente
 for descartado. A origem e somente leitura.

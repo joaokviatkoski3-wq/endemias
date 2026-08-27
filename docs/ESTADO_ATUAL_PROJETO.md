@@ -48,7 +48,7 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
   O `-t .` importa `tests` como pacote e isola automaticamente uma copia
   temporaria do SQLite. Nunca rode um arquivo de teste diretamente nem omita
   essa opcao.
-- A ultima regressao ampla registrada terminou com `651` testes em `OK` e `5`
+- A ultima regressao ampla registrada terminou com `652` testes em `OK` e `5`
   ignorados, preservando o hash do SQLite congelado. Reexecute a regressao
   aplicavel depois de qualquer lote; a contagem pode crescer.
 - Backups automaticos PostgreSQL estao instalados sob `SYSTEM`: dump diario
@@ -158,11 +158,14 @@ O comportamento proposto e:
   `producao` declarada. A faixa e escondida por CSS de impressao;
 - `iniciar.bat` nao foi alterado: na pasta oficial, o marcador PostgreSQL
   continua bloqueando qualquer inicializacao SQLite.
+- `parar_test.bat` encerra com dois cliques somente o servidor Python `app.py`
+  na porta de teste `5002`; recusa outros programas e bloqueia explicitamente
+  qualquer tentativa de atuar na porta oficial `5000`.
 
 O smoke isolado respondeu HTTP 200 em `localhost:5002`, mostrou a faixa e fez
-uma segunda execucao do batch recusar a porta ocupada com mensagem clara. Os 10
+uma segunda execucao do batch recusar a porta ocupada com mensagem clara. Os 11
 testes de scripts de inicializacao, os 268 testes de seguranca e os 4 testes da
-identidade/esquema do banco passaram; a regressao completa terminou com 651
+identidade/esquema do banco passaram; a regressao completa terminou com 652
 testes aprovados e 5 ignorados. O hash do
 SQLite oficial permaneceu
 `0600F6A70072320BC7FDE270848535EF428341AA1F093997EE4940F85376F63F`.
