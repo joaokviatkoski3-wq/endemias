@@ -6,8 +6,8 @@ decisoes tecnicas e operacionais ja consolidadas.
 Antes de usar este guia como plano de trabalho, leia
 `docs/ESTADO_ATUAL_PROJETO.md`. Ele separa o estado vigente do registro
 historico abaixo e define os papeis atuais: Codex e o operador/implementador;
-Claude e revisor somente-leitura, salvo pedido direto e excepcional do usuario
-para que implemente uma tarefa isolada.
+Claude participa apenas em intervencoes esporadicas quando o usuario solicitar.
+Revisao externa nao e requisito para Codex integrar uma mudanca validada.
 
 ## Perfil do usuario e colaboracao
 
@@ -23,9 +23,9 @@ para que implemente uma tarefa isolada.
 - Nao sobrescreva mudancas inesperadas; podem ter sido feitas pelo usuario.
 - Evite interromper o sistema oficial na porta 5000.
 - Dados de saude, CPF, telefones, anexos e bancos sao sensiveis.
-- Claude nao deve editar codigo, dados, configuracoes ou Git por padrao. Se o
-  usuario autorizar Claude diretamente a implementar, a excecao fica limitada a
-  uma branch `claude/nome-da-tarefa`; Codex nao trabalha nela ao mesmo tempo.
+- Codex e o operador unico e principal. Claude so participa quando o usuario
+  pedir; se houver escrita por outro agente, use branch propria e nunca edite os
+  mesmos arquivos simultaneamente.
 
 ## Estrutura principal
 
@@ -315,12 +315,11 @@ Ao ver um arquivo sensivel como nao rastreado, nao o adicione. Confira
 - `revisao` e um worktree auxiliar, nao a versao de producao.
 - A branch `revisao` possui alteracoes proprias para porta 5002; nao faca merge
   cego dela na `master`.
-- Implementacoes devem ir para `codex/nome-da-tarefa`, ser revisadas pelo
-  Claude somente em leitura e so depois integradas por Codex mediante
-  autorizacao do usuario.
-- A unica excecao e uma solicitacao direta do usuario para Claude implementar
-  uma correcao delimitada em `claude/nome-da-tarefa`; nesse caso nao ha edicao
-  simultanea e Claude nao revisa o proprio trabalho.
+- Implementacoes de risco ou com varios arquivos devem preferir
+  `codex/nome-da-tarefa`; depois das validacoes aplicaveis, Codex pode integra-las
+  na `master` conforme o pedido do usuario, sem revisao externa obrigatoria.
+- Claude pode ser chamado esporadicamente pelo usuario. Se produzir alteracoes,
+  use branch propria e coordene a autoria para impedir edicao simultanea.
 - Confirme sempre a branch atual e a instrucao mais recente do usuario.
 
 ## Fluxos de negocio que nao devem ser confundidos

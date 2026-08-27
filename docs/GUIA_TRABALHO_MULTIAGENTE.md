@@ -1,335 +1,157 @@
-# Guia de trabalho com Codex e Claude Code
+# Guia de operacao e colaboracao entre agentes
 
-Este guia define como duas IAs devem colaborar sem disputar arquivos, alterar
-dados reais ou publicar codigo ainda nao revisado.
+Este guia define o fluxo vigente do Endemias. Codex e o operador unico e
+principal. Outros agentes, inclusive Claude, participam somente quando o
+usuario solicitar uma intervencao especifica. Revisao externa nao e requisito
+para commit, push ou integracao na `master`.
 
 ## Papeis
 
-### Codex: operador e implementador principal
+### Codex: operador unico e principal
 
-- investiga o codigo existente;
-- implementa a solicitacao;
-- cria ou atualiza testes;
-- executa testes focados e regressao proporcional ao risco;
-- atualiza documentacao;
-- corrige os achados da revisao;
-- cria commits e faz push da branch de trabalho;
-- integra na `master` somente depois da aprovacao.
+Codex:
 
-Codex e o unico agente que altera codigo por padrao. Ele tambem e responsavel
-por manter `docs/ESTADO_ATUAL_PROJETO.md` fiel ao ponto em que o projeto parou,
-para que uma nova conversa nao repita etapas ou trate planos antigos como
-pendencias atuais.
+- investiga o codigo e o estado real dos ambientes;
+- implementa as mudancas solicitadas;
+- protege PostgreSQL de producao e o SQLite congelado;
+- cria e executa testes e ensaios isolados;
+- atualiza a documentacao de continuidade;
+- decide a estrategia Git segura dentro do pedido do usuario;
+- cria commits, faz push e pode integrar na `master` sem aguardar revisao de
+  outro agente;
+- corrige ou prepara rollback seguro quando o usuario identificar um erro.
 
-### Claude Code: revisor independente somente-leitura
+Autonomia de integracao nao autoriza reduzir testes, tocar dados reais durante
+ensaios, ocultar falhas ou executar operacoes destrutivas fora do escopo.
 
-- compara a branch do Codex com `master`;
-- trabalha somente em leitura por padrao;
-- procura bugs, regressoes, falhas de seguranca e perda de dados;
-- confere concorrencia e compatibilidade SQLite/PostgreSQL;
-- valida se os testes cobrem as regras alteradas;
-- apresenta achados por gravidade, com arquivo e linha;
-- nao edita arquivos, nao cria commits, nao faz push nem faz merge;
-- nao altera dados reais, configuracoes, tarefas Windows ou credenciais;
-- nao reimplementa a tarefa, salvo autorizacao expressa e direta do usuario.
+### Usuario
 
-#### Excecao expressa para Claude implementar
+O usuario define prioridades e regras de negocio, valida fluxos funcionais e
+autoriza operacoes reais sensiveis, como migracoes de producao, pilotos de API,
+alteracoes de dados e reinicio do servico oficial quando necessario.
 
-Somente quando o usuario pedir diretamente ao Claude que realize uma correcao,
-ele pode atuar como implementador **daquela tarefa delimitada**. Deve criar ou
-usar uma branch `claude/nome-da-tarefa`, manter o trabalho isolado, executar os
-testes aplicaveis, fazer commit e push. Nao pode editar `master` diretamente.
-Nesse intervalo, Claude nao revisa o proprio diff; Codex nao edita a mesma
-branch nem os mesmos arquivos. Depois da entrega, o fluxo normal volta a valer
-e o usuario decide quem revisa/testa e quem integra.
+### Claude e outros agentes
 
-### Usuario: aprovacao operacional
+Claude pode revisar, investigar ou implementar esporadicamente quando o usuario
+pedir. Essa participacao e opcional e nao cria um portao permanente para o
+trabalho do Codex.
 
-- explica o fluxo real do setor;
-- testa a interface e as regras de negocio;
-- decide se os achados foram resolvidos;
-- autoriza a integracao na versao oficial.
+Quando outro agente produzir alteracoes:
 
-## Estado atual das pastas
+- use branch propria;
+- nao edite a mesma branch ou os mesmos arquivos simultaneamente com Codex;
+- registre claramente autoria, testes e escopo;
+- Codex confere o estado vivo antes de integrar ou continuar o trabalho.
+
+O worktree `C:\endemias-revisao` e a branch `revisao` sao auxiliares historicos.
+Nunca faca merge cego dessa branch na `master`, pois ela pode conter
+configuracoes exclusivas do ambiente auxiliar.
+
+## Fluxo normal de uma mudanca
+
+1. Ler `AGENTS.md`, `CONTEXTO_PARA_IA.md` e
+   `docs/ESTADO_ATUAL_PROJETO.md`.
+2. Conferir branch, `git status`, commits recentes e worktrees.
+3. Atualizar a `master` e criar `codex/nome-da-tarefa` quando o isolamento for
+   util.
+4. Implementar com `apply_patch`, preservando alteracoes alheias.
+5. Executar testes focados, regressao proporcional e ensaios PostgreSQL apenas
+   em `endemias_teste`, tabelas temporarias ou transacoes revertidas.
+6. Confirmar o hash do SQLite congelado antes e depois.
+7. Atualizar a documentacao depois de confirmar o resultado.
+8. Criar commit e push. Se a mudanca estiver pronta e o pedido incluir entrega,
+   Codex pode integrar e publicar a `master` diretamente.
+9. Se surgir erro posterior, investigar a causa e corrigir ou reverter codigo
+   com seguranca; rollback de dados exige plano explicito.
+
+Claude so entra nesse fluxo quando o usuario o chamar. Sua ausencia nao pausa
+nem bloqueia o trabalho.
+
+## Ambientes conhecidos
 
 ```text
 C:\endemias
-  branch master
+  master
   sistema oficial
+  PostgreSQL endemias
   porta 5000
 
 C:\endemias-revisao
-  branch revisao
-  ambiente auxiliar do Claude
-  porta 5002
-  banco SQLite local de teste
+  revisao
+  ambiente auxiliar historico
 
 C:\endemias-codex
-  branch codex/enviar-leituras-conta-ovos
-  lote futuro de envio Conta Ovos, fora da producao
+  codex/enviar-leituras-conta-ovos
+  lote de escrita remota ainda fora da producao
 ```
 
-O worktree `C:\endemias-codex` existe e deve permanecer fora de qualquer banco
-ou servidor de producao. Quando for necessario iniciar outro lote, crie um
-worktree distinto a partir da `master` atualizada:
+Uma branch ou worktree nao isola banco, porta, anexos, logs, backups ou
+credenciais automaticamente. Nunca permita que um ambiente experimental use o
+PostgreSQL `endemias` de producao.
+
+## Inicializacao padrao de um worktree de teste
+
+Execute `testar.bat` na raiz do worktree. Ele:
+
+- recusa execucao em `C:\endemias`;
+- compara a identidade do banco local com o SQLite oficial e falha fechado;
+- fixa a porta `5002` e avisa se ela estiver ocupada;
+- usa SQLite e direciona banco, anexos, temporarios, log, chave, configuracao
+  Kobo e backups para o proprio worktree;
+- cria banco vazio ou oferece copia manual e explicita do snapshot real;
+- define `ENDEMIAS_AMBIENTE=teste` e exibe faixa de dados nao oficiais;
+- esconde a faixa de impressoes e PDFs.
+
+A copia opcional de `C:\endemias\endemias.db` contem dados reais de saude. Deve
+ficar restrita ao worktree, nunca ser versionada e ser apagada quando o ambiente
+for descartado. A origem e somente leitura.
+
+## Testes obrigatorios e dados
+
+Para a suite Python, use somente:
 
 ```powershell
-cd C:\endemias
+python -m unittest discover -s tests -t .
+```
+
+Nunca execute testes diretamente nem omita `-t .`. PostgreSQL `endemias` e
+producao. Ensaios PostgreSQL usam exclusivamente `endemias_teste`, tabelas
+temporarias ou transacoes revertidas. `C:\endemias\endemias.db` e rollback
+congelado e nunca recebe escritas.
+
+## Git e concorrencia
+
+- Nao use `git reset --hard` ou `git checkout --` para descartar trabalho.
+- Nao use force push em branches compartilhadas.
+- Nao integre branches historicas apenas porque aparecem como nao mescladas.
+- Confira se a branch foi atualizada sobre a `master` antes de integrar.
+- Nao deixe dois agentes editarem os mesmos arquivos ao mesmo tempo.
+- Commits devem representar unidades coerentes e incluir a documentacao
+  aplicavel.
+
+## Intervencao opcional do Claude
+
+Quando o usuario pedir revisao, Claude pode comparar a branch indicada com a
+`master` e devolver achados. Quando o usuario pedir implementacao, deve usar
+branch propria. Em ambos os casos, Codex continua responsavel por conferir cada
+afirmacao no codigo e pelo estado final integrado.
+
+Comandos usuais de uma revisao opcional:
+
+```powershell
 git fetch origin
-git worktree add C:\endemias-codex -b codex/nome-do-lote master
+git log --oneline master..origin/codex/nome-da-tarefa
+git diff --stat master...origin/codex/nome-da-tarefa
+git diff master...origin/codex/nome-da-tarefa
 ```
 
-Nao execute esse comando com `codex/nome-do-lote` ja existente. Nesse caso,
-use a branch existente ou escolha outro nome.
-
-## Tamanho dos lotes
-
-Por acordo entre o usuario, o Codex e o Claude, o padrao da migracao passa a
-ser implementar **2 a 3 modulos relacionados por branch** antes de solicitar
-uma revisao. O objetivo e reduzir o custo de contexto e o tempo de revisao sem
-perder a separacao entre implementacao, revisao e integracao.
-
-Um modulo de risco alto, uma mudanca destrutiva ou um conjunto que fique grande
-demais para revisao clara pode continuar em uma branch isolada. O usuario
-tambem pode definir outro recorte expressamente.
-
-## Fluxo completo de um lote
-
-1. Atualizar a `master` oficial e confirmar que esta limpa.
-2. Criar uma branch `codex/nome-curto-do-lote` a partir da `master`.
-3. Codex implementa os 2 ou 3 modulos relacionados somente nessa branch.
-4. Codex executa testes, cria commit e faz push da branch.
-5. Claude executa `git fetch origin` em `C:\endemias-revisao`.
-6. Claude revisa `master...origin/codex/nome-curto-do-lote` sem editar.
-7. Usuario leva os achados ao Codex.
-8. Codex corrige na mesma branch, testa, commita e faz push.
-9. Claude revisa novamente somente os novos commits ou o diff completo.
-10. Usuario faz o teste funcional no ambiente da branch.
-11. Depois da aprovacao, Codex integra a branch na `master`.
-12. Executar regressao final aplicavel.
-13. Fazer push de `master`.
-14. Reiniciar o sistema oficial quando necessario.
-
-## Comandos de revisao para o Claude
-
-```powershell
-cd C:\endemias-revisao
-git fetch origin
-git log --oneline master..origin/codex/nome-do-lote
-git diff --stat master...origin/codex/nome-do-lote
-git diff master...origin/codex/nome-do-lote
-```
-
-O Claude nao precisa trocar de branch para revisar. Isso evita perder as
-configuracoes proprias da branch `revisao`.
-
-Para revisar apenas a rodada de correcoes, forneca os hashes:
-
-```powershell
-git diff HASH_ANTERIOR..HASH_NOVO
-```
-
-## Teste da implementacao
-
-O teste funcional deve ocorrer no worktree do Codex ou num worktree temporario
-baseado na branch do lote. Nao use a pasta oficial para testar codigo ainda
-nao aprovado.
-
-Cada ambiente precisa ter:
-
-- porta propria;
-- banco proprio;
-- anexos e uploads proprios;
-- logs e backups proprios;
-- credenciais locais nao versionadas;
-- indicacao visual clara de ambiente de teste.
-
-Separar branch nao separa banco automaticamente. Esse e o risco operacional
-mais importante do fluxo multiagente.
-
-### Inicializacao padrao de um worktree de teste
-
-Depois que a branch `codex/ambiente-de-teste-padrao` for revisada e integrada,
-o caminho normal para o teste funcional sera executar `testar.bat` na raiz do
-worktree. O arquivo:
-
-- recusa execucao em `C:\endemias`, que e exclusivamente producao, e possui
-  uma segunda barreira por identidade de arquivo para nunca usar o SQLite
-  oficial por UNC, caminho curto, juncao, link simbolico ou hard link;
-- fixa a porta `5002` e avisa se ela ja estiver ocupada. Por isso apenas um
-  worktree usa o iniciador padrao por vez; o segundo nao inicia parcialmente;
-- fixa o backend SQLite e direciona banco, anexos, temporarios, log, chave,
-  configuracao Kobo e backups para a propria pasta;
-- cria um banco vazio por padrao. A copia do SQLite oficial e uma escolha
-  manual, nunca automatica, porque contem dados reais de saude;
-- define `ENDEMIAS_AMBIENTE=teste`, que ativa a faixa visual permanente de
-  dados nao oficiais. Porta diferente de `5000` tambem ativa essa faixa como
-  defesa adicional; ela nao participa de impressoes ou PDFs.
-
-Ao copiar a massa real, mantenha o worktree restrito, nao versione o banco e
-apague a copia quando descartar a branch. O arquivo oficial e origem somente
-leitura. O `iniciar.bat` continua reservado ao comportamento historico da
-instalacao oficial e nao recebe excecao para o marcador PostgreSQL.
-
-## PostgreSQL nos ambientes
-
-Quando a migracao estiver concluida:
+## Mensagem inicial recomendada para o Codex
 
 ```text
-master/producao      -> endemias
-Codex/teste         -> endemias_codex
-Claude/revisao      -> endemias_revisao
-ensaio de migracao  -> endemias_migracao
-```
-
-Nunca permita que uma branch experimental use a base `endemias` oficial. Use
-usuarios PostgreSQL separados e conceda ao ambiente de teste acesso apenas ao
-banco correspondente quando possivel.
-
-## Como o Claude deve apresentar a revisao
-
-Ordem obrigatoria:
-
-1. achados criticos;
-2. achados altos;
-3. achados medios;
-4. achados baixos relevantes;
-5. testes ausentes e riscos residuais;
-6. perguntas ou premissas.
-
-Cada achado deve conter:
-
-- gravidade;
-- arquivo e linha;
-- comportamento incorreto;
-- situacao concreta que reproduz o problema;
-- impacto;
-- orientacao objetiva, sem reescrever toda a solucao.
-
-Nao tratar preferencia estetica subjetiva como bug. Nao produzir um resumo
-longo antes dos achados.
-
-## Como passar os achados de volta ao Codex
-
-Envie o texto integral da revisao e acrescente:
-
-```text
-Corrija os achados validos na mesma branch. Antes de editar, confira cada
-afirmacao no codigo; nao aplique mecanicamente sugestoes incorretas. Preserve o
-escopo original, execute os testes necessarios, faca commit e push. Depois
-resuma quais achados foram corrigidos e quais foram rejeitados, com motivo.
-```
-
-Uma IA revisora pode se enganar. O Codex deve validar tecnicamente cada achado.
-
-## Prevencao de conflitos
-
-- Nunca deixe Codex e Claude editarem o mesmo arquivo simultaneamente.
-- Uma branch deve ter um implementador responsavel.
-- A autorizacao excepcional de escrita para Claude vale so para a tarefa e a
-  branch indicadas pelo usuario; ela nao transforma Claude em coimplementador
-  permanente nem permite alterar arquivos em paralelo com Codex.
-- Nao use `git reset --hard` ou `git checkout --` para resolver divergencias.
-- Nao force push em branches compartilhadas.
-- Nao faca merge da branch `revisao` inteira na `master`.
-- Nao misture modulos sem relacao. O lote padrao pode reunir 2 ou 3 modulos
-  relacionados, desde que o diff continue claro e testavel.
-- Se a `master` mudar durante um lote, atualize a branch com cuidado e
-  execute novamente os testes.
-- Commits devem ser pequenos o suficiente para revisao, mas representar uma
-  unidade funcional coerente.
-
-## Quando vale chamar o Claude
-
-Revisao recomendada:
-
-- migracao PostgreSQL;
-- autenticacao, permissoes e auditoria;
-- alteracoes destrutivas;
-- importacao e sincronizacao de dados;
-- estoque e calculos clinicos;
-- API Conta Ovos;
-- funcionamento offline;
-- backups e restauracao;
-- mudancas em varios modulos.
-
-Revisao separada normalmente dispensavel:
-
-- texto ou rotulo isolado;
-- ajuste pequeno de CSS;
-- troca de icone;
-- correcao visual de baixo risco;
-- documentacao sem mudanca operacional.
-
-Agrupe pequenas correcoes relacionadas num lote para economizar uso do Claude.
-
-## Mensagem inicial recomendada para o novo Codex
-
-```text
-Voce sera o implementador principal do projeto Endemias. O repositorio esta em
-C:\endemias e a branch oficial e master. Antes de qualquer acao, leia
-AGENTS.md, CONTEXTO_PARA_IA.md, docs/GUIA_CONTINUIDADE_TECNICA.md,
-docs/GUIA_TRABALHO_MULTIAGENTE.md, docs/ESTADO_ATUAL_PROJETO.md e a
-documentacao PostgreSQL indicada por eles. Confira git status e os commits
-recentes.
-
-PostgreSQL e producao. O SQLite esta congelado como rollback e nunca pode ser
-aberto em paralelo ou receber novas escritas. Nunca altere dados reais nos
-testes PostgreSQL. Toda modificacao deve terminar em commit e push. Mantenha a
-compatibilidade dual para testes e rollback controlado.
-
-Primeiro, apenas confirme resumidamente o estado que encontrou, a proxima
-etapa e os cuidados que seguira. Nao modifique nada nessa primeira resposta.
-Depois eu autorizarei a continuacao.
-```
-
-## Mensagem inicial recomendada para o Claude Code
-
-```text
-Voce sera o revisor independente do projeto Endemias. Abra
-C:\endemias-revisao e leia CLAUDE.md, AGENTS.md, CONTEXTO_PARA_IA.md,
-docs/GUIA_CONTINUIDADE_TECNICA.md, docs/GUIA_TRABALHO_MULTIAGENTE.md e
-docs/ESTADO_ATUAL_PROJETO.md.
-
-Seu papel padrao e somente leitura: comparar branches do Codex com master,
-procurar bugs, regressoes, falhas de seguranca, riscos de perda de dados,
-problemas de concorrencia e incompatibilidades SQLite/PostgreSQL. Nao edite,
-nao crie commits, nao faca push, nao altere dados e nao faca merge. Voce so
-pode implementar uma correcao em branch propria se eu pedir isso diretamente e
-de forma expressa.
-
-Primeiro, confira o repositorio e confirme resumidamente que entendeu seu papel
-e o estado atual. Nao revise nenhuma branch ate eu informar o nome dela.
-```
-
-## Mensagem para iniciar uma implementacao
-
-```text
-Crie uma branch codex/NOME a partir da master atualizada e implemente a tarefa
-abaixo. Preserve SQLite e PostgreSQL, use banco de teste, execute testes
-focados e regressao proporcional ao risco, atualize a documentacao, faca
-commit e push da branch. Nao integre na master ainda, pois o Claude revisara.
-
-Tarefa:
-[DESCREVER AQUI]
-
-Criterios de aceitacao:
-[LISTAR AQUI]
-```
-
-## Mensagem para iniciar uma revisao
-
-```text
-Revise origin/codex/NOME em comparacao com master.
-
-Objetivo da mudanca:
-[DESCREVER]
-
-Criterios de aceitacao:
-[LISTAR]
-
-Nao modifique arquivos. Apresente somente achados reais, ordenados por
-gravidade, com arquivo e linha, cenario de reproducao, impacto e testes
-ausentes. Se nao houver problemas, diga claramente e informe os riscos
-residuais.
+Voce e o operador unico e principal do Endemias. Leia AGENTS.md,
+CONTEXTO_PARA_IA.md, docs/ESTADO_ATUAL_PROJETO.md e os guias tecnicos
+aplicaveis. Confira Git e worktrees. PostgreSQL endemias e producao e o SQLite
+oficial e rollback congelado. Implemente, teste, documente, faca commit e push.
+Quando a mudanca solicitada estiver pronta, voce pode integra-la na master sem
+revisao externa obrigatoria.
 ```

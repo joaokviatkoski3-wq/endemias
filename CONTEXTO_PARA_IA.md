@@ -68,8 +68,8 @@ Infraestrutura ja validada no PostgreSQL:
 - 34/34 identidades;
 - 105/105 indices.
 
-A ultima regressao ampla registrada depois dos lotes posteriores a central Conta
-Ovos terminou com `632` testes em `OK` e `5` ignorados, usando uma copia
+A regressao ampla executada na `master` depois da integracao do ambiente de
+teste padrao terminou com `648` testes em `OK` e `5` ignorados, usando uma copia
 temporaria isolada de `C:\endemias\endemias.db`; o hash do SQLite oficial
 permaneceu inalterado
 (`0600F6A70072320BC7FDE270848535EF428341AA1F093997EE4940F85376F63F`).
@@ -229,32 +229,32 @@ SQLite.
   scripts.
 - Depois do teste focado, execute a regressao ampla e a comparacao do esquema.
 
-## Ambiente de revisao
+## Modelo operacional vigente
 
 Existe um worktree separado em `C:\endemias-revisao`, branch `revisao`,
-publicada em `origin/revisao`. Ele foi preparado para o Claude atuar como
-revisor e possui `CLAUDE.md` proprio.
+publicada em `origin/revisao`. Ele e um ambiente auxiliar historico e nao faz
+parte obrigatoria do fluxo de entrega.
 
 - `C:\endemias` / `master`: sistema oficial, porta 5000;
 - `C:\endemias-revisao` / `revisao`: revisao, porta 5002 e SQLite local vazio.
 
-Os commits `eae9b37` e `75c8f04` pertencem apenas a `revisao`; nao estao na
-`master`. A configuracao PostgreSQL isolada da revisao ainda devera ser feita
-apos a migracao funcional terminar.
+Nao faca merge cego da branch `revisao`: ela pode conter configuracao exclusiva
+do ambiente auxiliar. O iniciador padrao de worktrees passou a ser
+`testar.bat`, integrado na `master` em 27/08/2026.
 
 Fluxo vigente:
 
-1. Codex implementa 2 ou 3 modulos relacionados em `codex/nome-do-lote` e faz
-   push.
-2. Claude revisa o diff contra `master`, somente em leitura.
-3. Codex corrige os achados na branch do lote.
-4. Usuario testa em ambiente isolado.
-5. So depois ocorre merge e push para `master`.
+1. Codex confirma o estado e implementa a solicitacao em escopo seguro.
+2. Codex executa testes focados, regressao proporcional e ensaios isolados.
+3. Codex atualiza a documentacao, cria commit e faz push.
+4. Quando a mudanca estiver pronta e o pedido autorizar a entrega, Codex pode
+   integrar e publicar a `master` sem revisao externa obrigatoria.
+5. Se o usuario identificar erro, Codex investiga e corrige ou prepara rollback
+   seguro; nunca reverta dados reais mecanicamente.
 
-Claude so pode editar e publicar uma correcao se o usuario pedir isso a ele
-diretamente. Nessa excecao, use uma branch `claude/nome-da-tarefa`, nao edite a
-mesma branch pelo Codex e registre o motivo no guia multiagente. Fora disso,
-Codex permanece o unico operador/implementador.
+Claude participa somente em intervencoes esporadicas solicitadas pelo usuario.
+Essa participacao nao muda Codex como operador principal nem cria uma aprovacao
+obrigatoria para integracao.
 
 ## Decisoes futuras ja discutidas
 

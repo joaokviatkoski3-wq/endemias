@@ -1,23 +1,22 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 24/08/2026. Este e o resumo operacional que uma nova conversa de
-Codex ou Claude deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
+Atualizado em 27/08/2026. Este e o resumo operacional que uma nova conversa do
+Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
 ## Papeis vigentes
 
-- **Codex e o operador e implementador principal.** Investiga, implementa,
-  testa, atualiza a documentacao, cria commit, faz push e, quando o usuario
-  aprovar, integra em `master`.
-- **Claude Code e o revisor independente somente-leitura.** Compara a branch
-  do lote com `master`, procura erros e riscos, executa verificacoes seguras e
-  devolve achados. Por padrao nao edita arquivos, nao altera dados, nao cria
-  commits, nao faz push e nao integra na `master`.
-- **Excecao controlada:** se o usuario pedir diretamente que Claude implemente
-  uma correcao, ele pode faze-lo em uma branch `claude/nome-da-tarefa`, com
-  testes, commit e push. Nessa situacao ele deixa de ser revisor daquele diff;
-  Codex nao deve editar a mesma branch/arquivos simultaneamente e so revisa ou
-  integra se o usuario solicitar. A excecao termina ao concluir a tarefa.
+- **Codex e o operador unico e principal.** Investiga, implementa, testa,
+  atualiza a documentacao, cria commits, faz push e pode integrar mudancas
+  solicitadas na `master` depois das validacoes aplicaveis, sem revisao externa
+  obrigatoria.
+- **Claude Code participa apenas esporadicamente**, quando o usuario pedir uma
+  revisao, investigacao ou implementacao delimitada. Sua ausencia nao bloqueia
+  entrega. Se houver escrita por outro agente, use branch propria e nao edite
+  simultaneamente os mesmos arquivos.
+- Se o usuario identificar um erro depois da integracao, Codex investiga e
+  corrige ou prepara rollback seguro. Isso nao autoriza rollback mecanico de
+  dados reais.
 - O usuario decide regras de negocio, testes funcionais, alteracoes em dados
   reais, pilotos da API e reinicios do sistema oficial.
 
@@ -49,7 +48,7 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
   O `-t .` importa `tests` como pacote e isola automaticamente uma copia
   temporaria do SQLite. Nunca rode um arquivo de teste diretamente nem omita
   essa opcao.
-- A ultima regressao ampla registrada terminou com `645` testes em `OK` e `5`
+- A ultima regressao ampla registrada terminou com `648` testes em `OK` e `5`
   ignorados, preservando o hash do SQLite congelado. Reexecute a regressao
   aplicavel depois de qualquer lote; a contagem pode crescer.
 - Backups automaticos PostgreSQL estao instalados sob `SYSTEM`: dump diario
@@ -74,7 +73,7 @@ git worktree list
 Worktrees conhecidos nesse ponto:
 
 - `C:\endemias`: `master`, producao.
-- `C:\endemias-revisao`: `revisao`, ambiente do Claude, porta 5002; nunca
+- `C:\endemias-revisao`: `revisao`, ambiente auxiliar historico; nunca
   mesclar essa branch inteira na `master`.
 - `C:\endemias-codex`: `codex/enviar-leituras-conta-ovos`, trabalho futuro
   ainda fora da `master`.
@@ -127,12 +126,12 @@ As regras de fonte de verdade e a arquitetura da tela estao em
 
 ## Pendencia concreta e proxima ordem recomendada
 
-### Ambiente de teste padrao em revisao
+### Ambiente de teste padrao integrado
 
-A branch `codex/ambiente-de-teste-padrao`, criada a partir de `f64c866`, porta
-para a aplicacao a configuracao segura de porta que antes existia somente na
-branch `revisao` e acrescenta `testar.bat` na raiz. A branch ainda nao integra
-a `master` e deve ser revisada pelo Claude em modo somente leitura.
+A branch `codex/ambiente-de-teste-padrao`, criada a partir de `f64c866`, foi
+integrada na `master` pelo merge `b42f688`. Ela porta para a aplicacao a
+configuracao segura de porta que antes existia somente na branch `revisao` e
+acrescenta `testar.bat` na raiz.
 
 O comportamento proposto e:
 
@@ -165,60 +164,32 @@ aprovados e 5 ignorados. O hash do
 SQLite oficial permaneceu
 `0600F6A70072320BC7FDE270848535EF428341AA1F093997EE4940F85376F63F`.
 
-Esta branch permanece em `1.20.0`, pois nao muda a execucao oficial: a porta
+O sistema permanece em `1.20.0`, pois o lote nao muda a execucao oficial: a porta
 padrao continua `5000`, `iniciar.bat` permanece intacto e a faixa nao aparece
-na configuracao de producao normal. A sequencia planejada, ainda sem integrar
-nenhuma branch, e: integrar primeiro este ambiente sem subir versao; depois,
-quando houver homologacao visual contra o QGIS, o mapa de bloqueio de
+na configuracao de producao normal. A sequencia planejada e: depois da
+homologacao visual contra o QGIS, o mapa de bloqueio de
 Esporotricose assume `1.21.0`; se o envio Conta Ovos vier em seguida, sua versao
 deve ser reavaliada para `1.22.0`, evitando duas branches reivindicarem o mesmo
-minor. Depois da integracao deste lote, o mapa deve receber a `master` por merge
-normal, passar novamente por regressao e ensaio PostgreSQL e continuar fora da
-`master` ate a homologacao expressa do usuario.
+minor. O mapa deve receber esta `master` por merge normal, passar novamente por
+regressao e ensaio PostgreSQL e continuar fora da `master` ate a comparacao
+visual do usuario.
 
-1. **Em revisao: mapeamento do PE-0045 para visitas Kobo:** a branch
-   `codex/adicionar-pe-0045-kobo` registra aliases qualificados para
-   **Borracharia Garagem Oculta** (Graziela, Rua Campos de Minas, 753,
-   quarteirao 1336) e desativa aliases automaticos ambiguos. Quando dois PEs
-   ativos compartilham a mesma rua/localidade, uma visita com a rua isolada
-   fica sem vinculo para triagem; ela nunca e atribuida por ordem de cadastro.
-   A deteccao tambem agrupa as variantes cadastrais conhecidas `Rua Campo de
-   Minas` e `Rua Campos de Minas`, sem alterar nenhum dos dois cadastros.
-   A tela e as exportacoes de PE apresentam a grafia oficial `Rua Campos de
-   Minas`, mesmo enquanto um cadastro historico conservar a variante singular.
-   Abrir e salvar o PE para editar outro campo preserva o logradouro armazenado;
-   a grafia cadastrada so muda quando o operador edita esse campo explicitamente.
-   O identificador Kobo esperado e
+1. **Mapa de bloqueio da Esporotricose:** a branch
+   `codex/mapa-bloqueio-esporotricose` esta tecnicamente implementada no commit
+   `b59227c`, mas falta a comparacao visual de um caso conhecido com o QGIS. A
+   migracao `0006` nunca foi aplicada em producao e nao deve ser executada sem
+   autorizacao operacional expressa.
+2. **Envio supervisionado Conta Ovos:** a branch
+   `codex/enviar-leituras-conta-ovos` prepara POST unitario, mas escrita remota
+   continua fora da `master` ate piloto humano supervisionado. Nunca enviar
+   dados reais por iniciativa do agente.
+3. **Pendencia operacional de PE:** as edicoes dos PEs 1 e 24 que falharam em
+   13 e 17/08 tiveram rollback integral e ainda precisam ser refeitas
+   manualmente no sistema corrigido.
+4. **Kobo PE-0045:** o codigo e os aliases ja estao na `master`; publicacao ou
+   troca do XLSForm no Kobo continua uma operacao externa manual. O valor
+   qualificado esperado e
    `RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA`.
-   Esta branch **nao altera nem publica** o XLSForm no Kobo: essa atualizacao
-   externa continua manual, depois da revisao e da autorizacao de integracao.
-   Antes de integrar, o operador deve confirmar no PostgreSQL de producao que
-   o cadastro `PE-0045` existe e esta ativo; sem esse cadastro, a semeadura do
-   alias e ignorada para preservar a chave estrangeira. A regressao desta
-   revisao terminou com 641 testes `OK` e 5 ignorados; o ensaio PostgreSQL em
-   `endemias_teste` usou tabelas temporarias e preservou as tabelas publicas.
-2. **Concluida: correcao de Pontos Estrategicos:** a branch
-   `codex/corrigir-datas-pe`, aprovada pelo Claude e autorizada pelo usuario,
-   normaliza `None`, campos vazios, espacos, `NaT` textual e `pandas.NaT` para
-   `NULL` antes de persistir. Data preenchida mas invalida retorna HTTP 400 e
-   a tela mostra a mensagem clara, sem mascarar excecoes de banco, auditoria,
-   permissao ou concorrencia. Criacao e edicao foram cobertas em SQLite e no
-   ensaio seguro PostgreSQL com tabelas temporarias em `endemias_teste`; a
-   regressao posterior a correcao da revisao terminou com 639 testes `OK` e 5
-   ignorados.
-   As edicoes dos PEs 1 e 24 que falharam em 13 e 17/08 nao foram gravadas pela
-   transacao original e continuam precisando ser refeitas manualmente depois da
-   integracao.
-3. **Consolidar a leitura Conta Ovos:** quando o usuario autorizar, executar
-   primeiro o sincronizador supervisionado do cadastro remoto e conferir as
-   divergencias na central. Novos dominios de consulta (EDLs e Quarteiroes/
-   acoes) devem vir antes de qualquer nova escrita remota, cada um com GET,
-   schema/espelho, ensaio e tela local.
-4. **Escrita remota somente mais adiante:** decidir um piloto unitario de
-   leitura depois de revalidar a branch preparada. Para TBO `/postaction`,
-   inventariar antes todos os efeitos colaterais documentados (quarteirao,
-   coordenadas, tipo de imovel, larvicida e semana); nao transformar o envio
-   unitario em lote por um simples laco.
 5. **Fora deste eixo:** formulario/OCR de Registro Geografico, diarios offline
    e substituicoes graduais do Kobo sao projetos separados. GeoJSON + Registro
    Geografico permanecem a fonte territorial; Conta Ovos nao os sobrescreve.
@@ -231,6 +202,6 @@ Ele pode mudar a prioridade, autorizar operacao real ou pedir apenas analise.
 Um lote esta pronto somente com escopo claro, dados reais preservados, testes
 focados e regressao proporcional, documentacao atualizada, commit e push. Para
 lotes de risco (dados, PostgreSQL, autenticacao, backups e Conta Ovos), Codex
-publica primeiro uma branch `codex/nome-do-lote`; Claude revisa somente em
-leitura; Codex corrige achados validos; o usuario testa e autoriza a integracao
-final.
+deve preferir branch isolada e ensaio seguro, mas pode integrar sem revisao
+externa obrigatoria quando o pedido e as validacoes permitirem. Claude participa
+somente se o usuario solicitar.

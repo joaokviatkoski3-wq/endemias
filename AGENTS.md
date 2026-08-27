@@ -7,21 +7,20 @@ estado atual do projeto, a migracao gradual para PostgreSQL, os modulos ja
 homologados, as pendencias e os cuidados operacionais.
 
 Leia em seguida `docs/ESTADO_ATUAL_PROJETO.md`. Ele e o registro curto e
-atualizavel da passagem de contexto entre conversas: define os papeis vigentes
-de Codex e Claude, a situacao de producao e as proximas prioridades. Os guias
+atualizavel da passagem de contexto entre conversas: define o operador vigente,
+a situacao de producao e as proximas prioridades. Os guias
 historicos de PostgreSQL continuam sendo referencia tecnica, mas nao devem ser
 interpretados como autorizacao para repetir uma etapa ja concluida.
 
-Quando houver colaboracao entre Codex e Claude Code, leia tambem
-`docs/GUIA_TRABALHO_MULTIAGENTE.md` e respeite a separacao entre implementacao,
-revisao e integracao na `master`.
+No fluxo vigente, **Codex e o operador unico e principal**: investiga,
+implementa, testa, documenta, cria commits, faz push e pode integrar na
+`master` as mudancas solicitadas pelo usuario quando as validacoes aplicaveis
+passarem. Revisao do Claude nao e etapa obrigatoria nem bloqueio para merge.
 
-No fluxo vigente, Codex e o operador/implementador principal e Claude Code e
-revisor independente somente-leitura. Claude so pode editar, criar commits ou
-publicar uma correcao quando o usuario o solicitar diretamente e de forma
-expressa; essa excecao deve ficar registrada no guia multiagente e na branch
-propria do Claude. Ela nao autoriza os dois agentes a editarem a mesma branch
-ou os mesmos arquivos ao mesmo tempo.
+Claude pode intervir esporadicamente somente quando o usuario o solicitar. Se
+essa intervencao envolver escrita, use branch propria e nunca permita edicao
+simultanea dos mesmos arquivos. Leia `docs/GUIA_TRABALHO_MULTIAGENTE.md` para
+isolamento e coordenacao, sem interpretar o guia como exigencia de revisao.
 
 ## Versionamento do sistema
 
