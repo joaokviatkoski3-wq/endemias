@@ -172,31 +172,26 @@ SQLite oficial permaneceu
 
 O sistema permanece em `1.20.0`, pois o lote nao muda a execucao oficial: a porta
 padrao continua `5000`, `iniciar.bat` permanece intacto e a faixa nao aparece
-na configuracao de producao normal. A sequencia planejada e: depois da
-homologacao visual contra o QGIS, o mapa de bloqueio de
-Esporotricose assume `1.21.0`; se o envio Conta Ovos vier em seguida, sua versao
-deve ser reavaliada para `1.22.0`, evitando duas branches reivindicarem o mesmo
-minor. O mapa deve receber esta `master` por merge normal, passar novamente por
-regressao e ensaio PostgreSQL e continuar fora da `master` ate a comparacao
-visual do usuario.
+na configuracao de producao normal.
 
-1. **Mapa de bloqueio da Esporotricose:** a branch
-   `codex/mapa-bloqueio-esporotricose` esta tecnicamente implementada no commit
-   `b59227c`, mas falta a comparacao visual de um caso conhecido com o QGIS. A
-   migracao `0006` nunca foi aplicada em producao e nao deve ser executada sem
-   autorizacao operacional expressa.
-2. **Envio supervisionado Conta Ovos:** a branch
+Em 28/08/2026, o usuario cancelou integralmente o lote experimental do mapa de
+bloqueio da Esporotricose. A branch, o worktree e a migracao proposta `0006`
+foram descartados sem entrar na `master` e sem aplicacao em nenhum banco. O
+sistema conserva o comportamento anterior a esse plano; o tema deixa de ser
+prioridade e nao deve ser retomado sem um novo pedido expresso.
+
+1. **Envio supervisionado Conta Ovos:** a branch
    `codex/enviar-leituras-conta-ovos` prepara POST unitario, mas escrita remota
    continua fora da `master` ate piloto humano supervisionado. Nunca enviar
    dados reais por iniciativa do agente.
-3. **Pendencia operacional de PE:** as edicoes dos PEs 1 e 24 que falharam em
+2. **Pendencia operacional de PE:** as edicoes dos PEs 1 e 24 que falharam em
    13 e 17/08 tiveram rollback integral e ainda precisam ser refeitas
    manualmente no sistema corrigido.
-4. **Kobo PE-0045:** o codigo e os aliases ja estao na `master`; publicacao ou
+3. **Kobo PE-0045:** o codigo e os aliases ja estao na `master`; publicacao ou
    troca do XLSForm no Kobo continua uma operacao externa manual. O valor
    qualificado esperado e
    `RUA CAMPOS DE MINAS - BORRACHARIA GARAGEM OCULTA`.
-5. **Fora deste eixo:** formulario/OCR de Registro Geografico, diarios offline
+4. **Fora deste eixo:** formulario/OCR de Registro Geografico, diarios offline
    e substituicoes graduais do Kobo sao projetos separados. GeoJSON + Registro
    Geografico permanecem a fonte territorial; Conta Ovos nao os sobrescreve.
 
