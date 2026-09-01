@@ -783,7 +783,7 @@ async function carregarEspDoentes() {
   try {
     const filtros = {
       busca: document.getElementById('doe-busca')?.value || '',
-      status: document.getElementById('doe-status')?.value || (!espDoentesCarregados ? 'Em tratamento' : ''),
+      status: document.getElementById('doe-status')?.value || '',
       especie: document.getElementById('doe-especie')?.value || '',
       localidade: document.getElementById('doe-localidade')?.value || '',
       bloqueio: document.getElementById('doe-bloqueio-filtro')?.value || '',

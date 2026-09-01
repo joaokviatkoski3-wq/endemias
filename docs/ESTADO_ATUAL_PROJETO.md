@@ -200,7 +200,10 @@ Na branch `trabalho-deepseek`, a aba "Lista" de doentes da pagina
 fixos (Doentes, Em tratamento, Medicação disponível e Receitas). Os cards
 dinamicos sao gerados no `renderEspDoentes` via `agruparDoentes(rows, 'status')`,
 excluindo "Em tratamento" (ja tem card proprio) e preservando o estilo por
-status. Nova funcionalidade compativel: versao `1.21.0`. Teste
+status. Para que os cards por status aparecam, o filtro padrao de status na
+carga inicial foi removido (antes a pagina abria so com "Em tratamento"),
+entao a lista e os cards refletem todos os doentes. Nova funcionalidade
+compativel: versao `1.21.0`. Teste
 `test_pagina_esporotricose_exibe_abas_principais` cobre o novo container.
 
 1. **Envio supervisionado Conta Ovos:** a branch
