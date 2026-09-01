@@ -193,6 +193,16 @@ formulario (incluindo `Motivo da visita`) para os rotulos que o ETL espera,
 preservando o `kobo_uuid`. Ajuste de correcao (patch): versao `1.20.1`. A
 regressao ampla terminou com 653 testes em `OK` e 5 ignorados.
 
+### Cards de status dos doentes de Esporotricose
+
+Na branch `trabalho-deepseek`, a aba "Lista" de doentes da pagina
+`/esporotricose` passou a exibir um card por valor de status alem dos cards
+fixos (Doentes, Em tratamento, Medicação disponível e Receitas). Os cards
+dinamicos sao gerados no `renderEspDoentes` via `agruparDoentes(rows, 'status')`,
+excluindo "Em tratamento" (ja tem card proprio) e preservando o estilo por
+status. Nova funcionalidade compativel: versao `1.21.0`. Teste
+`test_pagina_esporotricose_exibe_abas_principais` cobre o novo container.
+
 1. **Envio supervisionado Conta Ovos:** a branch
    `codex/enviar-leituras-conta-ovos` prepara POST unitario, mas escrita remota
    continua fora da `master` ate piloto humano supervisionado. Nunca enviar

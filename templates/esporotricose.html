@@ -63,6 +63,16 @@
 .esporo-filter-actions { display:flex; justify-content:flex-end; align-items:flex-end; }
 .esporo-doentes-layout { display:grid; grid-template-columns:minmax(0,1fr) 390px; gap:14px; align-items:start; }
 .esporo-doentes-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:12px; }
+.esporo-status-kpis-title { font-size:10px; color:var(--text3); font-weight:800; text-transform:uppercase; letter-spacing:.4px; margin:4px 0 8px; }
+.esporo-doentes-status-kpis { margin-top:-4px; }
+.esporo-kpi .esporo-kpi-value.status-tratamento { color:#0369a1; }
+.esporo-kpi .esporo-kpi-value.status-finalizado { color:#0f766e; }
+.esporo-kpi .esporo-kpi-value.status-faleceu { color:#334155; }
+.esporo-kpi .esporo-kpi-value.status-nao-esporo { color:#b91c1c; }
+.esporo-kpi .esporo-kpi-value.status-docs { color:#92400e; }
+.esporo-kpi .esporo-kpi-value.status-medicacao { color:#6d28d9; }
+.esporo-kpi .esporo-kpi-value.status-disponivel { color:#166534; }
+.esporo-kpi .esporo-kpi-value.status-outro { color:#475569; }
 .esporo-doente-actions { display:flex; flex-wrap:wrap; gap:6px; }
 .esporo-doente-panel { position:sticky; top:12px; }
 .esporo-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -307,6 +317,7 @@
     <div class="esporo-kpi"><div class="esporo-kpi-label">Medicação disponível</div><div class="esporo-kpi-value" id="doe-kpi-medicacao">0</div></div>
     <div class="esporo-kpi"><div class="esporo-kpi-label">Receitas</div><div class="esporo-kpi-value" id="doe-kpi-receitas">0</div></div>
   </div>
+  <div class="esporo-doentes-kpis esporo-doentes-status-kpis" id="doe-status-kpis"></div>
   <div class="chart-card">
       <div class="chart-hd">
         <div class="chart-title"><img src="/static/icons/gato_doente.svg" alt="" class="icon-svg"> Animais doentes</div>
@@ -812,6 +823,7 @@ function renderEspDoentes(rows, total) {
   setEspText('doe-kpi-tratamento', emTratamento);
   setEspText('doe-kpi-medicacao', medicacao);
   setEspText('doe-kpi-receitas', receitas);
+  renderEspDoentesStatusKpis(rows);
   document.getElementById('esp-doentes-body').innerHTML = rows.length ? rows.map(r => `
     <tr>
       <td data-sort-value="${escapeHtml(r.nome || '')}"><strong>${escapeHtml(r.nome || '-')}</strong><div class="muted">${escapeHtml(r.localidade || '-')} ${r.quarteirao ? '· Q ' + escapeHtml(r.quarteirao) : ''}</div></td>
@@ -834,6 +846,27 @@ function renderEspDoentes(rows, total) {
     </tr>
   `).join('') : '<tr><td colspan="12" class="empty-inline">Nenhum animal doente cadastrado.</td></tr>';
   refreshSortableTable('esp-doentes-table');
+}
+function renderEspDoentesStatusKpis(rows) {
+  const container = document.getElementById('doe-status-kpis');
+  if (!container) return;
+  // Agrupa por status, preservando tambem os registros sem status informado.
+  const status = agruparDoentes(rows, 'status', 'Sem status');
+  // 'Em tratamento' ja tem card fixo; exclue dos dinamicos para nao duplicar.
+  const dinamicos = status.filter(s => String(s.nome).toLowerCase() !== 'em tratamento');
+  if (!dinamicos.length) {
+    container.innerHTML = '';
+    return;
+  }
+  container.innerHTML = [
+    '<div class="esporo-status-kpis-title" style="grid-column:1/-1;">Status</div>',
+    ...dinamicos.map(s => `
+      <div class="esporo-kpi">
+        <div class="esporo-kpi-label" title="${escapeHtml(s.nome)}">${escapeHtml(s.nome)}</div>
+        <div class="esporo-kpi-value ${statusDoenteClass(s.nome)}">${fmtNum(s.total)}</div>
+      </div>
+    `),
+  ].join('');
 }
 function capsulasDoenteHtml(r) {
   const entregue = `<strong>${fmtNum(r.capsulas_entregues || 0)}</strong> entregues`;
