@@ -1563,6 +1563,56 @@ class AmostrasAnimaisTests(unittest.TestCase):
 
         self.assertEqual(nomes, ["Adriana", "Ana Beatriz", "Fernando", "Pedro"])
 
+    def test_importacao_api_amostra_animais_preserva_kobo_uuid(self):
+        # Reproduz o bug da importacao via API: campos do Kobo com nomes de
+        # formulario (snake_case, ex.: motivo_da_visita), sem o rotulo literal
+        # 'Motivo da visita' que o is_new_format do ETL exige. O arquivo gerado
+        # precisa ser reconhecido como formato 'nova' e preservar o kobo_uuid.
+        record = {
+            "_uuid": "99999999-aaaa-bbbb-cccc-dddddddddddd",
+            "_id": 42,
+            "_submission_time": "2026-08-05T10:00:00",
+            "start": "2026-08-05T08:00:00",
+            "end": "2026-08-05T08:30:00",
+            "motivo_da_visita": "Reclamação",
+            "Data": "2026-08-05",
+            "Hora": "08:00",
+            "tipo_animal": "Serpente",
+            "Quantidade": 1,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            cfg = tmp_path / "config.json"
+            cfg.write_text('{"tipos_trabalho": {}, "larvas": {}}', encoding="utf-8")
+            caminhos = kobo_api_core.write_etl_workbooks(
+                {"AMOSTRA_ANIMAIS": [record]}, str(cfg), tmp_path, prefix="fix"
+            )
+            self.assertEqual(len(caminhos), 1)
+            workbook = caminhos[0]
+            self.assertTrue(amostras_animais_core.is_new_format(workbook))
+
+            estrutura, registros = amostras_animais_core.preparar_arquivo(workbook)
+            self.assertEqual(estrutura, "nova")
+            self.assertEqual(len(registros), 1)
+            self.assertEqual(
+                registros[0]["kobo_uuid"], "99999999-aaaa-bbbb-cccc-dddddddddddd"
+            )
+            self.assertEqual(registros[0]["motivo_visita"], "Reclamação")
+            self.assertEqual(registros[0]["tipo_animal"], "Serpente")
+            self.assertEqual(registros[0]["quantidade"], 1)
+
+            # Apos a importacao, o dedup usado por 'Ver pendencias' encontra o uuid.
+            conn = sqlite3.connect(":memory:")
+            amostras_animais_core.ensure_schema(conn)
+            amostras_animais_core._inserir_amostra(conn, registros[0], "2026-08-05T00:00:00")
+            conn.commit()
+            achou = conn.execute(
+                "SELECT 1 FROM amostras_animais WHERE kobo_uuid=?",
+                (record["_uuid"],),
+            ).fetchone()
+            conn.close()
+            self.assertIsNotNone(achou)
+
 
 class BriTests(unittest.TestCase):
     def test_schema_cria_tabelas_de_bri(self):

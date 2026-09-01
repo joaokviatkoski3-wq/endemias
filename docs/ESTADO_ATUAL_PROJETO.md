@@ -180,6 +180,19 @@ foram descartados sem entrar na `master` e sem aplicacao em nenhum banco. O
 sistema conserva o comportamento anterior a esse plano; o tema deixa de ser
 prioridade e nao deve ser retomado sem um novo pedido expresso.
 
+### Correcao importacao via API de Amostra de Animais
+
+Na branch `trabalho-deepseek` foi corrigido o bug de importacao via API do
+formulario `AMOSTRA_ANIMAIS`: a contagem de "novos" em "Ver pendencias" nunca
+zerava apos a importacao. Causa: `kobo_api._extra_row` gerava o workbook sem a
+coluna `Motivo da visita`, fazendo `amostras_animais.is_new_format` classificar o
+arquivo como formato `legada`, o que descartava o `kobo_uuid` (registros eram
+gravados como `legado` e sem vinculo Kobo, por isso a deduplicacao nunca os
+encontrava). Correcao: novo `kobo_api._amostra_animal_row` traduz os campos do
+formulario (incluindo `Motivo da visita`) para os rotulos que o ETL espera,
+preservando o `kobo_uuid`. Ajuste de correcao (patch): versao `1.20.1`. A
+regressao ampla terminou com 653 testes em `OK` e 5 ignorados.
+
 1. **Envio supervisionado Conta Ovos:** a branch
    `codex/enviar-leituras-conta-ovos` prepara POST unitario, mas escrita remota
    continua fora da `master` ate piloto humano supervisionado. Nunca enviar

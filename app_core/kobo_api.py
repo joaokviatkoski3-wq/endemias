@@ -727,6 +727,61 @@ def _extra_row(record):
     return row
 
 
+_AMOSTRA_ANIMAL_ESPECIE_COLS = (
+    "Qual a espécie da serpente?",
+    "Qual a espécie do escorpião?",
+    "Qual a espécie da lagarta?",
+    "Qual a espécie da aranha?",
+    "Qual a espécie do carrapato?",
+)
+
+
+def _amostra_animal_row(record):
+    """Traduz os campos do Kobo (API) para os rotulos que o ETL de amostras
+    de animais espera, garantindo a coluna ``Motivo da visita`` que determina
+    o formato ``nova`` (e preserva o ``_uuid`` para deduplicacao)."""
+    row = _flat_record(record)
+    detalhes = record_details("", record)
+    row.setdefault("_uuid", record_uuid(record))
+    row.setdefault("_id", record.get("_id"))
+    row.setdefault("_submission_time", record.get("_submission_time"))
+    row.setdefault("start", record.get("start"))
+    row.setdefault("end", record.get("end"))
+
+    # Campos compartilhados (mesma base do _extra_row, com nomes corretos).
+    _set_if_empty(row, "Data", detalhes.get("data"))
+    _set_if_empty(row, "Digite a data", detalhes.get("data"))
+    _set_if_empty(row, "Hora", detalhes.get("hora_inicio"))
+    _set_if_empty(row, "Digite a hora", detalhes.get("hora_inicio"))
+    _set_if_empty(row, "Nome do(s) agente(s)", detalhes.get("agentes"))
+    _set_if_empty(row, "Agentes", detalhes.get("agentes"))
+    _set_if_empty(row, "Localidade", detalhes.get("localidade"))
+    _set_if_empty(row, "Logradouro", detalhes.get("endereco"))
+    _set_if_empty(row, "Número", _value(record, ["Número", "Numero", "numero"]))
+    _set_if_empty(row, "Quarteirão", _value(record, ["Quarteirão", "Quarteirao", "quarteirao"]))
+    _set_if_empty(row, "Morador", _value(record, ["Morador", "morador"]))
+    _set_if_empty(row, "Tipo do imóvel", _value(record, ["Tipo do imóvel", "Tipo do imovel", "Imóvel", "Imovel"]))
+    _set_if_empty(row, "Visita", detalhes.get("visita"))
+    _set_if_empty(row, "Observações", _value(record, ["Observações", "Observacoes", "observacoes"]))
+
+    # Campos especificos de Amostra de Animais.
+    _set_if_empty(row, "Motivo da visita", _value(record, ["Motivo da visita", "Motivo"]))
+    _set_if_empty(row, "Tipo de animal que motivou a visita:", _value(record, ["Tipo de animal que motivou a visita"]))
+    _set_if_empty(row, "Digite o animal:", _value(record, ["Digite o animal", "digite_o_animal"]))
+    _set_if_empty(row, "Tipo de animal:", _value(record, ["Tipo de animal", "tipo_animal", "Animal"]))
+    _set_if_empty(row, "Quantidade:", _value(record, ["Quantidade", "quantidade"]))
+    _set_if_empty(row, "Ocorrência da residência", _value(record, ["Ocorrência da residência", "Ocorrencia da residencia"]))
+    _set_if_empty(row, "Onde?", _value(record, ["Onde", "onde"]))
+    _set_if_empty(row, "Houve acidente?", _value(record, ["Houve acidente", "houve_acidente"]))
+    _set_if_empty(row, "Houve captura?", _value(record, ["Houve captura", "houve_captura"]))
+    _set_if_empty(row, "Local da captura", _value(record, ["Local da captura", "local_captura"]))
+    _set_if_empty(row, "Qual animal foi capturado?", _value(record, ["Qual animal foi capturado"]))
+    _set_if_empty(row, "Sequência", _value(record, ["Sequência", "Sequencia", "sequencia"]))
+    for label in _AMOSTRA_ANIMAL_ESPECIE_COLS:
+        _set_if_empty(row, label, _value(record, [label]))
+    return row
+
+
 def _recolhimento_row(record):
     """Traduz campos do Kobo para nomes que o ETL espera."""
     row = _flat_record(record)
@@ -792,8 +847,12 @@ def write_etl_workbooks(registros_por_tipo, config_path, output_dir, prefix="kob
         records = registros_por_tipo.get(tipo) or []
         if not records:
             continue
+        if tipo == "AMOSTRA_ANIMAIS":
+            linhas = [_amostra_animal_row(record) for record in records]
+        else:
+            linhas = [_extra_row(record) for record in records]
         path = out / f"{tipo}_{prefix}.xlsx"
-        pd.DataFrame([_extra_row(record) for record in records]).to_excel(path, index=False, engine="openpyxl")
+        pd.DataFrame(linhas).to_excel(path, index=False, engine="openpyxl")
         arquivos.append(str(path))
     
     rec = registros_por_tipo.get("RECOLHIMENTO") or []
