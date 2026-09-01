@@ -563,6 +563,7 @@ let espResumo = null;
 let espDoenteAtual = null;
 let espDoentesRows = [];
 let espDoentesTotais = {};
+let espDoentesStatusNomes = [];
 let espEstoqueDados = null;
 let espAnimaisRowsById = new Map();
 const ESP_AGENTES = {{ agentes|tojson }};
@@ -808,7 +809,8 @@ async function carregarEspDoentes() {
 }
 async function carregarEspDoentesStatus(statusSelecionado = '') {
   const d = await apiGet('/api/esporotricose/doentes/status');
-  const opts = (d.registros || []).map(s => `<option value="${escapeHtml(s.nome)}">${escapeHtml(s.nome)}</option>`).join('');
+  espDoentesStatusNomes = (d.registros || []).map(s => s.nome);
+  const opts = espDoentesStatusNomes.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
   document.getElementById('doe-status').innerHTML = '<option value="">Todos</option>' + opts;
   document.getElementById('doe-status').value = statusSelecionado;
   const statusList = document.getElementById('doe-status-list');
@@ -816,8 +818,8 @@ async function carregarEspDoentesStatus(statusSelecionado = '') {
 }
 function renderEspDoentes(rows, total) {
   document.getElementById('esp-doentes-info').textContent = `${fmtNum(total)} animal(is)`;
-  const emTratamento = rows.filter(r => String(r.status || '').toLowerCase().includes('tratamento')).length;
-  const medicacao = rows.filter(r => String(r.status || '').toLowerCase() === 'medicação disponível').length;
+  const emTratamento = rows.filter(r => String(r.status || '').trim().toLowerCase() === 'em tratamento').length;
+  const medicacao = rows.filter(r => String(r.status || '').trim().toLowerCase() === 'medicação disponível').length;
   const receitas = rows.reduce((acc, r) => acc + Number(r.receitas || 0), 0);
   setEspText('doe-kpi-total', total);
   setEspText('doe-kpi-tratamento', emTratamento);
@@ -850,17 +852,38 @@ function renderEspDoentes(rows, total) {
 function renderEspDoentesStatusKpis(rows) {
   const container = document.getElementById('doe-status-kpis');
   if (!container) return;
-  // Agrupa por status, preservando tambem os registros sem status informado.
-  const status = agruparDoentes(rows, 'status', 'Sem status');
-  // 'Em tratamento' ja tem card fixo; exclue dos dinamicos para nao duplicar.
-  const dinamicos = status.filter(s => String(s.nome).toLowerCase() !== 'em tratamento');
-  if (!dinamicos.length) {
+  // Status que ja tem card proprio fixo (nao duplicar aqui).
+  const fixos = new Set(['Em tratamento', 'Medicação disponível']);
+  // Conta exata por status (mesma regra dos cards fixos) e separa sem status.
+  const mapa = new Map();
+  let semStatus = 0;
+  rows.forEach(r => {
+    const st = String(r.status || '').trim();
+    if (!st) { semStatus += 1; return; }
+    mapa.set(st, (mapa.get(st) || 0) + 1);
+  });
+  // Usa a lista canonica de status (ordenada no backend) e preenche zero onde nao ha.
+  const cards = [];
+  const vistos = new Set();
+  espDoentesStatusNomes.forEach(nome => {
+    if (fixos.has(nome)) return;
+    vistos.add(nome);
+    cards.push({ nome, total: mapa.get(nome) || 0 });
+  });
+  // Qualquer status presente nos dados mas fora da lista canonica tambem aparece.
+  mapa.forEach((total, nome) => {
+    if (!fixos.has(nome) && !vistos.has(nome)) cards.push({ nome, total });
+  });
+  // Registros sem status informado: mantem a soma igual ao total.
+  if (semStatus > 0) cards.push({ nome: 'Sem status', total: semStatus });
+  if (!cards.length) {
     container.innerHTML = '';
     return;
   }
+  cards.sort((a, b) => b.total - a.total || String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
   container.innerHTML = [
     '<div class="esporo-status-kpis-title" style="grid-column:1/-1;">Status</div>',
-    ...dinamicos.map(s => `
+    ...cards.map(s => `
       <div class="esporo-kpi">
         <div class="esporo-kpi-label" title="${escapeHtml(s.nome)}">${escapeHtml(s.nome)}</div>
         <div class="esporo-kpi-value ${statusDoenteClass(s.nome)}">${fmtNum(s.total)}</div>

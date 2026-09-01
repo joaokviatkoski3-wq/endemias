@@ -196,14 +196,17 @@ regressao ampla terminou com 653 testes em `OK` e 5 ignorados.
 ### Cards de status dos doentes de Esporotricose
 
 Na branch `trabalho-deepseek`, a aba "Lista" de doentes da pagina
-`/esporotricose` passou a exibir um card por valor de status alem dos cards
-fixos (Doentes, Em tratamento, Medicação disponível e Receitas). Os cards
-dinamicos sao gerados no `renderEspDoentes` via `agruparDoentes(rows, 'status')`,
-excluindo "Em tratamento" (ja tem card proprio) e preservando o estilo por
-status. Para que os cards por status aparecam, o filtro padrao de status na
-carga inicial foi removido (antes a pagina abria so com "Em tratamento"),
-entao a lista e os cards refletem todos os doentes. Nova funcionalidade
-compativel: versao `1.21.0`. Teste
+`/esporotricose` passou a exibir um card por status alem dos cards fixos
+(Doentes, Em tratamento, Medicação disponível e Receitas). Os cards usam a
+lista canonica de status (`esporotricose_doentes_status`, ex.: Faleceu, Acabou
+tratamento, Aguardando documentos, etc.) com **contagem exata** por valor de
+status, exibindo zero quando nao ha doentes naquele status. A soma dos cards de
+status e igual ao total de doentes cadastrados (registros sem status entram em
+"Sem status"). "Em tratamento" e "Medicação disponível" contam somente os
+doentes com exatamente esse status (o card "Em tratamento" deixou de usar
+correspondencia por substring). Para os cards aparecerem, o filtro padrao de
+status na carga inicial foi removido (antes a pagina abria so com "Em
+tratamento"). Nova funcionalidade compativel: versao `1.21.0`. Teste
 `test_pagina_esporotricose_exibe_abas_principais` cobre o novo container.
 
 1. **Envio supervisionado Conta Ovos:** a branch
