@@ -251,3 +251,51 @@ def validate_private_access(
             else "accepted_non_documented_format"
         ),
     }
+
+
+def send_counting(
+    key,
+    payload,
+    *,
+    timeout=DEFAULT_TIMEOUT_SECONDS,
+    opener=None,
+    base_url=None,
+):
+    """Envia uma contagem via POST /postcounting.
+
+    Retorna um dict ``{ok, status_code, message}``. NAO faz retentativas
+    automaticas (evita duplicidade em POST). A chave vai na query string; os
+    dados no corpo. Se a rede estiver bloqueada (teste), recusa a chamada.
+    """
+    if opener is None and os.environ.get(TEST_NETWORK_GUARD) == "1":
+        raise ContaOvosError(
+            "Chamadas reais ao Conta Ovos estao bloqueadas durante os testes.",
+            kind="test_network_blocked",
+        )
+    opener = request.urlopen if opener is None else opener
+    base = (base_url or BASE_URL).rstrip("/")
+    url = f"{base}/postcounting?{parse.urlencode({'key': key})}"
+    corpo = parse.urlencode(payload).encode("utf-8")
+    req = request.Request(
+        url,
+        data=corpo,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "Endemias/ContaOvos",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        method="POST",
+    )
+    try:
+        with opener(req, timeout=timeout) as response:
+            corpo_resp = response.read().decode("utf-8", "replace").strip()
+            return {"ok": True, "status_code": int(response.status), "message": corpo_resp}
+    except error.HTTPError as exc:
+        corpo_resp = ""
+        try:
+            corpo_resp = exc.read().decode("utf-8", "replace").strip()
+        except Exception:
+            pass
+        return {"ok": False, "status_code": int(exc.code), "message": corpo_resp}
+    except (error.URLError, TimeoutError, OSError) as exc:
+        return {"ok": False, "status_code": -1, "message": f"Erro de rede: {exc}"}

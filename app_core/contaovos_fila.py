@@ -354,6 +354,121 @@ def lot_queue_status(conn, lot_id):
     return result
 
 
+def send_lot(conn, lot_id, key, *, now=None, user_name=None):
+    """Envia via /postcounting as leituras de um lote concluido.
+
+    Deriva a data de instalacao do calendario, monta o payload por item e envia.
+    Itens ja presentes no historico local GET sao considerados ja enviados (nao
+    reenviados). Atualiza a fila (confirmado/erro) e, se nao houver falha, marca
+    o lote como enviado_conta_ovos. Retorna um resumo. Requer a ``key`` do Conta
+    Ovos. NAO faz retentativa automatica nem lote silencioso.
+    """
+    ensure_schema_connection(conn)
+    now_text = (now or datetime.now()).isoformat(timespec="seconds")
+    lot, rows = _lot_rows(conn, lot_id)
+    if lot["status"] != "concluido":
+        raise ContaOvosQueueError(
+            "O lote precisa estar concluido para envio.", kind="lot_not_completed"
+        )
+    id_evento = None
+    try:
+        id_evento = lot["id_evento"]
+    except (KeyError, IndexError):
+        pass
+    data_instalacao = _derivar_instalacao(conn, id_evento, lot["data_movimento"])
+    if not data_instalacao:
+        raise ContaOvosQueueError(
+            "Sem data de instalacao derivada do calendario para este lote.",
+            kind="missing_install_date",
+        )
+
+    ja_enviados = enviados = falhas = 0
+    detalhes = []
+    for row in rows:
+        payload = _payload(row, data_instalacao=data_instalacao)
+        id_item = row["id_item"]
+        ovitrampa = payload["ovitrap_group_id"]
+        remote_id, _conf = _find_remote(conn, payload)
+        if remote_id:
+            ja_enviados += 1
+            _upsert_fila_item(
+                conn, id_item, STATUS_CONFIRMED, remote_id, None, now_text
+            )
+            continue
+        result = contaovos_client.send_counting(key, payload)
+        if result["ok"]:
+            enviados += 1
+            _upsert_fila_item(conn, id_item, STATUS_CONFIRMED, None, None, now_text)
+        else:
+            falhas += 1
+            _upsert_fila_item(
+                conn,
+                id_item,
+                STATUS_ERROR,
+                None,
+                sanitized_message(result["message"]),
+                now_text,
+            )
+        detalhes.append(
+            {
+                "ovitrampa": ovitrampa,
+                "date": payload["date"],
+                "coleta": payload["counting_date_collect"],
+                "ovos": payload["counting_eggs"],
+                "ok": result["ok"],
+                "status": result["status_code"],
+                "mensagem": result["message"],
+            }
+        )
+
+    if falhas == 0:
+        conn.execute(
+            f"""UPDATE {ovitrampas_laboratorio.LOTES_TABLE}
+                   SET status='enviado_conta_ovos', enviado_conta_ovos_em=?,
+                       enviado_por_nome=?, atualizado_em=?
+                 WHERE id_lote=?""",
+            (now_text, user_name or "sistema", now_text, int(lot_id)),
+        )
+    return {
+        "id_lote": int(lot_id),
+        "total": len(rows),
+        "ja_enviados": ja_enviados,
+        "enviados": enviados,
+        "falhas": falhas,
+        "detalhes": detalhes,
+    }
+
+
+def _upsert_fila_item(conn, id_item, status, id_remoto, erro, now_text):
+    conn.execute(
+        f"""INSERT INTO {QUEUE_TABLE}
+                (id_item, status, tentativas, id_remoto, erro_sanitizado,
+                 payload_hash, criado_em, atualizado_em, confirmado_em)
+            VALUES (?,?,0,?,?,'',?,?,?)
+            ON CONFLICT (id_item) DO UPDATE SET
+                status=excluded.status,
+                id_remoto=excluded.id_remoto,
+                erro_sanitizado=excluded.erro_sanitizado,
+                atualizado_em=excluded.atualizado_em,
+                confirmado_em=excluded.confirmado_em""",
+        (
+            int(id_item),
+            status,
+            id_remoto,
+            erro,
+            now_text,
+            now_text,
+            now_text if status == STATUS_CONFIRMED else None,
+        ),
+    )
+
+
+def sanitized_message(value):
+    from app_core.contaovos_client import sanitize_message
+
+    return sanitize_message(value)
+
+
 def check_epidemiological_weeks(conn, *, date_start=None, date_end=None, limit=20):
     """Compara semana/ano devolvidos pela API com o algoritmo local."""
     clauses = ["data IS NOT NULL", "ano IS NOT NULL", "semana IS NOT NULL"]

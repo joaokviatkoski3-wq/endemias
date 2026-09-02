@@ -362,6 +362,86 @@ class ContaOvosFilaTests(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_send_lot_envia_pendentes_e_marca_lote(self):
+        base = Path(tempfile.mkdtemp()) / "send.db"
+        conn = db_core.connect(base)
+        try:
+            conn.executescript(
+                """
+                CREATE TABLE ovitrampas_laboratorio_lotes (
+                    id_lote INTEGER PRIMARY KEY, id_evento INTEGER,
+                    data_movimento TEXT NOT NULL, status TEXT NOT NULL,
+                    enviado_conta_ovos_em TEXT, enviado_por_nome TEXT,
+                    atualizado_em TEXT
+                );
+                CREATE TABLE ovitrampas_laboratorio_itens (
+                    id_item INTEGER PRIMARY KEY,
+                    id_lote INTEGER NOT NULL REFERENCES ovitrampas_laboratorio_lotes(id_lote),
+                    ovitrampa_id TEXT NOT NULL, ovos INTEGER NOT NULL,
+                    ocorrencia INTEGER
+                );
+                CREATE TABLE ovitrampas_armadilhas (
+                    ovitrampa_id TEXT PRIMARY KEY, latitude REAL, longitude REAL
+                );
+                CREATE TABLE ovitrampas_calendario_eventos (
+                    id_evento INTEGER PRIMARY KEY, data TEXT,
+                    movimento TEXT, id_grupo INTEGER
+                );
+                CREATE TABLE ovitrampas_ocorrencias_conta_ovos (
+                    id_contagem TEXT PRIMARY KEY, ovitrampa_id TEXT NOT NULL,
+                    data TEXT, ano INTEGER, semana INTEGER, ovos INTEGER,
+                    ocorrencia_codigo INTEGER
+                );
+                """
+            )
+            contaovos_fila.ensure_schema_connection(conn)
+            for ev, data, mov, grupo in [
+                (166, "2026-08-19", "instalacao", 4),
+                (167, "2026-08-24", "troca", 4),
+            ]:
+                conn.execute(
+                    "INSERT INTO ovitrampas_calendario_eventos "
+                    "(id_evento, data, movimento, id_grupo) VALUES (?,?,?,?)",
+                    (ev, data, mov, grupo),
+                )
+            conn.execute(
+                "INSERT INTO ovitrampas_laboratorio_lotes "
+                "(id_lote, id_evento, data_movimento, status) VALUES "
+                "(50, 167, '2026-08-24', 'concluido')"
+            )
+            conn.execute(
+                "INSERT INTO ovitrampas_laboratorio_itens VALUES (55,50,'97',0,NULL)"
+            )
+            conn.execute(
+                "INSERT INTO ovitrampas_armadilhas VALUES ('97',-25.1,-49.2)"
+            )
+            conn.commit()
+
+            with mock.patch.object(
+                contaovos_fila.contaovos_client, "send_counting",
+                return_value={"ok": True, "status_code": 200, "message": "OK"},
+            ) as send:
+                result = contaovos_fila.send_lot(conn, 50, "chave-falsa",
+                                                 now=datetime(2026, 8, 25))
+            send.assert_called_once()
+            self.assertEqual(1, result["enviados"])
+            self.assertEqual(0, result["falhas"])
+            # payload enviado com instalacao (date) e coleta corretas
+            payload = send.call_args.args[1]
+            self.assertEqual("2026-08-19", payload["date"])
+            self.assertEqual("2026-08-24", payload["counting_date_collect"])
+            lote = conn.execute(
+                "SELECT status, enviado_conta_ovos_em FROM "
+                "ovitrampas_laboratorio_lotes WHERE id_lote=50"
+            ).fetchone()
+            self.assertEqual("enviado_conta_ovos", lote["status"])
+            fila = conn.execute(
+                "SELECT status FROM contaovos_fila_contagens WHERE id_item=55"
+            ).fetchone()
+            self.assertEqual("confirmado", fila["status"])
+        finally:
+            conn.close()
+
 
 if __name__ == "__main__":
     unittest.main()

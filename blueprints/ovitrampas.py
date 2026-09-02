@@ -7,6 +7,8 @@ from flask import Blueprint, jsonify, render_template, request
 from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
+from app_core import contaovos_client
+from app_core import contaovos_credencial
 from app_core import contaovos_fila
 from app_core import ovitrampas as ovitrampas_core
 from app_core import ovitrampas_laboratorio as ovi_lab_core
@@ -327,6 +329,61 @@ def api_laboratorio_marcar_enviado(id_lote):
         },
     )
     return jsonify({"ok": True, "lote": lote})
+
+
+@bp.route(
+    "/api/ovitrampas/laboratorio/<int:id_lote>/enviar-conta-ovos",
+    methods=["POST"],
+)
+@login_required
+@nivel_min("operador")
+def api_laboratorio_enviar_conta_ovos(id_lote):
+    """Envia um lote concluido ao Conta Ovos via POST /postcounting."""
+    if not contaovos_credencial.configured():
+        return jsonify({"erro": "Credencial do Conta Ovos nao configurada."}), 400
+    try:
+        key = contaovos_credencial.read_key()
+    except contaovos_credencial.ContaOvosCredentialError as exc:
+        return jsonify({"erro": str(exc)}), 400
+
+    usuario = dict(_usuario_atual() or {})
+    conn = get_db()
+    try:
+        result = contaovos_fila.send_lot(
+            conn, id_lote, key, user_name=usuario.get("nome") or "sistema"
+        )
+        audit.registrar_evento(
+            get_db,
+            "conta_ovos_lote_enviado",
+            entidade="ovitrampas_laboratorio_lotes",
+            entidade_id=id_lote,
+            detalhes={
+                "total": result["total"],
+                "enviados": result["enviados"],
+                "ja_enviados": result["ja_enviados"],
+                "falhas": result["falhas"],
+            },
+            conn=conn,
+        )
+        conn.commit()
+    except contaovos_fila.ContaOvosQueueError as exc:
+        conn.rollback()
+        return jsonify({"erro": str(exc), "tipo": exc.kind}), 400
+    except contaovos_client.ContaOvosError as exc:
+        conn.rollback()
+        return jsonify(
+            {"erro": str(exc), "tipo": getattr(exc, "kind", "error")}
+        ), 502
+    except Exception as exc:
+        conn.rollback()
+        if ovitrampas_core.db_core.is_concurrency_error(exc):
+            return jsonify(
+                {"erro": "O banco esta ocupado. Tente novamente em instantes."}
+            ), 503
+        raise
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "resultado": result})
 
 
 @bp.route("/api/ovitrampas/calendario/grupos", methods=["POST"])

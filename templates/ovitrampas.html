@@ -1446,7 +1446,7 @@ async function carregarOviLaboratorio(){
         <div class="ovi-lab-admin-number"><small>Positivas</small>${oviFmt.format(lote.positivas||0)}</div>
         <div class="ovi-lab-admin-number"><small>Ovos</small>${oviFmt.format(lote.ovos||0)}</div>
         <div class="ovi-lab-admin-meta">Leitura por <strong>${oviEscape(lote.laboratorista_nome||'-')}</strong><br>${lote.status==='enviado_conta_ovos'?'Enviado por '+oviEscape(lote.enviado_por_nome||'-'):lote.fila_conta_ovos?.total?`${oviFmt.format(lote.fila_conta_ovos.confirmado||0)} confirmado(s), ${oviFmt.format(lote.fila_conta_ovos.pendente||0)} pendente(s), ${oviFmt.format(lote.fila_conta_ovos.erro||0)} conflito(s)`:'Aguardando preparação'}</div>
-        <div class="ovi-route-buttons"><button class="btn btn-outline btn-sm" type="button" onclick="alternarOviLabAdmin(${Number(lote.id_lote)})">Ver leituras</button>${lote.status==='concluido'?`<button class="btn btn-outline btn-sm" type="button" onclick="prepararOviLabContaOvos(${Number(lote.id_lote)})">Preparar e conferir</button><button class="btn btn-primary btn-sm" type="button" onclick="marcarOviLabEnviado(${Number(lote.id_lote)})">Marcar envio manual</button>`:''}</div>
+        <div class="ovi-route-buttons"><button class="btn btn-outline btn-sm" type="button" onclick="alternarOviLabAdmin(${Number(lote.id_lote)})">Ver leituras</button>${lote.status==='concluido'?`<button class="btn btn-outline btn-sm" type="button" onclick="prepararOviLabContaOvos(${Number(lote.id_lote)})">Preparar e conferir</button><button class="btn btn-primary btn-sm" type="button" onclick="enviarOviLabContaOvos(${Number(lote.id_lote)})">Enviar ao Conta Ovos</button><button class="btn btn-ghost btn-sm" type="button" onclick="marcarOviLabEnviado(${Number(lote.id_lote)})">Marcar envio manual</button>`:''}</div>
       </div>
       <div class="ovi-lab-admin-detail" data-ovi-lab-admin-detail="${lote.id_lote}" hidden></div>
     </article>`).join('');
@@ -1485,6 +1485,19 @@ async function prepararOviLabContaOvos(id){
     const detalhes=Array.isArray(err.data?.pendencias)?err.data.pendencias:[];
     const complemento=detalhes.length?` ${detalhes.slice(0,3).map(item=>`${item.ovitrampa_id}: ${item.erro}`).join(' | ')}`:'';
     toast('Não foi possível preparar a fila: '+err.message+complemento,'error');
+  }
+}
+async function enviarOviLabContaOvos(id){
+  const lote=oviLabAdminLotes.find(item=>Number(item.id_lote)===Number(id));
+  if(!lote)return;
+  if(!confirm(`Enviar as leituras de ${lote.diario_nome} (${fmtDate(lote.data_movimento)}) ao Conta Ovos via API? As datas de instalação serão derivadas do calendário. Confira antes; envio real não pode ser desfeito automaticamente.`))return;
+  try{
+    const data=await oviFetchJson(`/api/ovitrampas/laboratorio/${id}/enviar-conta-ovos`,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},body:'{}'});
+    const r=data.resultado||{};
+    toast(`Envio: ${r.enviados||0} enviado(s), ${r.ja_enviados||0} já existiam, ${r.falhas||0} falha(s).`,'success');
+    await carregarOviLaboratorio();
+  }catch(err){
+    toast('Erro ao enviar ao Conta Ovos: '+err.message,'error');
   }
 }
 document.querySelectorAll('[data-ovi-tab]').forEach(btn => btn.addEventListener('click', () => {

@@ -244,6 +244,16 @@ da coleta) e o payload passa a enviar `date`=instalacao e
 E um ajuste de correcao (patch): versao `1.23.1`. Testes novos em
 `test_contaovos_fila`.
 
+### Botao "Enviar ao Conta Ovos" por lote/diario
+
+Na pagina Ovitrampas > Laboratorio, cada lote/diario concluido ganhou um botao
+"Enviar ao Conta Ovos", que envia as leituras via `POST /postcounting` (com
+`date`=instalacao derivada do calendario e `counting_date_collect`=coleta), marca
+a fila e o lote como `enviado_conta_ovos`. E uma escrita externa real, feita sob
+demanda (botao por lote, com confirmacao no navegador), nunca lote automatico
+silencioso. Nova funcionalidade: versao `1.24.0`. Testes novos em
+`test_contaovos_fila` (`send_lot`).
+
 1. **Envio supervisionado Conta Ovos:** a branch
    `codex/enviar-leituras-conta-ovos` prepara POST unitario, mas escrita remota
    continua fora da `master` ate piloto humano supervisionado. Nunca enviar
