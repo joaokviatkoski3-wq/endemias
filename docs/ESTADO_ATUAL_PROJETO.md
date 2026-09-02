@@ -220,6 +220,16 @@ A importacao via API de Amostra de Animais gravava o codigo interno do Kobo
 leitura) e `scripts/corrigir_amostras_sim_nao.py` (preview + `--aplicar`) para
 normalizar dados ja gravados fora de `endemias_teste` com `--confirmar-banco`.
 
+### Arrastar anexos de doentes para salvar no computador
+
+Na pagina de detalhe do doente de Esporotricose, cada anexo (PDF) pode agora ser
+arrastado para fora do navegador e salvo numa pasta do computador, usando o
+recurso `DownloadURL` do HTML5 (suportado em Chrome/Edge/Brave). Cada card tambem
+ganhou um botao "Baixar" (usa o endpoint `/download`), que funciona em qualquer
+navegador como alternativa confiavel. Mudanca apenas de interface no template
+`esporotricose_doente_detalhe.html` (sem tocar no banco). Nova funcionalidade
+compativel: versao `1.22.0`.
+
 1. **Envio supervisionado Conta Ovos:** a branch
    `codex/enviar-leituras-conta-ovos` prepara POST unitario, mas escrita remota
    continua fora da `master` ate piloto humano supervisionado. Nunca enviar

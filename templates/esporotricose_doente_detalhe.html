@@ -217,7 +217,8 @@ function render(){
   `).join('') || '<div class="empty-inline">Nenhuma receita cadastrada.</div>';
   document.getElementById('anexos-list').innerHTML = (animal.anexos || []).map(a => `
     <div class="doe-anexo">
-      <a class="doe-anexo-preview" href="${a.url_visualizar}" target="_blank" rel="noopener" title="Abrir anexo">
+      <a class="doe-anexo-preview" href="${a.url_visualizar}" target="_blank" rel="noopener" title="Clique para abrir; arraste para fora para salvar o arquivo"
+         data-download="${a.url_download}" data-nome="${esc(a.nome_original)}" data-mime="${esc(a.mime_type || 'application/pdf')}">
         <img src="${a.url_miniatura}" alt="${esc(a.nome_original)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
         <span class="doe-anexo-fallback">PDF</span>
       </a>
@@ -225,6 +226,7 @@ function render(){
         <div class="doe-anexo-name" title="${esc(a.nome_original)}">${esc(a.nome_original)}</div>
         <div class="doe-anexo-actions">
           <a class="btn btn-sm" href="${a.url_visualizar}" target="_blank" rel="noopener">Abrir</a>
+          <a class="btn btn-sm" href="${a.url_download}">Baixar</a>
           <button class="btn btn-sm" type="button" onclick="excluirAnexo(${a.id_anexo})">Excluir</button>
         </div>
       </div>
@@ -392,6 +394,23 @@ async function excluirAnexo(id){
   if(!r.ok) return toast('Erro ao excluir anexo.', 'error');
   await recarregar();
 }
+// Permite arrastar o anexo (PDF) para fora do navegador e salvar numa pasta.
+// Usa DownloadURL (suportado em Chrome/Edge/Brave); em outros navegadores o
+// caminho confiavel e o botao "Baixar".
+function configurarDragOutAnexos(){
+  const lista = document.getElementById('anexos-list');
+  if(!lista) return;
+  lista.addEventListener('dragstart', e => {
+    const preview = e.target.closest('a.doe-anexo-preview');
+    if(!preview || !preview.dataset.download) return;
+    const mime = preview.dataset.mime || 'application/pdf';
+    const nome = preview.dataset.nome || 'anexo.pdf';
+    e.dataTransfer.setData('DownloadURL', `${mime}:${nome}:${preview.dataset.download}`);
+    e.dataTransfer.setData('text/uri-list', preview.dataset.download);
+    e.dataTransfer.effectAllowed = 'copy';
+  });
+}
 configurarDropzoneAnexos();
+configurarDragOutAnexos();
 render();
 </script>{% endblock %}
