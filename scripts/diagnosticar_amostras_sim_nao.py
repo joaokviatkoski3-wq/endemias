@@ -10,6 +10,7 @@ precisa ser legivel pela sessao; normalmente console elevado/administrador).
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -23,6 +24,23 @@ from app_core import postgresql  # noqa: E402
 
 SAFE_DATABASE = "endemias_teste"
 VALIDOS_SQL = "('Sim', 'Não', '')"
+# Caminho protegido (ACL SYSTEM/Admin) usado pela instalacao oficial.
+KNOWN_PGPASS = r"C:\ProgramData\Endemias\pgpass.conf"
+
+
+def _apontar_pgpass():
+    """Faz o libpq usar o pgpass da instalacao, sem ler/imprimir a senha."""
+    if not os.environ.get("PGPASSFILE"):
+        if os.path.exists(KNOWN_PGPASS):
+            try:
+                with open(KNOWN_PGPASS, "rb") as _fh:
+                    _fh.read(1)
+                os.environ["PGPASSFILE"] = KNOWN_PGPASS
+                return None
+            except OSError:
+                return ("pgpass existe mas nao pode ser lido. Abra o console "
+                        "como Administrador (ou SYSTEM) antes de rodar.")
+    return None
 
 
 def _parser():
@@ -95,6 +113,9 @@ def main(argv=None):
         return 2
 
     summary = postgresql.connection_summary(database=args.database)
+    aviso_pgpass = _apontar_pgpass()
+    if aviso_pgpass:
+        print(f"[AVISO] {aviso_pgpass}")
     print(f"Diagnostico somente-leitura: "
           f"{summary['user']}@{summary['host']}:{summary['port']}/"
           f"{summary['database']}")
@@ -104,6 +125,9 @@ def main(argv=None):
         cur = conn.cursor()
     except Exception as exc:
         print(f"[ERRO] Nao foi possivel conectar: {exc}")
+        print("Dica: rode em um console como Administrador (ou SYSTEM) para que "
+              "o pgpass seja legivel, e confira que o PGPASSFILE aponta para o "
+              "arquivo de credencial do Endemias.")
         return 1
 
     try:
