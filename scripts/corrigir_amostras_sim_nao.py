@@ -115,8 +115,8 @@ def main(argv=None):
         for m in mudancas:
             cur.execute(
                 """UPDATE amostras_animais
-                      SET houve_acidente = ?, houve_captura = ?
-                    WHERE id_amostra = ?""",
+                      SET houve_acidente = %s, houve_captura = %s
+                    WHERE id_amostra = %s""",
                 (m["acidente"][1], m["captura"][1], m["id_amostra"]),
             )
         conn.commit()
