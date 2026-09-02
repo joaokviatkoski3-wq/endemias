@@ -2,7 +2,9 @@ import io
 import sqlite3
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
+from unittest import mock
 
 from flask import Flask
 from PIL import Image
@@ -14,6 +16,7 @@ from blueprints.esporotricose import (
     _salvar_upload_anexo,
     _validar_upload_anexo,
     baixar_anexo_doente,
+    baixar_todos_anexos_doente,
 )
 
 
@@ -116,6 +119,64 @@ class EsporotricoseAnexosTests(unittest.TestCase):
                     self.assertEqual(resposta.status_code, 200)
                     self.assertEqual(resposta.mimetype, "application/pdf")
                     self.assertEqual(resposta.get_data(), conteudo)
+                finally:
+                    resposta.close()
+
+    def test_baixar_todos_gera_zip_com_os_anexos(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = Path(tmpdir)
+            anexos_dir = base / "anexos"
+            arquivo = anexos_dir / "esporotricose_doentes" / "000007" / "receita.pdf"
+            arquivo.parent.mkdir(parents=True)
+            conteudo = b"%PDF-1.4\nteste\n%%EOF"
+            arquivo.write_bytes(conteudo)
+            caminho_rel = arquivo.relative_to(anexos_dir).as_posix()
+            animal = {"anexos": [
+                {"caminho_rel": caminho_rel, "nome_original": "receita.pdf"},
+                {"caminho_rel": caminho_rel, "nome_original": "receita.pdf"},
+            ]}
+
+            app = Flask(__name__)
+            app.config.update(ANEXOS_DIR=str(anexos_dir),
+                              DB_BACKEND="sqlite",
+                              DB_PATH=str(base / "teste.db"))
+            with mock.patch(
+                "blueprints.esporotricose.esporotricose_core.obter_doente",
+                return_value=animal,
+            ):
+                with app.test_request_context("/"):
+                    resposta = baixar_todos_anexos_doente.__wrapped__(7)
+                    try:
+                        resposta.direct_passthrough = False
+                        self.assertEqual(resposta.status_code, 200)
+                        self.assertEqual(resposta.mimetype, "application/zip")
+                        dados = resposta.get_data()
+                        zf = zipfile.ZipFile(io.BytesIO(dados))
+                        # nomes duplicados devem virar arquivos distintos no zip
+                        self.assertIn("receita.pdf", zf.namelist())
+                        self.assertIn("receita_2.pdf", zf.namelist())
+                        self.assertEqual(zf.read("receita.pdf"), conteudo)
+                        zf.close()
+                    finally:
+                        resposta.close()
+
+    def test_baixar_todos_sem_anexos_retorna_erro(self):
+        app = Flask(__name__)
+        app.config.update(ANEXOS_DIR=str(Path(tempfile.mkdtemp())),
+                          DB_BACKEND="sqlite",
+                          DB_PATH=str(Path(tempfile.mkdtemp()) / "teste.db"))
+        with mock.patch(
+            "blueprints.esporotricose.esporotricose_core.obter_doente",
+            return_value={"anexos": []},
+        ):
+            with app.test_request_context("/"):
+                resultado = baixar_todos_anexos_doente.__wrapped__(7)
+                if isinstance(resultado, tuple):
+                    resposta, status = resultado
+                else:
+                    resposta, status = resultado, resultado.status_code
+                try:
+                    self.assertEqual(status, 404)
                 finally:
                     resposta.close()
 

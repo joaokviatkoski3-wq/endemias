@@ -6,6 +6,7 @@ import shutil
 import sqlite3
 import uuid
 import warnings
+import zipfile
 from pathlib import Path
 
 from flask import Blueprint, Response, abort, current_app, jsonify, redirect, render_template, request, send_file
@@ -641,6 +642,47 @@ def miniatura_anexo_doente(id_anexo):
             current_app.logger.exception("Erro ao gerar miniatura do anexo %s", id_anexo)
             abort(404)
     return send_file(miniatura, mimetype="image/webp", max_age=86400)
+
+
+@bp.route("/esporotricose/doentes/<int:id_animal>/anexos/baixar-todos")
+@login_required
+def baixar_todos_anexos_doente(id_animal):
+    """Baixa todos os anexos do doente em um unico arquivo ZIP."""
+    animal = esporotricose_core.obter_doente(bh.db_target(), id_animal)
+    if not animal:
+        abort(404)
+    anexos = animal.get("anexos") or []
+    if not anexos:
+        return jsonify({"erro": "Este doente não possui anexos para baixar."}), 404
+
+    buffer = io.BytesIO()
+    nomes_usados = {}
+    total_gravados = 0
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as arquivo_zip:
+        for anexo in anexos:
+            caminho = _path_anexo(anexo.get("caminho_rel") or "")
+            if not caminho.exists() or not caminho.is_file():
+                continue
+            base = os.path.basename(anexo.get("nome_original") or "") or "anexo.pdf"
+            contador = nomes_usados.get(base, 0)
+            nomes_usados[base] = contador + 1
+            if contador == 0:
+                nome_zip = base
+            else:
+                stem, ext = os.path.splitext(base)
+                nome_zip = f"{stem}_{contador + 1}{ext}"
+            arquivo_zip.write(caminho, arcname=nome_zip)
+            total_gravados += 1
+    buffer.seek(0)
+    if not total_gravados:
+        return jsonify({"erro": "Nenhum anexo do doente foi encontrado no disco."}), 404
+
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name=f"anexos_doente_{id_animal:06d}.zip",
+        mimetype="application/zip",
+    )
 
 
 def _anexos_base_dir():
