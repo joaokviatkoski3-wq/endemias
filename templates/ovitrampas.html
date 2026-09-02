@@ -1494,10 +1494,23 @@ async function enviarOviLabContaOvos(id){
   try{
     const data=await oviFetchJson(`/api/ovitrampas/laboratorio/${id}/enviar-conta-ovos`,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},body:'{}'});
     const r=data.resultado||{};
-    toast(`Envio: ${r.enviados||0} enviado(s), ${r.ja_enviados||0} já existiam, ${r.falhas||0} falha(s).`,'success');
+    const falhas=(r.detalhes||[]).filter(d=>!d.ok);
+    if(falhas.length){
+      const linhas=falhas.slice(0,12).map(d=>`• Ovitrampa ${d.ovitrampa} (coleta ${d.coleta}): ${d.mensagem||('HTTP '+d.status)}`).join('\n');
+      const extra=falhas.length>12?`\n... e mais ${falhas.length-12}.`:``;
+      alert(`Envio do diário "${lote.diario_nome}" teve ${falhas.length} FALHA(S).\n\nO lote NÃO foi marcado como enviado.\n\n${linhas}${extra}\n\nO que fazer: confira cada item no Conta Ovos (endereço/ocorrência/ovos) e, se preciso, "Marcar envio manual" só após lançar à parte; depois clique em "Enviar ao Conta Ovos" de novo (itens já enviados não são repetidos).`);
+    } else {
+      const enviados=r.enviados||0;
+      const ja=r.ja_enviados||0;
+      if(enviados>0){
+        toast(`Diário ${lote.diario_nome} enviado ao Conta Ovos com sucesso: ${enviados} leitura(s) enviada(s)${ja?` (${ja} já existiam e não foram repetidas)`:''}.`,'success',7000);
+      } else {
+        toast(`Nenhuma leitura nova para enviar de ${lote.diario_nome} (${ja} já existiam no Conta Ovos).`,'info',6000);
+      }
+    }
     await carregarOviLaboratorio();
   }catch(err){
-    toast('Erro ao enviar ao Conta Ovos: '+err.message,'error');
+    alert(`Não foi possível enviar o diário ao Conta Ovos.\n\n${err.message}\n\nO que fazer: confira se a credencial do Conta Ovos está configurada (Central do Sistema) e se o lote está concluído; depois tente novamente.`);
   }
 }
 document.querySelectorAll('[data-ovi-tab]').forEach(btn => btn.addEventListener('click', () => {

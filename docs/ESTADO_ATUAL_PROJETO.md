@@ -252,7 +252,11 @@ Na pagina Ovitrampas > Laboratorio, cada lote/diario concluido ganhou um botao
 a fila e o lote como `enviado_conta_ovos`. E uma escrita externa real, feita sob
 demanda (botao por lote, com confirmacao no navegador), nunca lote automatico
 silencioso. Nova funcionalidade: versao `1.24.0`. Testes novos em
-`test_contaovos_fila` (`send_lot`).
+`test_contaovos_fila` (`send_lot`). Apos o piloto real, o retorno de feedback na
+interface foi aprimorado: mensagem clara de sucesso (contagem de enviadas) e, em
+caso de falha, aviso persistente listando os itens que falharam com a mensagem
+da API e orientacao do que fazer (o lote nao e marcado como enviado ate todas
+passarem). Ajuste: versao `1.24.1`.
 
 1. **Envio supervisionado Conta Ovos:** a branch
    `codex/enviar-leituras-conta-ovos` prepara POST unitario, mas escrita remota
