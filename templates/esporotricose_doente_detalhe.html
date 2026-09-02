@@ -34,7 +34,9 @@
 .doe-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .doe-form-grid .full{grid-column:1/-1;}
 .doe-anexos{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px;}
-.doe-anexo{min-width:0;overflow:hidden;border:1px solid var(--border);border-radius:8px;background:var(--surface);}
+.doe-anexo{min-width:0;overflow:hidden;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:grab;user-select:none;}
+.doe-anexo:active{cursor:grabbing;}
+.doe-anexo .btn{cursor:pointer;}
 .doe-anexo-preview{display:flex;height:112px;align-items:center;justify-content:center;overflow:hidden;background:var(--surface2);border-bottom:1px solid var(--border);}
 .doe-anexo-preview img{width:100%;height:100%;object-fit:cover;display:block;}
 .doe-anexo-fallback{display:none;width:100%;height:100%;place-items:center;color:var(--text3);font-size:13px;font-weight:900;}
@@ -216,17 +218,18 @@ function render(){
     </div>
   `).join('') || '<div class="empty-inline">Nenhuma receita cadastrada.</div>';
   document.getElementById('anexos-list').innerHTML = (animal.anexos || []).map(a => `
-    <div class="doe-anexo">
-      <a class="doe-anexo-preview" href="${a.url_visualizar}" target="_blank" rel="noopener" title="Clique para abrir; arraste para fora para salvar o arquivo"
-         data-download="${a.url_download}" data-nome="${esc(a.nome_original)}" data-mime="${esc(a.mime_type || 'application/pdf')}">
-        <img src="${a.url_miniatura}" alt="${esc(a.nome_original)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
+    <div class="doe-anexo" draggable="true"
+         data-download="${a.url_download}" data-nome="${esc(a.nome_original)}" data-mime="${esc(a.mime_type || 'application/pdf')}"
+         title="Clique na miniatura para abrir; arraste o card para fora para salvar o arquivo">
+      <a class="doe-anexo-preview" href="${a.url_visualizar}" target="_blank" rel="noopener" title="Abrir anexo" draggable="false">
+        <img src="${a.url_miniatura}" alt="${esc(a.nome_original)}" loading="lazy" draggable="false" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
         <span class="doe-anexo-fallback">PDF</span>
       </a>
       <div class="doe-anexo-info">
         <div class="doe-anexo-name" title="${esc(a.nome_original)}">${esc(a.nome_original)}</div>
         <div class="doe-anexo-actions">
-          <a class="btn btn-sm" href="${a.url_visualizar}" target="_blank" rel="noopener">Abrir</a>
-          <a class="btn btn-sm" href="${a.url_download}">Baixar</a>
+          <a class="btn btn-sm" href="${a.url_visualizar}" target="_blank" rel="noopener" draggable="false">Abrir</a>
+          <a class="btn btn-sm" href="${a.url_download}" draggable="false">Baixar</a>
           <button class="btn btn-sm" type="button" onclick="excluirAnexo(${a.id_anexo})">Excluir</button>
         </div>
       </div>
@@ -395,18 +398,19 @@ async function excluirAnexo(id){
   await recarregar();
 }
 // Permite arrastar o anexo (PDF) para fora do navegador e salvar numa pasta.
-// Usa DownloadURL (suportado em Chrome/Edge/Brave); em outros navegadores o
-// caminho confiavel e o botao "Baixar".
+// Requer arrasto iniciado no card como ELEMENTO draggable generico (nao <a>/<img>)
+// e usa DownloadURL (suportado em Chrome/Edge/Brave). Ainda assim, arrastar
+// arquivo para fora do navegador e um recurso experimental e pode variar por
+// versao; o botao "Baixar" e a via confiavel em qualquer navegador.
 function configurarDragOutAnexos(){
   const lista = document.getElementById('anexos-list');
   if(!lista) return;
   lista.addEventListener('dragstart', e => {
-    const preview = e.target.closest('a.doe-anexo-preview');
-    if(!preview || !preview.dataset.download) return;
-    const mime = preview.dataset.mime || 'application/pdf';
-    const nome = preview.dataset.nome || 'anexo.pdf';
-    e.dataTransfer.setData('DownloadURL', `${mime}:${nome}:${preview.dataset.download}`);
-    e.dataTransfer.setData('text/uri-list', preview.dataset.download);
+    const card = e.target.closest('.doe-anexo[draggable]');
+    if(!card || !card.dataset.download) return;
+    const mime = card.dataset.mime || 'application/pdf';
+    const nome = card.dataset.nome || 'anexo.pdf';
+    e.dataTransfer.setData('DownloadURL', `${mime}:${nome}:${card.dataset.download}`);
     e.dataTransfer.effectAllowed = 'copy';
   });
 }

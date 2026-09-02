@@ -228,7 +228,12 @@ recurso `DownloadURL` do HTML5 (suportado em Chrome/Edge/Brave). Cada card tambe
 ganhou um botao "Baixar" (usa o endpoint `/download`), que funciona em qualquer
 navegador como alternativa confiavel. Mudanca apenas de interface no template
 `esporotricose_doente_detalhe.html` (sem tocar no banco). Nova funcionalidade
-compativel: versao `1.22.0`.
+compativel: versao `1.22.0`. O arrasto-para-fora so funciona se iniciado no
+card como elemento `draggable` generico (nao na miniatura `<a>`/`<img>`, que
+gera arrasto de imagem/link e mostra o cursor proibido); mesmo assim, arrastar
+arquivo para fora e um recurso experimental que pode variar por versao do
+navegador — o botao "Baixar" e a via confiavel. Ajuste de correcao (patch):
+versao `1.22.1`.
 
 1. **Envio supervisionado Conta Ovos:** a branch
    `codex/enviar-leituras-conta-ovos` prepara POST unitario, mas escrita remota
