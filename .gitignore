@@ -31,3 +31,6 @@ queries.sql
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Dumps temporarios de investigacao/correcao de dados reais do Conta Ovos
+contagens_*.json
