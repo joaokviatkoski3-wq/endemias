@@ -1,6 +1,7 @@
 import hashlib
 import os
 import re
+import unicodedata
 
 import pandas as pd
 
@@ -179,8 +180,8 @@ def parse_workbook(path, estrutura=None):
             "morador": _text(row.get("Morador")),
             "ocorrencia_residencia": _text(row.get("Ocorrência da residência")),
             "onde": _text(row.get("Onde?")),
-            "houve_acidente": _text(row.get("Houve acidente?")),
-            "houve_captura": _text(row.get("Houve captura?")),
+            "houve_acidente": _normalizar_sim_nao(row.get("Houve acidente?")),
+            "houve_captura": _normalizar_sim_nao(row.get("Houve captura?")),
             "local_captura": _text(row.get("Local da captura")),
             "tipo_animal": tipo_animal,
             "animal_capturado": _text(row.get("Qual animal foi capturado?")),
@@ -473,6 +474,24 @@ def _uuid(value):
 
 def _sim(value):
     return (_text(value) or "").lower() == "sim"
+
+
+def _normalizar_sim_nao(value):
+    """Normaliza respostas sim/nao do Kobo para os rotulos 'Sim'/'Nao'.
+
+    O formulario Kobo pode devolver o codigo interno (ex.: ``n_o`` para
+    ``Não`` e ``sim`` para ``Sim``) em vez do rotulo. Valores ja corretos
+    ('Sim'/'Não') passam inalterados; vazio permanece None.
+    """
+    text = _text(value)
+    if not text:
+        return None
+    limpo = re.sub(r"[^a-z0-9]+", "", unicodedata.normalize("NFD", text).lower())
+    if limpo in {"sim", "s", "1", "true", "yes", "positivo", "verdadeiro"} or limpo.startswith("sim"):
+        return "Sim"
+    if limpo in {"nao", "no", "n", "0", "false", "negativo", "falso"} or limpo.startswith("nao"):
+        return "Não"
+    return text
 
 
 def _text(value):

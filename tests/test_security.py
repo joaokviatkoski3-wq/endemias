@@ -1613,6 +1613,44 @@ class AmostrasAnimaisTests(unittest.TestCase):
             conn.close()
             self.assertIsNotNone(achou)
 
+    def test_normalizar_sim_nao_codigos_kobo(self):
+        # O Kobo pode devolver o codigo interno (n_o = Não) em vez do rotulo.
+        casos_nao = ["n_o", "não", "Não", "nao", "0", "no", "n", "N", "false"]
+        casos_sim = ["sim", "Sim", "s", "S", "1", "true"]
+        for valor in casos_nao:
+            self.assertEqual(amostras_animais_core._normalizar_sim_nao(valor), "Não", valor)
+        for valor in casos_sim:
+            self.assertEqual(amostras_animais_core._normalizar_sim_nao(valor), "Sim", valor)
+        self.assertIsNone(amostras_animais_core._normalizar_sim_nao(""))
+        self.assertIsNone(amostras_animais_core._normalizar_sim_nao(None))
+
+    def test_importacao_api_amostra_animais_normaliza_sim_nao(self):
+        # Registro via API que chega com o codigo cru (houve_captura=n_o,
+        # houve_acidente=sim) deve virar 'Não'/'Sim' apos o parse.
+        record = {
+            "_uuid": "22222222-3333-4444-5555-666666666666",
+            "_id": 7,
+            "_submission_time": "2026-08-06T10:00:00",
+            "start": "2026-08-06T08:00:00",
+            "end": "2026-08-06T08:30:00",
+            "Motivo da visita": "Reclamação",
+            "Data": "2026-08-06",
+            "Hora": "08:00",
+            "houve_acidente": "sim",
+            "houve_captura": "n_o",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            cfg = tmp_path / "config.json"
+            cfg.write_text('{"tipos_trabalho": {}, "larvas": {}}', encoding="utf-8")
+            caminhos = kobo_api_core.write_etl_workbooks(
+                {"AMOSTRA_ANIMAIS": [record]}, str(cfg), tmp_path, prefix="sim"
+            )
+            _, registros = amostras_animais_core.preparar_arquivo(caminhos[0])
+            self.assertEqual(len(registros), 1)
+            self.assertEqual(registros[0]["houve_acidente"], "Sim")
+            self.assertEqual(registros[0]["houve_captura"], "Não")
+
 
 class BriTests(unittest.TestCase):
     def test_schema_cria_tabelas_de_bri(self):

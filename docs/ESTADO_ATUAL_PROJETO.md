@@ -209,6 +209,17 @@ status na carga inicial foi removido (antes a pagina abria so com "Em
 tratamento"). Nova funcionalidade compativel: versao `1.21.0`. Teste
 `test_pagina_esporotricose_exibe_abas_principais` cobre o novo container.
 
+### Correcao sim/nao em Amostra de Animais
+
+A importacao via API de Amostra de Animais gravava o codigo interno do Kobo
+(`n_o` para "Não", `sim` para "Sim") nos campos `houve_acidente`/`houve_captura`
+(tela mostrava "n_o"/"sim"), diferente do modulo esporotricose que ja normaliza.
+`amostras_animais` agora tem `_normalizar_sim_nao`, aplicado no `parse_workbook`
+(ex.: `n_o` -> "Não", `sim` -> "Sim"). Ajuste de correcao (patch): versao
+`1.21.1`. Scripts novos: `scripts/diagnosticar_amostras_sim_nao.py` (somente
+leitura) e `scripts/corrigir_amostras_sim_nao.py` (preview + `--aplicar`) para
+normalizar dados ja gravados fora de `endemias_teste` com `--confirmar-banco`.
+
 1. **Envio supervisionado Conta Ovos:** a branch
    `codex/enviar-leituras-conta-ovos` prepara POST unitario, mas escrita remota
    continua fora da `master` ate piloto humano supervisionado. Nunca enviar
