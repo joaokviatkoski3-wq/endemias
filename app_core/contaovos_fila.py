@@ -112,7 +112,7 @@ def _iso_date(value):
         ) from None
 
 
-def _payload(row):
+def _payload(row, data_instalacao=None):
     ovitrap_id = str(row["ovitrampa_id"] or "").strip()
     if not ovitrap_id:
         raise ContaOvosQueueError(
@@ -123,15 +123,52 @@ def _payload(row):
         raise ContaOvosQueueError(
             "A quantidade de ovos e invalida.", kind="invalid_eggs"
         )
+    # No Conta Ovos, 'date' e a data de instalacao (ancora da semana) e
+    # 'counting_date_collect' e a data de coleta. No lote de laboratorio,
+    # data_movimento e a COleta (troca/retirada); a instalacao vem do calendario
+    # (derivada por _derivar_instalacao). Sem calendario/evento, mantemos o
+    # comportamento antigo (usa data_movimento) por retrocompatibilidade.
+    data_coleta = _iso_date(row["data_movimento"])
+    data_inst = _iso_date(data_instalacao) if data_instalacao else data_coleta
     return {
         "ovitrap_group_id": ovitrap_id,
         "ovitrap_lat": _number(row["latitude"], "Latitude", -90, 90),
         "ovitrap_lng": _number(row["longitude"], "Longitude", -180, 180),
-        "date": _iso_date(row["data_movimento"]),
+        "date": data_inst,
+        "counting_date_collect": data_coleta,
         "counting_observation_id": occurrence_code_for_api(row["ocorrencia"]),
         "counting_observation": "",
         "counting_eggs": eggs,
     }
+
+
+def _derivar_instalacao(conn, id_evento, data_coleta):
+    """Data de instalacao das ovitrampas coletadas num lote (do calendario).
+
+    O calendario e a fonte da verdade. Para um lote de troca/retirada na data
+    ``data_coleta`` (do grupo do ``id_evento``), as ovitrampas coletadas foram
+    instaladas no ultimo evento do mesmo grupo, antes dessa data, com movimento
+    instalacao/troca. Retorna a data ou None (ex.: evento/calendario ausente).
+    """
+    if id_evento in (None, "") or not data_coleta:
+        return None
+    try:
+        evento = conn.execute(
+            "SELECT id_grupo, data FROM ovitrampas_calendario_eventos WHERE id_evento=?",
+            (int(id_evento),),
+        ).fetchone()
+        if not evento or not evento["id_grupo"]:
+            return None
+        linha = conn.execute(
+            """SELECT data FROM ovitrampas_calendario_eventos
+                WHERE id_grupo=? AND data < ? AND movimento IN ('instalacao','troca')
+                ORDER BY data DESC, id_evento DESC
+                LIMIT 1""",
+            (evento["id_grupo"], str(data_coleta)[:10]),
+        ).fetchone()
+        return linha["data"] if linha else None
+    except Exception:
+        return None
 
 
 def payload_hash(payload):
@@ -174,7 +211,7 @@ def _find_remote(conn, payload):
               FROM {ovitrampas.OCORRENCIAS_TABLE}
              WHERE ovitrampa_id=? AND data=?
              ORDER BY CAST(id_contagem AS TEXT)""",
-        (payload["ovitrap_group_id"], payload["date"]),
+        (payload["ovitrap_group_id"], payload["counting_date_collect"]),
     ).fetchall()
     if len(rows) > 1:
         return None, "Mais de uma contagem remota foi encontrada para a mesma data."
@@ -197,11 +234,17 @@ def prepare_and_reconcile(conn, lot_id, *, now=None):
     ensure_schema_connection(conn)
     now_text = (now or datetime.now()).isoformat(timespec="seconds")
     lot, rows = _lot_rows(conn, lot_id)
+    id_evento = None
+    try:
+        id_evento = lot["id_evento"]
+    except (KeyError, IndexError):
+        pass
+    data_instalacao = _derivar_instalacao(conn, id_evento, lot["data_movimento"])
     prepared = []
     issues = []
     for row in rows:
         try:
-            payload = _payload(row)
+            payload = _payload(row, data_instalacao=data_instalacao)
             prepared.append((row, payload, payload_hash(payload)))
         except ContaOvosQueueError as exc:
             issues.append(

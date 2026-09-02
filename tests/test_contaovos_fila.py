@@ -298,6 +298,70 @@ class ContaOvosFilaTests(unittest.TestCase):
         self.assertEqual(2, result)
         connect.assert_not_called()
 
+    def test_payload_separa_instalacao_e_coleta(self):
+        # date = instalacao (do calendario); counting_date_collect = coleta.
+        row = {
+            "ovitrampa_id": "97",
+            "ovos": 0,
+            "ocorrencia": None,
+            "latitude": -25.1,
+            "longitude": -49.2,
+            "data_movimento": "2026-08-24",
+        }
+        payload = contaovos_fila._payload(row, data_instalacao="2026-08-19")
+        self.assertEqual("2026-08-19", payload["date"])
+        self.assertEqual("2026-08-24", payload["counting_date_collect"])
+        # sem data de instalacao (retrocompatibilidade): date cai para a coleta.
+        fallback = contaovos_fila._payload(row)
+        self.assertEqual("2026-08-24", fallback["date"])
+        self.assertEqual("2026-08-24", fallback["counting_date_collect"])
+
+    def test_derivar_instalacao_usa_ultimo_evento_de_instalacao_do_grupo(self):
+        conn = db_core.connect(self.db_path)
+        try:
+            conn.executescript(
+                """
+                CREATE TABLE ovitrampas_calendario_eventos (
+                    id_evento INTEGER PRIMARY KEY,
+                    data TEXT,
+                    movimento TEXT,
+                    id_grupo INTEGER
+                );
+                """
+            )
+            # grupo 4: instalacao 19/08, troca 24/08 (coleta) e retirada 28/08.
+            for ev, data, mov, grupo in [
+                (166, "2026-08-19", "instalacao", 4),
+                (167, "2026-08-24", "troca", 4),
+                (168, "2026-08-28", "retirada", 4),
+            ]:
+                conn.execute(
+                    "INSERT INTO ovitrampas_calendario_eventos "
+                    "(id_evento, data, movimento, id_grupo) VALUES (?,?,?,?)",
+                    (ev, data, mov, grupo),
+                )
+            conn.commit()
+            # lote de troca em 24/08 -> instalacao 19/08
+            self.assertEqual(
+                "2026-08-19",
+                str(contaovos_fila._derivar_instalacao(
+                    conn, 167, "2026-08-24"
+                )),
+            )
+            # lote de retirada em 28/08 -> instalacao 24/08 (troca anterior)
+            self.assertEqual(
+                "2026-08-24",
+                str(contaovos_fila._derivar_instalacao(
+                    conn, 168, "2026-08-28"
+                )),
+            )
+            # evento inexistente -> None (nao quebra)
+            self.assertIsNone(
+                contaovos_fila._derivar_instalacao(conn, 9999, "2026-08-24")
+            )
+        finally:
+            conn.close()
+
 
 if __name__ == "__main__":
     unittest.main()

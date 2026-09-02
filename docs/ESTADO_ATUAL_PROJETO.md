@@ -231,6 +231,19 @@ ser um recurso experimental que nao funciona de forma confiavel; o download e a
 via garantida. Mudanca de interface e um endpoint novo, sem alterar o banco.
 Nova funcionalidade compativel: versao `1.23.0`.
 
+### Correcao da semantica de data no payload do postcounting (fila)
+
+No Conta Ovos, `date` e a data de instalacao (ancora da semana) e
+`counting_date_collect` e a data de coleta. Em um lote/diario de laboratorio, o
+`data_movimento` e a coleta (troca/retirada). A fila (`contaovos_fila`) usava
+`data_movimento` como `date` (sem `counting_date_collect`), o que colocaria a
+contagem na data/semana errada. Correcao: `_derivar_instalacao` obtem do
+calendario a data de instalacao (ultimo evento instalacao/troca do grupo antes
+da coleta) e o payload passa a enviar `date`=instalacao e
+`counting_date_collect`=coleta. Retrocompativel quando nao ha evento/calendario.
+E um ajuste de correcao (patch): versao `1.23.1`. Testes novos em
+`test_contaovos_fila`.
+
 1. **Envio supervisionado Conta Ovos:** a branch
    `codex/enviar-leituras-conta-ovos` prepara POST unitario, mas escrita remota
    continua fora da `master` ate piloto humano supervisionado. Nunca enviar
