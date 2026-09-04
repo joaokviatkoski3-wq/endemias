@@ -301,32 +301,70 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
         base = Path(tempfile.mkdtemp())
         db_path = base / "mon3.db"
         conn = db_core.connect(db_path)
-        ovitrampas_core.ensure_schema(conn)
+        conn.executescript("""
+            CREATE TABLE usuarios (
+                id_usuario INTEGER PRIMARY KEY,
+                nome TEXT, nivel TEXT, ativo INTEGER DEFAULT 1
+            );
+            CREATE TABLE agentes (
+                id_agente INTEGER PRIMARY KEY,
+                nome TEXT, ativo INTEGER DEFAULT 1
+            );
+        """)
+        laboratorio_core.ensure_schema(db_path)  # cria schema ovitrampas + laboratorio
+        conn.execute("INSERT INTO usuarios(id_usuario,nome,nivel) VALUES (1,'Azimir','visualizador')")
+        agora = "2026-08-24T10:00:00"
         conn.execute(
             """INSERT INTO ovitrampas_armadilhas
                (ovitrampa_id, localidade, complemento, latitude, longitude, atualizado_em)
-               VALUES ('97','Roma','A',-25.1,-49.2,'2026-08-24T10:00:00'),
-                      ('98','Roma','B',-25.2,-49.3,'2026-08-24T10:00:00'),
-                      ('77','Zona','REALOCAR em teste',-25.3,-49.4,'2026-08-24T10:00:00')"""
+               VALUES ('97','Roma','A',-25.1,-49.2,?),
+                      ('98','Roma','B',-25.2,-49.3,?),
+                      ('77','Zona','REALOCAR em teste',-25.3,-49.4,?)""",
+            (agora, agora, agora),
         )
-        # 97 positiva 2x (semana 33 e 34) -> ranking; 98 neutra.
+        # Espelho de contagens (o GET lastcounting NAO traz a ocorrencia).
         rows = [
-            # id_contagem, ovitrampa, ano, sem, ovos, ocorrencia_codigo
-            ("900", "97", 2026, 33, 3, None),
-            ("901", "97", 2026, 34, 5, 6),
-            ("902", "98", 2026, 34, 0, None),
-            ("903", "77", 2026, 34, 0, None),
+            # id_contagem, ovitrampa, ano, sem, data, ovos
+            ("900", "97", 2026, 33, "2026-08-10", 3),
+            ("901", "97", 2026, 34, "2026-08-20", 5),
+            ("902", "98", 2026, 34, "2026-08-20", 0),
+            ("903", "77", 2026, 34, "2026-08-20", 0),
         ]
-        for idc, ovi, ano, sem, ovos, occ in rows:
+        for idc, ovi, ano, sem, data, ovos in rows:
             conn.execute(
                 """INSERT INTO ovitrampas_ocorrencias_conta_ovos
                    (id_contagem, ovitrampa_id, ano, semana, data, ovos,
-                    resultado, ocorrencia_codigo, latitude, longitude,
-                    arquivo_origem, importado_em)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,'API privada Conta Ovos','2026-09-02')""",
-                (idc, ovi, ano, sem, f"2026-08-{10+sem}", ovos,
-                 "Positiva" if ovos else "Negativa", occ, -25.1, -49.2),
+                    resultado, latitude, longitude, arquivo_origem, importado_em)
+                   VALUES (?,?,?,?,?,?,?,?,?,'API privada Conta Ovos','2026-09-02')""",
+                (idc, ovi, ano, sem, data, ovos,
+                 "Positiva" if ovos else "Negativa", -25.1, -49.2),
             )
+        # Lote de laboratorio concluido/enviado com ocorrencia 6 (Casa fechada)
+        # na ovitrampa 97, coleta em 2026-08-20 (casando com a contagem 901).
+        diario = conn.execute(
+            """INSERT INTO ovitrampas_diarios(nome,ativo,criado_em,atualizado_em)
+               VALUES ('Roma 1',1,?,?)""",
+            (agora, agora),
+        ).lastrowid
+        evento = conn.execute(
+            """INSERT INTO ovitrampas_calendario_eventos
+               (data,movimento,ciclo,criado_em,atualizado_em)
+               VALUES ('2026-08-20','troca','9',?,?)""",
+            (agora, agora),
+        ).lastrowid
+        lote = conn.execute(
+            """INSERT INTO ovitrampas_laboratorio_lotes
+               (id_evento,id_diario,diario_nome,data_movimento,movimento,ciclo,
+                status,criado_em,atualizado_em)
+               VALUES (?,?,?,'2026-08-20','troca','9','enviado_conta_ovos',?,?)""",
+            (evento, diario, "Roma 1", agora, agora),
+        ).lastrowid
+        conn.execute(
+            """INSERT INTO ovitrampas_laboratorio_itens
+               (id_lote,ovitrampa_id,complemento,localidade,ovos,ocorrencia,atualizado_em)
+               VALUES (?,?,'A','Roma',5,6,?)""",
+            (lote, "97", agora),
+        )
         conn.commit()
         conn.close()
 
@@ -334,8 +372,9 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
             db_path, {"ano": "2026", "semana_ini": "1", "semana_fim": "34"}
         )
         t = dados["totais"]
-        # ocorrencia_codigo 6 conta em 97/34
+        # ocorrencia vem do lancamento de laboratorio (codigo 6), nao do espelho
         self.assertEqual(1, t["ocorrencias"])
+        self.assertEqual("Lançamentos de laboratório", dados["ocorrencias_fonte"])
         self.assertEqual(1, t["realocar"])  # 77 marcada REALOCAR no cadastro local
         # ranking so com positivas: 97 (2 positivas) -> 1 linha
         self.assertEqual(1, len(dados["ranking_positivas"]))
@@ -344,10 +383,11 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
         self.assertEqual(2, rank["positivas"])
         self.assertEqual(8, rank["ovos"])
         self.assertEqual("2026 / Semana 34", rank["ultima_positiva"])
-        # ocorrencias detalhadas
+        # ocorrencias detalhadas vindas do laboratorio
         self.assertEqual(1, len(dados["ocorrencias"]))
         occ_row = dados["ocorrencias"][0]
         self.assertEqual(6, occ_row["codigo"])
+        self.assertEqual("Casa fechada", occ_row["descricao"])
         self.assertEqual("97", occ_row["armadilhas_destaque"][0]["ovitrampa_id"])
         # positivas recentes trazem vezes_positiva
         self.assertEqual(1, len(dados["positivas_recentes"]))

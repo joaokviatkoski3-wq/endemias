@@ -284,28 +284,31 @@ ainda estao sendo migrados (vazios nesta etapa). Versao continua `1.25.0`
 
 ### Frente 1 (incremento 3) - Monitoramento completo a partir do espelho API
 
-Incremento 3 completa as secoes que o incremento 2 deixou vazias, sempre lendo o
-espelho API (`ovitrampas_ocorrencias_conta_ovos`):
+Incremento 3 completa as secoes que o incremento 2 deixou vazias, lendo o
+espelho API (`ovitrampas_ocorrencias_conta_ovos`) e o cadastro local:
 
 - **Ranking de positividade** (`ranking_positivas`): agrega por `ovitrampa_id`
   no espelho (leituras, positivas, % de positividade, ovos, ultima semana
   positiva), via novo campo `media_ovos_positiva` em localidades e
   `vezes_positiva` em positivas recentes (campos que o frontend ja lia).
 - **Historico de ocorrencias** (`ocorrencias` + `totais["ocorrencias"]`):
-  agrega `ocorrencia_codigo` (1..9) do espelho, com resumo e detalhes por
-  armadilha via novo helper `ovitrampas._monitoramento_ocorrencias_espelho`.
+  vem dos **lancamentos de laboratorio** (`ovitrampas_laboratorio_itens.ocorrencia`,
+  codigos 1..8), cruzados com o espelho pela ovitrampa e pela data de coleta
+  (lote concluido/enviado) para respeitar o periodo do Monitoramento. O GET
+  `/lastcounting` do Conta Ovos **nao devolve a situacao/observacao** (confirmado
+  ao vivo), entao o espelho nao carrega ocorrencia. Helper
+  `ovitrampas._monitoramento_ocorrencias_laboratorio` (+ `_..._detalhes_laboratorio`).
 - **Pendentes para realocacao** (`realocar` + `totais["realocar"]`): continua
-  **local**, lendo `ovitrampas_armadilhas` por `_armadilhas_realocar`. A
-  inspecao ao vivo do payload confirmou que os endpoints GET da API Conta Ovos
-  (`getmunicipalityovitraps[public]`) **nao devolvem endereco nem REALOCAR**;
-  os campos `ovitrap_address_*` so existem no corpo do POST /postcounting ao
-  instalar. Por isso endereco/REALOCAR seguem locais (via CSV/Diarios), conforme
-  decisao do usuario.
+  **local**, lendo `ovitrampas_armadilhas` por `_armadilhas_realocar`. Os
+  endpoints GET da API Conta Ovos (`getmunicipalityovitraps[public]`) **nao
+  devolvem endereco nem REALOCAR**; os campos `ovitrap_address_*` so existem no
+  corpo do POST /postcounting ao instalar. Por isso endereco/REALOCAR seguem
+  locais (via CSV/Diarios), conforme decisao do usuario.
 
 Laboratorista "via lote" ficou **fora** do Monitoramento (a pagina nao exibe
 laboratorista); decisao registrada para entrega futura na aba de lotes.
-Versao passa a `1.26.0` (Frente 1 ainda nao integrada a master; master em
-`1.25.0`).
+Versao `1.26.1`. (Ajuste posterior no proprio incremento 3: ocorrencias passaram
+a vir do laboratorio, pois o espelho GET nao as traz.)
 
 1. **Envio supervisionado Conta Ovos:** a branch
    `codex/enviar-leituras-conta-ovos` prepara POST unitario, mas escrita remota

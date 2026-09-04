@@ -18,6 +18,8 @@ CAL_AGENTES_TABLE = "ovitrampas_calendario_agentes"
 DIARIOS_TABLE = "ovitrampas_diarios"
 DIARIO_ARMADILHAS_TABLE = "ovitrampas_diario_armadilhas"
 ARMADILHAS_HISTORICO_TABLE = "ovitrampas_armadilhas_historico"
+LAB_LOTES_TABLE = "ovitrampas_laboratorio_lotes"
+LAB_ITENS_TABLE = "ovitrampas_laboratorio_itens"
 
 OCORRENCIAS = {
     1: "Intervalo maior que 7 dias",
@@ -1352,8 +1354,8 @@ def monitoramento_contagens(db_path, filtros=None):
         for row in ranking_positivas:
             row["ultima_positiva"] = _semana_label_from_key(row.pop("ultima_chave", None))
 
-        ocorrencias_resumo, total_ocorrencias = _monitoramento_ocorrencias_espelho(
-            conn, base, params, periodo
+        ocorrencias_resumo, total_ocorrencias = _monitoramento_ocorrencias_laboratorio(
+            conn, where, params, periodo
         )
 
         realocar = _armadilhas_realocar(conn, filtros)
@@ -1365,7 +1367,7 @@ def monitoramento_contagens(db_path, filtros=None):
     return {
         "periodo": periodo,
         "fonte": "API Conta Ovos",
-        "ocorrencias_fonte": "API Conta Ovos",
+        "ocorrencias_fonte": "Lançamentos de laboratório",
         "totais": totais,
         "positivas_recentes": positivas_recentes,
         "ranking_positivas": ranking_positivas,
@@ -2211,30 +2213,91 @@ def _monitoramento_ocorrencias_detalhes(conn, join_base, params):
     return por_codigo
 
 
-def _monitoramento_ocorrencias_espelho(conn, join_base, params, periodo):
-    """Resumo + detalhes de ocorrencias lidos do espelho API.
+def _monitoramento_ocorrencias_laboratorio(conn, where, params, periodo):
+    """Resumo + detalhes de ocorrencias vindos dos lancamentos de laboratorio.
 
-    ``join_base``/``params`` sao o FROM com filtros (ano/semana/distrito) ja
-    montados em `monitoramento_contagens`. So os codigos 1..9 (ocorrencias
-    reais; observacao "sem foco"/1 fica com codigo NULL) entram.
+    O GET /lastcounting do Conta Ovos NAO devolve a situacao/observacao da
+    armadilha, entao o espelho (ovitrampas_ocorrencias_conta_ovos) nao carrega
+    ocorrencia. A ocorrencia real fica nos lancamentos de laboratorio
+    (ovitrampas_laboratorio_itens.ocorrencia, codigos 1..8), por lote/diario.
+    Para respeitar o periodo (ano/semana) do Monitoramento, cruza-se o item do
+    lote com o espelho pela ovitrampa e pela data de coleta (o lote carrega a
+    data do movimento/coleta; so lotes concluidos/enviados entram).
+    """
+    if not (db_core.table_exists(conn, LAB_LOTES_TABLE)
+            and db_core.table_exists(conn, LAB_ITENS_TABLE)):
+        return [], 0
+    from_clause = f"""
+        FROM {LAB_ITENS_TABLE} li
+        JOIN {LAB_LOTES_TABLE} lt ON lt.id_lote=li.id_lote
+             AND lt.status IN ('concluido','enviado_conta_ovos')
+        JOIN {OCORRENCIAS_TABLE} o
+          ON o.ovitrampa_id=li.ovitrampa_id AND o.data=lt.data_movimento
+        LEFT JOIN {ARMADILHAS_TABLE} am ON am.ovitrampa_id=li.ovitrampa_id
+        {where}
+          AND li.ocorrencia IS NOT NULL
     """
     resumo = [db_core.serialize_row(row) for row in conn.execute(
-        f"""SELECT o.ocorrencia_codigo AS codigo,
+        f"""SELECT li.ocorrencia AS codigo,
                    COUNT(*) AS total,
-                   COUNT(DISTINCT o.ovitrampa_id) AS armadilhas
-              {join_base}
-               AND o.ocorrencia_codigo BETWEEN 1 AND 9
-             GROUP BY o.ocorrencia_codigo
-             ORDER BY o.ocorrencia_codigo""",
+                   COUNT(DISTINCT li.ovitrampa_id) AS armadilhas
+              {from_clause}
+             GROUP BY li.ocorrencia
+             ORDER BY li.ocorrencia""",
         params,
     )]
-    detalhes = _monitoramento_ocorrencias_detalhes_importadas(conn, join_base, params)
+    detalhes = _monitoramento_ocorrencias_detalhes_laboratorio(
+        conn, from_clause, params
+    )
     total = 0
     for row in resumo:
         row["descricao"] = OCORRENCIAS.get(row["codigo"], "Ocorrencia")
         row["armadilhas_destaque"] = detalhes.get(row["codigo"], [])
         total += int(row["total"] or 0)
     return resumo, total
+
+
+def _monitoramento_ocorrencias_detalhes_laboratorio(conn, from_clause, params):
+    data_order = _date_order("o.data")
+    rows = [db_core.serialize_row(row) for row in conn.execute(
+        f"""WITH base AS (
+                SELECT li.ocorrencia AS codigo,
+                       li.ovitrampa_id,
+                       COALESCE(am.localidade, li.localidade, '-') AS localidade,
+                       COALESCE(am.rua, '-') AS rua,
+                       COALESCE(am.numero, '') AS numero,
+                       COALESCE(am.complemento, am.localizacao, li.complemento, '') AS complemento,
+                       COALESCE(am.quarteirao, '') AS quarteirao,
+                       o.ano,
+                       o.semana,
+                       o.data,
+                       COALESCE(o.ovos, li.ovos) AS ovos,
+                       CASE WHEN COALESCE(o.ovos, li.ovos, 0) > 0
+                            THEN 'Positiva' ELSE 'Negativa' END AS resultado,
+                       COUNT(*) OVER (PARTITION BY li.ocorrencia, li.ovitrampa_id) AS total,
+                       MAX(o.ano * 100 + o.semana) OVER (
+                           PARTITION BY li.ocorrencia, li.ovitrampa_id
+                       ) AS ultima_chave,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY li.ocorrencia, li.ovitrampa_id
+                           ORDER BY o.ano DESC, o.semana DESC, {data_order} DESC, lt.id_lote DESC
+                       ) AS rn
+                  {from_clause}
+             )
+             SELECT codigo, ovitrampa_id, localidade, rua, numero, complemento, quarteirao,
+                    ano, semana, data, ovos, resultado, total, ultima_chave
+              FROM base
+             WHERE rn=1
+             ORDER BY codigo, total DESC, ultima_chave DESC, ovitrampa_id""",
+        params,
+    )]
+    por_codigo = {codigo: [] for codigo in OCORRENCIAS}
+    for row in rows:
+        row["ultima"] = _semana_label_from_key(row.pop("ultima_chave", None))
+        codigo = row.get("codigo")
+        if codigo in por_codigo and len(por_codigo[codigo]) < 80:
+            por_codigo[codigo].append(row)
+    return por_codigo
 
 
 def _armadilhas_realocar(conn, filtros):
