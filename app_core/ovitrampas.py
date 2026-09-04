@@ -727,6 +727,49 @@ def listar(db_path, filtros=None, limite=500):
     return {"total": total, "registros": rows}
 
 
+def contagens_api_para_aba(db_path, filtros=None, limite=200):
+    """Lista contagens de origem API (espelho `ovitrampas_ocorrencias_conta_ovos`).
+
+    Exibe o que o Conta Ovos retornou (GET /lastcounting sincronizado),
+    enriquecido com o cadastro local (localidade/complemento) apenas para
+    leitura. Nao altera ovitrampas_leituras nem o fluxo de laboratorio.
+    """
+    filtros = filtros or {}
+    limite = max(1, min(int(limite or 200), 2000))
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        where, params = ["WHERE 1=1"], []
+        ano = (filtros.get("ano") or "").strip()
+        ovitrampa = (filtros.get("ovitrampa_id") or "").strip()
+        if ano:
+            where.append("o.ano=?")
+            params.append(int(ano))
+        if ovitrampa:
+            where.append("o.ovitrampa_id=?")
+            params.append(ovitrampa)
+        name_order = _nocase_order(conn, "o.ovitrampa_id")
+        rows = [db_core.serialize_row(row) for row in conn.execute(
+            f"""SELECT o.ovitrampa_id, o.ano, o.semana, o.data, o.ovos,
+                       o.resultado, o.ocorrencia_codigo, o.data_envio_contagem,
+                       o.latitude, o.longitude, o.arquivo_origem,
+                       a.localidade, a.complemento, a.rua, a.numero
+                  FROM {OCORRENCIAS_TABLE} o
+                  LEFT JOIN {ARMADILHAS_TABLE} a ON a.ovitrampa_id=o.ovitrampa_id
+                  {' '.join(where)}
+                 ORDER BY (o.data IS NULL), o.data DESC, {name_order}
+                 LIMIT ?""",
+            [*params, limite],
+        )]
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM {OCORRENCIAS_TABLE} o {' '.join(where)}",
+            params,
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    return {"total": total, "registros": rows, "fonte": "API Conta Ovos"}
+
+
 def listar_armadilhas(db_path, filtros=None, limite=500):
     filtros = filtros or {}
     limite = max(1, min(int(limite or 500), 2000))

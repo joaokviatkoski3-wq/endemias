@@ -117,6 +117,18 @@ def api_historico_armadilha(ovitrampa_id):
     return jsonify(data)
 
 
+@bp.route("/api/ovitrampas/ocorrencias-api")
+@login_required
+def api_ocorrencias_api():
+    filtros = {
+        "ano": request.args.get("ano", ""),
+        "ovitrampa_id": request.args.get("ovitrampa_id", ""),
+    }
+    return jsonify(ovitrampas_core.contagens_api_para_aba(
+        _db_path(), filtros, limite=request.args.get("limite") or 200
+    ))
+
+
 @bp.route("/api/ovitrampas/diarios")
 @login_required
 def api_diarios():

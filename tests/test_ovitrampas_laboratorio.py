@@ -225,6 +225,36 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
                 0,
             )
 
+    def test_contagens_api_para_aba_lê_espelho_e_rotula_fonte(self):
+        import tempfile
+        base = Path(tempfile.mkdtemp())  # sem remocao automatica (evita lock do WAL no Windows)
+        db_path = base / "api.db"
+        conn = db_core.connect(db_path)
+        ovitrampas_core.ensure_schema(conn)
+        conn.execute(
+            """INSERT INTO ovitrampas_armadilhas
+               (ovitrampa_id, localidade, complemento, latitude, longitude, atualizado_em)
+               VALUES ('97','Roma','Local A',-25.1,-49.2,'2026-08-24T10:00:00')"""
+        )
+        conn.execute(
+            """INSERT INTO ovitrampas_ocorrencias_conta_ovos
+               (id_contagem, ovitrampa_id, ano, semana, data, ovos,
+                resultado, ocorrencia_codigo, latitude, longitude, arquivo_origem, importado_em)
+               VALUES ('900','97',2026,33,'2026-08-24',0,'Negativa',5,-25.1,-49.2,
+                       'API privada Conta Ovos','2026-09-02T10:00:00')"""
+        )
+        conn.commit()
+        conn.close()
+
+        dados = ovitrampas_core.contagens_api_para_aba(db_path, limite=20)
+        self.assertEqual("API Conta Ovos", dados["fonte"])
+        self.assertEqual(1, dados["total"])
+        reg = dados["registros"][0]
+        self.assertEqual("97", reg["ovitrampa_id"])
+        self.assertEqual("Roma", reg["localidade"])  # join com cadastro local
+        self.assertEqual(0, reg["ovos"])
+        self.assertEqual("2026-08-24", reg["data"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -258,6 +258,19 @@ caso de falha, aviso persistente listando os itens que falharam com a mensagem
 da API e orientacao do que fazer (o lote nao e marcado como enviado ate todas
 passarem). Ajuste: versao `1.24.1`.
 
+### Frente 1 (incremento 1) - contagens via API no Ovitrampas
+
+Direcao aprovada pelo usuario: alimentar as abas de contagens de Ovitrampas pela
+API (Conta Ovos como fonte da verdade) e, ao longo da evolucao, remover a
+importacao manual de CSV de contagens e consolidar a pagina Conta Ovos na
+Ovitrampas. Incremento 1 (na branch, para teste no ambiente de teste): nova
+funcao `ovitrampas.contagens_api_para_aba` e endpoint
+`/api/ovitrampas/ocorrencias-api` leem o espelho API
+(`ovitrampas_ocorrencias_conta_ovos`, alimentado por GET /lastcounting) e a aba
+Monitoramento mostra quantas contagens sao via API. Nao altera
+`ovitrampas_leituras` nem o fluxo de laboratorio. Nova funcionalidade (incremento):
+versao `1.25.0`.
+
 1. **Envio supervisionado Conta Ovos:** a branch
    `codex/enviar-leituras-conta-ovos` prepara POST unitario, mas escrita remota
    continua fora da `master` ate piloto humano supervisionado. Nunca enviar
