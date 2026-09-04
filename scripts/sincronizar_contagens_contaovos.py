@@ -1,6 +1,7 @@
 """Executa consulta/sincronizacao supervisionada das contagens Conta Ovos."""
 
 import argparse
+import os
 import sys
 from calendar import monthrange
 from datetime import date, timedelta
@@ -20,6 +21,17 @@ from app_core import db as db_core  # noqa: E402
 READ_CONFIRMATION = "CONSULTAR CONTAGENS CONTA OVOS SOMENTE LEITURA"
 APPLY_CONFIRMATION = "ATUALIZAR HISTORICO LOCAL CONTA OVOS"
 SAFE_DATABASE = "endemias_teste"
+KNOWN_PGPASS = r"C:\ProgramData\Endemias\pgpass.conf"
+
+
+def _apontar_pgpass():
+    if not os.environ.get("PGPASSFILE") and os.path.exists(KNOWN_PGPASS):
+        try:
+            with open(KNOWN_PGPASS, "rb") as fh:
+                fh.read(1)
+            os.environ["PGPASSFILE"] = KNOWN_PGPASS
+        except OSError:
+            pass
 
 
 def _parser():
@@ -128,6 +140,7 @@ def main(argv=None):
             return 0
 
         target = db_core.DatabaseTarget("postgresql", args.database)
+        _apontar_pgpass()
         totals = {
             "inseridos": 0,
             "atualizados": 0,
