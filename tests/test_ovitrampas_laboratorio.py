@@ -296,6 +296,92 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
         dados2 = ovitrampas_core.monitoramento_contagens(db_path, {"ano": "2026"})
         self.assertEqual(3, dados2["totais"]["leituras"])
 
+    def test_monitoramento_contagens_ocorrencias_ranking_e_realocar(self):
+        import tempfile
+        base = Path(tempfile.mkdtemp())
+        db_path = base / "mon3.db"
+        conn = db_core.connect(db_path)
+        ovitrampas_core.ensure_schema(conn)
+        conn.execute(
+            """INSERT INTO ovitrampas_armadilhas
+               (ovitrampa_id, localidade, complemento, latitude, longitude, atualizado_em)
+               VALUES ('97','Roma','A',-25.1,-49.2,'2026-08-24T10:00:00'),
+                      ('98','Roma','B',-25.2,-49.3,'2026-08-24T10:00:00'),
+                      ('77','Zona','REALOCAR em teste',-25.3,-49.4,'2026-08-24T10:00:00')"""
+        )
+        # 97 positiva 2x (semana 33 e 34) -> ranking; 98 neutra.
+        rows = [
+            # id_contagem, ovitrampa, ano, sem, ovos, ocorrencia_codigo
+            ("900", "97", 2026, 33, 3, None),
+            ("901", "97", 2026, 34, 5, 6),
+            ("902", "98", 2026, 34, 0, None),
+            ("903", "77", 2026, 34, 0, None),
+        ]
+        for idc, ovi, ano, sem, ovos, occ in rows:
+            conn.execute(
+                """INSERT INTO ovitrampas_ocorrencias_conta_ovos
+                   (id_contagem, ovitrampa_id, ano, semana, data, ovos,
+                    resultado, ocorrencia_codigo, latitude, longitude,
+                    arquivo_origem, importado_em)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,'API privada Conta Ovos','2026-09-02')""",
+                (idc, ovi, ano, sem, f"2026-08-{10+sem}", ovos,
+                 "Positiva" if ovos else "Negativa", occ, -25.1, -49.2),
+            )
+        conn.commit()
+        conn.close()
+
+        dados = ovitrampas_core.monitoramento_contagens(
+            db_path, {"ano": "2026", "semana_ini": "1", "semana_fim": "34"}
+        )
+        t = dados["totais"]
+        # ocorrencia_codigo 6 conta em 97/34
+        self.assertEqual(1, t["ocorrencias"])
+        self.assertEqual(1, t["realocar"])  # 77 marcada REALOCAR no cadastro local
+        # ranking so com positivas: 97 (2 positivas) -> 1 linha
+        self.assertEqual(1, len(dados["ranking_positivas"]))
+        rank = dados["ranking_positivas"][0]
+        self.assertEqual("97", rank["ovitrampa_id"])
+        self.assertEqual(2, rank["positivas"])
+        self.assertEqual(8, rank["ovos"])
+        self.assertEqual("2026 / Semana 34", rank["ultima_positiva"])
+        # ocorrencias detalhadas
+        self.assertEqual(1, len(dados["ocorrencias"]))
+        occ_row = dados["ocorrencias"][0]
+        self.assertEqual(6, occ_row["codigo"])
+        self.assertEqual("97", occ_row["armadilhas_destaque"][0]["ovitrampa_id"])
+        # positivas recentes trazem vezes_positiva
+        self.assertEqual(1, len(dados["positivas_recentes"]))
+        self.assertEqual(2, dados["positivas_recentes"][0]["vezes_positiva"])
+        # realocar registros locais presentes
+        ids = [r["ovitrampa_id"] for r in dados["realocar"]["registros"]]
+        self.assertIn("77", ids)
+
+    def test_monitoramento_contagens_realocar_fica_vazio_sem_marcador(self):
+        import tempfile
+        base = Path(tempfile.mkdtemp())
+        db_path = base / "mon4.db"
+        conn = db_core.connect(db_path)
+        ovitrampas_core.ensure_schema(conn)
+        conn.execute(
+            """INSERT INTO ovitrampas_armadilhas
+               (ovitrampa_id, localidade, atualizado_em)
+               VALUES ('97','Roma','2026-08-24T10:00:00')"""
+        )
+        conn.execute(
+            """INSERT INTO ovitrampas_ocorrencias_conta_ovos
+               (id_contagem, ovitrampa_id, ano, semana, data, ovos,
+                resultado, latitude, longitude, arquivo_origem, importado_em)
+               VALUES ('900','97',2026,34,'2026-08-10',0,'Negativa',
+                       -25.1,-49.2,'API privada Conta Ovos','2026-09-02')"""
+        )
+        conn.commit()
+        conn.close()
+        dados = ovitrampas_core.monitoramento_contagens(
+            db_path, {"ano": "2026", "semana_ini": "1", "semana_fim": "34"}
+        )
+        self.assertEqual(0, dados["totais"]["realocar"])
+        self.assertEqual(0, len(dados["realocar"]["registros"]))
+
 
 if __name__ == "__main__":
     unittest.main()

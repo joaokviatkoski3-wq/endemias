@@ -1268,6 +1268,12 @@ def monitoramento_contagens(db_path, filtros=None):
             params.append(distrito)
         where = "WHERE " + " AND ".join(clauses)
         periodo = {"ano": ano, "semana_ini": semana_ini, "semana_fim": semana_fim, "ultimas": ultimas}
+        positividade_rank = _round_one(
+            "100.0 * SUM(CASE WHEN COALESCE(o.ovos,0)>0 THEN 1 ELSE 0 END) / COUNT(*)"
+        )
+        media_positiva = _round_one(
+            "COALESCE(AVG(CASE WHEN COALESCE(o.ovos,0)>0 THEN o.ovos END),0)"
+        )
 
         base = f"""
             FROM {OCORRENCIAS_TABLE} o
@@ -1292,6 +1298,7 @@ def monitoramento_contagens(db_path, filtros=None):
                            COALESCE(am.numero,'') AS numero,
                            COALESCE(am.complemento,'') AS complemento,
                            o.ano, o.semana, o.ovos, o.data,
+                           COUNT(*) OVER (PARTITION BY o.ovitrampa_id) AS vezes_positiva,
                            ROW_NUMBER() OVER (
                                PARTITION BY o.ovitrampa_id
                                ORDER BY o.ano DESC, o.semana DESC, o.data DESC
@@ -1310,31 +1317,64 @@ def monitoramento_contagens(db_path, filtros=None):
                        COUNT(DISTINCT o.ovitrampa_id) AS armadilhas_lidas,
                        SUM(CASE WHEN COALESCE(o.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
                        COUNT(DISTINCT CASE WHEN COALESCE(o.ovos,0)>0 THEN o.ovitrampa_id END) AS armadilhas_positivas,
-                       COALESCE(SUM(o.ovos),0) AS ovos
+                       COALESCE(SUM(o.ovos),0) AS ovos,
+                       {media_positiva} AS media_ovos_positiva
                   {base}
                  GROUP BY COALESCE(am.localidade,'-')
                  ORDER BY ovos DESC, armadilhas_positivas DESC, positivas DESC, localidade
                  LIMIT 40""",
             params,
         )]
+
+        ranking_positivas = [db_core.serialize_row(row) for row in conn.execute(
+            f"""SELECT o.ovitrampa_id,
+                       COALESCE(am.localidade,'-') AS localidade,
+                       COALESCE(am.rua,'-') AS rua,
+                       COALESCE(am.numero,'') AS numero,
+                       COALESCE(am.complemento,'') AS complemento,
+                       COUNT(*) AS leituras,
+                       SUM(CASE WHEN COALESCE(o.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
+                       COALESCE(SUM(o.ovos),0) AS ovos,
+                       {positividade_rank} AS positividade,
+                       MAX(CASE WHEN COALESCE(o.ovos,0)>0
+                                THEN o.ano * 100 + o.semana ELSE NULL END) AS ultima_chave
+                  {base}
+                 GROUP BY o.ovitrampa_id,
+                          COALESCE(am.localidade,'-'),
+                          COALESCE(am.rua,'-'),
+                          COALESCE(am.numero,''),
+                          COALESCE(am.complemento,'')
+                HAVING SUM(CASE WHEN COALESCE(o.ovos,0)>0 THEN 1 ELSE 0 END) > 0
+                 ORDER BY positivas DESC, ovos DESC, positividade DESC, o.ovitrampa_id
+                 LIMIT 80""",
+            params,
+        )]
+        for row in ranking_positivas:
+            row["ultima_positiva"] = _semana_label_from_key(row.pop("ultima_chave", None))
+
+        ocorrencias_resumo, total_ocorrencias = _monitoramento_ocorrencias_espelho(
+            conn, base, params, periodo
+        )
+
+        realocar = _armadilhas_realocar(conn, filtros)
     finally:
         conn.close()
     totais = {k: (v or 0) for k, v in total.items()}
-    totais["ocorrencias"] = 0
-    totais["realocar"] = 0
+    totais["ocorrencias"] = total_ocorrencias or 0
+    totais["realocar"] = realocar["total"] or 0
     return {
         "periodo": periodo,
         "fonte": "API Conta Ovos",
         "ocorrencias_fonte": "API Conta Ovos",
         "totais": totais,
         "positivas_recentes": positivas_recentes,
-        "ranking_positivas": [],
+        "ranking_positivas": ranking_positivas,
         "localidades": localidades,
-        "ocorrencias": [],
+        "ocorrencias": ocorrencias_resumo,
         "ocorrencias_labels": [
             {"codigo": codigo, "descricao": desc} for codigo, desc in OCORRENCIAS.items()
         ],
-        "realocar": {"total": 0, "registros": []},
+        "realocar": realocar,
     }
 
 
@@ -2169,6 +2209,32 @@ def _monitoramento_ocorrencias_detalhes(conn, join_base, params):
         if codigo in por_codigo and len(por_codigo[codigo]) < 80:
             por_codigo[codigo].append(row)
     return por_codigo
+
+
+def _monitoramento_ocorrencias_espelho(conn, join_base, params, periodo):
+    """Resumo + detalhes de ocorrencias lidos do espelho API.
+
+    ``join_base``/``params`` sao o FROM com filtros (ano/semana/distrito) ja
+    montados em `monitoramento_contagens`. So os codigos 1..9 (ocorrencias
+    reais; observacao "sem foco"/1 fica com codigo NULL) entram.
+    """
+    resumo = [db_core.serialize_row(row) for row in conn.execute(
+        f"""SELECT o.ocorrencia_codigo AS codigo,
+                   COUNT(*) AS total,
+                   COUNT(DISTINCT o.ovitrampa_id) AS armadilhas
+              {join_base}
+               AND o.ocorrencia_codigo BETWEEN 1 AND 9
+             GROUP BY o.ocorrencia_codigo
+             ORDER BY o.ocorrencia_codigo""",
+        params,
+    )]
+    detalhes = _monitoramento_ocorrencias_detalhes_importadas(conn, join_base, params)
+    total = 0
+    for row in resumo:
+        row["descricao"] = OCORRENCIAS.get(row["codigo"], "Ocorrencia")
+        row["armadilhas_destaque"] = detalhes.get(row["codigo"], [])
+        total += int(row["total"] or 0)
+    return resumo, total
 
 
 def _armadilhas_realocar(conn, filtros):
