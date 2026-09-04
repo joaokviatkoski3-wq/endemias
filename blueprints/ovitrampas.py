@@ -105,7 +105,7 @@ def api_monitoramento():
         "ultimas": request.args.get("ultimas", ""),
         "distrito": request.args.get("distrito", ""),
     }
-    return jsonify(ovitrampas_core.monitoramento(_db_path(), filtros))
+    return jsonify(ovitrampas_core.monitoramento_contagens(_db_path(), filtros))
 
 
 @bp.route("/api/ovitrampas/armadilhas/<path:ovitrampa_id>")

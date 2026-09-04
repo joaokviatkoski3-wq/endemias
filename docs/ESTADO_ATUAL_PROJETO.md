@@ -271,6 +271,17 @@ Monitoramento mostra quantas contagens sao via API. Nao altera
 `ovitrampas_leituras` nem o fluxo de laboratorio. Nova funcionalidade (incremento):
 versao `1.25.0`.
 
+### Frente 1 (incremento 2) - Monitoramento de Ovitrampas le o espelho API
+
+Ao verificar uma divergencia (tela mostrava ~4212 leituras de 2026 enquanto o
+Conta Ovos tinha 6603), confirmou-se que o Monitoramento lia `ovitrampas_leituras`
+(CSV/manual), e nao o espelho API. Incremento 2: nova `ovitrampas.monitoramento_contagens`
+faz o Monitoramento ler `ovitrampas_ocorrencias_conta_ovos` (espelho API) com
+filtro de periodo (ano/semana) e join no cadastro local para localidade/endereco,
+corrigindo a contagem para refletir o Conta Ovos. Ranking/ocorrencias/realocar
+ainda estao sendo migrados (vazios nesta etapa). Versao continua `1.25.0`
+(Frente 1 ainda nao integrada a master).
+
 1. **Envio supervisionado Conta Ovos:** a branch
    `codex/enviar-leituras-conta-ovos` prepara POST unitario, mas escrita remota
    continua fora da `master` ate piloto humano supervisionado. Nunca enviar

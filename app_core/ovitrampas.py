@@ -1224,6 +1224,120 @@ def monitoramento(db_path, filtros=None):
     }
 
 
+def monitoramento_contagens(db_path, filtros=None):
+    """Monitoramento das contagens com o espelho API como fonte.
+
+    Le `ovitrampas_ocorrencias_conta_ovos` (GET /lastcounting sincronizado) em
+    vez de `ovitrampas_leituras`, respeitando o filtro de periodo (ano/semana).
+    Localidade/endereco vem do cadastro local (armadilhas). Nao altera dados.
+    """
+    filtros = filtros or {}
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        ano = _int(filtros.get("ano"))
+        semana_ini = _int(filtros.get("semana_ini"))
+        semana_fim = _int(filtros.get("semana_fim"))
+        ultimas = _int(filtros.get("ultimas")) or 8
+        ultimas = max(1, min(ultimas, 52))
+        distrito = _text(filtros.get("distrito"))
+
+        if not ano:
+            latest = conn.execute(
+                f"SELECT ano, semana FROM {OCORRENCIAS_TABLE} "
+                "ORDER BY ano DESC, semana DESC LIMIT 1"
+            ).fetchone()
+            if latest:
+                ano = latest["ano"]
+                semana_fim = latest["semana"]
+                semana_ini = max(1, semana_fim - ultimas + 1)
+
+        clauses = ["1=1"]
+        params = []
+        if ano:
+            clauses.append("o.ano=?")
+            params.append(ano)
+            if semana_ini:
+                clauses.append("o.semana>=?")
+                params.append(semana_ini)
+            if semana_fim:
+                clauses.append("o.semana<=?")
+                params.append(semana_fim)
+        if distrito:
+            clauses.append("am.localidade=?")
+            params.append(distrito)
+        where = "WHERE " + " AND ".join(clauses)
+        periodo = {"ano": ano, "semana_ini": semana_ini, "semana_fim": semana_fim, "ultimas": ultimas}
+
+        base = f"""
+            FROM {OCORRENCIAS_TABLE} o
+            LEFT JOIN {ARMADILHAS_TABLE} am ON am.ovitrampa_id=o.ovitrampa_id
+            {where}
+        """
+        total = db_core.serialize_row(conn.execute(
+            f"""SELECT COUNT(*) AS leituras,
+                       COUNT(DISTINCT o.ovitrampa_id) AS armadilhas_lidas,
+                       SUM(CASE WHEN COALESCE(o.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
+                       COUNT(DISTINCT CASE WHEN COALESCE(o.ovos,0)>0 THEN o.ovitrampa_id END) AS armadilhas_positivas,
+                       COALESCE(SUM(o.ovos),0) AS ovos
+                  {base}""",
+            params,
+        ).fetchone())
+
+        positivas_recentes = [db_core.serialize_row(row) for row in conn.execute(
+            f"""WITH positivas AS (
+                    SELECT o.ovitrampa_id,
+                           COALESCE(am.localidade,'-') AS localidade,
+                           COALESCE(am.rua,'-') AS rua,
+                           COALESCE(am.numero,'') AS numero,
+                           COALESCE(am.complemento,'') AS complemento,
+                           o.ano, o.semana, o.ovos, o.data,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY o.ovitrampa_id
+                               ORDER BY o.ano DESC, o.semana DESC, o.data DESC
+                           ) AS rn
+                      {base} AND COALESCE(o.ovos,0)>0
+                )
+                 SELECT * FROM positivas WHERE rn=1
+                 ORDER BY ano DESC, semana DESC, ovos DESC
+                 LIMIT 80""",
+            params,
+        )]
+
+        localidades = [db_core.serialize_row(row) for row in conn.execute(
+            f"""SELECT COALESCE(am.localidade,'-') AS localidade,
+                       COUNT(*) AS leituras,
+                       COUNT(DISTINCT o.ovitrampa_id) AS armadilhas_lidas,
+                       SUM(CASE WHEN COALESCE(o.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
+                       COUNT(DISTINCT CASE WHEN COALESCE(o.ovos,0)>0 THEN o.ovitrampa_id END) AS armadilhas_positivas,
+                       COALESCE(SUM(o.ovos),0) AS ovos
+                  {base}
+                 GROUP BY COALESCE(am.localidade,'-')
+                 ORDER BY ovos DESC, armadilhas_positivas DESC, positivas DESC, localidade
+                 LIMIT 40""",
+            params,
+        )]
+    finally:
+        conn.close()
+    totais = {k: (v or 0) for k, v in total.items()}
+    totais["ocorrencias"] = 0
+    totais["realocar"] = 0
+    return {
+        "periodo": periodo,
+        "fonte": "API Conta Ovos",
+        "ocorrencias_fonte": "API Conta Ovos",
+        "totais": totais,
+        "positivas_recentes": positivas_recentes,
+        "ranking_positivas": [],
+        "localidades": localidades,
+        "ocorrencias": [],
+        "ocorrencias_labels": [
+            {"codigo": codigo, "descricao": desc} for codigo, desc in OCORRENCIAS.items()
+        ],
+        "realocar": {"total": 0, "registros": []},
+    }
+
+
 def atualizar_leitura(db_path, id_leitura, dados):
     id_laboratorista = _int(dados.get("id_laboratorista"))
     data_leitura = _date(dados.get("data_leitura"))

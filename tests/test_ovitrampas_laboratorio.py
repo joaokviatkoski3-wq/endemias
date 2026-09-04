@@ -255,6 +255,47 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
         self.assertEqual(0, reg["ovos"])
         self.assertEqual("2026-08-24", reg["data"])
 
+    def test_monitoramento_contagens_lê_espelho_api_com_periodo(self):
+        import tempfile
+        base = Path(tempfile.mkdtemp())
+        db_path = base / "mon.db"
+        conn = db_core.connect(db_path)
+        ovitrampas_core.ensure_schema(conn)
+        conn.execute(
+            """INSERT INTO ovitrampas_armadilhas
+               (ovitrampa_id, localidade, complemento, latitude, longitude, atualizado_em)
+               VALUES ('97','Roma','A',-25.1,-49.2,'2026-08-24T10:00:00'),
+                      ('98','Roma','B',-25.2,-49.3,'2026-08-24T10:00:00')"""
+        )
+        rows = [
+            ("900", "97", 2026, 33, 0),
+            ("901", "97", 2026, 34, 5),
+            ("902", "98", 2026, 33, 0),
+            ("903", "99", 2025, 40, 0),  # fora do ano/período
+        ]
+        for idc, ovi, ano, sem, ovos in rows:
+            conn.execute(
+                """INSERT INTO ovitrampas_ocorrencias_conta_ovos
+                   (id_contagem, ovitrampa_id, ano, semana, data, ovos,
+                    resultado, latitude, longitude, arquivo_origem, importado_em)
+                   VALUES (?,?,?,?,?,?,'x',-25.1,-49.2,'API privada Conta Ovos','2026-09-02')""",
+                (idc, ovi, ano, sem, f"2026-08-{10+sem}", ovos),
+            )
+        conn.commit()
+        conn.close()
+
+        # filtro ano 2026, semanas 1 a 33 -> so contagens 2026 semana<=33
+        dados = ovitrampas_core.monitoramento_contagens(
+            db_path, {"ano": "2026", "semana_ini": "1", "semana_fim": "33"}
+        )
+        self.assertEqual("API Conta Ovos", dados["fonte"])
+        t = dados["totais"]
+        self.assertEqual(2, t["leituras"])  # 97/33 e 98/33 (exclui 97/34 e 2025)
+        self.assertEqual(0, t["positivas"])  # ambas ovos=0
+        # sem filtro de semana (ano 2026) -> 3 (33,33,34)
+        dados2 = ovitrampas_core.monitoramento_contagens(db_path, {"ano": "2026"})
+        self.assertEqual(3, dados2["totais"]["leituras"])
+
 
 if __name__ == "__main__":
     unittest.main()
