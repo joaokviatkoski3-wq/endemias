@@ -19,7 +19,7 @@ acoes de escrita remota.
 
 ```text
 Conta Ovos (integracao e analise do espelho local, somente GET)
-|- Visao geral                  (KPIs e evolucao gerais, mistura CSV legado e API)
+|- Visao geral                  (KPIs e evolucao gerais)
 |- Ovitrampas
 |  |- Contagens                 (somente proveniencia API)
 |  |- Monitoramento             (ranking/positividade, somente proveniencia API)
@@ -29,21 +29,21 @@ Conta Ovos (integracao e analise do espelho local, somente GET)
 |- EDLs                         (reservado, sem funcionalidade simulada)
 `- Quarteiroes e acoes          (reservado, sem funcionalidade simulada)
 
-Ovitrampas (operacao local do setor, mantida sem alteracao)
-|- Leituras, monitoramento e cadastro operacional
+Ovitrampas (operacao local integrada ao espelho GET)
+|- Leituras API, monitoramento e cadastro operacional
 |- Diarios, calendario e laboratorio
-`- Fluxos locais de conferencia/contingencia, inclusive importacao CSV
+`- CSV somente para cadastro complementar de Armadilhas
 ```
 
-**Visao geral** manteve o comportamento anterior (mistura CSV legado e API, porque seu proposito e um retrato geral do historico completo). A sub-area **Ovitrampas**, nova nesta etapa, e mais rigorosa: Contagens e Monitoramento **sempre filtram por proveniencia API** (`arquivo_origem = 'API privada Conta Ovos'`), porque indicadores calculados sobre dado legado de CSV misturado com dado API produziriam uma leitura enganosa do que a integracao efetivamente trouxe.
+**Visao geral** apresenta o retrato geral do sistema. A sub-area **Ovitrampas** e mais rigorosa: Leituras e Monitoramento **sempre usam o espelho de proveniencia API** (`arquivo_origem = 'API privada Conta Ovos'`), porque indicadores calculados sobre dado legado de CSV misturado com dado API produziriam uma leitura enganosa do que a integracao efetivamente trouxe. Os campos de laboratorista, data da leitura e ocorrencia sao enriquecidos pelos lancamentos locais do Laboratorio.
 
-As duas raizes de nivel superior (`Conta Ovos` e `Ovitrampas`) continuam sem duplicar a mesma funcao. **Conta Ovos** responde "o que a plataforma externa ja possui e o que foi sincronizado?"; **Ovitrampas** responde "como o setor organiza e executa o trabalho local?". Por isso este lote nao removeu nem alterou controles de laboratorio, diarios, calendario, importacao CSV ou contingencias da pagina Ovitrampas — eles continuam necessarios para a operacao e para a recuperacao supervisionada enquanto a integracao amadurece. A linguagem visual da sub-area Ovitrampas (abas internas, KPIs, tabelas) reproduz deliberadamente a de `/ovitrampas`, para que a mesma pessoa reconheca o padrao ao trocar de tela — mas nenhum controle operacional (importar CSV, editar leitura, imprimir diario) foi duplicado ali. Quem precisa operar continua indo para `/ovitrampas`; a nova area so mostra o que a API disse.
+As duas raizes de nivel superior (`Conta Ovos` e `Ovitrampas`) continuam sem duplicar a mesma funcao. **Conta Ovos** responde "o que a plataforma externa ja possui e o que foi sincronizado?"; **Ovitrampas** responde "como o setor organiza e executa o trabalho local?". Na pagina `/ovitrampas`, o Laboratorio e o Calendario permanecem operacionais; CSV existe somente para complementar o cadastro de Armadilhas; Diarios preservam localmente responsaveis e telefones. A linguagem visual da sub-area Ovitrampas (abas internas, KPIs, tabelas) reproduz deliberadamente a de `/ovitrampas`, para que a mesma pessoa reconheca o padrao ao trocar de tela.
 
 ## Fonte de verdade, complementos locais e territorio: quem manda em que
 
 Esta e a regra mais importante deste documento, porque e a que mais facilmente se perde em lotes futuros:
 
-- **Contagens de ovos** (`ovitrampas_ocorrencias_conta_ovos`): fonte de verdade e a API Conta Ovos, mas a tabela historica e deliberadamente compartilhada com a importacao CSV legada (decisao ja tomada nos lotes de sincronizacao). Um novo dominio nao deve criar um segundo historico de contagens; deve continuar usando essa tabela e diferenciar por `arquivo_origem`.
+- **Contagens de ovos** (`ovitrampas_ocorrencias_conta_ovos`): fonte de verdade e a API Conta Ovos. A tabela ainda suporta registros historicos CSV, mas a interface atual de Leituras e Monitoramento filtra o espelho API; um novo dominio nao deve criar um segundo historico de contagens.
 - **Cadastro de ovitrampas — campos remotos** (`contaovos_registro_ovitrampas`, novo nesta etapa): fonte de verdade e a API (`getmunicipalityovitrapspublic`, endpoint publico, sem chave). Guarda apenas o que a API devolve: coordenadas, `ovitrap_id` interno, media de ovos, IDs de grupo/bloco/usuario remotos e o instante de sincronizacao. Nunca grava responsavel, telefone ou qualquer outro campo local.
 - **Cadastro de ovitrampas — complementos locais** (`ovitrampas_armadilhas`): fonte de verdade e o Endemias. Responsavel, telefone e demais complementos **nunca sao apresentados como se viessem da API**; a interface sempre rotula esses campos como "local" (badge dedicado) quando exibidos ao lado de dados remotos.
 - **Quarteiroes, geometria e composicao territorial**: fonte de verdade e local — `/static/quarteiroes.geojson` e o Registro Geografico. A aba Mapa desta central desenha as coordenadas que a API devolveu, mas o quarteirao/localidade mostrados no popup vem do cadastro local (`ovitrampas_armadilhas.quarteirao`), nunca de um calculo geometrico sobre a coordenada remota. A API pode ser **vinculada** a esse territorio (por correspondencia de ID normalizado); ela nunca o **sobrescreve** nem o recalcula.
@@ -71,7 +71,7 @@ Diferente da sincronizacao de contagens, este endpoint e **publico** (`getmunici
 
 - Dependem do espelho remoto (podem ficar vazias ate a primeira sincronizacao real do cadastro): Ovitrampas > Cadastro remoto, Ovitrampas > Mapa, parte de Ovitrampas > Sincronizacao e divergencias.
 - Ja funcionam com o que esta sincronizado hoje (contagens, via sincronizador ja homologado): Ovitrampas > Contagens, Ovitrampas > Monitoramento.
-- Continuam exclusivamente locais e nao migram para esta central: leituras semanais operacionais, diarios, calendario, laboratorio e importacao CSV — todos em `/ovitrampas`.
+- Continuam locais e nao migram para esta central: diarios, calendario, laboratorio e o CSV complementar de Armadilhas — todos em `/ovitrampas`.
 - Fora de escopo neste lote, com placeholder reservado e sem dado simulado: EDLs e Quarteiroes/acoes. A API documenta os endpoints, mas nenhum contrato foi validado, nenhum schema foi criado e nenhuma sincronizacao GET foi implementada para esses dominios.
 - Fora da central de consulta continuam `/postaction` e qualquer `postdelete*`. O
   `/postcounting` existe somente no fluxo operacional supervisionado por lote

@@ -156,7 +156,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
 
 <div class="ovi-source-strip">
   <div class="ovi-source-list" aria-label="Fontes dos dados">
-    <span class="ovi-source-chip local">Leituras: CSV / histórico local</span>
+    <span class="ovi-source-chip api">Leituras: API Conta Ovos</span>
     <span class="ovi-source-chip api">Monitoramento: API Conta Ovos</span>
     <span class="ovi-source-chip lab">Ocorrências: laboratório</span>
     <span class="ovi-source-chip local">Cadastro, diários e calendário: local</span>
@@ -183,14 +183,10 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
 <section class="ovi-panel" id="ovi-panel-leituras">
   <div class="chart-card" style="margin-bottom:16px;">
     <div class="chart-hd">
-      <div class="chart-title"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar leituras semanais</div>
-      <span class="imp-status imp-cinza" id="ovi-import-status">Aguardando</span>
+      <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Leituras sincronizadas do Conta Ovos</div>
+      <span class="imp-status imp-cinza" id="ovi-import-status">Espelho API</span>
     </div>
-    <div class="ovi-source-note">Fonte desta aba: histórico local alimentado por CSV. O Monitoramento usa separadamente o espelho da API Conta Ovos.</div>
-    <form id="ovi-form" class="ovi-upload">
-      <div class="f-g"><label>CSV do Conta Ovos</label><input type="file" id="ovi-arquivos" name="arquivos" accept=".csv,text/csv" multiple></div>
-      <button class="btn btn-primary" type="submit"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar CSV</button>
-    </form>
+    <div class="ovi-source-note">As leituras desta aba vêm do espelho GET da API Conta Ovos. A identificação do laboratorista, a data da leitura e a ocorrência são enriquecidas pelos lançamentos da aba Laboratório.</div>
   </div>
 
   <div class="filter-card" style="margin-bottom:16px;">
@@ -203,20 +199,6 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
         <div class="f-g"><label>Pesquisa</label><input type="search" id="ovi-busca" placeholder="ID, rua, complemento..."></div>
         <button class="btn btn-outline" type="button" id="ovi-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
       </div>
-    </div>
-  </div>
-
-  <div class="chart-card" style="margin-bottom:16px;">
-    <div class="chart-hd">
-      <div class="chart-title"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Edição em lote das leituras filtradas</div>
-      <span class="table-info" id="ovi-lote-info">Use os filtros acima para definir o lote.</span>
-    </div>
-    <div class="ovi-batch">
-      <div class="f-g"><label>Laboratorista</label><select id="ovi-lote-lab"><option value="">Não alterar</option>{% for agente in agentes %}<option value="{{ agente.id_agente }}">{{ agente.nome }}</option>{% endfor %}</select></div>
-      <div class="f-g"><label>Data da leitura</label><input type="date" id="ovi-lote-data"></div>
-      <label class="check"><input type="checkbox" id="ovi-lote-somente-vazios" checked> Preencher somente campos vazios</label>
-      <button class="btn btn-primary" type="button" id="ovi-lote-aplicar"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Aplicar no lote</button>
-      <span class="ovi-batch-status" id="ovi-lote-status"></span>
     </div>
   </div>
 
@@ -312,13 +294,9 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
       <div class="chart-card">
         <div class="chart-hd">
           <div class="chart-title"><img src="/static/icons/alerta.svg" alt="" class="icon-svg"> Histórico de ocorrências</div>
-          <span class="imp-status imp-cinza" id="ovi-oco-import-status">Sem histórico</span>
+          <span class="imp-status imp-cinza" id="ovi-oco-import-status">Laboratório</span>
         </div>
-        <div class="ovi-source-note">As ocorrências exibidas no Monitoramento vêm dos lançamentos laboratoriais. A importação CSV abaixo permanece apenas como contingência histórica durante esta transição.</div>
-        <form id="ovi-oco-form" class="ovi-upload" style="grid-template-columns:1fr;margin-bottom:12px;">
-          <div class="f-g"><label>CSV anual de ocorrências do Conta Ovos</label><input type="file" id="ovi-oco-arquivos" name="arquivos" accept=".csv,text/csv" multiple></div>
-          <button class="btn btn-primary" type="submit"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar ocorrências</button>
-        </form>
+        <div class="ovi-source-note">O histórico de ocorrências vem exclusivamente dos lançamentos realizados pelo laboratorista. Não há importação CSV nesta aba.</div>
         <span class="ovi-occ-source" id="ovi-mon-ocorrencias-fonte"></span>
         <div class="ovi-ocorrencias-list" id="ovi-mon-ocorrencias-body"></div>
       </div>
@@ -390,7 +368,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
     </div>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Semana</th><th>Instalação</th><th>Coleta</th><th>Data da leitura</th><th>Laboratorista</th><th>Ovos</th><th>Enviado por</th><th>Arquivo</th></tr></thead>
+        <thead><tr><th>Semana</th><th>Data da coleta</th><th>Data da leitura</th><th>Laboratorista</th><th>Ovos</th><th>Resultado</th><th>Enviado em</th><th>Fonte</th></tr></thead>
         <tbody id="ovi-hist-body"></tbody>
       </table>
     </div>
@@ -398,17 +376,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
 </section>
 
 <section class="ovi-panel" id="ovi-panel-diarios" hidden>
-  <div class="chart-card" style="margin-bottom:16px;">
-    <div class="chart-hd">
-      <div class="chart-title"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar base dos diários</div>
-      <span class="imp-status imp-cinza" id="ovi-dia-import-status">Aguardando</span>
-    </div>
-    <div class="ovi-source-note">Diários são mantidos localmente para a operação. O XLSX continua disponível como contingência até a validação da substituição.</div>
-    <form id="ovi-dia-import-form" class="ovi-upload">
-      <div class="f-g"><label>Planilha XLSX dos diários</label><input type="file" id="ovi-dia-arquivo" name="arquivo" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></div>
-      <button class="btn btn-primary" type="submit"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar diários</button>
-    </form>
-  </div>
+  <div class="ovi-source-note" style="margin-bottom:16px;">Os diários são mantidos localmente porque guardam telefones e responsáveis usados na impressão de campo. Esses dados continuam editáveis aqui; as demais informações das armadilhas vêm do cadastro da aba Armadilhas. Não há importação XLSX nesta aba.</div>
 
   <div class="ovi-grid">
     <div class="ovi-kpi"><div class="ovi-kpi-label">Diários</div><div class="ovi-kpi-value" id="ovi-dia-total">0</div></div>
@@ -587,13 +555,9 @@ function novoEstadoOviDiarioDrag(){
   };
 }
 let oviDiarioDrag = novoEstadoOviDiarioDrag();
-let oviListaTotal = 0;
 const oviMeses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const oviDias = ['D','S','T','Q','Q','S','S'];
 function oviEscape(value){ return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
-function oviAgentOptions(selected){
-  return `<option value="">Laboratorista</option>` + oviAgentes.map(a => `<option value="${a.id_agente}" ${String(a.id_agente) === String(selected || '') ? 'selected' : ''}>${oviEscape(a.nome)}</option>`).join('');
-}
 function oviParams(busca=false){
   const p = new URLSearchParams();
   ['ano','semana','distrito','positivas'].forEach(k => {
@@ -846,9 +810,7 @@ async function carregarMonitoramento(){
 }
 async function carregarListaOvitrampas(){
   const data = await oviGet('/api/ovitrampas/listar?' + oviParams(true).toString());
-  oviListaTotal = Number(data.total || 0);
   document.getElementById('ovi-info').textContent = `${oviFmt.format(data.total || 0)} registro(s)`;
-  document.getElementById('ovi-lote-info').textContent = `${oviFmt.format(oviListaTotal)} leitura(s) filtrada(s).`;
   document.getElementById('ovi-body').innerHTML = (data.registros || []).map(r => {
     const endereco = [r.rua, r.numero].filter(Boolean).map(oviEscape).join(', ') || '-';
     const ovos = Number(r.ovos || 0);
@@ -861,47 +823,15 @@ async function carregarListaOvitrampas(){
         <div class="ovi-field"><span>Endereço</span><strong>${endereco}</strong>${complemento ? `<br>${oviEscape(complemento)}` : ''}</div>
         <div class="ovi-field"><span>Quarteirão</span><strong>${oviEscape(r.quarteirao || '-')}</strong></div>
         <div class="ovi-field"><span>Ovos</span><strong><span class="ovi-tag ${ovos > 0 ? 'pos' : ''}">${oviFmt.format(ovos)}</span></strong></div>
-        <div class="ovi-field"><span>Instalação</span><strong>${oviEscape(r.data_instalacao || '-')}</strong></div>
-        <div class="ovi-field"><span>Coleta</span><strong>${oviEscape(r.data_coleta || '-')}</strong></div>
-        <div class="ovi-field"><span>Enviado por</span><strong>${oviEscape(r.quem_enviou || '-')}</strong></div>
+        <div class="ovi-field"><span>Data da coleta</span><strong>${oviEscape(r.data_coleta || r.data || '-')}</strong></div>
+        <div class="ovi-field"><span>Data da leitura</span><strong>${oviEscape(r.data_leitura || '-')}</strong></div>
+        <div class="ovi-field"><span>Laboratorista</span><strong>${oviEscape(r.laboratorista || '-')}</strong></div>
+        <div class="ovi-field"><span>Resultado</span><strong>${oviEscape(r.resultado || '-')}</strong></div>
+        <div class="ovi-field"><span>Enviado em</span><strong>${oviEscape(r.data_envio_contagem || '-')}</strong></div>
       </div>
-      <div class="ovi-reading-lab">
-        <label><span class="ovi-lab-label">Laboratorista</span><select data-ovi-lab="${oviEscape(r.id_leitura)}">${oviAgentOptions(r.id_laboratorista)}</select></label>
-        <label><span class="ovi-lab-label">Data da leitura</span><input type="date" value="${oviEscape(r.data_leitura || '')}" data-ovi-data="${oviEscape(r.id_leitura)}"></label>
-        <button class="btn btn-outline btn-sm" type="button" data-ovi-salvar-leitura="${oviEscape(r.id_leitura)}">Salvar</button>
-      </div>
+      <div class="ovi-source-note" style="margin:8px 0 0;">Fonte: ${oviEscape(r.fonte_leitura || 'API Conta Ovos')}${r.ocorrencia_label ? ` · Ocorrência: ${oviEscape(r.ocorrencia_label)}` : ''}${r.observacao_conta_ovos ? ` · Observação: ${oviEscape(r.observacao_conta_ovos)}` : ''}</div>
     </div>`;
   }).join('') || '<div class="empty">Nenhuma leitura encontrada.</div>';
-}
-async function aplicarOviLote(){
-  const idLaboratorista = document.getElementById('ovi-lote-lab').value;
-  const dataLeitura = document.getElementById('ovi-lote-data').value;
-  const somenteVazios = document.getElementById('ovi-lote-somente-vazios').checked;
-  if (!idLaboratorista && !dataLeitura) return toast('Informe laboratorista ou data da leitura para aplicar em lote.', 'warning');
-  if (!oviListaTotal) return toast('Nenhuma leitura filtrada para atualizar.', 'warning');
-  const labNome = idLaboratorista ? (oviAgentes.find(a => String(a.id_agente) === String(idLaboratorista))?.nome || 'laboratorista selecionado') : 'sem alterar laboratorista';
-  const dataTxt = dataLeitura || 'sem alterar data';
-  const escopo = somenteVazios ? 'preenchendo somente campos vazios' : 'sobrescrevendo os campos informados';
-  if (!confirm(`Aplicar em lote nas ${oviFmt.format(oviListaTotal)} leitura(s) filtrada(s)?\n\nLaboratorista: ${labNome}\nData da leitura: ${dataTxt}\nModo: ${escopo}`)) return;
-  const status = document.getElementById('ovi-lote-status');
-  const btn = document.getElementById('ovi-lote-aplicar');
-  status.textContent = 'Aplicando...';
-  btn.disabled = true;
-  try {
-    const data = await oviFetchJson('/api/ovitrampas/leituras/lote?' + oviParams(true).toString(), {
-      method:'PUT',
-      headers:{'Content-Type':'application/json','X-CSRFToken': getCsrf()},
-      body:JSON.stringify({id_laboratorista:idLaboratorista || null, data_leitura:dataLeitura || null, somente_vazios: somenteVazios})
-    });
-    status.textContent = `${oviFmt.format(data.atualizados || 0)} leitura(s) atualizada(s).`;
-    toast(`${oviFmt.format(data.atualizados || 0)} leitura(s) atualizada(s) em lote.`, 'success');
-    await carregarOvitrampas();
-  } catch (err) {
-    status.textContent = '';
-    toast('Erro ao aplicar lote: ' + err.message, 'error');
-  } finally {
-    btn.disabled = false;
-  }
 }
 async function carregarArmadilhas(){
   const data = await oviGet('/api/ovitrampas/armadilhas?' + oviArmParams().toString());
@@ -951,13 +881,13 @@ async function abrirHistorico(id){
     const ovos = Number(r.ovos || 0);
     return `<tr>
       <td>${r.ano || '-'} / ${String(r.semana || '').padStart(2,'0')}</td>
-      <td>${oviEscape(r.data_instalacao || '-')}</td>
       <td>${oviEscape(r.data_coleta || '-')}</td>
       <td>${oviEscape(r.data_leitura || '-')}</td>
       <td>${oviEscape(r.laboratorista || '-')}</td>
       <td><span class="ovi-tag ${ovos > 0 ? 'pos' : ''}">${oviFmt.format(ovos)}</span></td>
-      <td>${oviEscape(r.quem_enviou || '-')}</td>
-      <td>${oviEscape(r.arquivo_origem || '-')}</td>
+      <td>${oviEscape(r.resultado || '-')}</td>
+      <td>${oviEscape(r.data_envio_contagem || '-')}</td>
+      <td>${oviEscape(r.arquivo_origem || 'API Conta Ovos')}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:18px;">Sem leituras para esta armadilha.</td></tr>';
   document.getElementById('ovi-historico').scrollIntoView({behavior:'smooth', block:'start'});
@@ -1590,7 +1520,6 @@ document.querySelectorAll('[data-ovi-tab]').forEach(btn => btn.addEventListener(
   if (alvo === 'calendario') carregarCalendario().catch(e => toast('Erro ao carregar calendário: ' + e.message, 'error'));
 }));
 document.getElementById('ovi-atualizar').addEventListener('click', () => carregarOvitrampas().catch(e => toast('Erro ao carregar ovitrampas: ' + e.message, 'error')));
-document.getElementById('ovi-lote-aplicar').addEventListener('click', () => aplicarOviLote());
 document.getElementById('ovi-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarListaOvitrampas().catch(err => toast('Erro na busca: ' + err.message, 'error')); });
 document.getElementById('ovi-mon-atualizar').addEventListener('click', () => carregarMonitoramento().catch(e => toast('Erro ao carregar monitoramento: ' + e.message, 'error')));
 document.getElementById('ovi-arm-atualizar').addEventListener('click', () => carregarArmadilhas().catch(e => toast('Erro ao carregar armadilhas: ' + e.message, 'error')));
@@ -1697,22 +1626,6 @@ document.addEventListener('click', async e => {
   }
   const histId = e.target.closest('[data-ovi-historico]')?.dataset.oviHistorico;
   if (histId) return abrirHistorico(histId).catch(err => toast('Erro ao abrir histórico: ' + err.message, 'error'));
-  const leituraId = e.target.closest('[data-ovi-salvar-leitura]')?.dataset.oviSalvarLeitura;
-  if (!leituraId) return;
-  const payload = {
-    id_laboratorista: document.querySelector(`[data-ovi-lab="${CSS.escape(leituraId)}"]`)?.value || null,
-    data_leitura: document.querySelector(`[data-ovi-data="${CSS.escape(leituraId)}"]`)?.value || null,
-  };
-  try {
-    await oviFetchJson('/api/ovitrampas/leituras/' + encodeURIComponent(leituraId), {
-      method:'PUT',
-      headers:{'Content-Type':'application/json','X-CSRFToken': getCsrf()},
-      body: JSON.stringify(payload),
-    });
-    toast('Leitura atualizada.', 'success');
-  } catch (err) {
-    toast('Erro ao salvar leitura: ' + err.message, 'error');
-  }
 });
 document.getElementById('ovi-cal-salvar').addEventListener('click', async () => {
   const id = document.getElementById('ovi-cal-id').value;
@@ -1772,69 +1685,6 @@ document.getElementById('ovi-grupo-excluir').addEventListener('click', async () 
 });
 document.getElementById('ovi-sincronizar-conta-ovos')?.addEventListener('click', () => {
   sincronizarContaOvos();
-});
-document.getElementById('ovi-form').addEventListener('submit', async e => {
-  e.preventDefault();
-  const files = document.getElementById('ovi-arquivos').files;
-  if (!files.length) return toast('Selecione ao menos um CSV.', 'warning');
-  const status = document.getElementById('ovi-import-status');
-  status.className = 'imp-status imp-azul';
-  status.textContent = 'Importando...';
-  const form = new FormData();
-  Array.from(files).forEach(file => form.append('arquivos', file));
-  try {
-    const data = await oviFetchJson('/api/ovitrampas/importar', {method:'POST', headers:{'X-CSRFToken': getCsrf()}, body:form});
-    status.className = data.erros?.length ? 'imp-status imp-azul' : 'imp-status imp-verde';
-    status.textContent = `${oviFmt.format(data.inseridos || 0)} novo(s), ${oviFmt.format(data.duplicados || 0)} duplicado(s)`;
-    toast('Importação de leituras concluída.', data.erros?.length ? 'warning' : 'success');
-    await carregarOvitrampas();
-  } catch (err) {
-    status.className = 'imp-status imp-vermelho';
-    status.textContent = 'Erro';
-    toast('Erro ao importar leituras: ' + err.message, 'error');
-  }
-});
-document.getElementById('ovi-oco-form').addEventListener('submit', async e => {
-  e.preventDefault();
-  const files = document.getElementById('ovi-oco-arquivos').files;
-  if (!files.length) return toast('Selecione ao menos um CSV de ocorrências.', 'warning');
-  const status = document.getElementById('ovi-oco-import-status');
-  status.className = 'imp-status imp-azul';
-  status.textContent = 'Importando...';
-  const form = new FormData();
-  Array.from(files).forEach(file => form.append('arquivos', file));
-  try {
-    const data = await oviFetchJson('/api/ovitrampas/ocorrencias/importar', {method:'POST', headers:{'X-CSRFToken': getCsrf()}, body:form});
-    status.className = data.erros?.length ? 'imp-status imp-azul' : 'imp-status imp-verde';
-    status.textContent = `${oviFmt.format(data.ocorrencias || 0)} ocorrência(s)`;
-    toast('Histórico de ocorrências importado.', data.erros?.length ? 'warning' : 'success');
-    await carregarMonitoramento();
-  } catch (err) {
-    status.className = 'imp-status imp-vermelho';
-    status.textContent = 'Erro';
-    toast('Erro ao importar ocorrências: ' + err.message, 'error');
-  }
-});
-document.getElementById('ovi-dia-import-form').addEventListener('submit', async e => {
-  e.preventDefault();
-  const file = document.getElementById('ovi-dia-arquivo').files[0];
-  if (!file) return toast('Selecione a planilha XLSX dos diários.', 'warning');
-  const status = document.getElementById('ovi-dia-import-status');
-  status.className = 'imp-status imp-azul';
-  status.textContent = 'Importando...';
-  const form = new FormData();
-  form.append('arquivo', file);
-  try {
-    const data = await oviFetchJson('/api/ovitrampas/diarios/importar', {method:'POST', headers:{'X-CSRFToken': getCsrf()}, body:form});
-    status.className = data.erros?.length ? 'imp-status imp-azul' : 'imp-status imp-verde';
-    status.textContent = `${oviFmt.format(data.diarios || 0)} diário(s), ${oviFmt.format(data.vinculos || 0)} vínculo(s)`;
-    toast('Base dos diários importada.', data.erros?.length ? 'warning' : 'success');
-    await carregarDiarios();
-  } catch (err) {
-    status.className = 'imp-status imp-vermelho';
-    status.textContent = 'Erro';
-    toast('Erro ao importar diários: ' + err.message, 'error');
-  }
 });
 document.getElementById('ovi-arm-form').addEventListener('submit', async e => {
   e.preventDefault();

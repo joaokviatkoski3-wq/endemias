@@ -153,7 +153,7 @@ def imprimir_diario():
 @bp.route("/api/ovitrampas")
 @login_required
 def api_resumo():
-    return jsonify(ovitrampas_core.resumo(_db_path(), _filtros()))
+    return jsonify(ovitrampas_core.resumo_contagens_api_para_aba(_db_path(), _filtros()))
 
 
 @bp.route("/api/ovitrampas/listar")
@@ -161,7 +161,9 @@ def api_resumo():
 def api_listar():
     filtros = _filtros()
     filtros["busca"] = request.args.get("busca", "")
-    return jsonify(ovitrampas_core.listar(_db_path(), filtros, limite=request.args.get("limite") or 500))
+    return jsonify(ovitrampas_core.listar_contagens_api_para_aba(
+        _db_path(), filtros, limite=request.args.get("limite") or 500
+    ))
 
 
 @bp.route("/api/ovitrampas/armadilhas")

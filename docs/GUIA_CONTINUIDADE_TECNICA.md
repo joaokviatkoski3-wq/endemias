@@ -324,9 +324,13 @@ Ao ver um arquivo sensivel como nao rastreado, nao o adicione. Confira
 
 ## Fluxos de negocio que nao devem ser confundidos
 
-- Ovitrampas/Leituras importadas: historico vindo do Conta Ovos por CSV.
-- Ovitrampas/Laboratorio: espelho local preenchido pelo laboratorista antes do
-  lancamento externo.
+- Ovitrampas/Leituras: historico vem do espelho GET do Conta Ovos; os detalhes
+  de laboratorista, data da leitura e ocorrencia sao enriquecidos pelos lotes
+  locais preenchidos na aba Laboratorio.
+- Ovitrampas/Armadilhas: cadastro local continua aceitando CSV porque a API nao
+  fornece todos os dados cadastrais necessarios.
+- Ovitrampas/Diarios: diarios, responsaveis e telefones permanecem locais,
+  editaveis e usados na impressao; a importacao XLSX foi retirada da interface.
 - Conta Ovos/SisPNCD: apoio operacional; a fundacao privada, a sincronizacao
   GET, a fila local das leituras, a fundacao GET do cadastro remoto e o envio
   supervisionado por lote de leituras estao em `master`. A prova real de

@@ -2378,11 +2378,14 @@ class MainPagesSmokeTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
-        self.assertIn("Edição em lote das leituras filtradas", html)
-        self.assertIn('id="ovi-lote-lab"', html)
-        self.assertIn('id="ovi-lote-somente-vazios"', html)
+        self.assertIn("Leituras sincronizadas do Conta Ovos", html)
+        self.assertIn("As leituras desta aba vêm do espelho GET", html)
+        self.assertNotIn('id="ovi-lote-lab"', html)
+        self.assertNotIn('id="ovi-lote-somente-vazios"', html)
         self.assertIn('data-ovi-tab="diarios"', html)
-        self.assertIn('id="ovi-dia-import-form"', html)
+        self.assertNotIn('id="ovi-dia-import-form"', html)
+        self.assertNotIn('id="ovi-oco-form"', html)
+        self.assertNotIn('data-ovi-salvar-leitura', html)
         self.assertIn("data-ovi-dia-drag", html)
         self.assertIn("/reordenar", html)
         self.assertIn("addEventListener('pointerdown'", html)
@@ -2401,7 +2404,7 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertNotIn('id="ovi-arm-agentes"', html)
         self.assertIn('id="ovi-hist-alt-body"', html)
         self.assertIn("Sem diário definido", html)
-        self.assertIn("aplicarOviLote", html)
+        self.assertIn("Fonte: ${oviEscape(r.fonte_leitura || 'API Conta Ovos')}", html)
 
     def test_pagina_visitas_usa_filtros_modernos(self):
         client = _client_logado()

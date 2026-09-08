@@ -7,25 +7,41 @@ Ovitrampas/Conta Ovos e o que ficou feito ate o fechamento da sessao de
 
 ## Estado atual (vivo)
 
-- `master` em `199d3e9` como base deste lote, versao alvo `1.27.0`.
+- `master` em `8ab2ff1` como base deste lote, versao alvo `1.28.0`.
 - Worktree de trabalho `trabalho-deepseek` limpo e igual a `master`.
 - Producao: PostgreSQL `endemias`, executada sob `SYSTEM`.
-- A refatoracao maior de Ovitrampas foi retomada em lote incremental; o
-  primeiro lote adiciona indicadores de origem e sincronizacao GET dos
-  espelhos pela interface, sem remover ainda os fluxos de contingencia.
+- A refatoracao maior de Ovitrampas foi retomada em lotes incrementais; o
+  primeiro lote adicionou indicadores de origem e sincronizacao GET dos
+  espelhos pela interface. O segundo lote, `1.28.0`, conclui a troca da aba
+  Leituras para o espelho API e retira importacoes redundantes da interface.
 - O **problema real das 12 ovitrampas no Conta Ovos foi diagnosticado** e o
   usuario fez a correcao manual no site.
 
-## 1.1) Primeiro lote da retomada — implementado nesta branch
+## 1.1) Primeiro lote da retomada — integrado na master
 
-- A página exibe a fonte de cada bloco: CSV/histórico local, API Conta Ovos,
-  lançamentos laboratoriais ou cadastro local.
+- A página exibe a fonte de cada bloco: API Conta Ovos, lançamentos
+  laboratoriais ou cadastro local.
 - Administradores possuem o botão **Atualizar espelhos GET**, que sincroniza o
   cadastro público e as contagens recentes, grava somente os espelhos locais e
   registra auditoria.
 - A ação não chama `/postcounting`, `/postaction` nem qualquer exclusão remota.
-- CSV de leituras, CSV histórico de ocorrências e XLSX de diários continuam
-  disponíveis como contingência até a validação dos próximos lotes.
+- O lote preservou a operação segura do Laboratório e do Calendário.
+
+## 1.2) Segundo lote da retomada — implementado
+
+- A aba **Leituras** consulta exclusivamente o espelho GET de contagens da API,
+  mostrando detalhes da contagem, resultado, coleta e envio.
+- Laboratorista, data da leitura e ocorrência são exibidos a partir dos lotes e
+  itens preenchidos na aba **Laboratório**, cruzados por ovitrampa e data de
+  coleta. Os antigos controles manuais de edição foram retirados da interface.
+- **Monitoramento** continua usando a API para indicadores, positivas, ranking e
+  localidades; o Histórico de ocorrências usa os lançamentos do Laboratório.
+- A importação CSV ficou somente na aba **Armadilhas**, onde o cadastro local
+  ainda possui dados que a API não fornece.
+- A importação XLSX dos **Diários** foi retirada da interface. Diários,
+  responsáveis e telefones continuam locais, editáveis e usados na impressão.
+- As rotas/importadores legados permanecem no backend por compatibilidade e
+  preservação de dados históricos, mas não são mais oferecidos pela página.
 
 ## 1) Problema real investigado (cadastro em branco)
 
@@ -54,20 +70,20 @@ cadastro local `ovitrampas_armadilhas`.
 **Prevencao recomendada (nao feita):** sincronizar o espelho do cadastro remoto
 e, no fluxo de envio, avisar/bloquear ovitrampas sem cadastro remoto.
 
-## 2) Refatoracao planejada (nao implementada)
+## 2) Refatoracao planejada (historico do pedido; itens principais implementados)
 
 Pedidos acumulados do usuario para a pagina Ovitrampas (interrompidos):
 
-1. **Remover importacao redundante de ocorrencias via CSV** (as ocorrencias do
-   Monitoramento ja vem dos lancamentos de laboratorio).
-2. **Indicadores discretos de origem** dos dados na tela (CSV vs API).
-3. **Revisar redundancias/estrutura** das abas de Ovitrampas.
-4. **Botao/config na interface para atualizar os dados da API** (sincronizacao
-   hoje so via CLI em `scripts/sincronizar_contagens_contaovos.py` e
-   `sincronizar_registro_ovitrampas_contaovos.py`).
-5. Ajustes que o usuario indicou: migrar a aba Leituras para o espelho API;
-   remover import CSV de leituras; remover import XLSX de diarios (diarios sao
-   mantidos no sistema); laboratorista/edicao em lote fora da aba Leituras.
+1. **Remover importacao redundante de ocorrencias via CSV** — concluido; as
+   ocorrencias do Monitoramento vem dos lancamentos de laboratorio.
+2. **Indicadores discretos de origem** — concluido.
+3. **Revisar redundancias/estrutura** — concluido para Leituras, Monitoramento
+   e Diarios.
+4. **Botao/config na interface para atualizar os dados da API** — concluido;
+   a acao administrativa sincroniza os espelhos por GET.
+5. **Migrar a aba Leituras para o espelho API**, remover import CSV de leituras,
+   remover import XLSX de diarios e retirar edicao manual de laboratorista/data
+   — concluido no lote `1.28.0`.
 
 **Observacao para quem retomar:** o espelho de contagens
 (`ovitrampas_ocorrencias_conta_ovos`) NAO carrega a ocorrencia; endereco/REALOCAR

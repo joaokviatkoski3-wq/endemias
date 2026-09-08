@@ -729,47 +729,180 @@ def listar(db_path, filtros=None, limite=500):
     return {"total": total, "registros": rows}
 
 
-def contagens_api_para_aba(db_path, filtros=None, limite=200):
-    """Lista contagens de origem API (espelho `ovitrampas_ocorrencias_conta_ovos`).
-
-    Exibe o que o Conta Ovos retornou (GET /lastcounting sincronizado),
-    enriquecido com o cadastro local (localidade/complemento) apenas para
-    leitura. Nao altera ovitrampas_leituras nem o fluxo de laboratorio.
-    """
+def _where_contagens_api(filtros=None, busca=False):
     filtros = filtros or {}
-    limite = max(1, min(int(limite or 200), 2000))
+    clauses = ["1=1"]
+    params = []
+    if filtros.get("ano"):
+        clauses.append("o.ano=?")
+        params.append(_int(filtros.get("ano")))
+    if filtros.get("semana"):
+        clauses.append("o.semana=?")
+        params.append(_int(filtros.get("semana")))
+    if filtros.get("distrito"):
+        clauses.append("a.localidade=?")
+        params.append(filtros["distrito"])
+    if filtros.get("positivas") == "1":
+        clauses.append("o.ovos > 0")
+    if filtros.get("ovitrampa_id"):
+        clauses.append("o.ovitrampa_id=?")
+        params.append(str(filtros["ovitrampa_id"]).strip())
+    if busca and filtros.get("busca"):
+        term = f"%{str(filtros['busca']).strip().lower()}%"
+        columns = (
+            "o.ovitrampa_id", "a.localidade", "a.rua", "a.numero",
+            "a.complemento", "a.localizacao", "o.resultado",
+        )
+        clauses.append("(" + " OR ".join(
+            f"LOWER(COALESCE({column},'')) LIKE ?" for column in columns
+        ) + ")")
+        params.extend([term] * len(columns))
+    return "WHERE " + " AND ".join(clauses), params
+
+
+def _lab_contagens_join(conn):
+    """Retorna o enriquecimento dos dados da página Laboratório, quando existe."""
+    if not (
+        db_core.table_exists(conn, LAB_LOTES_TABLE)
+        and db_core.table_exists(conn, LAB_ITENS_TABLE)
+    ):
+        return ""
+    return f"""
+        LEFT JOIN (
+            SELECT li.ovitrampa_id, lt.data_movimento,
+                   lt.laboratorista_nome, li.ocorrencia,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY li.ovitrampa_id, lt.data_movimento
+                       ORDER BY CASE lt.status
+                                  WHEN 'enviado_conta_ovos' THEN 3
+                                  WHEN 'concluido' THEN 2
+                                  WHEN 'em_preenchimento' THEN 1
+                                  ELSE 0 END DESC,
+                                COALESCE(lt.concluido_em, lt.atualizado_em, lt.criado_em) DESC,
+                                lt.id_lote DESC
+                   ) AS lab_rank
+              FROM {LAB_ITENS_TABLE} li
+              JOIN {LAB_LOTES_TABLE} lt ON lt.id_lote=li.id_lote
+             WHERE lt.status IN ('em_preenchimento','concluido','enviado_conta_ovos')
+        ) lab ON lab.ovitrampa_id=o.ovitrampa_id
+             AND lab.data_movimento=o.data
+             AND lab.lab_rank=1
+    """
+
+
+def resumo_contagens_api_para_aba(db_path, filtros=None):
+    """Resume as leituras do espelho GET do Conta Ovos."""
+    filtros = filtros or {}
     conn = db_core.connect(db_path)
     try:
         ensure_schema(conn)
-        where, params = ["WHERE 1=1"], []
-        ano = (filtros.get("ano") or "").strip()
-        ovitrampa = (filtros.get("ovitrampa_id") or "").strip()
-        if ano:
-            where.append("o.ano=?")
-            params.append(int(ano))
-        if ovitrampa:
-            where.append("o.ovitrampa_id=?")
-            params.append(ovitrampa)
-        name_order = _nocase_order(conn, "o.ovitrampa_id")
-        rows = [db_core.serialize_row(row) for row in conn.execute(
-            f"""SELECT o.ovitrampa_id, o.ano, o.semana, o.data, o.ovos,
-                       o.resultado, o.ocorrencia_codigo, o.data_envio_contagem,
-                       o.latitude, o.longitude, o.arquivo_origem,
-                       a.localidade, a.complemento, a.rua, a.numero
+        if not conn.execute(f"SELECT 1 FROM {OCORRENCIAS_TABLE} LIMIT 1").fetchone():
+            return resumo(db_path, filtros)
+        where, params = _where_contagens_api(filtros)
+        totais = db_core.serialize_row(conn.execute(
+            f"""SELECT COUNT(*) AS leituras,
+                       COUNT(DISTINCT o.ovitrampa_id) AS ovitrampas,
+                       COALESCE(SUM(o.ovos),0) AS ovos,
+                       COALESCE(AVG(o.ovos),0) AS media_ovos,
+                       SUM(CASE WHEN o.ovos > 0 THEN 1 ELSE 0 END) AS positivas,
+                       MAX(o.ano) AS ultimo_ano,
+                       MAX(CASE WHEN o.ano=(SELECT MAX(ano) FROM {OCORRENCIAS_TABLE})
+                                THEN o.semana ELSE NULL END) AS ultima_semana
                   FROM {OCORRENCIAS_TABLE} o
                   LEFT JOIN {ARMADILHAS_TABLE} a ON a.ovitrampa_id=o.ovitrampa_id
-                  {' '.join(where)}
-                 ORDER BY (o.data IS NULL), o.data DESC, {name_order}
+                 {where}""",
+            params,
+        ).fetchone())
+        por_distrito = [db_core.serialize_row(row) for row in conn.execute(
+            f"""SELECT COALESCE(a.localidade,'-') AS distrito,
+                       COUNT(*) AS leituras,
+                       COUNT(DISTINCT o.ovitrampa_id) AS ovitrampas,
+                       COALESCE(SUM(o.ovos),0) AS ovos
+                  FROM {OCORRENCIAS_TABLE} o
+                  LEFT JOIN {ARMADILHAS_TABLE} a ON a.ovitrampa_id=o.ovitrampa_id
+                 {where}
+                 GROUP BY COALESCE(a.localidade,'-')
+                 ORDER BY ovos DESC, leituras DESC, distrito
+                 LIMIT 12""",
+            params,
+        )]
+        por_semana = [db_core.serialize_row(row) for row in conn.execute(
+            f"""SELECT o.ano, o.semana, COUNT(*) AS leituras,
+                       COALESCE(SUM(o.ovos),0) AS ovos,
+                       SUM(CASE WHEN o.ovos > 0 THEN 1 ELSE 0 END) AS positivas
+                  FROM {OCORRENCIAS_TABLE} o
+                  LEFT JOIN {ARMADILHAS_TABLE} a ON a.ovitrampa_id=o.ovitrampa_id
+                 {where}
+                 GROUP BY o.ano, o.semana
+                 ORDER BY o.ano DESC, o.semana DESC
+                 LIMIT 16""",
+            params,
+        )]
+    finally:
+        conn.close()
+    return {
+        "totais": totais,
+        "por_distrito": por_distrito,
+        "por_semana": por_semana,
+        "fonte": "API Conta Ovos",
+    }
+
+
+def listar_contagens_api_para_aba(db_path, filtros=None, limite=500):
+    """Lista detalhes do espelho API, enriquecidos pelo Laboratório e cadastro."""
+    filtros = filtros or {}
+    limite = max(1, min(int(limite or 500), 2000))
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        if not conn.execute(f"SELECT 1 FROM {OCORRENCIAS_TABLE} LIMIT 1").fetchone():
+            return {**listar(db_path, filtros, limite=limite), "fonte": "histórico local legado"}
+        where, params = _where_contagens_api(filtros, busca=True)
+        lab_join = _lab_contagens_join(conn)
+        lab_fields = (
+            "lab.data_movimento AS data_leitura, lab.laboratorista_nome AS laboratorista, "
+            "lab.ocorrencia AS ocorrencia_laboratorio"
+            if lab_join
+            else "NULL AS data_leitura, NULL AS laboratorista, NULL AS ocorrencia_laboratorio"
+        )
+        name_order = _nocase_order(conn, "o.ovitrampa_id")
+        rows = [db_core.serialize_row(row) for row in conn.execute(
+            f"""SELECT o.id_contagem AS id_leitura, o.ovitrampa_id, o.ano, o.semana,
+                       o.data, o.data AS data_coleta, o.data_envio_contagem,
+                       o.ovos, o.resultado, o.codigo_conta_ovos,
+                       o.observacao_conta_ovos, o.latitude, o.longitude,
+                       o.lat_lng, o.arquivo_origem,
+                       COALESCE(a.localidade,'-') AS distrito,
+                       a.localidade, a.complemento, a.rua, a.numero,
+                       a.bairro, a.quarteirao, a.localizacao,
+                       {lab_fields}
+                  FROM {OCORRENCIAS_TABLE} o
+                  LEFT JOIN {ARMADILHAS_TABLE} a ON a.ovitrampa_id=o.ovitrampa_id
+                  {lab_join}
+                 {where}
+                 ORDER BY (o.data IS NULL), o.data DESC, o.semana DESC, {name_order}
                  LIMIT ?""",
             [*params, limite],
         )]
         total = conn.execute(
-            f"SELECT COUNT(*) FROM {OCORRENCIAS_TABLE} o {' '.join(where)}",
+            f"""SELECT COUNT(*)
+                  FROM {OCORRENCIAS_TABLE} o
+                  LEFT JOIN {ARMADILHAS_TABLE} a ON a.ovitrampa_id=o.ovitrampa_id
+                 {where}""",
             params,
         ).fetchone()[0]
     finally:
         conn.close()
+    for row in rows:
+        codigo = row.get("ocorrencia_laboratorio")
+        row["ocorrencia_label"] = OCORRENCIAS.get(codigo) if codigo else None
+        row["fonte_leitura"] = "Laboratório" if row.get("laboratorista") else "API Conta Ovos"
     return {"total": total, "registros": rows, "fonte": "API Conta Ovos"}
+
+
+def contagens_api_para_aba(db_path, filtros=None, limite=200):
+    """Compatibilidade para o endpoint do espelho API usado em diagnósticos."""
+    return listar_contagens_api_para_aba(db_path, filtros, limite=limite)
 
 
 def listar_armadilhas(db_path, filtros=None, limite=500):
@@ -783,17 +916,62 @@ def listar_armadilhas(db_path, filtros=None, limite=500):
         name_order = _nocase_order(conn, "a.ovitrampa_id")
         rows = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT a.*,
-                       COUNT(l.id_leitura) AS leituras,
-                       COALESCE(SUM(l.ovos),0) AS ovos_total,
-                       SUM(CASE WHEN l.ovos > 0 THEN 1 ELSE 0 END) AS positivas,
-                       MAX(l.data_coleta) AS ultima_coleta,
-                       MAX(l.ano) AS ultimo_ano
+                       CASE WHEN EXISTS (
+                           SELECT 1 FROM {OCORRENCIAS_TABLE} oa
+                            WHERE oa.ovitrampa_id=a.ovitrampa_id
+                       ) THEN (
+                           SELECT COUNT(*) FROM {OCORRENCIAS_TABLE} oa
+                            WHERE oa.ovitrampa_id=a.ovitrampa_id
+                       ) ELSE (
+                           SELECT COUNT(*) FROM {TABLE} la
+                            WHERE la.ovitrampa_id=a.ovitrampa_id
+                       ) END AS leituras,
+                       CASE WHEN EXISTS (
+                           SELECT 1 FROM {OCORRENCIAS_TABLE} oa
+                            WHERE oa.ovitrampa_id=a.ovitrampa_id
+                       ) THEN (
+                           SELECT COALESCE(SUM(oa.ovos),0) FROM {OCORRENCIAS_TABLE} oa
+                            WHERE oa.ovitrampa_id=a.ovitrampa_id
+                       ) ELSE (
+                           SELECT COALESCE(SUM(la.ovos),0) FROM {TABLE} la
+                            WHERE la.ovitrampa_id=a.ovitrampa_id
+                       ) END AS ovos_total,
+                       CASE WHEN EXISTS (
+                           SELECT 1 FROM {OCORRENCIAS_TABLE} oa
+                            WHERE oa.ovitrampa_id=a.ovitrampa_id
+                       ) THEN (
+                           SELECT SUM(CASE WHEN oa.ovos > 0 THEN 1 ELSE 0 END)
+                             FROM {OCORRENCIAS_TABLE} oa
+                            WHERE oa.ovitrampa_id=a.ovitrampa_id
+                       ) ELSE (
+                           SELECT SUM(CASE WHEN la.ovos > 0 THEN 1 ELSE 0 END)
+                             FROM {TABLE} la
+                            WHERE la.ovitrampa_id=a.ovitrampa_id
+                       ) END AS positivas,
+                       CASE WHEN EXISTS (
+                           SELECT 1 FROM {OCORRENCIAS_TABLE} oa
+                            WHERE oa.ovitrampa_id=a.ovitrampa_id
+                       ) THEN (
+                           SELECT MAX(oa.data) FROM {OCORRENCIAS_TABLE} oa
+                            WHERE oa.ovitrampa_id=a.ovitrampa_id
+                       ) ELSE (
+                           SELECT MAX(la.data_coleta) FROM {TABLE} la
+                            WHERE la.ovitrampa_id=a.ovitrampa_id
+                       ) END AS ultima_coleta,
+                       CASE WHEN EXISTS (
+                           SELECT 1 FROM {OCORRENCIAS_TABLE} oa
+                            WHERE oa.ovitrampa_id=a.ovitrampa_id
+                       ) THEN (
+                           SELECT MAX(oa.ano) FROM {OCORRENCIAS_TABLE} oa
+                            WHERE oa.ovitrampa_id=a.ovitrampa_id
+                       ) ELSE (
+                           SELECT MAX(la.ano) FROM {TABLE} la
+                            WHERE la.ovitrampa_id=a.ovitrampa_id
+                       ) END AS ultimo_ano
                   FROM ovitrampas_armadilhas a
-                  LEFT JOIN ovitrampas_leituras l ON l.ovitrampa_id=a.ovitrampa_id
                   {where}
-                 GROUP BY a.ovitrampa_id
-                 ORDER BY {id_order}, {name_order}
-                 LIMIT ?""",
+                  ORDER BY {id_order}, {name_order}
+                  LIMIT ?""",
             [*params, limite],
         )]
         total = conn.execute(f"SELECT COUNT(*) FROM ovitrampas_armadilhas a {where}", params).fetchone()[0]
@@ -810,14 +988,39 @@ def historico_armadilha(db_path, ovitrampa_id):
             f"SELECT * FROM {ARMADILHAS_TABLE} WHERE ovitrampa_id=?",
             (str(ovitrampa_id),),
         ).fetchone()
+        lab_join = _lab_contagens_join(conn)
+        lab_fields = (
+            "lab.data_movimento AS data_leitura, lab.laboratorista_nome AS laboratorista, "
+            "lab.ocorrencia AS ocorrencia_laboratorio"
+            if lab_join
+            else "NULL AS data_leitura, NULL AS laboratorista, NULL AS ocorrencia_laboratorio"
+        )
         leituras = [db_core.serialize_row(row) for row in conn.execute(
-            """SELECT l.*, a.nome AS laboratorista
-                 FROM ovitrampas_leituras l
-                 LEFT JOIN agentes a ON a.id_agente=l.id_laboratorista
-                WHERE l.ovitrampa_id=?
-                ORDER BY l.ano DESC, l.semana DESC, l.data_coleta DESC""",
+            f"""SELECT o.id_contagem AS id_leitura, o.ovitrampa_id, o.ano,
+                       o.semana, o.data, o.data AS data_coleta,
+                       o.data_envio_contagem, o.ovos, o.resultado,
+                       o.codigo_conta_ovos, o.observacao_conta_ovos,
+                       o.latitude, o.longitude, o.lat_lng, o.arquivo_origem,
+                       {lab_fields}
+                  FROM {OCORRENCIAS_TABLE} o
+                  {lab_join}
+                 WHERE o.ovitrampa_id=?
+                 ORDER BY o.ano DESC, o.semana DESC, o.data DESC""",
             (str(ovitrampa_id),),
         )]
+        for row in leituras:
+            row["ocorrencia_label"] = OCORRENCIAS.get(row.get("ocorrencia_laboratorio"))
+        if not leituras:
+            # Mantem a leitura de dados antigos enquanto a primeira
+            # sincronizacao GET ainda nao foi executada.
+            leituras = [db_core.serialize_row(row) for row in conn.execute(
+                """SELECT l.*, a.nome AS laboratorista
+                     FROM ovitrampas_leituras l
+                     LEFT JOIN agentes a ON a.id_agente=l.id_laboratorista
+                    WHERE l.ovitrampa_id=?
+                    ORDER BY l.ano DESC, l.semana DESC, l.data_coleta DESC""",
+                (str(ovitrampa_id),),
+            )]
         historico = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT *
                   FROM {ARMADILHAS_HISTORICO_TABLE}
@@ -1750,9 +1953,14 @@ def distritos(db_path):
         ensure_schema(conn)
         return [row[0] for row in conn.execute(
             """SELECT nome FROM (
-                   SELECT DISTINCT distrito AS nome FROM ovitrampas_leituras WHERE distrito IS NOT NULL AND TRIM(distrito)<>''
+                   SELECT DISTINCT a.localidade AS nome
+                     FROM ovitrampas_ocorrencias_conta_ovos o
+                     JOIN ovitrampas_armadilhas a ON a.ovitrampa_id=o.ovitrampa_id
+                    WHERE a.localidade IS NOT NULL AND TRIM(a.localidade)<>''
                    UNION
                    SELECT DISTINCT localidade AS nome FROM ovitrampas_armadilhas WHERE localidade IS NOT NULL AND TRIM(localidade)<>''
+                   UNION
+                   SELECT DISTINCT distrito AS nome FROM ovitrampas_leituras WHERE distrito IS NOT NULL AND TRIM(distrito)<>''
                )
                ORDER BY nome"""
         )]

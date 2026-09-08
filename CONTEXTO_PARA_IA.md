@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.27.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.28.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -265,11 +265,14 @@ obrigatoria para integracao.
 
 - A credencial privada Conta Ovos foi recebida, protegida para `SYSTEM` e
   Administradores e validada em uma consulta supervisionada somente leitura.
-- A sincronizacao GET de contagens esta homologada; importacoes CSV e marcacoes
-  manuais continuam como fallback. A central Conta Ovos continua sendo somente
-  leitura do espelho local. A pagina operacional Ovitrampas agora oferece, para
-  administradores, uma acao explicita que sincroniza por GET o cadastro publico
-  e as contagens recentes, gravando apenas os espelhos locais.
+- A sincronizacao GET de contagens esta homologada. A central Conta Ovos e a
+  pagina operacional Ovitrampas leem o espelho local; Leituras e Monitoramento
+  usam as contagens sincronizadas da API, e os dados de laboratorista/data da
+  leitura e ocorrencia sao derivados dos lancamentos laboratoriais. A pagina
+  Ovitrampas oferece, para administradores, uma acao explicita que sincroniza
+  por GET o cadastro publico e as contagens recentes, gravando apenas os
+  espelhos locais. CSV de leituras/ocorrencias e XLSX de diarios nao fazem mais
+  parte da interface; o CSV permanece apenas na aba Armadilhas.
 - O envio remoto de leituras por lote via `/postcounting` ja existe na `master`,
   sob demanda, com confirmacao no navegador, sem retentativa automatica e sem
   envio silencioso. Ele nao deve ser confundido com a sincronizacao GET.

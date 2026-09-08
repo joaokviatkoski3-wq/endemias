@@ -243,6 +243,35 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
                VALUES ('900','97',2026,33,'2026-08-24',0,'Negativa',5,-25.1,-49.2,
                        'API privada Conta Ovos','2026-09-02T10:00:00')"""
         )
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS usuarios (id_usuario INTEGER PRIMARY KEY, nome TEXT)"
+        )
+        laboratorio_core._ensure_schema_conn(conn)
+        agora = "2026-09-02T10:00:00"
+        id_diario = conn.execute(
+            """INSERT INTO ovitrampas_diarios(nome,ativo,criado_em,atualizado_em)
+               VALUES ('Roma 1',1,?,?)""",
+            (agora, agora),
+        ).lastrowid
+        id_evento = conn.execute(
+            """INSERT INTO ovitrampas_calendario_eventos
+               (data,movimento,criado_em,atualizado_em)
+               VALUES ('2026-08-24','troca',?,?)""",
+            (agora, agora),
+        ).lastrowid
+        id_lote = conn.execute(
+            """INSERT INTO ovitrampas_laboratorio_lotes
+               (id_evento,id_diario,diario_nome,data_movimento,movimento,status,
+                laboratorista_nome,criado_em,atualizado_em)
+               VALUES (?,?,?,'2026-08-24','troca','concluido',?,?,?)""",
+            (id_evento, id_diario, "Roma 1", "Laboratorista API", agora, agora),
+        ).lastrowid
+        conn.execute(
+            """INSERT INTO ovitrampas_laboratorio_itens
+               (id_lote,ovitrampa_id,complemento,localidade,ovos,ocorrencia,atualizado_em)
+               VALUES (?,?,'Local A','Roma',0,5,?)""",
+            (id_lote, "97", agora),
+        )
         conn.commit()
         conn.close()
 
@@ -254,6 +283,10 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
         self.assertEqual("Roma", reg["localidade"])  # join com cadastro local
         self.assertEqual(0, reg["ovos"])
         self.assertEqual("2026-08-24", reg["data"])
+        self.assertEqual("2026-08-24", reg["data_leitura"])
+        self.assertEqual("Laboratorista API", reg["laboratorista"])
+        self.assertEqual("Armadilha seca", reg["ocorrencia_label"])
+        self.assertEqual("Laboratório", reg["fonte_leitura"])
 
     def test_monitoramento_contagens_lê_espelho_api_com_periodo(self):
         import tempfile

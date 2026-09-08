@@ -343,6 +343,15 @@ pagina `/ovitrampas`. A tela agora identifica as fontes dos dados e oferece a
 administradores uma sincronizacao GET dos espelhos locais, sem envio remoto.
 Os fluxos CSV/XLSX permanecem nesta primeira etapa como contingencia.
 
+**Atualizacao posterior 1.28.0:** a aba **Leituras** passou a consultar o
+espelho GET `ovitrampas_ocorrencias_conta_ovos`, com detalhes da API e
+enriquecimento de laboratorista, data da leitura e ocorrencia pelos lotes da
+aba **Laboratorio**. O Monitoramento permanece API para indicadores e usa o
+Laboratorio no historico de ocorrencias. A importacao CSV foi retirada de
+Leituras e do historico de ocorrencias; a importacao XLSX foi retirada de
+Diarios. O CSV continua somente em Armadilhas, enquanto responsaveis e
+telefones dos Diarios seguem locais, editaveis e usados na impressao.
+
 **B) Diagnostico do cadastro em branco de 12 ovitrampas no Conta Ovos.**
 
 Sintoma reportado pelo usuario: apos envios de contagens da semana 34 (coleta
