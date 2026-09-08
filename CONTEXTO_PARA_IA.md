@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.28.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.29.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -174,7 +174,7 @@ tag `operacao-ferias-2026-08-05` e um marco historico, nao uma instrucao para
 manter o desenvolvimento bloqueado.
 
 O estado efetivamente atual, as pendencias encontradas depois do retorno, o
-status da central Conta Ovos e a proxima ordem recomendada estao concentrados
+status da integracao Conta Ovos e a proxima ordem recomendada estao concentrados
 em `docs/ESTADO_ATUAL_PROJETO.md`. A `master` ja possui envio supervisionado de
 leituras por lote via `/postcounting` e, no lote atual da pagina Ovitrampas,
 sincronizacao GET dos espelhos restrita a administradores. A correcao segura de
@@ -265,8 +265,8 @@ obrigatoria para integracao.
 
 - A credencial privada Conta Ovos foi recebida, protegida para `SYSTEM` e
   Administradores e validada em uma consulta supervisionada somente leitura.
-- A sincronizacao GET de contagens esta homologada. A central Conta Ovos e a
-  pagina operacional Ovitrampas leem o espelho local; Leituras e Monitoramento
+- A sincronizacao GET de contagens esta homologada. A pagina operacional
+  Ovitrampas le o espelho local; Leituras e Monitoramento
   usam as contagens sincronizadas da API, e os dados de laboratorista/data da
   leitura e ocorrencia sao derivados dos lancamentos laboratoriais. A pagina
   Ovitrampas oferece, para administradores, uma acao explicita que sincroniza

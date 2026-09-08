@@ -10,11 +10,11 @@ confrontada com este estado antes de implementar novos endpoints.
 Estado atualizado em 08/09/2026: fundacao, sincronizacao GET, fila local das
 leituras do laboratorio e fundacao GET do cadastro remoto de ovitrampas estao
 implementadas; credencial protegida, escopo privado, idempotencia real e semana
-epidemiologica foram validados. A central de consulta separa visao geral,
-Ovitrampas (com sub-areas de proveniencia API), EDLs e Quarteiroes/acoes
-reservados. A pagina operacional Ovitrampas possui sincronizacao GET dos
-espelhos para administradores e envio supervisionado por lote via
-`/postcounting`; a central Conta Ovos continua sem escrita remota.
+epidemiologica foram validados. A pagina operacional Ovitrampas concentra os
+dados visiveis e possui sincronizacao GET dos espelhos para administradores e
+envio supervisionado por lote via `/postcounting`. A antiga central de consulta
+`/conta-ovos` foi retirada por duplicidade; a pagina `/conta-ovos-sispncd`
+permanece independente para TBO e SisPNCD.
 
 A preferencia operacional atual e ampliar e usar primeiro a **leitura local do
 espelho**, nao escrever na API. A primeira sincronizacao real do cadastro remoto
@@ -176,16 +176,19 @@ tambem oferece ao administrador a sincronizacao conjunta dos espelhos, sempre
 por GET e com auditoria local. A migracao `0005` foi aplicada e o ensaio
 PostgreSQL temporario passou sem alterar tabelas publicas.
 
-## Central de consulta no Endemias
+## Integracao visivel em Ovitrampas
 
-A interface `Conta Ovos` reorganizou-se em `Visao geral`, `Ovitrampas`
-(Contagens, Monitoramento, Cadastro remoto, Mapa, Sincronizacao e
-divergencias), `EDLs` (reservado) e `Quarteiroes e acoes` (reservado). Ela
-mostra somente o espelho local sem fazer chamadas remotas durante a
-navegacao; Contagens e Monitoramento dentro de Ovitrampas filtram sempre por
-proveniencia API. A arquitetura completa, a separacao em relacao a pagina
-operacional de Ovitrampas e o criterio para adicionar novos dominios remotos
-estao em `docs/CONTA_OVOS_INTERFACE.md`.
+A pagina `/ovitrampas` mostra os dados operacionais de interesse: Leituras e
+Monitoramento usam o espelho API, Laboratorio enriquece laboratorista/data da
+leitura/ocorrencia, Armadilhas preserva o cadastro local, Diarios preservam
+responsaveis e telefones, e Calendario permanece como base das datas. A
+sincronizacao dos espelhos e o envio supervisionado continuam nas rotas da
+pagina `/ovitrampas`; a interface nao consulta a API em cada carregamento.
+
+Cadastro remoto, mapa e divergencias deixaram de ter uma central separada. Se
+forem necessarios novamente, devem ser incorporados como abas de Ovitrampas,
+sem criar uma segunda fonte ou pagina paralela. A separacao de fontes de
+verdade e as regras de evolucao estao em `docs/CONTA_OVOS_INTERFACE.md`.
 
 ## Evidencia: exclusao e recriacao de ovitrampa
 
@@ -212,8 +215,8 @@ interface nem deve ser automatizado pelo sincronizador.
 ## Ordem futura recomendada
 
 1. Executar e conferir com o administrador a primeira sincronizacao real do
-   cadastro remoto de ovitrampas pela nova acao GET ou pelo CLI; a interface
-   continua lendo somente o espelho local depois da sincronizacao.
+   cadastro remoto de ovitrampas pela acao GET em `/ovitrampas` ou pelo CLI; a
+   interface continua lendo somente o espelho local depois da sincronizacao.
 2. Avaliar EDLs e Quarteiroes/acoes como novos dominios de **consulta**, pelo
    mesmo criterio da fundacao de cadastro remoto: endpoint GET documentado,
    schema/migracao proprios e sincronizacao supervisionada antes de qualquer

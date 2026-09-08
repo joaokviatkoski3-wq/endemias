@@ -69,10 +69,6 @@ class AjudaTests(unittest.TestCase):
         resultado = ajuda.consultar(consulta="duplicidade", rota="/", limite=120)
         self.assertIn("nada-aparece", [a["id"] for a in resultado["artigos"]])
 
-    def test_central_conta_ovos_tem_ajuda_de_contexto(self):
-        resultado = ajuda.consultar(rota="/conta-ovos", limite=120)
-        self.assertIn("conta-ovos-central", [a["id"] for a in resultado["contexto"]])
-
     def test_topicos_novos_de_campo_aparecem_na_pagina_certa(self):
         pe = ajuda.consultar(rota="/pontos-estrategicos", limite=120)
         self.assertIn("pe-semana-feitos", [a["id"] for a in pe["contexto"]])

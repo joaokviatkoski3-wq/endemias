@@ -336,9 +336,9 @@ Ao ver um arquivo sensivel como nao rastreado, nao o adicione. Confira
   supervisionado por lote de leituras estao em `master`. A prova real de
   5.405 contagens confirmou a semana epidemiologica sem divergencias. A pagina
   `/ovitrampas` possui sincronizacao GET dos espelhos para administradores e
-  envio por lote com confirmacao humana; a central `/conta-ovos` continua
-  somente leitura do espelho local e nao substitui a operacao em
-  `/ovitrampas`. Consulte `docs/CONTA_OVOS_API.md` e
+  envio por lote com confirmacao humana; a antiga central `/conta-ovos` foi
+  retirada por duplicidade. A operacao e a visualizacao dos dados de
+  ovitrampas ficam em `/ovitrampas`. Consulte `docs/CONTA_OVOS_API.md` e
   `docs/CONTA_OVOS_INTERFACE.md`.
 - Esporotricose/Visitas: dados importados do Kobo.
 - Esporotricose/Doentes: cadastro clinico manual, receitas e estoque.

@@ -98,17 +98,17 @@ Endemias e backups operacionais. Nao ha uma tarefa aberta de migracao do banco.
 
 ### Conta Ovos
 
-- A central `Conta Ovos` e **somente leitura local**: as telas nunca chamam a
-  API em tempo real. O espelho local e a base da interface; a API e a fonte de
-  verdade para os campos que ela administra.
+- Os espelhos locais da integracao Conta Ovos sao a base da interface; as telas
+  nao chamam a API em tempo real. A API e a fonte de verdade para os campos que
+  ela administra.
 - As contagens GET de 2026 foram reconciliadas em producao: 5.383 registros
   (1.452 inseridos, 3.931 atualizados). Uma repeticao de 45 dias retornou 1.108
   itens sem mudanca, confirmando idempotencia. CSV/importacoes manuais seguem
   como contingencia, sem segundo historico paralelo.
-- A central organiza `Visao geral`, `Ovitrampas` (Contagens, Monitoramento,
-  Cadastro remoto, Mapa e Sincronizacao/divergencias), com EDLs e Quarteiroes/
-  acoes reservados. A pagina operacional `/ovitrampas` continua necessaria e
-  nao deve ser removida.
+- A pagina operacional `/ovitrampas` concentra Leituras, Monitoramento,
+  Armadilhas, Diarios, Laboratorio e Calendario. A antiga central de consulta
+  `/conta-ovos` foi retirada por duplicidade; a pagina
+  `/conta-ovos-sispncd` continua independente.
 - O espelho do cadastro remoto existe (migracao `0005` aplicada e ensaio
   aprovado), mas a **primeira sincronizacao real desse cadastro ainda nao foi
   executada**. Ate ela, Cadastro remoto, Mapa e parte das divergencias podem
@@ -261,9 +261,9 @@ passarem). Ajuste: versao `1.24.1`.
 ### Frente 1 (incremento 1) - contagens via API no Ovitrampas
 
 Direcao aprovada pelo usuario: alimentar as abas de contagens de Ovitrampas pela
-API (Conta Ovos como fonte da verdade) e, ao longo da evolucao, remover a
-importacao manual de CSV de contagens e consolidar a pagina Conta Ovos na
-Ovitrampas. Incremento 1 (na branch, para teste no ambiente de teste): nova
+API (Conta Ovos como fonte da verdade), remover a importacao manual de CSV de
+contagens e consolidar a pagina Conta Ovos na Ovitrampas. Incremento 1 (na
+branch, para teste no ambiente de teste): nova
 funcao `ovitrampas.contagens_api_para_aba` e endpoint
 `/api/ovitrampas/ocorrencias-api` leem o espelho API
 (`ovitrampas_ocorrencias_conta_ovos`, alimentado por GET /lastcounting) e a aba
@@ -414,7 +414,7 @@ exclusao/recriacao foi apenas testado sob autorizacao e nao foi incorporado.
 1. **Sincronizacao dos espelhos Conta Ovos:** a pagina Ovitrampas agora possui
    acao administrativa explicita para executar GET do cadastro publico e das
    contagens recentes. O primeiro uso real ainda deve ser acompanhado pelo
-   administrador e conferido na aba Conta Ovos.
+   administrador e conferido na propria pagina Ovitrampas.
 2. **Pendencia operacional de PE:** as edicoes dos PEs 1 e 24 que falharam em
    13 e 17/08 tiveram rollback integral. A normalizacao de datas vazias/`NaT`
    ja foi integrada e possui testes; as edicoes reais continuam dependendo de

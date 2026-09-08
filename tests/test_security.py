@@ -2307,6 +2307,10 @@ class ProtectedRouteTests(unittest.TestCase):
 
 
 class MainPagesSmokeTests(unittest.TestCase):
+    def test_central_conta_ovos_foi_removida(self):
+        client = _client_logado()
+        self.assertEqual(404, client.get("/conta-ovos").status_code)
+
     def test_favicon_esta_disponivel_no_login_e_no_sistema(self):
         client = endemias_app.app.test_client()
         login = client.get("/login")
@@ -2329,7 +2333,6 @@ class MainPagesSmokeTests(unittest.TestCase):
             "/dashboard",
             "/visitas",
             "/laboratorio",
-            "/conta-ovos",
             "/conta-ovos-sispncd",
             "/ovitrampas",
             "/esporotricose",

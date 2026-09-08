@@ -109,16 +109,6 @@ MODULES: Tuple[AppModule, ...] = (
         required_permission="acesso_laboratorio",
     ),
     AppModule(
-        key="conta_ovos",
-        title="Conta Ovos",
-        href="/conta-ovos",
-        endpoint="conta_ovos.page",
-        icon="ovitrampa.svg",
-        nav_section="Analise",
-        description="Central de consulta do espelho local sincronizado da API Conta Ovos.",
-        tags=("Ovitrampas", "Sincronizacao", "Consulta"),
-    ),
-    AppModule(
         key="conta_ovos_sispncd",
         title="SisPNCD",
         href="/conta-ovos-sispncd",

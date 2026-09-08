@@ -1,104 +1,77 @@
-# Central Conta Ovos: decisao de interface
+# Conta Ovos e Ovitrampas: decisao de interface
 
-## Decisao desta etapa
+## Decisao atual
 
-`Conta Ovos` e uma pagina de **consulta da integracao externa**, nunca um proxy em tempo real. A navegacao e as consultas leem exclusivamente o espelho local PostgreSQL ja sincronizado. A pagina operacional `/ovitrampas` possui uma acao administrativa separada para sincronizar os espelhos por GET; ela nao envia dados remotos.
+Em 08/09/2026, a central de consulta `/conta-ovos` foi retirada da interface.
+Ela duplicava dados que agora sao apresentados diretamente na pagina
+`/ovitrampas`, que e a area operacional adotada pelo setor.
 
-Isso e deliberado, nao uma limitacao temporaria: a API Conta Ovos nao tem SLA, nao documenta limite de requisicoes e o setor precisa de uma tela responsiva mesmo se o fornecedor estiver fora do ar. O espelho local e a fonte de leitura da interface; a API e a fonte de verdade dos dados que ela administra, e a sincronizacao GET e o unico canal que atualiza o espelho.
+Isso nao remove a integracao Conta Ovos. Permanecem ativos a sincronizacao dos
+espelhos, as tabelas locais, a fila de leituras do Laboratorio e o envio
+supervisionado de leituras pela pagina `/ovitrampas`.
 
-**Estado atualizado em 08/09/2026:** as contagens GET ja foram sincronizadas e alimentam
-Contagens e Monitoramento. O schema e o ensaio do cadastro remoto de ovitrampas
-tambem estao prontos, mas sua primeira sincronizacao real ainda nao foi
-executada por decisao operacional. Por isso Cadastro remoto, Mapa e parte das
-divergencias podem estar vazios sem que a interface esteja com defeito. Nenhum
-o envio por lote via `/postcounting` ja existe na pagina operacional
-`/ovitrampas`, com confirmacao humana; a central `Conta Ovos` continua sem
-acoes de escrita remota.
+A pagina `/conta-ovos-sispncd` e independente e foi preservada. Ela continua
+responsavel pelas consultas TBO/Conta Ovos, pendencias de envio e consolidado
+SisPNCD.
 
-## Estrutura desta etapa
+## Dados visiveis em Ovitrampas
 
-```text
-Conta Ovos (integracao e analise do espelho local, somente GET)
-|- Visao geral                  (KPIs e evolucao gerais)
-|- Ovitrampas
-|  |- Contagens                 (somente proveniencia API)
-|  |- Monitoramento             (ranking/positividade, somente proveniencia API)
-|  |- Cadastro remoto           (somente espelho contaovos_registro_ovitrampas)
-|  |- Mapa                      (coordenadas remotas + territorio local, leitura)
-|  `- Sincronizacao e divergencias (estado GET + comparacoes informativas)
-|- EDLs                         (reservado, sem funcionalidade simulada)
-`- Quarteiroes e acoes          (reservado, sem funcionalidade simulada)
+`/ovitrampas` concentra as informacoes de interesse operacional:
 
-Ovitrampas (operacao local integrada ao espelho GET)
-|- Leituras API, monitoramento e cadastro operacional
-|- Diarios, calendario e laboratorio
-`- CSV somente para cadastro complementar de Armadilhas
-```
+- **Leituras:** usa o espelho GET do Conta Ovos como fonte das contagens,
+  enriquecendo laboratorista, data da leitura e ocorrencia pelos lancamentos
+  locais do Laboratorio.
+- **Monitoramento:** calcula positivas recentes, ranking, localidades e
+  demais indicadores sobre as contagens de proveniencia API; o historico de
+  ocorrencias vem do Laboratorio.
+- **Armadilhas:** continua sendo o cadastro local e a unica aba com importacao
+  CSV, pois a API nao fornece todos os campos cadastrais necessarios.
+- **Diarios:** preserva responsaveis e telefones locais, editaveis e usados
+  na impressao.
+- **Laboratorio:** registra leituras, pendencias e envio supervisionado ao
+  Conta Ovos.
+- **Calendario:** permanece como base sensivel das datas operacionais.
 
-**Visao geral** apresenta o retrato geral do sistema. A sub-area **Ovitrampas** e mais rigorosa: Leituras e Monitoramento **sempre usam o espelho de proveniencia API** (`arquivo_origem = 'API privada Conta Ovos'`), porque indicadores calculados sobre dado legado de CSV misturado com dado API produziriam uma leitura enganosa do que a integracao efetivamente trouxe. Os campos de laboratorista, data da leitura e ocorrencia sao enriquecidos pelos lancamentos locais do Laboratorio.
+## Fontes de verdade
 
-As duas raizes de nivel superior (`Conta Ovos` e `Ovitrampas`) continuam sem duplicar a mesma funcao. **Conta Ovos** responde "o que a plataforma externa ja possui e o que foi sincronizado?"; **Ovitrampas** responde "como o setor organiza e executa o trabalho local?". Na pagina `/ovitrampas`, o Laboratorio e o Calendario permanecem operacionais; CSV existe somente para complementar o cadastro de Armadilhas; Diarios preservam localmente responsaveis e telefones. A linguagem visual da sub-area Ovitrampas (abas internas, KPIs, tabelas) reproduz deliberadamente a de `/ovitrampas`, para que a mesma pessoa reconheca o padrao ao trocar de tela.
+- **Contagens de ovos:** API Conta Ovos, espelhada em
+  `ovitrampas_ocorrencias_conta_ovos`. Registros historicos CSV podem existir,
+  mas Leituras e Monitoramento filtram explicitamente a proveniencia API.
+- **Cadastro operacional e complementos locais:** Endemias, em
+  `ovitrampas_armadilhas`. Responsavel, telefone, localidade operacional e
+  demais complementos locais nao devem ser apresentados como dados da API.
+- **Cadastro remoto disponivel pela API:** espelho
+  `contaovos_registro_ovitrampas`, atualizado por GET supervisionado. Ele
+  guarda somente os campos devolvidos pela API e nao sobrescreve o cadastro
+  local.
+- **Territorio:** Registro Geografico e `quarteiroes.geojson` continuam sendo
+  a fonte local de quarteiroes e localidades.
+- **Historico de ocorrencias:** lancamentos preenchidos pelo laboratorista;
+  o GET `/lastcounting` nao devolve essa situacao.
 
-## Fonte de verdade, complementos locais e territorio: quem manda em que
+## Integracao preservada
 
-Esta e a regra mais importante deste documento, porque e a que mais facilmente se perde em lotes futuros:
+Os seguintes componentes continuam necessarios e nao devem ser removidos ao
+alterar a interface:
 
-- **Contagens de ovos** (`ovitrampas_ocorrencias_conta_ovos`): fonte de verdade e a API Conta Ovos. A tabela ainda suporta registros historicos CSV, mas a interface atual de Leituras e Monitoramento filtra o espelho API; um novo dominio nao deve criar um segundo historico de contagens.
-- **Cadastro de ovitrampas — campos remotos** (`contaovos_registro_ovitrampas`, novo nesta etapa): fonte de verdade e a API (`getmunicipalityovitrapspublic`, endpoint publico, sem chave). Guarda apenas o que a API devolve: coordenadas, `ovitrap_id` interno, media de ovos, IDs de grupo/bloco/usuario remotos e o instante de sincronizacao. Nunca grava responsavel, telefone ou qualquer outro campo local.
-- **Cadastro de ovitrampas — complementos locais** (`ovitrampas_armadilhas`): fonte de verdade e o Endemias. Responsavel, telefone e demais complementos **nunca sao apresentados como se viessem da API**; a interface sempre rotula esses campos como "local" (badge dedicado) quando exibidos ao lado de dados remotos.
-- **Quarteiroes, geometria e composicao territorial**: fonte de verdade e local — `/static/quarteiroes.geojson` e o Registro Geografico. A aba Mapa desta central desenha as coordenadas que a API devolveu, mas o quarteirao/localidade mostrados no popup vem do cadastro local (`ovitrampas_armadilhas.quarteirao`), nunca de um calculo geometrico sobre a coordenada remota. A API pode ser **vinculada** a esse territorio (por correspondencia de ID normalizado); ela nunca o **sobrescreve** nem o recalcula.
-- **Estado de sincronizacao** (`contaovos_execucoes`, compartilhada entre todos os fluxos GET por `tipo`): resumo ja sanitizado, sem qualquer dado sensivel.
+- `app_core/contaovos_client.py`, `contaovos_credencial.py` e
+  `contaovos_health.py`;
+- `app_core/contaovos_sync.py` e o comando supervisionado de sincronizacao;
+- `app_core/contaovos_registro.py` e o espelho do cadastro remoto;
+- `app_core/contaovos_fila.py` e o envio supervisionado de lotes;
+- `migrations/postgresql/0002_integracao_contaovos.sql` ate `0005`;
+- as rotas de sincronizacao e envio dentro de `blueprints/ovitrampas.py`;
+- tabelas `contaovos_sync_cursor`, `contaovos_execucoes`,
+  `contaovos_registro_ovitrampas`, `ovitrampas_ocorrencias_conta_ovos` e a
+  fila das leituras.
 
-A reconciliacao entre `ovitrampa_id_remoto` (preserva zeros a esquerda, como devolvido pela API) e `ovitrampa_id` local usa a mesma chave de comparacao ja homologada em `app_core/ovitrampas.py::chave_comparacao_ovitrampa_id` (ignora apenas zeros a esquerda para fins de correspondencia, sem alterar nenhum identificador persistido). Isso evita duplicar a logica de reconciliacao que a sincronizacao de contagens ja resolveu.
+## Regras para evolucao
 
-## Divergencias: informativo, nunca automatico
-
-A aba "Sincronizacao e divergencias" lista tres comparacoes, todas somente leitura:
-
-1. ovitrampas no espelho remoto sem cadastro local correspondente;
-2. ovitrampas com cadastro local, mas coordenadas remota/local divergentes alem de uma tolerancia (~50 m);
-3. ovitrampas com contagem de proveniencia API mas sem cadastro remoto ainda sincronizado.
-
-Nenhuma dessas listas oferece um botao para corrigir, mesclar ou excluir. A decisao de investigar ou corrigir e sempre humana; a interface so torna a pendencia visivel.
-
-## Fundacao GET do cadastro remoto
-
-`app_core/contaovos_registro.py` fornece a sincronizacao do espelho de cadastro, no mesmo padrao ja homologado para contagens e fila de laboratorio: pagina o endpoint publico ate lista vazia ou limite de 100 paginas, valida escopo territorial (`municipality_code`/`state_code`) e formato de cada registro antes de qualquer escrita, e so entao substitui o espelho local em uma transacao atomica com upsert por `ovitrampa_id_remoto`. A migracao `0005_contaovos_registro_ovitrampas.sql` cria a tabela em PostgreSQL; `contaovos_registro.ensure_schema_connection` cria o equivalente em SQLite para testes.
-
-Diferente da sincronizacao de contagens, este endpoint e **publico** (`getmunicipalityovitrapspublic`, sem parametro `key`), entao nao ha risco de credencial nesta fundacao. A execucao continua disponivel por linha de comando (`scripts/sincronizar_registro_ovitrampas_contaovos.py`, com confirmacao explicita e banco padrao `endemias_teste`) e tambem pela acao administrativa da pagina `/ovitrampas`, que sincroniza os dois espelhos e registra auditoria local.
-
-## Quem depende de dado remoto ja disponivel, e quem continua local
-
-- Dependem do espelho remoto (podem ficar vazias ate a primeira sincronizacao real do cadastro): Ovitrampas > Cadastro remoto, Ovitrampas > Mapa, parte de Ovitrampas > Sincronizacao e divergencias.
-- Ja funcionam com o que esta sincronizado hoje (contagens, via sincronizador ja homologado): Ovitrampas > Contagens, Ovitrampas > Monitoramento.
-- Continuam locais e nao migram para esta central: diarios, calendario, laboratorio e o CSV complementar de Armadilhas — todos em `/ovitrampas`.
-- Fora de escopo neste lote, com placeholder reservado e sem dado simulado: EDLs e Quarteiroes/acoes. A API documenta os endpoints, mas nenhum contrato foi validado, nenhum schema foi criado e nenhuma sincronizacao GET foi implementada para esses dominios.
-- Fora da central de consulta continuam `/postaction` e qualquer `postdelete*`. O
-  `/postcounting` existe somente no fluxo operacional supervisionado por lote
-  de `/ovitrampas`; continua dependente de confirmacao humana e nao e acionado
-  pela central `Conta Ovos`.
-
-## Como adicionar um novo dominio remoto sem criar duas fontes concorrentes
-
-Um implementador futuro que for adicionar EDLs, Quarteiroes/acoes ou qualquer outro dominio remoto deve seguir o mesmo criterio usado aqui, nesta ordem:
-
-1. Confirmar que o endpoint GET esta documentado, com campos conhecidos, e decidir se ele e publico ou exige chave.
-2. Decidir se o dominio reaproveita uma tabela historica ja existente com fallback CSV (como contagens) ou exige uma tabela de espelho propria (como cadastro remoto) — a resposta depende de existir ou nao um fluxo local paralelo que ja alimente a mesma tabela.
-3. Nunca gravar complemento local nem territorio na tabela de espelho remoto; se o dominio tiver complementos locais, eles ficam em sua propria tabela local, anexados apenas na consulta.
-4. Migracao PostgreSQL versionada + criacao equivalente em SQLite (`ensure_schema_connection`), com a nova tabela adicionada a `app_core/schema_metadata.py::INTERNAL_TABLES` se ela nao tiver equivalente no SQLite congelado.
-5. Sincronizacao supervisionada por script de linha de comando ou pela acao
-   administrativa explicitamente confirmada em `/ovitrampas`, com banco padrao
-   `endemias_teste` nos ensaios.
-6. Consultas GET-only na central, com tratamento explicito de "espelho ainda nao sincronizado" (nunca erro 500 cru).
-7. Testes de proveniencia, filtros, ausencia de schema e ausencia de escrita remota, seguindo `tests/test_contaovos_registro.py` e `tests/test_contaovos_ovitrampas_consultas.py` como referencia.
-8. So depois de a consulta estar em uso real: avaliar escrita remota, sempre em lote separado, com reconciliacao GET antes/depois, confirmacao humana e revisao independente — nunca como extensao natural da tela de consulta.
-
-## Checklist para revisao
-
-- Todas as rotas da central, inclusive as novas em `/api/conta-ovos/ovitrampas/*`, devem aceitar apenas `GET`.
-- Consultas devem usar o adaptador dual e SQL valido em SQLite e PostgreSQL.
-- Contagens e Monitoramento dentro de Ovitrampas devem sempre filtrar por proveniencia API; nunca por dado CSV legado.
-- Cadastro remoto nunca deve exibir responsavel/telefone como se fossem da API; sempre com rotulo "local" explicito.
-- Mapa nunca deve recalcular nem sobrescrever quarteirao/localidade a partir da coordenada remota.
-- Nenhum teste pode usar o banco PostgreSQL `endemias` oficial ou o SQLite congelado; ensaios PostgreSQL usam tabelas temporarias no banco descartavel `endemias_teste`.
-- Mudancas futuras na central devem preservar a pagina Ovitrampas e o SisPNCD enquanto seus fluxos operacionais nao tiverem substituto homologado.
+1. A pagina `/ovitrampas` e a unica interface de operacao das ovitrampas.
+2. Sincronizacao GET continua supervisionada e grava apenas espelhos locais.
+3. Envio remoto exige confirmacao humana, reconciliacao GET posterior e nunca
+   deve ser automatico ou silencioso.
+4. EDLs e Quarteiroes/acoes continuam fora do escopo; a documentacao da API
+   nao autoriza implementar esses dominios sem novo levantamento.
+5. O fluxo de exclusao/recriacao de ovitrampas remotas, documentado em
+   `docs/CONTA_OVOS_API.md`, permanece fora da interface.

@@ -7,7 +7,7 @@ Ovitrampas/Conta Ovos e o que ficou feito ate o fechamento da sessao de
 
 ## Estado atual (vivo)
 
-- `master` em `8ab2ff1` como base deste lote, versao alvo `1.28.0`.
+- `master` em `6b2ddc2` como base deste lote, versao alvo `1.29.0`.
 - Worktree de trabalho `trabalho-deepseek` limpo e igual a `master`.
 - Producao: PostgreSQL `endemias`, executada sob `SYSTEM`.
 - A refatoracao maior de Ovitrampas foi retomada em lotes incrementais; o
@@ -113,7 +113,7 @@ Pedidos acumulados do usuario para a pagina Ovitrampas (interrompidos):
 
 **Observacao para quem retomar:** o espelho de contagens
 (`ovitrampas_ocorrencias_conta_ovos`) NAO carrega a ocorrencia; endereco/REALOCAR
-sao locais. A central `Conta Ovos` e somente leitura. Qualquer mudanca de
+sao locais. A integracao Conta Ovos e consumida pela pagina `Ovitrampas`; a
 sincronizacao/escrita remota exige confirmacao do usuario e piloto supervisionado.
 
 ## Arquivos de diagnostico (somente leitura, rastreados na master)
