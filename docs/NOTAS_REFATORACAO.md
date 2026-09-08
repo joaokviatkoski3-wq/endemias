@@ -1,6 +1,11 @@
 # Notas de Refatoracao - Sistema Endemias
 
-## Estado atual
+> Este arquivo preserva um snapshot historico da refatoracao estrutural. Para
+> o estado vigente, consulte primeiro `CONTEXTO_PARA_IA.md` e
+> `docs/ESTADO_ATUAL_PROJETO.md`; versoes e pendencias abaixo podem estar
+> desatualizadas.
+
+## Estado registrado no snapshot
 
 Aplicacao Flask usa `app.py` como entrada principal e ja expoe `create_app()` para inicializacao configuravel. As URLs publicas foram mantidas iguais.
 

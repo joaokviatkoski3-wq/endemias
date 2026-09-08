@@ -7,12 +7,25 @@ Ovitrampas/Conta Ovos e o que ficou feito ate o fechamento da sessao de
 
 ## Estado atual (vivo)
 
-- `master` em `7f17b33`, versao `1.26.1`.
+- `master` em `199d3e9` como base deste lote, versao alvo `1.27.0`.
 - Worktree de trabalho `trabalho-deepseek` limpo e igual a `master`.
 - Producao: PostgreSQL `endemias`, executada sob `SYSTEM`.
-- A **refatoracao de Ovitrampas nao foi implementada** (interrompida).
+- A refatoracao maior de Ovitrampas foi retomada em lote incremental; o
+  primeiro lote adiciona indicadores de origem e sincronizacao GET dos
+  espelhos pela interface, sem remover ainda os fluxos de contingencia.
 - O **problema real das 12 ovitrampas no Conta Ovos foi diagnosticado** e o
   usuario fez a correcao manual no site.
+
+## 1.1) Primeiro lote da retomada — implementado nesta branch
+
+- A página exibe a fonte de cada bloco: CSV/histórico local, API Conta Ovos,
+  lançamentos laboratoriais ou cadastro local.
+- Administradores possuem o botão **Atualizar espelhos GET**, que sincroniza o
+  cadastro público e as contagens recentes, grava somente os espelhos locais e
+  registra auditoria.
+- A ação não chama `/postcounting`, `/postaction` nem qualquer exclusão remota.
+- CSV de leituras, CSV histórico de ocorrências e XLSX de diários continuam
+  disponíveis como contingência até a validação dos próximos lotes.
 
 ## 1) Problema real investigado (cadastro em branco)
 
@@ -61,7 +74,7 @@ Pedidos acumulados do usuario para a pagina Ovitrampas (interrompidos):
 sao locais. A central `Conta Ovos` e somente leitura. Qualquer mudanca de
 sincronizacao/escrita remota exige confirmacao do usuario e piloto supervisionado.
 
-## Arquivos de diagnostico (somente leitura, nao commitados)
+## Arquivos de diagnostico (somente leitura, rastreados na master)
 
 - `scripts/diagnosticar_ovitrampas_cadastro_vazio_contaovos.py`
 - `scripts/diagnosticar_duplicata_cadastro_contaovos.py`

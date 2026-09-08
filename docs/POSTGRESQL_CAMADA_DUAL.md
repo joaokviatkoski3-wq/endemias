@@ -729,8 +729,9 @@ oficial roda sob `SYSTEM` e enxerga tudo.
 ## Historico da integracao Conta Ovos e conclusao da migracao
 
 As secoes abaixo descrevem lotes ja implementados e homologados. O trabalho
-atual da Conta Ovos e de consulta local e sincronizacao GET supervisionada;
-nenhum POST remoto esta em `master`. As prioridades posteriores a migracao
+atual da central Conta Ovos continua sendo de consulta local e sincronizacao
+GET supervisionada; o envio por lote via `/postcounting` pertence somente a
+`/ovitrampas`, fora da central. As prioridades posteriores a migracao
 ficam em `docs/ESTADO_ATUAL_PROJETO.md` e `docs/CONTA_OVOS_API.md`.
 
 A fundacao da API privada Conta Ovos adiciona a migracao

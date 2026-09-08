@@ -328,12 +328,13 @@ Ao ver um arquivo sensivel como nao rastreado, nao o adicione. Confira
 - Ovitrampas/Laboratorio: espelho local preenchido pelo laboratorista antes do
   lancamento externo.
 - Conta Ovos/SisPNCD: apoio operacional; a fundacao privada, a sincronizacao
-  GET, a fila local das leituras e a fundacao GET do cadastro remoto de
-  ovitrampas estao em `master`. A prova real de 5.405 contagens confirmou a
-  semana epidemiologica sem divergencias. Envios remotos continuam
-  desativados ate implementacao revisada e piloto supervisionado. A central
-  `/conta-ovos` e somente leitura do espelho local e nao substitui a operacao
-  em `/ovitrampas`. Consulte `docs/CONTA_OVOS_API.md` e
+  GET, a fila local das leituras, a fundacao GET do cadastro remoto e o envio
+  supervisionado por lote de leituras estao em `master`. A prova real de
+  5.405 contagens confirmou a semana epidemiologica sem divergencias. A pagina
+  `/ovitrampas` possui sincronizacao GET dos espelhos para administradores e
+  envio por lote com confirmacao humana; a central `/conta-ovos` continua
+  somente leitura do espelho local e nao substitui a operacao em
+  `/ovitrampas`. Consulte `docs/CONTA_OVOS_API.md` e
   `docs/CONTA_OVOS_INTERFACE.md`.
 - Esporotricose/Visitas: dados importados do Kobo.
 - Esporotricose/Doentes: cadastro clinico manual, receitas e estoque.
@@ -345,8 +346,8 @@ Ao ver um arquivo sensivel como nao rastreado, nao o adicione. Confira
 
 Nao misture estas ideias com o fechamento da migracao PostgreSQL:
 
-- novos dominios GET da API Conta Ovos (EDLs e Quarteiroes/acoes) e somente
-  depois o piloto unitario de escrita, que continua fora da `master`;
+- novos dominios GET da API Conta Ovos (EDLs e Quarteiroes/acoes), mantendo
+  qualquer nova escrita fora da central e sob piloto supervisionado;
 - diarios digitais offline para agentes em tablets;
 - formularios proprios para substituir gradualmente o Kobo;
 - PostgreSQL remoto/VPS;

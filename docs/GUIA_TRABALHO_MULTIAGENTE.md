@@ -82,7 +82,7 @@ C:\endemias-revisao
 
 C:\endemias-codex
   codex/enviar-leituras-conta-ovos
-  lote de escrita remota ainda fora da producao
+  branch de trabalho derivada; o envio basico por lote ja esta na master
 ```
 
 Uma branch ou worktree nao isola banco, porta, anexos, logs, backups ou

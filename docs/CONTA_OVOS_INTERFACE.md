@@ -2,16 +2,18 @@
 
 ## Decisao desta etapa
 
-`Conta Ovos` e uma pagina de **consulta da integracao externa**, nunca um proxy em tempo real. Toda tela le exclusivamente o espelho local PostgreSQL ja sincronizado por processos GET supervisionados fora da web; abrir qualquer aba nunca chama a API remota nem envia, atualiza ou exclui dados locais ou remotos.
+`Conta Ovos` e uma pagina de **consulta da integracao externa**, nunca um proxy em tempo real. A navegacao e as consultas leem exclusivamente o espelho local PostgreSQL ja sincronizado. A pagina operacional `/ovitrampas` possui uma acao administrativa separada para sincronizar os espelhos por GET; ela nao envia dados remotos.
 
 Isso e deliberado, nao uma limitacao temporaria: a API Conta Ovos nao tem SLA, nao documenta limite de requisicoes e o setor precisa de uma tela responsiva mesmo se o fornecedor estiver fora do ar. O espelho local e a fonte de leitura da interface; a API e a fonte de verdade dos dados que ela administra, e a sincronizacao GET e o unico canal que atualiza o espelho.
 
-**Estado em 24/08/2026:** as contagens GET ja foram sincronizadas e alimentam
+**Estado atualizado em 08/09/2026:** as contagens GET ja foram sincronizadas e alimentam
 Contagens e Monitoramento. O schema e o ensaio do cadastro remoto de ovitrampas
 tambem estao prontos, mas sua primeira sincronizacao real ainda nao foi
 executada por decisao operacional. Por isso Cadastro remoto, Mapa e parte das
 divergencias podem estar vazios sem que a interface esteja com defeito. Nenhum
-POST remoto esta habilitado na `master`.
+o envio por lote via `/postcounting` ja existe na pagina operacional
+`/ovitrampas`, com confirmacao humana; a central `Conta Ovos` continua sem
+acoes de escrita remota.
 
 ## Estrutura desta etapa
 
@@ -63,7 +65,7 @@ Nenhuma dessas listas oferece um botao para corrigir, mesclar ou excluir. A deci
 
 `app_core/contaovos_registro.py` fornece a sincronizacao do espelho de cadastro, no mesmo padrao ja homologado para contagens e fila de laboratorio: pagina o endpoint publico ate lista vazia ou limite de 100 paginas, valida escopo territorial (`municipality_code`/`state_code`) e formato de cada registro antes de qualquer escrita, e so entao substitui o espelho local em uma transacao atomica com upsert por `ovitrampa_id_remoto`. A migracao `0005_contaovos_registro_ovitrampas.sql` cria a tabela em PostgreSQL; `contaovos_registro.ensure_schema_connection` cria o equivalente em SQLite para testes.
 
-Diferente da sincronizacao de contagens, este endpoint e **publico** (`getmunicipalityovitrapspublic`, sem parametro `key`), entao nao ha risco de credencial nesta fundacao. Ainda assim, a execucao continua supervisionada por linha de comando (`scripts/sincronizar_registro_ovitrampas_contaovos.py`, com confirmacao explicita e banco padrao `endemias_teste`), exatamente como os demais sincronizadores — **nao ha botao na interface para disparar sincronizacao**. A primeira sincronizacao real (se e quando o setor decidir usa-la) e uma decisao operacional separada deste lote.
+Diferente da sincronizacao de contagens, este endpoint e **publico** (`getmunicipalityovitrapspublic`, sem parametro `key`), entao nao ha risco de credencial nesta fundacao. A execucao continua disponivel por linha de comando (`scripts/sincronizar_registro_ovitrampas_contaovos.py`, com confirmacao explicita e banco padrao `endemias_teste`) e tambem pela acao administrativa da pagina `/ovitrampas`, que sincroniza os dois espelhos e registra auditoria local.
 
 ## Quem depende de dado remoto ja disponivel, e quem continua local
 
@@ -71,7 +73,10 @@ Diferente da sincronizacao de contagens, este endpoint e **publico** (`getmunici
 - Ja funcionam com o que esta sincronizado hoje (contagens, via sincronizador ja homologado): Ovitrampas > Contagens, Ovitrampas > Monitoramento.
 - Continuam exclusivamente locais e nao migram para esta central: leituras semanais operacionais, diarios, calendario, laboratorio e importacao CSV — todos em `/ovitrampas`.
 - Fora de escopo neste lote, com placeholder reservado e sem dado simulado: EDLs e Quarteiroes/acoes. A API documenta os endpoints, mas nenhum contrato foi validado, nenhum schema foi criado e nenhuma sincronizacao GET foi implementada para esses dominios.
-- Fora de escopo em qualquer lote de consulta: `/postcounting`, `/postaction` e qualquer `postdelete*`. Envio remoto continua dependente de piloto supervisionado e revisao independente, como ja registrado em `docs/CONTA_OVOS_API.md`.
+- Fora da central de consulta continuam `/postaction` e qualquer `postdelete*`. O
+  `/postcounting` existe somente no fluxo operacional supervisionado por lote
+  de `/ovitrampas`; continua dependente de confirmacao humana e nao e acionado
+  pela central `Conta Ovos`.
 
 ## Como adicionar um novo dominio remoto sem criar duas fontes concorrentes
 
@@ -81,7 +86,9 @@ Um implementador futuro que for adicionar EDLs, Quarteiroes/acoes ou qualquer ou
 2. Decidir se o dominio reaproveita uma tabela historica ja existente com fallback CSV (como contagens) ou exige uma tabela de espelho propria (como cadastro remoto) — a resposta depende de existir ou nao um fluxo local paralelo que ja alimente a mesma tabela.
 3. Nunca gravar complemento local nem territorio na tabela de espelho remoto; se o dominio tiver complementos locais, eles ficam em sua propria tabela local, anexados apenas na consulta.
 4. Migracao PostgreSQL versionada + criacao equivalente em SQLite (`ensure_schema_connection`), com a nova tabela adicionada a `app_core/schema_metadata.py::INTERNAL_TABLES` se ela nao tiver equivalente no SQLite congelado.
-5. Sincronizacao supervisionada por script de linha de comando, nunca por botao na interface, com confirmacao explicita e banco padrao `endemias_teste`.
+5. Sincronizacao supervisionada por script de linha de comando ou pela acao
+   administrativa explicitamente confirmada em `/ovitrampas`, com banco padrao
+   `endemias_teste` nos ensaios.
 6. Consultas GET-only na central, com tratamento explicito de "espelho ainda nao sincronizado" (nunca erro 500 cru).
 7. Testes de proveniencia, filtros, ausencia de schema e ausencia de escrita remota, seguindo `tests/test_contaovos_registro.py` e `tests/test_contaovos_ovitrampas_consultas.py` como referencia.
 8. So depois de a consulta estar em uso real: avaliar escrita remota, sempre em lote separado, com reconciliacao GET antes/depois, confirmacao humana e revisao independente — nunca como extensao natural da tela de consulta.

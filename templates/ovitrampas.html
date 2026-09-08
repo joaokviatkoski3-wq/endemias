@@ -40,6 +40,14 @@
 .ovi-panel#ovi-panel-monitoramento .table-scroll{max-height:360px;overflow:auto;}
 .ovi-panel#ovi-panel-monitoramento .table-scroll thead th{position:sticky;top:0;background:var(--surface2);z-index:1;}
 .ovi-muted{color:var(--text3);font-size:11px;line-height:1.35;}
+.ovi-source-strip{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:-4px 0 16px;padding:9px 11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);color:var(--text2);font-size:11px;line-height:1.35;}
+.ovi-source-list{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.ovi-source-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:999px;padding:3px 8px;background:var(--surface);color:var(--text2);font-size:10px;font-weight:900;}
+.ovi-source-chip.api{border-color:rgba(15,118,110,.35);background:rgba(15,118,110,.1);color:#0f766e;}
+.ovi-source-chip.local{border-color:rgba(37,99,235,.3);background:rgba(37,99,235,.08);color:#1d4ed8;}
+.ovi-source-chip.lab{border-color:rgba(124,58,237,.3);background:rgba(124,58,237,.08);color:#6d28d9;}
+.ovi-source-note{margin:-7px 0 12px;color:var(--text3);font-size:11px;line-height:1.35;}
+.ovi-sync-result{color:var(--text3);font-size:11px;}
 .ovi-occ-source{display:block;margin:-4px 0 10px;color:var(--text3);font-size:11px;font-weight:700;}
 .ovi-ocorrencias-list{max-height:760px;overflow:auto;padding-right:4px;}
 .ovi-ocorrencia-card{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);margin-bottom:8px;overflow:hidden;}
@@ -146,6 +154,21 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
   <div class="sub">Leituras semanais e cadastro de armadilhas do Conta Ovos</div>
 </div>
 
+<div class="ovi-source-strip">
+  <div class="ovi-source-list" aria-label="Fontes dos dados">
+    <span class="ovi-source-chip local">Leituras: CSV / histórico local</span>
+    <span class="ovi-source-chip api">Monitoramento: API Conta Ovos</span>
+    <span class="ovi-source-chip lab">Ocorrências: laboratório</span>
+    <span class="ovi-source-chip local">Cadastro, diários e calendário: local</span>
+  </div>
+  {% if usuario_atual and usuario_atual.nivel == 'admin' %}
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <button class="btn btn-outline btn-sm" type="button" id="ovi-sincronizar-conta-ovos"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar espelhos GET</button>
+    <span class="ovi-sync-result" id="ovi-sincronizar-conta-ovos-status">Somente leitura remota; atualiza os espelhos locais.</span>
+  </div>
+  {% endif %}
+</div>
+
 <div class="ovi-tabs" role="tablist">
   <button class="ovi-tab active" type="button" data-ovi-tab="leituras">Leituras</button>
   <button class="ovi-tab" type="button" data-ovi-tab="monitoramento">Monitoramento</button>
@@ -163,6 +186,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
       <div class="chart-title"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar leituras semanais</div>
       <span class="imp-status imp-cinza" id="ovi-import-status">Aguardando</span>
     </div>
+    <div class="ovi-source-note">Fonte desta aba: histórico local alimentado por CSV. O Monitoramento usa separadamente o espelho da API Conta Ovos.</div>
     <form id="ovi-form" class="ovi-upload">
       <div class="f-g"><label>CSV do Conta Ovos</label><input type="file" id="ovi-arquivos" name="arquivos" accept=".csv,text/csv" multiple></div>
       <button class="btn btn-primary" type="submit"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar CSV</button>
@@ -226,6 +250,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
 </section>
 
 <section class="ovi-panel" id="ovi-panel-monitoramento" hidden>
+  <div class="ovi-source-note"><strong>Origem:</strong> contagens do espelho API Conta Ovos; ocorrências dos lançamentos de laboratório; pendências de realocação do cadastro local.</div>
   <div class="filter-card" style="margin-bottom:16px;">
     <div class="filter-body open">
       <div class="ovi-filters">
@@ -289,6 +314,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
           <div class="chart-title"><img src="/static/icons/alerta.svg" alt="" class="icon-svg"> Histórico de ocorrências</div>
           <span class="imp-status imp-cinza" id="ovi-oco-import-status">Sem histórico</span>
         </div>
+        <div class="ovi-source-note">As ocorrências exibidas no Monitoramento vêm dos lançamentos laboratoriais. A importação CSV abaixo permanece apenas como contingência histórica durante esta transição.</div>
         <form id="ovi-oco-form" class="ovi-upload" style="grid-template-columns:1fr;margin-bottom:12px;">
           <div class="f-g"><label>CSV anual de ocorrências do Conta Ovos</label><input type="file" id="ovi-oco-arquivos" name="arquivos" accept=".csv,text/csv" multiple></div>
           <button class="btn btn-primary" type="submit"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar ocorrências</button>
@@ -319,6 +345,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
       <div class="chart-title"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar cadastro de armadilhas</div>
       <span class="imp-status imp-cinza" id="ovi-arm-import-status">Aguardando</span>
     </div>
+    <div class="ovi-source-note">Fonte operacional: cadastro local do Endemias. A sincronização do cadastro remoto fica no espelho Conta Ovos e não sobrescreve responsáveis, telefones ou território local.</div>
     <form id="ovi-arm-form" class="ovi-upload">
       <div class="f-g"><label>CSV de ovitrampas do Conta Ovos</label><input type="file" id="ovi-arm-arquivo" name="arquivo" accept=".csv,text/csv"></div>
       <div class="f-g"><label>Motivo das alterações</label><input type="text" id="ovi-arm-motivo" placeholder="Ex: atualização do Conta Ovos"></div>
@@ -376,6 +403,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
       <div class="chart-title"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar base dos diários</div>
       <span class="imp-status imp-cinza" id="ovi-dia-import-status">Aguardando</span>
     </div>
+    <div class="ovi-source-note">Diários são mantidos localmente para a operação. O XLSX continua disponível como contingência até a validação da substituição.</div>
     <form id="ovi-dia-import-form" class="ovi-upload">
       <div class="f-g"><label>Planilha XLSX dos diários</label><input type="file" id="ovi-dia-arquivo" name="arquivo" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></div>
       <button class="btn btn-primary" type="submit"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar diários</button>
@@ -649,6 +677,38 @@ async function oviFetchJson(url, options={}){
     throw err;
   }
   return data;
+}
+async function sincronizarContaOvos(){
+  const button = document.getElementById('ovi-sincronizar-conta-ovos');
+  const status = document.getElementById('ovi-sincronizar-conta-ovos-status');
+  if (!button || !status) return;
+  if (!confirm('Atualizar os espelhos locais por consultas GET ao Conta Ovos? Nenhum cadastro ou contagem será enviado à API.')) return;
+  button.disabled = true;
+  status.textContent = 'Sincronizando...';
+  try {
+    const data = await oviFetchJson('/api/ovitrampas/sincronizar-conta-ovos', {
+      method:'POST',
+      headers:{'X-CSRFToken': getCsrf(), 'Content-Type':'application/json'},
+      body:'{}',
+    });
+    const cadastro = data.cadastro || {};
+    const contagens = data.contagens || {};
+    const resumo = `Cadastro: ${oviFmt.format(cadastro.registros || 0)}; contagens: +${oviFmt.format(contagens.inseridos || 0)}, ${oviFmt.format(contagens.atualizados || 0)} atualizadas`;
+    if (data.ok) {
+      status.textContent = `${resumo}.`;
+      toast('Espelhos GET atualizados.', 'success');
+    } else {
+      const avisos = (data.avisos || []).join(' ');
+      status.textContent = `${resumo}. Avisos: ${avisos}`;
+      toast('Espelhos atualizados com avisos.', 'warning');
+    }
+    await carregarMonitoramento();
+  } catch (err) {
+    status.textContent = 'Erro na sincronização.';
+    toast('Erro ao atualizar espelhos: ' + err.message, 'error');
+  } finally {
+    button.disabled = false;
+  }
 }
 async function carregarOvitrampas(){
   const resumo = await oviGet('/api/ovitrampas?' + oviParams(false).toString());
@@ -1709,6 +1769,9 @@ document.getElementById('ovi-grupo-excluir').addEventListener('click', async () 
   } catch (err) {
     toast('Erro ao excluir grupo: ' + err.message, 'error');
   }
+});
+document.getElementById('ovi-sincronizar-conta-ovos')?.addEventListener('click', () => {
+  sincronizarContaOvos();
 });
 document.getElementById('ovi-form').addEventListener('submit', async e => {
   e.preventDefault();

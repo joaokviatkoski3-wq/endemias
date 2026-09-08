@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.26.1` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.27.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -175,9 +175,11 @@ manter o desenvolvimento bloqueado.
 
 O estado efetivamente atual, as pendencias encontradas depois do retorno, o
 status da central Conta Ovos e a proxima ordem recomendada estao concentrados
-em `docs/ESTADO_ATUAL_PROJETO.md`. Em particular, nenhum POST Conta Ovos esta
-habilitado na `master`; a prioridade imediata registrada e a correcao segura de
-datas `NaT` em Pontos Estrategicos.
+em `docs/ESTADO_ATUAL_PROJETO.md`. A `master` ja possui envio supervisionado de
+leituras por lote via `/postcounting` e, no lote atual da pagina Ovitrampas,
+sincronizacao GET dos espelhos restrita a administradores. A correcao segura de
+datas `NaT` em Pontos Estrategicos ja foi integrada; confirme os testes antes
+de tratar essa pendencia como aberta.
 
 Qualquer rollback continua sendo decisao do administrador: primeiro interrompa
 novas escritas PostgreSQL e so depois remova tarefa e marcador. Nunca abra o
@@ -264,10 +266,13 @@ obrigatoria para integracao.
 - A credencial privada Conta Ovos foi recebida, protegida para `SYSTEM` e
   Administradores e validada em uma consulta supervisionada somente leitura.
 - A sincronizacao GET de contagens esta homologada; importacoes CSV e marcacoes
-  manuais continuam como fallback. A central Conta Ovos e somente leitura do
-  espelho local. Cadastro remoto possui schema e ensaio aprovados, mas a
-  primeira sincronizacao real ainda depende de autorizacao operacional.
-  Nenhum POST remoto esta habilitado na `master`.
+  manuais continuam como fallback. A central Conta Ovos continua sendo somente
+  leitura do espelho local. A pagina operacional Ovitrampas agora oferece, para
+  administradores, uma acao explicita que sincroniza por GET o cadastro publico
+  e as contagens recentes, gravando apenas os espelhos locais.
+- O envio remoto de leituras por lote via `/postcounting` ja existe na `master`,
+  sob demanda, com confirmacao no navegador, sem retentativa automatica e sem
+  envio silencioso. Ele nao deve ser confundido com a sincronizacao GET.
 - O plano futuro inclui diarios digitais offline em tablets, com revisao de
   alteracoes cadastrais e sincronizacao posterior; isso nao faz parte da
   migracao PostgreSQL atual.

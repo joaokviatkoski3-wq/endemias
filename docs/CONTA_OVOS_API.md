@@ -1,11 +1,13 @@
 # Integracao privada com a API Conta Ovos
 
-Estado em 24/08/2026: fundacao, sincronizacao GET, fila local das leituras do
-laboratorio e fundacao GET do cadastro remoto de ovitrampas estao
+Estado atualizado em 08/09/2026: fundacao, sincronizacao GET, fila local das
+leituras do laboratorio e fundacao GET do cadastro remoto de ovitrampas estao
 implementadas; credencial protegida, escopo privado, idempotencia real e semana
 epidemiologica foram validados. A central de consulta separa visao geral,
 Ovitrampas (com sub-areas de proveniencia API), EDLs e Quarteiroes/acoes
-reservados. Nenhum endpoint de escrita remota esta em `master`.
+reservados. A pagina operacional Ovitrampas possui sincronizacao GET dos
+espelhos para administradores e envio supervisionado por lote via
+`/postcounting`; a central Conta Ovos continua sem escrita remota.
 
 A preferencia operacional atual e ampliar e usar primeiro a **leitura local do
 espelho**, nao escrever na API. A primeira sincronizacao real do cadastro remoto
@@ -160,13 +162,12 @@ Responsavel, telefone e demais complementos continuam exclusivos de
 sincronizador. A reconciliacao entre ID remoto e ID local usa a mesma chave de
 comparacao ja homologada em `ovitrampas.chave_comparacao_ovitrampa_id`.
 
-`scripts/sincronizar_registro_ovitrampas_contaovos.py` e o comando
-supervisionado, com confirmacao explicita e banco padrao `endemias_teste` (a
-mesma exigencia de `--confirmar-banco` para qualquer banco diferente ao
-aplicar). Nao existe botao na interface para disparar esta sincronizacao. A
-migracao `0005` foi aplicada e o ensaio PostgreSQL temporario passou sem
-alterar tabelas publicas; a primeira sincronizacao real do cadastro, se e
-quando o setor decidir usa-la, e uma decisao operacional separada deste lote.
+`scripts/sincronizar_registro_ovitrampas_contaovos.py` continua sendo o comando
+supervisionado para ensaios e operacao de linha de comando, com confirmacao
+explicita e banco padrao `endemias_teste`. A pagina operacional Ovitrampas
+tambem oferece ao administrador a sincronizacao conjunta dos espelhos, sempre
+por GET e com auditoria local. A migracao `0005` foi aplicada e o ensaio
+PostgreSQL temporario passou sem alterar tabelas publicas.
 
 ## Central de consulta no Endemias
 
@@ -181,17 +182,16 @@ estao em `docs/CONTA_OVOS_INTERFACE.md`.
 
 ## Ordem futura recomendada
 
-1. Quando o usuario autorizar, executar e conferir a primeira sincronizacao
-   real do cadastro remoto de ovitrampas; a interface continuara lendo somente
-   o espelho local.
+1. Executar e conferir com o administrador a primeira sincronizacao real do
+   cadastro remoto de ovitrampas pela nova acao GET ou pelo CLI; a interface
+   continua lendo somente o espelho local depois da sincronizacao.
 2. Avaliar EDLs e Quarteiroes/acoes como novos dominios de **consulta**, pelo
    mesmo criterio da fundacao de cadastro remoto: endpoint GET documentado,
    schema/migracao proprios e sincronizacao supervisionada antes de qualquer
    escrita.
-3. Somente depois da decisao explicita de escrever, recuperar e revalidar a
-   branch de envio serial unitario `/postcounting`, com reconciliacao GET antes
-   e depois, sem exclusao automatica e com piloto supervisionado. Nao criar um
-   envio em lote por simples repeticao do comando unitario.
+3. Acompanhar o envio por lote já disponível em `/ovitrampas`, mantendo
+   reconciliacao GET antes/depois, sem exclusao automatica e com piloto
+   supervisionado. Nao ampliar para envio silencioso ou automatico.
 4. Envio TBO por quarteirao somente depois de inventariar e validar IDs
    remotos, tipos de imovel, unidade de larvicida, semana epidemiologica e
    todos os efeitos colaterais documentados de `/postaction`.

@@ -113,12 +113,12 @@ Endemias e backups operacionais. Nao ha uma tarefa aberta de migracao do banco.
   aprovado), mas a **primeira sincronizacao real desse cadastro ainda nao foi
   executada**. Ate ela, Cadastro remoto, Mapa e parte das divergencias podem
   ficar vazios; isso nao e defeito da interface.
-- Nenhum POST da API Conta Ovos esta em `master`. A branch
-  `codex/enviar-leituras-conta-ovos` prepara envio unitario supervisionado de
-  `/postcounting`, mas ainda precisa ser atualizada sobre a `master`, ensaiada
-  em `endemias_teste`, revisada e submetida a um piloto humano antes de ser
-  considerada para integracao. Nao ha envio em lote e um resultado incerto
-  jamais e reenviado automaticamente.
+- O envio remoto de leituras por lote via `/postcounting` ja esta na `master`,
+  sob demanda e com confirmacao no navegador. O fluxo nao faz retentativa
+  automatica, nao reenvia item ja reconciliado e nao envia lote silencioso.
+  A branch `codex/enviar-leituras-conta-ovos` continua existindo com trabalho
+  derivado, mas nao deve ser tratada como se a funcionalidade basica ainda
+  estivesse fora da `master`.
 
 As regras de fonte de verdade e a arquitetura da tela estao em
 `docs/CONTA_OVOS_INTERFACE.md`; detalhes da API e dos lotes em
@@ -310,12 +310,13 @@ laboratorista); decisao registrada para entrega futura na aba de lotes.
 Versao `1.26.1`. (Ajuste posterior no proprio incremento 3: ocorrencias passaram
 a vir do laboratorio, pois o espelho GET nao as traz.)
 
-### Fechamento da sessao (08/09/2026) - refatoracao adiada + diagnostico do cadastro
+### Fechamento da sessao (08/09/2026) - registro historico da refatoracao adiada
 
-Esta sessao terminou com duas frentes distintas. **Nenhuma mudanca de codigo de
-refatoracao foi integrada**; a arvore de trabalho `trabalho-deepseek` foi
-deixada limpa em `7f17b33` (= master). Segue o que foi planejado e o que foi
-descoberto, para a proxima IA nao repetir a investigacao.
+Naquele momento, esta sessao terminou com duas frentes distintas. **Nenhuma
+mudanca de codigo de refatoracao havia sido integrada**; a arvore de trabalho
+`trabalho-deepseek` estava limpa em `7f17b33`. O texto abaixo e um registro
+historico do que foi planejado e descoberto, nao o estado posterior do lote
+`1.27.0`.
 
 **A) Refatoracao de Ovitrampas/Conta Ovos - planejada, NAO implementada.**
 
@@ -325,7 +326,7 @@ O usuario pediu (em andamento) que, na pagina Ovitrampas:
 - revisasse redundancias/estrutura das abas;
 - adicionasse botao/configuracao para atualizar os dados da API na interface.
 
-Durante o levantamento (sem alterar codigo) confirmou-se: a sincronizacao GET
+Durante o levantamento daquela sessao (sem alterar codigo) confirmou-se: a sincronizacao GET
 Conta Ovos roda **somente via CLI** (`sincronizar_contagens_contaovos.py` e
 `sincronizar_registro_ovitrampas_contaovos.py`), nao ha botao web; a central
 `Conta Ovos` e somente leitura; o espelho de contagens
@@ -336,6 +337,11 @@ a prioridade. Ao retomar, revisar: remover import CSV de ocorrencias e de
 leituras, remover import XLSX de diarios (diarios hoje sao mantidos no sistema),
 migrar aba Leituras para o espelho API, indicadores discretos de origem, e botao
 de sincronizacao na central Conta Ovos.
+
+**Atualizacao posterior:** a retomada do projeto iniciou o lote `1.27.0` na
+pagina `/ovitrampas`. A tela agora identifica as fontes dos dados e oferece a
+administradores uma sincronizacao GET dos espelhos locais, sem envio remoto.
+Os fluxos CSV/XLSX permanecem nesta primeira etapa como contingencia.
 
 **B) Diagnostico do cadastro em branco de 12 ovitrampas no Conta Ovos.**
 
@@ -388,13 +394,14 @@ Um terceiro script de correcao (`corrigir_endereco_contagens_contaovos.py`) foi
 criado e depois **removido**, pois o experimento provou que a correcao por API
 nao funciona.
 
-1. **Envio supervisionado Conta Ovos:** a branch
-   `codex/enviar-leituras-conta-ovos` prepara POST unitario, mas escrita remota
-   continua fora da `master` ate piloto humano supervisionado. Nunca enviar
-   dados reais por iniciativa do agente.
+1. **Sincronizacao dos espelhos Conta Ovos:** a pagina Ovitrampas agora possui
+   acao administrativa explicita para executar GET do cadastro publico e das
+   contagens recentes. O primeiro uso real ainda deve ser acompanhado pelo
+   administrador e conferido na aba Conta Ovos.
 2. **Pendencia operacional de PE:** as edicoes dos PEs 1 e 24 que falharam em
-   13 e 17/08 tiveram rollback integral e ainda precisam ser refeitas
-   manualmente no sistema corrigido.
+   13 e 17/08 tiveram rollback integral. A normalizacao de datas vazias/`NaT`
+   ja foi integrada e possui testes; as edicoes reais continuam dependendo de
+   operacao manual autorizada.
 3. **Kobo PE-0045:** o codigo e os aliases ja estao na `master`; publicacao ou
    troca do XLSForm no Kobo continua uma operacao externa manual. O valor
    qualificado esperado e

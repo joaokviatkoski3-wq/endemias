@@ -1,5 +1,6 @@
 import os
 import tempfile
+from datetime import date, timedelta
 from pathlib import Path
 
 from flask import Blueprint, jsonify, render_template, request
@@ -10,6 +11,8 @@ from app_core import blueprint_helpers as bh
 from app_core import contaovos_client
 from app_core import contaovos_credencial
 from app_core import contaovos_fila
+from app_core import contaovos_registro
+from app_core import contaovos_sync
 from app_core import ovitrampas as ovitrampas_core
 from app_core import ovitrampas_laboratorio as ovi_lab_core
 
@@ -51,6 +54,79 @@ def page():
         distritos=ovitrampas_core.distritos(_db_path()),
         agentes=ovitrampas_core.agentes(_db_path()),
     )
+
+
+@bp.route("/api/ovitrampas/sincronizar-conta-ovos", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_sincronizar_conta_ovos():
+    """Atualiza os espelhos GET do Conta Ovos sob demanda do administrador.
+
+    A rota nunca chama endpoints de escrita remota. As contagens usam a janela
+    operacional de 45 dias, enquanto o cadastro publico e sincronizado por
+    completo. Cada fluxo e independente para que uma falha de credencial ou
+    rede nao esconda o resultado do outro.
+    """
+    hoje = date.today()
+    data_inicial = hoje - timedelta(days=45)
+    resultado = {
+        "ok": True,
+        "janela_contagens": {
+            "data_inicial": data_inicial.isoformat(),
+            "data_final": hoje.isoformat(),
+        },
+        "contagens": None,
+        "cadastro": None,
+        "avisos": [],
+    }
+    key = None
+
+    try:
+        resultado["cadastro"] = contaovos_registro.synchronize(
+            _db_path(), max_pages=100
+        )
+    except Exception as exc:
+        resultado["ok"] = False
+        resultado["avisos"].append(
+            "Cadastro remoto: "
+            + contaovos_client.sanitize_message(exc, key)
+        )
+
+    if not contaovos_credencial.configured():
+        resultado["ok"] = False
+        resultado["avisos"].append(
+            "Contagens: credencial privada do Conta Ovos nao configurada."
+        )
+    else:
+        try:
+            key = contaovos_credencial.read_key()
+            resultado["contagens"] = contaovos_sync.synchronize_countings(
+                _db_path(),
+                key=key,
+                date_start=data_inicial.isoformat(),
+                date_end=hoje.isoformat(),
+                max_pages=100,
+            )
+        except Exception as exc:
+            resultado["ok"] = False
+            resultado["avisos"].append(
+                "Contagens: "
+                + contaovos_client.sanitize_message(exc, key)
+            )
+
+    audit.registrar_evento(
+        get_db,
+        "ovitrampas_espelhos_conta_ovos_sincronizados",
+        entidade="conta_ovos",
+        detalhes={
+            "ok": resultado["ok"],
+            "janela_contagens": resultado["janela_contagens"],
+            "contagens": resultado["contagens"],
+            "cadastro": resultado["cadastro"],
+            "avisos": resultado["avisos"],
+        },
+    )
+    return jsonify(resultado)
 
 
 @bp.route("/ovitrampas/calendario/imprimir")
