@@ -1,5 +1,12 @@
 # Integracao privada com a API Conta Ovos
 
+## Documento de referencia da API
+
+O contrato externo fornecido pelo usuario esta preservado em
+`docs/CONTA_OVOS_API_REFERENCIA.md`. Este arquivo continua sendo o registro do
+estado da integracao no Endemias; a referencia externa pode mudar e deve ser
+confrontada com este estado antes de implementar novos endpoints.
+
 Estado atualizado em 08/09/2026: fundacao, sincronizacao GET, fila local das
 leituras do laboratorio e fundacao GET do cadastro remoto de ovitrampas estao
 implementadas; credencial protegida, escopo privado, idempotencia real e semana
