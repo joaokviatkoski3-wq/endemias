@@ -1,6 +1,6 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 27/08/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 08/09/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
@@ -309,6 +309,84 @@ Laboratorista "via lote" ficou **fora** do Monitoramento (a pagina nao exibe
 laboratorista); decisao registrada para entrega futura na aba de lotes.
 Versao `1.26.1`. (Ajuste posterior no proprio incremento 3: ocorrencias passaram
 a vir do laboratorio, pois o espelho GET nao as traz.)
+
+### Fechamento da sessao (08/09/2026) - refatoracao adiada + diagnostico do cadastro
+
+Esta sessao terminou com duas frentes distintas. **Nenhuma mudanca de codigo de
+refatoracao foi integrada**; a arvore de trabalho `trabalho-deepseek` foi
+deixada limpa em `7f17b33` (= master). Segue o que foi planejado e o que foi
+descoberto, para a proxima IA nao repetir a investigacao.
+
+**A) Refatoracao de Ovitrampas/Conta Ovos - planejada, NAO implementada.**
+
+O usuario pediu (em andamento) que, na pagina Ovitrampas:
+- removesse a importacao redundante de ocorrencias via CSV;
+- mostrasse, de forma discreta, a origem dos dados (CSV vs API);
+- revisasse redundancias/estrutura das abas;
+- adicionasse botao/configuracao para atualizar os dados da API na interface.
+
+Durante o levantamento (sem alterar codigo) confirmou-se: a sincronizacao GET
+Conta Ovos roda **somente via CLI** (`sincronizar_contagens_contaovos.py` e
+`sincronizar_registro_ovitrampas_contaovos.py`), nao ha botao web; a central
+`Conta Ovos` e somente leitura; o espelho de contagens
+(`ovitrampas_ocorrencias_conta_ovos`) NAO carrega a ocorrencia (o GET
+/lastcounting nao a devolve); endereco/REALOCAR sao locais. A refatoracao foi
+**interrompida** porque surgiu um problema real no Conta Ovos (item B) que passou
+a prioridade. Ao retomar, revisar: remover import CSV de ocorrencias e de
+leituras, remover import XLSX de diarios (diarios hoje sao mantidos no sistema),
+migrar aba Leituras para o espelho API, indicadores discretos de origem, e botao
+de sincronizacao na central Conta Ovos.
+
+**B) Diagnostico do cadastro em branco de 12 ovitrampas no Conta Ovos.**
+
+Sintoma reportado pelo usuario: apos envios de contagens da semana 34 (coleta
+02/09/2026) via /postcounting, as ovitrampas **131, 137, 138, 140, 142, 145,
+148-A, 149, 151, 154, 156, 157** ficaram com o cadastro do Conta Ovos em branco
+(Distrito/Rua/Numero/Complemento/Localizacao/Setor/Responsavel), mantendo
+somente coordenadas e contagens. Todas sao da localidade **"Sede"** no cadastro
+local.
+
+Conclusoes tecnicas confirmadas (somente leitura + 1 piloto real):
+- O `POST /postcounting` **NAO atualiza o cadastro/endereco de uma ovitrampa
+  existente**: ele so grava a contagem. O endereco exibido no Conta Ovos vem da
+  tela de cadastro propria da ovitrampa (nao do corpo da contagem). Experimento
+  na 131 (delete+repost com endereco): a contagem voltou, mas o endereco
+  mantido foi o preenchido manualmente, nao o enviado - e nao zerou. Ou seja,
+  tentar corrigir por API (delete+repost via /postcounting) **nao funciona**.
+- As 12 estao sim registradas no cadastro publico do Conta Ovos
+  (`getmunicipalityovitrapspublic` retorna todas; o municipio tem um unico
+  grupo remoto `1867` com 343 ovitrampas = mesmo total do cadastro local). O
+  espelho local `contaovos_registro_ovitrampas` esta **vazio (0 registros)**
+  porque a sincronizacao desse cadastro nunca foi executada.
+- O padrao "Sede" e correlacao, nao causa: ha 35 ovitrampas de Sede no total e
+  so 12 ficaram em branco. A causa provavel: essas 12, no momento do envio da
+  semana 34, nao possuiam ainda cadastro preenchido no Conta Ovos; ao receber a
+  contagem, o Conta Ovos as criou/vinculou sem endereco. As demais (que ja
+  estavam cadastradas) mantiveram o endereco. Confirmar a causa exata exigiria
+  dados internos do Conta Ovos (data de criacao/cadastro), nao expostos pela API
+  publica.
+
+Correcao adotada pelo usuario (acao real, manual no site do Conta Ovos): o
+usuario preencheu manualmente o cadastro das ovitrampas afetadas no site. Ele
+informou que **atualizou** as ovitrampas e encerrou a sessao. Os enderecos
+corretos (do cadastro local) de todas as 12 estao registrados no diagnostico
+desta sessao (todos da localidade Sede). Ajustar a 131, se ainda estiver com um
+endereco de "teste" que o usuario usou durante o experimento.
+
+**Prevencao recomendada (NAO implementada):** como o espelho do cadastro remoto
+esta vazio, a protecao mais solida seria sincronizar `contaovos_registro_ovitrampas`
+e, no fluxo de envio de contagens, avisar/bloquear ovitrampas que nao constem no
+cadastro remoto - evitando que o Conta Ovos crie ovitrampas sem endereco. O
+usuario optou por nao mexer no fluxo nesta sessao.
+
+**Arquivos criados nesta sessao (somente leitura, nao commitados):**
+- `scripts/diagnosticar_ovitrampas_cadastro_vazio_contaovos.py` (le espelho API
+  /lastcounting + cadastro local das ovitrampas de um alvo);
+- `scripts/diagnosticar_duplicata_cadastro_contaovos.py` (cruza cadastro local x
+  espelho remoto por chave de comparacao).
+Um terceiro script de correcao (`corrigir_endereco_contagens_contaovos.py`) foi
+criado e depois **removido**, pois o experimento provou que a correcao por API
+nao funciona.
 
 1. **Envio supervisionado Conta Ovos:** a branch
    `codex/enviar-leituras-conta-ovos` prepara POST unitario, mas escrita remota

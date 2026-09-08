@@ -1,7 +1,10 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 24/08/2026. Este arquivo e o ponto de entrada para qualquer IA
-que assumir o projeto em outra conta ou conversa.
+Atualizado em 08/09/2026. Este arquivo e o ponto de entrada para qualquer IA
+que assumir o projeto em outra conta ou conversa. Leia depois
+`docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
+"Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
+em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
 
