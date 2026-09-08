@@ -50,11 +50,9 @@ Ovitrampas/Conta Ovos e o que ficou feito ate o fechamento da sessao de
 contagem da semana 34 (coleta 02/09/2026). Todas da localidade local "Sede".
 
 **Conclusoes confirmadas:**
-- O `POST /postcounting` **nao atualiza** cadastro/endereco de ovitrampa ja
-  existente — so grava a contagem. O endereco vem da tela de cadastro propria
-  da ovitrampa no site do Conta Ovos.
-- Tentar corrigir por API (delete+repost via /postcounting) **nao funciona**
-  (testado na 131).
+- O `POST /postcounting` **nao atualiza** cadastro/endereco de uma ovitrampa
+  ativa — so grava a contagem. O endereco vem da tela de cadastro propria da
+  ovitrampa no site do Conta Ovos.
 - As 12 estao registradas no cadastro publico do Conta Ovos (municipio tem um
   unico grupo remoto 1867, 343 ovitrampas = total do cadastro local). O espelho
   local `contaovos_registro_ovitrampas` esta **vazio (0)** porque nunca foi
@@ -62,6 +60,34 @@ contagem da semana 34 (coleta 02/09/2026). Todas da localidade local "Sede".
 - "Sede" e correlacao, nao causa (ha 35 de Sede, so 12 afetadas). Causa
   provavel: no envio da semana 34 essas 12 ainda nao tinham cadastro preenchido
   no Conta Ovos e ele as criou/vinculou sem endereco.
+
+## 1.1) Teste controlado de exclusao e recriacao (08/09/2026)
+
+Foi realizado um teste autorizado usando somente a ovitrampa remota `TESTE`.
+O cadastro original tinha `ovitrap_website_id=209336`, endereco com valores
+"A", coordenadas `-25.34377392, -49.26734626` e a leitura `3947141` com
+0 ovos.
+
+- Enviar novos campos de endereco pelo `POST /postcounting` para a ovitrampa
+  ativa registrou a leitura `3947235`, mas manteve todos os dados cadastrais
+  "A". Portanto, esse endpoint nao edita cadastro existente.
+- O `POST /pt-br/api/postdeleteovitrap` retornou HTTP 200. As leituras antigas
+  nao foram apagadas: continuaram no historico com o identificador
+  `TESTE [DELETED]209336`.
+- O mesmo `ovitrap_group_id=TESTE` foi recriado com `POST /postcounting`, em
+  corpo `x-www-form-urlencoded`, recebendo novo `ovitrap_website_id=209347`.
+  A nova leitura `3947301` passou a mostrar os valores "B" (distrito, rua,
+  numero, complemento, localizacao e setor), mantendo as coordenadas.
+- Uma tentativa anterior do corpo JSON retornou HTTP 500 durante a
+  recriacao; o formato `x-www-form-urlencoded`, previsto na documentacao,
+  funcionou.
+
+**Resultado operacional:** e possivel substituir o cadastro remoto pelo fluxo
+exclusao + recriacao com o mesmo ID de grupo, mas isso cria uma nova identidade
+remota, preserva o historico antigo como `[DELETED]` e nao deve ser
+automatizado. Exige aprovacao explicita, conferencia posterior via GET e
+registro das leituras marcadas como deletadas. Esse procedimento nao foi
+implementado na interface local.
 
 **Correcao:** preenchimento manual do cadastro no site do Conta Ovos (feita
 pelo usuario). Enderecos corretos (localidade Sede) estao disponiveis no
@@ -95,4 +121,7 @@ sincronizacao/escrita remota exige confirmacao do usuario e piloto supervisionad
 - `scripts/diagnosticar_ovitrampas_cadastro_vazio_contaovos.py`
 - `scripts/diagnosticar_duplicata_cadastro_contaovos.py`
 
-Um script de correcao via API foi criado e depois removido (nao funciona).
+Um script de correcao via API foi criado e depois removido: ele tentava alterar
+cadastro ativo pelo `/postcounting`, o que nao atualiza esses campos. O fluxo
+destrutivo de exclusao/recriacao registrado acima nao foi incorporado ao
+sistema.

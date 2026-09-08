@@ -361,13 +361,20 @@ Sintoma reportado pelo usuario: apos envios de contagens da semana 34 (coleta
 somente coordenadas e contagens. Todas sao da localidade **"Sede"** no cadastro
 local.
 
-Conclusoes tecnicas confirmadas (somente leitura + 1 piloto real):
+Conclusoes tecnicas confirmadas (somente leitura + pilotos reais):
 - O `POST /postcounting` **NAO atualiza o cadastro/endereco de uma ovitrampa
-  existente**: ele so grava a contagem. O endereco exibido no Conta Ovos vem da
-  tela de cadastro propria da ovitrampa (nao do corpo da contagem). Experimento
-  na 131 (delete+repost com endereco): a contagem voltou, mas o endereco
-  mantido foi o preenchido manualmente, nao o enviado - e nao zerou. Ou seja,
-  tentar corrigir por API (delete+repost via /postcounting) **nao funciona**.
+  ativa**: ele so grava a contagem. O endereco exibido no Conta Ovos vem da
+  tela de cadastro propria da ovitrampa (nao do corpo da contagem). O piloto na
+  131 e o teste controlado de `TESTE` confirmaram essa limitacao.
+- No teste controlado de `TESTE` em 08/09/2026, o `POST
+  /pt-br/api/postdeleteovitrap` retornou HTTP 200. As leituras `3947141` e
+  `3947235` permaneceram no historico, mas com `ovitrap_id` alterado para
+  `TESTE [DELETED]209336`. Em seguida, o mesmo ID de grupo foi recriado pelo
+  `/postcounting` com corpo `x-www-form-urlencoded`, gerando novo cadastro
+  remoto `ovitrap_website_id=209347` e leitura `3947301` com os dados de
+  endereco alterados para "B". O fluxo exclusao + recriacao funciona, mas
+  substitui a identidade remota, marca o historico anterior como deletado e
+  nao e uma edicao simples de cadastro.
 - As 12 estao sim registradas no cadastro publico do Conta Ovos
   (`getmunicipalityovitrapspublic` retorna todas; o municipio tem um unico
   grupo remoto `1867` com 343 ovitrampas = mesmo total do cadastro local). O
@@ -400,8 +407,9 @@ usuario optou por nao mexer no fluxo nesta sessao.
 - `scripts/diagnosticar_duplicata_cadastro_contaovos.py` (cruza cadastro local x
   espelho remoto por chave de comparacao).
 Um terceiro script de correcao (`corrigir_endereco_contagens_contaovos.py`) foi
-criado e depois **removido**, pois o experimento provou que a correcao por API
-nao funciona.
+criado e depois **removido**, pois ele tentava alterar cadastro ativo pelo
+`/postcounting`, que nao atualiza esses campos. O fluxo destrutivo de
+exclusao/recriacao foi apenas testado sob autorizacao e nao foi incorporado.
 
 1. **Sincronizacao dos espelhos Conta Ovos:** a pagina Ovitrampas agora possui
    acao administrativa explicita para executar GET do cadastro publico e das

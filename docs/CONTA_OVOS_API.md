@@ -187,6 +187,28 @@ proveniencia API. A arquitetura completa, a separacao em relacao a pagina
 operacional de Ovitrampas e o criterio para adicionar novos dominios remotos
 estao em `docs/CONTA_OVOS_INTERFACE.md`.
 
+## Evidencia: exclusao e recriacao de ovitrampa
+
+Em 08/09/2026 foi realizado um teste controlado com a ovitrampa remota
+`TESTE`, mediante autorizacao explicita. O cadastro original (`website_id`
+`209336`) tinha endereco com valores "A" e a leitura `3947141`.
+
+- O `POST /postcounting` em uma ovitrampa ativa aceitou a leitura, mas ignorou
+  os campos cadastrais enviados; a leitura `3947235` continuou exibindo o
+  endereco "A".
+- O `POST /pt-br/api/postdeleteovitrap` retornou HTTP 200. As leituras antigas
+  permaneceram e passaram a aparecer como `TESTE [DELETED]209336`.
+- O mesmo `ovitrap_group_id=TESTE` foi recriado pelo `/postcounting` com corpo
+  `x-www-form-urlencoded`, criando `website_id=209347` e a leitura `3947301`.
+  Os campos de endereco passaram a exibir "B"; as coordenadas foram mantidas.
+- Durante o teste, o corpo JSON retornou HTTP 500 na recriacao; o formato
+  `x-www-form-urlencoded` documentado funcionou.
+
+Esse fluxo nao e uma edicao cadastral: ele substitui o cadastro remoto, cria
+nova identidade, preserva o historico anterior com marcador `[DELETED]` e
+exige aprovacao explicita e reconciliacao GET. Nao foi implementado na
+interface nem deve ser automatizado pelo sincronizador.
+
 ## Ordem futura recomendada
 
 1. Executar e conferir com o administrador a primeira sincronizacao real do
