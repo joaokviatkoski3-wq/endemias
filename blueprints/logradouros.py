@@ -39,6 +39,16 @@ def page():
     return render_template("logradouros.html")
 
 
+@bp.route("/logradouros/enderecos/<int:id_endereco>")
+@login_required
+def endereco_page(id_endereco):
+    try:
+        dados = logradouros_core.detalhar_endereco_vinculado(_target(), id_endereco)
+    except ValueError as exc:
+        return render_template("endereco_normalizado.html", erro=str(exc), dados=None), 404
+    return render_template("endereco_normalizado.html", dados=dados, erro=None)
+
+
 @bp.route("/api/logradouros/resumo")
 @login_required
 def api_resumo():
@@ -70,7 +80,9 @@ def api_previa_visitas_positivas():
     try:
         return jsonify(
             logradouros_core.previa_visitas_positivas(
-                _target(), request.args.get("limite", 100)
+                _target(),
+                request.args.get("pagina", 1),
+                request.args.get("por_pagina", 100),
             )
         )
     except Exception:
@@ -85,10 +97,16 @@ def api_confirmar_visitas_positivas():
     dados = request.get_json(silent=True) or {}
     try:
         usuario = _usuario_atual() or {}
-        result = logradouros_core.confirmar_grupo_visitas_positivas(
+        itens = dados.get("itens")
+        if not isinstance(itens, list):
+            itens = [{
+                "chave": dados.get("chave"),
+                "nome_oficial": dados.get("nome_oficial"),
+                "numero": dados.get("numero"),
+            }]
+        result = logradouros_core.confirmar_grupos_visitas_positivas(
             _target(),
-            dados.get("chave"),
-            dados.get("nome_oficial"),
+            itens,
             usuario.get("nome") or usuario.get("usuario"),
         )
     except ValueError as exc:
@@ -98,9 +116,49 @@ def api_confirmar_visitas_positivas():
         return jsonify({"erro": "Não foi possível confirmar o endereço."}), 500
     audit.registrar_evento(
         _get_db,
-        "visitas_endereco_normalizado_confirmado",
+        "visitas_enderecos_normalizados_confirmados",
         entidade="enderecos_normalizados",
-        entidade_id=result["id_endereco"],
+        detalhes=result,
+    )
+    return jsonify({"ok": True, **result})
+
+
+@bp.route("/api/logradouros/enderecos-vinculados")
+@login_required
+def api_enderecos_vinculados():
+    try:
+        return jsonify(
+            logradouros_core.listar_enderecos_vinculados(
+                _target(),
+                request.args.get("busca", ""),
+                request.args.get("pagina", 1),
+                request.args.get("por_pagina", 50),
+            )
+        )
+    except Exception:
+        logging.exception("Erro ao listar endereços vinculados")
+        return jsonify({"erro": "Não foi possível listar os vínculos."}), 500
+
+
+@bp.route("/api/logradouros/enderecos/<int:id_endereco>/desvincular", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_desfazer_vinculo(id_endereco):
+    dados = request.get_json(silent=True) or {}
+    try:
+        result = logradouros_core.desfazer_vinculo(
+            _target(), id_endereco, str(dados.get("id_visita") or "")
+        )
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    except Exception:
+        logging.exception("Erro ao desfazer vínculo de endereço")
+        return jsonify({"erro": "Não foi possível desfazer o vínculo."}), 500
+    audit.registrar_evento(
+        _get_db,
+        "visita_endereco_normalizado_desvinculado",
+        entidade="enderecos_normalizados",
+        entidade_id=id_endereco,
         detalhes=result,
     )
     return jsonify({"ok": True, **result})

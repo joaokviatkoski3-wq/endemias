@@ -155,6 +155,12 @@ As regras de fonte de verdade e a arquitetura da tela estao em
   sempre com escolha humana. Os vinculos ficam em tabelas proprias e preservam
   o endereco bruto da visita. A migracao
   `0007_enderecos_normalizados_visitas.sql` e necessaria em producao.
+- A versao `1.32.0` completa o fluxo operacional do piloto: inclui positivas
+  com endereco vazio, pagina todas as pendencias, apresenta a equacao de
+  cobertura, permite editar a proposta e confirmar grupos selecionados em uma
+  unica transacao. Enderecos confirmados possuem consulta, detalhe das visitas
+  e desvinculacao auditada. Nenhuma dessas acoes altera o endereco bruto de
+  `visitas`; nao ha migracao adicional depois da `0007`.
 
 ## Pendencia concreta e proxima ordem recomendada
 

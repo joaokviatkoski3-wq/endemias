@@ -83,7 +83,8 @@ class LogradourosTests(unittest.TestCase):
                 CREATE TABLE localidades (id_localidade INTEGER PRIMARY KEY, nome TEXT);
                 CREATE TABLE visitas (
                     id_visita TEXT PRIMARY KEY, logradouro TEXT, numero TEXT, data TEXT,
-                    tipo TEXT, localidade TEXT, id_localidade INTEGER, quarteirao INTEGER
+                    tipo TEXT, localidade TEXT, id_localidade INTEGER, quarteirao INTEGER,
+                    morador TEXT, visita TEXT
                 );
                 CREATE TABLE coletas (id_coleta TEXT PRIMARY KEY, id_visita TEXT);
                 CREATE TABLE resultados_laboratorio (
@@ -93,34 +94,67 @@ class LogradourosTests(unittest.TestCase):
                 """
             )
             conn.execute(
-                "INSERT INTO visitas VALUES (?,?,?,?,?,?,?,?)",
-                ("v-1", "R. SAO Joao", "20", "2026-09-01", "TB", "Sede", None, 10),
+                "INSERT INTO visitas VALUES (?,?,?,?,?,?,?,?,?,?)",
+                ("v-1", "R. SAO Joao", "20", "2026-09-01", "TB", "Sede", None, 10, None, "Normal"),
             )
             conn.execute("INSERT INTO coletas VALUES (?,?)", ("c-1", "v-1"))
             conn.execute("INSERT INTO resultados_laboratorio VALUES (?,?,?,?,?)", ("c-1", 1, 0, 0, 0))
             conn.execute(
-                "INSERT INTO visitas VALUES (?,?,?,?,?,?,?,?)",
-                ("v-pe", "Rua São João", "20", "2026-09-01", "PE", "Sede", None, 10),
+                "INSERT INTO visitas VALUES (?,?,?,?,?,?,?,?,?,?)",
+                ("v-pe", "Rua São João", "20", "2026-09-01", "PE", "Sede", None, 10, None, "Normal"),
             )
             conn.execute("INSERT INTO coletas VALUES (?,?)", ("c-pe", "v-pe"))
             conn.execute("INSERT INTO resultados_laboratorio VALUES (?,?,?,?,?)", ("c-pe", 1, 0, 0, 0))
+            conn.execute(
+                "INSERT INTO visitas VALUES (?,?,?,?,?,?,?,?,?,?)",
+                ("v-sem-endereco", "", "", "2026-09-01", "PVE", "Sede", None, 11, None, "Normal"),
+            )
+            conn.execute("INSERT INTO coletas VALUES (?,?)", ("c-sem-endereco", "v-sem-endereco"))
+            conn.execute(
+                "INSERT INTO resultados_laboratorio VALUES (?,?,?,?,?)",
+                ("c-sem-endereco", 1, 0, 0, 0),
+            )
             conn.commit()
         finally:
             conn.close()
 
         previa = logradouros.previa_visitas_positivas(self.path)
-        self.assertEqual(1, previa["total_grupos"])
-        self.assertEqual(1, previa["total_visitas"])
-        grupo = previa["grupos"][0]
+        self.assertEqual(2, previa["total_grupos"])
+        self.assertEqual(2, previa["total_visitas"])
+        self.assertEqual(2, previa["total_elegiveis"])
+        self.assertEqual(0, previa["total_vinculadas"])
+        self.assertEqual(1, previa["enderecos_incompletos"])
+        grupo = next(item for item in previa["grupos"] if item["situacao"] == "pronto_para_revisar")
+        grupo_incompleto = next(item for item in previa["grupos"] if item["situacao"] == "sem_logradouro")
         self.assertEqual("pronto_para_revisar", grupo["situacao"])
         self.assertEqual("Rua São João", grupo["nome_oficial"])
-        result = logradouros.confirmar_grupo_visitas_positivas(
-            self.path, grupo["chave"], grupo["nome_oficial"], "João"
+        with self.assertRaisesRegex(ValueError, "logradouro oficial"):
+            logradouros.confirmar_grupos_visitas_positivas(
+                self.path,
+                [
+                    {"chave": grupo["chave"], "nome_oficial": "Rua São João", "numero": "20"},
+                    {"chave": grupo_incompleto["chave"], "nome_oficial": "Rua Inexistente", "numero": "30"},
+                ],
+                "João",
+            )
+        conn = db_core.connect(self.path)
+        try:
+            self.assertEqual(0, conn.execute("SELECT COUNT(*) FROM visitas_enderecos_normalizados").fetchone()[0])
+        finally:
+            conn.close()
+        result = logradouros.confirmar_grupos_visitas_positivas(
+            self.path,
+            [
+                {"chave": grupo["chave"], "nome_oficial": "Rua São João", "numero": "20"},
+                {"chave": grupo_incompleto["chave"], "nome_oficial": "Rua São João", "numero": "30"},
+            ],
+            "João",
         )
-        self.assertEqual(1, result["visitas_vinculadas"])
+        self.assertEqual(2, result["grupos_confirmados"])
+        self.assertEqual(2, result["visitas_vinculadas"])
         summary = logradouros.resumo(self.path)
-        self.assertEqual(1, summary["enderecos_confirmados"])
-        self.assertEqual(1, summary["visitas_vinculadas"])
+        self.assertEqual(2, summary["enderecos_confirmados"])
+        self.assertEqual(2, summary["visitas_vinculadas"])
         conn = db_core.connect(self.path)
         try:
             self.assertEqual(
@@ -128,11 +162,23 @@ class LogradourosTests(unittest.TestCase):
                 conn.execute("SELECT logradouro FROM visitas WHERE id_visita='v-1'").fetchone()[0],
             )
             self.assertEqual(
-                1,
+                2,
                 conn.execute("SELECT COUNT(*) FROM visitas_enderecos_normalizados").fetchone()[0],
             )
         finally:
             conn.close()
+        vinculados = logradouros.listar_enderecos_vinculados(self.path)
+        self.assertEqual(2, vinculados["total"])
+        endereco_20 = next(item for item in vinculados["registros"] if item["numero_normalizado"] == "20")
+        detalhe = logradouros.detalhar_endereco_vinculado(
+            self.path, endereco_20["id_endereco"]
+        )
+        self.assertEqual("v-1", detalhe["visitas"][0]["id_visita"])
+        removido = logradouros.desfazer_vinculo(
+            self.path, detalhe["endereco"]["id_endereco"], "v-1"
+        )
+        self.assertTrue(removido["endereco_removido"])
+        self.assertEqual(1, logradouros.previa_visitas_positivas(self.path)["total_visitas"])
 
     def test_sugere_plural_e_artigo_como_correspondencia_aproximada(self):
         self.assertEqual(
@@ -149,7 +195,8 @@ class LogradourosTests(unittest.TestCase):
                 CREATE TABLE localidades (id_localidade INTEGER PRIMARY KEY, nome TEXT);
                 CREATE TABLE visitas (
                     id_visita TEXT PRIMARY KEY, logradouro TEXT, numero TEXT, data TEXT,
-                    tipo TEXT, localidade TEXT, id_localidade INTEGER, quarteirao INTEGER
+                    tipo TEXT, localidade TEXT, id_localidade INTEGER, quarteirao INTEGER,
+                    morador TEXT, visita TEXT
                 );
                 CREATE TABLE coletas (id_coleta TEXT PRIMARY KEY, id_visita TEXT);
                 CREATE TABLE resultados_laboratorio (
@@ -159,8 +206,8 @@ class LogradourosTests(unittest.TestCase):
                 """
             )
             conn.execute(
-                "INSERT INTO visitas VALUES (?,?,?,?,?,?,?,?)",
-                ("v-salgueiro", "Rua Salgueiro", "51", "2026-09-01", "TBO", "Sede", None, 10),
+                "INSERT INTO visitas VALUES (?,?,?,?,?,?,?,?,?,?)",
+                ("v-salgueiro", "Rua Salgueiro", "51", "2026-09-01", "TBO", "Sede", None, 10, None, "Normal"),
             )
             conn.execute("INSERT INTO coletas VALUES (?,?)", ("c-salgueiro", "v-salgueiro"))
             conn.execute(
@@ -189,8 +236,8 @@ class LogradourosTests(unittest.TestCase):
                 conn.execute("SELECT logradouro FROM visitas WHERE id_visita='v-salgueiro'").fetchone()[0],
             )
             conn.execute(
-                "INSERT INTO visitas VALUES (?,?,?,?,?,?,?,?)",
-                ("v-oficial", "Rua dos Salgueiros", "51", "2026-09-02", "TBO", "Sede", None, 10),
+                "INSERT INTO visitas VALUES (?,?,?,?,?,?,?,?,?,?)",
+                ("v-oficial", "Rua dos Salgueiros", "51", "2026-09-02", "TBO", "Sede", None, 10, None, "Normal"),
             )
             conn.execute("INSERT INTO coletas VALUES (?,?)", ("c-oficial", "v-oficial"))
             conn.execute(

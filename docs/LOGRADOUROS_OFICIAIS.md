@@ -62,6 +62,25 @@ para revisao futura. Confirmacoes anteriores funcionam como correspondencias
 aprendidas quando uma nova visita repete a mesma grafia de origem; o endereco
 bruto continua preservado.
 
+### Revisao em lote e consulta dos vinculos
+
+Desde a versao `1.32.0`, a previa cobre todas as positivas elegiveis e exibe a
+equacao de cobertura: total de positivas = vinculadas + pendentes. Casos sem
+logradouro ou numero tambem aparecem; PE continua fora dessa conta.
+
+- A lista e paginada e permite selecionar todos os resultados filtrados da
+  pagina, conservar selecoes entre paginas e confirmar ate 300 grupos de uma
+  vez.
+- Rua oficial e numero podem ser ajustados na propria linha. A rua digitada
+  precisa existir na base oficial.
+- O lote e atomico: todos os grupos sao revalidados antes da escrita e, se um
+  deles estiver invalido ou desatualizado, nenhum vinculo e confirmado.
+- A secao **Enderecos vinculados** mostra o endereco canonico, as grafias
+  originais, localidades, periodo e quantidade de visitas.
+- O detalhe do endereco lista as visitas reunidas e permite desfazer um
+  vinculo. Essa acao nao apaga nem edita a visita; ela apenas a devolve para a
+  fila de revisao e remove a entidade canonica se ela ficar sem visitas.
+
 ## PostgreSQL
 
 As tabelas de producao sao criadas pelas migracoes
@@ -69,3 +88,6 @@ As tabelas de producao sao criadas pelas migracoes
 `0007_enderecos_normalizados_visitas.sql`. Aplique as migracoes no banco
 `endemias` antes de abrir a tela em producao. Em testes SQLite, as tabelas sao
 criadas pelo proprio modulo.
+
+As melhorias da versao `1.32.0` reutilizam essas tabelas e nao exigem uma nova
+migracao depois da `0007`.

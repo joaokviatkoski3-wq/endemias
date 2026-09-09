@@ -191,10 +191,9 @@ def _visitas_positivas_sem_vinculo(conn):
                COALESCE(l.nome, v.localidade) AS localidade, v.quarteirao
           FROM visitas v
           LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
-          LEFT JOIN {VINCULOS_TABLE} ve ON ve.id_visita=v.id_visita
+         LEFT JOIN {VINCULOS_TABLE} ve ON ve.id_visita=v.id_visita
          WHERE ve.id_visita IS NULL
            AND v.tipo<>'PE'
-           AND TRIM(COALESCE(v.logradouro, ''))<>''
            AND EXISTS (
                SELECT 1
                  FROM coletas c
@@ -208,147 +207,366 @@ def _visitas_positivas_sem_vinculo(conn):
     ).fetchall()
 
 
-def previa_visitas_positivas(target, limite=100):
-    """Agrupa enderecos positivos ainda sem vinculo, somente para revisao."""
+def _resumo_positivas_elegiveis(conn):
+    row = conn.execute(
+        f"""SELECT COUNT(*) AS total,
+                   COALESCE(SUM(CASE WHEN ve.id_visita IS NOT NULL THEN 1 ELSE 0 END),0) AS vinculadas
+              FROM visitas v
+              LEFT JOIN {VINCULOS_TABLE} ve ON ve.id_visita=v.id_visita
+             WHERE v.tipo<>'PE'
+               AND EXISTS (
+                   SELECT 1
+                     FROM coletas c
+                     JOIN resultados_laboratorio rl ON rl.id_coleta=c.id_coleta
+                    WHERE c.id_visita=v.id_visita
+                      AND (COALESCE(rl.aegypt_larvas,0) + COALESCE(rl.aegypt_pupas,0) +
+                           COALESCE(rl.aegypt_exuvias,0) + COALESCE(rl.aegypt_adulto,0)) > 0
+               )"""
+    ).fetchone()
+    return {"total": row["total"] or 0, "vinculadas": row["vinculadas"] or 0}
+
+
+def _montar_grupos_pendentes(conn):
+    catalogo = _catalogo_por_nome(conn)
+    aliases = _aliases_confirmados(conn)
+    grupos = {}
+    for row in _visitas_positivas_sem_vinculo(conn):
+        logradouro = str(row["logradouro"] or "").strip()
+        numero = str(row["numero"] or "").strip()
+        chave_logradouro = normalizar_logradouro(logradouro)
+        chave_numero = enderecos_core.normalizar_numero(numero)
+        chave_comparacao = f"{chave_logradouro}\x1f{chave_numero}"
+        if not chave_logradouro or not chave_numero:
+            # Sem os dois componentes nao ha evidencia suficiente para agrupar
+            # visitas distintas como se fossem o mesmo imovel.
+            chave_comparacao += f"\x1f{row['id_visita']}"
+        grupo = grupos.setdefault(
+            chave_comparacao,
+            {
+                "chave": hashlib.sha256(chave_comparacao.encode("utf-8")).hexdigest(),
+                "logradouro_normalizado": chave_logradouro,
+                "numero_normalizado": chave_numero,
+                "logradouros_informados": set(),
+                "enderecos_informados": set(),
+                "visitas": [],
+                "localidades": set(),
+                "quarteiroes": set(),
+            },
+        )
+        exibicao = logradouro or "(logradouro não informado)"
+        grupo["enderecos_informados"].add(f"{exibicao}{', ' + numero if numero else ''}")
+        grupo["logradouros_informados"].add(logradouro)
+        grupo["visitas"].append(str(row["id_visita"]))
+        if row["localidade"]:
+            grupo["localidades"].add(str(row["localidade"]))
+        if row["quarteirao"] not in (None, ""):
+            grupo["quarteiroes"].add(str(row["quarteirao"]))
+
+    resultado = []
+    for grupo in grupos.values():
+        logradouro_referencia = sorted(grupo["logradouros_informados"], key=str.casefold)[0]
+        candidatos = _candidatos_logradouro(logradouro_referencia, catalogo, aliases)
+        if not grupo["logradouro_normalizado"]:
+            situacao = "sem_logradouro"
+        elif not grupo["numero_normalizado"]:
+            situacao = "sem_numero"
+        elif not candidatos:
+            situacao = "nao_encontrado"
+        elif candidatos[0]["score"] < 98:
+            situacao = "sugestao_aproximada"
+        else:
+            situacao = "pronto_para_revisar"
+        resultado.append(
+            {
+                "chave": grupo["chave"],
+                "logradouro_normalizado": grupo["logradouro_normalizado"],
+                "numero_normalizado": grupo["numero_normalizado"],
+                "enderecos_informados": sorted(grupo["enderecos_informados"], key=str.casefold),
+                "visitas": sorted(grupo["visitas"]),
+                "quantidade_visitas": len(grupo["visitas"]),
+                "localidades": sorted(grupo["localidades"], key=str.casefold),
+                "quarteiroes": sorted(grupo["quarteiroes"]),
+                "nome_oficial": candidatos[0]["nome"] if candidatos else None,
+                "trechos_oficiais": candidatos[0]["trechos"] if candidatos else 0,
+                "candidatos": candidatos,
+                "situacao": situacao,
+            }
+        )
+    resultado.sort(key=lambda item: (-item["quantidade_visitas"], item["enderecos_informados"][0].casefold()))
+    return resultado, catalogo
+
+
+def previa_visitas_positivas(target, pagina=1, por_pagina=100):
+    """Agrupa todos os enderecos positivos pendentes e pagina a revisao."""
     ensure_schema(target)
     try:
-        limite = max(1, min(int(limite or 100), 300))
+        pagina = max(1, int(pagina or 1))
+        por_pagina = max(1, min(int(por_pagina or 100), 300))
     except (TypeError, ValueError):
-        limite = 100
+        pagina, por_pagina = 1, 100
     conn = db_core.connect(target)
     try:
-        catalogo = _catalogo_por_nome(conn)
-        aliases = _aliases_confirmados(conn)
-        grupos = {}
-        for row in _visitas_positivas_sem_vinculo(conn):
-            logradouro = str(row["logradouro"] or "").strip()
-            numero = str(row["numero"] or "").strip()
-            chave_logradouro = normalizar_logradouro(logradouro)
-            chave_numero = enderecos_core.normalizar_numero(numero)
-            chave_comparacao = f"{chave_logradouro}\x1f{chave_numero}"
-            grupo = grupos.setdefault(
-                chave_comparacao,
-                {
-                    "chave": hashlib.sha256(chave_comparacao.encode("utf-8")).hexdigest(),
-                    "logradouro_normalizado": chave_logradouro,
-                    "numero_normalizado": chave_numero,
-                    "logradouros_informados": set(),
-                    "enderecos_informados": set(),
-                    "visitas": [],
-                    "localidades": set(),
-                    "quarteiroes": set(),
-                },
-            )
-            grupo["enderecos_informados"].add(
-                f"{logradouro}{', ' + numero if numero else ''}"
-            )
-            grupo["logradouros_informados"].add(logradouro)
-            grupo["visitas"].append(str(row["id_visita"]))
-            if row["localidade"]:
-                grupo["localidades"].add(str(row["localidade"]))
-            if row["quarteirao"] not in (None, ""):
-                grupo["quarteiroes"].add(str(row["quarteirao"]))
-
-        resultado = []
-        for grupo in grupos.values():
-            candidatos = _candidatos_logradouro(
-                sorted(grupo["logradouros_informados"], key=str.casefold)[0],
-                catalogo,
-                aliases,
-            )
-            if not grupo["numero_normalizado"]:
-                situacao = "sem_numero"
-            elif not candidatos:
-                situacao = "nao_encontrado"
-            elif candidatos[0]["score"] < 98:
-                situacao = "sugestao_aproximada"
-            else:
-                situacao = "pronto_para_revisar"
-            resultado.append(
-                {
-                    "chave": grupo["chave"],
-                    "logradouro_normalizado": grupo["logradouro_normalizado"],
-                    "numero_normalizado": grupo["numero_normalizado"],
-                    "enderecos_informados": sorted(grupo["enderecos_informados"], key=str.casefold),
-                    "visitas": sorted(grupo["visitas"]),
-                    "quantidade_visitas": len(grupo["visitas"]),
-                    "localidades": sorted(grupo["localidades"], key=str.casefold),
-                    "quarteiroes": sorted(grupo["quarteiroes"]),
-                    "nome_oficial": candidatos[0]["nome"] if candidatos else None,
-                    "trechos_oficiais": candidatos[0]["trechos"] if candidatos else 0,
-                    "candidatos": candidatos,
-                    "situacao": situacao,
-                }
-            )
-        resultado.sort(
-            key=lambda item: (-item["quantidade_visitas"], item["enderecos_informados"][0].casefold())
+        grupos, catalogo = _montar_grupos_pendentes(conn)
+        cobertura = _resumo_positivas_elegiveis(conn)
+        total_grupos = len(grupos)
+        total_paginas = max(1, (total_grupos + por_pagina - 1) // por_pagina)
+        pagina = min(pagina, total_paginas)
+        inicio = (pagina - 1) * por_pagina
+        incompletas = sum(
+            item["quantidade_visitas"]
+            for item in grupos
+            if item["situacao"] in {"sem_logradouro", "sem_numero"}
         )
         return {
-            "grupos": resultado[:limite],
-            "total_grupos": len(resultado),
-            "total_visitas": sum(item["quantidade_visitas"] for item in resultado),
+            "grupos": grupos[inicio:inicio + por_pagina],
+            "total_grupos": total_grupos,
+            "total_visitas": sum(item["quantidade_visitas"] for item in grupos),
+            "enderecos_incompletos": incompletas,
+            "total_elegiveis": cobertura["total"],
+            "total_vinculadas": cobertura["vinculadas"],
             "catalogo_disponivel": bool(catalogo),
-            "limite": limite,
+            "pagina": pagina,
+            "por_pagina": por_pagina,
+            "total_paginas": total_paginas,
+            "nomes_oficiais": sorted(
+                {nome for item in catalogo.values() for nome in item["nomes"]}, key=str.casefold
+            ),
         }
     finally:
         conn.close()
 
 
-def confirmar_grupo_visitas_positivas(target, chave, nome_oficial, confirmado_por=None):
-    """Cria o endereco canonico e vincula apenas o grupo explicitamente aprovado."""
-    previa = previa_visitas_positivas(target, limite=300)
-    grupo = next((item for item in previa["grupos"] if item["chave"] == str(chave or "")), None)
-    if not grupo:
-        raise ValueError("O grupo não está mais pendente de revisão.")
-    if grupo["situacao"] not in {"pronto_para_revisar", "sugestao_aproximada"}:
-        raise ValueError("Somente grupos com número e uma sugestão oficial podem ser confirmados.")
-    candidato = next((item for item in grupo["candidatos"] if item["nome"] == nome_oficial), None)
-    if not candidato:
-        raise ValueError("A sugestão oficial mudou; atualize a prévia antes de confirmar.")
+def _obter_endereco(conn, nome_oficial, numero_normalizado, confirmado_por, agora):
+    logradouro_normalizado = normalizar_logradouro(nome_oficial)
+    chave_canonica = f"{logradouro_normalizado}\x1f{numero_normalizado}"
+    chave_endereco = hashlib.sha256(chave_canonica.encode("utf-8")).hexdigest()
+    existente = conn.execute(
+        f"SELECT id_endereco FROM {ENDERECOS_TABLE} WHERE chave_endereco=?", (chave_endereco,)
+    ).fetchone()
+    if existente:
+        id_endereco = existente["id_endereco"]
+        conn.execute(
+            f"UPDATE {ENDERECOS_TABLE} SET logradouro_oficial=?, atualizado_em=?, confirmado_por=? WHERE id_endereco=?",
+            (nome_oficial, agora, confirmado_por, id_endereco),
+        )
+        return id_endereco
+    return db_core.insert_and_get_id(
+        conn,
+        f"""INSERT INTO {ENDERECOS_TABLE}
+               (chave_endereco,logradouro_normalizado,logradouro_oficial,numero_normalizado,
+                criado_em,atualizado_em,confirmado_por)
+            VALUES (?,?,?,?,?,?,?)""",
+        (chave_endereco, logradouro_normalizado, nome_oficial, numero_normalizado, agora, agora, confirmado_por),
+        "id_endereco",
+    )
 
+
+def confirmar_grupos_visitas_positivas(target, itens, confirmado_por=None):
+    """Confirma varios grupos em uma unica transacao, depois de revalidar todos."""
+    if not isinstance(itens, list) or not itens:
+        raise ValueError("Selecione ao menos um grupo para confirmar.")
+    if len(itens) > 300:
+        raise ValueError("Confirme no máximo 300 grupos por vez.")
+    ensure_schema(target)
     conn = db_core.connect(target)
     try:
+        grupos, catalogo = _montar_grupos_pendentes(conn)
+        por_chave = {grupo["chave"]: grupo for grupo in grupos}
+        oficiais = {
+            nome.casefold(): nome
+            for item in catalogo.values()
+            for nome in item["nomes"]
+        }
+        preparados = []
+        chaves_recebidas = set()
+        for item in itens:
+            chave = str((item or {}).get("chave") or "")
+            if not chave or chave in chaves_recebidas:
+                raise ValueError("A seleção contém um grupo inválido ou repetido.")
+            chaves_recebidas.add(chave)
+            grupo = por_chave.get(chave)
+            if not grupo:
+                raise ValueError("Um dos grupos não está mais pendente; atualize a prévia.")
+            nome_recebido = " ".join(str((item or {}).get("nome_oficial") or "").strip().split())
+            nome_oficial = oficiais.get(nome_recebido.casefold())
+            if not nome_oficial:
+                raise ValueError(f"Escolha um logradouro oficial para {grupo['enderecos_informados'][0]}.")
+            numero = enderecos_core.normalizar_numero((item or {}).get("numero"))
+            if not numero:
+                raise ValueError(f"Informe o número usado no vínculo de {grupo['enderecos_informados'][0]}.")
+            preparados.append((grupo, nome_oficial, numero))
+
         agora = _now()
-        chave_canonica = f"{normalizar_logradouro(nome_oficial)}\x1f{grupo['numero_normalizado']}"
-        chave_endereco = hashlib.sha256(chave_canonica.encode("utf-8")).hexdigest()
-        existente = conn.execute(
-            f"SELECT id_endereco FROM {ENDERECOS_TABLE} WHERE chave_endereco=?",
-            (chave_endereco,),
-        ).fetchone()
-        if existente:
-            id_endereco = existente["id_endereco"]
-            conn.execute(
-                f"UPDATE {ENDERECOS_TABLE} SET logradouro_oficial=?, atualizado_em=?, confirmado_por=? WHERE id_endereco=?",
-                (nome_oficial, agora, confirmado_por, id_endereco),
+        enderecos_ids = set()
+        visitas_vinculadas = 0
+        confirmacoes = []
+        for grupo, nome_oficial, numero in preparados:
+            id_endereco = _obter_endereco(conn, nome_oficial, numero, confirmado_por, agora)
+            enderecos_ids.add(id_endereco)
+            rows = conn.execute(
+                f"SELECT id_visita, logradouro, numero FROM visitas WHERE id_visita IN ({','.join('?' * len(grupo['visitas']))})",
+                grupo["visitas"],
+            ).fetchall()
+            conn.executemany(
+                f"""INSERT INTO {VINCULOS_TABLE}
+                       (id_visita,id_endereco,logradouro_bruto,numero_bruto,confirmado_em,confirmado_por)
+                    VALUES (?,?,?,?,?,?)""",
+                [
+                    (row["id_visita"], id_endereco, row["logradouro"], row["numero"], agora, confirmado_por)
+                    for row in rows
+                ],
             )
-        else:
-            id_endereco = db_core.insert_and_get_id(
-                conn,
-                f"""INSERT INTO {ENDERECOS_TABLE}
-                       (chave_endereco,logradouro_normalizado,logradouro_oficial,numero_normalizado,
-                        criado_em,atualizado_em,confirmado_por)
-                    VALUES (?,?,?,?,?,?,?)""",
-                (
-                    chave_endereco, normalizar_logradouro(nome_oficial), nome_oficial,
-                    grupo["numero_normalizado"], agora, agora, confirmado_por,
-                ),
-                "id_endereco",
+            visitas_vinculadas += len(rows)
+            confirmacoes.append(
+                {
+                    "id_endereco": id_endereco,
+                    "logradouro_oficial": nome_oficial,
+                    "numero": numero,
+                    "visitas": len(rows),
+                }
             )
-        rows = conn.execute(
-            f"SELECT id_visita, logradouro, numero FROM visitas WHERE id_visita IN ({','.join('?' * len(grupo['visitas']))})",
-            grupo["visitas"],
-        ).fetchall()
-        conn.executemany(
-            f"""INSERT INTO {VINCULOS_TABLE}
-                   (id_visita,id_endereco,logradouro_bruto,numero_bruto,confirmado_em,confirmado_por)
-                VALUES (?,?,?,?,?,?)""",
-            [
-                (row["id_visita"], id_endereco, row["logradouro"], row["numero"], agora, confirmado_por)
-                for row in rows
-            ],
-        )
         conn.commit()
-        return {"id_endereco": id_endereco, "nome_oficial": nome_oficial, "numero": grupo["numero_normalizado"], "visitas_vinculadas": len(rows)}
+        return {
+            "grupos_confirmados": len(preparados),
+            "enderecos_afetados": len(enderecos_ids),
+            "visitas_vinculadas": visitas_vinculadas,
+            "confirmacoes": confirmacoes,
+        }
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def confirmar_grupo_visitas_positivas(target, chave, nome_oficial, confirmado_por=None, numero=None):
+    if numero is None:
+        ensure_schema(target)
+        conn = db_core.connect(target)
+        try:
+            grupos, _ = _montar_grupos_pendentes(conn)
+            grupo = next((item for item in grupos if item["chave"] == str(chave or "")), None)
+            numero = grupo["numero_normalizado"] if grupo else None
+        finally:
+            conn.close()
+    return confirmar_grupos_visitas_positivas(
+        target,
+        [{"chave": chave, "nome_oficial": nome_oficial, "numero": numero}],
+        confirmado_por,
+    )
+
+
+def listar_enderecos_vinculados(target, busca="", pagina=1, por_pagina=50):
+    ensure_schema(target)
+    try:
+        pagina = max(1, int(pagina or 1))
+        por_pagina = max(1, min(int(por_pagina or 50), 200))
+    except (TypeError, ValueError):
+        pagina, por_pagina = 1, 50
+    termo = str(busca or "").strip().casefold()
+    conn = db_core.connect(target)
+    try:
+        rows = conn.execute(
+            f"""SELECT e.id_endereco, e.logradouro_oficial, e.numero_normalizado,
+                       e.atualizado_em, e.confirmado_por, ve.id_visita,
+                       ve.logradouro_bruto, ve.numero_bruto, v.data, v.tipo,
+                       COALESCE(l.nome,v.localidade) AS localidade
+                  FROM {ENDERECOS_TABLE} e
+                  JOIN {VINCULOS_TABLE} ve ON ve.id_endereco=e.id_endereco
+                  JOIN visitas v ON v.id_visita=ve.id_visita
+                  LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
+                 ORDER BY e.logradouro_oficial, e.numero_normalizado, v.data DESC"""
+        ).fetchall()
+        enderecos = {}
+        for row in rows:
+            item = enderecos.setdefault(
+                row["id_endereco"],
+                {
+                    "id_endereco": row["id_endereco"],
+                    "logradouro_oficial": row["logradouro_oficial"],
+                    "numero_normalizado": row["numero_normalizado"],
+                    "atualizado_em": row["atualizado_em"],
+                    "confirmado_por": row["confirmado_por"],
+                    "visitas": 0,
+                    "variacoes": set(),
+                    "localidades": set(),
+                    "data_inicial": None,
+                    "data_final": None,
+                },
+            )
+            item["visitas"] += 1
+            bruto = f"{row['logradouro_bruto'] or '(sem logradouro)'}, {row['numero_bruto'] or '(sem número)'}"
+            item["variacoes"].add(bruto)
+            if row["localidade"]:
+                item["localidades"].add(row["localidade"])
+            data = str(row["data"] or "")
+            item["data_inicial"] = min(filter(None, (item["data_inicial"], data)), default=None)
+            item["data_final"] = max(filter(None, (item["data_final"], data)), default=None)
+        lista = []
+        for item in enderecos.values():
+            item["variacoes"] = sorted(item["variacoes"], key=str.casefold)
+            item["localidades"] = sorted(item["localidades"], key=str.casefold)
+            texto = " ".join(
+                [item["logradouro_oficial"], item["numero_normalizado"], *item["variacoes"], *item["localidades"]]
+            ).casefold()
+            if not termo or termo in texto:
+                lista.append(item)
+        lista.sort(key=lambda item: (item["logradouro_oficial"].casefold(), item["numero_normalizado"]))
+        total = len(lista)
+        total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
+        pagina = min(pagina, total_paginas)
+        inicio = (pagina - 1) * por_pagina
+        return {"registros": lista[inicio:inicio + por_pagina], "total": total, "pagina": pagina, "total_paginas": total_paginas}
+    finally:
+        conn.close()
+
+
+def detalhar_endereco_vinculado(target, id_endereco):
+    ensure_schema(target)
+    conn = db_core.connect(target)
+    try:
+        endereco = conn.execute(
+            f"SELECT * FROM {ENDERECOS_TABLE} WHERE id_endereco=?", (id_endereco,)
+        ).fetchone()
+        if not endereco:
+            raise ValueError("Endereço normalizado não encontrado.")
+        visitas = conn.execute(
+            f"""SELECT v.id_visita, v.data, v.tipo, COALESCE(l.nome,v.localidade) AS localidade,
+                       v.quarteirao, v.logradouro, v.numero, v.morador, v.visita,
+                       ve.logradouro_bruto, ve.numero_bruto, ve.confirmado_em, ve.confirmado_por
+                  FROM {VINCULOS_TABLE} ve
+                  JOIN visitas v ON v.id_visita=ve.id_visita
+                  LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
+                 WHERE ve.id_endereco=?
+                 ORDER BY v.data DESC, v.id_visita DESC""",
+            (id_endereco,),
+        ).fetchall()
+        return {
+            "endereco": db_core.serialize_row(endereco),
+            "visitas": [db_core.serialize_row(row) for row in visitas],
+        }
+    finally:
+        conn.close()
+
+
+def desfazer_vinculo(target, id_endereco, id_visita):
+    ensure_schema(target)
+    conn = db_core.connect(target)
+    try:
+        row = conn.execute(
+            f"SELECT 1 FROM {VINCULOS_TABLE} WHERE id_endereco=? AND id_visita=?",
+            (id_endereco, id_visita),
+        ).fetchone()
+        if not row:
+            raise ValueError("Vínculo não encontrado.")
+        conn.execute(f"DELETE FROM {VINCULOS_TABLE} WHERE id_endereco=? AND id_visita=?", (id_endereco, id_visita))
+        restantes = conn.execute(
+            f"SELECT COUNT(*) FROM {VINCULOS_TABLE} WHERE id_endereco=?", (id_endereco,)
+        ).fetchone()[0]
+        if not restantes:
+            conn.execute(f"DELETE FROM {ENDERECOS_TABLE} WHERE id_endereco=?", (id_endereco,))
+        conn.commit()
+        return {"id_endereco": id_endereco, "id_visita": id_visita, "endereco_removido": not bool(restantes)}
     except Exception:
         conn.rollback()
         raise
