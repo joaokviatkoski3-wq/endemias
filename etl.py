@@ -12,6 +12,7 @@ from datetime import date, datetime, time
 from openpyxl.utils import column_index_from_string
 
 from app_core import esporotricose as esporotricose_core
+from app_core import focos_positivos as focos_core
 from app_core import amostras_animais as amostras_animais_core
 from app_core import agentes as agentes_core
 from app_core import bri as bri_core
@@ -127,16 +128,6 @@ def val_str(val):
 
 def _is_postgresql(conn_or_cursor):
     return getattr(conn_or_cursor, "backend", "sqlite") == "postgresql"
-
-
-def _string_aggregate(conn_or_cursor, expression, separator=" / "):
-    if _is_postgresql(conn_or_cursor):
-        cast_expression = f"CAST({expression} AS TEXT)"
-        return (
-            f"string_agg({cast_expression}, '{separator}' "
-            f"ORDER BY {cast_expression})"
-        )
-    return f"GROUP_CONCAT({expression}, '{separator}')"
 
 
 def _date_order(expression):
@@ -584,95 +575,13 @@ def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso, con
 
 
 def inserir_foco_visita(cur, id_visita, positivos, visita_row, tipo, cfg_tipo, agora_iso):
+    """Compatibilidade do ETL com a regra unica de focos/notificacoes.
+
+    Os argumentos de resultados e configuracao ja foram usados para montar o
+    foco nesta camada. A rotina comum consulta a visita e todos os seus tubos,
+    para que importacoes e lancamentos manuais gerem exatamente o mesmo foco.
     """
-    Insere (ou atualiza) UM foco por visita, agrupando todos os tubos/depósitos positivos.
-
-    positivos: lista de dicts com chaves id_resultado, id_coleta, num_tubo, tipo_deposito
-    """
-    import re as _re
-
-    # Ordenar tubos numericamente para exibição consistente
-    def _num(p):
-        s = _re.sub(r"\D", "", p.get("num_tubo") or "")
-        return int(s) if s else 0
-
-    positivos_ord = sorted(positivos, key=_num)
-
-    # Campos derivados dos tubos agrupados
-    tubos_str = ", ".join(p["num_tubo"] for p in positivos_ord if p.get("num_tubo"))
-    deps_partes = []
-    for p in positivos_ord:
-        dep = p.get("tipo_deposito") or ""
-        tub = p.get("num_tubo") or ""
-        if dep and tub:
-            deps_partes.append(f"{dep} (tubo {tub})")
-        elif dep:
-            deps_partes.append(dep)
-        elif tub:
-            deps_partes.append(f"tubo {tub}")
-    deps_str = ", ".join(deps_partes) if deps_partes else None
-
-    # código legível: YYYYMMDD + número do primeiro tubo
-    data_bruta  = val_str(visita_row.get(cfg_tipo.get("col_data", "Data")))
-    data_clean  = (normalizar_data(data_bruta) or "").replace("-", "")
-    primeiro_num = _re.sub(r"\D", "", positivos_ord[0].get("num_tubo") or "") if positivos_ord else ""
-    codigo = data_clean + primeiro_num if data_clean and primeiro_num else None
-
-    # id_foco estável por visita (v3: um por visita)
-    id_foco = hashlib.md5(("foco:v3:" + id_visita).encode()).hexdigest()
-
-    col_loc   = cfg_tipo.get("col_localidade")
-    loc_bruto = val_str(visita_row.get(col_loc)) if col_loc else None
-
-    agentes_agg = _string_aggregate(cur, "a.nome")
-    cur.execute(f"""
-        SELECT {agentes_agg}
-        FROM visita_agentes va JOIN agentes a ON a.id_agente=va.id_agente
-        WHERE va.id_visita=?
-    """, (id_visita,))
-    agentes_str = (cur.fetchone() or [None])[0]
-
-    # Referências ao primeiro resultado/coleta (para FK; os demais ficam em num_tubo/depositos)
-    id_coleta_ref   = positivos_ord[0]["id_coleta"]
-    id_resultado_ref = positivos_ord[0]["id_resultado"]
-
-    obs = val_str(visita_row.get("Observações") or visita_row.get("observacoes"))
-
-    # Se o foco já existe (reprocessamento): atualiza tubos/depósitos/código, mantém status manual
-    cur.execute("SELECT id_foco FROM focos_positivos WHERE id_foco=?", (id_foco,))
-    ja_existe = cur.fetchone() is not None
-
-    if ja_existe:
-        cur.execute("""
-            UPDATE focos_positivos SET
-                num_tubo=?, depositos=?, codigo=?, observacoes=?, agentes=?, processado_em=?
-            WHERE id_foco=?
-        """, (tubos_str, deps_str, codigo, obs, agentes_str, agora_iso, id_foco))
-    else:
-        cur.execute("""
-            INSERT INTO focos_positivos (
-                id_foco, id_visita, id_coleta, id_resultado, num_tubo, codigo,
-                origem, tipo_trabalho, data, id_localidade, localidade,
-                quarteirao, logradouro, numero, complemento,
-                nome_morador, tipo_imovel, depositos, agentes,
-                observacoes, gera_notificacao, processado_em
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        """, (
-            id_foco, id_visita, id_coleta_ref, id_resultado_ref, tubos_str, codigo,
-            "kobo", tipo,
-            normalizar_data(data_bruta),
-            obter_ou_criar_localidade(cur, loc_bruto),
-            normalizar_localidade(loc_bruto) if loc_bruto else None,
-            val_int(visita_row.get(cfg_tipo.get("col_quarteirao", "Quarteirão"))),
-            val_str(visita_row.get(cfg_tipo.get("col_logradouro", "Logradouro"))),
-            val_str(visita_row.get(cfg_tipo.get("col_numero", "Número"))),
-            None,
-            val_str(visita_row.get("Morador")),
-            val_str(visita_row.get("Tipo do imóvel") or visita_row.get("Imóvel")),
-            deps_str, agentes_str, obs,
-            work_types.gera_notificacao_padrao(tipo),
-            agora_iso,
-        ))
+    return focos_core.sincronizar_foco_visita(cur, id_visita, agora_iso)
 
 
 def get_lab_val(row_larva, nome):

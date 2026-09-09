@@ -8636,6 +8636,14 @@ class PermissionMatrixTests(unittest.TestCase):
             self.assertEqual(historico[0]["tipo"], "PVE")
             self.assertFalse(historico[0]["positivo_aegypti"])
             self.assertTrue(historico[0]["editavel"])
+            conn = sqlite3.connect(db_path)
+            self.assertEqual(
+                0,
+                conn.execute(
+                    "SELECT COUNT(*) FROM focos_positivos WHERE id_visita='visita-lab'"
+                ).fetchone()[0],
+            )
+            conn.close()
 
             editado = client.post(
                 f"/api/laboratorio/lancamentos/resultados/{historico[0]['id_resultado']}/editar",
@@ -8648,6 +8656,13 @@ class PermissionMatrixTests(unittest.TestCase):
             self.assertEqual(corrigido["aegypt_larvas"], 3)
             self.assertEqual(corrigido["albopictus_larvas"], 1)
             self.assertTrue(corrigido["positivo_aegypti"])
+            conn = sqlite3.connect(db_path)
+            foco = conn.execute(
+                "SELECT id_visita, gera_notificacao FROM focos_positivos "
+                "WHERE id_visita='visita-lab'"
+            ).fetchone()
+            conn.close()
+            self.assertEqual(("visita-lab", 1), foco)
 
             conn = sqlite3.connect(db_path)
             conn.execute(

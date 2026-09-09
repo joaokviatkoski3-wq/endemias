@@ -124,6 +124,18 @@ As regras de fonte de verdade e a arquitetura da tela estao em
 `docs/CONTA_OVOS_INTERFACE.md`; detalhes da API e dos lotes em
 `docs/CONTA_OVOS_API.md`.
 
+### Notificacoes laboratoriais
+
+- A fonte da pagina `/notificacoes` e `focos_positivos`, nao a tabela bruta de
+  resultados do laboratorio.
+- A regra comum cobre importacao Kobo e Lançamentos Laboratorio: um positivo de
+  Aedes aegypti cria ou atualiza um foco por visita; PE nunca gera notificacao;
+  TB, TBO e PVE so entram na fila quando o imovel nao e terreno baldio.
+- O script `scripts/diagnosticar_notificacoes_laboratorio.py` faz apenas a
+  previa de positivos historicos divergentes. Nenhuma reconciliacao retroativa
+  e automatica; confira `docs/NOTIFICACOES_LABORATORIO.md` antes de qualquer
+  escrita em dados reais.
+
 ## Pendencia concreta e proxima ordem recomendada
 
 ### Ambiente de teste padrao integrado

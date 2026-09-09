@@ -8,6 +8,7 @@ from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import db as db_core
+from app_core import focos_positivos as focos_core
 from app_core import laboratorio_lancamentos as lab_core
 from app_core import ovitrampas_laboratorio as ovi_lab_core
 
@@ -264,7 +265,7 @@ def salvar_resultado(id_coleta):
     try:
         agente = _agente_da_conta(conn)
         coleta = conn.execute("""
-            SELECT c.id_coleta, c.num_tubo, v.data
+            SELECT c.id_coleta, c.num_tubo, v.data, v.id_visita
               FROM coletas c JOIN visitas v ON v.id_visita=c.id_visita
              WHERE c.id_coleta=?
         """, (id_coleta,)).fetchone()
@@ -301,6 +302,9 @@ def salvar_resultado(id_coleta):
             ),
             "id_resultado",
         )
+        foco = focos_core.sincronizar_foco_visita(
+            conn, coleta["id_visita"], agora,
+        )
         conn.commit()
     except Exception:
         conn.rollback()
@@ -321,6 +325,8 @@ def salvar_resultado(id_coleta):
             "data_leitura": data_leitura,
             "origem": "sistema",
             "total": sum(campos.values()),
+            "id_foco": foco["id_foco"],
+            "gera_notificacao": foco["gera_notificacao"],
         },
     )
     return jsonify({"ok": True, "id_resultado": id_resultado})
@@ -344,8 +350,11 @@ def editar_resultado(id_resultado):
                 "erro": "O nome desta conta não corresponde a um agente ativo. Contate o administrador."
             }), 400
         resultado = conn.execute(
-            "SELECT id_resultado, id_coleta, num_tubo, data_leitura, origem, criado_em "
-            "FROM resultados_laboratorio WHERE id_resultado=?",
+            """SELECT rl.id_resultado, rl.id_coleta, rl.num_tubo,
+                      rl.data_leitura, rl.origem, rl.criado_em, c.id_visita
+                 FROM resultados_laboratorio rl
+                 JOIN coletas c ON c.id_coleta=rl.id_coleta
+                WHERE rl.id_resultado=?""",
             (id_resultado,),
         ).fetchone()
         if not resultado:
@@ -362,6 +371,9 @@ def editar_resultado(id_resultado):
                    SET {sets}, laboratorista=?, id_laboratorista=?, atualizado_em=?
                  WHERE id_resultado=?""",
             (*campos.values(), agente["nome"], agente["id_agente"], agora, id_resultado),
+        )
+        foco = focos_core.sincronizar_foco_visita(
+            conn, resultado["id_visita"], agora,
         )
         conn.commit()
     except Exception:
@@ -381,6 +393,8 @@ def editar_resultado(id_resultado):
             "num_tubo": resultado["num_tubo"],
             "laboratorista": agente["nome"],
             "total": sum(campos.values()),
+            "id_foco": foco["id_foco"],
+            "gera_notificacao": foco["gera_notificacao"],
         },
     )
     return jsonify({"ok": True, "id_resultado": id_resultado})

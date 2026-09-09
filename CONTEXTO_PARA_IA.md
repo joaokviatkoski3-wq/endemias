@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.29.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.29.1` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -106,7 +106,10 @@ regressao nova.
 - Mapa geral: visitas, focos, Esporotricose, Pontos Estrategicos e camada de
   Ovitrampas, incluindo filtros, datas e ordenacao alfanumerica.
 - Notificacoes: pagina, filtros, detalhe, historico, atualizacao de status,
-  impressoes HTML/DOCX e auditoria atomica.
+  impressoes HTML/DOCX e auditoria atomica. Focos vindos de resultados
+  laboratoriais usam uma regra comum ao ETL e aos Lançamentos Laboratorio: PE
+  nunca gera notificacao; TB, TBO e PVE somente geram fora de terreno baldio.
+  Consulte `docs/NOTIFICACOES_LABORATORIO.md` antes de alterar esse fluxo.
 - Relatorio por Servidor: relatorio individual e consolidado do setor,
   duracoes, evolucao semanal, producao operacional, laboratorio,
   Esporotricose, Ovitrampas e Registro Geografico.

@@ -184,7 +184,7 @@ CREATE INDEX IF NOT EXISTS idx_lab_status_status ON laboratorio_coletas_status(s
 
 -- ── FOCOS_POSITIVOS ───────────────────────────────────────────────────────────
 -- Gerado automaticamente quando há resultado positivo para Aedes aegypti.
--- PE nunca gera notificação (gera_notificacao = 0).
+-- PE e terreno baldio nunca entram na fila de notificações.
 CREATE TABLE IF NOT EXISTS focos_positivos (
     id_foco            TEXT    PRIMARY KEY,
     id_visita          TEXT    REFERENCES visitas(id_visita),
