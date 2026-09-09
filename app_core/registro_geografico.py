@@ -129,13 +129,7 @@ def _similaridade_texto(a, b):
 
 
 def _similaridade_logradouro(a, b):
-    norm_a = _normalizar_logradouro(a)
-    norm_b = _normalizar_logradouro(b)
-    if norm_a == norm_b:
-        return 100, "normalizacao igual"
-    score = _similaridade_texto(norm_a, norm_b)
-    sem_prefixo = _similaridade_texto(_sem_prefixo_logradouro(a), _sem_prefixo_logradouro(b))
-    return max(score, sem_prefixo), "nomes parecidos"
+    return enderecos_core.similaridade_logradouro(a, b)
 
 
 def _score_maximo_por_tamanho(a, b):

@@ -74,8 +74,8 @@ def api_previa_visitas_positivas():
             )
         )
     except Exception:
-        logging.exception("Erro ao montar previa de enderecos positivos")
-        return jsonify({"erro": "Nao foi possivel montar a previa."}), 500
+        logging.exception("Erro ao montar prévia de endereços positivos")
+        return jsonify({"erro": "Não foi possível montar a prévia."}), 500
 
 
 @bp.route("/api/logradouros/visitas-positivas/confirmar", methods=["POST"])
@@ -94,8 +94,8 @@ def api_confirmar_visitas_positivas():
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
     except Exception:
-        logging.exception("Erro ao confirmar endereco normalizado")
-        return jsonify({"erro": "Nao foi possivel confirmar o endereco."}), 500
+        logging.exception("Erro ao confirmar endereço normalizado")
+        return jsonify({"erro": "Não foi possível confirmar o endereço."}), 500
     audit.registrar_evento(
         _get_db,
         "visitas_endereco_normalizado_confirmado",
@@ -121,7 +121,7 @@ def api_importar():
         return jsonify({"erro": str(exc)}), 400
     except Exception:
         logging.exception("Erro ao importar logradouros")
-        return jsonify({"erro": "Nao foi possivel importar o CSV."}), 500
+        return jsonify({"erro": "Não foi possível importar o CSV."}), 500
     usuario = _usuario_atual() or {}
     audit.registrar_evento(
         _get_db,

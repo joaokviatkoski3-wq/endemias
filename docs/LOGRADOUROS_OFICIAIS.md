@@ -43,19 +43,24 @@ Desde a versao `1.31.0`, administradores podem abrir a previa em
 `/logradouros` para revisar apenas visitas que possuem resultado positivo para
 *Aedes aegypti* e ainda nao receberam um vinculo de endereco normalizado.
 
-- A comparacao reconhece acentos, pontuacao e abreviacoes usuais, como `R.` e
-  `Rua`.
-- A sugestao so existe quando o nome da via corresponde exatamente a um nome
-  do catalogo e a visita possui numero. Similaridade aproximada nao cria
-  vinculo.
+- A comparacao reconhece acentos, pontuacao, abreviacoes usuais, artigos e
+  variacoes simples de singular/plural. Por exemplo, `Rua Salgueiro` sugere
+  `Rua dos Salgueiros`.
+- Correspondencias aproximadas exibem ate cinco alternativas, pontuacao e o
+  motivo da sugestao. Nenhuma delas cria vinculo sem escolha e confirmacao do
+  administrador.
 - A confirmacao cria um endereco canonico e liga o grupo de visitas a ele. Os
   campos brutos `visitas.logradouro` e `visitas.numero` nunca sao alterados.
+- Visitas do tipo `PE` sao excluidas da previa, mesmo quando positivas, porque
+  Pontos Estrategicos possuem cadastro e georreferenciamento proprios.
 - O vinculo usa o nome canonico da via, nao um `id_logr` de trecho: uma mesma
   rua pode ter muitos trechos e a definicao espacial do trecho fica para uma
   etapa posterior com geometria, quarteirao ou coordenada.
 
-Grupos sem numero ou sem correspondencia no catalogo ficam apenas indicados
-para revisao futura; o piloto nao cria aliases nem corrige dados de origem.
+Grupos sem numero ou sem sugestao minima no catalogo ficam apenas indicados
+para revisao futura. Confirmacoes anteriores funcionam como correspondencias
+aprendidas quando uma nova visita repete a mesma grafia de origem; o endereco
+bruto continua preservado.
 
 ## PostgreSQL
 

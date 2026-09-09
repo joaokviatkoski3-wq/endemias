@@ -20,6 +20,8 @@ ENDERECOS_TABLE = "enderecos_normalizados"
 VINCULOS_TABLE = "visitas_enderecos_normalizados"
 REQUIRED_COLUMNS = {"nome", "localidade", "id_logr"}
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+SCORE_MINIMO_SUGESTAO = 72
+MAX_SUGESTOES = 5
 
 
 def _now():
@@ -112,8 +114,74 @@ def _catalogo_por_nome(conn):
     ):
         chave = normalizar_logradouro(row["nome"])
         if chave:
-            catalogo.setdefault(chave, []).append(dict(row))
+            item = catalogo.setdefault(chave, {"nomes": set(), "trechos": []})
+            item["nomes"].add(row["nome"])
+            item["trechos"].append(dict(row))
+            item["nucleo"] = enderecos_core.nucleo_logradouro(row["nome"])
     return catalogo
+
+
+def _aliases_confirmados(conn):
+    aliases = {}
+    rows = conn.execute(
+        f"""SELECT ve.logradouro_bruto, e.logradouro_oficial
+              FROM {VINCULOS_TABLE} ve
+              JOIN {ENDERECOS_TABLE} e ON e.id_endereco=ve.id_endereco
+             WHERE TRIM(COALESCE(ve.logradouro_bruto,''))<>''"""
+    ).fetchall()
+    for row in rows:
+        chave = normalizar_logradouro(row["logradouro_bruto"])
+        if chave:
+            aliases.setdefault(chave, set()).add(row["logradouro_oficial"])
+    return {chave: next(iter(nomes)) for chave, nomes in aliases.items() if len(nomes) == 1}
+
+
+def _candidatos_logradouro(logradouro, catalogo, aliases):
+    chave = normalizar_logradouro(logradouro)
+    chave_alias = normalizar_logradouro(aliases.get(chave)) if aliases.get(chave) else None
+
+    def resultado(chave_oficial, item, score, motivo):
+        nomes = sorted(item["nomes"], key=str.casefold)
+        return {
+            "nome": nomes[0],
+            "score": score,
+            "motivo": motivo,
+            "trechos": len(item["trechos"]),
+            "chave_oficial": chave_oficial,
+        }
+
+    if chave in catalogo:
+        return [resultado(chave, catalogo[chave], 100, "mesma grafia normalizada")]
+    if chave_alias in catalogo:
+        return [resultado(chave_alias, catalogo[chave_alias], 100, "correspondência já confirmada")]
+
+    nucleo_busca = enderecos_core.nucleo_logradouro(logradouro)
+    tokens_busca = set(nucleo_busca.split())
+    candidatos = []
+    for chave_oficial, item in catalogo.items():
+        nucleo_oficial = item["nucleo"]
+        if not nucleo_busca or not nucleo_oficial:
+            continue
+        tokens_oficiais = set(nucleo_oficial.split())
+        tamanho_relativo = min(len(nucleo_busca), len(nucleo_oficial)) / max(
+            len(nucleo_busca), len(nucleo_oficial), 1
+        )
+        possivel = (
+            nucleo_busca == nucleo_oficial
+            or nucleo_busca in nucleo_oficial
+            or nucleo_oficial in nucleo_busca
+            or bool(tokens_busca & tokens_oficiais)
+            or (nucleo_busca[:3] == nucleo_oficial[:3] and tamanho_relativo >= 0.55)
+        )
+        if not possivel:
+            continue
+        nome = sorted(item["nomes"], key=str.casefold)[0]
+        score, motivo = enderecos_core.similaridade_logradouro(logradouro, nome)
+        if score < SCORE_MINIMO_SUGESTAO:
+            continue
+        candidatos.append(resultado(chave_oficial, item, score, motivo))
+    candidatos.sort(key=lambda item: (-item["score"], item["nome"].casefold()))
+    return candidatos[:MAX_SUGESTOES]
 
 
 def _visitas_positivas_sem_vinculo(conn):
@@ -125,6 +193,7 @@ def _visitas_positivas_sem_vinculo(conn):
           LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
           LEFT JOIN {VINCULOS_TABLE} ve ON ve.id_visita=v.id_visita
          WHERE ve.id_visita IS NULL
+           AND v.tipo<>'PE'
            AND TRIM(COALESCE(v.logradouro, ''))<>''
            AND EXISTS (
                SELECT 1
@@ -149,6 +218,7 @@ def previa_visitas_positivas(target, limite=100):
     conn = db_core.connect(target)
     try:
         catalogo = _catalogo_por_nome(conn)
+        aliases = _aliases_confirmados(conn)
         grupos = {}
         for row in _visitas_positivas_sem_vinculo(conn):
             logradouro = str(row["logradouro"] or "").strip()
@@ -162,6 +232,7 @@ def previa_visitas_positivas(target, limite=100):
                     "chave": hashlib.sha256(chave_comparacao.encode("utf-8")).hexdigest(),
                     "logradouro_normalizado": chave_logradouro,
                     "numero_normalizado": chave_numero,
+                    "logradouros_informados": set(),
                     "enderecos_informados": set(),
                     "visitas": [],
                     "localidades": set(),
@@ -171,6 +242,7 @@ def previa_visitas_positivas(target, limite=100):
             grupo["enderecos_informados"].add(
                 f"{logradouro}{', ' + numero if numero else ''}"
             )
+            grupo["logradouros_informados"].add(logradouro)
             grupo["visitas"].append(str(row["id_visita"]))
             if row["localidade"]:
                 grupo["localidades"].add(str(row["localidade"]))
@@ -179,12 +251,17 @@ def previa_visitas_positivas(target, limite=100):
 
         resultado = []
         for grupo in grupos.values():
-            candidatos = catalogo.get(grupo["logradouro_normalizado"], [])
-            nomes = sorted({item["nome"] for item in candidatos}, key=str.casefold)
+            candidatos = _candidatos_logradouro(
+                sorted(grupo["logradouros_informados"], key=str.casefold)[0],
+                catalogo,
+                aliases,
+            )
             if not grupo["numero_normalizado"]:
                 situacao = "sem_numero"
             elif not candidatos:
                 situacao = "nao_encontrado"
+            elif candidatos[0]["score"] < 98:
+                situacao = "sugestao_aproximada"
             else:
                 situacao = "pronto_para_revisar"
             resultado.append(
@@ -197,8 +274,9 @@ def previa_visitas_positivas(target, limite=100):
                     "quantidade_visitas": len(grupo["visitas"]),
                     "localidades": sorted(grupo["localidades"], key=str.casefold),
                     "quarteiroes": sorted(grupo["quarteiroes"]),
-                    "nome_oficial": nomes[0] if len(nomes) == 1 else None,
-                    "trechos_oficiais": len(candidatos),
+                    "nome_oficial": candidatos[0]["nome"] if candidatos else None,
+                    "trechos_oficiais": candidatos[0]["trechos"] if candidatos else 0,
+                    "candidatos": candidatos,
                     "situacao": situacao,
                 }
             )
@@ -221,16 +299,18 @@ def confirmar_grupo_visitas_positivas(target, chave, nome_oficial, confirmado_po
     previa = previa_visitas_positivas(target, limite=300)
     grupo = next((item for item in previa["grupos"] if item["chave"] == str(chave or "")), None)
     if not grupo:
-        raise ValueError("O grupo nao esta mais pendente de revisao.")
-    if grupo["situacao"] != "pronto_para_revisar":
-        raise ValueError("Somente grupos com rua oficial e numero informado podem ser confirmados.")
-    if nome_oficial != grupo["nome_oficial"]:
-        raise ValueError("A sugestao oficial mudou; atualize a previa antes de confirmar.")
+        raise ValueError("O grupo não está mais pendente de revisão.")
+    if grupo["situacao"] not in {"pronto_para_revisar", "sugestao_aproximada"}:
+        raise ValueError("Somente grupos com número e uma sugestão oficial podem ser confirmados.")
+    candidato = next((item for item in grupo["candidatos"] if item["nome"] == nome_oficial), None)
+    if not candidato:
+        raise ValueError("A sugestão oficial mudou; atualize a prévia antes de confirmar.")
 
     conn = db_core.connect(target)
     try:
         agora = _now()
-        chave_endereco = grupo["chave"]
+        chave_canonica = f"{normalizar_logradouro(nome_oficial)}\x1f{grupo['numero_normalizado']}"
+        chave_endereco = hashlib.sha256(chave_canonica.encode("utf-8")).hexdigest()
         existente = conn.execute(
             f"SELECT id_endereco FROM {ENDERECOS_TABLE} WHERE chave_endereco=?",
             (chave_endereco,),
@@ -249,7 +329,7 @@ def confirmar_grupo_visitas_positivas(target, chave, nome_oficial, confirmado_po
                         criado_em,atualizado_em,confirmado_por)
                     VALUES (?,?,?,?,?,?,?)""",
                 (
-                    chave_endereco, grupo["logradouro_normalizado"], nome_oficial,
+                    chave_endereco, normalizar_logradouro(nome_oficial), nome_oficial,
                     grupo["numero_normalizado"], agora, agora, confirmado_por,
                 ),
                 "id_endereco",
@@ -282,12 +362,12 @@ def _decode_csv(content):
             return content.decode(encoding)
         except UnicodeDecodeError:
             continue
-    raise ValueError("Nao foi possivel ler o CSV enviado.")
+    raise ValueError("Não foi possível ler o CSV enviado.")
 
 
 def _parse_csv(content):
     if not content:
-        raise ValueError("O arquivo CSV esta vazio.")
+        raise ValueError("O arquivo CSV está vazio.")
     if len(content) > MAX_UPLOAD_BYTES:
         raise ValueError("O CSV excede o limite de 5 MB.")
     text = _decode_csv(content)
@@ -299,7 +379,7 @@ def _parse_csv(content):
     columns = {str(name or "").strip().casefold() for name in reader.fieldnames or []}
     missing = REQUIRED_COLUMNS - columns
     if missing:
-        raise ValueError("CSV sem coluna(s) obrigatoria(s): " + ", ".join(sorted(missing)))
+        raise ValueError("CSV sem coluna(s) obrigatória(s): " + ", ".join(sorted(missing)))
 
     records = []
     ids = set()
@@ -309,13 +389,13 @@ def _parse_csv(content):
         name = _text(row.get("nome"))
         locality = _text(row.get("localidade"))
         if not identifier or not name or not locality:
-            raise ValueError(f"Linha {number}: id_logr, nome e localidade sao obrigatorios.")
+            raise ValueError(f"Linha {number}: id_logr, nome e localidade são obrigatórios.")
         if identifier in ids:
             raise ValueError(f"Linha {number}: id_logr repetido no arquivo ({identifier}).")
         ids.add(identifier)
         normalized = normalizar_nome(name)
         if not normalized:
-            raise ValueError(f"Linha {number}: nome invalido.")
+            raise ValueError(f"Linha {number}: nome inválido.")
         fingerprint = hashlib.sha256(
             f"{identifier}\x1f{name}\x1f{locality}".encode("utf-8")
         ).hexdigest()
@@ -329,7 +409,7 @@ def _parse_csv(content):
             }
         )
     if not records:
-        raise ValueError("O CSV nao contem logradouros.")
+        raise ValueError("O CSV não contém logradouros.")
     return records
 
 
@@ -345,7 +425,14 @@ def resumo(target):
                        MAX(importado_em) AS ultima_importacao
                   FROM {TABLE} WHERE {ativo}"""
         ).fetchone()
-        return db_core.serialize_row(row)
+        resultado = db_core.serialize_row(row)
+        resultado["enderecos_confirmados"] = conn.execute(
+            f"SELECT COUNT(*) FROM {ENDERECOS_TABLE}"
+        ).fetchone()[0]
+        resultado["visitas_vinculadas"] = conn.execute(
+            f"SELECT COUNT(*) FROM {VINCULOS_TABLE}"
+        ).fetchone()[0]
+        return resultado
     finally:
         conn.close()
 
@@ -420,7 +507,7 @@ def importar_csv(target, content):
         return {
             "linhas": len(records), "inseridos": inserted,
             "atualizados": updated, "sem_alteracao": unchanged,
-            "observacao": "IDs ausentes do arquivo foram preservados; nenhuma linha e excluida automaticamente.",
+            "observacao": "IDs ausentes do arquivo foram preservados; nenhuma linha é excluída automaticamente.",
         }
     except Exception:
         conn.rollback()
