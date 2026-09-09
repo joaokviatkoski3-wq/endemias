@@ -146,6 +146,8 @@ As regras de fonte de verdade e a arquitetura da tela estao em
   piloto de enderecos positivos e geocodificacao.
 - A migracao PostgreSQL `0006_logradouros_oficiais.sql` deve ser aplicada em
   producao antes do primeiro acesso a tela.
+- O PostgreSQL armazena o indicador de atividade como booleano; a aplicacao
+  usa a expressao e o valor apropriados a cada banco desde a versao `1.30.1`.
 
 ## Pendencia concreta e proxima ordem recomendada
 

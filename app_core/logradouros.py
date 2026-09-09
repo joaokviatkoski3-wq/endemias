@@ -38,6 +38,15 @@ def _is_postgresql(conn):
     return getattr(conn, "backend", "sqlite") == "postgresql"
 
 
+def _ativo_verdadeiro_sql(conn):
+    """Expressao SQL compativel com a coluna ativa de cada backend."""
+    return "ativo=TRUE" if _is_postgresql(conn) else "ativo=1"
+
+
+def _ativo_verdadeiro_valor(conn):
+    return True if _is_postgresql(conn) else 1
+
+
 def ensure_schema(target):
     conn = db_core.connect(target)
     try:
@@ -127,12 +136,13 @@ def resumo(target):
     ensure_schema(target)
     conn = db_core.connect(target)
     try:
+        ativo = _ativo_verdadeiro_sql(conn)
         row = conn.execute(
             f"""SELECT COUNT(*) AS trechos,
                        COUNT(DISTINCT nome_normalizado) AS nomes_normalizados,
                        COUNT(DISTINCT localidade) AS localidades,
                        MAX(importado_em) AS ultima_importacao
-                  FROM {TABLE} WHERE ativo=1"""
+                  FROM {TABLE} WHERE {ativo}"""
         ).fetchone()
         return db_core.serialize_row(row)
     finally:
@@ -149,7 +159,7 @@ def listar(target, busca="", limite=300):
     normalized_search = normalizar_nome(search)
     conn = db_core.connect(target)
     try:
-        where, params = "WHERE ativo=1", []
+        where, params = f"WHERE {_ativo_verdadeiro_sql(conn)}", []
         if search:
             where += " AND (nome_normalizado LIKE ? OR LOWER(localidade) LIKE LOWER(?))"
             params.extend([f"%{normalized_search}%", f"%{search}%"])
@@ -174,12 +184,13 @@ def importar_csv(target, content):
             for row in conn.execute(f"SELECT id_logradouro, origem_hash FROM {TABLE}")
         }
         now = _now()
+        ativo = _ativo_verdadeiro_valor(conn)
         inserted = updated = unchanged = 0
         for record in records:
             previous = existing.get(record["id_logradouro"])
             values = (
                 record["id_logradouro"], record["nome"], record["nome_normalizado"],
-                record["localidade"], 1, record["origem_hash"], now, now,
+                record["localidade"], ativo, record["origem_hash"], now, now,
             )
             if previous is None:
                 conn.execute(
@@ -193,12 +204,12 @@ def importar_csv(target, content):
             elif previous != record["origem_hash"]:
                 conn.execute(
                     f"""UPDATE {TABLE}
-                           SET nome=?, nome_normalizado=?, localidade=?, ativo=1,
+                           SET nome=?, nome_normalizado=?, localidade=?, ativo=?,
                                origem_hash=?, atualizado_em=?
                          WHERE id_logradouro=?""",
                     (
                         record["nome"], record["nome_normalizado"], record["localidade"],
-                        record["origem_hash"], now, record["id_logradouro"],
+                        ativo, record["origem_hash"], now, record["id_logradouro"],
                     ),
                 )
                 updated += 1

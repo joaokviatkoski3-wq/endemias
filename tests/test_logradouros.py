@@ -59,6 +59,18 @@ class LogradourosTests(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_ativo_e_compativel_com_postgresql(self):
+        class PostgresConnection:
+            backend = "postgresql"
+
+        class SQLiteConnection:
+            backend = "sqlite"
+
+        self.assertEqual("ativo=TRUE", logradouros._ativo_verdadeiro_sql(PostgresConnection()))
+        self.assertTrue(logradouros._ativo_verdadeiro_valor(PostgresConnection()))
+        self.assertEqual("ativo=1", logradouros._ativo_verdadeiro_sql(SQLiteConnection()))
+        self.assertEqual(1, logradouros._ativo_verdadeiro_valor(SQLiteConnection()))
+
 
 if __name__ == "__main__":
     unittest.main()
