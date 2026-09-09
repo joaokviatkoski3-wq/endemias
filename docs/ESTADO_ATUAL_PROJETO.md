@@ -148,6 +148,11 @@ As regras de fonte de verdade e a arquitetura da tela estao em
   producao antes do primeiro acesso a tela.
 - O PostgreSQL armazena o indicador de atividade como booleano; a aplicacao
   usa a expressao e o valor apropriados a cada banco desde a versao `1.30.1`.
+- O primeiro piloto de normalizacao consulta somente visitas positivas para
+  *Aedes aegypti*, sugere a via oficial por comparacao exata normalizada e
+  confirma vinculos em tabelas proprias, preservando o endereco bruto da
+  visita. A migracao `0007_enderecos_normalizados_visitas.sql` e necessaria em
+  producao.
 
 ## Pendencia concreta e proxima ordem recomendada
 

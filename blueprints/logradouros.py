@@ -63,6 +63,49 @@ def api_listar():
         return jsonify({"erro": "Erro interno do servidor."}), 500
 
 
+@bp.route("/api/logradouros/visitas-positivas/previa")
+@login_required
+@nivel_min("admin")
+def api_previa_visitas_positivas():
+    try:
+        return jsonify(
+            logradouros_core.previa_visitas_positivas(
+                _target(), request.args.get("limite", 100)
+            )
+        )
+    except Exception:
+        logging.exception("Erro ao montar previa de enderecos positivos")
+        return jsonify({"erro": "Nao foi possivel montar a previa."}), 500
+
+
+@bp.route("/api/logradouros/visitas-positivas/confirmar", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_confirmar_visitas_positivas():
+    dados = request.get_json(silent=True) or {}
+    try:
+        usuario = _usuario_atual() or {}
+        result = logradouros_core.confirmar_grupo_visitas_positivas(
+            _target(),
+            dados.get("chave"),
+            dados.get("nome_oficial"),
+            usuario.get("nome") or usuario.get("usuario"),
+        )
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    except Exception:
+        logging.exception("Erro ao confirmar endereco normalizado")
+        return jsonify({"erro": "Nao foi possivel confirmar o endereco."}), 500
+    audit.registrar_evento(
+        _get_db,
+        "visitas_endereco_normalizado_confirmado",
+        entidade="enderecos_normalizados",
+        entidade_id=result["id_endereco"],
+        detalhes=result,
+    )
+    return jsonify({"ok": True, **result})
+
+
 @bp.route("/api/logradouros/importar", methods=["POST"])
 @login_required
 @nivel_min("admin")

@@ -37,9 +37,30 @@ O nome normalizado (sem diferenca de acentos e pontuacao simples) serve apenas
 para busca e para a futura conciliacao de enderecos. A grafia original da
 visita importada continuara preservada como evidencia da fonte.
 
+## Piloto: visitas positivas
+
+Desde a versao `1.31.0`, administradores podem abrir a previa em
+`/logradouros` para revisar apenas visitas que possuem resultado positivo para
+*Aedes aegypti* e ainda nao receberam um vinculo de endereco normalizado.
+
+- A comparacao reconhece acentos, pontuacao e abreviacoes usuais, como `R.` e
+  `Rua`.
+- A sugestao so existe quando o nome da via corresponde exatamente a um nome
+  do catalogo e a visita possui numero. Similaridade aproximada nao cria
+  vinculo.
+- A confirmacao cria um endereco canonico e liga o grupo de visitas a ele. Os
+  campos brutos `visitas.logradouro` e `visitas.numero` nunca sao alterados.
+- O vinculo usa o nome canonico da via, nao um `id_logr` de trecho: uma mesma
+  rua pode ter muitos trechos e a definicao espacial do trecho fica para uma
+  etapa posterior com geometria, quarteirao ou coordenada.
+
+Grupos sem numero ou sem correspondencia no catalogo ficam apenas indicados
+para revisao futura; o piloto nao cria aliases nem corrige dados de origem.
+
 ## PostgreSQL
 
-A tabela de producao e criada pela migracao
-`migrations/postgresql/0006_logradouros_oficiais.sql`. Aplique as migracoes no
-banco `endemias` antes de abrir a tela em producao. Em testes SQLite, a tabela
-e criada pelo proprio modulo.
+As tabelas de producao sao criadas pelas migracoes
+`0006_logradouros_oficiais.sql` e
+`0007_enderecos_normalizados_visitas.sql`. Aplique as migracoes no banco
+`endemias` antes de abrir a tela em producao. Em testes SQLite, as tabelas sao
+criadas pelo proprio modulo.

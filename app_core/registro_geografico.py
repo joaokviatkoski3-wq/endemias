@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from app_core import db as db_core
+from app_core import enderecos as enderecos_core
 from app_core import normalizadores
 
 
@@ -91,10 +92,7 @@ def _norm(value):
 
 
 def _normalizar_logradouro(value):
-    text = _norm(value)
-    text = re.sub(r"[^\w\s]", " ", text, flags=re.UNICODE)
-    tokens = [ABREVIACOES_LOGRADOURO.get(token, token) for token in text.split()]
-    return " ".join(tokens)
+    return enderecos_core.normalizar_logradouro(value)
 
 
 def _sem_prefixo_logradouro(value):

@@ -12,9 +12,12 @@ import unicodedata
 from datetime import datetime
 
 from app_core import db as db_core
+from app_core import enderecos as enderecos_core
 
 
 TABLE = "logradouros_oficiais"
+ENDERECOS_TABLE = "enderecos_normalizados"
+VINCULOS_TABLE = "visitas_enderecos_normalizados"
 REQUIRED_COLUMNS = {"nome", "localidade", "id_logr"}
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 
@@ -32,6 +35,11 @@ def normalizar_nome(value):
     text = unicodedata.normalize("NFKD", _text(value).casefold())
     text = "".join(char for char in text if not unicodedata.combining(char))
     return " ".join(text.replace(".", " ").replace("-", " ").split())
+
+
+def normalizar_logradouro(value):
+    """Chave comum usada na conciliacao, inclusive para abreviacoes."""
+    return enderecos_core.normalizar_logradouro(value)
 
 
 def _is_postgresql(conn):
@@ -68,9 +76,202 @@ def ensure_schema(target):
                 ON {TABLE}(nome_normalizado);
             CREATE INDEX IF NOT EXISTS idx_logradouros_ativo_nome
                 ON {TABLE}(ativo, nome);
+
+            CREATE TABLE IF NOT EXISTS {ENDERECOS_TABLE} (
+                id_endereco INTEGER PRIMARY KEY AUTOINCREMENT,
+                chave_endereco TEXT NOT NULL UNIQUE,
+                logradouro_normalizado TEXT NOT NULL,
+                logradouro_oficial TEXT NOT NULL,
+                numero_normalizado TEXT NOT NULL,
+                criado_em TEXT NOT NULL,
+                atualizado_em TEXT NOT NULL,
+                confirmado_por TEXT
+            );
+            CREATE TABLE IF NOT EXISTS {VINCULOS_TABLE} (
+                id_visita TEXT PRIMARY KEY,
+                id_endereco INTEGER NOT NULL REFERENCES {ENDERECOS_TABLE}(id_endereco),
+                logradouro_bruto TEXT,
+                numero_bruto TEXT,
+                confirmado_em TEXT NOT NULL,
+                confirmado_por TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_visitas_enderecos_id_endereco
+                ON {VINCULOS_TABLE}(id_endereco);
             """
         )
         conn.commit()
+    finally:
+        conn.close()
+
+
+def _catalogo_por_nome(conn):
+    ativo = _ativo_verdadeiro_sql(conn)
+    catalogo = {}
+    for row in conn.execute(
+        f"SELECT id_logradouro, nome FROM {TABLE} WHERE {ativo} ORDER BY nome, id_logradouro"
+    ):
+        chave = normalizar_logradouro(row["nome"])
+        if chave:
+            catalogo.setdefault(chave, []).append(dict(row))
+    return catalogo
+
+
+def _visitas_positivas_sem_vinculo(conn):
+    return conn.execute(
+        f"""
+        SELECT v.id_visita, v.logradouro, v.numero, v.data, v.tipo,
+               COALESCE(l.nome, v.localidade) AS localidade, v.quarteirao
+          FROM visitas v
+          LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
+          LEFT JOIN {VINCULOS_TABLE} ve ON ve.id_visita=v.id_visita
+         WHERE ve.id_visita IS NULL
+           AND TRIM(COALESCE(v.logradouro, ''))<>''
+           AND EXISTS (
+               SELECT 1
+                 FROM coletas c
+                 JOIN resultados_laboratorio rl ON rl.id_coleta=c.id_coleta
+                WHERE c.id_visita=v.id_visita
+                  AND (COALESCE(rl.aegypt_larvas,0) + COALESCE(rl.aegypt_pupas,0) +
+                       COALESCE(rl.aegypt_exuvias,0) + COALESCE(rl.aegypt_adulto,0)) > 0
+           )
+         ORDER BY v.data DESC, v.id_visita DESC
+        """
+    ).fetchall()
+
+
+def previa_visitas_positivas(target, limite=100):
+    """Agrupa enderecos positivos ainda sem vinculo, somente para revisao."""
+    ensure_schema(target)
+    try:
+        limite = max(1, min(int(limite or 100), 300))
+    except (TypeError, ValueError):
+        limite = 100
+    conn = db_core.connect(target)
+    try:
+        catalogo = _catalogo_por_nome(conn)
+        grupos = {}
+        for row in _visitas_positivas_sem_vinculo(conn):
+            logradouro = str(row["logradouro"] or "").strip()
+            numero = str(row["numero"] or "").strip()
+            chave_logradouro = normalizar_logradouro(logradouro)
+            chave_numero = enderecos_core.normalizar_numero(numero)
+            chave_comparacao = f"{chave_logradouro}\x1f{chave_numero}"
+            grupo = grupos.setdefault(
+                chave_comparacao,
+                {
+                    "chave": hashlib.sha256(chave_comparacao.encode("utf-8")).hexdigest(),
+                    "logradouro_normalizado": chave_logradouro,
+                    "numero_normalizado": chave_numero,
+                    "enderecos_informados": set(),
+                    "visitas": [],
+                    "localidades": set(),
+                    "quarteiroes": set(),
+                },
+            )
+            grupo["enderecos_informados"].add(
+                f"{logradouro}{', ' + numero if numero else ''}"
+            )
+            grupo["visitas"].append(str(row["id_visita"]))
+            if row["localidade"]:
+                grupo["localidades"].add(str(row["localidade"]))
+            if row["quarteirao"] not in (None, ""):
+                grupo["quarteiroes"].add(str(row["quarteirao"]))
+
+        resultado = []
+        for grupo in grupos.values():
+            candidatos = catalogo.get(grupo["logradouro_normalizado"], [])
+            nomes = sorted({item["nome"] for item in candidatos}, key=str.casefold)
+            if not grupo["numero_normalizado"]:
+                situacao = "sem_numero"
+            elif not candidatos:
+                situacao = "nao_encontrado"
+            else:
+                situacao = "pronto_para_revisar"
+            resultado.append(
+                {
+                    "chave": grupo["chave"],
+                    "logradouro_normalizado": grupo["logradouro_normalizado"],
+                    "numero_normalizado": grupo["numero_normalizado"],
+                    "enderecos_informados": sorted(grupo["enderecos_informados"], key=str.casefold),
+                    "visitas": sorted(grupo["visitas"]),
+                    "quantidade_visitas": len(grupo["visitas"]),
+                    "localidades": sorted(grupo["localidades"], key=str.casefold),
+                    "quarteiroes": sorted(grupo["quarteiroes"]),
+                    "nome_oficial": nomes[0] if len(nomes) == 1 else None,
+                    "trechos_oficiais": len(candidatos),
+                    "situacao": situacao,
+                }
+            )
+        resultado.sort(
+            key=lambda item: (-item["quantidade_visitas"], item["enderecos_informados"][0].casefold())
+        )
+        return {
+            "grupos": resultado[:limite],
+            "total_grupos": len(resultado),
+            "total_visitas": sum(item["quantidade_visitas"] for item in resultado),
+            "catalogo_disponivel": bool(catalogo),
+            "limite": limite,
+        }
+    finally:
+        conn.close()
+
+
+def confirmar_grupo_visitas_positivas(target, chave, nome_oficial, confirmado_por=None):
+    """Cria o endereco canonico e vincula apenas o grupo explicitamente aprovado."""
+    previa = previa_visitas_positivas(target, limite=300)
+    grupo = next((item for item in previa["grupos"] if item["chave"] == str(chave or "")), None)
+    if not grupo:
+        raise ValueError("O grupo nao esta mais pendente de revisao.")
+    if grupo["situacao"] != "pronto_para_revisar":
+        raise ValueError("Somente grupos com rua oficial e numero informado podem ser confirmados.")
+    if nome_oficial != grupo["nome_oficial"]:
+        raise ValueError("A sugestao oficial mudou; atualize a previa antes de confirmar.")
+
+    conn = db_core.connect(target)
+    try:
+        agora = _now()
+        chave_endereco = grupo["chave"]
+        existente = conn.execute(
+            f"SELECT id_endereco FROM {ENDERECOS_TABLE} WHERE chave_endereco=?",
+            (chave_endereco,),
+        ).fetchone()
+        if existente:
+            id_endereco = existente["id_endereco"]
+            conn.execute(
+                f"UPDATE {ENDERECOS_TABLE} SET logradouro_oficial=?, atualizado_em=?, confirmado_por=? WHERE id_endereco=?",
+                (nome_oficial, agora, confirmado_por, id_endereco),
+            )
+        else:
+            id_endereco = db_core.insert_and_get_id(
+                conn,
+                f"""INSERT INTO {ENDERECOS_TABLE}
+                       (chave_endereco,logradouro_normalizado,logradouro_oficial,numero_normalizado,
+                        criado_em,atualizado_em,confirmado_por)
+                    VALUES (?,?,?,?,?,?,?)""",
+                (
+                    chave_endereco, grupo["logradouro_normalizado"], nome_oficial,
+                    grupo["numero_normalizado"], agora, agora, confirmado_por,
+                ),
+                "id_endereco",
+            )
+        rows = conn.execute(
+            f"SELECT id_visita, logradouro, numero FROM visitas WHERE id_visita IN ({','.join('?' * len(grupo['visitas']))})",
+            grupo["visitas"],
+        ).fetchall()
+        conn.executemany(
+            f"""INSERT INTO {VINCULOS_TABLE}
+                   (id_visita,id_endereco,logradouro_bruto,numero_bruto,confirmado_em,confirmado_por)
+                VALUES (?,?,?,?,?,?)""",
+            [
+                (row["id_visita"], id_endereco, row["logradouro"], row["numero"], agora, confirmado_por)
+                for row in rows
+            ],
+        )
+        conn.commit()
+        return {"id_endereco": id_endereco, "nome_oficial": nome_oficial, "numero": grupo["numero_normalizado"], "visitas_vinculadas": len(rows)}
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 

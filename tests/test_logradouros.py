@@ -71,6 +71,67 @@ class LogradourosTests(unittest.TestCase):
         self.assertEqual("ativo=1", logradouros._ativo_verdadeiro_sql(SQLiteConnection()))
         self.assertEqual(1, logradouros._ativo_verdadeiro_valor(SQLiteConnection()))
 
+    def test_previa_confirma_positivos_sem_alterar_visita_bruta(self):
+        logradouros.importar_csv(
+            self.path, self._csv(("Rua São João,Sede,uuid-a",))
+        )
+        conn = db_core.connect(self.path)
+        try:
+            conn.executescript(
+                """
+                CREATE TABLE localidades (id_localidade INTEGER PRIMARY KEY, nome TEXT);
+                CREATE TABLE visitas (
+                    id_visita TEXT PRIMARY KEY, logradouro TEXT, numero TEXT, data TEXT,
+                    tipo TEXT, localidade TEXT, id_localidade INTEGER, quarteirao INTEGER
+                );
+                CREATE TABLE coletas (id_coleta TEXT PRIMARY KEY, id_visita TEXT);
+                CREATE TABLE resultados_laboratorio (
+                    id_coleta TEXT, aegypt_larvas INTEGER, aegypt_pupas INTEGER,
+                    aegypt_exuvias INTEGER, aegypt_adulto INTEGER
+                );
+                """
+            )
+            conn.execute(
+                "INSERT INTO visitas VALUES (?,?,?,?,?,?,?,?)",
+                ("v-1", "R. SAO Joao", "20", "2026-09-01", "TB", "Sede", None, 10),
+            )
+            conn.execute("INSERT INTO coletas VALUES (?,?)", ("c-1", "v-1"))
+            conn.execute("INSERT INTO resultados_laboratorio VALUES (?,?,?,?,?)", ("c-1", 1, 0, 0, 0))
+            conn.commit()
+        finally:
+            conn.close()
+
+        previa = logradouros.previa_visitas_positivas(self.path)
+        self.assertEqual(1, previa["total_grupos"])
+        grupo = previa["grupos"][0]
+        self.assertEqual("pronto_para_revisar", grupo["situacao"])
+        self.assertEqual("Rua São João", grupo["nome_oficial"])
+        result = logradouros.confirmar_grupo_visitas_positivas(
+            self.path, grupo["chave"], grupo["nome_oficial"], "João"
+        )
+        self.assertEqual(1, result["visitas_vinculadas"])
+        conn = db_core.connect(self.path)
+        try:
+            self.assertEqual(
+                "R. SAO Joao",
+                conn.execute("SELECT logradouro FROM visitas WHERE id_visita='v-1'").fetchone()[0],
+            )
+            self.assertEqual(
+                1,
+                conn.execute("SELECT COUNT(*) FROM visitas_enderecos_normalizados").fetchone()[0],
+            )
+        finally:
+            conn.close()
+
+    def test_migracao_postgresql_cria_entidades_do_piloto(self):
+        root = Path(__file__).resolve().parents[1]
+        sql = (root / "migrations/postgresql/0007_enderecos_normalizados_visitas.sql").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("CREATE TABLE enderecos_normalizados", sql)
+        self.assertIn("CREATE TABLE visitas_enderecos_normalizados", sql)
+        self.assertIn("REFERENCES visitas(id_visita)", sql)
+
 
 if __name__ == "__main__":
     unittest.main()
