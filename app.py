@@ -40,6 +40,7 @@ from blueprints.esporotricose import bp as esporotricose_bp
 from blueprints.exportacoes import bp as exportacoes_bp
 from blueprints.home import bp as home_bp
 from blueprints.laboratorio_lancamentos import bp as laboratorio_lancamentos_bp
+from blueprints.logradouros import bp as logradouros_bp
 from blueprints.mapa import bp as mapa_bp
 from blueprints.meteorologia import bp as meteorologia_bp
 from blueprints.notificacoes import bp as notificacoes_bp
@@ -168,6 +169,7 @@ def _register_blueprints(flask_app):
     flask_app.register_blueprint(exportacoes_bp)
     flask_app.register_blueprint(home_bp)
     flask_app.register_blueprint(laboratorio_lancamentos_bp)
+    flask_app.register_blueprint(logradouros_bp)
     flask_app.register_blueprint(mapa_bp)
     flask_app.register_blueprint(meteorologia_bp)
     flask_app.register_blueprint(notificacoes_bp)

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Logradouros{% endblock %}
+{% block page_title %}Logradouros{% endblock %}
+{% block content %}
+<style>
+.lg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}.lg-kpi{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:14px}.lg-kpi small{display:block;color:var(--text3);font-weight:800;text-transform:uppercase}.lg-kpi strong{display:block;font-size:26px;color:#155e75;margin-top:4px}.lg-card{margin-bottom:16px}.lg-form{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.lg-form .f-g{min-width:240px;flex:1}.lg-note{color:var(--text3);font-size:12px;margin-top:10px}.lg-table{width:100%;border-collapse:collapse}.lg-table th,.lg-table td{padding:9px;border-bottom:1px solid var(--border);text-align:left}.lg-table th{font-size:11px;color:var(--text3);text-transform:uppercase}.lg-wrap{overflow:auto}
+</style>
+<div class="page-header"><div><h1>Logradouros oficiais</h1><p>Base municipal para normalizar enderecos. Trechos com o mesmo nome sao preservados.</p></div></div>
+<div class="lg-grid"><div class="lg-kpi"><small>Trechos ativos</small><strong id="lg-trechos">—</strong></div><div class="lg-kpi"><small>Nomes normalizados</small><strong id="lg-nomes">—</strong></div><div class="lg-kpi"><small>Localidades informadas</small><strong id="lg-localidades">—</strong></div></div>
+{% if usuario_atual and usuario_atual.nivel == 'admin' %}
+<div class="card lg-card"><div class="chart-title">Importar CSV oficial</div><form id="lg-import-form" class="lg-form"><div class="f-g"><label>Arquivo CSV</label><input id="lg-file" type="file" accept=".csv,text/csv" required></div><button class="btn primary" type="submit">Importar e atualizar</button></form><div class="lg-note">Colunas exigidas: <code>nome</code>, <code>localidade</code> e <code>id_logr</code>. Linhas ausentes de uma nova versao do CSV sao preservadas; a importacao nunca exclui dados automaticamente.</div><div id="lg-import-result" class="lg-note" aria-live="polite"></div></div>
+{% endif %}
+<div class="card lg-card"><div class="lg-form"><div class="f-g"><label>Buscar</label><input id="lg-busca" placeholder="Rua, avenida ou localidade"></div><button class="btn" id="lg-search" type="button">Pesquisar</button></div><div class="lg-wrap"><table class="lg-table"><thead><tr><th>Logradouro</th><th>Localidade informada</th><th>ID do trecho</th><th>Atualizado</th></tr></thead><tbody id="lg-rows"><tr><td colspan="4">Carregando…</td></tr></tbody></table></div></div>
+<script>
+const csrf=()=>document.querySelector('meta[name="csrf-token"]')?.content||'';
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function loadSummary(){const r=await fetch('/api/logradouros/resumo');const d=await r.json();if(!r.ok)throw new Error(d.erro);document.querySelector('#lg-trechos').textContent=d.trechos||0;document.querySelector('#lg-nomes').textContent=d.nomes_normalizados||0;document.querySelector('#lg-localidades').textContent=d.localidades||0;}
+async function loadRows(){const q=document.querySelector('#lg-busca').value.trim();const r=await fetch('/api/logradouros?busca='+encodeURIComponent(q));const d=await r.json();const body=document.querySelector('#lg-rows');if(!r.ok){body.innerHTML='<tr><td colspan="4">'+esc(d.erro||'Erro ao carregar.')+'</td></tr>';return;}body.innerHTML=d.registros.length?d.registros.map(x=>`<tr><td>${esc(x.nome)}</td><td>${esc(x.localidade)}</td><td><code>${esc(x.id_logradouro)}</code></td><td>${esc(x.atualizado_em||'')}</td></tr>`).join(''):'<tr><td colspan="4">Nenhum logradouro encontrado.</td></tr>';}
+document.querySelector('#lg-search').addEventListener('click',loadRows);document.querySelector('#lg-busca').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();loadRows();}});
+document.querySelector('#lg-import-form')?.addEventListener('submit',async e=>{e.preventDefault();const f=document.querySelector('#lg-file').files[0];const out=document.querySelector('#lg-import-result');if(!f)return;out.textContent='Importando…';const form=new FormData();form.append('arquivo',f);const r=await fetch('/api/logradouros/importar',{method:'POST',headers:{'X-CSRFToken':csrf()},body:form});const d=await r.json();out.textContent=r.ok?`${d.linhas} linhas processadas: ${d.inseridos} novas, ${d.atualizados} atualizadas e ${d.sem_alteracao} sem alteracao.`:(d.erro||'Erro ao importar.');if(r.ok){await loadSummary();await loadRows();}});
+Promise.all([loadSummary(),loadRows()]).catch(e=>{document.querySelector('#lg-rows').innerHTML='<tr><td colspan="4">'+esc(e.message)+'</td></tr>';});
+</script>
+{% endblock %}

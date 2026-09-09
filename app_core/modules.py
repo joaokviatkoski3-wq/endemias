@@ -234,6 +234,17 @@ MODULES: Tuple[AppModule, ...] = (
         endpoints=("registro_geografico", "registro_geografico.page"),
     ),
     AppModule(
+        key="logradouros",
+        title="Logradouros",
+        href="/logradouros",
+        endpoint="logradouros.page",
+        icon="mapa.svg",
+        nav_section="Gestao",
+        description="Cadastro oficial e importacao dos logradouros do municipio.",
+        tags=("Enderecos", "CSV"),
+        endpoints=("logradouros", "logradouros.page"),
+    ),
+    AppModule(
         key="pontos_estrategicos",
         title="Pontos Estrategicos",
         short_title="PEs",

@@ -136,6 +136,17 @@ As regras de fonte de verdade e a arquitetura da tela estao em
   uma unica transacao, com auditoria. Confira
   `docs/NOTIFICACOES_LABORATORIO.md` antes de qualquer escrita em dados reais.
 
+### Logradouros oficiais
+
+- A pagina `/logradouros` importa e consulta o CSV municipal com as colunas
+  `nome`, `localidade` e `id_logr`. O ID UUID vindo da fonte e preservado;
+  nomes repetidos representam trechos validos e nao sao mesclados.
+- A primeira entrega nao normaliza nem vincula visitas automaticamente. Ela
+  estabelece a fonte canonica e a importacao incremental segura para o futuro
+  piloto de enderecos positivos e geocodificacao.
+- A migracao PostgreSQL `0006_logradouros_oficiais.sql` deve ser aplicada em
+  producao antes do primeiro acesso a tela.
+
 ## Pendencia concreta e proxima ordem recomendada
 
 ### Ambiente de teste padrao integrado
