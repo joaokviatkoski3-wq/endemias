@@ -47,4 +47,13 @@ Motivos possiveis:
 - `notificacao_indevida`: deveria ficar fora da fila, mas `gera_notificacao=1`.
 
 Qualquer reconciliacao historica deve ser feita somente depois da conferencia
-humana dessa previa. Nao ha criacao retroativa automatica nesta correcao.
+humana dessa previa. Para aplicar a reconciliacao depois da autorizacao
+expressa, use as duas confirmacoes abaixo:
+
+```powershell
+python scripts/diagnosticar_notificacoes_laboratorio.py --database endemias --confirmar-banco endemias --aplicar --confirmar-aplicacao "RECONCILIAR NOTIFICACOES LABORATORIAIS"
+```
+
+A aplicacao ocorre em uma unica transacao: se qualquer divergencia permanecer,
+tudo e revertido. O lote gravado deixa um evento de auditoria com as contagens,
+mas nao altera status manuais como `entregue`.

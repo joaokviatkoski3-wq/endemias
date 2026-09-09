@@ -131,10 +131,10 @@ As regras de fonte de verdade e a arquitetura da tela estao em
 - A regra comum cobre importacao Kobo e Lançamentos Laboratorio: um positivo de
   Aedes aegypti cria ou atualiza um foco por visita; PE nunca gera notificacao;
   TB, TBO e PVE so entram na fila quando o imovel nao e terreno baldio.
-- O script `scripts/diagnosticar_notificacoes_laboratorio.py` faz apenas a
-  previa de positivos historicos divergentes. Nenhuma reconciliacao retroativa
-  e automatica; confira `docs/NOTIFICACOES_LABORATORIO.md` antes de qualquer
-  escrita em dados reais.
+- O script `scripts/diagnosticar_notificacoes_laboratorio.py` faz a previa de
+  positivos historicos divergentes e so reconcilia sob confirmacao dupla em
+  uma unica transacao, com auditoria. Confira
+  `docs/NOTIFICACOES_LABORATORIO.md` antes de qualquer escrita em dados reais.
 
 ## Pendencia concreta e proxima ordem recomendada
 
