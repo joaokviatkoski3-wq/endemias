@@ -136,6 +136,26 @@ class FocosPositivosTests(unittest.TestCase):
         self.assertEqual(1, len(previa))
         self.assertEqual("positivo_sem_foco", previa[0]["motivo"])
 
+    def test_reutiliza_foco_legado_da_mesma_visita(self):
+        self._visita_positiva("visita-legado", "TBO", "Residência", "31")
+        self.conn.execute(
+            """INSERT INTO focos_positivos
+                   (id_foco, id_visita, gera_notificacao, status_notificacao,
+                    processado_em)
+               VALUES ('foco-legado', 'visita-legado', 0, 'entregue',
+                       '2026-01-01T00:00:00')"""
+        )
+        foco = focos_positivos.sincronizar_foco_visita(
+            self.conn, "visita-legado", "2026-08-25T10:00:00",
+        )
+        self.assertEqual("foco-legado", foco["id_foco"])
+        rows = self.conn.execute(
+            """SELECT id_foco, gera_notificacao, status_notificacao
+                 FROM focos_positivos WHERE id_visita='visita-legado'"""
+        ).fetchall()
+        self.assertEqual([("foco-legado", 1, "entregue")], [tuple(row) for row in rows])
+        self.assertEqual([], focos_positivos.listar_divergencias(self.conn))
+
     def test_etl_usa_a_mesma_regra_para_terreno_baldio(self):
         self._visita_positiva("visita-etl", "TBO", "TB", "40")
         etl.inserir_foco_visita(

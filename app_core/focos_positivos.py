@@ -110,6 +110,17 @@ def sincronizar_foco_visita(conn, id_visita, agora_iso):
     existente = conn.execute(
         "SELECT id_foco FROM focos_positivos WHERE id_foco=?", (id_foco,)
     ).fetchone()
+    # Bases anteriores podem conter um foco com identificador legado para a
+    # mesma visita. Reutiliza-o em vez de criar uma segunda notificacao e
+    # preserva tanto o status quanto o historico manual daquele foco.
+    if not existente:
+        existente = conn.execute(
+            "SELECT id_foco FROM focos_positivos WHERE id_visita=? "
+            "ORDER BY processado_em DESC, id_foco LIMIT 1",
+            (id_visita,),
+        ).fetchone()
+        if existente:
+            id_foco = existente[0]
 
     if not positivos:
         if existente:

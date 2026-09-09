@@ -31,6 +31,10 @@ O foco e mantido para analise mesmo quando nao deve aparecer em Notificacoes;
 nesses casos `gera_notificacao` vale `0`. Ao atualizar um foco existente, o
 status manual (`impressa`, `entregue` etc.) nao e sobrescrito.
 
+Se a base trouxer um foco historico da mesma visita com identificador legado,
+ele e reutilizado em vez de criar um segundo foco. Assim, a reconciliacao
+preserva seu historico e status manual.
+
 ## Previa do historico
 
 O script abaixo apenas lista positivos cuja situacao atual diverge da regra.
