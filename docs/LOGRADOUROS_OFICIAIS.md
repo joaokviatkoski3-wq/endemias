@@ -91,3 +91,16 @@ criadas pelo proprio modulo.
 
 As melhorias da versao `1.32.0` reutilizam essas tabelas e nao exigem uma nova
 migracao depois da `0007`.
+
+### Confirmacao e retorno visual
+
+Desde a versao `1.32.1`, a confirmacao em lote mostra explicitamente quantos
+grupos e visitas foram vinculados. Falhas de rede, sessao expirada e respostas
+inesperadas do servidor deixam a selecao intacta, exibem uma mensagem e
+reativam o botao para nova tentativa. Se a gravacao terminar, mas alguma lista
+da pagina nao puder ser atualizada, a interface informa que o vinculo foi
+salvo e orienta recarregar a pagina.
+
+O vinculo e commitado antes do registro de auditoria. Por isso, uma falha
+isolada de auditoria e registrada no log e retornada como aviso de operacao ja
+concluida, em vez de ser apresentada incorretamente como falha total.

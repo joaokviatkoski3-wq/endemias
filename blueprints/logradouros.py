@@ -114,12 +114,21 @@ def api_confirmar_visitas_positivas():
     except Exception:
         logging.exception("Erro ao confirmar endereço normalizado")
         return jsonify({"erro": "Não foi possível confirmar o endereço."}), 500
-    audit.registrar_evento(
-        _get_db,
-        "visitas_enderecos_normalizados_confirmados",
-        entidade="enderecos_normalizados",
-        detalhes=result,
-    )
+    try:
+        audit.registrar_evento(
+            _get_db,
+            "visitas_enderecos_normalizados_confirmados",
+            entidade="enderecos_normalizados",
+            detalhes=result,
+        )
+    except Exception:
+        # O vinculo ja foi confirmado e commitado pela camada de dominio. Nao
+        # informe falha total ao usuario nem incentive uma repeticao ambigua.
+        logging.exception("Vinculos confirmados, mas a auditoria nao foi registrada")
+        result["aviso"] = (
+            "Os vínculos foram confirmados, mas o registro de auditoria falhou. "
+            "Avise o administrador do sistema."
+        )
     return jsonify({"ok": True, **result})
 
 

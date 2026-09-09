@@ -12,6 +12,7 @@
 .lg-badge.exact{background:#dcfce7;color:#166534}.lg-badge.approx{background:#fef3c7;color:#92400e}.lg-badge.problem{background:#fee2e2;color:#991b1b}
 .lg-editor{display:grid;grid-template-columns:minmax(230px,2fr) minmax(90px,.55fr);gap:7px;min-width:350px}.lg-suggestions{grid-column:1/-1}.lg-score{display:block;font-size:11px;color:var(--text3);margin-top:4px}
 .lg-tools{margin:12px 0}.lg-actions{justify-content:space-between;margin-top:12px}.lg-pages{justify-content:center;align-items:center;margin-top:12px}.lg-check{text-align:center;width:34px}
+.lg-action-info{display:flex;flex-direction:column;gap:3px}.lg-result{font-size:12px}.lg-result.success{color:#166534}.lg-result.warning{color:#92400e}.lg-result.error{color:#991b1b}
 </style>
 
 <div class="page-header"><div><h1>Logradouros oficiais</h1><p>Base municipal para padronizar endereços e reunir visitas do mesmo imóvel.</p></div></div>
@@ -36,7 +37,7 @@
   <div id="lg-positive-info" class="lg-note" aria-live="polite"></div>
   <datalist id="lg-official-names"></datalist>
   <div class="lg-wrap"><table class="lg-table"><thead><tr><th class="lg-check"><input id="lg-select-page" type="checkbox" title="Selecionar todos os resultados filtrados nesta página"></th><th>Endereço informado</th><th>Endereço normalizado proposto</th><th>Visitas</th><th>Contexto</th></tr></thead><tbody id="lg-positive-rows"><tr><td colspan="5">Carregue as pendências para iniciar a revisão.</td></tr></tbody></table></div>
-  <div class="lg-actions"><span id="lg-selected-info" class="lg-note">Nenhum grupo selecionado.</span><button class="btn primary" id="lg-confirm-selected" type="button" disabled>Confirmar selecionados</button></div>
+  <div class="lg-actions"><div class="lg-action-info"><span id="lg-selected-info" class="lg-note">Nenhum grupo selecionado.</span><span id="lg-confirm-result" class="lg-result" role="status" aria-live="polite"></span></div><button class="btn primary" id="lg-confirm-selected" type="button" disabled>Confirmar selecionados</button></div>
   <div class="lg-pages"><button class="btn" id="lg-positive-prev" type="button" disabled>Anterior</button><span id="lg-positive-page">Página —</span><button class="btn" id="lg-positive-next" type="button" disabled>Próxima</button></div>
 </div>
 {% endif %}
@@ -68,6 +69,19 @@ const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content ||
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 let positiveGroups = [], positivePage = 1, positivePages = 1, linkedPage = 1, linkedPages = 1;
 const selectedGroups = new Set(), groupEdits = new Map();
+
+async function readJsonResponse(response, fallback){
+  const contentType = response.headers.get('content-type') || '';
+  if(response.redirected || response.url.includes('/login')){
+    throw new Error('Sua sessão expirou. Recarregue a página, entre novamente e tente outra vez.');
+  }
+  if(!contentType.includes('application/json')){
+    throw new Error(response.ok ? fallback : `${fallback} O servidor respondeu com o código ${response.status}.`);
+  }
+  const data = await response.json();
+  if(!response.ok) throw new Error(data.erro || fallback);
+  return data;
+}
 
 async function loadSummary(){
   const response = await fetch('/api/logradouros/resumo'), data = await response.json();
@@ -146,12 +160,27 @@ async function confirmSelected(){
   const items = [...selectedGroups].map(key => {const edit=groupEdits.get(key)||{};return {chave:key,nome_oficial:edit.nome||'',numero:edit.numero||''};});
   if(!items.length) return;
   if(!confirm(`Confirmar ${items.length} grupo(s) em uma única operação? Se algum estiver inválido, nenhum será gravado.`)) return;
-  const button = document.querySelector('#lg-confirm-selected');button.disabled = true;
-  const response = await fetch('/api/logradouros/visitas-positivas/confirmar',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify({itens})});
-  const data = await response.json();
-  if(!response.ok){alert(data.erro || 'Não foi possível confirmar os vínculos.');updateSelectedInfo();return;}
-  selectedGroups.clear();groupEdits.clear();
-  await Promise.all([loadPositivePreview(positivePage),loadSummary(),loadLinked(1)]);
+  const button = document.querySelector('#lg-confirm-selected'), result = document.querySelector('#lg-confirm-result');
+  button.disabled = true;result.className='lg-result';result.textContent='Confirmando vínculos…';
+  try{
+    const response = await fetch('/api/logradouros/visitas-positivas/confirmar',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':csrf(),'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({itens})});
+    const data = await readJsonResponse(response,'Não foi possível confirmar os vínculos.');
+    selectedGroups.clear();groupEdits.clear();
+    const refreshes = await Promise.allSettled([loadPositivePreview(positivePage),loadSummary(),loadLinked(1)]);
+    const refreshFailed = refreshes.some(item => item.status === 'rejected');
+    if(refreshFailed){
+      result.className='lg-result warning';
+      result.textContent=`${data.visitas_vinculadas} visita(s) vinculada(s), mas a tela não foi totalmente atualizada. Recarregue a página para conferir.`;
+    }else if(data.aviso){
+      result.className='lg-result warning';result.textContent=data.aviso;
+    }else{
+      result.className='lg-result success';result.textContent=`Concluído: ${data.grupos_confirmados} grupo(s) e ${data.visitas_vinculadas} visita(s) vinculada(s).`;
+    }
+  }catch(error){
+    result.className='lg-result error';result.textContent=error.message || 'Não foi possível confirmar os vínculos.';
+  }finally{
+    updateSelectedInfo();
+  }
 }
 
 async function loadLinked(page = linkedPage){

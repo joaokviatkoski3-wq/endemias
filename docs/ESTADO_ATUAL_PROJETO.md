@@ -161,6 +161,10 @@ As regras de fonte de verdade e a arquitetura da tela estao em
   unica transacao. Enderecos confirmados possuem consulta, detalhe das visitas
   e desvinculacao auditada. Nenhuma dessas acoes altera o endereco bruto de
   `visitas`; nao ha migracao adicional depois da `0007`.
+- A versao `1.32.1` corrige o retorno da confirmacao em lote: a tela sempre
+  recupera o botao em caso de falha, preserva a selecao, informa o resultado
+  gravado e diferencia sucesso com falha apenas na atualizacao visual ou na
+  auditoria. A correcao nao exige migracao.
 
 ## Pendencia concreta e proxima ordem recomendada
 

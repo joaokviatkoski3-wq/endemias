@@ -1,10 +1,14 @@
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import mock
+
+from flask import Flask
 
 from app_core import db as db_core
 from app_core import enderecos
 from app_core import logradouros
+from blueprints import logradouros as logradouros_bp
 
 
 class LogradourosTests(unittest.TestCase):
@@ -71,6 +75,44 @@ class LogradourosTests(unittest.TestCase):
         self.assertTrue(logradouros._ativo_verdadeiro_valor(PostgresConnection()))
         self.assertEqual("ativo=1", logradouros._ativo_verdadeiro_sql(SQLiteConnection()))
         self.assertEqual(1, logradouros._ativo_verdadeiro_valor(SQLiteConnection()))
+
+    def test_api_informa_sucesso_quando_apenas_a_auditoria_falha(self):
+        app = Flask(__name__)
+        resultado = {
+            "grupos_confirmados": 2,
+            "enderecos_afetados": 2,
+            "visitas_vinculadas": 3,
+            "confirmacoes": [],
+        }
+        view = logradouros_bp.api_confirmar_visitas_positivas
+        while hasattr(view, "__wrapped__"):
+            view = view.__wrapped__
+
+        with app.test_request_context(
+            "/api/logradouros/visitas-positivas/confirmar",
+            method="POST",
+            json={"itens": [{"chave": "grupo-1"}]},
+        ):
+            with (
+                mock.patch.object(logradouros_bp, "_usuario_atual", return_value={"nome": "João"}),
+                mock.patch.object(logradouros_bp, "_target", return_value=self.path),
+                mock.patch.object(
+                    logradouros_bp.logradouros_core,
+                    "confirmar_grupos_visitas_positivas",
+                    return_value=resultado,
+                ),
+                mock.patch.object(
+                    logradouros_bp.audit,
+                    "registrar_evento",
+                    side_effect=RuntimeError("auditoria indisponível"),
+                ),
+            ):
+                response = view()
+
+        dados = response.get_json()
+        self.assertTrue(dados["ok"])
+        self.assertEqual(3, dados["visitas_vinculadas"])
+        self.assertIn("foram confirmados", dados["aviso"])
 
     def test_previa_confirma_positivos_sem_alterar_visita_bruta(self):
         logradouros.importar_csv(
