@@ -165,6 +165,9 @@ As regras de fonte de verdade e a arquitetura da tela estao em
   recupera o botao em caso de falha, preserva a selecao, informa o resultado
   gravado e diferencia sucesso com falha apenas na atualizacao visual ou na
   auditoria. A correcao nao exige migracao.
+- A versao `1.32.2` corrige a divergencia `items`/`itens` no JavaScript da
+  confirmacao em lote. Na versao anterior, o erro ocorria antes da requisicao e
+  nenhum dos grupos daquela tentativa era enviado ou vinculado.
 
 ## Pendencia concreta e proxima ordem recomendada
 

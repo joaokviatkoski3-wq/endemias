@@ -104,3 +104,8 @@ salvo e orienta recarregar a pagina.
 O vinculo e commitado antes do registro de auditoria. Por isso, uma falha
 isolada de auditoria e registrada no log e retornada como aviso de operacao ja
 concluida, em vez de ser apresentada incorretamente como falha total.
+
+A versao `1.32.2` corrige o nome da variavel usada para montar e enviar o lote.
+Na `1.32.1`, a divergencia entre `items` e `itens` interrompia o JavaScript
+antes da requisicao; portanto, nenhuma selecao afetada por esse erro chegou ao
+servidor.

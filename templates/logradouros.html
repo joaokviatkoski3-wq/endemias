@@ -157,9 +157,9 @@ async function loadPositivePreview(page = positivePage){
 }
 
 async function confirmSelected(){
-  const items = [...selectedGroups].map(key => {const edit=groupEdits.get(key)||{};return {chave:key,nome_oficial:edit.nome||'',numero:edit.numero||''};});
-  if(!items.length) return;
-  if(!confirm(`Confirmar ${items.length} grupo(s) em uma única operação? Se algum estiver inválido, nenhum será gravado.`)) return;
+  const itens = [...selectedGroups].map(key => {const edit=groupEdits.get(key)||{};return {chave:key,nome_oficial:edit.nome||'',numero:edit.numero||''};});
+  if(!itens.length) return;
+  if(!confirm(`Confirmar ${itens.length} grupo(s) em uma única operação? Se algum estiver inválido, nenhum será gravado.`)) return;
   const button = document.querySelector('#lg-confirm-selected'), result = document.querySelector('#lg-confirm-result');
   button.disabled = true;result.className='lg-result';result.textContent='Confirmando vínculos…';
   try{

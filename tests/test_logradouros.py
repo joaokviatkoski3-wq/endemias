@@ -114,6 +114,14 @@ class LogradourosTests(unittest.TestCase):
         self.assertEqual(3, dados["visitas_vinculadas"])
         self.assertIn("foram confirmados", dados["aviso"])
 
+    def test_template_envia_a_mesma_variavel_de_itens_que_monta(self):
+        template = (
+            Path(__file__).resolve().parents[1] / "templates" / "logradouros.html"
+        ).read_text(encoding="utf-8")
+        self.assertIn("const itens = [...selectedGroups]", template)
+        self.assertIn("body:JSON.stringify({itens})", template)
+        self.assertNotIn("const items = [...selectedGroups]", template)
+
     def test_previa_confirma_positivos_sem_alterar_visita_bruta(self):
         logradouros.importar_csv(
             self.path, self._csv(("Rua São João,Sede,uuid-a",))
