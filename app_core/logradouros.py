@@ -8,11 +8,15 @@ fundidos durante a importacao.
 import csv
 import hashlib
 import io
+import json
+import math
+import re
 import unicodedata
 from datetime import datetime
 
 from app_core import db as db_core
 from app_core import enderecos as enderecos_core
+from app_core import geocodificacao
 
 
 TABLE = "logradouros_oficiais"
@@ -22,6 +26,10 @@ REQUIRED_COLUMNS = {"nome", "localidade", "id_logr"}
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 SCORE_MINIMO_SUGESTAO = 72
 MAX_SUGESTOES = 5
+GEOCODIFICACAO_STATUS = {
+    "pendente", "automatico", "aproximado", "nao_encontrado", "erro",
+    "aguarda_manual", "manual",
+}
 
 
 def _now():
@@ -87,7 +95,17 @@ def ensure_schema(target):
                 numero_normalizado TEXT NOT NULL,
                 criado_em TEXT NOT NULL,
                 atualizado_em TEXT NOT NULL,
-                confirmado_por TEXT
+                confirmado_por TEXT,
+                latitude REAL,
+                longitude REAL,
+                geocodificacao_status TEXT NOT NULL DEFAULT 'pendente',
+                geocodificacao_fonte TEXT,
+                geocodificacao_consulta TEXT,
+                geocodificacao_resultado TEXT,
+                geocodificacao_precisao TEXT,
+                geocodificacao_detalhes_json TEXT,
+                geocodificado_em TEXT,
+                geocodificado_por TEXT
             );
             CREATE TABLE IF NOT EXISTS {VINCULOS_TABLE} (
                 id_visita TEXT PRIMARY KEY,
@@ -100,6 +118,25 @@ def ensure_schema(target):
             CREATE INDEX IF NOT EXISTS idx_visitas_enderecos_id_endereco
                 ON {VINCULOS_TABLE}(id_endereco);
             """
+        )
+        novas_colunas = {
+            "latitude": "REAL",
+            "longitude": "REAL",
+            "geocodificacao_status": "TEXT NOT NULL DEFAULT 'pendente'",
+            "geocodificacao_fonte": "TEXT",
+            "geocodificacao_consulta": "TEXT",
+            "geocodificacao_resultado": "TEXT",
+            "geocodificacao_precisao": "TEXT",
+            "geocodificacao_detalhes_json": "TEXT",
+            "geocodificado_em": "TEXT",
+            "geocodificado_por": "TEXT",
+        }
+        for coluna, definicao in novas_colunas.items():
+            if not db_core.column_exists(conn, ENDERECOS_TABLE, coluna):
+                conn.execute(f"ALTER TABLE {ENDERECOS_TABLE} ADD COLUMN {coluna} {definicao}")
+        conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_enderecos_geocodificacao_status "
+            f"ON {ENDERECOS_TABLE}(geocodificacao_status)"
         )
         conn.commit()
     finally:
@@ -456,6 +493,217 @@ def confirmar_grupo_visitas_positivas(target, chave, nome_oficial, confirmado_po
     )
 
 
+def _numero_consultavel(numero):
+    chave = normalizar_nome(numero).replace("/", " ")
+    invalidos = {"", "0", "sn", "s n", "sem numero", "nao informado"}
+    return bool(re.search(r"\d", chave)) and chave not in invalidos
+
+
+def _coordenadas_candidato(candidato):
+    try:
+        latitude = float(candidato.get("lat"))
+        longitude = float(candidato.get("lon"))
+    except (TypeError, ValueError):
+        return None
+    if not (math.isfinite(latitude) and math.isfinite(longitude)):
+        return None
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        return None
+    return latitude, longitude
+
+
+def _avaliar_candidato(candidato, logradouro, numero):
+    endereco = candidato.get("address") if isinstance(candidato, dict) else None
+    if not isinstance(endereco, dict) or endereco.get("country_code", "").casefold() != "br":
+        return None
+    municipio = " ".join(
+        str(endereco.get(campo) or "")
+        for campo in ("city", "town", "municipality", "county")
+    )
+    if "almirante tamandare" not in normalizar_nome(municipio):
+        return None
+    rua = next(
+        (endereco.get(campo) for campo in ("road", "pedestrian", "residential", "footway") if endereco.get(campo)),
+        "",
+    )
+    if not rua:
+        return None
+    score_rua, _ = enderecos_core.similaridade_logradouro(logradouro, rua)
+    if score_rua < SCORE_MINIMO_SUGESTAO:
+        return None
+    coordenadas = _coordenadas_candidato(candidato)
+    if not coordenadas:
+        return None
+    numero_retornado = _text(endereco.get("house_number"))
+    numero_exato = bool(numero_retornado) and normalizar_nome(numero_retornado) == normalizar_nome(numero)
+    return {
+        "candidato": candidato,
+        "latitude": coordenadas[0],
+        "longitude": coordenadas[1],
+        "numero_exato": numero_exato,
+        "score_rua": score_rua,
+        "resultado": _text(candidato.get("display_name")),
+    }
+
+
+def _gravar_geocodificacao(target, id_endereco, **campos):
+    permitidos = {
+        "latitude", "longitude", "geocodificacao_status", "geocodificacao_fonte",
+        "geocodificacao_consulta", "geocodificacao_resultado", "geocodificacao_precisao",
+        "geocodificacao_detalhes_json", "geocodificado_em", "geocodificado_por",
+    }
+    if not campos or set(campos) - permitidos:
+        raise ValueError("Campos de geocodificação inválidos.")
+    status = campos.get("geocodificacao_status")
+    if status and status not in GEOCODIFICACAO_STATUS:
+        raise ValueError("Situação de geocodificação inválida.")
+    conn = db_core.connect(target)
+    try:
+        atribuicoes = ", ".join(f"{campo}=?" for campo in campos)
+        cursor = conn.execute(
+            f"UPDATE {ENDERECOS_TABLE} SET {atribuicoes}, atualizado_em=? WHERE id_endereco=?",
+            [*campos.values(), _now(), id_endereco],
+        )
+        if not cursor.rowcount:
+            raise ValueError("Endereço normalizado não encontrado.")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def listar_pendentes_geocodificacao(target, limite=100):
+    ensure_schema(target)
+    try:
+        limite = max(1, min(int(limite or 100), 200))
+    except (TypeError, ValueError):
+        limite = 100
+    conn = db_core.connect(target)
+    try:
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM {ENDERECOS_TABLE} WHERE geocodificacao_status='pendente'"
+        ).fetchone()[0]
+        rows = conn.execute(
+            f"""SELECT id_endereco, logradouro_oficial, numero_normalizado
+                  FROM {ENDERECOS_TABLE}
+                 WHERE geocodificacao_status='pendente'
+                 ORDER BY id_endereco LIMIT ?""",
+            (limite,),
+        ).fetchall()
+        return {"enderecos": [db_core.serialize_row(row) for row in rows], "total": total, "limite": limite}
+    finally:
+        conn.close()
+
+
+def geocodificar_endereco(target, id_endereco, geocoder=None, forcar=False):
+    ensure_schema(target)
+    conn = db_core.connect(target)
+    try:
+        row = conn.execute(
+            f"SELECT * FROM {ENDERECOS_TABLE} WHERE id_endereco=?", (id_endereco,)
+        ).fetchone()
+        if not row:
+            raise ValueError("Endereço normalizado não encontrado.")
+        endereco = db_core.serialize_row(row)
+    finally:
+        conn.close()
+    if not forcar and endereco.get("geocodificacao_status") in {"automatico", "manual"}:
+        return {"id_endereco": id_endereco, "status": endereco["geocodificacao_status"], "em_cache": True}
+
+    logradouro = endereco["logradouro_oficial"]
+    numero = endereco["numero_normalizado"]
+    consulta = f"{logradouro}, {numero}, Almirante Tamandaré - PR"
+    if not _numero_consultavel(numero):
+        _gravar_geocodificacao(
+            target, id_endereco, latitude=None, longitude=None,
+            geocodificacao_status="aguarda_manual", geocodificacao_fonte=None,
+            geocodificacao_consulta=consulta,
+            geocodificacao_resultado="Número ausente ou inválido.",
+            geocodificacao_precisao=None, geocodificacao_detalhes_json=None,
+            geocodificado_em=_now(), geocodificado_por=None,
+        )
+        return {"id_endereco": id_endereco, "status": "aguarda_manual", "mensagem": "Endereço sem número válido."}
+
+    buscar = geocoder or geocodificacao.buscar_nominatim
+    try:
+        candidatos = buscar(logradouro, numero)
+    except geocodificacao.GeocodificacaoErro:
+        _gravar_geocodificacao(
+            target, id_endereco, geocodificacao_status="erro",
+            geocodificacao_fonte="Nominatim / OpenStreetMap",
+            geocodificacao_consulta=consulta, geocodificado_em=_now(),
+        )
+        raise
+
+    avaliados = [item for item in (_avaliar_candidato(c, logradouro, numero) for c in candidatos) if item]
+    # Um numero coincidente nao basta se o nome da via divergir demais. Nesse
+    # caso o ponto ainda pode ajudar a revisao, mas nunca vira automatico.
+    exatos = [
+        item for item in avaliados
+        if item["numero_exato"] and item["score_rua"] >= 90
+    ]
+    escolhido = max(exatos or avaliados, key=lambda item: item["score_rua"], default=None)
+    if not escolhido:
+        _gravar_geocodificacao(
+            target, id_endereco, latitude=None, longitude=None,
+            geocodificacao_status="nao_encontrado", geocodificacao_fonte="Nominatim / OpenStreetMap",
+            geocodificacao_consulta=consulta, geocodificacao_resultado=None,
+            geocodificacao_precisao=None,
+            geocodificacao_detalhes_json=json.dumps(candidatos[:5], ensure_ascii=False),
+            geocodificado_em=_now(), geocodificado_por=None,
+        )
+        return {"id_endereco": id_endereco, "status": "nao_encontrado", "mensagem": "Nenhum resultado compatível no município."}
+
+    automatico = escolhido in exatos
+    status = "automatico" if automatico else "aproximado"
+    precisao = "numero_exato" if automatico else "logradouro_aproximado"
+    _gravar_geocodificacao(
+        target, id_endereco, latitude=escolhido["latitude"], longitude=escolhido["longitude"],
+        geocodificacao_status=status, geocodificacao_fonte="Nominatim / OpenStreetMap",
+        geocodificacao_consulta=consulta, geocodificacao_resultado=escolhido["resultado"],
+        geocodificacao_precisao=precisao,
+        geocodificacao_detalhes_json=json.dumps(escolhido["candidato"], ensure_ascii=False),
+        geocodificado_em=_now(), geocodificado_por=None,
+    )
+    return {
+        "id_endereco": id_endereco, "status": status,
+        "latitude": escolhido["latitude"], "longitude": escolhido["longitude"],
+        "resultado": escolhido["resultado"],
+    }
+
+
+def salvar_coordenadas_manuais(target, id_endereco, latitude, longitude, usuario=None):
+    ensure_schema(target)
+    if _text(latitude) == "" and _text(longitude) == "":
+        _gravar_geocodificacao(
+            target, id_endereco, latitude=None, longitude=None,
+            geocodificacao_status="aguarda_manual", geocodificacao_fonte=None,
+            geocodificacao_resultado="Coordenadas manuais removidas.",
+            geocodificacao_precisao=None, geocodificacao_detalhes_json=None,
+            geocodificado_em=_now(), geocodificado_por=_text(usuario) or None,
+        )
+        return {"id_endereco": id_endereco, "status": "aguarda_manual", "latitude": None, "longitude": None}
+    if _text(latitude) == "" or _text(longitude) == "":
+        raise ValueError("Informe latitude e longitude juntas.")
+    try:
+        lat = float(str(latitude).replace(",", "."))
+        lon = float(str(longitude).replace(",", "."))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Latitude e longitude devem ser números válidos.") from exc
+    if not (math.isfinite(lat) and math.isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180):
+        raise ValueError("Latitude ou longitude fora do intervalo válido.")
+    _gravar_geocodificacao(
+        target, id_endereco, latitude=lat, longitude=lon,
+        geocodificacao_status="manual", geocodificacao_fonte="Informado manualmente",
+        geocodificacao_resultado="Coordenadas revisadas manualmente.",
+        geocodificacao_precisao="manual", geocodificacao_detalhes_json=None,
+        geocodificado_em=_now(), geocodificado_por=_text(usuario) or None,
+    )
+    return {"id_endereco": id_endereco, "status": "manual", "latitude": lat, "longitude": lon}
+
+
 def listar_enderecos_vinculados(target, busca="", pagina=1, por_pagina=50):
     ensure_schema(target)
     try:
@@ -468,7 +716,8 @@ def listar_enderecos_vinculados(target, busca="", pagina=1, por_pagina=50):
     try:
         rows = conn.execute(
             f"""SELECT e.id_endereco, e.logradouro_oficial, e.numero_normalizado,
-                       e.atualizado_em, e.confirmado_por, ve.id_visita,
+                       e.atualizado_em, e.confirmado_por, e.latitude, e.longitude,
+                       e.geocodificacao_status, e.geocodificacao_precisao, ve.id_visita,
                        ve.logradouro_bruto, ve.numero_bruto, v.data, v.tipo,
                        COALESCE(l.nome,v.localidade) AS localidade
                   FROM {ENDERECOS_TABLE} e
@@ -487,6 +736,10 @@ def listar_enderecos_vinculados(target, busca="", pagina=1, por_pagina=50):
                     "numero_normalizado": row["numero_normalizado"],
                     "atualizado_em": row["atualizado_em"],
                     "confirmado_por": row["confirmado_por"],
+                    "latitude": row["latitude"],
+                    "longitude": row["longitude"],
+                    "geocodificacao_status": row["geocodificacao_status"],
+                    "geocodificacao_precisao": row["geocodificacao_precisao"],
                     "visitas": 0,
                     "variacoes": set(),
                     "localidades": set(),
@@ -649,6 +902,16 @@ def resumo(target):
         ).fetchone()[0]
         resultado["visitas_vinculadas"] = conn.execute(
             f"SELECT COUNT(*) FROM {VINCULOS_TABLE}"
+        ).fetchone()[0]
+        resultado["enderecos_com_coordenadas"] = conn.execute(
+            f"SELECT COUNT(*) FROM {ENDERECOS_TABLE} WHERE latitude IS NOT NULL AND longitude IS NOT NULL"
+        ).fetchone()[0]
+        resultado["coordenadas_para_revisar"] = conn.execute(
+            f"""SELECT COUNT(*) FROM {ENDERECOS_TABLE}
+                 WHERE geocodificacao_status IN ('aproximado','nao_encontrado','erro','aguarda_manual')"""
+        ).fetchone()[0]
+        resultado["geocodificacao_pendente"] = conn.execute(
+            f"SELECT COUNT(*) FROM {ENDERECOS_TABLE} WHERE geocodificacao_status='pendente'"
         ).fetchone()[0]
         return resultado
     finally:

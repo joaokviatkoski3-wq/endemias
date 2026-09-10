@@ -149,6 +149,81 @@ def api_enderecos_vinculados():
         return jsonify({"erro": "Não foi possível listar os vínculos."}), 500
 
 
+@bp.route("/api/logradouros/geocodificacao/pendentes")
+@login_required
+@nivel_min("admin")
+def api_geocodificacao_pendentes():
+    try:
+        return jsonify(
+            logradouros_core.listar_pendentes_geocodificacao(
+                _target(), request.args.get("limite", 100)
+            )
+        )
+    except Exception:
+        logging.exception("Erro ao listar endereços pendentes de geocodificação")
+        return jsonify({"erro": "Não foi possível carregar a fila de coordenadas."}), 500
+
+
+@bp.route("/api/logradouros/enderecos/<int:id_endereco>/geocodificar", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_geocodificar_endereco(id_endereco):
+    dados = request.get_json(silent=True) or {}
+    try:
+        result = logradouros_core.geocodificar_endereco(
+            _target(), id_endereco, forcar=bool(dados.get("forcar"))
+        )
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    except logradouros_core.geocodificacao.GeocodificacaoErro as exc:
+        return jsonify({"erro": str(exc), "status": "erro"}), 502
+    except Exception:
+        logging.exception("Erro ao geocodificar endereço")
+        return jsonify({"erro": "Não foi possível buscar as coordenadas."}), 500
+    try:
+        audit.registrar_evento(
+            _get_db,
+            "endereco_normalizado_geocodificado",
+            entidade="enderecos_normalizados",
+            entidade_id=id_endereco,
+            detalhes=result,
+        )
+    except Exception:
+        logging.exception("Geocodificação concluída, mas a auditoria falhou")
+        result["aviso"] = "A coordenada foi processada, mas o registro de auditoria falhou."
+    return jsonify({"ok": True, **result})
+
+
+@bp.route("/api/logradouros/enderecos/<int:id_endereco>/coordenadas", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_salvar_coordenadas(id_endereco):
+    dados = request.get_json(silent=True) or {}
+    usuario = _usuario_atual() or {}
+    try:
+        result = logradouros_core.salvar_coordenadas_manuais(
+            _target(), id_endereco, dados.get("latitude"), dados.get("longitude"),
+            usuario.get("nome") or usuario.get("usuario"),
+        )
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    except Exception:
+        logging.exception("Erro ao salvar coordenadas manuais")
+        return jsonify({"erro": "Não foi possível salvar as coordenadas."}), 500
+    try:
+        audit.registrar_evento(
+            _get_db,
+            "endereco_normalizado_coordenadas_manuais",
+            entidade="enderecos_normalizados",
+            entidade_id=id_endereco,
+            detalhes=result,
+        )
+    except Exception:
+        logging.exception("Coordenadas salvas, mas a auditoria falhou")
+        result["aviso"] = "As coordenadas foram salvas, mas o registro de auditoria falhou."
+    return jsonify({"ok": True, **result})
+
+
 @bp.route("/api/logradouros/enderecos/<int:id_endereco>/desvincular", methods=["POST"])
 @login_required
 @nivel_min("admin")

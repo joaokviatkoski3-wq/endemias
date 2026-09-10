@@ -23,6 +23,9 @@
   <div class="lg-kpi"><small>Localidades informadas</small><strong id="lg-localidades">—</strong></div>
   <div class="lg-kpi"><small>Endereços confirmados</small><strong id="lg-enderecos-confirmados">—</strong></div>
   <div class="lg-kpi"><small>Visitas vinculadas</small><strong id="lg-visitas-vinculadas">—</strong></div>
+  <div class="lg-kpi"><small>Com coordenadas</small><strong id="lg-com-coordenadas">—</strong></div>
+  <div class="lg-kpi"><small>Coordenadas para revisar</small><strong id="lg-coordenadas-revisar">—</strong></div>
+  <div class="lg-kpi"><small>Pendentes de busca</small><strong id="lg-geocodificacao-pendente">—</strong></div>
 </div>
 
 {% if usuario_atual and usuario_atual.nivel == 'admin' %}
@@ -44,10 +47,12 @@
 
 <div class="card lg-card">
   <div class="chart-title">Endereços vinculados</div>
-  <p class="lg-note">Consulte os endereços já confirmados e abra o histórico de visitas relacionado.</p>
+  <p class="lg-note">Consulte os endereços já confirmados e abra o histórico de visitas relacionado. Ao iniciar a busca automática, o logradouro oficial, o número e o município são enviados ao Nominatim/OpenStreetMap. O sistema aceita como definitiva somente uma correspondência dos três; resultados aproximados ficam para revisão.</p>
+  {% if usuario_atual and usuario_atual.nivel == 'admin' %}<div class="lg-tools"><button class="btn primary" id="lg-geocode-pending" type="button">Buscar coordenadas pendentes</button><span id="lg-geocode-result" class="lg-result" role="status" aria-live="polite"></span></div>{% endif %}
   <div class="lg-form"><div class="f-g"><label for="lg-linked-search">Buscar vínculo</label><input id="lg-linked-search" placeholder="Endereço, grafia original ou localidade"></div><button class="btn" id="lg-linked-button" type="button">Pesquisar</button></div>
-  <div class="lg-wrap"><table class="lg-table"><thead><tr><th>Endereço oficial</th><th>Visitas</th><th>Grafias originais</th><th>Período</th><th></th></tr></thead><tbody id="lg-linked-rows"><tr><td colspan="5">Carregando…</td></tr></tbody></table></div>
+  <div class="lg-wrap"><table class="lg-table"><thead><tr><th>Endereço oficial</th><th>Visitas</th><th>Grafias originais</th><th>Período</th><th>Coordenadas</th><th></th></tr></thead><tbody id="lg-linked-rows"><tr><td colspan="6">Carregando…</td></tr></tbody></table></div>
   <div class="lg-pages"><button class="btn" id="lg-linked-prev" type="button" disabled>Anterior</button><span id="lg-linked-page">Página —</span><button class="btn" id="lg-linked-next" type="button" disabled>Próxima</button></div>
+  <p class="lg-note">Coordenadas automáticas: © contribuidores do <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>, consultadas pelo Nominatim.</p>
 </div>
 
 {% if usuario_atual and usuario_atual.nivel == 'admin' %}
@@ -91,6 +96,9 @@ async function loadSummary(){
   document.querySelector('#lg-localidades').textContent = data.localidades || 0;
   document.querySelector('#lg-enderecos-confirmados').textContent = data.enderecos_confirmados || 0;
   document.querySelector('#lg-visitas-vinculadas').textContent = data.visitas_vinculadas || 0;
+  document.querySelector('#lg-com-coordenadas').textContent = data.enderecos_com_coordenadas || 0;
+  document.querySelector('#lg-coordenadas-revisar').textContent = data.coordenadas_para_revisar || 0;
+  document.querySelector('#lg-geocodificacao-pendente').textContent = data.geocodificacao_pendente || 0;
 }
 
 async function loadRows(){
@@ -185,12 +193,47 @@ async function confirmSelected(){
 
 async function loadLinked(page = linkedPage){
   const search = document.querySelector('#lg-linked-search').value.trim(), body = document.querySelector('#lg-linked-rows');
-  body.innerHTML = '<tr><td colspan="5">Carregando…</td></tr>';
+  body.innerHTML = '<tr><td colspan="6">Carregando…</td></tr>';
   const response = await fetch(`/api/logradouros/enderecos-vinculados?pagina=${page}&por_pagina=50&busca=${encodeURIComponent(search)}`), data = await response.json();
-  if(!response.ok){body.innerHTML='<tr><td colspan="5">'+esc(data.erro||'Erro ao carregar vínculos.')+'</td></tr>';return;}
+  if(!response.ok){body.innerHTML='<tr><td colspan="6">'+esc(data.erro||'Erro ao carregar vínculos.')+'</td></tr>';return;}
   linkedPage=data.pagina;linkedPages=data.total_paginas;
-  body.innerHTML=data.registros.length?data.registros.map(item=>`<tr><td><strong>${esc(item.logradouro_oficial)}, ${esc(item.numero_normalizado)}</strong><br><span class="lg-note">${esc(item.localidades.join(', '))}</span></td><td>${item.visitas}</td><td>${item.variacoes.slice(0,3).map(esc).join('<br>')}${item.variacoes.length>3?`<br><span class="lg-note">e mais ${item.variacoes.length-3}</span>`:''}</td><td>${esc(item.data_inicial||'—')} a ${esc(item.data_final||'—')}</td><td><a class="btn" href="/logradouros/enderecos/${item.id_endereco}">Ver vínculo</a></td></tr>`).join(''):'<tr><td colspan="5">Nenhum endereço vinculado encontrado.</td></tr>';
+  body.innerHTML=data.registros.length?data.registros.map(item=>`<tr><td><strong>${esc(item.logradouro_oficial)}, ${esc(item.numero_normalizado)}</strong><br><span class="lg-note">${esc(item.localidades.join(', '))}</span></td><td>${item.visitas}</td><td>${item.variacoes.slice(0,3).map(esc).join('<br>')}${item.variacoes.length>3?`<br><span class="lg-note">e mais ${item.variacoes.length-3}</span>`:''}</td><td>${esc(item.data_inicial||'—')} a ${esc(item.data_final||'—')}</td><td>${coordinateBadge(item)}</td><td><a class="btn" href="/logradouros/enderecos/${item.id_endereco}">Ver vínculo</a></td></tr>`).join(''):'<tr><td colspan="6">Nenhum endereço vinculado encontrado.</td></tr>';
   document.querySelector('#lg-linked-page').textContent=`Página ${linkedPage} de ${linkedPages}`;document.querySelector('#lg-linked-prev').disabled=linkedPage<=1;document.querySelector('#lg-linked-next').disabled=linkedPage>=linkedPages;
+}
+
+function coordinateBadge(item){
+  const status=item.geocodificacao_status||'pendente';
+  if(status==='automatico')return `<span class="lg-badge exact">Número confirmado</span><br><span class="lg-note">${esc(item.latitude)}, ${esc(item.longitude)}</span>`;
+  if(status==='manual')return `<span class="lg-badge exact">Revisado manualmente</span><br><span class="lg-note">${esc(item.latitude)}, ${esc(item.longitude)}</span>`;
+  if(status==='aproximado')return `<span class="lg-badge approx">Aproximada — revisar</span><br><span class="lg-note">${esc(item.latitude)}, ${esc(item.longitude)}</span>`;
+  if(status==='nao_encontrado')return '<span class="lg-badge problem">Não encontrado</span>';
+  if(status==='erro')return '<span class="lg-badge problem">Falha na consulta</span>';
+  if(status==='aguarda_manual')return '<span class="lg-badge problem">Preenchimento manual</span>';
+  return '<span class="lg-badge approx">Pendente</span>';
+}
+
+async function geocodePending(){
+  const button=document.querySelector('#lg-geocode-pending'),output=document.querySelector('#lg-geocode-result');
+  button.disabled=true;output.className='lg-result';output.textContent='Carregando a fila…';
+  let automaticos=0,aproximados=0,manuais=0,naoEncontrados=0,falhas=0;
+  try{
+    const queueResponse=await fetch('/api/logradouros/geocodificacao/pendentes?limite=100');
+    const queue=await readJsonResponse(queueResponse,'Não foi possível carregar a fila de coordenadas.');
+    if(!queue.enderecos.length){output.className='lg-result success';output.textContent='Não há endereços pendentes.';return;}
+    for(let index=0;index<queue.enderecos.length;index++){
+      const item=queue.enderecos[index];output.textContent=`Consultando ${index+1} de ${queue.enderecos.length}: ${item.logradouro_oficial}, ${item.numero_normalizado}…`;
+      try{
+        const response=await fetch(`/api/logradouros/enderecos/${item.id_endereco}/geocodificar`,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':csrf(),'X-Requested-With':'XMLHttpRequest'},body:'{}'});
+        if(response.status===502){const failure=await response.json().catch(()=>({}));const error=new Error(failure.erro||'O serviço de coordenadas está indisponível.');error.stopBatch=true;throw error;}
+        const data=await readJsonResponse(response,'Falha ao consultar este endereço.');
+        if(data.status==='automatico')automaticos++;else if(data.status==='aproximado')aproximados++;else if(data.status==='aguarda_manual')manuais++;else naoEncontrados++;
+      }catch(error){falhas++;if(error.stopBatch||error instanceof TypeError)break;}
+    }
+    await Promise.all([loadSummary(),loadLinked(linkedPage)]);
+    output.className=falhas?'lg-result warning':'lg-result success';
+    output.textContent=`Concluído: ${automaticos} confirmada(s), ${aproximados} aproximada(s), ${manuais} para preenchimento manual, ${naoEncontrados} não encontrada(s) e ${falhas} falha(s).${queue.total>queue.enderecos.length?' Ainda há itens na fila; execute novamente para o próximo lote.':''}`;
+  }catch(error){output.className='lg-result error';output.textContent=error.message||'Não foi possível buscar as coordenadas.';}
+  finally{button.disabled=false;}
 }
 
 document.querySelector('#lg-search').addEventListener('click',loadRows);document.querySelector('#lg-busca').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();loadRows();}});
@@ -199,6 +242,7 @@ document.querySelector('#lg-linked-prev').addEventListener('click',()=>loadLinke
 document.querySelector('#lg-positive-filter')?.addEventListener('change',renderPositivePreview);document.querySelector('#lg-positive-search')?.addEventListener('input',renderPositivePreview);
 document.querySelector('#lg-load-positive')?.addEventListener('click',()=>loadPositivePreview(1));document.querySelector('#lg-positive-prev')?.addEventListener('click',()=>loadPositivePreview(positivePage-1));document.querySelector('#lg-positive-next')?.addEventListener('click',()=>loadPositivePreview(positivePage+1));
 document.querySelector('#lg-confirm-selected')?.addEventListener('click',confirmSelected);
+document.querySelector('#lg-geocode-pending')?.addEventListener('click',geocodePending);
 document.querySelector('#lg-select-page')?.addEventListener('change',event=>{filteredPositiveGroups().forEach(group=>event.target.checked?selectedGroups.add(group.chave):selectedGroups.delete(group.chave));renderPositivePreview();});
 document.querySelector('#lg-positive-rows')?.addEventListener('change',event=>{const row=event.target.closest('tr[data-key]');if(!row)return;const key=row.dataset.key;if(event.target.classList.contains('lg-group-check')){event.target.checked?selectedGroups.add(key):selectedGroups.delete(key);}if(event.target.classList.contains('lg-suggestions')&&event.target.value){row.querySelector('.lg-official-name').value=event.target.value;}const edit=groupEdits.get(key)||{};edit.nome=row.querySelector('.lg-official-name')?.value||'';edit.numero=row.querySelector('.lg-official-number')?.value||'';groupEdits.set(key,edit);updateSelectedInfo();});
 document.querySelector('#lg-positive-rows')?.addEventListener('input',event=>{const row=event.target.closest('tr[data-key]');if(!row)return;const edit=groupEdits.get(row.dataset.key)||{};edit.nome=row.querySelector('.lg-official-name')?.value||'';edit.numero=row.querySelector('.lg-official-number')?.value||'';groupEdits.set(row.dataset.key,edit);});

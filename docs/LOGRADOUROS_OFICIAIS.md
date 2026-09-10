@@ -1,6 +1,6 @@
 # Logradouros oficiais
 
-Atualizado em 09/09/2026.
+Atualizado em 10/09/2026.
 
 O cadastro em `/logradouros` recebe o CSV municipal de logradouros. Ele e a
 fonte canonica de grafia para uma etapa futura de normalizacao e vinculo das
@@ -109,3 +109,29 @@ A versao `1.32.2` corrige o nome da variavel usada para montar e enviar o lote.
 Na `1.32.1`, a divergencia entre `items` e `itens` interrompia o JavaScript
 antes da requisicao; portanto, nenhuma selecao afetada por esse erro chegou ao
 servidor.
+
+## Coordenadas dos imoveis normalizados
+
+Desde a versao `1.33.0`, os enderecos vinculados podem receber coordenadas sem
+alterar as visitas originais. O administrador inicia a fila pela secao
+**Enderecos vinculados**. Cada consulta usa o logradouro oficial, o numero e o
+municipio de Almirante Tamandare-PR.
+
+- O servico padrao e o Nominatim, com dados do OpenStreetMap. As requisicoes
+  sao sequenciais, limitadas a menos de uma por segundo e os resultados ficam
+  armazenados para evitar consultas repetidas.
+- Uma coordenada so fica como **confirmada automaticamente** quando pais,
+  municipio, logradouro e numero retornados sao compativeis. Um resultado sem
+  numero exato pode ser conservado como **aproximado**, sempre para revisao.
+- Enderecos sem numero valido nao sao enviados ao servico. Falhas, resultados
+  ausentes e enderecos invalidos ficam identificados para preenchimento manual.
+- No detalhe do endereco, o administrador ve a consulta e o endereco retornado,
+  confere o ponto no OpenStreetMap, repete a busca ou informa latitude e
+  longitude manualmente. A autoria e a data da revisao manual sao guardadas.
+- Pontos Estrategicos permanecem fora desse fluxo, pois usam cadastro e
+  georreferenciamento proprios.
+
+No PostgreSQL, a migracao `0008_geocodificacao_enderecos.sql` adiciona os
+campos, a situacao da conferencia e o indice da fila. Ela deve ser aplicada
+antes de usar a versao `1.33.0` em producao. Os testes nao fazem requisicoes
+reais ao servico externo: as respostas sao simuladas.

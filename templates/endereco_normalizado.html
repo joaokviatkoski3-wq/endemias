@@ -3,7 +3,7 @@
 {% block page_title %}Endereço normalizado{% endblock %}
 {% block content %}
 <style>
-.en-card{margin-bottom:16px}.en-head{display:flex;justify-content:space-between;gap:14px;align-items:start;flex-wrap:wrap}.en-meta{color:var(--text3);font-size:13px}.en-table{width:100%;border-collapse:collapse}.en-table th,.en-table td{padding:10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}.en-table th{font-size:11px;color:var(--text3);text-transform:uppercase}.en-wrap{overflow:auto}
+.en-card{margin-bottom:16px}.en-head{display:flex;justify-content:space-between;gap:14px;align-items:start;flex-wrap:wrap}.en-meta{color:var(--text3);font-size:13px}.en-table{width:100%;border-collapse:collapse}.en-table th,.en-table td{padding:10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}.en-table th{font-size:11px;color:var(--text3);text-transform:uppercase}.en-wrap{overflow:auto}.en-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.en-field label{display:block;font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;margin-bottom:5px}.en-actions{display:flex;gap:8px;align-items:end;flex-wrap:wrap}.en-actions .en-field{min-width:180px}.en-status{margin-top:10px;font-size:13px}
 </style>
 <div class="page-header"><div><h1>Endereço normalizado</h1><p>Histórico das visitas reunidas sob o mesmo endereço canônico.</p></div><a class="btn" href="/logradouros">Voltar aos logradouros</a></div>
 {% if erro %}
@@ -12,6 +12,29 @@
 <div class="card en-card en-head">
   <div><div class="chart-title">{{ dados.endereco.logradouro_oficial }}, {{ dados.endereco.numero_normalizado }}</div><div class="en-meta">Confirmado por {{ dados.endereco.confirmado_por or 'usuário não informado' }} · atualizado em {{ dados.endereco.atualizado_em }}</div></div>
   <strong>{{ dados.visitas|length }} visita(s) vinculada(s)</strong>
+</div>
+<div class="card en-card">
+  <div class="chart-title">Coordenadas do imóvel</div>
+  {% set geo_status = dados.endereco.geocodificacao_status or 'pendente' %}
+  <div class="en-grid">
+    <div><strong>Situação</strong><div class="en-meta">{% if geo_status == 'automatico' %}Confirmada automaticamente pelo número{% elif geo_status == 'manual' %}Revisada manualmente{% elif geo_status == 'aproximado' %}Aproximada; requer revisão{% elif geo_status == 'nao_encontrado' %}Não encontrada automaticamente{% elif geo_status == 'erro' %}Falha temporária na consulta{% elif geo_status == 'aguarda_manual' %}Aguardando preenchimento manual{% else %}Pendente de consulta{% endif %}</div></div>
+    <div><strong>Latitude / longitude</strong><div class="en-meta">{{ dados.endereco.latitude if dados.endereco.latitude is not none else '—' }}, {{ dados.endereco.longitude if dados.endereco.longitude is not none else '—' }}</div></div>
+    <div><strong>Fonte</strong><div class="en-meta">{{ dados.endereco.geocodificacao_fonte or '—' }}</div></div>
+    <div><strong>Atualização</strong><div class="en-meta">{{ dados.endereco.geocodificado_em or '—' }}{% if dados.endereco.geocodificado_por %}<br>por {{ dados.endereco.geocodificado_por }}{% endif %}</div></div>
+  </div>
+  {% if dados.endereco.geocodificacao_consulta %}<p class="en-meta"><strong>Consulta:</strong> {{ dados.endereco.geocodificacao_consulta }}</p>{% endif %}
+  {% if dados.endereco.geocodificacao_resultado %}<p class="en-meta"><strong>Resultado:</strong> {{ dados.endereco.geocodificacao_resultado }}</p>{% endif %}
+  {% if dados.endereco.latitude is not none and dados.endereco.longitude is not none %}<p><a class="btn" href="https://www.openstreetmap.org/?mlat={{ dados.endereco.latitude }}&mlon={{ dados.endereco.longitude }}#map=19/{{ dados.endereco.latitude }}/{{ dados.endereco.longitude }}" target="_blank" rel="noopener">Conferir no mapa</a></p>{% endif %}
+  {% if usuario_atual and usuario_atual.nivel == 'admin' %}
+  <div class="en-actions">
+    <button class="btn" id="en-geocode" type="button">Buscar novamente</button>
+    <div class="en-field"><label for="en-latitude">Latitude</label><input id="en-latitude" inputmode="decimal" value="{{ dados.endereco.latitude if dados.endereco.latitude is not none else '' }}" placeholder="-25.000000"></div>
+    <div class="en-field"><label for="en-longitude">Longitude</label><input id="en-longitude" inputmode="decimal" value="{{ dados.endereco.longitude if dados.endereco.longitude is not none else '' }}" placeholder="-49.000000"></div>
+    <button class="btn primary" id="en-save-coordinates" type="button">Salvar coordenadas manuais</button>
+  </div>
+  <div id="en-coordinate-result" class="en-status" role="status" aria-live="polite"></div>
+  {% endif %}
+  <p class="en-meta">Busca automática: © contribuidores do <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>, via Nominatim. Endereços sem número ou resultados duvidosos devem ser conferidos e preenchidos manualmente.</p>
 </div>
 <div class="card en-card">
   <div class="chart-title">Visitas vinculadas</div>
@@ -26,6 +49,9 @@
 {% endif %}
 <script>
 const enCsrf=()=>document.querySelector('meta[name="csrf-token"]')?.content||'';
+async function enReadJson(response){const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.erro||'Não foi possível concluir a operação.');return data;}
+document.querySelector('#en-geocode')?.addEventListener('click',async event=>{const output=document.querySelector('#en-coordinate-result');event.target.disabled=true;output.textContent='Buscando coordenadas…';try{const response=await fetch('/api/logradouros/enderecos/{{ dados.endereco.id_endereco if dados else 0 }}/geocodificar',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':enCsrf()},body:JSON.stringify({forcar:true})});const data=await enReadJson(response);output.textContent=data.status==='automatico'?'Coordenada confirmada pelo número. Recarregando…':'Resultado salvo para revisão. Recarregando…';window.location.reload();}catch(error){output.textContent=error.message;event.target.disabled=false;}});
+document.querySelector('#en-save-coordinates')?.addEventListener('click',async event=>{const output=document.querySelector('#en-coordinate-result'),latitude=document.querySelector('#en-latitude').value,longitude=document.querySelector('#en-longitude').value;if(!latitude&&!longitude&&!confirm('Remover as coordenadas atuais e deixar este endereço aguardando preenchimento manual?'))return;event.target.disabled=true;output.textContent='Salvando…';try{const response=await fetch('/api/logradouros/enderecos/{{ dados.endereco.id_endereco if dados else 0 }}/coordenadas',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':enCsrf()},body:JSON.stringify({latitude,longitude})});await enReadJson(response);output.textContent='Coordenadas salvas. Recarregando…';window.location.reload();}catch(error){output.textContent=error.message;event.target.disabled=false;}});
 document.querySelectorAll('.en-unlink').forEach(button=>button.addEventListener('click',async()=>{
   const row=button.closest('tr'),idVisita=row.dataset.visita;
   if(!confirm('Desfazer este vínculo? A visita voltará para a fila de revisão e seus dados originais não serão alterados.'))return;

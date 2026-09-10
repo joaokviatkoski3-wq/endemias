@@ -168,6 +168,14 @@ As regras de fonte de verdade e a arquitetura da tela estao em
 - A versao `1.32.2` corrige a divergencia `items`/`itens` no JavaScript da
   confirmacao em lote. Na versao anterior, o erro ocorria antes da requisicao e
   nenhum dos grupos daquela tentativa era enviado ou vinculado.
+- A versao `1.33.0` acrescenta geocodificacao supervisionada aos enderecos
+  normalizados. O lote consulta sequencialmente rua oficial, numero e municipio
+  no Nominatim/OpenStreetMap, respeita o limite de uma requisicao por segundo e
+  armazena o resultado para nao repetir consultas concluidas. Somente rua,
+  numero e Almirante Tamandare compativeis recebem confirmacao automatica;
+  resultado apenas no logradouro fica aproximado e casos invalidos, sem numero
+  ou nao encontrados seguem para preenchimento manual no detalhe do endereco.
+  A migracao `0008_geocodificacao_enderecos.sql` e obrigatoria no PostgreSQL.
 
 ## Pendencia concreta e proxima ordem recomendada
 

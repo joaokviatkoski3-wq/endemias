@@ -1,6 +1,6 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 08/09/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 10/09/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.32.2` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.33.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -78,6 +78,18 @@ permaneceu inalterado
 (`0600F6A70072320BC7FDE270848535EF428341AA1F093997EE4940F85376F63F`).
 Ela cria uma copia SQLite temporaria antes de importar a aplicacao; nunca rode
 testes contra o `endemias.db` congelado.
+
+## Normalizacao e coordenadas dos enderecos positivos
+
+A pagina `/logradouros` ja possui o catalogo municipal e o fluxo supervisionado
+que vincula visitas TB, TBO e PVE positivas a enderecos canonicos, preservando
+os campos brutos; PE nao participa porque tem georreferenciamento proprio.
+Desde a versao `1.33.0`, esses enderecos podem ser consultados por logradouro,
+numero e Almirante Tamandare-PR no Nominatim/OpenStreetMap. Apenas retorno
+compativel com rua, numero e municipio fica automatico; aproximacoes, ausencias,
+falhas e enderecos sem numero seguem para revisao ou coordenadas manuais. A
+migracao PostgreSQL `0008_geocodificacao_enderecos.sql` e obrigatoria antes de
+usar esse fluxo. Consulte `docs/LOGRADOUROS_OFICIAIS.md`.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
 conexoes SQLite em testes de Ovitrampas; nao confundir automaticamente com uma
 regressao nova.

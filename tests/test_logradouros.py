@@ -7,6 +7,7 @@ from flask import Flask
 
 from app_core import db as db_core
 from app_core import enderecos
+from app_core import geocodificacao
 from app_core import logradouros
 from blueprints import logradouros as logradouros_bp
 
@@ -18,6 +19,23 @@ class LogradourosTests(unittest.TestCase):
 
     def tearDown(self):
         self.temp.cleanup()
+
+    def _criar_endereco(self, logradouro="Rua São João", numero="20"):
+        logradouros.ensure_schema(self.path)
+        conn = db_core.connect(self.path)
+        try:
+            cursor = conn.execute(
+                """INSERT INTO enderecos_normalizados
+                   (chave_endereco, logradouro_normalizado, logradouro_oficial,
+                    numero_normalizado, criado_em, atualizado_em, confirmado_por)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (f"{logradouro}|{numero}", logradouros.normalizar_logradouro(logradouro),
+                 logradouro, numero, "2026-09-10", "2026-09-10", "João"),
+            )
+            conn.commit()
+            return cursor.lastrowid
+        finally:
+            conn.close()
 
     @staticmethod
     def _csv(rows):
@@ -317,6 +335,104 @@ class LogradourosTests(unittest.TestCase):
         self.assertIn("CREATE TABLE enderecos_normalizados", sql)
         self.assertIn("CREATE TABLE visitas_enderecos_normalizados", sql)
         self.assertIn("REFERENCES visitas(id_visita)", sql)
+
+    def test_geocodificacao_aceita_apenas_rua_numero_e_municipio_compativeis(self):
+        id_endereco = self._criar_endereco()
+        candidato = {
+            "lat": "-25.321234", "lon": "-49.291234",
+            "display_name": "Rua São João, 20, Almirante Tamandaré, Paraná, Brasil",
+            "address": {
+                "house_number": "20", "road": "Rua São João",
+                "municipality": "Almirante Tamandaré", "country_code": "br",
+            },
+        }
+        result = logradouros.geocodificar_endereco(
+            self.path, id_endereco, geocoder=lambda rua, numero: [candidato]
+        )
+        self.assertEqual("automatico", result["status"])
+        conn = db_core.connect(self.path)
+        try:
+            row = conn.execute(
+                "SELECT * FROM enderecos_normalizados WHERE id_endereco=?", (id_endereco,)
+            ).fetchone()
+            self.assertEqual("automatico", row["geocodificacao_status"])
+            self.assertAlmostEqual(-25.321234, row["latitude"])
+            self.assertEqual("numero_exato", row["geocodificacao_precisao"])
+        finally:
+            conn.close()
+
+    def test_geocodificacao_de_rua_sem_numero_fica_para_revisao(self):
+        id_endereco = self._criar_endereco()
+        candidato = {
+            "lat": "-25.32", "lon": "-49.29",
+            "display_name": "Rua São João, Almirante Tamandaré, Paraná, Brasil",
+            "address": {
+                "road": "Rua São João", "town": "Almirante Tamandaré",
+                "country_code": "br",
+            },
+        }
+        result = logradouros.geocodificar_endereco(
+            self.path, id_endereco, geocoder=lambda rua, numero: [candidato]
+        )
+        self.assertEqual("aproximado", result["status"])
+        conn = db_core.connect(self.path)
+        try:
+            row = conn.execute(
+                "SELECT * FROM enderecos_normalizados WHERE id_endereco=?", (id_endereco,)
+            ).fetchone()
+            self.assertEqual("logradouro_aproximado", row["geocodificacao_precisao"])
+        finally:
+            conn.close()
+
+    def test_endereco_sem_numero_nao_e_enviado_e_aceita_coordenada_manual(self):
+        id_endereco = self._criar_endereco(numero="S/N")
+        buscar = mock.Mock(return_value=[])
+        result = logradouros.geocodificar_endereco(self.path, id_endereco, geocoder=buscar)
+        buscar.assert_not_called()
+        self.assertEqual("aguarda_manual", result["status"])
+
+        manual = logradouros.salvar_coordenadas_manuais(
+            self.path, id_endereco, "-25,3101", "-49,2902", "Maria"
+        )
+        self.assertEqual("manual", manual["status"])
+        conn = db_core.connect(self.path)
+        try:
+            row = conn.execute(
+                "SELECT * FROM enderecos_normalizados WHERE id_endereco=?", (id_endereco,)
+            ).fetchone()
+            self.assertEqual("Maria", row["geocodificado_por"])
+            self.assertAlmostEqual(-25.3101, row["latitude"])
+        finally:
+            conn.close()
+        with self.assertRaisesRegex(ValueError, "juntas"):
+            logradouros.salvar_coordenadas_manuais(self.path, id_endereco, "-25", "")
+
+    def test_falha_do_servico_fica_registrada_para_nova_tentativa(self):
+        id_endereco = self._criar_endereco()
+
+        def falhar(rua, numero):
+            raise geocodificacao.GeocodificacaoErro("indisponível")
+
+        with self.assertRaises(geocodificacao.GeocodificacaoErro):
+            logradouros.geocodificar_endereco(self.path, id_endereco, geocoder=falhar)
+        conn = db_core.connect(self.path)
+        try:
+            status = conn.execute(
+                "SELECT geocodificacao_status FROM enderecos_normalizados WHERE id_endereco=?",
+                (id_endereco,),
+            ).fetchone()[0]
+            self.assertEqual("erro", status)
+        finally:
+            conn.close()
+
+    def test_migracao_postgresql_adiciona_campos_de_geocodificacao(self):
+        root = Path(__file__).resolve().parents[1]
+        sql = (root / "migrations/postgresql/0008_geocodificacao_enderecos.sql").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("ADD COLUMN latitude double precision", sql)
+        self.assertIn("geocodificacao_status", sql)
+        self.assertIn("idx_enderecos_geocodificacao_status", sql)
 
 
 if __name__ == "__main__":
