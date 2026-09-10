@@ -1,6 +1,6 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 08/09/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 10/09/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
@@ -136,46 +136,18 @@ As regras de fonte de verdade e a arquitetura da tela estao em
   uma unica transacao, com auditoria. Confira
   `docs/NOTIFICACOES_LABORATORIO.md` antes de qualquer escrita em dados reais.
 
-### Logradouros oficiais
+### Experimento de normalizacao de enderecos retirado
 
-- A pagina `/logradouros` importa e consulta o CSV municipal com as colunas
-  `nome`, `localidade` e `id_logr`. O ID UUID vindo da fonte e preservado;
-  nomes repetidos representam trechos validos e nao sao mesclados.
-- A primeira entrega nao normaliza nem vincula visitas automaticamente. Ela
-  estabelece a fonte canonica e a importacao incremental segura para o futuro
-  piloto de enderecos positivos e geocodificacao.
-- A migracao PostgreSQL `0006_logradouros_oficiais.sql` deve ser aplicada em
-  producao antes do primeiro acesso a tela.
-- O PostgreSQL armazena o indicador de atividade como booleano; a aplicacao
-  usa a expressao e o valor apropriados a cada banco desde a versao `1.30.1`.
-- O primeiro piloto de normalizacao consulta somente visitas TB, TBO e PVE
-  positivas para *Aedes aegypti*; PE e excluido porque possui
-  georreferenciamento proprio. A previa combina correspondencia normalizada e
-  sugestoes aproximadas com pontuacao, incluindo artigos e singular/plural,
-  sempre com escolha humana. Os vinculos ficam em tabelas proprias e preservam
-  o endereco bruto da visita. A migracao
-  `0007_enderecos_normalizados_visitas.sql` e necessaria em producao.
-- A versao `1.32.0` completa o fluxo operacional do piloto: inclui positivas
-  com endereco vazio, pagina todas as pendencias, apresenta a equacao de
-  cobertura, permite editar a proposta e confirmar grupos selecionados em uma
-  unica transacao. Enderecos confirmados possuem consulta, detalhe das visitas
-  e desvinculacao auditada. Nenhuma dessas acoes altera o endereco bruto de
-  `visitas`; nao ha migracao adicional depois da `0007`.
-- A versao `1.32.1` corrige o retorno da confirmacao em lote: a tela sempre
-  recupera o botao em caso de falha, preserva a selecao, informa o resultado
-  gravado e diferencia sucesso com falha apenas na atualizacao visual ou na
-  auditoria. A correcao nao exige migracao.
-- A versao `1.32.2` corrige a divergencia `items`/`itens` no JavaScript da
-  confirmacao em lote. Na versao anterior, o erro ocorria antes da requisicao e
-  nenhum dos grupos daquela tentativa era enviado ou vinculado.
-- A versao `1.33.0` acrescenta geocodificacao supervisionada aos enderecos
-  normalizados. O lote consulta sequencialmente rua oficial, numero e municipio
-  no Nominatim/OpenStreetMap, respeita o limite de uma requisicao por segundo e
-  armazena o resultado para nao repetir consultas concluidas. Somente rua,
-  numero e Almirante Tamandare compativeis recebem confirmacao automatica;
-  resultado apenas no logradouro fica aproximado e casos invalidos, sem numero
-  ou nao encontrados seguem para preenchimento manual no detalhe do endereco.
-  A migracao `0008_geocodificacao_enderecos.sql` e obrigatoria no PostgreSQL.
+- A pagina `/logradouros`, o catalogo municipal importado, os vinculos de
+  visitas positivas e a geocodificacao foram retirados por decisao do usuario
+  em 10/09/2026. O fluxo nao agradou e nao deve ser retomado incrementalmente.
+- Uma eventual nova solucao deve ser projetada do zero, voltando a validar com
+  o usuario o modelo de endereco, o fluxo de revisao e a geocodificacao.
+- Um backup PostgreSQL completo e validado, prefixado como
+  `endemias_pre_remocao_logradouros`, foi criado antes da exclusao.
+- As tabelas exclusivas da experiencia e os registros das migracoes PostgreSQL
+  `0006`, `0007` e `0008` foram removidos. Visitas e seus enderecos originais
+  permaneceram intactos, assim como as ferramentas do Registro Geografico.
 
 ## Pendencia concreta e proxima ordem recomendada
 

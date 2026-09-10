@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.33.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.34.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -79,17 +79,21 @@ permaneceu inalterado
 Ela cria uma copia SQLite temporaria antes de importar a aplicacao; nunca rode
 testes contra o `endemias.db` congelado.
 
-## Normalizacao e coordenadas dos enderecos positivos
+## Retirada do experimento de normalizacao de enderecos
 
-A pagina `/logradouros` ja possui o catalogo municipal e o fluxo supervisionado
-que vincula visitas TB, TBO e PVE positivas a enderecos canonicos, preservando
-os campos brutos; PE nao participa porque tem georreferenciamento proprio.
-Desde a versao `1.33.0`, esses enderecos podem ser consultados por logradouro,
-numero e Almirante Tamandare-PR no Nominatim/OpenStreetMap. Apenas retorno
-compativel com rua, numero e municipio fica automatico; aproximacoes, ausencias,
-falhas e enderecos sem numero seguem para revisao ou coordenadas manuais. A
-migracao PostgreSQL `0008_geocodificacao_enderecos.sql` e obrigatoria antes de
-usar esse fluxo. Consulte `docs/LOGRADOUROS_OFICIAIS.md`.
+Em 10/09/2026, por decisao do usuario, foi retirada integralmente a pagina
+`/logradouros` e todo o fluxo experimental de catalogo oficial, normalizacao de
+enderecos positivos e geocodificacao. O fluxo nao foi aprovado para uso e deve
+ser redesenhado do zero caso volte a ser discutido. Nao reaproveite como regra
+vigente o codigo dos commits historicos `f745f3d` a `9bcb0af`.
+
+Antes da retirada dos dados foi criado e validado um backup completo do
+PostgreSQL de producao com o prefixo `endemias_pre_remocao_logradouros`. As
+tabelas exclusivas `logradouros_oficiais`, `enderecos_normalizados` e
+`visitas_enderecos_normalizados` e os registros das migracoes `0006` a `0008`
+foram removidos para deixar livre uma futura implementacao. Os enderecos brutos
+das visitas e as ferramentas preexistentes do Registro Geografico nao foram
+alterados.
 Confirme novamente depois de novos lotes. Existe um `ResourceWarning` antigo de
 conexoes SQLite em testes de Ovitrampas; nao confundir automaticamente com uma
 regressao nova.
