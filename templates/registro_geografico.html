@@ -734,8 +734,8 @@ async function rgMapInit(){
   rgMapState.data = await dataResp.json();
   rgMapState.pontosGeojson = pontosResp?.ok ? await pontosResp.json() : {type:'FeatureCollection', features:[]};
   rgMapState.map = L.map('rg-mapa', {zoomControl:true});
-  const baseMapa = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap', maxZoom: 19
+  const baseMapa = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles © Esri — Esri, TomTom, Garmin, FAO, NOAA, USGS, © OpenStreetMap contributors, GIS User Community', maxZoom: 19
   });
   const baseSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: '© Esri, Earthstar Geographics', maxZoom: 19
@@ -744,8 +744,8 @@ async function rgMapInit(){
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       attribution: '© Esri', maxZoom: 19
     }),
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap', maxZoom: 19, opacity: 0.45
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Labels © Esri', maxZoom: 19
     })
   ]);
   const bases = {'Mapa': baseMapa, 'Satélite': baseSatelite, 'Satélite + ruas': baseSateliteRuas};

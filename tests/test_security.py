@@ -5074,7 +5074,10 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("Quarteirões selecionados", html)
         self.assertIn("rg-map-selected-list", html)
         self.assertIn("max-height:230px;overflow:auto", html)
+        self.assertIn("World_Street_Map/MapServer", html)
         self.assertIn("World_Imagery/MapServer", html)
+        self.assertIn("World_Boundaries_and_Places/MapServer", html)
+        self.assertNotIn("tile.openstreetmap.org", html)
         self.assertIn("Satélite + ruas", html)
         self.assertIn("/static/ubs_setor_endemias.geojson", html)
         self.assertIn("Equipamentos da Saúde", html)
@@ -5300,11 +5303,12 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn(".rg-mini-map-stack{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:8pt;margin-top:4pt;break-inside:avoid;page-break-inside:avoid;}", html_mapa)
         self.assertIn(".rg-bottom,.rg-mini-map-stack,.rg-mini-map-box,.rg-mini-map{break-inside:avoid;page-break-inside:avoid;}", html_mapa)
         self.assertIn('data-mapa-base="satelite"', html_mapa)
-        self.assertIn('data-mapa-base="osm"', html_mapa)
+        self.assertIn('data-mapa-base="ruas"', html_mapa)
         self.assertIn("data-localidade", html_mapa)
         self.assertIn("data-quarteirao", html_mapa)
         self.assertIn("World_Imagery/MapServer", html_mapa)
-        self.assertIn("tile.openstreetmap.org", html_mapa)
+        self.assertIn("World_Street_Map/MapServer", html_mapa)
+        self.assertNotIn("tile.openstreetmap.org", html_mapa)
         self.assertNotIn("tileSize:128", html_mapa)
         self.assertNotIn("zoomOffset:1", html_mapa)
         self.assertIn("keepBuffer:2", html_mapa)
@@ -5313,10 +5317,12 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("bounds.pad(0.02)", html_mapa)
         self.assertIn("function rgPrintFitBounds", html_mapa)
         self.assertIn("function rgPrintStabilizeMap", html_mapa)
-        self.assertIn("weight:isOsm ? 1 : 4", html_mapa)
+        self.assertIn("weight:isStreet ? 1 : 4", html_mapa)
         self.assertIn("fillOpacity:0.08", html_mapa)
         self.assertNotIn("rg-print-map-label", html_mapa)
         self.assertIn("function rgPrintInitMaps", html_mapa)
+        self.assertIn("Math.min(2, pendentes.length)", html_mapa)
+        self.assertNotIn("Promise.all(maps.map", html_mapa)
 
         impressao_duplex = client.get(
             f"/registro-geografico/imprimir?localidade={primeiro['id_localidade']}"
@@ -6948,6 +6954,9 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertIn("kpi-pes", html)
         self.assertIn("kpi-ovi-armadilhas", html)
         self.assertIn("kpi-esporo-feridas", html)
+        self.assertIn("World_Street_Map/MapServer", html)
+        self.assertIn("World_Boundaries_and_Places/MapServer", html)
+        self.assertNotIn("tile.openstreetmap.org", html)
 
     def test_mapa_usa_blueprint_proprio(self):
         endpoints = {

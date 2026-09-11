@@ -166,9 +166,9 @@ th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
         </div>
       </div>
       <div class="rg-mini-map-box">
-        <div class="rg-mini-map-title">OSM / ruas</div>
+        <div class="rg-mini-map-title">Mapa de ruas</div>
         <div class="rg-mini-map"
-             data-mapa-base="osm"
+             data-mapa-base="ruas"
              data-localidade="{{ dados.localidade.id_localidade }}"
              data-quarteirao="{{ dados.quarteirao }}">
           <div class="rg-mini-map-status">Carregando mapa...</div>
@@ -250,10 +250,10 @@ async function rgPrintRenderMap(el, geojson){
     zoomSnap:0.1,
     zoomDelta:0.1
   });
-  const isOsm = el.dataset.mapaBase === 'osm';
-  const base = isOsm
-    ? L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution:'© OpenStreetMap', maxZoom:19, maxNativeZoom:19, keepBuffer:2
+  const isStreet = el.dataset.mapaBase === 'ruas';
+  const base = isStreet
+    ? L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        attribution:'Tiles © Esri — Esri, TomTom, Garmin, FAO, NOAA, USGS, © OpenStreetMap contributors, GIS User Community', maxZoom:19, maxNativeZoom:19, keepBuffer:2
       })
     : L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution:'© Esri', maxZoom:19, maxNativeZoom:19, keepBuffer:2
@@ -263,7 +263,7 @@ async function rgPrintRenderMap(el, geojson){
   const poligono = L.geoJSON(feature, {
     style:{
       color:'#f97316',
-      weight:isOsm ? 1 : 4,
+      weight:isStreet ? 1 : 4,
       opacity:0.9,
       fillColor:'#facc15',
       fillOpacity:0.08
@@ -284,7 +284,15 @@ async function rgPrintInitMaps(){
     const resp = await fetch('/static/quarteiroes.geojson');
     if(!resp.ok) throw new Error('Erro ao carregar GeoJSON.');
     const geojson = await resp.json();
-    await Promise.all(maps.map(el => rgPrintRenderMap(el, geojson)));
+    const pendentes = [...maps];
+    const worker = async () => {
+      while(pendentes.length){
+        const el = pendentes.shift();
+        await rgPrintRenderMap(el, geojson);
+      }
+    };
+    const concorrencia = Math.min(2, pendentes.length);
+    await Promise.all(Array.from({length:concorrencia}, () => worker()));
     if(status) status.textContent = 'Mapas carregados.';
   } catch(err) {
     if(status) status.textContent = err.message || 'Erro ao carregar mapas.';

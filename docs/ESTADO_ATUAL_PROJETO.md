@@ -141,6 +141,17 @@ de "exame", ganhou legenda simples para IPO/IDO/IMO e o grafico de leituras,
 positivas e ovos passou a compartilhar um unico eixo Y. Os limites minimos e a
 ordenacao continuam exclusivos do ranking, conforme indicado na tela.
 
+### Mapas-base
+
+Na versao `1.35.2`, o sistema deixou de consultar diretamente os blocos
+publicos de `tile.openstreetmap.org`, que responderam HTTP 403 por politica de
+uso. O mapa territorial, o mapa do Registro Geografico e os mapas incluidos na
+impressao dos RGs usam as bases Esri World Street Map e World Imagery; as
+legendas do modo hibrido usam a camada Esri World Boundaries and Places. A
+impressao processa no maximo dois mini-mapas simultaneamente para evitar
+rajadas de requisicoes. Nao houve migracao nem alteracao de dados. Consulte
+`docs/MAPAS_BASE_CARTOGRAFICA.md`.
+
 ### Notificacoes laboratoriais
 
 - A fonte da pagina `/notificacoes` e `focos_positivos`, nao a tabela bruta de

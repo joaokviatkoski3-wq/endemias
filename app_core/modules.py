@@ -218,7 +218,7 @@ MODULES: Tuple[AppModule, ...] = (
         icon="mapa.svg",
         nav_section="Gestao",
         description="Quarteiroes trabalhados, focos e cobertura por localidade no mapa.",
-        tags=("Leaflet", "OpenStreetMap"),
+        tags=("Leaflet", "Esri"),
         endpoints=("mapa", "mapa.page"),
     ),
     AppModule(

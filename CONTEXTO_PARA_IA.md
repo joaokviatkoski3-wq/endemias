@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.35.1` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.35.2` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -304,6 +304,12 @@ obrigatoria para integracao.
   A interface adotou "leitura" em vez de "exame" e o grafico de leituras,
   positivas e ovos usa um unico eixo quantitativo, sem ampliar visualmente
   series pequenas por meio de escalas diferentes.
+- A versao `1.35.2` removeu todas as requisicoes diretas ao servidor publico de
+  blocos do OpenStreetMap depois de um bloqueio HTTP 403. O mapa territorial,
+  o mapa do Registro Geografico e os mapas dos RGs impressos usam bases Esri;
+  a impressao limita a duas as renderizacoes simultaneas. Nao reintroduza
+  `tile.openstreetmap.org` como dependencia de producao. Consulte
+  `docs/MAPAS_BASE_CARTOGRAFICA.md`.
 - O envio remoto de leituras por lote via `/postcounting` ja existe na `master`,
   sob demanda, com confirmacao no navegador, sem retentativa automatica e sem
   envio silencioso. Ele nao deve ser confundido com a sincronizacao GET.
