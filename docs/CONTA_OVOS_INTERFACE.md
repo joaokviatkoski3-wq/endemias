@@ -81,18 +81,25 @@ alterar a interface:
 Desde a versao `1.35.0`, o Monitoramento calcula sobre as contagens
 sincronizadas:
 
-- **IPO:** exames com ovos / armadilhas examinadas x 100;
-- **IDO:** total de ovos / exames com ovos;
-- **IMO:** total de ovos / armadilhas examinadas. Na referencia operacional do
+- **IPO:** leituras com ovos / total de leituras x 100;
+- **IDO:** total de ovos / leituras com ovos;
+- **IMO:** total de ovos / total de leituras. Na referencia operacional do
   Conta Ovos, equivale ao Indice de Densidade Vetorial (IDV).
 
-Uma linha de contagem do espelho API representa um exame. Em periodos com mais
-de uma semana, a mesma ovitrampa pode ser examinada varias vezes; por isso a
-tela mostra separadamente o numero de exames e o numero de IDs unicos. Os
+Uma linha de contagem do espelho API representa uma leitura. Em periodos com
+mais de uma semana, a mesma ovitrampa pode ser lida varias vezes; por isso a
+tela mostra separadamente o numero de leituras e o numero de IDs unicos. Os
 indices sao exibidos no total filtrado, em graficos de evolucao e volume, por
 semana, por localidade e no ranking por ovitrampa. Minimo de leituras, IPO, IDO
 e IMO minimos e a ordenacao afetam apenas o ranking; periodo, localidade e ID da
 ovitrampa delimitam todos os indicadores.
+
+Desde a versao `1.35.1`, os filtros gerais sao aplicados automaticamente e
+incluem data inicial/final. Se o ano ficar automatico e houver apenas semanas
+informadas, elas sao preservadas e aplicadas ao ano mais recente; quando datas
+sao usadas sem ano, o intervalo de datas nao fica preso ao ultimo ano. O
+grafico de volume usa o mesmo eixo Y para leituras, leituras positivas e ovos,
+evitando comparacoes enganosas entre escalas diferentes.
 
 As formulas seguem as Diretrizes Nacionais para Prevencao e Controle das
 Arboviroses Urbanas do Ministerio da Saude:

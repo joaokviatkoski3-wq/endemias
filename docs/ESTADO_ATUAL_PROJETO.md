@@ -125,13 +125,21 @@ As regras de fonte de verdade e a arquitetura da tela estao em
 `docs/CONTA_OVOS_API.md`.
 
 Na versao `1.35.0`, a aba Monitoramento passou a calcular os indicadores
-entomologicos diretamente sobre o espelho de contagens da API: IPO (exames
-positivos / examinadas x 100), IDO (ovos / exames positivos) e IMO (ovos /
-examinadas, equivalente ao IDV). Os valores aparecem no resumo, em graficos de
+entomologicos diretamente sobre o espelho de contagens da API: IPO (leituras
+positivas / leituras x 100), IDO (ovos / leituras positivas) e IMO (ovos /
+leituras, equivalente ao IDV). Os valores aparecem no resumo, em graficos de
 evolucao e volume, na tabela semanal, no ranking e no detalhamento por
-localidade. A tela diferencia exames no periodo de IDs unicos e acrescenta
+localidade. A tela diferencia leituras no periodo de IDs unicos e acrescenta
 busca por ovitrampa, minimo de leituras, limites minimos de IPO/IDO/IMO,
 ordenacao do ranking e limpeza dos filtros. Nenhuma migracao foi necessaria.
+
+Na versao `1.35.1`, o intervalo semanal informado passou a ser respeitado mesmo
+quando o ano permanece automatico (nesse caso, usa-se o ano mais recente). O
+Monitoramento tambem aceita data inicial/final e aplica automaticamente os
+filtros gerais em cards, graficos e tabelas. A interface usa "leitura" no lugar
+de "exame", ganhou legenda simples para IPO/IDO/IMO e o grafico de leituras,
+positivas e ovos passou a compartilhar um unico eixo Y. Os limites minimos e a
+ordenacao continuam exclusivos do ranking, conforme indicado na tela.
 
 ### Notificacoes laboratoriais
 

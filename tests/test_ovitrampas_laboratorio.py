@@ -301,18 +301,18 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
                       ('98','Roma','B',-25.2,-49.3,'2026-08-24T10:00:00')"""
         )
         rows = [
-            ("900", "97", 2026, 33, 0),
-            ("901", "97", 2026, 34, 5),
-            ("902", "98", 2026, 33, 0),
-            ("903", "99", 2025, 40, 0),  # fora do ano/período
+            ("900", "97", 2026, 33, "2026-08-10", 0),
+            ("901", "97", 2026, 34, "2026-08-20", 5),
+            ("902", "98", 2026, 33, "2026-08-11", 0),
+            ("903", "99", 2025, 40, "2025-10-01", 0),  # fora do ano/período
         ]
-        for idc, ovi, ano, sem, ovos in rows:
+        for idc, ovi, ano, sem, data, ovos in rows:
             conn.execute(
                 """INSERT INTO ovitrampas_ocorrencias_conta_ovos
                    (id_contagem, ovitrampa_id, ano, semana, data, ovos,
                     resultado, latitude, longitude, arquivo_origem, importado_em)
                    VALUES (?,?,?,?,?,?,'x',-25.1,-49.2,'API privada Conta Ovos','2026-09-02')""",
-                (idc, ovi, ano, sem, f"2026-08-{10+sem}", ovos),
+                (idc, ovi, ano, sem, data, ovos),
             )
         conn.commit()
         conn.close()
@@ -328,6 +328,25 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
         # sem filtro de semana (ano 2026) -> 3 (33,33,34)
         dados2 = ovitrampas_core.monitoramento_contagens(db_path, {"ano": "2026"})
         self.assertEqual(3, dados2["totais"]["leituras"])
+
+        # semanas explicitas sao preservadas quando o ano fica automatico
+        dados_auto = ovitrampas_core.monitoramento_contagens(
+            db_path, {"semana_ini": "1", "semana_fim": "33"}
+        )
+        self.assertEqual(2026, dados_auto["periodo"]["ano"])
+        self.assertEqual(1, dados_auto["periodo"]["semana_ini"])
+        self.assertEqual(33, dados_auto["periodo"]["semana_fim"])
+        self.assertEqual(2, dados_auto["totais"]["leituras"])
+
+        # datas funcionam sem forcar o ano mais recente
+        dados_data = ovitrampas_core.monitoramento_contagens(
+            db_path, {"data_ini": "2026-08-15", "data_fim": "2026-08-31"}
+        )
+        self.assertIsNone(dados_data["periodo"]["ano"])
+        self.assertEqual("2026-08-15", dados_data["periodo"]["data_ini"])
+        self.assertEqual("2026-08-31", dados_data["periodo"]["data_fim"])
+        self.assertEqual(1, dados_data["totais"]["leituras"])
+        self.assertEqual(5, dados_data["totais"]["ovos"])
 
     def test_monitoramento_contagens_ocorrencias_ranking_e_realocar(self):
         import tempfile

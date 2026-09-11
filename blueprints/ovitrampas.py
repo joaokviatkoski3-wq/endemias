@@ -180,6 +180,8 @@ def api_monitoramento():
         "ano": request.args.get("ano", ""),
         "semana_ini": request.args.get("semana_ini", ""),
         "semana_fim": request.args.get("semana_fim", ""),
+        "data_ini": request.args.get("data_ini", ""),
+        "data_fim": request.args.get("data_fim", ""),
         "ultimas": request.args.get("ultimas", ""),
         "distrito": request.args.get("distrito", ""),
         "ovitrampa": request.args.get("ovitrampa", ""),

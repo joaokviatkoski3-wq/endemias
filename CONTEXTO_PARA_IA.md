@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.35.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.35.1` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -295,10 +295,15 @@ obrigatoria para integracao.
 - Desde a versao `1.35.0`, o Monitoramento apresenta IPO, IDO e IMO (equivalente
   ao IDV) no resumo, nos graficos, por semana, por localidade e por ovitrampa.
   Para periodos com varias semanas, cada contagem sincronizada equivale a uma
-  armadilha examinada; a quantidade de IDs unicos e mostrada separadamente. O
+  leitura; a quantidade de IDs unicos lidos e mostrada separadamente. O
   ranking pode ser filtrado por ID, minimo de leituras, IPO, IDO e IMO minimos,
   e ordenado por positivas, IPO, IDO, ovos, leituras ou recencia. Consulte
   `docs/CONTA_OVOS_INTERFACE.md` para as formulas.
+- A versao `1.35.1` corrigiu os filtros de semanas com o ano automatico,
+  acrescentou o recorte por datas e passou a aplicar filtros automaticamente.
+  A interface adotou "leitura" em vez de "exame" e o grafico de leituras,
+  positivas e ovos usa um unico eixo quantitativo, sem ampliar visualmente
+  series pequenas por meio de escalas diferentes.
 - O envio remoto de leituras por lote via `/postcounting` ja existe na `master`,
   sob demanda, com confirmacao no navegador, sem retentativa automatica e sem
   envio silencioso. Ele nao deve ser confundido com a sincronizacao GET.

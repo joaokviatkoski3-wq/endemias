@@ -1447,6 +1447,8 @@ def monitoramento_contagens(db_path, filtros=None):
         ano = _int(filtros.get("ano"))
         semana_ini = _int(filtros.get("semana_ini"))
         semana_fim = _int(filtros.get("semana_fim"))
+        data_ini = _date(filtros.get("data_ini"))
+        data_fim = _date(filtros.get("data_fim"))
         ultimas = _int(filtros.get("ultimas")) or 8
         ultimas = max(1, min(ultimas, 52))
         distrito = _text(filtros.get("distrito"))
@@ -1461,15 +1463,20 @@ def monitoramento_contagens(db_path, filtros=None):
         min_imo = max(0.0, min_imo) if min_imo is not None else None
         ordenar = (_text(filtros.get("ordenar")) or "positivas").lower()
 
-        if not ano:
+        if not ano and not data_ini and not data_fim:
             latest = conn.execute(
                 f"SELECT ano, semana FROM {OCORRENCIAS_TABLE} "
                 "ORDER BY ano DESC, semana DESC LIMIT 1"
             ).fetchone()
             if latest:
                 ano = latest["ano"]
-                semana_fim = latest["semana"]
-                semana_ini = max(1, semana_fim - ultimas + 1)
+                if not semana_ini and not semana_fim:
+                    semana_fim = latest["semana"]
+                    semana_ini = max(1, semana_fim - ultimas + 1)
+                elif not semana_ini:
+                    semana_ini = max(1, semana_fim - ultimas + 1)
+                elif not semana_fim:
+                    semana_fim = latest["semana"]
 
         clauses = ["1=1"]
         params = []
@@ -1482,6 +1489,21 @@ def monitoramento_contagens(db_path, filtros=None):
             if semana_fim:
                 clauses.append("o.semana<=?")
                 params.append(semana_fim)
+        elif semana_ini:
+            clauses.append("o.semana>=?")
+            params.append(semana_ini)
+            if semana_fim:
+                clauses.append("o.semana<=?")
+                params.append(semana_fim)
+        elif semana_fim:
+            clauses.append("o.semana<=?")
+            params.append(semana_fim)
+        if data_ini:
+            clauses.append("o.data>=?")
+            params.append(data_ini)
+        if data_fim:
+            clauses.append("o.data<=?")
+            params.append(data_fim)
         if distrito:
             clauses.append("am.localidade=?")
             params.append(distrito)
@@ -1491,7 +1513,7 @@ def monitoramento_contagens(db_path, filtros=None):
         where = "WHERE " + " AND ".join(clauses)
         periodo = {
             "ano": ano, "semana_ini": semana_ini, "semana_fim": semana_fim,
-            "ultimas": ultimas,
+            "data_ini": data_ini, "data_fim": data_fim, "ultimas": ultimas,
         }
         positivas_expr = "SUM(CASE WHEN COALESCE(o.ovos,0)>0 THEN 1 ELSE 0 END)"
         ovos_expr = "COALESCE(SUM(o.ovos),0)"

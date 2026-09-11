@@ -2419,6 +2419,12 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('id="ovi-mon-min-imo"', html)
         self.assertIn('id="ovi-mon-indices-chart"', html)
         self.assertIn('id="ovi-mon-volume-chart"', html)
+        self.assertIn('id="ovi-mon-data-ini"', html)
+        self.assertIn('id="ovi-mon-data-fim"', html)
+        self.assertIn('id="ovi-mon-filter-status"', html)
+        self.assertIn('IPO — Índice de Positividade de Ovitrampas', html)
+        self.assertIn("scales:{y:{beginAtZero:true", html)
+        self.assertIn("function agendarMonitoramento()", html)
 
     def test_pagina_visitas_usa_filtros_modernos(self):
         client = _client_logado()
