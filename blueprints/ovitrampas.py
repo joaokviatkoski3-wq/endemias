@@ -182,6 +182,12 @@ def api_monitoramento():
         "semana_fim": request.args.get("semana_fim", ""),
         "ultimas": request.args.get("ultimas", ""),
         "distrito": request.args.get("distrito", ""),
+        "ovitrampa": request.args.get("ovitrampa", ""),
+        "min_leituras": request.args.get("min_leituras", ""),
+        "min_ipo": request.args.get("min_ipo", ""),
+        "min_ido": request.args.get("min_ido", ""),
+        "min_imo": request.args.get("min_imo", ""),
+        "ordenar": request.args.get("ordenar", ""),
     }
     return jsonify(ovitrampas_core.monitoramento_contagens(_db_path(), filtros))
 

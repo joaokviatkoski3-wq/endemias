@@ -75,3 +75,29 @@ alterar a interface:
    nao autoriza implementar esses dominios sem novo levantamento.
 5. O fluxo de exclusao/recriacao de ovitrampas remotas, documentado em
    `docs/CONTA_OVOS_API.md`, permanece fora da interface.
+
+## Indicadores entomologicos do Monitoramento
+
+Desde a versao `1.35.0`, o Monitoramento calcula sobre as contagens
+sincronizadas:
+
+- **IPO:** exames com ovos / armadilhas examinadas x 100;
+- **IDO:** total de ovos / exames com ovos;
+- **IMO:** total de ovos / armadilhas examinadas. Na referencia operacional do
+  Conta Ovos, equivale ao Indice de Densidade Vetorial (IDV).
+
+Uma linha de contagem do espelho API representa um exame. Em periodos com mais
+de uma semana, a mesma ovitrampa pode ser examinada varias vezes; por isso a
+tela mostra separadamente o numero de exames e o numero de IDs unicos. Os
+indices sao exibidos no total filtrado, em graficos de evolucao e volume, por
+semana, por localidade e no ranking por ovitrampa. Minimo de leituras, IPO, IDO
+e IMO minimos e a ordenacao afetam apenas o ranking; periodo, localidade e ID da
+ovitrampa delimitam todos os indicadores.
+
+As formulas seguem as Diretrizes Nacionais para Prevencao e Controle das
+Arboviroses Urbanas do Ministerio da Saude:
+https://www.gov.br/saude/pt-br/centrais-de-conteudo/publicacoes/svsa/dengue/diretrizes-nacionais-para-prevencao-e-controle-das-arboviroses-urbanas-vigilancia-entomologica-e-controle-vetorial.pdf/@@download/file
+
+A nomenclatura IMO e sua equivalencia operacional ao IDV seguem a Nota Tecnica
+de ovitrampas da Diretoria de Vigilancia Epidemiologica de Santa Catarina:
+https://dive.sc.gov.br/phocadownload/notas-tecnicas/notas-tecnicas-2026/nt%2009%202025%20ovitrampas.pdf

@@ -1,6 +1,6 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 10/09/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 11/09/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
@@ -123,6 +123,15 @@ Endemias e backups operacionais. Nao ha uma tarefa aberta de migracao do banco.
 As regras de fonte de verdade e a arquitetura da tela estao em
 `docs/CONTA_OVOS_INTERFACE.md`; detalhes da API e dos lotes em
 `docs/CONTA_OVOS_API.md`.
+
+Na versao `1.35.0`, a aba Monitoramento passou a calcular os indicadores
+entomologicos diretamente sobre o espelho de contagens da API: IPO (exames
+positivos / examinadas x 100), IDO (ovos / exames positivos) e IMO (ovos /
+examinadas, equivalente ao IDV). Os valores aparecem no resumo, em graficos de
+evolucao e volume, na tabela semanal, no ranking e no detalhamento por
+localidade. A tela diferencia exames no periodo de IDs unicos e acrescenta
+busca por ovitrampa, minimo de leituras, limites minimos de IPO/IDO/IMO,
+ordenacao do ranking e limpeza dos filtros. Nenhuma migracao foi necessaria.
 
 ### Notificacoes laboratoriais
 

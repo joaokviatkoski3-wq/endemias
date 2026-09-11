@@ -405,6 +405,21 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
             db_path, {"ano": "2026", "semana_ini": "1", "semana_fim": "34"}
         )
         t = dados["totais"]
+        self.assertEqual(4, t["leituras"])
+        self.assertEqual(3, t["armadilhas_lidas"])
+        self.assertEqual(2, t["positivas"])
+        self.assertEqual(50.0, float(t["ipo"]))
+        self.assertEqual(4.0, float(t["ido"]))
+        self.assertEqual(2.0, float(t["idv"]))
+        self.assertEqual(2.0, float(t["imo"]))
+        self.assertEqual(2, len(dados["por_semana"]))
+        semana_34 = next(row for row in dados["por_semana"] if row["semana"] == 34)
+        self.assertEqual(3, semana_34["leituras"])
+        self.assertEqual(1, semana_34["positivas"])
+        self.assertAlmostEqual(33.3, float(semana_34["ipo"]), places=1)
+        self.assertEqual(5.0, float(semana_34["ido"]))
+        self.assertAlmostEqual(1.67, float(semana_34["idv"]), places=2)
+        self.assertAlmostEqual(1.67, float(semana_34["imo"]), places=2)
         # ocorrencia vem do lancamento de laboratorio (codigo 6), nao do espelho
         self.assertEqual(1, t["ocorrencias"])
         self.assertEqual("Lançamentos de laboratório", dados["ocorrencias_fonte"])
@@ -415,6 +430,10 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
         self.assertEqual("97", rank["ovitrampa_id"])
         self.assertEqual(2, rank["positivas"])
         self.assertEqual(8, rank["ovos"])
+        self.assertEqual(100.0, float(rank["ipo"]))
+        self.assertEqual(4.0, float(rank["ido"]))
+        self.assertEqual(4.0, float(rank["idv"]))
+        self.assertEqual(4.0, float(rank["imo"]))
         self.assertEqual("2026 / Semana 34", rank["ultima_positiva"])
         # ocorrencias detalhadas vindas do laboratorio
         self.assertEqual(1, len(dados["ocorrencias"]))
@@ -428,6 +447,37 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
         # realocar registros locais presentes
         ids = [r["ovitrampa_id"] for r in dados["realocar"]["registros"]]
         self.assertIn("77", ids)
+
+        filtrado = ovitrampas_core.monitoramento_contagens(
+            db_path,
+            {
+                "ano": "2026", "semana_ini": "1", "semana_fim": "34",
+                "ovitrampa": "97", "min_leituras": "2", "ordenar": "ido",
+            },
+        )
+        self.assertEqual(2, filtrado["totais"]["leituras"])
+        self.assertEqual(1, filtrado["totais"]["armadilhas_lidas"])
+        self.assertEqual(1, len(filtrado["ranking_positivas"]))
+        self.assertEqual("97", filtrado["ranking_positivas"][0]["ovitrampa_id"])
+        self.assertEqual(0, filtrado["totais"]["realocar"])
+
+        sem_ranking = ovitrampas_core.monitoramento_contagens(
+            db_path,
+            {
+                "ano": "2026", "semana_ini": "1", "semana_fim": "34",
+                "min_leituras": "3",
+            },
+        )
+        self.assertEqual([], sem_ranking["ranking_positivas"])
+
+        abaixo_dos_indices = ovitrampas_core.monitoramento_contagens(
+            db_path,
+            {
+                "ano": "2026", "semana_ini": "1", "semana_fim": "34",
+                "min_ipo": "90", "min_ido": "3", "min_imo": "5",
+            },
+        )
+        self.assertEqual([], abaixo_dos_indices["ranking_positivas"])
 
     def test_monitoramento_contagens_realocar_fica_vazio_sem_marcador(self):
         import tempfile

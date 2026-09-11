@@ -1,6 +1,6 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 10/09/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 11/09/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.34.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.35.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -292,6 +292,13 @@ obrigatoria para integracao.
   por GET o cadastro publico e as contagens recentes, gravando apenas os
   espelhos locais. CSV de leituras/ocorrencias e XLSX de diarios nao fazem mais
   parte da interface; o CSV permanece apenas na aba Armadilhas.
+- Desde a versao `1.35.0`, o Monitoramento apresenta IPO, IDO e IMO (equivalente
+  ao IDV) no resumo, nos graficos, por semana, por localidade e por ovitrampa.
+  Para periodos com varias semanas, cada contagem sincronizada equivale a uma
+  armadilha examinada; a quantidade de IDs unicos e mostrada separadamente. O
+  ranking pode ser filtrado por ID, minimo de leituras, IPO, IDO e IMO minimos,
+  e ordenado por positivas, IPO, IDO, ovos, leituras ou recencia. Consulte
+  `docs/CONTA_OVOS_INTERFACE.md` para as formulas.
 - O envio remoto de leituras por lote via `/postcounting` ja existe na `master`,
   sob demanda, com confirmacao no navegador, sem retentativa automatica e sem
   envio silencioso. Ele nao deve ser confundido com a sincronizacao GET.

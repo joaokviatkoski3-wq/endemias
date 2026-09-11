@@ -100,6 +100,10 @@ def _round_one(expression):
     return f"ROUND(CAST(({expression}) AS NUMERIC), 1)"
 
 
+def _round_two(expression):
+    return f"ROUND(CAST(({expression}) AS NUMERIC), 2)"
+
+
 def _calendar_agents_expression(conn, names_only=False):
     if names_only:
         value = "a.nome"
@@ -1446,6 +1450,16 @@ def monitoramento_contagens(db_path, filtros=None):
         ultimas = _int(filtros.get("ultimas")) or 8
         ultimas = max(1, min(ultimas, 52))
         distrito = _text(filtros.get("distrito"))
+        ovitrampa = _text(filtros.get("ovitrampa"))
+        min_leituras = _int(filtros.get("min_leituras")) or 1
+        min_leituras = max(1, min(min_leituras, 999))
+        min_ipo = _real(filtros.get("min_ipo"))
+        min_ido = _real(filtros.get("min_ido"))
+        min_imo = _real(filtros.get("min_imo"))
+        min_ipo = max(0.0, min(min_ipo, 100.0)) if min_ipo is not None else None
+        min_ido = max(0.0, min_ido) if min_ido is not None else None
+        min_imo = max(0.0, min_imo) if min_imo is not None else None
+        ordenar = (_text(filtros.get("ordenar")) or "positivas").lower()
 
         if not ano:
             latest = conn.execute(
@@ -1471,14 +1485,45 @@ def monitoramento_contagens(db_path, filtros=None):
         if distrito:
             clauses.append("am.localidade=?")
             params.append(distrito)
+        if ovitrampa:
+            clauses.append("LOWER(COALESCE(o.ovitrampa_id,'')) LIKE ?")
+            params.append(f"%{ovitrampa.lower()}%")
         where = "WHERE " + " AND ".join(clauses)
-        periodo = {"ano": ano, "semana_ini": semana_ini, "semana_fim": semana_fim, "ultimas": ultimas}
-        positividade_rank = _round_one(
-            "100.0 * SUM(CASE WHEN COALESCE(o.ovos,0)>0 THEN 1 ELSE 0 END) / COUNT(*)"
+        periodo = {
+            "ano": ano, "semana_ini": semana_ini, "semana_fim": semana_fim,
+            "ultimas": ultimas,
+        }
+        positivas_expr = "SUM(CASE WHEN COALESCE(o.ovos,0)>0 THEN 1 ELSE 0 END)"
+        ovos_expr = "COALESCE(SUM(o.ovos),0)"
+        ipo_expr = _round_one(
+            f"CASE WHEN COUNT(*)>0 THEN 100.0 * {positivas_expr} / COUNT(*) ELSE 0 END"
         )
-        media_positiva = _round_one(
-            "COALESCE(AVG(CASE WHEN COALESCE(o.ovos,0)>0 THEN o.ovos END),0)"
+        ido_expr = _round_one(
+            f"CASE WHEN {positivas_expr}>0 THEN 1.0 * {ovos_expr} / {positivas_expr} ELSE 0 END"
         )
+        idv_expr = _round_two(
+            f"CASE WHEN COUNT(*)>0 THEN 1.0 * {ovos_expr} / COUNT(*) ELSE 0 END"
+        )
+        ranking_orders = {
+            "positivas": "positivas DESC, ovos DESC, ipo DESC",
+            "ipo": "ipo DESC, positivas DESC, ovos DESC",
+            "ido": "ido DESC, ovos DESC, positivas DESC",
+            "ovos": "ovos DESC, positivas DESC, ipo DESC",
+            "leituras": "leituras DESC, positivas DESC, ovos DESC",
+            "recente": "ultima_chave DESC, positivas DESC, ovos DESC",
+        }
+        ranking_order = ranking_orders.get(ordenar, ranking_orders["positivas"])
+        ranking_having = [f"{positivas_expr} > 0", "COUNT(*) >= ?"]
+        ranking_params = [*params, min_leituras]
+        if min_ipo is not None:
+            ranking_having.append(f"{ipo_expr} >= ?")
+            ranking_params.append(min_ipo)
+        if min_ido is not None:
+            ranking_having.append(f"{ido_expr} >= ?")
+            ranking_params.append(min_ido)
+        if min_imo is not None:
+            ranking_having.append(f"{idv_expr} >= ?")
+            ranking_params.append(min_imo)
 
         base = f"""
             FROM {OCORRENCIAS_TABLE} o
@@ -1488,12 +1533,32 @@ def monitoramento_contagens(db_path, filtros=None):
         total = db_core.serialize_row(conn.execute(
             f"""SELECT COUNT(*) AS leituras,
                        COUNT(DISTINCT o.ovitrampa_id) AS armadilhas_lidas,
-                       SUM(CASE WHEN COALESCE(o.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
+                       {positivas_expr} AS positivas,
                        COUNT(DISTINCT CASE WHEN COALESCE(o.ovos,0)>0 THEN o.ovitrampa_id END) AS armadilhas_positivas,
-                       COALESCE(SUM(o.ovos),0) AS ovos
+                       {ovos_expr} AS ovos,
+                       {ipo_expr} AS ipo,
+                       {ido_expr} AS ido,
+                       {idv_expr} AS idv,
+                       {idv_expr} AS imo
                   {base}""",
             params,
         ).fetchone())
+
+        por_semana = [db_core.serialize_row(row) for row in conn.execute(
+            f"""SELECT o.ano, o.semana,
+                       COUNT(*) AS leituras,
+                       COUNT(DISTINCT o.ovitrampa_id) AS armadilhas_lidas,
+                       {positivas_expr} AS positivas,
+                       {ovos_expr} AS ovos,
+                       {ipo_expr} AS ipo,
+                       {ido_expr} AS ido,
+                       {idv_expr} AS idv,
+                       {idv_expr} AS imo
+                  {base}
+                 GROUP BY o.ano, o.semana
+                 ORDER BY o.ano DESC, o.semana DESC""",
+            params,
+        )]
 
         positivas_recentes = [db_core.serialize_row(row) for row in conn.execute(
             f"""WITH positivas AS (
@@ -1520,13 +1585,17 @@ def monitoramento_contagens(db_path, filtros=None):
             f"""SELECT COALESCE(am.localidade,'-') AS localidade,
                        COUNT(*) AS leituras,
                        COUNT(DISTINCT o.ovitrampa_id) AS armadilhas_lidas,
-                       SUM(CASE WHEN COALESCE(o.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
+                       {positivas_expr} AS positivas,
                        COUNT(DISTINCT CASE WHEN COALESCE(o.ovos,0)>0 THEN o.ovitrampa_id END) AS armadilhas_positivas,
-                       COALESCE(SUM(o.ovos),0) AS ovos,
-                       {media_positiva} AS media_ovos_positiva
+                       {ovos_expr} AS ovos,
+                       {ipo_expr} AS ipo,
+                       {ido_expr} AS ido,
+                       {idv_expr} AS idv,
+                       {idv_expr} AS imo,
+                       {ido_expr} AS media_ovos_positiva
                   {base}
                  GROUP BY COALESCE(am.localidade,'-')
-                 ORDER BY ovos DESC, armadilhas_positivas DESC, positivas DESC, localidade
+                 ORDER BY ipo DESC, ido DESC, ovos DESC, localidade
                  LIMIT 40""",
             params,
         )]
@@ -1538,9 +1607,13 @@ def monitoramento_contagens(db_path, filtros=None):
                        COALESCE(am.numero,'') AS numero,
                        COALESCE(am.complemento,'') AS complemento,
                        COUNT(*) AS leituras,
-                       SUM(CASE WHEN COALESCE(o.ovos,0)>0 THEN 1 ELSE 0 END) AS positivas,
-                       COALESCE(SUM(o.ovos),0) AS ovos,
-                       {positividade_rank} AS positividade,
+                       {positivas_expr} AS positivas,
+                       {ovos_expr} AS ovos,
+                       {ipo_expr} AS ipo,
+                       {ipo_expr} AS positividade,
+                       {ido_expr} AS ido,
+                       {idv_expr} AS idv,
+                       {idv_expr} AS imo,
                        MAX(CASE WHEN COALESCE(o.ovos,0)>0
                                 THEN o.ano * 100 + o.semana ELSE NULL END) AS ultima_chave
                   {base}
@@ -1549,10 +1622,10 @@ def monitoramento_contagens(db_path, filtros=None):
                           COALESCE(am.rua,'-'),
                           COALESCE(am.numero,''),
                           COALESCE(am.complemento,'')
-                HAVING SUM(CASE WHEN COALESCE(o.ovos,0)>0 THEN 1 ELSE 0 END) > 0
-                 ORDER BY positivas DESC, ovos DESC, positividade DESC, o.ovitrampa_id
+                HAVING {" AND ".join(ranking_having)}
+                 ORDER BY {ranking_order}, o.ovitrampa_id
                  LIMIT 80""",
-            params,
+            ranking_params,
         )]
         for row in ranking_positivas:
             row["ultima_positiva"] = _semana_label_from_key(row.pop("ultima_chave", None))
@@ -1572,6 +1645,7 @@ def monitoramento_contagens(db_path, filtros=None):
         "fonte": "API Conta Ovos",
         "ocorrencias_fonte": "Lançamentos de laboratório",
         "totais": totais,
+        "por_semana": por_semana,
         "positivas_recentes": positivas_recentes,
         "ranking_positivas": ranking_positivas,
         "localidades": localidades,
@@ -2515,6 +2589,10 @@ def _armadilhas_realocar(conn, filtros):
     if distrito:
         clauses.append("a.localidade=?")
         params.append(distrito)
+    ovitrampa = _text(filtros.get("ovitrampa"))
+    if ovitrampa:
+        clauses.append("LOWER(COALESCE(a.ovitrampa_id,'')) LIKE ?")
+        params.append(f"%{ovitrampa.lower()}%")
     where = "WHERE " + " AND ".join(clauses)
     id_order = _numeric_text_order(conn, "a.ovitrampa_id")
     name_order = _nocase_order(conn, "a.ovitrampa_id")

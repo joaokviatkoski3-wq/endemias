@@ -2408,6 +2408,17 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('id="ovi-hist-alt-body"', html)
         self.assertIn("Sem diário definido", html)
         self.assertIn("Fonte: ${oviEscape(r.fonte_leitura || 'API Conta Ovos')}", html)
+        self.assertIn('id="ovi-mon-ipo"', html)
+        self.assertIn('id="ovi-mon-ido"', html)
+        self.assertIn('id="ovi-mon-imo"', html)
+        self.assertIn('id="ovi-mon-semanas-body"', html)
+        self.assertIn('id="ovi-mon-ovitrampa"', html)
+        self.assertIn('id="ovi-mon-ordenar"', html)
+        self.assertIn('id="ovi-mon-min-ipo"', html)
+        self.assertIn('id="ovi-mon-min-ido"', html)
+        self.assertIn('id="ovi-mon-min-imo"', html)
+        self.assertIn('id="ovi-mon-indices-chart"', html)
+        self.assertIn('id="ovi-mon-volume-chart"', html)
 
     def test_pagina_visitas_usa_filtros_modernos(self):
         client = _client_logado()

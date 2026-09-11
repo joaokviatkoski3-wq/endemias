@@ -37,6 +37,10 @@
 .ovi-monitor-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(380px,.95fr);gap:14px;align-items:start;}
 .ovi-monitor-stack{display:flex;flex-direction:column;gap:14px;}
 .ovi-monitor-table td,.ovi-monitor-table th{vertical-align:top;}
+.ovi-index-note{margin:0 0 16px;padding:10px 12px;border:1px solid rgba(15,118,110,.25);border-radius:var(--radius-sm);background:rgba(15,118,110,.07);color:var(--text2);font-size:11px;line-height:1.45;}
+.ovi-index-note strong{color:var(--text);}
+.ovi-monitor-charts{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr);gap:14px;margin-bottom:16px;}
+.ovi-chart-wrap{position:relative;height:300px;}
 .ovi-panel#ovi-panel-monitoramento .table-scroll{max-height:360px;overflow:auto;}
 .ovi-panel#ovi-panel-monitoramento .table-scroll thead th{position:sticky;top:0;background:var(--surface2);z-index:1;}
 .ovi-muted{color:var(--text3);font-size:11px;line-height:1.35;}
@@ -143,6 +147,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
 @media(max-width:1180px){.ovi-cal-layout{grid-template-columns:1fr;}.ovi-year-grid{grid-template-columns:repeat(2,minmax(230px,1fr));}}
 @media(max-width:1100px){.ovi-reading-top{grid-template-columns:repeat(3,minmax(0,1fr));}}
 @media(max-width:920px){.ovi-layout,.ovi-upload,.ovi-monitor-layout,.ovi-diario-layout,.ovi-diario-split{grid-template-columns:1fr;}.ovi-reading-lab{grid-template-columns:1fr;}}
+@media(max-width:920px){.ovi-monitor-charts{grid-template-columns:1fr;}}
 @media(max-width:920px){.ovi-batch{grid-template-columns:1fr;}}
 @media(max-width:760px){.ovi-lab-admin-head{grid-template-columns:1fr 1fr;}.ovi-lab-admin-main{grid-column:1/-1;}.ovi-lab-admin-head .btn{width:100%;justify-content:center;}}
 @media(max-width:640px){.ovi-reading-top{grid-template-columns:1fr 1fr;}.ovi-year-grid{grid-template-columns:1fr;}.ovi-modal-grid{grid-template-columns:1fr;}}
@@ -241,21 +246,55 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
         <div class="f-g"><label>Semana final</label><input type="number" id="ovi-mon-semana-fim" min="1" max="53" placeholder="Auto"></div>
         <div class="f-g"><label>Últimas semanas</label><input type="number" id="ovi-mon-ultimas" min="1" max="52" value="8"></div>
         <div class="f-g"><label>Localidade</label><select id="ovi-mon-distrito"><option value="">Todas</option>{% for distrito in distritos %}<option value="{{ distrito }}">{{ distrito }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Ovitrampa</label><input type="search" id="ovi-mon-ovitrampa" placeholder="ID completo ou parte"></div>
+        <div class="f-g"><label>Mínimo de leituras no ranking</label><input type="number" id="ovi-mon-min-leituras" min="1" max="999" value="1"></div>
+        <div class="f-g"><label>IPO mínimo no ranking (%)</label><input type="number" id="ovi-mon-min-ipo" min="0" max="100" step="0.1" placeholder="Qualquer"></div>
+        <div class="f-g"><label>IDO mínimo no ranking</label><input type="number" id="ovi-mon-min-ido" min="0" step="0.1" placeholder="Qualquer"></div>
+        <div class="f-g"><label>IMO mínimo no ranking</label><input type="number" id="ovi-mon-min-imo" min="0" step="0.01" placeholder="Qualquer"></div>
+        <div class="f-g"><label>Ordenar ranking por</label><select id="ovi-mon-ordenar"><option value="positivas">Positivas</option><option value="ipo">IPO</option><option value="ido">IDO</option><option value="ovos">Total de ovos</option><option value="leituras">Leituras</option><option value="recente">Positiva mais recente</option></select></div>
+        <button class="btn btn-ghost" type="button" id="ovi-mon-limpar">Limpar</button>
         <button class="btn btn-outline" type="button" id="ovi-mon-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
       </div>
     </div>
   </div>
 
   <div class="ovi-grid">
-    <div class="ovi-kpi"><div class="ovi-kpi-label">Leituras no período</div><div class="ovi-kpi-value" id="ovi-mon-leituras">0</div></div>
-    <div class="ovi-kpi"><div class="ovi-kpi-label">Armadilhas positivas</div><div class="ovi-kpi-value" id="ovi-mon-arm-pos">0</div></div>
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Armadilhas examinadas</div><div class="ovi-kpi-value" id="ovi-mon-leituras">0</div></div>
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Exames positivos</div><div class="ovi-kpi-value" id="ovi-mon-positivas">0</div></div>
+    <div class="ovi-kpi"><div class="ovi-kpi-label">Armadilhas únicas</div><div class="ovi-kpi-value" id="ovi-mon-armadilhas">0</div></div>
+    <div class="ovi-kpi"><div class="ovi-kpi-label">IPO</div><div class="ovi-kpi-value" id="ovi-mon-ipo">0,0%</div></div>
+    <div class="ovi-kpi"><div class="ovi-kpi-label">IDO</div><div class="ovi-kpi-value" id="ovi-mon-ido">0,0</div></div>
+    <div class="ovi-kpi" title="Índice de Média de Ovos; equivale ao IDV"><div class="ovi-kpi-label">IMO</div><div class="ovi-kpi-value" id="ovi-mon-imo">0,00</div></div>
     <div class="ovi-kpi"><div class="ovi-kpi-label">Ovos</div><div class="ovi-kpi-value" id="ovi-mon-ovos">0</div></div>
     <div class="ovi-kpi"><div class="ovi-kpi-label">Ocorrências</div><div class="ovi-kpi-value" id="ovi-mon-ocorrencias">0</div></div>
     <div class="ovi-kpi"><div class="ovi-kpi-label">Pendentes realocação</div><div class="ovi-kpi-value" id="ovi-mon-realocar">0</div></div>
   </div>
 
+  <div class="ovi-index-note"><strong>Como os índices são calculados:</strong> IPO = exames positivos ÷ armadilhas examinadas × 100; IDO = ovos ÷ exames positivos; IMO = ovos ÷ armadilhas examinadas. O IMO equivale ao Índice de Densidade Vetorial (IDV). Cada contagem sincronizada da API representa um exame no período. “Armadilhas únicas” conta cada ID apenas uma vez, mesmo quando aparece em várias semanas.</div>
+
+  <div class="ovi-monitor-charts">
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/grafico_linha.svg" alt="" class="icon-svg"> Evolução de IPO, IDO e IMO</div></div>
+      <div class="ovi-chart-wrap"><canvas id="ovi-mon-indices-chart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Exames, positivos e ovos</div></div>
+      <div class="ovi-chart-wrap"><canvas id="ovi-mon-volume-chart"></canvas></div>
+    </div>
+  </div>
+
   <div class="ovi-monitor-layout">
     <div class="ovi-monitor-stack">
+      <div class="chart-card">
+        <div class="chart-hd"><div class="chart-title"><img src="/static/icons/calendario.svg" alt="" class="icon-svg"> Evolução semanal dos índices</div></div>
+        <div class="table-scroll">
+          <table class="ovi-monitor-table">
+            <thead><tr><th>Semana</th><th>Examinadas</th><th>Armadilhas únicas</th><th>Positivas</th><th>Ovos</th><th>IPO</th><th>IDO</th><th>IMO</th></tr></thead>
+            <tbody id="ovi-mon-semanas-body"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="chart-card">
         <div class="chart-hd">
           <div class="chart-title"><img src="/static/icons/mosquito.svg" alt="" class="icon-svg"> Positivas recentes</div>
@@ -273,7 +312,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
         <div class="chart-hd"><div class="chart-title"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Ranking de positividade</div></div>
         <div class="table-scroll">
           <table class="ovi-monitor-table">
-            <thead><tr><th>ID</th><th>Localidade</th><th>Leituras</th><th>Positivas</th><th>%</th><th>Ovos</th><th>Última</th></tr></thead>
+            <thead><tr><th>ID</th><th>Localidade</th><th>Leituras</th><th>Positivas</th><th>IPO</th><th>IDO</th><th>IMO</th><th>Ovos</th><th>Última</th></tr></thead>
             <tbody id="ovi-mon-ranking-body"></tbody>
           </table>
         </div>
@@ -283,7 +322,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
         <div class="chart-hd"><div class="chart-title"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Localidades críticas</div></div>
         <div class="table-scroll">
           <table class="ovi-monitor-table">
-            <thead><tr><th>Localidade</th><th>Armadilhas lidas</th><th>Armadilhas positivas</th><th>Leituras positivas</th><th>Ovos</th><th>Média ovos/positiva</th></tr></thead>
+            <thead><tr><th>Localidade</th><th>Examinadas</th><th>Armadilhas únicas</th><th>Armadilhas positivas</th><th>Exames positivos</th><th>Ovos</th><th>IPO</th><th>IDO</th><th>IMO</th></tr></thead>
             <tbody id="ovi-mon-localidades-body"></tbody>
           </table>
         </div>
@@ -540,10 +579,14 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
 
 {% block extra_js %}<script>
 const oviFmt = new Intl.NumberFormat('pt-BR');
+const oviDecimal = new Intl.NumberFormat('pt-BR', {minimumFractionDigits:1, maximumFractionDigits:1});
+const oviDecimal2 = new Intl.NumberFormat('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
 const oviAgentes = JSON.parse(document.getElementById('ovi-agentes-json').textContent || '[]');
 let oviCalState = {ano:new Date().getFullYear(), grupos:[], eventos:[], eventosPorData:{}};
 let oviDiarioState = {diarios:[], selecionado:null, detalhe:null};
 let oviLabAdminLotes = [];
+let oviMonitorIndicesChart = null;
+let oviMonitorVolumeChart = null;
 const oviDiarioReduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || false;
 const oviDiarioDragThreshold = 6;
 function novoEstadoOviDiarioDrag(){
@@ -584,6 +627,12 @@ function oviMonitorParams(){
     ['semana_fim', 'ovi-mon-semana-fim'],
     ['ultimas', 'ovi-mon-ultimas'],
     ['distrito', 'ovi-mon-distrito'],
+    ['ovitrampa', 'ovi-mon-ovitrampa'],
+    ['min_leituras', 'ovi-mon-min-leituras'],
+    ['min_ipo', 'ovi-mon-min-ipo'],
+    ['min_ido', 'ovi-mon-min-ido'],
+    ['min_imo', 'ovi-mon-min-imo'],
+    ['ordenar', 'ovi-mon-ordenar'],
   ];
   campos.forEach(([key, id]) => {
     const value = document.getElementById(id)?.value;
@@ -722,11 +771,39 @@ function oviOcorrenciaDetalhes(label, row){
     `).join('')}</tbody>
   </table></div>`;
 }
+function renderOviMonitorCharts(rows){
+  const serie = [...(rows || [])].reverse();
+  const labels = serie.map(r => `${r.ano}/${String(r.semana || '').padStart(2,'0')}`);
+  oviMonitorIndicesChart?.destroy();
+  oviMonitorVolumeChart?.destroy();
+  oviMonitorIndicesChart = new Chart(document.getElementById('ovi-mon-indices-chart'), {
+    type:'line',
+    data:{labels,datasets:[
+      {label:'IPO (%)',data:serie.map(r=>Number(r.ipo||0)),borderColor:'#dc2626',backgroundColor:'rgba(220,38,38,.12)',yAxisID:'percentual',tension:.25,pointRadius:3},
+      {label:'IDO',data:serie.map(r=>Number(r.ido||0)),borderColor:'#7c3aed',backgroundColor:'rgba(124,58,237,.12)',yAxisID:'indice',tension:.25,pointRadius:3},
+      {label:'IMO',data:serie.map(r=>Number(r.imo??r.idv??0)),borderColor:'#0f766e',backgroundColor:'rgba(15,118,110,.12)',yAxisID:'indice',tension:.25,pointRadius:3},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{datalabels:{display:false},legend:{position:'bottom'}},scales:{percentual:{type:'linear',position:'right',beginAtZero:true,title:{display:true,text:'IPO (%)'},grid:{drawOnChartArea:false}},indice:{type:'linear',position:'left',beginAtZero:true,title:{display:true,text:'IDO / IMO'}}}}
+  });
+  oviMonitorVolumeChart = new Chart(document.getElementById('ovi-mon-volume-chart'), {
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'Examinadas',data:serie.map(r=>Number(r.leituras||0)),backgroundColor:'rgba(37,99,235,.65)',yAxisID:'exames'},
+      {label:'Positivas',data:serie.map(r=>Number(r.positivas||0)),backgroundColor:'rgba(220,38,38,.7)',yAxisID:'exames'},
+      {label:'Ovos',data:serie.map(r=>Number(r.ovos||0)),backgroundColor:'rgba(15,118,110,.7)',yAxisID:'ovos'},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{datalabels:{display:false},legend:{position:'bottom'}},scales:{exames:{type:'linear',position:'left',beginAtZero:true,title:{display:true,text:'Exames'}},ovos:{type:'linear',position:'right',beginAtZero:true,title:{display:true,text:'Ovos'},grid:{drawOnChartArea:false}}}}
+  });
+}
 async function carregarMonitoramento(){
   const data = await oviGet('/api/ovitrampas/monitoramento?' + oviMonitorParams().toString());
   const t = data.totais || {};
   document.getElementById('ovi-mon-leituras').textContent = oviFmt.format(t.leituras || 0);
-  document.getElementById('ovi-mon-arm-pos').textContent = oviFmt.format(t.armadilhas_positivas || 0);
+  document.getElementById('ovi-mon-positivas').textContent = oviFmt.format(t.positivas || 0);
+  document.getElementById('ovi-mon-armadilhas').textContent = oviFmt.format(t.armadilhas_lidas || 0);
+  document.getElementById('ovi-mon-ipo').textContent = `${oviDecimal.format(Number(t.ipo || 0))}%`;
+  document.getElementById('ovi-mon-ido').textContent = oviDecimal.format(Number(t.ido || 0));
+  document.getElementById('ovi-mon-imo').textContent = oviDecimal2.format(Number(t.imo ?? t.idv ?? 0));
   document.getElementById('ovi-mon-ovos').textContent = oviFmt.format(t.ovos || 0);
   document.getElementById('ovi-mon-ocorrencias').textContent = oviFmt.format(t.ocorrencias || 0);
   document.getElementById('ovi-mon-realocar').textContent = oviFmt.format(t.realocar || 0);
@@ -738,6 +815,20 @@ async function carregarMonitoramento(){
   }
   const p = data.periodo || {};
   document.getElementById('ovi-mon-periodo').textContent = p.ano ? `${p.ano} / semanas ${String(p.semana_ini || '-').padStart(2,'0')} a ${String(p.semana_fim || '-').padStart(2,'0')}` : 'Sem leituras';
+  renderOviMonitorCharts(data.por_semana || []);
+
+  document.getElementById('ovi-mon-semanas-body').innerHTML = (data.por_semana || []).map(r => `
+    <tr>
+      <td><strong>${oviEscape(r.ano || '-')} / ${String(r.semana || '').padStart(2,'0')}</strong></td>
+      <td>${oviFmt.format(r.leituras || 0)}</td>
+      <td>${oviFmt.format(r.armadilhas_lidas || 0)}</td>
+      <td>${oviFmt.format(r.positivas || 0)}</td>
+      <td>${oviFmt.format(r.ovos || 0)}</td>
+      <td><strong>${oviDecimal.format(Number(r.ipo || 0))}%</strong></td>
+      <td>${oviDecimal.format(Number(r.ido || 0))}</td>
+      <td>${oviDecimal2.format(Number(r.imo ?? r.idv ?? 0))}</td>
+    </tr>
+  `).join('') || oviEmptyRow(8);
 
   document.getElementById('ovi-mon-positivas-body').innerHTML = (data.positivas_recentes || []).map(r => `
     <tr>
@@ -756,22 +847,27 @@ async function carregarMonitoramento(){
       <td>${oviEscape(r.localidade || '-')}</td>
       <td>${oviFmt.format(r.leituras || 0)}</td>
       <td>${oviFmt.format(r.positivas || 0)}</td>
-      <td>${oviEscape(r.positividade ?? 0)}%</td>
+      <td>${oviDecimal.format(Number(r.ipo || r.positividade || 0))}%</td>
+      <td>${oviDecimal.format(Number(r.ido || 0))}</td>
+      <td>${oviDecimal2.format(Number(r.imo ?? r.idv ?? 0))}</td>
       <td>${oviFmt.format(r.ovos || 0)}</td>
       <td>${oviEscape(r.ultima_positiva || '-')}</td>
     </tr>
-  `).join('') || oviEmptyRow(7);
+  `).join('') || oviEmptyRow(9);
 
   document.getElementById('ovi-mon-localidades-body').innerHTML = (data.localidades || []).map(r => `
     <tr>
       <td><strong>${oviEscape(r.localidade || '-')}</strong></td>
+      <td>${oviFmt.format(r.leituras || 0)}</td>
       <td>${oviFmt.format(r.armadilhas_lidas || 0)}</td>
       <td>${oviFmt.format(r.armadilhas_positivas || 0)}</td>
       <td>${oviFmt.format(r.positivas || 0)}</td>
       <td>${oviFmt.format(r.ovos || 0)}</td>
-      <td>${oviEscape(r.media_ovos_positiva ?? 0)}</td>
+      <td>${oviDecimal.format(Number(r.ipo || 0))}%</td>
+      <td>${oviDecimal.format(Number(r.ido || 0))}</td>
+      <td>${oviDecimal2.format(Number(r.imo ?? r.idv ?? 0))}</td>
     </tr>
-  `).join('') || oviEmptyRow(6);
+  `).join('') || oviEmptyRow(9);
 
   document.getElementById('ovi-mon-ocorrencias-fonte').textContent = data.ocorrencias_fonte || '';
   document.getElementById('ovi-mon-ocorrencias-body').innerHTML = (data.ocorrencias_labels || []).map(label => {
@@ -1522,6 +1618,13 @@ document.querySelectorAll('[data-ovi-tab]').forEach(btn => btn.addEventListener(
 document.getElementById('ovi-atualizar').addEventListener('click', () => carregarOvitrampas().catch(e => toast('Erro ao carregar ovitrampas: ' + e.message, 'error')));
 document.getElementById('ovi-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarListaOvitrampas().catch(err => toast('Erro na busca: ' + err.message, 'error')); });
 document.getElementById('ovi-mon-atualizar').addEventListener('click', () => carregarMonitoramento().catch(e => toast('Erro ao carregar monitoramento: ' + e.message, 'error')));
+document.getElementById('ovi-mon-limpar').addEventListener('click', () => {
+  ['ovi-mon-ano','ovi-mon-semana-ini','ovi-mon-semana-fim','ovi-mon-distrito','ovi-mon-ovitrampa','ovi-mon-min-ipo','ovi-mon-min-ido','ovi-mon-min-imo'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('ovi-mon-ultimas').value = '8';
+  document.getElementById('ovi-mon-min-leituras').value = '1';
+  document.getElementById('ovi-mon-ordenar').value = 'positivas';
+  carregarMonitoramento().catch(e => toast('Erro ao carregar monitoramento: ' + e.message, 'error'));
+});
 document.getElementById('ovi-arm-atualizar').addEventListener('click', () => carregarArmadilhas().catch(e => toast('Erro ao carregar armadilhas: ' + e.message, 'error')));
 document.getElementById('ovi-arm-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarArmadilhas().catch(err => toast('Erro na busca: ' + err.message, 'error')); });
 document.getElementById('ovi-lab-admin-atualizar')?.addEventListener('click',()=>carregarOviLaboratorio());
