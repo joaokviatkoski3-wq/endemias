@@ -79,6 +79,8 @@ CREATE TABLE IF NOT EXISTS visitas (
     lado            TEXT,
     agua_sanepar    INTEGER CHECK(agua_sanepar IN (0,1)),
     observacoes     TEXT,
+    acs_presente    INTEGER CHECK(acs_presente IN (0,1)),
+    acs_nome        TEXT,
     submission_time TEXT,
     processado_em   TEXT    NOT NULL,
     -- DB-06: colunas adicionadas por migração posterior (existem no banco real)

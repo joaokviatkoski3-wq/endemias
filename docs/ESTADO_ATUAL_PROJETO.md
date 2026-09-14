@@ -152,6 +152,18 @@ impressao processa no maximo dois mini-mapas simultaneamente para evitar
 rajadas de requisicoes. Nao houve migracao nem alteracao de dados. Consulte
 `docs/MAPAS_BASE_CARTOGRAFICA.md`.
 
+### Acompanhamento de ACS em visitas PVE
+
+Na versao `1.36.0`, visitas PVE passaram a armazenar os campos do formulario
+Kobo `acs_presente` e `acs_nome`. A API reconhece os campos mesmo quando estao
+dentro de um grupo do formulario. `sim_acs_presente` e normalizado para `1` e
+`nao_acs_presente` para `0`; o nome e descartado quando a resposta e negativa.
+O ACS nao e cadastrado como agente de endemias. A migracao PostgreSQL
+correspondente, `0009_visitas_acs.sql`, foi aplicada no banco oficial `endemias`
+em 14/09/2026 e tambem validada em `endemias_teste`; SQLite possui atualizacao
+compativel e idempotente. Ainda nao ha exibicao desses dados na interface.
+Consulte `docs/PVE_ACS.md`.
+
 ### Notificacoes laboratoriais
 
 - A fonte da pagina `/notificacoes` e `focos_positivos`, nao a tabela bruta de

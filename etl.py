@@ -117,6 +117,29 @@ def val_bool(val):
     return None
 
 
+def normalizar_acs_presente(valor):
+    codigo = val_str(valor)
+    if not codigo:
+        return None
+    codigo = codigo.casefold()
+    if codigo in ("sim_acs_presente", "sim", "yes", "1", "true", "s"):
+        return 1
+    if codigo in ("nao_acs_presente", "não_acs_presente", "não", "nao", "no", "0", "false", "n"):
+        return 0
+    return None
+
+
+def valor_campo_kobo(row, nome):
+    valor = row.get(nome)
+    if val_str(valor) is not None:
+        return valor
+    alvo = nome.casefold()
+    for coluna in row.index:
+        if str(coluna).rsplit("/", 1)[-1].strip().casefold() == alvo:
+            return row.get(coluna)
+    return None
+
+
 def val_str(val):
     if val is None: return None
     try:
@@ -506,6 +529,15 @@ def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso, con
     logradouro = val_str(row.get("Logradouro") or row.get("logradouro"))
     pe_conn = conn if conn is not None else cur.connection
     pe_vinculo = pe_core.resolver_alias_visita(pe_conn, logradouro, loc_bruto) if tipo == "PE" else None
+    acs_presente = (
+        normalizar_acs_presente(valor_campo_kobo(row, "acs_presente"))
+        if tipo == "PVE" else None
+    )
+    acs_nome = (
+        val_str(valor_campo_kobo(row, "acs_nome"))
+        if acs_presente == 1 else None
+    )
+    acs_valores = (acs_presente, acs_nome)
 
     valores = (
         val_str(kobo_uuid), val_int(row.get("_id")), tipo,
@@ -532,7 +564,7 @@ def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso, con
     campos_existentes = """id_visita, kobo_uuid, kobo_id, tipo, data, hora_inicio,
         hora_fim, ciclo, localidade, id_localidade, logradouro, numero, quarteirao,
         sequencia, morador, tipo_imovel, visita, lado, agua_sanepar, observacoes,
-        submission_time, id_pe, codigo_pe"""
+        submission_time, id_pe, codigo_pe, acs_presente, acs_nome"""
     cur.execute(f"SELECT {campos_existentes} FROM visitas WHERE id_visita=?", (id_visita,))
     existente = cur.fetchone()
     kobo_id = valores[1]
@@ -549,7 +581,7 @@ def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso, con
         existentes_comparaveis = tuple(
             _comparable_db_value(value) for value in existente[1:]
         )
-        if existentes_comparaveis == valores:
+        if existentes_comparaveis == valores + acs_valores:
             return {"id_visita": id_existente, "inserida": False, "atualizada": False}
         cur.execute("""
             UPDATE visitas SET
@@ -557,9 +589,9 @@ def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso, con
                 ciclo=?, localidade=?, id_localidade=?, logradouro=?, numero=?,
                 quarteirao=?, sequencia=?, morador=?, tipo_imovel=?, visita=?, lado=?,
                 agua_sanepar=?, observacoes=?, submission_time=?, processado_em=?,
-                id_pe=?, codigo_pe=?
+                id_pe=?, codigo_pe=?, acs_presente=?, acs_nome=?
             WHERE id_visita=?
-        """, valores[:20] + (agora_iso,) + valores[20:] + (id_existente,))
+        """, valores[:20] + (agora_iso,) + valores[20:] + acs_valores + (id_existente,))
         return {"id_visita": id_existente, "inserida": False, "atualizada": True}
 
     cur.execute("""
@@ -568,9 +600,9 @@ def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso, con
             hora_inicio, hora_fim, ciclo, localidade, id_localidade, logradouro,
             numero, quarteirao, sequencia, morador, tipo_imovel,
             visita, lado, agua_sanepar, observacoes, submission_time, processado_em,
-            id_pe, codigo_pe
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    """, (id_visita,) + valores[:20] + (agora_iso,) + valores[20:])
+            id_pe, codigo_pe, acs_presente, acs_nome
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    """, (id_visita,) + valores[:20] + (agora_iso,) + valores[20:] + acs_valores)
     return {"id_visita": id_visita, "inserida": True, "atualizada": False}
 
 

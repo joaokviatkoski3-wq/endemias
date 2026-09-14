@@ -86,6 +86,38 @@ class SQLiteResilienceTests(unittest.TestCase):
 
 
 class SQLiteMaintenanceTests(unittest.TestCase):
+    def test_schema_compatibility_adiciona_colunas_acs_em_visitas(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "legacy.db"
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute("CREATE TABLE visitas (id_visita TEXT PRIMARY KEY)")
+                conn.execute("INSERT INTO visitas(id_visita) VALUES ('visita-1')")
+                conn.commit()
+            finally:
+                conn.close()
+
+            primeira = sqlite_maintenance.ensure_schema_compatibility(db_path)
+            segunda = sqlite_maintenance.ensure_schema_compatibility(db_path)
+
+            conn = sqlite3.connect(db_path)
+            try:
+                colunas = {row[1] for row in conn.execute("PRAGMA table_info(visitas)")}
+                registro = conn.execute(
+                    "SELECT id_visita, acs_presente, acs_nome FROM visitas"
+                ).fetchone()
+                with self.assertRaises(sqlite3.IntegrityError):
+                    conn.execute(
+                        "UPDATE visitas SET acs_presente=2 WHERE id_visita='visita-1'"
+                    )
+            finally:
+                conn.close()
+
+        self.assertEqual(primeira, ["visitas_acs"])
+        self.assertEqual(segunda, [])
+        self.assertTrue({"acs_presente", "acs_nome"}.issubset(colunas))
+        self.assertEqual(registro, ("visita-1", None, None))
+
     def test_schema_compatibility_preserves_historico_and_removes_obsolete_fk(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "legacy.db"

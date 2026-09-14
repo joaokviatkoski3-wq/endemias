@@ -7,6 +7,19 @@ from app_core import postgresql_migrations
 
 
 class PostgreSQLMigrationDiscoveryTests(unittest.TestCase):
+    def test_migracao_visitas_acs_e_aditiva_e_validada(self):
+        path = (
+            Path(__file__).resolve().parents[1]
+            / "migrations"
+            / "postgresql"
+            / "0009_visitas_acs.sql"
+        )
+        sql = path.read_text(encoding="utf-8").casefold()
+
+        self.assertIn("add column acs_presente", sql)
+        self.assertIn("add column acs_nome", sql)
+        self.assertIn("check (acs_presente in (0, 1))", sql)
+
     def test_discover_orders_and_hashes_migrations(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

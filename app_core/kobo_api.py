@@ -573,6 +573,9 @@ def _ensure_visit_columns(row, tipo, cfg_tipo, record):
     row.setdefault("Visita", detalhes.get("visita"))
     row.setdefault("Observações", detalhes.get("observacoes"))
     row.setdefault("Observa_es", detalhes.get("observacoes"))
+    if tipo == "PVE":
+        _set_if_empty(row, "acs_presente", _leaf_exact_value(record, ["acs_presente"]))
+        _set_if_empty(row, "acs_nome", _leaf_exact_value(record, ["acs_nome"]))
     fields = work_types.etl_fields_for(tipo)
     if fields.get("tratamentos_em_depositos"):
         for deposito in ("A1", "A2", "B", "C", "D1", "D2", "E"):

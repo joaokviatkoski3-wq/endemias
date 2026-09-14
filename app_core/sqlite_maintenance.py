@@ -99,6 +99,24 @@ def _migrate_focos_historico_without_foreign_key(conn):
     return True
 
 
+def _ensure_visitas_acs_columns(conn):
+    if not _table_exists(conn, "visitas"):
+        return False
+
+    columns = _table_columns(conn, "visitas")
+    changed = False
+    if "acs_presente" not in columns:
+        conn.execute(
+            "ALTER TABLE visitas ADD COLUMN acs_presente INTEGER "
+            "CHECK(acs_presente IN (0,1))"
+        )
+        changed = True
+    if "acs_nome" not in columns:
+        conn.execute("ALTER TABLE visitas ADD COLUMN acs_nome TEXT")
+        changed = True
+    return changed
+
+
 def ensure_schema_compatibility(db_path):
     conn = db_core.connect(db_path)
     migrations = []
@@ -107,6 +125,8 @@ def ensure_schema_compatibility(db_path):
         conn.execute("BEGIN IMMEDIATE")
         if _migrate_focos_historico_without_foreign_key(conn):
             migrations.append("focos_historico_sem_fk")
+        if _ensure_visitas_acs_columns(conn):
+            migrations.append("visitas_acs")
         conn.commit()
     except Exception:
         conn.rollback()

@@ -80,8 +80,9 @@ def _insert_fixture(conn):
                id_visita, kobo_uuid, tipo, data, hora_inicio,
                localidade, id_localidade, logradouro, numero,
                quarteirao, morador, tipo_imovel, visita,
-               agua_sanepar, observacoes, processado_em
-           ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               agua_sanepar, observacoes, acs_presente, acs_nome,
+               processado_em
+           ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             "visita-pg-temporaria",
             "uuid-visita-pg-temporaria",
@@ -98,6 +99,8 @@ def _insert_fixture(conn):
             "Normal",
             1,
             "Observacao temporaria",
+            1,
+            "maria_da_silva",
             "2026-07-28T10:00:00",
         ),
     )
@@ -200,6 +203,10 @@ def _test_data(target):
         detalhe = visitas.detalhar(conn, "visita-pg-temporaria")
         if detalhe["visita"]["hora_inicio"] != "09:30:00":
             raise RuntimeError("O horario nao foi serializado para a API.")
+        if detalhe["visita"]["acs_presente"] != 1:
+            raise RuntimeError("A presenca do ACS nao foi persistida.")
+        if detalhe["visita"]["acs_nome"] != "maria_da_silva":
+            raise RuntimeError("O identificador canonico do ACS divergiu.")
         if detalhe["coletas"][0]["aegypt_larvas"] != 2:
             raise RuntimeError("O resultado laboratorial nao foi detalhado.")
 
@@ -253,6 +260,8 @@ def _test_data(target):
         detalhe = visitas.detalhar(conn, "visita-pg-temporaria")
         if detalhe["visita"]["data"] != "2026-07-29":
             raise RuntimeError("A edicao da visita nao foi persistida.")
+        if detalhe["visita"]["acs_nome"] != "maria_da_silva":
+            raise RuntimeError("A edicao da visita removeu o ACS.")
         if detalhe["coletas"][0]["num_tubo"] != "T-PG-101":
             raise RuntimeError("A edicao do tubo nao foi persistida.")
         if detalhe["coletas"][0]["aegypt_larvas"] != 2:

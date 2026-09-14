@@ -7653,6 +7653,8 @@ class MainApisSmokeTests(unittest.TestCase):
             "grupo_visita": {
                 "Hora": "08:40",
                 "Visita": "Normal",
+                "acs_presente": "sim_acs_presente",
+                "acs_nome": "Maria da Silva",
             },
         }
         cfg_tipo = {
@@ -7670,6 +7672,9 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(row["Morador"], "Joana")
         self.assertEqual(row["Tipo do imóvel"], "Residência")
         self.assertEqual(row["Hora"], "08:40")
+        self.assertEqual(row["acs_presente"], "sim_acs_presente")
+        self.assertEqual(row["acs_nome"], "Maria da Silva")
+        self.assertEqual(detalhes["agentes"], "")
 
     def test_kobo_previa_normaliza_codigos_de_recolhimento(self):
         record = {
@@ -7695,6 +7700,101 @@ class MainApisSmokeTests(unittest.TestCase):
         nomes = etl.extrair_agentes(row, {"prefixo_agente": "Nome do(s) agente(s)/"})
 
         self.assertEqual(nomes, ["Márcio", "Ana Beatriz"])
+
+    def test_etl_pve_guarda_acs_sem_cadastrar_como_agente(self):
+        record = {
+            "_uuid": "uuid-pve-acs",
+            "_id": 901,
+            "_submission_time": "2026-09-14T09:00:00",
+            "Data": "2026-09-14",
+            "Localidade": "Lamenha",
+            "Logradouro": "Rua das Flores",
+            "Número": "55",
+            "Quarteirão": "321",
+            "Morador": "Joana",
+            "Tipo do imóvel": "Residência",
+            "Visita": "Normal",
+            "Nome do(s) agente(s)/Adilson": "1",
+            "acs_presente": "sim_acs_presente",
+            "acs_nome": "Maria da Silva",
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            caminhos = kobo_api_core.write_etl_workbooks(
+                {"PVE": [record]},
+                str(ROOT / "config.json"),
+                tmpdir,
+                prefix="acs",
+            )
+            logs = []
+            ok, sumario = etl.processar_upload(
+                caminhos,
+                [],
+                db_path,
+                str(ROOT / "config.json"),
+                etl.Logger(callback=lambda msg, tag: logs.append((tag, msg))),
+                dry_run=False,
+                backup_confirmado=True,
+            )
+
+            self.assertTrue(ok, logs)
+            self.assertEqual(sumario[0]["visitas_novas"], 1)
+            conn = sqlite3.connect(db_path)
+            try:
+                visita = conn.execute(
+                    "SELECT acs_presente, acs_nome FROM visitas WHERE kobo_uuid=?",
+                    ("uuid-pve-acs",),
+                ).fetchone()
+                agentes = {
+                    row[0]
+                    for row in conn.execute(
+                        """SELECT a.nome FROM visita_agentes va
+                           JOIN agentes a ON a.id_agente=va.id_agente
+                           JOIN visitas v ON v.id_visita=va.id_visita
+                           WHERE v.kobo_uuid=?""",
+                        ("uuid-pve-acs",),
+                    )
+                }
+            finally:
+                conn.close()
+
+        self.assertEqual(visita, (1, "Maria da Silva"))
+        self.assertEqual(agentes, {"Adilson"})
+
+    def test_etl_pve_descarta_nome_do_acs_quando_resposta_e_nao(self):
+        row = etl.pd.Series({
+            "Data": "2026-09-14",
+            "Localidade": "Lamenha",
+            "grupo/acs_presente": "nao_acs_presente",
+            "grupo/acs_nome": "Nome residual",
+        })
+        cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            conn = db_core.connect(db_path)
+            try:
+                resultado = etl.salvar_visita(
+                    conn.cursor(),
+                    "visita-pve-sem-acs",
+                    "uuid-pve-sem-acs",
+                    row,
+                    "PVE",
+                    cfg["tipos_trabalho"]["PVE"],
+                    "2026-09-14T09:00:00",
+                    conn,
+                )
+                conn.commit()
+                visita = conn.execute(
+                    "SELECT acs_presente, acs_nome FROM visitas WHERE id_visita=?",
+                    ("visita-pve-sem-acs",),
+                ).fetchone()
+            finally:
+                conn.close()
+
+        self.assertTrue(resultado["inserida"])
+        self.assertEqual(tuple(visita), (0, None))
 
     def test_kobo_previa_usa_tabela_do_modulo_extra(self):
         class FakeResponse:
