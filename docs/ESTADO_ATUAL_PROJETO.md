@@ -141,6 +141,15 @@ de "exame", ganhou legenda simples para IPO/IDO/IMO e o grafico de leituras,
 positivas e ovos passou a compartilhar um unico eixo Y. Os limites minimos e a
 ordenacao continuam exclusivos do ranking, conforme indicado na tela.
 
+Na versao `1.37.0`, o mesmo conjunto de filtros do Monitoramento passou a gerar
+uma exportacao XLSX analitica. O arquivo contem abas de resumo, leituras,
+armadilhas, semanas, localidades e ocorrencias. As leituras nao possuem o limite
+visual da pagina; cadastro local, espelho do cadastro publico do Conta Ovos e
+lotes do laboratorio sao unidos sem chamar a API durante o download. Armadilhas
+sem leitura no periodo continuam na aba cadastral com indicadores zerados, o que
+permite auditar cobertura. Nenhuma migracao de banco foi necessaria. Consulte
+`docs/OVITRAMPAS_EXPORTACAO_XLSX.md`.
+
 ### Mapas-base
 
 Na versao `1.35.2`, o sistema deixou de consultar diretamente os blocos

@@ -1433,6 +1433,93 @@ def monitoramento(db_path, filtros=None):
     }
 
 
+def filtros_monitoramento_contagens(conn, filtros=None):
+    """Normaliza os filtros compartilhados pela tela e pela exportacao."""
+    filtros = filtros or {}
+    ano = _int(filtros.get("ano"))
+    semana_ini = _int(filtros.get("semana_ini"))
+    semana_fim = _int(filtros.get("semana_fim"))
+    data_ini = _date(filtros.get("data_ini"))
+    data_fim = _date(filtros.get("data_fim"))
+    ultimas = _int(filtros.get("ultimas")) or 8
+    ultimas = max(1, min(ultimas, 52))
+    distrito = _text(filtros.get("distrito"))
+    ovitrampa = _text(filtros.get("ovitrampa"))
+    min_leituras = _int(filtros.get("min_leituras")) or 1
+    min_leituras = max(1, min(min_leituras, 999))
+    min_ipo = _real(filtros.get("min_ipo"))
+    min_ido = _real(filtros.get("min_ido"))
+    min_imo = _real(filtros.get("min_imo"))
+    min_ipo = max(0.0, min(min_ipo, 100.0)) if min_ipo is not None else None
+    min_ido = max(0.0, min_ido) if min_ido is not None else None
+    min_imo = max(0.0, min_imo) if min_imo is not None else None
+    ordenar = (_text(filtros.get("ordenar")) or "positivas").lower()
+
+    if not ano and not data_ini and not data_fim:
+        latest = conn.execute(
+            f"SELECT ano, semana FROM {OCORRENCIAS_TABLE} "
+            "ORDER BY ano DESC, semana DESC LIMIT 1"
+        ).fetchone()
+        if latest:
+            ano = latest["ano"]
+            if not semana_ini and not semana_fim:
+                semana_fim = latest["semana"]
+                semana_ini = max(1, semana_fim - ultimas + 1)
+            elif not semana_ini:
+                semana_ini = max(1, semana_fim - ultimas + 1)
+            elif not semana_fim:
+                semana_fim = latest["semana"]
+
+    clauses = ["1=1"]
+    params = []
+    if ano:
+        clauses.append("o.ano=?")
+        params.append(ano)
+        if semana_ini:
+            clauses.append("o.semana>=?")
+            params.append(semana_ini)
+        if semana_fim:
+            clauses.append("o.semana<=?")
+            params.append(semana_fim)
+    elif semana_ini:
+        clauses.append("o.semana>=?")
+        params.append(semana_ini)
+        if semana_fim:
+            clauses.append("o.semana<=?")
+            params.append(semana_fim)
+    elif semana_fim:
+        clauses.append("o.semana<=?")
+        params.append(semana_fim)
+    if data_ini:
+        clauses.append("o.data>=?")
+        params.append(data_ini)
+    if data_fim:
+        clauses.append("o.data<=?")
+        params.append(data_fim)
+    if distrito:
+        clauses.append("am.localidade=?")
+        params.append(distrito)
+    if ovitrampa:
+        clauses.append("LOWER(COALESCE(o.ovitrampa_id,'')) LIKE ?")
+        params.append(f"%{ovitrampa.lower()}%")
+    periodo = {
+        "ano": ano, "semana_ini": semana_ini, "semana_fim": semana_fim,
+        "data_ini": data_ini, "data_fim": data_fim, "ultimas": ultimas,
+    }
+    return {
+        "where": "WHERE " + " AND ".join(clauses),
+        "params": params,
+        "periodo": periodo,
+        "distrito": distrito,
+        "ovitrampa": ovitrampa,
+        "min_leituras": min_leituras,
+        "min_ipo": min_ipo,
+        "min_ido": min_ido,
+        "min_imo": min_imo,
+        "ordenar": ordenar,
+    }
+
+
 def monitoramento_contagens(db_path, filtros=None):
     """Monitoramento das contagens com o espelho API como fonte.
 
@@ -1444,77 +1531,15 @@ def monitoramento_contagens(db_path, filtros=None):
     conn = db_core.connect(db_path)
     try:
         ensure_schema(conn)
-        ano = _int(filtros.get("ano"))
-        semana_ini = _int(filtros.get("semana_ini"))
-        semana_fim = _int(filtros.get("semana_fim"))
-        data_ini = _date(filtros.get("data_ini"))
-        data_fim = _date(filtros.get("data_fim"))
-        ultimas = _int(filtros.get("ultimas")) or 8
-        ultimas = max(1, min(ultimas, 52))
-        distrito = _text(filtros.get("distrito"))
-        ovitrampa = _text(filtros.get("ovitrampa"))
-        min_leituras = _int(filtros.get("min_leituras")) or 1
-        min_leituras = max(1, min(min_leituras, 999))
-        min_ipo = _real(filtros.get("min_ipo"))
-        min_ido = _real(filtros.get("min_ido"))
-        min_imo = _real(filtros.get("min_imo"))
-        min_ipo = max(0.0, min(min_ipo, 100.0)) if min_ipo is not None else None
-        min_ido = max(0.0, min_ido) if min_ido is not None else None
-        min_imo = max(0.0, min_imo) if min_imo is not None else None
-        ordenar = (_text(filtros.get("ordenar")) or "positivas").lower()
-
-        if not ano and not data_ini and not data_fim:
-            latest = conn.execute(
-                f"SELECT ano, semana FROM {OCORRENCIAS_TABLE} "
-                "ORDER BY ano DESC, semana DESC LIMIT 1"
-            ).fetchone()
-            if latest:
-                ano = latest["ano"]
-                if not semana_ini and not semana_fim:
-                    semana_fim = latest["semana"]
-                    semana_ini = max(1, semana_fim - ultimas + 1)
-                elif not semana_ini:
-                    semana_ini = max(1, semana_fim - ultimas + 1)
-                elif not semana_fim:
-                    semana_fim = latest["semana"]
-
-        clauses = ["1=1"]
-        params = []
-        if ano:
-            clauses.append("o.ano=?")
-            params.append(ano)
-            if semana_ini:
-                clauses.append("o.semana>=?")
-                params.append(semana_ini)
-            if semana_fim:
-                clauses.append("o.semana<=?")
-                params.append(semana_fim)
-        elif semana_ini:
-            clauses.append("o.semana>=?")
-            params.append(semana_ini)
-            if semana_fim:
-                clauses.append("o.semana<=?")
-                params.append(semana_fim)
-        elif semana_fim:
-            clauses.append("o.semana<=?")
-            params.append(semana_fim)
-        if data_ini:
-            clauses.append("o.data>=?")
-            params.append(data_ini)
-        if data_fim:
-            clauses.append("o.data<=?")
-            params.append(data_fim)
-        if distrito:
-            clauses.append("am.localidade=?")
-            params.append(distrito)
-        if ovitrampa:
-            clauses.append("LOWER(COALESCE(o.ovitrampa_id,'')) LIKE ?")
-            params.append(f"%{ovitrampa.lower()}%")
-        where = "WHERE " + " AND ".join(clauses)
-        periodo = {
-            "ano": ano, "semana_ini": semana_ini, "semana_fim": semana_fim,
-            "data_ini": data_ini, "data_fim": data_fim, "ultimas": ultimas,
-        }
+        preparados = filtros_monitoramento_contagens(conn, filtros)
+        where = preparados["where"]
+        params = preparados["params"]
+        periodo = preparados["periodo"]
+        min_leituras = preparados["min_leituras"]
+        min_ipo = preparados["min_ipo"]
+        min_ido = preparados["min_ido"]
+        min_imo = preparados["min_imo"]
+        ordenar = preparados["ordenar"]
         positivas_expr = "SUM(CASE WHEN COALESCE(o.ovos,0)>0 THEN 1 ELSE 0 END)"
         ovos_expr = "COALESCE(SUM(o.ovos),0)"
         ipo_expr = _round_one(

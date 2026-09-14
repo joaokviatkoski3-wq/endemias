@@ -261,6 +261,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
         <div class="f-g"><label>Ordenar ranking por</label><select id="ovi-mon-ordenar"><option value="positivas">Positivas</option><option value="ipo">IPO</option><option value="ido">IDO</option><option value="ovos">Total de ovos</option><option value="leituras">Leituras</option><option value="recente">Positiva mais recente</option></select></div>
         <button class="btn btn-ghost" type="button" id="ovi-mon-limpar">Limpar</button>
         <button class="btn btn-outline" type="button" id="ovi-mon-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Aplicar filtros</button>
+        <button class="btn btn-outline" type="button" id="ovi-mon-exportar"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Exportar .xlsx</button>
         <div class="ovi-monitor-filter-note"><span>Ano, semanas, datas, localidade e ovitrampa atualizam as análises de leitura. Os limites mínimos e a ordenação alteram somente o ranking.</span><span class="ovi-monitor-filter-status" id="ovi-mon-filter-status" role="status"></span></div>
       </div>
     </div>
@@ -1663,6 +1664,9 @@ document.querySelectorAll('[data-ovi-tab]').forEach(btn => btn.addEventListener(
 document.getElementById('ovi-atualizar').addEventListener('click', () => carregarOvitrampas().catch(e => toast('Erro ao carregar ovitrampas: ' + e.message, 'error')));
 document.getElementById('ovi-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarListaOvitrampas().catch(err => toast('Erro na busca: ' + err.message, 'error')); });
 document.getElementById('ovi-mon-atualizar').addEventListener('click', () => carregarMonitoramento().catch(e => toast('Erro ao carregar monitoramento: ' + e.message, 'error')));
+document.getElementById('ovi-mon-exportar').addEventListener('click', () => {
+  window.location = '/api/ovitrampas/monitoramento/exportar?' + oviMonitorParams().toString();
+});
 document.querySelectorAll('#ovi-panel-monitoramento input, #ovi-panel-monitoramento select').forEach(el => {
   el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', agendarMonitoramento);
   el.addEventListener('keydown', e => {

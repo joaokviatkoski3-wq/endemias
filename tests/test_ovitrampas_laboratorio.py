@@ -1,13 +1,125 @@
+import io
 import tempfile
 import unittest
 from pathlib import Path
 
+import openpyxl
+
+from app_core import contaovos_registro
 from app_core import db as db_core
 from app_core import ovitrampas as ovitrampas_core
+from app_core import ovitrampas_export as exportacao_core
 from app_core import ovitrampas_laboratorio as laboratorio_core
 
 
 class OvitrampasLaboratorioTests(unittest.TestCase):
+    def test_exportacao_monitoramento_reune_fontes_e_respeita_filtros(self):
+        base = Path(tempfile.mkdtemp())
+        db_path = base / "exportacao.db"
+        conn = db_core.connect(db_path)
+        conn.executescript("""
+            CREATE TABLE usuarios (
+                id_usuario INTEGER PRIMARY KEY, nome TEXT, nivel TEXT, ativo INTEGER DEFAULT 1
+            );
+            CREATE TABLE agentes (
+                id_agente INTEGER PRIMARY KEY, nome TEXT, ativo INTEGER DEFAULT 1
+            );
+            INSERT INTO usuarios(id_usuario,nome,nivel) VALUES (1,'Laboratorista','admin');
+        """)
+        conn.commit()
+        conn.close()
+        laboratorio_core.ensure_schema(db_path)
+
+        conn = db_core.connect(db_path)
+        contaovos_registro.ensure_schema_connection(conn)
+        agora = "2026-08-20T10:00:00"
+        conn.execute(
+            """INSERT INTO ovitrampas_armadilhas
+               (ovitrampa_id,rua,numero,complemento,localidade,responsavel,
+                telefone_responsavel,quarteirao,latitude,longitude,atualizado_em)
+               VALUES ('97','Rua A','10','Casa','Roma','Maria','41999990000','100',-25.1,-49.2,?),
+                      ('98','Rua B','20','Muro','Cachoeira','Joao',NULL,'101',-25.2,-49.3,?),
+                      ('99','Rua C','30','Loja','Roma','Ana',NULL,'102',-25.3,-49.4,?)""",
+            (agora, agora, agora),
+        )
+        conn.execute(
+            """INSERT INTO contaovos_registro_ovitrampas
+               (ovitrampa_id_remoto,ovitrap_id,latitude,longitude,coordenada_erro,
+                municipio,municipio_codigo,estado,ovos_media,quarteirao_remoto_id,
+                grupo_remoto_id,usuario_remoto_id,atualizado_remoto_em,sincronizado_em)
+               VALUES ('97','209347',-25.11,-49.21,0,'Almirante Tamandare','4100400',
+                       'PR',4.5,'500','1867','20','2026-08-20',?),
+                      ('100','209350',-25.4,-49.5,0,'Almirante Tamandare','4100400',
+                       'PR',0,'503','1867','20','2026-08-20',?)""",
+            (agora, agora),
+        )
+        conn.execute(
+            """INSERT INTO ovitrampas_ocorrencias_conta_ovos
+               (id_contagem,ovitrampa_id,ano,semana,data,data_envio_contagem,ovos,
+                resultado,observacao_conta_ovos,latitude,longitude,arquivo_origem,importado_em)
+               VALUES ('900','97',2026,34,'2026-08-20','2026-08-21T09:00:00',5,
+                       'Positiva','=2+2',-25.12,-49.22,'API Conta Ovos',?),
+                      ('901','98',2026,33,'2026-08-10','2026-08-11T09:00:00',0,
+                       'Negativa',NULL,-25.2,-49.3,'API Conta Ovos',?)""",
+            (agora, agora),
+        )
+        diario = conn.execute(
+            """INSERT INTO ovitrampas_diarios(nome,ativo,criado_em,atualizado_em)
+               VALUES ('Roma 1',1,?,?)""", (agora, agora)
+        ).lastrowid
+        evento = conn.execute(
+            """INSERT INTO ovitrampas_calendario_eventos
+               (data,movimento,ciclo,criado_em,atualizado_em)
+               VALUES ('2026-08-20','troca','9',?,?)""", (agora, agora)
+        ).lastrowid
+        lote = conn.execute(
+            """INSERT INTO ovitrampas_laboratorio_lotes
+               (id_evento,id_diario,diario_nome,data_movimento,movimento,ciclo,status,
+                id_laboratorista,laboratorista_nome,concluido_em,criado_em,atualizado_em)
+               VALUES (?,?,?,'2026-08-20','troca','9','concluido',1,'Laboratorista',?,?,?)""",
+            (evento, diario, "Roma 1", agora, agora, agora),
+        ).lastrowid
+        conn.execute(
+            """INSERT INTO ovitrampas_laboratorio_itens
+               (id_lote,ovitrampa_id,complemento,localidade,ovos,ocorrencia,atualizado_em)
+               VALUES (?, '97','Casa','Roma',5,6,?)""",
+            (lote, agora),
+        )
+        conn.commit()
+        conn.close()
+
+        arquivo, nome = exportacao_core.gerar_monitoramento_xlsx(
+            db_path,
+            {"data_ini": "2026-08-15", "data_fim": "2026-08-31", "distrito": "Roma"},
+        )
+        wb = openpyxl.load_workbook(io.BytesIO(arquivo.getvalue()), data_only=False)
+
+        self.assertTrue(nome.startswith("ovitrampas_monitoramento_"))
+        self.assertEqual(
+            ["Resumo", "Leituras", "Armadilhas", "Semanas", "Localidades", "Ocorrências"],
+            wb.sheetnames,
+        )
+        leituras = wb["Leituras"]
+        headers = [cell.value for cell in leituras[1]]
+        self.assertEqual(2, leituras.max_row)
+        self.assertEqual("97", str(leituras.cell(2, headers.index("ID da ovitrampa") + 1).value))
+        self.assertEqual("Maria", leituras.cell(2, headers.index("Responsável") + 1).value)
+        self.assertEqual("209347", str(leituras.cell(2, headers.index("ID interno remoto") + 1).value))
+        self.assertEqual("Laboratorista", leituras.cell(2, headers.index("Laboratorista") + 1).value)
+        self.assertEqual("Casa fechada", leituras.cell(2, headers.index("Ocorrência") + 1).value)
+        self.assertEqual("'=2+2", leituras.cell(2, headers.index("Observação Conta Ovos") + 1).value)
+
+        armadilhas = wb["Armadilhas"]
+        arm_headers = [cell.value for cell in armadilhas[1]]
+        arm_rows = {
+            str(row[arm_headers.index("ID da ovitrampa")].value): row
+            for row in armadilhas.iter_rows(min_row=2)
+        }
+        self.assertEqual({"97", "99"}, set(arm_rows))
+        self.assertEqual(1, arm_rows["97"][arm_headers.index("Leituras no período")].value)
+        self.assertEqual(0, arm_rows["99"][arm_headers.index("Leituras no período")].value)
+        self.assertEqual(2, wb["Ocorrências"].max_row)
+
     def _banco(self, path):
         conn = db_core.connect(path)
         conn.executescript("""

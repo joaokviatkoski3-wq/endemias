@@ -2422,6 +2422,8 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertIn('id="ovi-mon-data-ini"', html)
         self.assertIn('id="ovi-mon-data-fim"', html)
         self.assertIn('id="ovi-mon-filter-status"', html)
+        self.assertIn('id="ovi-mon-exportar"', html)
+        self.assertIn('/api/ovitrampas/monitoramento/exportar?', html)
         self.assertIn('IPO — Índice de Positividade de Ovitrampas', html)
         self.assertIn("scales:{y:{beginAtZero:true", html)
         self.assertIn("function agendarMonitoramento()", html)
@@ -7086,6 +7088,31 @@ class MainApisSmokeTests(unittest.TestCase):
                     self.assertTrue(resp.data.startswith(b"PK"))
                 finally:
                     resp.close()
+
+    def test_ovitrampas_exporta_monitoramento_filtrado_xlsx(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _app_temp, client, _db_path = _client_admin_com_banco_temporario(tmpdir)
+            resp = client.get(
+                "/api/ovitrampas/monitoramento/exportar"
+                "?data_ini=2099-01-01&data_fim=2099-01-02&distrito=Roma"
+            )
+            try:
+                self.assertEqual(resp.status_code, 200)
+                self.assertIn(
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    resp.content_type,
+                )
+                self.assertTrue(resp.data.startswith(b"PK"))
+                wb = openpyxl.load_workbook(io.BytesIO(resp.data), read_only=True)
+                try:
+                    self.assertEqual(
+                        ["Resumo", "Leituras", "Armadilhas", "Semanas", "Localidades", "Ocorrências"],
+                        wb.sheetnames,
+                    )
+                finally:
+                    wb.close()
+            finally:
+                resp.close()
 
     def test_exportacao_xlsx_escapa_formulas(self):
         rows = [{"campo": "=HYPERLINK(\"http://exemplo\")"}]

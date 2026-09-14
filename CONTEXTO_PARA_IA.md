@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.36.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.37.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -315,6 +315,11 @@ obrigatoria para integracao.
   `nao_acs_presente` sao persistidos como `1` e `0`; o nome so e mantido no
   primeiro caso. Os campos ainda nao aparecem na interface. Consulte
   `docs/PVE_ACS.md`.
+- A versao `1.37.0` acrescentou ao Monitoramento de Ovitrampas a exportacao
+  filtrada em XLSX. O arquivo reune resumo, todas as leituras do recorte,
+  cadastro consolidado local/remoto, indicadores por semana e localidade e
+  ocorrencias do laboratorio. O download usa apenas os espelhos locais e nao
+  faz chamadas nem escritas na API. Consulte `docs/OVITRAMPAS_EXPORTACAO_XLSX.md`.
 - O envio remoto de leituras por lote via `/postcounting` ja existe na `master`,
   sob demanda, com confirmacao no navegador, sem retentativa automatica e sem
   envio silencioso. Ele nao deve ser confundido com a sincronizacao GET.

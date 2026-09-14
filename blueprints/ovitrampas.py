@@ -1,9 +1,10 @@
+import logging
 import os
 import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, jsonify, render_template, request, send_file
 
 from app_core import audit
 from app_core import auth as auth_core
@@ -14,6 +15,7 @@ from app_core import contaovos_fila
 from app_core import contaovos_registro
 from app_core import contaovos_sync
 from app_core import ovitrampas as ovitrampas_core
+from app_core import ovitrampas_export
 from app_core import ovitrampas_laboratorio as ovi_lab_core
 
 
@@ -176,7 +178,14 @@ def api_armadilhas():
 @bp.route("/api/ovitrampas/monitoramento")
 @login_required
 def api_monitoramento():
-    filtros = {
+    dados = ovitrampas_core.monitoramento_contagens(
+        _db_path(), _monitoramento_filtros()
+    )
+    return jsonify(dados)
+
+
+def _monitoramento_filtros():
+    return {
         "ano": request.args.get("ano", ""),
         "semana_ini": request.args.get("semana_ini", ""),
         "semana_fim": request.args.get("semana_fim", ""),
@@ -191,7 +200,24 @@ def api_monitoramento():
         "min_imo": request.args.get("min_imo", ""),
         "ordenar": request.args.get("ordenar", ""),
     }
-    return jsonify(ovitrampas_core.monitoramento_contagens(_db_path(), filtros))
+
+
+@bp.route("/api/ovitrampas/monitoramento/exportar")
+@login_required
+def api_monitoramento_exportar():
+    try:
+        arquivo, nome = ovitrampas_export.gerar_monitoramento_xlsx(
+            _db_path(), _monitoramento_filtros()
+        )
+        return send_file(
+            arquivo,
+            as_attachment=True,
+            download_name=nome,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except Exception:
+        logging.exception("Erro ao exportar o monitoramento de ovitrampas")
+        return jsonify({"erro": "Não foi possível gerar a planilha de ovitrampas."}), 500
 
 
 @bp.route("/api/ovitrampas/armadilhas/<path:ovitrampa_id>")
