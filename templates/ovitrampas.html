@@ -44,6 +44,8 @@
 .ovi-index-note strong{color:var(--text);}
 .ovi-monitor-filter-note{grid-column:1/-1;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:var(--text3);font-size:10px;line-height:1.35;}
 .ovi-monitor-filter-status{font-weight:800;color:#0f766e;}
+.ovi-filter-wide{grid-column:span 2;}
+.ovi-filter-help{display:block;margin-top:4px;color:var(--text3);font-size:9px;line-height:1.3;}
 .ovi-monitor-charts{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr);gap:14px;margin-bottom:16px;}
 .ovi-chart-wrap{position:relative;height:300px;}
 .ovi-panel#ovi-panel-monitoramento .table-scroll{max-height:360px;overflow:auto;}
@@ -156,6 +158,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
 @media(max-width:920px){.ovi-batch{grid-template-columns:1fr;}}
 @media(max-width:760px){.ovi-lab-admin-head{grid-template-columns:1fr 1fr;}.ovi-lab-admin-main{grid-column:1/-1;}.ovi-lab-admin-head .btn{width:100%;justify-content:center;}}
 @media(max-width:640px){.ovi-reading-top{grid-template-columns:1fr 1fr;}.ovi-year-grid{grid-template-columns:1fr;}.ovi-modal-grid{grid-template-columns:1fr;}}
+@media(max-width:640px){.ovi-filter-wide{grid-column:1/-1;}}
 </style>{% endblock %}
 
 {% block content %}
@@ -252,8 +255,8 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
         <div class="f-g"><label>Últimas semanas</label><input type="number" id="ovi-mon-ultimas" min="1" max="52" value="8"></div>
         <div class="f-g"><label>Data inicial</label><input type="date" id="ovi-mon-data-ini"></div>
         <div class="f-g"><label>Data final</label><input type="date" id="ovi-mon-data-fim"></div>
-        <div class="f-g"><label>Localidade</label><select id="ovi-mon-distrito"><option value="">Todas</option>{% for distrito in distritos %}<option value="{{ distrito }}">{{ distrito }}</option>{% endfor %}</select></div>
-        <div class="f-g"><label>Ovitrampa</label><input type="search" id="ovi-mon-ovitrampa" placeholder="ID completo ou parte"></div>
+        <div class="f-g ovi-filter-wide"><label>Localidades</label><select id="ovi-mon-localidades" multiple data-multi-picker data-placeholder="Todas" data-search-placeholder="Pesquisar localidade" data-select-visible>{% for distrito in distritos %}<option value="{{ distrito }}">{{ distrito }}</option>{% endfor %}</select><span class="ovi-filter-help">É possível combinar várias localidades.</span></div>
+        <div class="f-g ovi-filter-wide"><label>Ovitrampas</label><select id="ovi-mon-ovitrampas" multiple data-multi-picker data-placeholder="Todas das localidades" data-search-placeholder="Pesquisar ID, endereço ou localidade" data-select-visible disabled></select><span class="ovi-filter-help" id="ovi-mon-opcoes-status">Carregando armadilhas disponíveis…</span></div>
         <div class="f-g"><label>Mínimo de leituras no ranking</label><input type="number" id="ovi-mon-min-leituras" min="1" max="999" value="1"></div>
         <div class="f-g"><label>IPO mínimo no ranking (%)</label><input type="number" id="ovi-mon-min-ipo" min="0" max="100" step="0.1" placeholder="Qualquer"></div>
         <div class="f-g"><label>IDO mínimo no ranking</label><input type="number" id="ovi-mon-min-ido" min="0" step="0.1" placeholder="Qualquer"></div>
@@ -262,7 +265,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
         <button class="btn btn-ghost" type="button" id="ovi-mon-limpar">Limpar</button>
         <button class="btn btn-outline" type="button" id="ovi-mon-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Aplicar filtros</button>
         <button class="btn btn-outline" type="button" id="ovi-mon-exportar"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Exportar .xlsx</button>
-        <div class="ovi-monitor-filter-note"><span>Ano, semanas, datas, localidade e ovitrampa atualizam as análises de leitura. Os limites mínimos e a ordenação alteram somente o ranking.</span><span class="ovi-monitor-filter-status" id="ovi-mon-filter-status" role="status"></span></div>
+        <div class="ovi-monitor-filter-note"><span>Ano, semanas, datas, localidades e ovitrampas atualizam todas as análises e a planilha. Os limites mínimos e a ordenação alteram somente o ranking.</span><span class="ovi-monitor-filter-status" id="ovi-mon-filter-status" role="status"></span></div>
       </div>
     </div>
   </div>
@@ -603,6 +606,8 @@ let oviMonitorIndicesChart = null;
 let oviMonitorVolumeChart = null;
 let oviMonitorFiltroTimer = null;
 let oviMonitorRequestSeq = 0;
+let oviMonitorOpcoesRequestSeq = 0;
+let oviMonitorOpcoesCarregadas = false;
 const oviDiarioReduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || false;
 const oviDiarioDragThreshold = 6;
 function novoEstadoOviDiarioDrag(){
@@ -637,6 +642,12 @@ function oviArmParams(){
 }
 function oviMonitorParams(){
   const p = new URLSearchParams();
+  Array.from(document.getElementById('ovi-mon-localidades')?.selectedOptions || []).forEach(opt => {
+    if (opt.value) p.append('localidade', opt.value);
+  });
+  Array.from(document.getElementById('ovi-mon-ovitrampas')?.selectedOptions || []).forEach(opt => {
+    if (opt.value) p.append('ovitrampa_id', opt.value);
+  });
   const campos = [
     ['ano', 'ovi-mon-ano'],
     ['semana_ini', 'ovi-mon-semana-ini'],
@@ -644,8 +655,6 @@ function oviMonitorParams(){
     ['data_ini', 'ovi-mon-data-ini'],
     ['data_fim', 'ovi-mon-data-fim'],
     ['ultimas', 'ovi-mon-ultimas'],
-    ['distrito', 'ovi-mon-distrito'],
-    ['ovitrampa', 'ovi-mon-ovitrampa'],
     ['min_leituras', 'ovi-mon-min-leituras'],
     ['min_ipo', 'ovi-mon-min-ipo'],
     ['min_ido', 'ovi-mon-min-ido'],
@@ -657,6 +666,51 @@ function oviMonitorParams(){
     if (value) p.set(key, value);
   });
   return p;
+}
+async function carregarOviMonitorOpcoesArmadilhas(){
+  const requestSeq = ++oviMonitorOpcoesRequestSeq;
+  const select = document.getElementById('ovi-mon-ovitrampas');
+  const status = document.getElementById('ovi-mon-opcoes-status');
+  const anteriores = new Set(Array.from(select.selectedOptions || []).map(opt => opt.value));
+  const params = new URLSearchParams();
+  Array.from(document.getElementById('ovi-mon-localidades')?.selectedOptions || []).forEach(opt => {
+    if (opt.value) params.append('localidade', opt.value);
+  });
+  select.disabled = true;
+  select.nextElementSibling?.querySelector('.multi-picker-trigger')?.setAttribute('disabled', '');
+  if (status) status.textContent = 'Carregando armadilhas disponíveis…';
+  let data;
+  try {
+    data = await oviGet('/api/ovitrampas/monitoramento/opcoes-armadilhas?' + params.toString());
+  } catch (err) {
+    if (requestSeq !== oviMonitorOpcoesRequestSeq) return false;
+    select.disabled = false;
+    window.refreshMultiPicker?.(select);
+    if (status) status.textContent = 'Não foi possível carregar as armadilhas.';
+    throw err;
+  }
+  if (requestSeq !== oviMonitorOpcoesRequestSeq) return false;
+  const registros = data.registros || [];
+  select.innerHTML = registros.map(r => {
+    const endereco = [r.rua, r.numero].filter(Boolean).join(', ');
+    const detalhes = [r.localidade || 'Sem localidade', endereco, r.complemento || r.localizacao]
+      .filter(Boolean).join(' — ');
+    const inativa = r.ativo ? '' : ' (inativa)';
+    const selected = anteriores.has(String(r.ovitrampa_id)) ? ' selected' : '';
+    return `<option value="${oviEscape(r.ovitrampa_id)}"${selected}>${oviEscape(r.ovitrampa_id)} · ${oviEscape(detalhes)}${inativa}</option>`;
+  }).join('');
+  select.disabled = registros.length === 0;
+  window.refreshMultiPicker?.(select);
+  oviMonitorOpcoesCarregadas = true;
+  if (status) {
+    status.textContent = registros.length
+      ? `${oviFmt.format(registros.length)} armadilha(s) disponível(is); pesquise e marque somente as desejadas.`
+      : 'Nenhuma armadilha cadastrada nas localidades escolhidas.';
+  }
+  return true;
+}
+async function aplicarOviMonitorLocalidades(){
+  if (await carregarOviMonitorOpcoesArmadilhas()) await carregarMonitoramento();
 }
 function oviDateKey(date){
   const y = date.getFullYear();
@@ -852,7 +906,13 @@ async function carregarMonitoramento(){
   if (p.data_ini || p.data_fim) periodos.push(`datas ${p.data_ini || 'início'} a ${p.data_fim || 'hoje'}`);
   const periodoLabel = periodos.join(' · ') || 'Sem recorte de período';
   document.getElementById('ovi-mon-periodo').textContent = periodoLabel;
-  if (status) status.textContent = `Aplicado: ${periodoLabel}.`;
+  const localidades = document.getElementById('ovi-mon-localidades')?.selectedOptions.length || 0;
+  const armadilhas = document.getElementById('ovi-mon-ovitrampas')?.selectedOptions.length || 0;
+  const escopo = [
+    localidades ? `${localidades} localidade(s)` : 'todas as localidades',
+    armadilhas ? `${armadilhas} armadilha(s)` : 'todas as armadilhas disponíveis',
+  ].join(' · ');
+  if (status) status.textContent = `Aplicado: ${periodoLabel} · ${escopo}.`;
   renderOviMonitorCharts(data.por_semana || []);
 
   document.getElementById('ovi-mon-semanas-body').innerHTML = (data.por_semana || []).map(r => `
@@ -1655,7 +1715,12 @@ document.querySelectorAll('[data-ovi-tab]').forEach(btn => btn.addEventListener(
   const painelLaboratorio=document.getElementById('ovi-panel-laboratorio');
   if(painelLaboratorio)painelLaboratorio.hidden=alvo!=='laboratorio';
   document.getElementById('ovi-panel-calendario').hidden = alvo !== 'calendario';
-  if (alvo === 'monitoramento') carregarMonitoramento().catch(e => toast('Erro ao carregar monitoramento: ' + e.message, 'error'));
+  if (alvo === 'monitoramento') {
+    const tarefa = oviMonitorOpcoesCarregadas
+      ? carregarMonitoramento()
+      : carregarOviMonitorOpcoesArmadilhas().then(ok => ok && carregarMonitoramento());
+    tarefa.catch(e => toast('Erro ao carregar monitoramento: ' + e.message, 'error'));
+  }
   if (alvo === 'armadilhas') carregarArmadilhas().catch(e => toast('Erro ao carregar armadilhas: ' + e.message, 'error'));
   if (alvo === 'diarios') carregarDiarios().catch(e => toast('Erro ao carregar diários: ' + e.message, 'error'));
   if (alvo === 'laboratorio') carregarOviLaboratorio().catch(e => toast('Erro ao carregar laboratório: ' + e.message, 'error'));
@@ -1668,6 +1733,7 @@ document.getElementById('ovi-mon-exportar').addEventListener('click', () => {
   window.location = '/api/ovitrampas/monitoramento/exportar?' + oviMonitorParams().toString();
 });
 document.querySelectorAll('#ovi-panel-monitoramento input, #ovi-panel-monitoramento select').forEach(el => {
+  if (el.id === 'ovi-mon-localidades') return;
   el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', agendarMonitoramento);
   el.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
@@ -1676,12 +1742,22 @@ document.querySelectorAll('#ovi-panel-monitoramento input, #ovi-panel-monitorame
     }
   });
 });
-document.getElementById('ovi-mon-limpar').addEventListener('click', () => {
-  ['ovi-mon-ano','ovi-mon-semana-ini','ovi-mon-semana-fim','ovi-mon-data-ini','ovi-mon-data-fim','ovi-mon-distrito','ovi-mon-ovitrampa','ovi-mon-min-ipo','ovi-mon-min-ido','ovi-mon-min-imo'].forEach(id => { document.getElementById(id).value = ''; });
+document.getElementById('ovi-mon-localidades').addEventListener('change', () => {
+  clearTimeout(oviMonitorFiltroTimer);
+  aplicarOviMonitorLocalidades().catch(e => toast('Erro ao filtrar armadilhas: ' + e.message, 'error'));
+});
+document.getElementById('ovi-mon-limpar').addEventListener('click', async () => {
+  ['ovi-mon-ano','ovi-mon-semana-ini','ovi-mon-semana-fim','ovi-mon-data-ini','ovi-mon-data-fim','ovi-mon-min-ipo','ovi-mon-min-ido','ovi-mon-min-imo'].forEach(id => { document.getElementById(id).value = ''; });
+  Array.from(document.getElementById('ovi-mon-localidades').options).forEach(opt => { opt.selected = false; });
+  window.refreshMultiPicker?.('ovi-mon-localidades');
   document.getElementById('ovi-mon-ultimas').value = '8';
   document.getElementById('ovi-mon-min-leituras').value = '1';
   document.getElementById('ovi-mon-ordenar').value = 'positivas';
-  carregarMonitoramento().catch(e => toast('Erro ao carregar monitoramento: ' + e.message, 'error'));
+  try {
+    if (await carregarOviMonitorOpcoesArmadilhas()) await carregarMonitoramento();
+  } catch (e) {
+    toast('Erro ao limpar o monitoramento: ' + e.message, 'error');
+  }
 });
 document.getElementById('ovi-arm-atualizar').addEventListener('click', () => carregarArmadilhas().catch(e => toast('Erro ao carregar armadilhas: ' + e.message, 'error')));
 document.getElementById('ovi-arm-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarArmadilhas().catch(err => toast('Erro na busca: ' + err.message, 'error')); });
@@ -1869,5 +1945,6 @@ document.getElementById('ovi-arm-form').addEventListener('submit', async e => {
     toast('Erro ao atualizar cadastro: ' + err.message, 'error');
   }
 });
+carregarOviMonitorOpcoesArmadilhas().catch(e => toast('Erro ao carregar opções do monitoramento: ' + e.message, 'error'));
 carregarOvitrampas().catch(e => toast('Erro ao carregar ovitrampas: ' + e.message, 'error'));
 </script>{% endblock %}

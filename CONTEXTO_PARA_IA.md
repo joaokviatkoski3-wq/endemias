@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.37.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.38.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -320,6 +320,12 @@ obrigatoria para integracao.
   cadastro consolidado local/remoto, indicadores por semana e localidade e
   ocorrencias do laboratorio. O download usa apenas os espelhos locais e nao
   faz chamadas nem escritas na API. Consulte `docs/OVITRAMPAS_EXPORTACAO_XLSX.md`.
+- A versao `1.38.0` ampliou esse recorte com selecao multipla de localidades e
+  de ovitrampas. O segundo filtro e em cascata: lista IDs, endereco e localidade
+  apenas do cadastro correspondente as localidades marcadas, com pesquisa e
+  acao para selecionar as opcoes visiveis. Cards, graficos, tabelas,
+  ocorrencias, pendencias e XLSX recebem exatamente a mesma selecao. Nenhuma
+  migracao de banco foi necessaria.
 - O envio remoto de leituras por lote via `/postcounting` ja existe na `master`,
   sob demanda, com confirmacao no navegador, sem retentativa automatica e sem
   envio silencioso. Ele nao deve ser confundido com a sincronizacao GET.

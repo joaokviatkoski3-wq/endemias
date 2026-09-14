@@ -233,13 +233,19 @@ def _leituras(conn, preparados):
 
 def _armadilhas(conn, preparados):
     contaovos_registro.ensure_schema_connection(conn)
-    distrito = preparados["distrito"]
+    localidades = preparados["localidades"]
+    ovitrampas_selecionadas = preparados["ovitrampas"]
     termo = preparados["ovitrampa"]
     outer_clauses = ["1=1"]
     outer_params = []
-    if distrito:
-        outer_clauses.append("am.localidade=?")
-        outer_params.append(distrito)
+    if localidades:
+        placeholders = ",".join("?" for _ in localidades)
+        outer_clauses.append(f"am.localidade IN ({placeholders})")
+        outer_params.extend(localidades)
+    if ovitrampas_selecionadas:
+        placeholders = ",".join("?" for _ in ovitrampas_selecionadas)
+        outer_clauses.append(f"ids.ovitrampa_id IN ({placeholders})")
+        outer_params.extend(ovitrampas_selecionadas)
     if termo:
         outer_clauses.append("LOWER(ids.ovitrampa_id) LIKE ?")
         outer_params.append(f"%{termo.lower()}%")
@@ -471,8 +477,9 @@ def _write_resumo(wb, monitor, preparados, armadilhas, gerado_em):
         ("Semana final", filtros.get("semana_fim")),
         ("Data inicial", filtros.get("data_ini")),
         ("Data final", filtros.get("data_fim")),
-        ("Localidade", preparados.get("distrito") or "Todas"),
-        ("Ovitrampa", preparados.get("ovitrampa") or "Todas"),
+        ("Localidades", "; ".join(preparados.get("localidades") or []) or "Todas"),
+        ("Ovitrampas selecionadas", "; ".join(preparados.get("ovitrampas") or []) or "Todas"),
+        ("Busca parcial por ovitrampa", preparados.get("ovitrampa") or "Nenhuma"),
         ("Mínimo de leituras no ranking", preparados.get("min_leituras")),
         ("IPO mínimo no ranking (%)", preparados.get("min_ipo")),
         ("IDO mínimo no ranking", preparados.get("min_ido")),

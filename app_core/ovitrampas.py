@@ -1443,7 +1443,10 @@ def filtros_monitoramento_contagens(conn, filtros=None):
     data_fim = _date(filtros.get("data_fim"))
     ultimas = _int(filtros.get("ultimas")) or 8
     ultimas = max(1, min(ultimas, 52))
-    distrito = _text(filtros.get("distrito"))
+    localidades = _text_list(
+        filtros.get("localidades") or filtros.get("localidade") or filtros.get("distrito")
+    )
+    ovitrampas = _text_list(filtros.get("ovitrampas") or filtros.get("ovitrampa_id"))
     ovitrampa = _text(filtros.get("ovitrampa"))
     min_leituras = _int(filtros.get("min_leituras")) or 1
     min_leituras = max(1, min(min_leituras, 999))
@@ -1496,9 +1499,14 @@ def filtros_monitoramento_contagens(conn, filtros=None):
     if data_fim:
         clauses.append("o.data<=?")
         params.append(data_fim)
-    if distrito:
-        clauses.append("am.localidade=?")
-        params.append(distrito)
+    if localidades:
+        placeholders = ",".join("?" for _ in localidades)
+        clauses.append(f"am.localidade IN ({placeholders})")
+        params.extend(localidades)
+    if ovitrampas:
+        placeholders = ",".join("?" for _ in ovitrampas)
+        clauses.append(f"o.ovitrampa_id IN ({placeholders})")
+        params.extend(ovitrampas)
     if ovitrampa:
         clauses.append("LOWER(COALESCE(o.ovitrampa_id,'')) LIKE ?")
         params.append(f"%{ovitrampa.lower()}%")
@@ -1510,7 +1518,9 @@ def filtros_monitoramento_contagens(conn, filtros=None):
         "where": "WHERE " + " AND ".join(clauses),
         "params": params,
         "periodo": periodo,
-        "distrito": distrito,
+        "distrito": localidades[0] if len(localidades) == 1 else None,
+        "localidades": localidades,
+        "ovitrampas": ovitrampas,
         "ovitrampa": ovitrampa,
         "min_leituras": min_leituras,
         "min_ipo": min_ipo,
@@ -2089,6 +2099,36 @@ def distritos(db_path):
         conn.close()
 
 
+def opcoes_armadilhas_monitoramento(db_path, localidades=None):
+    """Lista o cadastro de armadilhas para o filtro em cascata do monitoramento."""
+    localidades = _text_list(localidades)
+    conn = db_core.connect(db_path)
+    try:
+        ensure_schema(conn)
+        clauses = []
+        params = []
+        if localidades:
+            placeholders = ",".join("?" for _ in localidades)
+            clauses.append(f"a.localidade IN ({placeholders})")
+            params.extend(localidades)
+        where = "WHERE " + " AND ".join(clauses) if clauses else ""
+        localidade_order = _nocase_order(conn, "a.localidade")
+        id_order = _numeric_text_order(conn, "a.ovitrampa_id")
+        rows = [db_core.serialize_row(row) for row in conn.execute(
+            f"""SELECT a.ovitrampa_id, a.localidade, a.rua, a.numero,
+                       a.complemento, a.localizacao, COALESCE(a.ativo,1) AS ativo
+                  FROM {ARMADILHAS_TABLE} a
+                  {where}
+                 ORDER BY {localidade_order}, {id_order}, a.ovitrampa_id""",
+            params,
+        )]
+    finally:
+        conn.close()
+    for row in rows:
+        row["ativo"] = bool(row.get("ativo"))
+    return {"total": len(rows), "registros": rows, "localidades": localidades}
+
+
 def _registro(row, arquivo, agora):
     ovitrampa_id = _text(row.get("Ovitrampa ID"))
     ano = _int(row.get("Ano"))
@@ -2632,10 +2672,18 @@ def _monitoramento_ocorrencias_detalhes_laboratorio(conn, from_clause, params):
 def _armadilhas_realocar(conn, filtros):
     clauses = [_realocar_sql(conn, "a")]
     params = []
-    distrito = _text(filtros.get("distrito"))
-    if distrito:
-        clauses.append("a.localidade=?")
-        params.append(distrito)
+    localidades = _text_list(
+        filtros.get("localidades") or filtros.get("localidade") or filtros.get("distrito")
+    )
+    if localidades:
+        placeholders = ",".join("?" for _ in localidades)
+        clauses.append(f"a.localidade IN ({placeholders})")
+        params.extend(localidades)
+    ovitrampas = _text_list(filtros.get("ovitrampas") or filtros.get("ovitrampa_id"))
+    if ovitrampas:
+        placeholders = ",".join("?" for _ in ovitrampas)
+        clauses.append(f"a.ovitrampa_id IN ({placeholders})")
+        params.extend(ovitrampas)
     ovitrampa = _text(filtros.get("ovitrampa"))
     if ovitrampa:
         clauses.append("LOWER(COALESCE(a.ovitrampa_id,'')) LIKE ?")
@@ -3034,6 +3082,22 @@ def _text(value):
         return None
     text = str(value).strip()
     return text if text and text.lower() not in ("nan", "none") else None
+
+
+def _text_list(value):
+    """Normaliza um filtro textual unico ou multiplo, preservando a ordem."""
+    if isinstance(value, (list, tuple, set)):
+        values = value
+    else:
+        values = (value,)
+    result = []
+    seen = set()
+    for item in values:
+        text = _text(item)
+        if text and text not in seen:
+            seen.add(text)
+            result.append(text)
+    return result
 
 
 def _normalizar_quarteirao(value):

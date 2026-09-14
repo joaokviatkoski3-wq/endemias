@@ -184,7 +184,17 @@ def api_monitoramento():
     return jsonify(dados)
 
 
+@bp.route("/api/ovitrampas/monitoramento/opcoes-armadilhas")
+@login_required
+def api_monitoramento_opcoes_armadilhas():
+    localidades = request.args.getlist("localidade") or request.args.getlist("distrito")
+    return jsonify(
+        ovitrampas_core.opcoes_armadilhas_monitoramento(_db_path(), localidades)
+    )
+
+
 def _monitoramento_filtros():
+    localidades = request.args.getlist("localidade") or request.args.getlist("distrito")
     return {
         "ano": request.args.get("ano", ""),
         "semana_ini": request.args.get("semana_ini", ""),
@@ -192,7 +202,8 @@ def _monitoramento_filtros():
         "data_ini": request.args.get("data_ini", ""),
         "data_fim": request.args.get("data_fim", ""),
         "ultimas": request.args.get("ultimas", ""),
-        "distrito": request.args.get("distrito", ""),
+        "localidades": localidades,
+        "ovitrampas": request.args.getlist("ovitrampa_id"),
         "ovitrampa": request.args.get("ovitrampa", ""),
         "min_leituras": request.args.get("min_leituras", ""),
         "min_ipo": request.args.get("min_ipo", ""),

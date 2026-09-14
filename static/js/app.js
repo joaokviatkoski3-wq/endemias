@@ -65,13 +65,26 @@ function initMultiPickers() {
         <span>${escapeAttr(opt.textContent.trim())}</span>
       </label>
     `).join('');
+    const searchPlaceholder = select.dataset.searchPlaceholder;
+    const search = searchPlaceholder ? `
+      <input class="multi-picker-search" type="search" autocomplete="off"
+             placeholder="${escapeAttr(searchPlaceholder)}" aria-label="${escapeAttr(searchPlaceholder)}">
+    ` : '';
+    const selectVisible = select.hasAttribute('data-select-visible')
+      ? '<button class="btn btn-ghost btn-sm multi-picker-select-visible" type="button">Selecionar visíveis</button>'
+      : '';
     picker.innerHTML = `
-      <button class="multi-picker-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+      <button class="multi-picker-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" ${select.disabled ? 'disabled' : ''}>
         <span class="multi-picker-label"></span>
       </button>
       <div class="multi-picker-menu" role="listbox" aria-multiselectable="true">
+        ${search}
         ${options}
-        <button class="btn btn-ghost btn-sm multi-picker-clear" type="button">Limpar</button>
+        <span class="multi-picker-empty" hidden>Nenhuma opção encontrada.</span>
+        <div class="multi-picker-actions">
+          ${selectVisible}
+          <button class="btn btn-ghost btn-sm multi-picker-clear" type="button">Limpar</button>
+        </div>
       </div>`;
     select.insertAdjacentElement('afterend', picker);
 
@@ -90,6 +103,26 @@ function initMultiPickers() {
         select.dispatchEvent(new Event('change', {bubbles:true}));
       });
     });
+    picker.querySelector('.multi-picker-search')?.addEventListener('input', ev => {
+      const termo = ev.currentTarget.value.trim().toLocaleLowerCase('pt-BR');
+      let visiveis = 0;
+      picker.querySelectorAll('.multi-picker-option').forEach(label => {
+        const visivel = !termo || label.textContent.trim().toLocaleLowerCase('pt-BR').includes(termo);
+        label.hidden = !visivel;
+        if (visivel) visiveis += 1;
+      });
+      picker.querySelector('.multi-picker-empty').hidden = visiveis > 0;
+    });
+    picker.querySelector('.multi-picker-select-visible')?.addEventListener('click', ev => {
+      ev.stopPropagation();
+      picker.querySelectorAll('.multi-picker-option:not([hidden]) input[type="checkbox"]').forEach(check => {
+        check.checked = true;
+        const opt = Array.from(select.options).find(item => item.value === check.value);
+        if (opt) opt.selected = true;
+      });
+      updateMultiPickerLabel(select);
+      select.dispatchEvent(new Event('change', {bubbles:true}));
+    });
     picker.querySelector('.multi-picker-clear').addEventListener('click', ev => {
       ev.stopPropagation();
       Array.from(select.options).forEach(opt => opt.selected = false);
@@ -100,6 +133,17 @@ function initMultiPickers() {
     updateMultiPickerLabel(select);
   });
 }
+
+function refreshMultiPicker(selectOrId) {
+  const select = typeof selectOrId === 'string' ? document.getElementById(selectOrId) : selectOrId;
+  if (!select?.matches('select[data-multi-picker][multiple]')) return;
+  if (select.nextElementSibling?.classList?.contains('multi-picker')) {
+    select.nextElementSibling.remove();
+  }
+  delete select.dataset.multiEnhanced;
+  initMultiPickers();
+}
+window.refreshMultiPicker = refreshMultiPicker;
 
 /* Ordenação acessível e reutilizável para tabelas carregadas no navegador. */
 const tableSortCollator = new Intl.Collator('pt-BR', {

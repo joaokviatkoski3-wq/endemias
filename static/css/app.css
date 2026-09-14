@@ -143,10 +143,17 @@ select[data-multi-picker] { display:none !important; }
   border-radius:var(--radius-sm); background:var(--surface); box-shadow:var(--shadow-md);
 }
 .multi-picker.open .multi-picker-menu { display:grid; gap:4px; }
+.multi-picker-search {
+  position:sticky; top:0; z-index:1; width:100%; min-height:34px; margin-bottom:3px;
+  padding:6px 8px; border:1px solid var(--border); border-radius:var(--radius-sm);
+  background:var(--surface); color:var(--text); font:inherit; font-size:12px;
+}
 .multi-picker-option { display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:var(--radius-sm); color:var(--text2); font-size:12px; cursor:pointer; }
 .multi-picker-option:hover { background:var(--surface2); color:var(--text); }
 .multi-picker-option input { width:14px; height:14px; accent-color:var(--brand); }
-.multi-picker-clear { width:100%; justify-content:center; margin-top:4px; }
+.multi-picker-empty { padding:9px 8px; color:var(--text3); font-size:11px; text-align:center; }
+.multi-picker-actions { position:sticky; bottom:0; display:flex; gap:4px; padding-top:4px; background:var(--surface); }
+.multi-picker-actions .btn { flex:1; justify-content:center; }
 
 /* ═══════════════════════════════════════════
    LAYOUT WRAPPER

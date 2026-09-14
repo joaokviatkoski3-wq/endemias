@@ -5,18 +5,27 @@ Atualizado em 14/09/2026.
 ## Estado implementado
 
 Na versao `1.37.0`, a aba **Monitoramento** da pagina `/ovitrampas` ganhou o
-botao **Exportar .xlsx**. O download usa os mesmos parametros enviados por
-**Aplicar filtros**:
+botao **Exportar .xlsx**. A versao `1.38.0` acrescentou filtros multiplos em
+cascata. O download usa os mesmos parametros enviados por **Aplicar filtros**:
 
 - ano, semana inicial e semana final;
 - data inicial e data final;
 - ultimas semanas quando nenhum periodo explicito foi informado;
-- localidade e busca parcial por ID de ovitrampa;
+- uma ou varias localidades;
+- uma ou varias ovitrampas exatas dentre as cadastradas nas localidades
+  selecionadas;
 - minimo de leituras, IPO, IDO e IMO e ordenacao do ranking.
 
-Os filtros de periodo, localidade e ID limitam as leituras e agregacoes. Os
+Os filtros de periodo, localidades e IDs limitam as leituras e agregacoes. Os
 limites do ranking nao apagam dados brutos: a aba **Armadilhas** informa se cada
 linha atende ou nao a esses limites.
+
+Na interface, o seletor de ovitrampas e atualizado quando as localidades mudam.
+Ele mostra ID, localidade e endereco do cadastro local e permite pesquisar ou
+selecionar todas as opcoes visiveis. Deixar um dos seletores sem marcacao
+significa incluir todas as opcoes daquele nivel. As selecoes multiplas sao
+enviadas como parametros repetidos `localidade` e `ovitrampa_id`, evitando
+separadores ambiguos nos nomes e identificadores.
 
 ## Abas geradas
 

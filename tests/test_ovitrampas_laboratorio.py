@@ -90,7 +90,11 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
 
         arquivo, nome = exportacao_core.gerar_monitoramento_xlsx(
             db_path,
-            {"data_ini": "2026-08-15", "data_fim": "2026-08-31", "distrito": "Roma"},
+            {
+                "data_ini": "2026-08-15", "data_fim": "2026-08-31",
+                "localidades": ["Roma", "Cachoeira"],
+                "ovitrampas": ["97", "98"],
+            },
         )
         wb = openpyxl.load_workbook(io.BytesIO(arquivo.getvalue()), data_only=False)
 
@@ -115,10 +119,17 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
             str(row[arm_headers.index("ID da ovitrampa")].value): row
             for row in armadilhas.iter_rows(min_row=2)
         }
-        self.assertEqual({"97", "99"}, set(arm_rows))
+        self.assertEqual({"97", "98"}, set(arm_rows))
         self.assertEqual(1, arm_rows["97"][arm_headers.index("Leituras no período")].value)
-        self.assertEqual(0, arm_rows["99"][arm_headers.index("Leituras no período")].value)
+        self.assertEqual(0, arm_rows["98"][arm_headers.index("Leituras no período")].value)
         self.assertEqual(2, wb["Ocorrências"].max_row)
+        resumo = wb["Resumo"]
+        filtros_resumo = {
+            resumo.cell(row, 1).value: resumo.cell(row, 2).value
+            for row in range(8, 22)
+        }
+        self.assertEqual("Roma; Cachoeira", filtros_resumo["Localidades"])
+        self.assertEqual("97; 98", filtros_resumo["Ovitrampas selecionadas"])
 
     def _banco(self, path):
         conn = db_core.connect(path)
@@ -460,6 +471,18 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
         self.assertEqual(1, dados_data["totais"]["leituras"])
         self.assertEqual(5, dados_data["totais"]["ovos"])
 
+        opcoes = ovitrampas_core.opcoes_armadilhas_monitoramento(db_path, ["Roma"])
+        self.assertEqual(2, opcoes["total"])
+        self.assertEqual({"97", "98"}, {row["ovitrampa_id"] for row in opcoes["registros"]})
+
+        uma_armadilha = ovitrampas_core.monitoramento_contagens(
+            db_path,
+            {"ano": "2026", "localidades": ["Roma"], "ovitrampas": ["98"]},
+        )
+        self.assertEqual(1, uma_armadilha["totais"]["leituras"])
+        self.assertEqual(1, uma_armadilha["totais"]["armadilhas_lidas"])
+        self.assertEqual(0, uma_armadilha["totais"]["ovos"])
+
     def test_monitoramento_contagens_ocorrencias_ranking_e_realocar(self):
         import tempfile
         base = Path(tempfile.mkdtemp())
@@ -578,6 +601,21 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
         # realocar registros locais presentes
         ids = [r["ovitrampa_id"] for r in dados["realocar"]["registros"]]
         self.assertIn("77", ids)
+
+        combinado = ovitrampas_core.monitoramento_contagens(
+            db_path,
+            {
+                "ano": "2026", "semana_ini": "1", "semana_fim": "34",
+                "localidades": ["Roma", "Zona"], "ovitrampas": ["97", "77"],
+            },
+        )
+        self.assertEqual(3, combinado["totais"]["leituras"])
+        self.assertEqual(2, combinado["totais"]["armadilhas_lidas"])
+        self.assertEqual(8, combinado["totais"]["ovos"])
+        opcoes = ovitrampas_core.opcoes_armadilhas_monitoramento(
+            db_path, ["Roma", "Zona"]
+        )
+        self.assertEqual({"97", "98", "77"}, {row["ovitrampa_id"] for row in opcoes["registros"]})
 
         filtrado = ovitrampas_core.monitoramento_contagens(
             db_path,

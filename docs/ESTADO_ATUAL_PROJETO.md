@@ -150,6 +150,15 @@ sem leitura no periodo continuam na aba cadastral com indicadores zerados, o que
 permite auditar cobertura. Nenhuma migracao de banco foi necessaria. Consulte
 `docs/OVITRAMPAS_EXPORTACAO_XLSX.md`.
 
+Na versao `1.38.0`, localidade e ovitrampa deixaram de ser filtros unitarios no
+Monitoramento. Agora e possivel combinar varias localidades e, em seguida,
+escolher varias armadilhas exatas dentre as cadastradas nesse conjunto. Os dois
+seletores possuem pesquisa, limpeza e selecao das opcoes visiveis. A selecao e
+aplicada em conjunto aos cards, graficos, tabelas, ocorrencias laboratoriais,
+pendencias de realocacao e exportacao XLSX. O cadastro local alimenta as opcoes
+em cascata; a leitura e os indicadores continuam vindo do espelho GET do Conta
+Ovos. Nenhuma migracao foi necessaria.
+
 ### Mapas-base
 
 Na versao `1.35.2`, o sistema deixou de consultar diretamente os blocos
