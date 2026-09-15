@@ -117,6 +117,24 @@ def _ensure_visitas_acs_columns(conn):
     return changed
 
 
+def _ensure_visita_acs_table(conn):
+    if not _table_exists(conn, "visitas"):
+        return False
+    if _table_exists(conn, "visita_acs"):
+        return False
+    conn.execute(
+        """
+        CREATE TABLE visita_acs (
+            id_visita TEXT NOT NULL REFERENCES visitas(id_visita) ON DELETE CASCADE,
+            acs_codigo TEXT NOT NULL,
+            PRIMARY KEY (id_visita, acs_codigo)
+        )
+        """
+    )
+    conn.execute("CREATE INDEX idx_visita_acs_codigo ON visita_acs(acs_codigo)")
+    return True
+
+
 def ensure_schema_compatibility(db_path):
     conn = db_core.connect(db_path)
     migrations = []
@@ -127,6 +145,8 @@ def ensure_schema_compatibility(db_path):
             migrations.append("focos_historico_sem_fk")
         if _ensure_visitas_acs_columns(conn):
             migrations.append("visitas_acs")
+        if _ensure_visita_acs_table(conn):
+            migrations.append("visita_acs")
         conn.commit()
     except Exception:
         conn.rollback()

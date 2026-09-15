@@ -22,6 +22,7 @@ TEMP_TABLES = (
     "agentes",
     "visitas",
     "visita_agentes",
+    "visita_acs",
     "depositos_inspecionados",
     "tratamentos",
     "coletas",
@@ -108,6 +109,14 @@ def _insert_fixture(conn):
         """INSERT INTO visita_agentes(id_visita, id_agente)
            VALUES (?,?)""",
         ("visita-pg-temporaria", 900001),
+    )
+    conn.executemany(
+        """INSERT INTO visita_acs(id_visita, acs_codigo)
+           VALUES (?,?)""",
+        [
+            ("visita-pg-temporaria", "maria_da_silva"),
+            ("visita-pg-temporaria", "joao_pereira"),
+        ],
     )
     conn.execute(
         """INSERT INTO depositos_inspecionados (
@@ -207,6 +216,15 @@ def _test_data(target):
             raise RuntimeError("A presenca do ACS nao foi persistida.")
         if detalhe["visita"]["acs_nome"] != "maria_da_silva":
             raise RuntimeError("O identificador canonico do ACS divergiu.")
+        acs = {
+            row["acs_codigo"]
+            for row in conn.execute(
+                "SELECT acs_codigo FROM visita_acs WHERE id_visita=?",
+                ("visita-pg-temporaria",),
+            )
+        }
+        if acs != {"maria_da_silva", "joao_pereira"}:
+            raise RuntimeError("A selecao multipla de ACS divergiu.")
         if detalhe["coletas"][0]["aegypt_larvas"] != 2:
             raise RuntimeError("O resultado laboratorial nao foi detalhado.")
 

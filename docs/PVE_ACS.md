@@ -1,51 +1,58 @@
 # Acompanhamento de ACS em visitas PVE
 
-Atualizado em 14/09/2026.
+Atualizado em 15/09/2026.
 
 ## Campos do formulario Kobo
 
 - `acs_presente`: escolha unica;
   - `sim_acs_presente` significa que um ACS esteve presente;
   - `nao_acs_presente` significa que nao houve acompanhamento de ACS.
-- `acs_nome`: atualmente texto com o nome do ACS, exibido no formulario quando
-  a resposta anterior e positiva. O importador tambem aceita que o campo seja
-  convertido futuramente em `select_one`; nesse caso, o codigo tecnico da
-  escolha sera armazenado como valor canonico.
+- `acs_nome`: `select_multiple`, exibido somente para a resposta positiva.
 
-Os nomes tecnicos nao contem a palavra `agente`, evitando que o reconhecedor de
-agentes de endemias interprete o ACS como integrante da equipe da visita.
+Cada alternativa de ACS deve possuir um codigo tecnico estavel, unico e sem
+espacos, como `maria_da_silva`; o formulario mostra o nome completo no rotulo.
+O Kobo envia os codigos selecionados separados por espaco. Nao reutilize um
+codigo para outra pessoa. Quando houver troca de nome, mantenha o mesmo codigo e
+altere apenas o rotulo; quando for outra pessoa, crie outro codigo. A relacao
+codigo-rotulo do XLSForm deve ser preservada para uma futura exibicao legivel.
 
 ## Persistencia
 
 A tabela `visitas` possui:
 
 - `acs_presente`: `1`, `0` ou `NULL` para visitas anteriores/sem resposta;
-- `acs_nome`: texto ou `NULL`.
+- `acs_nome`: sequencia normalizada de codigos selecionados, separada por
+  espaco, para compatibilidade e rastreabilidade.
+
+A tabela relacional `visita_acs` e a fonte para consultas futuras:
+
+- `id_visita`;
+- `acs_codigo`;
+- chave primaria composta, que impede a repeticao do mesmo ACS na visita.
 
 O importador aceita campos diretos e campos dentro de grupos, como
-`grupo/acs_presente`. O nome so e persistido quando `acs_presente` equivale a
-`sim_acs_presente`; qualquer nome residual recebido com resposta negativa e
-descartado.
+`grupo/acs_presente`. Uma PVE com tres ACS gera tres linhas em `visita_acs`; uma
+nova importacao da mesma visita substitui integralmente essa lista. Se a
+resposta for `nao_acs_presente`, o importador grava `acs_presente=0`, limpa
+`acs_nome` e remove quaisquer vinculos anteriores.
 
 Os campos sao aplicaveis somente a PVE. Para PE, TB e TBO, ambos permanecem
 `NULL`.
 
-Se `acs_nome` passar a ser uma lista, use codigos estaveis e unicos, como
-`maria_da_silva`, e mantenha o nome completo no rotulo da alternativa. Nao
-reutilize um codigo para outra pessoa. A lista de codigos e rotulos devera ser
-preservada para que uma futura interface apresente o nome legivel sem perder a
-identidade canonica recebida do Kobo.
+Os ACS nao sao cadastrados em `agentes` nem entram em `visita_agentes`: essa
+tabela continua reservada aos ACEs e demais agentes de endemias indicados no
+formulario.
 
 ## Escopo atual
 
-Os dados sao importados e armazenados, mas ainda nao sao mostrados nas telas ou
-incluidos nas exportacoes. Uma etapa futura pode acrescentar filtros,
-detalhamento, relatorios e um cadastro padronizado de ACS.
+Os dados sao importados e armazenados, mas ainda nao aparecem nas telas ou nas
+exportacoes. Uma etapa futura pode acrescentar o catalogo local de codigos e
+rotulos de ACS, filtros, detalhes e relatorios, sem alterar os vinculos ja
+registrados.
 
 ## Banco de dados
 
-- PostgreSQL: migracao `migrations/postgresql/0009_visitas_acs.sql`, aplicada
-  no banco oficial `endemias` em 14/09/2026 e validada antes em
-  `endemias_teste`;
+- PostgreSQL: campos escalares em `0009_visitas_acs.sql` e selecao multipla em
+  `0010_visita_acs.sql`;
 - SQLite: criacao atualizada em `criar_banco.py` e compatibilidade idempotente
   em `app_core/sqlite_maintenance.py`.

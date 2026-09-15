@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.38.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.39.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -310,11 +310,12 @@ obrigatoria para integracao.
   a impressao limita a duas as renderizacoes simultaneas. Nao reintroduza
   `tile.openstreetmap.org` como dependencia de producao. Consulte
   `docs/MAPAS_BASE_CARTOGRAFICA.md`.
-- A versao `1.36.0` passou a importar e armazenar, nas visitas PVE, os campos
-  Kobo `acs_presente` e `acs_nome`. Os codigos `sim_acs_presente` e
-  `nao_acs_presente` sao persistidos como `1` e `0`; o nome so e mantido no
-  primeiro caso. Os campos ainda nao aparecem na interface. Consulte
-  `docs/PVE_ACS.md`.
+- A versao `1.39.0` passou a tratar `acs_nome` como `select_multiple` nas
+  visitas PVE. Cada codigo selecionado e persistido em `visita_acs`, sem criar
+  ACS em `agentes` ou em `visita_agentes`; `acs_nome` conserva a sequencia de
+  codigos para rastreabilidade. Os campos ainda nao aparecem na interface.
+  Consulte `docs/PVE_ACS.md`. A migracao PostgreSQL pendente e
+  `0010_visita_acs.sql`.
 - A versao `1.37.0` acrescentou ao Monitoramento de Ovitrampas a exportacao
   filtrada em XLSX. O arquivo reune resumo, todas as leituras do recorte,
   cadastro consolidado local/remoto, indicadores por semana e localidade e

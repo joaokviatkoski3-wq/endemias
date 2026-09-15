@@ -108,6 +108,15 @@ CREATE TABLE IF NOT EXISTS visita_agentes (
 );
 CREATE INDEX IF NOT EXISTS idx_va_agente ON visita_agentes(id_agente);
 
+-- ── VISITA_ACS ───────────────────────────────────────────────────────────────
+-- Codigos selecionados no Kobo (select_multiple); ACS nao e agente de endemias.
+CREATE TABLE IF NOT EXISTS visita_acs (
+    id_visita  TEXT NOT NULL REFERENCES visitas(id_visita) ON DELETE CASCADE,
+    acs_codigo TEXT NOT NULL,
+    PRIMARY KEY (id_visita, acs_codigo)
+);
+CREATE INDEX IF NOT EXISTS idx_visita_acs_codigo ON visita_acs(acs_codigo);
+
 -- ── DEPOSITOS_INSPECIONADOS ───────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS depositos_inspecionados (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -396,7 +405,7 @@ CREATE INDEX IF NOT EXISTS idx_foco_localidade
 """
 
 TABELAS_ESPERADAS = [
-    "usuarios", "localidades", "agentes", "visitas", "visita_agentes",
+    "usuarios", "localidades", "agentes", "visitas", "visita_agentes", "visita_acs",
     "depositos_inspecionados", "tratamentos", "coletas",
     "resultados_laboratorio", "focos_positivos", "agenda_eventos",
     "importacoes", "pontos_estrategicos", "acoes_setor", "acoes_setor_agentes",

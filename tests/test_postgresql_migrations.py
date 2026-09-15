@@ -20,6 +20,19 @@ class PostgreSQLMigrationDiscoveryTests(unittest.TestCase):
         self.assertIn("add column acs_nome", sql)
         self.assertIn("check (acs_presente in (0, 1))", sql)
 
+    def test_migracao_visita_acs_preserva_selecao_multipla(self):
+        path = (
+            Path(__file__).resolve().parents[1]
+            / "migrations"
+            / "postgresql"
+            / "0010_visita_acs.sql"
+        )
+        sql = path.read_text(encoding="utf-8").casefold()
+
+        self.assertIn("create table visita_acs", sql)
+        self.assertIn("references visitas(id_visita) on delete cascade", sql)
+        self.assertIn("primary key (id_visita, acs_codigo)", sql)
+
     def test_discover_orders_and_hashes_migrations(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

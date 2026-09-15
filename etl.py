@@ -6,7 +6,7 @@
 #  Não tem interface gráfica — retorna lista de eventos de log.
 # =============================================================================
 
-import os, json, hashlib, traceback
+import os, json, hashlib, re, traceback
 import pandas as pd
 from datetime import date, datetime, time
 from openpyxl.utils import column_index_from_string
@@ -127,6 +127,29 @@ def normalizar_acs_presente(valor):
     if codigo in ("nao_acs_presente", "não_acs_presente", "não", "nao", "no", "0", "false", "n"):
         return 0
     return None
+
+
+def extrair_codigos_acs(valor):
+    """Retorna os codigos unicos de uma resposta Kobo ``select_multiple``.
+
+    O Kobo representa uma selecao multipla como os nomes tecnicos separados
+    por espacos. Os codigos da lista de ACS devem, portanto, ser estaveis e
+    nao conter espacos (por exemplo, ``maria_da_silva``). Aceitar listas aqui
+    tambem torna a rotina compativel com respostas da API ja desserializadas.
+    """
+    if valor is None:
+        return []
+    valores = valor if isinstance(valor, (list, tuple, set)) else re.split(
+        r"[\s,;]+", val_str(valor) or ""
+    )
+    codigos = []
+    vistos = set()
+    for item in valores:
+        codigo = val_str(item)
+        if codigo and codigo not in vistos:
+            vistos.add(codigo)
+            codigos.append(codigo)
+    return codigos
 
 
 def valor_campo_kobo(row, nome):
@@ -533,10 +556,13 @@ def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso, con
         normalizar_acs_presente(valor_campo_kobo(row, "acs_presente"))
         if tipo == "PVE" else None
     )
-    acs_nome = (
-        val_str(valor_campo_kobo(row, "acs_nome"))
-        if acs_presente == 1 else None
+    acs_codigos = (
+        extrair_codigos_acs(valor_campo_kobo(row, "acs_nome"))
+        if acs_presente == 1 else []
     )
+    # A tabela relacional e a fonte para consultas. A coluna antiga conserva
+    # uma representacao legivel e retrocompativel da resposta recebida.
+    acs_nome = " ".join(acs_codigos) if acs_codigos else None
     acs_valores = (acs_presente, acs_nome)
 
     valores = (
@@ -582,7 +608,12 @@ def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso, con
             _comparable_db_value(value) for value in existente[1:]
         )
         if existentes_comparaveis == valores + acs_valores:
-            return {"id_visita": id_existente, "inserida": False, "atualizada": False}
+            return {
+                "id_visita": id_existente,
+                "inserida": False,
+                "atualizada": False,
+                "acs_codigos": acs_codigos,
+            }
         cur.execute("""
             UPDATE visitas SET
                 kobo_uuid=?, kobo_id=?, tipo=?, data=?, hora_inicio=?, hora_fim=?,
@@ -592,7 +623,12 @@ def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso, con
                 id_pe=?, codigo_pe=?, acs_presente=?, acs_nome=?
             WHERE id_visita=?
         """, valores[:20] + (agora_iso,) + valores[20:] + acs_valores + (id_existente,))
-        return {"id_visita": id_existente, "inserida": False, "atualizada": True}
+        return {
+            "id_visita": id_existente,
+            "inserida": False,
+            "atualizada": True,
+            "acs_codigos": acs_codigos,
+        }
 
     cur.execute("""
         INSERT INTO visitas (
@@ -603,7 +639,28 @@ def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso, con
             id_pe, codigo_pe, acs_presente, acs_nome
         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """, (id_visita,) + valores[:20] + (agora_iso,) + valores[20:] + acs_valores)
-    return {"id_visita": id_visita, "inserida": True, "atualizada": False}
+    return {
+        "id_visita": id_visita,
+        "inserida": True,
+        "atualizada": False,
+        "acs_codigos": acs_codigos,
+    }
+
+
+def sincronizar_acs_visita(cur, id_visita, tipo, codigos_acs):
+    """Substitui, de forma idempotente, os ACS selecionados em uma visita PVE."""
+    if tipo != "PVE":
+        return
+    selecionados = set(codigos_acs)
+    cur.execute("SELECT acs_codigo FROM visita_acs WHERE id_visita=?", (id_visita,))
+    atuais = {row[0] for row in cur.fetchall()}
+    if selecionados == atuais:
+        return
+    cur.execute("DELETE FROM visita_acs WHERE id_visita=?", (id_visita,))
+    cur.executemany(
+        "INSERT INTO visita_acs(id_visita,acs_codigo) VALUES(?,?)",
+        [(id_visita, codigo) for codigo in sorted(selecionados)],
+    )
 
 
 def inserir_foco_visita(cur, id_visita, positivos, visita_row, tipo, cfg_tipo, agora_iso):
@@ -799,6 +856,10 @@ def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
             visitas_novas += 1
         elif resultado_visita["atualizada"]:
             visitas_atualizadas += 1
+
+        sincronizar_acs_visita(
+            cur, id_visita, tipo, resultado_visita["acs_codigos"]
+        )
 
         # Agentes
         nomes_agentes = [nome for nome in extrair_agentes(visita, cfg_tipo) if nome]

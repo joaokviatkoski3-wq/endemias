@@ -173,14 +173,16 @@ rajadas de requisicoes. Nao houve migracao nem alteracao de dados. Consulte
 ### Acompanhamento de ACS em visitas PVE
 
 Na versao `1.36.0`, visitas PVE passaram a armazenar os campos do formulario
-Kobo `acs_presente` e `acs_nome`. A API reconhece os campos mesmo quando estao
-dentro de um grupo do formulario. `sim_acs_presente` e normalizado para `1` e
-`nao_acs_presente` para `0`; o nome e descartado quando a resposta e negativa.
-O ACS nao e cadastrado como agente de endemias. A migracao PostgreSQL
-correspondente, `0009_visitas_acs.sql`, foi aplicada no banco oficial `endemias`
-em 14/09/2026 e tambem validada em `endemias_teste`; SQLite possui atualizacao
-compativel e idempotente. Ainda nao ha exibicao desses dados na interface.
-Consulte `docs/PVE_ACS.md`.
+Kobo `acs_presente` e `acs_nome`; a migracao escalar `0009_visitas_acs.sql` foi
+aplicada no banco oficial `endemias` em 14/09/2026. Na versao `1.39.0`,
+`acs_nome` passou a ser tratado como `select_multiple`: cada codigo selecionado
+e persistido em `visita_acs`, enquanto `acs_nome` conserva a sequencia para
+rastreabilidade. A API reconhece os campos mesmo dentro de grupos. A resposta
+`sim_acs_presente` e normalizada para `1`, `nao_acs_presente` para `0`, e a
+resposta negativa remove os vinculos de ACS. ACS nunca e cadastrado como agente
+de endemias. A migracao PostgreSQL pendente e `0010_visita_acs.sql`; SQLite
+possui atualizacao compativel e idempotente. Ainda nao ha exibicao desses dados
+na interface. Consulte `docs/PVE_ACS.md`.
 
 ### Notificacoes laboratoriais
 

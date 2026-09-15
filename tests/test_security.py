@@ -7746,7 +7746,7 @@ class MainApisSmokeTests(unittest.TestCase):
             "Visita": "Normal",
             "Nome do(s) agente(s)/Adilson": "1",
             "acs_presente": "sim_acs_presente",
-            "acs_nome": "Maria da Silva",
+            "acs_nome": "maria_da_silva joao_pereira",
         }
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -7786,11 +7786,21 @@ class MainApisSmokeTests(unittest.TestCase):
                         ("uuid-pve-acs",),
                     )
                 }
+                acs = {
+                    row[0]
+                    for row in conn.execute(
+                        """SELECT va.acs_codigo FROM visita_acs va
+                           JOIN visitas v ON v.id_visita=va.id_visita
+                           WHERE v.kobo_uuid=?""",
+                        ("uuid-pve-acs",),
+                    )
+                }
             finally:
                 conn.close()
 
-        self.assertEqual(visita, (1, "Maria da Silva"))
+        self.assertEqual(visita, (1, "maria_da_silva joao_pereira"))
         self.assertEqual(agentes, {"Adilson"})
+        self.assertEqual(acs, {"maria_da_silva", "joao_pereira"})
 
     def test_etl_pve_descarta_nome_do_acs_quando_resposta_e_nao(self):
         row = etl.pd.Series({
@@ -7825,6 +7835,46 @@ class MainApisSmokeTests(unittest.TestCase):
 
         self.assertTrue(resultado["inserida"])
         self.assertEqual(tuple(visita), (0, None))
+
+    def test_etl_pve_atualiza_a_selecao_multipla_de_acs(self):
+        cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            conn = db_core.connect(db_path)
+            try:
+                primeira = etl.pd.Series({
+                    "Data": "2026-09-14", "Localidade": "Lamenha",
+                    "acs_presente": "sim_acs_presente",
+                    "acs_nome": "ana_souza bruno_lima",
+                })
+                resultado = etl.salvar_visita(
+                    conn.cursor(), "visita-pve-mult", "uuid-pve-mult", primeira,
+                    "PVE", cfg["tipos_trabalho"]["PVE"], "2026-09-14T09:00:00", conn,
+                )
+                etl.sincronizar_acs_visita(
+                    conn.cursor(), resultado["id_visita"], "PVE", resultado["acs_codigos"]
+                )
+
+                atualizada = primeira.copy()
+                atualizada["acs_nome"] = "bruno_lima"
+                resultado = etl.salvar_visita(
+                    conn.cursor(), "visita-pve-mult", "uuid-pve-mult", atualizada,
+                    "PVE", cfg["tipos_trabalho"]["PVE"], "2026-09-14T10:00:00", conn,
+                )
+                etl.sincronizar_acs_visita(
+                    conn.cursor(), resultado["id_visita"], "PVE", resultado["acs_codigos"]
+                )
+                conn.commit()
+                codigos = {
+                    row[0] for row in conn.execute(
+                        "SELECT acs_codigo FROM visita_acs WHERE id_visita=?",
+                        ("visita-pve-mult",),
+                    )
+                }
+            finally:
+                conn.close()
+
+        self.assertEqual(codigos, {"bruno_lima"})
 
     def test_kobo_previa_usa_tabela_do_modulo_extra(self):
         class FakeResponse:

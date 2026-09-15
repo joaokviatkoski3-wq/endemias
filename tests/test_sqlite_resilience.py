@@ -110,13 +110,17 @@ class SQLiteMaintenanceTests(unittest.TestCase):
                     conn.execute(
                         "UPDATE visitas SET acs_presente=2 WHERE id_visita='visita-1'"
                     )
+                tabela_acs = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE name='visita_acs'"
+                ).fetchone()
             finally:
                 conn.close()
 
-        self.assertEqual(primeira, ["visitas_acs"])
+        self.assertEqual(primeira, ["visitas_acs", "visita_acs"])
         self.assertEqual(segunda, [])
         self.assertTrue({"acs_presente", "acs_nome"}.issubset(colunas))
         self.assertEqual(registro, ("visita-1", None, None))
+        self.assertEqual(tabela_acs, ("visita_acs",))
 
     def test_schema_compatibility_preserves_historico_and_removes_obsolete_fk(self):
         with tempfile.TemporaryDirectory() as tmpdir:
