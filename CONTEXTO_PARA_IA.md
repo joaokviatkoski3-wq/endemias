@@ -314,8 +314,8 @@ obrigatoria para integracao.
   visitas PVE. Cada codigo selecionado e persistido em `visita_acs`, sem criar
   ACS em `agentes` ou em `visita_agentes`; `acs_nome` conserva a sequencia de
   codigos para rastreabilidade. Os campos ainda nao aparecem na interface.
-  Consulte `docs/PVE_ACS.md`. A migracao PostgreSQL pendente e
-  `0010_visita_acs.sql`.
+  Consulte `docs/PVE_ACS.md`. A migracao PostgreSQL `0010_visita_acs.sql` foi
+  aplicada no banco oficial `endemias` em 15/09/2026 e a versao foi reiniciada.
 - A versao `1.37.0` acrescentou ao Monitoramento de Ovitrampas a exportacao
   filtrada em XLSX. O arquivo reune resumo, todas as leituras do recorte,
   cadastro consolidado local/remoto, indicadores por semana e localidade e

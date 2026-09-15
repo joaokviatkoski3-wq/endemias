@@ -53,6 +53,6 @@ registrados.
 ## Banco de dados
 
 - PostgreSQL: campos escalares em `0009_visitas_acs.sql` e selecao multipla em
-  `0010_visita_acs.sql`;
+  `0010_visita_acs.sql`, aplicada no banco oficial `endemias` em 15/09/2026;
 - SQLite: criacao atualizada em `criar_banco.py` e compatibilidade idempotente
   em `app_core/sqlite_maintenance.py`.

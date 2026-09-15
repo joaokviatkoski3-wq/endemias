@@ -180,9 +180,10 @@ e persistido em `visita_acs`, enquanto `acs_nome` conserva a sequencia para
 rastreabilidade. A API reconhece os campos mesmo dentro de grupos. A resposta
 `sim_acs_presente` e normalizada para `1`, `nao_acs_presente` para `0`, e a
 resposta negativa remove os vinculos de ACS. ACS nunca e cadastrado como agente
-de endemias. A migracao PostgreSQL pendente e `0010_visita_acs.sql`; SQLite
-possui atualizacao compativel e idempotente. Ainda nao ha exibicao desses dados
-na interface. Consulte `docs/PVE_ACS.md`.
+de endemias. A migracao PostgreSQL `0010_visita_acs.sql` foi aplicada no banco
+oficial `endemias` em 15/09/2026; SQLite possui atualizacao compativel e
+idempotente. Ainda nao ha exibicao desses dados na interface. Consulte
+`docs/PVE_ACS.md`.
 
 ### Notificacoes laboratoriais
 
