@@ -8772,7 +8772,8 @@ class PermissionMatrixTests(unittest.TestCase):
                 "SELECT id_agente FROM agentes WHERE nome='Márcio'"
             ).fetchone()[0]
             conn.execute(
-                "INSERT INTO agentes(nome,ativo) VALUES ('Azimir',1)"
+                """INSERT INTO agentes(nome,nome_completo,ativo)
+                   VALUES ('Azimir','Azimir Ribas',1)"""
             )
             id_laboratorista = conn.execute(
                 "SELECT id_agente FROM agentes WHERE nome='Azimir'"
@@ -8781,7 +8782,7 @@ class PermissionMatrixTests(unittest.TestCase):
                 """INSERT INTO usuarios
                    (usuario,nome,senha_hash,nivel,ativo,criado_em,
                     acesso_laboratorio,somente_laboratorio)
-                   VALUES ('azimir','Azimir','teste','visualizador',1,?,1,1)""",
+                   VALUES ('azimir.ribas','Azimir Ribas','teste','visualizador',1,?,1,1)""",
                 (datetime.now().isoformat(),),
             ).lastrowid
             conn.execute(
@@ -8804,7 +8805,7 @@ class PermissionMatrixTests(unittest.TestCase):
             conn.close()
             _login_client_com_usuario(client, {
                 "id_usuario": uid_laboratorista,
-                "nome": "Azimir",
+                "nome": "Azimir Ribas",
                 "nivel": "visualizador",
             })
 

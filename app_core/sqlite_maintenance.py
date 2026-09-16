@@ -135,6 +135,24 @@ def _ensure_visita_acs_table(conn):
     return True
 
 
+def _ensure_usuarios_agente_column(conn):
+    if not _table_exists(conn, "usuarios"):
+        return False
+    columns = _table_columns(conn, "usuarios")
+    changed = False
+    if "id_agente" not in columns:
+        conn.execute(
+            "ALTER TABLE usuarios ADD COLUMN id_agente INTEGER "
+            "REFERENCES agentes(id_agente)"
+        )
+        changed = True
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_usuarios_agente "
+        "ON usuarios(id_agente)"
+    )
+    return changed
+
+
 def ensure_schema_compatibility(db_path):
     conn = db_core.connect(db_path)
     migrations = []
@@ -147,6 +165,8 @@ def ensure_schema_compatibility(db_path):
             migrations.append("visitas_acs")
         if _ensure_visita_acs_table(conn):
             migrations.append("visita_acs")
+        if _ensure_usuarios_agente_column(conn):
+            migrations.append("usuarios_agente")
         conn.commit()
     except Exception:
         conn.rollback()

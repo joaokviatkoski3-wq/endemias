@@ -188,6 +188,18 @@ multiplo seleciona visitas que tenham ao menos um dos ACS escolhidos e tambem
 se aplica a exportacao XLSX. A apresentacao humaniza codigos Kobo, mas a
 filtragem usa o codigo canonico de `visita_acs`. Consulte `docs/PVE_ACS.md`.
 
+### Vínculo de conta para lançamentos laboratoriais
+
+Na versão `1.40.1`, a assinatura de resultados em **Lançamentos Laboratório**
+deixou de depender exclusivamente da igualdade entre o nome da conta e o nome
+curto do agente. A migração aditiva `0011_usuarios_agentes.sql` cria
+`usuarios.id_agente`; em **Gestão de Usuários**, o administrador pode vincular
+cada conta ao agente ativo correspondente. Esse vínculo é prioritário. Sem
+vínculo, a compatibilidade legada também considera `nome_completo` e ignora
+acentos e pontuação. Antes de reiniciar a versão no servidor oficial, aplique a
+migração no PostgreSQL e vincule os laboratoristas. ACS permanece apenas em
+`visita_acs`, sem qualquer relação com `agentes`.
+
 ### Notificacoes laboratoriais
 
 - A fonte da pagina `/notificacoes` e `focos_positivos`, nao a tabela bruta de

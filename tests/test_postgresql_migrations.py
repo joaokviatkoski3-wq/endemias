@@ -33,6 +33,19 @@ class PostgreSQLMigrationDiscoveryTests(unittest.TestCase):
         self.assertIn("references visitas(id_visita) on delete cascade", sql)
         self.assertIn("primary key (id_visita, acs_codigo)", sql)
 
+    def test_migracao_vincula_usuario_a_agente(self):
+        path = (
+            Path(__file__).resolve().parents[1]
+            / "migrations"
+            / "postgresql"
+            / "0011_usuarios_agentes.sql"
+        )
+        sql = path.read_text(encoding="utf-8").casefold()
+
+        self.assertIn("alter table usuarios", sql)
+        self.assertIn("add column id_agente", sql)
+        self.assertIn("references agentes(id_agente)", sql)
+
     def test_discover_orders_and_hashes_migrations(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

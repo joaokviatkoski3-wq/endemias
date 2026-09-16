@@ -24,6 +24,7 @@
           <th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--text2);">Login</th>
           <th style="padding:10px 8px;text-align:center;font-weight:700;color:var(--text2);">Nível</th>
           <th style="padding:10px 8px;text-align:center;font-weight:700;color:var(--text2);">Laboratório</th>
+          <th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--text2);">Agente vinculado</th>
           <th style="padding:10px 8px;text-align:center;font-weight:700;color:var(--text2);">Acesso</th>
           <th style="padding:10px 8px;text-align:center;font-weight:700;color:var(--text2);">Status</th>
           <th style="padding:10px 8px;text-align:center;font-weight:700;color:var(--text2);">Ações</th>
@@ -52,6 +53,15 @@
                   title="Permitir lançamentos laboratoriais">
             {% if u.acesso_laboratorio %}<img src="/static/icons/check.svg" alt="" class="icon-svg"> Permitido{% else %}Não permitido{% endif %}
           </button>
+        </td>
+        <td style="padding:10px 8px;">
+          <select onchange="editarCampo({{ u.id_usuario }}, 'id_agente', this.value)"
+                  style="width:100%;min-width:145px;font-size:11.5px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);">
+            <option value="" {{ 'selected' if not u.id_agente }}>Não vinculado</option>
+            {% for agente in agentes %}
+            <option value="{{ agente.id_agente }}" {{ 'selected' if u.id_agente == agente.id_agente }}>{{ agente.nome }}</option>
+            {% endfor %}
+          </select>
         </td>
         <td style="padding:10px 8px;text-align:center;">
           <button class="btn btn-xs btn-ghost"
@@ -120,6 +130,16 @@
         <input type="checkbox" name="somente_laboratorio" value="1">
         <span><strong>Acesso exclusivo ao laboratório</strong><small>Ocultar e bloquear todas as demais páginas.</small></span>
       </label>
+      <div class="f-g">
+        <label>Agente vinculado</label>
+        <select name="id_agente" class="inp">
+          <option value="">Não vincular agora</option>
+          {% for agente in agentes %}
+          <option value="{{ agente.id_agente }}">{{ agente.nome }}</option>
+          {% endfor %}
+        </select>
+        <small style="color:var(--text3);line-height:1.35;">Para lançamentos laboratoriais, define quem assina o resultado sem depender da grafia do nome.</small>
+      </div>
       <button type="submit" class="btn btn-primary">Criar usuário</button>
     </form>
   </div>

@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     ativo       INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)),
     acesso_laboratorio INTEGER NOT NULL DEFAULT 0 CHECK(acesso_laboratorio IN (0,1)),
     somente_laboratorio INTEGER NOT NULL DEFAULT 0 CHECK(somente_laboratorio IN (0,1)),
+    id_agente   INTEGER REFERENCES agentes(id_agente),
     criado_em   TEXT    NOT NULL
 );
 

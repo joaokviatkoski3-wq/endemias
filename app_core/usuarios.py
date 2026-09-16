@@ -13,6 +13,7 @@ EDITABLE_FIELDS = {
     "ativo",
     "acesso_laboratorio",
     "somente_laboratorio",
+    "id_agente",
     "senha",
 }
 
@@ -41,7 +42,10 @@ def listar(target):
         return [
             dict(row)
             for row in conn.execute(
-                "SELECT * FROM usuarios ORDER BY nivel, nome"
+                """SELECT u.*, a.nome AS agente_nome
+                     FROM usuarios u
+                LEFT JOIN agentes a ON a.id_agente=u.id_agente
+                 ORDER BY u.nivel, u.nome"""
             ).fetchall()
         ]
     finally:
@@ -71,13 +75,14 @@ def criar(target, dados, agora=None):
 
     conn, close = _open_connection(target)
     try:
+        id_agente = _id_agente_valido(conn, dados.get("id_agente"))
         novo_id = _insert_id(
             conn,
             """
             INSERT INTO usuarios
                 (usuario, nome, senha_hash, nivel, ativo, criado_em,
-                 acesso_laboratorio, somente_laboratorio)
-            VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+                 acesso_laboratorio, somente_laboratorio, id_agente)
+            VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)
             """,
             (
                 usuario,
@@ -87,6 +92,7 @@ def criar(target, dados, agora=None):
                 agora or datetime.now().isoformat(),
                 acesso_laboratorio,
                 somente_laboratorio,
+                id_agente,
             ),
         )
         conn.commit()
@@ -107,7 +113,7 @@ def editar(target, uid, campo, valor, usuario_atual_id=None):
         row = conn.execute(
             """
             SELECT usuario, nome, nivel, ativo, acesso_laboratorio,
-                   somente_laboratorio
+                   somente_laboratorio, id_agente
               FROM usuarios
              WHERE id_usuario=?
             """,
@@ -161,6 +167,12 @@ def editar(target, uid, campo, valor, usuario_atual_id=None):
                 """,
                 (novo, uid),
             )
+        elif campo == "id_agente":
+            novo = _id_agente_valido(conn, valor)
+            conn.execute(
+                "UPDATE usuarios SET id_agente=? WHERE id_usuario=?",
+                (novo, uid),
+            )
         elif campo == "senha" and auth.senha_valida(valor):
             novo = "***"
             conn.execute(
@@ -175,6 +187,25 @@ def editar(target, uid, campo, valor, usuario_atual_id=None):
     finally:
         if close:
             conn.close()
+
+
+def _id_agente_valido(conn, valor):
+    texto = str(valor or "").strip()
+    if not texto:
+        return None
+    try:
+        id_agente = int(texto)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Agente vinculado invalido.") from exc
+    if id_agente <= 0:
+        raise ValueError("Agente vinculado invalido.")
+    agente = conn.execute(
+        "SELECT id_agente FROM agentes WHERE id_agente=? AND ativo=1",
+        (id_agente,),
+    ).fetchone()
+    if not agente:
+        raise ValueError("Selecione um agente ativo para o vinculo.")
+    return id_agente
 
 
 def resetar_senha(target, uid, nova_senha):

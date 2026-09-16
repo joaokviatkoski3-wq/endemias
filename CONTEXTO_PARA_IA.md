@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.40.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.40.1` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -319,6 +319,14 @@ obrigatoria para integracao.
 - A versao `1.40.0` tornou os ACS visiveis e filtraveis em **Visitas
   arboviroses**, inclusive na exportacao XLSX. A exibicao humaniza os codigos
   Kobo; o vinculo e a filtragem continuam usando `visita_acs.acs_codigo`.
+- A versao `1.40.1` corrige a assinatura dos resultados em **Lançamentos
+  Laboratório**. A conta pode ser vinculada explicitamente a um agente em
+  Gestão de Usuários (`usuarios.id_agente`); esse vínculo tem prioridade sobre
+  comparações de nome. Sem vínculo, o fluxo legado também reconhece o nome
+  completo do agente, desconsiderando acentos e pontuação. A migração
+  `0011_usuarios_agentes.sql` é aditiva e deve ser aplicada no PostgreSQL
+  oficial antes de reiniciar a versão; em seguida, vincule cada laboratorista
+  ao agente correspondente. ACS não é e nunca passa a ser agente de Endemias.
 - A versao `1.37.0` acrescentou ao Monitoramento de Ovitrampas a exportacao
   filtrada em XLSX. O arquivo reune resumo, todas as leituras do recorte,
   cadastro consolidado local/remoto, indicadores por semana e localidade e

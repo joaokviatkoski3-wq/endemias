@@ -1,6 +1,8 @@
 import logging
 from datetime import date, datetime, timedelta
 from functools import wraps
+import re
+import unicodedata
 
 from flask import Blueprint, jsonify, render_template, request
 
@@ -84,17 +86,35 @@ def _agente_da_conta(conn):
     usuario = bh.usuario_atual()
     if not usuario:
         return None
+
+    id_agente = usuario.get("id_agente")
+    if id_agente:
+        return conn.execute(
+            "SELECT id_agente, nome FROM agentes WHERE id_agente=? AND ativo=1",
+            (id_agente,),
+        ).fetchone()
+
     nomes_conta = {
-        str(usuario.get("nome") or "").strip().casefold(),
-        str(usuario.get("usuario") or "").strip().casefold(),
+        _chave_identidade(usuario.get("nome")),
+        _chave_identidade(usuario.get("usuario")),
     }
     nomes_conta.discard("")
     for agente in conn.execute(
-        "SELECT id_agente, nome FROM agentes WHERE ativo=1 ORDER BY nome"
+        "SELECT id_agente, nome, nome_completo FROM agentes WHERE ativo=1 ORDER BY nome"
     ).fetchall():
-        if str(agente["nome"] or "").strip().casefold() in nomes_conta:
+        nomes_agente = {
+            _chave_identidade(agente["nome"]),
+            _chave_identidade(agente["nome_completo"]),
+        }
+        if nomes_conta & nomes_agente:
             return agente
     return None
+
+
+def _chave_identidade(valor):
+    texto = unicodedata.normalize("NFKD", str(valor or ""))
+    texto = "".join(char for char in texto if not unicodedata.combining(char))
+    return re.sub(r"[^a-z0-9]+", "", texto.casefold())
 
 
 def _resultado_editavel(row, hoje=None):

@@ -22,9 +22,17 @@ def _create_users_table(path):
                 ativo INTEGER NOT NULL DEFAULT 1,
                 criado_em TEXT NOT NULL,
                 acesso_laboratorio INTEGER NOT NULL DEFAULT 0,
-                somente_laboratorio INTEGER NOT NULL DEFAULT 0
+                somente_laboratorio INTEGER NOT NULL DEFAULT 0,
+                id_agente INTEGER
             )
             """
+        )
+        conn.execute(
+            """CREATE TABLE agentes (
+                id_agente INTEGER PRIMARY KEY,
+                nome TEXT NOT NULL,
+                ativo INTEGER NOT NULL DEFAULT 1
+            )"""
         )
         conn.commit()
     finally:
@@ -98,6 +106,33 @@ class UsuariosDualBackendTests(unittest.TestCase):
                     "0",
                     usuario_atual_id=uid,
                 )
+
+    def test_vinculo_com_agente_ativo_e_editavel(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "usuarios.db"
+            _create_users_table(path)
+            conn = sqlite3.connect(path)
+            conn.execute(
+                "INSERT INTO agentes(id_agente,nome,ativo) VALUES (7,'Adilson',1)"
+            )
+            conn.commit()
+            conn.close()
+
+            uid = usuarios.criar(
+                path,
+                {
+                    "usuario": "adilson.ribas",
+                    "nome": "Adilson Ribas",
+                    "senha": "SenhaForte123",
+                    "id_agente": "7",
+                },
+            )
+            anterior, novo = usuarios.editar(path, uid, "id_agente", "")
+            vinculado = usuarios.listar(path)[0]
+
+        self.assertEqual(7, anterior["id_agente"])
+        self.assertIsNone(novo)
+        self.assertIsNone(vinculado["id_agente"])
 
     def test_postgresql_insert_uses_returning_identity(self):
         conn = mock.Mock()

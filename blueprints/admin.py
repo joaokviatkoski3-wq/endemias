@@ -10,6 +10,7 @@ from flask import Blueprint, current_app, jsonify, redirect, render_template, re
 from openpyxl.styles import Font, PatternFill
 
 from app_core import audit
+from app_core import agentes as agentes_core
 from app_core import auth as auth_core
 from app_core import backup as backup_core
 from app_core import backup_completo as backup_completo_core
@@ -236,7 +237,10 @@ def _contagens_sistema():
 @nivel_min("admin")
 def admin_usuarios():
     usuarios = usuarios_core.listar(bh.db_target())
-    return render_template("admin_usuarios.html", usuarios=usuarios)
+    agentes = agentes_core.listar(bh.db_target(), {"status": "ativos"})
+    return render_template(
+        "admin_usuarios.html", usuarios=usuarios, agentes=agentes
+    )
 
 
 @bp.route("/admin/sistema")
@@ -635,13 +639,17 @@ def admin_criar_usuario():
                 "nivel": dados.get("nivel", "visualizador"),
                 "acesso_laboratorio": acesso_laboratorio,
                 "somente_laboratorio": somente_laboratorio,
+                "id_agente": dados.get("id_agente") or None,
             },
         )
     except Exception as exc:
         erro = f"Erro: {exc}"
     if erro:
         usuarios = usuarios_core.listar(bh.db_target())
-        return render_template("admin_usuarios.html", usuarios=usuarios, erro=erro)
+        agentes = agentes_core.listar(bh.db_target(), {"status": "ativos"})
+        return render_template(
+            "admin_usuarios.html", usuarios=usuarios, agentes=agentes, erro=erro
+        )
     return redirect(url_for("admin.admin_usuarios"))
 
 
