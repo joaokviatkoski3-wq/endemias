@@ -1,6 +1,6 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 11/09/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 16/09/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
@@ -199,6 +199,13 @@ vínculo, a compatibilidade legada também considera `nome_completo` e ignora
 acentos e pontuação. Antes de reiniciar a versão no servidor oficial, aplique a
 migração no PostgreSQL e vincule os laboratoristas. ACS permanece apenas em
 `visita_acs`, sem qualquer relação com `agentes`.
+
+Na versão `1.40.2`, somente contas de nível **admin** podem corrigir o
+responsável por uma leitura já existente. A edição de um tubo preserva o
+laboratorista original quando o administrador não seleciona outro agente. Na
+leitura de ovitrampas, a reatribuição seleciona uma conta ativa que tenha acesso
+ao laboratório. A proteção é aplicada também nas APIs; operadores não podem
+forçar a mudança por requisição direta.
 
 ### Notificacoes laboratoriais
 

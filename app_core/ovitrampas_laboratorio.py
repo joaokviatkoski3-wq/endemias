@@ -237,6 +237,47 @@ def concluir_lote(db_path, id_lote, leituras, usuario):
     return obter_lote(db_path, id_lote)
 
 
+def atualizar_laboratorista(db_path, id_lote, id_laboratorista):
+    try:
+        id_usuario = int(id_laboratorista)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Selecione um laboratorista ativo.") from exc
+    conn = db_core.connect(db_path)
+    try:
+        _ensure_schema_conn(conn)
+        lote = conn.execute(
+            f"""SELECT id_lote, id_laboratorista, laboratorista_nome
+                  FROM {LOTES_TABLE}
+                 WHERE id_lote=?""",
+            (_int(id_lote),),
+        ).fetchone()
+        if not lote:
+            raise ValueError("Lote de leitura não encontrado.")
+        usuario = conn.execute(
+            """SELECT id_usuario, nome FROM usuarios
+                 WHERE id_usuario=? AND ativo=1
+                   AND (nivel='admin' OR COALESCE(acesso_laboratorio,0)=1)""",
+            (id_usuario,),
+        ).fetchone()
+        if not usuario:
+            raise ValueError("Selecione um laboratorista ativo.")
+        agora = datetime.now().isoformat(timespec="seconds")
+        conn.execute(
+            f"""UPDATE {LOTES_TABLE}
+                   SET id_laboratorista=?, laboratorista_nome=?, atualizado_em=?
+                 WHERE id_lote=?""",
+            (usuario["id_usuario"], usuario["nome"], agora, lote["id_lote"]),
+        )
+        conn.commit()
+        anterior = lote["laboratorista_nome"] or None
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return {"anterior": anterior, "lote": obter_lote(db_path, id_lote)}
+
+
 def marcar_enviado_conta_ovos(db_path, id_lote, usuario):
     conn = db_core.connect(db_path)
     try:

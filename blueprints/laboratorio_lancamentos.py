@@ -128,11 +128,49 @@ def _resultado_editavel(row, hoje=None):
     return timedelta(0) <= dias <= timedelta(days=3)
 
 
+def _agente_para_edicao(conn, dados, usuario):
+    if (usuario or {}).get("nivel") != "admin":
+        raise PermissionError(
+            "Somente administradores podem alterar o laboratorista da leitura."
+        )
+    try:
+        id_agente = int(dados.get("id_laboratorista"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Selecione um laboratorista ativo.") from exc
+    agente = conn.execute(
+        "SELECT id_agente, nome FROM agentes WHERE id_agente=? AND ativo=1",
+        (id_agente,),
+    ).fetchone()
+    if not agente:
+        raise ValueError("Selecione um laboratorista ativo.")
+    return agente
+
+
 @bp.route("/laboratorio/lancamentos")
 @login_required
 @laboratorio_required
 def page():
-    return render_template("laboratorio_lancamentos.html")
+    usuario = bh.usuario_atual() or {}
+    conn = bh.get_db()
+    try:
+        agentes = [db_core.serialize_row(row) for row in conn.execute(
+            "SELECT id_agente, nome FROM agentes WHERE ativo=1 ORDER BY nome"
+        ).fetchall()]
+        laboratoristas = [db_core.serialize_row(row) for row in conn.execute(
+            """SELECT id_usuario, nome
+                 FROM usuarios
+                WHERE ativo=1
+                  AND (nivel='admin' OR COALESCE(acesso_laboratorio,0)=1)
+             ORDER BY nome"""
+        ).fetchall()]
+    finally:
+        conn.close()
+    return render_template(
+        "laboratorio_lancamentos.html",
+        is_admin=usuario.get("nivel") == "admin",
+        agentes=agentes,
+        laboratoristas=laboratoristas,
+    )
 
 
 @bp.route("/api/laboratorio/lancamentos/pendentes")
@@ -271,6 +309,35 @@ def ovitrampas_lote_concluir(id_lote):
     return jsonify({"ok": True, "lote": lote})
 
 
+@bp.route("/api/laboratorio/ovitrampas/lotes/<int:id_lote>/laboratorista", methods=["PUT"])
+@login_required
+@laboratorio_required
+def ovitrampas_lote_laboratorista(id_lote):
+    usuario = bh.usuario_atual() or {}
+    if usuario.get("nivel") != "admin":
+        return jsonify({
+            "erro": "Somente administradores podem alterar o laboratorista da leitura."
+        }), 403
+    dados = request.get_json(silent=True) or {}
+    try:
+        resultado = ovi_lab_core.atualizar_laboratorista(
+            bh.db_target(), id_lote, dados.get("id_laboratorista"),
+        )
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(
+        bh.get_db,
+        "ovitrampas_leitura_laboratorista_editado",
+        entidade="ovitrampas_laboratorio_lotes",
+        entidade_id=id_lote,
+        detalhes={
+            "laboratorista_anterior": resultado["anterior"],
+            "laboratorista_novo": resultado["lote"]["laboratorista_nome"],
+        },
+    )
+    return jsonify({"ok": True, "lote": resultado["lote"]})
+
+
 @bp.route("/api/laboratorio/lancamentos/<id_coleta>/resultado", methods=["POST"])
 @login_required
 @laboratorio_required
@@ -364,14 +431,11 @@ def editar_resultado(id_resultado):
 
     conn = bh.get_db()
     try:
-        agente = _agente_da_conta(conn)
-        if not agente:
-            return jsonify({
-                "erro": "O nome desta conta não corresponde a um agente ativo. Contate o administrador."
-            }), 400
+        usuario = bh.usuario_atual() or {}
         resultado = conn.execute(
             """SELECT rl.id_resultado, rl.id_coleta, rl.num_tubo,
-                      rl.data_leitura, rl.origem, rl.criado_em, c.id_visita
+                      rl.data_leitura, rl.origem, rl.criado_em, c.id_visita,
+                      rl.laboratorista, rl.id_laboratorista
                  FROM resultados_laboratorio rl
                  JOIN coletas c ON c.id_coleta=rl.id_coleta
                 WHERE rl.id_resultado=?""",
@@ -383,6 +447,18 @@ def editar_resultado(id_resultado):
             return jsonify({
                 "erro": "Somente lançamentos feitos no sistema há até 3 dias podem ser editados."
             }), 403
+        if "id_laboratorista" in dados:
+            try:
+                agente = _agente_para_edicao(conn, dados, usuario)
+            except PermissionError as exc:
+                return jsonify({"erro": str(exc)}), 403
+            except ValueError as exc:
+                return jsonify({"erro": str(exc)}), 400
+        else:
+            agente = {
+                "id_agente": resultado["id_laboratorista"],
+                "nome": resultado["laboratorista"],
+            }
 
         agora = datetime.now().isoformat()
         sets = ", ".join(f"{nome}=?" for nome in campos)
@@ -411,6 +487,7 @@ def editar_resultado(id_resultado):
         detalhes={
             "id_coleta": resultado["id_coleta"],
             "num_tubo": resultado["num_tubo"],
+            "laboratorista_anterior": resultado["laboratorista"],
             "laboratorista": agente["nome"],
             "total": sum(campos.values()),
             "id_foco": foco["id_foco"],

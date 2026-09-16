@@ -1,6 +1,6 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 11/09/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 16/09/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.40.1` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.40.2` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -327,6 +327,12 @@ obrigatoria para integracao.
   `0011_usuarios_agentes.sql` é aditiva e deve ser aplicada no PostgreSQL
   oficial antes de reiniciar a versão; em seguida, vincule cada laboratorista
   ao agente correspondente. ACS não é e nunca passa a ser agente de Endemias.
+- A versao `1.40.2` permite que apenas administradores corrijam o
+  laboratorista responsavel por uma leitura ja registrada. Em tubos, o seletor
+  usa os agentes ativos; em leituras de ovitrampas, usa contas ativas com
+  acesso ao laboratorio. Uma correcao comum de quantidades preserva a autoria
+  existente. As APIs tambem bloqueiam tentativas de operadores de alterar essa
+  atribuicao, inclusive nas leituras legadas de ovitrampas.
 - A versao `1.37.0` acrescentou ao Monitoramento de Ovitrampas a exportacao
   filtrada em XLSX. O arquivo reune resumo, todas as leituras do recorte,
   cadastro consolidado local/remoto, indicadores por semana e localidade e

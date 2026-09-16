@@ -154,6 +154,17 @@
     <form class="lab-form" id="lab-form" onsubmit="salvarResultado(event)">
       <input type="hidden" id="form-id-coleta">
       <input type="hidden" id="form-id-resultado">
+      {% if is_admin %}
+      <div class="f-g" id="form-laboratorista-wrap" hidden>
+        <label>Laboratorista responsável</label>
+        <select id="form-id-laboratorista" class="inp">
+          {% for agente in agentes %}
+          <option value="{{ agente.id_agente }}">{{ agente.nome }}</option>
+          {% endfor %}
+        </select>
+        <small style="color:var(--text3);">Disponível apenas ao corrigir uma leitura já registrada.</small>
+      </div>
+      {% endif %}
       {% set especies = [('aegypt','Aedes aegypti'),('albopictus','Aedes albopictus'),('outra','Outra espécie')] %}
       {% for prefixo, titulo in especies %}
       <section class="species">
@@ -202,6 +213,9 @@ const oviLabOcorrencias = [
 ];
 const labDialog = document.getElementById('lab-dialog');
 const labConfirmDialog = document.getElementById('lab-confirm-dialog');
+const labIsAdmin = {{ is_admin|tojson }};
+const oviLabIsAdmin = {{ is_admin|tojson }};
+const oviLabLaboratoristas = {{ laboratoristas|tojson }};
 const labFields = ['aegypt_larvas','aegypt_pupas','aegypt_exuvias','aegypt_adulto','albopictus_larvas','albopictus_pupas','albopictus_exuvias','albopictus_adulto','outra_larvas','outra_pupas','outra_exuvias','outra_adulto'];
 
 function e(v){ return escapeAttr(v ?? ''); }
@@ -241,6 +255,7 @@ function abrirLancamento(index){
   document.getElementById('lab-form').reset();
   document.getElementById('form-id-coleta').value=r.id_coleta;
   document.getElementById('form-id-resultado').value='';
+  document.getElementById('form-laboratorista-wrap')?.setAttribute('hidden','');
   document.getElementById('form-tube').textContent=`Tubo ${r.num_tubo}`;
   document.getElementById('form-context').textContent=`${r.localidade||'-'} · ${fmtDate(r.data)} · ${r.agentes||'Agente não informado'}`;
   labFields.forEach(name=>document.querySelector(`[name="${name}"]`).value=0);
@@ -264,6 +279,10 @@ async function confirmarSalvarResultado(){
   labFields.forEach(name=>body[name]=Number(document.querySelector(`[name="${name}"]`).value)||0);
   try{
     const idResultado=document.getElementById('form-id-resultado').value;
+    if(labIsAdmin&&idResultado){
+      const laboratorista=document.getElementById('form-id-laboratorista');
+      body.id_laboratorista=Number(laboratorista?.value)||null;
+    }
     const url=idResultado
       ? `/api/laboratorio/lancamentos/resultados/${encodeURIComponent(idResultado)}/editar`
       : `/api/laboratorio/lancamentos/${encodeURIComponent(document.getElementById('form-id-coleta').value)}/resultado`;
@@ -283,6 +302,11 @@ function abrirEdicaoResultado(index){
   document.getElementById('lab-form').reset();
   document.getElementById('form-id-coleta').value=r.id_coleta;
   document.getElementById('form-id-resultado').value=r.id_resultado;
+  if(labIsAdmin){
+    const wrap=document.getElementById('form-laboratorista-wrap');
+    const select=document.getElementById('form-id-laboratorista');
+    if(wrap&&select){wrap.removeAttribute('hidden');select.value=String(r.id_laboratorista||'');}
+  }
   document.getElementById('form-tube').textContent=`Corrigir tubo ${r.num_tubo}`;
   document.getElementById('form-context').textContent=`${r.tipo||'-'} · ${r.localidade||'-'} · leitura de ${fmtDate(r.data_leitura)}`;
   labFields.forEach(name=>document.querySelector(`[name="${name}"]`).value=Number(r[name])||0);
@@ -357,7 +381,15 @@ function renderOviLabDetalhe(body,lote,historico){
   const editavel=Boolean(lote.editavel);
   body.innerHTML=`
     ${(lote.itens||[]).map(item=>`<div class="ovi-lab-row" data-ovi-lab-row-lote="${lote.id_lote}" data-ovi-lab-item="${item.id_item}"><span class="ovi-lab-row-label"><strong>${e(item.ovitrampa_id)} - ${e(item.complemento||'Local sem identificação')}</strong><span>${e(item.localidade||lote.diario_nome)}</span></span><label class="ovi-lab-field"><span>Ovos</span><input class="ovi-lab-input" data-ovi-lab-ovos type="number" inputmode="numeric" min="0" max="100000" value="${Number(item.ovos)||0}" ${editavel?'':'disabled'} oninput="alterouOviLab(${lote.id_lote},${historico?'true':'false'})"></label><label class="ovi-lab-field ovi-lab-field-occurrence"><span>Ocorrências</span><select class="ovi-lab-occurrence" data-ovi-lab-ocorrencia ${editavel?'':'disabled'} onchange="alterouOviLab(${lote.id_lote},${historico?'true':'false'})"><option value="">Selecionar ocorrência</option>${oviLabOcorrencias.map(([codigo,label])=>`<option value="${codigo}" ${Number(item.ocorrencia)===codigo?'selected':''}>${codigo} - ${e(label)}</option>`).join('')}</select></label></div>`).join('')}
-    <div class="ovi-lab-actions"><div><div class="ovi-lab-total">Total: <strong data-ovi-lab-total="${lote.id_lote}">${Number(lote.ovos)||0}</strong> ovos</div><span class="ovi-lab-save-state" data-ovi-lab-save="${lote.id_lote}">${editavel?(historico?'Correções permitidas até o envio ao Conta Ovos.':'Valores salvos como rascunho.'):'Leitura bloqueada após envio ao Conta Ovos.'}</span></div>${editavel&&!historico?`<button class="btn btn-primary" type="button" onclick="concluirOviLab(${lote.id_lote})"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Concluir leitura</button>`:editavel?'<span class="ovi-lab-status concluido">Correções permitidas</span>':'<span></span>'}</div>`;
+    <div class="ovi-lab-actions"><div><div class="ovi-lab-total">Total: <strong data-ovi-lab-total="${lote.id_lote}">${Number(lote.ovos)||0}</strong> ovos</div><span class="ovi-lab-save-state" data-ovi-lab-save="${lote.id_lote}">${editavel?(historico?'Correções permitidas até o envio ao Conta Ovos.':'Valores salvos como rascunho.'):'Leitura bloqueada após envio ao Conta Ovos.'}</span>${oviLabIsAdmin?`<label class="ovi-lab-field" style="margin-top:10px;"><span>Laboratorista responsável</span><select class="ovi-lab-occurrence" onchange="atribuirOviLabLaboratorista(${lote.id_lote},this.value,${historico?'true':'false'})"><option value="">Selecionar</option>${oviLabLaboratoristas.map(pessoa=>`<option value="${Number(pessoa.id_usuario)}" ${Number(lote.id_laboratorista)===Number(pessoa.id_usuario)?'selected':''}>${e(pessoa.nome)}</option>`).join('')}</select></label>`:`<span class="ovi-lab-save-state">Leitura por ${e(lote.laboratorista_nome||'não informado')}.</span>`}</div>${editavel&&!historico?`<button class="btn btn-primary" type="button" onclick="concluirOviLab(${lote.id_lote})"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Concluir leitura</button>`:editavel?'<span class="ovi-lab-status concluido">Correções permitidas</span>':'<span></span>'}</div>`;
+}
+async function atribuirOviLabLaboratorista(id,idLaboratorista,historico){
+  if(!idLaboratorista){toast('Selecione um laboratorista ativo.','error');return;}
+  try{
+    const data=await oviFetchJson(`/api/laboratorio/ovitrampas/lotes/${id}/laboratorista`,{method:'PUT',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},body:JSON.stringify({id_laboratorista:Number(idLaboratorista)})});
+    toast(`Leitura atribuída a ${data.lote?.laboratorista_nome||'laboratorista'}.`,'success');
+    await carregarOviLab(historico);
+  }catch(err){toast(err.message||'Não foi possível alterar o laboratorista.','error');}
 }
 function leiturasOviLab(id){
   return Array.from(document.querySelectorAll(`[data-ovi-lab-row-lote="${id}"]`)).map(row=>({

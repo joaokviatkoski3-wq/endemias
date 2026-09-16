@@ -594,6 +594,11 @@ def api_atualizar_leituras_lote():
     filtros = _filtros()
     filtros["busca"] = request.args.get("busca", "")
     payload = request.get_json(silent=True) or {}
+    usuario = dict(_usuario_atual() or {})
+    if "id_laboratorista" in payload and usuario.get("nivel") != "admin":
+        return jsonify({
+            "erro": "Somente administradores podem alterar o laboratorista da leitura."
+        }), 403
     try:
         resultado = ovitrampas_core.atualizar_leituras_lote(_db_path(), filtros, payload)
     except ValueError as exc:
@@ -611,8 +616,14 @@ def api_atualizar_leituras_lote():
 @login_required
 @nivel_min("operador")
 def api_atualizar_leitura(id_leitura):
+    payload = request.get_json(silent=True) or {}
+    usuario = dict(_usuario_atual() or {})
+    if "id_laboratorista" in payload and usuario.get("nivel") != "admin":
+        return jsonify({
+            "erro": "Somente administradores podem alterar o laboratorista da leitura."
+        }), 403
     try:
-        row = ovitrampas_core.atualizar_leitura(_db_path(), id_leitura, request.get_json(silent=True) or {})
+        row = ovitrampas_core.atualizar_leitura(_db_path(), id_leitura, payload)
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
 

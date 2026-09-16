@@ -4039,6 +4039,28 @@ class MainApisSmokeTests(unittest.TestCase):
             self.assertEqual(registro["laboratorista"], agente[1])
             self.assertEqual(registro["data_leitura"], "2026-06-09")
 
+            conn = sqlite3.connect(db_path)
+            try:
+                usuario = conn.execute(
+                    "SELECT id_usuario, nome FROM usuarios WHERE usuario='admin'"
+                ).fetchone()
+                conn.execute(
+                    "UPDATE usuarios SET nivel='operador' WHERE id_usuario=?",
+                    (usuario[0],),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+            _login_client_com_usuario(client, {
+                "id_usuario": usuario[0], "nome": usuario[1], "nivel": "operador",
+            })
+            bloqueada = client.put(
+                f"/api/ovitrampas/leituras/{id_leitura}",
+                json={"id_laboratorista": agente[0]},
+            )
+            self.assertEqual(bloqueada.status_code, 403)
+            self.assertIn(b"Somente administradores", bloqueada.data)
+
     def test_api_ovitrampas_atualiza_lote_somente_campos_vazios(self):
         csv_bytes = (
             "Ovitrampa ID;Estado;MunicÃƒÂ­pio;Distrito;Rua;NÃƒÂºmero;Complemento;LocalizaÃƒÂ§ÃƒÂ£o;"
@@ -8810,7 +8832,7 @@ class PermissionMatrixTests(unittest.TestCase):
             })
 
             pagina = client.get("/laboratorio/lancamentos")
-            self.assertNotIn(b"form-laboratorista", pagina.data)
+            self.assertNotIn(b'<select id="form-id-laboratorista"', pagina.data)
             self.assertNotIn(b"form-data", pagina.data)
             self.assertNotIn("Resultado negativo".encode(), pagina.data)
             self.assertNotIn("Salvar e próximo".encode(), pagina.data)
@@ -8852,6 +8874,21 @@ class PermissionMatrixTests(unittest.TestCase):
             )
             conn.close()
 
+            conn = sqlite3.connect(db_path)
+            conn.execute(
+                "UPDATE resultados_laboratorio SET laboratorista=?, id_laboratorista=? "
+                "WHERE id_resultado=?",
+                ("Márcio", id_marcio, historico[0]["id_resultado"]),
+            )
+            conn.commit()
+            conn.close()
+
+            troca_nao_autorizada = client.post(
+                f"/api/laboratorio/lancamentos/resultados/{historico[0]['id_resultado']}/editar",
+                json={"id_laboratorista": id_marcio},
+            )
+            self.assertEqual(troca_nao_autorizada.status_code, 403)
+
             editado = client.post(
                 f"/api/laboratorio/lancamentos/resultados/{historico[0]['id_resultado']}/editar",
                 json={"aegypt_larvas": 3, "albopictus_larvas": 1},
@@ -8862,6 +8899,8 @@ class PermissionMatrixTests(unittest.TestCase):
             ).get_json()["registros"][0]
             self.assertEqual(corrigido["aegypt_larvas"], 3)
             self.assertEqual(corrigido["albopictus_larvas"], 1)
+            self.assertEqual(corrigido["laboratorista"], "Márcio")
+            self.assertEqual(corrigido["id_laboratorista"], id_marcio)
             self.assertTrue(corrigido["positivo_aegypti"])
             conn = sqlite3.connect(db_path)
             foco = conn.execute(
@@ -8870,6 +8909,31 @@ class PermissionMatrixTests(unittest.TestCase):
             ).fetchone()
             conn.close()
             self.assertEqual(("visita-lab", 1), foco)
+
+            conn = sqlite3.connect(db_path)
+            conn.execute(
+                "UPDATE usuarios SET nivel='admin' WHERE id_usuario=?",
+                (uid_laboratorista,),
+            )
+            conn.commit()
+            conn.close()
+            _login_client_com_usuario(client, {
+                "id_usuario": uid_laboratorista,
+                "nome": "Administrador",
+                "nivel": "admin",
+            })
+            pagina_admin = client.get("/laboratorio/lancamentos")
+            self.assertIn(b'<select id="form-id-laboratorista"', pagina_admin.data)
+            troca_autorizada = client.post(
+                f"/api/laboratorio/lancamentos/resultados/{historico[0]['id_resultado']}/editar",
+                json={"id_laboratorista": id_laboratorista},
+            )
+            self.assertEqual(troca_autorizada.status_code, 200, troca_autorizada.get_json())
+            reatribuido = client.get(
+                "/api/laboratorio/lancamentos/historico"
+            ).get_json()["registros"][0]
+            self.assertEqual(reatribuido["laboratorista"], "Azimir")
+            self.assertEqual(reatribuido["id_laboratorista"], id_laboratorista)
 
             conn = sqlite3.connect(db_path)
             conn.execute(

@@ -13,6 +13,51 @@ from app_core import ovitrampas_laboratorio as laboratorio_core
 
 
 class OvitrampasLaboratorioTests(unittest.TestCase):
+    def test_admin_pode_reatribuir_laboratorista_de_lote(self):
+        base = Path(tempfile.mkdtemp())
+        db_path = base / "reatribuicao.db"
+        conn = db_core.connect(db_path)
+        conn.executescript("""
+            CREATE TABLE usuarios (
+                id_usuario INTEGER PRIMARY KEY, nome TEXT, nivel TEXT,
+                ativo INTEGER DEFAULT 1, acesso_laboratorio INTEGER DEFAULT 0
+            );
+            CREATE TABLE agentes (
+                id_agente INTEGER PRIMARY KEY, nome TEXT, ativo INTEGER DEFAULT 1
+            );
+            INSERT INTO usuarios VALUES (1,'Leitor inicial','visualizador',1,1);
+            INSERT INTO usuarios VALUES (2,'Leitora correta','visualizador',1,1);
+        """)
+        conn.commit()
+        conn.close()
+        laboratorio_core.ensure_schema(db_path)
+
+        conn = db_core.connect(db_path)
+        agora = "2026-09-16T10:00:00"
+        diario = conn.execute(
+            "INSERT INTO ovitrampas_diarios(nome,ativo,criado_em,atualizado_em) VALUES ('Roma',1,?,?)",
+            (agora, agora),
+        ).lastrowid
+        evento = conn.execute(
+            "INSERT INTO ovitrampas_calendario_eventos(data,movimento,criado_em,atualizado_em) VALUES ('2026-09-16','troca',?,?)",
+            (agora, agora),
+        ).lastrowid
+        lote = conn.execute(
+            """INSERT INTO ovitrampas_laboratorio_lotes
+                   (id_evento,id_diario,diario_nome,data_movimento,movimento,status,
+                    id_laboratorista,laboratorista_nome,criado_em,atualizado_em)
+               VALUES (?,?,?,'2026-09-16','troca','concluido',1,'Leitor inicial',?,?)""",
+            (evento, diario, "Roma", agora, agora),
+        ).lastrowid
+        conn.commit()
+        conn.close()
+
+        resultado = laboratorio_core.atualizar_laboratorista(db_path, lote, 2)
+
+        self.assertEqual("Leitor inicial", resultado["anterior"])
+        self.assertEqual(2, resultado["lote"]["id_laboratorista"])
+        self.assertEqual("Leitora correta", resultado["lote"]["laboratorista_nome"])
+
     def test_exportacao_monitoramento_reune_fontes_e_respeita_filtros(self):
         base = Path(tempfile.mkdtemp())
         db_path = base / "exportacao.db"
