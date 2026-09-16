@@ -68,6 +68,10 @@ def exportar_visitas():
                         JOIN agentes a ON a.id_agente=va.id_agente
                         WHERE va.id_visita=v.id_visita ORDER BY nome
                    ) agentes_ordenados) AS agentes,
+                   (SELECT {aggregates['agentes']} FROM (
+                        SELECT DISTINCT va.acs_codigo AS nome FROM visita_acs va
+                        WHERE va.id_visita=v.id_visita ORDER BY nome
+                   ) acs_ordenados) AS acs_codigos,
                    COALESCE((SELECT SUM(d.inspecionado) FROM depositos_inspecionados d WHERE d.id_visita=v.id_visita),0),
                    COALESCE((SELECT SUM(d.eliminado) FROM depositos_inspecionados d WHERE d.id_visita=v.id_visita),0),
                    COALESCE((SELECT SUM(d.tratado) FROM depositos_inspecionados d WHERE d.id_visita=v.id_visita),0),
@@ -96,11 +100,23 @@ def exportar_visitas():
         """, params)
         cabecalho = ["Data", "Tipo", "Localidade", "Quarteirao", "Logradouro", "Numero",
                      "Visita", "Morador", "Tipo Imovel", "Ciclo", "Sequencia",
-                     "Lado", "Hora Inicio", "Hora Fim", "Agua Sanepar", "Observacoes", "Agentes",
+                     "Lado", "Hora Inicio", "Hora Fim", "Agua Sanepar", "Observacoes", "Agentes", "ACS acompanhantes",
                      "Depositos Inspecionados", "Depositos Eliminados", "Depositos Tratados",
                      "Detalhes dos Depositos", "Produtos e Tratamentos", "Coletas", "Tubos",
                      "Codigo SisPNCD", "Status Conta Ovos", "Envio Kobo", "Processado em"]
-        return _gerar_xlsx(cabecalho, rows, "visitas")
+        linhas = []
+        for row in rows:
+            if isinstance(row, dict):
+                linha = dict(row)
+                linha["acs_codigos"] = visitas_core.formatar_acs_codigos(
+                    linha.get("acs_codigos")
+                )
+                linhas.append(linha)
+            else:
+                valores = list(row)
+                valores[17] = visitas_core.formatar_acs_codigos(valores[17])
+                linhas.append(valores)
+        return _gerar_xlsx(cabecalho, linhas, "visitas")
     except Exception:
         logging.exception("Erro em exportar_visitas")
         return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500

@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.39.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.40.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -316,6 +316,9 @@ obrigatoria para integracao.
   codigos para rastreabilidade. Os campos ainda nao aparecem na interface.
   Consulte `docs/PVE_ACS.md`. A migracao PostgreSQL `0010_visita_acs.sql` foi
   aplicada no banco oficial `endemias` em 15/09/2026 e a versao foi reiniciada.
+- A versao `1.40.0` tornou os ACS visiveis e filtraveis em **Visitas
+  arboviroses**, inclusive na exportacao XLSX. A exibicao humaniza os codigos
+  Kobo; o vinculo e a filtragem continuam usando `visita_acs.acs_codigo`.
 - A versao `1.37.0` acrescentou ao Monitoramento de Ovitrampas a exportacao
   filtrada em XLSX. O arquivo reune resumo, todas as leituras do recorte,
   cadastro consolidado local/remoto, indicadores por semana e localidade e

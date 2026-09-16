@@ -32,6 +32,8 @@ ORDER_SQL = {
     "endereco_asc": "LOWER(COALESCE(v.logradouro, '')), COALESCE(v.numero, ''), v.data DESC",
 }
 
+ACS_PARTICULAS_NOME = {"da", "das", "de", "do", "dos", "e"}
+
 
 class VisitaNaoEncontrada(ValueError):
     pass
@@ -52,6 +54,33 @@ def _values(args, key):
         raw = args.get(key, [])
         values = raw if isinstance(raw, list) else [raw]
     return [str(value).strip() for value in values if str(value or "").strip()]
+
+
+def formatar_acs_codigos(valor):
+    """Converte codigos Kobo de ACS em texto legivel para consulta.
+
+    O codigo canonico continua exposto separadamente pela API; esta formatacao
+    apenas melhora a leitura enquanto ainda nao existe um catalogo local com
+    os rotulos oficiais do XLSForm.
+    """
+    codigos = [parte.strip() for parte in str(valor or "").split(",") if parte.strip()]
+    nomes = []
+    for codigo in codigos:
+        palavras = codigo.replace("_", " ").split()
+        nome = " ".join(
+            palavra.lower() if indice and palavra.casefold() in ACS_PARTICULAS_NOME
+            else palavra.capitalize()
+            for indice, palavra in enumerate(palavras)
+        )
+        if nome:
+            nomes.append(nome)
+    return ", ".join(nomes)
+
+
+def _serializar_visita(row):
+    visita = db_helpers._serializar_linha(row)
+    visita["acs"] = formatar_acs_codigos(visita.get("acs_codigos"))
+    return visita
 
 
 def build_where(args):
@@ -75,6 +104,11 @@ def build_where(args):
                       AND LOWER(ab.nome) LIKE LOWER(?)
                 ) OR
                 EXISTS (
+                    SELECT 1 FROM visita_acs acb
+                    WHERE acb.id_visita=v.id_visita
+                      AND LOWER(acb.acs_codigo) LIKE LOWER(?)
+                ) OR
+                EXISTS (
                     SELECT 1 FROM coletas cb
                     WHERE cb.id_visita=v.id_visita
                       AND (LOWER(COALESCE(cb.num_tubo, '')) LIKE LOWER(?)
@@ -87,7 +121,7 @@ def build_where(args):
                 )
             )
         """
-        params.extend([term] * 10)
+        params.extend([term] * 11)
 
     resultados = _values(args, "resultado")
     if resultados:
@@ -128,6 +162,17 @@ def build_where(args):
         """
         params.extend(tratamentos)
         params.extend(tratamentos)
+
+    acs = _values(args, "acs")
+    if acs:
+        where += f"""
+            AND EXISTS (
+                SELECT 1 FROM visita_acs acf
+                WHERE acf.id_visita=v.id_visita
+                  AND acf.acs_codigo IN ({','.join('?' * len(acs))})
+            )
+        """
+        params.extend(acs)
 
     coleta = str(args.get("coleta") or "").strip()
     if coleta == "com":
@@ -233,6 +278,12 @@ def filter_options(target):
                      FROM agentes a
                      JOIN visita_agentes va ON va.id_agente=a.id_agente"""
             ),
+            "acs": [
+                {"codigo": codigo, "nome": formatar_acs_codigos(codigo)}
+                for codigo in distinct(
+                    "SELECT DISTINCT acs_codigo FROM visita_acs"
+                )
+            ],
             "resultados": distinct(
                 "SELECT DISTINCT visita FROM visitas WHERE visita IS NOT NULL"
             ),
@@ -268,6 +319,7 @@ def listar(target, args, pagina=1, por_pagina=30):
         total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
         pagina = min(max(1, pagina), total_paginas)
         agentes_agg = db_helpers._agentes_aggregate(conn, "nomes.nome")
+        acs_agg = db_helpers._agentes_aggregate(conn, "codigos.acs_codigo")
         tubos_agg = db_helpers._agentes_aggregate(conn, "tubos.num_tubo")
         rows = conn.execute(
             f"""
@@ -287,6 +339,15 @@ def listar(target, args, pagina=1, por_pagina=30):
                                 WHERE vag.id_visita=v.id_visita
                          ) nomes
                    ) AS agentes,
+                   (
+                       SELECT {acs_agg}
+                         FROM (
+                               SELECT DISTINCT va.acs_codigo
+                                 FROM visita_acs va
+                                WHERE va.id_visita=v.id_visita
+                                ORDER BY va.acs_codigo
+                         ) codigos
+                   ) AS acs_codigos,
                    COALESCE((
                        SELECT SUM(di.inspecionado)
                          FROM depositos_inspecionados di
@@ -409,7 +470,7 @@ def listar(target, args, pagina=1, por_pagina=30):
             "pagina": pagina,
             "resumo": dict(resumo) if resumo else {},
             "registros": [
-                db_helpers._serializar_linha(row) for row in rows
+                _serializar_visita(row) for row in rows
             ],
         }
     finally:
@@ -421,6 +482,7 @@ def detalhar(target, id_visita):
     conn, close = _open_connection(target)
     try:
         agentes_agg = db_helpers._agentes_aggregate(conn, "nomes.nome")
+        acs_agg = db_helpers._agentes_aggregate(conn, "codigos.acs_codigo")
         visita = conn.execute(
             f"""
             SELECT v.*, COALESCE(l.nome, v.localidade) AS localidade_nome,
@@ -433,7 +495,16 @@ def detalhar(target, id_visita):
                                    ON a.id_agente=va.id_agente
                                 WHERE va.id_visita=v.id_visita
                          ) nomes
-                   ) AS agentes
+                   ) AS agentes,
+                   (
+                       SELECT {acs_agg}
+                         FROM (
+                               SELECT DISTINCT va.acs_codigo
+                                 FROM visita_acs va
+                                WHERE va.id_visita=v.id_visita
+                                ORDER BY va.acs_codigo
+                         ) codigos
+                   ) AS acs_codigos
               FROM visitas v
               LEFT JOIN localidades l
                 ON l.id_localidade=v.id_localidade
@@ -485,7 +556,7 @@ def detalhar(target, id_visita):
             (id_visita,),
         ).fetchall()
         return {
-            "visita": db_helpers._serializar_linha(visita),
+            "visita": _serializar_visita(visita),
             "depositos": [
                 db_helpers._serializar_linha(row) for row in depositos
             ],

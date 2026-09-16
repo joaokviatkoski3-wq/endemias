@@ -182,8 +182,11 @@ rastreabilidade. A API reconhece os campos mesmo dentro de grupos. A resposta
 resposta negativa remove os vinculos de ACS. ACS nunca e cadastrado como agente
 de endemias. A migracao PostgreSQL `0010_visita_acs.sql` foi aplicada no banco
 oficial `endemias` em 15/09/2026; SQLite possui atualizacao compativel e
-idempotente. Ainda nao ha exibicao desses dados na interface. Consulte
-`docs/PVE_ACS.md`.
+idempotente. Na versao `1.40.0`, os ACS passaram a aparecer como **ACS
+acompanhantes** na listagem e no detalhe de **Visitas arboviroses**. O filtro
+multiplo seleciona visitas que tenham ao menos um dos ACS escolhidos e tambem
+se aplica a exportacao XLSX. A apresentacao humaniza codigos Kobo, mas a
+filtragem usa o codigo canonico de `visita_acs`. Consulte `docs/PVE_ACS.md`.
 
 ### Notificacoes laboratoriais
 

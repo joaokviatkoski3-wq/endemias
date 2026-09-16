@@ -9,7 +9,7 @@ const visitasState = {
 };
 
 const visitasFilterIds = [
-  'v_tipo', 'v_localidade', 'v_agente', 'v_resultado', 'v_imovel', 'v_deposito',
+  'v_tipo', 'v_localidade', 'v_agente', 'v_acs', 'v_resultado', 'v_imovel', 'v_deposito',
   'v_tratamento', 'v_coleta', 'v_tratado', 'v_laboratorio', 'v_agua_sanepar',
 ];
 
@@ -48,7 +48,7 @@ function visitasParams(includePage=true) {
     if (value) params.set(key, value);
   });
   const multiples = {
-    tipo: 'v_tipo', localidade: 'v_localidade', agente: 'v_agente', resultado: 'v_resultado',
+    tipo: 'v_tipo', localidade: 'v_localidade', agente: 'v_agente', acs: 'v_acs', resultado: 'v_resultado',
     imovel: 'v_imovel', deposito: 'v_deposito', tratamento: 'v_tratamento',
   };
   Object.entries(multiples).forEach(([key, id]) => {
@@ -153,7 +153,7 @@ function renderVisitasLista(rows) {
           </div>
         </div>
         <div class="visita-registro-body">
-          <div class="visita-context visita-context-agent"><span>Agente</span><strong>${visitasValue(row.agentes)}</strong></div>
+          <div class="visita-context visita-context-agent"><span>Agentes</span><strong>${visitasValue(row.agentes)}</strong>${row.acs ? `<small class="visita-acs"><b>ACS:</b> ${visitasValue(row.acs)}</small>` : ''}</div>
           <div class="visita-context"><span>Morador</span><strong>${visitasValue(row.morador)}</strong></div>
           <div class="visita-operation-summary">
             <span><strong>${fmtNum(visitasNum(row.depositos_inspecionados))}</strong> inspecionados</span>
@@ -256,6 +256,7 @@ function renderDetalheVisita(detail) {
       ${detalheField('Lado', v.lado)}
       ${detalheField('Água Sanepar', v.agua_sanepar === 1 ? 'Sim' : (v.agua_sanepar === 0 ? 'Não' : null))}
       ${detalheField('Agentes', v.agentes, 'wide')}
+      ${v.acs ? detalheField('ACS acompanhantes', v.acs, 'wide') : ''}
       ${detalheField('Observações', v.observacoes, 'wide')}
       ${detalheField('Identificador da visita', v.id_visita, 'wide')}
       ${detalheField('Código / identificador do PE', [v.codigo_pe, v.id_pe].filter(Boolean).join(' · '), 'wide')}

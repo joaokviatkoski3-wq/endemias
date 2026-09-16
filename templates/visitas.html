@@ -39,9 +39,10 @@
     </div>
 
     <details class="visitas-advanced-filters">
-      <summary><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Mais filtros <span>agente, resultado, imóvel, depósitos e laboratório</span></summary>
+      <summary><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Mais filtros <span>agente, ACS, resultado, imóvel, depósitos e laboratório</span></summary>
       <div class="visitas-filter-grid">
         <div class="f-g"><label for="v_agente">Agente</label><select id="v_agente" multiple data-multi-picker data-placeholder="Todos os agentes">{% for item in opcoes.agentes %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label for="v_acs">ACS acompanhante</label><select id="v_acs" multiple data-multi-picker data-placeholder="Todos os ACS">{% for item in opcoes.acs %}<option value="{{ item.codigo }}">{{ item.nome }}</option>{% endfor %}</select></div>
         <div class="f-g"><label for="v_resultado">Resultado da visita</label><select id="v_resultado" multiple data-multi-picker data-placeholder="Todos os resultados">{% for item in opcoes.resultados %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>
         <div class="f-g"><label for="v_imovel">Tipo de imóvel</label><select id="v_imovel" multiple data-multi-picker data-placeholder="Todos os imóveis">{% for item in opcoes.imoveis %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>
         <div class="f-g"><label for="v_deposito">Tipo de depósito</label><select id="v_deposito" multiple data-multi-picker data-placeholder="Todos os depósitos">{% for item in opcoes.depositos %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>

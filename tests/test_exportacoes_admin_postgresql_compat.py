@@ -54,6 +54,26 @@ class ExportacoesPostgreSQLCompatTests(unittest.TestCase):
         self.assertIn("string_agg(CAST(num_tubo AS TEXT)", statement)
         self.assertNotIn("GROUP_CONCAT", statement)
 
+    def test_exportacao_visitas_humaniza_codigos_de_acs(self):
+        linhas = []
+        with (
+            self.app.test_request_context("/api/visitas/exportar"),
+            mock.patch.object(
+                exportacoes,
+                "q",
+                return_value=[{"acs_codigos": "maria_da_silva, joao_pereira"}],
+            ),
+            mock.patch.object(
+                exportacoes,
+                "_gerar_xlsx",
+                side_effect=lambda cabecalho, rows, nome: linhas.extend(rows) or "ok",
+            ),
+        ):
+            response = _view_sem_decoradores(exportacoes.exportar_visitas)()
+
+        self.assertEqual(response, "ok")
+        self.assertEqual(linhas[0]["acs_codigos"], "Maria da Silva, Joao Pereira")
+
     def test_exportacao_laboratorio_remove_group_by_incompleto(self):
         with (
             self.app.test_request_context(

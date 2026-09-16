@@ -45,10 +45,15 @@ formulario.
 
 ## Escopo atual
 
-Os dados sao importados e armazenados, mas ainda nao aparecem nas telas ou nas
-exportacoes. Uma etapa futura pode acrescentar o catalogo local de codigos e
-rotulos de ACS, filtros, detalhes e relatorios, sem alterar os vinculos ja
-registrados.
+Na versao `1.40.0`, os ACS passaram a aparecer na listagem, no detalhe e na
+exportacao de **Visitas arboviroses**. O filtro multiplo **ACS acompanhante**
+seleciona visitas que tenham ao menos um dos ACS marcados. Enquanto nao existe
+um catalogo local de rotulos, a tela converte o codigo tecnico em texto legivel
+(por exemplo, `maria_da_silva` para `Maria da Silva`), preservando o codigo
+canonico na API.
+
+Uma etapa futura pode acrescentar esse catalogo local e relatorios de ACS sem
+alterar os vinculos ja registrados.
 
 ## Banco de dados
 

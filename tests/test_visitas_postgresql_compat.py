@@ -47,6 +47,11 @@ class VisitasPostgresqlCompatTests(unittest.TestCase):
                 id_agente INTEGER NOT NULL,
                 UNIQUE(id_visita, id_agente)
             );
+            CREATE TABLE visita_acs (
+                id_visita TEXT NOT NULL,
+                acs_codigo TEXT NOT NULL,
+                UNIQUE(id_visita, acs_codigo)
+            );
             CREATE TABLE depositos_inspecionados (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 id_visita TEXT NOT NULL,
@@ -128,6 +133,8 @@ class VisitasPostgresqlCompatTests(unittest.TestCase):
                 'Observacao inicial', '2026-07-28T10:00:00'
             );
             INSERT INTO visita_agentes VALUES ('visita-1', 1);
+            INSERT INTO visita_acs VALUES ('visita-1', 'maria_da_silva');
+            INSERT INTO visita_acs VALUES ('visita-1', 'joao_pereira');
             INSERT INTO depositos_inspecionados (
                 id_visita, tipo_deposito, inspecionado, eliminado,
                 tratado, tipo_tratamento, qtd_carga
@@ -161,6 +168,13 @@ class VisitasPostgresqlCompatTests(unittest.TestCase):
         opcoes = visitas.filter_options(self.conn)
         self.assertIn("Lamenha", opcoes["localidades"])
         self.assertIn("Fernando", opcoes["agentes"])
+        self.assertEqual(
+            opcoes["acs"],
+            [
+                {"codigo": "joao_pereira", "nome": "Joao Pereira"},
+                {"codigo": "maria_da_silva", "nome": "Maria da Silva"},
+            ],
+        )
 
         lista = visitas.listar(
             self.conn,
@@ -170,9 +184,25 @@ class VisitasPostgresqlCompatTests(unittest.TestCase):
         )
         self.assertEqual(lista["total"], 1)
         self.assertEqual(lista["registros"][0]["agentes"], "Fernando")
+        self.assertEqual(lista["registros"][0]["acs"], "Joao Pereira, Maria da Silva")
         self.assertEqual(lista["registros"][0]["laboratorio_status"], "positivo")
 
+        filtrada_por_acs = visitas.listar(
+            self.conn,
+            {"acs": ["maria_da_silva"]},
+            pagina=1,
+            por_pagina=10,
+        )
+        self.assertEqual(filtrada_por_acs["total"], 1)
+        self.assertEqual(
+            visitas.listar(
+                self.conn, {"acs": ["acs_inexistente"]}, pagina=1, por_pagina=10
+            )["total"],
+            0,
+        )
+
         detalhe = visitas.detalhar(self.conn, "visita-1")
+        self.assertEqual(detalhe["visita"]["acs"], "Joao Pereira, Maria da Silva")
         self.assertEqual(detalhe["depositos"][0]["inspecionado"], 3)
         self.assertEqual(detalhe["coletas"][0]["aegypt_larvas"], 2)
 
