@@ -7746,12 +7746,13 @@ class MainApisSmokeTests(unittest.TestCase):
         row = etl.pd.Series({
             "Nome do(s) agente(s)/m_arcio": 1,
             "Nome do(s) agente(s)/ana_beatriz": "1",
+            "Nome do(s) agente(s)/jo_o": "1",
             "Nome do(s) agente(s)/Ceccon": 0,
         })
 
         nomes = etl.extrair_agentes(row, {"prefixo_agente": "Nome do(s) agente(s)/"})
 
-        self.assertEqual(nomes, ["Márcio", "Ana Beatriz"])
+        self.assertEqual(nomes, ["Márcio", "Ana Beatriz", "João"])
 
     def test_etl_pve_guarda_acs_sem_cadastrar_como_agente(self):
         record = {

@@ -18,6 +18,7 @@ AGENTE_ALIASES = {
     "viviane 1": "Viviane",
     "viviane_1": "Viviane",
     "joao": "Jo\u00e3o",
+    "jo_o": "Jo\u00e3o",
     "jose": "Jos\u00e9",
     "marcio": "Márcio",
     "m arcio": "Márcio",

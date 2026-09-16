@@ -207,6 +207,11 @@ leitura de ovitrampas, a reatribuição seleciona uma conta ativa que tenha aces
 ao laboratório. A proteção é aplicada também nas APIs; operadores não podem
 forçar a mudança por requisição direta.
 
+Na versão `1.40.3`, o importador Kobo passou a normalizar `jo_o` para **João**
+na extração de agentes. Esse é o código da opção no formulário PVE e não deve
+ser tratado como novo agente. A regressão cobre diretamente a leitura dessa
+coluna antes de gravar `visita_agentes`.
+
 ### Notificacoes laboratoriais
 
 - A fonte da pagina `/notificacoes` e `focos_positivos`, nao a tabela bruta de
