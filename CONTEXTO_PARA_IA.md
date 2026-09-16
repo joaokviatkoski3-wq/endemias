@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.40.3` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.40.4` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -336,6 +336,13 @@ obrigatoria para integracao.
 - A versao `1.40.3` reconhece o codigo Kobo `jo_o` como **João** ao importar
   agentes de visitas. Assim, a grafia de opcao do formulario nao cria um novo
   agente; o vinculo usa o cadastro existente de João.
+- A versao `1.40.4` reconhece o nome tecnico publicado `Qual_quais_ACS` como a
+  selecao multipla de ACS da PVE, sem perder a compatibilidade com `acs_nome`.
+  O preenchimento retroativo controlado usa
+  `scripts/reconciliar_acs_pve_kobo.py` e altera somente os campos e vinculos
+  de ACS das visitas PVE ja existentes. Na producao, a acao administrativa
+  equivalente esta em Importacao Kobo > Reconciliar ACS e deve ser preferida,
+  pois o servico ja possui acesso ao PostgreSQL protegido.
 - A versao `1.37.0` acrescentou ao Monitoramento de Ovitrampas a exportacao
   filtrada em XLSX. O arquivo reune resumo, todas as leituras do recorte,
   cadastro consolidado local/remoto, indicadores por semana e localidade e

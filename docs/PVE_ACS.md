@@ -7,7 +7,10 @@ Atualizado em 15/09/2026.
 - `acs_presente`: escolha unica;
   - `sim_acs_presente` significa que um ACS esteve presente;
   - `nao_acs_presente` significa que nao houve acompanhamento de ACS.
-- `acs_nome`: `select_multiple`, exibido somente para a resposta positiva.
+- `acs_nome`: nome originalmente previsto para a escolha multipla, exibida
+  somente para a resposta positiva.
+- `Qual_quais_ACS`: nome tecnico efetivamente publicado na versao atual do
+  formulario; tambem e uma `select_multiple` e e a fonte usada pelo importador.
 
 Cada alternativa de ACS deve possuir um codigo tecnico estavel, unico e sem
 espacos, como `maria_da_silva`; o formulario mostra o nome completo no rotulo.
@@ -31,7 +34,8 @@ A tabela relacional `visita_acs` e a fonte para consultas futuras:
 - chave primaria composta, que impede a repeticao do mesmo ACS na visita.
 
 O importador aceita campos diretos e campos dentro de grupos, como
-`grupo/acs_presente`. Uma PVE com tres ACS gera tres linhas em `visita_acs`; uma
+`grupo/acs_presente` e `grupo/Qual_quais_ACS`, preservando compatibilidade com
+o antigo `acs_nome`. Uma PVE com tres ACS gera tres linhas em `visita_acs`; uma
 nova importacao da mesma visita substitui integralmente essa lista. Se a
 resposta for `nao_acs_presente`, o importador grava `acs_presente=0`, limpa
 `acs_nome` e remove quaisquer vinculos anteriores.
@@ -54,6 +58,21 @@ canonico na API.
 
 Uma etapa futura pode acrescentar esse catalogo local e relatorios de ACS sem
 alterar os vinculos ja registrados.
+
+## Reconciliacao de registros ja importados
+
+Na versao `1.40.4`, o script
+`scripts/reconciliar_acs_pve_kobo.py` permite preencher retroativamente somente
+os dados ACS das PVE que ja estavam no sistema quando o campo publicado ainda
+nao era reconhecido. Ele consulta o Kobo, cruza exclusivamente pelo UUID Kobo e
+altera apenas `acs_presente`, `acs_nome` e `visita_acs`. A execucao padrao e uma
+previa; para qualquer banco fora de `endemias_teste`, exige confirmacao explicita
+do banco e da aplicacao. Registros sem resposta ACS sao preservados.
+
+No sistema oficial, a mesma operacao esta disponivel somente para
+administradores em **Importacao Kobo > Reconciliar ACS**. A tela exige
+confirmacao e registra auditoria; ela e a via indicada para a producao, pois o
+servico possui as credenciais protegidas do banco.
 
 ## Banco de dados
 

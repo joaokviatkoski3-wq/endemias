@@ -18,6 +18,7 @@ from app_core import import_history
 from app_core import kobo_api
 from app_core import larvas as larvas_core
 from app_core import uploads
+import etl
 
 
 bp = Blueprint("processar", __name__)
@@ -377,6 +378,14 @@ def _kobo_existing_uuids(tipo, records):
             pass
 
 
+def _registros_acs_pve(records):
+    return [
+        (kobo_api.record_uuid(record), *kobo_api.pve_acs_values(record))
+        for record in records
+        if kobo_api.record_uuid(record)
+    ]
+
+
 def _larvas_links_banco(chaves):
     if not chaves:
         return {}
@@ -627,6 +636,56 @@ def kobo_importar_formulario_iniciar():
         "total": len(records),
         "por_tipo": {tipo: len(records)},
     })
+
+
+@bp.route("/api/kobo/reconciliar-acs-pve", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def kobo_reconciliar_acs_pve():
+    data = request.json or {}
+    confirmacao = str(data.get("confirmacao") or "").strip().upper()
+    if confirmacao != "RECONCILIAR ACS PVE":
+        return jsonify({
+            "erro": "Confirmação obrigatória: RECONCILIAR ACS PVE."
+        }), 400
+
+    cfg = kobo_api.load_config(_kobo_config_path())
+    asset_uid = ((cfg.get("assets") or {}).get("PVE") or "").strip()
+    if not asset_uid:
+        return jsonify({"erro": "UID do formulário PVE não configurado."}), 400
+    try:
+        records, resposta = kobo_api.fetch_submissions(cfg, asset_uid, limit=5000)
+    except kobo_api.KoboError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    total_kobo = resposta.get("count") if isinstance(resposta, dict) else None
+    if total_kobo is not None and int(total_kobo) > len(records):
+        return jsonify({
+            "erro": "O Kobo retornou somente parte das PVE; nenhuma alteração foi feita."
+        }), 409
+
+    conn = get_db()
+    try:
+        resumo = etl.reconciliar_acs_pve_registros(conn, _registros_acs_pve(records))
+        resumo["pve_kobo"] = len(records)
+        audit.registrar_evento(
+            get_db,
+            "visitas_acs_reconciliadas",
+            entidade="visitas",
+            detalhes={**resumo, "origem": "kobo_pve_acs_reconciliacao_autorizada"},
+            conn=conn,
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        logging.exception("Falha na reconciliacao de ACS das PVE Kobo")
+        return jsonify({"erro": "Falha ao reconciliar os ACS das PVE."}), 500
+    finally:
+        conn.close()
+
+    invalidar = _cache_invalidator()
+    if invalidar:
+        invalidar()
+    return jsonify({"ok": True, "resumo": resumo})
 
 
 @bp.route("/processar/iniciar", methods=["POST"])

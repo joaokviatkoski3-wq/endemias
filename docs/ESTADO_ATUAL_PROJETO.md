@@ -212,6 +212,15 @@ na extração de agentes. Esse é o código da opção no formulário PVE e não
 ser tratado como novo agente. A regressão cobre diretamente a leitura dessa
 coluna antes de gravar `visita_agentes`.
 
+Na versão `1.40.4`, a escolha múltipla de ACS publicada no Kobo passou a ser
+lida também pelo nome técnico `Qual_quais_ACS`, inclusive quando estiver dentro
+de grupo. O nome inicialmente previsto, `acs_nome`, permanece compatível. O
+script controlado `scripts/reconciliar_acs_pve_kobo.py` faz a prévia e, sob
+dupla confirmação, atualiza exclusivamente os campos ACS das PVE já existentes;
+nenhum outro dado da visita é reimportado. Na produção, administradores podem
+executar a mesma reconciliação em **Importação Kobo > Reconciliar ACS**, com
+confirmação e auditoria, usando a credencial protegida do serviço.
+
 ### Notificacoes laboratoriais
 
 - A fonte da pagina `/notificacoes` e `focos_positivos`, nao a tabela bruta de

@@ -7728,6 +7728,24 @@ class MainApisSmokeTests(unittest.TestCase):
         self.assertEqual(row["acs_nome"], "Maria da Silva")
         self.assertEqual(detalhes["agentes"], "")
 
+    def test_kobo_api_pve_aceita_nome_tecnico_publicado_para_acs(self):
+        record = {
+            "_uuid": "uuid-pve-acs-publicado",
+            "group_zn1kq42": {
+                "acs_presente": "sim_acs_presente",
+                "Qual_quais_ACS": "ACS-026 ACS-040",
+            },
+        }
+
+        presente, nomes = kobo_api_core.pve_acs_values(record)
+        row = kobo_api_core._ensure_visit_columns(
+            {}, "PVE", {"col_data": "Data", "col_localidade": "Localidade"}, record
+        )
+
+        self.assertEqual(presente, "sim_acs_presente")
+        self.assertEqual(nomes, "ACS-026 ACS-040")
+        self.assertEqual(row["acs_nome"], "ACS-026 ACS-040")
+
     def test_kobo_previa_normaliza_codigos_de_recolhimento(self):
         record = {
             "_uuid": "uuid-recolhimento",
@@ -7898,6 +7916,104 @@ class MainApisSmokeTests(unittest.TestCase):
                 conn.close()
 
         self.assertEqual(codigos, {"bruno_lima"})
+
+    def test_etl_reconcilia_somente_acs_de_pve_existente(self):
+        cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = _executar_criar_banco_em(tmpdir)
+            conn = db_core.connect(db_path)
+            try:
+                original = etl.pd.Series({
+                    "Data": "2026-09-14", "Localidade": "Lamenha",
+                    "Logradouro": "Rua original", "Número": "10",
+                })
+                etl.salvar_visita(
+                    conn.cursor(), "visita-pve-reconciliar", "uuid-pve-reconciliar", original,
+                    "PVE", cfg["tipos_trabalho"]["PVE"], "2026-09-14T09:00:00", conn,
+                )
+                resultado = etl.reconciliar_acs_visita(
+                    conn.cursor(), "visita-pve-reconciliar", "sim_acs_presente",
+                    "ACS-026 ACS-040",
+                )
+                conn.commit()
+                visita = conn.execute(
+                    "SELECT logradouro, numero, acs_presente, acs_nome FROM visitas WHERE id_visita=?",
+                    ("visita-pve-reconciliar",),
+                ).fetchone()
+                acs = {row[0] for row in conn.execute(
+                    "SELECT acs_codigo FROM visita_acs WHERE id_visita=?",
+                    ("visita-pve-reconciliar",),
+                )}
+            finally:
+                conn.close()
+
+        self.assertTrue(resultado["alterada"])
+        self.assertEqual(tuple(visita), ("Rua original", "10", 1, "ACS-026 ACS-040"))
+        self.assertEqual(acs, {"ACS-026", "ACS-040"})
+
+    def test_api_kobo_reconcilia_acs_sem_reimportar_visita(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "count": 1,
+                    "results": [{
+                        "_uuid": "uuid-api-reconciliar-acs",
+                        "group_zn1kq42": {
+                            "acs_presente": "sim_acs_presente",
+                            "Qual_quais_ACS": "ACS-006 ACS-053",
+                        },
+                    }],
+                }).encode("utf-8")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_temp, client, db_path = _client_admin_com_banco_temporario(tmpdir)
+            config_kobo = Path(tmpdir) / "kobo_config.json"
+            app_temp.config["KOBO_CONFIG_PATH"] = str(config_kobo)
+            kobo_api_core.save_config(config_kobo, {
+                "server_url": "https://kf.kobotoolbox.org",
+                "api_token": "token",
+                "assets": {"PVE": "asset-pve"},
+            })
+            conn = db_core.connect(db_path)
+            try:
+                cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+                etl.salvar_visita(
+                    conn.cursor(), "visita-api-reconciliar", "uuid-api-reconciliar-acs",
+                    etl.pd.Series({"Data": "2026-09-14", "Localidade": "Lamenha", "Logradouro": "Rua mantida"}),
+                    "PVE", cfg["tipos_trabalho"]["PVE"], "2026-09-14T09:00:00", conn,
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            with mock.patch("app_core.kobo_api.request.urlopen", return_value=FakeResponse()):
+                resp = client.post("/api/kobo/reconciliar-acs-pve", json={
+                    "confirmacao": "RECONCILIAR ACS PVE",
+                })
+
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.get_json()["resumo"]["alteradas"], 1)
+            conn = sqlite3.connect(db_path)
+            try:
+                visita = conn.execute(
+                    "SELECT logradouro, acs_presente, acs_nome FROM visitas WHERE id_visita=?",
+                    ("visita-api-reconciliar",),
+                ).fetchone()
+                acs = {row[0] for row in conn.execute(
+                    "SELECT acs_codigo FROM visita_acs WHERE id_visita=?",
+                    ("visita-api-reconciliar",),
+                )}
+            finally:
+                conn.close()
+
+        self.assertEqual(tuple(visita), ("Rua mantida", 1, "ACS-006 ACS-053"))
+        self.assertEqual(acs, {"ACS-006", "ACS-053"})
 
     def test_kobo_previa_usa_tabela_do_modulo_extra(self):
         class FakeResponse:

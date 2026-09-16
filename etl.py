@@ -152,6 +152,13 @@ def extrair_codigos_acs(valor):
     return codigos
 
 
+def dados_acs_pve(acs_presente_valor, acs_nome_valor):
+    """Normaliza a resposta ACS da PVE para as duas estruturas locais."""
+    acs_presente = normalizar_acs_presente(acs_presente_valor)
+    acs_codigos = extrair_codigos_acs(acs_nome_valor) if acs_presente == 1 else []
+    return acs_presente, " ".join(acs_codigos) if acs_codigos else None, acs_codigos
+
+
 def valor_campo_kobo(row, nome):
     valor = row.get(nome)
     if val_str(valor) is not None:
@@ -552,17 +559,15 @@ def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso, con
     logradouro = val_str(row.get("Logradouro") or row.get("logradouro"))
     pe_conn = conn if conn is not None else cur.connection
     pe_vinculo = pe_core.resolver_alias_visita(pe_conn, logradouro, loc_bruto) if tipo == "PE" else None
-    acs_presente = (
-        normalizar_acs_presente(valor_campo_kobo(row, "acs_presente"))
-        if tipo == "PVE" else None
-    )
-    acs_codigos = (
-        extrair_codigos_acs(valor_campo_kobo(row, "acs_nome"))
-        if acs_presente == 1 else []
+    acs_presente, acs_nome, acs_codigos = (
+        dados_acs_pve(
+            valor_campo_kobo(row, "acs_presente"),
+            valor_campo_kobo(row, "acs_nome"),
+        )
+        if tipo == "PVE" else (None, None, [])
     )
     # A tabela relacional e a fonte para consultas. A coluna antiga conserva
     # uma representacao legivel e retrocompativel da resposta recebida.
-    acs_nome = " ".join(acs_codigos) if acs_codigos else None
     acs_valores = (acs_presente, acs_nome)
 
     valores = (
@@ -661,6 +666,87 @@ def sincronizar_acs_visita(cur, id_visita, tipo, codigos_acs):
         "INSERT INTO visita_acs(id_visita,acs_codigo) VALUES(?,?)",
         [(id_visita, codigo) for codigo in sorted(selecionados)],
     )
+
+
+def reconciliar_acs_visita(cur, id_visita, acs_presente_valor, acs_nome_valor):
+    """Atualiza somente os dados ACS de uma PVE ja importada.
+
+    Uma resposta ACS ausente e preservada: nao ha base segura para limpar um
+    vinculo que possa ter sido registrado por uma versao anterior do formulario.
+    """
+    acs_presente, acs_nome, acs_codigos = dados_acs_pve(
+        acs_presente_valor, acs_nome_valor
+    )
+    if acs_presente is None:
+        return {"encontrada": True, "ignorou_sem_resposta": True, "alterada": False}
+
+    cur.execute(
+        "SELECT tipo, acs_presente, acs_nome FROM visitas WHERE id_visita=?",
+        (id_visita,),
+    )
+    visita = cur.fetchone()
+    if visita is None or visita[0] != "PVE":
+        return None
+
+    cur.execute("SELECT acs_codigo FROM visita_acs WHERE id_visita=?", (id_visita,))
+    atuais = {row[0] for row in cur.fetchall()}
+    selecionados = set(acs_codigos)
+    campos_alterados = (visita[1], visita[2]) != (acs_presente, acs_nome)
+    vinculos_alterados = atuais != selecionados
+    if campos_alterados:
+        cur.execute(
+            "UPDATE visitas SET acs_presente=?, acs_nome=? WHERE id_visita=?",
+            (acs_presente, acs_nome, id_visita),
+        )
+    if vinculos_alterados:
+        sincronizar_acs_visita(cur, id_visita, "PVE", acs_codigos)
+    return {
+        "encontrada": True,
+        "ignorou_sem_resposta": False,
+        "alterada": campos_alterados or vinculos_alterados,
+        "acs_codigos": acs_codigos,
+    }
+
+
+def reconciliar_acs_pve_registros(conn, registros):
+    """Reconcilia uma lista ``(uuid, presente, nomes)`` sem reimportar visitas."""
+    preparados = [
+        (str(uuid).strip(), presente, nomes)
+        for uuid, presente, nomes in registros
+        if str(uuid or "").strip() and presente not in (None, "")
+    ]
+    por_uuid = {}
+    for inicio in range(0, len(preparados), 500):
+        lote = preparados[inicio:inicio + 500]
+        placeholders = ",".join("?" for _ in lote)
+        rows = conn.execute(
+            f"""SELECT id_visita, kobo_uuid
+                   FROM visitas
+                  WHERE tipo='PVE' AND kobo_uuid IN ({placeholders})""",
+            [item[0] for item in lote],
+        ).fetchall()
+        por_uuid.update({row[1]: row[0] for row in rows})
+
+    resumo = {
+        "com_resposta_acs": len(preparados),
+        "sem_visita_local": 0,
+        "alteradas": 0,
+        "sem_alteracao": 0,
+    }
+    cur = conn.cursor()
+    for uuid, presente, nomes in preparados:
+        id_visita = por_uuid.get(uuid)
+        if not id_visita:
+            resumo["sem_visita_local"] += 1
+            continue
+        resultado = reconciliar_acs_visita(cur, id_visita, presente, nomes)
+        if resultado is None:
+            resumo["sem_visita_local"] += 1
+        elif resultado["alterada"]:
+            resumo["alteradas"] += 1
+        else:
+            resumo["sem_alteracao"] += 1
+    return resumo
 
 
 def inserir_foco_visita(cur, id_visita, positivos, visita_row, tipo, cfg_tipo, agora_iso):

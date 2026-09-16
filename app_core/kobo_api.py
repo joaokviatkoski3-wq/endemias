@@ -282,6 +282,20 @@ def _leaf_exact_value(record, candidates):
     return ""
 
 
+def pve_acs_values(record):
+    """Extrai as respostas ACS da estrutura atual e das versoes anteriores da PVE.
+
+    O formulario originalmente previsto usava ``acs_nome``. A versao publicada
+    no Kobo usa o rotulo tecnico ``Qual_quais_ACS`` para a pergunta multipla,
+    dentro de um grupo. Os dois nomes sao aceitos para que um novo ajuste do
+    XLSForm nao apague o historico ja recebido.
+    """
+    return (
+        _leaf_exact_value(record, ["acs_presente"]),
+        _leaf_exact_value(record, ["acs_nome", "Qual_quais_ACS"]),
+    )
+
+
 def _lab_result_candidates(column_name):
     return (
         LAB_RESULT_CANDIDATES_BY_NORM.get(_norm(column_name))
@@ -574,8 +588,9 @@ def _ensure_visit_columns(row, tipo, cfg_tipo, record):
     row.setdefault("Observações", detalhes.get("observacoes"))
     row.setdefault("Observa_es", detalhes.get("observacoes"))
     if tipo == "PVE":
-        _set_if_empty(row, "acs_presente", _leaf_exact_value(record, ["acs_presente"]))
-        _set_if_empty(row, "acs_nome", _leaf_exact_value(record, ["acs_nome"]))
+        acs_presente, acs_nome = pve_acs_values(record)
+        _set_if_empty(row, "acs_presente", acs_presente)
+        _set_if_empty(row, "acs_nome", acs_nome)
     fields = work_types.etl_fields_for(tipo)
     if fields.get("tratamentos_em_depositos"):
         for deposito in ("A1", "A2", "B", "C", "D1", "D2", "E"):
