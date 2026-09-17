@@ -189,6 +189,11 @@ estático como contingência até a primeira importação. A migração PostgreS
 uso da importação em produção. Não há comunicação com Conta Ovos nesta etapa.
 Consulte `docs/REGISTRO_GEOGRAFICO_GEOJSON.md`.
 
+Na versão `1.44.1`, o importador passou a aceitar diretamente os nomes de
+campos do QGIS: `Localidade` pode conter o nome normalizado e acentuado da
+localidade, e `id_Q` identifica o quarteirão. O nome é validado contra o
+cadastro local; `id_quart` continua aceito para os arquivos legados.
+
 ### Acompanhamento de ACS em visitas PVE
 
 Na versao `1.36.0`, visitas PVE passaram a armazenar os campos do formulario

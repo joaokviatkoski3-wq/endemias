@@ -95,6 +95,39 @@ class RegistroGeograficoGeojsonTests(unittest.TestCase):
             )
             self.assertEqual(previa["total"], 1)
 
+    def test_aceita_id_q_e_nome_normalizado_da_localidade_do_qgis(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = self._database(tmpdir)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute(
+                    "INSERT INTO localidades (id_localidade, nome, cod_localidade) VALUES (?, ?, ?)",
+                    (2, "São Venâncio", "12"),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+            documento = json.loads(_geojson().decode("utf-8"))
+            documento["features"][0]["properties"] = {
+                "Localidade": "São Venâncio",
+                "id_Q": "0655.1",
+                "origem": "QGIS",
+            }
+            conteudo = json.dumps(documento, ensure_ascii=False).encode("utf-8")
+            previa = rg_core.preview_importacao_geojson(db_path, conteudo, "qgis.geojson", tmpdir)
+            self.assertEqual(previa["total"], 1)
+            resultado = rg_core.importar_geojson(
+                db_path, conteudo, "qgis.geojson", previa["sha256"], tmpdir
+            )
+            self.assertEqual(resultado["total"], 1)
+            ativo = rg_core.geojson_ativo(db_path, tmpdir)
+            propriedades = ativo["features"][0]["properties"]
+            self.assertEqual(propriedades["Localidade"], 2)
+            self.assertEqual(propriedades["Localidade_nome"], "São Venâncio")
+            self.assertEqual(propriedades["Localidade_origem"], "São Venâncio")
+            self.assertEqual(propriedades["id_Q"], "0655.1")
+            self.assertEqual(propriedades["id_quart"], "0655.1")
+
     def test_valida_o_formato_do_geojson_territorial_atual(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "rg.db"

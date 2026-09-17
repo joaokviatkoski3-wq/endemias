@@ -16,8 +16,8 @@ O arquivo deve ser uma `FeatureCollection` com as propriedades:
 
 | Propriedade | Uso |
 | --- | --- |
-| `Localidade` | Código da localidade (`cod_localidade`), nome da localidade ou ID local reconhecido pelo cadastro. |
-| `id_quart` | Número municipal único do quarteirão. Valores numéricos são preservados com quatro dígitos internamente. |
+| `Localidade` | Nome normalizado da localidade no QGIS (por exemplo, `São Venâncio`). O código (`cod_localidade`) e o ID local também são reconhecidos por compatibilidade. |
+| `id_Q` | Número municipal único do quarteirão no QGIS. Valores numéricos são preservados com quatro dígitos internamente. O campo legado `id_quart` também é aceito. |
 
 São aceitas geometrias `Polygon` e `MultiPolygon` em WGS 84 (GeoJSON padrão:
 longitude, latitude). Todos os anéis precisam estar fechados e as coordenadas

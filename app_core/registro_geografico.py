@@ -507,7 +507,14 @@ def _ler_geojson_importacao(conn, conteudo, nome_arquivo="arquivo.geojson"):
         if not isinstance(propriedades, dict):
             raise ValueError(f"Feição {indice}: propriedades ausentes.")
         localidade_origem = _propriedade_geojson(propriedades, "Localidade")
+        # O arquivo histórico usa ``id_quart``; a camada mantida no QGIS usa
+        # ``id_Q``. Ambos identificam o mesmo número municipal do quarteirão.
+        # Não alteramos as propriedades originais do arquivo: a API expõe a
+        # chave canônica ``id_quart`` para manter os mapas já existentes
+        # compatíveis.
         quarteirao_origem = _propriedade_geojson(propriedades, "id_quart")
+        if not str(quarteirao_origem or "").strip():
+            quarteirao_origem = _propriedade_geojson(propriedades, "id_Q")
         localidade_chave = _normalizar_codigo_geojson(localidade_origem)
         candidatos = localidades.get(localidade_chave, [])
         if not localidade_chave:
@@ -520,7 +527,7 @@ def _ler_geojson_importacao(conn, conteudo, nome_arquivo="arquivo.geojson"):
         localidade = candidatos[0]
         quarteirao = _quarteirao(quarteirao_origem)
         if not quarteirao:
-            raise ValueError(f"Feição {indice}: propriedade id_quart ausente ou inválida.")
+            raise ValueError(f"Feição {indice}: propriedade id_quart ou id_Q ausente ou inválida.")
         geometry = feature.get("geometry")
         pontos = _iterar_coordenadas_geojson(geometry)
         chave = (int(localidade["id_localidade"]), quarteirao)

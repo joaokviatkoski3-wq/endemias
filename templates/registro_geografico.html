@@ -425,8 +425,8 @@
         <div style="margin-top:9px;line-height:1.5;">
           <div>Exporte como <strong>GeoJSON</strong> em <strong>EPSG:4326 / WGS 84</strong>.</div>
           <table style="margin:9px 0 6px;width:100%;font-size:12px;"><thead><tr><th>Campo obrigatório</th><th>Como preencher</th></tr></thead><tbody>
-            <tr><td><code>Localidade</code></td><td>Código da localidade, como <code>"11"</code>.</td></tr>
-            <tr><td><code>id_quart</code></td><td>Número único do quarteirão, de preferência como texto: <code>"0007"</code> ou <code>"0655.1"</code>.</td></tr>
+            <tr><td><code>Localidade</code></td><td>Nome normalizado da localidade no QGIS, como <code>"São Venâncio"</code>. Código e ID local também são aceitos.</td></tr>
+            <tr><td><code>id_Q</code></td><td>Número único do quarteirão no QGIS, de preferência como texto: <code>"0007"</code> ou <code>"0655.1"</code>. O campo legado <code>id_quart</code> também é aceito.</td></tr>
           </tbody></table>
           <div>A geometria deve ser <code>Polygon</code> ou <code>MultiPolygon</code>. As coordenadas usam a ordem <strong>longitude, latitude</strong>; não é necessário editar as coordenadas manualmente. Outros campos podem permanecer no arquivo.</div>
         </div>
