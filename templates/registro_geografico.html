@@ -121,9 +121,16 @@
 .rg-map-label::before{display:none;}
 .rg-map-popup{font-size:12px;line-height:1.4;}
 .rg-map-popup strong{font-size:14px;}
+.rg-geojson-grid{display:grid;grid-template-columns:minmax(300px,.9fr) minmax(0,1.4fr);gap:14px;align-items:start;}
+.rg-geojson-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:12px;}
+.rg-geojson-summary div{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);padding:9px;}
+.rg-geojson-summary strong{display:block;font-size:20px;color:#155e75;font-variant-numeric:tabular-nums;}
+.rg-geojson-summary span{display:block;font-size:10px;color:var(--text3);font-weight:900;text-transform:uppercase;margin-top:3px;}
+.rg-geojson-status{min-height:22px;margin-top:10px;font-size:12px;color:var(--text2);}
 @media(max-width:1400px){.rg-filters,.rg-acomp-filters{grid-template-columns:repeat(2,minmax(220px,1fr));}.rg-print-card{grid-template-columns:1fr;}}
 @media(max-width:1050px){.rg-map-grid{grid-template-columns:1fr;height:auto;}.rg-map-side{max-height:none;overflow:visible;padding-right:0;}.rg-map-shell,#rg-mapa{height:62vh;min-height:420px;}}
 @media(max-width:1050px){.rg-batch-grid{grid-template-columns:1fr;}.rg-batch-pairs{max-height:360px;}}
+@media(max-width:1050px){.rg-geojson-grid{grid-template-columns:1fr;}}
 @media(max-width:850px){.rg-edit-meta{grid-template-columns:1fr;}.rg-map-kpis{grid-template-columns:1fr;}.rg-filters,.rg-acomp-filters{grid-template-columns:1fr;}.rg-batch-form{grid-template-columns:1fr;}}
 </style>{% endblock %}
 
@@ -144,6 +151,7 @@
   <button class="rg-tab" type="button" data-rg-tab="acompanhamento">Acompanhamento</button>
   <button class="rg-tab" type="button" data-rg-tab="impressao">Impressão</button>
   <button class="rg-tab" type="button" data-rg-tab="mapa">Mapa / Análise</button>
+  {% if is_admin %}<button class="rg-tab" type="button" data-rg-tab="geometrias">Geometrias</button>{% endif %}
 </div>
 
 <section class="rg-panel" id="rg-panel-consulta">
@@ -398,6 +406,30 @@
   </div>
 </section>
 
+{% if is_admin %}
+<section class="rg-panel" id="rg-panel-geometrias" hidden>
+  <div class="rg-geojson-grid">
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Camada ativa</div></div>
+      {% if opcoes.geojson.ativo %}
+      <p class="rg-muted">{{ opcoes.geojson.ativo.arquivo_nome }} · {{ opcoes.geojson.ativo.total_feicoes }} quarteirões<br>Importado em {{ opcoes.geojson.ativo.importado_em }} por {{ opcoes.geojson.ativo.importado_por_usuario_nome or 'sistema' }}.</p>
+      {% else %}
+      <p class="rg-muted">Os mapas ainda usam o arquivo estático de contingência. A primeira importação passará a ser a camada ativa versionada.</p>
+      {% endif %}
+      <div class="alert alert-info" style="margin-top:12px;">A importação atualiza somente a geometria local dos mapas. Não altera imóveis do RG, visitas, ovitrampas ou dados no Conta Ovos.</div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar GeoJSON do QGIS</div></div>
+      <div class="f-g"><label>Arquivo GeoJSON</label><input id="rg-geojson-arquivo" type="file" accept=".geojson,.json,application/geo+json,application/json"></div>
+      <div class="rg-sheet-tools"><button class="btn btn-outline" type="button" id="rg-geojson-preview">Gerar prévia</button><button class="btn btn-primary" type="button" id="rg-geojson-importar" disabled>Importar e ativar</button></div>
+      <div id="rg-geojson-status" class="rg-geojson-status">Selecione o GeoJSON exportado pelo QGIS.</div>
+      <div id="rg-geojson-resumo" class="rg-geojson-summary" hidden></div>
+      <div id="rg-geojson-ausentes" class="rg-muted" style="margin-top:10px;"></div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
 <div id="rg-logradouro-suggest" class="rg-logradouro-suggest" hidden></div>
 
 <script src="/static/vendor/leaflet/leaflet.min.js"></script>
@@ -407,6 +439,7 @@ const rgLocalidades = {{ opcoes.localidades|tojson }};
 const rgState = { registros: [], q: null, limiteTodos: false };
 const rgAcompState = { carregado: false };
 const rgBatchState = { preview: null, payload: null };
+const rgGeojsonState = { preview: null };
 const rgLogradouroSuggestState = { timer: null, input: null, items: [] };
 const rgMapState = {
   map: null,
@@ -724,7 +757,7 @@ async function rgMapInit(){
   }
   rgMapRenderLocalidades();
   const [geoResp, dataResp, pontosResp] = await Promise.all([
-    fetch('/static/quarteiroes.geojson'),
+    fetch('/api/registro-geografico/geojson'),
     fetch('/api/registro-geografico/mapa-resumo'),
     fetch('/static/ubs_setor_endemias.geojson').catch(() => null)
   ]);
@@ -1400,6 +1433,76 @@ async function rgExcluirQuarteirao(){
     rgEl('rg-ed-limpar-quarteirao').disabled = false;
   }
 }
+function rgGeojsonFormData(){
+  const arquivo = rgEl('rg-geojson-arquivo')?.files?.[0];
+  if(!arquivo) throw new Error('Selecione um arquivo GeoJSON.');
+  const form = new FormData();
+  form.append('arquivo', arquivo);
+  return form;
+}
+function rgGeojsonRenderPreview(data){
+  const resumo = rgEl('rg-geojson-resumo');
+  resumo.hidden = false;
+  resumo.innerHTML = [
+    ['Feições', data.total], ['Novos', data.novos], ['Alterados', data.alterados], ['Sem mudança', data.iguais], ['Ausentes', data.ausentes]
+  ].map(([rotulo, valor]) => `<div><strong>${rgFmt(valor)}</strong><span>${rgEscape(rotulo)}</span></div>`).join('');
+  const ausentes = data.ausentes_amostra || [];
+  const detalhe = ausentes.length
+    ? `Ausentes na nova versão: ${ausentes.map(item => `${rgEscape(item.localidade)} · Q. ${rgEscape(item.quarteirao)}`).join('; ')}${data.ausentes > ausentes.length ? '…' : ''}. Eles não serão apagados automaticamente.`
+    : 'Nenhum quarteirão da versão ativa ficou ausente.';
+  rgSetText('rg-geojson-ausentes', detalhe);
+  rgSetText('rg-geojson-status', `Prévia concluída contra ${data.fonte_anterior}. Confira os números antes de ativar a nova camada.`);
+}
+async function rgGeojsonPreview(){
+  const btn = rgEl('rg-geojson-preview');
+  const importar = rgEl('rg-geojson-importar');
+  importar.disabled = true;
+  rgGeojsonState.preview = null;
+  btn.disabled = true;
+  rgSetText('rg-geojson-status', 'Validando GeoJSON e comparando a camada ativa...');
+  try {
+    const resp = await fetch('/api/registro-geografico/geojson/preview', {
+      method:'POST', headers:{'X-CSRFToken':rgCsrf()}, body:rgGeojsonFormData()
+    });
+    const data = await rgJson(resp, 'Não foi possível gerar a prévia do GeoJSON.');
+    rgGeojsonState.preview = data;
+    rgGeojsonRenderPreview(data);
+    importar.disabled = false;
+  } finally {
+    btn.disabled = false;
+  }
+}
+async function rgGeojsonImportar(){
+  const preview = rgGeojsonState.preview;
+  if(!preview){ alert('Gere a prévia antes de importar.'); return; }
+  const confirmar = prompt(`Esta ação ativará ${preview.total} geometria(s) locais nos mapas.\n\nDigite IMPORTAR para confirmar.`);
+  if(confirmar !== 'IMPORTAR'){
+    rgSetText('rg-geojson-status', 'Importação cancelada.');
+    return;
+  }
+  const btn = rgEl('rg-geojson-importar');
+  btn.disabled = true;
+  rgSetText('rg-geojson-status', 'Importando e ativando a nova camada local...');
+  try {
+    const form = rgGeojsonFormData();
+    form.append('sha256_esperado', preview.sha256);
+    const resp = await fetch('/api/registro-geografico/geojson/importar', {
+      method:'POST', headers:{'X-CSRFToken':rgCsrf()}, body:form
+    });
+    const data = await rgJson(resp, 'Não foi possível importar o GeoJSON.');
+    rgGeojsonState.preview = null;
+    rgEl('rg-geojson-resumo').hidden = true;
+    rgEl('rg-geojson-ausentes').textContent = '';
+    rgSetText('rg-geojson-status', `${rgFmt(data.importacao.total)} geometria(s) importada(s) e ativada(s). Atualize os mapas para visualizar a nova versão.`);
+    if(rgMapState.initialized){
+      rgMapState.initialized = false;
+      if(rgMapState.map){ rgMapState.map.remove(); rgMapState.map = null; }
+      rgMapInit().catch(err => rgSetText('rg-geojson-status', err.message));
+    }
+  } finally {
+    btn.disabled = false;
+  }
+}
 function rgAtivarAba(nome){
   document.querySelectorAll('.rg-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.rgTab === nome));
   document.querySelectorAll('.rg-panel').forEach(panel => panel.hidden = panel.id !== `rg-panel-${nome}`);
@@ -1412,6 +1515,22 @@ function rgAtivarAba(nome){
   if(nome === 'acompanhamento') rgAcompCarregar().catch(err => { rgEl('rg-acomp-info').textContent = err.message; });
 }
 document.querySelectorAll('.rg-tab').forEach(btn => btn.addEventListener('click', () => rgAtivarAba(btn.dataset.rgTab)));
+if(rgEl('rg-geojson-preview')){
+  rgEl('rg-geojson-preview').addEventListener('click', () => rgGeojsonPreview().catch(err => {
+    rgSetText('rg-geojson-status', err.message);
+  }));
+  rgEl('rg-geojson-importar').addEventListener('click', () => rgGeojsonImportar().catch(err => {
+    rgSetText('rg-geojson-status', err.message);
+    rgEl('rg-geojson-importar').disabled = false;
+  }));
+  rgEl('rg-geojson-arquivo').addEventListener('change', () => {
+    rgGeojsonState.preview = null;
+    rgEl('rg-geojson-importar').disabled = true;
+    rgEl('rg-geojson-resumo').hidden = true;
+    rgEl('rg-geojson-ausentes').textContent = '';
+    rgSetText('rg-geojson-status', 'Arquivo selecionado. Gere a prévia antes de importar.');
+  });
+}
 rgEl('rg-lote-detectar').addEventListener('click', () => rgBatchDetectar().catch(err => {
   rgSetText('rg-lote-pares-info', err.message);
 }));

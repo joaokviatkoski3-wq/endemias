@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.42.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.44.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -355,6 +355,14 @@ obrigatoria para integracao.
   dependencias operacionais diretamente vinculadas. O nucleo em
   `app_core/visitas.py` preserva auditoria e lotes de importacao, exige uma
   confirmacao na interface e a rota bloqueia operadores e visualizadores.
+- A versao `1.44.0` adiciona importacao administrativa e versionada do GeoJSON
+  de quarteiroes do QGIS. A camada local valida `FeatureCollection`,
+  `Localidade`, `id_quart`, Polygon/MultiPolygon e coordenadas; a previa exige
+  confirmacao do mesmo SHA-256 e a importacao nunca exclui quarteiroes ausentes.
+  Mapa Territorial, RG e RGs impressos consultam a rota local com fallback no
+  arquivo estatico ate a primeira importacao. A migracao PostgreSQL `0013` e
+  obrigatoria antes do primeiro uso em producao. Esta etapa nao envia nem cria
+  quarteiroes no Conta Ovos. Consulte `docs/REGISTRO_GEOGRAFICO_GEOJSON.md`.
 - A versao `1.37.0` acrescentou ao Monitoramento de Ovitrampas a exportacao
   filtrada em XLSX. O arquivo reune resumo, todas as leituras do recorte,
   cadastro consolidado local/remoto, indicadores por semana e localidade e

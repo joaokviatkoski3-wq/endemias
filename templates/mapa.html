@@ -528,7 +528,7 @@ function initMapa() {
   camadas['Mapa'].addTo(mapaL);
   L.control.layers(camadas, {}, { position: 'topright', collapsed: false }).addTo(mapaL);
 
-  fetch('/static/quarteiroes.geojson')
+  fetch('/api/registro-geografico/geojson')
     .then(r => r.json())
     .then(gj => {
       geojsonData = gj;

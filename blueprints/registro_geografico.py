@@ -51,7 +51,12 @@ def page():
         opcoes = rg_core.opcoes(_db_path(), _base_dir())
     except ValueError as exc:
         opcoes = {"localidades": [], "agentes": [], "tipos": [], "erro_importacao": str(exc)}
-    return render_template("registro_geografico.html", opcoes=opcoes)
+    usuario = usuario_atual() or {}
+    return render_template(
+        "registro_geografico.html",
+        opcoes=opcoes,
+        is_admin=usuario.get("nivel") == "admin",
+    )
 
 
 @bp.route("/api/registro-geografico")
@@ -97,6 +102,9 @@ def api_criar():
         )
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
+    except Exception:
+        logging.exception("Erro ao criar Registro Geografico")
+        return jsonify({"erro": "Erro interno do servidor."}), 500
     audit.registrar_evento(
         get_db,
         "registro_geografico_criado",
@@ -219,6 +227,67 @@ def api_mapa_resumo():
         return jsonify(rg_core.resumo_mapa(_db_path(), _base_dir()))
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
+
+
+@bp.route("/api/registro-geografico/geojson")
+@login_required
+def api_geojson_ativo():
+    try:
+        response = jsonify(rg_core.geojson_ativo(_db_path(), _base_dir()))
+        response.headers["Cache-Control"] = "no-store"
+        return response
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    except Exception:
+        logging.exception("Erro ao carregar GeoJSON do Registro Geografico")
+        return jsonify({"erro": "Erro interno do servidor."}), 500
+
+
+def _arquivo_geojson_requisicao():
+    arquivo = request.files.get("arquivo")
+    if not arquivo or not arquivo.filename:
+        raise ValueError("Selecione um arquivo GeoJSON.")
+    return arquivo.filename, arquivo.read()
+
+
+@bp.route("/api/registro-geografico/geojson/preview", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_geojson_preview():
+    try:
+        nome, conteudo = _arquivo_geojson_requisicao()
+        return jsonify(rg_core.preview_importacao_geojson(_db_path(), conteudo, nome, _base_dir()))
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    except Exception:
+        logging.exception("Erro na prévia de importação GeoJSON")
+        return jsonify({"erro": "Erro interno do servidor."}), 500
+
+
+@bp.route("/api/registro-geografico/geojson/importar", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_geojson_importar():
+    try:
+        nome, conteudo = _arquivo_geojson_requisicao()
+        usuario_id, usuario_nome = _autor_atualizacao()
+        dados = rg_core.importar_geojson(
+            _db_path(), conteudo, nome, request.form.get("sha256_esperado"),
+            _base_dir(), usuario_id, usuario_nome,
+        )
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    except Exception:
+        logging.exception("Erro ao importar GeoJSON do Registro Geografico")
+        return jsonify({"erro": "Erro interno do servidor."}), 500
+    audit.registrar_evento(
+        get_db,
+        "registro_geografico_geojson_importado",
+        entidade="registro_geografico_geojson",
+        entidade_id=dados.get("id_importacao"),
+        detalhes={"arquivo": dados.get("arquivo"), "feicoes": dados.get("total")},
+    )
+    return jsonify({"ok": True, "importacao": dados})
 
 
 @bp.route("/api/registro-geografico/logradouros-sugestoes")

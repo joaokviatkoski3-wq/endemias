@@ -1,5 +1,6 @@
 import csv
 import hashlib
+import json
 import re
 import unicodedata
 import uuid
@@ -22,6 +23,7 @@ TIPOS = {
 TIPOS_NAO_CONTABILIZAVEIS = {"REF"}
 MEDIA_PESSOAS_POR_RESIDENCIA = 2.93
 FONTE_POPULACAO = "Fonte: IBGE Censo 2022"
+GEOJSON_MAX_BYTES = 20 * 1024 * 1024
 CAMPOS_EDICAO_LOTE = {
     "logradouro": "Logradouro",
     "numero": "Numero",
@@ -272,11 +274,39 @@ def ensure_schema(conn_or_path, base_dir=None):
                 PRIMARY KEY(id_imovel, id_agente)
             );
 
+            CREATE TABLE IF NOT EXISTS registro_geografico_geojson_importacoes (
+                id_importacao TEXT PRIMARY KEY,
+                arquivo_nome TEXT NOT NULL,
+                arquivo_sha256 TEXT NOT NULL,
+                importado_em TEXT NOT NULL,
+                importado_por_usuario_id INTEGER,
+                importado_por_usuario_nome TEXT,
+                ativo INTEGER NOT NULL DEFAULT 0,
+                total_feicoes INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS registro_geografico_quarteiroes_geometrias (
+                id_importacao TEXT NOT NULL REFERENCES registro_geografico_geojson_importacoes(id_importacao),
+                id_localidade INTEGER NOT NULL REFERENCES localidades(id_localidade),
+                localidade TEXT NOT NULL,
+                localidade_origem TEXT NOT NULL,
+                quarteirao TEXT NOT NULL,
+                geometry_json TEXT NOT NULL,
+                properties_json TEXT NOT NULL,
+                geometry_hash TEXT NOT NULL,
+                centro_lat REAL NOT NULL,
+                centro_lng REAL NOT NULL,
+                coordenadas INTEGER NOT NULL,
+                PRIMARY KEY(id_importacao, id_localidade, quarteirao)
+            );
+
             CREATE INDEX IF NOT EXISTS idx_rg_imoveis_localidade ON registro_geografico_imoveis(id_localidade, quarteirao);
             CREATE INDEX IF NOT EXISTS idx_rg_imoveis_logradouro ON registro_geografico_imoveis(logradouro);
             CREATE INDEX IF NOT EXISTS idx_rg_imoveis_tipo ON registro_geografico_imoveis(tipo);
             CREATE INDEX IF NOT EXISTS idx_rg_imoveis_data ON registro_geografico_imoveis(data_atualizacao);
             CREATE INDEX IF NOT EXISTS idx_rg_imoveis_quarteirao_ordem ON registro_geografico_imoveis(id_quarteirao, ordem, id_imovel);
+            CREATE INDEX IF NOT EXISTS idx_rg_geojson_importacoes_ativo ON registro_geografico_geojson_importacoes(ativo, importado_em);
+            CREATE INDEX IF NOT EXISTS idx_rg_geojson_geometrias_chave ON registro_geografico_quarteiroes_geometrias(id_localidade, quarteirao);
             """
         )
         cols = _table_cols(conn, "registro_geografico_imoveis")
@@ -377,6 +407,245 @@ def _quarteirao_display(value):
     if text.replace(".0", "").isdigit():
         return str(int(float(text)))
     return text
+
+
+def _normalizar_codigo_geojson(value):
+    """Normaliza somente para comparar identificadores, sem perder o original."""
+    text = str(value or "").strip()
+    if re.fullmatch(r"[0-9]+\.0+", text):
+        return str(int(float(text)))
+    return _norm(text)
+
+
+def _propriedade_geojson(properties, nome):
+    alvo = _norm(nome).replace("_", "")
+    for chave, valor in (properties or {}).items():
+        if _norm(chave).replace("_", "") == alvo:
+            return valor
+    return None
+
+
+def _iterar_coordenadas_geojson(geometry):
+    """Percorre coordenadas GeoJSON Polygon/MultiPolygon sem alterar os anéis."""
+    tipo = (geometry or {}).get("type")
+    coordinates = (geometry or {}).get("coordinates")
+    if tipo == "Polygon":
+        polygons = [coordinates]
+    elif tipo == "MultiPolygon":
+        polygons = coordinates
+    else:
+        raise ValueError("Cada feição deve ser Polygon ou MultiPolygon.")
+    if not isinstance(polygons, list) or not polygons:
+        raise ValueError("A geometria não possui polígonos válidos.")
+    pontos = []
+    for polygon in polygons:
+        if not isinstance(polygon, list) or not polygon:
+            raise ValueError("A geometria possui polígono vazio.")
+        for ring in polygon:
+            if not isinstance(ring, list) or len(ring) < 4:
+                raise ValueError("Cada anel deve ter ao menos quatro coordenadas.")
+            primeiro, ultimo = ring[0], ring[-1]
+            if primeiro != ultimo:
+                raise ValueError("Cada anel do GeoJSON deve estar fechado.")
+            for ponto in ring:
+                if not isinstance(ponto, (list, tuple)) or len(ponto) < 2:
+                    raise ValueError("Coordenada GeoJSON inválida.")
+                try:
+                    lng, lat = float(ponto[0]), float(ponto[1])
+                except (TypeError, ValueError):
+                    raise ValueError("Coordenada GeoJSON deve ser numérica.") from None
+                if not (-180 <= lng <= 180 and -90 <= lat <= 90):
+                    raise ValueError("Coordenada GeoJSON fora dos limites geográficos.")
+                pontos.append((lng, lat))
+    return pontos
+
+
+def _geojson_tabelas(conn):
+    return (
+        db_core.table_exists(conn, "registro_geografico_geojson_importacoes")
+        and db_core.table_exists(conn, "registro_geografico_quarteiroes_geometrias")
+    )
+
+
+def _localidades_por_codigo_geojson(conn):
+    cols = _table_cols(conn, "localidades")
+    select = "id_localidade, nome"
+    if "cod_localidade" in cols:
+        select += ", cod_localidade"
+    por_codigo = {}
+    for raw in conn.execute(f"SELECT {select} FROM localidades"):
+        row = db_core.serialize_row(raw)
+        for chave in (row.get("cod_localidade"), row.get("nome"), row.get("id_localidade")):
+            normalizada = _normalizar_codigo_geojson(chave)
+            if normalizada:
+                por_codigo.setdefault(normalizada, []).append(row)
+    return por_codigo
+
+
+def _ler_geojson_importacao(conn, conteudo, nome_arquivo="arquivo.geojson"):
+    if not conteudo:
+        raise ValueError("Selecione um arquivo GeoJSON.")
+    if len(conteudo) > GEOJSON_MAX_BYTES:
+        raise ValueError("O GeoJSON excede o limite de 20 MB.")
+    try:
+        documento = json.loads(conteudo.decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("O arquivo não é um GeoJSON UTF-8 válido.") from exc
+    if not isinstance(documento, dict) or documento.get("type") != "FeatureCollection":
+        raise ValueError("O GeoJSON deve ser uma FeatureCollection.")
+    features = documento.get("features")
+    if not isinstance(features, list) or not features:
+        raise ValueError("O GeoJSON não possui feições.")
+
+    localidades = _localidades_por_codigo_geojson(conn)
+    registros = []
+    chaves = set()
+    for indice, feature in enumerate(features, 1):
+        if not isinstance(feature, dict) or feature.get("type") != "Feature":
+            raise ValueError(f"Feição {indice}: formato inválido.")
+        propriedades = feature.get("properties")
+        if not isinstance(propriedades, dict):
+            raise ValueError(f"Feição {indice}: propriedades ausentes.")
+        localidade_origem = _propriedade_geojson(propriedades, "Localidade")
+        quarteirao_origem = _propriedade_geojson(propriedades, "id_quart")
+        localidade_chave = _normalizar_codigo_geojson(localidade_origem)
+        candidatos = localidades.get(localidade_chave, [])
+        if not localidade_chave:
+            raise ValueError(f"Feição {indice}: propriedade Localidade ausente.")
+        if not candidatos:
+            raise ValueError(f"Feição {indice}: Localidade '{localidade_origem}' não existe no cadastro local.")
+        ids = {item["id_localidade"] for item in candidatos}
+        if len(ids) != 1:
+            raise ValueError(f"Feição {indice}: Localidade '{localidade_origem}' é ambígua no cadastro local.")
+        localidade = candidatos[0]
+        quarteirao = _quarteirao(quarteirao_origem)
+        if not quarteirao:
+            raise ValueError(f"Feição {indice}: propriedade id_quart ausente ou inválida.")
+        geometry = feature.get("geometry")
+        pontos = _iterar_coordenadas_geojson(geometry)
+        chave = (int(localidade["id_localidade"]), quarteirao)
+        if chave in chaves:
+            raise ValueError(f"Feição {indice}: Localidade {localidade['nome']} e quarteirão {quarteirao} aparecem mais de uma vez.")
+        chaves.add(chave)
+        lons, lats = zip(*pontos)
+        geometry_json = json.dumps(geometry, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+        properties_json = json.dumps(propriedades, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+        registros.append({
+            "id_localidade": int(localidade["id_localidade"]),
+            "localidade": localidade["nome"],
+            "localidade_origem": str(localidade_origem).strip(),
+            "quarteirao": quarteirao,
+            "geometry_json": geometry_json,
+            "properties_json": properties_json,
+            "geometry_hash": hashlib.sha256(geometry_json.encode("utf-8")).hexdigest(),
+            "centro_lat": round((min(lats) + max(lats)) / 2, 7),
+            "centro_lng": round((min(lons) + max(lons)) / 2, 7),
+            "coordenadas": len(pontos),
+        })
+    return {"arquivo": str(nome_arquivo or "arquivo.geojson"), "sha256": hashlib.sha256(conteudo).hexdigest(), "registros": registros, "total": len(registros)}
+
+
+def _geometrias_ativas(conn):
+    if not _geojson_tabelas(conn):
+        return {}, None
+    ativo = conn.execute("SELECT * FROM registro_geografico_geojson_importacoes WHERE ativo=TRUE ORDER BY importado_em DESC LIMIT 1").fetchone()
+    if not ativo:
+        return {}, None
+    rows = conn.execute("SELECT * FROM registro_geografico_quarteiroes_geometrias WHERE id_importacao=?", (ativo["id_importacao"],)).fetchall()
+    return {(int(row["id_localidade"]), row["quarteirao"]): db_core.serialize_row(row) for row in rows}, db_core.serialize_row(ativo)
+
+
+def preview_importacao_geojson(db_path, conteudo, nome_arquivo, base_dir=None):
+    ensure_schema(db_path, base_dir)
+    conn = db_core.connect(db_path)
+    try:
+        novo = _ler_geojson_importacao(conn, conteudo, nome_arquivo)
+        atual, importacao_ativa = _geometrias_ativas(conn)
+        fonte_anterior = "importação ativa" if importacao_ativa else "sem camada anterior"
+        if not atual and not importacao_ativa and base_dir:
+            arquivo_estatico = Path(base_dir) / "static" / "quarteiroes.geojson"
+            if arquivo_estatico.is_file():
+                try:
+                    legado = _ler_geojson_importacao(conn, arquivo_estatico.read_bytes(), arquivo_estatico.name)
+                    atual = {
+                        (item["id_localidade"], item["quarteirao"]): item
+                        for item in legado["registros"]
+                    }
+                    fonte_anterior = "arquivo estático de contingência"
+                except ValueError:
+                    fonte_anterior = "arquivo estático de contingência não comparável"
+        entradas = {(item["id_localidade"], item["quarteirao"]): item for item in novo["registros"]}
+        iguais = sum(1 for chave, item in entradas.items() if atual.get(chave, {}).get("geometry_hash") == item["geometry_hash"])
+        alterados = sum(1 for chave, item in entradas.items() if chave in atual and atual[chave].get("geometry_hash") != item["geometry_hash"])
+        novos = sum(1 for chave in entradas if chave not in atual)
+        ausentes = [{"localidade": item["localidade"], "quarteirao": _quarteirao_display(item["quarteirao"])} for chave, item in atual.items() if chave not in entradas]
+        return {"arquivo": novo["arquivo"], "sha256": novo["sha256"], "total": novo["total"], "novos": novos, "alterados": alterados, "iguais": iguais, "ausentes": len(ausentes), "ausentes_amostra": ausentes[:20], "fonte_anterior": fonte_anterior, "importacao_ativa": importacao_ativa}
+    finally:
+        conn.close()
+
+
+def importar_geojson(db_path, conteudo, nome_arquivo, sha256_esperado, base_dir=None, usuario_id=None, usuario_nome=None):
+    if not str(sha256_esperado or "").strip():
+        raise ValueError("Faça a prévia do mesmo arquivo antes de importar.")
+    ensure_schema(db_path, base_dir)
+    conn = db_core.connect(db_path)
+    try:
+        novo = _ler_geojson_importacao(conn, conteudo, nome_arquivo)
+        if novo["sha256"] != str(sha256_esperado).strip():
+            raise ValueError("O arquivo foi alterado após a prévia. Gere uma nova prévia antes de importar.")
+        if not _geojson_tabelas(conn):
+            raise ValueError("O esquema de GeoJSON ainda não está disponível neste banco.")
+        id_importacao, agora = uuid.uuid4().hex, _now()
+        with conn:
+            conn.execute("UPDATE registro_geografico_geojson_importacoes SET ativo=FALSE WHERE ativo=TRUE")
+            conn.execute("""INSERT INTO registro_geografico_geojson_importacoes
+                (id_importacao, arquivo_nome, arquivo_sha256, importado_em, importado_por_usuario_id,
+                 importado_por_usuario_nome, ativo, total_feicoes)
+                VALUES (?, ?, ?, ?, ?, ?, TRUE, ?)""", (id_importacao, novo["arquivo"], novo["sha256"], agora, usuario_id, usuario_nome, novo["total"]))
+            conn.executemany("""INSERT INTO registro_geografico_quarteiroes_geometrias
+                (id_importacao, id_localidade, localidade, localidade_origem, quarteirao,
+                 geometry_json, properties_json, geometry_hash, centro_lat, centro_lng, coordenadas)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", [
+                (id_importacao, item["id_localidade"], item["localidade"], item["localidade_origem"], item["quarteirao"], item["geometry_json"], item["properties_json"], item["geometry_hash"], item["centro_lat"], item["centro_lng"], item["coordenadas"])
+                for item in novo["registros"]
+            ])
+        return {"id_importacao": id_importacao, "arquivo": novo["arquivo"], "total": novo["total"], "sha256": novo["sha256"], "importado_em": agora}
+    finally:
+        conn.close()
+
+
+def resumo_geojson(db_path, base_dir=None):
+    ensure_schema(db_path, base_dir)
+    conn = db_core.connect(db_path)
+    try:
+        _, ativo = _geometrias_ativas(conn)
+        return {"ativo": ativo, "usa_contingencia": not bool(ativo)}
+    finally:
+        conn.close()
+
+
+def geojson_ativo(db_path, base_dir=None):
+    ensure_schema(db_path, base_dir)
+    conn = db_core.connect(db_path)
+    try:
+        registros, ativo = _geometrias_ativas(conn)
+        if registros:
+            features = []
+            for item in registros.values():
+                propriedades = json.loads(item["properties_json"] or "{}")
+                propriedades["Localidade_origem"] = item["localidade_origem"]
+                propriedades["Localidade"] = item["id_localidade"]
+                propriedades["Localidade_nome"] = item["localidade"]
+                propriedades["id_quart"] = item["quarteirao"]
+                features.append({"type": "Feature", "properties": propriedades, "geometry": json.loads(item["geometry_json"])})
+            return {"type": "FeatureCollection", "features": features, "metadata": {"fonte": "importação local", "id_importacao": ativo["id_importacao"], "importado_em": ativo["importado_em"]}}
+    finally:
+        conn.close()
+    arquivo = Path(base_dir or ".") / "static" / "quarteiroes.geojson"
+    try:
+        return json.loads(arquivo.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("Não foi possível carregar a camada de quarteirões ativa.") from exc
 
 
 def _chave(row, linha=None):
@@ -577,6 +846,7 @@ def opcoes(db_path, base_dir=None):
             "localidades": [dict(r) for r in conn.execute("SELECT id_localidade, nome FROM localidades ORDER BY nome")],
             "agentes": [dict(r) for r in conn.execute("SELECT id_agente, nome FROM agentes WHERE COALESCE(ativo,1)=1 ORDER BY nome")],
             "tipos": [{"codigo": k, "nome": v} for k, v in TIPOS.items()],
+            "geojson": resumo_geojson(db_path, base_dir),
         }
     finally:
         conn.close()

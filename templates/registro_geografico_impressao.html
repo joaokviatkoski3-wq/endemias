@@ -281,7 +281,7 @@ async function rgPrintInitMaps(){
   if(!maps.length) return;
   const status = document.getElementById('rg-print-map-status');
   try {
-    const resp = await fetch('/static/quarteiroes.geojson');
+    const resp = await fetch('/api/registro-geografico/geojson');
     if(!resp.ok) throw new Error('Erro ao carregar GeoJSON.');
     const geojson = await resp.json();
     const pendentes = [...maps];

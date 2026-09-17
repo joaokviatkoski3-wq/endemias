@@ -178,6 +178,17 @@ impressao processa no maximo dois mini-mapas simultaneamente para evitar
 rajadas de requisicoes. Nao houve migracao nem alteracao de dados. Consulte
 `docs/MAPAS_BASE_CARTOGRAFICA.md`.
 
+Na versão `1.44.0`, o Registro Geográfico recebeu uma camada GeoJSON local
+versionada. Administradores podem validar e importar uma `FeatureCollection`
+do QGIS com `Localidade` e `id_quart`; cada versão preserva hash, autor,
+horário e geometrias, e a prévia compara novos, alterados, iguais e ausentes
+sem excluir nada automaticamente. Mapa Territorial, mapa do RG e RGs impressos
+passam a consumir `/api/registro-geografico/geojson`, que mantém o arquivo
+estático como contingência até a primeira importação. A migração PostgreSQL
+`0013_registro_geografico_geojson.sql` precisa ser aplicada antes do primeiro
+uso da importação em produção. Não há comunicação com Conta Ovos nesta etapa.
+Consulte `docs/REGISTRO_GEOGRAFICO_GEOJSON.md`.
+
 ### Acompanhamento de ACS em visitas PVE
 
 Na versao `1.36.0`, visitas PVE passaram a armazenar os campos do formulario
