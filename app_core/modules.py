@@ -97,6 +97,18 @@ MODULES: Tuple[AppModule, ...] = (
         endpoints=("laboratorio", "consultas.laboratorio"),
     ),
     AppModule(
+        key="positividade",
+        title="Positividade",
+        short_title="Positividade",
+        href="/positividade",
+        endpoint="consultas.positividade",
+        icon="circulo_vermelho.svg",
+        nav_section="Analise",
+        description="Consulta unificada de focos positivos, incluindo o histórico pré-sistema.",
+        tags=("Aedes aegypti", "Histórico", "Focos"),
+        endpoints=("positividade", "consultas.positividade"),
+    ),
+    AppModule(
         key="laboratorio_lancamentos",
         title="Lançamentos Laboratório",
         short_title="Lançamentos Lab.",

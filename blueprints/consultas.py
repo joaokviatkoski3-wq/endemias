@@ -7,6 +7,7 @@ from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import dashboard as dashboard_core
 from app_core import laboratorio as laboratorio_core
+from app_core import positividade as positividade_core
 from app_core import producao_operacional
 from app_core import utils as utils_core
 from app_core import visitas as visitas_core
@@ -37,6 +38,17 @@ def laboratorio():
         "laboratorio.html",
         d_ini=request.args.get("d_ini", utils_core.data_n_dias(90)),
         d_fim=request.args.get("d_fim", utils_core.hoje()),
+    )
+
+
+@bp.route("/positividade")
+@login_required
+def positividade():
+    return render_template(
+        "positividade.html",
+        d_ini=request.args.get("d_ini", "2025-01-01"),
+        d_fim=request.args.get("d_fim", utils_core.hoje()),
+        opcoes=positividade_core.opcoes(bh.db_target()),
     )
 
 
@@ -103,6 +115,27 @@ def api_laboratorio():
         )
     except Exception:
         logging.exception("Erro em api_laboratorio")
+        return jsonify(
+            {"erro": "Erro interno. Verifique endemias.log"}
+        ), 500
+
+
+@bp.route("/api/positividade")
+@login_required
+def api_positividade():
+    try:
+        pagina = bh.request_int_arg("pagina", 1, minimo=1)
+        por_pagina = bh.request_int_arg(
+            "por_pagina", 50, minimo=1, maximo=500
+        )
+        return jsonify(
+            positividade_core.listar(
+                bh.db_target(), request.args, pagina=pagina,
+                por_pagina=por_pagina,
+            )
+        )
+    except Exception:
+        logging.exception("Erro em api_positividade")
         return jsonify(
             {"erro": "Erro interno. Verifique endemias.log"}
         ), 500

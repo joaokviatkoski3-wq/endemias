@@ -5,7 +5,7 @@
 {% block content %}
 <div class="page-header">
   <h1><span class="icon"><img src="/static/icons/microscopio.svg" alt="🔬" class="icon-svg"></span> Resultados Laboratoriais</h1>
-  <div class="sub">Análise de coletas de ovitrampas por espécie, período e localidade</div>
+  <div class="sub">Análise de coletas de tubos por espécie, período e localidade</div>
 </div>
 
 <!-- FILTROS -->
@@ -137,7 +137,7 @@ async function buscar(pg=1) {
   document.getElementById('l-tabela-area').innerHTML = '<div class="loading-box"><div class="spinner"></div></div>';
 
   try {
-    const d = await apiGet('/api/laboratorio?' + qs);
+    const d = await laboratorioApiGet('/api/laboratorio?' + qs);
     lTotal = d.total; lTotalPag = d.total_paginas;
 
     // KPIs
@@ -187,6 +187,13 @@ async function buscar(pg=1) {
     document.getElementById('l-kpi').innerHTML = '';
     document.getElementById('l-tabela-area').innerHTML = `<div class="empty"><div class="empty-icon"><img src="/static/icons/alerta.svg" alt="⚠" class="icon-svg">️</div><p>${e.message}</p></div>`;
   }
+}
+
+async function laboratorioApiGet(url) {
+  if (typeof window.apiGet === 'function') return window.apiGet(url);
+  const resposta = await fetch(url);
+  if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
+  return resposta.json();
 }
 
 function renderTabela(rows) {

@@ -2333,6 +2333,7 @@ class MainPagesSmokeTests(unittest.TestCase):
             "/dashboard",
             "/visitas",
             "/laboratorio",
+            "/positividade",
             "/conta-ovos-sispncd",
             "/ovitrampas",
             "/esporotricose",
@@ -9178,6 +9179,7 @@ class PermissionMatrixTests(unittest.TestCase):
             "/api/dashboard",
             "/api/visitas?pagina=1&por_pagina=5",
             "/api/laboratorio?pagina=1&por_pagina=5",
+            "/api/positividade?pagina=1&por_pagina=5",
             "/api/mapa",
         ]
 

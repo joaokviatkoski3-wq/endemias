@@ -11,6 +11,7 @@ from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import db as db_core
 from app_core.excel import excel_safe
+from app_core import positividade as positividade_core
 from app_core import utils as utils_core
 from app_core import visitas as visitas_core
 from app_core import work_types
@@ -221,6 +222,48 @@ def exportar_laboratorio():
         return _gerar_xlsx(cabecalho, rows, "laboratorio")
     except Exception:
         logging.exception("Erro em exportar_laboratorio")
+        return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
+
+
+@bp.route("/api/positividade/exportar")
+@login_required
+def exportar_positividade():
+    try:
+        dados = positividade_core.listar(
+            bh.db_target(), request.args, pagina=1, por_pagina=100000
+        )
+        cabecalho = [
+            "Data", "Origem", "Tipo", "Localidade", "Quarteirao",
+            "Logradouro", "Numero", "Complemento", "Morador", "Tubo",
+            "Deposito", "Agentes", "Ae. aegypti total",
+            "Ae. larvas", "Ae. pupas", "Ae. exuvias", "Ae. adulto",
+            "Detalhes laboratoriais disponiveis",
+        ]
+        linhas = []
+        for item in dados["registros"]:
+            linhas.append({
+                "data": item.get("data"),
+                "origem_rotulo": item.get("origem_rotulo"),
+                "tipo": item.get("tipo"),
+                "localidade": item.get("localidade"),
+                "quarteirao": item.get("quarteirao"),
+                "logradouro": item.get("logradouro"),
+                "numero": item.get("numero"),
+                "complemento": item.get("complemento"),
+                "morador": item.get("morador"),
+                "num_tubo": item.get("num_tubo"),
+                "depositos": item.get("depositos"),
+                "agentes": item.get("agentes"),
+                "aegypti_total": item.get("aegypti_total") or None,
+                "aegypt_larvas": item.get("aegypt_larvas"),
+                "aegypt_pupas": item.get("aegypt_pupas"),
+                "aegypt_exuvias": item.get("aegypt_exuvias"),
+                "aegypt_adulto": item.get("aegypt_adulto"),
+                "detalhes": "Não" if item.get("legado_sem_detalhe") else "Sim",
+            })
+        return _gerar_xlsx(cabecalho, linhas, "positividade")
+    except Exception:
+        logging.exception("Erro em exportar_positividade")
         return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
 
 

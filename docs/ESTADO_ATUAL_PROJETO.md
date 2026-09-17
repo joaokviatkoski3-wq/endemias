@@ -233,6 +233,16 @@ confirmação e auditoria, usando a credencial protegida do serviço.
   uma unica transacao, com auditoria. Confira
   `docs/NOTIFICACOES_LABORATORIO.md` antes de qualquer escrita em dados reais.
 
+### Positividade historica de coletas
+
+- Desde a versao `1.41.0`, a pagina **Positividade** reune os focos legados
+  (`focos_positivos` com `origem='historico'`) e os positivos atuais de
+  `resultados_laboratorio`, sem duplicar focos atuais nem inventar detalhes que
+  nao existem no legado. A consulta inclui PE e terreno baldio, pois nao usa a
+  restricao operacional de notificacoes.
+- Consulte `docs/POSITIVIDADE_HISTORICA.md` para fontes, limites dos dados e
+  semantica dos filtros/exportacao.
+
 ### Experimento de normalizacao de enderecos retirado
 
 - A pagina `/logradouros`, o catalogo municipal importado, os vinculos de

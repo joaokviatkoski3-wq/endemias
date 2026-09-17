@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block title %}Positividade{% endblock %}
+{% block page_title %}Positividade de Coletas{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><span class="icon"><img src="/static/icons/circulo_vermelho.svg" alt="🔴" class="icon-svg"></span> Positividade de Coletas</h1>
+  <div class="sub">Focos positivos para <em>Aedes aegypti</em>, reunindo o histórico pré-sistema e as leituras laboratoriais atuais.</div>
+</div>
+
+<div class="filter-card">
+  <div class="filter-hd" data-target="pf-body" onclick="toggleFilter('pf-body')">
+    <div class="filter-hd-left"><span><img src="/static/icons/busca.svg" alt="🔍" class="icon-svg"></span><span class="filter-hd-title">Filtros</span><span class="filter-hd-count" id="pf-badge"></span></div>
+    <span class="filter-toggle open">▾</span>
+  </div>
+  <div class="filter-body open" id="pf-body">
+    <div class="filter-grid">
+      <div class="f-g"><label for="p-d-ini">Data início</label><input type="date" id="p-d-ini" value="{{ d_ini }}"></div>
+      <div class="f-g"><label for="p-d-fim">Data fim</label><input type="date" id="p-d-fim" value="{{ d_fim }}"></div>
+      <div class="f-g"><label for="p-busca">Endereço, morador, quarteirão ou tubo</label><input type="search" id="p-busca" placeholder="Ex.: Rua Paraná, 20"></div>
+      <div class="f-g"><label for="p-fonte">Origem</label><select id="p-fonte"><option value="todos">Todas as fontes</option><option value="historico">Histórico pré-sistema</option><option value="laboratorio">Leitura laboratorial</option></select></div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <div class="f-g" style="margin-bottom:8px;"><label>Tipo de trabalho</label></div>
+      <div class="pill-group">
+        {% for tipo in opcoes.tipos %}<div class="pill"><input type="checkbox" id="pt-{{ loop.index }}" value="{{ tipo }}"><label for="pt-{{ loop.index }}"><span class="dot"></span>{{ tipo }}</label></div>{% endfor %}
+      </div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <div class="f-g" style="margin-bottom:8px;"><label>Localidade</label></div>
+      <div class="pill-group">
+        {% for localidade in opcoes.localidades %}<div class="pill"><input type="checkbox" id="pl-{{ loop.index }}" value="{{ localidade }}"><label for="pl-{{ loop.index }}"><span class="dot"></span>{{ localidade }}</label></div>{% endfor %}
+      </div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <div class="f-g" style="margin-bottom:8px;"><label>Agente</label></div>
+      <div class="pill-group">
+        {% for agente in agentes_glob %}<div class="pill"><input type="checkbox" id="pa-{{ loop.index }}" value="{{ agente }}"><label for="pa-{{ loop.index }}"><span class="dot"></span>{{ agente }}</label></div>{% endfor %}
+      </div>
+    </div>
+    <div class="filter-actions">
+      <button class="btn btn-primary" type="button" id="p-atualizar"><img src="/static/icons/atualizar.svg" alt="🔄" class="icon-svg"> Atualizar</button>
+      <button class="btn btn-ghost" type="button" id="p-limpar"><img src="/static/icons/fechar.svg" alt="✕" class="icon-svg"> Limpar</button>
+      <button class="btn btn-outline" type="button" id="p-exportar"><img src="/static/icons/importar.svg" alt="📥" class="icon-svg"> Exportar .xlsx</button>
+    </div>
+  </div>
+</div>
+
+<div class="notice" style="margin-bottom:16px;">
+  <strong>Como ler a consulta:</strong> os itens de <strong>Leitura laboratorial</strong> trazem tubo e quantidades por forma. Os itens de <strong>Histórico pré-sistema</strong> são focos preservados; quando o campo não existia no legado, ele aparece como “não disponível”. A consulta inclui todos os positivos, mesmo os que não geram notificação.
+</div>
+
+<div id="p-kpis" class="kpi-grid"><div class="loading-box"><div class="spinner"></div></div></div>
+<div class="chart-card" style="margin-bottom:16px;">
+  <div class="chart-hd"><div class="chart-title"><img src="/static/icons/marcador.svg" alt="📍" class="icon-svg"> Positivos por localidade</div></div>
+  <div class="table-scroll"><table><thead><tr><th>Localidade</th><th>Total</th><th>Histórico</th><th>Leitura laboratorial</th></tr></thead><tbody id="p-localidades"><tr><td colspan="4" class="dim">Carregando…</td></tr></tbody></table></div>
+</div>
+<div id="p-tabela"><div class="loading-box"><div class="spinner"></div></div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let pPagina=1, pTotal=0, pTotalPaginas=1;
+
+function pEscape(value){return String(value ?? '').replace(/[&<>"']/g, char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));}
+function pDate(value){return value ? pEscape(String(value).slice(0,10).split('-').reverse().join('/')) : '—';}
+function pParams(){
+  const params=new URLSearchParams();
+  params.set('d_ini',document.getElementById('p-d-ini').value||'');
+  params.set('d_fim',document.getElementById('p-d-fim').value||'');
+  params.set('fonte',document.getElementById('p-fonte').value);
+  const busca=document.getElementById('p-busca').value.trim(); if(busca)params.set('busca',busca);
+  document.querySelectorAll('[id^="pt-"]:checked').forEach(el=>params.append('tipo',el.value));
+  document.querySelectorAll('[id^="pl-"]:checked').forEach(el=>params.append('localidade',el.value));
+  document.querySelectorAll('[id^="pa-"]:checked').forEach(el=>params.append('agente',el.value));
+  params.set('pagina',String(pPagina)); params.set('por_pagina','50');
+  return params;
+}
+async function pGet(url){
+  if(typeof window.apiGet==='function') return window.apiGet(url);
+  const response=await fetch(url); if(!response.ok)throw new Error(`HTTP ${response.status}`); return response.json();
+}
+async function pBuscar(pagina=1){
+  pPagina=pagina; const params=pParams();
+  document.getElementById('p-tabela').innerHTML='<div class="loading-box"><div class="spinner"></div></div>';
+  try{
+    const dados=await pGet('/api/positividade?'+params.toString());
+    pTotal=dados.total; pTotalPaginas=dados.total_paginas;
+    pRenderKpis(dados.totais); pRenderLocalidades(dados.por_localidade||[]); pRenderTabela(dados.registros||[]);
+    document.getElementById('pf-badge').textContent=`${fmtNum(pTotal)} registro${pTotal===1?'':'s'}`;
+  }catch(error){
+    document.getElementById('p-kpis').innerHTML='';
+    document.getElementById('p-tabela').innerHTML=`<div class="empty"><div class="empty-icon"><img src="/static/icons/alerta.svg" alt="⚠" class="icon-svg"></div><p>${pEscape(error.message)}</p></div>`;
+  }
+}
+function pRenderKpis(t){
+  document.getElementById('p-kpis').innerHTML=`
+    <div class="kpi red"><div class="kpi-icon"><img src="/static/icons/circulo_vermelho.svg" alt="🔴" class="icon-svg"></div><div class="kpi-label">Focos positivos</div><div class="kpi-val">${fmtNum(t.total||0)}</div></div>
+    <div class="kpi amber"><div class="kpi-icon"><img src="/static/icons/pasta.svg" alt="🗃" class="icon-svg"></div><div class="kpi-label">Histórico pré-sistema</div><div class="kpi-val">${fmtNum(t.historico||0)}</div></div>
+    <div class="kpi purple"><div class="kpi-icon"><img src="/static/icons/microscopio.svg" alt="🔬" class="icon-svg"></div><div class="kpi-label">Leituras com detalhes</div><div class="kpi-val">${fmtNum(t.laboratorio||0)}</div></div>
+    <div class="kpi"><div class="kpi-icon"><img src="/static/icons/mosquito.svg" alt="🦟" class="icon-svg"></div><div class="kpi-label">Ae. aegypti quantificado</div><div class="kpi-val">${fmtNum(t.aegypti_quantificado||0)}</div><div class="kpi-sub">Somente leituras laboratoriais</div></div>`;
+}
+function pRenderLocalidades(rows){
+  document.getElementById('p-localidades').innerHTML=rows.map(row=>`<tr><td>${pEscape(row.localidade||'Não informada')}</td><td><strong>${fmtNum(row.total||0)}</strong></td><td>${fmtNum(row.historico||0)}</td><td>${fmtNum(row.laboratorio||0)}</td></tr>`).join('') || '<tr><td colspan="4" class="dim">Nenhum registro no período.</td></tr>';
+}
+function pRenderTabela(rows){
+  if(!rows.length){document.getElementById('p-tabela').innerHTML='<div class="empty"><div class="empty-icon"><img src="/static/icons/circulo_vermelho.svg" alt="🔴" class="icon-svg"></div><p>Nenhum foco positivo encontrado.</p></div>';return;}
+  const linhas=rows.map(row=>{
+    const legado=Boolean(row.legado_sem_detalhe);
+    const origem=legado?'<span class="badge badge-pendente">Histórico</span>':'<span class="badge badge-pos">Laboratório</span>';
+    const endereco=[row.logradouro,row.numero].filter(Boolean).map(pEscape).join(', ')||'—';
+    const detalhe=legado?'não disponível':`Total ${fmtNum(row.aegypti_total||0)} · L${fmtNum(row.aegypt_larvas||0)} P${fmtNum(row.aegypt_pupas||0)} E${fmtNum(row.aegypt_exuvias||0)} A${fmtNum(row.aegypt_adulto||0)}`;
+    return `<tr><td class="nowrap">${pDate(row.data)}</td><td>${origem}</td><td>${tagTipo(row.tipo)}</td><td>${pEscape(row.localidade||'—')}</td><td>${endereco}${row.complemento?` — ${pEscape(row.complemento)}`:''}</td><td>${pEscape(row.quarteirao||'—')}</td><td>${pEscape(row.morador||'—')}</td><td>${pEscape(row.num_tubo||'não disponível')}</td><td>${pEscape(row.depositos||'—')}</td><td class="small">${detalhe}</td><td class="small dim">${pEscape(row.agentes||'—')}</td></tr>`;
+  }).join('');
+  document.getElementById('p-tabela').innerHTML=`<div class="table-wrap"><div class="table-hd"><span class="table-title">Focos positivos</span><span class="table-info">${fmtNum(pTotal)} registro${pTotal===1?'':'s'} · pág. ${pPagina}/${pTotalPaginas}</span></div><div class="table-scroll"><table><thead><tr><th>Data</th><th>Origem</th><th>Tipo</th><th>Localidade</th><th>Endereço</th><th>Qrt.</th><th>Morador</th><th>Tubo</th><th>Depósito</th><th>Ae. aegypti</th><th>Agentes</th></tr></thead><tbody>${linhas}</tbody></table></div>${pPaginacao()}</div>`;
+}
+function pPaginacao(){
+  if(pTotalPaginas<=1)return '';
+  const botoes=[]; botoes.push(`<button class="pag-btn" onclick="pBuscar(${pPagina-1})" ${pPagina<=1?'disabled':''}>‹</button>`);
+  for(let pagina=1;pagina<=pTotalPaginas;pagina++){if(Math.abs(pagina-pPagina)<=2||pagina===1||pagina===pTotalPaginas)botoes.push(`<button class="pag-btn ${pagina===pPagina?'active':''}" onclick="pBuscar(${pagina})">${pagina}</button>`);else if(botoes[botoes.length-1]!=='…')botoes.push('…');}
+  botoes.push(`<button class="pag-btn" onclick="pBuscar(${pPagina+1})" ${pPagina>=pTotalPaginas?'disabled':''}>›</button>`); return `<div class="pag">${botoes.join('')}</div>`;
+}
+function pLimpar(){
+  document.getElementById('p-d-ini').value='{{ d_ini }}'; document.getElementById('p-d-fim').value='{{ d_fim }}'; document.getElementById('p-busca').value=''; document.getElementById('p-fonte').value='todos'; document.querySelectorAll('[id^="pt-"],[id^="pl-"],[id^="pa-"]').forEach(el=>el.checked=false); pBuscar();
+}
+document.getElementById('p-atualizar').addEventListener('click',()=>pBuscar()); document.getElementById('p-limpar').addEventListener('click',pLimpar); document.getElementById('p-exportar').addEventListener('click',()=>{const params=pParams();params.delete('pagina');params.delete('por_pagina');window.location='/api/positividade/exportar?'+params.toString();});
+['p-d-ini','p-d-fim','p-fonte'].forEach(id=>document.getElementById(id).addEventListener('change',()=>pBuscar())); document.getElementById('p-busca').addEventListener('keydown',event=>{if(event.key==='Enter')pBuscar();}); document.querySelectorAll('[id^="pt-"],[id^="pl-"],[id^="pa-"]').forEach(el=>el.addEventListener('change',()=>pBuscar())); pBuscar();
+</script>
+{% endblock %}
