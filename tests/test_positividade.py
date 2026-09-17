@@ -47,7 +47,7 @@ class PositividadeTests(unittest.TestCase):
             INSERT INTO resultados_laboratorio VALUES (2, 'c-neg', 0, 0, 0, 0);
             INSERT INTO focos_positivos VALUES (
                 'f-hist', NULL, NULL, NULL, NULL, 'historico', 'LIRA', '2025-05-03',
-                1, 'Sede', '1', 'Rua Legada', '5', 'Fundos', 'José', 'R',
+                NULL, 'S. VENÂNCIO', '1', 'Rua Legada', '5', 'Fundos', 'José', 'R',
                 'Caixa d''água', 'ANA / PEDRO', 1
             );
             INSERT INTO focos_positivos VALUES (
@@ -90,7 +90,7 @@ class PositividadeTests(unittest.TestCase):
             self.db_path,
             {
                 "d_ini": "2025-01-01", "d_fim": "2026-12-31",
-                "localidade": ["Sede"], "agente": ["Ana"], "fonte": "historico",
+                "localidade": ["São Venâncio"], "agente": ["Ana"], "fonte": "historico",
             },
             pagina=1,
             por_pagina=20,
@@ -105,6 +105,25 @@ class PositividadeTests(unittest.TestCase):
 
         self.assertIn("LIRA", opcoes["tipos"])
         self.assertIn("Sede", opcoes["localidades"])
+        self.assertEqual(opcoes["localidades"].count("São Venâncio"), 1)
+
+    def test_normaliza_localidade_legada_e_filtra_suas_variantes(self):
+        dados = positividade.listar(
+            self.db_path,
+            {
+                "d_ini": "2025-01-01", "d_fim": "2026-12-31",
+                "localidade": ["São Venâncio"],
+            },
+            pagina=1,
+            por_pagina=20,
+        )
+
+        self.assertEqual(dados["total"], 1)
+        self.assertEqual(dados["registros"][0]["localidade"], "São Venâncio")
+        self.assertEqual(dados["por_localidade"], [{
+            "localidade": "São Venâncio", "total": 1,
+            "historico": 1, "laboratorio": 0,
+        }])
 
     def test_consulta_postgresql_usa_agregacao_portavel(self):
         sql, _ = positividade._union_sql(
@@ -114,6 +133,8 @@ class PositividadeTests(unittest.TestCase):
 
         self.assertIn("string_agg(nomes.nome, ', ' ORDER BY nomes.nome)", sql)
         self.assertNotIn("GROUP_CONCAT", sql)
+        self.assertIn("CAST(v.data AS TEXT) AS data", sql)
+        self.assertIn("CAST(f.data AS TEXT) AS data", sql)
 
 
 if __name__ == "__main__":

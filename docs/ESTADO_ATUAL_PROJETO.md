@@ -242,6 +242,9 @@ confirmação e auditoria, usando a credencial protegida do serviço.
   restricao operacional de notificacoes.
 - Consulte `docs/POSITIVIDADE_HISTORICA.md` para fontes, limites dos dados e
   semantica dos filtros/exportacao.
+- A correcao `1.41.1` uniformiza o tipo de data entre as fontes no PostgreSQL
+  e normaliza localidades somente na consulta. Variantes historicas de Sao
+  Venancio passam a ser apresentadas e filtradas como **Sao Venancio**.
 
 ### Experimento de normalizacao de enderecos retirado
 

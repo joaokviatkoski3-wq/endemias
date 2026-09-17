@@ -22,6 +22,10 @@ detalhada dos tubos que existem em `resultados_laboratorio`.
 Os itens históricos não recebem números, espécie ou tubos inventados. A tela e
 o XLSX indicam explicitamente quando o detalhe laboratorial não está disponível.
 
+Os nomes de localidade são normalizados somente na consulta. Assim, grafias
+legadas como `S. VENÂNCIO`, `SAO VENANCIO` e `São Venâncio` aparecem, filtram e
+são somadas como **São Venâncio**, sem alterar o texto preservado no banco.
+
 ## Regras da consulta
 
 - A fonte atual lê diretamente `resultados_laboratorio`, portanto inclui

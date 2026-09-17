@@ -8,6 +8,7 @@ sem atribuir detalhes laboratoriais inexistentes aos registros legados.
 """
 
 from app_core import db as db_core
+from app_core import normalizadores
 from app_core import utils as utils_core
 
 
@@ -23,9 +24,10 @@ def listar(target, args, pagina=1, por_pagina=50):
     backend = getattr(target, "backend", None) or (
         "sqlite" if db_core.is_sqlite(target) else "postgresql"
     )
-    union_sql, params = _union_sql(consultas, backend)
     conn, close = _open_connection(target)
     try:
+        _preparar_filtro_localidades(conn, consultas)
+        union_sql, params = _union_sql(consultas, backend)
         total = conn.execute(
             f"SELECT COUNT(*) FROM ({union_sql}) positivos",
             params,
@@ -65,8 +67,8 @@ def listar(target, args, pagina=1, por_pagina=50):
         "pagina": pagina,
         "total_paginas": total_paginas,
         "totais": db_core.serialize_row(totais),
-        "por_localidade": [db_core.serialize_row(row) for row in por_localidade],
-        "registros": [db_core.serialize_row(row) for row in registros],
+        "por_localidade": _agrupar_por_localidade(por_localidade),
+        "registros": [_normalizar_registro(row) for row in registros],
     }
 
 
@@ -87,6 +89,8 @@ def opcoes(target):
             """SELECT DISTINCT localidade FROM (
                    SELECT nome AS localidade FROM localidades WHERE nome IS NOT NULL AND TRIM(CAST(nome AS TEXT))<>''
                    UNION
+                   SELECT localidade FROM visitas WHERE localidade IS NOT NULL AND TRIM(CAST(localidade AS TEXT))<>''
+                   UNION
                    SELECT localidade FROM focos_positivos
                     WHERE origem='historico' AND localidade IS NOT NULL
                       AND TRIM(CAST(localidade AS TEXT))<>''
@@ -97,7 +101,7 @@ def opcoes(target):
             conn.close()
     return {
         "tipos": [row[0] for row in tipos],
-        "localidades": [row[0] for row in localidades],
+        "localidades": _localidades_normalizadas(row[0] for row in localidades),
     }
 
 
@@ -138,9 +142,9 @@ def _laboratorio_sql(consultas, backend):
     if consultas["localidades"]:
         clauses.append(
             "COALESCE(l.nome, v.localidade) "
-            f"IN ({_placeholders(consultas['localidades'])})"
+            f"IN ({_placeholders(_localidades_para_sql(consultas))})"
         )
-        params.extend(consultas["localidades"])
+        params.extend(_localidades_para_sql(consultas))
     if consultas["agentes"]:
         clauses.append(
             f"""EXISTS (
@@ -160,7 +164,7 @@ def _laboratorio_sql(consultas, backend):
                'Leitura laboratorial' AS origem_rotulo,
                CAST(rl.id_resultado AS TEXT) AS id_registro,
                v.id_visita, c.id_coleta, rl.id_resultado,
-               v.data AS data, COALESCE(l.nome, v.localidade) AS localidade,
+               CAST(v.data AS TEXT) AS data, COALESCE(l.nome, v.localidade) AS localidade,
                v.quarteirao, v.logradouro, v.numero, NULL AS complemento,
                v.morador AS morador, v.tipo AS tipo, v.tipo_imovel,
                c.num_tubo, c.tipo_deposito AS depositos,
@@ -188,9 +192,9 @@ def _historico_sql(consultas):
     if consultas["localidades"]:
         clauses.append(
             "COALESCE(l.nome, f.localidade) "
-            f"IN ({_placeholders(consultas['localidades'])})"
+            f"IN ({_placeholders(_localidades_para_sql(consultas))})"
         )
-        params.extend(consultas["localidades"])
+        params.extend(_localidades_para_sql(consultas))
     if consultas["agentes"]:
         partes = ["LOWER(COALESCE(CAST(f.agentes AS TEXT),'')) LIKE LOWER(?)" for _ in consultas["agentes"]]
         clauses.append("(" + " OR ".join(partes) + ")")
@@ -203,7 +207,7 @@ def _historico_sql(consultas):
                'Histórico pré-sistema' AS origem_rotulo,
                f.id_foco AS id_registro,
                f.id_visita, f.id_coleta, f.id_resultado,
-               f.data AS data, COALESCE(l.nome, f.localidade) AS localidade,
+               CAST(f.data AS TEXT) AS data, COALESCE(l.nome, f.localidade) AS localidade,
                f.quarteirao, f.logradouro, f.numero, f.complemento,
                f.nome_morador AS morador, f.tipo_trabalho AS tipo, f.tipo_imovel,
                f.num_tubo, f.depositos, f.agentes,
@@ -257,6 +261,57 @@ def _values(args, key):
 
 def _placeholders(values):
     return ",".join("?" for _ in values)
+
+
+def _preparar_filtro_localidades(conn, consultas):
+    if not consultas["localidades"]:
+        return
+    rows = conn.execute(
+        """SELECT localidade FROM (
+               SELECT nome AS localidade FROM localidades
+               UNION SELECT localidade FROM visitas
+               UNION SELECT localidade FROM focos_positivos WHERE origem='historico'
+           ) opcoes WHERE localidade IS NOT NULL
+             AND TRIM(CAST(localidade AS TEXT))<>''"""
+    ).fetchall()
+    selecionadas = set(consultas["localidades"])
+    variantes = [
+        row[0] for row in rows
+        if normalizadores.normalizar_localidade(row[0]) in selecionadas
+    ]
+    consultas["localidades_bd"] = variantes or consultas["localidades"]
+
+
+def _localidades_para_sql(consultas):
+    return consultas.get("localidades_bd", consultas["localidades"])
+
+
+def _localidades_normalizadas(values):
+    normalizadas = {
+        normalizadores.normalizar_localidade(value)
+        for value in values
+        if normalizadores.normalizar_localidade(value)
+    }
+    return sorted(normalizadas, key=lambda value: value.casefold())
+
+
+def _normalizar_registro(row):
+    registro = db_core.serialize_row(row)
+    registro["localidade"] = normalizadores.normalizar_localidade(registro.get("localidade"))
+    return registro
+
+
+def _agrupar_por_localidade(rows):
+    grupos = {}
+    for row in rows:
+        item = db_core.serialize_row(row)
+        localidade = normalizadores.normalizar_localidade(item.get("localidade")) or "Não informada"
+        grupo = grupos.setdefault(localidade, {
+            "localidade": localidade, "total": 0, "historico": 0, "laboratorio": 0,
+        })
+        for campo in ("total", "historico", "laboratorio"):
+            grupo[campo] += item.get(campo) or 0
+    return sorted(grupos.values(), key=lambda item: (-item["total"], item["localidade"].casefold()))
 
 
 def _open_connection(target):

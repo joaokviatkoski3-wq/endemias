@@ -1,3 +1,4 @@
+import re
 import unicodedata
 
 
@@ -44,8 +45,12 @@ def _sem_acentos(value):
 
 def _chave(value):
     text = _sem_acentos(value).lower().replace("_", " ")
+    text = re.sub(r"[^a-z0-9]+", " ", text)
     text = " ".join(text.split())
     aliases = {
+        "s francisco": "sao francisco",
+        "s joao batista": "sao joao batista",
+        "s venancio": "sao venancio",
         "s o francisco": "sao francisco",
         "s o joao batista": "sao joao batista",
         "s o jo o batista": "sao joao batista",
