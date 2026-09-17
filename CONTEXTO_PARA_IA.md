@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.41.1` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.42.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -351,6 +351,10 @@ obrigatoria para integracao.
 - A versao `1.41.1` corrige a uniao PostgreSQL entre a data `date` das leituras
   atuais e a data textual do legado. Ela tambem apresenta e filtra variantes
   historicas de localidade pela forma canonica, sem reescrever dados antigos.
+- A versao `1.42.0` permite ao administrador excluir uma visita e todas as
+  dependencias operacionais diretamente vinculadas. O nucleo em
+  `app_core/visitas.py` preserva auditoria e lotes de importacao, exige uma
+  confirmacao na interface e a rota bloqueia operadores e visualizadores.
 - A versao `1.37.0` acrescentou ao Monitoramento de Ovitrampas a exportacao
   filtrada em XLSX. O arquivo reune resumo, todas as leituras do recorte,
   cadastro consolidado local/remoto, indicadores por semana e localidade e

@@ -612,6 +612,15 @@ async function apiPost(url, body, isJson=true) {
   return r.json();
 }
 
+async function apiDelete(url) {
+  const r = await fetch(url, {method: 'DELETE', headers: {'X-CSRFToken': getCsrf()}});
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ erro: `HTTP ${r.status}` }));
+    throw new Error(err.erro || `HTTP ${r.status}`);
+  }
+  return r.json();
+}
+
 // ── Lembretes de agenda ──────────────────────────────────────────────────────
 (function() {
   const STORAGE_KEY = 'agenda_notif_visto';

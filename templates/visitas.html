@@ -116,6 +116,7 @@
   "d_ini": d_ini,
   "d_fim": d_fim,
   "pode_editar": usuario_atual and usuario_atual.nivel in ("admin", "operador"),
+  "pode_excluir": usuario_atual and usuario_atual.nivel == "admin",
   "tipos": opcoes.tipos,
   "resultados": opcoes.resultados,
   "imoveis": opcoes.imoveis,

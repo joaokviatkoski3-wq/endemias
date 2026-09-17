@@ -118,6 +118,15 @@ class VisitasPostgresqlCompatTests(unittest.TestCase):
                 observacoes TEXT,
                 codigo TEXT
             );
+            CREATE TABLE focos_historico (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_foco TEXT NOT NULL
+            );
+            CREATE TABLE laboratorio_coletas_status (
+                id_coleta TEXT PRIMARY KEY,
+                status TEXT NOT NULL,
+                motivo TEXT NOT NULL
+            );
             INSERT INTO localidades(nome) VALUES ('Lamenha');
             INSERT INTO agentes(nome, nome_completo)
             VALUES ('Fernando', 'Fernando');
@@ -157,6 +166,9 @@ class VisitasPostgresqlCompatTests(unittest.TestCase):
                 id_foco, id_visita, id_coleta, num_tubo,
                 gera_notificacao
             ) VALUES ('foco-1', 'visita-1', 'coleta-1', 'T-100', 1);
+            INSERT INTO focos_historico(id_foco) VALUES ('foco-1');
+            INSERT INTO laboratorio_coletas_status(id_coleta,status,motivo)
+            VALUES ('coleta-1','sem_resultado','Teste');
             """
         )
         self.conn.commit()
@@ -247,6 +259,26 @@ class VisitasPostgresqlCompatTests(unittest.TestCase):
         ).fetchone()
         self.assertIsNotNone(coleta)
         self.assertEqual(coleta["num_tubo"], "T-100")
+
+    def test_excluir_remove_dependencias_operacionais_e_preserva_auditoria_externa(self):
+        resultado = visitas.excluir(self.conn, "visita-1")
+
+        self.assertEqual(resultado["removidos"], {
+            "focos_historico": 1,
+            "focos_positivos": 1,
+            "resultados_laboratorio": 1,
+            "laboratorio_coletas_status": 1,
+            "coletas": 1,
+            "visita_acs": 2,
+            "visita_agentes": 1,
+            "depositos_inspecionados": 1,
+            "tratamentos": 1,
+            "visitas": 1,
+        })
+        for tabela in resultado["removidos"]:
+            self.assertEqual(self.conn.execute(f"SELECT COUNT(*) FROM {tabela}").fetchone()[0], 0)
+        with self.assertRaises(visitas.VisitaNaoEncontrada):
+            visitas.detalhar(self.conn, "visita-1")
 
 
 if __name__ == "__main__":

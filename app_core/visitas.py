@@ -880,6 +880,65 @@ def editar(target, id_visita, dados):
             conn.close()
 
 
+def excluir(target, id_visita):
+    """Exclui uma visita e todos os dados operacionais diretamente vinculados.
+
+    A operacao e reservada a administradores pela rota chamadora. Historico de
+    auditoria e lotes de importacao nao sao apagados: eles nao sao dados
+    operacionais da visita e precisam permanecer rastreaveis.
+    """
+    conn, close = _open_connection(target)
+    try:
+        visita = conn.execute(
+            "SELECT id_visita FROM visitas WHERE id_visita=?", (id_visita,)
+        ).fetchone()
+        if not visita:
+            raise VisitaNaoEncontrada("Visita nao encontrada.")
+
+        removidos = {}
+
+        def apagar(tabela, clausula, params):
+            if not db_core.table_exists(conn, tabela):
+                removidos[tabela] = 0
+                return
+            cursor = conn.execute(
+                f"DELETE FROM {tabela} WHERE {clausula}", params
+            )
+            removidos[tabela] = max(0, cursor.rowcount or 0)
+
+        # Focos precisam sair antes de resultados/coletas por suas chaves.
+        apagar(
+            "focos_historico",
+            "id_foco IN (SELECT id_foco FROM focos_positivos WHERE id_visita=?)",
+            (id_visita,),
+        )
+        apagar("focos_positivos", "id_visita=?", (id_visita,))
+        apagar(
+            "resultados_laboratorio",
+            "id_coleta IN (SELECT id_coleta FROM coletas WHERE id_visita=?)",
+            (id_visita,),
+        )
+        apagar(
+            "laboratorio_coletas_status",
+            "id_coleta IN (SELECT id_coleta FROM coletas WHERE id_visita=?)",
+            (id_visita,),
+        )
+        apagar("coletas", "id_visita=?", (id_visita,))
+        apagar("visita_acs", "id_visita=?", (id_visita,))
+        apagar("visita_agentes", "id_visita=?", (id_visita,))
+        apagar("depositos_inspecionados", "id_visita=?", (id_visita,))
+        apagar("tratamentos", "id_visita=?", (id_visita,))
+        apagar("visitas", "id_visita=?", (id_visita,))
+        conn.commit()
+        return {"id_visita": id_visita, "removidos": removidos}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        if close:
+            conn.close()
+
+
 def _obter_ou_criar_localidade(conn, nome):
     row = conn.execute(
         "SELECT id_localidade FROM localidades WHERE nome=?",

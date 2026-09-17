@@ -214,3 +214,26 @@ def api_visita_editar(id_visita):
         return jsonify(
             {"erro": "Erro interno. Verifique endemias.log"}
         ), 500
+
+
+@bp.route("/api/visitas/<id_visita>/excluir", methods=["DELETE"])
+@login_required
+@nivel_min("admin")
+def api_visita_excluir(id_visita):
+    try:
+        resultado = visitas_core.excluir(bh.db_target(), id_visita)
+        audit.registrar_evento(
+            bh.get_db,
+            "visita_excluida",
+            entidade="visitas",
+            entidade_id=id_visita,
+            detalhes=resultado,
+        )
+        return jsonify({"ok": True, **resultado})
+    except visitas_core.VisitaNaoEncontrada as exc:
+        return jsonify({"erro": str(exc)}), 404
+    except Exception:
+        logging.exception("Erro em api_visita_excluir")
+        return jsonify(
+            {"erro": "Erro interno. Verifique endemias.log"}
+        ), 500

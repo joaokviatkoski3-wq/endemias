@@ -150,6 +150,7 @@ function renderVisitasLista(rows) {
           <div class="visita-actions">
             <button class="btn btn-outline btn-sm" type="button" data-visita-action="details" data-visita-id="${visitasText(row.id_visita)}">Ver detalhes</button>
             ${visitasConfig.pode_editar ? `<button class="btn btn-ghost btn-sm" type="button" data-visita-action="edit" data-visita-id="${visitasText(row.id_visita)}"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Editar</button>` : ''}
+            ${visitasConfig.pode_excluir ? `<button class="btn btn-ghost btn-sm visita-delete-button" type="button" data-visita-action="delete" data-visita-id="${visitasText(row.id_visita)}"><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"> Excluir</button>` : ''}
           </div>
         </div>
         <div class="visita-registro-body">
@@ -428,6 +429,18 @@ async function salvarEditarVisita() {
   }
 }
 
+async function excluirVisita(id) {
+  if (!window.confirm('Excluir definitivamente esta visita e todos os seus depósitos, coletas, resultados e focos vinculados? Esta ação não pode ser desfeita.')) return;
+  try {
+    const resultado = await apiDelete(`/api/visitas/${encodeURIComponent(id)}/excluir`);
+    visitasState.detalhes.delete(id);
+    toast(`Visita excluída. ${fmtNum(resultado.removidos?.coletas || 0)} coleta(s) removida(s).`, 'success');
+    await buscarVisitas(visitasState.pagina);
+  } catch (error) {
+    toast(`Não foi possível excluir a visita: ${error.message}`, 'error', 5000);
+  }
+}
+
 function limparFiltrosVisitas() {
   document.getElementById('v_d_ini').value = visitasConfig.d_ini;
   document.getElementById('v_d_fim').value = visitasConfig.d_fim;
@@ -460,6 +473,7 @@ document.getElementById('visitas-lista').addEventListener('click', event => {
   const id = button.dataset.visitaId;
   if (button.dataset.visitaAction === 'details') alternarDetalheVisita(id, button);
   if (button.dataset.visitaAction === 'edit') abrirEditarVisita(id);
+  if (button.dataset.visitaAction === 'delete') excluirVisita(id);
 });
 
 document.getElementById('visitas-paginacao').addEventListener('click', event => {

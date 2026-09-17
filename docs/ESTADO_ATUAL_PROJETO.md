@@ -246,6 +246,14 @@ confirmação e auditoria, usando a credencial protegida do serviço.
   e normaliza localidades somente na consulta. Variantes historicas de Sao
   Venancio passam a ser apresentadas e filtradas como **Sao Venancio**.
 
+### Exclusao administrativa de visitas
+
+- Desde a versao `1.42.0`, somente administradores podem excluir uma visita em
+  **Visitas arboviroses**. A acao exige confirmacao na tela e remove, em uma
+  transacao, os depositos, tratamentos, coletas, pendencias/resultados de
+  laboratorio, focos e vinculos de agentes/ACS. A auditoria e o lote de
+  importacao permanecem preservados para rastreabilidade.
+
 ### Experimento de normalizacao de enderecos retirado
 
 - A pagina `/logradouros`, o catalogo municipal importado, os vinculos de
