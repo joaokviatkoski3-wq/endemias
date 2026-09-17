@@ -420,6 +420,17 @@
     </div>
     <div class="chart-card">
       <div class="chart-hd"><div class="chart-title"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Importar GeoJSON do QGIS</div></div>
+      <details class="alert alert-info" style="margin-bottom:12px;">
+        <summary style="cursor:pointer;font-weight:900;">Como preparar o GeoJSON no QGIS</summary>
+        <div style="margin-top:9px;line-height:1.5;">
+          <div>Exporte como <strong>GeoJSON</strong> em <strong>EPSG:4326 / WGS 84</strong>.</div>
+          <table style="margin:9px 0 6px;width:100%;font-size:12px;"><thead><tr><th>Campo obrigatório</th><th>Como preencher</th></tr></thead><tbody>
+            <tr><td><code>Localidade</code></td><td>Código da localidade, como <code>"11"</code>.</td></tr>
+            <tr><td><code>id_quart</code></td><td>Número único do quarteirão, de preferência como texto: <code>"0007"</code> ou <code>"0655.1"</code>.</td></tr>
+          </tbody></table>
+          <div>A geometria deve ser <code>Polygon</code> ou <code>MultiPolygon</code>. As coordenadas usam a ordem <strong>longitude, latitude</strong>; não é necessário editar as coordenadas manualmente. Outros campos podem permanecer no arquivo.</div>
+        </div>
+      </details>
       <div class="f-g"><label>Arquivo GeoJSON</label><input id="rg-geojson-arquivo" type="file" accept=".geojson,.json,application/geo+json,application/json"></div>
       <div class="rg-sheet-tools"><button class="btn btn-outline" type="button" id="rg-geojson-preview">Gerar prévia</button><button class="btn btn-primary" type="button" id="rg-geojson-importar" disabled>Importar e ativar</button></div>
       <div id="rg-geojson-status" class="rg-geojson-status">Selecione o GeoJSON exportado pelo QGIS.</div>
