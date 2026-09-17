@@ -299,3 +299,44 @@ def send_counting(
         return {"ok": False, "status_code": int(exc.code), "message": corpo_resp}
     except (error.URLError, TimeoutError, OSError) as exc:
         return {"ok": False, "status_code": -1, "message": f"Erro de rede: {exc}"}
+
+
+def send_ovitrap_edit(
+    key,
+    payload,
+    *,
+    timeout=DEFAULT_TIMEOUT_SECONDS,
+    opener=None,
+    base_url=None,
+):
+    """Atualiza parcialmente uma ovitrampa via POST /posteditovitrap.
+
+    Usa Bearer no cabecalho, como recomenda a documentacao atual da API. Nao ha
+    retentativa automatica: sem resposta confirmada, o chamador deve tratar o
+    estado como incerto e exigir revisao humana.
+    """
+    if opener is None and os.environ.get(TEST_NETWORK_GUARD) == "1":
+        raise ContaOvosError("Chamadas reais ao Conta Ovos estao bloqueadas durante os testes.", kind="test_network_blocked")
+    opener = request.urlopen if opener is None else opener
+    base = (base_url or BASE_URL).rstrip("/")
+    req = request.Request(
+        f"{base}/posteditovitrap",
+        data=parse.urlencode(payload).encode("utf-8"),
+        headers={
+            "Accept": "application/json", "User-Agent": "Endemias/ContaOvos",
+            "Content-Type": "application/x-www-form-urlencoded", "Authorization": f"Bearer {key}",
+        }, method="POST",
+    )
+    try:
+        with opener(req, timeout=timeout) as response:
+            body = response.read().decode("utf-8", "replace").strip()
+            return {"ok": True, "status_code": int(response.status), "message": body}
+    except error.HTTPError as exc:
+        body = ""
+        try:
+            body = exc.read().decode("utf-8", "replace").strip()
+        except Exception:
+            pass
+        return {"ok": False, "status_code": int(exc.code), "message": body}
+    except (error.URLError, TimeoutError, OSError) as exc:
+        return {"ok": False, "status_code": -1, "message": f"Erro de rede: {exc}"}

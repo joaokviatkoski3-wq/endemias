@@ -7,7 +7,7 @@ O contrato externo fornecido pelo usuario esta preservado em
 estado da integracao no Endemias; a referencia externa pode mudar e deve ser
 confrontada com este estado antes de implementar novos endpoints.
 
-Estado atualizado em 08/09/2026: fundacao, sincronizacao GET, fila local das
+Estado atualizado em 17/09/2026: fundacao, sincronizacao GET, fila local das
 leituras do laboratorio e fundacao GET do cadastro remoto de ovitrampas estao
 implementadas; credencial protegida, escopo privado, idempotencia real e semana
 epidemiologica foram validados. A pagina operacional Ovitrampas concentra os
@@ -184,6 +184,32 @@ leitura/ocorrencia, Armadilhas preserva o cadastro local, Diarios preservam
 responsaveis e telefones, e Calendario permanece como base das datas. A
 sincronizacao dos espelhos e o envio supervisionado continuam nas rotas da
 pagina `/ovitrampas`; a interface nao consulta a API em cada carregamento.
+
+## Edicao supervisionada do cadastro de ovitrampas
+
+Desde a versao `1.43.0`, o administrador pode expandir as leituras de um lote
+concluido em **Ovitrampas > Laboratorio** e preencher os dados alterados de
+cada armadilha a partir do diario fisico. Ao confirmar o mesmo botao **Enviar
+ao Conta Ovos**, o Endemias grava primeiro a alteracao local e cria uma fila
+separada `contaovos_fila_cadastro_ovitrampas` (migracao `0012`); em seguida
+envia `POST /posteditovitrap` e somente transmite a leitura pelo
+`/postcounting` depois de a edicao cadastral estar confirmada.
+
+O payload usa `ovitrap_group_id` existente e nao permite renomear, criar ou
+excluir ovitrampas. Rua, numero, complemento, local de instalacao, responsavel,
+quarteirao e coordenadas seguem para a API. Telefone do responsavel fica apenas
+no Endemias. A regra local e intencional: a **Localidade** e copiada tanto para
+`ovitrap_address_district` quanto para `ovitrap_address_sector`; o campo
+`bairro` local nao e enviado. `atualizar_desde` e opcional, vazio por padrao e
+so deve ser preenchido quando se desejar propagar o novo endereco/coordenadas
+ao historico remoto a partir de uma data especifica.
+
+Nao existe transacao entre os dois endpoints. A fila persiste `enviando` antes
+do POST; HTTP conhecido vira `erro`, falha sem resposta vira `incerto` e nao e
+reenviada automaticamente. Um item cujo cadastro nao foi confirmado nao tem a
+leitura enviada. O CSV do cadastro deixa de ser parte do fluxo rotineiro apos a
+importacao final de alinhamento de 17/09/2026, mas permanece como contingencia
+e reconciliacao, pois o GET publico nao devolve todos os campos de endereco.
 
 Cadastro remoto, mapa e divergencias deixaram de ter uma central separada. Se
 forem necessarios novamente, devem ser incorporados como abas de Ovitrampas,

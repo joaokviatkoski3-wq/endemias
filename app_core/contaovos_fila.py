@@ -10,6 +10,7 @@ from datetime import date, datetime
 
 from app_core import db as db_core
 from app_core import contaovos_client
+from app_core import contaovos_cadastro
 from app_core import ovitrampas
 from app_core import ovitrampas_laboratorio
 from app_core import sispncd
@@ -383,11 +384,26 @@ def send_lot(conn, lot_id, key, *, now=None, user_name=None):
         )
 
     ja_enviados = enviados = falhas = 0
+    cadastros_confirmados = cadastros_falhas = 0
     detalhes = []
     for row in rows:
         payload = _payload(row, data_instalacao=data_instalacao)
         id_item = row["id_item"]
         ovitrampa = payload["ovitrap_group_id"]
+        cadastro = contaovos_cadastro.process_item(conn, id_item, key, now=now)
+        if cadastro["changed"] and cadastro["ok"]:
+            cadastros_confirmados += 1
+        if not cadastro["ok"]:
+            falhas += 1
+            cadastros_falhas += 1
+            detalhes.append(
+                {
+                    "ovitrampa": ovitrampa, "coleta": payload["counting_date_collect"],
+                    "tipo": "cadastro", "ok": False, "status": -1 if cadastro.get("uncertain") else 400,
+                    "mensagem": cadastro.get("message") or "Atualizacao cadastral nao confirmada.",
+                }
+            )
+            continue
         remote_id, _conf = _find_remote(conn, payload)
         if remote_id:
             ja_enviados += 1
@@ -435,6 +451,8 @@ def send_lot(conn, lot_id, key, *, now=None, user_name=None):
         "ja_enviados": ja_enviados,
         "enviados": enviados,
         "falhas": falhas,
+        "cadastros_confirmados": cadastros_confirmados,
+        "cadastros_falhas": cadastros_falhas,
         "detalhes": detalhes,
     }
 

@@ -6,5 +6,6 @@ INTERNAL_TABLES = (
     "contaovos_sync_cursor",
     "contaovos_execucoes",
     "contaovos_fila_contagens",
+    "contaovos_fila_cadastro_ovitrampas",
     "contaovos_registro_ovitrampas",
 )

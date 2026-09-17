@@ -119,6 +119,14 @@ Endemias e backups operacionais. Nao ha uma tarefa aberta de migracao do banco.
   A branch `codex/enviar-leituras-conta-ovos` continua existindo com trabalho
   derivado, mas nao deve ser tratada como se a funcionalidade basica ainda
   estivesse fora da `master`.
+- Na versao `1.43.0`, a API atualizada passou a permitir `POST
+  /posteditovitrap`. O detalhe do lote concluido permite ao administrador
+  preparar alteracoes cadastrais vindas do diario fisico. Elas atualizam o
+  cadastro local e entram em fila propria antes da leitura: cadastro remoto
+  confirmado primeiro, `/postcounting` depois. Resultado de rede incerto nao
+  recebe reenvio automatico. Pela regra do setor, `Localidade` e enviada tanto
+  como district quanto sector; telefone permanece somente local. A importacao
+  CSV final de 17/09/2026 e a linha de corte, e CSV passa a contingencia.
 
 As regras de fonte de verdade e a arquitetura da tela estao em
 `docs/CONTA_OVOS_INTERFACE.md`; detalhes da API e dos lotes em

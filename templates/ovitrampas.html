@@ -151,6 +151,13 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
 .ovi-lab-admin-detail{border-top:1px solid var(--border);padding:10px 12px;background:var(--surface2);}
 .ovi-lab-admin-detail[hidden]{display:none!important;}.ovi-lab-admin-detail .table-scroll{max-height:520px;}
 .ovi-lab-admin-detail th{position:sticky;top:0;background:var(--surface);z-index:1;}
+.ovi-cadastro-edit{margin:8px 0 3px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);padding:7px 9px;}
+.ovi-cadastro-edit summary{cursor:pointer;color:#0f766e;font-size:11px;font-weight:900;}
+.ovi-cadastro-edit-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:8px;margin-top:9px;}
+.ovi-cadastro-edit-grid label{display:grid;gap:3px;color:var(--text3);font-size:9px;font-weight:900;text-transform:uppercase;}
+.ovi-cadastro-edit-grid input{min-width:0;font-size:12px;padding:6px;}
+.ovi-cadastro-note{margin:8px 0 0;color:var(--text3);font-size:10px;line-height:1.35;}
+@media(max-width:920px){.ovi-cadastro-edit-grid{grid-template-columns:1fr 1fr;}}
 @media(max-width:1180px){.ovi-cal-layout{grid-template-columns:1fr;}.ovi-year-grid{grid-template-columns:repeat(2,minmax(230px,1fr));}}
 @media(max-width:1100px){.ovi-reading-top{grid-template-columns:repeat(3,minmax(0,1fr));}}
 @media(max-width:920px){.ovi-layout,.ovi-upload,.ovi-monitor-layout,.ovi-diario-layout,.ovi-diario-split{grid-template-columns:1fr;}.ovi-reading-lab{grid-template-columns:1fr;}}
@@ -596,6 +603,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
 
 {% block extra_js %}<script>
 const oviFmt = new Intl.NumberFormat('pt-BR');
+const oviPodeEditarCadastroContaOvos = {{ 'true' if usuario_atual and usuario_atual.nivel == 'admin' else 'false' }};
 const oviDecimal = new Intl.NumberFormat('pt-BR', {minimumFractionDigits:1, maximumFractionDigits:1});
 const oviDecimal2 = new Intl.NumberFormat('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
 const oviAgentes = JSON.parse(document.getElementById('ovi-agentes-json').textContent || '[]');
@@ -1651,8 +1659,27 @@ async function alternarOviLabAdmin(id){
   area.hidden=false;area.innerHTML='<div class="empty"><div class="spinner"></div></div>';
   try{
     const lote=await oviGet(`/api/ovitrampas/laboratorio/${id}`);
-    area.innerHTML=`<div class="table-scroll"><table><thead><tr><th>ID</th><th>Local</th><th>Localidade</th><th>Ovos</th><th>Ocorrência</th></tr></thead><tbody>${(lote.itens||[]).map(item=>`<tr><td><strong>${oviEscape(item.ovitrampa_id)}</strong></td><td>${oviEscape(item.complemento||'Local sem identificação')}</td><td>${oviEscape(item.localidade||lote.diario_nome)}</td><td><strong>${oviFmt.format(item.ovos||0)}</strong></td><td>${item.ocorrencia?`<strong>${oviEscape(item.ocorrencia)}</strong> - ${oviEscape(item.ocorrencia_label||'')}`:'-'}</td></tr>`).join('')}</tbody></table></div>`;
+    const editCadastro=item=>!oviPodeEditarCadastroContaOvos?'':`<details class="ovi-cadastro-edit" data-ovi-cadastro-item="${Number(item.id_item)}"><summary>Atualizar cadastro no Conta Ovos${item.cadastro_conta_ovos_status?` · fila: ${oviEscape(item.cadastro_conta_ovos_status)}`:''}</summary><div class="ovi-cadastro-edit-grid">
+      <label>Rua<input data-campo="rua" value="${oviEscape(item.rua)}"></label><label>Número<input data-campo="numero" value="${oviEscape(item.numero)}"></label><label>Complemento<input data-campo="complemento" value="${oviEscape(item.complemento)}"></label><label>Local da instalação<input data-campo="localizacao" value="${oviEscape(item.localizacao)}"></label>
+      <label>Localidade<input data-campo="localidade" value="${oviEscape(item.localidade)}"></label><label>Responsável<input data-campo="responsavel" value="${oviEscape(item.responsavel)}"></label><label>Telefone (somente local)<input data-campo="telefone_responsavel" value="${oviEscape(item.telefone_responsavel)}"></label><label>Quarteirão<input data-campo="quarteirao" value="${oviEscape(item.quarteirao)}"></label>
+      <label>Latitude<input data-campo="latitude" inputmode="decimal" value="${oviEscape(item.latitude)}"></label><label>Longitude<input data-campo="longitude" inputmode="decimal" value="${oviEscape(item.longitude)}"></label><label>Aplicar desde (opcional)<input data-campo="atualizar_desde" type="date"></label>
+    </div><p class="ovi-cadastro-note">A mesma <strong>Localidade</strong> será enviada como setor e distrito no Conta Ovos. Informe “Aplicar desde” apenas se também quiser alterar o endereço e as coordenadas no histórico remoto a partir dessa data. ${item.cadastro_conta_ovos_erro?`Último retorno: ${oviEscape(item.cadastro_conta_ovos_erro)}`:''}</p></details>`;
+    area.innerHTML=`${oviPodeEditarCadastroContaOvos?'<p class="ovi-cadastro-note">As edições abaixo são locais até o próximo <strong>Enviar ao Conta Ovos</strong>. Somente administradores podem prepará-las e transmiti-las.</p>':''}<div class="table-scroll"><table><thead><tr><th>ID</th><th>Local</th><th>Localidade</th><th>Ovos</th><th>Ocorrência</th></tr></thead><tbody>${(lote.itens||[]).map(item=>`<tr><td><strong>${oviEscape(item.ovitrampa_id)}</strong></td><td>${oviEscape(item.complemento||'Local sem identificação')}${editCadastro(item)}</td><td>${oviEscape(item.localidade||lote.diario_nome)}</td><td><strong>${oviFmt.format(item.ovos||0)}</strong></td><td>${item.ocorrencia?`<strong>${oviEscape(item.ocorrencia)}</strong> - ${oviEscape(item.ocorrencia_label||'')}`:'-'}</td></tr>`).join('')}</tbody></table></div>`;
   }catch(err){area.innerHTML=`<div class="empty">${oviEscape(err.message)}</div>`;}
+}
+function oviAlteracoesCadastro(id){
+  return [...document.querySelectorAll(`[data-ovi-lab-admin-detail="${id}"] [data-ovi-cadastro-item]`)].map(box=>{
+    const alteracao={id_item:Number(box.dataset.oviCadastroItem)};
+    box.querySelectorAll('[data-campo]').forEach(input=>{alteracao[input.dataset.campo]=input.value;});
+    return alteracao;
+  });
+}
+async function prepararOviCadastroContaOvos(id){
+  if(!oviPodeEditarCadastroContaOvos)return {alterados_localmente:0,enfileirados:0};
+  const alteracoes=oviAlteracoesCadastro(id);
+  if(!alteracoes.length)return {alterados_localmente:0,enfileirados:0};
+  const data=await oviFetchJson(`/api/ovitrampas/laboratorio/${id}/cadastro-conta-ovos`,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},body:JSON.stringify({alteracoes})});
+  return data.resultado||{};
 }
 async function marcarOviLabEnviado(id){
   const lote=oviLabAdminLotes.find(item=>Number(item.id_lote)===Number(id));
@@ -1682,8 +1709,9 @@ async function prepararOviLabContaOvos(id){
 async function enviarOviLabContaOvos(id){
   const lote=oviLabAdminLotes.find(item=>Number(item.id_lote)===Number(id));
   if(!lote)return;
-  if(!confirm(`Enviar as leituras de ${lote.diario_nome} (${fmtDate(lote.data_movimento)}) ao Conta Ovos via API? As datas de instalação serão derivadas do calendário. Confira antes; envio real não pode ser desfeito automaticamente.`))return;
+  if(!confirm(`Enviar as leituras de ${lote.diario_nome} (${fmtDate(lote.data_movimento)}) ao Conta Ovos via API? Alterações cadastrais preenchidas nesta tela serão primeiro gravadas localmente e enviadas antes da respectiva leitura. As datas de instalação serão derivadas do calendário. Confira antes; envio real não pode ser desfeito automaticamente.`))return;
   try{
+    const cadastro=await prepararOviCadastroContaOvos(id);
     const data=await oviFetchJson(`/api/ovitrampas/laboratorio/${id}/enviar-conta-ovos`,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},body:'{}'});
     const r=data.resultado||{};
     const falhas=(r.detalhes||[]).filter(d=>!d.ok);
@@ -1695,7 +1723,7 @@ async function enviarOviLabContaOvos(id){
       const enviados=r.enviados||0;
       const ja=r.ja_enviados||0;
       if(enviados>0){
-        toast(`Diário ${lote.diario_nome} enviado ao Conta Ovos com sucesso: ${enviados} leitura(s) enviada(s)${ja?` (${ja} já existiam e não foram repetidas)`:''}.`,'success',7000);
+        toast(`Diário ${lote.diario_nome} enviado ao Conta Ovos com sucesso: ${enviados} leitura(s) enviada(s)${cadastro.enfileirados?` e ${cadastro.enfileirados} cadastro(s) atualizado(s)`:''}${ja?` (${ja} já existiam e não foram repetidas)`:''}.`,'success',7000);
       } else {
         toast(`Nenhuma leitura nova para enviar de ${lote.diario_nome} (${ja} já existiam no Conta Ovos).`,'info',6000);
       }

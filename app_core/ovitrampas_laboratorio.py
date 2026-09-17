@@ -4,6 +4,7 @@ from datetime import date, datetime
 
 from app_core import db as db_core
 from app_core import ovitrampas as ovitrampas_core
+from app_core import contaovos_cadastro
 
 
 LOTES_TABLE = "ovitrampas_laboratorio_lotes"
@@ -163,12 +164,18 @@ def obter_lote(db_path, id_lote):
         ).fetchone()
         if not lote:
             raise ValueError("Lote de leitura não encontrado.")
-        id_order = ovitrampas_core._numeric_text_order(conn, "ovitrampa_id")
-        name_order = ovitrampas_core._nocase_order(conn, "ovitrampa_id")
+        id_order = ovitrampas_core._numeric_text_order(conn, "i.ovitrampa_id")
+        name_order = ovitrampas_core._nocase_order(conn, "i.ovitrampa_id")
+        contaovos_cadastro.ensure_schema_connection(conn)
         itens = [db_core.serialize_row(row) for row in conn.execute(
-            f"""SELECT id_item, ovitrampa_id, complemento, localidade, ovos, ocorrencia
-                  FROM {ITENS_TABLE}
-                 WHERE id_lote=?
+            f"""SELECT i.id_item, i.ovitrampa_id, i.complemento, i.localidade, i.ovos, i.ocorrencia,
+                       a.rua, a.numero, a.localizacao, a.bairro, a.responsavel,
+                       a.telefone_responsavel, a.quarteirao, a.latitude, a.longitude,
+                       q.status AS cadastro_conta_ovos_status, q.erro_sanitizado AS cadastro_conta_ovos_erro
+                  FROM {ITENS_TABLE} i
+                  LEFT JOIN {ovitrampas_core.ARMADILHAS_TABLE} a ON a.ovitrampa_id=i.ovitrampa_id
+                  LEFT JOIN {contaovos_cadastro.QUEUE_TABLE} q ON q.id_item=i.id_item
+                 WHERE i.id_lote=?
                  ORDER BY {id_order}, {name_order}""",
             (lote["id_lote"],),
         ).fetchall()]

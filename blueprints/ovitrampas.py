@@ -10,6 +10,7 @@ from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import contaovos_client
+from app_core import contaovos_cadastro
 from app_core import contaovos_credencial
 from app_core import contaovos_fila
 from app_core import contaovos_registro
@@ -384,6 +385,9 @@ def api_laboratorio_lotes():
             lote["fila_conta_ovos"] = contaovos_fila.lot_queue_status(
                 conn, lote["id_lote"]
             )
+            lote["fila_cadastro_conta_ovos"] = contaovos_cadastro.lot_queue_status(
+                conn, lote["id_lote"]
+            )
     finally:
         conn.close()
     return jsonify(result)
@@ -400,9 +404,45 @@ def api_laboratorio_lote(id_lote):
     conn = get_db()
     try:
         lote["fila_conta_ovos"] = contaovos_fila.lot_queue_status(conn, id_lote)
+        lote["fila_cadastro_conta_ovos"] = contaovos_cadastro.lot_queue_status(conn, id_lote)
     finally:
         conn.close()
     return jsonify(lote)
+
+
+@bp.route(
+    "/api/ovitrampas/laboratorio/<int:id_lote>/cadastro-conta-ovos",
+    methods=["POST"],
+)
+@login_required
+@nivel_min("admin")
+def api_laboratorio_preparar_cadastro_conta_ovos(id_lote):
+    """Guarda alteracoes locais e cria a fila de edicao remota por ovitrampa."""
+    payload = request.get_json(silent=True) or {}
+    usuario = dict(_usuario_atual() or {})
+    conn = get_db()
+    try:
+        result = contaovos_cadastro.prepare_lot_updates(
+            conn, id_lote, payload.get("alteracoes") or [],
+            user_name=usuario.get("nome") or "sistema",
+        )
+        audit.registrar_evento(
+            get_db, "conta_ovos_cadastro_lote_preparado",
+            entidade="ovitrampas_laboratorio_lotes", entidade_id=id_lote,
+            detalhes=result, conn=conn,
+        )
+        conn.commit()
+    except contaovos_cadastro.ContaOvosCadastroError as exc:
+        conn.rollback()
+        return jsonify({"erro": str(exc), "tipo": "cadastro_invalido"}), 400
+    except Exception as exc:
+        conn.rollback()
+        if ovitrampas_core.db_core.is_concurrency_error(exc):
+            return jsonify({"erro": "O banco esta ocupado. Tente novamente em instantes."}), 503
+        raise
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "resultado": result})
 
 
 @bp.route(
@@ -484,6 +524,8 @@ def api_laboratorio_enviar_conta_ovos(id_lote):
     usuario = dict(_usuario_atual() or {})
     conn = get_db()
     try:
+        if usuario.get("nivel") != "admin" and contaovos_cadastro.lot_has_unconfirmed(conn, id_lote):
+            return jsonify({"erro": "Este lote possui atualizacoes cadastrais pendentes do Conta Ovos. Um administrador deve confirmar o envio."}), 403
         result = contaovos_fila.send_lot(
             conn, id_lote, key, user_name=usuario.get("nome") or "sistema"
         )
@@ -497,6 +539,8 @@ def api_laboratorio_enviar_conta_ovos(id_lote):
                 "enviados": result["enviados"],
                 "ja_enviados": result["ja_enviados"],
                 "falhas": result["falhas"],
+                "cadastros_confirmados": result.get("cadastros_confirmados", 0),
+                "cadastros_falhas": result.get("cadastros_falhas", 0),
             },
             conn=conn,
         )

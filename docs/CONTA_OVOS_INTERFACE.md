@@ -24,8 +24,10 @@ SisPNCD.
 - **Monitoramento:** calcula positivas recentes, ranking, localidades e
   demais indicadores sobre as contagens de proveniencia API; o historico de
   ocorrencias vem do Laboratorio.
-- **Armadilhas:** continua sendo o cadastro local e a unica aba com importacao
-  CSV, pois a API nao fornece todos os campos cadastrais necessarios.
+- **Armadilhas:** o CSV permanece como contingencia e reconciliacao. A partir
+  da linha de corte da importacao final de 17/09/2026, alteracoes operacionais
+  feitas pelo administrador no detalhe do lote de Laboratorio atualizam o
+  cadastro local e o Conta Ovos no mesmo envio supervisionado.
 - **Diarios:** preserva responsaveis e telefones locais, editaveis e usados
   na impressao.
 - **Laboratorio:** registra leituras, pendencias e envio supervisionado ao
@@ -38,8 +40,12 @@ SisPNCD.
   `ovitrampas_ocorrencias_conta_ovos`. Registros historicos CSV podem existir,
   mas Leituras e Monitoramento filtram explicitamente a proveniencia API.
 - **Cadastro operacional e complementos locais:** Endemias, em
-  `ovitrampas_armadilhas`. Responsavel, telefone, localidade operacional e
-  demais complementos locais nao devem ser apresentados como dados da API.
+  `ovitrampas_armadilhas`. O telefone e exclusivamente local. Rua, numero,
+  complemento, local de instalacao, responsavel, quarteirao e coordenadas
+  podem ser enviados ao Conta Ovos quando o administrador os alterar no lote.
+  Pela regra municipal, a **Localidade** local e enviada com o mesmo valor para
+  `ovitrap_address_district` e `ovitrap_address_sector`; bairro nao participa
+  desse mapeamento.
 - **Cadastro remoto disponivel pela API:** espelho
   `contaovos_registro_ovitrampas`, atualizado por GET supervisionado. Ele
   guarda somente os campos devolvidos pela API e nao sobrescreve o cadastro
@@ -58,8 +64,9 @@ alterar a interface:
   `contaovos_health.py`;
 - `app_core/contaovos_sync.py` e o comando supervisionado de sincronizacao;
 - `app_core/contaovos_registro.py` e o espelho do cadastro remoto;
-- `app_core/contaovos_fila.py` e o envio supervisionado de lotes;
-- `migrations/postgresql/0002_integracao_contaovos.sql` ate `0005`;
+- `app_core/contaovos_fila.py`, `contaovos_cadastro.py` e os envios
+  supervisionados de lote/cadastro;
+- `migrations/postgresql/0002_integracao_contaovos.sql` ate `0005` e `0012`;
 - as rotas de sincronizacao e envio dentro de `blueprints/ovitrampas.py`;
 - tabelas `contaovos_sync_cursor`, `contaovos_execucoes`,
   `contaovos_registro_ovitrampas`, `ovitrampas_ocorrencias_conta_ovos` e a
@@ -75,6 +82,11 @@ alterar a interface:
    nao autoriza implementar esses dominios sem novo levantamento.
 5. O fluxo de exclusao/recriacao de ovitrampas remotas, documentado em
    `docs/CONTA_OVOS_API.md`, permanece fora da interface.
+6. Quando houver atualizacao cadastral, o sistema confirma primeiro o
+   `POST /posteditovitrap`; se ele falhar, a leitura daquela armadilha nao e
+   enviada. Resultado de rede incerto bloqueia reenvio automatico e exige nova
+   revisao administrativa. O campo avancado `atualizar_desde` fica vazio por
+   padrao, para preservar o historico remoto.
 
 ## Indicadores entomologicos do Monitoramento
 
