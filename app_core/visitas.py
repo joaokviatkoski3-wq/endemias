@@ -1,5 +1,6 @@
 import os
 import uuid
+from datetime import datetime
 
 from app_core import agentes as agentes_core
 from app_core import db as db_core
@@ -56,16 +57,35 @@ def _values(args, key):
     return [str(value).strip() for value in values if str(value or "").strip()]
 
 
-def formatar_acs_codigos(valor):
-    """Converte codigos Kobo de ACS em texto legivel para consulta.
+def catalogo_acs(conn):
+    """Retorna os rótulos oficiais de ACS disponíveis no banco local."""
+    if not db_core.table_exists(conn, "acs_catalogo"):
+        return {}
+    return {
+        str(row[0]).strip().casefold(): str(row[1]).strip()
+        for row in conn.execute(
+            "SELECT acs_codigo, nome FROM acs_catalogo"
+        ).fetchall()
+        if str(row[0] or "").strip() and str(row[1] or "").strip()
+    }
 
-    O codigo canonico continua exposto separadamente pela API; esta formatacao
-    apenas melhora a leitura enquanto ainda nao existe um catalogo local com
-    os rotulos oficiais do XLSForm.
+
+def formatar_acs_codigos(valor, catalogo=None):
+    """Converte códigos Kobo de ACS em nomes exibíveis.
+
+    O código canônico continua sendo usado nos filtros e nos vínculos. Quando
+    o catálogo oficial do Kobo estiver disponível, o rótulo dele prevalece;
+    a conversão antiga é mantida para códigos históricos que ainda não tenham
+    um rótulo no catálogo.
     """
+    catalogo = catalogo or {}
     codigos = [parte.strip() for parte in str(valor or "").split(",") if parte.strip()]
     nomes = []
     for codigo in codigos:
+        nome_catalogo = catalogo.get(codigo.casefold())
+        if nome_catalogo:
+            nomes.append(nome_catalogo)
+            continue
         palavras = codigo.replace("_", " ").split()
         nome = " ".join(
             palavra.lower() if indice and palavra.casefold() in ACS_PARTICULAS_NOME
@@ -77,10 +97,73 @@ def formatar_acs_codigos(valor):
     return ", ".join(nomes)
 
 
-def _serializar_visita(row):
+def _serializar_visita(row, catalogo=None):
     visita = db_helpers._serializar_linha(row)
-    visita["acs"] = formatar_acs_codigos(visita.get("acs_codigos"))
+    visita["acs"] = formatar_acs_codigos(
+        visita.get("acs_codigos"), catalogo
+    )
     return visita
+
+
+def sincronizar_catalogo_acs(target, itens):
+    """Inclui ou atualiza rótulos de ACS sem alterar vínculos de visitas."""
+    conn, close = _open_connection(target)
+    try:
+        if not db_core.table_exists(conn, "acs_catalogo"):
+            raise VisitaInvalida(
+                "O catálogo de ACS ainda não existe no banco. Aplique a migração do sistema."
+            )
+
+        normalizados = {}
+        for item in itens or []:
+            if not isinstance(item, dict):
+                continue
+            codigo = str(item.get("codigo") or "").strip()
+            nome = str(item.get("nome") or "").strip()
+            if codigo and nome:
+                normalizados[codigo.casefold()] = (codigo, nome)
+        if not normalizados:
+            raise VisitaInvalida(
+                "O formulário PVE não retornou códigos e nomes válidos de ACS."
+            )
+
+        existentes = catalogo_acs(conn)
+        agora = datetime.now().isoformat(timespec="seconds")
+        criados = atualizados = inalterados = 0
+        for chave, (codigo, nome) in normalizados.items():
+            anterior = existentes.get(chave)
+            if anterior is None:
+                conn.execute(
+                    """INSERT INTO acs_catalogo(acs_codigo, nome, atualizado_em)
+                       VALUES (?,?,?)""",
+                    (codigo, nome, agora),
+                )
+                criados += 1
+            elif anterior != nome:
+                conn.execute(
+                    """UPDATE acs_catalogo
+                          SET nome=?, atualizado_em=?
+                        WHERE LOWER(acs_codigo)=LOWER(?)""",
+                    (nome, agora, codigo),
+                )
+                atualizados += 1
+            else:
+                inalterados += 1
+        if close:
+            conn.commit()
+        return {
+            "total": len(normalizados),
+            "criados": criados,
+            "atualizados": atualizados,
+            "inalterados": inalterados,
+        }
+    except Exception:
+        if close:
+            conn.rollback()
+        raise
+    finally:
+        if close:
+            conn.close()
 
 
 def build_where(args):
@@ -253,6 +336,7 @@ def filter_options(target):
         return sorted(values, key=lambda value: str(value).casefold())
 
     try:
+        acs_por_codigo = catalogo_acs(conn)
         treatments = distinct(
             """
             SELECT tipo FROM (
@@ -279,7 +363,10 @@ def filter_options(target):
                      JOIN visita_agentes va ON va.id_agente=a.id_agente"""
             ),
             "acs": [
-                {"codigo": codigo, "nome": formatar_acs_codigos(codigo)}
+                {
+                    "codigo": codigo,
+                    "nome": formatar_acs_codigos(codigo, acs_por_codigo),
+                }
                 for codigo in distinct(
                     "SELECT DISTINCT acs_codigo FROM visita_acs"
                 )
@@ -312,6 +399,7 @@ def listar(target, args, pagina=1, por_pagina=30):
                {where}"""
     conn, close = _open_connection(target)
     try:
+        acs_por_codigo = catalogo_acs(conn)
         total = conn.execute(
             f"SELECT COUNT(*) {base}",
             params,
@@ -470,7 +558,7 @@ def listar(target, args, pagina=1, por_pagina=30):
             "pagina": pagina,
             "resumo": dict(resumo) if resumo else {},
             "registros": [
-                _serializar_visita(row) for row in rows
+                _serializar_visita(row, acs_por_codigo) for row in rows
             ],
         }
     finally:
@@ -481,6 +569,7 @@ def listar(target, args, pagina=1, por_pagina=30):
 def detalhar(target, id_visita):
     conn, close = _open_connection(target)
     try:
+        acs_por_codigo = catalogo_acs(conn)
         agentes_agg = db_helpers._agentes_aggregate(conn, "nomes.nome")
         acs_agg = db_helpers._agentes_aggregate(conn, "codigos.acs_codigo")
         visita = conn.execute(
@@ -556,7 +645,7 @@ def detalhar(target, id_visita):
             (id_visita,),
         ).fetchall()
         return {
-            "visita": _serializar_visita(visita),
+            "visita": _serializar_visita(visita, acs_por_codigo),
             "depositos": [
                 db_helpers._serializar_linha(row) for row in depositos
             ],

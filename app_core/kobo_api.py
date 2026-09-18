@@ -186,6 +186,81 @@ def test_connection(cfg):
     }
 
 
+def _choice_label(value):
+    """Extrai um rótulo de escolha da resposta multilíngue do Kobo."""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            label = _choice_label(item)
+            if label:
+                return label
+    if isinstance(value, dict):
+        for item in value.values():
+            label = _choice_label(item)
+            if label:
+                return label
+    return ""
+
+
+def catalogo_acs_pve_do_conteudo(content):
+    """Lê código e nome dos ACS diretamente da definição do XLSForm PVE."""
+    if not isinstance(content, dict):
+        raise KoboError("A definição do formulário PVE não é válida.")
+    survey = content.get("survey") or []
+    choices = content.get("choices") or []
+    pergunta = next(
+        (
+            item for item in survey
+            if isinstance(item, dict)
+            and str(item.get("type") or "").casefold() == "select_multiple"
+            and str(
+                item.get("$autoname") or item.get("name") or ""
+            ).casefold() in {"qual_quais_acs", "acs_nome"}
+        ),
+        None,
+    )
+    if not pergunta:
+        raise KoboError(
+            "Não foi encontrada a pergunta de seleção de ACS no formulário PVE."
+        )
+    lista = str(
+        pergunta.get("select_from_list_name")
+        or pergunta.get("select_from_list")
+        or ""
+    ).strip()
+    if not lista:
+        raise KoboError(
+            "A pergunta de ACS do formulário PVE não informa sua lista de opções."
+        )
+
+    catalogo = {}
+    for escolha in choices:
+        if not isinstance(escolha, dict):
+            continue
+        if str(escolha.get("list_name") or "").strip() != lista:
+            continue
+        codigo = str(escolha.get("name") or "").strip()
+        nome = _choice_label(escolha.get("label"))
+        if codigo and nome:
+            catalogo[codigo.casefold()] = {"codigo": codigo, "nome": nome}
+    if not catalogo:
+        raise KoboError(
+            "A lista de ACS do formulário PVE não possui códigos e nomes válidos."
+        )
+    return sorted(catalogo.values(), key=lambda item: item["nome"].casefold())
+
+
+def obter_catalogo_acs_pve(cfg, asset_uid):
+    asset_uid = (asset_uid or "").strip()
+    if not asset_uid:
+        raise KoboError("UID do formulário PVE não configurado.")
+    asset = _get_json(cfg, f"/api/v2/assets/{asset_uid}/")
+    if not isinstance(asset, dict):
+        raise KoboError("O Kobo não retornou a definição do formulário PVE.")
+    return catalogo_acs_pve_do_conteudo(asset.get("content"))
+
+
 def fetch_submissions(cfg, asset_uid, limit=100, start=None, end=None):
     asset_uid = (asset_uid or "").strip()
     if not asset_uid:

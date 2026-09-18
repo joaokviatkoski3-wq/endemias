@@ -113,14 +113,20 @@ class SQLiteMaintenanceTests(unittest.TestCase):
                 tabela_acs = conn.execute(
                     "SELECT name FROM sqlite_master WHERE name='visita_acs'"
                 ).fetchone()
+                tabela_catalogo = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE name='acs_catalogo'"
+                ).fetchone()
             finally:
                 conn.close()
 
-        self.assertEqual(primeira, ["visitas_acs", "visita_acs"])
+        self.assertEqual(
+            primeira, ["visitas_acs", "visita_acs", "acs_catalogo"]
+        )
         self.assertEqual(segunda, [])
         self.assertTrue({"acs_presente", "acs_nome"}.issubset(colunas))
         self.assertEqual(registro, ("visita-1", None, None))
         self.assertEqual(tabela_acs, ("visita_acs",))
+        self.assertEqual(tabela_catalogo, ("acs_catalogo",))
 
     def test_schema_compatibility_preserves_historico_and_removes_obsolete_fk(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -160,7 +166,9 @@ class SQLiteMaintenanceTests(unittest.TestCase):
 
             conn = db_core.connect(db_path)
             try:
-                self.assertEqual(primeira, ["focos_historico_sem_fk"])
+                self.assertEqual(
+                    primeira, ["focos_historico_sem_fk", "acs_catalogo"]
+                )
                 self.assertEqual(segunda, [])
                 self.assertEqual(
                     conn.execute("SELECT COUNT(*) FROM focos_historico").fetchone()[0],

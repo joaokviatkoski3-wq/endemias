@@ -228,6 +228,14 @@ multiplo seleciona visitas que tenham ao menos um dos ACS escolhidos e tambem
 se aplica a exportacao XLSX. A apresentacao humaniza codigos Kobo, mas a
 filtragem usa o codigo canonico de `visita_acs`. Consulte `docs/PVE_ACS.md`.
 
+Na versao `1.47.0`, a tabela `acs_catalogo` passa a separar os codigos Kobo dos
+nomes exibidos. Em **Visitas arboviroses**, somente administradores podem usar
+**Atualizar nomes de ACS**, que le a lista publicada pelo formulario PVE e
+atualiza os rotulos locais com auditoria, sem modificar visitas. Filtros,
+listagem e detalhes mostram o nome oficial para codigos como `ACS-026`, mas
+continuam filtrando e vinculando pelo codigo canonico. A migracao PostgreSQL
+`0015_acs_catalogo.sql` deve ser aplicada antes de reiniciar a producao.
+
 ### Vínculo de conta para lançamentos laboratoriais
 
 Na versão `1.40.1`, a assinatura de resultados em **Lançamentos Laboratório**

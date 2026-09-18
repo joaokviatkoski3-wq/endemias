@@ -118,6 +118,15 @@ CREATE TABLE IF NOT EXISTS visita_acs (
 );
 CREATE INDEX IF NOT EXISTS idx_visita_acs_codigo ON visita_acs(acs_codigo);
 
+-- ── ACS_CATALOGO ────────────────────────────────────────────────────────────
+-- Rotulos oficiais do XLSForm PVE, separados dos codigos gravados nas visitas.
+CREATE TABLE IF NOT EXISTS acs_catalogo (
+    acs_codigo   TEXT PRIMARY KEY,
+    nome          TEXT NOT NULL,
+    atualizado_em TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_acs_catalogo_nome ON acs_catalogo(nome);
+
 -- ── DEPOSITOS_INSPECIONADOS ───────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS depositos_inspecionados (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -406,7 +415,7 @@ CREATE INDEX IF NOT EXISTS idx_foco_localidade
 """
 
 TABELAS_ESPERADAS = [
-    "usuarios", "localidades", "agentes", "visitas", "visita_agentes", "visita_acs",
+    "usuarios", "localidades", "agentes", "visitas", "visita_agentes", "visita_acs", "acs_catalogo",
     "depositos_inspecionados", "tratamentos", "coletas",
     "resultados_laboratorio", "focos_positivos", "agenda_eventos",
     "importacoes", "pontos_estrategicos", "acoes_setor", "acoes_setor_agentes",

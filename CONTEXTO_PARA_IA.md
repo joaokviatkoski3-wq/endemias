@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.46.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.47.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -343,6 +343,13 @@ obrigatoria para integracao.
   de ACS das visitas PVE ja existentes. Na producao, a acao administrativa
   equivalente esta em Importacao Kobo > Reconciliar ACS e deve ser preferida,
   pois o servico ja possui acesso ao PostgreSQL protegido.
+- A versao `1.47.0` acrescenta `acs_catalogo`: por acao exclusiva de
+  administrador em **Visitas arboviroses**, o sistema consulta a definicao do
+  XLSForm PVE no Kobo e atualiza localmente a relacao codigo/rotulo. Lista,
+  detalhe e filtro passam a mostrar o nome oficial para codigos como `ACS-026`;
+  filtros e vinculos continuam usando o codigo em `visita_acs`. A migracao
+  PostgreSQL `0015_acs_catalogo.sql` deve ser aplicada antes do reinicio em
+  producao.
 - A versao `1.41.0` criou a pagina **Positividade**, que combina os focos
   legados de `focos_positivos` (`origem='historico'`) com positivos atuais de
   `resultados_laboratorio`, preservando a ausencia de detalhes laboratoriais no

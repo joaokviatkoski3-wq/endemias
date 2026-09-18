@@ -9,9 +9,16 @@
     <h1><span class="icon"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"></span> Visitas arboviroses</h1>
     <div class="sub">Consulta completa das atividades de campo importadas do Kobo</div>
   </div>
-  <button class="btn btn-outline" type="button" onclick="exportarVisitas()" title="Exportar os resultados filtrados">
-    <img src="/static/icons/importar.svg" alt="" class="icon-svg"> Exportar planilha
-  </button>
+  <div class="visitas-header-actions">
+    {% if pode_atualizar_acs %}
+    <button class="btn btn-outline" id="visitas-acs-sync" type="button" onclick="sincronizarCatalogoAcs()" title="Atualizar os nomes exibidos conforme o formulário PVE no Kobo">
+      <img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar nomes de ACS
+    </button>
+    {% endif %}
+    <button class="btn btn-outline" type="button" onclick="exportarVisitas()" title="Exportar os resultados filtrados">
+      <img src="/static/icons/importar.svg" alt="" class="icon-svg"> Exportar planilha
+    </button>
+  </div>
 </div>
 
 <section class="filter-card visitas-filtros" aria-labelledby="visitas-filtros-titulo">

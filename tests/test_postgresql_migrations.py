@@ -33,6 +33,19 @@ class PostgreSQLMigrationDiscoveryTests(unittest.TestCase):
         self.assertIn("references visitas(id_visita) on delete cascade", sql)
         self.assertIn("primary key (id_visita, acs_codigo)", sql)
 
+    def test_migracao_catalogo_acs_separa_codigo_do_rotulo(self):
+        path = (
+            Path(__file__).resolve().parents[1]
+            / "migrations"
+            / "postgresql"
+            / "0015_acs_catalogo.sql"
+        )
+        sql = path.read_text(encoding="utf-8").casefold()
+
+        self.assertIn("create table acs_catalogo", sql)
+        self.assertIn("acs_codigo text primary key", sql)
+        self.assertIn("nome text not null", sql)
+
     def test_migracao_vincula_usuario_a_agente(self):
         path = (
             Path(__file__).resolve().parents[1]

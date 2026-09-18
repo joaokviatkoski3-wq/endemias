@@ -135,6 +135,22 @@ def _ensure_visita_acs_table(conn):
     return True
 
 
+def _ensure_acs_catalogo_table(conn):
+    if _table_exists(conn, "acs_catalogo"):
+        return False
+    conn.execute(
+        """
+        CREATE TABLE acs_catalogo (
+            acs_codigo TEXT PRIMARY KEY,
+            nome TEXT NOT NULL,
+            atualizado_em TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute("CREATE INDEX idx_acs_catalogo_nome ON acs_catalogo(nome)")
+    return True
+
+
 def _ensure_usuarios_agente_column(conn):
     if not _table_exists(conn, "usuarios"):
         return False
@@ -165,6 +181,8 @@ def ensure_schema_compatibility(db_path):
             migrations.append("visitas_acs")
         if _ensure_visita_acs_table(conn):
             migrations.append("visita_acs")
+        if _ensure_acs_catalogo_table(conn):
+            migrations.append("acs_catalogo")
         if _ensure_usuarios_agente_column(conn):
             migrations.append("usuarios_agente")
         conn.commit()

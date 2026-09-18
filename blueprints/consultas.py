@@ -1,12 +1,13 @@
 import logging
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, render_template, request
 
 from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import dashboard as dashboard_core
 from app_core import laboratorio as laboratorio_core
+from app_core import kobo_api
 from app_core import positividade as positividade_core
 from app_core import producao_operacional
 from app_core import utils as utils_core
@@ -55,11 +56,13 @@ def positividade():
 @bp.route("/visitas")
 @login_required
 def visitas():
+    usuario = bh.usuario_atual() or {}
     return render_template(
         "visitas.html",
         d_ini=request.args.get("d_ini", utils_core.data_n_dias(7)),
         d_fim=request.args.get("d_fim", utils_core.hoje()),
         opcoes=visitas_core.filter_options(bh.db_target()),
+        pode_atualizar_acs=usuario.get("nivel") == "admin",
     )
 
 
@@ -180,6 +183,34 @@ def api_visita_detalhe(id_visita):
         logging.exception("Erro em api_visita_detalhe")
         return jsonify(
             {"erro": "Erro interno. Verifique endemias.log"}
+        ), 500
+
+
+@bp.route("/api/visitas/acs/sincronizar-kobo", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_visitas_sincronizar_acs_kobo():
+    """Atualiza apenas os rótulos locais de ACS conforme o XLSForm PVE."""
+    try:
+        cfg = kobo_api.load_config(current_app.config["KOBO_CONFIG_PATH"])
+        asset_uid = ((cfg.get("assets") or {}).get("PVE") or "").strip()
+        itens = kobo_api.obter_catalogo_acs_pve(cfg, asset_uid)
+        resumo = visitas_core.sincronizar_catalogo_acs(
+            bh.db_target(), itens
+        )
+        audit.registrar_evento(
+            bh.get_db,
+            "acs_catalogo_sincronizado_kobo",
+            entidade="acs_catalogo",
+            detalhes=resumo,
+        )
+        return jsonify({"ok": True, **resumo})
+    except (kobo_api.KoboError, visitas_core.VisitaInvalida) as exc:
+        return jsonify({"erro": str(exc)}), 400
+    except Exception:
+        logging.exception("Erro em api_visitas_sincronizar_acs_kobo")
+        return jsonify(
+            {"erro": "Não foi possível atualizar os nomes de ACS."}
         ), 500
 
 
