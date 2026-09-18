@@ -56,13 +56,11 @@ def positividade():
 @bp.route("/visitas")
 @login_required
 def visitas():
-    usuario = bh.usuario_atual() or {}
     return render_template(
         "visitas.html",
         d_ini=request.args.get("d_ini", utils_core.data_n_dias(7)),
         d_fim=request.args.get("d_fim", utils_core.hoje()),
         opcoes=visitas_core.filter_options(bh.db_target()),
-        pode_atualizar_acs=usuario.get("nivel") == "admin",
     )
 
 

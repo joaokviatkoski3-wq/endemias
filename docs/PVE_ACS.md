@@ -58,14 +58,19 @@ Na versao `1.40.0`, os ACS passaram a aparecer na listagem, no detalhe e na
 exportacao de **Visitas arboviroses**. O filtro multiplo **ACS acompanhante**
 seleciona visitas que tenham ao menos um dos ACS marcados.
 
-Na versao `1.47.0`, o administrador passou a ter o botao **Atualizar nomes de
-ACS** em **Visitas arboviroses**. A acao consulta somente a definicao publicada
-do formulario PVE no Kobo, atualiza o catalogo local de codigos e rotulos e
-registra auditoria. Depois da atualizacao, filtros, lista e detalhe exibem o
-nome oficial, inclusive quando o codigo tecnico e algo como `ACS-026`; os
-valores internos de filtro e os vinculos existentes continuam usando o codigo.
-Se algum codigo historico nao existir no formulario atual, a tela conserva a
-formatacao legada dele em vez de ocultar a informacao.
+Na versao `1.47.0`, o catalogo local de codigos e rotulos foi preenchido a
+partir da definicao publicada do formulario PVE no Kobo. Filtros, lista e
+detalhe exibem o nome oficial, inclusive quando o codigo tecnico e algo como
+`ACS-026`; os valores internos de filtro e os vinculos existentes continuam
+usando o codigo. Se algum codigo historico nao existir no formulario atual, a
+tela conserva a formatacao legada dele em vez de ocultar a informacao.
+
+Na versao `1.47.1`, os controles manuais foram retirados de **Visitas
+arboviroses** e de **Importacao Kobo**, pois a reconciliacao historica ja foi
+concluida. A cada preparacao de importacao PVE, o sistema atualiza em segundo
+plano o catalogo de nomes a partir do XLSForm. Assim, novos codigos publicados
+no Kobo recebem seu nome na proxima importacao PVE, sem modificar visitas ja
+existentes nem bloquear a importacao se o Kobo estiver indisponivel.
 
 ## Reconciliacao de registros ja importados
 
@@ -77,10 +82,9 @@ altera apenas `acs_presente`, `acs_nome` e `visita_acs`. A execucao padrao e uma
 previa; para qualquer banco fora de `endemias_teste`, exige confirmacao explicita
 do banco e da aplicacao. Registros sem resposta ACS sao preservados.
 
-No sistema oficial, a mesma operacao esta disponivel somente para
-administradores em **Importacao Kobo > Reconciliar ACS**. A tela exige
-confirmacao e registra auditoria; ela e a via indicada para a producao, pois o
-servico possui as credenciais protegidas do banco.
+Como a reconciliacao historica foi concluida, ela nao aparece mais na interface
+do sistema oficial. O script permanece apenas como referencia tecnica para uma
+eventual manutencao excepcional, nunca como parte da rotina de importacao.
 
 ## Banco de dados
 

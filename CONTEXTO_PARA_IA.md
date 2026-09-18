@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.47.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.47.1` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -340,16 +340,16 @@ obrigatoria para integracao.
   selecao multipla de ACS da PVE, sem perder a compatibilidade com `acs_nome`.
   O preenchimento retroativo controlado usa
   `scripts/reconciliar_acs_pve_kobo.py` e altera somente os campos e vinculos
-  de ACS das visitas PVE ja existentes. Na producao, a acao administrativa
-  equivalente esta em Importacao Kobo > Reconciliar ACS e deve ser preferida,
-  pois o servico ja possui acesso ao PostgreSQL protegido.
-- A versao `1.47.0` acrescenta `acs_catalogo`: por acao exclusiva de
-  administrador em **Visitas arboviroses**, o sistema consulta a definicao do
-  XLSForm PVE no Kobo e atualiza localmente a relacao codigo/rotulo. Lista,
-  detalhe e filtro passam a mostrar o nome oficial para codigos como `ACS-026`;
-  filtros e vinculos continuam usando o codigo em `visita_acs`. A migracao
-  PostgreSQL `0015_acs_catalogo.sql` deve ser aplicada antes do reinicio em
-  producao.
+  de ACS das visitas PVE ja existentes. A reconciliacao historica foi concluida
+  e nao e mais exposta na interface de producao.
+- As versoes `1.47.0` e `1.47.1` acrescentam `acs_catalogo`: a relacao
+  codigo/rotulo do XLSForm PVE ja foi atualizada localmente, e lista, detalhe e
+  filtro mostram o nome oficial para codigos como `ACS-026`; filtros e vinculos
+  continuam usando o codigo em `visita_acs`. Os controles manuais de atualizacao
+  e reconciliacao foram removidos da interface. A cada preparacao de importacao
+  PVE, o catalogo e atualizado sem bloquear a importacao se a consulta ao Kobo
+  falhar. A migracao PostgreSQL `0015_acs_catalogo.sql` deve ser aplicada antes
+  do reinicio em producao.
 - A versao `1.41.0` criou a pagina **Positividade**, que combina os focos
   legados de `focos_positivos` (`origem='historico'`) com positivos atuais de
   `resultados_laboratorio`, preservando a ausencia de detalhes laboratoriais no

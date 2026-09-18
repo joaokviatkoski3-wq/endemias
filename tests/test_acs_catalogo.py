@@ -1,8 +1,10 @@
 import sqlite3
 import unittest
+from unittest import mock
 
 from app_core import kobo_api
 from app_core import visitas
+from blueprints import processar
 
 
 class CatalogoAcsTests(unittest.TestCase):
@@ -89,3 +91,25 @@ class CatalogoAcsTests(unittest.TestCase):
             visitas.formatar_acs_codigos("maria_da_silva"),
             "Maria da Silva",
         )
+
+    def test_importacao_pve_atualiza_catalogo_sem_controle_manual(self):
+        itens = [{"codigo": "ACS-006", "nome": "Carla Souza"}]
+        resumo = {"total": 1, "criados": 0, "atualizados": 0, "inalterados": 1}
+        with (
+            mock.patch.object(
+                processar.kobo_api, "obter_catalogo_acs_pve", return_value=itens
+            ) as obter,
+            mock.patch.object(
+                processar.visitas_core, "sincronizar_catalogo_acs", return_value=resumo
+            ) as sincronizar,
+            mock.patch.object(processar, "_db_path", return_value="banco"),
+            mock.patch.object(processar.audit, "registrar_evento") as auditar,
+        ):
+            resultado = processar._atualizar_catalogo_acs_pve(
+                {"assets": {"PVE": "uid"}}, "uid"
+            )
+
+        self.assertEqual(resultado, resumo)
+        obter.assert_called_once_with({"assets": {"PVE": "uid"}}, "uid")
+        sincronizar.assert_called_once_with("banco", itens)
+        auditar.assert_called_once()

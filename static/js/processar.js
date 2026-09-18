@@ -74,7 +74,6 @@ function configurarAcoesProcessamento() {
   document.getElementById('btn-kobo-salvar')?.addEventListener('click', salvarKoboConfig);
   document.getElementById('btn-kobo-testar')?.addEventListener('click', testarKobo);
   document.getElementById('btn-kobo-pendentes')?.addEventListener('click', buscarKoboPendentes);
-  document.getElementById('btn-kobo-reconciliar-acs')?.addEventListener('click', reconciliarAcsPve);
   document.addEventListener('click', async event => {
     const removeBtn = event.target.closest('[data-remover-arquivo]');
     if (removeBtn) {
@@ -168,34 +167,6 @@ async function testarKobo() {
   } catch (e) {
     setKoboStatus('Falha na conexão', 'imp-vermelho');
     toast('Erro ao conectar no Kobo: ' + e.message, 'error');
-  }
-}
-
-async function reconciliarAcsPve() {
-  const botao = document.getElementById('btn-kobo-reconciliar-acs');
-  const confirmado = window.confirm(
-    'Reconciliar os ACS das PVE já existentes? Esta ação consulta o Kobo e altera somente os campos ACS e seus vínculos.'
-  );
-  if (!confirmado) return;
-  try {
-    botao.disabled = true;
-    setKoboStatus('Reconciliando ACS...', 'imp-azul');
-    const resp = await fetch('/api/kobo/reconciliar-acs-pve', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
-      body: JSON.stringify({confirmacao: 'RECONCILIAR ACS PVE'}),
-    });
-    const data = await resp.json();
-    if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
-    const resumo = data.resumo || {};
-    const alteradas = koboNum(resumo.alteradas);
-    setKoboStatus(`ACS reconciliados: ${alteradas}`, 'imp-verde');
-    toast(`${alteradas} PVE atualizada(s) somente nos dados ACS.`, 'success');
-  } catch (e) {
-    setKoboStatus('Falha na reconciliação ACS', 'imp-vermelho');
-    toast('Erro ao reconciliar ACS: ' + e.message, 'error');
-  } finally {
-    botao.disabled = false;
   }
 }
 

@@ -73,30 +73,6 @@ function atualizarContagemFiltros() {
     : 'Nenhum filtro adicional';
 }
 
-async function sincronizarCatalogoAcs() {
-  const button = document.getElementById('visitas-acs-sync');
-  if (!button) return;
-  if (!confirm('Atualizar os nomes de ACS conforme a lista publicada no formulário PVE do Kobo? Isso não altera nenhuma visita.')) return;
-  const original = button.innerHTML;
-  button.disabled = true;
-  button.innerHTML = '<span class="spinner-sm"></span> Atualizando...';
-  try {
-    const result = await apiPost('/api/visitas/acs/sincronizar-kobo', {});
-    const alterados = Number(result.criados || 0) + Number(result.atualizados || 0);
-    toast(
-      alterados
-        ? `${alterados} nome(s) de ACS atualizado(s).`
-        : 'Os nomes de ACS já estavam atualizados.',
-      'success'
-    );
-    window.setTimeout(() => window.location.reload(), 500);
-  } catch (error) {
-    toast(error.message, 'error');
-    button.disabled = false;
-    button.innerHTML = original;
-  }
-}
-
 async function buscarVisitas(page=1) {
   visitasState.pagina = page;
   atualizarContagemFiltros();

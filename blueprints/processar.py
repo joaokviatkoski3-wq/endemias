@@ -17,6 +17,7 @@ from app_core import db as db_core
 from app_core import import_history
 from app_core import kobo_api
 from app_core import larvas as larvas_core
+from app_core import visitas as visitas_core
 from app_core import uploads
 import etl
 
@@ -47,6 +48,26 @@ def _config_path():
 
 def _kobo_config_path():
     return current_app.config["KOBO_CONFIG_PATH"]
+
+
+def _atualizar_catalogo_acs_pve(cfg, asset_uid):
+    """Atualiza nomes de ACS ao importar PVE, sem interferir na importação."""
+    try:
+        itens = kobo_api.obter_catalogo_acs_pve(cfg, asset_uid)
+        resumo = visitas_core.sincronizar_catalogo_acs(_db_path(), itens)
+        audit.registrar_evento(
+            get_db,
+            "acs_catalogo_atualizado_importacao_pve",
+            entidade="acs_catalogo",
+            detalhes=resumo,
+        )
+        return resumo
+    except (kobo_api.KoboError, visitas_core.VisitaInvalida):
+        logging.warning(
+            "Não foi possível atualizar o catálogo de ACS durante a importação PVE.",
+            exc_info=True,
+        )
+        return None
 
 
 def _upload_temp():
@@ -589,13 +610,20 @@ def kobo_importar_formulario_iniciar():
     except kobo_api.KoboError as exc:
         return jsonify({"erro": str(exc)}), 400
 
+    catalogo_acs = None
+    if tipo == "PVE":
+        catalogo_acs = _atualizar_catalogo_acs_pve(cfg, asset_uid)
+
     existentes = _kobo_existing_uuids(tipo, records)
     records = [
         record for record in records
         if not kobo_api.record_uuid(record) or kobo_api.record_uuid(record) not in existentes
     ]
     if not records:
-        return jsonify({"erro": f"Nenhum registro novo encontrado no Kobo para {tipo}."}), 400
+        resposta = {"erro": f"Nenhum registro novo encontrado no Kobo para {tipo}."}
+        if catalogo_acs:
+            resposta["catalogo_acs"] = catalogo_acs
+        return jsonify(resposta), 400
 
     job_id = str(uuid.uuid4())
     job_dir = _job_dir(job_id)

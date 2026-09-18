@@ -229,12 +229,13 @@ se aplica a exportacao XLSX. A apresentacao humaniza codigos Kobo, mas a
 filtragem usa o codigo canonico de `visita_acs`. Consulte `docs/PVE_ACS.md`.
 
 Na versao `1.47.0`, a tabela `acs_catalogo` passa a separar os codigos Kobo dos
-nomes exibidos. Em **Visitas arboviroses**, somente administradores podem usar
-**Atualizar nomes de ACS**, que le a lista publicada pelo formulario PVE e
-atualiza os rotulos locais com auditoria, sem modificar visitas. Filtros,
-listagem e detalhes mostram o nome oficial para codigos como `ACS-026`, mas
-continuam filtrando e vinculando pelo codigo canonico. A migracao PostgreSQL
-`0015_acs_catalogo.sql` deve ser aplicada antes de reiniciar a producao.
+nomes exibidos. Filtros, listagem e detalhes mostram o nome oficial para
+codigos como `ACS-026`, mas continuam filtrando e vinculando pelo codigo
+canonico. A migracao PostgreSQL `0015_acs_catalogo.sql` deve ser aplicada antes
+de reiniciar a producao. Na versao `1.47.1`, os controles manuais de atualizacao
+e reconciliacao de ACS foram retirados das telas; ao preparar uma importacao
+PVE, o catalogo e atualizado automaticamente a partir do XLSForm, sem alterar
+visitas ja existentes e sem bloquear a importacao se essa consulta falhar.
 
 ### Vínculo de conta para lançamentos laboratoriais
 
@@ -265,9 +266,8 @@ lida também pelo nome técnico `Qual_quais_ACS`, inclusive quando estiver dentr
 de grupo. O nome inicialmente previsto, `acs_nome`, permanece compatível. O
 script controlado `scripts/reconciliar_acs_pve_kobo.py` faz a prévia e, sob
 dupla confirmação, atualiza exclusivamente os campos ACS das PVE já existentes;
-nenhum outro dado da visita é reimportado. Na produção, administradores podem
-executar a mesma reconciliação em **Importação Kobo > Reconciliar ACS**, com
-confirmação e auditoria, usando a credencial protegida do serviço.
+nenhum outro dado da visita é reimportado. Como essa reconciliação já foi
+concluída, ela não é mais exposta na interface de produção.
 
 ### Notificacoes laboratoriais
 
