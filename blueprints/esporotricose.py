@@ -192,7 +192,19 @@ def api_visitas():
 @bp.route("/api/esporotricose/imoveis")
 @login_required
 def api_imoveis():
-    return jsonify(esporotricose_core.listar_imoveis(bh.db_target(), request.args.get("busca", "")))
+    filtros = {
+        "d_ini": request.args.get("d_ini", ""),
+        "d_fim": request.args.get("d_fim", ""),
+        "localidade": request.args.get("localidade", ""),
+        "quarteirao": request.args.get("quarteirao", ""),
+        "visita": request.args.get("visita", ""),
+        "agente": request.args.get("agente", ""),
+        "tipo_imovel": request.args.get("tipo_imovel", ""),
+        "busca": request.args.get("busca", ""),
+        "pagina": request.args.get("pagina", ""),
+        "por_pagina": request.args.get("por_pagina", ""),
+    }
+    return jsonify(esporotricose_core.listar_imoveis(bh.db_target(), filtros))
 
 
 @bp.route("/api/esporotricose/imoveis/<int:id_imovel>")

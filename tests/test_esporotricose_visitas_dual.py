@@ -190,6 +190,34 @@ class EsporotricoseVisitasDualTests(unittest.TestCase):
         self.assertEqual(len(detalhe["visitas"]), 2)
         self.assertEqual({item["nome"] for item in detalhe["animais"]}, {"Tilapia", "Lobo", "Pipoca"})
         self.assertEqual({item["morador"] for item in detalhe["tutores"]}, {"Maria", "José"})
+        self.assertIn("Agente A, Agente B", {item["agentes"] for item in detalhe["visitas"]})
+
+    def test_lista_imoveis_filtra_visitas_e_pagina_resultados(self):
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            """INSERT INTO esporotricose_visitas(
+                    id_visita, kobo_uuid, data, localidade, quarteirao, tipo_imovel,
+                    logradouro, numero, visita, origem_estrutura, processado_em
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            ("visita-dual-4", "uuid-visita-dual-4", "2026-08-04", "Tamboara", 1406,
+             "Comercial", "Rua das Palmeiras", "26", "Fechado", "nova", "2026-08-04T10:00:00"),
+        )
+        conn.commit()
+        conn.close()
+
+        esporotricose.vincular_visitas_exatas(self.db_path)
+        primeira_pagina = esporotricose.listar_imoveis(self.db_path, {"por_pagina": 1, "pagina": 1})
+        fechados = esporotricose.listar_imoveis(self.db_path, {"visita": "Fechado"})
+        por_agente = esporotricose.listar_imoveis(self.db_path, {"agente": "Agente A"})
+        por_tipo = esporotricose.listar_imoveis(self.db_path, {"tipo_imovel": "Comercial"})
+
+        self.assertEqual(primeira_pagina["total"], 2)
+        self.assertEqual(primeira_pagina["paginas"], 2)
+        self.assertEqual(len(primeira_pagina["registros"]), 1)
+        self.assertEqual(fechados["total"], 1)
+        self.assertEqual(fechados["registros"][0]["ultima_situacao"], "Fechado")
+        self.assertEqual(por_agente["total"], 1)
+        self.assertEqual(por_tipo["total"], 1)
 
     def test_vinculo_manual_nao_muda_campos_originais_da_visita(self):
         conn = sqlite3.connect(self.db_path)

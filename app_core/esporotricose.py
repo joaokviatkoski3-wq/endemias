@@ -3206,32 +3206,98 @@ def vincular_visitas_manual(target, ids_visitas):
         conn.close()
 
 
-def listar_imoveis(target, busca=""):
+def _where_imoveis(filtros):
+    """Filtros de visitas usados para selecionar imóveis acompanhados."""
+    filtros = filtros or {}
+    where, params = _where(filtros)
+    clauses = [where[6:]]
+    busca = _text(filtros.get("busca"))
+    if busca:
+        like = f"%{busca.lower()}%"
+        clauses.append(
+            """(
+                LOWER(COALESCE(v.localidade,'')) LIKE ?
+                OR LOWER(COALESCE(v.logradouro,'')) LIKE ?
+                OR LOWER(COALESCE(v.numero,'')) LIKE ?
+                OR LOWER(COALESCE(v.morador,'')) LIKE ?
+                OR LOWER(COALESCE(CAST(v.quarteirao AS TEXT),'')) LIKE ?
+                OR LOWER(COALESCE(v.visita,'')) LIKE ?
+                OR LOWER(COALESCE(v.tipo_imovel,'')) LIKE ?
+            )"""
+        )
+        params.extend([like] * 7)
+    quarteirao = _text(filtros.get("quarteirao"))
+    if quarteirao:
+        clauses.append("CAST(v.quarteirao AS TEXT) = ?")
+        params.append(quarteirao)
+    tipo_imovel = _text(filtros.get("tipo_imovel"))
+    if tipo_imovel:
+        clauses.append("LOWER(COALESCE(v.tipo_imovel,'')) LIKE ?")
+        params.append(f"%{tipo_imovel.lower()}%")
+    return "WHERE " + " AND ".join(clauses), params
+
+
+def _paginacao_imoveis(filtros):
+    filtros = filtros or {}
+    try:
+        pagina = max(1, int(filtros.get("pagina") or 1))
+    except (TypeError, ValueError):
+        pagina = 1
+    try:
+        por_pagina = int(filtros.get("por_pagina") or 50)
+    except (TypeError, ValueError):
+        por_pagina = 50
+    return pagina, max(1, min(por_pagina, 100))
+
+
+def listar_imoveis(target, filtros=None):
     conn = db_core.connect(target)
     ensure_schema(conn)
     try:
-        where, params = "", []
-        texto = _text(busca)
-        if texto:
-            where = "WHERE LOWER(i.localidade) LIKE ? OR LOWER(i.quarteirao) LIKE ? OR LOWER(i.logradouro_chave) LIKE ? OR LOWER(i.numero_chave) LIKE ?"
-            params = [f"%{texto.lower()}%"] * 4
+        filtros = filtros or {}
+        where_visitas, params = _where_imoveis(filtros)
+        where_imoveis = f"""WHERE EXISTS (
+                SELECT 1
+                  FROM {VISITA_IMOVEIS_TABLE} vi_filtro
+                  JOIN {VISITAS_TABLE} v ON v.id_visita=vi_filtro.id_visita
+                  {where_visitas} AND vi_filtro.id_imovel=i.id_imovel
+            )"""
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM {IMOVEIS_TABLE} i {where_imoveis}", params,
+        ).fetchone()[0] or 0
+        pagina, por_pagina = _paginacao_imoveis(filtros)
+        paginas = max(1, (total + por_pagina - 1) // por_pagina)
+        pagina = min(pagina, paginas)
+        offset = (pagina - 1) * por_pagina
         rows = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT i.id_imovel, i.localidade, i.quarteirao, i.logradouro_chave, i.numero_chave,
                        MIN(v.logradouro) AS logradouro, MIN(v.numero) AS numero,
                        COUNT(DISTINCT vi.id_visita) AS visitas,
                        COUNT(a.id_animal) AS animais,
-                       MIN(v.data) AS primeira_visita, MAX(v.data) AS ultima_visita
+                       MIN(v.data) AS primeira_visita, MAX(v.data) AS ultima_visita,
+                       (SELECT v_ultima.visita
+                          FROM {VISITA_IMOVEIS_TABLE} vi_ultima
+                          JOIN {VISITAS_TABLE} v_ultima ON v_ultima.id_visita=vi_ultima.id_visita
+                         WHERE vi_ultima.id_imovel=i.id_imovel
+                         ORDER BY v_ultima.data DESC, v_ultima.hora_inicio DESC
+                         LIMIT 1) AS ultima_situacao
                   FROM {IMOVEIS_TABLE} i
                   JOIN {VISITA_IMOVEIS_TABLE} vi ON vi.id_imovel=i.id_imovel
                   JOIN {VISITAS_TABLE} v ON v.id_visita=vi.id_visita
              LEFT JOIN {ANIMAIS_TABLE} a ON a.id_visita=v.id_visita
-                  {where}
+                  {where_imoveis}
                  GROUP BY i.id_imovel, i.localidade, i.quarteirao, i.logradouro_chave, i.numero_chave
                  ORDER BY ultima_visita DESC, i.localidade, i.quarteirao
-                 LIMIT 500""",
-            params,
+                 LIMIT ? OFFSET ?""",
+            [*params, por_pagina, offset],
         )]
-        return {"total": len(rows), "registros": rows}
+        return {
+            "total": total,
+            "pagina": pagina,
+            "por_pagina": por_pagina,
+            "paginas": paginas,
+            "registros": rows,
+        }
     finally:
         conn.close()
 
@@ -3243,9 +3309,23 @@ def detalhe_imovel(target, id_imovel):
         imovel = conn.execute(f"SELECT * FROM {IMOVEIS_TABLE} WHERE id_imovel=?", (id_imovel,)).fetchone()
         if not imovel:
             return None
+        if getattr(conn, "backend", "sqlite") == "postgresql":
+            agentes_sql = "string_agg(agentes_unicos.nome, ', ' ORDER BY agentes_unicos.nome)"
+        else:
+            agentes_sql = "GROUP_CONCAT(agentes_unicos.nome, ', ')"
         visitas = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT v.*, vi.origem AS vinculo_origem,
-                       COUNT(a.id_animal) AS total_animais
+                       COUNT(a.id_animal) AS total_animais,
+                       COALESCE((
+                           SELECT {agentes_sql}
+                             FROM (
+                                   SELECT DISTINCT ag.nome
+                                     FROM esporotricose_visita_agentes va
+                                     JOIN agentes ag ON ag.id_agente=va.id_agente
+                                    WHERE va.id_visita=v.id_visita
+                                    ORDER BY ag.nome
+                                  ) agentes_unicos
+                       ), '') AS agentes
                   FROM {VISITA_IMOVEIS_TABLE} vi
                   JOIN {VISITAS_TABLE} v ON v.id_visita=vi.id_visita
              LEFT JOIN {ANIMAIS_TABLE} a ON a.id_visita=v.id_visita

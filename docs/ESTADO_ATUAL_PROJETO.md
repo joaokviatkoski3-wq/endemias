@@ -203,6 +203,13 @@ tabelas novas, mas não vincula dados: a primeira ação histórica é explícit
 aba **Histórico por imóvel**. Consulte
 `docs/ESPOROTRICOSE_IMOVEIS_HISTORICO.md`.
 
+Na versão `1.46.0`, a aba **Histórico por imóvel** recebeu filtros por período,
+localidade, quarteirão, situação, agente, tipo de imóvel e texto, além de
+paginação de 25, 50 ou 100 itens. O painel de detalhe acompanha a rolagem em
+telas largas e cada visita apresenta situação, equipe, tipo de imóvel,
+morador/telefone, animais e observações. Os controles administrativos de
+vínculo foram reposicionados antes da lista para uso prático em bases grandes.
+
 ### Acompanhamento de ACS em visitas PVE
 
 Na versao `1.36.0`, visitas PVE passaram a armazenar os campos do formulario

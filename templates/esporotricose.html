@@ -62,6 +62,14 @@
 .esporo-mini-filter { margin-bottom:14px; }
 .esporo-filter-actions { display:flex; justify-content:flex-end; align-items:flex-end; }
 .esporo-doentes-layout { display:grid; grid-template-columns:minmax(0,1fr) 390px; gap:14px; align-items:start; }
+.esporo-imoveis-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-bottom:14px; }
+.esporo-imovel-panel { position:sticky; top:12px; max-height:calc(100vh - 28px); overflow:auto; }
+.esporo-imovel-visita { padding:10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface2); }
+.esporo-imovel-visita-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:5px; }
+.esporo-imovel-visita-detalhes { display:grid; gap:3px; color:var(--text2); font-size:12px; }
+.esporo-pagination { display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-top:12px; }
+.esporo-pagination-info { color:var(--text3); font-size:12px; font-weight:700; min-width:112px; text-align:center; }
+#esp-imoveis-body tr.selected-row td { background:var(--brand-xs) !important; }
 .esporo-doentes-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:12px; }
 .esporo-status-kpis-title { font-size:10px; color:var(--text3); font-weight:800; text-transform:uppercase; letter-spacing:.4px; margin:4px 0 8px; }
 .esporo-doentes-status-kpis { margin-top:-4px; }
@@ -116,7 +124,7 @@
 .esporo-anexo-acoes { display:flex; justify-content:space-between; gap:6px; margin-top:7px; }
 @media(max-width:980px) { .esporo-chart-grid,.esporo-doentes-resumo-grid { grid-template-columns:1fr; } .esporo-doentes-resumo-grid .full { grid-column:auto; } }
 @media(max-width:980px) { .esporo-layout { grid-template-columns:1fr; } }
-@media(max-width:1100px) { .esporo-doentes-layout { grid-template-columns:1fr; } .esporo-doente-panel { position:static; } }
+@media(max-width:1100px) { .esporo-doentes-layout,.esporo-imoveis-actions { grid-template-columns:1fr; } .esporo-doente-panel,.esporo-imovel-panel { position:static; max-height:none; overflow:visible; } }
 @media(max-width:1050px) { .esporo-estoque-grid { grid-template-columns:1fr; } .esporo-estoque-form { grid-template-columns:1fr; } .esporo-estoque-form .wide,.esporo-estoque-form .full{grid-column:auto;} }
 </style>{% endblock %}
 
@@ -214,25 +222,8 @@
 </section>
 
 <section class="esporo-pane" id="esp-tab-imoveis" data-esp-area="visitas">
-  <div class="esporo-doentes-layout">
-    <div class="chart-card">
-      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/casas.svg" alt="" class="icon-svg"> Imóveis acompanhados</div><span class="table-info" id="esp-imoveis-info"></span></div>
-      <div class="esporo-animal-filters">
-        <div class="f-g"><label>Pesquisar</label><input type="search" id="esp-imoveis-busca" placeholder="Localidade, quarteirão, rua ou número"></div>
-        <div class="esporo-filter-actions"><button class="btn btn-primary" type="button" onclick="carregarEspImoveis()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button></div>
-      </div>
-      <div class="table-scroll"><table id="esp-imoveis-table" data-sortable-table>
-        <thead><tr><th>Localidade</th><th>Q.</th><th>Rua / número</th><th>Visitas</th><th>Animais</th><th>Primeira</th><th>Última</th><th></th></tr></thead>
-        <tbody id="esp-imoveis-body"><tr><td colspan="8" class="empty-inline">Carregue os imóveis acompanhados.</td></tr></tbody>
-      </table></div>
-    </div>
-    <aside class="chart-card">
-      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Histórico do imóvel</div></div>
-      <div id="esp-imovel-detalhe" class="esporo-summary-list"><div class="muted">Selecione um imóvel para consultar suas visitas, tutores e animais.</div></div>
-    </aside>
-  </div>
   {% if is_admin %}
-  <div class="esporo-doentes-layout" style="margin-top:14px;">
+  <div class="esporo-imoveis-actions">
     <div class="chart-card">
       <div class="chart-hd"><div class="chart-title"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Vínculos exatos pendentes</div></div>
       <p class="muted">Usa somente localidade, quarteirão, rua e número completos. Não altera o texto original da visita.</p>
@@ -247,6 +238,32 @@
     </div>
   </div>
   {% endif %}
+  <div class="esporo-doentes-layout">
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/casas.svg" alt="" class="icon-svg"> Imóveis acompanhados</div><span class="table-info" id="esp-imoveis-info"></span></div>
+      <div class="esporo-animal-filters">
+        <div class="f-g"><label>Pesquisar</label><input type="search" id="esp-imoveis-busca" placeholder="Rua, número, morador, situação..."></div>
+        <div class="f-g"><label>Data inicial</label><input type="date" id="esp-imoveis-d-ini"></div>
+        <div class="f-g"><label>Data final</label><input type="date" id="esp-imoveis-d-fim"></div>
+        <div class="f-g"><label>Localidade</label><select id="esp-imoveis-localidade"><option value="">Todas</option>{% for loc in localidades %}<option value="{{ loc.nome }}">{{ loc.nome }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Quarteirão</label><input type="text" id="esp-imoveis-quarteirao" inputmode="numeric" placeholder="Ex.: 1405"></div>
+        <div class="f-g"><label>Situação</label><select id="esp-imoveis-visita"><option value="">Todas</option><option value="Normal">Normal</option><option value="Fechado">Fechado</option><option value="Recusa">Recusa</option><option value="Recuperado">Recuperado</option></select></div>
+        <div class="f-g"><label>Agente</label><select id="esp-imoveis-agente"><option value="">Todos</option>{% for agente in agentes %}<option value="{{ agente.nome }}">{{ agente.nome }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>Tipo do imóvel</label><input type="search" id="esp-imoveis-tipo-imovel" placeholder="Ex.: Residência"></div>
+        <div class="f-g"><label>Por página</label><select id="esp-imoveis-por-pagina"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option></select></div>
+        <div class="esporo-filter-actions" style="gap:8px;"><button class="btn btn-outline" type="button" onclick="limparFiltrosEspImoveis()">Limpar</button><button class="btn btn-primary" type="button" onclick="carregarEspImoveis(1)"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button></div>
+      </div>
+      <div class="table-scroll"><table id="esp-imoveis-table" data-sortable-table>
+        <thead><tr><th>Localidade</th><th>Q.</th><th>Rua / número</th><th>Visitas</th><th>Animais</th><th>Primeira</th><th>Última</th><th>Última situação</th><th></th></tr></thead>
+        <tbody id="esp-imoveis-body"><tr><td colspan="9" class="empty-inline">Carregue os imóveis acompanhados.</td></tr></tbody>
+      </table></div>
+      <div class="esporo-pagination"><button type="button" class="btn btn-outline btn-sm" id="esp-imoveis-anterior" onclick="mudarPaginaEspImoveis(-1)" disabled>← Anterior</button><span class="esporo-pagination-info" id="esp-imoveis-paginacao">Página 0 de 0</span><button type="button" class="btn btn-outline btn-sm" id="esp-imoveis-proxima" onclick="mudarPaginaEspImoveis(1)" disabled>Próxima →</button></div>
+    </div>
+    <aside class="chart-card esporo-imovel-panel">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Histórico do imóvel</div></div>
+      <div id="esp-imovel-detalhe" class="esporo-summary-list"><div class="muted">Selecione um imóvel para consultar suas visitas, tutores e animais.</div></div>
+    </aside>
+  </div>
 </section>
 
 <section class="esporo-pane" id="esp-tab-animais" data-esp-area="visitas">
@@ -593,6 +610,7 @@
 let espAnimaisCarregados = false;
 let espVisitasCarregadas = false;
 let espImoveisCarregados = false;
+let espImoveisPagina = 1;
 let espDoentesCarregados = false;
 let espLocalidadesCarregadas = false;
 let espDashboardCarregado = false;
@@ -821,21 +839,53 @@ async function carregarEspVisitas() {
   }
 }
 
-async function carregarEspImoveis() {
+function espImoveisParams(pagina = espImoveisPagina) {
+  const p = new URLSearchParams();
+  const campos = [
+    ['busca', 'esp-imoveis-busca'], ['d_ini', 'esp-imoveis-d-ini'], ['d_fim', 'esp-imoveis-d-fim'],
+    ['localidade', 'esp-imoveis-localidade'], ['quarteirao', 'esp-imoveis-quarteirao'],
+    ['visita', 'esp-imoveis-visita'], ['agente', 'esp-imoveis-agente'], ['tipo_imovel', 'esp-imoveis-tipo-imovel'],
+    ['por_pagina', 'esp-imoveis-por-pagina'],
+  ];
+  campos.forEach(([nome, id]) => {
+    const el = document.getElementById(id);
+    const valor = el?.value?.trim?.() ?? el?.value ?? '';
+    if (valor) p.set(nome, valor);
+  });
+  p.set('pagina', String(pagina));
+  return p;
+}
+function limparFiltrosEspImoveis() {
+  ['esp-imoveis-busca', 'esp-imoveis-d-ini', 'esp-imoveis-d-fim', 'esp-imoveis-localidade', 'esp-imoveis-quarteirao', 'esp-imoveis-visita', 'esp-imoveis-agente', 'esp-imoveis-tipo-imovel'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('esp-imoveis-por-pagina').value = '50';
+  carregarEspImoveis(1);
+}
+function mudarPaginaEspImoveis(delta) {
+  carregarEspImoveis(Math.max(1, espImoveisPagina + delta));
+}
+async function carregarEspImoveis(pagina = espImoveisPagina) {
   try {
-    const busca = document.getElementById('esp-imoveis-busca')?.value?.trim() || '';
-    const d = await apiGet('/api/esporotricose/imoveis?busca=' + encodeURIComponent(busca));
+    document.getElementById('esp-imoveis-body').innerHTML = '<tr><td colspan="9"><div class="loading-box"><div class="spinner"></div></div></td></tr>';
+    const d = await apiGet('/api/esporotricose/imoveis?' + espImoveisParams(pagina).toString());
     espImoveisCarregados = true;
+    espImoveisPagina = Number(d.pagina || 1);
     const rows = d.registros || [];
-    document.getElementById('esp-imoveis-info').textContent = `${fmtNum(d.total || 0)} imóvel(is)`;
+    document.getElementById('esp-imoveis-info').textContent = `${fmtNum(d.total || 0)} imóvel(is) · ${fmtNum(rows.length)} exibido(s)`;
     document.getElementById('esp-imoveis-body').innerHTML = rows.length ? rows.map(r => `
-      <tr>
+      <tr data-esp-imovel-id="${Number(r.id_imovel)}">
         <td>${escapeHtml(r.localidade || '-')}</td><td>${escapeHtml(r.quarteirao || '-')}</td>
         <td>${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', ') || '-')}</td>
         <td><strong>${fmtNum(r.visitas)}</strong></td><td>${fmtNum(r.animais)}</td>
         <td>${fmtDate(r.primeira_visita) || '-'}</td><td>${fmtDate(r.ultima_visita) || '-'}</td>
+        <td><span class="esporo-tag">${escapeHtml(r.ultima_situacao || 'Não informada')}</span></td>
         <td><button class="btn btn-outline btn-sm" type="button" onclick="abrirEspImovel(${Number(r.id_imovel)})">Histórico</button></td>
-      </tr>`).join('') : '<tr><td colspan="8" class="empty-inline">Nenhum imóvel acompanhado encontrado.</td></tr>';
+      </tr>`).join('') : '<tr><td colspan="9" class="empty-inline">Nenhum imóvel acompanhado encontrado.</td></tr>';
+    const paginas = Number(d.paginas || 1);
+    document.getElementById('esp-imoveis-paginacao').textContent = `Página ${espImoveisPagina} de ${paginas}`;
+    document.getElementById('esp-imoveis-anterior').disabled = espImoveisPagina <= 1;
+    document.getElementById('esp-imoveis-proxima').disabled = espImoveisPagina >= paginas;
     refreshSortableTable('esp-imoveis-table');
   } catch (e) { toast(e.message, 'error'); }
 }
@@ -848,10 +898,12 @@ async function abrirEspImovel(idImovel) {
     const tutores = d.tutores || [];
     const animais = d.animais || [];
     const referencia = visitas[0] || {};
+    document.querySelectorAll('[data-esp-imovel-id]').forEach(row => row.classList.remove('selected-row'));
+    document.querySelector(`[data-esp-imovel-id="${Number(idImovel)}"]`)?.classList.add('selected-row');
     document.getElementById('esp-imovel-detalhe').innerHTML = `
       <div><strong>${escapeHtml(i.localidade || '-')} · Q. ${escapeHtml(i.quarteirao || '-')}</strong><div class="muted">${escapeHtml([referencia.logradouro, referencia.numero].filter(Boolean).join(', ') || 'Endereço original não disponível')}</div></div>
       <div><strong>${fmtNum(visitas.length)} visita(s)</strong></div>
-      <div><strong>Visitas</strong>${visitas.length ? visitas.map(v => `<div class="esporo-summary-row"><span>${escapeHtml(fmtDate(v.data) || '-')} · ${escapeHtml(v.morador || 'Sem morador')}</span><span class="esporo-badge">${fmtNum(v.total_animais)}</span></div>`).join('') : '<div class="muted">Nenhuma visita.</div>'}</div>
+      <div><strong>Visitas</strong>${visitas.length ? visitas.map(v => `<div class="esporo-imovel-visita"><div class="esporo-imovel-visita-head"><strong>${escapeHtml(fmtDate(v.data) || '-')} ${v.hora_inicio ? '· ' + escapeHtml(v.hora_inicio) : ''}</strong><span class="esporo-tag">${escapeHtml(v.visita || 'Situação não informada')}</span></div><div class="esporo-imovel-visita-detalhes"><div><strong>Equipe:</strong> ${escapeHtml(v.agentes || v.agentes_texto || 'Não informada')}</div><div><strong>Tipo do imóvel:</strong> ${escapeHtml(v.tipo_imovel || 'Não informado')}</div><div><strong>Morador:</strong> ${escapeHtml(v.morador || 'Não informado')}${v.telefone ? ' · ' + escapeHtml(v.telefone) : ''}</div><div><strong>Animais nesta visita:</strong> ${fmtNum(v.total_animais)}</div>${v.observacoes ? `<div><strong>Observações:</strong> ${escapeHtml(v.observacoes)}</div>` : ''}</div></div>`).join('') : '<div class="muted">Nenhuma visita.</div>'}</div>
       <div><strong>Tutores registrados</strong>${tutores.length ? tutores.map(t => `<div class="muted">${escapeHtml(t.morador || '-')} ${t.telefone ? '· ' + escapeHtml(t.telefone) : ''}</div>`).join('') : '<div class="muted">Não informado.</div>'}</div>
       <div><strong>Animais registrados</strong>${animais.length ? animais.map(a => `<div class="muted">${escapeHtml(a.nome || 'Sem nome')} · ${escapeHtml(a.especie || '-')} · ${escapeHtml(fmtDate(a.data) || '-')}</div>`).join('') : '<div class="muted">Nenhum animal registrado.</div>'}</div>`;
   } catch (e) { toast(e.message, 'error'); }

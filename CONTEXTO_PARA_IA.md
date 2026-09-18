@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.45.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.46.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -373,6 +373,12 @@ obrigatoria para integracao.
   localidade, quarteirao, logradouro e numero; coincidencias exatas podem ser
   aplicadas pelo administrador depois de previa, enquanto semelhancas exigem
   confirmacao manual. Consulte `docs/ESPOROTRICOSE_IMOVEIS_HISTORICO.md`.
+- A versao `1.46.0` torna a consulta do historico por imovel operacional em
+  listas grandes: o painel acompanha a rolagem, cada visita mostra situacao,
+  equipe, tipo de imovel, morador, telefone, animais e observacoes. A lista e
+  paginada e pode ser filtrada por periodo, localidade, quarteirao, situacao,
+  agente, tipo de imovel e texto; os paineis administrativos de vinculo ficam
+  antes da lista.
 - A versao `1.37.0` acrescentou ao Monitoramento de Ovitrampas a exportacao
   filtrada em XLSX. O arquivo reune resumo, todas as leituras do recorte,
   cadastro consolidado local/remoto, indicadores por semana e localidade e

@@ -41,6 +41,18 @@ outro imóvel não é movida silenciosamente. O vínculo manual é auditado.
 Nomes iguais de tutor ou animal são apenas apresentados no histórico: não
 identificam automaticamente a mesma pessoa ou o mesmo animal.
 
+## Consulta operacional
+
+A lista de imóveis é paginada e pode ser filtrada por período, localidade,
+quarteirão, situação da visita, agente, tipo do imóvel ou texto livre. Um
+imóvel é exibido quando ao menos uma visita de seu histórico atender ao filtro;
+a abertura do imóvel continua mostrando a linha do tempo completa.
+
+O painel **Histórico do imóvel** acompanha a rolagem em telas largas. Cada
+visita apresenta data/hora, situação, equipe, tipo do imóvel, morador/telefone,
+quantidade de animais e observações quando registradas. Em telas menores, o
+painel volta ao fluxo vertical para preservar a leitura.
+
 ## Estrutura e implantação
 
 - `esporotricose_imoveis`: chave de endereço e metadados do imóvel acompanhado.
