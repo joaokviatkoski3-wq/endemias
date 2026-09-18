@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.44.1` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.45.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -368,6 +368,11 @@ obrigatoria para integracao.
   Venâncio`) e o identificador do quarteirão pode ser `id_Q`. O alias legado
   `id_quart` continua compatível; a camada servida aos mapas usa a chave
   canônica `id_quart` internamente.
+- A versao `1.45.0` introduz o historico de imoveis de Esporotricose. A nova
+  entidade preserva cada visita Kobo e apenas cria vinculos auditaveis por
+  localidade, quarteirao, logradouro e numero; coincidencias exatas podem ser
+  aplicadas pelo administrador depois de previa, enquanto semelhancas exigem
+  confirmacao manual. Consulte `docs/ESPOROTRICOSE_IMOVEIS_HISTORICO.md`.
 - A versao `1.37.0` acrescentou ao Monitoramento de Ovitrampas a exportacao
   filtrada em XLSX. O arquivo reune resumo, todas as leituras do recorte,
   cadastro consolidado local/remoto, indicadores por semana e localidade e

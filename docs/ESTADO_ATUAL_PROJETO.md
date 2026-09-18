@@ -194,6 +194,15 @@ campos do QGIS: `Localidade` pode conter o nome normalizado e acentuado da
 localidade, e `id_Q` identifica o quarteirão. O nome é validado contra o
 cadastro local; `id_quart` continua aceito para os arquivos legados.
 
+Na versão `1.45.0`, Esporotricose passou a manter o histórico por imóvel sem
+fundir as visitas importadas. O vínculo usa localidade, quarteirão, logradouro
+e número; importações futuras recebem apenas vínculos exatos, enquanto o
+histórico e os casos parecidos dependem de prévia e confirmação administrativa.
+A migração PostgreSQL `0014_esporotricose_imoveis_historico.sql` cria as duas
+tabelas novas, mas não vincula dados: a primeira ação histórica é explícita na
+aba **Histórico por imóvel**. Consulte
+`docs/ESPOROTRICOSE_IMOVEIS_HISTORICO.md`.
+
 ### Acompanhamento de ACS em visitas PVE
 
 Na versao `1.36.0`, visitas PVE passaram a armazenar os campos do formulario

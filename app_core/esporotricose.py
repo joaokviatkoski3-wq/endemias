@@ -2,6 +2,7 @@ import hashlib
 import math
 import re
 import unicodedata
+from difflib import SequenceMatcher
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -22,6 +23,8 @@ DOENTES_ANEXOS_TABLE = "esporotricose_doentes_anexos"
 DOENTES_ORIGENS_TABLE = "esporotricose_doentes_origens"
 DOENTES_STATUS_TABLE = "esporotricose_doentes_status"
 DOENTES_ESTOQUE_TABLE = "esporotricose_estoque_medicacao"
+IMOVEIS_TABLE = "esporotricose_imoveis"
+VISITA_IMOVEIS_TABLE = "esporotricose_visita_imoveis"
 NORMAL_IMPORT_MARKER = "esporotricose_kobo_v2"
 LEGACY_IMPORT_MARKER = "esporotricose_historico_legado"
 DOENTES_DATAS_NOTIFICACAO_HISTORICAS = {
@@ -254,6 +257,30 @@ def ensure_schema(conn):
         CREATE INDEX IF NOT EXISTS idx_esporo_visitas_kobo_uuid ON esporotricose_visitas(kobo_uuid);
         CREATE INDEX IF NOT EXISTS idx_esporo_animais_visita ON esporotricose_animais(id_visita);
         CREATE INDEX IF NOT EXISTS idx_esporo_animais_especie ON esporotricose_animais(especie);
+
+        CREATE TABLE IF NOT EXISTS esporotricose_imoveis (
+            id_imovel INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_localidade INTEGER NOT NULL REFERENCES localidades(id_localidade),
+            localidade TEXT NOT NULL,
+            quarteirao TEXT NOT NULL,
+            logradouro_chave TEXT NOT NULL,
+            numero_chave TEXT NOT NULL,
+            chave TEXT NOT NULL UNIQUE,
+            criado_em TEXT NOT NULL,
+            atualizado_em TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS esporotricose_visita_imoveis (
+            id_visita TEXT PRIMARY KEY REFERENCES esporotricose_visitas(id_visita) ON DELETE CASCADE,
+            id_imovel INTEGER NOT NULL REFERENCES esporotricose_imoveis(id_imovel),
+            origem TEXT NOT NULL CHECK(origem IN ('automatico', 'manual')),
+            confianca INTEGER NOT NULL CHECK(confianca BETWEEN 0 AND 100),
+            vinculado_em TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_esporo_imoveis_endereco
+            ON esporotricose_imoveis(id_localidade, quarteirao, logradouro_chave, numero_chave);
+        CREATE INDEX IF NOT EXISTS idx_esporo_visita_imoveis_imovel
+            ON esporotricose_visita_imoveis(id_imovel);
 
         CREATE TABLE IF NOT EXISTS esporotricose_doentes_status (
             id_status INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -973,6 +1000,9 @@ def listar_visitas(target, filtros=None):
 def atualizar_visita(target, id_visita, dados):
     campos = []
     params = []
+    dados = dict(dados or {})
+    if "localidade" in dados:
+        dados["localidade"] = normalizadores.normalizar_localidade(dados.get("localidade"))
     for coluna in ("data", "hora_inicio", "hora_fim", "agentes_texto", "localidade",
                      "quarteirao", "tipo_imovel", "logradouro", "numero", "morador",
                      "telefone", "visita", "observacoes", "deseja_cadastrar_animal"):
@@ -984,11 +1014,23 @@ def atualizar_visita(target, id_visita, dados):
     params.append(id_visita)
     conn = db_core.connect(target)
     try:
-        conn.execute(
-            f"UPDATE esporotricose_visitas SET {', '.join(campos)} WHERE id_visita = ?",
-            params,
-        )
-        conn.commit()
+        ensure_schema(conn)
+        if "localidade" in dados:
+            id_localidade = _obter_ou_criar_localidade(conn.cursor(), dados.get("localidade"))
+            campos.append("id_localidade = ?")
+            params.insert(-1, id_localidade)
+        with conn:
+            conn.execute(
+                f"UPDATE esporotricose_visitas SET {', '.join(campos)} WHERE id_visita = ?",
+                params,
+            )
+            if {"localidade", "quarteirao", "logradouro", "numero"}.intersection(dados):
+                vinculo = conn.execute(
+                    f"SELECT origem FROM {VISITA_IMOVEIS_TABLE} WHERE id_visita=?", (id_visita,)
+                ).fetchone()
+                if vinculo and vinculo["origem"] == "automatico":
+                    conn.execute(f"DELETE FROM {VISITA_IMOVEIS_TABLE} WHERE id_visita=?", (id_visita,))
+                    _vincular_visita_exatamente(conn, id_visita)
     finally:
         conn.close()
     return {"ok": True}
@@ -2965,6 +3007,303 @@ def _insert_ignore_sql(conn_or_cursor, statement):
     return statement.replace("INSERT INTO", "INSERT OR IGNORE INTO", 1)
 
 
+def _logradouro_chave_imovel(value):
+    """Chave de comparação restrita ao vínculo de imóveis, sem alterar a visita."""
+    texto = _sem_acentos(_text(value) or "").casefold()
+    texto = re.sub(r"\b(r|r\.)\s+", "rua ", texto)
+    texto = re.sub(r"\b(av|av\.)\s+", "avenida ", texto)
+    return re.sub(r"[^a-z0-9]+", "", texto)
+
+
+def _numero_chave_imovel(value):
+    return re.sub(r"[^a-z0-9]+", "", _sem_acentos(_text(value) or "").casefold())
+
+
+def _quarteirao_chave_imovel(value):
+    texto = _text(value)
+    if not texto:
+        return ""
+    if re.fullmatch(r"\d+\.0+", texto):
+        return str(int(float(texto)))
+    return texto.casefold()
+
+
+def _dados_chave_imovel(conn, visita):
+    """Retorna a chave somente se o endereço da visita for suficientemente completo."""
+    id_localidade = visita.get("id_localidade")
+    localidade = normalizadores.normalizar_localidade(visita.get("localidade"))
+    if not id_localidade and localidade:
+        row = conn.execute("SELECT id_localidade FROM localidades WHERE nome=?", (localidade,)).fetchone()
+        id_localidade = row["id_localidade"] if row else None
+    quarteirao = _quarteirao_chave_imovel(visita.get("quarteirao"))
+    logradouro = _logradouro_chave_imovel(visita.get("logradouro"))
+    numero = _numero_chave_imovel(visita.get("numero"))
+    if not (id_localidade and quarteirao and logradouro and numero):
+        return None
+    return {
+        "id_localidade": int(id_localidade),
+        "localidade": localidade or str(visita.get("localidade") or "").strip(),
+        "quarteirao": quarteirao,
+        "logradouro_chave": logradouro,
+        "numero_chave": numero,
+        "chave": f"{int(id_localidade)}|{quarteirao}|{logradouro}|{numero}",
+    }
+
+
+def _vincular_visita_exatamente(conn, id_visita, origem="automatico"):
+    """Cria ou reutiliza o imóvel correspondente e mantém a visita original intacta."""
+    ja_vinculada = conn.execute(
+        f"SELECT id_imovel FROM {VISITA_IMOVEIS_TABLE} WHERE id_visita=?", (id_visita,)
+    ).fetchone()
+    if ja_vinculada:
+        return {"vinculada": False, "motivo": "ja_vinculada", "id_imovel": ja_vinculada["id_imovel"]}
+    visita = conn.execute(f"SELECT * FROM {VISITAS_TABLE} WHERE id_visita=?", (id_visita,)).fetchone()
+    if not visita:
+        raise ValidationError("Visita de esporotricose não encontrada.")
+    dados = _dados_chave_imovel(conn, db_core.serialize_row(visita))
+    if not dados:
+        return {"vinculada": False, "motivo": "endereco_incompleto"}
+    agora = datetime.now().isoformat(timespec="seconds")
+    imovel = conn.execute(
+        f"SELECT id_imovel FROM {IMOVEIS_TABLE} WHERE chave=?", (dados["chave"],)
+    ).fetchone()
+    if imovel:
+        id_imovel = imovel["id_imovel"]
+        conn.execute(f"UPDATE {IMOVEIS_TABLE} SET atualizado_em=? WHERE id_imovel=?", (agora, id_imovel))
+    else:
+        id_imovel = db_core.insert_and_get_id(
+            conn,
+            f"""INSERT INTO {IMOVEIS_TABLE}
+                    (id_localidade, localidade, quarteirao, logradouro_chave, numero_chave, chave, criado_em, atualizado_em)
+                 VALUES (?,?,?,?,?,?,?,?)""",
+            (
+                dados["id_localidade"], dados["localidade"], dados["quarteirao"],
+                dados["logradouro_chave"], dados["numero_chave"], dados["chave"], agora, agora,
+            ),
+            "id_imovel",
+        )
+    conn.execute(
+        f"""INSERT INTO {VISITA_IMOVEIS_TABLE}
+                (id_visita, id_imovel, origem, confianca, vinculado_em)
+             VALUES (?,?,?,?,?)""",
+        (id_visita, id_imovel, origem, 100 if origem == "automatico" else 0, agora),
+    )
+    return {"vinculada": True, "id_imovel": id_imovel}
+
+
+def previsualizar_vinculos_imoveis(target):
+    conn = db_core.connect(target)
+    ensure_schema(conn)
+    try:
+        visitas = [db_core.serialize_row(row) for row in conn.execute(
+            f"""SELECT v.* FROM {VISITAS_TABLE} v
+                  LEFT JOIN {VISITA_IMOVEIS_TABLE} vi ON vi.id_visita=v.id_visita
+                 WHERE vi.id_visita IS NULL
+                 ORDER BY v.data, v.hora_inicio, v.id_visita"""
+        )]
+        aptas, sem_endereco, grupos = [], [], {}
+        for visita in visitas:
+            dados = _dados_chave_imovel(conn, visita)
+            if not dados:
+                sem_endereco.append(visita)
+                continue
+            aptas.append(visita)
+            grupos.setdefault(dados["chave"], []).append(visita)
+        repetidas = [grupo for grupo in grupos.values() if len(grupo) > 1]
+        amostra = []
+        for grupo in repetidas[:20]:
+            primeira = grupo[0]
+            amostra.append({
+                "localidade": primeira.get("localidade"), "quarteirao": primeira.get("quarteirao"),
+                "logradouro": primeira.get("logradouro"), "numero": primeira.get("numero"),
+                "visitas": [{"id_visita": item["id_visita"], "data": item.get("data"), "morador": item.get("morador")} for item in grupo],
+            })
+        return {
+            "pendentes": len(visitas), "aptas": len(aptas), "sem_endereco": len(sem_endereco),
+            "grupos_com_historico": len(repetidas), "amostra": amostra,
+        }
+    finally:
+        conn.close()
+
+
+def vincular_visitas_exatas(target):
+    conn = db_core.connect(target)
+    ensure_schema(conn)
+    try:
+        ids = [row["id_visita"] for row in conn.execute(
+            f"""SELECT v.id_visita FROM {VISITAS_TABLE} v
+                  LEFT JOIN {VISITA_IMOVEIS_TABLE} vi ON vi.id_visita=v.id_visita
+                 WHERE vi.id_visita IS NULL ORDER BY v.data, v.id_visita"""
+        )]
+        vinculadas = incompletas = 0
+        with conn:
+            for id_visita in ids:
+                resultado = _vincular_visita_exatamente(conn, id_visita)
+                if resultado.get("vinculada"):
+                    vinculadas += 1
+                elif resultado.get("motivo") == "endereco_incompleto":
+                    incompletas += 1
+        return {"pendentes": len(ids), "vinculadas": vinculadas, "sem_endereco": incompletas}
+    finally:
+        conn.close()
+
+
+def vincular_visitas_manual(target, ids_visitas):
+    """Vincula visitas escolhidas pelo administrador a um único imóvel.
+
+    A primeira visita precisa ter endereço completo; as demais podem conter
+    grafias incompletas. Nenhuma visita já vinculada a outro imóvel é movida
+    silenciosamente.
+    """
+    ids = []
+    for valor in ids_visitas or []:
+        texto = str(valor or "").strip()
+        if texto and texto not in ids:
+            ids.append(texto)
+    if len(ids) < 2:
+        raise ValidationError("Selecione ao menos duas visitas para formar um histórico de imóvel.")
+    conn = db_core.connect(target)
+    ensure_schema(conn)
+    try:
+        marcadores = ",".join("?" for _ in ids)
+        visitas = [db_core.serialize_row(row) for row in conn.execute(
+            f"SELECT * FROM {VISITAS_TABLE} WHERE id_visita IN ({marcadores})", ids
+        )]
+        if len(visitas) != len(ids):
+            raise ValidationError("Uma das visitas selecionadas não existe mais.")
+        existentes = [row for row in conn.execute(
+            f"SELECT id_visita, id_imovel FROM {VISITA_IMOVEIS_TABLE} WHERE id_visita IN ({marcadores})", ids
+        )]
+        if existentes:
+            raise ValidationError("Uma das visitas já está vinculada a um imóvel. Desfaça ou revise esse vínculo antes.")
+        dados = next((item for item in (_dados_chave_imovel(conn, visita) for visita in visitas) if item), None)
+        if not dados:
+            raise ValidationError("Selecione ao menos uma visita com localidade, quarteirão, rua e número informados.")
+        agora = datetime.now().isoformat(timespec="seconds")
+        with conn:
+            imovel = conn.execute(f"SELECT id_imovel FROM {IMOVEIS_TABLE} WHERE chave=?", (dados["chave"],)).fetchone()
+            if imovel:
+                id_imovel = imovel["id_imovel"]
+            else:
+                id_imovel = db_core.insert_and_get_id(
+                    conn,
+                    f"""INSERT INTO {IMOVEIS_TABLE}
+                            (id_localidade, localidade, quarteirao, logradouro_chave, numero_chave, chave, criado_em, atualizado_em)
+                         VALUES (?,?,?,?,?,?,?,?)""",
+                    (dados["id_localidade"], dados["localidade"], dados["quarteirao"],
+                     dados["logradouro_chave"], dados["numero_chave"], dados["chave"], agora, agora),
+                    "id_imovel",
+                )
+            conn.executemany(
+                f"""INSERT INTO {VISITA_IMOVEIS_TABLE}
+                        (id_visita, id_imovel, origem, confianca, vinculado_em)
+                     VALUES (?,?,?,?,?)""",
+                [(id_visita, id_imovel, "manual", 0, agora) for id_visita in ids],
+            )
+            conn.execute(f"UPDATE {IMOVEIS_TABLE} SET atualizado_em=? WHERE id_imovel=?", (agora, id_imovel))
+        return {"id_imovel": id_imovel, "vinculadas": len(ids)}
+    finally:
+        conn.close()
+
+
+def listar_imoveis(target, busca=""):
+    conn = db_core.connect(target)
+    ensure_schema(conn)
+    try:
+        where, params = "", []
+        texto = _text(busca)
+        if texto:
+            where = "WHERE LOWER(i.localidade) LIKE ? OR LOWER(i.quarteirao) LIKE ? OR LOWER(i.logradouro_chave) LIKE ? OR LOWER(i.numero_chave) LIKE ?"
+            params = [f"%{texto.lower()}%"] * 4
+        rows = [db_core.serialize_row(row) for row in conn.execute(
+            f"""SELECT i.id_imovel, i.localidade, i.quarteirao, i.logradouro_chave, i.numero_chave,
+                       MIN(v.logradouro) AS logradouro, MIN(v.numero) AS numero,
+                       COUNT(DISTINCT vi.id_visita) AS visitas,
+                       COUNT(a.id_animal) AS animais,
+                       MIN(v.data) AS primeira_visita, MAX(v.data) AS ultima_visita
+                  FROM {IMOVEIS_TABLE} i
+                  JOIN {VISITA_IMOVEIS_TABLE} vi ON vi.id_imovel=i.id_imovel
+                  JOIN {VISITAS_TABLE} v ON v.id_visita=vi.id_visita
+             LEFT JOIN {ANIMAIS_TABLE} a ON a.id_visita=v.id_visita
+                  {where}
+                 GROUP BY i.id_imovel, i.localidade, i.quarteirao, i.logradouro_chave, i.numero_chave
+                 ORDER BY ultima_visita DESC, i.localidade, i.quarteirao
+                 LIMIT 500""",
+            params,
+        )]
+        return {"total": len(rows), "registros": rows}
+    finally:
+        conn.close()
+
+
+def detalhe_imovel(target, id_imovel):
+    conn = db_core.connect(target)
+    ensure_schema(conn)
+    try:
+        imovel = conn.execute(f"SELECT * FROM {IMOVEIS_TABLE} WHERE id_imovel=?", (id_imovel,)).fetchone()
+        if not imovel:
+            return None
+        visitas = [db_core.serialize_row(row) for row in conn.execute(
+            f"""SELECT v.*, vi.origem AS vinculo_origem,
+                       COUNT(a.id_animal) AS total_animais
+                  FROM {VISITA_IMOVEIS_TABLE} vi
+                  JOIN {VISITAS_TABLE} v ON v.id_visita=vi.id_visita
+             LEFT JOIN {ANIMAIS_TABLE} a ON a.id_visita=v.id_visita
+                 WHERE vi.id_imovel=?
+                 GROUP BY v.id_visita, vi.origem
+                 ORDER BY v.data DESC, v.hora_inicio DESC""",
+            (id_imovel,),
+        )]
+        animais = [db_core.serialize_row(row) for row in conn.execute(
+            f"""SELECT a.id_animal, a.nome, a.especie, a.feridas, a.evolucao_caso, v.data, v.id_visita
+                  FROM {ANIMAIS_TABLE} a JOIN {VISITAS_TABLE} v ON v.id_visita=a.id_visita
+                  JOIN {VISITA_IMOVEIS_TABLE} vi ON vi.id_visita=v.id_visita
+                 WHERE vi.id_imovel=? ORDER BY v.data DESC, a.nome""",
+            (id_imovel,),
+        )]
+        tutores = []
+        vistos = set()
+        for visita in visitas:
+            chave = (_norm_col(visita.get("morador")), _numero_chave_imovel(visita.get("telefone")))
+            if chave not in vistos and any(chave):
+                vistos.add(chave)
+                tutores.append({"morador": visita.get("morador"), "telefone": visita.get("telefone")})
+        return {"imovel": db_core.serialize_row(imovel), "visitas": visitas, "animais": animais, "tutores": tutores}
+    finally:
+        conn.close()
+
+
+def sugestoes_vinculo_imoveis(target, limite=50):
+    """Sugere pares não vinculados; nunca cria vínculo a partir de similaridade."""
+    conn = db_core.connect(target)
+    ensure_schema(conn)
+    try:
+        visitas = [db_core.serialize_row(row) for row in conn.execute(
+            f"""SELECT v.* FROM {VISITAS_TABLE} v
+                  LEFT JOIN {VISITA_IMOVEIS_TABLE} vi ON vi.id_visita=v.id_visita
+                 WHERE vi.id_visita IS NULL ORDER BY v.data DESC, v.id_visita"""
+        )]
+        candidatos = []
+        for indice, visita in enumerate(visitas):
+            dados = _dados_chave_imovel(conn, visita)
+            if not dados:
+                continue
+            for outra in visitas[indice + 1:]:
+                outros = _dados_chave_imovel(conn, outra)
+                if not outros or dados["id_localidade"] != outros["id_localidade"] or dados["quarteirao"] != outros["quarteirao"]:
+                    continue
+                rua = round(SequenceMatcher(None, dados["logradouro_chave"], outros["logradouro_chave"]).ratio() * 55)
+                numero = 35 if dados["numero_chave"] == outros["numero_chave"] else 0
+                pontuacao = 10 + rua + numero
+                if pontuacao < 75 or dados["chave"] == outros["chave"]:
+                    continue
+                candidatos.append({"pontuacao": pontuacao, "visitas": [visita, outra]})
+        candidatos.sort(key=lambda item: (-item["pontuacao"], str(item["visitas"][0].get("data") or "")), reverse=False)
+        return {"total": len(candidatos), "registros": candidatos[:max(1, min(int(limite or 50), 100))]}
+    finally:
+        conn.close()
+
+
 def _inserir_visita(conn, visita, agora_iso):
     cur = conn.cursor()
     id_localidade = _obter_ou_criar_localidade(cur, visita.get("localidade"))
@@ -2985,7 +3324,10 @@ def _inserir_visita(conn, visita, agora_iso):
             visita.get("arquivo_origem"), visita.get("submission_time"), agora_iso,
         ),
     )
-    return cur.rowcount > 0
+    inserida = cur.rowcount > 0
+    if inserida:
+        _vincular_visita_exatamente(conn, visita["id_visita"])
+    return inserida
 
 
 def _inserir_agentes(conn, id_visita, agentes_texto):

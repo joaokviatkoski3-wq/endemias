@@ -15,6 +15,7 @@ import pymupdf
 from werkzeug.utils import secure_filename
 
 from app_core import auth as auth_core
+from app_core import audit
 from app_core import blueprint_helpers as bh
 from app_core import db as db_core
 from app_core import esporotricose as esporotricose_core
@@ -94,12 +95,14 @@ def _status_doente_class(status):
 @bp.route("/esporotricose")
 @login_required
 def page():
+    usuario = bh.usuario_atual() or {}
     return render_template(
         "esporotricose.html",
         d_ini=request.args.get("d_ini", utils_core.data_n_dias(365)),
         d_fim=request.args.get("d_fim", utils_core.hoje()),
         localidades=_localidades(),
         agentes=_agentes(),
+        is_admin=usuario.get("nivel") == "admin",
     )
 
 
@@ -184,6 +187,67 @@ def api_visitas():
         "busca": request.args.get("busca", ""),
     }
     return jsonify(esporotricose_core.listar_visitas(bh.db_target(), filtros))
+
+
+@bp.route("/api/esporotricose/imoveis")
+@login_required
+def api_imoveis():
+    return jsonify(esporotricose_core.listar_imoveis(bh.db_target(), request.args.get("busca", "")))
+
+
+@bp.route("/api/esporotricose/imoveis/<int:id_imovel>")
+@login_required
+def api_imovel_detalhe(id_imovel):
+    dados = esporotricose_core.detalhe_imovel(bh.db_target(), id_imovel)
+    if not dados:
+        return jsonify({"erro": "Imóvel acompanhado não encontrado."}), 404
+    return jsonify(dados)
+
+
+@bp.route("/api/esporotricose/imoveis/previa-vinculos")
+@login_required
+@nivel_min("admin")
+def api_imoveis_previa_vinculos():
+    return jsonify(esporotricose_core.previsualizar_vinculos_imoveis(bh.db_target()))
+
+
+@bp.route("/api/esporotricose/imoveis/sugestoes-vinculos")
+@login_required
+@nivel_min("admin")
+def api_imoveis_sugestoes_vinculos():
+    return jsonify(esporotricose_core.sugestoes_vinculo_imoveis(bh.db_target(), request.args.get("limite", 50)))
+
+
+@bp.route("/api/esporotricose/imoveis/vincular-exatos", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_imoveis_vincular_exatos():
+    try:
+        resultado = esporotricose_core.vincular_visitas_exatas(bh.db_target())
+    except esporotricose_core.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(
+        bh.get_db, "esporotricose_imoveis_vinculo_exato", entidade="esporotricose_imoveis",
+        detalhes=resultado,
+    )
+    return jsonify({"ok": True, **resultado})
+
+
+@bp.route("/api/esporotricose/imoveis/vincular-manual", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_imoveis_vincular_manual():
+    try:
+        resultado = esporotricose_core.vincular_visitas_manual(
+            bh.db_target(), (request.get_json(silent=True) or {}).get("ids_visitas") or []
+        )
+    except esporotricose_core.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(
+        bh.get_db, "esporotricose_imoveis_vinculo_manual", entidade="esporotricose_imoveis",
+        entidade_id=resultado.get("id_imovel"), detalhes={"visitas": resultado.get("vinculadas")},
+    )
+    return jsonify({"ok": True, **resultado})
 
 
 @bp.route("/api/esporotricose/animais")

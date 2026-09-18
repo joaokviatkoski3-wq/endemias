@@ -134,6 +134,7 @@
 <div class="esporo-tabbar esporo-subtabs" id="esp-visitas-tabs" aria-label="Abas de visitas de esporotricose">
   <button class="esporo-tab-btn active" type="button" onclick="openEspTab('esp-tab-resumo', this)"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Resumo</button>
   <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-visitas', this)"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Visitas</button>
+  <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-imoveis', this)"><img src="/static/icons/casas.svg" alt="" class="icon-svg"> Histórico por imóvel</button>
   <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-animais', this)"><img src="/static/icons/pets.svg" alt="" class="icon-svg"> Animais</button>
   <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-localidades', this)"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Localidades</button>
   <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-dashboard', this)"><img src="/static/icons/grafico_linha.svg" alt="" class="icon-svg"> Dashboard</button>
@@ -210,6 +211,42 @@
       </table>
     </div>
   </div>
+</section>
+
+<section class="esporo-pane" id="esp-tab-imoveis" data-esp-area="visitas">
+  <div class="esporo-doentes-layout">
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/casas.svg" alt="" class="icon-svg"> Imóveis acompanhados</div><span class="table-info" id="esp-imoveis-info"></span></div>
+      <div class="esporo-animal-filters">
+        <div class="f-g"><label>Pesquisar</label><input type="search" id="esp-imoveis-busca" placeholder="Localidade, quarteirão, rua ou número"></div>
+        <div class="esporo-filter-actions"><button class="btn btn-primary" type="button" onclick="carregarEspImoveis()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button></div>
+      </div>
+      <div class="table-scroll"><table id="esp-imoveis-table" data-sortable-table>
+        <thead><tr><th>Localidade</th><th>Q.</th><th>Rua / número</th><th>Visitas</th><th>Animais</th><th>Primeira</th><th>Última</th><th></th></tr></thead>
+        <tbody id="esp-imoveis-body"><tr><td colspan="8" class="empty-inline">Carregue os imóveis acompanhados.</td></tr></tbody>
+      </table></div>
+    </div>
+    <aside class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Histórico do imóvel</div></div>
+      <div id="esp-imovel-detalhe" class="esporo-summary-list"><div class="muted">Selecione um imóvel para consultar suas visitas, tutores e animais.</div></div>
+    </aside>
+  </div>
+  {% if is_admin %}
+  <div class="esporo-doentes-layout" style="margin-top:14px;">
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Vínculos exatos pendentes</div></div>
+      <p class="muted">Usa somente localidade, quarteirão, rua e número completos. Não altera o texto original da visita.</p>
+      <div class="esporo-filter-actions" style="justify-content:flex-start;gap:8px;"><button class="btn btn-outline" type="button" onclick="preverEspImoveis()">Gerar prévia</button><button class="btn btn-primary" type="button" id="esp-imoveis-vincular-exatos" onclick="vincularEspImoveisExatos()" disabled>Vincular correspondências exatas</button></div>
+      <div id="esp-imoveis-previa" class="esporo-summary-list" style="margin-top:12px;"><div class="muted">A prévia não grava dados.</div></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Possíveis vínculos</div></div>
+      <p class="muted">Sugestões semelhantes nunca são vinculadas automaticamente. Selecione duas visitas e confirme apenas quando forem o mesmo imóvel.</p>
+      <div id="esp-imoveis-sugestoes" class="esporo-summary-list"><div class="muted">Gere a prévia para ver sugestões.</div></div>
+      <div class="esporo-filter-actions" style="justify-content:flex-start;margin-top:10px;"><button class="btn btn-outline" type="button" id="esp-imoveis-vincular-manual" onclick="vincularEspImoveisManual()" disabled>Vincular visitas selecionadas</button></div>
+    </div>
+  </div>
+  {% endif %}
 </section>
 
 <section class="esporo-pane" id="esp-tab-animais" data-esp-area="visitas">
@@ -555,6 +592,7 @@
 {% block extra_js %}<script>
 let espAnimaisCarregados = false;
 let espVisitasCarregadas = false;
+let espImoveisCarregados = false;
 let espDoentesCarregados = false;
 let espLocalidadesCarregadas = false;
 let espDashboardCarregado = false;
@@ -711,6 +749,7 @@ function openEspTab(id, btn) {
   pane.classList.add('active');
   if (btn) btn.classList.add('active');
   if (id === 'esp-tab-visitas' && !espVisitasCarregadas) carregarEspVisitas();
+  if (id === 'esp-tab-imoveis' && !espImoveisCarregados) carregarEspImoveis();
   if (id === 'esp-tab-animais' && !espAnimaisCarregados) carregarEspAnimais();
   if (id === 'esp-tab-doentes' && !espDoentesCarregados) carregarEspDoentes();
   if (id === 'esp-tab-doentes-resumo') carregarEspDoentesResumo();
@@ -721,6 +760,7 @@ function openEspTab(id, btn) {
 async function carregarEsporotricose() {
   try {
     espVisitasCarregadas = false;
+    espImoveisCarregados = false;
     espAnimaisCarregados = false;
     espDoentesCarregados = false;
     espLocalidadesCarregadas = false;
@@ -779,6 +819,87 @@ async function carregarEspVisitas() {
   } catch (e) {
     toast(e.message, 'error');
   }
+}
+
+async function carregarEspImoveis() {
+  try {
+    const busca = document.getElementById('esp-imoveis-busca')?.value?.trim() || '';
+    const d = await apiGet('/api/esporotricose/imoveis?busca=' + encodeURIComponent(busca));
+    espImoveisCarregados = true;
+    const rows = d.registros || [];
+    document.getElementById('esp-imoveis-info').textContent = `${fmtNum(d.total || 0)} imóvel(is)`;
+    document.getElementById('esp-imoveis-body').innerHTML = rows.length ? rows.map(r => `
+      <tr>
+        <td>${escapeHtml(r.localidade || '-')}</td><td>${escapeHtml(r.quarteirao || '-')}</td>
+        <td>${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', ') || '-')}</td>
+        <td><strong>${fmtNum(r.visitas)}</strong></td><td>${fmtNum(r.animais)}</td>
+        <td>${fmtDate(r.primeira_visita) || '-'}</td><td>${fmtDate(r.ultima_visita) || '-'}</td>
+        <td><button class="btn btn-outline btn-sm" type="button" onclick="abrirEspImovel(${Number(r.id_imovel)})">Histórico</button></td>
+      </tr>`).join('') : '<tr><td colspan="8" class="empty-inline">Nenhum imóvel acompanhado encontrado.</td></tr>';
+    refreshSortableTable('esp-imoveis-table');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function abrirEspImovel(idImovel) {
+  try {
+    const d = await apiGet(`/api/esporotricose/imoveis/${idImovel}`);
+    const i = d.imovel || {};
+    const visitas = d.visitas || [];
+    const tutores = d.tutores || [];
+    const animais = d.animais || [];
+    const referencia = visitas[0] || {};
+    document.getElementById('esp-imovel-detalhe').innerHTML = `
+      <div><strong>${escapeHtml(i.localidade || '-')} · Q. ${escapeHtml(i.quarteirao || '-')}</strong><div class="muted">${escapeHtml([referencia.logradouro, referencia.numero].filter(Boolean).join(', ') || 'Endereço original não disponível')}</div></div>
+      <div><strong>${fmtNum(visitas.length)} visita(s)</strong></div>
+      <div><strong>Visitas</strong>${visitas.length ? visitas.map(v => `<div class="esporo-summary-row"><span>${escapeHtml(fmtDate(v.data) || '-')} · ${escapeHtml(v.morador || 'Sem morador')}</span><span class="esporo-badge">${fmtNum(v.total_animais)}</span></div>`).join('') : '<div class="muted">Nenhuma visita.</div>'}</div>
+      <div><strong>Tutores registrados</strong>${tutores.length ? tutores.map(t => `<div class="muted">${escapeHtml(t.morador || '-')} ${t.telefone ? '· ' + escapeHtml(t.telefone) : ''}</div>`).join('') : '<div class="muted">Não informado.</div>'}</div>
+      <div><strong>Animais registrados</strong>${animais.length ? animais.map(a => `<div class="muted">${escapeHtml(a.nome || 'Sem nome')} · ${escapeHtml(a.especie || '-')} · ${escapeHtml(fmtDate(a.data) || '-')}</div>`).join('') : '<div class="muted">Nenhum animal registrado.</div>'}</div>`;
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function preverEspImoveis() {
+  try {
+    const [previa, sugestoes] = await Promise.all([
+      apiGet('/api/esporotricose/imoveis/previa-vinculos'),
+      apiGet('/api/esporotricose/imoveis/sugestoes-vinculos')
+    ]);
+    const grupos = previa.amostra || [];
+    document.getElementById('esp-imoveis-previa').innerHTML = `
+      <div class="esporo-summary-row"><span>Visitas sem vínculo</span><strong>${fmtNum(previa.pendentes)}</strong></div>
+      <div class="esporo-summary-row"><span>Com endereço completo</span><strong>${fmtNum(previa.aptas)}</strong></div>
+      <div class="esporo-summary-row"><span>Sem dados suficientes</span><strong>${fmtNum(previa.sem_endereco)}</strong></div>
+      <div class="esporo-summary-row"><span>Endereços com histórico</span><strong>${fmtNum(previa.grupos_com_historico)}</strong></div>
+      ${grupos.length ? `<div class="muted">Exemplos: ${grupos.map(g => `${escapeHtml(g.logradouro || '-')} ${escapeHtml(g.numero || '')} (${fmtNum(g.visitas.length)} visitas)`).join('; ')}</div>` : ''}`;
+    document.getElementById('esp-imoveis-vincular-exatos').disabled = !previa.aptas;
+    const registros = sugestoes.registros || [];
+    document.getElementById('esp-imoveis-sugestoes').innerHTML = registros.length ? registros.map((s, indice) => {
+      const [a, b] = s.visitas || [];
+      return `<label class="esporo-summary-row" style="align-items:flex-start;cursor:pointer;"><input type="checkbox" class="esp-imovel-visita-sugestao" value="${escapeHtml(a.id_visita)}"><input type="checkbox" class="esp-imovel-visita-sugestao" value="${escapeHtml(b.id_visita)}"><span><strong>${fmtNum(s.pontuacao)}% semelhante</strong><br><span class="muted">${escapeHtml([a.logradouro,a.numero].filter(Boolean).join(', '))} · ${escapeHtml(fmtDate(a.data) || '-')}<br>${escapeHtml([b.logradouro,b.numero].filter(Boolean).join(', '))} · ${escapeHtml(fmtDate(b.data) || '-')}</span></span></label>`;
+    }).join('') : '<div class="muted">Nenhuma sugestão semelhante pendente.</div>';
+    document.getElementById('esp-imoveis-vincular-manual').disabled = !registros.length;
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function vincularEspImoveisExatos() {
+  if (!confirm('Criar vínculos para todas as visitas pendentes com endereço completo? Visitas sem dados suficientes permanecerão sem vínculo.')) return;
+  try {
+    const d = await apiPost('/api/esporotricose/imoveis/vincular-exatos', {});
+    toast(`${fmtNum(d.vinculadas)} visita(s) vinculada(s) por endereço exato.`, 'success');
+    espImoveisCarregados = false;
+    await Promise.all([carregarEspImoveis(), preverEspImoveis()]);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function vincularEspImoveisManual() {
+  const ids = Array.from(document.querySelectorAll('.esp-imovel-visita-sugestao:checked')).map(el => el.value);
+  if (ids.length < 2) { toast('Selecione ao menos duas visitas que pertençam ao mesmo imóvel.', 'error'); return; }
+  if (!confirm(`Vincular ${ids.length} visita(s) ao mesmo imóvel? Esta decisão será registrada como manual.`)) return;
+  try {
+    const d = await apiPost('/api/esporotricose/imoveis/vincular-manual', {ids_visitas: ids});
+    toast(`${fmtNum(d.vinculadas)} visita(s) vinculada(s) manualmente.`, 'success');
+    espImoveisCarregados = false;
+    await Promise.all([carregarEspImoveis(), preverEspImoveis()]);
+  } catch (e) { toast(e.message, 'error'); }
 }
 async function carregarEspDoentes() {
   try {
