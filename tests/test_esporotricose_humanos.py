@@ -43,11 +43,20 @@ class EsporotricoseHumanosCoreTests(unittest.TestCase):
         }, "Administrador")
 
         detalhe = humanos.obter_paciente(self.db_path, paciente_id)
+        mais_recente = humanos.salvar_paciente(self.db_path, {
+            "nome": "Paciente com notificação",
+            "status": "Em tratamento",
+            "data_notificacao": "2026-09-20",
+        }, "Administrador")
         lista = humanos.listar_pacientes(self.db_path, {"busca": "Paciente"})
+        item_original = next(
+            item for item in lista["registros"] if item["id_paciente"] == paciente_id
+        )
         self.assertEqual(detalhe["cartao_sus"], "001234567890123")
-        self.assertTrue(lista["registros"][0]["cartao_sus"].endswith("0123"))
-        self.assertNotIn("001234567890123", lista["registros"][0]["cartao_sus"])
+        self.assertTrue(item_original["cartao_sus"].endswith("0123"))
+        self.assertNotIn("001234567890123", item_original["cartao_sus"])
         self.assertIsNotNone(detalhe["id_localidade"])
+        self.assertEqual(lista["registros"][0]["id_paciente"], mais_recente)
 
         humanos.salvar_acompanhamento(self.db_path, paciente_id, {
             "data": "2026-09-22", "status": "Acabou tratamento", "observacoes": "Alta informada pela UBS."

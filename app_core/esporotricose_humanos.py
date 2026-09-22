@@ -285,7 +285,8 @@ def listar_pacientes(target, filtros=None):
                        (SELECT COUNT(*) FROM {ANIMAIS_TABLE} an WHERE an.id_paciente=p.id_paciente) AS animais
                   FROM {PACIENTES_TABLE} p
                  WHERE {' AND '.join(where)}
-                 ORDER BY COALESCE(p.data_notificacao, SUBSTR(p.criado_em,1,10)) DESC, p.nome
+                 ORDER BY CASE WHEN p.data_notificacao IS NULL THEN 1 ELSE 0 END,
+                          p.data_notificacao DESC, p.criado_em DESC, p.nome
                  LIMIT ? OFFSET ?""",
             [*params, por_pagina, (pagina - 1) * por_pagina],
         )]

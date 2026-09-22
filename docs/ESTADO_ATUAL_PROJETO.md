@@ -251,6 +251,11 @@ controle de medicacao humana. A migracao aditiva
 `0016_esporotricose_pacientes_humanos.sql` ainda precisa ser aplicada no banco
 oficial antes do reinicio. Consulte `docs/ESPOROTRICOSE_CASOS_HUMANOS.md`.
 
+A versao `1.48.1` corrige a consulta da lista no PostgreSQL. A ordenacao
+original tentava combinar `data_notificacao` (`date`) com `criado_em` (`text`)
+em um `COALESCE`, causando HTTP 500 somente na listagem; o cadastro do paciente
+ja havia sido gravado e nao foi perdido.
+
 ### Vínculo de conta para lançamentos laboratoriais
 
 Na versão `1.40.1`, a assinatura de resultados em **Lançamentos Laboratório**

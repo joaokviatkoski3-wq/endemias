@@ -62,3 +62,6 @@ A migração PostgreSQL `0016_esporotricose_pacientes_humanos.sql` cria as
 tabelas de pacientes, acompanhamentos, anexos e vínculos com imóveis e animais.
 Ela deve ser aplicada antes do reinício da versão `1.48.0`. A migração é
 aditiva e não altera registros existentes de visitas, imóveis ou animais.
+
+O patch `1.48.1` corrige a ordenação da listagem no PostgreSQL. A falha antiga
+afetava somente a consulta da lista e não removia pacientes já cadastrados.
