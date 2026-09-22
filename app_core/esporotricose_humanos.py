@@ -301,6 +301,61 @@ def listar_pacientes(target, filtros=None):
         conn.close()
 
 
+def listar_pacientes_csv(target, filtros=None):
+    """Exporta todos os pacientes que atendem aos filtros, sem paginação."""
+    filtros = filtros or {}
+    conn = db_core.connect(target)
+    ensure_schema(conn)
+    try:
+        where = ["1=1"]
+        params = []
+        if filtros.get("status"):
+            where.append("p.status=?")
+            params.append(filtros["status"])
+        if filtros.get("localidade"):
+            where.append("LOWER(COALESCE(p.localidade,''))=LOWER(?)")
+            params.append(filtros["localidade"])
+        if filtros.get("busca"):
+            busca = f"%{str(filtros['busca']).strip().lower()}%"
+            where.append(
+                "(LOWER(p.nome) LIKE ? OR LOWER(COALESCE(p.nome_mae,'')) LIKE ? "
+                "OR LOWER(COALESCE(p.logradouro,'')) LIKE ? "
+                "OR LOWER(COALESCE(p.quarteirao,'')) LIKE ? "
+                "OR LOWER(COALESCE(p.telefone,'')) LIKE ?)"
+            )
+            params.extend([busca] * 5)
+        rows = [db_core.serialize_row(row) for row in conn.execute(
+            f"""SELECT p.*,
+                       (SELECT COUNT(*) FROM {ACOMPANHAMENTOS_TABLE} a
+                         WHERE a.id_paciente=p.id_paciente) AS acompanhamentos,
+                       (SELECT MAX(a.data) FROM {ACOMPANHAMENTOS_TABLE} a
+                         WHERE a.id_paciente=p.id_paciente) AS ultimo_acompanhamento,
+                       (SELECT COUNT(*) FROM {ANEXOS_TABLE} x
+                         WHERE x.id_paciente=p.id_paciente) AS anexos,
+                       (SELECT COUNT(*) FROM {IMOVEIS_TABLE} i
+                         WHERE i.id_paciente=p.id_paciente) AS imoveis_vinculados,
+                       (SELECT COUNT(*) FROM {ANIMAIS_TABLE} an
+                         WHERE an.id_paciente=p.id_paciente) AS animais_vinculados
+                  FROM {PACIENTES_TABLE} p
+                 WHERE {' AND '.join(where)}
+                 ORDER BY CASE WHEN p.data_notificacao IS NULL THEN 1 ELSE 0 END,
+                          p.data_notificacao DESC, p.criado_em DESC, p.nome""",
+            params,
+        )]
+        for row in rows:
+            row["status_detalhe"] = row.get("status_outro") if row.get("status") == "Outros" else ""
+            row["endereco_completo"] = ", ".join(
+                parte for parte in (row.get("logradouro"), row.get("numero")) if parte
+            )
+            if row.get("complemento"):
+                row["endereco_completo"] = " - ".join(
+                    parte for parte in (row["endereco_completo"], row["complemento"]) if parte
+                )
+        return rows
+    finally:
+        conn.close()
+
+
 def obter_paciente(target, id_paciente):
     conn = db_core.connect(target)
     ensure_schema(conn)

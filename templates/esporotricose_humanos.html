@@ -6,8 +6,9 @@
 {% block content %}
 <div class="hum-head">
   <div><h1><img src="/static/icons/usuarios.svg" alt="" class="icon-svg"> Casos humanos de esporotricose</h1><div class="muted">Cadastro epidemiológico restrito a administradores. Não inclui medicação ou tratamento clínico da UBS.</div></div>
-  <div class="hum-actions"><a class="btn btn-outline" href="/esporotricose">Voltar</a><a class="btn btn-primary" href="/esporotricose/humanos/novo"><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Novo paciente</a></div>
+  <div class="hum-actions"><a class="btn btn-outline" href="/esporotricose">Voltar</a><button class="btn btn-outline" type="button" onclick="exportarHumanosCsv()"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> CSV QGIS</button><a class="btn btn-primary" href="/esporotricose/humanos/novo"><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Novo paciente</a></div>
 </div>
+<div class="hum-note" style="margin-bottom:14px;padding:10px 12px;border:1px solid #f59e0b;border-radius:var(--radius-sm);background:rgba(245,158,11,.08);color:var(--text2);font-size:12px;"><strong>Arquivo confidencial:</strong> o CSV QGIS respeita os filtros atuais e inclui dados pessoais, informações de saúde e coordenadas. Mantenha-o somente em ambiente autorizado.</div>
 <div class="hum-kpis">
   <div class="hum-kpi"><span>Total filtrado</span><strong id="hum-total">0</strong></div>
   {% for st in status_opcoes %}<div class="hum-kpi"><span>{{ st }}</span><strong id="hum-kpi-{{ loop.index0 }}">0</strong></div>{% endfor %}
@@ -38,5 +39,6 @@ async function carregarHumanos(pagina=1){
   document.getElementById('hum-body').innerHTML=(data.registros||[]).map(p=>`<tr><td><strong>${esc(p.nome)}</strong><div class="muted">Mãe: ${esc(p.nome_mae||'-')}</div></td><td>${esc(p.data_nascimento||'-')}</td><td>${esc(p.cartao_sus||'-')}</td><td><span class="hum-status">${esc(p.status)}${p.status_outro?' · '+esc(p.status_outro):''}</span></td><td>${esc(p.localidade||'-')}${p.quarteirao?`<div class="muted">Q. ${esc(p.quarteirao)}</div>`:''}</td><td>${esc([p.logradouro,p.numero].filter(Boolean).join(', ')||'-')}</td><td>${p.imoveis||0} imóvel(is)<br>${p.animais||0} animal(is)</td><td><a class="btn btn-outline btn-sm" href="/esporotricose/humanos/${p.id_paciente}">Abrir</a></td></tr>`).join('')||'<tr><td colspan="8" class="muted">Nenhum paciente encontrado.</td></tr>';
   document.getElementById('hum-pagina').textContent=`Página ${paginaAtual} de ${paginas}`;document.getElementById('hum-ant').disabled=paginaAtual<=1;document.getElementById('hum-prox').disabled=paginaAtual>=paginas;
 }
+function exportarHumanosCsv(){const qs=new URLSearchParams({busca:document.getElementById('hum-busca').value,status:document.getElementById('hum-status').value,localidade:document.getElementById('hum-localidade').value});window.location.href='/esporotricose/humanos/casos.csv?'+qs.toString();}
 document.getElementById('hum-ant').onclick=()=>carregarHumanos(paginaAtual-1);document.getElementById('hum-prox').onclick=()=>carregarHumanos(paginaAtual+1);document.getElementById('hum-busca').addEventListener('keydown',e=>{if(e.key==='Enter')carregarHumanos(1)});carregarHumanos();
 </script>{% endblock %}

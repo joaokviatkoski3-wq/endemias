@@ -64,6 +64,14 @@ class EsporotricoseHumanosCoreTests(unittest.TestCase):
         atualizado = humanos.obter_paciente(self.db_path, paciente_id)
         self.assertEqual(atualizado["status"], "Acabou tratamento")
         self.assertEqual(len(atualizado["acompanhamentos"]), 1)
+        exportados = humanos.listar_pacientes_csv(
+            self.db_path, {"status": "Acabou tratamento", "localidade": "Sao Venancio"}
+        )
+        self.assertEqual(len(exportados), 1)
+        self.assertEqual(exportados[0]["cartao_sus"], "001234567890123")
+        self.assertEqual(exportados[0]["endereco_completo"], "Rua das Flores, 25")
+        self.assertEqual(exportados[0]["latitude"], -25.123)
+        self.assertEqual(exportados[0]["acompanhamentos"], 1)
 
     def test_outros_exige_descricao_e_sus_nao_duplica(self):
         with self.assertRaises(humanos.ValidationError):
@@ -136,6 +144,7 @@ class EsporotricoseHumanosPermissoesTests(unittest.TestCase):
             for metodo, rota in [
                 ("GET", "/esporotricose/humanos"),
                 ("GET", "/api/esporotricose/humanos"),
+                ("GET", "/esporotricose/humanos/casos.csv"),
                 ("POST", "/api/esporotricose/humanos"),
                 ("GET", "/api/esporotricose/humanos/1"),
                 ("POST", "/api/esporotricose/humanos/1/acompanhamentos"),
@@ -161,6 +170,18 @@ class EsporotricoseHumanosPermissoesTests(unittest.TestCase):
         self.assertEqual(client.get("/esporotricose/humanos/novo").status_code, 200)
         self.assertEqual(client.get(f"/esporotricose/humanos/{paciente_id}").status_code, 200)
         self.assertEqual(client.get(f"/esporotricose/humanos/{paciente_id}/editar").status_code, 200)
+        csv_response = client.get(
+            "/esporotricose/humanos/casos.csv?status=Em+tratamento&localidade=S%C3%A3o+Ven%C3%A2ncio"
+        )
+        self.assertEqual(csv_response.status_code, 200)
+        self.assertIn("text/csv", csv_response.headers["Content-Type"])
+        self.assertIn(
+            "Casos-humanos-esporotricose.csv",
+            csv_response.headers["Content-Disposition"],
+        )
+        csv_text = csv_response.data.decode("utf-8-sig")
+        self.assertIn("latitude;longitude", csv_text.splitlines()[0])
+        self.assertIn("Paciente administrativo", csv_text)
 
 
 if __name__ == "__main__":

@@ -256,6 +256,12 @@ original tentava combinar `data_notificacao` (`date`) com `criado_em` (`text`)
 em um `COALESCE`, causando HTTP 500 somente na listagem; o cadastro do paciente
 ja havia sido gravado e nao foi perdido.
 
+A versao `1.49.0` adiciona **CSV QGIS** na lista de casos humanos. A exportacao
+respeita os filtros atuais, inclui coordenadas em colunas numericas separadas e
+usa UTF-8 com BOM e `;`. O arquivo contem dados pessoais e de saude; por isso,
+o endpoint e exclusivo de administradores, mostra alerta de confidencialidade
+e registra cada download na auditoria.
+
 ### Vínculo de conta para lançamentos laboratoriais
 
 Na versão `1.40.1`, a assinatura de resultados em **Lançamentos Laboratório**

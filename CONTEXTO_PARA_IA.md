@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.48.1` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.49.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -361,6 +361,11 @@ obrigatoria para integracao.
   A versao `1.48.1` corrige a ordenacao da lista no PostgreSQL, evitando
   combinar diretamente os tipos `date` e `text`; cadastros salvos antes do
   ajuste permanecem preservados e passam a aparecer normalmente.
+  A versao `1.49.0` acrescenta a exportacao administrativa **CSV QGIS** dos
+  casos humanos. O arquivo respeita pesquisa, status e localidade selecionados,
+  usa UTF-8 com BOM, separador `;` e latitude/longitude numericas separadas.
+  Por conter dados pessoais e de saude, o download e auditado e permanece
+  exclusivo de administradores.
 - A versao `1.41.0` criou a pagina **Positividade**, que combina os focos
   legados de `focos_positivos` (`origem='historico'`) com positivos atuais de
   `resultados_laboratorio`, preservando a ausencia de detalhes laboratoriais no

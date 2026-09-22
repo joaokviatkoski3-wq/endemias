@@ -200,6 +200,75 @@ def api_humanos():
     }))
 
 
+@bp.route("/esporotricose/humanos/casos.csv")
+@login_required
+@nivel_min("admin")
+def download_humanos_csv():
+    filtros = {
+        "busca": request.args.get("busca", ""),
+        "status": request.args.get("status", ""),
+        "localidade": request.args.get("localidade", ""),
+    }
+    campos = [
+        "id_paciente",
+        "nome",
+        "data_nascimento",
+        "cartao_sus",
+        "nome_mae",
+        "telefone",
+        "data_notificacao",
+        "status",
+        "status_detalhe",
+        "localidade",
+        "quarteirao",
+        "logradouro",
+        "numero",
+        "complemento",
+        "endereco_completo",
+        "latitude",
+        "longitude",
+        "observacoes",
+        "acompanhamentos",
+        "ultimo_acompanhamento",
+        "imoveis_vinculados",
+        "animais_vinculados",
+        "anexos",
+        "criado_em",
+        "atualizado_em",
+    ]
+    rows = humanos_core.listar_pacientes_csv(bh.db_target(), filtros)
+    buffer = io.StringIO()
+    buffer.write("\ufeff")
+    writer = csv.DictWriter(
+        buffer,
+        fieldnames=campos,
+        delimiter=";",
+        extrasaction="ignore",
+        lineterminator="\n",
+    )
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({campo: row.get(campo) for campo in campos})
+    audit.registrar_evento(
+        bh.get_db,
+        "esporotricose_humanos_csv_qgis",
+        entidade="esporotricose_pacientes_humanos",
+        detalhes={
+            "quantidade": len(rows),
+            "status": filtros["status"],
+            "localidade": filtros["localidade"],
+            "com_pesquisa": bool(filtros["busca"]),
+        },
+    )
+    return Response(
+        buffer.getvalue(),
+        content_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": "attachment; filename=Casos-humanos-esporotricose.csv"
+        },
+    )
+
+
 @bp.route("/api/esporotricose/humanos", methods=["POST"])
 @login_required
 @nivel_min("admin")

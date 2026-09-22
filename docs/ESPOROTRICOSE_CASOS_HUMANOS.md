@@ -65,3 +65,21 @@ aditiva e não altera registros existentes de visitas, imóveis ou animais.
 
 O patch `1.48.1` corrige a ordenação da listagem no PostgreSQL. A falha antiga
 afetava somente a consulta da lista e não removia pacientes já cadastrados.
+
+## CSV para QGIS
+
+A partir da versão `1.49.0`, a lista possui a ação **CSV QGIS**. O arquivo:
+
+- respeita os filtros atuais de pesquisa, status e localidade;
+- exporta todos os registros correspondentes, sem a paginação da tela;
+- usa UTF-8 com BOM e separador `;`;
+- mantém `latitude` e `longitude` em colunas numéricas separadas;
+- inclui endereço completo, situação, datas, quantidades de vínculos,
+  acompanhamentos e anexos;
+- inclui dados identificadores completos, inclusive cartão SUS, somente porque
+  o download é exclusivo de administradores.
+
+No QGIS, importe como **Texto delimitado**, selecione ponto e use `longitude`
+como campo X e `latitude` como campo Y, com SRC `EPSG:4326`. O CSV contém dados
+pessoais e de saúde e deve permanecer em ambiente autorizado. Cada download é
+registrado na auditoria.
