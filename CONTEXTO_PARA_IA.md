@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.47.1` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.48.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -350,6 +350,14 @@ obrigatoria para integracao.
   PVE, o catalogo e atualizado sem bloquear a importacao se a consulta ao Kobo
   falhar. A migracao PostgreSQL `0015_acs_catalogo.sql` deve ser aplicada antes
   do reinicio em producao.
+- A versao `1.48.0` acrescenta o cadastro separado de casos humanos de
+  Esporotricose, integralmente restrito a administradores. O modulo guarda
+  dados cadastrais e epidemiologicos, acompanhamentos, anexos e vinculos
+  confirmados com imoveis acompanhados e animais doentes. Sugestoes por
+  endereco nunca vinculam automaticamente. Medicacoes e condutas clinicas
+  humanas permanecem fora do sistema, sob responsabilidade da UBS. A migracao
+  `0016_esporotricose_pacientes_humanos.sql` deve ser aplicada antes do
+  reinicio. Consulte `docs/ESPOROTRICOSE_CASOS_HUMANOS.md`.
 - A versao `1.41.0` criou a pagina **Positividade**, que combina os focos
   legados de `focos_positivos` (`origem='historico'`) com positivos atuais de
   `resultados_laboratorio`, preservando a ausencia de detalhes laboratoriais no

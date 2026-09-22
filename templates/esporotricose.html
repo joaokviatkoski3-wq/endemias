@@ -137,6 +137,7 @@
 <div class="esporo-tabbar esporo-main-tabs" aria-label="Areas de esporotricose">
   <button class="esporo-tab-btn active" type="button" data-esp-main="visitas" onclick="openEspMain('visitas', this)"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Visitas</button>
   <button class="esporo-tab-btn" type="button" data-esp-main="doentes" onclick="openEspMain('doentes', this)"><img src="/static/icons/gato_doente.svg" alt="" class="icon-svg"> Doentes</button>
+  {% if is_admin %}<a class="esporo-tab-btn" href="/esporotricose/humanos"><img src="/static/icons/usuarios.svg" alt="" class="icon-svg"> Casos humanos</a>{% endif %}
 </div>
 
 <div class="esporo-tabbar esporo-subtabs" id="esp-visitas-tabs" aria-label="Abas de visitas de esporotricose">

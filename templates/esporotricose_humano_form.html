@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Novo caso humano' if modo == 'novo' else 'Editar caso humano' }}{% endblock %}
+{% block extra_css %}<style>
+.hum-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}.hum-head h1{margin:0;font-size:24px}.hum-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.hum-grid .span2{grid-column:span 2}.hum-grid .full{grid-column:1/-1}.hum-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.hum-note{padding:11px 12px;border:1px solid var(--brand-l);border-radius:var(--radius-sm);background:var(--brand-xs);color:var(--text2);font-size:12px;margin-bottom:14px}@media(max-width:850px){.hum-grid{grid-template-columns:1fr}.hum-grid .span2,.hum-grid .full{grid-column:auto}.hum-head{flex-direction:column}}
+</style>{% endblock %}
+{% block content %}
+<div class="hum-head"><div><h1><img src="/static/icons/usuario.svg" alt="" class="icon-svg"> {{ 'Novo caso humano' if modo == 'novo' else 'Editar caso humano' }}</h1><div class="muted">Esporotricose · acesso administrativo</div></div><a class="btn btn-outline" href="{{ '/esporotricose/humanos' if modo == 'novo' else '/esporotricose/humanos/' ~ paciente.id_paciente }}">Voltar</a></div>
+<div class="chart-card">
+  <div class="chart-hd"><div class="chart-title">Dados do paciente</div></div>
+  <div class="hum-note"><strong>Escopo do cadastro:</strong> informações cadastrais e epidemiológicas para acompanhamento pelo setor. Medicação, receita e conduta clínica permanecem sob responsabilidade da UBS e não são registradas aqui.</div>
+  <form id="hum-form"><div class="hum-grid">
+    <div class="f-g span2"><label>Nome completo *</label><input id="nome" required value="{{ paciente.nome if paciente else '' }}"></div>
+    <div class="f-g"><label>Data de nascimento</label><input id="data_nascimento" type="date" value="{{ paciente.data_nascimento if paciente else '' }}"></div>
+    <div class="f-g span2"><label>Nome da mãe</label><input id="nome_mae" value="{{ paciente.nome_mae if paciente else '' }}"></div>
+    <div class="f-g"><label>Cartão SUS</label><input id="cartao_sus" inputmode="numeric" value="{{ paciente.cartao_sus if paciente else '' }}"></div>
+    <div class="f-g"><label>Telefone</label><input id="telefone" value="{{ paciente.telefone if paciente else '' }}"></div>
+    <div class="f-g"><label>Data de notificação</label><input id="data_notificacao" type="date" value="{{ paciente.data_notificacao if paciente else '' }}"></div>
+    <div class="f-g"><label>Status *</label><select id="status" onchange="toggleOutro()">{% for st in status_opcoes %}<option value="{{ st }}" {% if (paciente and paciente.status == st) or (not paciente and st == 'Em tratamento') %}selected{% endif %}>{{ st }}</option>{% endfor %}</select></div>
+    <div class="f-g full" id="status-outro-box"><label>Descrição do status *</label><input id="status_outro" value="{{ paciente.status_outro if paciente else '' }}" placeholder="Descreva a situação atual"></div>
+    <div class="f-g"><label>Localidade</label><input id="localidade" list="hum-localidades" value="{{ paciente.localidade if paciente else '' }}"></div>
+    <div class="f-g"><label>Quarteirão</label><input id="quarteirao" value="{{ paciente.quarteirao if paciente else '' }}"></div>
+    <div class="f-g"><label>Número</label><input id="numero" value="{{ paciente.numero if paciente else '' }}"></div>
+    <div class="f-g span2"><label>Logradouro</label><input id="logradouro" value="{{ paciente.logradouro if paciente else '' }}"></div>
+    <div class="f-g"><label>Complemento</label><input id="complemento" value="{{ paciente.complemento if paciente else '' }}"></div>
+    <div class="f-g"><label>Latitude</label><input id="latitude" value="{{ paciente.latitude if paciente and paciente.latitude is not none else '' }}" placeholder="-25.000000"></div>
+    <div class="f-g"><label>Longitude</label><input id="longitude" value="{{ paciente.longitude if paciente and paciente.longitude is not none else '' }}" placeholder="-49.000000"></div>
+    <div class="f-g full"><label>Observações</label><textarea id="observacoes" rows="5">{{ paciente.observacoes if paciente else '' }}</textarea></div>
+  </div><datalist id="hum-localidades">{% for loc in localidades %}<option value="{{ loc.nome }}">{% endfor %}</datalist><div class="hum-actions"><a class="btn btn-outline" href="{{ '/esporotricose/humanos' if modo == 'novo' else '/esporotricose/humanos/' ~ paciente.id_paciente }}">Cancelar</a><button class="btn btn-primary" type="submit"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar paciente</button></div></form>
+</div>
+{% endblock %}
+{% block extra_js %}<script>
+const modo={{ modo|tojson }},paciente={{ paciente|tojson }};function val(id){return document.getElementById(id).value.trim()}function toggleOutro(){const ativo=val('status')==='Outros';document.getElementById('status-outro-box').style.display=ativo?'block':'none';document.getElementById('status_outro').required=ativo}toggleOutro();
+document.getElementById('hum-form').addEventListener('submit',async e=>{e.preventDefault();const payload={nome:val('nome'),data_nascimento:val('data_nascimento'),cartao_sus:val('cartao_sus'),nome_mae:val('nome_mae'),telefone:val('telefone'),data_notificacao:val('data_notificacao'),status:val('status'),status_outro:val('status_outro'),localidade:val('localidade'),quarteirao:val('quarteirao'),logradouro:val('logradouro'),numero:val('numero'),complemento:val('complemento'),latitude:val('latitude'),longitude:val('longitude'),observacoes:val('observacoes')};const url=modo==='editar'?`/api/esporotricose/humanos/${paciente.id_paciente}`:'/api/esporotricose/humanos';const resp=await fetch(url,{method:modo==='editar'?'PUT':'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},body:JSON.stringify(payload)});const data=await resp.json();if(!resp.ok){toast(data.erro||'Não foi possível salvar.','error');return}window.location.href=`/esporotricose/humanos/${data.id_paciente}`});
+</script>{% endblock %}

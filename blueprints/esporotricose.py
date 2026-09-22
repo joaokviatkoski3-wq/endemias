@@ -19,6 +19,7 @@ from app_core import audit
 from app_core import blueprint_helpers as bh
 from app_core import db as db_core
 from app_core import esporotricose as esporotricose_core
+from app_core import esporotricose_humanos as humanos_core
 from app_core import utils as utils_core
 
 
@@ -104,6 +105,191 @@ def page():
         agentes=_agentes(),
         is_admin=usuario.get("nivel") == "admin",
     )
+
+
+def _usuario_nome():
+    usuario = auth_core.usuario_atual(
+        lambda sql, params=(): db_core.query_one(bh.db_target(), sql, params)
+    ) or {}
+    return usuario.get("nome") or "sistema"
+
+
+def _localidades_humanos():
+    conn = db_core.connect(bh.db_target())
+    humanos_core.ensure_schema(conn)
+    try:
+        return [dict(row) for row in conn.execute("SELECT nome FROM localidades ORDER BY nome")]
+    finally:
+        conn.close()
+
+
+@bp.route("/esporotricose/humanos")
+@login_required
+@nivel_min("admin")
+def page_humanos():
+    audit.registrar_evento(
+        bh.get_db, "esporotricose_humanos_consulta", entidade="esporotricose_pacientes_humanos"
+    )
+    return render_template(
+        "esporotricose_humanos.html",
+        status_opcoes=humanos_core.STATUS,
+        localidades=_localidades_humanos(),
+    )
+
+
+@bp.route("/esporotricose/humanos/novo")
+@login_required
+@nivel_min("admin")
+def page_humano_novo():
+    return render_template(
+        "esporotricose_humano_form.html",
+        paciente=None,
+        modo="novo",
+        status_opcoes=humanos_core.STATUS,
+        localidades=_localidades_humanos(),
+    )
+
+
+@bp.route("/esporotricose/humanos/<int:id_paciente>")
+@login_required
+@nivel_min("admin")
+def page_humano_detalhe(id_paciente):
+    paciente = humanos_core.obter_paciente(bh.db_target(), id_paciente)
+    if not paciente:
+        abort(404)
+    audit.registrar_evento(
+        bh.get_db,
+        "esporotricose_humano_visualizado",
+        entidade="esporotricose_pacientes_humanos",
+        entidade_id=id_paciente,
+    )
+    return render_template(
+        "esporotricose_humano_detalhe.html",
+        paciente=paciente,
+        status_opcoes=humanos_core.STATUS,
+        hoje_iso=utils_core.hoje(),
+    )
+
+
+@bp.route("/esporotricose/humanos/<int:id_paciente>/editar")
+@login_required
+@nivel_min("admin")
+def page_humano_editar(id_paciente):
+    paciente = humanos_core.obter_paciente(bh.db_target(), id_paciente)
+    if not paciente:
+        abort(404)
+    return render_template(
+        "esporotricose_humano_form.html",
+        paciente=paciente,
+        modo="editar",
+        status_opcoes=humanos_core.STATUS,
+        localidades=_localidades_humanos(),
+    )
+
+
+@bp.route("/api/esporotricose/humanos")
+@login_required
+@nivel_min("admin")
+def api_humanos():
+    return jsonify(humanos_core.listar_pacientes(bh.db_target(), {
+        "busca": request.args.get("busca", ""),
+        "status": request.args.get("status", ""),
+        "localidade": request.args.get("localidade", ""),
+        "pagina": request.args.get("pagina", 1),
+        "por_pagina": request.args.get("por_pagina", 30),
+    }))
+
+
+@bp.route("/api/esporotricose/humanos", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_criar_humano():
+    try:
+        id_paciente = humanos_core.salvar_paciente(
+            bh.db_target(), request.get_json(silent=True) or {}, _usuario_nome()
+        )
+    except humanos_core.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(
+        bh.get_db,
+        "esporotricose_humano_criado",
+        entidade="esporotricose_pacientes_humanos",
+        entidade_id=id_paciente,
+    )
+    return jsonify(humanos_core.obter_paciente(bh.db_target(), id_paciente)), 201
+
+
+@bp.route("/api/esporotricose/humanos/<int:id_paciente>", methods=["GET", "PUT"])
+@login_required
+@nivel_min("admin")
+def api_humano(id_paciente):
+    if request.method == "PUT":
+        try:
+            dados = dict(request.get_json(silent=True) or {})
+            dados["id_paciente"] = id_paciente
+            humanos_core.salvar_paciente(bh.db_target(), dados, _usuario_nome())
+        except humanos_core.ValidationError as exc:
+            return jsonify({"erro": str(exc)}), 400
+        audit.registrar_evento(
+            bh.get_db,
+            "esporotricose_humano_atualizado",
+            entidade="esporotricose_pacientes_humanos",
+            entidade_id=id_paciente,
+        )
+    paciente = humanos_core.obter_paciente(bh.db_target(), id_paciente)
+    if not paciente:
+        return jsonify({"erro": "Paciente não encontrado."}), 404
+    return jsonify(paciente)
+
+
+@bp.route("/api/esporotricose/humanos/<int:id_paciente>/acompanhamentos", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_humano_acompanhamento(id_paciente):
+    try:
+        id_acompanhamento = humanos_core.salvar_acompanhamento(
+            bh.db_target(), id_paciente, request.get_json(silent=True) or {}, _usuario_nome()
+        )
+    except humanos_core.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(
+        bh.get_db,
+        "esporotricose_humano_acompanhamento",
+        entidade="esporotricose_pacientes_humanos",
+        entidade_id=id_paciente,
+        detalhes={"id_acompanhamento": id_acompanhamento},
+    )
+    return jsonify(humanos_core.obter_paciente(bh.db_target(), id_paciente)), 201
+
+
+@bp.route("/api/esporotricose/humanos/<int:id_paciente>/sugestoes-vinculos")
+@login_required
+@nivel_min("admin")
+def api_humano_sugestoes(id_paciente):
+    try:
+        return jsonify(humanos_core.sugestoes_vinculos(bh.db_target(), id_paciente))
+    except humanos_core.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 404
+
+
+@bp.route("/api/esporotricose/humanos/<int:id_paciente>/vinculos/<tipo>/<int:id_alvo>", methods=["POST", "DELETE"])
+@login_required
+@nivel_min("admin")
+def api_humano_vinculo(id_paciente, tipo, id_alvo):
+    try:
+        humanos_core.alterar_vinculo(
+            bh.db_target(), id_paciente, tipo, id_alvo, _usuario_nome(), request.method == "POST"
+        )
+    except humanos_core.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(
+        bh.get_db,
+        "esporotricose_humano_vinculo" if request.method == "POST" else "esporotricose_humano_desvinculo",
+        entidade="esporotricose_pacientes_humanos",
+        entidade_id=id_paciente,
+        detalhes={"tipo": tipo, "id_alvo": id_alvo},
+    )
+    return jsonify(humanos_core.obter_paciente(bh.db_target(), id_paciente))
 
 
 @bp.route("/esporotricose/doentes/novo")
@@ -761,6 +947,100 @@ def baixar_todos_anexos_doente(id_animal):
     )
 
 
+@bp.route("/api/esporotricose/humanos/<int:id_paciente>/anexos", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_salvar_anexos_humano(id_paciente):
+    if not humanos_core.obter_paciente(bh.db_target(), id_paciente):
+        return jsonify({"erro": "Paciente não encontrado."}), 404
+    arquivos = request.files.getlist("arquivos")
+    if not arquivos:
+        return jsonify({"erro": "Nenhum arquivo enviado."}), 400
+    validados = []
+    for arquivo in arquivos:
+        meta, erro = _validar_upload_anexo(arquivo)
+        if erro:
+            return jsonify({"erro": erro}), 400
+        validados.append((arquivo, meta))
+    destino = _humano_anexos_dir(id_paciente)
+    caminhos = []
+    metadados = []
+    try:
+        for arquivo, meta in validados:
+            anexo = _salvar_upload_anexo(arquivo, meta, destino)
+            caminhos.append(anexo["caminho"])
+            metadados.append({
+                "nome_original": anexo["nome_original"],
+                "nome_arquivo": anexo["nome_arquivo"],
+                "caminho_rel": str(anexo["caminho"].relative_to(_anexos_base_dir())).replace("\\", "/"),
+                "mime_type": anexo["mime_type"],
+                "tamanho": anexo["tamanho"],
+            })
+        ids = humanos_core.salvar_anexos(
+            bh.db_target(), id_paciente, metadados, _usuario_nome()
+        )
+    except AnexoImagemInvalida as exc:
+        _remover_caminhos(caminhos)
+        return jsonify({"erro": str(exc)}), 400
+    except Exception:
+        _remover_caminhos(caminhos)
+        current_app.logger.exception("Erro ao salvar anexo de paciente humano")
+        return jsonify({"erro": "Não foi possível salvar o anexo."}), 500
+    audit.registrar_evento(
+        bh.get_db,
+        "esporotricose_humano_anexo_incluido",
+        entidade="esporotricose_pacientes_humanos",
+        entidade_id=id_paciente,
+        detalhes={"quantidade": len(ids)},
+    )
+    return jsonify(humanos_core.obter_paciente(bh.db_target(), id_paciente)), 201
+
+
+@bp.route("/api/esporotricose/humanos/anexos/<int:id_anexo>", methods=["DELETE"])
+@login_required
+@nivel_min("admin")
+def api_excluir_anexo_humano(id_anexo):
+    try:
+        anexo = humanos_core.excluir_anexo(bh.db_target(), id_anexo)
+    except humanos_core.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 404
+    _remover_arquivos_anexos([anexo])
+    audit.registrar_evento(
+        bh.get_db,
+        "esporotricose_humano_anexo_excluido",
+        entidade="esporotricose_pacientes_humanos",
+        entidade_id=anexo.get("id_paciente"),
+        detalhes={"id_anexo": id_anexo},
+    )
+    return jsonify({"ok": True})
+
+
+@bp.route("/esporotricose/humanos/anexos/<int:id_anexo>/download")
+@login_required
+@nivel_min("admin")
+def baixar_anexo_humano(id_anexo):
+    anexo = humanos_core.obter_anexo(bh.db_target(), id_anexo)
+    if not anexo:
+        abort(404)
+    caminho = _path_anexo(anexo["caminho_rel"])
+    if not caminho.exists() or not caminho.is_file():
+        abort(404)
+    audit.registrar_evento(
+        bh.get_db,
+        "esporotricose_humano_anexo_baixado",
+        entidade="esporotricose_pacientes_humanos",
+        entidade_id=anexo.get("id_paciente"),
+        detalhes={"id_anexo": id_anexo},
+    )
+    return send_file(
+        caminho,
+        mimetype=anexo.get("mime_type") or None,
+        as_attachment=request.args.get("inline") != "1",
+        download_name=anexo["nome_original"],
+        max_age=0,
+    )
+
+
 def _anexos_base_dir():
     base = Path(current_app.config["ANEXOS_DIR"]).resolve()
     base.mkdir(parents=True, exist_ok=True)
@@ -769,6 +1049,12 @@ def _anexos_base_dir():
 
 def _doente_anexos_dir(id_animal):
     caminho = _anexos_base_dir() / "esporotricose_doentes" / str(id_animal).zfill(6)
+    caminho.mkdir(parents=True, exist_ok=True)
+    return caminho
+
+
+def _humano_anexos_dir(id_paciente):
+    caminho = _anexos_base_dir() / "esporotricose_humanos" / str(id_paciente).zfill(6)
     caminho.mkdir(parents=True, exist_ok=True)
     return caminho
 

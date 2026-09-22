@@ -237,6 +237,20 @@ e reconciliacao de ACS foram retirados das telas; ao preparar uma importacao
 PVE, o catalogo e atualizado automaticamente a partir do XLSForm, sem alterar
 visitas ja existentes e sem bloquear a importacao se essa consulta falhar.
 
+### Casos humanos de Esporotricose
+
+A versao `1.48.0` implementa uma area separada em **Esporotricose > Casos
+humanos**, acessivel somente a administradores. O cadastro preserva nome,
+nascimento, cartao SUS, nome da mae, telefone, endereco, coordenadas,
+observacoes e os status `Em tratamento`, `Acabou tratamento` e `Outros`.
+
+O detalhe possui linha do tempo de acompanhamentos, anexos e sugestoes de
+relacao com imoveis acompanhados e animais doentes. As sugestoes usam endereco,
+quarteirao e localidade, mas exigem confirmacao humana e sao auditadas. Nao ha
+controle de medicacao humana. A migracao aditiva
+`0016_esporotricose_pacientes_humanos.sql` ainda precisa ser aplicada no banco
+oficial antes do reinicio. Consulte `docs/ESPOROTRICOSE_CASOS_HUMANOS.md`.
+
 ### Vínculo de conta para lançamentos laboratoriais
 
 Na versão `1.40.1`, a assinatura de resultados em **Lançamentos Laboratório**

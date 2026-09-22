@@ -34,6 +34,10 @@ class SQLAuditPostgreSQLCompatTests(unittest.TestCase):
             esporotricose,
             "_obter_ou_criar_localidade",
             return_value=1,
+        ), mock.patch.object(
+            esporotricose,
+            "_vincular_visita_exatamente",
+            return_value={"vinculada": False, "motivo": "endereco_incompleto"},
         ):
             inseriu = esporotricose._inserir_visita(
                 conn,

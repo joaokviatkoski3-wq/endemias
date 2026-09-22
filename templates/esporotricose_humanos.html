@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Casos humanos de esporotricose{% endblock %}
+{% block extra_css %}<style>
+.hum-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}.hum-head h1{margin:0;font-size:24px}.hum-actions{display:flex;gap:8px;flex-wrap:wrap}.hum-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}.hum-kpi{padding:13px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface)}.hum-kpi span{display:block;color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase}.hum-kpi strong{font-size:24px;color:var(--brand)}.hum-filter{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:end}.hum-pager{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:12px}.hum-status{display:inline-flex;padding:3px 8px;border-radius:999px;background:var(--brand-xs);color:var(--brand);font-size:11px;font-weight:800}@media(max-width:900px){.hum-kpis{grid-template-columns:1fr 1fr}.hum-filter{grid-template-columns:1fr}.hum-head{flex-direction:column}}@media(max-width:520px){.hum-kpis{grid-template-columns:1fr}}
+</style>{% endblock %}
+{% block content %}
+<div class="hum-head">
+  <div><h1><img src="/static/icons/usuarios.svg" alt="" class="icon-svg"> Casos humanos de esporotricose</h1><div class="muted">Cadastro epidemiológico restrito a administradores. Não inclui medicação ou tratamento clínico da UBS.</div></div>
+  <div class="hum-actions"><a class="btn btn-outline" href="/esporotricose">Voltar</a><a class="btn btn-primary" href="/esporotricose/humanos/novo"><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Novo paciente</a></div>
+</div>
+<div class="hum-kpis">
+  <div class="hum-kpi"><span>Total filtrado</span><strong id="hum-total">0</strong></div>
+  {% for st in status_opcoes %}<div class="hum-kpi"><span>{{ st }}</span><strong id="hum-kpi-{{ loop.index0 }}">0</strong></div>{% endfor %}
+</div>
+<div class="chart-card">
+  <div class="chart-hd"><div class="chart-title"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Filtros</div></div>
+  <div class="hum-filter">
+    <div class="f-g"><label>Pesquisa</label><input id="hum-busca" type="search" placeholder="Nome, mãe, endereço, telefone ou quarteirão"></div>
+    <div class="f-g"><label>Status</label><select id="hum-status"><option value="">Todos</option>{% for st in status_opcoes %}<option>{{ st }}</option>{% endfor %}</select></div>
+    <div class="f-g"><label>Localidade</label><select id="hum-localidade"><option value="">Todas</option>{% for loc in localidades %}<option>{{ loc.nome }}</option>{% endfor %}</select></div>
+    <button class="btn btn-primary" type="button" onclick="carregarHumanos(1)">Pesquisar</button>
+  </div>
+</div>
+<div class="chart-card" style="margin-top:14px">
+  <div class="chart-hd"><div class="chart-title">Pacientes cadastrados</div><span class="table-info" id="hum-info"></span></div>
+  <div class="table-scroll"><table><thead><tr><th>Paciente</th><th>Nascimento</th><th>Cartão SUS</th><th>Status</th><th>Localidade</th><th>Endereço</th><th>Vínculos</th><th>Ações</th></tr></thead><tbody id="hum-body"><tr><td colspan="8" class="muted">Carregando...</td></tr></tbody></table></div>
+  <div class="hum-pager"><button class="btn btn-outline btn-sm" id="hum-ant" type="button">Anterior</button><span id="hum-pagina" class="muted"></span><button class="btn btn-outline btn-sm" id="hum-prox" type="button">Próxima</button></div>
+</div>
+{% endblock %}
+{% block extra_js %}<script>
+const statusOpcoes={{ status_opcoes|list|tojson }};let paginaAtual=1,paginas=1;
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+async function carregarHumanos(pagina=1){
+  const qs=new URLSearchParams({busca:document.getElementById('hum-busca').value,status:document.getElementById('hum-status').value,localidade:document.getElementById('hum-localidade').value,pagina,por_pagina:30});
+  const resp=await fetch('/api/esporotricose/humanos?'+qs);const data=await resp.json();if(!resp.ok){toast(data.erro||'Falha ao carregar pacientes.','error');return;}
+  paginaAtual=data.pagina;paginas=data.paginas;document.getElementById('hum-total').textContent=data.total;document.getElementById('hum-info').textContent=`${data.total} registro(s)`;
+  statusOpcoes.forEach((s,i)=>document.getElementById(`hum-kpi-${i}`).textContent=data.status_totais[s]||0);
+  document.getElementById('hum-body').innerHTML=(data.registros||[]).map(p=>`<tr><td><strong>${esc(p.nome)}</strong><div class="muted">Mãe: ${esc(p.nome_mae||'-')}</div></td><td>${esc(p.data_nascimento||'-')}</td><td>${esc(p.cartao_sus||'-')}</td><td><span class="hum-status">${esc(p.status)}${p.status_outro?' · '+esc(p.status_outro):''}</span></td><td>${esc(p.localidade||'-')}${p.quarteirao?`<div class="muted">Q. ${esc(p.quarteirao)}</div>`:''}</td><td>${esc([p.logradouro,p.numero].filter(Boolean).join(', ')||'-')}</td><td>${p.imoveis||0} imóvel(is)<br>${p.animais||0} animal(is)</td><td><a class="btn btn-outline btn-sm" href="/esporotricose/humanos/${p.id_paciente}">Abrir</a></td></tr>`).join('')||'<tr><td colspan="8" class="muted">Nenhum paciente encontrado.</td></tr>';
+  document.getElementById('hum-pagina').textContent=`Página ${paginaAtual} de ${paginas}`;document.getElementById('hum-ant').disabled=paginaAtual<=1;document.getElementById('hum-prox').disabled=paginaAtual>=paginas;
+}
+document.getElementById('hum-ant').onclick=()=>carregarHumanos(paginaAtual-1);document.getElementById('hum-prox').onclick=()=>carregarHumanos(paginaAtual+1);document.getElementById('hum-busca').addEventListener('keydown',e=>{if(e.key==='Enter')carregarHumanos(1)});carregarHumanos();
+</script>{% endblock %}
