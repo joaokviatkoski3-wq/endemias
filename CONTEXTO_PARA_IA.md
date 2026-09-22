@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.49.0` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.49.1` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -366,6 +366,10 @@ obrigatoria para integracao.
   usa UTF-8 com BOM, separador `;` e latitude/longitude numericas separadas.
   Por conter dados pessoais e de saude, o download e auditado e permanece
   exclusivo de administradores.
+  A versao `1.49.1` acrescenta `bloqueio` ao caso humano com as opcoes
+  `Realizado` e `Nao realizado`; ausencia de resposta continua vazia. A migracao
+  `0017_esporotricose_humanos_bloqueio.sql` e necessaria antes do reinicio.
+  O campo aparece na edicao, listagem, detalhe, filtro e CSV QGIS.
 - A versao `1.41.0` criou a pagina **Positividade**, que combina os focos
   legados de `focos_positivos` (`origem='historico'`) com positivos atuais de
   `resultados_laboratorio`, preservando a ausencia de detalhes laboratoriais no

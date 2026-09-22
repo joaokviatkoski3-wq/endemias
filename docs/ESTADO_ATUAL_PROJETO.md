@@ -248,8 +248,8 @@ O detalhe possui linha do tempo de acompanhamentos, anexos e sugestoes de
 relacao com imoveis acompanhados e animais doentes. As sugestoes usam endereco,
 quarteirao e localidade, mas exigem confirmacao humana e sao auditadas. Nao ha
 controle de medicacao humana. A migracao aditiva
-`0016_esporotricose_pacientes_humanos.sql` ainda precisa ser aplicada no banco
-oficial antes do reinicio. Consulte `docs/ESPOROTRICOSE_CASOS_HUMANOS.md`.
+`0016_esporotricose_pacientes_humanos.sql` foi aplicada no banco oficial.
+Consulte `docs/ESPOROTRICOSE_CASOS_HUMANOS.md`.
 
 A versao `1.48.1` corrige a consulta da lista no PostgreSQL. A ordenacao
 original tentava combinar `data_notificacao` (`date`) com `criado_em` (`text`)
@@ -261,6 +261,11 @@ respeita os filtros atuais, inclui coordenadas em colunas numericas separadas e
 usa UTF-8 com BOM e `;`. O arquivo contem dados pessoais e de saude; por isso,
 o endpoint e exclusivo de administradores, mostra alerta de confidencialidade
 e registra cada download na auditoria.
+
+A versao `1.49.1` adiciona ao cadastro humano a situacao do bloqueio
+(`Realizado` ou `Nao realizado`), exibida no detalhe, listagem, filtro e CSV
+QGIS. Sem preenchimento, permanece desconhecida. A migracao aditiva
+`0017_esporotricose_humanos_bloqueio.sql` deve ser aplicada antes do reinicio.
 
 ### Vínculo de conta para lançamentos laboratoriais
 

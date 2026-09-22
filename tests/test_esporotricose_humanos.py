@@ -35,6 +35,7 @@ class EsporotricoseHumanosCoreTests(unittest.TestCase):
             "cartao_sus": "001234567890123",
             "nome_mae": "Mãe Teste",
             "status": "Em tratamento",
+            "bloqueio": "Não realizado",
             "localidade": "Sao Venancio",
             "logradouro": "Rua das Flores",
             "numero": "25",
@@ -53,10 +54,19 @@ class EsporotricoseHumanosCoreTests(unittest.TestCase):
             item for item in lista["registros"] if item["id_paciente"] == paciente_id
         )
         self.assertEqual(detalhe["cartao_sus"], "001234567890123")
+        self.assertEqual(detalhe["bloqueio"], "Não realizado")
         self.assertTrue(item_original["cartao_sus"].endswith("0123"))
         self.assertNotIn("001234567890123", item_original["cartao_sus"])
         self.assertIsNotNone(detalhe["id_localidade"])
         self.assertEqual(lista["registros"][0]["id_paciente"], mais_recente)
+        self.assertEqual(humanos.listar_pacientes(self.db_path, {"bloqueio": "Não realizado"})["total"], 1)
+
+        humanos.salvar_paciente(self.db_path, {
+            "id_paciente": paciente_id, "nome": "Paciente Teste", "status": "Em tratamento",
+            "bloqueio": "Realizado", "cartao_sus": "001234567890123",
+            "localidade": "Sao Venancio", "logradouro": "Rua das Flores", "numero": "25",
+            "latitude": "-25,123", "longitude": "-49,456",
+        }, "Administrador")
 
         humanos.salvar_acompanhamento(self.db_path, paciente_id, {
             "data": "2026-09-22", "status": "Acabou tratamento", "observacoes": "Alta informada pela UBS."
@@ -72,13 +82,27 @@ class EsporotricoseHumanosCoreTests(unittest.TestCase):
         self.assertEqual(exportados[0]["endereco_completo"], "Rua das Flores, 25")
         self.assertEqual(exportados[0]["latitude"], -25.123)
         self.assertEqual(exportados[0]["acompanhamentos"], 1)
+        self.assertEqual(exportados[0]["bloqueio"], "Realizado")
+        self.assertEqual(len(humanos.listar_pacientes_csv(self.db_path, {"bloqueio": "Não realizado"})), 0)
 
     def test_outros_exige_descricao_e_sus_nao_duplica(self):
+        with self.assertRaisesRegex(humanos.ValidationError, "Bloqueio inválido"):
+            humanos.salvar_paciente(self.db_path, {"nome": "A", "bloqueio": "Sim"}, "Admin")
         with self.assertRaises(humanos.ValidationError):
             humanos.salvar_paciente(self.db_path, {"nome": "A", "status": "Outros"}, "Admin")
         humanos.salvar_paciente(self.db_path, {"nome": "A", "status": "Outros", "status_outro": "Em investigação", "cartao_sus": "0001"}, "Admin")
         with self.assertRaises(humanos.ValidationError):
             humanos.salvar_paciente(self.db_path, {"nome": "B", "status": "Em tratamento", "cartao_sus": "0001"}, "Admin")
+
+    def test_schema_sqlite_anterior_recebe_coluna_bloqueio(self):
+        anterior = str(Path(self.tmp.name) / "anterior.db")
+        conn = sqlite3.connect(anterior)
+        conn.row_factory = sqlite3.Row
+        conn.execute("CREATE TABLE esporotricose_pacientes_humanos (id_paciente INTEGER PRIMARY KEY, nome TEXT, cartao_sus TEXT, status TEXT, id_localidade INTEGER, localidade TEXT)")
+        conn.execute("INSERT INTO esporotricose_pacientes_humanos (nome,status) VALUES ('Caso antigo','Em tratamento')")
+        humanos.ensure_schema(conn)
+        self.assertIsNone(conn.execute("SELECT bloqueio FROM esporotricose_pacientes_humanos").fetchone()[0])
+        conn.close()
 
     def test_sugestoes_so_vinculam_apos_confirmacao(self):
         paciente_id = humanos.salvar_paciente(self.db_path, {
@@ -161,6 +185,7 @@ class EsporotricoseHumanosPermissoesTests(unittest.TestCase):
         resposta = client.post("/api/esporotricose/humanos", json={
             "nome": "Paciente administrativo",
             "status": "Em tratamento",
+            "bloqueio": "Não realizado",
             "cartao_sus": "0000123",
             "localidade": "São Venâncio",
         })
@@ -171,7 +196,7 @@ class EsporotricoseHumanosPermissoesTests(unittest.TestCase):
         self.assertEqual(client.get(f"/esporotricose/humanos/{paciente_id}").status_code, 200)
         self.assertEqual(client.get(f"/esporotricose/humanos/{paciente_id}/editar").status_code, 200)
         csv_response = client.get(
-            "/esporotricose/humanos/casos.csv?status=Em+tratamento&localidade=S%C3%A3o+Ven%C3%A2ncio"
+            "/esporotricose/humanos/casos.csv?status=Em+tratamento&localidade=S%C3%A3o+Ven%C3%A2ncio&bloqueio=N%C3%A3o+realizado"
         )
         self.assertEqual(csv_response.status_code, 200)
         self.assertIn("text/csv", csv_response.headers["Content-Type"])
@@ -181,6 +206,8 @@ class EsporotricoseHumanosPermissoesTests(unittest.TestCase):
         )
         csv_text = csv_response.data.decode("utf-8-sig")
         self.assertIn("latitude;longitude", csv_text.splitlines()[0])
+        self.assertIn("bloqueio", csv_text.splitlines()[0])
+        self.assertIn("Não realizado", csv_text)
         self.assertIn("Paciente administrativo", csv_text)
 
 

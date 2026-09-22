@@ -133,6 +133,7 @@ def page_humanos():
     return render_template(
         "esporotricose_humanos.html",
         status_opcoes=humanos_core.STATUS,
+        bloqueio_opcoes=humanos_core.BLOQUEIO_OPCOES,
         localidades=_localidades_humanos(),
     )
 
@@ -146,6 +147,7 @@ def page_humano_novo():
         paciente=None,
         modo="novo",
         status_opcoes=humanos_core.STATUS,
+        bloqueio_opcoes=humanos_core.BLOQUEIO_OPCOES,
         localidades=_localidades_humanos(),
     )
 
@@ -167,6 +169,7 @@ def page_humano_detalhe(id_paciente):
         "esporotricose_humano_detalhe.html",
         paciente=paciente,
         status_opcoes=humanos_core.STATUS,
+        bloqueio_opcoes=humanos_core.BLOQUEIO_OPCOES,
         hoje_iso=utils_core.hoje(),
     )
 
@@ -183,6 +186,7 @@ def page_humano_editar(id_paciente):
         paciente=paciente,
         modo="editar",
         status_opcoes=humanos_core.STATUS,
+        bloqueio_opcoes=humanos_core.BLOQUEIO_OPCOES,
         localidades=_localidades_humanos(),
     )
 
@@ -195,6 +199,7 @@ def api_humanos():
         "busca": request.args.get("busca", ""),
         "status": request.args.get("status", ""),
         "localidade": request.args.get("localidade", ""),
+        "bloqueio": request.args.get("bloqueio", ""),
         "pagina": request.args.get("pagina", 1),
         "por_pagina": request.args.get("por_pagina", 30),
     }))
@@ -208,6 +213,7 @@ def download_humanos_csv():
         "busca": request.args.get("busca", ""),
         "status": request.args.get("status", ""),
         "localidade": request.args.get("localidade", ""),
+        "bloqueio": request.args.get("bloqueio", ""),
     }
     campos = [
         "id_paciente",
@@ -219,6 +225,7 @@ def download_humanos_csv():
         "data_notificacao",
         "status",
         "status_detalhe",
+        "bloqueio",
         "localidade",
         "quarteirao",
         "logradouro",
@@ -257,6 +264,7 @@ def download_humanos_csv():
             "quantidade": len(rows),
             "status": filtros["status"],
             "localidade": filtros["localidade"],
+            "bloqueio": filtros["bloqueio"],
             "com_pesquisa": bool(filtros["busca"]),
         },
     )

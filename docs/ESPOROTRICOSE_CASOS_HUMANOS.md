@@ -29,7 +29,9 @@ detalhe administrativo. O cartão é armazenado como texto para preservar zeros
 ## Dados e acompanhamento
 
 O cadastro inclui nome, nascimento, cartão SUS, nome da mãe, telefone, data de
-notificação, endereço, localidade, quarteirão, coordenadas e observações.
+notificação, endereço, localidade, quarteirão, coordenadas, observações e
+situação do bloqueio (`Realizado` ou `Não realizado`). Quando ainda não se sabe,
+o campo fica sem informação; isso não equivale a bloqueio não realizado.
 
 Os status iniciais são `Em tratamento`, `Acabou tratamento` e `Outros`. O
 último exige uma descrição complementar.
@@ -66,15 +68,20 @@ aditiva e não altera registros existentes de visitas, imóveis ou animais.
 O patch `1.48.1` corrige a ordenação da listagem no PostgreSQL. A falha antiga
 afetava somente a consulta da lista e não removia pacientes já cadastrados.
 
+A migração aditiva `0017_esporotricose_humanos_bloqueio.sql` acrescenta a
+situação do bloqueio aos pacientes humanos. Os cadastros existentes recebem
+valor vazio e podem ser atualizados pela edição do paciente. Aplicar antes de
+reiniciar a versão `1.49.1`.
+
 ## CSV para QGIS
 
 A partir da versão `1.49.0`, a lista possui a ação **CSV QGIS**. O arquivo:
 
-- respeita os filtros atuais de pesquisa, status e localidade;
+- respeita os filtros atuais de pesquisa, status, bloqueio e localidade;
 - exporta todos os registros correspondentes, sem a paginação da tela;
 - usa UTF-8 com BOM e separador `;`;
 - mantém `latitude` e `longitude` em colunas numéricas separadas;
-- inclui endereço completo, situação, datas, quantidades de vínculos,
+- inclui endereço completo, situação, bloqueio, datas, quantidades de vínculos,
   acompanhamentos e anexos;
 - inclui dados identificadores completos, inclusive cartão SUS, somente porque
   o download é exclusivo de administradores.

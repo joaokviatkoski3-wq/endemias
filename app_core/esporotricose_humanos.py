@@ -13,6 +13,7 @@ ANEXOS_TABLE = "esporotricose_pacientes_anexos"
 IMOVEIS_TABLE = "esporotricose_paciente_imoveis"
 ANIMAIS_TABLE = "esporotricose_paciente_animais"
 STATUS = ("Em tratamento", "Acabou tratamento", "Outros")
+BLOQUEIO_OPCOES = ("Realizado", "Não realizado")
 
 
 class ValidationError(Exception):
@@ -35,6 +36,7 @@ def ensure_schema(conn):
             data_notificacao DATE,
             status TEXT NOT NULL CHECK(status IN ('Em tratamento','Acabou tratamento','Outros')),
             status_outro TEXT,
+            bloqueio TEXT CHECK(bloqueio IS NULL OR bloqueio IN ('Realizado','Não realizado')),
             id_localidade INTEGER REFERENCES localidades(id_localidade),
             localidade TEXT,
             quarteirao TEXT,
@@ -100,6 +102,10 @@ def ensure_schema(conn):
         );
         """
     )
+    if "bloqueio" not in {
+        row["name"] for row in conn.execute(f"PRAGMA table_info({PACIENTES_TABLE})")
+    }:
+        conn.execute(f"ALTER TABLE {PACIENTES_TABLE} ADD COLUMN bloqueio TEXT")
     conn.commit()
 
 
@@ -166,6 +172,9 @@ def _validar_payload(conn, dados, id_paciente=None):
         raise ValidationError("Descreva o status em Outros.")
     if status != "Outros":
         status_outro = None
+    bloqueio = _texto(dados.get("bloqueio"), 40)
+    if bloqueio and bloqueio not in BLOQUEIO_OPCOES:
+        raise ValidationError("Bloqueio inválido.")
     cartao_sus = _texto(dados.get("cartao_sus"), 30)
     if cartao_sus:
         duplicado = conn.execute(
@@ -188,6 +197,7 @@ def _validar_payload(conn, dados, id_paciente=None):
         "data_notificacao": _data(dados.get("data_notificacao"), "Data de notificação"),
         "status": status,
         "status_outro": status_outro,
+        "bloqueio": bloqueio,
         "id_localidade": _id_localidade(conn, localidade),
         "localidade": localidade,
         "quarteirao": _texto(dados.get("quarteirao"), 40),
@@ -258,6 +268,9 @@ def listar_pacientes(target, filtros=None):
         if filtros.get("localidade"):
             where_base.append("LOWER(COALESCE(p.localidade,''))=LOWER(?)")
             params_base.append(filtros["localidade"])
+        if filtros.get("bloqueio"):
+            where_base.append("p.bloqueio=?")
+            params_base.append(filtros["bloqueio"])
         if filtros.get("busca"):
             busca = f"%{filtros['busca'].strip().lower()}%"
             where_base.append("(LOWER(p.nome) LIKE ? OR LOWER(COALESCE(p.nome_mae,'')) LIKE ? OR LOWER(COALESCE(p.logradouro,'')) LIKE ? OR LOWER(COALESCE(p.quarteirao,'')) LIKE ? OR LOWER(COALESCE(p.telefone,'')) LIKE ?)")
@@ -315,6 +328,9 @@ def listar_pacientes_csv(target, filtros=None):
         if filtros.get("localidade"):
             where.append("LOWER(COALESCE(p.localidade,''))=LOWER(?)")
             params.append(filtros["localidade"])
+        if filtros.get("bloqueio"):
+            where.append("p.bloqueio=?")
+            params.append(filtros["bloqueio"])
         if filtros.get("busca"):
             busca = f"%{str(filtros['busca']).strip().lower()}%"
             where.append(
