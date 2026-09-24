@@ -202,12 +202,12 @@ function render(){
       </div>
       <div class="doe-entregas">${(r.entregas || []).map(e => `
         <div class="doe-entrega-row">
-        <span class="doe-chip">${data(e.data_entrega)} · ${num(e.quantidade)} cápsula(s) · ${esc(e.fonte_medicacao || 'Zoomed')}${e.fonte_medicacao === 'Município' ? '' : ` · Baixa Zoomed ${zoomedBadge(e.baixa_zoomed)}`}</span>
+        <span class="doe-chip">${data(e.data_entrega)} · ${num(e.quantidade)} cápsula(s) · ${esc(e.fonte_medicacao || 'SESA')} · Baixa Zoomed ${zoomedBadge(e.baixa_zoomed)}</span>
         <span class="doe-chip" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border);">
           <input type="date" id="ent-edit-data-${e.id_entrega}" value="${esc(e.data_entrega || '')}" style="max-width:130px;">
           <input type="number" min="1" id="ent-edit-qtd-${e.id_entrega}" value="${esc(e.quantidade || '')}" style="max-width:78px;">
-          <select id="ent-edit-fonte-${e.id_entrega}" aria-label="Fonte do itraconazol" onchange="ajustarBaixaZoomed(${e.id_entrega}, true)"><option value="Zoomed" ${e.fonte_medicacao !== 'Município' ? 'selected' : ''}>Zoomed</option><option value="Município" ${e.fonte_medicacao === 'Município' ? 'selected' : ''}>Município</option></select>
-          <select id="ent-edit-zoomed-${e.id_entrega}" aria-label="Baixa Zoomed" ${e.fonte_medicacao === 'Município' ? 'disabled' : ''}>
+          <select id="ent-edit-fonte-${e.id_entrega}" aria-label="Fonte do itraconazol"><option value="SESA" ${e.fonte_medicacao !== 'Município' ? 'selected' : ''}>SESA</option><option value="Município" ${e.fonte_medicacao === 'Município' ? 'selected' : ''}>Município</option></select>
+          <select id="ent-edit-zoomed-${e.id_entrega}" aria-label="Baixa Zoomed">
             <option value="Sim" ${e.baixa_zoomed === 'Sim' ? 'selected' : ''}>Zoomed: Sim</option>
             <option value="Não" ${e.baixa_zoomed === 'Não' ? 'selected' : ''}>Zoomed: Pendente</option>
           </select>
@@ -218,8 +218,8 @@ function render(){
       <div class="doe-form-grid" style="margin-top:8px;">
         <div class="f-g"><label>Data entrega</label><input type="date" id="ent-data-${r.id_receita}"></div>
         <div class="f-g"><label>Cápsulas</label><input type="number" min="1" id="ent-qtd-${r.id_receita}"></div>
-        <div class="f-g"><label>Fonte do itraconazol</label><select id="ent-fonte-${r.id_receita}" onchange="ajustarBaixaZoomed(${r.id_receita}, false)"><option>Zoomed</option><option>Município</option></select></div>
-        <div class="f-g"><label>Entrega cadastrada na ZOOMED (somente fonte Zoomed)</label><select id="ent-zoomed-${r.id_receita}"><option value="Não" selected>Pendente</option><option value="Sim">Sim</option></select></div>
+        <div class="f-g"><label>Fonte do itraconazol</label><select id="ent-fonte-${r.id_receita}"><option>SESA</option><option>Município</option></select></div>
+        <div class="f-g"><label>Entrega cadastrada na ZOOMED (baixa de ambas as fontes)</label><select id="ent-zoomed-${r.id_receita}"><option value="Não" selected>Pendente</option><option value="Sim">Sim</option></select></div>
       </div>
       <button class="btn btn-outline btn-sm" type="button" onclick="salvarEntrega(${r.id_receita})">Adicionar entrega</button>
     </div>
@@ -259,13 +259,6 @@ function baixarAnexosSeparados(){
     link.remove();
   }
   toast(`${anexos.length} download(s) solicitado(s). Se o navegador perguntar, permita vários downloads para este site.`, 'info');
-}
-function ajustarBaixaZoomed(id, editando){
-  const fonte = document.getElementById(`${editando ? 'ent-edit-fonte' : 'ent-fonte'}-${id}`);
-  const baixa = document.getElementById(`${editando ? 'ent-edit-zoomed' : 'ent-zoomed'}-${id}`);
-  if (!fonte || !baixa) return;
-  baixa.disabled = fonte.value === 'Município';
-  if (baixa.disabled) baixa.value = 'Não';
 }
 function capsulasReceitaHtml(r) {
   if (r.receita_pendente) {

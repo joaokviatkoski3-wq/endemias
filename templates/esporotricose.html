@@ -514,7 +514,7 @@
         <input type="hidden" id="est-id">
         <div class="f-g"><label>Data</label><input type="date" id="est-data"></div>
         <div class="f-g"><label>Tipo</label><select id="est-tipo"><option>Entrada</option><option>Saída</option><option>Sobra</option><option>Ajuste</option></select></div>
-        <div class="f-g"><label>Fonte do itraconazol</label><select id="est-fonte"><option>Zoomed</option><option>Município</option></select></div>
+        <div class="f-g"><label>Fonte do itraconazol</label><select id="est-fonte"><option>SESA</option><option>Município</option></select></div>
         <div class="f-g"><label>Cápsulas</label><input type="number" id="est-quantidade" step="1"></div>
         <div class="f-g wide"><label>Descrição</label><input id="est-descricao" placeholder="Compra, remessa, devolução, ajuste..."></div>
         <div class="f-g"><label>Referência / procedência</label><input id="est-origem" placeholder="Setor, tutor, animal..."></div>
@@ -1186,9 +1186,9 @@ function renderEspEstoque(d) {
   setEspText('est-kpi-sobras', t.sobras_lancadas);
   document.getElementById('est-info').textContent = `${fmtNum(movimentos.length)} movimento(s)`;
   document.getElementById('est-resumo-list').innerHTML = [
-    resumoRow('Entradas Zoomed', t.entradas_zoomed),
+    resumoRow('Entradas SESA', t.entradas_sesa),
     resumoRow('Entradas Município', t.entradas_municipio),
-    resumoRow('Saldo Zoomed', t.saldos_por_fonte?.Zoomed),
+    resumoRow('Saldo SESA', t.saldos_por_fonte?.SESA),
     resumoRow('Saldo Município', t.saldos_por_fonte?.['Município']),
     resumoRow('Sobras retornadas', t.sobras_retornadas),
     resumoRow('Ajustes de inventário', t.ajustes_estoque),
@@ -1218,7 +1218,7 @@ function renderEstoqueMovimentoLinha(m, tipos) {
       <tr data-est-auto-id="${Number(m.id_entrega)}" data-editando="0">
         <td>${fmtDate(m.data) || '-'}</td>
         <td><span class="esporo-tag bad">${escapeHtml(m.tipo || 'Saída automática')}</span></td>
-        <td>${escapeHtml(m.fonte_medicacao || 'Zoomed')}</td>
+        <td>${escapeHtml(m.fonte_medicacao || 'SESA')}</td>
         <td><strong>${fmtNum(m.quantidade || 0)}</strong></td>
         <td>${escapeHtml(m.descricao || '-')}</td>
         <td>${escapeHtml(m.origem || '-')}</td>
@@ -1232,7 +1232,7 @@ function renderEstoqueMovimentoLinha(m, tipos) {
       <td><span class="est-read">${escapeHtml(m.tipo || '-')}</span><select class="est-edit" id="est-row-tipo-${m.id_movimento}" style="display:none;">
         ${tipos.map(tipo => `<option value="${escapeHtml(tipo)}" ${m.tipo === tipo ? 'selected' : ''}>${escapeHtml(tipo)}</option>`).join('')}
       </select></td>
-      <td><span class="est-read">${escapeHtml(m.fonte_medicacao || 'Zoomed')}</span><select class="est-edit" id="est-row-fonte-${m.id_movimento}" style="display:none;"><option value="Zoomed" ${m.fonte_medicacao === 'Zoomed' ? 'selected' : ''}>Zoomed</option><option value="Município" ${m.fonte_medicacao === 'Município' ? 'selected' : ''}>Município</option></select></td>
+      <td><span class="est-read">${escapeHtml(m.fonte_medicacao || 'SESA')}</span><select class="est-edit" id="est-row-fonte-${m.id_movimento}" style="display:none;"><option value="SESA" ${m.fonte_medicacao !== 'Município' ? 'selected' : ''}>SESA</option><option value="Município" ${m.fonte_medicacao === 'Município' ? 'selected' : ''}>Município</option></select></td>
       <td><span class="est-read"><strong>${fmtNum(m.quantidade || 0)}</strong></span><input class="est-edit" type="number" step="1" id="est-row-qtd-${m.id_movimento}" value="${escapeHtml(m.quantidade ?? '')}" style="display:none;"></td>
       <td><span class="est-read">${escapeHtml(m.descricao || '-')}</span><input class="est-edit" id="est-row-desc-${m.id_movimento}" value="${escapeHtml(m.descricao || '')}" style="display:none;"></td>
       <td><span class="est-read">${escapeHtml(m.origem || '-')}</span><input class="est-edit" id="est-row-origem-${m.id_movimento}" value="${escapeHtml(m.origem || '')}" style="display:none;"></td>
@@ -1270,7 +1270,7 @@ function cancelarObservacaoEstoqueAutomatico(id) {
 function limparEstoqueForm() {
   ['est-id','est-data','est-quantidade','est-descricao','est-origem','est-observacoes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('est-tipo').value = 'Entrada';
-  document.getElementById('est-fonte').value = 'Zoomed';
+  document.getElementById('est-fonte').value = 'SESA';
 }
 function estoquePayload(prefix) {
   return {
@@ -1501,7 +1501,7 @@ function renderEspReceitas(rows) {
       <div>${capsulasReceitaHtml(r)}</div>
       <div class="muted">${escapeHtml(r.entregas_observacao || '')}${r.saldo_observacao ? ` &middot; ${escapeHtml(r.saldo_observacao)}` : ''}</div>
       <div>Posologia: ${escapeHtml(r.posologia || '-')} &middot; ${fmtNum(r.capsulas_por_dia || 1)} c&aacute;psula(s)/dia</div>
-      <div class="esporo-entrega-list">${(r.entregas || []).map(e => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;"><span class="esporo-entrega">${fmtDate(e.data_entrega)} &middot; ${fmtNum(e.quantidade)}</span><select id="ent-fonte-edit-${e.id_entrega}" aria-label="Fonte da entrega de ${fmtDate(e.data_entrega)}"><option value="Zoomed" ${e.fonte_medicacao !== 'Município' ? 'selected' : ''}>Zoomed</option><option value="Município" ${e.fonte_medicacao === 'Município' ? 'selected' : ''}>Município</option></select><button class="btn btn-outline btn-sm" type="button" onclick="atualizarEspEntregaFonte(${Number(e.id_entrega)})">Salvar fonte</button></div>`).join('') || '<span class="muted">Sem entregas</span>'}</div>
+      <div class="esporo-entrega-list">${(r.entregas || []).map(e => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;"><span class="esporo-entrega">${fmtDate(e.data_entrega)} &middot; ${fmtNum(e.quantidade)}</span><select id="ent-fonte-edit-${e.id_entrega}" aria-label="Fonte da entrega de ${fmtDate(e.data_entrega)}"><option value="SESA" ${e.fonte_medicacao !== 'Município' ? 'selected' : ''}>SESA</option><option value="Município" ${e.fonte_medicacao === 'Município' ? 'selected' : ''}>Município</option></select><button class="btn btn-outline btn-sm" type="button" onclick="atualizarEspEntregaFonte(${Number(e.id_entrega)})">Salvar fonte</button></div>`).join('') || '<span class="muted">Sem entregas</span>'}</div>
       <div class="esporo-receita-edit" id="rec-edit-box-${r.id_receita}">
         <input type="hidden" id="rec-edit-status-${r.id_receita}" value="${escapeHtml(r.status || '')}">
         <div class="esporo-form-grid">
@@ -1522,7 +1522,7 @@ function renderEspReceitas(rows) {
       <div class="esporo-form-grid" style="margin-top:8px;">
         <div class="f-g"><label>Data entrega</label><input type="date" id="ent-data-${r.id_receita}"></div>
         <div class="f-g"><label>Cápsulas desta entrega</label><input type="number" min="1" max="30" step="1" placeholder="30" id="ent-qtd-${r.id_receita}"></div>
-        <div class="f-g"><label>Fonte do itraconazol</label><select id="ent-fonte-${r.id_receita}"><option>Zoomed</option><option>Município</option></select></div>
+        <div class="f-g"><label>Fonte do itraconazol</label><select id="ent-fonte-${r.id_receita}"><option>SESA</option><option>Município</option></select></div>
       </div>
       <button class="btn btn-outline" type="button" onclick="salvarEspEntrega(${r.id_receita})">Adicionar entrega</button>
     </div>

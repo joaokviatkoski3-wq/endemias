@@ -39,6 +39,16 @@ Na lista de animais, "Anexos (N)" abre diretamente essa seção do detalhe.
 Após a migração e o commit `2c16b4e`, a tarefa oficial foi reiniciada com
 sucesso; `/login` respondeu HTTP 200 com `Endemias v1.50.0`.
 
+No codigo `1.50.1`, a fonte antes denominada `Zoomed` foi renomeada para
+`SESA`; a outra fonte e `Município`. Zoomed e a plataforma de pedidos e baixas
+de **ambas** as fontes, entao "Pedido Zoomed" foi mantido e as baixas municipais
+podem ser marcadas e filtradas normalmente. A migracao PostgreSQL
+`0019_esporotricose_sesa_baixa_zoomed.sql` esta **pendente no banco oficial**;
+ela conserva os valores historicos de baixa e precisa ser aplicada antes de
+reiniciar com esse codigo. Nao presumir que entregas municipais antigas foram
+baixadas: conferir caso a caso antes de alterar o status. O servico oficial
+permanece na versao anterior ate a autorizacao para migrar e reiniciar.
+
 - O sistema oficial esta em `C:\endemias`, branch `master`, porta 5000.
 - PostgreSQL `endemias` e a base oficial desde 03/08/2026, executada pela
   tarefa Windows sob `SYSTEM`. O marcador

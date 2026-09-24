@@ -26,18 +26,32 @@ class EstoqueAutomaticoTests(unittest.TestCase):
                 db_path, {"tipo": "Entrada", "quantidade": 50, "fonte_medicacao": "Município"},
             )
             self.assertEqual(esporotricose_core.estoque_medicacao(db_path)["totais"]["saldos_por_fonte"],
-                             {"Zoomed": 80, "Município": 50})
+                             {"SESA": 80, "Município": 50})
             esporotricose_core.atualizar_entrega_doente(db_path, antiga, {
                 "quantidade": 20, "baixa_zoomed": "Sim", "fonte_medicacao": "Município",
             })
             estoque = esporotricose_core.estoque_medicacao(db_path)
-            self.assertEqual(estoque["totais"]["saldos_por_fonte"], {"Zoomed": 100, "Município": 30})
+            self.assertEqual(estoque["totais"]["saldos_por_fonte"], {"SESA": 100, "Município": 30})
             self.assertEqual(estoque["totais"]["saldo_setor"], 130)
-            self.assertEqual(esporotricose_core.listar_doentes(db_path)["totais"]["capsulas_baixa_zoomed"], 0)
+            self.assertEqual(esporotricose_core.listar_doentes(db_path)["totais"]["capsulas_baixa_zoomed"], 20)
             entrega = esporotricose_core.obter_doente(db_path, animal)["receitas"][0]["entregas"][0]
-            self.assertEqual(entrega["baixa_zoomed"], "Não")
+            self.assertEqual(entrega["baixa_zoomed"], "Sim")
+            self.assertEqual(entrega["fonte_medicacao"], "Município")
             self.assertEqual(entrega["observacoes"], "Entrega conferida")
             self.assertEqual(esporotricose_core.listar_doentes(db_path)["registros"][0]["entregas_zoomed_pendentes"], 0)
+
+            pendente = esporotricose_core.salvar_entrega_doente(db_path, receita, {
+                "quantidade": 5, "fonte_medicacao": "Município", "baixa_zoomed": "Não",
+            })
+            self.assertEqual(esporotricose_core.listar_doentes(db_path)["registros"][0]["entregas_zoomed_pendentes"], 1)
+            self.assertEqual(len(esporotricose_core.listar_doentes(db_path, {"baixa_zoomed": "Pendente"})["registros"]), 1)
+            self.assertEqual(len(esporotricose_core.listar_doentes_csv(db_path, {"baixa_zoomed": "Pendente"})), 1)
+            esporotricose_core.atualizar_entrega_doente(db_path, pendente, {
+                "quantidade": 5, "fonte_medicacao": "Município", "baixa_zoomed": "Sim",
+            })
+            self.assertEqual(esporotricose_core.listar_doentes(db_path)["totais"]["capsulas_baixa_zoomed"], 25)
+            self.assertEqual(esporotricose_core.listar_doentes(db_path, {"baixa_zoomed": "Pendente"})["registros"], [])
+            self.assertEqual(esporotricose_core.listar_doentes_csv(db_path, {"baixa_zoomed": "Pendente"}), [])
 
     def test_edicao_do_movimento_reclassifica_saldo_sem_alterar_total(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -50,7 +64,23 @@ class EstoqueAutomaticoTests(unittest.TestCase):
                           "fonte_medicacao": "Município"},
             )
             self.assertEqual(esporotricose_core.estoque_medicacao(db_path)["totais"]["saldos_por_fonte"],
-                             {"Zoomed": 0, "Município": 40})
+                             {"SESA": 0, "Município": 40})
+
+    def test_nome_legado_zoomed_e_convertido_em_sesa(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "estoque.db")
+            movimento = esporotricose_core.salvar_estoque_medicacao(
+                db_path, {"tipo": "Entrada", "quantidade": 10, "fonte_medicacao": "Zoomed"},
+            )
+            conn = db_core.connect(db_path)
+            try:
+                conn.execute("UPDATE esporotricose_estoque_medicacao SET fonte_medicacao='Zoomed' WHERE id_movimento=?", (movimento,))
+                conn.commit()
+            finally:
+                conn.close()
+            estoque = esporotricose_core.estoque_medicacao(db_path)
+            self.assertEqual(estoque["movimentos"][0]["fonte_medicacao"], "SESA")
+            self.assertEqual(estoque["totais"]["entradas_sesa"], 10)
 
     def test_rejeita_fonte_desconhecida(self):
         with tempfile.TemporaryDirectory() as tmpdir:

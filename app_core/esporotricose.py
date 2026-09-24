@@ -186,13 +186,15 @@ ESTOQUE_MEDICACAO_TIPOS = (
     "Sobra",
     "Ajuste",
 )
-FONTES_MEDICACAO = ("Zoomed", "Município")
+FONTES_MEDICACAO = ("SESA", "Município")
 
 
 def _fonte_medicacao(valor):
-    fonte = _text(valor) or "Zoomed"
+    fonte = _text(valor) or "SESA"
+    if fonte == "Zoomed":
+        fonte = "SESA"  # Compatibilidade com formularios abertos antes da atualizacao.
     if fonte not in FONTES_MEDICACAO:
-        raise ValidationError("Fonte da medicação inválida. Escolha Zoomed ou Município.")
+        raise ValidationError("Fonte da medicação inválida. Escolha SESA ou Município.")
     return fonte
 
 
@@ -346,7 +348,7 @@ def ensure_schema(conn):
             quantidade INTEGER NOT NULL,
             data_entrega DATE,
             baixa_zoomed TEXT NOT NULL DEFAULT 'Não',
-            fonte_medicacao TEXT NOT NULL DEFAULT 'Zoomed',
+            fonte_medicacao TEXT NOT NULL DEFAULT 'SESA',
             observacoes TEXT,
             criado_em TEXT NOT NULL
         );
@@ -385,7 +387,7 @@ def ensure_schema(conn):
             quantidade INTEGER NOT NULL,
             descricao TEXT,
             origem TEXT,
-            fonte_medicacao TEXT NOT NULL DEFAULT 'Zoomed',
+            fonte_medicacao TEXT NOT NULL DEFAULT 'SESA',
             observacoes TEXT,
             criado_em TEXT NOT NULL,
             atualizado_em TEXT NOT NULL
@@ -400,8 +402,10 @@ def ensure_schema(conn):
     _ensure_column(conn, DOENTES_RECEITAS_TABLE, "capsulas_por_dia", "REAL NOT NULL DEFAULT 1")
     _ensure_column(conn, DOENTES_RECEITAS_TABLE, "receita_pendente", "INTEGER NOT NULL DEFAULT 0")
     _ensure_column(conn, DOENTES_ENTREGAS_TABLE, "baixa_zoomed", "TEXT NOT NULL DEFAULT 'Sim'")
-    _ensure_column(conn, DOENTES_ENTREGAS_TABLE, "fonte_medicacao", "TEXT NOT NULL DEFAULT 'Zoomed'")
-    _ensure_column(conn, DOENTES_ESTOQUE_TABLE, "fonte_medicacao", "TEXT NOT NULL DEFAULT 'Zoomed'")
+    _ensure_column(conn, DOENTES_ENTREGAS_TABLE, "fonte_medicacao", "TEXT NOT NULL DEFAULT 'SESA'")
+    _ensure_column(conn, DOENTES_ESTOQUE_TABLE, "fonte_medicacao", "TEXT NOT NULL DEFAULT 'SESA'")
+    conn.execute(f"UPDATE {DOENTES_ENTREGAS_TABLE} SET fonte_medicacao='SESA' WHERE fonte_medicacao='Zoomed'")
+    conn.execute(f"UPDATE {DOENTES_ESTOQUE_TABLE} SET fonte_medicacao='SESA' WHERE fonte_medicacao='Zoomed'")
     _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_data", "DATE")
     _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_agente", "TEXT")
     _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_observacoes", "TEXT")
@@ -1492,8 +1496,7 @@ def listar_doentes(target, filtros=None):
                       FROM esporotricose_doentes_entregas e
                       JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
                      WHERE r.id_animal_doente=d.id_animal_doente
-                       AND COALESCE(e.baixa_zoomed, '') <> 'Sim'
-                       AND e.fonte_medicacao='Zoomed') AS entregas_zoomed_pendentes
+                       AND COALESCE(e.baixa_zoomed, '') <> 'Sim') AS entregas_zoomed_pendentes
               FROM esporotricose_doentes_animais d
         """
         if where:
@@ -1552,10 +1555,10 @@ def estoque_medicacao(target):
     finally:
         conn.close()
 
-    entradas_zoomed = sum(
+    entradas_sesa = sum(
         abs(int(item.get("quantidade") or 0))
         for item in movimentos
-        if _normalizar_tipo_estoque(item.get("tipo")) == "Entrada" and item["fonte_medicacao"] == "Zoomed"
+        if _normalizar_tipo_estoque(item.get("tipo")) == "Entrada" and item["fonte_medicacao"] == "SESA"
     )
     entradas_municipio = sum(
         abs(int(item.get("quantidade") or 0)) for item in movimentos
@@ -1579,8 +1582,8 @@ def estoque_medicacao(target):
     capsulas_entregues = sum(int(item.get("capsulas_entregues") or 0) for item in doentes)
     saidas_entregas = capsulas_entregues
     saidas = saidas_manuais + saidas_entregas
-    entradas = entradas_zoomed + entradas_municipio + sobras_lancadas + max(ajustes_estoque, 0)
-    saldo_historico_com_entregas = entradas_zoomed + entradas_municipio + sobras_lancadas + ajustes_estoque - saidas
+    entradas = entradas_sesa + entradas_municipio + sobras_lancadas + max(ajustes_estoque, 0)
+    saldo_historico_com_entregas = entradas_sesa + entradas_municipio + sobras_lancadas + ajustes_estoque - saidas
     saldo_setor = saldo_historico_com_entregas
     saldos_por_fonte = {}
     for fonte in FONTES_MEDICACAO:
@@ -1611,7 +1614,8 @@ def estoque_medicacao(target):
             "faltantes_tratamento": necessidade_tratamento,
             "saldo_setor": saldo_setor,
             "entradas_setor": entradas,
-            "entradas_zoomed": entradas_zoomed,
+            "entradas_sesa": entradas_sesa,
+            "entradas_zoomed": entradas_sesa,  # Chave antiga mantida para consumidores existentes.
             "entradas_municipio": entradas_municipio,
             "saldos_por_fonte": saldos_por_fonte,
             "sobras_retornadas": sobras_lancadas,
@@ -1634,7 +1638,7 @@ def estoque_medicacao(target):
 
 def _totais_doentes(conn):
     row = conn.execute(
-        f"""SELECT COALESCE(SUM(CASE WHEN fonte_medicacao='Zoomed' AND COALESCE(baixa_zoomed, '') = 'Sim' THEN quantidade ELSE 0 END), 0) AS capsulas_baixa_zoomed
+        f"""SELECT COALESCE(SUM(CASE WHEN COALESCE(baixa_zoomed, '') = 'Sim' THEN quantidade ELSE 0 END), 0) AS capsulas_baixa_zoomed
               FROM {DOENTES_ENTREGAS_TABLE}"""
     ).fetchone()
     return {"capsulas_baixa_zoomed": int(row["capsulas_baixa_zoomed"] or 0)}
@@ -1839,8 +1843,7 @@ def listar_doentes_csv(target, filtros=None):
                          FROM esporotricose_doentes_entregas e
                          JOIN esporotricose_doentes_receitas re ON re.id_receita=e.id_receita
                         WHERE re.id_animal_doente=d.id_animal_doente
-                          AND e.baixa_zoomed='Não'
-                          AND e.fonte_medicacao='Zoomed'
+                          AND COALESCE(e.baixa_zoomed, '') <> 'Sim'
                    ) AS entregas_zoomed_pendentes,
                    (
                        SELECT COUNT(*)
@@ -2112,7 +2115,7 @@ def salvar_entrega_doente(target, id_receita, dados):
         if not quantidade or quantidade <= 0:
             raise ValidationError("Informe a quantidade de cápsulas.")
         fonte_medicacao = _fonte_medicacao(dados.get("fonte_medicacao"))
-        baixa_zoomed = (_normalizar_sim_nao(dados.get("baixa_zoomed")) or "Não") if fonte_medicacao == "Zoomed" else "Não"
+        baixa_zoomed = _normalizar_sim_nao(dados.get("baixa_zoomed")) or "Não"
         agora = datetime.now().isoformat(timespec="seconds")
         id_entrega = db_core.insert_and_get_id(
             conn,
@@ -2149,7 +2152,7 @@ def atualizar_entrega_doente(target, id_entrega, dados):
         if not quantidade or quantidade <= 0:
             raise ValidationError("Informe a quantidade de cápsulas.")
         fonte_medicacao = _fonte_medicacao(dados.get("fonte_medicacao"))
-        baixa_zoomed = (_normalizar_sim_nao(dados.get("baixa_zoomed")) or "Não") if fonte_medicacao == "Zoomed" else "Não"
+        baixa_zoomed = _normalizar_sim_nao(dados.get("baixa_zoomed")) or "Não"
         conn.execute(
             """UPDATE esporotricose_doentes_entregas
                   SET quantidade=?, data_entrega=?, baixa_zoomed=?, fonte_medicacao=?, observacoes=?
