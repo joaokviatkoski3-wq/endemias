@@ -25,6 +25,14 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+O codigo `1.51.0` acrescenta ACS acompanhante as visitas de Esporotricose,
+com multiplos codigos, nomes via catalogo Kobo, exibicao no historico do
+imovel/detalhe animal e filtro nas visitas. A migracao PostgreSQL
+`0020_esporotricose_visitas_acs.sql` esta **pendente** e requer autorizacao
+explicita antes da aplicacao e reinicio do servico. Ate la, a producao segue
+em `1.50.1`; nao importar novas visitas de Esporotricose. Registros antigos
+nao recebem ACS retroativamente por uma sincronizacao Kobo normal.
+
 A versao `1.50.0` introduz `fonte_medicacao` (`Zoomed` ou `Município`) nas
 entregas dos animais com esporotricose e nos movimentos de estoque. A migração
 PostgreSQL `0018_esporotricose_fontes_medicacao.sql` foi aplicada no banco

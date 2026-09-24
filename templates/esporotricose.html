@@ -210,12 +210,13 @@
       <div class="f-g"><label>Data final</label><input type="date" id="vis-d-fim" value="{{ d_fim }}"></div>
       <div class="f-g"><label>Localidade</label><select id="vis-localidade"><option value="">Todas</option>{% for loc in localidades %}<option value="{{ loc.nome }}">{{ loc.nome }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Agente</label><select id="vis-agente"><option value="">Todos</option>{% for agente in agentes %}<option value="{{ agente.nome }}">{{ agente.nome }}</option>{% endfor %}</select></div>
+      <div class="f-g"><label>ACS acompanhante</label><select id="vis-acs" multiple data-multi-picker data-placeholder="Todos os ACS" data-search-placeholder="Buscar ACS">{% for item in acs %}<option value="{{ item.codigo }}">{{ item.nome }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Situação</label><select id="vis-visita"><option value="">Todas</option><option value="Normal">Normal</option><option value="Fechado">Fechado</option><option value="Recusa">Recusa</option><option value="Recuperado">Recuperado</option></select></div>
       <div class="esporo-filter-actions"><button class="btn btn-primary" type="button" onclick="carregarEspVisitas()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button></div>
     </div>
     <div class="table-scroll">
       <table id="esp-visitas-table" data-sortable-table>
-        <thead><tr><th data-sort-type="date">Data</th><th data-sort-type="text">Hora</th><th data-sort-type="text">Agentes</th><th data-sort-type="text">Localidade</th><th data-sort-type="text">Q.</th><th data-sort-type="text">Tipo</th><th data-sort-type="text">Endereço</th><th data-sort-type="text">Morador</th><th data-sort-type="text">Telefone</th><th data-sort-type="text">Visita</th><th data-sort-type="number">Animais</th><th data-sort-type="text">Cad. Animal</th><th>Ações</th></tr></thead>
+        <thead><tr><th data-sort-type="date">Data</th><th data-sort-type="text">Hora</th><th data-sort-type="text">Agentes</th><th data-sort-type="text">Localidade</th><th data-sort-type="text">Q.</th><th data-sort-type="text">Tipo</th><th data-sort-type="text">Endereço</th><th data-sort-type="text">Morador</th><th data-sort-type="text">Telefone</th><th data-sort-type="text">Visita</th><th data-sort-type="number">Animais</th><th data-sort-type="text">Cad. Animal</th><th data-sort-type="text">ACS acompanhante</th><th>Ações</th></tr></thead>
         <tbody id="esp-visitas-body"></tbody>
       </table>
     </div>
@@ -725,6 +726,7 @@ function espParams(prefix) {
   if (busca) p.set('busca', busca);
   if (especie) p.set('especie', especie);
   if (motivo) p.set('motivo_atencao', motivo);
+  if (prefix === 'vis') selectedOptions(document.getElementById('vis-acs')).forEach(opt => p.append('acs', opt.value));
   return p;
 }
 function espAnimalParams() {
@@ -832,7 +834,7 @@ async function carregarEspAnimais() {
 }
 async function carregarEspVisitas() {
   try {
-    document.getElementById('esp-visitas-body').innerHTML = '<tr><td colspan="13"><div class="loading-box"><div class="spinner"></div></div></td></tr>';
+    document.getElementById('esp-visitas-body').innerHTML = '<tr><td colspan="14"><div class="loading-box"><div class="spinner"></div></div></td></tr>';
     const d = await apiGet('/api/esporotricose/visitas?' + espParams('vis').toString());
     espVisitasCarregadas = true;
     renderEspVisitas(d.registros || [], d.total || 0);
@@ -905,7 +907,7 @@ async function abrirEspImovel(idImovel) {
     document.getElementById('esp-imovel-detalhe').innerHTML = `
       <div><strong>${escapeHtml(i.localidade || '-')} · Q. ${escapeHtml(i.quarteirao || '-')}</strong><div class="muted">${escapeHtml([referencia.logradouro, referencia.numero].filter(Boolean).join(', ') || 'Endereço original não disponível')}</div></div>
       <div><strong>${fmtNum(visitas.length)} visita(s)</strong></div>
-      <div><strong>Visitas</strong>${visitas.length ? visitas.map(v => `<div class="esporo-imovel-visita"><div class="esporo-imovel-visita-head"><strong>${escapeHtml(fmtDate(v.data) || '-')} ${v.hora_inicio ? '· ' + escapeHtml(v.hora_inicio) : ''}</strong><span class="esporo-tag">${escapeHtml(v.visita || 'Situação não informada')}</span></div><div class="esporo-imovel-visita-detalhes"><div><strong>Equipe:</strong> ${escapeHtml(v.agentes || v.agentes_texto || 'Não informada')}</div><div><strong>Tipo do imóvel:</strong> ${escapeHtml(v.tipo_imovel || 'Não informado')}</div><div><strong>Morador:</strong> ${escapeHtml(v.morador || 'Não informado')}${v.telefone ? ' · ' + escapeHtml(v.telefone) : ''}</div><div><strong>Animais nesta visita:</strong> ${fmtNum(v.total_animais)}</div>${v.observacoes ? `<div><strong>Observações:</strong> ${escapeHtml(v.observacoes)}</div>` : ''}</div></div>`).join('') : '<div class="muted">Nenhuma visita.</div>'}</div>
+      <div><strong>Visitas</strong>${visitas.length ? visitas.map(v => `<div class="esporo-imovel-visita"><div class="esporo-imovel-visita-head"><strong>${escapeHtml(fmtDate(v.data) || '-')} ${v.hora_inicio ? '· ' + escapeHtml(v.hora_inicio) : ''}</strong><span class="esporo-tag">${escapeHtml(v.visita || 'Situação não informada')}</span></div><div class="esporo-imovel-visita-detalhes"><div><strong>Equipe:</strong> ${escapeHtml(v.agentes || v.agentes_texto || 'Não informada')}</div><div><strong>ACS acompanhante:</strong> ${escapeHtml(v.acs || (v.acs_presente === 0 ? 'Não' : '-'))}</div><div><strong>Tipo do imóvel:</strong> ${escapeHtml(v.tipo_imovel || 'Não informado')}</div><div><strong>Morador:</strong> ${escapeHtml(v.morador || 'Não informado')}${v.telefone ? ' · ' + escapeHtml(v.telefone) : ''}</div><div><strong>Animais nesta visita:</strong> ${fmtNum(v.total_animais)}</div>${v.observacoes ? `<div><strong>Observações:</strong> ${escapeHtml(v.observacoes)}</div>` : ''}</div></div>`).join('') : '<div class="muted">Nenhuma visita.</div>'}</div>
       <div><strong>Tutores registrados</strong>${tutores.length ? tutores.map(t => `<div class="muted">${escapeHtml(t.morador || '-')} ${t.telefone ? '· ' + escapeHtml(t.telefone) : ''}</div>`).join('') : '<div class="muted">Não informado.</div>'}</div>
       <div><strong>Animais registrados</strong>${animais.length ? animais.map(a => `<div class="muted">${escapeHtml(a.nome || 'Sem nome')} · ${escapeHtml(a.especie || '-')} · ${escapeHtml(fmtDate(a.data) || '-')}</div>`).join('') : '<div class="muted">Nenhum animal registrado.</div>'}</div>`;
   } catch (e) { toast(e.message, 'error'); }
@@ -1813,9 +1815,10 @@ function renderEspVisitas(rows, total) {
       <td data-sort-value="${escapeHtml(r.visita || '')}">${escapeHtml(r.visita || '-')}</td>
       <td data-sort-value="${Number(r.animais || 0)}"><strong>${fmtNum(r.animais)}</strong></td>
       <td data-sort-value="${escapeHtml(r.deseja_cadastrar_animal || '')}">${escapeHtml(r.deseja_cadastrar_animal || '-')}</td>
+      <td data-sort-value="${escapeHtml(r.acs || '')}">${escapeHtml(r.acs || (r.acs_presente === 0 ? 'Não' : r.acs_presente === 1 ? 'Sim (nome não informado)' : '-'))}</td>
       <td><button class="btn btn-ghost btn-sm" type="button" onclick="editarVisita('${escapeHtml(r.id_visita)}')"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button></td>
     </tr>
-  `).join('') : '<tr><td colspan="13" class="empty-inline">Nenhuma visita encontrada.</td></tr>';
+  `).join('') : '<tr><td colspan="14" class="empty-inline">Nenhuma visita encontrada.</td></tr>';
   document.getElementById('esp-visitas-info').textContent = `${fmtNum(total)} visita(s) · ${fmtNum(rows.length)} exibida(s)`;
   refreshSortableTable('esp-visitas-table');
 }
@@ -1884,6 +1887,7 @@ function renderEspAnimalDetalhe(r) {
       ${detalheItem('Data da visita', fmtDate(r.data))}
       ${detalheItem('Horario', [r.hora_inicio, r.hora_fim].filter(Boolean).join(' - '))}
       ${detalheItem('Agente(s)', r.agentes_texto)}
+      ${detalheItem('ACS acompanhante', r.acs || (r.acs_presente === 0 ? 'Não' : r.acs_presente === 1 ? 'Sim (nome não informado)' : '-'))}
       ${detalheItem('Localidade', r.localidade)}
       ${detalheItem('Quarteirao', r.quarteirao)}
       ${detalheItem('Tipo de imovel', r.tipo_imovel)}
@@ -2066,7 +2070,7 @@ function editarVisita(id) {
   cells[8].innerHTML = `<input value="${escapeHtml(original.telefone === '-' ? '' : original.telefone)}" style="width:100px">`;
   cells[9].innerHTML = `<select style="width:90px"><option value="Normal" ${original.visita === 'Normal' ? 'selected' : ''}>Normal</option><option value="Fechado" ${original.visita === 'Fechado' ? 'selected' : ''}>Fechado</option><option value="Recusa" ${original.visita === 'Recusa' ? 'selected' : ''}>Recusa</option><option value="Recuperado" ${original.visita === 'Recuperado' ? 'selected' : ''}>Recuperado</option></select>`;
   cells[11].innerHTML = `<input value="${escapeHtml(original.deseja_cadastrar_animal === '-' ? '' : original.deseja_cadastrar_animal)}" style="width:80px">`;
-  cells[12].innerHTML = `<button class="btn btn-primary btn-sm" type="button" onclick="salvarVisita('${id}')"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"></button> <button class="btn btn-ghost btn-sm" type="button" onclick="cancelarVisita('${id}')">Cancelar</button>`;
+  cells[13].innerHTML = `<button class="btn btn-primary btn-sm" type="button" onclick="salvarVisita('${id}')"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"></button> <button class="btn btn-ghost btn-sm" type="button" onclick="cancelarVisita('${id}')">Cancelar</button>`;
 }
 
 function cancelarVisita(id) {
@@ -2085,7 +2089,7 @@ function cancelarVisita(id) {
   cells[8].textContent = original.telefone;
   cells[9].textContent = original.visita;
   cells[11].textContent = original.deseja_cadastrar_animal;
-  cells[12].innerHTML = `<button class="btn btn-ghost btn-sm" type="button" onclick="editarVisita('${id}')"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button>`;
+  cells[13].innerHTML = `<button class="btn btn-ghost btn-sm" type="button" onclick="editarVisita('${id}')"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button>`;
   delete tr.dataset.original;
 }
 

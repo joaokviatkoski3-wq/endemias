@@ -70,6 +70,26 @@ def _atualizar_catalogo_acs_pve(cfg, asset_uid):
         return None
 
 
+def _atualizar_catalogo_acs_esporotricose(cfg, asset_uid):
+    """Atualiza rótulos dos ACS da Esporotricose sem bloquear a importação."""
+    try:
+        itens = kobo_api.obter_catalogo_acs_formulario(cfg, asset_uid, "Esporotricose")
+        resumo = visitas_core.sincronizar_catalogo_acs(_db_path(), itens)
+        audit.registrar_evento(
+            get_db,
+            "acs_catalogo_atualizado_importacao_esporotricose",
+            entidade="acs_catalogo",
+            detalhes=resumo,
+        )
+        return resumo
+    except (kobo_api.KoboError, visitas_core.VisitaInvalida):
+        logging.warning(
+            "Não foi possível atualizar o catálogo de ACS durante a importação de Esporotricose.",
+            exc_info=True,
+        )
+        return None
+
+
 def _upload_temp():
     return current_app.config["UPLOAD_TEMP"]
 
@@ -613,6 +633,8 @@ def kobo_importar_formulario_iniciar():
     catalogo_acs = None
     if tipo == "PVE":
         catalogo_acs = _atualizar_catalogo_acs_pve(cfg, asset_uid)
+    elif tipo == "ESPOROTRICOSE":
+        catalogo_acs = _atualizar_catalogo_acs_esporotricose(cfg, asset_uid)
 
     existentes = _kobo_existing_uuids(tipo, records)
     records = [

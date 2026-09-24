@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual no codigo e no servico oficial: `1.50.1`, definida em `app_core/version.py`.
+- Versao atual no codigo: `1.51.0`, definida em `app_core/version.py`; o servico oficial ainda executa `1.50.1` ate a migracao 0020 e o reinicio autorizados.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -21,6 +21,17 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - `iniciar.bat` recusa o modo SQLite quando o marcador operacional PostgreSQL
   esta instalado.
 - Credenciais, bancos, anexos, backups e tokens nao podem ser versionados.
+
+Na versao `1.51.0`, a importacao Kobo de Esporotricose recebe `acs_presente`
+e `acs_nome` (selecao multipla), guarda os codigos em
+`esporotricose_visita_acs` e mostra os nomes do catalogo ACS nas visitas,
+historico do imovel e detalhe do animal. A lista de visitas filtra por ACS.
+O catalogo do formulario e atualizado na importacao como melhor esforco.
+A migracao PostgreSQL `0020_esporotricose_visitas_acs.sql` esta **pendente**;
+nao importar novas visitas de Esporotricose no banco oficial antes de aplica-la.
+Visitas ja importadas nao sao retroalimentadas automaticamente pelo Kobo;
+reimportar o arquivo com os novos campos se necessario. Nao aplicar a
+migracao nem reiniciar o servico sem autorizacao explicita do usuario.
 
 Na versao `1.50.0`, a origem do itraconazol nas entregas e no estoque de
 esporotricose e registrada em `fonte_medicacao` (`Zoomed`/`Município`). A

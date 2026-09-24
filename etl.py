@@ -12,6 +12,7 @@ from datetime import date, datetime, time
 from openpyxl.utils import column_index_from_string
 
 from app_core import esporotricose as esporotricose_core
+from app_core import acs as acs_core
 from app_core import focos_positivos as focos_core
 from app_core import amostras_animais as amostras_animais_core
 from app_core import agentes as agentes_core
@@ -118,45 +119,16 @@ def val_bool(val):
 
 
 def normalizar_acs_presente(valor):
-    codigo = val_str(valor)
-    if not codigo:
-        return None
-    codigo = codigo.casefold()
-    if codigo in ("sim_acs_presente", "sim", "yes", "1", "true", "s"):
-        return 1
-    if codigo in ("nao_acs_presente", "não_acs_presente", "não", "nao", "no", "0", "false", "n"):
-        return 0
-    return None
+    return acs_core.normalizar_acs_presente(valor)
 
 
 def extrair_codigos_acs(valor):
-    """Retorna os codigos unicos de uma resposta Kobo ``select_multiple``.
-
-    O Kobo representa uma selecao multipla como os nomes tecnicos separados
-    por espacos. Os codigos da lista de ACS devem, portanto, ser estaveis e
-    nao conter espacos (por exemplo, ``maria_da_silva``). Aceitar listas aqui
-    tambem torna a rotina compativel com respostas da API ja desserializadas.
-    """
-    if valor is None:
-        return []
-    valores = valor if isinstance(valor, (list, tuple, set)) else re.split(
-        r"[\s,;]+", val_str(valor) or ""
-    )
-    codigos = []
-    vistos = set()
-    for item in valores:
-        codigo = val_str(item)
-        if codigo and codigo not in vistos:
-            vistos.add(codigo)
-            codigos.append(codigo)
-    return codigos
+    return acs_core.extrair_codigos_acs(valor)
 
 
 def dados_acs_pve(acs_presente_valor, acs_nome_valor):
     """Normaliza a resposta ACS da PVE para as duas estruturas locais."""
-    acs_presente = normalizar_acs_presente(acs_presente_valor)
-    acs_codigos = extrair_codigos_acs(acs_nome_valor) if acs_presente == 1 else []
-    return acs_presente, " ".join(acs_codigos) if acs_codigos else None, acs_codigos
+    return acs_core.dados_acs(acs_presente_valor, acs_nome_valor)
 
 
 def valor_campo_kobo(row, nome):

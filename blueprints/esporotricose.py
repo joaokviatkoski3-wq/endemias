@@ -103,6 +103,7 @@ def page():
         d_fim=request.args.get("d_fim", utils_core.hoje()),
         localidades=_localidades(),
         agentes=_agentes(),
+        acs=esporotricose_core.opcoes_acs_visitas(bh.db_target()),
         is_admin=usuario.get("nivel") == "admin",
     )
 
@@ -448,6 +449,7 @@ def api_visitas():
         "visita": request.args.get("visita", ""),
         "agente": request.args.get("agente", ""),
         "busca": request.args.get("busca", ""),
+        "acs": request.args.getlist("acs"),
     }
     return jsonify(esporotricose_core.listar_visitas(bh.db_target(), filtros))
 

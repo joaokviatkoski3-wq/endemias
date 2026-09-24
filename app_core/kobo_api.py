@@ -203,10 +203,10 @@ def _choice_label(value):
     return ""
 
 
-def catalogo_acs_pve_do_conteudo(content):
-    """Lê código e nome dos ACS diretamente da definição do XLSForm PVE."""
+def catalogo_acs_do_conteudo(content, formulario="PVE"):
+    """Lê código e nome dos ACS da definição do XLSForm informado."""
     if not isinstance(content, dict):
-        raise KoboError("A definição do formulário PVE não é válida.")
+        raise KoboError(f"A definição do formulário {formulario} não é válida.")
     survey = content.get("survey") or []
     choices = content.get("choices") or []
     pergunta = next(
@@ -222,7 +222,7 @@ def catalogo_acs_pve_do_conteudo(content):
     )
     if not pergunta:
         raise KoboError(
-            "Não foi encontrada a pergunta de seleção de ACS no formulário PVE."
+            f"Não foi encontrada a pergunta de seleção de ACS no formulário {formulario}."
         )
     lista = str(
         pergunta.get("select_from_list_name")
@@ -231,7 +231,7 @@ def catalogo_acs_pve_do_conteudo(content):
     ).strip()
     if not lista:
         raise KoboError(
-            "A pergunta de ACS do formulário PVE não informa sua lista de opções."
+            f"A pergunta de ACS do formulário {formulario} não informa sua lista de opções."
         )
 
     catalogo = {}
@@ -246,19 +246,27 @@ def catalogo_acs_pve_do_conteudo(content):
             catalogo[codigo.casefold()] = {"codigo": codigo, "nome": nome}
     if not catalogo:
         raise KoboError(
-            "A lista de ACS do formulário PVE não possui códigos e nomes válidos."
+            f"A lista de ACS do formulário {formulario} não possui códigos e nomes válidos."
         )
     return sorted(catalogo.values(), key=lambda item: item["nome"].casefold())
 
 
-def obter_catalogo_acs_pve(cfg, asset_uid):
+def catalogo_acs_pve_do_conteudo(content):
+    return catalogo_acs_do_conteudo(content, "PVE")
+
+
+def obter_catalogo_acs_formulario(cfg, asset_uid, formulario):
     asset_uid = (asset_uid or "").strip()
     if not asset_uid:
-        raise KoboError("UID do formulário PVE não configurado.")
+        raise KoboError(f"UID do formulário {formulario} não configurado.")
     asset = _get_json(cfg, f"/api/v2/assets/{asset_uid}/")
     if not isinstance(asset, dict):
-        raise KoboError("O Kobo não retornou a definição do formulário PVE.")
-    return catalogo_acs_pve_do_conteudo(asset.get("content"))
+        raise KoboError(f"O Kobo não retornou a definição do formulário {formulario}.")
+    return catalogo_acs_do_conteudo(asset.get("content"), formulario)
+
+
+def obter_catalogo_acs_pve(cfg, asset_uid):
+    return obter_catalogo_acs_formulario(cfg, asset_uid, "PVE")
 
 
 def fetch_submissions(cfg, asset_uid, limit=100, start=None, end=None):

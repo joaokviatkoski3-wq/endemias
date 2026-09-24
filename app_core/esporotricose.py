@@ -8,14 +8,17 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 from app_core import agentes as agentes_db
+from app_core import acs as acs_core
 from app_core import db as db_core
 from app_core import normalizadores
+from app_core import visitas as visitas_core
 
 
 VISITAS_TABLE = "esporotricose_visitas"
 ANIMAIS_TABLE = "esporotricose_animais"
 BUSCAS_FERIDO_TABLE = "esporotricose_buscas_ferido"
 VISITA_AGENTES_TABLE = "esporotricose_visita_agentes"
+VISITA_ACS_TABLE = "esporotricose_visita_acs"
 DOENTES_TABLE = "esporotricose_doentes_animais"
 DOENTES_RECEITAS_TABLE = "esporotricose_doentes_receitas"
 DOENTES_ENTREGAS_TABLE = "esporotricose_doentes_entregas"
@@ -224,6 +227,8 @@ def ensure_schema(conn):
             telefone        TEXT,
             observacoes     TEXT,
             deseja_cadastrar_animal TEXT,
+            acs_presente    INTEGER CHECK(acs_presente IN (0,1)),
+            acs_nome        TEXT,
             origem_estrutura TEXT NOT NULL DEFAULT 'nova',
             arquivo_origem  TEXT,
             submission_time TEXT,
@@ -279,6 +284,13 @@ def ensure_schema(conn):
             criado_em TEXT NOT NULL,
             atualizado_em TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS esporotricose_visita_acs (
+            id_visita TEXT NOT NULL REFERENCES esporotricose_visitas(id_visita) ON DELETE CASCADE,
+            acs_codigo TEXT NOT NULL,
+            PRIMARY KEY (id_visita, acs_codigo)
+        );
+        CREATE INDEX IF NOT EXISTS idx_esporo_visita_acs_codigo ON esporotricose_visita_acs(acs_codigo);
 
         CREATE TABLE IF NOT EXISTS esporotricose_visita_imoveis (
             id_visita TEXT PRIMARY KEY REFERENCES esporotricose_visitas(id_visita) ON DELETE CASCADE,
@@ -404,6 +416,8 @@ def ensure_schema(conn):
     _ensure_column(conn, DOENTES_ENTREGAS_TABLE, "baixa_zoomed", "TEXT NOT NULL DEFAULT 'Sim'")
     _ensure_column(conn, DOENTES_ENTREGAS_TABLE, "fonte_medicacao", "TEXT NOT NULL DEFAULT 'SESA'")
     _ensure_column(conn, DOENTES_ESTOQUE_TABLE, "fonte_medicacao", "TEXT NOT NULL DEFAULT 'SESA'")
+    _ensure_column(conn, VISITAS_TABLE, "acs_presente", "INTEGER CHECK(acs_presente IN (0,1))")
+    _ensure_column(conn, VISITAS_TABLE, "acs_nome", "TEXT")
     conn.execute(f"UPDATE {DOENTES_ENTREGAS_TABLE} SET fonte_medicacao='SESA' WHERE fonte_medicacao='Zoomed'")
     conn.execute(f"UPDATE {DOENTES_ESTOQUE_TABLE} SET fonte_medicacao='SESA' WHERE fonte_medicacao='Zoomed'")
     _ensure_column(conn, ANIMAIS_TABLE, "busca_ferido_data", "DATE")
@@ -781,6 +795,7 @@ def processar_arquivo(path, conn, logger, agora_iso, dry_run=False,
         else:
             duplicadas += 1
         vinculos += _inserir_agentes(conn, visita["id_visita"], visita.get("agentes_texto"))
+        _sincronizar_acs_visita(conn, visita)
 
     for animal in animais:
         animal["arquivo_origem"] = _basename(path)
@@ -821,6 +836,10 @@ def parse_workbook(path, estrutura=None):
         if not data:
             continue
         id_visita = _hash("esporotricose:visita", uuid)
+        acs_presente, acs_nome, acs_codigos = acs_core.dados_acs(
+            _row_get(row, ["acs_presente"]),
+            _row_get(row, ["acs_nome", "Qual_quais_ACS"]),
+        )
         visita = {
             "id_visita": id_visita,
             "kobo_uuid": uuid,
@@ -841,6 +860,9 @@ def parse_workbook(path, estrutura=None):
             "telefone": _text(_row_get(row, ["Dados do morador/Telefone", "Telefone"])),
             "observacoes": _text(_row_get(row, ["Dados do morador/Observações", "Observacoes", "Observa_es"])),
             "deseja_cadastrar_animal": _choice(_row_get(row, ["Deseja cadastrar um animal?", "Deseja_cadastrar_um_animal"])),
+            "acs_presente": acs_presente,
+            "acs_nome": acs_nome,
+            "acs_codigos": acs_codigos,
             "submission_time": _datetime(row.get("_submission_time")),
         }
         visitas.append(visita)
@@ -964,6 +986,43 @@ def resumo(target, filtros=None):
     }
 
 
+def _anexar_acs_visitas(conn, registros):
+    if not registros:
+        return
+    ids = sorted({item["id_visita"] for item in registros})
+    placeholders = ",".join("?" for _ in ids)
+    codigos_por_visita = {id_visita: [] for id_visita in ids}
+    for row in conn.execute(
+        f"""SELECT id_visita, acs_codigo FROM {VISITA_ACS_TABLE}
+             WHERE id_visita IN ({placeholders}) ORDER BY acs_codigo""",
+        ids,
+    ).fetchall():
+        codigos_por_visita[row[0]].append(row[1])
+    catalogo = visitas_core.catalogo_acs(conn)
+    for registro in registros:
+        codigos = codigos_por_visita[registro["id_visita"]]
+        registro["acs_codigos"] = ", ".join(codigos)
+        registro["acs"] = visitas_core.formatar_acs_codigos(
+            registro["acs_codigos"], catalogo
+        )
+
+
+def opcoes_acs_visitas(target):
+    conn = db_core.connect(target)
+    try:
+        ensure_schema(conn)
+        catalogo = visitas_core.catalogo_acs(conn)
+        opcoes = [
+            {"codigo": row[0], "nome": visitas_core.formatar_acs_codigos(row[0], catalogo)}
+            for row in conn.execute(
+                f"SELECT DISTINCT acs_codigo FROM {VISITA_ACS_TABLE} ORDER BY acs_codigo"
+            ).fetchall()
+        ]
+        return sorted(opcoes, key=lambda item: item["nome"].casefold())
+    finally:
+        conn.close()
+
+
 def listar_visitas(target, filtros=None):
     filtros = filtros or {}
     conn = db_core.connect(target)
@@ -987,7 +1046,8 @@ def listar_visitas(target, filtros=None):
                     v.inicio_registro, v.fim_registro, v.agentes_texto,
                     v.localidade, v.id_localidade, v.quarteirao, v.tipo_imovel,
                     v.logradouro, v.numero, v.morador, v.telefone, v.visita,
-                    v.observacoes, v.deseja_cadastrar_animal, v.submission_time,
+                    v.observacoes, v.deseja_cadastrar_animal, v.acs_presente,
+                    v.submission_time,
                     v.processado_em,
                     (SELECT COUNT(*)
                        FROM esporotricose_animais a
@@ -1008,6 +1068,7 @@ def listar_visitas(target, filtros=None):
                 LIMIT 500""",
             params,
         )]
+        _anexar_acs_visitas(conn, registros)
     finally:
         conn.close()
     return {"total": total or 0, "registros": registros}
@@ -1180,9 +1241,10 @@ def listar_animais(target, filtros=None):
                     a.busca_ferido_data, a.busca_ferido_agente, a.busca_ferido_observacoes,
                     origem.id_animal_doente,
                     {MOTIVO_ATENCAO_SQL} AS motivo_atencao,
-                    v.data, v.localidade, v.quarteirao, v.logradouro, v.numero,
+                    v.id_visita, v.data, v.localidade, v.quarteirao, v.logradouro, v.numero,
                     v.morador, v.telefone, v.visita, v.hora_inicio, v.hora_fim,
-                    v.agentes_texto, v.tipo_imovel, v.observacoes, v.deseja_cadastrar_animal
+                    v.agentes_texto, v.tipo_imovel, v.observacoes,
+                    v.deseja_cadastrar_animal, v.acs_presente
                 FROM esporotricose_animais a
                 JOIN esporotricose_visitas v ON v.id_visita = a.id_visita
                 LEFT JOIN esporotricose_doentes_origens origem
@@ -1197,6 +1259,7 @@ def listar_animais(target, filtros=None):
                 LIMIT 500""",
             params,
         )]
+        _anexar_acs_visitas(conn, registros)
         _anexar_buscas_ferido(conn, registros)
     finally:
         conn.close()
@@ -2976,6 +3039,16 @@ def _where_visitas(filtros):
             )"""
         )
         params.extend([like] * 8)
+    acs = _valores_filtro(filtros.get("acs"))
+    if acs:
+        clauses.append(
+            f"""EXISTS (
+                SELECT 1 FROM {VISITA_ACS_TABLE} va
+                 WHERE va.id_visita=v.id_visita
+                   AND va.acs_codigo IN ({','.join('?' for _ in acs)})
+            )"""
+        )
+        params.extend(acs)
     return "WHERE " + " AND ".join(clauses), params
 
 
@@ -3368,6 +3441,7 @@ def detalhe_imovel(target, id_imovel):
                  ORDER BY v.data DESC, v.hora_inicio DESC""",
             (id_imovel,),
         )]
+        _anexar_acs_visitas(conn, visitas)
         animais = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT a.id_animal, a.nome, a.especie, a.feridas, a.evolucao_caso, v.data, v.id_visita
                   FROM {ANIMAIS_TABLE} a JOIN {VISITAS_TABLE} v ON v.id_visita=a.id_visita
@@ -3426,15 +3500,17 @@ def _inserir_visita(conn, visita, agora_iso):
             id_visita, kobo_uuid, kobo_id, data, hora_inicio, hora_fim, inicio_registro,
             fim_registro, agentes_texto, localidade, id_localidade, quarteirao, tipo_imovel,
             logradouro, numero, morador, visita, telefone, observacoes, deseja_cadastrar_animal,
+            acs_presente, acs_nome,
             origem_estrutura, arquivo_origem, submission_time, processado_em
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""),
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""),
         (
             visita["id_visita"], visita["kobo_uuid"], visita.get("kobo_id"), visita["data"],
             visita.get("hora_inicio"), visita.get("hora_fim"), visita.get("inicio_registro"),
             visita.get("fim_registro"), visita.get("agentes_texto"), visita.get("localidade"),
             id_localidade, visita.get("quarteirao"), visita.get("tipo_imovel"), visita.get("logradouro"),
             visita.get("numero"), visita.get("morador"), visita.get("visita"), visita.get("telefone"),
-            visita.get("observacoes"), visita.get("deseja_cadastrar_animal"), visita.get("origem_estrutura"),
+            visita.get("observacoes"), visita.get("deseja_cadastrar_animal"),
+            visita.get("acs_presente"), visita.get("acs_nome"), visita.get("origem_estrutura"),
             visita.get("arquivo_origem"), visita.get("submission_time"), agora_iso,
         ),
     )
@@ -3442,6 +3518,38 @@ def _inserir_visita(conn, visita, agora_iso):
     if inserida:
         _vincular_visita_exatamente(conn, visita["id_visita"])
     return inserida
+
+
+def _sincronizar_acs_visita(conn, visita):
+    """Reimportações só atualizam ACS quando a pergunta está no formulário."""
+    presente = visita.get("acs_presente")
+    if presente is None:
+        return
+    id_visita = visita["id_visita"]
+    codigos = set(visita.get("acs_codigos") or []) if presente == 1 else set()
+    acs_nome = visita.get("acs_nome") if presente == 1 else None
+    atual = conn.execute(
+        f"SELECT acs_presente, acs_nome FROM {VISITAS_TABLE} WHERE id_visita=?",
+        (id_visita,),
+    ).fetchone()
+    if not atual:
+        return
+    if (atual[0], atual[1]) != (presente, acs_nome):
+        conn.execute(
+            f"UPDATE {VISITAS_TABLE} SET acs_presente=?, acs_nome=? WHERE id_visita=?",
+            (presente, acs_nome, id_visita),
+        )
+    existentes = {
+        row[0] for row in conn.execute(
+            f"SELECT acs_codigo FROM {VISITA_ACS_TABLE} WHERE id_visita=?", (id_visita,)
+        ).fetchall()
+    }
+    if existentes != codigos:
+        conn.execute(f"DELETE FROM {VISITA_ACS_TABLE} WHERE id_visita=?", (id_visita,))
+        conn.executemany(
+            f"INSERT INTO {VISITA_ACS_TABLE}(id_visita, acs_codigo) VALUES (?,?)",
+            [(id_visita, codigo) for codigo in sorted(codigos)],
+        )
 
 
 def _inserir_agentes(conn, id_visita, agentes_texto):
