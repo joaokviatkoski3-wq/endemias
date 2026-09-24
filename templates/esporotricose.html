@@ -1017,6 +1017,7 @@ function renderEspDoentes(rows, total) {
       <td>
         <div class="esporo-doente-actions">
           <a class="btn btn-sm" href="/esporotricose/doentes/${r.id_animal_doente}">Abrir</a>
+          ${Number(r.anexos || 0) > 0 ? `<a class="btn btn-outline btn-sm" href="/esporotricose/doentes/${Number(r.id_animal_doente)}/anexos/baixar-todos" title="Baixar ${Number(r.anexos)} anexo(s) em ZIP">Baixar anexos (${Number(r.anexos)})</a>` : ''}
           <button class="btn btn-ghost btn-sm" type="button" data-id="${Number(r.id_animal_doente)}" data-nome="${escapeHtml(r.nome || '')}" data-tutor="${escapeHtml(r.tutor || '')}" onclick="apagarEspDoente(this)">Apagar</button>
         </div>
       </td>

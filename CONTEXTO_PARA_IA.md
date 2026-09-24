@@ -24,10 +24,12 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 Na versao `1.50.0`, a origem do itraconazol nas entregas e no estoque de
 esporotricose e registrada em `fonte_medicacao` (`Zoomed`/`Município`). A
-migração PostgreSQL `0018_esporotricose_fontes_medicacao.sql` e obrigatoria
-antes do reinicio; valores anteriores recebem `Zoomed` e entregas municipais
-recentes devem ser reclassificadas manualmente na pagina. O commit nao implica
-que a migracao ja tenha sido aplicada no banco oficial.
+migração PostgreSQL `0018_esporotricose_fontes_medicacao.sql` foi aplicada no
+banco oficial em 24/09/2026. Os 71 lancamentos de entrega e 17 movimentos de
+estoque anteriores ficaram como `Zoomed`; entregas municipais recentes devem
+ser reclassificadas manualmente e suas entradas de estoque registradas. O ZIP
+de todos os anexos de um animal pode ser baixado no detalhe e diretamente na
+lista de animais quando houver anexos.
 
 Antes de trabalhar, execute:
 

@@ -27,13 +27,13 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 A versao `1.50.0` introduz `fonte_medicacao` (`Zoomed` ou `Município`) nas
 entregas dos animais com esporotricose e nos movimentos de estoque. A migração
-PostgreSQL `0018_esporotricose_fontes_medicacao.sql` deve ser aplicada **antes**
-de reiniciar o sistema com esta versão. Ela classifica todo o histórico existente
-como Zoomed, sem editar entregas específicas; o usuário deverá corrigir
-manualmente as entregas recentes de origem municipal. O estoque exibe saldos
-separados por fonte e as entregas municipais não compõem a baixa Zoomed.
-Esta migração ainda não foi aplicada pelo Codex nesta mudança; não interpretar
-o commit/push como implantação concluída.
+PostgreSQL `0018_esporotricose_fontes_medicacao.sql` foi aplicada no banco
+oficial em 24/09/2026, após validar os backups. A verificação leu 71 entregas
+e 17 movimentos de estoque, todos `Zoomed`. O usuário deverá corrigir
+manualmente as entregas recentes de origem municipal e lançar as entradas da
+compra municipal. O estoque exibe saldos separados por fonte e as entregas
+municipais não compõem a baixa Zoomed. O ZIP com todos os anexos de cada
+animal está acessível no detalhe e na lista de animais que tenham anexos.
 
 - O sistema oficial esta em `C:\endemias`, branch `master`, porta 5000.
 - PostgreSQL `endemias` e a base oficial desde 03/08/2026, executada pela
