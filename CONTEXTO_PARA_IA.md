@@ -28,9 +28,12 @@ migração PostgreSQL `0018_esporotricose_fontes_medicacao.sql` foi aplicada no
 banco oficial em 24/09/2026. Os 71 lancamentos de entrega e 17 movimentos de
 estoque anteriores ficaram como `Zoomed`; entregas municipais recentes devem
 ser reclassificadas manualmente e suas entradas de estoque registradas. O ZIP
-de todos os anexos de um animal pode ser baixado no detalhe e diretamente na
-lista de animais quando houver anexos. A tarefa oficial foi reiniciada apos a
-migracao; `/login` respondeu HTTP 200 exibindo `Endemias v1.50.0`.
+de todos os anexos de um animal pode ser baixado no detalhe como alternativa.
+A tarefa oficial foi reiniciada apos a migracao; `/login` respondeu HTTP 200
+exibindo `Endemias v1.50.0`. Posteriormente, o usuario preferiu downloads
+individuais sem ZIP: no detalhe do animal, "Baixar todos separadamente" solicita
+um download por anexo; o navegador pode pedir permissao para multiplos arquivos.
+Na lista, "Anexos (N)" abre essa secao do detalhe. O ZIP continua opcional.
 
 Antes de trabalhar, execute:
 

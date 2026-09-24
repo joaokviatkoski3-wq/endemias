@@ -32,8 +32,10 @@ oficial em 24/09/2026, após validar os backups. A verificação leu 71 entregas
 e 17 movimentos de estoque, todos `Zoomed`. O usuário deverá corrigir
 manualmente as entregas recentes de origem municipal e lançar as entradas da
 compra municipal. O estoque exibe saldos separados por fonte e as entregas
-municipais não compõem a baixa Zoomed. O ZIP com todos os anexos de cada
-animal está acessível no detalhe e na lista de animais que tenham anexos.
+municipais não compõem a baixa Zoomed. Para os anexos dos animais, a ação
+principal no detalhe solicita cada arquivo separadamente, sem ZIP; o navegador
+pode pedir permissão para múltiplos downloads. O ZIP continua como alternativa.
+Na lista de animais, "Anexos (N)" abre diretamente essa seção do detalhe.
 Após a migração e o commit `2c16b4e`, a tarefa oficial foi reiniciada com
 sucesso; `/login` respondeu HTTP 200 com `Endemias v1.50.0`.
 

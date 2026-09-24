@@ -130,13 +130,15 @@
     </div>
   </div>
 
-  <div class="chart-card">
+  <div class="chart-card" id="anexos">
     <div class="chart-hd">
       <div class="chart-title">Anexos</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <a class="btn btn-outline btn-sm" id="baixar-todos-anexos-btn" href="/esporotricose/doentes/{{ animal.id_animal_doente }}/anexos/baixar-todos" download><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Baixar todos os anexos (.zip)</a>
+        <button class="btn btn-primary btn-sm" id="baixar-anexos-separados-btn" type="button" onclick="baixarAnexosSeparados()"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Baixar todos separadamente</button>
+        <a class="btn btn-outline btn-sm" id="baixar-todos-anexos-btn" href="/esporotricose/doentes/{{ animal.id_animal_doente }}/anexos/baixar-todos" download>Baixar ZIP</a>
       </div>
     </div>
+    <p class="muted" style="margin:0 0 10px;">O navegador pode pedir permissão para baixar vários arquivos deste site.</p>
     <div class="doe-dropzone" id="anexos-dropzone">
       <img src="/static/icons/importar.svg" alt="" class="icon-svg doe-dropzone-icon">
       <div class="doe-dropzone-title">Arraste os arquivos aqui ou <b>clique para selecionar</b></div>
@@ -238,12 +240,25 @@ function render(){
       </div>
     </div>
   `).join('') || '<div class="empty-inline">Nenhum anexo.</div>';
-  const btnTodos = document.getElementById('baixar-todos-anexos-btn');
-  if (btnTodos){
-    const temAnexos = (animal.anexos || []).length > 0;
-    btnTodos.style.pointerEvents = temAnexos ? '' : 'none';
-    btnTodos.style.opacity = temAnexos ? '' : '.5';
+  const temAnexos = (animal.anexos || []).length > 0;
+  document.getElementById('baixar-anexos-separados-btn').disabled = !temAnexos;
+  const btnZip = document.getElementById('baixar-todos-anexos-btn');
+  btnZip.style.pointerEvents = temAnexos ? '' : 'none';
+  btnZip.style.opacity = temAnexos ? '' : '.5';
+}
+function baixarAnexosSeparados(){
+  const anexos = animal.anexos || [];
+  if (!anexos.length) return;
+  for (const anexo of anexos){
+    const link = document.createElement('a');
+    link.href = anexo.url_download;
+    link.download = anexo.nome_original || '';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
+  toast(`${anexos.length} download(s) solicitado(s). Se o navegador perguntar, permita vários downloads para este site.`, 'info');
 }
 function ajustarBaixaZoomed(id, editando){
   const fonte = document.getElementById(`${editando ? 'ent-edit-fonte' : 'ent-fonte'}-${id}`);
