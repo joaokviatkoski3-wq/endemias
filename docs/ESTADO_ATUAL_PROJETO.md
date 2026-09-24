@@ -43,11 +43,13 @@ No codigo `1.50.1`, a fonte antes denominada `Zoomed` foi renomeada para
 `SESA`; a outra fonte e `Município`. Zoomed e a plataforma de pedidos e baixas
 de **ambas** as fontes, entao "Pedido Zoomed" foi mantido e as baixas municipais
 podem ser marcadas e filtradas normalmente. A migracao PostgreSQL
-`0019_esporotricose_sesa_baixa_zoomed.sql` esta **pendente no banco oficial**;
-ela conserva os valores historicos de baixa e precisa ser aplicada antes de
-reiniciar com esse codigo. Nao presumir que entregas municipais antigas foram
-baixadas: conferir caso a caso antes de alterar o status. O servico oficial
-permanece na versao anterior ate a autorizacao para migrar e reiniciar.
+`0019_esporotricose_sesa_baixa_zoomed.sql` foi aplicada no banco oficial em
+24/09/2026, apos validar os backups. A conferencia mostrou 71 entregas SESA,
+1 Município e 17 movimentos de estoque SESA, sem fonte legada `Zoomed`; os
+valores de baixa foram preservados (68 `Sim`, 4 `Não`). A tarefa oficial foi
+reiniciada, e `/login` respondeu HTTP 200 com `Endemias v1.50.1`. Nao presumir
+que entregas municipais antigas foram baixadas: conferir caso a caso antes
+de alterar o status.
 
 - O sistema oficial esta em `C:\endemias`, branch `master`, porta 5000.
 - PostgreSQL `endemias` e a base oficial desde 03/08/2026, executada pela

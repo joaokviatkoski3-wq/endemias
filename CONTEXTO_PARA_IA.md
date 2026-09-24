@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual no codigo: `1.50.1` nesta branch, definida em `app_core/version.py` (a ativacao oficial depende da migracao `0019` e reinicio).
+- Versao atual no codigo e no servico oficial: `1.50.1`, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -40,10 +40,13 @@ origem permanece `Município`. Zoomed continua sendo a plataforma onde se
 registram pedidos e baixas de **ambas** as origens, portanto o campo "Pedido
 Zoomed" conserva seu nome e a baixa Zoomed pode ser marcada nas entregas
 municipais. A migracao PostgreSQL `0019_esporotricose_sesa_baixa_zoomed.sql`
-esta **pendente de aplicacao no banco oficial**; deve ser aplicada antes do
-reinicio. Ela preserva os valores historicos de `baixa_zoomed`, inclusive os
-municipais. Nao marcar automaticamente como concluidas as baixas municipais
-antigas: conferir na plataforma e corrigir manualmente quando couber.
+foi aplicada no banco oficial em 24/09/2026, depois de validar os backups; o
+servico foi reiniciado e `/login` respondeu HTTP 200 com `Endemias v1.50.1`.
+A conferencia encontrou 71 entregas SESA, 1 Município e 17 movimentos de
+estoque SESA, sem origem legada `Zoomed` nessas tabelas. Os estados de
+`baixa_zoomed` foram preservados (68 `Sim`, 4 `Não`). Nao marcar
+automaticamente como concluidas as baixas municipais antigas: conferir na
+plataforma e corrigir manualmente quando couber.
 
 Antes de trabalhar, execute:
 
