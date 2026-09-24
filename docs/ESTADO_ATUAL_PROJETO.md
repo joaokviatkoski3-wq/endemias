@@ -34,6 +34,8 @@ manualmente as entregas recentes de origem municipal e lançar as entradas da
 compra municipal. O estoque exibe saldos separados por fonte e as entregas
 municipais não compõem a baixa Zoomed. O ZIP com todos os anexos de cada
 animal está acessível no detalhe e na lista de animais que tenham anexos.
+Após a migração e o commit `2c16b4e`, a tarefa oficial foi reiniciada com
+sucesso; `/login` respondeu HTTP 200 com `Endemias v1.50.0`.
 
 - O sistema oficial esta em `C:\endemias`, branch `master`, porta 5000.
 - PostgreSQL `endemias` e a base oficial desde 03/08/2026, executada pela

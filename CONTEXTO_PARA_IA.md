@@ -29,7 +29,8 @@ banco oficial em 24/09/2026. Os 71 lancamentos de entrega e 17 movimentos de
 estoque anteriores ficaram como `Zoomed`; entregas municipais recentes devem
 ser reclassificadas manualmente e suas entradas de estoque registradas. O ZIP
 de todos os anexos de um animal pode ser baixado no detalhe e diretamente na
-lista de animais quando houver anexos.
+lista de animais quando houver anexos. A tarefa oficial foi reiniciada apos a
+migracao; `/login` respondeu HTTP 200 exibindo `Endemias v1.50.0`.
 
 Antes de trabalhar, execute:
 
