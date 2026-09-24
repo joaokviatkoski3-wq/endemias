@@ -514,9 +514,10 @@
         <input type="hidden" id="est-id">
         <div class="f-g"><label>Data</label><input type="date" id="est-data"></div>
         <div class="f-g"><label>Tipo</label><select id="est-tipo"><option>Entrada</option><option>Saída</option><option>Sobra</option><option>Ajuste</option></select></div>
+        <div class="f-g"><label>Fonte do itraconazol</label><select id="est-fonte"><option>Zoomed</option><option>Município</option></select></div>
         <div class="f-g"><label>Cápsulas</label><input type="number" id="est-quantidade" step="1"></div>
         <div class="f-g wide"><label>Descrição</label><input id="est-descricao" placeholder="Compra, remessa, devolução, ajuste..."></div>
-        <div class="f-g"><label>Origem</label><input id="est-origem" placeholder="Setor, tutor, animal..."></div>
+        <div class="f-g"><label>Referência / procedência</label><input id="est-origem" placeholder="Setor, tutor, animal..."></div>
         <div class="f-g full"><label>Observações</label><textarea id="est-observacoes" rows="2"></textarea></div>
         <div class="esporo-filter-actions full">
           <button class="btn btn-outline" type="button" onclick="limparEstoqueForm()">Limpar</button>
@@ -525,7 +526,7 @@
       </div>
       <div class="table-scroll">
         <table class="esporo-estoque-table">
-          <thead><tr><th>Data</th><th>Tipo</th><th>Cápsulas</th><th>Descrição</th><th>Origem</th><th>Observações</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Data</th><th>Tipo</th><th>Fonte</th><th>Cápsulas</th><th>Descrição</th><th>Referência</th><th>Observações</th><th>Ações</th></tr></thead>
           <tbody id="est-movimentos-body"></tbody>
         </table>
       </div>
@@ -1185,6 +1186,9 @@ function renderEspEstoque(d) {
   document.getElementById('est-info').textContent = `${fmtNum(movimentos.length)} movimento(s)`;
   document.getElementById('est-resumo-list').innerHTML = [
     resumoRow('Entradas Zoomed', t.entradas_zoomed),
+    resumoRow('Entradas Município', t.entradas_municipio),
+    resumoRow('Saldo Zoomed', t.saldos_por_fonte?.Zoomed),
+    resumoRow('Saldo Município', t.saldos_por_fonte?.['Município']),
     resumoRow('Sobras retornadas', t.sobras_retornadas),
     resumoRow('Ajustes de inventário', t.ajustes_estoque),
     resumoRow('Total disponível lançado', t.entradas_setor),
@@ -1205,7 +1209,7 @@ function renderEspEstoque(d) {
       <div>${fmtNum(item.capsulas_entregues || 0)} cápsula(s) entregues${item.ultima_entrega ? ` · última entrega ${fmtDate(item.ultima_entrega)}` : ''}</div>
     </div>
   `).join('') : '<div class="empty-inline">Nenhum caso encerrado com entrega registrada.</div>';
-  document.getElementById('est-movimentos-body').innerHTML = movimentos.length ? movimentos.map(m => renderEstoqueMovimentoLinha(m, d.tipos || ['Entrada','Saída','Sobra','Ajuste'])).join('') : '<tr><td colspan="7" class="empty-inline">Nenhum movimento de estoque cadastrado.</td></tr>';
+  document.getElementById('est-movimentos-body').innerHTML = movimentos.length ? movimentos.map(m => renderEstoqueMovimentoLinha(m, d.tipos || ['Entrada','Saída','Sobra','Ajuste'])).join('') : '<tr><td colspan="8" class="empty-inline">Nenhum movimento de estoque cadastrado.</td></tr>';
 }
 function renderEstoqueMovimentoLinha(m, tipos) {
   if (m.automatico) {
@@ -1213,6 +1217,7 @@ function renderEstoqueMovimentoLinha(m, tipos) {
       <tr data-est-auto-id="${Number(m.id_entrega)}" data-editando="0">
         <td>${fmtDate(m.data) || '-'}</td>
         <td><span class="esporo-tag bad">${escapeHtml(m.tipo || 'Saída automática')}</span></td>
+        <td>${escapeHtml(m.fonte_medicacao || 'Zoomed')}</td>
         <td><strong>${fmtNum(m.quantidade || 0)}</strong></td>
         <td>${escapeHtml(m.descricao || '-')}</td>
         <td>${escapeHtml(m.origem || '-')}</td>
@@ -1226,6 +1231,7 @@ function renderEstoqueMovimentoLinha(m, tipos) {
       <td><span class="est-read">${escapeHtml(m.tipo || '-')}</span><select class="est-edit" id="est-row-tipo-${m.id_movimento}" style="display:none;">
         ${tipos.map(tipo => `<option value="${escapeHtml(tipo)}" ${m.tipo === tipo ? 'selected' : ''}>${escapeHtml(tipo)}</option>`).join('')}
       </select></td>
+      <td><span class="est-read">${escapeHtml(m.fonte_medicacao || 'Zoomed')}</span><select class="est-edit" id="est-row-fonte-${m.id_movimento}" style="display:none;"><option value="Zoomed" ${m.fonte_medicacao === 'Zoomed' ? 'selected' : ''}>Zoomed</option><option value="Município" ${m.fonte_medicacao === 'Município' ? 'selected' : ''}>Município</option></select></td>
       <td><span class="est-read"><strong>${fmtNum(m.quantidade || 0)}</strong></span><input class="est-edit" type="number" step="1" id="est-row-qtd-${m.id_movimento}" value="${escapeHtml(m.quantidade ?? '')}" style="display:none;"></td>
       <td><span class="est-read">${escapeHtml(m.descricao || '-')}</span><input class="est-edit" id="est-row-desc-${m.id_movimento}" value="${escapeHtml(m.descricao || '')}" style="display:none;"></td>
       <td><span class="est-read">${escapeHtml(m.origem || '-')}</span><input class="est-edit" id="est-row-origem-${m.id_movimento}" value="${escapeHtml(m.origem || '')}" style="display:none;"></td>
@@ -1263,11 +1269,13 @@ function cancelarObservacaoEstoqueAutomatico(id) {
 function limparEstoqueForm() {
   ['est-id','est-data','est-quantidade','est-descricao','est-origem','est-observacoes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('est-tipo').value = 'Entrada';
+  document.getElementById('est-fonte').value = 'Zoomed';
 }
 function estoquePayload(prefix) {
   return {
     data: document.getElementById(`${prefix}-data`).value,
     tipo: document.getElementById(`${prefix}-tipo`).value,
+    fonte_medicacao: document.getElementById(`${prefix}-fonte`).value,
     quantidade: document.getElementById(`${prefix}-quantidade`)?.value ?? document.getElementById(`${prefix}-qtd`)?.value,
     descricao: document.getElementById(`${prefix}-descricao`)?.value ?? document.getElementById(`${prefix}-desc`)?.value,
     origem: document.getElementById(`${prefix}-origem`).value,
@@ -1292,6 +1300,7 @@ async function salvarEstoqueLinha(id) {
     const payload = {
       data: document.getElementById(`est-row-data-${id}`).value,
       tipo: document.getElementById(`est-row-tipo-${id}`).value,
+      fonte_medicacao: document.getElementById(`est-row-fonte-${id}`).value,
       quantidade: document.getElementById(`est-row-qtd-${id}`).value,
       descricao: document.getElementById(`est-row-desc-${id}`).value,
       origem: document.getElementById(`est-row-origem-${id}`).value,
@@ -1491,7 +1500,7 @@ function renderEspReceitas(rows) {
       <div>${capsulasReceitaHtml(r)}</div>
       <div class="muted">${escapeHtml(r.entregas_observacao || '')}${r.saldo_observacao ? ` &middot; ${escapeHtml(r.saldo_observacao)}` : ''}</div>
       <div>Posologia: ${escapeHtml(r.posologia || '-')} &middot; ${fmtNum(r.capsulas_por_dia || 1)} c&aacute;psula(s)/dia</div>
-      <div class="esporo-entrega-list">${(r.entregas || []).map(e => `<span class="esporo-entrega">${fmtDate(e.data_entrega)} &middot; ${fmtNum(e.quantidade)}</span>`).join('') || '<span class="muted">Sem entregas</span>'}</div>
+      <div class="esporo-entrega-list">${(r.entregas || []).map(e => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;"><span class="esporo-entrega">${fmtDate(e.data_entrega)} &middot; ${fmtNum(e.quantidade)}</span><select id="ent-fonte-edit-${e.id_entrega}" aria-label="Fonte da entrega de ${fmtDate(e.data_entrega)}"><option value="Zoomed" ${e.fonte_medicacao !== 'Município' ? 'selected' : ''}>Zoomed</option><option value="Município" ${e.fonte_medicacao === 'Município' ? 'selected' : ''}>Município</option></select><button class="btn btn-outline btn-sm" type="button" onclick="atualizarEspEntregaFonte(${Number(e.id_entrega)})">Salvar fonte</button></div>`).join('') || '<span class="muted">Sem entregas</span>'}</div>
       <div class="esporo-receita-edit" id="rec-edit-box-${r.id_receita}">
         <input type="hidden" id="rec-edit-status-${r.id_receita}" value="${escapeHtml(r.status || '')}">
         <div class="esporo-form-grid">
@@ -1512,6 +1521,7 @@ function renderEspReceitas(rows) {
       <div class="esporo-form-grid" style="margin-top:8px;">
         <div class="f-g"><label>Data entrega</label><input type="date" id="ent-data-${r.id_receita}"></div>
         <div class="f-g"><label>Cápsulas desta entrega</label><input type="number" min="1" max="30" step="1" placeholder="30" id="ent-qtd-${r.id_receita}"></div>
+        <div class="f-g"><label>Fonte do itraconazol</label><select id="ent-fonte-${r.id_receita}"><option>Zoomed</option><option>Município</option></select></div>
       </div>
       <button class="btn btn-outline" type="button" onclick="salvarEspEntrega(${r.id_receita})">Adicionar entrega</button>
     </div>
@@ -1584,9 +1594,27 @@ async function salvarEspEntrega(idReceita) {
     await apiPost(`/api/esporotricose/doentes/receitas/${idReceita}/entregas`, {
       data_entrega: document.getElementById(`ent-data-${idReceita}`).value,
       quantidade: qtdEl.value,
+      fonte_medicacao: document.getElementById(`ent-fonte-${idReceita}`).value,
     });
     await abrirEspDoente(document.getElementById('doe-id').value);
     await carregarEspDoentes();
+  } catch(e) { toast(e.message, 'error'); }
+}
+async function atualizarEspEntregaFonte(idEntrega) {
+  try {
+    const entrega = (espDoenteAtual?.receitas || []).flatMap(r => r.entregas || []).find(e => Number(e.id_entrega) === idEntrega);
+    if (!entrega) throw new Error('Entrega não encontrada. Atualize a página.');
+    const resp = await fetch(`/api/esporotricose/doentes/entregas/${idEntrega}`, {
+      method: 'PUT', headers: {'Content-Type':'application/json', 'X-CSRFToken':getCsrf()},
+      body: JSON.stringify({quantidade: entrega.quantidade, data_entrega: entrega.data_entrega,
+        baixa_zoomed: entrega.baixa_zoomed, observacoes: entrega.observacoes,
+        fonte_medicacao: document.getElementById(`ent-fonte-edit-${idEntrega}`).value}),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.erro || 'Erro ao atualizar fonte da entrega.');
+    await abrirEspDoente(document.getElementById('doe-id').value);
+    await carregarEspDoentes();
+    toast('Fonte da entrega atualizada.', 'success');
   } catch(e) { toast(e.message, 'error'); }
 }
 async function excluirEspReceita(idReceita, totalEntregas) {

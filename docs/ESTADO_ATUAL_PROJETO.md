@@ -1,6 +1,6 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 16/09/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 24/09/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
@@ -24,6 +24,16 @@ Consulte `docs/GUIA_TRABALHO_MULTIAGENTE.md` para o passo a passo e os prompts
 de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
+
+A versao `1.50.0` introduz `fonte_medicacao` (`Zoomed` ou `Município`) nas
+entregas dos animais com esporotricose e nos movimentos de estoque. A migração
+PostgreSQL `0018_esporotricose_fontes_medicacao.sql` deve ser aplicada **antes**
+de reiniciar o sistema com esta versão. Ela classifica todo o histórico existente
+como Zoomed, sem editar entregas específicas; o usuário deverá corrigir
+manualmente as entregas recentes de origem municipal. O estoque exibe saldos
+separados por fonte e as entregas municipais não compõem a baixa Zoomed.
+Esta migração ainda não foi aplicada pelo Codex nesta mudança; não interpretar
+o commit/push como implantação concluída.
 
 - O sistema oficial esta em `C:\endemias`, branch `master`, porta 5000.
 - PostgreSQL `endemias` e a base oficial desde 03/08/2026, executada pela

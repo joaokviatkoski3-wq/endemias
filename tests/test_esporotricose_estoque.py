@@ -7,6 +7,59 @@ from app_core import db as db_core
 
 
 class EstoqueAutomaticoTests(unittest.TestCase):
+    def test_saldos_por_fonte_e_correcao_de_entrega_antiga(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "estoque.db")
+            animal = esporotricose_core.salvar_doente(db_path, {
+                "nome": "Paciente", "tutor": "Tutor", "status": "Em tratamento",
+            })
+            receita = esporotricose_core.salvar_receita_doente(
+                db_path, animal, {"capsulas_total": 60},
+            )
+            antiga = esporotricose_core.salvar_entrega_doente(
+                db_path, receita, {"quantidade": 20, "baixa_zoomed": "Sim", "observacoes": "Entrega conferida"},
+            )
+            esporotricose_core.salvar_estoque_medicacao(
+                db_path, {"tipo": "Entrada", "quantidade": 100},
+            )
+            esporotricose_core.salvar_estoque_medicacao(
+                db_path, {"tipo": "Entrada", "quantidade": 50, "fonte_medicacao": "Município"},
+            )
+            self.assertEqual(esporotricose_core.estoque_medicacao(db_path)["totais"]["saldos_por_fonte"],
+                             {"Zoomed": 80, "Município": 50})
+            esporotricose_core.atualizar_entrega_doente(db_path, antiga, {
+                "quantidade": 20, "baixa_zoomed": "Sim", "fonte_medicacao": "Município",
+            })
+            estoque = esporotricose_core.estoque_medicacao(db_path)
+            self.assertEqual(estoque["totais"]["saldos_por_fonte"], {"Zoomed": 100, "Município": 30})
+            self.assertEqual(estoque["totais"]["saldo_setor"], 130)
+            self.assertEqual(esporotricose_core.listar_doentes(db_path)["totais"]["capsulas_baixa_zoomed"], 0)
+            entrega = esporotricose_core.obter_doente(db_path, animal)["receitas"][0]["entregas"][0]
+            self.assertEqual(entrega["baixa_zoomed"], "Não")
+            self.assertEqual(entrega["observacoes"], "Entrega conferida")
+            self.assertEqual(esporotricose_core.listar_doentes(db_path)["registros"][0]["entregas_zoomed_pendentes"], 0)
+
+    def test_edicao_do_movimento_reclassifica_saldo_sem_alterar_total(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "estoque.db")
+            movimento = esporotricose_core.salvar_estoque_medicacao(
+                db_path, {"tipo": "Entrada", "quantidade": 40},
+            )
+            esporotricose_core.salvar_estoque_medicacao(
+                db_path, {"id_movimento": movimento, "tipo": "Entrada", "quantidade": 40,
+                          "fonte_medicacao": "Município"},
+            )
+            self.assertEqual(esporotricose_core.estoque_medicacao(db_path)["totais"]["saldos_por_fonte"],
+                             {"Zoomed": 0, "Município": 40})
+
+    def test_rejeita_fonte_desconhecida(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "estoque.db")
+            with self.assertRaises(esporotricose_core.ValidationError):
+                esporotricose_core.salvar_estoque_medicacao(
+                    db_path, {"tipo": "Entrada", "quantidade": 10, "fonte_medicacao": "Outra"},
+                )
+
     def test_atualiza_apenas_observacao_da_saida_automatica(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "estoque.db"

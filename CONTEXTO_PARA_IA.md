@@ -1,6 +1,6 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 16/09/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 24/09/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual: `1.49.1` nesta branch, definida em `app_core/version.py`.
+- Versao atual: `1.50.0` nesta branch, definida em `app_core/version.py`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -21,6 +21,13 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - `iniciar.bat` recusa o modo SQLite quando o marcador operacional PostgreSQL
   esta instalado.
 - Credenciais, bancos, anexos, backups e tokens nao podem ser versionados.
+
+Na versao `1.50.0`, a origem do itraconazol nas entregas e no estoque de
+esporotricose e registrada em `fonte_medicacao` (`Zoomed`/`Município`). A
+migração PostgreSQL `0018_esporotricose_fontes_medicacao.sql` e obrigatoria
+antes do reinicio; valores anteriores recebem `Zoomed` e entregas municipais
+recentes devem ser reclassificadas manualmente na pagina. O commit nao implica
+que a migracao ja tenha sido aplicada no banco oficial.
 
 Antes de trabalhar, execute:
 
