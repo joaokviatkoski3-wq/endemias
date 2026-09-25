@@ -1253,6 +1253,13 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
     if postgresql:
         conn.rollback()
     conn.execute("BEGIN")
+    if postgresql:
+        livre = conn.execute("SELECT pg_try_advisory_xact_lock(?)", (1840364292,)).fetchone()[0]
+        if not livre:
+            conn.rollback()
+            conn.close()
+            logger.log("Outra importação Kobo está em andamento; tente novamente mais tarde.", "erro")
+            return False, []
     transacao_abortada = False
 
     for caminho, nome, tipo, preparado in arquivos_preparados:

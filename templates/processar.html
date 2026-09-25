@@ -214,6 +214,12 @@
           <td>{{ imp.usuario or '—' }}</td>
           <td>
             <div class="imp-arquivos">
+              {% if imp.resumo_auto %}
+              <span>{{ imp.resumo_auto.inicio }} a {{ imp.resumo_auto.fim }} · {{ imp.resumo_auto.novos }} novo(s)</span>
+              {% for aviso in imp.resumo_auto.avisos or [] %}<span title="{{ aviso }}">⚠ {{ aviso[:100] }}</span>{% endfor %}
+              {% elif imp.erro %}
+              <span title="{{ imp.erro }}">{{ imp.erro[:100] }}</span>
+              {% endif %}
               {% for arq in imp.arquivos[:3] %}
               <span title="{{ arq }}">{{ arq }}</span>
               {% endfor %}

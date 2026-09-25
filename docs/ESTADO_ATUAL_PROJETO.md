@@ -25,12 +25,21 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+O codigo `1.52.0` prepara importacao automatica Kobo dos ultimos 7 dias de
+envio, com validacao de resposta completa, filtro UUID, simulacao antes da
+gravacao, transacao e historico em Processar. A tarefa diaria 12h30 **nao foi
+instalada nem ativada**. Validar execucao assistida no ambiente oficial antes
+de executar `scripts/configurar_importacao_kobo_automatica.ps1` como admin.
+O servico respondeu `Endemias v1.51.0` em 25/09/2026; o estado da migracao
+0020 nao foi lido diretamente nesta sessao. A rotina nova exige todas as
+migracoes aplicadas antes de qualquer importacao automatica.
+
 O codigo `1.51.0` acrescenta ACS acompanhante as visitas de Esporotricose,
 com multiplos codigos, nomes via catalogo Kobo, exibicao no historico do
 imovel/detalhe animal e filtro nas visitas. A migracao PostgreSQL
-`0020_esporotricose_visitas_acs.sql` esta **pendente** e requer autorizacao
-explicita antes da aplicacao e reinicio do servico. Ate la, a producao segue
-em `1.50.1`; nao importar novas visitas de Esporotricose. Registros antigos
+`0020_esporotricose_visitas_acs.sql` teve aplicacao solicitada pelo usuario,
+mas a confirmacao direta da aplicacao esta pendente. O servico ja responde em
+`1.51.0`; nao presumir que a migracao foi aplicada apenas pela versao. Registros antigos
 nao recebem ACS retroativamente por uma sincronizacao Kobo normal.
 
 A versao `1.50.0` introduz `fonte_medicacao` (`Zoomed` ou `Município`) nas

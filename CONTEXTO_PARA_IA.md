@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual no codigo: `1.51.0`, definida em `app_core/version.py`; o servico oficial ainda executa `1.50.1` ate a migracao 0020 e o reinicio autorizados.
+- Versao atual no codigo: `1.52.0`, definida em `app_core/version.py`; o servico oficial foi visto em `1.51.0` em 25/09/2026. A migracao 0020 nao foi conferida diretamente nesta sessao.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -22,13 +22,27 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
   esta instalado.
 - Credenciais, bancos, anexos, backups e tokens nao podem ser versionados.
 
+Na versao `1.52.0`, a importacao automatica Kobo foi preparada, mas **nao
+ativada**. `scripts/importar_kobo_automatico.py` consulta os ultimos 7 dias de
+`_submission_time` dos formularios configurados, recusa respostas truncadas,
+filtra UUIDs ja existentes, faz dry-run e so grava apos validacao. Em producao,
+exige `--aplicar --confirmar-banco endemias` e PGPASSFILE no processo SYSTEM.
+Registra execucoes na tabela `importacoes`, mostrada em Processar, e avisa
+quando ha mais de 7 dias desde a ultima execucao bem-sucedida. O instalador
+`scripts/configurar_importacao_kobo_automatica.ps1` cria tarefa diaria 12h30
+sob SYSTEM, mas **deve ser executado somente apos uma simulacao e uma execucao
+assistida, com administrador**. A instalacao nao foi feita por esta conversa.
+Importacao manual continua disponivel. A rotina requer todas as migracoes
+PostgreSQL aplicadas e nao faz backfill de envios fora dos 7 dias.
+
 Na versao `1.51.0`, a importacao Kobo de Esporotricose recebe `acs_presente`
 e `acs_nome` (selecao multipla), guarda os codigos em
 `esporotricose_visita_acs` e mostra os nomes do catalogo ACS nas visitas,
 historico do imovel e detalhe do animal. A lista de visitas filtra por ACS.
 O catalogo do formulario e atualizado na importacao como melhor esforco.
-A migracao PostgreSQL `0020_esporotricose_visitas_acs.sql` esta **pendente**;
-nao importar novas visitas de Esporotricose no banco oficial antes de aplica-la.
+A migracao PostgreSQL `0020_esporotricose_visitas_acs.sql` teve aplicacao
+solicitada pelo usuario; seu estado nao foi conferido diretamente nesta sessao.
+Nao importar novas visitas de Esporotricose se ela ainda estiver pendente.
 Visitas ja importadas nao sao retroalimentadas automaticamente pelo Kobo;
 reimportar o arquivo com os novos campos se necessario. Nao aplicar a
 migracao nem reiniciar o servico sem autorizacao explicita do usuario.

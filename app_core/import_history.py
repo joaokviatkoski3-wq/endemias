@@ -9,6 +9,10 @@ STATUS_LABELS = {
     "confirmado": "Gravado",
     "erro_confirmacao": "Erro ao gravar",
     "cancelado": "Cancelado",
+    "auto_preparando": "Automática em andamento",
+    "auto_sem_novos": "Automática: sem novos",
+    "auto_confirmado": "Automática: gravada",
+    "auto_erro": "Automática: erro",
 }
 
 STATUS_CLASSES = {
@@ -18,6 +22,10 @@ STATUS_CLASSES = {
     "confirmado": "verde",
     "erro_confirmacao": "vermelho",
     "cancelado": "cinza",
+    "auto_preparando": "azul",
+    "auto_sem_novos": "verde",
+    "auto_confirmado": "verde",
+    "auto_erro": "vermelho",
 }
 
 
@@ -126,6 +134,15 @@ def listar_importacoes_recentes(get_db, limite=10):
             d["arquivos"] = json.loads(d.get("arquivos_json") or "[]")
         except (TypeError, json.JSONDecodeError):
             d["arquivos"] = []
+        try:
+            sumario = json.loads(d.get("sumario_json") or "[]")
+            d["resumo_auto"] = (
+                sumario[0] if str(d.get("status") or "").startswith("auto_")
+                and isinstance(sumario, list) and sumario and isinstance(sumario[0], dict)
+                else None
+            )
+        except (TypeError, json.JSONDecodeError):
+            d["resumo_auto"] = None
         d["status_label"] = STATUS_LABELS.get(d.get("status"), d.get("status") or "Sem status")
         d["status_classe"] = STATUS_CLASSES.get(d.get("status"), "cinza")
         importacoes.append(d)
