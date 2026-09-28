@@ -35,8 +35,12 @@ Depois de conferir o histórico e os dados importados, instale a tarefa diária
 sob SYSTEM. Este comando não executa uma importação imediata:
 
 ```powershell
-& 'C:\endemias\scripts\configurar_importacao_kobo_automatica.ps1'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\endemias\scripts\configurar_importacao_kobo_automatica.ps1'
 ```
+
+O `Bypass` vale somente para esse processo filho; não altera a política
+permanente do computador. O instalador não solicita acesso pela rede nem lê
+o conteúdo da credencial PostgreSQL.
 
 A tarefa chama `executar_importacao_kobo_automatica.ps1` todos os dias às 12h30,
 inclusive fins de semana. `StartWhenAvailable` recupera a tarefa perdida quando

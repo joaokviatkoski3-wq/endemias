@@ -30,16 +30,19 @@ envio, com validacao de resposta completa, filtro UUID, simulacao antes da
 gravacao, transacao e historico em Processar. A tarefa diaria 12h30 **nao foi
 instalada nem ativada**. Validar execucao assistida no ambiente oficial antes
 de executar `scripts/configurar_importacao_kobo_automatica.ps1` como admin.
-O servico respondeu `Endemias v1.51.0` em 25/09/2026; o estado da migracao
-0020 nao foi lido diretamente nesta sessao. A rotina nova exige todas as
-migracoes aplicadas antes de qualquer importacao automatica.
+Em 28/09/2026, o usuario mostrou a migracao 0020 como `applied`, a simulacao
+e duas execucoes assistidas com zero registros novos e sem erro. A instalacao
+da tarefa falhou por politica de execucao do PowerShell: chamar o instalador
+com `powershell.exe -NoProfile -ExecutionPolicy Bypass -File` no console
+administrativo; a politica permanente nao precisa ser alterada. A tarefa
+**ainda nao foi instalada**. O servico respondeu `Endemias v1.51.0` em
+28/09/2026 e precisa reinicio para carregar o codigo `1.52.0` na interface.
 
 O codigo `1.51.0` acrescenta ACS acompanhante as visitas de Esporotricose,
 com multiplos codigos, nomes via catalogo Kobo, exibicao no historico do
 imovel/detalhe animal e filtro nas visitas. A migracao PostgreSQL
-`0020_esporotricose_visitas_acs.sql` teve aplicacao solicitada pelo usuario,
-mas a confirmacao direta da aplicacao esta pendente. O servico ja responde em
-`1.51.0`; nao presumir que a migracao foi aplicada apenas pela versao. Registros antigos
+`0020_esporotricose_visitas_acs.sql` foi informado pelo usuario como `applied`
+em 28/09/2026. Registros antigos
 nao recebem ACS retroativamente por uma sincronizacao Kobo normal.
 
 A versao `1.50.0` introduz `fonte_medicacao` (`Zoomed` ou `Município`) nas
