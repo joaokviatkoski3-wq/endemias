@@ -17,6 +17,14 @@
 .micro-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .micro-form-grid .wide{grid-column:1/-1;}
 .micro-selected{max-height:130px;overflow:auto;font-size:12px;color:var(--text2);line-height:1.6;}
+.micro-q-lista{max-height:230px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:8px;}
+.micro-q-opcao{display:flex;align-items:center;gap:8px;padding:6px 9px;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer;}
+.micro-q-opcao:last-child{border-bottom:0;}
+.micro-q-opcao:has(input:checked){background:rgba(21,94,117,.1);font-weight:700;}
+.micro-q-opcao:has(input:disabled){opacity:.6;cursor:not-allowed;}
+.micro-q-opcao[hidden]{display:none;}
+.micro-q-opcao small{margin-left:auto;color:var(--text2);text-align:right;}
+.micro-q-vazio{padding:10px;color:var(--text2);font-size:12px;}
 .micro-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:12px;}
 .micro-filters .f-g{min-width:180px;}
 .micro-summary{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;color:var(--text2);font-size:12px;}
@@ -472,8 +480,18 @@
         <div class="rg-map-card">
           <div class="rg-map-card-title">Microárea</div>
           <div class="f-g"><label>Localidade</label><select id="micro-localidade"><option value="">Selecione</option>{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
-          <div class="rg-muted" style="margin-top:8px;">Clique nos quarteirões do mapa para compor a microárea. Cada quarteirão só pode pertencer a uma microárea.</div>
+          <div class="rg-muted" style="margin-top:8px;">Escolha os quarteirões no mapa ou na lista abaixo. As seleções são sincronizadas. Cada quarteirão só pode pertencer a uma microárea.</div>
           <div class="rg-muted" style="margin-top:6px;">Os polígonos vêm da camada de quarteirões. Para atualizá-la, use Registro Geográfico → Geometrias e importe o GeoJSON exportado pelo QGIS.</div>
+        </div>
+        <div class="rg-map-card">
+          <div class="rg-map-card-title">Selecionar quarteirões</div>
+          <div class="f-g"><label for="micro-q-busca">Buscar número</label><input type="search" id="micro-q-busca" placeholder="Ex.: 1072"></div>
+          <div class="rg-map-actions" style="margin-top:8px;">
+            <button class="btn btn-outline btn-sm" type="button" id="micro-q-selecionar">Selecionar listados</button>
+            <button class="btn btn-outline btn-sm" type="button" id="micro-q-limpar">Limpar seleção</button>
+            <label class="rg-check-item" style="margin-left:auto;"><input type="checkbox" id="micro-map-labels" checked> Etiquetas no mapa</label>
+          </div>
+          <div id="micro-q-lista" class="micro-q-lista" role="group" aria-label="Quarteirões da localidade"><div class="micro-q-vazio">Selecione uma localidade.</div></div>
         </div>
         <div class="rg-map-card">
           <div class="rg-map-card-title">Totais da seleção</div>
