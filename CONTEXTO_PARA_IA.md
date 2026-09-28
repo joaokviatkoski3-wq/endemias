@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual no codigo: `1.52.0`, definida em `app_core/version.py`; o servico oficial foi visto em `1.51.0` em 28/09/2026. O usuario confirmou a migracao 0020 aplicada.
+- Versao atual no codigo e no servico oficial: `1.52.0`, definida em `app_core/version.py`; `/login` respondeu HTTP 200 em 28/09/2026. O usuario confirmou a migracao 0020 aplicada.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -22,8 +22,8 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
   esta instalado.
 - Credenciais, bancos, anexos, backups e tokens nao podem ser versionados.
 
-Na versao `1.52.0`, a importacao automatica Kobo foi preparada, mas **nao
-ativada**. `scripts/importar_kobo_automatico.py` consulta os ultimos 7 dias de
+Na versao `1.52.0`, a importacao automatica Kobo foi preparada e ativada pelo
+usuario em 28/09/2026. `scripts/importar_kobo_automatico.py` consulta os ultimos 7 dias de
 `_submission_time` dos formularios configurados, recusa respostas truncadas,
 filtra UUIDs ja existentes, faz dry-run e so grava apos validacao. Em producao,
 exige `--aplicar --confirmar-banco endemias` e PGPASSFILE no processo SYSTEM.
@@ -32,10 +32,11 @@ quando ha mais de 7 dias desde a ultima execucao bem-sucedida. O instalador
 `scripts/configurar_importacao_kobo_automatica.ps1` cria tarefa diaria 12h30
 sob SYSTEM. Em 28/09/2026, o usuario executou a simulacao e duas execucoes
 assistidas no banco oficial; todas terminaram com zero registros novos e sem
-erro. A instalacao da tarefa falhou apenas porque a politica local bloqueou
-a chamada direta do arquivo `.ps1`; ela **ainda nao foi instalada**. Use
-`powershell.exe -NoProfile -ExecutionPolicy Bypass -File` para chamar o
-instalador a partir do console administrativo, sem mudar a politica permanente.
+erro. Depois instalou a tarefa com `powershell.exe -NoProfile -ExecutionPolicy
+Bypass -File` e mostrou o estado `Ready`. A conta desta sessao nao conseguiu
+consultar a tarefa diretamente; a instalacao e o estado sao evidencias
+fornecidas pelo usuario. O primeiro ciclo agendado com registros novos ainda
+nao foi observado.
 Importacao manual continua disponivel. A rotina requer todas as migracoes
 PostgreSQL aplicadas e nao faz backfill de envios fora dos 7 dias.
 

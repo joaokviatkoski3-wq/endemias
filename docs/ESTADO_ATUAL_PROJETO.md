@@ -27,16 +27,16 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 O codigo `1.52.0` prepara importacao automatica Kobo dos ultimos 7 dias de
 envio, com validacao de resposta completa, filtro UUID, simulacao antes da
-gravacao, transacao e historico em Processar. A tarefa diaria 12h30 **nao foi
-instalada nem ativada**. Validar execucao assistida no ambiente oficial antes
-de executar `scripts/configurar_importacao_kobo_automatica.ps1` como admin.
+gravacao, transacao e historico em Processar. A tarefa diaria 12h30 foi
+instalada pelo usuario em 28/09/2026, que mostrou estado `Ready`.
 Em 28/09/2026, o usuario mostrou a migracao 0020 como `applied`, a simulacao
 e duas execucoes assistidas com zero registros novos e sem erro. A instalacao
-da tarefa falhou por politica de execucao do PowerShell: chamar o instalador
-com `powershell.exe -NoProfile -ExecutionPolicy Bypass -File` no console
-administrativo; a politica permanente nao precisa ser alterada. A tarefa
-**ainda nao foi instalada**. O servico respondeu `Endemias v1.51.0` em
-28/09/2026 e precisa reinicio para carregar o codigo `1.52.0` na interface.
+foi concluida ao chamar o instalador com `powershell.exe -NoProfile
+-ExecutionPolicy Bypass -File` no console administrativo, sem alterar a
+politica permanente. Depois do reinicio feito pelo usuario, `/login`
+respondeu HTTP 200 com `Endemias v1.52.0`. A conta desta sessao nao consegue
+consultar diretamente a tarefa SYSTEM: o estado `Ready` veio da saida do
+usuario. O primeiro ciclo agendado com dados novos ainda nao foi verificado.
 
 O codigo `1.51.0` acrescenta ACS acompanhante as visitas de Esporotricose,
 com multiplos codigos, nomes via catalogo Kobo, exibicao no historico do

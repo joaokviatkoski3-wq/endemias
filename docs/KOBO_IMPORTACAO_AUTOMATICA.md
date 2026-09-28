@@ -1,4 +1,9 @@
-# Importação automática Kobo (preparada, não ativada)
+# Importação automática Kobo (ativada em 28/09/2026)
+
+O usuário informou que instalou a tarefa diária das 12h30 sob SYSTEM e mostrou
+estado `Ready`. Depois do reinício, `/login` respondeu HTTP 200 na versão
+1.52.0. O primeiro ciclo agendado com registros novos ainda precisa ser
+verificado no histórico de Processar e no Agendador de Tarefas.
 
 A rotina consulta diariamente os envios ao Kobo com `_submission_time` entre
 hoje menos 6 dias e hoje (7 datas inclusivas). Consulta cada formulário com
