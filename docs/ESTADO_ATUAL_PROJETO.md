@@ -25,6 +25,13 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+O codigo `1.54.0` renomeia a pagina de navegação para **Territorialização**
+e conserva o RG em aba própria e na rota legada. A nova aba **Microáreas**
+vincula quarteirões inteiros, com número único por localidade e ACS opcional.
+Exporta XLSX, GeoJSON e KML. A migração PostgreSQL
+`0021_territorializacao_microareas.sql` está **pendente** no banco oficial.
+Não reiniciar o serviço antes da aplicação autorizada dessa migração.
+
 O codigo `1.53.0` adiciona **Doentes > Entregas por fonte** em Esporotricose,
 consultando as entregas ja registradas nas receitas, com totais por fonte,
 filtros e paginação. Não altera lançamentos nem exige migração. O serviço

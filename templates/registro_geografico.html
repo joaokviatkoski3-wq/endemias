@@ -1,12 +1,26 @@
 {% extends "base.html" %}
-{% block title %}Registro Geográfico{% endblock %}
-{% block page_title %}Registro Geográfico{% endblock %}
+{% block title %}Territorialização{% endblock %}
+{% block page_title %}Territorialização{% endblock %}
 
 {% block extra_css %}<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.min.css"><style>
 .rg-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
 .rg-tab{border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:var(--radius-sm);padding:8px 12px;font-weight:900;cursor:pointer;}
 .rg-tab.active{background:#155e75;color:white;border-color:#155e75;}
 .rg-panel[hidden]{display:none!important;}
+.terr-area[hidden],.micro-pane[hidden]{display:none!important;}
+.terr-main-tabs{display:flex;gap:8px;margin-bottom:15px;flex-wrap:wrap;}
+.terr-main-tabs button{border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 16px;background:var(--surface);color:var(--text);font-weight:900;cursor:pointer;}
+.terr-main-tabs button.active{background:#155e75;color:#fff;border-color:#155e75;}
+.micro-grid{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:14px;align-items:stretch;min-height:630px;}
+.micro-side{display:grid;gap:12px;align-content:start;max-height:78vh;overflow:auto;}
+.micro-map{height:78vh;min-height:630px;border:1px solid var(--border);border-radius:var(--radius);}
+.micro-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.micro-form-grid .wide{grid-column:1/-1;}
+.micro-selected{max-height:130px;overflow:auto;font-size:12px;color:var(--text2);line-height:1.6;}
+.micro-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:12px;}
+.micro-filters .f-g{min-width:180px;}
+.micro-summary{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;color:var(--text2);font-size:12px;}
+@media(max-width:1050px){.micro-grid{grid-template-columns:1fr;}.micro-side{max-height:none;}.micro-map{height:60vh;min-height:400px;}}
 .rg-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;}
 .rg-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);}
 .rg-kpi-label{font-size:10px;color:var(--text3);font-weight:900;text-transform:uppercase;}
@@ -136,14 +150,19 @@
 
 {% block content %}
 <div class="page-header">
-  <h1><span class="icon"><img src="/static/icons/registro_geografico.svg" alt="" class="icon-svg"></span> Boletim de Registro de Reconhecimento Geográfico Digital</h1>
-  <div class="sub">Cadastro mestre de quarteirões, logradouros e imóveis do município</div>
+  <h1><span class="icon"><img src="/static/icons/registro_geografico.svg" alt="" class="icon-svg"></span> Territorialização</h1>
+  <div class="sub">Registro Geográfico e gestão das microáreas dos ACS</div>
 </div>
 
 {% if opcoes.erro_importacao %}
 <div class="alert alert-warning" style="margin-bottom:14px;">{{ opcoes.erro_importacao }}</div>
 {% endif %}
 
+<div class="terr-main-tabs" role="tablist" aria-label="Áreas da Territorialização">
+  <button type="button" class="active" data-terr-area="rg">Boletim de Registro de Reconhecimento Geográfico Digital</button>
+  <button type="button" data-terr-area="microareas">Microáreas</button>
+</div>
+<div class="terr-area" id="terr-area-rg">
 <div class="rg-tabs" role="tablist">
   <button class="rg-tab active" type="button" data-rg-tab="consulta">Consulta</button>
   <button class="rg-tab" type="button" data-rg-tab="edicao">Edição</button>
@@ -440,6 +459,73 @@
   </div>
 </section>
 {% endif %}
+</div>
+
+<section class="terr-area" id="terr-area-microareas" hidden>
+  <div class="rg-tabs" role="tablist" aria-label="Microáreas">
+    <button class="rg-tab active" type="button" data-micro-pane="mapa">Mapa e edição</button>
+    <button class="rg-tab" type="button" data-micro-pane="lista">Consulta e exportação</button>
+  </div>
+  <div class="micro-pane" id="micro-pane-mapa">
+    <div class="micro-grid">
+      <div class="micro-side">
+        <div class="rg-map-card">
+          <div class="rg-map-card-title">Microárea</div>
+          <div class="f-g"><label>Localidade</label><select id="micro-localidade"><option value="">Selecione</option>{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
+          <div class="rg-muted" style="margin-top:8px;">Clique nos quarteirões do mapa para compor a microárea. Cada quarteirão só pode pertencer a uma microárea.</div>
+          <div class="rg-muted" style="margin-top:6px;">Os polígonos vêm da camada de quarteirões. Para atualizá-la, use Registro Geográfico → Geometrias e importe o GeoJSON exportado pelo QGIS.</div>
+        </div>
+        <div class="rg-map-card">
+          <div class="rg-map-card-title">Totais da seleção</div>
+          <div class="rg-map-kpis">
+            <div class="rg-map-kpi"><strong id="micro-total-q">0</strong><span>Quarteirões</span></div>
+            <div class="rg-map-kpi"><strong id="micro-total-imoveis">0</strong><span>Imóveis RG</span></div>
+            <div class="rg-map-kpi"><strong id="micro-total-reais">0</strong><span>Imóveis reais</span></div>
+            <div class="rg-map-kpi"><strong id="micro-total-pop">0</strong><span>População aproximada</span></div>
+          </div>
+          <div id="micro-selected" class="micro-selected" style="margin-top:8px;">Nenhum quarteirão selecionado.</div>
+        </div>
+        <div class="rg-map-card">
+          <div class="rg-map-card-title">Quarteirão</div>
+          <div id="micro-detalhe" class="rg-map-detail">Clique em um quarteirão para ver seus dados.</div>
+        </div>
+        <div class="rg-map-card" {% if not is_admin %}hidden{% endif %}>
+          <div class="rg-map-card-title">Cadastro</div>
+          <input type="hidden" id="micro-id">
+          <div class="micro-form-grid">
+            <div class="f-g"><label>Número na localidade</label><input type="number" min="1" step="1" id="micro-numero" placeholder="Ex.: 1"></div>
+            <div class="f-g"><label>ACS responsável</label><select id="micro-acs"><option value="">Sem ACS</option></select></div>
+            <div class="f-g wide"><label>Observações</label><textarea id="micro-observacoes" rows="2" placeholder="Informações complementares"></textarea></div>
+          </div>
+          <div class="rg-map-actions" style="margin-top:9px;">
+            <button class="btn btn-primary btn-sm" type="button" id="micro-salvar">Salvar microárea</button>
+            <button class="btn btn-outline btn-sm" type="button" id="micro-nova">Nova seleção</button>
+          </div>
+          <div id="micro-status" class="rg-muted" style="margin-top:8px;"></div>
+        </div>
+      </div>
+      <div id="micro-mapa" class="micro-map" aria-label="Mapa dos quarteirões e microáreas"></div>
+    </div>
+  </div>
+  <div class="micro-pane" id="micro-pane-lista" hidden>
+    <div class="chart-card">
+      <div class="chart-hd"><div class="chart-title">Microáreas cadastradas</div></div>
+      <div class="micro-filters">
+        <div class="f-g"><label>Localidade</label><select id="micro-filtro-localidade"><option value="">Todas</option>{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
+        <div class="f-g"><label>ACS</label><select id="micro-filtro-acs"><option value="">Todos</option><option value="sem">Sem ACS</option></select></div>
+        <div class="f-g"><label>Buscar</label><input type="search" id="micro-filtro-busca" placeholder="Número, ACS ou observação"></div>
+      </div>
+      <div id="micro-resumo" class="micro-summary"></div>
+      <div class="rg-map-actions" style="margin-bottom:12px;">
+        <a class="btn btn-outline btn-sm" id="micro-xlsx" href="/territorializacao/microareas/exportar/xlsx">Planilha XLSX</a>
+        <a class="btn btn-outline btn-sm" id="micro-geojson" href="/territorializacao/microareas/exportar/geojson">GeoJSON para QGIS</a>
+        <a class="btn btn-outline btn-sm" id="micro-kml" href="/territorializacao/microareas/exportar/kml">KML para My Maps</a>
+      </div>
+      <div class="rg-muted" style="margin-bottom:8px;">As exportações acompanham o filtro exibido. Quarteirões sem geometria na camada atual continuam na planilha, mas não aparecem nos arquivos geográficos.</div>
+      <div class="table-scroll"><table><thead><tr><th>Localidade</th><th>Microárea</th><th>ACS</th><th>Quarteirões</th><th>Geometria</th><th>Observações</th><th>Ações</th></tr></thead><tbody id="micro-tabela"><tr><td colspan="7">Carregando...</td></tr></tbody></table></div>
+    </div>
+  </div>
+</section>
 
 <div id="rg-logradouro-suggest" class="rg-logradouro-suggest" hidden></div>
 
@@ -1515,8 +1601,8 @@ async function rgGeojsonImportar(){
   }
 }
 function rgAtivarAba(nome){
-  document.querySelectorAll('.rg-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.rgTab === nome));
-  document.querySelectorAll('.rg-panel').forEach(panel => panel.hidden = panel.id !== `rg-panel-${nome}`);
+  document.querySelectorAll('#terr-area-rg .rg-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.rgTab === nome));
+  document.querySelectorAll('#terr-area-rg .rg-panel').forEach(panel => panel.hidden = panel.id !== `rg-panel-${nome}`);
   if(nome === 'mapa'){
     rgMapInit().catch(err => {
       rgEl('rg-map-loading').textContent = err.message;
@@ -1525,7 +1611,7 @@ function rgAtivarAba(nome){
   }
   if(nome === 'acompanhamento') rgAcompCarregar().catch(err => { rgEl('rg-acomp-info').textContent = err.message; });
 }
-document.querySelectorAll('.rg-tab').forEach(btn => btn.addEventListener('click', () => rgAtivarAba(btn.dataset.rgTab)));
+document.querySelectorAll('#terr-area-rg .rg-tab').forEach(btn => btn.addEventListener('click', () => rgAtivarAba(btn.dataset.rgTab)));
 if(rgEl('rg-geojson-preview')){
   rgEl('rg-geojson-preview').addEventListener('click', () => rgGeojsonPreview().catch(err => {
     rgSetText('rg-geojson-status', err.message);
@@ -1719,4 +1805,5 @@ rgCarregarSelectQuarteiroes(rgEl('rg-ed-localidade').value, 'rg-ed-quarteirao').
 rgCarregarChecksQuarteiroes(rgEl('rg-imp-localidade').value).catch(() => {});
 rgCarregar().catch(err => { rgEl('rg-info').textContent = err.message; });
 </script>
+<script src="/static/js/microareas.js?v={{ APP_VERSION }}"></script>
 {% endblock %}

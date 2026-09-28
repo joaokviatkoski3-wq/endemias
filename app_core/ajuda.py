@@ -961,6 +961,19 @@ ARTIGOS += (
 )
 
 
+ARTIGOS += (
+    _artigo("territorializacao-microareas", "Gerenciar microáreas dos ACS", "Territorialização", ("/territorializacao",),
+             ("microarea", "acs", "quarteirao", "mapa", "kml", "geojson", "qgis"),
+             "Cada microárea reúne quarteirões inteiros de uma localidade e pode ter um ACS responsável.",
+             ("Abra Microáreas, escolha a localidade e selecione os quarteirões no mapa.",
+              "Informe o número da microárea na localidade e, se houver, escolha o ACS do catálogo.",
+              "Confira os totais, salve e use Consulta e exportação para filtrar ou baixar XLSX, GeoJSON e KML."),
+             "/territorializacao#microareas", "Abrir Microáreas",
+             atencao=("Cada quarteirão só pode estar em uma microárea. A população exibida é aproximada.",
+                      "Uma nova camada GeoJSON pode deixar quarteirões sem geometria; confira o aviso na lista.")),
+)
+
+
 def _normalizar(value):
     texto = unicodedata.normalize("NFD", str(value or ""))
     return "".join(char for char in texto if unicodedata.category(char) != "Mn").casefold()
@@ -999,6 +1012,7 @@ def consultar(consulta="", rota="", limite=12, contexto="", nivel="visualizador"
         if _normalizar(item).strip()
     )
     rota = str(rota or "/").rstrip("/") or "/"
+    rota_contexto = "/registro-geografico" if rota == "/territorializacao" else rota
     ordem_niveis = {"visualizador": 1, "operador": 2, "admin": 3}
     resultados = []
     for artigo in ARTIGOS:
@@ -1008,7 +1022,7 @@ def consultar(consulta="", rota="", limite=12, contexto="", nivel="visualizador"
             continue
         score = 0
         corresponde_contexto = any(
-            rota == prefixo or (prefixo != "/" and rota.startswith(prefixo + "/"))
+            rota == prefixo or rota_contexto == prefixo or (prefixo != "/" and rota_contexto.startswith(prefixo + "/"))
             for prefixo in artigo["rotas"]
         )
         if corresponde_contexto:

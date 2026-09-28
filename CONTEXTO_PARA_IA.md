@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual no codigo: `1.53.0`, definida em `app_core/version.py`; o servico oficial foi confirmado em `1.52.0` em 28/09/2026. O usuario confirmou a migracao 0020 aplicada.
+- Versao atual no codigo: `1.54.0`, definida em `app_core/version.py`; o servico oficial foi confirmado em `1.52.0` em 28/09/2026. O usuario confirmou a migracao 0020 aplicada.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -21,6 +21,18 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - `iniciar.bat` recusa o modo SQLite quando o marcador operacional PostgreSQL
   esta instalado.
 - Credenciais, bancos, anexos, backups e tokens nao podem ser versionados.
+
+Na versao `1.54.0`, a antiga pagina Registro Geografico passa a ser
+**Territorializacao** (`/territorializacao`), preservando a rota antiga e todas
+as abas de RG dentro de **Boletim de Registro de Reconhecimento Geografico
+Digital**. A nova aba **Microareas** permite agrupar quarteiroes inteiros
+por localidade, numero unico por localidade e ACS opcional do catalogo Kobo.
+Cada quarteirao so pode integrar uma microarea. A geometria continua na camada
+GeoJSON ativa, enquanto os vinculos permanecem no banco; quarteiroes ausentes
+da nova camada sao sinalizados, nao apagados. Ha exportacao XLSX, GeoJSON e KML.
+A migracao PostgreSQL `0021_territorializacao_microareas.sql` precisa ser
+aplicada antes de ativar o codigo; nao foi aplicada nesta sessao. O servico
+oficial nao foi reiniciado.
 
 Na versao `1.53.0`, a aba **Doentes > Entregas por fonte** mostra os animais
 que receberam itraconazol SESA ou Município com data, quantidade, tutor,

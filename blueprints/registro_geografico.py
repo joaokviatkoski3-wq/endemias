@@ -1,12 +1,15 @@
 import logging
 
-from flask import Blueprint, current_app, jsonify, render_template, request
+import io
+
+from flask import Blueprint, current_app, jsonify, render_template, request, send_file
 
 from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import db as db_core
 from app_core import registro_geografico as rg_core
+from app_core import microareas as microareas_core
 
 
 bp = Blueprint("registro_geografico", __name__)
@@ -45,6 +48,7 @@ def _autor_atualizacao():
 
 
 @bp.route("/registro-geografico")
+@bp.route("/territorializacao")
 @login_required
 def page():
     try:
@@ -57,6 +61,72 @@ def page():
         opcoes=opcoes,
         is_admin=usuario.get("nivel") == "admin",
     )
+
+
+@bp.route("/api/territorializacao/microareas")
+@login_required
+def api_microareas():
+    return jsonify(microareas_core.listar(_db_path(), _base_dir()))
+
+
+@bp.route("/api/territorializacao/microareas", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_criar_microarea():
+    payload = request.get_json(silent=True) or {}
+    try:
+        identificador = microareas_core.salvar(_db_path(), payload, _base_dir())
+    except microareas_core.MicroareaError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(get_db, "microarea_criada", entidade="territorializacao_microarea", entidade_id=identificador,
+                           detalhes={"id_localidade": payload.get("id_localidade"), "numero": payload.get("numero"),
+                                     "quarteiroes": payload.get("quarteiroes"), "acs_codigo": payload.get("acs_codigo")})
+    return jsonify({"ok": True, "id_microarea": identificador}), 201
+
+
+@bp.route("/api/territorializacao/microareas/<int:identificador>", methods=["PUT", "DELETE"])
+@login_required
+@nivel_min("admin")
+def api_alterar_microarea(identificador):
+    anterior = next((r for r in microareas_core.listar(_db_path(), _base_dir())["registros"]
+                     if r["id_microarea"] == identificador), None)
+    payload = (request.get_json(silent=True) or {}) if request.method == "PUT" else {}
+    try:
+        if request.method == "DELETE":
+            microareas_core.excluir(_db_path(), identificador)
+            acao = "microarea_excluida"
+        else:
+            microareas_core.salvar(_db_path(), payload, _base_dir(), identificador)
+            acao = "microarea_atualizada"
+    except microareas_core.MicroareaError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(get_db, acao, entidade="territorializacao_microarea", entidade_id=identificador,
+                           detalhes={"anterior": {campo: anterior.get(campo) for campo in
+                                      ("id_localidade", "numero", "acs_codigo", "quarteiroes")} if anterior else None,
+                                     "novo": {campo: payload.get(campo) for campo in
+                                              ("id_localidade", "numero", "acs_codigo", "quarteiroes")}
+                                              if request.method == "PUT" else None})
+    return jsonify({"ok": True, "id_microarea": identificador})
+
+
+@bp.route("/territorializacao/microareas/exportar/<formato>")
+@login_required
+def exportar_microareas(formato):
+    if formato not in {"xlsx", "geojson", "kml"}:
+        return jsonify({"erro": "Formato não suportado."}), 404
+    ids = request.args.getlist("id", type=int)
+    if formato == "xlsx":
+        conteudo = microareas_core.exportar_xlsx(_db_path(), _base_dir(), ids or None)
+        mimetype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    elif formato == "geojson":
+        import json
+        conteudo = json.dumps(microareas_core.exportar_geojson(_db_path(), _base_dir(), ids or None), ensure_ascii=False).encode("utf-8")
+        mimetype = "application/geo+json"
+    else:
+        conteudo = microareas_core.exportar_kml(_db_path(), _base_dir(), ids or None)
+        mimetype = "application/vnd.google-earth.kml+xml"
+    return send_file(io.BytesIO(conteudo), mimetype=mimetype, as_attachment=True,
+                     download_name=f"microareas_acs.{formato}")
 
 
 @bp.route("/api/registro-geografico")
