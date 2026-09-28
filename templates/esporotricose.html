@@ -152,6 +152,7 @@
 <div class="esporo-tabbar esporo-subtabs" id="esp-doentes-tabs" aria-label="Abas de animais doentes">
   <button class="esporo-tab-btn active" type="button" onclick="openEspTab('esp-tab-doentes', this)"><img src="/static/icons/gato_doente.svg" alt="" class="icon-svg"> Lista</button>
   <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-doentes-resumo', this)"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Resumo</button>
+  <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-doentes-entregas', this)"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Entregas por fonte</button>
   <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-doentes-estoque', this)"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Estoque medicação</button>
 </div>
 
@@ -498,6 +499,40 @@
   </div>
 </section>
 
+<section class="esporo-pane" id="esp-tab-doentes-entregas" data-esp-area="doentes">
+  <div class="chart-card">
+    <div class="chart-hd"><div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Itraconazol entregue aos animais</div><span class="table-info" id="ent-controle-info"></span></div>
+    <p class="muted">Cada linha é uma entrega cadastrada na receita do animal. Um mesmo animal pode ter recebido medicamentos das duas fontes. A baixa Zoomed é registrada para ambas.</p>
+    <div class="esporo-animal-filters">
+      <div class="f-g"><label>Data inicial da entrega</label><input type="date" id="ent-controle-inicio"></div>
+      <div class="f-g"><label>Data final da entrega</label><input type="date" id="ent-controle-fim"></div>
+      <div class="f-g"><label>Fonte</label><select id="ent-controle-fonte"><option value="">SESA e Município</option><option value="SESA">SESA</option><option value="Município">Município</option></select></div>
+      <div class="f-g"><label>Localidade</label><select id="ent-controle-localidade"><option value="">Todas</option>{% for loc in localidades %}<option value="{{ loc.nome }}">{{ loc.nome }}</option>{% endfor %}</select></div>
+      <div class="f-g"><label>Baixa Zoomed</label><select id="ent-controle-baixa"><option value="">Todas</option><option value="Sim">Feita</option><option value="Não">Pendente</option></select></div>
+      <div class="f-g"><label>Animal, tutor, endereço ou SINAN</label><input id="ent-controle-busca" placeholder="Pesquisar"></div>
+      <div class="esporo-filter-actions"><button class="btn btn-primary" type="button" onclick="carregarControleEntregas(1)"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
+    </div>
+  </div>
+  <div class="esporo-doentes-kpis" style="margin-top:14px;">
+    <div class="esporo-kpi"><div class="esporo-kpi-label">SESA · animais / entregas</div><div class="esporo-kpi-value" id="ent-kpi-sesa-contagem">0 / 0</div></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">SESA · cápsulas</div><div class="esporo-kpi-value" id="ent-kpi-sesa-capsulas">0</div></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Município · animais / entregas</div><div class="esporo-kpi-value" id="ent-kpi-municipio-contagem">0 / 0</div></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Município · cápsulas</div><div class="esporo-kpi-value" id="ent-kpi-municipio-capsulas">0</div></div>
+  </div>
+  <div class="chart-card" style="margin-top:14px;">
+    <div class="chart-hd"><div class="chart-title">Histórico de entregas</div><span class="table-info" id="ent-controle-sem-data"></span></div>
+    <div class="table-scroll"><table id="ent-controle-table" data-sortable-table>
+      <thead><tr><th>Data</th><th>Animal</th><th>Tutor</th><th>Localidade / endereço</th><th>Fonte</th><th>Cápsulas</th><th>Baixa Zoomed</th><th>Receita</th><th>Observações</th></tr></thead>
+      <tbody id="ent-controle-body"><tr><td colspan="9" class="empty-inline">Abra a aba para consultar as entregas.</td></tr></tbody>
+    </table></div>
+    <div class="esporo-filter-actions" style="margin-top:12px;">
+      <button class="btn btn-outline btn-sm" type="button" id="ent-controle-anterior" onclick="carregarControleEntregas(espEntregasPagina-1)">Anterior</button>
+      <span class="table-info" id="ent-controle-pagina"></span>
+      <button class="btn btn-outline btn-sm" type="button" id="ent-controle-proximo" onclick="carregarControleEntregas(espEntregasPagina+1)">Próximo</button>
+    </div>
+  </div>
+</section>
+
 <section class="esporo-pane" id="esp-tab-doentes-estoque" data-esp-area="doentes">
   <div class="esporo-doentes-kpis">
     <div class="esporo-kpi"><div class="esporo-kpi-label">Saldo no setor</div><div class="esporo-kpi-value" id="est-kpi-saldo">0</div></div>
@@ -618,6 +653,7 @@ let espDoentesCarregados = false;
 let espLocalidadesCarregadas = false;
 let espDashboardCarregado = false;
 let espEstoqueCarregado = false;
+let espEntregasPagina = 1;
 let espResumo = null;
 let espDoenteAtual = null;
 let espDoentesRows = [];
@@ -775,6 +811,7 @@ function openEspTab(id, btn) {
   if (id === 'esp-tab-animais' && !espAnimaisCarregados) carregarEspAnimais();
   if (id === 'esp-tab-doentes' && !espDoentesCarregados) carregarEspDoentes();
   if (id === 'esp-tab-doentes-resumo') carregarEspDoentesResumo();
+  if (id === 'esp-tab-doentes-entregas') carregarControleEntregas(espEntregasPagina);
   if (id === 'esp-tab-doentes-estoque') carregarEspEstoque();
   if (id === 'esp-tab-localidades' && !espLocalidadesCarregadas) carregarEspLocalidadesDetalhe();
   if (id === 'esp-tab-dashboard' && !espDashboardCarregado) carregarEspDashboard();
@@ -992,6 +1029,51 @@ async function carregarEspDoentesStatus(statusSelecionado = '') {
   document.getElementById('doe-status').value = statusSelecionado;
   const statusList = document.getElementById('doe-status-list');
   if (statusList) statusList.innerHTML = opts;
+}
+async function carregarControleEntregas(pagina=1) {
+  espEntregasPagina = Math.max(1, Number(pagina) || 1);
+  const p = new URLSearchParams();
+  const campos = [
+    ['inicio', 'ent-controle-inicio'], ['fim', 'ent-controle-fim'],
+    ['fonte', 'ent-controle-fonte'], ['localidade', 'ent-controle-localidade'],
+    ['baixa_zoomed', 'ent-controle-baixa'], ['busca', 'ent-controle-busca'],
+  ];
+  campos.forEach(([nome, id]) => {
+    const valor = document.getElementById(id)?.value?.trim();
+    if (valor) p.set(nome, valor);
+  });
+  p.set('pagina', String(espEntregasPagina));
+  try {
+    const d = await apiGet('/api/esporotricose/doentes/entregas-controle?' + p.toString());
+    const sesa = d.por_fonte?.SESA || {};
+    const municipio = d.por_fonte?.['Município'] || {};
+    document.getElementById('ent-kpi-sesa-contagem').textContent = `${fmtNum(sesa.animais || 0)} / ${fmtNum(sesa.entregas || 0)}`;
+    document.getElementById('ent-kpi-sesa-capsulas').textContent = fmtNum(sesa.capsulas || 0);
+    document.getElementById('ent-kpi-municipio-contagem').textContent = `${fmtNum(municipio.animais || 0)} / ${fmtNum(municipio.entregas || 0)}`;
+    document.getElementById('ent-kpi-municipio-capsulas').textContent = fmtNum(municipio.capsulas || 0);
+    document.getElementById('ent-controle-info').textContent = `${fmtNum(d.total || 0)} entrega(s) no filtro`;
+    const semData = Number(sesa.sem_data || 0) + Number(municipio.sem_data || 0);
+    document.getElementById('ent-controle-sem-data').textContent = semData ? `${fmtNum(semData)} entrega(s) sem data informada` : '';
+    document.getElementById('ent-controle-body').innerHTML = (d.registros || []).length ? d.registros.map(e => `
+      <tr>
+        <td data-sort-value="${escapeHtml(e.data_entrega || '')}">${fmtDate(e.data_entrega) || 'Sem data'}</td>
+        <td><a href="/esporotricose/doentes/${Number(e.id_animal_doente)}">${escapeHtml(e.animal || '-')}</a><div class="muted">${escapeHtml(e.especie || '')} · ${escapeHtml(e.status || '')}</div></td>
+        <td>${escapeHtml(e.tutor || '-')}</td>
+        <td>${escapeHtml(e.localidade || '-')} ${e.quarteirao ? '· Q. ' + escapeHtml(e.quarteirao) : ''}<div class="muted">${escapeHtml(e.endereco || '-')}</div></td>
+        <td>${escapeHtml(e.fonte_medicacao || '-')}</td>
+        <td data-sort-value="${Number(e.quantidade || 0)}">${fmtNum(e.quantidade || 0)}</td>
+        <td>${escapeHtml(e.baixa_zoomed || 'Não')}</td>
+        <td>${fmtDate(e.data_receita) || '-'}<div class="muted">#${Number(e.id_receita)}</div></td>
+        <td>${escapeHtml(e.observacoes_entrega || '-')}</td>
+      </tr>`).join('') : '<tr><td colspan="9" class="empty-inline">Nenhuma entrega encontrada para estes filtros.</td></tr>';
+    const paginas = Math.max(1, Math.ceil(Number(d.total || 0) / Number(d.por_pagina || 50)));
+    document.getElementById('ent-controle-pagina').textContent = `Página ${espEntregasPagina} de ${paginas}`;
+    document.getElementById('ent-controle-anterior').disabled = espEntregasPagina <= 1;
+    document.getElementById('ent-controle-proximo').disabled = espEntregasPagina >= paginas;
+    refreshSortableTable('ent-controle-table');
+  } catch (e) {
+    toast('Não foi possível carregar as entregas: ' + e.message, 'error');
+  }
 }
 function renderEspDoentes(rows, total) {
   document.getElementById('esp-doentes-info').textContent = `${fmtNum(total)} animal(is)`;

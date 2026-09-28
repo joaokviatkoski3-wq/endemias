@@ -716,6 +716,24 @@ def api_doentes_estoque():
     return jsonify(esporotricose_core.estoque_medicacao(bh.db_target()))
 
 
+@bp.route("/api/esporotricose/doentes/entregas-controle")
+@login_required
+def api_doentes_entregas_controle():
+    filtros = {
+        "inicio": request.args.get("inicio", ""),
+        "fim": request.args.get("fim", ""),
+        "fonte": request.args.get("fonte", ""),
+        "localidade": request.args.get("localidade", ""),
+        "baixa_zoomed": request.args.get("baixa_zoomed", ""),
+        "busca": request.args.get("busca", ""),
+        "pagina": request.args.get("pagina", "1"),
+    }
+    try:
+        return jsonify(esporotricose_core.controle_entregas_medicacao(bh.db_target(), filtros))
+    except esporotricose_core.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 400
+
+
 @bp.route("/api/esporotricose/doentes/estoque", methods=["POST"])
 @login_required
 @nivel_min("operador")

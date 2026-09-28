@@ -25,6 +25,11 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+O codigo `1.53.0` adiciona **Doentes > Entregas por fonte** em Esporotricose,
+consultando as entregas ja registradas nas receitas, com totais por fonte,
+filtros e paginação. Não altera lançamentos nem exige migração. O serviço
+oficial ainda está em `1.52.0` até reinício autorizado.
+
 O codigo `1.52.0` prepara importacao automatica Kobo dos ultimos 7 dias de
 envio, com validacao de resposta completa, filtro UUID, simulacao antes da
 gravacao, transacao e historico em Processar. A tarefa diaria 12h30 foi

@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual no codigo e no servico oficial: `1.52.0`, definida em `app_core/version.py`; `/login` respondeu HTTP 200 em 28/09/2026. O usuario confirmou a migracao 0020 aplicada.
+- Versao atual no codigo: `1.53.0`, definida em `app_core/version.py`; o servico oficial foi confirmado em `1.52.0` em 28/09/2026. O usuario confirmou a migracao 0020 aplicada.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -21,6 +21,15 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - `iniciar.bat` recusa o modo SQLite quando o marcador operacional PostgreSQL
   esta instalado.
 - Credenciais, bancos, anexos, backups e tokens nao podem ser versionados.
+
+Na versao `1.53.0`, a aba **Doentes > Entregas por fonte** mostra os animais
+que receberam itraconazol SESA ou Município com data, quantidade, tutor,
+localidade, endereço, receita, baixa Zoomed e observações. Os totais de
+animais por fonte usam IDs distintos (um animal pode aparecer nas duas). A
+consulta usa diretamente `esporotricose_doentes_entregas`, sem novas tabelas
+ou migração, e oferece filtros por data, fonte, localidade, baixa e texto,
+além de paginação. O codigo foi preparado, mas o servico oficial ainda nao
+foi reiniciado para esta versao.
 
 Na versao `1.52.0`, a importacao automatica Kobo foi preparada e ativada pelo
 usuario em 28/09/2026. `scripts/importar_kobo_automatico.py` consulta os ultimos 7 dias de

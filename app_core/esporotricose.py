@@ -3233,6 +3233,96 @@ def previsualizar_vinculos_imoveis(target):
         conn.close()
 
 
+def controle_entregas_medicacao(target, filtros=None):
+    """Consulta as entregas reais por animal e fonte, sem duplicar o estoque."""
+    filtros = filtros or {}
+    fonte = _text(filtros.get("fonte"))
+    if fonte and fonte not in ("SESA", "Município"):
+        raise ValidationError("Fonte da medicação inválida.")
+    inicio = _text(filtros.get("inicio"))
+    fim = _text(filtros.get("fim"))
+    for valor in (inicio, fim):
+        if valor:
+            try:
+                if datetime.strptime(valor, "%Y-%m-%d").strftime("%Y-%m-%d") != valor:
+                    raise ValueError("Data não canônica")
+            except ValueError as exc:
+                raise ValidationError("Informe datas no formato AAAA-MM-DD.") from exc
+    if inicio and fim and inicio > fim:
+        raise ValidationError("A data inicial não pode ser posterior à final.")
+    try:
+        pagina = max(1, int(filtros.get("pagina") or 1))
+    except (TypeError, ValueError):
+        pagina = 1
+    por_pagina = 50
+    where = []
+    params = []
+    fonte_sql = "CASE WHEN e.fonte_medicacao='Município' THEN 'Município' ELSE 'SESA' END"
+    if inicio:
+        where.append("e.data_entrega >= ?")
+        params.append(inicio)
+    if fim:
+        where.append("e.data_entrega <= ?")
+        params.append(fim)
+    if fonte:
+        where.append(f"{fonte_sql} = ?")
+        params.append(fonte)
+    localidade = _text(filtros.get("localidade"))
+    if localidade:
+        where.append("d.localidade = ?")
+        params.append(localidade)
+    baixa = _text(filtros.get("baixa_zoomed"))
+    if baixa:
+        if baixa not in ("Sim", "Não"):
+            raise ValidationError("Filtro de baixa Zoomed inválido.")
+        where.append("COALESCE(e.baixa_zoomed, 'Não') = ?")
+        params.append(baixa)
+    busca = _text(filtros.get("busca"))
+    if busca:
+        termo = f"%{busca.casefold()}%"
+        where.append("(LOWER(COALESCE(d.nome,'')) LIKE ? OR LOWER(COALESCE(d.tutor,'')) LIKE ? OR LOWER(COALESCE(d.endereco,'')) LIKE ? OR LOWER(COALESCE(d.sinan,'')) LIKE ?)")
+        params.extend([termo] * 4)
+    base = f"""FROM {DOENTES_ENTREGAS_TABLE} e
+               JOIN {DOENTES_RECEITAS_TABLE} r ON r.id_receita=e.id_receita
+               JOIN {DOENTES_TABLE} d ON d.id_animal_doente=r.id_animal_doente"""
+    if where:
+        base += " WHERE " + " AND ".join(where)
+    conn = db_core.connect(target)
+    try:
+        ensure_schema(conn)
+        agrupados = [db_core.serialize_row(row) for row in conn.execute(
+            f"""SELECT {fonte_sql} AS fonte_medicacao,
+                       COUNT(*) AS entregas,
+                       COUNT(DISTINCT d.id_animal_doente) AS animais,
+                       COALESCE(SUM(e.quantidade),0) AS capsulas,
+                       SUM(CASE WHEN e.data_entrega IS NULL THEN 1 ELSE 0 END) AS sem_data
+                  {base}
+                 GROUP BY {fonte_sql}""", params,
+        ).fetchall()]
+        por_fonte = {
+            fonte_nome: next((item for item in agrupados if item["fonte_medicacao"] == fonte_nome),
+                             {"fonte_medicacao": fonte_nome, "entregas": 0, "animais": 0, "capsulas": 0, "sem_data": 0})
+            for fonte_nome in ("SESA", "Município")
+        }
+        total = conn.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
+        registros = [db_core.serialize_row(row) for row in conn.execute(
+            f"""SELECT e.id_entrega, e.id_receita, e.data_entrega,
+                       e.quantidade, {fonte_sql} AS fonte_medicacao,
+                       e.baixa_zoomed, e.observacoes AS observacoes_entrega,
+                       r.data_receita, d.id_animal_doente, d.nome AS animal,
+                       d.especie, d.tutor, d.localidade, d.quarteirao,
+                       d.endereco, d.status, d.sinan
+                  {base}
+                 ORDER BY CASE WHEN e.data_entrega IS NULL THEN 1 ELSE 0 END,
+                          e.data_entrega DESC, e.id_entrega DESC
+                 LIMIT ? OFFSET ?""", params + [por_pagina, (pagina - 1) * por_pagina],
+        ).fetchall()]
+        return {"registros": registros, "total": total, "pagina": pagina,
+                "por_pagina": por_pagina, "por_fonte": por_fonte}
+    finally:
+        conn.close()
+
+
 def vincular_visitas_exatas(target):
     conn = db_core.connect(target)
     ensure_schema(conn)
