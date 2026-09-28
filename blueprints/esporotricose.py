@@ -639,6 +639,7 @@ def api_doentes():
         "bloqueio": request.args.get("bloqueio", ""),
         "pedido_zoomed": request.args.get("pedido_zoomed", ""),
         "baixa_zoomed": request.args.get("baixa_zoomed", ""),
+        "situacao_receita": request.args.get("situacao_receita", ""),
     }
     return jsonify(esporotricose_core.listar_doentes(bh.db_target(), filtros))
 

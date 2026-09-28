@@ -1485,6 +1485,16 @@ def listar_doentes(target, filtros=None):
         bloqueio = _normalizar_bloqueio_doente(filtros.get("bloqueio"))
         pedido_zoomed = _normalizar_sim_nao(filtros.get("pedido_zoomed"))
         baixa_zoomed = _text(filtros.get("baixa_zoomed"))
+        situacao_receita = _text(filtros.get("situacao_receita")) or ""
+        if situacao_receita not in ("", "pendente", "regular", "sem_receita"):
+            raise ValidationError("Situacao da receita invalida.")
+        if situacao_receita == "pendente":
+            where.append("EXISTS (SELECT 1 FROM esporotricose_doentes_receitas rp WHERE rp.id_animal_doente=d.id_animal_doente AND COALESCE(rp.receita_pendente, 0)=1)")
+        elif situacao_receita == "regular":
+            where.append("EXISTS (SELECT 1 FROM esporotricose_doentes_receitas rp WHERE rp.id_animal_doente=d.id_animal_doente)")
+            where.append("NOT EXISTS (SELECT 1 FROM esporotricose_doentes_receitas rp WHERE rp.id_animal_doente=d.id_animal_doente AND COALESCE(rp.receita_pendente, 0)=1)")
+        elif situacao_receita == "sem_receita":
+            where.append("NOT EXISTS (SELECT 1 FROM esporotricose_doentes_receitas rp WHERE rp.id_animal_doente=d.id_animal_doente)")
         if status:
             where.append("d.status=?")
             params.append(status)

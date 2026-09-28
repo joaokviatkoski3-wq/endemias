@@ -30,6 +30,9 @@ consulta usa diretamente `esporotricose_doentes_entregas`, sem novas tabelas
 ou migração, e oferece filtros por data, fonte, localidade, baixa e texto,
 além de paginação. O codigo foi preparado, mas o servico oficial ainda nao
 foi reiniciado para esta versao.
+Na lista de Doentes, o filtro **Situacao da receita** separa animais com
+receita pendente, com receita sem pendencia e sem receita cadastrada. Usa
+as receitas existentes, sem alteracao de banco.
 
 Na versao `1.52.0`, a importacao automatica Kobo foi preparada e ativada pelo
 usuario em 28/09/2026. `scripts/importar_kobo_automatico.py` consulta os ultimos 7 dias de

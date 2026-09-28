@@ -29,6 +29,8 @@ O codigo `1.53.0` adiciona **Doentes > Entregas por fonte** em Esporotricose,
 consultando as entregas ja registradas nas receitas, com totais por fonte,
 filtros e paginação. Não altera lançamentos nem exige migração. O serviço
 oficial ainda está em `1.52.0` até reinício autorizado.
+Na lista de Doentes, o filtro **Situação da receita** distingue pendência,
+receita sem pendência e ausência de receita; não exige migração.
 
 O codigo `1.52.0` prepara importacao automatica Kobo dos ultimos 7 dias de
 envio, com validacao de resposta completa, filtro UUID, simulacao antes da

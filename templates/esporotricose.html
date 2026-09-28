@@ -391,6 +391,7 @@
         <div class="f-g"><label>Localidade</label><select id="doe-localidade"><option value="">Todas</option>{% for loc in localidades %}<option value="{{ loc.nome }}">{{ loc.nome }}</option>{% endfor %}</select></div>
         <div class="f-g"><label>Bloqueio</label><select id="doe-bloqueio-filtro"><option value="">Todos</option><option value="Realizado">Realizado</option><option value="Não realizado">Não realizado</option><option value="Não necessário">Não necessário</option></select></div>
         <div class="f-g"><label>Pedido Zoomed</label><select id="doe-pedido-zoomed-filtro"><option value="">Todos</option><option value="Sim">Sim</option><option value="Não">Não</option></select></div>
+        <div class="f-g"><label>Situação da receita</label><select id="doe-situacao-receita"><option value="">Todas</option><option value="pendente">Receita pendente</option><option value="regular">Com receita, sem pendência</option><option value="sem_receita">Sem receita cadastrada</option></select></div>
         <div class="f-g"><label>Baixa Zoomed</label><select id="doe-baixa-zoomed-filtro"><option value="">Todas</option><option value="Pendente">Pendente</option><option value="Sim">Sim</option></select></div>
         <div class="esporo-filter-actions"><button class="btn btn-primary" type="button" onclick="carregarEspDoentes()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button></div>
       </div>
@@ -1004,6 +1005,7 @@ async function carregarEspDoentes() {
       bloqueio: document.getElementById('doe-bloqueio-filtro')?.value || '',
       pedido_zoomed: document.getElementById('doe-pedido-zoomed-filtro')?.value || '',
       baixa_zoomed: document.getElementById('doe-baixa-zoomed-filtro')?.value || '',
+      situacao_receita: document.getElementById('doe-situacao-receita')?.value || '',
     };
     await carregarEspDoentesStatus(filtros.status);
     document.getElementById('esp-doentes-body').innerHTML = '<tr><td colspan="11"><div class="loading-box"><div class="spinner"></div></div></td></tr>';
@@ -1161,6 +1163,9 @@ function capsulasDoenteHtml(r) {
 function tratamentoDoenteHtml(r) {
   if (r.receita_pendente) {
     return `${fmtNum(r.receitas || 0)} receita(s)<div class="muted warn">Receita pendente</div><div class="muted">Última entrega: ${fmtDate(r.ultima_entrega) || '-'}</div>`;
+  }
+  if (!Number(r.receitas || 0)) {
+    return '<span class="muted">Sem receita cadastrada</span>';
   }
   return `${fmtNum(r.receitas || 0)} receita(s)<div class="muted">Última: ${fmtDate(r.ultima_receita) || '-'}</div><div class="muted">Entregue: ${fmtNum(r.capsulas_entregues || 0)} cápsula(s)</div>`;
 }
