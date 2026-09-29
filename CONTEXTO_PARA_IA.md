@@ -1,6 +1,6 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 24/09/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 29/09/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual no codigo: `1.57.0`, definida em `app_core/version.py`; o servico oficial foi confirmado em `1.52.0` em 28/09/2026. O usuario confirmou a migracao 0020 aplicada.
+- Versao atual no codigo: `1.57.0`, definida em `app_core/version.py`; o servico oficial respondeu HTTP 200 com `Endemias v1.57.0` apos reinicio em 29/09/2026. A migracao 0021 ja constava como aplicada na verificacao anterior ao reinicio.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -30,9 +30,9 @@ por localidade, numero unico por localidade e ACS opcional do catalogo Kobo.
 Cada quarteirao so pode integrar uma microarea. A geometria continua na camada
 GeoJSON ativa, enquanto os vinculos permanecem no banco; quarteiroes ausentes
 da nova camada sao sinalizados, nao apagados. Ha exportacao XLSX, GeoJSON e KML.
-A migracao PostgreSQL `0021_territorializacao_microareas.sql` precisa ser
-aplicada antes de ativar o codigo; nao foi aplicada nesta sessao. O servico
-oficial nao foi reiniciado.
+A migracao PostgreSQL `0021_territorializacao_microareas.sql` ja constava
+como aplicada na verificacao de 29/09/2026, antes do reinicio do servico
+oficial para `1.57.0`; nao foi reaplicada nessa operacao.
 
 No codigo `1.55.0`, Microareas ganhou Painel visual, filtros compartilhados,
 relatorio imprimivel e XLSX com indicadores, ACS, localidades e cobertura RG.
@@ -45,8 +45,8 @@ No codigo `1.56.0`, o Painel de Microareas permite incluir (padrao) ou
 desconsiderar integralmente a populacao estimada de imoveis residenciais com
 `condominio > 0` no RG. O modo selecionado acompanha cards, detalhamento,
 relatorio para impressao e XLSX; o relatorio impresso usa A4 retrato. Os dados
-do RG nao sao alterados. Nao ha nova migracao; a pendencia anterior da 0021
-deve ser conferida antes de ativar a pagina em producao.
+do RG nao sao alterados. Nao ha nova migracao nesta versao; a 0021 foi
+confirmada como aplicada em 29/09/2026.
 
 No codigo `1.57.0`, o mapa de Microareas distribui as cores dos poligonos
 considerando a proximidade aproximada dos quarteiroes (ate 200 m), priorizando

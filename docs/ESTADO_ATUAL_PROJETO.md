@@ -1,6 +1,6 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 24/09/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 29/09/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
@@ -25,13 +25,21 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+Em 29/09/2026, a verificacao administrativa no banco oficial `endemias`
+mostrou `0021_territorializacao_microareas.sql` como **applied**, sem
+migracoes pendentes; ela nao precisou ser reaplicada. Os backups existentes
+foram verificados antes do reinicio. A tarefa oficial foi reiniciada e
+`/login` respondeu HTTP 200 com `Endemias v1.57.0`. O arquivo
+`tests/test_security.py` ja tinha modificacao local alheia a esta operacao e
+nao foi alterado.
+
 O codigo `1.57.0` melhora as cores do mapa em Territorialização > Microáreas:
 os polígonos são aproximados por caixas geográficas e áreas a até 200 m
 entram no mesmo grupo de vizinhança para receber cores contrastantes. Uma
 legenda por localidade e o botão **Embaralhar cores** permitem conferir e variar
 a paleta; a variação fica no armazenamento deste navegador. É uma escolha
 visual, sem gravar no banco nem alterar KML/GeoJSON. Não exige nova migração;
-confirmar a 0021 antes de ativar a página em produção.
+a 0021 foi confirmada como aplicada em 29/09/2026.
 
 O codigo `1.56.0` acrescenta ao Painel de Microáreas um controle para incluir
 (padrão) ou excluir a população estimada dos condomínios residenciais. O RG
@@ -39,8 +47,8 @@ identifica essas unidades pelo imóvel residencial com `condominio > 0`; ao
 excluir, todas essas unidades ficam fora da estimativa, sem alterar cadastros.
 Cards, média por ACS, lista, relatório imprimível e XLSX usam o mesmo modo. O
 relatório imprimível agora usa A4 retrato. A indicação do modo fica visível no
-relatório e na planilha. Não há nova migração; conferir a situação da 0021
-antes de reiniciar o serviço.
+relatório e na planilha. Não há nova migração nesta versão; a 0021 foi
+confirmada como aplicada em 29/09/2026.
 
 O codigo `1.55.0` separa **Painel** de **Cadastro e exportações** em
 Territorialização > Microáreas. Os filtros são compartilhados. O painel mostra
@@ -64,14 +72,14 @@ No editor, a seleção pode ser feita pelo mapa com etiquetas numéricas ou por
 lista pesquisável, com sincronização entre ambos. O fundo do mapa pode alternar
 entre ruas, satélite e satélite com ruas, como no mapa do RG. Exporta XLSX,
 GeoJSON e KML.
-Na última prévia compartilhada pelo usuário, a migração PostgreSQL
-`0021_territorializacao_microareas.sql` constava **pendente**. Confirmar o
-estado atual do banco antes de reiniciar o serviço.
+Na prévia compartilhada anteriormente pelo usuário, a migração PostgreSQL
+`0021_territorializacao_microareas.sql` constava **pendente**; a verificação
+administrativa de 29/09/2026 mostrou-a **applied** antes do reinício.
 
-O codigo `1.53.0` adiciona **Doentes > Entregas por fonte** em Esporotricose,
+O codigo `1.53.0` adicionou **Doentes > Entregas por fonte** em Esporotricose,
 consultando as entregas ja registradas nas receitas, com totais por fonte,
 filtros e paginação. Não altera lançamentos nem exige migração. O serviço
-oficial ainda está em `1.52.0` até reinício autorizado.
+oficial foi atualizado para `1.57.0` em 29/09/2026.
 Na lista de Doentes, o filtro **Situação da receita** distingue pendência,
 receita sem pendência e ausência de receita; não exige migração.
 
