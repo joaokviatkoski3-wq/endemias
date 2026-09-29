@@ -21,7 +21,12 @@
     if (!resp.ok) throw new Error(data.erro || `Erro HTTP ${resp.status}`);
     return data;
   }
-  const status = texto => { el('micro-status').textContent = texto; };
+  const status = (texto, erro=false) => {
+    const aviso = el('micro-status');
+    aviso.textContent = texto;
+    aviso.style.color = erro ? '#b91c1c' : '';
+    aviso.style.fontWeight = erro ? '700' : '';
+  };
   function ativos() {
     const id = Number(el('micro-localidade').value);
     return estado.geo?.features?.filter(f => Number(f.properties?.Localidade) === id) || [];
@@ -339,7 +344,6 @@
     }
     if (estado.selecionados.has(q)) {
       if (!confirm(`Converter Q. ${exibirQ(q)} de inteiro para parcial? Os lados não desenhados ficarão sem microárea.`)) return;
-      estado.selecionados.delete(q); renderListaQuarteiroes(); atualizarSelecao();
     }
     cancelarDesenho(false);
     estado.desenho = {quarteirao:q, logradouro:t.logradouro, lado:t.lado, rg:t, pontos:[]};
@@ -354,20 +358,16 @@
   async function concluirDesenho() {
     const d = estado.desenho;
     if (!d || d.pontos.length < 3) { status('Marque ao menos três vértices no mapa.'); return; }
+    if (!el('micro-numero').value) {
+      status('Informe o número da microárea antes de concluir. O desenho continua no mapa.', true);
+      return;
+    }
     const anel = d.pontos.map(p => [Number(p.lng.toFixed(7)), Number(p.lat.toFixed(7))]);
     anel.push([...anel[0]]);
     const parte = {quarteirao:d.quarteirao, logradouro:d.logradouro, lado:d.lado, rg:d.rg,
       base_desatualizada:false, geometry:{type:'Polygon', coordinates:[anel]}};
-    estado.partes = estado.partes.filter(p => !(p.quarteirao === parte.quarteirao && p.logradouro === parte.logradouro && p.lado === parte.lado));
-    estado.partes.push(parte);
-    cancelarDesenho(false); renderMapa(); renderListaQuarteiroes(); renderPartesSelecionadas();
-    if (estado.editando) {
-      status('Validando e salvando o lado parcial...');
-      await salvar({lado:parte, manterEdicao:true});
-    } else {
-      carregarTrechos(parte.quarteirao);
-      status('Desenho preparado, mas ainda não salvo. Preencha o número e clique em Criar microárea.');
-    }
+    status('Validando e salvando o lado parcial...');
+    await salvar({lado:parte, manterEdicao:true});
   }
   async function carregar() {
     const [geo, lista] = await Promise.all([
@@ -431,7 +431,7 @@
     estado.parcialQ = null; estado.parcialRequisicao = null; estado.trechos = []; renderPartesSelecionadas();
     el('micro-cadastro-titulo').textContent = 'Nova microárea';
     if (el('micro-salvar')) el('micro-salvar').textContent = 'Criar microárea';
-    el('micro-parcial-concluir').textContent = 'Concluir desenho';
+    el('micro-parcial-concluir').textContent = 'Concluir e salvar lado';
     status('Nova microárea. Selecione os quarteirões.'); renderListaQuarteiroes(); renderMapa();
   }
   function abrir(id) {
@@ -457,37 +457,50 @@
   async function salvar({lado=null, manterEdicao=false}={}) {
     if (estado.salvando) return;
     const loc = el('micro-localidade').value;
-    if (!loc || !(estado.selecionados.size || estado.partes.length)) { status('Selecione um quarteirão inteiro ou desenhe um lado parcial.'); return; }
-    if (estado.desenho) { status('Conclua ou cancele o desenho antes de salvar.'); return; }
+    if (!loc || !(estado.selecionados.size || estado.partes.length || lado)) { status('Selecione um quarteirão inteiro ou desenhe um lado parcial.'); return; }
+    if (estado.desenho && !lado) { status('Conclua ou cancele o desenho antes de salvar.'); return; }
+    const partes = lado ? estado.partes.filter(p => !(p.quarteirao === lado.quarteirao
+      && p.logradouro === lado.logradouro && p.lado === lado.lado)).concat(lado) : estado.partes;
     const payload = {id_localidade:Number(loc), numero:el('micro-numero').value,
       acs_codigo:el('micro-acs').value, observacoes:el('micro-observacoes').value,
-      quarteiroes:[...estado.selecionados],
-      partes:estado.partes.map(p => ({quarteirao:p.quarteirao, logradouro:p.logradouro,
+      quarteiroes:[...estado.selecionados].filter(q => !lado || q !== lado.quarteirao),
+      partes:partes.map(p => ({quarteirao:p.quarteirao, logradouro:p.logradouro,
         lado:p.lado, geometry:p.geometry, base_geometry_hash:p.base_geometry_hash}))};
     const id = estado.editando;
     estado.salvando = true;
     el('micro-salvar').disabled = true;
+    el('micro-parcial-concluir').disabled = true;
     let gravado = false;
     try {
-      await json(id ? `/api/territorializacao/microareas/${id}` : '/api/territorializacao/microareas', {
+      const resposta = await json(id ? `/api/territorializacao/microareas/${id}` : '/api/territorializacao/microareas', {
         method:id ? 'PUT':'POST', headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('meta[name="csrf-token"]')?.content || ''}, body:JSON.stringify(payload)});
       gravado = true;
+      cancelarDesenho(false);
       const numero = payload.numero;
       await carregar();
-      if (manterEdicao && id) {
-        const registro = estado.lista.find(r => r.id_microarea === id);
-        if (!registro?.partes.some(p => p.quarteirao === lado.quarteirao && p.logradouro === lado.logradouro && p.lado === lado.lado))
+      if (manterEdicao && lado) {
+        const idSalvo = Number(resposta.id_microarea);
+        const registro = estado.lista.find(r => r.id_microarea === idSalvo);
+        if (!registro?.partes.some(p => p.quarteirao === lado.quarteirao && p.logradouro === lado.logradouro && p.lado === lado.lado)
+            || registro.quarteiroes.includes(lado.quarteirao))
           throw new Error('A leitura atualizada não confirmou o lado salvo. Recarregue a página e confira antes de repetir.');
-        abrir(id);
+        abrir(idSalvo);
         el('micro-parcial-q').value = exibirQ(lado.quarteirao);
         await carregarTrechos(lado.quarteirao);
         status(`Lado ${lado.lado} de Q. ${exibirQ(lado.quarteirao)} salvo na microárea ${numero}.`);
       } else {
         novo(); status(`Microárea ${numero} salva.`);
       }
-    } catch (e) { status(gravado ? `Gravação enviada, mas a conferência falhou: ${e.message}`
-      : `Não foi salvo: ${e.message}. O desenho continua nesta tela para correção.`); }
-    finally { estado.salvando = false; el('micro-salvar').disabled = false; }
+    } catch (e) {
+      const mensagem = gravado ? `Gravação enviada, mas a conferência falhou: ${e.message}`
+        : `NÃO FOI SALVO: ${e.message}. O desenho continua no mapa para você corrigir ou tentar novamente.`;
+      status(mensagem, true);
+      if (lado) alert(mensagem);
+    } finally {
+      estado.salvando = false;
+      el('micro-salvar').disabled = false;
+      el('micro-parcial-concluir').disabled = false;
+    }
   }
   async function excluir(id) {
     const r = estado.lista.find(item => item.id_microarea === id);
@@ -563,6 +576,7 @@
     estado.partes.splice(Number(botao.dataset.parteRemover), 1);
     renderMapa(); renderListaQuarteiroes(); renderPartesSelecionadas();
     if (estado.parcialQ) carregarTrechos(estado.parcialQ);
+    status('Lado retirado apenas desta edição. Clique em Salvar alterações para gravar a retirada.');
   });
   el('micro-parcial-desfazer').addEventListener('click', () => {
     estado.desenho?.pontos.pop(); atualizarDesenho();
@@ -579,6 +593,11 @@
   el('micro-ir-cadastro').addEventListener('click', () => subAba('lista'));
   el('micro-salvar')?.addEventListener('click', salvar);
   el('micro-nova')?.addEventListener('click', novo);
+  window.addEventListener('beforeunload', ev => {
+    if (!estado.salvando && !estado.desenho) return;
+    ev.preventDefault();
+    ev.returnValue = '';
+  });
   const cliqueEditar = ev => {
     const edit = ev.target.closest('[data-micro-edit]'), del = ev.target.closest('[data-micro-delete]');
     if (edit) abrir(Number(edit.dataset.microEdit));

@@ -5,7 +5,7 @@ const vm = require('node:vm');
 
 const arquivo = path.join(__dirname, '..', 'static', 'js', 'microareas.js');
 const codigo = fs.readFileSync(arquivo, 'utf8').replace(/\}\)\(\);\s*$/,
-  'globalThis.__microTeste = {estado, iniciarDesenho, cancelarDesenho, atualizarDesenho, carregarTrechos, concluirDesenho, abrir};\n})();');
+  'globalThis.__microTeste = {estado, iniciarDesenho, cancelarDesenho, atualizarDesenho, carregarTrechos, concluirDesenho, abrir, novo};\n})();');
 const elementos = new Map();
 function el(id) {
   if (!elementos.has(id)) elementos.set(id, {
@@ -28,13 +28,17 @@ const L = {
   circleMarker(_point, options) { return camada(options); },
   layerGroup(items) { const group = camada(); group.items = items; return group; },
 };
+const avisos = [];
+let avisoSaida;
 const context = {L, Intl, URLSearchParams, console, location:{hash:''}, setTimeout() {}, confirm() { return true; },
+  alert(mensagem) { avisos.push(mensagem); },
   localStorage:{getItem() { return null; }},
-  window:{MicroareasCores:{vizinhanca() { return {}; }, atribuir() { return {}; }}},
+  window:{MicroareasCores:{vizinhanca() { return {}; }, atribuir() { return {}; }},
+    addEventListener(tipo, callback) { if (tipo === 'beforeunload') avisoSaida = callback; }},
   document:{getElementById:el, querySelectorAll() { return []; }, querySelector() { return {content:'csrf-teste'}; }},
 };
 vm.runInNewContext(codigo, context, {filename:arquivo});
-const {estado, iniciarDesenho, cancelarDesenho, atualizarDesenho, carregarTrechos, concluirDesenho, abrir} = context.__microTeste;
+const {estado, iniciarDesenho, cancelarDesenho, atualizarDesenho, carregarTrechos, concluirDesenho, abrir, novo} = context.__microTeste;
 estado.mapa = {removeLayer() {}, fitBounds() {}};
 estado.geo = {features:[{type:'Feature', properties:{Localidade:1, id_quart:'0007'},
   geometry:{type:'Polygon',coordinates:[[[-49.3,-25.3],[-49.29,-25.3],[-49.3,-25.31],[-49.3,-25.3]]]}}]};
@@ -67,25 +71,41 @@ async function testarPersistencia() {
     quarteiroes_sem_geometria:[], quarteiroes_com_rg:1, quarteiroes_total:1,
     populacao_com_condominios:0, populacao_sem_condominios:0};
   let gravacoes = 0;
+  let falhar = false;
+  let novoRegistro = null;
   context.fetch = async (url, options={}) => {
+    if (options.method === 'POST') {
+      const payload = JSON.parse(options.body);
+      assert.equal(url, '/api/territorializacao/microareas');
+      assert.equal(payload.numero, '11');
+      assert.equal(payload.partes[0].quarteirao, '0008');
+      novoRegistro = {...registro, id_microarea:53, numero:'11', quarteiroes:[],
+        partes:payload.partes, quarteiroes_total:1};
+      return {ok:true, status:201, json:async() => ({ok:true, id_microarea:53})};
+    }
     if (options.method === 'PUT') {
       const payload = JSON.parse(options.body);
       assert.equal(url, '/api/territorializacao/microareas/52');
       assert.deepEqual(payload.quarteiroes, [], 'Converter para parcial retira o vínculo inteiro');
       assert.equal(payload.partes.length, 1);
       assert.equal(payload.partes[0].lado, '1');
+      if (falhar) return {ok:false, status:400, json:async() => ({erro:'O desenho deve ficar inteiramente dentro do quarteirão oficial.'})};
       gravacoes++;
       registro.quarteiroes = [];
       registro.partes = payload.partes;
-      return {ok:true, json:async() => ({ok:true})};
+      return {ok:true, json:async() => ({ok:true, id_microarea:52})};
     }
-    if (url.startsWith('/api/territorializacao/microareas/trechos'))
-      return {ok:true, json:async() => ({inteiro_id_microarea:gravacoes ? null : 52,
-        trechos:[{logradouro:'Rua Teste', lado:'1', imoveis:1, id_microarea:gravacoes ? 52 : null}]})};
+    if (url.startsWith('/api/territorializacao/microareas/trechos')) {
+      const q = new URL(url, 'http://local').searchParams.get('quarteirao');
+      return {ok:true, json:async() => ({inteiro_id_microarea:q === '0007' && !gravacoes ? 52 : null,
+        trechos:[{logradouro:'Rua Teste', lado:'1', imoveis:1,
+          id_microarea:q === '0007' && gravacoes ? 52 : q === '0008' && novoRegistro ? 53 : null}]})};
+    }
     if (url === '/api/registro-geografico/geojson')
       return {ok:true, json:async() => estado.geo};
     if (url === '/api/territorializacao/microareas')
-      return {ok:true, json:async() => ({registros:[registro], acs:[], indicadores:{}, resumo_rg:{quarteiroes:{}}})};
+      return {ok:true, json:async() => ({registros:[registro, ...(novoRegistro ? [novoRegistro] : [])],
+        acs:[], indicadores:{}, resumo_rg:{quarteiroes:{}}})};
     throw new Error(`URL inesperada: ${url}`);
   };
   estado.iniciado = true;
@@ -108,10 +128,46 @@ async function testarPersistencia() {
   ];
   await concluirDesenho();
   assert.equal(gravacoes, 1, 'Concluir deve gravar no banco imediatamente');
-  assert.equal(estado.selecionados.has('0007'), false);
+  assert.equal(estado.selecionados.has('0007'), false, el('micro-status').textContent);
   assert.equal(estado.partes.length, 1, 'O lado salvo deve continuar visível após recarregar');
   assert.match(el('micro-status').textContent, /salvo na microárea 10/);
   assert.match(el('micro-parcial-lados').innerHTML, /Redesenhar/);
+  falhar = true;
+  iniciarDesenho(0);
+  estado.desenho.pontos = [
+    {lng:-49.2998,lat:-25.3002}, {lng:-49.2981,lat:-25.3002}, {lng:-49.2998,lat:-25.302},
+  ];
+  await concluirDesenho();
+  assert.equal(gravacoes, 1, 'Falha não deve registrar uma nova gravação');
+  assert.equal(estado.partes.length, 1, 'Falha não deve substituir o lado confirmado por um rascunho');
+  assert.ok(estado.desenho, 'Desenho rejeitado deve permanecer editável');
+  assert.match(el('micro-status').textContent, /NÃO FOI SALVO/);
+  assert.match(avisos.at(-1), /NÃO FOI SALVO/);
+  const evento = {returnValue:null, preventDefault() { this.impedido = true; }};
+  avisoSaida(evento);
+  assert.equal(evento.impedido, true, 'F5 com desenho não salvo deve avisar');
+  falhar = false;
+  await concluirDesenho();
+  assert.equal(gravacoes, 2, 'O mesmo desenho pode ser reenviado após a rejeição');
+  assert.equal(estado.desenho, null);
+  assert.equal(estado.partes.length, 1);
+  const eventoSalvo = {returnValue:null, preventDefault() { this.impedido = true; }};
+  avisoSaida(eventoSalvo);
+  assert.equal(eventoSalvo.impedido, undefined, 'Após confirmação, F5 não deve avisar');
+  novo();
+  el('micro-numero').value = '11';
+  estado.geo.features.push({type:'Feature', properties:{Localidade:1, id_quart:'0008'},
+    geometry:{type:'Polygon',coordinates:[[[-49.29,-25.3],[-49.28,-25.3],[-49.29,-25.31],[-49.29,-25.3]]]}});
+  estado.parcialQ = '0008';
+  estado.trechos = [{logradouro:'Rua Teste', lado:'1', imoveis:1}];
+  iniciarDesenho(0);
+  estado.desenho.pontos = [
+    {lng:-49.2899,lat:-25.3001}, {lng:-49.288,lat:-25.3001}, {lng:-49.2899,lat:-25.303},
+  ];
+  await concluirDesenho();
+  assert.equal(estado.editando, 53, 'Criar por lado deve abrir a nova microárea salva');
+  assert.equal(estado.partes.length, 1);
+  assert.match(el('micro-status').textContent, /salvo na microárea 11/);
 }
-testarPersistencia().then(() => console.log('Conversão inteiro→parcial gravada e visível após recarregar.'),
+testarPersistencia().then(() => console.log('Conversão, rejeição/reenvio e criação por lado confirmados.'),
   erro => { console.error(erro); process.exitCode = 1; });

@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual no codigo: `1.58.2`, definida em `app_core/version.py`. O servico oficial ainda deve ser conferido apos integrar/reiniciar esta correcao. Em 29/09/2026, o reinicio anterior terminou com codigo 0 e `/login` respondeu HTTP 200 com `Endemias v1.58.1`. A saida enviada pelo usuario confirmou a aplicacao da migracao 0022; esta sessao nao consegue consultar o PostgreSQL diretamente por falta de acesso a credencial SYSTEM. Shapely 2.1.2 foi instalado no Python local.
+- Versao atual no codigo: `1.58.3`, definida em `app_core/version.py`. O servico oficial respondeu `1.58.2` em 29/09/2026; conferir integracao/reinicio antes de declarar `1.58.3` ativa. A saida enviada pelo usuario confirmou a aplicacao da migracao 0022; esta sessao nao consegue consultar o PostgreSQL diretamente por falta de acesso a credencial SYSTEM. Shapely 2.1.2 foi instalado no Python local.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -94,6 +94,19 @@ Antes desta mudanca, o desenho era apenas rascunho ate o clique separado em
 **Salvar alteracoes**; ao revisitar, o Q. 796 da Sede permanecia inteiro na
 microarea 10 e todos os lados apareciam bloqueados fora do modo de edicao.
 Nao houve alteracao desse cadastro real no diagnostico. Nao requer migracao.
+
+No codigo `1.58.3`, o desenho parcial nao entra na lista de lados antes de
+ser confirmado pela API. Se a API rejeitar a geometria ou o envio falhar, o
+desenho e seus vertices permanecem para correcao/reenvio, o erro aparece em
+aviso destacado e alerta, e F5 avisa sobre o desenho pendente. A conversao
+inteiro->parcial so aparece apos reler o cadastro salvo. Ao criar uma nova
+microarea com lado, informe o numero antes de concluir: a criacao tambem e
+imediata, sem segundo botao de salvar. Em 29/09, o Q. 796 e Q. 758 de Sede
+continuavam inteiros na microarea 10 depois do F5, e a Auditoria nao mostrava
+atualizacao bem-sucedida dessa microarea. A causa especifica da rejeicao da
+API ainda nao foi confirmada; nao afirmar que eram geometrias invalidas ou
+falha de Shapely sem capturar a mensagem do servidor. Nenhum desses vinculos
+reais foi alterado no diagnostico. Nao requer migracao.
 
 Na versao `1.53.0`, a aba **Doentes > Entregas por fonte** mostra os animais
 que receberam itraconazol SESA ou Município com data, quantidade, tutor,

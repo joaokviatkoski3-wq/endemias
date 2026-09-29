@@ -25,6 +25,23 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+Em 29/09/2026, o usuario relatou que desenhou lados dos Q. 796 e 758 de Sede
+na microarea 10, mas apos F5 ambos voltaram como inteiros. A pagina ativa
+respondia `1.58.2`; a leitura da tela confirmou 21 quarteiroes inteiros e zero
+lados parciais nessa area. A Auditoria nao registrava atualizacao bem-sucedida
+da microarea 10 depois da criacao. Nao foi possivel recuperar a resposta de
+erro das tentativas anteriores, portanto a causa de eventual rejeicao pelo
+servidor permanece desconhecida. O bug confirmado na interface era mostrar o
+desenho na lista antes de receber confirmacao de gravacao. A correcao `1.58.3`
+mantem os lados nessa lista apenas apos resposta positiva e releitura do banco;
+erros aparecem em destaque e alerta, o desenho rejeitado permanece para
+correcao, e F5 durante desenho/envio dispara aviso. A criacao de microarea
+nova por lado tambem e gravada ao concluir, desde que o numero esteja
+preenchido. Sem migracao; confirmar implantacao e teste visual. Nenhuma
+geometria real foi alterada durante este diagnostico.
+Os 732 testes Python terminaram em OK (5 ignorados), assim como os testes
+JavaScript de desenho, rejeicao/reenvio, criacao por lado e cores.
+
 Correcao `1.58.2` para lados parciais: no cadastro real, Q. 796 da Sede
 continuava inteiro na microarea 10, sem nenhum lado parcial salvo. A interface
 antiga mostrava todos os lados como ja atribuidos fora da edicao e exigia um

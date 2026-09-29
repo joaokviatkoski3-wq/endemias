@@ -12,10 +12,12 @@ quarteirao e busca os logradouros e lados que constam no RG. Se o quarteirao
 ja pertence por inteiro a uma microarea, o aviso oferece **Editar microarea**;
 sem abrir a dona, os lados aparecem bloqueados para evitar atribuicao dupla.
 Seleciona um lado, clica em **Desenhar**, marca os vertices sobre o poligono
-oficial e clica em **Concluir e salvar lado**. Na edicao de microarea existente,
-isso grava imediatamente a conversao e rele o cadastro para confirmar o lado
-salvo; uma falha de validacao deixa o desenho visivel para correcao. Ao criar
-uma microarea nova, o desenho permanece rascunho ate clicar em **Criar microarea**.
+oficial e clica em **Concluir e salvar lado**. Informe antes o numero da
+microarea. Tanto na edicao quanto na criacao de microarea nova, o sistema
+grava imediatamente e rele o cadastro para confirmar o lado salvo. O lado so
+aparece na lista da microarea depois dessa confirmacao. Se o servidor rejeitar
+o desenho, aparece um erro explicito, os vertices permanecem no mapa para
+corrigir/repetir, e um F5 antes de salvar produz aviso do navegador.
 Pode desfazer o ultimo vertice, cancelar e redesenhar. O vinculo de um quarteirao inteiro pode ser
 convertido em lados parciais na edicao da mesma microarea; os lados nao
 selecionados ficam sem atribuicao. Outro administrador podera atribui-los a
