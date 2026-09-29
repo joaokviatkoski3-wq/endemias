@@ -5,8 +5,14 @@
     '#2563eb', '#dc2626', '#16a34a', '#7c3aed', '#ea580c',
     '#0891b2', '#db2777', '#a16207', '#0f766e', '#4d7c0f',
     '#1e40af', '#be123c',
+    '#0ea5e9', '#b91c1c', '#15803d', '#9333ea', '#c2410c',
+    '#0d9488', '#be185d', '#ca8a04', '#4338ca', '#65a30d',
+    '#0369a1', '#a21caf', '#047857', '#e11d48', '#d97706',
+    '#6d28d9', '#166534', '#0e7490', '#9f1239', '#854d0e',
+    '#4f46e5', '#c026d3', '#b45309', '#059669', '#1d4ed8',
   ];
   const LIMITE_METROS = 200;
+  const CONTRASTE_VIZINHO = 40;
   const codigo = valor => {
     const raw = String(valor ?? '').trim();
     return /^\d+(?:\.0+)?$/.test(raw) ? String(parseInt(raw, 10)).padStart(4, '0') : raw;
@@ -100,8 +106,14 @@
       for (let i = 0; i < opcoes.length; i++) {
         const cor = opcoes[i];
         const distancias = jaColoridos.map(vizinha => diferenca(cor, vizinha));
-        const score = [distancias.length ? Math.min(...distancias) : Infinity,
-          distancias.reduce((soma, valor) => soma + valor, 0), -usos.get(cor), -i];
+        const minimo = distancias.length ? Math.min(...distancias) : Infinity;
+        const contrastante = minimo >= CONTRASTE_VIZINHO;
+        // Entre cores suficientemente distintas das vizinhas, priorizar as
+        // menos usadas; a ordem embaralhada desempata e cria novas combinações.
+        // Sem cor contrastante disponível, maximizar a distância possível.
+        const score = [contrastante ? 1 : 0,
+          contrastante ? -usos.get(cor) : minimo,
+          contrastante ? -i : -usos.get(cor), -i];
         if (melhorQue(score, melhorScore)) {
           melhor = cor; melhorScore = score;
         }

@@ -25,6 +25,13 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+O codigo `1.57.1` amplia de 12 para 37 cores a paleta do mapa de Microáreas
+e faz **Embaralhar cores** produzir mais combinações: entre opções com bom
+contraste local, prefere cores menos usadas. A escolha continua apenas no
+navegador, sem alterar banco ou exportações. Não exige migração. A última
+versão confirmada no serviço oficial é `1.57.0`; reinício de `1.57.1` depende
+de autorização do usuário.
+
 Em 29/09/2026, a verificacao administrativa no banco oficial `endemias`
 mostrou `0021_territorializacao_microareas.sql` como **applied**, sem
 migracoes pendentes; ela nao precisou ser reaplicada. Os backups existentes

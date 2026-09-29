@@ -23,6 +23,8 @@ const vizinhos = vizinhanca(registros, features);
 assert.deepEqual([...vizinhos.get('1')].sort(), ['2','3']);
 assert.deepEqual([...vizinhos.get('4')], []);
 const cores = atribuir(registros, features, 1234);
+assert.equal(CORES.length, 37);
+assert.equal(new Set(CORES).size, CORES.length);
 assert.deepEqual(atribuir(registros, features, 1234), cores);
 assert.deepEqual(atribuir(registros, features, 1234, vizinhos), cores);
 for (const [id, proximas] of vizinhos) {
@@ -42,7 +44,20 @@ const quadras = grade.map((r, indice) => poligono(r.id_microarea, r.quarteiroes[
   -49.30 + (indice % 5) * .0011, 1, -25.30 - Math.floor(indice / 5) * .0011));
 const gradeVizinhos = vizinhanca(grade, quadras);
 const gradeCores = atribuir(grade, quadras, 234, gradeVizinhos);
+assert.ok(new Set(Object.values(gradeCores)).size >= 13,
+  'A paleta ampliada deve usar mais cores sem sacrificar contraste entre vizinhas');
 for (const [id, proximas] of gradeVizinhos) {
-  for (const vizinha of proximas) assert.notEqual(gradeCores[id], gradeCores[vizinha]);
+  for (const vizinha of proximas) {
+    assert.notEqual(gradeCores[id], gradeCores[vizinha]);
+    assert.ok(diferenca(gradeCores[id], gradeCores[vizinha]) >= 25,
+      `${id}/${vizinha}: ${diferenca(gradeCores[id], gradeCores[vizinha]).toFixed(1)}`);
+  }
 }
+const combinacoes = new Set(Array.from({length:12}, (_, indice) =>
+  JSON.stringify(atribuir(grade, quadras, indice + 1, gradeVizinhos))));
+assert.ok(combinacoes.size >= 10, 'Embaralhar deve oferecer várias combinações distintas');
+const dispersas = grade.map((r, indice) => poligono(r.id_microarea, r.quarteiroes[0],
+  -49.30 + indice * .01));
+assert.equal(new Set(Object.values(atribuir(grade, dispersas, 42))).size, grade.length,
+  'Microáreas afastadas devem aproveitar cores sem repetição');
 console.log('Cores de microáreas: vizinhança, contraste e variação OK.');

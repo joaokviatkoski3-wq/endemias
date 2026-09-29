@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual no codigo: `1.57.0`, definida em `app_core/version.py`; o servico oficial respondeu HTTP 200 com `Endemias v1.57.0` apos reinicio em 29/09/2026. A migracao 0021 ja constava como aplicada na verificacao anterior ao reinicio.
+- Versao atual no codigo: `1.57.1`, definida em `app_core/version.py`; o servico oficial respondeu HTTP 200 com `Endemias v1.57.0` apos reinicio em 29/09/2026. A atualizacao `1.57.1` ainda requer reinicio autorizado. A migracao 0021 ja constava como aplicada na verificacao anterior ao reinicio.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -54,6 +54,12 @@ contraste entre areas vizinhas. O botao **Embaralhar cores** produz outra
 distribuicao sem mudar os dados e guarda a escolha neste navegador. A legenda
 identifica cores por microarea na localidade selecionada. KML e GeoJSON nao
 recebem essas cores de interface. Nao ha nova migracao.
+
+No codigo `1.57.1`, a paleta visual de Microareas cresce de 12 para 37 cores.
+O embaralhamento privilegia cores ainda nao usadas quando mantem contraste
+adequado com as areas vizinhas; quando isso nao e possivel, usa a maior
+distancia de cor disponivel. Nao altera cadastro, exportacoes nem banco; nao
+exige migracao. O parametro de versao do JavaScript evita cache da paleta antiga.
 
 Na versao `1.53.0`, a aba **Doentes > Entregas por fonte** mostra os animais
 que receberam itraconazol SESA ou Município com data, quantidade, tutor,
