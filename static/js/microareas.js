@@ -3,6 +3,8 @@
   const el = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const fmt = value => new Intl.NumberFormat('pt-BR').format(Number(value || 0));
+  const incluirCondominios = () => el('micro-incluir-condominios').checked;
+  const populacaoArea = r => Number(r[incluirCondominios() ? 'populacao_com_condominios' : 'populacao_sem_condominios'] || 0);
   const codigo = value => {
     const raw = String(value ?? '').trim();
     return /^\d+(?:\.0+)?$/.test(raw) ? String(parseInt(raw, 10)).padStart(4, '0') : raw;
@@ -137,10 +139,11 @@
   }
   function renderPainel(rows) {
     const localidades = new Map(), agentes = new Map();
-    let semACS = 0, semRG = 0, pop = 0, popAtribuida = 0, quarteiroes = 0;
+    let semACS = 0, semRG = 0, pop = 0, popAtribuida = 0, quarteiroes = 0, unidadesCondominio = 0;
     for (const r of rows) {
-      const populacao = Number(r.populacao_aproximada || 0);
+      const populacao = populacaoArea(r);
       semACS += !r.acs_codigo; semRG += Number(r.quarteiroes_sem_rg || 0);
+      unidadesCondominio += Number(r.residencias_condominio || 0);
       quarteiroes += r.quarteiroes.length; pop += populacao;
       const local = localidades.get(r.id_localidade) || {nome:r.localidade, areas:0, sem:0};
       local.areas++; local.sem += !r.acs_codigo; localidades.set(r.id_localidade, local);
@@ -160,6 +163,7 @@
       [semAreaGlobal, 'ACS do catálogo sem microárea · global'], [media, 'Média da população estimada por ACS com RG'],
       [Math.max(0, semACS - semAreaGlobal), 'Diferença cadastral 1:1 · não é déficit real de pessoal'],
       [quarteiroes > semRG ? pop : '—', 'População estimada nas microáreas'], [semRG, `Quarteirões sem RG entre ${fmt(quarteiroes)}`, semRG > 0],
+      [unidadesCondominio, 'Unidades residenciais em condomínios no RG'],
     ];
     el('micro-indicadores').innerHTML = cards.map(([numero, titulo, aviso]) =>
       `<div class="micro-metric${aviso ? ' warn' : ''}"><strong>${esc(numero)}</strong><span>${esc(titulo)}</span></div>`).join('');
@@ -173,10 +177,10 @@
     const vazias = rows.filter(r => !r.acs_codigo);
     el('micro-sem-acs').innerHTML = vazias.length ? `<div class="table-scroll"><table><thead><tr><th>Localidade</th><th>Microárea</th><th>Quarteirões</th><th>População estimada</th><th>Ação</th></tr></thead><tbody>${vazias.map(r => `<tr>
       <td>${esc(r.localidade)}</td><td>${esc(r.numero)}</td><td>${fmt(r.quarteiroes.length)}</td>
-      <td>${r.quarteiroes_com_rg ? fmt(r.populacao_aproximada) : 'Sem RG'}</td>
+      <td>${r.quarteiroes_com_rg ? fmt(populacaoArea(r)) : 'Sem RG'}</td>
       <td><button class="btn btn-outline btn-sm" type="button" data-micro-edit="${Number(r.id_microarea)}">${el('micro-salvar') ? 'Atribuir ACS' : 'Ver no mapa'}</button></td></tr>`).join('')}</tbody></table></div>`
       : '<div class="rg-muted">Nenhuma microárea sem ACS neste recorte.</div>';
-    el('micro-metodo').textContent = `População estimada por quarteirão a partir do RG (${estado.resumo?.media_pessoas_por_residencia || '2,93'} pessoas por residência; ${estado.resumo?.fonte_populacao || 'IBGE Censo 2022'}). A média considera a população atribuída aos ${fmt(comRG)} ACS com ao menos um quarteirão com RG. Há ${fmt(semRG)} quarteirão(ões) sem RG no recorte. A diferença cadastral 1:1 compara as áreas vazias deste recorte com os ACS do catálogo sem área em todo o sistema; não mede disponibilidade ou déficit real de pessoal.`;
+    el('micro-metodo').textContent = `População estimada por quarteirão a partir do RG (${estado.resumo?.media_pessoas_por_residencia || '2,93'} pessoas por residência; ${estado.resumo?.fonte_populacao || 'IBGE Censo 2022'}). Condomínios residenciais (campo condomínio > 0) estão ${incluirCondominios() ? 'incluídos' : 'excluídos integralmente'} na estimativa exibida. A média considera a população atribuída aos ${fmt(comRG)} ACS com ao menos um quarteirão com RG. Há ${fmt(semRG)} quarteirão(ões) sem RG no recorte. A diferença cadastral 1:1 compara as áreas vazias deste recorte com os ACS do catálogo sem área em todo o sistema; não mede disponibilidade ou déficit real de pessoal.`;
   }
   function renderLista() {
     const rows = filtrar();
@@ -188,7 +192,7 @@
       <td>${esc(r.localidade)}</td><td><strong>${esc(r.numero)}</strong></td>
       <td>${esc(r.acs_nome || r.acs_codigo || 'Sem ACS')}</td>
       <td>${fmt(r.quarteiroes.length)}<div class="rg-muted">${r.quarteiroes.map(q => esc(q)).join(', ')}</div></td>
-      <td>${r.quarteiroes_com_rg ? fmt(r.populacao_aproximada) : 'Sem RG'}</td>
+      <td>${r.quarteiroes_com_rg ? fmt(populacaoArea(r)) : 'Sem RG'}</td>
       <td>${fmt(r.quarteiroes_com_rg || 0)}/${fmt(r.quarteiroes.length)} quarteirões</td>
       <td>${r.quarteiroes_sem_geometria.length ? `<span class="rg-muted">${fmt(r.quarteiroes_sem_geometria.length)} ausente(s): ${r.quarteiroes_sem_geometria.map(esc).join(', ')}</span>` : 'Completa'}</td>
       <td>${esc(r.observacoes || '-')}</td><td><button class="btn btn-outline btn-sm" type="button" data-micro-edit="${Number(r.id_microarea)}">${el('micro-salvar') ? 'Editar / trocar ACS' : 'Ver no mapa'}</button>
@@ -197,6 +201,7 @@
     for (const [formato,id] of [['xlsx','micro-xlsx'],['xlsx','micro-painel-xlsx'],['geojson','micro-geojson'],['kml','micro-kml'],['relatorio','micro-relatorio']]) {
       const link = el(id);
       const p = new URLSearchParams(); rows.forEach(r => p.append('id', r.id_microarea));
+      if (!incluirCondominios() && (formato === 'xlsx' || formato === 'relatorio')) p.set('incluir_condominios', '0');
       link.href = rows.length ? (formato === 'relatorio' ? `/territorializacao/microareas/relatorio?${p}` : `/territorializacao/microareas/exportar/${formato}?${p}`) : '#';
       link.setAttribute('aria-disabled', rows.length ? 'false' : 'true');
     }
@@ -314,8 +319,10 @@
   });
   el('micro-q-limpar').addEventListener('click', () => { estado.selecionados.clear(); atualizarSelecao(); });
   ['micro-filtro-localidade','micro-filtro-acs','micro-filtro-busca'].forEach(id => el(id).addEventListener('input', renderLista));
+  el('micro-incluir-condominios').addEventListener('change', renderLista);
   el('micro-filtro-limpar').addEventListener('click', () => {
     ['micro-filtro-localidade','micro-filtro-acs','micro-filtro-busca'].forEach(id => { el(id).value = ''; });
+    el('micro-incluir-condominios').checked = true;
     renderLista();
   });
   el('micro-ir-cadastro').addEventListener('click', () => subAba('lista'));

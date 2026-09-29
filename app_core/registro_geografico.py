@@ -1437,6 +1437,8 @@ def resumo_mapa(db_path, base_dir=None):
                    SUM(CASE WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') NOT IN ('REF') AND COALESCE(i.condominio,0)>0 THEN i.condominio
                             WHEN i.id_imovel IS NOT NULL AND COALESCE(i.tipo,'') NOT IN ('REF') THEN 1 ELSE 0 END) AS imoveis_reais,
                    SUM(CASE WHEN i.tipo='R' THEN CASE WHEN COALESCE(i.condominio,0)>0 THEN i.condominio ELSE 1 END ELSE 0 END) AS residencias_reais,
+                   SUM(CASE WHEN i.tipo='R' AND COALESCE(i.condominio,0)<=0 THEN 1 ELSE 0 END) AS residencias_sem_condominio,
+                   SUM(CASE WHEN i.tipo='R' AND COALESCE(i.condominio,0)>0 THEN i.condominio ELSE 0 END) AS residencias_condominio,
                    SUM(CASE WHEN i.data_atualizacao IS NOT NULL AND COALESCE(i.tipo,'') NOT IN ('REF') THEN 1 ELSE 0 END) AS atualizados
               FROM registro_geografico_quarteiroes q
               LEFT JOIN registro_geografico_imoveis i ON i.id_quarteirao=q.id_quarteirao
@@ -1447,6 +1449,7 @@ def resumo_mapa(db_path, base_dir=None):
         for raw_row in rows:
             row = db_core.serialize_row(raw_row)
             residencias_reais = row["residencias_reais"] or 0
+            residencias_sem_condominio = row["residencias_sem_condominio"] or 0
             display = _quarteirao_display(row["quarteirao"])
             chave = f"{row['id_localidade']}:{display}"
             quarteiroes[chave] = {
@@ -1458,7 +1461,10 @@ def resumo_mapa(db_path, base_dir=None):
                 "imoveis": row["imoveis"] or 0,
                 "imoveis_reais": row["imoveis_reais"] or 0,
                 "residencias_reais": residencias_reais,
+                "residencias_sem_condominio": residencias_sem_condominio,
+                "residencias_condominio": row["residencias_condominio"] or 0,
                 "populacao_aproximada": round(residencias_reais * MEDIA_PESSOAS_POR_RESIDENCIA),
+                "populacao_sem_condominios": round(residencias_sem_condominio * MEDIA_PESSOAS_POR_RESIDENCIA),
                 "atualizados": row["atualizados"] or 0,
                 "tipos": {},
             }
@@ -1497,6 +1503,7 @@ def resumo_mapa(db_path, base_dir=None):
             "imoveis_reais": sum(item["imoveis_reais"] for item in quarteiroes.values()),
             "residencias_reais": sum(item["residencias_reais"] for item in quarteiroes.values()),
             "populacao_aproximada": sum(item["populacao_aproximada"] for item in quarteiroes.values()),
+            "populacao_sem_condominios": sum(item["populacao_sem_condominios"] for item in quarteiroes.values()),
         }
         return {
             "quarteiroes": quarteiroes,

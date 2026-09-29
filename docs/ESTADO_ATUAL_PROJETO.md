@@ -25,6 +25,15 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+O codigo `1.56.0` acrescenta ao Painel de Microáreas um controle para incluir
+(padrão) ou excluir a população estimada dos condomínios residenciais. O RG
+identifica essas unidades pelo imóvel residencial com `condominio > 0`; ao
+excluir, todas essas unidades ficam fora da estimativa, sem alterar cadastros.
+Cards, média por ACS, lista, relatório imprimível e XLSX usam o mesmo modo. O
+relatório imprimível agora usa A4 retrato. A indicação do modo fica visível no
+relatório e na planilha. Não há nova migração; conferir a situação da 0021
+antes de reiniciar o serviço.
+
 O codigo `1.55.0` separa **Painel** de **Cadastro e exportações** em
 Territorialização > Microáreas. Os filtros são compartilhados. O painel mostra
 microáreas por localidade, carga populacional estimada por ACS e áreas sem

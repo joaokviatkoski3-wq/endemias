@@ -95,7 +95,7 @@ def listar(target, base_dir=None):
         conn.close()
 
 
-def _montar_relatorio(dados, resumo_rg, ids=None):
+def _montar_relatorio(dados, resumo_rg, ids=None, incluir_condominios=True):
     """Agrega o cadastro sem confundir ausência de RG com população zero."""
     todos = dados["registros"]
     ids_selecionados = set(ids) if ids is not None else None
@@ -116,15 +116,23 @@ def _montar_relatorio(dados, resumo_rg, ids=None):
         for q in r["quarteiroes"]:
             chave = f"{r['id_localidade']}:{rg_core._quarteirao_display(q)}"
             rg = rg_quarteiroes.get(chave)
+            pop_com = int(rg["populacao_aproximada"] or 0) if rg else None
+            pop_sem = int(rg["populacao_sem_condominios"] or 0) if rg else None
             detalhes.append({
                 "quarteirao": q, "tem_rg": rg is not None,
-                "populacao_aproximada": int(rg["populacao_aproximada"] or 0) if rg else None,
+                "populacao_com_condominios": pop_com,
+                "populacao_sem_condominios": pop_sem,
+                "populacao_aproximada": pop_com if incluir_condominios else pop_sem,
+                "residencias_condominio": int(rg["residencias_condominio"] or 0) if rg else None,
                 "imoveis_rg": int(rg["imoveis"] or 0) if rg else None,
             })
         r["detalhes_quarteiroes"] = detalhes
         r["quarteiroes_com_rg"] = sum(d["tem_rg"] for d in detalhes)
         r["quarteiroes_sem_rg"] = len(detalhes) - r["quarteiroes_com_rg"]
         r["populacao_aproximada"] = sum(d["populacao_aproximada"] or 0 for d in detalhes)
+        r["populacao_sem_condominios"] = sum(d["populacao_sem_condominios"] or 0 for d in detalhes)
+        r["populacao_com_condominios"] = sum(d["populacao_com_condominios"] or 0 for d in detalhes)
+        r["residencias_condominio"] = sum(d["residencias_condominio"] or 0 for d in detalhes)
         r["imoveis_rg"] = sum(d["imoveis_rg"] or 0 for d in detalhes)
         registros.append(r)
         local = por_localidade.setdefault(r["id_localidade"], {
@@ -168,6 +176,7 @@ def _montar_relatorio(dados, resumo_rg, ids=None):
         "quarteiroes_sem_rg": sum(r["quarteiroes_sem_rg"] for r in registros),
         "populacao_aproximada": sum(r["populacao_aproximada"] for r in registros),
         "populacao_atribuida": atribuida,
+        "residencias_condominio": sum(r["residencias_condominio"] for r in registros),
         "media_populacao_por_acs_com_rg": round(atribuida / len(acs_com_rg), 1) if acs_com_rg else None,
         "acs_com_rg": len(acs_com_rg),
     }
@@ -178,13 +187,14 @@ def _montar_relatorio(dados, resumo_rg, ids=None):
         "resumo_rg": resumo_rg,
         "fonte_populacao": resumo_rg.get("fonte_populacao", ""),
         "media_pessoas_por_residencia": resumo_rg.get("media_pessoas_por_residencia"),
+        "incluir_condominios": incluir_condominios,
     }
 
 
-def relatorio(target, base_dir=None, ids=None):
+def relatorio(target, base_dir=None, ids=None, incluir_condominios=True):
     dados = listar(target, base_dir)
     resumo_rg = rg_core.resumo_mapa(target, base_dir)
-    return _montar_relatorio(dados, resumo_rg, ids)
+    return _montar_relatorio(dados, resumo_rg, ids, incluir_condominios)
 
 
 def salvar(target, dados, base_dir=None, id_microarea=None):
@@ -281,14 +291,15 @@ def _selecionadas(target, base_dir, ids=None):
     return registros
 
 
-def exportar_xlsx(target, base_dir=None, ids=None):
-    dados = relatorio(target, base_dir, ids)
+def exportar_xlsx(target, base_dir=None, ids=None, incluir_condominios=True):
+    dados = relatorio(target, base_dir, ids, incluir_condominios)
     registros = dados["registros"]
     indicadores = dados["indicadores"]
     wb = Workbook()
     painel = wb.active
     painel.title = "Indicadores"
     painel.append(["Indicador", "Valor"])
+    painel.append(["População de condomínios residenciais", "Incluída" if incluir_condominios else "Excluída"])
     for nome, valor in [
         ("Microáreas no recorte", indicadores["microareas"]),
         ("Microáreas com ACS", indicadores["com_acs"]),
@@ -298,6 +309,7 @@ def exportar_xlsx(target, base_dir=None, ids=None):
         ("Diferença cadastral 1:1 (não é déficit de pessoal)", indicadores["diferenca_cadastral_1a1"]),
         ("Quarteirões no recorte", indicadores["quarteiroes"]),
         ("Quarteirões sem RG", indicadores["quarteiroes_sem_rg"]),
+        ("Unidades residenciais em condomínios", indicadores["residencias_condominio"]),
         ("População estimada nas microáreas com RG", indicadores["populacao_aproximada"]),
         ("População estimada atribuída a ACS", indicadores["populacao_atribuida"]),
         ("Média estimada por ACS com RG", indicadores["media_populacao_por_acs_com_rg"]),
@@ -305,7 +317,7 @@ def exportar_xlsx(target, base_dir=None, ids=None):
     ]:
         painel.append([nome, valor])
     painel.append(["Fonte", f"RG: residências × {dados['media_pessoas_por_residencia']} pessoas; {dados['fonte_populacao']}"])
-    painel.append(["Limite", "Quarteirões sem RG não entram na estimativa; ACS sem microárea no catálogo não significam disponibilidade de pessoal."])
+    painel.append(["Limite", "Quarteirões sem RG não entram na estimativa; ACS sem microárea no catálogo não significam disponibilidade de pessoal. Condomínios são imóveis residenciais com condominio > 0 no RG."])
     por_acs = wb.create_sheet("Por ACS")
     por_acs.append(["ACS código", "ACS nome", "Microáreas", "Quarteirões", "Quarteirões sem RG", "População estimada"])
     for item in dados["por_acs"]:

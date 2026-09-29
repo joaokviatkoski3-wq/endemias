@@ -164,7 +164,7 @@ class MicroareasTests(unittest.TestCase):
         self.assertEqual(recorte["indicadores"]["acs_catalogo_sem_area_global"], 1)
         wb = load_workbook(io.BytesIO(microareas.exportar_xlsx(self.target, self.base_dir)))
         self.assertEqual(wb.sheetnames, ["Indicadores", "Por ACS", "Por localidade", "Microáreas", "Quarteirões"])
-        self.assertEqual(wb["Indicadores"]["B4"].value, 1)
+        self.assertEqual(wb["Indicadores"]["B5"].value, 1)
         self.assertEqual(wb["Por ACS"]["F2"].value, 3)
         self.assertIsNone(wb["Microáreas"]["J3"].value)
         self.assertIsNone(wb["Quarteirões"]["H3"].value)
@@ -174,6 +174,45 @@ class MicroareasTests(unittest.TestCase):
         self.assertIn("Relatório de microáreas dos ACS", html)
         self.assertIn("Maria (acs-006)", html)
         self.assertIn("Quarteirões sem RG", html)
+
+    def test_condominios_podem_ser_excluidos_sem_alterar_rg(self):
+        microareas.listar(self.target, self.base_dir)
+        conn = sqlite3.connect(self.target)
+        try:
+            cursor = conn.execute("""INSERT INTO registro_geografico_quarteiroes
+                (id_localidade, localidade, quarteirao, criado_em, atualizado_em)
+                VALUES (1, 'Sede', '0007', '2026-09-29', '2026-09-29')""")
+            for numero, unidades in (("10", 0), ("20", 10)):
+                conn.execute("""INSERT INTO registro_geografico_imoveis
+                    (id_quarteirao, id_localidade, localidade, quarteirao, logradouro, numero, tipo, condominio, criado_em, atualizado_em)
+                    VALUES (?, 1, 'Sede', '0007', 'Rua Teste', ?, 'R', ?, '2026-09-29', '2026-09-29')""",
+                    (cursor.lastrowid, numero, unidades))
+            conn.commit()
+        finally:
+            conn.close()
+        microareas.salvar(self.target, {"id_localidade": 1, "numero": "1", "quarteiroes": ["7", "8"]}, self.base_dir)
+        rg = rg_core.resumo_mapa(self.target, self.base_dir)["quarteiroes"][f"1:{rg_core._quarteirao_display('0007')}"]
+        self.assertEqual(rg["residencias_condominio"], 10)
+        self.assertEqual(rg["populacao_aproximada"], 32)
+        self.assertEqual(rg["populacao_sem_condominios"], 3)
+        com = microareas.relatorio(self.target, self.base_dir)
+        sem = microareas.relatorio(self.target, self.base_dir, incluir_condominios=False)
+        self.assertEqual(com["indicadores"]["populacao_aproximada"], 32)
+        self.assertEqual(sem["indicadores"]["populacao_aproximada"], 3)
+        self.assertEqual(sem["indicadores"]["quarteiroes_sem_rg"], 1)
+        self.assertEqual(sem["registros"][0]["populacao_com_condominios"], 32)
+        self.assertEqual(sem["registros"][0]["populacao_sem_condominios"], 3)
+        wb = load_workbook(io.BytesIO(microareas.exportar_xlsx(
+            self.target, self.base_dir, incluir_condominios=False)))
+        self.assertEqual(wb["Indicadores"]["B2"].value, "Excluída")
+        self.assertEqual(wb["Microáreas"]["J2"].value, 3)
+        self.assertEqual(wb["Quarteirões"]["H2"].value, 3)
+        self.assertIsNone(wb["Quarteirões"]["H3"].value)
+        ambiente = Environment(loader=FileSystemLoader(Path(__file__).resolve().parents[1] / "templates"),
+                               autoescape=select_autoescape(["html"]))
+        html = ambiente.get_template("microareas_relatorio.html").render(dados=sem)
+        self.assertIn("A4 portrait", html)
+        self.assertIn("excluídos da estimativa", html)
 
 
 if __name__ == "__main__":

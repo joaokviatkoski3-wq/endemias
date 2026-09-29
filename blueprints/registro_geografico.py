@@ -115,8 +115,9 @@ def exportar_microareas(formato):
     if formato not in {"xlsx", "geojson", "kml"}:
         return jsonify({"erro": "Formato não suportado."}), 404
     ids = request.args.getlist("id", type=int)
+    incluir_condominios = request.args.get("incluir_condominios") != "0"
     if formato == "xlsx":
-        conteudo = microareas_core.exportar_xlsx(_db_path(), _base_dir(), ids or None)
+        conteudo = microareas_core.exportar_xlsx(_db_path(), _base_dir(), ids or None, incluir_condominios)
         mimetype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     elif formato == "geojson":
         import json
@@ -133,7 +134,10 @@ def exportar_microareas(formato):
 @login_required
 def relatorio_microareas():
     ids = request.args.getlist("id", type=int)
-    dados = microareas_core.relatorio(_db_path(), _base_dir(), ids or None)
+    dados = microareas_core.relatorio(
+        _db_path(), _base_dir(), ids or None,
+        incluir_condominios=request.args.get("incluir_condominios") != "0",
+    )
     return render_template("microareas_relatorio.html", dados=dados)
 
 

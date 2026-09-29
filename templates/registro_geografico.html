@@ -27,6 +27,8 @@
 .micro-q-vazio{padding:10px;color:var(--text2);font-size:12px;}
 .micro-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:12px;}
 .micro-filters .f-g{min-width:180px;}
+.micro-condominio-option{display:flex;align-items:center;gap:8px;min-height:34px;font-size:13px;color:var(--text);cursor:pointer;}
+.micro-condominio-option input{width:17px;height:17px;flex:none;}
 .micro-summary{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;color:var(--text2);font-size:12px;}
 .micro-metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:10px;margin:14px 0;}
 .micro-metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;min-height:105px;}
@@ -547,6 +549,7 @@
       <div class="f-g"><label>Localidade</label><select id="micro-filtro-localidade"><option value="">Todas</option>{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>ACS</label><select id="micro-filtro-acs"><option value="">Todos</option><option value="sem">Sem ACS</option></select></div>
       <div class="f-g"><label>Buscar</label><input type="search" id="micro-filtro-busca" placeholder="Número, ACS ou quarteirão"></div>
+      <label class="micro-condominio-option" title="Ao desmarcar, imóveis residenciais com condomínio > 0 ficam fora da estimativa de população."><input type="checkbox" id="micro-incluir-condominios" checked>Incluir população estimada de condomínios</label>
       <button class="btn btn-outline btn-sm" type="button" id="micro-filtro-limpar">Limpar filtros</button>
     </div>
     <div id="micro-resumo" class="micro-summary"></div>
