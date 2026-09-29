@@ -28,6 +28,8 @@
 .micro-parcial-lista{display:grid;gap:5px;max-height:210px;overflow:auto;margin-top:8px;}
 .micro-parcial-item{display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid var(--border);border-radius:6px;padding:7px;font-size:12px;}
 .micro-parcial-item span{min-width:0;overflow-wrap:anywhere;}
+.micro-parcial-aviso{display:grid;gap:8px;padding:9px;border:1px solid #b45309;border-radius:6px;background:rgba(180,83,9,.1);font-size:12px;}
+.micro-parcial-aviso button{justify-self:start;}
 .micro-parcial-desenho{border:1px dashed #0e7490;border-radius:6px;padding:8px;margin-top:8px;background:rgba(14,116,144,.07);}
 .micro-parcial-desenho[hidden]{display:none!important;}
 .micro-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:12px;}
@@ -541,6 +543,7 @@
         </div>
         <div class="rg-map-card" id="micro-cadastro" {% if not is_admin %}hidden{% endif %}>
           <div class="rg-map-card-title" id="micro-cadastro-titulo">Nova microárea</div>
+          <div id="micro-status" class="rg-muted" role="status" aria-live="polite" style="margin:8px 0;"></div>
           <input type="hidden" id="micro-id">
           <div class="micro-form-grid">
             <div class="f-g"><label>Número na localidade</label><input type="number" min="1" step="1" id="micro-numero" placeholder="Ex.: 1"></div>
@@ -550,7 +553,7 @@
           <div class="rg-muted" style="margin-top:8px;">Um ACS pode responder por várias microáreas. Quarteirões inteiros podem ser liberados ou transferidos na edição. Para um corte excepcional, atribua lados separados abaixo; lados não escolhidos ficam sem microárea.</div>
           <div class="micro-parcial-desenho">
             <strong>Lados parciais do RG</strong>
-            <div class="rg-muted">Clique no quarteirão do mapa ou informe seu número. Selecione rua e lado no RG, desenhe um polígono por trecho e confirme os vértices. O desenho só será gravado ao salvar a microárea.</div>
+            <div class="rg-muted">Clique no quarteirão do mapa ou informe seu número. Se ele já pertence a uma microárea, abra-a para editar. Escolha rua e lado e desenhe o polígono. Ao concluir, o lado será salvo automaticamente na microárea existente; para uma microárea nova, clique também em Criar microárea.</div>
             <div class="rg-map-actions" style="margin-top:8px;">
               <input id="micro-parcial-q" type="text" inputmode="numeric" placeholder="Número do quarteirão" aria-label="Número do quarteirão parcial" style="max-width:170px;">
               <button class="btn btn-outline btn-sm" type="button" id="micro-parcial-buscar">Buscar lados no RG</button>
@@ -570,7 +573,6 @@
             <button class="btn btn-primary btn-sm" type="button" id="micro-salvar">Criar microárea</button>
             <button class="btn btn-outline btn-sm" type="button" id="micro-nova">Nova seleção</button>
           </div>
-          <div id="micro-status" class="rg-muted" style="margin-top:8px;"></div>
         </div>
       </div>
       <div id="micro-mapa" class="micro-map" aria-label="Mapa dos quarteirões e microáreas"></div>

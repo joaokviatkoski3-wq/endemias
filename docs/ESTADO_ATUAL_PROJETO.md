@@ -25,6 +25,19 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+Correcao `1.58.2` para lados parciais: no cadastro real, Q. 796 da Sede
+continuava inteiro na microarea 10, sem nenhum lado parcial salvo. A interface
+antiga mostrava todos os lados como ja atribuidos fora da edicao e exigia um
+segundo clique em **Salvar alteracoes** depois de concluir o desenho, sem deixar
+clara essa etapa. A nova interface oferece **Editar microarea 10** junto ao
+aviso do quarteirao ocupado; para microarea existente, **Concluir e salvar lado**
+envia a alteracao e rele os dados para confirmar que o lado foi salvo. Para
+microarea nova, **Criar microarea** continua obrigatorio. O diagnostico via
+navegador foi somente leitura; nao se alterou o Q. 796. Os 732 testes Python
+passaram (5 ignorados), assim como os testes JavaScript focados. Esta correcao
+nao requer migracao; conferir integracao, reinicio e teste visual antes de
+considera-la disponivel em producao.
+
 O usuario encontrou um defeito no desenho dos lados parciais: cliques dentro
 dos poligonos do quarteirao nao marcavam vertices. A correcao `1.58.1`
 desativa a captura de cliques pelas camadas vetoriais somente durante o

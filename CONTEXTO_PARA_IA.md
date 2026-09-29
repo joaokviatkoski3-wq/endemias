@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual no codigo da `master` e no servico oficial: `1.58.1`, definida em `app_core/version.py`. Em 29/09/2026, o reinicio elevado terminou com codigo 0 e `/login` respondeu HTTP 200 com `Endemias v1.58.1`; o JavaScript corrigido tambem respondeu HTTP 200. A saida enviada pelo usuario confirmou a aplicacao da migracao 0022; esta sessao nao consegue consultar o PostgreSQL diretamente por falta de acesso a credencial SYSTEM. Shapely 2.1.2 foi instalado no Python local.
+- Versao atual no codigo: `1.58.2`, definida em `app_core/version.py`. O servico oficial ainda deve ser conferido apos integrar/reiniciar esta correcao. Em 29/09/2026, o reinicio anterior terminou com codigo 0 e `/login` respondeu HTTP 200 com `Endemias v1.58.1`. A saida enviada pelo usuario confirmou a aplicacao da migracao 0022; esta sessao nao consegue consultar o PostgreSQL diretamente por falta de acesso a credencial SYSTEM. Shapely 2.1.2 foi instalado no Python local.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -84,6 +84,16 @@ dentro do poligono oficial. Ao cancelar ou concluir, a selecao normal do mapa
 volta. Nao exige migracao nem altera os dados das microareas.
 Foi integrado e reiniciado em 29/09/2026; a validacao visual final do desenho
 em um quarteirao real fica com o usuario.
+
+No codigo `1.58.2`, a busca de lados de um quarteirao inteiro ja atribuido
+mostra a microarea dona e um botao direto para edita-la. Na edicao existente,
+**Concluir e salvar lado** grava a conversao inteiro->parcial e rele o cadastro
+para confirmar a persistencia; em microarea nova, o usuario ainda deve clicar
+em **Criar microarea**. O status de salvamento passou para junto do editor.
+Antes desta mudanca, o desenho era apenas rascunho ate o clique separado em
+**Salvar alteracoes**; ao revisitar, o Q. 796 da Sede permanecia inteiro na
+microarea 10 e todos os lados apareciam bloqueados fora do modo de edicao.
+Nao houve alteracao desse cadastro real no diagnostico. Nao requer migracao.
 
 Na versao `1.53.0`, a aba **Doentes > Entregas por fonte** mostra os animais
 que receberam itraconazol SESA ou Município com data, quantidade, tutor,
