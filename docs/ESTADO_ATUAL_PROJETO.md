@@ -25,6 +25,13 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+A branch isolada `codex/microareas-partes` prepara o codigo `1.58.0` para
+divisao excepcional de quarteiroes por lados do RG e desenho manual no mapa.
+**Nao esta integrada nem em producao.** Requer instalar Shapely, aplicar a
+migracao 0022 e reiniciar o servico somente em implantacao autorizada. O
+cadastro oficial atual nao foi alterado por esta preparacao. Consulte
+`docs/MICROAREAS_PARTES.md` para funcionamento, testes e limites.
+
 O codigo `1.57.1` amplia de 12 para 37 cores a paleta do mapa de Microáreas
 e faz **Embaralhar cores** produzir mais combinações: entre opções com bom
 contraste local, prefere cores menos usadas. A escolha continua apenas no

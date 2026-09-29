@@ -25,6 +25,11 @@
 .micro-q-opcao[hidden]{display:none;}
 .micro-q-opcao small{margin-left:auto;color:var(--text2);text-align:right;}
 .micro-q-vazio{padding:10px;color:var(--text2);font-size:12px;}
+.micro-parcial-lista{display:grid;gap:5px;max-height:210px;overflow:auto;margin-top:8px;}
+.micro-parcial-item{display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid var(--border);border-radius:6px;padding:7px;font-size:12px;}
+.micro-parcial-item span{min-width:0;overflow-wrap:anywhere;}
+.micro-parcial-desenho{border:1px dashed #0e7490;border-radius:6px;padding:8px;margin-top:8px;background:rgba(14,116,144,.07);}
+.micro-parcial-desenho[hidden]{display:none!important;}
 .micro-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:12px;}
 .micro-filters .f-g{min-width:180px;}
 .micro-condominio-option{display:flex;align-items:center;gap:8px;min-height:34px;font-size:13px;color:var(--text);cursor:pointer;}
@@ -500,7 +505,7 @@
         <div class="rg-map-card">
           <div class="rg-map-card-title">Microárea</div>
           <div class="f-g"><label>Localidade</label><select id="micro-localidade"><option value="">Selecione</option>{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
-          <div class="rg-muted" style="margin-top:8px;">Escolha os quarteirões no mapa ou na lista abaixo. As seleções são sincronizadas. Cada quarteirão só pode pertencer a uma microárea.</div>
+          <div class="rg-muted" style="margin-top:8px;">Escolha os quarteirões inteiros no mapa ou na lista abaixo. Para exceções, use a seção de lados parciais no cadastro. Quarteirão inteiro e parcial não podem coexistir.</div>
           <div class="rg-muted" style="margin-top:6px;">Os polígonos vêm da camada de quarteirões. Para atualizá-la, use Registro Geográfico → Geometrias e importe o GeoJSON exportado pelo QGIS.</div>
         </div>
         <div class="rg-map-card">
@@ -542,7 +547,25 @@
             <div class="f-g"><label>ACS responsável</label><select id="micro-acs"><option value="">Sem ACS</option></select></div>
             <div class="f-g wide"><label>Observações</label><textarea id="micro-observacoes" rows="2" placeholder="Informações complementares"></textarea></div>
           </div>
-          <div class="rg-muted" style="margin-top:8px;">Um ACS pode responder por várias microáreas. Para trocar o responsável de uma área já salva, abra-a na aba Cadastro e exportações, escolha outro ACS aqui e salve as alterações. Para dividir uma área, retire dela os quarteirões desejados e salve; depois crie outra microárea com os quarteirões liberados. Cada quarteirão continua em apenas uma microárea.</div>
+          <div class="rg-muted" style="margin-top:8px;">Um ACS pode responder por várias microáreas. Quarteirões inteiros podem ser liberados ou transferidos na edição. Para um corte excepcional, atribua lados separados abaixo; lados não escolhidos ficam sem microárea.</div>
+          <div class="micro-parcial-desenho">
+            <strong>Lados parciais do RG</strong>
+            <div class="rg-muted">Clique no quarteirão do mapa ou informe seu número. Selecione rua e lado no RG, desenhe um polígono por trecho e confirme os vértices. O desenho só será gravado ao salvar a microárea.</div>
+            <div class="rg-map-actions" style="margin-top:8px;">
+              <input id="micro-parcial-q" type="text" inputmode="numeric" placeholder="Número do quarteirão" aria-label="Número do quarteirão parcial" style="max-width:170px;">
+              <button class="btn btn-outline btn-sm" type="button" id="micro-parcial-buscar">Buscar lados no RG</button>
+            </div>
+            <div id="micro-parcial-lados" class="micro-parcial-lista" aria-live="polite"></div>
+            <div id="micro-parcial-desenho" class="micro-parcial-desenho" hidden>
+              <div id="micro-parcial-instrucao"></div>
+              <div class="rg-map-actions" style="margin-top:8px;">
+                <button class="btn btn-outline btn-sm" type="button" id="micro-parcial-desfazer">Desfazer vértice</button>
+                <button class="btn btn-primary btn-sm" type="button" id="micro-parcial-concluir">Concluir desenho</button>
+                <button class="btn btn-outline btn-sm" type="button" id="micro-parcial-cancelar">Cancelar</button>
+              </div>
+            </div>
+            <div id="micro-parcial-selecionados" class="micro-parcial-lista"></div>
+          </div>
           <div class="rg-map-actions" style="margin-top:9px;">
             <button class="btn btn-primary btn-sm" type="button" id="micro-salvar">Criar microárea</button>
             <button class="btn btn-outline btn-sm" type="button" id="micro-nova">Nova seleção</button>

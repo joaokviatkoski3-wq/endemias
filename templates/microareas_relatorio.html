@@ -35,9 +35,10 @@
     <div class="card"><strong>{{ dados.indicadores.media_populacao_por_acs_com_rg if dados.indicadores.media_populacao_por_acs_com_rg is not none else '—' }}</strong><span>Média estimada por ACS com RG</span></div>
     <div class="card"><strong>{{ dados.indicadores.quarteiroes }}</strong><span>Quarteirões nas microáreas</span></div>
     <div class="card"><strong>{{ dados.indicadores.quarteiroes_sem_rg }}</strong><span>Quarteirões sem RG cadastrado</span></div>
+    <div class="card"><strong>{{ dados.indicadores.lados_parciais }}</strong><span>Lados parciais desenhados</span></div>
     <div class="card"><strong>{{ dados.indicadores.residencias_condominio }}</strong><span>Unidades residenciais em condomínios no RG</span></div>
   </div>
-  <p class="note">População: {{ dados.media_pessoas_por_residencia }} pessoas por residência no RG. {{ dados.fonte_populacao }}. O modo {{ 'inclui' if dados.incluir_condominios else 'desconsidera integralmente' }} os imóveis residenciais com condomínio &gt; 0. A média divide a população estimada atribuída entre os ACS que possuem pelo menos um quarteirão com RG. Quarteirões sem RG não são tratados como população zero. A diferença cadastral 1:1 compara as áreas vazias do recorte com os ACS do catálogo sem área em todo o sistema; não mede disponibilidade ou déficit real de pessoal.</p>
+  <p class="note">População: {{ dados.media_pessoas_por_residencia }} pessoas por residência no RG. {{ dados.fonte_populacao }}. O modo {{ 'inclui' if dados.incluir_condominios else 'desconsidera integralmente' }} os imóveis residenciais com condomínio &gt; 0. Nos lados parciais, os totais vêm dos imóveis do respectivo logradouro e lado no RG, não da área desenhada. A média divide a população estimada atribuída entre os ACS que possuem pelo menos um quarteirão com RG. Quarteirões sem RG não são tratados como população zero. A diferença cadastral 1:1 compara as áreas vazias do recorte com os ACS do catálogo sem área em todo o sistema; não mede disponibilidade ou déficit real de pessoal.</p>
   <h2>Por localidade</h2>
   <table><thead><tr><th>Localidade</th><th class="num">Microáreas</th><th class="num">Sem ACS</th><th class="num">ACS distintos</th><th class="num">Quarteirões sem RG</th><th class="num">População estimada</th></tr></thead><tbody>
   {% for r in dados.por_localidade %}<tr><td>{{ r.localidade }}</td><td class="num">{{ r.microareas }}</td><td class="num">{{ r.sem_acs }}</td><td class="num">{{ r.acs_distintos }}</td><td class="num">{{ r.quarteiroes_sem_rg }}</td><td class="num">{{ r.populacao_aproximada if r.quarteiroes > r.quarteiroes_sem_rg else '—' }}</td></tr>{% else %}<tr><td colspan="6">Nenhuma microárea no recorte.</td></tr>{% endfor %}
@@ -48,7 +49,7 @@
   </tbody></table>
   <h2>Microáreas sem ACS</h2>
   <table><thead><tr><th>Localidade</th><th>Microárea</th><th class="num">Quarteirões</th><th class="num">Sem RG</th><th class="num">População estimada</th></tr></thead><tbody>
-  {% for r in dados.registros if not r.acs_codigo %}<tr><td>{{ r.localidade }}</td><td>{{ r.numero }}</td><td class="num">{{ r.quarteiroes|length }}</td><td class="num">{{ r.quarteiroes_sem_rg }}</td><td class="num">{{ r.populacao_aproximada if r.quarteiroes_com_rg else '—' }}</td></tr>{% else %}<tr><td colspan="5">Nenhuma microárea sem ACS no recorte.</td></tr>{% endfor %}
+  {% for r in dados.registros if not r.acs_codigo %}<tr><td>{{ r.localidade }}</td><td>{{ r.numero }}{% if r.partes %}<br><small>{{ r.partes|length }} lado(s) parcial(is)</small>{% endif %}</td><td class="num">{{ r.quarteiroes_total }}</td><td class="num">{{ r.quarteiroes_sem_rg }}</td><td class="num">{{ r.populacao_aproximada if r.quarteiroes_com_rg else '—' }}</td></tr>{% else %}<tr><td colspan="5">Nenhuma microárea sem ACS no recorte.</td></tr>{% endfor %}
   </tbody></table>
 </body>
 </html>

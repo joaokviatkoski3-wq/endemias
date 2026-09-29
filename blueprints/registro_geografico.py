@@ -69,6 +69,17 @@ def api_microareas():
     return jsonify(microareas_core.relatorio(_db_path(), _base_dir()))
 
 
+@bp.route("/api/territorializacao/microareas/trechos")
+@login_required
+def api_microareas_trechos():
+    try:
+        dados = microareas_core.trechos(_db_path(), request.args.get("localidade"),
+                                       request.args.get("quarteirao"), _base_dir())
+    except microareas_core.MicroareaError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    return jsonify(dados)
+
+
 @bp.route("/api/territorializacao/microareas", methods=["POST"])
 @login_required
 @nivel_min("admin")
@@ -80,7 +91,10 @@ def api_criar_microarea():
         return jsonify({"erro": str(exc)}), 400
     audit.registrar_evento(get_db, "microarea_criada", entidade="territorializacao_microarea", entidade_id=identificador,
                            detalhes={"id_localidade": payload.get("id_localidade"), "numero": payload.get("numero"),
-                                     "quarteiroes": payload.get("quarteiroes"), "acs_codigo": payload.get("acs_codigo")})
+                                     "quarteiroes": payload.get("quarteiroes"),
+                                     "partes": [{k: p.get(k) for k in ("quarteirao", "logradouro", "lado")}
+                                                for p in payload.get("partes", [])],
+                                     "acs_codigo": payload.get("acs_codigo")})
     return jsonify({"ok": True, "id_microarea": identificador}), 201
 
 
@@ -103,8 +117,10 @@ def api_alterar_microarea(identificador):
     audit.registrar_evento(get_db, acao, entidade="territorializacao_microarea", entidade_id=identificador,
                            detalhes={"anterior": {campo: anterior.get(campo) for campo in
                                       ("id_localidade", "numero", "acs_codigo", "quarteiroes")} if anterior else None,
-                                     "novo": {campo: payload.get(campo) for campo in
-                                              ("id_localidade", "numero", "acs_codigo", "quarteiroes")}
+                                     "novo": {**{campo: payload.get(campo) for campo in
+                                              ("id_localidade", "numero", "acs_codigo", "quarteiroes")},
+                                              "partes": [{k: p.get(k) for k in ("quarteirao", "logradouro", "lado")}
+                                                         for p in payload.get("partes", [])]}
                                               if request.method == "PUT" else None})
     return jsonify({"ok": True, "id_microarea": identificador})
 
@@ -121,10 +137,16 @@ def exportar_microareas(formato):
         mimetype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     elif formato == "geojson":
         import json
-        conteudo = json.dumps(microareas_core.exportar_geojson(_db_path(), _base_dir(), ids or None), ensure_ascii=False).encode("utf-8")
+        try:
+            conteudo = json.dumps(microareas_core.exportar_geojson(_db_path(), _base_dir(), ids or None), ensure_ascii=False).encode("utf-8")
+        except microareas_core.MicroareaError as exc:
+            return jsonify({"erro": str(exc)}), 409
         mimetype = "application/geo+json"
     else:
-        conteudo = microareas_core.exportar_kml(_db_path(), _base_dir(), ids or None)
+        try:
+            conteudo = microareas_core.exportar_kml(_db_path(), _base_dir(), ids or None)
+        except microareas_core.MicroareaError as exc:
+            return jsonify({"erro": str(exc)}), 409
         mimetype = "application/vnd.google-earth.kml+xml"
     return send_file(io.BytesIO(conteudo), mimetype=mimetype, as_attachment=True,
                      download_name=f"microareas_acs.{formato}")

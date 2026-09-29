@@ -22,6 +22,12 @@ const features = [
 const vizinhos = vizinhanca(registros, features);
 assert.deepEqual([...vizinhos.get('1')].sort(), ['2','3']);
 assert.deepEqual([...vizinhos.get('4')], []);
+const comPartes = [
+  {id_microarea:10, id_localidade:1, quarteiroes:[], partes:[{geometry:poligono(10, '0012', -49.3).geometry}]},
+  {id_microarea:11, id_localidade:1, quarteiroes:[], partes:[{geometry:poligono(11, '0013', -49.2989).geometry}]},
+];
+assert.deepEqual([...vizinhanca(comPartes, [])?.get('10')], ['11'],
+  'Lados parciais vizinhos também precisam receber cores contrastantes');
 const cores = atribuir(registros, features, 1234);
 assert.equal(CORES.length, 37);
 assert.equal(new Set(CORES).size, CORES.length);

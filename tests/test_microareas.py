@@ -24,6 +24,18 @@ def camada(quarteiroes=("0007", "0008"), longitude=-49.30):
     ]}, ensure_ascii=False).encode("utf-8")
 
 
+def desenho(pontos):
+    return {"type": "Polygon", "coordinates": [[*pontos, pontos[0]]]}
+
+
+LADO_1 = desenho([[-49.2999, -25.3001], [-49.298, -25.3001], [-49.2999, -25.303]])
+LADO_2 = desenho([[-49.297, -25.3001], [-49.296, -25.3001], [-49.297, -25.302]])
+
+
+def parte(lado, geometry):
+    return {"quarteirao": "7", "logradouro": "Rua Teste", "lado": lado, "geometry": geometry}
+
+
 class MicroareasTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -44,6 +56,92 @@ class MicroareasTests(unittest.TestCase):
     def importar(self, conteudo):
         previa = rg_core.preview_importacao_geojson(self.target, conteudo, "qgis.geojson", self.base_dir)
         rg_core.importar_geojson(self.target, conteudo, "qgis.geojson", previa["sha256"], self.base_dir)
+
+    def preparar_lados(self):
+        microareas.listar(self.target, self.base_dir)
+        conn = sqlite3.connect(self.target)
+        try:
+            cursor = conn.execute("""INSERT INTO registro_geografico_quarteiroes
+                (id_localidade, localidade, quarteirao, criado_em, atualizado_em)
+                VALUES (1, 'Sede', '0007', '2026-09-29', '2026-09-29')""")
+            for numero, lado, condominio in (("10", "1", 0), ("20", "2", 0), ("30", "3", 5)):
+                conn.execute("""INSERT INTO registro_geografico_imoveis
+                    (id_quarteirao, id_localidade, localidade, quarteirao, logradouro,
+                     numero, lado, tipo, condominio, criado_em, atualizado_em)
+                    VALUES (?, 1, 'Sede', '0007', 'Rua Teste', ?, ?, 'R', ?, '2026-09-29', '2026-09-29')""",
+                    (cursor.lastrowid, numero, lado, condominio))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def test_lados_parciais_entre_microareas_sem_contagem_duplicada(self):
+        self.preparar_lados()
+        inteira = microareas.salvar(self.target, {"id_localidade": 1, "numero": "1",
+            "quarteiroes": ["7"]}, self.base_dir)
+        microareas.salvar(self.target, {"id_localidade": 1, "numero": "1",
+            "quarteiroes": [], "partes": [parte("1", LADO_1)]}, self.base_dir, inteira)
+        segundo = microareas.salvar(self.target, {"id_localidade": 1, "numero": "2",
+            "quarteiroes": [], "partes": [parte("2", LADO_2)]}, self.base_dir)
+        dados = microareas.relatorio(self.target, self.base_dir)
+        self.assertEqual(dados["indicadores"]["quarteiroes"], 1)
+        self.assertEqual(dados["indicadores"]["lados_parciais"], 2)
+        self.assertEqual(dados["indicadores"]["populacao_aproximada"], 6)
+        self.assertEqual(microareas.relatorio(self.target, self.base_dir, incluir_condominios=False)["indicadores"]["populacao_aproximada"], 6)
+        self.assertEqual(len(microareas.trechos(self.target, 1, "7", self.base_dir)["trechos"]), 3)
+        self.assertIsNone(microareas.trechos(self.target, 1, "7", self.base_dir)["inteiro_id_microarea"])
+        geo = microareas.exportar_geojson(self.target, self.base_dir)
+        self.assertEqual(len(geo["features"]), 2)
+        self.assertEqual({f["properties"]["lado"] for f in geo["features"]}, {"1", "2"})
+        kml = ET.fromstring(microareas.exportar_kml(self.target, self.base_dir))
+        self.assertEqual(len(kml.findall('.//{http://www.opengis.net/kml/2.2}Polygon')), 2)
+        wb = load_workbook(io.BytesIO(microareas.exportar_xlsx(self.target, self.base_dir)))
+        self.assertEqual(wb["Quarteirões"]["J2"].value, "Parcial")
+        self.assertEqual(wb["Quarteirões"]["L3"].value, "2")
+        with self.assertRaisesRegex(microareas.MicroareaError, "lados em outra"):
+            microareas.salvar(self.target, {"id_localidade": 1, "numero": "3",
+                "quarteiroes": ["7"]}, self.base_dir)
+        with self.assertRaisesRegex(microareas.MicroareaError, "já pertence"):
+            microareas.salvar(self.target, {"id_localidade": 1, "numero": "3",
+                "quarteiroes": [], "partes": [parte("2", LADO_1)]}, self.base_dir)
+        self.assertEqual(microareas.relatorio(self.target, self.base_dir, [segundo])["indicadores"]["populacao_aproximada"], 3)
+
+    def test_desenhos_invalidos_sobrepostos_e_base_alterada(self):
+        self.preparar_lados()
+        um = microareas.salvar(self.target, {"id_localidade": 1, "numero": "1",
+            "quarteiroes": [], "partes": [parte("1", LADO_1)]}, self.base_dir)
+        with self.assertRaisesRegex(microareas.MicroareaError, "sobrepõe"):
+            microareas.salvar(self.target, {"id_localidade": 1, "numero": "2",
+                "quarteiroes": [], "partes": [parte("2", LADO_1)]}, self.base_dir)
+        fora = desenho([[-49.31, -25.30], [-49.30, -25.30], [-49.31, -25.31]])
+        with self.assertRaisesRegex(microareas.MicroareaError, "dentro"):
+            microareas.salvar(self.target, {"id_localidade": 1, "numero": "2",
+                "quarteiroes": [], "partes": [parte("2", fora)]}, self.base_dir)
+        with self.assertRaisesRegex(microareas.MicroareaError, "inteiro e parcial"):
+            microareas.salvar(self.target, {"id_localidade": 1, "numero": "2",
+                "quarteiroes": ["7"], "partes": [parte("2", LADO_2)]}, self.base_dir)
+        original = microareas.listar(self.target, self.base_dir)["registros"][0]["partes"][0]
+        self.importar(camada(longitude=-49.31))
+        self.assertTrue(microareas.listar(self.target, self.base_dir)["registros"][0]["partes"][0]["base_desatualizada"])
+        with self.assertRaisesRegex(microareas.MicroareaError, "Redesenhe"):
+            microareas.exportar_geojson(self.target, self.base_dir)
+        with self.assertRaisesRegex(microareas.MicroareaError, "Redesenhe"):
+            microareas.salvar(self.target, {"id_localidade": 1, "numero": "1", "quarteiroes": [],
+                "partes": [{**parte("1", LADO_1), "base_geometry_hash": original["base_geometry_hash"]}]},
+                self.base_dir, um)
+
+    def test_lado_removido_do_rg_exige_revisao(self):
+        self.preparar_lados()
+        microareas.salvar(self.target, {"id_localidade": 1, "numero": "1",
+            "quarteiroes": [], "partes": [parte("1", LADO_1)]}, self.base_dir)
+        conn = sqlite3.connect(self.target)
+        try:
+            conn.execute("UPDATE registro_geografico_imoveis SET lado='4' WHERE quarteirao='0007' AND lado='1'")
+            conn.commit()
+        finally:
+            conn.close()
+        self.assertTrue(microareas.listar(self.target, self.base_dir)["registros"][0]["partes"][0]["lado_ausente_rg"])
+        with self.assertRaisesRegex(microareas.MicroareaError, "não consta mais no RG"):
+            microareas.exportar_geojson(self.target, self.base_dir)
 
     def test_salvar_editar_e_impedir_sobreposicao(self):
         um = microareas.salvar(self.target, {"id_localidade": 1, "numero": "01", "quarteiroes": ["7"]}, self.base_dir)

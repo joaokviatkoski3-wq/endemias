@@ -1,6 +1,7 @@
 """Cadastro de microáreas ACS composto pelos quarteirões da camada ativa."""
 
 import io
+import json
 import re
 from datetime import datetime
 from xml.etree import ElementTree as ET
@@ -10,6 +11,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 
 from app_core import db as db_core
 from app_core import registro_geografico as rg_core
+from app_core import microareas_partes as partes_core
 from app_core.excel import excel_safe
 
 
@@ -33,6 +35,14 @@ def _schema(conn):
             quarteirao TEXT NOT NULL,
             PRIMARY KEY(id_microarea, id_localidade, quarteirao),
             UNIQUE(id_localidade, quarteirao))""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS territorializacao_microarea_partes (
+            id_parte INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_microarea INTEGER NOT NULL REFERENCES territorializacao_microareas(id_microarea) ON DELETE CASCADE,
+            id_localidade INTEGER NOT NULL REFERENCES localidades(id_localidade),
+            quarteirao TEXT NOT NULL, logradouro TEXT NOT NULL, lado TEXT NOT NULL,
+            geometry_json TEXT NOT NULL, base_geometry_hash TEXT NOT NULL,
+            criado_em TEXT NOT NULL, atualizado_em TEXT NOT NULL,
+            UNIQUE(id_localidade, quarteirao, logradouro, lado))""")
         conn.execute("""CREATE TABLE IF NOT EXISTS acs_catalogo (
             acs_codigo TEXT PRIMARY KEY, nome TEXT NOT NULL, atualizado_em TEXT NOT NULL)""")
 
@@ -67,6 +77,32 @@ def _geometrias(target, base_dir):
     }
 
 
+def trechos(target, id_localidade, quarteirao, base_dir=None):
+    try:
+        identificador = int(id_localidade)
+    except (TypeError, ValueError):
+        raise MicroareaError("Selecione uma localidade válida.") from None
+    q = _codigo_quarteirao(quarteirao)
+    if not q or (identificador, q) not in _geometrias(target, base_dir):
+        raise MicroareaError("Quarteirão não encontrado na camada geográfica ativa.")
+    conn = db_core.connect(target)
+    try:
+        _schema(conn)
+        registros = partes_core.trechos_rg(conn, identificador, q)
+        donos = conn.execute("""SELECT logradouro, lado, id_microarea
+            FROM territorializacao_microarea_partes WHERE id_localidade=? AND quarteirao=?""",
+            (identificador, q)).fetchall()
+        ocupados = {(row["logradouro"], row["lado"]): row["id_microarea"] for row in donos}
+        inteiro = conn.execute("""SELECT id_microarea FROM territorializacao_microarea_quarteiroes
+            WHERE id_localidade=? AND quarteirao=?""", (identificador, q)).fetchone()
+        for row in registros:
+            row["id_microarea"] = ocupados.get((row["logradouro"], row["lado"]))
+        return {"quarteirao": q, "trechos": registros,
+                "inteiro_id_microarea": inteiro["id_microarea"] if inteiro else None}
+    finally:
+        conn.close()
+
+
 def listar(target, base_dir=None):
     geometrias = _geometrias(target, base_dir)
     conn = db_core.connect(target)
@@ -79,15 +115,34 @@ def listar(target, base_dir=None):
             ORDER BY l.nome, CAST(m.numero AS INTEGER), m.numero""").fetchall()
         membros = conn.execute("""SELECT id_microarea, id_localidade, quarteirao
             FROM territorializacao_microarea_quarteiroes ORDER BY id_microarea, quarteirao""").fetchall()
+        partes = conn.execute("""SELECT id_microarea, id_localidade, quarteirao, logradouro, lado,
+            geometry_json, base_geometry_hash FROM territorializacao_microarea_partes
+            ORDER BY id_microarea, quarteirao, logradouro, lado""").fetchall()
         acs = [db_core.serialize_row(row) for row in conn.execute(
             "SELECT acs_codigo, nome FROM acs_catalogo ORDER BY nome, acs_codigo").fetchall()]
         por_id = {}
         for row in membros:
             por_id.setdefault(row["id_microarea"], []).append(row["quarteirao"])
+        partes_por_id = {}
+        trechos_cache = {}
+        for row in partes:
+            item = db_core.serialize_row(row)
+            item["geometry"] = json.loads(item.pop("geometry_json"))
+            feature = geometrias.get((item["id_localidade"], item["quarteirao"]))
+            item["base_desatualizada"] = not feature or partes_core.hash_base(feature["geometry"]) != item["base_geometry_hash"]
+            chave = (item["id_localidade"], item["quarteirao"])
+            if chave not in trechos_cache:
+                trechos_cache[chave] = {(t["logradouro"], t["lado"]): t
+                                       for t in partes_core.trechos_rg(conn, *chave)}
+            item["rg"] = trechos_cache[chave].get((item["logradouro"], item["lado"]))
+            item["lado_ausente_rg"] = item["rg"] is None
+            partes_por_id.setdefault(item["id_microarea"], []).append(item)
         registros = []
         for row in rows:
             item = db_core.serialize_row(row)
             item["quarteiroes"] = por_id.get(item["id_microarea"], [])
+            item["partes"] = partes_por_id.get(item["id_microarea"], [])
+            item["quarteiroes_total"] = len(set(item["quarteiroes"]) | {p["quarteirao"] for p in item["partes"]})
             item["quarteiroes_sem_geometria"] = [q for q in item["quarteiroes"] if (item["id_localidade"], q) not in geometrias]
             registros.append(item)
         return {"registros": registros, "geometrias": len(geometrias), "acs": acs}
@@ -126,9 +181,25 @@ def _montar_relatorio(dados, resumo_rg, ids=None, incluir_condominios=True):
                 "residencias_condominio": int(rg["residencias_condominio"] or 0) if rg else None,
                 "imoveis_rg": int(rg["imoveis"] or 0) if rg else None,
             })
+        for parte in r["partes"]:
+            rg = parte["rg"]
+            pop_com = round(rg["residencias_reais"] * rg_core.MEDIA_PESSOAS_POR_RESIDENCIA) if rg else None
+            pop_sem = round(rg["residencias_sem_condominio"] * rg_core.MEDIA_PESSOAS_POR_RESIDENCIA) if rg else None
+            detalhes.append({
+                "quarteirao": parte["quarteirao"], "logradouro": parte["logradouro"],
+                "lado": parte["lado"], "parcial": True, "tem_rg": rg is not None,
+                "populacao_com_condominios": pop_com,
+                "populacao_sem_condominios": pop_sem,
+                "populacao_aproximada": pop_com if incluir_condominios else pop_sem,
+                "residencias_condominio": int(rg["residencias_condominio"]) if rg else None,
+                "imoveis_rg": int(rg["imoveis"]) if rg else None,
+            })
         r["detalhes_quarteiroes"] = detalhes
-        r["quarteiroes_com_rg"] = sum(d["tem_rg"] for d in detalhes)
-        r["quarteiroes_sem_rg"] = len(detalhes) - r["quarteiroes_com_rg"]
+        com_rg = {d["quarteirao"] for d in detalhes if d["tem_rg"]}
+        sem_rg = {d["quarteirao"] for d in detalhes if not d["tem_rg"]} - com_rg
+        r["quarteiroes_com_rg"] = len(com_rg)
+        r["quarteiroes_sem_rg"] = len(sem_rg)
+        r["partes_sem_rg"] = sum(bool(d.get("parcial")) and not d["tem_rg"] for d in detalhes)
         r["populacao_aproximada"] = sum(d["populacao_aproximada"] or 0 for d in detalhes)
         r["populacao_sem_condominios"] = sum(d["populacao_sem_condominios"] or 0 for d in detalhes)
         r["populacao_com_condominios"] = sum(d["populacao_com_condominios"] or 0 for d in detalhes)
@@ -139,11 +210,13 @@ def _montar_relatorio(dados, resumo_rg, ids=None, incluir_condominios=True):
             "id_localidade": r["id_localidade"], "localidade": r["localidade"],
             "microareas": 0, "sem_acs": 0, "quarteiroes": 0,
             "quarteiroes_sem_rg": 0, "populacao_aproximada": 0, "acs_codigos": set(),
+            "_quarteiroes": set(), "_sem_rg": set(), "_com_rg": set(),
         })
         local["microareas"] += 1
         local["sem_acs"] += not bool(r["acs_codigo"])
-        local["quarteiroes"] += len(detalhes)
-        local["quarteiroes_sem_rg"] += r["quarteiroes_sem_rg"]
+        local["_quarteiroes"].update(d["quarteirao"] for d in detalhes)
+        local["_sem_rg"].update(sem_rg)
+        local["_com_rg"].update(com_rg)
         local["populacao_aproximada"] += r["populacao_aproximada"]
         if r["acs_codigo"]:
             local["acs_codigos"].add(r["acs_codigo"])
@@ -152,15 +225,23 @@ def _montar_relatorio(dados, resumo_rg, ids=None, incluir_condominios=True):
                 "acs_nome": r["acs_nome"] or acs_catalogo.get(r["acs_codigo"]) or r["acs_codigo"],
                 "microareas": 0, "quarteiroes": 0, "quarteiroes_com_rg": 0,
                 "quarteiroes_sem_rg": 0, "populacao_aproximada": 0,
+                "_quarteiroes": set(), "_com_rg": set(), "_sem_rg": set(),
             })
             acs["microareas"] += 1
-            acs["quarteiroes"] += len(detalhes)
-            acs["quarteiroes_com_rg"] += r["quarteiroes_com_rg"]
-            acs["quarteiroes_sem_rg"] += r["quarteiroes_sem_rg"]
+            acs["_quarteiroes"].update((r["id_localidade"], d["quarteirao"]) for d in detalhes)
+            acs["_com_rg"].update((r["id_localidade"], q) for q in com_rg)
+            acs["_sem_rg"].update((r["id_localidade"], q) for q in sem_rg)
             acs["populacao_aproximada"] += r["populacao_aproximada"]
+    for acs in por_acs.values():
+        acs["quarteiroes"] = len(acs.pop("_quarteiroes"))
+        com_rg_acs = acs.pop("_com_rg")
+        acs["quarteiroes_com_rg"] = len(com_rg_acs)
+        acs["quarteiroes_sem_rg"] = len(acs.pop("_sem_rg") - com_rg_acs)
     acs_rows = sorted(por_acs.values(), key=lambda row: (-row["populacao_aproximada"], row["acs_nome"]))
     locais = []
     for local in sorted(por_localidade.values(), key=lambda row: row["localidade"]):
+        local["quarteiroes"] = len(local.pop("_quarteiroes"))
+        local["quarteiroes_sem_rg"] = len(local.pop("_sem_rg") - local.pop("_com_rg"))
         local["acs_distintos"] = len(local.pop("acs_codigos"))
         locais.append(local)
     acs_com_rg = [r for r in acs_rows if r["quarteiroes_com_rg"]]
@@ -172,8 +253,13 @@ def _montar_relatorio(dados, resumo_rg, ids=None, incluir_condominios=True):
         "acs_distintos": len(acs_rows),
         "acs_catalogo_sem_area_global": len(sem_area_global),
         "diferenca_cadastral_1a1": max(0, sum(not r["acs_codigo"] for r in registros) - len(sem_area_global)),
-        "quarteiroes": sum(len(r["quarteiroes"]) for r in registros),
-        "quarteiroes_sem_rg": sum(r["quarteiroes_sem_rg"] for r in registros),
+        "quarteiroes": len({(r["id_localidade"], d["quarteirao"])
+                           for r in registros for d in r["detalhes_quarteiroes"]}),
+        "quarteiroes_sem_rg": len({(r["id_localidade"], d["quarteirao"])
+                                  for r in registros for d in r["detalhes_quarteiroes"] if not d["tem_rg"]}
+                                 - {(r["id_localidade"], d["quarteirao"])
+                                    for r in registros for d in r["detalhes_quarteiroes"] if d["tem_rg"]}),
+        "lados_parciais": sum(len(r["partes"]) for r in registros),
         "populacao_aproximada": sum(r["populacao_aproximada"] for r in registros),
         "populacao_atribuida": atribuida,
         "residencias_condominio": sum(r["residencias_condominio"] for r in registros),
@@ -203,17 +289,27 @@ def salvar(target, dados, base_dir=None, id_microarea=None):
     try:
         _schema(conn)
         localidade = _localidade(conn, dados.get("id_localidade"))
+        if getattr(conn, "backend", "sqlite") == "postgresql":
+            # Serializa gravações desta localidade antes das verificações cruzadas
+            # entre quarteirões inteiros e partes (tabelas distintas).
+            conn.execute("SELECT id_localidade FROM localidades WHERE id_localidade=? FOR UPDATE",
+                         (localidade["id_localidade"],)).fetchone()
         numero = _numero(dados.get("numero"))
         codigo = str(dados.get("acs_codigo") or "").strip() or None
         observacoes = str(dados.get("observacoes") or "").strip()[:2000]
         if codigo and not conn.execute("SELECT 1 FROM acs_catalogo WHERE acs_codigo=?", (codigo,)).fetchone():
             raise MicroareaError("ACS não encontrado no catálogo local.")
         raw = dados.get("quarteiroes")
-        if not isinstance(raw, list) or not raw:
-            raise MicroareaError("Selecione ao menos um quarteirão.")
+        if not isinstance(raw, list):
+            raise MicroareaError("Informe a lista de quarteirões.")
         quarteiroes = [_codigo_quarteirao(q) for q in raw]
         if len(set(quarteiroes)) != len(quarteiroes) or any(not q for q in quarteiroes):
             raise MicroareaError("A seleção contém quarteirões inválidos ou repetidos.")
+        partes_raw = dados.get("partes", [])
+        if not isinstance(partes_raw, list):
+            raise MicroareaError("Informe uma lista de lados parciais.")
+        if not quarteiroes and not partes_raw:
+            raise MicroareaError("Selecione ao menos um quarteirão inteiro ou lado parcial.")
         atual = None
         if id_microarea is not None:
             atual = conn.execute("SELECT * FROM territorializacao_microareas WHERE id_microarea=?", (id_microarea,)).fetchone()
@@ -230,6 +326,15 @@ def salvar(target, dados, base_dir=None, id_microarea=None):
         for q in quarteiroes:
             if (localidade["id_localidade"], q) not in geometrias and not (atual and atual["id_localidade"] == localidade["id_localidade"] and q in antigos):
                 raise MicroareaError(f"Quarteirão {q} não está na camada geográfica ativa desta localidade.")
+        try:
+            partes_raw = [{**item, "quarteirao": _codigo_quarteirao(item.get("quarteirao"))}
+                          if isinstance(item, dict) else item for item in partes_raw]
+            partes = partes_core.preparar(conn, localidade["id_localidade"], partes_raw,
+                                          geometrias, id_microarea)
+        except ValueError as exc:
+            raise MicroareaError(str(exc)) from exc
+        if any(p["quarteirao"] in quarteiroes for p in partes):
+            raise MicroareaError("Um quarteirão não pode ser inteiro e parcial ao mesmo tempo.")
         conflito_numero = conn.execute(
             "SELECT id_microarea FROM territorializacao_microareas WHERE id_localidade=? AND numero=? AND id_microarea<>?",
             (localidade["id_localidade"], numero, id_microarea or 0),
@@ -243,6 +348,17 @@ def salvar(target, dados, base_dir=None, id_microarea=None):
             ).fetchone()
             if conflito:
                 raise MicroareaError(f"Quarteirão {q} já pertence a outra microárea.")
+            conflito = conn.execute("""SELECT id_microarea FROM territorializacao_microarea_partes
+                WHERE id_localidade=? AND quarteirao=? AND id_microarea<>? LIMIT 1""",
+                (localidade["id_localidade"], q, id_microarea or 0)).fetchone()
+            if conflito:
+                raise MicroareaError(f"Quarteirão {q} tem lados em outra microárea.")
+        for p in partes:
+            conflito = conn.execute("""SELECT id_microarea FROM territorializacao_microarea_quarteiroes
+                WHERE id_localidade=? AND quarteirao=? AND id_microarea<>?""",
+                (localidade["id_localidade"], p["quarteirao"], id_microarea or 0)).fetchone()
+            if conflito:
+                raise MicroareaError(f"Quarteirão {p['quarteirao']} pertence por inteiro a outra microárea.")
         agora = datetime.now().isoformat(timespec="seconds")
         try:
             with conn:
@@ -251,6 +367,7 @@ def salvar(target, dados, base_dir=None, id_microarea=None):
                         acs_codigo=?, observacoes=?, atualizado_em=? WHERE id_microarea=?""",
                         (localidade["id_localidade"], numero, codigo, observacoes, agora, id_microarea))
                     conn.execute("DELETE FROM territorializacao_microarea_quarteiroes WHERE id_microarea=?", (id_microarea,))
+                    conn.execute("DELETE FROM territorializacao_microarea_partes WHERE id_microarea=?", (id_microarea,))
                 else:
                     id_microarea = db_core.insert_and_get_id(conn,
                         """INSERT INTO territorializacao_microareas
@@ -260,6 +377,12 @@ def salvar(target, dados, base_dir=None, id_microarea=None):
                 conn.executemany("""INSERT INTO territorializacao_microarea_quarteiroes
                     (id_microarea, id_localidade, quarteirao) VALUES (?, ?, ?)""",
                     [(id_microarea, localidade["id_localidade"], q) for q in quarteiroes])
+                conn.executemany("""INSERT INTO territorializacao_microarea_partes
+                    (id_microarea, id_localidade, quarteirao, logradouro, lado, geometry_json,
+                     base_geometry_hash, criado_em, atualizado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    [(id_microarea, p["id_localidade"], p["quarteirao"], p["logradouro"],
+                      p["lado"], json.dumps(p["geometry"], separators=(",", ":")),
+                      p["base_geometry_hash"], agora, agora) for p in partes])
         except Exception as exc:
             # As UNIQUE constraints também protegem contra gravações concorrentes.
             if "unique" in str(exc).lower() or "duplicate" in str(exc).lower():
@@ -279,6 +402,7 @@ def excluir(target, id_microarea):
             if not row:
                 raise MicroareaError("Microárea não encontrada.")
             conn.execute("DELETE FROM territorializacao_microarea_quarteiroes WHERE id_microarea=?", (id_microarea,))
+            conn.execute("DELETE FROM territorializacao_microarea_partes WHERE id_microarea=?", (id_microarea,))
             conn.execute("DELETE FROM territorializacao_microareas WHERE id_microarea=?", (id_microarea,))
     finally:
         conn.close()
@@ -309,6 +433,7 @@ def exportar_xlsx(target, base_dir=None, ids=None, incluir_condominios=True):
         ("Diferença cadastral 1:1 (não é déficit de pessoal)", indicadores["diferenca_cadastral_1a1"]),
         ("Quarteirões no recorte", indicadores["quarteiroes"]),
         ("Quarteirões sem RG", indicadores["quarteiroes_sem_rg"]),
+        ("Lados parciais desenhados", indicadores["lados_parciais"]),
         ("Unidades residenciais em condomínios", indicadores["residencias_condominio"]),
         ("População estimada nas microáreas com RG", indicadores["populacao_aproximada"]),
         ("População estimada atribuída a ACS", indicadores["populacao_atribuida"]),
@@ -332,19 +457,25 @@ def exportar_xlsx(target, base_dir=None, ids=None, incluir_condominios=True):
                                item["populacao_aproximada"] if item["quarteiroes"] > item["quarteiroes_sem_rg"] else None])
     resumo = wb.create_sheet("Microáreas")
     resumo.append(["Localidade", "Microárea", "ACS código", "ACS nome", "Quarteirões", "Sem geometria", "Observações", "Atualizado em",
-                   "Quarteirões sem RG", "População estimada", "Imóveis RG"])
+                   "Quarteirões sem RG", "População estimada", "Imóveis RG", "Lados parciais"])
     membros = wb.create_sheet("Quarteirões")
-    membros.append(["Localidade", "Microárea", "Quarteirão", "ACS código", "ACS nome", "Sem geometria", "RG cadastrado", "População estimada", "Imóveis RG"])
+    membros.append(["Localidade", "Microárea", "Quarteirão", "ACS código", "ACS nome", "Sem geometria", "RG cadastrado", "População estimada", "Imóveis RG", "Tipo", "Logradouro", "Lado"])
     for r in registros:
         resumo.append([excel_safe(r["localidade"]), excel_safe(r["numero"]), excel_safe(r["acs_codigo"]),
-                       excel_safe(r["acs_nome"]), len(r["quarteiroes"]), len(r["quarteiroes_sem_geometria"]),
+                       excel_safe(r["acs_nome"]), r["quarteiroes_total"], len(r["quarteiroes_sem_geometria"]),
                        excel_safe(r["observacoes"]), excel_safe(r["atualizado_em"]), r["quarteiroes_sem_rg"],
-                       r["populacao_aproximada"] if r["quarteiroes_com_rg"] else None, r["imoveis_rg"] if r["quarteiroes_com_rg"] else None])
+                       r["populacao_aproximada"] if r["quarteiroes_com_rg"] else None, r["imoveis_rg"] if r["quarteiroes_com_rg"] else None,
+                       len(r["partes"])])
         for detalhe in r["detalhes_quarteiroes"]:
             q = detalhe["quarteirao"]
+            parte = next((p for p in r["partes"] if p["quarteirao"] == q and
+                          p["logradouro"] == detalhe.get("logradouro") and p["lado"] == detalhe.get("lado")), None)
             membros.append([excel_safe(r["localidade"]), excel_safe(r["numero"]), excel_safe(q),
-                            excel_safe(r["acs_codigo"]), excel_safe(r["acs_nome"]), q in r["quarteiroes_sem_geometria"],
-                            detalhe["tem_rg"], detalhe["populacao_aproximada"], detalhe["imoveis_rg"]])
+                            excel_safe(r["acs_codigo"]), excel_safe(r["acs_nome"]),
+                            parte["base_desatualizada"] if parte else q in r["quarteiroes_sem_geometria"],
+                            detalhe["tem_rg"], detalhe["populacao_aproximada"], detalhe["imoveis_rg"],
+                            "Parcial" if parte else "Inteiro", excel_safe(detalhe.get("logradouro", "")),
+                            excel_safe(detalhe.get("lado", ""))])
     for sheet in wb:
         if sheet.title != "Indicadores":
             sheet.freeze_panes = "A2"
@@ -381,6 +512,19 @@ def exportar_geojson(target, base_dir=None, ids=None):
                 "Localidade": r["localidade"], "id_Q": q,
                 "acs_codigo": r["acs_codigo"] or "", "acs_nome": r["acs_nome"] or "",
                 "observacoes": r["observacoes"],
+                "tipo_atribuicao": "inteiro", "logradouro": "", "lado": "",
+            }})
+        for p in r["partes"]:
+            if p["base_desatualizada"]:
+                raise MicroareaError(f"Redesenhe {p['logradouro']} · lado {p['lado']} do quarteirão {p['quarteirao']} antes de exportar: o polígono oficial mudou.")
+            if p["lado_ausente_rg"]:
+                raise MicroareaError(f"Revise {p['logradouro']} · lado {p['lado']} do quarteirão {p['quarteirao']} antes de exportar: o lado não consta mais no RG.")
+            features.append({"type": "Feature", "geometry": p["geometry"], "properties": {
+                "id_microarea": r["id_microarea"], "microarea": r["numero"],
+                "Localidade": r["localidade"], "id_Q": p["quarteirao"],
+                "acs_codigo": r["acs_codigo"] or "", "acs_nome": r["acs_nome"] or "",
+                "observacoes": r["observacoes"], "tipo_atribuicao": "parcial",
+                "logradouro": p["logradouro"], "lado": p["lado"],
             }})
     return {"type": "FeatureCollection", "features": features}
 
@@ -393,16 +537,24 @@ def exportar_kml(target, base_dir=None, ids=None):
     for r in _selecionadas(target, base_dir, ids):
         presentes = [(q, geometrias[(r["id_localidade"], q)]) for q in r["quarteiroes"]
                      if (r["id_localidade"], q) in geometrias]
+        for p in r["partes"]:
+            if p["base_desatualizada"]:
+                raise MicroareaError(f"Redesenhe {p['logradouro']} · lado {p['lado']} do quarteirão {p['quarteirao']} antes de exportar: o polígono oficial mudou.")
+            if p["lado_ausente_rg"]:
+                raise MicroareaError(f"Revise {p['logradouro']} · lado {p['lado']} do quarteirão {p['quarteirao']} antes de exportar: o lado não consta mais no RG.")
+            presentes.append((p["quarteirao"], {"geometry": p["geometry"]}))
         if not presentes:
             continue
         placemark = ET.SubElement(document, "Placemark")
         ET.SubElement(placemark, "name").text = f"{r['localidade']} · Microárea {r['numero']}"
-        ET.SubElement(placemark, "description").text = f"ACS: {r['acs_nome'] or 'Não atribuído'} | Quarteirões: {', '.join(r['quarteiroes'])} | {r['observacoes']}"
+        partes_desc = "; ".join(f"Q. {p['quarteirao']} · {p['logradouro']} · lado {p['lado']}" for p in r["partes"])
+        ET.SubElement(placemark, "description").text = f"ACS: {r['acs_nome'] or 'Não atribuído'} | Quarteirões inteiros: {', '.join(r['quarteiroes'])} | Lados parciais: {partes_desc} | {r['observacoes']}"
         extras = ET.SubElement(placemark, "ExtendedData")
         for chave, valor in {
             "id_microarea": r["id_microarea"], "localidade": r["localidade"], "microarea": r["numero"],
             "acs_codigo": r["acs_codigo"] or "", "acs_nome": r["acs_nome"] or "",
-            "quarteiroes": ", ".join(r["quarteiroes"]), "observacoes": r["observacoes"],
+            "quarteiroes": ", ".join(r["quarteiroes"]), "lados_parciais": partes_desc,
+            "observacoes": r["observacoes"],
         }.items():
             atributo = ET.SubElement(extras, "Data", name=chave)
             ET.SubElement(atributo, "value").text = str(valor)

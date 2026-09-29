@@ -5,5 +5,6 @@ pandas>=2.0
 Pillow>=10.0
 PyMuPDF>=1.26
 psycopg2>=2.9
+Shapely>=2.1.2,<2.2
 python-docx>=1.1
 werkzeug>=3.0

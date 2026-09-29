@@ -47,6 +47,13 @@
       const box = caixa(feature.geometry);
       if (id && box) caixas.get(id).push(box);
     }
+    for (const r of registros) {
+      const boxes = caixas.get(String(r.id_microarea));
+      for (const parte of r.partes || []) {
+        const box = caixa(parte.geometry);
+        if (box) boxes.push(box);
+      }
+    }
     const ids = [...caixas.keys()];
     for (let i = 0; i < ids.length; i++) {
       for (let j = i + 1; j < ids.length; j++) {
