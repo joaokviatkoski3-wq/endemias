@@ -25,6 +25,13 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+O usuario encontrou um defeito no desenho dos lados parciais: cliques dentro
+dos poligonos do quarteirao nao marcavam vertices. A correcao `1.58.1`, em
+`codex/corrigir-desenho-microareas`, desativa a captura de cliques pelas
+camadas vetoriais somente durante o desenho; ao terminar, a interacao normal
+retorna. Nao altera banco e nao exige migracao. Ainda depende de integracao,
+reinicio e validacao visual pelo usuario.
+
 O codigo `1.58.0` foi integrado a `master` para divisao excepcional de
 quarteiroes por lados do RG e desenho manual no mapa. O usuario executou o
 migrador administrativo e mostrou `0022_territorializacao_microareas_partes.sql`

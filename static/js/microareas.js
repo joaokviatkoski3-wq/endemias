@@ -126,6 +126,7 @@
       properties:{cor:cor(p.dono), titulo:`Q. ${p.quarteirao} · ${p.logradouro} · lado ${p.lado}`,
         desatualizada:p.base_desatualizada}}));
     estado.partesLayer = L.geoJSON({type:'FeatureCollection', features}, {
+      interactive:!estado.desenho,
       style:f => ({color:f.properties.desatualizada ? '#b91c1c' : f.properties.cor,
         weight:3, fillColor:f.properties.cor, fillOpacity:.66, dashArray:f.properties.desatualizada ? '6 4' : null}),
       onEachFeature:(f, layer) => layer.bindTooltip(esc(f.properties.titulo))
@@ -139,6 +140,7 @@
       estado.mapa.removeLayer(estado.layer);
     }
     estado.layer = L.geoJSON({type:'FeatureCollection', features:ativos()}, {
+      interactive:!estado.desenho,
       style:estilo,
       onEachFeature: (f, layer) => {
         const q = chave(f), dono = proprietario(q), r = resumoQ(q);
@@ -308,17 +310,20 @@
     if (estado.desenhoLayer) estado.mapa.removeLayer(estado.desenhoLayer);
     if (!estado.desenho) return;
     const pontos = estado.desenho.pontos;
-    const layers = [pontos.length >= 3 ? L.polygon(pontos, {color:'#facc15',weight:3,fillOpacity:.25})
-      : L.polyline(pontos, {color:'#facc15',weight:3})];
-    pontos.forEach(p => layers.push(L.circleMarker(p, {radius:5,color:'#0f172a',fillColor:'#facc15',fillOpacity:1})));
+    const layers = [pontos.length >= 3 ? L.polygon(pontos, {color:'#facc15',weight:3,fillOpacity:.25,interactive:false})
+      : L.polyline(pontos, {color:'#facc15',weight:3,interactive:false})];
+    pontos.forEach(p => layers.push(L.circleMarker(p, {radius:5,color:'#0f172a',fillColor:'#facc15',fillOpacity:1,interactive:false})));
     estado.desenhoLayer = L.layerGroup(layers).addTo(estado.mapa);
     el('micro-parcial-instrucao').textContent = `${estado.desenho.logradouro} · lado ${estado.desenho.lado}: ${pontos.length} vértice(s). Clique nos cantos no mapa; conclua com pelo menos três.`;
   }
-  function cancelarDesenho() {
+  function cancelarDesenho(atualizarMapa=true) {
+    const estavaDesenhando = !!estado.desenho;
     estado.desenho = null;
     if (estado.desenhoLayer) estado.mapa.removeLayer(estado.desenhoLayer);
     estado.desenhoLayer = null;
     el('micro-parcial-desenho').hidden = true;
+    el('micro-mapa').style.cursor = '';
+    if (estavaDesenhando && atualizarMapa) renderMapa();
   }
   function iniciarDesenho(indice) {
     const t = estado.trechos[indice], q = estado.parcialQ;
@@ -332,9 +337,11 @@
       if (!confirm(`Converter Q. ${exibirQ(q)} de inteiro para parcial? Os lados não desenhados ficarão sem microárea.`)) return;
       estado.selecionados.delete(q); renderListaQuarteiroes(); atualizarSelecao();
     }
-    cancelarDesenho();
+    cancelarDesenho(false);
     estado.desenho = {quarteirao:q, logradouro:t.logradouro, lado:t.lado, rg:t, pontos:[]};
     el('micro-parcial-desenho').hidden = false;
+    el('micro-mapa').style.cursor = 'crosshair';
+    renderMapa();
     const feature = ativos().find(f => chave(f) === q);
     if (feature) estado.mapa.fitBounds(L.geoJSON(feature).getBounds(), {padding:[35,35]});
     atualizarDesenho();
@@ -349,7 +356,7 @@
       base_desatualizada:false, geometry:{type:'Polygon', coordinates:[anel]}};
     estado.partes = estado.partes.filter(p => !(p.quarteirao === parte.quarteirao && p.logradouro === parte.logradouro && p.lado === parte.lado));
     estado.partes.push(parte);
-    cancelarDesenho(); renderMapa(); renderListaQuarteiroes(); renderPartesSelecionadas();
+    cancelarDesenho(false); renderMapa(); renderListaQuarteiroes(); renderPartesSelecionadas();
     carregarTrechos(parte.quarteirao);
     status('Desenho preparado. Salve a microárea para validar limites e sobreposições e gravar no banco.');
   }
@@ -409,7 +416,7 @@
     else renderLista();
   }
   function novo() {
-    cancelarDesenho(); estado.editando = null; estado.selecionados.clear(); estado.partes = []; el('micro-id').value = '';
+    cancelarDesenho(false); estado.editando = null; estado.selecionados.clear(); estado.partes = []; el('micro-id').value = '';
     el('micro-numero').value = ''; el('micro-acs').value = ''; el('micro-observacoes').value = '';
     el('micro-parcial-q').value = ''; el('micro-parcial-lados').innerHTML = '';
     estado.parcialQ = null; estado.parcialRequisicao = null; estado.trechos = []; renderPartesSelecionadas();
@@ -423,7 +430,7 @@
     aba('microareas'); subAba('mapa');
     if (estado.mapa && String(r.id_localidade) !== el('micro-localidade').value) estado.mapa._microEnquadrado = false;
     el('micro-localidade').value = r.id_localidade;
-    cancelarDesenho(); estado.editando = r.id_microarea; estado.selecionados = new Set(r.quarteiroes);
+    cancelarDesenho(false); estado.editando = r.id_microarea; estado.selecionados = new Set(r.quarteiroes);
     estado.partes = r.partes.map(p => ({...p})); estado.parcialQ = null; estado.parcialRequisicao = null;
     el('micro-parcial-q').value = ''; el('micro-parcial-lados').innerHTML = '';
     el('micro-id').value = r.id_microarea; el('micro-numero').value = r.numero;

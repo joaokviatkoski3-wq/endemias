@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual no codigo da `master` e no servico oficial: `1.58.0`, definida em `app_core/version.py`. Em 29/09/2026, o reinicio elevado terminou com codigo 0 e `/login` respondeu HTTP 200 com `Endemias v1.58.0`. A saida enviada pelo usuario confirmou a aplicacao da migracao 0022; esta sessao nao consegue consultar o PostgreSQL diretamente por falta de acesso a credencial SYSTEM. Shapely 2.1.2 foi instalado no Python local.
+- Versao oficial antes da correcao de desenho: `1.58.0`; o codigo preparado em `codex/corrigir-desenho-microareas` e `1.58.1`. Em 29/09/2026, `/login` respondeu HTTP 200 com `Endemias v1.58.0`. A saida enviada pelo usuario confirmou a aplicacao da migracao 0022; esta sessao nao consegue consultar o PostgreSQL diretamente por falta de acesso a credencial SYSTEM. Shapely 2.1.2 foi instalado no Python local.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -76,6 +76,12 @@ instalado no Python local e a segunda foi aplicada pelo usuario em 29/09/2026.
 Ver `docs/MICROAREAS_PARTES.md`. O servico reiniciou e respondeu HTTP 200 na
 versao 1.58.0; falta apenas o teste funcional com um quarteirao real escolhido
 pelo usuario, sem criar dados de teste em producao por iniciativa do agente.
+
+O codigo `1.58.1` corrige o desenho dos lados parciais: durante a marcacao,
+as camadas de quarteiroes, partes salvas e vertices provisorios permanecem
+visiveis, mas nao interceptam cliques. Assim, os vertices podem ser marcados
+dentro do poligono oficial. Ao cancelar ou concluir, a selecao normal do mapa
+volta. Nao exige migracao nem altera os dados das microareas.
 
 Na versao `1.53.0`, a aba **Doentes > Entregas por fonte** mostra os animais
 que receberam itraconazol SESA ou Município com data, quantidade, tutor,
