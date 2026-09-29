@@ -26,11 +26,14 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 ## Produção e protecoes indispensaveis
 
 O usuario encontrou um defeito no desenho dos lados parciais: cliques dentro
-dos poligonos do quarteirao nao marcavam vertices. A correcao `1.58.1`, em
-`codex/corrigir-desenho-microareas`, desativa a captura de cliques pelas
-camadas vetoriais somente durante o desenho; ao terminar, a interacao normal
-retorna. Nao altera banco e nao exige migracao. Ainda depende de integracao,
-reinicio e validacao visual pelo usuario.
+dos poligonos do quarteirao nao marcavam vertices. A correcao `1.58.1`
+desativa a captura de cliques pelas camadas vetoriais somente durante o
+desenho; ao terminar, a interacao normal retorna. Nao altera banco e nao
+exige migracao. Foi integrada a `master` e o servico reiniciado em 29/09/2026:
+`/login` respondeu HTTP 200 com `Endemias v1.58.1`, e o JS corrigido respondeu
+HTTP 200. Restam a validacao visual do usuario e nenhum cadastro de teste foi
+criado em producao pelo agente. Foram aprovados 18 testes focados de Python e
+os testes JavaScript do desenho e das cores.
 
 O codigo `1.58.0` foi integrado a `master` para divisao excepcional de
 quarteiroes por lados do RG e desenho manual no mapa. O usuario executou o
