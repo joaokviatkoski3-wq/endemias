@@ -166,8 +166,23 @@
     estado.iniciado = true;
     try {
       estado.mapa = L.map('micro-mapa', {zoomControl:true}).setView([-25.33,-49.29], 12);
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-        attribution:'Tiles © Esri — Esri, TomTom, Garmin, FAO, NOAA, USGS, © OpenStreetMap contributors', maxZoom:19
+      const baseMapa = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        attribution:'Tiles © Esri — Esri, TomTom, Garmin, FAO, NOAA, USGS, © OpenStreetMap contributors, GIS User Community', maxZoom:19
+      });
+      const baseSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution:'© Esri, Earthstar Geographics', maxZoom:19
+      });
+      const baseSateliteRuas = L.layerGroup([
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          attribution:'© Esri', maxZoom:19
+        }),
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+          attribution:'Labels © Esri', maxZoom:19
+        })
+      ]);
+      baseMapa.addTo(estado.mapa);
+      L.control.layers({'Mapa':baseMapa, 'Satélite':baseSatelite, 'Satélite + ruas':baseSateliteRuas}, {}, {
+        position:'topright', collapsed:false
       }).addTo(estado.mapa);
       await carregar();
     } catch (e) { status(e.message); el('micro-tabela').innerHTML = `<tr><td colspan="7">${esc(e.message)}</td></tr>`; estado.iniciado = false; }

@@ -29,7 +29,9 @@ O codigo `1.54.0` renomeia a pagina de navegação para **Territorialização**
 e conserva o RG em aba própria e na rota legada. A nova aba **Microáreas**
 vincula quarteirões inteiros, com número único por localidade e ACS opcional.
 No editor, a seleção pode ser feita pelo mapa com etiquetas numéricas ou por
-lista pesquisável, com sincronização entre ambos. Exporta XLSX, GeoJSON e KML.
+lista pesquisável, com sincronização entre ambos. O fundo do mapa pode alternar
+entre ruas, satélite e satélite com ruas, como no mapa do RG. Exporta XLSX,
+GeoJSON e KML.
 Na última prévia compartilhada pelo usuário, a migração PostgreSQL
 `0021_territorializacao_microareas.sql` constava **pendente**. Confirmar o
 estado atual do banco antes de reiniciar o serviço.
