@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual no codigo: `1.54.0`, definida em `app_core/version.py`; o servico oficial foi confirmado em `1.52.0` em 28/09/2026. O usuario confirmou a migracao 0020 aplicada.
+- Versao atual no codigo: `1.55.0`, definida em `app_core/version.py`; o servico oficial foi confirmado em `1.52.0` em 28/09/2026. O usuario confirmou a migracao 0020 aplicada.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -33,6 +33,13 @@ da nova camada sao sinalizados, nao apagados. Ha exportacao XLSX, GeoJSON e KML.
 A migracao PostgreSQL `0021_territorializacao_microareas.sql` precisa ser
 aplicada antes de ativar o codigo; nao foi aplicada nesta sessao. O servico
 oficial nao foi reiniciado.
+
+No codigo `1.55.0`, Microareas ganhou Painel visual, filtros compartilhados,
+relatorio imprimivel e XLSX com indicadores, ACS, localidades e cobertura RG.
+O calculo da populacao usa o resumo de quarteiroes do RG; sem RG significa
+estimativa indisponivel, nao zero habitante. A media por ACS considera os ACS
+com ao menos um quarteirao com RG. ACS no catalogo sem area cadastrada nao
+representam disponibilidade real de pessoal. Nao ha nova migracao nesta versao.
 
 Na versao `1.53.0`, a aba **Doentes > Entregas por fonte** mostra os animais
 que receberam itraconazol SESA ou Município com data, quantidade, tutor,

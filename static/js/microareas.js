@@ -7,7 +7,7 @@
     const raw = String(value ?? '').trim();
     return /^\d+(?:\.0+)?$/.test(raw) ? String(parseInt(raw, 10)).padStart(4, '0') : raw;
   };
-  const estado = {iniciado:false, mapa:null, layer:null, geo:null, resumo:null, lista:[], acs:[], selecionados:new Set(), editando:null};
+  const estado = {iniciado:false, mapa:null, layer:null, geo:null, resumo:null, lista:[], acs:[], indicadores:null, selecionados:new Set(), editando:null};
   const cores = ['#2563eb','#dc2626','#16a34a','#9333ea','#ea580c','#0891b2','#be123c','#0f766e'];
   async function json(url, options) {
     const resp = await fetch(url, options);
@@ -129,36 +129,90 @@
       && (!acs || (acs === 'sem' ? !r.acs_codigo : r.acs_codigo === acs))
       && (!busca || [r.numero,r.localidade,r.acs_nome,r.acs_codigo,r.observacoes,...r.quarteiroes].some(v => String(v || '').toLocaleLowerCase('pt-BR').includes(busca))));
   }
+  function barras(itens, maximo, valor, rotulo, mostrarValor=item => fmt(valor(item))) {
+    return itens.length ? itens.map(item => `<div class="micro-bar-row">
+      <span title="${esc(rotulo(item))}">${esc(rotulo(item))}</span>
+      <div class="micro-bar-track"><span class="micro-bar-fill" style="width:${maximo && valor(item) ? Math.max(2, Math.round(valor(item) / maximo * 100)) : 0}%"></span></div>
+      <strong>${esc(mostrarValor(item))}</strong></div>`).join('') : '<div class="rg-muted">Nenhum dado no recorte.</div>';
+  }
+  function renderPainel(rows) {
+    const localidades = new Map(), agentes = new Map();
+    let semACS = 0, semRG = 0, pop = 0, popAtribuida = 0, quarteiroes = 0;
+    for (const r of rows) {
+      const populacao = Number(r.populacao_aproximada || 0);
+      semACS += !r.acs_codigo; semRG += Number(r.quarteiroes_sem_rg || 0);
+      quarteiroes += r.quarteiroes.length; pop += populacao;
+      const local = localidades.get(r.id_localidade) || {nome:r.localidade, areas:0, sem:0};
+      local.areas++; local.sem += !r.acs_codigo; localidades.set(r.id_localidade, local);
+      if (r.acs_codigo) {
+        popAtribuida += populacao;
+        const acs = agentes.get(r.acs_codigo) || {nome:r.acs_nome || r.acs_codigo, areas:0, pop:0, comRG:0};
+        acs.areas++; acs.pop += populacao; acs.comRG += Number(r.quarteiroes_com_rg || 0);
+        agentes.set(r.acs_codigo, acs);
+      }
+    }
+    const comRG = [...agentes.values()].filter(a => a.comRG).length;
+    const media = comRG ? new Intl.NumberFormat('pt-BR', {maximumFractionDigits:1}).format(popAtribuida / comRG) : '—';
+    const semAreaGlobal = Number(estado.indicadores?.acs_catalogo_sem_area_global || 0);
+    const cards = [
+      [rows.length, 'Microáreas no recorte'], [rows.length - semACS, 'Com ACS responsável'],
+      [semACS, 'Sem ACS · atribuições pendentes', true], [agentes.size, 'ACS distintos no recorte'],
+      [semAreaGlobal, 'ACS do catálogo sem microárea · global'], [media, 'Média da população estimada por ACS com RG'],
+      [Math.max(0, semACS - semAreaGlobal), 'Diferença cadastral 1:1 · não é déficit real de pessoal'],
+      [quarteiroes > semRG ? pop : '—', 'População estimada nas microáreas'], [semRG, `Quarteirões sem RG entre ${fmt(quarteiroes)}`, semRG > 0],
+    ];
+    el('micro-indicadores').innerHTML = cards.map(([numero, titulo, aviso]) =>
+      `<div class="micro-metric${aviso ? ' warn' : ''}"><strong>${esc(numero)}</strong><span>${esc(titulo)}</span></div>`).join('');
+    const locais = [...localidades.values()].sort((a,b) => b.areas - a.areas || a.nome.localeCompare(b.nome, 'pt-BR'));
+    el('micro-por-localidade').innerHTML = barras(locais, Math.max(...locais.map(a => a.areas), 0), a => a.areas,
+      a => `${a.nome}${a.sem ? ` · ${a.sem} sem ACS` : ''}`);
+    const acs = [...agentes.values()].sort((a,b) => b.pop - a.pop || a.nome.localeCompare(b.nome, 'pt-BR'));
+    el('micro-por-acs').innerHTML = barras(acs, Math.max(...acs.map(a => a.pop), 0), a => a.pop,
+      a => `${a.nome} · ${a.areas} área(s)`, a => a.comRG ? fmt(a.pop) : 'Sem RG')
+      + (acs.some(a => !a.comRG) ? '<div class="rg-muted">ACS sem quarteirão cadastrado no RG não têm estimativa. Confira também áreas com RG parcial no cadastro.</div>' : '');
+    const vazias = rows.filter(r => !r.acs_codigo);
+    el('micro-sem-acs').innerHTML = vazias.length ? `<div class="table-scroll"><table><thead><tr><th>Localidade</th><th>Microárea</th><th>Quarteirões</th><th>População estimada</th><th>Ação</th></tr></thead><tbody>${vazias.map(r => `<tr>
+      <td>${esc(r.localidade)}</td><td>${esc(r.numero)}</td><td>${fmt(r.quarteiroes.length)}</td>
+      <td>${r.quarteiroes_com_rg ? fmt(r.populacao_aproximada) : 'Sem RG'}</td>
+      <td><button class="btn btn-outline btn-sm" type="button" data-micro-edit="${Number(r.id_microarea)}">${el('micro-salvar') ? 'Atribuir ACS' : 'Ver no mapa'}</button></td></tr>`).join('')}</tbody></table></div>`
+      : '<div class="rg-muted">Nenhuma microárea sem ACS neste recorte.</div>';
+    el('micro-metodo').textContent = `População estimada por quarteirão a partir do RG (${estado.resumo?.media_pessoas_por_residencia || '2,93'} pessoas por residência; ${estado.resumo?.fonte_populacao || 'IBGE Censo 2022'}). A média considera a população atribuída aos ${fmt(comRG)} ACS com ao menos um quarteirão com RG. Há ${fmt(semRG)} quarteirão(ões) sem RG no recorte. A diferença cadastral 1:1 compara as áreas vazias deste recorte com os ACS do catálogo sem área em todo o sistema; não mede disponibilidade ou déficit real de pessoal.`;
+  }
   function renderLista() {
     const rows = filtrar();
     const porLocalidade = new Map();
     rows.forEach(r => porLocalidade.set(r.localidade, (porLocalidade.get(r.localidade) || 0) + 1));
     el('micro-resumo').textContent = `${fmt(rows.length)} microárea(s) · ${fmt(rows.reduce((n,r) => n + r.quarteiroes.length,0))} quarteirão(ões) · ${fmt(rows.filter(r => !r.acs_codigo).length)} sem ACS · ${[...porLocalidade].map(([nome,n]) => `${nome}: ${n}`).join(' · ')}`;
+    renderPainel(rows);
     el('micro-tabela').innerHTML = rows.length ? rows.map(r => `<tr>
       <td>${esc(r.localidade)}</td><td><strong>${esc(r.numero)}</strong></td>
       <td>${esc(r.acs_nome || r.acs_codigo || 'Sem ACS')}</td>
       <td>${fmt(r.quarteiroes.length)}<div class="rg-muted">${r.quarteiroes.map(q => esc(q)).join(', ')}</div></td>
+      <td>${r.quarteiroes_com_rg ? fmt(r.populacao_aproximada) : 'Sem RG'}</td>
+      <td>${fmt(r.quarteiroes_com_rg || 0)}/${fmt(r.quarteiroes.length)} quarteirões</td>
       <td>${r.quarteiroes_sem_geometria.length ? `<span class="rg-muted">${fmt(r.quarteiroes_sem_geometria.length)} ausente(s): ${r.quarteiroes_sem_geometria.map(esc).join(', ')}</span>` : 'Completa'}</td>
       <td>${esc(r.observacoes || '-')}</td><td><button class="btn btn-outline btn-sm" type="button" data-micro-edit="${Number(r.id_microarea)}">${el('micro-salvar') ? 'Editar / trocar ACS' : 'Ver no mapa'}</button>
       ${el('micro-salvar') ? `<button class="btn btn-ghost btn-sm" type="button" data-micro-delete="${Number(r.id_microarea)}">Excluir</button>` : ''}</td></tr>`).join('')
-      : '<tr><td colspan="7">Nenhuma microárea corresponde aos filtros.</td></tr>';
-    for (const [formato,id] of [['xlsx','micro-xlsx'],['geojson','micro-geojson'],['kml','micro-kml']]) {
+      : '<tr><td colspan="9">Nenhuma microárea corresponde aos filtros.</td></tr>';
+    for (const [formato,id] of [['xlsx','micro-xlsx'],['xlsx','micro-painel-xlsx'],['geojson','micro-geojson'],['kml','micro-kml'],['relatorio','micro-relatorio']]) {
       const link = el(id);
       const p = new URLSearchParams(); rows.forEach(r => p.append('id', r.id_microarea));
-      link.href = rows.length ? `/territorializacao/microareas/exportar/${formato}?${p}` : '#';
+      link.href = rows.length ? (formato === 'relatorio' ? `/territorializacao/microareas/relatorio?${p}` : `/territorializacao/microareas/exportar/${formato}?${p}`) : '#';
       link.setAttribute('aria-disabled', rows.length ? 'false' : 'true');
     }
   }
   function renderACS() {
+    const filtroAtual = el('micro-filtro-acs').value;
     const options = estado.acs.map(a => `<option value="${esc(a.acs_codigo)}">${esc(a.nome)} (${esc(a.acs_codigo)})</option>`).join('');
     el('micro-acs').innerHTML = '<option value="">Sem ACS</option>' + options;
     el('micro-filtro-acs').innerHTML = '<option value="">Todos</option><option value="sem">Sem ACS</option>' + options;
+    el('micro-filtro-acs').value = filtroAtual;
   }
   async function carregar() {
-    const [geo, resumo, lista] = await Promise.all([
-      json('/api/registro-geografico/geojson'), json('/api/registro-geografico/mapa-resumo'),
-      json('/api/territorializacao/microareas')]);
-    estado.geo = geo; estado.resumo = resumo; estado.lista = lista.registros || []; estado.acs = lista.acs || [];
+    const [geo, lista] = await Promise.all([
+      json('/api/registro-geografico/geojson'), json('/api/territorializacao/microareas')]);
+    estado.geo = geo; estado.resumo = lista.resumo_rg; estado.lista = lista.registros || []; estado.acs = lista.acs || [];
+    estado.indicadores = lista.indicadores || null;
     renderACS(); renderLista(); renderListaQuarteiroes(); renderMapa();
   }
   async function iniciar() {
@@ -185,7 +239,7 @@
         position:'topright', collapsed:false
       }).addTo(estado.mapa);
       await carregar();
-    } catch (e) { status(e.message); el('micro-tabela').innerHTML = `<tr><td colspan="7">${esc(e.message)}</td></tr>`; estado.iniciado = false; }
+    } catch (e) { status(e.message); el('micro-tabela').innerHTML = `<tr><td colspan="9">${esc(e.message)}</td></tr>`; estado.iniciado = false; }
   }
   function aba(nome) {
     document.querySelectorAll('[data-terr-area]').forEach(b => b.classList.toggle('active', b.dataset.terrArea === nome));
@@ -196,7 +250,8 @@
   }
   function subAba(nome) {
     document.querySelectorAll('[data-micro-pane]').forEach(b => b.classList.toggle('active', b.dataset.microPane === nome));
-    ['mapa','lista'].forEach(p => { el(`micro-pane-${p}`).hidden = p !== nome; });
+    ['mapa','painel','lista'].forEach(p => { el(`micro-pane-${p}`).hidden = p !== nome; });
+    el('micro-report-filters').hidden = nome === 'mapa';
     if (nome === 'mapa') setTimeout(() => estado.mapa?.invalidateSize(), 100);
     else renderLista();
   }
@@ -259,14 +314,21 @@
   });
   el('micro-q-limpar').addEventListener('click', () => { estado.selecionados.clear(); atualizarSelecao(); });
   ['micro-filtro-localidade','micro-filtro-acs','micro-filtro-busca'].forEach(id => el(id).addEventListener('input', renderLista));
+  el('micro-filtro-limpar').addEventListener('click', () => {
+    ['micro-filtro-localidade','micro-filtro-acs','micro-filtro-busca'].forEach(id => { el(id).value = ''; });
+    renderLista();
+  });
+  el('micro-ir-cadastro').addEventListener('click', () => subAba('lista'));
   el('micro-salvar')?.addEventListener('click', salvar);
   el('micro-nova')?.addEventListener('click', novo);
-  el('micro-tabela').addEventListener('click', ev => {
+  const cliqueEditar = ev => {
     const edit = ev.target.closest('[data-micro-edit]'), del = ev.target.closest('[data-micro-delete]');
     if (edit) abrir(Number(edit.dataset.microEdit));
     if (del) excluir(Number(del.dataset.microDelete));
-  });
-  ['micro-xlsx','micro-geojson','micro-kml'].forEach(id => el(id).addEventListener('click', ev => {
+  };
+  el('micro-tabela').addEventListener('click', cliqueEditar);
+  el('micro-sem-acs').addEventListener('click', cliqueEditar);
+  ['micro-xlsx','micro-painel-xlsx','micro-geojson','micro-kml','micro-relatorio'].forEach(id => el(id).addEventListener('click', ev => {
     if (ev.currentTarget.getAttribute('aria-disabled') === 'true') ev.preventDefault();
   }));
   if (location.hash === '#microareas') aba('microareas');

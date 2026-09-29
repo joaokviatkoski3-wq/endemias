@@ -965,11 +965,13 @@ ARTIGOS += (
     _artigo("territorializacao-microareas", "Gerenciar microáreas dos ACS", "Territorialização", ("/territorializacao",),
              ("microarea", "acs", "quarteirao", "mapa", "kml", "geojson", "qgis"),
              "Cada microárea reúne quarteirões inteiros de uma localidade e pode ter um ACS responsável.",
-             ("Abra Microáreas, escolha a localidade e selecione os quarteirões no mapa.",
+             ("Abra Microáreas, escolha a localidade e selecione os quarteirões no mapa ou na lista.",
               "Informe o número da microárea na localidade e, se houver, escolha o ACS do catálogo.",
-              "Confira os totais, salve e use Consulta e exportação para filtrar ou baixar XLSX, GeoJSON e KML."),
+              "Use Painel para comparar microáreas, ACS e população estimada; filtre o recorte e abra o relatório para impressão.",
+              "Use Cadastro e exportações para editar responsáveis e baixar XLSX, GeoJSON ou KML."),
              "/territorializacao#microareas", "Abrir Microáreas",
-             atencao=("Cada quarteirão só pode estar em uma microárea. A população exibida é aproximada.",
+             atencao=("Cada quarteirão só pode estar em uma microárea. Um ACS pode atender várias microáreas.",
+                      "A população exibida é aproximada e depende dos quarteirões cadastrados no RG; sem RG não equivale a zero habitante.",
                       "Uma nova camada GeoJSON pode deixar quarteirões sem geometria; confira o aviso na lista.")),
 )
 

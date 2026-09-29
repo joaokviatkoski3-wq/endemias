@@ -28,7 +28,21 @@
 .micro-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:12px;}
 .micro-filters .f-g{min-width:180px;}
 .micro-summary{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;color:var(--text2);font-size:12px;}
+.micro-metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:10px;margin:14px 0;}
+.micro-metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;min-height:105px;}
+.micro-metric strong{display:block;color:#155e75;font-size:26px;line-height:1.2;font-variant-numeric:tabular-nums;}
+.micro-metric.warn strong{color:#b45309;}.micro-metric span{display:block;color:var(--text2);font-size:12px;margin-top:6px;}
+.micro-panel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start;}
+.micro-panel-grid .wide{grid-column:1/-1;}
+.micro-bars{display:grid;gap:10px;max-height:430px;overflow:auto;margin-top:10px;}
+.micro-bar-row{display:grid;grid-template-columns:minmax(120px,1fr) minmax(90px,2fr) auto;gap:10px;align-items:center;font-size:12px;}
+.micro-bar-row strong{font-variant-numeric:tabular-nums;text-align:right;}
+.micro-bar-track{height:11px;background:var(--surface2);border-radius:99px;overflow:hidden;}
+.micro-bar-fill{display:block;height:100%;background:#0e7490;border-radius:inherit;}
+.micro-bar-fill.warn{background:#d97706;}
+.micro-report-filters[hidden]{display:none!important;}
 @media(max-width:1050px){.micro-grid{grid-template-columns:1fr;}.micro-side{max-height:none;}.micro-map{height:60vh;min-height:400px;}}
+@media(max-width:780px){.micro-panel-grid{grid-template-columns:1fr;}.micro-panel-grid .wide{grid-column:auto;}.micro-bar-row{grid-template-columns:minmax(90px,1fr) minmax(70px,1fr) auto;}}
 .rg-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;}
 .rg-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);}
 .rg-kpi-label{font-size:10px;color:var(--text3);font-weight:900;text-transform:uppercase;}
@@ -472,7 +486,8 @@
 <section class="terr-area" id="terr-area-microareas" hidden>
   <div class="rg-tabs" role="tablist" aria-label="Microáreas">
     <button class="rg-tab active" type="button" data-micro-pane="mapa">Mapa e edição</button>
-    <button class="rg-tab" type="button" data-micro-pane="lista">Consulta e exportação</button>
+    <button class="rg-tab" type="button" data-micro-pane="painel">Painel</button>
+    <button class="rg-tab" type="button" data-micro-pane="lista">Cadastro e exportações</button>
   </div>
   <div class="micro-pane" id="micro-pane-mapa">
     <div class="micro-grid">
@@ -526,22 +541,40 @@
       <div id="micro-mapa" class="micro-map" aria-label="Mapa dos quarteirões e microáreas"></div>
     </div>
   </div>
+  <div class="rg-map-card micro-report-filters" id="micro-report-filters" hidden>
+    <div class="rg-map-card-title">Recorte do painel, cadastro e relatórios</div>
+    <div class="micro-filters">
+      <div class="f-g"><label>Localidade</label><select id="micro-filtro-localidade"><option value="">Todas</option>{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
+      <div class="f-g"><label>ACS</label><select id="micro-filtro-acs"><option value="">Todos</option><option value="sem">Sem ACS</option></select></div>
+      <div class="f-g"><label>Buscar</label><input type="search" id="micro-filtro-busca" placeholder="Número, ACS ou quarteirão"></div>
+      <button class="btn btn-outline btn-sm" type="button" id="micro-filtro-limpar">Limpar filtros</button>
+    </div>
+    <div id="micro-resumo" class="micro-summary"></div>
+  </div>
+  <div class="micro-pane" id="micro-pane-painel" hidden>
+    <div class="micro-metric-grid" id="micro-indicadores"><div class="micro-metric">Carregando indicadores...</div></div>
+    <div class="rg-muted" id="micro-metodo">A população é estimada a partir das residências cadastradas no RG. Áreas sem RG não são tratadas como população zero.</div>
+    <div class="micro-panel-grid" style="margin-top:12px;">
+      <div class="rg-map-card"><div class="rg-map-card-title">Microáreas por localidade</div><div id="micro-por-localidade" class="micro-bars"></div></div>
+      <div class="rg-map-card"><div class="rg-map-card-title">População estimada por ACS</div><div id="micro-por-acs" class="micro-bars"></div></div>
+      <div class="rg-map-card wide"><div class="rg-map-card-title">Microáreas sem ACS</div><div id="micro-sem-acs"></div></div>
+    </div>
+    <div class="rg-map-actions" style="margin-top:12px;">
+      <a class="btn btn-outline btn-sm" id="micro-relatorio" href="/territorializacao/microareas/relatorio" target="_blank" rel="noopener">Abrir relatório para impressão</a>
+      <a class="btn btn-outline btn-sm" id="micro-painel-xlsx" href="/territorializacao/microareas/exportar/xlsx">Baixar relatório XLSX</a>
+      <button class="btn btn-outline btn-sm" type="button" id="micro-ir-cadastro">Ver cadastro e exportações</button>
+    </div>
+  </div>
   <div class="micro-pane" id="micro-pane-lista" hidden>
     <div class="chart-card">
       <div class="chart-hd"><div class="chart-title">Microáreas cadastradas</div></div>
-      <div class="micro-filters">
-        <div class="f-g"><label>Localidade</label><select id="micro-filtro-localidade"><option value="">Todas</option>{% for loc in opcoes.localidades %}<option value="{{ loc.id_localidade }}">{{ loc.nome }}</option>{% endfor %}</select></div>
-        <div class="f-g"><label>ACS</label><select id="micro-filtro-acs"><option value="">Todos</option><option value="sem">Sem ACS</option></select></div>
-        <div class="f-g"><label>Buscar</label><input type="search" id="micro-filtro-busca" placeholder="Número, ACS ou observação"></div>
-      </div>
-      <div id="micro-resumo" class="micro-summary"></div>
       <div class="rg-map-actions" style="margin-bottom:12px;">
         <a class="btn btn-outline btn-sm" id="micro-xlsx" href="/territorializacao/microareas/exportar/xlsx">Planilha XLSX</a>
         <a class="btn btn-outline btn-sm" id="micro-geojson" href="/territorializacao/microareas/exportar/geojson">GeoJSON para QGIS</a>
         <a class="btn btn-outline btn-sm" id="micro-kml" href="/territorializacao/microareas/exportar/kml">KML para My Maps</a>
       </div>
-      <div class="rg-muted" style="margin-bottom:8px;">Filtre por ACS para ver todas as suas microáreas, inclusive em localidades diferentes. Use "Editar / trocar ACS" para mudar o responsável. As exportações acompanham o filtro exibido; quarteirões sem geometria continuam na planilha, mas não nos arquivos geográficos.</div>
-      <div class="table-scroll"><table><thead><tr><th>Localidade</th><th>Microárea</th><th>ACS</th><th>Quarteirões</th><th>Geometria</th><th>Observações</th><th>Ações</th></tr></thead><tbody id="micro-tabela"><tr><td colspan="7">Carregando...</td></tr></tbody></table></div>
+      <div class="rg-muted" style="margin-bottom:8px;">Use "Editar / trocar ACS" para mudar o responsável. As exportações acompanham o recorte acima; quarteirões sem geometria permanecem na planilha, mas não nos arquivos geográficos.</div>
+      <div class="table-scroll"><table><thead><tr><th>Localidade</th><th>Microárea</th><th>ACS</th><th>Quarteirões</th><th>População estimada</th><th>RG</th><th>Geometria</th><th>Observações</th><th>Ações</th></tr></thead><tbody id="micro-tabela"><tr><td colspan="9">Carregando...</td></tr></tbody></table></div>
     </div>
   </div>
 </section>

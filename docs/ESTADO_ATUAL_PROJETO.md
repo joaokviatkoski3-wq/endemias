@@ -25,6 +25,18 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+O codigo `1.55.0` separa **Painel** de **Cadastro e exportações** em
+Territorialização > Microáreas. Os filtros são compartilhados. O painel mostra
+microáreas por localidade, carga populacional estimada por ACS e áreas sem
+responsável; há relatório imprimível e XLSX com indicadores, resumos por ACS e
+localidade e detalhes das microáreas/quarteirões. A população vem das
+residências reais do RG multiplicadas por 2,93 (IBGE Censo 2022); quarteirão
+sem RG não é tratado como população zero. A média divide a população estimada
+atribuída pelos ACS do recorte com ao menos um quarteirão com RG. "ACS do
+catálogo sem microárea" é contagem global cadastral, não disponibilidade real
+de pessoal. A diferença 1:1 é uma hipótese cadastral, não déficit de equipe.
+Esta melhoria não exige nova migração nem altera o cadastro de microáreas.
+
 O codigo `1.54.0` renomeia a pagina de navegação para **Territorialização**
 e conserva o RG em aba própria e na rota legada. A nova aba **Microáreas**
 vincula quarteirões inteiros, com número único por localidade e ACS opcional.

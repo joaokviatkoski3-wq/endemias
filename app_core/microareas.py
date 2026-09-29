@@ -6,6 +6,7 @@ from datetime import datetime
 from xml.etree import ElementTree as ET
 
 from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
 
 from app_core import db as db_core
 from app_core import registro_geografico as rg_core
@@ -92,6 +93,98 @@ def listar(target, base_dir=None):
         return {"registros": registros, "geometrias": len(geometrias), "acs": acs}
     finally:
         conn.close()
+
+
+def _montar_relatorio(dados, resumo_rg, ids=None):
+    """Agrega o cadastro sem confundir ausência de RG com população zero."""
+    todos = dados["registros"]
+    ids_selecionados = set(ids) if ids is not None else None
+    selecionados = [r for r in todos if ids_selecionados is None or r["id_microarea"] in ids_selecionados]
+    rg_quarteiroes = resumo_rg.get("quarteiroes", {})
+    acs_catalogo = {a["acs_codigo"]: a["nome"] for a in dados["acs"]}
+    acs_vinculados_global = {r["acs_codigo"] for r in todos if r["acs_codigo"]}
+    sem_area_global = [
+        {"acs_codigo": codigo, "nome": nome}
+        for codigo, nome in acs_catalogo.items() if codigo not in acs_vinculados_global
+    ]
+    registros = []
+    por_acs = {}
+    por_localidade = {}
+    for original in selecionados:
+        r = dict(original)
+        detalhes = []
+        for q in r["quarteiroes"]:
+            chave = f"{r['id_localidade']}:{rg_core._quarteirao_display(q)}"
+            rg = rg_quarteiroes.get(chave)
+            detalhes.append({
+                "quarteirao": q, "tem_rg": rg is not None,
+                "populacao_aproximada": int(rg["populacao_aproximada"] or 0) if rg else None,
+                "imoveis_rg": int(rg["imoveis"] or 0) if rg else None,
+            })
+        r["detalhes_quarteiroes"] = detalhes
+        r["quarteiroes_com_rg"] = sum(d["tem_rg"] for d in detalhes)
+        r["quarteiroes_sem_rg"] = len(detalhes) - r["quarteiroes_com_rg"]
+        r["populacao_aproximada"] = sum(d["populacao_aproximada"] or 0 for d in detalhes)
+        r["imoveis_rg"] = sum(d["imoveis_rg"] or 0 for d in detalhes)
+        registros.append(r)
+        local = por_localidade.setdefault(r["id_localidade"], {
+            "id_localidade": r["id_localidade"], "localidade": r["localidade"],
+            "microareas": 0, "sem_acs": 0, "quarteiroes": 0,
+            "quarteiroes_sem_rg": 0, "populacao_aproximada": 0, "acs_codigos": set(),
+        })
+        local["microareas"] += 1
+        local["sem_acs"] += not bool(r["acs_codigo"])
+        local["quarteiroes"] += len(detalhes)
+        local["quarteiroes_sem_rg"] += r["quarteiroes_sem_rg"]
+        local["populacao_aproximada"] += r["populacao_aproximada"]
+        if r["acs_codigo"]:
+            local["acs_codigos"].add(r["acs_codigo"])
+            acs = por_acs.setdefault(r["acs_codigo"], {
+                "acs_codigo": r["acs_codigo"],
+                "acs_nome": r["acs_nome"] or acs_catalogo.get(r["acs_codigo"]) or r["acs_codigo"],
+                "microareas": 0, "quarteiroes": 0, "quarteiroes_com_rg": 0,
+                "quarteiroes_sem_rg": 0, "populacao_aproximada": 0,
+            })
+            acs["microareas"] += 1
+            acs["quarteiroes"] += len(detalhes)
+            acs["quarteiroes_com_rg"] += r["quarteiroes_com_rg"]
+            acs["quarteiroes_sem_rg"] += r["quarteiroes_sem_rg"]
+            acs["populacao_aproximada"] += r["populacao_aproximada"]
+    acs_rows = sorted(por_acs.values(), key=lambda row: (-row["populacao_aproximada"], row["acs_nome"]))
+    locais = []
+    for local in sorted(por_localidade.values(), key=lambda row: row["localidade"]):
+        local["acs_distintos"] = len(local.pop("acs_codigos"))
+        locais.append(local)
+    acs_com_rg = [r for r in acs_rows if r["quarteiroes_com_rg"]]
+    atribuida = sum(r["populacao_aproximada"] for r in acs_rows)
+    indicadores = {
+        "microareas": len(registros),
+        "com_acs": sum(bool(r["acs_codigo"]) for r in registros),
+        "sem_acs": sum(not r["acs_codigo"] for r in registros),
+        "acs_distintos": len(acs_rows),
+        "acs_catalogo_sem_area_global": len(sem_area_global),
+        "diferenca_cadastral_1a1": max(0, sum(not r["acs_codigo"] for r in registros) - len(sem_area_global)),
+        "quarteiroes": sum(len(r["quarteiroes"]) for r in registros),
+        "quarteiroes_sem_rg": sum(r["quarteiroes_sem_rg"] for r in registros),
+        "populacao_aproximada": sum(r["populacao_aproximada"] for r in registros),
+        "populacao_atribuida": atribuida,
+        "media_populacao_por_acs_com_rg": round(atribuida / len(acs_com_rg), 1) if acs_com_rg else None,
+        "acs_com_rg": len(acs_com_rg),
+    }
+    return {
+        "registros": registros, "acs": dados["acs"], "geometrias": dados["geometrias"],
+        "indicadores": indicadores, "por_acs": acs_rows, "por_localidade": locais,
+        "acs_sem_area_global": sem_area_global,
+        "resumo_rg": resumo_rg,
+        "fonte_populacao": resumo_rg.get("fonte_populacao", ""),
+        "media_pessoas_por_residencia": resumo_rg.get("media_pessoas_por_residencia"),
+    }
+
+
+def relatorio(target, base_dir=None, ids=None):
+    dados = listar(target, base_dir)
+    resumo_rg = rg_core.resumo_mapa(target, base_dir)
+    return _montar_relatorio(dados, resumo_rg, ids)
 
 
 def salvar(target, dados, base_dir=None, id_microarea=None):
@@ -189,26 +282,75 @@ def _selecionadas(target, base_dir, ids=None):
 
 
 def exportar_xlsx(target, base_dir=None, ids=None):
-    registros = _selecionadas(target, base_dir, ids)
+    dados = relatorio(target, base_dir, ids)
+    registros = dados["registros"]
+    indicadores = dados["indicadores"]
     wb = Workbook()
-    resumo = wb.active
-    resumo.title = "Microáreas"
-    resumo.append(["Localidade", "Microárea", "ACS código", "ACS nome", "Quarteirões", "Sem geometria", "Observações", "Atualizado em"])
+    painel = wb.active
+    painel.title = "Indicadores"
+    painel.append(["Indicador", "Valor"])
+    for nome, valor in [
+        ("Microáreas no recorte", indicadores["microareas"]),
+        ("Microáreas com ACS", indicadores["com_acs"]),
+        ("Microáreas sem ACS", indicadores["sem_acs"]),
+        ("ACS distintos no recorte", indicadores["acs_distintos"]),
+        ("ACS do catálogo sem microárea (global)", indicadores["acs_catalogo_sem_area_global"]),
+        ("Diferença cadastral 1:1 (não é déficit de pessoal)", indicadores["diferenca_cadastral_1a1"]),
+        ("Quarteirões no recorte", indicadores["quarteiroes"]),
+        ("Quarteirões sem RG", indicadores["quarteiroes_sem_rg"]),
+        ("População estimada nas microáreas com RG", indicadores["populacao_aproximada"]),
+        ("População estimada atribuída a ACS", indicadores["populacao_atribuida"]),
+        ("Média estimada por ACS com RG", indicadores["media_populacao_por_acs_com_rg"]),
+        ("ACS no cálculo da média", indicadores["acs_com_rg"]),
+    ]:
+        painel.append([nome, valor])
+    painel.append(["Fonte", f"RG: residências × {dados['media_pessoas_por_residencia']} pessoas; {dados['fonte_populacao']}"])
+    painel.append(["Limite", "Quarteirões sem RG não entram na estimativa; ACS sem microárea no catálogo não significam disponibilidade de pessoal."])
+    por_acs = wb.create_sheet("Por ACS")
+    por_acs.append(["ACS código", "ACS nome", "Microáreas", "Quarteirões", "Quarteirões sem RG", "População estimada"])
+    for item in dados["por_acs"]:
+        por_acs.append([excel_safe(item["acs_codigo"]), excel_safe(item["acs_nome"]), item["microareas"],
+                        item["quarteiroes"], item["quarteiroes_sem_rg"],
+                        item["populacao_aproximada"] if item["quarteiroes_com_rg"] else None])
+    por_localidade = wb.create_sheet("Por localidade")
+    por_localidade.append(["Localidade", "Microáreas", "Sem ACS", "ACS distintos", "Quarteirões", "Quarteirões sem RG", "População estimada"])
+    for item in dados["por_localidade"]:
+        por_localidade.append([excel_safe(item["localidade"]), item["microareas"], item["sem_acs"],
+                               item["acs_distintos"], item["quarteiroes"], item["quarteiroes_sem_rg"],
+                               item["populacao_aproximada"] if item["quarteiroes"] > item["quarteiroes_sem_rg"] else None])
+    resumo = wb.create_sheet("Microáreas")
+    resumo.append(["Localidade", "Microárea", "ACS código", "ACS nome", "Quarteirões", "Sem geometria", "Observações", "Atualizado em",
+                   "Quarteirões sem RG", "População estimada", "Imóveis RG"])
     membros = wb.create_sheet("Quarteirões")
-    membros.append(["Localidade", "Microárea", "Quarteirão", "ACS código", "ACS nome", "Sem geometria"])
+    membros.append(["Localidade", "Microárea", "Quarteirão", "ACS código", "ACS nome", "Sem geometria", "RG cadastrado", "População estimada", "Imóveis RG"])
     for r in registros:
         resumo.append([excel_safe(r["localidade"]), excel_safe(r["numero"]), excel_safe(r["acs_codigo"]),
                        excel_safe(r["acs_nome"]), len(r["quarteiroes"]), len(r["quarteiroes_sem_geometria"]),
-                       excel_safe(r["observacoes"]), excel_safe(r["atualizado_em"])])
-        for q in r["quarteiroes"]:
+                       excel_safe(r["observacoes"]), excel_safe(r["atualizado_em"]), r["quarteiroes_sem_rg"],
+                       r["populacao_aproximada"] if r["quarteiroes_com_rg"] else None, r["imoveis_rg"] if r["quarteiroes_com_rg"] else None])
+        for detalhe in r["detalhes_quarteiroes"]:
+            q = detalhe["quarteirao"]
             membros.append([excel_safe(r["localidade"]), excel_safe(r["numero"]), excel_safe(q),
-                            excel_safe(r["acs_codigo"]), excel_safe(r["acs_nome"]), q in r["quarteiroes_sem_geometria"]])
+                            excel_safe(r["acs_codigo"]), excel_safe(r["acs_nome"]), q in r["quarteiroes_sem_geometria"],
+                            detalhe["tem_rg"], detalhe["populacao_aproximada"], detalhe["imoveis_rg"]])
     for sheet in wb:
-        sheet.freeze_panes = "A2"
-        sheet.auto_filter.ref = sheet.dimensions
+        if sheet.title != "Indicadores":
+            sheet.freeze_panes = "A2"
+            sheet.auto_filter.ref = sheet.dimensions
+        sheet.sheet_view.showGridLines = False
+        sheet.row_dimensions[1].height = 25
+        for cell in sheet[1]:
+            cell.font = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+            cell.fill = PatternFill(fill_type="solid", fgColor="155E75")
+            cell.alignment = Alignment(horizontal="center", vertical="center")
         for column in sheet.columns:
             from openpyxl.utils import get_column_letter
             sheet.column_dimensions[get_column_letter(column[0].column)].width = min(55, max(15, max(len(str(cell.value or "")) for cell in column) + 2))
+    painel.column_dimensions["A"].width = 52
+    painel.column_dimensions["B"].width = 100
+    for row in (painel.max_row - 1, painel.max_row):
+        painel.cell(row, 2).alignment = Alignment(wrap_text=True, vertical="center")
+        painel.row_dimensions[row].height = 31
     output = io.BytesIO()
     wb.save(output)
     return output.getvalue()

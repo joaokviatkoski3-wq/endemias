@@ -66,7 +66,7 @@ def page():
 @bp.route("/api/territorializacao/microareas")
 @login_required
 def api_microareas():
-    return jsonify(microareas_core.listar(_db_path(), _base_dir()))
+    return jsonify(microareas_core.relatorio(_db_path(), _base_dir()))
 
 
 @bp.route("/api/territorializacao/microareas", methods=["POST"])
@@ -127,6 +127,14 @@ def exportar_microareas(formato):
         mimetype = "application/vnd.google-earth.kml+xml"
     return send_file(io.BytesIO(conteudo), mimetype=mimetype, as_attachment=True,
                      download_name=f"microareas_acs.{formato}")
+
+
+@bp.route("/territorializacao/microareas/relatorio")
+@login_required
+def relatorio_microareas():
+    ids = request.args.getlist("id", type=int)
+    dados = microareas_core.relatorio(_db_path(), _base_dir(), ids or None)
+    return render_template("microareas_relatorio.html", dados=dados)
 
 
 @bp.route("/api/registro-geografico")

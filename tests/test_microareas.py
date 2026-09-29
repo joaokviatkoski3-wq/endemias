@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from openpyxl import load_workbook
 
 from app_core import microareas
@@ -123,6 +124,56 @@ class MicroareasTests(unittest.TestCase):
         self.assertEqual(registros[primeiro]["acs_nome"], "Maria")
         self.assertEqual(registros[segundo]["acs_nome"], "Ana")
         self.assertEqual(registros[segundo]["quarteiroes"], ["0008"])
+
+    def test_relatorio_distingue_populacao_estimavel_de_rg_ausente(self):
+        microareas.listar(self.target, self.base_dir)
+        conn = sqlite3.connect(self.target)
+        try:
+            conn.executemany("INSERT INTO acs_catalogo VALUES (?, ?, ?)", [
+                ("acs-006", "Maria", "2026-09-29"),
+                ("acs-007", "Ana", "2026-09-29"),
+            ])
+            cursor = conn.execute("""INSERT INTO registro_geografico_quarteiroes
+                (id_localidade, localidade, quarteirao, criado_em, atualizado_em)
+                VALUES (1, 'Sede', '0007', '2026-09-29', '2026-09-29')""")
+            conn.execute("""INSERT INTO registro_geografico_imoveis
+                (id_quarteirao, id_localidade, localidade, quarteirao, logradouro, numero, tipo, criado_em, atualizado_em)
+                VALUES (?, 1, 'Sede', '0007', 'Rua Teste', '10', 'R', '2026-09-29', '2026-09-29')""", (cursor.lastrowid,))
+            conn.commit()
+        finally:
+            conn.close()
+        primeiro = microareas.salvar(self.target, {
+            "id_localidade": 1, "numero": "1", "acs_codigo": "acs-006", "quarteiroes": ["7"],
+        }, self.base_dir)
+        segundo = microareas.salvar(self.target, {
+            "id_localidade": 1, "numero": "2", "quarteiroes": ["8"],
+        }, self.base_dir)
+        dados = microareas.relatorio(self.target, self.base_dir)
+        self.assertEqual(dados["indicadores"]["microareas"], 2)
+        self.assertEqual(dados["indicadores"]["sem_acs"], 1)
+        self.assertEqual(dados["indicadores"]["acs_catalogo_sem_area_global"], 1)
+        self.assertEqual(dados["indicadores"]["diferenca_cadastral_1a1"], 0)
+        self.assertEqual(dados["indicadores"]["quarteiroes_sem_rg"], 1)
+        self.assertEqual(dados["indicadores"]["populacao_aproximada"], 3)
+        self.assertEqual(dados["indicadores"]["media_populacao_por_acs_com_rg"], 3.0)
+        self.assertEqual(dados["por_acs"][0]["acs_codigo"], "acs-006")
+        self.assertEqual(dados["por_localidade"][0]["sem_acs"], 1)
+        recorte = microareas.relatorio(self.target, self.base_dir, [segundo])
+        self.assertEqual(recorte["indicadores"]["populacao_aproximada"], 0)
+        self.assertIsNone(recorte["indicadores"]["media_populacao_por_acs_com_rg"])
+        self.assertEqual(recorte["indicadores"]["acs_catalogo_sem_area_global"], 1)
+        wb = load_workbook(io.BytesIO(microareas.exportar_xlsx(self.target, self.base_dir)))
+        self.assertEqual(wb.sheetnames, ["Indicadores", "Por ACS", "Por localidade", "Microáreas", "Quarteirões"])
+        self.assertEqual(wb["Indicadores"]["B4"].value, 1)
+        self.assertEqual(wb["Por ACS"]["F2"].value, 3)
+        self.assertIsNone(wb["Microáreas"]["J3"].value)
+        self.assertIsNone(wb["Quarteirões"]["H3"].value)
+        ambiente = Environment(loader=FileSystemLoader(Path(__file__).resolve().parents[1] / "templates"),
+                               autoescape=select_autoescape(["html"]))
+        html = ambiente.get_template("microareas_relatorio.html").render(dados=dados)
+        self.assertIn("Relatório de microáreas dos ACS", html)
+        self.assertIn("Maria (acs-006)", html)
+        self.assertIn("Quarteirões sem RG", html)
 
 
 if __name__ == "__main__":
