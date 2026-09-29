@@ -1,7 +1,8 @@
 # Quarteiroes parciais em microareas
 
-Estado em 29/09/2026: implementacao preparada na branch
-`codex/microareas-partes`, ainda nao implantada no PostgreSQL oficial.
+Estado em 29/09/2026: implementacao integrada a `master`. A saida do migrador
+executado pelo usuario confirmou a aplicacao da 0022 no PostgreSQL oficial.
+O servico foi reiniciado e `/login` respondeu HTTP 200 com versao `1.58.0`.
 
 ## Uso previsto
 
@@ -45,13 +46,14 @@ apos importacao e etapa obrigatoria.
 Se um logradouro/lado deixar de constar no RG, o vinculo e sinalizado e a
 exportacao fica suspensa ate sua revisao.
 
-## Implantacao pendente
+## Implantacao e verificacao
 
-1. Instalar `Shapely>=2.1.2,<2.2` no Python que executa o servico.
-2. Aplicar `migrations/postgresql/0022_territorializacao_microareas_partes.sql`
-   pelo migrador oficial, apos backup e verificacao de pendencias.
-3. Integrar a branch, reiniciar o servico e fazer teste funcional autorizado
-   com um quarteirao que possua lados preenchidos no RG.
+1. Shapely 2.1.2 foi instalado no Python local usado nos testes. Conferir o
+   mesmo interpretador no processo do servico apos o reinicio.
+2. O usuario aplicou `migrations/postgresql/0022_territorializacao_microareas_partes.sql`
+   pelo migrador oficial apos validacao dos backups.
+3. A branch foi integrada a `master` e o servico reiniciado com sucesso.
+   Fazer teste funcional autorizado com um quarteirao que possua lados
+   preenchidos no RG, sem criar dados de teste em producao automaticamente.
 
-Esses passos nao foram executados na base oficial durante a preparacao.
-Testes locais usam SQLite temporario, nunca o banco de producao.
+Testes automatizados usam SQLite temporario, nunca o banco de producao.

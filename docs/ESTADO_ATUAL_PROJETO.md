@@ -25,11 +25,16 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
-A branch isolada `codex/microareas-partes` prepara o codigo `1.58.0` para
-divisao excepcional de quarteiroes por lados do RG e desenho manual no mapa.
-**Nao esta integrada nem em producao.** Requer instalar Shapely, aplicar a
-migracao 0022 e reiniciar o servico somente em implantacao autorizada. O
-cadastro oficial atual nao foi alterado por esta preparacao. Consulte
+O codigo `1.58.0` foi integrado a `master` para divisao excepcional de
+quarteiroes por lados do RG e desenho manual no mapa. O usuario executou o
+migrador administrativo e mostrou `0022_territorializacao_microareas_partes.sql`
+como **applied** em 29/09/2026. Shapely 2.1.2 foi instalado no Python local.
+O reinicio elevado terminou com codigo 0; `/login` e o JavaScript de
+Microareas responderam HTTP 200, com `Endemias v1.58.0` no login. A conta
+desta sessao nao possui leitura da credencial PostgreSQL. A migracao foi
+confirmada pela saida enviada pelo usuario, nao por uma consulta independente
+nesta sessao. Falta teste funcional com um quarteirao real escolhido pelo
+usuario, sem criar cadastro experimental por iniciativa do agente. Consulte
 `docs/MICROAREAS_PARTES.md` para funcionamento, testes e limites.
 
 O codigo `1.57.1` amplia de 12 para 37 cores a paleta do mapa de Microáreas
