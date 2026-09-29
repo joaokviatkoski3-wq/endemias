@@ -28,6 +28,9 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 O codigo `1.54.0` renomeia a pagina de navegação para **Territorialização**
 e conserva o RG em aba própria e na rota legada. A nova aba **Microáreas**
 vincula quarteirões inteiros, com número único por localidade e ACS opcional.
+Um ACS pode ser responsável por várias microáreas, inclusive de localidades
+diferentes. Microáreas salvas podem ser reabertas na consulta para trocar o ACS
+sem alterar os quarteirões; essa relação não exige nova migração.
 No editor, a seleção pode ser feita pelo mapa com etiquetas numéricas ou por
 lista pesquisável, com sincronização entre ambos. O fundo do mapa pode alternar
 entre ruas, satélite e satélite com ruas, como no mapa do RG. Exporta XLSX,

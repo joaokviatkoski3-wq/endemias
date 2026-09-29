@@ -139,7 +139,7 @@
       <td>${esc(r.acs_nome || r.acs_codigo || 'Sem ACS')}</td>
       <td>${fmt(r.quarteiroes.length)}<div class="rg-muted">${r.quarteiroes.map(q => esc(q)).join(', ')}</div></td>
       <td>${r.quarteiroes_sem_geometria.length ? `<span class="rg-muted">${fmt(r.quarteiroes_sem_geometria.length)} ausente(s): ${r.quarteiroes_sem_geometria.map(esc).join(', ')}</span>` : 'Completa'}</td>
-      <td>${esc(r.observacoes || '-')}</td><td><button class="btn btn-outline btn-sm" type="button" data-micro-edit="${Number(r.id_microarea)}">Abrir</button>
+      <td>${esc(r.observacoes || '-')}</td><td><button class="btn btn-outline btn-sm" type="button" data-micro-edit="${Number(r.id_microarea)}">${el('micro-salvar') ? 'Editar / trocar ACS' : 'Ver no mapa'}</button>
       ${el('micro-salvar') ? `<button class="btn btn-ghost btn-sm" type="button" data-micro-delete="${Number(r.id_microarea)}">Excluir</button>` : ''}</td></tr>`).join('')
       : '<tr><td colspan="7">Nenhuma microárea corresponde aos filtros.</td></tr>';
     for (const [formato,id] of [['xlsx','micro-xlsx'],['geojson','micro-geojson'],['kml','micro-kml']]) {
@@ -203,6 +203,8 @@
   function novo() {
     estado.editando = null; estado.selecionados.clear(); el('micro-id').value = '';
     el('micro-numero').value = ''; el('micro-acs').value = ''; el('micro-observacoes').value = '';
+    el('micro-cadastro-titulo').textContent = 'Nova microárea';
+    if (el('micro-salvar')) el('micro-salvar').textContent = 'Criar microárea';
     status('Nova microárea. Selecione os quarteirões.'); renderListaQuarteiroes(); renderMapa();
   }
   function abrir(id) {
@@ -213,8 +215,11 @@
     estado.editando = r.id_microarea; estado.selecionados = new Set(r.quarteiroes);
     el('micro-id').value = r.id_microarea; el('micro-numero').value = r.numero;
     el('micro-acs').value = r.acs_codigo || ''; el('micro-observacoes').value = r.observacoes || '';
+    el('micro-cadastro-titulo').textContent = `Editar microárea ${r.numero} · ${r.localidade}`;
+    if (el('micro-salvar')) el('micro-salvar').textContent = 'Salvar alterações';
     status(r.quarteiroes_sem_geometria.length ? 'Atenção: há quarteirões sem geometria na camada atual.' : `Editando microárea ${r.numero}.`);
     renderListaQuarteiroes(); renderMapa();
+    if (el('micro-salvar')) el('micro-cadastro').scrollIntoView({block:'nearest'});
   }
   async function salvar() {
     const loc = el('micro-localidade').value;

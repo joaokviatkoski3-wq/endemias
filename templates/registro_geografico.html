@@ -507,16 +507,17 @@
           <div class="rg-map-card-title">Quarteirão</div>
           <div id="micro-detalhe" class="rg-map-detail">Clique em um quarteirão para ver seus dados.</div>
         </div>
-        <div class="rg-map-card" {% if not is_admin %}hidden{% endif %}>
-          <div class="rg-map-card-title">Cadastro</div>
+        <div class="rg-map-card" id="micro-cadastro" {% if not is_admin %}hidden{% endif %}>
+          <div class="rg-map-card-title" id="micro-cadastro-titulo">Nova microárea</div>
           <input type="hidden" id="micro-id">
           <div class="micro-form-grid">
             <div class="f-g"><label>Número na localidade</label><input type="number" min="1" step="1" id="micro-numero" placeholder="Ex.: 1"></div>
             <div class="f-g"><label>ACS responsável</label><select id="micro-acs"><option value="">Sem ACS</option></select></div>
             <div class="f-g wide"><label>Observações</label><textarea id="micro-observacoes" rows="2" placeholder="Informações complementares"></textarea></div>
           </div>
+          <div class="rg-muted" style="margin-top:8px;">Um ACS pode responder por várias microáreas. Para trocar o responsável de uma área já salva, abra-a na aba Consulta e exportação, escolha outro ACS aqui e salve as alterações. Para dividir uma área, retire dela os quarteirões desejados e salve; depois crie outra microárea com os quarteirões liberados. Cada quarteirão continua em apenas uma microárea.</div>
           <div class="rg-map-actions" style="margin-top:9px;">
-            <button class="btn btn-primary btn-sm" type="button" id="micro-salvar">Salvar microárea</button>
+            <button class="btn btn-primary btn-sm" type="button" id="micro-salvar">Criar microárea</button>
             <button class="btn btn-outline btn-sm" type="button" id="micro-nova">Nova seleção</button>
           </div>
           <div id="micro-status" class="rg-muted" style="margin-top:8px;"></div>
@@ -539,7 +540,7 @@
         <a class="btn btn-outline btn-sm" id="micro-geojson" href="/territorializacao/microareas/exportar/geojson">GeoJSON para QGIS</a>
         <a class="btn btn-outline btn-sm" id="micro-kml" href="/territorializacao/microareas/exportar/kml">KML para My Maps</a>
       </div>
-      <div class="rg-muted" style="margin-bottom:8px;">As exportações acompanham o filtro exibido. Quarteirões sem geometria na camada atual continuam na planilha, mas não aparecem nos arquivos geográficos.</div>
+      <div class="rg-muted" style="margin-bottom:8px;">Filtre por ACS para ver todas as suas microáreas, inclusive em localidades diferentes. Use "Editar / trocar ACS" para mudar o responsável. As exportações acompanham o filtro exibido; quarteirões sem geometria continuam na planilha, mas não nos arquivos geográficos.</div>
       <div class="table-scroll"><table><thead><tr><th>Localidade</th><th>Microárea</th><th>ACS</th><th>Quarteirões</th><th>Geometria</th><th>Observações</th><th>Ações</th></tr></thead><tbody id="micro-tabela"><tr><td colspan="7">Carregando...</td></tr></tbody></table></div>
     </div>
   </div>

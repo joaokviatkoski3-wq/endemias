@@ -96,6 +96,34 @@ class MicroareasTests(unittest.TestCase):
         self.assertNotEqual(primeiro, segundo)
         self.assertEqual(len(microareas.listar(self.target, self.base_dir)["registros"]), 2)
 
+    def test_mesmo_acs_em_varias_microareas_e_troca_de_responsavel(self):
+        microareas.listar(self.target, self.base_dir)
+        conn = sqlite3.connect(self.target)
+        try:
+            conn.executemany("INSERT INTO acs_catalogo VALUES (?, ?, ?)", [
+                ("acs-006", "Maria", "2026-09-29"),
+                ("acs-007", "Ana", "2026-09-29"),
+            ])
+            conn.commit()
+        finally:
+            conn.close()
+        primeiro = microareas.salvar(self.target, {
+            "id_localidade": 1, "numero": "1", "acs_codigo": "acs-006", "quarteiroes": ["7"],
+        }, self.base_dir)
+        segundo = microareas.salvar(self.target, {
+            "id_localidade": 1, "numero": "2", "acs_codigo": "acs-006", "quarteiroes": ["8"],
+        }, self.base_dir)
+        registros = {r["id_microarea"]: r for r in microareas.listar(self.target, self.base_dir)["registros"]}
+        self.assertEqual(registros[primeiro]["acs_codigo"], "acs-006")
+        self.assertEqual(registros[segundo]["acs_codigo"], "acs-006")
+        microareas.salvar(self.target, {
+            "id_localidade": 1, "numero": "2", "acs_codigo": "acs-007", "quarteiroes": ["8"],
+        }, self.base_dir, segundo)
+        registros = {r["id_microarea"]: r for r in microareas.listar(self.target, self.base_dir)["registros"]}
+        self.assertEqual(registros[primeiro]["acs_nome"], "Maria")
+        self.assertEqual(registros[segundo]["acs_nome"], "Ana")
+        self.assertEqual(registros[segundo]["quarteiroes"], ["0008"])
+
 
 if __name__ == "__main__":
     unittest.main()
