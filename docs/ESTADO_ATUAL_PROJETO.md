@@ -25,6 +25,16 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+Em 29/09/2026, o usuario capturou a causa de uma rejeicao ao salvar lado
+parcial: "O desenho deve ficar inteiramente dentro do quarteirao oficial".
+A regra foi removida no codigo `1.58.4` a pedido do usuario: o poligono pode
+ficar dentro, fora ou atravessar o contorno. Mantem-se o vinculo ao RG, a
+validacao geometrica e a proibicao de sobreposicao entre lados do mesmo
+quarteirao. Nenhuma migracao ou mudanca em dados reais e necessaria. Confirmar
+integracao, reinicio do servico e teste funcional do usuario antes de declarar
+a correcao ativa. A suite Python passou com 733 testes (5 ignorados); os
+testes JavaScript de desenho e cores passaram.
+
 Em 29/09/2026, o usuario relatou que desenhou lados dos Q. 796 e 758 de Sede
 na microarea 10, mas apos F5 ambos voltaram como inteiros. A pagina ativa
 respondia `1.58.2`; a leitura da tela confirmou 21 quarteiroes inteiros e zero

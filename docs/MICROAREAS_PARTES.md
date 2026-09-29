@@ -11,8 +11,10 @@ e abre uma microarea existente ou cria outra. No editor de lados, informa o
 quarteirao e busca os logradouros e lados que constam no RG. Se o quarteirao
 ja pertence por inteiro a uma microarea, o aviso oferece **Editar microarea**;
 sem abrir a dona, os lados aparecem bloqueados para evitar atribuicao dupla.
-Seleciona um lado, clica em **Desenhar**, marca os vertices sobre o poligono
-oficial e clica em **Concluir e salvar lado**. Informe antes o numero da
+Seleciona um lado, clica em **Desenhar**, marca os vertices no mapa e clica
+em **Concluir e salvar lado**. O desenho pode ficar dentro, fora ou cruzar o
+contorno do quarteirao oficial; cabe ao administrador conferir sua posicao.
+Informe antes o numero da
 microarea. Tanto na edicao quanto na criacao de microarea nova, o sistema
 grava imediatamente e rele o cadastro para confirmar o lado salvo. O lado so
 aparece na lista da microarea depois dessa confirmacao. Se o servidor rejeitar
@@ -26,11 +28,13 @@ outra microarea. Remover um lado e salvar desassocia apenas esse lado.
 Cada quarteirao pode pertencer inteiro a uma unica microarea **ou** ter lados
 em microareas diferentes. O mesmo lado, identificado por localidade,
 quarteirao, logradouro e lado do RG, so pode pertencer a uma microarea. O
-poligono desenhado deve estar dentro da geometria oficial e nao pode ocupar
-area de outro lado ja desenhado. Fronteiras podem coincidir. A validacao
+poligono desenhado pode ficar em qualquer posicao, mas nao pode ocupar
+area de outro lado ja desenhado do mesmo quarteirao. Fronteiras podem coincidir. A validacao
 geometrica e feita no servidor com Shapely. O sistema nao desenha nem
 deduz automaticamente o limite real de um lado: a conferencia do desenho
-com o territorio continua sendo responsabilidade de quem cadastra.
+com o territorio continua sendo responsabilidade de quem cadastra. O lado
+continua vinculado ao quarteirao e ao trecho do RG informados; nao se trata
+de uma atribuicao geografica automatica pelo local onde o desenho caiu.
 
 O mapa exibe os poligonos parciais por cor da microarea, a lista mostra os
 lados, e o XLSX detalha tipo de atribuicao, logradouro e lado. GeoJSON e KML

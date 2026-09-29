@@ -112,13 +112,16 @@ class MicroareasTests(unittest.TestCase):
         with self.assertRaisesRegex(microareas.MicroareaError, "sobrepõe"):
             microareas.salvar(self.target, {"id_localidade": 1, "numero": "2",
                 "quarteiroes": [], "partes": [parte("2", LADO_1)]}, self.base_dir)
-        fora = desenho([[-49.31, -25.30], [-49.30, -25.30], [-49.31, -25.31]])
-        with self.assertRaisesRegex(microareas.MicroareaError, "dentro"):
-            microareas.salvar(self.target, {"id_localidade": 1, "numero": "2",
-                "quarteiroes": [], "partes": [parte("2", fora)]}, self.base_dir)
         with self.assertRaisesRegex(microareas.MicroareaError, "inteiro e parcial"):
             microareas.salvar(self.target, {"id_localidade": 1, "numero": "2",
                 "quarteiroes": ["7"], "partes": [parte("2", LADO_2)]}, self.base_dir)
+        fora = desenho([[-49.31, -25.30], [-49.30, -25.30], [-49.31, -25.31]])
+        dois = microareas.salvar(self.target, {"id_localidade": 1, "numero": "2",
+            "quarteiroes": [], "partes": [parte("2", fora)]}, self.base_dir)
+        salvo = microareas.listar(self.target, self.base_dir)["registros"]
+        self.assertEqual(next(r for r in salvo if r["id_microarea"] == dois)["partes"][0]["geometry"]["coordinates"], fora["coordinates"])
+        exportado = microareas.exportar_geojson(self.target, self.base_dir)
+        self.assertEqual(next(f for f in exportado["features"] if f["properties"]["lado"] == "2")["geometry"]["coordinates"], fora["coordinates"])
         original = microareas.listar(self.target, self.base_dir)["registros"][0]["partes"][0]
         self.importar(camada(longitude=-49.31))
         self.assertTrue(microareas.listar(self.target, self.base_dir)["registros"][0]["partes"][0]["base_desatualizada"])
@@ -128,6 +131,16 @@ class MicroareasTests(unittest.TestCase):
             microareas.salvar(self.target, {"id_localidade": 1, "numero": "1", "quarteiroes": [],
                 "partes": [{**parte("1", LADO_1), "base_geometry_hash": original["base_geometry_hash"]}]},
                 self.base_dir, um)
+
+    def test_desenho_pode_cruzar_contorno_oficial(self):
+        self.preparar_lados()
+        cruzando = desenho([[-49.297, -25.301], [-49.294, -25.301], [-49.297, -25.302]])
+        microareas.salvar(self.target, {"id_localidade": 1, "numero": "1",
+            "quarteiroes": [], "partes": [parte("1", cruzando)]}, self.base_dir)
+        self.assertEqual(microareas.exportar_geojson(self.target, self.base_dir)["features"][0]["geometry"]["coordinates"], cruzando["coordinates"])
+        with self.assertRaisesRegex(microareas.MicroareaError, "sobrepõe"):
+            microareas.salvar(self.target, {"id_localidade": 1, "numero": "2",
+                "quarteiroes": [], "partes": [parte("2", cruzando)]}, self.base_dir)
 
     def test_lado_removido_do_rg_exige_revisao(self):
         self.preparar_lados()

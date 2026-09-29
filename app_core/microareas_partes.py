@@ -33,8 +33,8 @@ def hash_base(geometry):
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def validar_geometria(geometry, base, outras):
-    """Devolve geometria canonizada; bordas podem se tocar, interiores não."""
+def validar_geometria(geometry, outras):
+    """Aceita desenho dentro ou fora da base; lados do mesmo Q não se sobrepõem."""
     try:
         from shapely.geometry import Polygon, shape, mapping
     except ImportError as exc:
@@ -53,14 +53,11 @@ def validar_geometria(geometry, base, outras):
         raise ValueError("Feche o desenho antes de salvar.")
     try:
         polygon = shape(geometry)
-        parent = shape(base)
         siblings = [shape(item) for item in outras]
     except (TypeError, ValueError, KeyError) as exc:
         raise ValueError("Não foi possível interpretar a geometria desenhada.") from exc
     if not isinstance(polygon, Polygon) or not polygon.is_valid or polygon.area <= 0:
         raise ValueError("O desenho é vazio, cruzado ou geometricamente inválido.")
-    if not parent.is_valid or not parent.covers(polygon):
-        raise ValueError("O desenho deve ficar inteiramente dentro do quarteirão oficial.")
     if any(polygon.intersection(outro).area > 0 for outro in siblings):
         raise ValueError("O desenho se sobrepõe a outra parte desse quarteirão.")
     return mapping(polygon)
@@ -105,7 +102,7 @@ def preparar(conn, id_localidade, raw, geometrias, id_microarea=None):
             raise ValueError(f"{rua} · lado {lado} já pertence a outra microárea.")
         outras = [json.loads(row["geometry_json"]) for row in existentes[q]]
         outras += [p["geometry"] for p in preparados if p["quarteirao"] == q]
-        geometry = validar_geometria(item.get("geometry"), feature["geometry"], outras)
+        geometry = validar_geometria(item.get("geometry"), outras)
         preparados.append({"id_localidade": id_localidade, "quarteirao": q,
                            "logradouro": rua, "lado": lado, "geometry": geometry,
                            "base_geometry_hash": base_hash})

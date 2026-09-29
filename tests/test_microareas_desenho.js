@@ -89,7 +89,7 @@ async function testarPersistencia() {
       assert.deepEqual(payload.quarteiroes, [], 'Converter para parcial retira o vínculo inteiro');
       assert.equal(payload.partes.length, 1);
       assert.equal(payload.partes[0].lado, '1');
-      if (falhar) return {ok:false, status:400, json:async() => ({erro:'O desenho deve ficar inteiramente dentro do quarteirão oficial.'})};
+      if (falhar) return {ok:false, status:400, json:async() => ({erro:'O desenho se sobrepõe a outra parte desse quarteirão.'})};
       gravacoes++;
       registro.quarteiroes = [];
       registro.partes = payload.partes;
