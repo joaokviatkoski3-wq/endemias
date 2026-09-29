@@ -29,6 +29,9 @@
 .micro-filters .f-g{min-width:180px;}
 .micro-condominio-option{display:flex;align-items:center;gap:8px;min-height:34px;font-size:13px;color:var(--text);cursor:pointer;}
 .micro-condominio-option input{width:17px;height:17px;flex:none;}
+.micro-cor-legenda{display:grid;gap:5px;max-height:180px;overflow:auto;margin-top:8px;}
+.micro-cor-item{display:flex;align-items:center;gap:8px;font-size:12px;}
+.micro-cor-amostra{display:inline-block;width:16px;height:16px;flex:none;border:1px solid rgba(0,0,0,.22);border-radius:4px;}
 .micro-summary{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;color:var(--text2);font-size:12px;}
 .micro-metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:10px;margin:14px 0;}
 .micro-metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;min-height:105px;}
@@ -501,6 +504,13 @@
           <div class="rg-muted" style="margin-top:6px;">Os polígonos vêm da camada de quarteirões. Para atualizá-la, use Registro Geográfico → Geometrias e importe o GeoJSON exportado pelo QGIS.</div>
         </div>
         <div class="rg-map-card">
+          <div class="rg-map-card-title">Cores no mapa</div>
+          <div class="rg-muted">O mapa prioriza cores distintas para microáreas a até 200 m de distância aproximada. As cores são apenas de visualização e não alteram o cadastro.</div>
+          <button class="btn btn-outline btn-sm" type="button" id="micro-variar-cores" style="margin-top:8px;">Embaralhar cores</button>
+          <div class="rg-muted" id="micro-cor-aviso" aria-live="polite"></div>
+          <div class="micro-cor-legenda" id="micro-cor-legenda"></div>
+        </div>
+        <div class="rg-map-card">
           <div class="rg-map-card-title">Selecionar quarteirões</div>
           <div class="f-g"><label for="micro-q-busca">Buscar número</label><input type="search" id="micro-q-busca" placeholder="Ex.: 1072"></div>
           <div class="rg-map-actions" style="margin-top:8px;">
@@ -532,7 +542,7 @@
             <div class="f-g"><label>ACS responsável</label><select id="micro-acs"><option value="">Sem ACS</option></select></div>
             <div class="f-g wide"><label>Observações</label><textarea id="micro-observacoes" rows="2" placeholder="Informações complementares"></textarea></div>
           </div>
-          <div class="rg-muted" style="margin-top:8px;">Um ACS pode responder por várias microáreas. Para trocar o responsável de uma área já salva, abra-a na aba Consulta e exportação, escolha outro ACS aqui e salve as alterações. Para dividir uma área, retire dela os quarteirões desejados e salve; depois crie outra microárea com os quarteirões liberados. Cada quarteirão continua em apenas uma microárea.</div>
+          <div class="rg-muted" style="margin-top:8px;">Um ACS pode responder por várias microáreas. Para trocar o responsável de uma área já salva, abra-a na aba Cadastro e exportações, escolha outro ACS aqui e salve as alterações. Para dividir uma área, retire dela os quarteirões desejados e salve; depois crie outra microárea com os quarteirões liberados. Cada quarteirão continua em apenas uma microárea.</div>
           <div class="rg-map-actions" style="margin-top:9px;">
             <button class="btn btn-primary btn-sm" type="button" id="micro-salvar">Criar microárea</button>
             <button class="btn btn-outline btn-sm" type="button" id="micro-nova">Nova seleção</button>
@@ -1860,5 +1870,6 @@ rgCarregarSelectQuarteiroes(rgEl('rg-ed-localidade').value, 'rg-ed-quarteirao').
 rgCarregarChecksQuarteiroes(rgEl('rg-imp-localidade').value).catch(() => {});
 rgCarregar().catch(err => { rgEl('rg-info').textContent = err.message; });
 </script>
+<script src="/static/js/microareas_cores.js?v={{ APP_VERSION }}"></script>
 <script src="/static/js/microareas.js?v={{ APP_VERSION }}"></script>
 {% endblock %}

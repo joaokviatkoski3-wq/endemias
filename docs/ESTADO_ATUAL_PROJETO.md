@@ -25,6 +25,14 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+O codigo `1.57.0` melhora as cores do mapa em Territorialização > Microáreas:
+os polígonos são aproximados por caixas geográficas e áreas a até 200 m
+entram no mesmo grupo de vizinhança para receber cores contrastantes. Uma
+legenda por localidade e o botão **Embaralhar cores** permitem conferir e variar
+a paleta; a variação fica no armazenamento deste navegador. É uma escolha
+visual, sem gravar no banco nem alterar KML/GeoJSON. Não exige nova migração;
+confirmar a 0021 antes de ativar a página em produção.
+
 O codigo `1.56.0` acrescenta ao Painel de Microáreas um controle para incluir
 (padrão) ou excluir a população estimada dos condomínios residenciais. O RG
 identifica essas unidades pelo imóvel residencial com `condominio > 0`; ao

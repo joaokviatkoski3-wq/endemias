@@ -9,8 +9,11 @@
     const raw = String(value ?? '').trim();
     return /^\d+(?:\.0+)?$/.test(raw) ? String(parseInt(raw, 10)).padStart(4, '0') : raw;
   };
-  const estado = {iniciado:false, mapa:null, layer:null, geo:null, resumo:null, lista:[], acs:[], indicadores:null, selecionados:new Set(), editando:null};
-  const cores = ['#2563eb','#dc2626','#16a34a','#9333ea','#ea580c','#0891b2','#be123c','#0f766e'];
+  const chaveCor = 'endemias.microareas.cor-seed.v1';
+  let seedCor = 1;
+  try { seedCor = Number(localStorage.getItem(chaveCor)) || 1; } catch (_) { /* Navegação privada pode bloquear o armazenamento. */ }
+  const estado = {iniciado:false, mapa:null, layer:null, geo:null, resumo:null, lista:[], acs:[], indicadores:null,
+    coresMapa:{}, vizinhos:null, selecionados:new Set(), editando:null};
   async function json(url, options) {
     const resp = await fetch(url, options);
     const data = await resp.json().catch(() => ({}));
@@ -68,11 +71,20 @@
     });
     totais();
   }
-  function cor(r) { return cores[(Number(r?.id_microarea || 0) - 1 + cores.length) % cores.length]; }
+  function cor(r) { return estado.coresMapa[String(r?.id_microarea)] || '#2563eb'; }
+  function renderLegendaCores() {
+    const loc = Number(el('micro-localidade').value);
+    const rows = estado.lista.filter(r => Number(r.id_localidade) === loc)
+      .sort((a, b) => Number(a.numero) - Number(b.numero));
+    el('micro-cor-legenda').innerHTML = rows.length ? rows.map(r =>
+      `<div class="micro-cor-item"><span class="micro-cor-amostra" style="background:${cor(r)}"></span>`
+      + `<span>Microárea ${esc(r.numero)} · ${esc(r.acs_nome || r.acs_codigo || 'Sem ACS')}</span></div>`).join('')
+      : '<span class="rg-muted">Selecione uma localidade com microáreas cadastradas.</span>';
+  }
   function estilo(f) {
     const q = chave(f), dono = proprietario(q), selecionado = estado.selecionados.has(q);
-    return {color:selecionado ? '#facc15' : dono ? cor(dono) : '#64748b', weight:selecionado ? 4 : 1.4,
-      fillColor:dono ? cor(dono) : '#cbd5e1', fillOpacity:selecionado ? .72 : dono ? .47 : .23};
+    return {color:selecionado ? '#facc15' : dono ? cor(dono) : '#64748b', weight:selecionado ? 4 : dono ? 2 : 1.4,
+      fillColor:dono ? cor(dono) : '#cbd5e1', fillOpacity:selecionado ? .72 : dono ? .55 : .23};
   }
   function totais() {
     let imoveis = 0, reais = 0, pop = 0;
@@ -90,6 +102,7 @@
   }
   function renderMapa() {
     if (!estado.mapa) return;
+    renderLegendaCores();
     if (estado.layer) {
       estado.layer.eachLayer(layer => layer.unbindTooltip());
       estado.mapa.removeLayer(estado.layer);
@@ -218,6 +231,8 @@
       json('/api/registro-geografico/geojson'), json('/api/territorializacao/microareas')]);
     estado.geo = geo; estado.resumo = lista.resumo_rg; estado.lista = lista.registros || []; estado.acs = lista.acs || [];
     estado.indicadores = lista.indicadores || null;
+    estado.vizinhos = window.MicroareasCores.vizinhanca(estado.lista, estado.geo?.features || []);
+    estado.coresMapa = window.MicroareasCores.atribuir(estado.lista, estado.geo?.features || [], seedCor, estado.vizinhos);
     renderACS(); renderLista(); renderListaQuarteiroes(); renderMapa();
   }
   async function iniciar() {
@@ -304,8 +319,32 @@
   }
   document.querySelectorAll('[data-terr-area]').forEach(b => b.addEventListener('click', () => aba(b.dataset.terrArea)));
   document.querySelectorAll('[data-micro-pane]').forEach(b => b.addEventListener('click', () => subAba(b.dataset.microPane)));
-  el('micro-localidade').addEventListener('change', () => { el('micro-q-busca').value = ''; novo(); });
+  el('micro-localidade').addEventListener('change', () => {
+    el('micro-q-busca').value = ''; el('micro-cor-aviso').textContent = ''; novo();
+  });
   el('micro-map-labels').addEventListener('change', renderMapa);
+  el('micro-variar-cores').addEventListener('click', () => {
+    const idsVisiveis = estado.lista.filter(r => String(r.id_localidade) === el('micro-localidade').value)
+      .map(r => String(r.id_microarea));
+    if (!idsVisiveis.length) {
+      el('micro-cor-aviso').textContent = 'Selecione uma localidade com microáreas para variar as cores.';
+      return;
+    }
+    const anterior = estado.coresMapa;
+    let alterado = false;
+    for (let tentativa = 0; tentativa < 12; tentativa++) {
+      const novaSeed = Math.floor(Math.random() * 0xFFFFFFFF) || 1;
+      const novasCores = window.MicroareasCores.atribuir(estado.lista, estado.geo?.features || [], novaSeed, estado.vizinhos);
+      if (idsVisiveis.some(id => novasCores[id] !== anterior[id])) {
+        seedCor = novaSeed; estado.coresMapa = novasCores; alterado = true; break;
+      }
+    }
+    if (!alterado) { el('micro-cor-aviso').textContent = 'Não foi possível variar as cores agora.'; return; }
+    try { localStorage.setItem(chaveCor, String(seedCor)); } catch (_) { /* A sessão atual continua funcionando. */ }
+    estado.layer?.setStyle(estilo);
+    renderLegendaCores();
+    el('micro-cor-aviso').textContent = 'Cores variadas. Esta escolha fica neste navegador.';
+  });
   el('micro-q-busca').addEventListener('input', filtrarListaQuarteiroes);
   el('micro-q-lista').addEventListener('change', ev => {
     const input = ev.target.closest('input[type="checkbox"]');

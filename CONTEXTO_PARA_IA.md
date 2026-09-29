@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual no codigo: `1.56.0`, definida em `app_core/version.py`; o servico oficial foi confirmado em `1.52.0` em 28/09/2026. O usuario confirmou a migracao 0020 aplicada.
+- Versao atual no codigo: `1.57.0`, definida em `app_core/version.py`; o servico oficial foi confirmado em `1.52.0` em 28/09/2026. O usuario confirmou a migracao 0020 aplicada.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -47,6 +47,13 @@ desconsiderar integralmente a populacao estimada de imoveis residenciais com
 relatorio para impressao e XLSX; o relatorio impresso usa A4 retrato. Os dados
 do RG nao sao alterados. Nao ha nova migracao; a pendencia anterior da 0021
 deve ser conferida antes de ativar a pagina em producao.
+
+No codigo `1.57.0`, o mapa de Microareas distribui as cores dos poligonos
+considerando a proximidade aproximada dos quarteiroes (ate 200 m), priorizando
+contraste entre areas vizinhas. O botao **Embaralhar cores** produz outra
+distribuicao sem mudar os dados e guarda a escolha neste navegador. A legenda
+identifica cores por microarea na localidade selecionada. KML e GeoJSON nao
+recebem essas cores de interface. Nao ha nova migracao.
 
 Na versao `1.53.0`, a aba **Doentes > Entregas por fonte** mostra os animais
 que receberam itraconazol SESA ou Município com data, quantidade, tutor,

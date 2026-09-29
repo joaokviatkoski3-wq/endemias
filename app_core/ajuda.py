@@ -967,12 +967,14 @@ ARTIGOS += (
              "Cada microárea reúne quarteirões inteiros de uma localidade e pode ter um ACS responsável.",
              ("Abra Microáreas, escolha a localidade e selecione os quarteirões no mapa ou na lista.",
               "Informe o número da microárea na localidade e, se houver, escolha o ACS do catálogo.",
+              "No mapa, confira a legenda de cores e use Embaralhar cores se quiser outra distribuição entre áreas próximas.",
               "Use Painel para comparar microáreas, ACS e população estimada; escolha se inclui condomínios residenciais no cálculo.",
               "Os filtros e a opção de condomínios acompanham o XLSX e o relatório para impressão em A4 retrato.",
               "Use Cadastro e exportações para editar responsáveis e baixar XLSX, GeoJSON ou KML."),
              "/territorializacao#microareas", "Abrir Microáreas",
              atencao=("Cada quarteirão só pode estar em uma microárea. Um ACS pode atender várias microáreas.",
                       "A população exibida é aproximada e depende dos quarteirões cadastrados no RG; sem RG não equivale a zero habitante. Desmarcar condomínios retira integralmente imóveis residenciais com condomínio > 0 da estimativa.",
+                      "As cores são locais deste navegador e não são exportadas no KML ou GeoJSON.",
                       "Uma nova camada GeoJSON pode deixar quarteirões sem geometria; confira o aviso na lista.")),
 )
 
