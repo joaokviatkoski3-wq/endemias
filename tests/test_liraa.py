@@ -96,9 +96,71 @@ class LiraaTests(unittest.TestCase):
         self.estrato(ciclo, (1,))
         with self.assertRaisesRegex(liraa.LiraaError, "repita"):
             self.estrato(ciclo, (2, 2))
-        with self.assertRaisesRegex(liraa.LiraaError, "localidade já usado"):
+        with self.assertRaisesRegex(liraa.LiraaError, "já pertencem a outro estrato"):
             liraa.salvar_estrato(self.db, ciclo, {"numero": 2, "tipo": "normal",
                 "imoveis_confirmados": 9000, "localidades": [1]}, base_dir=self.temp.name)
+
+    def test_localidade_dividida_entre_estratos_e_universo_exato(self):
+        ciclo = self.criar()
+        primeiro = liraa.salvar_estrato(self.db, ciclo, {"numero": 1, "tipo": "reduzido",
+            "imoveis_confirmados": 4000, "quarteiroes": ["1:0001", "1:0002"]}, base_dir=self.temp.name)
+        segundo = liraa.salvar_estrato(self.db, ciclo, {"numero": 2, "tipo": "reduzido",
+            "imoveis_confirmados": 4000, "quarteiroes": ["1:0003", "2:0004"]}, base_dir=self.temp.name)
+        dados = liraa.painel(self.db, self.temp.name)["ciclos"][0]
+        self.assertEqual(dados["quarteiroes_sem_estrato"], 1)
+        self.assertEqual(dados["estratos"][0]["quarteiroes"], ["1:0001", "1:0002"])
+        self.assertEqual(liraa.sortear(self.db, primeiro, self.temp.name, seed=4)["a"], 2)
+        self.assertEqual(liraa.sortear(self.db, segundo, self.temp.name, seed=5)["a"], 2)
+
+    def test_rejeita_sobreposicao_e_quarteirao_fora_da_camada(self):
+        ciclo = self.criar()
+        self.estrato(ciclo, (1,))
+        with self.assertRaisesRegex(liraa.LiraaError, "outro estrato"):
+            liraa.salvar_estrato(self.db, ciclo, {"numero": 2, "tipo": "normal",
+                "imoveis_confirmados": 9000, "quarteiroes": ["1:0001"]}, base_dir=self.temp.name)
+        with self.assertRaisesRegex(liraa.LiraaError, "ausente da camada"):
+            liraa.salvar_estrato(self.db, ciclo, {"numero": 2, "tipo": "normal",
+                "imoveis_confirmados": 9000, "quarteiroes": ["2:9999"]}, base_dir=self.temp.name)
+        self.assertEqual(len(liraa.painel(self.db, self.temp.name)["ciclos"][0]["estratos"]), 1)
+
+    def test_edicao_libera_quarteirao_para_outro_estrato(self):
+        ciclo = self.criar()
+        primeiro = liraa.salvar_estrato(self.db, ciclo, {"numero": 1, "tipo": "reduzido",
+            "imoveis_confirmados": 4000, "quarteiroes": ["1:0001", "1:0002"]}, base_dir=self.temp.name)
+        liraa.salvar_estrato(self.db, ciclo, {"numero": 1, "tipo": "reduzido",
+            "imoveis_confirmados": 4000, "quarteiroes": ["1:0001"]}, primeiro, self.temp.name)
+        segundo = liraa.salvar_estrato(self.db, ciclo, {"numero": 2, "tipo": "reduzido",
+            "imoveis_confirmados": 4000, "quarteiroes": ["1:0002"]}, base_dir=self.temp.name)
+        self.assertEqual(liraa.sortear(self.db, segundo, self.temp.name, seed=2)["a"], 1)
+
+    def test_mudanca_da_camada_sinaliza_ausente_e_bloqueia_sorteio(self):
+        ciclo = self.criar()
+        estrato = liraa.salvar_estrato(self.db, ciclo, {"numero": 1, "tipo": "reduzido",
+            "imoveis_confirmados": 4000, "quarteiroes": ["1:0001", "1:0002"]}, base_dir=self.temp.name)
+        self.importar(camada(("0001", "0006", "0003", "0004", "0005")))
+        self.assertEqual(liraa.painel(self.db, self.temp.name)["ciclos"][0]["estratos"][0]["ausentes"], 1)
+        with self.assertRaisesRegex(liraa.LiraaError, "ausentes"):
+            liraa.sortear(self.db, estrato, self.temp.name, seed=1)
+
+    def test_plano_antigo_por_localidade_pode_ser_convertido(self):
+        ciclo = self.criar()
+        liraa.painel(self.db, self.temp.name)  # instala o schema local
+        conn = sqlite3.connect(self.db)
+        estrato = conn.execute("""INSERT INTO liraa_estratos
+            (id_ciclo,numero,tipo,imoveis_confirmados,observacoes,criado_em,atualizado_em)
+            VALUES (?,1,'reduzido',4000,'','2026-09-30','2026-09-30')""", (ciclo,)).lastrowid
+        conn.execute("INSERT INTO liraa_estrato_localidades VALUES (?,?,1)", (estrato, ciclo))
+        conn.commit()
+        conn.close()
+        atual = liraa.painel(self.db, self.temp.name)["ciclos"][0]["estratos"][0]
+        self.assertEqual(atual["quarteiroes"], ["1:0001", "1:0002", "1:0003"])
+        self.assertTrue(atual["legado_localidades"])
+        liraa.salvar_estrato(self.db, ciclo, {"numero": 1, "tipo": "reduzido",
+            "imoveis_confirmados": 4000, "quarteiroes": ["1:0001"]}, estrato, self.temp.name)
+        novo = liraa.painel(self.db, self.temp.name)["ciclos"][0]["estratos"][0]
+        self.assertEqual(novo["quarteiroes"], ["1:0001"])
+        self.assertFalse(novo["legado_localidades"])
+        self.assertEqual(liraa.sortear(self.db, estrato, self.temp.name, seed=1)["a"], 1)
 
     def test_ciclo_pode_ser_corrigido_antes_e_congelado_depois(self):
         vazio = self.criar()
@@ -136,6 +198,9 @@ class LiraaTests(unittest.TestCase):
                                                        sidebar_groups=[], request=SimpleNamespace(endpoint="liraa.page"))
         self.assertIn("Pontos Estratégicos", html)
         self.assertIn("Novo ciclo", html)
+        self.assertIn("Mapa dos estratos", html)
+        self.assertIn("Selecionar localidade inteira", html)
+        self.assertIn("liraa-dados-json", html)
         self.assertIn("Sorteio registrado", html)
         self.assertIn("Ver 2 quarteirões sorteados", html)
         self.assertIn("exportação", html)
@@ -181,6 +246,35 @@ class LiraaTests(unittest.TestCase):
             response = client.post(f"/liraa/estratos/{estrato}/sortear", follow_redirects=True)
             self.assertEqual(response.status_code, 200)
             self.assertIn("Sorteio registrado", response.get_data(as_text=True))
+
+    def test_rota_recebe_selecao_por_quarteirao(self):
+        conn = sqlite3.connect(self.db)
+        conn.execute("""CREATE TABLE usuarios (
+            id_usuario INTEGER PRIMARY KEY, usuario TEXT, nome TEXT, nivel TEXT, ativo INTEGER)""")
+        conn.execute("INSERT INTO usuarios VALUES (1,'teste','Teste','admin',1)")
+        conn.commit()
+        conn.close()
+        app = Flask(__name__, template_folder=str(ROOT / "templates"))
+        app.secret_key = "teste-isolado"
+        app.config.update(DB_PATH=self.db, DB_BACKEND="sqlite", BASE_DIR=self.temp.name)
+        app.register_blueprint(auth_bp)
+        app.register_blueprint(liraa_bp)
+        app.jinja_env.globals.update(csrf_token=lambda: "teste")
+        @app.context_processor
+        def contexto():
+            return {"TIPO_CORES": {}, "TIPO_LABELS": {}, "AGENDA_TIPO_LABELS": {},
+                    "sidebar_groups": [], "APP_VERSION_LABEL": "Teste"}
+        ciclo = self.criar()
+        with app.test_client() as client:
+            with client.session_transaction() as session:
+                session["uid"] = 1
+            response = client.post(f"/liraa/ciclos/{ciclo}/estratos", data={
+                "numero": "1", "tipo": "reduzido", "imoveis_confirmados": "4000",
+                "quarteiroes": ["1:0001", "2:0004"]}, follow_redirects=True)
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("2 quarteirões", response.get_data(as_text=True))
+        self.assertEqual(liraa.painel(self.db, self.temp.name)["ciclos"][0]["estratos"][0]["quarteiroes"],
+                         ["1:0001", "2:0004"])
 
 
 if __name__ == "__main__":

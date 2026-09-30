@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual no codigo e servico oficial: `1.60.0`, definida em `app_core/version.py` e confirmada por HTTP 200 em `/login` apos integracao/reinicio em 30/09/2026. A migracao PostgreSQL 0023 do LIRAa foi aplicada; a pagina `/liraa` respondeu redirecionamento de login e sua leitura direta no banco retornou 15 localidades, 1.415 quarteiroes e zero ciclos. O sorteio permanece experimental e nao gera `.lira`. Ver `docs/LIRAA_PLANEJAMENTO.md`.
+- Versao no servico oficial e na `master`: `1.60.0`, confirmada por HTTP 200 em `/login` apos integracao/reinicio em 30/09/2026. A migracao PostgreSQL 0023 do LIRAa foi aplicada; a pagina `/liraa` respondeu redirecionamento de login e sua leitura direta no banco retornou 15 localidades, 1.415 quarteiroes e zero ciclos. A branch `codex/liraa-estratos-mapa` prepara codigo `1.61.0` e migracao 0024, ainda nao implantados. O sorteio permanece experimental e nao gera `.lira`. Ver `docs/LIRAA_PLANEJAMENTO.md`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.

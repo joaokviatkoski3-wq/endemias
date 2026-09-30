@@ -41,6 +41,13 @@ def _schema(conn):
                 id_ciclo INTEGER NOT NULL REFERENCES liraa_ciclos(id_ciclo) ON DELETE CASCADE,
                 id_localidade INTEGER NOT NULL REFERENCES localidades(id_localidade),
                 PRIMARY KEY(id_estrato, id_localidade), UNIQUE(id_ciclo, id_localidade));
+            CREATE TABLE IF NOT EXISTS liraa_estrato_quarteiroes (
+                id_estrato INTEGER NOT NULL REFERENCES liraa_estratos(id_estrato) ON DELETE CASCADE,
+                id_ciclo INTEGER NOT NULL REFERENCES liraa_ciclos(id_ciclo) ON DELETE CASCADE,
+                id_localidade INTEGER NOT NULL REFERENCES localidades(id_localidade),
+                quarteirao TEXT NOT NULL,
+                PRIMARY KEY(id_estrato,id_localidade,quarteirao),
+                UNIQUE(id_ciclo,id_localidade,quarteirao));
             CREATE TABLE IF NOT EXISTS liraa_sorteios (
                 id_sorteio INTEGER PRIMARY KEY AUTOINCREMENT,
                 id_estrato INTEGER NOT NULL UNIQUE REFERENCES liraa_estratos(id_estrato) ON DELETE RESTRICT,
@@ -149,6 +156,7 @@ def painel(target, base_dir=None):
         estratos = [db_core.serialize_row(r) for r in conn.execute(
             "SELECT * FROM liraa_estratos ORDER BY id_ciclo, numero").fetchall()]
         vinculos = conn.execute("SELECT id_estrato, id_localidade FROM liraa_estrato_localidades").fetchall()
+        blocos = conn.execute("SELECT id_estrato, id_localidade, quarteirao FROM liraa_estrato_quarteiroes").fetchall()
         sorteios = {r["id_estrato"]: db_core.serialize_row(r) for r in conn.execute(
             "SELECT * FROM liraa_sorteios").fetchall()}
         for s in sorteios.values():
@@ -157,11 +165,27 @@ def painel(target, base_dir=None):
         por_estrato = {}
         for r in vinculos:
             por_estrato.setdefault(r["id_estrato"], []).append(r["id_localidade"])
+        blocos_por_estrato = {}
+        for r in blocos:
+            blocos_por_estrato.setdefault(r["id_estrato"], []).append((int(r["id_localidade"]), r["quarteirao"]))
+        por_localidade = {}
+        for q in territorio["quarteiroes"]:
+            por_localidade.setdefault(q["id_localidade"], set()).add(q["quarteirao"])
+        ativos = {(q["id_localidade"], q["quarteirao"]) for q in territorio["quarteiroes"]}
         for e in estratos:
-            e["localidades"] = sorted(por_estrato.get(e["id_estrato"], []))
+            chaves = set(blocos_por_estrato.get(e["id_estrato"], []))
+            for loc in por_estrato.get(e["id_estrato"], []):
+                chaves.update((loc, q) for q in por_localidade.get(loc, set()))
+            e["quarteiroes"] = [f"{loc}:{q}" for loc, q in sorted(chaves)]
+            e["ausentes"] = sum(chave not in ativos for chave in chaves)
+            e["localidades"] = sorted({loc for loc, _ in chaves})
+            e["legado_localidades"] = bool(por_estrato.get(e["id_estrato"]))
             e["sorteio"] = sorteios.get(e["id_estrato"])
         for c in ciclos:
             c["estratos"] = [e for e in estratos if e["id_ciclo"] == c["id_ciclo"]]
+            usados = {chave for e in c["estratos"] for chave in e["quarteiroes"]}
+            c["quarteiroes_sem_estrato"] = len(ativos) - len(ativos & {
+                (int(chave.split(":", 1)[0]), chave.split(":", 1)[1]) for chave in usados})
         return {**territorio, "ciclos": ciclos}
     finally:
         conn.close()
@@ -243,17 +267,33 @@ def salvar_estrato(target, id_ciclo, payload, id_estrato=None, base_dir=None):
     if tipo not in {"normal", "reduzido"}:
         raise LiraaError("Escolha estrato normal ou reduzido.")
     n_imoveis = _inteiro(payload.get("imoveis_confirmados"), "o total confirmado de imóveis")
-    localidade_ids = payload.get("localidades")
-    if not isinstance(localidade_ids, list) or not localidade_ids:
-        raise LiraaError("Selecione ao menos uma localidade.")
-    localidades = {_inteiro(x, "a localidade") for x in localidade_ids}
-    if len(localidades) != len(localidade_ids):
-        raise LiraaError("Não repita localidades no mesmo estrato.")
     obs = _texto(payload.get("observacoes"), "Observações", 1000)
     territorio = inventario(target, base_dir)
-    disponiveis = {int(r["id_localidade"]): r for r in territorio["localidades"]}
-    if not localidades <= disponiveis.keys() or any(not disponiveis[i]["quarteiroes"] for i in localidades):
-        raise LiraaError("Toda localidade do estrato deve existir na camada de quarteirões.")
+    ativos = {(q["id_localidade"], q["quarteirao"]) for q in territorio["quarteiroes"]}
+    selecionados = payload.get("quarteiroes")
+    if selecionados is not None:
+        if not isinstance(selecionados, list) or not selecionados:
+            raise LiraaError("Selecione ao menos um quarteirão.")
+        chaves = set()
+        for valor in selecionados:
+            partes = str(valor).split(":", 1)
+            if len(partes) != 2:
+                raise LiraaError("Quarteirão inválido na seleção.")
+            chaves.add((_inteiro(partes[0], "a localidade"), rg_core._quarteirao(partes[1])))
+        if len(chaves) != len(selecionados):
+            raise LiraaError("Não repita quarteirões no mesmo estrato.")
+    else:  # Compatibilidade com formulários antigos: localidade inteira.
+        localidade_ids = payload.get("localidades")
+        if not isinstance(localidade_ids, list) or not localidade_ids:
+            raise LiraaError("Selecione ao menos uma localidade.")
+        localidades = {_inteiro(x, "a localidade") for x in localidade_ids}
+        if len(localidades) != len(localidade_ids):
+            raise LiraaError("Não repita localidades no mesmo estrato.")
+        chaves = {chave for chave in ativos if chave[0] in localidades}
+        if not chaves or {loc for loc, _ in chaves} != localidades:
+            raise LiraaError("Toda localidade do estrato deve existir na camada de quarteirões.")
+    if not chaves or not chaves <= ativos:
+        raise LiraaError("A seleção contém quarteirão ausente da camada ativa; revise o mapa.")
     conn = db_core.connect(target)
     try:
         _schema(conn)
@@ -269,6 +309,16 @@ def salvar_estrato(target, id_ciclo, payload, id_estrato=None, base_dir=None):
         agora = datetime.now().isoformat(timespec="seconds")
         try:
             with conn:
+                if getattr(conn, "backend", "sqlite") == "postgresql":
+                    conn.execute("SELECT id_ciclo FROM liraa_ciclos WHERE id_ciclo=? FOR UPDATE", (id_ciclo,)).fetchone()
+                ocupados = {(int(r["id_localidade"]), r["quarteirao"]) for r in conn.execute(
+                    "SELECT id_localidade,quarteirao FROM liraa_estrato_quarteiroes WHERE id_ciclo=? AND id_estrato<>?",
+                    (id_ciclo, id_estrato or 0)).fetchall()}
+                legados = conn.execute("""SELECT l.id_localidade FROM liraa_estrato_localidades l
+                    WHERE l.id_ciclo=? AND l.id_estrato<>?""", (id_ciclo, id_estrato or 0)).fetchall()
+                ocupados.update(chave for chave in ativos if chave[0] in {int(r["id_localidade"]) for r in legados})
+                if ocupados & chaves:
+                    raise LiraaError("Um ou mais quarteirões já pertencem a outro estrato deste ciclo.")
                 if id_estrato is None:
                     id_estrato = db_core.insert_and_get_id(conn, """INSERT INTO liraa_estratos
                         (id_ciclo,numero,tipo,imoveis_confirmados,observacoes,criado_em,atualizado_em)
@@ -279,12 +329,13 @@ def salvar_estrato(target, id_ciclo, payload, id_estrato=None, base_dir=None):
                         observacoes=?,atualizado_em=? WHERE id_estrato=?""",
                         (numero, tipo, n_imoveis, obs, agora, id_estrato))
                     conn.execute("DELETE FROM liraa_estrato_localidades WHERE id_estrato=?", (id_estrato,))
-                conn.executemany("""INSERT INTO liraa_estrato_localidades
-                    (id_estrato,id_ciclo,id_localidade) VALUES (?,?,?)""",
-                    [(id_estrato, id_ciclo, i) for i in sorted(localidades)])
+                    conn.execute("DELETE FROM liraa_estrato_quarteiroes WHERE id_estrato=?", (id_estrato,))
+                conn.executemany("""INSERT INTO liraa_estrato_quarteiroes
+                    (id_estrato,id_ciclo,id_localidade,quarteirao) VALUES (?,?,?,?)""",
+                    [(id_estrato, id_ciclo, loc, q) for loc, q in sorted(chaves)])
         except Exception as exc:
             if "unique" in str(exc).lower() or "duplicate" in str(exc).lower():
-                raise LiraaError("Número do estrato ou localidade já usado neste ciclo.") from exc
+                raise LiraaError("Número do estrato ou quarteirão já usado neste ciclo.") from exc
             raise
         return id_estrato
     finally:
@@ -342,9 +393,14 @@ def sortear(target, id_estrato, base_dir=None, seed=None):
             raise LiraaError("Este estrato já foi sorteado; o resultado está preservado.")
         ids = {r["id_localidade"] for r in conn.execute(
             "SELECT id_localidade FROM liraa_estrato_localidades WHERE id_estrato=?", (id_estrato,)).fetchall()}
-        universo = [r for r in territorio["quarteiroes"] if r["id_localidade"] in ids]
-        if not ids or {r["id_localidade"] for r in universo} != ids:
-            raise LiraaError("Uma localidade do estrato não possui quarteirões na camada ativa.")
+        chaves = {(int(r["id_localidade"]), r["quarteirao"]) for r in conn.execute(
+            "SELECT id_localidade,quarteirao FROM liraa_estrato_quarteiroes WHERE id_estrato=?",
+            (id_estrato,)).fetchall()}
+        universo = [r for r in territorio["quarteiroes"]
+                    if (r["id_localidade"], r["quarteirao"]) in chaves or r["id_localidade"] in ids]
+        if not universo or {r["id_localidade"] for r in universo if r["id_localidade"] in ids} != ids or \
+                len(chaves - {(r["id_localidade"], r["quarteirao"]) for r in universo}):
+            raise LiraaError("O estrato possui quarteirões ausentes da camada ativa; revise antes do sorteio.")
         seed = secrets.randbits(64) if seed is None else int(seed)
         calculo = _calcular_sorteio(estrato["imoveis_confirmados"], universo, estrato["tipo"], seed)
         universo_json = json.dumps(universo, ensure_ascii=False, separators=(",", ":"))

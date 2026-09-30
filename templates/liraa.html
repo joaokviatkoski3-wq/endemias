@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}LIRAa{% endblock %}
 {% block page_title %}LIRAa{% endblock %}
-{% block extra_css %}<style>
+{% block extra_css %}<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.min.css"><style>
 .liraa-intro{color:var(--text2);margin:0 0 16px}
 .liraa-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:16px 0}
 .liraa-card,.liraa-panel{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:16px}
@@ -29,6 +29,17 @@
 .liraa-stratum h3{font-size:15px;margin:0 0 5px}.liraa-stratum p{margin:5px 0}
 .liraa-sample{margin-top:10px}.liraa-sample>summary{cursor:pointer;font-weight:700;color:#155e75}
 .liraa-feedback{padding:10px;border-radius:6px;margin:10px 0}.liraa-feedback.success{background:#dcfce7;color:#166534}.liraa-feedback.error{background:#fee2e2;color:#991b1b}
+.liraa-tabs{display:flex;gap:8px;margin:16px 0}.liraa-tabs button[aria-selected="true"]{background:#155e75;color:#fff}
+.liraa-map-layout{display:grid;grid-template-columns:minmax(270px,360px) minmax(0,1fr);gap:14px}
+.liraa-map-side{min-width:0}.liraa-map{height:590px;border:1px solid var(--border);border-radius:8px;z-index:0}
+.liraa-q-list{max-height:270px;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:6px;margin:8px 0}
+.liraa-q-list label{display:flex;gap:8px;align-items:center;padding:5px;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer}
+.liraa-q-list label:last-child{border:0}.liraa-q-list input{width:auto;min-height:0}.liraa-q-list small{color:var(--text2);margin-left:auto}
+.liraa-map-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}.liraa-map-controls select,.liraa-map-controls input{min-height:35px;padding:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:6px}
+.liraa-map-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.liraa-map-stats div{background:var(--surface2);border-radius:5px;padding:9px;font-size:12px}.liraa-map-stats strong{display:block;font-size:18px}
+.liraa-map-label{background:rgba(255,255,255,.9);border:1px solid #64748b;border-radius:3px;color:#0f172a;font-size:10px;font-weight:800;padding:1px 3px;box-shadow:none}.liraa-map-label::before{display:none}
+.liraa-status{font-size:12px;min-height:18px;margin:8px 0}.liraa-readonly{color:#92400e}
+[hidden]{display:none!important}@media(max-width:900px){.liraa-map-layout{grid-template-columns:1fr}.liraa-map{height:450px}}
 </style>{% endblock %}
 {% block content %}
 <h1>LIRAa</h1>
@@ -36,6 +47,11 @@
 {% for category, message in get_flashed_messages(with_categories=true) %}<div class="liraa-feedback {{ category }}" role="status">{{ message }}</div>{% endfor %}
 {% if erro %}<div class="liraa-note" role="alert">{{ erro }}</div>{% endif %}
 {% if dados %}
+<div class="liraa-tabs" role="tablist" aria-label="Áreas do LIRAa">
+  <button class="liraa-btn" id="liraa-tab-plano-btn" type="button" role="tab" aria-selected="true" aria-controls="liraa-tab-plano">Planejamento</button>
+  <button class="liraa-btn" id="liraa-tab-mapa-btn" type="button" role="tab" aria-selected="false" aria-controls="liraa-tab-mapa">Mapa dos estratos</button>
+</div>
+<div id="liraa-tab-plano" role="tabpanel">
 <div class="liraa-grid">
   <div class="liraa-card"><strong>{{ dados.localidades|length }}</strong><span>localidades cadastradas</span></div>
   <div class="liraa-card"><strong>{{ dados.quarteiroes|length }}</strong><span>quarteirões únicos na camada</span></div>
@@ -69,7 +85,7 @@
   {% if not dados.ciclos %}<p class="liraa-muted">Nenhum ciclo criado. Comece pelo ano e período de execução.</p>{% endif %}
   {% for c in dados.ciclos %}
   <details class="liraa-cycle" {% if loop.first or (editando and editando.id_ciclo == c.id_ciclo) %}open{% endif %}>
-    <summary>{{ c.ano }} — {{ c.nome }} · {{ c.estratos|length }} estrato(s)</summary>
+    <summary>{{ c.ano }} — {{ c.nome }} · {{ c.estratos|length }} estrato(s) · {{ c.quarteiroes_sem_estrato }} quarteirão(ões) sem estrato</summary>
     <div>
       <p class="liraa-muted">{% if c.inicio %}{{ c.inicio }}{% else %}Data inicial não informada{% endif %} a {% if c.fim %}{{ c.fim }}{% else %}data final não informada{% endif %}{% if c.observacoes %} · {{ c.observacoes }}{% endif %}</p>
       {% if is_admin and not (c.estratos|selectattr('sorteio')|list) %}
@@ -89,7 +105,9 @@
       {% for e in c.estratos %}
       <article class="liraa-stratum">
         <h3>Estrato {{ e.numero }} · {{ 'Normal — 20% dos imóveis' if e.tipo == 'normal' else 'Reduzido — 50% dos imóveis' }}</h3>
-        <p><strong>N confirmado:</strong> {{ e.imoveis_confirmados }} imóveis · <strong>Localidades:</strong> {% for l in dados.localidades if l.id_localidade in e.localidades %}{{ l.nome }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+        <p><strong>N confirmado:</strong> {{ e.imoveis_confirmados }} imóveis · <strong>{{ e.quarteiroes|length }} quarteirões</strong> · <strong>Localidades presentes:</strong> {% for l in dados.localidades if l.id_localidade in e.localidades %}{{ l.nome }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+        {% if e.ausentes %}<div class="liraa-note">{{ e.ausentes }} quarteirão(ões) salvo(s) não aparecem na camada ativa. Revise antes de sortear.</div>{% endif %}
+        {% if e.legado_localidades %}<p class="liraa-muted">Plano antigo por localidade inteira: ao editar no mapa, a seleção passará a ser explícita por quarteirão.</p>{% endif %}
         {% if e.observacoes %}<p class="liraa-muted">{{ e.observacoes }}</p>{% endif %}
         {% if e.sorteio %}
           <div class="liraa-note liraa-good"><strong>Sorteio registrado em {{ e.sorteio.criado_em }}.</strong> Amostra-alvo: {{ e.sorteio.n }} imóveis · universo: {{ e.sorteio.a }} quarteirões · sorteados: {{ e.sorteio.q }} · intervalo: {{ '%.4f'|format(e.sorteio.intervalo) }} · início casual: {{ '%.4f'|format(e.sorteio.inicio_casual) }}.</div>
@@ -100,33 +118,62 @@
           </details>
         {% elif is_admin %}
           <div class="liraa-actions">
-            <a class="liraa-btn" href="{{ url_for('liraa.page', editar=e.id_estrato) }}">Editar</a>
+            <a class="liraa-btn" href="{{ url_for('liraa.page', editar=e.id_estrato) }}#mapa-estratos">Editar no mapa</a>
             <form method="post" action="{{ url_for('liraa.sortear', id_estrato=e.id_estrato) }}" onsubmit="return confirm('Este sorteio é experimental, não oficial. O universo e os parâmetros ficarão congelados para auditoria. Continuar?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="liraa-btn primary" type="submit">Sortear ensaio</button></form>
             <form method="post" action="{{ url_for('liraa.excluir_estrato', id_estrato=e.id_estrato) }}" onsubmit="return confirm('Excluir este estrato ainda não sorteado?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="liraa-btn danger" type="submit">Excluir rascunho</button></form>
           </div>
         {% endif %}
       </article>
       {% endfor %}
-      {% if is_admin %}
-      {% set atual = editando if editando and editando.id_ciclo == c.id_ciclo else none %}
-      <h3>{{ 'Editar estrato ' ~ atual.numero if atual else 'Adicionar estrato' }}</h3>
-      <form class="liraa-form" method="post" action="{{ url_for('liraa.salvar_estrato', id_ciclo=c.id_ciclo) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        {% if atual %}<input type="hidden" name="id_estrato" value="{{ atual.id_estrato }}">{% endif %}
-        <label>Número do estrato <input name="numero" type="number" min="1" value="{{ atual.numero if atual else '' }}" required></label>
-        <label>Tipo <select name="tipo"><option value="normal" {% if atual and atual.tipo == 'normal' %}selected{% endif %}>Normal (8.100–12.000 imóveis)</option><option value="reduzido" {% if atual and atual.tipo == 'reduzido' %}selected{% endif %}>Reduzido (2.000–8.100 imóveis)</option></select></label>
-        <label>Imóveis confirmados (N) <input name="imoveis_confirmados" type="number" min="1" value="{{ atual.imoveis_confirmados if atual else '' }}" required></label>
-        <div class="wide"><strong>Localidades do estrato</strong><div class="liraa-localidades">
-          {% for l in dados.localidades %}<label><input type="checkbox" name="localidades" value="{{ l.id_localidade }}" {% if atual and l.id_localidade in atual.localidades %}checked{% endif %} {% if not l.quarteiroes %}disabled{% endif %}><span>{{ l.nome }}<br><small>{{ l.quarteiroes }} quarteirões · {{ l.unidades_rg_sem_pe }} unidades RG</small></span></label>{% endfor %}
-        </div></div>
-        <label class="wide">Observações <textarea name="observacoes" maxlength="1000" rows="2">{{ atual.observacoes if atual else '' }}</textarea></label>
-        <div class="liraa-actions"><button class="liraa-btn primary" type="submit">{{ 'Salvar alterações' if atual else 'Adicionar estrato' }}</button>{% if atual %}<a class="liraa-btn" href="{{ url_for('liraa.page') }}">Cancelar edição</a>{% endif %}</div>
-      </form>
-      {% endif %}
+      {% if is_admin %}<a class="liraa-btn" href="{{ url_for('liraa.page') }}?ciclo={{ c.id_ciclo }}#mapa-estratos">Adicionar estrato no mapa</a>{% endif %}
     </div>
   </details>
   {% endfor %}
 </section>
 <div class="liraa-note"><strong>Próximas etapas:</strong> classificação urbano/rural, visitas Kobo LIRAa, consolidação de laboratório, índices e exportação <code>.lira</code> validada. Nenhum dado desses é inferido das visitas PVE/TB existentes.</div>
+</div>
+<section class="liraa-panel" id="liraa-tab-mapa" role="tabpanel" hidden>
+  <h2 id="mapa-estratos">Mapa dos estratos</h2>
+  <p class="liraa-muted">Clique no mapa ou marque na lista. “Localidade inteira” seleciona todos os seus quarteirões livres; um quarteirão não pode estar em dois estratos do mesmo ciclo. A geometria vem da camada oficial e não é redesenhada aqui.</p>
+  {% if not dados.ciclos %}<div class="liraa-note">Crie um ciclo na aba Planejamento para montar estratos.</div>{% endif %}
+  <div class="liraa-map-controls">
+    <label>Ciclo <select id="liraa-map-ciclo"><option value="">Selecione</option>{% for c in dados.ciclos %}<option value="{{ c.id_ciclo }}">{{ c.ano }} — {{ c.nome }}</option>{% endfor %}</select></label>
+    <label>Estrato <select id="liraa-map-estrato"><option value="">Novo estrato</option></select></label>
+    <label>Localidade exibida <select id="liraa-map-localidade"><option value="">Selecione</option>{% for l in dados.localidades if l.quarteiroes %}<option value="{{ l.id_localidade }}">{{ l.nome }}</option>{% endfor %}</select></label>
+    <label><input id="liraa-map-rotulos" type="checkbox" checked> Etiquetas dos quarteirões</label>
+  </div>
+  <div class="liraa-map-layout">
+    <div class="liraa-map-side">
+      <div class="liraa-map-stats">
+        <div><strong id="liraa-total-q">0</strong>quarteirões selecionados</div>
+        <div><strong id="liraa-total-rg">0</strong>unidades RG estimadas, sem PE/REF</div>
+        <div><strong id="liraa-sem-rg">0</strong>selecionados sem RG</div>
+        <div><strong id="liraa-livres">0</strong>sem estrato neste ciclo</div>
+      </div>
+      <p class="liraa-muted">A soma do RG é prévia, não o N confirmado. Condomínios residenciais são expandidos na estimativa; quarteirões sem RG não equivalem a zero imóvel.</p>
+      {% if is_admin %}
+      <button class="liraa-btn" id="liraa-localidade-toda" type="button">Selecionar localidade inteira</button>
+      <button class="liraa-btn" id="liraa-localidade-limpar" type="button">Retirar localidade da seleção</button>
+      {% endif %}
+      <label>Buscar quarteirão <input id="liraa-q-busca" type="search" placeholder="Número do quarteirão"></label>
+      <div id="liraa-q-lista" class="liraa-q-list">Escolha um ciclo e uma localidade.</div>
+      <p id="liraa-map-status" class="liraa-status" role="status"></p>
+      {% if is_admin %}
+      <form id="liraa-map-form" method="post" class="liraa-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="id_estrato" id="liraa-form-id">
+        <label>Número do estrato <input id="liraa-form-numero" name="numero" type="number" min="1" required></label>
+        <label>Tipo <select id="liraa-form-tipo" name="tipo"><option value="normal">Normal (20%)</option><option value="reduzido">Reduzido (50%)</option></select></label>
+        <label class="wide">Imóveis confirmados (N) <input id="liraa-form-n" name="imoveis_confirmados" type="number" min="1" required></label>
+        <label class="wide">Observações <textarea id="liraa-form-obs" name="observacoes" rows="2" maxlength="1000"></textarea></label>
+        <div class="wide liraa-actions"><button class="liraa-btn primary" type="submit">Salvar composição do estrato</button><button class="liraa-btn" id="liraa-form-cancelar" type="button">Novo estrato</button></div>
+      </form>
+      {% endif %}
+    </div>
+    <div id="liraa-mapa" class="liraa-map" aria-label="Mapa de quarteirões para composição de estratos"></div>
+  </div>
+</section>
+<script type="application/json" id="liraa-dados-json">{{ {'quarteiroes': dados.quarteiroes, 'ciclos': dados.ciclos}|tojson }}</script>
 {% endif %}
 {% endblock %}
+{% block extra_js %}<script src="/static/vendor/leaflet/leaflet.min.js"></script><script src="/static/js/liraa_estratos.js?v={{ APP_VERSION }}"></script>{% endblock %}

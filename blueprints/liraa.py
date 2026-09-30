@@ -46,7 +46,7 @@ def page():
         dados = liraa_core.painel(_target(), _base_dir())
     except Exception:
         logging.exception("Falha ao carregar planejamento LIRAa")
-        erro = "Planejamento indisponível. Confirme a migração 0023 e a camada de quarteirões ativa."
+        erro = "Planejamento indisponível. Confirme as migrações 0023/0024 e a camada de quarteirões ativa."
     editando = None
     try:
         id_edicao = int(request.args.get("editar", "0"))
@@ -108,10 +108,12 @@ def excluir_ciclo(id_ciclo):
 def salvar_estrato(id_ciclo):
     payload = request.form.to_dict()
     payload["localidades"] = request.form.getlist("localidades")
+    if "quarteiroes" in request.form:
+        payload["quarteiroes"] = request.form.getlist("quarteiroes")
     id_estrato = request.form.get("id_estrato") or None
     return _resposta("liraa_estrato_salvo", lambda: liraa_core.salvar_estrato(
         _target(), id_ciclo, payload, id_estrato, _base_dir()), "liraa_estrato",
-        {k: payload.get(k) for k in ("numero", "tipo", "imoveis_confirmados", "localidades")})
+        {k: payload.get(k) for k in ("numero", "tipo", "imoveis_confirmados", "localidades", "quarteiroes")})
 
 
 @bp.route("/liraa/estratos/<int:id_estrato>/sortear", methods=["POST"])

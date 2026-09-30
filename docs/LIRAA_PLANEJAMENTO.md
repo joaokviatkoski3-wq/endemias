@@ -5,6 +5,19 @@ integrado na `master` e disponível no serviço oficial `1.60.0`. A migração
 PostgreSQL `0023_liraa_planejamento.sql` foi aplicada com autorização do
 usuário. **Não usar o sorteio em campo sem homologação metodológica.**
 
+Em desenvolvimento na branch `codex/liraa-estratos-mapa` (código `1.61.0`,
+**ainda não implantado**): subaba Mapa dos estratos. A nova migração 0024
+guarda quarteirões individuais por ciclo/estrato. É possível selecionar
+localidade inteira ou somente alguns quarteirões, inclusive repartindo uma
+localidade entre estratos; cada quarteirão tem um único estrato no ciclo.
+O mapa e a lista representam a mesma seleção. A soma de unidades RG é
+prévia e não substitui o `N` confirmado. O painel mostra quarteirões sem RG
+e sem estrato. Planos antigos por localidade permanecem legíveis e são
+convertidos para vínculos explícitos quando editados. Um estrato sorteado
+continua congelado; quarteirões que desaparecem da camada bloqueiam novo
+sorteio até revisão. Não aplicar 0024 nem reiniciar produção sem autorização
+operacional específica.
+
 ## Escopo disponível
 
 - Página separada `/liraa`, com leitura para usuários autenticados e alterações
@@ -17,11 +30,11 @@ usuário. **Não usar o sorteio em campo sem homologação metodológica.**
   condomínio, excluindo tipos `PE` e `REF`. Quarteirões sem RG continuam no
   universo, com estimativa indisponível. A contagem RG **não substitui** o
   número `N` de imóveis, que deve ser confirmado e informado pelo operador.
-- Cadastro de ciclos por ano/nome/período e de estratos com número, tipo
-  normal/reduzido, `N`, localidades e observações. Uma localidade só pode
-  pertencer a um estrato no mesmo ciclo; várias localidades podem compor um
-  estrato. Um estrato pode ser editado ou excluído antes do sorteio. Um ciclo
-  pode ser corrigido antes do primeiro sorteio e excluído se estiver vazio.
+- Na versão em operação 1.60.0, o cadastro de estratos aceita localidades
+  inteiras. A divisão por quarteirão descrita acima só entrará em operação
+  após integração e migração 0024. Um estrato pode ser editado ou excluído
+  antes do sorteio. Um ciclo pode ser corrigido antes do primeiro sorteio e
+  excluído se estiver vazio.
 - Sorteio sistemático registrado uma única vez por estrato, com semente,
   parâmetros, universo completo, hash SHA-256 e quarteirões selecionados.
   Depois do sorteio o estrato fica congelado; atualização do GeoJSON ou RG
@@ -48,8 +61,7 @@ Referência metodológica: [Manual LIRAa 2013, Ministério da Saúde](https://ww
 
 ## O que ainda não está implementado
 
-- Classificação efetiva urbano/rural e subdivisão de uma localidade entre
-  estratos. Se algum quarteirão rural estiver na camada, **não sortear** esse
+- Classificação efetiva urbano/rural. Se algum quarteirão rural estiver na camada, **não sortear** esse
   ciclo até o cadastro territorial estar corrigido ou essa classificação
   existir no LIRAa.
 - Diário Kobo LIRAa, sorteio/registro de imóveis visitados, resultados de
@@ -83,3 +95,8 @@ os 7 testes focados e os 742 testes da regressão ampla passaram
 (5 ignorados); permaneceram avisos antigos de conexões SQLite em outros
 módulos. A regressão usou cópia isolada do SQLite; a migração e o smoke
 PostgreSQL foram realizados separadamente com autorização.
+
+Na branch da subaba Mapa dos estratos, 13 testes focados e a regressão
+completa de 747 testes passaram (5 ignorados), novamente com SQLite copiado
+para isolamento. A migração 0024 foi criada, mas não executada no PostgreSQL
+oficial; a interface não foi homologada visualmente no serviço de produção.

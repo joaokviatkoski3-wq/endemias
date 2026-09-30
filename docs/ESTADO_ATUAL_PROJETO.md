@@ -25,6 +25,14 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+Em 30/09/2026, está em preparação na branch `codex/liraa-estratos-mapa`
+uma subaba para compor estratos por quarteirão, inclusive dividindo uma
+localidade entre estratos. Código 1.61.0 e migração 0024 **não estão
+integrados nem aplicados no serviço oficial**. O serviço permanece 1.60.0;
+não interpretar este registro como autorização para migrar ou reiniciar.
+Preservar o sorteio experimental e exigir `N` confirmado, separado da
+estimativa RG.
+
 Em 30/09/2026, a branch `codex/liraa-planejamento` foi integrada na `master`
 (`27fcace`) e a pagina separada `/liraa` entrou em operacao na versao
 `1.60.0`, com inventario RG/GeoJSON, ciclos, estratos por
