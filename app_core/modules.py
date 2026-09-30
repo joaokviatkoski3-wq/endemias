@@ -246,6 +246,17 @@ MODULES: Tuple[AppModule, ...] = (
         endpoints=("registro_geografico", "registro_geografico.page"),
     ),
     AppModule(
+        key="liraa",
+        title="LIRAa",
+        href="/liraa",
+        endpoint="liraa.page",
+        icon="registro_geografico.svg",
+        nav_section="Gestao",
+        description="Planejamento de ciclos, estratos e sorteio de quarteirões do LIRAa.",
+        tags=("LIRAa", "Estratos", "Sorteio"),
+        endpoints=("liraa", "liraa.page"),
+    ),
+    AppModule(
         key="pontos_estrategicos",
         title="Pontos Estrategicos",
         short_title="PEs",

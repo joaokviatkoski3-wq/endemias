@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual no codigo: `1.59.0`, definida em `app_core/version.py`. O servico oficial respondeu `1.58.4` antes desta alteracao; conferir integracao e reinicio antes de declarar `1.59.0` ativa. A saida enviada pelo usuario confirmou a aplicacao da migracao 0022; esta sessao nao consegue consultar o PostgreSQL diretamente por falta de acesso a credencial SYSTEM. Shapely 2.1.2 foi instalado no Python local.
+- Versao atual nesta branch de trabalho: `1.60.0`, definida em `app_core/version.py`. A pagina LIRAa de planejamento e sorteio ainda nao foi integrada nem implantada; sua migracao PostgreSQL 0023 nao foi aplicada. Nao confundir versao do codigo com versao ativa do servico. Ver `docs/LIRAA_PLANEJAMENTO.md`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.

@@ -25,6 +25,16 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+Em 30/09/2026, a branch `codex/liraa-planejamento` prepara a pagina separada
+`/liraa` na versao `1.60.0`, com inventario RG/GeoJSON, ciclos, estratos por
+localidade e sorteio sistematico congelado em snapshot auditavel. O total `N`
+de imoveis deve ser confirmado manualmente; PE e REF ficam fora da previa RG.
+O codigo **nao foi integrado nem implantado**; a migracao PostgreSQL 0023
+permanece pendente e nenhum sorteio de dados reais foi executado. A pagina
+nao exporta `.lira` nem calcula indices sem visitas LIRAa. Consultar
+`docs/LIRAA_PLANEJAMENTO.md` antes de homologar a metodologia e aplicar a
+migracao.
+
 Em 30/09/2026, foi preparada a versao `1.59.0`: as telas de doentes de
 Esporotricose oferecem **Apagar entrega** em cada entrega da receita. A API
 ja tinha DELETE, mas a interface nao o expunha; agora a exclusao verifica se
