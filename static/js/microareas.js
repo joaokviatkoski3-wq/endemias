@@ -3,6 +3,7 @@
   const el = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const fmt = value => new Intl.NumberFormat('pt-BR').format(Number(value || 0));
+  const normalizarBusca = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
   const incluirCondominios = () => el('micro-incluir-condominios').checked;
   const populacaoArea = r => Number(r[incluirCondominios() ? 'populacao_com_condominios' : 'populacao_sem_condominios'] || 0);
   const codigo = value => {
@@ -14,7 +15,8 @@
   try { seedCor = Number(localStorage.getItem(chaveCor)) || 1; } catch (_) { /* Navegação privada pode bloquear o armazenamento. */ }
   const estado = {iniciado:false, mapa:null, layer:null, geo:null, resumo:null, lista:[], acs:[], indicadores:null,
     coresMapa:{}, vizinhos:null, selecionados:new Set(), partes:[], partesLayer:null,
-    desenho:null, desenhoLayer:null, trechos:[], editando:null, salvando:false};
+    desenho:null, desenhoLayer:null, trechos:[], editando:null, salvando:false,
+    geralMapa:null, geralBaseLayer:null, geralPartesLayer:null, geralDonos:new Map(), geralSelecionada:null};
   async function json(url, options) {
     const resp = await fetch(url, options);
     const data = await resp.json().catch(() => ({}));
@@ -184,6 +186,156 @@
       estado.mapa._microEnquadrado = true;
     }
     totais();
+  }
+  function geralChave(f) { return `${f.properties?.Localidade}:${codigo(f.properties?.id_quart)}`; }
+  function geralDono(f) { return estado.geralDonos.get(geralChave(f)); }
+  function geralCor(r) { return r ? estado.coresMapa[String(r.id_microarea)] || '#2563eb' : '#94a3b8'; }
+  function geralEstilo(f) {
+    const r = geralDono(f), ativo = r && r.id_microarea === estado.geralSelecionada;
+    return {color:ativo ? '#facc15' : r ? '#334155' : '#64748b', weight:ativo ? 4 : r ? 1.8 : 1,
+      fillColor:geralCor(r), fillOpacity:ativo ? .83 : r ? .62 : .13};
+  }
+  function geralEstiloParte(f) {
+    const r = estado.lista.find(item => item.id_microarea === f.properties?.id_microarea);
+    const ativo = r && r.id_microarea === estado.geralSelecionada;
+    return {color:ativo ? '#facc15' : geralCor(r), weight:ativo ? 4 : 2.5,
+      fillColor:geralCor(r), fillOpacity:ativo ? .85 : .72,
+      dashArray:f.properties?.revisar ? '6 4' : null};
+  }
+  function geralTotais() {
+    const registros = estado.lista;
+    const acs = new Set(registros.map(r => r.acs_codigo).filter(Boolean));
+    const quarteiroes = new Set(registros.flatMap(r => [...r.quarteiroes,
+      ...r.partes.map(p => p.quarteirao)].map(q => `${r.id_localidade}:${q}`)));
+    const cards = [
+      [registros.length, 'Microáreas cadastradas'],
+      [acs.size, 'ACS distintos responsáveis'],
+      [registros.filter(r => !r.acs_codigo).length, 'Microáreas sem ACS'],
+      [quarteiroes.size, 'Quarteirões vinculados'],
+      [registros.reduce((n,r) => n + r.partes.length,0), 'Lados parciais desenhados'],
+    ];
+    el('micro-geral-kpis').innerHTML = cards.map(([numero,titulo]) =>
+      `<div class="micro-metric"><strong>${fmt(numero)}</strong><span>${esc(titulo)}</span></div>`).join('');
+  }
+  function geralDetalhe(r, q=null) {
+    if (!r) {
+      el('micro-geral-detalhe').innerHTML = q
+        ? `<h3>Q. ${esc(exibirQ(q.quarteirao))} · ${esc(q.localidade)}</h3><p>Sem microárea inteira cadastrada. Confira se há lado parcial desenhado neste quarteirão.</p>`
+        : 'Clique em uma microárea no mapa ou na lista para conferir ACS, quarteirões, população estimada e observações.';
+      return;
+    }
+    const inteiros = r.quarteiroes.map(q => `Q. ${esc(exibirQ(q))}`).join(', ') || 'Nenhum';
+    const lados = r.partes.map(p => `Q. ${esc(exibirQ(p.quarteirao))} · ${esc(p.logradouro)} · lado ${esc(p.lado)}${p.base_desatualizada || p.lado_ausente_rg ? ' (revisar)' : ''}`).join('<br>') || 'Nenhum';
+    const semGeometria = r.quarteiroes_sem_geometria || [];
+    el('micro-geral-detalhe').innerHTML = `<h3>Microárea ${esc(r.numero)} · ${esc(r.localidade)}</h3>
+      <p><strong>ACS:</strong> ${esc(r.acs_nome || r.acs_codigo || 'Sem ACS')}</p>
+      <div class="micro-geral-info">
+        <div><strong>${fmt(r.quarteiroes_total)}</strong>quarteirões vinculados</div>
+        <div><strong>${fmt(r.partes.length)}</strong>lados parciais</div>
+        <div><strong>${r.quarteiroes_com_rg ? fmt(r.populacao_com_condominios) : '—'}</strong>população estimada</div>
+        <div><strong>${fmt(r.quarteiroes_com_rg)}/${fmt(r.quarteiroes_total)}</strong>quarteirões com RG</div>
+      </div>
+      <p class="rg-muted">A população é estimada pelo RG, incluindo condomínios. Sem RG não significa população zero.</p>
+      <p><strong>Quarteirões inteiros:</strong> ${inteiros}</p>
+      <p><strong>Lados parciais:</strong><br>${lados}</p>
+      ${semGeometria.length ? `<p><strong>Sem geometria atual:</strong> ${semGeometria.map(q => esc(exibirQ(q))).join(', ')}</p>` : ''}
+      ${r.partes.some(p => p.base_desatualizada || p.lado_ausente_rg) ? '<p><strong>Atenção:</strong> há lado parcial a revisar.</p>' : ''}
+      <p><strong>Observações:</strong> ${esc(r.observacoes || 'Nenhuma')}</p>`;
+  }
+  function geralLista() {
+    const busca = normalizarBusca(el('micro-geral-busca').value.trim());
+    const registros = estado.lista.filter(r => !busca || [r.localidade,r.numero,r.acs_nome,r.acs_codigo,r.observacoes,
+      ...r.quarteiroes,...r.partes.map(p => p.quarteirao)].some(v => normalizarBusca(v).includes(busca)));
+    el('micro-geral-contagem').textContent = `${fmt(registros.length)} de ${fmt(estado.lista.length)} microárea(s). A busca não oculta áreas no mapa.`;
+    el('micro-geral-lista').innerHTML = registros.length ? registros.map(r =>
+      `<button class="micro-geral-item${r.id_microarea === estado.geralSelecionada ? ' active' : ''}" type="button" data-micro-geral-id="${Number(r.id_microarea)}">
+        <span class="micro-cor-amostra" style="background:${geralCor(r)}"></span><span><strong>${esc(r.localidade)} · ${esc(r.numero)}</strong>
+        <small>${esc(r.acs_nome || r.acs_codigo || 'Sem ACS')} · ${fmt(r.quarteiroes_total)} quarteirão(ões)${r.partes.length ? ` · ${fmt(r.partes.length)} lado(s)` : ''}</small></span></button>`).join('')
+      : '<div class="rg-muted">Nenhuma microárea corresponde à busca.</div>';
+  }
+  function geralEnquadrarTudo() {
+    if (!estado.geralMapa) return;
+    const bounds = estado.geralBaseLayer?.getBounds();
+    const partes = estado.geralPartesLayer?.getBounds();
+    if (partes?.isValid() && bounds) bounds.extend(partes);
+    if (bounds?.isValid()) estado.geralMapa.fitBounds(bounds, {padding:[18,18]});
+    else if (partes?.isValid()) estado.geralMapa.fitBounds(partes, {padding:[18,18]});
+  }
+  function geralSelecionar(id, focar=false) {
+    const r = estado.lista.find(item => item.id_microarea === id);
+    if (!r) return;
+    estado.geralSelecionada = id;
+    estado.geralBaseLayer?.setStyle(geralEstilo);
+    estado.geralPartesLayer?.setStyle(geralEstiloParte);
+    geralDetalhe(r); geralLista();
+    el('micro-geral-status').textContent = '';
+    if (focar && estado.geralMapa) {
+      const features = (estado.geo?.features || []).filter(f => geralDono(f)?.id_microarea === id)
+        .concat(r.partes.map(p => ({type:'Feature', geometry:p.geometry, properties:{}})));
+      if (features.length) {
+        const bounds = L.geoJSON({type:'FeatureCollection', features}).getBounds();
+        if (bounds.isValid()) estado.geralMapa.fitBounds(bounds, {padding:[35,35]});
+      } else el('micro-geral-status').textContent = 'Esta microárea não possui geometria na camada atual; seus dados continuam disponíveis ao lado.';
+    }
+  }
+  function geralRenderMapa() {
+    if (!estado.geralMapa || !estado.geo) return;
+    if (estado.geralBaseLayer) estado.geralMapa.removeLayer(estado.geralBaseLayer);
+    if (estado.geralPartesLayer) estado.geralMapa.removeLayer(estado.geralPartesLayer);
+    const rotulados = new Set();
+    const rotulos = el('micro-geral-rotulos').checked;
+    estado.geralBaseLayer = L.geoJSON(estado.geo, {style:geralEstilo, onEachFeature:(f,layer) => {
+      const r = geralDono(f), q = codigo(f.properties?.id_quart);
+      const nome = r ? `${r.localidade} · microárea ${r.numero} · ${r.acs_nome || r.acs_codigo || 'sem ACS'}`
+        : `Q. ${exibirQ(q)} · sem microárea`;
+      if (r && rotulos && !rotulados.has(r.id_microarea)) {
+        layer.bindTooltip(esc(`${r.localidade} · ${r.numero}`), {permanent:true, direction:'center', className:'rg-map-label'});
+        rotulados.add(r.id_microarea);
+      } else layer.bindTooltip(esc(nome));
+      layer.on('click', () => {
+        if (r) geralSelecionar(r.id_microarea);
+        else { const localidade = [...el('micro-localidade').options].find(o => String(o.value) === String(f.properties?.Localidade))?.textContent || f.properties?.Localidade;
+          estado.geralSelecionada = null; geralDetalhe(null, {quarteirao:q,localidade});
+          geralLista(); estado.geralBaseLayer?.setStyle(geralEstilo); estado.geralPartesLayer?.setStyle(geralEstiloParte); }
+      });
+    }}).addTo(estado.geralMapa);
+    const partes = estado.lista.flatMap(r => r.partes.map(p => ({type:'Feature', geometry:p.geometry,
+      properties:{id_microarea:r.id_microarea, titulo:`${r.localidade} · microárea ${r.numero} · Q. ${exibirQ(p.quarteirao)} · ${p.logradouro} · lado ${p.lado}`,
+        revisar:p.base_desatualizada || p.lado_ausente_rg}})));
+    estado.geralPartesLayer = L.geoJSON({type:'FeatureCollection', features:partes}, {style:geralEstiloParte,
+      onEachFeature:(f,layer) => {
+        const id = f.properties.id_microarea, r = estado.lista.find(item => item.id_microarea === id);
+        if (r && rotulos && !rotulados.has(id)) {
+          layer.bindTooltip(esc(`${r.localidade} · ${r.numero}`), {permanent:true, direction:'center', className:'rg-map-label'});
+          rotulados.add(id);
+        } else layer.bindTooltip(esc(f.properties.titulo));
+        layer.on('click', () => geralSelecionar(id));
+      }}).addTo(estado.geralMapa);
+    if (!estado.geralMapa._microGeralEnquadrado) {
+      geralEnquadrarTudo(); estado.geralMapa._microGeralEnquadrado = true;
+    }
+  }
+  function geralAtualizar() {
+    estado.geralDonos = new Map();
+    for (const r of estado.lista) for (const q of r.quarteiroes) estado.geralDonos.set(`${r.id_localidade}:${codigo(q)}`, r);
+    if (!estado.lista.some(r => r.id_microarea === estado.geralSelecionada)) estado.geralSelecionada = null;
+    el('micro-geral-status').textContent = '';
+    geralTotais(); geralLista(); geralDetalhe(estado.lista.find(r => r.id_microarea === estado.geralSelecionada));
+    geralRenderMapa();
+  }
+  function geralIniciar() {
+    if (estado.geralMapa) { setTimeout(() => estado.geralMapa?.invalidateSize(), 100); return; }
+    estado.geralMapa = L.map('micro-geral-mapa', {zoomControl:true, preferCanvas:true}).setView([-25.33,-49.29], 12);
+    const baseMapa = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      attribution:'Tiles © Esri — Esri, TomTom, Garmin, FAO, NOAA, USGS, © OpenStreetMap contributors, GIS User Community', maxZoom:19
+    });
+    const baseSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution:'© Esri, Earthstar Geographics', maxZoom:19
+    });
+    baseMapa.addTo(estado.geralMapa);
+    L.control.layers({'Mapa':baseMapa, 'Satélite':baseSatelite}, {}, {position:'topright', collapsed:false}).addTo(estado.geralMapa);
+    geralAtualizar();
+    setTimeout(() => estado.geralMapa?.invalidateSize(), 100);
   }
   function filtrar() {
     const loc = el('micro-filtro-localidade').value;
@@ -376,7 +528,7 @@
     estado.indicadores = lista.indicadores || null;
     estado.vizinhos = window.MicroareasCores.vizinhanca(estado.lista, estado.geo?.features || []);
     estado.coresMapa = window.MicroareasCores.atribuir(estado.lista, estado.geo?.features || [], seedCor, estado.vizinhos);
-    renderACS(); renderLista(); renderListaQuarteiroes(); renderMapa();
+    renderACS(); renderLista(); renderListaQuarteiroes(); renderMapa(); geralAtualizar();
   }
   async function iniciar() {
     if (estado.iniciado) { setTimeout(() => estado.mapa?.invalidateSize(), 100); return; }
@@ -408,20 +560,25 @@
         atualizarDesenho();
       });
       await carregar();
-    } catch (e) { status(e.message); el('micro-tabela').innerHTML = `<tr><td colspan="9">${esc(e.message)}</td></tr>`; estado.iniciado = false; }
+    } catch (e) { status(e.message); el('micro-geral-status').textContent = `Não foi possível carregar o mapa geral: ${e.message}`;
+      el('micro-tabela').innerHTML = `<tr><td colspan="9">${esc(e.message)}</td></tr>`; estado.iniciado = false; }
   }
   function aba(nome) {
     document.querySelectorAll('[data-terr-area]').forEach(b => b.classList.toggle('active', b.dataset.terrArea === nome));
     el('terr-area-rg').hidden = nome !== 'rg'; el('terr-area-microareas').hidden = nome !== 'microareas';
-    if (nome === 'microareas') iniciar(); else setTimeout(() => {
+    if (nome === 'microareas') {
+      iniciar();
+      if (!el('micro-pane-geral').hidden) setTimeout(() => estado.geralMapa?.invalidateSize(), 100);
+    } else setTimeout(() => {
       if (typeof rgMapState !== 'undefined') rgMapState.map?.invalidateSize();
     }, 100);
   }
   function subAba(nome) {
     document.querySelectorAll('[data-micro-pane]').forEach(b => b.classList.toggle('active', b.dataset.microPane === nome));
-    ['mapa','painel','lista'].forEach(p => { el(`micro-pane-${p}`).hidden = p !== nome; });
-    el('micro-report-filters').hidden = nome === 'mapa';
+    ['mapa','geral','painel','lista'].forEach(p => { el(`micro-pane-${p}`).hidden = p !== nome; });
+    el('micro-report-filters').hidden = nome === 'mapa' || nome === 'geral';
     if (nome === 'mapa') setTimeout(() => estado.mapa?.invalidateSize(), 100);
+    else if (nome === 'geral') geralIniciar();
     else renderLista();
   }
   function novo() {
@@ -512,6 +669,13 @@
   }
   document.querySelectorAll('[data-terr-area]').forEach(b => b.addEventListener('click', () => aba(b.dataset.terrArea)));
   document.querySelectorAll('[data-micro-pane]').forEach(b => b.addEventListener('click', () => subAba(b.dataset.microPane)));
+  el('micro-geral-busca').addEventListener('input', geralLista);
+  el('micro-geral-lista').addEventListener('click', ev => {
+    const botao = ev.target.closest('[data-micro-geral-id]');
+    if (botao) geralSelecionar(Number(botao.dataset.microGeralId), true);
+  });
+  el('micro-geral-rotulos').addEventListener('change', geralRenderMapa);
+  el('micro-geral-enquadrar').addEventListener('click', geralEnquadrarTudo);
   el('micro-localidade').addEventListener('change', () => {
     el('micro-q-busca').value = ''; el('micro-cor-aviso').textContent = '';
     if (estado.mapa) estado.mapa._microEnquadrado = false;

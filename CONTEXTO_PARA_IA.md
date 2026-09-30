@@ -13,6 +13,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
 - Versao no servico oficial e na `master`: `1.61.0`, confirmada por HTTP 200 em `/login` apos integracao/reinicio em 30/09/2026. As migracoes PostgreSQL 0023 e 0024 do LIRAa estao aplicadas. A pagina `/liraa` tem a subaba Mapa dos estratos e permite compor estratos por quarteirao; a leitura direta do painel retornou 15 localidades, 1.415 quarteiroes e um ciclo existente sem estratos. Nenhum sorteio foi criado nesta implantacao. O sorteio permanece experimental e nao gera `.lira`. Ver `docs/LIRAA_PLANEJAMENTO.md`.
+- A branch `codex/microareas-consulta-geral` prepara o codigo `1.62.0` com um mapa geral somente leitura de todas as microareas em Territorializacao. Nao exige migracao; ainda nao foi integrada nem reiniciada no servico oficial. Ver `docs/ESTADO_ATUAL_PROJETO.md`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.

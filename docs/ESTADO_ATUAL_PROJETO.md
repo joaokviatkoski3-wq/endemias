@@ -25,6 +25,18 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+Em 30/09/2026, está preparada na branch `codex/microareas-consulta-geral`
+uma nova subaba **Mapa geral · consulta** em Territorialização → Microáreas.
+Ela carrega todos os quarteirões da camada ativa, destaca simultaneamente
+todas as microáreas (inclusive os lados parciais) e permite conferir ACS,
+quarteirões, RG, população estimada e observações ao clicar, sem controles
+de edição. Usa as mesmas cores e APIs de leitura já existentes. Código
+`1.62.0`, sem migração; **ainda não integrado nem reiniciado no serviço
+oficial**, que permanece na versão 1.61.0. A validação visual autenticada
+da nova subaba ainda é pendente. Em ensaio isolado, a regressão Python
+passou com 748 testes (5 ignorados), e os testes JavaScript de mapa geral,
+desenho e cores passaram.
+
 Em 30/09/2026, a branch `codex/liraa-estratos-mapa` foi integrada na
 `master` (`061853e`). A migração `0024_liraa_estrato_quarteiroes.sql` foi
 aplicada após backup específico validado

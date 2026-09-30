@@ -54,6 +54,21 @@
 .micro-bar-fill{display:block;height:100%;background:#0e7490;border-radius:inherit;}
 .micro-bar-fill.warn{background:#d97706;}
 .micro-report-filters[hidden]{display:none!important;}
+.micro-geral-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px;}
+.micro-geral-kpis .micro-metric{min-height:85px;}
+.micro-geral-busca{width:100%;min-height:36px;border:1px solid var(--border);border-radius:6px;padding:7px;background:var(--surface);color:var(--text);}
+.micro-geral-lista{display:grid;gap:5px;max-height:270px;overflow:auto;margin-top:8px;}
+.micro-geral-item{display:flex;align-items:center;gap:8px;width:100%;padding:8px;text-align:left;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;}
+.micro-geral-item.active{border-color:#155e75;background:rgba(21,94,117,.1);}
+.micro-geral-item small{display:block;color:var(--text2);font-size:11px;}
+.micro-geral-item .micro-cor-amostra{width:19px;height:19px;}
+.micro-geral-detalhe{line-height:1.6;font-size:13px;max-height:48vh;overflow:auto;overflow-wrap:anywhere;}
+.micro-geral-detalhe h3{font-size:16px;margin:0 0 8px;}
+.micro-geral-detalhe p{margin:5px 0;}
+.micro-geral-detalhe ul{margin:5px 0 0;padding-left:20px;}
+.micro-geral-info{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:10px 0;}
+.micro-geral-info div{background:var(--surface2);border-radius:5px;padding:7px;}
+.micro-geral-info strong{display:block;font-size:18px;color:#155e75;}
 @media(max-width:1050px){.micro-grid{grid-template-columns:1fr;}.micro-side{max-height:none;}.micro-map{height:60vh;min-height:400px;}}
 @media(max-width:780px){.micro-panel-grid{grid-template-columns:1fr;}.micro-panel-grid .wide{grid-column:auto;}.micro-bar-row{grid-template-columns:minmax(90px,1fr) minmax(70px,1fr) auto;}}
 .rg-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;}
@@ -499,6 +514,7 @@
 <section class="terr-area" id="terr-area-microareas" hidden>
   <div class="rg-tabs" role="tablist" aria-label="Microáreas">
     <button class="rg-tab active" type="button" data-micro-pane="mapa">Mapa e edição</button>
+    <button class="rg-tab" type="button" data-micro-pane="geral">Mapa geral · consulta</button>
     <button class="rg-tab" type="button" data-micro-pane="painel">Painel</button>
     <button class="rg-tab" type="button" data-micro-pane="lista">Cadastro e exportações</button>
   </div>
@@ -580,6 +596,31 @@
       </div>
       <div id="micro-mapa" class="micro-map" aria-label="Mapa dos quarteirões e microáreas"></div>
     </div>
+  </div>
+  <div class="micro-pane" id="micro-pane-geral" hidden>
+    <p class="rg-muted">Todas as microáreas cadastradas aparecem juntas, inclusive lados parciais. Clique em uma área no mapa ou na lista para conferir seus dados. Esta visualização não altera o cadastro.</p>
+    <div class="micro-geral-kpis" id="micro-geral-kpis"></div>
+    <div class="rg-map-actions" style="margin-bottom:10px;">
+      <button class="btn btn-outline btn-sm" type="button" id="micro-geral-enquadrar">Enquadrar todas</button>
+      <label class="rg-check-item"><input type="checkbox" id="micro-geral-rotulos"> Mostrar identificação das microáreas</label>
+      <span class="rg-muted">Cinza: quarteirão sem microárea · contorno tracejado: lado parcial a revisar</span>
+    </div>
+    <div class="micro-grid">
+      <div class="micro-side">
+        <div class="rg-map-card">
+          <div class="rg-map-card-title">Encontrar microárea</div>
+          <input class="micro-geral-busca" type="search" id="micro-geral-busca" placeholder="Localidade, número, ACS ou quarteirão" aria-label="Buscar microárea">
+          <div id="micro-geral-contagem" class="rg-muted" aria-live="polite" style="margin-top:7px;"></div>
+          <div id="micro-geral-lista" class="micro-geral-lista"></div>
+        </div>
+        <div class="rg-map-card">
+          <div class="rg-map-card-title">Detalhes</div>
+          <div id="micro-geral-detalhe" class="micro-geral-detalhe">Clique em uma microárea no mapa ou na lista para conferir ACS, quarteirões, população estimada e observações.</div>
+        </div>
+      </div>
+      <div id="micro-geral-mapa" class="micro-map" aria-label="Mapa geral de todas as microáreas, somente leitura"></div>
+    </div>
+    <div id="micro-geral-status" class="rg-muted" role="status" aria-live="polite"></div>
   </div>
   <div class="rg-map-card micro-report-filters" id="micro-report-filters" hidden>
     <div class="rg-map-card-title">Recorte do painel, cadastro e relatórios</div>
