@@ -2326,8 +2326,33 @@ def excluir_entrega_doente(target, id_entrega):
     conn = db_core.connect(target)
     try:
         ensure_schema(conn)
-        conn.execute("DELETE FROM esporotricose_doentes_entregas WHERE id_entrega=?", (id_entrega,))
+        entrega = conn.execute(
+            """SELECT e.quantidade, e.fonte_medicacao, r.id_animal_doente
+                 FROM esporotricose_doentes_entregas e
+                 JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
+                WHERE e.id_entrega=?""",
+            (id_entrega,),
+        ).fetchone()
+        if not entrega:
+            raise ValidationError("Entrega não encontrada.")
+        excluida = conn.execute(
+            "DELETE FROM esporotricose_doentes_entregas WHERE id_entrega=?", (id_entrega,)
+        )
+        if excluida.rowcount != 1:
+            raise ValidationError("Entrega não encontrada.")
+        conn.execute(
+            "UPDATE esporotricose_doentes_animais SET atualizado_em=? WHERE id_animal_doente=?",
+            (datetime.now().isoformat(timespec="seconds"), entrega["id_animal_doente"]),
+        )
         conn.commit()
+        return {
+            "id_animal_doente": entrega["id_animal_doente"],
+            "quantidade_restaurada": entrega["quantidade"],
+            "fonte_medicacao": entrega["fonte_medicacao"],
+        }
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 

@@ -134,6 +134,24 @@ class EsporotricosePermissoesTests(unittest.TestCase):
         self.assertEqual(resposta.status_code, 201)
         self.assertEqual(resposta.get_json(), animal)
 
+    def test_operador_exclui_somente_entrega_e_recebe_404_ao_repetir(self):
+        animal = esporotricose_core.salvar_doente(str(self.db_path), {
+            "nome": "Gato", "tutor": "Responsável", "status": "Em tratamento",
+        })
+        receita = esporotricose_core.salvar_receita_doente(
+            str(self.db_path), animal, {"capsulas_total": 30},
+        )
+        entrega = esporotricose_core.salvar_entrega_doente(
+            str(self.db_path), receita, {"quantidade": 12, "fonte_medicacao": "Município"},
+        )
+        client = self._client_logado(2)
+        resposta = client.delete(f"/api/esporotricose/doentes/entregas/{entrega}")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.get_json()["quantidade_restaurada"], 12)
+        self.assertEqual(resposta.get_json()["fonte_medicacao"], "Município")
+        self.assertEqual(len(esporotricose_core.obter_doente(str(self.db_path), animal)["receitas"]), 1)
+        self.assertEqual(client.delete(f"/api/esporotricose/doentes/entregas/{entrega}").status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

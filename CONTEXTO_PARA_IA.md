@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual no codigo: `1.58.4`, definida em `app_core/version.py`. O servico oficial respondeu `1.58.3` antes da integracao; conferir reinicio antes de declarar `1.58.4` ativa. A saida enviada pelo usuario confirmou a aplicacao da migracao 0022; esta sessao nao consegue consultar o PostgreSQL diretamente por falta de acesso a credencial SYSTEM. Shapely 2.1.2 foi instalado no Python local.
+- Versao atual no codigo: `1.59.0`, definida em `app_core/version.py`. O servico oficial respondeu `1.58.4` antes desta alteracao; conferir integracao e reinicio antes de declarar `1.59.0` ativa. A saida enviada pelo usuario confirmou a aplicacao da migracao 0022; esta sessao nao consegue consultar o PostgreSQL diretamente por falta de acesso a credencial SYSTEM. Shapely 2.1.2 foi instalado no Python local.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.
@@ -116,6 +116,17 @@ aceitar desenhos dentro, fora ou atravessando o contorno. Continuam a
 validacao geometrica, a proibicao de sobrepor lados do mesmo quarteirao e o
 vinculo ao lado do RG. Nao requer migracao nem muda dados ja gravados. A suite
 completa passou com 733 testes (5 ignorados), assim como os testes JS focados.
+
+No codigo `1.59.0`, receitas de animais doentes em Esporotricose permitem
+apagar uma entrega isolada pelas duas telas de doentes, sem apagar a receita.
+O estoque nao grava uma segunda saida para cada entrega: a saida automatica e
+derivada da tabela de entregas. A exclusao remove apenas a entrega escolhida;
+saldo geral, saldo SESA/Municipio, total entregue e controle de entregas sao
+recalculados nas consultas. Movimentos manuais nao sao alterados. O endpoint
+DELETE retorna 404 se a entrega ja nao existir. A baixa na plataforma ZooMed,
+quando feita, precisa ser corrigida la separadamente. Nao exige migracao.
+Validacao: 735 testes Python (5 ignorados) e sintaxe JavaScript das duas
+telas aprovados, usando copia isolada do SQLite historico.
 
 Na versao `1.53.0`, a aba **Doentes > Entregas por fonte** mostra os animais
 que receberam itraconazol SESA ou Município com data, quantidade, tutor,

@@ -1590,7 +1590,7 @@ function renderEspReceitas(rows) {
       <div>${capsulasReceitaHtml(r)}</div>
       <div class="muted">${escapeHtml(r.entregas_observacao || '')}${r.saldo_observacao ? ` &middot; ${escapeHtml(r.saldo_observacao)}` : ''}</div>
       <div>Posologia: ${escapeHtml(r.posologia || '-')} &middot; ${fmtNum(r.capsulas_por_dia || 1)} c&aacute;psula(s)/dia</div>
-      <div class="esporo-entrega-list">${(r.entregas || []).map(e => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;"><span class="esporo-entrega">${fmtDate(e.data_entrega)} &middot; ${fmtNum(e.quantidade)}</span><select id="ent-fonte-edit-${e.id_entrega}" aria-label="Fonte da entrega de ${fmtDate(e.data_entrega)}"><option value="SESA" ${e.fonte_medicacao !== 'Município' ? 'selected' : ''}>SESA</option><option value="Município" ${e.fonte_medicacao === 'Município' ? 'selected' : ''}>Município</option></select><button class="btn btn-outline btn-sm" type="button" onclick="atualizarEspEntregaFonte(${Number(e.id_entrega)})">Salvar fonte</button></div>`).join('') || '<span class="muted">Sem entregas</span>'}</div>
+      <div class="esporo-entrega-list">${(r.entregas || []).map(e => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;"><span class="esporo-entrega">${fmtDate(e.data_entrega)} &middot; ${fmtNum(e.quantidade)}</span><select id="ent-fonte-edit-${e.id_entrega}" aria-label="Fonte da entrega de ${fmtDate(e.data_entrega)}"><option value="SESA" ${e.fonte_medicacao !== 'Município' ? 'selected' : ''}>SESA</option><option value="Município" ${e.fonte_medicacao === 'Município' ? 'selected' : ''}>Município</option></select><button class="btn btn-outline btn-sm" type="button" onclick="atualizarEspEntregaFonte(${Number(e.id_entrega)})">Salvar fonte</button><button class="btn btn-outline btn-sm" type="button" onclick="excluirEspEntrega(${Number(e.id_entrega)}, this)" aria-label="Apagar entrega de ${fmtNum(e.quantidade)} cápsulas">Apagar entrega</button></div>`).join('') || '<span class="muted">Sem entregas</span>'}</div>
       <div class="esporo-receita-edit" id="rec-edit-box-${r.id_receita}">
         <input type="hidden" id="rec-edit-status-${r.id_receita}" value="${escapeHtml(r.status || '')}">
         <div class="esporo-form-grid">
@@ -1706,6 +1706,25 @@ async function atualizarEspEntregaFonte(idEntrega) {
     await carregarEspDoentes();
     toast('Fonte da entrega atualizada.', 'success');
   } catch(e) { toast(e.message, 'error'); }
+}
+async function excluirEspEntrega(idEntrega, botao) {
+  const entrega = (espDoenteAtual?.receitas || []).flatMap(r => r.entregas || [])
+    .find(e => Number(e.id_entrega) === Number(idEntrega));
+  if (!entrega) return toast('Entrega não encontrada. Atualize a página.', 'error');
+  const avisoZoomed = entrega.baixa_zoomed === 'Sim' ? '\nSe houve lançamento na plataforma ZooMed, corrija-o separadamente.' : '';
+  if (!confirm(`Apagar a entrega de ${fmtNum(entrega.quantidade)} cápsula(s) de ${fmtDate(entrega.data_entrega) || '-'} (${entrega.fonte_medicacao || 'SESA'})?\n\nA receita será mantida e a saída automática será retirada do estoque.${avisoZoomed}\nEsta ação não pode ser desfeita.`)) return;
+  botao.disabled = true;
+  try {
+    const resp = await fetch(`/api/esporotricose/doentes/entregas/${idEntrega}`, {
+      method: 'DELETE', headers: {'X-CSRFToken':getCsrf()}
+    });
+    const resultado = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(resultado.erro || 'Erro ao apagar entrega.');
+    await abrirEspDoente(document.getElementById('doe-id').value);
+    await carregarEspDoentes();
+    toast(`Saída de ${fmtNum(resultado.quantidade_restaurada)} cápsula(s) removida do estoque ${resultado.fonte_medicacao}.`, 'success');
+  } catch(e) { toast(e.message, 'error'); }
+  finally { if (botao.isConnected) botao.disabled = false; }
 }
 async function excluirEspReceita(idReceita, totalEntregas) {
   const entregasTexto = totalEntregas === 1 ? '1 entrega cadastrada' : `${totalEntregas} entregas cadastradas`;

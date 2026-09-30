@@ -876,8 +876,11 @@ def api_excluir_entrega_doente(id_entrega):
         except esporotricose_core.ValidationError as exc:
             return jsonify({"erro": str(exc)}), 400
         return jsonify({"ok": True})
-    esporotricose_core.excluir_entrega_doente(bh.db_target(), id_entrega)
-    return jsonify({"ok": True})
+    try:
+        resultado = esporotricose_core.excluir_entrega_doente(bh.db_target(), id_entrega)
+    except esporotricose_core.ValidationError as exc:
+        return jsonify({"erro": str(exc)}), 404
+    return jsonify({"ok": True, **resultado})
 
 
 @bp.route("/api/esporotricose/doentes/<int:id_animal>/anexos")

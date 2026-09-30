@@ -25,6 +25,18 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+Em 30/09/2026, foi preparada a versao `1.59.0`: as telas de doentes de
+Esporotricose oferecem **Apagar entrega** em cada entrega da receita. A API
+ja tinha DELETE, mas a interface nao o expunha; agora a exclusao verifica se
+o registro existe, preserva a receita e informa quantidade/fonte retiradas.
+O estoque e calculado a partir das entregas, portanto os saldos geral e por
+fonte voltam automaticamente sem lancamento manual compensatorio. Nao ha
+migracao nem alteracao automatica de dados reais. Corrigir separadamente
+eventual baixa na plataforma ZooMed. O servico oficial respondeu `1.58.4`
+antes desta alteracao; integrar e reiniciar somente apos validacoes. A suite
+Python passou com 735 testes (5 ignorados) e o JavaScript das duas telas
+passou na verificacao de sintaxe.
+
 Em 29/09/2026, o usuario capturou a causa de uma rejeicao ao salvar lado
 parcial: "O desenho deve ficar inteiramente dentro do quarteirao oficial".
 A regra foi removida no codigo `1.58.4` a pedido do usuario: o poligono pode

@@ -7,6 +7,50 @@ from app_core import db as db_core
 
 
 class EstoqueAutomaticoTests(unittest.TestCase):
+    def test_excluir_uma_entrega_recalcula_estoque_sem_apagar_receita(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "estoque.db")
+            animal = esporotricose_core.salvar_doente(db_path, {
+                "nome": "Paciente", "tutor": "Tutor", "status": "Em tratamento",
+            })
+            receita = esporotricose_core.salvar_receita_doente(
+                db_path, animal, {"capsulas_total": 60},
+            )
+            esporotricose_core.salvar_estoque_medicacao(
+                db_path, {"tipo": "Entrada", "quantidade": 100, "fonte_medicacao": "SESA"},
+            )
+            esporotricose_core.salvar_estoque_medicacao(
+                db_path, {"tipo": "Entrada", "quantidade": 50, "fonte_medicacao": "Município"},
+            )
+            apagar = esporotricose_core.salvar_entrega_doente(
+                db_path, receita, {"quantidade": 20, "fonte_medicacao": "Município"},
+            )
+            manter = esporotricose_core.salvar_entrega_doente(
+                db_path, receita, {"quantidade": 10, "fonte_medicacao": "SESA"},
+            )
+            antes = esporotricose_core.estoque_medicacao(db_path)
+            self.assertEqual(antes["totais"]["saldos_por_fonte"], {"SESA": 90, "Município": 30})
+            self.assertEqual(antes["totais"]["saldo_setor"], 120)
+
+            removida = esporotricose_core.excluir_entrega_doente(db_path, apagar)
+            self.assertEqual(removida, {
+                "id_animal_doente": animal,
+                "quantidade_restaurada": 20,
+                "fonte_medicacao": "Município",
+            })
+            depois = esporotricose_core.estoque_medicacao(db_path)
+            self.assertEqual(depois["totais"]["saldos_por_fonte"], {"SESA": 90, "Município": 50})
+            self.assertEqual(depois["totais"]["saldo_setor"], 140)
+            self.assertEqual(depois["totais"]["saidas_entregas"], 10)
+            self.assertEqual([e["id_entrega"] for e in depois["movimentos_automaticos"]], [manter])
+            cadastro = esporotricose_core.obter_doente(db_path, animal)
+            self.assertEqual(cadastro["receitas"][0]["id_receita"], receita)
+            self.assertEqual(cadastro["receitas"][0]["capsulas_entregues"], 10)
+            self.assertEqual([e["id_entrega"] for e in cadastro["receitas"][0]["entregas"]], [manter])
+            with self.assertRaisesRegex(esporotricose_core.ValidationError, "não encontrada"):
+                esporotricose_core.excluir_entrega_doente(db_path, apagar)
+            self.assertEqual(esporotricose_core.estoque_medicacao(db_path)["totais"]["saldo_setor"], 140)
+
     def test_saldos_por_fonte_e_correcao_de_entrega_antiga(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = str(Path(tmpdir) / "estoque.db")

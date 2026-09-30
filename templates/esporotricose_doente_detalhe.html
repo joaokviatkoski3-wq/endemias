@@ -212,6 +212,7 @@ function render(){
             <option value="Não" ${e.baixa_zoomed === 'Não' ? 'selected' : ''}>Zoomed: Pendente</option>
           </select>
           <button class="btn btn-sm" type="button" onclick="atualizarEntrega(${e.id_entrega})">Salvar</button>
+          <button class="btn btn-outline btn-sm" type="button" onclick="excluirEntrega(${e.id_entrega}, this)" aria-label="Apagar entrega de ${num(e.quantidade)} cápsulas">Apagar entrega</button>
         </span>
         </div>
       `).join('') || '<span class="muted">Sem entregas cadastradas.</span>'}</div>
@@ -345,6 +346,24 @@ async function atualizarEntrega(idEntrega){
     await recarregar();
     toast('Entrega atualizada.', 'success');
   } catch(e){ toast(e.message, 'error'); }
+}
+async function excluirEntrega(idEntrega, botao){
+  const entrega = (animal.receitas || []).flatMap(r => r.entregas || [])
+    .find(e => Number(e.id_entrega) === Number(idEntrega));
+  if(!entrega) return toast('Entrega não encontrada. Atualize a página.', 'error');
+  const avisoZoomed = entrega.baixa_zoomed === 'Sim' ? '\nSe houve lançamento na plataforma ZooMed, corrija-o separadamente.' : '';
+  if(!confirm(`Apagar a entrega de ${num(entrega.quantidade)} cápsula(s) de ${data(entrega.data_entrega)} (${entrega.fonte_medicacao || 'SESA'})?\n\nA receita será mantida e a saída automática será retirada do estoque.${avisoZoomed}\nEsta ação não pode ser desfeita.`)) return;
+  botao.disabled = true;
+  try {
+    const resp = await fetch(`/api/esporotricose/doentes/entregas/${idEntrega}`, {
+      method: 'DELETE', headers: {'X-CSRFToken':getCsrf()}
+    });
+    const resultado = await resp.json().catch(() => ({}));
+    if(!resp.ok) throw new Error(resultado.erro || 'Erro ao apagar entrega.');
+    await recarregar();
+    toast(`Saída de ${num(resultado.quantidade_restaurada)} cápsula(s) removida do estoque ${resultado.fonte_medicacao}.`, 'success');
+  } catch(e){ toast(e.message, 'error'); }
+  finally { if(botao.isConnected) botao.disabled = false; }
 }
 async function excluirReceita(idReceita, totalEntregas){
   const entregasTexto = totalEntregas === 1 ? '1 entrega cadastrada' : `${totalEntregas} entregas cadastradas`;
