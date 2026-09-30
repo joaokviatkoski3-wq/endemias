@@ -5,8 +5,8 @@ integrado na `master` e disponível no serviço oficial `1.60.0`. A migração
 PostgreSQL `0023_liraa_planejamento.sql` foi aplicada com autorização do
 usuário. **Não usar o sorteio em campo sem homologação metodológica.**
 
-Em desenvolvimento na branch `codex/liraa-estratos-mapa` (código `1.61.0`,
-**ainda não implantado**): subaba Mapa dos estratos. A nova migração 0024
+Disponível no serviço oficial `1.61.0` desde 30/09/2026: subaba Mapa dos
+estratos. A migração 0024
 guarda quarteirões individuais por ciclo/estrato. É possível selecionar
 localidade inteira ou somente alguns quarteirões, inclusive repartindo uma
 localidade entre estratos; cada quarteirão tem um único estrato no ciclo.
@@ -15,8 +15,9 @@ prévia e não substitui o `N` confirmado. O painel mostra quarteirões sem RG
 e sem estrato. Planos antigos por localidade permanecem legíveis e são
 convertidos para vínculos explícitos quando editados. Um estrato sorteado
 continua congelado; quarteirões que desaparecem da camada bloqueiam novo
-sorteio até revisão. Não aplicar 0024 nem reiniciar produção sem autorização
-operacional específica.
+sorteio até revisão. A migração 0024 foi aplicada com autorização do usuário
+após backup validado; o serviço foi reiniciado. A interface autenticada ainda
+requer validação visual pelo operador.
 
 ## Escopo disponível
 
@@ -30,11 +31,10 @@ operacional específica.
   condomínio, excluindo tipos `PE` e `REF`. Quarteirões sem RG continuam no
   universo, com estimativa indisponível. A contagem RG **não substitui** o
   número `N` de imóveis, que deve ser confirmado e informado pelo operador.
-- Na versão em operação 1.60.0, o cadastro de estratos aceita localidades
-  inteiras. A divisão por quarteirão descrita acima só entrará em operação
-  após integração e migração 0024. Um estrato pode ser editado ou excluído
-  antes do sorteio. Um ciclo pode ser corrigido antes do primeiro sorteio e
-  excluído se estiver vazio.
+- O cadastro de estratos aceita a seleção de quarteirões individuais de uma
+  ou mais localidades na subaba Mapa dos estratos. Um estrato pode ser editado
+  ou excluído antes do sorteio. Um ciclo pode ser corrigido antes do primeiro
+  sorteio e excluído se estiver vazio.
 - Sorteio sistemático registrado uma única vez por estrato, com semente,
   parâmetros, universo completo, hash SHA-256 e quarteirões selecionados.
   Depois do sorteio o estrato fica congelado; atualização do GeoJSON ou RG
@@ -96,7 +96,11 @@ os 7 testes focados e os 742 testes da regressão ampla passaram
 módulos. A regressão usou cópia isolada do SQLite; a migração e o smoke
 PostgreSQL foram realizados separadamente com autorização.
 
-Na branch da subaba Mapa dos estratos, 13 testes focados e a regressão
-completa de 747 testes passaram (5 ignorados), novamente com SQLite copiado
-para isolamento. A migração 0024 foi criada, mas não executada no PostgreSQL
-oficial; a interface não foi homologada visualmente no serviço de produção.
+Para a subaba Mapa dos estratos, 13 testes focados e a regressão completa
+de 747 testes passaram (5 ignorados), com SQLite copiado para isolamento.
+A migração 0024 foi aplicada ao PostgreSQL oficial após o backup
+`D:\BackupsEndemias\backups_banco\endemias_pre_liraa_0024_20260930_151050.dump`.
+Após o reinício, o login respondeu HTTP 200 em `1.61.0` e a leitura direta
+do painel retornou 15 localidades, 1.415 quarteirões e um ciclo existente
+sem estratos. Nenhum sorteio foi executado. A interface autenticada ainda
+não foi homologada visualmente pelo operador.

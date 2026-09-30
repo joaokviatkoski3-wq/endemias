@@ -25,13 +25,19 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
-Em 30/09/2026, está em preparação na branch `codex/liraa-estratos-mapa`
-uma subaba para compor estratos por quarteirão, inclusive dividindo uma
-localidade entre estratos. Código 1.61.0 e migração 0024 **não estão
-integrados nem aplicados no serviço oficial**. O serviço permanece 1.60.0;
-não interpretar este registro como autorização para migrar ou reiniciar.
-Preservar o sorteio experimental e exigir `N` confirmado, separado da
-estimativa RG.
+Em 30/09/2026, a branch `codex/liraa-estratos-mapa` foi integrada na
+`master` (`061853e`). A migração `0024_liraa_estrato_quarteiroes.sql` foi
+aplicada após backup específico validado
+`D:\BackupsEndemias\backups_banco\endemias_pre_liraa_0024_20260930_151050.dump`.
+O serviço oficial foi reiniciado e `/login` respondeu HTTP 200 com
+`Endemias v1.61.0`; `/liraa` redirecionou ao login sem sessão. Leitura
+direta do painel no PostgreSQL retornou 15 localidades, 1.415 quarteirões
+e um ciclo já cadastrado, sem estratos (1.415 quarteirões não atribuídos).
+Nenhum ciclo, estrato ou sorteio foi criado por esta implantação. A nova
+subaba permite dividir localidades entre estratos por quarteirão inteiro,
+com contagem RG apenas provisória e `N` confirmado manualmente. O sorteio
+permanece experimental; a interface autenticada ainda requer validação
+visual pelo operador.
 
 Em 30/09/2026, a branch `codex/liraa-planejamento` foi integrada na `master`
 (`27fcace`) e a pagina separada `/liraa` entrou em operacao na versao
