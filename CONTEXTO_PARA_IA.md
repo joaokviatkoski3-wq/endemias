@@ -1,6 +1,6 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 29/09/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 30/09/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao atual nesta branch de trabalho: `1.60.0`, definida em `app_core/version.py`. A pagina LIRAa de planejamento e sorteio ainda nao foi integrada nem implantada; sua migracao PostgreSQL 0023 nao foi aplicada. Nao confundir versao do codigo com versao ativa do servico. Ver `docs/LIRAA_PLANEJAMENTO.md`.
+- Versao atual no codigo e servico oficial: `1.60.0`, definida em `app_core/version.py` e confirmada por HTTP 200 em `/login` apos integracao/reinicio em 30/09/2026. A migracao PostgreSQL 0023 do LIRAa foi aplicada; a pagina `/liraa` respondeu redirecionamento de login e sua leitura direta no banco retornou 15 localidades, 1.415 quarteiroes e zero ciclos. O sorteio permanece experimental e nao gera `.lira`. Ver `docs/LIRAA_PLANEJAMENTO.md`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.
 - Use `apply_patch` para edicoes manuais.

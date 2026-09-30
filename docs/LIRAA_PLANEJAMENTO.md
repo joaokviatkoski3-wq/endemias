@@ -1,10 +1,9 @@
 # LIRAa — planejamento e sorteio (primeiro incremento)
 
-Atualizado em 30/09/2026. Este documento descreve **código preparado na branch
-`codex/liraa-planejamento`**, não uma funcionalidade já ativa na produção.
-Requer migração PostgreSQL `0023_liraa_planejamento.sql` antes de reiniciar o
-serviço com o código novo. Não aplicar a migração nem sortear dados reais sem
-conferência operacional do usuário.
+Atualizado em 30/09/2026. Código da branch `codex/liraa-planejamento`
+integrado na `master` e disponível no serviço oficial `1.60.0`. A migração
+PostgreSQL `0023_liraa_planejamento.sql` foi aplicada com autorização do
+usuário. **Não usar o sorteio em campo sem homologação metodológica.**
 
 ## Escopo disponível
 
@@ -69,11 +68,18 @@ Referência metodológica: [Manual LIRAa 2013, Ministério da Saúde](https://ww
 
 SQLite cria as quatro tabelas LIRAa localmente em banco **de teste** ao abrir
 o módulo. PostgreSQL usa a migração 0023. A migração não modifica tabelas
-preexistentes do RG ou visitas. Não foi aplicada ao banco oficial `endemias`.
+preexistentes do RG ou visitas. Foi aplicada ao banco oficial `endemias`
+em 30/09/2026, após criar e validar o backup
+`D:\BackupsEndemias\backups_banco\endemias_pre_liraa_0023_20260930_132619.dump`.
+O serviço reiniciou com `1.60.0`; `/login` respondeu HTTP 200 e `/liraa`
+redirecionou ao login sem sessão. A leitura direta do painel no PostgreSQL
+retornou 15 localidades, 1.415 quarteirões e 0 ciclos. Não foi criado
+nenhum dado de teste no banco oficial.
 
 Testes focados: `python -m unittest discover -s tests -p test_liraa.py -v`
 (com banco SQLite temporário). A regressão ampla usa a cópia isolada do
 snapshot SQLite conforme `tests/_database_isolation.py`. Em 30/09/2026,
 os 7 testes focados e os 742 testes da regressão ampla passaram
 (5 ignorados); permaneceram avisos antigos de conexões SQLite em outros
-módulos. O banco PostgreSQL oficial não foi consultado nem modificado.
+módulos. A regressão usou cópia isolada do SQLite; a migração e o smoke
+PostgreSQL foram realizados separadamente com autorização.

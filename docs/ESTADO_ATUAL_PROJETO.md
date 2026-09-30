@@ -1,6 +1,6 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 29/09/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 30/09/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
@@ -25,15 +25,21 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
-Em 30/09/2026, a branch `codex/liraa-planejamento` prepara a pagina separada
-`/liraa` na versao `1.60.0`, com inventario RG/GeoJSON, ciclos, estratos por
+Em 30/09/2026, a branch `codex/liraa-planejamento` foi integrada na `master`
+(`27fcace`) e a pagina separada `/liraa` entrou em operacao na versao
+`1.60.0`, com inventario RG/GeoJSON, ciclos, estratos por
 localidade e sorteio sistematico congelado em snapshot auditavel. O total `N`
 de imoveis deve ser confirmado manualmente; PE e REF ficam fora da previa RG.
-O codigo **nao foi integrado nem implantado**; a migracao PostgreSQL 0023
-permanece pendente e nenhum sorteio de dados reais foi executado. A pagina
-nao exporta `.lira` nem calcula indices sem visitas LIRAa. Consultar
-`docs/LIRAA_PLANEJAMENTO.md` antes de homologar a metodologia e aplicar a
-migracao.
+A migracao PostgreSQL `0023_liraa_planejamento.sql` foi aplicada no banco
+oficial apos backup especifico validado
+`D:\BackupsEndemias\backups_banco\endemias_pre_liraa_0023_20260930_132619.dump`.
+O servico foi reiniciado pelo script administrativo, `/login` respondeu HTTP
+200 com `Endemias v1.60.0`, e `/liraa` redirecionou visitantes nao autenticados
+ao login. A leitura direta do painel no PostgreSQL retornou 15 localidades,
+1.415 quarteiroes e zero ciclos; **nenhum sorteio real foi executado**.
+A pagina nao exporta `.lira` nem calcula indices sem visitas LIRAa. O sorteio
+e de ensaio ate a homologacao com o programa oficial. Consultar
+`docs/LIRAA_PLANEJAMENTO.md` antes do uso em campo.
 
 Em 30/09/2026, foi preparada a versao `1.59.0`: as telas de doentes de
 Esporotricose oferecem **Apagar entrega** em cada entrega da receita. A API
