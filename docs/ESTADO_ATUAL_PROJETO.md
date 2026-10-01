@@ -25,8 +25,8 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
-Em 01/10/2026, a branch `codex/liraa-sorteio-homologacao` está em validação,
-**ainda fora da master e do serviço oficial**. Os parâmetros amostrais foram
+Em 01/10/2026, a branch `codex/liraa-sorteio-homologacao` foi integrada na
+`master`, **sem reiniciar o serviço oficial**. Os parâmetros amostrais foram
 confrontados com cinco estratos do programa LIRAa/LIA; depois, as 12 listas
 por bairro/localidade enviadas pelo usuário permitiram reproduzir as 241
 posições sorteadas. No estrato 3, o IC impresso como `2` não informa a parte
