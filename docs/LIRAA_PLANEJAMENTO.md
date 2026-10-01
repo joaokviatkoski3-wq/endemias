@@ -67,12 +67,24 @@ no reduzido (2.000–8.100). O código exige essas faixas para sortear,
 aceitando 8.100 em ambos os tipos. O início casual `IC` é sorteado em
 `(0, IA)`, como estabelece o manual. O relatório legado exibiu valores inteiros
 de `IC`, mas não permite concluir se houve arredondamento apenas na exibição.
-Os índices são `arredondar(IC + i IA)`, para `i = 0..Q-1`,
-na ordem do universo. A sequência usa frações exatas para que um ponto
-terminado em ,5 não seja afetado pela precisão binária. Quando `IA` fica
-próximo de 1, um arredondamento pode repetir a unidade anterior; nesse caso,
-o sorteio avança para o próximo quarteirão ainda não selecionado. Essa borda
-também requer confronto com a lista gerada pelo programa legado.
+O sorteio é distribuído por **localidade** (bairro no aplicativo legado), na
+ordem fixa do universo territorial. Cada localidade recebe um início local
+obtido de `arredondar(IC + selecionados_anteriores × IA -
+quarteirões_anteriores)`, limitado a 1. Em cada uma, somam-se múltiplos de
+`IA` ao início local, selecionando a **parte inteira** das posições enquanto
+o ponto amostral não ultrapassar o número de quarteirões daquela localidade.
+A sequência usa frações para reduzir erros de precisão. `Q` é o total
+planejado; a soma efetiva por localidade pode diferir ligeiramente, como o
+manual admite. Os dois números são exibidos separadamente.
+
+O aplicativo legado numera as posições sorteadas de `1` até o total de cada
+bairro. Isso **não é o ID municipal do quarteirão**. No Endemias, a localidade
+substitui o bairro e a posição é traduzida para o quarteirão municipal real
+pela ordem numérica crescente dos IDs cadastrados na camada. Se apenas parte
+de uma localidade fizer parte do estrato, a sequência `1..A` aplica-se somente
+aos quarteirões dessa parte. A tabela do resultado mostra lado a lado a
+posição sorteada e o ID municipal correspondente. O usuário deve conferir a
+composição e a ordenação antes de usar a lista em campo.
 
 O relatório de simulação `teste-lira.pdf` enviado pelo usuário trouxe cinco
 casos: `(N,A,n,B,Q)` iguais a `(12104,325,434,38,57)`,
@@ -85,13 +97,20 @@ como evidência do cálculo, sem liberar sorteios fora da faixa no Endemias.
 O exemplo do manual com `N=9.000`, `A=350` produz `n=429`, `B=26`, `Q=83`.
 O quadro de quarteirões do manual usa arredondamento ao inteiro mais próximo,
 embora o texto adjacente e alguns valores intermediários sejam inconsistentes.
+O relatório de parâmetros `liraa-Plano Amostral.pdf` e as 12 listas por
+localidade enviadas em 01/10/2026 permitem confrontar **241 posições** nos
+cinco estratos. A distribuição por localidade acima reproduz todas, inclusive
+as contagens por bairro. No estrato 3, o relatório só imprime `IC = 2`;
+`IC = 2,9` é um valor **inferido**, compatível com a lista, não um valor
+comprovado no aplicativo. O Endemias guarda o IC completo para auditoria.
 
-**Ainda não homologado para campo:** o relatório fornecido não continha a
-lista de quarteirões sorteados. É necessário comparar a sequência inteira
-com uma lista do aplicativo legado e conferir a correspondência da ordem de
-quarteirões/localidades, o intervalo e o início casual. Sorteios registrados
-anteriormente permanecem congelados com seus parâmetros e seleção originais;
-esta correção somente afeta novos sorteios de ensaio.
+**Ainda não homologado para campo:** os 241 valores comprovam a sequência
+**posicional**, mas o aplicativo legado não informa os IDs municipais
+correspondentes. Falta conferir num caso real se a ordenação por ID municipal
+faz sentido operacionalmente, além de validar a ordem das localidades e o
+tratamento das localidades repartidas. Sorteios registrados anteriormente
+permanecem congelados com seus parâmetros e seleção originais; esta correção
+somente afeta novos sorteios de ensaio.
 
 Referência metodológica: [Manual LIRAa 2013, Ministério da Saúde](https://www.gov.br/saude/pt-br/centrais-de-conteudo/publicacoes/svsa/dengue/manual_liraa_2013.pdf).
 
@@ -108,9 +127,9 @@ Referência metodológica: [Manual LIRAa 2013, Ministério da Saúde](https://ww
   valores e a aceitação de arquivo próprio ainda exigem validação. Não gerar
   arquivo com dados inventados ou incompletos. Ver
   `docs/LIRAA_FORMATO_LIRA.md` para o mapeamento observado.
-- Comparação integral da lista e da ordem territorial com o programa LIRAa/LIA.
-  Os cinco conjuntos de parâmetros coincidem, mas isso não homologa ainda a
-  seleção final. A lista local deve ser conferida antes de uso em campo.
+- Conferência em campo da tradução das posições `1..A` para os IDs municipais
+  reais, da ordem das localidades e dos casos com localidade repartida entre
+  estratos. O confronto das 241 posições não homologa sozinho essa tradução.
 
 ## Banco e implantação
 

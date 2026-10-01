@@ -81,7 +81,7 @@ class LiraaTests(unittest.TestCase):
         self.assertEqual(primeiro["a"], 5)
         self.assertEqual(primeiro["q"], 1)
         self.assertEqual(primeiro["n"], 429)
-        self.assertEqual(len({r["quarteirao"] for r in primeiro["selecionados"]}), 1)
+        self.assertEqual(len({r["quarteirao"] for r in primeiro["selecionados"]}), 2)
         with self.assertRaisesRegex(liraa.LiraaError, "já foi sorteado"):
             liraa.sortear(self.db, estrato, self.temp.name, seed=123)
         with self.assertRaisesRegex(liraa.LiraaError, "congelado"):
@@ -91,6 +91,25 @@ class LiraaTests(unittest.TestCase):
         salvo = liraa.painel(self.db, self.temp.name)["ciclos"][0]["estratos"][0]["sorteio"]
         self.assertEqual(salvo["selecionados"], primeiro["selecionados"])
         self.assertEqual(salvo["q"], 1)
+
+    def test_sorteio_anterior_ganha_posicao_local_sem_mudar_snapshot(self):
+        ciclo = self.criar()
+        estrato = self.estrato(ciclo)
+        liraa.sortear(self.db, estrato, self.temp.name, seed=42)
+        conn = sqlite3.connect(self.db)
+        original = conn.execute("SELECT selecionados_json FROM liraa_sorteios").fetchone()[0]
+        legado = json.loads(original)
+        for row in legado:
+            row.pop("ordem_localidade", None)
+            row.pop("inicio_local", None)
+        conn.execute("UPDATE liraa_sorteios SET selecionados_json=?",
+                     (json.dumps(legado, ensure_ascii=False),))
+        conn.commit()
+        salvo = liraa.painel(self.db, self.temp.name)["ciclos"][0]["estratos"][0]["sorteio"]
+        self.assertTrue(all(row["ordem_localidade"] >= 1 for row in salvo["selecionados"]))
+        self.assertEqual(conn.execute("SELECT selecionados_json FROM liraa_sorteios").fetchone()[0],
+                         json.dumps(legado, ensure_ascii=False))
+        conn.close()
 
     def test_sem_localidade_repetida_ou_duplo_uso_no_ciclo(self):
         ciclo = self.criar()
@@ -200,25 +219,72 @@ class LiraaTests(unittest.TestCase):
                 self.assertEqual((plano["n"], plano["b"], plano["q"]), (n, B, Q))
                 self.assertAlmostEqual(plano["intervalo"], A / Q)
 
-    def test_quarteiroes_do_exemplo_do_manual_usam_arredondamento_comercial(self):
-        # Manual LIRAa 2013, quadro 1: IC=0,70 e IA aproximado para 4,2.
-        self.assertEqual(liraa._indices_sistematicos(350, 83, "0.70")[:10],
-                         [1, 5, 9, 13, 18, 22, 26, 30, 34, 39])
+    def test_sorteio_por_localidade_reproduz_relatorio_legado(self):
+        # Listas do usuario, "Definicao de Quarteiroes" (nov/2026).
+        # O IC exato do estrato 3 foi inferido; o plano impresso mostra apenas 2.
+        casos = [
+            (57, "3", [
+                ("Lamenha", 192, "3 8 14 20 25 31 37 42 48 54 60 65 71 77 82 88 94 99 105 111 117 122 128 134 139 145 151 156 162 168 174 179 185 191"),
+                ("Tanguá", 133, "5 10 16 22 27 33 39 44 50 56 62 67 73 79 84 90 96 101 107 113 119 124 130"),
+            ]),
+            (55, "2", [
+                ("Cachoeira", 113, "2 6 11 16 21 26 31 35 40 45 50 55 60 64 69 74 79 84 89 93 98 103 108"),
+                ("Roma", 153, "1 5 10 15 20 25 30 34 39 44 49 54 59 63 68 73 78 83 88 92 97 102 107 112 117 121 126 131 136 141 146 150"),
+            ]),
+            (52, "2.9", [
+                ("São Venâncio", 72, "3 7 11 16 20 24 29 33 38 42 46 51 55 60 64 68"),
+                ("Tamboara", 72, "1 5 9 14 18 22 27 31 36 40 44 49 53 58 62 66 71"),
+                ("Graziela", 84, "4 8 12 17 21 25 30 34 39 43 47 52 56 61 65 69 74 78 82"),
+            ]),
+            (62, "4", [
+                ("Paraíso", 131, "4 9 15 20 26 32 37 43 49 54 60 65 71 77 82 88 94 99 105 110 116 122 127"),
+                ("Sede", 218, "2 7 13 18 24 30 35 41 47 52 58 63 69 75 80 86 92 97 103 108 114 120 125 131 137 142 148 153 159 165 170 176 182 187 193 199 204 210 215"),
+            ]),
+            (15, "1", [
+                ("Tranqueira", 93, "1 12 23 34 45 56 67 78 89"),
+                ("São João Batista", 35, "8 19 30"),
+                ("Rosana", 38, "6 17 28"),
+            ]),
+        ]
+        total = 0
+        for estrato, (q_planejado, ic, localidades) in enumerate(casos, 1):
+            universo = [{"id_localidade": j, "localidade": nome, "quarteirao": str(numero)}
+                        for j, (nome, quantidade, _) in enumerate(localidades, 1)
+                        for numero in range(1, quantidade + 1)]
+            selecionados = liraa._selecionar_por_localidade(universo, q_planejado, ic)
+            self.assertEqual(len(selecionados), q_planejado, f"Estrato {estrato}")
+            for j, (_, _, lista) in enumerate(localidades, 1):
+                esperado = [int(x) for x in lista.split()]
+                encontrado = [r["ordem_localidade"] for r in selecionados
+                              if r["id_localidade"] == j]
+                self.assertEqual(encontrado, esperado, f"Estrato {estrato}, localidade {j}")
+                total += len(encontrado)
+        self.assertEqual(total, 241)
+
+    def test_inicio_e_arredondamento_da_posicao_local(self):
         self.assertEqual(liraa._arredondar_metade_para_cima(5, 2), 3)
         with self.assertRaisesRegex(liraa.LiraaError, "início casual"):
-            liraa._indices_sistematicos(350, 83, 0)
+            liraa._selecionar_por_localidade([{"id_localidade": 1}], 1, 0)
 
-    def test_indices_sistematicos_permanecem_unicos_e_no_universo(self):
-        self.assertEqual(liraa._indices_sistematicos(5, 5, "0.01"), [1, 2, 3, 4, 5])
+    def test_posicao_local_nao_e_numero_municipal_do_quarteirao(self):
+        ids = [101, 103, 107, 240, 500, 900]
+        universo = [{"id_localidade": 1, "quarteirao": str(i)} for i in ids]
+        selecionados = liraa._selecionar_por_localidade(universo, 3, 1)
+        self.assertEqual([r["ordem_localidade"] for r in selecionados], [1, 3, 5])
+        self.assertEqual([r["quarteirao"] for r in selecionados], ["101", "107", "500"])
+
+    def test_selecao_por_localidade_permanece_unica_e_no_universo(self):
         rng = random.Random(20261001)
         for _ in range(100):
             A = rng.randint(1, 900)
             Q = rng.randint(1, A)
             inicio = rng.random() * (A / Q) or (A / Q) / 2
-            indices = liraa._indices_sistematicos(A, Q, inicio)
-            self.assertEqual(len(indices), Q)
-            self.assertEqual(len(set(indices)), Q)
-            self.assertTrue(all(1 <= indice <= A for indice in indices))
+            universo = [{"id_localidade": i // 100, "quarteirao": str(i)}
+                        for i in range(1, A + 1)]
+            selecionados = liraa._selecionar_por_localidade(universo, Q, inicio)
+            ordens = [r["ordem_universo"] for r in selecionados]
+            self.assertEqual(len(ordens), len(set(ordens)))
+            self.assertTrue(all(1 <= indice <= A for indice in ordens))
 
     def test_template_renderiza_planejamento_e_sem_exportacao_falsa(self):
         ciclo = self.criar()
@@ -246,7 +312,10 @@ class LiraaTests(unittest.TestCase):
         self.assertIn("Selecionar localidade inteira", html)
         self.assertIn("liraa-dados-json", html)
         self.assertIn("Sorteio registrado", html)
-        self.assertIn("Ver 1 quarteirão sorteado", html)
+        self.assertRegex(html, r"Ver \d+ quarteir")
+        self.assertIn("Início local", html)
+        self.assertIn("Posição sorteada (1 a A)", html)
+        self.assertIn("Quarteirão municipal", html)
         self.assertIn("exportação", html)
         self.assertNotIn("Baixar .lira", html)
 

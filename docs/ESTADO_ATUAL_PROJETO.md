@@ -25,6 +25,22 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+Em 01/10/2026, a branch `codex/liraa-sorteio-homologacao` está em validação,
+**ainda fora da master e do serviço oficial**. Os parâmetros amostrais foram
+confrontados com cinco estratos do programa LIRAa/LIA; depois, as 12 listas
+por bairro/localidade enviadas pelo usuário permitiram reproduzir as 241
+posições sorteadas. No estrato 3, o IC impresso como `2` não informa a parte
+decimal: `2,9` foi inferido como valor compatível, não confirmado. O programa
+renumera cada localidade a partir de 1; no Endemias, a posição é traduzida
+para o ID municipal real pela ordem numérica dos quarteirões daquela
+localidade ou parte incluída no estrato. O resultado mostrará ambos os
+números. Nenhum sorteio real, migração, alteração de banco ou reinício foi
+feito nesta validação. O sorteio continua de ensaio até conferir essa tradução
+num estrato real e a ordem de localidades. Ver `docs/LIRAA_PLANEJAMENTO.md`.
+Os testes focados LIRAa (19), o teste JavaScript do mapa geral e a regressao
+SQLite isolada (752 testes, 5 ignorados) passaram durante a preparacao; as
+ultimas edicoes de interface foram revalidadas pelos testes focados.
+
 Em 01/10/2026, a branch `codex/liraa-mapa-geral` foi integrada na `master`
 (`f82fd6c`) e o servico oficial reiniciado em `1.63.0`. A subaba
 **Mapa geral · consulta** do LIRAa mostra todos os estratos de um ciclo

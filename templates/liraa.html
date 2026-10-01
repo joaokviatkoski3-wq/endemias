@@ -118,10 +118,12 @@
         {% if e.legado_localidades %}<p class="liraa-muted">Plano antigo por localidade inteira: ao editar no mapa, a seleção passará a ser explícita por quarteirão.</p>{% endif %}
         {% if e.observacoes %}<p class="liraa-muted">{{ e.observacoes }}</p>{% endif %}
         {% if e.sorteio %}
-          <div class="liraa-note liraa-good"><strong>Sorteio registrado em {{ e.sorteio.criado_em }}.</strong> Amostra-alvo: {{ e.sorteio.n }} imóveis · universo: {{ e.sorteio.a }} quarteirões · sorteados: {{ e.sorteio.q }} · intervalo: {{ '%.4f'|format(e.sorteio.intervalo) }} · início casual: {{ '%.4f'|format(e.sorteio.inicio_casual) }}.</div>
-          <details class="liraa-sample"><summary>Ver {{ e.sorteio.q }} {{ 'quarteirão sorteado' if e.sorteio.q == 1 else 'quarteirões sorteados' }}</summary>
-            <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Ordem no universo</th><th>Localidade</th><th>Quarteirão</th><th>Unidades RG (referência)</th></tr></thead><tbody>
-            {% for q in e.sorteio.selecionados %}<tr><td>{{ q.ordem_universo }}</td><td>{{ q.localidade }}</td><td>{{ q.quarteirao_exibicao }}</td><td>{{ q.unidades_rg if q.tem_rg else 'Sem RG' }}</td></tr>{% endfor %}
+          <div class="liraa-note liraa-good"><strong>Sorteio registrado em {{ e.sorteio.criado_em }}.</strong> Amostra-alvo: {{ e.sorteio.n }} imóveis · universo: {{ e.sorteio.a }} quarteirões · plano: {{ e.sorteio.q }} quarteirões · selecionados nas localidades: {{ e.sorteio.selecionados|length }} · intervalo: {{ '%.4f'|format(e.sorteio.intervalo) }} · início casual: {{ '%.8f'|format(e.sorteio.inicio_casual) }}.</div>
+          {% if e.sorteio.selecionados|length != e.sorteio.q %}<div class="liraa-note">A quantidade efetiva difere do plano pela distribuição entre localidades. Confira a lista antes de usá-la.</div>{% endif %}
+          <p class="liraa-muted">A posição sorteada recomeça em 1 em cada localidade (ou parte dela neste estrato); o quarteirão municipal é o número real correspondente na ordem numérica do cadastro. A quantidade efetiva pode diferir ligeiramente do plano pela divisão entre localidades.</p>
+          <details class="liraa-sample"><summary>Ver {{ e.sorteio.selecionados|length }} {{ 'quarteirão sorteado' if e.sorteio.selecionados|length == 1 else 'quarteirões sorteados' }}</summary>
+            <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Localidade</th><th>Início local</th><th>Posição sorteada (1 a A)</th><th>Quarteirão municipal</th><th>Ordem no estrato</th><th>Unidades RG (referência)</th></tr></thead><tbody>
+            {% for q in e.sorteio.selecionados %}<tr><td>{{ q.localidade }}</td><td>{{ q.inicio_local if q.inicio_local is defined else '—' }}</td><td>{{ q.ordem_localidade if q.ordem_localidade is defined else '—' }}</td><td>{{ q.quarteirao_exibicao }}</td><td>{{ q.ordem_universo }}</td><td>{{ q.unidades_rg if q.tem_rg else 'Sem RG' }}</td></tr>{% endfor %}
             </tbody></table></div>
           </details>
         {% elif is_admin %}

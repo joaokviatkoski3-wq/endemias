@@ -10,6 +10,7 @@ import random
 import secrets
 from datetime import datetime
 from fractions import Fraction
+from itertools import groupby
 
 from app_core import db as db_core
 from app_core import registro_geografico as rg_core
@@ -161,7 +162,18 @@ def painel(target, base_dir=None):
             "SELECT * FROM liraa_sorteios").fetchall()}
         for s in sorteios.values():
             s["selecionados"] = json.loads(s.pop("selecionados_json"))
-            s.pop("universo_json")  # Snapshot integral fica no banco; a UI recebe só o sorteio.
+            universo_salvo = json.loads(s.pop("universo_json"))
+            # Sorteios anteriores não trazem a posição dentro da localidade.
+            # Derive-a do universo congelado, sem recalcular nem alterar o sorteio.
+            posicoes = {}
+            contagens = {}
+            for row in universo_salvo:
+                loc = row["id_localidade"]
+                contagens[loc] = contagens.get(loc, 0) + 1
+                posicoes[(loc, row["quarteirao"])] = contagens[loc]
+            for row in s["selecionados"]:
+                row.setdefault("ordem_localidade", posicoes.get(
+                    (row["id_localidade"], row["quarteirao"])))
         por_estrato = {}
         for r in vinculos:
             por_estrato.setdefault(r["id_estrato"], []).append(r["id_localidade"])
@@ -376,25 +388,40 @@ def _plano_amostral(n_imoveis, a, tipo):
             "intervalo": a / q}
 
 
-def _indices_sistematicos(a, q, inicio):
-    """Ordens 1..A por arredondamento convencional dos pontos amostrais."""
-    intervalo = Fraction(a, q)
+def _selecionar_por_localidade(universo, q_planejado, inicio):
+    """Reproduz a distribuição por bairro observada no LIRAa/LIA legado.
+
+    Cada bloco contíguo de uma localidade usa o mesmo IA do estrato. O início
+    local deriva do IC completo, dos quarteirões já sorteados e da posição
+    acumulada das localidades. A sequência local usa a parte inteira.
+    """
+    a = len(universo)
+    intervalo = Fraction(a, q_planejado)
     inicio = Fraction(str(inicio))
     if not 0 < inicio <= intervalo:
         raise LiraaError("O início casual deve ficar entre zero e o intervalo amostral.")
-    indices = []
-    for i in range(q):
-        posicao = inicio + i * intervalo
-        # Quando IA e proximo de 1, o primeiro ponto pode arredondar para
-        # zero e o seguinte para 1; avance para nao repetir a mesma unidade.
-        ordem = max(indices[-1] + 1 if indices else 1,
-                    _arredondar_metade_para_cima(posicao.numerator, posicao.denominator))
-        if ordem > a:
-            raise LiraaError("O sorteio gerou índice fora do universo; revise o plano.")
-        indices.append(ordem)
-    if len(set(indices)) != q:
+    selecionados = []
+    deslocamento = 0
+    for _, grupo in groupby(universo, key=lambda row: row["id_localidade"]):
+        quarteiroes = list(grupo)
+        tamanho = len(quarteiroes)
+        posicao_inicial = inicio + len(selecionados) * intervalo - deslocamento
+        primeiro = max(1, _arredondar_metade_para_cima(
+            posicao_inicial.numerator, posicao_inicial.denominator))
+        passo = 0
+        while True:
+            posicao = primeiro + passo * intervalo
+            if posicao > tamanho:
+                break
+            ordem_local = posicao.numerator // posicao.denominator
+            row = quarteiroes[ordem_local - 1]
+            selecionados.append({**row, "ordem_universo": deslocamento + ordem_local,
+                                 "ordem_localidade": ordem_local, "inicio_local": primeiro})
+            passo += 1
+        deslocamento += tamanho
+    if len({(r["id_localidade"], r["quarteirao"]) for r in selecionados}) != len(selecionados):
         raise LiraaError("O sorteio gerou quarteirões repetidos; revise o plano.")
-    return indices
+    return selecionados
 
 
 def _calcular_sorteio(n_imoveis, universo, tipo, seed):
@@ -409,10 +436,7 @@ def _calcular_sorteio(n_imoveis, universo, tipo, seed):
     # O manual determina IC aleatorio em (0, IA); o relatorio legado exibe
     # um inteiro, mas nao prova que a geracao interna se limite a inteiros.
     inicio = max(random.Random(seed).random(), 1 / (2 ** 53)) * plano["intervalo"]
-    selecionados = [{**universo[ordem - 1], "ordem_universo": ordem}
-                    for ordem in _indices_sistematicos(a, q, inicio)]
-    if len({(r["id_localidade"], r["quarteirao"]) for r in selecionados}) != q:
-        raise LiraaError("O sorteio gerou quarteirões repetidos; revise o plano.")
+    selecionados = _selecionar_por_localidade(universo, q, inicio)
     return {**plano, "inicio_casual": inicio, "selecionados": selecionados}
 
 
