@@ -50,22 +50,48 @@ nao ha migracao nem alteracao de dados reais.
   Depois do sorteio o estrato fica congelado; atualização do GeoJSON ou RG
   não altera o resultado salvo.
 
-## Fórmulas
+## Fórmulas e validação do sorteio
 
 Para `N` imóveis confirmados e `A` quarteirões do estrato:
 
-`n = teto(450 N / (N + 450))`; `B = N / A`;
-`Q = mínimo(A, teto(n / (p B)))`; `IA = A / Q`.
+Nos estratos normais, `n = arredondar(450 N / (N + 450))`; nos reduzidos,
+`n = arredondar(250 N / (N + 250))`. Em ambos,
+`B = teto(N / A)`, `Q = mínimo(A, máximo(1, arredondar(n / (p B))))`
+e `IA = A / Q`. O arredondamento de `n` e `Q` é ao inteiro mais próximo,
+com empate para cima. A base 250 no reduzido e o teto de `B` foram inferidos
+do relatório gerado pelo aplicativo legado, não da fórmula genérica impressa
+no manual.
 
 `p = 0,20` no estrato normal (8.100–12.000 imóveis) e `p = 0,50`
 no reduzido (2.000–8.100). O código exige essas faixas para sortear,
-aceitando 8.100 em ambos os tipos, conforme sobreposição nos limites
-informados. O início casual `IC` é sorteado em `(0, IA)`, e os índices
-selecionados são `teto(IC + i IA)`, para `i = 0..Q-1`, na ordem do universo.
-Foi usada a fórmula não arredondada de `B` para evitar aproximação precoce;
-o exemplo numérico do manual de 2013 apresenta valores intermediários
-inconsistentes entre si. Com `N=9.000`, `A=350`, o cálculo exato produz
-`n=429` e `Q=84`.
+aceitando 8.100 em ambos os tipos. O início casual `IC` é sorteado em
+`(0, IA)`, como estabelece o manual. O relatório legado exibiu valores inteiros
+de `IC`, mas não permite concluir se houve arredondamento apenas na exibição.
+Os índices são `arredondar(IC + i IA)`, para `i = 0..Q-1`,
+na ordem do universo. A sequência usa frações exatas para que um ponto
+terminado em ,5 não seja afetado pela precisão binária. Quando `IA` fica
+próximo de 1, um arredondamento pode repetir a unidade anterior; nesse caso,
+o sorteio avança para o próximo quarteirão ainda não selecionado. Essa borda
+também requer confronto com a lista gerada pelo programa legado.
+
+O relatório de simulação `teste-lira.pdf` enviado pelo usuário trouxe cinco
+casos: `(N,A,n,B,Q)` iguais a `(12104,325,434,38,57)`,
+`(10214,266,431,39,55)`, `(9312,228,429,41,52)`,
+`(12071,349,434,35,62)` e `(5090,166,238,31,15)`.
+Os parâmetros acima reproduzem todos os cinco valores de `n`, `B`, `Q` e `IA`;
+há testes automatizados para impedir regressão. Dois estratos simulados
+ultrapassam os 12.000 imóveis recomendados pelo manual: foram usados apenas
+como evidência do cálculo, sem liberar sorteios fora da faixa no Endemias.
+O exemplo do manual com `N=9.000`, `A=350` produz `n=429`, `B=26`, `Q=83`.
+O quadro de quarteirões do manual usa arredondamento ao inteiro mais próximo,
+embora o texto adjacente e alguns valores intermediários sejam inconsistentes.
+
+**Ainda não homologado para campo:** o relatório fornecido não continha a
+lista de quarteirões sorteados. É necessário comparar a sequência inteira
+com uma lista do aplicativo legado e conferir a correspondência da ordem de
+quarteirões/localidades, o intervalo e o início casual. Sorteios registrados
+anteriormente permanecem congelados com seus parâmetros e seleção originais;
+esta correção somente afeta novos sorteios de ensaio.
 
 Referência metodológica: [Manual LIRAa 2013, Ministério da Saúde](https://www.gov.br/saude/pt-br/centrais-de-conteudo/publicacoes/svsa/dengue/manual_liraa_2013.pdf).
 
@@ -82,9 +108,9 @@ Referência metodológica: [Manual LIRAa 2013, Ministério da Saúde](https://ww
   valores e a aceitação de arquivo próprio ainda exigem validação. Não gerar
   arquivo com dados inventados ou incompletos. Ver
   `docs/LIRAA_FORMATO_LIRA.md` para o mapeamento observado.
-- Comparação com o programa LIRAa/LIA e homologação do sorteio oficial. A
-  lista local deve ser conferida antes de uso em campo; não presumir que seja
-  intercambiável com o sorteio do programa legado.
+- Comparação integral da lista e da ordem territorial com o programa LIRAa/LIA.
+  Os cinco conjuntos de parâmetros coincidem, mas isso não homologa ainda a
+  seleção final. A lista local deve ser conferida antes de uso em campo.
 
 ## Banco e implantação
 

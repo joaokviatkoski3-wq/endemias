@@ -119,7 +119,7 @@
         {% if e.observacoes %}<p class="liraa-muted">{{ e.observacoes }}</p>{% endif %}
         {% if e.sorteio %}
           <div class="liraa-note liraa-good"><strong>Sorteio registrado em {{ e.sorteio.criado_em }}.</strong> Amostra-alvo: {{ e.sorteio.n }} imóveis · universo: {{ e.sorteio.a }} quarteirões · sorteados: {{ e.sorteio.q }} · intervalo: {{ '%.4f'|format(e.sorteio.intervalo) }} · início casual: {{ '%.4f'|format(e.sorteio.inicio_casual) }}.</div>
-          <details class="liraa-sample"><summary>Ver {{ e.sorteio.q }} quarteirões sorteados</summary>
+          <details class="liraa-sample"><summary>Ver {{ e.sorteio.q }} {{ 'quarteirão sorteado' if e.sorteio.q == 1 else 'quarteirões sorteados' }}</summary>
             <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Ordem no universo</th><th>Localidade</th><th>Quarteirão</th><th>Unidades RG (referência)</th></tr></thead><tbody>
             {% for q in e.sorteio.selecionados %}<tr><td>{{ q.ordem_universo }}</td><td>{{ q.localidade }}</td><td>{{ q.quarteirao_exibicao }}</td><td>{{ q.unidades_rg if q.tem_rg else 'Sem RG' }}</td></tr>{% endfor %}
             </tbody></table></div>

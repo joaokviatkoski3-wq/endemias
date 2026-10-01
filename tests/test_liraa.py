@@ -1,4 +1,5 @@
 import json
+import random
 import sqlite3
 import tempfile
 import unittest
@@ -78,9 +79,9 @@ class LiraaTests(unittest.TestCase):
         estrato = self.estrato(ciclo)
         primeiro = liraa.sortear(self.db, estrato, self.temp.name, seed=123)
         self.assertEqual(primeiro["a"], 5)
-        self.assertEqual(primeiro["q"], 2)
+        self.assertEqual(primeiro["q"], 1)
         self.assertEqual(primeiro["n"], 429)
-        self.assertEqual(len({r["quarteirao"] for r in primeiro["selecionados"]}), 2)
+        self.assertEqual(len({r["quarteirao"] for r in primeiro["selecionados"]}), 1)
         with self.assertRaisesRegex(liraa.LiraaError, "já foi sorteado"):
             liraa.sortear(self.db, estrato, self.temp.name, seed=123)
         with self.assertRaisesRegex(liraa.LiraaError, "congelado"):
@@ -89,7 +90,7 @@ class LiraaTests(unittest.TestCase):
         self.importar(camada(("0001", "0002", "0003", "0004", "0006")))
         salvo = liraa.painel(self.db, self.temp.name)["ciclos"][0]["estratos"][0]["sorteio"]
         self.assertEqual(salvo["selecionados"], primeiro["selecionados"])
-        self.assertEqual(salvo["q"], 2)
+        self.assertEqual(salvo["q"], 1)
 
     def test_sem_localidade_repetida_ou_duplo_uso_no_ciclo(self):
         ciclo = self.criar()
@@ -177,12 +178,47 @@ class LiraaTests(unittest.TestCase):
     def test_faixa_de_imoveis_e_formula_do_manual(self):
         universo = [{"id_localidade": 1, "quarteirao": str(i)} for i in range(1, 351)]
         calculo = liraa._calcular_sorteio(9000, universo, "normal", 123)
-        self.assertEqual((calculo["n"], calculo["a"], calculo["q"]), (429, 350, 84))
-        self.assertEqual(len({r["ordem_universo"] for r in calculo["selecionados"]}), 84)
+        self.assertEqual((calculo["n"], calculo["a"], calculo["b"], calculo["q"]),
+                         (429, 350, 26, 83))
+        self.assertEqual(len({r["ordem_universo"] for r in calculo["selecionados"]}), 83)
         self.assertEqual(calculo, liraa._calcular_sorteio(9000, universo, "normal", 123))
         with self.assertRaisesRegex(liraa.LiraaError, "8.100"):
             liraa._calcular_sorteio(4000, universo, "normal", 123)
         self.assertEqual(liraa._calcular_sorteio(4000, universo, "reduzido", 123)["fracao"], .5)
+
+    def test_parametros_conferem_com_cinco_estratos_do_relatorio_legado(self):
+        casos = [
+            (12104, 325, "normal", 434, 38, 57),
+            (10214, 266, "normal", 431, 39, 55),
+            (9312, 228, "normal", 429, 41, 52),
+            (12071, 349, "normal", 434, 35, 62),
+            (5090, 166, "reduzido", 238, 31, 15),
+        ]
+        for N, A, tipo, n, B, Q in casos:
+            with self.subTest(N=N, A=A):
+                plano = liraa._plano_amostral(N, A, tipo)
+                self.assertEqual((plano["n"], plano["b"], plano["q"]), (n, B, Q))
+                self.assertAlmostEqual(plano["intervalo"], A / Q)
+
+    def test_quarteiroes_do_exemplo_do_manual_usam_arredondamento_comercial(self):
+        # Manual LIRAa 2013, quadro 1: IC=0,70 e IA aproximado para 4,2.
+        self.assertEqual(liraa._indices_sistematicos(350, 83, "0.70")[:10],
+                         [1, 5, 9, 13, 18, 22, 26, 30, 34, 39])
+        self.assertEqual(liraa._arredondar_metade_para_cima(5, 2), 3)
+        with self.assertRaisesRegex(liraa.LiraaError, "início casual"):
+            liraa._indices_sistematicos(350, 83, 0)
+
+    def test_indices_sistematicos_permanecem_unicos_e_no_universo(self):
+        self.assertEqual(liraa._indices_sistematicos(5, 5, "0.01"), [1, 2, 3, 4, 5])
+        rng = random.Random(20261001)
+        for _ in range(100):
+            A = rng.randint(1, 900)
+            Q = rng.randint(1, A)
+            inicio = rng.random() * (A / Q) or (A / Q) / 2
+            indices = liraa._indices_sistematicos(A, Q, inicio)
+            self.assertEqual(len(indices), Q)
+            self.assertEqual(len(set(indices)), Q)
+            self.assertTrue(all(1 <= indice <= A for indice in indices))
 
     def test_template_renderiza_planejamento_e_sem_exportacao_falsa(self):
         ciclo = self.criar()
@@ -210,7 +246,7 @@ class LiraaTests(unittest.TestCase):
         self.assertIn("Selecionar localidade inteira", html)
         self.assertIn("liraa-dados-json", html)
         self.assertIn("Sorteio registrado", html)
-        self.assertIn("Ver 2 quarteirões sorteados", html)
+        self.assertIn("Ver 1 quarteirão sorteado", html)
         self.assertIn("exportação", html)
         self.assertNotIn("Baixar .lira", html)
 

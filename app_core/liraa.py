@@ -6,10 +6,10 @@ laboratorial específicas do levantamento.
 
 import hashlib
 import json
-import math
 import random
 import secrets
 from datetime import datetime
+from fractions import Fraction
 
 from app_core import db as db_core
 from app_core import registro_geografico as rg_core
@@ -356,6 +356,47 @@ def excluir_estrato(target, id_estrato):
         conn.close()
 
 
+def _arredondar_metade_para_cima(numerador, denominador):
+    """Arredondamento decimal convencional sem ponto flutuante."""
+    return (2 * numerador + denominador) // (2 * denominador)
+
+
+def _plano_amostral(n_imoveis, a, tipo):
+    """Parâmetros observados no relatório legado; não valida a faixa do estrato."""
+    if n_imoveis <= 0 or a <= 0 or tipo not in ("normal", "reduzido"):
+        raise LiraaError("Informe N, A e tipo válidos para calcular o plano amostral.")
+    # O relatorio do programa legado usa base 250 no estrato reduzido e 450
+    # no normal; ambos arredondam a amostra ao inteiro mais proximo.
+    base = 450 if tipo == "normal" else 250
+    n = _arredondar_metade_para_cima(base * n_imoveis, n_imoveis + base)
+    b = (n_imoveis + a - 1) // a
+    denominador = 5 if tipo == "normal" else 2
+    q = min(a, max(1, _arredondar_metade_para_cima(n * denominador, b)))
+    return {"n": n, "a": a, "b": b, "q": q, "fracao": 1 / denominador,
+            "intervalo": a / q}
+
+
+def _indices_sistematicos(a, q, inicio):
+    """Ordens 1..A por arredondamento convencional dos pontos amostrais."""
+    intervalo = Fraction(a, q)
+    inicio = Fraction(str(inicio))
+    if not 0 < inicio <= intervalo:
+        raise LiraaError("O início casual deve ficar entre zero e o intervalo amostral.")
+    indices = []
+    for i in range(q):
+        posicao = inicio + i * intervalo
+        # Quando IA e proximo de 1, o primeiro ponto pode arredondar para
+        # zero e o seguinte para 1; avance para nao repetir a mesma unidade.
+        ordem = max(indices[-1] + 1 if indices else 1,
+                    _arredondar_metade_para_cima(posicao.numerator, posicao.denominator))
+        if ordem > a:
+            raise LiraaError("O sorteio gerou índice fora do universo; revise o plano.")
+        indices.append(ordem)
+    if len(set(indices)) != q:
+        raise LiraaError("O sorteio gerou quarteirões repetidos; revise o plano.")
+    return indices
+
+
 def _calcular_sorteio(n_imoveis, universo, tipo, seed):
     a = len(universo)
     if a == 0:
@@ -363,22 +404,16 @@ def _calcular_sorteio(n_imoveis, universo, tipo, seed):
     minimo, maximo = (8100, 12000) if tipo == "normal" else (2000, 8100)
     if not minimo <= n_imoveis <= maximo:
         raise LiraaError(f"Estrato {tipo}: confirme N entre {minimo:,} e {maximo:,} imóveis.".replace(",", "."))
-    n = (450 * n_imoveis + (n_imoveis + 450) - 1) // (n_imoveis + 450)
-    denominador = 5 if tipo == "normal" else 2
-    q = min(a, (n * a * denominador + n_imoveis - 1) // n_imoveis)
-    intervalo = a / q
-    sorteado = random.Random(seed).random()
-    inicio = max(sorteado, 1 / (2 ** 53)) * intervalo
-    selecionados = []
-    for i in range(q):
-        indice = math.ceil(inicio + i * intervalo) - 1
-        if indice < 0 or indice >= a:
-            raise LiraaError("O sorteio gerou índice fora do universo; revise o plano.")
-        selecionados.append({**universo[indice], "ordem_universo": indice + 1})
+    plano = _plano_amostral(n_imoveis, a, tipo)
+    q = plano["q"]
+    # O manual determina IC aleatorio em (0, IA); o relatorio legado exibe
+    # um inteiro, mas nao prova que a geracao interna se limite a inteiros.
+    inicio = max(random.Random(seed).random(), 1 / (2 ** 53)) * plano["intervalo"]
+    selecionados = [{**universo[ordem - 1], "ordem_universo": ordem}
+                    for ordem in _indices_sistematicos(a, q, inicio)]
     if len({(r["id_localidade"], r["quarteirao"]) for r in selecionados}) != q:
         raise LiraaError("O sorteio gerou quarteirões repetidos; revise o plano.")
-    return {"n": n, "a": a, "q": q, "fracao": 1 / denominador,
-            "intervalo": intervalo, "inicio_casual": inicio, "selecionados": selecionados}
+    return {**plano, "inicio_casual": inicio, "selecionados": selecionados}
 
 
 def sortear(target, id_estrato, base_dir=None, seed=None):
