@@ -156,14 +156,17 @@
     }
   }
   function aba(nome) {
-    const mapa = nome === 'mapa';
-    el('liraa-tab-plano').hidden = mapa; el('liraa-tab-mapa').hidden = !mapa;
-    el('liraa-tab-plano-btn').setAttribute('aria-selected', String(!mapa));
-    el('liraa-tab-mapa-btn').setAttribute('aria-selected', String(mapa));
-    if (mapa) iniciarMapa();
+    for (const aba of ['plano', 'mapa', 'geral']) {
+      const ativa = nome === aba;
+      el(`liraa-tab-${aba}`).hidden = !ativa;
+      el(`liraa-tab-${aba}-btn`).setAttribute('aria-selected', String(ativa));
+    }
+    if (nome === 'mapa') iniciarMapa();
+    if (nome === 'geral') window.LiraaMapaGeral?.iniciar(estado.geo);
   }
   el('liraa-tab-plano-btn').addEventListener('click', () => aba('plano'));
   el('liraa-tab-mapa-btn').addEventListener('click', () => aba('mapa'));
+  el('liraa-tab-geral-btn').addEventListener('click', () => aba('geral'));
   el('liraa-map-ciclo').addEventListener('change', carregarCiclo);
   el('liraa-map-estrato').addEventListener('change', carregarEstrato);
   el('liraa-map-localidade').addEventListener('change', () => { renderLista(); mapaRender(); });
@@ -196,4 +199,5 @@
   carregarCiclo();
   if (editarId) { el('liraa-map-estrato').value = editarId; carregarEstrato(); }
   if (location.hash === '#mapa-estratos') aba('mapa');
+  if (location.hash === '#mapa-geral-estratos') aba('geral');
 })();

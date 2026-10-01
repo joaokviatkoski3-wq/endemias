@@ -25,6 +25,13 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+Em 01/10/2026, a branch `codex/liraa-mapa-geral` prepara a subaba
+**Mapa geral · consulta** do LIRAa (`1.63.0` no codigo da branch). Ela mostra
+todos os estratos de um ciclo sobre a mesma camada territorial, com cores,
+quarteiroes sem estrato em cinza, resumo e detalhes ao clicar. E somente
+leitura e nao exige migracao. A `master`/servico oficial seguem em `1.62.0`
+ate integracao e reinicio autorizados; nenhum ciclo ou sorteio real foi alterado.
+
 Em 01/10/2026, a branch `codex/microareas-consulta-geral` foi integrada na
 `master` (`6b5945c`) e o serviço oficial reiniciado na versão `1.62.0`.
 A nova subaba **Mapa geral · consulta** em Territorialização → Microáreas

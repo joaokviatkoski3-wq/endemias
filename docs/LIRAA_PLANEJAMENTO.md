@@ -1,6 +1,6 @@
 # LIRAa — planejamento e sorteio (primeiro incremento)
 
-Atualizado em 30/09/2026. Código da branch `codex/liraa-planejamento`
+Atualizado em 01/10/2026. Código inicial da branch `codex/liraa-planejamento`
 integrado na `master` e disponível no serviço oficial `1.60.0`. A migração
 PostgreSQL `0023_liraa_planejamento.sql` foi aplicada com autorização do
 usuário. **Não usar o sorteio em campo sem homologação metodológica.**
@@ -18,6 +18,15 @@ continua congelado; quarteirões que desaparecem da camada bloqueiam novo
 sorteio até revisão. A migração 0024 foi aplicada com autorização do usuário
 após backup validado; o serviço foi reiniciado. A interface autenticada ainda
 requer validação visual pelo operador.
+
+Em 01/10/2026, a branch `codex/liraa-mapa-geral` prepara a terceira subaba
+**Mapa geral · consulta** (versao 1.63.0 da branch, ainda nao implantada).
+A consulta mostra juntos todos os estratos do ciclo escolhido, em diferentes
+cores, incluindo todas as localidades; quarteiroes sem estrato ficam cinza.
+Lista, filtro e clique no mapa mostram N confirmado, referencia RG, localidades,
+observacoes e alerta de quarteiroes ausentes da camada. Nao ha edicao nem
+sorteio nessa subaba. A geometria vem da mesma API de leitura ja existente;
+nao ha migracao nem alteracao de dados reais.
 
 ## Escopo disponível
 

@@ -29,7 +29,7 @@
 .liraa-stratum h3{font-size:15px;margin:0 0 5px}.liraa-stratum p{margin:5px 0}
 .liraa-sample{margin-top:10px}.liraa-sample>summary{cursor:pointer;font-weight:700;color:#155e75}
 .liraa-feedback{padding:10px;border-radius:6px;margin:10px 0}.liraa-feedback.success{background:#dcfce7;color:#166534}.liraa-feedback.error{background:#fee2e2;color:#991b1b}
-.liraa-tabs{display:flex;gap:8px;margin:16px 0}.liraa-tabs button[aria-selected="true"]{background:#155e75;color:#fff}
+.liraa-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.liraa-tabs button[aria-selected="true"]{background:#155e75;color:#fff}
 .liraa-map-layout{display:grid;grid-template-columns:minmax(270px,360px) minmax(0,1fr);gap:14px}
 .liraa-map-side{min-width:0}.liraa-map{height:590px;border:1px solid var(--border);border-radius:8px;z-index:0}
 .liraa-q-list{max-height:270px;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:6px;margin:8px 0}
@@ -39,6 +39,13 @@
 .liraa-map-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.liraa-map-stats div{background:var(--surface2);border-radius:5px;padding:9px;font-size:12px}.liraa-map-stats strong{display:block;font-size:18px}
 .liraa-map-label{background:rgba(255,255,255,.9);border:1px solid #64748b;border-radius:3px;color:#0f172a;font-size:10px;font-weight:800;padding:1px 3px;box-shadow:none}.liraa-map-label::before{display:none}
 .liraa-status{font-size:12px;min-height:18px;margin:8px 0}.liraa-readonly{color:#92400e}
+.liraa-geral-lista{max-height:290px;overflow:auto;display:grid;gap:6px;margin:10px 0}
+.liraa-geral-item{display:flex;gap:10px;align-items:center;text-align:left;width:100%;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);padding:9px;cursor:pointer}
+.liraa-geral-item[aria-pressed="true"]{border-color:#155e75;box-shadow:0 0 0 2px rgba(21,94,117,.2)}
+.liraa-geral-cor{width:17px;height:17px;flex:none;border-radius:3px;border:1px solid #475569}
+.liraa-geral-item small{display:block;color:var(--text2);margin-top:3px}
+.liraa-geral-detalhe{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;max-height:210px;overflow:auto;font-size:13px}
+.liraa-geral-detalhe h3{margin:0 0 7px;font-size:15px}.liraa-geral-detalhe p{margin:5px 0}
 [hidden]{display:none!important}@media(max-width:900px){.liraa-map-layout{grid-template-columns:1fr}.liraa-map{height:450px}}
 </style>{% endblock %}
 {% block content %}
@@ -50,6 +57,7 @@
 <div class="liraa-tabs" role="tablist" aria-label="Áreas do LIRAa">
   <button class="liraa-btn" id="liraa-tab-plano-btn" type="button" role="tab" aria-selected="true" aria-controls="liraa-tab-plano">Planejamento</button>
   <button class="liraa-btn" id="liraa-tab-mapa-btn" type="button" role="tab" aria-selected="false" aria-controls="liraa-tab-mapa">Mapa dos estratos</button>
+  <button class="liraa-btn" id="liraa-tab-geral-btn" type="button" role="tab" aria-selected="false" aria-controls="liraa-tab-geral">Mapa geral · consulta</button>
 </div>
 <div id="liraa-tab-plano" role="tabpanel">
 <div class="liraa-grid">
@@ -173,7 +181,30 @@
     <div id="liraa-mapa" class="liraa-map" aria-label="Mapa de quarteirões para composição de estratos"></div>
   </div>
 </section>
+<section class="liraa-panel" id="liraa-tab-geral" role="tabpanel" hidden>
+  <h2 id="mapa-geral-estratos">Mapa geral · consulta</h2>
+  <p class="liraa-muted">Todos os estratos do ciclo escolhido aparecem juntos, inclusive quando reúnem quarteirões de localidades diferentes. Cinza indica quarteirão sem estrato. Os números de imóveis do RG são apenas estimativas; o N confirmado é informado no cadastro do estrato. Esta aba é somente leitura.</p>
+  <div class="liraa-map-controls">
+    <label>Ciclo <select id="liraa-geral-ciclo"><option value="">Selecione</option>{% for c in dados.ciclos %}<option value="{{ c.id_ciclo }}">{{ c.ano }} — {{ c.nome }}</option>{% endfor %}</select></label>
+    <label>Buscar estrato ou localidade <input id="liraa-geral-busca" type="search" placeholder="Número ou localidade"></label>
+  </div>
+  <div class="liraa-map-layout">
+    <div class="liraa-map-side">
+      <div class="liraa-map-stats">
+        <div><strong id="liraa-geral-total">—</strong>estratos no ciclo</div>
+        <div><strong id="liraa-geral-atribuidos">—</strong>quarteirões atribuídos</div>
+        <div><strong id="liraa-geral-livres">—</strong>quarteirões sem estrato</div>
+        <div><strong id="liraa-geral-n">—</strong>imóveis N confirmados nos estratos</div>
+      </div>
+      <p class="liraa-muted">O N é a soma dos valores informados por estrato; não representa a contagem de imóveis dos quarteirões ainda sem estrato.</p>
+      <div id="liraa-geral-lista" class="liraa-geral-lista" aria-label="Estratos deste ciclo">Escolha um ciclo para conferir os estratos.</div>
+      <div id="liraa-geral-detalhe" class="liraa-geral-detalhe" aria-live="polite">Selecione um estrato na lista ou clique em um quarteirão no mapa.</div>
+      <p id="liraa-geral-status" class="liraa-status" role="status"></p>
+    </div>
+    <div id="liraa-geral-mapa" class="liraa-map" aria-label="Mapa geral dos estratos do ciclo, somente leitura"></div>
+  </div>
+</section>
 <script type="application/json" id="liraa-dados-json">{{ {'quarteiroes': dados.quarteiroes, 'ciclos': dados.ciclos}|tojson }}</script>
 {% endif %}
 {% endblock %}
-{% block extra_js %}<script src="/static/vendor/leaflet/leaflet.min.js"></script><script src="/static/js/liraa_estratos.js?v={{ APP_VERSION }}"></script>{% endblock %}
+{% block extra_js %}<script src="/static/vendor/leaflet/leaflet.min.js"></script><script src="/static/js/liraa_mapa_geral.js?v={{ APP_VERSION }}"></script><script src="/static/js/liraa_estratos.js?v={{ APP_VERSION }}"></script>{% endblock %}

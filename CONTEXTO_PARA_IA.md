@@ -12,7 +12,7 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao no servico oficial e na `master`: `1.62.0`, confirmada por HTTP 200 em `/login` apos integracao/reinicio em 01/10/2026. As migracoes PostgreSQL 0023 e 0024 do LIRAa estao aplicadas. A pagina `/liraa` tem a subaba Mapa dos estratos e permite compor estratos por quarteirao; o sorteio permanece experimental e nao gera `.lira`. Ver `docs/LIRAA_PLANEJAMENTO.md`.
+- Versao no servico oficial e na `master` em 01/10/2026: `1.62.0`, confirmada por HTTP 200 em `/login`. A branch `codex/liraa-mapa-geral` prepara `1.63.0` com Mapa geral de consulta dos estratos, ainda nao integrado nem reiniciado. As migracoes PostgreSQL 0023 e 0024 do LIRAa estao aplicadas. A pagina `/liraa` permite compor estratos por quarteirao; o sorteio permanece experimental e nao gera `.lira`. Ver `docs/LIRAA_PLANEJAMENTO.md`.
 - A subaba **Mapa geral - consulta** de Territorializacao > Microareas exibe todas as microareas e lados parciais simultaneamente, sem controles de edicao. Foi integrada com o commit `6b5945c`, sem migracao. A leitura direta no PostgreSQL retornou 101 microareas e 10 lados parciais; falta validacao visual autenticada pelo usuario. Ver `docs/ESTADO_ATUAL_PROJETO.md`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.

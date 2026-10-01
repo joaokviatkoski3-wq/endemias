@@ -199,6 +199,14 @@ class LiraaTests(unittest.TestCase):
         self.assertIn("Pontos Estratégicos", html)
         self.assertIn("Novo ciclo", html)
         self.assertIn("Mapa dos estratos", html)
+        self.assertIn("Mapa geral · consulta", html)
+        self.assertIn('id="liraa-geral-mapa"', html)
+        self.assertIn('id="liraa-geral-ciclo"', html)
+        self.assertIn('id="liraa-geral-detalhe"', html)
+        self.assertIn('liraa_mapa_geral.js', html)
+        geral = html.split('id="liraa-tab-geral"', 1)[1].split('id="liraa-dados-json"', 1)[0]
+        self.assertNotIn('<form', geral)
+        self.assertNotIn('Sortear ensaio', geral)
         self.assertIn("Selecionar localidade inteira", html)
         self.assertIn("liraa-dados-json", html)
         self.assertIn("Sorteio registrado", html)
@@ -227,7 +235,9 @@ class LiraaTests(unittest.TestCase):
             self.assertEqual(client.get("/liraa").status_code, 302)
             with client.session_transaction() as session:
                 session["uid"] = 1
-            self.assertEqual(client.get("/liraa").status_code, 200)
+            consulta = client.get("/liraa")
+            self.assertEqual(consulta.status_code, 200)
+            self.assertIn("Mapa geral · consulta", consulta.get_data(as_text=True))
             self.assertEqual(client.post("/liraa/ciclos", data={"ano": 2026, "nome": "1º"}).status_code, 403)
             conn = sqlite3.connect(self.db)
             conn.execute("UPDATE usuarios SET nivel='admin' WHERE id_usuario=1")
