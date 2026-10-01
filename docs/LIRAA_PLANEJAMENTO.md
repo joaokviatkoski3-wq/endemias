@@ -19,8 +19,9 @@ sorteio até revisão. A migração 0024 foi aplicada com autorização do usuá
 após backup validado; o serviço foi reiniciado. A interface autenticada ainda
 requer validação visual pelo operador.
 
-Em 01/10/2026, a branch `codex/liraa-mapa-geral` prepara a terceira subaba
-**Mapa geral · consulta** (versao 1.63.0 da branch, ainda nao implantada).
+Em 01/10/2026, a branch `codex/liraa-mapa-geral` foi integrada na `master`
+e o servico oficial reiniciado em `1.63.0`, disponibilizando a terceira subaba
+**Mapa geral · consulta**. A validacao visual autenticada continua pendente.
 A consulta mostra juntos todos os estratos do ciclo escolhido, em diferentes
 cores, incluindo todas as localidades; quarteiroes sem estrato ficam cinza.
 Lista, filtro e clique no mapa mostram N confirmado, referencia RG, localidades,

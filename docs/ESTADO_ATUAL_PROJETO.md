@@ -25,12 +25,16 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
-Em 01/10/2026, a branch `codex/liraa-mapa-geral` prepara a subaba
-**Mapa geral · consulta** do LIRAa (`1.63.0` no codigo da branch). Ela mostra
-todos os estratos de um ciclo sobre a mesma camada territorial, com cores,
-quarteiroes sem estrato em cinza, resumo e detalhes ao clicar. E somente
-leitura e nao exige migracao. A `master`/servico oficial seguem em `1.62.0`
-ate integracao e reinicio autorizados; nenhum ciclo ou sorteio real foi alterado.
+Em 01/10/2026, a branch `codex/liraa-mapa-geral` foi integrada na `master`
+(`f82fd6c`) e o servico oficial reiniciado em `1.63.0`. A subaba
+**Mapa geral · consulta** do LIRAa mostra todos os estratos de um ciclo
+sobre a mesma camada territorial, com cores, quarteiroes sem estrato em cinza,
+resumo e detalhes ao clicar. E somente leitura e nao exigiu migracao;
+nenhum ciclo ou sorteio real foi alterado. A suite isolada passou com 748
+testes Python (5 ignorados), alem dos testes JavaScript do LIRAa e do mapa
+de Microareas. `/login` respondeu HTTP 200 com `Endemias v1.63.0`, o novo
+JavaScript respondeu HTTP 200 e `/liraa` redirecionou visitantes sem sessao
+para login. A validacao visual autenticada continua pendente com o usuario.
 
 Em 01/10/2026, a branch `codex/microareas-consulta-geral` foi integrada na
 `master` (`6b5945c`) e o serviço oficial reiniciado na versão `1.62.0`.
