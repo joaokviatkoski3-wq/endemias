@@ -185,14 +185,67 @@ class LiraaTests(unittest.TestCase):
     def test_ciclo_pode_ser_corrigido_antes_e_congelado_depois(self):
         vazio = self.criar()
         liraa.atualizar_ciclo(self.db, vazio, {"ano": 2026, "nome": "2º LIRAa"})
-        liraa.excluir_ciclo_vazio(self.db, vazio)
+        liraa.excluir_ciclo(self.db, vazio)
         ciclo = self.criar()
         estrato = self.estrato(ciclo)
-        with self.assertRaisesRegex(liraa.LiraaError, "Remova primeiro"):
-            liraa.excluir_ciclo_vazio(self.db, ciclo)
         liraa.sortear(self.db, estrato, self.temp.name, seed=55)
         with self.assertRaisesRegex(liraa.LiraaError, "congelado"):
             liraa.atualizar_ciclo(self.db, ciclo, {"ano": 2026, "nome": "Alterado"})
+
+    def test_excluir_estrato_sorteado_remove_sorteio_e_libera_quarteiroes(self):
+        ciclo = self.criar()
+        primeiro = liraa.salvar_estrato(self.db, ciclo, {"numero": 1, "tipo": "reduzido",
+            "imoveis_confirmados": 4000, "quarteiroes": ["1:0001", "1:0002"]}, base_dir=self.temp.name)
+        segundo = liraa.salvar_estrato(self.db, ciclo, {"numero": 2, "tipo": "reduzido",
+            "imoveis_confirmados": 4000, "quarteiroes": ["2:0004"]}, base_dir=self.temp.name)
+        liraa.sortear(self.db, primeiro, self.temp.name, seed=1)
+        liraa.sortear(self.db, segundo, self.temp.name, seed=2)
+        detalhes = liraa.excluir_estrato(self.db, primeiro)
+        self.assertEqual(detalhes, {"id_ciclo": ciclo, "numero": 1, "sorteios_excluidos": 1})
+        conn = sqlite3.connect(self.db)
+        self.assertEqual(conn.execute("SELECT COUNT(*) FROM liraa_sorteios").fetchone()[0], 1)
+        self.assertEqual(conn.execute("SELECT COUNT(*) FROM liraa_estrato_quarteiroes WHERE id_estrato=?",
+                                      (primeiro,)).fetchone()[0], 0)
+        self.assertEqual(conn.execute("SELECT id_estrato FROM liraa_estratos").fetchone()[0], segundo)
+        conn.close()
+        novo = liraa.salvar_estrato(self.db, ciclo, {"numero": 1, "tipo": "reduzido",
+            "imoveis_confirmados": 4000, "quarteiroes": ["1:0001"]}, base_dir=self.temp.name)
+        self.assertNotEqual(novo, primeiro)
+
+    def test_excluir_ciclo_com_sorteios_preserva_outro_ciclo(self):
+        ciclo = self.criar()
+        primeiro = self.estrato(ciclo, (1,))
+        liraa.salvar_estrato(self.db, ciclo, {"numero": 2, "tipo": "reduzido",
+            "imoveis_confirmados": 4000, "localidades": [2]}, base_dir=self.temp.name)
+        liraa.sortear(self.db, primeiro, self.temp.name, seed=1)
+        outro = liraa.criar_ciclo(self.db, {"ano": 2027, "nome": "Outro ciclo"})
+        segundo = self.estrato(outro)
+        liraa.sortear(self.db, segundo, self.temp.name, seed=2)
+        detalhes = liraa.excluir_ciclo(self.db, ciclo)
+        self.assertEqual((detalhes["estratos_excluidos"], detalhes["sorteios_excluidos"]), (2, 1))
+        conn = sqlite3.connect(self.db)
+        self.assertEqual(conn.execute("SELECT id_ciclo FROM liraa_ciclos").fetchone()[0], outro)
+        self.assertEqual(conn.execute("SELECT id_estrato FROM liraa_sorteios").fetchone()[0], segundo)
+        self.assertEqual(conn.execute("SELECT COUNT(*) FROM liraa_estrato_quarteiroes").fetchone()[0], 5)
+        conn.close()
+        with self.assertRaisesRegex(liraa.LiraaError, "não encontrado"):
+            liraa.excluir_ciclo(self.db, ciclo)
+
+    def test_falha_de_auditoria_desfaz_exclusao_e_sorteio(self):
+        ciclo = self.criar()
+        estrato = self.estrato(ciclo)
+        liraa.sortear(self.db, estrato, self.temp.name, seed=1)
+        def falhar(_conn, _detalhes):
+            raise RuntimeError("falha simulada na auditoria")
+        with self.assertRaisesRegex(RuntimeError, "falha simulada"):
+            liraa.excluir_estrato(self.db, estrato, auditar=falhar)
+        with self.assertRaisesRegex(RuntimeError, "falha simulada"):
+            liraa.excluir_ciclo(self.db, ciclo, auditar=falhar)
+        conn = sqlite3.connect(self.db)
+        self.assertEqual(conn.execute("SELECT COUNT(*) FROM liraa_ciclos").fetchone()[0], 1)
+        self.assertEqual(conn.execute("SELECT COUNT(*) FROM liraa_estratos").fetchone()[0], 1)
+        self.assertEqual(conn.execute("SELECT COUNT(*) FROM liraa_sorteios").fetchone()[0], 1)
+        conn.close()
 
     def test_faixa_de_imoveis_e_formula_do_manual(self):
         universo = [{"id_localidade": 1, "quarteirao": str(i)} for i in range(1, 351)]
@@ -312,6 +365,8 @@ class LiraaTests(unittest.TestCase):
         self.assertIn("Selecionar localidade inteira", html)
         self.assertIn("liraa-dados-json", html)
         self.assertIn("Sorteio registrado", html)
+        self.assertIn("Excluir ciclo e seus 1 estratos", html)
+        self.assertIn("Excluir estrato e sorteio", html)
         self.assertRegex(html, r"Ver \d+ quarteir")
         self.assertIn("Início local", html)
         self.assertIn("Posição sorteada (1 a A)", html)
@@ -361,6 +416,39 @@ class LiraaTests(unittest.TestCase):
             response = client.post(f"/liraa/estratos/{estrato}/sortear", follow_redirects=True)
             self.assertEqual(response.status_code, 200)
             self.assertIn("Sorteio registrado", response.get_data(as_text=True))
+            sem_confirmacao = client.post(f"/liraa/estratos/{estrato}/excluir", follow_redirects=True)
+            self.assertIn("Confirme a exclusão", sem_confirmacao.get_data(as_text=True))
+            self.assertEqual(len(liraa.painel(self.db, self.temp.name)["ciclos"][0]["estratos"]), 1)
+            conn = sqlite3.connect(self.db)
+            conn.execute("UPDATE usuarios SET nivel='visualizador' WHERE id_usuario=1")
+            conn.commit()
+            conn.close()
+            self.assertEqual(client.post(f"/liraa/estratos/{estrato}/excluir",
+                                         data={"confirmar_exclusao": "sim"}).status_code, 403)
+            self.assertEqual(client.post(f"/liraa/ciclos/{ciclo}/excluir",
+                                         data={"confirmar_exclusao": "sim"}).status_code, 403)
+            conn = sqlite3.connect(self.db)
+            conn.execute("UPDATE usuarios SET nivel='admin' WHERE id_usuario=1")
+            conn.commit()
+            conn.close()
+            removido = client.post(f"/liraa/estratos/{estrato}/excluir",
+                                   data={"confirmar_exclusao": "sim"}, follow_redirects=True)
+            self.assertEqual(removido.status_code, 200)
+            self.assertEqual(liraa.painel(self.db, self.temp.name)["ciclos"][0]["estratos"], [])
+            conn = sqlite3.connect(self.db)
+            evento_estrato = conn.execute("SELECT detalhes_json FROM auditoria_eventos WHERE acao='liraa_estrato_excluido'").fetchone()
+            self.assertEqual(json.loads(evento_estrato[0])["sorteios_excluidos"], 1)
+            conn.close()
+            novo_estrato = self.estrato(ciclo)
+            liraa.sortear(self.db, novo_estrato, self.temp.name, seed=3)
+            apagado = client.post(f"/liraa/ciclos/{ciclo}/excluir",
+                                  data={"confirmar_exclusao": "sim"}, follow_redirects=True)
+            self.assertEqual(apagado.status_code, 200)
+            self.assertEqual(liraa.painel(self.db, self.temp.name)["ciclos"], [])
+            conn = sqlite3.connect(self.db)
+            evento = conn.execute("SELECT detalhes_json FROM auditoria_eventos WHERE acao='liraa_ciclo_excluido'").fetchone()
+            self.assertEqual(json.loads(evento[0])["sorteios_excluidos"], 1)
+            conn.close()
 
     def test_rota_recebe_selecao_por_quarteirao(self):
         conn = sqlite3.connect(self.db)

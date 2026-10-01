@@ -59,11 +59,12 @@ def page():
                            editando=editando, is_admin=(_usuario() or {}).get("nivel") == "admin")
 
 
-def _resposta(acao, func, entidade, detalhes):
+def _resposta(acao, func, entidade, detalhes, auditoria_embutida=False):
     try:
         identificador = func()
-        audit.registrar_evento(_get_db, acao, entidade=entidade,
-                               entidade_id=identificador, detalhes=detalhes)
+        if not auditoria_embutida:
+            audit.registrar_evento(_get_db, acao, entidade=entidade,
+                                   entidade_id=identificador, detalhes=detalhes)
         flash("Alteração salva com sucesso.", "success")
     except liraa_core.LiraaError as exc:
         flash(str(exc), "error")
@@ -96,10 +97,15 @@ def atualizar_ciclo(id_ciclo):
 @login_required
 @nivel_admin
 def excluir_ciclo(id_ciclo):
+    if request.form.get("confirmar_exclusao") != "sim":
+        flash("Confirme a exclusão do ciclo antes de continuar.", "error")
+        return redirect(url_for("liraa.page"))
     def excluir():
-        liraa_core.excluir_ciclo_vazio(_target(), id_ciclo)
+        liraa_core.excluir_ciclo(_target(), id_ciclo, auditar=lambda conn, detalhes:
+            audit.registrar_evento(_get_db, "liraa_ciclo_excluido", entidade="liraa_ciclo",
+                                   entidade_id=id_ciclo, detalhes=detalhes, conn=conn))
         return id_ciclo
-    return _resposta("liraa_ciclo_excluido", excluir, "liraa_ciclo", {})
+    return _resposta("liraa_ciclo_excluido", excluir, "liraa_ciclo", {}, auditoria_embutida=True)
 
 
 @bp.route("/liraa/ciclos/<int:id_ciclo>/estratos", methods=["POST"])
@@ -129,7 +135,12 @@ def sortear(id_estrato):
 @login_required
 @nivel_admin
 def excluir_estrato(id_estrato):
+    if request.form.get("confirmar_exclusao") != "sim":
+        flash("Confirme a exclusão do estrato antes de continuar.", "error")
+        return redirect(url_for("liraa.page"))
     def excluir():
-        liraa_core.excluir_estrato(_target(), id_estrato)
+        liraa_core.excluir_estrato(_target(), id_estrato, auditar=lambda conn, detalhes:
+            audit.registrar_evento(_get_db, "liraa_estrato_excluido", entidade="liraa_estrato",
+                                   entidade_id=id_estrato, detalhes=detalhes, conn=conn))
         return id_estrato
-    return _resposta("liraa_estrato_excluido", excluir, "liraa_estrato", {})
+    return _resposta("liraa_estrato_excluido", excluir, "liraa_estrato", {}, auditoria_embutida=True)

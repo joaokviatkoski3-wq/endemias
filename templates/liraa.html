@@ -107,8 +107,13 @@
           <label class="wide">Observações <textarea name="observacoes" maxlength="1000" rows="2">{{ c.observacoes }}</textarea></label>
           <button class="liraa-btn" type="submit">Salvar ciclo</button>
         </form>
-        {% if not c.estratos %}<form method="post" action="{{ url_for('liraa.excluir_ciclo', id_ciclo=c.id_ciclo) }}" onsubmit="return confirm('Excluir este ciclo vazio?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="liraa-btn danger" type="submit">Excluir ciclo vazio</button></form>{% endif %}
       </details>
+      {% endif %}
+      {% if is_admin %}
+      <form method="post" action="{{ url_for('liraa.excluir_ciclo', id_ciclo=c.id_ciclo) }}" onsubmit="return confirm('Excluir este ciclo e todos os seus estratos e sorteios? Esta ação não pode ser desfeita.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="liraa-btn danger" type="submit" name="confirmar_exclusao" value="sim">Excluir ciclo{% if c.estratos %} e seus {{ c.estratos|length }} estratos{% endif %}</button>
+      </form>
       {% endif %}
       {% for e in c.estratos %}
       <article class="liraa-stratum">
@@ -130,8 +135,13 @@
           <div class="liraa-actions">
             <a class="liraa-btn" href="{{ url_for('liraa.page', editar=e.id_estrato) }}#mapa-estratos">Editar no mapa</a>
             <form method="post" action="{{ url_for('liraa.sortear', id_estrato=e.id_estrato) }}" onsubmit="return confirm('Este sorteio é experimental, não oficial. O universo e os parâmetros ficarão congelados para auditoria. Continuar?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="liraa-btn primary" type="submit">Sortear ensaio</button></form>
-            <form method="post" action="{{ url_for('liraa.excluir_estrato', id_estrato=e.id_estrato) }}" onsubmit="return confirm('Excluir este estrato ainda não sorteado?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="liraa-btn danger" type="submit">Excluir rascunho</button></form>
           </div>
+        {% endif %}
+        {% if is_admin %}
+          <form method="post" action="{{ url_for('liraa.excluir_estrato', id_estrato=e.id_estrato) }}" onsubmit="return confirm('Excluir este estrato{% if e.sorteio %} e o sorteio registrado{% endif %}? Esta ação não pode ser desfeita.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="liraa-btn danger" type="submit" name="confirmar_exclusao" value="sim">Excluir estrato{% if e.sorteio %} e sorteio{% endif %}</button>
+          </form>
         {% endif %}
       </article>
       {% endfor %}

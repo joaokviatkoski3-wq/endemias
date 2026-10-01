@@ -43,8 +43,12 @@ nao ha migracao nem alteracao de dados reais.
   número `N` de imóveis, que deve ser confirmado e informado pelo operador.
 - O cadastro de estratos aceita a seleção de quarteirões individuais de uma
   ou mais localidades na subaba Mapa dos estratos. Um estrato pode ser editado
-  ou excluído antes do sorteio. Um ciclo pode ser corrigido antes do primeiro
-  sorteio e excluído se estiver vazio.
+  antes do sorteio; um ciclo pode ser corrigido antes do primeiro sorteio.
+  Administradores podem excluir um estrato mesmo após o sorteio, removendo
+  juntos seu sorteio e os vínculos territoriais. Também podem excluir um ciclo
+  com todos os estratos e sorteios vinculados. Os botões exigem confirmação,
+  e a exclusão com auditoria ocorre em uma única transação. Outros ciclos,
+  a camada de quarteirões e os registros do RG não são alterados.
 - Sorteio sistemático registrado uma única vez por estrato, com semente,
   parâmetros, universo completo, hash SHA-256 e quarteirões selecionados.
   Depois do sorteio o estrato fica congelado; atualização do GeoJSON ou RG

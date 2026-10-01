@@ -258,16 +258,29 @@ def atualizar_ciclo(target, id_ciclo, payload):
         conn.close()
 
 
-def excluir_ciclo_vazio(target, id_ciclo):
+def excluir_ciclo(target, id_ciclo, auditar=None):
+    """Exclui um ciclo e seus estratos/sorteios numa única transação."""
     conn = db_core.connect(target)
     try:
         _schema(conn)
-        if conn.execute("SELECT 1 FROM liraa_estratos WHERE id_ciclo=? LIMIT 1", (id_ciclo,)).fetchone():
-            raise LiraaError("Remova primeiro os estratos não sorteados deste ciclo.")
         with conn:
+            lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
+            ciclo = conn.execute("SELECT ano, nome FROM liraa_ciclos WHERE id_ciclo=?" + lock,
+                                 (id_ciclo,)).fetchone()
+            if ciclo is None:
+                raise LiraaError("Ciclo não encontrado.")
+            estratos = conn.execute("SELECT id_estrato FROM liraa_estratos WHERE id_ciclo=? ORDER BY id_estrato" + lock,
+                                    (id_ciclo,)).fetchall()
+            sorteios = conn.execute("""DELETE FROM liraa_sorteios WHERE id_estrato IN
+                (SELECT id_estrato FROM liraa_estratos WHERE id_ciclo=?)""", (id_ciclo,)).rowcount
             cursor = conn.execute("DELETE FROM liraa_ciclos WHERE id_ciclo=?", (id_ciclo,))
             if cursor.rowcount != 1:
                 raise LiraaError("Ciclo não encontrado.")
+            detalhes = {"ano": ciclo["ano"], "nome": ciclo["nome"],
+                        "estratos_excluidos": len(estratos), "sorteios_excluidos": sorteios}
+            if auditar:
+                auditar(conn, detalhes)
+            return detalhes
     finally:
         conn.close()
 
@@ -354,16 +367,25 @@ def salvar_estrato(target, id_ciclo, payload, id_estrato=None, base_dir=None):
         conn.close()
 
 
-def excluir_estrato(target, id_estrato):
+def excluir_estrato(target, id_estrato, auditar=None):
     conn = db_core.connect(target)
     try:
         _schema(conn)
-        if conn.execute("SELECT 1 FROM liraa_sorteios WHERE id_estrato=?", (id_estrato,)).fetchone():
-            raise LiraaError("Não é possível excluir um estrato já sorteado.")
         with conn:
+            lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
+            estrato = conn.execute("SELECT id_ciclo, numero FROM liraa_estratos WHERE id_estrato=?" + lock,
+                                   (id_estrato,)).fetchone()
+            if estrato is None:
+                raise LiraaError("Estrato não encontrado.")
+            sorteios = conn.execute("DELETE FROM liraa_sorteios WHERE id_estrato=?", (id_estrato,)).rowcount
             cursor = conn.execute("DELETE FROM liraa_estratos WHERE id_estrato=?", (id_estrato,))
             if cursor.rowcount != 1:
                 raise LiraaError("Estrato não encontrado.")
+            detalhes = {"id_ciclo": estrato["id_ciclo"], "numero": estrato["numero"],
+                        "sorteios_excluidos": sorteios}
+            if auditar:
+                auditar(conn, detalhes)
+            return detalhes
     finally:
         conn.close()
 

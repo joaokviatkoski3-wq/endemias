@@ -25,6 +25,14 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+Em 01/10/2026, foi integrada na `master` a versão de código `1.64.0`, com exclusão administrativa de ciclos LIRAa
+preenchidos e de estratos com sorteios. A operação remove os sorteios antes
+dos registros pais na mesma transação e registra contagens na auditoria.
+Nenhum ciclo, estrato ou sorteio real foi apagado nos testes; a disponibilização
+no serviço oficial depende de reinício, ainda não realizado. A regressão isolada
+passou com 757 testes (5 ignorados), e os 22 testes focados LIRAa passaram após
+a última revisão da rota de exclusão.
+
 Em 01/10/2026, a branch `codex/liraa-sorteio-homologacao` foi integrada na
 `master`, **sem reiniciar o serviço oficial**. Os parâmetros amostrais foram
 confrontados com cinco estratos do programa LIRAa/LIA; depois, as 12 listas
