@@ -1,6 +1,6 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 30/09/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 01/10/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
@@ -25,17 +25,21 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
-Em 30/09/2026, está preparada na branch `codex/microareas-consulta-geral`
-uma nova subaba **Mapa geral · consulta** em Territorialização → Microáreas.
-Ela carrega todos os quarteirões da camada ativa, destaca simultaneamente
+Em 01/10/2026, a branch `codex/microareas-consulta-geral` foi integrada na
+`master` (`6b5945c`) e o serviço oficial reiniciado na versão `1.62.0`.
+A nova subaba **Mapa geral · consulta** em Territorialização → Microáreas
+não exigiu migração. `/login` respondeu HTTP 200, a rota
+`/territorializacao` redirecionou visitantes sem sessão para login e o
+JavaScript atualizado respondeu HTTP 200. A leitura direta do relatório de
+Microáreas no PostgreSQL retornou 101 microáreas e 10 lados parciais.
+Os testes do código foram executados em SQLite isolado antes da integração:
+748 testes Python (5 ignorados) e testes JavaScript de mapa geral, desenho e
+cores passaram. A validação visual autenticada continua com o usuário.
+
+A subaba carrega todos os quarteirões da camada ativa, destaca simultaneamente
 todas as microáreas (inclusive os lados parciais) e permite conferir ACS,
 quarteirões, RG, população estimada e observações ao clicar, sem controles
-de edição. Usa as mesmas cores e APIs de leitura já existentes. Código
-`1.62.0`, sem migração; **ainda não integrado nem reiniciado no serviço
-oficial**, que permanece na versão 1.61.0. A validação visual autenticada
-da nova subaba ainda é pendente. Em ensaio isolado, a regressão Python
-passou com 748 testes (5 ignorados), e os testes JavaScript de mapa geral,
-desenho e cores passaram.
+de edição. Usa as mesmas cores e APIs de leitura já existentes.
 
 Em 30/09/2026, a branch `codex/liraa-estratos-mapa` foi integrada na
 `master` (`061853e`). A migração `0024_liraa_estrato_quarteiroes.sql` foi
