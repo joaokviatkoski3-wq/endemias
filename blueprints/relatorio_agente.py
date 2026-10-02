@@ -1,7 +1,10 @@
 import logging
+import re
+import unicodedata
 from datetime import datetime
+from io import BytesIO
 
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, render_template, request, send_file
 
 from app_core import auth as auth_core
 from app_core import db as db_core
@@ -9,6 +12,8 @@ from app_core import esporotricose as esporotricose_core
 from app_core import ovitrampas as ovitrampas_core
 from app_core import producao_operacional
 from app_core import registro_geografico as registro_geografico_core
+from app_core import relatorio_visitas_completo
+from app_core import relatorio_visitas_pdf
 from app_core import utils as utils_core
 from app_core import work_types
 
@@ -150,6 +155,21 @@ def _servidores_relatorio(d_ini=None, d_fim=None):
         servidores = ativos + inativos
         servidores.sort(key=lambda item: (item["nome_exibicao"], item["nome"]))
         return servidores
+    finally:
+        conn.close()
+
+
+def _todos_agentes_historico():
+    """Filtro do PDF inclui também inativos fora do período atual da página."""
+    conn = _get_db()
+    try:
+        rows = _rows_dict(conn.execute("""SELECT nome,
+            COALESCE(NULLIF(nome_completo,''), nome) AS nome_exibicao,
+            COALESCE(ativo,1) AS ativo FROM agentes ORDER BY nome""").fetchall())
+        for row in rows:
+            if not row["ativo"]:
+                row["nome_exibicao"] += " (inativo)"
+        return sorted(rows, key=lambda row: row["nome_exibicao"].casefold())
     finally:
         conn.close()
 
@@ -1422,6 +1442,7 @@ def page():
     d_ini = request.args.get("d_ini", utils_core.data_n_dias(30))
     d_fim = request.args.get("d_fim", utils_core.hoje())
     servidores = _servidores_relatorio(d_ini, d_fim)
+    agentes_historico = _todos_agentes_historico()
     agente_sel = request.args.get("agente", "")
     selecionado = next((item for item in servidores if item["nome"] == agente_sel), None)
     return render_template(
@@ -1429,6 +1450,7 @@ def page():
         agente_sel=agente_sel,
         agente_sel_nome=(selecionado or {}).get("nome_exibicao", agente_sel),
         servidores=servidores,
+        agentes_historico=agentes_historico,
         d_ini=d_ini,
         d_fim=d_fim,
     )
@@ -1448,6 +1470,28 @@ def pdf():
         logging.exception("Erro em relatorio_agente.pdf")
         return f"Erro ao gerar relatorio: {exc}", 500
     return render_template("relatorio_agente_pdf.html", **dados)
+
+
+@bp.route("/relatorio-agente/visitas/pdf")
+@login_required
+def pdf_visitas_completas():
+    try:
+        dados = relatorio_visitas_completo.coletar(
+            _db_target(), request.args.get("agente"), request.args.get("d_ini"),
+            request.args.get("d_fim"))
+        conteudo = relatorio_visitas_pdf.gerar(dados)
+    except relatorio_visitas_completo.FiltroInvalido as exc:
+        return str(exc), 400
+    except Exception:
+        logging.exception("Erro ao gerar histórico completo de visitas em PDF")
+        return "Não foi possível gerar o PDF de visitas. Consulte o log do sistema.", 500
+    nome_arquivo = re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize(
+        "NFKD", dados["agente"]).encode("ascii", "ignore").decode("ascii").lower()).strip("-")
+    resposta = send_file(BytesIO(conteudo), mimetype="application/pdf", as_attachment=True,
+                        download_name=f"historico-visitas-{nome_arquivo or 'agente'}-"
+                                      f"{dados['inicio']}-{dados['fim']}.pdf")
+    resposta.headers["Cache-Control"] = "private, no-store"
+    return resposta
 
 
 @bp.route("/relatorio-agente/setor/pdf")

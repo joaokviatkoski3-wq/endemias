@@ -111,6 +111,12 @@
   background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow);
 }
 .empty-agent .big-icon { font-size:60px; opacity:.3; margin-bottom:16px; }
+.visitas-pdf-panel { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:16px; }
+.visitas-pdf-panel h2 { font-size:16px; margin:0 0 5px; }
+.visitas-pdf-panel p { color:var(--text2); font-size:12px; margin:0 0 12px; }
+.visitas-pdf-form { display:flex; align-items:end; gap:10px; flex-wrap:wrap; }
+.visitas-pdf-form .f-g { min-width:150px; flex:1; }
+.visitas-pdf-form select,.visitas-pdf-form input { width:100%; }
 </style>{% endblock %}
 
 {% block content %}
@@ -163,6 +169,21 @@
       </div>
     </div>
 
+    <section class="visitas-pdf-panel" aria-labelledby="visitas-pdf-titulo">
+      <h2 id="visitas-pdf-titulo">Histórico completo das visitas - PDF</h2>
+      <p>Relatório separado dos resumos: todas as visitas de vetores e esporotricose vinculadas ao agente, com os detalhes registrados, coletas, laboratório e animais. Pode gerar muitas páginas em períodos longos.</p>
+      <form class="visitas-pdf-form" method="get" action="{{ url_for('relatorio_agente.pdf_visitas_completas') }}">
+        <div class="f-g"><label for="visitas-pdf-agente">Agente</label>
+          <select id="visitas-pdf-agente" name="agente" required>
+            <option value="">Selecione</option>
+            {% for a in agentes_historico %}<option value="{{ a.nome }}" {% if a.nome == agente_sel %}selected{% endif %}>{{ a.nome_exibicao }}</option>{% endfor %}
+          </select></div>
+        <div class="f-g"><label for="visitas-pdf-inicio">Data inicial</label><input id="visitas-pdf-inicio" name="d_ini" type="date" value="{{ d_ini }}" required></div>
+        <div class="f-g"><label for="visitas-pdf-fim">Data final</label><input id="visitas-pdf-fim" name="d_fim" type="date" value="{{ d_fim }}" required></div>
+        <button class="btn btn-primary" type="submit">Baixar histórico em PDF</button>
+      </form>
+    </section>
+
     <!-- Área de resultado -->
     <div id="ra-area">
       {% if agente_sel %}
@@ -183,6 +204,8 @@ let agenteAtual = '{{ agente_sel | e }}';
 
 function selecionarAgente(nome) {
   agenteAtual = nome;
+  const agentePdf = document.getElementById('visitas-pdf-agente');
+  if (agentePdf) agentePdf.value = nome;
   atualizarSelecaoVisual();
   buscar();
 }
@@ -213,6 +236,8 @@ function setPeriodo(dias) {
   ini.setDate(fim.getDate() - parseInt(dias));
   document.getElementById('ra_d_ini').value = ini.toISOString().split('T')[0];
   document.getElementById('ra_d_fim').value = fim.toISOString().split('T')[0];
+  document.getElementById('visitas-pdf-inicio').value = document.getElementById('ra_d_ini').value;
+  document.getElementById('visitas-pdf-fim').value = document.getElementById('ra_d_fim').value;
   buscar();
 }
 
@@ -220,6 +245,8 @@ async function buscar() {
   if(!agenteAtual) return;
   const d_ini = document.getElementById('ra_d_ini').value;
   const d_fim  = document.getElementById('ra_d_fim').value;
+  document.getElementById('visitas-pdf-inicio').value = d_ini;
+  document.getElementById('visitas-pdf-fim').value = d_fim;
   document.getElementById('ra-area').innerHTML = '<div class="loading-box"><div class="spinner"></div></div>';
   try {
     const d = await apiGet(`/api/relatorio-agente?agente=${encodeURIComponent(agenteAtual)}&d_ini=${d_ini}&d_fim=${d_fim}`);

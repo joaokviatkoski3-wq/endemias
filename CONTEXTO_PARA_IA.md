@@ -1,6 +1,6 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 01/10/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 02/10/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
@@ -12,8 +12,8 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao no servico oficial em 01/10/2026: `1.63.0`, confirmada por HTTP 200 em `/login` apos integrar `f82fd6c` e reiniciar. O codigo da `master` passa a `1.64.0`, com exclusao administrativa de ciclos preenchidos e estratos sorteados; **nao interpretar essa versao como servico reiniciado**. A pagina `/liraa` tem a subaba Mapa geral de consulta dos estratos por ciclo, sem edicao; a validacao visual autenticada ainda cabe ao usuario. As migracoes PostgreSQL 0023 e 0024 do LIRAa estao aplicadas. A pagina tambem permite compor estratos por quarteirao; o sorteio permanece experimental e nao gera `.lira`. Ver `docs/LIRAA_PLANEJAMENTO.md`.
-- A correcao do sorteio LIRAa por localidade foi integrada na `master` em 01/10/2026, mas o servico oficial nao foi reiniciado. Foram reproduzidas 241 posicoes das listas do programa legado; a conversao dessas posicoes para IDs municipais reais ainda exige conferencia operacional. O sorteio permanece de ensaio, sem alterar sorteios antigos. Ver `docs/LIRAA_PLANEJAMENTO.md`.
+- Versao no servico oficial em 02/10/2026: `1.64.0`, confirmada por HTTP 200 em `/login`. O codigo `1.65.0` prepara o PDF de historico completo de visitas de vetores e esporotricose por agente e periodo, sem migracao; nao supor que o servico foi reiniciado para essa versao. Ver `docs/RELATORIO_VISITAS_COMPLETO.md`. A pagina `/liraa` permite compor estratos por quarteirao e tem mapa geral de consulta; o sorteio permanece experimental e nao gera `.lira`. As migracoes PostgreSQL 0023 e 0024 do LIRAa estao aplicadas. Ver `docs/LIRAA_PLANEJAMENTO.md`.
+- A correcao do sorteio LIRAa por localidade foi integrada na `master` em 01/10/2026 e esta incluida no servico que respondeu `1.64.0` em 02/10/2026. Foram reproduzidas 241 posicoes das listas do programa legado; a conversao dessas posicoes para IDs municipais reais ainda exige conferencia operacional. O sorteio permanece de ensaio, sem alterar sorteios antigos. Ver `docs/LIRAA_PLANEJAMENTO.md`.
 - A subaba **Mapa geral - consulta** de Territorializacao > Microareas exibe todas as microareas e lados parciais simultaneamente, sem controles de edicao. Foi integrada com o commit `6b5945c`, sem migracao. A leitura direta no PostgreSQL retornou 101 microareas e 10 lados parciais; falta validacao visual autenticada pelo usuario. Ver `docs/ESTADO_ATUAL_PROJETO.md`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
 - Nao reverta alteracoes do usuario nem dados reais.

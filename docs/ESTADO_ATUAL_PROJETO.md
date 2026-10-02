@@ -1,6 +1,6 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 01/10/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 02/10/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
@@ -25,11 +25,21 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+Em 02/10/2026, o código `1.65.0` acrescenta à página **Relatório por Agente**
+um download separado do histórico completo de visitas de vetores e
+esporotricose por agente e intervalo de datas. O PDF real inclui registros
+individuais e detalhes associados, não apenas totais de produção. É leitura
+autenticada, sem migração nem escrita em banco. Requer `reportlab` no ambiente;
+foi instalado no Python local de serviço. O serviço oficial respondeu
+`Endemias v1.64.0` antes da integração/reinício desta versão. Ver
+`docs/RELATORIO_VISITAS_COMPLETO.md` para fontes, campos e validação.
+
 Em 01/10/2026, foi integrada na `master` a versão de código `1.64.0`, com exclusão administrativa de ciclos LIRAa
 preenchidos e de estratos com sorteios. A operação remove os sorteios antes
 dos registros pais na mesma transação e registra contagens na auditoria.
-Nenhum ciclo, estrato ou sorteio real foi apagado nos testes; a disponibilização
-no serviço oficial depende de reinício, ainda não realizado. A regressão isolada
+Nenhum ciclo, estrato ou sorteio real foi apagado nos testes. Em 02/10/2026,
+`/login` respondeu `Endemias v1.64.0`; a versão está carregada no serviço.
+A regressão isolada
 passou com 757 testes (5 ignorados), e os 22 testes focados LIRAa passaram após
 a última revisão da rota de exclusão.
 
