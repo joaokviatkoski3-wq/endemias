@@ -200,10 +200,6 @@ def gerar(dados):
               f"{_data(dados['fim'])} | Vetores: {dados['totais']['vetores']} | "
               f"Esporotricose: {dados['totais']['esporotricose']} | Total: {len(dados['visitas'])}")
     historia.append(Paragraph(escape(resumo), estilos["HistoricoResumo"]))
-    historia.append(Paragraph("Todas as visitas do agente no período. Cada visita ocupa até cinco "
-        "linhas; textos longos são abreviados com reticências. Identificadores técnicos e "
-        "metadados de importação não são exibidos.", estilos["HistoricoResumo"]))
-
     if not dados["visitas"]:
         historia.append(Paragraph("Nenhuma visita encontrada para estes filtros.",
                                   estilos["HistoricoResumo"]))

@@ -96,7 +96,8 @@ class HistoricoVisitasPdfTests(unittest.TestCase):
             self.assertIn(esperado, texto)
         for proibido in ("uuid-vet-1", "uuid-esp-1", "FOCO-666", "777777", "888888",
                          "2099-01-01", "2099-02-02", "2099-12-31", "2099-12-30",
-                         "processado em", "id localidade", "Kobo ID", "Identificador da visita"):
+                         "processado em", "id localidade", "Kobo ID", "Identificador da visita",
+                         "Todas as visitas do agente no período", "textos longos são abreviados"):
             self.assertNotIn(proibido, texto)
 
     def test_texto_longo_e_multiplas_paginas_mantem_cinco_linhas(self):
