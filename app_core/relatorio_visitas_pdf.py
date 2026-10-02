@@ -1,117 +1,252 @@
-"""PDF de histórico individual de visitas, com todos os campos preenchidos."""
+"""PDF compacto do histórico de visitas: até cinco linhas por visita."""
 
-from datetime import datetime
+from datetime import date, datetime
 from io import BytesIO
 from xml.sax.saxutils import escape
 
 
-ROTULOS = {
-    "id_visita": "Identificador da visita", "kobo_uuid": "Kobo UUID",
-    "kobo_id": "Kobo ID", "data": "Data", "hora_inicio": "Horário inicial",
-    "hora_fim": "Horário final", "tipo": "Tipo de trabalho", "visita": "Resultado da visita",
-    "localidade": "Localidade", "localidade_nome": "Localidade oficial",
-    "quarteirao": "Quarteirão", "logradouro": "Logradouro", "numero": "Número",
-    "tipo_imovel": "Tipo de imóvel", "morador": "Morador", "telefone": "Telefone",
-    "agentes": "Agentes", "acs": "ACS acompanhantes", "acs_codigos": "Códigos ACS",
-    "observacoes": "Observações", "num_tubo": "Número do tubo",
-    "id_coleta": "Identificador da coleta", "id_resultado": "Identificador do resultado",
-    "codigo_deposito": "Código do depósito", "tipo_deposito": "Tipo de depósito",
-    "deposito_eliminado": "Depósito eliminado", "id_animal": "Identificador do animal",
-    "especie": "Espécie", "nome": "Nome", "raca": "Raça",
-    "feridas": "Feridas", "regiao_ferida": "Região da ferida",
-    "data_leitura": "Data da leitura", "laboratorista": "Laboratorista",
-}
+def _valor(valor):
+    if valor is None:
+        return ""
+    return " ".join("".join(c if ord(c) >= 32 else " " for c in str(valor)).split())
 
 
-def _texto(valor):
-    return "".join(c if c in "\n\t" or ord(c) >= 32 else " " for c in str(valor)).strip()
+def _data(valor):
+    bruto = _valor(valor)
+    try:
+        return date.fromisoformat(bruto[:10]).strftime("%d/%m/%Y")
+    except ValueError:
+        return bruto
 
 
-def _campos(registro):
-    for chave, valor in registro.items():
-        if valor is None or valor == "":
-            continue
-        yield ROTULOS.get(chave, chave.replace("_", " ").capitalize()), _texto(valor)
+def _secoes(item):
+    return {secao["titulo"]: secao["registros"] for secao in item["secoes"]}
+
+
+def _depositos(registros):
+    if not registros:
+        return ""
+    totais = []
+    for campo, abreviacao in (("inspecionado", "insp."), ("eliminado", "elim."),
+                              ("tratado", "trat.")):
+        valores = [r[campo] for r in registros if r.get(campo) is not None]
+        if valores:
+            totais.append(f"{sum(valores):g} {abreviacao}")
+    tipos = ", ".join(_valor(r.get("tipo_deposito")) for r in registros
+                      if _valor(r.get("tipo_deposito")))
+    return "Depósitos: " + ", ".join(totais) + (f" ({tipos})" if tipos else "")
+
+
+def _tratamentos(registros):
+    if not registros:
+        return ""
+    partes = []
+    for registro in registros:
+        tipo = _valor(registro.get("tipo")) or "sem tipo"
+        carga = registro.get("quantidade_carga")
+        quantidade = registro.get("qtd_depositos_tratados")
+        if carga is not None:
+            tipo += f" {carga:g} carga(s)"
+        if quantidade is not None:
+            tipo += f" {quantidade:g} dep."
+        partes.append(tipo)
+    return "Tratamentos: " + "; ".join(partes)
+
+
+def _coletas(registros):
+    if not registros:
+        return ""
+    tubos = ", ".join(_valor(r.get("num_tubo")) for r in registros
+                     if _valor(r.get("num_tubo")))
+    return f"Coletas: {len(registros)}" + (f"; tubos {tubos}" if tubos else "")
+
+
+def _laboratorio(registros, existem_coletas):
+    if not registros:
+        return "Lab: pendente" if existem_coletas else ""
+    formas = []
+    for prefixo, especie in (("aegypt", "Ae. aegypti"),
+                             ("albopictus", "Ae. albopictus"), ("outra", "Outras")):
+        for sufixo, nome in (("larvas", "larvas"), ("pupas", "pupas"),
+                             ("exuvias", "exúvias"), ("adulto", "adultos")):
+            total = sum(r.get(f"{prefixo}_{sufixo}") or 0 for r in registros)
+            if total:
+                formas.append(f"{especie} {total} {nome}")
+    return f"Lab: {len(registros)} leitura(s)" + ("; " + "; ".join(formas) if formas else "; sem formas")
+
+
+def _focos(registros):
+    if not registros:
+        return ""
+    situacoes = sorted({_valor(r.get("status_notificacao")) for r in registros
+                        if _valor(r.get("status_notificacao"))})
+    return f"Focos positivos: {len(registros)}" + (
+        "; notificação " + ", ".join(situacoes) if situacoes else "")
+
+
+def _animais(registros):
+    if not registros:
+        return ""
+    partes = []
+    for animal in registros:
+        nome = _valor(animal.get("nome")) or "sem nome"
+        detalhes = [_valor(animal.get("especie") or animal.get("outro_animal"))]
+        for campo, rotulo in (("feridas", "feridas"), ("regiao_ferida", "região"),
+                              ("atendimento_veterinario", "atend. vet."),
+                              ("evolucao_caso", "evolução")):
+            valor = _valor(animal.get(campo))
+            if valor:
+                detalhes.append(f"{rotulo}: {valor}")
+        partes.append(nome + (" (" + "; ".join(d for d in detalhes if d) + ")"
+                               if any(detalhes) else ""))
+    return f"Animais ({len(registros)}): " + ", ".join(partes)
+
+
+def _linhas_visita(item, numero):
+    """Cada elemento é uma linha física da tabela, sem campos técnicos/IDs."""
+    visita = item["visita"]
+    secoes = _secoes(item)
+    periodo = _data(visita.get("data"))
+    horas = [_valor(visita.get(chave)) for chave in ("hora_inicio", "hora_fim")]
+    if horas[0]:
+        periodo += " " + horas[0] + ("-" + horas[1] if horas[1] else "")
+    tipo = " / ".join(parte for parte in (item["origem"], _valor(visita.get("tipo")),
+                                       _valor(visita.get("visita"))) if parte)
+    local = _valor(visita.get("localidade"))
+    quarteirao = _valor(visita.get("quarteirao"))
+    if quarteirao:
+        local += f" / Q. {quarteirao}"
+    endereco = ", ".join(parte for parte in (_valor(visita.get("logradouro")),
+                                            _valor(visita.get("numero"))) if parte)
+    linhas = [[f"{numero}. {periodo}", tipo, local or "Localidade não informada",
+               endereco or "Endereço não informado"]]
+
+    morador = _valor(visita.get("morador"))
+    telefone = _valor(visita.get("telefone"))
+    pessoa = "; ".join(parte for parte in ((f"Morador: {morador}" if morador else ""),
+                                          (f"Tel.: {telefone}" if telefone else "")) if parte)
+    imovel = "; ".join(parte for parte in (
+        (f"Imóvel: {_valor(visita.get('tipo_imovel'))}" if visita.get("tipo_imovel") else ""),
+        (f"Lado: {_valor(visita.get('lado'))}" if visita.get("lado") else ""),
+        (f"Ciclo: {_valor(visita.get('ciclo'))}" if visita.get("ciclo") is not None else ""),
+        (f"Água Sanepar: {'sim' if visita['agua_sanepar'] else 'não'}"
+         if visita.get("agua_sanepar") is not None else "")) if parte)
+    agentes = _valor(visita.get("agentes"))
+    acs = _valor(visita.get("acs"))
+    linhas.append([pessoa, imovel, f"Agentes: {agentes}" if agentes else "",
+                   f"ACS: {acs}" if acs else ""])
+
+    if item["origem"] == "Vetores":
+        depositos = secoes.get("Depósitos inspecionados", [])
+        tratamentos = secoes.get("Tratamentos", [])
+        coletas = secoes.get("Coletas", [])
+        resultados = secoes.get("Resultados laboratoriais", [])
+        atividades = [_depositos(depositos), _tratamentos(tratamentos),
+                      _coletas(coletas), _laboratorio(resultados, bool(coletas))]
+        if any(atividades):
+            linhas.append(atividades)
+        focos = _focos(secoes.get("Focos positivos e notificações", []))
+        if focos:
+            linhas.append([focos, "", "", ""])
+    else:
+        animais = _animais(secoes.get("Animais registrados na visita", []))
+        if animais:
+            linhas.append([animais, "", "", ""])
+
+    observacoes = _valor(visita.get("observacoes"))
+    if observacoes:
+        linhas.append([f"Observações: {observacoes}", "", "", ""])
+    return linhas
+
+
+def _limitar(texto, largura, fonte, tamanho):
+    from reportlab.pdfbase import pdfmetrics
+
+    texto = _valor(texto)
+    if pdfmetrics.stringWidth(texto, fonte, tamanho) <= largura:
+        return texto
+    reticencias = "..."
+    minimo, maximo = 0, len(texto)
+    while minimo < maximo:
+        meio = (minimo + maximo + 1) // 2
+        if pdfmetrics.stringWidth(texto[:meio] + reticencias, fonte, tamanho) <= largura:
+            minimo = meio
+        else:
+            maximo = meio - 1
+    return texto[:minimo].rstrip() + reticencias
 
 
 def gerar(dados):
-    """Gera PDF em memória; não cria arquivos nem escreve no banco."""
+    """Gera PDF paisagem, em memória, com até cinco linhas por visita."""
     from reportlab.lib import colors
-    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import mm
-    from reportlab.platypus import HRFlowable, KeepTogether, Paragraph, SimpleDocTemplate, Spacer
+    from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     buffer = BytesIO()
+    largura, altura = landscape(A4)
+    margem = 12 * mm
+    largura_util = largura - 2 * margem
+    colunas = [180, 160, 175, largura_util - 515]
+    fonte, tamanho = "Helvetica", 7.2
     estilos = getSampleStyleSheet()
     estilos.add(ParagraphStyle(name="HistoricoTitulo", parent=estilos["Heading1"],
-        fontName="Helvetica-Bold", fontSize=14, leading=17, spaceAfter=8))
+        fontName="Helvetica-Bold", fontSize=13, leading=16, spaceAfter=6))
     estilos.add(ParagraphStyle(name="HistoricoResumo", parent=estilos["Normal"],
-        fontName="Helvetica", fontSize=9, leading=12, spaceAfter=4))
-    estilos.add(ParagraphStyle(name="HistoricoVisita", parent=estilos["Heading2"],
-        fontName="Helvetica-Bold", fontSize=10, leading=13, spaceBefore=12,
-        spaceAfter=4, keepWithNext=True))
-    estilos.add(ParagraphStyle(name="HistoricoSecao", parent=estilos["Heading3"],
-        fontName="Helvetica-Bold", fontSize=8.5, leading=11, spaceBefore=6,
-        spaceAfter=3, keepWithNext=True))
-    estilos.add(ParagraphStyle(name="HistoricoCampo", parent=estilos["Normal"],
-        fontName="Helvetica", fontSize=8, leading=10, spaceAfter=2,
-        wordWrap="CJK"))
-
-    historia = [Paragraph("Histórico completo de visitas", estilos["HistoricoTitulo"])]
-    resumo = (f"Agente: {dados['agente_exibicao']} | Período: {dados['inicio']} a {dados['fim']} | "
-              f"Vetores: {dados['totais']['vetores']} | "
-              f"Esporotricose: {dados['totais']['esporotricose']} | "
-              f"Total: {len(dados['visitas'])}")
+        fontName="Helvetica", fontSize=8, leading=10, spaceAfter=4))
+    historia = [Paragraph("Histórico de visitas - resumo", estilos["HistoricoTitulo"])]
+    resumo = (f"Agente: {dados['agente_exibicao']} | Período: {_data(dados['inicio'])} a "
+              f"{_data(dados['fim'])} | Vetores: {dados['totais']['vetores']} | "
+              f"Esporotricose: {dados['totais']['esporotricose']} | Total: {len(dados['visitas'])}")
     historia.append(Paragraph(escape(resumo), estilos["HistoricoResumo"]))
-    historia.append(Paragraph("Inclui todas as visitas vinculadas ao agente no período. "
-        "Campos sem preenchimento não são impressos; campos com valor zero são mantidos. "
-        "As visitas com mais de um agente aparecem no relatório de cada participante.",
-        estilos["HistoricoResumo"]))
-    historia.append(HRFlowable(width="100%", thickness=.6, color=colors.grey))
+    historia.append(Paragraph("Todas as visitas do agente no período. Cada visita ocupa até cinco "
+        "linhas; textos longos são abreviados com reticências. Identificadores técnicos e "
+        "metadados de importação não são exibidos.", estilos["HistoricoResumo"]))
 
     if not dados["visitas"]:
-        historia.append(Spacer(1, 12))
         historia.append(Paragraph("Nenhuma visita encontrada para estes filtros.",
                                   estilos["HistoricoResumo"]))
     for numero, item in enumerate(dados["visitas"], 1):
-        visita = item["visita"]
-        titulo = (f"{numero}. {item['origem']} - {visita.get('data') or 'sem data'} "
-                  f"{visita.get('hora_inicio') or ''} - "
-                  f"{visita.get('logradouro') or 'endereço não informado'}, "
-                  f"{visita.get('numero') or 's/n'}")
-        historia.append(Paragraph(escape(_texto(titulo)), estilos["HistoricoVisita"]))
-        for rotulo, valor in _campos(visita):
-            historia.append(Paragraph(f"<b>{escape(rotulo)}:</b> "
-                f"{escape(valor).replace(chr(10), '<br/>')}", estilos["HistoricoCampo"]))
-        for secao in item["secoes"]:
-            for indice, registro in enumerate(secao["registros"], 1):
-                bloco = []
-                if indice == 1:
-                    bloco.append(Paragraph(f"{escape(secao['titulo'])} "
-                        f"({len(secao['registros'])})", estilos["HistoricoSecao"]))
-                bloco.append(Paragraph(f"Registro {indice}", estilos["HistoricoCampo"]))
-                for rotulo, valor in _campos(registro):
-                    bloco.append(Paragraph(f"<b>{escape(rotulo)}:</b> "
-                        f"{escape(valor).replace(chr(10), '<br/>')}", estilos["HistoricoCampo"]))
-                historia.append(KeepTogether(bloco))
-        historia.append(Spacer(1, 6))
-        historia.append(HRFlowable(width="100%", thickness=.4, color=colors.lightgrey))
+        linhas = _linhas_visita(item, numero)
+        if len(linhas) > 5:
+            raise ValueError("O resumo excedeu cinco linhas por visita.")
+        celulas = []
+        estilos_tabela = [
+            ("FONTNAME", (0, 0), (-1, -1), fonte),
+            ("FONTSIZE", (0, 0), (-1, -1), tamanho),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8eff8")),
+            ("LINEBELOW", (0, -1), (-1, -1), .4, colors.HexColor("#b9c8d9")),
+        ]
+        for indice, linha in enumerate(linhas):
+            linha_longa = indice >= 2 and linha[1:] == ["", "", ""]
+            if linha_longa:
+                celulas.append([_limitar(linha[0], largura_util - 8, fonte, tamanho), "", "", ""])
+                estilos_tabela.append(("SPAN", (0, indice), (3, indice)))
+            else:
+                celulas.append([_limitar(valor, largura - 8, fonte, tamanho)
+                                for valor, largura in zip(linha, colunas)])
+        tabela = Table(celulas, colWidths=colunas, rowHeights=[15] * len(celulas),
+                       splitByRow=0, hAlign="LEFT")
+        tabela.setStyle(TableStyle(estilos_tabela))
+        historia.append(KeepTogether([tabela, Spacer(1, 5)]))
 
     gerado_em = datetime.now().strftime("%d/%m/%Y %H:%M")
     def rodape(canvas, documento):
         canvas.saveState()
         canvas.setFont("Helvetica", 7)
-        if documento.page > 1:
-            canvas.drawString(15 * mm, 287 * mm,
-                f"Histórico de visitas - {dados['agente_exibicao']} - continuação")
-        canvas.drawString(15 * mm, 12 * mm, f"Endemias | Gerado em {gerado_em}")
-        canvas.drawRightString(195 * mm, 12 * mm, f"Página {documento.page}")
+        canvas.drawString(margem, 10 * mm, f"Endemias | Gerado em {gerado_em}")
+        canvas.drawRightString(largura - margem, 10 * mm, f"Página {documento.page}")
         canvas.restoreState()
 
-    pdf = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=15 * mm,
-                            rightMargin=15 * mm, topMargin=17 * mm,
-                            bottomMargin=18 * mm, title="Histórico completo de visitas",
+    pdf = SimpleDocTemplate(buffer, pagesize=(largura, altura), leftMargin=margem,
+                            rightMargin=margem, topMargin=12 * mm,
+                            bottomMargin=15 * mm, title="Histórico de visitas - resumo",
                             author="Sistema Endemias")
     pdf.build(historia, onFirstPage=rodape, onLaterPages=rodape)
     return buffer.getvalue()

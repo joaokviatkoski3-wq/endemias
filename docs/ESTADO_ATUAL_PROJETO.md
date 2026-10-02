@@ -25,13 +25,15 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
-Em 02/10/2026, o código `1.65.0` acrescenta à página **Relatório por Agente**
-um download separado do histórico completo de visitas de vetores e
-esporotricose por agente e intervalo de datas. O PDF real inclui registros
-individuais e detalhes associados, não apenas totais de produção. É leitura
+Em 02/10/2026, o código `1.65.1` apresenta na página **Relatório por Agente**
+um download separado do histórico de visitas de vetores e esporotricose por
+agente e intervalo de datas. Cada visita ocupa até cinco linhas em A4 paisagem,
+com resumo dos depósitos e sem identificadores/metadados técnicos. O conjunto
+de visitas continua completo; textos longos são abreviados. É leitura
 autenticada, sem migração nem escrita em banco. Requer `reportlab` no ambiente;
 foi instalado no Python local de serviço. O serviço oficial respondeu
-`Endemias v1.64.0` antes da integração/reinício desta versão. Ver
+`Endemias v1.65.0` em 02/10/2026 antes da integração/reinício do formato
+compacto. Ver
 `docs/RELATORIO_VISITAS_COMPLETO.md` para fontes, campos e validação.
 
 Em 01/10/2026, foi integrada na `master` a versão de código `1.64.0`, com exclusão administrativa de ciclos LIRAa

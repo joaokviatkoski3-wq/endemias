@@ -35,6 +35,9 @@ class HistoricoVisitasPdfTests(unittest.TestCase):
                 'Rua dos Salgueiros','51','José da Silva','Normal','Observação completa','2026-09-15')""")
         conn.executemany("INSERT INTO visita_agentes VALUES ('vet-1',?)", [(1,), (2,)])
         conn.execute("INSERT INTO visita_acs VALUES ('vet-1','ACS-006')")
+        conn.execute("""UPDATE visitas SET kobo_id=777777,
+            submission_time='2099-01-01T11:22:33', processado_em='2099-12-31'
+            WHERE id_visita='vet-1'""")
         conn.execute("""INSERT INTO depositos_inspecionados
             (id_visita,tipo_deposito,inspecionado,eliminado,tratado) VALUES ('vet-1','A1',3,1,0)""")
         conn.execute("INSERT INTO tratamentos (id_visita,tipo,quantidade_carga) VALUES ('vet-1','Larvicida',2)")
@@ -49,6 +52,9 @@ class HistoricoVisitasPdfTests(unittest.TestCase):
                 'Rua do Gato','20','Maria','41999999999','Normal','Acompanhamento','2026-09-16')""")
         conn.execute("INSERT INTO esporotricose_visita_agentes VALUES ('esp-1',1)")
         conn.execute("INSERT INTO esporotricose_visita_acs VALUES ('esp-1','ACS-006')")
+        conn.execute("""UPDATE esporotricose_visitas SET kobo_id=888888,
+            submission_time='2099-02-02T11:22:33', processado_em='2099-12-30'
+            WHERE id_visita='esp-1'""")
         conn.execute("""INSERT INTO esporotricose_animais
             (id_animal,id_visita,nome,especie,feridas,processado_em)
             VALUES ('animal-1','esp-1','Mingau','Gato','Sim','2026-09-16')""")
@@ -74,16 +80,37 @@ class HistoricoVisitasPdfTests(unittest.TestCase):
         self.assertEqual(esporo["visita"]["acs"], "Maria ACS")
         self.assertEqual(esporo["secoes"][0]["registros"][0]["nome"], "Mingau")
 
-    def test_pdf_real_com_todos_os_detalhes_e_periodo(self):
+    def test_pdf_compacto_com_dados_de_campo_sem_ids_tecnicos(self):
         dados = historico.coletar(self.db, "João", "2026-09-14", "2026-09-15")
+        self.assertTrue(all(len(relatorio_visitas_pdf._linhas_visita(item, i)) <= 5
+                            for i, item in enumerate(dados["visitas"], 1)))
+        self.assertIn("3 insp.", str(relatorio_visitas_pdf._linhas_visita(dados["visitas"][0], 1)))
         conteudo = relatorio_visitas_pdf.gerar(dados)
         self.assertTrue(conteudo.startswith(b"%PDF-"))
         with fitz.open(stream=conteudo, filetype="pdf") as pdf:
             texto = "\n".join(pagina.get_text() for pagina in pdf)
-        for esperado in ("João Silva", "Rua dos Salgueiros", "José da Silva", "666", "FOCO-666",
-                         "Resultados laboratoriais", "Mingau", "Maria ACS", "Esporotricose"):
+            self.assertGreater(pdf[0].rect.width, pdf[0].rect.height)
+        for esperado in ("João Silva", "Rua dos Salgueiros", "José da Silva", "666",
+                         "3 insp.", "Ae. aegypti 7 larvas", "Focos positivos: 1",
+                         "Mingau", "Maria ACS", "Esporotricose"):
             self.assertIn(esperado, texto)
-        self.assertNotIn("uuid-fora", texto)
+        for proibido in ("uuid-vet-1", "uuid-esp-1", "FOCO-666", "777777", "888888",
+                         "2099-01-01", "2099-02-02", "2099-12-31", "2099-12-30",
+                         "processado em", "id localidade", "Kobo ID", "Identificador da visita"):
+            self.assertNotIn(proibido, texto)
+
+    def test_texto_longo_e_multiplas_paginas_mantem_cinco_linhas(self):
+        dados = historico.coletar(self.db, "João", "2026-09-14", "2026-09-15")
+        dados["visitas"][0]["visita"]["observacoes"] = "Observação longa " * 100
+        dados["visitas"] = dados["visitas"] * 25
+        for numero, item in enumerate(dados["visitas"], 1):
+            self.assertLessEqual(len(relatorio_visitas_pdf._linhas_visita(item, numero)), 5)
+        with fitz.open(stream=relatorio_visitas_pdf.gerar(dados), filetype="pdf") as pdf:
+            self.assertGreater(len(pdf), 1)
+            texto = "\n".join(pagina.get_text() for pagina in pdf)
+            self.assertIn("Observações: Observação longa", texto)
+            self.assertIn("...", texto)
+            self.assertNotIn("Observação longa " * 100, texto)
 
     def test_rota_autenticada_valida_datas_e_entrega_pdf(self):
         app = Flask(__name__, template_folder=str(Path(__file__).resolve().parents[1] / "templates"))
@@ -102,7 +129,7 @@ class HistoricoVisitasPdfTests(unittest.TestCase):
                 sessao["uid"] = 1
             pagina = client.get("/relatorio-agente?d_ini=2026-09-14&d_fim=2026-09-15")
             self.assertEqual(pagina.status_code, 200)
-            self.assertIn("Histórico completo das visitas - PDF", pagina.get_data(as_text=True))
+            self.assertIn("Histórico das visitas - PDF compacto", pagina.get_data(as_text=True))
             self.assertIn("Pedro Antigo (inativo)", pagina.get_data(as_text=True))
             url = "/relatorio-agente/visitas/pdf?agente=Jo%C3%A3o&d_ini=2026-09-14&d_fim=2026-09-15"
             resposta = client.get(url)

@@ -170,8 +170,8 @@
     </div>
 
     <section class="visitas-pdf-panel" aria-labelledby="visitas-pdf-titulo">
-      <h2 id="visitas-pdf-titulo">Histórico completo das visitas - PDF</h2>
-      <p>Relatório separado dos resumos: todas as visitas de vetores e esporotricose vinculadas ao agente, com os detalhes registrados, coletas, laboratório e animais. Pode gerar muitas páginas em períodos longos.</p>
+      <h2 id="visitas-pdf-titulo">Histórico das visitas - PDF compacto</h2>
+      <p>Todas as visitas de vetores e esporotricose do agente, em até cinco linhas por visita. Inclui dados de campo, coletas, laboratório e animais quando houver; textos longos são abreviados.</p>
       <form class="visitas-pdf-form" method="get" action="{{ url_for('relatorio_agente.pdf_visitas_completas') }}">
         <div class="f-g"><label for="visitas-pdf-agente">Agente</label>
           <select id="visitas-pdf-agente" name="agente" required>
@@ -180,7 +180,7 @@
           </select></div>
         <div class="f-g"><label for="visitas-pdf-inicio">Data inicial</label><input id="visitas-pdf-inicio" name="d_ini" type="date" value="{{ d_ini }}" required></div>
         <div class="f-g"><label for="visitas-pdf-fim">Data final</label><input id="visitas-pdf-fim" name="d_fim" type="date" value="{{ d_fim }}" required></div>
-        <button class="btn btn-primary" type="submit">Baixar histórico em PDF</button>
+        <button class="btn btn-primary" type="submit">Baixar PDF compacto</button>
       </form>
     </section>
 
