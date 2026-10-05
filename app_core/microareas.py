@@ -12,6 +12,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from app_core import db as db_core
 from app_core import registro_geografico as rg_core
 from app_core import microareas_partes as partes_core
+from app_core import microareas_cores_kml
 from app_core.excel import excel_safe
 
 
@@ -531,10 +532,14 @@ def exportar_geojson(target, base_dir=None, ids=None):
 
 def exportar_kml(target, base_dir=None, ids=None):
     geometrias = _geometrias(target, base_dir)
+    registros = listar(target, base_dir)["registros"]
+    cores = microareas_cores_kml.atribuir(registros, geometrias)
     root = ET.Element("kml", xmlns="http://www.opengis.net/kml/2.2")
     document = ET.SubElement(root, "Document")
     ET.SubElement(document, "name").text = "Microáreas ACS"
-    for r in _selecionadas(target, base_dir, ids):
+    for r in registros:
+        if ids is not None and r["id_microarea"] not in ids:
+            continue
         presentes = [(q, geometrias[(r["id_localidade"], q)]) for q in r["quarteiroes"]
                      if (r["id_localidade"], q) in geometrias]
         for p in r["partes"]:
@@ -549,6 +554,15 @@ def exportar_kml(target, base_dir=None, ids=None):
         ET.SubElement(placemark, "name").text = f"{r['localidade']} · Microárea {r['numero']}"
         partes_desc = "; ".join(f"Q. {p['quarteirao']} · {p['logradouro']} · lado {p['lado']}" for p in r["partes"])
         ET.SubElement(placemark, "description").text = f"ACS: {r['acs_nome'] or 'Não atribuído'} | Quarteirões inteiros: {', '.join(r['quarteiroes'])} | Lados parciais: {partes_desc} | {r['observacoes']}"
+        cor = cores[r["id_microarea"]]
+        estilo = ET.SubElement(placemark, "Style")
+        linha = ET.SubElement(estilo, "LineStyle")
+        ET.SubElement(linha, "color").text = microareas_cores_kml.cor_kml(microareas_cores_kml.contorno(cor))
+        ET.SubElement(linha, "width").text = "1.5"
+        poligono_estilo = ET.SubElement(estilo, "PolyStyle")
+        ET.SubElement(poligono_estilo, "color").text = microareas_cores_kml.cor_kml(cor, "b3")
+        ET.SubElement(poligono_estilo, "fill").text = "1"
+        ET.SubElement(poligono_estilo, "outline").text = "1"
         extras = ET.SubElement(placemark, "ExtendedData")
         for chave, valor in {
             "id_microarea": r["id_microarea"], "localidade": r["localidade"], "microarea": r["numero"],

@@ -10,6 +10,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from openpyxl import load_workbook
 
 from app_core import microareas
+from app_core import microareas_cores_kml
 from app_core import registro_geografico as rg_core
 
 
@@ -104,6 +105,46 @@ class MicroareasTests(unittest.TestCase):
             microareas.salvar(self.target, {"id_localidade": 1, "numero": "3",
                 "quarteiroes": [], "partes": [parte("2", LADO_1)]}, self.base_dir)
         self.assertEqual(microareas.relatorio(self.target, self.base_dir, [segundo])["indicadores"]["populacao_aproximada"], 3)
+
+    def test_kml_aplica_uma_cor_por_microarea_inclusive_lado_parcial(self):
+        self.preparar_lados()
+        primeira = microareas.salvar(self.target, {"id_localidade": 1, "numero": "1",
+            "quarteiroes": ["8"], "partes": [parte("1", LADO_1)]}, self.base_dir)
+        segunda = microareas.salvar(self.target, {"id_localidade": 1, "numero": "2",
+            "quarteiroes": [], "partes": [parte("2", LADO_2)]}, self.base_dir)
+        ns = {"k": "http://www.opengis.net/kml/2.2"}
+        kml = ET.fromstring(microareas.exportar_kml(self.target, self.base_dir))
+        marcadores = kml.findall("k:Document/k:Placemark", ns)
+        self.assertEqual(len(marcadores), 2)
+        estilos = {}
+        for marcador in marcadores:
+            nome = marcador.findtext("k:name", namespaces=ns)
+            cor = marcador.findtext("k:Style/k:PolyStyle/k:color", namespaces=ns)
+            self.assertRegex(cor, r"^b3[0-9a-f]{6}$")
+            self.assertEqual(marcador.findtext("k:Style/k:PolyStyle/k:fill", namespaces=ns), "1")
+            self.assertEqual(marcador.findtext("k:Style/k:PolyStyle/k:outline", namespaces=ns), "1")
+            self.assertRegex(marcador.findtext("k:Style/k:LineStyle/k:color", namespaces=ns), r"^ff[0-9a-f]{6}$")
+            self.assertEqual(len(marcador.findall("k:MultiGeometry/k:Polygon", ns)), 2 if "Microárea 1" in nome else 1)
+            estilos[nome] = cor
+        self.assertNotEqual(*estilos.values())
+        filtrado = ET.fromstring(microareas.exportar_kml(self.target, self.base_dir, [segunda]))
+        escolhido = filtrado.find("k:Document/k:Placemark", ns)
+        self.assertEqual(escolhido.findtext("k:Style/k:PolyStyle/k:color", namespaces=ns), estilos["Sede · Microárea 2"])
+        self.assertEqual(len(filtrado.findall("k:Document/k:Placemark", ns)), 1)
+        primeiro_filtro = ET.fromstring(microareas.exportar_kml(self.target, self.base_dir, [primeira]))
+        primeiro_marcador = primeiro_filtro.find("k:Document/k:Placemark", ns)
+        self.assertEqual(primeiro_marcador.findtext("k:Style/k:PolyStyle/k:color", namespaces=ns), estilos["Sede · Microárea 1"])
+
+    def test_paleta_kml_suporta_mais_de_cem_microareas_sem_repetir_cor(self):
+        geometry = LADO_1
+        registros = [{"id_microarea": numero, "id_localidade": 1,
+                      "quarteiroes": [], "partes": [{"geometry": geometry}]}
+                     for numero in range(1, 121)]
+        cores = microareas_cores_kml.atribuir(registros, {})
+        self.assertEqual(len(cores), 120)
+        self.assertEqual(len(set(cores.values())), 120)
+        self.assertEqual(cores, microareas_cores_kml.atribuir(list(reversed(registros)), {}))
+        self.assertEqual(microareas_cores_kml.cor_kml("#123456", "b3"), "b3563412")
 
     def test_desenhos_invalidos_sobrepostos_e_base_alterada(self):
         self.preparar_lados()

@@ -1,6 +1,6 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 02/10/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 05/10/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
@@ -24,6 +24,17 @@ Consulte `docs/GUIA_TRABALHO_MULTIAGENTE.md` para o passo a passo e os prompts
 de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
+
+No codigo `1.65.2`, a exportacao KML de Territorializacao > Microareas inclui
+um estilo por microarea (poligono semitransparente e contorno), inclusive nos
+lados parciais. As cores sao unicas no conjunto atual e distribuidas com
+prioridade de contraste para areas proximas; o filtro nao muda a cor de uma
+microarea. O embaralhamento do mapa continua exclusivo do navegador, e o
+GeoJSON permanece sem estilos. Nao ha migracao nem alteracao dos cadastros.
+Validacao: 12 testes focados de Microareas e regressao completa de 764 testes
+(5 ignorados) aprovados. Antes do reinicio, `/login` respondeu HTTP 200 com
+`Endemias v1.65.1`; conferir a nova versao no servico antes de considerar a
+mudanca disponivel no download oficial.
 
 Em 02/10/2026, o código `1.65.1` apresenta na página **Relatório por Agente**
 um download separado do histórico de visitas de vetores e esporotricose por
