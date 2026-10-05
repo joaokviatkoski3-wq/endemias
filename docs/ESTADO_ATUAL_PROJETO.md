@@ -32,9 +32,10 @@ prioridade de contraste para areas proximas; o filtro nao muda a cor de uma
 microarea. O embaralhamento do mapa continua exclusivo do navegador, e o
 GeoJSON permanece sem estilos. Nao ha migracao nem alteracao dos cadastros.
 Validacao: 12 testes focados de Microareas e regressao completa de 764 testes
-(5 ignorados) aprovados. Antes do reinicio, `/login` respondeu HTTP 200 com
-`Endemias v1.65.1`; conferir a nova versao no servico antes de considerar a
-mudanca disponivel no download oficial.
+(5 ignorados) aprovados. O servico oficial foi reiniciado em 05/10/2026 por
+autorizacao do usuario; `/login` respondeu HTTP 200 com `Endemias v1.65.2`.
+O download colorido esta disponivel; a aparencia no Google Earth ainda depende
+de conferencia visual pelo usuario apos importar o novo KML.
 
 Em 02/10/2026, o código `1.65.1` apresenta na página **Relatório por Agente**
 um download separado do histórico de visitas de vetores e esporotricose por
