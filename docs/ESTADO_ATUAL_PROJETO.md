@@ -1,6 +1,6 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 05/10/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 06/10/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
@@ -25,15 +25,18 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
-Em 06/10/2026, a branch `codex/liraa-kobo-visitas` prepara o código `1.66.0`
-com importação separada do diário Kobo LIRAa, visitas/tubitos, conferência de
-quarteirão municipal (`408.1` e `408,1`), filtros e exclusão local auditada
-com bloqueio de reimportação. **Código validado em isolamento, não publicado**:
-PostgreSQL oficial ainda requer a migração `0025_liraa_visitas_kobo.sql` e
-autorização do usuário para aplicá-la/reiniciar. O serviço oficial permanece
-na última versão confirmada `1.65.2`. A regressão isolada passou com 773 testes
-(5 ignorados) e os 32 testes focados LIRAa passaram depois dos ajustes finais.
-Ver `docs/LIRAA_VISITAS_KOBO.md`.
+Em 06/10/2026, a branch `codex/liraa-kobo-visitas` foi integrada na `master`.
+O código `1.66.0` oferece importação separada do diário Kobo LIRAa,
+visitas/tubitos, conferência de quarteirão municipal (`408.1` e `408,1`),
+filtros e exclusão local auditada com bloqueio de reimportação. O backup
+PostgreSQL `D:\BackupsEndemias\backups_banco\endemias_pre_liraa_0025_20261006_160900.dump`
+teve o catálogo validado antes da migração `0025_liraa_visitas_kobo.sql`,
+que consta como aplicada. O serviço oficial foi reiniciado: `/login` respondeu
+HTTP 200 com `Endemias v1.66.0`, e `/liraa` redirecionou ao login sem sessão.
+Nenhuma visita Kobo foi importada nessa implantação. A regressão isolada
+passou com 773 testes (5 ignorados) e os 32 testes focados LIRAa passaram
+depois dos ajustes finais. A validação autenticada e um primeiro lote pequeno
+continuam pendentes. Ver `docs/LIRAA_VISITAS_KOBO.md`.
 
 No codigo `1.65.2`, a exportacao KML de Territorializacao > Microareas inclui
 um estilo por microarea (poligono semitransparente e contorno), inclusive nos

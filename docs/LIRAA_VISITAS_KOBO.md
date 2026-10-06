@@ -1,9 +1,9 @@
 # Diário Kobo do LIRAa
 
-Estado do código `1.66.0`: desenvolvido na branch `codex/liraa-kobo-visitas`.
-**Não confundir com produção**: a migração PostgreSQL `0025_liraa_visitas_kobo.sql`
-precisa ser aplicada antes do uso no serviço oficial. Nenhuma visita real foi
-importada durante o desenvolvimento.
+Estado em 06/10/2026: código `1.66.0` integrado à `master`, migração
+PostgreSQL `0025_liraa_visitas_kobo.sql` aplicada e serviço oficial reiniciado.
+`/login` respondeu HTTP 200 com `Endemias v1.66.0`; `/liraa` redirecionou
+ao login sem sessão. Nenhuma visita real foi importada nessa implantação.
 
 ## Regra de campo
 
@@ -58,7 +58,9 @@ Ainda não há lançamento de resultados laboratoriais do LIRAa, cálculo de
 sorteio geográfico continua experimental até homologação operacional.
 
 Validação de desenvolvimento: 773 testes SQLite isolados passaram (5 ignorados),
-incluindo 32 testes focados LIRAa após os últimos ajustes. Não houve acesso ao
-Kobo real nem escrita no PostgreSQL `endemias` de produção. Para publicar: revisar a
-migração `0025`, aplicar com autorização explícita, configurar o UID, conferir
-prévia com envios de teste, importar poucos registros e validar na interface.
+incluindo 32 testes focados LIRAa após os últimos ajustes. A migração foi
+aplicada após o backup PostgreSQL validado
+`D:\BackupsEndemias\backups_banco\endemias_pre_liraa_0025_20261006_160900.dump`.
+Ainda não houve acesso ao Kobo real nem importação de visitas em produção.
+Próximo passo: configurar o UID, conferir a prévia com envios de teste,
+importar poucos registros com confirmação administrativa e validar na interface.

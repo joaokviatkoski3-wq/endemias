@@ -1,6 +1,6 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 05/10/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 06/10/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
@@ -12,8 +12,8 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.
 - Branch oficial: `master`.
 - Diretorio oficial no computador do setor: `C:\endemias`.
-- Versao no servico oficial em 05/10/2026: `1.65.2`, confirmada por HTTP 200 em `/login` depois do reinicio para o KML com cores. Inclui o PDF compacto de visitas por agente/periodo e cores por microarea na exportacao KML, sem migracao de banco. Ver `docs/RELATORIO_VISITAS_COMPLETO.md`. A pagina `/liraa` permite compor estratos por quarteirao e tem mapa geral de consulta; o sorteio permanece experimental e nao gera `.lira`. As migracoes PostgreSQL 0023 e 0024 do LIRAa estao aplicadas. Ver `docs/LIRAA_PLANEJAMENTO.md`.
-- Em 06/10/2026, o código `1.66.0` da branch `codex/liraa-kobo-visitas` prepara importação manual exclusiva do diário Kobo LIRAa, consulta e exclusão local auditada. O campo de quarteirão digitado aceita ponto ou vírgula decimal. A migração 0025 não foi aplicada no PostgreSQL oficial, e o serviço oficial continua na versão anteriormente confirmada. Ver `docs/LIRAA_VISITAS_KOBO.md`.
+- Versao no servico oficial em 06/10/2026: `1.66.0`, confirmada por HTTP 200 em `/login` após a migração PostgreSQL 0025 e o reinício. Inclui o PDF compacto de visitas por agente/período e cores por microárea na exportação KML. A página `/liraa` permite compor estratos por quarteirão, consultar o mapa geral e importar separadamente as visitas do Kobo; o sorteio permanece experimental e não gera `.lira`. As migrações PostgreSQL 0023, 0024 e 0025 do LIRAa estão aplicadas. Ver `docs/LIRAA_PLANEJAMENTO.md`.
+- Em 06/10/2026, o código `1.66.0` da branch `codex/liraa-kobo-visitas` foi integrado na `master`: importação manual exclusiva do diário Kobo LIRAa, consulta e exclusão local auditada. O campo de quarteirão digitado aceita ponto ou vírgula decimal. A migração PostgreSQL 0025 foi aplicada após backup validado, e `/login` confirmou `Endemias v1.66.0` no serviço oficial. Ainda não houve importação real do Kobo; configurar o UID e validar primeiro lote pequeno. Ver `docs/LIRAA_VISITAS_KOBO.md`.
 - A correcao do sorteio LIRAa por localidade foi integrada na `master` em 01/10/2026 e esta incluida no servico que respondeu `1.64.0` em 02/10/2026. Foram reproduzidas 241 posicoes das listas do programa legado; a conversao dessas posicoes para IDs municipais reais ainda exige conferencia operacional. O sorteio permanece de ensaio, sem alterar sorteios antigos. Ver `docs/LIRAA_PLANEJAMENTO.md`.
 - A subaba **Mapa geral - consulta** de Territorializacao > Microareas exibe todas as microareas e lados parciais simultaneamente, sem controles de edicao. Foi integrada com o commit `6b5945c`, sem migracao. A leitura direta no PostgreSQL retornou 101 microareas e 10 lados parciais; falta validacao visual autenticada pelo usuario. Ver `docs/ESTADO_ATUAL_PROJETO.md`.
 - O usuario exige commit e push ao final de toda modificacao solicitada.
