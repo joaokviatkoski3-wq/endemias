@@ -156,7 +156,8 @@
     }
   }
   function aba(nome) {
-    for (const aba of ['plano', 'mapa', 'geral']) {
+    for (const aba of ['plano', 'mapa', 'geral', 'importar', 'visitas']) {
+      if (!el(`liraa-tab-${aba}`)) continue;
       const ativa = nome === aba;
       el(`liraa-tab-${aba}`).hidden = !ativa;
       el(`liraa-tab-${aba}-btn`).setAttribute('aria-selected', String(ativa));
@@ -167,6 +168,12 @@
   el('liraa-tab-plano-btn').addEventListener('click', () => aba('plano'));
   el('liraa-tab-mapa-btn').addEventListener('click', () => aba('mapa'));
   el('liraa-tab-geral-btn').addEventListener('click', () => aba('geral'));
+  for (const nome of ['importar', 'visitas']) {
+    el(`liraa-tab-${nome}-btn`)?.addEventListener('click', () => aba(nome));
+  }
+  if (location.hash === '#liraa-tab-visitas' && el('liraa-tab-visitas')) aba('visitas');
+  if (location.hash === '#liraa-tab-importar' && el('liraa-tab-importar')) aba('importar');
+  if (new URLSearchParams(location.search).has('consulta_kobo') && el('liraa-tab-importar')) aba('importar');
   el('liraa-map-ciclo').addEventListener('change', carregarCiclo);
   el('liraa-map-estrato').addEventListener('change', carregarEstrato);
   el('liraa-map-localidade').addEventListener('change', () => { renderLista(); mapaRender(); });

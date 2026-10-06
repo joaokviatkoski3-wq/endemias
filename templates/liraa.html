@@ -50,7 +50,7 @@
 </style>{% endblock %}
 {% block content %}
 <h1>LIRAa</h1>
-<p class="liraa-intro">Prepare ciclos e estratos, confira o cadastro territorial e faça um sorteio de ensaio. Os resultados das visitas e o arquivo <code>.lira</code> serão uma etapa posterior.</p>
+<p class="liraa-intro">Prepare ciclos e estratos, confira o território e importe o diário Kobo separadamente. Resultados laboratoriais, índices e arquivo <code>.lira</code> ainda não são calculados aqui.</p>
 {% for category, message in get_flashed_messages(with_categories=true) %}<div class="liraa-feedback {{ category }}" role="status">{{ message }}</div>{% endfor %}
 {% if erro %}<div class="liraa-note" role="alert">{{ erro }}</div>{% endif %}
 {% if dados %}
@@ -58,6 +58,8 @@
   <button class="liraa-btn" id="liraa-tab-plano-btn" type="button" role="tab" aria-selected="true" aria-controls="liraa-tab-plano">Planejamento</button>
   <button class="liraa-btn" id="liraa-tab-mapa-btn" type="button" role="tab" aria-selected="false" aria-controls="liraa-tab-mapa">Mapa dos estratos</button>
   <button class="liraa-btn" id="liraa-tab-geral-btn" type="button" role="tab" aria-selected="false" aria-controls="liraa-tab-geral">Mapa geral · consulta</button>
+  {% if is_admin %}<button class="liraa-btn" id="liraa-tab-importar-btn" type="button" role="tab" aria-selected="false" aria-controls="liraa-tab-importar">Importar Kobo</button>
+  <button class="liraa-btn" id="liraa-tab-visitas-btn" type="button" role="tab" aria-selected="false" aria-controls="liraa-tab-visitas">Visitas LIRAa</button>{% endif %}
 </div>
 <div id="liraa-tab-plano" role="tabpanel">
 <div class="liraa-grid">
@@ -150,7 +152,7 @@
   </details>
   {% endfor %}
 </section>
-<div class="liraa-note"><strong>Próximas etapas:</strong> classificação urbano/rural, visitas Kobo LIRAa, consolidação de laboratório, índices e exportação <code>.lira</code> validada. Nenhum dado desses é inferido das visitas PVE/TB existentes.</div>
+<div class="liraa-note"><strong>Próximas etapas:</strong> classificação urbano/rural, consolidação de laboratório, índices e exportação <code>.lira</code> validada. As visitas do diário LIRAa são importadas separadamente; não se inferem visitas LIRAa dos formulários PVE/TB.</div>
 </div>
 <section class="liraa-panel" id="liraa-tab-mapa" role="tabpanel" hidden>
   <h2 id="mapa-estratos">Mapa dos estratos</h2>
@@ -216,6 +218,71 @@
     <div id="liraa-geral-mapa" class="liraa-map" aria-label="Mapa geral dos estratos do ciclo, somente leitura"></div>
   </div>
 </section>
+{% if is_admin %}
+{% set kobo = liraa_kobo|default({}) %}
+<section class="liraa-panel" id="liraa-tab-importar" role="tabpanel" hidden>
+  <h2>Importar diário Kobo do LIRAa</h2>
+  <p class="liraa-muted">Esta importação não participa da rotina automática dos outros formulários. A busca usa a data de envio ao Kobo; selecione o ciclo antes de consultar. Nenhuma visita é importada apenas por consultar.</p>
+  {% if kobo.get('erro') %}<div class="liraa-note" role="alert">{{ kobo.erro }}</div>{% endif %}
+  <form class="liraa-form" method="post" action="{{ url_for('liraa.configurar_kobo') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>UID do formulário Kobo <input name="uid" value="{{ kobo.get('uid', '') }}" maxlength="100" placeholder="Identificador do formulário"></label>
+    <button class="liraa-btn" type="submit">Salvar formulário</button>
+  </form>
+  <form class="liraa-form" method="get" action="{{ url_for('liraa.page') }}">
+    <input type="hidden" name="consulta_kobo" value="1">
+    <label>Ciclo <select name="ciclo" required><option value="">Selecione</option>{% for c in dados.ciclos %}<option value="{{ c.id_ciclo }}" {% if kobo.get('ciclo', '')|string == c.id_ciclo|string %}selected{% endif %}>{{ c.ano }} — {{ c.nome }}</option>{% endfor %}</select></label>
+    <label>Envios desde <input type="date" name="inicio" value="{{ kobo.get('inicio', '') }}" required></label>
+    <label>Até <input type="date" name="fim" value="{{ kobo.get('fim', '') }}" required></label>
+    <button class="liraa-btn primary" type="submit">Consultar envios</button>
+  </form>
+  {% if kobo.get('previa') is not none %}
+  <p><strong>{{ kobo.previa|length }}</strong> envios encontrados; <strong>{{ kobo.previa|selectattr('situacao_importacao', 'equalto', 'nova')|list|length }}</strong> novos. Envios já importados ou excluídos serão ignorados.</p>
+  <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Data</th><th>Localidade</th><th>Quarteirão municipal</th><th>Vínculo</th><th>Importação</th><th>Tubitos</th></tr></thead><tbody>
+    {% for v in kobo.previa[:100] %}<tr><td>{{ v.data_visita }}</td><td>{{ v.localidade_informada }}</td><td>{{ v.quarteirao }}</td><td>{{ v.situacao_vinculo|replace('_', ' ') }}</td><td>{{ v.situacao_importacao }}</td><td>{{ v.tubitos|length }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% if kobo.previa|length > 100 %}<p class="liraa-muted">Prévia mostra os primeiros 100 envios. A importação considera todos os {{ kobo.previa|length }}.</p>{% endif %}
+  <p class="liraa-note">Quarteirões fora do sorteio ou sem estrato permanecem identificados para revisão; não entram automaticamente no resultado amostral.</p>
+  <form method="post" action="{{ url_for('liraa.importar_kobo') }}" onsubmit="return confirm('Importar os envios novos deste período para o ciclo selecionado?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="ciclo" value="{{ kobo.ciclo }}"><input type="hidden" name="inicio" value="{{ kobo.inicio }}"><input type="hidden" name="fim" value="{{ kobo.fim }}">
+    <button class="liraa-btn primary" type="submit">Importar visitas novas</button>
+  </form>
+  {% endif %}
+</section>
+<section class="liraa-panel" id="liraa-tab-visitas" role="tabpanel" hidden>
+  <h2>Visitas LIRAa</h2>
+  <p class="liraa-muted">Uma submissão representa um imóvel aberto registrado. A ausência de tubito não indica resultado laboratorial negativo. Esta lista não inclui fechados ou recusas, que não são registrados no diário.</p>
+  <form method="get" action="{{ url_for('liraa.page') }}" class="liraa-form">
+    <label>Ciclo <select name="ciclo"><option value="">Todos</option>{% for c in dados.ciclos %}<option value="{{ c.id_ciclo }}" {% if kobo.get('ciclo', '')|string == c.id_ciclo|string %}selected{% endif %}>{{ c.ano }} — {{ c.nome }}</option>{% endfor %}</select></label>
+    <label>Data inicial <input type="date" name="visita_inicio" value="{{ kobo.get('visita_inicio', '') }}"></label>
+    <label>Data final <input type="date" name="visita_fim" value="{{ kobo.get('visita_fim', '') }}"></label>
+    <label>Endereço, morador ou quarteirão <input type="search" name="visita_busca" value="{{ kobo.get('visita_busca', '') }}"></label>
+    <button class="liraa-btn" type="submit">Filtrar visitas</button>
+  </form>
+  {% if not kobo.get('visitas') %}<p class="liraa-muted">Nenhuma visita importada neste filtro.</p>{% endif %}
+  <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Data e hora</th><th>Localidade / quarteirão</th><th>Imóvel e endereço</th><th>ACE / ACS</th><th>Estrato / vínculo</th><th>Tubitos</th><th>Ação</th></tr></thead><tbody>
+    {% for v in kobo.get('visitas', []) %}<tr>
+      <td>{{ v.data_visita }}<br><small>{{ v.hora_inicio or '' }}</small></td>
+      <td>{{ v.localidade_informada }} · {{ v.quarteirao }}</td>
+      <td>{{ 'Terreno baldio' if v.tipo_imovel == 'terreno_baldio' else 'Residência / Comércio / Outros' if v.tipo_imovel == 'rco' else v.tipo_imovel or '—' }}<br>{{ v.logradouro or '' }} {{ v.numero or '' }}{% if v.sequencia %} / {{ v.sequencia }}{% endif %}<br><small>Morador: {{ v.morador or '—' }}</small>{% if v.observacoes %}<br><small>{{ v.observacoes }}</small>{% endif %}</td>
+      <td><small>ACE: {{ v.agentes_nomes }}<br>ACS: {{ v.acs_nomes }}</small></td>
+      <td>{% if v.estrato_numero %}Estrato {{ v.estrato_numero }}<br>{% endif %}<small>{{ v.situacao_vinculo|replace('_', ' ') }}</small></td>
+      <td>{{ v.total_tubitos }}{% if v.tubitos %}<details><summary>Ver</summary>{% for t in v.tubitos %}<div>{{ t.numero or 'Sem número' }} · {{ t.codigo_deposito or 'Sem código' }} · {{ t.deposito or 'Sem depósito' }}</div>{% endfor %}</details>{% endif %}</td>
+      <td><form method="post" action="{{ url_for('liraa.excluir_visita', id_visita=v.id_visita) }}" onsubmit="return confirm('Excluir esta visita e seus tubitos do Endemias? Ela continuará no Kobo e não será reimportada.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="confirmar_exclusao" value="sim">
+        <input name="motivo" maxlength="300" placeholder="Motivo (ex.: teste)" aria-label="Motivo da exclusão">
+        <button class="liraa-btn danger" type="submit">Excluir</button>
+      </form></td>
+    </tr>{% endfor %}
+  </tbody></table></div>
+  <div class="liraa-actions">
+    {% if kobo.get('pagina', 1) > 1 %}<a class="liraa-btn" href="{{ url_for('liraa.page', ciclo=kobo.get('ciclo', ''), visita_inicio=kobo.get('visita_inicio', ''), visita_fim=kobo.get('visita_fim', ''), visita_busca=kobo.get('visita_busca', ''), pagina=kobo.pagina - 1) }}#liraa-tab-visitas">Anterior</a>{% endif %}
+    {% if kobo.get('proxima_pagina') %}<a class="liraa-btn" href="{{ url_for('liraa.page', ciclo=kobo.get('ciclo', ''), visita_inicio=kobo.get('visita_inicio', ''), visita_fim=kobo.get('visita_fim', ''), visita_busca=kobo.get('visita_busca', ''), pagina=kobo.pagina + 1) }}#liraa-tab-visitas">Próxima</a>{% endif %}
+  </div>
+  <p class="liraa-muted">São exibidas até 100 visitas recentes. A exclusão local cria um bloqueio por UUID para impedir reimportação acidental; não apaga respostas no Kobo.</p>
+</section>
+{% endif %}
 <script type="application/json" id="liraa-dados-json">{{ {'quarteiroes': dados.quarteiroes, 'ciclos': dados.ciclos}|tojson }}</script>
 {% endif %}
 {% endblock %}

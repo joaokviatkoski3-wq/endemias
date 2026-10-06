@@ -123,9 +123,11 @@ Referência metodológica: [Manual LIRAa 2013, Ministério da Saúde](https://ww
 - Classificação efetiva urbano/rural. Se algum quarteirão rural estiver na camada, **não sortear** esse
   ciclo até o cadastro territorial estar corrigido ou essa classificação
   existir no LIRAa.
-- Diário Kobo LIRAa, sorteio/registro de imóveis visitados, resultados de
-  laboratório e cálculo dos índices. Visitas TB/TBO/PVE existentes não são
-  interpretadas como inspeções LIRAa.
+- O diário Kobo LIRAa e o registro de imóveis visitados foram preparados no
+  código `1.66.0` (migração PostgreSQL 0025 ainda depende de aplicação no
+  serviço oficial). Resultados de laboratório e cálculo dos índices ainda não
+  estão implementados. Ver `docs/LIRAA_VISITAS_KOBO.md`. Visitas TB/TBO/PVE
+  existentes não são interpretadas como inspeções LIRAa.
 - Exportação `.lira`. Quatro arquivos históricos de 2025 mostram 28 campos
   consolidados precedidos de `1` e `30`, mas o significado formal desses dois
   valores e a aceitação de arquivo próprio ainda exigem validação. Não gerar

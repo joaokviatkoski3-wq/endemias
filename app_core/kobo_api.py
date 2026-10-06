@@ -16,6 +16,8 @@ DEFAULT_SERVER_URL = "https://kf.kobotoolbox.org"
 VISIT_TYPES = ("PE", "TB", "TBO", "PVE")
 EXTRA_TYPES = ("LARVAS", "ESPOROTRICOSE", "BRI", "AMOSTRA_ANIMAIS", "RECOLHIMENTO")
 ALL_TYPES = VISIT_TYPES + EXTRA_TYPES
+# O diário LIRAa tem importação manual própria e não entra em ALL_TYPES.
+CONFIG_TYPES = ALL_TYPES + ("LIRAA",)
 TYPE_LABELS = {
     "PE": "Ponto Estratégico",
     "TB": "Tratamento/Bloqueio",
@@ -79,7 +81,7 @@ def default_config():
     return {
         "server_url": DEFAULT_SERVER_URL,
         "api_token": "",
-        "assets": {codigo: "" for codigo in ALL_TYPES},
+        "assets": {codigo: "" for codigo in CONFIG_TYPES},
         "last_sync": {},
     }
 
@@ -116,7 +118,7 @@ def save_config(path, data, keep_token=True):
     cfg = {
         "server_url": normalize_server_url(data.get("server_url") or atual.get("server_url")),
         "api_token": token,
-        "assets": {codigo: (data.get("assets") or {}).get(codigo, atual["assets"].get(codigo, "")).strip() for codigo in ALL_TYPES},
+        "assets": {codigo: (data.get("assets") or {}).get(codigo, atual["assets"].get(codigo, "")).strip() for codigo in CONFIG_TYPES},
         "last_sync": atual.get("last_sync") or {},
     }
     arquivo = Path(path)
@@ -134,7 +136,7 @@ def public_config(cfg):
     return {
         "server_url": cfg.get("server_url") or DEFAULT_SERVER_URL,
         "has_token": bool(cfg.get("api_token")),
-        "assets": {codigo: assets.get(codigo, "") for codigo in ALL_TYPES},
+        "assets": {codigo: assets.get(codigo, "") for codigo in CONFIG_TYPES},
         "last_sync": cfg.get("last_sync") or {},
         "tipos_visita": list(VISIT_TYPES),
         "tipos_extra": list(EXTRA_TYPES),

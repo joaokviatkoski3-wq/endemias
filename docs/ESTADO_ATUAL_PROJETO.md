@@ -25,6 +25,16 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+Em 06/10/2026, a branch `codex/liraa-kobo-visitas` prepara o código `1.66.0`
+com importação separada do diário Kobo LIRAa, visitas/tubitos, conferência de
+quarteirão municipal (`408.1` e `408,1`), filtros e exclusão local auditada
+com bloqueio de reimportação. **Código validado em isolamento, não publicado**:
+PostgreSQL oficial ainda requer a migração `0025_liraa_visitas_kobo.sql` e
+autorização do usuário para aplicá-la/reiniciar. O serviço oficial permanece
+na última versão confirmada `1.65.2`. A regressão isolada passou com 773 testes
+(5 ignorados) e os 32 testes focados LIRAa passaram depois dos ajustes finais.
+Ver `docs/LIRAA_VISITAS_KOBO.md`.
+
 No codigo `1.65.2`, a exportacao KML de Territorializacao > Microareas inclui
 um estilo por microarea (poligono semitransparente e contorno), inclusive nos
 lados parciais. As cores sao unicas no conjunto atual e distribuidas com

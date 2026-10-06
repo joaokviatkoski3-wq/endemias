@@ -269,6 +269,9 @@ def excluir_ciclo(target, id_ciclo, auditar=None):
                                  (id_ciclo,)).fetchone()
             if ciclo is None:
                 raise LiraaError("Ciclo não encontrado.")
+            if db_core.table_exists(conn, "liraa_visitas") and conn.execute(
+                    "SELECT 1 FROM liraa_visitas WHERE id_ciclo=? LIMIT 1", (id_ciclo,)).fetchone():
+                raise LiraaError("Este ciclo possui visitas LIRAa. Exclua ou revise as visitas antes de remover o ciclo.")
             estratos = conn.execute("SELECT id_estrato FROM liraa_estratos WHERE id_ciclo=? ORDER BY id_estrato" + lock,
                                     (id_ciclo,)).fetchall()
             sorteios = conn.execute("""DELETE FROM liraa_sorteios WHERE id_estrato IN
@@ -377,6 +380,9 @@ def excluir_estrato(target, id_estrato, auditar=None):
                                    (id_estrato,)).fetchone()
             if estrato is None:
                 raise LiraaError("Estrato não encontrado.")
+            if db_core.table_exists(conn, "liraa_visitas") and conn.execute(
+                    "SELECT 1 FROM liraa_visitas WHERE id_estrato=? LIMIT 1", (id_estrato,)).fetchone():
+                raise LiraaError("Este estrato possui visitas LIRAa. Exclua ou revise as visitas antes de removê-lo.")
             sorteios = conn.execute("DELETE FROM liraa_sorteios WHERE id_estrato=?", (id_estrato,)).rowcount
             cursor = conn.execute("DELETE FROM liraa_estratos WHERE id_estrato=?", (id_estrato,))
             if cursor.rowcount != 1:
