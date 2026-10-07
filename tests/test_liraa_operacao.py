@@ -97,6 +97,40 @@ class OperacaoTests(unittest.TestCase):
         with self.assertRaisesRegex(liraa.LiraaError,"sem geometria"):
             op.kml(self.target,self.ciclo,self.base)
 
+    def test_cond20_conta_um_no_plano_mapa_kml_boletim_sem_alterar_hash(self):
+        before = op.plano(self.target, self.ciclo, self.base)
+        self.fixture.adicionar_rg((("R", 20),))
+        for tipo in ("normal", "reduzido"):
+            with self.subTest(tipo=tipo):
+                # O tipo é alterado somente nesta base sintética para verificar 20%/50%.
+                conn = db.connect(self.target)
+                with conn:
+                    conn.execute("UPDATE liraa_estratos SET tipo=?", (tipo,))
+                conn.close()
+                current_hash = op.plano(self.target, self.ciclo, self.base)["plano_hash"]
+                data = op.plano(self.target, self.ciclo, self.base)
+                escolhido = next(q for q in data["quarteiroes"] if q["quarteirao"] == "0001")
+                self.assertEqual(escolhido["unidades_rg"], 1)
+                self.assertEqual(escolhido["meta_rg"], 1)
+                self.assertEqual(sum(g["unidades_rg"] for g in data["grupos"]), 1)
+                self.assertEqual(data["ciclo"]["estratos"][0]["imoveis_confirmados"], 9000)
+                self.assertEqual(data["ciclo"]["estratos"][0]["sorteio"]["selecionados"], self.draw["selecionados"])
+                feature = next(f for f in op.geojson(self.target, self.ciclo, self.base)["features"]
+                               if f["properties"]["id_Q"] == "0001")
+                self.assertEqual(feature["properties"]["imoveis_rg"], 1)
+                self.assertEqual(feature["properties"]["meta_rg"], 1)
+                root = ET.fromstring(op.kml(self.target, self.ciclo, self.base))
+                ns = {"k": "http://www.opengis.net/kml/2.2"}
+                pm = next(p for p in root.findall('.//k:Placemark', ns)
+                          if p.find('k:ExtendedData/k:Data[@name="id_Q"]/k:value', ns).text == "0001")
+                self.assertEqual(pm.find('k:ExtendedData/k:Data[@name="imoveis_rg"]/k:value', ns).text, "1")
+                summary = liraa_boletim.resumir(self.target, self.ciclo, self.base)
+                self.assertEqual(summary["grupos"][0]["referencia_rg"], 1)
+                self.assertEqual(summary["grupos"][0]["programados"], 429)
+                self.assertEqual(op.plano(self.target, self.ciclo, self.base)["plano_hash"], current_hash)
+                if tipo == "normal":
+                    self.assertEqual(data["plano_hash"], before["plano_hash"])
+
     def test_xlsform_cascata_e_acs_selecionados_preserva_modelo(self):
         before=hashlib.sha256(op.BASE_XLSFORM.read_bytes()).hexdigest()
         with self.assertRaisesRegex(liraa.LiraaError,"ACS participantes"):

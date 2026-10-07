@@ -6,6 +6,20 @@ e autorização do usuário. O reinício foi confirmado por HTTP 200 em `/login`
 com `Endemias v1.67.0`. Conferir `ESTADO_ATUAL_PROJETO.md` e o estado vivo
 antes de qualquer operação futura; não reaplicar etapas já concluídas.
 
+Correção preparada em 07/10/2026, código `1.67.1`: cada registro de imóvel
+do RG, inclusive COND, conta como **1 imóvel no LIRAa**, independentemente
+do número de unidades. Um COND = 20 contribui com 1, não com 20. A regra
+é exclusiva do LIRAa: não altera contagens/população no RG ou nas microáreas.
+Não exige migração. A ativação da correção depende de integração e reinício
+autorizado; consultar o estado operacional em `ESTADO_ATUAL_PROJETO.md`.
+
+Validação da correção: 789 testes SQLite isolados concluídos sem falha
+(5 ignorados), 37 testes específicos de planejamento/operação, testes JS
+dos mapas LIRAa e de consulta das microáreas, e consulta do inventário em
+PostgreSQL descartável com tabelas TEMP. Cobertos COND = 20 contando 1,
+PE/REF excluídos, ausência RG distinta de zero, referências 20%/50%, KML,
+GeoJSON, boletim, N/hash/snapshot preservados e contagem original do RG.
+
 ## Fluxo
 
 1. Criar ciclo, compor os estratos e conferir N confirmado, localidades e
@@ -92,10 +106,16 @@ Fonte metodológica: [Manual LIRAa 2013, Ministério da Saúde, itens 6.1 e 6.3]
 - **Programados** do resumo oficial = `n` calculado no plano do estrato.
   Na consulta por localidade, esse número é identificado como sendo do estrato
   inteiro; não é inventada uma repartição oficial de `n` por localidade.
-- **Referência operacional RG** = 20%/50% das unidades de cada quarteirão
+- **Referência operacional RG** = 20%/50% dos imóveis de cada quarteirão
   sorteado, arredondadas para cima. É estimativa para orientar campo, não
-  substitui `n`. Exclui PE/REF e expande condomínios residenciais como o RG.
-  Mostra dados atuais do RG; o sorteio mantém seu snapshot anterior.
+  substitui `n`. Exclui PE/REF e conta cada COND como 1 imóvel, sem expandir
+  suas unidades. A regra vale para o inventário, mapas, totais de seleção,
+  plano de campo, exportação cartográfica e referência nos boletins/PDFs.
+  Mostra dados atuais do RG; o sorteio mantém seu snapshot anterior. A lista
+  de sorteados no painel usa a referência atual separada desse snapshot.
+  O N confirmado manualmente e os parâmetros/listas de sorteios salvos não
+  são recalculados. Se N foi informado incluindo unidades de condomínio,
+  conferir antes do uso; qualquer revisão e ressorteio seguem o fluxo existente.
 - **Trabalhados** = submissões de imóveis abertos vinculadas ao plano/período.
   Não se unem endereços automaticamente. Conferir retornos/visitas duplicadas
   e excluir testes antes do uso oficial. Ausência de tubito não representa

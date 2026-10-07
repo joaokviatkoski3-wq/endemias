@@ -8,6 +8,8 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
 
+- Correção `1.67.1` preparada em 07/10/2026 na branch `codex/liraa-condominios`: no LIRAa cada imóvel COND conta como 1, sem expandir suas unidades. Afeta referências RG em inventário, mapas, plano e exportações; RG/microáreas, N confirmado e sorteios antigos são preservados. Não exige migração; integração/reinício pendentes de conclusão e autorização operacional. Serviço permanece `1.67.0` até confirmação HTTP. Ver `docs/ESTADO_ATUAL_PROJETO.md`.
+
 - Versão `1.67.0` integrada e ativa em 07/10/2026, com backup validado, migração PostgreSQL 0026 aplicada e reinício autorizado: plano de campo LIRAa (mapa, KML e PDF), ressorteio com IC informado/histórico, XLSForm por ciclo com participantes ACS, aba **Tubos · LIRAA** em Lançamentos Laboratório e boletins por estrato/localidade. `/login` confirmou HTTP 200 com `Endemias v1.67.0`. Contagens anteriores e ciclos/estratos/sorteios foram preservados. Ver `docs/LIRAA_OPERACAO_CICLO.md` e `docs/ESTADO_ATUAL_PROJETO.md`.
 
 - Sistema local Flask para o Setor de Endemias de Almirante Tamandare-PR.

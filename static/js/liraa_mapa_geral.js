@@ -34,7 +34,7 @@
     const detalhe = el('liraa-geral-detalhe');
     if (!estrato) {
       detalhe.innerHTML = quarteirao
-        ? `<h3>Q. ${escapar(exibir(quarteirao.quarteirao))} · ${escapar(quarteirao.localidade)}</h3><p>Sem estrato neste ciclo.</p><p>${quarteirao.tem_rg ? `${formatar(quarteirao.unidades_rg)} unidades RG estimadas` : 'Sem RG'}</p>`
+        ? `<h3>Q. ${escapar(exibir(quarteirao.quarteirao))} · ${escapar(quarteirao.localidade)}</h3><p>Sem estrato neste ciclo.</p><p>${quarteirao.tem_rg ? `${formatar(quarteirao.unidades_rg)} imóveis RG (COND = 1)` : 'Sem RG'}</p>`
         : 'Selecione um estrato na lista ou clique em um quarteirão no mapa.';
       return;
     }
@@ -47,7 +47,7 @@
       `<p>${estrato.tipo === 'reduzido' ? 'Reduzido · 50%' : 'Normal · 20%'} · ${estrato.sorteio ? 'Sorteio registrado' : 'Sem sorteio'}</p>` +
       `<p><strong>N confirmado:</strong> ${formatar(estrato.imoveis_confirmados)} imóveis · <strong>Quarteirões:</strong> ${formatar(estrato.quarteiroes.length)}</p>` +
       `<p><strong>Localidades:</strong> ${escapar(localidades.join(', ') || 'Não informadas')}</p>` +
-      `<p><strong>Referência RG:</strong> ${formatar(unidades)} unidades estimadas; ${formatar(semRg)} quarteirão(ões) sem RG. Não substitui o N confirmado.</p>` +
+      `<p><strong>Referência RG:</strong> ${formatar(unidades)} imóveis (COND = 1); ${formatar(semRg)} quarteirão(ões) sem RG. Não substitui o N confirmado.</p>` +
       (estrato.ausentes ? `<p><strong>Atenção:</strong> ${formatar(estrato.ausentes)} quarteirão(ões) do estrato não aparecem na camada atual.</p>` : '') +
       (estrato.observacoes ? `<p><strong>Observações:</strong> ${escapar(estrato.observacoes)}</p>` : '') + selecionados;
   }

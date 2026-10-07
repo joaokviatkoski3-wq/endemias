@@ -25,6 +25,20 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
+Correção `1.67.1` preparada em 07/10/2026 na branch `codex/liraa-condominios`:
+no LIRAa cada registro COND conta como **1 imóvel**, mesmo que tenha 20 ou
+mais unidades. Inventário, referências dos mapas/seleções e plano/exportações
+usam essa contagem; RG e microáreas mantêm suas contagens anteriores. A lista
+do sorteio mostra RG atual separado do snapshot histórico, sem reescrever
+N confirmado, parâmetros, quarteirões selecionados ou hash do plano.
+Não exige migração. Integração e reinício ainda pendentes de conclusão;
+serviço oficial continua `1.67.0` até nova confirmação HTTP autorizada.
+Se o N manual já incluir unidades de condomínio, cabe conferir esse valor
+antes do uso oficial, sem alteração automática de dados reais.
+Validação: 789 testes SQLite isolados (5 ignorados), 37 testes específicos
+LIRAa, testes JS dos mapas e contagem em PostgreSQL descartável com tabelas
+TEMP concluídos sem falha; banco operacional não usado nos ensaios.
+
 Em 07/10/2026, código `1.67.0` integrado à `master` (`e9feb85`) e ativo no serviço:
 mapa e KML dos sorteados, PDF de plano de campo, totais por localidade,
 ressorteio com início casual opcional e histórico, seleção ACS/UID por ciclo,

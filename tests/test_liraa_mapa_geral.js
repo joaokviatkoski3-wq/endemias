@@ -65,6 +65,7 @@ async function testar() {
   grupos[0].layers[1].events.click();
   assert.match(elemento('liraa-geral-detalhe').innerHTML, /São Venâncio/);
   assert.match(elemento('liraa-geral-detalhe').innerHTML, /N confirmado/);
+  assert.match(elemento('liraa-geral-detalhe').innerHTML, /70 imóveis \(COND = 1\)/);
   assert.ok(mapa.lastBounds, 'Enquadra a geometria ao abrir');
   elemento('liraa-geral-ciclo').value = '11';
   elemento('liraa-geral-ciclo').events.change();

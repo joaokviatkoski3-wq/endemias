@@ -104,7 +104,7 @@
         const key = codigoFeature(f), q = inventario.get(key), dono = ocupado(key);
         if (el('liraa-map-rotulos').checked) layer.bindTooltip(escapar(exibir(q.quarteirao)),
           {permanent:true, direction:'center', className:'liraa-map-label'});
-        layer.bindPopup(`Q. ${escapar(exibir(q.quarteirao))} · ${escapar(q.localidade)}<br>${dono ? `Estrato ${escapar(dono.numero)}` : 'Sem estrato'}<br>${q.tem_rg ? `${formatar(q.unidades_rg)} unidades RG estimadas` : 'Sem RG'}`);
+        layer.bindPopup(`Q. ${escapar(exibir(q.quarteirao))} · ${escapar(q.localidade)}<br>${dono ? `Estrato ${escapar(dono.numero)}` : 'Sem estrato'}<br>${q.tem_rg ? `${formatar(q.unidades_rg)} imóveis RG (COND = 1)` : 'Sem RG'}`);
         layer.on('click', () => alternar(key));
       }
     }).addTo(estado.mapa);

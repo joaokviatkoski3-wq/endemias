@@ -37,8 +37,9 @@ nao ha migracao nem alteracao de dados reais.
   agrupado por localidade. Cada par localidade/quarteirão é uma unidade
   amostral; a ordem usada no sorteio é nome da localidade e número do
   quarteirão. Todas as áreas são **tratadas provisoriamente como urbanas**.
-- Contagens de referência do RG: registros e unidades residenciais de
-  condomínio, excluindo tipos `PE` e `REF`. Quarteirões sem RG continuam no
+- Contagens de referência do RG no LIRAa (correção `1.67.1`): cada registro
+  de imóvel conta uma vez, inclusive COND = 20 conta como 1, excluindo tipos
+  `PE` e `REF`. Não expande unidades de condomínio. Quarteirões sem RG continuam no
   universo, com estimativa indisponível. A contagem RG **não substitui** o
   número `N` de imóveis, que deve ser confirmado e informado pelo operador.
 - O cadastro de estratos aceita a seleção de quarteirões individuais de uma

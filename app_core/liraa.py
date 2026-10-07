@@ -99,7 +99,10 @@ def _data(value, campo):
 
 
 def inventario(target, base_dir=None):
-    """Quarteirões da camada ativa; RG é referência, não N oficial."""
+    """RG de referência LIRAa: cada imóvel/COND conta uma vez, sem PE/REF.
+
+    Não expande unidades de condomínio nem substitui o N confirmado do estrato.
+    """
     camada = rg_core.geojson_ativo(target, base_dir)
     conn = db_core.connect(target)
     try:
@@ -111,9 +114,7 @@ def inventario(target, base_dir=None):
                         for row in localidades}
         rows = conn.execute("""SELECT id_localidade, quarteirao,
             SUM(CASE WHEN COALESCE(tipo,'') NOT IN ('PE','REF') THEN 1 ELSE 0 END) AS registros,
-            SUM(CASE WHEN COALESCE(tipo,'') NOT IN ('PE','REF')
-                THEN CASE WHEN tipo='R' AND COALESCE(condominio,0)>0 THEN condominio ELSE 1 END
-                ELSE 0 END) AS unidades,
+            SUM(CASE WHEN COALESCE(tipo,'') NOT IN ('PE','REF') THEN 1 ELSE 0 END) AS unidades,
             SUM(CASE WHEN tipo='PE' THEN 1 ELSE 0 END) AS pe
             FROM registro_geografico_imoveis GROUP BY id_localidade, quarteirao""").fetchall()
         rg = {(int(r["id_localidade"]), rg_core._quarteirao(r["quarteirao"])): r for r in rows}
@@ -158,6 +159,10 @@ def inventario(target, base_dir=None):
 
 def painel(target, base_dir=None):
     territorio = inventario(target, base_dir)
+    imoveis_rg_atuais = {
+        f"{q['id_localidade']}:{q['quarteirao']}": q["unidades_rg"] if q["tem_rg"] else None
+        for q in territorio["quarteiroes"]
+    }
     conn = db_core.connect(target)
     try:
         _schema(conn)
@@ -171,6 +176,12 @@ def painel(target, base_dir=None):
             "SELECT * FROM liraa_sorteios").fetchall()}
         for s in sorteios.values():
             s["selecionados"] = json.loads(s.pop("selecionados_json"))
+            # Referência atual separada do snapshot histórico, que permanece intacto.
+            s["imoveis_rg_atuais"] = {
+                f"{q['id_localidade']}:{q['quarteirao']}": imoveis_rg_atuais.get(
+                    f"{q['id_localidade']}:{q['quarteirao']}")
+                for q in s["selecionados"]
+            }
             universo_salvo = json.loads(s.pop("universo_json"))
             # Sorteios anteriores não trazem a posição dentro da localidade.
             # Derive-a do universo congelado, sem recalcular nem alterar o sorteio.

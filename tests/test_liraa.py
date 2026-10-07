@@ -56,23 +56,76 @@ class LiraaTests(unittest.TestCase):
             "numero": 1, "tipo": tipo, "imoveis_confirmados": n,
             "localidades": list(localidades)}, base_dir=self.temp.name)
 
-    def test_inventario_deduplica_geometria_e_exclui_pe(self):
+    def adicionar_rg(self, registros=(("R", 20), ("C", 0), ("PE", 0), ("REF", 0))):
         conn = sqlite3.connect(self.db)
         q = conn.execute("""INSERT INTO registro_geografico_quarteiroes
             (id_localidade,localidade,quarteirao,criado_em,atualizado_em)
             VALUES (1,'Sede','0001','2026-09-30','2026-09-30')""").lastrowid
-        for tipo, condo in (("R", 4), ("C", 0), ("PE", 0), ("REF", 0)):
+        for tipo, condo in registros:
             conn.execute("""INSERT INTO registro_geografico_imoveis
                 (id_quarteirao,id_localidade,localidade,quarteirao,logradouro,numero,tipo,condominio,criado_em,atualizado_em)
                 VALUES (?,1,'Sede','0001','Rua Teste','1',?,?,'2026-09-30','2026-09-30')""", (q, tipo, condo))
         conn.commit()
         conn.close()
+
+    def test_inventario_deduplica_geometria_e_exclui_pe(self):
+        self.adicionar_rg()
         dados = liraa.inventario(self.db, self.temp.name)
         self.assertEqual(len(dados["quarteiroes"]), 5)
         sede = next(r for r in dados["localidades"] if r["nome"] == "Sede")
         self.assertEqual(sede["registros_rg_sem_pe"], 2)
-        self.assertEqual(sede["unidades_rg_sem_pe"], 5)
+        self.assertEqual(sede["unidades_rg_sem_pe"], 2)
         self.assertEqual(sede["pe_rg"], 1)
+        primeiro = next(q for q in dados["quarteiroes"] if q["quarteirao"] == "0001")
+        self.assertEqual(primeiro["unidades_rg"], 2)
+        # A contagem de unidades/população do RG continua intacta fora do LIRAa.
+        conn = sqlite3.connect(self.db)
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = [dict(r) for r in conn.execute("SELECT * FROM registro_geografico_imoveis")]
+        finally:
+            conn.close()
+        resumo = rg_core._resumo_quarteirao(rows)
+        self.assertEqual(resumo["residencias_com_condominio"], 20)
+        self.assertEqual(resumo["total_com_condominio"], 22)  # R 20 + C 1 + PE 1.
+
+    def test_condominio_conta_um_independentemente_do_tipo_e_exclusoes(self):
+        self.adicionar_rg((("R", 20), ("C", 40), ("O", 30), ("TB", 0),
+                           (None, 10), ("PE", 50), ("REF", 60)))
+        dados = liraa.inventario(self.db, self.temp.name)
+        primeiro = next(q for q in dados["quarteiroes"] if q["quarteirao"] == "0001")
+        self.assertEqual(primeiro["registros_rg"], 5)
+        self.assertEqual(primeiro["unidades_rg"], 5)
+        self.assertEqual(primeiro["pe_rg"], 1)
+        self.assertFalse(next(q for q in dados["quarteiroes"] if q["quarteirao"] == "0002")["tem_rg"])
+
+    def test_referencia_cond_atual_nao_reescreve_sorteio_legado_ou_n(self):
+        self.adicionar_rg((("R", 20),))
+        ciclo = self.criar()
+        estrato = self.estrato(ciclo)
+        liraa.sortear(self.db, estrato, self.temp.name, seed=42)
+        conn = sqlite3.connect(self.db)
+        try:
+            legado = json.loads(conn.execute("SELECT selecionados_json FROM liraa_sorteios").fetchone()[0])
+            for q in legado:
+                if q["quarteirao"] == "0001":
+                    q["unidades_rg"] = 20  # Snapshot gerado pela regra antiga.
+            texto_legado = json.dumps(legado, ensure_ascii=False)
+            conn.execute("UPDATE liraa_sorteios SET selecionados_json=?", (texto_legado,))
+            conn.commit()
+            antes = conn.execute("SELECT * FROM liraa_sorteios").fetchone()
+            dados = liraa.painel(self.db, self.temp.name)
+            e = dados["ciclos"][0]["estratos"][0]
+            self.assertEqual(e["imoveis_confirmados"], 9000)
+            self.assertEqual(e["sorteio"]["selecionados"], legado)
+            self.assertEqual(e["sorteio"]["imoveis_rg_atuais"]["1:0001"], 1)
+            self.assertEqual(conn.execute("SELECT * FROM liraa_sorteios").fetchone(), antes)
+            self.importar(camada(("0009", "0002", "0003", "0004", "0005")))
+            sem_geometria = liraa.painel(self.db, self.temp.name)["ciclos"][0]["estratos"][0]["sorteio"]
+            self.assertIsNone(sem_geometria["imoveis_rg_atuais"]["1:0001"])
+            self.assertEqual(sem_geometria["selecionados"], legado)
+        finally:
+            conn.close()
 
     def test_ciclo_estrato_sorteio_congela_snapshot(self):
         ciclo = self.criar()
@@ -372,6 +425,9 @@ class LiraaTests(unittest.TestCase):
         self.assertIn("Posição sorteada (1 a A)", html)
         self.assertIn("Quarteirão municipal", html)
         self.assertIn("exportação", html)
+        self.assertIn("um condomínio (COND) com 20 unidades", html)
+        self.assertIn("Imóveis RG atuais (referência)", html)
+        self.assertNotIn("expande o campo condomínio", html)
         self.assertNotIn("Baixar .lira", html)
 
     def test_rota_exige_login_e_admin_para_gravar(self):

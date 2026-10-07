@@ -68,15 +68,15 @@
 <div class="liraa-grid">
   <div class="liraa-card"><strong>{{ dados.localidades|length }}</strong><span>localidades cadastradas</span></div>
   <div class="liraa-card"><strong>{{ dados.quarteiroes|length }}</strong><span>quarteirões únicos na camada</span></div>
-  <div class="liraa-card"><strong>{{ dados.localidades|sum(attribute='unidades_rg_sem_pe') }}</strong><span>unidades estimadas no RG, sem PE</span></div>
+  <div class="liraa-card"><strong>{{ dados.localidades|sum(attribute='unidades_rg_sem_pe') }}</strong><span>imóveis de referência no RG, sem PE</span></div>
   <div class="liraa-card"><strong>{{ dados.ciclos|length }}</strong><span>ciclos planejados</span></div>
 </div>
 <div class="liraa-note"><strong>Em homologação — não usar o sorteio como plano oficial de campo.</strong> A ordem territorial e o cálculo ainda precisam ser confrontados com o programa LIRAa/LIA. Todos os quarteirões da camada são tratados como urbanos nesta fase. Confira áreas rurais, imóveis pendentes e condomínios. O RG é somente referência; informe o número de imóveis <em>confirmado</em> para cada estrato. Pontos Estratégicos não entram nessa prévia.</div>
 <section class="liraa-panel">
   <h2>Base territorial por localidade</h2>
-  <p class="liraa-muted">Fonte: {{ dados.fonte }}. “Registros RG” conta imóveis não PE; “unidades RG” expande o campo condomínio nas residências. Quarteirão sem RG aparece no sorteio, mas não contribui para essas estimativas.</p>
-  <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Localidade</th><th>Quarteirões</th><th>Com RG</th><th>Registros RG</th><th>Unidades RG</th><th>PE excluídos</th></tr></thead><tbody>
-  {% for l in dados.localidades %}<tr><td>{{ l.nome }}</td><td class="num">{{ l.quarteiroes }}</td><td class="num">{{ l.com_rg }}</td><td class="num">{{ l.registros_rg_sem_pe }}</td><td class="num">{{ l.unidades_rg_sem_pe }}</td><td class="num">{{ l.pe_rg }}</td></tr>{% endfor %}
+  <p class="liraa-muted">Fonte: {{ dados.fonte }}. No LIRAa, cada registro de imóvel conta uma vez: um condomínio (COND) com 20 unidades conta como <strong>1 imóvel</strong>. PE e referências (REF) são excluídos. Quarteirão sem RG não significa zero imóvel. Essa referência não altera o N confirmado nem os sorteios já salvos.</p>
+  <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Localidade</th><th>Quarteirões</th><th>Com RG</th><th>Imóveis RG (LIRAa)</th><th>PE excluídos</th></tr></thead><tbody>
+  {% for l in dados.localidades %}<tr><td>{{ l.nome }}</td><td class="num">{{ l.quarteiroes }}</td><td class="num">{{ l.com_rg }}</td><td class="num">{{ l.unidades_rg_sem_pe }}</td><td class="num">{{ l.pe_rg }}</td></tr>{% endfor %}
   </tbody></table></div>
 </section>
 {% if is_admin %}
@@ -145,8 +145,9 @@
             {% for h in e.historico_sorteios %}<p class="liraa-muted">Substituído em {{ h.substituido_em }} · IC {{ h.sorteio.inicio_casual }} · {{ h.selecionados|length }} quarteirões</p><p>{% for q in h.selecionados %}{{ q.localidade }}: Q. {{ q.quarteirao_exibicao }}{% if not loop.last %}; {% endif %}{% endfor %}</p>{% endfor %}
           </details>{% endif %}
           <details class="liraa-sample"><summary>Ver {{ e.sorteio.selecionados|length }} {{ 'quarteirão sorteado' if e.sorteio.selecionados|length == 1 else 'quarteirões sorteados' }}</summary>
-            <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Localidade</th><th>Início local</th><th>Posição sorteada (1 a A)</th><th>Quarteirão municipal</th><th>Ordem no estrato</th><th>Unidades RG (referência)</th></tr></thead><tbody>
-            {% for q in e.sorteio.selecionados %}<tr><td>{{ q.localidade }}</td><td>{{ q.inicio_local if q.inicio_local is defined else '—' }}</td><td>{{ q.ordem_localidade if q.ordem_localidade is defined else '—' }}</td><td>{{ q.quarteirao_exibicao }}</td><td>{{ q.ordem_universo }}</td><td>{{ q.unidades_rg if q.tem_rg else 'Sem RG' }}</td></tr>{% endfor %}
+            <p class="liraa-muted">Imóveis de referência do RG atual, contando cada COND como 1 imóvel. A seleção e os parâmetros do sorteio original são preservados.</p>
+            <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Localidade</th><th>Início local</th><th>Posição sorteada (1 a A)</th><th>Quarteirão municipal</th><th>Ordem no estrato</th><th>Imóveis RG atuais (referência)</th></tr></thead><tbody>
+            {% for q in e.sorteio.selecionados %}{% set imoveis = e.sorteio.imoveis_rg_atuais.get(q.id_localidade|string ~ ':' ~ q.quarteirao) %}<tr><td>{{ q.localidade }}</td><td>{{ q.inicio_local if q.inicio_local is defined else '—' }}</td><td>{{ q.ordem_localidade if q.ordem_localidade is defined else '—' }}</td><td>{{ q.quarteirao_exibicao }}</td><td>{{ q.ordem_universo }}</td><td>{{ imoveis if imoveis is not none else 'Sem RG' }}</td></tr>{% endfor %}
             </tbody></table></div>
           </details>
         {% elif is_admin %}
@@ -184,7 +185,7 @@
     <div class="liraa-map-side">
       <div class="liraa-map-stats">
         <div><strong id="liraa-total-q">0</strong>quarteirões selecionados</div>
-        <div><strong id="liraa-total-rg">0</strong>unidades RG estimadas, sem PE/REF</div>
+        <div><strong id="liraa-total-rg">0</strong>imóveis RG, sem PE/REF (COND = 1)</div>
         <div><strong id="liraa-sem-rg">0</strong>selecionados sem RG</div>
         <div><strong id="liraa-livres">0</strong>sem estrato neste ciclo</div>
       </div>
