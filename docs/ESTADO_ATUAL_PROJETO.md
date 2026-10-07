@@ -25,14 +25,26 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
-Em 07/10/2026, código `1.67.0` preparado para o incremento operacional LIRAa:
+Em 07/10/2026, código `1.67.0` integrado à `master` (`e9feb85`) e ativo no serviço:
 mapa e KML dos sorteados, PDF de plano de campo, totais por localidade,
 ressorteio com início casual opcional e histórico, seleção ACS/UID por ciclo,
 XLSForm com quarteirões em cascata, aba Tubos · LIRAA em Lançamentos Laboratório e boletins PDF
 por estrato ou localidade. Não altera a fórmula amostral homologada nem os
-sorteios existentes. A migração **0026 está preparada, ainda não aplicada**;
-o serviço oficial permanece na última versão confirmada `1.66.0` enquanto
-aguarda autorização de backup/migração/reinício. A regressão SQLite isolada
+sorteios existentes. A migração **0026 foi aplicada** após autorização do usuário
+e backup validado. O serviço oficial foi reiniciado em 07/10/2026 às 11h35
+(America/Sao_Paulo): `/login` respondeu HTTP 200 com `Endemias v1.67.0`.
+`/liraa`, `/laboratorio/lancamentos?modulo=liraa` e `/liraa/laboratorio`
+redirecionaram ao login (HTTP 302) sem sessão, sem HTTP 500.
+O backup é `D:\BackupsEndemias\backups_banco\endemias_pre_liraa_0026_20261007_113443.dump`,
+com 6.544.369 bytes e catálogo validado por `pg_restore`. Após a migração,
+as contagens das 87 tabelas anteriores e as assinaturas dos ciclos, estratos,
+sorteios e vínculos territoriais LIRAa permaneceram iguais. Plano e boletim
+do ciclo existente foram consultados sem erro (252 quarteirões, 5 grupos);
+o laboratório encontrou 1 tubo LIRAA pendente. Não foram importadas visitas,
+salvas leituras ou alterados sorteios nessa implantação. O SQLite congelado
+conserva SHA-256 `964152E21DE44B4FFF985F72A0D7945E8E7DCF260BBB019708B868C3B3A7A025`.
+A alteração local de `tests/test_security.py` foi preservada e não entrou no commit.
+A regressão SQLite isolada
 passou com **786 testes (5 ignorados)**, além da conversão XLSForm
 sem avisos e inspeção dos PDFs. A UI isolada confirmou leitura→boletim e
 filtros, incluindo a aba Tubos · LIRAA no laboratório e o contador 3→2 após salvar.
@@ -41,9 +53,10 @@ com tabelas temporárias, migração 0026, ressorteio/histórico, formulário,
 importação, leitura, contador, boletim e exclusão em cascata. A instância foi
 encerrada; não houve acesso ao banco oficial. Uma tentativa anterior de conexão PostgreSQL em contexto
 não elevado não obteve credencial; não houve alteração de ACL ou cópia de
-senha. O código está na branch `codex/liraa-ciclo-operacional`, aguardando
-autorização para integrar/implantar conjuntamente, evitando atualizar templates
-do serviço antigo antes do reinício. Falta validação real de upload e uso do
+senha. A implantação oficial utilizou a credencial protegida em console elevado,
+sem copiar senha nem mudar ACL. A tarefa Windows identifica SYSTEM como
+`SISTEMA`; seu SID foi conferido como `S-1-5-18` antes da operação.
+Falta validação real de upload e uso do
 formulário no Kobo, além da conferência operacional do primeiro ciclo.
 Ver `docs/LIRAA_OPERACAO_CICLO.md`.
 

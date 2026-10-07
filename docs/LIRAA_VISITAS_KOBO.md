@@ -1,10 +1,10 @@
 # Diário Kobo do LIRAa
 
-Atualização preparada em 07/10/2026 (`1.67.0`, migração 0026): formulário por
+Atualização integrada e ativa em 07/10/2026 (`1.67.0`, migração 0026 aplicada): formulário por
 ciclo com quarteirões filtrados por localidade, ACS participantes, UID por
 ciclo, leituras dos tubitos e resumo do boletim. A importação do formulário
 legado permanece compatível. Consulte `LIRAA_OPERACAO_CICLO.md` e o estado vivo
-antes de assumir que a nova migração ou o serviço já estão ativos. As limitações
+para conferir a implantação e os cuidados operacionais. As limitações
 descritas abaixo são o retrato histórico da entrega `1.66.0`.
 
 Estado em 06/10/2026: código `1.66.0` integrado à `master`, migração

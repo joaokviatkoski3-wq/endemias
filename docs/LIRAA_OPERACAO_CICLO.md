@@ -1,9 +1,10 @@
 # LIRAa — plano de campo, formulário e boletins
 
-Atualização preparada em 07/10/2026, código `1.67.0`. Exige a migração
-PostgreSQL **0026_liraa_operacao_ciclo.sql**. Não presumir que a migração ou
-o reinício oficial aconteceram: conferir `ESTADO_ATUAL_PROJETO.md` e o estado
-vivo. A produção foi confirmada anteriormente em `1.66.0`, com a 0025 aplicada.
+Atualização integrada e ativa em 07/10/2026, código `1.67.0`. A migração
+PostgreSQL **0026_liraa_operacao_ciclo.sql** foi aplicada após backup validado
+e autorização do usuário. O reinício foi confirmado por HTTP 200 em `/login`,
+com `Endemias v1.67.0`. Conferir `ESTADO_ATUAL_PROJETO.md` e o estado vivo
+antes de qualquer operação futura; não reaplicar etapas já concluídas.
 
 ## Fluxo
 
@@ -135,5 +136,9 @@ do arquivo continuam no programa oficial conforme decisão do usuário.
   migração, histórico, ressorteio, XLSForm, importação, leitura, contador,
   boletim e exclusão em cascata passaram. Instância encerrada após o teste;
   credenciais e banco oficial não foram utilizados.
-- Produção: backup validado, migração 0026 e reinício **somente com autorização**.
+- Produção em 07/10/2026: backup `endemias_pre_liraa_0026_20261007_113443.dump`
+  validado, migração 0026 aplicada e serviço oficial reiniciado após autorização.
+  Contagens de 87 tabelas anteriores e assinaturas LIRAa preservadas; consulta
+  do plano/boletim existente (252 quarteirões, 5 grupos) e laboratório (1 tubo
+  pendente) sem erro. Não houve importação, leitura ou sorteio real na implantação.
   Não executar scripts de QA em `endemias`, nem alterar o SQLite congelado.
