@@ -1,17 +1,19 @@
 # LIRAa — plano de campo, formulário e boletins
 
-Atualização integrada e ativa em 07/10/2026, código `1.67.0`. A migração
+Implantação inicial concluída em 07/10/2026, código `1.67.0`. A migração
 PostgreSQL **0026_liraa_operacao_ciclo.sql** foi aplicada após backup validado
 e autorização do usuário. O reinício foi confirmado por HTTP 200 em `/login`,
 com `Endemias v1.67.0`. Conferir `ESTADO_ATUAL_PROJETO.md` e o estado vivo
 antes de qualquer operação futura; não reaplicar etapas já concluídas.
 
-Correção preparada em 07/10/2026, código `1.67.1`: cada registro de imóvel
+Correção integrada na `master` (`fe0c4d5`) e ativa em 07/10/2026, código `1.67.1`: cada registro de imóvel
 do RG, inclusive COND, conta como **1 imóvel no LIRAa**, independentemente
 do número de unidades. Um COND = 20 contribui com 1, não com 20. A regra
 é exclusiva do LIRAa: não altera contagens/população no RG ou nas microáreas.
-Não exige migração. A ativação da correção depende de integração e reinício
-autorizado; consultar o estado operacional em `ESTADO_ATUAL_PROJETO.md`.
+Não exige migração. Reinício autorizado concluído às 13h15; `/login`
+confirmou HTTP 200 com `Endemias v1.67.1`. Contagens das 91 tabelas e
+19 assinaturas territoriais/LIRAa preservadas em conferência somente leitura
+antes/depois da integração. Consultar `ESTADO_ATUAL_PROJETO.md`.
 
 Validação da correção: 789 testes SQLite isolados concluídos sem falha
 (5 ignorados), 37 testes específicos de planejamento/operação, testes JS
