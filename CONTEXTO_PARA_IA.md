@@ -1,12 +1,14 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 06/10/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 07/10/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
+
+- Código `1.67.0` preparado em 07/10/2026: plano de campo LIRAa (mapa, KML e PDF), ressorteio com IC informado/histórico, XLSForm por ciclo com participantes ACS, aba **Tubos · LIRAA** em Lançamentos Laboratório e boletins por estrato/localidade. Exige a migração PostgreSQL 0026; não presumir migração/reinício oficial. Última versão confirmada no serviço: `1.66.0`. Ver `docs/LIRAA_OPERACAO_CICLO.md` e `docs/ESTADO_ATUAL_PROJETO.md`.
 
 - Sistema local Flask para o Setor de Endemias de Almirante Tamandare-PR.
 - Repositorio oficial: `joaokviatkoski3-wq/endemias`.

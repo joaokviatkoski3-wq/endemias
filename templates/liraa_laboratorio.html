@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block title %}Laboratório LIRAa{% endblock %}
+{% block page_title %}Laboratório LIRAa{% endblock %}
+{% block content %}
+<h1>Laboratório LIRAa</h1>
+<p><a class="btn" href="{{ url_for('laboratorio_lancamentos.page', modulo='liraa') }}">Lançamentos Laboratório</a></p>
+{% with lab=dados_lab, integrado=false %}{% include 'liraa_laboratorio_conteudo.html' %}{% endwith %}
+{% endblock %}

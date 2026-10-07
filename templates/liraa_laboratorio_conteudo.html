@@ -1,0 +1,27 @@
+{% set endpoint = 'laboratorio_lancamentos.page' if integrado else 'liraa.laboratorio' %}
+<div class="liraa-lab-conteudo">
+  <p><strong>LIRAA · {{ lab.total_pendentes }} tubo(s) aguardando leitura</strong></p>
+  <p>Leituras separadas da rotina. Preencha zero quando a forma estiver ausente. Leituras pendentes não são consideradas negativas.</p>
+  {% if is_admin %}<p><a href="{{ url_for('liraa.page') }}#liraa-tab-boletins">Consultar boletins LIRAa</a></p>{% endif %}
+  {% for category, message in get_flashed_messages(with_categories=true) %}<p role="status" class="alert">{{ message }}</p>{% endfor %}
+  {% if lab.erro %}<p role="alert">{{ lab.erro }}</p>{% endif %}
+  <form method="get" action="{{ url_for(endpoint) }}" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+    {% if integrado %}<input type="hidden" name="modulo" value="liraa">{% endif %}
+    <label>Ciclo <select class="inp" name="ciclo"><option value="">Todos</option>{% for c in lab.ciclos %}<option value="{{ c.id_ciclo }}" {% if lab.ciclo == c.id_ciclo|string %}selected{% endif %}>{{ c.ano }} — {{ c.nome }}</option>{% endfor %}</select></label>
+    <label>Situação <select class="inp" name="pendentes"><option value="1">Pendentes</option><option value="0" {% if lab.pendentes == '0' %}selected{% endif %}>Todas</option></select></label><button class="btn">Consultar</button>
+  </form>
+  {% for t in lab.rows %}<details style="margin:14px 0;padding:14px;border:1px solid var(--border);border-radius:8px">
+    <summary><span class="badge">LIRAA</span> <strong>Tubo {{ t.numero or 'sem número' }}</strong> · {{ t.localidade_informada }} / Q. {{ t.quarteirao }} · {{ t.data_visita }} · {{ 'Lido' if t.leitura_id else 'Pendente' }}</summary>
+    <p>{{ t.logradouro or '' }}, {{ t.numero_imovel or 'S/N' }} · Depósito: {{ t.codigo_deposito or 'Sem código' }} / {{ t.deposito or 'Não informado' }}</p>
+    {% if t.leitura_id %}<p>Leitura {{ t.data_leitura }} por {{ t.laboratorista }}</p>{% endif %}
+    {% if not t.leitura_id or is_admin %}<form method="post" action="{{ url_for('liraa.salvar_leitura', id_tubito=t.id_tubito) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="ciclo" value="{{ lab.ciclo }}"><input type="hidden" name="pendentes" value="{{ lab.pendentes }}"><input type="hidden" name="integrado" value="{{ '1' if integrado else '0' }}"><input type="hidden" name="versao" value="{{ t.atualizado_em or '' }}">
+      <label>Data de leitura <input class="inp" type="date" name="data_leitura" value="{{ t.data_leitura or lab.hoje }}" required></label>
+      {% if is_admin %}<label>Classificação do depósito (correção local) <select class="inp" name="codigo_deposito"><option value="">Manter {{ t.codigo_deposito or 'não informado' }}</option>{% for code, label in lab.depositos.items() %}<option value="{{ code }}">{{ code }} — {{ label }}</option>{% endfor %}</select></label>{% endif %}
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:12px 0">{% for field in lab.campos %}<label>{{ field|replace('aegypt_', 'Aedes aegypti — ')|replace('albopictus_', 'Aedes albopictus — ')|replace('outra_', 'Outros — ') }} <input class="inp" type="number" min="0" max="1000000" step="1" name="{{ field }}" value="{{ t[field] if t[field] is not none else '' }}" required></label>{% endfor %}</div>
+      <label>Observações <textarea class="inp" name="observacoes" maxlength="2000">{{ t.observacoes or '' }}</textarea></label><button class="btn btn-primary">{{ 'Salvar correção' if t.leitura_id else 'Salvar leitura' }}</button>
+    </form>{% else %}<p>{% for field in lab.campos %}{{ field|replace('aegypt_', 'Aedes aegypti — ')|replace('albopictus_', 'Aedes albopictus — ')|replace('outra_', 'Outros — ') }}: {{ t[field] }}{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+  </details>{% else %}{% if not lab.erro %}<p>Nenhum tubo LIRAA encontrado neste filtro.</p>{% endif %}{% endfor %}
+  {% if lab.pagina > 1 %}<a href="{{ url_for(endpoint, modulo='liraa', ciclo=lab.ciclo, pendentes=lab.pendentes, pagina=lab.pagina-1) }}">Anterior</a>{% endif %}
+  {% if lab.proxima %}<a href="{{ url_for(endpoint, modulo='liraa', ciclo=lab.ciclo, pendentes=lab.pendentes, pagina=lab.pagina+1) }}">Próxima</a>{% endif %}
+</div>

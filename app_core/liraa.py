@@ -9,6 +9,7 @@ import json
 import random
 import secrets
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from fractions import Fraction
 from itertools import groupby
 
@@ -57,6 +58,16 @@ def _schema(conn):
                 fracao REAL NOT NULL, intervalo REAL NOT NULL, inicio_casual REAL NOT NULL,
                 universo_hash TEXT NOT NULL, universo_json TEXT NOT NULL,
                 selecionados_json TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS liraa_sorteios_historico (
+                id_historico INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_estrato INTEGER NOT NULL REFERENCES liraa_estratos(id_estrato) ON DELETE CASCADE,
+                id_sorteio_original INTEGER NOT NULL, substituido_em TEXT NOT NULL,
+                snapshot_json TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS liraa_ciclo_config (
+                id_ciclo INTEGER PRIMARY KEY REFERENCES liraa_ciclos(id_ciclo) ON DELETE CASCADE,
+                acs_json TEXT NOT NULL DEFAULT '[]',
+                acs_definidos INTEGER NOT NULL DEFAULT 0,
+                kobo_uid TEXT NOT NULL DEFAULT '', atualizado_em TEXT NOT NULL);
         """)
 
 
@@ -129,9 +140,7 @@ def inventario(target, base_dir=None):
                 "pe_rg": int(row["pe"] or 0) if row else 0,
                 "tem_rg": row is not None,
             }
-        ordem = lambda r: (r["localidade"].casefold(),
-                           0 if r["quarteirao"].isdigit() else 1,
-                           int(r["quarteirao"]) if r["quarteirao"].isdigit() else r["quarteirao"])
+        ordem = lambda r: (r["localidade"].casefold(), _ordem_quarteirao(r["quarteirao"]))
         universo = sorted(quarteiroes.values(), key=ordem)
         por_localidade = []
         for loc in localidades:
@@ -174,6 +183,12 @@ def painel(target, base_dir=None):
             for row in s["selecionados"]:
                 row.setdefault("ordem_localidade", posicoes.get(
                     (row["id_localidade"], row["quarteirao"])))
+            s["por_localidade"] = []
+            for loc, total in contagens.items():
+                escolhidos = [q for q in s["selecionados"] if q["id_localidade"] == loc]
+                nome = next(q["localidade"] for q in universo_salvo if q["id_localidade"] == loc)
+                s["por_localidade"].append({"id_localidade": loc, "localidade": nome,
+                                          "universo": total, "sorteados": len(escolhidos)})
         por_estrato = {}
         for r in vinculos:
             por_estrato.setdefault(r["id_estrato"], []).append(r["id_localidade"])
@@ -198,6 +213,13 @@ def painel(target, base_dir=None):
             usados = {chave for e in c["estratos"] for chave in e["quarteiroes"]}
             c["quarteiroes_sem_estrato"] = len(ativos) - len(ativos & {
                 (int(chave.split(":", 1)[0]), chave.split(":", 1)[1]) for chave in usados})
+            c["total_visitas"] = int(conn.execute(
+                "SELECT COUNT(*) FROM liraa_visitas WHERE id_ciclo=?", (c["id_ciclo"],)
+            ).fetchone()[0]) if db_core.table_exists(conn, "liraa_visitas") else 0
+            config = conn.execute("SELECT * FROM liraa_ciclo_config WHERE id_ciclo=?",
+                                  (c["id_ciclo"],)).fetchone() if db_core.table_exists(conn, "liraa_ciclo_config") else None
+            c["config"] = db_core.serialize_row(config) if config else {"acs_json": "[]", "acs_definidos": 0, "kobo_uid": ""}
+            c["config"]["acs"] = json.loads(c["config"].pop("acs_json"))
         return {**territorio, "ciclos": ciclos}
     finally:
         conn.close()
@@ -452,7 +474,17 @@ def _selecionar_por_localidade(universo, q_planejado, inicio):
     return selecionados
 
 
-def _calcular_sorteio(n_imoveis, universo, tipo, seed):
+def _ordem_quarteirao(value):
+    try:
+        number = Decimal(str(value).replace(",", "."))
+        if number.is_finite():
+            return 0, number
+    except InvalidOperation:
+        pass
+    return 1, str(value).casefold()
+
+
+def _calcular_sorteio(n_imoveis, universo, tipo, seed, inicio_casual=None):
     a = len(universo)
     if a == 0:
         raise LiraaError("Estrato sem quarteirões na camada ativa.")
@@ -463,21 +495,42 @@ def _calcular_sorteio(n_imoveis, universo, tipo, seed):
     q = plano["q"]
     # O manual determina IC aleatorio em (0, IA); o relatorio legado exibe
     # um inteiro, mas nao prova que a geracao interna se limite a inteiros.
-    inicio = max(random.Random(seed).random(), 1 / (2 ** 53)) * plano["intervalo"]
+    if inicio_casual not in (None, ""):
+        try:
+            inicio = Fraction(str(inicio_casual).strip().replace(",", "."))
+        except (ValueError, ZeroDivisionError):
+            raise LiraaError("Informe um início casual numérico válido.") from None
+        if not 0 < inicio <= Fraction(a, q):
+            raise LiraaError(f"O início casual deve ser maior que zero e no máximo {plano['intervalo']:.8f}.")
+    else:
+        inicio = max(random.Random(seed).random(), 1 / (2 ** 53)) * plano["intervalo"]
     selecionados = _selecionar_por_localidade(universo, q, inicio)
-    return {**plano, "inicio_casual": inicio, "selecionados": selecionados}
+    return {**plano, "inicio_casual": float(inicio), "selecionados": selecionados}
 
 
-def sortear(target, id_estrato, base_dir=None, seed=None):
+def sortear(target, id_estrato, base_dir=None, seed=None, inicio_casual=None,
+            ressortear=False, id_sorteio_esperado=None, auditar=None):
     territorio = inventario(target, base_dir)
     conn = db_core.connect(target)
     try:
         _schema(conn)
-        estrato = conn.execute("SELECT * FROM liraa_estratos WHERE id_estrato=?", (id_estrato,)).fetchone()
+        if getattr(conn, "backend", "sqlite") == "sqlite":
+            conn.execute("BEGIN IMMEDIATE")
+        lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
+        estrato = conn.execute("SELECT * FROM liraa_estratos WHERE id_estrato=?" + lock, (id_estrato,)).fetchone()
         if not estrato:
             raise LiraaError("Estrato não encontrado.")
-        if conn.execute("SELECT 1 FROM liraa_sorteios WHERE id_estrato=?", (id_estrato,)).fetchone():
+        anterior = conn.execute("SELECT * FROM liraa_sorteios WHERE id_estrato=?", (id_estrato,)).fetchone()
+        if anterior and not ressortear:
             raise LiraaError("Este estrato já foi sorteado; o resultado está preservado.")
+        if ressortear:
+            if not db_core.table_exists(conn, "liraa_sorteios_historico"):
+                raise LiraaError("Aplique a migração 0026 antes de ressortear.")
+            if not anterior or str(anterior["id_sorteio"]) != str(id_sorteio_esperado):
+                raise LiraaError("O sorteio mudou desde que a página foi aberta. Atualize antes de ressortear.")
+            if db_core.table_exists(conn, "liraa_visitas") and conn.execute(
+                    "SELECT 1 FROM liraa_visitas WHERE id_ciclo=? LIMIT 1", (estrato["id_ciclo"],)).fetchone():
+                raise LiraaError("Este ciclo já possui visitas importadas. O ressorteio só está disponível antes do trabalho de campo.")
         ids = {r["id_localidade"] for r in conn.execute(
             "SELECT id_localidade FROM liraa_estrato_localidades WHERE id_estrato=?", (id_estrato,)).fetchall()}
         chaves = {(int(r["id_localidade"]), r["quarteirao"]) for r in conn.execute(
@@ -489,11 +542,17 @@ def sortear(target, id_estrato, base_dir=None, seed=None):
                 len(chaves - {(r["id_localidade"], r["quarteirao"]) for r in universo}):
             raise LiraaError("O estrato possui quarteirões ausentes da camada ativa; revise antes do sorteio.")
         seed = secrets.randbits(64) if seed is None else int(seed)
-        calculo = _calcular_sorteio(estrato["imoveis_confirmados"], universo, estrato["tipo"], seed)
+        calculo = _calcular_sorteio(estrato["imoveis_confirmados"], universo, estrato["tipo"], seed, inicio_casual)
         universo_json = json.dumps(universo, ensure_ascii=False, separators=(",", ":"))
         selecionados_json = json.dumps(calculo["selecionados"], ensure_ascii=False, separators=(",", ":"))
         try:
             with conn:
+                if anterior:
+                    conn.execute("""INSERT INTO liraa_sorteios_historico
+                        (id_estrato,id_sorteio_original,substituido_em,snapshot_json) VALUES (?,?,?,?)""",
+                        (id_estrato, anterior["id_sorteio"], datetime.now().isoformat(timespec="seconds"),
+                         json.dumps(db_core.serialize_row(anterior), ensure_ascii=False)))
+                    conn.execute("DELETE FROM liraa_sorteios WHERE id_sorteio=?", (anterior["id_sorteio"],))
                 id_sorteio = db_core.insert_and_get_id(conn, """INSERT INTO liraa_sorteios
                     (id_estrato,criado_em,semente,n,a,q,fracao,intervalo,inicio_casual,
                      universo_hash,universo_json,selecionados_json)
@@ -503,6 +562,12 @@ def sortear(target, id_estrato, base_dir=None, seed=None):
                      calculo["intervalo"], calculo["inicio_casual"],
                      hashlib.sha256(universo_json.encode("utf-8")).hexdigest(),
                      universo_json, selecionados_json), "id_sorteio")
+                if auditar:
+                    auditar(conn, {"id_estrato": id_estrato, "id_sorteio": id_sorteio,
+                                   "anterior": anterior["id_sorteio"] if anterior else None,
+                                   "inicio_casual": calculo["inicio_casual"], "q_planejado": calculo["q"],
+                                   "q_sorteado": len(calculo["selecionados"]),
+                                   "origem_inicio": "informado" if inicio_casual not in (None, "") else "aleatorio"})
         except Exception as exc:
             if "unique" in str(exc).lower() or "duplicate" in str(exc).lower():
                 raise LiraaError("Este estrato já foi sorteado por outra operação.") from exc

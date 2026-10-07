@@ -1,0 +1,60 @@
+{% set operation = operacao|default({}) %}
+{% set plan = operation.get('plano') %}
+{% macro filtros(tab, agrupamento=false) %}
+<form class="liraa-form" method="get" action="{{ url_for('liraa.page') }}#liraa-tab-{{ tab }}">
+  <label>Ciclo<select name="ciclo" required>{% for c in dados.ciclos %}<option value="{{ c.id_ciclo }}" {% if plan and plan.ciclo.id_ciclo == c.id_ciclo %}selected{% endif %}>{{ c.ano }} — {{ c.nome }}</option>{% endfor %}</select></label>
+  {% if tab != 'formulario' %}
+  <label>Estrato<select name="estrato"><option value="">Todos</option>{% if plan %}{% for e in plan.ciclo.estratos %}<option value="{{ e.id_estrato }}" {% if request.args.get('estrato') == e.id_estrato|string %}selected{% endif %}>Estrato {{ e.numero }}</option>{% endfor %}{% endif %}</select></label>
+  <label>Localidade<select name="localidade"><option value="">Todas</option>{% for l in dados.localidades %}<option value="{{ l.id_localidade }}" {% if request.args.get('localidade') == l.id_localidade|string %}selected{% endif %}>{{ l.nome }}</option>{% endfor %}</select></label>
+  {% endif %}
+  {% if agrupamento %}<label>Resumo por<select name="agrupar"><option value="estrato">Estrato</option><option value="localidade" {% if request.args.get('agrupar') == 'localidade' %}selected{% endif %}>Localidade dentro do estrato</option></select></label>{% endif %}
+  <button class="liraa-btn primary">Consultar</button>
+</form>
+{% endmacro %}
+<section class="liraa-panel" id="liraa-tab-campo" role="tabpanel" hidden>
+  <h2>Plano de campo — quarteirões sorteados</h2>
+  {{ filtros('campo') }}
+  {% if operation.get('erro') %}<p class="liraa-note" role="alert">{{ operation.erro }}</p>{% endif %}
+  {% if plan %}
+  <div class="liraa-grid"><div class="liraa-card"><strong>{{ plan.quarteiroes|length }}</strong><span>quarteirões neste filtro</span></div><div class="liraa-card"><strong>{{ plan.quarteiroes|sum(attribute='meta_rg', start=0) if not plan.sem_rg else 'Incompleta' }}</strong><span>meta operacional RG</span></div><div class="liraa-card"><strong>{{ plan.sem_rg }}</strong><span>quarteirões sem RG</span></div></div>
+  <p class="liraa-muted">A referência é 20% / 50% dos imóveis do RG, arredondada para cima por quarteirão. Não substitui a amostra estatística do estrato. PE e referências não entram; condomínios residenciais são expandidos conforme o RG.</p>
+  <div class="liraa-actions"><a class="liraa-btn" href="{{ url_for('liraa.exportar_plano', id_ciclo=plan.ciclo.id_ciclo, formato='kml', estrato=request.args.get('estrato',''), localidade=request.args.get('localidade','')) }}">Exportar KML com cores</a><a class="liraa-btn" href="{{ url_for('liraa.exportar_plano', id_ciclo=plan.ciclo.id_ciclo, formato='pdf', estrato=request.args.get('estrato',''), localidade=request.args.get('localidade','')) }}">PDF do plano de campo</a></div>
+  <p id="liraa-campo-status" class="liraa-status" role="status"></p>
+  <div id="liraa-campo-mapa" class="liraa-map" data-url="{{ url_for('liraa.plano_mapa', id_ciclo=plan.ciclo.id_ciclo, estrato=request.args.get('estrato',''), localidade=request.args.get('localidade','')) }}"></div>
+  <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Estrato / localidade</th><th>Quarteirão</th><th>Imóveis RG</th><th>Referência a trabalhar</th></tr></thead><tbody>{% for q in plan.quarteiroes %}<tr><td>{{ q.estrato }} / {{ q.localidade }}</td><td>{{ q.quarteirao_exibicao }}</td><td>{{ q.unidades_rg if q.unidades_rg is not none else 'Sem RG' }}</td><td>{{ q.meta_rg if q.meta_rg is not none else 'Não disponível' }} ({{ (q.fracao*100)|int }}%)</td></tr>{% endfor %}</tbody></table></div>
+  {% else %}<p>Escolha um ciclo com estratos sorteados.</p>{% endif %}
+</section>
+{% if is_admin %}
+<section class="liraa-panel" id="liraa-tab-formulario" role="tabpanel" hidden>
+  <h2>Formulário Kobo por ciclo</h2>
+  {{ filtros('formulario') }}
+  {% if plan %}{% set cfg = plan.ciclo.config|default({'acs': [], 'acs_definidos': 0, 'kobo_uid': ''}) %}
+  <p>Selecione os ACS participantes, salve e gere o XLSForm. Depois envie esse arquivo ao Kobo manualmente e informe o UID do formulário do ciclo. A geração não publica nem altera formulários existentes.</p>
+  <form method="post" action="{{ url_for('liraa.configurar_ciclo', id_ciclo=plan.ciclo.id_ciclo) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="liraa-localidades">{% for a in operation.get('acs', []) %}<label><input type="checkbox" name="acs" value="{{ a.codigo }}" {% if a.codigo in cfg.acs|map(attribute='codigo')|list %}checked{% endif %}>{{ a.nome }}</label>{% endfor %}</div>
+    <p class="liraa-muted">Salvar sem marcar nomes confirma um ciclo sem ACS. O formulário sempre oferecerá “Nenhum ACS”. Os ACE continuam disponíveis conforme o modelo enviado.</p>
+    <label>UID Kobo específico deste ciclo <input name="kobo_uid" maxlength="100" value="{{ cfg.kobo_uid }}" placeholder="Ex.: anXWARrB2YkHK5W9YTwDfU"></label>
+    <button class="liraa-btn primary" type="submit">Salvar participantes e UID</button>
+  </form>
+  <p><a class="liraa-btn" href="{{ url_for('liraa.formulario', id_ciclo=plan.ciclo.id_ciclo) }}">Gerar XLSForm do ciclo</a></p>
+  <p class="liraa-note">O formulário inclui <strong>todos</strong> os quarteirões sorteados do ciclo, independentemente dos filtros desta tela. Se houver ressorteio, gere e publique novamente antes das visitas. O Endemias identifica formulários antigos e não consolida seus dados silenciosamente.</p>
+  {% endif %}
+</section>
+<section class="liraa-panel" id="liraa-tab-boletins" role="tabpanel" hidden>
+  <h2>Boletins de campo e laboratório</h2>
+  {{ filtros('boletins', true) }}
+  <p><a class="liraa-btn" href="{{ url_for('liraa.laboratorio', ciclo=plan.ciclo.id_ciclo if plan else '') }}">Lançar / conferir leituras dos tubitos LIRAa</a></p>
+  {% if operation.get('erro') %}<p class="liraa-note">{{ operation.erro }}</p>{% endif %}
+  {% if plan %}<p><a class="liraa-btn" href="{{ url_for('liraa.boletim', id_ciclo=plan.ciclo.id_ciclo, agrupar=request.args.get('agrupar','estrato'), estrato=request.args.get('estrato',''), localidade=request.args.get('localidade','')) }}">PDF do resumo do boletim</a></p>{% endif %}
+  {% if operation.get('boletim') %}{% set boletim = operation.boletim %}
+  <p class="liraa-muted">Cada visita aberta conta um imóvel trabalhado; cada tubito conta um recipiente. Vários recipientes positivos da mesma visita contam somente um imóvel positivo por espécie. Confira eventuais retornos/duplicações de visitas. {{ boletim.excluidas }} visita(s) fora do plano/período não entram no resumo.</p>
+  {% for g in boletim.grupos %}<article class="liraa-stratum"><h3>Estrato {{ g.estrato }} · {{ g.localidade }}</h3>
+    {% if g.parcial %}<p class="liraa-note">PARCIAL: {{ g.pendentes }} tubitos sem leitura; {{ g.tipos_invalidos }} imóveis sem tipo válido; {{ g.depositos_invalidos }} recipientes aegypti sem código de depósito válido. Os positivos abaixo são os já confirmados.</p>{% endif %}
+    <p>Programados no estrato: {{ g.programados }}{% if boletim.agrupar == 'localidade' %} (amostra do estrato inteiro, não só desta localidade){% endif %} · Trabalhados neste filtro: {{ g.trabalhados }} · Leituras: {{ g.leituras }} / {{ g.tubitos }}</p>
+    <p class="liraa-muted">Referência operacional RG neste filtro: {{ g.referencia_rg }} imóveis conhecidos · {{ g.sem_rg }} quarteirões sem RG. Não substitui os programados do estrato.</p>
+    <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Espécie</th><th>Terrenos baldios positivos</th><th>Outros imóveis positivos</th><th>Recipientes positivos</th></tr></thead><tbody><tr><td>Aedes aegypti</td><td>{{ g.aegypt_tb }}</td><td>{{ g.aegypt_outros }}</td><td>{{ g.aegypt_total }}</td></tr><tr><td>Aedes albopictus</td><td>{{ g.albopictus_tb }}</td><td>{{ g.albopictus_outros }}</td><td>{{ g.albopictus_total }}</td></tr></tbody></table></div>
+    <p>Aegypti por depósito: {% for code, count in g.aegypt_recipientes.items() %}{{ code }}: {{ count }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+  </article>{% endfor %}{% endif %}
+</section>
+{% endif %}

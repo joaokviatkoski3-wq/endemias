@@ -350,7 +350,7 @@ class LiraaTests(unittest.TestCase):
                                                        erro=None, editando=None, is_admin=True,
                                                        APP_VERSION_LABEL="Teste", TIPO_CORES={},
                                                        TIPO_LABELS={}, AGENDA_TIPO_LABELS={},
-                                                       sidebar_groups=[], request=SimpleNamespace(endpoint="liraa.page"))
+                                                         sidebar_groups=[], request=SimpleNamespace(endpoint="liraa.page", args={}))
         self.assertIn("Pontos Estratégicos", html)
         self.assertIn("Novo ciclo", html)
         self.assertIn("Mapa dos estratos", html)

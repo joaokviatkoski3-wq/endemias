@@ -156,7 +156,7 @@
     }
   }
   function aba(nome) {
-    for (const aba of ['plano', 'mapa', 'geral', 'importar', 'visitas']) {
+    for (const aba of ['plano', 'mapa', 'geral', 'importar', 'visitas', 'campo', 'formulario', 'boletins']) {
       if (!el(`liraa-tab-${aba}`)) continue;
       const ativa = nome === aba;
       el(`liraa-tab-${aba}`).hidden = !ativa;
@@ -164,13 +164,16 @@
     }
     if (nome === 'mapa') iniciarMapa();
     if (nome === 'geral') window.LiraaMapaGeral?.iniciar(estado.geo);
+    if (nome === 'campo') window.LiraaPlanoCampo?.iniciar();
   }
   el('liraa-tab-plano-btn').addEventListener('click', () => aba('plano'));
   el('liraa-tab-mapa-btn').addEventListener('click', () => aba('mapa'));
   el('liraa-tab-geral-btn').addEventListener('click', () => aba('geral'));
-  for (const nome of ['importar', 'visitas']) {
+  for (const nome of ['importar', 'visitas', 'campo', 'formulario', 'boletins']) {
     el(`liraa-tab-${nome}-btn`)?.addEventListener('click', () => aba(nome));
   }
+  const hashTab = location.hash.replace('#liraa-tab-', '');
+  if (['campo','formulario','boletins'].includes(hashTab) && el(`liraa-tab-${hashTab}`)) aba(hashTab);
   if (location.hash === '#liraa-tab-visitas' && el('liraa-tab-visitas')) aba('visitas');
   if (location.hash === '#liraa-tab-importar' && el('liraa-tab-importar')) aba('importar');
   if (new URLSearchParams(location.search).has('consulta_kobo') && el('liraa-tab-importar')) aba('importar');

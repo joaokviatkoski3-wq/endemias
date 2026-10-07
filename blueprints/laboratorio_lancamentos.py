@@ -13,6 +13,7 @@ from app_core import db as db_core
 from app_core import focos_positivos as focos_core
 from app_core import laboratorio_lancamentos as lab_core
 from app_core import ovitrampas_laboratorio as ovi_lab_core
+from app_core import liraa_laboratorio as liraa_lab_core
 
 
 bp = Blueprint("laboratorio_lancamentos", __name__)
@@ -170,6 +171,7 @@ def page():
         is_admin=usuario.get("nivel") == "admin",
         agentes=agentes,
         laboratoristas=laboratoristas,
+        liraa_lab=liraa_lab_core.painel(bh.db_target(), request.args),
     )
 
 

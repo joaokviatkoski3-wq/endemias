@@ -8,7 +8,7 @@
 .lab-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;}
 .lab-head h1{font-size:21px;margin:0;display:flex;align-items:center;gap:9px;}
 .lab-head p{margin:4px 0 0;color:var(--text3);font-size:12px;}
-.lab-module-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;}
+.lab-module-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;}
 .lab-module-tab{min-height:46px;border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:7px;font:700 13px inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
 .lab-module-tab.active{background:var(--brand);border-color:var(--brand);color:#fff;}
 .lab-module-tab img{width:18px;height:18px;}
@@ -111,6 +111,7 @@
   <div class="lab-module-tabs" role="tablist" aria-label="Tipo de leitura">
     <button class="lab-module-tab active" type="button" data-lab-module="tubos" onclick="abrirModuloLab('tubos')"><img src="/static/icons/tubo_ensaio.svg" alt=""> Leitura tubos</button>
     <button class="lab-module-tab" type="button" data-lab-module="ovitrampas" onclick="abrirModuloLab('ovitrampas')"><img src="/static/icons/ovitrampa.svg" alt=""> Leitura Ovitrampa <span class="lab-count" id="ovi-lab-pending-count">-</span></button>
+    <button class="lab-module-tab" type="button" data-lab-module="liraa" onclick="abrirModuloLab('liraa')"><img src="/static/icons/tubo_ensaio.svg" alt=""> Tubos · LIRAA <span class="lab-count" id="liraa-lab-pending-count">{{ liraa_lab.total_pendentes }}</span></button>
   </div>
 
   <section class="lab-module" id="lab-module-tubos">
@@ -142,6 +143,9 @@
       <div class="lab-toolbar"><strong>Leituras concluídas</strong><button class="btn btn-ghost btn-sm" type="button" onclick="carregarOviLab(true)"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
       <div class="ovi-lab-list" id="ovi-lab-history"><div class="lab-empty"><div class="spinner"></div></div></div>
     </section>
+  </section>
+  <section class="lab-module" id="lab-module-liraa" hidden>
+    {% with lab=liraa_lab, integrado=true %}{% include 'liraa_laboratorio_conteudo.html' %}{% endwith %}
   </section>
 </div>
 
@@ -223,7 +227,9 @@ function abrirModuloLab(modulo){
   document.querySelectorAll('[data-lab-module]').forEach(btn=>btn.classList.toggle('active',btn.dataset.labModule===modulo));
   document.getElementById('lab-module-tubos').hidden=modulo!=='tubos';
   document.getElementById('lab-module-ovitrampas').hidden=modulo!=='ovitrampas';
-  if(modulo==='ovitrampas') carregarOviLab(false); else carregarPendentes();
+  document.getElementById('lab-module-liraa').hidden=modulo!=='liraa';
+  if(modulo==='ovitrampas') carregarOviLab(false);
+  else if(modulo==='tubos') carregarPendentes();
 }
 function abrirAbaLab(tab){
   document.querySelectorAll('[data-tab]').forEach(btn=>btn.classList.toggle('active',btn.dataset.tab===tab));
@@ -433,5 +439,6 @@ labDialog.addEventListener('click',ev=>{if(ev.target===labDialog)fecharLancament
 labConfirmDialog.addEventListener('click',ev=>{if(ev.target===labConfirmDialog)fecharConfirmacaoSalvar();});
 carregarPendentes();
 carregarOviLab(false);
+if(new URLSearchParams(location.search).get('modulo')==='liraa') abrirModuloLab('liraa');
 </script>
 {% endblock %}

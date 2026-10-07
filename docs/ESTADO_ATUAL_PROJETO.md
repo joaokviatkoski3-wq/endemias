@@ -1,6 +1,6 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 06/10/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 07/10/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
@@ -24,6 +24,28 @@ Consulte `docs/GUIA_TRABALHO_MULTIAGENTE.md` para o passo a passo e os prompts
 de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
+
+Em 07/10/2026, código `1.67.0` preparado para o incremento operacional LIRAa:
+mapa e KML dos sorteados, PDF de plano de campo, totais por localidade,
+ressorteio com início casual opcional e histórico, seleção ACS/UID por ciclo,
+XLSForm com quarteirões em cascata, aba Tubos · LIRAA em Lançamentos Laboratório e boletins PDF
+por estrato ou localidade. Não altera a fórmula amostral homologada nem os
+sorteios existentes. A migração **0026 está preparada, ainda não aplicada**;
+o serviço oficial permanece na última versão confirmada `1.66.0` enquanto
+aguarda autorização de backup/migração/reinício. A regressão SQLite isolada
+passou com **786 testes (5 ignorados)**, além da conversão XLSForm
+sem avisos e inspeção dos PDFs. A UI isolada confirmou leitura→boletim e
+filtros, incluindo a aba Tubos · LIRAA no laboratório e o contador 3→2 após salvar.
+O ensaio PostgreSQL 18 passou em instância descartável localhost:55432,
+com tabelas temporárias, migração 0026, ressorteio/histórico, formulário,
+importação, leitura, contador, boletim e exclusão em cascata. A instância foi
+encerrada; não houve acesso ao banco oficial. Uma tentativa anterior de conexão PostgreSQL em contexto
+não elevado não obteve credencial; não houve alteração de ACL ou cópia de
+senha. O código está na branch `codex/liraa-ciclo-operacional`, aguardando
+autorização para integrar/implantar conjuntamente, evitando atualizar templates
+do serviço antigo antes do reinício. Falta validação real de upload e uso do
+formulário no Kobo, além da conferência operacional do primeiro ciclo.
+Ver `docs/LIRAA_OPERACAO_CICLO.md`.
 
 Em 06/10/2026, a branch `codex/liraa-kobo-visitas` foi integrada na `master`.
 O código `1.66.0` oferece importação separada do diário Kobo LIRAa,

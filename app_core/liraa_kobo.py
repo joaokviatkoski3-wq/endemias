@@ -14,7 +14,7 @@ class LiraaKoboError(ValueError):
 LOCALIDADES_KOBO = {
     "cachoeira": "Cachoeira", "grasiela": "Graziela", "lamenha": "Lamenha",
     "para_so": "Paraíso", "roma": "Roma", "rosana": "Rosana",
-    "santa_maria": "Santa Maria", "s_o_francisco": "São Francisco",
+    "santa_maria": "Santa Maria", "s_o_francisco": "São Francisco", "são_francisco": "São Francisco",
     "s_o_jo_o_batista": "São João Batista", "s_o_ven_ncio": "São Venâncio",
     "centro": "Sede", "tamboara": "Tamboara", "tangu": "Tanguá",
     "tranqueira": "Tranqueira",
@@ -51,6 +51,9 @@ def ensure_schema(conn):
                 kobo_uuid TEXT PRIMARY KEY, excluida_em TEXT NOT NULL,
                 id_ciclo INTEGER, motivo TEXT NOT NULL DEFAULT '');
         """)
+        for name, default in (("tratamento_json", "{}"), ("form_ciclo", ""), ("plano_hash", "")):
+            if not db.column_exists(conn, "liraa_visitas", name):
+                conn.execute(f"ALTER TABLE liraa_visitas ADD COLUMN {name} TEXT NOT NULL DEFAULT '{default}'")
 
 
 def _campo(record, name):
@@ -104,11 +107,28 @@ def _tubitos(record):
     for i, row in enumerate(rows, 1):
         if not isinstance(row, dict):
             raise LiraaKoboError("Tubito do Kobo inválido.")
-        result.append({"ordem": i,
-                       "numero": _texto(_campo(row, "N_mero_do_tubito"), 60),
-                       "codigo_deposito": _texto(_campo(row, "C_digo_do_dep_sito"), 60),
-                       "deposito": _texto(_campo(row, "Dep_sito"), 200)})
+        tube = {"ordem": i,
+                       "numero": _texto(_campo(row, "group_jr1vc40/N_mero_do_tubito") or _campo(row, "N_mero_do_tubito"), 60),
+                       "codigo_deposito": _texto(_campo(row, "group_jr1vc40/C_digo_do_dep_sito") or _campo(row, "C_digo_do_dep_sito"), 60),
+                       "deposito": _texto(_campo(row, "group_jr1vc40/Dep_sito") or _campo(row, "Dep_sito"), 200)}
+        if any(tube[key] for key in ("numero", "codigo_deposito", "deposito")):
+            result.append(tube)
     return result
+
+
+def _tratamento(record):
+    fields = ("O_im_vel_foi_Tratado_com_Larvi", "Quantidade_carga_gr", "Quantidade_dep_sitos_tratados")
+    result = {f: _campo(record, f"group_rb5ho54/{f}") for f in fields
+              if _campo(record, f"group_rb5ho54/{f}") is not None}
+    legacy = []
+    for tube in _campo(record, "group_jr1vc40") or []:
+        item = {f: _campo(tube, f"group_jr1vc40/group_rb5ho54/{f}") or _campo(tube, f"group_rb5ho54/{f}")
+                for f in fields if _campo(tube, f"group_jr1vc40/group_rb5ho54/{f}") is not None or _campo(tube, f"group_rb5ho54/{f}") is not None}
+        if item:
+            legacy.append(item)
+    if legacy:
+        result["legado_por_tubito"] = legacy
+    return json.dumps(result, ensure_ascii=False)
 
 
 def _normalizar(record):
@@ -141,6 +161,9 @@ def _normalizar(record):
         "sequencia": _texto(_campo(record, "Dados_visita/Sequencia"), 100),
         "morador": _texto(_campo(record, "Dados_visita/Morador"), 300),
         "observacoes": _texto(_campo(record, "Dados_visita/Observa_es"), 2000),
+        "form_ciclo": _texto(_campo(record, "endemias_ciclo"), 30),
+        "plano_hash": _texto(_campo(record, "endemias_plano"), 64),
+        "tratamento_json": _tratamento(record),
         "tubitos": _tubitos(record),
     }
 
@@ -160,11 +183,16 @@ def _contexto(conn, id_ciclo):
         sorteados[row["id_estrato"]] = {
             (item["id_localidade"], _quarteirao(item["quarteirao"]))
             for item in json.loads(row["selecionados_json"])}
-    return cycle, nomes, estratos, sorteados
+    from app_core.liraa_operacional import plano_hash_conn
+    return cycle, nomes, estratos, sorteados, plano_hash_conn(conn, id_ciclo)
 
 
 def _vincular(item, context):
-    cycle, nomes, estratos, sorteados = context
+    cycle, nomes, estratos, sorteados, hash_atual = context
+    if item.get("form_ciclo") and str(item["form_ciclo"]) != str(cycle["id_ciclo"]):
+        return None, None, "formulario_de_outro_ciclo"
+    if item.get("plano_hash") and item["plano_hash"] != hash_atual:
+        return None, None, "plano_formulario_desatualizado"
     if item["localidade_informada"] == "Capivara dos Manfron":
         return None, None, "area_rural_fora_liraa"
     if int(item["data_visita"][:4]) != int(cycle["ano"]):
@@ -217,7 +245,14 @@ def importar(target, id_ciclo, records, auditar=None):
     conn = db.connect(target)
     try:
         ensure_schema(conn)
+        if not db.column_exists(conn, "liraa_visitas", "plano_hash"):
+            raise LiraaKoboError("Aplique a migração 0026 antes de importar o diário atualizado.")
+        if getattr(conn, "backend", "sqlite") == "sqlite":
+            conn.execute("BEGIN IMMEDIATE")
         with conn:
+            # Mesmo bloqueio usado no ressorteio: impede alteração do plano durante a importação.
+            lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
+            conn.execute("SELECT id_estrato FROM liraa_estratos WHERE id_ciclo=? ORDER BY id_estrato" + lock, (id_ciclo,)).fetchall()
             items = _preparar(conn, id_ciclo, records)
             created = 0
             for item in items:
@@ -226,14 +261,16 @@ def importar(target, id_ciclo, records, auditar=None):
                 visit_id = db.insert_and_get_id(conn, """INSERT INTO liraa_visitas
                     (id_ciclo,id_estrato,kobo_uuid,kobo_id,data_visita,hora_inicio,enviado_em,
                      agentes_codigos,acs_codigos,id_localidade,localidade_informada,quarteirao,
-                     situacao_vinculo,tipo_imovel,logradouro,numero,sequencia,morador,observacoes,criado_em)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                     situacao_vinculo,tipo_imovel,logradouro,numero,sequencia,morador,observacoes,criado_em,
+                     tratamento_json,form_ciclo,plano_hash)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (id_ciclo, item["id_estrato"], item["kobo_uuid"], item["kobo_id"],
                      item["data_visita"], item["hora_inicio"], item["enviado_em"],
                      item["agentes_codigos"], item["acs_codigos"], item["id_localidade"],
                      item["localidade_informada"], item["quarteirao"], item["situacao_vinculo"],
                      item["tipo_imovel"], item["logradouro"], item["numero"], item["sequencia"],
-                     item["morador"], item["observacoes"], datetime.now().isoformat(timespec="seconds")),
+                     item["morador"], item["observacoes"], datetime.now().isoformat(timespec="seconds"),
+                     item["tratamento_json"], item["form_ciclo"], item["plano_hash"]),
                     "id_visita")
                 for tube in item["tubitos"]:
                     conn.execute("""INSERT INTO liraa_visita_tubitos
