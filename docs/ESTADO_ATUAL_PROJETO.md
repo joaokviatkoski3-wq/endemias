@@ -1,6 +1,6 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 07/10/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 08/10/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
@@ -24,6 +24,21 @@ Consulte `docs/GUIA_TRABALHO_MULTIAGENTE.md` para o passo a passo e os prompts
 de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
+
+Código `1.68.0` preparado em 08/10/2026: em Territorialização > RG,
+**Impressão e planilhas** permite baixar um XLSX de um ou vários quarteirões
+selecionados da mesma localidade. Uma aba, uma linha por registro, sem mapas,
+resumos, IDs técnicos ou decoração; preserva ordem, datas, agentes, referências
+e campos do cadastro. Impressão/PDF inalterados. Não exige migração nem altera
+dados. Preparado na branch `codex/rg-planilhas`; integração e reinício do
+serviço oficial ainda pendentes de autorização de reinício, pois os templates
+são recarregados automaticamente e não devem expor o botão antes da nova rota.
+Validação: suíte completa com 794 testes (5 ignorados), 19 testes focados finais,
+7 arquivos de testes JS, renderização/reabertura de XLSX sintético e HTTP no
+Flask isolado, incluindo login e versão `1.68.0`. Foi acrescentado teste de
+650 imóveis para garantir exportação sem o limite da consulta paginada.
+SQLite congelado e alteração preexistente em `tests/test_security.py` preservados.
+Ver `docs/RG_EXPORTACAO_PLANILHAS.md`.
 
 Correção `1.67.1` integrada na `master` (`fe0c4d5`) e ativa em 07/10/2026:
 no LIRAa cada registro COND conta como **1 imóvel**, mesmo que tenha 20 ou

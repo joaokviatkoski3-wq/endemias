@@ -218,7 +218,7 @@
   <button class="rg-tab" type="button" data-rg-tab="edicao">Edição</button>
   <button class="rg-tab" type="button" data-rg-tab="lotes">Edição em lotes</button>
   <button class="rg-tab" type="button" data-rg-tab="acompanhamento">Acompanhamento</button>
-  <button class="rg-tab" type="button" data-rg-tab="impressao">Impressão</button>
+  <button class="rg-tab" type="button" data-rg-tab="impressao">Impressão e planilhas</button>
   <button class="rg-tab" type="button" data-rg-tab="mapa">Mapa / Análise</button>
   {% if is_admin %}<button class="rg-tab" type="button" data-rg-tab="geometrias">Geometrias</button>{% endif %}
 </div>
@@ -406,7 +406,7 @@
 <section class="rg-panel" id="rg-panel-impressao" hidden>
   <div class="chart-card">
     <div class="chart-hd">
-      <div class="chart-title"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Impressão do RG</div>
+      <div class="chart-title"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Impressão e planilhas do RG</div>
     </div>
     <div class="rg-print-card">
       <div class="rg-print-actions">
@@ -414,7 +414,9 @@
         <label class="rg-check-item"><input type="checkbox" id="rg-imp-mini-mapa" checked> Incluir mapas satélite e OSM</label>
         <label class="rg-check-item"><input type="checkbox" id="rg-imp-duplex-recto"> Frente e verso: iniciar cada quarteirão na frente</label>
         <button class="btn btn-primary" type="button" id="rg-imp-btn"><img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Abrir impressão</button>
+        <button class="btn btn-outline" type="button" id="rg-imp-xlsx"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> Baixar planilha .xlsx</button>
       </div>
+      <p class="rg-muted">Selecione um ou mais quarteirões. O XLSX reúne os dados dos RGs selecionados em uma única aba, com uma linha por imóvel, sem mapas ou resumos. RGs sem imóveis aparecem somente com localidade e quarteirão. As opções de mapas e frente e verso valem apenas para a impressão.</p>
       <div class="f-g">
         <label>Quarteirões</label>
         <div class="rg-map-actions" style="margin-bottom:8px;">
@@ -1527,7 +1529,41 @@ async function rgCarregarChecksQuarteiroes(localidadeId, boxId='rg-imp-quarteiro
 function rgMarcarQuarteiroesImpressao(marcar){
   const checks = Array.from(document.querySelectorAll('#rg-imp-quarteiroes input[type="checkbox"]'));
   checks.forEach(input => { input.checked = marcar; });
-  rgSetText('rg-imp-status', checks.length ? `${rgFmt(checks.length)} quarteirao(s) ${marcar ? 'selecionado(s)' : 'desmarcado(s)'} para impressao.` : '');
+  rgSetText('rg-imp-status', checks.length ? `${rgFmt(checks.length)} quarteirão(ões) ${marcar ? 'selecionado(s)' : 'desmarcado(s)'}.` : '');
+}
+async function rgBaixarPlanilha(){
+  const loc = rgEl('rg-imp-localidade').value;
+  const qs = Array.from(document.querySelectorAll('#rg-imp-quarteiroes input:checked')).map(input => input.value).filter(Boolean);
+  if(!loc || !qs.length){ alert('Informe localidade e selecione ao menos um quarteirão.'); return; }
+  const params = new URLSearchParams();
+  params.set('localidade', loc);
+  qs.forEach(q => params.append('quarteirao', q));
+  const btn = rgEl('rg-imp-xlsx');
+  btn.disabled = true;
+  rgSetText('rg-imp-status', 'Gerando planilha...');
+  try {
+    const resp = await fetch(`/registro-geografico/exportar.xlsx?${params.toString()}`);
+    if(!resp.ok){
+      const erro = await resp.json().catch(() => ({}));
+      throw new Error(erro.erro || `Não foi possível gerar a planilha (HTTP ${resp.status}).`);
+    }
+    if(!resp.headers.get('Content-Type')?.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')){
+      throw new Error('A sessão pode ter expirado. Recarregue a página e entre novamente.');
+    }
+    const url = URL.createObjectURL(await resp.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'rgs_selecionados.xlsx';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    rgSetText('rg-imp-status', `Download iniciado: ${rgFmt(qs.length)} RG(s).`);
+  } catch(err) {
+    rgSetText('rg-imp-status', err.message || 'Não foi possível baixar a planilha.');
+  } finally {
+    btn.disabled = false;
+  }
 }
 function rgAbrirImpressao(){
   const loc = rgEl('rg-imp-localidade').value;
@@ -1933,6 +1969,7 @@ rgLogradouroSuggestBox().addEventListener('mousedown', ev => {
 });
 window.addEventListener('scroll', rgHideLogradouroSugestoes, true);
 rgEl('rg-imp-btn').addEventListener('click', rgAbrirImpressao);
+rgEl('rg-imp-xlsx').addEventListener('click', rgBaixarPlanilha);
 rgEl('rg-imp-selecionar-todos').addEventListener('click', () => rgMarcarQuarteiroesImpressao(true));
 rgEl('rg-imp-limpar-selecao').addEventListener('click', () => rgMarcarQuarteiroesImpressao(false));
 rgCarregarSelectQuarteiroes(rgEl('rg-ed-localidade').value, 'rg-ed-quarteirao').catch(() => {});

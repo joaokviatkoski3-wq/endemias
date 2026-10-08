@@ -9,6 +9,7 @@ from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import db as db_core
 from app_core import registro_geografico as rg_core
+from app_core import registro_geografico_exportacao as rg_exportacao
 from app_core import microareas as microareas_core
 
 
@@ -463,6 +464,22 @@ def api_aplicar_lote():
         },
     )
     return jsonify(dados)
+
+
+@bp.route("/registro-geografico/exportar.xlsx")
+@login_required
+def exportar_rg_xlsx():
+    try:
+        conteudo = rg_exportacao.gerar_xlsx(
+            _db_path(), request.args.get("localidade") or request.args.get("id_localidade"),
+            request.args.getlist("quarteirao"), _base_dir(),
+        )
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    return send_file(
+        io.BytesIO(conteudo), as_attachment=True, download_name="rgs_selecionados.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 @bp.route("/registro-geografico/imprimir")

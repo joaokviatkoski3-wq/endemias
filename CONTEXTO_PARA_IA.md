@@ -1,12 +1,14 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 07/10/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 08/10/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
+
+- Código `1.68.0` preparado e testado em 08/10/2026 na branch `codex/rg-planilhas`: exportação limpa XLSX dos RGs selecionados em Territorialização > RG > Impressão e planilhas, preservando a impressão/PDF. Sem migração ou alterações de dados. Integração/ativação no serviço oficial ainda pendentes de autorização de reinício; não integrar com o serviço rodando, pois os templates recarregam automaticamente. Ver `docs/RG_EXPORTACAO_PLANILHAS.md` e `docs/ESTADO_ATUAL_PROJETO.md`.
 
 - Correção `1.67.1` integrada na `master` (`fe0c4d5`) e ativa em 07/10/2026 às 13h15 após reinício autorizado: no LIRAa cada imóvel COND conta como 1, sem expandir suas unidades. Afeta referências RG em inventário, mapas, plano e exportações; RG/microáreas, N confirmado e sorteios antigos são preservados. Sem migração. `/login` confirmou HTTP 200 com `Endemias v1.67.1`; contagens das 91 tabelas e 19 assinaturas territoriais/LIRAa foram preservadas. Ver `docs/ESTADO_ATUAL_PROJETO.md`.
 
