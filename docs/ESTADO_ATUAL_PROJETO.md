@@ -25,14 +25,21 @@ de inicio. Uma mudanca solicitada sempre termina em commit e push.
 
 ## Produção e protecoes indispensaveis
 
-Código `1.68.0` preparado em 08/10/2026: em Territorialização > RG,
+Versão `1.68.0` integrada na `master` (`c726f56`) e ativa em 08/10/2026
+às 10h18 (America/Sao_Paulo), após autorização e reinício: em Territorialização > RG,
 **Impressão e planilhas** permite baixar um XLSX de um ou vários quarteirões
 selecionados da mesma localidade. Uma aba, uma linha por registro, sem mapas,
 resumos, IDs técnicos ou decoração; preserva ordem, datas, agentes, referências
 e campos do cadastro. Impressão/PDF inalterados. Não exige migração nem altera
-dados. Preparado na branch `codex/rg-planilhas`; integração e reinício do
-serviço oficial ainda pendentes de autorização de reinício, pois os templates
-são recarregados automaticamente e não devem expor o botão antes da nova rota.
+dados. A integração ocorreu com o serviço parado, pois os templates são
+recarregados automaticamente e não devem expor o botão antes da nova rota.
+`/login` confirmou HTTP 200 com `Endemias v1.68.0`. Sem sessão, Territorialização,
+exportação XLSX e impressão responderam HTTP 302 para login, sem HTTP 404/500.
+Conferência somente leitura do PostgreSQL preservou contagens das 91 tabelas
+e 19 assinaturas territoriais/LIRAa antes/depois da integração. A exportação
+real por consulta somente leitura gerou 2 RGs, 232 linhas e 11 colunas,
+com seleção, tipos e ausência de fórmulas conferidos. Nenhum arquivo com
+dados reais foi salvo nem houve edição de imóveis, sorteios ou geometrias.
 Validação: suíte completa com 794 testes (5 ignorados), 19 testes focados finais,
 7 arquivos de testes JS, renderização/reabertura de XLSX sintético e HTTP no
 Flask isolado, incluindo login e versão `1.68.0`. Foi acrescentado teste de

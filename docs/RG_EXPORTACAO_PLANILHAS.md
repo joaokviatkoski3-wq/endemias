@@ -48,8 +48,10 @@ Não há cores, logotipos, células mescladas ou decoração.
   sessão expirada e preservação das opções de impressão.
 
 A exportação usa a biblioteca XLSX já instalada no sistema, sem adicionar
-dependências ao servidor. O reinício do serviço oficial depende de autorização;
-o estado de ativação fica registrado em `ESTADO_ATUAL_PROJETO.md`.
+dependências ao servidor. Integrada na `master` no commit `c726f56` e ativada
+após autorização e reinício em 08/10/2026 às 10h18 (America/Sao_Paulo).
+`/login` confirmou HTTP 200 com `Endemias v1.68.0`. O estado de produção
+fica registrado em `ESTADO_ATUAL_PROJETO.md`.
 
 Validação em 08/10/2026: suíte completa com 794 testes (5 ignorados), seguida
 de 19 testes focados finais e dos 7 arquivos de testes JavaScript. Inclui um
@@ -57,3 +59,9 @@ teste adicional com 650 imóveis para descartar truncamento pela paginação.
 Arquivo sintético gerado pela função da aplicação reaberto e renderizado;
 tipos, datas, zeros à esquerda e ausência de fórmulas verificados por reabertura.
 Página autenticada e login renderizados com `Endemias v1.68.0` em Flask isolado.
+
+Na implantação, uma consulta PostgreSQL somente leitura gerou em memória um
+XLSX de 2 RGs, 232 linhas e 11 colunas; seleção, tipos e ausência de fórmulas
+foram conferidos por reabertura. Não foi salvo arquivo com dados reais.
+Contagens das 91 tabelas e 19 assinaturas territoriais/LIRAa permaneceram iguais
+antes/depois da integração; nenhuma migração ou escrita de dados foi feita.
