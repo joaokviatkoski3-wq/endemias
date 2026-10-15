@@ -7,7 +7,9 @@ from io import BytesIO
 from flask import Blueprint, current_app, jsonify, render_template, request, send_file
 
 from app_core import auth as auth_core
+from app_core import blueprint_helpers as bh
 from app_core import db as db_core
+from app_core import escopo_agente
 from app_core import esporotricose as esporotricose_core
 from app_core import ovitrampas as ovitrampas_core
 from app_core import producao_operacional
@@ -20,6 +22,21 @@ from app_core import work_types
 
 bp = Blueprint("relatorio_agente", __name__)
 login_required = auth_core.login_required
+
+
+def _usuario_restrito():
+    return escopo_agente.nivel_restrito(bh.usuario_atual() or {})
+
+
+def _agente_restrito():
+    """Nome curto do agente vinculado quando a conta e do nivel restrito.
+
+    Retorna o ``nome`` do agente (chave usada por _obter_dados) ou None quando
+    a conta nao possui vinculo valido.
+    """
+    usuario = bh.usuario_atual() or {}
+    agente = escopo_agente.agente_proprio(_db_target(), usuario)
+    return (agente or {}).get("nome")
 
 
 def _db_target():
@@ -1441,9 +1458,21 @@ def _duracao_dict(row):
 def page():
     d_ini = request.args.get("d_ini", utils_core.data_n_dias(30))
     d_fim = request.args.get("d_fim", utils_core.hoje())
-    servidores = _servidores_relatorio(d_ini, d_fim)
-    agentes_historico = _todos_agentes_historico()
-    agente_sel = request.args.get("agente", "")
+    if _usuario_restrito():
+        proprio = _agente_restrito()
+        servidores = (
+            [s for s in _servidores_relatorio(d_ini, d_fim) if s["nome"] == proprio]
+            if proprio else []
+        )
+        agentes_historico = (
+            [a for a in _todos_agentes_historico() if a["nome"] == proprio]
+            if proprio else []
+        )
+        agente_sel = proprio or ""
+    else:
+        servidores = _servidores_relatorio(d_ini, d_fim)
+        agentes_historico = _todos_agentes_historico()
+        agente_sel = request.args.get("agente", "")
     selecionado = next((item for item in servidores if item["nome"] == agente_sel), None)
     return render_template(
         "relatorio_agente.html",
@@ -1459,7 +1488,7 @@ def page():
 @bp.route("/relatorio-agente/pdf")
 @login_required
 def pdf():
-    nome = request.args.get("agente", "")
+    nome = _agente_restrito() if _usuario_restrito() else request.args.get("agente", "")
     d_ini = request.args.get("d_ini", utils_core.data_n_dias(30))
     d_fim = request.args.get("d_fim", utils_core.hoje())
     if not nome:
@@ -1475,9 +1504,10 @@ def pdf():
 @bp.route("/relatorio-agente/visitas/pdf")
 @login_required
 def pdf_visitas_completas():
+    agente = _agente_restrito() if _usuario_restrito() else request.args.get("agente")
     try:
         dados = relatorio_visitas_completo.coletar(
-            _db_target(), request.args.get("agente"), request.args.get("d_ini"),
+            _db_target(), agente, request.args.get("d_ini"),
             request.args.get("d_fim"))
         conteudo = relatorio_visitas_pdf.gerar(dados)
     except relatorio_visitas_completo.FiltroInvalido as exc:
@@ -1497,6 +1527,8 @@ def pdf_visitas_completas():
 @bp.route("/relatorio-agente/setor/pdf")
 @login_required
 def pdf_setor():
+    if _usuario_restrito():
+        return render_template("403.html"), 403
     d_ini = request.args.get("d_ini", utils_core.data_n_dias(30))
     d_fim = request.args.get("d_fim", utils_core.hoje())
     try:
@@ -1511,7 +1543,7 @@ def pdf_setor():
 @login_required
 def api():
     try:
-        nome = request.args.get("agente", "")
+        nome = _agente_restrito() if _usuario_restrito() else request.args.get("agente", "")
         d_ini = request.args.get("d_ini", utils_core.data_n_dias(30))
         d_fim = request.args.get("d_fim", utils_core.hoje())
         if not nome:

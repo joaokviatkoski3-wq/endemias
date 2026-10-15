@@ -1025,6 +1025,35 @@ exclusao/recriacao foi apenas testado sob autorizacao e nao foi incorporado.
    e substituicoes graduais do Kobo sao projetos separados. GeoJSON + Registro
    Geografico permanecem a fonte territorial; Conta Ovos nao os sobrescreve.
 
+## Nivel de acesso 'usuario' (1.69.0)
+
+Em 08/10/2026 foi adicionado um quarto nivel de acesso: `usuario` (rotulo
+"Usuario"). Ele e somente leitura, com o mesmo alcance de paginas do
+`visualizador`, porem com a **identidade dos demais agentes ocultada**: em
+qualquer campo que atribui producao a servidores (colunas "Agentes",
+laboratorista, rankings, agenda, relatorio por agente e exportacoes XLSX),
+apenas o proprio agente vinculado a conta permanece identificado; os demais
+viram "—" e as quebras nominais (`por_agente`/`por_laboratorista`) sao
+removidas por inteiro. Enderecos, moradores e demais conteudos operacionais
+seguem visiveis (decisao do usuario: nao redigir PII de morador/endereco).
+
+- Vinculo: `usuarios.id_agente` (ja existente, migracao 0011) e obrigatorio;
+  sem vinculo, nenhum nome de agente e exibido (fail-closed).
+- Mecanismo: `app_core/escopo_agente.py` (resolvedor estrito + redacao
+  recursiva) + `after_request` em `app_core/app_setup.py` que redige as
+  respostas JSON das APIs; telas server-rendered (notificacoes, foco,
+  agenda de impressao, territorializacao de impressao, doente esporotricose)
+  e exportacoes XLSX sao redigidas pontualmente.
+- `relatorio_agente` e forcado ao proprio agente; o PDF do setor e bloqueado.
+- Migracao PostgreSQL `0027_usuarios_nivel_usuario.sql` altera o CHECK de
+  `nivel`; aplicar antes de usar o nivel em producao.
+
+Pendencia futura (registrada, nao implementada): permitir que o admin escolha,
+por usuario, quais paginas cada conta pode abrir, no molde do
+`somente_laboratorio` (allowlist de modulos por conta). O mecanismo
+`modules.required_permission` ja suporta flags booleanas de `usuarios`, o que
+viabiliza essa evolucao sem novo schema.
+
 Antes de iniciar qualquer uma delas, confira o pedido mais recente do usuario.
 Ele pode mudar a prioridade, autorizar operacao real ou pedir apenas analise.
 

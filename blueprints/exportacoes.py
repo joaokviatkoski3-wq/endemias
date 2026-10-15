@@ -10,6 +10,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import db as db_core
+from app_core import escopo_agente
 from app_core.excel import excel_safe
 from app_core import positividade as positividade_core
 from app_core import utils as utils_core
@@ -46,6 +47,15 @@ def _string_aggregates():
 
 def _base_dir():
     return current_app.root_path
+
+
+def _redigir_agentes(rows):
+    usuario = bh.usuario_atual() or {}
+    if not escopo_agente.nivel_restrito(usuario):
+        return rows
+    agente = escopo_agente.agente_proprio(bh.db_target(), usuario)
+    chaves = (agente or {}).get("chaves") or set()
+    return escopo_agente.redigir_agentes(rows, chaves)
 
 
 def _saida_dir():
@@ -99,6 +109,7 @@ def exportar_visitas():
             LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
             {where} ORDER BY {visitas_core.order_sql(request.args.get('ordem'))}
         """, params)
+        rows = _redigir_agentes(rows)
         cabecalho = ["Data", "Tipo", "Localidade", "Quarteirao", "Logradouro", "Numero",
                      "Visita", "Morador", "Tipo Imovel", "Ciclo", "Sequencia",
                      "Lado", "Hora Inicio", "Hora Fim", "Agua Sanepar", "Observacoes", "Agentes", "ACS acompanhantes",
@@ -164,6 +175,7 @@ def exportar_notificacoes():
             LEFT JOIN localidades l ON l.id_localidade=f.id_localidade
             {where} ORDER BY f.data DESC
         """, params)
+        rows = _redigir_agentes(rows)
         cabecalho = ["Codigo", "Data", "Tipo", "Localidade", "Quarteirao", "Logradouro",
                      "Numero", "Morador", "Tubo(s)", "Deposito(s)", "Agentes", "Status",
                      "Tentativa 1", "Tentativa 2", "Tentativa 3", "Data Entrega", "Observacoes"]
@@ -214,6 +226,7 @@ def exportar_laboratorio():
             LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
             {where} ORDER BY v.data DESC
         """, params)
+        rows = _redigir_agentes(rows)
         cabecalho = ["Data", "Tipo", "Localidade", "Quarteirao", "Logradouro", "Numero",
                      "Tubo", "Deposito", "Data Leitura", "Laboratorista",
                      "Ae. Larvas", "Ae. Pupas", "Ae. Exuvias", "Ae. Adulto",
@@ -232,6 +245,7 @@ def exportar_positividade():
         dados = positividade_core.listar(
             bh.db_target(), request.args, pagina=1, por_pagina=100000
         )
+        dados["registros"] = _redigir_agentes(dados.get("registros", []))
         cabecalho = [
             "Data", "Origem", "Tipo", "Localidade", "Quarteirao",
             "Logradouro", "Numero", "Complemento", "Morador", "Tubo",

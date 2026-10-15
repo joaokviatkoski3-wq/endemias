@@ -8,6 +8,7 @@ from flask import Blueprint, jsonify, render_template, request
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import db as db_core
+from app_core import escopo_agente
 from app_core import esporotricose as esporotricose_core
 from app_core import meteorologia as meteorologia_core
 from app_core import ovitrampas as ovitrampas_core
@@ -173,10 +174,21 @@ def _migrar_eventos_ferias(conn):
 
 def _admin_required_json():
     u = bh.usuario_atual()
-    ordem = {"admin": 3, "operador": 2, "visualizador": 1}
+    ordem = {"admin": 3, "operador": 2, "visualizador": 1, "usuario": 1}
     if not u or ordem.get(u["nivel"], 0) < ordem.get("admin", 999):
         return None, (jsonify({"erro": "Sem permissao"}), 403)
     return u, None
+
+
+def _eventos_para_usuario_restrito(eventos):
+    """Oculta aniversarios e a identidade dos demais agentes no nivel restrito."""
+    usuario = bh.usuario_atual() or {}
+    if not escopo_agente.nivel_restrito(usuario):
+        return eventos
+    agente = escopo_agente.agente_proprio(bh.db_target(), usuario)
+    chaves = (agente or {}).get("chaves") or set()
+    filtrados = [e for e in eventos if (e.get("tipo") or "") != "aniversario"]
+    return escopo_agente.redigir_agentes(filtrados, chaves)
 
 
 def _int_json(value, default):
@@ -975,7 +987,9 @@ def imprimir_mes():
         fim = date(ano + 1, 1, 1)
     else:
         fim = date(ano, mes + 1, 1)
-    eventos = _eventos_periodo(inicio.isoformat(), fim.isoformat())
+    eventos = _eventos_para_usuario_restrito(
+        _eventos_periodo(inicio.isoformat(), fim.isoformat())
+    )
     dias = _dias_impressao_mes(ano, mes, eventos)
     total_eventos = sum(len(dia["eventos"]) for dia in dias)
     return render_template(
@@ -1065,7 +1079,8 @@ def api_eventos():
 
     inicio = request.args.get("start", "")
     fim = request.args.get("end", "")
-    return jsonify(_adicionar_clima_eventos(_eventos_periodo(inicio, fim)))
+    eventos = _eventos_para_usuario_restrito(_eventos_periodo(inicio, fim))
+    return jsonify(_adicionar_clima_eventos(eventos))
 
 
 @bp.route("/api/agenda/eventos/<int:id_evento>", methods=["PUT", "DELETE"])

@@ -87,7 +87,7 @@ def login_required(view):
 
 
 def nivel_min(nivel, usuario_atual_func):
-    ordem = {"admin": 3, "operador": 2, "visualizador": 1}
+    ordem = {"admin": 3, "operador": 2, "visualizador": 1, "usuario": 1}
 
     def dec(view):
         @wraps(view)

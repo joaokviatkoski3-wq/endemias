@@ -18,6 +18,7 @@ from app_core import auth as auth_core
 from app_core import audit
 from app_core import blueprint_helpers as bh
 from app_core import db as db_core
+from app_core import escopo_agente
 from app_core import esporotricose as esporotricose_core
 from app_core import esporotricose_humanos as humanos_core
 from app_core import utils as utils_core
@@ -34,6 +35,14 @@ ANEXO_MAX_BYTES = 20 * 1024 * 1024
 
 class AnexoImagemInvalida(ValueError):
     pass
+
+
+def _redigir_agentes(payload):
+    usuario = bh.usuario_atual() or {}
+    if not escopo_agente.nivel_restrito(usuario):
+        return payload
+    agente = escopo_agente.agente_proprio(bh.db_target(), usuario)
+    return escopo_agente.redigir_agentes(payload, (agente or {}).get("chaves") or set())
 
 
 def _localidades():
@@ -401,6 +410,7 @@ def page_doente_detalhe(id_animal):
     animal = esporotricose_core.obter_doente(bh.db_target(), id_animal)
     if not animal:
         abort(404)
+    animal = _redigir_agentes(animal)
     return render_template(
         "esporotricose_doente_detalhe.html",
         animal=animal,

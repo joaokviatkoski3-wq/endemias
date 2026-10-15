@@ -731,10 +731,11 @@ ARTIGOS += (
               "Copie os backups relevantes para outra unidade, servidor ou armazenamento confiável."),
              "/admin/sistema", "Abrir Central do Sistema", nivel_minimo="admin"),
     _artigo("usuarios-permissoes", "Gerenciar usuários e permissões", "Administração", ("/admin/usuarios",),
-             ("usuarios", "permissoes", "senha", "admin", "operador", "visualizador", "laboratorista"),
+             ("usuarios", "permissoes", "senha", "admin", "operador", "visualizador", "usuario", "laboratorista"),
              "Gestão de Usuários cria contas, ajusta níveis e limita o acesso quando necessário. O usuário Laboratorista pode ficar restrito à tela de lançamentos de laboratório.",
              ("Crie cada conta com nome e senha próprios; não compartilhe credenciais.",
-              "Escolha o nível conforme a necessidade: visualizador, operador ou administrador.",
+              "Escolha o nível conforme a necessidade: visualizador, operador, usuário ou administrador.",
+              "O nível usuário só lê e não identifica os demais agentes; vincule a conta a um agente ativo.",
               "Use o acesso somente ao laboratório para quem deve trabalhar exclusivamente com os tubos."),
              "/admin/usuarios", "Abrir Gestão de Usuários", nivel_minimo="admin"),
     _artigo("agentes-cadastro", "Gerenciar agentes e equipes", "Administração", ("/admin/agentes",),
@@ -1027,7 +1028,7 @@ def consultar(consulta="", rota="", limite=12, contexto="", nivel="visualizador"
     )
     rota = str(rota or "/").rstrip("/") or "/"
     rota_contexto = "/registro-geografico" if rota == "/territorializacao" else rota
-    ordem_niveis = {"visualizador": 1, "operador": 2, "admin": 3}
+    ordem_niveis = {"visualizador": 1, "usuario": 1, "operador": 2, "admin": 3}
     resultados = []
     for artigo in ARTIGOS:
         if ordem_niveis.get(nivel, 0) < ordem_niveis.get(artigo.get("nivel_minimo", "visualizador"), 99):

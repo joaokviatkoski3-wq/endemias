@@ -7,7 +7,7 @@ from app_core import auth
 from app_core import db as db_core
 
 
-VALID_LEVELS = ("admin", "operador", "visualizador")
+VALID_LEVELS = ("admin", "operador", "visualizador", "usuario")
 EDITABLE_FIELDS = {
     "nivel",
     "ativo",

@@ -4,6 +4,7 @@ from typing import Iterable, List, Optional, Tuple
 
 LEVEL_ORDER = {
     "visualizador": 1,
+    "usuario": 1,
     "operador": 2,
     "admin": 3,
 }

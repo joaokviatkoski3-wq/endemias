@@ -8,6 +8,7 @@ from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import db as db_core
+from app_core import escopo_agente
 from app_core import registro_geografico as rg_core
 from app_core import registro_geografico_exportacao as rg_exportacao
 from app_core import microareas as microareas_core
@@ -54,6 +55,11 @@ def _autor_atualizacao():
 def page():
     try:
         opcoes = rg_core.opcoes(_db_path(), _base_dir())
+        usuario = usuario_atual() or {}
+        if escopo_agente.nivel_restrito(usuario):
+            agente = escopo_agente.agente_proprio(_db_path(), usuario)
+            chaves = (agente or {}).get("chaves") or set()
+            opcoes["agentes"] = escopo_agente.filtrar_agentes(opcoes["agentes"], chaves)
     except ValueError as exc:
         opcoes = {"localidades": [], "agentes": [], "tipos": [], "erro_importacao": str(exc)}
     usuario = usuario_atual() or {}
@@ -501,6 +507,11 @@ def imprimir_quarteirao():
             raise ValueError("Selecione ao menos um quarteirao.")
     except ValueError as exc:
         return render_template("500.html", erro=str(exc)), 400
+    usuario = usuario_atual() or {}
+    if escopo_agente.nivel_restrito(usuario):
+        agente = escopo_agente.agente_proprio(_db_path(), usuario)
+        chaves = (agente or {}).get("chaves") or set()
+        dados_lista = escopo_agente.redigir_agentes(dados_lista, chaves)
     return render_template(
         "registro_geografico_impressao.html",
         dados_lista=dados_lista,

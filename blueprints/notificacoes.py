@@ -17,6 +17,7 @@ from flask import (
 from app_core import audit
 from app_core import auth as auth_core
 from app_core import db as db_core
+from app_core import escopo_agente
 from app_core import utils as utils_core
 from app_core import work_types
 
@@ -83,6 +84,14 @@ def nivel_min(nivel):
 
 def request_int_arg(nome, default, minimo=None, maximo=None):
     return utils_core.bounded_int(request.args.get(nome), default, minimo, maximo)
+
+
+def _chaves_proprias():
+    usuario = usuario_atual() or {}
+    if not escopo_agente.nivel_restrito(usuario):
+        return None
+    agente = escopo_agente.agente_proprio(_db_target(), usuario)
+    return (agente or {}).get("chaves") or set()
 
 
 def ler_modelo():
@@ -185,9 +194,14 @@ def page():
     finally:
         conn.close()
 
+    focos_serializados = [db_core.serialize_row(f) for f in focos]
+    chaves = _chaves_proprias()
+    if chaves is not None:
+        focos_serializados = escopo_agente.redigir_agentes(focos_serializados, chaves)
+        agentes_l = escopo_agente.filtrar_agentes(agentes_l, chaves)
     return render_template(
         "notificacoes.html",
-        focos=[db_core.serialize_row(f) for f in focos],
+        focos=focos_serializados,
         contadores=contadores,
         tipos=tipos_n,
         localidades_n=locs_n,
@@ -242,6 +256,10 @@ def foco_detalhe(id_foco):
         """,
         (id_foco,),
     )
+    chaves = _chaves_proprias()
+    if chaves is not None:
+        foco = escopo_agente.redigir_agentes(dict(foco), chaves)
+        historico = escopo_agente.redigir_agentes(historico, chaves)
     return render_template(
         "foco_detalhe.html",
         foco=foco,

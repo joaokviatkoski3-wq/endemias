@@ -6,6 +6,7 @@ from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import dashboard as dashboard_core
+from app_core import escopo_agente
 from app_core import laboratorio as laboratorio_core
 from app_core import kobo_api
 from app_core import positividade as positividade_core
@@ -56,11 +57,17 @@ def positividade():
 @bp.route("/visitas")
 @login_required
 def visitas():
+    opcoes = visitas_core.filter_options(bh.db_target())
+    usuario = bh.usuario_atual() or {}
+    if escopo_agente.nivel_restrito(usuario):
+        agente = escopo_agente.agente_proprio(bh.db_target(), usuario)
+        chaves = (agente or {}).get("chaves") or set()
+        opcoes["agentes"] = escopo_agente.filtrar_agentes(opcoes["agentes"], chaves)
     return render_template(
         "visitas.html",
         d_ini=request.args.get("d_ini", utils_core.data_n_dias(7)),
         d_fim=request.args.get("d_fim", utils_core.hoje()),
-        opcoes=visitas_core.filter_options(bh.db_target()),
+        opcoes=opcoes,
     )
 
 

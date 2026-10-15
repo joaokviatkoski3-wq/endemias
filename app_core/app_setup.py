@@ -1,11 +1,22 @@
+import json
 import logging
 import time
 
-from flask import current_app, jsonify, redirect, render_template, request, session, url_for
+from flask import (
+    current_app,
+    g,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 from flask_wtf.csrf import CSRFError
 
 from app_core import auth as auth_core
 from app_core import db as db_core
+from app_core import escopo_agente
 from app_core import modules as modules_core
 from app_core import utils as utils_core
 from app_core import version as version_core
@@ -149,6 +160,55 @@ def register_access_guards(app):
         return redirect(url_for("laboratorio_lancamentos.page"))
 
 
+def _usuario_atual_db():
+    return auth_core.usuario_atual(
+        lambda sql, params=(): db_core.query_one(
+            db_core.configured_target(current_app.config), sql, params
+        )
+    )
+
+
+def _chaves_agente_proprio_atual(usuario):
+    """Conjunto de nomes normalizados do proprio agente (com cache por request)."""
+    if not usuario:
+        return set()
+    cache = getattr(g, "_escopo_agente_chaves", None)
+    if cache is None:
+        cache = g._escopo_agente_chaves = {}
+    uid = usuario.get("id_usuario")
+    if uid in cache:
+        return cache[uid]
+    agente = escopo_agente.agente_proprio(
+        db_core.configured_target(current_app.config), usuario
+    )
+    chaves = (agente or {}).get("chaves") or set()
+    cache[uid] = chaves
+    return chaves
+
+
+def register_response_redaction(app):
+    @app.after_request
+    def redigir_identidade_agente(response):
+        if not getattr(response, "is_json", False):
+            return response
+        if response.status_code != 200:
+            return response
+        usuario = _usuario_atual_db()
+        if not escopo_agente.nivel_restrito(usuario):
+            return response
+        payload = response.get_json()
+        if payload is None:
+            return response
+        chaves = _chaves_agente_proprio_atual(usuario)
+        response.set_data(json.dumps(
+            escopo_agente.redigir_agentes(payload, chaves),
+            ensure_ascii=False,
+            default=str,
+        ))
+        response.headers["Content-Length"] = str(len(response.get_data()))
+        return response
+
+
 def register_context_processors(app):
     @app.context_processor
     def inject_globals():
@@ -169,10 +229,22 @@ def register_context_processors(app):
         usuario = auth_core.usuario_atual(
             lambda sql, params=(): db_core.query_one(target, sql, params)
         )
+        restrito = escopo_agente.nivel_restrito(usuario)
+        agente_proprio = None
+        if restrito:
+            agente_proprio = escopo_agente.agente_proprio(target, usuario)
+            chaves_proprias = (agente_proprio or {}).get("chaves") or set()
+            agentes_glob = escopo_agente.filtrar_agentes(
+                [r["nome"] for r in agentes], chaves_proprias
+            )
+        else:
+            agentes_glob = [r["nome"] for r in agentes]
         return dict(
             localidades_glob=[r["nome"] for r in localidades],
-            agentes_glob=[r["nome"] for r in agentes],
+            agentes_glob=agentes_glob,
             tipos_glob=[r["tipo"] for r in tipos_v],
+            nivel_restrito=restrito,
+            agente_proprio=agente_proprio,
             nav_pendentes=pendentes,
             hoje=utils_core.hoje(),
             STATUS_OPCOES=work_types.STATUS_OPTIONS,
