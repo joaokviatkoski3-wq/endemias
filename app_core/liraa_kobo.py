@@ -117,13 +117,34 @@ def _tubitos(record):
 
 
 def _tratamento(record):
-    fields = ("O_im_vel_foi_Tratado_com_Larvi", "Quantidade_carga_gr", "Quantidade_dep_sitos_tratados")
-    result = {f: _campo(record, f"group_rb5ho54/{f}") for f in fields
-              if _campo(record, f"group_rb5ho54/{f}") is not None}
+    # Grupo de tratamento renomeado para ``tratamento_001`` e campo
+    # "foi tratado" para ``foi_tratado``; conserva os nomes legados para
+    # formulários antigos ainda publicados.
+    campos = (
+        ("foi_tratado", ("foi_tratado", "O_im_vel_foi_Tratado_com_Larvi")),
+        ("Quantidade_carga_gr", ("Quantidade_carga_gr",)),
+        ("Quantidade_dep_sitos_tratados", ("Quantidade_dep_sitos_tratados",)),
+    )
+    grupos = ("tratamento_001", "group_rb5ho54")
+
+    def _ler(rec, prefixo=""):
+        dados = {}
+        for chave, nomes in campos:
+            for grupo in grupos:
+                achado = None
+                for nome in nomes:
+                    achado = _campo(rec, f"{prefixo}{grupo}/{nome}")
+                    if achado is not None:
+                        break
+                if achado is not None:
+                    dados[chave] = achado
+                    break
+        return dados
+
+    result = _ler(record)
     legacy = []
     for tube in _campo(record, "group_jr1vc40") or []:
-        item = {f: _campo(tube, f"group_jr1vc40/group_rb5ho54/{f}") or _campo(tube, f"group_rb5ho54/{f}")
-                for f in fields if _campo(tube, f"group_jr1vc40/group_rb5ho54/{f}") is not None or _campo(tube, f"group_rb5ho54/{f}") is not None}
+        item = _ler(tube, prefixo="group_jr1vc40/")
         if item:
             legacy.append(item)
     if legacy:

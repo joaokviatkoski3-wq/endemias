@@ -73,13 +73,14 @@ class OperacaoTests(unittest.TestCase):
             self.assertEqual(v["situacao_vinculo"],status)
         self.assertEqual(liraa_kobo._localidade("São_Francisco"),"São Francisco")
         self.assertEqual(liraa_kobo._tubitos({"group_jr1vc40":[{}]}),[])
-        data = self.registro(endemias_ciclo=str(self.ciclo),endemias_plano=op.plano(self.target,self.ciclo,self.base)["plano_hash"],group_rb5ho54={"Quantidade_dep_sitos_tratados":3})
+        data = self.registro(endemias_ciclo=str(self.ciclo),endemias_plano=op.plano(self.target,self.ciclo,self.base)["plano_hash"],tratamento_001={"Quantidade_dep_sitos_tratados":3,"foi_tratado":"sim"})
         liraa_kobo.importar(self.target,self.ciclo,[data])
         stored=liraa_kobo.listar(self.target)[0]
         self.assertEqual(json.loads(stored["tratamento_json"])["Quantidade_dep_sitos_tratados"],3)
+        self.assertEqual(json.loads(stored["tratamento_json"])["foi_tratado"],"sim")
         self.assertEqual(stored["situacao_vinculo"],"sorteado")
         prefix={"group_jr1vc40":[{"group_jr1vc40/N_mero_do_tubito":100,"group_jr1vc40/C_digo_do_dep_sito":"B"}],
-                "group_rb5ho54/Quantidade_dep_sitos_tratados":0}
+                "tratamento_001/Quantidade_dep_sitos_tratados":0}
         self.assertEqual(liraa_kobo._tubitos(prefix)[0]["numero"],"100")
         self.assertEqual(json.loads(liraa_kobo._tratamento(prefix))["Quantidade_dep_sitos_tratados"],0)
 
@@ -145,7 +146,7 @@ class OperacaoTests(unittest.TestCase):
             self.assertEqual(names["Data"]["required"],"true")
             self.assertEqual(names["endemias_plano"]["default"],op.plano(self.target,self.ciclo,self.base)["plano_hash"])
             self.assertFalse(any("${Visita}" in str(r) for r in rows))
-            self.assertGreater(rows.index(names["group_rb5ho54"]),next(i for i,r in enumerate(rows) if r["type"]=="end_repeat"))
+            self.assertGreater(rows.index(names["tratamento_001"]),next(i for i,r in enumerate(rows) if r["type"]=="end_repeat"))
             acs_list=names["ACS"]["type"].split()[1]
             acs=[r["name"] for r in liraa_xlsform._rows(book["choices"]) if r["list_name"]==acs_list]
             self.assertEqual(set(acs),{"ACS-006","no-acs"})

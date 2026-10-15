@@ -80,7 +80,7 @@ def gerar(target, id_ciclo, base_dir=None):
     names["Morador"]["required"] = "false"
     # Tratamento pertence ao imóvel, não a cada recipiente; a referência antiga a Visita era inválida.
     treatment = []
-    start = next(i for i, r in enumerate(survey) if r.get("name") == "group_rb5ho54")
+    start = next(i for i, r in enumerate(survey) if r.get("name") == "tratamento_001")
     end = next(i for i in range(start + 1, len(survey)) if survey[i]["type"] == "end_group")
     treatment = survey[start:end + 1]
     treatment[0]["relevant"] = ""

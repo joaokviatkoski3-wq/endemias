@@ -1054,6 +1054,20 @@ por usuario, quais paginas cada conta pode abrir, no molde do
 `modules.required_permission` ja suporta flags booleanas de `usuarios`, o que
 viabiliza essa evolucao sem novo schema.
 
+## Base XLSForm do LIRAa atualizada (1.69.1)
+
+Em 15/10/2026, o modelo-base do formulario LIRAa (`app_core/data/liraa_kobo_base.xlsx`)
+foi substituido pelo arquivo enviado pelo usuario (`C:\LIRAa.xlsx`). As unicas
+diferencas em relacao ao modelo anterior: o grupo de tratamento foi renomeado de
+`group_rb5ho54` para `tratamento_001`, o campo "foi tratado" de
+`O_im_vel_foi_Tratado_com_Larvi` para `foi_tratado`, e a opcao "nao" da lista
+`xv2ud66` passou de `n_o` para `nao`. O grupo de tratamento ja vem fora do
+repetidor de tubitos (nivel do imovel). `liraa_xlsform.gerar` e
+`liraa_kobo._tratamento` foram ajustados para os novos nomes, mantendo leitura
+dos nomes legados para formularios antigos. Nao ha migracao de banco. Antes do
+uso, gerar novamente o XLSForm do ciclo e substituir o formulario publicado no
+Kobo. Ver `docs/LIRAA_OPERACAO_CICLO.md`.
+
 Antes de iniciar qualquer uma delas, confira o pedido mais recente do usuario.
 Ele pode mudar a prioridade, autorizar operacao real ou pedir apenas analise.
 
