@@ -14,6 +14,7 @@ TABLE = "pontos_estrategicos"
 OBS_ALIAS_INICIAL = "alias inicial para visitas PE antigas"
 OBS_ALIAS_AUTOMATICO = "alias automatico do cadastro do PE"
 OBS_ALIAS_AUTOMATICO_AMBIGUO = "alias automatico ambiguo entre PEs ativos"
+OBS_ALIAS_MANUAL = "alias manual do administrador"
 # Variantes cadastrais conhecidas da mesma rua. Elas so participam da
 # deteccao de ambiguidade de aliases automaticos; nao alteram o cadastro.
 PE_VARIANTES_LOGRADOURO = {
@@ -491,6 +492,153 @@ def vincular_visitas_existentes_por_alias(conn):
     return {"atualizadas": atualizadas, "sem_alias": sem_alias}
 
 
+def listar_aliases(target, codigo_pe=None):
+    """Lista os aliases cadastrados (seed, automatico, ambiguo e manual)."""
+    conn, close = _open_connection(target)
+    try:
+        ensure_schema(conn)
+        where, params = "WHERE 1=1", []
+        if codigo_pe:
+            where += " AND a.codigo_pe=?"
+            params.append(codigo_pe)
+        rows = [
+            db_core.serialize_row(r)
+            for r in conn.execute(
+                f"""SELECT a.id_alias, a.alias_logradouro, a.alias_normalizado,
+                           a.localidade, a.localidade_normalizada, a.codigo_pe,
+                           a.observacoes, a.ativo, a.criado_em, a.atualizado_em,
+                           pe.nome AS pe_nome
+                      FROM pontos_estrategicos_alias a
+                      JOIN pontos_estrategicos pe ON pe.codigo_pe=a.codigo_pe
+                     {where}
+                     ORDER BY a.ativo DESC, pe.codigo_pe, a.alias_normalizado""",
+                params,
+            )
+        ]
+        return rows
+    finally:
+        if close:
+            conn.close()
+
+
+def salvar_alias_manual(target, codigo_pe, alias, localidade=None, id_alias=None):
+    """Cria ou edita um alias manual (nunca sobrescreve alias de outro PE)."""
+    alias_texto = _text(alias)
+    if not alias_texto:
+        raise ValueError("Informe o alias (nome interno do formulario).")
+    alias_norm = normalizar_alias(alias_texto)
+    if not alias_norm:
+        raise ValueError("Alias invalido.")
+    localidade_texto = _text(localidade)
+    localidade_norm = normalizar_alias(localidade_texto)
+
+    conn, close = _open_connection(target)
+    try:
+        ensure_schema(conn)
+        pe = conn.execute(
+            "SELECT codigo_pe FROM pontos_estrategicos WHERE codigo_pe=?", (codigo_pe,)
+        ).fetchone()
+        if not pe:
+            raise ValueError("Ponto estrategico nao encontrado.")
+
+        if id_alias is not None:
+            existente = conn.execute(
+                "SELECT observacoes FROM pontos_estrategicos_alias WHERE id_alias=?", (id_alias,)
+            ).fetchone()
+            if not existente:
+                raise ValueError("Alias nao encontrado.")
+            if existente["observacoes"] != OBS_ALIAS_MANUAL:
+                raise ValueError("Somente aliases manuais podem ser editados.")
+
+        conflito = conn.execute(
+            """SELECT id_alias, codigo_pe FROM pontos_estrategicos_alias
+                WHERE alias_normalizado=? AND localidade_normalizada=?""",
+            (alias_norm, localidade_norm),
+        ).fetchone()
+        if conflito and (id_alias is None or conflito["id_alias"] != id_alias):
+            if conflito["codigo_pe"] != codigo_pe:
+                raise ValueError("Este alias ja esta vinculado a outro ponto estrategico.")
+
+        agora = datetime.now().isoformat(timespec="seconds")
+        if id_alias is not None:
+            conn.execute(
+                """UPDATE pontos_estrategicos_alias
+                      SET alias_logradouro=?, alias_normalizado=?, localidade=?,
+                          localidade_normalizada=?, codigo_pe=?, observacoes=?,
+                          ativo=1, atualizado_em=?
+                    WHERE id_alias=?""",
+                (alias_texto, alias_norm, localidade_texto, localidade_norm,
+                 codigo_pe, OBS_ALIAS_MANUAL, agora, id_alias),
+            )
+        elif conflito:
+            # Promove um alias existente (seed/auto/ambiguo) do mesmo PE para manual.
+            conn.execute(
+                """UPDATE pontos_estrategicos_alias
+                      SET alias_logradouro=?, localidade=?, codigo_pe=?, observacoes=?,
+                          ativo=1, atualizado_em=?
+                    WHERE id_alias=?""",
+                (alias_texto, localidade_texto, codigo_pe, OBS_ALIAS_MANUAL, agora, conflito["id_alias"]),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO pontos_estrategicos_alias (
+                       alias_logradouro, alias_normalizado, localidade, localidade_normalizada,
+                       codigo_pe, observacoes, ativo, criado_em, atualizado_em
+                   ) VALUES (?,?,?,?,?,?,1,?,?)
+                   ON CONFLICT DO NOTHING""",
+                (alias_texto, alias_norm, localidade_texto, localidade_norm,
+                 codigo_pe, OBS_ALIAS_MANUAL, agora, agora),
+            )
+        conn.commit()
+        return True
+    finally:
+        if close:
+            conn.close()
+
+
+def alternar_alias_manual(target, id_alias, ativo):
+    """Ativa/desativa um alias manual."""
+    conn, close = _open_connection(target)
+    try:
+        ensure_schema(conn)
+        row = conn.execute(
+            "SELECT observacoes FROM pontos_estrategicos_alias WHERE id_alias=?", (id_alias,)
+        ).fetchone()
+        if not row:
+            raise ValueError("Alias nao encontrado.")
+        if row["observacoes"] != OBS_ALIAS_MANUAL:
+            raise ValueError("Somente aliases manuais podem ser alterados.")
+        conn.execute(
+            "UPDATE pontos_estrategicos_alias SET ativo=?, atualizado_em=? WHERE id_alias=?",
+            (1 if ativo else 0, datetime.now().isoformat(timespec="seconds"), id_alias),
+        )
+        conn.commit()
+        return True
+    finally:
+        if close:
+            conn.close()
+
+
+def excluir_alias_manual(target, id_alias):
+    """Exclui um alias manual (seed/auto sao preservados)."""
+    conn, close = _open_connection(target)
+    try:
+        ensure_schema(conn)
+        row = conn.execute(
+            "SELECT observacoes FROM pontos_estrategicos_alias WHERE id_alias=?", (id_alias,)
+        ).fetchone()
+        if not row:
+            raise ValueError("Alias nao encontrado.")
+        if row["observacoes"] != OBS_ALIAS_MANUAL:
+            raise ValueError("Somente aliases manuais podem ser excluidos.")
+        conn.execute("DELETE FROM pontos_estrategicos_alias WHERE id_alias=?", (id_alias,))
+        conn.commit()
+        return True
+    finally:
+        if close:
+            conn.close()
+
+
 def normalizar_alias(value):
     text = _text(value)
     if not text:
@@ -848,6 +996,12 @@ def opcoes(target):
                 "SELECT DISTINCT tipo FROM pontos_estrategicos WHERE tipo IS NOT NULL AND TRIM(tipo)<>'' ORDER BY tipo"
             )
         ]
+        pe_codigos = [
+            {"codigo_pe": r[0], "nome": r[1], "localidade": r[2]}
+            for r in conn.execute(
+                "SELECT codigo_pe, nome, localidade FROM pontos_estrategicos ORDER BY codigo_pe"
+            )
+        ]
     finally:
         if close:
             conn.close()
@@ -855,6 +1009,7 @@ def opcoes(target):
         "localidades": localidades,
         "tipos": tipos,
         "pendencias": pendencias_disponiveis(),
+        "pe_codigos": pe_codigos,
     }
 
 

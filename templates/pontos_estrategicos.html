@@ -26,6 +26,16 @@
 .pe-dialog-bd{padding:16px;}
 .pe-dialog-ft{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--border);}
 @media(max-width:720px){.pe-form{grid-template-columns:1fr;}.pe-actions{justify-content:stretch}.pe-actions .btn{flex:1;}}
+.pe-tabs{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border);}
+.pe-tab{padding:9px 16px;border:none;background:transparent;color:var(--text2);font-weight:700;font-size:13px;border-bottom:2px solid transparent;cursor:pointer;}
+.pe-tab.active{color:var(--brand);border-bottom-color:var(--brand);}
+.pe-tab-panel[hidden]{display:none;}
+.alias-norm{font-family:monospace;font-size:11px;color:var(--text3);word-break:break-all;}
+.alias-origem{display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:800;}
+.alias-origem.manual{background:rgba(22,101,52,.12);color:#166534;}
+.alias-origem.auto{background:rgba(37,99,235,.12);color:#1d4ed8;}
+.alias-origem.seed{background:rgba(148,163,184,.18);color:#475569;}
+.alias-origem.amb{background:rgba(245,158,11,.16);color:#b45309;}
 </style>{% endblock %}
 
 {% block content %}
@@ -33,6 +43,13 @@
   <h1><span class="icon"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"></span> Pontos Estratégicos</h1>
   <div class="sub">Cadastro mestre dos locais fixos visitados quinzenalmente</div>
 </div>
+
+<div class="pe-tabs">
+  <button class="pe-tab active" type="button" data-tab="cadastro" onclick="ativarTab('cadastro')">Cadastro</button>
+  <button class="pe-tab" type="button" data-tab="aliases" onclick="ativarTab('aliases')">Aliases</button>
+</div>
+
+<div id="pe-tab-cadastro" class="pe-tab-panel">
 
 <div class="filter-card" style="margin-bottom:16px;">
   <div class="filter-body open">
@@ -112,6 +129,45 @@
     <div class="pe-dialog-ft">
       <button class="btn btn-outline" type="button" onclick="fecharPE()">Cancelar</button>
       <button class="btn btn-primary" type="button" onclick="salvarPE()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<div id="pe-tab-aliases" class="pe-tab-panel" hidden>
+  <div class="chart-card">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Aliases de identificação</div>
+      <span class="table-info">Nome interno do Kobo → PE (o sistema usa isso para identificar a visita)</span>
+    </div>
+    <div style="padding:14px;">
+      <div class="f-g" style="max-width:420px;margin-bottom:12px;">
+        <label>Ponto Estratégico</label>
+        <select id="alias-pe-select" onchange="carregarAliases()">
+          <option value="">Todos</option>
+          {% for pe in opcoes.pe_codigos %}
+          <option value="{{ pe.codigo_pe }}">{{ pe.codigo_pe }} — {{ pe.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Alias (nome interno)</th><th>Localidade</th><th>Normalizado</th><th>Origem</th><th>Ativo</th><th>Ações</th></tr></thead>
+          <tbody id="alias-body"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
+        <div class="pe-form">
+          <div class="f-g full"><label>Alias (nome interno exato do Kobo)</label><input id="alias-form-alias" placeholder="Ex: RUA DOMINGOS SCUCATO - AUTO PEÇAS JOÃO 3:16"></div>
+          <div class="f-g"><label>Localidade (opcional)</label><input id="alias-form-localidade" list="pe-localidades-list"></div>
+          <div class="f-g" style="align-self:end;display:flex;gap:8px;">
+            <button class="btn btn-primary" type="button" onclick="salvarAlias()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> <span id="alias-form-btn">Adicionar alias</span></button>
+            <button class="btn btn-outline" type="button" id="alias-form-cancel" onclick="cancelarEdicaoAlias()" style="display:none;">Cancelar</button>
+          </div>
+        </div>
+        <input type="hidden" id="alias-form-id">
+        <div class="pe-muted" style="margin-top:8px;">O alias deve ser o <strong>nome interno</strong> do PE no formulário Kobo (não o rótulo). Aliases "Seed" e "Automático" são gerados pelo sistema e não podem ser editados aqui.</div>
+      </div>
     </div>
   </div>
 </div>
@@ -271,4 +327,102 @@ async function alternarPE(id, situacao){
 document.getElementById('pe-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarPEs(); });
 ['pe-ano','pe-semana'].forEach(id => document.getElementById(id).addEventListener('keydown', e => { if(e.key === 'Enter') carregarPEs(); }));
 carregarPEs().catch(e => toast('Erro ao carregar PEs: ' + e.message, 'error'));
+
+// ── Abas ──────────────────────────────────────────────────────────────────────
+function ativarTab(nome){
+  document.querySelectorAll('.pe-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === nome));
+  document.getElementById('pe-tab-cadastro').hidden = nome !== 'cadastro';
+  document.getElementById('pe-tab-aliases').hidden = nome !== 'aliases';
+  if (nome === 'aliases') carregarAliases().catch(() => {});
+}
+
+// ── Aliases ───────────────────────────────────────────────────────────────────
+const aliasOrigem = {
+  'alias inicial para visitas PE antigas': {label:'Seed', cls:'seed'},
+  'alias automatico do cadastro do PE': {label:'Automático', cls:'auto'},
+  'alias automatico ambiguo entre PEs ativos': {label:'Ambíguo', cls:'amb'},
+  'alias manual do administrador': {label:'Manual', cls:'manual'},
+};
+function peEsc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+let aliasCache = [];
+async function carregarAliases(){
+  const sel = document.getElementById('alias-pe-select');
+  const q = sel.value ? '?codigo_pe=' + encodeURIComponent(sel.value) : '';
+  const d = await peJson('/api/pontos-estrategicos/aliases' + q);
+  const rows = d.aliases || [];
+  aliasCache = rows;
+  document.getElementById('alias-body').innerHTML = rows.map(a => {
+    const o = aliasOrigem[a.observacoes] || {label:a.observacoes, cls:'seed'};
+    const manual = a.observacoes === 'alias manual do administrador';
+    const acoes = manual
+      ? `<button class="btn btn-icon" type="button" onclick="editarAlias(${a.id_alias})" title="Editar"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button>
+         <button class="btn btn-icon" type="button" onclick="alternarAlias(${a.id_alias}, ${a.ativo ? 0 : 1})" title="${a.ativo ? 'Desativar' : 'Ativar'}"><img src="/static/icons/${a.ativo ? 'fechar.svg' : 'check.svg'}" alt="" class="icon-svg"></button>
+         <button class="btn btn-icon" type="button" onclick="excluirAlias(${a.id_alias})" title="Excluir"><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"></button>`
+      : '<span class="pe-muted">—</span>';
+    return `<tr>
+      <td><strong>${peEsc(a.alias_logradouro)}</strong><div class="pe-muted">${peEsc(a.pe_nome)}</div></td>
+      <td>${a.localidade ? peEsc(a.localidade) : '<span class="pe-muted">—</span>'}</td>
+      <td><span class="alias-norm">${peEsc(a.alias_normalizado)}</span></td>
+      <td><span class="alias-origem ${o.cls}">${peEsc(o.label)}</span></td>
+      <td><span class="pe-status ${a.ativo ? '' : 'off'}">${a.ativo ? 'Ativo' : 'Inativo'}</span></td>
+      <td>${acoes}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:18px;">Nenhum alias encontrado.</td></tr>';
+}
+async function salvarAlias(){
+  const sel = document.getElementById('alias-pe-select');
+  const codigo = sel.value;
+  const alias = document.getElementById('alias-form-alias').value.trim();
+  const localidade = document.getElementById('alias-form-localidade').value.trim();
+  const id = document.getElementById('alias-form-id').value;
+  if(!codigo){ toast('Selecione um Ponto Estratégico para o alias.', 'error'); return; }
+  if(!alias){ toast('Informe o alias.', 'error'); return; }
+  try {
+    await peJson(id ? `/api/pontos-estrategicos/aliases/${id}` : '/api/pontos-estrategicos/aliases', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+      body:JSON.stringify({codigo_pe:codigo, alias, localidade})
+    });
+    cancelarEdicaoAlias();
+    toast('Alias salvo.', 'success');
+    carregarAliases();
+  } catch (erro) {
+    toast(erro.message || 'Não foi possível salvar o alias.', 'error');
+  }
+}
+function editarAlias(id){
+  const a = aliasCache.find(x => x.id_alias === id);
+  if(!a) return;
+  document.getElementById('alias-pe-select').value = a.codigo_pe;
+  document.getElementById('alias-form-alias').value = a.alias_logradouro || '';
+  document.getElementById('alias-form-localidade').value = a.localidade || '';
+  document.getElementById('alias-form-id').value = a.id_alias;
+  document.getElementById('alias-form-btn').textContent = 'Salvar alias';
+  document.getElementById('alias-form-cancel').style.display = '';
+  document.getElementById('alias-form-alias').focus();
+}
+function cancelarEdicaoAlias(){
+  document.getElementById('alias-form-id').value = '';
+  document.getElementById('alias-form-alias').value = '';
+  document.getElementById('alias-form-localidade').value = '';
+  document.getElementById('alias-form-btn').textContent = 'Adicionar alias';
+  document.getElementById('alias-form-cancel').style.display = 'none';
+}
+async function alternarAlias(id, ativo){
+  try {
+    await peJson(`/api/pontos-estrategicos/aliases/${id}/ativo`, {
+      method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+      body:JSON.stringify({ativo})
+    });
+    carregarAliases();
+  } catch (erro) { toast(erro.message || 'Erro ao alterar alias.', 'error'); }
+}
+async function excluirAlias(id){
+  if(!confirm('Excluir este alias manual?')) return;
+  try {
+    await peJson(`/api/pontos-estrategicos/aliases/${id}`, { method:'DELETE', headers:{'X-CSRFToken':getCsrf()} });
+    toast('Alias excluído.', 'success');
+    carregarAliases();
+  } catch (erro) { toast(erro.message || 'Erro ao excluir alias.', 'error'); }
+}
 </script>{% endblock %}

@@ -1085,6 +1085,23 @@ Estratégicos, para editar o mapeamento nome-do-Kobo -> PE sem alterar o código
 (`PE_ALIAS_SEED`). Hoje os aliases vivem em `PE_ALIAS_SEED` + geração automática
 (`_aliases_automaticos`), persistidos em `pontos_estrategicos_alias`.
 
+## Aba "Aliases" em Pontos Estratégicos (1.70.0)
+
+Implementada em 15/10/2026 a configuração de aliases pela interface: uma nova
+aba **Aliases** em `/pontos-estrategicos`. O administrador/operador pode criar,
+editar, ativar/desativar e excluir **aliases manuais** (novo `OBS_ALIAS_MANUAL`),
+visualizar os aliases `Seed`/`Automático`/`Ambíguo` (somente leitura) e ver o
+`alias_normalizado` para prever o casamento na importação. Sem migração de
+banco (reaproveita `pontos_estrategicos_alias`).
+
+- Core: `listar_aliases`, `salvar_alias_manual`, `alternar_alias_manual`,
+  `excluir_alias_manual` em `app_core/pontos_estrategicos.py`.
+- Rotas: `/api/pontos-estrategicos/aliases*` (escrita `operador`), com auditoria
+  `alias_criado`/`alias_editado`/`alias_excluido`.
+- Regras: alias manual nunca colide com outro PE; `_seed_aliases` preserva os
+  manuais (não sobrescreve nem desativa). Testes em
+  `tests/test_pontos_estrategicos_aliases.py`.
+
 Antes de iniciar qualquer uma delas, confira o pedido mais recente do usuario.
 Ele pode mudar a prioridade, autorizar operacao real ou pedir apenas analise.
 

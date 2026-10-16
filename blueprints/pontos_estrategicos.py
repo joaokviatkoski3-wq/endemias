@@ -161,6 +161,95 @@ def api_situacao(id_pe):
     return jsonify({"ok": True})
 
 
+@bp.route("/api/pontos-estrategicos/aliases")
+@login_required
+def api_aliases_listar():
+    try:
+        codigo_pe = request.args.get("codigo_pe", "").strip() or None
+        return jsonify({"aliases": pe_core.listar_aliases(bh.db_target(), codigo_pe)})
+    except Exception:
+        logging.exception("Erro em api_aliases_listar")
+        return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
+
+
+@bp.route("/api/pontos-estrategicos/aliases", methods=["POST"])
+@login_required
+@nivel_min("operador")
+def api_aliases_criar():
+    payload = request.get_json(silent=True) or {}
+    try:
+        pe_core.salvar_alias_manual(
+            bh.db_target(),
+            payload.get("codigo_pe"),
+            payload.get("alias"),
+            payload.get("localidade"),
+        )
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(
+        get_db,
+        "alias_criado",
+        entidade="pontos_estrategicos_alias",
+        detalhes={"codigo_pe": payload.get("codigo_pe"), "alias": payload.get("alias")},
+    )
+    return jsonify({"ok": True})
+
+
+@bp.route("/api/pontos-estrategicos/aliases/<int:id_alias>", methods=["POST"])
+@login_required
+@nivel_min("operador")
+def api_aliases_editar(id_alias):
+    payload = request.get_json(silent=True) or {}
+    try:
+        pe_core.salvar_alias_manual(
+            bh.db_target(),
+            payload.get("codigo_pe"),
+            payload.get("alias"),
+            payload.get("localidade"),
+            id_alias=id_alias,
+        )
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(
+        get_db,
+        "alias_editado",
+        entidade="pontos_estrategicos_alias",
+        entidade_id=id_alias,
+        detalhes={"codigo_pe": payload.get("codigo_pe"), "alias": payload.get("alias")},
+    )
+    return jsonify({"ok": True})
+
+
+@bp.route("/api/pontos-estrategicos/aliases/<int:id_alias>", methods=["DELETE"])
+@login_required
+@nivel_min("operador")
+def api_aliases_excluir(id_alias):
+    try:
+        pe_core.excluir_alias_manual(bh.db_target(), id_alias)
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    audit.registrar_evento(
+        get_db,
+        "alias_excluido",
+        entidade="pontos_estrategicos_alias",
+        entidade_id=id_alias,
+    )
+    return jsonify({"ok": True})
+
+
+@bp.route("/api/pontos-estrategicos/aliases/<int:id_alias>/ativo", methods=["POST"])
+@login_required
+@nivel_min("operador")
+def api_aliases_alternar(id_alias):
+    payload = request.get_json(silent=True) or {}
+    ativo = payload.get("ativo") in (True, 1, "1")
+    try:
+        pe_core.alternar_alias_manual(bh.db_target(), id_alias, ativo)
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    return jsonify({"ok": True})
+
+
 def _filtros():
     filtros = {
         "situacao": request.args.get("situacao", ""),
