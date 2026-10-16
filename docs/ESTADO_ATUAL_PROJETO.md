@@ -1068,6 +1068,23 @@ dos nomes legados para formularios antigos. Nao ha migracao de banco. Antes do
 uso, gerar novamente o XLSForm do ciclo e substituir o formulario publicado no
 Kobo. Ver `docs/LIRAA_OPERACAO_CICLO.md`.
 
+## Alias do Ponto Estrategico PE-0046 (1.69.2)
+
+Em 15/10/2026, foi adicionado o alias determinístico do novo PE `PE-0046` em
+`pontos_estrategicos.PE_ALIAS_SEED`, mapeando o nome interno do Kobo
+`RUA DOMINGOS SCUCATO - AUTO PEÇAS JOÃO 3:16` ao código `PE-0046`. Garante que
+visitas de Ponto Estratégico lançadas nesse PE sejam identificadas mesmo se o
+alias automático do cadastro não casar com o nome do formulário. Para aplicar
+na produção, salvar (editar e gravar) o PE-0046 uma vez após a implantação, o
+que reexecuta `_seed_aliases` e grava o alias; visitas PE antigas sem vínculo
+podem ser religadas por `pontos_estrategicos.vincular_visitas_existentes_por_alias`.
+
+Pendência futura (registrada pelo usuário, não implementada): permitir
+configurar os **aliases na interface**, como uma aba dentro da página de Pontos
+Estratégicos, para editar o mapeamento nome-do-Kobo -> PE sem alterar o código
+(`PE_ALIAS_SEED`). Hoje os aliases vivem em `PE_ALIAS_SEED` + geração automática
+(`_aliases_automaticos`), persistidos em `pontos_estrategicos_alias`.
+
 Antes de iniciar qualquer uma delas, confira o pedido mais recente do usuario.
 Ele pode mudar a prioridade, autorizar operacao real ou pedir apenas analise.
 

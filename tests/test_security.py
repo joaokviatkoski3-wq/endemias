@@ -1832,6 +1832,7 @@ class PontosEstrategicosTests(unittest.TestCase):
                 ("PE-0042", "Cemiterio Prado", "Rosana"),
                 ("PE-0043", "Condominio Jersey City - LYX", "Rosana"),
                 ("PE-0045", "Borracharia Garagem Oculta", "Graziela"),
+                ("PE-0046", "Auto Peças João 3:16", "Sede"),
             ):
                 pe_core.inserir(conn, {"codigo_pe": codigo, "nome": nome, "localidade": localidade})
             pe_core.inserir(conn, {
@@ -1873,6 +1874,14 @@ class PontosEstrategicosTests(unittest.TestCase):
                     "Graziela",
                 )["codigo_pe"],
                 "PE-0045",
+            )
+            self.assertEqual(
+                pe_core.resolver_alias_visita(
+                    conn,
+                    "RUA DOMINGOS SCUCATO - AUTO PEÇAS JOÃO 3:16",
+                    "Sede",
+                )["codigo_pe"],
+                "PE-0046",
             )
             self.assertIsNone(pe_core.resolver_alias_visita(conn, "cemitério", "São Venâncio"))
 
