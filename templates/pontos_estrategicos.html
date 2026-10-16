@@ -135,39 +135,51 @@
 </div>
 
 <div id="pe-tab-aliases" class="pe-tab-panel" hidden>
-  <div class="chart-card">
+  <div class="chart-card" style="margin-bottom:16px;">
     <div class="chart-hd">
-      <div class="chart-title"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Aliases de identificação</div>
-      <span class="table-info">Nome interno do Kobo → PE (o sistema usa isso para identificar a visita)</span>
+      <div class="chart-title"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> <span id="alias-form-title">Novo alias</span></div>
+      <span class="table-info">Vincula o nome interno do Kobo a um Ponto Estratégico</span>
     </div>
     <div style="padding:14px;">
-      <div class="f-g" style="max-width:420px;margin-bottom:12px;">
-        <label>Ponto Estratégico</label>
-        <select id="alias-pe-select" onchange="carregarAliases()">
+      <div class="pe-form">
+        <div class="f-g full">
+          <label>Ponto Estratégico</label>
+          <select id="alias-form-pe">
+            {% for pe in opcoes.pe_codigos %}
+            <option value="{{ pe.codigo_pe }}">{{ pe.codigo_pe }} — {{ pe.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="f-g full"><label>Alias (nome interno exato do Kobo)</label><input id="alias-form-alias" placeholder="Ex: RUA DOMINGOS SCUCATO - AUTO PEÇAS JOÃO 3:16"></div>
+        <div class="f-g"><label>Localidade (opcional)</label><input id="alias-form-localidade" list="pe-localidades-list"></div>
+        <div class="f-g" style="align-self:end;display:flex;gap:8px;">
+          <button class="btn btn-primary" type="button" onclick="salvarAlias()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> <span id="alias-form-btn">Adicionar alias</span></button>
+          <button class="btn btn-outline" type="button" id="alias-form-cancel" onclick="cancelarEdicaoAlias()" style="display:none;">Cancelar</button>
+        </div>
+      </div>
+      <input type="hidden" id="alias-form-id">
+      <div class="pe-muted" style="margin-top:8px;">O alias deve ser o <strong>nome interno</strong> do PE no formulário Kobo (não o rótulo). Preencha e clique em <strong>Adicionar alias</strong>.</div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-hd">
+      <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Aliases cadastrados</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="table-info">Filtrar:</span>
+        <select id="alias-pe-select" onchange="carregarAliases()" style="min-width:230px;">
           <option value="">Todos</option>
           {% for pe in opcoes.pe_codigos %}
           <option value="{{ pe.codigo_pe }}">{{ pe.codigo_pe }} — {{ pe.nome }}</option>
           {% endfor %}
         </select>
       </div>
-      <div class="table-scroll">
-        <table>
-          <thead><tr><th>Alias (nome interno)</th><th>Localidade</th><th>Normalizado</th><th>Origem</th><th>Ativo</th><th>Ações</th></tr></thead>
-          <tbody id="alias-body"></tbody>
-        </table>
-      </div>
-      <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
-        <div class="pe-form">
-          <div class="f-g full"><label>Alias (nome interno exato do Kobo)</label><input id="alias-form-alias" placeholder="Ex: RUA DOMINGOS SCUCATO - AUTO PEÇAS JOÃO 3:16"></div>
-          <div class="f-g"><label>Localidade (opcional)</label><input id="alias-form-localidade" list="pe-localidades-list"></div>
-          <div class="f-g" style="align-self:end;display:flex;gap:8px;">
-            <button class="btn btn-primary" type="button" onclick="salvarAlias()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> <span id="alias-form-btn">Adicionar alias</span></button>
-            <button class="btn btn-outline" type="button" id="alias-form-cancel" onclick="cancelarEdicaoAlias()" style="display:none;">Cancelar</button>
-          </div>
-        </div>
-        <input type="hidden" id="alias-form-id">
-        <div class="pe-muted" style="margin-top:8px;">O alias deve ser o <strong>nome interno</strong> do PE no formulário Kobo (não o rótulo). Aliases "Seed" e "Automático" são gerados pelo sistema e não podem ser editados aqui.</div>
-      </div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>PE</th><th>Alias (nome interno)</th><th>Localidade</th><th>Normalizado</th><th>Origem</th><th>Ativo</th><th>Ações</th></tr></thead>
+        <tbody id="alias-body"></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -360,22 +372,22 @@ async function carregarAliases(){
          <button class="btn btn-icon" type="button" onclick="excluirAlias(${a.id_alias})" title="Excluir"><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"></button>`
       : '<span class="pe-muted">—</span>';
     return `<tr>
-      <td><strong>${peEsc(a.alias_logradouro)}</strong><div class="pe-muted">${peEsc(a.pe_nome)}</div></td>
+      <td><span class="pe-code">${peEsc(a.codigo_pe)}</span><div class="pe-muted">${peEsc(a.pe_nome)}</div></td>
+      <td><strong>${peEsc(a.alias_logradouro)}</strong></td>
       <td>${a.localidade ? peEsc(a.localidade) : '<span class="pe-muted">—</span>'}</td>
       <td><span class="alias-norm">${peEsc(a.alias_normalizado)}</span></td>
       <td><span class="alias-origem ${o.cls}">${peEsc(o.label)}</span></td>
       <td><span class="pe-status ${a.ativo ? '' : 'off'}">${a.ativo ? 'Ativo' : 'Inativo'}</span></td>
       <td>${acoes}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:18px;">Nenhum alias encontrado.</td></tr>';
+  }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:18px;">Nenhum alias cadastrado. Use o formulário acima para adicionar.</td></tr>';
 }
 async function salvarAlias(){
-  const sel = document.getElementById('alias-pe-select');
-  const codigo = sel.value;
+  const codigo = document.getElementById('alias-form-pe').value;
   const alias = document.getElementById('alias-form-alias').value.trim();
   const localidade = document.getElementById('alias-form-localidade').value.trim();
   const id = document.getElementById('alias-form-id').value;
-  if(!codigo){ toast('Selecione um Ponto Estratégico para o alias.', 'error'); return; }
+  if(!codigo){ toast('Selecione um Ponto Estratégico.', 'error'); return; }
   if(!alias){ toast('Informe o alias.', 'error'); return; }
   try {
     await peJson(id ? `/api/pontos-estrategicos/aliases/${id}` : '/api/pontos-estrategicos/aliases', {
@@ -393,11 +405,12 @@ async function salvarAlias(){
 function editarAlias(id){
   const a = aliasCache.find(x => x.id_alias === id);
   if(!a) return;
-  document.getElementById('alias-pe-select').value = a.codigo_pe;
+  document.getElementById('alias-form-pe').value = a.codigo_pe;
   document.getElementById('alias-form-alias').value = a.alias_logradouro || '';
   document.getElementById('alias-form-localidade').value = a.localidade || '';
   document.getElementById('alias-form-id').value = a.id_alias;
   document.getElementById('alias-form-btn').textContent = 'Salvar alias';
+  document.getElementById('alias-form-title').textContent = 'Editar alias';
   document.getElementById('alias-form-cancel').style.display = '';
   document.getElementById('alias-form-alias').focus();
 }
@@ -406,6 +419,7 @@ function cancelarEdicaoAlias(){
   document.getElementById('alias-form-alias').value = '';
   document.getElementById('alias-form-localidade').value = '';
   document.getElementById('alias-form-btn').textContent = 'Adicionar alias';
+  document.getElementById('alias-form-title').textContent = 'Novo alias';
   document.getElementById('alias-form-cancel').style.display = 'none';
 }
 async function alternarAlias(id, ativo){
