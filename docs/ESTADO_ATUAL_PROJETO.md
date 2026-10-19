@@ -1102,7 +1102,7 @@ banco (reaproveita `pontos_estrategicos_alias`).
   manuais (não sobrescreve nem desativa). Testes em
   `tests/test_pontos_estrategicos_aliases.py`.
 
-## Hub "Formulários" com atualização de RG offline (1.71.0)
+## Hub "Formulários" com atualização de RG offline (1.71.1)
 
 Em 15/10/2026 foi criada a página **Formulários** (`/formularios`), um hub
 genérico de formulários internos com o primeiro formulário: **Atualização de
@@ -1121,6 +1121,13 @@ admin revisa/corrige e **oficializa** (substitui o quarteirão via
   quarteirões, preenche rascunhos sem rede e sincroniza ao voltar a ficar online.
 - **Estados**: `rascunho → enviado → aprovado/devolvido → oficializado`.
 - Testes: `tests/test_formularios.py`, `tests/test_rg_formulario.py`.
+
+Ajustes de campo (1.71.1): o salvamento passou a ser "local primeiro" (grava no
+IndexedDB e só então tenta enviar), eliminando o "Failed to fetch" ao salvar
+offline; correção do botão "Novo lado" (colisão de nome de função); campo de
+quantidade ao marcar "Condomínio: Sim" (o `condominio` do RG é o nº de unidades);
+confirmação antes de remover logradouro; e reabertura do quarteirão recupera o
+rascunho salvo em vez de zerar.
 
 Pendência operacional: aplicar a migração 0028 em produção (console elevado) e
 fazer um teste real offline no Android/Chrome antes do uso em campo.

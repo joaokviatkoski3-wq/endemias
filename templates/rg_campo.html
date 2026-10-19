@@ -30,6 +30,9 @@
 .rgc-imoveis th{background:var(--surface2);text-align:left;padding:6px 8px;font-size:11px;text-transform:uppercase;color:var(--text3);}
 .rgc-imoveis td{padding:4px 6px;border-top:1px solid var(--border);}
 .rgc-imoveis input,.rgc-imoveis select{width:100%;}
+.rgc-cond{display:flex;gap:4px;align-items:center;min-width:108px;}
+.rgc-cond select{width:56px !important;flex:none;}
+.rgc-cond input{min-width:48px;}
 .rgc-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;padding:14px;}
 .rgc-topform{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;margin-bottom:14px;}
 </style>
@@ -243,26 +246,83 @@ async function limparPendentes(){
   renderCards();
 }
 
-function novoImovel(){ return {numero:'', sequencia:'', tipo:'R', condominio:false, observacao:''}; }
+function novoImovel(){ return {numero:'', sequencia:'', tipo:'R', condominio:false, condominio_qtd:'', observacao:''}; }
 function novoLogradouro(){ return {logradouro:'', imoveis:[novoImovel()]}; }
-function novoLado(n){ return {lado:n, logradouros:[novoLogradouro()]}; }
+function criarLado(n){ return {lado:n, logradouros:[novoLogradouro()]}; }
 
-function abrirQuarteirao(id_localidade, quarteirao){
+function agentesDeIds(ids){
+  return (ids || []).map(id => {
+    const a = AGENTES.find(x => Number(x.id_agente) === Number(id));
+    return a ? { id_agente: a.id_agente, nome: a.nome } : { id_agente: Number(id), nome: 'Agente ' + id };
+  });
+}
+
+// Reconstrói a estrutura lados → logradouros → imóveis a partir das linhas planas do payload.
+function linhasParaForm(payload){
+  const lados = [];
+  let ladoAtual = null, logAtual = null;
+  for (const ln of (payload.linhas || [])) {
+    const lado = String(ln.lado || '1');
+    if (!ladoAtual || ladoAtual.lado !== lado) {
+      ladoAtual = { lado, logradouros: [] };
+      lados.push(ladoAtual);
+      logAtual = null;
+    }
+    if (!logAtual || logAtual.logradouro !== ln.logradouro) {
+      logAtual = { logradouro: ln.logradouro || '', imoveis: [] };
+      ladoAtual.logradouros.push(logAtual);
+    }
+    const qtd = Number(ln.condominio);
+    logAtual.imoveis.push({
+      numero: String(ln.numero || ''),
+      sequencia: String(ln.sequencia || ''),
+      tipo: ln.tipo || 'R',
+      condominio: qtd > 0,
+      condominio_qtd: qtd > 0 ? String(qtd) : '',
+      observacao: String(ln.observacao || ''),
+    });
+  }
+  return lados.length ? lados : [criarLado(1)];
+}
+
+async function abrirQuarteirao(id_localidade, quarteirao){
   try {
     const s = (estado.snapshot && estado.snapshot.selecoes || []).find(x => String(x.id_localidade) === String(id_localidade) && x.quarteirao === quarteirao);
     if (!s) { toast('Quarteirão não encontrado no aparelho.', 'error'); return; }
-    estado.formularioAtual = {
-      id_localidade: s.id_localidade,
-      localidade: s.localidade,
-      quarteirao: s.quarteirao,
-      quarteirao_exibicao: s.quarteirao_exibicao,
-      agentes: AGENTE_PROPRIO ? [{ id_agente: AGENTE_PROPRIO.id_agente, nome: AGENTE_PROPRIO.nome }] : [],
-      data_atualizacao: '',
-      lados: [{ lado: 1, logradouros: [{ logradouro: '', imoveis: [{ numero: '', sequencia: '', tipo: 'R', condominio: false, observacao: '' }] }] }],
-    };
+    // Recupera rascunho salvo (mesmo aparelho) para continuar de onde parou.
+    let draft = null;
+    try {
+      const drafts = await window.RGCampoOffline.listarFormularios();
+      draft = (drafts || []).find(d => d.payload && String(d.payload.id_localidade) === String(s.id_localidade) && d.payload.quarteirao === s.quarteirao) || null;
+    } catch (e) { console.warn('listarFormularios falhou:', e); }
+    let formulario;
+    if (draft) {
+      formulario = {
+        id_localidade: s.id_localidade,
+        localidade: s.localidade,
+        quarteirao: s.quarteirao,
+        quarteirao_exibicao: s.quarteirao_exibicao,
+        agentes: agentesDeIds(draft.payload.agentes_ids),
+        data_atualizacao: draft.payload.data_atualizacao || '',
+        lados: linhasParaForm(draft.payload),
+      };
+      estado.uuid = draft.uuid;
+    } else {
+      formulario = {
+        id_localidade: s.id_localidade,
+        localidade: s.localidade,
+        quarteirao: s.quarteirao,
+        quarteirao_exibicao: s.quarteirao_exibicao,
+        agentes: AGENTE_PROPRIO ? [{ id_agente: AGENTE_PROPRIO.id_agente, nome: AGENTE_PROPRIO.nome }] : [],
+        data_atualizacao: '',
+        lados: [criarLado(1)],
+      };
+      estado.uuid = null;
+    }
+    estado.formularioAtual = formulario;
     console.log('abrirQuarteirao: formularioAtual =', estado.formularioAtual);
     document.getElementById('rgc-form-titulo').textContent = `${s.localidade} — Q. ${s.quarteirao_exibicao}`;
-    document.getElementById('rgc-form-data').value = '';
+    document.getElementById('rgc-form-data').value = formulario.data_atualizacao || '';
     renderAgentes();
     renderLados();
     ativarView('formulario');
@@ -293,9 +353,13 @@ function opcoesTipos(sel){
 
 function updLogradouro(li, gi, valor){ estado.formularioAtual.lados[li].logradouros[gi].logradouro = valor; }
 function updImovel(li, gi, ii, campo, valor){
-  estado.formularioAtual.lados[li].logradouros[gi].imoveis[ii][campo] = (campo === 'condominio') ? (valor === '1') : valor;
+  estado.formularioAtual.lados[li].logradouros[gi].imoveis[ii][campo] = valor;
 }
-function novoLado(){ estado.formularioAtual.lados.push(novoLado(estado.formularioAtual.lados.length + 1)); renderLados(); }
+function setCondominio(li, gi, ii, valor){
+  estado.formularioAtual.lados[li].logradouros[gi].imoveis[ii].condominio = (valor === '1');
+  renderLados();
+}
+function novoLado(){ estado.formularioAtual.lados.push(criarLado(estado.formularioAtual.lados.length + 1)); renderLados(); }
 function novoLogradouroNoLado(li){ estado.formularioAtual.lados[li].logradouros.push(novoLogradouro()); renderLados(); }
 function novoImovelNoLog(li, gi){ estado.formularioAtual.lados[li].logradouros[gi].imoveis.push(novoImovel()); renderLados(); }
 function removerImovel(li, gi, ii){
@@ -304,6 +368,7 @@ function removerImovel(li, gi, ii){
   renderLados();
 }
 function removerLogradouro(li, gi){
+  if (!confirm('Remover este logradouro e todos os imóveis dele? Esta ação apaga o conteúdo digitado.')) return;
   const logs = estado.formularioAtual.lados[li].logradouros;
   logs.splice(gi, 1); if (!logs.length) logs.push(novoLogradouro());
   renderLados();
@@ -323,7 +388,7 @@ function renderLados(){
                 <td><input value="${peEsc(im.numero)}" placeholder="SN" oninput="updImovel(${li},${gi},${ii},'numero',this.value)"></td>
                 <td><input value="${peEsc(im.sequencia)}" oninput="updImovel(${li},${gi},${ii},'sequencia',this.value)"></td>
                 <td><select onchange="updImovel(${li},${gi},${ii},'tipo',this.value)">${opcoesTipos(im.tipo)}</select></td>
-                <td><select onchange="updImovel(${li},${gi},${ii},'condominio',this.value)"><option value="0" ${im.condominio?'':'selected'}>Não</option><option value="1" ${im.condominio?'selected':''}>Sim</option></select></td>
+                <td class="rgc-cond"><select onchange="setCondominio(${li},${gi},${ii},this.value)" title="Condomínio"><option value="0" ${im.condominio?'':'selected'}>Não</option><option value="1" ${im.condominio?'selected':''}>Sim</option></select>${im.condominio ? `<input type="number" min="1" value="${peEsc(im.condominio_qtd)}" placeholder="unid." title="Número de unidades do condomínio" oninput="updImovel(${li},${gi},${ii},'condominio_qtd',this.value)">` : ''}</td>
                 <td><input value="${peEsc(im.observacao)}" oninput="updImovel(${li},${gi},${ii},'observacao',this.value)"></td>
                 <td><button class="btn btn-icon" type="button" onclick="removerImovel(${li},${gi},${ii})" title="Remover"><img src="/static/icons/fechar.svg" alt="" class="icon-svg"></button></td>
               </tr>`).join('')}
@@ -350,7 +415,7 @@ function payloadLinhas(){
           sequencia: String(im.sequencia || '').trim() || null,
           lado: String(l.lado),
           tipo: im.tipo || 'R',
-          condominio: im.condominio ? 1 : 0,
+          condominio: im.condominio ? (parseInt(im.condominio_qtd, 10) || 1) : 0,
           observacao: String(im.observacao || '').trim() || null,
         });
       }
@@ -372,19 +437,30 @@ async function salvar(status){
     agentes_ids: f.agentes.map(a => a.id_agente),
     linhas,
   };
-  if (offline()) {
-    try {
-      await window.RGCampoOffline.salvarFormulario({ uuid: estado.uuid, tipo: 'rg_atualizacao', payload, status, criado_em: new Date().toISOString() });
-      toast('Salvo no aparelho (offline). Será enviado quando houver conexão.', 'success');
-      renderCards();
-    } catch (e) { toast(e.message || 'Falha ao salvar offline.', 'error'); }
+  // Sempre grava localmente primeiro (o aparelho é a fonte de verdade em campo);
+  // depois tenta enviar. Assim "salvar" nunca falha por falta de rede.
+  try {
+    await window.RGCampoOffline.salvarFormulario({ uuid: estado.uuid, tipo: 'rg_atualizacao', payload, status, criado_em: new Date().toISOString() });
+  } catch (e) {
+    toast(e.message || 'Falha ao salvar no aparelho.', 'error');
     return;
   }
-  try {
-    await api('/api/formularios', 'POST', { tipo: 'rg_atualizacao', payload, status, uuid_cliente: estado.uuid });
+  const enviado = await tentarEnviar(estado.uuid, payload, status);
+  if (enviado) {
     toast(status === 'enviado' ? 'Enviado para revisão.' : 'Rascunho salvo.', 'success');
     voltarGrid();
-  } catch (e) { toast(e.message || 'Erro ao salvar.', 'error'); }
+  } else {
+    toast('Salvo no aparelho (offline). Será enviado quando houver conexão.', 'success');
+    renderCards();
+  }
+}
+
+async function tentarEnviar(uuid, payload, status){
+  try {
+    await api('/api/formularios', 'POST', { tipo: 'rg_atualizacao', payload, status, uuid_cliente: uuid });
+    await window.RGCampoOffline.removerFormulario(uuid);
+    return true;
+  } catch (e) { return false; }
 }
 
 async function syncPendentes(){

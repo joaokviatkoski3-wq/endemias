@@ -115,7 +115,7 @@ async function abrirForm(id){
 }
 
 function updLinha(i, campo, valor){
-  rgrAtual.linhas[i][campo] = campo === 'condominio' ? (valor === '1') : valor;
+  rgrAtual.linhas[i][campo] = valor;
 }
 function adicionarLinha(){
   rgrAtual.linhas.push({logradouro:'', numero:'', sequencia:'', lado:'', tipo:'R', condominio:0, observacao:''});
@@ -131,7 +131,7 @@ function renderLinhas(){
       <div class="f-g"><label>Número</label><input value="${peEsc(l.numero)}" oninput="updLinha(${i},'numero',this.value)"></div>
       <div class="f-g"><label>Seq.</label><input value="${peEsc(l.sequencia)}" oninput="updLinha(${i},'sequencia',this.value)"></div>
       <div class="f-g"><label>Tipo</label><select onchange="updLinha(${i},'tipo',this.value)">${tipos.replace(`value="${peEsc(l.tipo)}"`,`value="${peEsc(l.tipo)}" selected`)}</select></div>
-      <div class="f-g"><label>Cond.</label><select onchange="updLinha(${i},'condominio',this.value)"><option value="0" ${l.condominio ? '' : 'selected'}>Não</option><option value="1" ${l.condominio ? 'selected' : ''}>Sim</option></select></div>
+      <div class="f-g"><label>Cond. (unid.)</label><input type="number" min="0" value="${peEsc(l.condominio || '')}" oninput="updLinha(${i},'condominio',this.value)" title="0 = não é condomínio; maior que 0 = nº de unidades"></div>
       <div class="f-g obs"><label>Observação</label><input value="${peEsc(l.observacao)}" oninput="updLinha(${i},'observacao',this.value)"></div>
       <button class="btn btn-icon" type="button" onclick="removerLinha(${i})" title="Remover"><img src="/static/icons/fechar.svg" alt="" class="icon-svg"></button>
     </div>`).join('') || '<div class="pe-muted">Nenhum imóvel.</div>';
