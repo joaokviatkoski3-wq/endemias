@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, render_template, request
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import formularios as formularios_core
+from app_core import rg_formulario
 
 
 bp = Blueprint("formularios", __name__)
@@ -83,6 +84,45 @@ def api_revisar(id_formulario):
             usuario,
             motivo=payload.get("motivo"),
         )
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    return jsonify({"ok": True})
+
+
+# ── Formulário específico: atualização de RG ──────────────────────────────────
+
+@bp.route("/formularios/rg-campo")
+@login_required
+def rg_campo_page():
+    return render_template("rg_campo.html")
+
+
+@bp.route("/formularios/rg-revisao")
+@login_required
+@nivel_min("admin")
+def rg_revisao_page():
+    return render_template("rg_revisao.html")
+
+
+@bp.route("/api/formularios/rg/snapshot", methods=["POST"])
+@login_required
+def api_rg_snapshot():
+    payload = request.get_json(silent=True) or {}
+    selecoes = payload.get("selecoes") or []
+    try:
+        return jsonify(rg_formulario.snapshot(bh.db_target(), selecoes))
+    except Exception:
+        logging.exception("Erro em api_rg_snapshot")
+        return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
+
+
+@bp.route("/api/formularios/<int:id_formulario>/oficializar", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def api_oficializar(id_formulario):
+    usuario = bh.usuario_atual() or {}
+    try:
+        rg_formulario.oficializar(bh.db_target(), id_formulario, usuario)
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
     return jsonify({"ok": True})
