@@ -8,7 +8,9 @@
 .rgc-tab.active{color:var(--brand);border-bottom-color:var(--brand);}
 .rgc-view[hidden]{display:none;}
 .rgc-qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;}
-.rgc-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:left;cursor:pointer;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:4px;}
+.rgc-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:left;cursor:pointer;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:4px;position:relative;}
+.rgc-remover{position:absolute;top:8px;right:8px;border:none;background:rgba(148,163,184,.22);color:#475569;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;}
+.rgc-remover:hover{background:rgba(239,68,68,.2);color:#b91c1c;}
 .rgc-card:hover{border-color:var(--brand);}
 .rgc-card .loc{font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.3px;}
 .rgc-card .q{font-size:20px;font-weight:900;color:var(--brand);}
@@ -63,6 +65,10 @@
   <div class="chart-card">
     <div class="chart-hd"><div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Quarteirões baixados</div><span class="table-info" id="rgc-info"></span></div>
     <div style="padding:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+        <span class="pe-muted">Clique no card para preencher o quarteirão.</span>
+        <button class="btn btn-outline btn-sm" type="button" onclick="limparPendentes()">Limpar pendentes</button>
+      </div>
       <div class="rgc-qgrid" id="rgc-grid"></div>
     </div>
   </div>
@@ -207,12 +213,34 @@ async function renderCards(){
   document.getElementById('rgc-info').textContent = `${sel.length} quarteirão(ões)`;
   document.getElementById('rgc-grid').innerHTML = sel.map(s => {
     const st = mapa[chaveSel(s)] || 'pendente';
-    return `<button class="rgc-card" type="button" data-id="${s.id_localidade}" data-quarteirao="${peEsc(s.quarteirao)}">
+    const remover = (st === 'pendente')
+      ? `<button class="rgc-remover" type="button" data-id="${s.id_localidade}" data-quarteirao="${peEsc(s.quarteirao)}" title="Retirar do aparelho">✕</button>`
+      : '';
+    return `<div class="rgc-card" data-id="${s.id_localidade}" data-quarteirao="${peEsc(s.quarteirao)}">
       <span class="loc">${peEsc(s.localidade)}</span>
       <span class="q">Q. ${peEsc(s.quarteirao_exibicao)}</span>
       <span class="rgc-status ${st}">${ROTULOS_STATUS[st]}</span>
-    </button>`;
+      ${remover}
+    </div>`;
   }).join('') || '<div class="pe-muted">Nenhum quarteirão baixado. Use a aba "Preparar campo".</div>';
+}
+
+async function removerQuarteirao(id, quarteirao){
+  if (!confirm('Retirar este quarteirão do aparelho (uso offline)?')) return;
+  estado.snapshot.selecoes = (estado.snapshot.selecoes || []).filter(s => !(String(s.id_localidade) === String(id) && s.quarteirao === quarteirao));
+  try { await window.RGCampoOffline.salvarSnapshot({ selecoes: estado.snapshot.selecoes, tipos: estado.snapshot.tipos || [] }); } catch (e) {}
+  renderCards();
+}
+
+async function limparPendentes(){
+  const mapa = await statuses();
+  const pendentes = (estado.snapshot.selecoes || []).filter(s => (mapa[chaveSel(s)] || 'pendente') === 'pendente');
+  if (!pendentes.length) { toast('Nenhum quarteirão pendente para limpar.', 'success'); return; }
+  if (!confirm(`Retirar ${pendentes.length} quarteirão(ões) pendente(s) do aparelho?`)) return;
+  const ids = new Set(pendentes.map(s => chaveSel(s)));
+  estado.snapshot.selecoes = (estado.snapshot.selecoes || []).filter(s => !ids.has(chaveSel(s)));
+  try { await window.RGCampoOffline.salvarSnapshot({ selecoes: estado.snapshot.selecoes, tipos: estado.snapshot.tipos || [] }); } catch (e) {}
+  renderCards();
 }
 
 function novoImovel(){ return {numero:'', sequencia:'', tipo:'R', condominio:false, observacao:''}; }
@@ -223,16 +251,16 @@ function abrirQuarteirao(id_localidade, quarteirao){
   try {
     const s = (estado.snapshot && estado.snapshot.selecoes || []).find(x => String(x.id_localidade) === String(id_localidade) && x.quarteirao === quarteirao);
     if (!s) { toast('Quarteirão não encontrado no aparelho.', 'error'); return; }
-    const agentesIniciais = AGENTE_PROPRIO ? [AGENTE_PROPRIO] : [];
     estado.formularioAtual = {
       id_localidade: s.id_localidade,
       localidade: s.localidade,
       quarteirao: s.quarteirao,
       quarteirao_exibicao: s.quarteirao_exibicao,
-      agentes: agentesIniciais,
+      agentes: AGENTE_PROPRIO ? [{ id_agente: AGENTE_PROPRIO.id_agente, nome: AGENTE_PROPRIO.nome }] : [],
       data_atualizacao: '',
-      lados: [novoLado(1)],
+      lados: [{ lado: 1, logradouros: [{ logradouro: '', imoveis: [{ numero: '', sequencia: '', tipo: 'R', condominio: false, observacao: '' }] }] }],
     };
+    console.log('abrirQuarteirao: formularioAtual =', estado.formularioAtual);
     document.getElementById('rgc-form-titulo').textContent = `${s.localidade} — Q. ${s.quarteirao_exibicao}`;
     document.getElementById('rgc-form-data').value = '';
     renderAgentes();
@@ -375,6 +403,8 @@ async function syncPendentes(){
 async function init(){
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   document.getElementById('rgc-grid').addEventListener('click', (e) => {
+    const remover = e.target.closest('.rgc-remover');
+    if (remover) { removerQuarteirao(remover.dataset.id, remover.dataset.quarteirao); return; }
     const card = e.target.closest('.rgc-card');
     if (!card) return;
     abrirQuarteirao(card.dataset.id, card.dataset.quarteirao);

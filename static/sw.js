@@ -5,7 +5,7 @@
  * - estáticos (/static/): cache primeiro, preenchendo conforme usa;
  * - /api/: sempre rede (dados offline ficam no IndexedDB, não no SW).
  */
-const CACHE = 'endemias-formularios-v1';
+const CACHE = 'endemias-formularios-v2';
 
 const SHELL = [
   '/static/css/app.css',
