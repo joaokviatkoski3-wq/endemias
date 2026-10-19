@@ -1102,6 +1102,29 @@ banco (reaproveita `pontos_estrategicos_alias`).
   manuais (não sobrescreve nem desativa). Testes em
   `tests/test_pontos_estrategicos_aliases.py`.
 
+## Hub "Formulários" com atualização de RG offline (1.71.0)
+
+Em 15/10/2026 foi criada a página **Formulários** (`/formularios`), um hub
+genérico de formulários internos com o primeiro formulário: **Atualização de
+Registro Geográfico (RG)**. O agente (nível `usuario`) captura em campo no
+celular/tablet Android, com funcionamento **offline**, e envia para revisão; o
+admin revisa/corrige e **oficializa** (substitui o quarteirão via
+`salvar_quarteirao`).
+
+- **Arquitetura genérica**: registro `FORMULARIOS` em `app_core/formularios.py` +
+  tabela comum `formularios` (tipo + payload JSON + status + autor + revisão),
+  reutilizável por formulários futuros. Migração PostgreSQL **0028**.
+- **RG**: `app_core/rg_formulario.py` (`snapshot` de quarteirões/logradouros +
+  `oficializar`). Páginas `/formularios/rg-campo` e `/formularios/rg-revisao`.
+- **Offline**: Service Worker (`static/sw.js`), IndexedDB
+  (`static/js/rg_campo_offline.js`) e `static/manifest.webmanifest`. O campo baixa
+  quarteirões, preenche rascunhos sem rede e sincroniza ao voltar a ficar online.
+- **Estados**: `rascunho → enviado → aprovado/devolvido → oficializado`.
+- Testes: `tests/test_formularios.py`, `tests/test_rg_formulario.py`.
+
+Pendência operacional: aplicar a migração 0028 em produção (console elevado) e
+fazer um teste real offline no Android/Chrome antes do uso em campo.
+
 Antes de iniciar qualquer uma delas, confira o pedido mais recente do usuario.
 Ele pode mudar a prioridade, autorizar operacao real ou pedir apenas analise.
 
