@@ -2,6 +2,19 @@
 {% block title %}RG — Revisão{% endblock %}
 {% block page_title %}Atualização de RG — Revisão{% endblock %}
 
+{% block extra_css %}<style>
+.rgr-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-bottom:14px;}
+.rgr-linha{display:grid;grid-template-columns:1fr 80px 70px 120px 60px 1fr 34px;gap:8px;align-items:center;margin-bottom:8px;}
+.rgr-linha .f-g{margin:0;}
+.rgr-status{display:inline-flex;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:800;}
+.rgr-status.enviado{background:rgba(245,158,11,.16);color:#b45309;}
+.rgr-status.aprovado{background:rgba(34,197,94,.12);color:#15803d;}
+.rgr-status.oficializado{background:rgba(22,101,52,.12);color:#166534;}
+.rgr-status.devolvido{background:rgba(239,68,68,.14);color:#b91c1c;}
+.rgr-status.rascunho{background:rgba(148,163,184,.18);color:#475569;}
+@media(max-width:720px){.rgr-linha{grid-template-columns:1fr 1fr;}.rgr-linha .f-g.obs{grid-column:1/-1;}}
+</style>{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <h1><span class="icon"><img src="/static/icons/check.svg" alt="" class="icon-svg"></span> Atualização de RG — Revisão</h1>
@@ -9,10 +22,150 @@
 </div>
 
 <div class="chart-card">
-  <div class="chart-hd"><div class="chart-title">Revisão em construção</div></div>
-  <div style="padding:18px;color:var(--text2);">
-    A tela de revisão (editar linhas, aprovar/devolver e oficializar) está em
-    desenvolvimento. A API de revisão e a oficialização já estão prontas.
+  <div class="chart-hd">
+    <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Formulários</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <select id="rgr-status" onchange="carregarLista()">
+        <option value="">Todos os status</option>
+        <option value="enviado">Enviado</option>
+        <option value="em_revisao">Em revisão</option>
+        <option value="aprovado">Aprovado</option>
+        <option value="devolvido">Devolvido</option>
+        <option value="oficializado">Oficializado</option>
+      </select>
+      <button class="btn btn-outline" type="button" onclick="carregarLista()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Atualizar</button>
+    </div>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>ID</th><th>Localidade</th><th>Quarteirão</th><th>Autor</th><th>Status</th><th>Enviado em</th><th>Ações</th></tr></thead>
+      <tbody id="rgr-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="chart-card" id="rgr-editor" hidden>
+  <div class="chart-hd">
+    <div class="chart-title"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> <span id="rgr-editor-titulo"></span></div>
+    <div class="rgr-actions">
+      <button class="btn btn-outline" type="button" id="rgr-devolver" onclick="salvarRevisao('devolvido')">Devolver</button>
+      <button class="btn btn-primary" type="button" onclick="salvarRevisao('aprovado')"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Aprovar</button>
+      <button class="btn btn-primary" type="button" id="rgr-oficializar" onclick="oficializar()" style="display:none;"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Oficializar no sistema</button>
+    </div>
+  </div>
+  <div style="padding:14px;">
+    <div class="f-g" id="rgr-motivo-wrap" style="display:none;margin-bottom:10px;"><label>Motivo da devolução</label><input id="rgr-motivo"></div>
+    <div id="rgr-linhas"></div>
+    <div style="margin-top:10px;"><button class="btn btn-outline" type="button" onclick="adicionarLinha()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Adicionar imóvel</button></div>
   </div>
 </div>
 {% endblock %}
+
+{% block extra_js %}<script>
+const rgrStatus = {
+  rascunho:'Rascunho', enviado:'Enviado', em_revisao:'Em revisão',
+  aprovado:'Aprovado', oficializado:'Oficializado', devolvido:'Devolvido',
+};
+const rgrTipos = {R:'Residência',C:'Comércio',O:'Outros',TB:'Terreno baldio',PE:'Ponto estratégico',A:'Pendente',REF:'Referência'};
+let rgrAtual = null;
+
+function peEsc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+async function api(url, method, body){
+  const opts = {method, headers:{}};
+  if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  opts.headers['X-CSRFToken'] = getCsrf();
+  const resp = await fetch(url, opts);
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.erro || `HTTP ${resp.status}`);
+  return data;
+}
+
+async function carregarLista(){
+  const st = document.getElementById('rgr-status').value;
+  const q = new URLSearchParams({tipo:'rg_atualizacao'});
+  if (st) q.set('status', st);
+  const d = await api('/api/formularios?' + q.toString(), 'GET');
+  const itens = d.formularios || [];
+  document.getElementById('rgr-body').innerHTML = itens.map(f => {
+    const p = f.payload || {};
+    const stLabel = rgrStatus[f.status] || f.status;
+    return `<tr>
+      <td>${f.id_formulario}</td>
+      <td>${peEsc(p.localidade || '')}</td>
+      <td><span class="pe-code">${peEsc(p.quarteirao || '')}</span></td>
+      <td>${peEsc(f.agente_nome || '')}</td>
+      <td><span class="rgr-status ${peEsc(f.status)}">${peEsc(stLabel)}</span></td>
+      <td>${peEsc((f.enviado_em || f.criado_em || '').slice(0,10))}</td>
+      <td><button class="btn btn-icon" type="button" onclick="abrirForm(${f.id_formulario})" title="Abrir"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:18px;">Nenhum formulário encontrado.</td></tr>';
+}
+
+async function abrirForm(id){
+  const f = await api(`/api/formularios/${id}`, 'GET');
+  rgrAtual = f;
+  const p = f.payload || {};
+  rgrAtual.linhas = Array.isArray(p.linhas) ? p.linhas.map(l => ({...l})) : [];
+  document.getElementById('rgr-editor-titulo').textContent = `Formulário #${f.id_formulario} — ${p.localidade || ''} · Q. ${p.quarteirao || ''} (${peEsc(f.agente_nome || 'sem autor')})`;
+  document.getElementById('rgr-editor').hidden = false;
+  const oficializavel = f.status === 'aprovado';
+  document.getElementById('rgr-oficializar').style.display = oficializavel ? '' : 'none';
+  document.getElementById('rgr-devolver').style.display = (f.status === 'enviado' || f.status === 'em_revisao') ? '' : 'none';
+  renderLinhas();
+}
+
+function updLinha(i, campo, valor){
+  rgrAtual.linhas[i][campo] = campo === 'condominio' ? (valor === '1') : valor;
+}
+function adicionarLinha(){
+  rgrAtual.linhas.push({logradouro:'', numero:'', sequencia:'', lado:'', tipo:'R', condominio:0, observacao:''});
+  renderLinhas();
+}
+function removerLinha(i){ rgrAtual.linhas.splice(i, 1); renderLinhas(); }
+
+function renderLinhas(){
+  const tipos = Object.keys(rgrTipos).map(c => `<option value="${c}">${c} — ${rgrTipos[c]}</option>`).join('');
+  document.getElementById('rgr-linhas').innerHTML = (rgrAtual.linhas || []).map((l, i) => `
+    <div class="rgr-linha">
+      <div class="f-g"><label>Logradouro</label><input value="${peEsc(l.logradouro)}" oninput="updLinha(${i},'logradouro',this.value)"></div>
+      <div class="f-g"><label>Número</label><input value="${peEsc(l.numero)}" oninput="updLinha(${i},'numero',this.value)"></div>
+      <div class="f-g"><label>Seq.</label><input value="${peEsc(l.sequencia)}" oninput="updLinha(${i},'sequencia',this.value)"></div>
+      <div class="f-g"><label>Tipo</label><select onchange="updLinha(${i},'tipo',this.value)">${tipos.replace(`value="${peEsc(l.tipo)}"`,`value="${peEsc(l.tipo)}" selected`)}</select></div>
+      <div class="f-g"><label>Cond.</label><select onchange="updLinha(${i},'condominio',this.value)"><option value="0" ${l.condominio ? '' : 'selected'}>Não</option><option value="1" ${l.condominio ? 'selected' : ''}>Sim</option></select></div>
+      <div class="f-g obs"><label>Observação</label><input value="${peEsc(l.observacao)}" oninput="updLinha(${i},'observacao',this.value)"></div>
+      <button class="btn btn-icon" type="button" onclick="removerLinha(${i})" title="Remover"><img src="/static/icons/fechar.svg" alt="" class="icon-svg"></button>
+    </div>`).join('') || '<div class="pe-muted">Nenhum imóvel.</div>';
+}
+
+async function salvarRevisao(decisao){
+  if (!rgrAtual) return;
+  if (decisao === 'devolvido') {
+    const m = document.getElementById('rgr-motivo').value.trim();
+    if (!m) { toast('Informe o motivo da devolução.', 'error'); return; }
+    await api(`/api/formularios/${rgrAtual.id_formulario}/revisar`, 'POST', {payload:{...rgrAtual.payload, linhas:rgrAtual.linhas}, decisao, motivo:m});
+  } else {
+    await api(`/api/formularios/${rgrAtual.id_formulario}/revisar`, 'POST', {payload:{...rgrAtual.payload, linhas:rgrAtual.linhas}, decisao});
+  }
+  toast(decisao === 'aprovado' ? 'Formulário aprovado.' : 'Formulário devolvido.', 'success');
+  rgrAtual = null;
+  document.getElementById('rgr-editor').hidden = true;
+  carregarLista();
+}
+
+async function oficializar(){
+  if (!rgrAtual) return;
+  if (!confirm('Oficializar substitui o conteúdo do quarteirão no RG. Continuar?')) return;
+  try {
+    await api(`/api/formularios/${rgrAtual.id_formulario}/oficializar`, 'POST', {});
+    toast('Oficializado no sistema.', 'success');
+    rgrAtual = null;
+    document.getElementById('rgr-editor').hidden = true;
+    carregarLista();
+  } catch (e) { toast(e.message || 'Erro ao oficializar.', 'error'); }
+}
+
+document.getElementById('rgr-devolver').addEventListener('click', () => {
+  document.getElementById('rgr-motivo-wrap').style.display = '';
+});
+carregarLista().catch(e => toast('Erro ao carregar: ' + e.message, 'error'));
+</script>{% endblock %}

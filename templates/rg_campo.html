@@ -2,18 +2,184 @@
 {% block title %}RG — Campo{% endblock %}
 {% block page_title %}Atualização de RG — Campo{% endblock %}
 
+{% block extra_css %}<style>
+.rgc-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;margin-bottom:16px;}
+.rgc-bloco{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px;box-shadow:var(--shadow);}
+.rgc-bloco-hd{display:flex;gap:10px;align-items:end;padding:12px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap;background:var(--surface2);border-radius:var(--radius) var(--radius) 0 0;}
+.rgc-bloco-hd .f-g{flex:1;min-width:150px;}
+.rgc-linhas{padding:10px 14px;display:flex;flex-direction:column;gap:8px;}
+.rgc-linha{display:grid;grid-template-columns:90px 90px 130px 70px 1fr 34px;gap:8px;align-items:center;}
+.rgc-linha .f-g{margin:0;}
+.rgc-foot{padding:10px 14px;border-top:1px dashed var(--border);display:flex;gap:8px;justify-content:flex-end;}
+.rgc-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:4px;}
+@media(max-width:720px){.rgc-linha{grid-template-columns:1fr 1fr;}.rgc-linha .f-g.obs{grid-column:1/-1;}}
+</style>{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <h1><span class="icon"><img src="/static/icons/registro_geografico.svg" alt="" class="icon-svg"></span> Atualização de RG — Campo</h1>
   <div class="sub">Levantamento de campo dos imóveis de um quarteirão, do zero</div>
 </div>
 
-<div class="chart-card">
-  <div class="chart-hd"><div class="chart-title">Formulário em construção</div></div>
-  <div style="padding:18px;color:var(--text2);">
-    A interface de captura de campo (agrupada por logradouro + lado, com
-    funcionamento offline) está em desenvolvimento. O fluxo servidor
-    (rascunho → revisão → oficialização) já está pronto.
+<div class="filter-card" style="margin-bottom:16px;">
+  <div class="filter-body open">
+    <div class="rgc-top">
+      <div class="f-g"><label>Localidade</label><select id="rgc-localidade" onchange="escolherLocalidade()"><option value="">Selecione...</option></select></div>
+      <div class="f-g"><label>Quarteirão</label><input id="rgc-quarteirao" list="rgc-quarteiroes-list" placeholder="Ex: 408" onchange="escolherQuarteirao()"><datalist id="rgc-quarteiroes-list"></datalist></div>
+      <div class="f-g"><button class="btn btn-outline" type="button" onclick="carregarReferencias()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Carregar logradouros</button></div>
+    </div>
   </div>
 </div>
+
+<div id="rgc-blocos"></div>
+
+<div class="chart-card">
+  <div class="rgc-actions" style="padding:14px;">
+    <button class="btn btn-outline" type="button" onclick="adicionarBloco()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Adicionar logradouro</button>
+    <button class="btn btn-outline" type="button" onclick="salvar('rascunho')">Salvar rascunho</button>
+    <button class="btn btn-primary" type="button" onclick="salvar('enviado')"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Enviar para revisão</button>
+  </div>
+</div>
+
+<datalist id="rgc-logradouros-list"></datalist>
+<datalist id="rgc-lados-list"><option value="par"></option><option value="ímpar"></option><option value="ambos"></option></datalist>
 {% endblock %}
+
+{% block extra_js %}<script>
+let estado = {
+  id_localidade: null,
+  quarteirao: '',
+  uuid: null,
+  tipos: [{codigo:'R',nome:'Residencia'},{codigo:'C',nome:'Comercio'},{codigo:'O',nome:'Outros'},{codigo:'TB',nome:'Terreno baldio'},{codigo:'A',nome:'Pendente'}],
+  blocos: [],
+};
+
+function peEsc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+async function api(url, method, body){
+  const opts = {method, headers:{}};
+  if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  opts.headers['X-CSRFToken'] = getCsrf();
+  const resp = await fetch(url, opts);
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.erro || `HTTP ${resp.status}`);
+  return data;
+}
+
+async function carregarLocalidades(){
+  const d = await api('/api/registro-geografico/opcoes', 'GET');
+  const sel = document.getElementById('rgc-localidade');
+  sel.innerHTML = '<option value="">Selecione...</option>' + (d.localidades || []).map(l =>
+    `<option value="${l.id_localidade}">${peEsc(l.nome)}</option>`).join('');
+}
+async function escolherLocalidade(){
+  const id = document.getElementById('rgc-localidade').value;
+  estado.id_localidade = id ? Number(id) : null;
+  estado.quarteirao = '';
+  document.getElementById('rgc-quarteirao').value = '';
+  document.getElementById('rgc-quarteiroes-list').innerHTML = '';
+  if (!id) return;
+  const d = await api(`/api/registro-geografico/quarteiroes?localidade=${encodeURIComponent(id)}`, 'GET');
+  document.getElementById('rgc-quarteiroes-list').innerHTML = (d.registros || []).map(q =>
+    `<option value="${peEsc(q.quarteirao_raw || q.quarteirao)}">${peEsc(q.quarteirao)}</option>`).join('');
+}
+function escolherQuarteirao(){
+  estado.quarteirao = document.getElementById('rgc-quarteirao').value.trim();
+}
+async function carregarReferencias(){
+  const q = estado.quarteirao;
+  if (!estado.id_localidade || !q) { toast('Selecione localidade e quarteirão.', 'error'); return; }
+  const d = await api('/api/formularios/rg/snapshot', 'POST', {selecoes:[{id_localidade: estado.id_localidade, quarteirao: q}]});
+  const sel = d.selecoes && d.selecoes[0];
+  const logradouros = sel ? (sel.logradouros || []) : [];
+  estado.tipos = d.tipos || estado.tipos;
+  document.getElementById('rgc-logradouros-list').innerHTML = logradouros.map(l =>
+    `<option value="${peEsc(l)}"></option>`).join('');
+  toast(`Logradouros de ${q} carregados (${logradouros.length}).`, 'success');
+}
+
+function novoImovel(){ return {numero:'', sequencia:'', tipo:'R', condominio:false, observacao:''}; }
+function novoBloco(){ return {logradouro:'', lado:'', imoveis:[novoImovel()]}; }
+function garantirBloco(){
+  if (!estado.blocos.length) estado.blocos.push(novoBloco());
+  render();
+}
+function adicionarBloco(){ estado.blocos.push(novoBloco()); render(); }
+function removerBloco(i){ estado.blocos.splice(i, 1); if(!estado.blocos.length) estado.blocos.push(novoBloco()); render(); }
+function adicionarImovel(i){ estado.blocos[i].imoveis.push(novoImovel()); render(); }
+function removerImovel(i, j){ estado.blocos[i].imoveis.splice(j, 1); if(!estado.blocos[i].imoveis.length) estado.blocos[i].imoveis.push(novoImovel()); render(); }
+
+function updBloco(i, campo, valor){ estado.blocos[i][campo] = valor; }
+function updImovel(i, j, campo, valor){
+  const v = campo === 'condominio' ? (valor === '1') : valor;
+  estado.blocos[i].imoveis[j][campo] = v;
+}
+
+function opcoesTipos(){
+  return estado.tipos.map(t => `<option value="${peEsc(t.codigo)}" ${''}>${peEsc(t.codigo)} — ${peEsc(t.nome)}</option>`).join('');
+}
+
+function render(){
+  const root = document.getElementById('rgc-blocos');
+  root.innerHTML = estado.blocos.map((b, i) => `
+    <div class="rgc-bloco">
+      <div class="rgc-bloco-hd">
+        <div class="f-g"><label>Logradouro ${i+1}</label><input list="rgc-logradouros-list" value="${peEsc(b.logradouro)}" placeholder="Digite ou escolha" oninput="updBloco(${i},'logradouro',this.value)"></div>
+        <div class="f-g" style="max-width:150px;"><label>Lado</label><input list="rgc-lados-list" value="${peEsc(b.lado)}" placeholder="par/ímpar" oninput="updBloco(${i},'lado',this.value)"></div>
+        <button class="btn btn-icon" type="button" onclick="removerBloco(${i})" title="Remover logradouro"><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"></button>
+      </div>
+      <div class="rgc-linhas">
+        ${b.imoveis.map((im, j) => `
+        <div class="rgc-linha">
+          <div class="f-g"><label>Número</label><input value="${peEsc(im.numero)}" placeholder="SN" oninput="updImovel(${i},${j},'numero',this.value)"></div>
+          <div class="f-g"><label>Seq.</label><input value="${peEsc(im.sequencia)}" oninput="updImovel(${i},${j},'sequencia',this.value)"></div>
+          <div class="f-g"><label>Tipo</label><select onchange="updImovel(${i},${j},'tipo',this.value)">${opcoesTipos().replace(`value="${peEsc(im.tipo)}"`,`value="${peEsc(im.tipo)}" selected`)}</select></div>
+          <div class="f-g"><label>Cond.</label><select onchange="updImovel(${i},${j},'condominio',this.value)"><option value="0" ${im.condominio ? '' : 'selected'}>Não</option><option value="1" ${im.condominio ? 'selected' : ''}>Sim</option></select></div>
+          <div class="f-g obs"><label>Observação</label><input value="${peEsc(im.observacao)}" oninput="updImovel(${i},${j},'observacao',this.value)"></div>
+          <button class="btn btn-icon" type="button" onclick="removerImovel(${i},${j})" title="Remover imóvel"><img src="/static/icons/fechar.svg" alt="" class="icon-svg"></button>
+        </div>`).join('')}
+      </div>
+      <div class="rgc-foot"><button class="btn btn-outline" type="button" onclick="adicionarImovel(${i})"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Adicionar imóvel</button></div>
+    </div>`).join('');
+}
+
+function payloadLinhas(){
+  const linhas = [];
+  for (const b of estado.blocos) {
+    for (const im of b.imoveis) {
+      if (!String(im.numero || '').trim() && !String(im.observacao || '').trim()) continue;
+      linhas.push({
+        logradouro: (b.logradouro || '').trim() || 'Sem logradouro',
+        numero: String(im.numero || '').trim() || 'SN',
+        sequencia: String(im.sequencia || '').trim() || null,
+        lado: (b.lado || '').trim() || null,
+        tipo: im.tipo || 'R',
+        condominio: im.condominio ? 1 : 0,
+        observacao: String(im.observacao || '').trim() || null,
+      });
+    }
+  }
+  return linhas;
+}
+
+async function salvar(status){
+  if (!estado.id_localidade || !estado.quarteirao) { toast('Selecione localidade e quarteirão.', 'error'); return; }
+  const linhas = payloadLinhas();
+  if (!linhas.length) { toast('Adicione ao menos um imóvel.', 'error'); return; }
+  if (!estado.uuid) estado.uuid = (crypto.randomUUID ? crypto.randomUUID() : 'f-' + Date.now());
+  const sel = document.getElementById('rgc-localidade');
+  const localidadeNome = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+  try {
+    await api('/api/formularios', 'POST', {
+      tipo: 'rg_atualizacao',
+      payload: { id_localidade: estado.id_localidade, localidade: localidadeNome, quarteirao: estado.quarteirao, linhas },
+      status,
+      uuid_cliente: estado.uuid,
+    });
+    toast(status === 'enviado' ? 'Enviado para revisão.' : 'Rascunho salvo.', 'success');
+  } catch (e) { toast(e.message || 'Erro ao salvar.', 'error'); }
+}
+
+garantirBloco();
+carregarLocalidades().catch(e => toast('Erro ao carregar localidades: ' + e.message, 'error'));
+</script>{% endblock %}
