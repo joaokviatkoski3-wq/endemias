@@ -1,6 +1,7 @@
 """Lógica específica do formulário de atualização de Registro Geográfico."""
 
 from app_core import db as db_core
+from app_core import escopo_agente
 from app_core import formularios as formularios_core
 from app_core import registro_geografico as rg_core
 
@@ -85,3 +86,25 @@ def oficializar(target, id_formulario, usuario):
     )
     formularios_core.marcar_oficializado(target, id_formulario, usuario)
     return True
+
+
+def contexto(target, usuario):
+    """Agente vinculado ao usuário logado + lista de agentes ativos."""
+    conn, close = _open_connection(target)
+    try:
+        agentes = [
+            db_core.serialize_row(r)
+            for r in conn.execute(
+                "SELECT id_agente, nome FROM agentes WHERE COALESCE(ativo,1)=1 ORDER BY nome"
+            )
+        ]
+    finally:
+        if close:
+            conn.close()
+    agente = escopo_agente.agente_proprio(target, usuario or {})
+    return {
+        "agente_proprio": (
+            {"id_agente": agente["id_agente"], "nome": agente["nome"]} if agente else None
+        ),
+        "agentes": agentes,
+    }

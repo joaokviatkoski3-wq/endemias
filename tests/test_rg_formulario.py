@@ -16,7 +16,7 @@ class RgFormularioTests(unittest.TestCase):
         conn = db_core.connect(self.target)
         conn.execute("CREATE TABLE localidades (id_localidade INTEGER PRIMARY KEY, nome TEXT)")
         conn.execute("INSERT INTO localidades (id_localidade, nome) VALUES (1, 'Sede')")
-        conn.execute("CREATE TABLE agentes (id_agente INTEGER PRIMARY KEY, nome TEXT, ativo INTEGER DEFAULT 1)")
+        conn.execute("CREATE TABLE agentes (id_agente INTEGER PRIMARY KEY, nome TEXT, nome_completo TEXT, ativo INTEGER DEFAULT 1)")
         rg_core.ensure_schema(conn)
         f.ensure_schema(conn)
         conn.commit()
@@ -68,6 +68,20 @@ class RgFormularioTests(unittest.TestCase):
         novo_id = f.salvar(self.target, "rg_atualizacao", self._payload(), self.agente)
         with self.assertRaises(ValueError):
             rg_formulario.oficializar(self.target, novo_id, self.admin)
+
+    def test_contexto_resolve_agente_do_usuario(self):
+        conn = db_core.connect(self.target)
+        conn.execute("INSERT INTO agentes (id_agente, nome, ativo) VALUES (1, 'João', 1)")
+        conn.commit()
+        conn.close()
+        contexto = rg_formulario.contexto(self.target, {"id_agente": 1})
+        self.assertEqual(contexto["agente_proprio"]["nome"], "João")
+        self.assertEqual(contexto["agentes"][0]["nome"], "João")
+
+    def test_contexto_sem_vinculo(self):
+        contexto = rg_formulario.contexto(self.target, {"id_agente": 999})
+        self.assertIsNone(contexto["agente_proprio"])
+        self.assertEqual(contexto["agentes"], [])
 
 
 if __name__ == "__main__":

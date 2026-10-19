@@ -40,11 +40,13 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((resp) => {
-          const copy = resp.clone();
-          caches.open(CACHE).then((cache) => cache.put('/formularios/rg-campo', copy));
+          if (resp.ok && !resp.redirected) {
+            const copy = resp.clone();
+            caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+          }
           return resp;
         })
-        .catch(() => caches.match('/formularios/rg-campo'))
+        .catch(() => caches.match(event.request))
     );
     return;
   }

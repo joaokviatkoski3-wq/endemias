@@ -108,7 +108,13 @@ def api_revisar(id_formulario):
 @bp.route("/formularios/rg-campo")
 @login_required
 def rg_campo_page():
-    return render_template("rg_campo.html")
+    usuario = bh.usuario_atual() or {}
+    contexto = rg_formulario.contexto(bh.db_target(), usuario)
+    return render_template(
+        "rg_campo.html",
+        agente_proprio=contexto["agente_proprio"],
+        agentes=contexto["agentes"],
+    )
 
 
 @bp.route("/formularios/rg-revisao")
