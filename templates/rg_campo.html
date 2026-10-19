@@ -12,8 +12,15 @@
 .rgc-linha .f-g{margin:0;}
 .rgc-foot{padding:10px 14px;border-top:1px dashed var(--border);display:flex;gap:8px;justify-content:flex-end;}
 .rgc-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:4px;}
+.rgc-off-q{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;}
+.rgc-off-q label{border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:var(--surface);}
+.rgc-badge{display:inline-flex;align-items:center;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:800;}
+.rgc-badge.on{background:rgba(34,197,94,.12);color:#15803d;}
+.rgc-badge.off{background:rgba(245,158,11,.16);color:#b45309;}
 @media(max-width:720px){.rgc-linha{grid-template-columns:1fr 1fr;}.rgc-linha .f-g.obs{grid-column:1/-1;}}
-</style>{% endblock %}
+</style>
+<link rel="manifest" href="/manifest.webmanifest">
+{% endblock %}
 
 {% block content %}
 <div class="page-header">
@@ -28,6 +35,22 @@
       <div class="f-g"><label>Quarteirão</label><input id="rgc-quarteirao" list="rgc-quarteiroes-list" placeholder="Ex: 408" onchange="escolherQuarteirao()"><datalist id="rgc-quarteiroes-list"></datalist></div>
       <div class="f-g"><button class="btn btn-outline" type="button" onclick="carregarReferencias()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Carregar logradouros</button></div>
     </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+      <span class="rgc-badge" id="rgc-status"></span>
+      <span class="pe-muted">Conexão: <span id="rgc-conexao">—</span></span>
+    </div>
+  </div>
+</div>
+
+<div class="chart-card" id="rgc-off-card" style="margin-bottom:16px;">
+  <div class="chart-hd">
+    <div class="chart-title"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Preparar para o campo (offline)</div>
+    <span class="table-info">Baixe os quarteirões antes de sair do setor</span>
+  </div>
+  <div style="padding:14px;">
+    <p class="pe-muted">Marque os quarteirões que serão trabalhados e clique em <strong>Baixar para offline</strong>. Os logradouros ficam disponíveis no aparelho para uso sem internet.</p>
+    <div class="rgc-off-q" id="rgc-off-quarteiroes"><span class="pe-muted">Selecione a localidade acima para listar os quarteirões.</span></div>
+    <button class="btn btn-primary" type="button" onclick="baixarOffline()"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Baixar para offline</button>
   </div>
 </div>
 
@@ -45,16 +68,22 @@
 <datalist id="rgc-lados-list"><option value="par"></option><option value="ímpar"></option><option value="ambos"></option></datalist>
 {% endblock %}
 
-{% block extra_js %}<script>
+{% block extra_js %}
+<script src="/static/js/rg_campo_offline.js"></script>
+<script>
 let estado = {
   id_localidade: null,
+  localidade: '',
   quarteirao: '',
   uuid: null,
   tipos: [{codigo:'R',nome:'Residencia'},{codigo:'C',nome:'Comercio'},{codigo:'O',nome:'Outros'},{codigo:'TB',nome:'Terreno baldio'},{codigo:'A',nome:'Pendente'}],
   blocos: [],
+  snapshot: null,
+  quarteiroesOnline: [],
 };
 
 function peEsc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function offline(){ return !navigator.onLine; }
 
 async function api(url, method, body){
   const opts = {method, headers:{}};
@@ -66,58 +95,124 @@ async function api(url, method, body){
   return data;
 }
 
+function atualizarStatus(){
+  const s = document.getElementById('rgc-status');
+  const c = document.getElementById('rgc-conexao');
+  c.textContent = offline() ? 'offline' : 'online';
+  s.textContent = 'Rascunhos pendentes: ...';
+  window.RGCampoOffline.listarFormularios().then(lista => {
+    s.textContent = lista.length ? `${lista.length} rascunho(s) local(is) pendente(s)` : 'Nenhum rascunho local pendente';
+  }).catch(() => { s.textContent = 'Sem armazenamento offline'; });
+}
+
+function localidadesDisponiveis(){
+  if (offline() && estado.snapshot) {
+    const map = {};
+    (estado.snapshot.selecoes || []).forEach(s => { map[s.id_localidade] = s.localidade; });
+    return Object.entries(map).map(([id, nome]) => ({id_localidade: Number(id), nome}));
+  }
+  return null;
+}
+
 async function carregarLocalidades(){
-  const d = await api('/api/registro-geografico/opcoes', 'GET');
+  let locais;
+  if (offline()) {
+    locais = localidadesDisponiveis();
+    if (!locais) { toast('Sem dados offline. Conecte-se e baixe os quarteirões primeiro.', 'error'); return; }
+  } else {
+    const d = await api('/api/registro-geografico/opcoes', 'GET');
+    locais = d.localidades || [];
+  }
   const sel = document.getElementById('rgc-localidade');
-  sel.innerHTML = '<option value="">Selecione...</option>' + (d.localidades || []).map(l =>
+  sel.innerHTML = '<option value="">Selecione...</option>' + locais.map(l =>
     `<option value="${l.id_localidade}">${peEsc(l.nome)}</option>`).join('');
 }
+
 async function escolherLocalidade(){
   const id = document.getElementById('rgc-localidade').value;
   estado.id_localidade = id ? Number(id) : null;
+  estado.localidade = '';
   estado.quarteirao = '';
   document.getElementById('rgc-quarteirao').value = '';
   document.getElementById('rgc-quarteiroes-list').innerHTML = '';
+  document.getElementById('rgc-off-quarteiroes').innerHTML = '';
+
   if (!id) return;
-  const d = await api(`/api/registro-geografico/quarteiroes?localidade=${encodeURIComponent(id)}`, 'GET');
-  document.getElementById('rgc-quarteiroes-list').innerHTML = (d.registros || []).map(q =>
+
+  let quarteiroes = [];
+  if (offline()) {
+    quarteiroes = (estado.snapshot.selecoes || []).filter(s => s.id_localidade === estado.id_localidade)
+      .map(s => ({quarteirao: s.quarteirao_exibicao, quarteirao_raw: s.quarteirao}));
+  } else {
+    const d = await api(`/api/registro-geografico/quarteiroes?localidade=${encodeURIComponent(id)}`, 'GET');
+    quarteiroes = d.registros || [];
+    estado.quarteiroesOnline = quarteiroes;
+  }
+
+  document.getElementById('rgc-quarteiroes-list').innerHTML = quarteiroes.map(q =>
     `<option value="${peEsc(q.quarteirao_raw || q.quarteirao)}">${peEsc(q.quarteirao)}</option>`).join('');
+
+  if (!offline()) {
+    document.getElementById('rgc-off-quarteiroes').innerHTML = quarteiroes.map(q =>
+      `<label><input type="checkbox" value="${peEsc(q.quarteirao_raw || q.quarteirao)}"> ${peEsc(q.quarteirao)}</label>`).join('')
+      || '<span class="pe-muted">Nenhum quarteirão nesta localidade.</span>';
+  }
 }
+
 function escolherQuarteirao(){
   estado.quarteirao = document.getElementById('rgc-quarteirao').value.trim();
 }
+
 async function carregarReferencias(){
   const q = estado.quarteirao;
   if (!estado.id_localidade || !q) { toast('Selecione localidade e quarteirão.', 'error'); return; }
-  const d = await api('/api/formularios/rg/snapshot', 'POST', {selecoes:[{id_localidade: estado.id_localidade, quarteirao: q}]});
-  const sel = d.selecoes && d.selecoes[0];
+  let sel, tipos;
+  if (offline()) {
+    sel = (estado.snapshot.selecoes || []).find(s => s.id_localidade === estado.id_localidade && s.quarteirao === q);
+    tipos = (estado.snapshot.tipos || []);
+    if (!sel) { toast('Quarteirão não baixado para offline.', 'error'); return; }
+  } else {
+    const d = await api('/api/formularios/rg/snapshot', 'POST', {selecoes:[{id_localidade: estado.id_localidade, quarteirao: q}]});
+    sel = d.selecoes && d.selecoes[0];
+    tipos = d.tipos || [];
+  }
+  estado.tipos = tipos.length ? tipos : estado.tipos;
   const logradouros = sel ? (sel.logradouros || []) : [];
-  estado.tipos = d.tipos || estado.tipos;
   document.getElementById('rgc-logradouros-list').innerHTML = logradouros.map(l =>
     `<option value="${peEsc(l)}"></option>`).join('');
   toast(`Logradouros de ${q} carregados (${logradouros.length}).`, 'success');
 }
 
+async function baixarOffline(){
+  if (offline()) { toast('Sem conexão para baixar.', 'error'); return; }
+  const marcados = Array.from(document.querySelectorAll('#rgc-off-quarteiroes input[type=checkbox]:checked'))
+    .map(cb => ({ id_localidade: estado.id_localidade, quarteirao: cb.value }));
+  if (!estado.id_localidade || !marcados.length) { toast('Selecione a localidade e marque ao menos um quarteirão.', 'error'); return; }
+  try {
+    const d = await api('/api/formularios/rg/snapshot', 'POST', {selecoes: marcados});
+    // mescla com o snapshot já existente no aparelho
+    const anterior = (await window.RGCampoOffline.obterSnapshot()) || { selecoes: [], tipos: [] };
+    const mapa = {};
+    (anterior.selecoes || []).forEach(s => { mapa[s.id_localidade + ':' + s.quarteirao] = s; });
+    (d.selecoes || []).forEach(s => { mapa[s.id_localidade + ':' + s.quarteirao] = s; });
+    await window.RGCampoOffline.salvarSnapshot({ selecoes: Object.values(mapa), tipos: d.tipos || anterior.tipos || [] });
+    estado.snapshot = await window.RGCampoOffline.obterSnapshot();
+    toast('Quarteirões baixados para uso offline.', 'success');
+  } catch (e) { toast(e.message || 'Erro ao baixar.', 'error'); }
+}
+
 function novoImovel(){ return {numero:'', sequencia:'', tipo:'R', condominio:false, observacao:''}; }
 function novoBloco(){ return {logradouro:'', lado:'', imoveis:[novoImovel()]}; }
-function garantirBloco(){
-  if (!estado.blocos.length) estado.blocos.push(novoBloco());
-  render();
-}
+function garantirBloco(){ if (!estado.blocos.length) estado.blocos.push(novoBloco()); render(); }
 function adicionarBloco(){ estado.blocos.push(novoBloco()); render(); }
 function removerBloco(i){ estado.blocos.splice(i, 1); if(!estado.blocos.length) estado.blocos.push(novoBloco()); render(); }
 function adicionarImovel(i){ estado.blocos[i].imoveis.push(novoImovel()); render(); }
 function removerImovel(i, j){ estado.blocos[i].imoveis.splice(j, 1); if(!estado.blocos[i].imoveis.length) estado.blocos[i].imoveis.push(novoImovel()); render(); }
 
 function updBloco(i, campo, valor){ estado.blocos[i][campo] = valor; }
-function updImovel(i, j, campo, valor){
-  const v = campo === 'condominio' ? (valor === '1') : valor;
-  estado.blocos[i].imoveis[j][campo] = v;
-}
+function updImovel(i, j, campo, valor){ estado.blocos[i].imoveis[j][campo] = campo === 'condominio' ? (valor === '1') : valor; }
 
-function opcoesTipos(){
-  return estado.tipos.map(t => `<option value="${peEsc(t.codigo)}" ${''}>${peEsc(t.codigo)} — ${peEsc(t.nome)}</option>`).join('');
-}
+function opcoesTipos(){ return estado.tipos.map(t => `<option value="${peEsc(t.codigo)}">${peEsc(t.codigo)} — ${peEsc(t.nome)}</option>`).join(''); }
 
 function render(){
   const root = document.getElementById('rgc-blocos');
@@ -169,17 +264,61 @@ async function salvar(status){
   if (!estado.uuid) estado.uuid = (crypto.randomUUID ? crypto.randomUUID() : 'f-' + Date.now());
   const sel = document.getElementById('rgc-localidade');
   const localidadeNome = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+  const payload = { id_localidade: estado.id_localidade, localidade: localidadeNome, quarteirao: estado.quarteirao, linhas };
+
+  if (offline()) {
+    try {
+      await window.RGCampoOffline.salvarFormulario({ uuid: estado.uuid, tipo: 'rg_atualizacao', payload, status, criado_em: new Date().toISOString() });
+      toast('Salvo no aparelho (offline). Será enviado quando houver conexão.', 'success');
+      atualizarStatus();
+    } catch (e) { toast(e.message || 'Falha ao salvar offline.', 'error'); }
+    return;
+  }
+
   try {
-    await api('/api/formularios', 'POST', {
-      tipo: 'rg_atualizacao',
-      payload: { id_localidade: estado.id_localidade, localidade: localidadeNome, quarteirao: estado.quarteirao, linhas },
-      status,
-      uuid_cliente: estado.uuid,
-    });
+    await api('/api/formularios', 'POST', { tipo: 'rg_atualizacao', payload, status, uuid_cliente: estado.uuid });
     toast(status === 'enviado' ? 'Enviado para revisão.' : 'Rascunho salvo.', 'success');
   } catch (e) { toast(e.message || 'Erro ao salvar.', 'error'); }
 }
 
+async function syncPendentes(){
+  if (offline()) return;
+  try {
+    const pendentes = await window.RGCampoOffline.listarFormularios();
+    for (const p of pendentes) {
+      try {
+        await api('/api/formularios', 'POST', { tipo: p.tipo, payload: p.payload, status: p.status, uuid_cliente: p.uuid });
+        await window.RGCampoOffline.removerFormulario(p.uuid);
+      } catch (e) { /* mantém para a próxima tentativa */ }
+    }
+  } catch (e) { /* IndexedDB indisponível */ }
+  atualizarStatus();
+}
+
+async function init(){
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+  window.addEventListener('online', async () => {
+    toast('Conexão restaurada.', 'success');
+    try {
+      const pendentes = await window.RGCampoOffline.listarFormularios();
+      if (pendentes.length) location.reload();
+    } catch (e) {}
+  });
+
+  if (offline()) {
+    estado.snapshot = await window.RGCampoOffline.obterSnapshot().catch(() => null);
+    if (estado.snapshot && (estado.snapshot.selecoes || []).length) {
+      document.getElementById('rgc-off-card').style.display = 'none';
+    }
+  }
+  await carregarLocalidades().catch(e => toast('Erro ao carregar localidades: ' + e.message, 'error'));
+  await syncPendentes();
+  atualizarStatus();
+}
+
 garantirBloco();
-carregarLocalidades().catch(e => toast('Erro ao carregar localidades: ' + e.message, 'error'));
-</script>{% endblock %}
+init();
+</script>
+{% endblock %}

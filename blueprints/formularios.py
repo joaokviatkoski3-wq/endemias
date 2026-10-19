@@ -1,6 +1,6 @@
 import logging
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, render_template, request, send_from_directory
 
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
@@ -11,6 +11,20 @@ from app_core import rg_formulario
 bp = Blueprint("formularios", __name__)
 login_required = auth_core.login_required
 nivel_min = bh.nivel_min
+
+
+@bp.route("/sw.js")
+def sw_js():
+    return send_from_directory(
+        current_app.static_folder, "sw.js", mimetype="application/javascript"
+    )
+
+
+@bp.route("/manifest.webmanifest")
+def manifest():
+    return send_from_directory(
+        current_app.static_folder, "manifest.webmanifest", mimetype="application/manifest+json"
+    )
 
 
 @bp.route("/formularios")

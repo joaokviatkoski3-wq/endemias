@@ -1,0 +1,13 @@
+{
+  "name": "Endemias — Formulários",
+  "short_name": "Endemias",
+  "start_url": "/formularios/rg-campo",
+  "scope": "/formularios/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#155e75",
+  "icons": [
+    { "src": "/static/img/favicon.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/static/img/favicon.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
