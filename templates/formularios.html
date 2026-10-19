@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Formulários{% endblock %}
+{% block page_title %}Formulários{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><span class="icon"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"></span> Formulários</h1>
+  <div class="sub">Formulários internos de captura em campo e revisão</div>
+</div>
+
+<div class="chart-card">
+  <div class="chart-hd">
+    <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Formulários disponíveis</div>
+    <span class="table-info">{{ formularios|length }} formulário(s)</span>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Formulário</th><th>Descrição</th><th>Ações</th></tr>
+      </thead>
+      <tbody>
+        {% for f in formularios %}
+        <tr>
+          <td><strong>{{ f.titulo }}</strong></td>
+          <td>{{ f.descricao }}</td>
+          <td style="white-space:nowrap;">
+            <a class="btn btn-primary" href="{{ f.href_campo }}"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Campo</a>
+            {% if is_admin %}
+            <a class="btn btn-outline" href="{{ f.href_revisao }}"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Revisar</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" style="text-align:center;color:var(--text3);padding:18px;">Nenhum formulário disponível.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

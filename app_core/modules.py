@@ -212,6 +212,17 @@ MODULES: Tuple[AppModule, ...] = (
         endpoints=("boletim_mensal", "boletim_mensal.page"),
     ),
     AppModule(
+        key="formularios",
+        title="Formulários",
+        href="/formularios",
+        endpoint="formularios.page",
+        icon="prancheta.svg",
+        nav_section="Gestao",
+        description="Formulários internos de captura em campo e revisão.",
+        tags=("Campo", "RG", "Revisão"),
+        endpoints=("formularios", "formularios.page"),
+    ),
+    AppModule(
         key="notificacoes",
         title="Notificacoes",
         href="/notificacoes",
