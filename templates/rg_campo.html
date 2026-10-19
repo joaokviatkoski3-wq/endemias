@@ -207,7 +207,7 @@ async function renderCards(){
   document.getElementById('rgc-info').textContent = `${sel.length} quarteirão(ões)`;
   document.getElementById('rgc-grid').innerHTML = sel.map(s => {
     const st = mapa[chaveSel(s)] || 'pendente';
-    return `<button class="rgc-card" type="button" onclick="abrirQuarteirao(${s.id_localidade}, '${peEsc(s.quarteirao)}')">
+    return `<button class="rgc-card" type="button" data-id="${s.id_localidade}" data-quarteirao="${peEsc(s.quarteirao)}">
       <span class="loc">${peEsc(s.localidade)}</span>
       <span class="q">Q. ${peEsc(s.quarteirao_exibicao)}</span>
       <span class="rgc-status ${st}">${ROTULOS_STATUS[st]}</span>
@@ -220,23 +220,28 @@ function novoLogradouro(){ return {logradouro:'', imoveis:[novoImovel()]}; }
 function novoLado(n){ return {lado:n, logradouros:[novoLogradouro()]}; }
 
 function abrirQuarteirao(id_localidade, quarteirao){
-  const s = (estado.snapshot.selecoes || []).find(x => x.id_localidade === id_localidade && x.quarteirao === quarteirao);
-  if (!s) return;
-  const agentesIniciais = AGENTE_PROPRIO ? [AGENTE_PROPRIO] : [];
-  estado.formularioAtual = {
-    id_localidade: s.id_localidade,
-    localidade: s.localidade,
-    quarteirao: s.quarteirao,
-    quarteirao_exibicao: s.quarteirao_exibicao,
-    agentes: agentesIniciais,
-    data_atualizacao: '',
-    lados: [novoLado(1)],
-  };
-  document.getElementById('rgc-form-titulo').textContent = `${s.localidade} — Q. ${s.quarteirao_exibicao}`;
-  document.getElementById('rgc-form-data').value = '';
-  renderAgentes();
-  renderLados();
-  ativarView('formulario');
+  try {
+    const s = (estado.snapshot && estado.snapshot.selecoes || []).find(x => String(x.id_localidade) === String(id_localidade) && x.quarteirao === quarteirao);
+    if (!s) { toast('Quarteirão não encontrado no aparelho.', 'error'); return; }
+    const agentesIniciais = AGENTE_PROPRIO ? [AGENTE_PROPRIO] : [];
+    estado.formularioAtual = {
+      id_localidade: s.id_localidade,
+      localidade: s.localidade,
+      quarteirao: s.quarteirao,
+      quarteirao_exibicao: s.quarteirao_exibicao,
+      agentes: agentesIniciais,
+      data_atualizacao: '',
+      lados: [novoLado(1)],
+    };
+    document.getElementById('rgc-form-titulo').textContent = `${s.localidade} — Q. ${s.quarteirao_exibicao}`;
+    document.getElementById('rgc-form-data').value = '';
+    renderAgentes();
+    renderLados();
+    ativarView('formulario');
+  } catch (e) {
+    console.error(e);
+    toast('Não foi possível abrir o quarteirão: ' + (e.message || e), 'error');
+  }
 }
 
 function voltarGrid(){ ativarView('quarteiroes'); }
@@ -369,6 +374,11 @@ async function syncPendentes(){
 
 async function init(){
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  document.getElementById('rgc-grid').addEventListener('click', (e) => {
+    const card = e.target.closest('.rgc-card');
+    if (!card) return;
+    abrirQuarteirao(card.dataset.id, card.dataset.quarteirao);
+  });
   window.addEventListener('online', async () => {
     toast('Conexão restaurada.', 'success');
     try { const p = await window.RGCampoOffline.listarFormularios(); if (p.length) location.reload(); } catch (e) {}
