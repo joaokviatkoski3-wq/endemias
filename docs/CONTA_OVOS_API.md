@@ -112,6 +112,13 @@ Primeiro o script consulta todos os periodos sem alterar o banco; somente depois
 de confirmacao humana repete as consultas e atualiza o historico local. A
 operacao e exclusivamente GET na API.
 
+Quando a resposta de `/lastcounting` trouxer apenas `ovitrap_website_id`, o
+sincronizador resolve esse ID interno pelo espelho publico do cadastro
+(`contaovos_registro_ovitrampas`) e grava o respectivo `ovitrap_group_id`.
+Assim, o ID interno do site nunca e confundido com o numero cadastral da
+ovitrampa. Registros sem correspondencia segura sao ignorados e reportados,
+sem impedir a atualizacao das demais contagens.
+
 Zeros a esquerda continuam preservados no identificador persistido. Para
 comparar a API com o cadastro local, uma chave separada ignora apenas essa
 variacao. Quando ha exatamente um cadastro correspondente, o historico usa o ID

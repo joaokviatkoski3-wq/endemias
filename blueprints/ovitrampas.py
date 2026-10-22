@@ -110,6 +110,12 @@ def api_sincronizar_conta_ovos():
                 date_end=hoje.isoformat(),
                 max_pages=100,
             )
+            ignorados = resultado["contagens"].get("registros_ignorados", 0)
+            if ignorados:
+                resultado["avisos"].append(
+                    f"Contagens: {ignorados} registro(s) remoto(s) sem vinculo seguro com uma ovitrampa foram ignorado(s)."
+                )
+                resultado["ok"] = False
         except Exception as exc:
             resultado["ok"] = False
             resultado["avisos"].append(

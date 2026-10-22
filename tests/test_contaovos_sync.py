@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from app_core import contaovos_integracao
+from app_core import contaovos_registro
 from app_core import contaovos_sync
 from app_core import ovitrampas
 from scripts import sincronizar_contagens_contaovos
@@ -70,6 +71,19 @@ class ContaOvosNormalizationTests(unittest.TestCase):
                     contaovos_sync.normalize_counting(_remote_row(**changes))
                 self.assertEqual("invalid_payload", ctx.exception.kind)
 
+    def test_normaliza_id_cadastral_preferindo_group_id(self):
+        result = contaovos_sync.normalize_counting(
+            _remote_row(ovitrap_id="4471", ovitrap_group_id="97", ovitrap_website_id=4471)
+        )
+        self.assertEqual("97", result["ovitrampa_id"])
+
+    def test_normaliza_id_interno_pelo_espelho_publico(self):
+        result = contaovos_sync.normalize_counting(
+            _remote_row(ovitrap_id=None, ovitrap_website_id=4471),
+            remote_group_by_internal_id={"4471": "97"},
+        )
+        self.assertEqual("97", result["ovitrampa_id"])
+
     def test_paginacao_deduplica_e_para_na_lista_vazia(self):
         calls = []
 
@@ -127,6 +141,7 @@ class ContaOvosSynchronizationTests(unittest.TestCase):
         try:
             ovitrampas.ensure_schema(conn)
             contaovos_integracao.ensure_schema(conn)
+            contaovos_registro.ensure_schema_connection(conn)
             conn.execute(
                 "INSERT INTO ovitrampas_armadilhas "
                 "(ovitrampa_id, atualizado_em) VALUES (?, ?)",
@@ -136,6 +151,53 @@ class ContaOvosSynchronizationTests(unittest.TestCase):
         finally:
             conn.close()
         return path
+
+    def test_sincroniza_id_interno_resolvendo_pelo_espelho(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._database(directory)
+            conn = sqlite3.connect(path)
+            try:
+                conn.execute(
+                    """INSERT INTO contaovos_registro_ovitrampas
+                       (ovitrampa_id_remoto, ovitrap_id, sincronizado_em)
+                       VALUES (?,?,?)""",
+                    ("97", "4471", "2026-10-22T10:00:00"),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+            row = _remote_row(ovitrap_id=None, ovitrap_website_id=4471)
+            result = contaovos_sync.synchronize_countings(
+                path,
+                key="segredo-teste",
+                page_fetcher=self._fetcher([row]),
+                now=datetime(2026, 10, 22, 10, 0, 0),
+            )
+            conn = sqlite3.connect(path)
+            try:
+                stored = conn.execute(
+                    "SELECT ovitrampa_id FROM ovitrampas_ocorrencias_conta_ovos"
+                ).fetchone()
+            finally:
+                conn.close()
+        self.assertEqual(1, result["inseridos"])
+        self.assertEqual(0, result["registros_ignorados"])
+        self.assertEqual("97", stored[0])
+
+    def test_sincronizacao_ignora_apenas_contagem_sem_id(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._database(directory)
+            result = contaovos_sync.synchronize_countings(
+                path,
+                key="segredo-teste",
+                page_fetcher=self._fetcher([
+                    _remote_row(101, ovitrap_id=None, ovitrap_website_id=None),
+                    _remote_row(102, eggs=3),
+                ]),
+                now=datetime(2026, 10, 22, 10, 0, 0),
+            )
+        self.assertEqual(1, result["inseridos"])
+        self.assertEqual(1, result["registros_ignorados"])
 
     def _fetcher(self, rows):
         def fetcher(key, **params):

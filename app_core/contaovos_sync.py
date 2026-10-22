@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 from app_core import contaovos_client
 from app_core import contaovos_credencial
 from app_core import contaovos_integracao
+from app_core import contaovos_registro
 from app_core import db as db_core
 from app_core import ovitrampas
 
@@ -32,6 +33,45 @@ class ContaOvosSyncAlreadyRunning(ContaOvosSyncError):
             "Ja existe uma sincronizacao de contagens Conta Ovos em andamento.",
             kind="already_running",
         )
+
+
+def _remote_identifier_key(value):
+    """Normaliza a chave usada para ligar IDs internos do Conta Ovos."""
+    text = _text(value)
+    if not text:
+        return None
+    return ovitrampas.chave_comparacao_ovitrampa_id(text)
+
+
+def _remote_group_by_internal_id(conn):
+    """Retorna internal website id -> id cadastral do espelho GET.
+
+    O endpoint de contagens pode devolver ``ovitrap_website_id`` (ID interno)
+    em vez do identificador cadastral da ovitrampa. Esse ID nunca deve ser
+    gravado como se fosse o cadastro: a conversão é feita exclusivamente pelo
+    espelho público já sincronizado.
+    """
+    contaovos_registro.ensure_schema_connection(conn)
+    mapping = {}
+    ambiguous = set()
+    rows = conn.execute(
+        f"""SELECT ovitrampa_id_remoto, ovitrap_id
+               FROM {contaovos_registro.TABLE}
+              WHERE ovitrap_id IS NOT NULL AND TRIM(ovitrap_id) <> ''"""
+    ).fetchall()
+    for row in rows:
+        internal_key = _remote_identifier_key(row["ovitrap_id"])
+        group_id = _text(row["ovitrampa_id_remoto"])
+        if not internal_key or not group_id:
+            continue
+        previous = mapping.get(internal_key)
+        if previous is not None and previous != group_id:
+            ambiguous.add(internal_key)
+        else:
+            mapping[internal_key] = group_id
+    for key in ambiguous:
+        mapping.pop(key, None)
+    return mapping
 
 
 def _text(value):
@@ -130,7 +170,7 @@ def _first(row, *names):
     return None
 
 
-def normalize_counting(row, *, imported_at=None):
+def normalize_counting(row, *, imported_at=None, remote_group_by_internal_id=None):
     """Converte uma linha remota no formato historico ja usado pelo CSV."""
     if not isinstance(row, dict):
         raise ContaOvosSyncError(
@@ -152,13 +192,21 @@ def normalize_counting(row, *, imported_at=None):
         "counting_id",
         minimum=1,
     )
-    ovitrap_id = ovitrampas.normalizar_ovitrampa_id(
-        _first(row, "ovitrap_id", "ovitrap_group_id", "ovitrampa_id")
-    )
+    group_value = _first(row, "ovitrap_group_id", "ovitrampa_id")
+    legacy_value = _first(row, "ovitrap_id")
+    website_value = _first(row, "ovitrap_website_id")
+    if group_value is None and website_value is not None:
+        group_value = legacy_value
+        if legacy_value is None or _remote_identifier_key(legacy_value) == _remote_identifier_key(website_value):
+            resolver = remote_group_by_internal_id or {}
+            group_value = resolver.get(_remote_identifier_key(website_value))
+    elif group_value is None:
+        group_value = legacy_value
+    ovitrap_id = ovitrampas.normalizar_ovitrampa_id(group_value)
     if not ovitrap_id:
         raise ContaOvosSyncError(
             "Registro remoto sem identificador de ovitrampa valido.",
-            kind="invalid_payload",
+            kind="missing_ovitrap_id",
         )
     year = _integer(_first(row, "year", "ano"), "ano", minimum=2000, maximum=2100)
     week = _integer(_first(row, "week", "semana"), "semana", minimum=1, maximum=53)
@@ -220,6 +268,7 @@ def fetch_countings(
     max_pages=DEFAULT_MAX_PAGES,
     page_fetcher=None,
     imported_at=None,
+    remote_group_by_internal_id=None,
 ):
     """Pagina e normaliza tudo antes de permitir qualquer escrita local."""
     page_fetcher = page_fetcher or contaovos_client.private_counts_page
@@ -239,6 +288,7 @@ def fetch_countings(
         )
     imported_at = imported_at or datetime.now().isoformat(timespec="seconds")
     by_id = {}
+    invalid_rows = []
     pages = 0
     for page in range(1, max_pages + 1):
         rows = page_fetcher(
@@ -251,7 +301,17 @@ def fetch_countings(
         if not rows:
             break
         for row in rows:
-            normalized = normalize_counting(row, imported_at=imported_at)
+            try:
+                normalized = normalize_counting(
+                    row,
+                    imported_at=imported_at,
+                    remote_group_by_internal_id=remote_group_by_internal_id,
+                )
+            except ContaOvosSyncError as exc:
+                if exc.kind != "missing_ovitrap_id":
+                    raise
+                invalid_rows.append(row)
+                continue
             remote_id = normalized["id_contagem"]
             previous = by_id.get(remote_id)
             if previous is not None and previous != normalized:
@@ -266,7 +326,7 @@ def fetch_countings(
             kind="pagination_limit",
         )
     records = sorted(by_id.values(), key=lambda item: int(item["id_contagem"]))
-    return {"records": records, "pages": pages}
+    return {"records": records, "pages": pages, "ignorados": len(invalid_rows)}
 
 
 def _acquire_lock(conn, *, now, token):
@@ -450,6 +510,7 @@ def synchronize_countings(
             max_pages=max_pages,
             page_fetcher=page_fetcher,
             imported_at=now.isoformat(timespec="seconds"),
+            remote_group_by_internal_id=_remote_group_by_internal_id(conn),
         )
         counts = {"inseridos": 0, "atualizados": 0, "sem_alteracao": 0}
         missing_ovitraps = set()
@@ -478,6 +539,7 @@ def synchronize_countings(
             "cursor_atual": str(cursor_after) if cursor_after is not None else None,
             "data_inicial": date_start,
             "data_final": date_end,
+            "registros_ignorados": fetched["ignorados"],
         }
         cursor_update = conn.execute(
             f"""UPDATE {contaovos_integracao.CURSOR_TABLE}
