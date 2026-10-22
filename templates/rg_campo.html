@@ -278,6 +278,20 @@ function agentesDeIds(ids){
   });
 }
 
+function atualizarListaLogradouros(logradouros){
+  const valores = new Set((logradouros || []).map(v => String(v || '').trim()).filter(Boolean));
+  (estado.formularioAtual?.lados || []).forEach(lado =>
+    (lado.logradouros || []).forEach(logradouro => {
+      const valor = String(logradouro.logradouro || '').trim();
+      if (valor) valores.add(valor);
+    })
+  );
+  document.getElementById('rgc-logradouros-list').innerHTML = Array.from(valores)
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    .map(valor => `<option value="${peEsc(valor)}"></option>`)
+    .join('');
+}
+
 // Reconstrói a estrutura lados → logradouros → imóveis a partir das linhas planas do payload.
 function linhasParaForm(payload){
   const lados = [];
@@ -341,6 +355,7 @@ async function abrirQuarteirao(id_localidade, quarteirao){
       estado.uuid = null;
     }
     estado.formularioAtual = formulario;
+    atualizarListaLogradouros(s.logradouros || []);
     console.log('abrirQuarteirao: formularioAtual =', estado.formularioAtual);
     document.getElementById('rgc-form-titulo').textContent = `${s.localidade} — Q. ${s.quarteirao_exibicao}`;
     document.getElementById('rgc-form-data').value = formulario.data_atualizacao || '';
@@ -372,7 +387,10 @@ function opcoesTipos(sel){
   return estado.tipos.map(t => `<option value="${peEsc(t.codigo)}" ${t.codigo===sel?'selected':''}>${peEsc(t.codigo)} — ${peEsc(t.nome)}</option>`).join('');
 }
 
-function updLogradouro(li, gi, valor){ estado.formularioAtual.lados[li].logradouros[gi].logradouro = valor; }
+function updLogradouro(li, gi, valor){
+  estado.formularioAtual.lados[li].logradouros[gi].logradouro = valor;
+  atualizarListaLogradouros([]);
+}
 function updImovel(li, gi, ii, campo, valor){
   estado.formularioAtual.lados[li].logradouros[gi].imoveis[ii][campo] = valor;
 }
