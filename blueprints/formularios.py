@@ -103,6 +103,17 @@ def api_revisar(id_formulario):
     return jsonify({"ok": True})
 
 
+@bp.route("/api/formularios/<int:id_formulario>", methods=["DELETE"])
+@login_required
+@nivel_min("admin")
+def api_excluir(id_formulario):
+    try:
+        formularios_core.excluir(bh.db_target(), id_formulario)
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    return jsonify({"ok": True})
+
+
 # ── Formulário específico: atualização de RG ──────────────────────────────────
 
 @bp.route("/formularios/rg-campo")

@@ -232,6 +232,26 @@ def revisar(target, id_formulario, payload, decisao, usuario, motivo=None):
             conn.close()
 
 
+def excluir(target, id_formulario):
+    """Exclui um formulário ainda não oficializado."""
+    conn, close = _open_connection(target)
+    try:
+        ensure_schema(conn)
+        row = conn.execute(
+            "SELECT status FROM formularios WHERE id_formulario=?", (id_formulario,)
+        ).fetchone()
+        if not row:
+            raise ValueError("Formulário não encontrado.")
+        if row["status"] == STATUS_OFICIALIZADO:
+            raise ValueError("Formulário oficializado não pode ser apagado.")
+        conn.execute("DELETE FROM formularios WHERE id_formulario=?", (id_formulario,))
+        conn.commit()
+        return True
+    finally:
+        if close:
+            conn.close()
+
+
 def marcar_oficializado(target, id_formulario, usuario):
     """Marca o formulário como oficializado (chamado pelo módulo específico)."""
     usuario = usuario or {}

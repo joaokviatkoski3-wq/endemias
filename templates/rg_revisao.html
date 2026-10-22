@@ -96,7 +96,8 @@ async function carregarLista(){
       <td>${peEsc(f.agente_nome || '')}</td>
       <td><span class="rgr-status ${peEsc(f.status)}">${peEsc(stLabel)}</span></td>
       <td>${peEsc((f.enviado_em || f.criado_em || '').slice(0,10))}</td>
-      <td><button class="btn btn-icon" type="button" onclick="abrirForm(${f.id_formulario})" title="Abrir"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button></td>
+      <td><button class="btn btn-icon" type="button" onclick="abrirForm(${f.id_formulario})" title="Abrir"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button>
+      ${f.status !== 'oficializado' ? `<button class="btn btn-icon" type="button" onclick="excluirForm(${f.id_formulario})" title="Apagar"><img src="/static/icons/fechar.svg" alt="" class="icon-svg"></button>` : ''}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:18px;">Nenhum formulário encontrado.</td></tr>';
 }
@@ -139,6 +140,9 @@ function renderLinhas(){
 
 async function salvarRevisao(decisao){
   if (!rgrAtual) return;
+  if (!(await confirmacaoDupla(decisao === 'devolvido'
+    ? 'Devolver este RG ao agente? Os dados atuais serão preservados para ele continuar a atualização.'
+    : 'Aprovar este RG para oficialização?'))) return;
   if (decisao === 'devolvido') {
     const m = document.getElementById('rgr-motivo').value.trim();
     if (!m) { toast('Informe o motivo da devolução.', 'error'); return; }
@@ -150,6 +154,24 @@ async function salvarRevisao(decisao){
   rgrAtual = null;
   document.getElementById('rgr-editor').hidden = true;
   carregarLista();
+}
+
+async function confirmacaoDupla(mensagem){
+  if (!confirm(mensagem)) return false;
+  const codigo = prompt('Confirmação final: digite CONFIRMAR para continuar.');
+  return codigo && codigo.trim().toUpperCase() === 'CONFIRMAR';
+}
+
+async function excluirForm(id){
+  if (!(await confirmacaoDupla('Apagar definitivamente este formulário enviado?'))) return;
+  try {
+    await api(`/api/formularios/${id}`, 'DELETE', {});
+    toast('Formulário apagado.', 'success');
+    if (rgrAtual && rgrAtual.id_formulario === id) {
+      rgrAtual = null; document.getElementById('rgr-editor').hidden = true;
+    }
+    carregarLista();
+  } catch (e) { toast(e.message || 'Erro ao apagar.', 'error'); }
 }
 
 async function oficializar(){

@@ -71,6 +71,17 @@ class FormulariosTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             f.revisar(self.target, novo_id, {}, f.STATUS_APROVADO, self.admin)
 
+    def test_excluir_formulario_nao_oficializado(self):
+        novo_id = f.salvar(self.target, "rg_atualizacao", {}, self.agente)
+        self.assertTrue(f.excluir(self.target, novo_id))
+        self.assertIsNone(f.obter(self.target, novo_id))
+
+    def test_nao_excluir_formulario_oficializado(self):
+        novo_id = f.salvar(self.target, "rg_atualizacao", {}, self.agente)
+        f.marcar_oficializado(self.target, novo_id, self.admin)
+        with self.assertRaises(ValueError):
+            f.excluir(self.target, novo_id)
+
 
 if __name__ == "__main__":
     unittest.main()

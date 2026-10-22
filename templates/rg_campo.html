@@ -70,7 +70,7 @@
     <div style="padding:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
         <span class="pe-muted">Clique no card para preencher o quarteirão.</span>
-        <button class="btn btn-outline btn-sm" type="button" onclick="limparPendentes()">Limpar pendentes</button>
+        <button class="btn btn-outline btn-sm" type="button" onclick="limparOffline()">Apagar quarteirões offline</button>
       </div>
       <div class="rgc-qgrid" id="rgc-grid"></div>
     </div>
@@ -92,7 +92,7 @@
       <div class="rgc-actions">
         <button class="btn btn-outline" type="button" onclick="novoLado()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Novo lado</button>
         <button class="btn btn-outline" type="button" onclick="salvar('rascunho')">Salvar rascunho</button>
-        <button class="btn btn-primary" type="button" onclick="salvar('enviado')"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Enviar para revisão</button>
+        <button class="btn btn-primary" type="button" onclick="enviarParaRevisao()"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Enviar para revisão</button>
       </div>
     </div>
   </div>
@@ -200,11 +200,24 @@ async function statuses(){
     try {
       const d = await api('/api/formularios?tipo=rg_atualizacao', 'GET');
       (d.formularios || []).forEach(f => {
-        const c = chave(f.payload.id_localidade, f.payload.quarteirao);
+      const c = chave(f.payload.id_localidade, f.payload.quarteirao);
         if (f.status === 'oficializado') mapa[c] = 'atualizado';
         else if (f.status === 'rascunho') { if (!mapa[c]) mapa[c] = 'preenchido'; }
+      else if (f.status === 'devolvido') { mapa[c] = 'devolvido'; }
         else mapa[c] = 'enviado';
       });
+      for (const f of (d.formularios || [])) {
+        if (f.status === 'devolvido' && f.uuid_cliente && f.payload) {
+          await window.RGCampoOffline.salvarFormulario({
+            uuid: f.uuid_cliente,
+            tipo: 'rg_atualizacao',
+            payload: f.payload,
+            status: 'devolvido',
+            pendente_envio: false,
+            criado_em: f.criado_em || new Date().toISOString(),
+          });
+        }
+      }
     } catch (e) {}
   }
   return mapa;
@@ -213,10 +226,12 @@ async function statuses(){
 async function renderCards(){
   const sel = (estado.snapshot && estado.snapshot.selecoes) || [];
   const mapa = await statuses();
+  const drafts = await window.RGCampoOffline.listarFormularios();
+  const aguardando = new Set(drafts.filter(d => d.pendente_envio).map(d => chave(d.payload.id_localidade, d.payload.quarteirao)));
   document.getElementById('rgc-info').textContent = `${sel.length} quarteirão(ões)`;
   document.getElementById('rgc-grid').innerHTML = sel.map(s => {
     const st = mapa[chaveSel(s)] || 'pendente';
-    const remover = (st === 'pendente')
+    const remover = !aguardando.has(chaveSel(s))
       ? `<button class="rgc-remover" type="button" data-id="${s.id_localidade}" data-quarteirao="${peEsc(s.quarteirao)}" title="Retirar do aparelho">✕</button>`
       : '';
     return `<div class="rgc-card" data-id="${s.id_localidade}" data-quarteirao="${peEsc(s.quarteirao)}">
@@ -229,19 +244,25 @@ async function renderCards(){
 }
 
 async function removerQuarteirao(id, quarteirao){
-  if (!confirm('Retirar este quarteirão do aparelho (uso offline)?')) return;
+  const drafts = await window.RGCampoOffline.listarFormularios();
+  const aguardando = drafts.some(d => d.pendente_envio && String(d.payload?.id_localidade) === String(id) && String(d.payload?.quarteirao).trim() === String(quarteirao).trim());
+  if (aguardando) { toast('Este quarteirão aguarda conexão para ser enviado e não pode ser apagado.', 'error'); return; }
+  if (!(await confirmacaoDupla('Apagar este quarteirão do aparelho e seus dados locais?'))) return;
   estado.snapshot.selecoes = (estado.snapshot.selecoes || []).filter(s => !(String(s.id_localidade) === String(id) && s.quarteirao === quarteirao));
+  for (const d of drafts.filter(x => String(x.payload?.id_localidade) === String(id) && String(x.payload?.quarteirao).trim() === String(quarteirao).trim())) await window.RGCampoOffline.removerFormulario(d.uuid);
   try { await window.RGCampoOffline.salvarSnapshot({ selecoes: estado.snapshot.selecoes, tipos: estado.snapshot.tipos || [] }); } catch (e) {}
   renderCards();
 }
 
-async function limparPendentes(){
-  const mapa = await statuses();
-  const pendentes = (estado.snapshot.selecoes || []).filter(s => (mapa[chaveSel(s)] || 'pendente') === 'pendente');
-  if (!pendentes.length) { toast('Nenhum quarteirão pendente para limpar.', 'success'); return; }
-  if (!confirm(`Retirar ${pendentes.length} quarteirão(ões) pendente(s) do aparelho?`)) return;
-  const ids = new Set(pendentes.map(s => chaveSel(s)));
+async function limparOffline(){
+  const drafts = await window.RGCampoOffline.listarFormularios();
+  const aguardando = new Set(drafts.filter(d => d.pendente_envio).map(d => chave(d.payload.id_localidade, d.payload.quarteirao)));
+  const removiveis = (estado.snapshot.selecoes || []).filter(s => !aguardando.has(chaveSel(s)));
+  if (!removiveis.length) { toast('Nenhum quarteirão pode ser apagado agora.', 'success'); return; }
+  if (!(await confirmacaoDupla(`Apagar ${removiveis.length} quarteirão(ões) offline e seus dados locais?`))) return;
+  const ids = new Set(removiveis.map(chaveSel));
   estado.snapshot.selecoes = (estado.snapshot.selecoes || []).filter(s => !ids.has(chaveSel(s)));
+  for (const d of drafts) if (ids.has(chave(d.payload.id_localidade, d.payload.quarteirao))) await window.RGCampoOffline.removerFormulario(d.uuid);
   try { await window.RGCampoOffline.salvarSnapshot({ selecoes: estado.snapshot.selecoes, tipos: estado.snapshot.tipos || [] }); } catch (e) {}
   renderCards();
 }
@@ -440,7 +461,7 @@ async function salvar(status){
   // Sempre grava localmente primeiro (o aparelho é a fonte de verdade em campo);
   // depois tenta enviar. Assim "salvar" nunca falha por falta de rede.
   try {
-    await window.RGCampoOffline.salvarFormulario({ uuid: estado.uuid, tipo: 'rg_atualizacao', payload, status, criado_em: new Date().toISOString() });
+    await window.RGCampoOffline.salvarFormulario({ uuid: estado.uuid, tipo: 'rg_atualizacao', payload, status, pendente_envio: true, criado_em: new Date().toISOString() });
   } catch (e) {
     toast(e.message || 'Falha ao salvar no aparelho.', 'error');
     return;
@@ -455,6 +476,11 @@ async function salvar(status){
   }
 }
 
+async function enviarParaRevisao(){
+  if (!(await confirmacaoDupla('Enviar este RG para a revisão do administrador?'))) return;
+  await salvar('enviado');
+}
+
 async function tentarEnviar(uuid, payload, status){
   try {
     await api('/api/formularios', 'POST', { tipo: 'rg_atualizacao', payload, status, uuid_cliente: uuid });
@@ -467,7 +493,7 @@ async function syncPendentes(){
   if (offline()) return;
   try {
     const pendentes = await window.RGCampoOffline.listarFormularios();
-    for (const p of pendentes) {
+    for (const p of pendentes.filter(item => item.pendente_envio)) {
       try {
         await api('/api/formularios', 'POST', { tipo: p.tipo, payload: p.payload, status: p.status, uuid_cliente: p.uuid });
         await window.RGCampoOffline.removerFormulario(p.uuid);
