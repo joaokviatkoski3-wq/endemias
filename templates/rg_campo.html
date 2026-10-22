@@ -114,6 +114,7 @@ let estado = {
   quarteiroesOnline: [],
   formularioAtual: null,
   uuid: null,
+  logradourosDisponiveis: [],
   tipos: [{codigo:'R',nome:'Residencia'},{codigo:'C',nome:'Comercio'},{codigo:'O',nome:'Outros'},{codigo:'TB',nome:'Terreno baldio'},{codigo:'A',nome:'Pendente'}],
 };
 
@@ -286,10 +287,8 @@ function atualizarListaLogradouros(logradouros){
       if (valor) valores.add(valor);
     })
   );
-  document.getElementById('rgc-logradouros-list').innerHTML = Array.from(valores)
-    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
-    .map(valor => `<option value="${peEsc(valor)}"></option>`)
-    .join('');
+  estado.logradourosDisponiveis = Array.from(valores).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  document.getElementById('rgc-logradouros-list').innerHTML = '';
 }
 
 // Reconstrói a estrutura lados → logradouros → imóveis a partir das linhas planas do payload.
@@ -389,7 +388,19 @@ function opcoesTipos(sel){
 
 function updLogradouro(li, gi, valor){
   estado.formularioAtual.lados[li].logradouros[gi].logradouro = valor;
+  estado.formularioAtual.lados[li].logradouros[gi].digitar = true;
   atualizarListaLogradouros([]);
+}
+function selecionarLogradouro(li, gi, valor){
+  const logradouro = estado.formularioAtual.lados[li].logradouros[gi];
+  if (valor === '__novo__') {
+    logradouro.logradouro = '';
+    logradouro.digitar = true;
+  } else {
+    logradouro.logradouro = valor;
+    logradouro.digitar = false;
+  }
+  renderLados();
 }
 function updImovel(li, gi, ii, campo, valor){
   estado.formularioAtual.lados[li].logradouros[gi].imoveis[ii][campo] = valor;
@@ -419,7 +430,7 @@ function renderLados(){
       <div class="rgc-lado-hd"><strong>Lado ${l.lado}</strong></div>
       ${l.logradouros.map((lg, gi) => `
         <div class="rgc-logradouro">
-          <div class="f-g" style="max-width:420px;margin-bottom:4px;"><label>Logradouro do lado ${l.lado}</label><input list="rgc-logradouros-list" value="${peEsc(lg.logradouro)}" placeholder="Digite ou escolha" oninput="updLogradouro(${li},${gi},this.value)"></div>
+          <div class="f-g" style="max-width:520px;margin-bottom:4px;"><label>Logradouro do lado ${l.lado}</label><select onchange="selecionarLogradouro(${li},${gi},this.value)"><option value="">Selecione um logradouro...</option>${estado.logradourosDisponiveis.map(valor => `<option value="${peEsc(valor)}" ${String(lg.logradouro || '').trim() === valor && !lg.digitar ? 'selected' : ''}>${peEsc(valor)}</option>`).join('')}<option value="__novo__" ${lg.digitar || !String(lg.logradouro || '').trim() ? 'selected' : ''}>Outro — digitar</option></select>${lg.digitar || !String(lg.logradouro || '').trim() ? `<input value="${peEsc(lg.logradouro)}" placeholder="Digite um novo logradouro" oninput="updLogradouro(${li},${gi},this.value)">` : ''}</div>
           <table class="rgc-imoveis">
             <thead><tr><th>Número</th><th>Seq.</th><th>Tipo</th><th>Cond.</th><th>Observação</th><th></th></tr></thead>
             <tbody>
