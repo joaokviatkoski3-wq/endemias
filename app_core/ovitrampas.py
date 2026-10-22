@@ -743,6 +743,12 @@ def _where_contagens_api(filtros=None, busca=False):
     if filtros.get("semana"):
         clauses.append("o.semana=?")
         params.append(_int(filtros.get("semana")))
+    if filtros.get("data_ini"):
+        clauses.append("o.data>=?")
+        params.append(_date(filtros.get("data_ini")))
+    if filtros.get("data_fim"):
+        clauses.append("o.data<=?")
+        params.append(_date(filtros.get("data_fim")))
     if filtros.get("distrito"):
         clauses.append("a.localidade=?")
         params.append(filtros["distrito"])

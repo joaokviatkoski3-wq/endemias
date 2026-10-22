@@ -214,10 +214,13 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
       <div class="ovi-filters">
         <div class="f-g"><label>Ano</label><input type="number" id="ovi-ano" min="2020" max="2100"></div>
         <div class="f-g"><label>Semana</label><input type="number" id="ovi-semana" min="1" max="53"></div>
+        <div class="f-g"><label>Data inicial</label><input type="date" id="ovi-data_ini"></div>
+        <div class="f-g"><label>Data final</label><input type="date" id="ovi-data_fim"></div>
         <div class="f-g"><label>Localidade</label><select id="ovi-distrito"><option value="">Todas</option>{% for distrito in distritos %}<option value="{{ distrito }}">{{ distrito }}</option>{% endfor %}</select></div>
         <div class="f-g"><label>Positivas</label><select id="ovi-positivas"><option value="">Todas</option><option value="1">Somente com ovos</option></select></div>
         <div class="f-g"><label>Pesquisa</label><input type="search" id="ovi-busca" placeholder="ID, rua, complemento..."></div>
         <button class="btn btn-outline" type="button" id="ovi-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+        <button class="btn btn-outline" type="button" id="ovi-exportar-leituras-csv">Exportar CSV positivas</button>
       </div>
     </div>
   </div>
@@ -632,7 +635,7 @@ const oviDias = ['D','S','T','Q','Q','S','S'];
 function oviEscape(value){ return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
 function oviParams(busca=false){
   const p = new URLSearchParams();
-  ['ano','semana','distrito','positivas'].forEach(k => {
+  ['ano','semana','data_ini','data_fim','distrito','positivas'].forEach(k => {
     const el = document.getElementById('ovi-' + k);
     if (el?.value) p.set(k, el.value);
   });
@@ -1759,6 +1762,9 @@ document.getElementById('ovi-busca').addEventListener('keydown', e => { if(e.key
 document.getElementById('ovi-mon-atualizar').addEventListener('click', () => carregarMonitoramento().catch(e => toast('Erro ao carregar monitoramento: ' + e.message, 'error')));
 document.getElementById('ovi-mon-exportar').addEventListener('click', () => {
   window.location = '/api/ovitrampas/monitoramento/exportar?' + oviMonitorParams().toString();
+});
+document.getElementById('ovi-exportar-leituras-csv')?.addEventListener('click', () => {
+  window.location = '/api/ovitrampas/leituras/exportar.csv?' + oviParams(true).toString();
 });
 document.querySelectorAll('#ovi-panel-monitoramento input, #ovi-panel-monitoramento select').forEach(el => {
   if (el.id === 'ovi-mon-localidades') return;

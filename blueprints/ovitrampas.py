@@ -1,3 +1,4 @@
+import io
 import logging
 import os
 import tempfile
@@ -173,6 +174,22 @@ def api_listar():
     return jsonify(ovitrampas_core.listar_contagens_api_para_aba(
         _db_path(), filtros, limite=request.args.get("limite") or 500
     ))
+
+
+@bp.route("/api/ovitrampas/leituras/exportar.csv")
+@login_required
+def api_exportar_leituras_csv():
+    filtros = _filtros()
+    filtros["busca"] = request.args.get("busca", "")
+    conteudo, _total = ovitrampas_export.gerar_leituras_positivas_csv(
+        _db_path(), filtros
+    )
+    return send_file(
+        io.BytesIO(conteudo),
+        as_attachment=True,
+        download_name="ovitrampas_positivas.csv",
+        mimetype="text/csv; charset=utf-8",
+    )
 
 
 @bp.route("/api/ovitrampas/armadilhas")
@@ -826,6 +843,8 @@ def _filtros():
     return {
         "ano": request.args.get("ano", ""),
         "semana": request.args.get("semana", ""),
+        "data_ini": request.args.get("data_ini", ""),
+        "data_fim": request.args.get("data_fim", ""),
         "distrito": request.args.get("distrito", ""),
         "positivas": request.args.get("positivas", ""),
     }

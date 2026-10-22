@@ -1,6 +1,7 @@
 """Exportacao analitica do monitoramento de ovitrampas para XLSX."""
 
 import io
+import csv
 from collections import defaultdict
 from datetime import date, datetime
 
@@ -126,6 +127,58 @@ ARMADILHAS_COLUNAS = (
 
 def _dict_rows(cursor):
     return [db_core.serialize_row(row) for row in cursor.fetchall()]
+
+
+def gerar_leituras_positivas_csv(db_path, filtros=None):
+    """Gera o CSV operacional das ovitrampas positivas, respeitando filtros."""
+    filtros = dict(filtros or {})
+    filtros["positivas"] = "1"
+    conn = db_core.connect(db_path)
+    try:
+        ovitrampas.ensure_schema(conn)
+        where, params = ovitrampas._where_contagens_api(filtros, busca=True)
+        lab_join = ovitrampas._lab_contagens_join(conn)
+        lab_field = "lab.data_movimento AS data_leitura" if lab_join else "NULL AS data_leitura"
+        rows = conn.execute(
+            f"""SELECT o.ovitrampa_id, a.rua, a.numero, a.complemento,
+                       a.localidade, o.ovos, o.data, o.semana,
+                       {lab_field}
+                  FROM {ovitrampas.OCORRENCIAS_TABLE} o
+                  LEFT JOIN {ovitrampas.ARMADILHAS_TABLE} a
+                    ON a.ovitrampa_id=o.ovitrampa_id
+                  {lab_join}
+                 {where}
+                 ORDER BY o.data, o.semana, o.ovitrampa_id""",
+            params,
+        ).fetchall()
+    finally:
+        conn.close()
+
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
+    writer.writerow(("ID", "LOCAL", "OVOS", "LOCALIDADE", "DATA", "TB", "BRI", "ECLOSÃO", "SEMANA", "LEITURA"))
+    for row in rows:
+        rua = str(row["rua"] or "").strip()
+        numero = str(row["numero"] or "").strip()
+        complemento = str(row["complemento"] or "").strip()
+        local = ", ".join(value for value in (rua, numero) if value)
+        if complemento:
+            local = f"{local} - {complemento}" if local else complemento
+        writer.writerow((
+            row["ovitrampa_id"], local, row["ovos"] or 0,
+            row["localidade"] or "", _csv_date(row["data"]), "", "", "",
+            row["semana"], _csv_date(row["data_leitura"]),
+        ))
+    return output.getvalue().encode("utf-8-sig"), len(rows)
+
+
+def _csv_date(value):
+    if not value:
+        return ""
+    try:
+        return datetime.strptime(str(value)[:10], "%Y-%m-%d").strftime("%d/%m/%Y")
+    except ValueError:
+        return str(value)
 
 
 def _lab_sql(conn):
