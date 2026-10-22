@@ -128,7 +128,7 @@ async function api(url, method, body){
   if (!resp.ok) throw new Error(data.erro || `HTTP ${resp.status}`);
   return data;
 }
-function chave(localidade, quarteirao){ return localidade + ':' + quarteirao; }
+function chave(localidade, quarteirao){ return String(localidade) + ':' + String(quarteirao).trim(); }
 function chaveSel(s){ return chave(s.id_localidade, s.quarteirao); }
 
 function ativarView(nome){
@@ -287,13 +287,13 @@ function linhasParaForm(payload){
 
 async function abrirQuarteirao(id_localidade, quarteirao){
   try {
-    const s = (estado.snapshot && estado.snapshot.selecoes || []).find(x => String(x.id_localidade) === String(id_localidade) && x.quarteirao === quarteirao);
+    const s = (estado.snapshot && estado.snapshot.selecoes || []).find(x => String(x.id_localidade) === String(id_localidade) && String(x.quarteirao).trim() === String(quarteirao).trim());
     if (!s) { toast('Quarteirão não encontrado no aparelho.', 'error'); return; }
     // Recupera rascunho salvo (mesmo aparelho) para continuar de onde parou.
     let draft = null;
     try {
       const drafts = await window.RGCampoOffline.listarFormularios();
-      draft = (drafts || []).find(d => d.payload && String(d.payload.id_localidade) === String(s.id_localidade) && d.payload.quarteirao === s.quarteirao) || null;
+      draft = (drafts || []).find(d => d.payload && String(d.payload.id_localidade) === String(s.id_localidade) && String(d.payload.quarteirao).trim() === String(s.quarteirao).trim()) || null;
     } catch (e) { console.warn('listarFormularios falhou:', e); }
     let formulario;
     if (draft) {
@@ -477,7 +477,9 @@ async function syncPendentes(){
 }
 
 async function init(){
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').then(reg => reg.update()).catch(() => {});
+  }
   document.getElementById('rgc-grid').addEventListener('click', (e) => {
     const remover = e.target.closest('.rgc-remover');
     if (remover) { removerQuarteirao(remover.dataset.id, remover.dataset.quarteirao); return; }
@@ -489,7 +491,11 @@ async function init(){
     toast('Conexão restaurada.', 'success');
     try { const p = await window.RGCampoOffline.listarFormularios(); if (p.length) location.reload(); } catch (e) {}
   });
-  try { estado.snapshot = await window.RGCampoOffline.obterSnapshot(); } catch (e) {}
+  try {
+    estado.snapshot = await window.RGCampoOffline.obterSnapshot();
+  } catch (e) {
+    toast('O armazenamento offline não está disponível neste aparelho.', 'error');
+  }
   if (!offline()) { await carregarLocalidades().catch(() => {}); await syncPendentes(); }
 }
 
