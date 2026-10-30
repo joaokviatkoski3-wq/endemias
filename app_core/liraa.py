@@ -15,6 +15,7 @@ from itertools import groupby
 
 from app_core import db as db_core
 from app_core import registro_geografico as rg_core
+from app_core import liraa_modelo
 
 
 class LiraaError(ValueError):
@@ -92,10 +93,37 @@ def _data(value, campo):
     result = _texto(value, campo, 10)
     if result:
         try:
-            datetime.strptime(result, "%Y-%m-%d")
+            result = datetime.strptime(result, "%Y-%m-%d").date().isoformat()
         except ValueError:
             raise LiraaError(f"{campo} deve estar no formato AAAA-MM-DD.") from None
     return result or None
+
+
+def _validar_periodo(ano, inicio, fim):
+    if inicio and fim and fim < inicio:
+        raise LiraaError("Data final anterior à inicial.")
+    if any(value and int(value[:4]) != ano for value in (inicio, fim)):
+        raise LiraaError("As datas devem pertencer ao ano informado para o ciclo.")
+
+
+def _bloquear_ciclo(conn, id_ciclo):
+    """Ordem única para edições, sorteios e importações: ciclo, depois estratos."""
+    postgres = getattr(conn, "backend", "sqlite") == "postgresql"
+    if not postgres and not conn.in_transaction:
+        conn.execute("BEGIN IMMEDIATE")
+    lock = " FOR UPDATE" if postgres else ""
+    if not conn.execute("SELECT id_ciclo FROM liraa_ciclos WHERE id_ciclo=?" + lock, (id_ciclo,)).fetchone():
+        raise LiraaError("Ciclo não encontrado.")
+    conn.execute("SELECT id_estrato FROM liraa_estratos WHERE id_ciclo=? ORDER BY id_estrato" + lock,
+                 (id_ciclo,)).fetchall()
+
+
+def _verificar_plano_livre(conn, id_ciclo):
+    if db_core.table_exists(conn, "liraa_visitas") and conn.execute(
+            "SELECT 1 FROM liraa_visitas WHERE id_ciclo=? LIMIT 1", (id_ciclo,)).fetchone():
+        raise LiraaError("Este ciclo possui visitas importadas. O plano completo está protegido.")
+    if str(id_ciclo) == liraa_modelo.contrato()["ciclo"]:
+        raise LiraaError("Este ciclo possui formulário aprovado para campo. Seu plano está protegido, inclusive sem visitas.")
 
 
 def inventario(target, base_dir=None):
@@ -242,8 +270,7 @@ def criar_ciclo(target, payload):
     if not nome:
         raise LiraaError("Informe o nome do ciclo.")
     inicio, fim = _data(payload.get("inicio"), "Data inicial"), _data(payload.get("fim"), "Data final")
-    if inicio and fim and fim < inicio:
-        raise LiraaError("Data final anterior à inicial.")
+    _validar_periodo(ano, inicio, fim)
     obs = _texto(payload.get("observacoes"), "Observações", 1000)
     conn = db_core.connect(target)
     try:
@@ -267,12 +294,13 @@ def atualizar_ciclo(target, id_ciclo, payload):
     if not nome:
         raise LiraaError("Informe o nome do ciclo.")
     inicio, fim = _data(payload.get("inicio"), "Data inicial"), _data(payload.get("fim"), "Data final")
-    if inicio and fim and fim < inicio:
-        raise LiraaError("Data final anterior à inicial.")
+    _validar_periodo(ano, inicio, fim)
     obs = _texto(payload.get("observacoes"), "Observações", 1000)
     conn = db_core.connect(target)
     try:
         _schema(conn)
+        _bloquear_ciclo(conn, id_ciclo)
+        _verificar_plano_livre(conn, id_ciclo)
         if conn.execute("""SELECT 1 FROM liraa_sorteios s JOIN liraa_estratos e ON e.id_estrato=s.id_estrato
             WHERE e.id_ciclo=? LIMIT 1""", (id_ciclo,)).fetchone():
             raise LiraaError("O ciclo tem sorteio registrado e está congelado.")
@@ -296,12 +324,14 @@ def excluir_ciclo(target, id_ciclo, auditar=None):
     conn = db_core.connect(target)
     try:
         _schema(conn)
+        _bloquear_ciclo(conn, id_ciclo)
         with conn:
             lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
             ciclo = conn.execute("SELECT ano, nome FROM liraa_ciclos WHERE id_ciclo=?" + lock,
                                  (id_ciclo,)).fetchone()
             if ciclo is None:
                 raise LiraaError("Ciclo não encontrado.")
+            _verificar_plano_livre(conn, id_ciclo)
             if db_core.table_exists(conn, "liraa_visitas") and conn.execute(
                     "SELECT 1 FROM liraa_visitas WHERE id_ciclo=? LIMIT 1", (id_ciclo,)).fetchone():
                 raise LiraaError("Este ciclo possui visitas LIRAa. Exclua ou revise as visitas antes de remover o ciclo.")
@@ -358,6 +388,8 @@ def salvar_estrato(target, id_ciclo, payload, id_estrato=None, base_dir=None):
     conn = db_core.connect(target)
     try:
         _schema(conn)
+        _bloquear_ciclo(conn, id_ciclo)
+        _verificar_plano_livre(conn, id_ciclo)
         if not conn.execute("SELECT 1 FROM liraa_ciclos WHERE id_ciclo=?", (id_ciclo,)).fetchone():
             raise LiraaError("Ciclo não encontrado.")
         if id_estrato is not None:
@@ -407,6 +439,11 @@ def excluir_estrato(target, id_estrato, auditar=None):
     conn = db_core.connect(target)
     try:
         _schema(conn)
+        owner = conn.execute("SELECT id_ciclo FROM liraa_estratos WHERE id_estrato=?", (id_estrato,)).fetchone()
+        if not owner:
+            raise LiraaError("Estrato não encontrado.")
+        _bloquear_ciclo(conn, owner["id_ciclo"])
+        _verificar_plano_livre(conn, owner["id_ciclo"])
         with conn:
             lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
             estrato = conn.execute("SELECT id_ciclo, numero FROM liraa_estratos WHERE id_estrato=?" + lock,
@@ -525,8 +562,11 @@ def sortear(target, id_estrato, base_dir=None, seed=None, inicio_casual=None,
     conn = db_core.connect(target)
     try:
         _schema(conn)
-        if getattr(conn, "backend", "sqlite") == "sqlite":
-            conn.execute("BEGIN IMMEDIATE")
+        owner = conn.execute("SELECT id_ciclo FROM liraa_estratos WHERE id_estrato=?", (id_estrato,)).fetchone()
+        if not owner:
+            raise LiraaError("Estrato não encontrado.")
+        _bloquear_ciclo(conn, owner["id_ciclo"])
+        _verificar_plano_livre(conn, owner["id_ciclo"])
         lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
         estrato = conn.execute("SELECT * FROM liraa_estratos WHERE id_estrato=?" + lock, (id_estrato,)).fetchone()
         if not estrato:

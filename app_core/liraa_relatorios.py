@@ -76,8 +76,10 @@ def boletim_pdf(target, id_ciclo, base_dir=None, agrupar="estrato", id_estrato=N
         story += [_p("Resumo do Boletim de Campo e Laboratório — LIRAa", "Heading1"),
                   _p(f"Município: Almirante Tamandaré | Estado: PR | Estrato: {g['estrato']}"),
                   _p(f"{data['ciclo']['ano']} / {data['ciclo']['nome']} | {g['localidade']}"), Spacer(1,12)]
+        if data["excluidas"] or data["sem_sorteio"]:
+            story.append(_p(f"REVISÃO DO CICLO PENDENTE: {data['excluidas']} visitas fora do plano/período e {data['sem_sorteio']} estratos sem sorteio. Não utilizar como fechamento antes da conferência."))
         if g["parcial"]:
-            story.append(_p(f"PARCIAL: {g['pendentes']} tubitos sem leitura, {g['tipos_invalidos']} imóveis sem tipo válido e {g['depositos_invalidos']} recipientes aegypti sem classificação A1/A2/B/C/D1/D2/E. Pendência não é resultado negativo."))
+            story.append(_p(f"PARCIAL: {g['pendentes']} tubitos sem leitura; {g['tipos_invalidos']} imóveis sem tipo válido; {g['depositos_invalidos']} recipientes aegypti sem classificação; {g['coletas_inconsistentes']} visitas com coleta inconsistente; {g['visitas_suspeitas']} possíveis visitas duplicadas; {g['tubitos_repetidos']} números de tubito repetidos; {g['quarteiroes_sem_visita']} quarteirões sem visita. Pendência não é resultado negativo. Suspeitas permanecem nos totais até conferência."))
         rows = [["Número de imóveis", "Quantidade"],
                 ["Programados — amostra do estrato" if agrupar == "estrato" else "Programados no estrato (não é meta só desta localidade)", g["programados"]],
                 ["Trabalhados (visitas abertas importadas)", g["trabalhados"]],

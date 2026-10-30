@@ -4,7 +4,9 @@ import json
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
-from app_core import db, kobo_api, normalizadores, registro_geografico
+from app_core import db, kobo_api, normalizadores, registro_geografico, liraa
+import hashlib
+from collections import defaultdict
 
 
 class LiraaKoboError(ValueError):
@@ -149,7 +151,63 @@ def _tratamento(record):
             legacy.append(item)
     if legacy:
         result["legado_por_tubito"] = legacy
+    # Complementos do diário, em chave reservada, sem alterar o schema 0026.
+    # As chaves de tratamento antigas conservam seu significado e formato.
+    campo = {
+        "acs_outros": _texto(_campo(record, "ACS_outros"), 500),
+        "houve_coleta": _texto(_campo(record, "Houve_coleta"), 20).casefold(),
+    }
+    if any(campo.values()):
+        result["_campo"] = campo
     return json.dumps(result, ensure_ascii=False)
+
+
+def dados_campo(item):
+    return json.loads(item.get("tratamento_json") or "{}").get("_campo", {})
+
+
+def tipo_boletim(tipo):
+    if tipo == "terreno_baldio":
+        return "tb"
+    if tipo in {"rco", "residencia", "comercio", "outros"}:
+        return "outros"
+    return None
+
+
+def avisos_coleta(item, tubitos):
+    coleta = dados_campo(item).get("houve_coleta", "")
+    avisos = []
+    if coleta == "sim" and not tubitos:
+        avisos.append("Coleta informada sem tubitos: conferir no Kobo.")
+    if coleta in {"nao", "n_o"} and tubitos:
+        avisos.append("Tubitos recebidos apesar de coleta marcada como Não.")
+    if coleta and coleta not in {"sim", "nao", "n_o"}:
+        avisos.append("Resposta de coleta não reconhecida.")
+    if any(not t.get("numero") or not str(t["numero"]).isdigit()
+           or int(t["numero"]) <= 0 for t in tubitos):
+        avisos.append("Há tubito sem número positivo válido.")
+    return avisos
+
+
+def versao_visita(item):
+    return hashlib.sha256(json.dumps(dict(item), sort_keys=True, default=str).encode()).hexdigest()
+
+
+def alertas_duplicidade(conn, id_ciclo):
+    """Suspeitas para conferência; não une imóveis nem apaga amostras."""
+    enderecos, numeros = defaultdict(list), defaultdict(list)
+    for row in conn.execute("SELECT * FROM liraa_visitas WHERE id_ciclo=?", (id_ciclo,)):
+        if row["logradouro"] and row["numero"]:
+            key = tuple(registro_geografico._norm(row[f]) for f in
+                        ("data_visita", "localidade_informada", "quarteirao", "logradouro", "numero", "sequencia"))
+            enderecos[key].append(row["id_visita"])
+    for row in conn.execute("""SELECT t.id_tubito,t.numero FROM liraa_visita_tubitos t
+            JOIN liraa_visitas v ON v.id_visita=t.id_visita WHERE v.id_ciclo=?""", (id_ciclo,)):
+        num = str(row["numero"] or "").strip()
+        if num:
+            numeros[str(int(num)) if num.isascii() and num.isdigit() else num].append(row["id_tubito"])
+    return ({i for ids in enderecos.values() if len(ids) > 1 for i in ids},
+            {i for ids in numeros.values() if len(ids) > 1 for i in ids})
 
 
 def _normalizar(record):
@@ -167,6 +225,9 @@ def _normalizar(record):
         kobo_id = int(raw_id) if raw_id not in (None, "") else None
     except (TypeError, ValueError):
         raise LiraaKoboError("ID do envio Kobo inválido.") from None
+    quarteirao = _campo(record, "Dados_visita/Quarteir_o")
+    if str(quarteirao).strip().casefold() == "outros":
+        quarteirao = _campo(record, "Dados_visita/Quarteir_o_outros")
     return {
         "kobo_uuid": uuid, "kobo_id": kobo_id,
         "data_visita": _data(_campo(record, "Data")),
@@ -175,7 +236,7 @@ def _normalizar(record):
         "agentes_codigos": _texto(_campo(record, "Agentes"), 500),
         "acs_codigos": _texto(_campo(record, "ACS"), 500),
         "localidade_informada": loc,
-        "quarteirao": _quarteirao(_campo(record, "Dados_visita/Quarteir_o")),
+        "quarteirao": _quarteirao(quarteirao),
         "tipo_imovel": _texto(_campo(record, "Dados_visita/Imovel"), 100),
         "logradouro": _texto(_campo(record, "Dados_visita/Logradouro"), 300),
         "numero": _texto(_campo(record, "Dados_visita/Numero"), 60),
@@ -249,6 +310,7 @@ def _preparar(conn, id_ciclo, records):
         exists = conn.execute("SELECT 1 FROM liraa_visitas WHERE kobo_uuid=?", (item["kobo_uuid"],)).fetchone()
         deleted = conn.execute("SELECT 1 FROM liraa_visitas_excluidas WHERE kobo_uuid=?", (item["kobo_uuid"],)).fetchone()
         item["situacao_importacao"] = "importada" if exists else "excluida" if deleted else "nova"
+        item["avisos"] = avisos_coleta(item, item["tubitos"])
         preparados.append(item)
     return preparados
 
@@ -272,8 +334,7 @@ def importar(target, id_ciclo, records, auditar=None):
             conn.execute("BEGIN IMMEDIATE")
         with conn:
             # Mesmo bloqueio usado no ressorteio: impede alteração do plano durante a importação.
-            lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
-            conn.execute("SELECT id_estrato FROM liraa_estratos WHERE id_ciclo=? ORDER BY id_estrato" + lock, (id_ciclo,)).fetchall()
+            liraa._bloquear_ciclo(conn, id_ciclo)
             items = _preparar(conn, id_ciclo, records)
             created = 0
             for item in items:
@@ -344,12 +405,24 @@ def listar(target, id_ciclo=None, limite=100, deslocamento=0, inicio=None, fim=N
                 visit["tubitos"] = by_visit[visit["id_visita"]]
         contexts = {}
         numbers = {}
+        duplicidades = {}
         for visit in visits:
+            visit["versao_dados"] = versao_visita({key: value for key, value in visit.items()
+                if key not in {"tubitos", "total_tubitos", "estrato_numero"}})
+            visit["acs_outros"] = dados_campo(visit).get("acs_outros", "")
+            visit["houve_coleta"] = dados_campo(visit).get("houve_coleta", "")
+            visit["avisos"] = avisos_coleta(visit, visit["tubitos"])
             cycle_id = visit["id_ciclo"]
             if cycle_id not in contexts:
                 contexts[cycle_id] = _contexto(conn, cycle_id)
+                duplicidades[cycle_id] = alertas_duplicidade(conn, cycle_id)
                 numbers[cycle_id] = {r["id_estrato"]: r["numero"] for r in conn.execute(
                     "SELECT id_estrato,numero FROM liraa_estratos WHERE id_ciclo=?", (cycle_id,))}
+            repetidas, tubos = duplicidades[cycle_id]
+            if visit["id_visita"] in repetidas:
+                visit["avisos"].append("Possível visita duplicada no mesmo endereço e dia; conferir.")
+            if any(t["id_tubito"] in tubos for t in visit["tubitos"]):
+                visit["avisos"].append("Número de tubito repetido neste ciclo; conferir identificação das amostras.")
             _, estrato_id, status = _vincular(visit, contexts[cycle_id])
             visit["id_estrato"] = estrato_id
             visit["estrato_numero"] = numbers[cycle_id].get(estrato_id)
@@ -369,10 +442,108 @@ def tubitos(target, id_visita):
         conn.close()
 
 
+def corrigir(target, id_visita, payload, auditar=None):
+    """Corrige campos locais com versão e auditoria; preserva UUID, plano e leituras."""
+    motivo = _texto(payload.get("motivo"), 300)
+    if not motivo:
+        raise LiraaKoboError("Informe o motivo da correção.")
+    conn = db.connect(target)
+    try:
+        ensure_schema(conn)
+        owner = conn.execute("SELECT id_ciclo FROM liraa_visitas WHERE id_visita=?", (id_visita,)).fetchone()
+        if not owner:
+            raise LiraaKoboError("Visita LIRAa não encontrada.")
+        liraa._bloquear_ciclo(conn, owner["id_ciclo"])
+        with conn:
+            lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
+            row = conn.execute("SELECT * FROM liraa_visitas WHERE id_visita=?" + lock, (id_visita,)).fetchone()
+            if not row:
+                raise LiraaKoboError("Visita LIRAa não encontrada.")
+            old = db.serialize_row(row)
+            if payload.get("versao") != versao_visita(old):
+                raise LiraaKoboError("Esta visita foi alterada. Atualize a página antes de corrigir.")
+            campos = dados_campo(old)
+            record = {"_uuid": old["kobo_uuid"], "_id": old["kobo_id"],
+                      "Data": payload.get("data_visita", old["data_visita"]),
+                      "Hora_inicio": old["hora_inicio"], "Agentes": old["agentes_codigos"],
+                      "ACS": old["acs_codigos"], "ACS_outros": payload.get("acs_outros", campos.get("acs_outros", "")),
+                      "Houve_coleta": payload.get("houve_coleta", campos.get("houve_coleta", "")),
+                      "endemias_ciclo": old["form_ciclo"], "endemias_plano": old["plano_hash"],
+                      "Dados_visita": {key: payload.get(field, old[field]) for key, field in (
+                          ("Localidade", "localidade_informada"), ("Quarteir_o", "quarteirao"),
+                          ("Imovel", "tipo_imovel"), ("Logradouro", "logradouro"), ("Numero", "numero"),
+                          ("Sequencia", "sequencia"), ("Morador", "morador"), ("Observa_es", "observacoes"))}}
+            new = _normalizar(record)
+            if tipo_boletim(new["tipo_imovel"]) is None:
+                raise LiraaKoboError("Selecione um tipo de imóvel válido.")
+            new["id_localidade"], new["id_estrato"], new["situacao_vinculo"] = _vincular(new, _contexto(conn, old["id_ciclo"]))
+            if new["situacao_vinculo"] != "sorteado":
+                raise LiraaKoboError("A correção deve corresponder ao ciclo, período e quarteirão sorteado: " + new["situacao_vinculo"].replace("_", " "))
+            leitura = conn.execute("""SELECT MIN(l.data_leitura) FROM liraa_leituras l
+                JOIN liraa_visita_tubitos t ON t.id_tubito=l.id_tubito WHERE t.id_visita=?""", (id_visita,)).fetchone()[0]
+            if leitura and new["data_visita"] > leitura:
+                raise LiraaKoboError("A coleta não pode ficar depois de uma leitura já registrada.")
+            tratamento = json.loads(old.get("tratamento_json") or "{}")
+            tratamento["_campo"] = dados_campo(new)
+            tratamento["_revisao"] = {"em": datetime.now().isoformat(timespec="microseconds"), "motivo": motivo}
+            new["tratamento_json"] = json.dumps(tratamento, ensure_ascii=False)
+            fields = ("data_visita", "localidade_informada", "id_localidade", "quarteirao", "tipo_imovel",
+                      "logradouro", "numero", "sequencia", "morador", "observacoes", "id_estrato", "situacao_vinculo", "tratamento_json")
+            conn.execute("UPDATE liraa_visitas SET " + ",".join(f"{f}=?" for f in fields) + " WHERE id_visita=?",
+                         (*[new[f] for f in fields], id_visita))
+            if auditar:
+                auditar(conn, {"id_ciclo": old["id_ciclo"], "motivo": motivo,
+                               "anterior": {f: old[f] for f in fields}, "atual": {f: new[f] for f in fields}})
+            return old["id_ciclo"]
+    finally:
+        conn.close()
+
+
+def exclusoes(target, id_ciclo=None):
+    conn = db.connect(target)
+    try:
+        ensure_schema(conn)
+        where, params = (" WHERE id_ciclo=?", (id_ciclo,)) if id_ciclo else ("", ())
+        return [db.serialize_row(r) for r in conn.execute(
+            "SELECT * FROM liraa_visitas_excluidas" + where + " ORDER BY excluida_em DESC LIMIT 100", params)]
+    finally:
+        conn.close()
+
+
+def permitir_reimportacao(target, uuid, motivo, auditar=None):
+    uuid, motivo = _texto(uuid, 100), _texto(motivo, 300)
+    if not uuid or not motivo:
+        raise LiraaKoboError("Informe o envio e o motivo para permitir sua reimportação.")
+    conn = db.connect(target)
+    try:
+        ensure_schema(conn)
+        row = conn.execute("SELECT * FROM liraa_visitas_excluidas WHERE kobo_uuid=?", (uuid,)).fetchone()
+        if not row:
+            raise LiraaKoboError("Bloqueio de reimportação não encontrado.")
+        # A lápide pode sobreviver à exclusão do ciclo; nesses casos é preciso
+        # cadastrar e conferir um ciclo válido antes de uma nova importação.
+        if conn.execute("SELECT 1 FROM liraa_ciclos WHERE id_ciclo=?", (row["id_ciclo"],)).fetchone():
+            liraa._bloquear_ciclo(conn, row["id_ciclo"])
+        with conn:
+            deleted = conn.execute("DELETE FROM liraa_visitas_excluidas WHERE kobo_uuid=?", (uuid,)).rowcount
+            if deleted != 1:
+                raise LiraaKoboError("O bloqueio já foi alterado. Atualize a página.")
+            if auditar:
+                auditar(conn, {"id_ciclo": row["id_ciclo"], "uuid": uuid, "motivo": motivo,
+                               "bloqueio_anterior": db.serialize_row(row)})
+            return row["id_ciclo"]
+    finally:
+        conn.close()
+
+
 def excluir(target, id_visita, motivo="", auditar=None):
     conn = db.connect(target)
     try:
         ensure_schema(conn)
+        cycle = conn.execute("SELECT id_ciclo FROM liraa_visitas WHERE id_visita=?", (id_visita,)).fetchone()
+        if not cycle:
+            raise LiraaKoboError("Visita LIRAa não encontrada.")
+        liraa._bloquear_ciclo(conn, cycle["id_ciclo"])
         with conn:
             row = conn.execute("SELECT id_ciclo,kobo_uuid FROM liraa_visitas WHERE id_visita=?", (id_visita,)).fetchone()
             if not row:

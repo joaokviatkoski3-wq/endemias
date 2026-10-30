@@ -1,12 +1,14 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 08/10/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 30/10/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
+
+- Código `1.73.0`: correções da auditoria LIRAa, com importação compatível com o formulário aprovado manualmente, proteção do plano real, revisão administrativa e avisos de inconsistência. Os dados salvos de ciclos/estratos/sorteios são reais e serão usados no próximo levantamento; somente as visitas existentes foram identificadas pelo usuário como testes. Não apagar nem recalcular o plano. ACS continuam editáveis futuramente e o download do ciclo aprovado atualiza somente sua lista, preservando o restante do XLSForm. Sem nova migração. Serviço observado em `1.72.4` em 30/10; ativação de `1.73.0` depende de reinício autorizado. Ver `docs/LIRAA_CORRECOES_2026_10.md`.
 
 - Versão `1.68.0` integrada na `master` (`c726f56`) e ativa em 08/10/2026 às 10h18, após autorização e reinício: exportação limpa XLSX dos RGs selecionados em Territorialização > RG > Impressão e planilhas, preservando a impressão/PDF. Sem migração ou alterações de dados. `/login` confirmou HTTP 200 com `Endemias v1.68.0`; exportação em PostgreSQL conferida com 2 RGs e 232 linhas. Contagens das 91 tabelas e 19 assinaturas territoriais/LIRAa preservadas. Ver `docs/RG_EXPORTACAO_PLANILHAS.md` e `docs/ESTADO_ATUAL_PROJETO.md`.
 

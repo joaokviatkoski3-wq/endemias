@@ -1,8 +1,21 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 08/10/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 30/10/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
+
+## Lote LIRAa de 30/10/2026 — código 1.73.0
+
+- Usuário autorizou as correções da auditoria e confirmou: **ciclos, estratos, N e sorteios salvos são reais**, destinados ao próximo LIRAa. As visitas existentes são testes. A limpeza dessas visitas não integra este lote e não autoriza remover o plano.
+- Formulário aprovado: cópia integral versionada em `app_core/data/liraa_ciclo_aprovado.xlsx`, SHA-256 `01934925d87a5f9413628f9f0ccae8d4022f964ad1f12ccc8a441b10f49a88dd`. Ciclo 4, período 09–13/11/2026. O original do usuário foi preservado. Nenhuma publicação no Kobo.
+- **ACS ainda podem mudar:** participantes permanecem configuráveis, inclusive após visitas. Para o ciclo aprovado, o download altera somente as linhas da lista ACS, mantendo “Nenhum ACS” e “Outros”. Divergência entre assinatura salva e formulário bloqueia o download, sem modificar sorteios para forçar compatibilidade.
+- Importação reconhece quarteirão “Outros”, tipos residência/comércio/outros e campos complementares. Preserva o contrato legado. Mostra alertas de coleta inconsistente, possíveis visitas duplicadas e números de tubito repetidos; não une nem exclui registros automaticamente.
+- O plano completo fica protegido após importações. O ciclo do formulário aprovado permanece protegido mesmo depois de excluir as visitas de teste. Edição, importação e sorteio usam bloqueios na mesma ordem; datas devem pertencer ao ano do ciclo.
+- Admin pode corrigir os dados locais da visita, com motivo, auditoria e versão; UUID/plano/tubitos/leituras são preservados. Há liberação explícita de reimportação de um envio excluído, sem recuperar leituras apagadas. Admin também pode corrigir número de tubito ao lançar/corrigir a leitura.
+- Boletim/PDF sinalizam revisão de campo e laboratório, inclusive quarteirões sem visitas. Os índices finais, CV e `.lira` continuam no escopo registrado anteriormente, com fechamento no programa oficial.
+- Sem migração nova e sem alterações de produção neste lote. `/login` foi observado em `1.72.4`; `1.73.0` exige reinício autorizado. A conferência administrativa do plano real continua pendente por falta de credencial nesta sessão. Foi preparado `scripts/verificar_liraa_prontidao.py`, exclusivamente de leitura, para comparar ciclo, assinatura, quarteirões/localidades e geometria com o formulário aprovado.
+- Validação: 845 testes gerais sem falha (5 ignorados), 62 testes LIRAa focados finais, 2 testes JS, ensaio PostgreSQL 18 descartável e inspeção visual do PDF com os alertas. A cópia aprovada do formulário manteve o SHA-256 original. A ativação em produção não foi realizada durante a implementação.
+- Ver `docs/LIRAA_CORRECOES_2026_10.md` para operação, verificações e pendências. Os registros abaixo documentam implantações históricas e não autorizam reaplicar migrações ou reiniciar o serviço.
 
 ## Papeis vigentes
 

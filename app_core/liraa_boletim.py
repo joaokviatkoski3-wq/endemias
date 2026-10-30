@@ -15,6 +15,8 @@ def resumir(target, id_ciclo, base_dir=None, agrupar="estrato", id_estrato=None,
                 "quarteiroes": 0, "programados": next(e['sorteio']['n'] for e in plano['ciclo']['estratos'] if e['id_estrato']==q['id_estrato']),
                 "referencia_rg": 0, "sem_rg": 0, "trabalhados": 0,
                 "pendentes": 0, "tubitos": 0, "leituras": 0, "tipos_invalidos": 0,
+                "coletas_inconsistentes": 0, "visitas_suspeitas": 0, "tubitos_repetidos": 0,
+                "_visitados": set(),
                 "depositos_invalidos": 0, "aegypt_tb": set(), "aegypt_outros": set(),
                 "albopictus_tb": set(), "albopictus_outros": set(),
                 "aegypt_recipientes": {code: 0 for code in op.DEPOSITOS},
@@ -27,6 +29,7 @@ def resumir(target, id_ciclo, base_dir=None, agrupar="estrato", id_estrato=None,
     try:
         lab.ensure_schema(conn)
         context = liraa_kobo._contexto(conn, id_ciclo)
+        visitas_suspeitas, tubos_repetidos = liraa_kobo.alertas_duplicidade(conn, id_ciclo)
         readings = {r["id_tubito"]: db.serialize_row(r) for r in conn.execute("""SELECT l.* FROM liraa_leituras l
             JOIN liraa_visita_tubitos t ON t.id_tubito=l.id_tubito JOIN liraa_visitas v ON v.id_visita=t.id_visita WHERE v.id_ciclo=?""", (id_ciclo,))}
         tubes = {}
@@ -44,11 +47,15 @@ def resumir(target, id_ciclo, base_dir=None, agrupar="estrato", id_estrato=None,
                 continue
             g = grupos[key]
             g["trabalhados"] += 1
-            tipo = "tb" if v["tipo_imovel"] == "terreno_baldio" else "outros" if v["tipo_imovel"] == "rco" else None
+            g["_visitados"].add((loc, v["quarteirao"]))
+            g["coletas_inconsistentes"] += bool(liraa_kobo.avisos_coleta(v, tubes.get(v["id_visita"], [])))
+            g["visitas_suspeitas"] += v["id_visita"] in visitas_suspeitas
+            tipo = liraa_kobo.tipo_boletim(v["tipo_imovel"])
             if tipo is None:
                 g["tipos_invalidos"] += 1
             for tube in tubes.get(v["id_visita"], []):
                 g["tubitos"] += 1
+                g["tubitos_repetidos"] += tube["id_tubito"] in tubos_repetidos
                 reading = readings.get(tube["id_tubito"])
                 if reading is None:
                     g["pendentes"] += 1
@@ -69,8 +76,11 @@ def resumir(target, id_ciclo, base_dir=None, agrupar="estrato", id_estrato=None,
         for g in grupos.values():
             for field in ("aegypt_tb", "aegypt_outros", "albopictus_tb", "albopictus_outros"):
                 g[field] = len(g[field])
-            g["parcial"] = bool(g["pendentes"] or g["tipos_invalidos"] or g["depositos_invalidos"])
+            g["quarteiroes_sem_visita"] = g["quarteiroes"] - len(g.pop("_visitados"))
+            g["parcial"] = any(g[f] for f in ("pendentes", "tipos_invalidos", "depositos_invalidos",
+                "coletas_inconsistentes", "visitas_suspeitas", "tubitos_repetidos", "quarteiroes_sem_visita"))
         return {"ciclo": plano["ciclo"], "grupos": list(grupos.values()), "excluidas": excluded, "agrupar": agrupar,
-                "sem_sorteio": plano["sem_sorteio"]}
+                "sem_sorteio": plano["sem_sorteio"],
+                "revisao_pendente": bool(excluded or plano["sem_sorteio"] or any(g["parcial"] for g in grupos.values()))}
     finally:
         conn.close()

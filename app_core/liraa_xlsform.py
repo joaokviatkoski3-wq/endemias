@@ -6,7 +6,7 @@ from io import BytesIO
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, PatternFill
 
-from app_core import liraa, liraa_kobo, liraa_operacional as op, normalizadores
+from app_core import liraa, liraa_kobo, liraa_operacional as op, normalizadores, liraa_modelo
 
 
 def _rows(sheet):
@@ -15,6 +15,57 @@ def _rows(sheet):
 
 
 def gerar(target, id_ciclo, base_dir=None):
+    contrato = liraa_modelo.contrato()
+    if str(id_ciclo) == contrato["ciclo"]:
+        return _atualizar_acs_aprovado(target, id_ciclo, contrato)
+    return _gerar_legado(target, id_ciclo, base_dir)
+
+
+def _atualizar_acs_aprovado(target, id_ciclo, contrato):
+    from app_core import db
+    conn = db.connect(target)
+    try:
+        if op.plano_hash_conn(conn, id_ciclo) != contrato["plano_hash"]:
+            raise liraa.LiraaError("O plano salvo diverge do formulário aprovado. Confira o ciclo e os sorteios; não gere outro plano para contornar este aviso.")
+    finally:
+        conn.close()
+    config = op.configuracao(target, id_ciclo)
+    if not config["acs_definidos"]:
+        raise liraa.LiraaError("Salve os ACS participantes, mesmo que não haja nenhum neste ciclo.")
+    workbook = load_workbook(liraa_modelo.APROVADO_XLSFORM)
+    try:
+        survey = {row["name"]: row for row in _rows(workbook["survey"])}
+        lista = survey["ACS"]["type"].split()[1]
+        sheet = workbook["choices"]
+        headers = [cell.value for cell in sheet[1]]
+        indices = {key: i for i, key in enumerate(headers)}
+        originais = [(i, [c.value for c in row]) for i, row in enumerate(sheet.iter_rows(min_row=2), 2)
+                      if row[indices["list_name"]].value == lista]
+        if not originais:
+            raise liraa.LiraaError("Lista de ACS ausente do formulário aprovado.")
+        por_codigo = {values[indices["name"]]: values for _, values in originais}
+        novas = []
+        for acs in config["acs"]:
+            values = list(por_codigo.get(acs["codigo"], [None] * len(headers)))
+            for key, value in (("list_name", lista), ("name", acs["codigo"]), ("label", acs["nome"])):
+                values[indices[key]] = value
+            novas.append(values)
+        novas.extend(por_codigo[code] for code in ("no-acs", "outros") if code in por_codigo)
+        for index, _ in reversed(originais):
+            sheet.delete_rows(index)
+        inicio = originais[0][0]
+        sheet.insert_rows(inicio, len(novas))
+        for index, values in enumerate(novas, inicio):
+            for column, value in enumerate(values, 1):
+                sheet.cell(index, column, value)
+        output = BytesIO()
+        workbook.save(output)
+        return output.getvalue()
+    finally:
+        workbook.close()
+
+
+def _gerar_legado(target, id_ciclo, base_dir=None):
     plano = op.plano(target, id_ciclo, base_dir)
     config = op.configuracao(target, id_ciclo)
     if not plano["quarteiroes"] or plano["sem_sorteio"]:

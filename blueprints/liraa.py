@@ -68,6 +68,7 @@ def page():
                          if e["id_estrato"] == id_edicao and not e["sorteio"]), None)
     admin = (_usuario() or {}).get("nivel") == "admin"
     kobo_dados = {"uid": "", "visitas": [], "previa": None, "erro": None,
+                  "correcao_habilitada": True, "exclusoes": [],
                   "ciclo": request.values.get("ciclo", ""),
                   "inicio": request.values.get("inicio", (date.today() - timedelta(days=6)).isoformat()),
                   "fim": request.values.get("fim", date.today().isoformat()),
@@ -91,6 +92,7 @@ def page():
                                     busca=kobo_dados["visita_busca"])
             kobo_dados["proxima_pagina"] = len(rows) > 100
             kobo_dados["visitas"] = rows[:100]
+            kobo_dados["exclusoes"] = liraa_kobo.exclusoes(_target(), kobo_dados["ciclo"] or None)
             conn = _get_db()
             try:
                 catalogo_acs = visitas_core.catalogo_acs(conn)
@@ -103,6 +105,8 @@ def page():
                 acs_codes = [code for code in visita["acs_codigos"].split() if code != "no-acs"]
                 visita["acs_nomes"] = visitas_core.formatar_acs_codigos(
                     ",".join(acs_codes), catalogo_acs) if acs_codes else "Nenhum"
+                if visita.get("acs_outros"):
+                    visita["acs_nomes"] += " · Outros: " + visita["acs_outros"]
         except (ValueError, liraa_kobo.LiraaKoboError) as exc:
             kobo_dados["erro"] = str(exc)
         if dados and request.args.get("consulta_kobo") == "1":
@@ -230,6 +234,38 @@ def excluir_visita(id_visita):
         logging.exception("Falha ao excluir visita LIRAa")
         flash("Não foi possível excluir a visita LIRAa.", "error")
     return redirect(url_for("liraa.page") + "#liraa-tab-visitas")
+
+
+@bp.route("/liraa/visitas/<int:id_visita>/corrigir", methods=["POST"])
+@login_required
+@nivel_admin
+def corrigir_visita(id_visita):
+    ciclo = request.form.get("ciclo", "")
+    try:
+        ciclo = liraa_kobo.corrigir(_target(), id_visita, request.form,
+            auditar=lambda conn, detalhes: audit.registrar_evento(_get_db, "liraa_visita_corrigida",
+                entidade="liraa_visita", entidade_id=id_visita, detalhes=detalhes, conn=conn))
+        flash("Correção local salva; as leituras foram preservadas. O Kobo não foi alterado.", "success")
+    except liraa_kobo.LiraaKoboError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("liraa.page", ciclo=ciclo) + "#liraa-tab-visitas")
+
+
+@bp.route("/liraa/visitas/permitir-reimportacao", methods=["POST"])
+@login_required
+@nivel_admin
+def permitir_reimportacao():
+    ciclo = request.form.get("ciclo", "")
+    try:
+        if request.form.get("confirmar_reimportacao") != "sim":
+            raise liraa_kobo.LiraaKoboError("Confirme a liberação da reimportação.")
+        ciclo = liraa_kobo.permitir_reimportacao(_target(), request.form.get("uuid"), request.form.get("motivo"),
+            auditar=lambda conn, detalhes: audit.registrar_evento(_get_db, "liraa_reimportacao_permitida",
+                entidade="liraa_visita", detalhes=detalhes, conn=conn))
+        flash("Bloqueio removido. Consulte e importe o envio pelo Kobo; as leituras apagadas não são recuperadas.", "success")
+    except liraa_kobo.LiraaKoboError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("liraa.page", ciclo=ciclo) + "#liraa-tab-visitas")
 
 
 def _resposta(acao, func, entidade, detalhes, auditoria_embutida=False):

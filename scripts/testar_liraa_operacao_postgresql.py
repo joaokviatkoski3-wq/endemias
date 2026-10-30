@@ -56,7 +56,8 @@ def executar(database):
             assert len(op.historico_sorteios(database,eid))==1
             q=draw['selecionados'][0]['quarteirao']
             payload={'_uuid':'ensaio-temporario','Data':date.today().isoformat(),
-                     'Dados_visita':{'Localidade':'centro','Quarteir_o':q,'Imovel':'rco'},
+                     'Dados_visita':{'Localidade':'centro','Quarteir_o':'outros','Quarteir_o_outros':q,'Imovel':'residencia'},
+                     'ACS':'outros','ACS_outros':'ACS do ensaio','Houve_coleta':'sim',
                      'endemias_ciclo':str(cid),'endemias_plano':op.plano(database,cid)['plano_hash'],
                      'group_jr1vc40':[{'group_jr1vc40/N_mero_do_tubito':1,'group_jr1vc40/C_digo_do_dep_sito':'B'}]}
             assert liraa_kobo.importar(database,cid,[payload])==1
@@ -67,10 +68,27 @@ def executar(database):
             group=liraa_boletim.resumir(database,cid)['grupos'][0]
             assert group['aegypt_outros']==1 and group['aegypt_total']==1 and group['pendentes']==0
             assert lab.painel(database,{})['total_pendentes']==0
-            visit=liraa_kobo.listar(database,cid)[0]['id_visita']
+            v=liraa_kobo.listar(database,cid)[0]
+            assert v['acs_outros']=='ACS do ensaio'
+            hash_plano=op.plano_hash_conn(conn,cid)
+            op.salvar_configuracao(database,cid,[],'asset123')
+            assert op.plano_hash_conn(conn,cid)==hash_plano
+            liraa_kobo.corrigir(database,v['id_visita'],{'versao':v['versao_dados'],'motivo':'Conferido','tipo_imovel':'terreno_baldio'})
+            assert liraa_boletim.resumir(database,cid)['grupos'][0]['aegypt_tb']==1
+            assert lab.listar(database,cid)[0]['aegypt_larvas']==2
+            try:
+                liraa.excluir_estrato(database,eid)
+                raise AssertionError('Estrato alterado depois da importação')
+            except liraa.LiraaError:
+                pass
+            visit=v['id_visita']
             liraa_kobo.excluir(database,visit,'Ensaio descartável')
             assert conn.execute('SELECT COUNT(*) FROM liraa_leituras').fetchone()[0]==0
-        print('[OK] Migração 0026, ressorteio, histórico, XLSForm, importação, leitura, boletim e exclusão: PostgreSQL temporário.')
+            assert liraa_kobo.importar(database,cid,[payload])==0
+            liraa_kobo.permitir_reimportacao(database,payload['_uuid'],'Reimportação conferida')
+            assert liraa_kobo.importar(database,cid,[payload])==1
+            assert lab.listar(database,cid)[0]['leitura_id'] is None
+        print('[OK] Migração 0026, histórico, XLSForm, Outros, tipos publicados, ACS, correção, proteção do plano e reimportação: PostgreSQL temporário.')
     finally:
         conn.close()  # Todas as tabelas e sequências temporárias somem nesta sessão.
 

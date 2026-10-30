@@ -66,13 +66,17 @@ def listar(target, ciclo=None, pendentes=False, offset=0):
         if pendentes:
             conditions.append("l.id_tubito IS NULL")
         where = " WHERE " + " AND ".join(conditions) if conditions else ""
-        return [db.serialize_row(r) for r in conn.execute("""SELECT t.*,v.id_ciclo,v.data_visita,
+        rows = [db.serialize_row(r) for r in conn.execute("""SELECT t.*,v.id_ciclo,v.data_visita,
             v.localidade_informada,v.quarteirao,v.logradouro,v.numero AS numero_imovel,
             l.id_tubito AS leitura_id,l.data_leitura,l.laboratorista,l.id_usuario,l.observacoes,l.atualizado_em,
             l.aegypt_larvas,l.aegypt_pupas,l.albopictus_larvas,l.albopictus_pupas,l.outra_larvas,l.outra_pupas
             FROM liraa_visita_tubitos t JOIN liraa_visitas v ON v.id_visita=t.id_visita
             LEFT JOIN liraa_leituras l ON l.id_tubito=t.id_tubito""" + where +
             " ORDER BY v.data_visita,t.id_tubito LIMIT 101 OFFSET ?", (*params, max(0, int(offset))))]
+        repetidos = {cid: liraa_kobo.alertas_duplicidade(conn, cid)[1] for cid in {r["id_ciclo"] for r in rows}}
+        for row in rows:
+            row["numero_repetido"] = row["id_tubito"] in repetidos[row["id_ciclo"]]
+        return rows
     finally:
         conn.close()
 
@@ -98,6 +102,9 @@ def salvar(target, id_tubito, payload, usuario, auditar=None):
     code = str(payload.get("codigo_deposito") or "").strip().upper()
     if code and (usuario.get("nivel") != "admin" or code not in op.DEPOSITOS):
         raise liraa.LiraaError("Somente administrador pode corrigir a classificação para A1/A2/B/C/D1/D2/E.")
+    numero = str(payload.get("numero_tubito") or "").strip()
+    if numero and (usuario.get("nivel") != "admin" or not numero.isascii() or not numero.isdigit() or len(numero) > 60 or int(numero) <= 0):
+        raise liraa.LiraaError("Somente administrador pode corrigir o tubito; informe um número inteiro positivo.")
     conn = db.connect(target)
     try:
         ensure_schema(conn)
@@ -123,9 +130,12 @@ def salvar(target, id_tubito, payload, usuario, auditar=None):
                          "ON CONFLICT(id_tubito) DO UPDATE SET " + ','.join(f"{f}=excluded.{f}" for f in fields[1:]), values)
             if code:
                 conn.execute("UPDATE liraa_visita_tubitos SET codigo_deposito=? WHERE id_tubito=?", (code,id_tubito))
+            if numero:
+                conn.execute("UPDATE liraa_visita_tubitos SET numero=? WHERE id_tubito=?", (numero,id_tubito))
             if auditar:
                 auditar(conn, {"id_tubito": id_tubito, "anterior": db.serialize_row(old) if old else None,
                                 "quantidades": counts, "data_leitura": reading_date.isoformat(),
-                                "deposito_anterior": tube['codigo_deposito'], "deposito_atual": code or tube['codigo_deposito']})
+                                "deposito_anterior": tube['codigo_deposito'], "deposito_atual": code or tube['codigo_deposito'],
+                                "numero_anterior": tube['numero'], "numero_atual": numero or tube['numero']})
     finally:
         conn.close()

@@ -283,11 +283,23 @@
     {% for v in kobo.get('visitas', []) %}<tr>
       <td>{{ v.data_visita }}<br><small>{{ v.hora_inicio or '' }}</small></td>
       <td>{{ v.localidade_informada }} · {{ v.quarteirao }}</td>
-      <td>{{ 'Terreno baldio' if v.tipo_imovel == 'terreno_baldio' else 'Residência / Comércio / Outros' if v.tipo_imovel == 'rco' else v.tipo_imovel or '—' }}<br>{{ v.logradouro or '' }} {{ v.numero or '' }}{% if v.sequencia %} / {{ v.sequencia }}{% endif %}<br><small>Morador: {{ v.morador or '—' }}</small>{% if v.observacoes %}<br><small>{{ v.observacoes }}</small>{% endif %}</td>
+      <td>{{ {'terreno_baldio':'Terreno baldio', 'rco':'Residência / Comércio / Outros', 'residencia':'Residência', 'comercio':'Comércio', 'outros':'Outros'}.get(v.tipo_imovel, v.tipo_imovel or '—') }}<br>{{ v.logradouro or '' }} {{ v.numero or '' }}{% if v.sequencia %} / {{ v.sequencia }}{% endif %}<br><small>Morador: {{ v.morador or '—' }}</small>{% if v.observacoes %}<br><small>{{ v.observacoes }}</small>{% endif %}</td>
       <td><small>ACE: {{ v.agentes_nomes }}<br>ACS: {{ v.acs_nomes }}</small></td>
-      <td>{% if v.estrato_numero %}Estrato {{ v.estrato_numero }}<br>{% endif %}<small>{{ v.situacao_vinculo|replace('_', ' ') }}</small></td>
+      <td>{% if v.estrato_numero %}Estrato {{ v.estrato_numero }}<br>{% endif %}<small>{{ v.situacao_vinculo|replace('_', ' ') }}</small>{% for aviso in v.get('avisos', []) %}<p class="liraa-note">{{ aviso }}</p>{% endfor %}</td>
       <td>{{ v.total_tubitos }}{% if v.tubitos %}<details><summary>Ver</summary>{% for t in v.tubitos %}<div>{{ t.numero or 'Sem número' }} · {{ t.codigo_deposito or 'Sem código' }} · {{ t.deposito or 'Sem depósito' }}</div>{% endfor %}</details>{% endif %}</td>
-      <td><form method="post" action="{{ url_for('liraa.excluir_visita', id_visita=v.id_visita) }}" onsubmit="return confirm('Excluir esta visita e seus tubitos do Endemias? Ela continuará no Kobo e não será reimportada.');">
+      <td>{% if kobo.get('correcao_habilitada') %}<details><summary>Corrigir dados de campo</summary>
+        <form method="post" action="{{ url_for('liraa.corrigir_visita', id_visita=v.id_visita) }}" class="liraa-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="ciclo" value="{{ v.id_ciclo }}"><input type="hidden" name="versao" value="{{ v.versao_dados }}">
+          <label>Data da visita<input type="date" name="data_visita" value="{{ v.data_visita }}" required></label>
+          <label>Localidade<select name="localidade_informada">{% for l in dados.localidades %}<option value="{{ l.nome }}" {% if v.localidade_informada == l.nome %}selected{% endif %}>{{ l.nome }}</option>{% endfor %}</select></label>
+          <label>Quarteirão municipal<input name="quarteirao" value="{{ v.quarteirao }}" required></label>
+          <label>Tipo de imóvel<select name="tipo_imovel">{% for code, label in [('rco','Residência / Comércio / Outros (legado)'),('residencia','Residência'),('comercio','Comércio'),('outros','Outros'),('terreno_baldio','Terreno baldio')] %}<option value="{{ code }}" {% if v.tipo_imovel == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+          {% for campo, label in [('logradouro','Logradouro'),('numero','Número'),('sequencia','Sequência'),('morador','Morador'),('observacoes','Observações'),('acs_outros','Outros ACS')] %}<label>{{ label }}<input name="{{ campo }}" value="{{ v[campo] or '' }}"></label>{% endfor %}
+          <label>Houve coleta<select name="houve_coleta">{% for code, label in [('', 'Não informado no legado'),('sim','Sim'),('nao','Não')] %}<option value="{{ code }}" {% if v.houve_coleta == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+          <label>Motivo da correção<input name="motivo" maxlength="300" required></label>
+          <p>Altera somente o Endemias, mantém as leituras e registra a correção no histórico.</p><button class="liraa-btn primary" type="submit">Salvar correção</button>
+        </form>
+      </details>{% endif %}<form method="post" action="{{ url_for('liraa.excluir_visita', id_visita=v.id_visita) }}" onsubmit="return confirm('Excluir esta visita e seus tubitos do Endemias? Ela continuará no Kobo e não será reimportada.');">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="confirmar_exclusao" value="sim">
         <input name="motivo" maxlength="300" placeholder="Motivo (ex.: teste)" aria-label="Motivo da exclusão">
         <button class="liraa-btn danger" type="submit">Excluir</button>
@@ -299,6 +311,13 @@
     {% if kobo.get('proxima_pagina') %}<a class="liraa-btn" href="{{ url_for('liraa.page', ciclo=kobo.get('ciclo', ''), visita_inicio=kobo.get('visita_inicio', ''), visita_fim=kobo.get('visita_fim', ''), visita_busca=kobo.get('visita_busca', ''), pagina=kobo.pagina + 1) }}#liraa-tab-visitas">Próxima</a>{% endif %}
   </div>
   <p class="liraa-muted">São exibidas até 100 visitas recentes. A exclusão também remove tubitos e suas leituras locais e cria um bloqueio por UUID para impedir reimportação acidental; não apaga respostas no Kobo.</p>
+  {% if kobo.get('correcao_habilitada') and kobo.get('exclusoes') %}<details><summary>Envios excluídos — permitir nova importação</summary>
+    <p>São mostrados até 100 bloqueios recentes neste filtro. Liberar um envio exige nova consulta e importação no Kobo. As leituras excluídas não são recuperadas.</p>
+    {% for x in kobo.exclusoes %}<form method="post" action="{{ url_for('liraa.permitir_reimportacao') }}" onsubmit="return confirm('Permitir importar novamente este envio do Kobo? As leituras excluídas precisarão ser lançadas novamente.');" class="liraa-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="uuid" value="{{ x.kobo_uuid }}"><input type="hidden" name="ciclo" value="{{ x.id_ciclo or '' }}"><input type="hidden" name="confirmar_reimportacao" value="sim">
+      <p>{{ x.excluida_em }} · {{ x.motivo }} · Identificador: {{ x.kobo_uuid }}</p><label>Motivo para reimportar<input name="motivo" maxlength="300" required></label><button class="liraa-btn" type="submit">Permitir reimportação</button>
+    </form>{% endfor %}
+  </details>{% endif %}
 </section>
 {% endif %}
 <script type="application/json" id="liraa-dados-json">{{ {'quarteiroes': dados.quarteiroes, 'ciclos': dados.ciclos}|tojson }}</script>
