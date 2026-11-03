@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-from app_core import db, liraa, registro_geografico as rg, visitas
+from app_core import db, liraa, registro_geografico as rg, visitas, liraa_modelo
 
 
 BASE_XLSFORM = Path(__file__).parent / "data" / "liraa_kobo_base.xlsx"
@@ -99,8 +99,36 @@ def plano_hash_conn(conn, id_ciclo):
     return hashlib.sha256(json.dumps(snapshots, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
+def adicionais_conn(conn, id_ciclo, hash_plano=None):
+    """Ampliação autorizada e versionada, independente do sorteio congelado."""
+    config = liraa_modelo.adicionais()
+    if str(id_ciclo) != str(config["ciclo"]):
+        return {}
+    if (hash_plano or plano_hash_conn(conn, id_ciclo)) != config["plano_hash"]:
+        raise liraa.LiraaError("Os adicionais pertencem a outro plano. Confira a assinatura sem alterar os sorteios.")
+    locais = {rg._norm(r["nome"]): db.serialize_row(r) for r in conn.execute("SELECT id_localidade,nome FROM localidades")}
+    vinculos = {(r["id_localidade"], rg._quarteirao(r["quarteirao"])): db.serialize_row(r) for r in conn.execute(
+        "SELECT id_localidade,quarteirao,id_estrato FROM liraa_estrato_quarteiroes WHERE id_ciclo=?", (id_ciclo,))}
+    sorteados = set()
+    for r in conn.execute("""SELECT s.selecionados_json FROM liraa_sorteios s
+            JOIN liraa_estratos e ON e.id_estrato=s.id_estrato WHERE e.id_ciclo=?""", (id_ciclo,)):
+        sorteados.update((q["id_localidade"], rg._quarteirao(q["quarteirao"])) for q in json.loads(r["selecionados_json"]))
+    result = {}
+    for item in config["quarteiroes"]:
+        loc = locais.get(rg._norm(item["localidade"]))
+        q = rg._quarteirao(item["quarteirao"])
+        key = (loc["id_localidade"], q) if loc else None
+        if not key or key not in vinculos:
+            raise liraa.LiraaError(f"Adicional {item['localidade']} / Q. {q} sem estrato neste ciclo.")
+        if key in sorteados or key in result:
+            raise liraa.LiraaError("Adicional repetido ou já presente no sorteio original.")
+        result[key] = {**vinculos[key], "localidade": loc["nome"], "quarteirao": q,
+                       "quarteirao_exibicao": rg._quarteirao_display(q), "adicional": True}
+    return result
+
+
 def plano(target, id_ciclo, base_dir=None, id_estrato=None, id_localidade=None):
-    """Seleção congelada do sorteio, enriquecida pelo RG/camada ativos."""
+    """Sorteio congelado + adicionais autorizados, enriquecidos pelo RG ativo."""
     data = liraa.painel(target, base_dir)
     ciclo = next((c for c in data["ciclos"] if str(c["id_ciclo"]) == str(id_ciclo)), None)
     if not ciclo:
@@ -108,11 +136,19 @@ def plano(target, id_ciclo, base_dir=None, id_estrato=None, id_localidade=None):
     if id_estrato and not any(str(e["id_estrato"]) == str(id_estrato) for e in ciclo["estratos"]):
         raise liraa.LiraaError("Estrato não encontrado neste ciclo.")
     ativos = {(q["id_localidade"], q["quarteirao"]): q for q in data["quarteiroes"]}
+    conn = db.connect(target)
+    try:
+        hash_plano = plano_hash_conn(conn, ciclo["id_ciclo"])
+        adicionais = adicionais_conn(conn, ciclo["id_ciclo"], hash_plano)
+    finally:
+        conn.close()
     rows = []
     for estrato in ciclo["estratos"]:
         if not estrato["sorteio"] or (id_estrato and str(estrato["id_estrato"]) != str(id_estrato)):
             continue
-        for saved in estrato["sorteio"]["selecionados"]:
+        selecionados = [{**q, "adicional": False} for q in estrato["sorteio"]["selecionados"]]
+        selecionados.extend(q for q in adicionais.values() if q["id_estrato"] == estrato["id_estrato"])
+        for saved in selecionados:
             if id_localidade and str(saved["id_localidade"]) != str(id_localidade):
                 continue
             atual = ativos.get((saved["id_localidade"], saved["quarteirao"]))
@@ -128,15 +164,13 @@ def plano(target, id_ciclo, base_dir=None, id_estrato=None, id_localidade=None):
         subset = [r for r in rows if (r["id_estrato"], r["id_localidade"]) == key]
         grupos.append({"id_estrato": key[0], "id_localidade": key[1], "estrato": subset[0]["estrato"],
                        "localidade": subset[0]["localidade"], "quarteiroes": len(subset),
+                       "adicionais": sum(r["adicional"] for r in subset),
                        "fracao": subset[0]["fracao"], "sem_rg": sum(r["unidades_rg"] is None for r in subset),
                        "unidades_rg": sum(r["unidades_rg"] or 0 for r in subset),
                        "meta_rg": sum(r["meta_rg"] or 0 for r in subset)})
-    conn = db.connect(target)
-    try:
-        hash_plano = plano_hash_conn(conn, ciclo["id_ciclo"])
-    finally:
-        conn.close()
     return {"ciclo": ciclo, "quarteiroes": rows, "grupos": grupos, "plano_hash": hash_plano,
+            "total_adicionais": sum(r["adicional"] for r in rows),
+            "total_sorteados": sum(not r["adicional"] for r in rows),
             "sem_sorteio": sum(not e["sorteio"] for e in ciclo["estratos"]),
             "sem_rg": sum(r["unidades_rg"] is None for r in rows),
             "geometrias_ausentes": sum(r["geometria_ausente"] for r in rows)}
@@ -187,6 +221,7 @@ def geojson(target, id_ciclo, base_dir=None, id_estrato=None, id_localidade=None
             "ciclo": data["ciclo"]["nome"], "ano": data["ciclo"]["ano"],
             "estrato": row["estrato"], "Localidade": row["localidade"], "id_localidade": loc,
             "id_Q": q, "quarteirao": row["quarteirao_exibicao"], "fracao": row["fracao"],
+            "adicional": row["adicional"], "origem": "Adicional de campo" if row["adicional"] else "Sorteio original",
             "imoveis_rg": row["unidades_rg"], "meta_rg": row["meta_rg"], "id_estrato": row["id_estrato"]}})
     return {"type": "FeatureCollection", "features": features}
 
@@ -197,7 +232,7 @@ def kml(target, id_ciclo, base_dir=None, id_estrato=None, id_localidade=None):
         raise liraa.LiraaError("Nenhum quarteirão sorteado neste filtro.")
     root = ET.Element("kml", xmlns="http://www.opengis.net/kml/2.2")
     document = ET.SubElement(root, "Document")
-    ET.SubElement(document, "name").text = "LIRAa - quarteirões sorteados"
+    ET.SubElement(document, "name").text = "LIRAa - plano de campo"
     colors = ["2563eb", "dc2626", "16a34a", "9333ea", "ea580c", "0891b2", "be123c", "65a30d"]
     folders, placemarks = {}, {}
     for feature in data["features"]:
@@ -209,8 +244,8 @@ def kml(target, id_ciclo, base_dir=None, id_estrato=None, id_localidade=None):
         qkey = (*key, p["id_Q"])
         if qkey not in placemarks:
             pm = ET.SubElement(folders[key], "Placemark")
-            ET.SubElement(pm, "name").text = f"Q. {p['quarteirao']} - {p['Localidade']}"
-            ET.SubElement(pm, "description").text = f"Estrato {p['estrato']} | Imóveis RG: {p['imoveis_rg'] if p['imoveis_rg'] is not None else 'não disponível'} | Meta RG {p['fracao']:.0%}: {p['meta_rg'] if p['meta_rg'] is not None else 'não disponível'}"
+            ET.SubElement(pm, "name").text = f"Q. {p['quarteirao']} - {p['Localidade']}" + (" (Adicional)" if p['adicional'] else "")
+            ET.SubElement(pm, "description").text = f"{p['origem']} | Estrato {p['estrato']} | Imóveis RG: {p['imoveis_rg'] if p['imoveis_rg'] is not None else 'não disponível'} | Meta RG {p['fracao']:.0%}: {p['meta_rg'] if p['meta_rg'] is not None else 'não disponível'}"
             color = colors[(int(p["estrato"]) - 1) % len(colors)]
             abgr = color[4:6] + color[2:4] + color[:2]
             style = ET.SubElement(pm, "Style")

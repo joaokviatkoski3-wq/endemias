@@ -265,12 +265,14 @@ def _contexto(conn, id_ciclo):
         sorteados[row["id_estrato"]] = {
             (item["id_localidade"], _quarteirao(item["quarteirao"]))
             for item in json.loads(row["selecionados_json"])}
-    from app_core.liraa_operacional import plano_hash_conn
-    return cycle, nomes, estratos, sorteados, plano_hash_conn(conn, id_ciclo)
+    from app_core.liraa_operacional import plano_hash_conn, adicionais_conn
+    hash_plano = plano_hash_conn(conn, id_ciclo)
+    adicionais = adicionais_conn(conn, id_ciclo, hash_plano)
+    return cycle, nomes, estratos, sorteados, hash_plano, adicionais
 
 
 def _vincular(item, context):
-    cycle, nomes, estratos, sorteados, hash_atual = context
+    cycle, nomes, estratos, sorteados, hash_atual, adicionais = context
     if item.get("form_ciclo") and str(item["form_ciclo"]) != str(cycle["id_ciclo"]):
         return None, None, "formulario_de_outro_ciclo"
     if item.get("plano_hash") and item["plano_hash"] != hash_atual:
@@ -290,6 +292,8 @@ def _vincular(item, context):
         return localidade_id, None, "fora_do_estrato"
     if estrato_id not in sorteados:
         return localidade_id, estrato_id, "estrato_sem_sorteio"
+    if (localidade_id, item["quarteirao"]) in adicionais:
+        return localidade_id, estrato_id, "adicional"
     if (localidade_id, item["quarteirao"]) not in sorteados[estrato_id]:
         return localidade_id, estrato_id, "fora_do_sorteio"
     return localidade_id, estrato_id, "sorteado"
@@ -477,7 +481,7 @@ def corrigir(target, id_visita, payload, auditar=None):
             if tipo_boletim(new["tipo_imovel"]) is None:
                 raise LiraaKoboError("Selecione um tipo de imóvel válido.")
             new["id_localidade"], new["id_estrato"], new["situacao_vinculo"] = _vincular(new, _contexto(conn, old["id_ciclo"]))
-            if new["situacao_vinculo"] != "sorteado":
+            if new["situacao_vinculo"] not in {"sorteado", "adicional"}:
                 raise LiraaKoboError("A correção deve corresponder ao ciclo, período e quarteirão sorteado: " + new["situacao_vinculo"].replace("_", " "))
             leitura = conn.execute("""SELECT MIN(l.data_leitura) FROM liraa_leituras l
                 JOIN liraa_visita_tubitos t ON t.id_tubito=l.id_tubito WHERE t.id_visita=?""", (id_visita,)).fetchone()[0]

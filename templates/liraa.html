@@ -72,6 +72,7 @@
   <div class="liraa-card"><strong>{{ dados.ciclos|length }}</strong><span>ciclos planejados</span></div>
 </div>
 <div class="liraa-note"><strong>Em homologação — não usar o sorteio como plano oficial de campo.</strong> A ordem territorial e o cálculo ainda precisam ser confrontados com o programa LIRAa/LIA. Todos os quarteirões da camada são tratados como urbanos nesta fase. Confira áreas rurais, imóveis pendentes e condomínios. O RG é somente referência; informe o número de imóveis <em>confirmado</em> para cada estrato. Pontos Estratégicos não entram nessa prévia.</div>
+{% if operacao is defined and operacao.get('plano') and operacao.plano.get('total_adicionais', 0) %}<p class="liraa-note">Este ciclo tem {{ operacao.plano.total_sorteados }} quarteirões sorteados e {{ operacao.plano.total_adicionais }} adicionais de campo. Consulte os {{ operacao.plano.quarteiroes|length }} quarteirões em <a href="{{ url_for('liraa.page', ciclo=operacao.plano.ciclo.id_ciclo) }}#liraa-tab-campo">Plano de campo e exportação</a>. A lista do sorteio original abaixo permanece preservada.</p>{% endif %}
 <section class="liraa-panel">
   <h2>Base territorial por localidade</h2>
   <p class="liraa-muted">Fonte: {{ dados.fonte }}. No LIRAa, cada registro de imóvel conta uma vez: um condomínio (COND) com 20 unidades conta como <strong>1 imóvel</strong>. PE e referências (REF) são excluídos. Quarteirão sem RG não significa zero imóvel. Essa referência não altera o N confirmado nem os sorteios já salvos.</p>

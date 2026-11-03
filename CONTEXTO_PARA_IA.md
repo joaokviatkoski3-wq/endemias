@@ -1,6 +1,6 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 30/10/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 03/11/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
@@ -8,7 +8,9 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
 
-- Código `1.73.0`: correções da auditoria LIRAa, com importação compatível com o formulário aprovado manualmente, proteção do plano real, revisão administrativa e avisos de inconsistência. Os dados salvos de ciclos/estratos/sorteios são reais e serão usados no próximo levantamento; somente as visitas existentes foram identificadas pelo usuário como testes. Não apagar nem recalcular o plano. ACS continuam editáveis futuramente e o download do ciclo aprovado atualiza somente sua lista, preservando o restante do XLSForm. Sem nova migração. Serviço observado em `1.72.4` em 30/10; ativação de `1.73.0` depende de reinício autorizado. Ver `docs/LIRAA_CORRECOES_2026_10.md`.
+- Código `1.73.1`: os 6 quarteirões acrescentados manualmente ao formulário foram confirmados pelo usuário como ampliação real de campo. Registro versionado em `app_core/data/liraa_adicionais.json`, vinculado ao ciclo 4 e à assinatura original: Rosana 1030/1032, São João Batista 613/619 e Tranqueira 518/548. O plano passa a 261 sorteados + 6 adicionais = 267, sem alterar tabelas, N, sorteio, histórico, assinatura ou XLSX aprovado. Importação, mapa, KML, PDFs, laboratório e boletim identificam adicionais; os totais os incluem com detalhamento separado. ACS continuam editáveis. Conferência prévia somente leitura no PostgreSQL real confirmou correspondência integral com o formulário, sem falta de RG/geometria. Serviço `1.73.0` confirmado ativo em 03/11; ativação da correção `1.73.1` ainda será verificada. Ver `docs/LIRAA_CORRECOES_2026_10.md`.
+
+- Código `1.73.0`: correções da auditoria LIRAa, com importação compatível com o formulário aprovado manualmente, proteção do plano real, revisão administrativa e avisos de inconsistência. Os dados salvos de ciclos/estratos/sorteios são reais e serão usados no próximo levantamento; somente as visitas existentes foram identificadas pelo usuário como testes. Não apagar nem recalcular o plano. ACS continuam editáveis futuramente e o download do ciclo aprovado atualiza somente sua lista, preservando o restante do XLSForm. Sem nova migração. O reinício autorizado terminou em 30/10 às 17h46, depois da confirmação administrativa do Windows; `1.73.0` foi confirmada novamente ativa em 03/11. Assinaturas das 11 tabelas LIRAa preservadas antes/depois daquele reinício. Ver `docs/LIRAA_CORRECOES_2026_10.md`.
 
 - Versão `1.68.0` integrada na `master` (`c726f56`) e ativa em 08/10/2026 às 10h18, após autorização e reinício: exportação limpa XLSX dos RGs selecionados em Territorialização > RG > Impressão e planilhas, preservando a impressão/PDF. Sem migração ou alterações de dados. `/login` confirmou HTTP 200 com `Endemias v1.68.0`; exportação em PostgreSQL conferida com 2 RGs e 232 linhas. Contagens das 91 tabelas e 19 assinaturas territoriais/LIRAa preservadas. Ver `docs/RG_EXPORTACAO_PLANILHAS.md` e `docs/ESTADO_ATUAL_PROJETO.md`.
 

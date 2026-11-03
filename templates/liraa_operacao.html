@@ -12,16 +12,17 @@
 </form>
 {% endmacro %}
 <section class="liraa-panel" id="liraa-tab-campo" role="tabpanel" hidden>
-  <h2>Plano de campo — quarteirões sorteados</h2>
+  <h2>Plano de campo — sorteados e adicionais</h2>
   {{ filtros('campo') }}
   {% if operation.get('erro') %}<p class="liraa-note" role="alert">{{ operation.erro }}</p>{% endif %}
   {% if plan %}
   <div class="liraa-grid"><div class="liraa-card"><strong>{{ plan.quarteiroes|length }}</strong><span>quarteirões neste filtro</span></div><div class="liraa-card"><strong>{{ plan.quarteiroes|sum(attribute='meta_rg', start=0) if not plan.sem_rg else 'Incompleta' }}</strong><span>meta operacional RG</span></div><div class="liraa-card"><strong>{{ plan.sem_rg }}</strong><span>quarteirões sem RG</span></div></div>
+  {% if plan.get('total_adicionais', 0) %}<p class="liraa-note">{{ plan.total_sorteados }} sorteados + {{ plan.total_adicionais }} adicionais de campo neste filtro. Os adicionais foram incluídos por decisão do setor; o sorteio e a amostra programada originais permanecem preservados.</p>{% endif %}
   <p class="liraa-muted">A referência é 20% / 50% dos imóveis do RG, arredondada para cima por quarteirão. Não substitui a amostra estatística do estrato. PE e referências não entram; cada condomínio conta como 1 imóvel, independentemente das unidades.</p>
   <div class="liraa-actions"><a class="liraa-btn" href="{{ url_for('liraa.exportar_plano', id_ciclo=plan.ciclo.id_ciclo, formato='kml', estrato=request.args.get('estrato',''), localidade=request.args.get('localidade','')) }}">Exportar KML com cores</a><a class="liraa-btn" href="{{ url_for('liraa.exportar_plano', id_ciclo=plan.ciclo.id_ciclo, formato='pdf', estrato=request.args.get('estrato',''), localidade=request.args.get('localidade','')) }}">PDF do plano de campo</a></div>
   <p id="liraa-campo-status" class="liraa-status" role="status"></p>
   <div id="liraa-campo-mapa" class="liraa-map" data-url="{{ url_for('liraa.plano_mapa', id_ciclo=plan.ciclo.id_ciclo, estrato=request.args.get('estrato',''), localidade=request.args.get('localidade','')) }}"></div>
-  <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Estrato / localidade</th><th>Quarteirão</th><th>Imóveis RG</th><th>Referência a trabalhar</th></tr></thead><tbody>{% for q in plan.quarteiroes %}<tr><td>{{ q.estrato }} / {{ q.localidade }}</td><td>{{ q.quarteirao_exibicao }}</td><td>{{ q.unidades_rg if q.unidades_rg is not none else 'Sem RG' }}</td><td>{{ q.meta_rg if q.meta_rg is not none else 'Não disponível' }} ({{ (q.fracao*100)|int }}%)</td></tr>{% endfor %}</tbody></table></div>
+  <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Estrato / localidade</th><th>Quarteirão</th><th>Origem</th><th>Imóveis RG</th><th>Referência a trabalhar</th></tr></thead><tbody>{% for q in plan.quarteiroes %}<tr><td>{{ q.estrato }} / {{ q.localidade }}</td><td>{{ q.quarteirao_exibicao }}</td><td>{{ 'Adicional de campo' if q.adicional else 'Sorteio original' }}</td><td>{{ q.unidades_rg if q.unidades_rg is not none else 'Sem RG' }}</td><td>{{ q.meta_rg if q.meta_rg is not none else 'Não disponível' }} ({{ (q.fracao*100)|int }}%)</td></tr>{% endfor %}</tbody></table></div>
   {% else %}<p>Escolha um ciclo com estratos sorteados.</p>{% endif %}
 </section>
 {% if is_admin %}
@@ -53,6 +54,7 @@
   {% for g in boletim.grupos %}<article class="liraa-stratum"><h3>Estrato {{ g.estrato }} · {{ g.localidade }}</h3>
     {% if g.parcial %}<p class="liraa-note">PARCIAL: {{ g.pendentes }} tubitos sem leitura; {{ g.tipos_invalidos }} imóveis sem tipo válido; {{ g.depositos_invalidos }} recipientes aegypti sem código válido; {{ g.get('coletas_inconsistentes', 0) }} visitas com coleta inconsistente; {{ g.get('visitas_suspeitas', 0) }} possíveis visitas duplicadas; {{ g.get('tubitos_repetidos', 0) }} números de tubito repetidos; {{ g.get('quarteiroes_sem_visita', 0) }} quarteirões sem visita. Os positivos abaixo são os já confirmados; suspeitas permanecem nos totais até conferência.</p>{% endif %}
     <p>Programados no estrato: {{ g.programados }}{% if boletim.agrupar == 'localidade' %} (amostra do estrato inteiro, não só desta localidade){% endif %} · Trabalhados neste filtro: {{ g.trabalhados }} · Leituras: {{ g.leituras }} / {{ g.tubitos }}</p>
+    {% if g.get('quarteiroes_adicionais', 0) %}<p>Os totais incluem adicionais de campo: {{ g.quarteiroes_adicionais }} quarteirões, {{ g.trabalhados_adicionais }} imóveis trabalhados e {{ g.tubitos_adicionais }} tubitos. Desses imóveis adicionais, {{ g.positivos_adicionais_aegypt }} positivos para aegypti e {{ g.positivos_adicionais_albopictus }} para albopictus. O número programado do sorteio não foi recalculado.</p>{% endif %}
     <p class="liraa-muted">Referência operacional RG neste filtro: {{ g.referencia_rg }} imóveis conhecidos · {{ g.sem_rg }} quarteirões sem RG. Não substitui os programados do estrato.</p>
     <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Espécie</th><th>Terrenos baldios positivos</th><th>Outros imóveis positivos</th><th>Recipientes positivos</th></tr></thead><tbody><tr><td>Aedes aegypti</td><td>{{ g.aegypt_tb }}</td><td>{{ g.aegypt_outros }}</td><td>{{ g.aegypt_total }}</td></tr><tr><td>Aedes albopictus</td><td>{{ g.albopictus_tb }}</td><td>{{ g.albopictus_outros }}</td><td>{{ g.albopictus_total }}</td></tr></tbody></table></div>
     <p>Aegypti por depósito: {% for code, count in g.aegypt_recipientes.items() %}{{ code }}: {{ count }}{% if not loop.last %} · {% endif %}{% endfor %}</p>

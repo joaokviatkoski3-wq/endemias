@@ -1,7 +1,50 @@
 # LIRAa — correções e preparação para novembro de 2026
 
 Código `1.73.0`, preparado em 30/10/2026 a partir de `ad5e05f`.
-Não implica ativação no serviço nem homologação do levantamento real.
+O reinício autorizado terminou em 30/10/2026 às 17h46, confirmado em 03/11
+por HTTP 200 em `/login`. As assinaturas das 11 tabelas LIRAa e o SQLite
+congelado permaneceram preservados. Isso não substitui a homologação em campo.
+
+## Ampliação autorizada — 1.73.1
+
+Em 03/11, o usuário confirmou que acrescentou manualmente seis quarteirões e
+decidiu trabalhar mais do que o sorteio original. Eles permanecem no XLSX:
+
+| Localidade | Quarteirões adicionais |
+|---|---|
+| Rosana | 1030, 1032 |
+| São João Batista | 613, 619 |
+| Tranqueira | 518, 548 |
+
+O registro `app_core/data/liraa_adicionais.json` conserva essa autorização,
+ciclo e assinatura. Os adicionais são vinculados aos estratos existentes;
+o plano de campo reúne **261 sorteados + 6 adicionais = 267**. Não é um novo
+sorteio: não modifica N, n, intervalo, IC, universo/seleção congelados ou
+histórico. A assinatura embutida no formulário permanece válida e o arquivo
+XLSX aprovado não muda. A lista de ACS continua editável.
+
+`adicionais_conn` valida ciclo/assinatura e pertencimento ao estrato, impede
+repetição e impede marcar como adicional um quarteirão já sorteado. Importação
+e correção reconhecem o vínculo `adicional`, preservando todas as demais
+verificações de período/plano. Qualquer outro quarteirão não autorizado
+continua fora do sorteio/plano.
+
+Os adicionais são visíveis no plano de campo, mapa com contorno tracejado e
+rótulo (+), KML, PDFs, visitas e laboratório. O boletim inclui seus imóveis,
+tubitos e positivos nos totais, com detalhamento dos adicionais, sem recalcular
+a amostra programada original. As tabelas de sorteio continuam sendo o registro
+dos 261 selecionados originalmente. Nenhuma migração é necessária.
+
+A prévia do código em transações somente leitura no PostgreSQL oficial em
+03/11 confirmou: assinatura correta, 5 sorteios, 6 adicionais nos estratos
+existentes, os 267 quarteirões do formulário correspondentes ao plano de campo,
+nenhum quarteirão sem RG ou geometria e nenhuma visita no ciclo. Não houve
+inserção de visita de teste ou publicação no Kobo.
+
+Validação da ampliação: 853 testes gerais sem falhas (5 ignorados), 68 testes
+LIRAa focados finais, 2 testes JavaScript, ensaio PostgreSQL 18 em cluster
+descartável com importação/leitura/boletim adicional e PDFs A4 renderizados.
+Os testes conferem que as tabelas e a assinatura do sorteio não mudam.
 
 ## Dados que devem ser preservados
 
@@ -109,8 +152,8 @@ fluxo do programa oficial conforme o escopo já registrado.
   Cobre os novos tipos, “Outros”, complementos, correção, proteção e reimportação.
 - PDFs sintéticos com novos alertas foram renderizados e conferidos em A4 retrato.
 - Não há nova migração. Nenhum POST/publicação no Kobo ou escrita em produção.
-- A integração do código exige reinício autorizado para ativar `1.73.0`.
-  O serviço observado durante a preparação continuou em `1.72.4`.
+- `1.73.0` foi ativada posteriormente, em 30/10 às 17h46. A correção `1.73.1`
+  será conferida após seu reinício no fluxo autorizado.
 
 Em console administrativo autorizado, a conferência do cadastro real pode ser
 executada com:
@@ -122,8 +165,10 @@ python scripts/verificar_liraa_prontidao.py --confirmar-leitura "CONFERIR LIRAA 
 O script força transações PostgreSQL somente leitura em todas as conexões
 internas e compara o ciclo, assinatura, pares localidade/quarteirão, sorteios,
 RG e geometrias com o formulário aprovado. Não recalcula sorteios nem grava
-cadastros. A sessão de implementação não obteve a credencial protegida;
-a conferência real continua pendente e não pode ser declarada concluída.
+cadastros. A sessão de implementação inicial não obteve a credencial protegida;
+a conferência posterior foi concluída em contexto administrativo autorizado,
+sem copiar credenciais ou alterar permissões. A diferença inicial 261/267
+foi esclarecida pelo usuário como ampliação intencional e incorporada ao plano.
 
 Antes do campo, falta o ensaio operacional no aparelho usando o formulário
 aprovado, período correto, envio offline/online, importação, laboratório e

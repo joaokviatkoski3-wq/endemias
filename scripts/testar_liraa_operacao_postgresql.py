@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from app_core import db, liraa, liraa_operacional as op, liraa_xlsform, liraa_kobo, liraa_laboratorio as lab, liraa_boletim
+from app_core import db, liraa, liraa_operacional as op, liraa_xlsform, liraa_kobo, liraa_laboratorio as lab, liraa_boletim, liraa_modelo
 
 
 class Shared:
@@ -88,7 +88,22 @@ def executar(database):
             liraa_kobo.permitir_reimportacao(database,payload['_uuid'],'Reimportação conferida')
             assert liraa_kobo.importar(database,cid,[payload])==1
             assert lab.listar(database,cid)[0]['leitura_id'] is None
-        print('[OK] Migração 0026, histórico, XLSForm, Outros, tipos publicados, ACS, correção, proteção do plano e reimportação: PostgreSQL temporário.')
+            extra_q=next(row['quarteirao'] for row in universe if row['quarteirao'] not in {r['quarteirao'] for r in draw['selecionados']})
+            adicionais={'ciclo':cid,'plano_hash':hash_plano,'quarteiroes':[{'localidade':'Sede','quarteirao':extra_q}]}
+            with patch.object(liraa_modelo,'adicionais',return_value=adicionais):
+                plano=op.plano(database,cid)
+                assert plano['total_adicionais']==1 and plano['total_sorteados']==len(draw['selecionados'])
+                extra={**payload,'_uuid':'adicional-temporario',
+                       'Dados_visita':{'Localidade':'centro','Quarteir_o':extra_q,'Imovel':'residencia'},
+                       'group_jr1vc40':[{'N_mero_do_tubito':2,'C_digo_do_dep_sito':'B'}]}
+                assert liraa_kobo.importar(database,cid,[extra])==1
+                t=next(t for t in lab.listar(database,cid) if t['situacao_vinculo']=='adicional')
+                lab.salvar(database,t['id_tubito'],{'data_leitura':date.today().isoformat(),**{f:'0' for f in lab.CAMPOS},'aegypt_larvas':'1'},
+                           {'nivel':'admin','id_usuario':1,'nome':'Ensaio'})
+                g=liraa_boletim.resumir(database,cid)['grupos'][0]
+                assert g['trabalhados_adicionais']==1 and g['positivos_adicionais_aegypt']==1 and g['trabalhados']==2
+                assert op.plano_hash_conn(conn,cid)==hash_plano
+        print('[OK] Migração 0026, histórico, XLSForm, tipos, ACS, correção, proteção, reimportação e adicionais: PostgreSQL temporário.')
     finally:
         conn.close()  # Todas as tabelas e sequências temporárias somem nesta sessão.
 

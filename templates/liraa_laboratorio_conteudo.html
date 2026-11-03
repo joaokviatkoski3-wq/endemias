@@ -12,6 +12,7 @@
   </form>
   {% for t in lab.rows %}<details style="margin:14px 0;padding:14px;border:1px solid var(--border);border-radius:8px">
     <summary><span class="badge">LIRAA</span> <strong>Tubo {{ t.numero or 'sem número' }}</strong> · {{ t.localidade_informada }} / Q. {{ t.quarteirao }} · {{ t.data_visita }} · {{ 'Lido' if t.leitura_id else 'Pendente' }}</summary>
+    {% if t.get('situacao_vinculo') == 'adicional' %}<p>Adicional de campo autorizado.</p>{% endif %}
     <p>{{ t.logradouro or '' }}, {{ t.numero_imovel or 'S/N' }} · Depósito: {{ t.codigo_deposito or 'Sem código' }} / {{ t.deposito or 'Não informado' }}</p>
     {% if t.get('numero_repetido') %}<p role="alert">Número de tubito repetido neste ciclo. Confira o rótulo, a visita e a equipe antes de lançar a leitura.</p>{% endif %}
     {% if t.leitura_id %}<p>Leitura {{ t.data_leitura }} por {{ t.laboratorista }}</p>{% endif %}

@@ -16,6 +16,8 @@ def resumir(target, id_ciclo, base_dir=None, agrupar="estrato", id_estrato=None,
                 "referencia_rg": 0, "sem_rg": 0, "trabalhados": 0,
                 "pendentes": 0, "tubitos": 0, "leituras": 0, "tipos_invalidos": 0,
                 "coletas_inconsistentes": 0, "visitas_suspeitas": 0, "tubitos_repetidos": 0,
+                "quarteiroes_adicionais": 0, "trabalhados_adicionais": 0, "tubitos_adicionais": 0,
+                "positivos_adicionais_aegypt": set(), "positivos_adicionais_albopictus": set(),
                 "_visitados": set(),
                 "depositos_invalidos": 0, "aegypt_tb": set(), "aegypt_outros": set(),
                 "albopictus_tb": set(), "albopictus_outros": set(),
@@ -23,6 +25,7 @@ def resumir(target, id_ciclo, base_dir=None, agrupar="estrato", id_estrato=None,
                 "aegypt_total": 0, "albopictus_total": 0}
         g = grupos[key]
         g["quarteiroes"] += 1
+        g["quarteiroes_adicionais"] += q["adicional"]
         g["sem_rg"] += q["meta_rg"] is None
         g["referencia_rg"] += q["meta_rg"] or 0
     conn = db.connect(target)
@@ -39,7 +42,7 @@ def resumir(target, id_ciclo, base_dir=None, agrupar="estrato", id_estrato=None,
         for row in conn.execute("SELECT * FROM liraa_visitas WHERE id_ciclo=? ORDER BY id_visita", (id_ciclo,)):
             v = db.serialize_row(row)
             loc, estrato, status = liraa_kobo._vincular(v, context)
-            if status != "sorteado":
+            if status not in {"sorteado", "adicional"}:
                 excluded += 1
                 continue
             key = (estrato, loc if agrupar == "localidade" else None)
@@ -47,6 +50,7 @@ def resumir(target, id_ciclo, base_dir=None, agrupar="estrato", id_estrato=None,
                 continue
             g = grupos[key]
             g["trabalhados"] += 1
+            g["trabalhados_adicionais"] += status == "adicional"
             g["_visitados"].add((loc, v["quarteirao"]))
             g["coletas_inconsistentes"] += bool(liraa_kobo.avisos_coleta(v, tubes.get(v["id_visita"], [])))
             g["visitas_suspeitas"] += v["id_visita"] in visitas_suspeitas
@@ -55,6 +59,7 @@ def resumir(target, id_ciclo, base_dir=None, agrupar="estrato", id_estrato=None,
                 g["tipos_invalidos"] += 1
             for tube in tubes.get(v["id_visita"], []):
                 g["tubitos"] += 1
+                g["tubitos_adicionais"] += status == "adicional"
                 g["tubitos_repetidos"] += tube["id_tubito"] in tubos_repetidos
                 reading = readings.get(tube["id_tubito"])
                 if reading is None:
@@ -65,6 +70,8 @@ def resumir(target, id_ciclo, base_dir=None, agrupar="estrato", id_estrato=None,
                     if reading[f"{specie}_larvas"] + reading[f"{specie}_pupas"] <= 0:
                         continue
                     g[f"{specie}_total"] += 1
+                    if status == "adicional":
+                        g[f"positivos_adicionais_{specie}"].add(v["id_visita"])
                     if tipo:
                         g[f"{specie}_{tipo}"].add(v["id_visita"])
                     if specie == "aegypt":
@@ -74,7 +81,8 @@ def resumir(target, id_ciclo, base_dir=None, agrupar="estrato", id_estrato=None,
                         else:
                             g["depositos_invalidos"] += 1
         for g in grupos.values():
-            for field in ("aegypt_tb", "aegypt_outros", "albopictus_tb", "albopictus_outros"):
+            for field in ("aegypt_tb", "aegypt_outros", "albopictus_tb", "albopictus_outros",
+                          "positivos_adicionais_aegypt", "positivos_adicionais_albopictus"):
                 g[field] = len(g[field])
             g["quarteiroes_sem_visita"] = g["quarteiroes"] - len(g.pop("_visitados"))
             g["parcial"] = any(g[f] for f in ("pendentes", "tipos_invalidos", "depositos_invalidos",

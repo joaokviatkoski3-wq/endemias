@@ -66,7 +66,7 @@ def listar(target, ciclo=None, pendentes=False, offset=0):
         if pendentes:
             conditions.append("l.id_tubito IS NULL")
         where = " WHERE " + " AND ".join(conditions) if conditions else ""
-        rows = [db.serialize_row(r) for r in conn.execute("""SELECT t.*,v.id_ciclo,v.data_visita,
+        rows = [db.serialize_row(r) for r in conn.execute("""SELECT t.*,v.id_ciclo,v.data_visita,v.situacao_vinculo,
             v.localidade_informada,v.quarteirao,v.logradouro,v.numero AS numero_imovel,
             l.id_tubito AS leitura_id,l.data_leitura,l.laboratorista,l.id_usuario,l.observacoes,l.atualizado_em,
             l.aegypt_larvas,l.aegypt_pupas,l.albopictus_larvas,l.albopictus_pupas,l.outra_larvas,l.outra_pupas

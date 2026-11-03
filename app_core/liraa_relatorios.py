@@ -51,14 +51,14 @@ def plano_pdf(target, id_ciclo, base_dir=None, id_estrato=None, id_localidade=No
         absent=sum(q['unidades_rg'] is None for q in chosen)
         story += [_p(f"Estrato {e['numero']} — resumo", 'Heading2'),
                   _p(f"N confirmado (estrato inteiro): {e['imoveis_confirmados']} | Amostra programada: {e['sorteio']['n']} imóveis | Plano: {e['sorteio']['q']} quarteirões | Sorteados: {len(e['sorteio']['selecionados'])}"),
-                  _p(f"Neste filtro: {len(chosen)} quarteirões; {known} imóveis RG conhecidos; referência a trabalhar: {meta}; {absent} quarteirões sem RG."),Spacer(1,8)]
+                  _p(f"Neste filtro: {len(chosen)} quarteirões, incluindo {sum(q['adicional'] for q in chosen)} adicionais de campo; {known} imóveis RG conhecidos; referência a trabalhar: {meta}; {absent} quarteirões sem RG. O sorteio original foi preservado."),Spacer(1,8)]
     for g in data["grupos"]:
         story += [_p(f"Estrato {g['estrato']} — {g['localidade']}", "Heading2"),
                   _p(f"{g['quarteiroes']} quarteirões | Fração {g['fracao']:.0%} | {g['sem_rg']} sem RG")]
         rows = [["Quarteirão municipal", "Imóveis RG (sem PE)", f"Referência {g['fracao']:.0%}"]]
         for q in data["quarteiroes"]:
             if q["id_estrato"] == g["id_estrato"] and q["id_localidade"] == g["id_localidade"]:
-                rows.append([q["quarteirao_exibicao"], q["unidades_rg"] if q["unidades_rg"] is not None else "Sem RG",
+                rows.append([q["quarteirao_exibicao"] + (" (adicional)" if q["adicional"] else ""), q["unidades_rg"] if q["unidades_rg"] is not None else "Sem RG",
                              q["meta_rg"] if q["meta_rg"] is not None else "Não disponível"])
         rows.append(["TOTAL conhecido" if g["sem_rg"] else "TOTAL", g["unidades_rg"], g["meta_rg"]])
         story += [_table(rows, [180,180,175]), Spacer(1,12)]
@@ -76,6 +76,8 @@ def boletim_pdf(target, id_ciclo, base_dir=None, agrupar="estrato", id_estrato=N
         story += [_p("Resumo do Boletim de Campo e Laboratório — LIRAa", "Heading1"),
                   _p(f"Município: Almirante Tamandaré | Estado: PR | Estrato: {g['estrato']}"),
                   _p(f"{data['ciclo']['ano']} / {data['ciclo']['nome']} | {g['localidade']}"), Spacer(1,12)]
+        if g["quarteiroes_adicionais"]:
+            story.append(_p(f"Totais incluem adicionais de campo: {g['quarteiroes_adicionais']} quarteirões, {g['trabalhados_adicionais']} imóveis trabalhados e {g['tubitos_adicionais']} tubitos. Entre os imóveis adicionais: {g['positivos_adicionais_aegypt']} positivos para aegypti e {g['positivos_adicionais_albopictus']} para albopictus. A amostra programada original não foi recalculada."))
         if data["excluidas"] or data["sem_sorteio"]:
             story.append(_p(f"REVISÃO DO CICLO PENDENTE: {data['excluidas']} visitas fora do plano/período e {data['sem_sorteio']} estratos sem sorteio. Não utilizar como fechamento antes da conferência."))
         if g["parcial"]:

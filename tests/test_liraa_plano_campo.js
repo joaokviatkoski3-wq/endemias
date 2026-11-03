@@ -20,6 +20,7 @@ const L={map:()=>({setView(){return this},invalidateSize(){invalidations++},fitB
     assert.ok(popup.includes('&lt;script&gt;'));
     assert.ok(popup.includes('Sem RG'));
     assert.equal(options.style(feature).color,'#dc2626');
+    assert.equal(options.style({...feature,properties:{...feature.properties,adicional:true}}).dashArray,'6 4');
     return {addTo(){return this},getBounds:()=>({isValid:()=>true})};
   }};
 const ctx={window:{L},L,document:{getElementById:id=>id==='liraa-campo-mapa'?box:status,

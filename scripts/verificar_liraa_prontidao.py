@@ -46,7 +46,8 @@ def executar():
                    if r["list_name"] == "endemias_quarteiroes" and r["name"] != "outros"}
     finally:
         w.close()
-    result.update(quarteiroes_sorteados=len(plano["quarteiroes"]), estratos_sem_sorteio=plano["sem_sorteio"],
+    result.update(quarteiroes_sorteados=plano["total_sorteados"], quarteiroes_adicionais=plano["total_adicionais"],
+                  quarteiroes_plano_campo=len(plano["quarteiroes"]), estratos_sem_sorteio=plano["sem_sorteio"],
                   quarteiroes_sem_rg=plano["sem_rg"], geometrias_ausentes=plano["geometrias_ausentes"],
                   quarteiroes_formulario_conferem=quarteiroes == {(q["localidade"], liraa_kobo._quarteirao(q["quarteirao"])) for q in plano["quarteiroes"]},
                   acs_definidos=bool(op.configuracao(target, cid)["acs_definidos"]))

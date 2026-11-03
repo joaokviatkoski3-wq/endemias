@@ -1,8 +1,17 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 30/10/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 03/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
+
+## Ampliação de campo confirmada em 03/11/2026 — código 1.73.1
+
+- Usuário esclareceu que os quarteirões extras do formulário são intencionais e devem permanecer no sistema. São Rosana **1030 e 1032**, São João Batista **613 e 619**, Tranqueira **518 e 548**.
+- Os 6 adicionais estão registrados em `app_core/data/liraa_adicionais.json`, vinculados ao ciclo 4 e à assinatura do sorteio aprovado. Pertencem aos estratos já cadastrados. O plano de campo tem **261 sorteados + 6 adicionais = 267**; o sorteio congelado, N/n, sua assinatura/histórico e o formulário aprovado não são reescritos. Sem migração ou escrita nas tabelas do planejamento.
+- Mapa, KML e PDFs identificam os adicionais. A importação usa vínculo `adicional`, respeitando ciclo/período/assinatura/estrato, e o laboratório os identifica. Os boletins incluem os resultados adicionais nos totais, detalhando quantos imóveis/tubitos/positivos vieram da ampliação. A amostra programada original é mantida.
+- Prévia somente leitura executada no PostgreSQL real com o código novo: assinatura confere, 5 sorteios, 267 quarteirões de campo correspondentes ao formulário, sem estratos sem sorteio, quarteirões sem RG ou geometrias ausentes; nenhuma visita no ciclo. Os ACS ainda não são considerados uma definição definitiva e continuam editáveis.
+- Em 03/11, `/login` confirmou HTTP 200 com `1.73.0`. A ativação anterior terminou em **30/10/2026 às 17h46**, após confirmação UAC, e preservou contagens/assinaturas das **11 tabelas LIRAa** e o SQLite congelado. O processo havia ficado aguardando a confirmação do Windows no encerramento do chat e terminou depois.
+- Validação de `1.73.1`: **853 testes gerais sem falhas (5 ignorados)**, 68 focados finais, 2 testes JS, ensaio PostgreSQL 18 descartável e PDFs renderizados/conferidos. A ativação será conferida no mesmo fluxo autorizado. Ver `docs/LIRAA_CORRECOES_2026_10.md` para evidências finais.
 
 ## Lote LIRAa de 30/10/2026 — código 1.73.0
 
@@ -13,7 +22,7 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 - O plano completo fica protegido após importações. O ciclo do formulário aprovado permanece protegido mesmo depois de excluir as visitas de teste. Edição, importação e sorteio usam bloqueios na mesma ordem; datas devem pertencer ao ano do ciclo.
 - Admin pode corrigir os dados locais da visita, com motivo, auditoria e versão; UUID/plano/tubitos/leituras são preservados. Há liberação explícita de reimportação de um envio excluído, sem recuperar leituras apagadas. Admin também pode corrigir número de tubito ao lançar/corrigir a leitura.
 - Boletim/PDF sinalizam revisão de campo e laboratório, inclusive quarteirões sem visitas. Os índices finais, CV e `.lira` continuam no escopo registrado anteriormente, com fechamento no programa oficial.
-- Sem migração nova e sem alterações de produção neste lote. `/login` foi observado em `1.72.4`; `1.73.0` exige reinício autorizado. A conferência administrativa do plano real continua pendente por falta de credencial nesta sessão. Foi preparado `scripts/verificar_liraa_prontidao.py`, exclusivamente de leitura, para comparar ciclo, assinatura, quarteirões/localidades e geometria com o formulário aprovado.
+- Na preparação inicial, não houve migração ou alteração de produção e o serviço estava em `1.72.4`. O reinício autorizado posterior ativou `1.73.0` em 30/10 às 17h46. A conferência administrativa foi executada em 03/11 e identificou os adicionais intencionais, tratados na seção acima. `scripts/verificar_liraa_prontidao.py` permanece exclusivamente de leitura.
 - Validação: 845 testes gerais sem falha (5 ignorados), 62 testes LIRAa focados finais, 2 testes JS, ensaio PostgreSQL 18 descartável e inspeção visual do PDF com os alertas. A cópia aprovada do formulário manteve o SHA-256 original. A ativação em produção não foi realizada durante a implementação.
 - Ver `docs/LIRAA_CORRECOES_2026_10.md` para operação, verificações e pendências. Os registros abaixo documentam implantações históricas e não autorizam reaplicar migrações ou reiniciar o serviço.
 

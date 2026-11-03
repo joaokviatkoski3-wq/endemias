@@ -1,0 +1,13 @@
+{
+  "ciclo": 4,
+  "plano_hash": "8a8ba6a1250428885c608b168a82a29232d66e67f29e3a0c05b1970fc2aed5ae",
+  "origem": "Ampliação de campo confirmada pelo usuário em 03/11/2026; formulário aprovado",
+  "quarteiroes": [
+    {"localidade": "Rosana", "quarteirao": "1030"},
+    {"localidade": "Rosana", "quarteirao": "1032"},
+    {"localidade": "São João Batista", "quarteirao": "0613"},
+    {"localidade": "São João Batista", "quarteirao": "0619"},
+    {"localidade": "Tranqueira", "quarteirao": "0518"},
+    {"localidade": "Tranqueira", "quarteirao": "0548"}
+  ]
+}

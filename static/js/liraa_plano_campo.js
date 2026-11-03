@@ -28,11 +28,11 @@
       const response = await fetch(box.dataset.url);
       const data = await response.json();
       if (!response.ok) throw new Error(data.erro || `HTTP ${response.status}`);
-      const layer = L.geoJSON(data, {style: f => ({color:colors[(Number(f.properties.estrato)-1)%colors.length],weight:2,fillOpacity:.4}),
+      const layer = L.geoJSON(data, {style: f => ({color:colors[(Number(f.properties.estrato)-1)%colors.length],weight:2,fillOpacity:.4,dashArray:f.properties.adicional?'6 4':null}),
         onEachFeature:(f,l) => {
           const p = f.properties;
-          l.bindTooltip(esc(p.quarteirao), {permanent:true,direction:'center',className:'liraa-map-label'});
-          l.bindPopup(`<strong>Q. ${esc(p.quarteirao)} — ${esc(p.Localidade)}</strong><br>Estrato ${esc(p.estrato)}<br>Imóveis RG: ${esc(p.imoveis_rg ?? 'Sem RG')}<br>Referência ${Math.round(p.fracao*100)}%: ${esc(p.meta_rg ?? 'Não disponível')}`);
+          l.bindTooltip(esc(p.quarteirao)+(p.adicional?' (+)':''), {permanent:true,direction:'center',className:'liraa-map-label'});
+          l.bindPopup(`<strong>Q. ${esc(p.quarteirao)} — ${esc(p.Localidade)}</strong><br>Estrato ${esc(p.estrato)}<br>${p.adicional?'Adicional de campo':'Sorteio original'}<br>Imóveis RG: ${esc(p.imoveis_rg ?? 'Sem RG')}<br>Referência ${Math.round(p.fracao*100)}%: ${esc(p.meta_rg ?? 'Não disponível')}`);
         }}).addTo(map);
       if (layer.getBounds().isValid()) map.fitBounds(layer.getBounds(), {padding:[18,18]});
       status.textContent = data.features.length ? 'Clique em um quarteirão para conferir seus dados.' : 'Nenhum quarteirão sorteado neste filtro.';
