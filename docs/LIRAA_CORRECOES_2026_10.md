@@ -46,6 +46,16 @@ LIRAa focados finais, 2 testes JavaScript, ensaio PostgreSQL 18 em cluster
 descartável com importação/leitura/boletim adicional e PDFs A4 renderizados.
 Os testes conferem que as tabelas e a assinatura do sorteio não mudam.
 
+**Ativação de `1.73.1` concluída em 03/11/2026 às 08h30**, após integração do
+commit `47afeef` e reinício autorizado. `/login` respondeu HTTP 200 exibindo
+`Endemias v1.73.1`. A comparação somente leitura antes/depois confirmou
+contagens/assinaturas iguais nas 11 tabelas LIRAa, e o hash do SQLite congelado
+foi preservado. O verificador do plano retornou código 0 e confirmou os 267
+quarteirões do formulário (261 sorteados + 6 adicionais), 5 sorteios, assinatura
+original válida, nenhum quarteirão sem RG/geometria e nenhuma visita no ciclo.
+Não houve migração, regravação de sorteios, importação, leitura, limpeza de
+registros ou alteração do formulário/Kobo. Os ACS continuam configuráveis.
+
 ## Dados que devem ser preservados
 
 O usuário confirmou que os ciclos, estratos, N confirmado e sorteios salvos
@@ -152,8 +162,8 @@ fluxo do programa oficial conforme o escopo já registrado.
   Cobre os novos tipos, “Outros”, complementos, correção, proteção e reimportação.
 - PDFs sintéticos com novos alertas foram renderizados e conferidos em A4 retrato.
 - Não há nova migração. Nenhum POST/publicação no Kobo ou escrita em produção.
-- `1.73.0` foi ativada posteriormente, em 30/10 às 17h46. A correção `1.73.1`
-  será conferida após seu reinício no fluxo autorizado.
+- `1.73.0` foi ativada em 30/10 às 17h46. A correção `1.73.1` foi ativada
+  em 03/11 às 08h30; os registros de produção foram conferidos e preservados.
 
 Em console administrativo autorizado, a conferência do cadastro real pode ser
 executada com:
