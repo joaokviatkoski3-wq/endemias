@@ -30,7 +30,7 @@
   <h2>Formulário Kobo por ciclo</h2>
   {{ filtros('formulario') }}
   {% if plan %}{% set cfg = plan.ciclo.config|default({'acs': [], 'acs_definidos': 0, 'kobo_uid': ''}) %}
-  <p>Selecione os ACS participantes, salve e baixe o XLSForm. No ciclo do formulário aprovado, o arquivo preserva as alterações manuais e atualiza somente a lista de ACS. Depois envie ao Kobo manualmente e informe o UID do formulário do ciclo. O download não publica nada.</p>
+  <p>Selecione os ACS participantes, salve e baixe o XLSForm. A lista pode ser alterada depois. O arquivo inclui os logradouros do RG de cada quarteirão e a opção “Outro — digitar”. No ciclo aprovado, preserva as demais alterações manuais, inclusive os quarteirões adicionais. Depois substitua e implante o formulário no Kobo manualmente, mantendo o UID do ciclo, e atualize o formulário nos aparelhos. O download não publica nada.</p>
   <form method="post" action="{{ url_for('liraa.configurar_ciclo', id_ciclo=plan.ciclo.id_ciclo) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="liraa-localidades">{% for a in operation.get('acs', []) %}<label><input type="checkbox" name="acs" value="{{ a.codigo }}" {% if a.codigo in cfg.acs|map(attribute='codigo')|list %}checked{% endif %}>{{ a.nome }}</label>{% endfor %}</div>

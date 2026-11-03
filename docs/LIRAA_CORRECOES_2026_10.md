@@ -1,5 +1,9 @@
 # LIRAa — correções e preparação para novembro de 2026
 
+Atualização posterior: a solicitação de logradouros RG em `1.74.0` autoriza
+revisar esse campo no modelo aprovado. Ver `LIRAA_LOGRADOUROS_RG.md`; as
+garantias de preservação do plano e flexibilidade futura dos ACS continuam.
+
 Código `1.73.0`, preparado em 30/10/2026 a partir de `ad5e05f`.
 O reinício autorizado terminou em 30/10/2026 às 17h46, confirmado em 03/11
 por HTTP 200 em `/login`. As assinaturas das 11 tabelas LIRAa e o SQLite
@@ -72,7 +76,9 @@ do plano. A cópia original do usuário permanece inalterada.
 ## ACS continuam configuráveis
 
 Em **Formulário do ciclo**, salvar a relação de participantes e baixar o XLSX.
-Para o ciclo aprovado, o sistema atualiza somente as linhas da lista ACS.
+Na versão `1.73.x`, o ciclo aprovado atualizava somente as linhas da lista ACS.
+Em `1.74.0`, também gera a escolha de logradouros RG e o complemento de Outro,
+com nova versão do formulário, por solicitação expressa do usuário.
 Preserva os campos, grupos, tipos de imóvel, quarteirão “Outros”, coleta
 manual de tubitos, regras, datas, assinatura, configurações e demais escolhas.
 “Nenhum ACS” e “Outros” continuam disponíveis, incluindo `ACS_outros`.

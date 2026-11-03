@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from app_core import db, liraa, liraa_operacional as op, liraa_xlsform, liraa_kobo, liraa_laboratorio as lab, liraa_boletim, liraa_modelo
+from app_core import db, liraa, liraa_operacional as op, liraa_xlsform, liraa_kobo, liraa_laboratorio as lab, liraa_boletim, liraa_modelo, liraa_logradouros
 
 
 class Shared:
@@ -41,6 +41,8 @@ def executar(database):
             sql = next((ROOT/'migrations/postgresql').glob(version+'_*')).read_text(encoding='utf-8')
             conn.execute(sql.replace('CREATE TABLE ', 'CREATE TEMPORARY TABLE '))
         conn.execute("INSERT INTO localidades VALUES(1,'Sede')")
+        conn.execute("CREATE TEMPORARY TABLE registro_geografico_imoveis(id_localidade bigint,quarteirao text,logradouro text)")
+        conn.execute("INSERT INTO registro_geografico_imoveis VALUES(1,'0001','RUA DO ENSAIO')")
         conn.commit()
         universe=[{'id_localidade':1,'localidade':'Sede','quarteirao':str(i).zfill(4),
                    'quarteirao_exibicao':str(i),'unidades_rg':30,'tem_rg':True,
@@ -56,7 +58,8 @@ def executar(database):
             assert len(op.historico_sorteios(database,eid))==1
             q=draw['selecionados'][0]['quarteirao']
             payload={'_uuid':'ensaio-temporario','Data':date.today().isoformat(),
-                     'Dados_visita':{'Localidade':'centro','Quarteir_o':'outros','Quarteir_o_outros':q,'Imovel':'residencia'},
+                     'Dados_visita':{'Localidade':'centro','Quarteir_o':'outros','Quarteir_o_outros':q,'Imovel':'residencia',
+                                     'Logradouro':liraa_logradouros.codigo('Sede',q,'RUA DO ENSAIO')},
                      'ACS':'outros','ACS_outros':'ACS do ensaio','Houve_coleta':'sim',
                      'endemias_ciclo':str(cid),'endemias_plano':op.plano(database,cid)['plano_hash'],
                      'group_jr1vc40':[{'group_jr1vc40/N_mero_do_tubito':1,'group_jr1vc40/C_digo_do_dep_sito':'B'}]}
@@ -70,6 +73,7 @@ def executar(database):
             assert lab.painel(database,{})['total_pendentes']==0
             v=liraa_kobo.listar(database,cid)[0]
             assert v['acs_outros']=='ACS do ensaio'
+            assert v['logradouro']=='RUA DO ENSAIO'
             hash_plano=op.plano_hash_conn(conn,cid)
             op.salvar_configuracao(database,cid,[],'asset123')
             assert op.plano_hash_conn(conn,cid)==hash_plano

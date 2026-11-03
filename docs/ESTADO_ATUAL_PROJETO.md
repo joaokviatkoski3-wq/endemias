@@ -4,6 +4,13 @@ Atualizado em 03/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Logradouros do RG no formulário — código 1.74.0
+
+- Solicitação de 03/11: ao escolher localidade/quarteirão, oferecer as ruas RG correspondentes, com **Outro — digitar** e complemento obrigatório. Lista embutida para uso offline. O importador verifica o contexto da escolha e guarda o nome; aceita texto livre dos formulários anteriores.
+- Essa solicitação autoriza revisar o campo Logradouro do modelo manual aprovado, acrescentar `Logradouro_outro`, lista e versão. Os demais campos/regras, 267 quarteirões com os 6 adicionais, datas, ciclo e assinatura permanecem preservados. A fonte XLSX não muda. Os **ACS ainda são provisórios e podem mudar depois**.
+- Conferência somente leitura do PostgreSQL: 267 quarteirões com 976 opções RG, nenhum sem ruas. Arquivo compilado com pyxform 4.5.0 sem avisos; filtro conferido em 535 combinações. 859 testes gerais sem falhas (5 ignorados), 2 JS e ensaio PostgreSQL 18 descartável passaram. Sem migração, escrita em dados reais ou publicação no Kobo. Preparado na worktree `C:\endemias-liraa-correcoes`, branch `codex/liraa-logradouros-rg`, para integração na `master`; ativação ainda deve ser confirmada. Serviço confirmado anteriormente em `1.73.1`.
+- Substituir/implantar o XLSForm no mesmo projeto Kobo e atualizar os aparelhos continua sendo operação manual. Conferir versão ativa do importador antes de importar respostas novas. Ver `docs/LIRAA_LOGRADOUROS_RG.md`.
+
 ## Ampliação de campo confirmada em 03/11/2026 — código 1.73.1
 
 - Usuário esclareceu que os quarteirões extras do formulário são intencionais e devem permanecer no sistema. São Rosana **1030 e 1032**, São João Batista **613 e 619**, Tranqueira **518 e 548**.

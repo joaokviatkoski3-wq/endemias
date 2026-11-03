@@ -4,7 +4,7 @@ import json
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
-from app_core import db, kobo_api, normalizadores, registro_geografico, liraa
+from app_core import db, kobo_api, normalizadores, registro_geografico, liraa, liraa_logradouros
 import hashlib
 from collections import defaultdict
 
@@ -228,6 +228,12 @@ def _normalizar(record):
     quarteirao = _campo(record, "Dados_visita/Quarteir_o")
     if str(quarteirao).strip().casefold() == "outros":
         quarteirao = _campo(record, "Dados_visita/Quarteir_o_outros")
+    quarteirao = _quarteirao(quarteirao)
+    try:
+        logradouro = liraa_logradouros.nome_resposta(_campo(record, "Dados_visita/Logradouro"),
+            _campo(record, "Dados_visita/Logradouro_outro"), loc, quarteirao)
+    except ValueError as exc:
+        raise LiraaKoboError(str(exc)) from exc
     return {
         "kobo_uuid": uuid, "kobo_id": kobo_id,
         "data_visita": _data(_campo(record, "Data")),
@@ -236,9 +242,9 @@ def _normalizar(record):
         "agentes_codigos": _texto(_campo(record, "Agentes"), 500),
         "acs_codigos": _texto(_campo(record, "ACS"), 500),
         "localidade_informada": loc,
-        "quarteirao": _quarteirao(quarteirao),
+        "quarteirao": quarteirao,
         "tipo_imovel": _texto(_campo(record, "Dados_visita/Imovel"), 100),
-        "logradouro": _texto(_campo(record, "Dados_visita/Logradouro"), 300),
+        "logradouro": _texto(logradouro, 300),
         "numero": _texto(_campo(record, "Dados_visita/Numero"), 60),
         "sequencia": _texto(_campo(record, "Dados_visita/Sequencia"), 100),
         "morador": _texto(_campo(record, "Dados_visita/Morador"), 300),

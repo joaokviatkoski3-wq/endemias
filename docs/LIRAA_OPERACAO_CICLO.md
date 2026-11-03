@@ -1,11 +1,13 @@
 # LIRAa — plano de campo, formulário e boletins
 
-Atualização de código `1.73.0`, em 30/10/2026: ver
-`LIRAA_CORRECOES_2026_10.md`. O formulário manual aprovado do ciclo 4 é
-preservado e sua lista ACS pode mudar futuramente. Os dados de planejamento
+Atualização de código `1.74.0`, em 03/11/2026: ver
+`LIRAA_LOGRADOUROS_RG.md` e `LIRAA_CORRECOES_2026_10.md`. O formulário manual
+aprovado do ciclo 4 recebe ruas do RG por quarteirão e “Outro — digitar”;
+preserva as demais escolhas manuais e sua lista ACS pode mudar futuramente. Os dados de planejamento
 salvos são reais; as visitas existentes foram identificadas como testes.
-Este lote não os remove. Sem migração nova; reinício e conferência do plano
-real ainda precisam de validação operacional. As descrições abaixo do modelo
+Este lote não os remove. Sem migração nova; o plano real foi conferido na
+ativação de `1.73.1`. Confirmar ativação de `1.74.0` antes de importar o novo
+formulário e homologar seu uso no aparelho. As descrições abaixo do modelo
 base, repetição por quantidade e geração genérica são históricas e continuam
 aplicáveis aos outros ciclos; não devem substituir o modelo aprovado.
 

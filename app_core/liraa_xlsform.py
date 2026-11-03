@@ -6,7 +6,7 @@ from io import BytesIO
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, PatternFill
 
-from app_core import liraa, liraa_kobo, liraa_operacional as op, normalizadores, liraa_modelo
+from app_core import liraa, liraa_kobo, liraa_operacional as op, normalizadores, liraa_modelo, liraa_logradouros
 
 
 def _rows(sheet):
@@ -17,11 +17,11 @@ def _rows(sheet):
 def gerar(target, id_ciclo, base_dir=None):
     contrato = liraa_modelo.contrato()
     if str(id_ciclo) == contrato["ciclo"]:
-        return _atualizar_acs_aprovado(target, id_ciclo, contrato)
+        return _atualizar_aprovado(target, id_ciclo, contrato)
     return _gerar_legado(target, id_ciclo, base_dir)
 
 
-def _atualizar_acs_aprovado(target, id_ciclo, contrato):
+def _atualizar_aprovado(target, id_ciclo, contrato):
     from app_core import db
     conn = db.connect(target)
     try:
@@ -58,6 +58,7 @@ def _atualizar_acs_aprovado(target, id_ciclo, contrato):
         for index, values in enumerate(novas, inicio):
             for column, value in enumerate(values, 1):
                 sheet.cell(index, column, value)
+        liraa_logradouros.aplicar(workbook, target)
         output = BytesIO()
         workbook.save(output)
         return output.getvalue()
@@ -164,6 +165,7 @@ def _gerar_legado(target, id_ciclo, base_dir=None):
     settings.append(["form_title", "form_id", "version", "style"])
     settings.append([f"LIRAa {plano['ciclo']['ano']} — {plano['ciclo']['nome']}",
                      f"endemias_liraa_ciclo_{id_ciclo}", datetime.now().strftime("%Y%m%d%H%M%S"), "pages"])
+    liraa_logradouros.aplicar(workbook, target)
     output = BytesIO()
     workbook.save(output)
     return output.getvalue()

@@ -209,11 +209,16 @@ class CorrecoesLiraaTests(unittest.TestCase):
                 op.salvar_configuracao(self.target, self.ciclo, codigos, "")
                 gerado = load_workbook(BytesIO(xls.gerar(self.target, self.ciclo, self.base)))
                 atual = conteudo(gerado)
-                self.assertEqual(atual["survey"], valores["survey"])
-                self.assertEqual(atual["settings"], valores["settings"])
+                def registros(valores, excluir_campos=(), excluir_nomes=()):
+                    return [{k: v for k, v in zip(valores[0], r) if v is not None and k not in excluir_campos}
+                            for r in valores[1:] if dict(zip(valores[0], r)).get('name') not in excluir_nomes]
+                self.assertEqual(registros(atual["survey"], excluir_nomes=('Logradouro', 'Logradouro_outro')),
+                                 registros(valores["survey"], excluir_nomes=('Logradouro', 'Logradouro_outro')))
+                self.assertEqual(registros(atual["settings"], excluir_campos=('version',)),
+                                 registros(valores["settings"], excluir_campos=('version',)))
                 lista = next(r for r in xls._rows(gerado["survey"]) if r["name"] == "ACS")["type"].split()[1]
-                idx = atual["choices"][0].index("list_name")
-                self.assertEqual([r for r in atual["choices"] if r[idx] != lista], [r for r in valores["choices"] if r[idx] != lista])
+                self.assertEqual([r for r in registros(atual['choices']) if r['list_name'] not in {lista, 'endemias_logradouros_rg'}],
+                                 [r for r in registros(valores['choices']) if r['list_name'] != lista])
                 self.assertEqual({r["name"] for r in xls._rows(gerado["choices"]) if r["list_name"] == lista}, set(codigos) | {"no-acs", "outros"})
                 self.assertEqual(op.plano(self.target, self.ciclo, self.base)["plano_hash"], hash_plano)
                 gerado.close()
