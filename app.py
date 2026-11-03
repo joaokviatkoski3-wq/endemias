@@ -310,6 +310,7 @@ def create_app(config_overrides=None):
     _configure_secret_key(flask_app, flask_app.config["SECRET_KEY_PATH"])
     if flask_app.config.get("ACESSO_EXTERNO") and len(flask_app.secret_key) < 32:
         raise ValueError("Acesso externo exige chave de sessao com pelo menos 32 bytes.")
+    web_security.scope_session_key(flask_app)
     database_target = db_core.configured_target(flask_app.config)
     if db_core.is_sqlite(database_target):
         agentes_core.ensure_schema(flask_app.config["DB_PATH"])

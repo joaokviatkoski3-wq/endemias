@@ -1,6 +1,8 @@
 """Perfil opt-in de acesso externo e fronteira de confianca do Tunnel local."""
 
 import ipaddress
+import hashlib
+import hmac
 import os
 
 from flask import current_app, jsonify, redirect, request, session, url_for
@@ -13,6 +15,14 @@ from app_core import termos_uso
 
 PUBLIC_ENDPOINTS = {"static", "auth.login", "auth.logout", "formularios.sw_js", "formularios.manifest"}
 TERMS_ENDPOINTS = {"auth.termos", "auth.aceitar_termos", "auth.minha_senha"}
+
+
+def scope_session_key(app):
+    scope = app.config.get("SESSION_KEY_SCOPE")
+    if scope:
+        if scope not in {"externo", "local"}:
+            raise ValueError("Escopo de sessao invalido.")
+        app.secret_key = hmac.new(app.secret_key, ("endemias-web:" + scope).encode(), hashlib.sha256).digest()
 
 
 def external_defaults(env=None):
@@ -73,6 +83,7 @@ def configure(app):
             SESSION_COOKIE_NAME="__Host-endemias",
             SESSION_COOKIE_PATH="/",
             SESSION_COOKIE_DOMAIN=None,
+            SESSION_KEY_SCOPE="externo",
             REQUIRE_SESSION_TOKEN=True,
             TERMOS_USO_ENABLED=True,
             TRUST_PROXY_HEADERS=False,

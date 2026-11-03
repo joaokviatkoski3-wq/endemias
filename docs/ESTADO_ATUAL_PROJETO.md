@@ -20,6 +20,11 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
   serviço/PostgreSQL e sequência de implantação/retorno em
   `docs/CLOUDFLARE_IMPLANTACAO.md`. Coordenar integração com a frente LIRAa;
   não integrar templates com o serviço ativo sem a janela preparada.
+- Etapa seguinte: usuário pediu preservar acesso local. Preparadas entradas
+  LAN/loopback e Tunnel no mesmo processo/banco, com sessões separadas e piloto
+  fictício só neste computador. Consulta administrativa confirmou tarefa SYSTEM;
+  Windows 10 build 19045.6466 requer adequação das atualizações antes de publicar.
+  Ver `docs/CLOUDFLARE_INFRAESTRUTURA.md`. Sem troca da tarefa ou publicação.
 
 ## Integração operacional LIRAa — código 1.75.0 ativo
 

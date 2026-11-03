@@ -92,6 +92,11 @@ o conector local pode alcançar esse listener. Não usar ProxyFix adicional,
 trusted_proxy='*' ou aceitar o X-Forwarded-For fornecido pelo navegador.
 Um acesso direto HTTP a esse processo será recusado; é intencional.
 
+O exemplo acima descreve o modo somente externo da primeira etapa. Para a
+preferência atual do usuário (acesso local preservado), preparar as opções de
+duas entradas em `CLOUDFLARE_INFRAESTRUTURA.md`: LAN/localhost na porta 5000 e
+Tunnel em 127.0.0.1:5001, com sessões separadas no mesmo processo e banco.
+
 O launcher existente `scripts/iniciar_servidor.ps1` recebeu opções aditivas
 `-Servidor waitress -AcessoExterno -AllowedHosts vsatt.com.br -Threads 16`.
 O padrão continua Werkzeug/local. `-ValidarSomente`, com Waitress, valida sem
@@ -105,6 +110,11 @@ Cloudflare mesmo se o piloto do sistema for interrompido. HSTS inicial de um
 dia, sem includeSubDomains e sem preload.
 
 ### Acesso da equipe na rede local
+
+**Atualização de 03/11, etapa seguinte:** usuário preferiu preservar acesso
+local. A opção de duas entradas no mesmo processo foi implementada e ensaiada;
+ver `CLOUDFLARE_INFRAESTRUTURA.md`. A proposta original a seguir documenta o
+modo somente externo; não é mais a única alternativa preparada.
 
 A proposta para ativação é usar o mesmo endereço HTTPS também dentro do setor.
 O perfil externo não preserva login por `http://IP:5000`: o cookie Secure e a
@@ -184,6 +194,11 @@ antes/depois. A instância PostgreSQL descartável foi encerrada; o serviço
 oficial não foi reiniciado. Não houve conexão dos ensaios ao banco de produção.
 
 ## Condições operacionais antes de qualquer ativação
+
+Diagnóstico atualizado de Windows, tarefa SYSTEM, pg_hba e rede do Tunnel em
+`CLOUDFLARE_INFRAESTRUTURA.md`. A tarefa já foi consultada pelo usuário como
+administrador; a falha de acesso descrita no histórico abaixo foi resolvida
+para a coleta, sem alterar sua identidade ou ação.
 
 1. Conferir a master mais recente e coordenar a integração com a frente LIRAa.
    Templates recarregam em produção: não integrar este lote com o serviço

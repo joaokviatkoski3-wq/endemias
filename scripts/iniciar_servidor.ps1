@@ -18,6 +18,12 @@ param(
     [string[]]$AllowedHosts = @(),
     [ValidateRange(4, 64)]
     [int]$Threads = 16,
+    [switch]$AcessoLocal,
+    [string]$LocalBind = "",
+    [ValidateRange(1, 65535)]
+    [int]$LocalPort = 5000,
+    [ValidateRange(1, 65535)]
+    [int]$TunnelPort = 5001,
     [switch]$ValidarSomente
 )
 
@@ -32,6 +38,18 @@ if ($AcessoExterno -and ($Servidor -ne "waitress" -or $AllowedHosts.Count -eq 0)
 }
 if ($ValidarSomente -and $Servidor -ne "waitress") {
     throw "ValidarSomente exige Waitress."
+}
+if ($AcessoLocal -and (-not $AcessoExterno -or -not $LocalBind)) {
+    throw "AcessoLocal exige AcessoExterno e LocalBind explicito."
+}
+if ($AcessoLocal) {
+    $env:ENDEMIAS_ACESSO_LOCAL = "1"
+    $env:ENDEMIAS_LOCAL_BIND = $LocalBind
+    $env:ENDEMIAS_LOCAL_PORT = [string]$LocalPort
+    $env:ENDEMIAS_TUNNEL_PORT = [string]$TunnelPort
+}
+else {
+    Remove-Item Env:ENDEMIAS_ACESSO_LOCAL -ErrorAction SilentlyContinue
 }
 if ($AcessoExterno) {
     $env:ENDEMIAS_ACESSO_EXTERNO = "1"
