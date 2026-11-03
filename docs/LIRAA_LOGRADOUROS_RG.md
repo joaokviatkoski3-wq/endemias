@@ -1,6 +1,6 @@
 # LIRAa — escolha de logradouros do RG
 
-Preparado em 03/11/2026, código `1.74.0`. Solicitação do usuário: escolher a rua
+Integrado em 03/11/2026 na `master` (`1256d97`), código `1.74.0`. Solicitação do usuário: escolher a rua
 do quarteirão no formulário, mantendo digitação para ruas novas. Essa mudança
 autoriza a revisão do campo de logradouro do formulário manual aprovado; não
 autoriza alterar o plano nem considera os ACS definitivamente escolhidos.
@@ -67,10 +67,15 @@ byte a byte preservado (SHA-256
   e preservação do restante do formulário/plano. Ensaio PostgreSQL usa
   somente tabelas temporárias em `endemias_teste`.
 - Validação geral: **859 testes sem falhas, 5 ignorados**; 2 testes JavaScript
-  LIRAa e ensaio PostgreSQL 18 descartável também passaram. O SQLite congelado
+  LIRAa, 74 testes LIRAa focados finais e ensaio PostgreSQL 18 descartável também passaram. O SQLite congelado
   manteve SHA-256 `964152E21DE44B4FFF985F72A0D7945E8E7DCF260BBB019708B868C3B3A7A025`.
+- **Ativação concluída às 09h04 de 03/11/2026**, após autorização expressa do
+  usuário para esse reinício. `/login` respondeu HTTP 200 com `1.74.0`;
+  comparação antes/depois preservou contagens e assinaturas das 11 tabelas
+  LIRAa, SQLite congelado e XLSX-fonte. Verificador do plano retornou código 0.
+  Nenhuma migração, importação, limpeza de visitas ou escrita no plano.
 - Publicação no Kobo e teste no aparelho permanecem pendentes. Não antecipar
-  as datas do ciclo real para realizar testes. Confirmar a versão ativa do
-  Endemias antes de importar respostas com as novas escolhas.
+  as datas do ciclo real para realizar testes. Atualizar os aparelhos depois
+  da implantação do XLSForm, antes de coletar com as novas escolhas.
 
 Referência da sintaxe: [filtros de escolhas no Kobo](https://support.kobotoolbox.org/choice_filters_xls.html).
