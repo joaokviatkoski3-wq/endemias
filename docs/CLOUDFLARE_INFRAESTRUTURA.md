@@ -2,7 +2,8 @@
 
 Continuação da preparação `1.76.0`, branch `codex/preparar-cloudflare`.
 O usuário autorizou a próxima etapa e pediu preservar o acesso local se viável.
-Este registro complementa `CLOUDFLARE_IMPLANTACAO.md`; não declara publicação.
+Este registro complementa `CLOUDFLARE_IMPLANTACAO.md`. O piloto fictício foi
+publicado posteriormente; o sistema oficial continua somente na rede local.
 
 **Etapa autorizada posteriormente:** usuário pediu aplicar a execução limitada
 e a proteção de código/chaves. Pacote e escopo em `CLOUDFLARE_CONTA_LIMITADA.md`.
@@ -13,7 +14,31 @@ login por outro aparelho da LAN. Sem publicação ou mudança de firewall. O
 fechamento naquele documento substitui o estado anterior de tarefa SYSTEM e
 ACLs amplas registrado abaixo como diagnóstico histórico.
 
-## Estado confirmado nesta etapa
+## Piloto externo confirmado — atualização posterior de 03/11
+
+- Usuário criou o Tunnel `vsatt-piloto`, instalou o conector pelo MSI/comando
+  oficial e configurou `piloto.vsatt.com.br` para `http://127.0.0.1:5003`.
+  Confirmou que o endereço abriu no navegador.
+- Consulta local confirmou serviço `Cloudflared` Running/Auto, como
+  LocalSystem. É distinto da tarefa EndemiasWeb limitada. Revisar identidade
+  e proteção do token do conector antes de publicar produção; não presumir
+  que ele herdou o endurecimento da aplicação. Não exportar ImagePath/token.
+- Listener 5003 continua só loopback, no processo de `scripts/piloto_web.py`.
+  Marcador de massa sintética conferido. Não foi apontado para a porta 5000
+  ou para o PostgreSQL oficial.
+- HTTPS público real: `/login` HTTP 200 com 1.76.0; `/api/formularios` HTTP 401
+  sem login; `/` redireciona ao login. Respostas com `private, no-store`,
+  Cloudflare `CF-Cache-Status: DYNAMIC`, CSP e HSTS de um dia; cookie de login
+  `__Host-endemias` com Secure/HttpOnly. Nenhuma credencial foi enviada nesse
+  teste. Isso não prova ausência de outras falhas ou cobertura de todas as rotas.
+- Usuário ainda precisa conferir login fictício, termo, saída/novo login e
+  funções no endereço público. Credencial só no arquivo local ignorado
+  `.venv/piloto-web/acesso.local.txt`; não usar contas reais nesse ambiente.
+- O piloto é um processo sem autostart; após fechar/reiniciar o computador,
+  pode ser necessário iniciá-lo por `piloto_web.bat`. O serviço do conector
+  automático não inicia a aplicação piloto. Produção segue 1.75.0/EndemiasWeb.
+
+## Diagnóstico inicial (histórico; atualizações acima)
 
 | Item | Evidência e conclusão |
 | --- | --- |

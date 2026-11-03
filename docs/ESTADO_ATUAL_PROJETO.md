@@ -4,6 +4,17 @@ Atualizado em 03/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Piloto externo com dados fictícios — publicado em 03/11
+
+- `https://piloto.vsatt.com.br` encaminha pelo Tunnel `vsatt-piloto` para
+  127.0.0.1:5003, no processo isolado `scripts/piloto_web.py`. Usuário confirmou
+  abertura; HTTPS real confirmou login 200/1.76.0, API sem login 401 e home
+  redirecionada ao login, cookie Secure/HttpOnly, CSP/HSTS e ausência de cache.
+- Serviço Cloudflared automático em LocalSystem; a tarefa da produção continua
+  EndemiasWeb limitada. Revisar identidade/token do conector antes de produção.
+- Produção 1.75.0 e banco real continuam locais. Login fictício/termo e testes
+  funcionais públicos ainda pendentes. Detalhes em `CLOUDFLARE_INFRAESTRUTURA.md`.
+
 ## Acesso externo — preparação isolada 1.76.0, ainda não ativa
 
 - Autorização de 03/11: revisar/corrigir a segurança para acesso externo e
