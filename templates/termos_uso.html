@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Responsabilidade e sigilo — Vigilância em Saúde</title>
+  <link rel="icon" href="/static/img/favicon.png">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <style>
+    body{margin:0;padding:28px 16px;background:#f1f5f9;color:#172b42;line-height:1.65}
+    main{max-width:780px;margin:0 auto;background:white;border:1px solid #d9e2ec;border-radius:14px;padding:clamp(20px,4vw,40px)}
+    h1{font-size:clamp(23px,4vw,30px);line-height:1.3;margin:10px 0 18px}li{margin:14px 0}
+    .meta{font-size:13px;color:#526579}.confirmacao{display:flex;gap:12px;background:#eef5fb;padding:16px;border-radius:8px;margin:24px 0}
+    .confirmacao input{width:20px;height:20px;flex:none;margin-top:4px}.acoes{display:flex;gap:14px;flex-wrap:wrap;margin-top:16px}.erro{color:#a21b24}
+  </style>
+</head>
+<body><main>
+  <div class="meta">Vigilância em Saúde · Almirante Tamandaré · Versão {{ termo.VERSAO }}</div>
+  <h1>{{ termo.TITULO }}</h1>
+  <p>Antes de continuar, leia os compromissos para acessar informações de trabalho, incluindo dados pessoais e de saúde.</p>
+  <ol>{% for item in termo.COMPROMISSOS %}<li>{{ item }}</li>{% endfor %}</ol>
+  <p>{{ termo.AVISO }}</p>
+  <p class="meta">O registro de aceite inclui sua conta, data e hora, endereço da conexão e uma cópia desta versão do termo. A confirmação será solicitada novamente se o termo mudar.</p>
+  {% if erro %}<p class="erro" role="alert">{{ erro }}</p>{% endif %}
+  <form method="post" action="{{ url_for('auth.aceitar_termos') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="versao" value="{{ termo.VERSAO }}">
+    <input type="hidden" name="termo_hash" value="{{ termo.HASH }}">
+    <label class="confirmacao"><input type="checkbox" name="concordo" value="sim" required><span>Li, compreendi e assumo os compromissos de uso autorizado, sigilo e proteção dos dados descritos neste termo.</span></label>
+    <button class="btn btn-primary" type="submit">Confirmar e acessar o sistema</button>
+  </form>
+  <form class="acoes" method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline" type="submit">Sair sem aceitar</button></form>
+</main></body></html>

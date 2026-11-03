@@ -11,12 +11,38 @@ param(
     [string]$SslMode = "prefer",
     [string]$PgPassFile = "C:\ProgramData\Endemias\pgpass.conf",
     [Parameter(Mandatory=$true)]
-    [string]$PythonPath
+    [string]$PythonPath,
+    [ValidateSet("werkzeug", "waitress")]
+    [string]$Servidor = "werkzeug",
+    [switch]$AcessoExterno,
+    [string[]]$AllowedHosts = @(),
+    [ValidateRange(4, 64)]
+    [int]$Threads = 16,
+    [switch]$ValidarSomente
 )
 
 $ErrorActionPreference = "Stop"
 $RootDir = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $AppPath = Join-Path $RootDir "app.py"
+if ($Servidor -eq "waitress") {
+    $AppPath = Join-Path $RootDir "servir.py"
+}
+if ($AcessoExterno -and ($Servidor -ne "waitress" -or $AllowedHosts.Count -eq 0)) {
+    throw "Acesso externo exige Waitress e AllowedHosts explicitos."
+}
+if ($ValidarSomente -and $Servidor -ne "waitress") {
+    throw "ValidarSomente exige Waitress."
+}
+if ($AcessoExterno) {
+    $env:ENDEMIAS_ACESSO_EXTERNO = "1"
+    $env:ENDEMIAS_ALLOWED_HOSTS = ($AllowedHosts -join ',')
+    $env:ENDEMIAS_BIND = "127.0.0.1"
+    $env:ENDEMIAS_THREADS = [string]$Threads
+}
+else {
+    Remove-Item Env:ENDEMIAS_ACESSO_EXTERNO -ErrorAction SilentlyContinue
+    Remove-Item Env:ENDEMIAS_ALLOWED_HOSTS -ErrorAction SilentlyContinue
+}
 
 if (-not (Test-Path -LiteralPath $PythonPath -PathType Leaf)) {
     throw "Python configurado para o servidor nao foi encontrado."
@@ -54,5 +80,10 @@ else {
     Remove-Item Env:PGPASSFILE -ErrorAction SilentlyContinue
 }
 
-& $PythonPath $AppPath
+if ($ValidarSomente) {
+    & $PythonPath $AppPath --validar
+}
+else {
+    & $PythonPath $AppPath
+}
 exit $LASTEXITCODE

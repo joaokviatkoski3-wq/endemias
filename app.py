@@ -25,6 +25,7 @@ from app_core import sqlite_maintenance
 from app_core import uploads as uploads_core
 from app_core import utils as utils_core
 from app_core import version as version_core
+from app_core import web_security
 from blueprints.acoes_setor import bp as acoes_setor_bp
 from blueprints.admin import bp as admin_bp
 from blueprints.agenda import bp as agenda_bp
@@ -299,11 +300,16 @@ def create_app(config_overrides=None):
         CSP_ALLOW_INLINE=CSP_ALLOW_INLINE_DEFAULT,
         TEMPLATES_AUTO_RELOAD=True,
     )
+    flask_app.config.update(web_security.external_defaults())
     if config_overrides:
         flask_app.config.update(config_overrides)
 
+    web_security.configure(flask_app)
+
     _configure_logging(flask_app.config["LOG_PATH"])
     _configure_secret_key(flask_app, flask_app.config["SECRET_KEY_PATH"])
+    if flask_app.config.get("ACESSO_EXTERNO") and len(flask_app.secret_key) < 32:
+        raise ValueError("Acesso externo exige chave de sessao com pelo menos 32 bytes.")
     database_target = db_core.configured_target(flask_app.config)
     if db_core.is_sqlite(database_target):
         agentes_core.ensure_schema(flask_app.config["DB_PATH"])
@@ -330,6 +336,8 @@ app = create_app()
 
 
 if __name__ == "__main__":
+    if app.config.get("ACESSO_EXTERNO"):
+        raise SystemExit("Para acesso externo, use python servir.py (Waitress).")
     import socket
     from werkzeug.serving import make_server
 

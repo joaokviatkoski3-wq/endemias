@@ -80,6 +80,9 @@ def api_obter(id_formulario):
     item = formularios_core.obter(bh.db_target(), id_formulario)
     if not item:
         return jsonify({"erro": "Formulário não encontrado."}), 404
+    usuario = bh.usuario_atual() or {}
+    if usuario.get("nivel") != "admin" and item["usuario_id"] != usuario.get("id_usuario"):
+        return jsonify({"erro": "Formulário não encontrado."}), 404
     return jsonify(item)
 
 

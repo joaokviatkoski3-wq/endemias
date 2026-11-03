@@ -4,7 +4,9 @@
  * formulários preenchidos em campo, até sincronizar com o servidor.
  */
 (function () {
-  const DB_NAME = 'endemias_formularios';
+  // Origem externa nova: rascunhos separados por conta, sem apagar dados locais.
+  const owner = document.querySelector('meta[name="offline-user"]')?.content;
+  const DB_NAME = owner ? `endemias_formularios_usuario_${owner}` : 'endemias_formularios';
   const DB_VERSION = 1;
   const SNAP_KEY = 'snapshot';
 

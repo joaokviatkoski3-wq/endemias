@@ -8,6 +8,13 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
 
+- Frente isolada de acesso externo em 03/11/2026: código preparado `1.76.0`
+  na branch `codex/preparar-cloudflare`, worktree `C:\endemias-cloudflare`.
+  Login somente pelo sistema (decisão atual do usuário, sem Access), segurança,
+  Waitress e termo versionado de responsabilidade. Migração 0030 apenas
+  preparada. Não integrado/ativado e sem alterações no serviço ou dados
+  oficiais. Ver `docs/CLOUDFLARE_IMPLANTACAO.md` para resultados e pendências.
+
 - Código `1.75.0` integrado na `master` (`a0d3c3c`) e ativo em 03/11/2026 às 11h32 (America/Sao_Paulo), após autorização expressa para atualização e reinício: LIRAa integrado à importação geral/automática, fila comum do laboratório, notificações Aedes aegypti (exceto terreno baldio), visitas de arboviroses, relatórios individuais/do setor, painéis, mapas, boletim mensal e consolidados. Uma camada explícita de consulta reúne as fontes; não copia visitas/tubos/leituras para as tabelas de rotina. Backup PostgreSQL validado e somente a migração aditiva 0029 aplicada. `/login` confirmou HTTP 200 com `1.75.0`; contagens/assinaturas dos dados anteriores em 15 tabelas (11 LIRAa e quatro operacionais), SQLite congelado e XLSX-fonte preservados. Verificador somente leitura retornou código 0: cinco sorteios, 261 sorteados + seis adicionais = 267, assinatura/formulário corretos e zero visitas LIRAa. ACS continuam provisórios/editáveis. 876 testes gerais sem falhas (cinco ignorados), três JS e PostgreSQL temporário conferidos. Nenhuma importação ou publicação no Kobo. Ver `docs/LIRAA_INTEGRACAO_OPERACIONAL.md`.
 
 - Código `1.74.0` integrado (`1256d97`) e ativo em 03/11/2026 às 09h04 (America/Sao_Paulo), após reinício autorizado: logradouros LIRAa selecionáveis por localidade/quarteirão, vindos do RG, com “Outro — digitar”. Importação grava nomes e aceita formulários antigos. Consulta somente leitura confirmou 267 quarteirões e 976 opções RG, todos cobertos; fonte XLSX, seis adicionais, plano, datas e assinatura preservados. ACS continuam provisórios/editáveis. 859 testes gerais sem falhas (5 ignorados), 74 focados finais, 2 JS, PostgreSQL descartável e compilação XLSForm/filtro em 535 combinações conferidos. `/login` respondeu HTTP 200 com `1.74.0`; contagens/assinaturas das 11 tabelas LIRAa, SQLite congelado e XLSX-fonte iguais antes/depois. Verificador do plano retornou código 0. Sem migração ou publicação no Kobo: substituir/implantar o XLSForm e atualizar aparelhos ainda é pendência manual. Ver `docs/LIRAA_LOGRADOUROS_RG.md`.

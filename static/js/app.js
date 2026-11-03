@@ -427,7 +427,11 @@ function toast(msg, type='info', dur=3000) {
   const el = document.createElement('div');
   el.className = `toast ${type}`;
   const icon = type==='success'?'<img src="/static/icons/check.svg" alt="✓" class="icon-svg">':type==='error'?'<img src="/static/icons/fechar.svg" alt="✕" class="icon-svg">':'ℹ';
-  el.innerHTML = `<span>${icon}</span><span>${msg}</span>`;
+  const iconEl = document.createElement('span');
+  iconEl.innerHTML = icon;
+  const messageEl = document.createElement('span');
+  messageEl.textContent = String(msg);
+  el.append(iconEl, messageEl);
   document.getElementById('toast-area').appendChild(el);
   setTimeout(() => el.style.opacity='0', dur - 300);
   setTimeout(() => el.remove(), dur);

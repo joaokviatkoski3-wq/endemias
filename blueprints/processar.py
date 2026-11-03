@@ -193,6 +193,23 @@ def _sse_response(gerar):
     )
 
 
+def _stream_log(q_log, done, heartbeat_seconds=15):
+    # Envia cabecalhos imediatamente e mantem a conexao durante etapas silenciosas.
+    yield ": conectado\n\n"
+    last_send = time.monotonic()
+    while not done.is_set() or not q_log.empty():
+        try:
+            msg, tag = q_log.get(timeout=0.2)
+        except queue.Empty:
+            if time.monotonic() - last_send >= heartbeat_seconds:
+                yield ": keepalive\n\n"
+                last_send = time.monotonic()
+            continue
+        payload = json.dumps({"msg": msg, "tag": tag}, ensure_ascii=False)
+        yield f"data: {payload}\n\n"
+        last_send = time.monotonic()
+
+
 @bp.route("/processar")
 @login_required
 @nivel_min("admin")
@@ -846,13 +863,7 @@ def processar_stream(job_id):
 
         threading.Thread(target=worker, daemon=True).start()
 
-        while not done.is_set() or not q_log.empty():
-            try:
-                msg, tag = q_log.get(timeout=0.2)
-                payload = json.dumps({"msg": msg, "tag": tag}, ensure_ascii=False)
-                yield f"data: {payload}\n\n"
-            except Exception:
-                pass
+        yield from _stream_log(q_log, done)
 
         ok, sumario = result[0] if isinstance(result[0], tuple) else (result[0], [])
         try:
@@ -940,13 +951,7 @@ def processar_confirmar(job_id):
 
         threading.Thread(target=worker, daemon=True).start()
 
-        while not done.is_set() or not q_log.empty():
-            try:
-                msg, tag = q_log.get(timeout=0.2)
-                payload = json.dumps({"msg": msg, "tag": tag}, ensure_ascii=False)
-                yield f"data: {payload}\n\n"
-            except Exception:
-                pass
+        yield from _stream_log(q_log, done)
 
         try:
             shutil.rmtree(job_dir)

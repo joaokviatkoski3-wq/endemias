@@ -43,7 +43,7 @@ def invalidar_cache_globals():
 
 def register_error_handlers(app):
     def _quer_json():
-        return request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        return request.path.startswith("/api/") or request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(e):
@@ -69,6 +69,13 @@ def register_error_handlers(app):
         if _quer_json():
             return jsonify({"erro": "Sem permissao para fazer esta acao."}), 403
         return render_template("403.html"), 403
+
+    @app.errorhandler(413)
+    def err413(e):
+        mensagem = "Arquivo ou envio muito grande. Divida os arquivos em lotes menores e tente novamente."
+        if _quer_json():
+            return jsonify({"erro": mensagem}), 413
+        return mensagem, 413
 
 
 def register_template_filters(app):
@@ -102,9 +109,9 @@ def register_security_headers(app):
         inline = " 'unsafe-inline'" if current_app.config.get("CSP_ALLOW_INLINE", True) else ""
         return (
             "default-src 'self'; "
-            f"script-src 'self'{inline}; "
-            f"style-src 'self'{inline}; "
-            "img-src 'self' data:; "
+            f"script-src 'self' https://cdn.jsdelivr.net{inline}; "
+            f"style-src 'self' https://cdn.jsdelivr.net{inline}; "
+            "img-src 'self' data: blob: https://server.arcgisonline.com; "
             "font-src 'self'; "
             "connect-src 'self'; "
             "frame-ancestors 'self'; "
@@ -140,7 +147,7 @@ def register_access_guards(app):
             endpoint == "static"
             or endpoint.startswith("laboratorio_lancamentos.")
             or endpoint in {"liraa.laboratorio", "liraa.salvar_leitura"}
-            or endpoint in {"auth.login", "auth.logout", "auth.minha_senha"}
+            or endpoint in {"auth.login", "auth.logout", "auth.minha_senha", "auth.termos", "auth.aceitar_termos"}
         ):
             return None
 
@@ -264,6 +271,7 @@ def register_context_processors(app):
             APP_VERSION=version_core.APP_VERSION,
             APP_VERSION_DATE=version_core.APP_VERSION_DATE,
             APP_VERSION_LABEL=version_core.APP_VERSION_LABEL,
+            ACESSO_EXTERNO=current_app.config.get("ACESSO_EXTERNO", False),
             AMBIENTE_TESTE=ambiente_teste,
             AMBIENTE_NOME=ambiente,
         )

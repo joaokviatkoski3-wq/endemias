@@ -94,7 +94,7 @@ def salvar(target, tipo, payload, usuario, uuid_cliente=None, status=STATUS_ENVI
     """
     if formulario_por_tipo(tipo) is None:
         raise ValueError("Formulário desconhecido.")
-    if status not in STATUS_VALIDOS:
+    if status not in (STATUS_RASCUNHO, STATUS_ENVIADO):
         raise ValueError("Status inválido.")
     if not isinstance(payload, dict):
         raise ValueError("Payload inválido.")
@@ -108,16 +108,23 @@ def salvar(target, tipo, payload, usuario, uuid_cliente=None, status=STATUS_ENVI
         ensure_schema(conn)
         if uuid_cliente:
             existente = conn.execute(
-                "SELECT id_formulario FROM formularios WHERE uuid_cliente=?", (uuid_cliente,)
+                "SELECT id_formulario, usuario_id, status, tipo_formulario FROM formularios WHERE uuid_cliente=?", (uuid_cliente,)
             ).fetchone()
             if existente:
-                conn.execute(
+                if existente["usuario_id"] != usuario.get("id_usuario"):
+                    raise ValueError("Formulario indisponivel para este usuario.")
+                if existente["tipo_formulario"] != tipo or existente["status"] not in (STATUS_RASCUNHO, STATUS_ENVIADO, STATUS_DEVOLVIDO):
+                    raise ValueError("Formulario em revisao ou oficializado nao pode ser sobrescrito.")
+                result = conn.execute(
                     """UPDATE formularios
                           SET payload_json=?, status=?, agente_nome=COALESCE(?, agente_nome),
                               enviado_em=COALESCE(enviado_em, ?)
-                        WHERE id_formulario=?""",
-                    (payload_json, status, agente_nome, agora, existente["id_formulario"]),
+                        WHERE id_formulario=? AND usuario_id=?
+                          AND status IN ('rascunho','enviado','devolvido')""",
+                    (payload_json, status, agente_nome, agora, existente["id_formulario"], usuario.get("id_usuario")),
                 )
+                if result.rowcount != 1:
+                    raise ValueError("Formulario alterado durante o envio. Recarregue e confira.")
                 conn.commit()
                 return existente["id_formulario"]
 

@@ -1,10 +1,12 @@
 import hashlib
+import hmac
+import re
 import time
 from datetime import datetime
 from functools import wraps
 from urllib.parse import urljoin, urlparse
 
-from flask import current_app, jsonify, redirect, render_template, request, session, url_for
+from flask import current_app, g, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app_core import db as db_core
@@ -12,8 +14,10 @@ from app_core import db as db_core
 
 LOGIN_MAX_TENTATIVAS = 5
 LOGIN_JANELA_SEG = 15 * 60
+LOGIN_MAX_POR_IP = 50
 PASSWORD_MIN_LENGTH = 10
 login_tentativas = {}
+_DUMMY_HASH = generate_password_hash("comparacao-sem-conta", method="pbkdf2:sha256", salt_length=16)
 
 
 def garantir_tabela_login_tentativas(get_db, conn=None):
@@ -65,7 +69,24 @@ def usuario_atual(query_one):
     uid = session.get("uid")
     if not uid:
         return None
-    return query_one("SELECT * FROM usuarios WHERE id_usuario=? AND ativo=1", (uid,))
+    if getattr(g, "_auth_uid", None) == uid:
+        return g._auth_usuario
+    usuario = query_one("SELECT * FROM usuarios WHERE id_usuario=? AND ativo=1", (uid,))
+    token = session.get("auth_token")
+    if usuario and (token or current_app.config.get("REQUIRE_SESSION_TOKEN")):
+        if not token or not hmac.compare_digest(str(token), token_sessao(usuario["senha_hash"])):
+            usuario = None
+    if not usuario:
+        session.clear()
+    g._auth_uid, g._auth_usuario = uid, usuario
+    return usuario
+
+
+def token_sessao(senha_hash):
+    key = current_app.secret_key
+    if isinstance(key, str):
+        key = key.encode("utf-8")
+    return hmac.new(key, str(senha_hash).encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 def login_required(view):
@@ -74,11 +95,9 @@ def login_required(view):
         uid = session.get("uid")
         if not uid:
             return redirect(url_for("auth.login", next=request.path))
-        usuario = db_core.query_one(
-            db_core.configured_target(current_app.config),
-            "SELECT id_usuario FROM usuarios WHERE id_usuario=? AND ativo=1",
-            (uid,),
-        )
+        usuario = usuario_atual(lambda sql, params=(): db_core.query_one(
+            db_core.configured_target(current_app.config), sql, params
+        ))
         if not usuario:
             session.clear()
             return redirect(url_for("auth.login", next=request.path))
@@ -105,9 +124,11 @@ def nivel_min(nivel, usuario_atual_func):
 
 
 def url_segura(target):
+    if not isinstance(target, str) or "\\" in target or target.startswith("//") or re.search(r"[\x00-\x20]", target):
+        return False
     ref = urlparse(request.host_url)
     tst = urlparse(urljoin(request.host_url, target))
-    return tst.scheme in ("http", "https") and ref.netloc == tst.netloc
+    return tst.scheme == ref.scheme and ref.netloc == tst.netloc
 
 
 def chave_login(usuario):
@@ -136,7 +157,7 @@ def login_bloqueado(chave, agora=None):
     return tentativas >= LOGIN_MAX_TENTATIVAS
 
 
-def login_bloqueado_db(get_db, chave, agora=None):
+def login_bloqueado_db(get_db, chave, agora=None, limite=LOGIN_MAX_TENTATIVAS):
     agora = agora if agora is not None else time.time()
     conn = get_db()
     try:
@@ -151,7 +172,7 @@ def login_bloqueado_db(get_db, chave, agora=None):
             conn.execute("DELETE FROM login_tentativas WHERE chave=?", (chave,))
             conn.commit()
             return False
-        return row["tentativas"] >= LOGIN_MAX_TENTATIVAS
+        return row["tentativas"] >= limite
     finally:
         conn.close()
 
@@ -170,25 +191,21 @@ def registrar_login_falha_db(get_db, chave, agora=None):
     conn = get_db()
     try:
         garantir_tabela_login_tentativas(get_db, conn)
-        row = conn.execute(
-            "SELECT tentativas, primeira_em FROM login_tentativas WHERE chave=?",
-            (chave,),
-        ).fetchone()
-        if not row or agora - row["primeira_em"] > LOGIN_JANELA_SEG:
-            tentativas, primeira = 0, agora
-        else:
-            tentativas, primeira = row["tentativas"], row["primeira_em"]
         conn.execute(
             """
             INSERT INTO login_tentativas (chave, tentativas, primeira_em, atualizado_em)
             VALUES (?,?,?,?)
             ON CONFLICT(chave) DO UPDATE SET
-                tentativas=excluded.tentativas,
-                primeira_em=excluded.primeira_em,
+                tentativas=CASE WHEN login_tentativas.primeira_em < ?
+                    THEN 1 ELSE login_tentativas.tentativas + 1 END,
+                primeira_em=CASE WHEN login_tentativas.primeira_em < ?
+                    THEN excluded.primeira_em ELSE login_tentativas.primeira_em END,
                 atualizado_em=excluded.atualizado_em
             """,
-            (chave, tentativas + 1, primeira, atualizado),
+            (chave, 1, agora, atualizado, agora - LOGIN_JANELA_SEG, agora - LOGIN_JANELA_SEG),
         )
+        # Limita o crescimento causado por nomes inventados na tela publica.
+        conn.execute("DELETE FROM login_tentativas WHERE primeira_em < ?", (agora - LOGIN_JANELA_SEG,))
         conn.commit()
     finally:
         conn.close()

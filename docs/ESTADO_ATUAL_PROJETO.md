@@ -4,6 +4,23 @@ Atualizado em 03/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Acesso externo — preparação isolada 1.76.0, ainda não ativa
+
+- Autorização de 03/11: revisar/corrigir a segurança para acesso externo e
+  expansão futura, mantendo o login do sistema, sem Cloudflare Access.
+  Domínio `vsatt.com.br`; 20–30 usuários iniciais, com possibilidade de ampliar.
+- Branch `codex/preparar-cloudflare`, worktree `C:\endemias-cloudflare`,
+  derivada de `f7a98a0`. Inclui servidor Waitress, perfil HTTPS/Tunnel restrito,
+  correções de autenticação, formulários e cache, além do termo de ciência e
+  responsabilidade solicitado pelo usuário durante o trabalho.
+- Migração 0030 de aceites apenas preparada. Nenhuma integração na master,
+  publicação, instalação de serviço, migração ou reinício oficial neste lote.
+  Produção permanece no estado LIRAa 1.75.0 descrito abaixo.
+- Resultados, escopo de teste, limitações, pendências de Windows/conta de
+  serviço/PostgreSQL e sequência de implantação/retorno em
+  `docs/CLOUDFLARE_IMPLANTACAO.md`. Coordenar integração com a frente LIRAa;
+  não integrar templates com o serviço ativo sem a janela preparada.
+
 ## Integração operacional LIRAa — código 1.75.0 ativo
 
 - Usuário autorizou a integração gradual, abrangendo todas as consultas/relatórios pertinentes, e depois autorizou expressamente a atualização do banco e o reinício. Branch `codex/liraa-integracao-gradual`, worktree `C:\endemias-liraa-correcoes`; código integrado na `master` em `a0d3c3c`.
