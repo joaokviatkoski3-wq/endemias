@@ -1,5 +1,9 @@
 # LIRAa — correções e preparação para novembro de 2026
 
+Integração posterior `1.75.0`: `LIRAA_INTEGRACAO_OPERACIONAL.md` documenta a
+entrada no fluxo geral, notificações e relatórios. O planejamento protegido e
+a possibilidade de alterar ACS permanecem preservados.
+
 Atualização posterior: a solicitação de logradouros RG em `1.74.0` autoriza
 revisar esse campo no modelo aprovado. Ver `LIRAA_LOGRADOUROS_RG.md`; as
 garantias de preservação do plano e flexibilidade futura dos ACS continuam.

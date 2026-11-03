@@ -26,6 +26,7 @@ bp = Blueprint("processar", __name__)
 login_required = auth_core.login_required
 
 KOBO_DUPLICATE_TABLES = {
+    "LIRAA": "liraa_visitas",
     "PE": "visitas",
     "TB": "visitas",
     "TBO": "visitas",
@@ -246,13 +247,13 @@ def kobo_previa():
     if tipo not in kobo_api.ALL_TYPES:
         return jsonify({"erro": "Tipo de formulário inválido."}), 400
     try:
-        records, bruto = kobo_api.fetch_submissions(
-            cfg,
-            asset_uid,
-            limit=data.get("limite") or 100,
-            start=data.get("inicio") or None,
-            end=data.get("fim") or None,
-        )
+        if tipo == "LIRAA":
+            from app_core import liraa_integracao
+            records,bruto=liraa_integracao.buscar_kobo(cfg,_db_path(),data.get("inicio"),data.get("fim"),
+                data.get("limite") or 100,uid=data.get("asset_uid"))
+        else:
+            records, bruto = kobo_api.fetch_submissions(cfg,asset_uid,limit=data.get("limite") or 100,
+                start=data.get("inicio") or None,end=data.get("fim") or None)
     except kobo_api.KoboError as exc:
         return jsonify({"erro": str(exc)}), 400
 
@@ -337,18 +338,17 @@ def kobo_pendentes():
             "pendencias": 0,
             "erro": "",
         }
-        if not asset_uid:
+        if not asset_uid and tipo != "LIRAA":
             item["erro"] = "UID nao configurado"
             itens.append(item)
             continue
         try:
-            records, _ = kobo_api.fetch_submissions(
-                cfg,
-                asset_uid,
-                limit=limite,
-                start=inicio,
-                end=fim,
-            )
+            if tipo == "LIRAA":
+                from app_core import liraa_integracao
+                records,meta=liraa_integracao.buscar_kobo(cfg,_db_path(),inicio,fim,limite)
+                item["configurado"]=meta is not None
+            else:
+                records, _ = kobo_api.fetch_submissions(cfg,asset_uid,limit=limite,start=inicio,end=fim)
             larvas_links = None
             if tipo == "LARVAS":
                 chaves = set()
@@ -405,11 +405,17 @@ def _kobo_existing_uuids(tipo, records):
     placeholders = ",".join("?" for _ in uuids)
     try:
         conn = get_db()
+        if tipo == "LARVAS":
+            from app_core import visitas_integradas
+            conn=visitas_integradas.integrar(conn)
         rows = conn.execute(
             f"SELECT DISTINCT kobo_uuid FROM {tabela} WHERE kobo_uuid IN ({placeholders})",
             uuids,
         ).fetchall()
-        return {row[0] for row in rows}
+        encontrados = {row[0] for row in rows}
+        if tipo == "LIRAA" and db_core.table_exists(conn,"liraa_visitas_excluidas"):
+            encontrados.update(r[0] for r in conn.execute(f"SELECT kobo_uuid FROM liraa_visitas_excluidas WHERE kobo_uuid IN ({placeholders})", uuids))
+        return encontrados
     except Exception:
         return set()
     finally:
@@ -454,7 +460,18 @@ def _kobo_fetch_registros_vetores_larvas(data):
     erros = []
     for tipo in list(kobo_api.VISIT_TYPES) + ["LARVAS"]:
         asset_uid = (assets.get(tipo) or "").strip()
+        if tipo == "LIRAA":
+            from app_core import liraa_integracao
+            try:
+                registros_por_tipo[tipo],_=liraa_integracao.buscar_kobo(cfg,_db_path(),inicio,fim,limite)
+            except kobo_api.KoboError as exc:
+                erros.append(f"LIRAa: {exc}")
+                registros_por_tipo[tipo]=[]
+            continue
         if not asset_uid:
+            if tipo == "LIRAA":
+                registros_por_tipo[tipo] = []
+                continue
             erros.append(f"{tipo}: UID não configurado")
             registros_por_tipo[tipo] = []
             continue
@@ -505,7 +522,7 @@ def kobo_lote_vetores_larvas():
     larvas_links = _larvas_links_banco(larvas_chaves)
     vinculadas_lote = 0
     for key in larvas_chaves:
-        if key not in larvas_links and key in tubos_lote:
+        if key not in larvas_links and len(tubos_lote.get(key,[]))==1:
             larvas_links[key] = "lote"
             vinculadas_lote += 1
 
@@ -616,17 +633,16 @@ def kobo_importar_formulario_iniciar():
 
     cfg = kobo_api.load_config(_kobo_config_path())
     asset_uid = ((cfg.get("assets") or {}).get(tipo) or "").strip()
-    if not asset_uid:
+    if not asset_uid and tipo != "LIRAA":
         return jsonify({"erro": f"UID do formulário {tipo} não configurado."}), 400
 
     try:
-        records, _ = kobo_api.fetch_submissions(
-            cfg,
-            asset_uid,
-            limit=data.get("limite") or 100,
-            start=data.get("inicio") or None,
-            end=data.get("fim") or None,
-        )
+        if tipo == "LIRAA":
+            from app_core import liraa_integracao
+            records,_=liraa_integracao.buscar_kobo(cfg,_db_path(),data.get("inicio"),data.get("fim"),data.get("limite") or 100)
+        else:
+            records, _ = kobo_api.fetch_submissions(cfg,asset_uid,limit=data.get("limite") or 100,
+                start=data.get("inicio") or None,end=data.get("fim") or None)
     except kobo_api.KoboError as exc:
         return jsonify({"erro": str(exc)}), 400
 

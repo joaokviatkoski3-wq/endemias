@@ -1,4 +1,4 @@
-"""Diário Kobo do LIRAa, separado das importações gerais de visitas."""
+"""Contrato do diário LIRAa, compartilhado pelas importações geral e específica."""
 
 import json
 from datetime import date, datetime
@@ -346,29 +346,7 @@ def importar(target, id_ciclo, records, auditar=None):
             # Mesmo bloqueio usado no ressorteio: impede alteração do plano durante a importação.
             liraa._bloquear_ciclo(conn, id_ciclo)
             items = _preparar(conn, id_ciclo, records)
-            created = 0
-            for item in items:
-                if item["situacao_importacao"] != "nova":
-                    continue
-                visit_id = db.insert_and_get_id(conn, """INSERT INTO liraa_visitas
-                    (id_ciclo,id_estrato,kobo_uuid,kobo_id,data_visita,hora_inicio,enviado_em,
-                     agentes_codigos,acs_codigos,id_localidade,localidade_informada,quarteirao,
-                     situacao_vinculo,tipo_imovel,logradouro,numero,sequencia,morador,observacoes,criado_em,
-                     tratamento_json,form_ciclo,plano_hash)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (id_ciclo, item["id_estrato"], item["kobo_uuid"], item["kobo_id"],
-                     item["data_visita"], item["hora_inicio"], item["enviado_em"],
-                     item["agentes_codigos"], item["acs_codigos"], item["id_localidade"],
-                     item["localidade_informada"], item["quarteirao"], item["situacao_vinculo"],
-                     item["tipo_imovel"], item["logradouro"], item["numero"], item["sequencia"],
-                     item["morador"], item["observacoes"], datetime.now().isoformat(timespec="seconds"),
-                     item["tratamento_json"], item["form_ciclo"], item["plano_hash"]),
-                    "id_visita")
-                for tube in item["tubitos"]:
-                    conn.execute("""INSERT INTO liraa_visita_tubitos
-                        (id_visita,ordem,numero,codigo_deposito,deposito) VALUES (?,?,?,?,?)""",
-                        (visit_id, tube["ordem"], tube["numero"], tube["codigo_deposito"], tube["deposito"]))
-                created += 1
+            created = gravar_preparados(conn, id_ciclo, items)
             if auditar:
                 auditar(conn, {"id_ciclo": id_ciclo, "recebidos": len(items), "novos": created,
                                 "ja_importados": sum(x["situacao_importacao"] == "importada" for x in items),
@@ -376,6 +354,33 @@ def importar(target, id_ciclo, records, auditar=None):
             return created
     finally:
         conn.close()
+
+
+def gravar_preparados(conn, id_ciclo, items):
+    created = 0
+    for item in items:
+        if item["situacao_importacao"] != "nova":
+            continue
+        visit_id = db.insert_and_get_id(conn, """INSERT INTO liraa_visitas
+            (id_ciclo,id_estrato,kobo_uuid,kobo_id,data_visita,hora_inicio,enviado_em,
+             agentes_codigos,acs_codigos,id_localidade,localidade_informada,quarteirao,
+             situacao_vinculo,tipo_imovel,logradouro,numero,sequencia,morador,observacoes,criado_em,
+             tratamento_json,form_ciclo,plano_hash)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (id_ciclo, item["id_estrato"], item["kobo_uuid"], item["kobo_id"],
+             item["data_visita"], item["hora_inicio"], item["enviado_em"],
+             item["agentes_codigos"], item["acs_codigos"], item["id_localidade"],
+             item["localidade_informada"], item["quarteirao"], item["situacao_vinculo"],
+             item["tipo_imovel"], item["logradouro"], item["numero"], item["sequencia"],
+             item["morador"], item["observacoes"], datetime.now().isoformat(timespec="seconds"),
+             item["tratamento_json"], item["form_ciclo"], item["plano_hash"]),
+            "id_visita")
+        for tube in item["tubitos"]:
+            conn.execute("""INSERT INTO liraa_visita_tubitos
+                (id_visita,ordem,numero,codigo_deposito,deposito) VALUES (?,?,?,?,?)""",
+                (visit_id, tube["ordem"], tube["numero"], tube["codigo_deposito"], tube["deposito"]))
+        created += 1
+    return created
 
 
 def listar(target, id_ciclo=None, limite=100, deslocamento=0, inicio=None, fim=None, busca=None):
@@ -501,6 +506,8 @@ def corrigir(target, id_visita, payload, auditar=None):
                       "logradouro", "numero", "sequencia", "morador", "observacoes", "id_estrato", "situacao_vinculo", "tratamento_json")
             conn.execute("UPDATE liraa_visitas SET " + ",".join(f"{f}=?" for f in fields) + " WHERE id_visita=?",
                          (*[new[f] for f in fields], id_visita))
+            from app_core import liraa_integracao
+            liraa_integracao.sincronizar_foco(conn, id_visita)
             if auditar:
                 auditar(conn, {"id_ciclo": old["id_ciclo"], "motivo": motivo,
                                "anterior": {f: old[f] for f in fields}, "atual": {f: new[f] for f in fields}})
@@ -563,6 +570,8 @@ def excluir(target, id_visita, motivo="", auditar=None):
                 (kobo_uuid,excluida_em,id_ciclo,motivo) VALUES (?,?,?,?)""",
                 (row["kobo_uuid"], datetime.now().isoformat(timespec="seconds"),
                  row["id_ciclo"], _texto(motivo, 300)))
+            from app_core import liraa_integracao
+            liraa_integracao.apagar_focos(conn, id_visita)
             conn.execute("DELETE FROM liraa_visitas WHERE id_visita=?", (id_visita,))
             if auditar:
                 auditar(conn, {"id_ciclo": row["id_ciclo"], "uuid": row["kobo_uuid"],

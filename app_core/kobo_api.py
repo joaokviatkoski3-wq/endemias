@@ -13,16 +13,16 @@ from app_core import work_types
 
 
 DEFAULT_SERVER_URL = "https://kf.kobotoolbox.org"
-VISIT_TYPES = ("PE", "TB", "TBO", "PVE")
+VISIT_TYPES = ("PE", "TB", "TBO", "PVE", "LIRAA")
 EXTRA_TYPES = ("LARVAS", "ESPOROTRICOSE", "BRI", "AMOSTRA_ANIMAIS", "RECOLHIMENTO")
 ALL_TYPES = VISIT_TYPES + EXTRA_TYPES
-# O diário LIRAa tem importação manual própria e não entra em ALL_TYPES.
-CONFIG_TYPES = ALL_TYPES + ("LIRAA",)
+CONFIG_TYPES = ALL_TYPES
 TYPE_LABELS = {
     "PE": "Ponto Estratégico",
     "TB": "Tratamento/Bloqueio",
     "TBO": "Ovitrampas",
     "PVE": "Pesquisa Vetorial Especial",
+    "LIRAA": "LIRAa",
     "LARVAS": "Resultados de laboratório",
     "ESPOROTRICOSE": "Esporotricose",
     "BRI": "Borrifamento residual",
@@ -484,6 +484,23 @@ def _agent_names(record):
 
 
 def record_details(tipo, record, larvas_links=None):
+    if tipo == "LIRAA":
+        from app_core import liraa_kobo, visitas_integradas
+        try:
+            item = liraa_kobo._normalizar(record)
+        except liraa_kobo.LiraaKoboError as exc:
+            detalhe = record_details("",record,larvas_links)
+            detalhe["erro_liraa"] = str(exc)
+            return detalhe
+        nomes = dict(visitas_integradas.catalogo_agentes())
+        return dict(data=item["data_visita"],enviado_em=item["enviado_em"],
+            agentes=", ".join(nomes.get(c,c) for c in item["agentes_codigos"].split() if c!="no-ace"),
+            localidade=item["localidade_informada"],endereco=item["logradouro"],numero=item["numero"],
+            quarteirao=item["quarteirao"],morador=item["morador"],tipo_imovel=item["tipo_imovel"],
+            hora_inicio=item["hora_inicio"],hora_fim="",visita="",observacoes=item["observacoes"],
+            tubo=", ".join(t["numero"] for t in item["tubitos"]),data_coleta=item["data_visita"],
+            laboratorio="",resultado="",vinculo_visita="",tubos=[dict(tubo=t["numero"],data=item["data_visita"],
+                codigo_deposito=t["codigo_deposito"],deposito=t["deposito"]) for t in item["tubitos"]])
     larvas_links = larvas_links or {}
     tubos = record_tubes(record)
     tubo = _value(record, ["Número do tubito", "Numero do tubito", "num_tubo", "tubo", "tubito"])
@@ -531,6 +548,8 @@ def summarize_submissions(records, existing_uuids=None, sample_size=20, tipo=Non
         duplicado = bool(uuid and uuid in existing_uuids)
         detalhes = record_details(tipo or "", record, larvas_links=larvas_links)
         problemas = []
+        if detalhes.get("erro_liraa"):
+            problemas.append(detalhes["erro_liraa"])
         if not uuid:
             sem_uuid += 1
             problemas.append("Sem identificador interno do Kobo")
@@ -916,6 +935,24 @@ def write_etl_workbooks(registros_por_tipo, config_path, output_dir, prefix="kob
 
     for tipo in VISIT_TYPES:
         records = registros_por_tipo.get(tipo) or []
+        if tipo == "LIRAA":
+            if records:
+                from openpyxl import Workbook
+                book = Workbook()
+                sheet = book.active
+                sheet.title = "liraa_envios"
+                conteudos = [json.dumps(r, ensure_ascii=False) for r in records]
+                largura = max((len(c)+11999)//12000 for c in conteudos)
+                sheet.append([f"parte_{i}" for i in range(largura)])
+                for texto in conteudos:
+                    sheet.append([texto[i:i+12000] for i in range(0,len(texto),12000)])
+                    for cell in sheet[sheet.max_row]:
+                        cell.data_type = "s"
+                path = out / f"LIRAA_{prefix}.xlsx"
+                book.save(path)
+                book.close()
+                arquivos.append(str(path))
+            continue
         if not records or tipo not in tipos_cfg:
             continue
         cfg_tipo = tipos_cfg[tipo]

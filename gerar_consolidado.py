@@ -11,6 +11,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
 from app_core import db as db_core
+from app_core import visitas_integradas as integradas
 
 import os as _os
 BANCO_DADOS  = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "endemias.db")
@@ -152,6 +153,7 @@ _QUERY_VISITAS_BASE = """
 
 # Extras por tipo inseridos após "Agentes" e antes dos depósitos
 _EXTRAS = {
+    "LIRAA": ["Ciclo LIRAa", "Tipo Imóvel", "Estrato LIRAa", "Vínculo ao plano"],
     "PE":  ["Ciclo"],
     "PVE": ["Ciclo", "Lado", "Tipo Imóvel", "Água Sanepar"],
     "TB":  ["Tipo Imóvel", "Água Sanepar"],
@@ -168,6 +170,9 @@ _EXTRAS = {
 }
 
 _QUERY_EXTRAS = {
+    "LIRAA": """v.ciclo,v.tipo_imovel,
+        (SELECT e.numero FROM liraa_visitas lv LEFT JOIN liraa_estratos e ON e.id_estrato=lv.id_estrato WHERE 'liraa-v-' || CAST(lv.id_visita AS TEXT)=v.id_visita),
+        (SELECT lv.situacao_vinculo FROM liraa_visitas lv WHERE 'liraa-v-' || CAST(lv.id_visita AS TEXT)=v.id_visita),""",
     "PE": "v.ciclo,",
     "PVE": "v.ciclo, v.lado, v.tipo_imovel, CASE v.agua_sanepar WHEN 1 THEN 'Sim' WHEN 0 THEN 'Não' ELSE NULL END,",
     "TB":  "v.tipo_imovel, CASE v.agua_sanepar WHEN 1 THEN 'Sim' WHEN 0 THEN 'Não' ELSE NULL END,",
@@ -212,6 +217,13 @@ _QUERY_EXTRAS = {
 
 def _aplicar_agregacoes(query, backend):
     if backend == "postgresql":
+        # Consultas integradas usam CTEs: o PostgreSQL não pode inferir a
+        # dependência funcional da chave primária da tabela física de origem.
+        visita = "v.id_visita,v.data,v.hora_inicio,v.localidade,v.quarteirao,v.logradouro,v.numero,v.visita,v.morador,v.ciclo,v.lado,v.tipo_imovel,v.agua_sanepar,v.hora_fim"
+        coleta = "c.id_coleta,c.num_tubo,c.codigo_deposito,c.tipo_deposito,c.deposito_eliminado"
+        leitura = "r.id_resultado,r.laboratorista,r.data_leitura," + ",".join(f"r.{e}_{f}" for e in ("aegypt","albopictus","outra") for f in ("larvas","pupas","exuvias","adulto"))
+        query = query.replace("GROUP BY v.id_visita, c.id_coleta, r.id_resultado", "GROUP BY " + visita + "," + coleta + "," + leitura)
+        query = query.replace("GROUP BY v.id_visita\n", "GROUP BY " + visita + "\n")
         agregacoes = {
             "/*AGENTES_AGG*/": "string_agg(a2.nome, ', ' ORDER BY a2.nome)",
             "/*TRATAMENTOS_AGG*/": "string_agg(tp, ', ' ORDER BY tp)",
@@ -265,6 +277,7 @@ def montar_cabecalho_visitas(tipo):
 # =============================================================================
 
 COR_HEADER = {
+    "LIRAA": "B91C1C",
     "PE":  "1F4E79",
     "TB":  "1F4E79",
     "TBO": "1F4E79",
@@ -405,7 +418,7 @@ def gerar_todos(logger=None, banco_dados=None, pasta_saida=None, tipos=None):
 
     banco_dados = banco_dados or BANCO_DADOS
     pasta_saida = pasta_saida or PASTA_SAIDA
-    tipos = tipos or ["PE", "TB", "TBO", "PVE"]
+    tipos = tipos or ["PE", "TB", "TBO", "PVE", "LIRAA"]
 
     target = (
         banco_dados
@@ -417,7 +430,7 @@ def gerar_todos(logger=None, banco_dados=None, pasta_saida=None, tipos=None):
         return
 
     os.makedirs(pasta_saida, exist_ok=True)
-    conn = db_core.connect(target)
+    conn = integradas.connect(target)
     cur  = conn.cursor()
 
     resultados = []

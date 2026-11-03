@@ -17,7 +17,7 @@ AEGYPT_FIELDS = (
     "aegypt_adulto",
 )
 
-TIPOS_COM_NOTIFICACAO = {"TB", "TBO", "PVE"}
+TIPOS_COM_NOTIFICACAO = {"TB", "TBO", "PVE", "LIRAA"}
 
 
 def _text(value):
@@ -98,6 +98,12 @@ def sincronizar_foco_visita(conn, id_visita, agora_iso):
     permite notificacao, o foco e mantido para analise, mas e retirado da fila
     de notificacoes por ``gera_notificacao=0``.
     """
+    from app_core import visitas_integradas, liraa_integracao
+    origem_liraa = visitas_integradas.id_liraa(id_visita)
+    if origem_liraa is not None:
+        ident = liraa_integracao.sincronizar_foco(conn, origem_liraa)
+        row = conn.execute("SELECT gera_notificacao FROM focos_positivos WHERE id_visita_liraa=?", (origem_liraa,)).fetchone()
+        return {"id_foco":ident,"tem_positivo_aegypti":bool(ident),"gera_notificacao":bool(row and row[0]),"atualizado":True}
     visita = _visita(conn, id_visita)
     if not visita:
         raise ValueError("Visita nao encontrada para sincronizar foco positivo.")
@@ -187,6 +193,8 @@ def sincronizar_foco_visita(conn, id_visita, agora_iso):
 
 def listar_divergencias(conn):
     """Lista visitas positivas cuja presenca na fila diverge da regra vigente."""
+    from app_core import visitas_integradas
+    conn = visitas_integradas.integrar(conn)
     total = " + ".join(f"COALESCE(rl.{field},0)" for field in AEGYPT_FIELDS)
     rows = conn.execute(
         f"""SELECT DISTINCT v.id_visita, v.tipo, v.data, v.localidade,

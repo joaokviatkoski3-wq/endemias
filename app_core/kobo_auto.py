@@ -11,6 +11,7 @@ import etl
 
 
 TABELAS_UUID = {
+    "LIRAA": "liraa_visitas",
     "PE": "visitas", "TB": "visitas", "TBO": "visitas", "PVE": "visitas",
     "LARVAS": "resultados_laboratorio", "ESPOROTRICOSE": "esporotricose_visitas",
     "BRI": "bri_registros", "AMOSTRA_ANIMAIS": "amostras_animais",
@@ -49,6 +50,9 @@ def _uuids_existentes(target, tipo, registros):
     if not uuids:
         return set()
     conn = db.connect(target)
+    if tipo == "LARVAS":
+        from app_core import visitas_integradas
+        conn=visitas_integradas.integrar(conn)
     try:
         encontrados = set()
         for inicio in range(0, len(uuids), 500):
@@ -58,6 +62,8 @@ def _uuids_existentes(target, tipo, registros):
                 f"SELECT DISTINCT kobo_uuid FROM {TABELAS_UUID[tipo]} "
                 f"WHERE kobo_uuid IN ({placeholders})", lote,
             ).fetchall())
+            if tipo == "LIRAA" and db.table_exists(conn,"liraa_visitas_excluidas"):
+                encontrados.update(r[0] for r in conn.execute(f"SELECT kobo_uuid FROM liraa_visitas_excluidas WHERE kobo_uuid IN ({placeholders})", lote))
         return encontrados
     finally:
         conn.close()
@@ -68,11 +74,15 @@ def _buscar_novos(cfg, target, inicio, fim):
     totais = {}
     for tipo in kobo_api.ALL_TYPES:
         uid = str((cfg.get("assets") or {}).get(tipo) or "").strip()
-        if not uid:
+        if not uid and tipo != "LIRAA":
             continue
-        registros, resposta = kobo_api.fetch_submissions(
-            cfg, uid, limit=5000, start=inicio, end=fim,
-        )
+        if tipo == "LIRAA":
+            from app_core import liraa_integracao
+            registros,resposta=liraa_integracao.buscar_kobo(cfg,target,inicio,fim)
+            if resposta is None:
+                continue
+        else:
+            registros, resposta = kobo_api.fetch_submissions(cfg, uid, limit=5000, start=inicio, end=fim)
         if isinstance(resposta, dict):
             if "count" not in resposta and len(registros) >= 5000:
                 raise ImportacaoAutomaticaErro(
@@ -97,7 +107,7 @@ def _buscar_novos(cfg, target, inicio, fim):
 
 def _atualizar_catalogos(cfg, target, novos):
     avisos = []
-    for tipo, formulario in (("PVE", "PVE"), ("ESPOROTRICOSE", "Esporotricose")):
+    for tipo, formulario in (("PVE", "PVE"), ("ESPOROTRICOSE", "Esporotricose"), ("LIRAA", "LIRAa")):
         if not novos.get(tipo):
             continue
         try:

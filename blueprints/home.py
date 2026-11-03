@@ -4,6 +4,7 @@ from app_core import audit
 from app_core import backup as backup_core
 from app_core import blueprint_helpers as bh
 from app_core import db as db_core
+from app_core import visitas_integradas as integradas
 from app_core import import_history
 from app_core import meteorologia as meteorologia_core
 from app_core import utils as utils_core
@@ -18,7 +19,7 @@ bp = Blueprint("home", __name__)
 def page():
     usuario = bh.usuario_atual()
     is_admin = (usuario or {}).get("nivel") == "admin"
-    conn = bh.get_db()
+    conn = integradas.integrar(bh.get_db())
     try:
         ano_ini = utils_core.data_ano()
         hoje = utils_core.hoje()

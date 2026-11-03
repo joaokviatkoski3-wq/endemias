@@ -19,6 +19,11 @@ WORK_TYPES = (
         "label": "Pesquisa Vetorial Especial",
         "cor": "#8b5cf6",
     },
+    {
+        "codigo": "LIRAA",
+        "label": "LIRAa",
+        "cor": "#ef4444",
+    },
 )
 
 WORK_TYPE_COLORS = {item["codigo"]: item["cor"] for item in WORK_TYPES}
@@ -153,7 +158,8 @@ def validate_config_work_types(config):
     known = set(WORK_TYPE_CODES)
 
     missing_in_ui = sorted(configured - known)
-    missing_in_config = sorted(known - configured)
+    # LIRAa usa seu contrato nativo e dispensa o mapeamento legado de colunas.
+    missing_in_config = sorted(known - configured - {"LIRAA"})
 
     errors = []
     if missing_in_ui:

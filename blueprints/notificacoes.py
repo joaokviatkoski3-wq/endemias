@@ -17,6 +17,7 @@ from flask import (
 from app_core import audit
 from app_core import auth as auth_core
 from app_core import db as db_core
+from app_core import visitas_integradas as integradas
 from app_core import escopo_agente
 from app_core import utils as utils_core
 from app_core import work_types
@@ -45,15 +46,15 @@ def _saida_dir():
 
 
 def get_db():
-    return db_core.connect(_db_target())
+    return integradas.connect(_db_target())
 
 
 def q(sql, params=()):
-    return db_core.query(_db_target(), sql, params)
+    return integradas.query(_db_target(), sql, params)
 
 
 def q1(sql, params=()):
-    return db_core.query_one(_db_target(), sql, params)
+    return integradas.query_one(_db_target(), sql, params)
 
 
 def _auditar(conn, acao, entidade_id=None, detalhes=None):
@@ -245,7 +246,7 @@ def foco_detalhe(id_foco):
             LEFT JOIN visita_agentes va ON va.id_visita=v.id_visita
             LEFT JOIN agentes a ON a.id_agente=va.id_agente
             WHERE v.logradouro=? AND v.numero=?
-            GROUP BY v.id_visita ORDER BY v.data DESC LIMIT 10
+            GROUP BY v.id_visita,v.data,v.tipo,v.visita,v.logradouro,v.numero,v.quarteirao ORDER BY v.data DESC LIMIT 10
             """,
             (foco["logradouro"], foco.get("numero", "")),
         )

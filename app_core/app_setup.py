@@ -16,6 +16,7 @@ from flask_wtf.csrf import CSRFError
 
 from app_core import auth as auth_core
 from app_core import db as db_core
+from app_core import visitas_integradas as integradas
 from app_core import escopo_agente
 from app_core import modules as modules_core
 from app_core import utils as utils_core
@@ -32,7 +33,7 @@ def _cached_q(key, sql, params=()):
     target = db_core.configured_target(current_app.config)
     cache_key = (target, key)
     if cache_key not in _glob_cache or now - _glob_cache[cache_key][0] > _CACHE_TTL:
-        _glob_cache[cache_key] = (now, db_core.query(target, sql, params))
+        _glob_cache[cache_key] = (now, integradas.query(target, sql, params))
     return _glob_cache[cache_key][1]
 
 

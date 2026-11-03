@@ -250,14 +250,16 @@ class OperacaoTests(unittest.TestCase):
         client=app.test_client()
         with client.session_transaction() as session:
             session['uid']=1
-        for path in (f'/liraa?ciclo={self.ciclo}',f'/liraa/laboratorio?ciclo={self.ciclo}',
+        self.assertEqual(client.get(f'/liraa/laboratorio?ciclo={self.ciclo}').status_code,302)
+        for path in (f'/liraa?ciclo={self.ciclo}',
                      '/laboratorio/lancamentos?modulo=liraa',
                      f'/liraa/ciclos/{self.ciclo}/plano.kml',f'/liraa/ciclos/{self.ciclo}/plano.pdf',
                      f'/liraa/ciclos/{self.ciclo}/boletim.pdf',f'/liraa/ciclos/{self.ciclo}/formulario.xlsx'):
             self.assertEqual(client.get(path).status_code,200,path)
         page=client.get('/laboratorio/lancamentos?modulo=liraa').get_data(as_text=True)
-        self.assertIn('Tubos · LIRAA',page)
-        self.assertIn('LIRAA · 1 tubo(s) aguardando leitura',page)
+        self.assertNotIn('Tubos · LIRAA',page)
+        self.assertIn('configurarCamposLiraa',page)
+        self.assertNotIn('lab-module-liraa',page)
         tube=lab.listar(self.target,self.ciclo)[0]['id_tubito']
         response=client.post(f'/liraa/laboratorio/{tube}',data={**self.payload(), 'integrado':'1','ciclo':self.ciclo})
         self.assertEqual(response.status_code,302)
@@ -272,7 +274,7 @@ class OperacaoTests(unittest.TestCase):
         conn.execute("UPDATE usuarios SET acesso_laboratorio=1")
         conn.commit();conn.close()
         self.assertEqual(client.get('/laboratorio/lancamentos?modulo=liraa').status_code,200)
-        self.assertEqual(client.get('/liraa/laboratorio?pendentes=0').status_code,200)
+        self.assertEqual(client.get('/liraa/laboratorio?pendentes=0').status_code,302)
         self.assertEqual(client.get(f'/liraa/ciclos/{self.ciclo}/formulario.xlsx').status_code,403)
 
     def test_painel_laboratorio_contador_paginacao_e_schema_ausente(self):

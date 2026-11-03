@@ -224,6 +224,8 @@ def api_visitas_sincronizar_acs_kobo():
 @nivel_min("operador")
 def api_visita_editar(id_visita):
     dados = request.get_json(silent=True) or {}
+    if str(id_visita).startswith("liraa-v-") and (bh.usuario_atual() or {}).get("nivel") != "admin":
+        return jsonify({"erro":"Somente administrador pode corrigir visitas LIRAa."}), 403
     try:
         resultado = visitas_core.editar(
             bh.db_target(),
@@ -243,6 +245,7 @@ def api_visita_editar(id_visita):
     except (
         visitas_core.VisitaInvalida,
         visitas_core.ColetaComResultado,
+        ValueError,
     ) as exc:
         return jsonify({"erro": str(exc)}), 400
     except Exception:
@@ -268,6 +271,8 @@ def api_visita_excluir(id_visita):
         return jsonify({"ok": True, **resultado})
     except visitas_core.VisitaNaoEncontrada as exc:
         return jsonify({"erro": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
     except Exception:
         logging.exception("Erro em api_visita_excluir")
         return jsonify(

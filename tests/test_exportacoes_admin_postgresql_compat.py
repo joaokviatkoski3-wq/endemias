@@ -114,7 +114,9 @@ class ConsolidadosPostgreSQLCompatTests(unittest.TestCase):
 
         self.assertIn("string_agg(a2.nome", visitas)
         self.assertIn("string_agg(dep, '; ' ORDER BY num_tubo)", visitas)
-        self.assertIn("GROUP BY v.id_visita, c.id_coleta, r.id_resultado", coletas)
+        agrupamento=coletas.partition("GROUP BY")[2].partition("ORDER BY")[0]
+        for coluna in ("v.id_visita","c.id_coleta","r.id_resultado","v.data","c.num_tubo","r.laboratorista"):
+            self.assertIn(coluna,agrupamento)
         self.assertNotIn("GROUP_CONCAT", visitas + coletas)
 
     def test_queries_sqlite_mantem_group_concat(self):

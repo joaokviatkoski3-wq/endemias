@@ -149,7 +149,7 @@ function renderVisitasLista(rows) {
           </div>
           <div class="visita-actions">
             <button class="btn btn-outline btn-sm" type="button" data-visita-action="details" data-visita-id="${visitasText(row.id_visita)}">Ver detalhes</button>
-            ${visitasConfig.pode_editar ? `<button class="btn btn-ghost btn-sm" type="button" data-visita-action="edit" data-visita-id="${visitasText(row.id_visita)}"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Editar</button>` : ''}
+            ${visitasConfig.pode_editar && (row.tipo!=='LIRAA'||visitasConfig.pode_excluir) ? `<button class="btn btn-ghost btn-sm" type="button" data-visita-action="edit" data-visita-id="${visitasText(row.id_visita)}"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Editar</button>` : ''}
             ${visitasConfig.pode_excluir ? `<button class="btn btn-ghost btn-sm visita-delete-button" type="button" data-visita-action="delete" data-visita-id="${visitasText(row.id_visita)}"><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"> Excluir</button>` : ''}
           </div>
         </div>
@@ -327,12 +327,14 @@ async function abrirEditarVisita(id) {
     const detail = await carregarDetalheVisita(id);
     visitasState.editando = id;
     const v = detail.visita || {};
+    visitasState.editandoLiraa=v.tipo==='LIRAA';
+    if(visitasState.editandoLiraa){abrirEditorLiraa(v);return;}
     document.getElementById('visita-edit-id').textContent = id;
     document.getElementById('visita-edit-body').innerHTML = `
       <section class="visitas-edit-section">
         <div class="visitas-edit-section-head"><h3>Dados da visita</h3><span class="visitas-edit-note">Os identificadores técnicos do Kobo são preservados.</span></div>
         <div class="visitas-edit-grid">
-          <div class="f-g"><label>Tipo de trabalho</label><select id="edit_tipo">${optionList(visitasConfig.tipos, v.tipo, 'Selecione')}</select></div>
+          <div class="f-g"><label>Tipo de trabalho</label><select id="edit_tipo">${optionList(visitasConfig.tipos.filter(t=>t!=='LIRAA'), v.tipo, 'Selecione')}</select></div>
           <div class="f-g"><label>Data</label><input id="edit_data" type="date" value="${inputValue(v.data)}"></div>
           <div class="f-g"><label>Hora inicial</label><input id="edit_hora_inicio" type="time" value="${inputValue(v.hora_inicio)}"></div>
           <div class="f-g"><label>Hora final</label><input id="edit_hora_fim" type="time" value="${inputValue(v.hora_fim)}"></div>
@@ -370,6 +372,34 @@ async function abrirEditarVisita(id) {
   }
 }
 
+function abrirEditorLiraa(v){
+  visitasState.versaoLiraa=v.versao_liraa;
+  document.getElementById('visita-edit-id').textContent='LIRAa';
+  const campos=[['data','Data','date'],['localidade','Localidade','text'],['quarteirao','Quarteirão','text'],
+    ['logradouro','Logradouro','text'],['numero','Número','text'],['sequencia','Sequência','text'],
+    ['morador','Morador','text'],['observacoes','Observações','text']];
+  const tipos=[['residencia','Residência'],['comercio','Comércio'],['terreno_baldio','Terreno baldio'],['outros','Outros'],['rco','Residência/comércio/outros (legado)']];
+  document.getElementById('visita-edit-body').innerHTML=`<section class="visitas-edit-section">
+    <p>LIRAa · ciclo ${visitasText(v.ciclo)}. A correção preserva o plano, os tubos e as leituras.</p>
+    <div class="visitas-edit-grid">${campos.map(([nome,label,tipo])=>`<div class="f-g"><label>${label}</label><input id="liraa-edit-${nome}" type="${tipo}" value="${inputValue(v[nome])}"></div>`).join('')}
+    <div class="f-g"><label>Tipo de imóvel</label><select id="liraa-edit-tipo_imovel">${tipos.map(([codigo,label])=>`<option value="${codigo}" ${v.tipo_imovel===codigo?'selected':''}>${label}</option>`).join('')}</select></div>
+    <div class="f-g"><label>Motivo da correção</label><input id="liraa-edit-motivo" maxlength="300" required></div></div></section>`;
+  document.getElementById('visita-edit-modal').hidden=false;
+  document.body.style.overflow='hidden';
+}
+
+async function salvarEditorLiraa(){
+  const btn=document.getElementById('visita-edit-save');btn.disabled=true;
+  try{
+    const dados={tipo:'LIRAA',versao:visitasState.versaoLiraa};
+    ['data','localidade','quarteirao','logradouro','numero','sequencia','morador','tipo_imovel','observacoes','motivo'].forEach(nome=>dados[nome]=document.getElementById(`liraa-edit-${nome}`).value);
+    const id=visitasState.editando;
+    await apiPost(`/api/visitas/${encodeURIComponent(id)}/editar`,dados);
+    visitasState.detalhes.delete(id);fecharEditarVisita();
+    toast('Visita LIRAa corrigida.','success');await buscarVisitas(visitasState.pagina);
+  }catch(error){toast(error.message,'error');}finally{btn.disabled=false;}
+}
+
 function fecharEditarVisita() {
   visitasState.editando = null;
   document.getElementById('visita-edit-modal').hidden = true;
@@ -391,6 +421,7 @@ function editorRowData(row, fields) {
 
 async function salvarEditarVisita() {
   if (!visitasState.editando) return;
+  if(visitasState.editandoLiraa){await salvarEditorLiraa();return;}
   const saveButton = document.getElementById('visita-edit-save');
   saveButton.disabled = true;
   const payload = {

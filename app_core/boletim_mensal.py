@@ -3,6 +3,7 @@ import uuid
 from datetime import date, datetime, timedelta
 
 from app_core import db as db_core
+from app_core import visitas_integradas as integradas
 
 
 MESES = (
@@ -30,7 +31,7 @@ def ensure_schema(target):
     if not db_core.is_sqlite(target):
         return
 
-    conn = db_core.connect(target)
+    conn = integradas.connect(target)
     try:
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS boletim_mensal_itens (
@@ -105,9 +106,12 @@ def _linha(chave, indicador, quantidade, unidade="", ordem=0, origem="auto", ati
 def linhas_automaticas(target, ano_mes):
     periodo = periodo_mes(ano_mes)
     d_ini, d_fim = periodo["d_ini"], periodo["d_fim"]
-    conn = db_core.connect(target)
+    conn = integradas.connect(target)
     try:
         linhas = [
+            _linha("visitas_liraa", "Imóveis visitados no LIRAa",
+                   _scalar(conn, "SELECT COUNT(*) FROM visitas WHERE tipo='LIRAA' AND data BETWEEN ? AND ?", (d_ini,d_fim)),
+                   "visitas", 45),
             _linha(
                 "visitas_pve",
                 "Vistorias de denúncias e focos suspeitos do Aedes aegypti (PVE - Pesquisa Vetorial Especial)",
@@ -278,7 +282,7 @@ def linhas_automaticas(target, ano_mes):
 
 def _salvos(target, ano_mes):
     ensure_schema(target)
-    conn = db_core.connect(target)
+    conn = integradas.connect(target)
     try:
         rows = conn.execute("""
             SELECT chave, origem, ordem, indicador, quantidade, unidade, ativo
@@ -385,7 +389,7 @@ def substituir_itens(conn, ano_mes, linhas):
 
 def salvar(target, ano_mes, linhas):
     ensure_schema(target)
-    conn = db_core.connect(target)
+    conn = integradas.connect(target)
     try:
         resumo = substituir_itens(conn, ano_mes, linhas)
         conn.commit()

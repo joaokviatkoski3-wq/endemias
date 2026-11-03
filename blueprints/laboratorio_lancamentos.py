@@ -10,6 +10,7 @@ from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import db as db_core
+from app_core import visitas_integradas as integradas
 from app_core import focos_positivos as focos_core
 from app_core import laboratorio_lancamentos as lab_core
 from app_core import ovitrampas_laboratorio as ovi_lab_core
@@ -152,7 +153,7 @@ def _agente_para_edicao(conn, dados, usuario):
 @laboratorio_required
 def page():
     usuario = bh.usuario_atual() or {}
-    conn = bh.get_db()
+    conn = integradas.integrar(bh.get_db())
     try:
         agentes = [db_core.serialize_row(row) for row in conn.execute(
             "SELECT id_agente, nome FROM agentes WHERE ativo=1 ORDER BY nome"
@@ -171,15 +172,29 @@ def page():
         is_admin=usuario.get("nivel") == "admin",
         agentes=agentes,
         laboratoristas=laboratoristas,
-        liraa_lab=liraa_lab_core.painel(bh.db_target(), request.args),
     )
+
+
+def _filtros_laboratorio():
+    tipo=str(request.args.get("tipo") or "").strip().upper()
+    ciclo=str(request.args.get("ciclo") or "").strip()
+    extra,params="",[]
+    if tipo:
+        extra+=" AND v.tipo=?";params.append(tipo)
+    if tipo=="LIRAA" and ciclo:
+        if not ciclo.isascii() or not ciclo.isdigit() or int(ciclo)<=0:
+            raise ValueError("Ciclo LIRAa inválido.")
+        extra+=" AND v.ciclo=?";params.append(int(ciclo))
+    return extra,params
 
 
 @bp.route("/api/laboratorio/lancamentos/pendentes")
 @login_required
 @laboratorio_required
 def pendentes():
-    conn = bh.get_db()
+    try:extra,params=_filtros_laboratorio()
+    except ValueError as exc:return jsonify({"erro":str(exc)}),400
+    conn = integradas.integrar(bh.get_db())
     try:
         agentes_sql = _agentes_coleta_sql(conn)
         dias_sql = _dias_pendente_sql(conn)
@@ -196,9 +211,9 @@ def pendentes():
               LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
               LEFT JOIN resultados_laboratorio rl ON rl.id_coleta=c.id_coleta
              LEFT JOIN {lab_core.STATUS_TABLE} st ON st.id_coleta=c.id_coleta
-             WHERE rl.id_coleta IS NULL AND st.id_coleta IS NULL
+             WHERE rl.id_coleta IS NULL AND st.id_coleta IS NULL {extra}
              ORDER BY v.data, {tubo_order}, c.num_tubo
-        """).fetchall()
+        """,params).fetchall()
     finally:
         conn.close()
     return jsonify({
@@ -211,8 +226,10 @@ def pendentes():
 @login_required
 @laboratorio_required
 def historico():
+    try:extra,params=_filtros_laboratorio()
+    except ValueError as exc:return jsonify({"erro":str(exc)}),400
     limite = min(max(int(request.args.get("limite", 100)), 1), 500)
-    conn = bh.get_db()
+    conn = integradas.integrar(bh.get_db())
     try:
         agentes_sql = _agentes_coleta_sql(conn)
         resultados = conn.execute(f"""
@@ -231,15 +248,16 @@ def historico():
               JOIN coletas c ON c.id_coleta=rl.id_coleta
               JOIN visitas v ON v.id_visita=c.id_visita
               LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
+             WHERE 1=1 {extra}
              ORDER BY rl.data_leitura DESC, rl.id_resultado DESC
              LIMIT ?
-        """, (limite,)).fetchall()
+        """, (*params,limite)).fetchall()
     finally:
         conn.close()
     itens = []
     for row in resultados:
         item = db_core.serialize_row(row)
-        item["editavel"] = _resultado_editavel(row)
+        item["editavel"] = ((bh.usuario_atual() or {}).get("nivel") == "admin") if item["id_resultado"] < 0 else _resultado_editavel(row)
         item["positivo_aegypti"] = any(
             int(item.get(nome) or 0) > 0 for nome in CAMPOS_CONTAGEM[:4]
         )
@@ -340,17 +358,60 @@ def ovitrampas_lote_laboratorista(id_lote):
     return jsonify({"ok": True, "lote": resultado["lote"]})
 
 
+def _salvar_liraa(id_tubito, dados, corrigir=False):
+    from app_core import liraa
+    usuario = bh.usuario_atual() or {}
+    conn = bh.get_db()
+    try:
+        tube = conn.execute("SELECT id_tubito FROM liraa_visita_tubitos WHERE id_tubito=?", (id_tubito,)).fetchone()
+        if not tube:
+            return jsonify({"erro":"Tubo LIRAa não encontrado."}), 404
+        old = conn.execute("SELECT * FROM liraa_leituras WHERE id_tubito=?", (id_tubito,)).fetchone()
+        if bool(old) != bool(corrigir):
+            return jsonify({"erro":"A situação do tubo mudou. Atualize a lista."}), 409
+        if corrigir and usuario.get("nivel") != "admin":
+            return jsonify({"erro":"Somente administrador pode corrigir uma leitura LIRAa."}), 403
+        agente = _agente_da_conta(conn)
+        if not agente:
+            return jsonify({"erro":"O nome desta conta não corresponde a um agente ativo. Contate o administrador."}), 400
+        if any(dados.get(f) not in (0,"0",None,"") for f in CAMPOS_CONTAGEM if f not in liraa_lab_core.CAMPOS):
+            return jsonify({"erro":"No LIRAa, informe somente larvas e pupas."}), 400
+        payload = {f:str(dados.get(f,"")) for f in liraa_lab_core.CAMPOS}
+        payload.update(data_leitura=old["data_leitura"] if old else date.today().isoformat(),
+                       versao=dados.get("versao", ""), observacoes=old["observacoes"] if old else "")
+        autor = dict(usuario, nome=agente["nome"])
+        if old:
+            autor.update(nome=old["laboratorista"], id_usuario=old["id_usuario"])
+    except (ValueError, liraa.LiraaError) as exc:
+        return jsonify({"erro":str(exc)}), 400
+    finally:
+        conn.close()
+    try:
+        liraa_lab_core.salvar(bh.db_target(), id_tubito, payload, autor,
+            auditar=lambda conn, detalhes: audit.registrar_evento(bh.get_db, "liraa_leitura_salva",
+                entidade="liraa_tubito", entidade_id=id_tubito, detalhes=detalhes, conn=conn))
+        return jsonify({"ok":True,"id_resultado":-id_tubito})
+    except liraa.LiraaError as exc:
+        return jsonify({"erro":str(exc)}), 400
+
+
 @bp.route("/api/laboratorio/lancamentos/<id_coleta>/resultado", methods=["POST"])
 @login_required
 @laboratorio_required
 def salvar_resultado(id_coleta):
     dados = request.get_json(silent=True) or {}
     try:
+        liraa_tubo = integradas.id_liraa(id_coleta, integradas.TUBO_PREFIXO)
+    except ValueError as exc:
+        return jsonify({"erro":str(exc)}), 400
+    if liraa_tubo is not None:
+        return _salvar_liraa(liraa_tubo, dados)
+    try:
         campos = _contagens(dados)
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
 
-    conn = bh.get_db()
+    conn = integradas.integrar(bh.get_db())
     try:
         agente = _agente_da_conta(conn)
         coleta = conn.execute("""
@@ -421,17 +482,19 @@ def salvar_resultado(id_coleta):
     return jsonify({"ok": True, "id_resultado": id_resultado})
 
 
-@bp.route("/api/laboratorio/lancamentos/resultados/<int:id_resultado>/editar", methods=["POST"])
+@bp.route("/api/laboratorio/lancamentos/resultados/<int(signed=True):id_resultado>/editar", methods=["POST"])
 @login_required
 @laboratorio_required
 def editar_resultado(id_resultado):
     dados = request.get_json(silent=True) or {}
+    if id_resultado < 0:
+        return _salvar_liraa(-id_resultado, dados, corrigir=True)
     try:
         campos = _contagens(dados)
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
 
-    conn = bh.get_db()
+    conn = integradas.integrar(bh.get_db())
     try:
         usuario = bh.usuario_atual() or {}
         resultado = conn.execute(

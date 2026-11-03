@@ -7,6 +7,7 @@ perderiam os detalhes individuais necessários ao PDF.
 from datetime import date
 
 from app_core import db as db_core
+from app_core import visitas_integradas as integradas
 from app_core import visitas as visitas_core
 
 
@@ -82,7 +83,7 @@ def _detalhe_esporotricose(conn, id_visita, catalogo_acs):
 
 def coletar(target, agente, inicio, fim):
     agente, inicio, fim = validar_filtros(agente, inicio, fim)
-    conn = db_core.connect(target)
+    conn = integradas.connect(target)
     try:
         pessoa = conn.execute("""SELECT COALESCE(NULLIF(nome_completo,''), nome) AS nome_exibicao
             FROM agentes WHERE nome=?""", (agente,)).fetchone()

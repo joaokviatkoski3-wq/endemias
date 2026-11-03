@@ -1,5 +1,10 @@
 # LIRAa — plano de campo, formulário e boletins
 
+Integração operacional `1.75.0`: ver `LIRAA_INTEGRACAO_OPERACIONAL.md`.
+Importação, laboratório, notificações e relatórios comuns passam a abranger o
+LIRAa; planejamento/boletins mantêm suas regras e registros próprios. Conferir
+ativação em `ESTADO_ATUAL_PROJETO.md` antes de usar o fluxo novo.
+
 Atualização de código `1.74.0`, em 03/11/2026: ver
 `LIRAA_LOGRADOUROS_RG.md` e `LIRAA_CORRECOES_2026_10.md`. O formulário manual
 aprovado do ciclo 4 recebe ruas do RG por quarteirão e “Outro — digitar”;

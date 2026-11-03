@@ -8,7 +8,7 @@
 .lab-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;}
 .lab-head h1{font-size:21px;margin:0;display:flex;align-items:center;gap:9px;}
 .lab-head p{margin:4px 0 0;color:var(--text3);font-size:12px;}
-.lab-module-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;}
+.lab-module-tabs{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px;}
 .lab-module-tab{min-height:46px;border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:7px;font:700 13px inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
 .lab-module-tab.active{background:var(--brand);border-color:var(--brand);color:#fff;}
 .lab-module-tab img{width:18px;height:18px;}
@@ -111,10 +111,14 @@
   <div class="lab-module-tabs" role="tablist" aria-label="Tipo de leitura">
     <button class="lab-module-tab active" type="button" data-lab-module="tubos" onclick="abrirModuloLab('tubos')"><img src="/static/icons/tubo_ensaio.svg" alt=""> Leitura tubos</button>
     <button class="lab-module-tab" type="button" data-lab-module="ovitrampas" onclick="abrirModuloLab('ovitrampas')"><img src="/static/icons/ovitrampa.svg" alt=""> Leitura Ovitrampa <span class="lab-count" id="ovi-lab-pending-count">-</span></button>
-    <button class="lab-module-tab" type="button" data-lab-module="liraa" onclick="abrirModuloLab('liraa')"><img src="/static/icons/tubo_ensaio.svg" alt=""> Tubos · LIRAA <span class="lab-count" id="liraa-lab-pending-count">{{ liraa_lab.total_pendentes }}</span></button>
   </div>
 
   <section class="lab-module" id="lab-module-tubos">
+    <label>Tipo de trabalho <select id="lab-filtro-tipo" class="inp" onchange="carregarPendentes();carregarHistorico();">
+      <option value="">Todos</option>
+      {% set tipo_filtro=request.args.get('tipo') or ('LIRAA' if request.args.get('modulo')=='liraa' else '') %}
+      {% for tipo in TIPOS_TRABALHO %}<option value="{{ tipo.codigo }}" {% if tipo_filtro==tipo.codigo %}selected{% endif %}>{{ tipo.label }}</option>{% endfor %}
+    </select></label>
     <div class="lab-tabs" role="tablist">
       <button class="lab-tab active" data-tab="pendentes" onclick="abrirAbaLab('pendentes')">Pendentes <span class="lab-count" id="lab-pending-count">-</span></button>
       <button class="lab-tab" data-tab="historico" onclick="abrirAbaLab('historico')">Histórico</button>
@@ -143,9 +147,6 @@
       <div class="lab-toolbar"><strong>Leituras concluídas</strong><button class="btn btn-ghost btn-sm" type="button" onclick="carregarOviLab(true)"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
       <div class="ovi-lab-list" id="ovi-lab-history"><div class="lab-empty"><div class="spinner"></div></div></div>
     </section>
-  </section>
-  <section class="lab-module" id="lab-module-liraa" hidden>
-    {% with lab=liraa_lab, integrado=true %}{% include 'liraa_laboratorio_conteudo.html' %}{% endwith %}
   </section>
 </div>
 
@@ -223,11 +224,29 @@ const oviLabLaboratoristas = {{ laboratoristas|tojson }};
 const labFields = ['aegypt_larvas','aegypt_pupas','aegypt_exuvias','aegypt_adulto','albopictus_larvas','albopictus_pupas','albopictus_exuvias','albopictus_adulto','outra_larvas','outra_pupas','outra_exuvias','outra_adulto'];
 
 function e(v){ return escapeAttr(v ?? ''); }
+function parametrosLab(){
+  const p=new URLSearchParams();
+  const tipo=document.getElementById('lab-filtro-tipo').value;
+  if(tipo)p.set('tipo',tipo);
+  const ciclo=new URLSearchParams(location.search).get('ciclo');
+  if(tipo==='LIRAA'&&ciclo)p.set('ciclo',ciclo);
+  return p;
+}
+function configurarCamposLiraa(tipo){
+  const liraa=tipo==='LIRAA';
+  labFields.forEach(name=>{
+    const input=document.querySelector(`[name="${name}"]`);
+    const fora=liraa&&(name.endsWith('_exuvias')||name.endsWith('_adulto'));
+    input.max=liraa?'1000000':'100000';
+    input.disabled=fora;input.closest('.count-field').hidden=fora;
+    if(fora)input.value=0;
+  });
+  document.getElementById('lab-form').dataset.liraa=liraa?'1':'0';
+}
 function abrirModuloLab(modulo){
   document.querySelectorAll('[data-lab-module]').forEach(btn=>btn.classList.toggle('active',btn.dataset.labModule===modulo));
   document.getElementById('lab-module-tubos').hidden=modulo!=='tubos';
   document.getElementById('lab-module-ovitrampas').hidden=modulo!=='ovitrampas';
-  document.getElementById('lab-module-liraa').hidden=modulo!=='liraa';
   if(modulo==='ovitrampas') carregarOviLab(false);
   else if(modulo==='tubos') carregarPendentes();
 }
@@ -241,7 +260,7 @@ async function carregarPendentes(){
   const grid=document.getElementById('lab-grid');
   grid.innerHTML='<div class="lab-empty"><div class="spinner"></div></div>';
   try{
-    const data=await apiGet('/api/laboratorio/lancamentos/pendentes');
+    const data=await apiGet('/api/laboratorio/lancamentos/pendentes?'+parametrosLab());
     labPendentes=data.pendentes||[];
     document.getElementById('lab-pending-count').textContent=data.total||0;
     if(!labPendentes.length){grid.innerHTML='<div class="lab-empty">Nenhum tubo aguardando leitura.</div>';return;}
@@ -261,6 +280,8 @@ function abrirLancamento(index){
   document.getElementById('lab-form').reset();
   document.getElementById('form-id-coleta').value=r.id_coleta;
   document.getElementById('form-id-resultado').value='';
+  document.getElementById('lab-form').dataset.versao='';
+  configurarCamposLiraa(r.tipo);
   document.getElementById('form-laboratorista-wrap')?.setAttribute('hidden','');
   document.getElementById('form-tube').textContent=`Tubo ${r.num_tubo}`;
   document.getElementById('form-context').textContent=`${r.localidade||'-'} · ${fmtDate(r.data)} · ${r.agentes||'Agente não informado'}`;
@@ -281,11 +302,12 @@ async function salvarResultado(ev){
 function fecharConfirmacaoSalvar(){labConfirmDialog.close();}
 async function confirmarSalvarResultado(){
   const btn=document.getElementById('btn-confirm-save');btn.disabled=true;
-  const body={};
+    const body={};
   labFields.forEach(name=>body[name]=Number(document.querySelector(`[name="${name}"]`).value)||0);
+  body.versao=document.getElementById('lab-form').dataset.versao||'';
   try{
     const idResultado=document.getElementById('form-id-resultado').value;
-    if(labIsAdmin&&idResultado){
+    if(labIsAdmin&&idResultado&&document.getElementById('lab-form').dataset.liraa!=='1'){
       const laboratorista=document.getElementById('form-id-laboratorista');
       body.id_laboratorista=Number(laboratorista?.value)||null;
     }
@@ -308,7 +330,10 @@ function abrirEdicaoResultado(index){
   document.getElementById('lab-form').reset();
   document.getElementById('form-id-coleta').value=r.id_coleta;
   document.getElementById('form-id-resultado').value=r.id_resultado;
-  if(labIsAdmin){
+  document.getElementById('lab-form').dataset.versao=r.atualizado_em||'';
+  configurarCamposLiraa(r.tipo);
+  document.getElementById('form-laboratorista-wrap')?.setAttribute('hidden','');
+  if(labIsAdmin&&r.tipo!=='LIRAA'){
     const wrap=document.getElementById('form-laboratorista-wrap');
     const select=document.getElementById('form-id-laboratorista');
     if(wrap&&select){wrap.removeAttribute('hidden');select.value=String(r.id_laboratorista||'');}
@@ -321,7 +346,8 @@ function abrirEdicaoResultado(index){
 async function carregarHistorico(){
   const area=document.getElementById('lab-history');area.innerHTML='<div class="lab-empty"><div class="spinner"></div></div>';
   try{
-    const data=await apiGet('/api/laboratorio/lancamentos/historico?limite=200');labHistorico=data.registros||[];
+    const p=parametrosLab();p.set('limite','200');
+    const data=await apiGet('/api/laboratorio/lancamentos/historico?'+p);labHistorico=data.registros||[];
     if(!labHistorico.length){area.innerHTML='<div class="lab-empty">Nenhum lançamento registrado.</div>';return;}
     area.innerHTML=labHistorico.map((r,index)=>{
       const positivo=Boolean(r.positivo_aegypti);
@@ -439,6 +465,6 @@ labDialog.addEventListener('click',ev=>{if(ev.target===labDialog)fecharLancament
 labConfirmDialog.addEventListener('click',ev=>{if(ev.target===labConfirmDialog)fecharConfirmacaoSalvar();});
 carregarPendentes();
 carregarOviLab(false);
-if(new URLSearchParams(location.search).get('modulo')==='liraa') abrirModuloLab('liraa');
+if(new URLSearchParams(location.search).get('modulo')==='liraa') abrirModuloLab('tubos');
 </script>
 {% endblock %}

@@ -1,4 +1,4 @@
-"""Leituras exclusivas do LIRAa, sem gerar notificações ou lançamentos gerais."""
+"""Leituras LIRAa preservadas na origem e integradas à operação/notificações."""
 
 from datetime import date, datetime
 from app_core import db, liraa, liraa_kobo, laboratorio_lancamentos, liraa_operacional as op
@@ -53,6 +53,11 @@ def ensure_schema(conn):
                 observacoes TEXT NOT NULL DEFAULT '',atualizado_em TEXT NOT NULL)""")
     if not db.table_exists(conn, "liraa_leituras"):
         raise liraa.LiraaError("Aplique a migração 0026 para as leituras e boletins LIRAa.")
+    if getattr(conn,"backend","sqlite") == "sqlite":
+        for campo, definicao in (("origem","TEXT NOT NULL DEFAULT 'sistema'"),("kobo_uuid","TEXT")):
+            if not db.column_exists(conn,"liraa_leituras",campo):
+                conn.execute(f"ALTER TABLE liraa_leituras ADD COLUMN {campo} {definicao}")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_liraa_leituras_kobo_uuid ON liraa_leituras(kobo_uuid)")
 
 
 def listar(target, ciclo=None, pendentes=False, offset=0):
@@ -111,6 +116,11 @@ def salvar(target, id_tubito, payload, usuario, auditar=None):
         if getattr(conn, "backend", "sqlite") == "sqlite":
             conn.execute("BEGIN IMMEDIATE")
         with conn:
+            owner = conn.execute("""SELECT v.id_ciclo FROM liraa_visita_tubitos t
+                JOIN liraa_visitas v ON v.id_visita=t.id_visita WHERE t.id_tubito=?""", (id_tubito,)).fetchone()
+            if not owner:
+                raise liraa.LiraaError("Tubito não encontrado.")
+            liraa._bloquear_ciclo(conn, owner["id_ciclo"])
             lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
             tube = conn.execute("SELECT * FROM liraa_visita_tubitos WHERE id_tubito=?" + lock, (id_tubito,)).fetchone()
             if not tube:
@@ -132,6 +142,8 @@ def salvar(target, id_tubito, payload, usuario, auditar=None):
                 conn.execute("UPDATE liraa_visita_tubitos SET codigo_deposito=? WHERE id_tubito=?", (code,id_tubito))
             if numero:
                 conn.execute("UPDATE liraa_visita_tubitos SET numero=? WHERE id_tubito=?", (numero,id_tubito))
+            from app_core import liraa_integracao
+            liraa_integracao.sincronizar_foco(conn, tube["id_visita"])
             if auditar:
                 auditar(conn, {"id_tubito": id_tubito, "anterior": db.serialize_row(old) if old else None,
                                 "quantidades": counts, "data_leitura": reading_date.isoformat(),

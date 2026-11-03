@@ -5,6 +5,7 @@ import re
 import unicodedata
 
 from app_core import db as db_core
+from app_core import visitas_integradas as integradas
 from app_core import utils
 
 
@@ -349,9 +350,9 @@ def _clean(value):
 
 def _open_connection(target):
     if hasattr(target, "execute"):
-        return target, False
+        return integradas.integrar(target), False
     if isinstance(target, (str, bytes, os.PathLike, db_core.DatabaseTarget)):
-        return db_core.connect(target), True
+        return integradas.connect(target), True
     raise TypeError("Destino ou conexao de banco invalido.")
 
 

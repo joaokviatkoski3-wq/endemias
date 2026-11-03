@@ -9,6 +9,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request, sen
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import db as db_core
+from app_core import visitas_integradas as integradas
 from app_core import escopo_agente
 from app_core import esporotricose as esporotricose_core
 from app_core import ovitrampas as ovitrampas_core
@@ -44,7 +45,7 @@ def _db_target():
 
 
 def _get_db():
-    return db_core.connect(_db_target())
+    return integradas.connect(_db_target())
 
 
 def _has_column(conn, table, column):

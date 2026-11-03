@@ -1,5 +1,8 @@
 # LIRAa — escolha de logradouros do RG
 
+O código `1.75.0` acrescenta integração operacional sem exigir outra revisão
+do formulário: ver `LIRAA_INTEGRACAO_OPERACIONAL.md` e o estado de ativação.
+
 Integrado em 03/11/2026 na `master` (`1256d97`), código `1.74.0`. Solicitação do usuário: escolher a rua
 do quarteirão no formulário, mantendo digitação para ruas novas. Essa mudança
 autoriza a revisão do campo de logradouro do formulário manual aprovado; não

@@ -1,4 +1,5 @@
 from app_core import db as db_core
+from app_core import visitas_integradas as integradas
 from app_core import utils as utils_core
 
 
@@ -216,5 +217,5 @@ def _placeholders(items):
 
 def _open_connection(target):
     if hasattr(target, "execute"):
-        return target, False
-    return db_core.connect(target), True
+        return integradas.integrar(target), False
+    return integradas.connect(target), True

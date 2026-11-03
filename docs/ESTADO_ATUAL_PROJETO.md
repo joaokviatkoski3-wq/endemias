@@ -4,6 +4,14 @@ Atualizado em 03/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Integração operacional LIRAa — código 1.75.0 em preparação
+
+- Usuário autorizou a integração gradual, abrangendo todas as consultas/relatórios pertinentes. Branch `codex/liraa-integracao-gradual`, worktree `C:\endemias-liraa-correcoes`. Produção permanece em `1.74.0` até ativação autorizada.
+- Visitas, tubos e leituras permanecem nas tabelas LIRAa. Conexões de consulta explicitamente integradas unem os registros aos da rotina; as gravações são encaminhadas aos serviços próprios, sem duas cópias editáveis. Importação geral/automática e XLSX completo, fila/histórico comuns, notificações, arboviroses, relatórios individuais/do setor, produção do laboratório, painel, mapa, positividade, boletim mensal e consolidados abrangidos.
+- Mantém plano real, assinatura, cinco sorteios, 261 sorteados + seis adicionais, datas, regras específicas do boletim e ACS ainda provisórios. Positivo de aegypti gera um foco por visita, exceto a notificação em terreno baldio; correção negativa desativa a fila sem apagar histórico. Albopictus permanece no laboratório/boletim.
+- Migração aditiva 0029 vincula focos LIRAa e registra origem/UUID das leituras. Não altera tipos antigos nem transfere visitas entre tabelas. Prévia somente leitura do banco real confirmou somente essa migração pendente, assinatura correta e zero visitas LIRAa/notificações a reconciliar. Backup, implantação e reinício ainda não executados.
+- Validação: 876 testes gerais sem falhas (cinco ignorados), três JS LIRAa e PostgreSQL 18 temporário incluindo relatórios, consolidado e leitura Kobo. Ver `docs/LIRAA_INTEGRACAO_OPERACIONAL.md`.
+
 ## Logradouros do RG no formulário — código 1.74.0
 
 - Solicitação de 03/11: ao escolher localidade/quarteirão, oferecer as ruas RG correspondentes, com **Outro — digitar** e complemento obrigatório. Lista embutida para uso offline. O importador verifica o contexto da escolha e guarda o nome; aceita texto livre dos formulários anteriores.

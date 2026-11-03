@@ -10,6 +10,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import db as db_core
+from app_core import visitas_integradas as integradas
 from app_core import escopo_agente
 from app_core.excel import excel_safe
 from app_core import positividade as positividade_core
@@ -28,7 +29,7 @@ def _db_target():
 
 
 def q(sql, params=()):
-    return db_core.query(_db_target(), sql, params)
+    return integradas.query(_db_target(), sql, params)
 
 
 def _string_aggregates():

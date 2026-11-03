@@ -4,6 +4,7 @@ from datetime import datetime
 
 from app_core import agentes as agentes_core
 from app_core import db as db_core
+from app_core import visitas_integradas as integradas
 from app_core import normalizadores
 from app_core import recolhimentos as db_helpers
 from app_core import utils as utils_core
@@ -102,6 +103,8 @@ def _serializar_visita(row, catalogo=None):
     visita["acs"] = formatar_acs_codigos(
         visita.get("acs_codigos"), catalogo
     )
+    if visita.get("tipo")=="LIRAA" and visita.get("acs_nome"):
+        visita["acs"] = ", ".join(v for v in (visita["acs"],visita["acs_nome"]) if v)
     return visita
 
 
@@ -409,6 +412,7 @@ def listar(target, args, pagina=1, por_pagina=30):
         agentes_agg = db_helpers._agentes_aggregate(conn, "nomes.nome")
         acs_agg = db_helpers._agentes_aggregate(conn, "codigos.acs_codigo")
         tubos_agg = db_helpers._agentes_aggregate(conn, "tubos.num_tubo")
+        acs_nome_sql = "v.acs_nome" if db_core.column_exists(conn,"visitas","acs_nome") else "NULL"
         rows = conn.execute(
             f"""
             SELECT v.id_visita, v.data, v.tipo,
@@ -416,7 +420,7 @@ def listar(target, args, pagina=1, por_pagina=30):
                    v.quarteirao, v.logradouro, v.numero, v.visita,
                    v.tipo_imovel, v.ciclo, v.sequencia, v.morador,
                    v.hora_inicio, v.hora_fim, v.lado, v.agua_sanepar,
-                   v.observacoes,
+                   v.observacoes, {acs_nome_sql} AS acs_nome,
                    (
                        SELECT {agentes_agg}
                          FROM (
@@ -644,8 +648,14 @@ def detalhar(target, id_visita):
                 ORDER BY id_foco""",
             (id_visita,),
         ).fetchall()
+        serializada = _serializar_visita(visita, acs_por_codigo)
+        origem_liraa = integradas.id_liraa(id_visita)
+        if origem_liraa is not None:
+            from app_core import liraa_kobo
+            original = conn.execute("SELECT * FROM liraa_visitas WHERE id_visita=?", (origem_liraa,)).fetchone()
+            serializada["versao_liraa"] = liraa_kobo.versao_visita(dict(original))
         return {
-            "visita": _serializar_visita(visita, acs_por_codigo),
+            "visita": serializada,
             "depositos": [
                 db_helpers._serializar_linha(row) for row in depositos
             ],
@@ -665,6 +675,19 @@ def detalhar(target, id_visita):
 
 
 def editar(target, id_visita, dados):
+    origem_liraa = integradas.id_liraa(id_visita)
+    if origem_liraa is not None:
+        from app_core import liraa_kobo
+        if dados.get("tipo") not in (None, "", "LIRAA"):
+            raise VisitaInvalida("O tipo de trabalho de um levantamento LIRAa não pode ser alterado.")
+        campos = {"data":"data_visita", "localidade":"localidade_informada"}
+        permitidos = {"data","localidade","quarteirao","logradouro","numero","sequencia","morador","tipo_imovel","observacoes","versao","motivo"}
+        payload = {campos.get(k,k):v for k,v in dados.items() if k in permitidos}
+        try:
+            ciclo = liraa_kobo.corrigir(target, origem_liraa, payload)
+        except liraa_kobo.LiraaKoboError as exc:
+            raise VisitaInvalida(str(exc)) from exc
+        return {"origem":"LIRAA","id_ciclo":ciclo,"motivo":dados.get("motivo")}
     conn, close = _open_connection(target)
     try:
         atual = conn.execute(
@@ -674,6 +697,8 @@ def editar(target, id_visita, dados):
         if not atual:
             raise VisitaNaoEncontrada("Visita não encontrada.")
         atual_dict = db_helpers._serializar_linha(atual)
+        if dados.get("tipo")=="LIRAA":
+            raise VisitaInvalida("Importe a visita pelo formulário LIRAa para preservar o vínculo ao levantamento.")
 
         localidade_bruta = dados.get(
             "localidade", atual_dict.get("localidade")
@@ -976,6 +1001,11 @@ def excluir(target, id_visita):
     auditoria e lotes de importacao nao sao apagados: eles nao sao dados
     operacionais da visita e precisam permanecer rastreaveis.
     """
+    origem_liraa = integradas.id_liraa(id_visita)
+    if origem_liraa is not None:
+        from app_core import liraa_kobo
+        ciclo = liraa_kobo.excluir(target, origem_liraa, "Exclusão administrativa pela consulta de visitas")
+        return {"origem":"LIRAA","id_ciclo":ciclo,"id_visita":id_visita}
     conn, close = _open_connection(target)
     try:
         visita = conn.execute(
@@ -1045,9 +1075,9 @@ def _obter_ou_criar_localidade(conn, nome):
 
 def _open_connection(target):
     if hasattr(target, "execute"):
-        return target, False
+        return integradas.integrar(target), False
     if isinstance(target, (str, bytes, os.PathLike, db_core.DatabaseTarget)):
-        return db_core.connect(target), True
+        return integradas.connect(target), True
     raise TypeError("Destino ou conexao de banco invalido.")
 
 

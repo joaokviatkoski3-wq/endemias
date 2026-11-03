@@ -129,8 +129,8 @@ class LiraaKoboTests(unittest.TestCase):
         conn.close()
         self.assertEqual(liraa_kobo.listar(self.target)[0]["situacao_vinculo"], "estrato_sem_sorteio")
 
-    def test_configuracao_liraa_nao_ativa_importador_geral(self):
-        self.assertNotIn("LIRAA", kobo_api.ALL_TYPES)
+    def test_configuracao_liraa_participa_do_importador_geral(self):
+        self.assertIn("LIRAA", kobo_api.ALL_TYPES)
         cfg = kobo_api.default_config()
         self.assertIn("LIRAA", cfg["assets"])
         config_path = Path(self.target).with_suffix(".json")

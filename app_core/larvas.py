@@ -3,6 +3,8 @@ from collections import defaultdict
 
 def resolver_coletas(conn, chaves):
     """Resolve resultados laboratoriais para coletas sem arriscar vinculos ambiguos."""
+    from app_core import visitas_integradas
+    conn = visitas_integradas.integrar(conn)
     chaves = {
         (str(tubo or "").strip(), str(data or "").strip()[:10])
         for tubo, data in (chaves or [])
@@ -29,14 +31,22 @@ def resolver_coletas(conn, chaves):
         por_tubo[item["num_tubo"]].append(item)
 
     resolvidas = {}
+    ambiguas_liraa = set()
     for chave in chaves:
         tubo, data = chave
         exatas = [row for row in por_tubo[tubo] if str(row.get("data") or "")[:10] == data]
         if len(exatas) == 1:
             resolvidas[chave] = {**exatas[0], "estrategia": "data_exata"}
+        elif len(exatas)>1 and any(r['tipo']=='LIRAA' for r in exatas):
+            ambiguas_liraa.add(chave)
+
+    # O levantamento exige correspondência exata de data; não usa os reparos
+    # heurísticos da rotina nem escolhe entre dois tubos do mesmo dia.
+    for tubo in por_tubo:
+        por_tubo[tubo]=[r for r in por_tubo[tubo] if r['tipo']!='LIRAA']
 
     pendentes_por_data = defaultdict(set)
-    for tubo, data in chaves - set(resolvidas):
+    for tubo, data in chaves - set(resolvidas) - ambiguas_liraa:
         pendentes_por_data[data].add(tubo)
 
     # Resultados do mesmo dia de laboratorio costumam pertencer ao mesmo lote.
@@ -64,7 +74,7 @@ def resolver_coletas(conn, chaves):
 
     # Se um numero de tubo existe uma unica vez em todo o banco, a associacao
     # continua inequivoca mesmo que a data tenha sido digitada incorretamente.
-    for chave in chaves - set(resolvidas):
+    for chave in chaves - set(resolvidas) - ambiguas_liraa:
         tubo, _ = chave
         if len(por_tubo[tubo]) == 1:
             resolvidas[chave] = {**por_tubo[tubo][0], "estrategia": "tubo_unico"}

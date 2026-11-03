@@ -1,5 +1,10 @@
 # Diário Kobo do LIRAa
 
+Atualização `1.75.0`: o fluxo passa a integrar a importação geral/automática,
+laboratório, notificações e relatórios, preservando os registros específicos.
+Ver `LIRAA_INTEGRACAO_OPERACIONAL.md` e o estado de ativação em
+`ESTADO_ATUAL_PROJETO.md`. As descrições de isolamento abaixo são históricas.
+
 Atualização integrada e ativa em 07/10/2026 (`1.67.0`, migração 0026 aplicada): formulário por
 ciclo com quarteirões filtrados por localidade, ACS participantes, UID por
 ciclo, leituras dos tubitos e resumo do boletim. A importação do formulário

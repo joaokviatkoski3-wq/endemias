@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 from app_core import db as db_core
+from app_core import visitas_integradas as integradas
 from app_core import utils
 
 
@@ -261,7 +262,7 @@ def _fonte_disponivel(conn, fonte):
 
 def resumo(target, filtros=None):
     filtros = filtros or {}
-    conn = db_core.connect(target)
+    conn = integradas.connect(target)
     try:
         fontes = [
             _resumo_fonte(conn, fonte, filtros)

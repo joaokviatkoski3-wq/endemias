@@ -737,6 +737,24 @@ def get_lab_val(row_larva, nome):
 
 
 def inserir_resultado_larva(cur, id_coleta, row_larva):
+    from app_core import visitas_integradas, liraa_integracao
+    tubo_liraa = visitas_integradas.id_liraa(id_coleta, visitas_integradas.TUBO_PREFIXO)
+    if tubo_liraa is not None:
+        from decimal import Decimal, InvalidOperation
+        def quantidade(nome):
+            texto=val_str(row_larva.get('[LAB] '+nome,row_larva.get(nome)))
+            if not texto:return 0
+            try:valor=Decimal(texto.replace(',','.'))
+            except InvalidOperation:raise ValueError('Quantidade LIRAa inválida: '+nome) from None
+            if not valor.is_finite() or valor!=valor.to_integral_value() or not 0<=valor<=1000000:
+                raise ValueError('Informe uma quantidade inteira LIRAa entre zero e 1.000.000: '+nome)
+            return int(valor)
+        counts = {f"{s}_{f}":quantidade(f"{label} {forma}") for s,label in (("aegypt","Aegypt"),("albopictus","Albopictus"),("outra","Outra Espécie")) for f,forma in (("larvas","Larvas"),("pupas","Pupas"))}
+        if any(quantidade(f"{especie} {forma}") for especie in ("Aegypt","Albopictus","Outra Espécie") for forma in ("Exúvias","Adulto")):
+            raise ValueError("Resultado LIRAa deve conter somente larvas e pupas.")
+        return liraa_integracao.importar_leitura(cur, tubo_liraa, counts,
+            val_str(row_larva.get("Nome do laboratorista")), normalizar_data(row_larva.get("Data da leitura")),
+            val_str(row_larva.get("_uuid")))
     cur.execute("""
         INSERT INTO resultados_laboratorio (
             id_coleta, num_tubo, data_coleta, laboratorista, data_leitura,
@@ -1211,6 +1229,8 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
             tipo = "AMOSTRA_ANIMAIS"
         if nome.upper().startswith("BRI"):
             tipo = "BRI"
+        if nome.upper().startswith("LIRAA_"):
+            tipo = "LIRAA"
         if tipo is None:
             logger.log(f"\n  [IGNORADO] '{nome}' — prefixo não reconhecido.", "aviso")
             continue
@@ -1226,6 +1246,9 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
                 preparado = amostras_animais_core.preparar_arquivo(caminho)
             elif tipo == "BRI":
                 preparado = bri_core.preparar_arquivo(caminho)
+            elif tipo == "LIRAA":
+                from app_core import liraa_integracao
+                preparado = liraa_integracao.ler_arquivo(caminho)
             else:
                 preparado = preparar_arquivo(caminho, tipo, TIPOS[tipo], logger)
             if preparado is None:
@@ -1247,6 +1270,11 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
     bri_core.ensure_schema(conn)
     pe_core.ensure_schema(conn)
     recolhimentos_core.ensure_schema(conn)
+
+    if any(item[2] == "LIRAA" for item in arquivos_preparados):
+        from app_core import liraa_laboratorio, liraa_integracao
+        liraa_laboratorio.ensure_schema(conn)
+        liraa_integracao.ensure_schema(conn)
 
     # FIX ETL-01: UMA transação para todos os arquivos — garante atomicidade total
     postgresql = _is_postgresql(conn)
@@ -1285,6 +1313,9 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
                     caminho, conn, logger, agora_iso, dry_run=dry_run,
                     preparado=preparado, schema_ready=True
                 )
+            elif tipo == "LIRAA":
+                from app_core import liraa_integracao
+                resultado = liraa_integracao.importar_lote(conn, preparado)
             else:
                 resultado = processar_arquivo(
                     caminho, tipo, TIPOS[tipo], cfg_larvas, larvas, conn,

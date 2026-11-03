@@ -6,6 +6,7 @@ from flask import Blueprint, jsonify, render_template, request
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import db as db_core
+from app_core import visitas_integradas as integradas
 from app_core import esporotricose as esporotricose_core
 from app_core import ovitrampas as ovitrampas_core
 from app_core import pontos_estrategicos as pe_core
@@ -31,7 +32,7 @@ def _serialize_rows(cursor):
 @bp.route("/mapa")
 @login_required
 def page():
-    conn = bh.get_db()
+    conn = integradas.integrar(bh.get_db())
     try:
         localidades = _serialize_rows(
             conn.execute(
@@ -72,7 +73,7 @@ def api_mapa():
             where_v += " AND v.data<=?"
             params_v.append(d_fim)
 
-        conn = bh.get_db()
+        conn = integradas.integrar(bh.get_db())
         try:
             rows_v = _serialize_rows(
                 conn.execute(
@@ -181,12 +182,12 @@ def api_mapa():
                            FROM visitas v
                           WHERE v.tipo='PE'
                             AND v.id_localidade=pe.id_localidade
-                            AND v.quarteirao=pe.quarteirao) IS NULL
+                            AND CAST(v.quarteirao AS TEXT)=CAST(pe.quarteirao AS TEXT)) IS NULL
                         OR (SELECT MAX(v2.data)
                               FROM visitas v2
                              WHERE v2.tipo='PE'
                                AND v2.id_localidade=pe.id_localidade
-                               AND v2.quarteirao=pe.quarteirao) < ?
+                               AND CAST(v2.quarteirao AS TEXT)=CAST(pe.quarteirao AS TEXT)) < ?
                     ) THEN 1 ELSE 0 END) AS pes_atrasados
                 FROM pontos_estrategicos pe
                 {where_pe}
@@ -347,7 +348,7 @@ def api_mapa_ovitrampas():
         somente_positivas = request.args.get("positivas") == "1"
         min_ovos = _int(request.args.get("min_ovos"))
 
-        conn = bh.get_db()
+        conn = integradas.integrar(bh.get_db())
         try:
             ovitrampas_core.ensure_schema(conn)
             data_ovitrampa = _ovitrampa_date_expression("l")

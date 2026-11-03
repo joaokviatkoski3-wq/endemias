@@ -416,8 +416,7 @@ def boletim(id_ciclo):
 @login_required
 @laboratorio_required
 def laboratorio():
-    return render_template("liraa_laboratorio.html", dados_lab=liraa_laboratorio.painel(_target(), request.args),
-        is_admin=(_usuario() or {}).get("nivel") == "admin")
+    return redirect(url_for("laboratorio_lancamentos.page",tipo="LIRAA",ciclo=request.args.get("ciclo","")))
 
 
 @bp.route("/liraa/laboratorio/<int:id_tubito>", methods=["POST"])
