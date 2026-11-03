@@ -4,6 +4,23 @@ Atualizado em 03/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Piloto externo com dados fictícios — publicado em 03/11
+
+- Usuário criou/conectou `vsatt-piloto` na Cloudflare e publicou somente
+  `https://piloto.vsatt.com.br` para 127.0.0.1:5003. O processo isolado em
+  `C:\endemias-cloudflare` usa SQLite fictício, sem credenciais/dados reais.
+- HTTPS real confirmou login 200/1.76.0, API sem login 401, home redirecionada
+  ao login, cookie Secure/HttpOnly, CSP/HSTS e respostas privadas sem cache.
+  Usuário confirmou que abriu a tela; login/termo e funções públicas pendentes.
+- Serviço Cloudflared automático executa como LocalSystem, distinto da tarefa
+  EndemiasWeb limitada. Revisar identidade/token desse conector antes de publicar
+  produção. Token não foi consultado/exportado pelo agente.
+- Sistema oficial continua 1.75.0, banco real e acesso local preservados. Não
+  interpretar o piloto público como integração/ativação da 1.76.0 na master.
+- Detalhes na branch `codex/preparar-cloudflare`, documento
+  `docs/CLOUDFLARE_INFRAESTRUTURA.md`. Piloto sem autostart, mesmo com conector
+  automático; iniciar `piloto_web.bat` na worktree se necessário após reinício.
+
 ## Conta limitada do servidor — aplicada em 03/11/2026
 
 - Usuário autorizou aplicar as proteções locais enquanto mantém o Windows atual;
