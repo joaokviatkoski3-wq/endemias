@@ -4,12 +4,13 @@ Atualizado em 03/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Integração operacional LIRAa — código 1.75.0 em preparação
+## Integração operacional LIRAa — código 1.75.0 ativo
 
-- Usuário autorizou a integração gradual, abrangendo todas as consultas/relatórios pertinentes. Branch `codex/liraa-integracao-gradual`, worktree `C:\endemias-liraa-correcoes`. Produção permanece em `1.74.0` até ativação autorizada.
+- Usuário autorizou a integração gradual, abrangendo todas as consultas/relatórios pertinentes, e depois autorizou expressamente a atualização do banco e o reinício. Branch `codex/liraa-integracao-gradual`, worktree `C:\endemias-liraa-correcoes`; código integrado na `master` em `a0d3c3c`.
 - Visitas, tubos e leituras permanecem nas tabelas LIRAa. Conexões de consulta explicitamente integradas unem os registros aos da rotina; as gravações são encaminhadas aos serviços próprios, sem duas cópias editáveis. Importação geral/automática e XLSX completo, fila/histórico comuns, notificações, arboviroses, relatórios individuais/do setor, produção do laboratório, painel, mapa, positividade, boletim mensal e consolidados abrangidos.
 - Mantém plano real, assinatura, cinco sorteios, 261 sorteados + seis adicionais, datas, regras específicas do boletim e ACS ainda provisórios. Positivo de aegypti gera um foco por visita, exceto a notificação em terreno baldio; correção negativa desativa a fila sem apagar histórico. Albopictus permanece no laboratório/boletim.
-- Migração aditiva 0029 vincula focos LIRAa e registra origem/UUID das leituras. Não altera tipos antigos nem transfere visitas entre tabelas. Prévia somente leitura do banco real confirmou somente essa migração pendente, assinatura correta e zero visitas LIRAa/notificações a reconciliar. Backup, implantação e reinício ainda não executados.
+- Migração aditiva 0029 vincula focos LIRAa e registra origem/UUID das leituras. Não altera tipos antigos nem transfere visitas entre tabelas. Aplicada como única migração pendente, depois do backup PostgreSQL com catálogo validado: `D:\BackupsEndemias\backups_banco\pre_liraa175\endemias_pre_liraa175_20261103_113206.dump` (7.520.438 bytes). Não houve reconciliação porque não existiam visitas LIRAa.
+- **Ativo em 03/11/2026 às 11h32 (America/Sao_Paulo)**: `/login` respondeu HTTP 200 com `1.75.0`. Contagens/assinaturas dos dados anteriores em 15 tabelas (11 LIRAa, visitas, coletas, resultados e focos), SQLite congelado e XLSX aprovado iguais antes/depois. Verificador somente leitura retornou código 0: ciclo 4, cinco sorteios, assinatura correta, 267 quarteirões correspondentes ao formulário, nenhum sem RG/geometria e zero visitas. Nenhuma importação, leitura, novo sorteio ou publicação no Kobo foi executada.
 - Validação: 876 testes gerais sem falhas (cinco ignorados), três JS LIRAa e PostgreSQL 18 temporário incluindo relatórios, consolidado e leitura Kobo. Ver `docs/LIRAA_INTEGRACAO_OPERACIONAL.md`.
 
 ## Logradouros do RG no formulário — código 1.74.0

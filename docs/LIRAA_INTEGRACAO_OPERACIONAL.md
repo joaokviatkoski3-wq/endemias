@@ -1,8 +1,9 @@
 # LIRAa integrado à operação — 1.75.0
 
-Preparado em 03/11/2026 por solicitação do usuário. A integração foi ampliada
-para todos os recursos pertinentes às visitas, incluindo relatórios do setor
-e individuais. Produção permanece em `1.74.0` até a ativação autorizada.
+Ativo em 03/11/2026 às 11h32 (America/Sao_Paulo), com atualização e reinício
+expressamente autorizados pelo usuário. Código `a0d3c3c` integrado na `master`.
+A integração abrange os recursos pertinentes às visitas, incluindo relatórios
+do setor e individuais.
 
 ## Fluxo para a equipe
 
@@ -102,15 +103,29 @@ e `--confirmar-banco endemias` em produção. A reconciliação mantém status e
 histórico, sem criar duas notificações para a mesma visita. Não é executada
 automaticamente na abertura de uma tela.
 
-Prévia administrativa somente leitura de 03/11: somente a migração 0029 está
-pendente; assinatura do ciclo corresponde à fonte aprovada, cinco sorteios,
+Prévia administrativa somente leitura antes da ativação de 03/11: somente a
+migração 0029 estava pendente; assinatura do ciclo corresponde à fonte aprovada, cinco sorteios,
 **zero visitas LIRAa e zero notificações LIRAa a reconciliar**. As consultas
 integradas retornaram os totais existentes (17.452 visitas, 273 coletas e 270
 resultados gerais) sem acrescentar registros fictícios.
 
-Ativação exige backup PostgreSQL validado, aplicação exclusiva da migração
-esperada, integração com o serviço parado, reinício autorizado e comparação
-dos dados reais antes/depois. Não aplicar outras migrações ou publicar Kobo.
+Ativação concluída com o serviço parado durante a integração e atualização:
+
+- Backup `D:\BackupsEndemias\backups_banco\pre_liraa175\endemias_pre_liraa175_20261103_113206.dump`,
+  7.520.438 bytes, catálogo validado; SHA-256
+  `a0001d4d5f0f12d83713c998476de67d908bc85dcf3d9c770454b7aacfd13f92`.
+- Somente a migração 0029 foi aplicada. Não a reaplicar nem tratar este
+  registro histórico como nova autorização de implantação.
+- Contagens e assinaturas dos dados anteriores em 15 tabelas (11 LIRAa e
+  visitas/coletas/resultados/focos) idênticas antes/depois. Campos novos da
+  migração excluídos da comparação das assinaturas anteriores. SQLite
+  congelado e fonte XLSX aprovada conservaram seus hashes.
+- Verificador somente leitura retornou código 0: assinatura correta, cinco
+  sorteios, 261 sorteados + seis adicionais = 267, formulário correspondente,
+  nenhum quarteirão sem RG/geometria e zero visitas LIRAa. ACS continuam
+  provisórios apesar de haver participantes cadastrados.
+- `/login` confirmou HTTP 200 com `Endemias v1.75.0` após o reinício. Nenhuma
+  importação, leitura, reconciliação, novo sorteio ou publicação no Kobo.
 
 ## Validação
 
@@ -126,5 +141,5 @@ dos dados reais antes/depois. Não aplicar outras migrações ou publicar Kobo.
   relatório do setor, consolidado XLSX, leitura Kobo e exclusão passaram.
 - A fonte XLSX e o SQLite congelado conservaram suas assinaturas originais.
 
-Serviço oficial ainda não ativado nesta preparação. A conferência em campo
-deve ser feita com a versão ativa e o formulário correto nos aparelhos.
+Serviço oficial ativo. A conferência em campo deve ser feita com o formulário
+correto nos aparelhos; a publicação da revisão de ruas continua manual.
