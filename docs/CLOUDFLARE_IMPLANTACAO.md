@@ -14,6 +14,11 @@ Atualizado em 03/11/2026. Branch `codex/preparar-cloudflare`, worktree
   de Endemias/Vigilância Ambiental implementada neste lote.
 - Usuário autorizou revisar, corrigir e testar a segurança em ambiente isolado.
   Pediu também um termo de responsabilidade no primeiro acesso.
+- Decisão posterior: manter o Windows/computador atuais com as proteções
+  viáveis; VPS é intenção futura condicionada a investimento, sem contratação
+  ou migração agora. Ausência de ESU é limitação registrada, não uma exigência
+  de compra para avançar. Ver plano atualizado de permissões/identidade em
+  `CLOUDFLARE_INFRAESTRUTURA.md`.
 - **Nenhuma publicação, instalação de serviço, mudança de firewall/PostgreSQL,
   migração em produção, integração na master ou reinício oficial neste lote.**
 - Produção documentada continua em 1.75.0. A versão 1.76.0 é código preparado,
@@ -204,13 +209,15 @@ para a coleta, sem alterar sua identidade ou ação.
    Templates recarregam em produção: não integrar este lote com o serviço
    ativo, pois há rotas e migração novas. Não reaplicar a 0029 nem mudar plano,
    sorteios, ACS ou respostas Kobo como parte dessa implantação.
-2. Confirmar suporte de segurança do Windows 10 Pro 19045/ESU. A presença do
-   pacote KB5126256 não prova licença/cobertura efetiva. Essa cobertura ainda
-   não foi demonstrada. Planejar alternativa suportada se necessário.
-3. Conferir identidade/ação real da tarefa oficial em sessão administrativa.
-   Consulta desta sessão retornou acesso negado. Não assumir que a identidade
-   histórica SYSTEM continua válida; preparar conta restrita e permissões
-   sobre dados/chaves/credenciais e diretórios necessários.
+2. Manter registrada a decisão atual de usar Windows 10 sem cobertura ESU
+   demonstrada. O pacote KB5126256 não prova cobertura. Aplicar proteções
+   viáveis, sem declarar que antivírus/Tunnel substituem correções do Windows;
+   reavaliar ambiente suportado/VPS futuramente conforme recursos.
+3. Identidade SYSTEM confirmada pela consulta administrativa posterior do
+   usuário. Preparar conta restrita e permissões efetivas (inclusive herdadas)
+   sobre código/dados/chaves/credenciais, logs e backups, conforme plano em
+   `CLOUDFLARE_INFRAESTRUTURA.md`. Não basta acrescentar RX a uma conta se
+   seus grupos continuam tendo Modify no código.
 4. PostgreSQL continua escutando em 0.0.0.0/:: na porta 5432 na inspeção inicial.
    Restringir a localhost se não houver consumidores remotos legítimos, após
    verificar configuração, backup e impacto. Não publicar essa porta.

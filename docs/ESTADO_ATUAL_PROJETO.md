@@ -23,8 +23,12 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 - Etapa seguinte: usuário pediu preservar acesso local. Preparadas entradas
   LAN/loopback e Tunnel no mesmo processo/banco, com sessões separadas e piloto
   fictício só neste computador. Consulta administrativa confirmou tarefa SYSTEM;
-  Windows 10 build 19045.6466 requer adequação das atualizações antes de publicar.
-  Ver `docs/CLOUDFLARE_INFRAESTRUTURA.md`. Sem troca da tarefa ou publicação.
+  usuário decidiu manter Windows/computador atuais e aplicar proteções viáveis,
+  com a limitação de atualizações registrada; VPS fica para o futuro. ESU não é
+  condição de compra para avançar. Defender confirmado ativo; ACLs amplas no
+  código/chave exigem revisão junto à troca de identidade, não apenas criar
+  uma conta. Plano em `docs/CLOUDFLARE_INFRAESTRUTURA.md`, ainda não aplicado.
+  Sem troca da tarefa, alteração de permissões ou publicação.
 
 ## Integração operacional LIRAa — código 1.75.0 ativo
 

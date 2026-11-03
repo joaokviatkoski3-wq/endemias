@@ -10,7 +10,7 @@ Este registro complementa `CLOUDFLARE_IMPLANTACAO.md`; não declara publicação
 | --- | --- |
 | Produção | GET /login na porta 5000 retornou HTTP 200 e versão 1.75.0. Master continua em f7a98a0, sem alterações deste lote. |
 | DNS público | Consultas a 1.1.1.1 e 8.8.8.8 ainda retornaram a.auto.dns.br/b.auto.dns.br. Usuário salvou bristol/cullen no Registro.br; confirmar término da transição antes do hostname público. |
-| Windows | Windows 10 Pro 22H2, build 19045.6466. A referência de segurança consultada para outubro/2026 é 19045.7807, KB5126657. A máquina precisa adequar suas atualizações antes de receber dados reais pela internet. |
+| Windows | Windows 10 Pro 22H2, build 19045.6466. A referência de segurança consultada para outubro/2026 é 19045.7807, KB5126657. Usuário decidiu manter esse Windows por enquanto; a ausência de cobertura de segurança é uma limitação conhecida, não impedimento técnico para continuar a preparação. |
 | ESU | Windows Professional aparece ativado, mas as entradas ESU consultadas não aparecem licenciadas. Consulta específica do ESU comercial ano 2 retornou LicenseStatus=0. Isso não deve ser confundido com simples ativação do Windows. Não foi feita compra, ativação de licença ou atualização. |
 | Tarefa do servidor | Relatório executado pelo usuário como administrador confirmou SID S-1-5-18 (SYSTEM), nível HighestAvailable, launcher iniciar_servidor.ps1, backend PostgreSQL e banco oficial, sem opção Waitress. A versão real da tarefa foi confirmada, não inferida do histórico. |
 | Serviço PostgreSQL | postgresql-x64-18 em execução automática como NetworkService; é distinto da tarefa da aplicação que roda como SYSTEM. |
@@ -25,6 +25,14 @@ cobertura ESU ou atualização cumulativa instalada. A Microsoft distingue ESU
 institucional/comercial do programa de consumo. A adequação do computador
 deve ser definida com o responsável pela TI, sem presumir que o programa
 pessoal se aplica ao computador do setor.
+
+**Decisão posterior do usuário em 03/11:** manter o computador/Windows atuais,
+aplicar as proteções viáveis e considerar VPS futuramente, quando houver
+investimento. ESU, compra de computador ou migração não são exigências para
+avançar nesta preparação. Isso não torna o Windows atualizado nem elimina o
+risco de falhas sem correção. Tunnel, antivírus e conta restrita são camadas
+adicionais; não substituem correções do sistema operacional. Nenhuma compra,
+contratação de VPS ou migração foi autorizada por essa intenção futura.
 
 O diagnóstico da tarefa não exporta argumentos completos, senhas, chaves,
 XML bruto ou conteúdo de arquivos pgpass. O relatório fica somente na pasta
@@ -129,7 +137,7 @@ nova versão como administrador e a consulta funcionou.
   o hash registrado no documento de implantação. Não houve reinício ou mudança
   de configuração oficial. Não houve novo Tunnel, DNS, conta ou ACL.
 
-Antes de publicar dados reais: adequar Windows/atualizações, trocar a tarefa
+Antes de publicar dados reais: registrar a limitação do Windows atual, trocar a tarefa
 SYSTEM por identidade restrita com permissões revisadas, reduzir a escuta do
 PostgreSQL a localhost sem mudar desnecessariamente o pg_hba, confirmar regra
 LAN do firewall, DNS ativo e concluir piloto do Tunnel. Essas alterações de
@@ -148,6 +156,55 @@ Credencial PostgreSQL deve continuar protegida por ACL, com leitura para a nova
 identidade, sem copiar senha para chat ou Git. Preparar exportação da tarefa
 atual em local privado para retorno. Criação de conta, concessão de direitos,
 mudança de ACL, instalação de dependências e troca da tarefa não foram executadas.
+
+### Conferência adicional e plano de permissões
+
+- Defender consultado em 03/11: antivírus e proteção em tempo real ativos,
+  proteção contra adulteração ativa, assinaturas de 03/11 e idade zero. Isso
+  confirma o estado consultado, não a cobertura das correções do Windows.
+- As ACLs consultadas em `C:\endemias` permitem Modify para Usuários
+  autenticados. `secret.key`, `kobo_config.json` e `config.json` herdam regras
+  amplas; `secret.key` também permite leitura ao grupo Usuários. Não foi lido
+  o conteúdo desses arquivos. Isso é acesso pelo Windows, não prova de acesso
+  anônimo pela aplicação ou de vazamento ocorrido.
+- Portanto, conceder somente RX explicitamente à nova conta é insuficiente
+  se ela continuar recebendo Modify por seus grupos. A revisão deve considerar
+  permissões herdadas e o acesso efetivo, preservando o acesso de manutenção.
+- ACLs individuais de pgpass/Conta Ovos retornaram acesso negado nesta sessão.
+  Não inferir permissões exatas desses arquivos pela ACL do diretório pai.
+- As duas pastas atuais de backup têm herança desabilitada e regras próprias;
+  a nova identidade não foi acrescentada. Uma simples troca da tarefa pode
+  quebrar os backups feitos pela aplicação.
+
+Plano concreto para a janela de ativação, ainda **não aplicado**:
+
+| Recurso | Acesso da identidade web | Preparação necessária |
+| --- | --- | --- |
+| Código, templates, estáticos, scripts, Python/venv | Ler/executar; sem criar, alterar ou excluir código | Exportar ACLs antes; retirar concessões de escrita de grupos amplos no destino de execução, preservar SYSTEM/administradores e manutenção autorizada; conferir em subpastas e no diretório pai. Não aplicar remoção recursiva genérica em toda a máquina. |
+| `secret.key` | Somente leitura | Proteger arquivo e diretório contra leitura de usuários comuns e substituição pela conta web; preservar a chave atual, não regenerar. Usar `ENDEMIAS_SECRET_KEY_PATH` se realocar, mantendo backup privado. |
+| `pgpass.conf` e `contaovos.key` | Somente leitura dos arquivos necessários | Conferir em contexto administrativo, conceder à identidade exata; não liberar o diretório inteiro nem mudar para credenciais no comando. |
+| Configuração Kobo | Leitura e gravação restritas | A aplicação permite edição administrativa; manter em diretório operacional privado via `ENDEMIAS_KOBO_CONFIG_PATH`, sem conceder escrita no código para isso. Preservar token e conteúdo. |
+| `config.json` | Leitura para processar planilhas | Confirmar consumidores e manter caminho via `ENDEMIAS_CONFIG_PATH`; não confundir com configuração Kobo editável. |
+| Anexos e uploads temporários | Modificar dentro dessas pastas | Preservar conteúdo e definir ACLs próprias; caminhos `ENDEMIAS_ANEXOS_DIR` e `ENDEMIAS_UPLOAD_TEMP`. |
+| Log com rotação | Criar/alterar/excluir arquivos dentro de pasta exclusiva de logs | Realocar `ENDEMIAS_LOG_PATH`; conceder escrita só no arquivo atual não permite a rotação. Criar pasta antes de iniciar, pois o handler não a cria. |
+| Estado sanitizado Conta Ovos | Modificar em pasta exclusiva | `write_status` cria temporário e usa replace. Usar `ENDEMIAS_CONTAOVOS_STATUS_FILE` separado do diretório de credenciais para permitir a operação sem escrita nas chaves. |
+| Backups disparados pela aplicação | Acesso estritamente necessário aos destinos aprovados | Conferir geração, listagem, download e retenção; preservar tarefas automáticas existentes. Evitar que a identidade web possa apagar todas as cópias de recuperação. Separação adicional/cópia externa ainda precisa ser verificada. |
+| Banco e seus arquivos internos | Conexão SQL local; sem acesso NTFS aos arquivos do PostgreSQL | Manter serviço NetworkService independente; conferir privilégios do papel da aplicação sem supor que a conta Windows restringe privilégios SQL. |
+
+O código já oferece os caminhos de ambiente acima; não é necessário alterar
+a estrutura das tabelas para separar os diretórios. Outros processos (backup,
+importação agendada e manutenção) também devem apontar para as mesmas
+configurações aprovadas se houver realocação. Não mover configurações somente
+para o processo web e deixar tarefas existentes usando outra cópia.
+
+Validar com a identidade final, incluindo tentativas de escrever no código e
+na chave (devem falhar), leitura das credenciais sem exibi-las, anexos,
+importação, gravação de configuração, rotação de logs e backups de ensaio.
+Guardar a definição original da tarefa e ACLs em local privado antes de mudar.
+Concluir a validação antes de substituir a tarefa oficial. A criação da conta,
+troca da tarefa e alteração de permissões continuam pendentes; esta conferência
+não modificou nenhuma delas. Produção reconfirmada HTTP 200/1.75.0 e hash do
+SQLite congelado preservado.
 
 ## Fontes oficiais consultadas em 03/11/2026
 
