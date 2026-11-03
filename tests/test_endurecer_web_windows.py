@@ -8,6 +8,24 @@ from scripts import endurecer_web_windows as hardening
 
 
 class HardeningWindowsTests(unittest.TestCase):
+    def test_tarefa_de_ensaio_tem_configuracao_propria_sem_reinicios_herdados(self):
+        from unittest.mock import MagicMock
+        win = object.__new__(hardening.Windows)
+        win.scheduler = MagicMock()
+        win.api = MagicMock()
+        win.api.GetComputerName.return_value = "COMPUTADOR-FICTICIO"
+        win.folder = MagicMock()
+        definition = win.scheduler.NewTask.return_value
+        original = MagicMock()
+        original.Xml = "XML-FICTICIO-DA-TAREFA-OFICIAL"
+        win.register(hardening.PROBE_TASK, original, "senha-ficticia", probe=True)
+        self.assertNotIn("XmlText", definition.__dict__)
+        self.assertNotIn("RestartCount", definition.Settings.__dict__)
+        self.assertEqual(definition.Principal.RunLevel, 0)
+        self.assertEqual(definition.Principal.LogonType, 1)
+        self.assertEqual(definition.Principal.UserId, r"COMPUTADOR-FICTICIO\EndemiasWeb")
+        definition.Triggers.Clear.assert_called_once()
+
     @unittest.skipUnless(importlib.util.find_spec("win32security"), "pywin32 somente no ambiente administrativo")
     def test_acl_real_em_arquivo_ficticio_e_retorno_sem_criar_conta(self):
         win = hardening.Windows()

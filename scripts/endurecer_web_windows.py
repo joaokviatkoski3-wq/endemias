@@ -232,8 +232,10 @@ class Windows:
 
     def register(self, name, original, password, probe=False):
         definition = self.scheduler.NewTask(0)
-        definition.XmlText = original.Xml
-        definition.Principal.UserId = str(self.sec.ConvertSidToStringSid(self.web))
+        if not probe:
+            definition.XmlText = original.Xml
+        account = self.api.GetComputerName() + "\\" + ACCOUNT
+        definition.Principal.UserId = account
         definition.Principal.LogonType = 1  # TASK_LOGON_PASSWORD: segredo tratado pelo Agendador
         definition.Principal.RunLevel = 0
         definition.Actions.Clear()
@@ -244,10 +246,13 @@ class Windows:
             args.append("--probe")
             definition.Triggers.Clear()
             definition.Settings.ExecutionTimeLimit = "PT3M"
-            definition.Settings.RestartCount = 0
+            definition.Settings.DisallowStartIfOnBatteries = False
+            definition.Settings.StopIfGoingOnBatteries = False
+            definition.Settings.AllowDemandStart = True
+            definition.Settings.MultipleInstances = 2
+            definition.RegistrationInfo.Description = "Validacao temporaria da identidade limitada do Endemias"
         action.Arguments = subprocess.list2cmdline(args)
         action.WorkingDirectory = str(ROOT)
-        account = self.api.GetComputerName() + "\\" + ACCOUNT
         return self.folder.RegisterTaskDefinition(name, definition, 6, account, password, 1)
 
 
@@ -375,6 +380,12 @@ def apply():
         old_status = Path(r"C:\ProgramData\Endemias\contaovos_status.json")
         if old_status.is_file():
             shutil.copyfile(old_status, HOME / "runtime/contaovos_status.json")
+        report["stage"] = "registrando_ensaio"
+        progress("registrando_ensaio")
+        # Registrar antes de mudar as ACLs; a tarefa nao possui trigger automatico.
+        probe = win.register(PROBE_TASK, original, password, probe=True)
+        probe_registered = True
+        report["stage"] = "permissoes"
         # Snapshot completo antes de qualquer propagacao de heranca.
         code_paths = descendants(ROOT)
         home_paths = [path for path in descendants(HOME) if HOME / "rollback" not in path.parents and path != HOME / "rollback"]
@@ -402,8 +413,6 @@ def apply():
         progress("ensaio_identidade_real")
         probe_result = HOME / "runtime/probe.json"
         probe_result.unlink(missing_ok=True)
-        probe = win.register(PROBE_TASK, original, password, probe=True)
-        probe_registered = True
         probe.Run("")
         deadline = time.monotonic() + 150
         while time.monotonic() < deadline:
@@ -442,6 +451,12 @@ def apply():
         report.update(status="falhou", error_type=type(error).__name__,
                       trace=[{"file": Path(frame.filename).name, "line": frame.lineno,
                               "function": frame.name} for frame in traceback.extract_tb(error.__traceback__)])
+        if isinstance(getattr(error, "hresult", None), int):
+            report["hresult"] = hex(error.hresult & 0xFFFFFFFF)
+        info = getattr(error, "excepinfo", None)
+        if info and len(info) > 5:
+            report["com_code"] = hex(info[5] & 0xFFFFFFFF) if isinstance(info[5], int) else None
+            report["com_description"] = str(info[2] or "").replace(password, "[omitido]")
         if task_replaced:
             limited = win.folder.GetTask(TASK)
             if limited.State == 4:
