@@ -22,6 +22,11 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
   Limitação de atualizações registrada, Defender ativo e permissões amplas no
   código/chave identificadas; plano da conta restrita ainda não aplicado.
   Ver `docs/CLOUDFLARE_INFRAESTRUTURA.md`; produção não foi alterada.
+- Usuário autorizou depois aplicar conta limitada/proteção de código e chaves.
+  Pacote nativo Windows em `docs/CLOUDFLARE_CONTA_LIMITADA.md`, com runtime
+  independente, backup prévio, ensaio da identidade e retorno. Essa troca
+  preserva 1.75.0 e não publica o Tunnel. Consultar resultado/fechamento antes
+  de afirmar que a conta/tarefa foi efetivamente substituída.
 
 - Código `1.75.0` integrado na `master` (`a0d3c3c`) e ativo em 03/11/2026 às 11h32 (America/Sao_Paulo), após autorização expressa para atualização e reinício: LIRAa integrado à importação geral/automática, fila comum do laboratório, notificações Aedes aegypti (exceto terreno baldio), visitas de arboviroses, relatórios individuais/do setor, painéis, mapas, boletim mensal e consolidados. Uma camada explícita de consulta reúne as fontes; não copia visitas/tubos/leituras para as tabelas de rotina. Backup PostgreSQL validado e somente a migração aditiva 0029 aplicada. `/login` confirmou HTTP 200 com `1.75.0`; contagens/assinaturas dos dados anteriores em 15 tabelas (11 LIRAa e quatro operacionais), SQLite congelado e XLSX-fonte preservados. Verificador somente leitura retornou código 0: cinco sorteios, 261 sorteados + seis adicionais = 267, assinatura/formulário corretos e zero visitas LIRAa. ACS continuam provisórios/editáveis. 876 testes gerais sem falhas (cinco ignorados), três JS e PostgreSQL temporário conferidos. Nenhuma importação ou publicação no Kobo. Ver `docs/LIRAA_INTEGRACAO_OPERACIONAL.md`.
 

@@ -29,6 +29,12 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
   código/chave exigem revisão junto à troca de identidade, não apenas criar
   uma conta. Plano em `docs/CLOUDFLARE_INFRAESTRUTURA.md`, ainda não aplicado.
   Sem troca da tarefa, alteração de permissões ou publicação.
+- Autorização posterior: aplicar conta limitada e proteção de código/chaves.
+  Pacote nativo `scripts/endurecer_web_windows.py` preparado com backup,
+  validação da identidade final e retorno; Python independente do perfil do
+  usuário. 900 testes gerais passaram (seis ignorados) em dados fictícios.
+  Ver `docs/CLOUDFLARE_CONTA_LIMITADA.md` para escopo e estado administrativo.
+  Preserva código oficial 1.75.0; não integra/publica 1.76.0 por essa troca.
 
 ## Integração operacional LIRAa — código 1.75.0 ativo
 
