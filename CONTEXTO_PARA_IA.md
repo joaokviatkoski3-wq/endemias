@@ -8,6 +8,16 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
 
+- Infraestrutura local endurecida em 03/11/2026, confirmada às 16h05, após
+  autorização do usuário: tarefa `Endemias - Servidor` agora usa a conta local
+  limitada `EndemiasWeb`, com Python próprio em `C:\ProgramData\EndemiasWeb`.
+  Código/versão oficiais continuam **1.75.0**; não houve merge de 1.76.0,
+  migração, publicação externa ou mudança no firewall. Código/chaves protegidos;
+  backup prévio e ensaio da identidade final validados; hashes dos arquivos
+  preservados. Login 200 por loopback/IP privado e usuário confirmou outro
+  aparelho da LAN. Ver `docs/CONTA_LIMITADA_WINDOWS.md` antes de reinstalar
+  tarefas, mudar caminhos ou interpretar os registros históricos de SYSTEM.
+
 - Código `1.75.0` integrado na `master` (`a0d3c3c`) e ativo em 03/11/2026 às 11h32 (America/Sao_Paulo), após autorização expressa para atualização e reinício: LIRAa integrado à importação geral/automática, fila comum do laboratório, notificações Aedes aegypti (exceto terreno baldio), visitas de arboviroses, relatórios individuais/do setor, painéis, mapas, boletim mensal e consolidados. Uma camada explícita de consulta reúne as fontes; não copia visitas/tubos/leituras para as tabelas de rotina. Backup PostgreSQL validado e somente a migração aditiva 0029 aplicada. `/login` confirmou HTTP 200 com `1.75.0`; contagens/assinaturas dos dados anteriores em 15 tabelas (11 LIRAa e quatro operacionais), SQLite congelado e XLSX-fonte preservados. Verificador somente leitura retornou código 0: cinco sorteios, 261 sorteados + seis adicionais = 267, assinatura/formulário corretos e zero visitas LIRAa. ACS continuam provisórios/editáveis. 876 testes gerais sem falhas (cinco ignorados), três JS e PostgreSQL temporário conferidos. Nenhuma importação ou publicação no Kobo. Ver `docs/LIRAA_INTEGRACAO_OPERACIONAL.md`.
 
 - Código `1.74.0` integrado (`1256d97`) e ativo em 03/11/2026 às 09h04 (America/Sao_Paulo), após reinício autorizado: logradouros LIRAa selecionáveis por localidade/quarteirão, vindos do RG, com “Outro — digitar”. Importação grava nomes e aceita formulários antigos. Consulta somente leitura confirmou 267 quarteirões e 976 opções RG, todos cobertos; fonte XLSX, seis adicionais, plano, datas e assinatura preservados. ACS continuam provisórios/editáveis. 859 testes gerais sem falhas (5 ignorados), 74 focados finais, 2 JS, PostgreSQL descartável e compilação XLSForm/filtro em 535 combinações conferidos. `/login` respondeu HTTP 200 com `1.74.0`; contagens/assinaturas das 11 tabelas LIRAa, SQLite congelado e XLSX-fonte iguais antes/depois. Verificador do plano retornou código 0. Sem migração ou publicação no Kobo: substituir/implantar o XLSForm e atualizar aparelhos ainda é pendência manual. Ver `docs/LIRAA_LOGRADOUROS_RG.md`.

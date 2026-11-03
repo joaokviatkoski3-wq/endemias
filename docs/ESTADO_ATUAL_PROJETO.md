@@ -4,6 +4,29 @@ Atualizado em 03/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Conta limitada do servidor — aplicada em 03/11/2026
+
+- Usuário autorizou aplicar as proteções locais enquanto mantém o Windows atual;
+  VPS é intenção futura. A tarefa `Endemias - Servidor` passou de SYSTEM para
+  a conta dedicada `EndemiasWeb`, sem privilégios administrativos ou login
+  interativo/RDP/rede do Windows. Confirmação HTTP 200/1.75.0 às 16h05.
+- Python e componentes próprios em `C:\ProgramData\EndemiasWeb`; código,
+  templates e dependências sem escrita pela conta web. Chaves/credenciais
+  protegidas; mesma chave e configuração Kobo, sem trocar tokens/senhas reais.
+- Ensaio antes da troca confirmou identidade, permissões efetivas, SQL sem
+  privilégios administrativos, escrita operacional, XLSX/PDF, rotação, login
+  e backup com catálogo validado. Backup prévio e retorno privados guardados.
+  Hashes de app/chave/Kobo/config/SQLite congelado preservados.
+- Código oficial permanece **1.75.0**, sem integração da preparação 1.76.0,
+  migração, alteração do PostgreSQL/firewall/DNS ou publicação do Tunnel. O
+  usuário confirmou login por outro aparelho da rede local.
+- Logs/status/temporários da aplicação agora em ProgramData; backups manuais
+  da interface em `D:\BackupsEndemias\backups_web`. Backups automáticos e
+  importação agendada continuam nos caminhos/identidades anteriores.
+- Detalhes, limitação da listagem de backups, retorno e próximos passos em
+  `docs/CONTA_LIMITADA_WINDOWS.md`. Não reinstalar a tarefa pelo configurador
+  histórico SYSTEM; o atalho de reinício usa a tarefa já registrada.
+
 ## Integração operacional LIRAa — código 1.75.0 ativo
 
 - Usuário autorizou a integração gradual, abrangendo todas as consultas/relatórios pertinentes, e depois autorizou expressamente a atualização do banco e o reinício. Branch `codex/liraa-integracao-gradual`, worktree `C:\endemias-liraa-correcoes`; código integrado na `master` em `a0d3c3c`.
