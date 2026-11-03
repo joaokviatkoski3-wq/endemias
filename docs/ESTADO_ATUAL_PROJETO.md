@@ -35,6 +35,11 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
   usuário. 900 testes gerais passaram (seis ignorados) em dados fictícios.
   Ver `docs/CLOUDFLARE_CONTA_LIMITADA.md` para escopo e estado administrativo.
   Preserva código oficial 1.75.0; não integra/publica 1.76.0 por essa troca.
+- **Aplicado e confirmado às 16h05 de 03/11:** tarefa oficial EndemiasWeb
+  limitada, código/chaves protegidos, Python próprio e ensaio/backup reais
+  validados antes da troca. Hashes dos arquivos preservados. Login HTTP
+  200/1.75.0; usuário confirmou outro aparelho da LAN. Sem migração, mudança de
+  firewall ou publicação externa. Ver fechamento em `CLOUDFLARE_CONTA_LIMITADA.md`.
 
 ## Integração operacional LIRAa — código 1.75.0 ativo
 

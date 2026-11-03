@@ -7,8 +7,11 @@ Este registro complementa `CLOUDFLARE_IMPLANTACAO.md`; não declara publicação
 **Etapa autorizada posteriormente:** usuário pediu aplicar a execução limitada
 e a proteção de código/chaves. Pacote e escopo em `CLOUDFLARE_CONTA_LIMITADA.md`.
 Preserva a versão oficial 1.75.0, sem ativar a 1.76.0 ou publicar o Tunnel.
-Conferir o fechamento administrativo daquele documento antes de interpretar
-os registros anteriores abaixo como estado atual das permissões/tarefa.
+**Aplicado e confirmado às 16h05:** tarefa limitada EndemiasWeb, Python próprio,
+código/chaves protegidos e backup validado; HTTP 200/1.75.0. Usuário confirmou
+login por outro aparelho da LAN. Sem publicação ou mudança de firewall. O
+fechamento naquele documento substitui o estado anterior de tarefa SYSTEM e
+ACLs amplas registrado abaixo como diagnóstico histórico.
 
 ## Estado confirmado nesta etapa
 

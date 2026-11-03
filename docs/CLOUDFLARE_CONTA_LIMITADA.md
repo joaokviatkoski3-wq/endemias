@@ -1,8 +1,8 @@
 # Execucao local com conta limitada
 
-Preparado em 03/11/2026, mediante pedido expresso do usuario para aplicar a
-troca de identidade e proteger codigo/chaves. **Estado de preparacao:** consultar
-o resultado administrativo e a secao de fechamento antes de declarar aplicado.
+Aplicado em 03/11/2026, mediante pedido expresso do usuario para trocar a
+identidade e proteger codigo/chaves. Confirmado HTTP 200/1.75.0 as 16h05
+(America/Sao_Paulo). Ver fechamento abaixo e resultado administrativo privado.
 
 ## Escopo desta etapa
 
@@ -113,6 +113,51 @@ a regressao geral e passou separadamente. `pip check` sem conflitos e auditoria
 da venv dedicada sem vulnerabilidades conhecidas apos atualizar pip para 26.3.
 Runtime independente conferido depois da copia. Nenhum desses resultados
 substitui o ensaio administrativo com a identidade real antes da troca.
+Depois do ajuste do registro da tarefa de ensaio, sete testes de endurecimento
+passaram separadamente, incluindo a configuracao independente da tarefa
+temporaria (sem copiar triggers/reinicios da tarefa oficial).
+
+## Fechamento administrativo — aplicado
+
+- Tarefa oficial alterada para `EndemiasWeb`, com RunLevel limitado. O processo
+  novo conferiu seu SID antes de carregar a aplicacao. Nao roda mais como SYSTEM.
+- Python e componentes dedicados em `C:\ProgramData\EndemiasWeb`, independentes
+  do perfil pessoal. Codigo oficial permanece 1.75.0; sem merge/migracao.
+- Ensaio real retornou todos os checks verdadeiros: negacao de escrita nos
+  arquivos protegidos/Python, acesso aos recursos operacionais, SQL sem
+  privilegios administrativos, XLSX/PDF/rotacao, login e backup pela conta final.
+- Backup previo da tentativa concluida: 7.523.819 bytes, catalogo validado,
+  privado em `C:\ProgramData\EndemiasWeb\rollback\20261103-160333` junto da
+  tarefa e das ACLs anteriores. O dump da conta limitada tambem teve catalogo
+  validado. Nenhum backup foi enviado ao Git ou copiado para fixtures.
+- Hashes de app/chave/Kobo/config/SQLite congelado iguais antes/depois, conforme
+  relatorio administrativo. Hash do SQLite reconfirmado na sessao comum:
+  `964152E21DE44B4FFF985F72A0D7945E8E7DCF260BBB019708B868C3B3A7A025`.
+- Sessao Windows comum agora recebe acesso negado ao tentar abrir chave de
+  sessao/Kobo, sem ler seu conteudo; aplicacao continua podendo utiliza-los.
+- Login respondeu HTTP 200/1.75.0 por loopback e pelo IP privado. Usuario
+  confirmou que abriu a tela de login por outro aparelho na rede do setor.
+  Isso valida acesso local; nao e ensaio de carga ou de todas as funcoes.
+- Firewall do Windows e regras de outros programas nao foram alterados. A
+  analise identificou regras antigas do Python, mas o teste real confirmou
+  acesso entre aparelhos; nao foi necessario adicionar regra nesta etapa.
+- Primeira tentativa foi interrompida no registro COM da tarefa de ensaio;
+  restaurou as ACLs com zero erros e nao trocou o servidor. A tentativa final
+  usou definicao independente para o ensaio e concluiu a troca. O relatorio
+  atual declara `status=aplicado`, sem erro de retorno ou limpeza pendente.
+- Tarefas automaticas de backup/importacao e servico PostgreSQL preservados.
+  A identidade web pode ter visibilidade limitada do estado de tarefas SYSTEM;
+  isso nao significa falha dos backups. Nao foram ampliadas permissoes dessas
+  tarefas apenas para a consulta da interface.
+- Configuracao de retorno e dados privados permanecem fora do Git. Para
+  retorno, executar o helper administrativo com `--reverter`; ele restaura
+  tarefa/ACLs, confirma a versao anterior e nao restaura banco automaticamente.
+
+Pendencias para acesso externo: ativar codigo/Waitress 1.76.0 em janela propria,
+aplicar somente a migracao 0030 prevista, revisar escuta PostgreSQL e firewall
+do desenho final, confirmar DNS, concluir piloto Tunnel/HTTPS/cache/limites e
+revisar contas. Nao repetir a criacao da conta nem o instalador antigo SYSTEM.
+Windows atual mantido conforme decisao do usuario; VPS permanece futura.
 
 ## Referencias tecnicas oficiais
 
