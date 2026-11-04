@@ -1,5 +1,9 @@
 # Servidor local com conta limitada — estado vigente
 
+Versão vigente **1.77.0**, ativa em 04/11 às 10h23 com recuperação assistida.
+Mesma tarefa/identidade/ambiente e proteções. Ver `RECUPERACAO_SENHA.md`;
+os registros 1.75/1.76 abaixo descrevem as etapas anteriores.
+
 Conta limitada aplicada em 03/11/2026. **Atualização de 04/11:** produção local
 agora 1.76.0/Waitress, com a mesma tarefa/identidade e credencial preservada.
 LAN/loopback:5000, origem Tunnel só 127.0.0.1:5001, PostgreSQL só localhost.

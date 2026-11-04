@@ -1,5 +1,8 @@
 # Infraestrutura e piloto local — 03/11/2026
 
+Versão vigente **1.77.0**, recuperação assistida ativa em 04/11 às 10h23,
+mesma infraestrutura. Ver `RECUPERACAO_SENHA.md`; histórico 1.76 abaixo.
+
 **Estado posterior, 04/11/2026:** produção local 1.76.0/Waitress ativa na
 mesma tarefa EndemiasWeb, LAN/loopback:5000 e origem externa só 127.0.0.1:5001.
 PostgreSQL restrito a localhost, apenas 0030 aplicada, backup validado e 90

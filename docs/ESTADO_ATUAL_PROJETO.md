@@ -4,15 +4,31 @@ Atualizado em 04/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Recuperação assistida — preparação 1.77.0
+## Versão vigente 1.77.0 — recuperação assistida ativa
 
-Usuário autorizou implementar links gerados pelo administrador, validade de
-15 minutos e uso único, orientação "Esqueci minha senha" e escolha da senha
-pelo titular. Preparado em `codex/recuperacao-senha`, worktree
-`C:\endemias-recuperacao-senha`; PostgreSQL somente migração aditiva 0031.
-928 testes gerais passaram (sete ignorados), testes focados, PostgreSQL
-descartável e Chromium com CSRF real/celular conferidos. Produção permanece
-1.76.0 até o registro de ativação. Ver `RECUPERACAO_SENHA.md`.
+- Ativada em 04/11/2026 às 10h23, release `3f35afe`, após solicitação do
+  usuário. Gestão de Usuários oferece link de recuperação (15 minutos/uso único);
+  titular escolhe a senha. Login oferece orientação "Esqueci minha senha".
+  Sem envio automático por e-mail/mensagens; identidade confirmada pelo responsável.
+- Backup prévio de 7.526.925 bytes com catálogo validado; somente 0031 aplicada.
+  Assinaturas/contagens de 90 tabelas anteriores preservadas; chave/Kobo/config/
+  SQLite congelado iguais. Nenhuma conta real teve senha alterada ou link gerado
+  pelo ensaio. Mesma tarefa/identidade/credencial e ambiente, sem alterar
+  Cloudflared, PostgreSQL, firewall, portas ou inicialização automática.
+- Ensaio sob EndemiasWeb confirmou permissões, SQL sem privilégios administrativos,
+  XLSX/PDF, rotação, backup e login. Relatório privado aplicado/todos os checks
+  verdadeiros: `C:\ProgramData\EndemiasWeb\ativacao177-resultado.json`, snapshot
+  `ativacao177-20261104-102300`. Primeira chamada foi recusada antes de mudar
+  qualquer recurso por divergência no commit de origem; chamada final usou SHA
+  consultado diretamente e concluiu. Relatório de falha anterior é histórico.
+- Às 10h24, HTTPS oficial/login/esqueci-senha/recuperar-senha 200/1.77.0;
+  private/no-store/DYNAMIC, cookie Secure/HttpOnly e recuperação no-referrer.
+  LAN e loopback:5000 confirmados 200. Reinício do Windows após esta versão
+  ainda não ensaiado; inicialização 1.76 já foi validada conforme abaixo.
+- Validação: 928 testes gerais passaram (sete ignorados), focados adicionais,
+  PostgreSQL descartável com concorrência e Chromium/CSRF real/celular. Ver
+  `RECUPERACAO_SENHA.md`. Desenvolvimento isolado em `codex/recuperacao-senha`,
+  worktree `C:\endemias-recuperacao-senha`.
 
 ## Produção 1.76.0 publicada e reinício confirmado — 04/11/2026
 

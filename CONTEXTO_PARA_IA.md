@@ -8,14 +8,20 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
 
-- Preparação **1.77.0**: recuperação assistida de senha por link gerado pelo
-  administrador (15 minutos/uso único), sem e-mail obrigatório. Migração 0031
-  aditiva, ainda pendente até confirmação da ativação no estado vivo. Worktree
-  `C:\endemias-recuperacao-senha`, branch `codex/recuperacao-senha`.
-  928 testes gerais passaram (sete ignorados), PostgreSQL descartável e
-  navegador/CSRF/celular conferidos. Ver `docs/RECUPERACAO_SENHA.md`.
+- **Versão atual 1.77.0, ativa em 04/11/2026 às 10h23**, release `3f35afe`:
+  recuperação assistida por link gerado pelo administrador, 15 minutos/uso único,
+  sem e-mail obrigatório, titular escolhe a senha. "Esqueci minha senha" orienta
+  procurar o responsável. Só migração aditiva 0031 aplicada; backup validado de
+  7.526.925 bytes, 90 tabelas anteriores e arquivos protegidos preservados.
+  Mesma tarefa/credencial/ambiente EndemiasWeb, Waitress, LAN/loopback:5000 e
+  Tunnel:5001. HTTPS oficial e LAN 200/1.77.0 confirmados às 10h24, sem trocar
+  senha/gerar link para conta real no ensaio. 928 testes gerais passaram (sete
+  ignorados), focados, PostgreSQL descartável e navegador/CSRF/celular conferidos.
+  Ver `docs/RECUPERACAO_SENHA.md` e relatório privado
+  `C:\ProgramData\EndemiasWeb\ativacao177-resultado.json` (aplicado). Reinício
+  do Windows após 1.77 ainda não ensaiado; boot completo 1.76 descrito abaixo.
 
-- **1.76.0 ativa na produção local desde 04/11/2026 às 09h08**, release
+- Histórico da publicação: **1.76.0 ativada em 04/11/2026 às 09h08**, release
   `f425cc8` integrada na master. Waitress na mesma tarefa limitada EndemiasWeb:
   LAN/loopback:5000 e origem externa somente 127.0.0.1:5001. PostgreSQL agora
   escuta somente localhost. Aplicada apenas a migração aditiva 0030 de aceites;

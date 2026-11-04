@@ -2,7 +2,14 @@
 
 Solicitada pelo usuario em 04/11/2026. Preparada em
 `C:\endemias-recuperacao-senha`, branch `codex/recuperacao-senha`.
-Consultar o estado vivo antes de interpretar esta preparacao como implantada.
+**Ativa em producao em 04/11/2026 as 10h23**, release `3f35afe` integrada na
+master; verificacao HTTPS/LAN as 10h24 confirmou 200/1.77.0. Backup previo
+7.526.925 bytes/catalogo validado, somente 0031 aplicada, 90 tabelas anteriores
+e arquivos protegidos preservados. Mesma identidade/tarefa/ambiente EndemiasWeb;
+nao alterados conector, PostgreSQL, firewall ou inicializacao automatica.
+Nenhum reset/link foi executado para usuario real no ensaio. Relatorio privado
+`C:\ProgramData\EndemiasWeb\ativacao177-resultado.json`: aplicado, checks verdadeiros;
+snapshot `ativacao177-20261104-102300`. Boot apos 1.77 ainda nao ensaiado.
 
 ## Uso
 
