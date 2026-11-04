@@ -7,6 +7,9 @@ Central 302/login, nonce por resposta e no-store/DYNAMIC conferidos. Ver
 `CORRECOES_SEGURANCA_180.md` e estado vivo. As evidencias de
 ativacao/reinicio 1.76 abaixo permanecem historicas.
 
+Em 04/11 as 14h56, apos ajustes manuais do usuario na borda, TLS 1.0/1.1
+recusados, 1.2/1.3 aceitos e HTTP 301 para HTTPS oficial confirmados.
+
 Continuidade autorizada pelo usuario apos o piloto publico. **Producao local
 1.76.0 ativa desde 04/11/2026, 09h08**; hostname oficial publicado e reinicio
 confirmado posteriormente no mesmo dia.

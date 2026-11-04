@@ -14,7 +14,7 @@ Pacote desenvolvido em `C:\endemias-seguranca`, `codex/correcao-seguranca`.
 | Cookie reutilizado depois de sair | Registro revogável no banco, validado a cada requisição autenticada. Logout revoga a sessão antes de limpar o cookie; outra sessão do mesmo usuário continua independente. |
 | HTTP local | Continua disponível por necessidade operacional. Usar o domínio HTTPS oficial como entrada habitual. Instalação de certificados nos aparelhos não foi escolhida; HTTPS local permanece em avaliação. Downloads de backup pela rede local HTTP serão recusados, para não transmitir a frase de proteção sem criptografia. Loopback do próprio servidor é permitido. |
 | Windows sem cobertura de atualizações | Mantido por decisão explícita do usuário. O pacote não corrige nem oculta esse risco. |
-| TLS antigo / HTTP público | Teste atual confirmou TLS 1.0/1.1/1.2/1.3 aceitos e HTTP 403 sem redirecionamento. Nenhuma mudança Cloudflare feita; controle do navegador foi interrompido por não conseguir confirmar a URL. Passos manuais abaixo. |
+| TLS antigo / HTTP público | Usuário fez os ajustes orientados. Às 14h56, TLS 1.0/1.1 recusados, 1.2/1.3 aceitos e HTTP 301 para HTTPS. Controle do navegador do agente havia sido interrompido por não conseguir confirmar a URL; foi usado procedimento manual, sem contornar esse bloqueio. |
 | Fórmulas em CSV | Campos textuais recebem proteção contra início de fórmula, inclusive prefixos de espaço/controle. Coordenadas e colunas numéricas declaradas preservam números finitos. Aspas, separadores e quebras seguem o CSV padrão. |
 | Duas cópias antigas de banco | Ativador inventariou/hash e restringiu ACL da raiz e dos dois arquivos identificados, sem excluir conteúdo. Relatório confirma grupos amplos removidos e bytes preservados. |
 | Backup completo sem criptografia | Originais locais continuam no formato atual, dentro das pastas privadas. Downloads de banco e completos passam a exigir frase de 20+ caracteres e geram um envelope 7z/AES-256 com nomes internos criptografados. Só superadmin pode baixar. A frase não é salva no banco ou em arquivo. |
@@ -96,7 +96,7 @@ O snapshot real é anterior à migração 0034. Em recuperação para a 1.80, ap
 essa migração antes de liberar a aplicação. O ensaio confirmou banco e arquivos;
 não simulou a reconstrução de toda a configuração Windows/Tunnel em outra máquina.
 
-## Ajustes manuais da Cloudflare
+## Ajustes manuais da Cloudflare — concluídos
 
 No painel da Cloudflare, selecione **vsatt.com.br** e entre em
 **SSL/TLS → Edge Certificates (Certificados de borda)**:
@@ -106,7 +106,9 @@ No painel da Cloudflare, selecione **vsatt.com.br** e entre em
 3. **Always Use HTTPS:** habilitar.
 
 Esses controles são da borda Cloudflare. O pacote Flask não muda esses valores.
-Após aplicar, repetir o ensaio de TLS e de redirecionamento HTTP para HTTPS.
+Usuário confirmou conclusão. Ensaio às 14h56 de 04/11: TLS 1.0/1.1 recusados
+com `TLSV1_ALERT_PROTOCOL_VERSION`, 1.2/1.3 aceitos e HTTP 301 apontando para
+`https://endemias.vsatt.com.br/login`.
 Não alterar o Tunnel ou abrir portas para essa correção.
 
 Referências oficiais: [TLS mínimo](https://developers.cloudflare.com/ssl/edge-certificates/additional-options/minimum-tls/),

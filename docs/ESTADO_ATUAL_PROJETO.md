@@ -37,9 +37,11 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
   ativadores; Chromium com CSRF real e política CSP final conferido. Usuários
   precisam entrar novamente. Reinício completo após 1.80 ainda não ensaiado;
   tarefa/credencial/inicialização automática existentes preservadas.
-- Pendências: TLS mínimo/redirect Cloudflare em orientação manual (usuário
-  estava na Overview; fornecido atalho para Edge Certificates), HTTPS local,
-  segundo fator e destino de cópia externa. Windows mantido por decisão do
+- **Cloudflare concluída:** após orientação por atalho para Edge Certificates,
+  usuário informou "Pronto". Às 14h56, conexões TLS 1.0/1.1 foram recusadas com
+  alerta de versão, 1.2/1.3 aceitas e HTTP retornou 301 para HTTPS oficial.
+  Nenhum ajuste de conta/Tunnel/firewall foi feito pelo agente para isso.
+- Pendências: HTTPS local, segundo fator e destino de cópia externa. Windows mantido por decisão do
   usuário. Dispõe só de conta pessoal na nuvem: explicado uso técnico de arquivo
   já cifrado, preferência por controle institucional e regras do setor. Nenhum
   upload/compartilhamento/credencial de nuvem configurado. Ver guia de segurança.

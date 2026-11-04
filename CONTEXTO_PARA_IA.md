@@ -21,7 +21,9 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
   real isolada: 96 tabelas/663 arquivos, sem índices inválidos; temporários
   removidos e instância encerrada. Ver `docs/CORRECOES_SEGURANCA_180.md`.
   Usuários precisam entrar novamente. Reinício Windows após 1.80 não ensaiado.
-  TLS/redirect Cloudflare em orientação manual; HTTPS local/MFA não adotados.
+  TLS/redirect Cloudflare ajustados pelo usuário e conferidos às 14h56:
+  1.0/1.1 recusados, 1.2/1.3 aceitos e HTTP 301 para HTTPS. HTTPS local/MFA
+  não adotados.
   Conta pessoal em nuvem discutida, sem envio ou destino institucional definido.
 
 - Histórico da preparação 1.80.0 de segurança em `C:\endemias-seguranca`, branch
