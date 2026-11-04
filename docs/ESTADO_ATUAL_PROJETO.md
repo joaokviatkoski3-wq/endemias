@@ -1,17 +1,27 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 03/11/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 04/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
 ## Piloto externo com dados fictícios — publicado em 03/11
+
+- **04/11, após reinício do Windows:** Cloudflared iniciou Running/Auto e
+  produção respondeu 200/1.75.0 na porta 5000. Piloto não tinha listeners
+  5002/5003; o hostname público retornou 502. Iniciado novamente somente
+  `scripts/piloto_web.py` na worktree; HTTPS voltou a 200/1.76.0 e API sem
+  login a 401, ambas com `private, no-store`. Sem alteração de tarefa, serviço,
+  DNS, firewall ou banco real. Piloto continua manual; após reinício, usar
+  `C:\endemias-cloudflare\piloto_web.bat`. O conector automático não inicia a
+  aplicação de teste. Não confundir esse comportamento com falha de produção.
 
 - Usuário criou/conectou `vsatt-piloto` na Cloudflare e publicou somente
   `https://piloto.vsatt.com.br` para 127.0.0.1:5003. O processo isolado em
   `C:\endemias-cloudflare` usa SQLite fictício, sem credenciais/dados reais.
 - HTTPS real confirmou login 200/1.76.0, API sem login 401, home redirecionada
   ao login, cookie Secure/HttpOnly, CSP/HSTS e respostas privadas sem cache.
-  Usuário confirmou que abriu a tela; login/termo e funções públicas pendentes.
+  Usuário confirmou login, termo e novo acesso sem repetir o mesmo termo em
+  03/11. Testes funcionais públicos mais amplos continuam pendentes.
 - Serviço Cloudflared automático executa como LocalSystem, distinto da tarefa
   EndemiasWeb limitada. Revisar identidade/token desse conector antes de publicar
   produção. Token não foi consultado/exportado pelo agente.
