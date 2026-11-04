@@ -1,5 +1,6 @@
 import json
 import logging
+import secrets
 import time
 
 from flask import (
@@ -106,12 +107,24 @@ def register_template_filters(app):
 
 
 def register_security_headers(app):
+    def nonce():
+        if not getattr(g, '_csp_nonce', None):
+            g._csp_nonce = secrets.token_urlsafe(24)
+        return g._csp_nonce
+
+    app.context_processor(lambda: {'csp_nonce': nonce})
+
     def _csp():
         inline = " 'unsafe-inline'" if current_app.config.get("CSP_ALLOW_INLINE", True) else ""
+        # Migracao gradual dos manipuladores inline; estas telas ja usam listeners.
+        strict = request.endpoint in {'bri.page', 'amostras_animais.page', 'auth.login', 'auth.recuperar_senha', 'auth.esqueci_senha', 'admin.admin_baixar_backup', 'admin.admin_baixar_backup_completo'}
+        attributes = "'none'" if strict or not inline else "'unsafe-inline'"
         return (
             "default-src 'self'; "
-            f"script-src 'self' https://cdn.jsdelivr.net{inline}; "
+            f"script-src 'self' https://cdn.jsdelivr.net 'nonce-{nonce()}' 'strict-dynamic'; "
+            f"script-src-attr {attributes}; "
             f"style-src 'self' https://cdn.jsdelivr.net{inline}; "
+            "object-src 'none'; "
             "img-src 'self' data: blob: https://server.arcgisonline.com; "
             "font-src 'self'; "
             "connect-src 'self'; "

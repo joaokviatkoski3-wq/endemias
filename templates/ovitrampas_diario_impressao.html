@@ -136,6 +136,6 @@
       </tbody>
     </table>
   </div>
-  <script>window.addEventListener('load', () => window.print());</script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">window.addEventListener('load', () => window.print());</script>
 </body>
 </html>

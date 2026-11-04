@@ -4,6 +4,41 @@ Atualizado em 04/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Preparação 1.80.0 — correções de segurança
+
+- Worktree `C:\endemias-seguranca`, branch `codex/correcao-seguranca`. BRI,
+  Amostras, cartões do mapa e tipos do Conta Ovos escapam texto. Scripts dos
+  templates recebem nonce; strict-dynamic e bloqueio de eventos inline nas
+  telas já migradas. Outros módulos ainda têm eventos inline por compatibilidade.
+- Sessões persistidas/revogadas (0034), limite absoluto de oito horas e recusa
+  de cookie anterior à atualização; todos precisarão entrar novamente.
+  Fórmulas CSV neutralizadas, coordenadas preservadas, lista de senhas comuns.
+- Downloads de backups somente superadmin, via frase exclusiva/7z AES-256;
+  rede local HTTP remota recusada para não expor a frase. ZIPs/dumps originais
+  permanecem privados no servidor. Nova dependência py7zr e nove wheels locais
+  com hashes versionados; OSV sem alertas nos nove pacotes consultados.
+- Ativador prepara pacotes e ACL das duas cópias antigas em D:\BackupsEndemias,
+  preserva hashes e registra ACL anteriores. Só depois faz a janela comum de
+  backup/0034/ensaio/retorno, sem redefinir senhas ou perfis. Não executado nesta
+  preparação; produção permanece 1.79. Ver `CORRECOES_SEGURANCA_180.md`.
+- Chromium/CSRF real, ataque com CSP desativada e ativa, cookie copiado, mapa e
+  download/restauração fictícia conferidos. PostgreSQL descartável em 55442
+  confirmou migração, revogação, expiração e isolamento entre sessões; encerrado.
+- Regressão final: 980 testes OK, seis ignorados; 16 focados adicionais e
+  navegador após a política CSP final também OK. SQLite congelado mantém o
+  SHA-256 `964152E21DE44B4FFF985F72A0D7945E8E7DCF260BBB019708B868C3B3A7A025`.
+  Ativador deste lote cria também backup completo com a aplicação parada,
+  para disponibilizar uma cópia atual ao ensaio de restauração real posterior.
+- Pendências explícitas: TLS mínimo/HTTPS redirect na Cloudflare (controle
+  interrompido por não conseguir confirmar URL; ensaio ainda aceita TLS 1.0/1.1
+  e HTTP 403 sem redirect), HTTPS local, segundo fator, cópia externa e ensaio
+  completo de restauração real em ambiente privado. Usuário perguntou sobre
+  nuvem; explicado fluxo de upload do arquivo já cifrado, sem enviar dados.
+  Dispõe só de conta pessoal: explicado funcionamento técnico, preferência
+  por controle institucional e necessidade de observar as regras do setor.
+  Windows segue como está por decisão do usuário. Nenhum desses riscos foi
+  declarado resolvido pelo pacote. Não tentar contornar o bloqueio do navegador.
+
 ## Versão vigente 1.79.0 — superadmin e gestão delegada
 
 - Ativação posterior confirmada pelo relatório privado

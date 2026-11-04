@@ -29,7 +29,7 @@
   <div class="hum-pager"><button class="btn btn-outline btn-sm" id="hum-ant" type="button">Anterior</button><span id="hum-pagina" class="muted"></span><button class="btn btn-outline btn-sm" id="hum-prox" type="button">Próxima</button></div>
 </div>
 {% endblock %}
-{% block extra_js %}<script>
+{% block extra_js %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 const statusOpcoes={{ status_opcoes|list|tojson }};let paginaAtual=1,paginas=1;
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 async function carregarHumanos(pagina=1){

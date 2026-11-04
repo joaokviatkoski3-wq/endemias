@@ -206,7 +206,7 @@
 .usuario-permissao small{color:var(--text3);line-height:1.35;}
 </style>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 async function gerarRecuperacao(uid, nome) {
   if (!confirm(`Gerar link para "${nome}"? Confirme a identidade da pessoa antes de entregar o link.`)) return;
   fecharRecuperacao();
@@ -285,5 +285,5 @@ function copiarSenha() {
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/usuarios_presenca.js?v={{ APP_VERSION }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/usuarios_presenca.js?v={{ APP_VERSION }}"></script>
 {% endblock %}

@@ -14,6 +14,7 @@ from app_core import agentes as agentes_core
 from app_core import auth as auth_core
 from app_core import backup as backup_core
 from app_core import backup_completo as backup_completo_core
+from app_core import backup_exportacao
 from app_core import blueprint_helpers as bh
 from app_core import backup_health
 from app_core import contaovos_health
@@ -424,14 +425,14 @@ def admin_restaurar_backup():
         return redirect(url_for("admin.admin_sistema", backup_erro=f"Erro ao restaurar backup: {exc}"))
 
 
-@bp.route("/admin/sistema/backups/baixar/<nome_backup>")
+@bp.route("/admin/sistema/backups/baixar/<nome_backup>", methods=['GET','POST'])
 @login_required
 @nivel_min("superadmin")
 def admin_baixar_backup(nome_backup):
     backup_dir = Path(current_app.config["BACKUP_DIR"])
     try:
         backup_path = _resolver_backup_ativo(backup_dir, nome_backup)
-        return send_file(backup_path, as_attachment=True, download_name=backup_path.name)
+        return backup_exportacao.resposta_download(backup_path)
     except Exception as exc:
         return redirect(url_for("admin.admin_sistema", backup_erro=f"Erro ao baixar backup: {exc}"))
 
@@ -521,7 +522,7 @@ def admin_criar_backup_completo():
         return redirect(url_for("admin.admin_sistema", backup_erro=f"Erro ao criar backup completo: {exc}"))
 
 
-@bp.route("/admin/sistema/backups-completos/baixar/<nome_backup>")
+@bp.route("/admin/sistema/backups-completos/baixar/<nome_backup>", methods=['GET','POST'])
 @login_required
 @nivel_min("superadmin")
 def admin_baixar_backup_completo(nome_backup):
@@ -530,7 +531,7 @@ def admin_baixar_backup_completo(nome_backup):
             current_app.config["BACKUP_COMPLETO_DIR"],
             nome_backup,
         )
-        return send_file(backup_path, as_attachment=True, download_name=backup_path.name)
+        return backup_exportacao.resposta_download(backup_path)
     except Exception as exc:
         return redirect(url_for("admin.admin_sistema", backup_erro=f"Erro ao baixar backup completo: {exc}"))
 

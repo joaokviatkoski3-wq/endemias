@@ -7,11 +7,11 @@
 {% if OFFLINE_USER_SCOPED and usuario_atual %}<meta name="offline-user" content="{{ usuario_atual.id_usuario }}">{% endif %}
 <link rel="icon" type="image/png" href="/static/img/favicon.png">
 <title>{% block title %}Endemias{% endblock %} - Almirante Tamandare</title>
-<script src="/static/vendor/chartjs/chart.umd.min.js"></script>
-<script src="/static/vendor/chartjs-plugin-datalabels/chartjs-plugin-datalabels.min.js"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/vendor/chartjs/chart.umd.min.js"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/vendor/chartjs-plugin-datalabels/chartjs-plugin-datalabels.min.js"></script>
 <link rel="stylesheet" href="/static/css/app.css">
 {% block extra_css %}{% endblock %}
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 const WORK_TYPE_COLORS = {{ TIPO_CORES|tojson }};
 const WORK_TYPE_LABELS = {{ TIPO_LABELS|tojson }};
 const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
@@ -163,9 +163,9 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
 
 </div>
 
-<script src="/static/js/app.js?v={{ APP_VERSION }}"></script>
-{% if usuario_atual %}<script src="/static/js/presenca.js?v={{ APP_VERSION }}"></script>{% endif %}
-<script src="/static/js/ajuda.js?v={{ APP_VERSION }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/app.js?v={{ APP_VERSION }}"></script>
+{% if usuario_atual %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/presenca.js?v={{ APP_VERSION }}"></script>{% endif %}
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/ajuda.js?v={{ APP_VERSION }}"></script>
 {% block extra_js %}{% endblock %}
 
 </body>

@@ -59,7 +59,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 let pPagina=1, pTotal=0, pTotalPaginas=1;
 
 function pEscape(value){return String(value ?? '').replace(/[&<>"']/g, char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));}

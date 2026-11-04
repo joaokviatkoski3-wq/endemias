@@ -13,7 +13,7 @@ from unittest import mock
 
 import app
 import criar_banco
-from app_core import auth, db, recuperacao_senha as recovery
+from app_core import auth, db, sessoes, recuperacao_senha as recovery
 
 
 class RecuperacaoSenhaTests(unittest.TestCase):
@@ -47,6 +47,7 @@ class RecuperacaoSenhaTests(unittest.TestCase):
         client = self.app.test_client()
         with self.app.app_context(), client.session_transaction() as s:
             s.update(uid=uid, nome="Pessoa Ficticia", auth_token=auth.token_sessao(self.old))
+            s['sessao_id'] = sessoes.criar(self.path, {'id_usuario':uid, 'senha_hash':self.old})
         return client
 
     def test_geracao_so_guarda_hash_e_preserva_senha(self):

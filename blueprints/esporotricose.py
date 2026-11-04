@@ -22,6 +22,7 @@ from app_core import escopo_agente
 from app_core import esporotricose as esporotricose_core
 from app_core import esporotricose_humanos as humanos_core
 from app_core import utils as utils_core
+from app_core.csv_seguranca import campo_csv
 
 
 bp = Blueprint("esporotricose", __name__)
@@ -265,7 +266,7 @@ def download_humanos_csv():
     )
     writer.writeheader()
     for row in rows:
-        writer.writerow({campo: row.get(campo) for campo in campos})
+        writer.writerow({campo: campo_csv(row.get(campo), numerico=campo in {'id_paciente', 'latitude', 'longitude', 'imoveis_vinculados', 'animais_vinculados'}) for campo in campos})
     audit.registrar_evento(
         bh.get_db,
         "esporotricose_humanos_csv_qgis",
@@ -696,7 +697,7 @@ def download_doentes_csv():
     writer = csv.DictWriter(buffer, fieldnames=campos, delimiter=";", extrasaction="ignore", lineterminator="\n")
     writer.writeheader()
     for row in rows:
-        writer.writerow({campo: row.get(campo) for campo in campos})
+        writer.writerow({campo: campo_csv(row.get(campo), numerico=campo in {'id_animal_doente', 'latitude', 'longitude', 'receitas_pendentes', 'capsulas_receitadas', 'capsulas_entregues', 'capsulas_restantes', 'receita_pendente'}) for campo in campos})
     return Response(
         buffer.getvalue(),
         content_type="text/csv; charset=utf-8",

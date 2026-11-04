@@ -13,3 +13,4 @@ waitress>=3.0.2,<4
 certifi>=2026.10.18
 urllib3>=2.8.0,<3
 defusedxml>=0.7.1
+py7zr==1.1.4

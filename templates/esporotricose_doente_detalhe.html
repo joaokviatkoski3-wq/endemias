@@ -154,7 +154,7 @@
 </div>
 {% endblock %}
 
-{% block extra_js %}<script>
+{% block extra_js %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 let animal = {{ animal|tojson }};
 function esc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function data(v){ return v || '-'; }

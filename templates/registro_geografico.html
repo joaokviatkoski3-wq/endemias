@@ -665,8 +665,8 @@
 
 <div id="rg-logradouro-suggest" class="rg-logradouro-suggest" hidden></div>
 
-<script src="/static/vendor/leaflet/leaflet.min.js"></script>
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/vendor/leaflet/leaflet.min.js"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 const rgTipos = {{ opcoes.tipos|tojson }};
 const rgLocalidades = {{ opcoes.localidades|tojson }};
 const rgState = { registros: [], q: null, limiteTodos: false };
@@ -1976,6 +1976,6 @@ rgCarregarSelectQuarteiroes(rgEl('rg-ed-localidade').value, 'rg-ed-quarteirao').
 rgCarregarChecksQuarteiroes(rgEl('rg-imp-localidade').value).catch(() => {});
 rgCarregar().catch(err => { rgEl('rg-info').textContent = err.message; });
 </script>
-<script src="/static/js/microareas_cores.js?v={{ APP_VERSION }}"></script>
-<script src="/static/js/microareas.js?v={{ APP_VERSION }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/microareas_cores.js?v={{ APP_VERSION }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/microareas.js?v={{ APP_VERSION }}"></script>
 {% endblock %}

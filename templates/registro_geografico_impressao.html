@@ -183,8 +183,8 @@ th{background:#e5e7eb;text-transform:uppercase;font-size:7.6pt;}
 {% endfor %}
 
 {% if incluir_mapa %}
-<script src="/static/vendor/leaflet/leaflet.min.js"></script>
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/vendor/leaflet/leaflet.min.js"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 function rgPrintQuart(value){
   const text = String(value ?? '').trim();
   if(/^\d+(\.\d+)?$/.test(text)){
@@ -305,7 +305,7 @@ async function rgPrintInitMaps(){
 </script>
 {% endif %}
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 const RG_PRINT_DUPLEX_RECTO = {{ 'true' if duplex_recto else 'false' }};
 function rgPrintRemoveDuplexBlanks(){
   document.querySelectorAll('.rg-duplex-blank').forEach(el => el.remove());
@@ -343,7 +343,7 @@ window.addEventListener('beforeprint', rgPrintPrepareDuplexRecto);
 </script>
 
 {% if auto_print %}
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 window.addEventListener('load', async () => {
   if(window.rgPrintInitMaps){
     await window.rgPrintInitMaps();

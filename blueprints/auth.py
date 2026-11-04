@@ -8,6 +8,7 @@ from app_core import blueprint_helpers as bh
 from app_core import termos_uso
 from app_core import recuperacao_senha
 from app_core import presenca as presenca_core
+from app_core import sessoes
 
 
 bp = Blueprint("auth", __name__)
@@ -99,8 +100,10 @@ def login():
                         conn.commit()
                         conn.close()
                         session["auth_token"] = auth_core.token_sessao(novo_hash)
+                        u['senha_hash'] = novo_hash
                     except Exception:
                         pass
+                session['sessao_id'] = sessoes.criar(bh.db_target(), u)
                 dest = request.args.get("next", "")
                 if u.get("somente_laboratorio") and u.get("nivel") not in {"admin", "superadmin"}:
                     dest = url_for("laboratorio_lancamentos.page")
@@ -169,6 +172,8 @@ def recuperar_senha():
 @bp.route("/logout", methods=["POST"])
 @login_required
 def logout():
+    # A revogacao e obrigatoria; se o banco falhar, nao anunciar logout concluido.
+    sessoes.revogar(bh.db_target())
     try:
         presenca_core.encerrar(bh.db_target(), bh.usuario_atual(), presenca_core.sessao_hash())
     except Exception:
@@ -212,6 +217,8 @@ def minha_senha():
             conn.commit()
             conn.close()
             session["auth_token"] = auth_core.token_sessao(novo_hash)
+            sessoes.revogar(bh.db_target())
+            session['sessao_id'] = sessoes.criar(bh.db_target(), {**u, 'senha_hash': novo_hash})
             presenca_core.nova_sessao()
             audit.registrar_evento(
                 bh.get_db,

@@ -112,7 +112,7 @@
 <datalist id="visitas-agentes">{% for item in opcoes.agentes %}<option value="{{ item }}"></option>{% endfor %}</datalist>
 <datalist id="visitas-tratamentos">{% for item in opcoes.tratamentos %}<option value="{{ item }}"></option>{% endfor %}</datalist>
 
-<script type="application/json" id="visitas-config">{{ {
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" type="application/json" id="visitas-config">{{ {
   "d_ini": d_ini,
   "d_fim": d_fim,
   "pode_editar": usuario_atual and usuario_atual.nivel in ("superadmin", "admin", "operador"),
@@ -124,4 +124,4 @@
 }|tojson }}</script>
 {% endblock %}
 
-{% block extra_js %}<script src="/static/js/visitas.js"></script>{% endblock %}
+{% block extra_js %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/visitas.js"></script>{% endblock %}

@@ -344,7 +344,7 @@
     </section>
   </div>
 </div>
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 (() => {
   const btn = document.getElementById('btn-diag-completo');
   const status = document.getElementById('diag-status');

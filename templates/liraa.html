@@ -321,8 +321,8 @@
   </details>{% endif %}
 </section>
 {% endif %}
-<script type="application/json" id="liraa-dados-json">{{ {'quarteiroes': dados.quarteiroes, 'ciclos': dados.ciclos}|tojson }}</script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" type="application/json" id="liraa-dados-json">{{ {'quarteiroes': dados.quarteiroes, 'ciclos': dados.ciclos}|tojson }}</script>
 {% include 'liraa_operacao.html' %}
 {% endif %}
 {% endblock %}
-{% block extra_js %}<script src="/static/vendor/leaflet/leaflet.min.js"></script><script src="/static/js/liraa_mapa_geral.js?v={{ APP_VERSION }}"></script><script src="/static/js/liraa_plano_campo.js?v={{ APP_VERSION }}"></script><script src="/static/js/liraa_estratos.js?v={{ APP_VERSION }}"></script>{% endblock %}
+{% block extra_js %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/vendor/leaflet/leaflet.min.js"></script><script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/liraa_mapa_geral.js?v={{ APP_VERSION }}"></script><script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/liraa_plano_campo.js?v={{ APP_VERSION }}"></script><script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/liraa_estratos.js?v={{ APP_VERSION }}"></script>{% endblock %}

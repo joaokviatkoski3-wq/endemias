@@ -39,7 +39,7 @@
         <button type="submit">Salvar nova senha</button>
       </form>
       <noscript>Ative o JavaScript no navegador para abrir o link de recuperação com segurança.</noscript>
-      <script>
+      <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
       (() => {
         const field = document.getElementById('recuperacao-token');
         const fragment = window.location.hash.slice(1);

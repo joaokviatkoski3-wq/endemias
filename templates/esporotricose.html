@@ -645,7 +645,7 @@
 </section>
 {% endblock %}
 
-{% block extra_js %}<script>
+{% block extra_js %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 let espAnimaisCarregados = false;
 let espVisitasCarregadas = false;
 let espImoveisCarregados = false;
@@ -1825,7 +1825,7 @@ async function imprimirEspAnimais() {
       <h1>Esporotricose - Animais cadastrados</h1>
       <div class="meta">Período: ${escapeHtml(periodo)}<br>Filtros: ${escapeHtml(filtros)}<br>Total: ${fmtNum(d.total || 0)} registro(s), ${fmtNum(rows.length)} impresso(s)</div>
       <table><thead><tr><th>Motivo</th><th>Data</th><th>Animal</th><th>Espécie</th><th>Feridas</th><th>Vacina</th><th>Castração</th><th>Morador</th><th>Endereço</th></tr></thead><tbody>${htmlRows}</tbody></table>
-      <script>window.addEventListener('load',()=>setTimeout(()=>window.print(),250));<\/script>
+      <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">window.addEventListener('load',()=>setTimeout(()=>window.print(),250));<\/script>
       </body></html>`);
     win.document.close();
   } catch (e) {

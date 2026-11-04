@@ -203,7 +203,7 @@
 
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 async function salvar() {
   const form = document.getElementById('foco-form');
   const fd = new FormData(form);

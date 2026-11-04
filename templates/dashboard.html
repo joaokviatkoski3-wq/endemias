@@ -329,7 +329,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 let dados = null;
 
 async function buscar() {

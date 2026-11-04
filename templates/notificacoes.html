@@ -261,7 +261,7 @@
   </div>
 </form>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 function toggleAll(cb) {
   document.querySelectorAll('.foco-check').forEach(c => c.checked = cb.checked);
   updateSelCount();

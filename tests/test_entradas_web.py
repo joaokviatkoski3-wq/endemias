@@ -17,7 +17,7 @@ from flask import jsonify, request
 import app
 import criar_banco
 import servir
-from app_core import auth, termos_uso
+from app_core import auth, termos_uso, sessoes
 
 
 class EntradasWebTests(unittest.TestCase):
@@ -41,6 +41,7 @@ class EntradasWebTests(unittest.TestCase):
         with application.app_context():
             payload = {"uid": 1, "auth_token": auth.token_sessao(self.senha_hash),
                        "termo_aceito": termos_uso.VERSAO + ":" + termos_uso.HASH}
+            payload['sessao_id'] = sessoes.criar(self.path, {'id_usuario':1,'senha_hash':self.senha_hash})
             return application.session_interface.get_signing_serializer(application).dumps(payload)
 
     def test_credenciais_de_sessao_nao_podem_ser_reaproveitadas_entre_entradas(self):

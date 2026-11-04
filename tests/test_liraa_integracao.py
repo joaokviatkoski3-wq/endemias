@@ -40,6 +40,7 @@ class IntegracaoTests(unittest.TestCase):
         from app_core import work_types
         from blueprints.consultas import bp as consultas_bp
         app=Flask(__name__,template_folder=str(Path(__file__).resolve().parents[1]/'templates'))
+        app.testing = True
         app.secret_key="teste"
         app.config.update(DB_PATH=self.target, DB_BACKEND="sqlite", BASE_DIR=self.env.base)
         app.register_blueprint(auth_bp);app.register_blueprint(laboratorio_bp);app.register_blueprint(consultas_bp)

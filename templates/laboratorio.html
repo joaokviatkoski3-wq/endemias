@@ -111,7 +111,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 let lPagina = 1, lTotal = 0, lTotalPag = 1;
 
 function buildFiltros() {

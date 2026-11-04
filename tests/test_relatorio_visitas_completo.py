@@ -115,6 +115,7 @@ class HistoricoVisitasPdfTests(unittest.TestCase):
 
     def test_rota_autenticada_valida_datas_e_entrega_pdf(self):
         app = Flask(__name__, template_folder=str(Path(__file__).resolve().parents[1] / "templates"))
+        app.testing = True
         app.secret_key = "teste-isolado"
         app.config.update(DB_PATH=self.db, DB_BACKEND="sqlite", BASE_DIR=self.temp.name)
         app.register_blueprint(auth_bp)

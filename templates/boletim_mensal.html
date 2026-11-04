@@ -110,7 +110,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 let bmDados = null;
 
 function mesAtual() {

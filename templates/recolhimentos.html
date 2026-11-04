@@ -77,7 +77,7 @@
 </div>
 {% endblock %}
 
-{% block extra_js %}<script>
+{% block extra_js %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 const recFmt = new Intl.NumberFormat('pt-BR');
 function recParams(extraBusca=false){
   const p = new URLSearchParams();

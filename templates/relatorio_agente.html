@@ -199,7 +199,7 @@
   </main>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 let agenteAtual = '{{ agente_sel | e }}';
 
 function selecionarAgente(nome) {

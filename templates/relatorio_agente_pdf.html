@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <link rel="icon" type="image/png" href="/static/img/favicon.png">
 <title>Relatório — {{ agente }}</title>
-<script src="/static/vendor/chartjs/chart.umd.min.js"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/vendor/chartjs/chart.umd.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#000;background:#fff;}
@@ -613,7 +613,7 @@ tr:nth-child(even) td{background:#f8faff;}
 
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 // Plugin para desenhar valores nos gráficos (visível na impressão)
 const chartLabelsPlugin = {
   id: 'chartLabelsPlugin',

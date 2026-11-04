@@ -8,6 +8,17 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
 
+- **Preparação 1.80.0 de segurança** em `C:\endemias-seguranca`, branch
+  `codex/correcao-seguranca`: escape BRI/Amostras/mapa/Conta Ovos, CSP com nonce,
+  sessões revogáveis (0034), CSVs protegidos e downloads de backup 7z/AES-256.
+  Dependência py7zr, nove wheels locais/hash versionado; nenhuma conta/senha
+  real alterada. Ativador também restringe as duas cópias antigas de banco.
+  Não confundir pacote preparado com ativo: conferir `ativacao180-resultado`.
+  Todos precisarão entrar novamente ao ativar. Ver `docs/CORRECOES_SEGURANCA_180.md`.
+  Windows mantido; HTTPS local e MFA em avaliação, Cloudflare TLS/redirect manual
+  pendente por bloqueio do controle do navegador. Nuvem para backup explicada,
+  sem destino escolhido/upload. Versão vigente ainda 1.79 conforme abaixo.
+
 - **Versão vigente 1.79.0, ativa em 04/11/2026 às 11h58**, release `02701c2`.
   Relatório `C:\ProgramData\EndemiasWeb\ativacao179-resultado.json` aplicado,
   backup de 7.536.799 bytes/catalogado, somente 0033 aplicada, 93 tabelas

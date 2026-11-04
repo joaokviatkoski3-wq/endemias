@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Baixar cópia protegida{% endblock %}
+{% block page_title %}Baixar cópia protegida{% endblock %}
+{% block content %}
+<div class="chart-card" style="max-width:640px;margin:24px auto;">
+  <h1>Baixar cópia protegida</h1>
+  <p>{{ nome }}</p>
+  <p>Escolha uma frase de proteção exclusiva para esta cópia. Guarde-a separadamente do arquivo: sem ela, a cópia não poderá ser aberta.</p>
+  <p>O arquivo será baixado em formato <strong>7z com criptografia</strong>. Você poderá abri-lo com o 7-Zip e recuperar o backup original que está dentro dele.</p>
+  {% if erro %}<p role="alert" style="color:var(--red);">{{ erro }}</p>{% endif %}
+  {% if not bloqueado %}<form method="POST" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="senha-backup">Frase de proteção (mínimo de 20 caracteres)</label>
+    <input id="senha-backup" class="form-control" type="password" name="senha_backup" minlength="20" maxlength="1024" required autocomplete="new-password">
+    <label for="confirmar-backup">Repita a frase de proteção</label>
+    <input id="confirmar-backup" class="form-control" type="password" name="confirmar" minlength="20" maxlength="1024" required autocomplete="new-password">
+    <button class="btn btn-primary" type="submit">Preparar e baixar cópia protegida</button>
+    <a class="btn btn-outline" href="/admin/sistema">Voltar</a>
+  </form>{% endif %}
+</div>
+{% endblock %}

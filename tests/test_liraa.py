@@ -438,6 +438,7 @@ class LiraaTests(unittest.TestCase):
         conn.commit()
         conn.close()
         app = Flask(__name__, template_folder=str(ROOT / "templates"))
+        app.testing = True
         app.secret_key = "teste-isolado"
         app.config.update(DB_PATH=self.db, DB_BACKEND="sqlite", BASE_DIR=self.temp.name)
         app.register_blueprint(auth_bp)
@@ -516,6 +517,7 @@ class LiraaTests(unittest.TestCase):
         conn.commit()
         conn.close()
         app = Flask(__name__, template_folder=str(ROOT / "templates"))
+        app.testing = True
         app.secret_key = "teste-isolado"
         app.config.update(DB_PATH=self.db, DB_BACKEND="sqlite", BASE_DIR=self.temp.name)
         app.register_blueprint(auth_bp)

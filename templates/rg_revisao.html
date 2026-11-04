@@ -61,7 +61,7 @@
 </div>
 {% endblock %}
 
-{% block extra_js %}<script>
+{% block extra_js %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 const rgrStatus = {
   rascunho:'Rascunho', enviado:'Enviado', em_revisao:'Em revisão',
   aprovado:'Aprovado', oficializado:'Oficializado', devolvido:'Devolvido',

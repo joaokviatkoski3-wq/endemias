@@ -251,6 +251,7 @@ class OperacaoTests(unittest.TestCase):
         conn.execute("INSERT INTO usuarios VALUES(1,'teste','Teste','admin',1,1)")
         conn.commit();conn.close()
         app=Flask(__name__,template_folder=str(fixtures.ROOT/'templates'))
+        app.testing = True
         app.secret_key='teste'
         app.config.update(DB_PATH=self.target,DB_BACKEND='sqlite',BASE_DIR=self.base)
         for blueprint in (auth_bp,lab_bp,bp):

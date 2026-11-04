@@ -336,8 +336,8 @@
 
 </div>
 
-<script src="/static/vendor/leaflet/leaflet.min.js"></script>
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/vendor/leaflet/leaflet.min.js"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 // ═══════════════════════════════════════════════════════════════════
 //  Estado
 // ═══════════════════════════════════════════════════════════════════
@@ -655,13 +655,13 @@ function oviPopup(p) {
   const endereco = [p.rua, p.numero].filter(Boolean).join(', ');
   const ultimaColeta = formatarDataIso(p.ultima_coleta);
   return `
-    <div class="ovi-popup-title">Ovitrampa ${p.ovitrampa_id || '-'}</div>
-    <div class="ovi-popup-meta">${p.localidade || '-'}${p.quarteirao ? ' · Q ' + p.quarteirao : ''}<br>${endereco || '-'}</div>
+    <div class="ovi-popup-title">Ovitrampa ${escapeAttr(p.ovitrampa_id || '-')}</div>
+    <div class="ovi-popup-meta">${escapeAttr(p.localidade || '-')}${escapeAttr(p.quarteirao ? ' · Q ' + p.quarteirao : '')}<br>${escapeAttr(endereco || '-')}</div>
     <div class="ovi-popup-grid">
-      <div class="ovi-popup-k"><span>Leituras</span><strong>${p.leituras || 0}</strong></div>
-      <div class="ovi-popup-k"><span>Positivas</span><strong>${p.positivas || 0}</strong></div>
-      <div class="ovi-popup-k"><span>Ovos</span><strong>${p.ovos || 0}</strong></div>
-      <div class="ovi-popup-k"><span>Última</span><strong>${ultimaColeta || '-'}</strong></div>
+      <div class="ovi-popup-k"><span>Leituras</span><strong>${escapeAttr(p.leituras || 0)}</strong></div>
+      <div class="ovi-popup-k"><span>Positivas</span><strong>${escapeAttr(p.positivas || 0)}</strong></div>
+      <div class="ovi-popup-k"><span>Ovos</span><strong>${escapeAttr(p.ovos || 0)}</strong></div>
+      <div class="ovi-popup-k"><span>Última</span><strong>${escapeAttr(ultimaColeta || '-')}</strong></div>
     </div>`;
 }
 
@@ -683,7 +683,7 @@ function mostrarDetalhe(props) {
   const el = document.getElementById('sel-info');
 
   if (!d || (d.total === 0 && d.esporo_visitas === 0 && d.focos === 0 && d.pes_ativos === 0 && d.ovi_armadilhas === 0)) {
-    el.innerHTML = `<strong>Quarteirão ${props.id_quart}</strong><br>
+    el.innerHTML = `<strong>Quarteirão ${escapeAttr(props.id_quart)}</strong><br>
       <span style="color:var(--text3)">Sem registros no período.</span>`;
     return;
   }
@@ -693,13 +693,13 @@ function mostrarDetalhe(props) {
     .map(([tipo, total]) => {
       const cor = corTipoCodigo(tipo);
       return `<span style="background:${cor}22;color:${cor};border:1px solid ${cor}55;
-      border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-right:3px;">${tipo}&nbsp;${total}</span>`;
+      border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-right:3px;">${escapeAttr(tipo)}&nbsp;${Number(total)}</span>`;
     })
     .join('');
 
   el.innerHTML = `
-    <div class="sel-title">Quarteirão ${props.id_quart}</div>
-    <div class="sel-sub">Localidade ${props.Localidade}</div>
+    <div class="sel-title">Quarteirão ${escapeAttr(props.id_quart)}</div>
+    <div class="sel-sub">Localidade ${escapeAttr(props.Localidade)}</div>
     <div class="detalhe-grid">
       <div class="detalhe-metric"><span>Visitas</span><strong>${d.total}</strong></div>
       <div class="detalhe-metric red"><span>Focos</span><strong>${d.focos}</strong></div>
@@ -714,14 +714,14 @@ function mostrarDetalhe(props) {
     <div class="popup-linha"><span>Fechados</span><span>${d.fechados}</span></div>
     <div class="popup-linha"><span>Recuperados</span><span>${d.recuperados}</span></div>
     ${d.focos_pendentes > 0 ? `<div class="popup-linha" style="color:#f59e0b"><span>Focos pendentes</span><span><strong>${d.focos_pendentes}</strong></span></div>` : ''}
-    ${d.ultimo_trabalho ? `<div class="popup-linha"><span>Último trabalho</span><span>${d.ultimo_trabalho}</span></div>` : ''}
+    ${d.ultimo_trabalho ? `<div class="popup-linha"><span>Último trabalho</span><span>${escapeAttr(d.ultimo_trabalho)}</span></div>` : ''}
     <div style="margin-top:6px;">${tipos}</div>
     </div>
     <div class="detalhe-bloco">
       <div class="detalhe-subtitulo">Esporotricose</div>
       <div class="popup-linha"><span>Animais</span><span>${d.esporo_animais || 0}</span></div>
       <div class="popup-linha"><span>Fechadas/recusas</span><span>${(d.esporo_fechadas || 0) + (d.esporo_recusas || 0)}</span></div>
-      ${d.ultimo_esporotricose ? `<div class="popup-linha"><span>Última visita</span><span>${d.ultimo_esporotricose}</span></div>` : ''}
+      ${d.ultimo_esporotricose ? `<div class="popup-linha"><span>Última visita</span><span>${escapeAttr(d.ultimo_esporotricose)}</span></div>` : ''}
     </div>
     <div class="detalhe-bloco">
       <div class="detalhe-subtitulo">Pontos estratégicos</div>

@@ -14,7 +14,7 @@ from unittest import mock
 import app
 import criar_banco
 import servir
-from app_core import auth, db, presenca, termos_uso
+from app_core import auth, db, presenca, termos_uso, sessoes
 
 
 class PresencaTests(unittest.TestCase):
@@ -52,6 +52,7 @@ class PresencaTests(unittest.TestCase):
             s.update(uid=uid, auth_token=auth.token_sessao(self.hash), nome="Pessoa Ficticia",
                      presenca_id=nonce, _permanent=True, csrf_token="csrf-ficticio-estavel",
                      termo_aceito=termos_uso.VERSAO + ":" + termos_uso.HASH)
+            s['sessao_id'] = sessoes.criar(self.path, {'id_usuario':uid, 'senha_hash':self.hash})
         return client
 
     def status(self, now=1000, uid=21):

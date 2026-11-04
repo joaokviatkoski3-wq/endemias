@@ -243,7 +243,8 @@ class LoginRateLimitTests(unittest.TestCase):
 
     def test_senha_minima_centralizada(self):
         self.assertFalse(auth_core.senha_valida("123456"))
-        self.assertTrue(auth_core.senha_valida("1234567890"))
+        self.assertFalse(auth_core.senha_valida("1234567890"))
+        self.assertTrue(auth_core.senha_valida("Frase segura ficticia!"))
         self.assertIn(str(auth_core.PASSWORD_MIN_LENGTH), auth_core.mensagem_senha_invalida())
 
     def test_chave_login_ignora_x_forwarded_for_sem_proxy_confiavel(self):
@@ -690,6 +691,7 @@ class AdminBackupRoutesTests(unittest.TestCase):
             "TESTING": True,
             "DB_PATH": db_path,
             "INSTANCE_DIR": str(Path(tmpdir)),
+            "UPLOAD_TEMP": str(Path(tmpdir) / 'uploads_temp'),
             "BACKUP_DIR": str(Path(tmpdir) / "backups_banco"),
             "ANEXOS_DIR": str(Path(tmpdir) / "anexos"),
             "BACKUP_COMPLETO_DIR": str(Path(tmpdir) / "backups_completos"),
@@ -697,6 +699,7 @@ class AdminBackupRoutesTests(unittest.TestCase):
             "SECRET_KEY_PATH": str(Path(tmpdir) / "secret.key"),
             "WTF_CSRF_ENABLED": False,
         })
+        Path(app_temp.config['UPLOAD_TEMP']).mkdir(parents=True,exist_ok=True)
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         try:
@@ -756,7 +759,7 @@ class AdminBackupRoutesTests(unittest.TestCase):
             nome_backup = Path(info["arquivo"]).name
 
             with app_temp.app_context():
-                resp = client.get(f"/admin/sistema/backups/baixar/{nome_backup}")
+                resp = client.post(f"/admin/sistema/backups/baixar/{nome_backup}",data={'senha_backup':'Frase ficticia para o backup 2026!', 'confirmar':'Frase ficticia para o backup 2026!'})
 
             self.assertEqual(resp.status_code, 200)
             self.assertIn("attachment", resp.headers.get("Content-Disposition", ""))
@@ -799,7 +802,7 @@ class AdminBackupRoutesTests(unittest.TestCase):
             )
 
             with app_temp.app_context():
-                resp = client.get(f"/admin/sistema/backups-completos/baixar/{info['nome']}")
+                resp = client.post(f"/admin/sistema/backups-completos/baixar/{info['nome']}",data={'senha_backup':'Frase ficticia para o backup 2026!', 'confirmar':'Frase ficticia para o backup 2026!'})
 
             self.assertEqual(resp.status_code, 200)
             self.assertIn("attachment", resp.headers.get("Content-Disposition", ""))

@@ -346,7 +346,7 @@ td.value-positive {
 </section>
 {% endblock %}
 
-{% block extra_js %}<script>
+{% block extra_js %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 const KIND_LABELS = {
   residencia: 'Residencia',
   comercio: 'Comercio',
@@ -609,7 +609,7 @@ function renderSisPNCD(d) {
     <div class="metric"><div class="metric-label">${k.toUpperCase()}</div><div class="metric-value${Number(deps[k] || 0) > 0 ? ' value-positive' : ''}">${fmtNum(deps[k] || 0)}</div></div>
   `).join('');
 
-  const tratamentos = (g.tratamentos || []).map(r => `<tr><td>${r.tipo}</td>${valueCell(r.quantidade)}${valueCell(r.carga_kg)}</tr>`);
+  const tratamentos = (g.tratamentos || []).map(r => `<tr><td>${escapeHtml(r.tipo)}</td>${valueCell(r.quantidade)}${valueCell(r.carga_kg)}</tr>`);
   document.getElementById('sis-tratamentos-body').innerHTML = tableRows(tratamentos, 'Sem tratamentos no periodo.', 3);
 
   renderDepositTable('sis-dep-aegypti-body', lab.depositos_aegypti || []);
@@ -622,7 +622,7 @@ function renderSisPNCD(d) {
 }
 
 function renderDepositTable(id, rows) {
-  const htmlRows = rows.map(r => `<tr><td>${r.tipo_deposito || '-'}</td>${valueCell(r.quantidade)}</tr>`);
+  const htmlRows = rows.map(r => `<tr><td>${escapeHtml(r.tipo_deposito || '-')}</td>${valueCell(r.quantidade)}</tr>`);
   document.getElementById(id).innerHTML = tableRows(htmlRows, 'Sem depositos positivos no periodo.', 2);
 }
 

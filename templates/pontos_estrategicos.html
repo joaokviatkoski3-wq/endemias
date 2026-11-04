@@ -185,7 +185,7 @@
 </div>
 {% endblock %}
 
-{% block extra_js %}<script>
+{% block extra_js %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 const peFmt = new Intl.NumberFormat('pt-BR');
 const peCampos = ['nome','quarteirao','logradouro','numero','telefone','cnpj','latitude','longitude','observacoes'];
 function peData(valor){

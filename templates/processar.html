@@ -418,7 +418,7 @@
 @media(max-width:900px){.kobo-grid,.kobo-preview-row{grid-template-columns:1fr;}.kobo-actions{justify-content:stretch}.kobo-actions .btn,.kobo-preview-row .btn{width:100%;}}
 </style>
 
-<script type="application/json" id="processar-work-types">{{ TIPOS_TRABALHO|map(attribute='codigo')|list|tojson }}</script>
-<script type="application/json" id="kobo-config-json">{{ kobo_config|tojson }}</script>
-<script src="/static/js/processar.js?v={{ APP_VERSION }}-kobo-planilhas-2"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" type="application/json" id="processar-work-types">{{ TIPOS_TRABALHO|map(attribute='codigo')|list|tojson }}</script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" type="application/json" id="kobo-config-json">{{ kobo_config|tojson }}</script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/processar.js?v={{ APP_VERSION }}-kobo-planilhas-2"></script>
 {% endblock %}

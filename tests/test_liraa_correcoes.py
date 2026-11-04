@@ -281,6 +281,7 @@ class CorrecoesLiraaTests(unittest.TestCase):
         conn.execute("INSERT INTO usuarios VALUES(1,'teste','Teste','admin',1)")
         conn.commit(); conn.close()
         app = Flask(__name__, template_folder=str(fixtures.fixtures.ROOT / "templates"))
+        app.testing = True
         app.secret_key = "teste"
         app.config.update(DB_PATH=self.target, DB_BACKEND="sqlite", BASE_DIR=self.base)
         app.register_blueprint(auth_bp); app.register_blueprint(liraa_bp)

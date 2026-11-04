@@ -123,7 +123,7 @@
   </aside>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 async function editarAgente(id, campo, valor) {
   const body = new URLSearchParams({ campo, valor });
   const resp = await fetch(`/admin/agentes/${id}/editar`, {

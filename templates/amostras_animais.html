@@ -40,7 +40,7 @@
       <div class="f-g"><label>Acidente</label><select id="ani-acidente"><option value="">Todos</option><option value="Sim">Sim</option><option value="Não">Não</option></select></div>
       <div class="f-g"><label>Captura</label><select id="ani-captura"><option value="">Todos</option><option value="Sim">Sim</option><option value="Não">Não</option></select></div>
       <div class="f-g"><label>Origem</label><select id="ani-origem"><option value="">Todas</option><option value="nova">Kobo</option><option value="legada">Legado</option></select></div>
-      <div class="ani-actions"><button class="btn btn-primary" type="button" onclick="carregarAmostras()"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
+      <div class="ani-actions"><button class="btn btn-primary" type="button" id="amostras_animais-acao-0"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
     </div>
   </div>
 </div>
@@ -62,7 +62,7 @@
     </div>
     <div class="ani-filters" style="grid-template-columns:minmax(220px,1fr) auto;margin-bottom:10px;">
       <div class="f-g"><label>Pesquisa</label><input type="search" id="ani-busca" placeholder="Endereço, morador, espécie, agente..."></div>
-      <div class="ani-actions"><button class="btn btn-outline" type="button" onclick="carregarListaAmostras()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button></div>
+      <div class="ani-actions"><button class="btn btn-outline" type="button" id="amostras_animais-acao-1"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button></div>
     </div>
     <div class="table-scroll">
       <table>
@@ -85,7 +85,7 @@
 </div>
 {% endblock %}
 
-{% block extra_js %}<script>
+{% block extra_js %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 const amFmt = new Intl.NumberFormat('pt-BR');
 function amParams(extraBusca=false){
   const p = new URLSearchParams();
@@ -122,7 +122,7 @@ async function carregarAmostras(){
 }
 function renderListaResumo(id, rows, campo){
   document.getElementById(id).innerHTML = rows.map(r => `
-    <div class="ani-item"><span><strong>${r[campo] || '-'}</strong><br>${amFmt.format(r.registros||0)} registro(s)</span><span class="ani-badge">${amFmt.format(r.quantidade||0)}</span></div>
+    <div class="ani-item"><span><strong>${escapeAttr(r[campo] || '-')}</strong><br>${amFmt.format(r.registros||0)} registro(s)</span><span class="ani-badge">${amFmt.format(r.quantidade||0)}</span></div>
   `).join('') || '<div class="empty">Nenhum registro no período.</div>';
 }
 async function carregarListaAmostras(){
@@ -132,13 +132,13 @@ async function carregarListaAmostras(){
     const animal = r.especie_resumo || r.animal_capturado || r.tipo_animal || r.animal_motivador || '-';
     const endereco = [r.logradouro, r.numero].filter(Boolean).join(', ') || '-';
     return `<tr>
-      <td>${r.data || '-'}</td>
-      <td>${r.agentes || r.agentes_texto || '-'}</td>
-      <td>${r.motivo_visita || '-'}</td>
-      <td>${animal}</td>
-      <td>${r.localidade || '-'}</td>
-      <td>${endereco}</td>
-      <td>${r.ocorrencia_residencia || '-'}</td>
+      <td>${escapeAttr(r.data || '-')}</td>
+      <td>${escapeAttr(r.agentes || r.agentes_texto || '-')}</td>
+      <td>${escapeAttr(r.motivo_visita || '-')}</td>
+      <td>${escapeAttr(animal)}</td>
+      <td>${escapeAttr(r.localidade || '-')}</td>
+      <td>${escapeAttr(endereco)}</td>
+      <td>${escapeAttr(r.ocorrencia_residencia || '-')}</td>
       <td><div class="ani-tags">
         ${tag('Acidente', r.houve_acidente)}
         ${tag('Captura', r.houve_captura)}
@@ -150,8 +150,10 @@ async function carregarListaAmostras(){
 function tag(label, value){
   const v = value || '-';
   const cls = v === 'Sim' ? 'ok' : (v === 'Não' ? '' : 'warn');
-  return `<span class="ani-tag ${cls}">${label}: ${v}</span>`;
+  return `<span class="ani-tag ${cls}">${escapeAttr(label)}: ${escapeAttr(v)}</span>`;
 }
 document.getElementById('ani-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarListaAmostras(); });
 carregarAmostras().catch(e => toast('Erro ao carregar amostras: ' + e.message, 'error'));
+document.getElementById('amostras_animais-acao-0').addEventListener('click', carregarAmostras);
+document.getElementById('amostras_animais-acao-1').addEventListener('click', carregarListaAmostras);
 </script>{% endblock %}

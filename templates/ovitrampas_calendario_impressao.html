@@ -231,7 +231,7 @@
       {% endfor %}
     </section>
   </main>
-  <script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
     window.addEventListener('load', () => setTimeout(() => window.print(), 500));
   </script>
 </body>

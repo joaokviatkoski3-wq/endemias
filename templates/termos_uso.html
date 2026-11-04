@@ -31,5 +31,5 @@
   </form>
   <form class="acoes" method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline" type="submit">Sair sem aceitar</button></form>
 </main>
-<script src="/static/js/presenca.js?v={{ APP_VERSION }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/presenca.js?v={{ APP_VERSION }}"></script>
 </body></html>

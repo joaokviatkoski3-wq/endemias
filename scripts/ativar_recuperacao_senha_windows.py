@@ -35,6 +35,7 @@ class Release:
     marker: str = "ativacao177"
     owner_id: int | None = None
     owner_login: str | None = None
+    snapshot_completo: bool = False
 
 
 def promover_owner(config, release):
@@ -136,6 +137,21 @@ def apply(args, release=Release()):
             raise RuntimeError("Aguardar liberacao da porta antes de alterar codigo.")
         before = signatures(original)
         (state / "assinaturas-antes.json").write_text(json.dumps(before), encoding="utf-8")
+        if release.snapshot_completo:
+            from app_core import backup_completo, db
+            save('backup_completo_antes_migracao')
+            info = backup_completo.criar_backup_completo(
+                destino_dir=env['ENDEMIAS_BACKUP_COMPLETO_DIR'], raiz=OFFICIAL, manter=None,
+                anexos_dir=env.get('ENDEMIAS_ANEXOS_DIR', str(OFFICIAL/'anexos')),
+                kobo_config_path=env.get('ENDEMIAS_KOBO_CONFIG_PATH', str(OFFICIAL/'kobo_config.json')),
+                secret_key_path=env.get('ENDEMIAS_SECRET_KEY_PATH', str(OFFICIAL/'secret.key')),
+                db_target=db.DatabaseTarget('postgresql', env['ENDEMIAS_PG_DATABASE']),
+                postgresql_env=env)
+            archive = Path(info['arquivo'])
+            with archive.open('rb') as stream:
+                checksum = hashlib.file_digest(stream, 'sha256').hexdigest()
+            report['backup_completo'] = {'arquivo': str(archive), 'bytes': archive.stat().st_size,
+                'sha256': checksum, 'integridade_banco': info.get('integridade_banco')}
         save("integrando_codigo")
         git("merge", "--ff-only", args.release)
         integrated = True

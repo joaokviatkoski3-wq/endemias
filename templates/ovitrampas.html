@@ -601,10 +601,10 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
   </div>
 </div>
 
-<script type="application/json" id="ovi-agentes-json">{{ agentes|tojson }}</script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" type="application/json" id="ovi-agentes-json">{{ agentes|tojson }}</script>
 {% endblock %}
 
-{% block extra_js %}<script>
+{% block extra_js %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 const oviFmt = new Intl.NumberFormat('pt-BR');
 const oviPodeEditarCadastroContaOvos = {{ 'true' if tem_permissao('gestao') else 'false' }};
 const oviDecimal = new Intl.NumberFormat('pt-BR', {minimumFractionDigits:1, maximumFractionDigits:1});

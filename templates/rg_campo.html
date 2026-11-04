@@ -102,8 +102,8 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/rg_campo_offline.js"></script>
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/rg_campo_offline.js"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 const AGENTE_PROPRIO = {{ agente_proprio|tojson }};
 const AGENTES = {{ agentes|tojson }};
 const ROTULOS_STATUS = {pendente:'Pendente', preenchido:'Preenchido', enviado:'Enviado', atualizado:'Atualizado'};

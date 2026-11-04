@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import re
 import time
+import unicodedata
 from datetime import datetime
 from functools import wraps
 from urllib.parse import urljoin, urlparse
@@ -11,6 +12,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app_core import db as db_core
 from app_core import permissoes
+from app_core import sessoes
 
 
 LOGIN_MAX_TENTATIVAS = 5
@@ -51,11 +53,17 @@ def hash_senha(senha):
 
 
 def senha_valida(senha):
-    return bool(senha) and len(senha) >= PASSWORD_MIN_LENGTH
+    if not isinstance(senha, str) or not PASSWORD_MIN_LENGTH <= len(senha) <= 1024:
+        return False
+    value = unicodedata.normalize('NFKC', senha).casefold().strip()
+    common = {'1234567890', '0123456789', '12345678910', '0987654321', '9876543210',
+              'qwertyuiop', 'asdfghjkl;', 'password123', 'password1234', 'senha123456',
+              'senha123456789', 'admin123456', 'administrador', 'abcdefghij', 'abcdef123456'}
+    return bool(value) and value not in common and not re.fullmatch(r'(.)\1{9,}', value) and not re.fullmatch(r'(.{1,4})\1{2,}', value)
 
 
 def mensagem_senha_invalida():
-    return f"A senha deve ter ao menos {PASSWORD_MIN_LENGTH} caracteres."
+    return f"A senha deve ter entre {PASSWORD_MIN_LENGTH} e 1024 caracteres e não pode ser uma senha comum, sequência trivial ou repetição."
 
 
 def verificar_senha(senha_digitada, hash_armazenado):
@@ -76,6 +84,9 @@ def usuario_atual(query_one):
     token = session.get("auth_token")
     if usuario and (token or current_app.config.get("REQUIRE_SESSION_TOKEN")):
         if not token or not hmac.compare_digest(str(token), token_sessao(usuario["senha_hash"])):
+            usuario = None
+    if usuario and (session.get('sessao_id') or current_app.config.get('REQUIRE_SESSION_TOKEN') or not current_app.testing):
+        if not sessoes.valida(query_one, usuario):
             usuario = None
     if not usuario:
         session.clear()
