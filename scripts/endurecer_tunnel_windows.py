@@ -99,14 +99,11 @@ class Tunnel:
         pid = self.svc.QueryServiceStatusEx(self.handle)["ProcessId"]
         process = self.api.OpenProcess(0x1000, False, pid)
         try:
-            token = sec.OpenProcessToken(process, self.con.TOKEN_QUERY | self.con.TOKEN_DUPLICATE)
+            token = sec.OpenProcessToken(process, self.con.TOKEN_QUERY)
             try:
                 assert sec.GetTokenInformation(token, sec.TokenUser)[0] == self.win.web
-                impersonation = sec.DuplicateToken(token, sec.SecurityImpersonation)
-                try:
-                    assert not sec.CheckTokenMembership(impersonation, self.win.admins)
-                finally:
-                    impersonation.Close()
+                groups = sec.GetTokenInformation(token, sec.TokenGroups)
+                assert not any(sid == self.win.admins and flags & 4 and not flags & 16 for sid, flags in groups)
                 enabled = sec.GetTokenInformation(token, sec.TokenPrivileges)
                 forbidden = {"SeDebugPrivilege", "SeImpersonatePrivilege", "SeBackupPrivilege", "SeRestorePrivilege"}
                 assert not {sec.LookupPrivilegeName(None, luid) for luid, flags in enabled if flags & 2} & forbidden

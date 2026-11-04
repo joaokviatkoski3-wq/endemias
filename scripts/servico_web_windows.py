@@ -43,6 +43,18 @@ def configure(config):
     return root
 
 
+def start_application(config, root):
+    server = config.get("server", "werkzeug")
+    if server not in {"werkzeug", "waitress"}:
+        raise ValueError("Servidor nao reconhecido.")
+    if config["env"].get("ENDEMIAS_ACESSO_EXTERNO") == "1" and server != "waitress":
+        raise ValueError("Perfil externo exige Waitress.")
+    entry = root / ("servir.py" if server == "waitress" else "app.py")
+    # O argparse do servir.py nao deve receber --config do wrapper nativo.
+    sys.argv = [str(entry)]
+    runpy.run_path(str(entry), run_name="__main__")
+
+
 def probe(config, root):
     """Verifica a identidade real sem enviar dados de teste ao banco oficial."""
     import psycopg2
@@ -141,7 +153,12 @@ def probe(config, root):
     rotation.with_suffix(".log.1").unlink()
     checks["xlsx_pdf_rotacao"] = True
     from app import app
-    response = app.test_client().get("/login")
+    if config["env"].get("ENDEMIAS_ACESSO_EXTERNO") == "1":
+        hostname = config["env"]["ENDEMIAS_ALLOWED_HOSTS"]
+        response = app.test_client().get("/login", base_url="https://" + hostname,
+            headers={"CF-Connecting-IP": "203.0.113.21", "X-Forwarded-Proto": "https"})
+    else:
+        response = app.test_client().get("/login")
     if response.status_code != 200 or config["version"].encode() not in response.data:
         raise RuntimeError("A pagina de login nao corresponde a versao esperada.")
     checks["login_versao_atual"] = True
@@ -163,7 +180,7 @@ def main():
     args = parser.parse_args()
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
     root = configure(config)
-    if args.probe:
+    if args.probe or config.get("probe_only"):
         result = {"ok": False}
         try:
             result.update(checks=probe(config, root), ok=True)
@@ -177,9 +194,7 @@ def main():
     log = Path(config["runtime"], "processo.log").open("a", encoding="utf-8", buffering=1)
     sys.stdout = sys.stderr = log
     print(time.strftime("%Y-%m-%d %H:%M:%S") + " iniciando servidor com conta limitada", flush=True)
-    # Nesta etapa preserva exatamente o iniciador/versao atuais. A ativacao do
-    # Waitress/perfil externo 1.76.0 sera uma implantacao separada, ja preparada.
-    runpy.run_path(str(root / "app.py"), run_name="__main__")
+    start_application(config, root)
     return 0
 
 

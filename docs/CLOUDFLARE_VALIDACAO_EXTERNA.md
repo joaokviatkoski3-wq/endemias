@@ -57,6 +57,32 @@ web. Cobre recusa de token literal, escopo de caminho, ausencia de abertura do
 token e contrato da API: senha NULL para conta virtual, sem mudar ImagePath.
 Conferir resultado administrativo antes de declarar aplicacao concluida.
 
+**Aplicado em 04/11:** Cloudflared executa como `NT SERVICE\Cloudflared`,
+sem administrador e com privilegios reduzidos; SID real do processo conferido,
+token somente leitura para o conector, argumentos/inicio automatico preservados.
+Piloto respondeu 200/1.76.0 apos a reconexao. Resultado privado em ProgramData.
+A primeira inspecao pediu TOKEN_DUPLICATE desnecessariamente e foi negada;
+a checagem foi corrigida para TOKEN_QUERY e grupos do token real. Conta/ACLs
+anteriores e piloto foram recuperados antes da tentativa concluida.
+
+## Preparacao da ativacao oficial
+
+- Usuario escolheu `endemias.vsatt.com.br` como endereco oficial; root disponivel
+  para futura entrada geral, ambiental somente quando a cisao for implementada.
+- Usuario confirmou que a equipe ainda nao usa o formulario RG offline.
+- Consulta administrativa somente leitura: 7 contas ativas, 4 administradores,
+  papel SQL sem privilegios administrativos, migracoes anteriores integras,
+  somente 0030 pendente. Contas/permissoes reais preservadas, sem mudar senhas.
+- IP local configurado manualmente, DHCP desabilitado. Entrada local prevista
+  no mesmo IP/porta 5000 e localhost; entrada Tunnel somente 127.0.0.1:5001.
+- Wrapper nativo preparado para Waitress, sem alterar a senha/tarefa existente.
+  Corrigido isolamento de argv: servir.py recebe somente seus argumentos,
+  nao os parametros --config do wrapper. Quatro regressões especificas passaram.
+- Antes de aplicar: backup, parada da tarefa, integracao do codigo validado,
+  somente migracao 0030, reducao da escuta PostgreSQL a localhost, ensaio sob
+  identidade final e confirmacao das duas entradas. Retorno preserva o banco e
+  os aceites eventualmente registrados; nunca restaurar dados automaticamente.
+
 ## Referencias
 
 - [Cloudflare — token-file](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/#token-file)
