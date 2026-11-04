@@ -1,0 +1,157 @@
+# Divisão de setores — candidata 2.0.0-rc.1
+
+Atualizado em 04/11/2026. **Preparação isolada, não implantada.** Produção
+permanece 1.80.0. Worktree `C:\endemias-setores`, branch
+`codex/divisao-setores-2`. Esta entrega não declara a versão 2.0 estável.
+
+## Decisões confirmadas pelo usuário
+
+| Entrada | Conteúdo |
+| --- | --- |
+| `https://vsatt.com.br` | Portal público de escolha, sem dados operacionais ou sessão. Dois links para os setores. |
+| `https://endemias.vsatt.com.br` | Módulos de Endemias, sem Esporotricose e Amostras de Animais. |
+| `https://ambiental.vsatt.com.br` | Esporotricose integral, Amostras de Animais, Meteorologia, Vigiágua vazio, agenda, dashboard, relatórios, mapa e importação Kobo próprios. |
+| `geo.vsatt.com.br` | Somente planejamento posterior à 2.0. Nenhum aplicativo/hostname Geo implementado. |
+
+- Meteorologia permanece nos dois setores; dados meteorológicos são comuns.
+- Conta e senha únicas no cadastro; acesso ordinário a um setor. Admin e
+  superadmin acessam ambos, sempre na aplicação/entrada correspondente.
+- Agentes de Endemias fazem visitas de Esporotricose **somente pelo Kobo**.
+  Não há exceção para acessar a gestão web Ambiental. Seus vínculos antigos
+  às visitas continuam válidos e não dependem do setor de sua conta web.
+- Cadastro de agentes e localidades/base territorial é compartilhado.
+  Hierarquia e restrições pessoais anteriores permanecem, inclusive laboratório
+  exclusivo em Endemias. Administração técnica/backups continuam globais e
+  reservados ao superadmin. Gestão de contas é comum aos dois setores.
+
+## Implementação preparada
+
+`ENDEMIAS_SETORES_ENABLED=1` ativa a divisão explicitamente. Desligado, preserva
+o comportamento anterior. Não habilitar no serviço antes da migração/testes.
+
+- `app_core/setores.py`: permissão de setor separada do nível da conta.
+  URLs/APIs de outro setor são recusadas mesmo para gestores. Endpoints novos
+  sem definição de setor falham fechados. Ocultar menus não é o controle de acesso.
+- `app_core/dominios.py`: encaminhamento por Host exato, com aplicações Flask
+  distintas; root só exibe os dois links. Host desconhecido é recusado.
+  Cada aplicação externa conserva a validação do conector local/HTTPS.
+- Cookies externos permanecem host-only, Secure, HttpOnly e SameSite=Lax.
+  Chaves derivadas distinguem setor e entrada local/externa. Não há SSO;
+  credenciais são as mesmas e cada domínio mantém sua sessão. Na ativação,
+  cookies antigos deixarão de autenticar; usuários entrarão novamente.
+- Agenda: eventos manuais têm setor; leituras, alteração e exclusão por ID
+  respeitam o setor. Eventos automáticos ambientais vêm só de Esporotricose
+  e Amostras; os de Endemias excluem essas fontes.
+- Painel/relatórios ambientais iniciais agregam visitas de Esporotricose e
+  registros de Amostras por data/localidade/quarteirão, com filtros e exportações
+  CSV/XLSX/PDF. Não incluem arboviroses. A gestão clínica detalhada permanece
+  no módulo completo de Esporotricose, agora somente no Ambiental.
+- Mapa Ambiental inicial usa a base territorial comum e camadas/contagens
+  próprias das duas fontes. Registros sem correspondência territorial são
+  informados, sem inventar coordenadas. Não substitui o projeto futuro Geo.
+- Dashboard, mapa, produção operacional, relatório individual/PDF completo e
+  boletim mensal de Endemias excluem consultas/indicadores ambientais. Itens
+  ambientais antigos do boletim são preservados ao salvar o boletim Endemias.
+- Kobo: configurações `kobo_config.json` e `kobo_ambiental.json`, formulários,
+  prévias, lotes, uploads, ETL e históricos separados. UID arbitrário não pode
+  substituir o configurado na prévia. Jobs temporários usam subpastas por setor.
+  Backup completo inclui ambas as configurações; arquivo Ambiental é ignorado
+  pelo Git. Tokens não são exibidos em respostas.
+- Auditoria nova registra o setor da ação; listagem/exportação respeitam o
+  setor. Central técnica conserva consulta global e histórico anterior.
+- Mudar o setor de uma conta encerra suas sessões sem alterar sua senha.
+  Links de recuperação apontam ao setor da conta. Gestores conservam ambos.
+
+## Banco e dados existentes
+
+Migração **aditiva 0035**, ainda não aplicada à produção:
+
+- `usuarios.setor`: padrão Endemias. Não adivinhar a lotação real das pessoas.
+  Após homologação, responsável atribuirá Ambiental na Gestão de Usuários.
+- `agenda_eventos.setor`: padrão Endemias para os eventos manuais existentes.
+  Responsável deve revisar os compromissos antigos; não é possível classificá-los
+  com segurança pelo título. Nenhum evento é apagado ou movido automaticamente.
+- `importacoes.setor` e `auditoria_eventos.setor`: registros anteriores ficam
+  como `legado`, preservados na Central técnica. Lotes antigos podem ser mistos;
+  não são apresentados como histórico exclusivo de nenhum setor.
+- Nenhuma cópia/transferência/apagamento das tabelas de Esporotricose ou Amostras.
+  Propriedade lógica e consultas mudam; chaves e relações existentes permanecem.
+
+PostgreSQL não recebe DDL na inicialização web: com a divisão ligada, a fábrica
+confere as colunas e recusa iniciar se a migração estiver ausente. SQLite de
+teste recebe compatibilidade local. **Nunca executar testes no SQLite congelado.**
+
+## Procedimento de implantação ainda pendente
+
+Não executar ativadores antigos 1.77/1.78/1.79/1.80 para esta candidata.
+Antes de publicar, preparar a janela Windows específica, com backup completo
+e PostgreSQL conferidos, inventário/assinaturas dos dados anteriores, cópia
+privada das configurações/ACL e plano de retorno. Este documento não é um
+ativador e a integração na master não deve ocorrer com o processo ativo lendo
+templates antigos/novos misturados.
+
+1. Homologar visualmente e validar os fluxos de Esporotricose, Amostras,
+   relatórios e agenda com responsável. Conferir atribuição real das contas.
+2. Preparar divisão privada da configuração Kobo, sem imprimir tokens.
+   `setores.dividir_kobo` prepara os dois objetos em memória. Conferir os UIDs;
+   preservar os originais no backup. Dar à conta limitada a mesma permissão
+   controlada de edição no novo arquivo, sem conceder escrita no código.
+3. Parar a aplicação na janela, fazer backups, integrar release, aplicar somente
+   0035 e conferir dados anteriores por hash/contagem. Configurar opt-in
+   `ENDEMIAS_SETORES_ENABLED=1`, `ENDEMIAS_DOMINIO_BASE=vsatt.com.br` e manter
+   `ENDEMIAS_ALLOWED_HOSTS=endemias.vsatt.com.br` (a fábrica monta o outro app).
+   Não sobrescrever a tarefa, identidade, credencial do Windows ou a chave base.
+4. Conferir processo na identidade limitada, dependências, leitura/gravação
+   controlada dos dois arquivos Kobo, login de cada aplicação e bloqueios.
+   O código preparado mantém LAN Endemias em 5000 e Tunnel em 127.0.0.1:5001.
+   Acrescenta LAN Ambiental em **5004**, configurável por
+   `ENDEMIAS_AMBIENTAL_LOCAL_PORT`. Cookies locais têm nomes distintos.
+   Preparar regra Windows só para a rede local autorizada, sem abrir roteador.
+5. No mesmo Tunnel, cadastrar os hostnames **exatos** `ambiental.vsatt.com.br`
+   e `vsatt.com.br`, origem `http://127.0.0.1:5001`; conservar Endemias.
+   Não forçar um único HTTP Host Header para as três rotas; preservar o Host
+   solicitado. Conferir DNS, certificado, TLS mínimo 1.2 e redirecionamento HTTPS.
+   Nenhuma dessas ações de Cloudflare foi feita nesta preparação.
+6. Testar externamente login, setor errado, links, importação fictícia em
+   homologação, relatórios, ausência de cache público e recuperação; conferir
+   LAN dos dois setores com a internet desconectada. Fazer ensaio de reinício
+   real após implantação. Aplicação deve voltar junto com a tarefa/Tunnel.
+7. Se houver rotina Kobo agendada, inventariar a configuração antes da troca:
+   `importar_kobo_automatico.py --setor endemias|ambiental` seleciona configuração,
+   formulários, histórico e ETL. Com opt-in ligado, rotina sem setor explícito
+   é recusada. Nenhuma tarefa automática nova foi criada/alterada.
+
+Retorno: parar, voltar código/ambiente/configurações capturados e conferir
+Endemias. A 0035 é aditiva; **não restaurar dump nem apagar registros novos
+automaticamente**. Tratar mudanças de setor feitas após a abertura e eventos
+novos ao decidir o retorno; não executar redução destrutiva do esquema.
+
+## Validação e limites
+
+Ensaios automatizados usam somente massa fictícia em worktree e PostgreSQL
+temporário fora de 5432. Scripts:
+`testar_setores_browser.py` (Chromium/CSRF/desktop/celular) e
+`testar_setores_postgresql.py` (cluster novo SCRAM, migrações, consultas e
+exportações; encerra/remove cluster e credenciais temporárias).
+Resultado final: **1.001 testes OK, seis ignorados** (21 novos da divisão).
+Ensaio focado de 29 testes de setores/Kobo automático também OK. Chromium
+com CSRF real, desktop/celular e sessões locais simultâneas sem erros JavaScript.
+PostgreSQL descartável SCRAM/55444 confirmou a 0035 aditiva, consultas, agendas,
+relatórios/PDF e exportações; cluster/credenciais temporários removidos.
+Três entradas Waitress e o encaminhamento por Host exato conferidos com portas
+aleatórias de teste. Nenhuma escuta/serviço de homologação deixado ativo.
+
+Corrigidos na preparação um carregamento antecipado de formatação do dashboard,
+um rótulo compatível da importação e um import da rotina Kobo. A suíte completa
+foi repetida após os ajustes, com o resultado acima. Evidências locais ignoradas
+pelo Git: `.venv/regressao-confirmada.log`, `setores-focados-final.log`,
+`setores-browser-resultado.json` e `setores-pg-resultado.json`.
+
+Ainda não confirmados: novos DNS/rotas Tunnel, fluxo real dos usuários,
+classificação dos compromissos antigos, aplicação real da 0035, ACL do novo
+Kobo, regra LAN 5004 e reinício com a divisão. Não usar testes sintéticos como
+declaração de prontidão operacional ou implantação concluída.
+
+Windows sem atualização, HTTP local, MFA e primeiro upload cifrado ao Drive
+permanecem conforme o estado anterior; não foram alterados nem declarados
+resolvidos por esta divisão.
