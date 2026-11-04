@@ -79,6 +79,10 @@
         </td>
         <td style="padding:10px 8px;text-align:center;">
           <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
+            {% if u.ativo %}
+            <button class="btn btn-xs btn-ghost" data-uid="{{ u.id_usuario }}" data-nome="{{ u.nome }}"
+                    onclick="gerarRecuperacao(this.dataset.uid, this.dataset.nome)">Gerar link de recuperação</button>
+            {% endif %}
             <button class="btn btn-xs btn-ghost" onclick="resetarSenha({{ u.id_usuario }}, '{{ u.nome }}')"
                     title="Gerar nova senha aleatória"><img src="/static/icons/chave.svg" alt="🔑" class="icon-svg"> Resetar senha</button>
             {% if u.id_usuario != usuario_atual.id_usuario %}
@@ -162,6 +166,18 @@
   </div>
 </div>
 
+<div id="modal-recuperacao" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;align-items:center;justify-content:center;" role="dialog" aria-modal="true" aria-labelledby="recuperacao-titulo">
+  <div style="background:var(--surface);border-radius:12px;padding:28px;width:calc(100% - 32px);max-width:520px;">
+    <h3 id="recuperacao-titulo">Link de recuperação</h3>
+    <p style="font-size:13px;">Para <strong id="recuperacao-nome"></strong>. Válido por 15 minutos e uma única utilização. Um novo link substitui o anterior.</p>
+    <p style="font-size:13px;">Confirme a identidade da pessoa e entregue o link em conversa privada. Ela escolherá a própria senha.</p>
+    <label for="recuperacao-url">Link para copiar</label>
+    <textarea id="recuperacao-url" readonly rows="3" style="width:100%;margin:10px 0;padding:8px;resize:vertical;font-size:13px;"></textarea>
+    <button class="btn btn-primary" onclick="copiarRecuperacao()">Copiar link</button>
+    <button class="btn btn-ghost" onclick="fecharRecuperacao()">Fechar</button>
+  </div>
+</div>
+
 <style>
 .inp{padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:14px;color:var(--text);background:var(--surface2);outline:none;font-family:inherit;width:100%;transition:border-color .15s;}
 .inp:focus{border-color:var(--brand);}
@@ -174,6 +190,40 @@
 </style>
 
 <script>
+async function gerarRecuperacao(uid, nome) {
+  if (!confirm(`Gerar link para "${nome}"? Confirme a identidade da pessoa antes de entregar o link.`)) return;
+  fecharRecuperacao();
+  try {
+    const response = await fetch(`/admin/usuarios/${uid}/recuperacao-senha`, {
+      method: 'POST', headers: {'X-CSRFToken': getCsrf()}
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      toast(data.erro || 'Não foi possível gerar o link.', 'error');
+      return;
+    }
+    document.getElementById('recuperacao-nome').textContent = nome;
+    document.getElementById('recuperacao-url').value = data.url;
+    document.getElementById('modal-recuperacao').style.display = 'flex';
+  } catch (_) {
+    toast('Não foi possível gerar o link. Confira sua conexão e tente novamente.', 'error');
+  }
+}
+function fecharRecuperacao() {
+  document.getElementById('modal-recuperacao').style.display = 'none';
+  document.getElementById('recuperacao-url').value = '';
+}
+async function copiarRecuperacao() {
+  const field = document.getElementById('recuperacao-url');
+  field.focus(); field.select();
+  try {
+    await navigator.clipboard.writeText(field.value);
+    toast('Link copiado.', 'success');
+  } catch (_) {
+    toast('Link selecionado. Use Ctrl+C ou toque e segure para copiar.', 'error');
+  }
+}
+
 async function editarCampo(uid, campo, valor) {
   const r = await fetch(`/admin/usuarios/${uid}/editar`, {
     method: 'POST',

@@ -1,11 +1,12 @@
 import logging
 
-from flask import Blueprint, redirect, render_template, request, session, url_for
+from flask import Blueprint, make_response, redirect, render_template, request, session, url_for
 
 from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import termos_uso
+from app_core import recuperacao_senha
 
 
 bp = Blueprint("auth", __name__)
@@ -117,6 +118,50 @@ def login():
             detalhes={"usuario": usuario},
         )
     return render_template("login.html", erro=erro)
+
+
+@bp.route("/esqueci-senha")
+def esqueci_senha():
+    return render_template("recuperar_senha.html", orientacao=True)
+
+
+@bp.route("/recuperar-senha", methods=["GET", "POST"])
+def recuperar_senha():
+    erro = None
+    ok = False
+    status = 200
+    token = ""
+    if request.method == "POST":
+        chave = "recuperacao:" + auth_core.client_ip()
+        if auth_core.login_bloqueado_db(bh.get_db, chave, limite=10):
+            erro, status = "Muitas tentativas. Aguarde 15 minutos e tente novamente.", 429
+        else:
+            token = request.form.get("token", "")
+            nova, confirmar = request.form.get("nova", ""), request.form.get("confirmar", "")
+            try:
+                if nova != confirmar:
+                    raise ValueError("As senhas não coincidem.")
+
+                def registrar(conn, usuario, criado_por):
+                    # O titular comprovou posse do link; nao atribuir a operacao
+                    # a outra conta que eventualmente estivesse neste navegador.
+                    session.clear()
+                    conn.execute("DELETE FROM login_tentativas WHERE chave=?", (auth_core.chave_login(usuario["usuario"]),))
+                    audit.registrar_evento(bh.get_db, "usuario_senha_recuperada", entidade="usuarios",
+                        entidade_id=usuario["id_usuario"],
+                        detalhes={"usuario": usuario["usuario"], "link_gerado_por": criado_por}, conn=conn)
+
+                recuperacao_senha.consumir(bh.db_target(), token, nova, auditar=registrar)
+                ok, token = True, ""
+            except ValueError as exc:
+                erro, status = str(exc), 400
+                auth_core.registrar_login_falha_db(bh.get_db, chave)
+                if len(token) != 43:
+                    token = ""
+    response = make_response(render_template("recuperar_senha.html", erro=erro, ok=ok, token=token), status)
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
+    return response
 
 
 @bp.route("/logout", methods=["POST"])

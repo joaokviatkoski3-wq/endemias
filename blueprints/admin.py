@@ -685,6 +685,31 @@ def admin_editar_usuario(uid):
     return jsonify({"ok": True})
 
 
+@bp.route("/admin/usuarios/<int:uid>/recuperacao-senha", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def admin_gerar_recuperacao(uid):
+    from flask import current_app
+    from app_core import recuperacao_senha
+
+    chave = "gerar-recuperacao:" + str(session["uid"])
+    if auth_core.login_bloqueado_db(bh.get_db, chave, limite=20):
+        return jsonify({"erro": "Limite de links atingido. Aguarde 15 minutos."}), 429
+    base = current_app.config.get("RECOVERY_BASE_URL", "https://endemias.vsatt.com.br")
+    try:
+        recuperacao_senha.url_publica("", base)
+
+        def registrar(conn, usuario):
+            audit.registrar_evento(bh.get_db, "usuario_recuperacao_gerada", entidade="usuarios",
+                entidade_id=uid, detalhes={"usuario": usuario["usuario"], "validade_minutos": 15}, conn=conn)
+
+        token = recuperacao_senha.gerar(bh.db_target(), uid, session["uid"], auditar=registrar)
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    auth_core.registrar_login_falha_db(bh.get_db, chave)
+    return jsonify({"ok": True, "url": recuperacao_senha.url_publica(token, base), "validade_minutos": 15})
+
+
 @bp.route("/admin/usuarios/<int:uid>/resetar-senha", methods=["POST"])
 @login_required
 @nivel_min("admin")

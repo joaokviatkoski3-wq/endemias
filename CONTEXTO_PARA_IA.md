@@ -8,6 +8,13 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
 
+- Preparação **1.77.0**: recuperação assistida de senha por link gerado pelo
+  administrador (15 minutos/uso único), sem e-mail obrigatório. Migração 0031
+  aditiva, ainda pendente até confirmação da ativação no estado vivo. Worktree
+  `C:\endemias-recuperacao-senha`, branch `codex/recuperacao-senha`.
+  928 testes gerais passaram (sete ignorados), PostgreSQL descartável e
+  navegador/CSRF/celular conferidos. Ver `docs/RECUPERACAO_SENHA.md`.
+
 - **1.76.0 ativa na produção local desde 04/11/2026 às 09h08**, release
   `f425cc8` integrada na master. Waitress na mesma tarefa limitada EndemiasWeb:
   LAN/loopback:5000 e origem externa somente 127.0.0.1:5001. PostgreSQL agora

@@ -4,6 +4,16 @@ Atualizado em 04/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Recuperação assistida — preparação 1.77.0
+
+Usuário autorizou implementar links gerados pelo administrador, validade de
+15 minutos e uso único, orientação "Esqueci minha senha" e escolha da senha
+pelo titular. Preparado em `codex/recuperacao-senha`, worktree
+`C:\endemias-recuperacao-senha`; PostgreSQL somente migração aditiva 0031.
+928 testes gerais passaram (sete ignorados), testes focados, PostgreSQL
+descartável e Chromium com CSRF real/celular conferidos. Produção permanece
+1.76.0 até o registro de ativação. Ver `RECUPERACAO_SENHA.md`.
+
 ## Produção 1.76.0 publicada e reinício confirmado — 04/11/2026
 
 - Ativação concluída às 09h08, release `f425cc8` integrada na master com a

@@ -147,7 +147,8 @@ def register_access_guards(app):
             endpoint == "static"
             or endpoint.startswith("laboratorio_lancamentos.")
             or endpoint in {"liraa.laboratorio", "liraa.salvar_leitura"}
-            or endpoint in {"auth.login", "auth.logout", "auth.minha_senha", "auth.termos", "auth.aceitar_termos"}
+            or endpoint in {"auth.login", "auth.logout", "auth.minha_senha", "auth.termos", "auth.aceitar_termos",
+                            "auth.esqueci_senha", "auth.recuperar_senha"}
         ):
             return None
 

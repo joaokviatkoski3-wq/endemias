@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" type="image/png" href="/static/img/favicon.png">
+<title>Recuperar senha — Endemias</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f1f5fd;color:#1a2540;min-height:100vh;display:flex;align-items:center;justify-content:center}
+.wrap{width:100%;max-width:440px;padding:20px}.card{background:white;border-radius:14px;box-shadow:0 4px 24px #1a4fba22;overflow:hidden}.top{background:#1a4fba;color:white;padding:24px;text-align:center}.top h1{font-size:20px;margin:0}.body{padding:24px;font-size:14px;line-height:1.6}p{margin:0 0 16px}label{display:block;font-weight:600;margin-bottom:6px}input{width:100%;padding:11px;border:1.5px solid #dde4f5;border-radius:7px;font:inherit;margin-bottom:16px}input:focus{outline:2px solid #1a4fba;outline-offset:2px}button{width:100%;padding:12px;border:0;border-radius:7px;background:#1a4fba;color:white;font:inherit;font-weight:700;cursor:pointer}a{color:#1a4fba}.voltar{margin-top:20px;text-align:center}.erro,.ok{padding:12px;border-radius:7px;margin-bottom:18px}.erro{background:#fee2e2;color:#991b1b}.ok{background:#dcfce7;color:#166534}.footer{text-align:center;font-size:11px;color:#68758f;margin-top:16px}.ambiente-teste-faixa{position:fixed;top:0;left:0;right:0;padding:7px;background:#9a3412;color:white;text-align:center;font-size:12px}
+</style>
+</head>
+<body>
+{% include "_ambiente_teste_faixa.html" %}
+<main class="wrap">
+  <div class="card">
+    <div class="top"><h1>{{ 'Esqueci minha senha' if orientacao else 'Escolha sua nova senha' }}</h1></div>
+    <div class="body">
+    {% if orientacao %}
+      <p>Procure o responsável pelo sistema no seu setor para recuperar o acesso.</p>
+      <p>Após confirmar sua identidade, um administrador poderá gerar um link de recuperação e entregá-lo a você em conversa privada.</p>
+      <p>O link vale por <strong>15 minutos</strong> e pode ser usado uma única vez. Você escolherá sua nova senha ao abri-lo.</p>
+      <p>Não compartilhe sua senha ou o link com outras pessoas.</p>
+    {% elif ok %}
+      <div class="ok" role="status">Senha alterada com sucesso. Entre novamente com sua nova senha.</div>
+      <p>Os acessos anteriores desta conta foram invalidados.</p>
+    {% else %}
+      {% if erro %}<div class="erro" role="alert">{{ erro }}</div>{% endif %}
+      <p id="sem-link" hidden>Abra o link completo entregue pelo administrador. Se ele expirou ou já foi usado, solicite outro.</p>
+      <form method="POST" action="{{ url_for('auth.recuperar_senha') }}" id="recuperar-form" hidden>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="token" id="recuperacao-token" value="{{ token or '' }}">
+        <p>Use uma senha com pelo menos 10 caracteres, diferente das que você utiliza em outros serviços.</p>
+        <label for="nova">Nova senha</label>
+        <input id="nova" type="password" name="nova" minlength="10" maxlength="1024" autocomplete="new-password" required>
+        <label for="confirmar">Confirme a nova senha</label>
+        <input id="confirmar" type="password" name="confirmar" minlength="10" maxlength="1024" autocomplete="new-password" required>
+        <button type="submit">Salvar nova senha</button>
+      </form>
+      <noscript>Ative o JavaScript no navegador para abrir o link de recuperação com segurança.</noscript>
+      <script>
+      (() => {
+        const field = document.getElementById('recuperacao-token');
+        const fragment = window.location.hash.slice(1);
+        if (fragment) {
+          history.replaceState(null, '', window.location.pathname);
+          field.value = /^[A-Za-z0-9_-]{43}$/.test(fragment) ? fragment : '';
+        }
+        const valid = /^[A-Za-z0-9_-]{43}$/.test(field.value);
+        document.getElementById('recuperar-form').hidden = !valid;
+        document.getElementById('sem-link').hidden = valid;
+      })();
+      </script>
+    {% endif %}
+      <div class="voltar"><a href="{{ url_for('auth.login') }}">Voltar para entrar no sistema</a></div>
+    </div>
+  </div>
+  <div class="footer">{{ APP_VERSION_LABEL }}</div>
+</main>
+</body>
+</html>

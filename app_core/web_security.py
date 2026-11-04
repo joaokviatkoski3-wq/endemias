@@ -13,7 +13,8 @@ from app_core import db
 from app_core import termos_uso
 
 
-PUBLIC_ENDPOINTS = {"static", "auth.login", "auth.logout", "formularios.sw_js", "formularios.manifest"}
+PUBLIC_ENDPOINTS = {"static", "auth.login", "auth.logout", "auth.esqueci_senha", "auth.recuperar_senha",
+                    "formularios.sw_js", "formularios.manifest"}
 TERMS_ENDPOINTS = {"auth.termos", "auth.aceitar_termos", "auth.minha_senha"}
 
 
@@ -47,7 +48,7 @@ class TunnelLocal:
         self.app = app
 
     def __call__(self, environ, start_response):
-        if environ.get("PATH_INFO") in {"/login", "/termos/aceitar"}:
+        if environ.get("PATH_INFO") in {"/login", "/termos/aceitar", "/recuperar-senha"}:
             try:
                 size = int(environ.get("CONTENT_LENGTH") or 0)
             except ValueError:
