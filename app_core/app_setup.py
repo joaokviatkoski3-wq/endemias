@@ -15,6 +15,7 @@ from flask import (
 from flask_wtf.csrf import CSRFError
 
 from app_core import auth as auth_core
+from app_core import permissoes
 from app_core import db as db_core
 from app_core import visitas_integradas as integradas
 from app_core import escopo_agente
@@ -159,7 +160,7 @@ def register_access_guards(app):
         )
         if (
             not usuario
-            or usuario.get("nivel") == "admin"
+            or permissoes.gerencia(usuario)
             or not usuario.get("somente_laboratorio")
         ):
             return None
@@ -266,6 +267,9 @@ def register_context_processors(app):
             AGENDA_TIPOS=work_types.AGENDA_TYPES,
             AGENDA_FORM_LABELS=work_types.AGENDA_FORM_LABELS,
             usuario_atual=usuario,
+            tem_permissao=lambda capacidade: permissoes.permite(usuario, capacidade),
+            pode_gerenciar_conta=lambda alvo: permissoes.pode_gerenciar_conta(usuario, alvo),
+            niveis_atribuiveis=permissoes.niveis_atribuiveis(usuario),
             topbar_modules=modules_core.visible_modules(usuario, area="topbar"),
             sidebar_groups=modules_core.grouped_modules(modules_core.visible_modules(usuario, area="sidebar")),
             home_modules=modules_core.visible_modules(usuario, area="home"),

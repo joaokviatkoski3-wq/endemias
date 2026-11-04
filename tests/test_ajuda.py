@@ -36,7 +36,7 @@ class AjudaTests(unittest.TestCase):
         self.assertIn("esporo-data-notificacao", ids)
 
     def test_catalogo_completo_retorna_categorias_e_total(self):
-        resultado = ajuda.consultar(rota="/", limite=120, nivel="admin")
+        resultado = ajuda.consultar(rota="/", limite=120, nivel="superadmin")
         self.assertEqual(resultado["total"], len(ajuda.ARTIGOS))
         self.assertEqual(len(resultado["artigos"]), len(ajuda.ARTIGOS))
         self.assertEqual(

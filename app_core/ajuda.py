@@ -734,7 +734,8 @@ ARTIGOS += (
              ("usuarios", "permissoes", "senha", "admin", "operador", "visualizador", "usuario", "laboratorista"),
              "Gestão de Usuários cria contas, ajusta níveis e limita o acesso quando necessário. O usuário Laboratorista pode ficar restrito à tela de lançamentos de laboratório.",
              ("Crie cada conta com nome e senha próprios; não compartilhe credenciais.",
-              "Escolha o nível conforme a necessidade: visualizador, operador, usuário ou administrador.",
+              "Administradores gerenciam visualizadores, usuários e operadores; o superadmin também gerencia administradores.",
+              "A conta superadmin é única e protegida. Configurações técnicas e backups ficam reservados a ela.",
               "O nível usuário só lê e não identifica os demais agentes; vincule a conta a um agente ativo.",
               "Use o acesso somente ao laboratório para quem deve trabalhar exclusivamente com os tubos."),
              "/admin/usuarios", "Abrir Gestão de Usuários", nivel_minimo="admin"),
@@ -1028,9 +1029,12 @@ def consultar(consulta="", rota="", limite=12, contexto="", nivel="visualizador"
     )
     rota = str(rota or "/").rstrip("/") or "/"
     rota_contexto = "/registro-geografico" if rota == "/territorializacao" else rota
-    ordem_niveis = {"visualizador": 1, "usuario": 1, "operador": 2, "admin": 3}
+    from app_core.permissoes import LEVEL_ORDER
+    ordem_niveis = LEVEL_ORDER
     resultados = []
     for artigo in ARTIGOS:
+        if "/admin/sistema" in artigo["rotas"] and ordem_niveis.get(nivel, 0) < ordem_niveis["superadmin"]:
+            continue
         if ordem_niveis.get(nivel, 0) < ordem_niveis.get(artigo.get("nivel_minimo", "visualizador"), 99):
             continue
         if somente_laboratorio and "/laboratorio/lancamentos" not in artigo["rotas"]:

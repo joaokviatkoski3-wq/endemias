@@ -52,7 +52,7 @@
       <h1><img src="/static/icons/sol.svg" alt="" class="icon-svg"> Meteorologia</h1>
       <p>Refer&ecirc;ncia regional oficial para planejamento e an&aacute;lise epidemiol&oacute;gica.</p>
     </div>
-    {% if usuario_atual and usuario_atual.nivel == 'admin' %}
+    {% if tem_permissao('gestao') %}
     <div class="met-actions">
       <label>Per&iacute;odo
         <select id="met-dias">

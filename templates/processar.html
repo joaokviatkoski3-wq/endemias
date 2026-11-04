@@ -97,7 +97,7 @@
   </div>
   <div id="kobo-pendentes" class="kobo-preview-empty">Clique em "Ver pend&ecirc;ncias" para listar os formul&aacute;rios com registros novos.</div>
   <div id="kobo-previa" class="kobo-preview-empty">Na lista de pend&ecirc;ncias, use Pr&eacute;via para conferir os registros de um formul&aacute;rio.</div>
-  <details class="kobo-config-details">
+  {% if tem_permissao('tecnica') %}<details class="kobo-config-details">
     <summary><img src="/static/icons/chave.svg" alt="" class="icon-svg"> Configurar conexão com Kobo</summary>
     <div class="kobo-grid">
       <div class="f-g"><label>Servidor Kobo</label><input id="kobo-server" value="{{ kobo_config.server_url }}" placeholder="https://kf.kobotoolbox.org"></div>
@@ -112,7 +112,7 @@
       <div class="f-g"><label>UID {{ tipo.codigo }}</label><input data-kobo-asset="{{ tipo.codigo }}" value="{{ kobo_config.assets.get(tipo.codigo, '') }}" placeholder="UID do formulário {{ tipo.label }}"></div>
       {% endfor %}
     </div>
-  </details>
+  </details>{% endif %}
 </div>
 
 <div class="chart-card processar-card processar-planilhas-card" id="area-upload-shell">

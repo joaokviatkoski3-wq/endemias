@@ -23,7 +23,7 @@ SQL = """
 PRAGMA foreign_keys = ON;
 
 -- ── USUÁRIOS ──────────────────────────────────────────────────────────────────
--- Níveis: admin (tudo) | operador (ver + editar focos) | visualizador (só ler)
+-- Níveis: superadmin (tecnico) | admin (gestao) | operador | visualizador
 --         | usuario (só ler, ocultando a identidade dos demais agentes)
 CREATE TABLE IF NOT EXISTS usuarios (
     id_usuario  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     nome        TEXT    NOT NULL,
     senha_hash  TEXT    NOT NULL,
     nivel       TEXT    NOT NULL DEFAULT 'visualizador'
-                        CHECK(nivel IN ('admin','operador','visualizador','usuario')),
+                        CHECK(nivel IN ('superadmin','admin','operador','visualizador','usuario')),
     ativo       INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)),
     acesso_laboratorio INTEGER NOT NULL DEFAULT 0 CHECK(acesso_laboratorio IN (0,1)),
     somente_laboratorio INTEGER NOT NULL DEFAULT 0 CHECK(somente_laboratorio IN (0,1)),

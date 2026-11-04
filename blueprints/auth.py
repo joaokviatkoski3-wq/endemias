@@ -102,7 +102,7 @@ def login():
                     except Exception:
                         pass
                 dest = request.args.get("next", "")
-                if u.get("somente_laboratorio") and u.get("nivel") != "admin":
+                if u.get("somente_laboratorio") and u.get("nivel") not in {"admin", "superadmin"}:
                     dest = url_for("laboratorio_lancamentos.page")
                 elif not dest or not _url_segura(dest):
                     dest = url_for("home.page")

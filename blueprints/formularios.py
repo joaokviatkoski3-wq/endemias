@@ -34,7 +34,7 @@ def page():
     return render_template(
         "formularios.html",
         formularios=formularios_core.FORMULARIOS,
-        is_admin=usuario.get("nivel") == "admin",
+        is_admin=usuario.get("nivel") in {"admin", "superadmin"},
     )
 
 
@@ -81,7 +81,7 @@ def api_obter(id_formulario):
     if not item:
         return jsonify({"erro": "Formulário não encontrado."}), 404
     usuario = bh.usuario_atual() or {}
-    if usuario.get("nivel") != "admin" and item["usuario_id"] != usuario.get("id_usuario"):
+    if usuario.get("nivel") not in {"admin", "superadmin"} and item["usuario_id"] != usuario.get("id_usuario"):
         return jsonify({"erro": "Formulário não encontrado."}), 404
     return jsonify(item)
 

@@ -131,7 +131,7 @@ def _resultado_editavel(row, hoje=None):
 
 
 def _agente_para_edicao(conn, dados, usuario):
-    if (usuario or {}).get("nivel") != "admin":
+    if (usuario or {}).get("nivel") not in {"admin", "superadmin"}:
         raise PermissionError(
             "Somente administradores podem alterar o laboratorista da leitura."
         )
@@ -162,14 +162,14 @@ def page():
             """SELECT id_usuario, nome
                  FROM usuarios
                 WHERE ativo=1
-                  AND (nivel='admin' OR COALESCE(acesso_laboratorio,0)=1)
+                  AND (nivel IN ('admin','superadmin') OR COALESCE(acesso_laboratorio,0)=1)
              ORDER BY nome"""
         ).fetchall()]
     finally:
         conn.close()
     return render_template(
         "laboratorio_lancamentos.html",
-        is_admin=usuario.get("nivel") == "admin",
+        is_admin=usuario.get("nivel") in {"admin", "superadmin"},
         agentes=agentes,
         laboratoristas=laboratoristas,
     )
@@ -257,7 +257,7 @@ def historico():
     itens = []
     for row in resultados:
         item = db_core.serialize_row(row)
-        item["editavel"] = ((bh.usuario_atual() or {}).get("nivel") == "admin") if item["id_resultado"] < 0 else _resultado_editavel(row)
+        item["editavel"] = ((bh.usuario_atual() or {}).get("nivel") in {"admin", "superadmin"}) if item["id_resultado"] < 0 else _resultado_editavel(row)
         item["positivo_aegypti"] = any(
             int(item.get(nome) or 0) > 0 for nome in CAMPOS_CONTAGEM[:4]
         )
@@ -334,7 +334,7 @@ def ovitrampas_lote_concluir(id_lote):
 @laboratorio_required
 def ovitrampas_lote_laboratorista(id_lote):
     usuario = bh.usuario_atual() or {}
-    if usuario.get("nivel") != "admin":
+    if usuario.get("nivel") not in {"admin", "superadmin"}:
         return jsonify({
             "erro": "Somente administradores podem alterar o laboratorista da leitura."
         }), 403
@@ -369,7 +369,7 @@ def _salvar_liraa(id_tubito, dados, corrigir=False):
         old = conn.execute("SELECT * FROM liraa_leituras WHERE id_tubito=?", (id_tubito,)).fetchone()
         if bool(old) != bool(corrigir):
             return jsonify({"erro":"A situação do tubo mudou. Atualize a lista."}), 409
-        if corrigir and usuario.get("nivel") != "admin":
+        if corrigir and usuario.get("nivel") not in {"admin", "superadmin"}:
             return jsonify({"erro":"Somente administrador pode corrigir uma leitura LIRAa."}), 403
         agente = _agente_da_conta(conn)
         if not agente:

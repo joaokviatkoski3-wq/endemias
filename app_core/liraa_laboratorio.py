@@ -105,10 +105,10 @@ def salvar(target, id_tubito, payload, usuario, auditar=None):
     if len(obs) > 2000:
         raise liraa.LiraaError("Observações: máximo de 2.000 caracteres.")
     code = str(payload.get("codigo_deposito") or "").strip().upper()
-    if code and (usuario.get("nivel") != "admin" or code not in op.DEPOSITOS):
+    if code and (usuario.get("nivel") not in {"admin", "superadmin"} or code not in op.DEPOSITOS):
         raise liraa.LiraaError("Somente administrador pode corrigir a classificação para A1/A2/B/C/D1/D2/E.")
     numero = str(payload.get("numero_tubito") or "").strip()
-    if numero and (usuario.get("nivel") != "admin" or not numero.isascii() or not numero.isdigit() or len(numero) > 60 or int(numero) <= 0):
+    if numero and (usuario.get("nivel") not in {"admin", "superadmin"} or not numero.isascii() or not numero.isdigit() or len(numero) > 60 or int(numero) <= 0):
         raise liraa.LiraaError("Somente administrador pode corrigir o tubito; informe um número inteiro positivo.")
     conn = db.connect(target)
     try:
@@ -129,7 +129,7 @@ def salvar(target, id_tubito, payload, usuario, auditar=None):
             if reading_date.isoformat() < visit["data_visita"]:
                 raise liraa.LiraaError("A leitura não pode preceder a coleta.")
             old = conn.execute("SELECT * FROM liraa_leituras WHERE id_tubito=?", (id_tubito,)).fetchone()
-            if old and usuario.get("nivel") != "admin":
+            if old and usuario.get("nivel") not in {"admin", "superadmin"}:
                 raise liraa.LiraaError("Somente administrador pode corrigir uma leitura já salva.")
             if old and str(payload.get("versao", "")) != old["atualizado_em"]:
                 raise liraa.LiraaError("Esta leitura foi alterada. Atualize a página antes de corrigir.")

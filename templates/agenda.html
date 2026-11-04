@@ -47,7 +47,7 @@
     <button class="btn btn-ghost" type="button" id="btn-agenda-imprimir">
       <img src="/static/icons/imprimir.svg" alt="" class="icon-svg"> Imprimir mês
     </button>
-    {% if usuario_atual and usuario_atual.nivel == 'admin' %}
+    {% if tem_permissao('gestao') %}
     <button class="btn btn-primary" type="button" id="btn-agenda-novo">
       <img src="/static/icons/mais.svg" alt="+" class="icon-svg"> Novo evento
     </button>
@@ -63,7 +63,7 @@
     </div>
     <div class="agenda-clima-actions">
       <span id="agenda-clima-atualizado" class="agenda-clima-updated"></span>
-      {% if usuario_atual and usuario_atual.nivel == 'admin' %}
+      {% if tem_permissao('gestao') %}
       <button class="btn btn-ghost btn-sm" type="button" id="btn-agenda-clima-config">Configurar limites</button>
       <button class="btn btn-ghost btn-sm" type="button" id="btn-agenda-clima-atualizar">
         <img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar previsão
@@ -554,7 +554,7 @@
 }
 </style>
 
-<script type="application/json" id="agenda-config">{{ {"is_admin": usuario_atual and usuario_atual.nivel == "admin"}|tojson }}</script>
+<script type="application/json" id="agenda-config">{{ {"is_admin": tem_permissao('gestao')}|tojson }}</script>
 <script type="application/json" id="agenda-tipo-cores">{{ AGENDA_TIPO_CORES|tojson }}</script>
 <script type="application/json" id="agenda-form-labels">{{ AGENDA_FORM_LABELS|tojson }}</script>
 <script src="/static/js/agenda.js"></script>

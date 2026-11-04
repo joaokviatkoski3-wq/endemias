@@ -41,16 +41,17 @@ def _temporary_users(conn):
             nome text NOT NULL,
             senha_hash text NOT NULL,
             nivel text NOT NULL DEFAULT 'visualizador'
-                CHECK(nivel IN ('admin','operador','visualizador')),
+                CHECK(nivel IN ('superadmin','admin','operador','visualizador','usuario')),
             ativo bigint NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)),
             criado_em text NOT NULL,
             acesso_laboratorio bigint NOT NULL DEFAULT 0
                 CHECK(acesso_laboratorio IN (0,1)),
             somente_laboratorio bigint NOT NULL DEFAULT 0
-                CHECK(somente_laboratorio IN (0,1))
+                CHECK(somente_laboratorio IN (0,1)), id_agente BIGINT
         ) ON COMMIT PRESERVE ROWS
         """
     )
+    conn.execute("INSERT INTO usuarios(id_usuario,usuario,nome,senha_hash,nivel,criado_em) VALUES(99,'super-ficticio','Super Ficticio','hash-ficticio','superadmin','2026-11-04')")
     conn.commit()
 
 
@@ -73,8 +74,9 @@ def _test_crud(target):
                 "somente_laboratorio": "1",
             },
             agora="2026-07-29T12:00:00",
+            actor_id=99,
         )
-        listed = usuarios.listar(conn)
+        listed = [u for u in usuarios.listar(conn) if u['id_usuario'] != 99]
         if len(listed) != 1 or listed[0]["id_usuario"] != uid:
             raise RuntimeError("A listagem do usuario temporario divergiu.")
         if (
@@ -88,6 +90,7 @@ def _test_crud(target):
             uid,
             "nivel",
             "operador",
+            usuario_atual_id=99,
         )
         if previous["nivel"] != "visualizador" or new_level != "operador":
             raise RuntimeError("A edicao do nivel divergiu.")
@@ -109,6 +112,7 @@ def _test_crud(target):
             conn,
             uid,
             "SenhaRedefinida456",
+            actor_id=99,
         )
         row = conn.execute(
             "SELECT senha_hash FROM usuarios WHERE id_usuario=?",

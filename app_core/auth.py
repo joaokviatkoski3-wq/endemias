@@ -10,6 +10,7 @@ from flask import current_app, g, jsonify, redirect, render_template, request, s
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app_core import db as db_core
+from app_core import permissoes
 
 
 LOGIN_MAX_TENTATIVAS = 5
@@ -106,7 +107,6 @@ def login_required(view):
 
 
 def nivel_min(nivel, usuario_atual_func):
-    ordem = {"admin": 3, "operador": 2, "visualizador": 1, "usuario": 1}
 
     def dec(view):
         @wraps(view)
@@ -114,7 +114,7 @@ def nivel_min(nivel, usuario_atual_func):
             usuario = usuario_atual_func()
             if not usuario:
                 return redirect(url_for("auth.login"))
-            if ordem.get(usuario["nivel"], 0) < ordem.get(nivel, 999):
+            if not permissoes.tem_nivel(usuario, nivel):
                 if request.path.startswith("/api/"):
                     return jsonify({"erro": "Você não tem permissão para realizar esta ação."}), 403
                 return render_template("403.html"), 403

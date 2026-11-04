@@ -113,7 +113,7 @@ def page():
         localidades=_localidades(),
         agentes=_agentes(),
         acs=esporotricose_core.opcoes_acs_visitas(bh.db_target()),
-        is_admin=usuario.get("nivel") == "admin",
+        is_admin=usuario.get("nivel") in {"admin", "superadmin"},
     )
 
 

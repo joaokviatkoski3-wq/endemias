@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
-from app_core import auth, db
+from app_core import auth, db, permissoes
 
 
 VALIDADE_SEGUNDOS = 15 * 60
@@ -61,12 +61,14 @@ def gerar(target, uid, administrador_id, *, agora=None, auditar=None):
     try:
         ensure_schema(conn)
         usuario = _lock_user(conn, uid)
-        admin = conn.execute("SELECT 1 FROM usuarios WHERE id_usuario=? AND ativo=1 AND nivel='admin'",
+        admin = conn.execute("SELECT id_usuario,nivel,ativo FROM usuarios WHERE id_usuario=? AND ativo=1 AND nivel IN ('admin','superadmin')",
                              (administrador_id,)).fetchone()
         if not admin:
             raise ValueError("Somente um administrador ativo pode gerar o link.")
         if not usuario or not usuario["ativo"]:
             raise ValueError("Selecione uma conta ativa para gerar o link.")
+        if not permissoes.pode_gerenciar_conta(dict(admin), usuario):
+            raise ValueError("Esta conta é protegida contra recuperação de senha pelo seu perfil.")
         token = secrets.token_urlsafe(32)
         conn.execute("""INSERT INTO usuarios_recuperacao_senha
             (usuario_id, token_hash, senha_vinculo, criado_por, criado_em, expira_em, usado_em)
@@ -102,10 +104,11 @@ def consumir(target, token, nova_senha, *, agora=None, auditar=None):
         if not reference:
             raise ValueError(ERRO_LINK)
         usuario = _lock_user(conn, reference["usuario_id"])
-        link = conn.execute("""SELECT r.* FROM usuarios_recuperacao_senha r
-            JOIN usuarios a ON a.id_usuario=r.criado_por AND a.ativo=1 AND a.nivel='admin'
+        link = conn.execute("""SELECT r.*,a.nivel AS nivel_emissor FROM usuarios_recuperacao_senha r
+            JOIN usuarios a ON a.id_usuario=r.criado_por AND a.ativo=1 AND a.nivel IN ('admin','superadmin')
             WHERE r.token_hash=? AND r.usado_em IS NULL AND r.expira_em>?""", (token_hash, now)).fetchone()
         if (not usuario or not usuario["ativo"] or not link
+                or not permissoes.pode_gerenciar_conta({"nivel": link["nivel_emissor"], "ativo": 1}, usuario)
                 or not hmac.compare_digest(link["senha_vinculo"], _digest(usuario["senha_hash"]))):
             raise ValueError(ERRO_LINK)
         result = conn.execute("""UPDATE usuarios_recuperacao_senha SET usado_em=?

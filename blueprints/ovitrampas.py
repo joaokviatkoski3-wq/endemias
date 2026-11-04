@@ -547,7 +547,7 @@ def api_laboratorio_enviar_conta_ovos(id_lote):
     usuario = dict(_usuario_atual() or {})
     conn = get_db()
     try:
-        if usuario.get("nivel") != "admin" and contaovos_cadastro.lot_has_unconfirmed(conn, id_lote):
+        if usuario.get("nivel") not in {"admin", "superadmin"} and contaovos_cadastro.lot_has_unconfirmed(conn, id_lote):
             return jsonify({"erro": "Este lote possui atualizacoes cadastrais pendentes do Conta Ovos. Um administrador deve confirmar o envio."}), 403
         result = contaovos_fila.send_lot(
             conn, id_lote, key, user_name=usuario.get("nome") or "sistema"
@@ -662,7 +662,7 @@ def api_atualizar_leituras_lote():
     filtros["busca"] = request.args.get("busca", "")
     payload = request.get_json(silent=True) or {}
     usuario = dict(_usuario_atual() or {})
-    if "id_laboratorista" in payload and usuario.get("nivel") != "admin":
+    if "id_laboratorista" in payload and usuario.get("nivel") not in {"admin", "superadmin"}:
         return jsonify({
             "erro": "Somente administradores podem alterar o laboratorista da leitura."
         }), 403
@@ -685,7 +685,7 @@ def api_atualizar_leituras_lote():
 def api_atualizar_leitura(id_leitura):
     payload = request.get_json(silent=True) or {}
     usuario = dict(_usuario_atual() or {})
-    if "id_laboratorista" in payload and usuario.get("nivel") != "admin":
+    if "id_laboratorista" in payload and usuario.get("nivel") not in {"admin", "superadmin"}:
         return jsonify({
             "erro": "Somente administradores podem alterar o laboratorista da leitura."
         }), 403

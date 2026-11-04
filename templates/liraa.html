@@ -242,11 +242,11 @@
   <h2>Importar diário Kobo do LIRAa</h2>
   <p class="liraa-muted">Esta importação não participa da rotina automática dos outros formulários. A busca usa a data de envio ao Kobo; selecione o ciclo antes de consultar. Nenhuma visita é importada apenas por consultar.</p>
   {% if kobo.get('erro') %}<div class="liraa-note" role="alert">{{ kobo.erro }}</div>{% endif %}
-  <form class="liraa-form" method="post" action="{{ url_for('liraa.configurar_kobo') }}">
+  {% if tem_permissao is defined and tem_permissao('tecnica') %}<form class="liraa-form" method="post" action="{{ url_for('liraa.configurar_kobo') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>UID geral / formulário antigo (alternativa)<input name="uid" value="{{ kobo.get('uid', '') }}" maxlength="100" placeholder="Identificador do formulário"></label>
     <button class="liraa-btn" type="submit">Salvar formulário</button>
-  </form>
+  </form>{% endif %}
   <p class="liraa-muted">O UID específico salvo em “Formulário do ciclo” tem prioridade. Neste ciclo selecionado, o UID efetivo é: <strong>{{ kobo.get('uid_ativo') or 'Não configurado' }}</strong>.</p>
   <form class="liraa-form" method="get" action="{{ url_for('liraa.page') }}">
     <input type="hidden" name="consulta_kobo" value="1">

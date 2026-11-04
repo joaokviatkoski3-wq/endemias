@@ -165,7 +165,7 @@ def listar(target, tipo=None, status=None, usuario=None, limite=200):
         if status:
             where += " AND status=?"
             params.append(status)
-        if usuario and usuario.get("nivel") != "admin":
+        if usuario and usuario.get("nivel") not in {"admin", "superadmin"}:
             where += " AND usuario_id=?"
             params.append(usuario.get("id_usuario"))
         rows = [

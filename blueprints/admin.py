@@ -245,7 +245,7 @@ def admin_usuarios():
 
 @bp.route("/admin/sistema")
 @login_required
-@nivel_min("admin")
+@nivel_min("superadmin")
 def admin_sistema():
     target = _db_target()
     db_path = Path(target.location) if target.backend == "sqlite" else target.location
@@ -303,7 +303,7 @@ def admin_sistema():
 
 @bp.route("/api/admin/sistema/diagnostico")
 @login_required
-@nivel_min("admin")
+@nivel_min("superadmin")
 def api_admin_diagnostico():
     target = _db_target()
     db_path = Path(target.location) if target.backend == "sqlite" else target.location
@@ -337,7 +337,7 @@ def api_admin_diagnostico():
 
 @bp.route("/admin/sistema/backups/criar", methods=["POST"])
 @login_required
-@nivel_min("admin")
+@nivel_min("superadmin")
 def admin_criar_backup():
     target = _db_target()
     backup_dir = Path(current_app.config["BACKUP_DIR"])
@@ -377,7 +377,7 @@ def admin_criar_backup():
 
 @bp.route("/admin/sistema/backups/restaurar", methods=["POST"])
 @login_required
-@nivel_min("admin")
+@nivel_min("superadmin")
 def admin_restaurar_backup():
     target = _db_target()
     backup_dir = Path(current_app.config["BACKUP_DIR"])
@@ -426,7 +426,7 @@ def admin_restaurar_backup():
 
 @bp.route("/admin/sistema/backups/baixar/<nome_backup>")
 @login_required
-@nivel_min("admin")
+@nivel_min("superadmin")
 def admin_baixar_backup(nome_backup):
     backup_dir = Path(current_app.config["BACKUP_DIR"])
     try:
@@ -438,7 +438,7 @@ def admin_baixar_backup(nome_backup):
 
 @bp.route("/admin/sistema/dbml")
 @login_required
-@nivel_min("admin")
+@nivel_min("superadmin")
 def admin_baixar_dbml():
     bloqueio = _sqlite_only_message("Exportação DBML SQLite")
     if bloqueio:
@@ -466,7 +466,7 @@ def admin_baixar_dbml():
 
 @bp.route("/admin/sistema/backups/excluir", methods=["POST"])
 @login_required
-@nivel_min("admin")
+@nivel_min("superadmin")
 def admin_excluir_backup():
     backup_dir = Path(current_app.config["BACKUP_DIR"])
     nome_backup = request.form.get("backup", "").strip()
@@ -488,7 +488,7 @@ def admin_excluir_backup():
 
 @bp.route("/admin/sistema/backups-completos/criar", methods=["POST"])
 @login_required
-@nivel_min("admin")
+@nivel_min("superadmin")
 def admin_criar_backup_completo():
     target = _db_target()
     try:
@@ -523,7 +523,7 @@ def admin_criar_backup_completo():
 
 @bp.route("/admin/sistema/backups-completos/baixar/<nome_backup>")
 @login_required
-@nivel_min("admin")
+@nivel_min("superadmin")
 def admin_baixar_backup_completo(nome_backup):
     try:
         backup_path = backup_completo_core.resolver_backup_completo(
@@ -537,7 +537,7 @@ def admin_baixar_backup_completo(nome_backup):
 
 @bp.route("/admin/sistema/backups-completos/excluir", methods=["POST"])
 @login_required
-@nivel_min("admin")
+@nivel_min("superadmin")
 def admin_excluir_backup_completo():
     nome_backup = request.form.get("backup", "").strip()
     try:
@@ -626,7 +626,7 @@ def admin_criar_usuario():
     dados = request.form.to_dict()
     erro = None
     try:
-        novo_id = usuarios_core.criar(bh.db_target(), dados)
+        novo_id = usuarios_core.criar(bh.db_target(), dados, actor_id=session["uid"])
         somente_laboratorio = (
             1 if dados.get("somente_laboratorio") == "1" else 0
         )
@@ -725,7 +725,7 @@ def admin_resetar_senha(uid):
     tamanho = max(auth_core.PASSWORD_MIN_LENGTH, 12)
     nova = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(tamanho))
     try:
-        alvo = usuarios_core.resetar_senha(bh.db_target(), uid, nova)
+        alvo = usuarios_core.resetar_senha(bh.db_target(), uid, nova, actor_id=session["uid"])
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
     audit.registrar_evento(

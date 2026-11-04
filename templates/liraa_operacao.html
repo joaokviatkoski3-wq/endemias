@@ -35,7 +35,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="liraa-localidades">{% for a in operation.get('acs', []) %}<label><input type="checkbox" name="acs" value="{{ a.codigo }}" {% if a.codigo in cfg.acs|map(attribute='codigo')|list %}checked{% endif %}>{{ a.nome }}</label>{% endfor %}</div>
     <p class="liraa-muted">Salvar sem marcar nomes confirma um ciclo sem ACS. O formulário sempre oferecerá “Nenhum ACS”. Os ACE continuam disponíveis conforme o modelo enviado.</p>
-    <label>UID Kobo específico deste ciclo <input name="kobo_uid" maxlength="100" value="{{ cfg.kobo_uid }}" placeholder="Ex.: anXWARrB2YkHK5W9YTwDfU"></label>
+    {% if tem_permissao is defined and tem_permissao('tecnica') %}<label>UID Kobo específico deste ciclo <input name="kobo_uid" maxlength="100" value="{{ cfg.kobo_uid }}" placeholder="Ex.: anXWARrB2YkHK5W9YTwDfU"></label>{% endif %}
     <button class="liraa-btn primary" type="submit">Salvar participantes e UID</button>
   </form>
   {% if (liraa_kobo|default({})).get('correcao_habilitada') %}<p><a class="liraa-btn" href="{{ url_for('liraa.formulario', id_ciclo=plan.ciclo.id_ciclo) }}">Gerar XLSForm do ciclo</a></p>{% else %}<p class="liraa-note">Reinicie o serviço para habilitar a atualização do formulário aprovado.</p>{% endif %}

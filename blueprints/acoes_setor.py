@@ -352,7 +352,7 @@ def _labels(codigos, opcoes):
 
 def _usuario_admin():
     usuario = bh.usuario_atual() or {}
-    return usuario.get("nivel") == "admin"
+    return usuario.get("nivel") in {"admin", "superadmin"}
 
 
 def _restrito_form_value(value):

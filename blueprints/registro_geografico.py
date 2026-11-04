@@ -66,7 +66,7 @@ def page():
     return render_template(
         "registro_geografico.html",
         opcoes=opcoes,
-        is_admin=usuario.get("nivel") == "admin",
+        is_admin=usuario.get("nivel") in {"admin", "superadmin"},
     )
 
 

@@ -12,7 +12,7 @@
       <div class="ops-hero-actions">
         <a class="btn btn-primary" href="/notificacoes"><img src="/static/icons/sino.svg" alt="" class="icon-svg"> Notificações</a>
         <a class="btn btn-outline" href="/dashboard"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Dashboard</a>
-        {% if usuario_atual and usuario_atual.nivel == 'admin' %}
+        {% if tem_permissao('tecnica') %}
         <a class="btn btn-ghost" href="/admin/sistema"><img src="/static/icons/raio.svg" alt="" class="icon-svg"> Sistema</a>
         {% endif %}
       </div>
@@ -174,6 +174,7 @@
       {% endif %}
     </section>
 
+    {% if tem_permissao('tecnica') %}
     <section class="ops-panel">
       <div class="ops-panel-hd">
         <div>
@@ -198,6 +199,7 @@
       <div class="ops-empty">Nenhum backup encontrado ainda.</div>
       {% endif %}
     </section>
+    {% endif %}
     {% endif %}
 
     <section class="ops-panel ops-panel-wide">

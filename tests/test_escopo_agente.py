@@ -132,6 +132,7 @@ class TestNivelUsuario(unittest.TestCase):
             conn.execute(
                 "INSERT INTO agentes (id_agente, nome, ativo) VALUES (1, 'João', 1)"
             )
+            conn.execute("INSERT INTO usuarios(id_usuario,usuario,nome,nivel,ativo) VALUES(99,'admin-ficticio','Admin Ficticio','admin',1)")
             conn.commit()
             conn.close()
 
@@ -144,6 +145,7 @@ class TestNivelUsuario(unittest.TestCase):
                     "nivel": "usuario",
                     "id_agente": 1,
                 },
+                actor_id=99,
             )
             self.assertGreater(novo_id, 0)
 

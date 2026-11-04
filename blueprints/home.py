@@ -18,7 +18,7 @@ bp = Blueprint("home", __name__)
 @login_required
 def page():
     usuario = bh.usuario_atual()
-    is_admin = (usuario or {}).get("nivel") == "admin"
+    is_admin = (usuario or {}).get("nivel") in {"admin", "superadmin"}
     conn = integradas.integrar(bh.get_db())
     try:
         ano_ini = utils_core.data_ano()
@@ -121,7 +121,7 @@ def page():
 
     admin_info = None
     if is_admin:
-        backups = backup_core.listar_backups(current_app.config["BACKUP_DIR"], limite=3)
+        backups = backup_core.listar_backups(current_app.config["BACKUP_DIR"], limite=3) if usuario.get('nivel') == 'superadmin' else []
         admin_info = {
             "backups": backups,
             "importacoes": import_history.listar_importacoes_recentes(bh.get_db, limite=4),

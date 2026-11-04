@@ -1,4 +1,5 @@
 from app_core import db as db_core
+import re
 
 
 PERFORMANCE_INDEXES = {
@@ -169,6 +170,31 @@ def _ensure_usuarios_agente_column(conn):
     return changed
 
 
+def _ensure_superadmin(conn):
+    if not _table_exists(conn, "usuarios"):
+        return False
+    sql = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='usuarios'").fetchone()[0]
+    changed = False
+    if "superadmin" not in sql and re.search(r"CHECK\s*\(\s*nivel\s+IN", sql, re.I):
+        definition = re.sub(r"(CHECK\s*\(\s*nivel\s+IN\s*\()", r"\1'superadmin',", sql, count=1, flags=re.I)
+        definition = re.sub(r'CREATE TABLE\s+(?:IF NOT EXISTS\s+)?["`\[]?usuarios["`\]]?',
+                            'CREATE TABLE usuarios_superadmin_nova', definition, count=1, flags=re.I)
+        objects = conn.execute("SELECT sql FROM sqlite_master WHERE tbl_name='usuarios' AND type IN ('index','trigger') AND sql IS NOT NULL").fetchall()
+        sequence = conn.execute("SELECT seq FROM sqlite_sequence WHERE name='usuarios'").fetchone() if _table_exists(conn, "sqlite_sequence") else None
+        conn.execute(definition)
+        columns = ','.join('"' + name.replace('"', '""') + '"' for name in _table_columns(conn, "usuarios"))
+        conn.execute(f'INSERT INTO usuarios_superadmin_nova ({columns}) SELECT {columns} FROM usuarios')
+        conn.execute("DROP TABLE usuarios")
+        conn.execute("ALTER TABLE usuarios_superadmin_nova RENAME TO usuarios")
+        for row in objects:
+            conn.execute(row[0])
+        if sequence:
+            conn.execute("UPDATE sqlite_sequence SET seq=MAX(seq,?) WHERE name='usuarios'", (sequence[0],))
+        changed = True
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_superadmin_unico ON usuarios(nivel) WHERE nivel='superadmin'")
+    return changed
+
+
 def ensure_schema_compatibility(db_path):
     conn = db_core.connect(db_path)
     migrations = []
@@ -185,6 +211,8 @@ def ensure_schema_compatibility(db_path):
             migrations.append("acs_catalogo")
         if _ensure_usuarios_agente_column(conn):
             migrations.append("usuarios_agente")
+        if _ensure_superadmin(conn):
+            migrations.append("usuarios_superadmin")
         conn.commit()
     except Exception:
         conn.rollback()

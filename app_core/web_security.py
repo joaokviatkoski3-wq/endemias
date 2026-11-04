@@ -5,12 +5,13 @@ import hashlib
 import hmac
 import os
 
-from flask import current_app, jsonify, redirect, request, session, url_for
+from flask import current_app, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.wrappers import Response
 
 from app_core import auth
 from app_core import db
 from app_core import termos_uso
+from app_core import permissoes
 
 
 PUBLIC_ENDPOINTS = {"static", "auth.login", "auth.logout", "auth.esqueci_senha", "auth.recuperar_senha",
@@ -101,6 +102,10 @@ def configure(app):
             return None
         usuario = auth.usuario_atual(lambda sql, params=(): db.query_one(db.configured_target(current_app.config), sql, params))
         if usuario:
+            if permissoes.exige_tecnica(request.endpoint, request.path) and not permissoes.permite(usuario, "tecnica"):
+                if request.path.startswith("/api/"):
+                    return jsonify({"erro": "Operação reservada ao superadmin."}), 403
+                return render_template("403.html"), 403
             if (app.config.get("TERMOS_USO_ENABLED") and request.endpoint not in TERMS_ENDPOINTS
                     and session.get("termo_aceito") != termos_uso.VERSAO + ":" + termos_uso.HASH):
                 if termos_uso.aceitou(db.configured_target(app.config), usuario["id_usuario"]):

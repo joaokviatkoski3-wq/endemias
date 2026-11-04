@@ -67,10 +67,11 @@ def configuracao(target, id_ciclo):
         conn.close()
 
 
-def salvar_configuracao(target, id_ciclo, codigos, uid, auditar=None):
+def salvar_configuracao(target, id_ciclo, codigos, uid, auditar=None, *, alterar_uid=True):
     acs = {row["codigo"]: row for row in catalogo_acs(target)}
     if not isinstance(codigos, list) or len(codigos) != len(set(codigos)) or not set(codigos) <= set(acs):
         raise liraa.LiraaError("Selecione ACS válidos da lista do formulário.")
+    uid_fornecido = uid is not None
     uid = str(uid or "").strip()
     if uid and (len(uid) > 100 or not uid.isalnum()):
         raise liraa.LiraaError("UID Kobo inválido.")
@@ -82,6 +83,12 @@ def salvar_configuracao(target, id_ciclo, codigos, uid, auditar=None):
             lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
             if not conn.execute("SELECT id_ciclo FROM liraa_ciclos WHERE id_ciclo=?" + lock, (id_ciclo,)).fetchone():
                 raise liraa.LiraaError("Ciclo não encontrado.")
+            if not alterar_uid:
+                atual = conn.execute("SELECT kobo_uid FROM liraa_ciclo_config WHERE id_ciclo=?", (id_ciclo,)).fetchone()
+                salvo = (atual[0] if atual else '') or ''
+                if uid_fornecido and uid != salvo:
+                    raise liraa.LiraaError("Somente o superadmin pode alterar o formulário Kobo do ciclo.")
+                uid = salvo
             conn.execute("""INSERT INTO liraa_ciclo_config (id_ciclo,acs_json,acs_definidos,kobo_uid,atualizado_em)
                 VALUES (?,?,1,?,?) ON CONFLICT(id_ciclo) DO UPDATE SET acs_json=excluded.acs_json,
                 acs_definidos=1,kobo_uid=excluded.kobo_uid,atualizado_em=excluded.atualizado_em""",

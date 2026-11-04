@@ -115,8 +115,8 @@
 <script type="application/json" id="visitas-config">{{ {
   "d_ini": d_ini,
   "d_fim": d_fim,
-  "pode_editar": usuario_atual and usuario_atual.nivel in ("admin", "operador"),
-  "pode_excluir": usuario_atual and usuario_atual.nivel == "admin",
+  "pode_editar": usuario_atual and usuario_atual.nivel in ("superadmin", "admin", "operador"),
+  "pode_excluir": tem_permissao('gestao'),
   "tipos": opcoes.tipos,
   "resultados": opcoes.resultados,
   "imoveis": opcoes.imoveis,

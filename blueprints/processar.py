@@ -225,7 +225,7 @@ def processar_page():
 
 @bp.route("/api/kobo/config", methods=["GET", "POST"])
 @login_required
-@nivel_min("admin")
+@nivel_min("superadmin")
 def kobo_config():
     if request.method == "GET":
         return jsonify(kobo_api.public_config(kobo_api.load_config(_kobo_config_path())))
@@ -242,7 +242,7 @@ def kobo_config():
 
 @bp.route("/api/kobo/testar", methods=["POST"])
 @login_required
-@nivel_min("admin")
+@nivel_min("superadmin")
 def kobo_testar():
     cfg = kobo_api.load_config(_kobo_config_path())
     try:

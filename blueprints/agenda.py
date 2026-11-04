@@ -174,8 +174,7 @@ def _migrar_eventos_ferias(conn):
 
 def _admin_required_json():
     u = bh.usuario_atual()
-    ordem = {"admin": 3, "operador": 2, "visualizador": 1, "usuario": 1}
-    if not u or ordem.get(u["nivel"], 0) < ordem.get("admin", 999):
+    if not u or u.get("nivel") not in {"admin", "superadmin"}:
         return None, (jsonify({"erro": "Sem permissao"}), 403)
     return u, None
 

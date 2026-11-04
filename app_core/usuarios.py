@@ -5,9 +5,10 @@ from datetime import datetime
 
 from app_core import auth
 from app_core import db as db_core
+from app_core import permissoes
 
 
-VALID_LEVELS = ("admin", "operador", "visualizador", "usuario")
+VALID_LEVELS = tuple(permissoes.LEVEL_ORDER)
 EDITABLE_FIELDS = {
     "nivel",
     "ativo",
@@ -53,7 +54,22 @@ def listar(target):
             conn.close()
 
 
-def criar(target, dados, agora=None):
+def _ator(conn, actor_id):
+    row = conn.execute("SELECT id_usuario,nivel,ativo FROM usuarios WHERE id_usuario=?", (actor_id,)).fetchone()
+    ator = dict(row) if row else None
+    if not ator or not ator["ativo"] or not permissoes.gerencia(ator):
+        raise ValueError("Conta sem permissão para gerenciar usuários.")
+    return ator
+
+
+def _bloquear_gestao(conn):
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        conn.execute("SELECT pg_advisory_xact_lock(?)", (1840364333,))
+    else:
+        conn.execute("BEGIN IMMEDIATE")
+
+
+def criar(target, dados, agora=None, *, actor_id=None):
     usuario = str(dados.get("usuario") or "").strip().lower()
     nome = str(dados.get("nome") or "").strip()
     nivel = str(dados.get("nivel") or "visualizador").strip()
@@ -75,6 +91,10 @@ def criar(target, dados, agora=None):
 
     conn, close = _open_connection(target)
     try:
+        _bloquear_gestao(conn)
+        ator = _ator(conn, actor_id)
+        if nivel not in permissoes.niveis_atribuiveis(ator):
+            raise ValueError("Você não pode atribuir esse nível de acesso.")
         id_agente = _id_agente_valido(conn, dados.get("id_agente"))
         novo_id = _insert_id(
             conn,
@@ -110,6 +130,8 @@ def editar(target, uid, campo, valor, usuario_atual_id=None):
 
     conn, close = _open_connection(target)
     try:
+        _bloquear_gestao(conn)
+        ator = _ator(conn, usuario_atual_id)
         row = conn.execute(
             """
             SELECT usuario, nome, nivel, ativo, acesso_laboratorio,
@@ -122,8 +144,12 @@ def editar(target, uid, campo, valor, usuario_atual_id=None):
         if not row:
             raise ValueError("Usuario nao encontrado.")
         anterior = dict(row)
+        if not permissoes.pode_gerenciar_conta(ator, anterior):
+            raise ValueError("Esta conta é protegida contra alterações pelo seu perfil.")
 
         if campo == "nivel" and valor in VALID_LEVELS:
+            if valor not in permissoes.niveis_atribuiveis(ator):
+                raise ValueError("Você não pode atribuir esse nível de acesso.")
             novo = valor
             conn.execute(
                 "UPDATE usuarios SET nivel=? WHERE id_usuario=?",
@@ -208,17 +234,21 @@ def _id_agente_valido(conn, valor):
     return id_agente
 
 
-def resetar_senha(target, uid, nova_senha):
+def resetar_senha(target, uid, nova_senha, *, actor_id=None):
     if not auth.senha_valida(nova_senha):
         raise ValueError(auth.mensagem_senha_invalida())
     conn, close = _open_connection(target)
     try:
+        _bloquear_gestao(conn)
+        ator = _ator(conn, actor_id)
         row = conn.execute(
-            "SELECT usuario, nome FROM usuarios WHERE id_usuario=?",
+            "SELECT usuario, nome, nivel, ativo FROM usuarios WHERE id_usuario=?",
             (uid,),
         ).fetchone()
         if not row:
             raise ValueError("Usuario nao encontrado.")
+        if not permissoes.pode_gerenciar_conta(ator, dict(row)):
+            raise ValueError("Esta conta é protegida contra redefinição de senha pelo seu perfil.")
         conn.execute(
             "UPDATE usuarios SET senha_hash=? WHERE id_usuario=?",
             (auth.hash_senha(nova_senha), uid),

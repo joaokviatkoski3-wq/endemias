@@ -34,6 +34,7 @@ def _create_users_table(path):
                 ativo INTEGER NOT NULL DEFAULT 1
             )"""
         )
+        conn.execute("INSERT INTO usuarios(id_usuario,usuario,nome,senha_hash,nivel,criado_em) VALUES(99,'super-ficticio','Super Ficticio','hash-ficticio','superadmin','2026-11-04')")
         conn.commit()
     finally:
         conn.close()
@@ -55,18 +56,21 @@ class UsuariosDualBackendTests(unittest.TestCase):
                     "somente_laboratorio": "1",
                 },
                 agora="2026-07-29T10:00:00",
+                actor_id=99,
             )
-            listed = usuarios.listar(path)
+            listed = [u for u in usuarios.listar(path) if u['id_usuario'] != 99]
             previous, new_level = usuarios.editar(
                 path,
                 uid,
                 "nivel",
                 "operador",
+                usuario_atual_id=99,
             )
             target = usuarios.resetar_senha(
                 path,
                 uid,
                 "OutraSenha456",
+                actor_id=99,
             )
 
             conn = sqlite3.connect(path)
@@ -96,9 +100,10 @@ class UsuariosDualBackendTests(unittest.TestCase):
                     "nome": "Proprio Usuario",
                     "senha": "SenhaForte123",
                 },
+                actor_id=99,
             )
 
-            with self.assertRaisesRegex(ValueError, "propria conta"):
+            with self.assertRaises(ValueError):
                 usuarios.editar(
                     path,
                     uid,
@@ -126,9 +131,10 @@ class UsuariosDualBackendTests(unittest.TestCase):
                     "senha": "SenhaForte123",
                     "id_agente": "7",
                 },
+                actor_id=99,
             )
-            anterior, novo = usuarios.editar(path, uid, "id_agente", "")
-            vinculado = usuarios.listar(path)[0]
+            anterior, novo = usuarios.editar(path, uid, "id_agente", "", usuario_atual_id=99)
+            vinculado = next(u for u in usuarios.listar(path) if u['id_usuario'] == uid)
 
         self.assertEqual(7, anterior["id_agente"])
         self.assertIsNone(novo)

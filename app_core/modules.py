@@ -1,13 +1,9 @@
 from dataclasses import dataclass, field
 from typing import Iterable, List, Optional, Tuple
+from app_core import permissoes
 
 
-LEVEL_ORDER = {
-    "visualizador": 1,
-    "usuario": 1,
-    "operador": 2,
-    "admin": 3,
-}
+LEVEL_ORDER = permissoes.LEVEL_ORDER
 
 
 @dataclass(frozen=True)
@@ -314,7 +310,7 @@ MODULES: Tuple[AppModule, ...] = (
         nav_section="Administracao",
         description="Saude operacional: banco, backups, importacoes, auditoria e atalhos.",
         tags=("Admin", "Status"),
-        min_level="admin",
+        min_level="superadmin",
         endpoints=("admin_sistema", "admin.admin_sistema"),
     ),
     AppModule(
@@ -379,7 +375,7 @@ def can_access(module: AppModule, user) -> bool:
     level = (user or {}).get("nivel") if isinstance(user, dict) else None
     if LEVEL_ORDER.get(level or "visualizador", 0) < LEVEL_ORDER.get(module.min_level, 999):
         return False
-    if module.required_permission and level != "admin":
+    if module.required_permission and not permissoes.gerencia(user):
         return bool((user or {}).get(module.required_permission))
     return True
 
@@ -388,7 +384,7 @@ def visible_modules(user, area: Optional[str] = None) -> List[AppModule]:
     modules = [module for module in MODULES if can_access(module, user)]
     if (
         isinstance(user, dict)
-        and user.get("nivel") != "admin"
+        and not permissoes.gerencia(user)
         and user.get("somente_laboratorio")
     ):
         modules = [module for module in modules if module.key == "laboratorio_lancamentos"]

@@ -4,6 +4,19 @@ Atualizado em 04/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Preparação 1.79.0 — superadmin e gestão delegada
+
+- Usuário confirmou a conta pessoal `joao`, id 2, como único superadmin.
+  Implementação na worktree `C:\endemias-superadmin`, branch
+  `codex/superadmin-permissoes`. Admin mantém operação e gestão de contas
+  inferiores; Central/backups/credenciais Kobo e gestão de admins são técnicas.
+  Conta superadmin protegida na web, índice único e recuperação local Windows.
+- 964 testes gerais OK (sete ignorados), ensaio PostgreSQL descartável e
+  Chromium com CSRF real/celular. Ver `SUPERADMIN_PERMISSOES.md`.
+- Ainda não ativada nesta preparação. Produção 1.78.0 descrita abaixo.
+  Ativador exige essa origem, backup validado, somente migração 0033 e promoção
+  de `joao`/id 2, comparando todas as outras contas. Não altera suas senhas.
+
 ## Versão vigente 1.78.0 — presença de usuários ativa
 
 - Ativada em 04/11/2026 às 10h55, release `7e1a3fe`, após autorização do

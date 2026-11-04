@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from app_core import db as db_core
+from app_core import permissoes
 
 
 STATUS_TABLE = "laboratorio_coletas_status"
@@ -78,7 +79,7 @@ def ensure_schema(db_path):
 def pode_lancar(usuario):
     if not usuario:
         return False
-    return usuario.get("nivel") == "admin" or bool(usuario.get("acesso_laboratorio"))
+    return permissoes.gerencia(usuario) or bool(usuario.get("acesso_laboratorio"))
 
 
 def encerrar_sem_resultado(conn, id_coleta, motivo, usuario_id=None, agora=None):

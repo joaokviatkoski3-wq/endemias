@@ -8,6 +8,15 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
 
+- **Preparação 1.79.0 em `C:\endemias-superadmin`**, branch
+  `codex/superadmin-permissoes`: usuário confirmou `joao` (id 2) como único
+  superadmin. Admin mantém gestão operacional e perde Central/backups/Kobo
+  técnico e gestão de pares/superadmin. 964 testes gerais OK (sete ignorados),
+  ensaios sintéticos PostgreSQL e Chromium/CSRF/celular. Não confundir código
+  preparado com ativação: conferir o estado vivo e relatório `ativacao179`.
+  Produção permanece 1.78.0 até a janela de backup/ativação. Ver
+  `docs/SUPERADMIN_PERMISSOES.md`.
+
 - **Versão vigente 1.78.0, ativa em 04/11/2026 às 10h55**, release `7e1a3fe`:
   presença, última vez online e total na Gestão de Usuários, somente admin.
   Sinal visível a cada 30s/janela 120s, sessões independentes por aparelho e

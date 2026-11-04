@@ -181,7 +181,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
     <span class="ovi-source-chip lab">Ocorrências: laboratório</span>
     <span class="ovi-source-chip local">Cadastro, diários e calendário: local</span>
   </div>
-  {% if usuario_atual and usuario_atual.nivel == 'admin' %}
+  {% if tem_permissao('gestao') %}
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
     <button class="btn btn-outline btn-sm" type="button" id="ovi-sincronizar-conta-ovos"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar espelhos GET</button>
     <span class="ovi-sync-result" id="ovi-sincronizar-conta-ovos-status">Somente leitura remota; atualiza os espelhos locais.</span>
@@ -194,7 +194,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
   <button class="ovi-tab" type="button" data-ovi-tab="monitoramento">Monitoramento</button>
   <button class="ovi-tab" type="button" data-ovi-tab="armadilhas">Armadilhas</button>
   <button class="ovi-tab" type="button" data-ovi-tab="diarios">Diários</button>
-  {% if usuario_atual and usuario_atual.nivel in ['admin', 'operador'] %}
+  {% if usuario_atual and usuario_atual.nivel in ['superadmin', 'admin', 'operador'] %}
   <button class="ovi-tab" type="button" data-ovi-tab="laboratorio">Laboratório</button>
   {% endif %}
   <button class="ovi-tab" type="button" data-ovi-tab="calendario">Calendário</button>
@@ -508,7 +508,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
   </div>
 </section>
 
-{% if usuario_atual and usuario_atual.nivel in ['admin', 'operador'] %}
+{% if usuario_atual and usuario_atual.nivel in ['superadmin', 'admin', 'operador'] %}
 <section class="ovi-panel" id="ovi-panel-laboratorio" hidden>
   <div class="ovi-lab-admin-toolbar">
     <div class="f-g"><label>Situação</label><select id="ovi-lab-admin-status"><option value="pendente">Aguardando envio ao Conta Ovos</option><option value="enviado">Enviados ao Conta Ovos</option><option value="todos">Todos</option></select></div>
@@ -606,7 +606,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
 
 {% block extra_js %}<script>
 const oviFmt = new Intl.NumberFormat('pt-BR');
-const oviPodeEditarCadastroContaOvos = {{ 'true' if usuario_atual and usuario_atual.nivel == 'admin' else 'false' }};
+const oviPodeEditarCadastroContaOvos = {{ 'true' if tem_permissao('gestao') else 'false' }};
 const oviDecimal = new Intl.NumberFormat('pt-BR', {minimumFractionDigits:1, maximumFractionDigits:1});
 const oviDecimal2 = new Intl.NumberFormat('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
 const oviAgentes = JSON.parse(document.getElementById('ovi-agentes-json').textContent || '[]');

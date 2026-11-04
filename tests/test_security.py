@@ -158,6 +158,9 @@ def _client_admin_com_banco_temporario(tmpdir):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     try:
+        # Este helper historico representa o nivel maximo nos ensaios legados.
+        conn.execute("UPDATE usuarios SET nivel='superadmin' WHERE usuario='admin'")
+        conn.commit()
         usuario = conn.execute(
             "SELECT id_usuario, nome, nivel FROM usuarios WHERE usuario='admin'"
         ).fetchone()
@@ -697,6 +700,8 @@ class AdminBackupRoutesTests(unittest.TestCase):
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         try:
+            conn.execute("UPDATE usuarios SET nivel='superadmin' WHERE usuario='admin'")
+            conn.commit()
             usuario = conn.execute(
                 "SELECT id_usuario, nome, nivel FROM usuarios WHERE usuario='admin'"
             ).fetchone()
@@ -2693,8 +2698,9 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertNotIn("/api/agentes/", html)
 
     def test_central_do_sistema_admin_responde_200(self):
-        client = _client_logado("admin")
-        resp = client.get("/admin/sistema")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _app, client, _db = _client_admin_com_banco_temporario(tmpdir)
+            resp = client.get("/admin/sistema")
 
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
@@ -2732,12 +2738,13 @@ class MainPagesSmokeTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
         self.assertIn("Importações recentes", html)
-        self.assertIn("Backups", html)
-        self.assertIn("/admin/sistema", html)
+        self.assertNotIn("<h2>Backups</h2>", html)
+        self.assertNotIn('href="/admin/sistema"', html)
 
     def test_processar_exibe_historico_de_importacoes(self):
-        client = _client_logado("admin")
-        resp = client.get("/processar")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _app, client, _db = _client_admin_com_banco_temporario(tmpdir)
+            resp = client.get("/processar")
 
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
@@ -9180,7 +9187,7 @@ class PermissionMatrixTests(unittest.TestCase):
         for rota in rotas:
             with self.subTest(rota=rota):
                 resp = client.get(rota)
-                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(resp.status_code, 403 if rota == "/admin/sistema" else 200)
 
     def test_visualizador_acessa_apis_de_consulta(self):
         client = _client_logado("visualizador")

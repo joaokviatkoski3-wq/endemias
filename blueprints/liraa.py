@@ -66,7 +66,7 @@ def page():
     if dados and id_edicao:
         editando = next((e for c in dados["ciclos"] for e in c["estratos"]
                          if e["id_estrato"] == id_edicao and not e["sorteio"]), None)
-    admin = (_usuario() or {}).get("nivel") == "admin"
+    admin = (_usuario() or {}).get("nivel") in {"admin", "superadmin"}
     kobo_dados = {"uid": "", "visitas": [], "previa": None, "erro": None,
                   "correcao_habilitada": True, "exclusoes": [],
                   "ciclo": request.values.get("ciclo", ""),
@@ -177,7 +177,7 @@ def _buscar_kobo(inicio, fim, id_ciclo=None):
 
 @bp.route("/liraa/kobo/configurar", methods=["POST"])
 @login_required
-@nivel_admin
+@auth_core.nivel_min("superadmin", _usuario)
 def configurar_kobo():
     if not _kobo_config_path():
         flash("Configuração Kobo indisponível neste ambiente.", "error")
@@ -355,6 +355,7 @@ def _download_error(exc, tab="campo"):
 def configurar_ciclo(id_ciclo):
     try:
         op.salvar_configuracao(_target(), id_ciclo, request.form.getlist("acs"), request.form.get("kobo_uid"),
+            alterar_uid=(_usuario() or {}).get('nivel') == 'superadmin',
             auditar=lambda conn, detalhes: audit.registrar_evento(_get_db, "liraa_ciclo_formulario_configurado",
                 entidade="liraa_ciclo", entidade_id=id_ciclo, detalhes=detalhes, conn=conn))
         flash("Participantes e formulário do ciclo salvos.", "success")

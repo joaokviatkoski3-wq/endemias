@@ -132,6 +132,19 @@ class OperacaoTests(unittest.TestCase):
                 if tipo == "normal":
                     self.assertEqual(data["plano_hash"], before["plano_hash"])
 
+    def test_admin_configura_acs_sem_alterar_integracao_kobo(self):
+        op.salvar_configuracao(self.target, self.ciclo, [], 'asset123')
+        op.salvar_configuracao(self.target, self.ciclo, ['ACS-006'], None, alterar_uid=False)
+        conn = db.connect(self.target)
+        try:
+            row = conn.execute('SELECT kobo_uid,acs_json FROM liraa_ciclo_config WHERE id_ciclo=?', (self.ciclo,)).fetchone()
+            self.assertEqual(row['kobo_uid'], 'asset123')
+            self.assertIn('ACS-006', row['acs_json'])
+        finally:
+            conn.close()
+        with self.assertRaisesRegex(liraa.LiraaError, 'superadmin'):
+            op.salvar_configuracao(self.target, self.ciclo, [], 'outroAsset', alterar_uid=False)
+
     def test_xlsform_cascata_e_acs_selecionados_preserva_modelo(self):
         before=hashlib.sha256(op.BASE_XLSFORM.read_bytes()).hexdigest()
         with self.assertRaisesRegex(liraa.LiraaError,"ACS participantes"):

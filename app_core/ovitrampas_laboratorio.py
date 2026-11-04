@@ -263,7 +263,7 @@ def atualizar_laboratorista(db_path, id_lote, id_laboratorista):
         usuario = conn.execute(
             """SELECT id_usuario, nome FROM usuarios
                  WHERE id_usuario=? AND ativo=1
-                   AND (nivel='admin' OR COALESCE(acesso_laboratorio,0)=1)""",
+                   AND (nivel IN ('admin','superadmin') OR COALESCE(acesso_laboratorio,0)=1)""",
             (id_usuario,),
         ).fetchone()
         if not usuario:

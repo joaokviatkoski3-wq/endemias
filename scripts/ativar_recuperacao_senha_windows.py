@@ -33,6 +33,42 @@ class Release:
     target: str = "1.77.0"
     migration: str = "0031_recuperacao_senha.sql"
     marker: str = "ativacao177"
+    owner_id: int | None = None
+    owner_login: str | None = None
+
+
+def promover_owner(config, release):
+    connection = connect(config)
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(%s)", (1840364333,))
+            cursor.execute("SELECT row_to_json(u) FROM usuarios u ORDER BY id_usuario")
+            before = [row[0] for row in cursor.fetchall()]
+            selected = next((u for u in before if u['id_usuario'] == release.owner_id), None)
+            if (not selected or selected['usuario'] != release.owner_login or selected['nivel'] != 'admin'
+                    or not selected['ativo'] or any(u['nivel'] == 'superadmin' for u in before)):
+                raise ValueError("Conta pessoal nao corresponde ao estado confirmado pelo usuario.")
+            cursor.execute("UPDATE usuarios SET nivel='superadmin' WHERE id_usuario=%s AND usuario=%s AND nivel='admin' AND ativo=1",
+                           (release.owner_id, release.owner_login))
+            if cursor.rowcount != 1:
+                raise ValueError("Conta pessoal mudou durante a ativacao.")
+            cursor.execute("SELECT row_to_json(u) FROM usuarios u ORDER BY id_usuario")
+            after = [row[0] for row in cursor.fetchall()]
+            expected = copy.deepcopy(before)
+            next(u for u in expected if u['id_usuario'] == release.owner_id)['nivel'] = 'superadmin'
+            if after != expected:
+                raise RuntimeError("Mudanca de conta diferente da unica promocao autorizada.")
+            cursor.execute("""INSERT INTO auditoria_eventos
+                (acao,entidade,entidade_id,usuario_id,usuario_nome,ip,detalhes_json,criado_em)
+                VALUES ('superadmin_ativado','usuarios',%s,NULL,'Operador Windows','local',%s,%s)""",
+                (str(release.owner_id), json.dumps({"usuario": release.owner_login, "nivel_anterior": "admin", "nivel_novo": "superadmin"}), datetime.now().isoformat()))
+        connection.commit()
+        return {"id": release.owner_id, "usuario": release.owner_login, "nivel": "superadmin", "outras_contas_preservadas": True}
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
 
 
 def config_atualizada(original, release=Release()):
@@ -116,6 +152,9 @@ def apply(args, release=Release()):
             files_preserved=all(hashlib.sha256(path.read_bytes()).hexdigest() == files[str(path)] for path in protected))
         if not report["data_preserved"] or not report["files_preserved"]:
             raise RuntimeError("Dados/configuracoes mudaram; revisar sem restaurar banco.")
+        if release.owner_id is not None:
+            save("promocao_unica_autorizada")
+            report["owner_promovido"] = promover_owner(original, release)
         save("ensaio_identidade_limitada")
         proposed["probe_only"] = True
         probe_path = HOME / "runtime/probe.json"
@@ -163,6 +202,18 @@ def apply(args, release=Release()):
                 raise RuntimeError("Retorno aguarda parada do servidor.")
             shutil.copyfile(state / "config-anterior.json", HOME / "config.json")
         if integrated:
+            if report.get("owner_promovido"):
+                connection = connect(original)
+                try:
+                    with connection.cursor() as cursor:
+                        cursor.execute("UPDATE usuarios SET nivel='admin' WHERE id_usuario=%s AND usuario=%s AND nivel='superadmin'",
+                                       (release.owner_id, release.owner_login))
+                        if cursor.rowcount != 1:
+                            raise RuntimeError("Conta mudou; retorno exige conferencia manual.")
+                    connection.commit()
+                    report["owner_retornado_a_admin"] = True
+                finally:
+                    connection.close()
             if git("status", "--porcelain") or git("rev-parse", "HEAD") != args.release:
                 raise RuntimeError("Arvore mudou; retorno de codigo exige revisao.")
             git("restore", "--source=" + old_head, "--staged", "--worktree", ".")

@@ -224,7 +224,7 @@ def api_visitas_sincronizar_acs_kobo():
 @nivel_min("operador")
 def api_visita_editar(id_visita):
     dados = request.get_json(silent=True) or {}
-    if str(id_visita).startswith("liraa-v-") and (bh.usuario_atual() or {}).get("nivel") != "admin":
+    if str(id_visita).startswith("liraa-v-") and (bh.usuario_atual() or {}).get("nivel") not in {"admin", "superadmin"}:
         return jsonify({"erro":"Somente administrador pode corrigir visitas LIRAa."}), 403
     try:
         resultado = visitas_core.editar(
