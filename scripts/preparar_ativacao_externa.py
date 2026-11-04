@@ -55,6 +55,8 @@ def inspect_database(config):
             users, admins = cursor.fetchone()
             cursor.execute("SHOW listen_addresses")
             listen = cursor.fetchone()[0]
+            cursor.execute("SELECT has_schema_privilege(current_user,'public','CREATE'), has_table_privilege(current_user,'usuarios','REFERENCES')")
+            create_schema, references_users = cursor.fetchone()
             cursor.execute("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")
             tables = [row[0] for row in cursor.fetchall()]
             counts = {}
@@ -63,6 +65,7 @@ def inspect_database(config):
                 counts[name] = cursor.fetchone()[0]
         return {"migrations": migrations, "active_users": users, "active_admins": admins,
                 "listen_addresses": listen, "counts": counts,
+                "migration_privileges": bool(create_schema and references_users),
                 "sql_administrative_privileges": False}
     finally:
         connection.close()
@@ -83,7 +86,7 @@ def main():
     with open(r"C:\endemias\endemias.db", "rb") as frozen:
         frozen_hash = hashlib.file_digest(frozen, "sha256").hexdigest()
     result.update(hostname=args.host, pending=pending, mismatch=mismatch,
-                  schema_ready=pending == ["0030"] and not mismatch and result["active_admins"] > 0,
+                  schema_ready=pending in ([], ["0030"]) and not mismatch and result["active_admins"] > 0 and result["migration_privileges"],
                   frozen_sqlite_sha256=frozen_hash,
                   changes_applied=False)
     (ROOT / ".venv/ativacao-externa-preflight.json").write_text(json.dumps(result, indent=2), encoding="utf-8")

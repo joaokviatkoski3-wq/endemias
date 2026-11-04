@@ -5,9 +5,19 @@ from unittest.mock import patch
 
 from scripts.preparar_ativacao_externa import proposed_config
 from scripts.servico_web_windows import start_application
+from scripts.ativar_acesso_externo_windows import local_only_config
 
 
 class AtivacaoExternaTests(unittest.TestCase):
+    def test_config_postgresql_altera_somente_escuta_e_preserva_finais_de_linha(self):
+        original = "# configuracao ficticia\r\nlisten_addresses = '*' # interfaces\r\nport = 5432\r\n"
+        updated = local_only_config(original)
+        self.assertEqual(updated, original.replace("'*'", "'localhost'"))
+        for value in ("# listen_addresses='*'\n", "listen_addresses='10.0.0.1'\n",
+                      "listen_addresses='*'\nlisten_addresses='localhost'\n"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                local_only_config(value)
+
     def test_preserva_identidade_dados_e_separa_entradas(self):
         original = {"sid": "SID-FICTICIO", "env": {"ENDEMIAS_DB_BACKEND": "postgresql", "PGPASSFILE": "privado"}}
         proposed = proposed_config(original, "endemias.vsatt.com.br", "192.168.7.20")

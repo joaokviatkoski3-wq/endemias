@@ -83,6 +83,35 @@ anteriores e piloto foram recuperados antes da tentativa concluida.
   identidade final e confirmacao das duas entradas. Retorno preserva o banco e
   os aceites eventualmente registrados; nunca restaurar dados automaticamente.
 
+## Pacote de ativacao local
+
+`scripts/ativar_acesso_externo_windows.py` exige commits completos de origem
+e release, master limpa e pertencimento do commit de origem ao pacote.
+Preserva a tarefa e sua credencial; atualiza somente configuracao/entrada
+nativa ja protegidas, com `server=waitress`, hostname escolhido e duas portas.
+Cria dump previo com catalogo validado e snapshot privado de configuracoes.
+Com aplicacao parada, registra assinaturas/contagens de tabelas anteriores,
+reduz listen_addresses para localhost, integra por fast-forward e aplica
+somente 0030 se pendente. Chave, Kobo, config e SQLite congelado preservados.
+
+Antes de servir, usa a mesma tarefa limitada em modo de ensaio: verifica
+permissoes/banco/backup e login do perfil externo sem registrar aceite real.
+Depois serve LAN/loopback:5000 e origem Tunnel somente 127.0.0.1:5001,
+confere login 1.76.0 nas duas entradas e assinaturas das tabelas anteriores.
+Em falha, retorna codigo/configuracao/tarefa e escuta anteriores, confirma
+login 1.75.0 e mantem o banco/0030/aceites. Resultado sanitizado fica em
+`C:\ProgramData\EndemiasWeb\ativacao176-resultado.json`.
+
+Regressao final apos conciliar a master: **910 testes passaram, sete ignorados**
+em massa sintetica e na venv dedicada. Cinco testes de ativacao passaram
+separadamente, incluindo preservacao de chave/configuracao, recusa de host/IP
+fora do escopo, argv do wrapper, exigencia Waitress e mudanca pontual do
+postgresql.conf sem corromper CRLF. Navegador HTTPS descartavel confirmou RG
+offline, desktop/390px, logout removendo pagina do cache e zero erros JS.
+
+Esta etapa ativa somente a origem preparada localmente. Publicacao oficial
+sera o encaminhamento de `endemias.vsatt.com.br` para 127.0.0.1:5001 no painel.
+
 ## Referencias
 
 - [Cloudflare — token-file](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/#token-file)
