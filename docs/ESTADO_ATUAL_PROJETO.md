@@ -4,59 +4,71 @@ Atualizado em 04/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Preparação final 1.76.0 — endereço escolhido em 04/11
+
+- Usuário escolheu `endemias.vsatt.com.br` para o sistema oficial e confirmou
+  que a equipe ainda não usa o formulário RG offline.
+- Piloto HTTPS validado com três perfis, permissões/propriedade de rascunho,
+  três XLSX reabertos, PDF reaberto, upload/SSE, CSRF e navegador desktop/celular
+  com RG offline e limpeza de cache no logout, sem erros JavaScript.
+- Conector Cloudflared aplicado como `NT SERVICE\Cloudflared`, sem administrador
+  e com privilégios reduzidos; SID real/retorno HTTPS conferidos. Token continua
+  em arquivo protegido, sem leitura de seu conteúdo ou alteração de argumentos.
+- Prévia SQL somente leitura: sete contas ativas, quatro administradores,
+  sem alterar permissões/senhas. Migrações anteriores íntegras, somente 0030
+  pendente. IP LAN é manual/fixo. Plano em `CLOUDFLARE_VALIDACAO_EXTERNA.md`.
+- Esta seção prepara a ativação. Até o fechamento confirmar a troca, produção
+  continua 1.75.0; não interpretar o merge na branch como implantação oficial.
+
 ## Piloto externo com dados fictícios — publicado em 03/11
 
-- 04/11 após boot: conector e produção iniciaram automaticamente; piloto
-  manual estava parado e causou 502. Reiniciado o processo isolado; HTTPS
-  200/1.76.0 e API sem login 401 confirmados. Sem alterações de configuração.
-  Para próximos boots, iniciar `piloto_web.bat`; o Tunnel não inicia a aplicação.
+- **04/11, após reinício do Windows:** Cloudflared iniciou Running/Auto e
+  produção respondeu 200/1.75.0 na porta 5000. Piloto não tinha listeners
+  5002/5003; o hostname público retornou 502. Iniciado novamente somente
+  `scripts/piloto_web.py` na worktree; HTTPS voltou a 200/1.76.0 e API sem
+  login a 401, ambas com `private, no-store`. Sem alteração de tarefa, serviço,
+  DNS, firewall ou banco real. Piloto continua manual; após reinício, usar
+  `C:\endemias-cloudflare\piloto_web.bat`. O conector automático não inicia a
+  aplicação de teste. Não confundir esse comportamento com falha de produção.
 
-- `https://piloto.vsatt.com.br` encaminha pelo Tunnel `vsatt-piloto` para
-  127.0.0.1:5003, no processo isolado `scripts/piloto_web.py`. Usuário confirmou
-  abertura; HTTPS real confirmou login 200/1.76.0, API sem login 401 e home
-  redirecionada ao login, cookie Secure/HttpOnly, CSP/HSTS e ausência de cache.
-- Serviço Cloudflared automático em LocalSystem; a tarefa da produção continua
-  EndemiasWeb limitada. Revisar identidade/token do conector antes de produção.
-- Produção 1.75.0 e banco real continuam locais. Usuário confirmou login
-  fictício/termo e novo acesso em 03/11; testes funcionais mais amplos ainda
-  pendentes. Detalhes em `CLOUDFLARE_INFRAESTRUTURA.md`.
+- Usuário criou/conectou `vsatt-piloto` na Cloudflare e publicou somente
+  `https://piloto.vsatt.com.br` para 127.0.0.1:5003. O processo isolado em
+  `C:\endemias-cloudflare` usa SQLite fictício, sem credenciais/dados reais.
+- HTTPS real confirmou login 200/1.76.0, API sem login 401, home redirecionada
+  ao login, cookie Secure/HttpOnly, CSP/HSTS e respostas privadas sem cache.
+  Usuário confirmou login, termo e novo acesso sem repetir o mesmo termo em
+  03/11. Testes funcionais públicos mais amplos continuam pendentes.
+- Serviço Cloudflared automático executa como LocalSystem, distinto da tarefa
+  EndemiasWeb limitada. Revisar identidade/token desse conector antes de publicar
+  produção. Token não foi consultado/exportado pelo agente.
+- Sistema oficial continua 1.75.0, banco real e acesso local preservados. Não
+  interpretar o piloto público como integração/ativação da 1.76.0 na master.
+- Detalhes na branch `codex/preparar-cloudflare`, documento
+  `docs/CLOUDFLARE_INFRAESTRUTURA.md`. Piloto sem autostart, mesmo com conector
+  automático; iniciar `piloto_web.bat` na worktree se necessário após reinício.
 
-## Acesso externo — preparação isolada 1.76.0, ainda não ativa
+## Conta limitada do servidor — aplicada em 03/11/2026
 
-- Autorização de 03/11: revisar/corrigir a segurança para acesso externo e
-  expansão futura, mantendo o login do sistema, sem Cloudflare Access.
-  Domínio `vsatt.com.br`; 20–30 usuários iniciais, com possibilidade de ampliar.
-- Branch `codex/preparar-cloudflare`, worktree `C:\endemias-cloudflare`,
-  derivada de `f7a98a0`. Inclui servidor Waitress, perfil HTTPS/Tunnel restrito,
-  correções de autenticação, formulários e cache, além do termo de ciência e
-  responsabilidade solicitado pelo usuário durante o trabalho.
-- Migração 0030 de aceites apenas preparada. Nenhuma integração na master,
-  publicação, instalação de serviço, migração ou reinício oficial neste lote.
-  Produção permanece no estado LIRAa 1.75.0 descrito abaixo.
-- Resultados, escopo de teste, limitações, pendências de Windows/conta de
-  serviço/PostgreSQL e sequência de implantação/retorno em
-  `docs/CLOUDFLARE_IMPLANTACAO.md`. Coordenar integração com a frente LIRAa;
-  não integrar templates com o serviço ativo sem a janela preparada.
-- Etapa seguinte: usuário pediu preservar acesso local. Preparadas entradas
-  LAN/loopback e Tunnel no mesmo processo/banco, com sessões separadas e piloto
-  fictício só neste computador. Consulta administrativa confirmou tarefa SYSTEM;
-  usuário decidiu manter Windows/computador atuais e aplicar proteções viáveis,
-  com a limitação de atualizações registrada; VPS fica para o futuro. ESU não é
-  condição de compra para avançar. Defender confirmado ativo; ACLs amplas no
-  código/chave exigem revisão junto à troca de identidade, não apenas criar
-  uma conta. Plano em `docs/CLOUDFLARE_INFRAESTRUTURA.md`, ainda não aplicado.
-  Sem troca da tarefa, alteração de permissões ou publicação.
-- Autorização posterior: aplicar conta limitada e proteção de código/chaves.
-  Pacote nativo `scripts/endurecer_web_windows.py` preparado com backup,
-  validação da identidade final e retorno; Python independente do perfil do
-  usuário. 900 testes gerais passaram (seis ignorados) em dados fictícios.
-  Ver `docs/CLOUDFLARE_CONTA_LIMITADA.md` para escopo e estado administrativo.
-  Preserva código oficial 1.75.0; não integra/publica 1.76.0 por essa troca.
-- **Aplicado e confirmado às 16h05 de 03/11:** tarefa oficial EndemiasWeb
-  limitada, código/chaves protegidos, Python próprio e ensaio/backup reais
-  validados antes da troca. Hashes dos arquivos preservados. Login HTTP
-  200/1.75.0; usuário confirmou outro aparelho da LAN. Sem migração, mudança de
-  firewall ou publicação externa. Ver fechamento em `CLOUDFLARE_CONTA_LIMITADA.md`.
+- Usuário autorizou aplicar as proteções locais enquanto mantém o Windows atual;
+  VPS é intenção futura. A tarefa `Endemias - Servidor` passou de SYSTEM para
+  a conta dedicada `EndemiasWeb`, sem privilégios administrativos ou login
+  interativo/RDP/rede do Windows. Confirmação HTTP 200/1.75.0 às 16h05.
+- Python e componentes próprios em `C:\ProgramData\EndemiasWeb`; código,
+  templates e dependências sem escrita pela conta web. Chaves/credenciais
+  protegidas; mesma chave e configuração Kobo, sem trocar tokens/senhas reais.
+- Ensaio antes da troca confirmou identidade, permissões efetivas, SQL sem
+  privilégios administrativos, escrita operacional, XLSX/PDF, rotação, login
+  e backup com catálogo validado. Backup prévio e retorno privados guardados.
+  Hashes de app/chave/Kobo/config/SQLite congelado preservados.
+- Código oficial permanece **1.75.0**, sem integração da preparação 1.76.0,
+  migração, alteração do PostgreSQL/firewall/DNS ou publicação do Tunnel. O
+  usuário confirmou login por outro aparelho da rede local.
+- Logs/status/temporários da aplicação agora em ProgramData; backups manuais
+  da interface em `D:\BackupsEndemias\backups_web`. Backups automáticos e
+  importação agendada continuam nos caminhos/identidades anteriores.
+- Detalhes, limitação da listagem de backups, retorno e próximos passos em
+  `docs/CONTA_LIMITADA_WINDOWS.md`. Não reinstalar a tarefa pelo configurador
+  histórico SYSTEM; o atalho de reinício usa a tarefa já registrada.
 
 ## Integração operacional LIRAa — código 1.75.0 ativo
 

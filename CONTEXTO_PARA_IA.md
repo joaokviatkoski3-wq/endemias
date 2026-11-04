@@ -1,6 +1,6 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 03/11/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 04/11/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
@@ -8,27 +8,23 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
 
-- Frente isolada de acesso externo em 03/11/2026: código preparado `1.76.0`
-  na branch `codex/preparar-cloudflare`, worktree `C:\endemias-cloudflare`.
-  Login somente pelo sistema (decisão atual do usuário, sem Access), segurança,
-  Waitress e termo versionado de responsabilidade. Migração 0030 apenas
-  preparada. Não integrado/ativado e sem alterações no serviço ou dados
-  oficiais. Ver `docs/CLOUDFLARE_IMPLANTACAO.md` para resultados e pendências.
-- Continuação da frente: acesso local preservado por entrada LAN/loopback
-  separada da entrada do Tunnel, no mesmo processo/banco. Piloto fictício
-  preparado em 127.0.0.1:5002/5003. Consulta administrativa confirmou tarefa
-  oficial SYSTEM. Usuário decidiu manter Windows/computador atuais, com as
-  proteções viáveis; ESU não é exigência para avançar e VPS é intenção futura.
-  Limitação de atualizações registrada, Defender ativo e permissões amplas no
-  código/chave identificadas; plano da conta restrita ainda não aplicado.
-  Ver `docs/CLOUDFLARE_INFRAESTRUTURA.md`; produção não foi alterada.
-- Usuário autorizou depois aplicar conta limitada/proteção de código e chaves.
-  Pacote nativo Windows em `docs/CLOUDFLARE_CONTA_LIMITADA.md`, com runtime
-  independente, backup prévio, ensaio da identidade e retorno. Essa troca
-  preserva 1.75.0 e não publica o Tunnel. Aplicado/confirmado às 16h05: tarefa
-  EndemiasWeb limitada, Python próprio, código/chaves protegidos, ensaio real e
-  backup validados; hashes dos arquivos preservados. Usuário confirmou login
-  por outro aparelho da LAN. Sem alteração do firewall ou das tarefas de backup.
+- Preparação 1.76.0 para `endemias.vsatt.com.br` validada no piloto fictício,
+  branch `codex/preparar-cloudflare`, com login/termo/CSRF, três perfis,
+  formulários, XLSX/PDF, upload/SSE e RG offline em navegador desktop/celular.
+  Usuário confirmou que não usa RG offline na produção. Conector Cloudflared
+  já roda limitado como `NT SERVICE\Cloudflared`. Ativação oficial ainda deve
+  ser conferida em `docs/ESTADO_ATUAL_PROJETO.md`; plano e evidências em
+  `docs/CLOUDFLARE_VALIDACAO_EXTERNA.md`. Migração 0030 é a única pendente.
+
+- Infraestrutura local endurecida em 03/11/2026, confirmada às 16h05, após
+  autorização do usuário: tarefa `Endemias - Servidor` agora usa a conta local
+  limitada `EndemiasWeb`, com Python próprio em `C:\ProgramData\EndemiasWeb`.
+  Código/versão oficiais continuam **1.75.0**; não houve merge de 1.76.0,
+  migração, publicação externa ou mudança no firewall. Código/chaves protegidos;
+  backup prévio e ensaio da identidade final validados; hashes dos arquivos
+  preservados. Login 200 por loopback/IP privado e usuário confirmou outro
+  aparelho da LAN. Ver `docs/CONTA_LIMITADA_WINDOWS.md` antes de reinstalar
+  tarefas, mudar caminhos ou interpretar os registros históricos de SYSTEM.
 
 - Código `1.75.0` integrado na `master` (`a0d3c3c`) e ativo em 03/11/2026 às 11h32 (America/Sao_Paulo), após autorização expressa para atualização e reinício: LIRAa integrado à importação geral/automática, fila comum do laboratório, notificações Aedes aegypti (exceto terreno baldio), visitas de arboviroses, relatórios individuais/do setor, painéis, mapas, boletim mensal e consolidados. Uma camada explícita de consulta reúne as fontes; não copia visitas/tubos/leituras para as tabelas de rotina. Backup PostgreSQL validado e somente a migração aditiva 0029 aplicada. `/login` confirmou HTTP 200 com `1.75.0`; contagens/assinaturas dos dados anteriores em 15 tabelas (11 LIRAa e quatro operacionais), SQLite congelado e XLSX-fonte preservados. Verificador somente leitura retornou código 0: cinco sorteios, 261 sorteados + seis adicionais = 267, assinatura/formulário corretos e zero visitas LIRAa. ACS continuam provisórios/editáveis. 876 testes gerais sem falhas (cinco ignorados), três JS e PostgreSQL temporário conferidos. Nenhuma importação ou publicação no Kobo. Ver `docs/LIRAA_INTEGRACAO_OPERACIONAL.md`.
 
