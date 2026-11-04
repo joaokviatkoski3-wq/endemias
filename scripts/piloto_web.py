@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import secrets
+import shutil
 import sqlite3
 import sys
 from pathlib import Path
@@ -42,6 +43,12 @@ def main(argv=None):
             conn.close()
         (runtime / "acesso.local.txt").write_text("PILOTO - SOMENTE DADOS FICTICIOS\nUsuario: admin\nSenha: " + password + "\n", encoding="utf-8")
         marker.write_text(json.dumps({"sintetico": True}), encoding="utf-8")
+
+    # Mapeamento publico do ETL; sem tokens. Necessario para validar uploads
+    # no piloto, inclusive em instalacoes cujo banco ficticio ja existe.
+    config_path = runtime / "config.json"
+    if not config_path.exists():
+        shutil.copyfile(ROOT / "config.json", config_path)
 
     settings = {
         "ENDEMIAS_DB_BACKEND": "sqlite", "ENDEMIAS_DB_PATH": str(database),
