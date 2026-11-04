@@ -2,8 +2,9 @@
 
 **Estado em 04/11/2026:** 1.76.0 integrada na master e ativa localmente com
 Waitress/EndemiasWeb; somente 0030 aplicada, backup e 90 tabelas preservados.
-PostgreSQL só localhost, Cloudflared limitado. Falta publicar
-`endemias.vsatt.com.br` → HTTP 127.0.0.1:5001 e validar HTTPS/reinício.
+PostgreSQL só localhost, Cloudflared limitado. `endemias.vsatt.com.br` já
+publicado → HTTP 127.0.0.1:5001; HTTPS e retorno após boot de 09h49 conferidos
+às 09h58, sem partida manual pelo agente. Uso funcional/backups ainda em acompanhamento.
 Ver `CLOUDFLARE_VALIDACAO_EXTERNA.md`. As restrições de não integração/migração
 e as pendências de 03/11 abaixo são históricas, anteriores à ativação autorizada.
 

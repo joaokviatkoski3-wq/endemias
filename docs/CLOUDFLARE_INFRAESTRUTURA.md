@@ -4,8 +4,8 @@
 mesma tarefa EndemiasWeb, LAN/loopback:5000 e origem externa só 127.0.0.1:5001.
 PostgreSQL restrito a localhost, apenas 0030 aplicada, backup validado e 90
 tabelas anteriores preservadas. Cloudflared agora usa `NT SERVICE\Cloudflared`
-limitado, Running/Auto. Falta encaminhar `endemias.vsatt.com.br` e validar HTTPS
-oficial/reinício. Piloto continua fictício/manual. O diagnóstico e as versões
+limitado, Running/Auto. `endemias.vsatt.com.br` publicado, HTTPS e retorno após
+reinício de 09h49 confirmados às 09h58. Piloto continua fictício/manual. O diagnóstico e as versões
 anteriores abaixo são históricos; ver `CLOUDFLARE_VALIDACAO_EXTERNA.md`.
 
 Continuação da preparação `1.76.0`, branch `codex/preparar-cloudflare`.

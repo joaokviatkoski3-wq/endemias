@@ -4,7 +4,7 @@ Atualizado em 04/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Produção local 1.76.0 ativa — 04/11/2026
+## Produção 1.76.0 publicada e reinício confirmado — 04/11/2026
 
 - Ativação concluída às 09h08, release `f425cc8` integrada na master com a
   aplicação parada. Backup PostgreSQL de 7.523.821 bytes com catálogo validado;
@@ -19,12 +19,21 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
   helper antigo agora recusa versão/servidor posteriores. Retorno da ativação
   é automático durante sua execução; eventual retorno tardio exige plano
   específico, preservando banco/0030/aceites, sem restaurar dump sobre dados novos.
-- **Próximo passo manual no painel:** adicionar `endemias.vsatt.com.br`
-  para HTTP `127.0.0.1:5001`, mantendo `piloto.vsatt.com.br:5003`. Host oficial
-  ainda não resolvia no teste de 09h16. Validar HTTPS/cache/login/termo no host
-  oficial e, em momento apropriado, o conjunto após reiniciar o Windows.
-  Inicialização automática da tarefa/conector preservada; reinício após esta
-  atualização ainda não foi ensaiado. Não confundir com piloto manual.
+- **Publicação oficial concluída:** usuário acessou `endemias.vsatt.com.br`;
+  em 04/11 às 09h35 conferidos login HTTPS 200/1.76.0, API sem sessão 401,
+  home redirecionada ao login, cookie Secure/HttpOnly, CSP/HSTS e respostas
+  private/no-store/CF-Cache-Status DYNAMIC. Não foi feito login automatizado
+  com conta real; funcionamento autenticado informado pelo usuário.
+- **Reinício confirmado:** Windows iniciou às 09h49; usuário confirmou que
+  voltou a funcionar. Às 09h58 reconfirmados HTTPS e suas proteções, login
+  LAN/loopback 200/1.76.0, mesmo processo nas entradas 5000/5001, PostgreSQL
+  somente 127.0.0.1/::1:5432 e serviços Cloudflared/PostgreSQL Running/Auto.
+  Nenhum processo/serviço foi iniciado manualmente pelo agente após o boot.
+  Não confundir com o piloto fictício, que continua manual.
+- Pendências operacionais: conferir funções usadas pela equipe no endereço
+  oficial e rotina de backups/restauração em ambiente separado. Não restaurar
+  dump sobre a produção para ensaiar. Limitação de atualizações do Windows
+  permanece conforme decisão do usuário; VPS é intenção futura.
 - Regressão: 910 testes passaram (sete ignorados); cinco focados de ativação,
   piloto HTTP e navegador passaram. Evidências em `CLOUDFLARE_VALIDACAO_EXTERNA.md`.
 
@@ -64,7 +73,7 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 - Cloudflared era LocalSystem em 03/11; desde 04/11 usa conta virtual limitada
   `NT SERVICE\Cloudflared`. Token não foi consultado/exportado pelo agente.
 - O piloto usa apenas dados fictícios. Produção local atualizada separadamente
-  em 04/11, conforme abertura deste documento; hostname oficial ainda pendente.
+  em 04/11, conforme abertura deste documento; hostname oficial já publicado.
 - Detalhes na branch `codex/preparar-cloudflare`, documento
   `docs/CLOUDFLARE_INFRAESTRUTURA.md`. Piloto sem autostart, mesmo com conector
   automático; iniciar `piloto_web.bat` na worktree se necessário após reinício.

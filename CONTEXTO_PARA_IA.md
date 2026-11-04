@@ -16,8 +16,14 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
   assim como chave, Kobo, config e SQLite congelado. Nenhum aceite real criado
   pelo ensaio. Login local e origem externa confirmados 200/1.76.0 às 09h16.
   Conector limitado `NT SERVICE\Cloudflared`, automático. **Publicação oficial
-  ainda pendente:** adicionar `endemias.vsatt.com.br` → HTTP 127.0.0.1:5001
-  no Tunnel existente, mantendo o piloto. Depois validar HTTPS real e reinício.
+  e reinício confirmados:** `https://endemias.vsatt.com.br` opera pela origem
+  HTTP 127.0.0.1:5001. Usuário confirmou acesso e retorno após reiniciar.
+  Windows iniciou em 04/11 às 09h49; às 09h58 login HTTPS 200/1.76.0,
+  API sem sessão 401, home redirecionada ao login, cookie Secure/HttpOnly e
+  private/no-store/DYNAMIC conferidos. LAN/loopback 200; Cloudflared e banco
+  Running/Auto, banco somente localhost. Nada foi iniciado manualmente pelo
+  agente após esse reinício. Pendentes: uso funcional oficial e ensaio de
+  restauração isolada/rotina de backups. Piloto continua fictício/manual.
   910 testes passaram (sete ignorados), testes focados e piloto HTTPS com três
   perfis, XLSX/PDF/upload/SSE e RG offline desktop/celular conferidos. Usuário
   confirmou que ainda não usa RG offline na produção. Ver estado vivo e

@@ -1,7 +1,24 @@
 # Validacao externa e conector limitado — 04/11/2026
 
 Continuidade autorizada pelo usuario apos o piloto publico. **Producao local
-1.76.0 ativa desde 04/11/2026, 09h08**; publicacao do hostname oficial pendente.
+1.76.0 ativa desde 04/11/2026, 09h08**; hostname oficial publicado e reinicio
+confirmado posteriormente no mesmo dia.
+
+## Publicacao oficial e reinicio confirmados
+
+Usuario confirmou acesso pelo sistema oficial e retorno apos reiniciar o PC.
+Login HTTPS `https://endemias.vsatt.com.br/login` respondeu 200/1.76.0 as
+09h35 e novamente as 09h58, depois do boot Windows de 09h49. API sem sessao
+401 e home 302 para login; private/no-store, CF-Cache-Status DYNAMIC e cookie
+__Host-endemias Secure/HttpOnly. CSP/HSTS conferidos antes do boot. Nao houve
+login automatizado com conta real nem criacao de aceite pelo agente.
+
+Depois do boot: LAN/loopback:5000 responderam 200/1.76.0, origem Tunnel
+127.0.0.1:5001 no mesmo processo, PostgreSQL so 127.0.0.1/::1:5432.
+Cloudflared e PostgreSQL Running/Auto, conector na conta virtual limitada.
+Agente nao iniciou nenhum processo/servico manualmente apos esse boot.
+Pendentes: uso funcional oficial pela equipe e verificacao da rotina de
+backups com restauracao isolada. Piloto ficticio permanece manual.
 
 ## Resultado da ativacao local
 
@@ -15,10 +32,10 @@ Continuidade autorizada pelo usuario apos o piloto publico. **Producao local
   local/externo separados e conector Running/Auto limitado conferidos as 09h16.
 - Relatorio `C:\ProgramData\EndemiasWeb\ativacao176-resultado.json`, todos os
   checks verdadeiros; snapshot `ativacao176-20261104-090744` privado.
-- Adicionar no Tunnel existente uma aplicacao publicada: subdominio `endemias`,
+- Configuracao oficial ja publicada no Tunnel existente: subdominio `endemias`,
   dominio `vsatt.com.br`, caminho vazio, tipo HTTP, URL `127.0.0.1:5001`.
-  Manter piloto/5003. Nao definir cabecalho Host alternativo. Host oficial
-  ainda nao resolvia no teste; HTTPS real oficial e reinicio completo pendentes.
+  Piloto/5003 e separado. Sem cabecalho Host alternativo. O hostname ainda nao
+  resolvia as 09h16; publicacao e reinicio foram confirmados depois, conforme acima.
 - O retorno da ativacao e automatico durante a execucao, sem restaurar dump.
   O retorno antigo `endurecer_web_windows.py --reverter` nao se aplica a esta
   versao/servidor e agora recusa antes de tocar tarefa/ACL. Eventual retorno
