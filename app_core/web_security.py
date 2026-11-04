@@ -15,7 +15,7 @@ from app_core import termos_uso
 
 PUBLIC_ENDPOINTS = {"static", "auth.login", "auth.logout", "auth.esqueci_senha", "auth.recuperar_senha",
                     "formularios.sw_js", "formularios.manifest"}
-TERMS_ENDPOINTS = {"auth.termos", "auth.aceitar_termos", "auth.minha_senha"}
+TERMS_ENDPOINTS = {"auth.termos", "auth.aceitar_termos", "auth.minha_senha", "auth.presenca"}
 
 
 def scope_session_key(app):

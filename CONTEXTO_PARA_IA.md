@@ -8,6 +8,13 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
 
+- Preparação **1.78.0**: presença/última vez online/total na Gestão de Usuários,
+  somente admin, sinal visível a cada 30s/janela 120s e sessões independentes
+  por aparelho. Só migração aditiva 0032 pendente até confirmação da implantação.
+  Worktree `C:\endemias-presenca`, branch `codex/presenca-usuarios`; 949 testes
+  gerais passaram (sete ignorados), focados, PostgreSQL descartável e navegador
+  conferidos. Ver `docs/PRESENCA_USUARIOS.md` e estado vivo para a versão ativa.
+
 - **Versão atual 1.77.0, ativa em 04/11/2026 às 10h23**, release `3f35afe`:
   recuperação assistida por link gerado pelo administrador, 15 minutos/uso único,
   sem e-mail obrigatório, titular escolhe a senha. "Esqueci minha senha" orienta

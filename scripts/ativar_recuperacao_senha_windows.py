@@ -7,6 +7,7 @@ falha. Nao restaura dump nem desfaz migracoes/operacoes de usuarios.
 import argparse
 import copy
 import ctypes
+from dataclasses import dataclass
 from datetime import datetime
 import hashlib
 import json
@@ -26,16 +27,24 @@ OFFICIAL = Path(r"C:\endemias")
 HOME = Path(r"C:\ProgramData\EndemiasWeb")
 
 
-def config_atualizada(original):
-    if (original.get("version") != "1.76.0" or original.get("server") != "waitress"
+@dataclass(frozen=True)
+class Release:
+    origin: str = "1.76.0"
+    target: str = "1.77.0"
+    migration: str = "0031_recuperacao_senha.sql"
+    marker: str = "ativacao177"
+
+
+def config_atualizada(original, release=Release()):
+    if (original.get("version") != release.origin or original.get("server") != "waitress"
             or original.get("probe_only") or original["env"].get("ENDEMIAS_DB_BACKEND") != "postgresql"):
-        raise ValueError("Origem diferente da instalacao 1.76.0 conferida.")
+        raise ValueError("Origem diferente da instalacao conferida.")
     proposed = copy.deepcopy(original)
-    proposed["version"] = "1.77.0"
+    proposed["version"] = release.target
     return proposed
 
 
-def apply(args):
+def apply(args, release=Release()):
     from app_core import postgresql_migrations
     if not ctypes.windll.shell32.IsUserAnAdmin():
         raise PermissionError("Atualizacao exige administrador do Windows.")
@@ -45,10 +54,10 @@ def apply(args):
     if old_head != args.expected_current or git("branch", "--show-current") != "master" or git("status", "--porcelain"):
         raise ValueError("A master mudou; conferir antes de atualizar.")
     git("merge-base", "--is-ancestor", old_head, args.release)
-    if (SOURCE / "app_core/version.py").read_text(encoding="utf-8").splitlines()[0] != 'APP_VERSION = "1.77.0"':
+    if (SOURCE / "app_core/version.py").read_text(encoding="utf-8").splitlines()[0] != f'APP_VERSION = "{release.target}"':
         raise ValueError("Pacote com versao inesperada.")
     original = json.loads((HOME / "config.json").read_text(encoding="utf-8"))
-    proposed = config_atualizada(original)
+    proposed = config_atualizada(original, release)
     env = original["env"]
     host = env["ENDEMIAS_ALLOWED_HOSTS"]
     local_ip = env["ENDEMIAS_LOCAL_BIND"]
@@ -57,9 +66,9 @@ def apply(args):
     connection = connect(original, readonly=True)
     try:
         states = postgresql_migrations.status(connection, SOURCE / "migrations/postgresql")
-        if ([row["version"] for row in states if row["state"] == "pending"] != ["0031"]
+        if ([row["version"] for row in states if row["state"] == "pending"] != [release.migration[:4]]
                 or any(row["state"] == "checksum_mismatch" for row in states)):
-            raise ValueError("Esperada somente migracao 0031 pendente.")
+            raise ValueError("Migracoes pendentes diferentes do pacote conferido.")
     finally:
         connection.close()
     win = Windows()
@@ -67,13 +76,13 @@ def apply(args):
     task_sid = win.sec.ConvertSidToStringSid(win.sec.LookupAccountName(None, task.Definition.Principal.UserId)[0])
     if task_sid != original["sid"] or task.Definition.Principal.RunLevel != 0 or task.State != 4:
         raise ValueError("Tarefa nao esta na identidade limitada esperada.")
-    state = HOME / ("ativacao177-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
+    state = HOME / (release.marker + "-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
     state.mkdir()
     win.protect(state, remember=False, operator=False)
     shutil.copyfile(HOME / "config.json", state / "config-anterior.json")
     report = {"status": "preparando", "stage": "backup", "state": str(state),
               "old_head": old_head, "release": args.release}
-    output = HOME / "ativacao177-resultado.json"
+    output = HOME / (release.marker + "-resultado.json")
     protected = [OFFICIAL / name for name in ("secret.key", "kobo_config.json", "config.json", "endemias.db")]
     files = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in protected}
 
@@ -94,11 +103,11 @@ def apply(args):
         save("integrando_codigo")
         git("merge", "--ff-only", args.release)
         integrated = True
-        save("migracao_0031")
+        save("migracao_" + release.migration[:4])
         connection = connect(original)
         try:
             report["migrations_applied"] = postgresql_migrations.apply_pending(connection, OFFICIAL / "migrations/postgresql")
-            if report["migrations_applied"] != ["0031_recuperacao_senha.sql"]:
+            if report["migrations_applied"] != [release.migration]:
                 raise RuntimeError("Migracao aplicada diferente da prevista.")
         finally:
             connection.close()
@@ -136,9 +145,9 @@ def apply(args):
         save("iniciando_aplicacao")
         task.Run("")
         for address, port, public in (("127.0.0.1", 5000, None), (local_ip, 5000, None), ("127.0.0.1", 5001, host)):
-            if not http_login(address, port, public, expected_version="1.77.0"):
+            if not http_login(address, port, public, expected_version=release.target):
                 raise RuntimeError("Login nao confirmou a versao nova.")
-        report.update(status="aplicado", version="1.77.0", task_identity_preserved=True,
+        report.update(status="aplicado", version=release.target, task_identity_preserved=True,
                       existing_environment_preserved=proposed["env"] == original["env"],
                       password_resets_on_real_users=0, local_login_200=True, tunnel_origin_login_200=True)
         save("concluido")
@@ -157,10 +166,10 @@ def apply(args):
             if git("status", "--porcelain") or git("rev-parse", "HEAD") != args.release:
                 raise RuntimeError("Arvore mudou; retorno de codigo exige revisao.")
             git("restore", "--source=" + old_head, "--staged", "--worktree", ".")
-            git("commit", "-m", "rollback: retorna 1.76 preservando banco e recuperacoes")
+            git("commit", "-m", "rollback: retorna " + release.origin + " preservando banco e dados novos")
         if stopped:
             task.Run("")
-            report["rollback_login_ok"] = http_login("127.0.0.1", 5000, expected_version="1.76.0")
+            report["rollback_login_ok"] = http_login("127.0.0.1", 5000, expected_version=release.origin)
         report["database_restored_or_deleted"] = False
         save("retornado")
     finally:
@@ -168,14 +177,18 @@ def apply(args):
     return 0 if report["status"] == "aplicado" else 1
 
 
-if __name__ == "__main__":
+def main(release=Release()):
     parser = argparse.ArgumentParser()
     parser.add_argument("--aplicar", action="store_true", required=True)
     parser.add_argument("--release", required=True)
     parser.add_argument("--expected-current", required=True)
     try:
-        raise SystemExit(apply(parser.parse_args()))
+        return apply(parser.parse_args(), release)
     except Exception as error:
-        (HOME / "ativacao177-falha.json").write_text(json.dumps({"error_type": type(error).__name__,
+        (HOME / (release.marker + "-falha.json")).write_text(json.dumps({"error_type": type(error).__name__,
             "trace": [{"line": f.lineno, "function": f.name} for f in traceback.extract_tb(error.__traceback__)]}), encoding="utf-8")
-        raise SystemExit(1)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

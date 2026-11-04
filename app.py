@@ -26,6 +26,7 @@ from app_core import uploads as uploads_core
 from app_core import utils as utils_core
 from app_core import version as version_core
 from app_core import web_security
+from app_core import presenca
 from blueprints.acoes_setor import bp as acoes_setor_bp
 from blueprints.admin import bp as admin_bp
 from blueprints.agenda import bp as agenda_bp
@@ -272,6 +273,7 @@ def create_app(config_overrides=None):
     os.makedirs(ANEXOS_DIR, exist_ok=True)
 
     flask_app = Flask(__name__, instance_path=INSTANCE_DIR)
+    flask_app.session_interface = presenca.SessionInterface()
     flask_app.config.update(
         DB_PATH=DB_PATH,
         DB_BACKEND=DB_BACKEND_DEFAULT,

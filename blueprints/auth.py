@@ -1,12 +1,13 @@
 import logging
 
-from flask import Blueprint, make_response, redirect, render_template, request, session, url_for
+from flask import Blueprint, jsonify, make_response, redirect, render_template, request, session, url_for
 
 from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import termos_uso
 from app_core import recuperacao_senha
+from app_core import presenca as presenca_core
 
 
 bp = Blueprint("auth", __name__)
@@ -80,6 +81,7 @@ def login():
                 session["nivel"] = u["nivel"]
                 session["nome"] = u["nome"]
                 session["auth_token"] = auth_core.token_sessao(u["senha_hash"])
+                presenca_core.nova_sessao()
                 audit.registrar_evento(
                     bh.get_db,
                     "login_sucesso",
@@ -167,9 +169,21 @@ def recuperar_senha():
 @bp.route("/logout", methods=["POST"])
 @login_required
 def logout():
+    try:
+        presenca_core.encerrar(bh.db_target(), bh.usuario_atual(), presenca_core.sessao_hash())
+    except Exception:
+        # Falha no indicador nunca impede que a pessoa saia do sistema.
+        logging.warning("Nao foi possivel encerrar o indicador de presenca.")
     audit.registrar_evento(bh.get_db, "logout", entidade="usuarios", entidade_id=session.get("uid"))
     session.clear()
     return redirect(url_for("auth.login"))
+
+
+@bp.route("/api/presenca", methods=["POST"])
+@login_required
+def presenca():
+    presenca_core.confirmar(bh.db_target(), bh.usuario_atual(), presenca_core.sessao_hash())
+    return jsonify({"ok": True})
 
 
 @bp.route("/minha-senha", methods=["GET", "POST"])
@@ -198,6 +212,7 @@ def minha_senha():
             conn.commit()
             conn.close()
             session["auth_token"] = auth_core.token_sessao(novo_hash)
+            presenca_core.nova_sessao()
             audit.registrar_evento(
                 bh.get_db,
                 "usuario_alterou_senha",

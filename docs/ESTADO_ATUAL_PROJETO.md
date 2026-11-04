@@ -4,6 +4,16 @@ Atualizado em 04/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Presença — preparação 1.78.0
+
+Usuário autorizou presença, última vez online e total na Gestão de Usuários,
+somente para administradores. Preparação em `codex/presenca-usuarios`, worktree
+`C:\endemias-presenca`: sinais visíveis a cada 30s, janela online 120s, múltiplas
+abas/aparelhos, expiração, logout e invalidade após troca de senha. Somente
+migração aditiva 0032; produção permanece 1.77.0 até confirmação da ativação.
+949 testes gerais passaram (sete ignorados), focados, PostgreSQL descartável
+e Chromium/CSRF/celular conferidos. Ver `PRESENCA_USUARIOS.md`.
+
 ## Versão vigente 1.77.0 — recuperação assistida ativa
 
 - Ativada em 04/11/2026 às 10h23, release `3f35afe`, após solicitação do

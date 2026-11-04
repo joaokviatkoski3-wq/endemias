@@ -291,7 +291,7 @@ document.addEventListener('click', () => closeMultiPickers());
 function toggleUserMenu() {
   const m = document.getElementById('user-menu');
   if (!m) return;
-  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+  m.style.display = getComputedStyle(m).display === 'none' ? 'block' : 'none';
 }
 document.addEventListener('click', e => {
   const wrap = document.getElementById('user-menu-wrap');

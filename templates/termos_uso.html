@@ -30,4 +30,6 @@
     <button class="btn btn-primary" type="submit">Confirmar e acessar o sistema</button>
   </form>
   <form class="acoes" method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline" type="submit">Sair sem aceitar</button></form>
-</main></body></html>
+</main>
+<script src="/static/js/presenca.js?v={{ APP_VERSION }}"></script>
+</body></html>

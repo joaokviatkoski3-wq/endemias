@@ -164,6 +164,7 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
 </div>
 
 <script src="/static/js/app.js?v={{ APP_VERSION }}"></script>
+{% if usuario_atual %}<script src="/static/js/presenca.js?v={{ APP_VERSION }}"></script>{% endif %}
 <script src="/static/js/ajuda.js?v={{ APP_VERSION }}"></script>
 {% block extra_js %}{% endblock %}
 

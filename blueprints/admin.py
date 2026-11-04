@@ -611,6 +611,14 @@ def admin_auditoria_exportar():
     )
 
 
+@bp.route("/admin/usuarios/presenca")
+@login_required
+@nivel_min("admin")
+def presencas():
+    from app_core import presenca
+    return jsonify(presenca.resumo(bh.db_target()))
+
+
 @bp.route("/admin/usuarios/criar", methods=["POST"])
 @login_required
 @nivel_min("admin")
