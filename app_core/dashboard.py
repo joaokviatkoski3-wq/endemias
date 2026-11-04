@@ -1,3 +1,4 @@
+from app_core import setores
 from app_core import db as db_core
 from app_core import visitas_integradas as integradas
 from app_core import esporotricose as esporotricose_core
@@ -14,8 +15,8 @@ DURATION_WORK_TYPE_CODE = work_types.primary_duration_work_type_code()
 def integrado(target, args):
     vetores = vetorial(target, args)
     esporo_filtros = _esporotricose_filtros(args)
-    esporo_resumo = esporotricose_core.resumo(target, esporo_filtros)
-    esporo_dashboard = esporotricose_core.dashboard(
+    esporo_resumo = {} if setores.atual()=="endemias" else esporotricose_core.resumo(target, esporo_filtros)
+    esporo_dashboard = {} if setores.atual()=="endemias" else esporotricose_core.dashboard(
         target,
         esporo_filtros,
     )
@@ -67,6 +68,9 @@ def integrado(target, args):
             "ovitrampas": dados_ovitrampas,
         }
     )
+    if setores.atual()=="endemias":
+        vetores.pop("esporotricose",None)
+        for row in vetores["comparativo_mensal"]:row.pop("esporotricose",None)
     return vetores
 
 

@@ -21,9 +21,15 @@ TERMS_ENDPOINTS = {"auth.termos", "auth.aceitar_termos", "auth.minha_senha", "au
 
 def scope_session_key(app):
     scope = app.config.get("SESSION_KEY_SCOPE")
+    if app.config.get('SETORES_ENABLED'):
+        if app.config.get('SETOR') not in {'endemias','ambiental'}:
+            raise ValueError('Setor invalido para sessao.')
+        scope=scope or 'local'
     if scope:
         if scope not in {"externo", "local"}:
             raise ValueError("Escopo de sessao invalido.")
+        if app.config.get('SETORES_ENABLED'):
+            scope += ':' + app.config['SETOR']
         app.secret_key = hmac.new(app.secret_key, ("endemias-web:" + scope).encode(), hashlib.sha256).digest()
 
 

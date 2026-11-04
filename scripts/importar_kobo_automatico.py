@@ -16,6 +16,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--database", default="endemias_teste")
     parser.add_argument("--aplicar", action="store_true")
+    parser.add_argument("--setor",choices=("endemias","ambiental"))
     parser.add_argument("--confirmar-banco")
     parser.add_argument("--confirmar-leitura")
     args = parser.parse_args(argv)
@@ -32,9 +33,10 @@ def main(argv=None):
         resultado = kobo_auto.executar(
             target=target,
             config_path=str(ROOT / "config.json"),
-            kobo_config_path=str(ROOT / "kobo_config.json"),
+            kobo_config_path=str(ROOT / ("kobo_ambiental.json" if args.setor=="ambiental" else "kobo_config.json")),
             migracoes_dir=str(ROOT / "migrations" / "postgresql"),
             aplicar=args.aplicar,
+            **({"setor":args.setor} if args.setor else {}),
         )
     except Exception as exc:
         print(f"[ERRO] {exc}")

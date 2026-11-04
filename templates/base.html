@@ -48,7 +48,7 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
   </nav>
   <div class="sidebar-mobile-ft">
     {% if usuario_atual %}{{ usuario_atual.nome }} - {{ usuario_atual.nivel }}{% endif %}<br>
-    Setor de Endemias - Almirante Tamandare-PR
+    {{ SETOR_TITULO }} - Almirante Tamandare-PR
   </div>
 </aside>
 
@@ -57,10 +57,10 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
     <button class="btn-icon sidebar-toggle-desktop" id="sidebarToggle" type="button" title="Mostrar navegacao" aria-label="Mostrar navegacao" aria-expanded="false">
       <img src="/static/icons/menu.svg" alt="" class="icon-svg">
     </button>
-    <img src="/static/img/logo_endemias.png" alt="Endemias">
+    {% if SETOR_ATUAL == "ambiental" %}<img src="/static/icons/pets.svg" alt="Ambiental">{% else %}<img src="/static/img/logo_endemias.png" alt="Endemias">{% endif %}
     <div class="topbar-brand-txt">
       <div class="t1">{% block page_title %}Endemias{% endblock %}</div>
-      <div class="t2">Setor de Endemias - Almirante Tamandare-PR</div>
+      <div class="t2">{{ SETOR_TITULO }} - Almirante Tamandare-PR</div>
     </div>
   </div>
 
@@ -72,7 +72,8 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
         <img src="/static/icons/usuario.svg" alt="Usuario" class="icon-svg"> <span>{{ usuario_atual.nome.split()[0] }}</span>
       </button>
       <div id="user-menu" class="user-menu">
-        <div class="user-menu-hd">{{ usuario_atual.nivel }}</div>
+        <div class="user-menu-hd">{{ usuario_atual.nivel }} · {{ SETOR_TITULO }}</div>
+        {% if SETORES_ENABLED and tem_permissao("gestao") %}<a class="user-menu-link" href="https://{{ config.DOMINIO_BASE }}">Trocar de setor</a>{% endif %}
         <a href="/minha-senha" class="user-menu-link"><img src="/static/icons/chave.svg" alt="" class="icon-svg"> Alterar senha</a>
         <form method="POST" action="/logout" style="margin:0;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

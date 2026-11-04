@@ -51,8 +51,8 @@ function renderFileList() {
     const el = document.createElement('div');
     el.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border);';
     el.innerHTML = `
-      <span style="background:${cor}18;color:${cor};border-radius:4px;padding:2px 7px;font-size:10.5px;font-weight:700;">${prefixo}</span>
-      <span style="flex:1;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.name}</span>
+      <span style="background:${cor}18;color:${cor};border-radius:4px;padding:2px 7px;font-size:10.5px;font-weight:700;">${escapeHtml(prefixo)}</span>
+      <span style="flex:1;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(f.name)}</span>
       <span style="font-size:11px;color:var(--text3);">${(f.size/1024).toFixed(0)} KB</span>
       <button type="button" data-remover-arquivo="${i}" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;line-height:1;padding:0 2px;">&times;</button>`;
     container.appendChild(el);
@@ -591,7 +591,7 @@ async function confirmar() {
       if (d.ok) {
         badge.className = 'badge badge-entregue'; badge.textContent = 'Gravado com sucesso';
         toast('Dados gravados no banco com sucesso!', 'success');
-        document.getElementById('card-downloads').style.display = 'block';
+        if (document.getElementById('card-downloads')) document.getElementById('card-downloads').style.display = 'block';
         carregarStatusConsolidados();
       } else {
         badge.className = 'badge badge-naoloc'; badge.textContent = 'Concluído com erros';
@@ -612,6 +612,7 @@ async function confirmar() {
 
 // ── Helpers de log ────────────────────────────────────────────────────────────
 async function carregarStatusConsolidados() {
+  if (!document.querySelector(".consolidados-list")) return;
   try {
     const resp = await fetch('/saida/consolidados/status');
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

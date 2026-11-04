@@ -28,6 +28,7 @@
           <th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--text2);">Presença</th>
           <th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--text2);">Última vez online</th>
           <th style="padding:10px 8px;text-align:center;font-weight:700;color:var(--text2);">Nível</th>
+{% if SETORES_ENABLED %}<th>Setor</th>{% endif %}
           <th style="padding:10px 8px;text-align:center;font-weight:700;color:var(--text2);">Laboratório</th>
           <th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--text2);">Agente vinculado</th>
           <th style="padding:10px 8px;text-align:center;font-weight:700;color:var(--text2);">Acesso</th>
@@ -55,6 +56,11 @@
             {% endfor %}
           </select>
         </td>
+        {% if SETORES_ENABLED %}<td style="padding:10px 8px;">{% if u.nivel in ['admin','superadmin'] %}Ambos{% else %}
+          <select aria-label="Setor de {{ u.nome }}" {% if not editavel %}disabled{% endif %} onchange="editarCampo({{ u.id_usuario }}, 'setor', this.value)">
+            <option value="endemias" {{ 'selected' if u.setor == 'endemias' }}>Endemias</option>
+            <option value="ambiental" {{ 'selected' if u.setor == 'ambiental' }}>Ambiental</option>
+          </select>{% endif %}</td>{% endif %}
         <td style="padding:10px 8px;text-align:center;">
           <button class="btn btn-xs btn-ghost"
                   {% if not editavel %}disabled{% endif %}
@@ -140,6 +146,7 @@
           {% if tem_permissao('tecnica') %}<option value="admin">Admin — gestão do setor</option>{% endif %}
         </select>
       </div>
+      {% if SETORES_ENABLED %}<div class="f-g"><label>Setor da conta</label><select name="setor"><option value="endemias">Endemias</option><option value="ambiental">Ambiental</option></select><small>Admin e superadmin acessam ambos. Mudar o setor encerra as sessões da conta.</small></div>{% endif %}
       <label class="usuario-permissao">
         <input type="checkbox" name="acesso_laboratorio" value="1">
         <span><strong>Lançamentos Laboratório</strong><small>Permitir acesso à fila e ao registro de resultados.</small></span>

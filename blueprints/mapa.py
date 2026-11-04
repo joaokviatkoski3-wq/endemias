@@ -10,6 +10,7 @@ from app_core import visitas_integradas as integradas
 from app_core import esporotricose as esporotricose_core
 from app_core import ovitrampas as ovitrampas_core
 from app_core import pontos_estrategicos as pe_core
+from app_core import setores
 from app_core import work_types
 
 
@@ -32,6 +33,7 @@ def _serialize_rows(cursor):
 @bp.route("/mapa")
 @login_required
 def page():
+    if setores.atual()=="ambiental":return render_template("ambiental_mapa.html")
     conn = integradas.integrar(bh.get_db())
     try:
         localidades = _serialize_rows(
@@ -51,6 +53,9 @@ def api_mapa():
     Retorna estatisticas por quarteirao para colorir o mapa.
     Filtros: localidade[] (nomes), tipo[], d_ini, d_fim.
     """
+    if setores.atual()=="ambiental":
+        from blueprints.ambiental import dados_mapa
+        return dados_mapa()
     try:
         locs = request.args.getlist("localidade")
         tipos = request.args.getlist("tipo")
@@ -126,40 +131,42 @@ def api_mapa():
                 )
             )
 
-            esporotricose_core.ensure_schema(conn)
-            where_e = "WHERE v.quarteirao IS NOT NULL AND v.id_localidade IS NOT NULL"
-            params_e = []
-            if locs:
-                where_e += f" AND l3.nome IN ({','.join('?' * len(locs))})"
-                params_e += locs
-            if d_ini:
-                where_e += " AND v.data>=?"
-                params_e.append(d_ini)
-            if d_fim:
-                where_e += " AND v.data<=?"
-                params_e.append(d_fim)
+            rows_e=[]
+            if setores.atual()!="endemias":
+                esporotricose_core.ensure_schema(conn)
+                where_e = "WHERE v.quarteirao IS NOT NULL AND v.id_localidade IS NOT NULL"
+                params_e = []
+                if locs:
+                    where_e += f" AND l3.nome IN ({','.join('?' * len(locs))})"
+                    params_e += locs
+                if d_ini:
+                    where_e += " AND v.data>=?"
+                    params_e.append(d_ini)
+                if d_fim:
+                    where_e += " AND v.data<=?"
+                    params_e.append(d_fim)
 
-            rows_e = _serialize_rows(
-                conn.execute(
-                    f"""
-                SELECT
-                    v.id_localidade,
-                    v.quarteirao,
-                    COUNT(DISTINCT v.id_visita) AS esporo_visitas,
-                    COUNT(DISTINCT a.id_animal) AS esporo_animais,
-                    COUNT(DISTINCT CASE WHEN LOWER(COALESCE(a.feridas,''))='sim' THEN a.id_animal END) AS esporo_feridas,
-                    COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='fechado' THEN v.id_visita END) AS esporo_fechadas,
-                    COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='recusa' THEN v.id_visita END) AS esporo_recusas,
-                    MAX(v.data) AS ultimo_esporotricose
-                FROM esporotricose_visitas v
-                LEFT JOIN localidades l3 ON l3.id_localidade = v.id_localidade
-                LEFT JOIN esporotricose_animais a ON a.id_visita = v.id_visita
-                {where_e}
-                GROUP BY v.id_localidade, v.quarteirao
-                """,
-                    params_e,
+                rows_e = _serialize_rows(
+                    conn.execute(
+                        f"""
+                    SELECT
+                        v.id_localidade,
+                        v.quarteirao,
+                        COUNT(DISTINCT v.id_visita) AS esporo_visitas,
+                        COUNT(DISTINCT a.id_animal) AS esporo_animais,
+                        COUNT(DISTINCT CASE WHEN LOWER(COALESCE(a.feridas,''))='sim' THEN a.id_animal END) AS esporo_feridas,
+                        COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='fechado' THEN v.id_visita END) AS esporo_fechadas,
+                        COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='recusa' THEN v.id_visita END) AS esporo_recusas,
+                        MAX(v.data) AS ultimo_esporotricose
+                    FROM esporotricose_visitas v
+                    LEFT JOIN localidades l3 ON l3.id_localidade = v.id_localidade
+                    LEFT JOIN esporotricose_animais a ON a.id_visita = v.id_visita
+                    {where_e}
+                    GROUP BY v.id_localidade, v.quarteirao
+                    """,
+                        params_e,
+                    )
                 )
-            )
 
             pe_core.ensure_schema(conn)
             where_pe = "WHERE pe.id_localidade IS NOT NULL AND pe.quarteirao IS NOT NULL"

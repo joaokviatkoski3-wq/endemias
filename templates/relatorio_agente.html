@@ -122,7 +122,7 @@
 {% block content %}
 <div class="page-header">
   <h1><span class="icon"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"></span> Relatório por Agente</h1>
-  <div class="sub">Central do agente com produção individual, esporotricose, gráficos e relatórios por período</div>
+  <div class="sub">Central do agente com produção individual{% if not SETORES_ENABLED %}, esporotricose{% endif %}, gráficos e relatórios por período</div>
 </div>
 
 <div class="agent-workspace">
@@ -171,7 +171,7 @@
 
     <section class="visitas-pdf-panel" aria-labelledby="visitas-pdf-titulo">
       <h2 id="visitas-pdf-titulo">Histórico das visitas - PDF compacto</h2>
-      <p>Todas as visitas de vetores e esporotricose do agente, em até cinco linhas por visita. Inclui dados de campo, coletas, laboratório e animais quando houver; textos longos são abreviados.</p>
+      <p>Todas as visitas de vetores{% if not SETORES_ENABLED %} e esporotricose{% endif %} do agente, em até cinco linhas por visita. Inclui dados de campo, coletas, laboratório e animais quando houver; textos longos são abreviados.</p>
       <form class="visitas-pdf-form" method="get" action="{{ url_for('relatorio_agente.pdf_visitas_completas') }}">
         <div class="f-g"><label for="visitas-pdf-agente">Agente</label>
           <select id="visitas-pdf-agente" name="agente" required>
@@ -192,7 +192,7 @@
       <div class="empty-agent">
         <div class="big-icon"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"></div>
         <p style="font-size:15px;font-weight:700;margin-bottom:6px;">Escolha um agente para abrir a central</p>
-        <p>Depois de selecionar, o painel mostra produção, esporotricose, comparativos agregados e atalhos de relatório.</p>
+        <p>Depois de selecionar, o painel mostra produção{% if not SETORES_ENABLED %}, esporotricose{% endif %}, comparativos agregados e atalhos de relatório.</p>
       </div>
       {% endif %}
     </div>
@@ -308,26 +308,26 @@ function renderRelatorio(d) {
         <strong>${fmtNum(prodT.registros_total || t.total)}</strong>
         <small>${fmtNum(prodT.dias || t.dias)} dias · ${fmtNum(prodT.localidades || 0)} localidades</small>
       </div>
-      <div class="overview-item teal">
+{% if not SETORES_ENABLED %}      <div class="overview-item teal">
         <span>Esporotricose</span>
         <strong>${fmtNum(espT.visitas||0)}</strong>
         <small>${fmtNum(espA.total||0)} animais cadastrados</small>
       </div>
-      <div class="overview-item amber">
+{% endif %}      <div class="overview-item amber">
         <span>Acesso pendente</span>
         <strong>${fmtNum((t.fechados||0) + (t.recusados||0))}</strong>
         <small>${fmtNum(t.fechados||0)} fechados · ${fmtNum(t.recusados||0)} recusas</small>
       </div>
-      <div class="overview-item red">
+{% if not SETORES_ENABLED %}      <div class="overview-item red">
         <span>Animais com feridas</span>
         <strong>${fmtNum(espA.com_feridas||0)}</strong>
         <small>${espA.taxa_feridas||0}% dos animais de esporotricose</small>
       </div>
-    </div>
+{% endif %}    </div>
 
     <div class="ra-section-title"><img src="/static/icons/raio.svg" alt="" class="icon-svg"> Produção operacional integrada</div>
     <div class="privacy-note">
-      Esta seção integra visitas de vetores, esporotricose, recolhimentos, amostras de animais, BRI e ações do setor vinculados ao agente selecionado.
+      Esta seção integra visitas de vetores{% if not SETORES_ENABLED %}, esporotricose{% endif %}, recolhimentos{% if not SETORES_ENABLED %}, amostras de animais{% endif %}, BRI e ações do setor vinculados ao agente selecionado.
     </div>
     <div class="perf-grid">
       ${atividades.map(a => cardAtividade(a)).join('')}
@@ -459,7 +459,7 @@ function renderRelatorio(d) {
       ` : ''}
     </div>
 
-    <div class="ra-section-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Produção de esporotricose</div>
+{% if not SETORES_ENABLED %}    <div class="ra-section-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Produção de esporotricose</div>
     <div class="privacy-note">
       As comparações usam apenas médias agregadas dos demais agentes no período. Nenhum outro agente é identificado individualmente.
     </div>
@@ -493,7 +493,7 @@ function renderRelatorio(d) {
       </table></div>
     </div>` : ''}
 
-    <!-- Por tipo -->
+{% endif %}    <!-- Por tipo -->
     ${d.por_tipo.length ? `
     <div class="table-wrap" style="margin-bottom:14px;">
       <div class="table-hd"><span class="table-title"><img src="/static/icons/grafico_barra.svg" alt="📊" class="icon-svg"> Visitas por tipo de trabalho</span></div>

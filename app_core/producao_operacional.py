@@ -2,6 +2,7 @@ from collections import defaultdict
 
 from app_core import db as db_core
 from app_core import visitas_integradas as integradas
+from app_core import setores
 from app_core import utils
 
 
@@ -269,6 +270,7 @@ def resumo(target, filtros=None):
             if _fonte_disponivel(conn, fonte)
             else _fonte_vazia(fonte)
             for fonte in FONTES
+            if not setores.atual() or ((fonte["codigo"] in {"ESPOROTRICOSE","AMOSTRA_ANIMAIS"}) == (setores.atual()=="ambiental"))
         ]
     finally:
         conn.close()

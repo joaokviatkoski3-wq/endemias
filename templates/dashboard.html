@@ -59,7 +59,7 @@
 {% block content %}
 <div class="page-header">
   <h1><span class="icon"><img src="/static/icons/grafico_barra.svg" alt="Dashboard" class="icon-svg"></span> Dashboard Integrado</h1>
-  <div class="sub">Analise operacional de visitas, territorio, laboratorio e esporotricose</div>
+  <div class="sub">Analise operacional de visitas, territorio, laboratorio{% if not SETORES_ENABLED %} e esporotricose{% endif %}</div>
 </div>
 
 <div class="filter-card">
@@ -169,7 +169,7 @@
 
 <div class="tabs-bar">
   <button class="tab-btn active" onclick="openTab('tab-geral',this)"><img src="/static/icons/grafico_linha.svg" alt="" class="icon-svg"> Geral</button>
-  <button class="tab-btn" onclick="openTab('tab-esporo',this)"><img src="/static/icons/pets.svg" alt="" class="icon-svg"> Esporotricose</button>
+  {% if not SETORES_ENABLED %}<button class="tab-btn" onclick="openTab('tab-esporo',this)"><img src="/static/icons/pets.svg" alt="" class="icon-svg"> Esporotricose</button>{% endif %}
   <button class="tab-btn" onclick="openTab('tab-ovitrampas',this)"><img src="/static/icons/ovitrampa.svg" alt="" class="icon-svg"> Ovitrampas</button>
   <button class="tab-btn" onclick="openTab('tab-local',this)"><img src="/static/icons/marcador.svg" alt="" class="icon-svg"> Territorio</button>
   <button class="tab-btn" onclick="openTab('tab-agente',this)"><img src="/static/icons/usuarios.svg" alt="" class="icon-svg"> Equipe</button>
@@ -207,6 +207,7 @@
   </div>
 </div>
 
+{% if not SETORES_ENABLED %}
 <div class="tab-pane" id="tab-esporo">
   <div id="esporo-kpi-area" class="dash-mini-grid"></div>
   <div class="chart-grid">
@@ -233,6 +234,7 @@
   </div>
 </div>
 
+{% endif %}
 <div class="tab-pane" id="tab-ovitrampas">
   <div id="ovi-kpi-area" class="dash-mini-grid"></div>
   <div class="chart-grid">
@@ -408,12 +410,12 @@ function renderResumoIntegrado() {
       <strong>${fmtNum(k.total || 0)}</strong>
       <small>${fmtNum(k.normais || 0)} normais no periodo</small>
     </div>
-    <div class="dash-overview-card">
+{% if not SETORES_ENABLED %}    <div class="dash-overview-card">
       <span>Esporotricose</span>
       <strong>${fmtNum(espAnimais.total || 0)}</strong>
       <small>${fmtNum(espAnimais.com_feridas || 0)} animais com feridas (${positividade}%)</small>
     </div>
-    <div class="dash-overview-card">
+{% endif %}    <div class="dash-overview-card">
       <span>Pontos estratégicos</span>
       <strong>${fmtNum(peTotais.ativos || 0)}</strong>
       <small>${fmtNum(peTotais.visitados_periodo || 0)} visitados e ${fmtNum(peTotais.bri_periodo || 0)} com BRI no período</small>
@@ -537,7 +539,7 @@ function renderPendenciasPE() {
 function renderGraficos() {
   renderGeral();
   renderVetores();
-  renderEsporotricose();
+  {% if not SETORES_ENABLED %}renderEsporotricose();{% endif %}
   renderOvitrampas();
   renderTerritorioEquipe();
   renderDepositos();
@@ -551,7 +553,7 @@ function renderGeral() {
       labels: comp.map(r => r.mes),
       datasets: [
         { label:'Vetores', data:comp.map(r=>r.vetores), borderColor:PAL[0], backgroundColor:PAL[0]+'22', fill:true, tension:.32, borderWidth:2 },
-        { label:'Esporotricose', data:comp.map(r=>r.esporotricose), borderColor:PAL[6], backgroundColor:PAL[6]+'18', fill:true, tension:.32, borderWidth:2 },
+{% if not SETORES_ENABLED %}        { label:'Esporotricose', data:comp.map(r=>r.esporotricose), borderColor:PAL[6], backgroundColor:PAL[6]+'18', fill:true, tension:.32, borderWidth:2 },{% endif %}
         { label:'Ovitrampas', data:comp.map(r=>r.ovitrampas || 0), borderColor:PAL[5], backgroundColor:PAL[5]+'14', fill:true, tension:.32, borderWidth:2 },
       ]
     },
@@ -825,6 +827,7 @@ function escapeHtml(value) {
 
 document.getElementById('d_ini').addEventListener('change', buscar);
 document.getElementById('d_fim').addEventListener('change', buscar);
-buscar();
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',buscar);
+else buscar();
 </script>
 {% endblock %}

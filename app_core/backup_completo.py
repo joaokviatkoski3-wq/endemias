@@ -175,6 +175,7 @@ def criar_backup_completo(
     arquivos_locais = [
         (Path(secret_key_path or raiz / "secret.key"), "configuracao/secret.key"),
         (Path(kobo_config_path or raiz / "kobo_config.json"), "configuracao/kobo_config.json"),
+        (Path(kobo_config_path or raiz / "kobo_config.json").with_name("kobo_ambiental.json"), "configuracao/kobo_ambiental.json"),
         (raiz / "queries.sql", "configuracao/queries.sql"),
     ]
     pastas_locais = [

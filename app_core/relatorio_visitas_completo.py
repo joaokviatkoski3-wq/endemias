@@ -6,6 +6,7 @@ perderiam os detalhes individuais necessários ao PDF.
 
 from datetime import date
 
+from app_core import setores
 from app_core import db as db_core
 from app_core import visitas_integradas as integradas
 from app_core import visitas as visitas_core
@@ -89,12 +90,12 @@ def coletar(target, agente, inicio, fim):
             FROM agentes WHERE nome=?""", (agente,)).fetchone()
         if not pessoa:
             raise FiltroInvalido("Agente não encontrado no cadastro.")
-        vetores = _rows(conn, """SELECT v.id_visita, v.data, v.hora_inicio FROM visitas v
+        vetores = [] if setores.atual()=="ambiental" else _rows(conn, """SELECT v.id_visita, v.data, v.hora_inicio FROM visitas v
             WHERE v.data BETWEEN ? AND ? AND EXISTS (
                 SELECT 1 FROM visita_agentes va JOIN agentes a ON a.id_agente=va.id_agente
                 WHERE va.id_visita=v.id_visita AND a.nome=?)
             ORDER BY v.data, v.hora_inicio, v.id_visita""", (inicio, fim, agente))
-        esporotricose = _rows(conn, """SELECT v.id_visita, v.data, v.hora_inicio
+        esporotricose = [] if setores.atual()=="endemias" else _rows(conn, """SELECT v.id_visita, v.data, v.hora_inicio
             FROM esporotricose_visitas v WHERE v.data BETWEEN ? AND ? AND EXISTS (
                 SELECT 1 FROM esporotricose_visita_agentes va JOIN agentes a ON a.id_agente=va.id_agente
                 WHERE va.id_visita=v.id_visita AND a.nome=?)

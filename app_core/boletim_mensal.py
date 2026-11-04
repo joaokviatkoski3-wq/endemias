@@ -2,8 +2,12 @@ import re
 import uuid
 from datetime import date, datetime, timedelta
 
+from app_core import setores
 from app_core import db as db_core
 from app_core import visitas_integradas as integradas
+
+
+AMBIENTAIS = ('esporotricose_visitas','esporotricose_animais','esporotricose_animais_feridas','amostras_animais_registros','amostras_animais_quantidade')
 
 
 MESES = (
@@ -75,6 +79,7 @@ def periodo_mes(ano_mes):
 
 
 def _table_exists(conn, table):
+    if setores.atual()=="endemias" and table in {"esporotricose_visitas","esporotricose_animais","amostras_animais"}:return False
     return db_core.table_exists(conn, table)
 
 
@@ -290,7 +295,7 @@ def _salvos(target, ano_mes):
              WHERE ano_mes=?
              ORDER BY ordem, id_item
         """, (ano_mes,)).fetchall()
-        return [dict(row) for row in rows]
+        return [dict(row) for row in rows if setores.atual()!='endemias' or row["chave"] not in AMBIENTAIS]
     finally:
         conn.close()
 
@@ -346,10 +351,12 @@ def substituir_itens(conn, ano_mes, linhas):
     """Substitui os itens do mes usando a transacao controlada pelo chamador."""
     periodo = periodo_mes(ano_mes)
     agora = datetime.now().isoformat(timespec="seconds")
-    conn.execute(
-        "DELETE FROM boletim_mensal_itens WHERE ano_mes=?",
-        (periodo["ano_mes"],),
-    )
+    if setores.atual()=='endemias':
+        if any(item.get('chave') in AMBIENTAIS for item in linhas or []):
+            raise ValueError('Indicador pertence ao Ambiental.')
+        conn.execute("DELETE FROM boletim_mensal_itens WHERE ano_mes=? AND chave NOT IN ("+','.join('?' for _ in AMBIENTAIS)+")",(periodo['ano_mes'],*AMBIENTAIS))
+    else:
+        conn.execute('DELETE FROM boletim_mensal_itens WHERE ano_mes=?',(periodo['ano_mes'],))
     inseridos = 0
     ativos = 0
     for idx, item in enumerate(linhas or [], 1):

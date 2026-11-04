@@ -23,6 +23,10 @@ nivel_min = bh.nivel_min
 @bp.route("/dashboard")
 @login_required
 def dashboard():
+    from app_core import setores
+    if setores.atual()=='ambiental':
+        from blueprints.ambiental import painel
+        return painel()
     return render_template(
         "dashboard.html",
         d_ini=request.args.get("d_ini", utils_core.data_n_dias(90)),
@@ -74,6 +78,10 @@ def visitas():
 @bp.route("/api/dashboard")
 @login_required
 def api_dashboard():
+    from app_core import setores
+    if setores.atual()=='ambiental':
+        from blueprints.ambiental import dashboard
+        return dashboard()
     try:
         return jsonify(
             dashboard_core.integrado(bh.db_target(), request.args)

@@ -17,6 +17,10 @@ bp = Blueprint("home", __name__)
 @bp.route("/")
 @login_required
 def page():
+    from app_core import setores
+    if setores.atual()=='ambiental':
+        from blueprints.ambiental import painel
+        return painel('Vigilância Ambiental')
     usuario = bh.usuario_atual()
     is_admin = (usuario or {}).get("nivel") in {"admin", "superadmin"}
     conn = integradas.integrar(bh.get_db())

@@ -157,6 +157,9 @@ def _configure_secret_key(flask_app, key_file):
 
 
 def _register_blueprints(flask_app):
+    if flask_app.config.get('SETORES_ENABLED'):
+        from blueprints.ambiental import bp as ambiental_bp
+        flask_app.register_blueprint(ambiental_bp)
     flask_app.register_blueprint(auth_bp)
     flask_app.register_blueprint(acoes_setor_bp)
     flask_app.register_blueprint(ajuda_bp)
@@ -268,6 +271,7 @@ def request_int_arg(nome, default, minimo=None, maximo=None):
 
 
 def create_app(config_overrides=None):
+    from app_core import setores
     os.makedirs(UPLOAD_TEMP, exist_ok=True)
     os.makedirs(INSTANCE_DIR, exist_ok=True)
     os.makedirs(ANEXOS_DIR, exist_ok=True)
@@ -301,6 +305,9 @@ def create_app(config_overrides=None):
         CSP_REPORT_ONLY=CSP_REPORT_ONLY_DEFAULT,
         CSP_ALLOW_INLINE=CSP_ALLOW_INLINE_DEFAULT,
         TEMPLATES_AUTO_RELOAD=True,
+        SETORES_ENABLED=_env_bool(os.environ,'ENDEMIAS_SETORES_ENABLED',False),
+        SETOR='endemias',
+        DOMINIO_BASE=os.environ.get('ENDEMIAS_DOMINIO_BASE','vsatt.com.br'),
     )
     flask_app.config.update(web_security.external_defaults())
     if config_overrides:
@@ -321,6 +328,10 @@ def create_app(config_overrides=None):
         meteorologia_core.ensure_schema(flask_app.config["DB_PATH"])
         sqlite_maintenance.ensure_schema_compatibility(flask_app.config["DB_PATH"])
         sqlite_maintenance.ensure_performance_indexes(flask_app.config["DB_PATH"])
+    if flask_app.config['SETORES_ENABLED']:
+        connection=db_core.connect(database_target)
+        try:setores.ensure_schema(connection)
+        finally:connection.close()
     csrf.init_app(flask_app)
 
     flask_app.extensions["database_target"] = database_target
@@ -332,6 +343,7 @@ def create_app(config_overrides=None):
     app_setup.register_access_guards(flask_app)
     app_setup.register_response_redaction(flask_app)
     app_setup.register_context_processors(flask_app)
+    setores.configurar(flask_app)
     return flask_app
 
 

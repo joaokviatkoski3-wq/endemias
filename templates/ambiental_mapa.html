@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block title %}Mapa Ambiental{% endblock %}{% block page_title %}Mapa Ambiental{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.min.css">{% endblock %}
+{% block content %}<div class="page-header"><h1>Mapa Ambiental</h1><p>Visitas de Esporotricose e amostras de animais por quarteirão. A base territorial é compartilhada.</p></div>
+<form id="filtros-mapa" class="filter-bar"><label>Início <input type="date" name="d_ini"></label><label>Fim <input type="date" name="d_fim"></label>
+<label>Localidade <select name="localidade"><option value="">Todas</option>{% for l in localidades_glob %}<option>{{ l }}</option>{% endfor %}</select></label>
+<label>Camada <select id="fonte"><option value="todas">Todas</option><option>Esporotricose</option><option>Amostra de Animais</option></select></label><button class="btn btn-primary">Aplicar</button></form>
+<p id="mapa-status" role="status">Carregando camada territorial…</p><div id="mapa-ambiental" style="height:65vh;min-height:360px;border-radius:12px;"></div>
+<script nonce="{{ csp_nonce() }}" src="/static/vendor/leaflet/leaflet.min.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/js/ambiental_mapa.js"></script>{% endblock %}

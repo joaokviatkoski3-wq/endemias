@@ -284,7 +284,7 @@ tr:nth-child(even) td{background:#f8faff;}
   </div>
   </div>
 
-  <!-- Esporotricose -->
+{% if not SETORES_ENABLED %}  <!-- Esporotricose -->
   <div class="bloco-relatorio">
   <div class="secao">Produção de esporotricose</div>
   {% set esp_t = esporotricose.totais %}
@@ -325,7 +325,7 @@ tr:nth-child(even) td{background:#f8faff;}
   </div>
   {% endif %}
 
-  <!-- Por tipo de trabalho -->
+{% endif %}  <!-- Por tipo de trabalho -->
   <div class="bloco-relatorio">
   <div class="secao">Visitas por tipo de trabalho</div>
   <table>
@@ -393,10 +393,10 @@ tr:nth-child(even) td{background:#f8faff;}
   {% set dur = duracao_visitas %}
   {% if dur.total.n %}
   <div class="bloco-relatorio">
-  <div class="secao">Tempo de visita: TBO, esporotricose e total</div>
+  <div class="secao">Tempo de visita: TBO{% if not SETORES_ENABLED %}, esporotricose e total{% endif %}</div>
   <div class="tbo-cards">
     <div class="tbo-card">
-      <div class="tbo-card-titulo">Tempo total TBO + esporotricose — {{ dur.total.n }} visitas</div>
+      <div class="tbo-card-titulo">Tempo total TBO{% if not SETORES_ENABLED %} + esporotricose{% endif %} — {{ dur.total.n }} visitas</div>
       <div class="tbo-stat"><span>Tempo médio</span><span class="tbo-stat-val">{{ dur.total.media }}min</span></div>
       <div class="tbo-stat"><span>Mínimo</span><span class="tbo-stat-val">{{ dur.total.minimo }}min</span></div>
       <div class="tbo-stat"><span>Máximo</span><span class="tbo-stat-val">{{ dur.total.maximo }}min</span></div>

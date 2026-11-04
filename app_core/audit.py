@@ -4,6 +4,7 @@ from datetime import datetime
 from flask import request, session
 
 from app_core import auth as auth_core
+from app_core import setores
 
 
 def garantir_tabela_auditoria(get_db, conn=None):
@@ -51,22 +52,18 @@ def registrar_evento(
     conn = conn or get_db()
     try:
         garantir_tabela_auditoria(get_db, conn)
+        sector=setores.atual()
+        extra_column=', setor' if sector else ''
+        extra_value=',?' if sector else ''
+        params=(acao,entidade,str(entidade_id) if entidade_id is not None else None,
+            usuario_id,usuario_nome,ip,json.dumps(detalhes,ensure_ascii=False,sort_keys=True),agora)
+        if sector:params+= (sector,)
         conn.execute(
-            """
+            f"""
             INSERT INTO auditoria_eventos
-                (acao, entidade, entidade_id, usuario_id, usuario_nome, ip, detalhes_json, criado_em)
-            VALUES (?,?,?,?,?,?,?,?)
-            """,
-            (
-                acao,
-                entidade,
-                str(entidade_id) if entidade_id is not None else None,
-                usuario_id,
-                usuario_nome,
-                ip,
-                json.dumps(detalhes, ensure_ascii=False, sort_keys=True),
-                agora,
-            ),
+                (acao, entidade, entidade_id, usuario_id, usuario_nome, ip, detalhes_json, criado_em{extra_column})
+            VALUES (?,?,?,?,?,?,?,?{extra_value})
+            """,params,
         )
         if fechar:
             conn.commit()
@@ -79,11 +76,13 @@ def registrar_evento(
             conn.close()
 
 
-def listar_eventos(get_db, filtros=None, limite=100):
+def listar_eventos(get_db, filtros=None, limite=100, *, todos_setores=False):
     filtros = filtros or {}
     limite = max(1, min(int(limite or 100), 500))
     where = ["1=1"]
     params = []
+    if setores.atual() and not todos_setores:
+        where.append('setor=?');params.append(setores.atual())
     if filtros.get("acao"):
         where.append("acao LIKE ?")
         params.append(f"%{filtros['acao']}%")

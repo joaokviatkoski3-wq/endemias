@@ -13,6 +13,7 @@ from app_core import esporotricose as esporotricose_core
 from app_core import meteorologia as meteorologia_core
 from app_core import ovitrampas as ovitrampas_core
 from app_core import work_types
+from app_core import setores
 
 
 bp = Blueprint("agenda", __name__)
@@ -346,7 +347,7 @@ def _existing_tables(tables):
     try:
         return {
             table for table in tables
-            if db_core.table_exists(conn, table)
+            if db_core.table_exists(conn, table) and (setores.atual()!='endemias' or not table.startswith(('esporotricose_','amostra_','amostras_')))
         }
     finally:
         conn.close()
@@ -428,11 +429,14 @@ def page():
         "agenda.html",
         agenda_auto_fontes=tuple(
             {"codigo": codigo, **dados} for codigo, dados in AGENDA_AUTO_FONTES.items()
+            if not setores.atual() or ((codigo in {'ESPOROTRICOSE','AMOSTRA_ANIMAIS'}) == (setores.atual()=='ambiental'))
         ),
     )
 
 
 def _eventos_periodo(inicio, fim):
+    if setores.atual()=='ambiental':
+        return _eventos_ambientais(inicio,fim)
     eventos = []
 
     range_inicio = _parse_data_evento(inicio[:10], True)
@@ -459,6 +463,7 @@ def _eventos_periodo(inicio, fim):
         (fim, inicio, fim, inicio),
     )
     for r in rows:
+        if setores.atual() and r["setor"]!=setores.atual():continue
         eventos.extend(_eventos_manuais_expandido(r, range_inicio, range_fim))
 
     existing_tables = _existing_tables({
@@ -1066,6 +1071,8 @@ def api_eventos():
                 ),
                 "id_evento",
             )
+            if setores.atual():
+                conn.execute("UPDATE agenda_eventos SET setor=? WHERE id_evento=?",(setores.atual(),novo_id))
             conn.commit()
         except Exception as exc:
             if conn:
@@ -1087,6 +1094,8 @@ def api_eventos():
 @nivel_min("admin")
 def api_evento(id_evento):
     ensure_schema()
+    if setores.atual() and not bh.q1("SELECT 1 FROM agenda_eventos WHERE id_evento=? AND setor=?",(id_evento,setores.atual())):
+        return jsonify({"erro":"Evento não encontrado neste setor."}),404
     if request.method == "DELETE":
         conn = None
         try:
@@ -1224,6 +1233,7 @@ def api_lembretes():
     )
     eventos = []
     for row in rows:
+        if setores.atual() and row["setor"]!=setores.atual():continue
         for evento in _eventos_manuais_expandido(row, agora, limite):
             inicio = evento["start"]
             if evento["allDay"]:
@@ -1237,3 +1247,15 @@ def api_lembretes():
                 "lembrete_min": evento["extendedProps"]["lembrete_min"],
             })
     return jsonify(eventos)
+
+
+def _eventos_ambientais(inicio,fim):
+    from app_core import ambiental
+    start=_parse_data_evento(inicio[:10],True);end=_parse_data_evento(fim[:10],True)
+    events=[]
+    for row in bh.q("SELECT * FROM agenda_eventos WHERE setor='ambiental' ORDER BY data_inicio"):
+        events.extend(_eventos_manuais_expandido(row,start,end))
+    for row in ambiental.linhas(bh.db_target(),{'d_ini':inicio[:10],'d_fim':fim[:10]}):
+        fonte='ESPOROTRICOSE' if row['fonte']=='Esporotricose' else 'AMOSTRA_ANIMAIS'
+        events.append(_auto_evento(str(row['data']),fonte,row['fonte'],row['registros'],localidades=row['localidade'],id_extra=str(row.get('id_localidade'))+'_'+str(row.get('quarteirao'))))
+    return events

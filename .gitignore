@@ -10,6 +10,7 @@ pgpass.conf
 # Dados locais e segredos da instalacao
 secret.key
 kobo_config.json
+kobo_ambiental.json
 *.db
 *.db.*
 *.db-wal

@@ -118,6 +118,7 @@ def register_security_headers(app):
         inline = " 'unsafe-inline'" if current_app.config.get("CSP_ALLOW_INLINE", True) else ""
         # Migracao gradual dos manipuladores inline; estas telas ja usam listeners.
         strict = request.endpoint in {'bri.page', 'amostras_animais.page', 'auth.login', 'auth.recuperar_senha', 'auth.esqueci_senha', 'admin.admin_baixar_backup', 'admin.admin_baixar_backup_completo'}
+        strict = strict or request.blueprint=="ambiental"
         attributes = "'none'" if strict or not inline else "'unsafe-inline'"
         return (
             "default-src 'self'; "
@@ -235,6 +236,7 @@ def register_response_redaction(app):
 def register_context_processors(app):
     @app.context_processor
     def inject_globals():
+        from app_core import setores
         target = db_core.configured_target(current_app.config)
         ambiente = str(current_app.config.get("AMBIENTE") or "producao").strip().lower()
         try:
@@ -244,8 +246,8 @@ def register_context_processors(app):
         ambiente_teste = ambiente != "producao" or porta != 5000
         localidades = _cached_q("localidades", "SELECT nome FROM localidades ORDER BY nome")
         agentes = _cached_q("agentes", "SELECT nome FROM agentes WHERE ativo=1 ORDER BY nome")
-        tipos_v = _cached_q("tipos_visita", "SELECT DISTINCT tipo FROM visitas WHERE tipo IS NOT NULL ORDER BY tipo")
-        pendentes = db_core.scalar(
+        tipos_v = [] if setores.atual()=='ambiental' else _cached_q("tipos_visita", "SELECT DISTINCT tipo FROM visitas WHERE tipo IS NOT NULL ORDER BY tipo")
+        pendentes = 0 if setores.atual()=='ambiental' else db_core.scalar(
             target,
             "SELECT COUNT(*) FROM focos_positivos WHERE status_notificacao='pendente' AND gera_notificacao=1",
         )
@@ -263,6 +265,9 @@ def register_context_processors(app):
         else:
             agentes_glob = [r["nome"] for r in agentes]
         return dict(
+            SETOR_ATUAL=setores.atual(),
+            SETOR_TITULO=setores.TITULOS.get(setores.atual(),'Setor de Endemias'),
+            SETORES_ENABLED=bool(setores.atual()),
             localidades_glob=[r["nome"] for r in localidades],
             agentes_glob=agentes_glob,
             tipos_glob=[r["tipo"] for r in tipos_v],

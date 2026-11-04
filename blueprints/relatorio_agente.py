@@ -12,6 +12,7 @@ from app_core import db as db_core
 from app_core import visitas_integradas as integradas
 from app_core import escopo_agente
 from app_core import esporotricose as esporotricose_core
+from app_core import setores
 from app_core import ovitrampas as ovitrampas_core
 from app_core import producao_operacional
 from app_core import registro_geografico as registro_geografico_core
@@ -1204,7 +1205,7 @@ def _obter_dados(nome, d_ini, d_fim):
             WHERE dur BETWEEN 1 AND 240 GROUP BY grupo""",
             p + [work_types.primary_duration_work_type_code()],
         ).fetchall()
-        esporotricose_core.ensure_schema(conn)
+        if setores.atual()!="endemias":esporotricose_core.ensure_schema(conn)
         duracao_tbo_raw = conn.execute(f"""
             SELECT COUNT(*) AS n,
                    ROUND(AVG(dur),1) AS media,
@@ -1221,45 +1222,48 @@ def _obter_dados(nome, d_ini, d_fim):
              WHERE dur BETWEEN 1 AND 240""",
             p + [work_types.primary_duration_work_type_code()],
         ).fetchone()
-        duracao_esporo_raw = conn.execute(f"""
-            SELECT COUNT(*) AS n,
-                   ROUND(AVG(dur),1) AS media,
-                   ROUND(MIN(dur),1) AS minimo,
-                   ROUND(MAX(dur),1) AS maximo
-              FROM (
-                    SELECT {duracao_e} AS dur
-                      FROM esporotricose_visitas e
-                      JOIN esporotricose_visita_agentes va ON va.id_visita=e.id_visita
-                      JOIN agentes a ON a.id_agente=va.id_agente
-                     WHERE a.nome=? AND e.data BETWEEN ? AND ?
-                       AND e.hora_inicio IS NOT NULL AND e.hora_fim IS NOT NULL
-                   ) sub
-             WHERE dur BETWEEN 1 AND 240""",
-            p,
-        ).fetchone()
-        duracao_total_raw = conn.execute(f"""
-            SELECT COUNT(*) AS n,
-                   ROUND(AVG(dur),1) AS media,
-                   ROUND(MIN(dur),1) AS minimo,
-                   ROUND(MAX(dur),1) AS maximo
-              FROM (
-                    SELECT {duracao_v} AS dur
-                      FROM visitas v
-                      JOIN visita_agentes va ON va.id_visita=v.id_visita
-                      JOIN agentes a ON a.id_agente=va.id_agente
-                     WHERE a.nome=? AND v.data BETWEEN ? AND ? AND v.tipo=?
-                       AND v.hora_inicio IS NOT NULL AND v.hora_fim IS NOT NULL
-                    UNION ALL
-                    SELECT {duracao_e} AS dur
-                      FROM esporotricose_visitas e
-                      JOIN esporotricose_visita_agentes ea ON ea.id_visita=e.id_visita
-                      JOIN agentes ag ON ag.id_agente=ea.id_agente
-                     WHERE ag.nome=? AND e.data BETWEEN ? AND ?
-                       AND e.hora_inicio IS NOT NULL AND e.hora_fim IS NOT NULL
-                   ) sub
-             WHERE dur BETWEEN 1 AND 240""",
-            p + [work_types.primary_duration_work_type_code()] + p,
-        ).fetchone()
+        duracao_esporo_raw=None
+        duracao_total_raw=duracao_tbo_raw
+        if setores.atual()!='endemias':
+            duracao_esporo_raw = conn.execute(f"""
+                SELECT COUNT(*) AS n,
+                       ROUND(AVG(dur),1) AS media,
+                       ROUND(MIN(dur),1) AS minimo,
+                       ROUND(MAX(dur),1) AS maximo
+                  FROM (
+                        SELECT {duracao_e} AS dur
+                          FROM esporotricose_visitas e
+                          JOIN esporotricose_visita_agentes va ON va.id_visita=e.id_visita
+                          JOIN agentes a ON a.id_agente=va.id_agente
+                         WHERE a.nome=? AND e.data BETWEEN ? AND ?
+                           AND e.hora_inicio IS NOT NULL AND e.hora_fim IS NOT NULL
+                       ) sub
+                 WHERE dur BETWEEN 1 AND 240""",
+                p,
+            ).fetchone()
+            duracao_total_raw = conn.execute(f"""
+                SELECT COUNT(*) AS n,
+                       ROUND(AVG(dur),1) AS media,
+                       ROUND(MIN(dur),1) AS minimo,
+                       ROUND(MAX(dur),1) AS maximo
+                  FROM (
+                        SELECT {duracao_v} AS dur
+                          FROM visitas v
+                          JOIN visita_agentes va ON va.id_visita=v.id_visita
+                          JOIN agentes a ON a.id_agente=va.id_agente
+                         WHERE a.nome=? AND v.data BETWEEN ? AND ? AND v.tipo=?
+                           AND v.hora_inicio IS NOT NULL AND v.hora_fim IS NOT NULL
+                        UNION ALL
+                        SELECT {duracao_e} AS dur
+                          FROM esporotricose_visitas e
+                          JOIN esporotricose_visita_agentes ea ON ea.id_visita=e.id_visita
+                          JOIN agentes ag ON ag.id_agente=ea.id_agente
+                         WHERE ag.nome=? AND e.data BETWEEN ? AND ?
+                           AND e.hora_inicio IS NOT NULL AND e.hora_fim IS NOT NULL
+                       ) sub
+                 WHERE dur BETWEEN 1 AND 240""",
+                p + [work_types.primary_duration_work_type_code()] + p,
+            ).fetchone()
 
         por_periodo_raw = conn.execute(f"""SELECT
             CASE WHEN v.hora_inicio < '12:00' THEN 'manha' ELSE 'tarde' END as periodo,
@@ -1290,30 +1294,32 @@ def _obter_dados(nome, d_ini, d_fim):
                 GROUP BY a.id_agente
             ) medias""", [d_ini, d_fim, nome]).fetchone()
 
-        comparacao_esporo_raw = conn.execute("""
-            SELECT
-                AVG(visitas) as media_visitas,
-                AVG(CASE WHEN dias > 0 THEN visitas * 1.0 / dias ELSE 0 END) as media_dia,
-                AVG(animais) as media_animais,
-                AVG(com_feridas) as media_feridas,
-                AVG(fechadas) as media_fechadas,
-                AVG(recusas) as media_recusas,
-                COUNT(*) as num_agentes
-            FROM (
-                SELECT ag.id_agente,
-                    COUNT(DISTINCT v.id_visita) AS visitas,
-                    COUNT(DISTINCT v.data) AS dias,
-                    COUNT(DISTINCT an.id_animal) AS animais,
-                    COUNT(DISTINCT CASE WHEN LOWER(COALESCE(an.feridas,''))='sim' THEN an.id_animal END) AS com_feridas,
-                    COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='fechado' THEN v.id_visita END) AS fechadas,
-                    COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='recusa' THEN v.id_visita END) AS recusas
-                FROM esporotricose_visitas v
-                JOIN esporotricose_visita_agentes va ON va.id_visita=v.id_visita
-                JOIN agentes ag ON ag.id_agente=va.id_agente
-                LEFT JOIN esporotricose_animais an ON an.id_visita=v.id_visita
-                WHERE v.data BETWEEN ? AND ? AND ag.nome <> ?
-                GROUP BY ag.id_agente
-            ) medias""", [d_ini, d_fim, nome]).fetchone()
+        comparacao_esporo_raw=None
+        if setores.atual()!='endemias':
+            comparacao_esporo_raw = conn.execute("""
+                SELECT
+                    AVG(visitas) as media_visitas,
+                    AVG(CASE WHEN dias > 0 THEN visitas * 1.0 / dias ELSE 0 END) as media_dia,
+                    AVG(animais) as media_animais,
+                    AVG(com_feridas) as media_feridas,
+                    AVG(fechadas) as media_fechadas,
+                    AVG(recusas) as media_recusas,
+                    COUNT(*) as num_agentes
+                FROM (
+                    SELECT ag.id_agente,
+                        COUNT(DISTINCT v.id_visita) AS visitas,
+                        COUNT(DISTINCT v.data) AS dias,
+                        COUNT(DISTINCT an.id_animal) AS animais,
+                        COUNT(DISTINCT CASE WHEN LOWER(COALESCE(an.feridas,''))='sim' THEN an.id_animal END) AS com_feridas,
+                        COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='fechado' THEN v.id_visita END) AS fechadas,
+                        COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,''))='recusa' THEN v.id_visita END) AS recusas
+                    FROM esporotricose_visitas v
+                    JOIN esporotricose_visita_agentes va ON va.id_visita=v.id_visita
+                    JOIN agentes ag ON ag.id_agente=va.id_agente
+                    LEFT JOIN esporotricose_animais an ON an.id_visita=v.id_visita
+                    WHERE v.data BETWEEN ? AND ? AND ag.nome <> ?
+                    GROUP BY ag.id_agente
+                ) medias""", [d_ini, d_fim, nome]).fetchone()
         agente_row = conn.execute(
             """SELECT COALESCE(NULLIF(nome_completo,''), nome) AS nome_exibicao,
                       NULLIF(TRIM(cargo),'') AS cargo
@@ -1365,7 +1371,7 @@ def _obter_dados(nome, d_ini, d_fim):
             "num_agentes": n_ag,
         }
 
-    esporotricose = _resumo_esporotricose_agente(nome, d_ini, d_fim)
+    esporotricose = {'totais':{},'animais':{},'dashboard':{}} if setores.atual()=='endemias' else _resumo_esporotricose_agente(nome, d_ini, d_fim)
     producao = _resumo_producao_agente(nome, d_ini, d_fim)
     ovitrampas = _resumo_ovitrampas_agente(nome, d_ini, d_fim)
     registro_geografico = _resumo_registro_geografico_agente(nome, d_ini, d_fim)

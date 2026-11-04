@@ -198,7 +198,7 @@
   <div class="mapa-painel">
     <div class="mapa-panel-head">
       <strong>Mapa territorial</strong>
-      <span>Visualize visitas, focos, acesso aos imóveis e esporotricose por quarteirão.</span>
+      <span>Visualize visitas, focos, acesso aos imóveis{% if not SETORES_ENABLED %} e esporotricose{% endif %} por quarteirão.</span>
     </div>
 
     <div class="painel-card compacto">
@@ -216,9 +216,9 @@
         <button class="modo-btn" data-modo="fechados" onclick="setModo(this)">
           <span class="modo-dot" style="background:#f97316;"></span> Fechados / Recusa
         </button>
-        <button class="modo-btn" data-modo="esporotricose" onclick="setModo(this)">
+{% if not SETORES_ENABLED %}        <button class="modo-btn" data-modo="esporotricose" onclick="setModo(this)">
           <span class="modo-dot" style="background:#06b6d4;"></span> Esporotricose
-        </button>
+        </button>{% endif %}
         <button class="modo-btn" data-modo="pes" onclick="setModo(this)">
           <span class="modo-dot" style="background:#166534;"></span> Pontos estratégicos
         </button>
@@ -307,8 +307,8 @@
         <div class="map-kpi"><div class="val" id="kpi-nao-trab">—</div><div class="lbl">Não trabalhados</div></div>
         <div class="map-kpi"><div class="val" id="kpi-visitas">—</div><div class="lbl">Visitas</div></div>
         <div class="map-kpi"><div class="val" id="kpi-focos" style="color:#ef4444;">—</div><div class="lbl">Focos</div></div>
-        <div class="map-kpi teal"><div class="val" id="kpi-esporo-visitas">—</div><div class="lbl">Esporotricose</div></div>
-        <div class="map-kpi red"><div class="val" id="kpi-esporo-feridas">—</div><div class="lbl">Animais c/ feridas</div></div>
+{% if not SETORES_ENABLED %}        <div class="map-kpi teal"><div class="val" id="kpi-esporo-visitas">—</div><div class="lbl">Esporotricose</div></div>{% endif %}
+{% if not SETORES_ENABLED %}        <div class="map-kpi red"><div class="val" id="kpi-esporo-feridas">—</div><div class="lbl">Animais c/ feridas</div></div>{% endif %}
         <div class="map-kpi"><div class="val" id="kpi-pes">—</div><div class="lbl">PEs ativos</div></div>
         <div class="map-kpi amber"><div class="val" id="kpi-pes-atrasados">—</div><div class="lbl">PEs atrasados</div></div>
         <div class="map-kpi"><div class="val" id="kpi-ovi-armadilhas">—</div><div class="lbl">Ovitrampas</div></div>
@@ -703,9 +703,9 @@ function mostrarDetalhe(props) {
     <div class="detalhe-grid">
       <div class="detalhe-metric"><span>Visitas</span><strong>${d.total}</strong></div>
       <div class="detalhe-metric red"><span>Focos</span><strong>${d.focos}</strong></div>
-      <div class="detalhe-metric teal"><span>Esporotricose</span><strong>${d.esporo_visitas || 0}</strong></div>
+{% if not SETORES_ENABLED %}      <div class="detalhe-metric teal"><span>Esporotricose</span><strong>${d.esporo_visitas || 0}</strong></div>{% endif %}
       <div class="detalhe-metric"><span>PEs ativos</span><strong>${d.pes_ativos || 0}</strong></div>
-      <div class="detalhe-metric red"><span>Animais c/ feridas</span><strong>${d.esporo_feridas || 0}</strong></div>
+{% if not SETORES_ENABLED %}      <div class="detalhe-metric red"><span>Animais c/ feridas</span><strong>${d.esporo_feridas || 0}</strong></div>{% endif %}
       <div class="detalhe-metric"><span>Ovitrampas</span><strong>${d.ovi_armadilhas || 0}</strong></div>
     </div>
     <div class="detalhe-bloco">
@@ -717,12 +717,12 @@ function mostrarDetalhe(props) {
     ${d.ultimo_trabalho ? `<div class="popup-linha"><span>Último trabalho</span><span>${escapeAttr(d.ultimo_trabalho)}</span></div>` : ''}
     <div style="margin-top:6px;">${tipos}</div>
     </div>
-    <div class="detalhe-bloco">
+{% if not SETORES_ENABLED %}    <div class="detalhe-bloco">
       <div class="detalhe-subtitulo">Esporotricose</div>
       <div class="popup-linha"><span>Animais</span><span>${d.esporo_animais || 0}</span></div>
       <div class="popup-linha"><span>Fechadas/recusas</span><span>${(d.esporo_fechadas || 0) + (d.esporo_recusas || 0)}</span></div>
       ${d.ultimo_esporotricose ? `<div class="popup-linha"><span>Última visita</span><span>${escapeAttr(d.ultimo_esporotricose)}</span></div>` : ''}
-    </div>
+    </div>{% endif %}
     <div class="detalhe-bloco">
       <div class="detalhe-subtitulo">Pontos estratégicos</div>
       <div class="popup-linha"><span>Ativos</span><span>${d.pes_ativos || 0}</span></div>
@@ -771,8 +771,8 @@ function atualizarKPIs() {
   document.getElementById('kpi-nao-trab').textContent    = (total - trabalhados).toLocaleString('pt-BR');
   document.getElementById('kpi-visitas').textContent     = visitas.toLocaleString('pt-BR');
   document.getElementById('kpi-focos').textContent       = focos.toLocaleString('pt-BR');
-  document.getElementById('kpi-esporo-visitas').textContent = esporoVisitas.toLocaleString('pt-BR');
-  document.getElementById('kpi-esporo-feridas').textContent = esporoFeridas.toLocaleString('pt-BR');
+  if (document.getElementById('kpi-esporo-visitas')) document.getElementById('kpi-esporo-visitas').textContent = esporoVisitas.toLocaleString('pt-BR');
+  if (document.getElementById('kpi-esporo-feridas')) document.getElementById('kpi-esporo-feridas').textContent = esporoFeridas.toLocaleString('pt-BR');
   document.getElementById('kpi-pes').textContent = pesAtivos.toLocaleString('pt-BR');
   document.getElementById('kpi-pes-atrasados').textContent = pesAtrasados.toLocaleString('pt-BR');
   const oviResumo = dadosOvi.resumo || {};

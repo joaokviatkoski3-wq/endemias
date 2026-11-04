@@ -9,6 +9,7 @@ import uuid
 
 from flask import Blueprint, Response, current_app, jsonify, render_template, request, session, stream_with_context
 
+from app_core import setores
 from app_core import audit
 from app_core import auth as auth_core
 from app_core import backup as backup_core
@@ -48,6 +49,9 @@ def _config_path():
 
 
 def _kobo_config_path():
+    if setores.atual()=='ambiental':
+        from pathlib import Path
+        return str(Path(current_app.config['KOBO_CONFIG_PATH']).with_name('kobo_ambiental.json'))
     return current_app.config["KOBO_CONFIG_PATH"]
 
 
@@ -92,7 +96,8 @@ def _atualizar_catalogo_acs_esporotricose(cfg, asset_uid):
 
 
 def _upload_temp():
-    return current_app.config["UPLOAD_TEMP"]
+    root=current_app.config['UPLOAD_TEMP']
+    return os.path.join(root,setores.atual()) if setores.atual() else root
 
 
 def limpar_uploads_antigos(max_age_hours=24):
@@ -154,7 +159,7 @@ def nivel_min(nivel):
 
 def registrar_importacao(job_id, arquivos, status="upload", usuario=None):
     usuario = usuario or session.get("nome", "")
-    return import_history.registrar_importacao(get_db, job_id, arquivos, status, usuario)
+    return import_history.registrar_importacao(get_db, job_id, arquivos, status, usuario, setor=setores.atual())
 
 
 def atualizar_importacao(job_id, status, dry_run_ok=None, commit_ok=None, sumario=None, erro=None):
@@ -170,7 +175,7 @@ def atualizar_importacao(job_id, status, dry_run_ok=None, commit_ok=None, sumari
 
 
 def listar_importacoes_recentes(limite=8):
-    return import_history.listar_importacoes_recentes(get_db, limite)
+    return import_history.listar_importacoes_recentes(get_db, limite, setor=setores.atual())
 
 
 def _arquivos_do_job(job_dir):
@@ -219,7 +224,7 @@ def processar_page():
     except Exception:
         logging.exception("Falha ao limpar uploads temporarios antigos")
     importacoes = listar_importacoes_recentes(10)
-    kobo_config = kobo_api.public_config(kobo_api.load_config(_kobo_config_path()))
+    kobo_config = _config_publica_area(kobo_api.public_config(kobo_api.load_config(_kobo_config_path())))
     return render_template("processar.html", importacoes=importacoes, kobo_config=kobo_config)
 
 
@@ -228,9 +233,11 @@ def processar_page():
 @nivel_min("superadmin")
 def kobo_config():
     if request.method == "GET":
-        return jsonify(kobo_api.public_config(kobo_api.load_config(_kobo_config_path())))
+        return jsonify(_config_publica_area(kobo_api.public_config(kobo_api.load_config(_kobo_config_path()))))
     data = request.json or {}
-    cfg = kobo_api.save_config(_kobo_config_path(), data, keep_token=True)
+    if setores.atual() and any(k not in setores.tipos_kobo() for k in (data.get('assets') or {})):
+        return jsonify({'erro':'Formulário pertence a outro setor.'}),403
+    cfg = _config_publica_area(kobo_api.save_config(_kobo_config_path(), data, keep_token=True))
     audit.registrar_evento(
         get_db,
         "kobo_config_atualizada",
@@ -261,8 +268,10 @@ def kobo_previa():
     cfg = kobo_api.load_config(_kobo_config_path())
     assets = cfg.get("assets") or {}
     asset_uid = (data.get("asset_uid") or assets.get(tipo) or "").strip()
-    if tipo not in kobo_api.ALL_TYPES:
+    if tipo not in setores.tipos_kobo():
         return jsonify({"erro": "Tipo de formulário inválido."}), 400
+    if setores.atual() and data.get('asset_uid') and data['asset_uid'] != assets.get(tipo):
+        return jsonify({'erro':'Use o formulário configurado para este setor.'}),403
     try:
         if tipo == "LIRAA":
             from app_core import liraa_integracao
@@ -343,6 +352,7 @@ def kobo_pendentes():
     itens = []
 
     for tipo in kobo_api.ALL_TYPES:
+        if tipo not in setores.tipos_kobo():continue
         asset_uid = (assets.get(tipo) or "").strip()
         item = {
             "tipo": tipo,
@@ -645,7 +655,7 @@ def kobo_importar_vetores_larvas_iniciar():
 def kobo_importar_formulario_iniciar():
     data = request.json or {}
     tipo = (data.get("tipo") or "").strip().upper()
-    if tipo not in kobo_api.ALL_TYPES:
+    if tipo not in setores.tipos_kobo():
         return jsonify({"erro": "Tipo de formulário inválido."}), 400
 
     cfg = kobo_api.load_config(_kobo_config_path())
@@ -795,6 +805,9 @@ def processar_iniciar():
             rejeitados.append(motivo)
             logging.warning("Upload rejeitado: %s | IP: %s", motivo, request.remote_addr)
             continue
+        if setores.atual() and _tipo_planilha(nome_seguro) not in setores.tipos_kobo():
+            shutil.rmtree(job_dir,ignore_errors=True)
+            return jsonify({'erro':'Envie apenas planilhas do setor atual.'}),403
         dest = os.path.join(job_dir, nome_seguro)
         arquivo.save(dest)
         salvos.append(nome_seguro)
@@ -836,6 +849,7 @@ def processar_stream(job_id):
 
         db_path = _db_path()
         config_path = _config_path()
+        etl_options={"tipos_permitidos":setores.tipos_kobo()} if setores.atual() else {}
         q_log = queue.Queue()
         done = threading.Event()
         result = [None]
@@ -853,6 +867,7 @@ def processar_stream(job_id):
                     config_path,
                     lg,
                     dry_run=True,
+                    **etl_options,
                 )
             except Exception as exc:
                 logging.exception("Falha no dry-run de importacao")
@@ -902,6 +917,7 @@ def processar_confirmar(job_id):
 
         db_path = _db_path()
         config_path = _config_path()
+        etl_options={"tipos_permitidos":setores.tipos_kobo()} if setores.atual() else {}
         cache_invalidator = _cache_invalidator()
         backup_dir = current_app.config["BACKUP_DIR"]
         q_log = queue.Queue()
@@ -941,6 +957,7 @@ def processar_confirmar(job_id):
                         lg,
                         dry_run=False,
                         backup_confirmado=True,
+                        **etl_options,
                     )
             except Exception as exc:
                 logging.exception("Falha na confirmacao de importacao")
@@ -1003,3 +1020,31 @@ def processar_cancelar(job_id):
     except Exception:
         logging.exception("Falha ao atualizar historico de importacao")
     return jsonify({"ok": True})
+
+
+def _tipo_planilha(nome):
+    for tipo in sorted(kobo_api.ALL_TYPES,key=len,reverse=True):
+        if nome.upper().startswith(tipo+'_'):return tipo
+    return None
+
+
+def _config_publica_area(cfg):
+    if not setores.atual():return cfg
+    tipos=setores.tipos_kobo()
+    cfg=dict(cfg)
+    cfg['assets']={k:v for k,v in cfg.get('assets',{}).items() if k in tipos}
+    cfg['last_sync']={k:v for k,v in cfg.get('last_sync',{}).items() if k in tipos}
+    cfg['tipos']=[t for t in cfg.get('tipos',[]) if t['codigo'] in tipos]
+    for key in ('tipos_visita','tipos_extra'):
+        cfg[key]=[t for t in cfg.get(key,[]) if t in tipos]
+    return cfg
+
+
+@bp.before_request
+def fronteira_importacao():
+    if setores.atual()=='ambiental' and request.endpoint in {
+        'processar.kobo_lote_vetores_larvas',
+        'processar.kobo_importar_vetores_larvas_iniciar',
+        'processar.kobo_reconciliar_acs_pve',
+    }:
+        return jsonify({'erro':'Operação disponível no setor de Endemias.'}),403

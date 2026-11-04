@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import uuid
+import os
 
 from app_core import db, import_history, kobo_api, postgresql_migrations
 from app_core import visitas as visitas_core
@@ -69,10 +70,11 @@ def _uuids_existentes(target, tipo, registros):
         conn.close()
 
 
-def _buscar_novos(cfg, target, inicio, fim):
+def _buscar_novos(cfg, target, inicio, fim, tipos_permitidos=None):
     novos = {}
     totais = {}
     for tipo in kobo_api.ALL_TYPES:
+        if tipos_permitidos is not None and tipo not in tipos_permitidos:continue
         uid = str((cfg.get("assets") or {}).get(tipo) or "").strip()
         if not uid and tipo != "LIRAA":
             continue
@@ -120,12 +122,13 @@ def _atualizar_catalogos(cfg, target, novos):
     return avisos
 
 
-def _aviso_lacuna(target, inicio):
+def _aviso_lacuna(target, inicio, setor=None):
     conn = db.connect(target)
     try:
         row = conn.execute(
             "SELECT MAX(criado_em) FROM importacoes "
-            "WHERE status IN ('auto_confirmado', 'auto_sem_novos')"
+            "WHERE status IN ('auto_confirmado', 'auto_sem_novos')" + (' AND setor=?' if setor else ''),
+            (setor,) if setor else (),
         ).fetchone()
         anterior = row[0] if row else None
     finally:
@@ -136,15 +139,22 @@ def _aviso_lacuna(target, inicio):
 
 
 def executar(*, target, config_path, kobo_config_path, migracoes_dir,
-             hoje=None, aplicar=False):
+             hoje=None, aplicar=False, setor=None):
     """Falha fechada: consulta integral, dry-run e só então grava um lote único."""
+    from app_core import setores
+    if setor is not None and setor not in setores.SETORES:
+        raise ImportacaoAutomaticaErro('Setor invalido.')
+    if str(os.environ.get('ENDEMIAS_SETORES_ENABLED','')).lower() in {'1','true','sim'} and setor is None:
+        raise ImportacaoAutomaticaErro('Informe o setor da rotina automatica antes de executar na divisao.')
+    options={'tipos_permitidos':setores.TIPOS_KOBO[setor]} if setor else {}
+    history_options={'setor':setor} if setor else {}
     if aplicar and db.is_sqlite(target):
         raise ImportacaoAutomaticaErro("A gravação automática exige PostgreSQL.")
     inicio, fim = periodo_7_dias(hoje)
     job_id = str(uuid.uuid4())
     get_db = lambda: db.connect(target)
     if aplicar:
-        import_history.registrar_importacao(get_db, job_id, [], "auto_preparando", "Kobo automático")
+        import_history.registrar_importacao(get_db, job_id, [], "auto_preparando", "Kobo automático",**history_options)
     try:
         _exigir_migracoes(target, migracoes_dir)
         cfg = kobo_api.load_config(kobo_config_path)
@@ -152,11 +162,11 @@ def executar(*, target, config_path, kobo_config_path, migracoes_dir,
             raise ImportacaoAutomaticaErro("Kobo não configurado para a importação automática.")
         if not any(str(value or "").strip() for value in (cfg.get("assets") or {}).values()):
             raise ImportacaoAutomaticaErro("Nenhum formulário Kobo configurado.")
-        novos, totais = _buscar_novos(cfg, target, inicio, fim)
+        novos, totais = _buscar_novos(cfg, target, inicio, fim,**options)
         quantidade = sum(item["novos"] for item in totais.values())
         relatorio = {"inicio": inicio, "fim": fim, "formularios": totais, "novos": quantidade}
         if aplicar:
-            aviso = _aviso_lacuna(target, inicio)
+            aviso = _aviso_lacuna(target, inicio,**history_options)
             if aviso:
                 relatorio["avisos"] = [aviso]
         if not quantidade:
@@ -170,14 +180,14 @@ def executar(*, target, config_path, kobo_config_path, migracoes_dir,
             trabalho = [p for p in caminhos if Path(p).name.upper().split("_", 1)[0] != "LARVAS"]
             larvas = [p for p in caminhos if p not in trabalho]
             verificado, resumo = etl.processar_upload(
-                trabalho, larvas, target, config_path, etl.Logger(), dry_run=True,
+                trabalho, larvas, target, config_path, etl.Logger(), dry_run=True,**options,
             )
             if not verificado:
                 raise ImportacaoAutomaticaErro("Verificação do lote falhou; banco não alterado.")
             if aplicar:
                 gravado, resumo = etl.processar_upload(
                     trabalho, larvas, target, config_path, etl.Logger(),
-                    dry_run=False, backup_confirmado=True,
+                    dry_run=False, backup_confirmado=True,**options,
                 )
                 if not gravado:
                     raise ImportacaoAutomaticaErro("Gravação falhou; transação revertida.")

@@ -6,6 +6,30 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
+## Divisão de setores — preparação 2.0.0-rc.1 (não implantada)
+
+- Worktree `C:\endemias-setores`, branch `codex/divisao-setores-2`; produção
+  continua 1.80.0. Portal raiz e aplicações Endemias/Ambiental por Host exato,
+  setores das contas independentes do nível, sessões/agendas/Kobo e consultas
+  separados. Meteorologia comum; Esporotricose integral/Amostras só Ambiental.
+- Usuário esclareceu: agentes Endemias registram Esporotricose apenas no Kobo;
+  gestão web só Ambiental. Sem exceção de acesso; vínculos históricos mantidos.
+- 0035 aditiva preparada, não aplicada à produção; contas/eventos antigos
+  permanecem Endemias até revisão, históricos mistos preservados como legado
+  na Central. Nenhuma conta/senha/dado/serviço/DNS alterado nesta preparação.
+- `ENDEMIAS_SETORES_ENABLED` exige ativação explícita e esquema pronto. Não
+  integrar templates na master com processo antigo ativo nem usar ativador
+  antigo. Implantação Windows/ACL/configuração Kobo/rotas Cloudflare/LAN 5004,
+  homologação real e reinício ainda pendentes. Geo permanece após 2.0.
+- Validação concluída: suíte geral de 1.001 testes OK (seis ignorados),
+  incluindo 21 novos testes da divisão; 29 focados de setores/Kobo automático OK.
+  Chromium/CSRF/desktop/celular e três entradas Waitress conferidos; PostgreSQL
+  novo em 55444/SCRAM confirmou 0035 aditiva, consultas, relatórios e agendas.
+  Cluster/credenciais temporários removidos, sem listeners de teste restantes.
+  Login público 200/1.80.0 e no-store/private reconfirmados; hash do SQLite
+  congelado permanece `964152E21DE44B4FFF985F72A0D7945E8E7DCF260BBB019708B868C3B3A7A025`.
+- Ver `docs/DIVISAO_SETORES_200.md` para regras, limites e procedimento.
+
 ## Projeto e forma de trabalho
 
 - **Versão vigente 1.80.0, ativa em 04/11/2026 às 14h35**, release `31fb0e2`.

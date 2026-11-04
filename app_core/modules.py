@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Iterable, List, Optional, Tuple
 from app_core import permissoes
+from app_core import setores
 
 
 LEVEL_ORDER = permissoes.LEVEL_ORDER
@@ -36,6 +37,8 @@ class AppModule:
 
 
 MODULES: Tuple[AppModule, ...] = (
+    AppModule(key='vigiagua',title='Vigiágua',href='/vigiagua',endpoint='ambiental.vigiagua',icon='amostra_animal.svg',nav_section='Analise'),
+    AppModule(key='relatorios_ambientais',title='Relatórios',href='/relatorios',endpoint='ambiental.relatorios',icon='documento.svg',nav_section='Analise'),
     AppModule(
         key="home",
         title="Inicio",
@@ -372,6 +375,8 @@ SECTION_ORDER = ("Principal", "Analise", "Gestao", "Administracao")
 
 
 def can_access(module: AppModule, user) -> bool:
+    if not setores.permite_modulo(module.key):
+        return False
     level = (user or {}).get("nivel") if isinstance(user, dict) else None
     if LEVEL_ORDER.get(level or "visualizador", 0) < LEVEL_ORDER.get(module.min_level, 999):
         return False

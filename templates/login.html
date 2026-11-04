@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/png" href="/static/img/favicon.png">
-<title>Endemias — Login</title>
+<title>{{ SETOR_TITULO }} — Login</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f1f5fd;min-height:100vh;display:flex;align-items:center;justify-content:center;}
@@ -35,8 +35,8 @@ body.ambiente-teste-ativo{padding-top:34px;}
   <div class="card">
     <div class="card-top">
       <img src="/static/img/logo_endemias.png" alt="">
-      <h1>Endemias</h1>
-      <p>Setor de Endemias · Almirante Tamandaré-PR</p>
+      <h1>{{ SETOR_TITULO }}</h1>
+      <p>Vigilância em Saúde · Almirante Tamandaré-PR</p>
     </div>
     <div class="card-body">
       {% if erro %}

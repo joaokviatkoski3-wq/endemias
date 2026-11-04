@@ -255,7 +255,7 @@ def admin_sistema():
     backups = _listar_backups_ativos(backup_dir, limite=20)
     backups_completos = backup_completo_core.listar_backups_completos(backup_completo_dir, limite=20)
     importacoes = import_history.listar_importacoes_recentes(bh.get_db, limite=5)
-    eventos = audit.listar_eventos(bh.get_db, limite=8)
+    eventos = audit.listar_eventos(bh.get_db, limite=8, todos_setores=True)
     saude_backups = _saude_backups(
         target,
         backup_dir,
@@ -705,6 +705,11 @@ def admin_gerar_recuperacao(uid):
     if auth_core.login_bloqueado_db(bh.get_db, chave, limite=20):
         return jsonify({"erro": "Limite de links atingido. Aguarde 15 minutos."}), 429
     base = current_app.config.get("RECOVERY_BASE_URL", "https://endemias.vsatt.com.br")
+    if current_app.config.get('SETORES_ENABLED'):
+        from app_core import setores
+        target_user=bh.q1('SELECT * FROM usuarios WHERE id_usuario=?',(uid,))
+        sector=(target_user or {}).get('setor','endemias') if (target_user or {}).get('nivel') not in {'admin','superadmin'} else setores.atual()
+        base='https://'+sector+'.'+current_app.config['DOMINIO_BASE']
     try:
         recuperacao_senha.url_publica("", base)
 

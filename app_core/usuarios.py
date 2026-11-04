@@ -16,6 +16,7 @@ EDITABLE_FIELDS = {
     "somente_laboratorio",
     "id_agente",
     "senha",
+    "setor",
 }
 
 
@@ -70,6 +71,9 @@ def _bloquear_gestao(conn):
 
 
 def criar(target, dados, agora=None, *, actor_id=None):
+    setor=dados.get('setor')
+    if setor is not None and setor not in {'endemias','ambiental'}:
+        raise ValueError('Setor inválido.')
     usuario = str(dados.get("usuario") or "").strip().lower()
     nome = str(dados.get("nome") or "").strip()
     nivel = str(dados.get("nivel") or "visualizador").strip()
@@ -81,6 +85,7 @@ def criar(target, dados, agora=None, *, actor_id=None):
         1 if str(dados.get("somente_laboratorio") or "0") == "1" else 0
     )
     if somente_laboratorio:
+        if setor=="ambiental":raise ValueError("O laboratório pertence ao setor de Endemias.")
         acesso_laboratorio = 1
     if not usuario or not nome or not senha:
         raise ValueError("Preencha todos os campos.")
@@ -115,6 +120,8 @@ def criar(target, dados, agora=None, *, actor_id=None):
                 id_agente,
             ),
         )
+        if setor is not None:
+            conn.execute('UPDATE usuarios SET setor=? WHERE id_usuario=?',(setor,novo_id))
         conn.commit()
         return novo_id
     finally:
@@ -144,6 +151,11 @@ def editar(target, uid, campo, valor, usuario_atual_id=None):
         if not row:
             raise ValueError("Usuario nao encontrado.")
         anterior = dict(row)
+        if campo=='setor':
+            anterior['setor']=conn.execute('SELECT setor FROM usuarios WHERE id_usuario=?',(uid,)).fetchone()[0]
+        if campo=='somente_laboratorio' and valor=='1':
+            conta=dict(conn.execute('SELECT * FROM usuarios WHERE id_usuario=?',(uid,)).fetchone())
+            if conta.get('setor')=='ambiental':raise ValueError('O laboratório pertence ao setor de Endemias.')
         if not permissoes.pode_gerenciar_conta(ator, anterior):
             raise ValueError("Esta conta é protegida contra alterações pelo seu perfil.")
 
@@ -199,6 +211,12 @@ def editar(target, uid, campo, valor, usuario_atual_id=None):
                 "UPDATE usuarios SET id_agente=? WHERE id_usuario=?",
                 (novo, uid),
             )
+        elif campo == 'setor' and valor in {'endemias','ambiental'}:
+            if valor=='ambiental' and anterior.get('somente_laboratorio'):
+                raise ValueError('Remova o acesso exclusivo ao laboratório antes de mudar para Ambiental.')
+            novo=valor
+            conn.execute('UPDATE usuarios SET setor=? WHERE id_usuario=?',(novo,uid))
+            conn.execute('DELETE FROM usuarios_sessoes WHERE usuario_id=?',(uid,))
         elif campo == "senha" and auth.senha_valida(valor):
             novo = "***"
             conn.execute(

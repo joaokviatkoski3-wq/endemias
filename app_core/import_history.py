@@ -58,7 +58,7 @@ def garantir_tabela_importacoes(get_db, conn=None):
         conn.close()
 
 
-def registrar_importacao(get_db, job_id, arquivos, status="upload", usuario=""):
+def registrar_importacao(get_db, job_id, arquivos, status="upload", usuario="", setor=None):
     agora = datetime.now().isoformat()
     conn = get_db()
     try:
@@ -81,6 +81,8 @@ def registrar_importacao(get_db, job_id, arquivos, status="upload", usuario=""):
             json.dumps(list(arquivos), ensure_ascii=False),
             status, agora, agora,
         ))
+        if setor:
+            conn.execute("UPDATE importacoes SET setor=? WHERE job_id=?",(setor,job_id))
         conn.commit()
     finally:
         conn.close()
@@ -112,18 +114,20 @@ def atualizar_importacao(get_db, job_id, status, dry_run_ok=None, commit_ok=None
         conn.close()
 
 
-def listar_importacoes_recentes(get_db, limite=10):
+def listar_importacoes_recentes(get_db, limite=10, setor=None):
     limite = max(1, min(int(limite or 10), 50))
     conn = get_db()
     try:
         garantir_tabela_importacoes(get_db, conn)
-        rows = conn.execute("""
+        where="WHERE setor=?" if setor else ""
+        params=(setor,limite) if setor else (limite,)
+        rows = conn.execute(f"""
             SELECT job_id, usuario, arquivos_json, status, dry_run_ok, commit_ok,
                    sumario_json, erro, criado_em, atualizado_em
-            FROM importacoes
+            FROM importacoes {where}
             ORDER BY criado_em DESC, id_importacao DESC
             LIMIT ?
-        """, (limite,)).fetchall()
+        """, params).fetchall()
     finally:
         conn.close()
 

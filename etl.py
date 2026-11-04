@@ -1144,7 +1144,7 @@ def _formatar_pendencia(row):
 # =============================================================================
 
 def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path,
-                     logger, dry_run=False, backup_confirmado=False):
+                     logger, dry_run=False, backup_confirmado=False, tipos_permitidos=None):
     """
     arquivos_trabalho: lista de caminhos de arquivos .xlsx com prefixos em config.json
     arquivos_larvas:   lista de caminhos de arquivos .xlsx (LARVAS_)
@@ -1174,6 +1174,10 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
     except Exception as e:
         logger.log(f"\n[ERRO] Falha ao carregar config.json: {e}", "erro")
         return False, []
+
+    if tipos_permitidos is not None and arquivos_larvas and 'LARVAS' not in tipos_permitidos:
+        logger.log('Planilhas de outro setor recusadas.','erro')
+        return False,[]
 
     # O backup consistente é criado pela rota de confirmação usando a API do SQLite.
     logger.log("\n[1/5] Segurança do banco...", "titulo")
@@ -1231,6 +1235,9 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
             tipo = "BRI"
         if nome.upper().startswith("LIRAA_"):
             tipo = "LIRAA"
+        if tipos_permitidos is not None and tipo not in tipos_permitidos:
+            logger.log('Lote recusado: planilha não pertence ao setor.','erro')
+            return False,[]
         if tipo is None:
             logger.log(f"\n  [IGNORADO] '{nome}' — prefixo não reconhecido.", "aviso")
             continue
@@ -1261,7 +1268,8 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
             houve_erro = True
 
     conn = db_core.connect(banco_path)
-    auditar_larvas_sem_coleta(conn, larvas_origens, logger)
+    if tipos_permitidos is None or "LARVAS" in tipos_permitidos:
+        auditar_larvas_sem_coleta(conn, larvas_origens, logger)
 
     sumario = []  # preview para tela de confirmação
     ids_visitas_auditadas = []
@@ -1372,7 +1380,8 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
     # Verificar banco dentro da transação (mostra contagens reais mesmo no dry-run)
     if not transacao_abortada:
         logger.log("\n[4/5] Checando pendencias operacionais...", "titulo")
-        auditar_pendencias_importacao(conn, logger, ids_visitas_auditadas)
+        if tipos_permitidos is None or "TB" in tipos_permitidos:
+            auditar_pendencias_importacao(conn, logger, ids_visitas_auditadas)
 
         logger.log("\n[5/5] Verificando banco...", "titulo")
         cur = conn.cursor()
@@ -1380,6 +1389,8 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
                        "tratamentos", "coletas", "resultados_laboratorio", "focos_positivos",
                        "esporotricose_visitas", "esporotricose_animais", "recolhimentos",
                        "amostras_animais", "bri_registros"]:
+            ambiental=tabela in {'esporotricose_visitas','esporotricose_animais','amostras_animais'}
+            if tipos_permitidos is not None and ambiental != ('ESPOROTRICOSE' in tipos_permitidos):continue
             cur.execute(f'SELECT COUNT(*) FROM "{tabela}"')
             qtd = cur.fetchone()[0]
             logger.log(f"  {tabela:<35} {qtd} registro(s)", "ok")

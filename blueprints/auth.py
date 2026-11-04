@@ -9,6 +9,7 @@ from app_core import termos_uso
 from app_core import recuperacao_senha
 from app_core import presenca as presenca_core
 from app_core import sessoes
+from app_core import setores
 
 
 bp = Blueprint("auth", __name__)
@@ -75,6 +76,8 @@ def login():
         if u:
             ok, novo_hash = _verificar_senha(senha, u["senha_hash"])
             if ok:
+                if not setores.pode_entrar(u):
+                    return render_template('login.html',erro='Sua conta não possui acesso a este setor. Entre pelo endereço do seu setor.'),403
                 _limpar_login_falhas(chave)
                 session.clear()
                 session.permanent = True
