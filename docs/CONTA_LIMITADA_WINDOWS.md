@@ -1,7 +1,7 @@
 # Servidor local com conta limitada — estado vigente
 
-Versão vigente **1.78.0**, ativa em 04/11 às 10h55 com presença administrativa.
-Mesma tarefa/identidade/ambiente e proteções. Ver `PRESENCA_USUARIOS.md`;
+Versão vigente **1.79.0**, ativa em 04/11 às 11h58 com superadmin e gestão delegada.
+Mesma tarefa/identidade/ambiente e proteções. Ver `SUPERADMIN_PERMISSOES.md`;
 os registros 1.75/1.76 abaixo descrevem as etapas anteriores.
 
 Conta limitada aplicada em 03/11/2026. **Atualização de 04/11:** produção local

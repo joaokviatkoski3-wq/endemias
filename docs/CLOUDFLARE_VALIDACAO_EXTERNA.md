@@ -1,8 +1,9 @@
 # Validacao externa e conector limitado — 04/11/2026
 
-Atualizacao posterior: producao agora **1.78.0**, presenca ativa
-as 10h55 e HTTPS/LAN conferidos as 10h56. Mesma infraestrutura/identidade;
-somente migracao 0032 aditiva neste lote. Ver `PRESENCA_USUARIOS.md`. As evidencias de
+Atualizacao posterior: producao agora **1.79.0**, superadmin ativo
+as 11h58 e HTTPS oficial 200/1.79.0 reconfirmado em 04/11. Mesma infraestrutura/
+identidade; somente migracao 0033 neste lote, seguida da promocao autorizada
+de `joao`/id 2. Ver `SUPERADMIN_PERMISSOES.md` e estado vivo. As evidencias de
 ativacao/reinicio 1.76 abaixo permanecem historicas.
 
 Continuidade autorizada pelo usuario apos o piloto publico. **Producao local

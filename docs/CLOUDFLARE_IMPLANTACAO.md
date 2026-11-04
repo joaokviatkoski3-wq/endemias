@@ -1,7 +1,8 @@
 # Acesso externo — implantação 1.76.0
 
-**Versão vigente 1.78.0**, desde 04/11 às 10h55: presença administrativa,
-recuperação assistida e infraestrutura preservadas. Ver `PRESENCA_USUARIOS.md`.
+**Versão vigente 1.79.0**, desde 04/11 às 11h58: superadmin `joao`, gestão
+operacional delegada, presença e recuperação assistida. Infraestrutura
+preservada. Ver `SUPERADMIN_PERMISSOES.md` e estado vivo.
 O lote 1.76 abaixo
 registra a publicação e o reinício anteriores.
 

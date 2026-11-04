@@ -8,16 +8,26 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
 
-- **Preparação 1.79.0 em `C:\endemias-superadmin`**, branch
+- **Versão vigente 1.79.0, ativa em 04/11/2026 às 11h58**, release `02701c2`.
+  Relatório `C:\ProgramData\EndemiasWeb\ativacao179-resultado.json` aplicado,
+  backup de 7.536.799 bytes/catalogado, somente 0033 aplicada, 93 tabelas
+  anteriores e arquivos protegidos preservados antes da promoção autorizada.
+  Apenas `joao`/id 2 promovido; outras contas/senhas preservadas. Ensaio limitado
+  com todos os checks verdadeiros, mesma tarefa/ambiente/portas. Login HTTPS
+  200/1.79.0 reconfirmado em 04/11. Não repetir o ativador 1.78 -> 1.79.
+  Reinício completo após 1.79 ainda não ensaiado. Ver
+  `docs/SUPERADMIN_PERMISSOES.md` e estado vivo.
+
+- Histórico da preparação 1.79.0 em `C:\endemias-superadmin`, branch
   `codex/superadmin-permissoes`: usuário confirmou `joao` (id 2) como único
   superadmin. Admin mantém gestão operacional e perde Central/backups/Kobo
   técnico e gestão de pares/superadmin. 964 testes gerais OK (sete ignorados),
   ensaios sintéticos PostgreSQL e Chromium/CSRF/celular. Não confundir código
   preparado com ativação: conferir o estado vivo e relatório `ativacao179`.
-  Produção permanece 1.78.0 até a janela de backup/ativação. Ver
+  A referência à produção 1.78 era anterior à ativação acima. Ver
   `docs/SUPERADMIN_PERMISSOES.md`.
 
-- **Versão vigente 1.78.0, ativa em 04/11/2026 às 10h55**, release `7e1a3fe`:
+- Histórico: **1.78.0, ativa em 04/11/2026 às 10h55**, release `7e1a3fe`:
   presença, última vez online e total na Gestão de Usuários, somente admin.
   Sinal visível a cada 30s/janela 120s, sessões independentes por aparelho e
   polling sem renovação contínua do cookie. Coleta inicia nesta versão, sem

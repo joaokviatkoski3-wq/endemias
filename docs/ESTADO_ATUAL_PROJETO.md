@@ -4,7 +4,25 @@ Atualizado em 04/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Preparação 1.79.0 — superadmin e gestão delegada
+## Versão vigente 1.79.0 — superadmin e gestão delegada
+
+- Ativação posterior confirmada pelo relatório privado
+  `C:\ProgramData\EndemiasWeb\ativacao179-resultado.json`: aplicado/concluído,
+  snapshot `ativacao179-20261104-115828`, release `02701c2`. Backup de 7.536.799
+  bytes com catálogo validado; somente 0033 aplicada. Assinaturas de 93 tabelas
+  anteriores e arquivos protegidos preservados antes da promoção autorizada.
+  `joao`/id 2 é superadmin; todas as outras contas preservadas, zero resets reais.
+- Ensaio EndemiasWeb com todos os checks verdadeiros; mesma tarefa/identidade/
+  ambiente/portas, logins LAN e origem externa 200. HTTPS oficial 200/1.79.0
+  reconfirmado em 04/11. O primeiro pedido automático de elevação foi cancelado;
+  não confundir com esta ativação posterior concluída. Não repetir o ativador.
+- Reinício completo após 1.79 não ensaiado; automação existente preservada.
+  Revisão de segurança trazida pelo usuário em 04/11 motivou preparação isolada
+  posterior em `C:\endemias-seguranca`, `codex/correcao-seguranca`; não é versão
+  ativa ainda. Windows sem ESU permanece por decisão do usuário; HTTPS local e
+  segundo fator exigem avaliação operacional, sem imposição automática.
+
+### Preparação anterior à ativação 1.79
 
 - Usuário confirmou a conta pessoal `joao`, id 2, como único superadmin.
   Implementação na worktree `C:\endemias-superadmin`, branch
@@ -13,11 +31,11 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
   Conta superadmin protegida na web, índice único e recuperação local Windows.
 - 964 testes gerais OK (sete ignorados), ensaio PostgreSQL descartável e
   Chromium com CSRF real/celular. Ver `SUPERADMIN_PERMISSOES.md`.
-- Ainda não ativada nesta preparação. Produção 1.78.0 descrita abaixo.
+- Naquele momento ainda não ativada; a produção era 1.78.0 descrita abaixo.
   Ativador exige essa origem, backup validado, somente migração 0033 e promoção
   de `joao`/id 2, comparando todas as outras contas. Não altera suas senhas.
 
-## Versão vigente 1.78.0 — presença de usuários ativa
+## Histórico 1.78.0 — presença de usuários ativa
 
 - Ativada em 04/11/2026 às 10h55, release `7e1a3fe`, após autorização do
   usuário. Gestão de Usuários mostra presença, última vez online e total,
