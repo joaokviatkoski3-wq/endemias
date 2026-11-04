@@ -31,12 +31,24 @@ ACLs amplas registrado abaixo como diagnóstico histórico.
   Cloudflare `CF-Cache-Status: DYNAMIC`, CSP e HSTS de um dia; cookie de login
   `__Host-endemias` com Secure/HttpOnly. Nenhuma credencial foi enviada nesse
   teste. Isso não prova ausência de outras falhas ou cobertura de todas as rotas.
-- Usuário ainda precisa conferir login fictício, termo, saída/novo login e
-  funções no endereço público. Credencial só no arquivo local ignorado
+- Usuário confirmou login fictício, termo e saída/novo login no endereço
+  público em 03/11. Testes de funções ainda pendentes. Credencial só no arquivo local ignorado
   `.venv/piloto-web/acesso.local.txt`; não usar contas reais nesse ambiente.
 - O piloto é um processo sem autostart; após fechar/reiniciar o computador,
   pode ser necessário iniciá-lo por `piloto_web.bat`. O serviço do conector
   automático não inicia a aplicação piloto. Produção segue 1.75.0/EndemiasWeb.
+
+### Retomada após reinício em 04/11
+
+Windows reiniciado às 08h05. Cloudflared estava Running/Auto e a produção
+respondia 200/1.75.0; portas 5002/5003 não tinham listener. O piloto público
+retornou 502 porque a aplicação de ensaio, ainda manual, não estava iniciada.
+Iniciado novamente `scripts/piloto_web.py` com os mesmos recursos fictícios.
+Confirmados listeners somente em 127.0.0.1:5002/5003, `/login` público com
+200/1.76.0 e API sem login 401, respostas privadas sem cache. Sem nova
+configuração de serviço/tarefa, DNS, firewall, produção ou banco real.
+Para próximos reinícios, iniciar `piloto_web.bat` na worktree; a tarefa
+automática da produção e o serviço automático do Tunnel são independentes.
 
 ## Diagnóstico inicial (histórico; atualizações acima)
 
