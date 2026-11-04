@@ -24,7 +24,11 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
   TLS/redirect Cloudflare ajustados pelo usuário e conferidos às 14h56:
   1.0/1.1 recusados, 1.2/1.3 aceitos e HTTP 301 para HTTPS. HTTPS local/MFA
   não adotados.
-  Conta pessoal em nuvem discutida, sem envio ou destino institucional definido.
+  Usuário usa Google Drive pessoal e já copia pastas inteiras para lá. Informa
+  acesso somente seu e verificação Google em duas etapas; não auditados no Drive.
+  Aprovou rotina manual de upload do backup completo `.zip.7z`, frase separada,
+  preservando cópias antigas até validar a nova. Primeiro upload cifrado/conferência
+  ainda pendentes; agente não acessou/alterou Drive. Ver `docs/ROTINA_BACKUP_GOOGLE_DRIVE.md`.
 
 - Histórico da preparação 1.80.0 de segurança em `C:\endemias-seguranca`, branch
   `codex/correcao-seguranca`: escape BRI/Amostras/mapa/Conta Ovos, CSP com nonce,

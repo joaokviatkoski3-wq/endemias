@@ -60,7 +60,14 @@ uploads protegida da conta web. A implantação instala `py7zr==1.1.4` e suas
 dependências a partir de nove wheels locais com SHA-256 conferido no manifesto
 versionado. Consulta OSV desses nove pacotes em 04/11: nenhum alerta retornado.
 
-### Cópia na nuvem
+### Cópia na nuvem — rotina manual definida
+
+Usuário definiu **Google Drive pessoal** e aprovou envio manual do backup completo
+criptografado `.zip.7z`, com frase separada e cópias antigas preservadas até a
+conferência da nova. Já envia pastas inteiras para essa conta; informa acesso
+somente seu e verificação em duas etapas. Não houve auditoria da conta ou dos
+arquivos no Drive. O primeiro envio cifrado e sua conferência ainda estão pendentes.
+Passo a passo em [Rotina de backup no Google Drive](ROTINA_BACKUP_GOOGLE_DRIVE.md).
 
 É possível guardar o arquivo **já criptografado** em pasta privada de uma conta
 institucional no OneDrive, Google Drive ou serviço definido pelo responsável.
@@ -72,7 +79,8 @@ Manter cópias datadas e retenção ajuda a recuperar versões anteriores, pois 
 sincronização também pode propagar exclusões e alterações. Automatizar somente
 depois de definir conta, pasta, credenciais apropriadas e rotina de recuperação.
 Não houve upload de dados, configuração de nuvem, compartilhamento ou cadastro
-de credenciais nesta preparação. Não foi confirmada uma cópia externa real.
+de credenciais pelo agente. As cópias externas antigas foram informadas pelo
+usuário, sem validação de conteúdo/integridade pelo agente.
 
 O usuário informou que só dispõe de conta pessoal. Ela funciona tecnicamente;
 para dados do setor, a preferência é uma conta controlada pela instituição,

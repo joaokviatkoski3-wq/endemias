@@ -41,10 +41,15 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
   usuário informou "Pronto". Às 14h56, conexões TLS 1.0/1.1 foram recusadas com
   alerta de versão, 1.2/1.3 aceitas e HTTP retornou 301 para HTTPS oficial.
   Nenhum ajuste de conta/Tunnel/firewall foi feito pelo agente para isso.
-- Pendências: HTTPS local, segundo fator e destino de cópia externa. Windows mantido por decisão do
-  usuário. Dispõe só de conta pessoal na nuvem: explicado uso técnico de arquivo
-  já cifrado, preferência por controle institucional e regras do setor. Nenhum
-  upload/compartilhamento/credencial de nuvem configurado. Ver guia de segurança.
+- Pendências: HTTPS local, segundo fator do Endemias e primeira cópia externa
+  criptografada conferida. Windows mantido por decisão do usuário.
+- **Google Drive definido:** usuário já envia pastas inteiras do sistema/backups
+  à conta pessoal. Informa acesso somente seu e verificação em duas etapas na
+  conta Google; não auditados pelo agente. Aprovou envio manual dos novos backups
+  completos `.zip.7z`, frase separada e preservação das cópias antigas até conferir
+  a nova. Não confundir relato de cópias antigas com validação de restauração ou
+  confirmação do primeiro upload cifrado. Agente não acessou/alterou Drive, não
+  enviou/excluiu arquivos nem configurou automação. Ver `ROTINA_BACKUP_GOOGLE_DRIVE.md`.
 
 ### Preparação anterior à ativação 1.80 — histórico
 
