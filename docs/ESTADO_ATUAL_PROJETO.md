@@ -4,17 +4,35 @@ Atualizado em 04/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Presença — preparação 1.78.0
+## Versão vigente 1.78.0 — presença de usuários ativa
 
-Usuário autorizou presença, última vez online e total na Gestão de Usuários,
-somente para administradores. Preparação em `codex/presenca-usuarios`, worktree
-`C:\endemias-presenca`: sinais visíveis a cada 30s, janela online 120s, múltiplas
-abas/aparelhos, expiração, logout e invalidade após troca de senha. Somente
-migração aditiva 0032; produção permanece 1.77.0 até confirmação da ativação.
-949 testes gerais passaram (sete ignorados), focados, PostgreSQL descartável
-e Chromium/CSRF/celular conferidos. Ver `PRESENCA_USUARIOS.md`.
+- Ativada em 04/11/2026 às 10h55, release `7e1a3fe`, após autorização do
+  usuário. Gestão de Usuários mostra presença, última vez online e total,
+  somente admin. Sinais visíveis a cada 30s, janela 120s, múltiplas abas/aparelhos,
+  logout isolado e invalidação após troca de senha/desativação. Polling não
+  renova cookies continuamente. Coleta inicia agora; páginas anteriores devem
+  ser recarregadas. Não reconstruir presença a partir dos logins históricos.
+- Backup de 7.530.824 bytes com catálogo validado; apenas 0032 aplicada.
+  Assinaturas/contagens de 91 tabelas anteriores e chave/Kobo/config/SQLite
+  congelado preservados. Mesma tarefa/credencial/ambiente EndemiasWeb e portas;
+  conector, PostgreSQL e firewall preservados. Nenhuma senha real redefinida.
+- Relatório privado `C:\ProgramData\EndemiasWeb\ativacao178-resultado.json`:
+  aplicado/todos os checks verdadeiros. Snapshot `ativacao178-20261104-105523`.
+  Ensaio limitado confirmou identidade, permissões, SQL, backup, XLSX/PDF,
+  rotação e login. Às 10h56, HTTPS e LAN/loopback 200/1.78.0, API de sinal sem
+  sessão 401 e consulta administrativa anônima redirecionada ao login,
+  private/no-store/DYNAMIC; recurso JS público entregue 200, com cache estático.
+- 949 testes gerais passaram (sete ignorados), focados adicionais do pacote/
+  conta exclusiva/termo, PostgreSQL descartável e Chromium/CSRF/celular. Zero
+  erros JS, expiração/retomada, várias abas/aparelhos, data Brasília e ausência
+  de renovação do cookie por polling conferidos. Menu do usuário também abre
+  no primeiro clique. Ver `PRESENCA_USUARIOS.md`. Worktree `C:\endemias-presenca`,
+  branch `codex/presenca-usuarios`.
+- Reinício do Windows após 1.78 ainda não ensaiado; a inicialização automática
+  foi preservada. Backups/restauração isolada e uso funcional pela equipe
+  continuam em acompanhamento; limitações do Windows já registradas permanecem.
 
-## Versão vigente 1.77.0 — recuperação assistida ativa
+## Histórico 1.77.0 — recuperação assistida ativa
 
 - Ativada em 04/11/2026 às 10h23, release `3f35afe`, após solicitação do
   usuário. Gestão de Usuários oferece link de recuperação (15 minutos/uso único);

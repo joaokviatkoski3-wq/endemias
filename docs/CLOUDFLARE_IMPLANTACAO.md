@@ -1,7 +1,8 @@
 # Acesso externo — implantação 1.76.0
 
-**Versão vigente 1.77.0**, desde 04/11 às 10h23: recuperação assistida,
-infraestrutura preservada. Ver `RECUPERACAO_SENHA.md`. O lote 1.76 abaixo
+**Versão vigente 1.78.0**, desde 04/11 às 10h55: presença administrativa,
+recuperação assistida e infraestrutura preservadas. Ver `PRESENCA_USUARIOS.md`.
+O lote 1.76 abaixo
 registra a publicação e o reinício anteriores.
 
 **Estado em 04/11/2026:** 1.76.0 integrada na master e ativa localmente com

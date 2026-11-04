@@ -1,8 +1,8 @@
 # Validacao externa e conector limitado — 04/11/2026
 
-Atualizacao posterior: producao agora **1.77.0**, recuperacao assistida ativa
-as 10h23 e HTTPS/LAN conferidos as 10h24. Mesma infraestrutura/identidade;
-somente migracao 0031 aditiva. Ver `RECUPERACAO_SENHA.md`. As evidencias de
+Atualizacao posterior: producao agora **1.78.0**, presenca ativa
+as 10h55 e HTTPS/LAN conferidos as 10h56. Mesma infraestrutura/identidade;
+somente migracao 0032 aditiva neste lote. Ver `PRESENCA_USUARIOS.md`. As evidencias de
 ativacao/reinicio 1.76 abaixo permanecem historicas.
 
 Continuidade autorizada pelo usuario apos o piloto publico. **Producao local

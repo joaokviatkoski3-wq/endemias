@@ -1,7 +1,15 @@
 # Presenca de usuarios — 1.78.0
 
 Solicitada em 04/11/2026. Preparada em `codex/presenca-usuarios`, worktree
-`C:\endemias-presenca`. Conferir o estado vivo antes de declarar implantada.
+`C:\endemias-presenca`. **Ativa em produção desde 04/11/2026 às 10h55**, release
+`7e1a3fe` integrada na master, apenas 0032 aplicada. Backup de 7.530.824 bytes
+com catálogo validado; 91 tabelas anteriores e arquivos protegidos preservados.
+Mesma tarefa/identidade/ambiente EndemiasWeb. Ensaio administrativo limitado
+passou; HTTPS e LAN 200/1.78.0 às 10h56, API de sinal anônima 401 e consulta
+administrativa anônima redirecionada ao login, private/no-store/DYNAMIC.
+Resultado privado `C:\ProgramData\EndemiasWeb\ativacao178-resultado.json` aplicado,
+checks verdadeiros; snapshot `ativacao178-20261104-105523`. Reinício após 1.78
+ainda não ensaiado; inicialização automática preservada.
 
 ## Uso e significado
 
@@ -35,7 +43,7 @@ Paginas ja abertas na versao anterior precisam ser recarregadas/navegadas.
 - Tombstone de logout impede reabrir presenca com heartbeat atrasado, inclusive
   em concorrencia e se logout chegou antes do primeiro sinal.
 - Gravacao no maximo a cada 20 segundos por sessao reduz duplicacao entre abas.
-  Sessoes antigas sao limpas apos 24 horas; ultimo sinal por usuario permanece.
+  Limpeza oportunista remove sessoes com mais de 24 horas; ultimo sinal por usuario permanece.
   Nao ha gravação de trilha de paginas, cliques, IP ou localizacao nesta rotina.
 - Interface de sessao preserva a assinatura/escopos existentes e impede que
   heartbeat/consulta automatica renovem cookies permanentes sem modificacao

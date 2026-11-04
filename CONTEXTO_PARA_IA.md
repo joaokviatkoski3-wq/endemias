@@ -8,14 +8,21 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
 
-- Preparação **1.78.0**: presença/última vez online/total na Gestão de Usuários,
-  somente admin, sinal visível a cada 30s/janela 120s e sessões independentes
-  por aparelho. Só migração aditiva 0032 pendente até confirmação da implantação.
-  Worktree `C:\endemias-presenca`, branch `codex/presenca-usuarios`; 949 testes
-  gerais passaram (sete ignorados), focados, PostgreSQL descartável e navegador
-  conferidos. Ver `docs/PRESENCA_USUARIOS.md` e estado vivo para a versão ativa.
+- **Versão vigente 1.78.0, ativa em 04/11/2026 às 10h55**, release `7e1a3fe`:
+  presença, última vez online e total na Gestão de Usuários, somente admin.
+  Sinal visível a cada 30s/janela 120s, sessões independentes por aparelho e
+  polling sem renovação contínua do cookie. Coleta inicia nesta versão, sem
+  preencher presença com logins antigos; recarregar páginas anteriores.
+  Só migração aditiva 0032 aplicada; backup de 7.530.824 bytes/catalogado e
+  91 tabelas anteriores/arquivos protegidos preservados. Mesma tarefa/ambiente
+  EndemiasWeb e infraestrutura. HTTPS/LAN 200/1.78.0 às 10h56, API anônima 401,
+  consulta administrativa anônima redirecionada ao login. 949 testes gerais
+  passaram (sete ignorados), focados, PostgreSQL descartável e navegador
+  conferidos. Relatório privado `C:\ProgramData\EndemiasWeb\ativacao178-resultado.json`
+  aplicado/todos os checks verdadeiros. Ver `docs/PRESENCA_USUARIOS.md`.
+  Reinício após 1.78 não ensaiado; inicialização preservada, boot 1.76 histórico.
 
-- **Versão atual 1.77.0, ativa em 04/11/2026 às 10h23**, release `3f35afe`:
+- Histórico: **1.77.0 ativada em 04/11/2026 às 10h23**, release `3f35afe`:
   recuperação assistida por link gerado pelo administrador, 15 minutos/uso único,
   sem e-mail obrigatório, titular escolhe a senha. "Esqueci minha senha" orienta
   procurar o responsável. Só migração aditiva 0031 aplicada; backup validado de
