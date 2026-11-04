@@ -1,9 +1,10 @@
 # Validacao externa e conector limitado — 04/11/2026
 
-Atualizacao posterior: producao agora **1.79.0**, superadmin ativo
-as 11h58 e HTTPS oficial 200/1.79.0 reconfirmado em 04/11. Mesma infraestrutura/
-identidade; somente migracao 0033 neste lote, seguida da promocao autorizada
-de `joao`/id 2. Ver `SUPERADMIN_PERMISSOES.md` e estado vivo. As evidencias de
+Atualizacao posterior: producao agora **1.80.0**, seguranca ativa
+as 14h35 e HTTPS oficial 200/1.80.0 reconfirmado as 14h45 de 04/11. Mesma
+infraestrutura/identidade; somente migracao 0034 neste lote. API anonima 401,
+Central 302/login, nonce por resposta e no-store/DYNAMIC conferidos. Ver
+`CORRECOES_SEGURANCA_180.md` e estado vivo. As evidencias de
 ativacao/reinicio 1.76 abaixo permanecem historicas.
 
 Continuidade autorizada pelo usuario apos o piloto publico. **Producao local

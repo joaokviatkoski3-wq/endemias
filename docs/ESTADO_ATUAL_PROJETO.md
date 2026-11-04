@@ -4,7 +4,47 @@ Atualizado em 04/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Preparação 1.80.0 — correções de segurança
+## Versão vigente 1.80.0 — correções de segurança ativas
+
+- Usuário executou o ativador manualmente e informou conclusão. Relatório
+  `C:\ProgramData\EndemiasWeb\ativacao180-resultado.json` aplicado/concluído;
+  snapshot `ativacao180-20261104-143513`, release `31fb0e2`, 04/11 às 14h35.
+  Backup PostgreSQL de 7.538.186 bytes/catalogado, somente 0034 aplicada.
+  93 tabelas anteriores e chave/Kobo/config/SQLite congelado preservados.
+  Nenhum perfil/senha real alterado. Mesma tarefa/identidade/ambiente e portas.
+- Nove pacotes instalados de wheels locais com hashes/pins e pip check OK.
+  Relatório `seguranca180-preparacao.json` confirma ACL da raiz/das duas cópias
+  antigas sem grupos amplos e hashes preservados; ACL de arquivo reconferida.
+  Ensaio EndemiasWeb com todos os checks verdadeiros, incluindo backup real.
+- Backup completo atual criado com aplicação parada, antes da migração:
+  `D:\BackupsEndemias\backups_web\completos\endemias_completo_20261104_143519.zip`,
+  310.610.296 bytes, SHA-256
+  `9d6964ee4dc400c943a70c05aa2413e6283b36f175f3754e27644e6095172c0d`.
+- **Restauração real isolada concluída:** script
+  `scripts/validar_backup_completo_isolado.py`, worktree de manutenção,
+  pasta privada antes da extração, PostgreSQL temporário 127.0.0.1:55443 com
+  senha aleatória/SCRAM. 96 tabelas restauradas, 663 arquivos/configurações
+  conferidos byte a byte por hash, zero índices inválidos e superadmin único.
+  Não iniciou aplicação com as credenciais restauradas. Instância encerrada,
+  cópias expandidas e credenciais temporárias removidas; origem/produto intactos.
+  Resultado local `.venv/restauracao180-resultado.json`. Snapshot é anterior à
+  0034; recuperação para código 1.80 exige essa migração antes de liberar uso.
+- Às 14h45, sonda PowerShell confirmou HTTPS/login 200/1.80, nonces diferentes
+  por resposta, private/no-store/DYNAMIC, API BRI anônima 401 e Central 302 para
+  login. Sonda urllib recebeu 403 e não foi usada como confirmação de versão.
+  Origem e LAN 200 no ativador. PostgreSQL permanece só loopback; 55443 encerrado.
+- 980 testes gerais OK (seis ignorados), 16 focados adicionais e nove dos
+  ativadores; Chromium com CSRF real e política CSP final conferido. Usuários
+  precisam entrar novamente. Reinício completo após 1.80 ainda não ensaiado;
+  tarefa/credencial/inicialização automática existentes preservadas.
+- Pendências: TLS mínimo/redirect Cloudflare em orientação manual (usuário
+  estava na Overview; fornecido atalho para Edge Certificates), HTTPS local,
+  segundo fator e destino de cópia externa. Windows mantido por decisão do
+  usuário. Dispõe só de conta pessoal na nuvem: explicado uso técnico de arquivo
+  já cifrado, preferência por controle institucional e regras do setor. Nenhum
+  upload/compartilhamento/credencial de nuvem configurado. Ver guia de segurança.
+
+### Preparação anterior à ativação 1.80 — histórico
 
 - Worktree `C:\endemias-seguranca`, branch `codex/correcao-seguranca`. BRI,
   Amostras, cartões do mapa e tipos do Conta Ovos escapam texto. Scripts dos
@@ -39,7 +79,7 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
   Windows segue como está por decisão do usuário. Nenhum desses riscos foi
   declarado resolvido pelo pacote. Não tentar contornar o bloqueio do navegador.
 
-## Versão vigente 1.79.0 — superadmin e gestão delegada
+## Histórico 1.79.0 — superadmin e gestão delegada
 
 - Ativação posterior confirmada pelo relatório privado
   `C:\ProgramData\EndemiasWeb\ativacao179-resultado.json`: aplicado/concluído,

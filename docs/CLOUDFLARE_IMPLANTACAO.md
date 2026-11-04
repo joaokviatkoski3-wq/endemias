@@ -1,8 +1,9 @@
 # Acesso externo — implantação 1.76.0
 
-**Versão vigente 1.79.0**, desde 04/11 às 11h58: superadmin `joao`, gestão
-operacional delegada, presença e recuperação assistida. Infraestrutura
-preservada. Ver `SUPERADMIN_PERMISSOES.md` e estado vivo.
+**Versão vigente 1.80.0**, desde 04/11 às 14h35: correções de XSS/sessões/CSV,
+backups exportados com criptografia e cópias antigas protegidas. Mesma
+infraestrutura. Backup completo real/restauração isolada conferidos. Ver
+`CORRECOES_SEGURANCA_180.md` e estado vivo.
 O lote 1.76 abaixo
 registra a publicação e o reinício anteriores.
 

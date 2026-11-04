@@ -1,12 +1,13 @@
-# Correções de segurança — preparação 1.80.0
+# Correções de segurança — 1.80.0 ativa
 
-Atualizado em 04/11/2026. Produção confirmada em **1.79.0**. Este documento
-descreve o pacote preparado em `C:\endemias-seguranca`, branch
-`codex/correcao-seguranca`; não comprova sua ativação.
+Atualizado em 04/11/2026. **Produção 1.80.0 ativa às 14h35**, release `31fb0e2`.
+Ativação manual do usuário confirmada pelo relatório privado
+`C:\ProgramData\EndemiasWeb\ativacao180-resultado.json`, aplicado/concluído.
+Pacote desenvolvido em `C:\endemias-seguranca`, `codex/correcao-seguranca`.
 
 ## Situação dos pontos apresentados pelo usuário
 
-| Ponto | Mudança preparada / situação |
+| Ponto | Mudança aplicada / situação |
 | --- | --- |
 | Scripts em BRI e Amostras de Animais | Textos escapados nos resumos, registros, vínculos PE e etiquetas. Mesmo tratamento aplicado a cartões do mapa e tipos de depósito/tratamento do Conta Ovos. Não altera os dados importados no banco. |
 | Política de scripts | Scripts dos templates recebem nonce aleatório por resposta. `script-src` usa nonce e `strict-dynamic`; `object-src 'none'`. Eventos inline bloqueados nas duas telas afetadas, login/recuperação e download de backups. Outros módulos ainda permitem eventos inline por compatibilidade; a remoção completa é trabalho posterior, não está declarada concluída. |
@@ -15,7 +16,7 @@ descreve o pacote preparado em `C:\endemias-seguranca`, branch
 | Windows sem cobertura de atualizações | Mantido por decisão explícita do usuário. O pacote não corrige nem oculta esse risco. |
 | TLS antigo / HTTP público | Teste atual confirmou TLS 1.0/1.1/1.2/1.3 aceitos e HTTP 403 sem redirecionamento. Nenhuma mudança Cloudflare feita; controle do navegador foi interrompido por não conseguir confirmar a URL. Passos manuais abaixo. |
 | Fórmulas em CSV | Campos textuais recebem proteção contra início de fórmula, inclusive prefixos de espaço/controle. Coordenadas e colunas numéricas declaradas preservam números finitos. Aspas, separadores e quebras seguem o CSV padrão. |
-| Duas cópias antigas de banco | Ativador inventaria/hash e restringe ACL da raiz e dos dois arquivos identificados, sem excluir conteúdo. Essa alteração depende da execução administrativa do ativador. |
+| Duas cópias antigas de banco | Ativador inventariou/hash e restringiu ACL da raiz e dos dois arquivos identificados, sem excluir conteúdo. Relatório confirma grupos amplos removidos e bytes preservados. |
 | Backup completo sem criptografia | Originais locais continuam no formato atual, dentro das pastas privadas. Downloads de banco e completos passam a exigir frase de 20+ caracteres e geram um envelope 7z/AES-256 com nomes internos criptografados. Só superadmin pode baixar. A frase não é salva no banco ou em arquivo. |
 | Somente senha | Lista local de senhas comuns e rejeição de sequências/repetições nas novas criações/trocas. Não houve inspeção ou troca das senhas reais. Segundo fator não ativado: usuário pediu explicação antes de adotar. |
 
@@ -81,9 +82,19 @@ provisório deve considerar arquivo previamente cifrado, pasta privada, MFA e
 frase separada; criptografia não define autorização institucional. Ver também
 o [guia de segurança da ANPD, seção sobre nuvem](https://www.gov.br/anpd/pt-br/centrais-de-conteudo/materiais-educativos-e-publicacoes/guia-vf.pdf/@@display-file/file).
 
-O ensaio deste pacote recuperou cópias **fictícias**, inclusive chave fictícia e
-backup SQLite, comparando os bytes. Uma restauração completa de backup real
-PostgreSQL/anexos em ambiente privado separado ainda está pendente.
+Os ensaios iniciais recuperaram cópias **fictícias**, inclusive chave fictícia
+e backup SQLite. Após a ativação, foi testado também o backup **real** completo
+criado às 14h35: 96 tabelas PostgreSQL e 663 arquivos/configurações restaurados
+em pasta privada, banco `endemias_teste` e porta 55443 com autenticação SCRAM e
+senha temporária aleatória. Nenhum índice inválido; superadmin único preservado.
+Dump e arquivos foram conferidos por hash/CRC, sem mostrar dados pessoais ou
+segredos nos resultados. Não iniciou a aplicação com a configuração restaurada.
+O servidor temporário foi encerrado e os dados extraídos/credenciais de teste
+foram removidos. Produção e arquivo original não foram alterados pelo ensaio.
+
+O snapshot real é anterior à migração 0034. Em recuperação para a 1.80, aplicar
+essa migração antes de liberar a aplicação. O ensaio confirmou banco e arquivos;
+não simulou a reconstrução de toda a configuração Windows/Tunnel em outra máquina.
 
 ## Ajustes manuais da Cloudflare
 
@@ -107,9 +118,10 @@ Referências oficiais: [TLS mínimo](https://developers.cloudflare.com/ssl/edge-
 
 ## Ativação e retorno
 
-Executar `scripts/ativar_seguranca_windows.py` com Python de manutenção elevado,
-informando os commits completos atual e proposto. O atalho preparado na Área de
-Trabalho contém os valores conferidos para esta janela.
+`scripts/ativar_seguranca_windows.py` foi executado com Python de manutenção
+elevado, com commits completos conferidos. A janela terminou com sucesso;
+não repetir o atalho já aplicado. Retorno tardio exige plano próprio preservando
+a migração e os dados/sessões novos. O fluxo executado foi:
 
 - Exige master limpa, pacote limpo, versão de origem 1.79, Waitress/PostgreSQL.
 - Antes de parar o servidor: confere wheels, instala apenas a dependência

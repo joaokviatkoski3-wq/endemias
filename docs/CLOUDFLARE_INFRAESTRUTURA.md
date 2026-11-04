@@ -1,7 +1,7 @@
 # Infraestrutura e piloto local — 03/11/2026
 
-Versão vigente **1.79.0**, superadmin ativo em 04/11 às 11h58,
-mesma infraestrutura. Ver `SUPERADMIN_PERMISSOES.md`; histórico 1.76 abaixo.
+Versão vigente **1.80.0**, segurança atualizada em 04/11 às 14h35,
+mesma infraestrutura. Ver `CORRECOES_SEGURANCA_180.md`; histórico 1.76 abaixo.
 
 **Estado posterior, 04/11/2026:** produção local 1.76.0/Waitress ativa na
 mesma tarefa EndemiasWeb, LAN/loopback:5000 e origem externa só 127.0.0.1:5001.
