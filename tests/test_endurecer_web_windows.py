@@ -8,6 +8,20 @@ from scripts import endurecer_web_windows as hardening
 
 
 class HardeningWindowsTests(unittest.TestCase):
+    def test_retorno_antigo_recusa_ativacao_posterior_sem_parar_tarefa(self):
+        from unittest.mock import MagicMock, patch
+        report = {"rollback": str(hardening.HOME / "rollback" / "ficticio"), "status": "aplicado"}
+        for config in ({"version": "1.76.0", "server": "waitress"},
+                       {"version": hardening.VERSION, "server": "waitress"}):
+            with self.subTest(config=config), \
+                 patch.object(hardening.ctypes, "windll", create=True) as windll, \
+                 patch.object(Path, "read_text", side_effect=[json.dumps(report), json.dumps(config)]), \
+                 patch.object(hardening, "Windows", MagicMock()) as windows:
+                windll.shell32.IsUserAnAdmin.return_value = True
+                with self.assertRaisesRegex(ValueError, "Retorno antigo"):
+                    hardening.revert()
+                windows.assert_not_called()
+
     def test_tarefa_de_ensaio_tem_configuracao_propria_sem_reinicios_herdados(self):
         from unittest.mock import MagicMock
         win = object.__new__(hardening.Windows)

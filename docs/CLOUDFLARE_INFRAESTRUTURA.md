@@ -1,5 +1,13 @@
 # Infraestrutura e piloto local — 03/11/2026
 
+**Estado posterior, 04/11/2026:** produção local 1.76.0/Waitress ativa na
+mesma tarefa EndemiasWeb, LAN/loopback:5000 e origem externa só 127.0.0.1:5001.
+PostgreSQL restrito a localhost, apenas 0030 aplicada, backup validado e 90
+tabelas anteriores preservadas. Cloudflared agora usa `NT SERVICE\Cloudflared`
+limitado, Running/Auto. Falta encaminhar `endemias.vsatt.com.br` e validar HTTPS
+oficial/reinício. Piloto continua fictício/manual. O diagnóstico e as versões
+anteriores abaixo são históricos; ver `CLOUDFLARE_VALIDACAO_EXTERNA.md`.
+
 Continuação da preparação `1.76.0`, branch `codex/preparar-cloudflare`.
 O usuário autorizou a próxima etapa e pediu preservar o acesso local se viável.
 Este registro complementa `CLOUDFLARE_IMPLANTACAO.md`. O piloto fictício foi

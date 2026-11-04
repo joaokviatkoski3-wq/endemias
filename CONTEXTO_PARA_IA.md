@@ -8,19 +8,26 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
 ## Projeto e forma de trabalho
 
-- Preparação 1.76.0 para `endemias.vsatt.com.br` validada no piloto fictício,
-  branch `codex/preparar-cloudflare`, com login/termo/CSRF, três perfis,
-  formulários, XLSX/PDF, upload/SSE e RG offline em navegador desktop/celular.
-  Usuário confirmou que não usa RG offline na produção. Conector Cloudflared
-  já roda limitado como `NT SERVICE\Cloudflared`. Ativação oficial ainda deve
-  ser conferida em `docs/ESTADO_ATUAL_PROJETO.md`; plano e evidências em
-  `docs/CLOUDFLARE_VALIDACAO_EXTERNA.md`. Migração 0030 é a única pendente.
+- **1.76.0 ativa na produção local desde 04/11/2026 às 09h08**, release
+  `f425cc8` integrada na master. Waitress na mesma tarefa limitada EndemiasWeb:
+  LAN/loopback:5000 e origem externa somente 127.0.0.1:5001. PostgreSQL agora
+  escuta somente localhost. Aplicada apenas a migração aditiva 0030 de aceites;
+  backup validado e assinaturas/contagens das 90 tabelas anteriores preservadas,
+  assim como chave, Kobo, config e SQLite congelado. Nenhum aceite real criado
+  pelo ensaio. Login local e origem externa confirmados 200/1.76.0 às 09h16.
+  Conector limitado `NT SERVICE\Cloudflared`, automático. **Publicação oficial
+  ainda pendente:** adicionar `endemias.vsatt.com.br` → HTTP 127.0.0.1:5001
+  no Tunnel existente, mantendo o piloto. Depois validar HTTPS real e reinício.
+  910 testes passaram (sete ignorados), testes focados e piloto HTTPS com três
+  perfis, XLSX/PDF/upload/SSE e RG offline desktop/celular conferidos. Usuário
+  confirmou que ainda não usa RG offline na produção. Ver estado vivo e
+  `docs/CLOUDFLARE_VALIDACAO_EXTERNA.md`. Não usar o retorno antigo de 03/11.
 
 - Infraestrutura local endurecida em 03/11/2026, confirmada às 16h05, após
   autorização do usuário: tarefa `Endemias - Servidor` agora usa a conta local
   limitada `EndemiasWeb`, com Python próprio em `C:\ProgramData\EndemiasWeb`.
-  Código/versão oficiais continuam **1.75.0**; não houve merge de 1.76.0,
-  migração, publicação externa ou mudança no firewall. Código/chaves protegidos;
+  Naquela etapa o código permaneceu **1.75.0**, sem merge/migração/publicação;
+  versão atual e mudança posterior do banco constam acima. Código/chaves protegidos;
   backup prévio e ensaio da identidade final validados; hashes dos arquivos
   preservados. Login 200 por loopback/IP privado e usuário confirmou outro
   aparelho da LAN. Ver `docs/CONTA_LIMITADA_WINDOWS.md` antes de reinstalar

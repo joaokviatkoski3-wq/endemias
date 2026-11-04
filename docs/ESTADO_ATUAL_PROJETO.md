@@ -4,7 +4,31 @@ Atualizado em 04/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Preparação final 1.76.0 — endereço escolhido em 04/11
+## Produção local 1.76.0 ativa — 04/11/2026
+
+- Ativação concluída às 09h08, release `f425cc8` integrada na master com a
+  aplicação parada. Backup PostgreSQL de 7.523.821 bytes com catálogo validado;
+  apenas 0030 aplicada. Contagens/assinaturas das 90 tabelas anteriores iguais,
+  chave/Kobo/config/SQLite congelado preservados. Zero aceites reais no ensaio.
+- Mesma tarefa/credencial EndemiasWeb, agora Waitress: LAN/loopback:5000 e
+  origem Tunnel só 127.0.0.1:5001. PostgreSQL confirmado 127.0.0.1/::1:5432,
+  sem escuta LAN. Login 200/1.76.0 e cookies separados conferidos às 09h16.
+- Relatório privado `C:\ProgramData\EndemiasWeb\ativacao176-resultado.json`:
+  aplicado, todos os checks verdadeiros; snapshot/backup em
+  `ativacao176-20261104-090744`. Não usar o retorno de conta/ACL de 03/11:
+  helper antigo agora recusa versão/servidor posteriores. Retorno da ativação
+  é automático durante sua execução; eventual retorno tardio exige plano
+  específico, preservando banco/0030/aceites, sem restaurar dump sobre dados novos.
+- **Próximo passo manual no painel:** adicionar `endemias.vsatt.com.br`
+  para HTTP `127.0.0.1:5001`, mantendo `piloto.vsatt.com.br:5003`. Host oficial
+  ainda não resolvia no teste de 09h16. Validar HTTPS/cache/login/termo no host
+  oficial e, em momento apropriado, o conjunto após reiniciar o Windows.
+  Inicialização automática da tarefa/conector preservada; reinício após esta
+  atualização ainda não foi ensaiado. Não confundir com piloto manual.
+- Regressão: 910 testes passaram (sete ignorados); cinco focados de ativação,
+  piloto HTTP e navegador passaram. Evidências em `CLOUDFLARE_VALIDACAO_EXTERNA.md`.
+
+### Validações anteriores à ativação
 
 - Usuário escolheu `endemias.vsatt.com.br` para o sistema oficial e confirmou
   que a equipe ainda não usa o formulário RG offline.
@@ -17,8 +41,7 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 - Prévia SQL somente leitura: sete contas ativas, quatro administradores,
   sem alterar permissões/senhas. Migrações anteriores íntegras, somente 0030
   pendente. IP LAN é manual/fixo. Plano em `CLOUDFLARE_VALIDACAO_EXTERNA.md`.
-- Esta seção prepara a ativação. Até o fechamento confirmar a troca, produção
-  continua 1.75.0; não interpretar o merge na branch como implantação oficial.
+- Esse pré-voo foi seguido da ativação local acima; 0030 não está mais pendente.
 
 ## Piloto externo com dados fictícios — publicado em 03/11
 
@@ -37,12 +60,11 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 - HTTPS real confirmou login 200/1.76.0, API sem login 401, home redirecionada
   ao login, cookie Secure/HttpOnly, CSP/HSTS e respostas privadas sem cache.
   Usuário confirmou login, termo e novo acesso sem repetir o mesmo termo em
-  03/11. Testes funcionais públicos mais amplos continuam pendentes.
-- Serviço Cloudflared automático executa como LocalSystem, distinto da tarefa
-  EndemiasWeb limitada. Revisar identidade/token desse conector antes de publicar
-  produção. Token não foi consultado/exportado pelo agente.
-- Sistema oficial continua 1.75.0, banco real e acesso local preservados. Não
-  interpretar o piloto público como integração/ativação da 1.76.0 na master.
+  03/11. Testes funcionais mais amplos concluídos em 04/11, conforme acima.
+- Cloudflared era LocalSystem em 03/11; desde 04/11 usa conta virtual limitada
+  `NT SERVICE\Cloudflared`. Token não foi consultado/exportado pelo agente.
+- O piloto usa apenas dados fictícios. Produção local atualizada separadamente
+  em 04/11, conforme abertura deste documento; hostname oficial ainda pendente.
 - Detalhes na branch `codex/preparar-cloudflare`, documento
   `docs/CLOUDFLARE_INFRAESTRUTURA.md`. Piloto sem autostart, mesmo com conector
   automático; iniciar `piloto_web.bat` na worktree se necessário após reinício.
@@ -60,7 +82,7 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
   privilégios administrativos, escrita operacional, XLSX/PDF, rotação, login
   e backup com catálogo validado. Backup prévio e retorno privados guardados.
   Hashes de app/chave/Kobo/config/SQLite congelado preservados.
-- Código oficial permanece **1.75.0**, sem integração da preparação 1.76.0,
+- Na etapa de 03/11 o código permaneceu **1.75.0**, sem integração da 1.76.0,
   migração, alteração do PostgreSQL/firewall/DNS ou publicação do Tunnel. O
   usuário confirmou login por outro aparelho da rede local.
 - Logs/status/temporários da aplicação agora em ProgramData; backups manuais

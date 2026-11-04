@@ -153,10 +153,13 @@ temporaria (sem copiar triggers/reinicios da tarefa oficial).
   retorno, executar o helper administrativo com `--reverter`; ele restaura
   tarefa/ACLs, confirma a versao anterior e nao restaura banco automaticamente.
 
-Pendencias para acesso externo: ativar codigo/Waitress 1.76.0 em janela propria,
-aplicar somente a migracao 0030 prevista, revisar escuta PostgreSQL e firewall
-do desenho final, confirmar DNS, concluir piloto Tunnel/HTTPS/cache/limites e
-revisar contas. Nao repetir a criacao da conta nem o instalador antigo SYSTEM.
+Atualizacao de 04/11: codigo/Waitress 1.76.0 ativo localmente, somente 0030
+aplicada, PostgreSQL somente localhost, mesma conta/tarefa e dados preservados.
+O retorno antigo --reverter descrito acima foi superado e agora recusa esta
+configuracao; eventual retorno tardio exige plano proprio sem restaurar banco.
+Falta encaminhar `endemias.vsatt.com.br` para HTTP 127.0.0.1:5001, validar
+HTTPS oficial e reinicio. Ver `CLOUDFLARE_VALIDACAO_EXTERNA.md`. Nao repetir
+a criacao da conta nem o instalador antigo SYSTEM.
 Windows atual mantido conforme decisao do usuario; VPS permanece futura.
 
 ## Referencias tecnicas oficiais

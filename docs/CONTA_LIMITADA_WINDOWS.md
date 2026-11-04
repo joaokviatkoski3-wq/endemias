@@ -1,7 +1,11 @@
 # Servidor local com conta limitada — estado vigente
 
-Aplicado em 03/11/2026 após autorização do usuário, com confirmação HTTP
-200/versão 1.75.0 às 16h05 (America/Sao_Paulo). Não é publicação externa.
+Conta limitada aplicada em 03/11/2026. **Atualização de 04/11:** produção local
+agora 1.76.0/Waitress, com a mesma tarefa/identidade e credencial preservada.
+LAN/loopback:5000, origem Tunnel só 127.0.0.1:5001, PostgreSQL só localhost.
+Backup, migração 0030 e preservação das 90 tabelas conferidos. Publicação
+oficial pendente; ver `CLOUDFLARE_VALIDACAO_EXTERNA.md`. As evidências 1.75.0
+abaixo registram a etapa anterior de instalação da conta, não a versão vigente.
 
 ## Estado confirmado
 
@@ -62,10 +66,10 @@ demonstrou que não foi necessário criar uma regra adicional nesta etapa.
   tarefa como SYSTEM. Reiniciar a tarefa registrada preserva a identidade.
 - Instalador/testes/lockfile estão versionados na branch
   `codex/preparar-cloudflare`, worktree `C:\endemias-cloudflare`.
-  `scripts/endurecer_web_windows.py --reverter`, executado por administrador,
-  restaura tarefa/ACL anteriores após aplicação concluída, confirma acesso
-  local e não restaura/apaga o banco automaticamente. Conferir o estado vivo
-  antes de um retorno tardio; não sobrescrever mudanças posteriores.
+  O retorno `scripts/endurecer_web_windows.py --reverter` é exclusivo da
+  instalação original 1.75.0/Werkzeug e agora recusa a configuração posterior.
+  Não usá-lo após a ativação 1.76.0. Eventual retorno tardio exige plano próprio,
+  preservando dados novos/0030/aceites, sem restaurar banco automaticamente.
 - A rotina exige a master de origem sem alterações para uma aplicação nova;
   não executá-la novamente sobre esta instalação já concluída. Não recriar
   a conta ou alterar sua senha para repetir o ensaio.
@@ -75,12 +79,10 @@ demonstrou que não foi necessário criar uma regra adicional nesta etapa.
 
 ## Próximas etapas
 
-A preparação 1.76.0 de autenticação/termo/Waitress permanece na worktree,
-**não integrada nem ativa**. Ativá-la exige a janela apropriada, migração 0030
-aditiva, verificação da escuta PostgreSQL/firewall e piloto Tunnel/HTTPS/cache,
-limites e permissões dos usuários. Não repetir migrações já aplicadas, nem
-usar os dados reais do LIRAa como fixture. PostgreSQL e tarefas automáticas
-permanecem nos seus serviços/identidades anteriores.
+1.76.0 já integrada e ativa localmente, com 0030 aplicada e PostgreSQL restrito
+a localhost. Falta encaminhar o hostname oficial, conferir HTTPS/uso real e
+reinício completo. Não repetir instalação da conta/migração nem usar dados
+reais como fixture. Tarefas automáticas mantêm suas identidades anteriores.
 
 O Windows atual continua com a limitação de atualizações registrada pelo
 usuário; antivírus/Tunnel/conta limitada não substituem suas correções. VPS é

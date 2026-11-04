@@ -499,6 +499,9 @@ def revert():
     rollback = Path(report["rollback"]).resolve()
     if rollback.parent != HOME / "rollback" or report["status"] != "aplicado":
         raise ValueError("Nao ha implantacao concluida para retornar por este pacote.")
+    current = json.loads((HOME / "config.json").read_text(encoding="utf-8"))
+    if current.get("version") != VERSION or current.get("server", "werkzeug") != "werkzeug":
+        raise ValueError("Retorno antigo nao se aplica a versao atual; consultar o plano de ativacao vigente.")
     win = Windows()
     limited = win.folder.GetTask(TASK)
     if limited.Definition.Principal.UserId not in {report["sid"], win.api.GetComputerName() + "\\" + ACCOUNT}:
