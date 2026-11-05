@@ -6,6 +6,19 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
+## BRI 2.0.2 validada, ativação pendente — 05/11/2026
+
+- Usuário relatou campos antigos ainda incompletos e forneceu exportação; enfatizou
+  que a API é principal e planilhas são emergenciais. Histórico indicado foi
+  conferido por UUID e recomposto pela interface da 2.0.1, com auditoria.
+  Demais campos preservados. Não repetir: prova privada em
+  `C:\endemias-interface\.venv\bri-historico\recomposicao-20261105.json`.
+- Pacote2.0.2 unifica contratos API/XLSX BRI, protege parcelas de carga nulas nos
+  agregados e mostra estabelecimento/endereço separados.129 testes focados,
+  PostgreSQL descartável e Chromium OK. Ler `docs/BRI_IMPORTACAO_202.md`.
+- Produção ainda2.0.1. Novo ativador `scripts/ativar_bri_202_windows.py`, sem DDL
+  nem recomposição automática; não integrar código antes da parada controlada.
+
 ## Versão ativa 2.0.1 — correções em 05/11/2026
 
 - Usuário executou o novo atalho e confirmou sucesso. Relatório
@@ -16,8 +29,8 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Suíte final 1.102 testes/sem falhas/seis ignorados; 15 focados após ajuste do
   mapa, PostgreSQL descartável e Chromium também OK. Três HTTPS e logins locais
   confirmam200/2.0.1; APIs anônimas401; script público confere byte a byte.
-- Não reimportar/recompor dados históricos automaticamente. Há conferência
-  manual por campo para BRI/Recolhimentos, restrita a gestores, ainda sem uso real.
+- Não reimportar/recompor dados históricos automaticamente. A conferência por
+  campo de BRI foi usada explicitamente no relato posterior acima; não repetir.
 - Usuário definiu casos humanos: situação pela data mais recente; retroativo
   somente histórico. Desempate na mesma data pelo último acompanhamento incluído.
 - Ativação usou `scripts/ativar_correcoes_201_windows.py`. Não repetir nenhum

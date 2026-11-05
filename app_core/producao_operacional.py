@@ -86,7 +86,7 @@ FONTES = (
         "agente_table": "bri_agentes",
         "agente_fk": "id_bri",
         "extras": {
-            "carga": "COALESCE(SUM(b.quantidade_carga + b.quantidade_carga_extra),0)",
+            "carga": "COALESCE(SUM(COALESCE(b.quantidade_carga,0) + COALESCE(b.quantidade_carga_extra,0)),0)",
             "pendentes_sispncd": "SUM(CASE WHEN b.sispncd IS NULL OR TRIM(b.sispncd)='' THEN 1 ELSE 0 END)",
         },
     },

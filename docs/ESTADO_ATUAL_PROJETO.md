@@ -4,6 +4,19 @@ Atualizado em 05/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## BRI 2.0.2 validada, ativação pendente — 05/11/2026
+
+- Usuário confirmou API como entrada principal, XLSX emergencial. Histórico BRI
+  do novo relato já foi conferido por UUID e recomposto pela interface2.0.1, com
+  auditoria e preservação dos demais campos. Não repetir. Evidência privada:
+  `C:\endemias-interface\.venv\bri-historico\recomposicao-20261105.json`.
+- Código2.0.2 em `C:\endemias-interface`, branch `codex/bri-formatos-historicos`:
+  contratos API/XLSX unificados, parcelas de carga nulas consideradas e exibição
+  de local/endereço.129 testes focados, PG descartável e Chromium OK.
+- Ler `docs/BRI_IMPORTACAO_202.md`. Produção ainda2.0.1. Ativador
+  `scripts/ativar_bri_202_windows.py`, sem DDL nem recomposição de dados;
+  integrar somente após a parada controlada. Ativação Windows pendente.
+
 ## Versão ativa 2.0.1 — correções em 05/11/2026
 
 - Usuário executou o atalho e confirmou sucesso. Relatório
@@ -15,8 +28,8 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
   mapa, PostgreSQL descartável e Chromium OK. Três HTTPS e logins locais5000/5004:
   200/2.0.1; APIs anônimas401 e script público confere byte a byte. Evidências
   `.venv/publicacao-201.json` e `.venv/csp-201-publico.json` na worktree de integração.
-- Não reimportar históricos automaticamente: BRI/Recolhimentos têm conferência
-  por campos aprovados, sem uso real nesta preparação. Contas/setores preservados.
+- Não reimportar históricos automaticamente: BRI foi recomposto por conferência
+  explícita no relato posterior acima; não repetir. Contas/setores preservados.
 - Regra humana definida pelo usuário: data mais recente determina situação;
   retroativo acrescenta histórico; empate pelo último incluído na mesma data.
 - Ativador `scripts/ativar_correcoes_201_windows.py` já aplicado; não repetir

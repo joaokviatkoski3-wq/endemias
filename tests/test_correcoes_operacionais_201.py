@@ -30,6 +30,22 @@ class Operacionais201Tests(unittest.TestCase):
         self.assertEqual(linhas[0]['Local de tratamento'],'Escola Ficticia')
         self.assertEqual(linhas[0]['Logradouro'],'')
 
+    def test_carga_principal_conta_quando_adicional_esta_ausente(self):
+        from app_core import producao_operacional, sispncd
+        for principal, adicional, esperado in [(2.5,None,2.5),(None,1.25,1.25),(0,None,0),(None,None,0)]:
+            with self.subTest(principal=principal,adicional=adicional):
+                self.sql('UPDATE bri_registros SET quantidade_carga=?,quantidade_carga_extra=?',(principal,adicional))
+                resumo=bri.resumo(str(self.path))
+                self.assertEqual(resumo['totais']['carga']+resumo['totais']['carga_extra'],esperado)
+                self.assertEqual(resumo['por_destino'][0]['carga'],esperado)
+                self.assertEqual(resumo['por_localidade'][0]['carga'],esperado)
+                producao=producao_operacional.resumo(str(self.path))
+                atividade=next(a for a in producao['por_atividade'] if a['codigo']=='BRI')
+                self.assertEqual(atividade['extras']['carga'],esperado)
+                conn=db.connect(str(self.path))
+                try:self.assertEqual(sispncd._bri_sispncd_stats(conn,'2026-06-01','2026-06-30')['carga'],esperado)
+                finally:conn.close()
+
     def test_paginacao_total_real_ordem_estavel_e_exportacao_completa(self):
         for module, table, chave, area, path in [
             (bri,'bri_registros','id_bri','endemias','bri'),

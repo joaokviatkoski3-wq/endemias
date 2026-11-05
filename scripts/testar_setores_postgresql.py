@@ -64,6 +64,18 @@ def verificar_correcoes_201(target, client, checks, private):
     assert db.scalar(target,"SELECT quantidade_carga FROM bri_registros WHERE kobo_uuid=?",(registro['_uuid'],))==2.5
     assert db.scalar(target,"SELECT COUNT(*) FROM auditoria_eventos WHERE acao='conferencia_ficticia'")==1
     checks['conferencia_kobo_campos_e_auditoria_atomicos_pg']=True
+    from app_core import bri, producao_operacional, sispncd
+    conn=db.connect(target)
+    try:
+        conn.execute('UPDATE bri_registros SET quantidade_carga_extra=NULL')
+        conn.commit()
+        assert sispncd._bri_sispncd_stats(conn,'2026-06-01','2026-06-30')['carga']==2.5
+    finally:conn.close()
+    resumo=bri.resumo(target)
+    assert resumo['por_destino'][0]['carga']==2.5 and resumo['por_localidade'][0]['carga']==2.5
+    atividade=next(a for a in producao_operacional.resumo(target)['por_atividade'] if a['codigo']=='BRI')
+    assert atividade['extras']['carga']==2.5
+    checks['bri_carga_principal_preservada_com_adicional_nulo_pg']=True
     for operacao in ('revisar','excluir'):
         fid=formularios.salvar(target,'rg_atualizacao',payload,usuario)
         formularios.revisar(target,fid,payload,formularios.STATUS_APROVADO,usuario)

@@ -827,7 +827,7 @@ def _bri_sispncd_stats(conn, data_inicio, data_fim, id_localidade=None):
         f"""
         SELECT COUNT(*) AS registros,
                SUM(CASE WHEN b.sispncd IS NULL OR TRIM(b.sispncd)='' THEN 1 ELSE 0 END) AS pendentes_sispncd,
-               COALESCE(SUM(b.quantidade_carga + b.quantidade_carga_extra), 0) AS carga,
+               COALESCE(SUM(COALESCE(b.quantidade_carga,0) + COALESCE(b.quantidade_carga_extra,0)), 0) AS carga,
                SUM(CASE WHEN b.destino_tratamento='Ovitrampa' THEN 1 ELSE 0 END) AS ovitrampas,
                SUM(CASE WHEN b.destino_tratamento='Ponto Estratégico' THEN 1 ELSE 0 END) AS pontos_estrategicos,
                SUM(CASE WHEN b.destino_tratamento='Outro' THEN 1 ELSE 0 END) AS outros,

@@ -228,7 +228,7 @@ def resumo(target, filtros=None):
         por_destino = [dict(r) for r in conn.execute(
             f"""SELECT COALESCE(destino_tratamento,'-') AS destino,
                        COUNT(*) AS registros,
-                       COALESCE(SUM(quantidade_carga + quantidade_carga_extra),0) AS carga
+                       COALESCE(SUM(COALESCE(quantidade_carga,0) + COALESCE(quantidade_carga_extra,0)),0) AS carga
                   FROM bri_registros b {where}
                  GROUP BY COALESCE(destino_tratamento,'-')
                  ORDER BY registros DESC, destino""",
@@ -237,7 +237,7 @@ def resumo(target, filtros=None):
         por_localidade = [dict(r) for r in conn.execute(
             f"""SELECT COALESCE(localidade,'-') AS localidade,
                        COUNT(*) AS registros,
-                       COALESCE(SUM(quantidade_carga + quantidade_carga_extra),0) AS carga
+                       COALESCE(SUM(COALESCE(quantidade_carga,0) + COALESCE(quantidade_carga_extra,0)),0) AS carga
                   FROM bri_registros b {where}
                  GROUP BY COALESCE(localidade,'-')
                  ORDER BY registros DESC, localidade LIMIT 12""",
