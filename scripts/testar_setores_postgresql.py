@@ -18,7 +18,7 @@ BIN = Path('C:/Program Files/PostgreSQL/18/bin')
 PORT = 55444
 
 
-def verificar_correcoes_201(target, client, checks):
+def verificar_correcoes_201(target, client, checks, private):
     from app_core import db, formularios, rg_formulario, esporotricose_humanos as humanos
     for path in ('/api/bri/listar?por_pagina=1','/api/recolhimentos/listar?por_pagina=1',
                  '/api/bri/exportar','/api/recolhimentos/exportar',
@@ -44,6 +44,26 @@ def verificar_correcoes_201(target, client, checks):
     humanos.salvar_acompanhamento(target,paciente,{'data':'2026-06-10','status':'Acabou tratamento'},'Autor Fictício')
     humanos.salvar_acompanhamento(target,paciente,{'data':'2026-06-01','status':'Em tratamento'},'Autor Fictício')
     assert humanos.obter_paciente(target,paciente)['status']=='Acabou tratamento'
+    from app_core import kobo_conciliacao as conferencia
+    registro={'_uuid':'uuid-ficticio-bri_registros','start':'2026-06-01T08:00:00','end':'2026-06-01T09:00:00',
+              'Data':'2026-06-01','Hora':'08:00','Quantidade_de_carga':2.5}
+    previa=conferencia.preparar(target,'BRI',[registro],ROOT/'config.json',private,1,'endemias','segredo-somente-ficticio')
+    selecoes=[{'registro':r['chave'],'campo':'quantidade_carga'} for r in previa['registros']
+              if any(c['campo']=='quantidade_carga' for c in r['alteracoes'])]
+    assert len(selecoes)==1
+    antes=db.scalar(target,"SELECT quantidade_carga FROM bri_registros WHERE kobo_uuid=?",(registro['_uuid'],))
+    def falha_auditoria(*args):raise RuntimeError('Falha fictícia de auditoria')
+    try:conferencia.aplicar(target,private,previa['token'],selecoes,1,'endemias','segredo-somente-ficticio',falha_auditoria)
+    except RuntimeError:pass
+    else:raise AssertionError('A falha deveria desfazer a alteração de ensaio')
+    assert db.scalar(target,"SELECT quantidade_carga FROM bri_registros WHERE kobo_uuid=?",(registro['_uuid'],))==antes
+    def auditoria(conn,tipo,changes):
+        conn.execute("INSERT INTO auditoria_eventos(acao,entidade,detalhes_json,criado_em,setor) VALUES(?,?,?,?,?)",
+                     ('conferencia_ficticia',tipo,json.dumps(changes),'2026-06-01T10:00:00','endemias'))
+    conferencia.aplicar(target,private,previa['token'],selecoes,1,'endemias','segredo-somente-ficticio',auditoria)
+    assert db.scalar(target,"SELECT quantidade_carga FROM bri_registros WHERE kobo_uuid=?",(registro['_uuid'],))==2.5
+    assert db.scalar(target,"SELECT COUNT(*) FROM auditoria_eventos WHERE acao='conferencia_ficticia'")==1
+    checks['conferencia_kobo_campos_e_auditoria_atomicos_pg']=True
     for operacao in ('revisar','excluir'):
         fid=formularios.salvar(target,'rg_atualizacao',payload,usuario)
         formularios.revisar(target,fid,payload,formularios.STATUS_APROVADO,usuario)
@@ -202,7 +222,7 @@ def main():
                 assert response.status_code==200 and not response.json['esporotricose']['totais']
                 assert client.get('/relatorio-agente/pdf'+query).status_code==200
                 assert client.get('/api/boletim-mensal?mes=2026-06').status_code==200
-                verificar_correcoes_201(target, client, checks)
+                verificar_correcoes_201(target, client, checks, private)
             event=client.post('/api/agenda/eventos',json={'titulo':'Evento ficticio '+sector,'tipo':'reuniao','data_inicio':'2026-06-01T09:00'})
             assert event.status_code==201
             events=client.get('/api/agenda/eventos?start=2026-06-01&end=2026-06-03')
