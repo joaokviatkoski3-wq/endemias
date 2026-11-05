@@ -1,0 +1,28 @@
+{% macro select_campo(nome,titulo,lista) %}<label>{{ titulo }}<select name="{{ nome }}"><option value="">Todos</option>{% for valor in lista %}<option value="{{ valor }}" {{ 'selected' if filtros.get(nome)==valor }}>{{ valor }}</option>{% endfor %}</select></label>{% endmacro %}
+<form method="get" class="ambiental-filtros" id="ambiental-filtros">
+  <div class="ambiental-filter-main">
+    <label>Data inicial<input type="date" name="d_ini" value="{{ filtros.d_ini }}"></label>
+    <label>Data final<input type="date" name="d_fim" value="{{ filtros.d_fim }}"></label>
+    {{ select_campo('fonte','Área',['Esporotricose','Amostra de Animais']) }}
+    {{ select_campo('localidade','Localidade',localidades_glob) }}
+    {{ select_campo('agente','Agente',agentes_glob) }}
+    <label>Quarteirão<input type="number" name="quarteirao" min="0" max="2147483647" step="1" value="{{ filtros.quarteirao }}" placeholder="Todos"></label>
+  </div>
+  <details class="ambiental-filter-details" {{ 'open' if filtros.visita or filtros.tipo_imovel or filtros.origem_estrutura or filtros.motivo_visita or filtros.tipo_animal or filtros.houve_acidente or filtros.houve_captura or filtros.especie or filtros.feridas }}>
+    <summary>Filtros de visitas e animais</summary>
+    <div class="ambiental-filter-main">
+      {{ select_campo('visita','Situação da visita',opcoes.visita) }}
+      {{ select_campo('tipo_imovel','Tipo de imóvel',opcoes.tipo_imovel) }}
+      {{ select_campo('origem_estrutura','Origem do cadastro',opcoes.origem_estrutura) }}
+      <fieldset><legend>Esporotricose</legend><div class="ambiental-filter-pair">{{ select_campo('especie','Espécie cadastrada',opcoes.especie) }}{{ select_campo('feridas','Presença de feridas',opcoes.feridas) }}</div></fieldset>
+      <fieldset><legend>Amostras de animais</legend><div class="ambiental-filter-pair">{{ select_campo('motivo_visita','Motivo da visita',opcoes.motivo_visita) }}{{ select_campo('tipo_animal','Tipo de animal',opcoes.tipo_animal) }}{{ select_campo('houve_acidente','Houve acidente',opcoes.houve_acidente) }}{{ select_campo('houve_captura','Houve captura',opcoes.houve_captura) }}</div></fieldset>
+    </div>
+    <p class="ambiental-note">Filtros específicos selecionam apenas a área correspondente. Espécie e feridas devem corresponder ao mesmo animal na visita.</p>
+  </details>
+  <div class="ambiental-filter-footer">
+    {% if request.endpoint=='ambiental.relatorios' %}<label>Agrupar por<select name="agrupamento">{% for key,label in [('territorio','Data, área e quarteirão'),('dia','Dia e área'),('mes','Mês e área'),('localidade','Localidade e área'),('quarteirao','Localidade, quarteirão e área'),('situacao','Situação da visita e área')] %}<option value="{{ key }}" {{ 'selected' if filtros.agrupamento==key }}>{{ label }}</option>{% endfor %}</select></label>{% endif %}
+    <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+    <a href="{{ request.path }}" class="btn btn-ghost">Limpar</a>
+    <span class="ambiental-note">Sem datas: todo o histórico disponível.</span>
+  </div>
+</form>

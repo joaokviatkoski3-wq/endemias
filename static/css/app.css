@@ -1832,3 +1832,9 @@ textarea:focus,
   .help-panel { width:100vw; }
   .help-backdrop[hidden] { display:none; }
 }
+
+/* Troca direta de setor: exibida somente quando o servidor autoriza o destino. */
+.sector-switch{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid var(--border);border-radius:5px;background:var(--brand-xs);color:var(--brand);text-decoration:none;font-size:12px;font-weight:650;white-space:nowrap}.sector-switch:hover{border-color:var(--brand)}.sector-switch:focus-visible{outline:2px solid var(--brand);outline-offset:3px}.sector-switch span{font-size:17px;line-height:1}@media(max-width:600px){.sector-switch{font-size:11px;padding:6px 8px}.topbar-right{gap:7px}}
+
+/* Setas independentes de fontes: texto acessível e chevron desenhado em CSS. */
+.fc .fc-prev-button,.fc .fc-next-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:34px;min-height:29px;position:relative}.fc .fc-prev-button::before,.fc .fc-next-button::after{content:"";display:inline-block;width:8px;height:8px;border-top:2px solid currentColor;border-right:2px solid currentColor;transform:rotate(45deg)}.fc .fc-prev-button::before{transform:rotate(-135deg)}

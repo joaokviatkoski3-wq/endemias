@@ -5,7 +5,8 @@
 {% block content %}
 <style>
 /* === LARGURA TOTAL DA AGENDA === */
-.page { max-width: none !important; padding: 0 !important; width: 100% !important; }
+.page { max-width: none !important; padding: 0 !important; width: 100% !important; flex:1 0 auto; }
+.page > * { flex-shrink:0; }
 .page-header { padding: 22px 24px 0 !important; }
 
 /* FullCalendar ocupa toda largura */
@@ -272,9 +273,8 @@
 </div>
 
 <!-- FullCalendar -->
-<link  href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
-<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
-<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/locales/pt-br.global.min.js"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/vendor/fullcalendar/index.global.min.js"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/vendor/fullcalendar/pt-br.global.min.js"></script>
 
 <style>
 /* ── FullCalendar customização ── */
@@ -295,6 +295,7 @@
 }
 .fc-event-title { font-weight: 600; }
 .agenda-clima {
+  flex:0 0 auto;
   margin:0 24px 16px;
   border:1px solid var(--border);
   background:var(--surface);
@@ -313,7 +314,7 @@
 .agenda-clima-header p { margin:3px 0 0;color:var(--text3);font-size:11px; }
 .agenda-clima-actions { display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap; }
 .agenda-clima-updated { color:var(--text3);font-size:10px; }
-.agenda-clima-dias { display:grid;grid-template-columns:repeat(5,minmax(145px,1fr)); }
+.agenda-clima-dias { display:grid;grid-template-columns:repeat(5,minmax(0,1fr)); }
 .agenda-clima-day { min-height:112px;padding:12px;border-right:1px solid var(--border); }
 .agenda-clima-day:last-child { border-right:0; }
 .agenda-clima-day-top { display:flex;align-items:flex-start;justify-content:space-between;gap:8px; }

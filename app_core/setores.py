@@ -25,6 +25,29 @@ def pode_entrar(usuario, setor=None):
         or usuario.get('setor','endemias') == setor)
 
 
+def atalho_outro_setor(usuario):
+    """Destino canônico externo, ou a mesma máquina na entrada LAN independente."""
+    if not atual():return None
+    outro='ambiental' if atual()=='endemias' else 'endemias'
+    if not pode_entrar(usuario,outro):return None
+    if current_app.config.get('ACESSO_EXTERNO'):
+        from app_core.dominios import dominio_base
+        url='https://'+outro+'.'+dominio_base(current_app.config)
+    else:
+        from ipaddress import ip_address
+        from urllib.parse import urlsplit
+        host=urlsplit(request.host_url).hostname
+        if host!='localhost':
+            try:
+                address=ip_address(host)
+                if address.version!=4 or not address.is_private or address.is_unspecified:return None
+            except ValueError:return None
+        key='AMBIENTAL_LOCAL_PORT' if outro=='ambiental' else 'ENDEMIAS_LOCAL_PORT'
+        port=int(current_app.config.get(key,5004 if outro=='ambiental' else 5000))
+        url=f'http://{host}:{port}'
+    return {'url':url,'titulo':TITULOS[outro],'curto':'Ambiental' if outro=='ambiental' else 'Endemias'}
+
+
 def permite_modulo(chave):
     setor=atual()
     if setor is None and chave in {'vigiagua','relatorios_ambientais'}:

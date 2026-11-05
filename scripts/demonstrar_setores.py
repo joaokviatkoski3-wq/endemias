@@ -30,6 +30,7 @@ def main():
     applications = {}
     for sector in ('endemias','ambiental'):
         applications[sector] = create_app({'SETORES_ENABLED':True,'SETOR':sector,
+            'ENDEMIAS_LOCAL_PORT':5012,'AMBIENTAL_LOCAL_PORT':5013,
             'SESSION_COOKIE_NAME':'demonstracao_'+sector, 'REQUIRE_SESSION_TOKEN':True,
             'TERMOS_USO_ENABLED':False, 'CSP_REPORT_ONLY':False})
     conn = sqlite3.connect(database)

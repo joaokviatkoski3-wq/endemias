@@ -4,6 +4,20 @@ Atualizado em 05/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Candidata 2.0.0-rc.2 — interface preparada, ainda não ativada
+
+- Pedido de nove melhorias do usuário: portal com versão e visual institucional;
+  troca autorizada no topo; relatórios/filtros e dashboard/gráficos ambientais;
+  gota do Vigiágua; mapa com ruas/satélite/etiquetas/filtros; início simplificado;
+  setas e previsão visível na agenda dos dois setores.
+- Worktree `C:\endemias-interface`, `codex/aperfeicoar-interface-setores`.
+  Código candidato rc.2; produção permanece rc.1. Sem migração de banco.
+  Suíte geral: 1.024 OK, seis ignorados; 41 focados OK; Chromium/CSRF/CSP e
+  PostgreSQL descartável confirmados. Capturas de desktop/celular conferidas.
+  Preparação/limites/ensaios e pacote em `docs/INTERFACE_SETORES_200RC2.md`.
+  Ativação exige o novo atalho administrativo depois de validado; não integrar
+  templates com o processo antigo ativo nem repetir o ativador da divisão.
+
 ## Versão ativa 2.0.0-rc.1 — divisão ativada em 05/11/2026
 
 - Usuário executou o atalho administrativo e informou conclusão. Relatório

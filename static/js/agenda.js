@@ -41,12 +41,13 @@ document.addEventListener('DOMContentLoaded', () => {
   calendario = new FullCalendar.Calendar(el, {
     locale:        'pt-br',
     initialView:   'dayGridMonth',
+    buttonIcons: false,
     headerToolbar: {
       left:   'prev,next today',
       center: 'title',
       right:  'dayGridMonth,timeGridWeek,listMonth',
     },
-    buttonText: { today:'Hoje', month:'Mês', week:'Semana', list:'Lista' },
+    buttonText: { prev:'Anterior', next:'Próximo', today:'Hoje', month:'Mês', week:'Semana', list:'Lista' },
     height:    '100%',
     firstDay:  0,
     weekNumbers: true,

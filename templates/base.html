@@ -65,6 +65,7 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
   </div>
 
   <div class="topbar-right">
+    {% if OUTRO_SETOR %}<a class="sector-switch" href="{{ OUTRO_SETOR.url }}" title="Ir para {{ OUTRO_SETOR.titulo }}"><span aria-hidden="true">⇄</span> {{ OUTRO_SETOR.curto }}</a>{% endif %}
     <span class="topbar-clock" id="clock"></span>
     {% if usuario_atual %}
     <div class="user-menu-wrap" id="user-menu-wrap">

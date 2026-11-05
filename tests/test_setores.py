@@ -112,6 +112,101 @@ class SetoresTests(unittest.TestCase):
         self.assertTrue(activities.isdisjoint({'ESPOROTRICOSE','AMOSTRA_ANIMAIS'}))
         self.assertTrue(all(not r.get('esporo_visitas') for r in client.get('/api/mapa').json.values()))
 
+    def animais_ficticios(self):
+        for animal,especie,feridas in [('a1','gato','sim'),('a2','cao','nao')]:
+            self.sql("INSERT INTO esporotricose_animais(id_animal,id_visita,especie,feridas,processado_em) VALUES(?,'ficticio-esporotricose_visitas',?,?,?)",(animal,especie,feridas,'2026-06-01'))
+        self.sql("INSERT INTO esporotricose_visita_agentes(id_visita,id_agente) VALUES('ficticio-esporotricose_visitas',2)")
+        self.sql("UPDATE amostras_animais SET tipo_animal='escorpiao',motivo_visita='identificacao',houve_acidente='sim',houve_captura='sim',quantidade=3")
+
+    def test_ambiental_indicadores_nao_multiplicam_visitas_por_animais_ou_agentes(self):
+        self.animais_ficticios();c=self.client('ambiental')
+        r=c.get('/api/ambiental/dashboard').json
+        self.assertEqual((r['registros'],r['animais'],r['animais_feridas'],r['quantidade_amostras']),(3,2,1,3))
+        self.assertEqual(sum(x['registros'] for x in r['linhas']),3)
+        self.assertEqual(r['totais'],{'Esporotricose':2,'Amostra de Animais':1})
+        self.assertEqual(sum(r['por_mes'][0][s] for s in r['totais']),3)
+        self.assertEqual(c.get('/api/ambiental/dashboard?agente=Outro+Agente+Ficticio').json['registros'],2)
+
+    def test_ambiental_filtros_especificos_exigem_mesmo_animal_e_fonte_correta(self):
+        self.animais_ficticios();c=self.client('ambiental')
+        for query,count in [('fonte=Esporotricose',2),('tipo_animal=escorpiao',1),
+                            ('especie=gato&feridas=sim',1),('especie=gato&feridas=nao',0),
+                            ('quarteirao=0001',2),('d_ini=2026-06-02',0),('visita=normal',2),
+                            ('motivo_visita=identificacao&houve_acidente=sim&houve_captura=sim',1),
+                            ('especie=gato&tipo_animal=escorpiao',0),('tipo_imovel=R&origem_estrutura=nova',2),
+                            ('localidade=Localidade+Ficticia',3)]:
+            with self.subTest(query=query):self.assertEqual(c.get('/api/ambiental/dashboard?'+query).json['registros'],count)
+
+    def test_relatorios_agrupamentos_e_exportacoes_aplicam_mesmos_filtros(self):
+        import csv
+        from openpyxl import load_workbook
+        self.animais_ficticios();c=self.client('ambiental')
+        for grouping in ('territorio','dia','mes','localidade','quarteirao','situacao'):
+            query='?fonte=Esporotricose&quarteirao=1&agrupamento='+grouping
+            html=c.get('/relatorios'+query)
+            self.assertEqual(html.status_code,200)
+            response=c.get('/relatorios/exportar/csv'+query)
+            rows=list(csv.reader(io.StringIO(response.data.decode('utf-8-sig')),delimiter=';'))
+            self.assertEqual(len(rows),2)
+            self.assertEqual(rows[1][-4:],['1','2','1','0'])
+            self.assertNotIn('TB',response.data.decode('utf-8-sig'))
+        xlsx=c.get('/relatorios/exportar/xlsx?fonte=Amostra+de+Animais&agrupamento=mes')
+        book=load_workbook(io.BytesIO(xlsx.data));sheet=book.active
+        self.assertEqual([cell.value for cell in sheet[2]][-4:],[1,0,0,3]);book.close()
+
+    def test_filtros_invalidos_rejeitados_nas_telas_e_exportacoes(self):
+        c=self.client('ambiental')
+        for query in ('quarteirao=-1','quarteirao=2147483648','quarteirao=1%20OR%201=1',
+                      'agrupamento=DROP','fonte=Endemias','d_ini=2026-07-01&d_fim=2026-06-01'):
+            for path in ('/dashboard','/relatorios','/api/mapa','/relatorios/exportar/pdf'):
+                with self.subTest(path=path,query=query):self.assertEqual(c.get(path+'?'+query).status_code,400)
+
+    def test_restrito_nao_recebe_filtro_de_colega_nem_por_url_direta(self):
+        self.sql('UPDATE usuarios SET id_agente=1 WHERE id_usuario=4')
+        c=self.client('ambiental',4)
+        for path in ('/relatorios','/dashboard','/relatorios/exportar/csv'):
+            self.assertEqual(c.get(path+'?agente=Outro+Agente+Ficticio').status_code,400)
+            response=c.get(path+'?agente=Agente+Ficticio')
+            self.assertEqual(response.status_code,200)
+            self.assertNotIn(b'Outro Agente Ficticio',response.data)
+
+    def test_atalho_setores_somente_autorizados_e_destinos_lan_e_externo(self):
+        from app_core import setores
+        for sector in self.apps:
+            application=self.apps[sector]
+            self.assertIn(b'class="sector-switch"',self.client(sector).get('/').data)
+            uid=4 if sector=='ambiental' else 2
+            self.assertNotIn(b'class="sector-switch"',self.client(sector,uid).get('/').data)
+            for external in (False,True):
+                with mock.patch.dict(application.config,ACESSO_EXTERNO=external),application.test_request_context('/',base_url='http://192.168.1.175:5000'):
+                    other='endemias' if sector=='ambiental' else 'ambiental'
+                    expected='https://'+other+'.vsatt.com.br' if external else 'http://192.168.1.175:'+('5000' if other=='endemias' else '5004')
+                    self.assertEqual(setores.atalho_outro_setor({'nivel':'admin'})['url'],expected)
+                    self.assertIsNone(setores.atalho_outro_setor({'nivel':'visualizador','setor':sector}))
+
+    def test_portal_versao_e_inicio_ambiental_sem_painel_de_analise(self):
+        from app_core.version import APP_VERSION
+        portal=dominios.portal_application('vsatt.com.br',external=False).test_client()
+        response=portal.get('/',base_url='https://vsatt.com.br')
+        self.assertIn(APP_VERSION.encode(),response.data)
+        self.assertNotIn('Set-Cookie',response.headers)
+        home=self.client('ambiental').get('/').data
+        self.assertIn(b'ambiental-home-grid',home)
+        self.assertNotIn(b'id="ambiental-filtros"',home)
+        self.assertNotIn(b'<canvas',home)
+
+    def test_ambiental_dados_importados_escapados_e_exportacao_neutraliza_formula(self):
+        import csv
+        payload='</script><img src=x onerror=alert(1)>'
+        self.sql('UPDATE localidades SET nome=? WHERE id_localidade=1',(payload,))
+        c=self.client('ambiental')
+        for path in ('/dashboard','/relatorios','/mapa'):
+            self.assertNotIn(payload.encode(),c.get(path).data)
+        self.sql("UPDATE localidades SET nome='=1+1' WHERE id_localidade=1")
+        response=c.get('/relatorios/exportar/csv?agrupamento=localidade')
+        rows=list(csv.reader(io.StringIO(response.data.decode('utf-8-sig')),delimiter=';'))
+        self.assertTrue(rows[1][0].startswith("'="))
+
     def test_agendas_separadas_inclusive_edicao_por_id(self):
         clients = {s:self.client(s) for s in self.apps}
         ids = {}
@@ -241,7 +336,8 @@ class SetoresTests(unittest.TestCase):
         from scripts.provar_setores_windows import verificar
         for filename in ('kobo_config.json','kobo_ambiental.json'):
             (self.directory/filename).write_text(json.dumps({'api_token':'FICTICIO','assets':{}}),encoding='utf-8')
-        checks=verificar({'version':'2.0.0-rc.1','env':{'ENDEMIAS_SETORES_ENABLED':'1','ENDEMIAS_KOBO_CONFIG_PATH':str(self.directory/'kobo_config.json')}},self.directory,application)
+        from app_core.version import APP_VERSION
+        checks=verificar({'version':APP_VERSION,'env':{'ENDEMIAS_SETORES_ENABLED':'1','ENDEMIAS_KOBO_CONFIG_PATH':str(self.directory/'kobo_config.json')}},self.directory,application)
         self.assertTrue(all(checks.values()))
         client=Client(dominios.application(application),use_cookies=True)
         from functools import partial

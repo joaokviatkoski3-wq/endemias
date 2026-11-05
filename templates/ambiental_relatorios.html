@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Relatórios Ambientais{% endblock %}{% block page_title %}Relatórios{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="/static/css/ambiental.css?v={{ APP_VERSION }}">{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Relatórios Ambientais</h1><p class="sub">Consolide visitas por período, território, área ou situação.</p></div>
+{% include 'ambiental_filtros.html' %}
+<section class="ambiental-section">
+  <div class="ambiental-section-heading"><div><h2>Resultado da consulta</h2><p>{{ report.visitas }} visita(s) · {{ total_linhas }} linha(s) de consolidação</p></div><div class="ambiental-actions">{% for f in ['csv','xlsx','pdf'] %}<a class="btn btn-outline" href="{{ url_for('ambiental.exportar',formato=f,**filtros) }}">Exportar {{ f|upper }}</a>{% endfor %}</div></div>
+  <p class="ambiental-note">Animais são os cadastros de Esporotricose nas visitas selecionadas. Feridas não equivalem a diagnóstico. Quantidade é o campo informado em Amostras de Animais. Exportações incluem todas as páginas e os mesmos filtros.</p>
+  <div class="table-scroll"><table class="ambiental-table"><thead><tr>{% for h in report.headers %}<th scope="col">{{ h }}</th>{% endfor %}</tr></thead><tbody>{% for row in rows %}<tr>{% for v in row %}<td class="{{ 'ambiental-number' if loop.index0 in report.numericos }}">{{ v }}</td>{% endfor %}</tr>{% else %}<tr><td colspan="{{ report.headers|length }}">Nenhuma visita encontrada com os filtros selecionados.</td></tr>{% endfor %}</tbody></table></div>
+  <nav class="ambiental-pagination" aria-label="Páginas do relatório"><span>Página {{ pagina }} de {{ paginas }} · até 50 linhas por página</span><div>{% if pagina>1 %}<a class="btn btn-ghost" href="{{ url_for('ambiental.relatorios',pagina=pagina-1,**filtros) }}">Anterior</a>{% endif %}{% if pagina<paginas %}<a class="btn btn-ghost" href="{{ url_for('ambiental.relatorios',pagina=pagina+1,**filtros) }}">Próxima</a>{% endif %}</div></nav>
+</section>
+{% endblock %}

@@ -308,6 +308,8 @@ def create_app(config_overrides=None):
         SETORES_ENABLED=_env_bool(os.environ,'ENDEMIAS_SETORES_ENABLED',False),
         SETOR='endemias',
         DOMINIO_BASE=os.environ.get('ENDEMIAS_DOMINIO_BASE','vsatt.com.br'),
+        ENDEMIAS_LOCAL_PORT=int(os.environ.get('ENDEMIAS_LOCAL_PORT','5000')),
+        AMBIENTAL_LOCAL_PORT=int(os.environ.get('ENDEMIAS_AMBIENTAL_LOCAL_PORT','5004')),
     )
     flask_app.config.update(web_security.external_defaults())
     if config_overrides:

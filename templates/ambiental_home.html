@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Vigilância Ambiental{% endblock %}
+{% block page_title %}Início{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="/static/css/ambiental.css?v={{ APP_VERSION }}">{% endblock %}
+{% block content %}
+<div class="page-header ambiental-home-heading"><p class="ambiental-eyebrow">Almirante Tamandaré · Vigilância em Saúde</p><h1>Vigilância Ambiental</h1><p class="sub">Selecione uma área de trabalho.</p></div>
+<nav class="ambiental-home-grid" aria-label="Áreas da Vigilância Ambiental">
+{% for chave in ['esporotricose','amostras_animais','vigiagua','agenda','dashboard','relatorios_ambientais','mapa','meteorologia','processar'] %}{% for module in home_modules if module.key==chave %}
+<a class="ambiental-home-link" href="{{ module.href }}"><img src="/static/icons/{{ module.icon }}" alt=""><span>{{ module.short_title }}</span><span aria-hidden="true" class="ambiental-link-arrow">→</span></a>
+{% endfor %}{% endfor %}
+</nav>
+<p class="ambiental-home-foot">Gestão de Esporotricose, amostras de animais e vigilância da qualidade da água.</p>
+{% endblock %}

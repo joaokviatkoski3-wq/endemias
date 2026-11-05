@@ -1,0 +1,2 @@
+# Preservar bytes originais e hashes do fornecedor, inclusive no Windows.
+static/vendor/fullcalendar/*.js -text

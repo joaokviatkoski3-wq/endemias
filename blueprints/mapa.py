@@ -33,7 +33,8 @@ def _serialize_rows(cursor):
 @bp.route("/mapa")
 @login_required
 def page():
-    if setores.atual()=="ambiental":return render_template("ambiental_mapa.html")
+    if setores.atual()=="ambiental":
+        return render_template("ambiental_mapa.html",localidades_mapa=[db_core.serialize_row(r) for r in bh.q('SELECT id_localidade,nome FROM localidades ORDER BY nome')])
     conn = integradas.integrar(bh.get_db())
     try:
         localidades = _serialize_rows(

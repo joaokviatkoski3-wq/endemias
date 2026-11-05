@@ -1,10 +1,18 @@
 {% extends 'base.html' %}
 {% block title %}Mapa Ambiental{% endblock %}{% block page_title %}Mapa Ambiental{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.min.css">{% endblock %}
-{% block content %}<div class="page-header"><h1>Mapa Ambiental</h1><p>Visitas de Esporotricose e amostras de animais por quarteirão. A base territorial é compartilhada.</p></div>
-<form id="filtros-mapa" class="filter-bar"><label>Início <input type="date" name="d_ini"></label><label>Fim <input type="date" name="d_fim"></label>
-<label>Localidade <select name="localidade"><option value="">Todas</option>{% for l in localidades_glob %}<option>{{ l }}</option>{% endfor %}</select></label>
-<label>Camada <select id="fonte"><option value="todas">Todas</option><option>Esporotricose</option><option>Amostra de Animais</option></select></label><button class="btn btn-primary">Aplicar</button></form>
-<p id="mapa-status" role="status">Carregando camada territorial…</p><div id="mapa-ambiental" style="height:65vh;min-height:360px;border-radius:12px;"></div>
-<script nonce="{{ csp_nonce() }}" src="/static/vendor/leaflet/leaflet.min.js"></script>
-<script nonce="{{ csp_nonce() }}" src="/static/js/ambiental_mapa.js"></script>{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.min.css"><link rel="stylesheet" href="/static/css/ambiental.css?v={{ APP_VERSION }}">{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Mapa Ambiental</h1><p class="sub">Visitas de Esporotricose e amostras de animais por quarteirão.</p></div>
+<form id="filtros-mapa" class="filter-bar ambiental-map-filters">
+<label>Data inicial<input type="date" name="d_ini"></label><label>Data final<input type="date" name="d_fim"></label>
+<label>Localidade<select name="localidade"><option value="">Todas</option>{% for l in localidades_glob %}<option>{{ l }}</option>{% endfor %}</select></label>
+<label>Área<select name="fonte" id="fonte"><option value="">Todas</option><option>Esporotricose</option><option>Amostra de Animais</option></select></label>
+<label>Agente<select name="agente"><option value="">Todos</option>{% for a in agentes_glob %}<option>{{ a }}</option>{% endfor %}</select></label>
+<label>Quarteirão<input name="quarteirao" type="number" min="0" max="2147483647" placeholder="Todos"></label>
+<button class="btn btn-primary">Aplicar</button><button type="reset" class="btn btn-ghost">Limpar</button></form>
+<div class="ambiental-map-toolbar"><label><input type="checkbox" id="mapa-etiquetas"> Etiquetas dos quarteirões</label><label><input type="checkbox" id="mapa-com-registros"> Apenas com registros</label><label>Preenchimento <input type="range" id="mapa-opacidade" min="0" max="90" value="40"></label><button type="button" id="mapa-enquadrar" class="btn btn-ghost btn-sm">Enquadrar seleção</button></div>
+<p id="mapa-status" role="status" class="ambiental-note">Carregando camada territorial…</p><div id="mapa-ambiental" class="ambiental-map-frame" aria-label="Mapa de visitas ambientais"></div>
+<p id="mapa-base-status" class="ambiental-note">Alterne entre ruas e satélite no canto do mapa. Etiquetas aparecem a partir do zoom 15. Imagens de fundo exigem internet; quarteirões e registros são locais.</p>
+<script nonce="{{ csp_nonce() }}" type="application/json" id="mapa-localidades">{{ localidades_mapa|tojson }}</script>
+{% endblock %}
+{% block extra_js %}<script nonce="{{ csp_nonce() }}" src="/static/vendor/leaflet/leaflet.min.js"></script><script nonce="{{ csp_nonce() }}" src="/static/js/ambiental_mapa.js?v={{ APP_VERSION }}"></script>{% endblock %}

@@ -1,8 +1,10 @@
 <!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vigilância em Saúde · Almirante Tamandaré</title><link rel="icon" href="/static/img/favicon.png"><link rel="stylesheet" href="/static/css/portal_vsatt.css"></head>
-<body><main><p class="sigla">VSATT</p><h1>Vigilância em Saúde</h1><p class="municipio">Almirante Tamandaré · Paraná</p>
-<p>Escolha o setor para entrar com sua conta.</p><div class="setores">
-<a href="https://endemias.{{ dominio }}"><img src="/static/icons/ovitrampa.svg" alt=""><h2>Setor de Endemias</h2><p>Controle de vetores e atividades do setor.</p><span>Entrar em Endemias →</span></a>
-<a href="https://ambiental.{{ dominio }}"><img src="/static/icons/pets.svg" alt=""><h2>Vigilância Ambiental</h2><p>Esporotricose, amostras de animais e vigilância ambiental.</p><span>Entrar no Ambiental →</span></a>
-</div><footer>Acesso restrito à equipe autorizada.</footer></main></body></html>
+<title>Vigilância em Saúde · Almirante Tamandaré</title><meta name="description" content="Acesso aos sistemas de Endemias e Vigilância Ambiental de Almirante Tamandaré."><link rel="icon" href="/static/img/favicon.png"><link rel="stylesheet" href="/static/css/portal_vsatt.css?v={{ APP_VERSION }}"></head>
+<body><header class="portal-header"><a class="portal-wordmark" href="/" aria-label="VSATT — início">VS<span>ATT</span></a><span>Almirante Tamandaré<br><small>Paraná</small></span></header>
+<main><div class="portal-intro"><p class="sigla">Sistemas de informação</p><h1>Vigilância em Saúde</h1><p class="municipio">Almirante Tamandaré · Paraná</p><p>Escolha o setor para entrar com sua conta.</p></div>
+<nav class="setores" aria-label="Setores da Vigilância em Saúde">
+<a href="https://endemias.{{ dominio }}"><div class="setor-heading"><img src="/static/icons/ovitrampa.svg" alt=""><h2>Setor de Endemias</h2></div><p>Controle de vetores, visitas e acompanhamento das ações de campo.</p><span>Entrar em Endemias <b aria-hidden="true">→</b></span></a>
+<a href="https://ambiental.{{ dominio }}"><div class="setor-heading"><img src="/static/icons/pets.svg" alt=""><h2>Vigilância Ambiental</h2></div><p>Esporotricose, amostras de animais e vigilância da qualidade da água.</p><span>Entrar no Ambiental <b aria-hidden="true">→</b></span></a>
+</nav><p class="portal-access">Acesso restrito à equipe autorizada. Use seu usuário e senha no setor correspondente.</p></main>
+<footer><span>VSATT · Vigilância em Saúde</span><span>Versão {{ APP_VERSION }} <span class="version-date">· {{ APP_VERSION_DATE }}</span></span></footer></body></html>

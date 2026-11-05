@@ -43,7 +43,8 @@ def portal_application(domain, external=True):
 
     @portal.get('/')
     def inicio():
-        return render_template('portal_vsatt.html', dominio=domain)
+        from app_core.version import APP_VERSION,APP_VERSION_DATE
+        return render_template('portal_vsatt.html', dominio=domain,APP_VERSION=APP_VERSION,APP_VERSION_DATE=APP_VERSION_DATE)
 
     @portal.after_request
     def headers(response):

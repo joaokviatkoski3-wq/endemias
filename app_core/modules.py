@@ -37,7 +37,7 @@ class AppModule:
 
 
 MODULES: Tuple[AppModule, ...] = (
-    AppModule(key='vigiagua',title='Vigiágua',href='/vigiagua',endpoint='ambiental.vigiagua',icon='amostra_animal.svg',nav_section='Analise'),
+    AppModule(key='vigiagua',title='Vigiágua',href='/vigiagua',endpoint='ambiental.vigiagua',icon='agua.svg',nav_section='Analise'),
     AppModule(key='relatorios_ambientais',title='Relatórios',href='/relatorios',endpoint='ambiental.relatorios',icon='documento.svg',nav_section='Analise'),
     AppModule(
         key="home",

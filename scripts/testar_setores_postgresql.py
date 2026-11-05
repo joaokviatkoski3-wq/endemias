@@ -124,6 +124,12 @@ def main():
             if sector=='ambiental':
                 assert client.get('/api/dashboard').json['registros']==3
                 for fmt in ('csv','xlsx','pdf'):assert client.get('/relatorios/exportar/'+fmt).status_code==200
+                for query,total in [('fonte=Esporotricose',2),('quarteirao=0001&visita=normal',2),
+                                    ('especie=gato',0),('tipo_animal=escorpiao',0),('origem_estrutura=nova',3)]:
+                    response=client.get('/api/ambiental/dashboard?'+query)
+                    assert response.status_code==200 and response.json['registros']==total,(query,response.status_code)
+                assert client.get('/relatorios?agrupamento=mes').status_code==200
+                checks['ambiental_filtros_agrupamentos_postgresql']=True
             else:
                 assert 'esporotricose' not in client.get('/api/dashboard').json
                 query='?agente=Agente+Ficticio&d_ini=2026-06-01&d_fim=2026-06-03'
