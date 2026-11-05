@@ -14,6 +14,9 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
   Código candidato rc.2; produção permanece rc.1. Sem migração de banco.
   Suíte geral: 1.024 OK, seis ignorados; 41 focados OK; Chromium/CSRF/CSP e
   PostgreSQL descartável confirmados. Capturas de desktop/celular conferidas.
+  Código `0b46719` enviado à branch remota. Atalho na Área de Trabalho:
+  `Atualizar VSATT - Interface 2.0 RC2.bat`, com commits exatos e backup antes
+  da troca. Aguarda execução manual elevada e conferência do relatório.
   Preparação/limites/ensaios e pacote em `docs/INTERFACE_SETORES_200RC2.md`.
   Ativação exige o novo atalho administrativo depois de validado; não integrar
   templates com o processo antigo ativo nem repetir o ativador da divisão.

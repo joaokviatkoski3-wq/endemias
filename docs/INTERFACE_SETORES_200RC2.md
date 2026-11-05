@@ -91,3 +91,9 @@ ativador da divisão: este pacote não tem migração nem divide Kobo novamente.
   `C:\ProgramData\EndemiasWeb\ativacao-interface200rc2-resultado.json`, conferir
   os três endereços HTTPS, acesso autenticado e versão exibida. Ainda candidata
   da 2.0; não declarar estável apenas por testes automatizados.
+- Atalho preparado na Área de Trabalho: **Atualizar VSATT - Interface 2.0
+  RC2.bat**. Executar com botão direito → Executar como administrador e
+  informar o resultado. A permissão é exigida pelo Windows para a tarefa e
+  configuração protegidas. Código da candidata salvo em `0b46719`, enviado à
+  branch remota; manifesto local com hashes exatos em
+  `.venv/pacote-interface200rc2.json`. Nenhuma ativação realizada nesta preparação.
