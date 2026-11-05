@@ -4,6 +4,18 @@ Atualizado em 05/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Fechamento 2.0.0 autorizado — preparação em 05/11/2026
+
+- Usuário aprovou o visual e pediu publicação como **2.0.0**. Em
+  `C:\endemias-interface`, branch `codex/versao-200-e-auditoria`, muda somente a
+  identificação; produção permanece rc.3 até ativação administrativa conferida.
+  Procedimento em `docs/VERSAO_200_ESTAVEL.md`, sem DDL ou alterações de contas.
+- Em seguida, usuário pediu pente fino em todas as páginas/funcionalidades,
+  lacunas entre módulos/Kobo (exemplo carga do BRI). Preparar matriz de cobertura
+  e relatório de achados com evidências, separando confirmação/hipótese/melhoria.
+  Não alterar produção durante ensaios da auditoria nem misturar correções ao
+  fechamento da versão sem avaliação própria.
+
 ## Versão ativa 2.0.0-rc.3 — portal no topo e etiquetas leves
 
 - Usuário aprovou o visual da rc.2 e relatou travamento ao ativar etiquetas no

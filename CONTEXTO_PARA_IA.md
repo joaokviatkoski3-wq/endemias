@@ -6,6 +6,16 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
+## Fechamento 2.0.0 autorizado — preparação em 05/11/2026
+
+- Usuário aprovou o visual e autorizou publicar como **2.0.0**. Código preparado
+  em `C:\endemias-interface`, branch `codex/versao-200-e-auditoria`; produção
+  permanece rc.3 até execução e conferência do novo pacote administrativo.
+- Só identificação da versão; sem DDL/alterações funcionais, de contas ou Kobo.
+  Ver `docs/VERSAO_200_ESTAVEL.md`. Depois, auditoria funcional ampla solicitada
+  pelo usuário: cada página, ligações e correspondência com Kobo, exemplo carga
+  do BRI. Não confundir fechamento da versão com ausência de irregularidades.
+
 ## Versão ativa 2.0.0-rc.3 — portal no topo e etiquetas leves
 
 - Usuário aprovou visual da rc.2 e pediu botão do portal e correção do peso das

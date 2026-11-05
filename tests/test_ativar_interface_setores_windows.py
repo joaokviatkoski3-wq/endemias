@@ -114,6 +114,12 @@ class InterfaceInstallerTests(unittest.TestCase):
     def test_rc3_falha_retorna_rc2_preservando_dados(self):
         self.simulate(fail_probe=True,origin='2.0.0-rc.2',target='2.0.0-rc.3',marker='ativacao-mapa-portal200rc3')
 
+    def test_promocao_200_estavel_sem_migracao_preserva_dados(self):
+        self.simulate(origin='2.0.0-rc.3',target='2.0.0',marker='ativacao200estavel')
+
+    def test_falha_promocao_estavel_retorna_rc3(self):
+        self.simulate(fail_probe=True,origin='2.0.0-rc.3',target='2.0.0',marker='ativacao200estavel')
+
 
 class FakeTask:
     State=4
