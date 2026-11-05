@@ -1,15 +1,16 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR"{% if SETOR_ATUAL == 'ambiental' %} data-setor="ambiental"{% endif %}>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="referrer" content="no-referrer">
-<link rel="icon" type="image/png" href="/static/img/favicon.png">
-<title>Recuperar senha — Endemias</title>
+<link rel="icon" type="image/png" href="/static/img/{{ 'logo_ambiental.png' if SETOR_ATUAL == 'ambiental' else 'favicon.png' }}">
+<title>Recuperar senha — {{ 'Vigilância Ambiental' if SETOR_ATUAL == 'ambiental' else 'Endemias' }}</title>
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f1f5fd;color:#1a2540;min-height:100vh;display:flex;align-items:center;justify-content:center}
 .wrap{width:100%;max-width:440px;padding:20px}.card{background:white;border-radius:14px;box-shadow:0 4px 24px #1a4fba22;overflow:hidden}.top{background:#1a4fba;color:white;padding:24px;text-align:center}.top h1{font-size:20px;margin:0}.body{padding:24px;font-size:14px;line-height:1.6}p{margin:0 0 16px}label{display:block;font-weight:600;margin-bottom:6px}input{width:100%;padding:11px;border:1.5px solid #dde4f5;border-radius:7px;font:inherit;margin-bottom:16px}input:focus{outline:2px solid #1a4fba;outline-offset:2px}button{width:100%;padding:12px;border:0;border-radius:7px;background:#1a4fba;color:white;font:inherit;font-weight:700;cursor:pointer}a{color:#1a4fba}.voltar{margin-top:20px;text-align:center}.erro,.ok{padding:12px;border-radius:7px;margin-bottom:18px}.erro{background:#fee2e2;color:#991b1b}.ok{background:#dcfce7;color:#166534}.footer{text-align:center;font-size:11px;color:#68758f;margin-top:16px}.ambiente-teste-faixa{position:fixed;top:0;left:0;right:0;padding:7px;background:#9a3412;color:white;text-align:center;font-size:12px}
 </style>
+{% if SETOR_ATUAL == 'ambiental' %}<link rel="stylesheet" href="/static/css/branding_ambiental.css?v={{ APP_VERSION }}">{% endif %}
 </head>
 <body>
 {% include "_ambiente_teste_faixa.html" %}
@@ -56,7 +57,7 @@
       <div class="voltar"><a href="{{ url_for('auth.login') }}">Voltar para entrar no sistema</a></div>
     </div>
   </div>
-  <div class="footer">{{ APP_VERSION_LABEL }}</div>
+  <div class="footer">{{ APP_VERSION_LABEL.replace('Endemias', 'VSATT') if SETOR_ATUAL == 'ambiental' else APP_VERSION_LABEL }}</div>
 </main>
 </body>
 </html>
