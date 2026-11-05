@@ -26,7 +26,7 @@ tfoot td{background:#d9ead3;font-weight:800;text-align:center}
 <div class="actions"><button onclick="window.print()">Imprimir / salvar PDF</button></div>
 <main class="boletim">
   <div class="title">PREFEITURA MUNICIPAL DE ALMIRANTE TAMANDARÉ</div>
-  <div class="sub">SECRETARIA MUNICIPAL DE SAÚDE - VIGILÂNCIA AMBIENTAL<br>BOLETIM MENSAL - ARBOVIROSES E ZOONOSES</div>
+  <div class="sub">SECRETARIA MUNICIPAL DE SAÚDE - {{ 'SETOR DE ENDEMIAS' if SETOR_ATUAL == 'endemias' else 'VIGILÂNCIA AMBIENTAL' }}<br>BOLETIM MENSAL - {{ 'ENDEMIAS' if SETOR_ATUAL == 'endemias' else 'ARBOVIROSES E ZOONOSES' }}</div>
   <div class="month">{{ periodo.label }}</div>
   <table>
     <thead><tr><th>Indicador</th><th>Quantidade</th></tr></thead>

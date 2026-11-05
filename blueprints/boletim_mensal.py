@@ -11,6 +11,7 @@ from app_core import auth as auth_core
 from app_core import boletim_mensal as boletim_core
 from app_core import blueprint_helpers as bh
 from app_core import db as db_core
+from app_core import setores
 from app_core.excel import excel_safe
 
 
@@ -130,7 +131,9 @@ def exportar_xlsx():
     ws["A1"].fill = fill_title
     ws["A1"].alignment = Alignment(horizontal="center")
     ws.merge_cells("A2:C2")
-    ws["A2"] = "SECRETARIA MUNICIPAL DE SAÚDE - VIGILÂNCIA AMBIENTAL | BOLETIM MENSAL - ARBOVIROSES E ZOONOSES"
+    ws["A2"] = ("SECRETARIA MUNICIPAL DE SAÚDE - SETOR DE ENDEMIAS | BOLETIM MENSAL - ENDEMIAS"
+                if setores.atual() == 'endemias' else
+                "SECRETARIA MUNICIPAL DE SAÚDE - VIGILÂNCIA AMBIENTAL | BOLETIM MENSAL - ARBOVIROSES E ZOONOSES")
     ws["A2"].font = Font(italic=True, color="1A4FBA")
     ws["A2"].alignment = Alignment(horizontal="center")
     ws.merge_cells("A3:C3")

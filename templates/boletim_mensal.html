@@ -188,7 +188,7 @@ function renderPreview() {
   `).join('');
   document.getElementById('bm-card').innerHTML = `
     <div class="bm-card-title">PREFEITURA MUNICIPAL DE ALMIRANTE TAMANDARÉ</div>
-    <div class="bm-card-sub">SECRETARIA MUNICIPAL DE SAÚDE - VIGILÂNCIA AMBIENTAL<br>BOLETIM MENSAL - ARBOVIROSES E ZOONOSES</div>
+    <div class="bm-card-sub">SECRETARIA MUNICIPAL DE SAÚDE - {{ 'SETOR DE ENDEMIAS' if SETOR_ATUAL == 'endemias' else 'VIGILÂNCIA AMBIENTAL' }}<br>BOLETIM MENSAL - {{ 'ENDEMIAS' if SETOR_ATUAL == 'endemias' else 'ARBOVIROSES E ZOONOSES' }}</div>
     <div class="bm-card-month">${escapeHtml(bmDados.periodo.label)}</div>
     <table class="bm-preview-table">
       <thead><tr><th>Indicador</th><th>Quantidade</th></tr></thead>
@@ -202,7 +202,7 @@ function renderPreview() {
 function textoWhatsApp() {
   const linhas = bmDados.linhas.filter(i => i.ativo);
   const partes = [
-    `BOLETIM MENSAL - ARBOVIROSES E ZOONOSES`,
+    `BOLETIM MENSAL - {{ 'ENDEMIAS' if SETOR_ATUAL == 'endemias' else 'ARBOVIROSES E ZOONOSES' }}`,
     `Mês: ${bmDados.periodo.label}`,
     ''
   ];
@@ -285,8 +285,8 @@ function baixarImagem() {
   ctx.fillText('PREFEITURA MUNICIPAL DE ALMIRANTE TAMANDARÉ', w / 2, 28);
   ctx.fillStyle = '#0f4ea8';
   ctx.font = 'italic 16px Arial';
-  ctx.fillText('SECRETARIA MUNICIPAL DE SAÚDE - VIGILÂNCIA AMBIENTAL', w / 2, 66);
-  ctx.fillText('BOLETIM MENSAL - ARBOVIROSES E ZOONOSES', w / 2, 90);
+  ctx.fillText('SECRETARIA MUNICIPAL DE SAÚDE - {{ 'SETOR DE ENDEMIAS' if SETOR_ATUAL == 'endemias' else 'VIGILÂNCIA AMBIENTAL' }}', w / 2, 66);
+  ctx.fillText('BOLETIM MENSAL - {{ 'ENDEMIAS' if SETOR_ATUAL == 'endemias' else 'ARBOVIROSES E ZOONOSES' }}', w / 2, 90);
   ctx.fillStyle = '#111827';
   ctx.font = 'bold 16px Arial';
   ctx.fillText(bmDados.periodo.label, w / 2, 116);

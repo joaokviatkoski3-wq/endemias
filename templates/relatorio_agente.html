@@ -445,7 +445,7 @@ function renderRelatorio(d) {
         <div class="kpi-sub">${c.pos_aeg} positivos</div>
       </div>` : ''}
       ${totalDur.n > 0 ? `
-      <div class="kpi teal"><div class="kpi-icon">⏱</div><div class="kpi-label">Tempo total TBO + esporo</div><div class="kpi-val">${fmtMin(totalDur.media)}</div><div class="kpi-sub">${fmtNum(totalDur.n)} visitas</div></div>
+      <div class="kpi teal"><div class="kpi-icon">⏱</div><div class="kpi-label">{{ 'Tempo total TBO' if SETOR_ATUAL == 'endemias' else 'Tempo total TBO + esporo' }}</div><div class="kpi-val">${fmtMin(totalDur.media)}</div><div class="kpi-sub">${fmtNum(totalDur.n)} visitas</div></div>
       ` : ''}
       ${tbo.n > 0 ? `
       <div class="kpi"><div class="kpi-icon">⏱</div><div class="kpi-label">TBO — Tempo médio</div><div class="kpi-val">${fmtMin(tbo.media)}</div><div class="kpi-sub">${fmtNum(tbo.n)} visitas</div></div>
