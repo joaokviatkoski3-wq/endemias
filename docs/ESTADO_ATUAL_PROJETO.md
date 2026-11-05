@@ -27,10 +27,19 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 - LAN Endemias 5000 e Ambiental 5004 respondem 200 no servidor; origem Tunnel
   127.0.0.1:5001 responde aos três Hosts corretamente. Regra Ambiental criada
   só para interface/sub-rede local e perfis privado/domínio. Teste de outro
-  aparelho, perda da internet e reinício real desta versão ainda pendentes.
-- HTTPS Endemias confirmado 200/2.0.0-rc.1 e `no-store, private`. Usuário está
-  configurando as rotas `ambiental.vsatt.com.br` e `vsatt.com.br` no mesmo Tunnel;
-  HTTPS público desses dois ainda pendente. Não declarar toda publicação pronta.
+  aparelho confirmado pelo usuário em 05/11. Perda real da internet e reinício
+  desta versão ainda não ensaiados.
+- **Publicação dos três hosts confirmada em 05/11:** usuário salvou as rotas
+  no mesmo Tunnel. Portal `https://vsatt.com.br` 200, links corretos e sem cookie
+  do sistema; `https://endemias.vsatt.com.br/login` e
+  `https://ambiental.vsatt.com.br/login` 200/2.0.0-rc.1, cada título correto,
+  `no-store, private` e CF DYNAMIC. APIs anônimas dos dois setores retornam 401.
+  HTTP 301 para HTTPS nos três, TLS 1.0/1.1 recusados com alerta de versão,
+  certificados conferidos e TLS 1.2/1.3 aceitos. Evidência local:
+  `C:\endemias-setores\.venv\publicacao-setores-tls.json`.
+- Usuário confirmou acesso com sua conta real aos dois setores pelo portal e
+  abertura do login Ambiental em outro aparelho da rede local. Não foram
+  alteradas contas comuns, senhas ou níveis. Estética continua adiada.
 - Prévia fictícia aprovada pelo usuário em 05/11. Estética do Ambiental/portal
   ficou para depois. Não marcar 2.0 estável antes das conferências operacionais.
   Geo permanece futuro. Não repetir o atalho de atualização já aplicado.

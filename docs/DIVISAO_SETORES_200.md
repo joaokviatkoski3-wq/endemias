@@ -2,7 +2,7 @@
 
 Atualizado em 05/11/2026. **Candidata ativada no Windows** (release `29b478a`).
 Produção Endemias agora 2.0.0-rc.1; origens locais dos três hosts conferidas.
-Rotas/HTTPS públicos do Ambiental e portal ainda em configuração. Esta entrega
+Rotas/HTTPS públicos dos três hosts confirmados em 05/11. Esta entrega
 não declara a versão 2.0 estável. Preparação em `C:\endemias-setores`, branch
 `codex/divisao-setores-2`; código integrado na master pela janela administrativa.
 
@@ -29,10 +29,19 @@ não declara a versão 2.0 estável. Preparação em `C:\endemias-setores`, bran
 - LAN Endemias 5000 e Ambiental 5004 respondem 200 no servidor; origem Tunnel
   127.0.0.1:5001 responde aos três Hosts corretamente. Regra Ambiental criada
   só para interface/sub-rede local e perfis privado/domínio. Teste de outro
-  aparelho, perda da internet e reinício real desta versão ainda pendentes.
-- HTTPS Endemias confirmado 200/2.0.0-rc.1 e `no-store, private`. Usuário está
-  configurando as rotas `ambiental.vsatt.com.br` e `vsatt.com.br` no mesmo Tunnel;
-  HTTPS público desses dois ainda pendente. Não declarar toda publicação pronta.
+  aparelho confirmado pelo usuário em 05/11. Perda real da internet e reinício
+  desta versão ainda não ensaiados.
+- **Publicação dos três hosts confirmada em 05/11:** usuário salvou as rotas
+  no mesmo Tunnel. Portal `https://vsatt.com.br` 200, links corretos e sem cookie
+  do sistema; `https://endemias.vsatt.com.br/login` e
+  `https://ambiental.vsatt.com.br/login` 200/2.0.0-rc.1, cada título correto,
+  `no-store, private` e CF DYNAMIC. APIs anônimas dos dois setores retornam 401.
+  HTTP 301 para HTTPS nos três, TLS 1.0/1.1 recusados com alerta de versão,
+  certificados conferidos e TLS 1.2/1.3 aceitos. Evidência local:
+  `C:\endemias-setores\.venv\publicacao-setores-tls.json`.
+- Usuário confirmou acesso com sua conta real aos dois setores pelo portal e
+  abertura do login Ambiental em outro aparelho da rede local. Não foram
+  alteradas contas comuns, senhas ou níveis. Estética continua adiada.
 - Prévia fictícia aprovada pelo usuário em 05/11. Estética do Ambiental/portal
   ficou para depois. Não marcar 2.0 estável antes das conferências operacionais.
   Geo permanece futuro. Não repetir o atalho de atualização já aplicado.
@@ -210,9 +219,10 @@ foi repetida após os ajustes, com o resultado acima. Evidências locais ignorad
 pelo Git: `.venv/regressao-confirmada.log`, `setores-focados-final.log`,
 `setores-browser-resultado.json` e `setores-pg-resultado.json`.
 
-Ainda não confirmados: novos DNS/rotas Tunnel/HTTPS públicos, fluxo real dos
-usuários, classificação dos compromissos antigos, LAN em outro aparelho, primeira
-rotina Kobo automática após divisão e reinício com a divisão. Não usar testes sintéticos como
+Ainda não confirmados: classificação dos compromissos antigos, primeiro
+processamento automático Kobo após divisão, perda real da internet e reinício
+com a divisão. Login real nos setores e LAN em outro aparelho foram confirmados
+pelo usuário. Ajustes visuais ficaram para depois. Não usar testes sintéticos como
 declaração de prontidão operacional ou implantação concluída.
 
 Windows sem atualização, HTTP local, MFA e primeiro upload cifrado ao Drive
