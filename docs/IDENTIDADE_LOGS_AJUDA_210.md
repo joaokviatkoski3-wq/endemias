@@ -2,9 +2,14 @@
 
 ## Situação operacional
 
-Preparação autorizada em 05/11/2026. Produção permanece em 2.0.2 até a execução
-do novo atalho elevado e a confirmação do relatório nativo. Não repetir os
-ativadores antigos nem a recomposição histórica de BRI.
+Preparação autorizada em 05/11/2026. Usuário executou o atalho elevado e
+confirmou conclusão. Produção em **2.1.0**, release
+`db3f1cbc624aa85b83cabc77122c7777c67683ea`, janela16h28. Relatório nativo
+`C:\ProgramData\EndemiasWeb\ativacao-identidade210-resultado.json`
+aplicado/concluído;96 tabelas/dados/arquivos preservados, sem DDL ou restauração
+de banco. Mesma tarefa/identidade/ambiente, duas configurações Kobo, SQLite
+congelado e agendamento devolvido. Não repetir atalho, ativadores antigos ou
+recomposição histórica de BRI.
 
 ## Escopo solicitado
 
@@ -67,7 +72,7 @@ Cobertura detalhada em `docs/AUDITORIA_E_LOGS.md`, identidade em
   permissões, exportação maior que 500 e recusa de 10.002 eventos reais de ensaio.
 - Prova nativa ampliada para leitura das marcas e criação/escrita/rotação e
   remoção de arquivos temporários na pasta operacional, pela conta limitada.
-  Sua execução na instalação real permanece parte da ativação elevada.
+  Na instalação real a prova passou, conforme relatório nativo.
 
 Suíte geral: 1.141 testes em 495,583 s, sem falhas e seis ignorados. Após os
 ajustes finais de gravidade/perfil e metadados de versão/processo, os 14 testes
@@ -79,12 +84,36 @@ da suíte foi removido após conferir caminho, tamanho e ausência de tabelas.
 
 SQLite congelado de produção conferido novamente, SHA-256 inalterado:
 `964152E21DE44B4FFF985F72A0D7945E8E7DCF260BBB019708B868C3B3A7A025`.
-Produção continua limpa no commit `386bb447d7edbbaaee87c27068af2a49adb9a182`.
+Origem preservada pelo atualizador: commit
+`386bb447d7edbbaaee87c27068af2a49adb9a182`; código ativo na release acima.
 
 Atalho final: `Atualizar VSATT - Identidade Logs e Ajuda 2.1.0.bat`, na Área de
-Trabalho, com os commits exatos fixados após o fechamento. A versão 2.1.0 só
-deve ser declarada ativa após `ativacao-identidade210-resultado.json` indicar
-aplicado/concluído e a conferência dos três endereços e acessos locais.
+Trabalho, com os commits exatos fixados após o fechamento. Já aplicado.
+
+## Conferência após ativação
+
+Quinze checagens em `.venv/publicacao-210.json`: portal, dois logins HTTPS e
+locais5000/5004 retornam200/2.1.0, com cache privado/no-store e ID de requisição
+válido; portal sem cookie. Ajuda e dashboard sem sessão retornam401 nos dois
+domínios. Dois logos novos, logo de Endemias, CSS Ambiental/Portal e script da
+ajuda publicados iguais byte a byte à fonte. Não houve login com contas reais
+ou escrita operacional nesta conferência.
+
+Prova nativa confirmou escrita/rotação, existência dos arquivos e ausência de
+falhas nos escritores dos três aplicativos. A conta interativa não pôde ler
+nem consultar atributos dos arquivos JSONL privados, conforme proteção ACL;
+seu conteúdo não foi inspecionado novamente e permissões não foram alteradas.
+O acesso operacional aos registros ocorre pela tela autenticada, segundo o
+perfil; a matriz de permissões e exportações foi verificada na homologação.
+
+Backups registrados antes da troca:
+
+- SQL: `C:\ProgramData\EndemiasWeb\ativacao-identidade210-20261105-162820\antes_conta_limitada.dump`,
+  7.549.800 bytes; catálogo validado pelo instalador;
+  SHA-256 `6e0ca6674f0dd929208df765fb116f4822925f4e89e78aebd93814398e77e675`.
+- Completo: `D:\BackupsEndemias\backups_web\completos\endemias_completo_20261105_162827.zip`,
+  310.618.983 bytes;
+  SHA-256 `b62852d5c4f941773b247e2528de4ab9b5b8ee0e7141fa186ad3efda55cf364f`.
 
 ## Implantação
 

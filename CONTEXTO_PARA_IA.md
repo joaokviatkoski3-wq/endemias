@@ -6,25 +6,30 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.1.0 validada — identidade, logs e ajuda em 05/11/2026
+## Versão ativa 2.1.0 — identidade, logs e ajuda em 05/11/2026
 
 Usuário autorizou três frentes com subagentes isolados: identidade visual por
 setor e portal com as logos fornecidas, ampliação segura dos logs/exportação e
 ajuda por setor/permissão. Integração em `C:\endemias-interface`, branch
-`codex/identidade-logs-ajuda`; produção segue 2.0.2 até nova ativação elevada.
+`codex/identidade-logs-ajuda`; usuário executou o atalho elevado e a produção
+está em 2.1.0, release `db3f1cb`, janela16h28.
 Sem alteração de contas, migrações de banco ou reimportação Kobo. Ler
 `docs/IDENTIDADE_LOGS_AJUDA_210.md` e os registros específicos de cada frente.
 
 Integração concluída: 1.141 testes/sem falhas/seis ignorados, mais 14 focados
 após últimos ajustes; Chromium e PG descartável55444 OK, concorrência de600
 gravações sem perdas/duplicações. Prova nativa ampliada para marcas/logs. Novo
-atalho `Atualizar VSATT - Identidade Logs e Ajuda 2.1.0.bat` aguarda execução
-elevada; não declarar ativa antes do relatório `ativacao-identidade210` e
-checagem dos endereços. Auditoria de negócio admin/Super, técnica sóSuper,
+atalho `Atualizar VSATT - Identidade Logs e Ajuda 2.1.0.bat` já aplicado;
+não repetir. Relatório `ativacao-identidade210` aplicado/concluído,96 tabelas
+e dados/arquivos preservados, prova limitada OK e agendamento devolvido.
+Quinze checagens posteriores passaram: portal/logins HTTPS e locais2.1.0,
+APIs anônimas401 e seis arquivos publicados iguais à fonte. Prova nativa dos
+logs passou; a leitura direta do conteúdo pela conta interativa foi negada
+pela ACL, sem alteração de permissões. Auditoria de negócio admin/Super, técnica sóSuper,
 setor próprio; XLSX filtrado até10.000/16MiB, sem corte silencioso. Ajuda por
 setor/perfil/capacidade; logos originais preservados. Sem DDL ou reimportação.
 
-## Versão ativa 2.0.2 — BRI/API em 05/11/2026
+## Histórico 2.0.2 — BRI/API em 05/11/2026
 
 - Usuário relatou campos antigos ainda incompletos e forneceu exportação; enfatizou
   que a API é principal e planilhas são emergenciais. Histórico indicado foi
