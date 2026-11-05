@@ -19,10 +19,10 @@ def _artigo(ident, titulo, categoria, rota, resumo, passos, *, areas, nivel="vis
 
 ARTIGOS = (
     _artigo("inicio", "Começar pelo início de Endemias", "Geral", "/",
-        "A entrada de Endemias reúne atalhos e indicadores das rotinas deste setor.",
+        "A tela inicial de Endemias reúne atalhos e indicadores das rotinas deste setor.",
         ("Abra o módulo desejado pelo menu ou pelos atalhos.", "Confira o período dos indicadores antes de comparar valores."), areas=ENDEMIAS),
     _artigo("ambiental-inicio", "Começar pelo início Ambiental", "Geral", "/",
-        "A entrada da Vigilância Ambiental oferece acesso direto às suas rotinas.",
+        "A tela inicial da Vigilância Ambiental oferece atalhos diretos para suas rotinas.",
         ("Escolha uma rotina no menu ou nos atalhos.", "Abra Dashboard para indicadores e Agenda para compromissos desta área."), areas=AMBIENTAL),
     _artigo("navegacao", "Usar o menu e o Portal VSATT", "Geral", "/",
         "O menu apresenta os módulos liberados para sua conta na área atual.",

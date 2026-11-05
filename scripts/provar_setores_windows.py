@@ -58,7 +58,7 @@ def verificar(config, root, endemias):
     from app_core import logging_rastreamento
     proof = logging_rastreamento.provar_rotacao(endemias.config)
     assert proof['ok'] and proof['temporarios_removidos'] and not proof['dados_reais_lidos']
-    for application in (endemias, ambiental):
+    for application in (endemias, ambiental, dispatcher.applications[domain]):
         writer = application.extensions['rastreamento']
         assert writer.falhas == 0 and writer.path.is_file()
     return {'kobo_ambiental_leitura_gravacao':True,'kobo_formularios_separados':True,

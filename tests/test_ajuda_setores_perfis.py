@@ -139,8 +139,6 @@ class AjudaSetoresPerfisTests(unittest.TestCase):
         ident = self.ids["endemias", "visualizador"]
         conn = db.connect(str(self.path)); conn.execute("UPDATE usuarios SET acesso_laboratorio=1,somente_laboratorio=1 WHERE id_usuario=?", (ident,)); conn.commit(); conn.close()
         response = self.client("endemias", "visualizador").get("/api/ajuda?limite=120")
-        if response.status_code == 403 and response.json.get("erro") == "Esta conta possui acesso exclusivo ao laboratorio.":
-            self.skipTest("Liberação de ajuda.api_ajuda no guard pertence à integração de app_setup.")
         self.assertEqual(response.status_code, 200)
         self.assertFalse({a["id"] for a in response.json["artigos"]} - {"senha-pessoal", "privacidade", "laboratorio-lancamentos", "laboratorio-historico", "liraa-leitura"})
 

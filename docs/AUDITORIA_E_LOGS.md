@@ -36,6 +36,7 @@ Admin e demais perfis não podem ler ou exportar a fonte técnica.
 - Requisições de Endemias, Ambiental e Portal: horário UTC, ator/ID quando
   disponível, origem da identidade, nível, setor, IP validado, método, endpoint,
   padrão da rota, status HTTP, duração, tamanho declarado da resposta e correlação.
+  Versão do aplicativo e processo de origem acompanham cada evento.
 - IDs inteiros/UUID presentes nos argumentos `id`, `uid` ou `id_*`; nomes,
   caminhos, nomes de arquivos e argumentos livres não são copiados.
 - Downloads pela resposta de anexo, sem registrar conteúdo ou nome do arquivo.
@@ -50,6 +51,8 @@ Admin e demais perfis não podem ler ou exportar a fonte técnica.
   frames com nome de arquivo, função e linha. Não há mensagem da exceção,
   argumentos, linha de código, SQL ou DSN. O arquivo técnico tradicional usa
   o mesmo formato seguro daqui em diante; arquivos antigos não são reescritos.
+  No evento técnico, `nivel_log` identifica a gravidade; `nivel` continua sendo
+  o perfil da conta, quando disponível. Esses dois dados não se sobrescrevem.
 - Inicialização por processo/área e encerramento normal, quando observado.
 
 O cabeçalho `X-Request-ID` é gerado pelo servidor. IDs fornecidos pelo cliente

@@ -46,6 +46,7 @@ class TrilhaSeguraTests(unittest.TestCase):
         row=next(r for r in self.rows() if r['tipo']=='requisicao')
         self.assertEqual('/ensaio/<token>',row['rota']);self.assertEqual(7,row['ator_id'])
         self.assertEqual('127.0.0.1',row['ip']);self.assertEqual(200,row['status'])
+        self.assertEqual(core.APP_VERSION,row['versao']);self.assertIsInstance(row['pid'],int)
 
     def test_ids_validos_sao_distintos_de_nome_caminho_e_token(self):
         @self.application.get('/consulta/<int:id>/<nome>/<token>')
@@ -58,12 +59,15 @@ class TrilhaSeguraTests(unittest.TestCase):
     def test_erro_tecnico_nao_expoe_mensagem_excecao_args_ou_sql(self):
         @self.application.get('/falha')
         def falha():
+            g._auth_usuario={"id_usuario":7,"usuario":"tecnico-ficticio","nivel":"superadmin"}
             try:raise ValueError('senha e dados sigilosos')
             except ValueError:logging.exception('SQL com senha=%s','segredo-argumento')
             return 'erro',500
         self.application.test_client().get('/falha')
         rows=self.rows();diag=next(r for r in rows if r['tipo']=='diagnostico')
         self.assertEqual('ValueError',diag['erro_tipo']);self.assertTrue(diag['frames'])
+        self.assertEqual('ERROR',diag['nivel_log'])
+        self.assertEqual('superadmin',diag['nivel'])
         self.assertNotIn('sigilosos',json.dumps(rows));self.assertNotIn('segredo-argumento',json.dumps(rows))
         record=logging.LogRecord('app',logging.ERROR,'app.py',1,'senha=%s',('segredo-textual',),None)
         self.assertNotIn('segredo-textual',FormatoTecnicoSeguro().format(record))
@@ -84,6 +88,15 @@ class TrilhaSeguraTests(unittest.TestCase):
             response=self.application.test_client().get('/normal')
         self.assertEqual(200,response.status_code);self.assertEqual(1,self.writer.falhas)
         self.assertEqual('PermissionError',self.writer.ultima_falha)
+
+    def test_retencao_preserva_json_incompleto_sem_bloquear_gravacao(self):
+        self.writer.path.write_text('[]\n{}\nnull\n{"id":"incompleto"}\n',encoding='utf-8')
+        self.writer._limpeza=0
+        self.assertTrue(self.writer.gravar({'tipo':'depois_da_linha_invalida'}))
+        result=self.writer.consultar({})
+        self.assertTrue(result['incompleto'])
+        self.assertEqual(4,result['linhas_invalidas'])
+        self.assertEqual(1,result['total'])
 
     def test_polling_presenca_resumido_mas_negacao_sempre_registrada(self):
         counter=[200]
@@ -169,6 +182,12 @@ class TelaLogsTests(unittest.TestCase):
 
     def test_exportacao_recusa_excesso_e_arquivo_incompleto(self):
         client=self.login(9)
+        con=db.connect(self.path)
+        con.executemany("INSERT INTO auditoria_eventos(acao,criado_em,setor,detalhes_json) VALUES('limite_real','2026-11-05','endemias','{}')",[()]*10002)
+        con.commit();con.close()
+        response=client.get('/admin/auditoria/exportar?acao=limite_real')
+        self.assertEqual(400,response.status_code)
+        self.assertIn('10002',response.get_data(as_text=True))
         with mock.patch('blueprints.admin._consultar_logs',return_value={'total':10001,'registros':[]}):
             response=client.get('/admin/auditoria/exportar');self.assertEqual(400,response.status_code);self.assertNotIn('Content-Disposition',response.headers)
         writer=self.application.extensions['rastreamento'];writer.path.write_text('{incompleto\n',encoding='utf-8')

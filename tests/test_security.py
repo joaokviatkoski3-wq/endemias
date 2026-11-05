@@ -993,7 +993,8 @@ class AuditLogTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
         self.assertIn("teste_auditoria_pagina", html)
-        self.assertIn("Eventos recentes", html)
+        self.assertIn("Eventos de auditoria", html)
+        self.assertIn("Página 1 de 1", html)
 
     def test_admin_auditoria_exporta_xlsx(self):
         with tempfile.TemporaryDirectory() as tmpdir:

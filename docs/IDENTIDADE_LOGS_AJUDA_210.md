@@ -23,10 +23,10 @@ ativadores antigos nem a recomposição histórica de BRI.
 
 Em cada setor, **Auditoria** continua disponível a admin e superadmin. A lista
 deve exibir total, paginação e filtros; o XLSX deve respeitar o filtro completo,
-com teto explícito de 10.000 eventos. Acima dele é necessário reduzir o período
+com teto explícito de 10.000 eventos e 16 MiB. Acima dele é necessário reduzir o período
 ou outros filtros; a exportação não deve omitir silenciosamente os excedentes.
 
-O superadmin pode selecionar **Registros técnicos** na mesma página
+O superadmin pode selecionar **Requisições e diagnóstico** na mesma página
 (`/admin/auditoria?origem=tecnico`). A área inicial é o setor atual; portal e
 sistema são fontes adicionais explícitas, sem abrir o outro setor nesse domínio.
 
@@ -39,8 +39,52 @@ recusas e falhas continuam sendo registradas.
 
 As importações automáticas mantêm o histórico e os registros da rotina já
 existentes. Esta entrega não transforma scripts externos em acessos HTTP nem
-oferece reconstrução retroativa de atividades. Detalhes e verificações finais
-serão registrados ao concluir a integração.
+oferece reconstrução retroativa de atividades. A trilha técnica fica fora do
+backup completo do código/anexos quando `LOG_PATH` está no runtime privado;
+para conservar um recorte por mais tempo, exporte pela tela. A auditoria SQL
+continua integrando os backups do banco.
+
+Cobertura detalhada em `docs/AUDITORIA_E_LOGS.md`, identidade em
+`docs/IDENTIDADE_VISUAL_SETORES.md` e critérios da ajuda em
+`docs/AJUDA_POR_AREA_E_ACESSO.md`.
+
+## Verificações concluídas na candidata
+
+- Logos copiados sem edição, com SHA-256 igual aos originais; Endemias mantém
+  `app.css` e a marca anteriores. Chromium: 25 combinações de identidade e
+  quatro retestes de contraste; cinco níveis nos dois setores para ajuda,
+  incluindo troca de conta e limpeza de conteúdo anterior.
+- Integração Chromium com CSRF e CSP reais: páginas dos dois setores, ajuda,
+  navegação, mapas, agenda, relatórios, indicadores e as duas exportações de logs;
+  sem erros JavaScript ou rolagem horizontal no celular. A última rodada ajusta
+  também a apresentação dos filtros novos.
+- Cluster PostgreSQL descartável na porta 55444: 11 verificações, incluindo
+  auditoria/exportação/ajuda nos dois setores e regressões operacionais;
+  sem usar banco ou porta oficiais. Cluster encerrado e credenciais removidas.
+- Escrita concorrente por três processos: 600 registros fictícios, sem perda,
+  duplicação ou JSON incompleto. Mais 14 testes focados na versão final dos logs,
+  cobrindo privacidade, perfil versus gravidade, retenção/corrupção, rotação,
+  permissões, exportação maior que 500 e recusa de 10.002 eventos reais de ensaio.
+- Prova nativa ampliada para leitura das marcas e criação/escrita/rotação e
+  remoção de arquivos temporários na pasta operacional, pela conta limitada.
+  Sua execução na instalação real permanece parte da ativação elevada.
+
+Suíte geral: 1.141 testes em 495,583 s, sem falhas e seis ignorados. Após os
+ajustes finais de gravidade/perfil e metadados de versão/processo, os 14 testes
+de logs passaram novamente (3,163 s). A regra de laboratório exclusivo foi
+testada sem o skip provisório da frente isolada. Os avisos legados de conexões
+SQLite de ensaio não fechadas continuam separados do resultado dos testes;
+nenhuma correção desses avisos foi incluída neste lote. O artefato vazio `banco`
+da suíte foi removido após conferir caminho, tamanho e ausência de tabelas.
+
+SQLite congelado de produção conferido novamente, SHA-256 inalterado:
+`964152E21DE44B4FFF985F72A0D7945E8E7DCF260BBB019708B868C3B3A7A025`.
+Produção continua limpa no commit `386bb447d7edbbaaee87c27068af2a49adb9a182`.
+
+Atalho final: `Atualizar VSATT - Identidade Logs e Ajuda 2.1.0.bat`, na Área de
+Trabalho, com os commits exatos fixados após o fechamento. A versão 2.1.0 só
+deve ser declarada ativa após `ativacao-identidade210-resultado.json` indicar
+aplicado/concluído e a conferência dos três endereços e acessos locais.
 
 ## Implantação
 

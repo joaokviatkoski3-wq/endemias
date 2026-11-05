@@ -17,6 +17,7 @@ from flask import current_app, g, has_app_context, has_request_context, request,
 
 from app_core.logging_seguranca import erro_seguro, identificador
 from app_core import auth
+from app_core.version import APP_VERSION
 
 MAX_EXPORTACAO = 10000
 _locks = {}
@@ -92,7 +93,10 @@ class Trilha:
                 kept = []
                 for line in rows:
                     try:
-                        if json.loads(line).get("instante", "") >= limite:
+                        item = json.loads(line)
+                        if not isinstance(item, dict) or not item.get("id") or not isinstance(item.get("instante"), str):
+                            raise ValueError("Linha incompleta")
+                        if item["instante"] >= limite:
                             kept.append(line)
                     except (ValueError, TypeError):
                         kept.append(line)
@@ -108,7 +112,8 @@ class Trilha:
     def gravar(self, evento):
         try:
             raw = json.dumps({"id": secrets.token_hex(16), "instante": _instante(),
-                              "setor": self.setor, **evento}, ensure_ascii=False, allow_nan=False) + "\n"
+                              "setor": self.setor, "versao": APP_VERSION, "pid": os.getpid(),
+                              **evento}, ensure_ascii=False, allow_nan=False) + "\n"
             if len(raw.encode("utf-8")) > 16384:
                 raise ValueError("Registro excedeu o limite técnico")
             with self._exclusivo():
@@ -238,10 +243,10 @@ class _ErrosSeguros(logging.Handler):
     def emit(self, record):
         try:
             if has_app_context() and current_app.config.get("LOG_PATH"):
-                trilha(current_app.config).gravar({"tipo": "diagnostico", "nivel": record.levelname,
+                trilha(current_app.config).gravar({"tipo": "diagnostico", "nivel_log": record.levelname,
                                                   **contexto(), **erro_seguro(record)})
             elif _fallback_config:
-                trilha(_fallback_config, "sistema").gravar({"tipo": "diagnostico", "nivel": record.levelname,
+                trilha(_fallback_config, "sistema").gravar({"tipo": "diagnostico", "nivel_log": record.levelname,
                                                           **erro_seguro(record)})
         except Exception:
             pass

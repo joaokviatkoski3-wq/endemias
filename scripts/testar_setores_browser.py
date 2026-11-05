@@ -80,14 +80,35 @@ def main():
                 assert page.locator('.sector-switch').first.get_attribute('href')==urls['ambiental' if sector=='endemias' else 'endemias']
                 assert page.locator('.sector-switch').first.evaluate('e=>getComputedStyle(e).color!==getComputedStyle(e).backgroundColor')
                 assert page.get_by_role('link',name='Portal VSATT',exact=True).get_attribute('href')=='https://vsatt.com.br'
+                page.locator('#help-launcher').click()
+                page.locator('.help-article').first.wait_for()
+                assert page.locator('.help-article').count() <= 9
+                page.locator('#help-close').click()
+                checks[sector+'_ajuda_contextual'] = True
                 if sector=='ambiental':
                     assert page.locator('.ambiental-home-link').count()>=8
                     assert page.locator('canvas,form#ambiental-filtros').count()==0
                     page.screenshot(path=str(runtime/'ambiental-inicio.png'),full_page=True)
-                for path in ('/dashboard','/processar','/agenda','/mapa','/admin/usuarios'):
+                for path in ('/dashboard','/processar','/agenda','/mapa','/admin/usuarios',
+                             '/admin/auditoria','/admin/auditoria?origem=tecnico'):
                     response = page.goto(url+path)
                     assert response.status == 200, (sector,path,response.status)
                     page.wait_for_timeout(500)
+                    if path.startswith('/admin/auditoria'):
+                        assert page.locator('.logs-pagination').is_visible()
+                        with page.expect_download() as download_info:
+                            page.get_by_role('link',name='Exportar XLSX filtrado',exact=True).click()
+                        archive = runtime/(sector+('-tecnico' if 'tecnico' in path else '-auditoria')+'.xlsx')
+                        download_info.value.save_as(str(archive))
+                        from openpyxl import load_workbook
+                        workbook=load_workbook(archive,read_only=True)
+                        assert workbook.active.max_column==13 and workbook.active.max_row>=2
+                        workbook.close()
+                        page.screenshot(path=str(archive.with_suffix('.png')),full_page=True)
+                        page.set_viewport_size({'width':390,'height':844})
+                        assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'),sector+' logs celular'
+                        page.set_viewport_size({'width':1365,'height':900})
+                        checks[sector+'_logs_exportacao_chromium'] = True
                     if path=='/mapa' and sector=='ambiental':
                         page.wait_for_function("() => document.getElementById('mapa-status').textContent.includes('registro(s) no período')")
                         assert page.get_by_text('Ruas',exact=True).count()==1

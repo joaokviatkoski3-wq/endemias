@@ -4,7 +4,7 @@ Atualizado em 05/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Em preparação: 2.1.0 — identidade, logs e ajuda
+## Candidata validada: 2.1.0 — identidade, logs e ajuda
 
 Usuário solicitou subagentes por frente. Estilo em `C:\endemias-visual`, logs em
 `C:\endemias-logs`, ajuda em `C:\endemias-ajuda`; integração isolada em
@@ -14,6 +14,17 @@ cores. Ajuda deve respeitar setor e permissões; trilha técnica não deve guard
 segredos ou corpos de formulário. Produção permanece 2.0.2 até nova ativação.
 Sem DDL ou alteração de usuários/dados/Kobo. Ver
 `docs/IDENTIDADE_LOGS_AJUDA_210.md` para implantação e verificações deste lote.
+
+Integração terminada. Suíte1.141/sem falhas/seis ignorados, 14 focados finais,
+Chromium/CSRF/CSP e PG descartável55444 OK; três processos/600 logs sem perdas.
+Logos por hash iguais aos originais e azul do Endemias preservado. Nova ajuda
+com matriz cinco níveis×dois setores e laboratório exclusivo; consultas de
+gestão separadas da fonte técnica Super, export sem corte silencioso10.000/16MiB.
+Prova da conta limitada inclui marcas e rotação privada. Atalho elevado
+`Atualizar VSATT - Identidade Logs e Ajuda 2.1.0.bat` preparado; aguardando usuário.
+Conferir relatório `C:\ProgramData\EndemiasWeb\ativacao-identidade210-resultado.json`
+e endereços antes de registrar produção2.1.0. Nenhuma implantação feita nesta
+etapa; master oficial limpa em386bb44 e SQLite congelado com hash preservado.
 
 ## Versão ativa 2.0.2 — BRI/API em 05/11/2026
 
