@@ -45,7 +45,16 @@ def verificar(config, root, endemias):
     target=db.configured_target(ambiental.config)
     indicadores.resumo(target,{'d_ini':'9999-01-01'})
     indicadores.opcoes(target)
+    for application in (endemias, ambiental):
+        for template in ('laboratorio.html','recolhimentos.html','pontos_estrategicos.html',
+                         'bri.html','amostras_animais.html','esporotricose.html','esporotricose_humano_form.html'):
+            # Apenas compila; respeita as permissões de rota ao atender usuários.
+            application.jinja_env.get_template(template)
+    from app_core import bri, recolhimentos, amostras_animais
+    for module in (bri, recolhimentos, amostras_animais):
+        module.listar(target, {'d_ini':'9999-01-01','por_pagina':1})
     return {'kobo_ambiental_leitura_gravacao':True,'kobo_formularios_separados':True,
         'logins_dos_setores':True,'apis_anonimas_negadas':True,'portal_sem_sessao':True,
         'host_desconhecido_negado':True,'chaves_por_setor_distintas':True,
-        'interface_ambiental_leitura':True,'indicadores_ambientais_consulta':True,'portal_versao_atual':True}
+        'interface_ambiental_leitura':True,'indicadores_ambientais_consulta':True,'portal_versao_atual':True,
+        'listas_operacionais_consulta':True,'templates_correcoes_compilam':True}

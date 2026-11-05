@@ -30,5 +30,5 @@ def exportar_csv(registros, campos, nome, target, usuario):
     writer.writerow([titulo for _, titulo in campos])
     for registro in registros:
         writer.writerow([campo_csv(registro.get(chave), numerico=isinstance(registro.get(chave), (int, float))) for chave, _ in campos])
-    return Response("\ufeff" + output.getvalue(), mimetype="text/csv; charset=utf-8",
+    return Response("\ufeff" + output.getvalue(), content_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{nome}.csv"'})

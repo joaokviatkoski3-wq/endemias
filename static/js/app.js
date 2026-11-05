@@ -606,7 +606,7 @@ document.addEventListener('click', event => {
   const botao = event.target.closest('[data-detalhes-operacionais]');
   if (!botao) return;
   const dialogo = document.createElement('dialog');
-  dialogo.style.cssText = 'max-width:min(640px,90vw);max-height:85vh;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:24px;background:var(--surface);color:var(--text);';
+  dialogo.style.cssText = 'position:fixed;inset:0;margin:auto;max-width:min(640px,90vw);max-height:85vh;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:24px;background:var(--surface);color:var(--text);';
   const titulo = document.createElement('h2'); titulo.textContent = 'Detalhes do registro';
   const fechar = document.createElement('button'); fechar.type = 'button';
   fechar.className = 'btn btn-primary'; fechar.textContent = 'Fechar';

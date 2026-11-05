@@ -9,11 +9,41 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 BIN = Path('C:/Program Files/PostgreSQL/18/bin')
 PORT = 55444
+
+
+def verificar_correcoes_201(target, client, checks):
+    from app_core import db, formularios, rg_formulario, esporotricose_humanos as humanos
+    for path in ('/api/bri/listar?por_pagina=1','/api/recolhimentos/listar?por_pagina=1',
+                 '/api/bri/exportar','/api/recolhimentos/exportar',
+                 '/notificacoes?agente=Agente+Ficticio'):
+        assert client.get(path).status_code==200,path
+    assert client.get('/api/bri/listar?por_pagina=1').json['total']==1
+    assert client.get('/api/boletim-mensal?mes=2026-13').status_code==400
+    assert client.get('/api/agenda/eventos').status_code==400
+    usuario={'id_usuario':1,'nome':'Gestor Fictício','nivel':'superadmin'}
+    payload={'id_localidade':1,'quarteirao':'0001','linhas':[{'logradouro':'Rua Nova Ficticia','numero':'20','tipo':'R'}]}
+    identificador=formularios.salvar(target,'rg_atualizacao',payload,usuario)
+    formularios.revisar(target,identificador,payload,formularios.STATUS_APROVADO,usuario)
+    before=[dict(r) for r in db.query(target,'SELECT * FROM registro_geografico_imoveis ORDER BY id_imovel')]
+    with mock.patch.object(formularios,'marcar_oficializado',side_effect=RuntimeError('Falha fictícia')):
+        try:rg_formulario.oficializar(target,identificador,usuario)
+        except RuntimeError:pass
+        else:raise AssertionError('A falha de ensaio deveria interromper a oficialização')
+    assert before==[dict(r) for r in db.query(target,'SELECT * FROM registro_geografico_imoveis ORDER BY id_imovel')]
+    assert formularios.obter(target,identificador)['status']==formularios.STATUS_APROVADO
+    rg_formulario.oficializar(target,identificador,usuario)
+    assert formularios.obter(target,identificador)['status']==formularios.STATUS_OFICIALIZADO
+    paciente=humanos.salvar_paciente(target,{'nome':'Pessoa Fictícia PG','status':'Em tratamento'},'Autor Fictício')
+    humanos.salvar_acompanhamento(target,paciente,{'data':'2026-06-10','status':'Acabou tratamento'},'Autor Fictício')
+    humanos.salvar_acompanhamento(target,paciente,{'data':'2026-06-01','status':'Em tratamento'},'Autor Fictício')
+    assert humanos.obter_paciente(target,paciente)['status']=='Acabou tratamento'
+    checks['correcoes_201_listas_validacao_rg_atomico_cronologia_pg']=True
 
 
 def main():
@@ -137,6 +167,7 @@ def main():
                 assert response.status_code==200 and not response.json['esporotricose']['totais']
                 assert client.get('/relatorio-agente/pdf'+query).status_code==200
                 assert client.get('/api/boletim-mensal?mes=2026-06').status_code==200
+                verificar_correcoes_201(target, client, checks)
             event=client.post('/api/agenda/eventos',json={'titulo':'Evento ficticio '+sector,'tipo':'reuniao','data_inicio':'2026-06-01T09:00'})
             assert event.status_code==201
             events=client.get('/api/agenda/eventos?start=2026-06-01&end=2026-06-03')

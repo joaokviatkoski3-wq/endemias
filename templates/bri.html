@@ -133,7 +133,7 @@ async function carregarListaBri(pagina=1){
   document.getElementById('bri-info').textContent = `${briFmt.format(d.total || 0)} registro(s)`;
   document.getElementById('bri-body').innerHTML = (d.registros || []).map(r => {
     const endereco = [r.logradouro, r.numero].filter(Boolean).join(', ') || '-';
-    const carga = Number(r.quantidade_carga || 0) + Number(r.quantidade_carga_extra || 0);
+    const carga = r.quantidade_carga == null ? null : Number(r.quantidade_carga) + Number(r.quantidade_carga_extra || 0);
     const peInfo = renderBriPE(r);
     return `<tr>
       <td>${escapeAttr(r.data || '-')}</td>
@@ -144,7 +144,7 @@ async function carregarListaBri(pagina=1){
       <td>${escapeAttr(r.localidade || '-')}</td>
       <td>${escapeAttr(endereco)}</td>
       <td>${escapeAttr(r.numero_ovitrampa || '-')}</td>
-      <td style="font-weight:800;">${briFmt.format(carga)}</td>
+      <td style="font-weight:800;">${carga == null ? 'Não informada' : briFmt.format(carga)}</td>
       <td><span class="bri-tag ${escapeAttr(r.tratou_imovel_extra === 'Sim' ? 'ok' : '')}">${escapeAttr(r.tratou_imovel_extra || '-')}</span></td>
       <td><span class="bri-tag">${escapeAttr(r.origem_estrutura === 'legada' ? 'Legado' : 'Kobo')}</span>
     ${detalhesRegistroOperacional(r, [["hora", "Hora"], ["quarteirao", "Quarteirão"], ["local_tratamento", "Local de tratamento"], ["qual_imovel_extra", "Imóvel adicional"], ["depositos_tratados_extra", "Depósitos adicionais"], ["quantidade_carga", "Carga principal"], ["quantidade_carga_extra", "Carga adicional"]])}</td></tr>`;
