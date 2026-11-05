@@ -4,6 +4,9 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+from html.parser import HTMLParser
+
+from jinja2 import ChoiceLoader, DictLoader, Environment, FileSystemLoader
 
 from app_core import db
 from app_core import esporotricose_humanos as humanos
@@ -100,3 +103,62 @@ class EsporotricoseHumanosCronologiaTests(unittest.TestCase):
         statement, params = conn.execute.call_args.args
         self.assertIn("FOR UPDATE", statement)
         self.assertEqual(params, (17,))
+
+    def formulario(self, paciente):
+        environment = Environment(autoescape=True, loader=ChoiceLoader([
+            DictLoader({"base.html": "{% block content %}{% endblock %}"}),
+            FileSystemLoader(Path(__file__).resolve().parents[1] / "templates"),
+        ]))
+        html = environment.get_template("esporotricose_humano_form.html").render(
+            paciente=paciente, modo="editar" if paciente else "novo", status_opcoes=humanos.STATUS,
+            bloqueio_opcoes=humanos.BLOQUEIO_OPCOES, localidades=[],
+        )
+
+        class Campos(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.campos = {}
+
+            def handle_starttag(self, tag, attrs):
+                atributos = dict(attrs)
+                if atributos.get("id"):
+                    self.campos[atributos["id"]] = atributos
+
+        parser = Campos()
+        parser.feed(html)
+        return html, parser.campos
+
+    def test_formulario_com_historico_explica_e_bloqueia_situacao_cadastral(self):
+        self.salvar("2026-06-10", "Outros", status_outro="Investigação fictícia")
+        html, campos = self.formulario(self.paciente())
+        self.assertIn("disabled", campos["status"])
+        self.assertIn("readonly", campos["status_outro"])
+        self.assertEqual(campos["status"]["aria-describedby"], "status-regra-acompanhamento")
+        self.assertIn("A situação atual segue o acompanhamento com data mais recente; na mesma data, vale o último incluído", html)
+
+    def test_formulario_sem_historico_mantem_situacao_editavel(self):
+        for paciente in (None, self.paciente()):
+            with self.subTest(novo=paciente is None):
+                _, campos = self.formulario(paciente)
+                self.assertNotIn("disabled", campos["status"])
+                self.assertNotIn("readonly", campos["status_outro"])
+                self.assertNotIn("status-regra-acompanhamento", campos)
+
+    def test_edicao_neutra_do_formulario_preserva_nulos_e_coordenadas_zero(self):
+        humanos.salvar_paciente(self.path, {"id_paciente": self.pid, "nome": "Pessoa Fictícia", "status": "Em tratamento", "latitude": "0", "longitude": "0"}, "Responsável Fictício")
+        before = self.paciente()
+        html, campos = self.formulario(before)
+        self.assertNotIn('value="None"', html)
+        self.assertNotIn('>None</textarea>', html)
+        self.assertEqual(campos["latitude"]["value"], "0.0")
+        self.assertEqual(campos["longitude"]["value"], "0.0")
+        payload = {key: campos[key]["value"] for key in (
+            "nome", "data_nascimento", "cartao_sus", "nome_mae", "telefone", "data_notificacao",
+            "status_outro", "localidade", "quarteirao", "logradouro", "numero", "complemento", "latitude", "longitude",
+        )}
+        payload.update(id_paciente=self.pid, status=before["status"], observacoes="")
+        humanos.salvar_paciente(self.path, payload, "Responsável Fictício")
+        after = self.paciente()
+        for key in payload:
+            if key != "id_paciente":
+                self.assertEqual(after[key], before[key], key)

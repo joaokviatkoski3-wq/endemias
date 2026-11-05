@@ -10,22 +10,23 @@
   <div class="hum-note"><strong>Escopo do cadastro:</strong> informações cadastrais e epidemiológicas para acompanhamento pelo setor. Medicação, receita e conduta clínica permanecem sob responsabilidade da UBS e não são registradas aqui.</div>
   <form id="hum-form"><div class="hum-grid">
     <div class="f-g span2"><label>Nome completo *</label><input id="nome" required value="{{ paciente.nome if paciente else '' }}"></div>
-    <div class="f-g"><label>Data de nascimento</label><input id="data_nascimento" type="date" value="{{ paciente.data_nascimento if paciente else '' }}"></div>
-    <div class="f-g span2"><label>Nome da mãe</label><input id="nome_mae" value="{{ paciente.nome_mae if paciente else '' }}"></div>
-    <div class="f-g"><label>Cartão SUS</label><input id="cartao_sus" inputmode="numeric" value="{{ paciente.cartao_sus if paciente else '' }}"></div>
-    <div class="f-g"><label>Telefone</label><input id="telefone" value="{{ paciente.telefone if paciente else '' }}"></div>
-    <div class="f-g"><label>Data de notificação</label><input id="data_notificacao" type="date" value="{{ paciente.data_notificacao if paciente else '' }}"></div>
-    <div class="f-g"><label>Status *</label><select id="status" onchange="toggleOutro()">{% for st in status_opcoes %}<option value="{{ st }}" {% if (paciente and paciente.status == st) or (not paciente and st == 'Em tratamento') %}selected{% endif %}>{{ st }}</option>{% endfor %}</select></div>
+    <div class="f-g"><label>Data de nascimento</label><input id="data_nascimento" type="date" value="{{ (paciente.data_nascimento or '') if paciente else '' }}"></div>
+    <div class="f-g span2"><label>Nome da mãe</label><input id="nome_mae" value="{{ (paciente.nome_mae or '') if paciente else '' }}"></div>
+    <div class="f-g"><label>Cartão SUS</label><input id="cartao_sus" inputmode="numeric" value="{{ (paciente.cartao_sus or '') if paciente else '' }}"></div>
+    <div class="f-g"><label>Telefone</label><input id="telefone" value="{{ (paciente.telefone or '') if paciente else '' }}"></div>
+    <div class="f-g"><label>Data de notificação</label><input id="data_notificacao" type="date" value="{{ (paciente.data_notificacao or '') if paciente else '' }}"></div>
+    <div class="f-g"><label>Status *</label><select id="status" onchange="toggleOutro()" {% if paciente and paciente.acompanhamentos %}disabled aria-describedby="status-regra-acompanhamento"{% endif %}>{% for st in status_opcoes %}<option value="{{ st }}" {% if (paciente and paciente.status == st) or (not paciente and st == 'Em tratamento') %}selected{% endif %}>{{ st }}</option>{% endfor %}</select></div>
     <div class="f-g"><label>Bloqueio</label><select id="bloqueio"><option value="">Não informado</option>{% for opcao in bloqueio_opcoes %}<option value="{{ opcao }}" {% if paciente and paciente.bloqueio == opcao %}selected{% endif %}>{{ opcao }}</option>{% endfor %}</select></div>
-    <div class="f-g full" id="status-outro-box"><label>Descrição do status *</label><input id="status_outro" value="{{ paciente.status_outro if paciente else '' }}" placeholder="Descreva a situação atual"></div>
-    <div class="f-g"><label>Localidade</label><input id="localidade" list="hum-localidades" value="{{ paciente.localidade if paciente else '' }}"></div>
-    <div class="f-g"><label>Quarteirão</label><input id="quarteirao" value="{{ paciente.quarteirao if paciente else '' }}"></div>
-    <div class="f-g"><label>Número</label><input id="numero" value="{{ paciente.numero if paciente else '' }}"></div>
-    <div class="f-g span2"><label>Logradouro</label><input id="logradouro" value="{{ paciente.logradouro if paciente else '' }}"></div>
-    <div class="f-g"><label>Complemento</label><input id="complemento" value="{{ paciente.complemento if paciente else '' }}"></div>
+    {% if paciente and paciente.acompanhamentos %}<div class="hum-note full" id="status-regra-acompanhamento">A situação atual segue o acompanhamento com data mais recente; na mesma data, vale o último incluído. Para atualizar a situação, registre um acompanhamento.</div>{% endif %}
+    <div class="f-g full" id="status-outro-box"><label>Descrição do status *</label><input id="status_outro" value="{{ (paciente.status_outro or '') if paciente else '' }}" placeholder="Descreva a situação atual" {% if paciente and paciente.acompanhamentos %}readonly aria-describedby="status-regra-acompanhamento"{% endif %}></div>
+    <div class="f-g"><label>Localidade</label><input id="localidade" list="hum-localidades" value="{{ (paciente.localidade or '') if paciente else '' }}"></div>
+    <div class="f-g"><label>Quarteirão</label><input id="quarteirao" value="{{ (paciente.quarteirao or '') if paciente else '' }}"></div>
+    <div class="f-g"><label>Número</label><input id="numero" value="{{ (paciente.numero or '') if paciente else '' }}"></div>
+    <div class="f-g span2"><label>Logradouro</label><input id="logradouro" value="{{ (paciente.logradouro or '') if paciente else '' }}"></div>
+    <div class="f-g"><label>Complemento</label><input id="complemento" value="{{ (paciente.complemento or '') if paciente else '' }}"></div>
     <div class="f-g"><label>Latitude</label><input id="latitude" value="{{ paciente.latitude if paciente and paciente.latitude is not none else '' }}" placeholder="-25.000000"></div>
     <div class="f-g"><label>Longitude</label><input id="longitude" value="{{ paciente.longitude if paciente and paciente.longitude is not none else '' }}" placeholder="-49.000000"></div>
-    <div class="f-g full"><label>Observações</label><textarea id="observacoes" rows="5">{{ paciente.observacoes if paciente else '' }}</textarea></div>
+    <div class="f-g full"><label>Observações</label><textarea id="observacoes" rows="5">{{ (paciente.observacoes or '') if paciente else '' }}</textarea></div>
   </div><datalist id="hum-localidades">{% for loc in localidades %}<option value="{{ loc.nome }}">{% endfor %}</datalist><div class="hum-actions"><a class="btn btn-outline" href="{{ '/esporotricose/humanos' if modo == 'novo' else '/esporotricose/humanos/' ~ paciente.id_paciente }}">Cancelar</a><button class="btn btn-primary" type="submit"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar paciente</button></div></form>
 </div>
 {% endblock %}
