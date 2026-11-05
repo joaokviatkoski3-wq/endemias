@@ -49,7 +49,7 @@ def register_error_handlers(app):
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(e):
-        logging.warning("CSRFError: %s | IP: %s | URL: %s", e.description, request.remote_addr, request.url)
+        logging.warning("CSRFError rejeitado")
         if _quer_json():
             return jsonify({"erro": "Token de seguranca expirado. Recarregue a pagina e tente novamente."}), 400
         return render_template("erro_csrf.html"), 400
@@ -165,7 +165,7 @@ def register_access_guards(app):
             or endpoint.startswith("laboratorio_lancamentos.")
             or endpoint in {"liraa.laboratorio", "liraa.salvar_leitura"}
             or endpoint in {"auth.login", "auth.logout", "auth.minha_senha", "auth.termos", "auth.aceitar_termos",
-                            "auth.esqueci_senha", "auth.recuperar_senha", "auth.presenca"}
+                            "auth.esqueci_senha", "auth.recuperar_senha", "auth.presenca", "ajuda.api_ajuda"}
         ):
             return None
 
@@ -192,6 +192,11 @@ def _usuario_atual_db():
             db_core.configured_target(current_app.config), sql, params
         )
     )
+
+
+def register_observability(app):
+    from app_core import logging_rastreamento
+    logging_rastreamento.registrar(app)
 
 
 def _chaves_agente_proprio_atual(usuario):

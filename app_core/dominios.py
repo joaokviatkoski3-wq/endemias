@@ -35,11 +35,15 @@ def ambiental_application(endemias):
     return create_app(config)
 
 
-def portal_application(domain, external=True):
+def portal_application(domain, external=True, logging_config=None):
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
     portal = Flask('portal_vsatt', template_folder=str(root / 'templates'), static_folder=str(root / 'static'))
     portal.config.update(TRUSTED_HOSTS=[domain])
+    if logging_config and logging_config.get('LOG_PATH'):
+        from app_core import logging_rastreamento
+        portal.config.update(LOG_PATH=logging_config['LOG_PATH'], SETOR='portal', SETORES_ENABLED=True)
+        logging_rastreamento.registrar(portal)
 
     @portal.get('/')
     def inicio():
@@ -74,5 +78,5 @@ def application(endemias):
     return PorDominio({
         'endemias.' + domain: endemias,
         'ambiental.' + domain: ambiental_application(endemias),
-        domain: portal_application(domain, external=endemias.config.get('ACESSO_EXTERNO', False)),
+        domain: portal_application(domain, external=endemias.config.get('ACESSO_EXTERNO', False), logging_config=endemias.config),
     })

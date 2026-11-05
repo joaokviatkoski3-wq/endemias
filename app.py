@@ -26,6 +26,7 @@ from app_core import uploads as uploads_core
 from app_core import utils as utils_core
 from app_core import version as version_core
 from app_core import web_security
+from app_core.logging_seguranca import FormatoTecnicoSeguro
 from app_core import presenca
 from blueprints.acoes_setor import bp as acoes_setor_bp
 from blueprints.admin import bp as admin_bp
@@ -135,7 +136,7 @@ def _configure_logging(log_path):
             backupCount=3,
             encoding="utf-8",
         )
-        handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(funcName)s: %(message)s"))
+        handler.setFormatter(FormatoTecnicoSeguro())
         root_logger.addHandler(handler)
     root_logger.setLevel(logging.WARNING)
 
@@ -315,6 +316,7 @@ def create_app(config_overrides=None):
     if config_overrides:
         flask_app.config.update(config_overrides)
 
+    app_setup.register_observability(flask_app)
     web_security.configure(flask_app)
 
     _configure_logging(flask_app.config["LOG_PATH"])

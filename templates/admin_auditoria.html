@@ -1,75 +1,52 @@
 {% extends "base.html" %}
 {% block title %}Auditoria{% endblock %}
 {% block page_title %}Auditoria{% endblock %}
-
 {% block content %}
-<div class="page-header">
-  <h1><span class="icon"><img src="/static/icons/documento.svg" alt="" class="icon-svg"></span> Auditoria</h1>
-  <div class="sub">Eventos administrativos, segurança e operações sensíveis</div>
-</div>
-
-<form method="GET" class="filter-card" style="margin-bottom:16px;">
-  <div class="filter-grid">
-    <div class="f-g"><label>Ação</label><input class="inp" name="acao" value="{{ filtros.acao }}" placeholder="Ex: login, usuario"></div>
-    <div class="f-g"><label>Usuário</label><input class="inp" name="usuario" value="{{ filtros.usuario }}" placeholder="Nome"></div>
-    <div class="f-g"><label>Entidade</label><input class="inp" name="entidade" value="{{ filtros.entidade }}" placeholder="usuarios, visitas"></div>
-    <div class="f-g"><label>Início</label><input class="inp" type="date" name="d_ini" value="{{ filtros.d_ini }}"></div>
-    <div class="f-g"><label>Fim</label><input class="inp" type="date" name="d_fim" value="{{ filtros.d_fim }}"></div>
+<div class="page-header"><h1>Auditoria e registros</h1><div class="sub">Operações registradas e acompanhamento de acesso ao sistema</div></div>
+<nav class="logs-tabs" aria-label="Fontes de registro">
+  <a class="btn {{ 'btn-primary' if origem=='auditoria' else 'btn-ghost' }}" href="{{ url_for('admin.admin_auditoria') }}">Auditoria de operações</a>
+  {% if superadmin %}<a class="btn {{ 'btn-primary' if origem=='tecnico' else 'btn-ghost' }}" href="{{ url_for('admin.admin_auditoria',origem='tecnico') }}">Requisições e diagnóstico</a>{% endif %}
+</nav>
+<p class="logs-note">{% if origem=='tecnico' %}Acesso técnico do superadmin. Horários em UTC. Disponível por até 30 dias, ou menos quando o volume ultrapassa 30 MiB por área. Presença e verificações de saúde sem erro são resumidas a cada minuto.{% else %}Histórico das operações que possuem auditoria explícita. Os campos alterados aparecem quando a operação os registra; conteúdos pessoais e segredos são omitidos. Consultas e downloads ficam na trilha técnica.{% endif %}</p>
+{% if falhas %}<p class="logs-alert" role="alert">Este processo encontrou {{ falhas }} falha(s) ao gravar a trilha. Alguns registros podem estar ausentes. Verifique a pasta privada e o espaço em disco.</p>{% endif %}
+{% if incompleto %}<p class="logs-alert" role="alert">Não foi possível consultar todos os arquivos. Esta lista está incompleta e a exportação será recusada.</p>{% endif %}
+<form method="GET" class="filter-card">
+  <input type="hidden" name="origem" value="{{ origem }}">
+  <div class="logs-filters">
+    <div class="f-g"><label for="logs-acao">{{ 'Tipo de registro' if origem=='tecnico' else 'Ação' }}</label><input id="logs-acao" class="inp" name="acao" value="{{ filtros.acao }}" placeholder="{{ 'requisicao, download, diagnostico' if origem=='tecnico' else 'login, usuario, importacao' }}"></div>
+    <div class="f-g"><label for="logs-usuario">Usuário</label><input id="logs-usuario" class="inp" name="usuario" value="{{ filtros.usuario }}"></div>
+    {% if origem=='auditoria' %}<div class="f-g"><label for="logs-entidade">Entidade</label><input id="logs-entidade" class="inp" name="entidade" value="{{ filtros.entidade }}"></div><div class="f-g"><label for="logs-id">ID da entidade</label><input id="logs-id" class="inp" name="entidade_id" value="{{ filtros.entidade_id }}"></div>{% endif %}
+    <div class="f-g"><label for="logs-correlacao">ID de correlação</label><input id="logs-correlacao" class="inp" name="correlacao" value="{{ filtros.correlacao }}" maxlength="64"></div>
+    <div class="f-g"><label for="logs-inicio">Início{{ ' (UTC)' if origem=='tecnico' else '' }}</label><input id="logs-inicio" class="inp" type="date" name="d_ini" value="{{ filtros.d_ini }}"></div>
+    <div class="f-g"><label for="logs-fim">Fim{{ ' (UTC)' if origem=='tecnico' else '' }}</label><input id="logs-fim" class="inp" type="date" name="d_fim" value="{{ filtros.d_fim }}"></div>
+    {% if origem=='tecnico' %}
+    <div class="f-g"><label for="logs-area">Área</label><select id="logs-area" class="inp" name="area"><option value="{{ SETOR_ATUAL or 'sistema' }}" {% if area==(SETOR_ATUAL or 'sistema') %}selected{% endif %}>Setor atual</option><option value="portal" {% if area=='portal' %}selected{% endif %}>Portal</option>{% if SETOR_ATUAL %}<option value="sistema" {% if area=='sistema' %}selected{% endif %}>Aplicação sem setor</option>{% endif %}</select></div>
+    <div class="f-g"><label for="logs-rota">Rota</label><input id="logs-rota" class="inp" name="rota" value="{{ filtros.rota }}" placeholder="/api/visitas"></div>
+    <div class="f-g"><label for="logs-metodo">Método</label><select id="logs-metodo" class="inp" name="metodo"><option value="">Todos</option>{% for m in ['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS'] %}<option value="{{ m }}" {% if filtros.metodo==m %}selected{% endif %}>{{ m }}</option>{% endfor %}</select></div>
+    <div class="f-g"><label for="logs-status">HTTP</label><input id="logs-status" class="inp" name="status" value="{{ filtros.status }}" placeholder="200, 403, 500"></div>
+    <div class="f-g"><label for="logs-resultado">Resultado</label><select id="logs-resultado" class="inp" name="resultado"><option value="">Todos</option><option value="erro" {% if filtros.resultado=='erro' %}selected{% endif %}>Erro do servidor</option><option value="negado" {% if filtros.resultado=='negado' %}selected{% endif %}>Acesso negado ou limitado</option></select></div>
+    {% endif %}
+    <div class="f-g"><label for="logs-tamanho">Por página</label><select id="logs-tamanho" class="inp" name="por_pagina">{% for n in [25,50,100] %}<option value="{{ n }}" {% if por_pagina==n %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
   </div>
-  <div style="display:flex;gap:8px;margin-top:12px;">
-    <button class="btn btn-primary" type="submit"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Filtrar</button>
-    <a class="btn btn-ghost" href="/admin/auditoria">Limpar</a>
-    <a class="btn btn-outline" href="/admin/auditoria/exportar{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> Exportar XLSX</a>
-  </div>
+  <div class="logs-actions"><button class="btn btn-primary" type="submit">Filtrar</button><a class="btn btn-ghost" href="{{ url_for('admin.admin_auditoria',origem=origem) }}">Limpar</a><a class="btn btn-outline" href="{{ exportar }}">Exportar XLSX filtrado</a></div>
+  <p class="logs-note">A exportação inclui todos os registros do filtro, até {{ limite_exportacao }} registros e 16 MiB. Acima desses limites, ajuste o filtro; nenhum arquivo parcial é gerado.</p>
 </form>
-
 <div class="chart-card">
-  <div class="chart-hd">
-    <div class="chart-title">Eventos recentes</div>
-    <div style="font-size:11px;color:var(--text3);">{{ eventos|length }} registro(s)</div>
-  </div>
-  <div class="table-scroll">
-    <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
-      <thead>
-        <tr>
-          <th>Data</th>
-          <th>Ação</th>
-          <th>Usuário</th>
-          <th>IP</th>
-          <th>Entidade</th>
-          <th>Detalhes</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for ev in eventos %}
-        <tr>
-          <td style="white-space:nowrap;">{{ ev.criado_em[:16].replace('T', ' ') }}</td>
-          <td><span class="badge badge-impressa">{{ ev.acao }}</span></td>
-          <td>{{ ev.usuario_nome or 'sistema' }}</td>
-          <td>{{ ev.ip or '—' }}</td>
-          <td>{{ ev.entidade or '—' }}{% if ev.entidade_id %} #{{ ev.entidade_id }}{% endif %}</td>
-          <td style="max-width:520px;">
-            {% if ev.detalhes %}
-              {% for k, v in ev.detalhes.items() %}
-                <span style="display:inline-block;margin:1px 6px 1px 0;color:var(--text2);"><strong>{{ k }}:</strong> {{ v }}</span>
-              {% endfor %}
-            {% else %}
-              <span style="color:var(--text3);">—</span>
-            {% endif %}
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="6" style="text-align:center;color:var(--text3);padding:22px;">Nenhum evento encontrado.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  <div class="chart-hd"><div class="chart-title">{{ 'Requisições e diagnóstico' if origem=='tecnico' else 'Eventos de auditoria' }}</div><span>{{ inicio }}–{{ fim }} de {{ total }} registro(s)</span></div>
+  <div class="table-scroll"><table class="logs-table"><thead><tr><th>Data</th><th>Ação e usuário</th><th>Origem</th><th>Resultado</th><th>Detalhes</th></tr></thead><tbody>
+  {% for ev in eventos %}{% set r=ev.get('rastro') or ev %}
+    <tr><td class="logs-date">{{ (ev.get('criado_em') or ev.get('instante') or '')[:23].replace('T',' ') }}</td>
+      <td><strong>{{ ev.get('acao') or ev.get('tipo') }}</strong><br>{{ ev.get('usuario_nome') or ev.get('ator') or 'sistema' }}{% if ev.get('ator_id') %} #{{ ev.ator_id }}{% endif %}</td>
+      <td>{{ ev.get('setor') or 'legado' }}<br>{{ ev.get('ip') or '—' }}{% if r.get('rota') %}<div class="logs-route">{{ r.get('metodo') }} {{ r.get('rota') }}</div>{% endif %}{% if r.get('correlacao') %}<small class="logs-id">{{ r.correlacao }}</small>{% endif %}</td>
+      <td>{% if ev.get('status') %}HTTP {{ ev.status }}{% else %}{{ ev.get('entidade') or '—' }}{% if ev.get('entidade_id') %} #{{ ev.entidade_id }}{% endif %}{% endif %}{% if ev.get('duracao_ms') is not none %}<br>{{ ev.duracao_ms }} ms{% endif %}{% if ev.get('polling_agrupado') %}<br>{{ ev.polling_agrupado }} consultas agrupadas{% endif %}</td>
+      <td><details><summary>Ver detalhes</summary><pre>{{ (ev if origem=='tecnico' else ev.get('detalhes',{}))|tojson(indent=2) }}</pre></details></td>
+    </tr>
+  {% else %}<tr><td colspan="5" class="logs-empty">Nenhum registro encontrado neste filtro.</td></tr>{% endfor %}
+  </tbody></table></div>
+  <nav class="logs-pagination" aria-label="Paginação de logs">{% if pagina>1 %}<a class="btn btn-ghost" href="{{ anterior }}">Anterior</a>{% endif %}<span>Página {{ pagina }} de {{ paginas }}</span>{% if pagina<paginas %}<a class="btn btn-ghost" href="{{ proxima }}">Próxima</a>{% endif %}</nav>
 </div>
-
+<details class="logs-note"><summary>Alcance e limites dos registros</summary><p>O rastreamento novo começa após a atualização e não recupera ações anteriores. Registra a rota reconhecida, sem parâmetros de URL, conteúdo dos formulários, senhas, tokens ou cookies. Arquivos estáticos sem erro não entram. A conclusão de um download indica que a resposta foi gerada, sem comprovar que o arquivo chegou ao aparelho. Fluxos de importação têm início e encerramento quando observado. Importações agendadas continuam no histórico próprio. Isto não substitui auditoria forense do Windows ou monitoramento externo.</p></details>
 <style>
-.filter-grid{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:10px;}
-.inp{padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);color:var(--text);font-family:inherit;width:100%;}
-@media(max-width:900px){.filter-grid{grid-template-columns:1fr 1fr;}}
-@media(max-width:560px){.filter-grid{grid-template-columns:1fr;}}
+.logs-tabs,.logs-actions,.logs-pagination{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}.logs-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}.logs-note{font-size:12px;color:var(--text3);margin:12px 0;line-height:1.6}.logs-alert{padding:12px;border:1px solid #d97706;background:#fffbeb;color:#78350f;border-radius:6px}.logs-table{width:100%;font-size:12px;border-collapse:collapse}.logs-table td{vertical-align:top}.logs-table pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:560px;max-height:300px;overflow:auto}.logs-date{white-space:nowrap}.logs-route,.logs-id{overflow-wrap:anywhere;display:block;max-width:290px}.logs-empty{text-align:center;padding:24px;color:var(--text3)}.logs-pagination{justify-content:center;padding:12px}
 </style>
 {% endblock %}

@@ -2,14 +2,16 @@ import io
 import json
 import secrets
 import string
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 
 import openpyxl
-from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask import Blueprint, abort, current_app, jsonify, redirect, render_template, request, send_file, session, url_for
 from openpyxl.styles import Font, PatternFill
 
 from app_core import audit
+from app_core import logging_rastreamento
+from app_core import setores
 from app_core import agentes as agentes_core
 from app_core import auth as auth_core
 from app_core import backup as backup_core
@@ -34,13 +36,44 @@ nivel_min = bh.nivel_min
 
 
 def _filtros_auditoria():
-    return {
+    filtros = {
         "acao": request.args.get("acao", "").strip(),
         "usuario": request.args.get("usuario", "").strip(),
         "entidade": request.args.get("entidade", "").strip(),
         "d_ini": request.args.get("d_ini", "").strip(),
         "d_fim": request.args.get("d_fim", "").strip(),
     }
+    filtros.update({k: request.args.get(k, "").strip()[:200] for k in
+                    ("correlacao", "entidade_id", "rota", "metodo", "status", "resultado")})
+    for key in ("d_ini", "d_fim"):
+        if filtros[key]:
+            try:
+                filtros[key] = date.fromisoformat(filtros[key]).isoformat()
+            except ValueError:
+                abort(400, "Data inválida no filtro de logs.")
+    if filtros["d_ini"] and filtros["d_fim"] and filtros["d_ini"] > filtros["d_fim"]:
+        abort(400, "Período de logs fora de ordem.")
+    return filtros
+
+
+def _fonte_logs():
+    origem = request.args.get("origem", "auditoria")
+    if origem not in {"auditoria", "tecnico"}:
+        abort(400)
+    superadmin = (bh.usuario_atual() or {}).get("nivel") == "superadmin"
+    if origem == "tecnico" and not superadmin:
+        abort(403)
+    atual = setores.atual() or "sistema"
+    area = request.args.get("area", atual)
+    if area not in {atual, "portal", "sistema"} or area != atual and not superadmin:
+        abort(403)
+    return origem, superadmin, area
+
+
+def _consultar_logs(origem, filtros, area, pagina=1, por_pagina=50, limite=None):
+    if origem == "tecnico":
+        return logging_rastreamento.trilha(current_app.config, area).consultar(filtros, pagina, por_pagina, limite)
+    return audit.consultar_eventos(bh.get_db, filtros, pagina, por_pagina, limite)
 
 
 def _excel_safe(value):
@@ -564,36 +597,70 @@ def admin_excluir_backup_completo():
 @login_required
 @nivel_min("admin")
 def admin_auditoria():
+    origem, superadmin, area = _fonte_logs()
     filtros = _filtros_auditoria()
-    eventos = audit.listar_eventos(bh.get_db, filtros, limite=200)
-    return render_template("admin_auditoria.html", eventos=eventos, filtros=filtros)
+    pagina = bh.request_int_arg("pagina", 1, minimo=1, maximo=100000)
+    por_pagina = bh.request_int_arg("por_pagina", 50, minimo=25, maximo=100)
+    if por_pagina not in {25, 50, 100}:
+        por_pagina = 50
+    result = _consultar_logs(origem, filtros, area, pagina, por_pagina)
+    total = result["total"]
+    paginas = max(1, (total+por_pagina-1)//por_pagina)
+    if pagina > paginas:
+        pagina = paginas
+        result = _consultar_logs(origem, filtros, area, pagina, por_pagina)
+    writer = logging_rastreamento.trilha(current_app.config, area)
+    args = {k:v for k,v in filtros.items() if v}
+    args.update(origem=origem, area=area, por_pagina=por_pagina)
+    return render_template("admin_auditoria.html", eventos=result["registros"], filtros=filtros,
+        origem=origem, superadmin=superadmin, area=area, total=total, pagina=pagina, paginas=paginas,
+        por_pagina=por_pagina, inicio=(pagina-1)*por_pagina+1 if total else 0,
+        fim=min(pagina*por_pagina,total), incompleto=result.get("incompleto",False),
+        falhas=writer.falhas if origem=="tecnico" else 0,
+        anterior=url_for("admin.admin_auditoria", **args, pagina=pagina-1),
+        proxima=url_for("admin.admin_auditoria", **args, pagina=pagina+1),
+        exportar=url_for("admin.admin_auditoria_exportar", **args),
+        limite_exportacao=logging_rastreamento.MAX_EXPORTACAO)
 
 
 @bp.route("/admin/auditoria/exportar")
 @login_required
 @nivel_min("admin")
 def admin_auditoria_exportar():
+    origem, _, area = _fonte_logs()
     filtros = _filtros_auditoria()
-    eventos = audit.listar_eventos(bh.get_db, filtros, limite=500)
+    result = _consultar_logs(origem, filtros, area, limite=logging_rastreamento.MAX_EXPORTACAO)
+    if result.get("incompleto"):
+        return "Não foi possível ler todos os arquivos. A exportação não foi gerada.", 503
+    if result["total"] > logging_rastreamento.MAX_EXPORTACAO:
+        return f"O filtro encontrou {result['total']} registros. Reduza o período ou use mais filtros; o limite por exportação é {logging_rastreamento.MAX_EXPORTACAO}. Nenhum arquivo parcial foi gerado.", 400
+    eventos = result["registros"]
+    if sum(len(json.dumps(ev, ensure_ascii=False,default=str).encode('utf-8')) for ev in eventos) > 16*1024*1024:
+        return "O conteúdo excede 16 MiB por exportação. Reduza o período; nenhum arquivo parcial foi gerado.", 400
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Auditoria"
-    headers = ["Data", "Acao", "Usuario", "IP", "Entidade", "Entidade ID", "Detalhes"]
+    headers = ["Data", "Acao", "Usuario", "IP", "Entidade", "Entidade ID", "Detalhes", "Setor", "Correlacao", "Rota", "Metodo", "Status", "Duracao ms"]
     fill = PatternFill("solid", fgColor="1A4FBA")
     for col, title in enumerate(headers, 1):
         cell = ws.cell(1, col, title)
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = fill
     for row_idx, ev in enumerate(eventos, 2):
-        detalhes = json.dumps(ev.get("detalhes") or {}, ensure_ascii=False, sort_keys=True)
+        detalhes = json.dumps(ev if origem=="tecnico" else ev.get("detalhes") or {}, ensure_ascii=False, sort_keys=True)
+        if len(detalhes)>32000:
+            return "Um detalhe excede o tamanho seguro de uma célula. Restrinja o filtro; nenhum arquivo parcial foi gerado.", 400
+        rastro = ev.get("rastro") or ev
         values = [
-            ev.get("criado_em", ""),
-            ev.get("acao", ""),
-            ev.get("usuario_nome", ""),
+            ev.get("criado_em", ev.get("instante", "")),
+            ev.get("acao", ev.get("tipo", "")),
+            ev.get("usuario_nome", ev.get("ator", "")),
             ev.get("ip", ""),
             ev.get("entidade", ""),
             ev.get("entidade_id", ""),
             detalhes,
+            ev.get("setor", ""), rastro.get("correlacao", ""), rastro.get("rota", ""),
+            rastro.get("metodo", ""), ev.get("status", ""), ev.get("duracao_ms", ""),
         ]
         for col, value in enumerate(values, 1):
             ws.cell(row_idx, col, _excel_safe(value))
