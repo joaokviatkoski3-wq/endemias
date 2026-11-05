@@ -195,6 +195,18 @@ class SetoresTests(unittest.TestCase):
         self.assertNotIn(b'id="ambiental-filtros"',home)
         self.assertNotIn(b'<canvas',home)
 
+    def test_link_portal_para_todos_sem_conceder_acesso_ao_outro_setor(self):
+        for sector,uid in [('endemias',1),('ambiental',1),('endemias',2),('ambiental',4)]:
+            response=self.client(sector,uid).get('/')
+            self.assertIn(b'class="sector-switch portal-link" href="https://vsatt.com.br"',response.data)
+            if uid!=1:self.assertNotIn(b'class="sector-switch"',response.data)
+        from app_core import setores
+        application=self.apps['endemias']
+        with application.app_context():
+            self.assertIsNone(setores.url_portal(None))
+            with mock.patch.dict(application.config,DOMINIO_BASE='evil.test/path'):
+                with self.assertRaises(ValueError):setores.url_portal({'nivel':'admin'})
+
     def test_ambiental_dados_importados_escapados_e_exportacao_neutraliza_formula(self):
         import csv
         payload='</script><img src=x onerror=alert(1)>'

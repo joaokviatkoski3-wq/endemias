@@ -77,8 +77,9 @@ def main():
                 page.locator('button[type=submit]').click()
                 page.wait_for_url(url+'/')
                 checks[sector+'_login_csrf'] = True
-                assert page.locator('.sector-switch').get_attribute('href')==urls['ambiental' if sector=='endemias' else 'endemias']
-                assert page.locator('.sector-switch').evaluate('e=>getComputedStyle(e).color!==getComputedStyle(e).backgroundColor')
+                assert page.locator('.sector-switch').first.get_attribute('href')==urls['ambiental' if sector=='endemias' else 'endemias']
+                assert page.locator('.sector-switch').first.evaluate('e=>getComputedStyle(e).color!==getComputedStyle(e).backgroundColor')
+                assert page.get_by_role('link',name='Portal VSATT',exact=True).get_attribute('href')=='https://vsatt.com.br'
                 if sector=='ambiental':
                     assert page.locator('.ambiental-home-link').count()>=8
                     assert page.locator('canvas,form#ambiental-filtros').count()==0
@@ -92,7 +93,8 @@ def main():
                         assert page.get_by_text('Ruas',exact=True).count()==1
                         assert page.get_by_text('Satélite',exact=True).count()==1
                         page.locator('#mapa-etiquetas').check()
-                        assert page.locator('.ambiental-map-label').count()>0
+                        page.wait_for_function("() => Number(document.querySelector('.ambiental-labels-canvas').dataset.labelCount)>0")
+                        assert page.locator('.ambiental-map-label').count()==0
                         assert page.locator('.leaflet-overlay-pane path').count()==2
                         page.locator('#filtros-mapa [name=localidade]').select_option('Outra Localidade Ficticia')
                         page.locator('#filtros-mapa button[type=submit], #filtros-mapa button:not([type])').click()
@@ -144,6 +146,7 @@ def main():
                     page.set_viewport_size({'width':390,'height':844})
                     page.reload()
                     assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Overflow no celular'
+                    assert page.get_by_role('link',name='Portal VSATT',exact=True).is_visible()
                     page.screenshot(path=str(runtime/'ambiental-celular.png'),full_page=True)
                     page.set_viewport_size({'width':1365,'height':900})
                     page.goto(url+'/relatorios')

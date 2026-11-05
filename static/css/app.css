@@ -1837,4 +1837,12 @@ textarea:focus,
 .sector-switch{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid var(--border);border-radius:5px;background:var(--brand-xs);color:var(--brand);text-decoration:none;font-size:12px;font-weight:650;white-space:nowrap}.sector-switch:hover{border-color:var(--brand)}.sector-switch:focus-visible{outline:2px solid var(--brand);outline-offset:3px}.sector-switch span{font-size:17px;line-height:1}@media(max-width:600px){.sector-switch{font-size:11px;padding:6px 8px}.topbar-right{gap:7px}}
 
 /* Setas independentes de fontes: texto acessível e chevron desenhado em CSS. */
+.sector-nav{order:2;display:flex;align-items:center;gap:7px;margin-left:auto}
+.has-sector-nav .topbar-right{order:3;margin-left:0}
+.portal-link{background:var(--surface);color:var(--text2)}
+@media(max-width:720px){
+  .topbar.has-sector-nav{flex-wrap:wrap;gap:7px 12px;padding-top:8px;padding-bottom:8px}
+  .has-sector-nav .topbar-right{order:2;margin-left:auto}
+  .has-sector-nav .sector-nav{order:3;flex:0 0 100%;margin-left:0;padding-top:6px;border-top:1px solid var(--border)}
+}
 .fc .fc-prev-button,.fc .fc-next-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:34px;min-height:29px;position:relative}.fc .fc-prev-button::before,.fc .fc-next-button::after{content:"";display:inline-block;width:8px;height:8px;border-top:2px solid currentColor;border-right:2px solid currentColor;transform:rotate(45deg)}.fc .fc-prev-button::before{transform:rotate(-135deg)}

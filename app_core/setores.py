@@ -25,6 +25,12 @@ def pode_entrar(usuario, setor=None):
         or usuario.get('setor','endemias') == setor)
 
 
+def url_portal(usuario):
+    if not atual() or not usuario:return None
+    from app_core.dominios import dominio_base
+    return 'https://'+dominio_base(current_app.config)
+
+
 def atalho_outro_setor(usuario):
     """Destino canônico externo, ou a mesma máquina na entrada LAN independente."""
     if not atual():return None

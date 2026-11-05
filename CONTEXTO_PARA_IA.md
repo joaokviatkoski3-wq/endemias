@@ -6,6 +6,17 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
+## Candidata 2.0.0-rc.3 — portal no topo e etiquetas leves
+
+- Usuário aprovou visual da rc.2 e pediu botão do portal e correção do peso das
+  etiquetas no Ambiental. Em `C:\endemias-interface`, branch
+  `codex/mapa-leve-atalho-portal`: navegação no topo e etiquetas canvas só na
+  área visível, até 300 por tela, sem reconstruir os quarteirões ao alternar.
+- 69 testes focados e navegador desktop/celular OK; ensaio 1.500 polígonos/CPU4x
+  passou de 10.019,7 ms para 87,5 ms. Também passou com 6.000 polígonos (316,7 ms).
+  Produção permanece rc.2. Sem DDL/consulta nova ou alteração de permissões.
+  Ler `docs/MAPA_PORTAL_200RC3.md`; novo pacote exige execução administrativa.
+
 ## Versão ativa 2.0.0-rc.2 — interface ativada em 05/11/2026
 
 - Usuário executou o novo atalho e informou conclusão. Relatório
@@ -22,8 +33,8 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
   `C:\endemias-interface\.venv\publicacao-interface200rc2.json`.
 - Suíte de preparação: 1.024 testes OK, seis ignorados; PostgreSQL descartável
   e Chromium/CSRF/CSP/desktop/celular confirmados. Detalhes e limites em
-  `docs/INTERFACE_SETORES_200RC2.md`. Conferência visual autenticada real desta
-  atualização ainda não informada pelo usuário; 2.0 continua candidata.
+  `docs/INTERFACE_SETORES_200RC2.md`. Usuário aprovou visual e relatou peso nas
+  etiquetas, tratado na rc.3; 2.0 continua candidata.
 - Não repetir nenhum dos atalhos já aplicados. Geo permanece futuro.
 
 ## Histórico 2.0.0-rc.1 — divisão ativada em 05/11/2026

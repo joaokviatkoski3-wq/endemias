@@ -35,18 +35,18 @@ class InterfaceInstallerTests(unittest.TestCase):
             original=self.original();original['env'][key]='INESPERADO'
             with self.assertRaises(ValueError):installer.proposed_config(original)
 
-    def simulate(self,fail_probe=False,pending=False):
+    def simulate(self,fail_probe=False,pending=False,origin=installer.ORIGIN,target=installer.TARGET,marker=installer.MARKER):
         from app_core import postgresql_migrations,backup_completo
         tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup)
         base=Path(tmp.name);official=base/'official';home=base/'home';source=base/'source'
         for path in (official,home,source,source/'app_core'):path.mkdir(exist_ok=True)
         old='a'*40;new='b'*40;head=[old];calls=[]
-        original=self.original();original['root']=str(official)
+        original=self.original();original['root']=str(official);original['version']=origin
         (home/'config.json').write_text(json.dumps(original),encoding='utf-8')
         (home/'servico_web_windows.py').write_bytes(b'BOOTSTRAP-FICTICIO')
         for name in ('secret.key','config.json','endemias.db','kobo_config.json','kobo_ambiental.json'):
             (official/name).write_bytes(b'CONTEUDO-FICTICIO-PRESERVAR')
-        (source/'app_core/version.py').write_text(f'APP_VERSION = "{installer.TARGET}"',encoding='utf-8')
+        (source/'app_core/version.py').write_text(f'APP_VERSION = "{target}"',encoding='utf-8')
         archive=base/'backup.zip';archive.write_bytes(b'BACKUP-FICTICIO')
         task=FakeTask();auto=SimpleNamespace(Enabled=True,State=3)
         win=SimpleNamespace(web=None,protect=lambda *a,**k:None,folder=SimpleNamespace(GetTask=lambda n:task),
@@ -78,12 +78,12 @@ class InterfaceInstallerTests(unittest.TestCase):
             migration=stack.enter_context(mock.patch.object(postgresql_migrations,'apply_pending',side_effect=AssertionError('Pacote sem DDL')))
             stack.enter_context(mock.patch.object(installer,'await_probe',side_effect=RuntimeError('Falha fictícia') if fail_probe else None))
             if pending:
-                with self.assertRaises(ValueError):installer.apply(SimpleNamespace(release=new,expected_current=old))
+                with self.assertRaises(ValueError):installer.apply(SimpleNamespace(release=new,expected_current=old),origin,target,marker)
                 self.assertFalse(task.stopped)
                 return
-            result=installer.apply(SimpleNamespace(release=new,expected_current=old))
+            result=installer.apply(SimpleNamespace(release=new,expected_current=old),origin,target,marker)
             migration.assert_not_called()
-        report=json.loads((home/(installer.MARKER+'-resultado.json')).read_text(encoding='utf-8'))
+        report=json.loads((home/(marker+'-resultado.json')).read_text(encoding='utf-8'))
         self.assertTrue(auto.Enabled);self.assertEqual(task.State,4)
         self.assertFalse(report['database_restored_or_deleted'])
         self.assertEqual(report['migrations_applied'],[])
@@ -95,12 +95,24 @@ class InterfaceInstallerTests(unittest.TestCase):
             self.assertEqual(result,1);self.assertEqual(cfg,original)
             self.assertTrue(report['rollback_login_ok']);self.assertTrue(any(c[0]=='restore' for c in calls))
         else:
-            self.assertEqual(result,0);self.assertEqual(cfg,{**original,'version':installer.TARGET})
+            self.assertEqual(result,0);self.assertEqual(cfg,{**original,'version':target})
             self.assertEqual(report['status'],'aplicado')
 
     def test_atualizacao_sem_ddl_preserva_ambos_kobo_bootstrap_e_tarefa(self):self.simulate()
     def test_falha_na_prova_retorna_codigo_config_sem_restaurar_banco(self):self.simulate(fail_probe=True)
     def test_migracao_pendente_recusada_antes_de_parar_servidor(self):self.simulate(pending=True)
+
+    def test_rc3_exige_origem_rc2_e_preserva_configuracao(self):
+        before=self.original();before['version']='2.0.0-rc.2'
+        result=installer.proposed_config(before,'2.0.0-rc.2','2.0.0-rc.3')
+        self.assertEqual(result,{**before,'version':'2.0.0-rc.3'})
+        with self.assertRaises(ValueError):installer.proposed_config(before)
+
+    def test_rc3_sucesso_sem_migracao_e_sem_mudar_kobo(self):
+        self.simulate(origin='2.0.0-rc.2',target='2.0.0-rc.3',marker='ativacao-mapa-portal200rc3')
+
+    def test_rc3_falha_retorna_rc2_preservando_dados(self):
+        self.simulate(fail_probe=True,origin='2.0.0-rc.2',target='2.0.0-rc.3',marker='ativacao-mapa-portal200rc3')
 
 
 class FakeTask:

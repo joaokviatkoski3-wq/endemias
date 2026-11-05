@@ -11,8 +11,6 @@
   streets.addTo(map);
   L.control.layers({'Ruas':streets,'Satélite':satelliteGroup},{},{collapsed:false}).addTo(map);
   L.control.scale({imperial:false}).addTo(map);
-  function labelVisibility(){map.getContainer().classList.toggle('mapa-sem-etiquetas',map.getZoom()<15);}
-  map.on('zoomend',labelVisibility);labelVisibility();
   for(const base of [streets,satellite,reference])base.on('tileerror',()=>{
     document.getElementById('mapa-base-status').textContent='Algumas imagens de fundo não carregaram. Confira a internet ou alterne a base; quarteirões e registros continuam disponíveis.';
   });
@@ -30,6 +28,7 @@
   const labels=document.getElementById('mapa-etiquetas');
   const onlyRecords=document.getElementById('mapa-com-registros');
   const opacity=document.getElementById('mapa-opacidade');
+  const labelLayer=VSATTMapLabels(map,{status:document.getElementById('mapa-etiquetas-status')});
   const normal = value => String(value??'').replace(/^0+(?=\d)/,'');
   const key = (loc,q) => `${normal(loc)}:${normal(q)}`;
   const localName = p => catalog.get(normal(p.Localidade)) || p.Localidade_nome || `Localidade ${p.Localidade}`;
@@ -54,17 +53,22 @@
       features.push(feature);
     }
     if(layer)map.removeLayer(layer);
+    const labelItems=[];
     layer=L.geoJSON({type:'FeatureCollection',features},{
       style:f=>({color:'#446f69',weight:1,fillColor:color(totals.get(key(f.properties.Localidade,f.properties.id_quart))||0),fillOpacity:Number(opacity.value)/100}),
       onEachFeature(f,polygon){
         const p=f.properties,count=totals.get(key(p.Localidade,p.id_quart))||0;
-        const popup=document.createElement('div');
-        const title=document.createElement('strong');title.textContent=localName(p);popup.append(title);
-        const text=document.createElement('p');text.textContent=`Quarteirão ${p.id_quart} · ${count} visita(s) ambientais na consulta`;popup.append(text);polygon.bindPopup(popup);
-        if(labels.checked){const label=document.createElement('span');label.textContent=`Q ${p.id_quart}`;polygon.bindTooltip(label,{permanent:true,direction:'center',className:'ambiental-map-label'});}
+        polygon.bindPopup(()=>{
+          const popup=document.createElement('div');
+          const title=document.createElement('strong');title.textContent=localName(p);popup.append(title);
+          const text=document.createElement('p');text.textContent=`Quarteirão ${p.id_quart} · ${count} visita(s) ambientais na consulta`;popup.append(text);
+          return popup;
+        });
+        labelItems.push({id:key(p.Localidade,p.id_quart),text:`Q ${p.id_quart}`,position:polygon.getBounds().getCenter()});
         polygon.on('mouseover',()=>polygon.setStyle({weight:3}));polygon.on('mouseout',()=>polygon.setStyle({weight:1}));
       },
     }).addTo(map);
+    labelLayer.setItems(labelItems);
     const located=[...matching].reduce((sum,id)=>sum+(totals.get(id)||0),0);
     status.textContent=`${total} registro(s) no período. ${matching.size} quarteirão(ões) com registros na camada. ${Math.max(0,total-located)} sem correspondência territorial. ${features.length} polígono(s) exibido(s).`;
     if(!features.length)status.textContent+=' Nenhum quarteirão corresponde à seleção; altere os filtros.';
@@ -82,7 +86,8 @@
   }
   form.addEventListener('submit',e=>{e.preventDefault();load();});
   form.addEventListener('reset',()=>setTimeout(load,0));
-  labels.addEventListener('change',()=>draw(false));onlyRecords.addEventListener('change',()=>draw());
+  labels.addEventListener('change',()=>labelLayer.setEnabled(labels.checked));
+  onlyRecords.addEventListener('change',()=>draw());
   opacity.addEventListener('input',()=>{if(layer)layer.setStyle({fillOpacity:Number(opacity.value)/100});});
   document.getElementById('mapa-enquadrar').addEventListener('click',fit);
   fetch('/api/ambiental/territorio').then(r=>{if(!r.ok)throw new Error();return r.json();})

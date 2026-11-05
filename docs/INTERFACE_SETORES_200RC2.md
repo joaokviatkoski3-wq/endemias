@@ -111,5 +111,6 @@ Não repetir os ativadores: este pacote não teve migração nem nova divisão d
   sem sessão, links corretos; APIs anônimas negadas (401). Logins locais
   5000/5004: 200/rc.2. Evidência:
   `C:\endemias-interface\.venv\publicacao-interface200rc2.json`.
-- O relato do usuário confirma a instalação. Conferência visual autenticada
-  real das telas novas ainda não informada. Continua candidata da versão 2.0.
+- O relato do usuário confirma a instalação. Em mensagem posterior, aprovou
+  o visual e relatou peso das etiquetas do mapa Ambiental; correção e novo
+  atalho do portal preparados na rc.3 (`docs/MAPA_PORTAL_200RC3.md`).

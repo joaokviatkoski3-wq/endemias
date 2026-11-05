@@ -4,6 +4,22 @@ Atualizado em 05/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Candidata 2.0.0-rc.3 — portal no topo e etiquetas leves
+
+- Usuário aprovou o visual da rc.2 e relatou travamento ao ativar etiquetas no
+  mapa Ambiental. Pediu botão para `vsatt.com.br` ao lado da troca de setor.
+- Em `C:\endemias-interface`, branch `codex/mapa-leve-atalho-portal`: Portal
+  VSATT para contas autenticadas; permissões da troca de setor preservadas.
+  Etiquetas em canvas único/área visível, até 300 sem sobreposição, sem refazer
+  os polígonos ao marcar/desmarcar. Dados e filtros preservados.
+- 69 testes focados OK; Chromium/CSRF/CSP/desktop/celular conferidos. Ensaio
+  com 1.500 polígonos/CPU4x: rc.2 10.019,7 ms e candidata 87,5 ms; 6.000 na
+  candidata: 316,7 ms. Sem recriar polígonos/1 canvas. Sem DDL ou consulta nova.
+- Produção continua rc.2. Detalhes/limites e pacote novo em
+  `docs/MAPA_PORTAL_200RC3.md`. Não integrar templates com processo antigo ativo.
+  Atalho `Atualizar VSATT - Mapa leve e Portal.bat` exige administrador Windows;
+  aguarda execução e conferência do relatório. Não repetir os atalhos antigos.
+
 ## Versão ativa 2.0.0-rc.2 — interface ativada em 05/11/2026
 
 - Pedido de nove melhorias do usuário: portal com versão e visual institucional;
@@ -31,7 +47,7 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 - Suíte de preparação: 1.024 OK, seis ignorados; 41 focados OK; Chromium e
   PostgreSQL descartável confirmados. Capturas de desktop/celular conferidas.
   Limites e procedimento em `docs/INTERFACE_SETORES_200RC2.md`.
-  Conferência visual autenticada real da rc.2 ainda não informada; não declarar
+  Usuário aprovou o visual da rc.2 e relatou peso das etiquetas, tratado na rc.3; não declarar
   2.0 estável. Não repetir os atalhos já aplicados. Geo continua futuro.
 
 ## Histórico 2.0.0-rc.1 — divisão ativada em 05/11/2026

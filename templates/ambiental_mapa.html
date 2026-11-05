@@ -11,8 +11,9 @@
 <label>Quarteirão<input name="quarteirao" type="number" min="0" max="2147483647" placeholder="Todos"></label>
 <button class="btn btn-primary">Aplicar</button><button type="reset" class="btn btn-ghost">Limpar</button></form>
 <div class="ambiental-map-toolbar"><label><input type="checkbox" id="mapa-etiquetas"> Etiquetas dos quarteirões</label><label><input type="checkbox" id="mapa-com-registros"> Apenas com registros</label><label>Preenchimento <input type="range" id="mapa-opacidade" min="0" max="90" value="40"></label><button type="button" id="mapa-enquadrar" class="btn btn-ghost btn-sm">Enquadrar seleção</button></div>
+<p id="mapa-etiquetas-status" role="status" class="ambiental-note"></p>
 <p id="mapa-status" role="status" class="ambiental-note">Carregando camada territorial…</p><div id="mapa-ambiental" class="ambiental-map-frame" aria-label="Mapa de visitas ambientais"></div>
 <p id="mapa-base-status" class="ambiental-note">Alterne entre ruas e satélite no canto do mapa. Etiquetas aparecem a partir do zoom 15. Imagens de fundo exigem internet; quarteirões e registros são locais.</p>
 <script nonce="{{ csp_nonce() }}" type="application/json" id="mapa-localidades">{{ localidades_mapa|tojson }}</script>
 {% endblock %}
-{% block extra_js %}<script nonce="{{ csp_nonce() }}" src="/static/vendor/leaflet/leaflet.min.js"></script><script nonce="{{ csp_nonce() }}" src="/static/js/ambiental_mapa.js?v={{ APP_VERSION }}"></script>{% endblock %}
+{% block extra_js %}<script nonce="{{ csp_nonce() }}" src="/static/vendor/leaflet/leaflet.min.js"></script><script nonce="{{ csp_nonce() }}" src="/static/js/mapa_etiquetas_canvas.js?v={{ APP_VERSION }}"></script><script nonce="{{ csp_nonce() }}" src="/static/js/ambiental_mapa.js?v={{ APP_VERSION }}"></script>{% endblock %}

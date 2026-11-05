@@ -31,8 +31,8 @@ TARGET='2.0.0-rc.2'
 MARKER='ativacao-interface200rc2'
 
 
-def proposed_config(original):
-    if (original.get('version')!=ORIGIN or original.get('root')!=str(OFFICIAL)
+def proposed_config(original,origin=ORIGIN,target=TARGET):
+    if (original.get('version')!=origin or original.get('root')!=str(OFFICIAL)
             or original.get('server')!='waitress' or original.get('probe_only')):
         raise ValueError('Origem diferente da instalação conferida.')
     expected={'ENDEMIAS_DB_BACKEND':'postgresql','ENDEMIAS_PG_DATABASE':'endemias',
@@ -42,7 +42,7 @@ def proposed_config(original):
               'ENDEMIAS_AMBIENTAL_LOCAL_PORT':'5004','ENDEMIAS_TUNNEL_PORT':'5001'}
     if any(original['env'].get(k)!=v for k,v in expected.items()):
         raise ValueError('Entradas/ambiente mudaram; preservar e revisar.')
-    proposed=copy.deepcopy(original);proposed['version']=TARGET
+    proposed=copy.deepcopy(original);proposed['version']=target
     return proposed
 
 
@@ -60,7 +60,7 @@ def wait_closed(timeout=35):
     return False
 
 
-def apply(args):
+def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER):
     from app_core import postgresql_migrations,backup_completo,db
     if not ctypes.windll.shell32.IsUserAnAdmin():raise PermissionError('Execute como administrador do Windows.')
     if not all(re.fullmatch('[0-9a-f]{40}',v) for v in (args.release,args.expected_current)):
@@ -71,9 +71,9 @@ def apply(args):
     dirty=subprocess.check_output(['git','-C',str(SOURCE),'status','--porcelain'],text=True).strip()
     if candidate!=args.release or dirty:raise ValueError('Candidata mudou após validação.')
     git('merge-base','--is-ancestor',args.expected_current,args.release)
-    if (SOURCE/'app_core/version.py').read_text(encoding='utf-8').splitlines()[0]!=f'APP_VERSION = "{TARGET}"':
+    if (SOURCE/'app_core/version.py').read_text(encoding='utf-8').splitlines()[0]!=f'APP_VERSION = "{target}"':
         raise ValueError('Versão candidata inesperada.')
-    original=json.loads((HOME/'config.json').read_text(encoding='utf-8'));proposed=proposed_config(original)
+    original=json.loads((HOME/'config.json').read_text(encoding='utf-8'));proposed=proposed_config(original,origin,target)
     connection=connect(original,readonly=True)
     try:
         status=postgresql_migrations.status(connection,SOURCE/'migrations/postgresql')
@@ -86,14 +86,14 @@ def apply(args):
     if sid!=original['sid'] or task.Definition.Principal.RunLevel!=0 or task.State!=4:
         raise ValueError('Tarefa/identidade limitada mudou.')
     auto=scheduled_import(win.folder);auto_enabled=bool(auto.Enabled) if auto else False
-    state=HOME/(MARKER+'-'+datetime.now().strftime('%Y%m%d-%H%M%S'))
+    state=HOME/(marker+'-'+datetime.now().strftime('%Y%m%d-%H%M%S'))
     state.mkdir();win.protect(state,remember=False,operator=False)
     shutil.copyfile(HOME/'config.json',state/'config-anterior.json')
     immutable={str(p):digest(p) for p in [OFFICIAL/n for n in ('secret.key','config.json','endemias.db','kobo_config.json','kobo_ambiental.json')]}
     native=HOME/'servico_web_windows.py';immutable[str(native)]=digest(native)
     report={'status':'preparando','state':str(state),'old_head':args.expected_current,'release':args.release,
-            'version':TARGET,'migrations_applied':[],'database_restored_or_deleted':False}
-    output=HOME/(MARKER+'-resultado.json')
+            'version':target,'migrations_applied':[],'database_restored_or_deleted':False}
+    output=HOME/(marker+'-resultado.json')
     stopped=integrated=False
     def save(stage):
         report['stage']=stage;output.write_text(json.dumps(report,indent=2),encoding='utf-8')
@@ -124,7 +124,7 @@ def apply(args):
         for address,port,host in [('127.0.0.1',5000,None),(env['ENDEMIAS_LOCAL_BIND'],5000,None),
               ('127.0.0.1',5004,None),(env['ENDEMIAS_LOCAL_BIND'],5004,None),
               ('127.0.0.1',5001,'endemias.vsatt.com.br'),('127.0.0.1',5001,'ambiental.vsatt.com.br')]:
-            if not http_login(address,port,host,expected_version=TARGET):raise RuntimeError('Uma entrada não confirmou a candidata.')
+            if not http_login(address,port,host,expected_version=target):raise RuntimeError('Uma entrada não confirmou a candidata.')
         if not origin_portal():raise RuntimeError('Portal não respondeu corretamente.')
         if auto_enabled:auto.Enabled=True
         report.update(status='aplicado',task_identity_preserved=True,existing_environment_preserved=proposed['env']==original['env'],
@@ -142,23 +142,23 @@ def apply(args):
             if git('status','--porcelain') or git('rev-parse','HEAD')!=args.release:
                 raise RuntimeError('Código mudou; retorno exige revisão sem sobrescrever.')
             git('restore','--source='+args.expected_current,'--staged','--worktree','.')
-            git('commit','-m','rollback: retorna interface rc.1 preservando dados e setores')
+            git('commit','-m',f'rollback: retorna interface {origin} preservando dados e setores')
         if stopped:
-            task.Run('');report['rollback_login_ok']=http_login('127.0.0.1',5000,expected_version=ORIGIN)
+            task.Run('');report['rollback_login_ok']=http_login('127.0.0.1',5000,expected_version=origin)
         if auto_enabled and (not stopped or report.get('rollback_login_ok')):auto.Enabled=True
         save('retornado');return 1
 
 
-def main():
-    parser=argparse.ArgumentParser(description=__doc__)
+def main(origin=ORIGIN,target=TARGET,marker=MARKER):
+    parser=argparse.ArgumentParser(description=f'Atualiza {origin} para {target}, sem migração de banco.')
     parser.add_argument('--aplicar',action='store_true',required=True)
     parser.add_argument('--release',required=True);parser.add_argument('--expected-current',required=True)
     args=parser.parse_args()
-    try:return apply(args)
+    try:return apply(args,origin,target,marker)
     except Exception as error:
         result={'status':'falhou','error_type':type(error).__name__,
                 'trace':[{'file':Path(f.filename).name,'line':f.lineno,'function':f.name} for f in traceback.extract_tb(error.__traceback__)]}
-        try:(HOME/(MARKER+'-falha.json')).write_text(json.dumps(result,indent=2),encoding='utf-8')
+        try:(HOME/(marker+'-falha.json')).write_text(json.dumps(result,indent=2),encoding='utf-8')
         except OSError:pass
         print('Atualização não concluída. Confira o relatório local com o Codex.');return 1
 

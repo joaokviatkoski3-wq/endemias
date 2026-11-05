@@ -38,7 +38,7 @@ def verificar(config, root, endemias):
     ambiental=dispatcher.applications['ambiental.'+domain]
     for template in ('ambiental_home.html','ambiental_painel.html','ambiental_relatorios.html','ambiental_filtros.html','ambiental_mapa.html'):
         ambiental.jinja_env.get_template(template)
-    for relative in ('css/ambiental.css','js/ambiental_dashboard.js','icons/agua.svg',
+    for relative in ('css/ambiental.css','js/ambiental_dashboard.js','js/mapa_etiquetas_canvas.js','icons/agua.svg',
                      'vendor/fullcalendar/index.global.min.js','vendor/fullcalendar/pt-br.global.min.js'):
         assert (Path(ambiental.static_folder)/relative).read_bytes()
     from app_core import ambiental as indicadores,db

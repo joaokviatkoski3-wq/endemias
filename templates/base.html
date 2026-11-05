@@ -52,7 +52,7 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
   </div>
 </aside>
 
-<header class="topbar">
+<header class="topbar {{ 'has-sector-nav' if PORTAL_VSATT_URL }}">
   <div class="topbar-brand">
     <button class="btn-icon sidebar-toggle-desktop" id="sidebarToggle" type="button" title="Mostrar navegacao" aria-label="Mostrar navegacao" aria-expanded="false">
       <img src="/static/icons/menu.svg" alt="" class="icon-svg">
@@ -64,8 +64,13 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
     </div>
   </div>
 
-  <div class="topbar-right">
+  {% if PORTAL_VSATT_URL %}
+  <nav class="sector-nav" aria-label="Navegar entre sistemas">
     {% if OUTRO_SETOR %}<a class="sector-switch" href="{{ OUTRO_SETOR.url }}" title="Ir para {{ OUTRO_SETOR.titulo }}"><span aria-hidden="true">⇄</span> {{ OUTRO_SETOR.curto }}</a>{% endif %}
+    <a class="sector-switch portal-link" href="{{ PORTAL_VSATT_URL }}" title="Abrir o portal da Vigilância em Saúde">Portal VSATT</a>
+  </nav>
+  {% endif %}
+  <div class="topbar-right">
     <span class="topbar-clock" id="clock"></span>
     {% if usuario_atual %}
     <div class="user-menu-wrap" id="user-menu-wrap">

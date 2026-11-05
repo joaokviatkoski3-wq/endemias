@@ -269,6 +269,7 @@ def register_context_processors(app):
             SETOR_TITULO=setores.TITULOS.get(setores.atual(),'Setor de Endemias'),
             SETORES_ENABLED=bool(setores.atual()),
             OUTRO_SETOR=setores.atalho_outro_setor(usuario),
+            PORTAL_VSATT_URL=setores.url_portal(usuario),
             localidades_glob=[r["nome"] for r in localidades],
             agentes_glob=agentes_glob,
             tipos_glob=[r["tipo"] for r in tipos_v],
