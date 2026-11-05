@@ -877,18 +877,28 @@ def _bri_row(record):
     """Converte destinos e grupos BRI para o contrato XLSX historico."""
     from app_core import bri
 
-    flat = _flatten_record(record)
+    flat = {key: value for key, value in _flatten_record(record).items() if not pd.isna(value) and value != ""}
 
-    def field(*names):
+    def field(*names, exact_leaf=False):
         # Grupos explicitos tem precedencia; campos ocultos antigos nao
         # podem fornecer o endereco de outro destino.
         for name in names:
-            value = flat.get(name) if "/" in name else _leaf_exact_value(flat, [name])
+            if "/" in name:
+                value = flat.get(name)
+            elif exact_leaf:
+                value = next((v for k, v in flat.items() if k.rsplit("/", 1)[-1] == name), None)
+            else:
+                value = _leaf_exact_value(flat, [name])
             if value not in (None, ""):
                 return value
         return ""
 
+    record = flat
     row = _extra_row(record)
+    data = field("Digite a data", "Digite_a_data", "Data")
+    if data not in (None, ""):
+        row["Digite a data"] = data
+        row["Data"] = data
     destino = bri.normalizar_destino(_leaf_exact_value(record, [
         "Onde vai ser realizado o tratamento?", "Onde_vai_ser_realizado_o_trata",
         "Onde_vai_ser_realizado_o_tratamento",
@@ -896,7 +906,7 @@ def _bri_row(record):
     _set_if_empty(row, "Onde vai ser realizado o tratamento?", destino)
     campos = {
         "Quantidade de carga": ["Quantidade_de_carga"],
-        "Quantidade de carga.1": ["Quantidade de carga.1"],
+        "Quantidade de carga.1": ["Quantidade_carga"],
         "Onde foi realizado o tratamento?": ["Onde_foi_realizado_o_tratamento"],
         "Número da Ovitrampa": ["N_mero_da_Ovitrampa", "Numero_da_Ovitrampa"],
         "Foi tratado algum imóvel além do PE ou da Ovitrampa?": ["Foi_tratado_algum_im_vel_al_m_"],
@@ -929,9 +939,10 @@ def _bri_row(record):
             "Número": ["group_pt6ft99/N_mero", "N_mero", "Número"],
         }
     for label, aliases in address.items():
-        value = field(*aliases)
-        if value not in (None, ""):
-            row[label] = value
+        value = field(*aliases, exact_leaf=True)
+        # Nao reutilizar o endereco que o extrator generico inferiu de um
+        # grupo inativo quando o destino selecionado esta sem esse campo.
+        row[label] = value if value not in (None, "") else None
     return row
 
 

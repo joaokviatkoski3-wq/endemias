@@ -1,6 +1,7 @@
 import hashlib
 import os
 import unicodedata
+from numbers import Real
 
 import pandas as pd
 
@@ -87,7 +88,8 @@ def _ensure_vinculo_pe_schema(conn):
 def is_new_format(path):
     df = pd.read_excel(path, sheet_name=0, nrows=1, engine="openpyxl")
     columns = set(df.columns)
-    return {"start", "end", "Digite a data", "Digite a hora", "_uuid"}.issubset(columns)
+    leaves = {str(c).rsplit("/", 1)[-1] for c in columns}
+    return "_uuid" in columns and bool(leaves & {"Digite a data", "Digite_a_data", "Data"})
 
 
 def preparar_arquivo(path):
@@ -133,16 +135,27 @@ def processar_arquivo(path, conn, logger, agora_iso, dry_run=False, preparado=No
 
 
 def parse_workbook(path, estrutura=None):
-    df = pd.read_excel(path, sheet_name=0, engine="openpyxl").dropna(how="all")
+    from app_core import kobo_api
+
     estrutura = estrutura or ("nova" if is_new_format(path) else "legada")
+    # Preserva respostas textuais como 007/SN no formato Kobo. No legado,
+    # mantem a leitura historica usada para formar as chaves sem UUID.
+    df = pd.read_excel(path, sheet_name=0, engine="openpyxl", dtype=object if estrutura == "nova" else None).dropna(how="all")
     registros = []
     for idx, row in df.iterrows():
-        data = _date(_pick(row, ("Digite a data", "Data")))
+        # all_versions pode reunir rotulos vazios e nomes tecnicos preenchidos.
+        # A data declarada da visita e obrigatoria; start nao a substitui.
+        raw = {str(col): value for col, value in row.items() if _text(value) is not None}
+        data = _date(kobo_api._leaf_exact_value(raw, ("Digite a data", "Digite_a_data"))
+                     or kobo_api._leaf_exact_value(raw, ("Data",)))
         if not data:
             continue
+        technical = any("/" in c or c in {"Digite_a_data", "Digite_a_hora", "Onde_vai_ser_realizado_o_trata"} for c in raw)
+        row = kobo_api._bri_row(raw) if estrutura == "nova" or technical else raw
         destino = normalizar_destino(row.get("Onde vai ser realizado o tratamento?"))
-        end = _endereco(row, destino, estrutura)
-        kobo_uuid = _uuid(row.get("_uuid")) if estrutura == "nova" else None
+        kobo_uuid = _uuid(row.get("_uuid"))
+        row_estrutura = "nova" if kobo_uuid else estrutura
+        end = _endereco(row, destino, row_estrutura)
         chave = kobo_uuid or "|".join([
             str(idx),
             _text(row.get("SISPNCD")) or "",
@@ -153,15 +166,15 @@ def parse_workbook(path, estrutura=None):
             str(end.get("numero") or ""),
         ])
         registros.append({
-            "id_bri": _hash("bri", estrutura, chave),
+            "id_bri": _hash("bri", row_estrutura, chave),
             "kobo_uuid": kobo_uuid,
             "kobo_id": _int(row.get("_id")),
             "sispncd": _text(row.get("SISPNCD")),
             "data": data,
             "hora": _time(_pick(row, ("Digite a hora", "Hora"))),
-            "inicio_registro": _datetime(row.get("start")) if estrutura == "nova" else None,
-            "fim_registro": _datetime(row.get("end")) if estrutura == "nova" else None,
-            "agentes_texto": _agentes(row, estrutura),
+            "inicio_registro": _datetime(row.get("start")) if row_estrutura == "nova" else None,
+            "fim_registro": _datetime(row.get("end")) if row_estrutura == "nova" else None,
+            "agentes_texto": _agentes(row, row_estrutura),
             "destino_tratamento": destino,
             "local_tratamento": _text(row.get("Onde foi realizado o tratamento?")),
             "numero_ovitrampa": _text(row.get("Número da Ovitrampa")),
@@ -169,8 +182,8 @@ def parse_workbook(path, estrutura=None):
             "tratou_imovel_extra": _text(row.get("Foi tratado algum imóvel além do PE ou da Ovitrampa?")),
             "qual_imovel_extra": _text(row.get("Qual imóvel?")),
             "depositos_tratados_extra": _int(row.get("Quantidade depósitos tratados")),
-            "quantidade_carga_extra": _real(row.get("Quantidade de carga.1")) or 0,
-            "submission_time": _datetime(row.get("_submission_time")) if estrutura == "nova" else None,
+            "quantidade_carga_extra": _real(row.get("Quantidade de carga.1")),
+            "submission_time": _datetime(row.get("_submission_time")) if row_estrutura == "nova" else None,
             **end,
         })
     return registros
@@ -412,21 +425,27 @@ def _endereco(row, destino, estrutura):
             "localidade": agentes_core._localidade(row.get("Localidade.1")),
             "logradouro": _text(row.get("Logradouro.1")),
             "quarteirao": _int(row.get("Quarteirão.1")),
-            "numero": _text(row.get("Número.1")),
+            "numero": _numero(row.get("Número.1")),
         }
     if estrutura == "nova" and destino == "Ponto Estratégico":
         return {
             "localidade": agentes_core._localidade(row.get("localidade")),
             "logradouro": _text(row.get("logradouro")),
             "quarteirao": _int(row.get("quarteirao")),
-            "numero": _text(row.get("numero")),
+            "numero": _numero(row.get("numero")),
         }
     return {
         "localidade": agentes_core._localidade(row.get("Localidade")),
         "logradouro": _text(row.get("Logradouro")),
         "quarteirao": _int(row.get("Quarteirão")),
-        "numero": _text(row.get("Número")),
+        "numero": _numero(row.get("Número")) if estrutura == "nova" else _text(row.get("Número")),
     }
+
+
+def _numero(value):
+    if isinstance(value, Real) and not pd.isna(value) and float(value).is_integer():
+        return str(int(value))
+    return _text(value)
 
 
 def _inserir_bri(conn, registro, agora_iso):
@@ -588,7 +607,7 @@ def _real(value):
 
 
 def _date(value):
-    if value is None:
+    if _text(value) is None:
         return None
     try:
         if pd.isna(value):
@@ -596,7 +615,8 @@ def _date(value):
     except Exception:
         pass
     try:
-        return pd.to_datetime(value).date().isoformat()
+        parsed = pd.to_datetime(value, errors="coerce")
+        return None if pd.isna(parsed) else parsed.date().isoformat()
     except Exception:
         return None
 
