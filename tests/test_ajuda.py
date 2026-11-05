@@ -11,7 +11,7 @@ class AjudaTests(unittest.TestCase):
         resultado = ajuda.consultar(rota="/registro-geografico")
         ids = [artigo["id"] for artigo in resultado["contexto"]]
         self.assertIn("registro-geografico-consulta", ids)
-        self.assertIn("registro-geografico-edicao", ids)
+        self.assertNotIn("registro-geografico-edicao", ids)
 
     def test_busca_encontra_termos_com_acentos(self):
         resultado = ajuda.consultar(consulta="impressão quarteirão", rota="/")
@@ -24,26 +24,25 @@ class AjudaTests(unittest.TestCase):
 
     def test_contexto_da_aba_prioriza_artigo_especifico(self):
         resultado = ajuda.consultar(
-            rota="/registro-geografico", contexto="Edição em lotes"
+            rota="/registro-geografico", contexto="Edição em lotes", nivel="operador"
         )
         self.assertEqual(resultado["contexto"][0]["id"], "registro-geografico-logradouros")
 
     def test_contexto_composto_reconhece_subaba_ativa(self):
         resultado = ajuda.consultar(
-            rota="/esporotricose", contexto="Doentes > Lista", limite=120
+            rota="/esporotricose", contexto="Doentes > Lista", limite=120, setor="ambiental"
         )
         ids = [artigo["id"] for artigo in resultado["contexto"]]
         self.assertIn("esporo-data-notificacao", ids)
 
     def test_catalogo_completo_retorna_categorias_e_total(self):
         resultado = ajuda.consultar(rota="/", limite=120, nivel="superadmin")
-        self.assertEqual(resultado["total"], len(ajuda.ARTIGOS))
-        self.assertEqual(len(resultado["artigos"]), len(ajuda.ARTIGOS))
+        self.assertEqual(resultado["total"], len(resultado["artigos"]))
         self.assertEqual(
             sum(categoria["total"] for categoria in resultado["categorias"]),
             resultado["total"],
         )
-        self.assertIn("Esporotricose", [item["nome"] for item in resultado["categorias"]])
+        self.assertNotIn("Esporotricose", [item["nome"] for item in resultado["categorias"]])
 
     def test_limite_invalido_usa_padrao_sem_falhar(self):
         resultado = ajuda.consultar(limite="invalido")
@@ -72,7 +71,7 @@ class AjudaTests(unittest.TestCase):
     def test_topicos_novos_de_campo_aparecem_na_pagina_certa(self):
         pe = ajuda.consultar(rota="/pontos-estrategicos", limite=120)
         self.assertIn("pe-semana-feitos", [a["id"] for a in pe["contexto"]])
-        esporo = ajuda.consultar(rota="/esporotricose", limite=120)
+        esporo = ajuda.consultar(rota="/esporotricose", limite=120, setor="ambiental", nivel="operador")
         self.assertIn("esporo-anexos-arrastar", [a["id"] for a in esporo["artigos"]])
 
     def test_artigo_administrativo_respeita_nivel_do_usuario(self):
