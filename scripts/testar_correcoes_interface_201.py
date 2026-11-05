@@ -32,7 +32,7 @@ def main():
         c.execute("UPDATE usuarios SET nivel='superadmin' WHERE id_usuario=1")
         c.execute("UPDATE localidades SET nome='Localidade <em>fictícia</em>' WHERE id_localidade=1")
         c.execute("UPDATE recolhimentos SET localidade='Localidade <em>fictícia</em>'")
-        c.execute("UPDATE bri_registros SET qual_imovel_extra='Imóvel <em>adicional</em>',quantidade_carga=2.5")
+        c.execute("UPDATE bri_registros SET qual_imovel_extra='Imóvel <em>adicional</em>',quantidade_carga=2.5,local_tratamento='Escola <em>fictícia</em>',logradouro=NULL,numero=NULL")
         c.execute("INSERT INTO coletas(id_coleta,id_visita,num_tubo,tipo_deposito) VALUES('coleta-ficticia','ficticio-visitas','T-FICTICIO','B')")
         c.execute("INSERT INTO resultados_laboratorio(id_coleta,num_tubo,data_coleta,outra_larvas) VALUES('coleta-ficticia','T-FICTICIO','2026-06-01',3)")
         for table,key in [('bri_registros','id_bri'),('recolhimentos','id_recolhimento'),('amostras_animais','id_amostra')]:
@@ -79,6 +79,11 @@ def main():
                         page.locator('[data-pe-acao="tab"][data-valor="aliases"]').click()
                     else:
                         prefix={'/bri':'bri','/recolhimentos':'rec','/amostras-animais':'am'}[path]
+                        if path=='/bri':
+                            local=page.locator('#bri-body tr').first.locator('td').nth(6)
+                            assert 'Escola <em>fictícia</em>' in local.inner_text()
+                            assert 'Logradouro não informado' in local.inner_text()
+                            assert local.locator('em').count()==0
                         page.locator('#'+prefix+'-paginacao').get_by_role('button',name='Próxima').click()
                         page.wait_for_timeout(250)
                         assert page.locator('#'+prefix+'-body tr').count()==2

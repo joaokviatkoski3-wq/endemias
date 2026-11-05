@@ -64,7 +64,7 @@
     </div>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Data</th><th>SISPNCD</th><th>Agentes</th><th>Destino</th><th>PE</th><th>Localidade</th><th>Endereço</th><th>Ovitrampa</th><th>Carga</th><th>Extra</th><th>Origem</th></tr></thead>
+        <thead><tr><th>Data</th><th>SISPNCD</th><th>Agentes</th><th>Destino</th><th>PE</th><th>Localidade</th><th>Local / endereço</th><th>Ovitrampa</th><th>Carga</th><th>Extra</th><th>Origem</th></tr></thead>
         <tbody id="bri-body"></tbody>
       </table>
     </div>
@@ -132,7 +132,12 @@ async function carregarListaBri(pagina=1){
   paginarListaOperacional('bri-paginacao', d, carregarListaBri);
   document.getElementById('bri-info').textContent = `${briFmt.format(d.total || 0)} registro(s)`;
   document.getElementById('bri-body').innerHTML = (d.registros || []).map(r => {
-    const endereco = [r.logradouro, r.numero].filter(Boolean).join(', ') || '-';
+    const numero = String(r.numero ?? '').replace(/^(\d+)\.0+$/, '$1');
+    const endereco = r.logradouro ? [r.logradouro, numero].filter(Boolean).join(', ') : '';
+    const local = r.local_tratamento || '';
+    const localEndereco = local
+      ? `<strong>${escapeAttr(local)}</strong><div style="color:var(--text3);font-size:11px;">${escapeAttr(endereco || 'Logradouro não informado')}</div>`
+      : escapeAttr(endereco || '-');
     const carga = r.quantidade_carga == null ? null : Number(r.quantidade_carga) + Number(r.quantidade_carga_extra || 0);
     const peInfo = renderBriPE(r);
     return `<tr>
@@ -142,7 +147,7 @@ async function carregarListaBri(pagina=1){
       <td>${escapeAttr(r.destino_tratamento || '-')}</td>
       <td>${peInfo}</td>
       <td>${escapeAttr(r.localidade || '-')}</td>
-      <td>${escapeAttr(endereco)}</td>
+      <td>${localEndereco}</td>
       <td>${escapeAttr(r.numero_ovitrampa || '-')}</td>
       <td style="font-weight:800;">${carga == null ? 'Não informada' : briFmt.format(carga)}</td>
       <td><span class="bri-tag ${escapeAttr(r.tratou_imovel_extra === 'Sim' ? 'ok' : '')}">${escapeAttr(r.tratou_imovel_extra || '-')}</span></td>

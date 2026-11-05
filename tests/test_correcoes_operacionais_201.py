@@ -17,6 +17,19 @@ class Operacionais201Tests(unittest.TestCase):
     sql = fixtures.SetoresTests.sql
     client = fixtures.SetoresTests.client
 
+    def test_busca_e_csv_por_nome_do_local_preservam_ausencia_de_rua(self):
+        self.sql("UPDATE bri_registros SET local_tratamento='Escola Ficticia',logradouro=NULL,numero=NULL,quantidade_carga=2.5")
+        client=self.client('endemias')
+        result=client.get('/api/bri/listar?busca=Escola+Ficticia').json
+        self.assertEqual(result['total'],1)
+        self.assertEqual(result['registros'][0]['local_tratamento'],'Escola Ficticia')
+        self.assertIsNone(result['registros'][0]['logradouro'])
+        export=client.get('/api/bri/exportar?busca=Escola+Ficticia')
+        linhas=list(csv.DictReader(io.StringIO(export.data.decode('utf-8-sig')),delimiter=';'))
+        self.assertEqual(len(linhas),1)
+        self.assertEqual(linhas[0]['Local de tratamento'],'Escola Ficticia')
+        self.assertEqual(linhas[0]['Logradouro'],'')
+
     def test_paginacao_total_real_ordem_estavel_e_exportacao_completa(self):
         for module, table, chave, area, path in [
             (bri,'bri_registros','id_bri','endemias','bri'),
