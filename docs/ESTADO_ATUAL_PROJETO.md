@@ -4,24 +4,37 @@ Atualizado em 05/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.0.0-rc.2 — interface preparada, ainda não ativada
+## Versão ativa 2.0.0-rc.2 — interface ativada em 05/11/2026
 
 - Pedido de nove melhorias do usuário: portal com versão e visual institucional;
   troca autorizada no topo; relatórios/filtros e dashboard/gráficos ambientais;
   gota do Vigiágua; mapa com ruas/satélite/etiquetas/filtros; início simplificado;
   setas e previsão visível na agenda dos dois setores.
-- Worktree `C:\endemias-interface`, `codex/aperfeicoar-interface-setores`.
-  Código candidato rc.2; produção permanece rc.1. Sem migração de banco.
-  Suíte geral: 1.024 OK, seis ignorados; 41 focados OK; Chromium/CSRF/CSP e
+- Usuário executou o atalho e informou conclusão. Relatório
+  `C:\ProgramData\EndemiasWeb\ativacao-interface200rc2-resultado.json` confirma
+  `aplicado/concluido`, release `2772226`, janela iniciada às 11h20.
+  Master integrada; sem migração, alterações de contas/senhas ou divisão de Kobo.
+- 96 tabelas/dados e arquivos operacionais preservados; configurações dos dois
+  Kobo, tarefa/identidade/ambiente preservados. Prova na conta limitada passou
+  em todos os checks. Agendamento Kobo devolvido ao estado original. Sem
+  mudança de firewall, Cloudflare ou restauração de banco.
+- Backup PostgreSQL: 7.545.887 bytes, catálogo validado, SHA-256
+  `732661726d274d6b087736065367e4992807eff3cc445d562d0c94dee931ae0b`.
+  Completo: `D:\BackupsEndemias\backups_web\completos\endemias_completo_20261105_112051.zip`,
+  310.615.133 bytes, SHA-256
+  `25cfbdc93727878849360f2d118194802230933cde2bb6742e1d23c7f4ec8493`.
+  SQLite congelado mantém hash `964152E21DE44B4FFF985F72A0D7945E8E7DCF260BBB019708B868C3B3A7A025`.
+- Portal e dois logins HTTPS: 200/rc.2, `private, no-store`, CF DYNAMIC.
+  Portal sem sessão e com os dois links. APIs anônimas: 401. Logins locais
+  5000/5004: 200/rc.2. Cloudflared automático/rodando. Evidência:
+  `C:\endemias-interface\.venv\publicacao-interface200rc2.json`.
+- Suíte de preparação: 1.024 OK, seis ignorados; 41 focados OK; Chromium e
   PostgreSQL descartável confirmados. Capturas de desktop/celular conferidas.
-  Código `0b46719` enviado à branch remota. Atalho na Área de Trabalho:
-  `Atualizar VSATT - Interface 2.0 RC2.bat`, com commits exatos e backup antes
-  da troca. Aguarda execução manual elevada e conferência do relatório.
-  Preparação/limites/ensaios e pacote em `docs/INTERFACE_SETORES_200RC2.md`.
-  Ativação exige o novo atalho administrativo depois de validado; não integrar
-  templates com o processo antigo ativo nem repetir o ativador da divisão.
+  Limites e procedimento em `docs/INTERFACE_SETORES_200RC2.md`.
+  Conferência visual autenticada real da rc.2 ainda não informada; não declarar
+  2.0 estável. Não repetir os atalhos já aplicados. Geo continua futuro.
 
-## Versão ativa 2.0.0-rc.1 — divisão ativada em 05/11/2026
+## Histórico 2.0.0-rc.1 — divisão ativada em 05/11/2026
 
 - Usuário executou o atalho administrativo e informou conclusão. Relatório
   `C:\ProgramData\EndemiasWeb\ativacao-setores200rc1-resultado.json`:

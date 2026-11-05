@@ -1,8 +1,9 @@
-# Interface dos setores — candidata 2.0.0-rc.2
+# Interface dos setores — 2.0.0-rc.2 ativa
 
-Preparada em 05/11/2026, a pedido do usuário. Produção segue **2.0.0-rc.1**
-até execução e conferência do novo pacote administrativo. Não repetir o
-ativador da divisão: este pacote não tem migração nem divide Kobo novamente.
+Preparada e ativada em 05/11/2026, a pedido do usuário. Produção em
+**2.0.0-rc.2**, release `2772226`. Usuário executou o atalho e informou conclusão;
+relatório, versão pública/local e prova da conta limitada foram conferidos.
+Não repetir os ativadores: este pacote não teve migração nem nova divisão de Kobo.
 
 ## Alterações solicitadas
 
@@ -96,4 +97,19 @@ ativador da divisão: este pacote não tem migração nem divide Kobo novamente.
   informar o resultado. A permissão é exigida pelo Windows para a tarefa e
   configuração protegidas. Código da candidata salvo em `0b46719`, enviado à
   branch remota; manifesto local com hashes exatos em
-  `.venv/pacote-interface200rc2.json`. Nenhuma ativação realizada nesta preparação.
+  `.venv/pacote-interface200rc2.json` (registro da preparação).
+
+## Ativação conferida em 05/11/2026
+
+- Relatório `ativacao-interface200rc2-resultado.json`: aplicado/concluido,
+  96 tabelas/dados e arquivos preservados; nenhum DDL, conta/senha, configuração
+  Kobo, firewall ou Cloudflare alterado. Mesma tarefa/identidade/ambiente;
+  agendamento Kobo restaurado. Todos os checks da conta limitada passaram.
+- Backup PostgreSQL de 7.545.887 bytes/catalogado e completo de 310.615.133
+  bytes; caminhos e hashes no estado curto. SQLite congelado inalterado.
+- Portal e dois logins HTTPS: 200/rc.2, private/no-store e CF DYNAMIC; portal
+  sem sessão, links corretos; APIs anônimas negadas (401). Logins locais
+  5000/5004: 200/rc.2. Evidência:
+  `C:\endemias-interface\.venv\publicacao-interface200rc2.json`.
+- O relato do usuário confirma a instalação. Conferência visual autenticada
+  real das telas novas ainda não informada. Continua candidata da versão 2.0.

@@ -6,16 +6,27 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.0.0-rc.2 — interface preparada, ainda não ativada
+## Versão ativa 2.0.0-rc.2 — interface ativada em 05/11/2026
 
+- Usuário executou o novo atalho e informou conclusão. Relatório
+  `C:\ProgramData\EndemiasWeb\ativacao-interface200rc2-resultado.json` confirma
+  `aplicado/concluido`, release `2772226`, janela iniciada às 11h20.
 - Nove melhorias do portal, navegação, relatórios, dashboard, mapa, Vigiágua,
-  início Ambiental e agenda dos dois setores em `C:\endemias-interface`, branch
-  `codex/aperfeicoar-interface-setores`. Código rc.2, produção permanece rc.1.
-- Sem migração de banco ou nova divisão de Kobo. Ler
-  `docs/INTERFACE_SETORES_200RC2.md` e o estado curto para validação/pacote.
-  Não integrar templates na master enquanto o processo antigo lê esses arquivos.
+  início Ambiental e agenda dos dois setores ativas. 96 tabelas/dados e arquivos
+  operacionais preservados; nenhuma migração, alteração de contas, nova divisão
+  de Kobo, firewall ou Cloudflare. Mesma tarefa/identidade/ambiente do servidor;
+  agendamento Kobo devolvido ao estado original. Prova da conta limitada OK.
+- Portal e dois logins públicos: 200/rc.2, `private, no-store`, CF DYNAMIC;
+  portal com links corretos/sem sessão. APIs anônimas: 401. Logins locais
+  5000/5004: 200/rc.2. Evidência em
+  `C:\endemias-interface\.venv\publicacao-interface200rc2.json`.
+- Suíte de preparação: 1.024 testes OK, seis ignorados; PostgreSQL descartável
+  e Chromium/CSRF/CSP/desktop/celular confirmados. Detalhes e limites em
+  `docs/INTERFACE_SETORES_200RC2.md`. Conferência visual autenticada real desta
+  atualização ainda não informada pelo usuário; 2.0 continua candidata.
+- Não repetir nenhum dos atalhos já aplicados. Geo permanece futuro.
 
-## Versão ativa 2.0.0-rc.1 — divisão ativada em 05/11/2026
+## Histórico 2.0.0-rc.1 — divisão ativada em 05/11/2026
 
 - Usuário executou o atalho administrativo e informou conclusão. Relatório
   `C:\ProgramData\EndemiasWeb\ativacao-setores200rc1-resultado.json`:
