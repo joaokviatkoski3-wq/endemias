@@ -17,6 +17,7 @@ from app_core import blueprint_helpers as bh
 from app_core import db as db_core
 from app_core import import_history
 from app_core import kobo_api
+from app_core import kobo_conciliacao
 from app_core import larvas as larvas_core
 from app_core import visitas as visitas_core
 from app_core import uploads
@@ -226,6 +227,77 @@ def processar_page():
     importacoes = listar_importacoes_recentes(10)
     kobo_config = _config_publica_area(kobo_api.public_config(kobo_api.load_config(_kobo_config_path())))
     return render_template("processar.html", importacoes=importacoes, kobo_config=kobo_config)
+
+
+@bp.route("/api/kobo/conferencia-correcao", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def kobo_conferencia_correcao():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or set(data) != {"tipo", "inicio", "fim"}:
+        return jsonify({"erro": "Informe formulário e período para a conferência."}), 400
+    tipo = data.get("tipo")
+    if not isinstance(tipo, str) or tipo not in kobo_conciliacao.CONTRATOS or tipo not in setores.tipos_kobo():
+        return jsonify({"erro": "Formulário indisponível neste setor."}), 403
+    try:
+        inicio, fim = kobo_conciliacao.validar_periodo(data["inicio"], data["fim"])
+        cfg = kobo_api.load_config(_kobo_config_path())
+        uid = (cfg.get("assets") or {}).get(tipo)
+        if not uid:
+            raise kobo_conciliacao.ConferenciaInvalida("Configure esse formulário antes de conferir alterações.")
+        records, resposta = kobo_api.fetch_submissions(cfg, uid, limit=5000, start=inicio, end=fim)
+        try:
+            total = int(resposta.get("count", len(records))) if isinstance(resposta, dict) else len(resposta)
+        except (ValueError, TypeError):
+            total = -1
+        if (total != len(records) or isinstance(resposta, dict) and resposta.get("next")
+                or len(records) >= 5000 and (not isinstance(resposta, dict) or "count" not in resposta)):
+            raise kobo_conciliacao.ConferenciaInvalida("A consulta não está completa. Reduza o período e gere outra prévia.")
+        result = kobo_conciliacao.preparar(
+            _db_path(), tipo, records, _config_path(), _upload_temp(), session["uid"],
+            setores.atual(), current_app.secret_key,
+        )
+        return jsonify(result)
+    except kobo_conciliacao.ConferenciaInvalida as exc:
+        return jsonify({"erro": str(exc)}), exc.status
+    except kobo_api.KoboError:
+        return jsonify({"erro": "Não foi possível consultar o Kobo. Confira a conexão e tente novamente."}), 400
+    except Exception:
+        logging.exception("Falha na conferencia manual Kobo")
+        return jsonify({"erro": "Não foi possível preparar a conferência. Nenhuma alteração foi aplicada."}), 500
+
+
+@bp.route("/api/kobo/conferencia-correcao/aplicar", methods=["POST"])
+@login_required
+@nivel_min("admin")
+def kobo_conferencia_correcao_aplicar():
+    if setores.atual() == "ambiental":
+        return jsonify({"erro": "Operação disponível no setor de Endemias."}), 403
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or set(data) != {"token", "selecoes"}:
+        return jsonify({"erro": "Confirme os campos selecionados de uma prévia válida."}), 400
+
+    def registrar(conn, tipo, changes):
+        audit.registrar_evento(get_db, "kobo_correcao_campos_aprovados", entidade=tipo,
+            detalhes={"registros": changes}, conn=conn)
+
+    try:
+        result = kobo_conciliacao.aplicar(
+            _db_path(), _upload_temp(), data["token"], data["selecoes"], session["uid"],
+            setores.atual(), current_app.secret_key, registrar,
+        )
+        invalidar = _cache_invalidator()
+        if invalidar:
+            try:
+                invalidar()
+            except Exception:
+                logging.exception("Falha ao invalidar cache apos conferencia Kobo concluida")
+        return jsonify(result)
+    except kobo_conciliacao.ConferenciaInvalida as exc:
+        return jsonify({"erro": str(exc)}), exc.status
+    except Exception:
+        logging.exception("Falha na aplicacao da conferencia manual Kobo")
+        return jsonify({"erro": "Não foi possível concluir a operação. Gere uma nova prévia antes de tentar novamente."}), 500
 
 
 @bp.route("/api/kobo/config", methods=["GET", "POST"])

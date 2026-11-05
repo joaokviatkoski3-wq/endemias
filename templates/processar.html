@@ -94,6 +94,22 @@
   </details>{% endif %}
 </div>
 
+{% if SETOR_ATUAL != 'ambiental' and tem_permissao('gestao') %}
+<details class="chart-card processar-card" style="margin-bottom:18px;" id="conferencia-correcao">
+  <summary style="cursor:pointer;font-weight:600;">Conferir correções de registros já importados</summary>
+  <p class="processar-muted">Compare os dados atuais com o Kobo e aprove somente os campos que deseja atualizar. Os demais valores serão preservados.</p>
+  <div class="kobo-preview-row correcao-filtros">
+    <div class="f-g"><label for="correcao-tipo">Formulário</label><select id="correcao-tipo"><option value="BRI">BRI</option><option value="RECOLHIMENTO">Recolhimentos</option></select></div>
+    <div class="f-g"><label for="correcao-inicio">Envios ao Kobo desde</label><input id="correcao-inicio" type="date" required></div>
+    <div class="f-g"><label for="correcao-fim">Até</label><input id="correcao-fim" type="date" required></div>
+    <button class="btn btn-outline" type="button" id="correcao-conferir">Gerar prévia das diferenças</button>
+  </div>
+  <p id="correcao-status" class="processar-muted" role="status" aria-live="polite">A prévia vale por 15 minutos. Nenhum campo vem selecionado.</p>
+  <div id="correcao-diferencas"></div>
+  <button class="btn btn-primary" type="button" id="correcao-aplicar" disabled>Confirmar alterações selecionadas</button>
+</details>
+{% endif %}
+
 <div class="chart-card processar-card processar-planilhas-card" id="area-upload-shell">
   <div class="processar-planilhas-head">
     <div>
@@ -353,6 +369,8 @@
 .kobo-assets{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px;}
 .kobo-actions{display:flex;gap:8px;justify-content:flex-end;}
 .kobo-preview-row{display:grid;gap:10px;align-items:end;}
+.correcao-filtros{grid-template-columns:minmax(150px,1fr) minmax(150px,1fr) minmax(150px,1fr) auto;}
+@media(max-width:900px){.correcao-filtros{grid-template-columns:1fr;}}
 .kobo-pendencias-filtros{grid-template-columns:repeat(2,minmax(150px,1fr)) minmax(120px,.5fr);max-width:720px;margin:12px 0;}
 .kobo-check{height:38px;display:flex;align-items:center;gap:7px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);font-size:12px;font-weight:800;color:var(--text2);white-space:nowrap;}
 .kobo-check input{width:15px;height:15px;accent-color:var(--brand);}
@@ -383,4 +401,63 @@
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" type="application/json" id="processar-work-types">{{ TIPOS_TRABALHO|map(attribute='codigo')|list|tojson }}</script>
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" type="application/json" id="kobo-config-json">{{ kobo_config|tojson }}</script>
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/processar.js?v={{ APP_VERSION }}-kobo-planilhas-2"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
+(() => {
+  const card = document.getElementById('conferencia-correcao');
+  if (!card) return;
+  const byId = id => document.getElementById(id);
+  const status = byId('correcao-status'), area = byId('correcao-diferencas');
+  const apply = byId('correcao-aplicar'), preview = byId('correcao-conferir');
+  let token = null, busy = false;
+  const selected = () => Array.from(area.querySelectorAll('input:checked')).map(el => ({registro:el.dataset.registro, campo:el.dataset.campo}));
+  const sync = () => {
+    apply.disabled = busy || !token || selected().length === 0;
+    for (const id of ['correcao-tipo','correcao-inicio','correcao-fim']) byId(id).disabled = busy;
+  };
+  const text = value => value === null ? 'Não informado' : typeof value === 'number' ? value.toLocaleString('pt-BR',{maximumFractionDigits:20}) : String(value);
+  function element(tag, value) { const el = document.createElement(tag); if (value !== undefined) el.textContent = value; return el; }
+  area.addEventListener('change', sync);
+  for (const id of ['correcao-tipo','correcao-inicio','correcao-fim']) byId(id).addEventListener('change', () => {
+    token = null; area.replaceChildren(); sync(); status.textContent = 'Gere outra prévia para o formulário e período escolhidos.';
+  });
+  preview.addEventListener('click', async () => {
+    if (!byId('correcao-inicio').reportValidity() || !byId('correcao-fim').reportValidity()) return;
+    busy = true; preview.disabled = true; token = null; area.replaceChildren(); sync(); status.textContent = 'Conferindo os registros…';
+    try {
+      const result = await apiPost('/api/kobo/conferencia-correcao', {tipo:byId('correcao-tipo').value, inicio:byId('correcao-inicio').value, fim:byId('correcao-fim').value});
+      token = result.token;
+      status.textContent = `${result.encontrados} registro(s) já importado(s); ${result.registros.length} com diferenças; ${result.nao_importados} ainda não importado(s). Marque cada campo que aprova. A prévia expira em 15 minutos.`;
+      for (const row of result.registros) {
+        const section = element('section'); section.style.marginBottom = '18px';
+        const date = /^\d{4}-\d{2}-\d{2}$/.test(row.data || '') ? row.data.split('-').reverse().join('/') : 'Sem data';
+        section.append(element('h3', `${date} ${row.hora || ''} · ${row.localidade || 'Sem localidade'}`));
+        if (row.referencia) section.append(element('p',row.referencia));
+        const identity = element('small', `Registro Kobo: ${row.uuid}`); identity.style.overflowWrap = 'anywhere'; section.append(identity);
+        const scroll = element('div'); scroll.className = 'table-scroll';
+        const table = element('table'); table.className = 'data-table'; table.style.width = '100%';
+        const head = element('thead'), titles = element('tr');
+        for (const label of ['Aprovar','Campo','Valor atual','Valor no Kobo']) titles.append(element('th',label));
+        head.append(titles); table.append(head); const body = element('tbody');
+        for (const change of row.alteracoes) {
+          const tr = element('tr'), td = element('td'), check = element('input'); check.type = 'checkbox';
+          check.dataset.registro = row.chave; check.dataset.campo = change.campo;
+          check.setAttribute('aria-label', `Aprovar ${change.rotulo} de ${row.data || 'registro'}`);
+          td.append(check); tr.append(td, element('td',change.rotulo), element('td',text(change.antes)), element('td',text(change.depois))); body.append(tr);
+        }
+        table.append(body); scroll.append(table); section.append(scroll); area.append(section);
+      }
+    } catch (error) { token = null; status.textContent = error.message; }
+    finally { busy = false; preview.disabled = false; sync(); }
+  });
+  apply.addEventListener('click', async () => {
+    const choices = selected(); if (!token || !choices.length || busy) return;
+    busy = true; preview.disabled = true; sync();
+    try {
+      const result = await apiPost('/api/kobo/conferencia-correcao/aplicar', {token, selecoes:choices});
+      area.replaceChildren(); status.textContent = `${result.campos} campo(s) atualizado(s) em ${result.registros} registro(s). As demais informações foram preservadas.`;
+    } catch (error) { status.textContent = error.message; }
+    finally { token = null; busy = false; preview.disabled = false; sync(); }
+  });
+})();
+</script>
 {% endblock %}
