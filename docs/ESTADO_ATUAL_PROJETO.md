@@ -4,6 +4,17 @@ Atualizado em 05/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Em preparação: 2.1.0 — identidade, logs e ajuda
+
+Usuário solicitou subagentes por frente. Estilo em `C:\endemias-visual`, logs em
+`C:\endemias-logs`, ajuda em `C:\endemias-ajuda`; integração isolada em
+`C:\endemias-interface`, branch `codex/identidade-logs-ajuda`. Endemias mantém
+azul, Ambiental verde com sua marca e portal VSATT usa a marca própria/duas
+cores. Ajuda deve respeitar setor e permissões; trilha técnica não deve guardar
+segredos ou corpos de formulário. Produção permanece 2.0.2 até nova ativação.
+Sem DDL ou alteração de usuários/dados/Kobo. Ver
+`docs/IDENTIDADE_LOGS_AJUDA_210.md` para implantação e verificações deste lote.
+
 ## Versão ativa 2.0.2 — BRI/API em 05/11/2026
 
 - Usuário confirmou API como entrada principal, XLSX emergencial. Histórico BRI
