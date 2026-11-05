@@ -1,6 +1,6 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 04/11/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 05/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
@@ -27,6 +27,31 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
   Login público 200/1.80.0 e no-store/private reconfirmados; hash do SQLite
   congelado permanece `964152E21DE44B4FFF985F72A0D7945E8E7DCF260BBB019708B868C3B3A7A025`.
 - Ver `docs/DIVISAO_SETORES_200.md` para regras, limites e procedimento.
+
+### Implantação preparada em 05/11/2026 (aguarda execução Windows)
+
+- Usuário conferiu a prévia fictícia e aprovou seguir com a divisão. Ajustes
+  estéticos do Ambiental e do portal ficaram para depois. Confirmou manter
+  todas as contas comuns em Endemias; gestores continuam nos dois setores.
+- Pacote `scripts/ativar_setores_windows.py`: backup PostgreSQL e completo,
+  assinatura por colunas anteriores à 0035, preservação de anexos/chave/config/
+  SQLite congelado, divisão privada do Kobo, prova na mesma identidade limitada
+  e retorno de código/configuração sem restaurar dump ou reduzir esquema.
+- Inclui prova dos três hosts na conta limitada e entrada Ambiental LAN 5004,
+  com regra somente para a interface local/sub-rede, perfis privado/domínio.
+  Não altera a tarefa/credencial do servidor nem o Tunnel.
+- Importação diária das 12h30 existia no histórico. O pacote a consulta de forma
+  elevada, pausa o agendamento na janela e devolve seu estado original. O mesmo
+  executor passa a chamar Endemias/Ambiental separadamente, preservando horário,
+  identidade e credencial; não cria tarefa nova nem faz importação real no ensaio.
+- 46 verificações focadas OK; última rodada de instalador/executor: 10 OK.
+  Simulações de sucesso/retorno e PowerShell com programas fictícios conferidas.
+  PostgreSQL temporário confirmou que o novo comparador aceita ADD COLUMN e
+  detecta alteração de valores antigos. Cluster e senhas temporários removidos.
+- A execução elevada, confirmação na identidade real, novos DNS/rotas, teste
+  LAN em outro aparelho e reinício continuam pendentes. Produção ainda 1.80.0.
+  Não confundir pacote aprovado com ativação concluída. Conferir o relatório
+  `C:\ProgramData\EndemiasWeb\ativacao-setores200rc1-resultado.json` após execução.
 
 ## Versão vigente 1.80.0 — correções de segurança ativas
 
