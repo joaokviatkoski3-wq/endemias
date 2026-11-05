@@ -518,8 +518,8 @@ def record_details(tipo, record, larvas_links=None):
         "quarteirao": _value(record, ["Quarteirão", "Quarteirao", "Quarteir_o"]),
         "morador": _value(record, ["Morador", "Responsável", "Responsavel"]),
         "tipo_imovel": _value(record, ["Tipo do imóvel", "Tipo do imovel", "Imóvel", "Imovel", "Tipo_do_im_vel"]),
-        "hora_inicio": _value(record, ["Digite a hora", "Hora", "hora_inicio"]),
-        "hora_fim": _value(record, ["Hora final", "hora_fim"]),
+        "hora_inicio": _leaf_exact_value(record, ["Digite a hora", "Hora", "hora_inicio"]),
+        "hora_fim": _leaf_exact_value(record, ["Hora final", "hora_fim"]),
         "visita": _value(record, ["Visita", "Situação da visita", "Situacao da visita"]),
         "observacoes": _value(record, ["Observações", "observacoes", "Observa_es"]),
         "tubo": tubo,
@@ -633,21 +633,38 @@ def _flatten_record(record, prefix=""):
 
 
 def _repeat_group_rows(record, parent_uuid, parent_index="0"):
+    """Extrai apenas repeats de animais, sem confundir anexos/metadados.
+
+    O indice e sequencial por envio, inclusive quando existem varios grupos.
+    """
     rows = []
     if not isinstance(record, dict):
         return rows
-    for value in record.values():
-        if isinstance(value, list):
-            for idx, item in enumerate(value, start=1):
-                if not isinstance(item, dict):
-                    continue
-                row = _flatten_record(item)
-                row.setdefault("_submission__uuid", parent_uuid)
-                row.setdefault("_parent_index", parent_index)
-                row.setdefault("_index", str(idx))
-                rows.append(row)
-        elif isinstance(value, dict):
-            rows.extend(_repeat_group_rows(value, parent_uuid, parent_index))
+
+    def visit(node):
+        for key, value in node.items():
+            if str(key).startswith("_"):
+                continue
+            if isinstance(value, list):
+                for item in value:
+                    if not isinstance(item, dict):
+                        continue
+                    row = _flatten_record(item)
+                    if not _leaf_exact_value(row, [
+                        "Escolha_o_animal_a_ser_cadastr", "Escolha o animal a ser cadastrado",
+                        "Nome_do_animal", "Nome do animal",
+                    ]):
+                        continue
+                    _set_if_empty(row, "Dados do animal/Qual animal?", _leaf_exact_value(row, ["Qual_animal", "Qual animal"]))
+                    _set_if_empty(row, "Dados do animal/Raça:", _leaf_exact_value(row, ["Esp_cie", "Raça", "Raca", "Ra_a"]))
+                    row["_submission__uuid"] = parent_uuid
+                    row["_parent_index"] = parent_index
+                    row["_index"] = str(len(rows) + 1)
+                    rows.append(row)
+            elif isinstance(value, dict):
+                visit(value)
+
+    visit(record)
     return rows
 
 
@@ -691,6 +708,12 @@ def _ensure_visit_columns(row, tipo, cfg_tipo, record):
     row.setdefault("Visita", detalhes.get("visita"))
     row.setdefault("Observações", detalhes.get("observacoes"))
     row.setdefault("Observa_es", detalhes.get("observacoes"))
+    _set_if_empty(row, "Ciclo", _leaf_exact_value(record, ["Ciclo"]))
+    _set_if_empty(row, "Lado", _leaf_exact_value(record, ["Lado"]))
+    _set_if_empty(row, "O imóvel possui água encanada fornecida pela Sanepar?", _leaf_exact_value(record, [
+        "O imóvel possui água encanada fornecida pela Sanepar?",
+        "O_im_vel_possui_gua_rnecida_pela_Sanepar", "Sanepar",
+    ]))
     if tipo == "PVE":
         acs_presente, acs_nome = pve_acs_values(record)
         _set_if_empty(row, "acs_presente", acs_presente)
@@ -769,6 +792,7 @@ def _ensure_visit_columns(row, tipo, cfg_tipo, record):
         for nome in _agent_names(record):
             row.setdefault(f"{prefixo_agente}{nome}", 1)
     if cfg_tipo.get("col_sequencia"):
+        _set_if_empty(row, cfg_tipo["col_sequencia"], _leaf_exact_value(record, ["Sequência", "Sequencia", "Sequ_ncia"]))
         row.setdefault(cfg_tipo["col_sequencia"], "")
     return row
 
@@ -840,12 +864,74 @@ def _extra_row(record):
     _set_if_empty(row, "Agentes", detalhes.get("agentes"))
     _set_if_empty(row, "Localidade", detalhes.get("localidade"))
     _set_if_empty(row, "Logradouro", detalhes.get("endereco"))
-    _set_if_empty(row, "NÃºmero", detalhes.get("numero"))
-    _set_if_empty(row, "QuarteirÃ£o", detalhes.get("quarteirao"))
+    _set_if_empty(row, "Número", detalhes.get("numero"))
+    _set_if_empty(row, "Quarteirão", detalhes.get("quarteirao"))
     _set_if_empty(row, "Morador", detalhes.get("morador"))
-    _set_if_empty(row, "Tipo do imÃ³vel", detalhes.get("tipo_imovel"))
+    _set_if_empty(row, "Tipo do imóvel", detalhes.get("tipo_imovel"))
     _set_if_empty(row, "Visita", detalhes.get("visita"))
-    _set_if_empty(row, "ObservaÃ§Ãµes", detalhes.get("observacoes"))
+    _set_if_empty(row, "Observações", detalhes.get("observacoes"))
+    return row
+
+
+def _bri_row(record):
+    """Converte destinos e grupos BRI para o contrato XLSX historico."""
+    from app_core import bri
+
+    flat = _flatten_record(record)
+
+    def field(*names):
+        # Grupos explicitos tem precedencia; campos ocultos antigos nao
+        # podem fornecer o endereco de outro destino.
+        for name in names:
+            value = flat.get(name) if "/" in name else _leaf_exact_value(flat, [name])
+            if value not in (None, ""):
+                return value
+        return ""
+
+    row = _extra_row(record)
+    destino = bri.normalizar_destino(_leaf_exact_value(record, [
+        "Onde vai ser realizado o tratamento?", "Onde_vai_ser_realizado_o_trata",
+        "Onde_vai_ser_realizado_o_tratamento",
+    ]))
+    _set_if_empty(row, "Onde vai ser realizado o tratamento?", destino)
+    campos = {
+        "Quantidade de carga": ["Quantidade_de_carga"],
+        "Quantidade de carga.1": ["Quantidade de carga.1"],
+        "Onde foi realizado o tratamento?": ["Onde_foi_realizado_o_tratamento"],
+        "Número da Ovitrampa": ["N_mero_da_Ovitrampa", "Numero_da_Ovitrampa"],
+        "Foi tratado algum imóvel além do PE ou da Ovitrampa?": ["Foi_tratado_algum_im_vel_al_m_"],
+        "Qual imóvel?": ["Qual_im_vel"],
+        "Quantidade depósitos tratados": ["Quantidade_depositos_tratados", "Quantidade_dep_sitos_tratados"],
+    }
+    for label, aliases in campos.items():
+        _set_if_empty(row, label, _leaf_exact_value(record, [label, *aliases]))
+    flag = row.get("Foi tratado algum imóvel além do PE ou da Ovitrampa?")
+    if _norm(flag) in {"sim", "yes"}:
+        row["Foi tratado algum imóvel além do PE ou da Ovitrampa?"] = "Sim"
+    elif _norm(flag) in {"nao", "no"}:
+        row["Foi tratado algum imóvel além do PE ou da Ovitrampa?"] = "Não"
+
+    if destino == "Ovitrampa":
+        address = {
+            "Localidade.1": ["group_cu8sh31/localidade_001_002", "localidade_001_002", "Localidade.1"],
+            "Logradouro.1": ["group_cu8sh31/Logradouro_002", "Logradouro_002", "Logradouro.1"],
+            "Quarteirão.1": ["group_cu8sh31/Quarteir_o_001", "Quarteir_o_001", "Quarteirão.1"],
+            "Número.1": ["group_cu8sh31/N_mero_001", "N_mero_001", "Número.1"],
+        }
+    elif destino == "Ponto Estratégico":
+        # Os nomes sem sufixo pertencem exclusivamente ao grupo de PE.
+        address = {name: ["group_zn1kq42/" + name, name] for name in ("localidade", "logradouro", "quarteirao", "numero")}
+    else:
+        address = {
+            "Localidade": ["group_pt6ft99/localidade_001", "localidade_001", "Localidade"],
+            "Logradouro": ["group_pt6ft99/Logradouro_001", "Logradouro_001", "Logradouro"],
+            "Quarteirão": ["group_pt6ft99/Quarteir_o", "Quarteir_o", "Quarteirão"],
+            "Número": ["group_pt6ft99/N_mero", "N_mero", "Número"],
+        }
+    for label, aliases in address.items():
+        value = field(*aliases)
+        if value not in (None, ""):
+            row[label] = value
     return row
 
 
@@ -879,28 +965,31 @@ def _amostra_animal_row(record):
     _set_if_empty(row, "Agentes", detalhes.get("agentes"))
     _set_if_empty(row, "Localidade", detalhes.get("localidade"))
     _set_if_empty(row, "Logradouro", detalhes.get("endereco"))
-    _set_if_empty(row, "Número", _value(record, ["Número", "Numero", "numero"]))
-    _set_if_empty(row, "Quarteirão", _value(record, ["Quarteirão", "Quarteirao", "quarteirao"]))
+    _set_if_empty(row, "Número", detalhes.get("numero"))
+    _set_if_empty(row, "Quarteirão", detalhes.get("quarteirao"))
     _set_if_empty(row, "Morador", _value(record, ["Morador", "morador"]))
-    _set_if_empty(row, "Tipo do imóvel", _value(record, ["Tipo do imóvel", "Tipo do imovel", "Imóvel", "Imovel"]))
+    _set_if_empty(row, "Tipo do imóvel", detalhes.get("tipo_imovel"))
     _set_if_empty(row, "Visita", detalhes.get("visita"))
-    _set_if_empty(row, "Observações", _value(record, ["Observações", "Observacoes", "observacoes"]))
+    _set_if_empty(row, "Observações", detalhes.get("observacoes"))
 
     # Campos especificos de Amostra de Animais.
-    _set_if_empty(row, "Motivo da visita", _value(record, ["Motivo da visita", "Motivo"]))
-    _set_if_empty(row, "Tipo de animal que motivou a visita:", _value(record, ["Tipo de animal que motivou a visita"]))
-    _set_if_empty(row, "Digite o animal:", _value(record, ["Digite o animal", "digite_o_animal"]))
-    _set_if_empty(row, "Tipo de animal:", _value(record, ["Tipo de animal", "tipo_animal", "Animal"]))
-    _set_if_empty(row, "Quantidade:", _value(record, ["Quantidade", "quantidade"]))
-    _set_if_empty(row, "Ocorrência da residência", _value(record, ["Ocorrência da residência", "Ocorrencia da residencia"]))
+    _set_if_empty(row, "Motivo da visita", _leaf_exact_value(record, ["Motivo da visita", "Motivo"]))
+    _set_if_empty(row, "Tipo de animal que motivou a visita:", _leaf_exact_value(record, ["Tipo de animal que motivou a visita", "Tipo_de_animal_001"]))
+    _set_if_empty(row, "Digite o animal:", _leaf_exact_value(record, ["Digite o animal", "digite_o_animal"]))
+    _set_if_empty(row, "Tipo de animal:", _leaf_exact_value(record, ["Tipo de animal", "tipo_animal", "Animal"]))
+    _set_if_empty(row, "Quantidade:", _leaf_exact_value(record, ["Quantidade", "quantidade"]))
+    _set_if_empty(row, "Ocorrência da residência", _leaf_exact_value(record, ["Ocorrência da residência", "Ocorrencia da residencia", "Ocorr_ncia_da_resid_ncia"]))
     _set_if_empty(row, "Onde?", _value(record, ["Onde", "onde"]))
     _set_if_empty(row, "Houve acidente?", _value(record, ["Houve acidente", "houve_acidente"]))
     _set_if_empty(row, "Houve captura?", _value(record, ["Houve captura", "houve_captura"]))
     _set_if_empty(row, "Local da captura", _value(record, ["Local da captura", "local_captura"]))
     _set_if_empty(row, "Qual animal foi capturado?", _value(record, ["Qual animal foi capturado"]))
-    _set_if_empty(row, "Sequência", _value(record, ["Sequência", "Sequencia", "sequencia"]))
-    for label in _AMOSTRA_ANIMAL_ESPECIE_COLS:
-        _set_if_empty(row, label, _value(record, [label]))
+    _set_if_empty(row, "Sequência", _leaf_exact_value(record, ["Sequência", "Sequencia", "Sequ_ncia"]))
+    for label, alias in zip(_AMOSTRA_ANIMAL_ESPECIE_COLS, (
+        "Qual_a_esp_cie_da_serpente", "Qual_a_esp_cie_do_escorpi_o",
+        "Qual_a_esp_cie_da_lagarta", "Qual_a_esp_cie_da_aranha", "Qual_a_esp_cie_do_carrapato",
+    )):
+        _set_if_empty(row, label, _leaf_exact_value(record, [label, alias]))
     return row
 
 
@@ -990,7 +1079,7 @@ def write_etl_workbooks(registros_por_tipo, config_path, output_dir, prefix="kob
         if tipo == "AMOSTRA_ANIMAIS":
             linhas = [_amostra_animal_row(record) for record in records]
         else:
-            linhas = [_extra_row(record) for record in records]
+            linhas = [_bri_row(record) for record in records]
         path = out / f"{tipo}_{prefix}.xlsx"
         pd.DataFrame(linhas).to_excel(path, index=False, engine="openpyxl")
         arquivos.append(str(path))

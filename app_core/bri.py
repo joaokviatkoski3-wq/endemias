@@ -1,5 +1,6 @@
 import hashlib
 import os
+import unicodedata
 
 import pandas as pd
 
@@ -139,7 +140,7 @@ def parse_workbook(path, estrutura=None):
         data = _date(_pick(row, ("Digite a data", "Data")))
         if not data:
             continue
-        destino = _text(row.get("Onde vai ser realizado o tratamento?"))
+        destino = normalizar_destino(row.get("Onde vai ser realizado o tratamento?"))
         end = _endereco(row, destino, estrutura)
         kobo_uuid = _uuid(row.get("_uuid")) if estrutura == "nova" else None
         chave = kobo_uuid or "|".join([
@@ -164,7 +165,7 @@ def parse_workbook(path, estrutura=None):
             "destino_tratamento": destino,
             "local_tratamento": _text(row.get("Onde foi realizado o tratamento?")),
             "numero_ovitrampa": _text(row.get("Número da Ovitrampa")),
-            "quantidade_carga": _real(row.get("Quantidade de carga")) or 0,
+            "quantidade_carga": _real(row.get("Quantidade de carga")),
             "tratou_imovel_extra": _text(row.get("Foi tratado algum imóvel além do PE ou da Ovitrampa?")),
             "qual_imovel_extra": _text(row.get("Qual imóvel?")),
             "depositos_tratados_extra": _int(row.get("Quantidade depósitos tratados")),
@@ -392,6 +393,17 @@ def _where(filtros, busca=False):
         )
         params.extend([termo] * 6)
     return " ".join(clauses), params
+
+
+def normalizar_destino(value):
+    text = _text(value)
+    norm = unicodedata.normalize("NFD", text or "")
+    key = "".join(c for c in norm.casefold() if c.isalnum())
+    return {
+        "ovitrampa": "Ovitrampa", "localcomovitrampa": "Ovitrampa",
+        "pontoestrategico": "Ponto Estratégico", "pontoestratgico": "Ponto Estratégico",
+        "outro": "Outro",
+    }.get(key, text)
 
 
 def _endereco(row, destino, estrutura):

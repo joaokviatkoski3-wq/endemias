@@ -114,7 +114,7 @@ def val_bool(val):
     if val is None: return None
     s = str(val).strip().lower()
     if s in ("sim", "yes", "1", "true", "s"): return 1
-    if s in ("não", "nao", "no", "0", "false", "n"): return 0
+    if s in ("não", "nao", "n_o", "no", "0", "false", "n"): return 0
     return None
 
 
@@ -131,14 +131,17 @@ def dados_acs_pve(acs_presente_valor, acs_nome_valor):
     return acs_core.dados_acs(acs_presente_valor, acs_nome_valor)
 
 
-def valor_campo_kobo(row, nome):
-    valor = row.get(nome)
-    if val_str(valor) is not None:
-        return valor
-    alvo = nome.casefold()
-    for coluna in row.index:
-        if str(coluna).rsplit("/", 1)[-1].strip().casefold() == alvo:
-            return row.get(coluna)
+def valor_campo_kobo(row, *nomes):
+    for nome in nomes:
+        valor = row.get(nome)
+        if val_str(valor) is not None:
+            return valor
+        alvo = nome.casefold()
+        for coluna in row.index:
+            if str(coluna).rsplit("/", 1)[-1].strip().casefold() == alvo:
+                valor = row.get(coluna)
+                if val_str(valor) is not None:
+                    return valor
     return None
 
 
@@ -513,15 +516,15 @@ def salvar_visita(cur, id_visita, kobo_uuid, row, tipo, cfg_tipo, agora_iso, con
     col_hora_letra = cfg_tipo.get("col_hora_inicio_letra")
     col_hora_fim   = cfg_tipo.get("col_hora_fim_letra")
 
-    if col_hora_letra:
+    # Nomes canonicos do adaptador API nao seguem as posicoes do XLSX legado.
+    nome_hora = work_types.etl_fields_for(tipo).get("hora_inicio_col")
+    hora_val = valor_campo_kobo(row, nome_hora or "Hora", "Hora_inicio")
+    if not normalizar_hora(hora_val) and col_hora_letra:
         idx = column_index_from_string(col_hora_letra) - 1
         hora_val = row.iloc[idx] if idx < len(row) else None
-    else:
-        nome_hora = work_types.etl_fields_for(tipo).get("hora_inicio_col")
-        hora_val  = row.get(nome_hora) if nome_hora else None
 
-    hora_fim_val = None
-    if col_hora_fim:
+    hora_fim_val = valor_campo_kobo(row, "Hora final", "Hora_fim")
+    if not normalizar_hora(hora_fim_val) and col_hora_fim:
         idx = column_index_from_string(col_hora_fim) - 1
         hora_fim_val = row.iloc[idx] if idx < len(row) else None
 

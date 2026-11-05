@@ -6,6 +6,7 @@ from app_core import agentes as agentes_core
 from app_core import db as db_core
 from app_core import visitas_integradas as integradas
 from app_core import normalizadores
+from app_core import pontos_estrategicos as pe_core
 from app_core import recolhimentos as db_helpers
 from app_core import utils as utils_core
 
@@ -674,6 +675,40 @@ def detalhar(target, id_visita):
             conn.close()
 
 
+def _reconciliar_pe_edicao(conn, atual, payload):
+    """Revalida a identidade sem escolher um PE ambiguo por quarteirao."""
+    campos = ("tipo", "id_localidade", "quarteirao", "logradouro", "numero")
+    if all(atual.get(c) == payload.get(c) for c in campos):
+        return atual.get("id_pe"), atual.get("codigo_pe")
+    if payload["tipo"] != "PE" or not db_core.table_exists(conn, "pontos_estrategicos"):
+        return None, None
+    candidatos = conn.execute(
+        """SELECT id_pe,codigo_pe,logradouro,numero FROM pontos_estrategicos
+             WHERE id_localidade=? AND quarteirao=?""",
+        (payload["id_localidade"], payload["quarteirao"]),
+    ).fetchall()
+    logradouro = pe_core.normalizar_alias(payload.get("logradouro"))
+    numero = pe_core.normalizar_alias(payload.get("numero"))
+    aliases = set()
+    if db_core.table_exists(conn, "pontos_estrategicos_alias") and logradouro:
+        aliases = {r[0] for r in conn.execute(
+            """SELECT codigo_pe FROM pontos_estrategicos_alias
+                 WHERE ativo=1 AND alias_normalizado=?
+                   AND (localidade_normalizada=? OR localidade_normalizada='')""",
+            (logradouro, pe_core.normalizar_alias(payload.get("localidade"))),
+        )}
+    matches = [p for p in candidatos if (
+        (logradouro and pe_core.normalizar_alias(p["logradouro"]) == logradouro
+         and (not numero or pe_core.normalizar_alias(p["numero"]) == numero))
+        or p["codigo_pe"] in aliases
+    )]
+    if len(matches) > 1:
+        raise VisitaInvalida("O endereço corresponde a mais de um PE. Confira o endereço e o número antes de salvar.")
+    if not matches:
+        return None, None
+    return matches[0]["id_pe"], matches[0]["codigo_pe"]
+
+
 def editar(target, id_visita, dados):
     origem_liraa = integradas.id_liraa(id_visita)
     if origem_liraa is not None:
@@ -760,6 +795,12 @@ def editar(target, id_visita, dados):
         if localidade:
             payload["id_localidade"] = _obter_ou_criar_localidade(
                 conn, localidade
+            )
+        if "id_pe" in atual_dict and "codigo_pe" in atual_dict:
+            payload["id_pe"], payload["codigo_pe"] = _reconciliar_pe_edicao(conn, atual_dict, payload)
+            conn.execute(
+                "UPDATE visitas SET id_pe=?,codigo_pe=? WHERE id_visita=?",
+                (payload["id_pe"], payload["codigo_pe"], id_visita),
             )
 
         conn.execute(

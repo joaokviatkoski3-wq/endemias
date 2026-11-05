@@ -2,6 +2,7 @@ import logging
 import re
 import unicodedata
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from io import BytesIO
 
 from flask import Blueprint, current_app, jsonify, render_template, request, send_file
@@ -813,7 +814,16 @@ def _detalhe_atividade(atividade):
     if codigo == "AMOSTRA_ANIMAIS":
         return f"{utils_core.safe_int(extras.get('animais'))} animais, {utils_core.safe_int(extras.get('acidentes'))} acidentes"
     if codigo == "BRI":
-        return f"{utils_core.safe_int(extras.get('carga'))} carga"
+        try:
+            carga = Decimal(str(extras.get("carga") or 0).replace(",", "."))
+            if not carga.is_finite():
+                carga = Decimal(0)
+        except (InvalidOperation, ValueError):
+            carga = Decimal(0)
+        texto = format(carga, "f")
+        if "." in texto:
+            texto = texto.rstrip("0").rstrip(".")
+        return f"{texto.replace('.', ',')} carga"
     if codigo == "ACOES_SETOR":
         return (
             f"{utils_core.safe_int(extras.get('educativas'))} educativas, "
