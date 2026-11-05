@@ -210,20 +210,43 @@ def _validar_payload(conn, dados, id_paciente=None):
     }
 
 
+def _bloquear_paciente(conn, id_paciente):
+    """Serializa alterações do mesmo caso antes de consultar sua situação."""
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        suffix = " FOR UPDATE"
+    else:
+        conn.execute("BEGIN IMMEDIATE")
+        suffix = ""
+    return conn.execute(
+        f"SELECT 1 FROM {PACIENTES_TABLE} WHERE id_paciente=?{suffix}", (id_paciente,)
+    ).fetchone()
+
+
+def _ultimo_acompanhamento(conn, id_paciente):
+    # Na mesma data, o último registro incluído desempata pelo ID, como no histórico.
+    return conn.execute(
+        f"SELECT id_acompanhamento, status, status_outro FROM {ACOMPANHAMENTOS_TABLE} "
+        "WHERE id_paciente=? ORDER BY data DESC, id_acompanhamento DESC LIMIT 1",
+        (id_paciente,),
+    ).fetchone()
+
+
 def salvar_paciente(target, dados, usuario):
     conn = db_core.connect(target)
     ensure_schema(conn)
     agora = datetime.now().isoformat(timespec="seconds")
     try:
         id_paciente = dados.get("id_paciente")
+        ultimo = None
+        if id_paciente:
+            if not _bloquear_paciente(conn, id_paciente):
+                raise ValidationError("Paciente não encontrado.")
+            ultimo = _ultimo_acompanhamento(conn, id_paciente)
         valores = _validar_payload(conn, dados, id_paciente)
+        if ultimo:
+            valores.update(status=ultimo["status"], status_outro=ultimo["status_outro"])
         colunas = list(valores)
         if id_paciente:
-            existe = conn.execute(
-                f"SELECT 1 FROM {PACIENTES_TABLE} WHERE id_paciente=?", (id_paciente,)
-            ).fetchone()
-            if not existe:
-                raise ValidationError("Paciente não encontrado.")
             conn.execute(
                 f"UPDATE {PACIENTES_TABLE} SET "
                 + ", ".join(f"{c}=?" for c in colunas)
@@ -415,7 +438,7 @@ def salvar_acompanhamento(target, id_paciente, dados, usuario):
     conn = db_core.connect(target)
     ensure_schema(conn)
     try:
-        if not conn.execute(f"SELECT 1 FROM {PACIENTES_TABLE} WHERE id_paciente=?", (id_paciente,)).fetchone():
+        if not _bloquear_paciente(conn, id_paciente):
             raise ValidationError("Paciente não encontrado.")
         status = _texto(dados.get("status"), 40)
         if status not in STATUS:
@@ -435,10 +458,12 @@ def salvar_acompanhamento(target, id_paciente, dados, usuario):
             (id_paciente, data_registro, status, status_outro, _texto(dados.get("observacoes"), 5000), usuario, agora),
             "id_acompanhamento",
         )
-        conn.execute(
-            f"UPDATE {PACIENTES_TABLE} SET status=?, status_outro=?, atualizado_por=?, atualizado_em=? WHERE id_paciente=?",
-            (status, status_outro, usuario, agora, id_paciente),
-        )
+        ultimo = _ultimo_acompanhamento(conn, id_paciente)
+        if ultimo["id_acompanhamento"] == id_acompanhamento:
+            conn.execute(
+                f"UPDATE {PACIENTES_TABLE} SET status=?, status_outro=?, atualizado_por=?, atualizado_em=? WHERE id_paciente=?",
+                (ultimo["status"], ultimo["status_outro"], usuario, agora, id_paciente),
+            )
         conn.commit()
         return id_acompanhamento
     except Exception:
