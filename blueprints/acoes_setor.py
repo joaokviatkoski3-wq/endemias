@@ -392,6 +392,11 @@ def _acao_payload(dados):
         "observacoes": (dados.get("observacoes") or "").strip() or None,
         "agentes": _parse_agentes(dados.get("agentes")),
     }
+    if payload["hora_inicio"] and payload["hora_fim"]:
+        inicio = datetime.fromisoformat(f"{payload['data']}T{payload['hora_inicio']}")
+        fim = datetime.fromisoformat(f"{payload['data_fim'] or payload['data']}T{payload['hora_fim']}")
+        if fim < inicio:
+            raise ValueError("O término não pode ser anterior ao início. Informe a data final se a atividade terminar em outro dia.")
     return payload
 
 

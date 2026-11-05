@@ -435,6 +435,7 @@ def page():
 
 
 def _eventos_periodo(inicio, fim):
+    inicio, fim = _intervalo_consulta(inicio, fim)
     if setores.atual()=='ambiental':
         return _eventos_ambientais(inicio,fim)
     eventos = []
@@ -650,35 +651,7 @@ def _eventos_periodo(inicio, fim):
             ))
 
     if "esporotricose_animais" in existing_tables:
-        for busca in esporotricose_core.eventos_agenda_buscas_ferido(
-            bh.db_target(), inicio[:10], fim[:10]
-        ):
-            animal = busca.get("animal") or busca.get("especie") or "Animal"
-            endereco = ", ".join(
-                str(parte).strip()
-                for parte in (busca.get("logradouro"), busca.get("numero"))
-                if str(parte or "").strip()
-            )
-            resumo = []
-            if busca.get("especie"):
-                resumo.append(f"Espécie: {busca['especie']}")
-            if busca.get("quarteirao") not in (None, ""):
-                resumo.append(f"Quarteirão: {busca['quarteirao']}")
-            if endereco:
-                resumo.append(f"Endereço: {endereco}")
-            if busca.get("observacoes"):
-                resumo.append(f"Observações: {busca['observacoes']}")
-            eventos.append(_auto_evento(
-                busca["data"],
-                "ESPOROTRICOSE",
-                f"Busca de animal ferido - {animal}",
-                1,
-                resumo=" | ".join(resumo),
-                localidades=busca.get("localidade") or "-",
-                agentes=busca.get("agente") or "-",
-                tipo="busca_ferido",
-                id_extra=f"busca_{busca['id_busca']}",
-            ))
+        eventos.extend(_eventos_buscas_ferido(inicio, fim))
 
     if {
         "recolhimentos",
@@ -984,7 +957,7 @@ def imprimir_mes():
         if ano < 2020 or ano > 2099 or mes < 1 or mes > 12:
             raise ValueError
     except (TypeError, ValueError):
-        ano, mes = hoje.year, hoje.month
+        return jsonify({"erro": "Ano ou mês inválido."}), 400
 
     inicio = date(ano, mes, 1)
     if mes == 12:
@@ -1085,7 +1058,10 @@ def api_eventos():
 
     inicio = request.args.get("start", "")
     fim = request.args.get("end", "")
-    eventos = _eventos_para_usuario_restrito(_eventos_periodo(inicio, fim))
+    try:
+        eventos = _eventos_para_usuario_restrito(_eventos_periodo(inicio, fim))
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
     return jsonify(_adicionar_clima_eventos(eventos))
 
 
@@ -1249,6 +1225,49 @@ def api_lembretes():
     return jsonify(eventos)
 
 
+def _intervalo_consulta(inicio, fim):
+    datas = []
+    for value in (inicio, fim):
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("Informe as datas inicial e final do calendário.")
+        try:
+            texto = value.strip()
+            parsed = datetime.fromisoformat(texto.replace("Z", "+00:00")) if "T" in texto else date.fromisoformat(texto)
+            datas.append(parsed.date() if isinstance(parsed, datetime) else parsed)
+        except ValueError as exc:
+            raise ValueError("Data do calendário inválida.") from exc
+    if datas[1] <= datas[0]:
+        raise ValueError("A data final deve ser posterior à data inicial.")
+    return tuple(value.isoformat() for value in datas)
+
+
+def _eventos_buscas_ferido(inicio, fim):
+    eventos = []
+    for busca in esporotricose_core.eventos_agenda_buscas_ferido(bh.db_target(), inicio[:10], fim[:10]):
+        animal = busca.get("animal") or busca.get("especie") or "Animal"
+        endereco = ", ".join(
+            str(parte).strip()
+            for parte in (busca.get("logradouro"), busca.get("numero"))
+            if str(parte or "").strip()
+        )
+        resumo = []
+        if busca.get("especie"):
+            resumo.append(f"Espécie: {busca['especie']}")
+        if busca.get("quarteirao") not in (None, ""):
+            resumo.append(f"Quarteirão: {busca['quarteirao']}")
+        if endereco:
+            resumo.append(f"Endereço: {endereco}")
+        if busca.get("observacoes"):
+            resumo.append(f"Observações: {busca['observacoes']}")
+        eventos.append(_auto_evento(
+            busca["data"], "ESPOROTRICOSE", f"Busca de animal ferido - {animal}", 1,
+            resumo=" | ".join(resumo), localidades=busca.get("localidade") or "-",
+            agentes=busca.get("agente") or "-", tipo="busca_ferido",
+            id_extra=f"busca_{busca['id_busca']}",
+        ))
+    return eventos
+
+
 def _eventos_ambientais(inicio,fim):
     from app_core import ambiental
     start=_parse_data_evento(inicio[:10],True);end=_parse_data_evento(fim[:10],True)
@@ -1258,4 +1277,5 @@ def _eventos_ambientais(inicio,fim):
     for row in ambiental.linhas(bh.db_target(),{'d_ini':inicio[:10],'d_fim':fim[:10]}):
         fonte='ESPOROTRICOSE' if row['fonte']=='Esporotricose' else 'AMOSTRA_ANIMAIS'
         events.append(_auto_evento(str(row['data']),fonte,row['fonte'],row['registros'],localidades=row['localidade'],id_extra=str(row.get('id_localidade'))+'_'+str(row.get('quarteirao'))))
+    events.extend(_eventos_buscas_ferido(inicio, fim))
     return events

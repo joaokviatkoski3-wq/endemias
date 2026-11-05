@@ -756,8 +756,11 @@ def resumo_trabalho(db_path, inicio=None, dias_uteis=5):
             continue
         critical, attention = _risk_reasons(day_rows, config)
         reasons = critical if critical else attention
-        level = "critico" if critical else ("atencao" if attention else "favoravel")
-        level_label = {"critico": "Crítico", "atencao": "Atenção", "favoravel": "Favorável"}[level]
+        # Não interpretar ausência de uma medida de risco como risco inexistente.
+        metrics = ("codigo_tempo", "rajada_vento", "sensacao_termica", "probabilidade_chuva", "precipitacao")
+        complete = all(all(row[key] is not None for key in metrics) for row in day_rows)
+        level = "critico" if critical else ("atencao" if attention else ("favoravel" if complete else "sem_dados"))
+        level_label = {"critico": "Crítico", "atencao": "Atenção", "favoravel": "Favorável", "sem_dados": "Previsão incompleta"}[level]
         temperatures = [row["temperatura"] for row in day_rows if row["temperatura"] is not None]
         probabilities = [row["probabilidade_chuva"] for row in day_rows if row["probabilidade_chuva"] is not None]
         gusts = [row["rajada_vento"] for row in day_rows if row["rajada_vento"] is not None]
@@ -767,7 +770,10 @@ def resumo_trabalho(db_path, inicio=None, dias_uteis=5):
             "nivel": level,
             "nivel_label": level_label,
             "motivos": reasons,
-            "resumo": "; ".join(reasons) if reasons else "sem risco meteorológico relevante",
+            "resumo": "; ".join(reasons) if reasons else (
+                "sem risco meteorológico relevante" if complete else "dados insuficientes para avaliar as condições de trabalho"
+            ),
+            "previsao_incompleta": not complete,
             "temperatura_min": min(temperatures) if temperatures else None,
             "temperatura_max": max(temperatures) if temperatures else None,
             "chuva_prob_max": max(probabilities) if probabilities else None,

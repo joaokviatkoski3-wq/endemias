@@ -884,9 +884,9 @@ def parse_workbook(path, estrutura=None):
             "id_visita": id_visita,
             "kobo_uuid": animal_uuid,
             "especie": _choice(_row_get(row, ["Dados do animal/Escolha o animal a ser cadastrado:", "Escolha_o_animal_a_ser_cadastr"])),
-            "outro_animal": _choice(_row_get(row, ["Dados do animal/Qual animal?", "Esp_cie", "Especie"])),
+            "outro_animal": _choice(_row_get(row, ["Dados do animal/Qual animal?", "Qual_animal", "Especie"])),
             "nome": _text(_row_get(row, ["Dados do animal/Nome do animal:", "Nome_do_animal"])),
-            "raca": _text(_row_get(row, ["Dados do animal/Raça:", "Raca", "Ra_a"])),
+            "raca": _text(_row_get(row, ["Dados do animal/Raça:", "Raça", "Raca", "Ra_a", "Esp_cie"])),
             "sexo": _choice(_row_get(row, ["Dados do animal/Sexo:", "Sexo"])),
             "ambiente": _choice(_row_get(row, ["Dados do animal/Classificação quanto ao ambiente em que o animal vive:", "Classifica_o_quanto_em_que_o_animal_vive"])),
             "vacinado": _choice(_row_get(row, ["Dados do animal/Vacinado?", "Vacinado"])),
@@ -1068,6 +1068,17 @@ def listar_visitas(target, filtros=None):
                 LIMIT 500""",
             params,
         )]
+        agentes_por_visita = {}
+        if registros:
+            ids = [r["id_visita"] for r in registros]
+            placeholders = ",".join("?" for _ in ids)
+            for row in conn.execute(
+                f"SELECT id_visita, id_agente FROM {VISITA_AGENTES_TABLE} "
+                f"WHERE id_visita IN ({placeholders}) ORDER BY id_agente", ids
+            ):
+                agentes_por_visita.setdefault(row["id_visita"], []).append(row["id_agente"])
+        for registro in registros:
+            registro["agente_ids"] = agentes_por_visita.get(registro["id_visita"], [])
         _anexar_acs_visitas(conn, registros)
     finally:
         conn.close()
@@ -1086,22 +1097,65 @@ def atualizar_visita(target, id_visita, dados):
         if coluna in dados:
             campos.append(f"{coluna} = ?")
             params.append(dados[coluna])
-    if not campos:
+    if not campos and "agente_ids" not in dados:
         raise ValueError("Nenhum campo para atualizar.")
-    params.append(id_visita)
     conn = db_core.connect(target)
     try:
         ensure_schema(conn)
-        if "localidade" in dados:
-            id_localidade = _obter_ou_criar_localidade(conn.cursor(), dados.get("localidade"))
-            campos.append("id_localidade = ?")
-            params.insert(-1, id_localidade)
         with conn:
+            anterior = conn.execute(
+                "SELECT * FROM esporotricose_visitas WHERE id_visita=?", (id_visita,)
+            ).fetchone()
+            if not anterior:
+                raise ValueError("Visita não encontrada.")
+            if "agente_ids" in dados:
+                raw_ids = dados["agente_ids"]
+                if not isinstance(raw_ids, list) or any(
+                    isinstance(value, bool) or not str(value).isdigit() or int(value) <= 0
+                    for value in raw_ids
+                ):
+                    raise ValueError("Equipe inválida.")
+                agente_ids = sorted({int(value) for value in raw_ids})
+                agentes = []
+                if agente_ids:
+                    placeholders = ",".join("?" for _ in agente_ids)
+                    agentes = conn.execute(
+                        f"SELECT id_agente, nome FROM agentes WHERE id_agente IN ({placeholders}) ORDER BY nome",
+                        agente_ids,
+                    ).fetchall()
+                if len(agentes) != len(agente_ids):
+                    raise ValueError("Agente da equipe não encontrado.")
+                dados["agentes_texto"] = ", ".join(row["nome"] for row in agentes)
+                # Os IDs selecionados são a fonte oficial do texto exibido.
+                for index, campo in enumerate(campos):
+                    if campo == "agentes_texto = ?":
+                        params[index] = dados["agentes_texto"]
+                        break
+                else:
+                    campos.append("agentes_texto = ?")
+                    params.append(dados["agentes_texto"])
+            if "localidade" in dados:
+                id_localidade = _obter_ou_criar_localidade(conn.cursor(), dados.get("localidade"))
+                campos.append("id_localidade = ?")
+                params.append(id_localidade)
             conn.execute(
                 f"UPDATE esporotricose_visitas SET {', '.join(campos)} WHERE id_visita = ?",
-                params,
+                [*params, id_visita],
             )
-            if {"localidade", "quarteirao", "logradouro", "numero"}.intersection(dados):
+            if "agentes_texto" in dados:
+                conn.execute(f"DELETE FROM {VISITA_AGENTES_TABLE} WHERE id_visita=?", (id_visita,))
+                if "agente_ids" in dados:
+                    conn.executemany(
+                        f"INSERT INTO {VISITA_AGENTES_TABLE}(id_visita,id_agente) VALUES (?,?)",
+                        [(id_visita, value) for value in agente_ids],
+                    )
+                else:
+                    _inserir_agentes(conn, id_visita, dados["agentes_texto"])
+            mudou_endereco = any(
+                coluna in dados and str(dados[coluna] or "") != str(anterior[coluna] or "")
+                for coluna in ("localidade", "quarteirao", "logradouro", "numero")
+            )
+            if mudou_endereco:
                 vinculo = conn.execute(
                     f"SELECT origem FROM {VISITA_IMOVEIS_TABLE} WHERE id_visita=?", (id_visita,)
                 ).fetchone()

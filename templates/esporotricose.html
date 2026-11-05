@@ -662,6 +662,7 @@ let espDoentesTotais = {};
 let espDoentesStatusNomes = [];
 let espEstoqueDados = null;
 let espAnimaisRowsById = new Map();
+let espVisitasRowsById = new Map();
 const ESP_AGENTES = {{ agentes|tojson }};
 
 function setEspText(id, value) {
@@ -1907,6 +1908,7 @@ function renderEspResumoVisitas(rows) {
   refreshSortableTable('esp-resumo-visitas-table');
 }
 function renderEspVisitas(rows, total) {
+  espVisitasRowsById = new Map(rows.map(r => [String(r.id_visita), r]));
   document.getElementById('esp-visitas-body').innerHTML = rows.length ? rows.map(r => `
     <tr data-id="${escapeHtml(r.id_visita)}">
       <td data-sort-value="${escapeHtml(r.data || '')}">${fmtDate(r.data)}</td>
@@ -2149,33 +2151,23 @@ function fmtMes(mes) {
 
 function editarVisita(id) {
   const tr = document.querySelector(`tr[data-id="${id}"]`);
-  if (!tr) return;
+  const original = espVisitasRowsById.get(String(id));
+  if (!tr || !original) return;
   const cells = tr.querySelectorAll('td');
-  const original = {
-    data: cells[0].textContent,
-    hora_inicio: cells[1].textContent,
-    agentes_texto: cells[2].textContent,
-    localidade: cells[3].textContent,
-    quarteirao: cells[4].textContent,
-    tipo_imovel: cells[5].textContent,
-    logradouro: cells[6].textContent,
-    morador: cells[7].textContent,
-    telefone: cells[8].textContent,
-    visita: cells[9].textContent,
-    deseja_cadastrar_animal: cells[11].textContent,
-  };
   tr.dataset.original = JSON.stringify(original);
-  cells[0].innerHTML = `<input type="date" value="${original.data.split('/').reverse().join('-')}" style="width:120px">`;
-  cells[1].innerHTML = `<input value="${escapeHtml(original.hora_inicio === '-' ? '' : original.hora_inicio)}" style="width:70px">`;
-  cells[2].innerHTML = `<input value="${escapeHtml(original.agentes_texto === '-' ? '' : original.agentes_texto)}" style="width:100px">`;
-  cells[3].innerHTML = `<input value="${escapeHtml(original.localidade === '-' ? '' : original.localidade)}" style="width:100px">`;
-  cells[4].innerHTML = `<input value="${escapeHtml(original.quarteirao === '-' ? '' : original.quarteirao)}" style="width:50px">`;
-  cells[5].innerHTML = `<input value="${escapeHtml(original.tipo_imovel === '-' ? '' : original.tipo_imovel)}" style="width:80px">`;
-  cells[6].innerHTML = `<input value="${escapeHtml(original.logradouro === '-' ? '' : original.logradouro)}" style="width:150px">`;
-  cells[7].innerHTML = `<input value="${escapeHtml(original.morador === '-' ? '' : original.morador)}" style="width:100px">`;
-  cells[8].innerHTML = `<input value="${escapeHtml(original.telefone === '-' ? '' : original.telefone)}" style="width:100px">`;
-  cells[9].innerHTML = `<select style="width:90px"><option value="Normal" ${original.visita === 'Normal' ? 'selected' : ''}>Normal</option><option value="Fechado" ${original.visita === 'Fechado' ? 'selected' : ''}>Fechado</option><option value="Recusa" ${original.visita === 'Recusa' ? 'selected' : ''}>Recusa</option><option value="Recuperado" ${original.visita === 'Recuperado' ? 'selected' : ''}>Recuperado</option></select>`;
-  cells[11].innerHTML = `<input value="${escapeHtml(original.deseja_cadastrar_animal === '-' ? '' : original.deseja_cadastrar_animal)}" style="width:80px">`;
+  cells[0].innerHTML = `<input type="date" value="${escapeHtml(original.data || '')}" style="width:120px">`;
+  cells[1].innerHTML = `<input value="${escapeHtml(original.hora_inicio || '')}" style="width:70px">`;
+  const selecionados = new Set((original.agente_ids || []).map(Number));
+  cells[2].innerHTML = `<select multiple aria-label="Equipe da visita" style="min-width:140px">${ESP_AGENTES.map(a => `<option value="${Number(a.id_agente)}" ${selecionados.has(Number(a.id_agente)) ? 'selected' : ''}>${escapeHtml(a.nome)}</option>`).join('')}</select>`;
+  cells[3].innerHTML = `<input value="${escapeHtml(original.localidade || '')}" style="width:100px">`;
+  cells[4].innerHTML = `<input value="${escapeHtml(original.quarteirao ?? '')}" style="width:50px">`;
+  cells[5].innerHTML = `<input value="${escapeHtml(original.tipo_imovel || '')}" style="width:80px">`;
+  cells[6].innerHTML = `<input data-campo="logradouro" aria-label="Logradouro" value="${escapeHtml(original.logradouro || '')}" style="width:150px"><input data-campo="numero" aria-label="Número" value="${escapeHtml(original.numero || '')}" style="width:70px">`;
+  cells[7].innerHTML = `<input value="${escapeHtml(original.morador || '')}" style="width:100px">`;
+  cells[8].innerHTML = `<input value="${escapeHtml(original.telefone || '')}" style="width:100px">`;
+  const visitas = [...new Set([original.visita || '', 'Normal', 'Fechado', 'Recusa', 'Recuperado'])];
+  cells[9].innerHTML = `<select style="width:90px">${visitas.map(v => `<option value="${escapeHtml(v)}" ${v === (original.visita || '') ? 'selected' : ''}>${escapeHtml(v || 'Não informado')}</option>`).join('')}</select>`;
+  cells[11].innerHTML = `<input value="${escapeHtml(original.deseja_cadastrar_animal || '')}" style="width:80px">`;
   cells[13].innerHTML = `<button class="btn btn-primary btn-sm" type="button" onclick="salvarVisita('${id}')"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"></button> <button class="btn btn-ghost btn-sm" type="button" onclick="cancelarVisita('${id}')">Cancelar</button>`;
 }
 
@@ -2184,13 +2176,13 @@ function cancelarVisita(id) {
   if (!tr || !tr.dataset.original) return;
   const original = JSON.parse(tr.dataset.original);
   const cells = tr.querySelectorAll('td');
-  cells[0].textContent = original.data;
+  cells[0].textContent = fmtDate(original.data);
   cells[1].textContent = original.hora_inicio;
-  cells[2].textContent = original.agentes_texto;
+  cells[2].textContent = original.agentes || '-';
   cells[3].textContent = original.localidade;
   cells[4].textContent = original.quarteirao;
   cells[5].textContent = original.tipo_imovel;
-  cells[6].textContent = original.logradouro;
+  cells[6].textContent = [original.logradouro, original.numero].filter(Boolean).join(', ') || '-';
   cells[7].textContent = original.morador;
   cells[8].textContent = original.telefone;
   cells[9].textContent = original.visita;
@@ -2206,11 +2198,12 @@ async function salvarVisita(id) {
   const dados = {
     data: cells[0].querySelector('input').value,
     hora_inicio: cells[1].querySelector('input').value,
-    agentes_texto: cells[2].querySelector('input').value,
+    agente_ids: Array.from(cells[2].querySelector('select').selectedOptions, option => Number(option.value)),
     localidade: cells[3].querySelector('input').value,
     quarteirao: cells[4].querySelector('input').value,
     tipo_imovel: cells[5].querySelector('input').value,
-    logradouro: cells[6].querySelector('input').value,
+    logradouro: cells[6].querySelector('[data-campo="logradouro"]').value,
+    numero: cells[6].querySelector('[data-campo="numero"]').value,
     morador: cells[7].querySelector('input').value,
     telefone: cells[8].querySelector('input').value,
     visita: cells[9].querySelector('select').value,
