@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR"{% if SETOR_ATUAL == 'ambiental' %} data-setor="ambiental"{% endif %}>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/png" href="/static/img/favicon.png">
+<link rel="icon" type="image/png" href="/static/img/{{ 'logo_ambiental.png' if SETOR_ATUAL == 'ambiental' else 'favicon.png' }}">
 <title>{{ SETOR_TITULO }} — Login</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -28,13 +28,14 @@ body.ambiente-teste-ativo{padding-top:34px;}
 .footer-credit{margin-top:3px;}
 @media print{.ambiente-teste-faixa{display:none!important;}body.ambiente-teste-ativo{padding-top:0;}}
 </style>
+{% if SETOR_ATUAL == 'ambiental' %}<link rel="stylesheet" href="/static/css/branding_ambiental.css?v={{ APP_VERSION }}">{% endif %}
 </head>
 <body class="{{ 'ambiente-teste-ativo' if AMBIENTE_TESTE else '' }}">
 {% include "_ambiente_teste_faixa.html" %}
 <div class="wrap">
   <div class="card">
     <div class="card-top">
-      <img src="/static/img/logo_endemias.png" alt="">
+      {% if SETOR_ATUAL == 'ambiental' %}<img class="ambiental-logo" src="/static/img/logo_ambiental.png" alt="Vigilância Ambiental">{% else %}<img src="/static/img/logo_endemias.png" alt="">{% endif %}
       <h1>{{ SETOR_TITULO }}</h1>
       <p>Vigilância em Saúde · Almirante Tamandaré-PR</p>
     </div>
@@ -58,7 +59,7 @@ body.ambiente-teste-ativo{padding-top:34px;}
     </div>
   </div>
   <div class="footer">
-    <div>{{ APP_VERSION_LABEL }}</div>
+    <div>{{ APP_VERSION_LABEL.replace('Endemias', 'VSATT') if SETOR_ATUAL == 'ambiental' else APP_VERSION_LABEL }}</div>
     <div class="footer-credit">João Kviatkoski</div>
   </div>
 </div>

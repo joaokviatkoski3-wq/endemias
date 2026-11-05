@@ -1,0 +1,133 @@
+/* Identidade do Ambiental. Carregado apenas neste setor; Endemias mantém app.css. */
+html[data-setor="ambiental"] {
+  --brand: #176441;
+  --brand-d: #104b31;
+  --brand-l: #2e865d;
+  --brand-xs: #e4f1e9;
+  --bg: #f2f7f3;
+  --surface: #fff;
+  --surface2: #f7faf8;
+  --border: #d6e4db;
+  --border2: #b8cfc0;
+  --text: #20382b;
+  --text2: #4c6657;
+  --text3: #657e6e;
+  --shadow: 0 1px 3px #104b310a, 0 4px 12px #104b310a;
+  --shadow-md: 0 4px 16px #104b311a;
+  --th-bg: #176441;
+  --th-text: #fff;
+  --tr-hover: #edf5ef;
+}
+html[data-setor="ambiental"][data-theme="dark"] {
+  --brand: #79cba3;
+  --brand-d: #236b48;
+  --brand-l: #a1e0bd;
+  --brand-xs: #183e2b;
+  --bg: #101c15;
+  --surface: #182a20;
+  --surface2: #20372a;
+  --border: #304d3b;
+  --border2: #41634e;
+  --text: #e5f0e8;
+  --text2: #b1c9ba;
+  --text3: #90ac9a;
+  --shadow: 0 2px 8px #0006;
+  --shadow-md: 0 4px 20px #0008;
+  --th-bg: #18452e;
+  --th-text: #ddf4e5;
+  --tr-hover: #254a33;
+}
+[data-setor="ambiental"] .topbar {
+  background: #104b31;
+}
+[data-setor="ambiental"] .topbar-brand-txt .t1 { color: #fff; }
+[data-setor="ambiental"] .topbar-brand-txt .t2,
+[data-setor="ambiental"] .topbar-clock { color: #d9e9df; }
+[data-setor="ambiental"] .sidebar-mobile {
+  background: #104b31;
+}
+[data-setor="ambiental"] .ambiental-logo {
+  object-fit: contain;
+  filter: none;
+  opacity: 1;
+}
+[data-setor="ambiental"] .topbar-brand > .ambiental-logo {
+  width: 52px;
+  height: 64px;
+  padding: 3px;
+  background: #fff;
+  border-radius: 5px;
+}
+[data-setor="ambiental"] .sidebar-mobile-hd > .ambiental-logo {
+  width: 68px;
+  height: 84px;
+  padding: 5px;
+  background: #fff;
+  border-radius: 5px;
+}
+[data-setor="ambiental"][data-theme="dark"] .btn-primary {
+  background: #247749;
+  color: #fff;
+}
+[data-setor="ambiental"][data-theme="dark"] .help-launcher {
+  background: #247749;
+  color: #fff;
+}
+[data-setor="ambiental"][data-theme="dark"] .ambiental-home-link img {
+  filter: brightness(0) invert(1);
+}
+/* Login usa o mesmo arquivo de identidade sem interferir no login de Endemias. */
+[data-setor="ambiental"] body {
+  background: var(--bg);
+  color: var(--text);
+}
+[data-setor="ambiental"] .card {
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+[data-setor="ambiental"] .card-top {
+  background: var(--surface);
+  border-top: 5px solid #176441;
+  border-bottom: 1px solid var(--border);
+  padding: 24px 24px 18px;
+}
+[data-setor="ambiental"] .card-top > .ambiental-logo {
+  width: 140px;
+  height: 166px;
+  padding: 6px;
+  background: #fff;
+  border-radius: 5px;
+  margin-bottom: 12px;
+}
+[data-setor="ambiental"] .card-top h1 { color: var(--text); }
+[data-setor="ambiental"] .card-top p { color: var(--text2); }
+[data-setor="ambiental"] .card-body .f-g label { color: var(--text2); }
+[data-setor="ambiental"] .card-body .f-g input {
+  color: var(--text);
+  background: var(--surface2);
+  border-color: var(--border);
+}
+[data-setor="ambiental"] .card-body .f-g input:focus { border-color: var(--brand); }
+[data-setor="ambiental"] .card-body .btn { background: #176441; color: #fff; }
+[data-setor="ambiental"] .card-body .btn:hover { background: #104b31; }
+[data-setor="ambiental"] .card-body a { color: var(--brand) !important; }
+[data-setor="ambiental"] .footer { color: var(--text3); }
+[data-setor="ambiental"] .card > .top { background: #104b31; }
+[data-setor="ambiental"] .card > .body { color: var(--text); }
+[data-setor="ambiental"] .card > .body a { color: var(--brand); }
+[data-setor="ambiental"] .card > .body input { color: var(--text); background: var(--surface2); border-color: var(--border); }
+[data-setor="ambiental"] .card > .body button { background: #176441; }
+/* O login segue a preferência do aparelho; o sistema usa seu botão de tema. */
+@media (prefers-color-scheme: dark) {
+  html[data-setor="ambiental"]:not([data-theme]) {
+    color-scheme: dark;
+    --brand: #79cba3;
+    --bg: #101c15;
+    --surface: #182a20;
+    --surface2: #20372a;
+    --border: #304d3b;
+    --text: #e5f0e8;
+    --text2: #b1c9ba;
+    --text3: #90ac9a;
+  }
+}
