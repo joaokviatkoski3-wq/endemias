@@ -6,17 +6,24 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Fechamento 2.0.0 autorizado — preparação em 05/11/2026
+## Versão ativa 2.0.0 — fechamento e revisão em 05/11/2026
 
-- Usuário aprovou o visual e autorizou publicar como **2.0.0**. Código preparado
-  em `C:\endemias-interface`, branch `codex/versao-200-e-auditoria`; produção
-  permanece rc.3 até execução e conferência do novo pacote administrativo.
-- Só identificação da versão; sem DDL/alterações funcionais, de contas ou Kobo.
-  Ver `docs/VERSAO_200_ESTAVEL.md`. Depois, auditoria funcional ampla solicitada
-  pelo usuário: cada página, ligações e correspondência com Kobo, exemplo carga
-  do BRI. Não confundir fechamento da versão com ausência de irregularidades.
+- Usuário aprovou o visual, autorizou publicar **2.0.0** e executou o atalho.
+  Relatório `C:\ProgramData\EndemiasWeb\ativacao200estavel-resultado.json`
+  aplicado/concluido, release `fa0aba8`, às 13h29.96 tabelas/dados/arquivos e
+  configurações preservados, sem DDL ou mudanças funcionais; mesma identidade.
+- Três endereços HTTPS e logins locais 5000/5004 confirmam200/2.0.0; APIs sem
+  sessão401. Publicação em `.venv/publicacao-200-estavel.json` da worktree.
+- Revisão ampla solicitada concluída: fontes, páginas, fluxos, exportações,
+  permissões e dez estruturas Kobo implantadas, sem consultar respostas reais.
+  O repositório é público; relatório técnico detalhado fica local na Área de
+  Trabalho `VSATT - Auditoria funcional 2.0.0.md`, com evidências ignoradas em
+  `C:\endemias-interface\.venv\auditoria-*`. Não publicar detalhamento pendente.
+- Ler `docs/REVISAO_FUNCIONAL_200_20261105.md` e o relatório local antes do
+  próximo pacote. As correções dos achados não foram aplicadas nesta revisão.
+  Não confundir fechamento da versão com ausência de irregularidades.
 
-## Versão ativa 2.0.0-rc.3 — portal no topo e etiquetas leves
+## Histórico 2.0.0-rc.3 — portal no topo e etiquetas leves
 
 - Usuário aprovou visual da rc.2 e pediu botão do portal e correção do peso das
   etiquetas no Ambiental. Em `C:\endemias-interface`, branch

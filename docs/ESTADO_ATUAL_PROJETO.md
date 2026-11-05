@@ -4,19 +4,28 @@ Atualizado em 05/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Fechamento 2.0.0 autorizado — preparação em 05/11/2026
+## Versão ativa 2.0.0 — fechamento e revisão em 05/11/2026
 
-- Usuário aprovou o visual e pediu publicação como **2.0.0**. Em
-  `C:\endemias-interface`, branch `codex/versao-200-e-auditoria`, muda somente a
-  identificação; produção permanece rc.3 até ativação administrativa conferida.
-  Procedimento em `docs/VERSAO_200_ESTAVEL.md`, sem DDL ou alterações de contas.
-- Em seguida, usuário pediu pente fino em todas as páginas/funcionalidades,
-  lacunas entre módulos/Kobo (exemplo carga do BRI). Preparar matriz de cobertura
-  e relatório de achados com evidências, separando confirmação/hipótese/melhoria.
-  Não alterar produção durante ensaios da auditoria nem misturar correções ao
-  fechamento da versão sem avaliação própria.
+- Usuário aprovou o visual, autorizou 2.0.0 e executou o atalho. Relatório
+  `C:\ProgramData\EndemiasWeb\ativacao200estavel-resultado.json` aplicado/concluido,
+  release `fa0aba8`, janela 13h29.96 tabelas/dados/arquivos e os dois Kobo preservados;
+  mesma tarefa/identidade/ambiente, prova limitada OK, agendamento devolvido.
+  Sem DDL/alterações funcionais. Backups/hashes em `docs/VERSAO_200_ESTAVEL.md`.
+- Três HTTPS e logins locais 5000/5004: 200/2.0.0, private/no-store; portal sem
+  cookie; APIs anônimas: 401. Evidência:
+  `C:\endemias-interface\.venv\publicacao-200-estavel.json`.
+- Revisão funcional ampla concluída:301 rotas inventariadas,44 combinações de
+  páginas/setores,148 GETAPIs,73 navegações por perfil; Chromium27 páginas/33 subabas
+  Endemias/comuns e18 páginas/oito subabas Ambiental; suíte de 1.030 testes OK/seis ignorados.
+  Dez estruturas implantadas Kobo lidas, nenhuma resposta consultada.
+- Relatório detalhado LOCAL na Área de Trabalho `VSATT - Auditoria funcional
+  2.0.0.md`, com evidências em `.venv/auditoria-*`. O repositório é público;
+  não versionar o diagnóstico técnico pendente. Registro seguro em
+  `docs/REVISAO_FUNCIONAL_200_20261105.md`. Ler relatório antes de corrigir;
+  as correções dos achados não foram aplicadas nesta etapa.
+- Não repetir os ativadores. SQLite congelado mantém hash anterior. Geo futuro.
 
-## Versão ativa 2.0.0-rc.3 — portal no topo e etiquetas leves
+## Histórico 2.0.0-rc.3 — portal no topo e etiquetas leves
 
 - Usuário aprovou o visual da rc.2 e relatou travamento ao ativar etiquetas no
   mapa Ambiental. Pediu botão para `vsatt.com.br` ao lado da troca de setor.
