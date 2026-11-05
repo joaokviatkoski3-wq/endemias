@@ -1,8 +1,9 @@
-# Portal no topo e etiquetas leves — candidata 2.0.0-rc.3
+# Portal no topo e etiquetas leves — 2.0.0-rc.3 ativa
 
-Preparação em 05/11/2026, a pedido do usuário. Produção permanece rc.2 até
-execução e conferência do novo pacote administrativo. Usuário conferiu e
-aprovou o visual da rc.2; identificou travamento nas etiquetas do mapa Ambiental.
+Preparada e ativada em 05/11/2026, a pedido do usuário, release `2bf6171`.
+Usuário executou o novo atalho; relatório/versão pública/local e prova da conta
+limitada conferidos. Aprovou o visual da rc.2 e identificou travamento nas
+etiquetas do mapa Ambiental, corrigido nesta candidata.
 
 ## Alterações
 
@@ -69,4 +70,19 @@ Falha retorna apenas código/configuração, sem restaurar banco.
 
 Relatório previsto:
 `C:\ProgramData\EndemiasWeb\ativacao-mapa-portal200rc3-resultado.json`.
-Ainda não executado. Não repetir atalhos antigos.
+Executado e conferido. Não repetir os atalhos já usados.
+
+## Ativação confirmada
+
+- Aplicado/concluido às 12h55, 96 tabelas/dados e arquivos preservados; nenhum
+  DDL ou alteração de contas, Kobo, identidade/ambiente, Cloudflare ou firewall.
+  Prova limitada passou em todos os checks, inclusive leitura do novo script.
+  Agendamento Kobo devolvido ao estado original.
+- Backups PostgreSQL e completo criados antes da troca; caminhos e hashes no
+  estado curto. Hash do SQLite congelado inalterado.
+- Portal/logins HTTPS e logins locais 5000/5004: 200/rc.3; APIs sem sessão: 401.
+  Portal sem cookie de sessão; private/no-store/CF DYNAMIC. Novos scripts/CSS
+  conferidos byte a byte pelo endereço público contra os arquivos oficiais.
+  Evidência em `C:\endemias-interface\.venv\publicacao-mapa-portal200rc3.json`.
+- Resta observar etiquetas no uso real após a correção; aprovação visual da
+  rc.2 já informada. Não declarar 2.0 estável apenas pelo ensaio automatizado.

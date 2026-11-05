@@ -4,7 +4,7 @@ Atualizado em 05/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.0.0-rc.3 — portal no topo e etiquetas leves
+## Versão ativa 2.0.0-rc.3 — portal no topo e etiquetas leves
 
 - Usuário aprovou o visual da rc.2 e relatou travamento ao ativar etiquetas no
   mapa Ambiental. Pediu botão para `vsatt.com.br` ao lado da troca de setor.
@@ -15,12 +15,26 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 - 69 testes focados OK; Chromium/CSRF/CSP/desktop/celular conferidos. Ensaio
   com 1.500 polígonos/CPU4x: rc.2 10.019,7 ms e candidata 87,5 ms; 6.000 na
   candidata: 316,7 ms. Sem recriar polígonos/1 canvas. Sem DDL ou consulta nova.
-- Produção continua rc.2. Detalhes/limites e pacote novo em
-  `docs/MAPA_PORTAL_200RC3.md`. Não integrar templates com processo antigo ativo.
-  Atalho `Atualizar VSATT - Mapa leve e Portal.bat` exige administrador Windows;
-  aguarda execução e conferência do relatório. Não repetir os atalhos antigos.
+- Usuário executou o atalho administrativo e informou conclusão. Relatório
+  `C:\ProgramData\EndemiasWeb\ativacao-mapa-portal200rc3-resultado.json`:
+  aplicado/concluido, release `2bf6171`, janela iniciada às 12h55 de 05/11.
+- 96 tabelas/dados e arquivos operacionais preservados. Nenhuma migração,
+  alteração de contas/senhas/Kobo, firewall ou Cloudflare; mesma tarefa,
+  identidade e ambiente. Prova da conta limitada OK e agendamento Kobo devolvido.
+- Backup PostgreSQL: 7.548.728 bytes/catalogado, SHA-256
+  `43e018da3d6dea20bde7d04b3b3c6230f921a0895725f7f032200f95e9aea5a0`.
+  Completo: `D:\BackupsEndemias\backups_web\completos\endemias_completo_20261105_125554.zip`,
+  310.617.849 bytes, SHA-256
+  `f147c9473c765faa6a516483999ab6ae68f0fd8d6f566204f9074e4861467860`.
+  SQLite congelado mantém o hash previamente registrado.
+- Três HTTPS e logins locais 5000/5004: 200/rc.3; private/no-store, CF DYNAMIC;
+  portal sem sessão. APIs anônimas: 401. Scripts e CSS publicados conferidos
+  byte a byte contra arquivos oficiais. Evidência:
+  `C:\endemias-interface\.venv\publicacao-mapa-portal200rc3.json`.
+- Detalhes em `docs/MAPA_PORTAL_200RC3.md`. Usuário ainda não informou teste
+  das etiquetas após a correção. Não repetir os atalhos já executados.
 
-## Versão ativa 2.0.0-rc.2 — interface ativada em 05/11/2026
+## Histórico 2.0.0-rc.2 — interface ativada em 05/11/2026
 
 - Pedido de nove melhorias do usuário: portal com versão e visual institucional;
   troca autorizada no topo; relatórios/filtros e dashboard/gráficos ambientais;

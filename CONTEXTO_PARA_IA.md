@@ -6,7 +6,7 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.0.0-rc.3 — portal no topo e etiquetas leves
+## Versão ativa 2.0.0-rc.3 — portal no topo e etiquetas leves
 
 - Usuário aprovou visual da rc.2 e pediu botão do portal e correção do peso das
   etiquetas no Ambiental. Em `C:\endemias-interface`, branch
@@ -14,10 +14,19 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
   área visível, até 300 por tela, sem reconstruir os quarteirões ao alternar.
 - 69 testes focados e navegador desktop/celular OK; ensaio 1.500 polígonos/CPU4x
   passou de 10.019,7 ms para 87,5 ms. Também passou com 6.000 polígonos (316,7 ms).
-  Produção permanece rc.2. Sem DDL/consulta nova ou alteração de permissões.
-  Ler `docs/MAPA_PORTAL_200RC3.md`; novo pacote exige execução administrativa.
+- Usuário executou o novo atalho. Relatório `ativacao-mapa-portal200rc3-resultado.json`
+  em `C:\ProgramData\EndemiasWeb`: aplicado/concluido, release `2bf6171`, janela
+  iniciada às 12h55 de 05/11. 96 tabelas/dados e arquivos preservados; sem DDL,
+  consulta nova, alterações de permissões ou configurações Kobo. Mesma identidade
+  e ambiente do servidor, prova limitada OK, agendamento Kobo devolvido.
+- Três HTTPS e logins locais 5000/5004: 200/rc.3; APIs anônimas: 401. Portal
+  sem sessão; private/no-store e CF DYNAMIC. Scripts/CSS públicos conferidos
+  byte a byte contra arquivos oficiais. Evidência em
+  `C:\endemias-interface\.venv\publicacao-mapa-portal200rc3.json`.
+- Ler `docs/MAPA_PORTAL_200RC3.md`. Não repetir os atalhos já executados.
+  Usuário ainda não informou conferência das etiquetas após esta correção.
 
-## Versão ativa 2.0.0-rc.2 — interface ativada em 05/11/2026
+## Histórico 2.0.0-rc.2 — interface ativada em 05/11/2026
 
 - Usuário executou o novo atalho e informou conclusão. Relatório
   `C:\ProgramData\EndemiasWeb\ativacao-interface200rc2-resultado.json` confirma
