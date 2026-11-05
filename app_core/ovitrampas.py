@@ -880,7 +880,7 @@ def leituras_mapa_cte(conn):
             SELECT l.* FROM ovi_lab l
              WHERE NOT EXISTS (
                  SELECT 1 FROM ovi_api a WHERE a.ovitrampa_id=l.ovitrampa_id
-                   AND (a.data_coleta=l.data_coleta OR (
+                   AND ((a.data_coleta_conhecida=1 AND a.data_coleta=l.data_coleta) OR (
                        a.data_coleta_conhecida=0 AND a.ano=l.ano AND a.semana=l.semana))
              )
         ),
@@ -894,7 +894,8 @@ def leituras_mapa_cte(conn):
               FROM {TABLE} l
              WHERE NOT EXISTS (
                  SELECT 1 FROM ovi_atual a WHERE a.ovitrampa_id=l.ovitrampa_id
-                   AND ((l.data_coleta IS NOT NULL AND a.data_coleta=CAST(l.data_coleta AS TEXT))
+                   AND ((l.data_coleta IS NOT NULL AND a.data_coleta_conhecida=1
+                         AND a.data_coleta=CAST(l.data_coleta AS TEXT))
                         OR ((l.data_coleta IS NULL OR a.data_coleta_conhecida=0)
                             AND a.ano=l.ano AND a.semana=l.semana))
              )

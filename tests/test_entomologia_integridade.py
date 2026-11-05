@@ -192,6 +192,18 @@ class AutoridadeLeiturasMapaTests(BancoEntomologiaTests):
         conn.close()
         self.assertEqual([12], [r["ovos"] for r in self.leituras()])
 
+    def test_data_de_envio_nao_suprime_coleta_conhecida_de_outra_semana(self):
+        conn = db.connect(self.path)
+        inserir_api(conn)
+        inserir_api(conn, armadilha="2", identificador="api-2")
+        conn.execute("UPDATE ovitrampas_ocorrencias_conta_ovos SET data=NULL,data_envio_contagem='2026-09-10T09:00:00'")
+        inserir_lote(conn, ["1"], data="2026-09-10", status="concluido", ovos=4)
+        inserir_legado(conn, armadilha="2", data="2026-09-10", ovos=5)
+        conn.commit()
+        conn.close()
+        self.assertEqual({("1", 12), ("1", 4), ("2", 12), ("2", 5)},
+                         {(r["ovitrampa_id"], r["ovos"]) for r in self.leituras()})
+
     def test_semana_do_laboratorio_no_inicio_do_ano_nao_duplica_legado(self):
         conn = db.connect(self.path)
         inserir_lote(conn, ["1"], data="2026-01-01", status="concluido", ovos=4)
