@@ -171,8 +171,8 @@ class AutoridadeLeiturasMapaTests(BancoEntomologiaTests):
         conn.commit()
         conn.close()
         rows = self.leituras()
-        self.assertEqual(3, len(rows))
-        self.assertEqual(18, sum(r["ovos"] for r in rows))
+        self.assertEqual(4, len(rows))
+        self.assertEqual(27, sum(r["ovos"] for r in rows))
 
     def test_lotes_mesmo_dia_usam_uma_unica_versao_enviada(self):
         conn = db.connect(self.path)
@@ -181,6 +181,16 @@ class AutoridadeLeiturasMapaTests(BancoEntomologiaTests):
         conn.commit()
         conn.close()
         self.assertEqual([4], [r["ovos"] for r in self.leituras()])
+
+    def test_api_sem_data_de_coleta_usa_precedencia_semanal(self):
+        conn = db.connect(self.path)
+        inserir_api(conn)
+        conn.execute("UPDATE ovitrampas_ocorrencias_conta_ovos SET data=NULL,data_envio_contagem='2026-08-21T09:00:00'")
+        inserir_lote(conn, ["1"], status="concluido", ovos=4)
+        inserir_legado(conn)
+        conn.commit()
+        conn.close()
+        self.assertEqual([12], [r["ovos"] for r in self.leituras()])
 
     def test_semana_do_laboratorio_no_inicio_do_ano_nao_duplica_legado(self):
         conn = db.connect(self.path)
@@ -220,6 +230,7 @@ class TerritorioMapaSisPNCDTests(BancoEntomologiaTests):
         conn.execute("INSERT INTO ovitrampas_armadilhas(ovitrampa_id,localidade,quarteirao,latitude,longitude,atualizado_em) VALUES('1','Localidade A','0001',-25,-49,'2026-08-20')")
         inserir_api(conn)
         inserir_legado(conn, data="2026-08-19")
+        conn.execute("UPDATE ovitrampas_leituras SET data_coleta=NULL,data_leitura='2026-08-19'")
         inserir_lote(conn, ["1"], status="concluido", ovos=10)
         conn.commit()
         conn.close()

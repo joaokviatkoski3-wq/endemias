@@ -804,8 +804,9 @@ def leituras_mapa_cte(conn):
     """Fonte de consulta: API, laboratório concluído e histórico ainda não coberto.
 
     A API prevalece no mesmo dia. Um lote concluído ainda não espelhado aparece
-    imediatamente; rascunhos não são resultados. O histórico semanal só entra
-    quando não há resultado atual daquela armadilha/semana, antes dos filtros.
+    imediatamente; rascunhos não são resultados. Coletas de dias distintos são
+    preservadas; a semana identifica apenas resultados sem data de coleta.
+    A precedência é aplicada antes dos filtros de período.
     """
     if _is_postgresql(conn):
         ano_data = "CAST(EXTRACT(YEAR FROM CAST(data_coleta AS DATE)) AS INTEGER)"
@@ -829,7 +830,8 @@ def leituras_mapa_cte(conn):
     lab = """SELECT CAST(NULL AS TEXT) AS id_leitura, CAST(NULL AS TEXT) AS ovitrampa_id,
                     CAST(NULL AS INTEGER) AS ano, CAST(NULL AS INTEGER) AS semana,
                     CAST(NULL AS TEXT) AS data_coleta, CAST(NULL AS TEXT) AS data_leitura,
-                    CAST(NULL AS TEXT) AS data_envio_contagem, CAST(NULL AS INTEGER) AS ovos WHERE 1=0"""
+                    CAST(NULL AS TEXT) AS data_envio_contagem, CAST(NULL AS INTEGER) AS ovos,
+                    0 AS data_coleta_conhecida WHERE 1=0"""
     lab_ctes = ""
     if (db_core.table_exists(conn, LAB_LOTES_TABLE)
             and db_core.table_exists(conn, LAB_ITENS_TABLE)):
@@ -859,14 +861,16 @@ def leituras_mapa_cte(conn):
         """
         lab = """SELECT 'lab:'||CAST(id_item AS TEXT) AS id_leitura,
                         ovitrampa_id,ano,semana,data_coleta,
-                        data_coleta AS data_leitura,NULL AS data_envio_contagem,ovos
+                        data_coleta AS data_leitura,NULL AS data_envio_contagem,ovos,
+                        1 AS data_coleta_conhecida
                    FROM ovi_lab_rank WHERE posicao=1"""
     return f"""WITH {lab_ctes}
         ovi_api AS (
             SELECT 'api:'||CAST(id_contagem AS TEXT) AS id_leitura,
                    ovitrampa_id,ano,semana,
                    COALESCE(CAST(data AS TEXT),SUBSTR(data_envio_contagem,1,10)) AS data_coleta,
-                   CAST(NULL AS TEXT) AS data_leitura,data_envio_contagem,ovos
+                   CAST(NULL AS TEXT) AS data_leitura,data_envio_contagem,ovos,
+                   CASE WHEN data IS NOT NULL THEN 1 ELSE 0 END AS data_coleta_conhecida
               FROM {OCORRENCIAS_TABLE}
         ),
         ovi_lab AS ({lab}),
@@ -877,7 +881,7 @@ def leituras_mapa_cte(conn):
              WHERE NOT EXISTS (
                  SELECT 1 FROM ovi_api a WHERE a.ovitrampa_id=l.ovitrampa_id
                    AND (a.data_coleta=l.data_coleta OR (
-                       a.data_coleta IS NULL AND a.ano=l.ano AND a.semana=l.semana))
+                       a.data_coleta_conhecida=0 AND a.ano=l.ano AND a.semana=l.semana))
              )
         ),
         ovi_leituras AS (
@@ -885,11 +889,14 @@ def leituras_mapa_cte(conn):
             UNION ALL
             SELECT 'legado:'||CAST(l.id_leitura AS TEXT),l.ovitrampa_id,l.ano,l.semana,
                    SUBSTR(COALESCE(CAST(l.data_coleta AS TEXT),CAST(l.data_leitura AS TEXT),l.data_envio_contagem),1,10),
-                   CAST(l.data_leitura AS TEXT),l.data_envio_contagem,l.ovos
+                   CAST(l.data_leitura AS TEXT),l.data_envio_contagem,l.ovos,
+                   CASE WHEN l.data_coleta IS NOT NULL THEN 1 ELSE 0 END
               FROM {TABLE} l
              WHERE NOT EXISTS (
                  SELECT 1 FROM ovi_atual a WHERE a.ovitrampa_id=l.ovitrampa_id
-                   AND a.ano=l.ano AND a.semana=l.semana
+                   AND ((l.data_coleta IS NOT NULL AND a.data_coleta=CAST(l.data_coleta AS TEXT))
+                        OR ((l.data_coleta IS NULL OR a.data_coleta_conhecida=0)
+                            AND a.ano=l.ano AND a.semana=l.semana))
              )
         ) """
 
