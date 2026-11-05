@@ -4,7 +4,7 @@ Atualizado em 05/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## BRI 2.0.2 validada, ativação pendente — 05/11/2026
+## Versão ativa 2.0.2 — BRI/API em 05/11/2026
 
 - Usuário confirmou API como entrada principal, XLSX emergencial. Histórico BRI
   do novo relato já foi conferido por UUID e recomposto pela interface2.0.1, com
@@ -13,11 +13,17 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 - Código2.0.2 em `C:\endemias-interface`, branch `codex/bri-formatos-historicos`:
   contratos API/XLSX unificados, parcelas de carga nulas consideradas e exibição
   de local/endereço.129 testes focados, PG descartável e Chromium OK.
-- Ler `docs/BRI_IMPORTACAO_202.md`. Produção ainda2.0.1. Ativador
-  `scripts/ativar_bri_202_windows.py`, sem DDL nem recomposição de dados;
-  integrar somente após a parada controlada. Ativação Windows pendente.
+- Usuário executou o atalho. Relatório `C:\ProgramData\EndemiasWeb\ativacao-bri202-resultado.json`
+  aplicado/concluído, release`da8a2e5`, janela15h35.96 tabelas/dados/arquivos
+  preservados, incluindo recomposição; mesma tarefa/identidade/ambiente e dois
+  Kobo, prova limitada OK e agendamento devolvido. Sem DDL; SQLite mantém hash.
+- Portal/dois logins HTTPS e locais5000/5004:200/2.0.2; APIs anônimas401; script
+  público confere. Tela real autenticada validada, com cargas preservadas e
+  estabelecimento/rua ausente explícitos. Evidência `.venv/publicacao-202.json`.
+- Ler `docs/BRI_IMPORTACAO_202.md` para backups/limites. Não repetir ativadores
+  ou recomposição. A API permanece entrada principal; Geo segue futuro.
 
-## Versão ativa 2.0.1 — correções em 05/11/2026
+## Histórico 2.0.1 — correções em 05/11/2026
 
 - Usuário executou o atalho e confirmou sucesso. Relatório
   `C:\ProgramData\EndemiasWeb\ativacao-correcoes201-resultado.json` aplicado/concluido,

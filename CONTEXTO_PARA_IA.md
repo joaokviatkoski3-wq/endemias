@@ -6,7 +6,7 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## BRI 2.0.2 validada, ativação pendente — 05/11/2026
+## Versão ativa 2.0.2 — BRI/API em 05/11/2026
 
 - Usuário relatou campos antigos ainda incompletos e forneceu exportação; enfatizou
   que a API é principal e planilhas são emergenciais. Histórico indicado foi
@@ -16,10 +16,16 @@ em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 - Pacote2.0.2 unifica contratos API/XLSX BRI, protege parcelas de carga nulas nos
   agregados e mostra estabelecimento/endereço separados.129 testes focados,
   PostgreSQL descartável e Chromium OK. Ler `docs/BRI_IMPORTACAO_202.md`.
-- Produção ainda2.0.1. Novo ativador `scripts/ativar_bri_202_windows.py`, sem DDL
-  nem recomposição automática; não integrar código antes da parada controlada.
+- Usuário executou o novo atalho. Relatório `ativacao-bri202-resultado.json` em
+  `C:\ProgramData\EndemiasWeb` aplicado/concluído, release`da8a2e5`, janela15h35.
+  96 tabelas/dados/arquivos preservados, incluindo recomposição anterior; mesma
+  tarefa/identidade/ambiente e dois Kobo; prova limitada OK, agendamento devolvido.
+- Três HTTPS e logins locais5000/5004 confirmam200/2.0.2; APIs anônimas401;
+  script público confere. Tela real autenticada mostra os locais/ruas ausentes
+  corretamente e preserva cargas. Ler `docs/BRI_IMPORTACAO_202.md` para backups.
+- Não repetir ativadores nem recomposição. Sem DDL; SQLite congelado conserva hash.
 
-## Versão ativa 2.0.1 — correções em 05/11/2026
+## Histórico 2.0.1 — correções em 05/11/2026
 
 - Usuário executou o novo atalho e confirmou sucesso. Relatório
   `C:\ProgramData\EndemiasWeb\ativacao-correcoes201-resultado.json` aplicado/concluido,
