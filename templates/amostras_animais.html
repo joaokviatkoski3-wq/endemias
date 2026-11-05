@@ -58,7 +58,7 @@
   <div class="chart-card">
     <div class="chart-hd">
       <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Registros</div>
-      <span class="table-info" id="am-info"></span>
+      <span class="table-info" id="am-info"></span><a class="btn btn-outline" id="am-exportar" href="/api/amostras-animais/exportar">Exportar CSV</a>
     </div>
     <div class="ani-filters" style="grid-template-columns:minmax(220px,1fr) auto;margin-bottom:10px;">
       <div class="f-g"><label>Pesquisa</label><input type="search" id="ani-busca" placeholder="Endereço, morador, espécie, agente..."></div>
@@ -70,6 +70,7 @@
         <tbody id="am-body"></tbody>
       </table>
     </div>
+    <div id="am-paginacao" style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap;"></div>
   </div>
 
   <div style="display:flex;flex-direction:column;gap:14px;">
@@ -118,15 +119,20 @@ async function carregarAmostras(){
   document.getElementById('am-investigacoes').textContent = amFmt.format(t.investigacoes || 0);
   renderListaResumo('am-tipos', d.por_tipo || [], 'tipo');
   renderListaResumo('am-localidades', d.por_localidade || [], 'localidade');
-  carregarListaAmostras();
+  await carregarListaAmostras();
 }
 function renderListaResumo(id, rows, campo){
   document.getElementById(id).innerHTML = rows.map(r => `
     <div class="ani-item"><span><strong>${escapeAttr(r[campo] || '-')}</strong><br>${amFmt.format(r.registros||0)} registro(s)</span><span class="ani-badge">${amFmt.format(r.quantidade||0)}</span></div>
   `).join('') || '<div class="empty">Nenhum registro no período.</div>';
 }
-async function carregarListaAmostras(){
-  const d = await amGet('/api/amostras-animais/listar?' + amParams(true).toString());
+async function carregarListaAmostras(pagina=1){
+  if (!Number.isInteger(pagina)) pagina = 1;
+  const parametros = amParams(true);
+  document.getElementById('am-exportar').href = '/api/amostras-animais/exportar?' + parametros.toString();
+  parametros.set('pagina', pagina);
+  const d = await amGet('/api/amostras-animais/listar?' + parametros.toString());
+  paginarListaOperacional('am-paginacao', d, carregarListaAmostras);
   document.getElementById('am-info').textContent = `${amFmt.format(d.total || 0)} registro(s)`;
   document.getElementById('am-body').innerHTML = (d.registros || []).map(r => {
     const animal = r.especie_resumo || r.animal_capturado || r.tipo_animal || r.animal_motivador || '-';
@@ -143,8 +149,8 @@ async function carregarListaAmostras(){
         ${tag('Acidente', r.houve_acidente)}
         ${tag('Captura', r.houve_captura)}
       </div></td>
-      <td style="font-weight:800;">${amFmt.format(r.quantidade || 0)}</td>
-    </tr>`;
+      <td style="font-weight:800;">${amFmt.format(r.quantidade || 0)}
+    ${detalhesRegistroOperacional(r, [["hora", "Hora"], ["animal_motivador", "Animal motivador"], ["animal_motivador_outro", "Outro motivador"], ["quarteirao", "Quarteirão"], ["tipo_imovel", "Tipo de imóvel"], ["visita", "Visita"], ["sequencia", "Sequência"], ["morador", "Morador"], ["onde", "Onde"], ["local_captura", "Local da captura"], ["tipo_animal", "Tipo capturado"], ["animal_capturado", "Animal capturado"], ["especie_serpente", "Espécie de serpente"], ["especie_escorpiao", "Espécie de escorpião"], ["especie_lagarta", "Espécie de lagarta"], ["especie_aranha", "Espécie de aranha"], ["especie_carrapato", "Espécie de carrapato"]])}</td></tr>`;
   }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:18px;">Nenhum registro encontrado.</td></tr>';
 }
 function tag(label, value){

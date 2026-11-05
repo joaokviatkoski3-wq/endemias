@@ -235,13 +235,16 @@ def resumo(target, filtros=None):
     return {"totais": {k: (v or 0) for k, v in totais.items()}, "por_destino": por_destino, "por_localidade": por_localidade}
 
 
-def listar(target, filtros=None):
+def listar(target, filtros=None, *, completo=False):
     filtros = filtros or {}
     conn, close = _open_connection(target)
     try:
         ensure_schema(conn)
         pe_core.ensure_schema(conn)
         where, params = _where(filtros, busca=True)
+        from app_core.listagem_operacional import paginacao
+        total = conn.execute("SELECT COUNT(*) FROM bri_registros b " + where, params).fetchone()[0]
+        limite_sql, limite_params, metadados = paginacao(total, filtros, completo)
         agentes_agg = agentes_core._agentes_aggregate(conn, "a.nome")
         rows = [agentes_core._serializar_linha(r) for r in conn.execute(
             f"""SELECT b.*,
@@ -270,14 +273,14 @@ def listar(target, filtros=None):
                          WHERE ba.id_bri=b.id_bri) AS agentes
                   FROM bri_registros b
                   {where}
-                 ORDER BY b.data DESC, b.hora DESC, b.localidade
-                 LIMIT 500""",
-            params,
+                 ORDER BY b.data DESC, b.hora DESC, b.localidade, b.id_bri
+                 {limite_sql}""",
+            params + limite_params,
         )]
     finally:
         if close:
             conn.close()
-    return {"registros": rows, "total": len(rows)}
+    return {"registros": rows, **metadados}
 
 
 def vincular_registros_pe_por_alias(conn):

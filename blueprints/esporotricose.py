@@ -74,9 +74,10 @@ def _agentes():
     try:
         return [
             dict(r) for r in conn.execute(
-                """SELECT DISTINCT ag.nome
-                   FROM esporotricose_visita_agentes va
-                   JOIN agentes ag ON ag.id_agente = va.id_agente
+                """SELECT DISTINCT ag.id_agente, ag.nome
+                   FROM agentes ag
+                   WHERE COALESCE(ag.ativo,1)=1 OR EXISTS (
+                       SELECT 1 FROM esporotricose_visita_agentes va WHERE va.id_agente=ag.id_agente)
                    ORDER BY ag.nome"""
             )
         ]
@@ -112,7 +113,7 @@ def page():
         d_ini=request.args.get("d_ini", utils_core.data_n_dias(365)),
         d_fim=request.args.get("d_fim", utils_core.hoje()),
         localidades=_localidades(),
-        agentes=_agentes(),
+        agentes=bh.catalogo_agentes(_agentes()),
         acs=esporotricose_core.opcoes_acs_visitas(bh.db_target()),
         is_admin=usuario.get("nivel") in {"admin", "superadmin"},
     )

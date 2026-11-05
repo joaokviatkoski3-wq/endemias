@@ -34,7 +34,7 @@
       <div class="f-g"><label>Localidade</label><select id="rec-localidade"><option value="">Todas</option>{% for loc in localidades %}<option value="{{ loc.nome }}">{{ loc.nome }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Agente</label><select id="rec-agente"><option value="">Todos</option>{% for agente in agentes %}<option value="{{ agente.nome }}">{{ agente.nome }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Origem</label><select id="rec-origem"><option value="">Todas</option><option value="nova">Kobo</option><option value="legada">Legado</option></select></div>
-      <div class="rec-actions"><button class="btn btn-primary" type="button" onclick="carregarRecolhimentos()"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
+      <div class="rec-actions"><button class="btn btn-primary" type="button" id="rec-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
     </div>
   </div>
 </div>
@@ -52,11 +52,11 @@
   <div class="chart-card">
     <div class="chart-hd">
       <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Registros de recolhimento</div>
-      <span class="table-info" id="rec-info"></span>
+      <span class="table-info" id="rec-info"></span><a class="btn btn-outline" id="rec-exportar" href="/api/recolhimentos/exportar">Exportar CSV</a>
     </div>
     <div class="rec-filters" style="grid-template-columns:minmax(220px,1fr) auto;margin-bottom:10px;">
       <div class="f-g"><label>Pesquisa</label><input type="search" id="rec-busca" placeholder="Localidade, agente, arquivo..."></div>
-      <div class="rec-actions"><button class="btn btn-outline" type="button" onclick="carregarListaRecolhimentos()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button></div>
+      <div class="rec-actions"><button class="btn btn-outline" type="button" id="rec-buscar"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button></div>
     </div>
     <div class="table-scroll">
       <table>
@@ -66,6 +66,7 @@
         <tbody id="rec-body"></tbody>
       </table>
     </div>
+    <div id="rec-paginacao" style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap;"></div>
   </div>
 
   <div class="chart-card">
@@ -106,19 +107,24 @@ async function carregarRecolhimentos(){
   document.getElementById('rec-tv').textContent = recFmt.format(t.tv || 0);
   document.getElementById('rec-outros').textContent = recFmt.format((t.outros || 0) + (t.parachoque || 0));
   document.getElementById('rec-localidades').innerHTML = (d.por_localidade || []).map(r => `
-    <div class="rec-local-item"><span><strong>${r.localidade}</strong><br>${recFmt.format(r.registros||0)} registro(s)</span><span class="rec-badge">${recFmt.format(r.total||0)}</span></div>
+    <div class="rec-local-item"><span><strong>${escapeAttr(r.localidade)}</strong><br>${recFmt.format(r.registros||0)} registro(s)</span><span class="rec-badge">${recFmt.format(r.total||0)}</span></div>
   `).join('') || '<div class="empty">Nenhum recolhimento no período.</div>';
-  carregarListaRecolhimentos();
+  await carregarListaRecolhimentos();
 }
-async function carregarListaRecolhimentos(){
-  const d = await recGet('/api/recolhimentos/listar?' + recParams(true).toString());
+async function carregarListaRecolhimentos(pagina=1){
+  if (!Number.isInteger(pagina)) pagina = 1;
+  const parametros = recParams(true);
+  document.getElementById('rec-exportar').href = '/api/recolhimentos/exportar?' + parametros.toString();
+  parametros.set('pagina', pagina);
+  const d = await recGet('/api/recolhimentos/listar?' + parametros.toString());
+  paginarListaOperacional('rec-paginacao', d, carregarListaRecolhimentos);
   document.getElementById('rec-info').textContent = `${recFmt.format(d.total || 0)} registro(s)`;
   document.getElementById('rec-body').innerHTML = (d.registros || []).map(r => `
     <tr>
-      <td>${r.data || '-'}</td>
-      <td>${r.hora || '-'}</td>
-      <td>${r.localidade || '-'}</td>
-      <td>${r.agentes || r.agentes_texto || '-'}</td>
+      <td>${escapeAttr(r.data || '-')}</td>
+      <td>${escapeAttr(r.hora || '-')}</td>
+      <td>${escapeAttr(r.localidade || '-')}</td>
+      <td>${escapeAttr(r.agentes || r.agentes_texto || '-')}</td>
       <td><div class="rec-materials">
         ${chip('Pneu', r.pneu)}
         ${chip('Louça', r.louca_sanitaria)}
@@ -136,5 +142,7 @@ function chip(label, value){
   return n ? `<span class="rec-chip">${label}<strong>${recFmt.format(n)}</strong></span>` : '';
 }
 document.getElementById('rec-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarListaRecolhimentos(); });
+document.getElementById('rec-atualizar').addEventListener('click', carregarRecolhimentos);
+document.getElementById('rec-buscar').addEventListener('click', carregarListaRecolhimentos);
 carregarRecolhimentos().catch(e => toast('Erro ao carregar recolhimentos: ' + e.message, 'error'));
 </script>{% endblock %}

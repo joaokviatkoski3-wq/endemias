@@ -7,6 +7,7 @@ from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 
 from app_core import registro_geografico as rg_core
+from app_core import escopo_agente
 
 
 COLUNAS = (
@@ -28,7 +29,7 @@ def _data(value):
     return None
 
 
-def gerar_xlsx(db_path, localidade, quarteiroes, base_dir=None):
+def gerar_xlsx(db_path, localidade, quarteiroes, base_dir=None, usuario=None):
     """Uma linha por imóvel, na ordem do RG, somente dos quarteirões pedidos."""
     try:
         localidade = int(str(localidade).strip())
@@ -59,8 +60,12 @@ def gerar_xlsx(db_path, localidade, quarteiroes, base_dir=None):
     ws.title = "RGs"
     ws.append(COLUNAS)
     linha = 2
+    proprio = escopo_agente.agente_proprio(db_path, usuario) if escopo_agente.nivel_restrito(usuario) else None
+    chaves = (proprio or {}).get("chaves") or set()
     for numero in canonicos:
         dados = rg_core.quarteirao(db_path, localidade, numero, base_dir)
+        if escopo_agente.nivel_restrito(usuario):
+            dados = escopo_agente.redigir_agentes(dados, chaves)
         # Um RG vazio mantém sua identificação, sem inventar um imóvel.
         for registro in dados["registros"] or [{}]:
             valores = (

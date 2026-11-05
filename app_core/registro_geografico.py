@@ -4,6 +4,7 @@ import json
 import re
 import unicodedata
 import uuid
+from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
 
@@ -1788,9 +1789,12 @@ def criar(db_path, payload, base_dir=None, usuario_id=None, usuario_nome=None):
         conn.close()
 
 
-def salvar_quarteirao(db_path, payload, base_dir=None, usuario_id=None, usuario_nome=None):
-    ensure_schema(db_path, base_dir)
-    conn = db_core.connect(db_path)
+def salvar_quarteirao(db_path, payload, base_dir=None, usuario_id=None, usuario_nome=None, *, conexao=None):
+    # A oficialização fornece a conexão para incluir RG e formulário no mesmo commit.
+    propria = conexao is None
+    if propria:
+        ensure_schema(db_path, base_dir)
+    conn = db_core.connect(db_path) if propria else conexao
     try:
         loc_id = int(payload.get("id_localidade") or 0)
         loc = conn.execute("SELECT id_localidade, nome FROM localidades WHERE id_localidade=?", (loc_id,)).fetchone()
@@ -1808,7 +1812,7 @@ def salvar_quarteirao(db_path, payload, base_dir=None, usuario_id=None, usuario_
         agentes_ids = payload.get("agentes_ids") or []
         deleted_ids = [int(x) for x in (payload.get("deleted_ids") or []) if str(x).strip().isdigit()]
         agora = _now()
-        with conn:
+        with conn if propria else nullcontext():
             atuais = conn.execute(
                 "SELECT id_imovel, ordem FROM registro_geografico_imoveis WHERE id_localidade=? AND quarteirao=? ORDER BY COALESCE(ordem,id_imovel)",
                 (origem_loc_id, origem_q),
@@ -1917,9 +1921,10 @@ def salvar_quarteirao(db_path, payload, base_dir=None, usuario_id=None, usuario_
                         (origem_row["id_quarteirao"],),
                     )
             _marcar_atualizacao_sistema(conn, id_quarteirao, usuario_id, usuario_nome, agora)
-        return quarteirao(db_path, loc_id, q, base_dir)
+        return quarteirao(db_path, loc_id, q, base_dir) if propria else {"id_localidade": loc_id, "quarteirao": q}
     finally:
-        conn.close()
+        if propria:
+            conn.close()
 
 
 def limpar_quarteirao(db_path, payload, base_dir=None, usuario_id=None, usuario_nome=None):

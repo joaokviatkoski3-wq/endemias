@@ -1019,7 +1019,7 @@ def _publico(artigo):
     }
 
 
-def consultar(consulta="", rota="", limite=12, contexto="", nivel="visualizador", somente_laboratorio=False):
+def consultar(consulta="", rota="", limite=12, contexto="", nivel="visualizador", somente_laboratorio=False, rota_permitida=None, setor=None):
     consulta_normalizada = _normalizar(consulta)
     termos = tuple(term for term in consulta_normalizada.split() if len(term) >= 2)
     contextos_ativos = tuple(
@@ -1033,6 +1033,13 @@ def consultar(consulta="", rota="", limite=12, contexto="", nivel="visualizador"
     ordem_niveis = LEVEL_ORDER
     resultados = []
     for artigo in ARTIGOS:
+        if rota_permitida and not rota_permitida(artigo["link"]):
+            continue
+        if setor == "ambiental" and artigo["id"] == "inicio":
+            artigo = {**artigo, "resumo": "A tela inicial reúne os atalhos das rotinas da Vigilância Ambiental.",
+                      "passos": ("Use os atalhos para abrir a rotina desejada.",
+                                 "Consulte os indicadores em Dashboard e os compromissos em Agenda.",
+                                 "Use o menu lateral ou Portal VSATT para navegar entre as áreas autorizadas.")}
         if "/admin/sistema" in artigo["rotas"] and ordem_niveis.get(nivel, 0) < ordem_niveis["superadmin"]:
             continue
         if ordem_niveis.get(nivel, 0) < ordem_niveis.get(artigo.get("nivel_minimo", "visualizador"), 99):

@@ -10,7 +10,7 @@
 
 <!-- FILTROS -->
 <div class="filter-card">
-  <div class="filter-hd" data-target="lf-body" onclick="toggleFilter('lf-body')">
+  <div class="filter-hd" data-target="lf-body" data-lab-filtro>
     <div class="filter-hd-left">
       <span><img src="/static/icons/busca.svg" alt="🔍" class="icon-svg"></span><span class="filter-hd-title">Filtros</span>
       <span class="filter-hd-count" id="lf-badge"></span>
@@ -26,17 +26,17 @@
     <div style="margin-bottom:10px;">
       <div class="f-g" style="margin-bottom:8px;"><label>Espécie</label></div>
       <div class="pill-group">
-        <div class="pill"><input type="radio" name="especie" id="esp_todas" value="" checked onchange="buscar()"><label for="esp_todas"><span class="dot"></span>Todas</label></div>
-        <div class="pill"><input type="radio" name="especie" id="esp_aeg" value="aegypti" onchange="buscar()"><label for="esp_aeg"><span class="dot"></span>Ae. aegypti</label></div>
-        <div class="pill"><input type="radio" name="especie" id="esp_alb" value="albopictus" onchange="buscar()"><label for="esp_alb"><span class="dot"></span>Ae. albopictus</label></div>
-        <div class="pill"><input type="radio" name="especie" id="esp_out" value="outra" onchange="buscar()"><label for="esp_out"><span class="dot"></span>Outra espécie</label></div>
+        <div class="pill"><input type="radio" name="especie" id="esp_todas" value="" checked data-lab-mudanca><label for="esp_todas"><span class="dot"></span>Todas</label></div>
+        <div class="pill"><input type="radio" name="especie" id="esp_aeg" value="aegypti" data-lab-mudanca><label for="esp_aeg"><span class="dot"></span>Ae. aegypti</label></div>
+        <div class="pill"><input type="radio" name="especie" id="esp_alb" value="albopictus" data-lab-mudanca><label for="esp_alb"><span class="dot"></span>Ae. albopictus</label></div>
+        <div class="pill"><input type="radio" name="especie" id="esp_out" value="outra" data-lab-mudanca><label for="esp_out"><span class="dot"></span>Outra espécie</label></div>
       </div>
     </div>
     <div style="margin-bottom:10px;">
       <div class="f-g" style="margin-bottom:8px;"><label>Tipo de trabalho</label></div>
       <div class="pill-group">
         {% for t in tipos_glob %}
-        <div class="pill"><input type="checkbox" id="lt_{{ t }}" value="{{ t }}" onchange="buscar()">
+        <div class="pill"><input type="checkbox" id="lt_{{ t }}" value="{{ t }}" data-lab-mudanca>
           <label for="lt_{{ t }}"><span class="dot"></span>{{ t }}</label></div>
         {% endfor %}
       </div>
@@ -45,7 +45,7 @@
       <div class="f-g" style="margin-bottom:8px;"><label>Localidade</label></div>
       <div class="pill-group">
         {% for l in localidades_glob %}
-        <div class="pill"><input type="checkbox" id="ll_{{ loop.index }}" value="{{ l }}" onchange="buscar()">
+        <div class="pill"><input type="checkbox" id="ll_{{ loop.index }}" value="{{ l }}" data-lab-mudanca>
           <label for="ll_{{ loop.index }}"><span class="dot"></span>{{ l }}</label></div>
         {% endfor %}
       </div>
@@ -54,20 +54,20 @@
       <div class="f-g" style="margin-bottom:8px;"><label>Agente</label></div>
       <div class="pill-group">
         {% for a in agentes_glob %}
-        <div class="pill"><input type="checkbox" id="la_{{ loop.index }}" value="{{ a }}" onchange="buscar()">
+        <div class="pill"><input type="checkbox" id="la_{{ loop.index }}" value="{{ a }}" data-lab-mudanca>
           <label for="la_{{ loop.index }}"><span class="dot"></span>{{ a }}</label></div>
         {% endfor %}
       </div>
     </div>
     <div style="margin-bottom:10px;">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
-        <input type="checkbox" id="l_pos" onchange="buscar()"> Mostrar apenas positivos para Ae. aegypti
+        <input type="checkbox" id="l_pos" data-lab-mudanca> Mostrar apenas positivos para Ae. aegypti
       </label>
     </div>
     <div class="filter-actions">
-      <button class="btn btn-primary" onclick="buscar()"><img src="/static/icons/atualizar.svg" alt="🔄" class="icon-svg"> Atualizar</button>
-      <button class="btn btn-ghost" onclick="resetFiltros()"><img src="/static/icons/fechar.svg" alt="✕" class="icon-svg"> Limpar</button>
-      <button class="btn btn-outline" onclick="exportarLab()" title="Exportar resultados filtrados"><img src="/static/icons/importar.svg" alt="📥" class="icon-svg"> Exportar .xlsx</button>
+      <button class="btn btn-primary" data-lab-acao="buscar"><img src="/static/icons/atualizar.svg" alt="🔄" class="icon-svg"> Atualizar</button>
+      <button class="btn btn-ghost" data-lab-acao="resetFiltros"><img src="/static/icons/fechar.svg" alt="✕" class="icon-svg"> Limpar</button>
+      <button class="btn btn-outline" data-lab-acao="exportarLab" title="Exportar resultados filtrados"><img src="/static/icons/importar.svg" alt="📥" class="icon-svg"> Exportar .xlsx</button>
     </div>
   </div>
 </div>
@@ -79,9 +79,9 @@
 
 <!-- TABS -->
 <div class="tabs-bar">
-  <button class="tab-btn active" onclick="openTab('lt-tabela',this)"><img src="/static/icons/prancheta.svg" alt="📋" class="icon-svg"> Tabela</button>
-  <button class="tab-btn" onclick="openTab('lt-evolucao',this)"><img src="/static/icons/grafico_linha.svg" alt="📈" class="icon-svg"> Evolução</button>
-  <button class="tab-btn" onclick="openTab('lt-localidade',this)"><img src="/static/icons/marcador.svg" alt="📍" class="icon-svg"> Localidades</button>
+  <button class="tab-btn active" data-lab-tab="lt-tabela"><img src="/static/icons/prancheta.svg" alt="📋" class="icon-svg"> Tabela</button>
+  <button class="tab-btn" data-lab-tab="lt-evolucao"><img src="/static/icons/grafico_linha.svg" alt="📈" class="icon-svg"> Evolução</button>
+  <button class="tab-btn" data-lab-tab="lt-localidade"><img src="/static/icons/marcador.svg" alt="📍" class="icon-svg"> Localidades</button>
 </div>
 
 <!-- TABELA -->
@@ -185,7 +185,7 @@ async function buscar(pg=1) {
 
   } catch(e) {
     document.getElementById('l-kpi').innerHTML = '';
-    document.getElementById('l-tabela-area').innerHTML = `<div class="empty"><div class="empty-icon"><img src="/static/icons/alerta.svg" alt="⚠" class="icon-svg">️</div><p>${e.message}</p></div>`;
+    document.getElementById('l-tabela-area').innerHTML = `<div class="empty"><div class="empty-icon"><img src="/static/icons/alerta.svg" alt="⚠" class="icon-svg">️</div><p>${escapeAttr(e.message)}</p></div>`;
   }
 }
 
@@ -222,19 +222,19 @@ function renderTabela(rows) {
           </tr></thead>
           <tbody>
             ${rows.map(r => {
-              const posAeg = (r.aegypt_larvas||0)+(r.aegypt_pupas||0)+(r.aegypt_exuvias||0)+(r.aegypt_adulto||0);
-              const posAlb = (r.albopictus_larvas||0)+(r.albopictus_pupas||0)+(r.albopictus_exuvias||0)+(r.albopictus_adulto||0);
-              const posOut = (r.outra_larvas||0)+(r.outra_pupas||0)+(r.outra_exuvias||0)+(r.outra_adulto||0);
-              const resultado = posAeg>0 ? '<span class="badge badge-pos">+ aegypti</span>' : posAlb>0 ? '<span class="badge badge-pendente">+ albopictus</span>' : '<span class="badge badge-neg">negativo</span>';
+              const posAeg = (Number(r.aegypt_larvas)||0)+(Number(r.aegypt_pupas)||0)+(Number(r.aegypt_exuvias)||0)+(Number(r.aegypt_adulto)||0);
+              const posAlb = (Number(r.albopictus_larvas)||0)+(Number(r.albopictus_pupas)||0)+(Number(r.albopictus_exuvias)||0)+(Number(r.albopictus_adulto)||0);
+              const posOut = (Number(r.outra_larvas)||0)+(Number(r.outra_pupas)||0)+(Number(r.outra_exuvias)||0)+(Number(r.outra_adulto)||0);
+              const resultado = [[posAeg, 'aegypti'], [posAlb, 'albopictus'], [posOut, 'outra espécie']].filter(([n]) => n > 0).map(([, nome]) => `<span class="badge badge-pos">+ ${nome}</span>`).join(' ') || '<span class="badge badge-neg">nenhuma espécie detectada</span>';
               return `<tr>
-                <td class="nowrap">${fmtDate(r.data)}</td>
+                <td class="nowrap">${escapeAttr(fmtDate(r.data))}</td>
                 <td>${tagTipo(r.tipo)}</td>
-                <td class="nowrap">${r.localidade||'—'}</td>
-                <td class="small">${r.logradouro||'—'}${r.numero?', '+r.numero:''}</td>
-                <td class="mono">${r.num_tubo||'—'}</td>
-                <td class="small">${r.tipo_deposito||'—'}</td>
+                <td class="nowrap">${escapeAttr(r.localidade||'—')}</td>
+                <td class="small">${escapeAttr(r.logradouro||'—')}${escapeAttr(r.numero?', '+r.numero:'')}</td>
+                <td class="mono">${escapeAttr(r.num_tubo||'—')}</td>
+                <td class="small">${escapeAttr(r.tipo_deposito||'—')}</td>
                 <td class="text-center">
-                  ${posAeg>0?`<strong style="color:var(--red)">${posAeg}</strong><br><span class="dim" style="font-size:9.5px">L${r.aegypt_larvas} P${r.aegypt_pupas} E${r.aegypt_exuvias} A${r.aegypt_adulto}</span>`:
+                  ${posAeg>0?`<strong style="color:var(--red)">${posAeg}</strong><br><span class="dim" style="font-size:9.5px">L${escapeAttr(r.aegypt_larvas)} P${escapeAttr(r.aegypt_pupas)} E${escapeAttr(r.aegypt_exuvias)} A${escapeAttr(r.aegypt_adulto)}</span>`:
                   '<span class="dim">—</span>'}
                 </td>
                 <td class="text-center">
@@ -243,7 +243,7 @@ function renderTabela(rows) {
                 </td>
                 <td class="text-center">${posOut>0?`<strong>${posOut}</strong>`:'<span class="dim">—</span>'}</td>
                 <td>${resultado}</td>
-                <td class="small dim">${r.agentes||'—'}</td>
+                <td class="small dim">${escapeAttr(r.agentes||'—')}</td>
               </tr>`;
             }).join('')}
           </tbody>
@@ -257,15 +257,15 @@ function renderTabela(rows) {
 function renderPag() {
   if(lTotalPag <= 1) return '';
   const btns = [];
-  btns.push(`<button class="pag-btn" onclick="buscar(${lPagina-1})" ${lPagina<=1?'disabled':''}>‹</button>`);
+  btns.push(`<button class="pag-btn" data-lab-pagina="${lPagina-1}" ${lPagina<=1?'disabled':''}>‹</button>`);
   for(let p=1; p<=lTotalPag; p++) {
     if(Math.abs(p-lPagina)<=2 || p===1 || p===lTotalPag) {
-      btns.push(`<button class="pag-btn ${p===lPagina?'active':''}" onclick="buscar(${p})">${p}</button>`);
+      btns.push(`<button class="pag-btn ${p===lPagina?'active':''}" data-lab-pagina="${p}">${p}</button>`);
     } else if(btns[btns.length-1] !== '…') {
       btns.push('…');
     }
   }
-  btns.push(`<button class="pag-btn" onclick="buscar(${lPagina+1})" ${lPagina>=lTotalPag?'disabled':''}>›</button>`);
+  btns.push(`<button class="pag-btn" data-lab-pagina="${lPagina+1}" ${lPagina>=lTotalPag?'disabled':''}>›</button>`);
   return `<div class="pag">${btns.join('')}<span class="pag-info">${fmtNum(lTotal)} registros</span></div>`;
 }
 
@@ -282,6 +282,19 @@ function resetFiltros() {
 document.getElementById('l_d_ini').addEventListener('change',()=>buscar());
 document.getElementById('l_d_fim').addEventListener('change',()=>buscar());
 document.getElementById('l_tubo').addEventListener('keydown',e=>{if(e.key==='Enter')buscar();});
+
+
+document.addEventListener('change', e => { if(e.target.matches('[data-lab-mudanca]')) buscar(); });
+document.addEventListener('click', e => {
+  const filtro = e.target.closest('[data-lab-filtro]');
+  if(filtro) toggleFilter(filtro.dataset.target);
+  const acao = e.target.closest('[data-lab-acao]');
+  if(acao) ({buscar, resetFiltros, exportarLab})[acao.dataset.labAcao]();
+  const pag = e.target.closest('[data-lab-pagina]');
+  if(pag) buscar(Number(pag.dataset.labPagina));
+  const tab = e.target.closest('[data-lab-tab]');
+  if(tab) openTab(tab.dataset.labTab, tab);
+});
 
 buscar();
 

@@ -45,8 +45,8 @@
 </div>
 
 <div class="pe-tabs">
-  <button class="pe-tab active" type="button" data-tab="cadastro" onclick="ativarTab('cadastro')">Cadastro</button>
-  <button class="pe-tab" type="button" data-tab="aliases" onclick="ativarTab('aliases')">Aliases</button>
+  <button class="pe-tab active" type="button" data-tab="cadastro" data-pe-acao="tab" data-valor="cadastro">Cadastro</button>
+  <button class="pe-tab" type="button" data-tab="aliases" data-pe-acao="tab" data-valor="aliases">Aliases</button>
 </div>
 
 <div id="pe-tab-cadastro" class="pe-tab-panel">
@@ -64,10 +64,10 @@
       <div class="f-g"><label>Semana epidemiológica</label><input type="number" id="pe-semana" min="1" max="53" value="{{ default_semana }}"></div>
       <div class="f-g"><label>Na semana</label><select id="pe-semana-status"><option value="">Feitos e pendentes</option><option value="pendentes">Somente pendentes</option></select></div>
       <div class="pe-actions">
-        <button class="btn btn-outline" type="button" onclick="carregarPEs()"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button>
-        <button class="btn btn-outline" type="button" onclick="exportarPEs('xlsx')" title="Exportar resultados filtrados para Excel"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> XLSX</button>
-        <button class="btn btn-outline" type="button" onclick="exportarPEs('pdf')" title="Abrir resultados filtrados para imprimir ou salvar em PDF"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> PDF</button>
-        <button class="btn btn-primary" type="button" onclick="abrirPE()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Novo PE</button>
+        <button class="btn btn-outline" type="button" data-pe-acao="carregarPEs"><img src="/static/icons/busca.svg" alt="" class="icon-svg"> Buscar</button>
+        <button class="btn btn-outline" type="button" data-pe-acao="exportar" data-valor="xlsx" title="Exportar resultados filtrados para Excel"><img src="/static/icons/importar.svg" alt="" class="icon-svg"> XLSX</button>
+        <button class="btn btn-outline" type="button" data-pe-acao="exportar" data-valor="pdf" title="Abrir resultados filtrados para imprimir ou salvar em PDF"><img src="/static/icons/documento.svg" alt="" class="icon-svg"> PDF</button>
+        <button class="btn btn-primary" type="button" data-pe-acao="abrirPE"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Novo PE</button>
       </div>
     </div>
   </div>
@@ -101,7 +101,7 @@
   <div class="pe-dialog">
     <div class="pe-dialog-hd">
       <strong id="pe-modal-title">Novo PE</strong>
-      <button class="btn btn-icon" type="button" onclick="fecharPE()" title="Fechar"><img src="/static/icons/fechar.svg" alt="" class="icon-svg"></button>
+      <button class="btn btn-icon" type="button" data-pe-acao="fecharPE" title="Fechar"><img src="/static/icons/fechar.svg" alt="" class="icon-svg"></button>
     </div>
     <div class="pe-dialog-bd">
       <input type="hidden" id="pe-id">
@@ -127,8 +127,8 @@
       <datalist id="pe-tipos-list">{% for tipo in opcoes.tipos %}<option value="{{ tipo }}"></option>{% endfor %}</datalist>
     </div>
     <div class="pe-dialog-ft">
-      <button class="btn btn-outline" type="button" onclick="fecharPE()">Cancelar</button>
-      <button class="btn btn-primary" type="button" onclick="salvarPE()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar</button>
+      <button class="btn btn-outline" type="button" data-pe-acao="fecharPE">Cancelar</button>
+      <button class="btn btn-primary" type="button" data-pe-acao="salvarPE"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Salvar</button>
     </div>
   </div>
 </div>
@@ -153,8 +153,8 @@
         <div class="f-g full"><label>Alias (nome interno exato do Kobo)</label><input id="alias-form-alias" placeholder="Ex: RUA DOMINGOS SCUCATO - AUTO PEÇAS JOÃO 3:16"></div>
         <div class="f-g"><label>Localidade (opcional)</label><input id="alias-form-localidade" list="pe-localidades-list"></div>
         <div class="f-g" style="align-self:end;display:flex;gap:8px;">
-          <button class="btn btn-primary" type="button" onclick="salvarAlias()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> <span id="alias-form-btn">Adicionar alias</span></button>
-          <button class="btn btn-outline" type="button" id="alias-form-cancel" onclick="cancelarEdicaoAlias()" style="display:none;">Cancelar</button>
+          <button class="btn btn-primary" type="button" data-pe-acao="salvarAlias"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> <span id="alias-form-btn">Adicionar alias</span></button>
+          <button class="btn btn-outline" type="button" id="alias-form-cancel" data-pe-acao="cancelarEdicaoAlias" style="display:none;">Cancelar</button>
         </div>
       </div>
       <input type="hidden" id="alias-form-id">
@@ -167,7 +167,7 @@
       <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Aliases cadastrados</div>
       <div style="display:flex;gap:8px;align-items:center;">
         <span class="table-info">Filtrar:</span>
-        <select id="alias-pe-select" onchange="carregarAliases()" style="min-width:230px;">
+        <select id="alias-pe-select" data-pe-alias-select style="min-width:230px;">
           <option value="">Todos</option>
           {% for pe in opcoes.pe_codigos %}
           <option value="{{ pe.codigo_pe }}">{{ pe.codigo_pe }} — {{ pe.nome }}</option>
@@ -238,20 +238,20 @@ async function carregarPEs(){
     if (r.visita_atrasada) pend.push('visita atrasada');
     (r.pendencias_cadastro || []).forEach(p => pend.push(p));
     return `<tr class="${r.visita_atrasada || r.visitado_periodo_selecionado === false ? 'pe-row-alert' : ''}">
-      <td><span class="pe-code">${r.codigo_pe || '-'}</span></td>
-      <td><strong>${r.nome || '-'}</strong><div class="pe-muted">${[r.razao_social, r.telefone].filter(Boolean).join(' | ')}</div></td>
-      <td>${r.localidade || '-'}</td>
-      <td>${r.quarteirao ?? '-'}</td>
-      <td>${endereco}</td>
-      <td>${r.tipo || '<span class="pe-muted">sem tipo</span>'}</td>
-      <td>${peData(r.ultima_visita_pe) || '<span class="pe-status danger">sem visita</span>'}${r.dias_sem_visita !== null ? `<div class="${r.visita_atrasada ? 'pe-status warn' : 'pe-muted'}">${r.dias_sem_visita} dia(s)</div>` : ''}</td>
+      <td><span class="pe-code">${peEsc(r.codigo_pe || '-')}</span></td>
+      <td><strong>${peEsc(r.nome || '-')}</strong><div class="pe-muted">${peEsc([r.razao_social, r.telefone].filter(Boolean).join(' | '))}</div></td>
+      <td>${peEsc(r.localidade || '-')}</td>
+      <td>${peEsc(r.quarteirao ?? '-')}</td>
+      <td>${peEsc(endereco)}</td>
+      <td>${r.tipo ? peEsc(r.tipo) : '<span class="pe-muted">sem tipo</span>'}</td>
+      <td>${peEsc(peData(r.ultima_visita_pe)) || '<span class="pe-status danger">sem visita</span>'}${r.dias_sem_visita !== null ? `<div class="${r.visita_atrasada ? 'pe-status warn' : 'pe-muted'}">${peEsc(r.dias_sem_visita)} dia(s)</div>` : ''}</td>
       <td>${r.visitado_periodo_selecionado === null ? '<span class="pe-muted">-</span>' : (r.visitado_periodo_selecionado ? '<span class="pe-status">Feito</span>' : '<span class="pe-status danger">Pendente</span>')}</td>
-      <td>${peData(r.ultimo_bri) || '<span class="pe-muted">sem BRI</span>'}<div class="pe-muted">${peFmt.format(r.bri_total || 0)} registro(s)</div></td>
-      <td>${pend.length ? pend.map(p => `<span class="pe-status ${p === 'visita atrasada' ? 'warn' : 'off'}" style="margin:1px;">${p}</span>`).join('') : '<span class="pe-muted">ok</span>'}</td>
+      <td>${peEsc(peData(r.ultimo_bri)) || '<span class="pe-muted">sem BRI</span>'}<div class="pe-muted">${peFmt.format(r.bri_total || 0)} registro(s)</div></td>
+      <td>${pend.length ? pend.map(p => `<span class="pe-status ${p === 'visita atrasada' ? 'warn' : 'off'}" style="margin:1px;">${peEsc(p)}</span>`).join('') : '<span class="pe-muted">ok</span>'}</td>
       <td><span class="pe-status ${Number(r.situacao) === 1 ? '' : 'off'}">${Number(r.situacao) === 1 ? 'Ativo' : 'Inativo'}</span></td>
       <td>
-        <button class="btn btn-icon" type="button" onclick="editarPE(${r.id_pe})" title="Editar"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button>
-        <button class="btn btn-icon" type="button" onclick="alternarPE(${r.id_pe}, ${Number(r.situacao) === 1 ? 0 : 1})" title="${Number(r.situacao) === 1 ? 'Inativar' : 'Reativar'}"><img src="/static/icons/${Number(r.situacao) === 1 ? 'lixeira.svg' : 'check.svg'}" alt="" class="icon-svg"></button>
+        <button class="btn btn-icon" type="button" data-pe-acao="editarPE" data-id="${Number(r.id_pe)}" title="Editar"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button>
+        <button class="btn btn-icon" type="button" data-pe-acao="alternarPE" data-id="${Number(r.id_pe)}" data-valor="${Number(r.situacao) === 1 ? 0 : 1}" title="${Number(r.situacao) === 1 ? 'Inativar' : 'Reativar'}"><img src="/static/icons/${Number(r.situacao) === 1 ? 'lixeira.svg' : 'check.svg'}" alt="" class="icon-svg"></button>
       </td>
     </tr>`;
   }).join('') || '<tr><td colspan="12" style="text-align:center;color:var(--text3);padding:18px;">Nenhum PE encontrado.</td></tr>';
@@ -367,9 +367,9 @@ async function carregarAliases(){
     const o = aliasOrigem[a.observacoes] || {label:a.observacoes, cls:'seed'};
     const manual = a.observacoes === 'alias manual do administrador';
     const acoes = manual
-      ? `<button class="btn btn-icon" type="button" onclick="editarAlias(${a.id_alias})" title="Editar"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button>
-         <button class="btn btn-icon" type="button" onclick="alternarAlias(${a.id_alias}, ${a.ativo ? 0 : 1})" title="${a.ativo ? 'Desativar' : 'Ativar'}"><img src="/static/icons/${a.ativo ? 'fechar.svg' : 'check.svg'}" alt="" class="icon-svg"></button>
-         <button class="btn btn-icon" type="button" onclick="excluirAlias(${a.id_alias})" title="Excluir"><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"></button>`
+      ? `<button class="btn btn-icon" type="button" data-pe-acao="editarAlias" data-id="${Number(a.id_alias)}" title="Editar"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button>
+         <button class="btn btn-icon" type="button" data-pe-acao="alternarAlias" data-id="${Number(a.id_alias)}" data-valor="${a.ativo ? 0 : 1}" title="${a.ativo ? 'Desativar' : 'Ativar'}"><img src="/static/icons/${a.ativo ? 'fechar.svg' : 'check.svg'}" alt="" class="icon-svg"></button>
+         <button class="btn btn-icon" type="button" data-pe-acao="excluirAlias" data-id="${Number(a.id_alias)}" title="Excluir"><img src="/static/icons/lixeira.svg" alt="" class="icon-svg"></button>`
       : '<span class="pe-muted">—</span>';
     return `<tr>
       <td><span class="pe-code">${peEsc(a.codigo_pe)}</span><div class="pe-muted">${peEsc(a.pe_nome)}</div></td>
@@ -439,4 +439,18 @@ async function excluirAlias(id){
     carregarAliases();
   } catch (erro) { toast(erro.message || 'Erro ao excluir alias.', 'error'); }
 }
+
+document.addEventListener('click', e => {
+  const botao = e.target.closest('[data-pe-acao]');
+  if(!botao) return;
+  const id = Number(botao.dataset.id), valor = botao.dataset.valor;
+  const acoes = {tab: () => ativarTab(valor), exportar: () => exportarPEs(valor),
+    carregarPEs, abrirPE: () => abrirPE(), fecharPE, salvarPE, salvarAlias, cancelarEdicaoAlias,
+    editarPE: () => editarPE(id), alternarPE: () => alternarPE(id, Number(valor)),
+    editarAlias: () => editarAlias(id), alternarAlias: () => alternarAlias(id, Number(valor)), excluirAlias: () => excluirAlias(id)};
+  const acao = acoes[botao.dataset.peAcao];
+  if(acao) acao();
+});
+document.querySelector('[data-pe-alias-select]').addEventListener('change', carregarAliases);
+
 </script>{% endblock %}

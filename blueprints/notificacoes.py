@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import date, datetime
 
 from flask import (
@@ -133,14 +134,25 @@ def page():
         where += f" AND l.nome IN ({','.join('?' * len(fl))})"
         params += fl
     if fa:
-        cond = " OR ".join(
-            [
-                "LOWER(COALESCE(CAST(f.agentes AS TEXT),'')) LIKE LOWER(?)"
-                for _ in fa
-            ]
-        )
-        where += f" AND ({cond})"
-        params += [f"%{a}%" for a in fa]
+        # Identidade por vínculo; textos legados só aceitam nomes inteiros.
+        chaves = {escopo_agente._chave(a) for a in fa if a.strip()}
+        conn = get_db()
+        try:
+            ids = [r["id_agente"] for r in conn.execute("SELECT id_agente,nome FROM agentes")
+                   if escopo_agente._chave(r["nome"]) in chaves]
+            textos = [r[0] for r in conn.execute("SELECT DISTINCT agentes FROM focos_positivos WHERE agentes IS NOT NULL")
+                      if any(escopo_agente._chave(a) in chaves for a in re.split(r"[,;/]", r[0]))]
+        finally:
+            conn.close()
+        vinculo = "EXISTS (SELECT 1 FROM visita_agentes va WHERE va.id_visita=f.id_visita"
+        alternativas = []
+        if ids:
+            alternativas.append(vinculo + f" AND va.id_agente IN ({','.join('?' for _ in ids)}))")
+            params.extend(ids)
+        if textos:
+            alternativas.append("NOT " + vinculo + ") AND f.agentes IN (" + ','.join('?' for _ in textos) + ")")
+            params.extend(textos)
+        where += " AND (" + ' OR '.join('('+c+')' for c in alternativas) + ")" if alternativas else " AND 1=0"
     if busca:
         where += (
             " AND (LOWER(COALESCE(CAST(f.logradouro AS TEXT),'')) LIKE LOWER(?) "

@@ -56,7 +56,7 @@
   <div class="chart-card">
     <div class="chart-hd">
       <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Registros BRI</div>
-      <span class="table-info" id="bri-info"></span>
+      <span class="table-info" id="bri-info"></span><a class="btn btn-outline" id="bri-exportar" href="/api/bri/exportar">Exportar CSV</a>
     </div>
     <div class="bri-filters" style="grid-template-columns:minmax(220px,1fr) auto;margin-bottom:10px;">
       <div class="f-g"><label>Pesquisa</label><input type="search" id="bri-busca" placeholder="SISPNCD, endereço, ovitrampa, agente..."></div>
@@ -68,6 +68,7 @@
         <tbody id="bri-body"></tbody>
       </table>
     </div>
+    <div id="bri-paginacao" style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap;"></div>
   </div>
 
   <div style="display:flex;flex-direction:column;gap:14px;">
@@ -115,15 +116,20 @@ async function carregarBri(){
   document.getElementById('bri-extras').textContent = briFmt.format(t.extras || 0);
   renderBriResumo('bri-destinos', d.por_destino || [], 'destino');
   renderBriResumo('bri-localidades', d.por_localidade || [], 'localidade');
-  carregarListaBri();
+  await carregarListaBri();
 }
 function renderBriResumo(id, rows, campo){
   document.getElementById(id).innerHTML = rows.map(r => `
     <div class="bri-item"><span><strong>${escapeAttr(r[campo] || '-')}</strong><br>${briFmt.format(r.registros||0)} registro(s)</span><span class="bri-badge">${briFmt.format(r.carga||0)}</span></div>
   `).join('') || '<div class="empty">Nenhum registro no período.</div>';
 }
-async function carregarListaBri(){
-  const d = await briGet('/api/bri/listar?' + briParams(true).toString());
+async function carregarListaBri(pagina=1){
+  if (!Number.isInteger(pagina)) pagina = 1;
+  const parametros = briParams(true);
+  document.getElementById('bri-exportar').href = '/api/bri/exportar?' + parametros.toString();
+  parametros.set('pagina', pagina);
+  const d = await briGet('/api/bri/listar?' + parametros.toString());
+  paginarListaOperacional('bri-paginacao', d, carregarListaBri);
   document.getElementById('bri-info').textContent = `${briFmt.format(d.total || 0)} registro(s)`;
   document.getElementById('bri-body').innerHTML = (d.registros || []).map(r => {
     const endereco = [r.logradouro, r.numero].filter(Boolean).join(', ') || '-';
@@ -140,8 +146,8 @@ async function carregarListaBri(){
       <td>${escapeAttr(r.numero_ovitrampa || '-')}</td>
       <td style="font-weight:800;">${briFmt.format(carga)}</td>
       <td><span class="bri-tag ${escapeAttr(r.tratou_imovel_extra === 'Sim' ? 'ok' : '')}">${escapeAttr(r.tratou_imovel_extra || '-')}</span></td>
-      <td><span class="bri-tag">${escapeAttr(r.origem_estrutura === 'legada' ? 'Legado' : 'Kobo')}</span></td>
-    </tr>`;
+      <td><span class="bri-tag">${escapeAttr(r.origem_estrutura === 'legada' ? 'Legado' : 'Kobo')}</span>
+    ${detalhesRegistroOperacional(r, [["hora", "Hora"], ["quarteirao", "Quarteirão"], ["local_tratamento", "Local de tratamento"], ["qual_imovel_extra", "Imóvel adicional"], ["depositos_tratados_extra", "Depósitos adicionais"], ["quantidade_carga", "Carga principal"], ["quantidade_carga_extra", "Carga adicional"]])}</td></tr>`;
   }).join('') || '<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:18px;">Nenhum registro encontrado.</td></tr>';
 }
 function renderBriPE(r){

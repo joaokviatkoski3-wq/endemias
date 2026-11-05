@@ -479,6 +479,7 @@ def exportar_rg_xlsx():
         conteudo = rg_exportacao.gerar_xlsx(
             _db_path(), request.args.get("localidade") or request.args.get("id_localidade"),
             request.args.getlist("quarteirao"), _base_dir(),
+            usuario=usuario_atual() or {},
         )
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400

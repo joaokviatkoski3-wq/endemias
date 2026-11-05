@@ -144,6 +144,14 @@ def filtrar_agentes(valores, chaves):
     return resultado
 
 
+def catalogo(target, usuario, valores):
+    """Aplica o mesmo escopo nominal a seletores HTML e dados embutidos."""
+    if not nivel_restrito(usuario):
+        return valores
+    proprio = agente_proprio(target, usuario)
+    return filtrar_agentes(valores, (proprio or {}).get("chaves") or set())
+
+
 def redigir_agentes(dado, chaves):
     """Percorre dicts/listas e redige a identidade dos demais agentes.
 

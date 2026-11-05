@@ -186,7 +186,8 @@ def listar(target, tipo=None, status=None, usuario=None, limite=200):
 def obter(target, id_formulario):
     conn, close = _open_connection(target)
     try:
-        ensure_schema(conn)
+        if close:
+            ensure_schema(conn)
         row = conn.execute(
             "SELECT * FROM formularios WHERE id_formulario=?", (id_formulario,)
         ).fetchone()
@@ -259,26 +260,31 @@ def excluir(target, id_formulario):
             conn.close()
 
 
-def marcar_oficializado(target, id_formulario, usuario):
+def marcar_oficializado(target, id_formulario, usuario, *, commit=True):
     """Marca o formulário como oficializado (chamado pelo módulo específico)."""
     usuario = usuario or {}
     conn, close = _open_connection(target)
     try:
-        ensure_schema(conn)
-        conn.execute(
+        if close:
+            ensure_schema(conn)
+        cur = conn.execute(
             """UPDATE formularios
                   SET status=?, oficializado_por_usuario_id=?, oficializado_por_nome=?,
                       oficializado_em=?
-                WHERE id_formulario=?""",
+                WHERE id_formulario=? AND status=?""",
             (
                 STATUS_OFICIALIZADO,
                 usuario.get("id_usuario"),
                 usuario.get("nome") or usuario.get("usuario") or None,
                 _now(),
                 id_formulario,
+                STATUS_APROVADO,
             ),
         )
-        conn.commit()
+        if cur.rowcount != 1:
+            raise ValueError("O formulário já foi alterado. Recarregue e confira.")
+        if commit:
+            conn.commit()
         return True
     finally:
         if close:

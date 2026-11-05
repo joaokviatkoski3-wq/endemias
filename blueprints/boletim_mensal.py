@@ -19,6 +19,11 @@ login_required = auth_core.login_required
 nivel_min = bh.nivel_min
 
 
+@bp.errorhandler(ValueError)
+def parametro_invalido(exc):
+    return jsonify({"erro": str(exc)}), 400
+
+
 def _mes_arg():
     return request.args.get("mes") or request.form.get("mes") or ""
 
@@ -79,6 +84,8 @@ def api_salvar():
     except Exception as exc:
         if conn is not None:
             conn.rollback()
+        if isinstance(exc, ValueError):
+            return parametro_invalido(exc)
         if db_core.is_concurrency_error(exc):
             return jsonify({
                 "erro": "Banco de dados ocupado. Tente novamente."

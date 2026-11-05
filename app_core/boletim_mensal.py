@@ -1,5 +1,6 @@
 import re
 import uuid
+import calendar
 from datetime import date, datetime, timedelta
 
 from app_core import setores
@@ -61,15 +62,17 @@ def ensure_schema(target):
 
 
 def periodo_mes(ano_mes):
-    if not re.fullmatch(r"\d{4}-\d{2}", ano_mes or ""):
+    if not ano_mes:
         hoje = date.today()
         ano_mes = f"{hoje.year:04d}-{hoje.month:02d}"
-    ano, mes = [int(part) for part in ano_mes.split("-")]
-    inicio = date(ano, mes, 1)
-    if mes == 12:
-        fim = date(ano + 1, 1, 1) - timedelta(days=1)
-    else:
-        fim = date(ano, mes + 1, 1) - timedelta(days=1)
+    try:
+        if not re.fullmatch(r"\d{4}-\d{2}", str(ano_mes)):
+            raise ValueError
+        ano, mes = [int(part) for part in ano_mes.split("-")]
+        inicio = date(ano, mes, 1)
+        fim = date(ano, mes, calendar.monthrange(ano, mes)[1])
+    except (ValueError, TypeError):
+        raise ValueError("Informe um mês válido no formato AAAA-MM.") from None
     return {
         "ano_mes": f"{ano:04d}-{mes:02d}",
         "d_ini": inicio.isoformat(),

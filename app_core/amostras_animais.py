@@ -235,12 +235,15 @@ def resumo(target, filtros=None):
     return {"totais": {k: (v or 0) for k, v in totais.items()}, "por_tipo": por_tipo, "por_localidade": por_localidade}
 
 
-def listar(target, filtros=None):
+def listar(target, filtros=None, *, completo=False):
     filtros = filtros or {}
     conn, close = _open_connection(target)
     try:
         ensure_schema(conn)
         where, params = _where(filtros, busca=True)
+        from app_core.listagem_operacional import paginacao
+        total = conn.execute("SELECT COUNT(*) FROM amostras_animais a " + where, params).fetchone()[0]
+        limite_sql, limite_params, metadados = paginacao(total, filtros, completo)
         agentes_agg = agentes_core._agentes_aggregate(conn, "ag.nome")
         rows = [agentes_core._serializar_linha(r) for r in conn.execute(
             f"""SELECT a.*,
@@ -249,14 +252,14 @@ def listar(target, filtros=None):
                           JOIN agentes ag ON ag.id_agente=aa.id_agente
                          WHERE aa.id_amostra=a.id_amostra) AS agentes
                   FROM amostras_animais a {where}
-                 ORDER BY a.data DESC, a.hora DESC, a.localidade
-                 LIMIT 500""",
-            params,
+                 ORDER BY a.data DESC, a.hora DESC, a.localidade, a.id_amostra
+                 {limite_sql}""",
+            params + limite_params,
         )]
     finally:
         if close:
             conn.close()
-    return {"registros": rows, "total": len(rows)}
+    return {"registros": rows, **metadados}
 
 
 def localidades(target):

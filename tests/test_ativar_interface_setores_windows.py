@@ -120,6 +120,12 @@ class InterfaceInstallerTests(unittest.TestCase):
     def test_falha_promocao_estavel_retorna_rc3(self):
         self.simulate(fail_probe=True,origin='2.0.0-rc.3',target='2.0.0',marker='ativacao200estavel')
 
+    def test_correcoes_201_preservam_dados_e_configuracoes(self):
+        self.simulate(origin='2.0.0',target='2.0.1',marker='ativacao-correcoes201')
+
+    def test_falha_correcoes_201_retorna_200_sem_restaurar_dados(self):
+        self.simulate(fail_probe=True,origin='2.0.0',target='2.0.1',marker='ativacao-correcoes201')
+
 
 class FakeTask:
     State=4

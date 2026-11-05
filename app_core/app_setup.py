@@ -118,7 +118,9 @@ def register_security_headers(app):
         inline = " 'unsafe-inline'" if current_app.config.get("CSP_ALLOW_INLINE", True) else ""
         # Migracao gradual dos manipuladores inline; estas telas ja usam listeners.
         strict = request.endpoint in {'bri.page', 'amostras_animais.page', 'auth.login', 'auth.recuperar_senha', 'auth.esqueci_senha', 'admin.admin_baixar_backup', 'admin.admin_baixar_backup_completo'}
-        strict = strict or request.blueprint=="ambiental"
+        strict = strict or request.blueprint=="ambiental" or request.endpoint in {
+            'consultas.laboratorio', 'laboratorio.page', 'recolhimentos.page', 'pontos_estrategicos.page'
+        }
         attributes = "'none'" if strict or not inline else "'unsafe-inline'"
         return (
             "default-src 'self'; "

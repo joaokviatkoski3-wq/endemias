@@ -56,7 +56,7 @@ def page():
     return render_template(
         "ovitrampas.html",
         distritos=ovitrampas_core.distritos(_db_path()),
-        agentes=ovitrampas_core.agentes(_db_path()),
+        agentes=bh.catalogo_agentes(ovitrampas_core.agentes(_db_path())),
     )
 
 

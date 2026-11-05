@@ -249,12 +249,15 @@ def resumo(target, filtros=None):
     }
 
 
-def listar(target, filtros=None):
+def listar(target, filtros=None, *, completo=False):
     filtros = filtros or {}
     conn, close = _open_connection(target)
     try:
         ensure_schema(conn)
         where, params = _where(filtros, busca=True)
+        from app_core.listagem_operacional import paginacao
+        total = conn.execute("SELECT COUNT(*) FROM recolhimentos r " + where, params).fetchone()[0]
+        limite_sql, limite_params, metadados = paginacao(total, filtros, completo)
         agentes_agg = _agentes_aggregate(conn, "a.nome")
         rows = [_serializar_linha(r) for r in conn.execute(
             f"""SELECT r.*,
@@ -264,14 +267,14 @@ def listar(target, filtros=None):
                          WHERE ra.id_recolhimento=r.id_recolhimento) AS agentes
                   FROM recolhimentos r
                   {where}
-                 ORDER BY r.data DESC, r.hora DESC, r.localidade
-                 LIMIT 500""",
-            params,
+                 ORDER BY r.data DESC, r.hora DESC, r.localidade, r.id_recolhimento
+                 {limite_sql}""",
+            params + limite_params,
         )]
     finally:
         if close:
             conn.close()
-    return {"registros": rows, "total": len(rows)}
+    return {"registros": rows, **metadados}
 
 
 def localidades(target):

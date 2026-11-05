@@ -33,6 +33,11 @@ def usuario_atual():
     return auth_core.usuario_atual(q1)
 
 
+def catalogo_agentes(valores):
+    from app_core import escopo_agente
+    return escopo_agente.catalogo(db_target(), usuario_atual() or {}, valores)
+
+
 def nivel_min(nivel):
     return auth_core.nivel_min(nivel, usuario_atual)
 

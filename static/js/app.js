@@ -576,8 +576,45 @@ function badgeStatus(st) {
 
 function tagTipo(tipo) {
   const c = WORK_TYPE_COLORS[tipo] || '#64748b';
-  return `<span class="tag-tipo" style="background:${c}20;color:${c}">${tipo}</span>`;
+  return `<span class="tag-tipo" style="background:${c}20;color:${c}">${escapeAttr(tipo)}</span>`;
 }
+
+function paginarListaOperacional(id, dados, carregar) {
+  const area = document.getElementById(id);
+  area.replaceChildren();
+  const pagina = Number(dados.pagina || 1), paginas = Number(dados.paginas || 1);
+  if (paginas <= 1) return;
+  for (const [texto, destino, desabilitado] of [['Anterior', pagina - 1, pagina <= 1], ['Próxima', pagina + 1, pagina >= paginas]]) {
+    const botao = document.createElement('button');
+    botao.type = 'button'; botao.className = 'btn btn-outline';
+    botao.textContent = texto; botao.disabled = desabilitado;
+    botao.addEventListener('click', () => carregar(destino));
+    area.append(botao);
+    if (texto === 'Anterior') area.append(document.createTextNode(` Página ${pagina} de ${paginas} `));
+  }
+}
+
+function detalhesRegistroOperacional(registro, campos) {
+  return '<button type="button" class="btn btn-outline" data-detalhes-operacionais>Detalhes</button><template><dl style="display:grid;grid-template-columns:minmax(100px,1fr) minmax(140px,2fr);gap:10px 16px;overflow-wrap:anywhere;">' + campos.map(([chave, titulo]) => {
+    const valor = registro[chave];
+    const texto = typeof valor === 'number' ? valor.toLocaleString('pt-BR') : (valor ?? 'Não informado');
+    return `<dt style="font-weight:600;">${escapeAttr(titulo)}</dt><dd style="margin:0;">${escapeAttr(texto)}</dd>`;
+  }).join('') + '</dl></template>';
+}
+
+document.addEventListener('click', event => {
+  const botao = event.target.closest('[data-detalhes-operacionais]');
+  if (!botao) return;
+  const dialogo = document.createElement('dialog');
+  dialogo.style.cssText = 'max-width:min(640px,90vw);max-height:85vh;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:24px;background:var(--surface);color:var(--text);';
+  const titulo = document.createElement('h2'); titulo.textContent = 'Detalhes do registro';
+  const fechar = document.createElement('button'); fechar.type = 'button';
+  fechar.className = 'btn btn-primary'; fechar.textContent = 'Fechar';
+  fechar.addEventListener('click', () => dialogo.close());
+  dialogo.addEventListener('close', () => dialogo.remove());
+  dialogo.append(titulo, botao.nextElementSibling.content.cloneNode(true), fechar);
+  document.body.append(dialogo); dialogo.showModal();
+});
 
 function buildQS(form) {
   const fd = new FormData(form);

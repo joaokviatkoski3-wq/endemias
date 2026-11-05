@@ -69,23 +69,37 @@ def snapshot(target, selecoes):
 
 def oficializar(target, id_formulario, usuario):
     """Aplica o payload aprovado no RG (substitui o quarteirão) e oficializa."""
-    form = formularios_core.obter(target, id_formulario)
-    if not form:
-        raise ValueError("Formulário não encontrado.")
-    if form["tipo_formulario"] != TIPO:
-        raise ValueError("Formulário não é de atualização de RG.")
-    if form["status"] != formularios_core.STATUS_APROVADO:
-        raise ValueError("Somente formulários aprovados podem ser oficializados.")
-    payload = form["payload"] or {}
-    usuario = usuario or {}
-    rg_core.salvar_quarteirao(
-        target,
-        payload,
-        usuario_id=usuario.get("id_usuario"),
-        usuario_nome=usuario.get("nome") or usuario.get("usuario"),
-    )
-    formularios_core.marcar_oficializado(target, id_formulario, usuario)
-    return True
+    conn = db_core.connect(target)
+    try:
+        # Preparação fora da transação: executescript do SQLite pode confirmar.
+        rg_core.ensure_schema(conn)
+        formularios_core.ensure_schema(conn)
+        conn.commit()
+        if getattr(conn, "backend", "sqlite") == "postgresql":
+            conn.execute("SELECT id_formulario FROM formularios WHERE id_formulario=? FOR UPDATE", (id_formulario,))
+        else:
+            conn.execute("BEGIN IMMEDIATE")
+        form = formularios_core.obter(conn, id_formulario)
+        if not form:
+            raise ValueError("Formulário não encontrado.")
+        if form["tipo_formulario"] != TIPO:
+            raise ValueError("Formulário não é de atualização de RG.")
+        if form["status"] != formularios_core.STATUS_APROVADO:
+            raise ValueError("Somente formulários aprovados podem ser oficializados.")
+        usuario = usuario or {}
+        rg_core.salvar_quarteirao(
+            target, form["payload"] or {}, conexao=conn,
+            usuario_id=usuario.get("id_usuario"),
+            usuario_nome=usuario.get("nome") or usuario.get("usuario"),
+        )
+        formularios_core.marcar_oficializado(conn, id_formulario, usuario, commit=False)
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def contexto(target, usuario):
@@ -106,5 +120,5 @@ def contexto(target, usuario):
         "agente_proprio": (
             {"id_agente": agente["id_agente"], "nome": agente["nome"]} if agente else None
         ),
-        "agentes": agentes,
+        "agentes": escopo_agente.catalogo(target, usuario, agentes),
     }
