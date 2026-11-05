@@ -4,7 +4,38 @@ Atualizado em 05/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Divisão de setores — preparação 2.0.0-rc.1 (não implantada)
+## Versão ativa 2.0.0-rc.1 — divisão ativada em 05/11/2026
+
+- Usuário executou o atalho administrativo e informou conclusão. Relatório
+  `C:\ProgramData\EndemiasWeb\ativacao-setores200rc1-resultado.json`:
+  `status=aplicado`, `stage=concluido`, release `29b478a`, janela 09h04.
+  Somente 0035 aplicada; 96 tabelas/colunas anteriores comparadas e preservadas,
+  assim como arquivos operacionais, chave, config e SQLite congelado. Contas,
+  níveis e senhas preservados; contas comuns continuam Endemias.
+- Backup PostgreSQL de 7.541.541 bytes/catalogado, SHA-256
+  `57c00bdfb971c3f5b89153950061949ca8b4678bc4cc034ebe48fdeeb21b763c`.
+  Completo anterior à 0035: `D:\BackupsEndemias\backups_web\completos\endemias_completo_20261105_090441.zip`,
+  310.611.983 bytes, SHA-256
+  `b8974c9f1ef756dbbba2bff95bb58cd41eb1764c87b91704162295c2e1b511b3`.
+  Restaurar este completo para código 2.0 exige aplicar 0035 antes de abrir uso.
+- Mesma tarefa/identidade/credencial do servidor. Prova real na conta limitada
+  passou em todos os checks, incluindo escrita controlada nos dois Kobo,
+  chaves por setor, três hosts, negação anônima, backup SQL e código sem escrita.
+  Tarefa Kobo das 12h30 encontrada e devolvida ao estado original; mesmo horário
+  e identidade. Executor agora seleciona os dois setores separadamente.
+  Primeira execução automática após a divisão ainda não conferida.
+- LAN Endemias 5000 e Ambiental 5004 respondem 200 no servidor; origem Tunnel
+  127.0.0.1:5001 responde aos três Hosts corretamente. Regra Ambiental criada
+  só para interface/sub-rede local e perfis privado/domínio. Teste de outro
+  aparelho, perda da internet e reinício real desta versão ainda pendentes.
+- HTTPS Endemias confirmado 200/2.0.0-rc.1 e `no-store, private`. Usuário está
+  configurando as rotas `ambiental.vsatt.com.br` e `vsatt.com.br` no mesmo Tunnel;
+  HTTPS público desses dois ainda pendente. Não declarar toda publicação pronta.
+- Prévia fictícia aprovada pelo usuário em 05/11. Estética do Ambiental/portal
+  ficou para depois. Não marcar 2.0 estável antes das conferências operacionais.
+  Geo permanece futuro. Não repetir o atalho de atualização já aplicado.
+
+## Histórico da preparação 2.0.0-rc.1 — antes da ativação
 
 - Worktree `C:\endemias-setores`, branch `codex/divisao-setores-2`; produção
   continua 1.80.0. Portal raiz e aplicações Endemias/Ambiental por Host exato,
@@ -28,7 +59,7 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
   congelado permanece `964152E21DE44B4FFF985F72A0D7945E8E7DCF260BBB019708B868C3B3A7A025`.
 - Ver `docs/DIVISAO_SETORES_200.md` para regras, limites e procedimento.
 
-### Implantação preparada em 05/11/2026 (aguarda execução Windows)
+### Histórico do pacote de implantação em 05/11 — executado depois
 
 - Usuário conferiu a prévia fictícia e aprovou seguir com a divisão. Ajustes
   estéticos do Ambiental e do portal ficaram para depois. Confirmou manter
@@ -53,7 +84,7 @@ branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
   Não confundir pacote aprovado com ativação concluída. Conferir o relatório
   `C:\ProgramData\EndemiasWeb\ativacao-setores200rc1-resultado.json` após execução.
 
-## Versão vigente 1.80.0 — correções de segurança ativas
+## Histórico 1.80.0 — correções de segurança preservadas
 
 - Usuário executou o ativador manualmente e informou conclusão. Relatório
   `C:\ProgramData\EndemiasWeb\ativacao180-resultado.json` aplicado/concluído;

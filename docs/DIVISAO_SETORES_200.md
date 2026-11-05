@@ -1,8 +1,41 @@
 # Divisão de setores — candidata 2.0.0-rc.1
 
-Atualizado em 05/11/2026. **Preparação isolada, não implantada.** Produção
-permanece 1.80.0. Worktree `C:\endemias-setores`, branch
-`codex/divisao-setores-2`. Esta entrega não declara a versão 2.0 estável.
+Atualizado em 05/11/2026. **Candidata ativada no Windows** (release `29b478a`).
+Produção Endemias agora 2.0.0-rc.1; origens locais dos três hosts conferidas.
+Rotas/HTTPS públicos do Ambiental e portal ainda em configuração. Esta entrega
+não declara a versão 2.0 estável. Preparação em `C:\endemias-setores`, branch
+`codex/divisao-setores-2`; código integrado na master pela janela administrativa.
+
+## Versão ativa 2.0.0-rc.1 — divisão ativada em 05/11/2026
+
+- Usuário executou o atalho administrativo e informou conclusão. Relatório
+  `C:\ProgramData\EndemiasWeb\ativacao-setores200rc1-resultado.json`:
+  `status=aplicado`, `stage=concluido`, release `29b478a`, janela 09h04.
+  Somente 0035 aplicada; 96 tabelas/colunas anteriores comparadas e preservadas,
+  assim como arquivos operacionais, chave, config e SQLite congelado. Contas,
+  níveis e senhas preservados; contas comuns continuam Endemias.
+- Backup PostgreSQL de 7.541.541 bytes/catalogado, SHA-256
+  `57c00bdfb971c3f5b89153950061949ca8b4678bc4cc034ebe48fdeeb21b763c`.
+  Completo anterior à 0035: `D:\BackupsEndemias\backups_web\completos\endemias_completo_20261105_090441.zip`,
+  310.611.983 bytes, SHA-256
+  `b8974c9f1ef756dbbba2bff95bb58cd41eb1764c87b91704162295c2e1b511b3`.
+  Restaurar este completo para código 2.0 exige aplicar 0035 antes de abrir uso.
+- Mesma tarefa/identidade/credencial do servidor. Prova real na conta limitada
+  passou em todos os checks, incluindo escrita controlada nos dois Kobo,
+  chaves por setor, três hosts, negação anônima, backup SQL e código sem escrita.
+  Tarefa Kobo das 12h30 encontrada e devolvida ao estado original; mesmo horário
+  e identidade. Executor agora seleciona os dois setores separadamente.
+  Primeira execução automática após a divisão ainda não conferida.
+- LAN Endemias 5000 e Ambiental 5004 respondem 200 no servidor; origem Tunnel
+  127.0.0.1:5001 responde aos três Hosts corretamente. Regra Ambiental criada
+  só para interface/sub-rede local e perfis privado/domínio. Teste de outro
+  aparelho, perda da internet e reinício real desta versão ainda pendentes.
+- HTTPS Endemias confirmado 200/2.0.0-rc.1 e `no-store, private`. Usuário está
+  configurando as rotas `ambiental.vsatt.com.br` e `vsatt.com.br` no mesmo Tunnel;
+  HTTPS público desses dois ainda pendente. Não declarar toda publicação pronta.
+- Prévia fictícia aprovada pelo usuário em 05/11. Estética do Ambiental/portal
+  ficou para depois. Não marcar 2.0 estável antes das conferências operacionais.
+  Geo permanece futuro. Não repetir o atalho de atualização já aplicado.
 
 ## Decisões confirmadas pelo usuário
 
@@ -64,7 +97,7 @@ o comportamento anterior. Não habilitar no serviço antes da migração/testes.
 
 ## Banco e dados existentes
 
-Migração **aditiva 0035**, ainda não aplicada à produção:
+Migração **aditiva 0035**, aplicada pela janela de 05/11:
 
 - `usuarios.setor`: padrão Endemias. Não adivinhar a lotação real das pessoas.
   Após homologação, responsável atribuirá Ambiental na Gestão de Usuários.
@@ -177,9 +210,9 @@ foi repetida após os ajustes, com o resultado acima. Evidências locais ignorad
 pelo Git: `.venv/regressao-confirmada.log`, `setores-focados-final.log`,
 `setores-browser-resultado.json` e `setores-pg-resultado.json`.
 
-Ainda não confirmados: novos DNS/rotas Tunnel, fluxo real dos usuários,
-classificação dos compromissos antigos, aplicação real da 0035, ACL do novo
-Kobo, regra LAN 5004 e reinício com a divisão. Não usar testes sintéticos como
+Ainda não confirmados: novos DNS/rotas Tunnel/HTTPS públicos, fluxo real dos
+usuários, classificação dos compromissos antigos, LAN em outro aparelho, primeira
+rotina Kobo automática após divisão e reinício com a divisão. Não usar testes sintéticos como
 declaração de prontidão operacional ou implantação concluída.
 
 Windows sem atualização, HTTP local, MFA e primeiro upload cifrado ao Drive
