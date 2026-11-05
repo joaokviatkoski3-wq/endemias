@@ -6,22 +6,24 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Correções 2.0.1 em preparação — 05/11/2026
+## Versão ativa 2.0.1 — correções em 05/11/2026
 
-- Usuário autorizou corrigir a revisão funcional; produção continua em 2.0.0.
-  Código em `C:\endemias-interface`, branch `codex/correcoes-201`, com alterações
-  de módulos integradas e validação concluída. Ler `docs/CORRECOES_201.md`.
+- Usuário executou o novo atalho e confirmou sucesso. Relatório
+  `C:\ProgramData\EndemiasWeb\ativacao-correcoes201-resultado.json` aplicado/concluido,
+  release `93c5866`, janela15h03:96 tabelas/dados/arquivos/configurações preservados,
+  sem DDL, mesma identidade/ambiente/tarefa, prova limitada OK e agendamento devolvido.
+  Ler `docs/CORRECOES_201.md` para comportamentos, backups e limites.
 - Suíte final 1.102 testes/sem falhas/seis ignorados; 15 focados após ajuste do
-  mapa, PostgreSQL descartável e Chromium também OK. Ativação Windows pendente.
+  mapa, PostgreSQL descartável e Chromium também OK. Três HTTPS e logins locais
+  confirmam200/2.0.1; APIs anônimas401; script público confere byte a byte.
 - Não reimportar/recompor dados históricos automaticamente. Há conferência
   manual por campo para BRI/Recolhimentos, restrita a gestores, ainda sem uso real.
 - Usuário definiu casos humanos: situação pela data mais recente; retroativo
   somente histórico. Desempate na mesma data pelo último acompanhamento incluído.
-- A ativação usa o novo wrapper `scripts/ativar_correcoes_201_windows.py`, sem DDL,
-  mantendo a janela protegida de backup/parada/prova/retorno. Não executar
-  ativadores anteriores nem integrar arquivos na produção com servidor antigo ativo.
+- Ativação usou `scripts/ativar_correcoes_201_windows.py`. Não repetir nenhum
+  ativador já executado. SQLite congelado mantém hash anterior; Geo continua futuro.
 
-## Versão ativa 2.0.0 — fechamento e revisão em 05/11/2026
+## Histórico 2.0.0 — fechamento e revisão em 05/11/2026
 
 - Usuário aprovou o visual, autorizou publicar **2.0.0** e executou o atalho.
   Relatório `C:\ProgramData\EndemiasWeb\ativacao200estavel-resultado.json`

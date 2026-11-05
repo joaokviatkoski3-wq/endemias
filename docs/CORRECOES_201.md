@@ -1,7 +1,9 @@
 # Correções compatíveis 2.0.1
 
-Pacote validado em 05/11/2026, na branch `codex/correcoes-201`, worktree
-`C:\endemias-interface`. Produção permanece em 2.0.0 até a ativação controlada.
+Pacote **ativo em produção** em 05/11/2026, preparado na branch
+`codex/correcoes-201`, worktree `C:\endemias-interface`. Usuário executou o
+atalho administrativo e informou sucesso. Relatório nativo aplicado/concluido,
+release `93c5866`, janela iniciada às 15h03.
 
 O conjunto melhora a consistência dos contratos Kobo, das edições, das listas,
 dos filtros, da navegação de ajuda e das integrações entre rotinas dos setores.
@@ -49,7 +51,7 @@ de esquema. Falha retorna código/configuração; não restaura banco automatica
 
 O diagnóstico detalhado e a matriz de acompanhamento da revisão são locais,
 conforme `docs/REVISAO_FUNCIONAL_200_20261105.md`. Este repositório é público.
-Ativação ainda pendente da execução administrativa no Windows.
+Não repetir o atalho: ele foi preparado para uma única origem e um commit exato.
 
 ## Validação concluída
 
@@ -73,3 +75,24 @@ Ativação ainda pendente da execução administrativa no Windows.
 - Persistem avisos antigos de conexões SQLite de teste não fechadas e um erro de
   encerramento de listener fictício do Waitress no Windows; a suíte não registrou
   falhas. Testes são evidência de regressão, não certificação integral do sistema.
+
+## Ativação confirmada
+
+- Relatório `C:\ProgramData\EndemiasWeb\ativacao-correcoes201-resultado.json`:
+  aplicado/concluido, 96 tabelas e dados/arquivos operacionais preservados,
+  sem DDL. Mesma tarefa, identidade limitada e ambiente; configurações dos dois
+  Kobo intactas; agendamento devolvido. Todas as verificações da conta limitada OK,
+  incluindo compilação dos templates e consultas novas das listas.
+- Portal e dois logins públicos:200/2.0.1. Logins locais5000/5004:200/2.0.1;
+  APIs públicas anônimas401. Arquivo `static/js/app.js` público igual à candidata.
+  Política de scripts aplicada nas três telas ajustadas, conferida na borda.
+  Evidências locais: `.venv/publicacao-201.json`, `.venv/csp-201-publico.json`.
+- Backup PostgreSQL antes da troca:7.548.833 bytes, catálogo validado, SHA-256
+  `4f5443fbfd0fc8be702bac88a24ab2544a82c5b61d4834177d11eda6337e3047`.
+  Arquivo `C:\ProgramData\EndemiasWeb\ativacao-correcoes201-20261105-150318\antes_conta_limitada.dump`.
+- Backup completo:310.617.980 bytes, SHA-256
+  `2363a24530ba410683ed85c94c4f8cbc025cc82d3120510775c70ae62e0463dd`.
+  Arquivo `D:\BackupsEndemias\backups_web\completos\endemias_completo_20261105_150324.zip`.
+- Chromium integrado adicional confirmou edição neutra, equipe com catálogo
+  real da implementação e formulário humano (sem substituir o catálogo), com
+  gravações fictícias. Nenhuma correção histórica real foi aplicada.

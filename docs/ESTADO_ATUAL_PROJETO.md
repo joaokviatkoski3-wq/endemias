@@ -4,22 +4,25 @@ Atualizado em 05/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Correções 2.0.1 em preparação — 05/11/2026
+## Versão ativa 2.0.1 — correções em 05/11/2026
 
-- Usuário autorizou as correções. Produção continua em 2.0.0. Worktree de
-  integração `C:\endemias-interface`, branch `codex/correcoes-201`; ler
-  `docs/CORRECOES_201.md` para comportamentos e validação concluída.
+- Usuário executou o atalho e confirmou sucesso. Relatório
+  `C:\ProgramData\EndemiasWeb\ativacao-correcoes201-resultado.json` aplicado/concluido,
+  release `93c5866`, janela15h03.96 tabelas/dados/arquivos/configurações preservados;
+  sem DDL; mesma tarefa/identidade/ambiente, prova limitada OK, agendamento devolvido.
+  Ler `docs/CORRECOES_201.md` para comportamentos, backups e limites.
 - Suíte final 1.102 testes/sem falhas/seis ignorados; 15 focados após ajuste do
-  mapa, PostgreSQL descartável e Chromium OK. Falta ativação administrativa.
+  mapa, PostgreSQL descartável e Chromium OK. Três HTTPS e logins locais5000/5004:
+  200/2.0.1; APIs anônimas401 e script público confere byte a byte. Evidências
+  `.venv/publicacao-201.json` e `.venv/csp-201-publico.json` na worktree de integração.
 - Não reimportar históricos automaticamente: BRI/Recolhimentos têm conferência
   por campos aprovados, sem uso real nesta preparação. Contas/setores preservados.
 - Regra humana definida pelo usuário: data mais recente determina situação;
   retroativo acrescenta histórico; empate pelo último incluído na mesma data.
-- Ativador novo: `scripts/ativar_correcoes_201_windows.py`, origem 2.0.0,
-  destino 2.0.1, marcador `ativacao-correcoes201`; sem migração de esquema.
-  Produção só integra na janela controlada, com backup e servidor antigo parado.
+- Ativador `scripts/ativar_correcoes_201_windows.py` já aplicado; não repetir
+  nenhum atalho anterior. SQLite congelado conserva hash anterior; Geo futuro.
 
-## Versão ativa 2.0.0 — fechamento e revisão em 05/11/2026
+## Histórico 2.0.0 — fechamento e revisão em 05/11/2026
 
 - Usuário aprovou o visual, autorizou 2.0.0 e executou o atalho. Relatório
   `C:\ProgramData\EndemiasWeb\ativacao200estavel-resultado.json` aplicado/concluido,
