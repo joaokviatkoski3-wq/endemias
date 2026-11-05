@@ -238,6 +238,11 @@ class SetoresTests(unittest.TestCase):
         config=dict(self.apps['endemias'].config)
         config.update(ACESSO_EXTERNO=True,TRUSTED_HOSTS=['endemias.vsatt.com.br'])
         application=app.create_app(config)
+        from scripts.provar_setores_windows import verificar
+        for filename in ('kobo_config.json','kobo_ambiental.json'):
+            (self.directory/filename).write_text(json.dumps({'api_token':'FICTICIO','assets':{}}),encoding='utf-8')
+        checks=verificar({'version':'2.0.0-rc.1','env':{'ENDEMIAS_SETORES_ENABLED':'1','ENDEMIAS_KOBO_CONFIG_PATH':str(self.directory/'kobo_config.json')}},self.directory,application)
+        self.assertTrue(all(checks.values()))
         client=Client(dominios.application(application),use_cookies=True)
         from functools import partial
         client.open=partial(client.open,environ_overrides={'REMOTE_ADDR':'127.0.0.1'})

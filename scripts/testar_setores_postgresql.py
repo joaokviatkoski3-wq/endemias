@@ -78,6 +78,8 @@ def main():
                 connection.commit()
             finally:
                 sqlite.close()
+            from scripts.ativar_setores_windows import fingerprints
+            legacy=fingerprints(connection)
             with connection.cursor() as cursor:
                 cursor.execute('SELECT id_usuario,usuario,senha_hash FROM usuarios ORDER BY id_usuario')
                 before=cursor.fetchall()
@@ -86,6 +88,14 @@ def main():
                 assert before==cursor.fetchall()
                 cursor.execute("SELECT COUNT(*) FROM usuarios WHERE setor<>'endemias'")
                 assert cursor.fetchone()[0]==0
+            connection.commit()
+            assert fingerprints(connection,legacy)==legacy
+            with connection.cursor() as cursor:
+                cursor.execute("UPDATE usuarios SET nome='Pessoa Ficticia Alterada' WHERE id_usuario=1")
+            assert fingerprints(connection,legacy)!=legacy
+            connection.rollback()
+            checks['assinaturas_detectam_alteracao_de_dados_e_ignoram_coluna_nova']=True
+            with connection.cursor() as cursor:
                 cursor.execute("UPDATE usuarios SET nivel='superadmin' WHERE id_usuario=1")
                 cursor.execute("UPDATE usuarios SET setor='ambiental' WHERE id_usuario=4")
             connection.commit()

@@ -162,6 +162,9 @@ def probe(config, root):
     if response.status_code != 200 or config["version"].encode() not in response.data:
         raise RuntimeError("A pagina de login nao corresponde a versao esperada.")
     checks["login_versao_atual"] = True
+    if config['env'].get('ENDEMIAS_SETORES_ENABLED') == '1':
+        from scripts.provar_setores_windows import verificar
+        checks.update(verificar(config, root, app))
     from app_core import postgresql_backup
     backup = postgresql_backup.criar_backup_postgresql(
         database="endemias", destino_dir=config["env"]["ENDEMIAS_BACKUP_DIR"],

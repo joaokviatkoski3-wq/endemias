@@ -1,6 +1,6 @@
 # Divisão de setores — candidata 2.0.0-rc.1
 
-Atualizado em 04/11/2026. **Preparação isolada, não implantada.** Produção
+Atualizado em 05/11/2026. **Preparação isolada, não implantada.** Produção
 permanece 1.80.0. Worktree `C:\endemias-setores`, branch
 `codex/divisao-setores-2`. Esta entrega não declara a versão 2.0 estável.
 
@@ -81,17 +81,47 @@ PostgreSQL não recebe DDL na inicialização web: com a divisão ligada, a fáb
 confere as colunas e recusa iniciar se a migração estiver ausente. SQLite de
 teste recebe compatibilidade local. **Nunca executar testes no SQLite congelado.**
 
+## Pacote de implantação preparado em 05/11
+
+Usuário aprovou a prévia local com massa fictícia e pediu prosseguir; estética
+fica para depois. Todas as contas comuns continuam Endemias inicialmente.
+
+`scripts/ativar_setores_windows.py` faz a janela administrativa com backups,
+0035, comparação das colunas anteriores e dos arquivos operacionais, configuração
+Kobo separada/ACL restrita, atualização do bootstrap protegido, prova na mesma
+conta limitada, regra LAN Ambiental e sondas dos três hosts. Não redefine tarefa,
+identidade ou senha. O retorno captura configurações eventualmente alteradas e
+restaura código/configuração anterior, conservando esquema aditivo e dados novos.
+Os relatórios não gravam tokens ou linhas de dados; snapshots são privados.
+
+O executor diário Kobo das 12h30 é preservado: mesma tarefa/identidade/horário,
+pausada apenas na janela. O script existente passa a executar os dois setores
+explicitamente e devolve erro se algum falhar, sem impedir o outro de tentar.
+Se estiver importando, o instalador recusa iniciar a troca e aguarda nova tentativa
+após a execução terminar; não mata uma importação em andamento.
+
+46 testes focados passaram, e dez verificações do instalador/executor foram
+repetidas após os ajustes finais. As simulações cobriram sucesso e falha na prova
+limitada, com retorno de configurações/serviço/agendamento e banco preservado.
+O comparador foi ensaiado num PostgreSQL novo: aceita a coluna adicionada e
+detecta mudança numa coluna antiga. Ainda falta a execução na identidade real.
+
+Relatório esperado após a execução:
+`C:\ProgramData\EndemiasWeb\ativacao-setores200rc1-resultado.json`.
+Somente `status=aplicado`, `stage=concluido` e checks verdadeiros confirmam ativação.
+Em falha, preservar relatórios e snapshots; não executar ativadores antigos.
+
 ## Procedimento de implantação ainda pendente
 
 Não executar ativadores antigos 1.77/1.78/1.79/1.80 para esta candidata.
 Antes de publicar, preparar a janela Windows específica, com backup completo
 e PostgreSQL conferidos, inventário/assinaturas dos dados anteriores, cópia
-privada das configurações/ACL e plano de retorno. Este documento não é um
+privada das configurações/ACL e plano de retorno. Este documento acompanha o novo
 ativador e a integração na master não deve ocorrer com o processo ativo lendo
 templates antigos/novos misturados.
 
-1. Homologar visualmente e validar os fluxos de Esporotricose, Amostras,
-   relatórios e agenda com responsável. Conferir atribuição real das contas.
+1. Prévia homologada em 05/11; repetir a conferência com os endereços reais após
+   ativação. Contas comuns continuam Endemias, conforme decisão do usuário.
 2. Preparar divisão privada da configuração Kobo, sem imprimir tokens.
    `setores.dividir_kobo` prepara os dois objetos em memória. Conferir os UIDs;
    preservar os originais no backup. Dar à conta limitada a mesma permissão
@@ -155,3 +185,24 @@ declaração de prontidão operacional ou implantação concluída.
 Windows sem atualização, HTTP local, MFA e primeiro upload cifrado ao Drive
 permanecem conforme o estado anterior; não foram alterados nem declarados
 resolvidos por esta divisão.
+
+
+## Painel Cloudflare — orientação conferida em 05/11
+
+Na interface atual: **Networking → Tunnels → vsatt-piloto → Routes → Add route
+→ Published application**. Em algumas telas a aba é chamada Published
+application routes/Public hostnames. Usar o Tunnel existente, sem reinstalar o
+conector. Origem comum: tipo HTTP, URL `127.0.0.1:5001`, caminho vazio.
+
+| Subdomínio | Domínio | HTTP Host Header específico da rota |
+| --- | --- | --- |
+| `ambiental` | `vsatt.com.br` | `ambiental.vsatt.com.br` |
+| vazio | `vsatt.com.br` | `vsatt.com.br` |
+
+O campo HTTP Host Header fica nas configurações adicionais/HTTP da própria rota.
+Cada rota deve transmitir seu hostname; não copiar um override Endemias para as
+outras. Conservar a rota Endemias existente. A criação das rotas/DNS será manual,
+pois não há ferramenta Cloudflare conectada disponível nesta sessão.
+
+Fontes oficiais: [criar rota publicada](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel/)
+e [HTTP Host Header](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/origin-parameters/#httphostheader).
