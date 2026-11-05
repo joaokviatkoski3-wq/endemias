@@ -412,7 +412,8 @@ async function alternarOviLabLote(id,historico){
 function renderOviLabDetalhe(body,lote,historico){
   const editavel=Boolean(lote.editavel);
   body.innerHTML=`
-    ${(lote.itens||[]).map(item=>`<div class="ovi-lab-row" data-ovi-lab-row-lote="${lote.id_lote}" data-ovi-lab-item="${item.id_item}"><span class="ovi-lab-row-label"><strong>${e(item.ovitrampa_id)} - ${e(item.complemento||'Local sem identificação')}</strong><span>${e(item.localidade||lote.diario_nome)}</span></span><label class="ovi-lab-field"><span>Ovos</span><input class="ovi-lab-input" data-ovi-lab-ovos type="number" inputmode="numeric" min="0" max="100000" value="${Number(item.ovos)||0}" ${editavel?'':'disabled'} oninput="alterouOviLab(${lote.id_lote},${historico?'true':'false'})"></label><label class="ovi-lab-field ovi-lab-field-occurrence"><span>Ocorrências</span><select class="ovi-lab-occurrence" data-ovi-lab-ocorrencia ${editavel?'':'disabled'} onchange="alterouOviLab(${lote.id_lote},${historico?'true':'false'})"><option value="">Selecionar ocorrência</option>${oviLabOcorrencias.map(([codigo,label])=>`<option value="${codigo}" ${Number(item.ocorrencia)===codigo?'selected':''}>${codigo} - ${e(label)}</option>`).join('')}</select></label></div>`).join('')}
+    ${editavel&&!historico?'<p class="ovi-lab-save-state">Informe a quantidade de cada armadilha. Quando não houver ovos, registre 0. Campos vazios ficam pendentes.</p>':''}
+    ${(lote.itens||[]).map(item=>`<div class="ovi-lab-row" data-ovi-lab-row-lote="${lote.id_lote}" data-ovi-lab-item="${item.id_item}"><span class="ovi-lab-row-label"><strong>${e(item.ovitrampa_id)} - ${e(item.complemento||'Local sem identificação')}</strong><span>${e(item.localidade||lote.diario_nome)}</span></span><label class="ovi-lab-field"><span>Ovos</span><input class="ovi-lab-input" data-ovi-lab-ovos type="number" inputmode="numeric" min="0" max="100000" step="1" placeholder="Informar" value="${item.leitura_informada?Number(item.ovos)||0:''}" ${editavel?'':'disabled'} oninput="alterouOviLab(${lote.id_lote},${historico?'true':'false'})"></label><label class="ovi-lab-field ovi-lab-field-occurrence"><span>Ocorrências</span><select class="ovi-lab-occurrence" data-ovi-lab-ocorrencia ${editavel?'':'disabled'} onchange="alterouOviLab(${lote.id_lote},${historico?'true':'false'})"><option value="">Selecionar ocorrência</option>${oviLabOcorrencias.map(([codigo,label])=>`<option value="${codigo}" ${Number(item.ocorrencia)===codigo?'selected':''}>${codigo} - ${e(label)}</option>`).join('')}</select></label></div>`).join('')}
     <div class="ovi-lab-actions"><div><div class="ovi-lab-total">Total: <strong data-ovi-lab-total="${lote.id_lote}">${Number(lote.ovos)||0}</strong> ovos</div><span class="ovi-lab-save-state" data-ovi-lab-save="${lote.id_lote}">${editavel?(historico?'Correções permitidas até o envio ao Conta Ovos.':'Valores salvos como rascunho.'):'Leitura bloqueada após envio ao Conta Ovos.'}</span>${oviLabIsAdmin?`<label class="ovi-lab-field" style="margin-top:10px;"><span>Laboratorista responsável</span><select class="ovi-lab-occurrence" onchange="atribuirOviLabLaboratorista(${lote.id_lote},this.value,${historico?'true':'false'})"><option value="">Selecionar</option>${oviLabLaboratoristas.map(pessoa=>`<option value="${Number(pessoa.id_usuario)}" ${Number(lote.id_laboratorista)===Number(pessoa.id_usuario)?'selected':''}>${e(pessoa.nome)}</option>`).join('')}</select></label>`:`<span class="ovi-lab-save-state">Leitura por ${e(lote.laboratorista_nome||'não informado')}.</span>`}</div>${editavel&&!historico?`<button class="btn btn-primary" type="button" onclick="concluirOviLab(${lote.id_lote})"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Concluir leitura</button>`:editavel?'<span class="ovi-lab-status concluido">Correções permitidas</span>':'<span></span>'}</div>`;
 }
 async function atribuirOviLabLaboratorista(id,idLaboratorista,historico){
@@ -423,15 +424,25 @@ async function atribuirOviLabLaboratorista(id,idLaboratorista,historico){
     await carregarOviLab(historico);
   }catch(err){toast(err.message||'Não foi possível alterar o laboratorista.','error');}
 }
-function leiturasOviLab(id){
-  return Array.from(document.querySelectorAll(`[data-ovi-lab-row-lote="${id}"]`)).map(row=>({
-    id_item:Number(row.dataset.oviLabItem),
-    ovos:Math.max(0,Number(row.querySelector('[data-ovi-lab-ovos]')?.value)||0),
-    ocorrencia:row.querySelector('[data-ovi-lab-ocorrencia]')?.value||null,
-  }));
+function leiturasOviLab(id,completo=false){
+  return Array.from(document.querySelectorAll(`[data-ovi-lab-row-lote="${id}"]`)).flatMap(row=>{
+    const input=row.querySelector('[data-ovi-lab-ovos]');
+    const texto=input?.value.trim()||'';
+    input?.setCustomValidity('');
+    if(texto===''&&!completo)return [];
+    const ovos=texto===''?null:Number(texto);
+    if(ovos===null||!Number.isInteger(ovos)||ovos<0||ovos>100000){
+      const mensagem='Informe uma quantidade inteira de 0 a 100000 para cada armadilha.';
+      input?.setCustomValidity(mensagem);input?.reportValidity();input?.focus();
+      throw new Error(mensagem);
+    }
+    return [{id_item:Number(row.dataset.oviLabItem),ovos,
+      ocorrencia:row.querySelector('[data-ovi-lab-ocorrencia]')?.value||null}];
+  });
 }
 function alterouOviLab(id,historico){
-  const leituras=leiturasOviLab(id);
+  let leituras;
+  try{leituras=leiturasOviLab(id);}catch(err){return;}
   const total=leituras.reduce((s,item)=>s+item.ovos,0);
   const totalEl=document.querySelector(`[data-ovi-lab-total="${id}"]`);
   const state=document.querySelector(`[data-ovi-lab-save="${id}"]`);
@@ -453,9 +464,12 @@ async function salvarRascunhoOviLab(id,historico=false){
 }
 async function concluirOviLab(id){
   clearTimeout(oviLabSaveTimers.get(id));oviLabSaveTimers.delete(id);
-  if(!confirm('Concluir a leitura deste diário? Revise as quantidades antes de confirmar.'))return;
   try{
-    const data=await apiPost(`/api/laboratorio/ovitrampas/lotes/${id}/concluir`,{leituras:leiturasOviLab(id)});
+    const leituras=leiturasOviLab(id,true);
+    const zeros=leituras.filter(item=>item.ovos===0).length;
+    const aviso=zeros?` Há ${zeros} armadilha(s) com zero ovos.`:'';
+    if(!confirm(`Concluir a leitura deste diário?${aviso} Revise as quantidades antes de confirmar.`))return;
+    const data=await apiPost(`/api/laboratorio/ovitrampas/lotes/${id}/concluir`,{leituras});
     if(data.erro)throw new Error(data.erro);
     toast('Leitura do diário concluída.','success');
     await carregarOviLab(false);

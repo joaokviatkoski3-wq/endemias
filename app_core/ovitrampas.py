@@ -800,6 +800,100 @@ def _lab_contagens_join(conn):
     """
 
 
+def leituras_mapa_cte(conn):
+    """Fonte de consulta: API, laboratório concluído e histórico ainda não coberto.
+
+    A API prevalece no mesmo dia. Um lote concluído ainda não espelhado aparece
+    imediatamente; rascunhos não são resultados. O histórico semanal só entra
+    quando não há resultado atual daquela armadilha/semana, antes dos filtros.
+    """
+    if _is_postgresql(conn):
+        ano_data = "CAST(EXTRACT(YEAR FROM CAST(data_coleta AS DATE)) AS INTEGER)"
+
+        def primeiro_domingo(ano):
+            janeiro = f"make_date({ano},1,1)"
+            return f"({janeiro}+((7-CAST(EXTRACT(DOW FROM {janeiro}) AS INTEGER))%7))"
+
+        def semana(ano):
+            return f"((CAST(data_coleta AS DATE)-{primeiro_domingo(ano)})/7+1)"
+    else:
+        ano_data = "CAST(strftime('%Y',data_coleta) AS INTEGER)"
+
+        def primeiro_domingo(ano):
+            janeiro = f"printf('%04d-01-01',{ano})"
+            return f"date({janeiro},'+'||((7-CAST(strftime('%w',{janeiro}) AS INTEGER))%7)||' days')"
+
+        def semana(ano):
+            return f"(CAST((julianday(data_coleta)-julianday({primeiro_domingo(ano)}))/7 AS INTEGER)+1)"
+
+    lab = """SELECT CAST(NULL AS TEXT) AS id_leitura, CAST(NULL AS TEXT) AS ovitrampa_id,
+                    CAST(NULL AS INTEGER) AS ano, CAST(NULL AS INTEGER) AS semana,
+                    CAST(NULL AS TEXT) AS data_coleta, CAST(NULL AS TEXT) AS data_leitura,
+                    CAST(NULL AS TEXT) AS data_envio_contagem, CAST(NULL AS INTEGER) AS ovos WHERE 1=0"""
+    lab_ctes = ""
+    if (db_core.table_exists(conn, LAB_LOTES_TABLE)
+            and db_core.table_exists(conn, LAB_ITENS_TABLE)):
+        lab_ctes = f"""
+            ovi_lab_base AS (
+                SELECT i.id_item, i.ovitrampa_id, i.ovos, l.id_lote, l.status,
+                       CAST(l.data_movimento AS TEXT) AS data_coleta,
+                       COALESCE(l.concluido_em,l.atualizado_em,l.criado_em) AS atualizado_em
+                  FROM {LAB_ITENS_TABLE} i
+                  JOIN {LAB_LOTES_TABLE} l ON l.id_lote=i.id_lote
+                 WHERE l.status IN ('concluido','enviado_conta_ovos')
+            ),
+            ovi_lab_ano AS (
+                SELECT *, CASE WHEN CAST(data_coleta AS TEXT)<CAST({primeiro_domingo(ano_data)} AS TEXT)
+                               THEN {ano_data}-1 ELSE {ano_data} END AS ano
+                  FROM ovi_lab_base
+            ),
+            ovi_lab_rank AS (
+                SELECT *, {semana('ano')} AS semana,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY ovitrampa_id,data_coleta
+                           ORDER BY CASE status WHEN 'enviado_conta_ovos' THEN 2 ELSE 1 END DESC,
+                                    atualizado_em DESC,id_lote DESC,id_item DESC
+                       ) AS posicao
+                  FROM ovi_lab_ano
+            ),
+        """
+        lab = """SELECT 'lab:'||CAST(id_item AS TEXT) AS id_leitura,
+                        ovitrampa_id,ano,semana,data_coleta,
+                        data_coleta AS data_leitura,NULL AS data_envio_contagem,ovos
+                   FROM ovi_lab_rank WHERE posicao=1"""
+    return f"""WITH {lab_ctes}
+        ovi_api AS (
+            SELECT 'api:'||CAST(id_contagem AS TEXT) AS id_leitura,
+                   ovitrampa_id,ano,semana,
+                   COALESCE(CAST(data AS TEXT),SUBSTR(data_envio_contagem,1,10)) AS data_coleta,
+                   CAST(NULL AS TEXT) AS data_leitura,data_envio_contagem,ovos
+              FROM {OCORRENCIAS_TABLE}
+        ),
+        ovi_lab AS ({lab}),
+        ovi_atual AS (
+            SELECT * FROM ovi_api
+            UNION ALL
+            SELECT l.* FROM ovi_lab l
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM ovi_api a WHERE a.ovitrampa_id=l.ovitrampa_id
+                   AND (a.data_coleta=l.data_coleta OR (
+                       a.data_coleta IS NULL AND a.ano=l.ano AND a.semana=l.semana))
+             )
+        ),
+        ovi_leituras AS (
+            SELECT * FROM ovi_atual
+            UNION ALL
+            SELECT 'legado:'||CAST(l.id_leitura AS TEXT),l.ovitrampa_id,l.ano,l.semana,
+                   SUBSTR(COALESCE(CAST(l.data_coleta AS TEXT),CAST(l.data_leitura AS TEXT),l.data_envio_contagem),1,10),
+                   CAST(l.data_leitura AS TEXT),l.data_envio_contagem,l.ovos
+              FROM {TABLE} l
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM ovi_atual a WHERE a.ovitrampa_id=l.ovitrampa_id
+                   AND a.ano=l.ano AND a.semana=l.semana
+             )
+        ) """
+
+
 def resumo_contagens_api_para_aba(db_path, filtros=None):
     """Resume as leituras do espelho GET do Conta Ovos."""
     filtros = filtros or {}

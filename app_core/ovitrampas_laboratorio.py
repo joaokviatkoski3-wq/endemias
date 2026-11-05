@@ -169,6 +169,7 @@ def obter_lote(db_path, id_lote):
         contaovos_cadastro.ensure_schema_connection(conn)
         itens = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT i.id_item, i.ovitrampa_id, i.complemento, i.localidade, i.ovos, i.ocorrencia,
+                       i.atualizado_em,
                        a.rua, a.numero, a.localizacao, a.bairro, a.responsavel,
                        a.telefone_responsavel, a.quarteirao, a.latitude, a.longitude,
                        q.status AS cadastro_conta_ovos_status, q.erro_sanitizado AS cadastro_conta_ovos_erro
@@ -181,6 +182,10 @@ def obter_lote(db_path, id_lote):
         ).fetchall()]
         for item in itens:
             item["ocorrencia_label"] = OCORRENCIAS.get(item.get("ocorrencia"))
+            item["leitura_informada"] = bool(
+                item.get("atualizado_em") or item.get("ovos") or item.get("ocorrencia")
+                or lote["status"] in ("concluido", "enviado_conta_ovos")
+            )
         registro = _lote_dict(lote)
         registro["itens"] = itens
         registro["armadilhas"] = len(itens)
@@ -224,7 +229,7 @@ def concluir_lote(db_path, id_lote, leituras, usuario):
         _ensure_schema_conn(conn)
         lote = _lote_editavel(conn, id_lote)
         agora = datetime.now().isoformat(timespec="seconds")
-        _salvar_itens(conn, lote["id_lote"], leituras, agora)
+        _salvar_itens(conn, lote["id_lote"], leituras, agora, completo=True)
         conn.execute(
             f"""UPDATE {LOTES_TABLE}
                    SET status='concluido', id_laboratorista=?, laboratorista_nome=?,
@@ -397,7 +402,7 @@ def _diarios_com_armadilhas(conn):
     return list(diarios.values())
 
 
-def _salvar_itens(conn, id_lote, leituras, agora):
+def _salvar_itens(conn, id_lote, leituras, agora, completo=False):
     if not isinstance(leituras, list):
         raise ValueError("Informe as leituras das armadilhas.")
     permitidos = {
@@ -406,25 +411,33 @@ def _salvar_itens(conn, id_lote, leituras, agora):
         ).fetchall()
     }
     vistos = set()
+    valores = []
     for leitura in leituras:
-        id_item = _int((leitura or {}).get("id_item"))
+        if not isinstance(leitura, dict):
+            raise ValueError("Leitura de armadilha inválida.")
+        id_item = _int(leitura.get("id_item"))
         if not id_item or id_item not in permitidos or id_item in vistos:
             raise ValueError("Leitura de armadilha inválida.")
         vistos.add(id_item)
-        ovos = _int((leitura or {}).get("ovos"), default=None)
-        if ovos is None or ovos < 0 or ovos > 100000:
+        ovos = _int(leitura.get("ovos"), default=None)
+        if (ovos is None or ovos < 0 or ovos > 100000
+                or not re.fullmatch(r"[0-9]+", str(leitura.get("ovos")).strip())):
             raise ValueError("A quantidade de ovos deve estar entre 0 e 100000.")
-        ocorrencia_raw = (leitura or {}).get("ocorrencia")
+        ocorrencia_raw = leitura.get("ocorrencia")
         ocorrencia = None
         if ocorrencia_raw not in (None, ""):
             ocorrencia = _int(ocorrencia_raw, default=None)
             if ocorrencia not in OCORRENCIAS:
                 raise ValueError("A ocorr\u00eancia deve estar entre 1 e 8.")
+        valores.append((ovos, ocorrencia, agora, id_item, id_lote))
+    if completo and (not permitidos or vistos != permitidos):
+        raise ValueError("Informe a leitura de todas as armadilhas, incluindo zero quando não houver ovos.")
+    for valor in valores:
         conn.execute(
             f"""UPDATE {ITENS_TABLE}
                    SET ovos=?, ocorrencia=?, atualizado_em=?
                  WHERE id_item=? AND id_lote=?""",
-            (ovos, ocorrencia, agora, id_item, id_lote),
+            valor,
         )
 
 

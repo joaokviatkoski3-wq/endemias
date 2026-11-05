@@ -12,6 +12,7 @@ from app_core import ovitrampas as ovitrampas_core
 from app_core import pontos_estrategicos as pe_core
 from app_core import setores
 from app_core import work_types
+from app_core.territorio import chave_territorial
 
 
 bp = Blueprint("mapa", __name__)
@@ -189,13 +190,15 @@ def api_mapa():
                         (SELECT MAX(v.data)
                            FROM visitas v
                           WHERE v.tipo='PE'
-                            AND v.id_localidade=pe.id_localidade
-                            AND CAST(v.quarteirao AS TEXT)=CAST(pe.quarteirao AS TEXT)) IS NULL
+                            AND (v.id_pe=pe.id_pe OR (
+                                v.id_pe IS NULL AND v.id_localidade=pe.id_localidade
+                                AND CAST(v.quarteirao AS TEXT)=CAST(pe.quarteirao AS TEXT)))) IS NULL
                         OR (SELECT MAX(v2.data)
                               FROM visitas v2
                              WHERE v2.tipo='PE'
-                               AND v2.id_localidade=pe.id_localidade
-                               AND CAST(v2.quarteirao AS TEXT)=CAST(pe.quarteirao AS TEXT)) < ?
+                               AND (v2.id_pe=pe.id_pe OR (
+                                   v2.id_pe IS NULL AND v2.id_localidade=pe.id_localidade
+                                   AND CAST(v2.quarteirao AS TEXT)=CAST(pe.quarteirao AS TEXT)))) < ?
                     ) THEN 1 ELSE 0 END) AS pes_atrasados
                 FROM pontos_estrategicos pe
                 {where_pe}
@@ -206,8 +209,9 @@ def api_mapa():
             )
 
             ovitrampas_core.ensure_schema(conn)
+            leituras_cte = ovitrampas_core.leituras_mapa_cte(conn)
             data_ovitrampa = _ovitrampa_date_expression("o")
-            join_ovi = "LEFT JOIN ovitrampas_leituras o ON o.ovitrampa_id=a.ovitrampa_id"
+            join_ovi = "LEFT JOIN ovi_leituras o ON o.ovitrampa_id=a.ovitrampa_id"
             params_o = []
             if d_ini or d_fim:
                 on_filters = ["o.ovitrampa_id=a.ovitrampa_id"]
@@ -217,7 +221,7 @@ def api_mapa():
                 if d_fim:
                     on_filters.append(f"{data_ovitrampa}<=?")
                     params_o.append(d_fim)
-                join_ovi = "LEFT JOIN ovitrampas_leituras o ON " + " AND ".join(on_filters)
+                join_ovi = "LEFT JOIN ovi_leituras o ON " + " AND ".join(on_filters)
 
             where_o = "WHERE a.quarteirao IS NOT NULL AND l4.id_localidade IS NOT NULL"
             if locs:
@@ -226,7 +230,7 @@ def api_mapa():
 
             rows_o = _serialize_rows(
                 conn.execute(
-                    f"""
+                    f"""{leituras_cte}
                 SELECT
                     l4.id_localidade,
                     a.quarteirao,
@@ -285,14 +289,16 @@ def api_mapa():
             return entry
 
         for r in rows_v:
-            chave = f"{r['id_localidade']}:{r['quarteirao']}"
+            chave = chave_territorial(r['id_localidade'], r['quarteirao'])
+            if chave is None:
+                continue
             if chave not in dados:
                 dados[chave] = mapa_entry_vazio()
             tipo = r["tipo"] or ""
             total_tipo = r["total_tipo"] or 0
             dados[chave]["total"] += total_tipo
-            dados[chave]["tipos"][tipo] = total_tipo
-            dados[chave][tipo.lower()] = total_tipo
+            dados[chave]["tipos"][tipo] = dados[chave]["tipos"].get(tipo, 0) + total_tipo
+            dados[chave][tipo.lower()] = dados[chave].get(tipo.lower(), 0) + total_tipo
             dados[chave]["normais"] += r["normais"] or 0
             dados[chave]["fechados"] += r["fechados"] or 0
             dados[chave]["recuperados"] += r["recuperados"] or 0
@@ -301,43 +307,46 @@ def api_mapa():
                 dados[chave]["ultimo_trabalho"] = ultimo
 
         for r in rows_f:
-            chave = f"{r['id_localidade']}:{r['quarteirao']}"
+            chave = chave_territorial(r['id_localidade'], r['quarteirao'])
+            if chave is None:
+                continue
             if chave not in dados:
                 dados[chave] = mapa_entry_vazio()
-            dados[chave]["focos"] = r["total_focos"]
-            dados[chave]["focos_pendentes"] = r["focos_pendentes"]
+            dados[chave]["focos"] += r["total_focos"] or 0
+            dados[chave]["focos_pendentes"] += r["focos_pendentes"] or 0
 
         for r in rows_e:
-            chave = f"{r['id_localidade']}:{r['quarteirao']}"
+            chave = chave_territorial(r['id_localidade'], r['quarteirao'])
+            if chave is None:
+                continue
             if chave not in dados:
                 dados[chave] = mapa_entry_vazio()
-            dados[chave]["esporo_visitas"] = r["esporo_visitas"] or 0
-            dados[chave]["esporo_animais"] = r["esporo_animais"] or 0
-            dados[chave]["esporo_feridas"] = r["esporo_feridas"] or 0
-            dados[chave]["esporo_fechadas"] = r["esporo_fechadas"] or 0
-            dados[chave]["esporo_recusas"] = r["esporo_recusas"] or 0
-            dados[chave]["ultimo_esporotricose"] = r["ultimo_esporotricose"]
+            for campo in ("esporo_visitas", "esporo_animais", "esporo_feridas", "esporo_fechadas", "esporo_recusas"):
+                dados[chave][campo] += r[campo] or 0
+            ultimo = r["ultimo_esporotricose"]
+            if ultimo and (not dados[chave]["ultimo_esporotricose"] or ultimo > dados[chave]["ultimo_esporotricose"]):
+                dados[chave]["ultimo_esporotricose"] = ultimo
 
         for r in rows_pe:
-            chave = f"{r['id_localidade']}:{r['quarteirao']}"
+            chave = chave_territorial(r['id_localidade'], r['quarteirao'])
+            if chave is None:
+                continue
             if chave not in dados:
                 dados[chave] = mapa_entry_vazio()
-            dados[chave]["pes_total"] = r["pes_total"] or 0
-            dados[chave]["pes_ativos"] = r["pes_ativos"] or 0
-            dados[chave]["pes_inativos"] = r["pes_inativos"] or 0
-            dados[chave]["pes_sem_coordenada"] = r["pes_sem_coordenada"] or 0
-            dados[chave]["pes_atrasados"] = r["pes_atrasados"] or 0
+            for campo in ("pes_total", "pes_ativos", "pes_inativos", "pes_sem_coordenada", "pes_atrasados"):
+                dados[chave][campo] += r[campo] or 0
 
         for r in rows_o:
-            chave = f"{r['id_localidade']}:{r['quarteirao']}"
+            chave = chave_territorial(r['id_localidade'], r['quarteirao'])
+            if chave is None:
+                continue
             if chave not in dados:
                 dados[chave] = mapa_entry_vazio()
-            dados[chave]["ovi_armadilhas"] = r["ovi_armadilhas"] or 0
-            dados[chave]["ovi_com_coordenada"] = r["ovi_com_coordenada"] or 0
-            dados[chave]["ovi_leituras"] = r["ovi_leituras"] or 0
-            dados[chave]["ovi_positivas"] = r["ovi_positivas"] or 0
-            dados[chave]["ovi_ovos"] = r["ovi_ovos"] or 0
-            dados[chave]["ultimo_ovitrampa"] = r["ultimo_ovitrampa"]
+            for campo in ("ovi_armadilhas", "ovi_com_coordenada", "ovi_leituras", "ovi_positivas", "ovi_ovos"):
+                dados[chave][campo] += r[campo] or 0
+            ultimo = r["ultimo_ovitrampa"]
+            if ultimo and (not dados[chave]["ultimo_ovitrampa"] or ultimo > dados[chave]["ultimo_ovitrampa"]):
+                dados[chave]["ultimo_ovitrampa"] = ultimo
 
         return jsonify(dados)
     except Exception:
@@ -359,8 +368,9 @@ def api_mapa_ovitrampas():
         conn = integradas.integrar(bh.get_db())
         try:
             ovitrampas_core.ensure_schema(conn)
+            leituras_cte = ovitrampas_core.leituras_mapa_cte(conn)
             data_ovitrampa = _ovitrampa_date_expression("l")
-            join = "LEFT JOIN ovitrampas_leituras l ON l.ovitrampa_id=a.ovitrampa_id"
+            join = "LEFT JOIN ovi_leituras l ON l.ovitrampa_id=a.ovitrampa_id"
             params = []
             if d_ini or d_fim:
                 filtros_join = ["l.ovitrampa_id=a.ovitrampa_id"]
@@ -370,7 +380,7 @@ def api_mapa_ovitrampas():
                 if d_fim:
                     filtros_join.append(f"{data_ovitrampa}<=?")
                     params.append(d_fim)
-                join = "LEFT JOIN ovitrampas_leituras l ON " + " AND ".join(filtros_join)
+                join = "LEFT JOIN ovi_leituras l ON " + " AND ".join(filtros_join)
 
             where = ["a.latitude IS NOT NULL", "a.longitude IS NOT NULL"]
             if locs:
@@ -401,7 +411,7 @@ def api_mapa_ovitrampas():
             )
             nocase_order = ovitrampas_core._nocase_order(conn, "a.ovitrampa_id")
 
-            sql = f"""
+            sql = f"""{leituras_cte}
                 SELECT
                     a.ovitrampa_id,
                     a.rua,

@@ -550,13 +550,24 @@ function mostrarLoading() {
   el.style.opacity = '1';
 }
 
+function chaveTerritorial(localidade, quarteirao) {
+  let numero = String(quarteirao ?? '').trim();
+  if (/^[0-9]+(?:\.0+)?$/.test(numero)) {
+    numero = numero.split('.')[0].replace(/^0+(?=[0-9])/, '');
+  } else if (/^[0-9]+\.[0-9]+$/.test(numero)) {
+    const partes = numero.split('.');
+    numero = partes[0].replace(/^0+(?=[0-9])/, '') + '.' + partes[1];
+  }
+  return `${String(localidade ?? '').trim()}:${numero}`;
+}
+
 function renderGeoJSON() {
   if (geojsonLayer) { mapaL.removeLayer(geojsonLayer); }
 
   geojsonLayer = L.geoJSON(geojsonData, {
     style: feature => {
       const p   = feature.properties;
-      const d   = dadosAPI[`${p.Localidade}:${p.id_quart}`];
+      const d   = dadosAPI[chaveTerritorial(p.Localidade, p.id_quart)];
       const cor = obterCor(d);
       if (modoAtual === 'ovitrampas') {
         const locCor = corLocalidadeOvi(p.Localidade);
@@ -679,7 +690,7 @@ function formatarDataIso(valor) {
 //  Detalhe
 // ═══════════════════════════════════════════════════════════════════
 function mostrarDetalhe(props) {
-  const d  = dadosAPI[`${props.Localidade}:${props.id_quart}`];
+  const d  = dadosAPI[chaveTerritorial(props.Localidade, props.id_quart)];
   const el = document.getElementById('sel-info');
 
   if (!d || (d.total === 0 && d.esporo_visitas === 0 && d.focos === 0 && d.pes_ativos === 0 && d.ovi_armadilhas === 0)) {
@@ -737,7 +748,7 @@ function mostrarDetalhe(props) {
       <div class="popup-linha"><span>Leituras</span><span>${d.ovi_leituras || 0}</span></div>
       <div class="popup-linha"><span>Positivas</span><span>${d.ovi_positivas || 0}</span></div>
       <div class="popup-linha"><span>Ovos</span><span>${d.ovi_ovos || 0}</span></div>
-      ${d.ultimo_ovitrampa ? `<div class="popup-linha"><span>Última coleta</span><span>${d.ultimo_ovitrampa}</span></div>` : ''}
+      ${d.ultimo_ovitrampa ? `<div class="popup-linha"><span>Última coleta</span><span>${escapeAttr(d.ultimo_ovitrampa)}</span></div>` : ''}
     </div>
     <div class="detalhe-bloco">
       <div class="detalhe-subtitulo">Atenção territorial</div>
@@ -754,7 +765,7 @@ function atualizarKPIs() {
   let trabalhados = 0, visitas = 0, focos = 0, esporoVisitas = 0, esporoFeridas = 0, pesAtivos = 0, pesAtrasados = 0, oviArmadilhas = 0, oviPositivas = 0;
   const total = geojsonData.features.length;
   geojsonData.features.forEach(f => {
-    const d = dadosAPI[`${f.properties.Localidade}:${f.properties.id_quart}`];
+    const d = dadosAPI[chaveTerritorial(f.properties.Localidade, f.properties.id_quart)];
     if (d && d.total > 0) trabalhados++;
     if (d) {
       visitas += d.total || 0;

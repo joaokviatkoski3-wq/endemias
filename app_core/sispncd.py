@@ -5,6 +5,7 @@ from decimal import Decimal
 from app_core import bri as bri_core
 from app_core import db as db_core
 from app_core import work_types
+from app_core.territorio import chave_territorial
 
 
 DEPOSIT_TYPES = ("A1", "A2", "B", "C", "D1", "D2", "E")
@@ -529,10 +530,14 @@ def sispncd(db_path, year, week, tipos, id_localidade=None):
         tb_types = [t for t in visita_tipos if t in ("TB", "TBO")]
         if tb_types:
             tb_where, tb_params = _base_where(data_inicio, data_fim, tb_types, id_localidade)
-            dados["total_quarteiroes"] = conn.execute(
-                f"SELECT COUNT(DISTINCT quarteirao) FROM visitas v WHERE {tb_where}",
+            territorios = conn.execute(
+                f"SELECT DISTINCT v.id_localidade, v.quarteirao FROM visitas v WHERE {tb_where}",
                 tb_params,
-            ).fetchone()[0] or 0
+            ).fetchall()
+            dados["total_quarteiroes"] = len({
+                chave for row in territorios
+                if (chave := chave_territorial(row["id_localidade"], row["quarteirao"])) is not None
+            })
 
         for row in conn.execute(
             f"SELECT {kind_expr} AS categoria, COUNT(DISTINCT v.id_visita) AS total FROM visitas v WHERE {where} GROUP BY categoria",
