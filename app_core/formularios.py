@@ -218,11 +218,11 @@ def revisar(target, id_formulario, payload, decisao, usuario, motivo=None):
             raise ValueError("Formulário não encontrado.")
         if row["status"] == STATUS_OFICIALIZADO:
             raise ValueError("Formulário já oficializado.")
-        conn.execute(
+        cur = conn.execute(
             """UPDATE formularios
                   SET payload_json=?, status=?, revisado_por_usuario_id=?,
                       revisado_por_nome=?, revisado_em=?, motivo_devolucao=?
-                WHERE id_formulario=?""",
+                WHERE id_formulario=? AND status<>?""",
             (
                 json.dumps(payload, ensure_ascii=False),
                 decisao,
@@ -231,8 +231,11 @@ def revisar(target, id_formulario, payload, decisao, usuario, motivo=None):
                 _now(),
                 motivo or None,
                 id_formulario,
+                STATUS_OFICIALIZADO,
             ),
         )
+        if cur.rowcount != 1:
+            raise ValueError("O formulário já foi alterado. Recarregue e confira.")
         conn.commit()
         return True
     finally:
@@ -252,7 +255,9 @@ def excluir(target, id_formulario):
             raise ValueError("Formulário não encontrado.")
         if row["status"] == STATUS_OFICIALIZADO:
             raise ValueError("Formulário oficializado não pode ser apagado.")
-        conn.execute("DELETE FROM formularios WHERE id_formulario=?", (id_formulario,))
+        cur = conn.execute("DELETE FROM formularios WHERE id_formulario=? AND status<>?", (id_formulario, STATUS_OFICIALIZADO))
+        if cur.rowcount != 1:
+            raise ValueError("O formulário já foi alterado. Recarregue e confira.")
         conn.commit()
         return True
     finally:

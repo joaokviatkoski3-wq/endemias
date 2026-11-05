@@ -38,6 +38,8 @@ class Operacionais201Tests(unittest.TestCase):
                 self.assertEqual(export.status_code,200)
                 linhas=list(csv.reader(io.StringIO(export.data.decode('utf-8-sig')),delimiter=';'))
                 self.assertEqual(len(linhas),505)
+                if table=='bri_registros':
+                    self.assertIn('Local de tratamento',linhas[0])
                 filtrado=client.get('/api/'+path+'/exportar?busca=InexistenteFicticio')
                 self.assertEqual(len(list(csv.reader(io.StringIO(filtrado.data.decode('utf-8-sig')),delimiter=';'))),1)
 

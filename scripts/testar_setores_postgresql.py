@@ -9,6 +9,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,6 +44,40 @@ def verificar_correcoes_201(target, client, checks):
     humanos.salvar_acompanhamento(target,paciente,{'data':'2026-06-10','status':'Acabou tratamento'},'Autor Fictício')
     humanos.salvar_acompanhamento(target,paciente,{'data':'2026-06-01','status':'Em tratamento'},'Autor Fictício')
     assert humanos.obter_paciente(target,paciente)['status']=='Acabou tratamento'
+    for operacao in ('revisar','excluir'):
+        fid=formularios.salvar(target,'rg_atualizacao',payload,usuario)
+        formularios.revisar(target,fid,payload,formularios.STATUS_APROVADO,usuario)
+        principal=db.connect(target); concorrente=db.connect(target)
+        leu_status=threading.Event(); erros=[]
+        class ConexaoDeEnsaio:
+            def execute(self,sql,params=()):
+                cur=concorrente.execute(sql,params)
+                if sql.startswith('SELECT status FROM formularios'):
+                    leu_status.set()
+                return cur
+            def __getattr__(self,nome):return getattr(concorrente,nome)
+        def executar():
+            try:
+                if operacao=='revisar':formularios.revisar(target,fid,{},formularios.STATUS_DEVOLVIDO,usuario)
+                else:formularios.excluir(target,fid)
+            except Exception as exc:erros.append(exc)
+        thread=threading.Thread(target=executar,daemon=True)
+        try:
+            principal.execute('SELECT id_formulario FROM formularios WHERE id_formulario=? FOR UPDATE',(fid,))
+            with mock.patch.object(db,'connect',return_value=ConexaoDeEnsaio()):
+                thread.start()
+                assert leu_status.wait(5),'Operação concorrente não chegou à leitura esperada'
+                principal.execute('UPDATE formularios SET status=? WHERE id_formulario=?',(formularios.STATUS_OFICIALIZADO,fid))
+                principal.commit()
+                thread.join(5)
+                assert not thread.is_alive(),'Operação concorrente não terminou'
+            assert len(erros)==1 and isinstance(erros[0],ValueError),(operacao,erros)
+            assert formularios.obter(target,fid)['status']==formularios.STATUS_OFICIALIZADO
+        finally:
+            principal.rollback();principal.close()
+            if thread.is_alive():thread.join(5)
+            concorrente.close()
+    checks['formulario_oficializado_preservado_em_revisao_exclusao_concorrentes_pg']=True
     checks['correcoes_201_listas_validacao_rg_atomico_cronologia_pg']=True
 
 

@@ -59,6 +59,7 @@ class AcessoExternoTests(unittest.TestCase):
         for uid, status in ((21, "enviado"), (22, "oficializado"), (22, "aprovado")):
             with self.assertRaises(ValueError):
                 formularios.salvar(self.path, "rg_atualizacao", {}, {"id_usuario": uid}, uuid_cliente="outro", status=status)
+        formularios.revisar(self.path, fid, {"original": 1}, formularios.STATUS_APROVADO, {"id_usuario": 1})
         formularios.marcar_oficializado(self.path, fid, {"id_usuario": 1})
         with self.assertRaises(ValueError):
             formularios.salvar(self.path, "rg_atualizacao", {}, {"id_usuario": 22}, uuid_cliente="outro")

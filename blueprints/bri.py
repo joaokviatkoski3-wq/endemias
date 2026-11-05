@@ -43,7 +43,12 @@ def exportar():
     filtros = _filtros()
     filtros["busca"] = request.args.get("busca", "")
     dados = bri_core.listar(bh.db_target(), filtros, completo=True)
-    campos = [["data","Data"],["hora","Hora"],["sispncd","SISPNCD"],["agentes","Agentes"],["destino_tratamento","Destino"],["codigo_pe","PE"],["localidade","Localidade"],["quarteirao","Quarteirão"],["logradouro","Logradouro"],["numero","Número"],["numero_ovitrampa","Ovitrampa"],["quantidade_carga","Carga"],["tratou_imovel_extra","Tratou imóvel adicional"],["qual_imovel_extra","Imóvel adicional"],["depositos_tratados_extra","Depósitos adicionais"],["quantidade_carga_extra","Carga adicional"],["origem_estrutura","Origem"]]
+    campos = [["data", "Data"], ["hora", "Hora"], ["sispncd", "SISPNCD"], ["agentes", "Agentes"],
+              ["destino_tratamento", "Destino"], ["local_tratamento", "Local de tratamento"], ["codigo_pe", "PE"],
+              ["localidade", "Localidade"], ["quarteirao", "Quarteirão"], ["logradouro", "Logradouro"], ["numero", "Número"],
+              ["numero_ovitrampa", "Ovitrampa"], ["quantidade_carga", "Carga"], ["tratou_imovel_extra", "Tratou imóvel adicional"],
+              ["qual_imovel_extra", "Imóvel adicional"], ["depositos_tratados_extra", "Depósitos adicionais"],
+              ["quantidade_carga_extra", "Carga adicional"], ["origem_estrutura", "Origem"]]
     return exportar_csv(dados["registros"], campos, "bri", bh.db_target(), bh.usuario_atual() or {})
 
 
