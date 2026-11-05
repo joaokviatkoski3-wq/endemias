@@ -29,8 +29,11 @@ não declara a versão 2.0 estável. Preparação em `C:\endemias-setores`, bran
 - LAN Endemias 5000 e Ambiental 5004 respondem 200 no servidor; origem Tunnel
   127.0.0.1:5001 responde aos três Hosts corretamente. Regra Ambiental criada
   só para interface/sub-rede local e perfis privado/domínio. Teste de outro
-  aparelho confirmado pelo usuário em 05/11. Perda real da internet e reinício
-  desta versão ainda não ensaiados.
+  aparelho confirmado pelo usuário em 05/11. **Reinício real confirmado:**
+  usuário informou sucesso; LastBootUpTime passou de 04/11 09h49 para
+  05/11/2026 09h21. Cloudflared automático/rodando, portas locais e origem
+  corretas e três HTTPS 200 após o boot; logins dos setores seguem 2.0.0-rc.1
+  com no-store/private. Perda real da internet ainda não simulada.
 - **Publicação dos três hosts confirmada em 05/11:** usuário salvou as rotas
   no mesmo Tunnel. Portal `https://vsatt.com.br` 200, links corretos e sem cookie
   do sistema; `https://endemias.vsatt.com.br/login` e
@@ -220,8 +223,8 @@ pelo Git: `.venv/regressao-confirmada.log`, `setores-focados-final.log`,
 `setores-browser-resultado.json` e `setores-pg-resultado.json`.
 
 Ainda não confirmados: classificação dos compromissos antigos, primeiro
-processamento automático Kobo após divisão, perda real da internet e reinício
-com a divisão. Login real nos setores e LAN em outro aparelho foram confirmados
+processamento automático Kobo após divisão e perda real da internet. Reinício
+real da divisão confirmado em 05/11/2026, assim como retorno dos três HTTPS. Login real nos setores e LAN em outro aparelho foram confirmados
 pelo usuário. Ajustes visuais ficaram para depois. Não usar testes sintéticos como
 declaração de prontidão operacional ou implantação concluída.
 
