@@ -215,9 +215,11 @@ def main():
             user=db.query_one(target,'SELECT * FROM usuarios WHERE id_usuario=1')
             with application.app_context(),client.session_transaction() as session:
                 session.update(uid=1,nome=user['nome'],auth_token=auth.token_sessao(user['senha_hash']),sessao_id=sessoes.criar(target,user))
-            for path in ('/','/dashboard','/api/dashboard','/mapa','/api/mapa','/processar','/admin/usuarios'):
+            for path in ('/','/dashboard','/api/dashboard','/mapa','/api/mapa','/processar','/admin/usuarios',
+                         '/admin/auditoria','/admin/auditoria/exportar','/api/ajuda?limite=120'):
                 response=client.get(path)
                 assert response.status_code==200,(sector,path,response.status_code)
+            checks[sector+'_auditoria_exportacao_e_ajuda_pg']=True
             if sector=='ambiental':
                 assert client.get('/api/dashboard').json['registros']==3
                 for fmt in ('csv','xlsx','pdf'):assert client.get('/relatorios/exportar/'+fmt).status_code==200

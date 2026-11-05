@@ -19,8 +19,28 @@ ativadores antigos nem a recomposição histórica de BRI.
   a nova trilha técnica. Ela não substitui a auditoria do Windows/PostgreSQL nem
   demonstra que uma pessoa leu cada dado exibido.
 
-As decisões específicas de cobertura, exportação e retenção e os resultados
-das verificações serão registrados ao concluir a integração.
+## Onde consultar e exportar
+
+Em cada setor, **Auditoria** continua disponível a admin e superadmin. A lista
+deve exibir total, paginação e filtros; o XLSX deve respeitar o filtro completo,
+com teto explícito de 10.000 eventos. Acima dele é necessário reduzir o período
+ou outros filtros; a exportação não deve omitir silenciosamente os excedentes.
+
+O superadmin pode selecionar **Registros técnicos** na mesma página
+(`/admin/auditoria?origem=tecnico`). A área inicial é o setor atual; portal e
+sistema são fontes adicionais explícitas, sem abrir o outro setor nesse domínio.
+
+Arquivos JSONL ficam em `logs_privados/<área>` junto ao `LOG_PATH` operacional,
+fora dos arquivos públicos. Limites padrão: 5 MiB por arquivo, cinco rotações,
+até 30 MiB por área; consultas cobrem os últimos 30 dias ou o volume ainda
+disponível, o que for menor. A auditoria de negócio no banco não recebe essa
+limpeza automática. Presença e consultas de saúde repetidas são resumidas;
+recusas e falhas continuam sendo registradas.
+
+As importações automáticas mantêm o histórico e os registros da rotina já
+existentes. Esta entrega não transforma scripts externos em acessos HTTP nem
+oferece reconstrução retroativa de atividades. Detalhes e verificações finais
+serão registrados ao concluir a integração.
 
 ## Implantação
 

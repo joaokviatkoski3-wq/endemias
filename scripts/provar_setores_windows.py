@@ -38,7 +38,9 @@ def verificar(config, root, endemias):
     ambiental=dispatcher.applications['ambiental.'+domain]
     for template in ('ambiental_home.html','ambiental_painel.html','ambiental_relatorios.html','ambiental_filtros.html','ambiental_mapa.html'):
         ambiental.jinja_env.get_template(template)
-    for relative in ('css/ambiental.css','js/ambiental_dashboard.js','js/mapa_etiquetas_canvas.js','icons/agua.svg',
+    for relative in ('css/ambiental.css','css/branding_ambiental.css','css/portal_vsatt.css',
+                     'img/logo_ambiental.png','img/logo_vsatt.png',
+                     'js/ambiental_dashboard.js','js/mapa_etiquetas_canvas.js','icons/agua.svg',
                      'vendor/fullcalendar/index.global.min.js','vendor/fullcalendar/pt-br.global.min.js'):
         assert (Path(ambiental.static_folder)/relative).read_bytes()
     from app_core import ambiental as indicadores,db
@@ -53,8 +55,15 @@ def verificar(config, root, endemias):
     from app_core import bri, recolhimentos, amostras_animais
     for module in (bri, recolhimentos, amostras_animais):
         module.listar(target, {'d_ini':'9999-01-01','por_pagina':1})
+    from app_core import logging_rastreamento
+    proof = logging_rastreamento.provar_rotacao(endemias.config)
+    assert proof['ok'] and proof['temporarios_removidos'] and not proof['dados_reais_lidos']
+    for application in (endemias, ambiental):
+        writer = application.extensions['rastreamento']
+        assert writer.falhas == 0 and writer.path.is_file()
     return {'kobo_ambiental_leitura_gravacao':True,'kobo_formularios_separados':True,
         'logins_dos_setores':True,'apis_anonimas_negadas':True,'portal_sem_sessao':True,
         'host_desconhecido_negado':True,'chaves_por_setor_distintas':True,
         'interface_ambiental_leitura':True,'indicadores_ambientais_consulta':True,'portal_versao_atual':True,
-        'listas_operacionais_consulta':True,'templates_correcoes_compilam':True}
+        'listas_operacionais_consulta':True,'templates_correcoes_compilam':True,
+        'marcas_e_estilos_leitura':True,'logs_privados_gravacao_rotacao':True}

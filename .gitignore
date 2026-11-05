@@ -18,6 +18,8 @@ kobo_ambiental.json
 *.sqlite
 *.sqlite3
 *.log
+*.log.[0-9]*
+logs_privados/
 
 # Arquivos gerados pelo uso do sistema
 backups/
