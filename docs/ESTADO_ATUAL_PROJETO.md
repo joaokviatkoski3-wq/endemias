@@ -4,7 +4,7 @@ Atualizado em 06/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.4.0 — praticidade dos formulários em campo
+## Versão ativa 2.4.0 — praticidade dos formulários em campo
 
 Pedido em 06/11/2026, após a ativação 2.3.0. Branch
 `codex/formularios-campo-praticidade`, em `C:\endemias-interface`.
@@ -15,13 +15,19 @@ usuário; as regras de anonimização de consultas/relatórios permanecem vigent
 Sugestões territoriais consultam RG e geometria ativa, sem dados de moradores;
 campos livres continuam aceitando digitação. PE e LIRAa mantêm códigos/vínculos
 válidos; PE oferece quarteirão antes da rua, com a correspondência preservada.
-Sem DDL, mudança de contas ou ampliação do offline. Produção segue 2.3.0.
+Sem DDL, mudança de contas ou ampliação do offline. Produção agora em 2.4.0.
 Guia: `docs/FORMULARIOS_INTERNOS_KOBO.md`. Regressão: 1.189 testes, seis
 ignorados, nenhuma falha; API focada 17 testes, instalador 20, navegador nos dez
-tipos e PostgreSQL isolado passaram. Pacote pronto; ativação administrativa
-pendente, sem envio de dados reais.
+tipos e PostgreSQL isolado passaram. Ativação confirmada em 06/11/2026 às
+14h17, release `97f0fcb`. Relatório `ativacao-formularios240-resultado.json`:
+aplicado/concluído, backup completo/PostgreSQL realizados, prova limitada OK,
+96 tabelas preservadas, contas/ambiente/Kobo preservados e automação restabelecida.
+`.venv/publicacao-240.json`: 21 verificações públicas/locais passaram; cinco
+entradas na versão 2.4.0, JS/CSS publicados, APIs inclusive referências exigem
+login e catálogo privado não exposto. Nenhum envio real nesta conferência;
+piloto operacional pelo usuário permanece necessário.
 
-## Versão ativa 2.3.0 — formulários internos equivalentes ao Kobo
+## Histórico 2.3.0 — formulários internos equivalentes ao Kobo
 
 Usuário pediu os dez tipos existentes e confirmou revisão por admin antes da
 aplicação. Worktree `C:\endemias-interface`, branch `codex/formularios-internos-kobo`.

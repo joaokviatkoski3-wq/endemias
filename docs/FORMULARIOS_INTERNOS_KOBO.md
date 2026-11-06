@@ -1,7 +1,8 @@
 # Formulários internos compatíveis com Kobo — piloto ativo
 
 Pedido em 06/11/2026. Branch `codex/formularios-internos-kobo`, worktree
-`C:\endemias-interface`. Produção 2.3.0 ativa desde 06/11/2026 às 13h36, release `bf36464`.
+`C:\endemias-interface`. Produção 2.4.0 ativa desde 06/11/2026 às 14h17, release `97f0fcb`.
+A entrada inicial dos dez formulários ocorreu na 2.3.0, release `bf36464`.
 
 Usuário confirmou revisão por admin antes de gravar nos registros oficiais.
 Kobo permanece em paralelo, sem migração nem importação de respostas reais.
@@ -91,7 +92,7 @@ As definições são um retrato da versão implantada no Kobo. Alterações post
 no Kobo não modificam silenciosamente o catálogo interno: exigem atualização
 conferida, preservação da definição anterior e tratamento de rascunhos existentes.
 
-## Evolução 2.4.0 — candidata, ativação pendente
+## Evolução 2.4.0 — piloto ativo
 
 - Uma coluna de perguntas em celular e desktop; só a seleção da equipe usa grade.
   Todas as opções da equipe ficam visíveis na página, sem caixa com rolagem interna.
@@ -128,5 +129,10 @@ focada: 17 testes; instalador: 20 testes. Chromium confirmou dez formulários
 em celular/desktop, uma coluna, equipe fixa, sugestões e texto livre, seleção
 de PE em ordem quadra/rua e envio/revisão/aplicação. PostgreSQL descartável
 confirmou referências sem moradores e aplicação/auditoria atômicas. Teste Node
-confirmou o isolamento do cache offline. Pacote pronto; ativação administrativa
-pendente. Não houve alteração de produção nem envio de formulário real.
+confirmou o isolamento do cache offline. Ativação administrativa confirmada
+em 06/11/2026 às 14h17: relatório aplicado/concluído, backup completo e
+PostgreSQL realizados, 96 tabelas preservadas e prova limitada OK.
+As 21 verificações públicas/locais passaram: cinco entradas na versão 2.4.0,
+assets iguais aos instalados, APIs anônimas negadas e catálogo privado não exposto.
+Kobo e sua automação preservados. Nenhum formulário real enviado nesta conferência;
+conferência operacional no aparelho do piloto continua com o usuário.
