@@ -4,10 +4,10 @@ Atualizado em 06/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.2.0 — piloto PWA do RG (ativação pendente)
+## Versão ativa 2.2.0 — piloto PWA do RG
 
 Preparada em `C:\endemias-interface`, branch `codex/pwa-rg-piloto`, a pedido do
-usuário; produção segue 2.1.1 até execução elevada do atalho específico e prova.
+usuário; ativada em06/11/2026 às10h12 após execução elevada pelo usuário.
 Decisão expressa: apenas bloqueio de tela Android, sem outra senha/criptografia
 local do aplicativo. Guia e limites em `docs/PILOTO_PWA_RG.md`. RG móvel com
 autosave, rascunhos por conta, captura versionada, recibos idempotentes e
@@ -20,7 +20,17 @@ protocolo e16 do ativador; ensaio PostgreSQL descartável(porta55444), Node/SW
 e Chromium móvel/desktop. Cobertos fechamento offline, recibos/CAS, devolução,
 502, sessão vencida, armazenamento cheio, troca de conta e atualização aguardada.
 
-## Versão ativa: 2.1.1 — logos transparentes e portal claro
+Ativação confirmada: release `428b4d6`, relatório
+`C:\ProgramData\EndemiasWeb\ativacao-pwarg220-resultado.json`,
+status aplicado/concluído,96 tabelas preservadas, prova limitada OK, sem DDL,
+contas/ambiente/Kobo preservados e automação restabelecida.
+Verificação pública/local em `.venv/publicacao-220.json`:24 checagens.
+O SW publicado corresponde ao instalado; origem devolve no-cache, mas a
+Cloudflare devolve max-age=14400 (4h). Pendente configurar bypass de cache
+para `/sw.js` e `/manifest.webmanifest`, evitando atraso em futuras atualizações.
+Homologação física no Android segue pendente; não houve ampliação da equipe.
+
+## Histórico: 2.1.1 — logos transparentes e portal claro
 
 Em06/11 usuário entregou três logos novos com contorno branco. Cópias exatas
 em `static/img`, sem edição de PNG. CSS remove bases brancas e inversões de

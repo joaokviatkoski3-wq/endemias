@@ -6,19 +6,28 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.2.0 — piloto PWA do RG (ativação pendente)
+## Versão ativa 2.2.0 — piloto PWA do RG
 
 Usuário autorizou iniciar o piloto e escolheu somente bloqueio de tela Android,
 sem senha local adicional. Preparação em `C:\endemias-interface`, branch
 `codex/pwa-rg-piloto`; fonte da candidata em `app_core/version.py` = 2.2.0.
-Produção continua 2.1.1 até execução elevada do novo atalho e conferência do
-relatório. Consultar `docs/PILOTO_PWA_RG.md`: autosave, IndexedDB por conta,
+Usuário executou o atalho; relatório aplicado/concluído e publicação conferidos. Consultar `docs/PILOTO_PWA_RG.md`: autosave, IndexedDB por conta,
 recibos/revisões, confirmação transacional e RG oficial ainda sujeito a gestor.
 Não amplia contas/acessos, não substitui Kobo nem implementa Geo/fotos/GPS.
 Sem criptografia adicional dos rascunhos por escolha do usuário; Android real
 e iOS ainda precisam de homologação operacional antes de ampliação.
 
-## Versão ativa 2.1.1 — logos transparentes em 06/11/2026
+Ativação confirmada: release `428b4d6`, relatório
+`C:\ProgramData\EndemiasWeb\ativacao-pwarg220-resultado.json`,
+status aplicado/concluído,96 tabelas preservadas, prova limitada OK, sem DDL,
+contas/ambiente/Kobo preservados e automação restabelecida.
+Verificação pública/local em `.venv/publicacao-220.json`:24 checagens.
+O SW publicado corresponde ao instalado; origem devolve no-cache, mas a
+Cloudflare devolve max-age=14400 (4h). Pendente configurar bypass de cache
+para `/sw.js` e `/manifest.webmanifest`, evitando atraso em futuras atualizações.
+Homologação física no Android segue pendente; não houve ampliação da equipe.
+
+## Histórico 2.1.1 — logos transparentes em 06/11/2026
 
 Usuário forneceu três PNGs novos com contorno branco. Cópias byte a byte,
 sem edição das imagens: Endemias, Ambiental e VSATT. Removidas bases brancas
