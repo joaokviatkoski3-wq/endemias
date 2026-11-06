@@ -80,13 +80,12 @@ def verificar_correcoes_201(target, client, checks, private):
         fid=formularios.salvar(target,'rg_atualizacao',payload,usuario)
         formularios.revisar(target,fid,payload,formularios.STATUS_APROVADO,usuario)
         principal=db.connect(target); concorrente=db.connect(target)
-        leu_status=threading.Event(); erros=[]
+        consulta_iniciada=threading.Event(); erros=[]
         class ConexaoDeEnsaio:
             def execute(self,sql,params=()):
-                cur=concorrente.execute(sql,params)
-                if sql.startswith('SELECT status FROM formularios'):
-                    leu_status.set()
-                return cur
+                if sql.startswith('SELECT status') and 'FROM formularios' in sql:
+                    consulta_iniciada.set()  # SELECT FOR UPDATE pode aguardar a transação principal.
+                return concorrente.execute(sql,params)
             def __getattr__(self,nome):return getattr(concorrente,nome)
         def executar():
             try:
@@ -98,7 +97,7 @@ def verificar_correcoes_201(target, client, checks, private):
             principal.execute('SELECT id_formulario FROM formularios WHERE id_formulario=? FOR UPDATE',(fid,))
             with mock.patch.object(db,'connect',return_value=ConexaoDeEnsaio()):
                 thread.start()
-                assert leu_status.wait(5),'Operação concorrente não chegou à leitura esperada'
+                assert consulta_iniciada.wait(5),'Operação concorrente não iniciou a consulta esperada'
                 principal.execute('UPDATE formularios SET status=? WHERE id_formulario=?',(formularios.STATUS_OFICIALIZADO,fid))
                 principal.commit()
                 thread.join(5)
@@ -111,6 +110,31 @@ def verificar_correcoes_201(target, client, checks, private):
             concorrente.close()
     checks['formulario_oficializado_preservado_em_revisao_exclusao_concorrentes_pg']=True
     checks['correcoes_201_listas_validacao_rg_atomico_cronologia_pg']=True
+
+
+def verificar_campo_220(target, client, checks):
+    from uuid import uuid4
+    from concurrent.futures import ThreadPoolExecutor
+    from app_core import formularios as f, campo_protocolo as p
+    user={'id_usuario':1,'nome':'Gestor fictício','nivel':'superadmin'}
+    uid=str(uuid4());meta={'versao':1,'revisao':1,'dispositivo':str(uuid4())}
+    data={'id_localidade':1,'quarteirao':'0001','data_atualizacao':'2026-11-06','agentes_ids':[1],
+          'linhas':[{'logradouro':'Rua PWA fictícia','numero':'9','tipo':'R','condominio':0}]}
+    def save():return f.salvar(target,'rg_atualizacao',data,user,uuid_cliente=uid,captura=meta)
+    with ThreadPoolExecutor(max_workers=4) as pool:ids=list(pool.map(lambda _:save(),range(4)))
+    assert len(set(ids))==1
+    ident=ids[0]
+    f.revisar(target,ident,{**data,'localidade':'Conferida'},'aprovado',user)
+    assert save()==ident
+    try:f.salvar(target,'rg_atualizacao',data,user,uuid_cliente=uid,captura={**meta,'revisao':2})
+    except p.ConflitoCampo:pass
+    else:raise AssertionError('Captura não pode substituir revisão aprovada')
+    body={'tipo':'rg_atualizacao','usuario_offline':1,'uuid_cliente':str(uuid4()),'captura':meta,'payload':data,'status':'enviado'}
+    response=client.post('/api/formularios',json=body)
+    assert response.status_code==200,response.json
+    assert client.post('/api/formularios',json=body).json==response.json
+    assert client.post('/api/formularios',json={**body,'usuario_offline':2}).status_code==403
+    checks['pwa_rg_recibos_advisory_lock_revisao_atomicidade_conta_pg']=True
 
 
 def main():
@@ -237,6 +261,7 @@ def main():
                 assert client.get('/relatorio-agente/pdf'+query).status_code==200
                 assert client.get('/api/boletim-mensal?mes=2026-06').status_code==200
                 verificar_correcoes_201(target, client, checks, private)
+                verificar_campo_220(target, client, checks)
             event=client.post('/api/agenda/eventos',json={'titulo':'Evento ficticio '+sector,'tipo':'reuniao','data_inicio':'2026-06-01T09:00'})
             assert event.status_code==201
             events=client.get('/api/agenda/eventos?start=2026-06-01&end=2026-06-03')

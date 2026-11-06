@@ -6,6 +6,7 @@ from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import formularios as formularios_core
 from app_core import rg_formulario
+from app_core import audit, campo_protocolo
 
 
 bp = Blueprint("formularios", __name__)
@@ -15,9 +16,11 @@ nivel_min = bh.nivel_min
 
 @bp.route("/sw.js")
 def sw_js():
-    return send_from_directory(
+    response = send_from_directory(
         current_app.static_folder, "sw.js", mimetype="application/javascript"
     )
+    response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 @bp.route("/manifest.webmanifest")
@@ -42,7 +45,27 @@ def page():
 @login_required
 def api_salvar():
     payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"erro": "Envio inválido."}), 400
     usuario = bh.usuario_atual() or {}
+    if payload.get("captura") is not None:
+        if payload.get("usuario_offline") != usuario.get("id_usuario") or isinstance(payload.get("usuario_offline"), bool):
+            return jsonify({"erro": "A conta mudou. Volte à página online antes de sincronizar.", "codigo": "conta_alterada"}), 403
+        dados = payload.get("payload") or {}
+        if not isinstance(dados, dict):
+            return jsonify({"erro": "Conteúdo de campo inválido."}), 400
+        try:
+            campo_protocolo.validar_rg(dados, payload.get("status") or "enviado")
+        except ValueError as exc:
+            return jsonify({"erro": str(exc)}), 400
+        ids = dados.get("agentes_ids", [])
+        permitidos = {a["id_agente"] for a in rg_formulario.contexto(bh.db_target(), usuario)["agentes"]}
+        if not isinstance(ids, list) or any(not isinstance(i, int) or isinstance(i, bool) or i not in permitidos for i in ids):
+            return jsonify({"erro": "Confira os agentes liberados para sua conta antes de enviar."}), 400
+    def auditar(conn, ident, metadata):
+        audit.registrar_evento(bh.get_db, "formulario_campo_salvo", entidade="formularios", entidade_id=ident,
+            detalhes={"tipo": payload.get("tipo"), "status": payload.get("status") or "enviado",
+                      "revisao": metadata["revisao"] if metadata else None}, conn=conn)
     try:
         novo_id = formularios_core.salvar(
             bh.db_target(),
@@ -51,16 +74,33 @@ def api_salvar():
             usuario,
             uuid_cliente=payload.get("uuid_cliente"),
             status=payload.get("status") or formularios_core.STATUS_ENVIADO,
+            captura=payload.get("captura"),
+            auditar=auditar if payload.get("captura") is not None else None,
         )
+    except campo_protocolo.ConflitoCampo as exc:
+        return jsonify({"erro": str(exc), "codigo": exc.codigo}), 409
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
-    return jsonify({"ok": True, "id_formulario": novo_id})
+    status_atual = formularios_core.obter(bh.db_target(), novo_id)["status"] if payload.get("captura") else None
+    return jsonify({"ok": True, "id_formulario": novo_id, "uuid_cliente": payload.get("uuid_cliente"),
+                    "revisao_recebida": (payload.get("captura") or {}).get("revisao"), "status_atual": status_atual})
+
+
+@bp.get("/api/formularios/campo-sessao")
+def campo_sessao():
+    from flask_wtf.csrf import generate_csrf
+    usuario = bh.usuario_atual() or {}
+    if not usuario.get("id_usuario"):
+        return jsonify({"erro": "Entre novamente para sincronizar."}), 401
+    return jsonify({"usuario_id": usuario["id_usuario"], "csrf": generate_csrf(), "protocolo": 1})
 
 
 @bp.route("/api/formularios")
 @login_required
 def api_listar():
     usuario = bh.usuario_atual() or {}
+    if request.args.get("proprios") == "1":
+        usuario = {**usuario, "nivel": "usuario"}
     try:
         itens = formularios_core.listar(
             bh.db_target(),
@@ -142,7 +182,11 @@ def rg_revisao_page():
 @login_required
 def api_rg_snapshot():
     payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"erro": "Seleção inválida."}), 400
     selecoes = payload.get("selecoes") or []
+    if not isinstance(selecoes, list) or not 1 <= len(selecoes) <= 500 or any(not isinstance(s, dict) for s in selecoes):
+        return jsonify({"erro": "Selecione entre 1 e 500 quarteirões por vez."}), 400
     try:
         return jsonify(rg_formulario.snapshot(bh.db_target(), selecoes))
     except Exception:

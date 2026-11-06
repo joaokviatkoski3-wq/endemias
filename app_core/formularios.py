@@ -7,9 +7,11 @@ aplicação do dado aprovado fica em cada módulo específico (ex.: o RG chama
 """
 
 import json
+import hashlib
 from datetime import datetime
 
 from app_core import db as db_core
+from app_core import campo_protocolo
 
 
 TABLE = "formularios"
@@ -86,7 +88,7 @@ def ensure_schema(conn):
     )
 
 
-def salvar(target, tipo, payload, usuario, uuid_cliente=None, status=STATUS_ENVIADO):
+def salvar(target, tipo, payload, usuario, uuid_cliente=None, status=STATUS_ENVIADO, *, captura=None, auditar=None):
     """Cria (ou atualiza por uuid_cliente) um formulário.
 
     Idempotência: se ``uuid_cliente`` já existir, atualiza payload/status e
@@ -98,23 +100,37 @@ def salvar(target, tipo, payload, usuario, uuid_cliente=None, status=STATUS_ENVI
         raise ValueError("Status inválido.")
     if not isinstance(payload, dict):
         raise ValueError("Payload inválido.")
+    metadata = campo_protocolo.preparar(tipo, payload, uuid_cliente, status, captura)
     usuario = usuario or {}
     agora = _now()
-    payload_json = json.dumps(payload, ensure_ascii=False)
+    stored = dict(payload)
+    if metadata:
+        stored[campo_protocolo.META] = metadata
+    payload_json = json.dumps(stored, ensure_ascii=False)
     agente_nome = usuario.get("nome") or usuario.get("usuario") or None
 
     conn, close = _open_connection(target)
     try:
         ensure_schema(conn)
         if uuid_cliente:
+            if getattr(conn, "backend", "sqlite") == "postgresql":
+                key = int.from_bytes(hashlib.sha256(str(uuid_cliente).encode()).digest()[:8], "big", signed=True)
+                conn.execute("SELECT pg_advisory_xact_lock(?)", (key,))
+            else:
+                conn.execute("BEGIN IMMEDIATE")
+        if uuid_cliente:
+            lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
             existente = conn.execute(
-                "SELECT id_formulario, usuario_id, status, tipo_formulario FROM formularios WHERE uuid_cliente=?", (uuid_cliente,)
+                "SELECT id_formulario, usuario_id, status, tipo_formulario, payload_json FROM formularios WHERE uuid_cliente=?" + lock, (uuid_cliente,)
             ).fetchone()
             if existente:
                 if existente["usuario_id"] != usuario.get("id_usuario"):
                     raise ValueError("Formulario indisponivel para este usuario.")
+                if campo_protocolo.conferir(existente, metadata):
+                    conn.commit()
+                    return existente["id_formulario"]
                 if existente["tipo_formulario"] != tipo or existente["status"] not in (STATUS_RASCUNHO, STATUS_ENVIADO, STATUS_DEVOLVIDO):
-                    raise ValueError("Formulario em revisao ou oficializado nao pode ser sobrescrito.")
+                    raise campo_protocolo.ConflitoCampo("Formulario em revisao ou oficializado nao pode ser sobrescrito.")
                 result = conn.execute(
                     """UPDATE formularios
                           SET payload_json=?, status=?, agente_nome=COALESCE(?, agente_nome),
@@ -124,7 +140,9 @@ def salvar(target, tipo, payload, usuario, uuid_cliente=None, status=STATUS_ENVI
                     (payload_json, status, agente_nome, agora, existente["id_formulario"], usuario.get("id_usuario")),
                 )
                 if result.rowcount != 1:
-                    raise ValueError("Formulario alterado durante o envio. Recarregue e confira.")
+                    raise campo_protocolo.ConflitoCampo("Formulario alterado durante o envio. Recarregue e confira.")
+                if auditar:
+                    auditar(conn, existente["id_formulario"], metadata)
                 conn.commit()
                 return existente["id_formulario"]
 
@@ -146,8 +164,13 @@ def salvar(target, tipo, payload, usuario, uuid_cliente=None, status=STATUS_ENVI
             ),
             "id_formulario",
         )
+        if auditar:
+            auditar(conn, novo_id, metadata)
         conn.commit()
         return novo_id
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         if close:
             conn.close()
@@ -211,20 +234,29 @@ def revisar(target, id_formulario, payload, decisao, usuario, motivo=None):
     conn, close = _open_connection(target)
     try:
         ensure_schema(conn)
+        if getattr(conn, "backend", "sqlite") != "postgresql":
+            conn.execute("BEGIN IMMEDIATE")
+        lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
         row = conn.execute(
-            "SELECT status FROM formularios WHERE id_formulario=?", (id_formulario,)
+            "SELECT status, payload_json FROM formularios WHERE id_formulario=?" + lock, (id_formulario,)
         ).fetchone()
         if not row:
             raise ValueError("Formulário não encontrado.")
         if row["status"] == STATUS_OFICIALIZADO:
             raise ValueError("Formulário já oficializado.")
+        reviewed = dict(payload)
+        reviewed.pop("_editor", None)  # A revisão de linhas prevalece sobre o editor bruto do aparelho.
+        metadata = json.loads(row["payload_json"] or "{}").get(campo_protocolo.META)
+        reviewed.pop(campo_protocolo.META, None)
+        if metadata:
+            reviewed[campo_protocolo.META] = metadata
         cur = conn.execute(
             """UPDATE formularios
                   SET payload_json=?, status=?, revisado_por_usuario_id=?,
                       revisado_por_nome=?, revisado_em=?, motivo_devolucao=?
                 WHERE id_formulario=? AND status<>?""",
             (
-                json.dumps(payload, ensure_ascii=False),
+                json.dumps(reviewed, ensure_ascii=False),
                 decisao,
                 usuario.get("id_usuario"),
                 usuario.get("nome") or usuario.get("usuario") or None,
@@ -238,6 +270,9 @@ def revisar(target, id_formulario, payload, decisao, usuario, motivo=None):
             raise ValueError("O formulário já foi alterado. Recarregue e confira.")
         conn.commit()
         return True
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         if close:
             conn.close()

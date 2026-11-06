@@ -132,6 +132,12 @@ class InterfaceInstallerTests(unittest.TestCase):
     def test_falha_bri_202_retorna_201_sem_restaurar_banco(self):
         self.simulate(fail_probe=True,origin='2.0.1',target='2.0.2',marker='ativacao-bri202')
 
+    def test_pwa_220_preserva_dados_contas_e_configuracoes(self):
+        self.simulate(origin='2.1.1',target='2.2.0',marker='ativacao-pwarg220')
+
+    def test_falha_pwa_220_retorna_211_sem_restaurar_dados(self):
+        self.simulate(fail_probe=True,origin='2.1.1',target='2.2.0',marker='ativacao-pwarg220')
+
 
 class FakeTask:
     State=4

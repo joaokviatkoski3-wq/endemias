@@ -55,6 +55,37 @@ class SetoresTests(unittest.TestCase):
                            sessao_id=sessoes.criar(str(self.path), user))
         return client
 
+    def test_campo_sessao_conta_setor_e_proprios(self):
+        self.assertIn(self.apps['endemias'].test_client().get('/api/formularios/campo-sessao').status_code, (302, 401))
+        client = self.client('endemias')
+        session = client.get('/api/formularios/campo-sessao')
+        self.assertEqual(session.json['usuario_id'], 1)
+        self.assertTrue(session.json['csrf'])
+        self.assertIn('no-store', session.headers['Cache-Control'])
+        self.assertEqual(self.client('ambiental').get('/api/formularios/campo-sessao').status_code, 403)
+        from app_core import formularios
+        formularios.salvar(str(self.path), 'rg_atualizacao', {}, {'id_usuario': 5, 'nome': 'Outro'})
+        self.assertEqual(client.get('/api/formularios?proprios=1').json['formularios'], [])
+
+    def test_campo_api_vincula_conta_valida_e_confirma_revisao(self):
+        client = self.client('endemias')
+        payload = {'tipo':'rg_atualizacao','uuid_cliente':str(uuid.uuid4()),'usuario_offline':1,'status':'enviado',
+                   'captura':{'versao':1,'revisao':1,'dispositivo':str(uuid.uuid4())},
+                   'payload':{'id_localidade':1,'quarteirao':'0001','data_atualizacao':'2026-11-06','agentes_ids':[1],
+                              'linhas':[{'logradouro':'Rua Fictícia','numero':'1','tipo':'R','condominio':0}]}}
+        self.assertEqual(client.post('/api/formularios',json={**payload,'usuario_offline':5}).status_code,403)
+        response=client.post('/api/formularios',json=payload)
+        self.assertEqual(response.status_code,200,response.json)
+        self.assertEqual(response.json['revisao_recebida'],1)
+        self.assertEqual(response.json['status_atual'],'enviado')
+        duplicate=client.post('/api/formularios',json=payload)
+        self.assertEqual(response.json,duplicate.json)
+        conflict=client.post('/api/formularios',json={**payload,'payload':{**payload['payload'],'localidade':'Alterada'}})
+        self.assertEqual(conflict.status_code,409)
+        bad={**payload,'uuid_cliente':str(uuid.uuid4()),'payload':{**payload['payload'],'agentes_ids':[999]}}
+        self.assertEqual(client.post('/api/formularios',json=bad).status_code,400)
+        self.assertEqual(client.post('/api/formularios/rg/snapshot',json={'selecoes':[{}]*501}).status_code,400)
+
     def test_migracao_preserva_contas_senhas_e_historico_dos_agentes(self):
         self.assertEqual(db.scalar(str(self.path), 'SELECT COUNT(*) FROM esporotricose_visita_agentes'), 2)
         old = db.query_one(str(self.seed), 'SELECT senha_hash FROM usuarios WHERE id_usuario=2')

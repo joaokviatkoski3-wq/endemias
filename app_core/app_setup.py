@@ -119,7 +119,7 @@ def register_security_headers(app):
         # Migracao gradual dos manipuladores inline; estas telas ja usam listeners.
         strict = request.endpoint in {'bri.page', 'amostras_animais.page', 'auth.login', 'auth.recuperar_senha', 'auth.esqueci_senha', 'admin.admin_baixar_backup', 'admin.admin_baixar_backup_completo'}
         strict = strict or request.blueprint=="ambiental" or request.endpoint in {
-            'consultas.laboratorio', 'laboratorio.page', 'recolhimentos.page', 'pontos_estrategicos.page'
+            'consultas.laboratorio', 'laboratorio.page', 'recolhimentos.page', 'pontos_estrategicos.page', 'formularios.rg_campo_page'
         }
         attributes = "'none'" if strict or not inline else "'unsafe-inline'"
         return (
@@ -304,7 +304,7 @@ def register_context_processors(app):
             APP_VERSION_DATE=version_core.APP_VERSION_DATE,
             APP_VERSION_LABEL=version_core.APP_VERSION_LABEL,
             ACESSO_EXTERNO=current_app.config.get("ACESSO_EXTERNO", False),
-            OFFLINE_USER_SCOPED=current_app.config.get("SESSION_KEY_SCOPE") in {"externo", "local"},
+            OFFLINE_USER_SCOPED=True,
             AMBIENTE_TESTE=ambiente_teste,
             AMBIENTE_NOME=ambiente,
         )

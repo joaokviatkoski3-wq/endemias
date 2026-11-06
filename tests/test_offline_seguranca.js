@@ -34,7 +34,15 @@ function dispatch(path, mode = 'navigate', method = 'GET') {
   assert.equal(dispatch('/api/formularios', 'cors'), undefined);
   context.fetch = async () => { throw new Error('offline'); };
   assert.equal(await (await dispatch('/formularios/rg-campo')).text(), 'pagina');
-  await assert.rejects(dispatch('/visitas'), /offline/);
+  await assert.rejects(dispatch('/visitas'), /somente online/);
+  context.fetch = async () => new Response('indisponivel', {status:502});
+  assert.equal(await (await dispatch('/formularios/rg-campo')).text(), 'pagina', '502 preserva a preparação');
+  context.fetch = async () => { throw new Error('offline'); };
+  entries.set(origin + '/__endemias_offline_user',new Response(JSON.stringify({usuario:'21',validade:Date.now()-1})));
+  assert.equal((await dispatch('/formularios/rg-campo')).status,503,'Preparação expira após 24h');
+  assert(!entries.has(origin + '/formularios/rg-campo'));
+  context.fetch = async () => new Response('pagina', {headers:{'X-Endemias-User':'21'}});
+  await dispatch('/formularios/rg-campo');
   context.fetch = async () => new Response('outra conta', {headers: {'X-Endemias-User': '22'}});
   await dispatch('/');
   assert(!entries.has(origin + '/formularios/rg-campo'), 'Troca de conta invalida pagina anterior');
@@ -42,10 +50,18 @@ function dispatch(path, mode = 'navigate', method = 'GET') {
   await dispatch('/logout', 'navigate', 'POST');
   assert(!entries.has(origin + '/formularios/rg-campo'), 'Sair remove pagina offline');
   assert(!entries.has(origin + '/__endemias_offline_user'));
+  let release;
+  context.fetch = request => new URL(typeof request==='string'?request:request.url,origin).pathname==='/formularios/rg-campo'
+    ? new Promise(resolve=>{release=resolve;}) : Promise.resolve(new Response('saiu'));
+  const late=dispatch('/formularios/rg-campo');
+  await new Promise(resolve=>setImmediate(resolve));
+  await dispatch('/logout','navigate','POST');
+  release(new Response('resposta antiga',{headers:{'X-Endemias-User':'21'}}));await late;
+  assert(!entries.has(origin+'/formularios/rg-campo'),'Resposta anterior ao logout não ressuscita página offline');
   // Dados novos na origem externa pertencem a cada usuario.
   const dbNames = [];
   for (const owner of ['21', '22']) {
-    const c = vm.createContext({window: {}, document: {querySelector: () => ({content: owner})}, indexedDB: {open: name => {dbNames.push(name); return {};}}});
+    const c = vm.createContext({window: {isSecureContext:true}, document: {querySelector: () => ({content: owner})}, indexedDB: {open: name => {dbNames.push(name); return {};}}});
     c.window.indexedDB = c.indexedDB;
     vm.runInContext(fs.readFileSync('static/js/rg_campo_offline.js', 'utf8'), c);
     c.window.RGCampoOffline.obterSnapshot();

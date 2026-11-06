@@ -1,13 +1,17 @@
 {
-  "name": "Endemias — Formulários",
-  "short_name": "Endemias",
+  "id": "/formularios/rg-campo",
+  "name": "Endemias — Campo RG",
+  "short_name": "Campo RG",
+  "description": "Preparação e preenchimento de Registro Geográfico em campo, com rascunhos neste aparelho.",
+  "lang": "pt-BR",
   "start_url": "/formularios/rg-campo",
   "scope": "/formularios/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#155e75",
+  "background_color": "#f1f5fd",
+  "theme_color": "#153e73",
+  "prefer_related_applications": false,
   "icons": [
-    { "src": "/static/img/favicon.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/static/img/favicon.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/static/icons/campo-192.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/static/icons/campo-512.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any" }
   ]
 }

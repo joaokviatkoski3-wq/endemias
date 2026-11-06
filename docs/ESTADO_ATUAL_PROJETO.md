@@ -4,6 +4,22 @@ Atualizado em 06/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Candidata 2.2.0 — piloto PWA do RG (ativação pendente)
+
+Preparada em `C:\endemias-interface`, branch `codex/pwa-rg-piloto`, a pedido do
+usuário; produção segue 2.1.1 até execução elevada do atalho específico e prova.
+Decisão expressa: apenas bloqueio de tela Android, sem outra senha/criptografia
+local do aplicativo. Guia e limites em `docs/PILOTO_PWA_RG.md`. RG móvel com
+autosave, rascunhos por conta, captura versionada, recibos idempotentes e
+conflitos preservados; aprovação/oficialização continuam com o gestor.
+Cache somente RG/estáticos, renovação online em24h, sem APIs/anexos/relatórios.
+Não amplia usuários nem altera Kobo/DNS/serviços de terceiros; sem DDL.
+Android físico e iOS não homologados; piloto não significa liberação geral.
+Validação: suíte geral1152 testes/6 ignorados; após ajustes finais,10 de
+protocolo e16 do ativador; ensaio PostgreSQL descartável(porta55444), Node/SW
+e Chromium móvel/desktop. Cobertos fechamento offline, recibos/CAS, devolução,
+502, sessão vencida, armazenamento cheio, troca de conta e atualização aguardada.
+
 ## Versão ativa: 2.1.1 — logos transparentes e portal claro
 
 Em06/11 usuário entregou três logos novos com contorno branco. Cópias exatas

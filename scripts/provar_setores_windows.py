@@ -33,6 +33,12 @@ def verificar(config, root, endemias):
     assert config['version'] in response.get_data(as_text=True)
     assert client.get('/',base_url='https://nao-configurado.'+domain,**request_options).status_code == 400
     assert endemias.secret_key != dispatcher.applications['ambiental.'+domain].secret_key
+    assert client.get('/api/formularios/campo-sessao',base_url='https://endemias.'+domain,**request_options).status_code == 401
+    endemias.jinja_env.get_template('rg_campo.html')
+    manifest=json.loads((Path(endemias.static_folder)/'manifest.webmanifest').read_text(encoding='utf-8'))
+    assert manifest['start_url']=='/formularios/rg-campo'
+    for relative in ('js/rg_campo.js','js/rg_campo_offline.js','css/rg_campo.css','sw.js','icons/campo-192.svg','icons/campo-512.svg'):
+        assert (Path(endemias.static_folder)/relative).read_bytes()
     # Conferir leitura dos novos arquivos e consultas na identidade real, sem login
     # fictício nem escrita operacional na produção.
     ambiental=dispatcher.applications['ambiental.'+domain]
@@ -66,4 +72,4 @@ def verificar(config, root, endemias):
         'host_desconhecido_negado':True,'chaves_por_setor_distintas':True,
         'interface_ambiental_leitura':True,'indicadores_ambientais_consulta':True,'portal_versao_atual':True,
         'listas_operacionais_consulta':True,'templates_correcoes_compilam':True,
-        'marcas_e_estilos_leitura':True,'logs_privados_gravacao_rotacao':True}
+        'marcas_e_estilos_leitura':True,'logs_privados_gravacao_rotacao':True,'pwa_rg_arquivos_manifesto_sessao_negada':True}
