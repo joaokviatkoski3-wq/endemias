@@ -43,6 +43,9 @@ def verificar(config, root, endemias):
     assert client.get('/api/formularios/campo-sessao',base_url='https://endemias.'+domain,**request_options).status_code == 401
     endemias.jinja_env.get_template('rg_campo.html')
     endemias.jinja_env.get_template('formulario_kobo.html')
+    endemias.jinja_env.get_template('liraa.html')
+    from app_core.liraa_sequencias import separar
+    assert separar('A1 / A2 / A3')[0]==['A1','A2','A3']
     from app_core.formularios_kobo import carregar,compilar,TITULOS
     for tipo in TITULOS:
         assert compilar(carregar(tipo))['nodes']
@@ -84,5 +87,5 @@ def verificar(config, root, endemias):
         'logins_dos_setores':True,'apis_anonimas_negadas':True,'portal_sem_sessao':True,
         'host_desconhecido_negado':True,'chaves_por_setor_distintas':True,
         'interface_ambiental_leitura':True,'indicadores_ambientais_consulta':True,'portal_versao_atual':True,
-        'listas_operacionais_consulta':True,'templates_correcoes_compilam':True,
+        'liraa_sequencias_disponiveis':True,'listas_operacionais_consulta':True,'templates_correcoes_compilam':True,
         'marcas_e_estilos_leitura':True,'logs_privados_gravacao_rotacao':True,'pwa_rg_arquivos_manifesto_sessao_negada':True}

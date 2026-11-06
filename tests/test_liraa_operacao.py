@@ -169,6 +169,23 @@ class OperacaoTests(unittest.TestCase):
         op.salvar_configuracao(self.target,self.ciclo,[],"")
         self.assertTrue(liraa_xlsform.gerar(self.target,self.ciclo,self.base).startswith(b'PK'))
 
+    def test_sequencias_contam_imoveis_sem_multiplicar_positivos_e_tubitos(self):
+        record=self.registro(tubitos=2)
+        record['Dados_visita']['Sequencia']='1;2;3'
+        self.assertEqual(liraa_kobo.importar(self.target,self.ciclo,[record]),3)
+        tubes=lab.listar(self.target,self.ciclo)
+        self.assertEqual(len(tubes),2)
+        before=liraa_boletim.resumir(self.target,self.ciclo,self.base)['grupos'][0]
+        self.assertEqual(before['trabalhados'],3)
+        self.assertEqual(before['pendentes'],2)
+        self.assertEqual(before['aegypt_outros'],0)
+        for tube in tubes:lab.salvar(self.target,tube['id_tubito'],self.payload(aegypt_larvas='2'),self.user)
+        result=liraa_boletim.resumir(self.target,self.ciclo,self.base)['grupos'][0]
+        self.assertEqual(result['trabalhados'],3)
+        self.assertEqual(result['aegypt_outros'],1)
+        self.assertEqual(result['aegypt_total'],2)
+        self.assertEqual(result['pendentes'],0)
+
     def test_laboratorio_nao_negativa_pendentes_e_imovel_unico(self):
         liraa_kobo.importar(self.target,self.ciclo,[self.registro(tubitos=3)])
         tubes=lab.listar(self.target,self.ciclo)

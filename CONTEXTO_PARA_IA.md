@@ -6,6 +6,18 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
+## Candidata 2.6.0 — sequências múltiplas no LIRAa
+
+Usuário pediu expansão de sequências numéricas e alfanuméricas no LIRAa.
+Branch `codex/liraa-sequencias`, worktree `C:\endemias-interface`.
+Guia: `docs/LIRAA_SEQUENCIAS.md`. Separadores flexíveis, repetidas deduplicadas,
+UUIDs estáveis e metadados de origem no JSON existente. Tubitos/leituras e
+tratamentos permanecem na primeira unidade. Novos envios podem gerar várias
+visitas; lançamentos históricos já importados não são reinterpretados.
+Sem DDL ou importação real; produção permanece 2.5.0. Validados 98 testes LIRAa,
+16 focados finais, 7 de aplicação via ETL/formulários, 33 de setores, 24 do
+instalador e PostgreSQL isolado. Pacote pronto; ativação administrativa pendente.
+
 ## Versão ativa 2.5.0 — continuidade do trabalho de campo
 
 Usuário autorizou as propostas 1, 2, 7 e 8: salvamento automático online,

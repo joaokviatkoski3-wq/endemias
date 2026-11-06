@@ -105,6 +105,12 @@ class ImportacaoInternaTests(unittest.TestCase):
         self.assertEqual(db.scalar(self.target,'SELECT COUNT(*) FROM recolhimentos'),before)
 
     def test_liraa_preserva_ciclo_sorteio_e_tubito(self):
+        self._conferir_liraa()
+
+    def test_liraa_sequencias_passam_pelo_formulario_e_etl(self):
+        self._conferir_liraa("A1 / A2 / A3",3)
+
+    def _conferir_liraa(self,sequencia="",esperado=1):
         from tests.test_liraa_operacao import OperacaoTests
         import criar_banco
         from app import create_app
@@ -116,12 +122,13 @@ class ImportacaoInternaTests(unittest.TestCase):
         visit=record.pop('Dados_visita')
         record.update({'Dados_visita/'+k:v for k,v in visit.items()})
         record['endemias_ciclo']=str(env.ciclo)
+        record['Dados_visita/Sequencia']=sequencia
         tree,payload=de_registro('LIRAA',record)
         target=db.DatabaseTarget('sqlite',str(env.target))
         ident=forms.salvar(target,'kobo_LIRAA',payload,self.user,uuid_cliente=str(uuid4()))
         forms.revisar(target,ident,payload,'aprovado',self.user)
         core.aplicar(target,forms.obter(target,ident),tree,self.user,self.root/'config.json',self.env.directory,
             lambda *args:None,backup_dir=self.env.directory/'backups')
-        self.assertEqual(db.scalar(target,'SELECT COUNT(*) FROM liraa_visitas'),1)
+        self.assertEqual(db.scalar(target,'SELECT COUNT(*) FROM liraa_visitas'),esperado)
         self.assertEqual(db.scalar(target,'SELECT COUNT(*) FROM liraa_visita_tubitos'),1)
         self.assertEqual(forms.obter(target,ident)['status'],'oficializado')

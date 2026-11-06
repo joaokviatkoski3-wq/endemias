@@ -256,11 +256,11 @@
     <button class="liraa-btn primary" type="submit">Consultar envios</button>
   </form>
   {% if kobo.get('previa') is not none %}
-  <p><strong>{{ kobo.previa|length }}</strong> envios encontrados; <strong>{{ kobo.previa|selectattr('situacao_importacao', 'equalto', 'nova')|list|length }}</strong> novos. Envios já importados ou excluídos serão ignorados.</p>
-  <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Data</th><th>Localidade</th><th>Quarteirão municipal</th><th>Vínculo</th><th>Importação</th><th>Tubitos</th></tr></thead><tbody>
-    {% for v in kobo.previa[:100] %}<tr><td>{{ v.data_visita }}</td><td>{{ v.localidade_informada }}</td><td>{{ v.quarteirao }}</td><td>{{ v.situacao_vinculo|replace('_', ' ') }}</td><td>{{ v.situacao_importacao }}</td><td>{{ v.tubitos|length }}</td></tr>{% endfor %}
+  <p><strong>{{ kobo.previa|length }}</strong> visitas identificadas (após separar sequências); <strong>{{ kobo.previa|selectattr('situacao_importacao', 'equalto', 'nova')|list|length }}</strong> novas. Envios já importados ou excluídos serão ignorados.</p>
+  <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Data</th><th>Localidade</th><th>Quarteirão municipal</th><th>Vínculo</th><th>Importação</th><th>Sequência / avisos</th><th>Tubitos</th></tr></thead><tbody>
+    {% for v in kobo.previa[:100] %}<tr><td>{{ v.data_visita }}</td><td>{{ v.localidade_informada }}</td><td>{{ v.quarteirao }}</td><td>{{ v.situacao_vinculo|replace('_', ' ') }}</td><td>{{ v.situacao_importacao }}</td><td>{{ v.sequencia or "—" }}{% for aviso in v.get("avisos", []) %}<p class="liraa-note">{{ aviso }}</p>{% endfor %}</td><td>{{ v.tubitos|length }}</td></tr>{% endfor %}
   </tbody></table></div>
-  {% if kobo.previa|length > 100 %}<p class="liraa-muted">Prévia mostra os primeiros 100 envios. A importação considera todos os {{ kobo.previa|length }}.</p>{% endif %}
+  {% if kobo.previa|length > 100 %}<p class="liraa-muted">Prévia mostra as primeiras 100 visitas. A importação considera todas as {{ kobo.previa|length }} visitas.</p>{% endif %}
   <p class="liraa-note">Quarteirões fora do sorteio ou sem estrato permanecem identificados para revisão; não entram automaticamente no resultado amostral.</p>
   <form method="post" action="{{ url_for('liraa.importar_kobo') }}" onsubmit="return confirm('Importar os envios novos deste período para o ciclo selecionado?');">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -271,7 +271,7 @@
 </section>
 <section class="liraa-panel" id="liraa-tab-visitas" role="tabpanel" hidden>
   <h2>Visitas LIRAa</h2>
-  <p class="liraa-muted">Uma submissão representa um imóvel aberto registrado. A ausência de tubito não indica resultado laboratorial negativo. Esta lista não inclui fechados ou recusas, que não são registrados no diário.</p>
+  <p class="liraa-muted">Cada sequência identificada representa um imóvel aberto registrado; um envio pode gerar mais de uma visita. A ausência de tubito não indica resultado laboratorial negativo. Esta lista não inclui fechados ou recusas, que não são registrados no diário.</p>
   <form method="get" action="{{ url_for('liraa.page') }}" class="liraa-form">
     <label>Ciclo <select name="ciclo"><option value="">Todos</option>{% for c in dados.ciclos %}<option value="{{ c.id_ciclo }}" {% if kobo.get('ciclo', '')|string == c.id_ciclo|string %}selected{% endif %}>{{ c.ano }} — {{ c.nome }}</option>{% endfor %}</select></label>
     <label>Data inicial <input type="date" name="visita_inicio" value="{{ kobo.get('visita_inicio', '') }}"></label>

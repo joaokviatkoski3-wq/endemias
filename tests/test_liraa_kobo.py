@@ -154,6 +154,82 @@ class LiraaKoboTests(unittest.TestCase):
             with self.assertRaisesRegex(liraa_kobo.LiraaKoboError, "período"):
                 liraa_routes._buscar_kobo("2026-10-07", "2026-10-06")
 
+    def test_sequencias_formatos_e_identificadores_variados(self):
+        from app_core.liraa_sequencias import separar
+        for value in ('1,2,3','1, 2, 3','1-2-3','1 - 2 - 3','1/2/3','1 / 2 / 3',
+                      '1;2;3','1 ; 2 ; 3','1–2–3','1 | 2 | 3','1,2;3','1 e 2 e 3','1 2 3'):
+            with self.subTest(value=value):self.assertEqual(separar(value)[0],['1','2','3'])
+        for prefix in ('A','B','Z','AB'):
+            self.assertEqual(separar(f'{prefix}1, {prefix}2, {prefix}3')[0],[prefix+'1',prefix+'2',prefix+'3'])
+        self.assertEqual(separar('1, 2, 2')[0],['1','2'])
+        self.assertTrue(separar('a1,A1,A2')[1])
+        self.assertEqual(separar('3')[0],['3'])
+        self.assertEqual(separar('N/A')[0],['N/A'])
+        self.assertEqual(separar('S/N')[0],['S/N'])
+        self.assertEqual(separar('1-3')[0],['1','3'])
+        self.assertEqual(separar('A-1')[0],['A-1'])
+        self.assertEqual(separar('A-1, B-2')[0],['A-1','B-2'])
+        self.assertEqual(separar('A-1 - A-2')[0],['A-1','A-2'])
+        with self.assertRaises(liraa_kobo.LiraaKoboError):separar('A-1-A-2')
+        with self.assertRaises(liraa_kobo.LiraaKoboError):separar(','.join(map(str,range(51))))
+
+    def test_expande_sem_duplicar_tubitos_tratamentos_e_identidade(self):
+        record=envio('sequencias');record['Dados_visita']['Sequencia']='B1, B2, B3'
+        record['tratamento_001']={'Quantidade_carga_gr':4}
+        self.assertEqual(liraa_kobo.importar(self.target,1,[record]),3)
+        visits=liraa_kobo.listar(self.target,1)
+        self.assertEqual({v['sequencia'] for v in visits},{'B1','B2','B3'})
+        self.assertEqual(sum(v['total_tubitos'] for v in visits),1)
+        mother=next(v for v in visits if v['kobo_uuid']=='sequencias')
+        self.assertEqual(mother['sequencia'],'B1')
+        self.assertEqual(mother['total_tubitos'],1)
+        self.assertEqual(sum(bool(json.loads(v['tratamento_json']).get('Quantidade_carga_gr')) for v in visits),1)
+        ids={v['id_visita'] for v in visits}
+        record['Dados_visita']['Sequencia']='B3 / B2 / B1'
+        self.assertEqual(liraa_kobo.importar(self.target,1,[record]),0)
+        self.assertEqual({v['id_visita'] for v in liraa_kobo.listar(self.target,1)},ids)
+        child=next(v for v in visits if v['sequencia']=='B2')
+        liraa_kobo.excluir(self.target,child['id_visita'],'Ensaio de exclusão')
+        self.assertEqual(liraa_kobo.importar(self.target,1,[record]),0)
+        self.assertEqual(len(liraa_kobo.listar(self.target,1)),2)
+
+    def test_expansao_exclui_repetidas_e_preserva_exclusao_da_primeira(self):
+        record=envio('repetidas');record['Dados_visita']['Sequencia']='1, 2, 2'
+        self.assertEqual(liraa_kobo.importar(self.target,1,[record]),2)
+        mother=next(v for v in liraa_kobo.listar(self.target,1) if v['kobo_uuid']=='repetidas')
+        self.assertTrue(any('repetidas' in a for a in mother['avisos']))
+        liraa_kobo.excluir(self.target,mother['id_visita'],'Ensaio')
+        self.assertEqual(liraa_kobo.importar(self.target,1,[record]),0)
+        self.assertEqual(len(liraa_kobo.listar(self.target,1)),1)
+
+    def test_reimportacao_parcial_apos_excluir_grupo_inteiro_nao_ressuscita_unidades(self):
+        record=envio('grupo-excluido');record['Dados_visita']['Sequencia']='1,2,3'
+        liraa_kobo.importar(self.target,1,[record])
+        for visit in liraa_kobo.listar(self.target,1):liraa_kobo.excluir(self.target,visit['id_visita'],'Ensaio')
+        self.assertEqual(liraa_kobo.importar(self.target,1,[record]),0)
+        liraa_kobo.permitir_reimportacao(self.target,'grupo-excluido','Ensaio')
+        with self.assertRaises(liraa_kobo.LiraaKoboError):liraa_kobo.importar(self.target,1,[record])
+        self.assertEqual(liraa_kobo.listar(self.target,1),[])
+
+    def test_envio_legado_nao_e_expandido_silenciosamente(self):
+        record=envio('legado');record['Dados_visita']['Sequencia']='1,2,3'
+        from app_core import liraa_sequencias
+        with patch.object(liraa_sequencias,'expandir',side_effect=lambda conn,item:[item]):
+            self.assertEqual(liraa_kobo.importar(self.target,1,[record]),1)
+        preview=liraa_kobo.previa(self.target,1,[record])
+        self.assertEqual(len(preview),1)
+        self.assertTrue(any('antigo' in a for a in preview[0]['avisos']))
+        self.assertEqual(liraa_kobo.importar(self.target,1,[record]),0)
+        self.assertEqual(len(liraa_kobo.listar(self.target,1)),1)
+
+    def test_alteracao_de_conjunto_ou_limite_recusa_lote_sem_gravacao_parcial(self):
+        record=envio('conjunto');record['Dados_visita']['Sequencia']='1,2'
+        liraa_kobo.importar(self.target,1,[record])
+        record['Dados_visita']['Sequencia']='1,2,3'
+        with self.assertRaises(liraa_kobo.LiraaKoboError):
+            liraa_kobo.importar(self.target,1,[envio('nao_gravar'),record])
+        self.assertEqual(len(liraa_kobo.listar(self.target,1)),2)
+
 
 if __name__ == "__main__":
     unittest.main()

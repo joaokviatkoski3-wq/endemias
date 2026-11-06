@@ -182,6 +182,24 @@ def verificar_formularios_230(target,client,checks,private):
     checks['formularios_internos_captura_revisao_aplicacao_auditoria_atomica_pg']=True
 
 
+def verificar_liraa_sequencias(target,checks):
+    from app_core import db,liraa_kobo,liraa_integracao
+    conn=db.connect(target)
+    try:
+        cycle=db.insert_and_get_id(conn,"INSERT INTO liraa_ciclos(ano,nome,inicio,fim,observacoes,criado_em) VALUES(2026,'Ensaio sequencias','2026-10-01','2026-10-31','','2026-10-01')",(),'id_ciclo')
+        record={'_uuid':'liraa-sequencias-ficticias','Data':'2026-10-06','endemias_ciclo':str(cycle),
+            'Dados_visita':{'Localidade':'Localidade Ficticia','Quarteir_o':'1','Imovel':'rco','Sequencia':'B1; B2; B3'},
+            'group_jr1vc40':[{'N_mero_do_tubito':991,'C_digo_do_dep_sito':'B2'}]}
+        with conn:
+            summary=liraa_integracao.importar_lote(conn,[record]);assert summary['visitas_novas']==3 and summary['coletas_novas']==1
+        with conn:assert liraa_integracao.importar_lote(conn,[record])['visitas_novas']==0
+        rows=conn.execute('SELECT * FROM liraa_visitas WHERE id_ciclo=?',(cycle,)).fetchall()
+        assert {r['sequencia'] for r in rows}=={'B1','B2','B3'}
+        assert conn.execute('SELECT COUNT(*) FROM liraa_visita_tubitos t JOIN liraa_visitas v ON v.id_visita=t.id_visita WHERE v.id_ciclo=?',(cycle,)).fetchone()[0]==1
+        checks['liraa_sequencias_idempotentes_tubito_unico_pg']=True
+    finally:conn.close()
+
+
 def main():
     if ROOT == Path('C:/endemias'):
         raise ValueError('Execute na worktree com massa ficticia.')
@@ -308,6 +326,7 @@ def main():
                 verificar_correcoes_201(target, client, checks, private)
                 verificar_campo_220(target, client, checks)
                 verificar_formularios_230(target,client,checks,private)
+                verificar_liraa_sequencias(target,checks)
             event=client.post('/api/agenda/eventos',json={'titulo':'Evento ficticio '+sector,'tipo':'reuniao','data_inicio':'2026-06-01T09:00'})
             assert event.status_code==201
             events=client.get('/api/agenda/eventos?start=2026-06-01&end=2026-06-03')

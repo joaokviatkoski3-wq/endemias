@@ -4,6 +4,18 @@ Atualizado em 06/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Candidata 2.6.0 — sequências múltiplas no LIRAa
+
+Usuário pediu expansão de sequências numéricas e alfanuméricas no LIRAa.
+Branch `codex/liraa-sequencias`, worktree `C:\endemias-interface`.
+Guia: `docs/LIRAA_SEQUENCIAS.md`. Separadores flexíveis, repetidas deduplicadas,
+UUIDs estáveis e metadados de origem no JSON existente. Tubitos/leituras e
+tratamentos permanecem na primeira unidade. Novos envios podem gerar várias
+visitas; lançamentos históricos já importados não são reinterpretados.
+Sem DDL ou importação real; produção permanece 2.5.0. Validados 98 testes LIRAa,
+16 focados finais, 7 de aplicação via ETL/formulários, 33 de setores, 24 do
+instalador e PostgreSQL isolado. Pacote pronto; ativação administrativa pendente.
+
 ## Versão ativa 2.5.0 — continuidade do trabalho de campo
 
 Usuário autorizou as propostas 1, 2, 7 e 8: salvamento automático online,

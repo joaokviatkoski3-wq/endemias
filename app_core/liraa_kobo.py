@@ -246,7 +246,7 @@ def _normalizar(record):
         "tipo_imovel": _texto(_campo(record, "Dados_visita/Imovel"), 100),
         "logradouro": _texto(logradouro, 300),
         "numero": _texto(_campo(record, "Dados_visita/Numero"), 60),
-        "sequencia": _texto(_campo(record, "Dados_visita/Sequencia"), 100),
+        "sequencia": _texto(_campo(record, "Dados_visita/Sequencia"), 2000),
         "morador": _texto(_campo(record, "Dados_visita/Morador"), 300),
         "observacoes": _texto(_campo(record, "Dados_visita/Observa_es"), 2000),
         "form_ciclo": _texto(_campo(record, "endemias_ciclo"), 30),
@@ -316,12 +316,16 @@ def _preparar(conn, id_ciclo, records):
         if item["kobo_uuid"] in uuids:
             raise LiraaKoboError("A resposta Kobo contém UUID repetido.")
         uuids.add(item["kobo_uuid"])
-        item["id_localidade"], item["id_estrato"], item["situacao_vinculo"] = _vincular(item, context)
-        exists = conn.execute("SELECT 1 FROM liraa_visitas WHERE kobo_uuid=?", (item["kobo_uuid"],)).fetchone()
-        deleted = conn.execute("SELECT 1 FROM liraa_visitas_excluidas WHERE kobo_uuid=?", (item["kobo_uuid"],)).fetchone()
-        item["situacao_importacao"] = "importada" if exists else "excluida" if deleted else "nova"
-        item["avisos"] = avisos_coleta(item, item["tubitos"])
-        preparados.append(item)
+        from app_core import liraa_sequencias
+        for unit in liraa_sequencias.expandir(conn,item):
+            unit["id_localidade"], unit["id_estrato"], unit["situacao_vinculo"] = _vincular(unit, context)
+            exists = conn.execute("SELECT 1 FROM liraa_visitas WHERE kobo_uuid=?", (unit["kobo_uuid"],)).fetchone()
+            deleted = conn.execute("SELECT 1 FROM liraa_visitas_excluidas WHERE kobo_uuid=?", (unit["kobo_uuid"],)).fetchone()
+            unit["situacao_importacao"] = "importada" if exists else "excluida" if deleted else "nova"
+            unit["avisos"] = avisos_coleta(unit, unit["tubitos"])+liraa_sequencias.avisos(unit)
+            if unit.get('_aviso_legado'):unit['avisos'].append(unit['_aviso_legado'])
+            preparados.append(unit)
+            if len(preparados)>10000:raise LiraaKoboError("Reduza o período: mais de 10.000 visitas após separar sequências.")
     return preparados
 
 
@@ -426,7 +430,8 @@ def listar(target, id_ciclo=None, limite=100, deslocamento=0, inicio=None, fim=N
                 if key not in {"tubitos", "total_tubitos", "estrato_numero"}})
             visit["acs_outros"] = dados_campo(visit).get("acs_outros", "")
             visit["houve_coleta"] = dados_campo(visit).get("houve_coleta", "")
-            visit["avisos"] = avisos_coleta(visit, visit["tubitos"])
+            from app_core import liraa_sequencias
+            visit["avisos"] = avisos_coleta(visit, visit["tubitos"])+liraa_sequencias.avisos(visit)
             cycle_id = visit["id_ciclo"]
             if cycle_id not in contexts:
                 contexts[cycle_id] = _contexto(conn, cycle_id)
