@@ -3,6 +3,13 @@ from pathlib import Path
 import json
 
 
+def validar_assets(assets, permitidos):
+    # save_config inclui chaves vazias dos demais tipos por compatibilidade.
+    assert isinstance(assets, dict)
+    ativos = {key for key, value in assets.items() if str(value or '').strip()}
+    assert ativos.issubset(permitidos)
+
+
 def verificar(config, root, endemias):
     from app_core import dominios, setores
     from werkzeug.test import Client
@@ -15,7 +22,7 @@ def verificar(config, root, endemias):
         # Abrir sem escrever/truncar confere a permissao real da conta do servidor.
         with path.open('r+b') as stream:
             values[sector] = json.load(stream)
-        assert set(values[sector]['assets']).issubset(setores.TIPOS_KOBO[sector])
+        validar_assets(values[sector]['assets'], setores.TIPOS_KOBO[sector])
     assert values['endemias']['api_token'] == values['ambiental']['api_token']
     dispatcher = dominios.application(endemias)
     client = Client(dispatcher)

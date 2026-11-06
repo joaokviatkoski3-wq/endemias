@@ -134,6 +134,7 @@ function koboNum(value) {
 }
 
 async function salvarKoboConfig() {
+  if (!document.getElementById('kobo-server')) return;
   try {
     const resp = await fetch('/api/kobo/config', {
       method: 'POST',

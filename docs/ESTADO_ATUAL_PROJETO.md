@@ -4,6 +4,17 @@ Atualizado em 06/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Reativação 2.2.1 preparada — admin Kobo
+
+Primeira tentativa retornou automaticamente à2.2.0, commit `dffb0d7`.
+Relatório `ativacao-adminkobo221-resultado.json`: falha na prova de assets,
+backup confirmado,96 tabelas preservadas e login do rollback OK.
+A prova verificava todas as chaves, embora save_config acrescente chaves
+vazias de outros tipos. Agora confere somente UIDs preenchidos; tipos ativos
+do setor errado continuam bloqueados (dois testes específicos passaram).
+Correção da tela admin reaplicada e teste Node passou. Nova execução elevada
+pendente; não se confirmou implantação2.2.1 nem se importaram dados reais.
+
 ## Versão ativa 2.2.0 — piloto PWA do RG
 
 Preparada em `C:\endemias-interface`, branch `codex/pwa-rg-piloto`, a pedido do
