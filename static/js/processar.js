@@ -134,8 +134,6 @@ function koboNum(value) {
 }
 
 async function salvarKoboConfig() {
-  // Admin importa com a configuração existente; os campos técnicos só existem para superadmin.
-  if (!document.getElementById('kobo-server')) return;
   try {
     const resp = await fetch('/api/kobo/config', {
       method: 'POST',

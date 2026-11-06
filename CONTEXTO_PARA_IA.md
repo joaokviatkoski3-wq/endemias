@@ -6,16 +6,6 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.2.1 — importação Kobo por admin
-
-Pedido do usuário em06/11/2026. Rotas operacionais já permitem admin; a tela
-chamava salvarKoboConfig antes de pendências/prévia/importação, lendo campos
-técnicos ausentes para admin. Agora a função retorna sem tentar configurar
-quando esses campos não existem. Superadmin mantém o fluxo atual e a exclusividade
-de token/servidor/UIDs; limites por setor preservados. Testes: Node da regressão,
-12 de superadmin e ensaio sintético de importação admin nos dois setores passaram.
-Não importou respostas reais. Produção segue2.2.0 até ativação elevada do pacote.
-
 ## Versão ativa 2.2.0 — piloto PWA do RG
 
 Usuário autorizou iniciar o piloto e escolheu somente bloqueio de tela Android,

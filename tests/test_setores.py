@@ -67,18 +67,6 @@ class SetoresTests(unittest.TestCase):
         formularios.salvar(str(self.path), 'rg_atualizacao', {}, {'id_usuario': 5, 'nome': 'Outro'})
         self.assertEqual(client.get('/api/formularios?proprios=1').json['formularios'], [])
 
-    def test_admin_importa_kobo_com_config_existente_nos_dois_setores(self):
-        from blueprints import processar
-        for sector,tipo in (('endemias','BRI'),('ambiental','AMOSTRA_ANIMAIS')):
-            cfg={'server_url':'https://kf.kobotoolbox.org','api_token':'token-ficticio','assets':{tipo:'uid-ficticio'}}
-            with mock.patch.object(processar.kobo_api,'load_config',return_value=cfg), mock.patch.object(processar.kobo_api,'fetch_submissions',return_value=([],{})) as fetch:
-                client=self.client(sector,5)
-                response=client.post('/api/kobo/importar-formulario/iniciar',json={'tipo':tipo})
-                self.assertEqual(response.status_code,400,response.json)
-                self.assertIn('Nenhum registro novo',response.json['erro'])
-                fetch.assert_called_once()
-                self.assertEqual(client.post('/api/kobo/config',json={}).status_code,403)
-
     def test_campo_api_vincula_conta_valida_e_confirma_revisao(self):
         client = self.client('endemias')
         payload = {'tipo':'rg_atualizacao','uuid_cliente':str(uuid.uuid4()),'usuario_offline':1,'status':'enviado',
