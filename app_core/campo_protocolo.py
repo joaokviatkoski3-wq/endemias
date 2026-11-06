@@ -18,7 +18,7 @@ def preparar(tipo, payload, uuid_cliente, status, captura):
         raise ValueError("Metadados de recebimento não podem ser enviados no formulário.")
     if captura is None:
         return None
-    if tipo != "rg_atualizacao" or not isinstance(captura, dict) or set(captura) != {"versao", "revisao", "dispositivo"}:
+    if (tipo != "rg_atualizacao" and not str(tipo).startswith('kobo_')) or not isinstance(captura, dict) or set(captura) != {"versao", "revisao", "dispositivo"}:
         raise ValueError("Protocolo de campo inválido.")
     if captura["versao"] != 1 or isinstance(captura["versao"], bool):
         raise ValueError("Atualize o aplicativo antes de enviar esta versão de formulário.")

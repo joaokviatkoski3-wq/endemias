@@ -160,6 +160,7 @@ def criar_backup_completo(
     secret_key_path=None,
     db_target=None,
     postgresql_env=None,
+    formularios_schema_path=None,
 ):
     destino = Path(destino_dir)
     destino.mkdir(parents=True, exist_ok=True)
@@ -178,6 +179,9 @@ def criar_backup_completo(
         (Path(kobo_config_path or raiz / "kobo_config.json").with_name("kobo_ambiental.json"), "configuracao/kobo_ambiental.json"),
         (raiz / "queries.sql", "configuracao/queries.sql"),
     ]
+    if formularios_schema_path or raiz.resolve()==Path('C:/endemias').resolve():
+        arquivos_locais.append((Path(formularios_schema_path or 'C:/ProgramData/EndemiasWeb/formularios-kobo.json'),
+                                'configuracao/formularios-kobo.json'))
     pastas_locais = [
         (Path(anexos_dir or raiz / "anexos"), "anexos"),
         (raiz / "notificacoes_geradas", "notificacoes_geradas"),

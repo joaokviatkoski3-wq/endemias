@@ -124,6 +124,17 @@ class BackupResilienceTests(unittest.TestCase):
                 [],
             )
 
+    def test_backup_completo_preserva_definicoes_privadas_de_formularios(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            raiz=Path(tmpdir);database=raiz/'ficticio.db';self._criar_banco(database)
+            schema=raiz/'definicoes-ficticias.json';schema.write_text('{"forms": []}',encoding='utf-8')
+            info=backup_completo_core.criar_backup_completo(raiz=raiz,db_path=database,
+                destino_dir=raiz/'backups',formularios_schema_path=schema)
+            with zipfile.ZipFile(info['arquivo']) as archive:
+                self.assertEqual(archive.read('configuracao/formularios-kobo.json'),schema.read_bytes())
+                manifest=json.loads(archive.read('manifesto_backup.json'))
+                self.assertTrue(any(i.get('destino_zip')=='configuracao/formularios-kobo.json' and i.get('bytes')==len(schema.read_bytes()) for i in manifest['incluidos']))
+
     def test_backup_completo_invalido_nao_e_publicado(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             raiz = Path(tmpdir)

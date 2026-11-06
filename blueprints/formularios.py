@@ -14,6 +14,15 @@ login_required = auth_core.login_required
 nivel_min = bh.nivel_min
 
 
+@bp.before_request
+def preservar_fluxo_rg():
+    ident=(request.view_args or {}).get('id_formulario')
+    if ident:
+        item=formularios_core.obter(bh.db_target(),ident)
+        if item and item['tipo_formulario'].startswith('kobo_'):
+            return jsonify({'erro':'Use a área de formulários internos do setor.'}),404
+
+
 @bp.route("/sw.js")
 def sw_js():
     response = send_from_directory(
@@ -34,9 +43,11 @@ def manifest():
 @login_required
 def page():
     usuario = bh.usuario_atual() or {}
+    from app_core import formularios_kobo,setores
+    rg=list(formularios_core.FORMULARIOS) if setores.atual()!='ambiental' and not usuario.get('somente_laboratorio') else []
     return render_template(
         "formularios.html",
-        formularios=formularios_core.FORMULARIOS,
+        formularios=rg+formularios_kobo.catalogo(usuario),
         is_admin=usuario.get("nivel") in {"admin", "superadmin"},
     )
 
@@ -47,6 +58,7 @@ def api_salvar():
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
         return jsonify({"erro": "Envio inválido."}), 400
+    if payload.get('tipo')!='rg_atualizacao':return jsonify({'erro':'Tipo indisponível nesta entrada.'}),400
     usuario = bh.usuario_atual() or {}
     if payload.get("captura") is not None:
         if payload.get("usuario_offline") != usuario.get("id_usuario") or isinstance(payload.get("usuario_offline"), bool):
@@ -104,7 +116,7 @@ def api_listar():
     try:
         itens = formularios_core.listar(
             bh.db_target(),
-            tipo=request.args.get("tipo"),
+            tipo='rg_atualizacao',
             status=request.args.get("status"),
             usuario=usuario,
         )

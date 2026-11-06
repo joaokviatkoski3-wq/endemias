@@ -219,7 +219,7 @@ MODULES: Tuple[AppModule, ...] = (
         nav_section="Gestao",
         description="Formulários internos de captura em campo e revisão.",
         tags=("Campo", "RG", "Revisão"),
-        endpoints=("formularios", "formularios.page"),
+        endpoints=("formularios", "formularios.page", "formularios_kobo"),
     ),
     AppModule(
         key="notificacoes",
@@ -392,7 +392,7 @@ def visible_modules(user, area: Optional[str] = None) -> List[AppModule]:
         and not permissoes.gerencia(user)
         and user.get("somente_laboratorio")
     ):
-        modules = [module for module in modules if module.key == "laboratorio_lancamentos"]
+        modules = [module for module in modules if module.key in {"laboratorio_lancamentos","formularios"}]
     if area == "topbar":
         modules = [module for module in modules if module.show_topbar]
     elif area == "sidebar":

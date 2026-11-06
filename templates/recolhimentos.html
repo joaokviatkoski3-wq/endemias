@@ -33,7 +33,7 @@
       <div class="f-g"><label>Data final</label><input type="date" id="rec-d-fim" value="{{ d_fim }}"></div>
       <div class="f-g"><label>Localidade</label><select id="rec-localidade"><option value="">Todas</option>{% for loc in localidades %}<option value="{{ loc.nome }}">{{ loc.nome }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Agente</label><select id="rec-agente"><option value="">Todos</option>{% for agente in agentes %}<option value="{{ agente.nome }}">{{ agente.nome }}</option>{% endfor %}</select></div>
-      <div class="f-g"><label>Origem</label><select id="rec-origem"><option value="">Todas</option><option value="nova">Kobo</option><option value="legada">Legado</option></select></div>
+      <div class="f-g"><label>Origem</label><select id="rec-origem"><option value="">Todas</option><option value="nova">Atual (Kobo e sistema)</option><option value="legada">Legado</option></select></div>
       <div class="rec-actions"><button class="btn btn-primary" type="button" id="rec-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
     </div>
   </div>
@@ -133,7 +133,7 @@ async function carregarListaRecolhimentos(pagina=1){
         ${chip('Outros', r.outros)}
       </div></td>
       <td style="font-weight:800;">${recFmt.format(r.total_materiais || 0)}</td>
-      <td><span class="rec-chip">${r.origem_estrutura === 'legada' ? 'Legado' : 'Kobo'}</span></td>
+      <td><span class="rec-chip">${String(r.kobo_uuid || '').startsWith('vsatt-') ? 'Formulário interno' : (r.origem_estrutura === 'legada' ? 'Legado' : 'Kobo')}</span></td>
     </tr>
   `).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:18px;">Nenhum registro encontrado.</td></tr>';
 }

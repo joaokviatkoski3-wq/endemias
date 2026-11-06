@@ -1,0 +1,94 @@
+"""Renderiza os dez formulários usando definições privadas e banco fictício.
+
+Só consulta a cópia local de estrutura. Não usa rede Kobo nem respostas reais.
+"""
+import os
+import json
+from pathlib import Path
+import sys
+import tempfile
+import threading
+
+ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT))
+
+
+def main():
+    if ROOT==Path('C:/endemias'):raise ValueError('Exige worktree de ensaio.')
+    private=Path(tempfile.mkdtemp(prefix='formularios-web-',dir=ROOT/'.venv'));database=private/'ficticio.db'
+    definitions=json.loads((ROOT/'.venv/formularios-internos/definicoes.json').read_text(encoding='utf-8'))
+    # A gravação de ensaio usa participantes/localidade fictícios, sem transformar opções nominais em respostas.
+    recol=next(f for f in definitions['forms'] if f['tipo']=='RECOLHIMENTO')
+    lists={r.get('name'):r.get('select_from_list_name') for r in recol['survey']}
+    for row in recol['choices']:
+        if row.get('list_name')==lists.get('Localidade'):
+            row.update(name='Localidade Ficticia',label=['Localidade Ficticia']);row['$autovalue']='Localidade Ficticia'
+        if row.get('list_name')==lists.get('Nome_do_s_agente_s'):
+            row.update(name='ficticio',label=['Participante Fictício']);row['$autovalue']='ficticio'
+    schema=private/'definicoes-ficticias.json';schema.write_text(json.dumps(definitions,ensure_ascii=False),encoding='utf-8')
+    os.environ.update(ENDEMIAS_DB_BACKEND='sqlite',ENDEMIAS_DB_PATH=str(database),ENDEMIAS_TEST_DB_ISOLATED='1',
+        ENDEMIAS_INSTANCE_DIR=str(private),ENDEMIAS_SECRET_KEY_PATH=str(private/'secret.key'),
+        ENDEMIAS_LOG_PATH=str(private/'ensaio.log'),ENDEMIAS_ANEXOS_DIR=str(private/'anexos'),
+        ENDEMIAS_UPLOAD_TEMP=str(private/'uploads'),ENDEMIAS_KOBO_CONFIG_PATH=str(private/'kobo.json'),
+        ENDEMIAS_BACKUP_DIR=str(private/'backups'),ENDEMIAS_BACKUP_COMPLETO_DIR=str(private/'completos'),
+        ENDEMIAS_AMBIENTE='teste',ENDEMIAS_TEST_BLOCK_CONTAOVOS_NETWORK='1',
+        ENDEMIAS_FORMULARIOS_KOBO_SCHEMA=str(schema))
+    from scripts.preparar_massa_web_teste import preparar
+    preparar(database)
+    from app import create_app
+    from waitress import create_server
+    from playwright.sync_api import sync_playwright,expect
+    servers=[];urls={};errors=[];checks=[]
+    try:
+        for sector in ('endemias','ambiental'):
+            app=create_app(dict(TESTING=True,DB_PATH=str(database),DB_BACKEND='sqlite',SETORES_ENABLED=True,
+                SETOR=sector,TERMOS_USO_ENABLED=False,CSP_REPORT_ONLY=False))
+            server=create_server(app,host='127.0.0.1',port=0,threads=4,map={});servers.append(server)
+            threading.Thread(target=server.run,daemon=True).start();urls[sector]='http://127.0.0.1:'+str(server.effective_port)
+        with sync_playwright() as p:
+            browser=p.chromium.launch(headless=True)
+            for sector,types in (('endemias',('PE','TB','TBO','PVE','LIRAA','LARVAS','BRI','RECOLHIMENTO')),('ambiental',('ESPOROTRICOSE','AMOSTRA_ANIMAIS'))):
+                context=browser.new_context(viewport={'width':390,'height':844});page=context.new_page()
+                page.add_init_script('crypto.randomUUID=undefined')  # Exercita a alternativa compatível com entrada LAN HTTP.
+                page.on('pageerror',lambda e:errors.append(str(e)))
+                page.goto(urls[sector]+'/login');page.locator('[name=usuario]').fill('admin');page.locator('[name=senha]').fill('SenhaSomenteDeTeste123!')
+                page.get_by_role('button',name='Entrar',exact=True).click();page.wait_for_url(urls[sector]+'/')
+                page.goto(urls[sector]+'/formularios')
+                for tipo in types:
+                    assert page.locator(f'a[href="/formularios/kobo/{tipo}"]').count()==1
+                for tipo in types:
+                    page.goto(urls[sector]+'/formularios/kobo/'+tipo)
+                    expect(page.locator('#fk-editor')).to_be_visible()
+                    assert page.locator('#fk-campos [data-field]').count()>0
+                    assert page.evaluate('()=>document.documentElement.scrollWidth<=innerWidth'),tipo
+                    page.screenshot(path=str(private/(tipo+'.png')),full_page=True)
+                    page.set_viewport_size({'width':1365,'height':900})
+                    assert page.evaluate('()=>document.documentElement.scrollWidth<=innerWidth'),tipo
+                    page.set_viewport_size({'width':390,'height':844});checks.append(tipo)
+                if sector=='endemias':
+                    # Captura e revisão na UI real, com CSRF/CSP e o importador completo.
+                    page.locator('input[data-path="Data"]').fill('2026-06-03')
+                    page.locator('input[data-path="Hora"]').fill('08:00')
+                    page.locator('select[data-path="Localidade"]').select_option('Localidade Ficticia')
+                    page.locator('.fk-multiple input').first.check()
+                    for control in page.locator('input[type=number]').all():control.fill('0')
+                    page.locator('input[data-path="group_cw8wz69/A1"]').fill('2')
+                    page.evaluate('()=>{window.confirmacaoDupla=async()=>true}')
+                    page.click('[data-action=enviado]');expect(page.locator('#fk-status')).to_contain_text('Recebido para revisão')
+                    ident=page.evaluate("new URL(location.href).searchParams.get('envio')")
+                    page.goto(urls[sector]+'/formularios/kobo/RECOLHIMENTO/revisao?envio='+ident)
+                    expect(page.locator('#fk-editor')).to_be_visible();page.evaluate('()=>{window.confirmacaoDupla=async()=>true}')
+                    page.click('[data-action=aprovar]');expect(page.locator('#fk-situacao')).to_contain_text('Aprovado')
+                    page.click('[data-action=aplicar]');expect(page.locator('#fk-situacao')).to_contain_text('Aplicado')
+                    from app_core import db
+                    assert db.scalar(str(database),"SELECT COUNT(*) FROM recolhimentos WHERE kobo_uuid LIKE 'vsatt-%'")==1
+                context.close()
+            assert not errors,errors
+            browser.close()
+        print('OK: dez formulários renderizados, CSP efetiva, sem erro JS/overflow em celular e desktop.')
+        print('Evidências privadas: '+str(private))
+    finally:
+        for server in servers:server.close();server.task_dispatcher.shutdown()
+
+
+if __name__=='__main__':main()

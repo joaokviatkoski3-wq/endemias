@@ -46,6 +46,10 @@ FORMULARIOS = (
 
 
 def formulario_por_tipo(tipo):
+    if isinstance(tipo,str) and tipo.startswith('kobo_'):
+        from app_core.formularios_kobo import TITULOS
+        code=tipo[5:]
+        return {'tipo':tipo,'titulo':TITULOS[code]} if code in TITULOS else None
     return next((f for f in FORMULARIOS if f["tipo"] == tipo), None)
 
 
@@ -176,7 +180,7 @@ def salvar(target, tipo, payload, usuario, uuid_cliente=None, status=STATUS_ENVI
             conn.close()
 
 
-def listar(target, tipo=None, status=None, usuario=None, limite=200):
+def listar(target, tipo=None, status=None, usuario=None, limite=200, mais_antigos=False):
     """Lista formulários. Usuário não-admin vê apenas os próprios."""
     conn, close = _open_connection(target)
     try:
@@ -194,7 +198,7 @@ def listar(target, tipo=None, status=None, usuario=None, limite=200):
         rows = [
             db_core.serialize_row(r)
             for r in conn.execute(
-                f"SELECT * FROM formularios {where} ORDER BY id_formulario DESC LIMIT ?",
+                f"SELECT * FROM formularios {where} ORDER BY id_formulario {'ASC' if mais_antigos else 'DESC'} LIMIT ?",
                 params + [int(limite)],
             )
         ]
@@ -224,7 +228,7 @@ def obter(target, id_formulario):
             conn.close()
 
 
-def revisar(target, id_formulario, payload, decisao, usuario, motivo=None):
+def revisar(target, id_formulario, payload, decisao, usuario, motivo=None, *, esperado=None, auditar=None):
     """Admin corrige o payload e decide aprovar/devolver."""
     if decisao not in (STATUS_APROVADO, STATUS_DEVOLVIDO):
         raise ValueError("Decisão inválida.")
@@ -242,6 +246,8 @@ def revisar(target, id_formulario, payload, decisao, usuario, motivo=None):
         ).fetchone()
         if not row:
             raise ValueError("Formulário não encontrado.")
+        if esperado is not None and esperado!=hashlib.sha256((row['payload_json']+'|'+row['status']).encode()).hexdigest():
+            raise campo_protocolo.ConflitoCampo('O envio mudou. Reabra e confira antes de revisar.')
         if row["status"] == STATUS_OFICIALIZADO:
             raise ValueError("Formulário já oficializado.")
         reviewed = dict(payload)
@@ -268,6 +274,8 @@ def revisar(target, id_formulario, payload, decisao, usuario, motivo=None):
         )
         if cur.rowcount != 1:
             raise ValueError("O formulário já foi alterado. Recarregue e confira.")
+        if auditar:
+            auditar(conn)
         conn.commit()
         return True
     except Exception:

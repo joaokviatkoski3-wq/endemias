@@ -42,6 +42,12 @@ def verificar(config, root, endemias):
     assert endemias.secret_key != dispatcher.applications['ambiental.'+domain].secret_key
     assert client.get('/api/formularios/campo-sessao',base_url='https://endemias.'+domain,**request_options).status_code == 401
     endemias.jinja_env.get_template('rg_campo.html')
+    endemias.jinja_env.get_template('formulario_kobo.html')
+    from app_core.formularios_kobo import carregar,compilar,TITULOS
+    for tipo in TITULOS:
+        assert compilar(carregar(tipo))['nodes']
+    for asset in ('js/formulario_kobo.js','css/formulario_kobo.css'):
+        assert (Path(endemias.static_folder)/asset).read_bytes()
     manifest=json.loads((Path(endemias.static_folder)/'manifest.webmanifest').read_text(encoding='utf-8'))
     assert manifest['start_url']=='/formularios/rg-campo'
     for relative in ('js/rg_campo.js','js/rg_campo_offline.js','css/rg_campo.css','sw.js','icons/campo-192.svg','icons/campo-512.svg'):

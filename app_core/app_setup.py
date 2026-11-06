@@ -118,7 +118,7 @@ def register_security_headers(app):
         inline = " 'unsafe-inline'" if current_app.config.get("CSP_ALLOW_INLINE", True) else ""
         # Migracao gradual dos manipuladores inline; estas telas ja usam listeners.
         strict = request.endpoint in {'bri.page', 'amostras_animais.page', 'auth.login', 'auth.recuperar_senha', 'auth.esqueci_senha', 'admin.admin_baixar_backup', 'admin.admin_baixar_backup_completo'}
-        strict = strict or request.blueprint=="ambiental" or request.endpoint in {
+        strict = strict or request.blueprint in {"ambiental","formularios_kobo"} or request.endpoint in {
             'consultas.laboratorio', 'laboratorio.page', 'recolhimentos.page', 'pontos_estrategicos.page', 'formularios.rg_campo_page'
         }
         attributes = "'none'" if strict or not inline else "'unsafe-inline'"
@@ -163,6 +163,7 @@ def register_access_guards(app):
         if (
             endpoint == "static"
             or endpoint.startswith("laboratorio_lancamentos.")
+            or endpoint.startswith("formularios_kobo.") or endpoint=='formularios.page'
             or endpoint in {"liraa.laboratorio", "liraa.salvar_leitura"}
             or endpoint in {"auth.login", "auth.logout", "auth.minha_senha", "auth.termos", "auth.aceitar_termos",
                             "auth.esqueci_senha", "auth.recuperar_senha", "auth.presenca", "ajuda.api_ajuda"}

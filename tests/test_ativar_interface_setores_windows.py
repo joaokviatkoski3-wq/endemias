@@ -135,6 +135,12 @@ class InterfaceInstallerTests(unittest.TestCase):
     def test_pwa_220_preserva_dados_contas_e_configuracoes(self):
         self.simulate(origin='2.1.1',target='2.2.0',marker='ativacao-pwarg220')
 
+    def test_formularios_230_preserva_dados_contas_e_configuracoes(self):
+        self.simulate(origin='2.2.1',target='2.3.0',marker='ativacao-formularios230')
+
+    def test_falha_formularios_230_retorna_221_sem_restaurar_dados(self):
+        self.simulate(fail_probe=True,origin='2.2.1',target='2.3.0',marker='ativacao-formularios230')
+
     def test_falha_pwa_220_retorna_211_sem_restaurar_dados(self):
         self.simulate(fail_probe=True,origin='2.1.1',target='2.2.0',marker='ativacao-pwarg220')
 

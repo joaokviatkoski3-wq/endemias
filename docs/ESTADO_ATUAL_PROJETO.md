@@ -4,6 +4,20 @@ Atualizado em 06/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Candidata 2.3.0 — formulários internos equivalentes ao Kobo
+
+Usuário pediu os dez tipos existentes e confirmou revisão por admin antes da
+aplicação. Worktree `C:\endemias-interface`, branch `codex/formularios-internos-kobo`.
+Definições implantadas consultadas pelo usuário com atalho elevado: 10 tipos,
+zero pendências, sem respostas. Arquivo privado não versionável em
+`.venv/formularios-internos/definicoes.json`. Guia: `docs/FORMULARIOS_INTERNOS_KOBO.md`.
+Captura nova online; RG offline e Kobo mantidos. Endemias recebe 8 tipos e Ambiental 2,
+com laboratório condicionado à permissão; perfil básico escolhe o próprio agente.
+Aplicação e auditoria confirmam juntas via ETL, sem DDL. Protótipos/ensaios fictícios
+passaram nos dez tipos, no navegador e no PostgreSQL descartável. Regressão geral: 1.181 testes, seis ignorados e nenhuma falha. Verificações
+focadas finais e navegador também passaram. Pacote pronto; ativação administrativa
+pendente. Produção ainda 2.2.1. Não executar migração nem importar respostas reais.
+
 ## Versão ativa 2.2.1 — importação Kobo por admin
 
 Primeira tentativa retornou automaticamente à2.2.0, commit `dffb0d7`.

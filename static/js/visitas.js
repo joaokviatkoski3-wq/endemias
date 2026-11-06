@@ -261,8 +261,8 @@ function renderDetalheVisita(detail) {
       ${detalheField('Observações', v.observacoes, 'wide')}
       ${detalheField('Identificador da visita', v.id_visita, 'wide')}
       ${detalheField('Código / identificador do PE', [v.codigo_pe, v.id_pe].filter(Boolean).join(' · '), 'wide')}
-      ${detalheField('Kobo ID / UUID', [v.kobo_id, v.kobo_uuid].filter(Boolean).join(' · '), 'wide')}
-      ${detalheField('Envio Kobo / processamento', [v.submission_time, v.processado_em].filter(Boolean).join(' · '), 'wide')}
+      ${detalheField('Identificador de origem', [v.kobo_id, v.kobo_uuid].filter(Boolean).join(' · '), 'wide')}
+      ${detalheField('Envio / processamento', [v.submission_time, v.processado_em].filter(Boolean).join(' · '), 'wide')}
       ${detalheField('SisPNCD / Conta Ovos', [v.SISPNCD, v.CONTAOVOS_STATUS].filter(value => value !== null && value !== undefined && value !== '').join(' · '), 'wide')}
     </div>
     <section class="visita-detail-section">
@@ -332,7 +332,7 @@ async function abrirEditarVisita(id) {
     document.getElementById('visita-edit-id').textContent = id;
     document.getElementById('visita-edit-body').innerHTML = `
       <section class="visitas-edit-section">
-        <div class="visitas-edit-section-head"><h3>Dados da visita</h3><span class="visitas-edit-note">Os identificadores técnicos do Kobo são preservados.</span></div>
+        <div class="visitas-edit-section-head"><h3>Dados da visita</h3><span class="visitas-edit-note">Os identificadores de origem são preservados.</span></div>
         <div class="visitas-edit-grid">
           <div class="f-g"><label>Tipo de trabalho</label><select id="edit_tipo">${optionList(visitasConfig.tipos.filter(t=>t!=='LIRAA'), v.tipo, 'Selecione')}</select></div>
           <div class="f-g"><label>Data</label><input id="edit_data" type="date" value="${inputValue(v.data)}"></div>

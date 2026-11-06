@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }} — Formulário{% endblock %}
+{% block page_title %}{{ titulo }}{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="/static/css/rg_campo.css?v={{ APP_VERSION }}"><link rel="stylesheet" href="/static/css/formulario_kobo.css?v={{ APP_VERSION }}">{% endblock %}
+{% block content %}
+<section id="fk-app" data-tipo="{{ tipo }}" data-usuario="{{ usuario_atual.id_usuario }}" data-revisao="{{ '1' if revisao else '0' }}">
+  <div class="page-header"><h1>{{ titulo }}</h1><p class="sub">Piloto online · o Kobo continua disponível.</p></div>
+  <p class="sub">Salve o rascunho antes de sair. Estes novos formulários precisam de conexão.</p>
+  <div id="fk-status" role="status" class="rgc-notice">Carregando definições…</div>
+  <a id="fk-login" class="btn btn-outline" href="{{ url_for('auth.login', next='/formularios') }}" target="_blank" rel="noopener" hidden>Entrar novamente em outra aba</a>
+  <div class="rgc-actions"><a class="btn btn-outline" href="/formularios">Formulários</a><button id="fk-novo" class="btn btn-outline" type="button" disabled>Novo preenchimento</button><button id="fk-listar" class="btn btn-outline" type="button" disabled>{{ 'Envios para revisão' if revisao else 'Meus envios' }}</button></div>
+  <div id="fk-lista"></div>
+  {% if revisao %}<label class="fk-field">Situação dos envios<select id="fk-filtro"><option value="enviado">Enviados para revisão</option><option value="aprovado">Aprovados aguardando aplicação</option><option value="devolvido">Devolvidos para correção</option><option value="rascunho">Rascunhos</option><option value="oficializado">Aplicados</option><option value="">Todos</option></select></label>{% endif %}
+  <div id="fk-editor" hidden>
+    <p id="fk-situacao"></p>{% if revisao %}<p class="sub">Antes de aplicar, confira se a mesma atividade já entrou pelo Kobo. A revisão não deve duplicar a produção.</p>{% endif %}<div id="fk-campos"></div>
+    <div class="rgc-actions" id="fk-acoes">
+      {% if revisao %}<button type="button" class="btn btn-outline" data-action="devolver">Devolver para correção</button><button type="button" class="btn btn-outline" data-action="aprovar">Aprovar revisão</button><button type="button" class="btn btn-primary" data-action="aplicar">Aplicar aos registros oficiais</button>
+      {% else %}<button type="button" class="btn btn-outline" data-action="rascunho">Salvar rascunho</button><button type="button" class="btn btn-primary" data-action="enviado">Enviar para revisão</button>{% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}
+{% block extra_js %}<script nonce="{{ csp_nonce() }}" src="/static/js/formulario_kobo.js?v={{ APP_VERSION }}"></script>{% endblock %}

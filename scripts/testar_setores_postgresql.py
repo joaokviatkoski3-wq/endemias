@@ -137,6 +137,42 @@ def verificar_campo_220(target, client, checks):
     checks['pwa_rg_recibos_advisory_lock_revisao_atomicidade_conta_pg']=True
 
 
+def verificar_formularios_230(target,client,checks,private):
+    from uuid import uuid4
+    from app_core import formularios_kobo as core,formularios,db,audit
+    data={'Data':'2026-06-03','Onde_vai_ser_realizado_o_trata':'outro','Quantidade_de_carga':'2.5',
+          'group_pt6ft99/localidade_001':'Localidade Ficticia'}
+    definition={'tipo':'BRI','survey':[{'name':key,'type':'text'} for key in data if '/' not in key]+[
+        {'name':'group_pt6ft99','type':'begin_group'},{'name':'localidade_001','type':'text'},{'name':'fim','type':'end_group'}], 'choices':[]}
+    tree=core.compilar(definition)
+    client.application.config['UPLOAD_TEMP']=str(private/'uploads-formularios')
+    with mock.patch.object(core,'carregar',return_value=definition):
+        body={'usuario':1,'uuid':str(uuid4()),'status':'enviado','payload':{'versao':tree['versao'],'values':data,'repeats':{}},
+              'captura':{'versao':1,'revisao':1,'dispositivo':str(uuid4())}}
+        result=client.post('/api/formularios/kobo/BRI',json=body)
+        assert result.status_code==200,result.json
+        ident=result.json['id'];item=client.get(f'/api/formularios/kobo/BRI/{ident}').json
+        result=client.post(f'/api/formularios/kobo/BRI/{ident}/revisar',json={'payload':item['payload'],'etag':item['etag'],'decisao':'aprovado'})
+        assert result.status_code==200,result.json
+        before=db.scalar(target,'SELECT COUNT(*) FROM bri_registros')
+        original=audit.registrar_evento
+        def fail(*args,**kw):
+            if args[1]=='formulario_interno_oficializado':raise RuntimeError('Falha fictícia de auditoria')
+            return original(*args,**kw)
+        with mock.patch.object(audit,'registrar_evento',side_effect=fail):
+            result=client.post(f'/api/formularios/kobo/BRI/{ident}/oficializar',json={})
+        assert result.status_code==400,result.json
+        assert db.scalar(target,'SELECT COUNT(*) FROM bri_registros')==before
+        assert formularios.obter(target,ident)['status']=='aprovado'
+        result=client.post(f'/api/formularios/kobo/BRI/{ident}/oficializar',json={})
+        assert result.status_code==200,result.json
+        assert db.scalar(target,'SELECT COUNT(*) FROM bri_registros')==before+1
+        assert formularios.obter(target,ident)['status']=='oficializado'
+        assert client.post(f'/api/formularios/kobo/BRI/{ident}/oficializar',json={}).status_code==200
+        assert db.scalar(target,'SELECT COUNT(*) FROM bri_registros')==before+1
+    checks['formularios_internos_captura_revisao_aplicacao_auditoria_atomica_pg']=True
+
+
 def main():
     if ROOT == Path('C:/endemias'):
         raise ValueError('Execute na worktree com massa ficticia.')
@@ -262,6 +298,7 @@ def main():
                 assert client.get('/api/boletim-mensal?mes=2026-06').status_code==200
                 verificar_correcoes_201(target, client, checks, private)
                 verificar_campo_220(target, client, checks)
+                verificar_formularios_230(target,client,checks,private)
             event=client.post('/api/agenda/eventos',json={'titulo':'Evento ficticio '+sector,'tipo':'reuniao','data_inicio':'2026-06-01T09:00'})
             assert event.status_code==201
             events=client.get('/api/agenda/eventos?start=2026-06-01&end=2026-06-03')

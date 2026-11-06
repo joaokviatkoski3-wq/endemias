@@ -1147,7 +1147,8 @@ def _formatar_pendencia(row):
 # =============================================================================
 
 def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path,
-                     logger, dry_run=False, backup_confirmado=False, tipos_permitidos=None):
+                     logger, dry_run=False, backup_confirmado=False, tipos_permitidos=None,
+                     antes_processar=None, antes_confirmar=None):
     """
     arquivos_trabalho: lista de caminhos de arquivos .xlsx com prefixos em config.json
     arquivos_larvas:   lista de caminhos de arquivos .xlsx (LARVAS_)
@@ -1301,6 +1302,14 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
             return False, []
     transacao_abortada = False
 
+    if antes_processar:
+        try:
+            antes_processar(conn)
+        except Exception:
+            conn.rollback();conn.close()
+            logger.log('Envio alterado ou indisponível. Reabra e confira antes de aplicar.','erro')
+            return False, []
+
     for caminho, nome, tipo, preparado in arquivos_preparados:
         try:
             # FIX ETL-02: processar_arquivo agora retorna contadores reais de inserção
@@ -1412,6 +1421,13 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
         else:
             logger.log("\n[ATENÇÃO] Erros detectados. Rollback executado — banco não alterado.", "erro")
     else:
+        if antes_confirmar:
+            try:
+                antes_confirmar(conn, sumario)
+            except Exception:
+                conn.rollback();conn.close()
+                logger.log('Não foi possível confirmar o formulário e sua auditoria. Nada foi gravado.','erro')
+                return False, []
         conn.commit()
         logger.log("\n✓ Dados gravados com sucesso.", "ok")
 

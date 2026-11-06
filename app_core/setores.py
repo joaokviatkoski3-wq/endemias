@@ -55,6 +55,7 @@ def atalho_outro_setor(usuario):
 
 
 def permite_modulo(chave):
+    if chave=='formularios':return True
     setor=atual()
     if setor is None and chave in {'vigiagua','relatorios_ambientais'}:
         return False
@@ -68,6 +69,7 @@ def permite_endpoint(endpoint):
     if not setor or not endpoint:
         return True
     blueprint=endpoint.split('.')[0]
+    if blueprint=='formularios_kobo' or endpoint=='formularios.page':return True
     if blueprint in {'static','auth','ajuda','home','meteorologia','agenda','admin','controle_pessoal','processar'}:
         return True
     if setor=='endemias':

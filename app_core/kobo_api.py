@@ -679,6 +679,12 @@ def _esporotricose_workbook_rows(records):
         visita.setdefault("_index", str(pos))
         visita.setdefault("_submission_time", record.get("_submission_time"))
         visita.setdefault("meta/rootUuid", uuid)
+        # Cabeçalhos da estrutura nova devem existir mesmo quando campos opcionais estão vazios.
+        visita.setdefault('start',record.get('start'))
+        visita.setdefault('end',record.get('end'))
+        visita.setdefault('Dados do morador/Hora Inicio',_leaf_value(record,['Hora_inicio','Hora Inicio']))
+        visita.setdefault('Hora Final',_leaf_value(record,['Hora_fim','Hora Final']))
+        visita.setdefault('Dados do morador/Agentes',', '.join(_agent_names(record)))
         visitas.append(visita)
         animais.extend(_repeat_group_rows(record, uuid, str(pos)))
     return visitas, animais
@@ -1001,6 +1007,8 @@ def _amostra_animal_row(record):
         "Qual_a_esp_cie_da_lagarta", "Qual_a_esp_cie_da_aranha", "Qual_a_esp_cie_do_carrapato",
     )):
         _set_if_empty(row, label, _leaf_exact_value(record, [label, alias]))
+    row.setdefault('Motivo da visita','')
+    row.setdefault('Hora','')
     return row
 
 

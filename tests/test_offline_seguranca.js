@@ -30,6 +30,8 @@ function dispatch(path, mode = 'navigate', method = 'GET') {
   assert(entries.has(origin + '/formularios/rg-campo'));
   await dispatch('/visitas');
   assert(!entries.has(origin + '/visitas'), 'Nao guardar prontuarios/paginas de consulta');
+  await dispatch('/formularios/kobo/PVE');
+  assert(!entries.has(origin+'/formularios/kobo/PVE'),'Formulários novos com dados pessoais não entram no cache RG');
   assert.equal(dispatch('/acoes-setor/anexos/1/download', 'cors'), undefined);
   assert.equal(dispatch('/api/formularios', 'cors'), undefined);
   context.fetch = async () => { throw new Error('offline'); };

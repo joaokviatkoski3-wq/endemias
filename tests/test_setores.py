@@ -392,7 +392,9 @@ class SetoresTests(unittest.TestCase):
         for filename in ('kobo_config.json','kobo_ambiental.json'):
             (self.directory/filename).write_text(json.dumps({'api_token':'FICTICIO','assets':{}}),encoding='utf-8')
         from app_core.version import APP_VERSION
-        checks=verificar({'version':APP_VERSION,'env':{'ENDEMIAS_SETORES_ENABLED':'1','ENDEMIAS_KOBO_CONFIG_PATH':str(self.directory/'kobo_config.json')}},self.directory,application)
+        from app_core import formularios_kobo
+        with mock.patch.object(formularios_kobo,'carregar',side_effect=lambda tipo:{'tipo':tipo,'survey':[{'name':'Data','type':'date'}],'choices':[]}):
+            checks=verificar({'version':APP_VERSION,'env':{'ENDEMIAS_SETORES_ENABLED':'1','ENDEMIAS_KOBO_CONFIG_PATH':str(self.directory/'kobo_config.json')}},self.directory,application)
         self.assertTrue(all(checks.values()))
         client=Client(dominios.application(application),use_cookies=True)
         from functools import partial

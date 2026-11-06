@@ -35,7 +35,7 @@
       <div class="f-g"><label>Agente</label><select id="bri-agente"><option value="">Todos</option>{% for agente in agentes %}<option value="{{ agente.nome }}">{{ agente.nome }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Destino</label><select id="bri-destino"><option value="">Todos</option><option value="Ovitrampa">Ovitrampa</option><option value="Ponto Estratégico">Ponto Estratégico</option><option value="Outro">Outro</option></select></div>
       <div class="f-g"><label>Imóvel extra</label><select id="bri-extra"><option value="">Todos</option><option value="Sim">Sim</option><option value="Não">Não</option></select></div>
-      <div class="f-g"><label>Origem</label><select id="bri-origem"><option value="">Todas</option><option value="nova">Kobo</option><option value="legada">Legado</option></select></div>
+      <div class="f-g"><label>Origem</label><select id="bri-origem"><option value="">Todas</option><option value="nova">Atual (Kobo e sistema)</option><option value="legada">Legado</option></select></div>
       <div class="bri-actions"><button class="btn btn-primary" type="button" id="bri-acao-0"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
     </div>
   </div>
@@ -151,7 +151,7 @@ async function carregarListaBri(pagina=1){
       <td>${escapeAttr(r.numero_ovitrampa || '-')}</td>
       <td style="font-weight:800;">${carga == null ? 'Não informada' : briFmt.format(carga)}</td>
       <td><span class="bri-tag ${escapeAttr(r.tratou_imovel_extra === 'Sim' ? 'ok' : '')}">${escapeAttr(r.tratou_imovel_extra || '-')}</span></td>
-      <td><span class="bri-tag">${escapeAttr(r.origem_estrutura === 'legada' ? 'Legado' : 'Kobo')}</span>
+      <td><span class="bri-tag">${escapeAttr(String(r.kobo_uuid || '').startsWith('vsatt-') ? 'Formulário interno' : (r.origem_estrutura === 'legada' ? 'Legado' : 'Kobo'))}</span>
     ${detalhesRegistroOperacional(r, [["hora", "Hora"], ["quarteirao", "Quarteirão"], ["local_tratamento", "Local de tratamento"], ["qual_imovel_extra", "Imóvel adicional"], ["depositos_tratados_extra", "Depósitos adicionais"], ["quantidade_carga", "Carga principal"], ["quantidade_carga_extra", "Carga adicional"]])}</td></tr>`;
   }).join('') || '<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:18px;">Nenhum registro encontrado.</td></tr>';
 }

@@ -42,6 +42,7 @@ from blueprints.controle_pessoal import bp as controle_pessoal_bp
 from blueprints.esporotricose import bp as esporotricose_bp
 from blueprints.exportacoes import bp as exportacoes_bp
 from blueprints.formularios import bp as formularios_bp
+from blueprints.formularios_kobo import bp as formularios_kobo_bp
 from blueprints.home import bp as home_bp
 from blueprints.laboratorio_lancamentos import bp as laboratorio_lancamentos_bp
 from blueprints.liraa import bp as liraa_bp
@@ -175,6 +176,7 @@ def _register_blueprints(flask_app):
     flask_app.register_blueprint(esporotricose_bp)
     flask_app.register_blueprint(exportacoes_bp)
     flask_app.register_blueprint(formularios_bp)
+    flask_app.register_blueprint(formularios_kobo_bp)
     flask_app.register_blueprint(home_bp)
     flask_app.register_blueprint(laboratorio_lancamentos_bp)
     flask_app.register_blueprint(liraa_bp)
