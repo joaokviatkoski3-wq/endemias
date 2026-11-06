@@ -6,6 +6,23 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
+## Candidata 2.4.0 — praticidade dos formulários em campo
+
+Pedido em 06/11/2026, após a ativação 2.3.0. Branch
+`codex/formularios-campo-praticidade`, em `C:\endemias-interface`.
+Dez formulários online com uma coluna, equipe em grade sem rolagem interna,
+identificação imutável da conta autora e agente vinculado obrigatório no envio.
+Perfil básico pode escolher colegas exclusivamente no formulário, a pedido do
+usuário; as regras de anonimização de consultas/relatórios permanecem vigentes.
+Sugestões territoriais consultam RG e geometria ativa, sem dados de moradores;
+campos livres continuam aceitando digitação. PE e LIRAa mantêm códigos/vínculos
+válidos; PE oferece quarteirão antes da rua, com a correspondência preservada.
+Sem DDL, mudança de contas ou ampliação do offline. Produção segue 2.3.0.
+Guia: `docs/FORMULARIOS_INTERNOS_KOBO.md`. Regressão: 1.189 testes, seis
+ignorados, nenhuma falha; API focada 17 testes, instalador 20, navegador nos dez
+tipos e PostgreSQL isolado passaram. Pacote pronto; ativação administrativa
+pendente, sem envio de dados reais.
+
 ## Versão ativa 2.3.0 — formulários internos equivalentes ao Kobo
 
 Usuário pediu os dez tipos existentes e confirmou revisão por admin antes da

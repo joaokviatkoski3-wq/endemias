@@ -139,7 +139,10 @@ def verificar_campo_220(target, client, checks):
 
 def verificar_formularios_230(target,client,checks,private):
     from uuid import uuid4
-    from app_core import formularios_kobo as core,formularios,db,audit
+    from app_core import formularios_kobo as core,formularios,db,audit,formulario_campo
+    refs=formulario_campo.referencias(target,'Localidade Ficticia','1')
+    assert '1' in refs['quarteiroes'] and refs['logradouros']
+    checks['referencias_campo_postgresql_sem_moradores']=True
     data={'Data':'2026-06-03','Onde_vai_ser_realizado_o_trata':'outro','Quantidade_de_carga':'2.5',
           'group_pt6ft99/localidade_001':'Localidade Ficticia'}
     definition={'tipo':'BRI','survey':[{'name':key,'type':'text'} for key in data if '/' not in key]+[

@@ -90,3 +90,43 @@ opção inválida, sessão vencida ou falha de gravação não deve anunciar suc
 As definições são um retrato da versão implantada no Kobo. Alterações posteriores
 no Kobo não modificam silenciosamente o catálogo interno: exigem atualização
 conferida, preservação da definição anterior e tratamento de rascunhos existentes.
+
+## Evolução 2.4.0 — candidata, ativação pendente
+
+- Uma coluna de perguntas em celular e desktop; só a seleção da equipe usa grade.
+  Todas as opções da equipe ficam visíveis na página, sem caixa com rolagem interna.
+- Responsável pelo envio identificado pela conta autenticada (`usuario_id`), nome
+  e vínculo de agente. O servidor monta o retrato `responsavel`; o navegador não
+  escolhe o autor. Revisão preserva esse retrato e mantém o autor original.
+- Agente vinculado pré-selecionado e bloqueado no navegador; servidor recusa envio
+  ou aprovação se ele for retirado. Contas sem vínculo ativo e inequívoco podem
+  salvar rascunhos, mas precisam de conferência do vínculo antes de enviar.
+  Não há associação automática pelo nome de login nem alteração de contas.
+- A pedido do usuário, o perfil básico pode selecionar os colegas participantes
+  na captura. Esta é uma exceção localizada à seleção de equipe; não modifica a
+  anonimização de consultas, rankings, relatórios ou outras áreas.
+- Quarteirões sugeridos a partir do RG e das geometrias ativas da localidade;
+  logradouros sugeridos a partir dos imóveis do RG daquele quarteirão. A API não
+  entrega números de imóveis, nomes de moradores ou produção. Localidade sem
+  correspondência única ou referência ausente retorna lista vazia.
+- Campos livres apresentam lista de sugestões e conservam entrada manual. Trocar
+  a localidade limpa quarteirão/rua dependentes; trocar a quadra limpa a rua.
+  Não altera o RG: a sugestão apenas facilita o preenchimento.
+- PE preserva o catálogo específico do ponto: escolher quadra determina a rua
+  compatível, sem inventar uma combinação fora do ponto cadastrado. LIRAa mantém
+  as escolhas condicionais e os campos existentes de outra quadra/outra rua.
+- Dados antigos conservam a conta autora já registrada. Não se atribui
+  retroativamente um vínculo de agente que não tenha sido registrado no envio.
+  Um rascunho antigo passa pelas novas regras ao ser salvo/enviado novamente.
+- Kobo em paralelo e RG offline preservados. Os dez novos formulários continuam
+  online; os catálogos e rascunhos não foram adicionados ao cache do dispositivo.
+
+Validações com massa fictícia: API de autor/equipe, revisão imutável, restrição
+por setor, referências sem moradores, formulário móvel/desktop e preenchimento
+manual. Regressão geral: 1.189 testes, seis ignorados, nenhuma falha. API
+focada: 17 testes; instalador: 20 testes. Chromium confirmou dez formulários
+em celular/desktop, uma coluna, equipe fixa, sugestões e texto livre, seleção
+de PE em ordem quadra/rua e envio/revisão/aplicação. PostgreSQL descartável
+confirmou referências sem moradores e aplicação/auditoria atômicas. Teste Node
+confirmou o isolamento do cache offline. Pacote pronto; ativação administrativa
+pendente. Não houve alteração de produção nem envio de formulário real.

@@ -12,7 +12,7 @@
   <div id="fk-lista"></div>
   {% if revisao %}<label class="fk-field">Situação dos envios<select id="fk-filtro"><option value="enviado">Enviados para revisão</option><option value="aprovado">Aprovados aguardando aplicação</option><option value="devolvido">Devolvidos para correção</option><option value="rascunho">Rascunhos</option><option value="oficializado">Aplicados</option><option value="">Todos</option></select></label>{% endif %}
   <div id="fk-editor" hidden>
-    <p id="fk-situacao"></p>{% if revisao %}<p class="sub">Antes de aplicar, confira se a mesma atividade já entrou pelo Kobo. A revisão não deve duplicar a produção.</p>{% endif %}<div id="fk-campos"></div>
+    <p id="fk-situacao"></p><p id="fk-responsavel" class="fk-responsavel"></p>{% if revisao %}<p class="sub">Antes de aplicar, confira se a mesma atividade já entrou pelo Kobo. A revisão não deve duplicar a produção.</p>{% endif %}<div id="fk-campos"></div>
     <div class="rgc-actions" id="fk-acoes">
       {% if revisao %}<button type="button" class="btn btn-outline" data-action="devolver">Devolver para correção</button><button type="button" class="btn btn-outline" data-action="aprovar">Aprovar revisão</button><button type="button" class="btn btn-primary" data-action="aplicar">Aplicar aos registros oficiais</button>
       {% else %}<button type="button" class="btn btn-outline" data-action="rascunho">Salvar rascunho</button><button type="button" class="btn btn-primary" data-action="enviado">Enviar para revisão</button>{% endif %}

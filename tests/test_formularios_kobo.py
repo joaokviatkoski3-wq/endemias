@@ -87,6 +87,14 @@ class ValidacaoFormularioTests(unittest.TestCase):
                 self.assertEqual(book.active['B2'].value,2.5)
             finally:book.close()
 
+    def test_laboratorista_de_escolha_unica_preserva_codigo_com_espacos(self):
+        from app_core.formulario_campo import conferir_responsavel
+        tree={'responsavel':{'usuario_id':1,'campos':{'Nome_do_laboratorista':'laboratorista ficticio'}},
+              'nodes':[{'name':'Nome_do_laboratorista','path':'Nome_do_laboratorista','kind':'select_one'}]}
+        payload={'values':{'Nome_do_laboratorista':'laboratorista ficticio'}}
+        conferir_responsavel(tree,payload,publicar=True)
+        self.assertEqual(payload['responsavel']['usuario_id'],1)
+
 
 class ApiFormularioTests(unittest.TestCase):
     @classmethod
@@ -145,7 +153,7 @@ class ApiFormularioTests(unittest.TestCase):
         self.assertEqual([r['id'] for r in rows],[a,b])
         self.assertEqual(self.client.get('/api/formularios/kobo/BRI?status=invalido').status_code,400)
 
-    def test_perfil_basico_nao_recebe_codigo_nominal_de_colega_adicionado_na_revisao(self):
+    def test_perfil_basico_pode_escolher_colegas_apenas_no_formulario(self):
         self.f.sql("UPDATE usuarios SET nivel='usuario',id_agente=1 WHERE id_usuario=3")
         definition=definicao()
         definition['survey'].append({'name':'Nome_do_s_agente_s','type':'select_multiple','select_from_list_name':'agentes'})
@@ -156,4 +164,55 @@ class ApiFormularioTests(unittest.TestCase):
         with mock.patch.object(core,'carregar',return_value=definition):
             response=self.f.client('endemias',3).get(f'/api/formularios/kobo/BRI/{ident}')
         self.assertEqual(response.status_code,200,response.json)
-        self.assertEqual(response.json['payload']['values']['Nome_do_s_agente_s'],'ficticio')
+        self.assertEqual(response.json['payload']['values']['Nome_do_s_agente_s'],'ficticio outro-colega')
+
+    def equipe_ficticia(self):
+        definition=definicao()
+        definition['survey'].append({'name':'Agentes','type':'select_multiple','select_from_list_name':'agentes'})
+        definition['choices'] += [{'list_name':'agentes','name':'eu','label':['Agente Ficticio']},
+                                  {'list_name':'agentes','name':'colega','label':['Outro Agente Ficticio']}]
+        core.carregar.side_effect=None;core.carregar.return_value=definition
+        self.tree=core.compilar(definition);self.payload=preenchimento(self.tree)
+        self.f.sql('UPDATE usuarios SET id_agente=1 WHERE id_usuario=5')
+
+    def test_autor_confiavel_nao_pode_ser_falsificado_nem_removido_na_revisao(self):
+        self.equipe_ficticia();self.payload['values']['Agentes']='eu colega'
+        self.payload['responsavel']={'usuario_id':999,'nome':'Falso','campos':{}}
+        response=self.send();self.assertEqual(response.status_code,200,response.json)
+        ident=response.json['id'];saved=self.client.get(f'/api/formularios/kobo/BRI/{ident}').json
+        self.assertEqual(saved['autor']['usuario_id'],5)
+        self.assertEqual(saved['payload']['responsavel']['id_agente'],1)
+        self.assertEqual(saved['payload']['responsavel']['campos'],{'Agentes':'eu'})
+        saved['payload']['values']['Agentes']='colega'
+        response=self.client.post(f'/api/formularios/kobo/BRI/{ident}/revisar',json={'payload':saved['payload'],'etag':saved['etag'],'decisao':'aprovado'})
+        self.assertEqual(response.status_code,400)
+        self.assertEqual(forms.obter(str(self.f.path),ident)['status'],'enviado')
+
+    def test_envio_sem_agente_proprio_ou_sem_vinculo_falha_fechado(self):
+        self.equipe_ficticia();self.payload['values']['Agentes']='colega'
+        self.assertEqual(self.send().status_code,400)
+        self.f.sql('UPDATE usuarios SET id_agente=NULL WHERE id_usuario=5')
+        self.payload['values']['Agentes']='eu colega'
+        self.assertEqual(self.send().status_code,400)
+
+    def test_revisor_preserva_autor_e_nao_se_acrescenta_como_participante(self):
+        self.equipe_ficticia();self.payload['values']['Agentes']='eu colega'
+        ident=self.send().json['id']
+        self.f.sql('UPDATE usuarios SET id_agente=2 WHERE id_usuario=1')
+        reviewer=self.f.client('endemias',1)
+        saved=reviewer.get(f'/api/formularios/kobo/BRI/{ident}').json
+        saved['payload']['responsavel']={'usuario_id':1,'nome':'Alterado','campos':{'Agentes':'colega'}}
+        response=reviewer.post(f'/api/formularios/kobo/BRI/{ident}/revisar',json={'payload':saved['payload'],'etag':saved['etag'],'decisao':'aprovado'})
+        self.assertEqual(response.status_code,200,response.json)
+        official=forms.obter(str(self.f.path),ident)
+        self.assertEqual(official['usuario_id'],5)
+        self.assertEqual(official['payload']['responsavel']['usuario_id'],5)
+
+    def test_referencias_territoriais_sem_informacoes_de_moradores(self):
+        response=self.client.get('/api/formularios/kobo/BRI/referencias?localidade=Localidade+Ficticia&quarteirao=1')
+        self.assertEqual(response.status_code,200,response.json)
+        self.assertIn('1',response.json['quarteiroes'])
+        self.assertIn('Rua Ficticia',response.json['logradouros'])
+        self.assertEqual(set(response.json),{'quarteiroes','logradouros'})
+        self.assertEqual(self.client.get('/api/formularios/kobo/BRI/referencias?localidade=inexistente').json,{'quarteiroes':[],'logradouros':[]})
+        self.assertEqual(self.f.client('ambiental',5).get('/api/formularios/kobo/BRI/referencias').status_code,403)

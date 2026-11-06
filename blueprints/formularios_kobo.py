@@ -4,7 +4,7 @@ from pathlib import Path
 
 from flask import Blueprint,jsonify,render_template,request,current_app
 from app_core import auth,blueprint_helpers as bh,formularios as forms,formularios_kobo as core
-from app_core import audit,db,permissoes,campo_protocolo
+from app_core import audit,db,permissoes,campo_protocolo,formulario_campo
 
 bp=Blueprint('formularios_kobo',__name__)
 
@@ -81,17 +81,8 @@ def obter(tipo,ident):
     row=item(tipo,ident)
     if not row:return jsonify({'erro':'Envio não encontrado.'}),404
     meta=row['payload'].pop('_captura_campo',{})
-    if user().get('nivel')=='usuario':
-        # Uma revisão pode ter acrescentado colegas; o perfil básico continua vendo só o próprio agente.
-        definition=tree(tipo)
-        for node in core.percorrer(definition['nodes']):
-            if 'options' in node and ('agente' in node['name'].lower() or 'laboratorista' in node['name'].lower()):
-                values=row['payload'].get('values',{})
-                if node['path'] in values:
-                    allowed={o['value'] for o in node['options']}
-                    values[node['path']]=' '.join(c for c in str(values[node['path']]).split() if c in allowed)
     return jsonify({'id':ident,'uuid':row['uuid_cliente'],'payload':row['payload'],'status':row['status'],
-        'captura':meta,'etag':etag(row),'motivo':row['motivo_devolucao']})
+        'autor':{'usuario_id':row['usuario_id'],'nome':row['agente_nome'],'enviado_em':row['enviado_em']},'captura':meta,'etag':etag(row),'motivo':row['motivo_devolucao']})
 
 
 @bp.post('/api/formularios/kobo/<tipo>')
@@ -103,6 +94,8 @@ def salvar(tipo):
     status=body.get('status')
     if status not in ('rascunho','enviado'):raise ValueError('Situação de envio inválida.')
     payload=body.get('payload');definition=tree(tipo)
+    if not isinstance(payload,dict):raise ValueError('Preenchimento inválido.')
+    formulario_campo.conferir_responsavel(definition,payload,publicar=status=='enviado')
     core.validar(definition,payload,publicar=status=='enviado')
     def event(conn,ident,metadata):
         audit.registrar_evento(bh.get_db,'formulario_interno_salvo',entidade='formularios',entidade_id=ident,
@@ -117,10 +110,19 @@ def revisar(tipo,ident):
     if not permissoes.gerencia(user()):return jsonify({'erro':'Revisão reservada à gestão.'}),403
     row=item(tipo,ident)
     if not row:return jsonify({'erro':'Envio não encontrado.'}),404
-    body=request.get_json(silent=True) or {};payload=body.get('payload');decision=body.get('decisao')
+    body=request.get_json(silent=True)
+    if not isinstance(body,dict):raise ValueError('Revisão inválida.')
+    payload=body.get('payload');decision=body.get('decisao')
     if not isinstance(body.get('etag'),str) or not body['etag']:raise ValueError('Reabra o envio antes de revisar.')
     if row['status'] not in ('enviado','aprovado'):raise ValueError('Aguarde o envio para revisão pelo agente.')
-    core.validar(tree(tipo),payload,publicar=decision=='aprovado')
+    definition=tree(tipo)
+    if not isinstance(payload,dict):raise ValueError('Preenchimento inválido.')
+    original=row['payload'].get('responsavel')
+    if original:
+        definition['responsavel']=original
+        formulario_campo.conferir_responsavel(definition,payload,publicar=decision=='aprovado')
+    else:payload.pop('responsavel',None)
+    core.validar(definition,payload,publicar=decision=='aprovado')
     def event(conn):
         audit.registrar_evento(bh.get_db,'formulario_interno_revisado',entidade='formularios',entidade_id=ident,detalhes={'tipo':tipo,'decisao':decision},conn=conn)
     forms.revisar(bh.db_target(),ident,payload,decision,user(),motivo=body.get('motivo'),esperado=body.get('etag'),auditar=event)
@@ -144,3 +146,10 @@ def oficializar(tipo,ident):
     from app_core.app_setup import invalidar_cache_globals
     invalidar_cache_globals()
     return jsonify({'ok':True,'resumo':summary})
+
+
+@bp.get('/api/formularios/kobo/<tipo>/referencias')
+def referencias(tipo):
+    localidade=request.args.get('localidade','');quarteirao=request.args.get('quarteirao','')
+    if len(localidade)>200 or len(quarteirao)>40:raise ValueError('Seleção territorial inválida.')
+    return jsonify(formulario_campo.referencias(bh.db_target(),localidade,quarteirao))

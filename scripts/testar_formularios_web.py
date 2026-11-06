@@ -23,8 +23,15 @@ def main():
     for row in recol['choices']:
         if row.get('list_name')==lists.get('Localidade'):
             row.update(name='Localidade Ficticia',label=['Localidade Ficticia']);row['$autovalue']='Localidade Ficticia'
-        if row.get('list_name')==lists.get('Nome_do_s_agente_s'):
-            row.update(name='ficticio',label=['Participante Fictício']);row['$autovalue']='ficticio'
+    recol['choices']=[r for r in recol['choices'] if r.get('list_name')!=lists.get('Nome_do_s_agente_s')]+[
+        {'list_name':lists['Nome_do_s_agente_s'],'name':'ficticio','label':['Agente Ficticio']},
+        {'list_name':lists['Nome_do_s_agente_s'],'name':'colega','label':['Outro Agente Ficticio']}]
+    tb=next(f for f in definitions['forms'] if f['tipo']=='TB')
+    tb_lists={r.get('name'):r.get('select_from_list_name') for r in tb['survey']}
+    tb['choices']=[r for r in tb['choices'] if r.get('list_name') not in (tb_lists['Localidade'],tb_lists['Nome_do_s_agente_s'])]+[
+        {'list_name':tb_lists['Localidade'],'name':'Localidade Ficticia','label':['Localidade Ficticia']},
+        {'list_name':tb_lists['Nome_do_s_agente_s'],'name':'eu','label':['Agente Ficticio']},
+        {'list_name':tb_lists['Nome_do_s_agente_s'],'name':'colega','label':['Outro Agente Ficticio']}]
     schema=private/'definicoes-ficticias.json';schema.write_text(json.dumps(definitions,ensure_ascii=False),encoding='utf-8')
     os.environ.update(ENDEMIAS_DB_BACKEND='sqlite',ENDEMIAS_DB_PATH=str(database),ENDEMIAS_TEST_DB_ISOLATED='1',
         ENDEMIAS_INSTANCE_DIR=str(private),ENDEMIAS_SECRET_KEY_PATH=str(private/'secret.key'),
@@ -35,6 +42,8 @@ def main():
         ENDEMIAS_FORMULARIOS_KOBO_SCHEMA=str(schema))
     from scripts.preparar_massa_web_teste import preparar
     preparar(database)
+    from app_core import db
+    with db.connect(str(database)) as conn:conn.execute('UPDATE usuarios SET id_agente=1 WHERE id_usuario=1');conn.commit()
     from app import create_app
     from waitress import create_server
     from playwright.sync_api import sync_playwright,expect
@@ -61,6 +70,30 @@ def main():
                     expect(page.locator('#fk-editor')).to_be_visible()
                     assert page.locator('#fk-campos [data-field]').count()>0
                     assert page.evaluate('()=>document.documentElement.scrollWidth<=innerWidth'),tipo
+                    assert all(' ' not in v for v in page.locator('.fk-fields').evaluate_all('(els)=>els.map(el=>getComputedStyle(el).gridTemplateColumns)'))
+                    if tipo=='TB':
+                        expect(page.locator('.fk-team input[value=eu]')).to_be_checked()
+                        expect(page.locator('.fk-team input[value=eu]')).to_be_disabled()
+                        page.locator('.fk-team input[value=colega]').check()
+                        page.locator('select[data-path=Localidade],select[data-path$="/Localidade"]').select_option('Localidade Ficticia')
+                        block=page.locator('input[data-geo=quarteirao]');street=page.locator('input[data-geo=logradouro]')
+                        pick=page.locator('[data-suggestion="'+block.get_attribute('id')+'"]')
+                        expect(pick).to_be_visible();pick.select_option('1')
+                        expect(block).to_have_value('1')
+                        streets=page.locator('[data-suggestion="'+street.get_attribute('id')+'"]')
+                        expect(streets).to_be_visible();streets.select_option('Rua Ficticia')
+                        expect(street).to_have_value('Rua Ficticia')
+                        block.fill('999');street.fill('Rua digitada manualmente')
+                        expect(street).to_have_value('Rua digitada manualmente')
+                        page.evaluate('()=>{window.confirmacaoDupla=async()=>true}')
+                    if tipo=='PE':
+                        loc=page.locator('select[data-path=localidade],select[data-path$="/localidade"]')
+                        loc.select_option(loc.locator('option').nth(1).get_attribute('value'))
+                        q=page.locator('select[data-path=quarteirao],select[data-path$="/quarteirao"]')
+                        choices=q.locator('option:not([hidden]):not([value=""])')
+                        assert choices.count()>0
+                        q.select_option(choices.first.get_attribute('value'))
+                        assert page.locator('select[data-path=logradouro],select[data-path$="/logradouro"]').input_value()
                     page.screenshot(path=str(private/(tipo+'.png')),full_page=True)
                     page.set_viewport_size({'width':1365,'height':900})
                     assert page.evaluate('()=>document.documentElement.scrollWidth<=innerWidth'),tipo
@@ -70,7 +103,8 @@ def main():
                     page.locator('input[data-path="Data"]').fill('2026-06-03')
                     page.locator('input[data-path="Hora"]').fill('08:00')
                     page.locator('select[data-path="Localidade"]').select_option('Localidade Ficticia')
-                    page.locator('.fk-multiple input').first.check()
+                    assert page.locator('.fk-multiple input').first.is_checked()
+                    assert page.locator('.fk-multiple input').first.is_disabled()
                     for control in page.locator('input[type=number]').all():control.fill('0')
                     page.locator('input[data-path="group_cw8wz69/A1"]').fill('2')
                     page.evaluate('()=>{window.confirmacaoDupla=async()=>true}')

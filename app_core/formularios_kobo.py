@@ -92,19 +92,12 @@ def percorrer(nodes):
 def esquema(tipo,usuario,target):
     if not permitido(tipo,usuario):raise PermissionError('Formulário não permitido para este perfil/setor.')
     tree=compilar(carregar(tipo))
-    # Mesma restrição nominal usada no RG: usuário básico só escolhe o próprio agente.
-    if usuario.get('nivel')=='usuario':
-        from app_core.agentes import chave_nome
-        names={chave_nome(a['nome']) for a in rg_formulario.contexto(target,usuario)['agentes']}
-        for node in percorrer(tree['nodes']):
-            if 'options' in node and ('agente' in node['name'].lower() or 'laboratorista' in node['name'].lower()):
-                allowed=names|{chave_nome(usuario.get('nome',''))} if 'laboratorista' in node['name'].lower() else names
-                node['options']=[o for o in node['options'] if chave_nome(o['label']) in allowed]
-    return tree
+    from app_core.formulario_campo import preparar
+    return preparar(tree,usuario,target)
 
 
 def validar(tree,payload,publicar=True):
-    if not isinstance(payload,dict) or set(payload)-{'versao','values','repeats','inicio','fim'}:
+    if not isinstance(payload,dict) or set(payload)-{'versao','values','repeats','inicio','fim','responsavel'}:
         raise ValueError('Conteúdo do formulário inválido.')
     if payload.get('versao')!=tree['versao']:raise ValueError('A definição mudou; reabra e confira o formulário.')
     values=payload.get('values',{});repeats=payload.get('repeats',{})

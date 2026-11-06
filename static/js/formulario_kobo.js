@@ -5,7 +5,10 @@
   const $=id=>document.getElementById(id),tipo=root.dataset.tipo,owner=Number(root.dataset.usuario),review=root.dataset.revisao==='1';
   const base='/api/formularios/kobo/'+encodeURIComponent(tipo);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let schema,current,busy=false,dirty=false,seq=0,listRequest=0;
+  let schema,current,busy=false,dirty=false,seq=0,listRequest=0,geoRequest=0,geoTimer;
+  const geoCache=new Map();
+  function fixed(n){return (current?.payload?.responsavel||(!review&&current?.status==='novo'?schema?.responsavel:null))?.campos?.[n.path];}
+  function anchor(){for(const n of all(schema.nodes)){const code=fixed(n);if(!code)continue;const raw=current.payload.values;raw[n.path]=n.kind==='select_multiple'?[...new Set([code,...String(raw[n.path]||'').split(/\s+/).filter(Boolean)])].join(' '):code;}}
   const states={rascunho:'Rascunho recebido pelo sistema',enviado:'Enviado para revisão',devolvido:'Devolvido para correção',aprovado:'Aprovado; aguarda aplicação',oficializado:'Aplicado aos registros oficiais'};
   function uuid(){if(crypto.randomUUID)return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=[...b].map(v=>v.toString(16).padStart(2,'0')).join('');return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);}
   function timestamp(){const now=new Date(),offset=-now.getTimezoneOffset(),local=new Date(now.getTime()+offset*60000).toISOString().slice(0,-1);return local+(offset>=0?'+':'-')+String(Math.floor(Math.abs(offset)/60)).padStart(2,'0')+':'+String(Math.abs(offset)%60).padStart(2,'0');}
@@ -46,8 +49,22 @@
   function ctx(row){return Object.fromEntries(Object.entries({...current.payload.values,...row}).map(([p,v])=>[p.split('/').at(-1),v]));}
   function container(node,group='',index=-1){return `data-path="${esc(node.path)}" data-group="${esc(group)}" data-index="${index}"`;}
   function data(group,index){return group?current.payload.repeats[group][index]:current.payload.values;}
+  function geoPair(n){
+    const parent=n.path.split('/').slice(0,-1).join('/'),peers=all(schema.nodes).filter(x=>x.path.split('/').slice(0,-1).join('/')===parent);
+    const q=peers.find(x=>x.geo==='quarteirao'&&x.kind==='select_one'&&JSON.stringify(x.filter).toLowerCase().includes('logradouro'));
+    return q?{q,street:peers.find(x=>x.geo==='logradouro'),loc:peers.find(x=>x.geo==='localidade')}:null;
+  }
+  function available(n,option,context){
+    const pair=geoPair(n);
+    if(pair&&n===pair.q&&pair.street){const streets=pair.street.options.filter(o=>evaluate(pair.street.filter,context,'',o.attrs)).map(o=>o.value);return streets.includes(option.attrs.logradouro);}
+    if(pair&&n===pair.street){const code=context[pair.q.name],chosen=pair.q.options.find(o=>o.value===String(code));if(chosen&&option.value!==chosen.attrs.logradouro)return false;}
+    return evaluate(n.filter,context,'',option.attrs);
+  }
   function draw(nodes,group='',index=-1){
-    return '<div class="fk-fields">'+nodes.map(n=>{
+    const ordered=[...nodes];
+    const street=ordered.findIndex(n=>n.geo==='logradouro'),block=ordered.findIndex(n=>n.geo==='quarteirao'&&!n.name.toLowerCase().includes('outro'));
+    if(street>=0&&block>street){const [n]=ordered.splice(block,1);ordered.splice(street,0,n);}
+    return '<div class="fk-fields">'+ordered.map(n=>{
       const attrs=container(n,group,index),raw=data(group,index),value=raw[n.path]??'';
       if(n.kind==='begin_group')return `<fieldset class="fk-section fk-node" ${attrs}><legend>${esc(n.label)}</legend>${draw(n.children,group,index)}</fieldset>`;
       if(n.kind==='begin_repeat'){
@@ -55,12 +72,13 @@
         return `<fieldset class="fk-section fk-node" ${attrs}><legend>${esc(n.label)}</legend>${rows.map((row,i)=>`<div class="fk-row"><strong>Registro ${i+1}</strong><button type="button" class="btn btn-ghost" data-remove="${esc(n.path)}" data-row="${i}">Remover registro ${i+1}</button>${draw(n.children,n.path,i)}</div>`).join('')}<button type="button" class="btn btn-outline" data-add="${esc(n.path)}">Adicionar registro</button></fieldset>`;
       }
       const id='fk-field-'+(++seq),binding=attrs+' data-field="1"';let control;
-      if(n.kind==='select_multiple')control=`<div id="${id}" role="group" aria-labelledby="${id}-label" class="fk-multiple" ${binding}>${n.options.map(o=>`<label data-option="${esc(o.value)}"><input type="checkbox" value="${esc(o.value)}" ${String(value).split(/\s+/).includes(o.value)?'checked':''}>${esc(o.label)}</label>`).join('')}</div>`;
+      if(n.kind==='select_multiple')control=`<div id="${id}" role="group" aria-labelledby="${id}-label" class="fk-multiple ${n.equipe?'fk-team':''}" ${binding}>${n.options.map(o=>`<label data-option="${esc(o.value)}"><input type="checkbox" value="${esc(o.value)}" ${String(value).split(/\s+/).includes(o.value)?'checked':''}><span>${esc(o.label)}${fixed(n)===o.value?' · responsável':''}</span></label>`).join('')}</div>`;
       else if(n.kind==='select_one')control=`<select id="${id}" ${binding}><option value="">Selecione…</option>${n.options.map(o=>`<option value="${esc(o.value)}" ${String(value)===o.value?'selected':''}>${esc(o.label)}</option>`).join('')}</select>`;
       else if(n.kind==='text'&&/observ|descri|coment/i.test(n.name))control=`<textarea id="${id}" ${binding} maxlength="4000" rows="3">${esc(value)}</textarea>`;
       else{
-        const type=n.kind==='date'?'date':n.kind==='time'?'time':n.kind==='integer'||n.kind==='decimal'?'number':'text';
-        control=`<input id="${id}" ${binding} type="${type}" ${type==='number'?`min="0" step="${n.kind==='integer'?'1':'any'}"`:''} value="${esc(value)}" maxlength="4000" autocomplete="off">`;
+        const suggested=n.geo&&['quarteirao','logradouro'].includes(n.geo)&&!n.kind.startsWith('select_');
+        const type=suggested?'text':n.kind==='date'?'date':n.kind==='time'?'time':n.kind==='integer'||n.kind==='decimal'?'number':'text';
+        control=(suggested?`<select class="fk-pick" data-suggestion="${id}" aria-label="Sugestões de ${esc(n.label)}" hidden><option value="">Selecione uma sugestão ou digite abaixo</option></select>`:'')+`<input id="${id}" ${binding} type="${type}" ${type==='number'?`min="0" step="${n.kind==='integer'?'1':'any'}"`:''} value="${esc(value)}" ${suggested?`data-geo="${n.geo}" inputmode="${n.geo==='quarteirao'?'numeric':'text'}"`:''} maxlength="4000" autocomplete="off">${suggested?'<small>Escolha uma sugestão ou digite. Se não houver opções, a digitação continua disponível.</small>':''}`;
       }
       return `<div class="fk-field fk-node" ${attrs}><label id="${id}-label" for="${id}">${esc(n.label)} <span class="fk-required" aria-label="obrigatório" hidden>*</span></label>${control}${n.hint?`<small>${esc(n.hint)}</small>`:''}</div>`;
     }).join('')+'</div>';
@@ -75,7 +93,7 @@
         const control=el.querySelector('[data-field]');const options=new Map(n.options.map(o=>[o.value,o]));
         control.querySelectorAll(n.kind==='select_one'?'option[value]':'[data-option]').forEach(opt=>{
           const code=opt.value??opt.dataset.option;if(!code)return;const option=options.get(code);
-          const visible=option&&evaluate(n.filter,context,'',option.attrs);
+          const visible=option&&available(n,option,context);
           opt.hidden=!visible;if(n.kind==='select_one')opt.disabled=!visible;
         });
       }
@@ -86,14 +104,17 @@
     $('fk-acoes').querySelectorAll('button').forEach(el=>{
       const a=el.dataset.action;el.disabled=busy||locked||review&&(a==='aplicar'?current.status!=='aprovado':!['enviado','aprovado'].includes(current.status));
     });
+    $('fk-campos').querySelectorAll('[data-field]').forEach(control=>{const n=map.get(control.dataset.path),code=fixed(n);if(code){if(n.kind==='select_one')control.disabled=true;else for(const input of control.querySelectorAll('input'))if(input.value===code){input.checked=true;input.disabled=true;}}});
+    const sender=current.autor||current.payload.responsavel||schema.responsavel;
+    $('fk-responsavel').textContent='Responsável pelo envio: '+(sender?.nome||'Conta autenticada')+(current.payload.responsavel?.agente?' · Agente: '+current.payload.responsavel.agente:'')+(current.autor?.enviado_em?' · Enviado em '+current.autor.enviado_em:'')+(!review&&!sender?.id_agente&&!current.autor?' · Falta vincular a conta a um agente. Salve como rascunho e peça ao gestor para conferir o vínculo.':'');
     $('fk-situacao').textContent=(states[current.status]||'Novo preenchimento')+(current.motivo?' · '+current.motivo:'');
   }
-  function render(){seq=0;$('fk-campos').innerHTML=draw(schema.nodes);$('fk-editor').hidden=false;visibility();}
+  function render(){anchor();seq=0;$('fk-campos').innerHTML=draw(schema.nodes);$('fk-editor').hidden=false;visibility();scheduleGeo();}
   function initial(nodes,flat){for(const n of nodes){if(n.kind==='begin_repeat')continue;if(n.children)initial(n.children,flat);else if(n.default!==''&&n.default!==undefined&&!String(n.default).includes('${'))flat[n.path]=String(n.default);}}
   async function fresh(){
     if(!schema||busy)return;
     if(dirty&&!await confirmacaoDupla('Descartar as alterações que ainda não foram salvas?'))return;
-    current={uuid:uuid(),status:'novo',captura:{versao:1,revisao:0,dispositivo:uuid()},payload:{versao:schema.versao,values:{},repeats:{},inicio:timestamp()}};
+    current={uuid:uuid(),status:'novo',captura:{versao:1,revisao:0,dispositivo:uuid()},payload:{versao:schema.versao,values:{},repeats:{},responsavel:schema.responsavel,inicio:timestamp()}};
     initial(schema.nodes,current.payload.values);dirty=false;render();status('Preencha e salve o rascunho ou envie para revisão.');
     history.replaceState(null,'',location.pathname);
   }
@@ -106,7 +127,7 @@
   }
   async function open(id){
     if(dirty&&!await confirmacaoDupla('Abrir outro envio e descartar as alterações ainda não salvas?'))return;
-    current=await api(base+'/'+id);dirty=false;render();history.replaceState(null,'',location.pathname+'?envio='+id);
+    current=await api(base+'/'+id);if(!review&&['rascunho','devolvido'].includes(current.status)&&!current.payload.responsavel)current.payload.responsavel=schema.responsavel;dirty=false;render();history.replaceState(null,'',location.pathname+'?envio='+id);
     status('Envio carregado do servidor.');
   }
   async function action(name){
@@ -134,11 +155,43 @@
       await list();
     }catch(e){status(e.message,true);}finally{busy=false;visibility();}
   }
+  function scheduleGeo(){clearTimeout(geoTimer);geoRequest++;for(const el of $('fk-campos').querySelectorAll('[data-suggestion]'))el.hidden=true;geoTimer=setTimeout(()=>loadGeo().catch(()=>{}),200);}
+  async function loadGeo(){
+    if(!current)return;const token=geoRequest;
+    for(const input of $('fk-campos').querySelectorAll('input[data-geo]')){
+      if(input.closest('[hidden]'))continue;
+      const n=all(schema.nodes).find(n=>n.path===input.dataset.path),parent=n.path.split('/').slice(0,-1).join('/');
+      const peers=all(schema.nodes).filter(x=>x.path.split('/').slice(0,-1).join('/')===parent);
+      const loc=peers.find(x=>x.geo==='localidade');if(!loc)continue;
+      const raw=data(input.dataset.group,Number(input.dataset.index)),code=raw[loc.path]||'';
+      const locality=loc.options?.find(o=>o.value===String(code))?.label||code;
+      const q=peers.find(x=>x.geo==='quarteirao'&& !x.name.toLowerCase().includes('outro'));
+      const other=peers.find(x=>x.geo==='quarteirao'&&x.name.toLowerCase().includes('outro'));
+      const block=q&&String(raw[q.path])==='outros'&&other?raw[other.path]||'':q?raw[q.path]||'':'';
+      const key=JSON.stringify([locality,block]);
+      let refs=geoCache.get(key);if(!refs){refs=await api(base+'/referencias?localidade='+encodeURIComponent(locality)+'&quarteirao='+encodeURIComponent(block));geoCache.set(key,refs);}
+      if(token!==geoRequest)return;
+      const pick=input.parentElement.querySelector('[data-suggestion]'),options=refs[input.dataset.geo==='quarteirao'?'quarteiroes':'logradouros']||[];
+      pick.innerHTML='<option value="">Selecione uma sugestão ou digite abaixo</option>'+options.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');pick.hidden=!options.length;
+    }
+  }
+  root.addEventListener('change',event=>{const pick=event.target.closest('[data-suggestion]');if(!pick||!pick.value||busy)return;const input=$(pick.dataset.suggestion);input.value=pick.value;input.dispatchEvent(new Event('input',{bubbles:true}));pick.value='';});
   root.addEventListener('input',event=>{
     const control=event.target.closest('[data-field]');if(!control||!current)return;
     const raw=data(control.dataset.group,Number(control.dataset.index));
+    const changed=all(schema.nodes).find(n=>n.path===control.dataset.path);
+    const previous=raw[control.dataset.path];
     raw[control.dataset.path]=control.classList.contains('fk-multiple')?[...control.querySelectorAll('input:checked')].map(el=>el.value).join(' '):control.value;
-    dirty=true;status('Há alterações ainda não salvas.');visibility();
+    if(changed?.geo&&previous!==raw[changed.path]){
+      const parent=changed.path.split('/').slice(0,-1).join('/');
+      for(const n of all(schema.nodes)){
+        if(n.path===changed.path||n.path.split('/').slice(0,-1).join('/')!==parent)continue;
+        const reset=changed.geo==='localidade'&&['quarteirao','logradouro'].includes(n.geo)||changed.geo==='quarteirao'&&n.geo==='logradouro'||changed.geo==='logradouro'&&n.geo==='quarteirao'&&JSON.stringify(n.filter).toLowerCase().includes('logradouro');
+        if(reset){raw[n.path]='';for(const el of $('fk-campos').querySelectorAll('[data-field]'))if(el.dataset.path===n.path&&el.dataset.group===control.dataset.group)el.value='';}
+      }
+    }
+    if(changed?.geo==='quarteirao'){const pair=geoPair(changed),chosen=pair?.q.options.find(o=>o.value===String(raw[changed.path]));if(chosen&&pair.street){raw[pair.street.path]=chosen.attrs.logradouro;for(const el of $('fk-campos').querySelectorAll('[data-field]'))if(el.dataset.path===pair.street.path&&el.dataset.group===control.dataset.group)el.value=chosen.attrs.logradouro;}}
+    anchor();dirty=true;status('Há alterações ainda não salvas.');visibility();scheduleGeo();
   });
   root.addEventListener('click',event=>{
     const b=event.target.closest('button');if(!b||busy)return;
