@@ -2,8 +2,12 @@
 
 ## Situação
 
-Preparação autorizada em06/11/2026; produção permanece2.1.0, commitc9d4b49,
-até execução do novo atalho elevado. Não repetir ativadores anteriores.
+Atualização aplicada em06/11/2026 pelo usuário, janela08h43. Versão ativa
+**2.1.1**, release `3acb3276a583fb90581744983de0029f6a98551a`, origemc9d4b49.
+Relatório `C:\ProgramData\EndemiasWeb\ativacao-logos211-resultado.json`
+aplicado/concluído;96 tabelas/dados/arquivos preservados, sem DDL ou restauração
+de banco. Mesma identidade, tarefa e ambiente; configurações Kobo preservadas,
+agendamento devolvido. Prova da conta limitada aprovada. Não repetir o atalho.
 
 ## Alterações
 
@@ -50,6 +54,28 @@ operacionais. Sem migração, reimportação Kobo ou mudança de contas, ambient
 tarefa, portas, Cloudflare e firewall. Prova da identidade limitada inclui
 os novos ativos e logins. O agendamento é devolvido ao estado anterior.
 
-Após a execução, conferir `C:\ProgramData\EndemiasWeb\ativacao-logos211-resultado.json`,
-versão dos três endereços, logins locais5000/5004 e hashes dos ativos públicos.
-Até essa conferência a atualização deve ser tratada como candidata.
+## Conferência após implantação
+
+Dezesseis checagens passaram, registradas em `.venv/publicacao-211.json`:
+portal e dois logins HTTPS, além de locais5000/5004,200/2.1.1 com no-store;
+portal sem cookie e IDs de requisição válidos. Avisos presentes no portal e
+Ambiental, ausentes em Endemias. Ajuda e dashboard sem sessão401 nos dois
+domínios. Três PNGs, três CSS e script da ajuda iguais à instalação.
+
+Os PNGs publicados preservam exatamente os arquivos fornecidos e sua
+transparência. O CSS app instalado/publicado possui quatro CRLF a mais que a
+worktree, por normalização do Git: conteúdo igual ao normalizar quebras de
+linha, sem diferença funcional. CSS do portal sem preferência escura e HTML
+com color-scheme light. Não foi necessário mudar código ou configuração nessa
+conferência. Nenhum login de conta real ou escrita operacional foi executado.
+
+SQLite congelado conferido, SHA-256 inalterado:
+`964152E21DE44B4FFF985F72A0D7945E8E7DCF260BBB019708B868C3B3A7A025`.
+Backups registrados pelo atualizador:
+
+- SQL: `C:\ProgramData\EndemiasWeb\ativacao-logos211-20261106-084314\antes_conta_limitada.dump`,
+  7.549.413 bytes, catálogo validado;
+  SHA-256 `50c8dd9650d7f8f469d0abb802d25bb7f2a86bd1eb285b19eef87ef56b97b9ad`.
+- Completo: `D:\BackupsEndemias\backups_web\completos\endemias_completo_20261106_084326.zip`,
+  310.618.548 bytes;
+  SHA-256 `b432c0149ea8cbe762b3734055b6eadf4575c4e4f67664a483a75639488e3dcd`.

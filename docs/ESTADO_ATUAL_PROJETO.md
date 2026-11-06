@@ -4,7 +4,7 @@ Atualizado em 06/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Preparação: 2.1.1 — logos transparentes e portal claro
+## Versão ativa: 2.1.1 — logos transparentes e portal claro
 
 Em06/11 usuário entregou três logos novos com contorno branco. Cópias exatas
 em `static/img`, sem edição de PNG. CSS remove bases brancas e inversões de
@@ -15,11 +15,18 @@ Portal não segue mais o modo escuro do aparelho; setores mantêm seus temas.
 Integração em `C:\endemias-interface`, branch `codex/logos-transparentes-211`.
 30 testes de setores +14 do ativador passaram; Chromium26 combinações de
 tamanho/tema/telas, alpha/cores/avisos, sem erro JS ou overflow. Só interface,
-ativos e versão; sem DDL ou dados. Produção segue2.1.0 emc9d4b49, limpa, até
-execução do novo atalho elevado. Ver `docs/LOGOS_TRANSPARENTES_211.md`.
-Não repetir o atalho2.1.0 nem ativadores anteriores.
+ativos e versão; sem DDL ou dados. Usuário executou o novo atalho: relatório
+`C:\ProgramData\EndemiasWeb\ativacao-logos211-resultado.json` aplicado/concluído,
+release`3acb327`, janela08h43.96 tabelas/dados/arquivos, contas, dois Kobo,
+tarefa/identidade/ambiente preservados; prova limitada OK e agendamento devolvido.
+Dezesseis checagens em `.venv/publicacao-211.json`: portal/logins HTTPS e
+locais5000/5004 retornam200/2.1.1; APIs anônimas401; avisos e sete ativos públicos
+conferem. CSS app publicado igual ao instalado; só CRLF difere da candidata.
+Logos byte a byte iguais aos fornecidos, portal sem regra de modo escuro.
+SQLite congelado mantém hash. Ver `docs/LOGOS_TRANSPARENTES_211.md`.
+Não repetir o atalho2.1.1 nem ativadores anteriores.
 
-## Versão ativa: 2.1.0 — identidade, logs e ajuda
+## Histórico: 2.1.0 — identidade, logs e ajuda
 
 Usuário solicitou subagentes por frente. Estilo em `C:\endemias-visual`, logs em
 `C:\endemias-logs`, ajuda em `C:\endemias-ajuda`; integração isolada em

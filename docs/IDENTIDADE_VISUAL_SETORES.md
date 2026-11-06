@@ -4,7 +4,7 @@ O Ambiental usa verde escuro na navegação, nos controles e na entrada do siste
 Endemias mantém sua identidade azul. O Portal VSATT
 combina as duas cores para identificar os acessos de cada setor.
 
-Na candidata2.1.1 as três imagens `logo_endemias.png`, `logo_ambiental.png` e
+Desde a2.1.1 as três imagens `logo_endemias.png`, `logo_ambiental.png` e
 `logo_vsatt.png` são cópias exatas dos novos arquivos fornecidos em06/11, com
 proporção, cores e transparência preservadas. Não há redesenho ou geração de
 imagem. As bases brancas da2.1.0 foram retiradas. Um contorno branco sutil em
@@ -24,4 +24,6 @@ modo claro/escuro, logins, início, dashboard Ambiental, menu móvel, recuperaç
 portal. Sem rolagem horizontal ou erros de JavaScript; marcas azul de Endemias
 preservadas. Conteúdo e permissões continuam sujeitos às mesmas regras anteriores.
 
-Não houve alteração de banco, migração, domínio, serviço ou dados de produção.
+Não há migração de banco nem mudança de autenticação, permissões, domínio ou
+configuração do serviço. A implantação2.1.1 e suas verificações estão em
+`docs/LOGOS_TRANSPARENTES_211.md`.

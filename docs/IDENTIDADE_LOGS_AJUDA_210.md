@@ -3,7 +3,7 @@
 ## Situação operacional
 
 Preparação autorizada em 05/11/2026. Usuário executou o atalho elevado e
-confirmou conclusão. Produção em **2.1.0**, release
+confirmou conclusão. Relato histórico da implantação **2.1.0**, release
 `db3f1cbc624aa85b83cabc77122c7777c67683ea`, janela16h28. Relatório nativo
 `C:\ProgramData\EndemiasWeb\ativacao-identidade210-resultado.json`
 aplicado/concluído;96 tabelas/dados/arquivos preservados, sem DDL ou restauração

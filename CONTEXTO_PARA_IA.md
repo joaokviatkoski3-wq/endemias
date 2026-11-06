@@ -6,7 +6,7 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Preparação 2.1.1 — logos transparentes em 06/11/2026
+## Versão ativa 2.1.1 — logos transparentes em 06/11/2026
 
 Usuário forneceu três PNGs novos com contorno branco. Cópias byte a byte,
 sem edição das imagens: Endemias, Ambiental e VSATT. Removidas bases brancas
@@ -15,13 +15,19 @@ discretos nos rodapés: marca Ambiental provisória/não oficial; no portal,
 marcas Ambiental/VSATT e sigla VSATT provisórias/não oficiais. Portal sempre
 claro, inclusive com aparelho em modo escuro; temas dos setores preservados.
 
-Candidata em `C:\endemias-interface`, branch `codex/logos-transparentes-211`.
+Entrega em `C:\endemias-interface`, branch `codex/logos-transparentes-211`.
 44 testes existentes passaram (setores/ativador) e Chromium26 combinações,
 com CSRF e contas fictícias: sem erro JS/rolagem horizontal, cores/alpha/avisos
-conferidos. Sem DDL, mudança de contas, Kobo ou logs. Produção continua2.1.0
-emc9d4b49 até o novo atalho elevado. Ver `docs/LOGOS_TRANSPARENTES_211.md`.
+conferidos. Usuário executou o atalho; relatório `ativacao-logos211` aplicado/
+concluído, release`3acb327`, janela08h43:96 tabelas/dados/arquivos preservados,
+sem DDL, mesma tarefa/identidade/ambiente e Kobo; prova limitada OK e agendamento
+devolvido. Dezesseis checagens posteriores: três HTTPS e locais5000/5004
+200/2.1.1, APIs anônimas401, avisos presentes e sete ativos publicados iguais
+à instalação. PNGs iguais aos originais; CSS app difere da worktree só por
+quebras de linha normalizadas pelo Git. SQLite congelado preservado. Não
+repetir o atalho. Ver `docs/LOGOS_TRANSPARENTES_211.md`.
 
-## Versão ativa 2.1.0 — identidade, logs e ajuda em 05/11/2026
+## Histórico 2.1.0 — identidade, logs e ajuda em 05/11/2026
 
 Usuário autorizou três frentes com subagentes isolados: identidade visual por
 setor e portal com as logos fornecidas, ampliação segura dos logs/exportação e
