@@ -4,7 +4,7 @@ Atualizado em 06/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.6.0 — sequências múltiplas no LIRAa
+## Versão ativa 2.6.0 — sequências múltiplas no LIRAa
 
 Usuário pediu expansão de sequências numéricas e alfanuméricas no LIRAa.
 Branch `codex/liraa-sequencias`, worktree `C:\endemias-interface`.
@@ -12,11 +12,18 @@ Guia: `docs/LIRAA_SEQUENCIAS.md`. Separadores flexíveis, repetidas deduplicadas
 UUIDs estáveis e metadados de origem no JSON existente. Tubitos/leituras e
 tratamentos permanecem na primeira unidade. Novos envios podem gerar várias
 visitas; lançamentos históricos já importados não são reinterpretados.
-Sem DDL ou importação real; produção permanece 2.5.0. Validados 98 testes LIRAa,
+Sem DDL ou importação real; produção agora em 2.6.0. Validados 98 testes LIRAa,
 16 focados finais, 7 de aplicação via ETL/formulários, 33 de setores, 24 do
-instalador e PostgreSQL isolado. Pacote pronto; ativação administrativa pendente.
+instalador e PostgreSQL isolado. Ativação confirmada em 06/11/2026 às 16h11,
+release `d219216`. Relatório `ativacao-liraa260-resultado.json`: aplicado/concluído,
+backup completo e PostgreSQL realizados, 96 tabelas preservadas, prova limitada
+OK incluindo o parser LIRAa, contas/ambiente/Kobo preservados e automação
+restabelecida. `.venv/publicacao-260.json`: nove verificações passaram, cinco
+entradas na versão 2.6.0, API anônima negada e fontes/templates iguais aos
+testados. Nenhuma resposta importada nem dado histórico reprocessado nesta
+conferência. Conferir pequeno lote na prévia antes da aplicação operacional.
 
-## Versão ativa 2.5.0 — continuidade do trabalho de campo
+## Histórico 2.5.0 — continuidade do trabalho de campo
 
 Usuário autorizou as propostas 1, 2, 7 e 8: salvamento automático online,
 próxima visita com reaproveitamento escolhido, vínculo com agenda/retornos

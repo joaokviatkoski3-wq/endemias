@@ -1,6 +1,6 @@
 # LIRAa — múltiplas sequências por envio
 
-Candidata 2.6.0, preparada em 06/11/2026. Produção permanece 2.5.0 até ativação.
+Versão 2.6.0 ativa em 06/11/2026 às 16h11, release `d219216`.
 Usuário autorizou esta ampliação na importação LIRAa. Não altera a expansão de
 TB/TBO/PVE nem importa dados reais durante implantação.
 
@@ -67,3 +67,11 @@ PostgreSQL descartável (55444) confirmou três visitas, um tubito e reimportaç
 idempotente pela integração geral. Boletim/laboratório foram ensaiados em SQLite.
 Não houve consulta de respostas nem escrita no banco de produção durante testes.
 Ainda é necessária conferência operacional de um pequeno lote na prévia.
+
+Ativação confirmada: relatório `ativacao-liraa260-resultado.json` aplicado/concluído,
+backup completo e PostgreSQL realizados, 96 tabelas preservadas e prova limitada
+OK (incluindo compilação da tela e parser de sequências). Contas, ambiente,
+configurações Kobo e automação preservados. Nove verificações de publicação
+passaram: cinco entradas em 2.6.0, API sem sessão negada e código/template iguais
+aos testados. Nenhum lote real importado e nenhum histórico reprocessado nesta
+conferência. A validação operacional de um lote pequeno na prévia segue pendente.
