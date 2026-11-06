@@ -1,7 +1,7 @@
-# Formulários internos compatíveis com Kobo — desenvolvimento
+# Formulários internos compatíveis com Kobo — piloto ativo
 
 Pedido em 06/11/2026. Branch `codex/formularios-internos-kobo`, worktree
-`C:\endemias-interface`. Produção continua 2.2.1. Nada implantado desta funcionalidade.
+`C:\endemias-interface`. Produção 2.3.0 ativa desde 06/11/2026 às 13h36, release `bf36464`.
 
 Usuário confirmou revisão por admin antes de gravar nos registros oficiais.
 Kobo permanece em paralelo, sem migração nem importação de respostas reais.
@@ -37,7 +37,7 @@ Reenvios devem ser idempotentes e não sobrescrever dados aprovados/oficializado
   a API autenticada só disponibiliza as opções permitidas ao perfil.
 - Não incluir banco, respostas, catálogos nominais ou credenciais nos commits.
 
-## Implementado na candidata 2.3.0 (ativação pendente)
+## Implementado na versão 2.3.0
 
 - Motor de condições sem eval;417 regras das definições implantadas compiladas.
 - Campos e escolhas dos dez tipos, grupos condicionais e até100 repetições.
@@ -68,8 +68,11 @@ Teste também exercita a alternativa de UUID para entrada LAN sem randomUUID.
 
 Regressão geral: 1.181 testes, seis ignorados e nenhuma falha. Após os ajustes
 finais, passaram os testes focados de captura/permissões (12), RG (10) e nova
-conferência no navegador. Pacote 2.3.0 pronto; ativação administrativa pendente.
-Produção permanece 2.2.1 até a execução do instalador específico. Android real e comparação operacional de todos os campos continuam
+conferência no navegador. Ativação administrativa confirmada: relatório aplicado/concluído, backup completo
+e PostgreSQL conferidos, 96 tabelas preservadas e prova limitada OK.
+Publicação conferida em 19 verificações: cinco entradas na versão 2.3.0, assets
+iguais aos instalados, APIs anônimas negadas e catálogo privado não exposto.
+Nenhum formulário real enviado ou oficializado nesta conferência. Android real e comparação operacional de todos os campos continuam
 para o piloto do usuário; testes automáticos não substituem essa homologação.
 
 ## Uso paralelo e limites explícitos

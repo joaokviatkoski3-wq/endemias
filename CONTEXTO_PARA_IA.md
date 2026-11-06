@@ -6,7 +6,7 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.3.0 — formulários internos equivalentes ao Kobo
+## Versão ativa 2.3.0 — formulários internos equivalentes ao Kobo
 
 Usuário pediu os dez tipos existentes e confirmou revisão por admin antes da
 aplicação. Worktree `C:\endemias-interface`, branch `codex/formularios-internos-kobo`.
@@ -17,10 +17,16 @@ Captura nova online; RG offline e Kobo mantidos. Endemias recebe 8 tipos e Ambie
 com laboratório condicionado à permissão; perfil básico escolhe o próprio agente.
 Aplicação e auditoria confirmam juntas via ETL, sem DDL. Protótipos/ensaios fictícios
 passaram nos dez tipos, no navegador e no PostgreSQL descartável. Regressão geral: 1.181 testes, seis ignorados e nenhuma falha. Verificações
-focadas finais e navegador também passaram. Pacote pronto; ativação administrativa
-pendente. Produção ainda 2.2.1. Não executar migração nem importar respostas reais.
+focadas finais e navegador também passaram. Ativação confirmada em 06/11/2026 às 13h36, release `bf36464`.
+Relatório `ativacao-formularios230-resultado.json`: aplicado/concluído, prova
+limitada OK, backup completo e PostgreSQL conferidos, 96 tabelas preservadas,
+sem DDL, contas/ambiente/configurações Kobo preservados e automação restabelecida.
+`.venv/publicacao-230.json`: 19 verificações públicas/locais passaram, cinco entradas
+na versão 2.3.0, JS/CSS publicados, APIs anônimas negadas e catálogo privado
+não exposto. Não houve envio de formulário real nesta conferência. Homologação
+operacional dos campos e Android físico continua com o usuário no piloto.
 
-## Versão ativa 2.2.1 — importação Kobo por admin
+## Histórico 2.2.1 — importação Kobo por admin
 
 Primeira tentativa retornou automaticamente à2.2.0, commit `dffb0d7`.
 Relatório `ativacao-adminkobo221-resultado.json`: falha na prova de assets,
