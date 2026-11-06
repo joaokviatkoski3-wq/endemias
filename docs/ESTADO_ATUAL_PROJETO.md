@@ -4,6 +4,16 @@ Atualizado em 06/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Candidata 2.2.1 — importação Kobo por admin
+
+Pedido do usuário em06/11/2026. Rotas operacionais já permitem admin; a tela
+chamava salvarKoboConfig antes de pendências/prévia/importação, lendo campos
+técnicos ausentes para admin. Agora a função retorna sem tentar configurar
+quando esses campos não existem. Superadmin mantém o fluxo atual e a exclusividade
+de token/servidor/UIDs; limites por setor preservados. Testes: Node da regressão,
+12 de superadmin e ensaio sintético de importação admin nos dois setores passaram.
+Não importou respostas reais. Produção segue2.2.0 até ativação elevada do pacote.
+
 ## Versão ativa 2.2.0 — piloto PWA do RG
 
 Preparada em `C:\endemias-interface`, branch `codex/pwa-rg-piloto`, a pedido do
