@@ -150,13 +150,19 @@ def verificar_formularios_230(target,client,checks,private):
     tree=core.compilar(definition)
     client.application.config['UPLOAD_TEMP']=str(private/'uploads-formularios')
     with mock.patch.object(core,'carregar',return_value=definition):
-        body={'usuario':1,'uuid':str(uuid4()),'status':'enviado','payload':{'versao':tree['versao'],'values':data,'repeats':{}},
+        body={'usuario':1,'uuid':str(uuid4()),'status':'enviado','payload':{'versao':tree['versao'],'values':data,'repeats':{},'acompanhamento':{'retorno':{'data':'2026-12-01','hora':'09:00','observacao':'Retorno ficticio'}}},
               'captura':{'versao':1,'revisao':1,'dispositivo':str(uuid4())}}
         result=client.post('/api/formularios/kobo/BRI',json=body)
         assert result.status_code==200,result.json
         ident=result.json['id'];item=client.get(f'/api/formularios/kobo/BRI/{ident}').json
         result=client.post(f'/api/formularios/kobo/BRI/{ident}/revisar',json={'payload':item['payload'],'etag':item['etag'],'decisao':'aprovado'})
         assert result.status_code==200,result.json
+        events_before=db.scalar(target,'SELECT COUNT(*) FROM agenda_eventos')
+        returned=client.post(f'/api/formularios/kobo/BRI/{ident}/confirmar-retorno',json={})
+        assert returned.status_code==200,returned.json
+        assert client.post(f'/api/formularios/kobo/BRI/{ident}/confirmar-retorno',json={}).json==returned.json
+        assert db.scalar(target,'SELECT COUNT(*) FROM agenda_eventos')==events_before+1
+        checks['retorno_confirmado_idempotente_postgresql']=True
         before=db.scalar(target,'SELECT COUNT(*) FROM bri_registros')
         original=audit.registrar_evento
         def fail(*args,**kw):

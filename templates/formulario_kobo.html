@@ -5,19 +5,28 @@
 {% block content %}
 <section id="fk-app" data-tipo="{{ tipo }}" data-usuario="{{ usuario_atual.id_usuario }}" data-revisao="{{ '1' if revisao else '0' }}">
   <div class="page-header"><h1>{{ titulo }}</h1><p class="sub">Piloto online · o Kobo continua disponível.</p></div>
-  <p class="sub">Salve o rascunho antes de sair. Estes novos formulários precisam de conexão.</p>
+  <p class="sub">Rascunhos são salvos automaticamente com conexão. Confira a confirmação antes de sair.</p>
+  <p id="fk-save-status" role="status" class="sub"></p>
   <div id="fk-status" role="status" class="rgc-notice">Carregando definições…</div>
   <a id="fk-login" class="btn btn-outline" href="{{ url_for('auth.login', next='/formularios') }}" target="_blank" rel="noopener" hidden>Entrar novamente em outra aba</a>
   <div class="rgc-actions"><a class="btn btn-outline" href="/formularios">Formulários</a><button id="fk-novo" class="btn btn-outline" type="button" disabled>Novo preenchimento</button><button id="fk-listar" class="btn btn-outline" type="button" disabled>{{ 'Envios para revisão' if revisao else 'Meus envios' }}</button></div>
   <div id="fk-lista"></div>
   {% if revisao %}<label class="fk-field">Situação dos envios<select id="fk-filtro"><option value="enviado">Enviados para revisão</option><option value="aprovado">Aprovados aguardando aplicação</option><option value="devolvido">Devolvidos para correção</option><option value="rascunho">Rascunhos</option><option value="oficializado">Aplicados</option><option value="">Todos</option></select></label>{% endif %}
   <div id="fk-editor" hidden>
-    <p id="fk-situacao"></p><p id="fk-responsavel" class="fk-responsavel"></p>{% if revisao %}<p class="sub">Antes de aplicar, confira se a mesma atividade já entrou pelo Kobo. A revisão não deve duplicar a produção.</p>{% endif %}<div id="fk-campos"></div>
+    <p id="fk-situacao"></p><p id="fk-responsavel" class="fk-responsavel"></p>{% if revisao %}<p class="sub">Antes de aplicar, confira se a mesma atividade já entrou pelo Kobo. A revisão não deve duplicar a produção.</p>{% endif %}<p id="fk-agenda-vinculo" class="sub"></p><button id="fk-desvincular" type="button" class="btn btn-ghost" hidden>Desvincular desta atividade agendada</button><div id="fk-correcao-resumo" class="fk-correction" hidden></div><div id="fk-campos"></div>
+    <fieldset class="fk-section"><legend>Proposta de retorno</legend><p class="sub">Opcional. A gestão confirma a inclusão na agenda depois de aprovar este envio.</p>
+      <label>Data do retorno<input id="fk-retorno-data" type="date"></label>
+      <label>Hora (opcional)<input id="fk-retorno-hora" type="time"></label>
+      <label>Observação para o retorno<textarea id="fk-retorno-nota" maxlength="1000"></textarea></label>
+      <p id="fk-retorno-situacao" class="sub"></p>
+      {% if revisao %}<button id="fk-confirmar-retorno" type="button" class="btn btn-outline" data-action="retorno">Confirmar retorno na agenda</button>{% endif %}
+    </fieldset>
     <div class="rgc-actions" id="fk-acoes">
       {% if revisao %}<button type="button" class="btn btn-outline" data-action="devolver">Devolver para correção</button><button type="button" class="btn btn-outline" data-action="aprovar">Aprovar revisão</button><button type="button" class="btn btn-primary" data-action="aplicar">Aplicar aos registros oficiais</button>
-      {% else %}<button type="button" class="btn btn-outline" data-action="rascunho">Salvar rascunho</button><button type="button" class="btn btn-primary" data-action="enviado">Enviar para revisão</button>{% endif %}
+      {% else %}<button type="button" class="btn btn-outline" data-action="rascunho">Salvar rascunho</button><button type="button" class="btn btn-primary" data-action="enviado">Enviar para revisão</button><button type="button" class="btn btn-outline" data-action="proxima">Enviar e iniciar próxima visita</button>{% endif %}
     </div>
   </div>
+  {% if not revisao %}<fieldset id="fk-proxima" hidden><legend>Preparar próxima visita</legend><p>O envio anterior já foi recebido. Escolha o que reaproveitar; os demais dados serão limpos.</p><label><input id="fk-reusar-equipe" type="checkbox"> Equipe</label><label><input id="fk-reusar-data" type="checkbox"> Data da visita</label><label><input id="fk-reusar-local" type="checkbox"> Localidade</label><button id="fk-criar-proxima" class="btn btn-primary" type="button">Iniciar próxima visita</button></fieldset>{% endif %}
 </section>
 {% endblock %}
 {% block extra_js %}<script nonce="{{ csp_nonce() }}" src="/static/js/formulario_kobo.js?v={{ APP_VERSION }}"></script>{% endblock %}

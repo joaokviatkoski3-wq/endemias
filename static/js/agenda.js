@@ -137,6 +137,12 @@ function mostrarPopup(event, jsEvent) {
     ${props.origem === 'auto' ? `<span style="font-size:10px;color:var(--text3);margin-left:6px;">automático · ${escHtml(props.fonteLabel || 'importado')}</span>` : ''}
   </div>`;
 
+  if(props.formularios_vinculados){
+    const labels={rascunho:'rascunho',enviado:'aguarda revisão',devolvido:'correção solicitada',aprovado:'aprovado',oficializado:'aplicado'};
+    html+='<div class="agenda-formularios"><strong>Registros vinculados</strong>';
+    html+=props.formularios_vinculados.map(f=>`<p><a href="${escHtml(f.href)}">Envio #${f.id} — ${escHtml(labels[f.status]||f.status)}</a></p>`).join('')||'<p>Nenhum registro visível vinculado a esta atividade.</p>';
+    html+='<small>Os registros não concluem automaticamente a atividade agendada.</small><details><summary>Registrar atividade</summary>'+props.formularios_disponiveis.map(f=>`<p><a href="${escHtml(f.href)}">${escHtml(f.titulo)}</a></p>`).join('')+'</details></div>';
+  }
   // Datas
   if (event.allDay) {
     html += `<div>📅 ${fmtDataRange(event.startStr, event.endStr)}</div>`;

@@ -136,3 +136,66 @@ As 21 verificações públicas/locais passaram: cinco entradas na versão 2.4.0,
 assets iguais aos instalados, APIs anônimas negadas e catálogo privado não exposto.
 Kobo e sua automação preservados. Nenhum formulário real enviado nesta conferência;
 conferência operacional no aparelho do piloto continua com o usuário.
+
+## Evolução 2.5.0 — candidata, ativação pendente
+
+Pedido expresso do usuário: propostas 1, 2, 7 e 8. QR Code/amostras apenas
+explicados, sem implementação. Os dez formulários seguem online.
+
+### Salvamento automático
+
+Após uma pausa no preenchimento, salva rascunho no servidor, sem aplicação de
+dados oficiais. Indicação separada distingue salvando, salvo e não confirmado.
+Alterações durante uma requisição continuam na tela e são enviadas na revisão
+seguinte. Repetição após perda de recibo reapresenta o mesmo conteúdo/UUID/revisão;
+conflito entre abas pede conferência do envio, sem sobrescrita automática.
+Requisição recusada por validação pode ser corrigida na própria tela.
+Sem internet, manter a página aberta: não há armazenamento offline novo nem
+garantia de recuperação de alterações ainda não recebidas se o aparelho fechar
+a página. Reabre pelo endereço do envio ou por Meus envios. Salvar rascunho não
+preenche a data de envio; o primeiro envio efetivo preenche esse registro.
+
+### Próxima visita
+
+Enviar e iniciar próxima visita primeiro confirma o recebimento do envio atual.
+Só depois oferece escolher equipe, data da visita e localidade para reaproveitar.
+Cria UUID novo e limpa os demais campos, repetições, endereço, proposta de retorno
+e vínculo de agenda. O agente responsável continua obrigatório. Dados do imóvel,
+morador, animal ou resultados não são copiados automaticamente.
+
+### Agenda e retornos
+
+No detalhe de uma atividade manual de campo da agenda, Registrar atividade
+oferece formulários permitidos no setor/perfil. O novo envio fica associado ao
+ID do evento e à data da ocorrência (inclusive recorrentes). Evento de outro
+setor, inexistente ou data incompatível é recusado; é possível desvincular o
+preenchimento pela tela. A agenda mostra links/situações dos envios próprios;
+gestão pode conferir os demais permitidos. Não há conclusão automática da tarefa.
+
+O agente pode propor data, hora opcional e observação de retorno. Após aprovar,
+a gestão confirma em botão específico. Criação do evento, vínculo e auditoria
+confirmam na mesma transação, com trava de linha e proteção contra duplicação.
+Mesmo após aplicar os dados oficiais, pode confirmar uma proposta já existente.
+Retorno confirmado deve ser alterado pela agenda; não se reescreve a proposta
+para criar outro evento silenciosamente. Não apaga eventos ao editar formulários.
+A observação confirmada fica visível na agenda do setor: usar apenas informações
+necessárias ao agendamento.
+
+### Correção dirigida
+
+Na revisão, cada pergunta permite orientação de até 500 caracteres. Devolução
+conserva motivo geral e lista de campos válidos; o agente vê resumo e mensagens
+junto das perguntas. Salvar/reenviar não remove orientações por decisão do agente.
+Nova aprovação encerra os apontamentos. Para repetições, a orientação é por campo;
+o revisor deve indicar o número da coleta/animal na mensagem quando necessário.
+
+Sem novas contas, alterações de credenciais ou envio de respostas ao Kobo.
+Homologação operacional em aparelho real continua necessária antes de ampliação.
+
+Validação 2.5.0: regressão geral com 1.199 testes, seis ignorados e nenhuma falha;
+API focada 22 testes, instalador 22. Navegador Chromium móvel/desktop nos dez
+formulários; fluxo de salvamento, recarga, offline/online, recibo perdido com
+edição posterior, próxima visita, devolução por campo, reenvio, aprovação,
+confirmação de retorno e aplicação com dados fictícios. PostgreSQL isolado
+confirmou criação idempotente de retorno e aplicação/auditoria transacionais.
+Node confirmou isolamento do offline. Produção segue 2.4.0 até a ativação manual.

@@ -141,7 +141,7 @@ def salvar(target, tipo, payload, usuario, uuid_cliente=None, status=STATUS_ENVI
                               enviado_em=COALESCE(enviado_em, ?)
                         WHERE id_formulario=? AND usuario_id=?
                           AND status IN ('rascunho','enviado','devolvido')""",
-                    (payload_json, status, agente_nome, agora, existente["id_formulario"], usuario.get("id_usuario")),
+                    (payload_json, status, agente_nome, agora if status==STATUS_ENVIADO else None, existente["id_formulario"], usuario.get("id_usuario")),
                 )
                 if result.rowcount != 1:
                     raise campo_protocolo.ConflitoCampo("Formulario alterado durante o envio. Recarregue e confira.")

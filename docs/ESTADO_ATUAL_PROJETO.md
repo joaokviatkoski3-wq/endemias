@@ -4,6 +4,22 @@ Atualizado em 06/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Candidata 2.5.0 — continuidade do trabalho de campo
+
+Usuário autorizou as propostas 1, 2, 7 e 8: salvamento automático online,
+próxima visita com reaproveitamento escolhido, vínculo com agenda/retornos
+confirmados pela gestão e orientações de correção por campo. QR Code somente
+explicado; não implementado. Branch `codex/formularios-fluxo-campo`, worktree
+`C:\endemias-interface`; produção permanece 2.4.0 até instalação elevada.
+Metadados no envelope JSON existente, sem DDL. Agenda não conclui atividade
+apenas por receber formulário; aprovação/aplicação permanecem explícitas.
+Kobo e RG offline preservados. Regressão geral: 1.199 testes, seis ignorados e
+nenhuma falha. API focada 22 testes, instalador 22, Node/SW, Chromium móvel/
+desktop e PostgreSQL isolado passaram. Testados edição durante perda de recibo,
+retomada online, próxima visita, correção e confirmação idempotente de retorno.
+Pacote pronto; ativação administrativa pendente. Guia operacional:
+`docs/FORMULARIOS_INTERNOS_KOBO.md`.
+
 ## Versão ativa 2.4.0 — praticidade dos formulários em campo
 
 Pedido em 06/11/2026, após a ativação 2.3.0. Branch

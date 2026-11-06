@@ -216,3 +216,71 @@ class ApiFormularioTests(unittest.TestCase):
         self.assertEqual(set(response.json),{'quarteiroes','logradouros'})
         self.assertEqual(self.client.get('/api/formularios/kobo/BRI/referencias?localidade=inexistente').json,{'quarteiroes':[],'logradouros':[]})
         self.assertEqual(self.f.client('ambiental',5).get('/api/formularios/kobo/BRI/referencias').status_code,403)
+
+    def revisar_envio(self,ident,decision='aprovado',correcoes=None):
+        saved=self.client.get(f'/api/formularios/kobo/BRI/{ident}').json
+        return self.client.post(f'/api/formularios/kobo/BRI/{ident}/revisar',json={
+            'payload':saved['payload'],'etag':saved['etag'],'decisao':decision,
+            'motivo':'Conferir os campos','correcoes':correcoes or []})
+
+    def test_correcao_por_campo_permanece_no_rascunho_e_nao_aceita_campo_falso(self):
+        ident=self.send().json['id']
+        bad=self.revisar_envio(ident,'devolvido',[{'campo':'nao_existe','mensagem':'Corrigir'}])
+        self.assertEqual(bad.status_code,400)
+        notes=[{'campo':'group_rb5ho54/Quantidade_de_carga','mensagem':'Confira a carga do registro.'}]
+        self.assertEqual(self.revisar_envio(ident,'devolvido',notes).status_code,200)
+        saved=self.client.get(f'/api/formularios/kobo/BRI/{ident}').json
+        self.assertEqual(saved['payload']['correcoes'],notes)
+        saved['payload']['correcoes']=[]
+        response=self.client.post('/api/formularios/kobo/BRI',json={'usuario':5,'uuid':saved['uuid'],
+            'status':'rascunho','payload':saved['payload'],'captura':{'versao':1,'revisao':2,'dispositivo':saved['captura']['dispositivo']}})
+        self.assertEqual(response.status_code,200,response.json)
+        self.assertEqual(forms.obter(str(self.f.path),ident)['payload']['correcoes'],notes)
+
+    def test_rascunho_atualizado_nao_e_marcado_como_enviado(self):
+        from app_core import campo_protocolo
+        uid=str(uuid4());device=str(uuid4());actor={'id_usuario':5,'nome':'Fictício'}
+        for revision in (1,2):
+            forms.salvar(str(self.f.path),'kobo_BRI',self.payload,actor,uuid_cliente=uid,status='rascunho',
+                captura={'versao':1,'revisao':revision,'dispositivo':device})
+        row=db.query(str(self.f.path),'SELECT enviado_em FROM formularios WHERE uuid_cliente=?',(uid,))[0]
+        self.assertIsNone(row['enviado_em'])
+
+    def test_retorno_so_e_criado_por_gestor_apos_aprovar_e_sem_duplicar(self):
+        self.payload['acompanhamento']={'retorno':{'data':'2026-12-01','hora':'09:00','observacao':'Nova conferência'}}
+        ident=self.send().json['id'];url=f'/api/formularios/kobo/BRI/{ident}/confirmar-retorno'
+        self.assertEqual(self.client.post(url,json={}).status_code,400)
+        self.assertEqual(self.revisar_envio(ident).status_code,200)
+        self.assertEqual(self.f.client('endemias',3).post(url,json={}).status_code,403)
+        before=db.scalar(str(self.f.path),'SELECT COUNT(*) FROM agenda_eventos')
+        first=self.client.post(url,json={});self.assertEqual(first.status_code,200,first.json)
+        second=self.client.post(url,json={});self.assertEqual(first.json,second.json)
+        self.assertEqual(db.scalar(str(self.f.path),'SELECT COUNT(*) FROM agenda_eventos'),before+1)
+        self.assertEqual(forms.obter(str(self.f.path),ident)['status'],'aprovado')
+
+    def test_falha_auditoria_retorno_reverte_evento_e_vinculo(self):
+        from app_core import formulario_fluxo
+        self.payload['acompanhamento']={'retorno':{'data':'2026-12-01'}}
+        ident=self.send().json['id'];self.revisar_envio(ident)
+        before=db.scalar(str(self.f.path),'SELECT COUNT(*) FROM agenda_eventos')
+        def fail(*args):raise RuntimeError('Falha fictícia de auditoria')
+        with self.client.application.app_context():
+            with self.assertRaises(RuntimeError):
+                formulario_fluxo.confirmar_retorno(str(self.f.path),ident,{'id_usuario':5,'nivel':'admin'},fail)
+        self.assertEqual(db.scalar(str(self.f.path),'SELECT COUNT(*) FROM agenda_eventos'),before)
+        self.assertNotIn('retorno_evento',forms.obter(str(self.f.path),ident)['payload']['acompanhamento'])
+
+    def test_agenda_vinculada_por_setor_e_ocorrencia_sem_concluir_tarefa(self):
+        event=self.client.post('/api/agenda/eventos',json={'titulo':'Campo fictício','tipo':'campo','data_inicio':'2026-12-01T09:00'}).json['id_evento']
+        self.payload['acompanhamento']={'agenda':event,'ocorrencia':'2026-12-01'}
+        ident=self.send().json['id']
+        events=self.client.get('/api/agenda/eventos?start=2026-12-01&end=2026-12-02').json
+        linked=next(e for e in events if e['extendedProps'].get('id_evento')==event)['extendedProps']
+        self.assertEqual(linked['formularios_vinculados'][0]['id'],ident)
+        self.assertEqual(linked['formularios_vinculados'][0]['status'],'enviado')
+        self.assertTrue(any('agenda='+str(event) in f['href'] for f in linked['formularios_disponiveis']))
+        self.payload['acompanhamento']['ocorrencia']='2026-12-03'
+        self.assertEqual(self.send().status_code,400)
+        self.f.sql("UPDATE agenda_eventos SET setor='ambiental' WHERE id_evento="+str(event))
+        self.payload['acompanhamento']['ocorrencia']='2026-12-01'
+        self.assertEqual(self.send().status_code,400)

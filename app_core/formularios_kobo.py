@@ -97,7 +97,7 @@ def esquema(tipo,usuario,target):
 
 
 def validar(tree,payload,publicar=True):
-    if not isinstance(payload,dict) or set(payload)-{'versao','values','repeats','inicio','fim','responsavel'}:
+    if not isinstance(payload,dict) or set(payload)-{'versao','values','repeats','inicio','fim','responsavel','correcoes','acompanhamento'}:
         raise ValueError('Conteúdo do formulário inválido.')
     if payload.get('versao')!=tree['versao']:raise ValueError('A definição mudou; reabra e confira o formulário.')
     values=payload.get('values',{});repeats=payload.get('repeats',{})

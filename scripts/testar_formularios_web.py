@@ -43,7 +43,9 @@ def main():
     from scripts.preparar_massa_web_teste import preparar
     preparar(database)
     from app_core import db
-    with db.connect(str(database)) as conn:conn.execute('UPDATE usuarios SET id_agente=1 WHERE id_usuario=1');conn.commit()
+    with db.connect(str(database)) as conn:
+        conn.execute('UPDATE usuarios SET id_agente=1 WHERE id_usuario=1')
+        conn.commit()
     from app import create_app
     from waitress import create_server
     from playwright.sync_api import sync_playwright,expect
@@ -54,6 +56,9 @@ def main():
                 SETOR=sector,TERMOS_USO_ENABLED=False,CSP_REPORT_ONLY=False))
             server=create_server(app,host='127.0.0.1',port=0,threads=4,map={});servers.append(server)
             threading.Thread(target=server.run,daemon=True).start();urls[sector]='http://127.0.0.1:'+str(server.effective_port)
+        with db.connect(str(database)) as conn:
+            conn.execute("INSERT INTO agenda_eventos(id_evento,titulo,tipo,data_inicio,dia_inteiro,criado_em,recorrencia,atividade_externa,setor) VALUES(700,'Campo ficticio','campo','2026-06-03T08:00',0,'2026-06-01','nenhuma',1,'endemias')")
+            conn.commit()
         with sync_playwright() as p:
             browser=p.chromium.launch(headless=True)
             for sector,types in (('endemias',('PE','TB','TBO','PVE','LIRAA','LARVAS','BRI','RECOLHIMENTO')),('ambiental',('ESPOROTRICOSE','AMOSTRA_ANIMAIS'))):
@@ -99,7 +104,9 @@ def main():
                     assert page.evaluate('()=>document.documentElement.scrollWidth<=innerWidth'),tipo
                     page.set_viewport_size({'width':390,'height':844});checks.append(tipo)
                 if sector=='endemias':
-                    # Captura e revisão na UI real, com CSRF/CSP e o importador completo.
+                    # Captura, salvamento automático, devolução, retorno e próxima visita.
+                    page.goto(urls[sector]+'/formularios/kobo/RECOLHIMENTO?agenda=700&ocorrencia=2026-06-03')
+                    expect(page.locator('#fk-editor')).to_be_visible()
                     page.locator('input[data-path="Data"]').fill('2026-06-03')
                     page.locator('input[data-path="Hora"]').fill('08:00')
                     page.locator('select[data-path="Localidade"]').select_option('Localidade Ficticia')
@@ -107,12 +114,51 @@ def main():
                     assert page.locator('.fk-multiple input').first.is_disabled()
                     for control in page.locator('input[type=number]').all():control.fill('0')
                     page.locator('input[data-path="group_cw8wz69/A1"]').fill('2')
+                    page.locator('#fk-retorno-data').fill('2026-12-04')
+                    expect(page.locator('#fk-save-status')).to_contain_text('Rascunho salvo no servidor',timeout=15000)
+                    ident=page.evaluate("new URL(location.href).searchParams.get('envio')")
+                    page.reload();expect(page.locator('input[data-path="group_cw8wz69/A1"]')).to_have_value('2')
+                    context.set_offline(True);page.locator('input[data-path="group_cw8wz69/A1"]').fill('3')
+                    expect(page.locator('#fk-save-status')).to_contain_text('Sem conexão',timeout=10000)
+                    context.set_offline(False)
+                    expect(page.locator('#fk-save-status')).to_contain_text('Rascunho salvo no servidor',timeout=15000)
+                    lost={'once':False}
+                    def lose_receipt(route):
+                        if route.request.method=='POST' and not lost['once']:
+                            lost['once']=True;route.fetch();route.abort()
+                        else:route.continue_()
+                    page.route('**/api/formularios/kobo/RECOLHIMENTO',lose_receipt)
+                    page.locator('input[data-path="group_cw8wz69/A1"]').fill('4')
+                    expect(page.locator('#fk-save-status')).to_contain_text('Não foi possível confirmar',timeout=15000)
+                    page.locator('input[data-path="group_cw8wz69/A1"]').fill('5')
+                    page.evaluate("()=>window.dispatchEvent(new Event('online'))")
+                    page.wait_for_timeout(1200)
+                    page.evaluate('()=>{window.confirmacaoDupla=async()=>true}')
+                    page.click('[data-action=rascunho]');expect(page.locator('#fk-status')).to_contain_text('Rascunho salvo no servidor')
+                    expect(page.locator('input[data-path="group_cw8wz69/A1"]')).to_have_value('5')
+                    page.unroute('**/api/formularios/kobo/RECOLHIMENTO',lose_receipt)
+                    page.click('[data-action=proxima]');expect(page.locator('#fk-proxima')).to_be_visible()
+                    for id in ('fk-reusar-equipe','fk-reusar-data','fk-reusar-local'):page.locator('#'+id).check()
+                    page.click('#fk-criar-proxima')
+                    expect(page.locator('input[data-path="Data"]')).to_have_value('2026-06-03')
+                    expect(page.locator('input[data-path="group_cw8wz69/A1"]')).to_have_value('')
+                    expect(page.locator('#fk-retorno-data')).to_have_value('')
+                    page.goto(urls[sector]+'/formularios/kobo/RECOLHIMENTO?envio='+ident)
+                    expect(page.locator('#fk-editor')).to_be_visible()
+                    page.goto(urls[sector]+'/formularios/kobo/RECOLHIMENTO/revisao?envio='+ident)
+                    expect(page.locator('#fk-editor')).to_be_visible()
+                    page.locator('[data-correction="group_cw8wz69/A1"]').fill('Conferir a quantidade deste material.')
+                    page.evaluate("()=>{window.confirmacaoDupla=async()=>true;window.prompt=()=> 'Conferir o campo indicado';}")
+                    page.click('[data-action=devolver]');expect(page.locator('#fk-situacao')).to_contain_text('Devolvido')
+                    page.goto(urls[sector]+'/formularios/kobo/RECOLHIMENTO?envio='+ident)
+                    expect(page.locator('p.fk-correction')).to_contain_text('Conferir a quantidade')
                     page.evaluate('()=>{window.confirmacaoDupla=async()=>true}')
                     page.click('[data-action=enviado]');expect(page.locator('#fk-status')).to_contain_text('Recebido para revisão')
                     ident=page.evaluate("new URL(location.href).searchParams.get('envio')")
                     page.goto(urls[sector]+'/formularios/kobo/RECOLHIMENTO/revisao?envio='+ident)
                     expect(page.locator('#fk-editor')).to_be_visible();page.evaluate('()=>{window.confirmacaoDupla=async()=>true}')
                     page.click('[data-action=aprovar]');expect(page.locator('#fk-situacao')).to_contain_text('Aprovado')
+                    page.click('#fk-confirmar-retorno');expect(page.locator('#fk-retorno-situacao')).to_contain_text('Retorno confirmado')
                     page.click('[data-action=aplicar]');expect(page.locator('#fk-situacao')).to_contain_text('Aplicado')
                     from app_core import db
                     assert db.scalar(str(database),"SELECT COUNT(*) FROM recolhimentos WHERE kobo_uuid LIKE 'vsatt-%'")==1

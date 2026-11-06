@@ -138,6 +138,12 @@ class InterfaceInstallerTests(unittest.TestCase):
     def test_formularios_230_preserva_dados_contas_e_configuracoes(self):
         self.simulate(origin='2.2.1',target='2.3.0',marker='ativacao-formularios230')
 
+    def test_formularios_250_preserva(self):
+        self.simulate(origin='2.4.0',target='2.5.0',marker='ativacao-formularios250')
+
+    def test_falha_formularios_250_retorna_240(self):
+        self.simulate(fail_probe=True,origin='2.4.0',target='2.5.0',marker='ativacao-formularios250')
+
     def test_formularios_240_preserva_dados_contas_e_configuracoes(self):
         self.simulate(origin='2.3.0',target='2.4.0',marker='ativacao-formularios240')
 

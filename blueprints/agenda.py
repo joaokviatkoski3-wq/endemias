@@ -1062,6 +1062,8 @@ def api_eventos():
         eventos = _eventos_para_usuario_restrito(_eventos_periodo(inicio, fim))
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
+    from app_core import formulario_fluxo
+    eventos=formulario_fluxo.enriquecer_agenda(bh.db_target(),eventos,bh.usuario_atual() or {})
     return jsonify(_adicionar_clima_eventos(eventos))
 
 

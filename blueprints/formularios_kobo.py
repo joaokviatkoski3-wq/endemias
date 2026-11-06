@@ -4,7 +4,7 @@ from pathlib import Path
 
 from flask import Blueprint,jsonify,render_template,request,current_app
 from app_core import auth,blueprint_helpers as bh,formularios as forms,formularios_kobo as core
-from app_core import audit,db,permissoes,campo_protocolo,formulario_campo
+from app_core import audit,db,permissoes,campo_protocolo,formulario_campo,formulario_fluxo
 
 bp=Blueprint('formularios_kobo',__name__)
 
@@ -96,6 +96,14 @@ def salvar(tipo):
     payload=body.get('payload');definition=tree(tipo)
     if not isinstance(payload,dict):raise ValueError('Preenchimento inválido.')
     formulario_campo.conferir_responsavel(definition,payload,publicar=status=='enviado')
+    conn=bh.get_db()
+    try:
+        old=conn.execute('SELECT payload_json FROM formularios WHERE uuid_cliente=? AND usuario_id=? AND tipo_formulario=?',(body.get('uuid'),user()['id_usuario'],core.KIND_PREFIX+tipo)).fetchone() if db.table_exists(conn,'formularios') else None
+    finally:conn.close()
+    import json
+    previous=json.loads(old['payload_json']) if old else {}
+    payload['correcoes']=previous.get('correcoes',[])
+    formulario_fluxo.preparar(bh.db_target(),definition,payload,previous)
     core.validar(definition,payload,publicar=status=='enviado')
     def event(conn,ident,metadata):
         audit.registrar_evento(bh.get_db,'formulario_interno_salvo',entidade='formularios',entidade_id=ident,
@@ -122,6 +130,9 @@ def revisar(tipo,ident):
         definition['responsavel']=original
         formulario_campo.conferir_responsavel(definition,payload,publicar=decision=='aprovado')
     else:payload.pop('responsavel',None)
+    payload['correcoes']=formulario_fluxo.correcoes(definition,body.get('correcoes',[]))
+    if decision=='aprovado':payload['correcoes']=[]
+    formulario_fluxo.preparar(bh.db_target(),definition,payload,row['payload'])
     core.validar(definition,payload,publicar=decision=='aprovado')
     def event(conn):
         audit.registrar_evento(bh.get_db,'formulario_interno_revisado',entidade='formularios',entidade_id=ident,detalhes={'tipo':tipo,'decisao':decision},conn=conn)
@@ -153,3 +164,13 @@ def referencias(tipo):
     localidade=request.args.get('localidade','');quarteirao=request.args.get('quarteirao','')
     if len(localidade)>200 or len(quarteirao)>40:raise ValueError('Seleção territorial inválida.')
     return jsonify(formulario_campo.referencias(bh.db_target(),localidade,quarteirao))
+
+
+@bp.post('/api/formularios/kobo/<tipo>/<int:ident>/confirmar-retorno')
+def confirmar_retorno(tipo,ident):
+    if not permissoes.gerencia(user()):return jsonify({'erro':'Confirmação reservada à gestão.'}),403
+    if not item(tipo,ident):return jsonify({'erro':'Envio não encontrado.'}),404
+    def event(conn,evento):
+        audit.registrar_evento(bh.get_db,'formulario_retorno_confirmado',entidade='formularios',entidade_id=ident,detalhes={'evento':evento,'tipo':tipo},conn=conn)
+    event_id=formulario_fluxo.confirmar_retorno(bh.db_target(),ident,user(),event)
+    return jsonify({'ok':True,'id_evento':event_id})
