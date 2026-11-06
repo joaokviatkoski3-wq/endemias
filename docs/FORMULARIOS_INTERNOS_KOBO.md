@@ -1,7 +1,8 @@
 # Formulários internos compatíveis com Kobo — piloto ativo
 
 Pedido em 06/11/2026. Branch `codex/formularios-internos-kobo`, worktree
-`C:\endemias-interface`. Produção 2.4.0 ativa desde 06/11/2026 às 14h17, release `97f0fcb`.
+`C:\endemias-interface`. Produção 2.5.0 ativa desde 06/11/2026 às 15h45, release `5668a5b`.
+As melhorias de campo 2.4.0 foram ativadas anteriormente no release `97f0fcb`.
 A entrada inicial dos dez formulários ocorreu na 2.3.0, release `bf36464`.
 
 Usuário confirmou revisão por admin antes de gravar nos registros oficiais.
@@ -137,7 +138,7 @@ assets iguais aos instalados, APIs anônimas negadas e catálogo privado não ex
 Kobo e sua automação preservados. Nenhum formulário real enviado nesta conferência;
 conferência operacional no aparelho do piloto continua com o usuário.
 
-## Evolução 2.5.0 — candidata, ativação pendente
+## Evolução 2.5.0 — piloto ativo
 
 Pedido expresso do usuário: propostas 1, 2, 7 e 8. QR Code/amostras apenas
 explicados, sem implementação. Os dez formulários seguem online.
@@ -198,4 +199,11 @@ formulários; fluxo de salvamento, recarga, offline/online, recibo perdido com
 edição posterior, próxima visita, devolução por campo, reenvio, aprovação,
 confirmação de retorno e aplicação com dados fictícios. PostgreSQL isolado
 confirmou criação idempotente de retorno e aplicação/auditoria transacionais.
-Node confirmou isolamento do offline. Produção segue 2.4.0 até a ativação manual.
+Node confirmou isolamento do offline. Ativação administrativa confirmada
+em 06/11/2026 às 15h45: relatório aplicado/concluído, backup completo e
+PostgreSQL realizados, 96 tabelas preservadas e prova limitada OK.
+As 25 verificações públicas/locais passaram: cinco entradas na versão 2.5.0,
+assets de formulários/agenda iguais aos instalados, APIs anônimas negadas e
+catálogo privado não exposto. Kobo e sua automação preservados. Nenhum formulário
+ou evento real criado nesta conferência; teste operacional em campo permanece
+com o usuário.

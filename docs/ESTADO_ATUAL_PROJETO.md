@@ -4,23 +4,31 @@ Atualizado em 06/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.5.0 — continuidade do trabalho de campo
+## Versão ativa 2.5.0 — continuidade do trabalho de campo
 
 Usuário autorizou as propostas 1, 2, 7 e 8: salvamento automático online,
 próxima visita com reaproveitamento escolhido, vínculo com agenda/retornos
 confirmados pela gestão e orientações de correção por campo. QR Code somente
 explicado; não implementado. Branch `codex/formularios-fluxo-campo`, worktree
-`C:\endemias-interface`; produção permanece 2.4.0 até instalação elevada.
+`C:\endemias-interface`; produção atual em 2.5.0.
 Metadados no envelope JSON existente, sem DDL. Agenda não conclui atividade
 apenas por receber formulário; aprovação/aplicação permanecem explícitas.
 Kobo e RG offline preservados. Regressão geral: 1.199 testes, seis ignorados e
 nenhuma falha. API focada 22 testes, instalador 22, Node/SW, Chromium móvel/
 desktop e PostgreSQL isolado passaram. Testados edição durante perda de recibo,
 retomada online, próxima visita, correção e confirmação idempotente de retorno.
-Pacote pronto; ativação administrativa pendente. Guia operacional:
+Ativação confirmada em 06/11/2026 às 15h45, release `5668a5b`.
+Relatório `ativacao-formularios250-resultado.json`: aplicado/concluído, backup
+completo e PostgreSQL realizados, prova limitada OK, 96 tabelas preservadas,
+contas/ambiente/Kobo preservados e automação restabelecida.
+`.venv/publicacao-250.json`: 25 verificações públicas/locais passaram; cinco
+entradas na versão 2.5.0, JS/CSS dos formulários e agenda iguais aos instalados,
+APIs anônimas negadas e catálogo privado não exposto. Não houve criação de
+formulário ou evento real nesta conferência; piloto operacional segue necessário.
+Guia operacional:
 `docs/FORMULARIOS_INTERNOS_KOBO.md`.
 
-## Versão ativa 2.4.0 — praticidade dos formulários em campo
+## Histórico 2.4.0 — praticidade dos formulários em campo
 
 Pedido em 06/11/2026, após a ativação 2.3.0. Branch
 `codex/formularios-campo-praticidade`, em `C:\endemias-interface`.
