@@ -48,22 +48,21 @@ html[data-setor="ambiental"][data-theme="dark"] {
 }
 [data-setor="ambiental"] .ambiental-logo {
   object-fit: contain;
-  filter: none;
+  /* Reforça o contorno ao reduzir a imagem, preservando cor e transparência. */
+  filter: drop-shadow(0 0 .6px #fff);
   opacity: 1;
 }
 [data-setor="ambiental"] .topbar-brand > .ambiental-logo {
   width: 52px;
   height: 64px;
   padding: 3px;
-  background: #fff;
-  border-radius: 5px;
+  background: transparent;
 }
 [data-setor="ambiental"] .sidebar-mobile-hd > .ambiental-logo {
   width: 68px;
   height: 84px;
   padding: 5px;
-  background: #fff;
-  border-radius: 5px;
+  background: transparent;
 }
 [data-setor="ambiental"][data-theme="dark"] .btn-primary {
   background: #247749;
@@ -95,8 +94,7 @@ html[data-setor="ambiental"][data-theme="dark"] {
   width: 140px;
   height: 166px;
   padding: 6px;
-  background: #fff;
-  border-radius: 5px;
+  background: transparent;
   margin-bottom: 12px;
 }
 [data-setor="ambiental"] .card-top h1 { color: var(--text); }
@@ -112,6 +110,7 @@ html[data-setor="ambiental"][data-theme="dark"] {
 [data-setor="ambiental"] .card-body .btn:hover { background: #104b31; }
 [data-setor="ambiental"] .card-body a { color: var(--brand) !important; }
 [data-setor="ambiental"] .footer { color: var(--text3); }
+.brand-notice { max-width: 760px; margin: 7px auto 0; font-size: 10.5px; line-height: 1.6; color: var(--text3); }
 [data-setor="ambiental"] .card > .top { background: #104b31; }
 [data-setor="ambiental"] .card > .body { color: var(--text); }
 [data-setor="ambiental"] .card > .body a { color: var(--brand); }

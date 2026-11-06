@@ -1,8 +1,23 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 05/11/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 06/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
+
+## Preparação: 2.1.1 — logos transparentes e portal claro
+
+Em06/11 usuário entregou três logos novos com contorno branco. Cópias exatas
+em `static/img`, sem edição de PNG. CSS remove bases brancas e inversões de
+cor; contorno pequeno reforçado sem fundo. Rodapés discretos esclarecem marca
+Ambiental não oficial/provisória e, no portal, as duas marcas e a sigla VSATT.
+Portal não segue mais o modo escuro do aparelho; setores mantêm seus temas.
+
+Integração em `C:\endemias-interface`, branch `codex/logos-transparentes-211`.
+30 testes de setores +14 do ativador passaram; Chromium26 combinações de
+tamanho/tema/telas, alpha/cores/avisos, sem erro JS ou overflow. Só interface,
+ativos e versão; sem DDL ou dados. Produção segue2.1.0 emc9d4b49, limpa, até
+execução do novo atalho elevado. Ver `docs/LOGOS_TRANSPARENTES_211.md`.
+Não repetir o atalho2.1.0 nem ativadores anteriores.
 
 ## Versão ativa: 2.1.0 — identidade, logs e ajuda
 

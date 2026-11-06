@@ -13,7 +13,7 @@ body.ambiente-teste-ativo{padding-top:34px;}
 .wrap{width:100%;max-width:360px;padding:20px;}
 .card{background:#fff;border-radius:14px;box-shadow:0 4px 24px rgba(26,79,186,.13);overflow:hidden;}
 .card-top{background:#1a4fba;padding:32px 28px 24px;text-align:center;}
-.card-top img{height:48px;filter:brightness(0) invert(1);margin-bottom:12px;opacity:.95;}
+.card-top img{height:110px;max-width:100%;object-fit:contain;filter:none;margin-bottom:12px;opacity:1;}
 .card-top h1{color:#fff;font-size:18px;font-weight:700;margin-bottom:2px;}
 .card-top p{color:rgba(255,255,255,.55);font-size:11px;}
 .card-body{padding:28px;}
@@ -35,7 +35,7 @@ body.ambiente-teste-ativo{padding-top:34px;}
 <div class="wrap">
   <div class="card">
     <div class="card-top">
-      {% if SETOR_ATUAL == 'ambiental' %}<img class="ambiental-logo" src="/static/img/logo_ambiental.png" alt="Vigilância Ambiental">{% else %}<img src="/static/img/logo_endemias.png" alt="">{% endif %}
+      {% if SETOR_ATUAL == 'ambiental' %}<img class="ambiental-logo" src="/static/img/logo_ambiental.png?v={{ APP_VERSION }}" alt="Vigilância Ambiental">{% else %}<img src="/static/img/logo_endemias.png?v={{ APP_VERSION }}" alt="">{% endif %}
       <h1>{{ SETOR_TITULO }}</h1>
       <p>Vigilância em Saúde · Almirante Tamandaré-PR</p>
     </div>
@@ -60,6 +60,7 @@ body.ambiente-teste-ativo{padding-top:34px;}
   </div>
   <div class="footer">
     <div>{{ APP_VERSION_LABEL.replace('Endemias', 'VSATT') if SETOR_ATUAL == 'ambiental' else APP_VERSION_LABEL }}</div>
+    {% include "_marca_ambiental_provisoria.html" %}
     <div class="footer-credit">João Kviatkoski</div>
   </div>
 </div>

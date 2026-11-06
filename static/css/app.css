@@ -239,6 +239,7 @@ select[data-multi-picker] { display:none !important; }
   display:flex; align-items:center; justify-content:space-between;
 }
 .sidebar-mobile-hd img { height:32px; filter:brightness(0) invert(1); }
+.sidebar-mobile-hd > img { filter:drop-shadow(0 0 .6px #fff); }
 .sidebar-mobile-close { background:none; border:none; color:rgba(255,255,255,.7); font-size:18px; }
 .sidebar-mobile-nav { padding:10px; flex:1; overflow-y:auto; }
 .sidebar-mobile-label {
@@ -1002,8 +1003,8 @@ tbody tr:hover td { background:var(--tr-hover); }
 
 .topbar-brand img {
   height:32px;
-  filter:none;
-  opacity:.9;
+  filter:drop-shadow(0 0 .6px #fff);
+  opacity:1;
 }
 
 .sidebar-toggle-desktop {

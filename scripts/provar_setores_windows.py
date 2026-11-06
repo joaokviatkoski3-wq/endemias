@@ -39,7 +39,7 @@ def verificar(config, root, endemias):
     for template in ('ambiental_home.html','ambiental_painel.html','ambiental_relatorios.html','ambiental_filtros.html','ambiental_mapa.html'):
         ambiental.jinja_env.get_template(template)
     for relative in ('css/ambiental.css','css/branding_ambiental.css','css/portal_vsatt.css',
-                     'img/logo_ambiental.png','img/logo_vsatt.png',
+                     'img/logo_endemias.png','img/logo_ambiental.png','img/logo_vsatt.png',
                      'js/ambiental_dashboard.js','js/mapa_etiquetas_canvas.js','icons/agua.svg',
                      'vendor/fullcalendar/index.global.min.js','vendor/fullcalendar/pt-br.global.min.js'):
         assert (Path(ambiental.static_folder)/relative).read_bytes()

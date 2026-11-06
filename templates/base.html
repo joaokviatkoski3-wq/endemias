@@ -9,7 +9,7 @@
 <title>{% block title %}Endemias{% endblock %} - Almirante Tamandare</title>
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/vendor/chartjs/chart.umd.min.js"></script>
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/vendor/chartjs-plugin-datalabels/chartjs-plugin-datalabels.min.js"></script>
-<link rel="stylesheet" href="/static/css/app.css">
+<link rel="stylesheet" href="/static/css/app.css?v={{ APP_VERSION }}">
 {% block extra_css %}{% endblock %}
 {% if SETOR_ATUAL == 'ambiental' %}<link rel="stylesheet" href="/static/css/branding_ambiental.css?v={{ APP_VERSION }}">{% endif %}
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
@@ -26,7 +26,7 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
 
 <aside class="sidebar-mobile" id="sidebar-mobile">
   <div class="sidebar-mobile-hd">
-    {% if SETOR_ATUAL == 'ambiental' %}<img class="ambiental-logo" src="/static/img/logo_ambiental.png" alt="Vigilância Ambiental">{% else %}<img src="/static/img/logo_endemias.png" alt="">{% endif %}
+    {% if SETOR_ATUAL == 'ambiental' %}<img class="ambiental-logo" src="/static/img/logo_ambiental.png?v={{ APP_VERSION }}" alt="Vigilância Ambiental">{% else %}<img src="/static/img/logo_endemias.png?v={{ APP_VERSION }}" alt="">{% endif %}
     <button class="sidebar-mobile-close" id="sidebarMobileClose" type="button"><img src="/static/icons/fechar.svg" alt="Fechar" class="icon-svg"></button>
   </div>
   <nav class="sidebar-mobile-nav">
@@ -58,7 +58,7 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
     <button class="btn-icon sidebar-toggle-desktop" id="sidebarToggle" type="button" title="Mostrar navegacao" aria-label="Mostrar navegacao" aria-expanded="false">
       <img src="/static/icons/menu.svg" alt="" class="icon-svg">
     </button>
-    {% if SETOR_ATUAL == "ambiental" %}<img class="ambiental-logo" src="/static/img/logo_ambiental.png" alt="Vigilância Ambiental">{% else %}<img src="/static/img/logo_endemias.png" alt="Endemias">{% endif %}
+    {% if SETOR_ATUAL == "ambiental" %}<img class="ambiental-logo" src="/static/img/logo_ambiental.png?v={{ APP_VERSION }}" alt="Vigilância Ambiental">{% else %}<img src="/static/img/logo_endemias.png?v={{ APP_VERSION }}" alt="Endemias">{% endif %}
     <div class="topbar-brand-txt">
       <div class="t1">{% block page_title %}Endemias{% endblock %}</div>
       <div class="t2">{{ SETOR_TITULO }} - Almirante Tamandare-PR</div>
@@ -123,6 +123,7 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
   {% block content %}{% endblock %}
     <footer class="app-footer">
       <div>{{ APP_VERSION_LABEL.replace('Endemias', 'VSATT') if SETOR_ATUAL == 'ambiental' else APP_VERSION_LABEL }}</div>
+      {% include "_marca_ambiental_provisoria.html" %}
       <div class="app-footer-credit">Joao Kviatkoski</div>
     </footer>
   </main>

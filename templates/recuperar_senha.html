@@ -57,7 +57,7 @@
       <div class="voltar"><a href="{{ url_for('auth.login') }}">Voltar para entrar no sistema</a></div>
     </div>
   </div>
-  <div class="footer">{{ APP_VERSION_LABEL.replace('Endemias', 'VSATT') if SETOR_ATUAL == 'ambiental' else APP_VERSION_LABEL }}</div>
+  <div class="footer">{{ APP_VERSION_LABEL.replace('Endemias', 'VSATT') if SETOR_ATUAL == 'ambiental' else APP_VERSION_LABEL }}{% include "_marca_ambiental_provisoria.html" %}</div>
 </main>
 </body>
 </html>
