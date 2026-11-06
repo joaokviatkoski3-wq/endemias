@@ -6,7 +6,7 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Reativação 2.2.1 preparada — admin Kobo
+## Versão ativa 2.2.1 — importação Kobo por admin
 
 Primeira tentativa retornou automaticamente à2.2.0, commit `dffb0d7`.
 Relatório `ativacao-adminkobo221-resultado.json`: falha na prova de assets,
@@ -14,10 +14,16 @@ backup confirmado,96 tabelas preservadas e login do rollback OK.
 A prova verificava todas as chaves, embora save_config acrescente chaves
 vazias de outros tipos. Agora confere somente UIDs preenchidos; tipos ativos
 do setor errado continuam bloqueados (dois testes específicos passaram).
-Correção da tela admin reaplicada e teste Node passou. Nova execução elevada
-pendente; não se confirmou implantação2.2.1 nem se importaram dados reais.
+Correção da tela admin reaplicada e teste Node passou. Usuário executou novamente:
+relatório aplicado/concluído em06/11/2026 às11h51, release `7b5e289`.
+Prova limitada OK;96 tabelas e arquivos operacionais preservados, sem DDL,
+configurações Kobo/contas/ambiente preservados e automação restabelecida.
+`.venv/publicacao-221.json`: cinco entradas na versão2.2.1 e JS conferido nos
+dois domínios. Nenhuma importação real disparada pela verificação; ainda cabe
+confirmar o uso com uma conta admin no navegador. Token/servidor/UIDs seguem
+reservados ao superadmin. A primeira tentativa e seu rollback ficam no histórico.
 
-## Versão ativa 2.2.0 — piloto PWA do RG
+## Histórico 2.2.0 — piloto PWA do RG
 
 Usuário autorizou iniciar o piloto e escolheu somente bloqueio de tela Android,
 sem senha local adicional. Preparação em `C:\endemias-interface`, branch
