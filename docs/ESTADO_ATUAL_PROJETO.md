@@ -4,7 +4,7 @@ Atualizado em 09/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.7.0 — acompanhamento do LIRAa
+## Versão ativa 2.7.0 — acompanhamento do LIRAa
 
 Aba Acompanhamento com filtros de ciclo, data e turno. Dia 1 é a data de
 início configurada. Turnos pela hora de início: manhã antes de 12h, tarde
@@ -24,9 +24,16 @@ já importados e leituras lançadas.
 Worktree C:\endemias-interface, branch codex/liraa-acompanhamento.
 101 testes LIRAa, 24 do instalador, ensaio PostgreSQL isolado e Chromium
 desktop/celular passaram. No navegador, uma leitura fictícia reduziu o
-contador na atualização automática. Candidata aguarda instalação elevada.
+contador na atualização automática. Ativação confirmada em 09/11/2026 às
+13h14, release ed53387. Relatório ativacao-liraa270-resultado.json aplicado e
+concluído, com backup completo e PostgreSQL, 96 tabelas preservadas, prova
+limitada OK e automação Kobo restabelecida. Oito verificações de publicação
+passaram: cinco entradas 2.7.0, dois JS iguais aos instalados e consulta da
+aba protegida por login. Evidência local .venv/publicacao-270.json. A aba foi
+testada autenticada com massa fictícia, e a conferência em produção foi feita
+sem sessão de usuário.
 
-## Versão ativa 2.6.1 — equipe dos tubitos LIRAa no laboratório
+## Histórico 2.6.1 — equipe dos tubitos LIRAa no laboratório
 
 Conferência de 09/11/2026 em leitura: os 198 envios consultados no Kobo
 correspondem a 221 visitas no banco. Doze envios múltiplos geraram 35 visitas,
