@@ -268,7 +268,7 @@ async function carregarPendentes(){
       const externo=(r.agentes||'').toLocaleLowerCase('pt-BR').includes('márcio');
       return `<article class="tube-card ${externo?'external':''}">
         <div class="tube-top"><div class="tube-id"><img src="/static/icons/tubo_ensaio.svg" alt=""><strong>Tubo ${e(r.num_tubo)}</strong></div><span class="tube-age">${Number(r.dias_pendente)||0} dia(s)</span></div>
-        <div class="tube-agent"><span>Coletado por</span><strong>${e(r.agentes||'Não informado')}</strong></div>
+        <div class="tube-agent"><span>${r.tipo==='LIRAA'?'Equipe da visita':'Coletado por'}</span><strong>${e(r.equipe_coleta||r.agentes||'Não informado')}</strong></div>
         <div class="tube-meta"><div><span>Coleta</span><strong>${fmtDate(r.data)}</strong></div><div><span>Tipo de trabalho</span><strong>${e(r.tipo)}</strong></div><div><span>Depósito</span><strong>${e(r.tipo_deposito||'-')}</strong></div><div><span>Localidade</span><strong>${e(r.localidade||'-')}</strong></div><div class="tube-address"><span>Endereço</span><strong>${e(r.logradouro||'-')}${r.numero?', '+e(r.numero):''} · Q. ${e(r.quarteirao||'-')}</strong></div></div>
         <button class="btn btn-primary tube-action" onclick="abrirLancamento(${i})"><img src="/static/icons/microscopio.svg" alt="" class="icon-svg"> Lançar resultado</button>
       </article>`;
@@ -284,7 +284,7 @@ function abrirLancamento(index){
   configurarCamposLiraa(r.tipo);
   document.getElementById('form-laboratorista-wrap')?.setAttribute('hidden','');
   document.getElementById('form-tube').textContent=`Tubo ${r.num_tubo}`;
-  document.getElementById('form-context').textContent=`${r.localidade||'-'} · ${fmtDate(r.data)} · ${r.agentes||'Agente não informado'}`;
+  document.getElementById('form-context').textContent=`${r.localidade||'-'} · ${fmtDate(r.data)} · ${r.equipe_coleta||r.agentes||(r.tipo==='LIRAA'?'Equipe não informada':'Agente não informado')}`;
   labFields.forEach(name=>document.querySelector(`[name="${name}"]`).value=0);
   atualizarTotais(); labDialog.showModal();
 }
@@ -355,7 +355,7 @@ async function carregarHistorico(){
         <div class="history-id"><strong>Tubo ${e(r.num_tubo)}</strong><span class="history-kind">${e(r.tipo||'-')}</span></div>
         <span>${fmtDate(r.data_leitura||r.data_coleta)}</span>
         <span>${e(r.localidade||'-')} · ${e(r.logradouro||'-')}</span>
-        <span>Coletado por <strong>${e(r.agentes||'-')}</strong><br>Leitura por <strong>${e(r.laboratorista||'-')}</strong></span>
+        <span>${r.tipo==='LIRAA'?'Equipe da visita':'Coletado por'} <strong>${e(r.equipe_coleta||r.agentes||'-')}</strong><br>Leitura por <strong>${e(r.laboratorista||'-')}</strong></span>
         <div class="history-summary"><span class="history-result ${positivo?'positive':''}">${positivo?'Positivo':'Negativo'}</span><div class="history-species">${resumoEspecie(r,'aegypt','A. aegypti')}${resumoEspecie(r,'albopictus','A. albopictus')}${resumoEspecie(r,'outra','Outras espécies')}</div></div>
         ${r.editavel?`<button class="btn btn-ghost btn-sm" onclick="abrirEdicaoResultado(${index})"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> Editar</button>`:'<span></span>'}
       </article>`;

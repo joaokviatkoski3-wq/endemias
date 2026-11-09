@@ -15,6 +15,7 @@ from app_core import focos_positivos as focos_core
 from app_core import laboratorio_lancamentos as lab_core
 from app_core import ovitrampas_laboratorio as ovi_lab_core
 from app_core import liraa_laboratorio as liraa_lab_core
+from app_core import liraa_kobo, liraa_operacional, visitas
 
 
 bp = Blueprint("laboratorio_lancamentos", __name__)
@@ -60,6 +61,57 @@ def _agentes_coleta_sql(conn):
                      JOIN agentes a ON a.id_agente=va.id_agente
                     WHERE va.id_visita=v.id_visita
                 ) nomes"""
+
+
+def _serializar_coletas(conn, rows):
+    itens = [db_core.serialize_row(row) for row in rows]
+    tubos_liraa = {
+        integradas.id_liraa(item["id_coleta"], integradas.TUBO_PREFIXO): item
+        for item in itens
+        if item["tipo"] == "LIRAA"
+    }
+    tubos_liraa.pop(None, None)
+    if not tubos_liraa:
+        return itens
+
+    catalogo = visitas.catalogo_acs(conn)
+    ids = list(tubos_liraa)
+    participantes = []
+    for inicio in range(0, len(ids), 500):
+        lote = ids[inicio:inicio + 500]
+        marcadores = ",".join("?" for _ in lote)
+        rows_liraa = conn.execute(
+            f"""SELECT t.id_tubito, v.acs_codigos, v.tratamento_json
+                  FROM liraa_visita_tubitos t
+                  JOIN liraa_visitas v ON v.id_visita=t.id_visita
+                 WHERE t.id_tubito IN ({marcadores})""",
+            lote,
+        )
+        for row in rows_liraa:
+            registro = db_core.serialize_row(row)
+            codigos = [
+                codigo for codigo in (registro["acs_codigos"] or "").split()
+                if codigo.casefold() not in {"no-acs", "outros"}
+            ]
+            campo = liraa_kobo.dados_campo(registro)
+            outros = str(campo.get("acs_outros") or "").strip()
+            participantes.append((registro["id_tubito"], codigos, outros))
+
+    if any(codigo.casefold() not in catalogo for _, codigos, _ in participantes for codigo in codigos):
+        for acs in liraa_operacional.catalogo_acs(bh.db_target()):
+            catalogo.setdefault(acs["codigo"].casefold(), acs["nome"])
+
+    for ident, codigos, outros in participantes:
+        item = tubos_liraa[ident]
+        nomes = [catalogo.get(codigo.casefold(), codigo) for codigo in codigos]
+        if outros:
+            nomes.append(outros)
+        acs = ", ".join(dict.fromkeys(nomes))
+        equipe = [item["agentes"]] if item["agentes"] else []
+        if acs:
+            equipe.append(f"ACS {acs}")
+        item["equipe_coleta"] = " · ".join(equipe) or None
+    return itens
 
 
 def _dias_pendente_sql(conn):
@@ -214,11 +266,12 @@ def pendentes():
              WHERE rl.id_coleta IS NULL AND st.id_coleta IS NULL {extra}
              ORDER BY v.data, {tubo_order}, c.num_tubo
         """,params).fetchall()
+        itens = _serializar_coletas(conn, rows)
     finally:
         conn.close()
     return jsonify({
-        "pendentes": [db_core.serialize_row(row) for row in rows],
-        "total": len(rows),
+        "pendentes": itens,
+        "total": len(itens),
     })
 
 
@@ -252,11 +305,11 @@ def historico():
              ORDER BY rl.data_leitura DESC, rl.id_resultado DESC
              LIMIT ?
         """, (*params,limite)).fetchall()
+        coletas = _serializar_coletas(conn, resultados)
     finally:
         conn.close()
     itens = []
-    for row in resultados:
-        item = db_core.serialize_row(row)
+    for row, item in zip(resultados, coletas):
         item["editavel"] = ((bh.usuario_atual() or {}).get("nivel") in {"admin", "superadmin"}) if item["id_resultado"] < 0 else _resultado_editavel(row)
         item["positivo_aegypti"] = any(
             int(item.get(nome) or 0) > 0 for nome in CAMPOS_CONTAGEM[:4]

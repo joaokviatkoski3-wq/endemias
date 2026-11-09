@@ -1,8 +1,25 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 06/11/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 09/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
+
+## Candidata 2.6.1 — equipe dos tubitos LIRAa no laboratório
+
+Conferência de 09/11/2026 em leitura: os 198 envios consultados no Kobo
+correspondem a 221 visitas no banco. Doze envios múltiplos geraram 35 visitas,
+sem divergência de sequência, tubitos ou tratamentos copiados em filhas.
+No ciclo 4, 214 visitas no sorteio atual e sete fora. Seis tubitos válidos,
+sem numeração repetida no ciclo e ainda sem leitura à hora da conferência.
+Quatro em visitas com ACE e ACS, um só com ACS e um sem participante registrado.
+
+O laboratório consultava somente ACE. Candidata mostra a equipe LIRAa na fila,
+no formulário de leitura e no histórico, incluindo ACS pelo catálogo e nomes
+informados em Outros. Quando o catálogo não resolve um código, exibe o código.
+Rótulo Equipe da visita descreve a atribuição gravada no formulário. Correção
+em consulta, sem reimportação ou migração. Worktree C:\endemias-interface,
+branch codex/liraa-acs-coleta. Produção 2.6.0 até instalação elevada.
+100 testes LIRAa, 24 do instalador e ensaio PostgreSQL isolado passaram.
 
 ## Versão ativa 2.6.0 — sequências múltiplas no LIRAa
 

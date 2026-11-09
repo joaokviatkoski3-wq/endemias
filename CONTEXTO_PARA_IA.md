@@ -1,10 +1,27 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 06/11/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 09/11/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
+
+## Candidata 2.6.1 — equipe dos tubitos LIRAa no laboratório
+
+Conferência de 09/11/2026 em leitura: os 198 envios consultados no Kobo
+correspondem a 221 visitas no banco. Doze envios múltiplos geraram 35 visitas,
+sem divergência de sequência, tubitos ou tratamentos copiados em filhas.
+No ciclo 4, 214 visitas no sorteio atual e sete fora. Seis tubitos válidos,
+sem numeração repetida no ciclo e ainda sem leitura à hora da conferência.
+Quatro em visitas com ACE e ACS, um só com ACS e um sem participante registrado.
+
+O laboratório consultava somente ACE. Candidata mostra a equipe LIRAa na fila,
+no formulário de leitura e no histórico, incluindo ACS pelo catálogo e nomes
+informados em Outros. Quando o catálogo não resolve um código, exibe o código.
+Rótulo Equipe da visita descreve a atribuição gravada no formulário. Correção
+em consulta, sem reimportação ou migração. Worktree C:\endemias-interface,
+branch codex/liraa-acs-coleta. Produção 2.6.0 até instalação elevada.
+100 testes LIRAa, 24 do instalador e ensaio PostgreSQL isolado passaram.
 
 ## Versão ativa 2.6.0 — sequências múltiplas no LIRAa
 

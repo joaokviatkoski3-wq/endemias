@@ -123,6 +123,47 @@ class IntegracaoTests(unittest.TestCase):
         self.assertEqual(client.post(editar,json=payload).status_code,400)
         self.assertEqual(client.get('/api/laboratorio/lancamentos/pendentes').get_json()["pendentes"],[])
 
+    def test_fila_e_historico_liraa_mostram_equipe_inclusive_visita_so_com_acs(self):
+        conn = db.connect(self.target)
+        try:
+            visitas.sincronizar_catalogo_acs(conn, [
+                {"codigo": "ACS-TESTE", "nome": "Pessoa ACS fictícia"},
+            ])
+            conn.commit()
+        finally:
+            conn.close()
+        casos = [
+            ("no-ace", "ACS-TESTE", "", "ACS Pessoa ACS fictícia"),
+            ("jo_o", "ACS-TESTE", "", "João · ACS Pessoa ACS fictícia"),
+            ("no-ace", "outros", "Nome digitado", "ACS Nome digitado"),
+            ("no-ace", "no-acs", "", None),
+        ]
+        registros = []
+        for numero, (ace, acs, outros, _) in enumerate(casos, 100):
+            registro = self.env.registro(
+                uuid=f"equipe-{numero}", Agentes=ace, ACS=acs, ACS_outros=outros
+            )
+            registro["group_jr1vc40"][0]["N_mero_do_tubito"] = numero
+            registros.append(registro)
+        liraa_kobo.importar(self.target, self.env.ciclo, registros)
+
+        client = self.client()
+        fila = client.get("/api/laboratorio/lancamentos/pendentes?tipo=LIRAA").get_json()["pendentes"]
+        self.assertEqual(len(fila), 4)
+        por_tubo = {int(item["num_tubo"]): item for item in fila}
+        for numero, (_, _, _, equipe) in enumerate(casos, 100):
+            self.assertEqual(por_tubo[numero]["equipe_coleta"], equipe)
+        self.assertIsNone(por_tubo[100]["agentes"])
+
+        tubo = por_tubo[100]["id_coleta"]
+        resposta = client.post(
+            f"/api/laboratorio/lancamentos/{tubo}/resultado",
+            json={campo: 0 for campo in laboratorio_lancamentos_campos()},
+        )
+        self.assertEqual(resposta.status_code, 200, resposta.get_json())
+        historico = client.get("/api/laboratorio/lancamentos/historico?tipo=LIRAA").get_json()["registros"]
+        self.assertEqual(historico[0]["equipe_coleta"], "ACS Pessoa ACS fictícia")
+
     def test_terreno_baldio_positivo_permanece_fora_da_fila_notificacoes(self):
         registro=self.env.registro()
         registro["Dados_visita"]["Imovel"]="terreno_baldio"

@@ -75,3 +75,25 @@ configurações Kobo e automação preservados. Nove verificações de publicaç
 passaram: cinco entradas em 2.6.0, API sem sessão negada e código/template iguais
 aos testados. Nenhum lote real importado e nenhum histórico reprocessado nesta
 conferência. A validação operacional de um lote pequeno na prévia segue pendente.
+
+## Conferência do lote de 09/11/2026
+
+Às 12h36, a consulta de produção em leitura comparou 198 envios da API Kobo
+com 221 visitas do ciclo 4. Nenhum envio do recorte ficou ausente de uma das
+fontes. Doze envios originaram 35 visitas com sequências múltiplas, sem
+identificadores esperados ausentes, sequência divergente ou cópia de tubos e
+tratamento nas unidades adicionais. Há 214 visitas sorteadas e sete fora do
+sorteio atual. Foram encontrados seis tubitos com número válido, sem repetição
+no ciclo e sem leituras registradas naquele momento.
+
+Um tubo veio de uma visita só com ACS, quatro de visitas com ACE e ACS e um de
+visita sem participante informado. A fila antiga buscava ACE na relação de
+agentes. A candidata 2.6.1 mostra a equipe registrada também com ACS na fila,
+no formulário de leitura e no histórico. Resolve rótulos pelo catálogo local
+ou pelo formulário de referência e exibe o código quando faltar um rótulo.
+Aplica-se aos tubos já gravados. Ativação administrativa pendente.
+
+Evidência agregada local em .venv/liraa-20261109-auditoria.json da worktree.
+A consulta não gravou no banco nem no Kobo. O ensaio PostgreSQL e os testes
+integrados cobriram coleta só com ACS. SQLite também cobriu equipe mista,
+Outros ACS e ausência de participantes.
