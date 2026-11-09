@@ -88,10 +88,10 @@ no ciclo e sem leituras registradas naquele momento.
 
 Um tubo veio de uma visita só com ACS, quatro de visitas com ACE e ACS e um de
 visita sem participante informado. A fila antiga buscava ACE na relação de
-agentes. A candidata 2.6.1 mostra a equipe registrada também com ACS na fila,
+agentes. A versão 2.6.1 mostra a equipe registrada também com ACS na fila,
 no formulário de leitura e no histórico. Resolve rótulos pelo catálogo local
 ou pelo formulário de referência e exibe o código quando faltar um rótulo.
-Aplica-se aos tubos já gravados. Ativação administrativa pendente.
+Aplica-se aos tubos já gravados. Ativação confirmada em 09/11 às 12h42.
 
 Evidência agregada local em .venv/liraa-20261109-auditoria.json da worktree.
 A consulta não gravou no banco nem no Kobo. O ensaio PostgreSQL e os testes

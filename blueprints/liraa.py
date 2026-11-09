@@ -12,6 +12,7 @@ from app_core import blueprint_helpers as bh
 from app_core import db as db_core
 from app_core import liraa as liraa_core
 from app_core import liraa_kobo, kobo_api
+from app_core import liraa_acompanhamento
 from app_core import agentes as agentes_core
 from app_core import visitas as visitas_core
 from app_core import liraa_operacional as op, liraa_xlsform, liraa_relatorios, liraa_boletim, liraa_laboratorio
@@ -136,8 +137,41 @@ def page():
         except Exception:
             logging.exception("Falha ao carregar operação LIRAa")
             operacao["erro"] = "Não foi possível carregar a operação do ciclo. Confira a migração 0026."
+    hoje = date.today().isoformat()
+    ciclos = (dados or {}).get("ciclos", [])
+    ciclo_preferido = next(
+        (c for c in ciclos if str(c["id_ciclo"]) == request.args.get("ciclo")),
+        None,
+    )
+    if ciclo_preferido is None:
+        ciclo_preferido = next(
+            (c for c in ciclos if c["inicio"] and str(c["inicio"]) <= hoje
+             and (not c["fim"] or hoje <= str(c["fim"]))),
+            ciclos[0] if ciclos else None,
+        )
     return render_template("liraa.html", dados=dados, erro=erro,
-                           editando=editando, is_admin=admin, liraa_kobo=kobo_dados, operacao=operacao)
+                           editando=editando, is_admin=admin, liraa_kobo=kobo_dados, operacao=operacao,
+                           acompanhamento_hoje=hoje, acompanhamento_ciclo=ciclo_preferido,
+                           acompanhamento_turnos=liraa_acompanhamento.TURNOS)
+
+
+@bp.get("/liraa/acompanhamento")
+@login_required
+def acompanhamento():
+    try:
+        ciclo = int(request.args.get("ciclo", ""))
+        resumo = liraa_acompanhamento.resumir(
+            _target(), ciclo, request.args.get("dia") or date.today().isoformat(),
+            request.args.get("turno", "dia"),
+        )
+    except (ValueError, liraa_core.LiraaError) as exc:
+        return render_template("liraa_acompanhamento.html", erro=str(exc)), 400
+    except Exception:
+        logging.exception("Falha ao consultar acompanhamento LIRAa")
+        return render_template(
+            "liraa_acompanhamento.html", erro="O acompanhamento está indisponível no momento."
+        ), 500
+    return render_template("liraa_acompanhamento.html", resumo=resumo), 200, {"Cache-Control": "no-store"}
 
 
 def _buscar_kobo(inicio, fim, id_ciclo=None):

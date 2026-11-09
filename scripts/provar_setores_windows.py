@@ -44,12 +44,13 @@ def verificar(config, root, endemias):
     endemias.jinja_env.get_template('rg_campo.html')
     endemias.jinja_env.get_template('formulario_kobo.html')
     endemias.jinja_env.get_template('liraa.html')
+    endemias.jinja_env.get_template('liraa_acompanhamento.html')
     from app_core.liraa_sequencias import separar
     assert separar('A1 / A2 / A3')[0]==['A1','A2','A3']
     from app_core.formularios_kobo import carregar,compilar,TITULOS
     for tipo in TITULOS:
         assert compilar(carregar(tipo))['nodes']
-    for asset in ('js/formulario_kobo.js','css/formulario_kobo.css'):
+    for asset in ('js/formulario_kobo.js','css/formulario_kobo.css','js/liraa_acompanhamento.js'):
         assert (Path(endemias.static_folder)/asset).read_bytes()
     manifest=json.loads((Path(endemias.static_folder)/'manifest.webmanifest').read_text(encoding='utf-8'))
     assert manifest['start_url']=='/formularios/rg-campo'

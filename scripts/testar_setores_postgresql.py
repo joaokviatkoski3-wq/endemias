@@ -206,6 +206,14 @@ def verificar_liraa_sequencias(target, client, checks):
         tubos = fila.get_json()["pendentes"]
         assert len(tubos) == 1 and tubos[0]["equipe_coleta"] == "ACS Pessoa ACS fictícia"
         checks['liraa_laboratorio_equipe_so_acs_pg'] = True
+        painel = client.get(f"/liraa/acompanhamento?ciclo={cycle}&dia=2026-10-06&turno=sem_horario")
+        assert painel.status_code == 200, painel.status_code
+        assert "no-store" in painel.headers["Cache-Control"]
+        texto = painel.get_data(as_text=True)
+        assert "Dia 6 · Terça-feira · Sem horário" in texto
+        assert "<strong>3</strong>Visitas registradas" in texto
+        assert "<strong>1</strong>Tubitos aguardando leitura" in texto
+        checks["liraa_acompanhamento_pg"] = True
     finally:conn.close()
 
 

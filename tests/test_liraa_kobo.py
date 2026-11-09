@@ -50,6 +50,49 @@ class LiraaKoboTests(unittest.TestCase):
         conn.commit()
         conn.close()
 
+    def test_acompanhamento_separa_turnos_e_calcula_saldo_por_estrato(self):
+        from app_core import liraa_acompanhamento
+
+        conn = db.connect(self.target)
+        try:
+            with conn:
+                conn.execute("""INSERT INTO liraa_estratos
+                    (id_estrato,id_ciclo,numero,tipo,imoveis_confirmados,observacoes,criado_em,atualizado_em)
+                    VALUES (3,1,2,'normal',9000,'','2026-10-01','2026-10-01')""")
+                conn.execute("""INSERT INTO liraa_estrato_quarteiroes
+                    (id_estrato,id_ciclo,id_localidade,quarteirao) VALUES (3,1,1,'0409')""")
+                conn.execute("""INSERT INTO liraa_sorteios
+                    (id_estrato,criado_em,semente,n,a,q,fracao,intervalo,inicio_casual,
+                     universo_hash,universo_json,selecionados_json)
+                    SELECT 3,criado_em,semente,2,a,q,fracao,intervalo,inicio_casual,
+                           universo_hash,universo_json,?
+                    FROM liraa_sorteios WHERE id_estrato=2""",
+                    (json.dumps([{"id_localidade": 1, "quarteirao": "0409"}]),))
+        finally:
+            conn.close()
+
+        manha = envio("manha")
+        manha["Hora_inicio"] = "8:45"
+        tarde = envio("tarde", tubitos=False)
+        tarde["Dados_visita"]["Imovel"] = "terreno_baldio"
+        sem_hora = envio("fora", quarteirao="0410", tubitos=False)
+        sem_hora["Hora_inicio"] = ""
+        liraa_kobo.importar(self.target, 1, [manha, tarde, sem_hora])
+
+        dados = liraa_acompanhamento.resumir(self.target, 1, "2026-10-06", "manha")
+        self.assertEqual(dados["recorte"]["visitas"], 1)
+        self.assertEqual(dados["recorte"]["pendentes"], 1)
+        self.assertEqual(dados["acumulado"]["visitas"], 3)
+        self.assertEqual(dados["acumulado"]["fora_plano"], 1)
+        self.assertEqual(dict(dados["turnos_dia"]), {
+            "Manhã": 1, "Tarde": 1, "Noite": 0, "Sem horário": 1,
+        })
+        self.assertEqual(dados["meta"], 3)
+        self.assertEqual(dados["faltam"], 2)
+        self.assertEqual(dados["quarteiroes_visitados"], 1)
+        self.assertEqual(dados["quarteiroes_pendentes"][0]["quarteirao"], "0409")
+        self.assertIn(("Terreno baldio", 0, 1), dados["tipos"])
+
     def test_ponto_virgula_e_zero_decimal_sao_o_mesmo_quarteirao(self):
         records = [envio("uuid-ponto", "408.1"), envio("uuid-virgula", "408,1"),
                    envio("uuid-zero", "408,10")]

@@ -46,6 +46,17 @@
 .liraa-geral-item small{display:block;color:var(--text2);margin-top:3px}
 .liraa-geral-detalhe{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;max-height:210px;overflow:auto;font-size:13px}
 .liraa-geral-detalhe h3{margin:0 0 7px;font-size:15px}.liraa-geral-detalhe p{margin:5px 0}
+.liraa-acomp-colunas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:12px 0}
+.liraa-acomp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,125px),1fr));gap:8px;margin:10px 0}
+.liraa-acomp-colunas .liraa-acomp-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+.liraa-acomp-kpis div{background:var(--surface2);border-radius:6px;padding:10px;font-size:12px}
+.liraa-acomp-kpis strong{display:block;font-size:23px;font-variant-numeric:tabular-nums;color:var(--text)}
+.liraa-acomp-meta progress{width:100%;height:13px;accent-color:#155e75}
+.liraa-acomp-meta .liraa-card strong{color:var(--text)}
+.liraa-acomp-colunas h3{margin:0;font-size:16px}
+.liraa-acomp-turnos{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--text2)}
+@media(max-width:850px){.liraa-acomp-colunas{grid-template-columns:1fr}}
+@media(max-width:520px){.liraa-acomp-colunas .liraa-acomp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 [hidden]{display:none!important}@media(max-width:900px){.liraa-map-layout{grid-template-columns:1fr}.liraa-map{height:450px}}
 </style>{% endblock %}
 {% block content %}
@@ -56,6 +67,7 @@
 {% if dados %}
 <div class="liraa-tabs" role="tablist" aria-label="Áreas do LIRAa">
   <button class="liraa-btn" id="liraa-tab-plano-btn" type="button" role="tab" aria-selected="true" aria-controls="liraa-tab-plano">Planejamento</button>
+  {% if dados.ciclos and acompanhamento_turnos is defined %}<button class="liraa-btn" id="liraa-tab-acompanhamento-btn" type="button" role="tab" aria-selected="false" aria-controls="liraa-tab-acompanhamento">Acompanhamento</button>{% endif %}
   <button class="liraa-btn" id="liraa-tab-mapa-btn" type="button" role="tab" aria-selected="false" aria-controls="liraa-tab-mapa">Mapa dos estratos</button>
   <button class="liraa-btn" id="liraa-tab-geral-btn" type="button" role="tab" aria-selected="false" aria-controls="liraa-tab-geral">Mapa geral · consulta</button>
   <button class="liraa-btn" id="liraa-tab-campo-btn" type="button" role="tab" aria-selected="false" aria-controls="liraa-tab-campo">Plano de campo e exportação</button>
@@ -323,6 +335,25 @@
 {% endif %}
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" type="application/json" id="liraa-dados-json">{{ {'quarteiroes': dados.quarteiroes, 'ciclos': dados.ciclos}|tojson }}</script>
 {% include 'liraa_operacao.html' %}
+{% if dados.ciclos and acompanhamento_turnos is defined %}
+{% set ciclo_acomp = acompanhamento_ciclo | default(dados.ciclos[0]) %}
+<section class="liraa-panel" id="liraa-tab-acompanhamento" role="tabpanel" aria-labelledby="liraa-tab-acompanhamento-btn" hidden>
+  <h2>Acompanhamento do LIRAa</h2>
+  <p class="liraa-muted">Envios já importados e leituras registradas no sistema. Os números são atualizados a cada minuto enquanto esta aba estiver aberta.</p>
+  <form id="liraa-acompanhamento-filtros" action="{{ url_for('liraa.acompanhamento') }}" method="get" class="liraa-form">
+    <label>Ciclo
+      <select name="ciclo">
+        {% for c in dados.ciclos %}<option value="{{ c.id_ciclo }}" data-inicio="{{ c.inicio or '' }}" data-fim="{{ c.fim or '' }}" {% if c.id_ciclo == ciclo_acomp.id_ciclo %}selected{% endif %}>{{ c.ano }} · {{ c.nome }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Dia <input name="dia" type="date" value="{{ acompanhamento_hoje }}" required></label>
+    <label>Turno <select name="turno">{% for chave, rotulo in acompanhamento_turnos.items() %}<option value="{{ chave }}">{{ rotulo }}</option>{% endfor %}</select></label>
+    <button class="liraa-btn primary" type="submit">Atualizar agora</button>
+  </form>
+  <p id="liraa-acompanhamento-status" class="liraa-muted" role="status"></p>
+  <div id="liraa-acompanhamento-dados"></div>
+</section>
+{% endif %}
 {% endif %}
 {% endblock %}
-{% block extra_js %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/vendor/leaflet/leaflet.min.js"></script><script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/liraa_mapa_geral.js?v={{ APP_VERSION }}"></script><script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/liraa_plano_campo.js?v={{ APP_VERSION }}"></script><script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/liraa_estratos.js?v={{ APP_VERSION }}"></script>{% endblock %}
+{% block extra_js %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/vendor/leaflet/leaflet.min.js"></script><script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/liraa_mapa_geral.js?v={{ APP_VERSION }}"></script><script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/liraa_plano_campo.js?v={{ APP_VERSION }}"></script><script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/liraa_acompanhamento.js?v={{ APP_VERSION }}"></script><script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/liraa_estratos.js?v={{ APP_VERSION }}"></script>{% endblock %}

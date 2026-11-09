@@ -6,7 +6,29 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.6.1 — equipe dos tubitos LIRAa no laboratório
+## Candidata 2.7.0 — acompanhamento do LIRAa
+
+Aba Acompanhamento com filtros de ciclo, data e turno. Dia 1 é a data de
+início configurada. Turnos pela hora de início: manhã antes de 12h, tarde
+até 17h59, noite a partir de 18h e registros sem horário em grupo separado.
+Comparação do recorte com o ciclo, com visitas por tipo, visitas com coleta,
+tubitos coletados, leituras e pendências. O recorte mostra a situação atual
+das leituras dos tubos coletados naquele período. Tipos agrupados no Kobo
+continuam agrupados no painel.
+
+A meta é o n do sorteio original, com saldo calculado por estrato. Adicionais
+ficam separados da meta original. Visitas fora do plano aparecem no total
+operacional e em contador próprio. Cobertura lista quarteirões do plano sem
+visita e estratos sem sorteio. Consulta autenticada e em leitura, com snapshot
+consistente no PostgreSQL. A aba aberta atualiza a cada minuto com registros
+já importados e leituras lançadas.
+
+Worktree C:\endemias-interface, branch codex/liraa-acompanhamento.
+101 testes LIRAa, 24 do instalador, ensaio PostgreSQL isolado e Chromium
+desktop/celular passaram. No navegador, uma leitura fictícia reduziu o
+contador na atualização automática. Candidata aguarda instalação elevada.
+
+## Versão ativa 2.6.1 — equipe dos tubitos LIRAa no laboratório
 
 Conferência de 09/11/2026 em leitura: os 198 envios consultados no Kobo
 correspondem a 221 visitas no banco. Doze envios múltiplos geraram 35 visitas,
@@ -20,10 +42,12 @@ no formulário de leitura e no histórico, incluindo ACS pelo catálogo e nomes
 informados em Outros. Quando o catálogo não resolve um código, exibe o código.
 Rótulo Equipe da visita descreve a atribuição gravada no formulário. Correção
 em consulta, sem reimportação ou migração. Worktree C:\endemias-interface,
-branch codex/liraa-acs-coleta. Produção 2.6.0 até instalação elevada.
+branch codex/liraa-acs-coleta. 2.6.1 ativa desde 09/11 às 12h42, release
+2e73614. Relatório ativacao-liraa261-resultado.json aplicado/concluído.
+Portal, login externo e entrada local confirmados em 2.6.1.
 100 testes LIRAa, 24 do instalador e ensaio PostgreSQL isolado passaram.
 
-## Versão ativa 2.6.0 — sequências múltiplas no LIRAa
+## Histórico 2.6.0 — sequências múltiplas no LIRAa
 
 Usuário pediu expansão de sequências numéricas e alfanuméricas no LIRAa.
 Branch `codex/liraa-sequencias`, worktree `C:\endemias-interface`.

@@ -287,6 +287,11 @@ class OperacaoTests(unittest.TestCase):
                      f'/liraa/ciclos/{self.ciclo}/plano.kml',f'/liraa/ciclos/{self.ciclo}/plano.pdf',
                      f'/liraa/ciclos/{self.ciclo}/boletim.pdf',f'/liraa/ciclos/{self.ciclo}/formulario.xlsx'):
             self.assertEqual(client.get(path).status_code,200,path)
+        acompanhamento = client.get(f'/liraa/acompanhamento?ciclo={self.ciclo}&dia=2026-10-01')
+        self.assertEqual(acompanhamento.status_code, 200)
+        self.assertIn('Dia 1 · Quinta-feira', acompanhamento.get_data(as_text=True))
+        self.assertEqual(acompanhamento.headers['Cache-Control'], 'no-store')
+        self.assertEqual(client.get(f'/liraa/acompanhamento?ciclo={self.ciclo}&turno=invalido').status_code, 400)
         page=client.get('/laboratorio/lancamentos?modulo=liraa').get_data(as_text=True)
         self.assertNotIn('Tubos · LIRAA',page)
         self.assertIn('configurarCamposLiraa',page)

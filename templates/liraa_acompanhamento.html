@@ -1,0 +1,83 @@
+{% if erro %}
+<p class="liraa-note" role="alert">{{ erro }}</p>
+{% else %}
+{% macro numero(valor) %}{{ '{:,}'.format(valor).replace(',', '.') }}{% endmacro %}
+{% macro indicadores(totais) %}
+<div class="liraa-acomp-kpis">
+  <div><strong>{{ numero(totais.visitas) }}</strong>Visitas registradas</div>
+  <div><strong>{{ numero(totais.no_plano) }}</strong>Visitas no plano</div>
+  <div><strong>{{ numero(totais.visitas_com_coleta) }}</strong>Visitas com coleta</div>
+  <div><strong>{{ numero(totais.tubitos) }}</strong>Tubitos coletados</div>
+  <div><strong>{{ numero(totais.leituras) }}</strong>Tubitos com leitura</div>
+  <div><strong>{{ numero(totais.pendentes) }}</strong>Tubitos aguardando leitura</div>
+</div>
+{% endmacro %}
+<p class="liraa-muted">{{ resumo.ciclo }} · Consulta às {{ resumo.atualizado }}</p>
+<div class="liraa-acomp-colunas">
+  <section class="liraa-card" aria-labelledby="liraa-acomp-recorte">
+    <h3 id="liraa-acomp-recorte">{% if resumo.dia_do_ciclo %}Dia {{ resumo.dia_do_ciclo }} · {% endif %}{{ resumo.dia_semana | capitalize }} · {{ resumo.turno }}</h3>
+    <p class="liraa-muted">{{ resumo.dia }} · Leituras dos tubos coletados neste recorte, na situação atual.</p>
+    {{ indicadores(resumo.recorte) }}
+    <div class="liraa-acomp-turnos" aria-label="Visitas por turno no dia">
+      {% for turno, visitas in resumo.turnos_dia %}<span>{{ turno }} · {{ numero(visitas) }}</span>{% endfor %}
+    </div>
+  </section>
+  <section class="liraa-card" aria-labelledby="liraa-acomp-acumulado">
+    <h3 id="liraa-acomp-acumulado">Acumulado do ciclo</h3>
+    {{ indicadores(resumo.acumulado) }}
+    <p class="liraa-muted">{{ numero(resumo.acumulado.fora_plano) }} visitas fora do plano · {{ numero(resumo.acumulado.coletas_a_conferir) }} visitas com dados de coleta a conferir</p>
+  </section>
+</div>
+
+<section class="liraa-panel liraa-acomp-meta">
+  <h2>Progresso em relação ao sorteio</h2>
+  {% if resumo.meta %}
+  <div class="liraa-acomp-kpis">
+    <div><strong>{{ numero(resumo.meta) }}</strong>Imóveis programados</div>
+    <div><strong>{{ numero(resumo.sorteadas) }}</strong>Visitas nos quarteirões sorteados</div>
+    <div><strong>{{ numero(resumo.faltam) }}</strong>Visitas que faltam nas metas definidas</div>
+    <div><strong>{{ numero(resumo.adicionais) }}</strong>Visitas em quarteirões adicionais</div>
+  </div>
+  <progress value="{{ resumo.meta - resumo.faltam }}" max="{{ resumo.meta }}" aria-label="Progresso nas metas dos estratos"></progress>
+  <p class="liraa-muted">{{ '%g' | format(resumo.percentual) | replace('.', ',') }}% das metas definidas. O saldo é calculado separadamente em cada estrato, com a meta do sorteio original.</p>
+  {% else %}
+  <p class="liraa-note">As metas aparecem após a realização do sorteio.</p>
+  {% endif %}
+  {% if resumo.sem_sorteio %}<p class="liraa-note">{{ resumo.sem_sorteio }} estrato(s) aguardam sorteio.</p>{% endif %}
+  {% if resumo.estratos %}
+  <div class="liraa-table-wrap">
+    <table class="liraa-table">
+      <thead><tr><th scope="col">Estrato</th><th scope="col">Meta</th><th scope="col">Sorteadas</th><th scope="col">Adicionais</th><th scope="col">Faltam</th></tr></thead>
+      <tbody>{% for e in resumo.estratos %}
+        <tr><td>{{ e.numero }}</td><td class="num">{{ e.meta if e.meta is not none else 'Sem sorteio' }}</td><td class="num">{{ numero(e.sorteadas) }}</td><td class="num">{{ numero(e.adicionais) }}</td><td class="num">{{ e.faltam if e.meta is not none else '—' }}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+  </div>
+  {% endif %}
+  <p>{{ numero(resumo.quarteiroes_visitados) }} de {{ numero(resumo.total_quarteiroes) }} quarteirões do plano têm visita registrada.</p>
+  {% if resumo.quarteiroes_pendentes %}
+  <details>
+    <summary>{{ resumo.quarteiroes_pendentes|length }} quarteirões sem visita registrada</summary>
+    <ul>{% for q in resumo.quarteiroes_pendentes %}
+      <li>{{ q.localidade }} · Q. {{ q.quarteirao }}{% if q.adicional %} · Adicional{% endif %}</li>
+    {% endfor %}</ul>
+  </details>
+  {% endif %}
+</section>
+
+<section class="liraa-panel">
+  <h2>Visitas por tipo de imóvel</h2>
+  {% if resumo.tipos %}
+  <div class="liraa-table-wrap">
+    <table class="liraa-table">
+      <thead><tr><th scope="col">Tipo registrado</th><th scope="col">Dia e turno selecionados</th><th scope="col">Ciclo</th></tr></thead>
+      <tbody>{% for tipo, recorte, ciclo in resumo.tipos %}
+        <tr><td>{{ tipo }}</td><td class="num">{{ numero(recorte) }}</td><td class="num">{{ numero(ciclo) }}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="liraa-muted">Este ciclo ainda aguarda registros de campo.</p>
+  {% endif %}
+</section>
+{% endif %}
