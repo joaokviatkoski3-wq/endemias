@@ -4,14 +4,19 @@ Atualizado em 11/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.7.2 — zero inicial nas ovitrampas
+## Versão ativa 2.7.2 — zero inicial nas ovitrampas
 
 Worktree C:\endemias-interface, branch codex/restaura-zero-ovitrampas.
 Campos novos mostram zero. O rascunho salva as edições e ocorrências, e
 os zeros padrão são confirmados na conclusão. Uma ocorrência sem contagem
 mantém o campo vazio se o zero ainda era o valor padrão. Sem migração.
+Ativada em 11/11/2026, release e94f554. O relatório
+ativacao-ovi-zero272-resultado.json confirmou 96 tabelas comparadas,
+dados preservados e automação Kobo restabelecida. Portal, logins públicos e
+entradas locais responderam em 2.7.2. Teste de tablet e 11 testes do
+laboratório repetidos com sucesso após a ativação, em base isolada.
 
-## Versão ativa 2.7.1 — ovitrampas e importação do LIRAa
+## Histórico 2.7.1 — ovitrampas e importação do LIRAa
 
 Worktree C:\endemias-interface, branch codex/corrige-ovitrampas-kobo-liraa.
 Rascunhos de laboratório preservam ocorrências sem quantidade. Ocorrências
