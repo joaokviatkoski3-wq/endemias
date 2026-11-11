@@ -235,12 +235,24 @@ class IntegracaoTests(unittest.TestCase):
         liraa_operacional.salvar_configuracao(self.target,self.env.ciclo,[],"projetodociclo")
         registro=self.env.registro()
         cfg={'assets':{}}
-        with patch.object(kobo_api,'fetch_submissions',return_value=([registro],{'count':1})) as consulta:
+        outro = dict(registro, _uuid="segundo-envio")
+        pagina1 = {"results": [registro], "count": 2, "next": "?start=1"}
+        pagina2 = {"results": [outro], "count": 2, "next": None}
+        with patch.object(kobo_api, "_get_json", side_effect=[pagina1, pagina2]) as consulta:
             rows,meta=liraa_integracao.buscar_kobo(cfg,self.target)
-        self.assertEqual(rows,[registro]);self.assertEqual(meta['count'],1)
-        self.assertEqual(consulta.call_args.args[1],"projetodociclo")
-        with patch.object(kobo_api,'fetch_submissions',return_value=([registro],{'count':2,'next':'outra-pagina'})):
-            with self.assertRaises(kobo_api.KoboError):liraa_integracao.buscar_kobo(cfg,self.target)
+        self.assertEqual(rows, [registro, outro])
+        self.assertEqual(meta["count"], 2)
+        self.assertEqual(consulta.call_args.args[1], "/api/v2/assets/projetodociclo/data/")
+        for resposta in (
+            {"results": [registro], "count": 2, "next": None},
+            {"results": [registro], "count": 2, "next": "?start=0"},
+            {"results": [registro], "count": 3, "next": None},
+        ):
+            with self.subTest(resposta=resposta), patch.object(
+                kobo_api, "_get_json", side_effect=[pagina1, resposta]
+            ):
+                with self.assertRaises(kobo_api.KoboError):
+                    liraa_integracao.buscar_kobo(cfg, self.target)
 
     def test_transporte_preserva_json_longo_e_previa_sinaliza_envio_invalido(self):
         from app_core import liraa_integracao

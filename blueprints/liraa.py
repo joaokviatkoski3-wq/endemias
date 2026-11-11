@@ -196,17 +196,7 @@ def _buscar_kobo(inicio, fim, id_ciclo=None):
             conn.close()
     if not uid:
         raise liraa_kobo.LiraaKoboError("Configure o UID do formulário LIRAa nesta aba.")
-    records, response = kobo_api.fetch_submissions(cfg, uid, limit=5000,
-                                                    start=inicio, end=fim)
-    if not isinstance(response, dict) or "count" not in response or response.get("next"):
-        raise liraa_kobo.LiraaKoboError("Kobo não confirmou que a resposta está completa; reduza o período.")
-    try:
-        count = int(response["count"])
-    except (ValueError, TypeError):
-        raise liraa_kobo.LiraaKoboError("Total de envios Kobo inválido.") from None
-    if count != len(records):
-        raise liraa_kobo.LiraaKoboError(f"Kobo retornou {len(records)} de {count} envios; reduza o período.")
-    return records
+    return kobo_api.fetch_complete_submissions(cfg, uid, start=inicio, end=fim)
 
 
 @bp.route("/liraa/kobo/configurar", methods=["POST"])

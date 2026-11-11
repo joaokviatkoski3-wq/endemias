@@ -1,8 +1,25 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 09/11/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 11/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
+
+## Candidata 2.7.1 — ovitrampas e importação do LIRAa
+
+Worktree C:\endemias-interface, branch codex/corrige-ovitrampas-kobo-liraa.
+Rascunhos de laboratório preservam ocorrências sem quantidade. Ocorrências
+2 a 6 podem encerrar a linha sem contagem. A interface distingue esse caso
+de zero informado, e identifica a armadilha pendente na conclusão.
+Sem mudança de esquema. No envio ao Conta Ovos, a API recebe zero e o
+código de ocorrência quando não houve contagem.
+
+Consulta LIRAa paginada no painel, na aba do ciclo e na rotina automática.
+Valida offsets, UUIDs e total, quando informado pelo Kobo, e usa os mesmos
+filtros em todas as páginas. Mantém o limite configurado por formulário.
+170 testes focados passaram. O ensaio isolado de PostgreSQL e o fluxo
+de rascunho e conclusão em Chromium com tela de tablet também passaram.
+Ativação pendente de execução do pacote elevado. Falta confirmar a consulta
+do lote real na tela de importação após ativar.
 
 ## Versão ativa 2.7.0 — acompanhamento do LIRAa
 

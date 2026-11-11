@@ -98,17 +98,9 @@ def buscar_kobo(cfg, target, inicio=None, fim=None, limite=5000, uid=None):
         return [],None
     todos={}
     for projeto in sorted(uids):
-        rows, meta=kobo_api.fetch_submissions(cfg,projeto,limit=limite,start=inicio,end=fim)
-        if not isinstance(meta,dict) or meta.get("next") or "count" not in meta:
-            raise kobo_api.KoboError("LIRAa: não foi possível confirmar a resposta completa do Kobo. Reduza o período.")
-        try:completo=int(meta["count"])==len(rows)
-        except (ValueError,TypeError):completo=False
-        if not completo:
-            raise kobo_api.KoboError("LIRAa: resposta incompleta. Reduza o período e consulte novamente.")
+        rows = kobo_api.fetch_complete_submissions(cfg, projeto, limit=limite, start=inicio, end=fim)
         for row in rows:
             uuid=kobo_api.record_uuid(row)
-            if not uuid:
-                raise kobo_api.KoboError("LIRAa: envio sem UUID.")
             if uuid in todos and todos[uuid] != row:
                 raise kobo_api.KoboError("LIRAa: UUID com dados diferentes entre projetos. Confira antes de importar.")
             todos[uuid]=row

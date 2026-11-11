@@ -134,6 +134,29 @@ class CompletudeLaboratorioTests(BancoEntomologiaTests):
         with self.assertRaisesRegex(ValueError, "todas as armadilhas"):
             ovitrampas_laboratorio.concluir_lote(self.path, lote, [], self.usuario)
 
+    def test_ocorrencia_sem_contagem_e_zero_explicito_permanecem_distintos(self):
+        a, b = self.itens
+        seca = {"id_item": a, "ovos": None, "ocorrencia": 5}
+        fechada = {"id_item": b, "ovos": None, "ocorrencia": 6}
+        rascunho = ovitrampas_laboratorio.salvar_rascunho(
+            self.path, self.lote, [seca, fechada], self.usuario,
+        )
+        self.assertEqual([5, 6], [item["ocorrencia"] for item in rascunho["itens"]])
+        self.assertFalse(any(item["ovos_informados"] for item in rascunho["itens"]))
+        with self.assertRaisesRegex(ValueError, "armadilha 2"):
+            ovitrampas_laboratorio.concluir_lote(
+                self.path, self.lote, [seca, dict(fechada, ocorrencia=None)], self.usuario,
+            )
+        lote = ovitrampas_laboratorio.concluir_lote(
+            self.path, self.lote, [dict(seca, ovos=0), fechada], self.usuario,
+        )
+        self.assertEqual(lote["status"], "concluido")
+        self.assertEqual([True, False], [item["ovos_informados"] for item in lote["itens"]])
+        with self.assertRaisesRegex(ValueError, "armadilha 2"):
+            ovitrampas_laboratorio.salvar_rascunho(
+                self.path, self.lote, [dict(fechada, ocorrencia=None)], self.usuario,
+            )
+
 
 class AutoridadeLeiturasMapaTests(BancoEntomologiaTests):
     def leituras(self):

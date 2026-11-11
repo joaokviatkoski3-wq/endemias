@@ -190,12 +190,36 @@ class LiraaKoboTests(unittest.TestCase):
         app.config["KOBO_CONFIG_PATH"] = str(config_path)
         kobo_api.save_config(config_path, {"assets": {"LIRAA": "anXWARrB2YkHK5W9YTwDfU"}})
         with app.app_context():
-            with patch.object(liraa_routes.kobo_api, "fetch_submissions",
-                              return_value=([envio("um")], {"count": 2, "next": None})):
-                with self.assertRaisesRegex(liraa_kobo.LiraaKoboError, "retornou 1 de 2"):
+            with patch.object(liraa_routes.kobo_api, "_get_json",
+                              return_value={"results": [envio("um")], "count": 2, "next": None}):
+                with self.assertRaisesRegex(kobo_api.KoboError, "retornou 1 de 2"):
                     liraa_routes._buscar_kobo("2026-10-01", "2026-10-06")
             with self.assertRaisesRegex(liraa_kobo.LiraaKoboError, "período"):
                 liraa_routes._buscar_kobo("2026-10-07", "2026-10-06")
+
+    def test_consulta_busca_paginas_com_o_mesmo_projeto_e_periodo(self):
+        registros = [envio(f"envio-{i}") for i in range(1205)]
+        consultas = []
+
+        def kobo(cfg, path, params):
+            consultas.append((path, params.copy()))
+            if "start" not in params:
+                return {
+                    "results": registros[:1000], "count": "unknown",
+                    "next": "https://outro.example/?start=1000",
+                }
+            return {"results": registros[1000:], "count": 1205, "next": None}
+
+        with patch.object(kobo_api, "_get_json", side_effect=kobo):
+            self.assertEqual(kobo_api.fetch_complete_submissions(
+                {}, "formulario", start="2026-11-09", end="2026-11-11",
+            ), registros)
+        path, params = consultas[0]
+        self.assertEqual(path, "/api/v2/assets/formulario/data/")
+        self.assertIn("2026-11-09T00:00:00", params["query"])
+        self.assertIn("2026-11-11T23:59:59", params["query"])
+        self.assertEqual(params["limit"], 1000)
+        self.assertEqual(consultas[1], (path, dict(params, start=1000)))
 
     def test_sequencias_formatos_e_identificadores_variados(self):
         from app_core.liraa_sequencias import separar

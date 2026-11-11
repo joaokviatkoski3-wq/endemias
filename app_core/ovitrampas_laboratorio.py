@@ -21,6 +21,7 @@ OCORRENCIAS = {
     7: "Ovitrampa cheia de \u00e1gua",
     8: "Pouca \u00e1gua",
 }
+OCORRENCIAS_SEM_CONTAGEM = (2, 3, 4, 5, 6)
 
 
 def ensure_schema(db_path):
@@ -182,10 +183,15 @@ def obter_lote(db_path, id_lote):
         ).fetchall()]
         for item in itens:
             item["ocorrencia_label"] = OCORRENCIAS.get(item.get("ocorrencia"))
-            item["leitura_informada"] = bool(
-                item.get("atualizado_em") or item.get("ovos") or item.get("ocorrencia")
-                or lote["status"] in ("concluido", "enviado_conta_ovos")
+            sem_contagem = (
+                item["ocorrencia"] in OCORRENCIAS_SEM_CONTAGEM
+                and not item["atualizado_em"] and not item["ovos"]
             )
+            item["ovos_informados"] = bool(
+                item["atualizado_em"] or item["ovos"]
+                or (lote["status"] in ("concluido", "enviado_conta_ovos") and not sem_contagem)
+            )
+            item["leitura_informada"] = item["ovos_informados"] or sem_contagem
         registro = _lote_dict(lote)
         registro["itens"] = itens
         registro["armadilhas"] = len(itens)
@@ -202,7 +208,10 @@ def salvar_rascunho(db_path, id_lote, leituras, usuario):
         _ensure_schema_conn(conn)
         lote = _lote_editavel(conn, id_lote)
         agora = datetime.now().isoformat(timespec="seconds")
-        _salvar_itens(conn, lote["id_lote"], leituras, agora)
+        _salvar_itens(
+            conn, lote["id_lote"], leituras, agora,
+            exigir_resolvidas=lote["status"] == "concluido",
+        )
         novo_status = "em_preenchimento" if lote["status"] == "pendente" else lote["status"]
         conn.execute(
             f"""UPDATE {LOTES_TABLE}
@@ -402,13 +411,13 @@ def _diarios_com_armadilhas(conn):
     return list(diarios.values())
 
 
-def _salvar_itens(conn, id_lote, leituras, agora, completo=False):
+def _salvar_itens(conn, id_lote, leituras, agora, completo=False, exigir_resolvidas=False):
     if not isinstance(leituras, list):
         raise ValueError("Informe as leituras das armadilhas.")
-    permitidos = {
-        row["id_item"] for row in conn.execute(
-            f"SELECT id_item FROM {ITENS_TABLE} WHERE id_lote=?", (id_lote,),
-        ).fetchall()
+    armadilhas = {
+        row["id_item"]: row["ovitrampa_id"] for row in conn.execute(
+            f"SELECT id_item, ovitrampa_id FROM {ITENS_TABLE} WHERE id_lote=?", (id_lote,),
+        )
     }
     vistos = set()
     valores = []
@@ -416,21 +425,30 @@ def _salvar_itens(conn, id_lote, leituras, agora, completo=False):
         if not isinstance(leitura, dict):
             raise ValueError("Leitura de armadilha inválida.")
         id_item = _int(leitura.get("id_item"))
-        if not id_item or id_item not in permitidos or id_item in vistos:
+        if id_item not in armadilhas or id_item in vistos:
             raise ValueError("Leitura de armadilha inválida.")
         vistos.add(id_item)
-        ovos = _int(leitura.get("ovos"), default=None)
-        if (ovos is None or ovos < 0 or ovos > 100000
-                or not re.fullmatch(r"[0-9]+", str(leitura.get("ovos")).strip())):
-            raise ValueError("A quantidade de ovos deve estar entre 0 e 100000.")
         ocorrencia_raw = leitura.get("ocorrencia")
         ocorrencia = None
         if ocorrencia_raw not in (None, ""):
             ocorrencia = _int(ocorrencia_raw, default=None)
             if ocorrencia not in OCORRENCIAS:
                 raise ValueError("A ocorr\u00eancia deve estar entre 1 e 8.")
+        if "ovos" not in leitura:
+            raise ValueError(f"Informe a quantidade de ovos da armadilha {armadilhas[id_item]}.")
+        ovos_raw = leitura["ovos"]
+        if ovos_raw is None:
+            if (completo or exigir_resolvidas) and ocorrencia not in OCORRENCIAS_SEM_CONTAGEM:
+                raise ValueError(f"Informe a quantidade de ovos da armadilha {armadilhas[id_item]}.")
+            # O Conta Ovos exige um número. A data do item distingue zero lido
+            # de uma ocorrência registrada sem contagem no laboratório.
+            valores.append((0, ocorrencia, None, id_item, id_lote))
+            continue
+        ovos = _int(ovos_raw, default=None)
+        if ovos is None or ovos > 100000 or not re.fullmatch(r"[0-9]+", str(ovos_raw).strip()):
+            raise ValueError("A quantidade de ovos deve ser um inteiro entre 0 e 100000.")
         valores.append((ovos, ocorrencia, agora, id_item, id_lote))
-    if completo and (not permitidos or vistos != permitidos):
+    if completo and (not armadilhas or vistos != armadilhas.keys()):
         raise ValueError("Informe a leitura de todas as armadilhas, incluindo zero quando não houver ovos.")
     for valor in valores:
         conn.execute(

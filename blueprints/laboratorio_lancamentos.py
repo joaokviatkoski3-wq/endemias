@@ -224,6 +224,7 @@ def page():
         is_admin=usuario.get("nivel") in {"admin", "superadmin"},
         agentes=agentes,
         laboratoristas=laboratoristas,
+        ocorrencias_sem_contagem=ovi_lab_core.OCORRENCIAS_SEM_CONTAGEM,
     )
 
 

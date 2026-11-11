@@ -1,10 +1,22 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 09/11/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 11/11/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
+
+## Candidata 2.7.1 — ovitrampas e importação do LIRAa
+
+O laboratório salva ocorrências com ovos em branco. As ocorrências 2 a 6
+podem concluir a linha sem contagem quando a leitura não pôde ser feita.
+Zero digitado continua sendo uma leitura. A confirmação informa quantas
+armadilhas estão em cada condição. A integração Conta Ovos mantém o formato
+numérico exigido pela API, com zero e código de ocorrência nesses casos.
+
+As consultas LIRAa seguem a paginação do Kobo v2 no projeto e período
+originais, inclusive no painel de importação e na rotina automática. Lotes
+com páginas incoerentes ou acima do limite configurado são recusados.
 
 ## Versão ativa 2.7.0 — acompanhamento do LIRAa
 

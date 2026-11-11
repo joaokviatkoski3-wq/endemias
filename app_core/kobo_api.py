@@ -271,7 +271,7 @@ def obter_catalogo_acs_pve(cfg, asset_uid):
     return obter_catalogo_acs_formulario(cfg, asset_uid, "PVE")
 
 
-def fetch_submissions(cfg, asset_uid, limit=100, start=None, end=None):
+def _submissions_request(asset_uid, limit, start, end):
     asset_uid = (asset_uid or "").strip()
     if not asset_uid:
         raise KoboError("Informe o UID do formulário Kobo.")
@@ -284,13 +284,71 @@ def fetch_submissions(cfg, asset_uid, limit=100, start=None, end=None):
         query["$and"] = query.get("$and", []) + [{"_submission_time": {"$lte": f"{end}T23:59:59"}}]
     if query:
         params["query"] = json.dumps(query, ensure_ascii=False)
-    data = _get_json(cfg, f"/api/v2/assets/{asset_uid}/data/", params)
+    return f"/api/v2/assets/{asset_uid}/data/", params
+
+
+def fetch_submissions(cfg, asset_uid, limit=100, start=None, end=None):
+    path, params = _submissions_request(asset_uid, limit, start, end)
+    data = _get_json(cfg, path, params)
     results = data.get("results") if isinstance(data, dict) else None
     if results is None and isinstance(data, list):
         results = data
     if results is None:
         raise KoboError("Resposta do Kobo não contém lista de registros.")
-    return results[:limit], data
+    return results[:params["limit"]], data
+
+
+def fetch_complete_submissions(cfg, asset_uid, limit=5000, start=None, end=None):
+    """Collect a complete, bounded batch from the Kobo v2 data endpoint."""
+    path, params = _submissions_request(asset_uid, limit, start, end)
+    max_records = params["limit"]
+    params = dict(params, limit=min(max_records, 1000), sort='{"_id":1}')
+    records = []
+    seen = set()
+    expected = None
+    incomplete = "Kobo não confirmou uma resposta completa. Consulte novamente."
+    while True:
+        page = _get_json(cfg, path, params)
+        if not isinstance(page, dict) or "next" not in page or not isinstance(page.get("results"), list):
+            raise KoboError(incomplete)
+        count = page.get("count")
+        if type(count) is int and count >= 0:
+            if count > max_records:
+                raise KoboError(f"O período tem {count} envios, acima do limite de {max_records}. Reduza o período ou aumente o limite.")
+            if expected is not None and count != expected:
+                raise KoboError("O total de envios do Kobo mudou durante a consulta. Consulte novamente.")
+            expected = count
+        elif count not in ("many", "unknown"):
+            raise KoboError(incomplete)
+
+        results = page["results"]
+        next_page = page["next"]
+        total = len(records) + len(results)
+        if total > max_records or (total == max_records and next_page is not None):
+            raise KoboError(f"A consulta passou do limite de {max_records} envios. Reduza o período ou aumente o limite.")
+        for row in results:
+            uuid = record_uuid(row) if isinstance(row, dict) else ""
+            if not uuid or uuid in seen:
+                raise KoboError("Kobo retornou um envio sem UUID ou repetido. Consulte novamente.")
+            seen.add(uuid)
+            records.append(row)
+
+        if next_page is None:
+            if expected is not None and total != expected:
+                raise KoboError(f"Kobo retornou {total} de {expected} envios. Consulte novamente.")
+            if not results and total:
+                raise KoboError(incomplete)
+            return records
+        if not isinstance(next_page, str) or not results or (expected is not None and total >= expected):
+            raise KoboError(incomplete)
+        # Use only the expected offset. Keep the configured host, project and filters.
+        try:
+            next_offset = parse.parse_qs(parse.urlsplit(next_page).query).get("start")
+        except ValueError:
+            raise KoboError(incomplete) from None
+        if next_offset != [str(total)]:
+            raise KoboError(incomplete)
+        params = dict(params, start=total)
 
 
 def record_uuid(record):
