@@ -6,7 +6,7 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.7.1 — ovitrampas e importação do LIRAa
+## Versão ativa 2.7.1 — ovitrampas e importação do LIRAa
 
 O laboratório salva ocorrências com ovos em branco. As ocorrências 2 a 6
 podem concluir a linha sem contagem quando a leitura não pôde ser feita.
@@ -18,7 +18,10 @@ As consultas LIRAa seguem a paginação do Kobo v2 no projeto e período
 originais, inclusive no painel de importação e na rotina automática. Lotes
 com páginas incoerentes ou acima do limite configurado são recusados.
 
-## Versão ativa 2.7.0 — acompanhamento do LIRAa
+A release 0d248e3 foi ativada em 11/11/2026. Portal e logins externos e
+locais confirmaram 2.7.1. Falta a conferência autenticada do lote real.
+
+## Histórico 2.7.0 — acompanhamento do LIRAa
 
 Aba Acompanhamento com filtros de ciclo, data e turno. Dia 1 é a data de
 início configurada. Turnos pela hora de início: manhã antes de 12h, tarde

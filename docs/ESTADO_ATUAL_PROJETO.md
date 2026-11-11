@@ -4,7 +4,7 @@ Atualizado em 11/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.7.1 — ovitrampas e importação do LIRAa
+## Versão ativa 2.7.1 — ovitrampas e importação do LIRAa
 
 Worktree C:\endemias-interface, branch codex/corrige-ovitrampas-kobo-liraa.
 Rascunhos de laboratório preservam ocorrências sem quantidade. Ocorrências
@@ -18,10 +18,13 @@ Valida offsets, UUIDs e total, quando informado pelo Kobo, e usa os mesmos
 filtros em todas as páginas. Mantém o limite configurado por formulário.
 170 testes focados passaram. O ensaio isolado de PostgreSQL e o fluxo
 de rascunho e conclusão em Chromium com tela de tablet também passaram.
-Ativação pendente de execução do pacote elevado. Falta confirmar a consulta
-do lote real na tela de importação após ativar.
+Ativada em 11/11/2026, release 0d248e3. Relatório
+ativacao-ovi-liraa271-resultado.json aplicado/concluído, 96 tabelas
+comparadas, dados preservados, sem migrações e automação Kobo restabelecida.
+Portal, logins externos e entradas locais responderam com 2.7.1.
+Falta confirmar a consulta do lote real na tela autenticada de importação.
 
-## Versão ativa 2.7.0 — acompanhamento do LIRAa
+## Histórico 2.7.0 — acompanhamento do LIRAa
 
 Aba Acompanhamento com filtros de ciclo, data e turno. Dia 1 é a data de
 início configurada. Turnos pela hora de início: manhã antes de 12h, tarde
