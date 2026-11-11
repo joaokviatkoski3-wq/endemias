@@ -6,6 +6,12 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
+## Candidata 2.7.2 — zero inicial nas ovitrampas
+
+Campos novos exibem zero. O zero padrão é confirmado na conclusão e fica
+em branco se for escolhida uma ocorrência que permite registrar sem
+contagem. Contagens já informadas são preservadas.
+
 ## Versão ativa 2.7.1 — ovitrampas e importação do LIRAa
 
 O laboratório salva ocorrências com ovos em branco. As ocorrências 2 a 6
