@@ -6,6 +6,13 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
+## Candidata 2.7.5 — reenvios idênticos do LIRAa
+
+Envios com o mesmo UUID, preenchimento identificado e conteúdo idêntico
+fora dos campos de recebimento são tratados como um único formulário.
+Mantém o menor ID Kobo e todas as sequências daquele envio. UUID
+compartilhado com respostas diferentes continua pendente de conferência.
+
 ## Versão ativa 2.7.4 — identificação dos envios LIRAa
 
 A consulta paginada verifica repetição pelo ID permanente do Kobo. A prévia

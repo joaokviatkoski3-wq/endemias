@@ -396,6 +396,8 @@ def kobo_previa():
         amostra_filtro=amostra_filtro,
         edicoes_para_revisao=_kobo_edicoes_para_revisao(tipo, records),
     )
+    if tipo == "LIRAA":
+        resumo["reenvios_ignorados"] = (bruto or {}).get("reenvios_ignorados", 0)
     audit.registrar_evento(
         get_db,
         "kobo_previa",
@@ -447,6 +449,7 @@ def kobo_pendentes():
                 from app_core import liraa_integracao
                 records,meta=liraa_integracao.buscar_kobo(cfg,_db_path(),inicio,fim,limite)
                 item["configurado"]=meta is not None
+                item["reenvios_ignorados"] = (meta or {}).get("reenvios_ignorados", 0)
             else:
                 records, _ = kobo_api.fetch_submissions(cfg,asset_uid,limit=limite,start=inicio,end=fim)
             larvas_links = None

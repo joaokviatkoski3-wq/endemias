@@ -308,6 +308,42 @@ def _vincular(item, context):
 AVISO_EDICAO_KOBO = "Versão do Kobo precisa de revisão antes de alterar a visita no Endemias."
 
 
+def consolidar_reenvios_kobo(records):
+    """Conserva um envio quando o Kobo recebeu o mesmo formulário mais de uma vez."""
+    grupos = defaultdict(list)
+    for index, record in enumerate(records):
+        if isinstance(record, dict):
+            uuid = kobo_api.record_uuid(record)
+            if uuid:
+                grupos[uuid].append(index)
+
+    ignorados = set()
+    campos_recebimento = {"_id", "_index", "_submission_time"}
+
+    def assinatura(record):
+        return json.dumps(
+            {campo: valor for campo, valor in record.items() if campo not in campos_recebimento},
+            sort_keys=True,
+        )
+
+    for indices in grupos.values():
+        if len(indices) < 2:
+            continue
+        primeiro = records[indices[0]]
+        if not (primeiro.get("start") and primeiro.get("end") and _campo(primeiro, "meta/instanceID")):
+            continue
+        ids = [kobo_api.record_id(records[index]) for index in indices]
+        if None in ids or len(set(ids)) != len(ids):
+            continue
+        conteudo = assinatura(primeiro)
+        if any(assinatura(records[index]) != conteudo for index in indices[1:]):
+            continue
+        mantido = indices[ids.index(min(ids))]
+        ignorados.update(index for index in indices if index != mantido)
+
+    return [record for index, record in enumerate(records) if index not in ignorados], len(ignorados)
+
+
 def _uuids_anteriores(record, atual):
     aliases = {
         str(value or "").strip().removeprefix("uuid:")
@@ -379,6 +415,7 @@ def _preparar(conn, id_ciclo, records):
     context = _contexto(conn, id_ciclo)
     if len(records) > 5000:
         raise LiraaKoboError("Reduza o período: mais de 5.000 envios.")
+    records, _ = consolidar_reenvios_kobo(records)
     preparados = []
     problemas = kobo_api.liraa_problemas_identidade(records)
     revisoes = edicoes_kobo_para_revisao(conn, [

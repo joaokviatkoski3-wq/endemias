@@ -185,6 +185,36 @@ class LiraaKoboTests(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_reenvio_identico_preserva_um_envio_e_todas_as_sequencias(self):
+        from app_core import liraa_integracao
+
+        original = envio("formulario-reenviado")
+        original.update({
+            "_id": 123, "_index": 1, "start": "2026-10-06T14:40:00-03:00",
+            "end": "2026-10-06T14:49:00-03:00", "meta/instanceID": "uuid:formulario-reenviado",
+        })
+        original["Dados_visita"]["Sequencia"] = "1,2"
+        repetido = dict(original, _id=126, _index=2, _submission_time="2026-10-06T17:54:00Z")
+        lote = [repetido, original]
+        self.assertEqual(liraa_kobo.consolidar_reenvios_kobo(lote), ([original], 1))
+        with patch.object(kobo_api, "fetch_complete_submissions", return_value=lote):
+            records, meta = liraa_integracao.buscar_kobo({}, self.target, uid="formulario")
+            self.assertEqual((records, meta), ([original], {"count": 1, "reenvios_ignorados": 1}))
+        self.assertEqual(len(liraa_kobo.previa(self.target, 1, lote)), 2)
+        self.assertEqual(liraa_kobo.importar(self.target, 1, lote), 2)
+        self.assertEqual(liraa_kobo.importar(self.target, 1, lote), 0)
+        visits = liraa_kobo.listar(self.target, 1)
+        self.assertEqual({v["sequencia"] for v in visits}, {"1", "2"})
+        self.assertEqual({v["kobo_id"] for v in visits}, {123})
+        self.assertEqual(sum(v["total_tubitos"] for v in visits), 1)
+
+        divergente = dict(repetido, _id=129, Dados_visita=dict(repetido["Dados_visita"], Numero=100))
+        self.assertEqual(liraa_kobo.consolidar_reenvios_kobo([original, repetido, divergente])[1], 0)
+        self.assertEqual(
+            [v["situacao_importacao"] for v in liraa_kobo.previa(self.target, 1, [original, divergente])],
+            ["conferir identidade", "conferir identidade"],
+        )
+
     def test_fora_sorteio_e_periodo_nao_recebem_vinculo_indevido(self):
         conn = db.connect(self.target)
         conn.execute("INSERT INTO liraa_estrato_quarteiroes VALUES (2,1,1,'0409')")

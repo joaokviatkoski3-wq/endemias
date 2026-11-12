@@ -1354,7 +1354,8 @@ def processar_upload(arquivos_trabalho, arquivos_larvas, banco_path, config_path
                         "animais_novos": resultado.get("animais_novos", 0),
                         "materiais_novos": resultado.get("materiais_novos", 0),
                         "resultados_novos": resultado.get("resultados_novos", 0),
-                        **({campo: resultado.get(campo, 0) for campo in ("edicoes_para_revisao", "pendencias_identidade")}
+                        **({campo: resultado.get(campo, 0) for campo in
+                            ("edicoes_para_revisao", "pendencias_identidade", "reenvios_ignorados")}
                            if tipo == "LIRAA" else {}),
                     })
             else:

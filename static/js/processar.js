@@ -292,7 +292,8 @@ function koboPendentesHtml(data) {
         : '<span style="color:var(--text3);font-weight:800;">Sem novos</span>';
     const importarDisabled = item.novos > 0 ? '' : 'disabled';
     return `<tr>
-      <td><div class="kobo-record-main">${escapeHtml(item.tipo)} - ${escapeHtml(item.label)}</div></td>
+      <td><div class="kobo-record-main">${escapeHtml(item.tipo)} - ${escapeHtml(item.label)}</div>
+        ${item.reenvios_ignorados ? `<small>Reenvios idênticos agrupados (${koboNum(item.reenvios_ignorados)})</small>` : ''}</td>
       <td>${koboNum(item.total)}</td>
       <td>${status}</td>
       <td>${koboNum(item.duplicados)}</td>

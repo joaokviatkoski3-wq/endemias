@@ -118,6 +118,7 @@ def _buscar_novos(cfg, target, inicio, fim, tipos_permitidos=None):
         if tipo == "LIRAA":
             totais[tipo]["edicoes_para_revisao"] = len(revisoes)
             totais[tipo]["pendencias_identidade"] = sum(bool(problema) for problema in problemas)
+            totais[tipo]["reenvios_ignorados"] = resposta.get("reenvios_ignorados", 0)
     return novos, totais
 
 
