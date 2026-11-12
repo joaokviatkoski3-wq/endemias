@@ -17,8 +17,11 @@ com prévia web, importação e rotina automática. Ativada em 12/11/2026,
 release 38344f8. Relatório ativacao-liraa-identidade274-resultado.json
 aplicado/concluído, 96 tabelas comparadas, dados preservados e automação
 Kobo restabelecida. Portal e logins públicos e locais responderam em 2.7.4.
-A consulta do lote real está pendente de nova execução do verificador
-elevado com o caminho da configuração oficial.
+Consulta real somente leitura concluída em 12/11/2026 às 15h41. Tanto sem
+filtro quanto no recorte dos últimos sete dias, vieram 1.611 envios.
+Dois IDs distintos compartilham UUID e ficaram pendentes de identificação.
+Os outros 1.609 passaram nessa verificação. Relatório local
+C:\endemias-interface\.venv\consulta-liraa-274-real.json.
 
 ## Histórico 2.7.3 — proteção das importações LIRAa
 
