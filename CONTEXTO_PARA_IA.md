@@ -6,14 +6,16 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.7.3 — proteção das importações LIRAa
+## Versão ativa 2.7.3 — proteção das importações LIRAa
 
 Compara o ID permanente do envio e a linhagem de UUIDs antes de expandir
 sequências. Versões conflitantes ficam sinalizadas para revisão, e o lote
 continua com envios novos. A proteção abrange painel, aba LIRAa, ETL e
-rotina automática. A candidata não aplica diferenças às visitas.
+rotina automática. A aplicação de diferenças às visitas depende da
+reconciliação. Ativada em 11/11/2026, release 668b215, com versão confirmada
+no portal e nos logins públicos e locais.
 
-## Versão ativa 2.7.2 — zero inicial nas ovitrampas
+## Histórico 2.7.2 — zero inicial nas ovitrampas
 
 Campos novos exibem zero. O zero padrão é confirmado na conclusão e fica
 em branco se for escolhida uma ocorrência que permite registrar sem

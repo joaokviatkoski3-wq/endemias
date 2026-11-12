@@ -4,7 +4,7 @@ Atualizado em 11/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.7.3 — proteção das importações LIRAa
+## Versão ativa 2.7.3 — proteção das importações LIRAa
 
 Worktree C:\endemias-interface, branch codex/protege-reimportacao-liraa.
 O ID permanente e os UUIDs anteriores informados pelo Kobo identificam
@@ -12,14 +12,17 @@ edições de envios conhecidos. A classificação sinaliza versões em revisão
 na prévia e impede nova gravação. A transação repete a checagem sob trava
 compartilhada pelos importadores. Sem migração de banco.
 Passaram 162 testes focados e o ensaio PostgreSQL isolado de prévia,
-importação e rotina automática. Ativação pendente de execução elevada.
+importação e rotina automática. Ativada em 11/11/2026, release 668b215.
+Relatório ativacao-liraa-edicoes273-resultado.json aplicado/concluído,
+96 tabelas comparadas, dados preservados e automação Kobo restabelecida.
+Portal, logins públicos e entradas locais responderam em 2.7.3.
 
 A auditoria de 11/11 identificou 15 envios com versões já importadas, 48
 registros de visita, 6 tubitos e 4 leituras. Prévia local em
 .venv/liraa-previa-reconciliacao-20261111.md. O tratamento dessas versões
 e a aplicação de alterações do Kobo ficam para a reconciliação revisada.
 
-## Versão ativa 2.7.2 — zero inicial nas ovitrampas
+## Histórico 2.7.2 — zero inicial nas ovitrampas
 
 Worktree C:\endemias-interface, branch codex/restaura-zero-ovitrampas.
 Campos novos mostram zero. O rascunho salva as edições e ocorrências, e
