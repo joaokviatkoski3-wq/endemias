@@ -4,7 +4,7 @@ Atualizado em 12/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.7.5 — reenvios idênticos do LIRAa
+## Versão ativa 2.7.5 — reenvios idênticos do LIRAa
 
 Worktree C:\endemias-interface, branch codex/consolida-reenvios-liraa.
 A consulta de 12/11 confirmou nos dois envios com UUID compartilhado o
@@ -12,14 +12,21 @@ mesmo formulário, horários de preenchimento, local e sequências 1 e 2.
 O segundo foi recebido 3min44s depois. Nenhuma das duas versões estava
 no banco à hora da consulta.
 
-A candidata consolida reenvios com IDs distintos, mesma instância,
+A versão consolida reenvios com IDs distintos, mesma instância,
 horários e conteúdo idênticos, salvo metadados de recebimento. Conserva
 o menor ID e preserva a expansão das sequências. Divergências continuam
 em revisão. Sem migração. A ativação inclui prévia do par real em leitura.
 Passaram 165 testes focados e ensaio PostgreSQL isolado pelo painel,
 importação e rotina automática.
+Ativada em 12/11/2026, release 88ac73c. O relatório
+ativacao-liraa-reenvio275-resultado.json confirmou 96 tabelas comparadas,
+dados preservados, entradas disponíveis e automação Kobo restabelecida.
+Portal e logins externos e locais responderam em 2.7.5. Às 16h49, a
+prévia real confirmou diferenças apenas em ID e horário de recebimento,
+com um reenvio agrupado e duas visitas novas, sequências 1 e 2. Consulta
+somente leitura, registrada em .venv/reenvio-liraa-275-real.json.
 
-## Versão ativa 2.7.4 — identificação dos envios LIRAa
+## Histórico 2.7.4 — identificação dos envios LIRAa
 
 Worktree C:\endemias-interface, branch codex/corrige-identidade-consulta-liraa.
 A paginação usa o ID permanente para verificar se o mesmo envio reapareceu
