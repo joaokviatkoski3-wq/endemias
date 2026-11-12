@@ -32,6 +32,31 @@ class KoboContratos201Tests(unittest.TestCase):
             {tipo: [record]}, ROOT / "config.json", self.base,
         )[0]
 
+    def test_coleta_pe_separa_deposito_da_resposta_sobre_eliminacao(self):
+        from blueprints import laboratorio_lancamentos
+
+        pergunta = "O_Dep_sito_onde_foi_coleta_foi_eliminado"
+        responsabilidade = "morador_se_responsabilizou_por"
+        record = {
+            "_uuid": "pe-ficticio-tubitos", "Data": "2026-06-03",
+            "Quantidade_de_tubitos": 2,
+            "group_jr1vc40": [
+                {"N_mero_do_tubito": 700, pergunta: responsabilidade},
+                {"N_mero_do_tubito": 701, "Dep_sito": "Para-choque", "C_digo_do_dep_sito": "B", pergunta: "sim"},
+            ],
+        }
+        path = self.workbook("PE", record)
+        frame = pd.read_excel(path, sheet_name="coletas").fillna("")
+        cfg = self.cfg["tipos_trabalho"]["PE"]
+        self.assertEqual([int(x) for x in frame[cfg["col_numero_tubo_coletas"]]], [700, 701])
+        self.assertEqual(list(frame[cfg["col_nome_deposito_coletas"]]), ["", "Para-choque"])
+        self.assertEqual([etl.val_deposito_eliminado(v) for v in frame[cfg["col_deposito_eliminado_coletas"]]], [0, 1])
+        itens = laboratorio_lancamentos._serializar_coletas(None, [
+            {"tipo": "PE", "tipo_deposito": responsabilidade},
+            {"tipo": "PE", "tipo_deposito": "Para-choque"},
+        ])
+        self.assertEqual([r["tipo_deposito"] for r in itens], [None, "Para-choque"])
+
     def test_bri_tres_destinos_preservam_decimal_endereco_e_imovel_extra(self):
         branches = [
             ("ponto_estrat_gico", "Ponto Estratégico", "group_zn1kq42", ("localidade", "logradouro", "quarteirao", "numero")),

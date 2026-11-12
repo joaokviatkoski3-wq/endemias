@@ -31,6 +31,14 @@ def normalizar_localidade(value):
     return LOCALIDADES_PADRAO.get(key, text.title() if text.isupper() or text.islower() else text)
 
 
+def morador_assumiu_eliminacao(value):
+    chave = _chave(str(value or ""))
+    return chave in {
+        "morador se responsabilizou por",
+        "nao o morador se responsabilizou por eliminar algum criadouro",
+    }
+
+
 def _text(value):
     text = str(value or "").strip()
     if not text or text.lower() in {"nan", "nat", "none"}:

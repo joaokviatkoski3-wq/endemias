@@ -118,6 +118,12 @@ def val_bool(val):
     return None
 
 
+def val_deposito_eliminado(val):
+    if normalizadores.morador_assumiu_eliminacao(val):
+        return 0
+    return val_bool(val)
+
+
 def normalizar_acs_presente(valor):
     return acs_core.normalizar_acs_presente(valor)
 
@@ -985,7 +991,7 @@ def processar_arquivo(caminho, tipo, cfg_tipo, cfg_larvas, larvas, conn, logger,
                     id_coleta, id_visita, val_str(coleta.get(col_tubo)),
                     val_str(coleta.get(cfg_tipo.get("col_codigo_deposito_coletas", "Código do depósito"))),
                     tipo_dep,
-                    val_bool(coleta.get(cfg_tipo.get("col_deposito_eliminado_coletas",
+                    val_deposito_eliminado(coleta.get(cfg_tipo.get("col_deposito_eliminado_coletas",
                                                       "O Depósito onde foi feita a coleta foi eliminado?"))),
                 ))
                 if cur.rowcount:

@@ -271,7 +271,7 @@ async function carregarPendentes(){
       return `<article class="tube-card ${externo?'external':''}">
         <div class="tube-top"><div class="tube-id"><img src="/static/icons/tubo_ensaio.svg" alt=""><strong>Tubo ${e(r.num_tubo)}</strong></div><span class="tube-age">${Number(r.dias_pendente)||0} dia(s)</span></div>
         <div class="tube-agent"><span>${r.tipo==='LIRAA'?'Equipe da visita':'Coletado por'}</span><strong>${e(r.equipe_coleta||r.agentes||'Não informado')}</strong></div>
-        <div class="tube-meta"><div><span>Coleta</span><strong>${fmtDate(r.data)}</strong></div><div><span>Tipo de trabalho</span><strong>${e(r.tipo)}</strong></div><div><span>Depósito</span><strong>${e(r.tipo_deposito||'-')}</strong></div><div><span>Localidade</span><strong>${e(r.localidade||'-')}</strong></div><div class="tube-address"><span>Endereço</span><strong>${e(r.logradouro||'-')}${r.numero?', '+e(r.numero):''} · Q. ${e(r.quarteirao||'-')}</strong></div></div>
+        <div class="tube-meta"><div><span>Coleta</span><strong>${fmtDate(r.data)}</strong></div><div><span>Tipo de trabalho</span><strong>${e(r.tipo)}</strong></div><div><span>Depósito</span><strong>${e(r.tipo_deposito||(r.codigo_deposito?'Código '+r.codigo_deposito:'Não informado'))}</strong></div><div><span>Localidade</span><strong>${e(r.localidade||'-')}</strong></div><div class="tube-address"><span>Endereço</span><strong>${e(r.logradouro||'-')}${r.numero?', '+e(r.numero):''} · Q. ${e(r.quarteirao||'-')}</strong></div></div>
         <button class="btn btn-primary tube-action" onclick="abrirLancamento(${i})"><img src="/static/icons/microscopio.svg" alt="" class="icon-svg"> Lançar resultado</button>
       </article>`;
     }).join('');

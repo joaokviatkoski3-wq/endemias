@@ -4,6 +4,26 @@ Atualizado em 12/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Candidata 2.7.6 — depósitos das coletas
+
+Worktree C:\endemias-interface, branch codex/corrige-depositos-tubitos.
+O tubo 916 de PE chegou do Kobo sem tipo nem código de depósito. A busca
+por trechos do nome do campo leu a resposta sobre eliminação no lugar do
+tipo. O extrator passa a identificar os campos pelos nomes exatos.
+O laboratório indica ausência de tipo, com o código disponível quando
+houver. A resposta de eliminação assumida pelo morador significa que o
+agente não eliminou o depósito durante a visita.
+
+O tubo 476 tem código B e tipo Para-choque na origem. O agente ficou vazio
+no Kobo. Auditoria somente leitura de 9 a 12/11 às 17h03: 34 envios PE e
+15 tubos confrontados, um depósito incorreto e um tubo sem equipe.
+Os 1.607 envios LIRAa consultados têm correspondente, com 2.011 visitas
+no banco incluindo o histórico das 15 reimportações por edição.
+Relatório local .venv/auditoria-semana-20261112.json.
+Passaram 76 testes focados e a conferência do laboratório em Chromium
+com tela de tablet. Ativação pendente. A exibição trata a informação
+incorreta do tubo 916; a candidata não regrava dados históricos.
+
 ## Versão ativa 2.7.5 — reenvios idênticos do LIRAa
 
 Worktree C:\endemias-interface, branch codex/consolida-reenvios-liraa.

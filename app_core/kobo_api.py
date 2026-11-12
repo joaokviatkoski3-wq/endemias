@@ -500,10 +500,10 @@ def record_tubes(record, fallback_date=None):
     tubes = []
     seen = set()
     for node in _iter_dict_nodes(record):
-        tubo = _value(node, TUBE_FIELD_CANDIDATES)
+        tubo = _leaf_exact_value(node, TUBE_FIELD_CANDIDATES)
         if not tubo:
             continue
-        data = _date_value(_value(node, ["Data da coleta", "data_coleta", "Data_da_coleta"])) or fallback_date
+        data = _date_value(_leaf_exact_value(node, ["Data da coleta", "data_coleta", "Data_da_coleta"])) or fallback_date
         key = (tubo.strip(), data or "")
         if key in seen:
             continue
@@ -511,9 +511,9 @@ def record_tubes(record, fallback_date=None):
         tubes.append({
             "tubo": key[0],
             "data": key[1],
-            "codigo_deposito": _leaf_value(node, COLLECTION_CODE_CANDIDATES),
-            "deposito": _leaf_value(node, COLLECTION_DEPOSIT_CANDIDATES),
-            "deposito_eliminado": _leaf_value(node, COLLECTION_ELIMINATED_CANDIDATES),
+            "codigo_deposito": _leaf_exact_value(node, COLLECTION_CODE_CANDIDATES),
+            "deposito": _leaf_exact_value(node, COLLECTION_DEPOSIT_CANDIDATES),
+            "deposito_eliminado": _leaf_exact_value(node, COLLECTION_ELIMINATED_CANDIDATES),
         })
     return tubes
 

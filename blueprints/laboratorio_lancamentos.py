@@ -15,7 +15,7 @@ from app_core import focos_positivos as focos_core
 from app_core import laboratorio_lancamentos as lab_core
 from app_core import ovitrampas_laboratorio as ovi_lab_core
 from app_core import liraa_laboratorio as liraa_lab_core
-from app_core import liraa_kobo, liraa_operacional, visitas
+from app_core import liraa_kobo, liraa_operacional, normalizadores, visitas
 
 
 bp = Blueprint("laboratorio_lancamentos", __name__)
@@ -65,6 +65,9 @@ def _agentes_coleta_sql(conn):
 
 def _serializar_coletas(conn, rows):
     itens = [db_core.serialize_row(row) for row in rows]
+    for item in itens:
+        if normalizadores.morador_assumiu_eliminacao(item.get("tipo_deposito")):
+            item["tipo_deposito"] = None
     tubos_liraa = {
         integradas.id_liraa(item["id_coleta"], integradas.TUBO_PREFIXO): item
         for item in itens
