@@ -268,11 +268,12 @@
     <button class="liraa-btn primary" type="submit">Consultar envios</button>
   </form>
   {% if kobo.get('previa') is not none %}
-  <p><strong>{{ kobo.previa|length }}</strong> visitas identificadas (após separar sequências); <strong>{{ kobo.previa|selectattr('situacao_importacao', 'equalto', 'nova')|list|length }}</strong> novas. Envios já importados ou excluídos serão ignorados.</p>
+  {% set revisoes_kobo = kobo.previa|selectattr('situacao_importacao', 'equalto', 'revisar edição')|list|length %}
+  <p><strong>{{ kobo.previa|selectattr('situacao_importacao', 'equalto', 'nova')|list|length }}</strong> visitas novas. Envios já importados ou excluídos serão ignorados. {% if revisoes_kobo %}<strong>{{ revisoes_kobo }} versão(ões) do Kobo aguardam revisão.</strong>{% endif %}</p>
   <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Data</th><th>Localidade</th><th>Quarteirão municipal</th><th>Vínculo</th><th>Importação</th><th>Sequência / avisos</th><th>Tubitos</th></tr></thead><tbody>
     {% for v in kobo.previa[:100] %}<tr><td>{{ v.data_visita }}</td><td>{{ v.localidade_informada }}</td><td>{{ v.quarteirao }}</td><td>{{ v.situacao_vinculo|replace('_', ' ') }}</td><td>{{ v.situacao_importacao }}</td><td>{{ v.sequencia or "—" }}{% for aviso in v.get("avisos", []) %}<p class="liraa-note">{{ aviso }}</p>{% endfor %}</td><td>{{ v.tubitos|length }}</td></tr>{% endfor %}
   </tbody></table></div>
-  {% if kobo.previa|length > 100 %}<p class="liraa-muted">Prévia mostra as primeiras 100 visitas. A importação considera todas as {{ kobo.previa|length }} visitas.</p>{% endif %}
+  {% if kobo.previa|length > 100 %}<p class="liraa-muted">Prévia mostra os primeiros 100 itens. A importação considera o período inteiro.</p>{% endif %}
   <p class="liraa-note">Quarteirões fora do sorteio ou sem estrato permanecem identificados para revisão; não entram automaticamente no resultado amostral.</p>
   <form method="post" action="{{ url_for('liraa.importar_kobo') }}" onsubmit="return confirm('Importar os envios novos deste período para o ciclo selecionado?');">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

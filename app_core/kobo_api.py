@@ -595,14 +595,17 @@ def record_details(tipo, record, larvas_links=None):
     return detalhes
 
 
-def summarize_submissions(records, existing_uuids=None, sample_size=20, tipo=None, larvas_links=None, amostra_filtro=None):
+def summarize_submissions(records, existing_uuids=None, sample_size=20, tipo=None, larvas_links=None,
+                          amostra_filtro=None, edicoes_para_revisao=None):
     existing_uuids = existing_uuids or set()
+    edicoes_para_revisao = edicoes_para_revisao or set()
     amostra_filtro = (amostra_filtro or "").strip().lower()
     rows = []
     novos = duplicados = sem_uuid = 0
     pendencias = 0
     for record in records:
         uuid = record_uuid(record)
+        revisar = uuid in edicoes_para_revisao
         duplicado = bool(uuid and uuid in existing_uuids)
         detalhes = record_details(tipo or "", record, larvas_links=larvas_links)
         problemas = []
@@ -611,6 +614,9 @@ def summarize_submissions(records, existing_uuids=None, sample_size=20, tipo=Non
         if not uuid:
             sem_uuid += 1
             problemas.append("Sem identificador interno do Kobo")
+        elif revisar:
+            from app_core.liraa_kobo import AVISO_EDICAO_KOBO
+            problemas.append(AVISO_EDICAO_KOBO)
         elif duplicado:
             duplicados += 1
         else:
@@ -644,7 +650,7 @@ def summarize_submissions(records, existing_uuids=None, sample_size=20, tipo=Non
                 problemas.append(f"Campos obrigatórios vazios: {', '.join(campos_vazios)}")
         if problemas:
             pendencias += 1
-        status = "sem_uuid" if not uuid else ("duplicado" if duplicado else "novo")
+        status = "sem_uuid" if not uuid else "revisao" if revisar else "duplicado" if duplicado else "novo"
         incluir_na_amostra = amostra_filtro != "novos" or status == "novo"
         if incluir_na_amostra and len(rows) < sample_size:
             rows.append({

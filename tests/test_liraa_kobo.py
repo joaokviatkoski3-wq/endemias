@@ -2,6 +2,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from zlib import crc32
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,7 +14,7 @@ from blueprints import liraa as liraa_routes
 
 def envio(uuid, quarteirao="408.1", localidade="centro", data="2026-10-06", tubitos=True):
     return {
-        "_uuid": uuid, "_id": 100, "_submission_time": "2026-10-06T17:00:00Z",
+        "_uuid": uuid, "_id": crc32(uuid.encode()) or 1, "_submission_time": "2026-10-06T17:00:00Z",
         "Data": data, "Hora_inicio": "14:45:00", "Agentes": "jo_o pedro",
         "ACS": "ACS-006", "Dados_visita": {
             "Localidade": localidade, "Quarteir_o": quarteirao, "Imovel": "rco",
@@ -128,6 +129,37 @@ class LiraaKoboTests(unittest.TestCase):
         self.assertEqual(conn.execute("SELECT COUNT(*) FROM liraa_visita_tubitos").fetchone()[0], 0)
         self.assertEqual(conn.execute("SELECT motivo FROM liraa_visitas_excluidas").fetchone()[0], "Teste")
         conn.close()
+
+    def test_edicao_kobo_com_mesmo_id_nao_duplica_visitas_ou_tubitos(self):
+        from app_core import liraa_integracao
+
+        original = envio("original")
+        original["Dados_visita"]["Sequencia"] = "2,3"
+        self.assertEqual(liraa_kobo.importar(self.target, 1, [original]), 2)
+        editado = dict(envio("nova-versao"), _id=original["_id"], rootUuid="original")
+        editado["Dados_visita"]["Sequencia"] = "2,3,4"
+        novo = envio("outro-envio")
+        previa = liraa_kobo.previa(self.target, 1, [editado, novo])
+        self.assertEqual([v["situacao_importacao"] for v in previa], ["revisar edição", "nova"])
+        self.assertEqual(liraa_kobo.importar(self.target, 1, [editado, novo]), 1)
+        conn = db.connect(self.target)
+        try:
+            with conn:
+                resultado = liraa_integracao.importar_lote(conn, [editado])
+            self.assertEqual(resultado["edicoes_para_revisao"], 1)
+            self.assertEqual(resultado["visitas_novas"], 0)
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM liraa_visita_tubitos").fetchone()[0], 2)
+        finally:
+            conn.close()
+
+    def test_edicao_de_envio_excluido_e_varias_versoes_no_lote_aguardam_revisao(self):
+        original = envio("original")
+        editado = dict(envio("editado"), _id=original["_id"], rootUuid="uuid:original")
+        self.assertEqual(liraa_kobo.importar(self.target, 1, [original, editado]), 0)
+        self.assertEqual(liraa_kobo.importar(self.target, 1, [original]), 1)
+        liraa_kobo.excluir(self.target, liraa_kobo.listar(self.target, 1)[0]["id_visita"], "Ensaio")
+        self.assertEqual(liraa_kobo.previa(self.target, 1, [editado])[0]["situacao_importacao"], "revisar edição")
+        self.assertEqual(liraa_kobo.importar(self.target, 1, [editado]), 0)
 
     def test_fora_sorteio_e_periodo_nao_recebem_vinculo_indevido(self):
         conn = db.connect(self.target)

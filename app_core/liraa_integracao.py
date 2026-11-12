@@ -7,7 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from app_core import agentes, db, focos_positivos as focos
-from app_core import liraa_kobo, visitas_integradas
+from app_core import kobo_api, liraa_kobo, visitas_integradas
 
 
 def ensure_schema(conn):
@@ -209,8 +209,12 @@ def _ler_exportacao(book):
 
 def importar_lote(conn, records):
     from app_core import liraa
+    liraa_kobo.bloquear_importacao(conn)
+    revisoes = liraa_kobo.edicoes_kobo_para_revisao(conn, records)
     grupos = {}
     for record in records:
+        if kobo_api.record_uuid(record) in revisoes:
+            continue
         grupos.setdefault(ciclo_envio(conn, record), []).append(record)
     visitas = tubos = 0
     for ciclo in sorted(grupos):
@@ -225,7 +229,8 @@ def importar_lote(conn, records):
                     agentes.obter_ou_criar(conn, nome)
             tubos += len(item["tubitos"])
         visitas += liraa_kobo.gravar_preparados(conn, ciclo, items)
-    return {"ok":True,"visitas_novas":visitas,"visitas_atualizadas":0,"coletas_novas":tubos,"resultados_novos":0}
+    return {"ok":True,"visitas_novas":visitas,"visitas_atualizadas":0,"coletas_novas":tubos,
+            "resultados_novos":0,"edicoes_para_revisao":len(revisoes)}
 
 
 def importar_leitura(conn, id_tubito, counts, nome, dia, uuid):

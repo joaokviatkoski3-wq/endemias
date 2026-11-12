@@ -336,7 +336,8 @@ async function buscarKoboPendentes() {
     if (!resp.ok || data.erro) throw new Error(data.erro || `HTTP ${resp.status}`);
     destino.className = '';
     destino.innerHTML = koboPendentesHtml(data);
-    setKoboStatus(data.total_novos ? 'Pendencias encontradas' : 'Sem pendencias', data.total_novos ? 'imp-azul' : 'imp-verde');
+    const precisaConferir = data.total_novos || data.itens?.some(item => item.pendencias || item.erro);
+    setKoboStatus(precisaConferir ? 'Pendências encontradas' : 'Sem pendências', precisaConferir ? 'imp-azul' : 'imp-verde');
   } catch (e) {
     destino.className = 'kobo-preview-empty';
     destino.textContent = 'Erro: ' + e.message;

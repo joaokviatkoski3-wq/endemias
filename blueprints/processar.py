@@ -394,6 +394,7 @@ def kobo_previa():
         tipo=tipo,
         larvas_links=larvas_links,
         amostra_filtro=amostra_filtro,
+        edicoes_para_revisao=_kobo_edicoes_para_revisao(tipo, records),
     )
     audit.registrar_evento(
         get_db,
@@ -464,6 +465,7 @@ def kobo_pendentes():
                 tipo=tipo,
                 larvas_links=larvas_links,
                 sample_size=0,
+                edicoes_para_revisao=_kobo_edicoes_para_revisao(tipo, records),
             )
             item.update({
                 "total": resumo.get("total", 0),
@@ -494,6 +496,17 @@ def kobo_pendentes():
         "total_novos": sum(item["novos"] for item in itens),
         "total_recebidos": sum(item["total"] for item in itens),
     })
+
+
+def _kobo_edicoes_para_revisao(tipo, records):
+    if tipo != "LIRAA" or not records:
+        return set()
+    from app_core import liraa_kobo
+    conn = get_db()
+    try:
+        return liraa_kobo.edicoes_kobo_para_revisao(conn, records)
+    finally:
+        conn.close()
 
 
 def _kobo_existing_uuids(tipo, records):
@@ -597,10 +610,13 @@ def kobo_lote_vetores_larvas():
     fim = data.get("fim") or None
     limite = data.get("limite") or 100
     registros_por_tipo, erros = _kobo_fetch_registros_vetores_larvas(data)
+    revisoes_liraa = _kobo_edicoes_para_revisao("LIRAA", registros_por_tipo.get("LIRAA", []))
 
     tubos_lote = {}
     for tipo in kobo_api.VISIT_TYPES:
         for record in registros_por_tipo.get(tipo, []):
+            if tipo == "LIRAA" and kobo_api.record_uuid(record) in revisoes_liraa:
+                continue
             data_visita = kobo_api.record_date(record)
             for tubo in kobo_api.record_tubes(record, fallback_date=data_visita):
                 key = (tubo["tubo"], tubo["data"])
@@ -633,6 +649,7 @@ def kobo_lote_vetores_larvas():
             _kobo_existing_uuids(tipo, records),
             tipo=tipo,
             larvas_links=links,
+            edicoes_para_revisao=revisoes_liraa if tipo == "LIRAA" else None,
         )
 
     larvas_resumo = resumos.get("LARVAS", {})
@@ -752,12 +769,17 @@ def kobo_importar_formulario_iniciar():
         catalogo_acs = _atualizar_catalogo_acs_esporotricose(cfg, asset_uid)
 
     existentes = _kobo_existing_uuids(tipo, records)
+    revisoes = _kobo_edicoes_para_revisao(tipo, records)
+    existentes.update(revisoes)
     records = [
         record for record in records
         if not kobo_api.record_uuid(record) or kobo_api.record_uuid(record) not in existentes
     ]
     if not records:
-        resposta = {"erro": f"Nenhum registro novo encontrado no Kobo para {tipo}."}
+        mensagem = f"Nenhum registro novo encontrado no Kobo para {tipo}."
+        if revisoes:
+            mensagem += f" Há {len(revisoes)} versão(ões) aguardando revisão."
+        resposta = {"erro": mensagem}
         if catalogo_acs:
             resposta["catalogo_acs"] = catalogo_acs
         return jsonify(resposta), 400

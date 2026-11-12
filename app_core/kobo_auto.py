@@ -102,8 +102,19 @@ def _buscar_novos(cfg, target, inicio, fim, tipos_permitidos=None):
         elif len(registros) >= 5000:
             raise ImportacaoAutomaticaErro(f"{tipo}: limite de 5.000 atingido sem total verificável.")
         existentes = _uuids_existentes(target, tipo, registros)
+        revisoes = set()
+        if tipo == "LIRAA" and registros:
+            from app_core import liraa_kobo
+            conn = db.connect(target)
+            try:
+                revisoes = liraa_kobo.edicoes_kobo_para_revisao(conn, registros)
+            finally:
+                conn.close()
+            existentes.update(revisoes)
         novos[tipo] = [item for item in registros if kobo_api.record_uuid(item) not in existentes]
         totais[tipo] = {"recebidos": len(registros), "novos": len(novos[tipo])}
+        if tipo == "LIRAA":
+            totais[tipo]["edicoes_para_revisao"] = len(revisoes)
     return novos, totais
 
 

@@ -305,17 +305,107 @@ def _vincular(item, context):
     return localidade_id, estrato_id, "sorteado"
 
 
+AVISO_EDICAO_KOBO = "Versão do Kobo precisa de revisão antes de alterar a visita no Endemias."
+
+
+def _id_permanente(record):
+    value = str(record.get("_id") or "").strip()
+    if value.isascii() and value.isdigit() and len(value) <= 19:
+        ident = int(value)
+        if 0 < ident <= 2**63 - 1:
+            return ident
+    return None
+
+
+def _uuids_anteriores(record, atual):
+    aliases = {
+        str(value or "").strip().removeprefix("uuid:")
+        for value in (record.get("rootUuid"), _campo(record, "meta/rootUuid"), _campo(record, "meta/deprecatedID"))
+    }
+    return aliases - {"", atual}
+
+
+def edicoes_kobo_para_revisao(conn, records):
+    """Detecta versões do mesmo envio antes de expandir as sequências."""
+    from app_core import liraa_sequencias
+
+    recebidos, ids_recebidos, candidatos = {}, defaultdict(set), set()
+    for record in records:
+        if not isinstance(record, dict):
+            raise LiraaKoboError("Envio Kobo inválido.")
+        uuid = kobo_api.record_uuid(record)
+        if not uuid:
+            continue
+        ident = _id_permanente(record)
+        aliases = _uuids_anteriores(record, uuid)
+        recebidos[uuid] = (ident, aliases)
+        if ident is not None:
+            ids_recebidos[ident].add(uuid)
+        if aliases:
+            candidatos.update(aliases | {uuid})
+
+    gravados = defaultdict(set)
+    ids = list(ids_recebidos)
+    visitas_existem = db.table_exists(conn, "liraa_visitas")
+    if visitas_existem:
+        for start in range(0, len(ids), 400):
+            lote = ids[start:start + 400]
+            marks = ",".join("?" for _ in lote)
+            for row in conn.execute(f"""SELECT kobo_id,kobo_uuid,tratamento_json
+                FROM liraa_visitas WHERE kobo_id IN ({marks})""", lote):
+                meta = json.loads(row["tratamento_json"] or "{}").get(liraa_sequencias.META) or {}
+                gravados[row["kobo_id"]].add(meta.get("uuid_origem") or row["kobo_uuid"])
+
+    conhecidos = set()
+    candidatos = list(candidatos)
+    for tabela in ("liraa_visitas", "liraa_visitas_excluidas"):
+        if not candidatos or not db.table_exists(conn, tabela):
+            continue
+        for start in range(0, len(candidatos), 400):
+            lote = candidatos[start:start + 400]
+            marks = ",".join("?" for _ in lote)
+            conhecidos.update(row[0] for row in conn.execute(
+                f"SELECT kobo_uuid FROM {tabela} WHERE kobo_uuid IN ({marks})", lote,
+            ))
+
+    return {
+        uuid for uuid, (ident, aliases) in recebidos.items()
+        if len(ids_recebidos.get(ident, ())) > 1
+        or len(gravados.get(ident, ())) > 1
+        or (gravados.get(ident) and uuid not in gravados[ident])
+        or (uuid not in conhecidos and aliases & conhecidos)
+    }
+
+
+def bloquear_importacao(conn):
+    # A identidade Kobo pode aparecer em ciclos diferentes. Use a mesma trava
+    # em todos os caminhos de gravação, antes de travar o ciclo.
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        conn.execute("SELECT pg_advisory_xact_lock(?)", (1840364334,))
+
+
 def _preparar(conn, id_ciclo, records):
     context = _contexto(conn, id_ciclo)
     if len(records) > 5000:
         raise LiraaKoboError("Reduza o período: mais de 5.000 envios.")
     uuids = set()
     preparados = []
+    revisoes = edicoes_kobo_para_revisao(conn, records)
     for record in records:
-        item = _normalizar(record)
-        if item["kobo_uuid"] in uuids:
+        uuid = kobo_api.record_uuid(record)
+        if uuid in uuids:
             raise LiraaKoboError("A resposta Kobo contém UUID repetido.")
-        uuids.add(item["kobo_uuid"])
+        uuids.add(uuid)
+        if uuid in revisoes:
+            preparados.append({
+                "data_visita": kobo_api.record_date(record) or "—",
+                "localidade_informada": str(_campo(record, "Dados_visita/Localidade") or "—"),
+                "quarteirao": str(_campo(record, "Dados_visita/Quarteir_o") or "—"),
+                "situacao_vinculo": "aguarda revisão", "situacao_importacao": "revisar edição",
+                "tubitos": [], "avisos": [AVISO_EDICAO_KOBO],
+            })
+            continue
+        item = _normalizar(record)
         from app_core import liraa_sequencias
         for unit in liraa_sequencias.expandir(conn,item):
             unit["id_localidade"], unit["id_estrato"], unit["situacao_vinculo"] = _vincular(unit, context)
@@ -348,12 +438,14 @@ def importar(target, id_ciclo, records, auditar=None):
             conn.execute("BEGIN IMMEDIATE")
         with conn:
             # Mesmo bloqueio usado no ressorteio: impede alteração do plano durante a importação.
+            bloquear_importacao(conn)
             liraa._bloquear_ciclo(conn, id_ciclo)
             items = _preparar(conn, id_ciclo, records)
             created = gravar_preparados(conn, id_ciclo, items)
             if auditar:
                 auditar(conn, {"id_ciclo": id_ciclo, "recebidos": len(items), "novos": created,
                                 "ja_importados": sum(x["situacao_importacao"] == "importada" for x in items),
+                                "edicoes_para_revisao": sum(x["situacao_importacao"] == "revisar edição" for x in items),
                                 "excluidos_ignorados": sum(x["situacao_importacao"] == "excluida" for x in items)})
             return created
     finally:
