@@ -1,8 +1,19 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 11/11/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 12/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
+
+## Candidata 2.7.4 — identificação dos envios LIRAa
+
+Worktree C:\endemias-interface, branch codex/corrige-identidade-consulta-liraa.
+A paginação usa o ID permanente para verificar se o mesmo envio reapareceu
+durante a consulta. A resposta completa inclui envios com UUID ausente ou
+compartilhado. Esses envios são identificados na prévia e ficam pendentes,
+com os IDs Kobo disponíveis. A importação manual e a automática continuam
+com os envios válidos. Mantém a proteção contra reimportação de versões.
+Sem migração. Passaram 164 testes focados e o ensaio PostgreSQL isolado
+com prévia web, importação e rotina automática. Ativação pendente.
 
 ## Versão ativa 2.7.3 — proteção das importações LIRAa
 

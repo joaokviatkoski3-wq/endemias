@@ -96,15 +96,17 @@ def buscar_kobo(cfg, target, inicio=None, fim=None, limite=5000, uid=None):
     uids.discard("")
     if not uids:
         return [],None
-    todos={}
+    todos = []
+    por_identidade = {}
     for projeto in sorted(uids):
         rows = kobo_api.fetch_complete_submissions(cfg, projeto, limit=limite, start=inicio, end=fim)
         for row in rows:
-            uuid=kobo_api.record_uuid(row)
-            if uuid in todos and todos[uuid] != row:
-                raise kobo_api.KoboError("LIRAa: UUID com dados diferentes entre projetos. Confira antes de importar.")
-            todos[uuid]=row
-    return list(todos.values()),{"count":len(todos)}
+            chave = (kobo_api.record_id(row), kobo_api.record_uuid(row))
+            versoes = por_identidade.setdefault(chave, [])
+            if row not in versoes:
+                versoes.append(row)
+                todos.append(row)
+    return todos, {"count": len(todos)}
 
 
 def ler_arquivo(caminho):
@@ -210,6 +212,8 @@ def _ler_exportacao(book):
 def importar_lote(conn, records):
     from app_core import liraa
     liraa_kobo.bloquear_importacao(conn)
+    problemas = kobo_api.liraa_problemas_identidade(records)
+    records = [record for record, problema in zip(records, problemas) if not problema]
     revisoes = liraa_kobo.edicoes_kobo_para_revisao(conn, records)
     grupos = {}
     for record in records:
@@ -230,7 +234,8 @@ def importar_lote(conn, records):
             tubos += len(item["tubitos"])
         visitas += liraa_kobo.gravar_preparados(conn, ciclo, items)
     return {"ok":True,"visitas_novas":visitas,"visitas_atualizadas":0,"coletas_novas":tubos,
-            "resultados_novos":0,"edicoes_para_revisao":len(revisoes)}
+            "resultados_novos":0,"edicoes_para_revisao":len(revisoes),
+            "pendencias_identidade":sum(bool(problema) for problema in problemas)}
 
 
 def importar_leitura(conn, id_tubito, counts, nome, dia, uuid):

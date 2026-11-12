@@ -249,7 +249,7 @@ class IntegracaoTests(unittest.TestCase):
             {"results": [registro], "count": 3, "next": None},
         ):
             with self.subTest(resposta=resposta), patch.object(
-                kobo_api, "_get_json", side_effect=[pagina1, resposta]
+                kobo_api, "_get_json", side_effect=[pagina1, resposta] * 2
             ):
                 with self.assertRaises(kobo_api.KoboError):
                     liraa_integracao.buscar_kobo(cfg, self.target)

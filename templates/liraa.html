@@ -269,7 +269,13 @@
   </form>
   {% if kobo.get('previa') is not none %}
   {% set revisoes_kobo = kobo.previa|selectattr('situacao_importacao', 'equalto', 'revisar edição')|list|length %}
+  {% set identidades_pendentes = kobo.previa|selectattr('situacao_importacao', 'equalto', 'conferir identidade')|list %}
   <p><strong>{{ kobo.previa|selectattr('situacao_importacao', 'equalto', 'nova')|list|length }}</strong> visitas novas. Envios já importados ou excluídos serão ignorados. {% if revisoes_kobo %}<strong>{{ revisoes_kobo }} versão(ões) do Kobo aguardam revisão.</strong>{% endif %}</p>
+  {% if identidades_pendentes %}
+  <details class="liraa-note"><summary>{{ identidades_pendentes|length }} envio(s) com identificação pendente</summary>
+    <ul>{% for item in identidades_pendentes %}<li>Kobo {{ item.kobo_id or 'sem ID' }} · {{ item.data_visita }} · {{ item.avisos[0] }}</li>{% endfor %}</ul>
+  </details>
+  {% endif %}
   <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Data</th><th>Localidade</th><th>Quarteirão municipal</th><th>Vínculo</th><th>Importação</th><th>Sequência / avisos</th><th>Tubitos</th></tr></thead><tbody>
     {% for v in kobo.previa[:100] %}<tr><td>{{ v.data_visita }}</td><td>{{ v.localidade_informada }}</td><td>{{ v.quarteirao }}</td><td>{{ v.situacao_vinculo|replace('_', ' ') }}</td><td>{{ v.situacao_importacao }}</td><td>{{ v.sequencia or "—" }}{% for aviso in v.get("avisos", []) %}<p class="liraa-note">{{ aviso }}</p>{% endfor %}</td><td>{{ v.tubitos|length }}</td></tr>{% endfor %}
   </tbody></table></div>

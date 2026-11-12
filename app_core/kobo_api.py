@@ -1,5 +1,6 @@
 import json
 import os
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from urllib import error, parse, request
@@ -298,7 +299,19 @@ def fetch_submissions(cfg, asset_uid, limit=100, start=None, end=None):
     return results[:params["limit"]], data
 
 
+class KoboPaginaRepetida(KoboError):
+    pass
+
+
 def fetch_complete_submissions(cfg, asset_uid, limit=5000, start=None, end=None):
+    """Retry once when the same submission appears twice during pagination."""
+    try:
+        return _fetch_complete_submissions(cfg, asset_uid, limit, start, end)
+    except KoboPaginaRepetida:
+        return _fetch_complete_submissions(cfg, asset_uid, limit, start, end)
+
+
+def _fetch_complete_submissions(cfg, asset_uid, limit, start, end):
     """Collect a complete, bounded batch from the Kobo v2 data endpoint."""
     path, params = _submissions_request(asset_uid, limit, start, end)
     max_records = params["limit"]
@@ -327,10 +340,15 @@ def fetch_complete_submissions(cfg, asset_uid, limit=5000, start=None, end=None)
         if total > max_records or (total == max_records and next_page is not None):
             raise KoboError(f"A consulta passou do limite de {max_records} envios. Reduza o período ou aumente o limite.")
         for row in results:
-            uuid = record_uuid(row) if isinstance(row, dict) else ""
-            if not uuid or uuid in seen:
-                raise KoboError("Kobo retornou um envio sem UUID ou repetido. Consulte novamente.")
-            seen.add(uuid)
+            if not isinstance(row, dict):
+                raise KoboError(incomplete)
+            ident = record_id(row)
+            # Edições e conflitos no UUID não alteram a identidade da linha
+            # paginada. Para respostas antigas sem ID, detecte cópias exatas.
+            key = ("id", ident) if ident is not None else ("linha", json.dumps(row, sort_keys=True))
+            if key in seen:
+                raise KoboPaginaRepetida("O Kobo repetiu a mesma linha entre os resultados. Consulte novamente ou reduza o período.")
+            seen.add(key)
             records.append(row)
 
         if next_page is None:
@@ -354,6 +372,26 @@ def fetch_complete_submissions(cfg, asset_uid, limit=5000, start=None, end=None)
 def record_uuid(record):
     value = record.get("_uuid") or record.get("meta/instanceID") or record.get("instanceID") or ""
     return str(value).replace("uuid:", "").strip()
+
+
+def record_id(record):
+    value = str(record.get("_id") or "").strip()
+    if value.isascii() and value.isdigit() and len(value) <= 19:
+        ident = int(value)
+        if 0 < ident <= 2**63 - 1:
+            return ident
+    return None
+
+
+def liraa_problemas_identidade(records):
+    uuids = [record_uuid(row) if isinstance(row, dict) else "" for row in records]
+    frequencia = Counter(uuids)
+    return [
+        "Envio sem UUID válido." if not uuid or len(uuid) > 100
+        else "Mesmo UUID em mais de um envio. Confira os IDs no Kobo." if frequencia[uuid] > 1
+        else None
+        for uuid in uuids
+    ]
 
 
 def record_date(record):
@@ -601,9 +639,11 @@ def summarize_submissions(records, existing_uuids=None, sample_size=20, tipo=Non
     edicoes_para_revisao = edicoes_para_revisao or set()
     amostra_filtro = (amostra_filtro or "").strip().lower()
     rows = []
+    rows_identidade = []
     novos = duplicados = sem_uuid = 0
     pendencias = 0
-    for record in records:
+    identidade = liraa_problemas_identidade(records) if tipo == "LIRAA" else [None] * len(records)
+    for record, problema_identidade in zip(records, identidade):
         uuid = record_uuid(record)
         revisar = uuid in edicoes_para_revisao
         duplicado = bool(uuid and uuid in existing_uuids)
@@ -611,7 +651,10 @@ def summarize_submissions(records, existing_uuids=None, sample_size=20, tipo=Non
         problemas = []
         if detalhes.get("erro_liraa"):
             problemas.append(detalhes["erro_liraa"])
-        if not uuid:
+        if problema_identidade:
+            problemas.append(problema_identidade)
+            sem_uuid += not uuid or len(uuid) > 100
+        elif not uuid:
             sem_uuid += 1
             problemas.append("Sem identificador interno do Kobo")
         elif revisar:
@@ -650,10 +693,11 @@ def summarize_submissions(records, existing_uuids=None, sample_size=20, tipo=Non
                 problemas.append(f"Campos obrigatórios vazios: {', '.join(campos_vazios)}")
         if problemas:
             pendencias += 1
-        status = "sem_uuid" if not uuid else "revisao" if revisar else "duplicado" if duplicado else "novo"
+        status = "revisao" if problema_identidade or revisar else "sem_uuid" if not uuid else "duplicado" if duplicado else "novo"
         incluir_na_amostra = amostra_filtro != "novos" or status == "novo"
-        if incluir_na_amostra and len(rows) < sample_size:
-            rows.append({
+        amostra = rows_identidade if problema_identidade else rows
+        if incluir_na_amostra and len(amostra) < sample_size:
+            amostra.append({
                 "uuid": uuid or "-",
                 "id": record.get("_id") or record.get("_xform_id_string") or "-",
                 "data": detalhes["data"],
@@ -670,7 +714,7 @@ def summarize_submissions(records, existing_uuids=None, sample_size=20, tipo=Non
         "sem_uuid": sem_uuid,
         "pendencias": pendencias,
         "amostra_filtro": amostra_filtro,
-        "amostra": rows,
+        "amostra": (rows_identidade + rows)[:sample_size],
     }
 
 

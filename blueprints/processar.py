@@ -502,9 +502,11 @@ def _kobo_edicoes_para_revisao(tipo, records):
     if tipo != "LIRAA" or not records:
         return set()
     from app_core import liraa_kobo
+    problemas = kobo_api.liraa_problemas_identidade(records)
+    validos = [record for record, problema in zip(records, problemas) if not problema]
     conn = get_db()
     try:
-        return liraa_kobo.edicoes_kobo_para_revisao(conn, records)
+        return liraa_kobo.edicoes_kobo_para_revisao(conn, validos)
     finally:
         conn.close()
 
@@ -610,12 +612,18 @@ def kobo_lote_vetores_larvas():
     fim = data.get("fim") or None
     limite = data.get("limite") or 100
     registros_por_tipo, erros = _kobo_fetch_registros_vetores_larvas(data)
-    revisoes_liraa = _kobo_edicoes_para_revisao("LIRAA", registros_por_tipo.get("LIRAA", []))
+    registros_liraa = registros_por_tipo.get("LIRAA", [])
+    revisoes_liraa = _kobo_edicoes_para_revisao("LIRAA", registros_liraa)
+    bloqueios_liraa = revisoes_liraa | {
+        kobo_api.record_uuid(record)
+        for record, problema in zip(registros_liraa, kobo_api.liraa_problemas_identidade(registros_liraa))
+        if problema
+    }
 
     tubos_lote = {}
     for tipo in kobo_api.VISIT_TYPES:
         for record in registros_por_tipo.get(tipo, []):
-            if tipo == "LIRAA" and kobo_api.record_uuid(record) in revisoes_liraa:
+            if tipo == "LIRAA" and kobo_api.record_uuid(record) in bloqueios_liraa:
                 continue
             data_visita = kobo_api.record_date(record)
             for tubo in kobo_api.record_tubes(record, fallback_date=data_visita):
@@ -771,14 +779,17 @@ def kobo_importar_formulario_iniciar():
     existentes = _kobo_existing_uuids(tipo, records)
     revisoes = _kobo_edicoes_para_revisao(tipo, records)
     existentes.update(revisoes)
+    problemas = kobo_api.liraa_problemas_identidade(records) if tipo == "LIRAA" else [None] * len(records)
     records = [
-        record for record in records
-        if not kobo_api.record_uuid(record) or kobo_api.record_uuid(record) not in existentes
+        record for record, problema in zip(records, problemas)
+        if not problema and kobo_api.record_uuid(record) not in existentes
     ]
     if not records:
         mensagem = f"Nenhum registro novo encontrado no Kobo para {tipo}."
         if revisoes:
             mensagem += f" Há {len(revisoes)} versão(ões) aguardando revisão."
+        if any(problemas):
+            mensagem += " Consulte a prévia para localizar os envios com problema de identificação."
         resposta = {"erro": mensagem}
         if catalogo_acs:
             resposta["catalogo_acs"] = catalogo_acs

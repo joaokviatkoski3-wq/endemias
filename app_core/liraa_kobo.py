@@ -308,15 +308,6 @@ def _vincular(item, context):
 AVISO_EDICAO_KOBO = "Versão do Kobo precisa de revisão antes de alterar a visita no Endemias."
 
 
-def _id_permanente(record):
-    value = str(record.get("_id") or "").strip()
-    if value.isascii() and value.isdigit() and len(value) <= 19:
-        ident = int(value)
-        if 0 < ident <= 2**63 - 1:
-            return ident
-    return None
-
-
 def _uuids_anteriores(record, atual):
     aliases = {
         str(value or "").strip().removeprefix("uuid:")
@@ -336,7 +327,7 @@ def edicoes_kobo_para_revisao(conn, records):
         uuid = kobo_api.record_uuid(record)
         if not uuid:
             continue
-        ident = _id_permanente(record)
+        ident = kobo_api.record_id(record)
         aliases = _uuids_anteriores(record, uuid)
         recebidos[uuid] = (ident, aliases)
         if ident is not None:
@@ -388,21 +379,24 @@ def _preparar(conn, id_ciclo, records):
     context = _contexto(conn, id_ciclo)
     if len(records) > 5000:
         raise LiraaKoboError("Reduza o período: mais de 5.000 envios.")
-    uuids = set()
     preparados = []
-    revisoes = edicoes_kobo_para_revisao(conn, records)
-    for record in records:
+    problemas = kobo_api.liraa_problemas_identidade(records)
+    revisoes = edicoes_kobo_para_revisao(conn, [
+        record for record, problema in zip(records, problemas) if not problema
+    ])
+    for record, problema in zip(records, problemas):
+        if not isinstance(record, dict):
+            raise LiraaKoboError("Envio Kobo inválido.")
         uuid = kobo_api.record_uuid(record)
-        if uuid in uuids:
-            raise LiraaKoboError("A resposta Kobo contém UUID repetido.")
-        uuids.add(uuid)
-        if uuid in revisoes:
+        if problema or uuid in revisoes:
             preparados.append({
                 "data_visita": kobo_api.record_date(record) or "—",
                 "localidade_informada": str(_campo(record, "Dados_visita/Localidade") or "—"),
                 "quarteirao": str(_campo(record, "Dados_visita/Quarteir_o") or "—"),
-                "situacao_vinculo": "aguarda revisão", "situacao_importacao": "revisar edição",
-                "tubitos": [], "avisos": [AVISO_EDICAO_KOBO],
+                "situacao_vinculo": "aguarda revisão",
+                "situacao_importacao": "conferir identidade" if problema else "revisar edição",
+                "kobo_id": kobo_api.record_id(record),
+                "tubitos": [], "avisos": [problema or AVISO_EDICAO_KOBO],
             })
             continue
         item = _normalizar(record)
@@ -446,6 +440,7 @@ def importar(target, id_ciclo, records, auditar=None):
                 auditar(conn, {"id_ciclo": id_ciclo, "recebidos": len(items), "novos": created,
                                 "ja_importados": sum(x["situacao_importacao"] == "importada" for x in items),
                                 "edicoes_para_revisao": sum(x["situacao_importacao"] == "revisar edição" for x in items),
+                                "pendencias_identidade": sum(x["situacao_importacao"] == "conferir identidade" for x in items),
                                 "excluidos_ignorados": sum(x["situacao_importacao"] == "excluida" for x in items)})
             return created
     finally:

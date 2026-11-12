@@ -101,20 +101,23 @@ def _buscar_novos(cfg, target, inicio, fim, tipos_permitidos=None):
                 )
         elif len(registros) >= 5000:
             raise ImportacaoAutomaticaErro(f"{tipo}: limite de 5.000 atingido sem total verificável.")
-        existentes = _uuids_existentes(target, tipo, registros)
+        problemas = kobo_api.liraa_problemas_identidade(registros) if tipo == "LIRAA" else [None] * len(registros)
+        validos = [item for item, problema in zip(registros, problemas) if not problema]
+        existentes = _uuids_existentes(target, tipo, validos)
         revisoes = set()
-        if tipo == "LIRAA" and registros:
+        if tipo == "LIRAA" and validos:
             from app_core import liraa_kobo
             conn = db.connect(target)
             try:
-                revisoes = liraa_kobo.edicoes_kobo_para_revisao(conn, registros)
+                revisoes = liraa_kobo.edicoes_kobo_para_revisao(conn, validos)
             finally:
                 conn.close()
             existentes.update(revisoes)
-        novos[tipo] = [item for item in registros if kobo_api.record_uuid(item) not in existentes]
+        novos[tipo] = [item for item in validos if kobo_api.record_uuid(item) not in existentes]
         totais[tipo] = {"recebidos": len(registros), "novos": len(novos[tipo])}
         if tipo == "LIRAA":
             totais[tipo]["edicoes_para_revisao"] = len(revisoes)
+            totais[tipo]["pendencias_identidade"] = sum(bool(problema) for problema in problemas)
     return novos, totais
 
 

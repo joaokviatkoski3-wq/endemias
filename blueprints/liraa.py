@@ -226,11 +226,12 @@ def importar_kobo():
         id_ciclo = int(request.form.get("ciclo") or 0)
         inicio, fim = request.form.get("inicio"), request.form.get("fim")
         records = _buscar_kobo(inicio, fim, id_ciclo)
-        revisoes = 0
+        revisoes = identidades = 0
 
         def registrar(conn, detalhes):
-            nonlocal revisoes
+            nonlocal revisoes, identidades
             revisoes = detalhes["edicoes_para_revisao"]
+            identidades = detalhes["pendencias_identidade"]
             audit.registrar_evento(_get_db, "liraa_visitas_importadas", entidade="liraa_ciclo",
                                    entidade_id=id_ciclo, detalhes=detalhes, conn=conn)
 
@@ -238,6 +239,8 @@ def importar_kobo():
         mensagem = f"Importação LIRAa concluída: {novos} visita(s) nova(s)."
         if revisoes:
             mensagem += f" Edições do Kobo aguardando revisão: {revisoes}."
+        if identidades:
+            mensagem += f" Envios com identificação pendente: {identidades}."
         flash(mensagem, "success")
     except (ValueError, liraa_kobo.LiraaKoboError, kobo_api.KoboError) as exc:
         flash(str(exc), "error")

@@ -161,6 +161,30 @@ class LiraaKoboTests(unittest.TestCase):
         self.assertEqual(liraa_kobo.previa(self.target, 1, [editado])[0]["situacao_importacao"], "revisar edição")
         self.assertEqual(liraa_kobo.importar(self.target, 1, [editado]), 0)
 
+    def test_identidade_inconsistente_isola_apenas_os_envios_afetados(self):
+        from app_core import liraa_integracao
+
+        primeiro = envio("uuid-em-conflito")
+        segundo = dict(primeiro, _id=11)
+        sem_uuid = dict(envio("sem-id"), _uuid="")
+        novo = envio("valido")
+        lote = [primeiro, segundo, sem_uuid, novo]
+        resumo = kobo_api.summarize_submissions(lote, tipo="LIRAA", sample_size=2)
+        self.assertEqual((resumo["total"], resumo["novos"], resumo["pendencias"]), (4, 1, 3))
+        self.assertEqual([r["status"] for r in resumo["amostra"]], ["revisao", "revisao"])
+        previa = liraa_kobo.previa(self.target, 1, lote)
+        self.assertEqual([v["situacao_importacao"] for v in previa], ["conferir identidade"] * 3 + ["nova"])
+        self.assertEqual(liraa_kobo.importar(self.target, 1, lote), 1)
+        conn = db.connect(self.target)
+        try:
+            with conn:
+                resultado = liraa_integracao.importar_lote(conn, lote)
+            self.assertEqual(resultado["pendencias_identidade"], 3)
+            self.assertEqual(resultado["visitas_novas"], 0)
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM liraa_visita_tubitos").fetchone()[0], 1)
+        finally:
+            conn.close()
+
     def test_fora_sorteio_e_periodo_nao_recebem_vinculo_indevido(self):
         conn = db.connect(self.target)
         conn.execute("INSERT INTO liraa_estrato_quarteiroes VALUES (2,1,1,'0409')")
@@ -252,6 +276,20 @@ class LiraaKoboTests(unittest.TestCase):
         self.assertIn("2026-11-11T23:59:59", params["query"])
         self.assertEqual(params["limit"], 1000)
         self.assertEqual(consultas[1], (path, dict(params, start=1000)))
+
+    def test_paginacao_distingue_uuid_repetido_de_repeticao_da_mesma_linha(self):
+        a = {"_id": 101, "_uuid": "mesmo-uuid"}
+        b = {"_id": 102, "_uuid": "mesmo-uuid"}
+        c = {"_id": 103}
+        p1 = {"results": [a], "count": 3, "next": "?start=1"}
+        sobreposta = {"results": [dict(a, _uuid="versao-editada"), c], "count": 3, "next": None}
+        p2 = {"results": [b, c], "count": 3, "next": None}
+        with patch.object(kobo_api, "_get_json", side_effect=[p1, sobreposta, p1, p2]) as fetch:
+            self.assertEqual(kobo_api.fetch_complete_submissions({}, "formulario"), [a, b, c])
+            self.assertEqual(fetch.call_count, 4)
+        with patch.object(kobo_api, "_get_json", side_effect=[p1, sobreposta] * 2):
+            with self.assertRaisesRegex(kobo_api.KoboError, "mesma linha"):
+                kobo_api.fetch_complete_submissions({}, "formulario")
 
     def test_sequencias_formatos_e_identificadores_variados(self):
         from app_core.liraa_sequencias import separar
