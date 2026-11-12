@@ -6,15 +6,16 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.7.4 — identificação dos envios LIRAa
+## Versão ativa 2.7.4 — identificação dos envios LIRAa
 
 A consulta paginada verifica repetição pelo ID permanente do Kobo. A prévia
 sinaliza todos os envios sem UUID válido ou que compartilham o UUID, com
 seus IDs para conferência. Os demais seguem para importação manual ou
 automática. A consulta completa é repetida uma vez se uma linha reaparecer
-na paginação. Sem migração de banco.
+na paginação. Sem migração de banco. Ativada em 12/11/2026, release
+38344f8, confirmada no portal e nos logins públicos e locais.
 
-## Versão ativa 2.7.3 — proteção das importações LIRAa
+## Histórico 2.7.3 — proteção das importações LIRAa
 
 Compara o ID permanente do envio e a linhagem de UUIDs antes de expandir
 sequências. Versões conflitantes ficam sinalizadas para revisão, e o lote
