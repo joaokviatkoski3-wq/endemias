@@ -4,7 +4,7 @@ Atualizado em 13/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.8.0 — resumo e encerramento do LIRAa
+## Versão ativa 2.8.0 — resumo e encerramento do LIRAa
 
 Worktree C:\endemias-interface, branch codex/liraa-encerramento. O Resumo do
 ciclo traz Entrada de dados, Índices, totais, CSV e conferência da cobertura.
@@ -21,9 +21,25 @@ ao superadmin para consulta. Importações e correções do ciclo exigem reabrir
 Tubitos sem leitura impedem encerrar; a cobertura incompleta e demais avisos
 são documentados nas observações. Nenhum ciclo é encerrado na implantação.
 O ciclo 4 será encerrado manualmente após a leitura dos tubitos, com a
-cobertura efetivamente registrada. Ativação pendente.
+cobertura efetivamente registrada.
 
-## Versão ativa 2.7.8 — metas de campo do LIRAa
+Ativação confirmada em 13/11/2026 às 13h03 (America/Sao_Paulo), release
+59312d1. O relatório ativacao-liraa-resumo280-resultado.json terminou
+aplicado/concluído, com backups completo e PostgreSQL, migração 0036,
+96 tabelas existentes comparadas e dados preservados. A identidade limitada,
+as entradas dos setores e a retomada da automação Kobo passaram na conferência.
+Portal e logins públicos e locais responderam HTTP 200 em 2.8.0. A consulta
+externa usou User-Agent de navegador; a requisição padrão do urllib recebeu
+403, sem falha das entradas locais.
+
+O relatório somente leitura ativacao-liraa-resumo280-painel.json confirmou
+o ciclo 4 aberto, com 1.964 imóveis programados, 2.191 trabalhados (83 em
+adicionais), 241 visitas excedentes por estrato, 14 faltantes e 99,3% de
+progresso. Restavam sem visita Cachoeira 1174 e Sede 0677. Havia 14 tubitos
+sem leitura no ciclo completo e 13 no recorte elegível do resumo. Os índices
+ainda são parciais; nenhuma ação de encerramento foi executada.
+
+## Histórico 2.7.8 — metas de campo do LIRAa
 
 Worktree C:\endemias-interface, branch codex/retira-0323-liraa. O quarteirão
 0323 de Santa Maria integra a lista de retiradas do ciclo 4. Sai da cobertura,

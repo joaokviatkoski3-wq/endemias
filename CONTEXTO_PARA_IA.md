@@ -6,7 +6,7 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.8.0 — resumo e encerramento do LIRAa
+## Versão ativa 2.8.0 — resumo e encerramento do LIRAa
 
 Resumo por estrato na ordem do programa oficial, com entrada de dados, índices,
 CSV e cobertura. Cada visita válida de imóvel aberto entra integralmente em
@@ -14,8 +14,15 @@ Insp., inclusive adicionais autorizados. O Acompanhamento mostra as visitas
 excedentes por estrato. Encerramento e reabertura manuais do superadmin com
 resumo congelado e histórico. Tubitos sem leitura impedem encerrar; o saldo
 de cobertura pode ser registrado em observações. O ciclo 4 segue aberto.
+Ativada em 13/11/2026 às 13h03, release 59312d1, com a migração 0036 e
+preservação conferida dos dados das 96 tabelas existentes. Portal e logins
+públicos e locais confirmaram 2.8.0. A consulta após a ativação registrou
+2.191 imóveis trabalhados, 241 visitas excedentes por estrato, 14 faltantes
+para as metas e 99,3% de progresso. Restavam Cachoeira 1174 e Sede 0677 sem
+visita e 14 tubitos sem leitura no ciclo completo. São números da conferência,
+não um encerramento; o laboratório pode continuar lançando resultados.
 
-## Versão ativa 2.7.8 — metas de campo do LIRAa
+## Histórico 2.7.8 — metas de campo do LIRAa
 
 Inclui o quarteirão 0323 nas retiradas operacionais do ciclo 4. O indicador
 de campo soma visitas nos quarteirões sorteados ativos e nos adicionais
