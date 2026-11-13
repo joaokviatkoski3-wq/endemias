@@ -173,6 +173,28 @@ class IntegracaoTests(unittest.TestCase):
         self.assertEqual(self.foco()["gera_notificacao"],0)
         self.assertEqual(laboratorio.listar(self.target,self.args)["total"],1)
 
+    def test_notificacao_existente_imprime_acs_da_visita_em_html_e_docx(self):
+        from docx import Document
+        from flask import render_template
+        from blueprints import notificacoes
+
+        self.importar(Agentes="no-ace", ACS="outros", ACS_outros="Pessoa ACS fictícia")
+        tubo = liraa_laboratorio.listar(self.target)[0]
+        liraa_laboratorio.salvar(self.target, tubo["id_tubito"], self.env.payload(aegypt_pupas="1"), self.env.user)
+        original = self.foco()
+        app = self.client().application
+        app.jinja_env.filters["data_br"] = lambda valor: valor
+        with app.test_request_context():
+            focos = notificacoes._focos_para_impressao([original["id_foco"]])
+            modelo = {"CABECALHO": "Endemias", "CORPO": "Aedes aegypti", "TITULO": "Notificação"}
+            html = render_template("notificacao_print.html", focos=focos, modelo=type("M", (), modelo)())
+            doc = Document()
+            notificacoes.gerar_via(doc, focos[0], modelo)
+        self.assertIn("Pessoa ACS fictícia", html)
+        self.assertNotIn("AGENTE(S):", html)
+        self.assertIn("ACS: Pessoa ACS fictícia", "\n".join(p.text for p in doc.paragraphs))
+        self.assertEqual(self.foco(), original)
+
     def test_multiplos_tubos_positivos_geram_uma_notificacao_e_exclusao_remove_vinculos(self):
         visita=self.importar(tubitos=2)
         for t in liraa_laboratorio.listar(self.target):

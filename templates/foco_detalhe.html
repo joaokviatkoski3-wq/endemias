@@ -115,6 +115,7 @@
         <div class="field full">
           <label>Agentes responsáveis</label>
           <input type="text" name="agentes" value="{{ foco.agentes or '' }}" placeholder="Nomes separados por / ou ,">
+          {% if foco.acs_nomes %}<small>ACS da visita LIRAa: {{ foco.acs_nomes }}</small>{% endif %}
         </div>
         <div class="field full">
           <label>Observações</label>

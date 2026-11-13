@@ -203,6 +203,7 @@
               {% if f.depositos %}<span title="{{ f.depositos }}"><img src="/static/icons/balde.svg" alt="🪣" class="icon-svg"> {{ f.depositos }}</span>{% endif %}
               {% if f.tipo_trabalho %}<span>{{ f.tipo_trabalho }}</span>{% endif %}
               {% if f.agentes %}<span class="dim"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"> {{ f.agentes }}</span>{% endif %}
+              {% if f.acs_nomes %}<span class="dim">ACS: {{ f.acs_nomes }}</span>{% endif %}
             </div>
           </div>
           <div class="foco-actions">

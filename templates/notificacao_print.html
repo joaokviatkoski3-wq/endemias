@@ -120,7 +120,8 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;color:#000;background
   <div class="campo"><strong>• ENDEREÇO:</strong> {{ end_fmt or '___________________________' }}</div>
   <div class="campo"><strong>• MORADOR:</strong> {{ f.nome_morador or '___________________________' }}</div>
   <div class="campo"><strong>• DEPÓSITO(S):</strong> {{ f.depositos or '___________________________' }}</div>
-  <div class="campo"><strong>• AGENTE(S):</strong> {{ f.agentes or '___________________________' }}</div>
+  {% if f.agentes or not f.acs_nomes %}<div class="campo"><strong>• AGENTE(S):</strong> {{ f.agentes or '___________________________' }}</div>{% endif %}
+  {% if f.acs_nomes %}<div class="campo"><strong>• ACS:</strong> {{ f.acs_nomes }}</div>{% endif %}
   {% if f.observacoes %}
   <div class="campo"><strong>• OBSERVAÇÕES:</strong> {{ f.observacoes }}</div>
   {% endif %}
