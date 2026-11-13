@@ -116,9 +116,10 @@ def resumir(target, id_ciclo, dia, turno="dia"):
 
         metas = [e for e in estratos.values() if e["meta"] is not None]
         for estrato in metas:
-            estrato["faltam"] = max(0, estrato["meta"] - estrato["sorteadas"])
+            estrato["faltam"] = max(0, estrato["meta"] - estrato["sorteadas"] - estrato["adicionais"])
         meta = sum(e["meta"] for e in metas)
         faltam = sum(e["faltam"] for e in metas)
+        cumpridas_sorteadas = sum(min(e["meta"], e["sorteadas"]) for e in metas)
         plano = set().union(*sorteados.values(), adicionais.keys())
         nomes = {ident: nome for nome, ident in localidades.items()}
         quarteiroes_pendentes = sorted(
@@ -141,6 +142,7 @@ def resumir(target, id_ciclo, dia, turno="dia"):
             "sorteadas": sum(e["sorteadas"] for e in estratos.values()),
             "adicionais": sum(e["adicionais"] for e in estratos.values()),
             "percentual": round(100 * (meta - faltam) / meta, 1) if meta else 0,
+            "percentual_sorteadas": round(100 * cumpridas_sorteadas / meta, 1) if meta else 0,
             "total_quarteiroes": len(plano), "quarteiroes_visitados": len(plano & visitados),
             "quarteiroes_pendentes": quarteiroes_pendentes,
             "turnos_dia": [(TURNOS[chave], turnos_dia[chave]) for chave in TURNOS if chave != "dia"],

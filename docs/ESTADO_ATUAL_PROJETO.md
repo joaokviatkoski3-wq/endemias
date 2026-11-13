@@ -4,6 +4,16 @@ Atualizado em 13/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Candidata 2.7.8 — metas de campo do LIRAa
+
+Worktree C:\endemias-interface, branch codex/retira-0323-liraa. O quarteirão
+0323 de Santa Maria integra a lista de retiradas do ciclo 4. Sai da cobertura,
+do plano de campo, mapa, boletim e XLSForm gerado. A meta por estrato e a
+assinatura permanecem as do sorteio original. No Acompanhamento, visitas
+nos quarteirões adicionais autorizados passam a compor o progresso de campo
+do próprio estrato, limitado à respectiva meta. O percentual só com visitas
+em sorteados ativos aparece separadamente. Sem migração. Ativação pendente.
+
 ## Versão ativa 2.7.7 — cobertura operacional do LIRAa
 
 Worktree C:\endemias-interface, branch codex/ajusta-cobertura-liraa.

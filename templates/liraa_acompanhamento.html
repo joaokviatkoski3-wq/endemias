@@ -30,16 +30,17 @@
 </div>
 
 <section class="liraa-panel liraa-acomp-meta">
-  <h2>Progresso em relação ao sorteio</h2>
+  <h2>Progresso das metas de campo</h2>
   {% if resumo.meta %}
   <div class="liraa-acomp-kpis">
     <div><strong>{{ numero(resumo.meta) }}</strong>Imóveis programados</div>
     <div><strong>{{ numero(resumo.sorteadas) }}</strong>Visitas nos quarteirões sorteados</div>
-    <div><strong>{{ numero(resumo.faltam) }}</strong>Visitas que faltam nas metas definidas</div>
+    <div><strong>{{ numero(resumo.faltam) }}</strong>Visitas que faltam nas metas de campo</div>
     <div><strong>{{ numero(resumo.adicionais) }}</strong>Visitas em quarteirões adicionais</div>
   </div>
   <progress value="{{ resumo.meta - resumo.faltam }}" max="{{ resumo.meta }}" aria-label="Progresso nas metas dos estratos"></progress>
-  <p class="liraa-muted">{{ '%g' | format(resumo.percentual) | replace('.', ',') }}% das metas definidas. O saldo é calculado separadamente em cada estrato, com a meta do sorteio original.</p>
+  <p class="liraa-muted">{{ '%g' | format(resumo.percentual) | replace('.', ',') }}% das metas de campo. Cada estrato soma as visitas em quarteirões sorteados ativos e adicionais, até a meta definida no sorteio.</p>
+  {% if resumo.adicionais %}<p class="liraa-muted">Com apenas as visitas em quarteirões sorteados ativos, o progresso é de {{ '%g' | format(resumo.percentual_sorteadas) | replace('.', ',') }}%.</p>{% endif %}
   {% else %}
   <p class="liraa-note">As metas aparecem após a realização do sorteio.</p>
   {% endif %}

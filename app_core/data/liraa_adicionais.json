@@ -11,6 +11,7 @@
     {"localidade": "Tranqueira", "quarteirao": "0548"}
   ],
   "retirados": [
+    {"localidade": "Santa Maria", "quarteirao": "0323"},
     {"localidade": "Santa Maria", "quarteirao": "0326"},
     {"localidade": "Santa Maria", "quarteirao": "0328"},
     {"localidade": "Santa Maria", "quarteirao": "0334"},

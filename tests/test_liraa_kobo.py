@@ -52,7 +52,7 @@ class LiraaKoboTests(unittest.TestCase):
         conn.close()
 
     def test_acompanhamento_separa_turnos_e_calcula_saldo_por_estrato(self):
-        from app_core import liraa_acompanhamento
+        from app_core import liraa_acompanhamento, liraa_modelo, liraa_operacional
 
         conn = db.connect(self.target)
         try:
@@ -61,7 +61,8 @@ class LiraaKoboTests(unittest.TestCase):
                     (id_estrato,id_ciclo,numero,tipo,imoveis_confirmados,observacoes,criado_em,atualizado_em)
                     VALUES (3,1,2,'normal',9000,'','2026-10-01','2026-10-01')""")
                 conn.execute("""INSERT INTO liraa_estrato_quarteiroes
-                    (id_estrato,id_ciclo,id_localidade,quarteirao) VALUES (3,1,1,'0409')""")
+                    (id_estrato,id_ciclo,id_localidade,quarteirao)
+                    VALUES (3,1,1,'0409'), (3,1,1,'0411'), (2,1,1,'0412')""")
                 conn.execute("""INSERT INTO liraa_sorteios
                     (id_estrato,criado_em,semente,n,a,q,fracao,intervalo,inicio_casual,
                      universo_hash,universo_json,selecionados_json)
@@ -69,6 +70,7 @@ class LiraaKoboTests(unittest.TestCase):
                            universo_hash,universo_json,?
                     FROM liraa_sorteios WHERE id_estrato=2""",
                     (json.dumps([{"id_localidade": 1, "quarteirao": "0409"}]),))
+            plano_hash = liraa_operacional.plano_hash_conn(conn, 1)
         finally:
             conn.close()
 
@@ -93,6 +95,22 @@ class LiraaKoboTests(unittest.TestCase):
         self.assertEqual(dados["quarteiroes_visitados"], 1)
         self.assertEqual(dados["quarteiroes_pendentes"][0]["quarteirao"], "0409")
         self.assertIn(("Terreno baldio", 0, 1), dados["tipos"])
+
+        config = {"ciclo": 1, "plano_hash": plano_hash, "quarteiroes": [
+            {"localidade": "Sede", "quarteirao": "0411"},
+            {"localidade": "Sede", "quarteirao": "0412"},
+        ]}
+        extras = [envio("extra-estrato-2", "0411", tubitos=False),
+                  envio("extra-estrato-1", "0412", tubitos=False)]
+        with patch.object(liraa_modelo, "adicionais", return_value=config):
+            self.assertEqual(liraa_kobo.importar(self.target, 1, extras), 2)
+            com_extras = liraa_acompanhamento.resumir(self.target, 1, "2026-10-06")
+        self.assertEqual(com_extras["meta"], 3)
+        self.assertEqual(com_extras["adicionais"], 2)
+        self.assertEqual([e["faltam"] for e in com_extras["estratos"]], [0, 1])
+        self.assertEqual(com_extras["faltam"], 1)
+        self.assertEqual(com_extras["percentual"], 66.7)
+        self.assertEqual(com_extras["percentual_sorteadas"], 33.3)
 
     def test_ponto_virgula_e_zero_decimal_sao_o_mesmo_quarteirao(self):
         records = [envio("uuid-ponto", "408.1"), envio("uuid-virgula", "408,1"),
