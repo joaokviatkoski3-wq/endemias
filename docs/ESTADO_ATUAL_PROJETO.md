@@ -4,13 +4,20 @@ Atualizado em 13/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.8.5 — ACS nas notificações LIRAa
+## Candidata 2.8.6 — nomes dos depósitos nas notificações LIRAa
+
+A lista e a impressão mostram a descrição do depósito positivo, com o
+número do tubo. Se faltar a descrição, usam o nome da classe do depósito.
+Edições manuais da notificação são preservadas. Sem migração.
+
+## Versão ativa 2.8.5 — ACS nas notificações LIRAa
 
 Lista, detalhe e impressão HTML/DOCX consultam os ACS da visita de origem,
 inclusive em ciclos encerrados. O ACS tem campo próprio no documento.
 Sem migração ou regravação das notificações.
+Ativada em 13/11/2026, release 3a2349f.
 
-## Versão ativa 2.8.4 — boletim LIRAa e contraste em Entregas por fonte
+## Histórico 2.8.4 — boletim LIRAa e contraste em Entregas por fonte
 
 O PDF por estrato ou localidade apresenta resultados, data e espaço para
 assinatura. Os avisos operacionais ficam na tela de conferência. Sem migração.

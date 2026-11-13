@@ -1,5 +1,6 @@
 import os
 import re
+from collections import defaultdict
 from datetime import date, datetime
 
 from flask import (
@@ -20,7 +21,7 @@ from app_core import auth as auth_core
 from app_core import db as db_core
 from app_core import visitas_integradas as integradas
 from app_core import escopo_agente
-from app_core import acs, liraa_kobo, liraa_operacional, visitas
+from app_core import acs, liraa_integracao, liraa_kobo, liraa_operacional, visitas
 from app_core import utils as utils_core
 from app_core import work_types
 
@@ -29,14 +30,15 @@ bp = Blueprint("notificacoes", __name__)
 login_required = auth_core.login_required
 
 
-def _incluir_acs_liraa(conn, focos):
-    """Lê os ACS da visita de origem, inclusive para notificações antigas."""
+def _complementar_focos_liraa(conn, focos):
+    """Lê a equipe e os depósitos positivos da visita de origem."""
     ids = list(dict.fromkeys(f.get("id_visita_liraa") for f in focos if f.get("id_visita_liraa")))
     if not ids:
         return
     catalogo = visitas.catalogo_acs(conn)
     equipe_por_visita = {}
     participantes = []
+    tubos_por_visita = defaultdict(list)
     for inicio in range(0, len(ids), 500):
         lote = ids[inicio:inicio + 500]
         marcadores = ",".join("?" for _ in lote)
@@ -49,6 +51,15 @@ def _incluir_acs_liraa(conn, focos):
                        if c.casefold() not in {"no-acs", "outros"}]
             outros = str(liraa_kobo.dados_campo(registro).get("acs_outros") or "").strip()
             participantes.append((registro["id_visita"], codigos, outros))
+        for tubo in conn.execute(
+            f"""SELECT t.id_visita, t.codigo_deposito, t.deposito, t.numero
+                  FROM liraa_visita_tubitos t JOIN liraa_leituras l ON l.id_tubito=t.id_tubito
+                 WHERE t.id_visita IN ({marcadores})
+                   AND COALESCE(l.aegypt_larvas,0)+COALESCE(l.aegypt_pupas,0)>0
+                 ORDER BY t.id_visita, t.ordem""",
+            lote,
+        ):
+            tubos_por_visita[tubo["id_visita"]].append(tubo)
     if any(c.casefold() not in catalogo for _, codigos, _ in participantes for c in codigos):
         for pessoa in liraa_operacional.catalogo_acs(_db_target()):
             catalogo.setdefault(pessoa["codigo"].casefold(), pessoa["nome"])
@@ -58,7 +69,11 @@ def _incluir_acs_liraa(conn, focos):
             nomes.append(outros)
         equipe_por_visita[ident] = ", ".join(dict.fromkeys(nomes))
     for foco in focos:
-        foco["acs_nomes"] = equipe_por_visita.get(foco.get("id_visita_liraa"), "")
+        ident = foco.get("id_visita_liraa")
+        foco["acs_nomes"] = equipe_por_visita.get(ident, "")
+        tubos = tubos_por_visita.get(ident)
+        if tubos and foco.get("depositos") == liraa_integracao.depositos_notificacao(tubos):
+            foco["depositos_exibicao"] = liraa_integracao.depositos_notificacao(tubos, por_nome=True)
 
 
 def _db_target():
@@ -238,7 +253,7 @@ def page():
         locs_n = [r[0] for r in conn.execute("SELECT DISTINCT nome FROM localidades ORDER BY nome").fetchall()]
         agentes_l = [r[0] for r in conn.execute("SELECT nome FROM agentes ORDER BY nome").fetchall()]
         focos_serializados = [db_core.serialize_row(f) for f in focos]
-        _incluir_acs_liraa(conn, focos_serializados)
+        _complementar_focos_liraa(conn, focos_serializados)
     finally:
         conn.close()
 
@@ -283,7 +298,7 @@ def foco_detalhe(id_foco):
     if foco.get("id_visita_liraa"):
         conn = get_db()
         try:
-            _incluir_acs_liraa(conn, [foco])
+            _complementar_focos_liraa(conn, [foco])
         finally:
             conn.close()
     historico = []
@@ -473,7 +488,7 @@ def imprimir():
                 focos.append(db_core.serialize_row(row))
         if not focos:
             return "Nenhum foco valido.", 400
-        _incluir_acs_liraa(conn, focos)
+        _complementar_focos_liraa(conn, focos)
         try:
             caminho = gerar_docx(focos)
         except Exception as exc:
@@ -666,7 +681,7 @@ def gerar_via(doc, foco, modelo):
         ("LOCALIDADE", loc_linha or "___________________________"),
         ("ENDERECO", end_fmt or "___________________________"),
         ("MORADOR", foco.get("nome_morador") or "___________________________"),
-        ("DEPOSITO(S)", foco.get("depositos") or "___________________________"),
+        ("DEPOSITO(S)", foco.get("depositos_exibicao") or foco.get("depositos") or "___________________________"),
     ]
     if foco.get("agentes") or not foco.get("acs_nomes"):
         campos.append(("AGENTE(S)", foco.get("agentes") or "___________________________"))
@@ -735,7 +750,7 @@ def _focos_para_impressao(ids):
             ).fetchone()
             if row:
                 focos.append(db_core.serialize_row(row))
-        _incluir_acs_liraa(conn, focos)
+        _complementar_focos_liraa(conn, focos)
     finally:
         conn.close()
     return focos

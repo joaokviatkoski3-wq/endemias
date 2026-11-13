@@ -7,7 +7,28 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from app_core import agentes, db, focos_positivos as focos
-from app_core import kobo_api, liraa_kobo, visitas_integradas
+from app_core import kobo_api, liraa_kobo, liraa_operacional, normalizadores, visitas_integradas
+
+
+def depositos_notificacao(tubos, *, por_nome=False):
+    itens = []
+    for tubo in tubos:
+        codigo = tubo["codigo_deposito"]
+        deposito = tubo["deposito"]
+        if por_nome:
+            classe = str(codigo or "").strip().upper()
+            nome = normalizadores._text(deposito)
+            if nome and (nome.upper() in liraa_operacional.DEPOSITOS
+                         or nome.upper() == classe
+                         or normalizadores.morador_assumiu_eliminacao(nome)):
+                if not classe:
+                    classe = nome.upper()
+                nome = None
+            descricao = nome or liraa_operacional.DEPOSITOS.get(classe) or "Não informado"
+        else:
+            descricao = codigo or deposito or "Não informado"
+        itens.append(f"{descricao} (tubo {tubo['numero'] or 'sem número'})")
+    return ", ".join(itens)
 
 
 def ensure_schema(conn):
@@ -42,7 +63,7 @@ def sincronizar_foco(conn, id_visita):
         return None
     nomes = dict(visitas_integradas.catalogo_agentes())
     participantes = ", ".join(nomes.get(c, agentes.normalizar_nome(c)) for c in v["agentes_codigos"].split() if c != "no-ace")
-    deposito = ", ".join(f"{t['codigo_deposito'] or t['deposito'] or 'Não informado'} (tubo {t['numero'] or 'sem número'})" for t in tubes)
+    deposito = depositos_notificacao(tubes)
     codigo = str(v["data_visita"]).replace("-", "") + str(tubes[0]["numero"] or "")
     numero_quarteirao=Decimal(v["quarteirao"])
     quarteirao_legado=int(numero_quarteirao) if numero_quarteirao==numero_quarteirao.to_integral_value() and numero_quarteirao<=9223372036854775807 else None

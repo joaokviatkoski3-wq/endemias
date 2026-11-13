@@ -111,6 +111,7 @@
         <div class="field full">
           <label>Depósitos encontrados</label>
           <input type="text" name="depositos" value="{{ foco.depositos or '' }}" placeholder="Ex: A1, B, C">
+          {% if foco.depositos_exibicao %}<small>Na impressão: {{ foco.depositos_exibicao }}</small>{% endif %}
         </div>
         <div class="field full">
           <label>Agentes responsáveis</label>

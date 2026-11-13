@@ -200,7 +200,8 @@
               <span><img src="/static/icons/agenda.svg" alt="🗓" class="icon-svg"> {{ f.data[:10] if f.data and f.data|length >= 10 else '—' }}</span>
               <span><img src="/static/icons/tubo_ensaio.svg" alt="🧪" class="icon-svg"> Tubo(s) {{ f.num_tubo or '—' }}</span>
               {% if f.codigo %}<span style="font-weight:700;color:var(--brand);">#{{ f.codigo }}</span>{% endif %}
-              {% if f.depositos %}<span title="{{ f.depositos }}"><img src="/static/icons/balde.svg" alt="🪣" class="icon-svg"> {{ f.depositos }}</span>{% endif %}
+              {% set depositos = f.depositos_exibicao or f.depositos %}
+              {% if depositos %}<span title="{{ depositos }}"><img src="/static/icons/balde.svg" alt="🪣" class="icon-svg"> {{ depositos }}</span>{% endif %}
               {% if f.tipo_trabalho %}<span>{{ f.tipo_trabalho }}</span>{% endif %}
               {% if f.agentes %}<span class="dim"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"> {{ f.agentes }}</span>{% endif %}
               {% if f.acs_nomes %}<span class="dim">ACS: {{ f.acs_nomes }}</span>{% endif %}

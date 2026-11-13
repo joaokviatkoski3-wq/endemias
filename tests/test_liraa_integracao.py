@@ -178,7 +178,9 @@ class IntegracaoTests(unittest.TestCase):
         from flask import render_template
         from blueprints import notificacoes
 
-        self.importar(Agentes="no-ace", ACS="outros", ACS_outros="Pessoa ACS fictícia")
+        registro = self.env.registro(Agentes="no-ace", ACS="outros", ACS_outros="Pessoa ACS fictícia")
+        registro["group_jr1vc40"][0].update({"C_digo_do_dep_sito": "D1", "Dep_sito": "Pneu"})
+        liraa_kobo.importar(self.target, self.env.ciclo, [registro])
         tubo = liraa_laboratorio.listar(self.target)[0]
         liraa_laboratorio.salvar(self.target, tubo["id_tubito"], self.env.payload(aegypt_pupas="1"), self.env.user)
         original = self.foco()
@@ -193,6 +195,10 @@ class IntegracaoTests(unittest.TestCase):
         self.assertIn("Pessoa ACS fictícia", html)
         self.assertNotIn("AGENTE(S):", html)
         self.assertIn("ACS: Pessoa ACS fictícia", "\n".join(p.text for p in doc.paragraphs))
+        self.assertIn("D1 (tubo 100)", original["depositos"])
+        self.assertIn("Pneu (tubo 100)", html)
+        self.assertIn("Pneu (tubo 100)", "\n".join(p.text for p in doc.paragraphs))
+        self.assertNotIn("D1 (tubo 100)", html)
         self.assertEqual(self.foco(), original)
 
     def test_multiplos_tubos_positivos_geram_uma_notificacao_e_exclusao_remove_vinculos(self):
