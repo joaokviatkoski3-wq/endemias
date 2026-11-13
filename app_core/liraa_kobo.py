@@ -271,9 +271,14 @@ def _contexto(conn, id_ciclo):
         sorteados[row["id_estrato"]] = {
             (item["id_localidade"], _quarteirao(item["quarteirao"]))
             for item in json.loads(row["selecionados_json"])}
-    from app_core.liraa_operacional import plano_hash_conn, adicionais_conn
+    from app_core.liraa_operacional import plano_hash_conn, adicionais_conn, retirados_conn
     hash_plano = plano_hash_conn(conn, id_ciclo)
     adicionais = adicionais_conn(conn, id_ciclo, hash_plano)
+    retirados = retirados_conn(conn, id_ciclo, hash_plano)
+    for quarteiroes in sorteados.values():
+        quarteiroes.difference_update(retirados)
+    for key in retirados:
+        adicionais.pop(key, None)
     return cycle, nomes, estratos, sorteados, hash_plano, adicionais
 
 

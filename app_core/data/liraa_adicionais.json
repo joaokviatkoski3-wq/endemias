@@ -9,5 +9,12 @@
     {"localidade": "São João Batista", "quarteirao": "0619"},
     {"localidade": "Tranqueira", "quarteirao": "0518"},
     {"localidade": "Tranqueira", "quarteirao": "0548"}
+  ],
+  "retirados": [
+    {"localidade": "Santa Maria", "quarteirao": "0326"},
+    {"localidade": "Santa Maria", "quarteirao": "0328"},
+    {"localidade": "Santa Maria", "quarteirao": "0334"},
+    {"localidade": "Santa Maria", "quarteirao": "0339"},
+    {"localidade": "Sede", "quarteirao": "0840"}
   ]
 }

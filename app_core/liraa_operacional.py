@@ -134,6 +134,18 @@ def adicionais_conn(conn, id_ciclo, hash_plano=None):
     return result
 
 
+def retirados_conn(conn, id_ciclo, hash_plano):
+    """Exclusões operacionais com a mesma assinatura do sorteio distribuído."""
+    config = liraa_modelo.adicionais()
+    retirados = config.get("retirados", [])
+    if str(id_ciclo) != str(config["ciclo"]) or not retirados:
+        return set()
+    if hash_plano != config["plano_hash"]:
+        raise liraa.LiraaError("As retiradas pertencem a outro plano. Confira a assinatura do sorteio.")
+    locais = {rg._norm(r["nome"]): r["id_localidade"] for r in conn.execute("SELECT id_localidade,nome FROM localidades")}
+    return {(locais[rg._norm(item["localidade"])], rg._quarteirao(item["quarteirao"])) for item in retirados}
+
+
 def plano(target, id_ciclo, base_dir=None, id_estrato=None, id_localidade=None):
     """Sorteio congelado + adicionais autorizados, enriquecidos pelo RG ativo."""
     data = liraa.painel(target, base_dir)
@@ -147,6 +159,7 @@ def plano(target, id_ciclo, base_dir=None, id_estrato=None, id_localidade=None):
     try:
         hash_plano = plano_hash_conn(conn, ciclo["id_ciclo"])
         adicionais = adicionais_conn(conn, ciclo["id_ciclo"], hash_plano)
+        retirados = retirados_conn(conn, ciclo["id_ciclo"], hash_plano)
     finally:
         conn.close()
     rows = []
@@ -156,6 +169,8 @@ def plano(target, id_ciclo, base_dir=None, id_estrato=None, id_localidade=None):
         selecionados = [{**q, "adicional": False} for q in estrato["sorteio"]["selecionados"]]
         selecionados.extend(q for q in adicionais.values() if q["id_estrato"] == estrato["id_estrato"])
         for saved in selecionados:
+            if (saved["id_localidade"], rg._quarteirao(saved["quarteirao"])) in retirados:
+                continue
             if id_localidade and str(saved["id_localidade"]) != str(id_localidade):
                 continue
             atual = ativos.get((saved["id_localidade"], saved["quarteirao"]))

@@ -4,6 +4,22 @@ Atualizado em 13/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Candidata 2.7.7 — cobertura operacional do LIRAa
+
+Worktree C:\endemias-interface, branch codex/ajusta-cobertura-liraa.
+Retiradas solicitadas para o ciclo 4: Santa Maria 0326, 0328, 0334 e 0339,
+Sede 0840. O 0326 não está no formulário aprovado. O 0323 consta no sorteio
+e foi preservado. As retiradas saem do plano operacional, cobertura,
+boletim, mapa e XLSForm gerado. A assinatura e as metas por estrato
+continuam as do sorteio registrado. O Kobo publicado mantém a versão atual.
+
+Seis envios de 10/11 foram corrigidos no Kobo para Tanguá 0001. A
+reimportação sinaliza edição pendente. O pacote inclui correção em transação
+das sete visitas existentes, com validação dos IDs permanentes, linhagem,
+sequências e vínculo com o plano. Preserva chaves, tubitos e leituras.
+Passaram 108 testes LIRAa, 24 do instalador e o ensaio PostgreSQL isolado
+de correção, repetição sem duplicação e preservação da meta. Ativação pendente.
+
 ## Versão ativa 2.7.6 — depósitos das coletas
 
 Worktree C:\endemias-interface, branch codex/corrige-depositos-tubitos.

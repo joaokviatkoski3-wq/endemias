@@ -25,8 +25,15 @@ def _atualizar_aprovado(target, id_ciclo, contrato):
     from app_core import db
     conn = db.connect(target)
     try:
-        if op.plano_hash_conn(conn, id_ciclo) != contrato["plano_hash"]:
+        hash_plano = op.plano_hash_conn(conn, id_ciclo)
+        if hash_plano != contrato["plano_hash"]:
             raise liraa.LiraaError("O plano salvo diverge do formulário aprovado. Confira o ciclo e os sorteios; não gere outro plano para contornar este aviso.")
+        retirados = op.retirados_conn(conn, id_ciclo, hash_plano)
+        escolhas_retiradas = set()
+        if retirados:
+            nomes = {r["id_localidade"]: liraa_kobo._localidade(r["nome"])
+                     for r in conn.execute("SELECT id_localidade,nome FROM localidades")}
+            escolhas_retiradas = {(nomes[loc], q) for loc, q in retirados}
     finally:
         conn.close()
     config = op.configuracao(target, id_ciclo)
@@ -39,6 +46,16 @@ def _atualizar_aprovado(target, id_ciclo, contrato):
         sheet = workbook["choices"]
         headers = [cell.value for cell in sheet[1]]
         indices = {key: i for i, key in enumerate(headers)}
+        if escolhas_retiradas:
+            lista_quadras = survey["Quarteir_o"]["type"].split()[-1]
+            linhas_retiradas = [
+                index for index, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), 2)
+                if row[indices["list_name"]] == lista_quadras and row[indices["name"]] != "outros"
+                and (liraa_kobo._localidade(row[indices["localidade"]]),
+                     liraa_kobo._quarteirao(row[indices["name"]])) in escolhas_retiradas
+            ]
+            for index in reversed(linhas_retiradas):
+                sheet.delete_rows(index)
         originais = [(i, [c.value for c in row]) for i, row in enumerate(sheet.iter_rows(min_row=2), 2)
                       if row[indices["list_name"]].value == lista]
         if not originais:

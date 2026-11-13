@@ -157,7 +157,8 @@
           {% if e.historico_sorteios|default([]) %}<details class="liraa-sample"><summary>Histórico de sorteios substituídos ({{ e.historico_sorteios|length }})</summary>
             {% for h in e.historico_sorteios %}<p class="liraa-muted">Substituído em {{ h.substituido_em }} · IC {{ h.sorteio.inicio_casual }} · {{ h.selecionados|length }} quarteirões</p><p>{% for q in h.selecionados %}{{ q.localidade }}: Q. {{ q.quarteirao_exibicao }}{% if not loop.last %}; {% endif %}{% endfor %}</p>{% endfor %}
           </details>{% endif %}
-          <details class="liraa-sample"><summary>Ver {{ e.sorteio.selecionados|length }} {{ 'quarteirão sorteado' if e.sorteio.selecionados|length == 1 else 'quarteirões sorteados' }}</summary>
+          <details class="liraa-sample"><summary>Ver {{ e.sorteio.selecionados|length }} {{ 'quarteirão sorteado' if e.sorteio.selecionados|length == 1 else 'quarteirões sorteados' }} no plano original</summary>
+            <p class="liraa-muted">Consulte o Plano de campo para ver os quarteirões em operação.</p>
             <p class="liraa-muted">Imóveis de referência do RG atual, contando cada COND como 1 imóvel. A seleção e os parâmetros do sorteio original são preservados.</p>
             <div class="liraa-table-wrap"><table class="liraa-table"><thead><tr><th>Localidade</th><th>Início local</th><th>Posição sorteada (1 a A)</th><th>Quarteirão municipal</th><th>Ordem no estrato</th><th>Imóveis RG atuais (referência)</th></tr></thead><tbody>
             {% for q in e.sorteio.selecionados %}{% set imoveis = e.sorteio.imoveis_rg_atuais.get(q.id_localidade|string ~ ':' ~ q.quarteirao) %}<tr><td>{{ q.localidade }}</td><td>{{ q.inicio_local if q.inicio_local is defined else '—' }}</td><td>{{ q.ordem_localidade if q.ordem_localidade is defined else '—' }}</td><td>{{ q.quarteirao_exibicao }}</td><td>{{ q.ordem_universo }}</td><td>{{ imoveis if imoveis is not none else 'Sem RG' }}</td></tr>{% endfor %}

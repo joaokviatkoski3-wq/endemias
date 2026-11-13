@@ -34,6 +34,9 @@ def executar():
         result["visitas_existentes"] = conn.execute("SELECT COUNT(*) FROM liraa_visitas WHERE id_ciclo=?", (cid,)).fetchone()[0]
         result["sorteios"] = conn.execute("""SELECT COUNT(*) FROM liraa_sorteios s
             JOIN liraa_estratos e ON e.id_estrato=s.id_estrato WHERE e.id_ciclo=?""", (cid,)).fetchone()[0]
+        nomes = {r["id_localidade"]: liraa_kobo._localidade(r["nome"])
+                 for r in conn.execute("SELECT id_localidade,nome FROM localidades")}
+        retirados = {(nomes[loc], q) for loc, q in op.retirados_conn(conn, cid, contrato["plano_hash"])}
     finally:
         conn.close()
     plano = op.plano(target, cid, ROOT)
@@ -49,7 +52,7 @@ def executar():
     result.update(quarteiroes_sorteados=plano["total_sorteados"], quarteiroes_adicionais=plano["total_adicionais"],
                   quarteiroes_plano_campo=len(plano["quarteiroes"]), estratos_sem_sorteio=plano["sem_sorteio"],
                   quarteiroes_sem_rg=plano["sem_rg"], geometrias_ausentes=plano["geometrias_ausentes"],
-                  quarteiroes_formulario_conferem=quarteiroes == {(q["localidade"], liraa_kobo._quarteirao(q["quarteirao"])) for q in plano["quarteiroes"]},
+                  quarteiroes_formulario_conferem=quarteiroes - retirados == {(q["localidade"], liraa_kobo._quarteirao(q["quarteirao"])) for q in plano["quarteiroes"]},
                   acs_definidos=bool(op.configuracao(target, cid)["acs_definidos"]))
     resumo = liraa_boletim.resumir(target, cid, ROOT)
     result["visitas_fora_plano_periodo"] = resumo["excluidas"]

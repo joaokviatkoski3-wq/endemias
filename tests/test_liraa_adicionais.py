@@ -65,6 +65,25 @@ class AdicionaisTests(unittest.TestCase):
         r['Data'] = '2026-09-01'
         self.assertEqual(kobo.previa(self.target, self.cid, [r])[0]['situacao_vinculo'], 'fora_do_periodo')
 
+    def test_retirada_sai_da_cobertura_e_do_boletim_sem_mudar_meta_ou_assinatura(self):
+        from app_core import liraa_acompanhamento
+
+        q = self.env.draw["selecionados"][0]
+        original = op.plano(self.target, self.cid, self.base)
+        antes = liraa_acompanhamento.resumir(self.target, self.cid, "2026-10-01")
+        self.config["retirados"] = [{"localidade": q["localidade"], "quarteirao": q["quarteirao"]}]
+        plano = op.plano(self.target, self.cid, self.base)
+        depois = liraa_acompanhamento.resumir(self.target, self.cid, "2026-10-01")
+        self.assertEqual(plano["plano_hash"], original["plano_hash"])
+        self.assertEqual(plano["total_sorteados"], original["total_sorteados"] - 1)
+        self.assertEqual(plano["total_adicionais"], original["total_adicionais"])
+        self.assertEqual(depois["meta"], antes["meta"])
+        self.assertEqual(depois["percentual"], antes["percentual"])
+        self.assertEqual(depois["total_quarteiroes"], antes["total_quarteiroes"] - 1)
+        self.assertEqual(kobo.importar(self.target, self.cid, [self.envio("quadra-retirada", q, 1)]), 1)
+        self.assertEqual(kobo.listar(self.target, self.cid)[0]["situacao_vinculo"], "fora_do_sorteio")
+        self.assertEqual(boletim.resumir(self.target, self.cid, self.base)["excluidas"], 1)
+
     def test_importacao_laboratorio_correcao_e_boletim_incluem_e_identificam_adicionais(self):
         antes = self.snapshot()
         q = self.env.draw['selecionados'][0]
