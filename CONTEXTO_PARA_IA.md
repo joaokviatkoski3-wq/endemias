@@ -1,19 +1,21 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 12/11/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 13/11/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.7.6 — depósitos das coletas
+## Versão ativa 2.7.6 — depósitos das coletas
 
 O extrator Kobo identifica campos de tubito, código, tipo e eliminação
 pelo nome exato. O laboratório exibe código ou ausência quando falta
 o tipo, inclusive para a resposta antiga gravada no campo incorreto.
 Auditoria de 9 a 12/11 em .venv/auditoria-semana-20261112.json.
+Ativada em 13/11/2026, release 7d9c622, com versão confirmada no portal
+e nas entradas públicas e locais dos setores.
 
-## Versão ativa 2.7.5 — reenvios idênticos do LIRAa
+## Histórico 2.7.5 — reenvios idênticos do LIRAa
 
 Envios com o mesmo UUID, preenchimento identificado e conteúdo idêntico
 fora dos campos de recebimento são tratados como um único formulário.

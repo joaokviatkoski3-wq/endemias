@@ -1,10 +1,10 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 12/11/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 13/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.7.6 — depósitos das coletas
+## Versão ativa 2.7.6 — depósitos das coletas
 
 Worktree C:\endemias-interface, branch codex/corrige-depositos-tubitos.
 O tubo 916 de PE chegou do Kobo sem tipo nem código de depósito. A busca
@@ -21,10 +21,14 @@ Os 1.607 envios LIRAa consultados têm correspondente, com 2.011 visitas
 no banco incluindo o histórico das 15 reimportações por edição.
 Relatório local .venv/auditoria-semana-20261112.json.
 Passaram 76 testes focados e a conferência do laboratório em Chromium
-com tela de tablet. Ativação pendente. A exibição trata a informação
-incorreta do tubo 916; a candidata não regrava dados históricos.
+com tela de tablet. A exibição trata a informação incorreta do tubo 916
+sem regravar os dados históricos.
+Ativada em 13/11/2026, release 7d9c622. O relatório
+ativacao-depositos-tubitos276-resultado.json confirmou 96 tabelas
+comparadas, dados preservados e automação Kobo restabelecida. Portal,
+logins públicos e entradas locais responderam em 2.7.6.
 
-## Versão ativa 2.7.5 — reenvios idênticos do LIRAa
+## Histórico 2.7.5 — reenvios idênticos do LIRAa
 
 Worktree C:\endemias-interface, branch codex/consolida-reenvios-liraa.
 A consulta de 12/11 confirmou nos dois envios com UUID compartilhado o
