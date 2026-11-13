@@ -115,7 +115,8 @@ def page():
                            ciclo_selecionado=id_preferido, encerrado=encerrado,
                            superadmin=superadmin, avisos_resumo=liraa_resumo.AVISOS,
                            colunas_entrada=liraa_resumo.COLUNAS_ENTRADA, colunas_indices=liraa_resumo.COLUNAS_INDICES,
-                           grupos_entrada=liraa_resumo.GRUPOS_ENTRADA, celula_resumo=liraa_resumo.celula)
+                           grupos_entrada=liraa_resumo.GRUPOS_ENTRADA, celula_resumo=liraa_resumo.celula,
+                           colunas_resumo_indices=liraa_resumo.COLUNAS_RESUMO_INDICES)
     if encerrado and not superadmin:
         return render_template("liraa.html", dados=None, erro=None, **contexto_resumo)
     dados, erro = None, None

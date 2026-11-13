@@ -25,6 +25,7 @@ COLUNAS_INDICES = (
     ("aegypt_ib", "IB aeg."), ("albopictus_ib", "IB alb."),
     *((f"itr.{codigo}", f"ITR {codigo} (%)") for codigo in DEPOSITOS),
 )
+COLUNAS_RESUMO_INDICES = (COLUNAS_INDICES[1], *COLUNAS_INDICES[7:])
 AVISOS = {
     "pendentes": "Tubitos aguardando leitura",
     "tipos_invalidos": "Imóveis com tipo a conferir",
@@ -35,7 +36,8 @@ AVISOS = {
 }
 CONTAGENS = ("programados", "trabalhados",
              "aegypt_tb", "aegypt_outros", "albopictus_tb", "albopictus_outros",
-             "aegypt_total", "albopictus_total", "trabalhados_adicionais", "tubitos", "leituras", *AVISOS)
+             "aegypt_total", "albopictus_total", "trabalhados_adicionais", "tubitos_adicionais",
+             "tubitos", "leituras", *AVISOS)
 
 
 def _percentual(parte, total):
@@ -76,10 +78,21 @@ def cabecalho_csv():
     return ["Estrato", *entrada, *(rotulo for _, rotulo in COLUNAS_INDICES[2:])]
 
 
+def _somar_contagens(linhas):
+    total = {campo: sum(linha[campo] or 0 for linha in linhas) for campo in CONTAGENS}
+    total["aegypt_recipientes"] = {
+        codigo: sum(linha["aegypt_recipientes"][codigo] for linha in linhas)
+        for codigo in DEPOSITOS
+    }
+    return total
+
+
 def _calcular(conn, id_ciclo):
     contexto = liraa_kobo._contexto(conn, id_ciclo)
-    ciclo, localidades, _, sorteados, _, adicionais = contexto
+    ciclo, _, _, sorteados, _, adicionais = contexto
     grupos = {}
+    grupos_locais = {}
+    nomes = {r["id_localidade"]: r["nome"] for r in conn.execute("SELECT id_localidade, nome FROM localidades")}
     quadras = set()
     for row in conn.execute("""SELECT e.id_estrato, e.numero, s.n FROM liraa_estratos e
             LEFT JOIN liraa_sorteios s ON s.id_estrato=e.id_estrato
@@ -91,23 +104,42 @@ def _calcular(conn, id_ciclo):
         quadras.update(ativos)
         grupo.update(quarteiroes=len(ativos), quarteiroes_adicionais=len(extras))
         grupos[ident, None] = grupo
+        for loc in {loc for loc, _ in ativos}:
+            grupos_locais[ident, loc] = liraa_boletim.novo_grupo(row["numero"], None)
 
-    excluidas = liraa_boletim.agregar(conn, id_ciclo, contexto, grupos)
+    excluidas = liraa_boletim.agregar(conn, id_ciclo, contexto, grupos_locais, "localidade")
+    por_estrato = {}
+    por_localidade = {}
     visitados = set()
+    for (ident, loc), grupo in grupos_locais.items():
+        por_estrato.setdefault(ident, []).append(grupo)
+        por_localidade.setdefault(loc, []).append(grupo)
+        visitados.update(grupo["_visitados"])
     linhas = []
-    for grupo in grupos.values():
-        visitados.update(grupo.pop("_visitados", ()))
+    for (ident, _), grupo in grupos.items():
+        programados = grupo["programados"]
+        subgrupos = por_estrato.get(ident, [])
+        grupo.update(_somar_contagens(subgrupos))
+        grupo["programados"] = programados
+        grupo.pop("_visitados")
+        grupo["quarteiroes_sem_visita"] = grupo["quarteiroes"] - sum(len(g["_visitados"]) for g in subgrupos)
+        grupo["parcial"] = bool(grupo["quarteiroes_sem_visita"] or any(grupo[campo] for campo in AVISOS))
+        for especie in ("aegypt", "albopictus"):
+            campo = f"positivos_adicionais_{especie}"
+            grupo[campo] = sum(g[campo] for g in subgrupos)
         saldo = grupo["trabalhados"] - grupo["programados"] if grupo["programados"] is not None else 0
         grupo["faltam"] = max(0, -saldo)
         grupo["excedentes"] = max(0, saldo)
         linhas.append(_indices(grupo))
-    total = {campo: sum(linha[campo] or 0 for linha in linhas) for campo in CONTAGENS}
-    total["aegypt_recipientes"] = {codigo: sum(linha["aegypt_recipientes"][codigo] for linha in linhas)
-                                  for codigo in DEPOSITOS}
+    total = _somar_contagens(linhas)
     total["faltam"] = sum(linha["faltam"] for linha in linhas)
     total["excedentes"] = sum(linha["excedentes"] for linha in linhas)
     _indices(total)
-    nomes = {ident: nome for nome, ident in localidades.items()}
+    locais = []
+    for loc, subgrupos in sorted(por_localidade.items(), key=lambda item: nomes.get(item[0], "").casefold()):
+        linha = _somar_contagens(subgrupos)
+        linha.update(localidade=nomes.get(loc, "Localidade não identificada"), programados=None, faltam=0)
+        locais.append(_indices(linha))
     faltantes = [{"localidade": nomes.get(loc, "Localidade não identificada"), "quarteirao": q}
                  for loc, q in sorted(quadras - visitados,
                                       key=lambda item: (nomes.get(item[0], ""), liraa._ordem_quarteirao(item[1])))]
@@ -117,7 +149,7 @@ def _calcular(conn, id_ciclo):
         WHERE v.id_ciclo=? AND l.id_tubito IS NULL""", (id_ciclo,)).fetchone()[0]
     ciclo = db.serialize_row(ciclo)
     return {"ciclo": {key: ciclo[key] for key in ("id_ciclo", "ano", "nome", "inicio", "fim")},
-            "estratos": linhas, "total": total, "excluidas": excluidas,
+            "estratos": linhas, "localidades": locais, "total": total, "excluidas": excluidas,
             "sem_sorteio": sum(linha["programados"] is None for linha in linhas),
             "pendentes_laboratorio": pendentes_laboratorio,
             "quarteiroes": len(quadras), "quarteiroes_pendentes": faltantes,

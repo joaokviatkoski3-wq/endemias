@@ -1,14 +1,14 @@
-{% macro tabela(titulo, colunas, id, grupos=()) %}
+{% macro tabela(titulo, colunas, id, grupos=(), linhas=none, linha_campo='estrato', linha_rotulo='Estrato') %}
 <h3 id="{{ id }}">{{ titulo }}</h3>
 <div class="liraa-table-wrap" tabindex="0" role="region" aria-labelledby="{{ id }}">
   <table class="liraa-table liraa-espelho">
     {% if grupos %}<colgroup span="1"></colgroup>{% for _, largura in grupos %}<colgroup span="{{ largura }}"></colgroup>{% endfor %}{% endif %}
     <thead>
-      {% if grupos %}<tr><th scope="col" rowspan="2">Estrato</th>{% for rotulo, largura in grupos %}<th scope="colgroup" colspan="{{ largura }}">{{ rotulo }}</th>{% endfor %}</tr>{% endif %}
-      <tr>{% if not grupos %}<th scope="col">Estrato</th>{% endif %}{% for _, rotulo in colunas %}<th scope="col">{{ rotulo }}</th>{% endfor %}</tr>
+      {% if grupos %}<tr><th scope="col" rowspan="2">{{ linha_rotulo }}</th>{% for rotulo, largura in grupos %}<th scope="colgroup" colspan="{{ largura }}">{{ rotulo }}</th>{% endfor %}</tr>{% endif %}
+      <tr>{% if not grupos %}<th scope="col">{{ linha_rotulo }}</th>{% endif %}{% for _, rotulo in colunas %}<th scope="col">{{ rotulo }}</th>{% endfor %}</tr>
     </thead>
-    <tbody>{% for e in resumo.estratos %}
-      <tr><th scope="row">{{ e.estrato }}</th>{% for campo, _ in colunas %}<td class="num">{{ celula_resumo(e, campo) }}</td>{% endfor %}</tr>
+    <tbody>{% for e in (resumo.estratos if linhas is none else linhas) %}
+      <tr><th scope="row">{{ e[linha_campo] }}</th>{% for campo, _ in colunas %}<td class="num">{{ celula_resumo(e, campo) }}</td>{% endfor %}</tr>
     {% endfor %}</tbody>
     <tfoot><tr><th scope="row">Total</th>{% for campo, _ in colunas %}<td class="num">{{ celula_resumo(resumo.total, campo) }}</td>{% endfor %}</tr></tfoot>
   </table>
@@ -37,9 +37,18 @@
   {% if resumo.estratos %}
   <div class="liraa-actions">
     <a class="liraa-btn" href="{{ url_for('liraa.resumo_csv', id_ciclo=resumo.ciclo.id_ciclo) }}">Baixar resumo em CSV</a>
+    <a class="liraa-btn" href="#liraa-resumo-geral">Ir para Resumo geral dos índices</a>
     <a class="liraa-btn" href="#liraa-resumo-entrada">Ir para Entrada de dados</a>
     <a class="liraa-btn" href="#liraa-resumo-indices">Ir para Índices</a>
   </div>
+  <h3 id="liraa-resumo-geral">Resumo geral dos índices</h3>
+  <p class="liraa-muted">IIP é o percentual de imóveis positivos. IB (Breteau) é o número de recipientes positivos por 100 imóveis inspecionados. ITR mostra a distribuição dos recipientes positivos de <i>Ae. aegypti</i> por tipo. Um traço indica que não há base para calcular o índice.</p>
+  {{ tabela('Índices por estrato e total do ciclo', colunas_resumo_indices, 'liraa-resumo-estratos') }}
+  {% if resumo.localidades %}
+    {{ tabela('Índices por localidade', colunas_resumo_indices, 'liraa-resumo-localidades', linhas=resumo.localidades, linha_campo='localidade', linha_rotulo='Localidade') }}
+  {% elif resumo.localidades is undefined %}
+    <p class="liraa-muted">O resumo salvo no encerramento deste ciclo não inclui o detalhamento por localidade.</p>
+  {% endif %}
   {{ tabela('Entrada de dados', colunas_entrada, 'liraa-resumo-entrada', grupos_entrada) }}
   <p class="liraa-muted">Prog. usa a meta do sorteio. Insp. soma as visitas válidas de imóveis abertos, incluindo adicionais autorizados. TB significa terreno baldio. Crítica resume as pendências do Endemias.</p>
   {{ tabela('Índices', colunas_indices, 'liraa-resumo-indices') }}

@@ -31,6 +31,7 @@ class EsporotricosePermissoesTests(unittest.TestCase):
         self.app.register_blueprint(bp)
         conn = sqlite3.connect(self.db_path)
         try:
+            conn.execute("CREATE TABLE localidades (nome TEXT NOT NULL)")
             conn.execute(
                 """
                 CREATE TABLE usuarios (
@@ -50,6 +51,7 @@ class EsporotricosePermissoesTests(unittest.TestCase):
                 [
                     (1, "leitor", "Usuário visualizador", "visualizador"),
                     (2, "operador", "Usuário operador", "operador"),
+                    (3, "admin", "Usuário administrador", "admin"),
                 ],
             )
             conn.commit()
@@ -133,6 +135,21 @@ class EsporotricosePermissoesTests(unittest.TestCase):
 
         self.assertEqual(resposta.status_code, 201)
         self.assertEqual(resposta.get_json(), animal)
+
+    def test_admin_gerencia_estoque_e_acessa_casos_humanos(self):
+        client = self._client_logado(3)
+        url = "/api/esporotricose/doentes/estoque"
+        dados = {"tipo": "Entrada", "quantidade": 10, "fonte_medicacao": "SESA"}
+        criada = client.post(url, json=dados)
+        self.assertEqual(criada.status_code, 201)
+        item = f"{url}/{criada.get_json()['id_movimento']}"
+        editada = client.put(item, json={**dados, "quantidade": 15})
+        self.assertEqual(editada.status_code, 200)
+        self.assertEqual(client.get(url).get_json()["totais"]["saldo_setor"], 15)
+        self.assertEqual(client.delete(item).status_code, 200)
+        self.assertEqual(client.get(url).get_json()["totais"]["saldo_setor"], 0)
+        with patch("blueprints.esporotricose.render_template", return_value="Casos humanos"):
+            self.assertEqual(client.get("/esporotricose/humanos").status_code, 200)
 
     def test_operador_exclui_somente_entrega_e_recebe_404_ao_repetir(self):
         animal = esporotricose_core.salvar_doente(str(self.db_path), {

@@ -284,6 +284,10 @@ class OperacaoTests(unittest.TestCase):
         self.assertEqual(total["aegypt_ib"], 100)
         self.assertEqual(total["albopictus_ib"], 50)
         self.assertEqual(total["itr"]["D1"], 50)
+        locais_com_visitas = [linha for linha in parcial["localidades"] if linha["trabalhados"]]
+        self.assertEqual(len(locais_com_visitas), 1)
+        for campo in ("trabalhados", "aegypt_iip", "aegypt_ib", "albopictus_ib", "itr"):
+            self.assertEqual(locais_com_visitas[0][campo], total[campo])
         self.assertGreater(total["faltam"], 0)
         with self.assertRaisesRegex(liraa.LiraaError, "observações"):
             liraa_resumo.encerrar(self.target, self.ciclo, usuario, "")
@@ -291,6 +295,7 @@ class OperacaoTests(unittest.TestCase):
         final = liraa_resumo.resumir(self.target, self.ciclo)
         self.assertEqual(final["encerramento"]["responsavel"], usuario["nome"])
         self.assertEqual(final["total"], total)
+        self.assertEqual(final["localidades"], parcial["localidades"])
         nova = self.registro(uuid="depois-do-fechamento", endemias_ciclo=self.ciclo)
         proximo = liraa.criar_ciclo(self.target, {"ano": 2027, "nome": "Próximo levantamento"})
         envio_proximo = self.registro(uuid="proximo-ciclo", endemias_ciclo=proximo)

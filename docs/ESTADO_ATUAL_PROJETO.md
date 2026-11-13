@@ -4,12 +4,19 @@ Atualizado em 13/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.8.1 — leitura das tabelas do LIRAa
+## Candidata 2.8.2 — resumo geral dos índices do LIRAa
 
-Entrada de dados e Índices ganham divisórias verticais e alinhamento
-central dos títulos e valores. Ajuste visual sem migração.
+O Resumo do ciclo mostra IIP e Breteau
+por espécie e ITR por tipo de recipiente, no total e por estrato e localidade.
+Os novos encerramentos guardam também o detalhamento por localidade.
+Sem migração.
 
-## Versão ativa 2.8.0 — resumo e encerramento do LIRAa
+## Versão ativa 2.8.1 — leitura das tabelas do LIRAa
+
+Entrada de dados e Índices têm divisórias verticais e alinhamento central.
+Ativada em 13/11/2026, release 8d10942, com dados preservados.
+
+## Histórico 2.8.0 — resumo e encerramento do LIRAa
 
 Worktree C:\endemias-interface, branch codex/liraa-encerramento. O Resumo do
 ciclo traz Entrada de dados, Índices, totais, CSV e conferência da cobertura.
