@@ -4,6 +4,11 @@ Atualizado em 13/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Candidata 2.8.1 — leitura das tabelas do LIRAa
+
+Entrada de dados e Índices ganham divisórias verticais e alinhamento
+central dos títulos e valores. Ajuste visual sem migração.
+
 ## Versão ativa 2.8.0 — resumo e encerramento do LIRAa
 
 Worktree C:\endemias-interface, branch codex/liraa-encerramento. O Resumo do
