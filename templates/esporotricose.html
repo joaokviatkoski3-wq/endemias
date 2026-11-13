@@ -55,6 +55,12 @@
 .esporo-estoque-form .wide { grid-column:span 2; }
 .esporo-estoque-form .full { grid-column:1 / -1; }
 .esporo-estoque-table input,.esporo-estoque-table select{min-width:110px;}
+#ent-controle-table .ent-ordenar {
+  display:inline-flex; align-items:center; gap:6px; padding:4px 0;
+  border:0; background:transparent; color:inherit; font:inherit; cursor:pointer;
+}
+#ent-controle-table .ent-ordenar:hover { text-decoration:underline; }
+#ent-controle-table .ent-ordenar:focus-visible { outline:2px solid currentColor; outline-offset:3px; }
 .esporo-estoque-alert { border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px; background:var(--surface2); margin-bottom:8px; }
 .esporo-estoque-alert strong{display:block;color:var(--text);margin-bottom:3px;}
 .esporo-chart-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
@@ -533,7 +539,7 @@
     <div class="table-scroll"><table id="ent-controle-table">
       <thead><tr>
         {% for campo, rotulo in [('data', 'Data'), ('animal', 'Animal'), ('tutor', 'Tutor'), ('localidade', 'Localidade / endereço'), ('fonte', 'Fonte'), ('capsulas', 'Cápsulas'), ('baixa_zoomed', 'Baixa Zoomed'), ('receita', 'Receita'), ('observacoes', 'Observações')] %}
-        <th scope="col"{% if campo == 'data' %} aria-sort="descending"{% endif %}><button class="btn btn-ghost btn-sm" type="button" data-ordem="{{ campo }}" onclick="ordenarControleEntregas(this.dataset.ordem)">{{ rotulo }} <span aria-hidden="true">{{ '↓' if campo == 'data' else '↕' }}</span></button></th>
+        <th scope="col"{% if campo == 'data' %} aria-sort="descending"{% endif %}><button class="ent-ordenar" type="button" data-ordem="{{ campo }}" onclick="ordenarControleEntregas(this.dataset.ordem)">{{ rotulo }} <span aria-hidden="true">{{ '↓' if campo == 'data' else '↕' }}</span></button></th>
         {% endfor %}
       </tr></thead>
       <tbody id="ent-controle-body"><tr><td colspan="9" class="empty-inline">Abra a aba para consultar as entregas.</td></tr></tbody>
