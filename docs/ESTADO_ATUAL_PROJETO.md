@@ -4,15 +4,21 @@ Atualizado em 13/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.8.3 — entregas por fonte da Esporotricose
+## Candidata 2.8.4 — boletim LIRAa para impressão
+
+O PDF por estrato ou localidade apresenta resultados, data e espaço para
+assinatura. Os avisos operacionais ficam na tela de conferência. Sem migração.
+
+## Versão ativa 2.8.3 — entregas por fonte da Esporotricose
 
 Filtros para todas as colunas e ordenação da lista completa antes da
 paginação. Os totais reaproveitam a consulta por fonte. A aba repete uma
 vez a consulta se receber HTTP 502, 503 ou 504. Consultas lentas têm a
 duração registrada sem dados de pacientes. A causa do 504 relatado
 em produção ainda precisa de confirmação. Sem migração.
+Ativada em 13/11/2026, release a22b336.
 
-## Versão ativa 2.8.2 — resumo geral dos índices do LIRAa
+## Histórico 2.8.2 — resumo geral dos índices do LIRAa
 
 O Resumo do ciclo mostra IIP e Breteau
 por espécie e ITR por tipo de recipiente, no total e por estrato e localidade.

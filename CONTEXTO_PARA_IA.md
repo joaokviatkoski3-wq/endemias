@@ -6,7 +6,12 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Versão ativa 2.8.2 — índices do LIRAa
+## Versão ativa 2.8.3 — entregas por fonte
+
+Ativada em 13/11/2026. Entregas da Esporotricose com filtros e ordenação
+em todas as colunas. A aba repete uma vez a consulta após HTTP 502, 503 ou 504.
+
+## Histórico 2.8.2 — índices do LIRAa
 
 Ativada em 13/11/2026. A aba Resumo do ciclo mostra IIP, Breteau e ITR
 no total e por estrato e localidade, com divisórias nas tabelas.

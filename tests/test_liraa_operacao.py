@@ -255,10 +255,15 @@ class OperacaoTests(unittest.TestCase):
             self.assertIn(b'Sem RG',plan)
             box=re.search(rb'/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)',plan)
             self.assertLess(float(box[1]),float(box[2]))
-        liraa_kobo.importar(self.target,self.ciclo,[self.registro()])
+        fora = self.registro(uuid="fora-do-boletim")
+        fora["Dados_visita"]["Quarteir_o"] = "9999"
+        liraa_kobo.importar(self.target,self.ciclo,[self.registro(), fora])
         with patch.object(liraa_relatorios,'SimpleDocTemplate',side_effect=lambda *a,**kw: original(*a,**kw,pageCompression=0)):
             summary=liraa_relatorios.boletim_pdf(self.target,self.ciclo,self.base)
-        self.assertIn(b'PARCIAL',summary)
+        self.assertNotIn(b'PARCIAL',summary)
+        self.assertNotIn(b'REVIS',summary)
+        self.assertIn(b'Tubitos lidos: 0 de 1',summary)
+        self.assertIn(b'Assinatura',summary)
         self.assertIn(b'Aedes albopictus',summary)
 
     def test_espelho_e_encerramento_preservam_resultado_com_cobertura_incompleta(self):

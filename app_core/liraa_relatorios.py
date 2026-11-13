@@ -1,4 +1,4 @@
-"""PDFs operacionais A4 retrato, com referência RG e pendências explícitas."""
+"""Plano de campo e boletim de resultados do LIRAa em A4 retrato."""
 
 from html import escape
 from io import BytesIO
@@ -76,27 +76,23 @@ def boletim_pdf(target, id_ciclo, base_dir=None, agrupar="estrato", id_estrato=N
         story += [_p("Resumo do Boletim de Campo e Laboratório — LIRAa", "Heading1"),
                   _p(f"Município: Almirante Tamandaré | Estado: PR | Estrato: {g['estrato']}"),
                   _p(f"{data['ciclo']['ano']} / {data['ciclo']['nome']} | {g['localidade']}"), Spacer(1,12)]
-        if g["quarteiroes_adicionais"]:
-            story.append(_p(f"Totais incluem adicionais de campo: {g['quarteiroes_adicionais']} quarteirões, {g['trabalhados_adicionais']} imóveis trabalhados e {g['tubitos_adicionais']} tubitos. Entre os imóveis adicionais: {g['positivos_adicionais_aegypt']} positivos para aegypti e {g['positivos_adicionais_albopictus']} para albopictus. A amostra programada original não foi recalculada."))
-        if data["excluidas"] or data["sem_sorteio"]:
-            story.append(_p(f"REVISÃO DO CICLO PENDENTE: {data['excluidas']} visitas fora do plano/período e {data['sem_sorteio']} estratos sem sorteio. Não utilizar como fechamento antes da conferência."))
-        if g["parcial"]:
-            story.append(_p(f"PARCIAL: {g['pendentes']} tubitos sem leitura; {g['tipos_invalidos']} imóveis sem tipo válido; {g['depositos_invalidos']} recipientes aegypti sem classificação; {g['coletas_inconsistentes']} visitas com coleta inconsistente; {g['visitas_suspeitas']} possíveis visitas duplicadas; {g['tubitos_repetidos']} números de tubito repetidos; {g['quarteiroes_sem_visita']} quarteirões sem visita. Pendência não é resultado negativo. Suspeitas permanecem nos totais até conferência."))
         rows = [["Número de imóveis", "Quantidade"],
-                ["Programados — amostra do estrato" if agrupar == "estrato" else "Programados no estrato (não é meta só desta localidade)", g["programados"]],
-                ["Trabalhados (visitas abertas importadas)", g["trabalhados"]],
+                ["Programados — amostra do estrato", g["programados"]],
+                ["Imóveis inspecionados", g["trabalhados"]],
                 ["Aedes aegypti — terrenos baldios positivos", g["aegypt_tb"]],
                 ["Aedes aegypti — outros imóveis positivos", g["aegypt_outros"]],
                 ["Aedes albopictus — terrenos baldios positivos", g["albopictus_tb"]],
                 ["Aedes albopictus — outros imóveis positivos", g["albopictus_outros"]]]
-        story += [_table(rows, [415,120]), Spacer(1,8),
-                  _p(f"Referência operacional RG deste filtro: {g['referencia_rg']} imóveis conhecidos; {g['sem_rg']} quarteirões sem RG. Esta referência não substitui os programados do estrato."),
-                  Spacer(1,8), _p("Recipientes positivos para Aedes aegypti", "Heading2")]
+        story += [_table(rows, [415,120]), Spacer(1,8)]
+        if g["trabalhados_adicionais"]:
+            story.append(_p(f"Imóveis inspecionados em quarteirões adicionais: {g['trabalhados_adicionais']}."))
+        story.append(_p("Recipientes positivos para Aedes aegypti", "Heading2"))
         deposits = [["Código / descrição", "Quantidade"]] + [[f"{code} — {label}", g["aegypt_recipientes"][code]] for code,label in op.DEPOSITOS.items()]
         deposits.append(["Total geral de recipientes positivos (inclui sem classificação)",g["aegypt_total"]])
         deposits.append(["Recipientes positivos para Aedes albopictus",g["albopictus_total"]])
         story += [_table(deposits, [415,120]), Spacer(1,12),
-                  _p(f"Leituras: {g['leituras']} de {g['tubitos']} tubitos. Visitas fora do plano/período, não consolidadas no ciclo: {data['excluidas']}."),
-                  _p("Cada visita aberta representa um imóvel trabalhado. Cada tubito representa um recipiente; vários tubitos positivos da mesma visita contam apenas um imóvel positivo por espécie. Confira retornos ou duplicações de visitas antes da digitação oficial."),
-                  _p("Data: ____________________    Responsável: ______________________________")]
+                  _p(f"Tubitos lidos: {g['leituras']} de {g['tubitos']}."),
+                  Spacer(1,26), _p("Data: ____ / ____ / ________"),
+                  Spacer(1,20), _p("________________________________________________", "Normal"),
+                  _p("Assinatura e identificação do responsável", "Normal")]
     return _pdf(story)
