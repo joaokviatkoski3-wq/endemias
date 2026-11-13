@@ -511,6 +511,14 @@
       <div class="f-g"><label>Localidade</label><select id="ent-controle-localidade"><option value="">Todas</option>{% for loc in localidades %}<option value="{{ loc.nome }}">{{ loc.nome }}</option>{% endfor %}</select></div>
       <div class="f-g"><label>Baixa Zoomed</label><select id="ent-controle-baixa"><option value="">Todas</option><option value="Sim">Feita</option><option value="Não">Pendente</option></select></div>
       <div class="f-g"><label>Animal, tutor, endereço ou SINAN</label><input id="ent-controle-busca" placeholder="Pesquisar"></div>
+      {% for campo, rotulo, dica in [
+        ('animal', 'Animal', 'Nome, espécie ou status'), ('tutor', 'Tutor', 'Nome do tutor'),
+        ('endereco', 'Endereço / quarteirão', 'Rua ou número do quarteirão'),
+        ('capsulas', 'Cápsulas', 'Quantidade exata'), ('receita', 'Receita', 'Número ou data AAAA-MM-DD'),
+        ('observacoes', 'Observações', 'Trecho da observação')
+      ] %}
+      <div class="f-g"><label for="ent-controle-{{ campo }}">{{ rotulo }}</label><input id="ent-controle-{{ campo }}" placeholder="{{ dica }}"{% if campo == 'capsulas' %} inputmode="numeric"{% endif %}></div>
+      {% endfor %}
       <div class="esporo-filter-actions"><button class="btn btn-primary" type="button" onclick="carregarControleEntregas(1)"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
     </div>
   </div>
@@ -522,8 +530,12 @@
   </div>
   <div class="chart-card" style="margin-top:14px;">
     <div class="chart-hd"><div class="chart-title">Histórico de entregas</div><span class="table-info" id="ent-controle-sem-data"></span></div>
-    <div class="table-scroll"><table id="ent-controle-table" data-sortable-table>
-      <thead><tr><th>Data</th><th>Animal</th><th>Tutor</th><th>Localidade / endereço</th><th>Fonte</th><th>Cápsulas</th><th>Baixa Zoomed</th><th>Receita</th><th>Observações</th></tr></thead>
+    <div class="table-scroll"><table id="ent-controle-table">
+      <thead><tr>
+        {% for campo, rotulo in [('data', 'Data'), ('animal', 'Animal'), ('tutor', 'Tutor'), ('localidade', 'Localidade / endereço'), ('fonte', 'Fonte'), ('capsulas', 'Cápsulas'), ('baixa_zoomed', 'Baixa Zoomed'), ('receita', 'Receita'), ('observacoes', 'Observações')] %}
+        <th scope="col"{% if campo == 'data' %} aria-sort="descending"{% endif %}><button class="btn btn-ghost btn-sm" type="button" data-ordem="{{ campo }}" onclick="ordenarControleEntregas(this.dataset.ordem)">{{ rotulo }} <span aria-hidden="true">{{ '↓' if campo == 'data' else '↕' }}</span></button></th>
+        {% endfor %}
+      </tr></thead>
       <tbody id="ent-controle-body"><tr><td colspan="9" class="empty-inline">Abra a aba para consultar as entregas.</td></tr></tbody>
     </table></div>
     <div class="esporo-filter-actions" style="margin-top:12px;">
@@ -1033,21 +1045,46 @@ async function carregarEspDoentesStatus(statusSelecionado = '') {
   const statusList = document.getElementById('doe-status-list');
   if (statusList) statusList.innerHTML = opts;
 }
+let entOrdem = 'data';
+let entDirecao = 'desc';
+let entConsulta;
+function ordenarControleEntregas(campo) {
+  entDirecao = entOrdem === campo && entDirecao === 'asc' ? 'desc' : 'asc';
+  entOrdem = campo;
+  carregarControleEntregas(1);
+}
 async function carregarControleEntregas(pagina=1) {
-  espEntregasPagina = Math.max(1, Number(pagina) || 1);
+  entConsulta?.abort();
+  const consulta = new AbortController();
+  entConsulta = consulta;
   const p = new URLSearchParams();
   const campos = [
     ['inicio', 'ent-controle-inicio'], ['fim', 'ent-controle-fim'],
     ['fonte', 'ent-controle-fonte'], ['localidade', 'ent-controle-localidade'],
     ['baixa_zoomed', 'ent-controle-baixa'], ['busca', 'ent-controle-busca'],
+    ...['animal', 'tutor', 'endereco', 'capsulas', 'receita', 'observacoes'].map(campo => [campo, 'ent-controle-' + campo]),
   ];
   campos.forEach(([nome, id]) => {
     const valor = document.getElementById(id)?.value?.trim();
     if (valor) p.set(nome, valor);
   });
-  p.set('pagina', String(espEntregasPagina));
+  p.set('pagina', String(Math.max(1, Number(pagina) || 1)));
+  p.set('ordem', entOrdem);
+  p.set('direcao', entDirecao);
+  const url = '/api/esporotricose/doentes/entregas-controle?' + p.toString();
   try {
-    const d = await apiGet('/api/esporotricose/doentes/entregas-controle?' + p.toString());
+    let resposta = await fetch(url, {signal: consulta.signal});
+    if ([502, 503, 504].includes(resposta.status)) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      resposta = await fetch(url, {signal: consulta.signal});
+    }
+    if (!resposta.ok) {
+      const erro = await resposta.json().catch(() => ({}));
+      throw new Error(erro.erro || `HTTP ${resposta.status}`);
+    }
+    const d = await resposta.json();
+    if (consulta.signal.aborted) return;
+    espEntregasPagina = Number(d.pagina) || 1;
     const sesa = d.por_fonte?.SESA || {};
     const municipio = d.por_fonte?.['Município'] || {};
     document.getElementById('ent-kpi-sesa-contagem').textContent = `${fmtNum(sesa.animais || 0)} / ${fmtNum(sesa.entregas || 0)}`;
@@ -1073,9 +1110,19 @@ async function carregarControleEntregas(pagina=1) {
     document.getElementById('ent-controle-pagina').textContent = `Página ${espEntregasPagina} de ${paginas}`;
     document.getElementById('ent-controle-anterior').disabled = espEntregasPagina <= 1;
     document.getElementById('ent-controle-proximo').disabled = espEntregasPagina >= paginas;
-    refreshSortableTable('ent-controle-table');
+    document.querySelectorAll('#ent-controle-table [data-ordem]').forEach(botao => {
+      const selecionado = botao.dataset.ordem === entOrdem;
+      const cabecalho = botao.closest('th');
+      if (selecionado) cabecalho.setAttribute('aria-sort', entDirecao === 'asc' ? 'ascending' : 'descending');
+      else cabecalho.removeAttribute('aria-sort');
+      botao.querySelector('span').textContent = selecionado ? (entDirecao === 'asc' ? '↑' : '↓') : '↕';
+    });
   } catch (e) {
-    toast('Não foi possível carregar as entregas: ' + e.message, 'error');
+    if (consulta.signal.aborted) return;
+    const mensagem = /^HTTP 50[234]$/.test(e.message)
+      ? 'O servidor demorou a responder. Clique em Atualizar para tentar novamente.'
+      : 'Não foi possível carregar as entregas: ' + e.message;
+    toast(mensagem, 'error');
   }
 }
 function renderEspDoentes(rows, total) {

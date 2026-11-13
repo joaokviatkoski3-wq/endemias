@@ -84,6 +84,27 @@ class ControleEntregasMedicacaoTests(unittest.TestCase):
         self.assertEqual(segunda["por_fonte"]["SESA"]["animais"], 1)
         self.assertEqual(segunda["por_fonte"]["SESA"]["capsulas"], 51)
 
+    def test_ordena_antes_de_paginar_e_combina_filtros_de_colunas(self):
+        _, receita = self._animal_receita("Zulu", "Centro")
+        _, outra = self._animal_receita("Ágata", "Outra")
+        for _ in range(50):
+            esporotricose.salvar_entrega_doente(self.db_path, receita, {"quantidade": 1})
+        esporotricose.salvar_entrega_doente(self.db_path, outra, {
+            "quantidade": 9, "observacoes": "Conferência de 100%",
+        })
+        def consultar(**filtros):
+            return esporotricose.controle_entregas_medicacao(self.db_path, filtros)
+
+        self.assertEqual(consultar(ordem="animal", direcao="asc")["registros"][0]["animal"], "Ágata")
+        self.assertEqual(consultar(ordem="animal", direcao="desc", pagina=2)["registros"][0]["animal"], "Ágata")
+        dados = consultar(animal="agata", tutor="tutor agata", endereco="rua teste",
+                          capsulas="9", receita=str(outra), observacoes="conferencia de 100%")
+        self.assertEqual(dados["total"], 1)
+        self.assertEqual(dados["por_fonte"]["SESA"]["capsulas"], 9)
+        self.assertEqual(consultar(observacoes="100_")["total"], 0)
+        with self.assertRaises(esporotricose.ValidationError):
+            consultar(ordem="e.data_entrega")
+
 
 if __name__ == "__main__":
     unittest.main()

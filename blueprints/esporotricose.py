@@ -8,6 +8,7 @@ import uuid
 import warnings
 import zipfile
 from pathlib import Path
+from time import monotonic
 
 from flask import Blueprint, Response, abort, current_app, jsonify, redirect, render_template, request, send_file
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -740,11 +741,19 @@ def api_doentes_entregas_controle():
         "baixa_zoomed": request.args.get("baixa_zoomed", ""),
         "busca": request.args.get("busca", ""),
         "pagina": request.args.get("pagina", "1"),
+        **{campo: request.args.get(campo, "") for campo in (
+            "animal", "tutor", "endereco", "capsulas", "receita", "observacoes", "ordem", "direcao",
+        )},
     }
+    inicio = monotonic()
     try:
         return jsonify(esporotricose_core.controle_entregas_medicacao(bh.db_target(), filtros))
     except esporotricose_core.ValidationError as exc:
         return jsonify({"erro": str(exc)}), 400
+    finally:
+        duracao = monotonic() - inicio
+        if duracao >= 2:
+            current_app.logger.warning("Consulta de entregas de esporotricose demorou %.2f s", duracao)
 
 
 @bp.route("/api/esporotricose/doentes/estoque", methods=["POST"])

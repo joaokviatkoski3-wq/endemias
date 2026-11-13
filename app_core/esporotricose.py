@@ -3347,6 +3347,16 @@ def controle_entregas_medicacao(target, filtros=None):
     where = []
     params = []
     fonte_sql = "CASE WHEN e.fonte_medicacao='Município' THEN 'Município' ELSE 'SESA' END"
+    baixa_sql = "COALESCE(e.baixa_zoomed, 'Não')"
+    ordem = _text(filtros.get("ordem")) or "data"
+    direcao = (_text(filtros.get("direcao")) or "desc").lower()
+    textos = {
+        "animal": "d.nome", "tutor": "d.tutor", "localidade": "d.localidade",
+        "fonte": fonte_sql, "baixa_zoomed": baixa_sql, "observacoes": "e.observacoes",
+    }
+    numeros_datas = {"data": "e.data_entrega", "capsulas": "e.quantidade", "receita": "r.data_receita"}
+    if (ordem not in textos and ordem not in numeros_datas) or direcao not in ("asc", "desc"):
+        raise ValidationError("Ordenação das entregas inválida.")
     if inicio:
         where.append("e.data_entrega >= ?")
         params.append(inicio)
@@ -3364,7 +3374,7 @@ def controle_entregas_medicacao(target, filtros=None):
     if baixa:
         if baixa not in ("Sim", "Não"):
             raise ValidationError("Filtro de baixa Zoomed inválido.")
-        where.append("COALESCE(e.baixa_zoomed, 'Não') = ?")
+        where.append(f"{baixa_sql} = ?")
         params.append(baixa)
     busca = _text(filtros.get("busca"))
     if busca:
@@ -3374,11 +3384,49 @@ def controle_entregas_medicacao(target, filtros=None):
     base = f"""FROM {DOENTES_ENTREGAS_TABLE} e
                JOIN {DOENTES_RECEITAS_TABLE} r ON r.id_receita=e.id_receita
                JOIN {DOENTES_TABLE} d ON d.id_animal_doente=r.id_animal_doente"""
-    if where:
-        base += " WHERE " + " AND ".join(where)
     conn = db_core.connect(target)
     try:
         ensure_schema(conn)
+        postgres = getattr(conn, "backend", "sqlite") == "postgresql"
+        acentos = "áàâãäéèêëíìîïóòôõöúùûüçÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇ"
+        sem_acentos = "aaaaaeeeeiiiiooooouuuuc" * 2
+        normalizar = str.maketrans(acentos, sem_acentos)
+        if not postgres:
+            conn.create_function("esporo_texto_ordem", 1, lambda valor: valor.translate(normalizar).casefold())
+
+        def texto_sql(coluna):
+            texto = f"COALESCE(CAST({coluna} AS TEXT), '')"
+            if postgres:
+                return f"LOWER(TRANSLATE({texto}, '{acentos}', '{sem_acentos}'))"
+            return f"esporo_texto_ordem({texto})"
+
+        filtros_texto = {
+            "animal": ("d.nome", "d.especie", "d.status"),
+            "tutor": ("d.tutor",),
+            "endereco": ("d.endereco", "d.quarteirao"),
+            "receita": ("r.id_receita", "r.data_receita"),
+            "observacoes": ("e.observacoes",),
+        }
+        for campo, colunas in filtros_texto.items():
+            valor = _text(filtros.get(campo))
+            if valor:
+                termo = valor.translate(normalizar).casefold().replace("!", "!!").replace("%", "!%").replace("_", "!_")
+                where.append("(" + " OR ".join(f"{texto_sql(c)} LIKE ? ESCAPE '!'" for c in colunas) + ")")
+                params.extend([f"%{termo}%"] * len(colunas))
+        capsulas = _text(filtros.get("capsulas"))
+        if capsulas:
+            if not re.fullmatch(r"[0-9]{1,10}", capsulas) or int(capsulas) > 2147483647:
+                raise ValidationError("Informe uma quantidade inteira de cápsulas.")
+            where.append("e.quantidade = ?")
+            params.append(int(capsulas))
+        if where:
+            base += " WHERE " + " AND ".join(where)
+        coluna = f"NULLIF({texto_sql(textos[ordem])}, '')" if ordem in textos else numeros_datas[ordem]
+        criterio = f"{coluna} {direcao.upper()} NULLS LAST"
+        if ordem == "localidade":
+            criterio += f", NULLIF({texto_sql('d.endereco')}, '') {direcao.upper()} NULLS LAST"
+        if ordem == "receita":
+            criterio += f", r.id_receita {direcao.upper()}"
         agrupados = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT {fonte_sql} AS fonte_medicacao,
                        COUNT(*) AS entregas,
@@ -3393,7 +3441,8 @@ def controle_entregas_medicacao(target, filtros=None):
                              {"fonte_medicacao": fonte_nome, "entregas": 0, "animais": 0, "capsulas": 0, "sem_data": 0})
             for fonte_nome in ("SESA", "Município")
         }
-        total = conn.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
+        total = sum(item["entregas"] for item in agrupados)
+        pagina = min(pagina, max(1, (total + por_pagina - 1) // por_pagina))
         registros = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT e.id_entrega, e.id_receita, e.data_entrega,
                        e.quantidade, {fonte_sql} AS fonte_medicacao,
@@ -3402,8 +3451,7 @@ def controle_entregas_medicacao(target, filtros=None):
                        d.especie, d.tutor, d.localidade, d.quarteirao,
                        d.endereco, d.status, d.sinan
                   {base}
-                 ORDER BY CASE WHEN e.data_entrega IS NULL THEN 1 ELSE 0 END,
-                          e.data_entrega DESC, e.id_entrega DESC
+                 ORDER BY {criterio}, e.id_entrega DESC
                  LIMIT ? OFFSET ?""", params + [por_pagina, (pagina - 1) * por_pagina],
         ).fetchall()]
         return {"registros": registros, "total": total, "pagina": pagina,
