@@ -1,8 +1,4 @@
-"""Planejamento territorial e sorteio auditável do LIRAa.
-
-Não calcula índices nem exporta .lira: faltam as inspeções e a consolidação
-laboratorial específicas do levantamento.
-"""
+"""Planejamento territorial e sorteio auditável do LIRAa."""
 
 import hashlib
 import json
@@ -69,6 +65,14 @@ def _schema(conn):
                 acs_json TEXT NOT NULL DEFAULT '[]',
                 acs_definidos INTEGER NOT NULL DEFAULT 0,
                 kobo_uid TEXT NOT NULL DEFAULT '', atualizado_em TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS liraa_encerramentos (
+                id_encerramento INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_ciclo INTEGER NOT NULL REFERENCES liraa_ciclos(id_ciclo) ON DELETE RESTRICT,
+                encerrado_em TEXT NOT NULL, encerrado_por INTEGER NOT NULL,
+                responsavel TEXT NOT NULL, observacoes TEXT NOT NULL, resumo_json TEXT NOT NULL,
+                reaberto_em TEXT, reaberto_por INTEGER, motivo_reabertura TEXT);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_liraa_encerramento_vigente
+                ON liraa_encerramentos(id_ciclo) WHERE reaberto_em IS NULL;
         """)
 
 
@@ -106,7 +110,15 @@ def _validar_periodo(ano, inicio, fim):
         raise LiraaError("As datas devem pertencer ao ano informado para o ciclo.")
 
 
-def _bloquear_ciclo(conn, id_ciclo):
+def ciclos_encerrados(conn):
+    if not db_core.table_exists(conn, "liraa_encerramentos"):
+        return set()
+    return {row[0] for row in conn.execute(
+        "SELECT id_ciclo FROM liraa_encerramentos WHERE reaberto_em IS NULL"
+    )}
+
+
+def _bloquear_ciclo(conn, id_ciclo, *, permitir_encerrado=False):
     """Ordem única para edições, sorteios e importações: ciclo, depois estratos."""
     postgres = getattr(conn, "backend", "sqlite") == "postgresql"
     if not postgres and not conn.in_transaction:
@@ -114,8 +126,12 @@ def _bloquear_ciclo(conn, id_ciclo):
     lock = " FOR UPDATE" if postgres else ""
     if not conn.execute("SELECT id_ciclo FROM liraa_ciclos WHERE id_ciclo=?" + lock, (id_ciclo,)).fetchone():
         raise LiraaError("Ciclo não encontrado.")
+    encerrado = id_ciclo in ciclos_encerrados(conn)
+    if encerrado and not permitir_encerrado:
+        raise LiraaError("Ciclo LIRAa encerrado. O superadmin pode reabri-lo para alterações.")
     conn.execute("SELECT id_estrato FROM liraa_estratos WHERE id_ciclo=? ORDER BY id_estrato" + lock,
                  (id_ciclo,)).fetchall()
+    return encerrado
 
 
 def _verificar_plano_livre(conn, id_ciclo):
@@ -196,6 +212,7 @@ def painel(target, base_dir=None):
         _schema(conn)
         ciclos = [db_core.serialize_row(r) for r in conn.execute(
             "SELECT * FROM liraa_ciclos ORDER BY ano DESC, id_ciclo DESC").fetchall()]
+        encerrados = ciclos_encerrados(conn)
         estratos = [db_core.serialize_row(r) for r in conn.execute(
             "SELECT * FROM liraa_estratos ORDER BY id_ciclo, numero").fetchall()]
         vinculos = conn.execute("SELECT id_estrato, id_localidade FROM liraa_estrato_localidades").fetchall()
@@ -248,6 +265,7 @@ def painel(target, base_dir=None):
             e["legado_localidades"] = bool(por_estrato.get(e["id_estrato"]))
             e["sorteio"] = sorteios.get(e["id_estrato"])
         for c in ciclos:
+            c["encerrado"] = c["id_ciclo"] in encerrados
             c["estratos"] = [e for e in estratos if e["id_ciclo"] == c["id_ciclo"]]
             usados = {chave for e in c["estratos"] for chave in e["quarteiroes"]}
             c["quarteiroes_sem_estrato"] = len(ativos) - len(ativos & {
@@ -325,6 +343,9 @@ def excluir_ciclo(target, id_ciclo, auditar=None):
     try:
         _schema(conn)
         _bloquear_ciclo(conn, id_ciclo)
+        if db_core.table_exists(conn, "liraa_encerramentos") and conn.execute(
+                "SELECT 1 FROM liraa_encerramentos WHERE id_ciclo=?", (id_ciclo,)).fetchone():
+            raise LiraaError("O ciclo possui histórico de encerramento e deve ser preservado.")
         with conn:
             lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
             ciclo = conn.execute("SELECT ano, nome FROM liraa_ciclos WHERE id_ciclo=?" + lock,

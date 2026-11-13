@@ -4,6 +4,25 @@ Atualizado em 13/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Candidata 2.8.0 — resumo e encerramento do LIRAa
+
+Worktree C:\endemias-interface, branch codex/liraa-encerramento. O Resumo do
+ciclo traz Entrada de dados, Índices, totais, CSV e conferência da cobertura.
+A coluna Insp. usa as visitas válidas de imóveis abertos, incluindo adicionais
+autorizados, sem truncar pela meta. Índices segundo as fórmulas do Ministério
+da Saúde. A perda estimada é o saldo por estrato dividido pelos programados;
+conferir arredondamento e perda no programa oficial ao digitar o ciclo.
+No Acompanhamento, o excedente é apurado por estrato, separado do saldo.
+
+A migração 0036 adiciona a tabela de encerramentos e preserva os registros
+anteriores. Só superadmin cria, encerra e reabre ciclos. Após encerrar, o
+resumo congelado é a consulta da equipe; as abas de operação ficam restritas
+ao superadmin para consulta. Importações e correções do ciclo exigem reabrir.
+Tubitos sem leitura impedem encerrar; a cobertura incompleta e demais avisos
+são documentados nas observações. Nenhum ciclo é encerrado na implantação.
+O ciclo 4 será encerrado manualmente após a leitura dos tubitos, com a
+cobertura efetivamente registrada. Ativação pendente.
+
 ## Versão ativa 2.7.8 — metas de campo do LIRAa
 
 Worktree C:\endemias-interface, branch codex/retira-0323-liraa. O quarteirão

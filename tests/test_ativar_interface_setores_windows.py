@@ -35,7 +35,8 @@ class InterfaceInstallerTests(unittest.TestCase):
             original=self.original();original['env'][key]='INESPERADO'
             with self.assertRaises(ValueError):installer.proposed_config(original)
 
-    def simulate(self,fail_probe=False,pending=False,origin=installer.ORIGIN,target=installer.TARGET,marker=installer.MARKER):
+    def simulate(self,fail_probe=False,pending=False,origin=installer.ORIGIN,target=installer.TARGET,marker=installer.MARKER,
+                 migration_name=None):
         from app_core import postgresql_migrations,backup_completo
         tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup)
         base=Path(tmp.name);official=base/'official';home=base/'home';source=base/'source'
@@ -74,19 +75,24 @@ class InterfaceInstallerTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(installer,'operational_files',return_value={'anexo-ficticio':'hash-ficticio'}))
             stack.enter_context(mock.patch.object(installer,'backup_before_change',return_value={'catalogo_validado':True}))
             stack.enter_context(mock.patch.object(backup_completo,'criar_backup_completo',return_value={'arquivo':str(archive)}))
-            stack.enter_context(mock.patch.object(postgresql_migrations,'status',return_value=[{'state':'pending' if pending else 'applied'}]))
-            migration=stack.enter_context(mock.patch.object(postgresql_migrations,'apply_pending',side_effect=AssertionError('Pacote sem DDL')))
+            stack.enter_context(mock.patch.object(postgresql_migrations,'status',return_value=[
+                {'state':'pending' if pending else 'applied', 'name':migration_name}]))
+            migration=stack.enter_context(mock.patch.object(postgresql_migrations,'apply_pending',return_value=[migration_name]))
             stack.enter_context(mock.patch.object(installer,'await_probe',side_effect=RuntimeError('Falha fictícia') if fail_probe else None))
-            if pending:
+            if pending and not migration_name:
                 with self.assertRaises(ValueError):installer.apply(SimpleNamespace(release=new,expected_current=old),origin,target,marker)
                 self.assertFalse(task.stopped)
+                migration.assert_not_called()
                 return
-            result=installer.apply(SimpleNamespace(release=new,expected_current=old),origin,target,marker)
-            migration.assert_not_called()
+            result=installer.apply(SimpleNamespace(release=new,expected_current=old),origin,target,marker,migration_name)
+            if pending:
+                migration.assert_called_once()
+            else:
+                migration.assert_not_called()
         report=json.loads((home/(marker+'-resultado.json')).read_text(encoding='utf-8'))
         self.assertTrue(auto.Enabled);self.assertEqual(task.State,4)
         self.assertFalse(report['database_restored_or_deleted'])
-        self.assertEqual(report['migrations_applied'],[])
+        self.assertEqual(report['migrations_applied'],[migration_name] if pending else [])
         for name in ('secret.key','config.json','endemias.db','kobo_config.json','kobo_ambiental.json'):
             self.assertEqual((official/name).read_bytes(),b'CONTEUDO-FICTICIO-PRESERVAR')
         self.assertEqual((home/'servico_web_windows.py').read_bytes(),b'BOOTSTRAP-FICTICIO')
@@ -101,6 +107,10 @@ class InterfaceInstallerTests(unittest.TestCase):
     def test_atualizacao_sem_ddl_preserva_ambos_kobo_bootstrap_e_tarefa(self):self.simulate()
     def test_falha_na_prova_retorna_codigo_config_sem_restaurar_banco(self):self.simulate(fail_probe=True)
     def test_migracao_pendente_recusada_antes_de_parar_servidor(self):self.simulate(pending=True)
+
+    def test_encerramento_liraa_aplica_somente_migracao_aditiva(self):
+        self.simulate(pending=True,origin='2.7.8',target='2.8.0',marker='liraa',
+                      migration_name='0036_liraa_encerramentos.sql')
 
     def test_rc3_exige_origem_rc2_e_preserva_configuracao(self):
         before=self.original();before['version']='2.0.0-rc.2'

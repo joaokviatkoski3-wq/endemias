@@ -1,10 +1,12 @@
 """Planejamento de ciclos, estratos e sorteios do LIRAa."""
 
 import logging
-from io import BytesIO
+import csv
+from functools import wraps
+from io import BytesIO, StringIO
 from datetime import date, timedelta
 
-from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for, jsonify, send_file
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for, jsonify, send_file
 
 from app_core import audit
 from app_core import auth as auth_core
@@ -12,7 +14,7 @@ from app_core import blueprint_helpers as bh
 from app_core import db as db_core
 from app_core import liraa as liraa_core
 from app_core import liraa_kobo, kobo_api
-from app_core import liraa_acompanhamento
+from app_core import liraa_acompanhamento, liraa_resumo
 from app_core import agentes as agentes_core
 from app_core import visitas as visitas_core
 from app_core import liraa_operacional as op, liraa_xlsform, liraa_relatorios, liraa_boletim, liraa_laboratorio
@@ -44,6 +46,35 @@ def _usuario():
 
 
 nivel_admin = auth_core.nivel_min("admin", _usuario)
+nivel_superadmin = auth_core.nivel_min("superadmin", _usuario)
+
+
+def _catalogo_ciclos():
+    conn = _get_db()
+    try:
+        liraa_core._schema(conn)
+        encerrados = liraa_core.ciclos_encerrados(conn)
+        rows = conn.execute("SELECT id_ciclo, ano, nome, inicio, fim FROM liraa_ciclos ORDER BY ano DESC,id_ciclo DESC")
+        return [dict(db_core.serialize_row(row), encerrado=row["id_ciclo"] in encerrados) for row in rows]
+    finally:
+        conn.close()
+
+
+def _encerrado(id_ciclo):
+    conn = _get_db()
+    try:
+        return id_ciclo in liraa_core.ciclos_encerrados(conn)
+    finally:
+        conn.close()
+
+
+def _acesso_operacional(view):
+    @wraps(view)
+    def wrapped(id_ciclo, *args, **kwargs):
+        if (_usuario() or {}).get("nivel") != "superadmin" and _encerrado(id_ciclo):
+            abort(403)
+        return view(id_ciclo, *args, **kwargs)
+    return wrapped
 
 
 def _kobo_config_path():
@@ -53,24 +84,60 @@ def _kobo_config_path():
 @bp.route("/liraa")
 @login_required
 def page():
+    nivel = (_usuario() or {}).get("nivel")
+    superadmin = nivel == "superadmin"
+    hoje = date.today().isoformat()
+    try:
+        catalogo = _catalogo_ciclos()
+    except Exception:
+        logging.exception("Falha ao consultar os ciclos LIRAa")
+        return render_template("liraa.html", dados=None, erro="Não foi possível consultar os ciclos do LIRAa."), 503
+    selecionado = request.args.get("ciclo")
+    preferido = next((c for c in catalogo if str(c["id_ciclo"]) == selecionado), None)
+    if selecionado and preferido is None:
+        abort(404)
+    if preferido is None:
+        preferido = next((c for c in catalogo if not c["encerrado"] and c["inicio"]
+                         and c["inicio"] <= hoje and (not c["fim"] or hoje <= c["fim"])),
+                         catalogo[0] if catalogo else None)
+    id_preferido = preferido["id_ciclo"] if preferido else None
+    encerrado = bool(preferido and preferido["encerrado"])
+    resumo = None
+    resumo_erro = None
+    if id_preferido:
+        try:
+            resumo = liraa_resumo.resumir(_target(), id_preferido)
+            encerrado = bool(resumo.get("encerramento"))
+        except Exception:
+            logging.exception("Falha ao consultar resumo LIRAa")
+            resumo_erro = "Não foi possível consultar o resumo deste ciclo."
+    contexto_resumo = dict(resumo=resumo, resumo_erro=resumo_erro, catalogo_ciclos=catalogo,
+                           ciclo_selecionado=id_preferido, encerrado=encerrado,
+                           superadmin=superadmin, avisos_resumo=liraa_resumo.AVISOS,
+                           colunas_entrada=liraa_resumo.COLUNAS_ENTRADA, colunas_indices=liraa_resumo.COLUNAS_INDICES,
+                           grupos_entrada=liraa_resumo.GRUPOS_ENTRADA, celula_resumo=liraa_resumo.celula)
+    if encerrado and not superadmin:
+        return render_template("liraa.html", dados=None, erro=None, **contexto_resumo)
     dados, erro = None, None
     try:
         dados = liraa_core.painel(_target(), _base_dir())
     except Exception:
         logging.exception("Falha ao carregar planejamento LIRAa")
         erro = "Planejamento indisponível. Confirme as migrações 0023/0024 e a camada de quarteirões ativa."
+    if dados and not superadmin:
+        dados["ciclos"] = [c for c in dados["ciclos"] if not c["encerrado"]]
     editando = None
     try:
         id_edicao = int(request.args.get("editar", "0"))
     except ValueError:
         id_edicao = 0
-    if dados and id_edicao:
+    if dados and id_edicao and not encerrado:
         editando = next((e for c in dados["ciclos"] for e in c["estratos"]
-                         if e["id_estrato"] == id_edicao and not e["sorteio"]), None)
-    admin = (_usuario() or {}).get("nivel") in {"admin", "superadmin"}
+                         if e["id_estrato"] == id_edicao and not e["sorteio"] and not c["encerrado"]), None)
+    admin = nivel in {"admin", "superadmin"}
     kobo_dados = {"uid": "", "visitas": [], "previa": None, "erro": None,
-                  "correcao_habilitada": True, "exclusoes": [],
-                  "ciclo": request.values.get("ciclo", ""),
+                  "correcao_habilitada": not encerrado, "exclusoes": [],
+                  "ciclo": id_preferido or "",
                   "inicio": request.values.get("inicio", (date.today() - timedelta(days=6)).isoformat()),
                   "fim": request.values.get("fim", date.today().isoformat()),
                   "visita_inicio": request.args.get("visita_inicio", ""),
@@ -110,7 +177,7 @@ def page():
                     visita["acs_nomes"] += " · Outros: " + visita["acs_outros"]
         except (ValueError, liraa_kobo.LiraaKoboError) as exc:
             kobo_dados["erro"] = str(exc)
-        if dados and request.args.get("consulta_kobo") == "1":
+        if dados and not encerrado and request.args.get("consulta_kobo") == "1":
             try:
                 id_ciclo = int(kobo_dados["ciclo"])
                 registros = _buscar_kobo(kobo_dados["inicio"], kobo_dados["fim"], id_ciclo)
@@ -123,7 +190,7 @@ def page():
     operacao = {"plano": None, "boletim": None, "acs": [], "erro": None}
     if dados and dados["ciclos"]:
         try:
-            ciclo = int(request.args.get("ciclo") or dados["ciclos"][0]["id_ciclo"])
+            ciclo = id_preferido
             operacao["plano"] = op.plano(_target(), ciclo, _base_dir(), request.args.get("estrato"), request.args.get("localidade"))
             if admin:
                 operacao["acs"] = op.catalogo_acs(_target())
@@ -137,22 +204,10 @@ def page():
         except Exception:
             logging.exception("Falha ao carregar operação LIRAa")
             operacao["erro"] = "Não foi possível carregar a operação do ciclo. Confira a migração 0026."
-    hoje = date.today().isoformat()
-    ciclos = (dados or {}).get("ciclos", [])
-    ciclo_preferido = next(
-        (c for c in ciclos if str(c["id_ciclo"]) == request.args.get("ciclo")),
-        None,
-    )
-    if ciclo_preferido is None:
-        ciclo_preferido = next(
-            (c for c in ciclos if c["inicio"] and str(c["inicio"]) <= hoje
-             and (not c["fim"] or hoje <= str(c["fim"]))),
-            ciclos[0] if ciclos else None,
-        )
     return render_template("liraa.html", dados=dados, erro=erro,
                            editando=editando, is_admin=admin, liraa_kobo=kobo_dados, operacao=operacao,
-                           acompanhamento_hoje=hoje, acompanhamento_ciclo=ciclo_preferido,
-                           acompanhamento_turnos=liraa_acompanhamento.TURNOS)
+                           acompanhamento_hoje=hoje, acompanhamento_ciclo=preferido,
+                           acompanhamento_turnos=liraa_acompanhamento.TURNOS, **contexto_resumo)
 
 
 @bp.get("/liraa/acompanhamento")
@@ -160,6 +215,8 @@ def page():
 def acompanhamento():
     try:
         ciclo = int(request.args.get("ciclo", ""))
+        if (_usuario() or {}).get("nivel") != "superadmin" and _encerrado(ciclo):
+            return render_template("liraa_acompanhamento.html", erro="Ciclo encerrado. Consulte o resumo."), 403
         resumo = liraa_acompanhamento.resumir(
             _target(), ciclo, request.args.get("dia") or date.today().isoformat(),
             request.args.get("turno", "dia"),
@@ -174,6 +231,49 @@ def acompanhamento():
     return render_template("liraa_acompanhamento.html", resumo=resumo), 200, {"Cache-Control": "no-store"}
 
 
+@bp.post("/liraa/ciclos/<int:id_ciclo>/encerrar")
+@login_required
+@nivel_superadmin
+def encerrar(id_ciclo):
+    return _alterar_encerramento(id_ciclo, liraa_resumo.encerrar, "encerrado", "observacoes")
+
+
+@bp.post("/liraa/ciclos/<int:id_ciclo>/reabrir")
+@login_required
+@nivel_superadmin
+def reabrir(id_ciclo):
+    return _alterar_encerramento(id_ciclo, liraa_resumo.reabrir, "reaberto", "motivo")
+
+
+def _alterar_encerramento(id_ciclo, operacao, estado, campo):
+    try:
+        operacao(_target(), id_ciclo, _usuario(), request.form.get(campo),
+                 auditar=lambda conn, detalhes: audit.registrar_evento(
+                     _get_db, f"liraa_ciclo_{estado}", entidade="liraa_ciclo",
+                     entidade_id=id_ciclo, detalhes=detalhes, conn=conn))
+        flash(f"Ciclo {estado}.", "success")
+    except (liraa_core.LiraaError, liraa_kobo.LiraaKoboError) as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("liraa.page", ciclo=id_ciclo) + "#liraa-tab-resumo")
+
+
+@bp.get("/liraa/ciclos/<int:id_ciclo>/resumo.csv")
+@login_required
+def resumo_csv(id_ciclo):
+    try:
+        dados = liraa_resumo.resumir(_target(), id_ciclo)
+    except liraa_kobo.LiraaKoboError:
+        abort(404)
+    campos = liraa_resumo.COLUNAS_ENTRADA + liraa_resumo.COLUNAS_INDICES[2:]
+    saida = StringIO()
+    writer = csv.writer(saida, delimiter=";")
+    writer.writerow(liraa_resumo.cabecalho_csv())
+    for row in [*dados["estratos"], dados["total"]]:
+        writer.writerow([row.get("estrato", "Total"), *(liraa_resumo.celula(row, campo) for campo, _ in campos)])
+    return send_file(BytesIO(saida.getvalue().encode("utf-8-sig")), mimetype="text/csv",
+                     as_attachment=True, download_name=f"LIRAa-{dados['ciclo']['ano']}-ciclo-{id_ciclo}-resumo.csv")
+
+
 def _buscar_kobo(inicio, fim, id_ciclo=None):
     try:
         first, last = date.fromisoformat(inicio), date.fromisoformat(fim)
@@ -186,6 +286,8 @@ def _buscar_kobo(inicio, fim, id_ciclo=None):
     cfg = kobo_api.load_config(_kobo_config_path())
     uid = str((cfg.get("assets") or {}).get("LIRAA") or "").strip()
     if id_ciclo:
+        if _encerrado(id_ciclo):
+            raise liraa_kobo.LiraaKoboError("Ciclo encerrado. Reabra-o antes de consultar os envios.")
         conn = _get_db()
         try:
             if db_core.table_exists(conn, "liraa_ciclo_config"):
@@ -321,7 +423,7 @@ def _resposta(acao, func, entidade, detalhes, auditoria_embutida=False):
 
 @bp.route("/liraa/ciclos", methods=["POST"])
 @login_required
-@nivel_admin
+@nivel_superadmin
 def criar_ciclo():
     payload = request.form.to_dict()
     return _resposta("liraa_ciclo_criado", lambda: liraa_core.criar_ciclo(_target(), payload),
@@ -402,6 +504,7 @@ def configurar_ciclo(id_ciclo):
 
 @bp.route("/api/liraa/ciclos/<int:id_ciclo>/plano-mapa")
 @login_required
+@_acesso_operacional
 def plano_mapa(id_ciclo):
     try:
         return jsonify(op.geojson(_target(), id_ciclo, _base_dir(), request.args.get("estrato"), request.args.get("localidade")))
@@ -411,6 +514,7 @@ def plano_mapa(id_ciclo):
 
 @bp.route("/liraa/ciclos/<int:id_ciclo>/plano.<formato>")
 @login_required
+@_acesso_operacional
 def exportar_plano(id_ciclo, formato):
     try:
         args = (_target(), id_ciclo, _base_dir(), request.args.get("estrato"), request.args.get("localidade"))
@@ -428,6 +532,7 @@ def exportar_plano(id_ciclo, formato):
 @bp.route("/liraa/ciclos/<int:id_ciclo>/formulario.xlsx")
 @login_required
 @nivel_admin
+@_acesso_operacional
 def formulario(id_ciclo):
     try:
         content = liraa_xlsform.gerar(_target(), id_ciclo, _base_dir())
@@ -440,6 +545,7 @@ def formulario(id_ciclo):
 @bp.route("/liraa/ciclos/<int:id_ciclo>/boletim.pdf")
 @login_required
 @nivel_admin
+@_acesso_operacional
 def boletim(id_ciclo):
     try:
         content = liraa_relatorios.boletim_pdf(_target(), id_ciclo, _base_dir(), request.args.get("agrupar", "estrato"),

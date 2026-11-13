@@ -15,7 +15,7 @@ from app_core import focos_positivos as focos_core
 from app_core import laboratorio_lancamentos as lab_core
 from app_core import ovitrampas_laboratorio as ovi_lab_core
 from app_core import liraa_laboratorio as liraa_lab_core
-from app_core import liraa_kobo, liraa_operacional, normalizadores, visitas
+from app_core import liraa, liraa_kobo, liraa_operacional, normalizadores, visitas
 
 
 bp = Blueprint("laboratorio_lancamentos", __name__)
@@ -244,6 +244,14 @@ def _filtros_laboratorio():
     return extra,params
 
 
+def _filtro_ciclos_encerrados(conn):
+    encerrados = sorted(liraa.ciclos_encerrados(conn))
+    if not encerrados or (bh.usuario_atual() or {}).get("nivel") == "superadmin":
+        return "", []
+    marcadores = ",".join("?" for _ in encerrados)
+    return f" AND (v.tipo<>'LIRAA' OR v.ciclo NOT IN ({marcadores}))", encerrados
+
+
 @bp.route("/api/laboratorio/lancamentos/pendentes")
 @login_required
 @laboratorio_required
@@ -252,6 +260,7 @@ def pendentes():
     except ValueError as exc:return jsonify({"erro":str(exc)}),400
     conn = integradas.integrar(bh.get_db())
     try:
+        restricao, encerrados = _filtro_ciclos_encerrados(conn)
         agentes_sql = _agentes_coleta_sql(conn)
         dias_sql = _dias_pendente_sql(conn)
         tubo_order = _numeric_text_order(conn, "c.num_tubo")
@@ -267,9 +276,9 @@ def pendentes():
               LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
               LEFT JOIN resultados_laboratorio rl ON rl.id_coleta=c.id_coleta
              LEFT JOIN {lab_core.STATUS_TABLE} st ON st.id_coleta=c.id_coleta
-             WHERE rl.id_coleta IS NULL AND st.id_coleta IS NULL {extra}
+             WHERE rl.id_coleta IS NULL AND st.id_coleta IS NULL {extra} {restricao}
              ORDER BY v.data, {tubo_order}, c.num_tubo
-        """,params).fetchall()
+        """, (*params, *encerrados)).fetchall()
         itens = _serializar_coletas(conn, rows)
     finally:
         conn.close()
@@ -288,6 +297,7 @@ def historico():
     limite = min(max(int(request.args.get("limite", 100)), 1), 500)
     conn = integradas.integrar(bh.get_db())
     try:
+        restricao, encerrados = _filtro_ciclos_encerrados(conn)
         agentes_sql = _agentes_coleta_sql(conn)
         resultados = conn.execute(f"""
             SELECT 'resultado' AS registro_tipo, rl.id_resultado, rl.id_coleta,
@@ -298,23 +308,27 @@ def historico():
                    rl.albopictus_larvas, rl.albopictus_pupas,
                    rl.albopictus_exuvias, rl.albopictus_adulto,
                    rl.outra_larvas, rl.outra_pupas, rl.outra_exuvias, rl.outra_adulto,
-                   v.tipo, COALESCE(l.nome, v.localidade) AS localidade,
+                   v.tipo, v.ciclo AS ciclo_visita, COALESCE(l.nome, v.localidade) AS localidade,
                    v.logradouro, v.numero, v.quarteirao,
                    ({agentes_sql}) AS agentes
               FROM resultados_laboratorio rl
               JOIN coletas c ON c.id_coleta=rl.id_coleta
               JOIN visitas v ON v.id_visita=c.id_visita
               LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
-             WHERE 1=1 {extra}
+             WHERE 1=1 {extra} {restricao}
              ORDER BY rl.data_leitura DESC, rl.id_resultado DESC
              LIMIT ?
-        """, (*params,limite)).fetchall()
+        """, (*params, *encerrados, limite)).fetchall()
         coletas = _serializar_coletas(conn, resultados)
+        todos_encerrados = liraa.ciclos_encerrados(conn)
     finally:
         conn.close()
     itens = []
     for row, item in zip(resultados, coletas):
-        item["editavel"] = ((bh.usuario_atual() or {}).get("nivel") in {"admin", "superadmin"}) if item["id_resultado"] < 0 else _resultado_editavel(row)
+        if item["id_resultado"] < 0:
+            item["editavel"] = row["ciclo_visita"] not in todos_encerrados and (bh.usuario_atual() or {}).get("nivel") in {"admin", "superadmin"}
+        else:
+            item["editavel"] = _resultado_editavel(row)
         item["positivo_aegypti"] = any(
             int(item.get(nome) or 0) > 0 for nome in CAMPOS_CONTAGEM[:4]
         )

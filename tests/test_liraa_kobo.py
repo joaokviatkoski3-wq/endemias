@@ -109,6 +109,8 @@ class LiraaKoboTests(unittest.TestCase):
         self.assertEqual(com_extras["adicionais"], 2)
         self.assertEqual([e["faltam"] for e in com_extras["estratos"]], [0, 1])
         self.assertEqual(com_extras["faltam"], 1)
+        self.assertEqual(com_extras["excedentes"], 2)
+        self.assertEqual([e["excedentes"] for e in com_extras["estratos"]], [2, 0])
         self.assertEqual(com_extras["percentual"], 66.7)
         self.assertEqual(com_extras["percentual_sorteadas"], 33.3)
 

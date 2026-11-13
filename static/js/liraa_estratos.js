@@ -19,7 +19,7 @@
     el('liraa-map-status').textContent = msg;
     el('liraa-map-status').style.color = erro ? '#b91c1c' : '';
   };
-  const editar = () => !!el('liraa-map-form') && !!estado.ciclo && (!estado.estrato || !estado.estrato.sorteio);
+  const editar = () => !!el('liraa-map-form') && !!estado.ciclo && !estado.ciclo.encerrado && (!estado.estrato || !estado.estrato.sorteio);
   function cicloAtual() { return dados.ciclos.find(c => String(c.id_ciclo) === el('liraa-map-ciclo').value) || null; }
   function localAtual() { return el('liraa-map-localidade').value; }
   function codigoFeature(f) {
@@ -156,7 +156,7 @@
     }
   }
   function aba(nome) {
-    for (const aba of ['plano', 'acompanhamento', 'mapa', 'geral', 'importar', 'visitas', 'campo', 'formulario', 'boletins']) {
+    for (const aba of ['resumo', 'plano', 'acompanhamento', 'mapa', 'geral', 'importar', 'visitas', 'campo', 'formulario', 'boletins']) {
       if (!el(`liraa-tab-${aba}`)) continue;
       const ativa = nome === aba;
       el(`liraa-tab-${aba}`).hidden = !ativa;
@@ -170,11 +170,12 @@
   el('liraa-tab-plano-btn').addEventListener('click', () => aba('plano'));
   el('liraa-tab-mapa-btn').addEventListener('click', () => aba('mapa'));
   el('liraa-tab-geral-btn').addEventListener('click', () => aba('geral'));
-  for (const nome of ['importar', 'visitas', 'campo', 'formulario', 'boletins', 'acompanhamento']) {
+  for (const nome of ['resumo', 'importar', 'visitas', 'campo', 'formulario', 'boletins', 'acompanhamento']) {
     el(`liraa-tab-${nome}-btn`)?.addEventListener('click', () => aba(nome));
   }
   const hashTab = location.hash.replace('#liraa-tab-', '');
-  if (['campo','formulario','boletins','acompanhamento'].includes(hashTab) && el(`liraa-tab-${hashTab}`)) aba(hashTab);
+  if (['resumo','campo','formulario','boletins','acompanhamento'].includes(hashTab) && el(`liraa-tab-${hashTab}`)) aba(hashTab);
+  if ((!location.hash || location.hash.startsWith('#liraa-resumo-')) && el('liraa-tab-resumo-btn')) aba('resumo');
   if (location.hash === '#liraa-tab-visitas' && el('liraa-tab-visitas')) aba('visitas');
   if (location.hash === '#liraa-tab-importar' && el('liraa-tab-importar')) aba('importar');
   if (new URLSearchParams(location.search).has('consulta_kobo') && el('liraa-tab-importar')) aba('importar');

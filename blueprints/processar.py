@@ -348,7 +348,7 @@ def kobo_previa():
         if tipo == "LIRAA":
             from app_core import liraa_integracao
             records,bruto=liraa_integracao.buscar_kobo(cfg,_db_path(),data.get("inicio"),data.get("fim"),
-                data.get("limite") or 100,uid=data.get("asset_uid"))
+                data.get("limite") or 100,uid=data.get("asset_uid"),incluir_encerrados=False)
         else:
             records, bruto = kobo_api.fetch_submissions(cfg,asset_uid,limit=data.get("limite") or 100,
                 start=data.get("inicio") or None,end=data.get("fim") or None)
@@ -447,7 +447,7 @@ def kobo_pendentes():
         try:
             if tipo == "LIRAA":
                 from app_core import liraa_integracao
-                records,meta=liraa_integracao.buscar_kobo(cfg,_db_path(),inicio,fim,limite)
+                records,meta=liraa_integracao.buscar_kobo(cfg,_db_path(),inicio,fim,limite,incluir_encerrados=False)
                 item["configurado"]=meta is not None
                 item["reenvios_ignorados"] = (meta or {}).get("reenvios_ignorados", 0)
             else:
@@ -580,7 +580,7 @@ def _kobo_fetch_registros_vetores_larvas(data):
         if tipo == "LIRAA":
             from app_core import liraa_integracao
             try:
-                registros_por_tipo[tipo],_=liraa_integracao.buscar_kobo(cfg,_db_path(),inicio,fim,limite)
+                registros_por_tipo[tipo],_=liraa_integracao.buscar_kobo(cfg,_db_path(),inicio,fim,limite,incluir_encerrados=False)
             except kobo_api.KoboError as exc:
                 erros.append(f"LIRAa: {exc}")
                 registros_por_tipo[tipo]=[]
@@ -766,7 +766,8 @@ def kobo_importar_formulario_iniciar():
     try:
         if tipo == "LIRAA":
             from app_core import liraa_integracao
-            records,_=liraa_integracao.buscar_kobo(cfg,_db_path(),data.get("inicio"),data.get("fim"),data.get("limite") or 100)
+            records,_=liraa_integracao.buscar_kobo(cfg,_db_path(),data.get("inicio"),data.get("fim"),
+                data.get("limite") or 100,incluir_encerrados=False)
         else:
             records, _ = kobo_api.fetch_submissions(cfg,asset_uid,limit=data.get("limite") or 100,
                 start=data.get("inicio") or None,end=data.get("fim") or None)

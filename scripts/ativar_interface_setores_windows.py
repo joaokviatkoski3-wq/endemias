@@ -60,7 +60,7 @@ def wait_closed(timeout=35):
     return False
 
 
-def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER):
+def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None):
     from app_core import postgresql_migrations,backup_completo,db
     if not ctypes.windll.shell32.IsUserAnAdmin():raise PermissionError('Execute como administrador do Windows.')
     if not all(re.fullmatch('[0-9a-f]{40}',v) for v in (args.release,args.expected_current)):
@@ -77,8 +77,10 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER):
     connection=connect(original,readonly=True)
     try:
         status=postgresql_migrations.status(connection,SOURCE/'migrations/postgresql')
-        if not status or any(r['state']!='applied' for r in status):
-            raise ValueError('Este pacote não aplica migrações; esquema precisa estar atualizado.')
+        pendentes = [row.get('name') for row in status if row['state'] == 'pending']
+        if (not status or any(row['state'] not in {'applied', 'pending'} for row in status)
+                or pendentes not in ([], [migration]) or (pendentes and migration is None)):
+            raise ValueError('Migrações diferentes das previstas no pacote.')
     finally:connection.close()
     win=Windows();win.web=win.sec.ConvertStringSidToSid(original['sid'])
     task=win.folder.GetTask('Endemias - Servidor')
@@ -113,6 +115,15 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER):
         archive=Path(info['arquivo'])
         report['backup_completo']={'arquivo':str(archive),'bytes':archive.stat().st_size,'sha256':digest(archive)}
         save('integrando_codigo');git('merge','--ff-only',args.release);integrated=True
+        if pendentes:
+            save('migracao_' + migration[:4])
+            connection = connect(original)
+            try:
+                report['migrations_applied'] = postgresql_migrations.apply_pending(connection, OFFICIAL/'migrations/postgresql')
+                if report['migrations_applied'] != [migration]:
+                    raise RuntimeError('Migração aplicada diferente da prevista.')
+            finally:
+                connection.close()
         report['tables_compared']=len(before)
         if before!=database_fingerprints(original,before) or files_before!=operational_files(original):
             raise RuntimeError('Dados/arquivos divergiram; não restaurar automaticamente.')
@@ -149,12 +160,12 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER):
         save('retornado');return 1
 
 
-def main(origin=ORIGIN,target=TARGET,marker=MARKER):
-    parser=argparse.ArgumentParser(description=f'Atualiza {origin} para {target}, sem migração de banco.')
+def main(origin=ORIGIN,target=TARGET,marker=MARKER, migration=None):
+    parser=argparse.ArgumentParser(description=f'Atualiza {origin} para {target}.')
     parser.add_argument('--aplicar',action='store_true',required=True)
     parser.add_argument('--release',required=True);parser.add_argument('--expected-current',required=True)
     args=parser.parse_args()
-    try:return apply(args,origin,target,marker)
+    try:return apply(args,origin,target,marker,migration)
     except Exception as error:
         result={'status':'falhou','error_type':type(error).__name__,
                 'trace':[{'file':Path(f.filename).name,'line':f.lineno,'function':f.name} for f in traceback.extract_tb(error.__traceback__)]}

@@ -6,6 +6,15 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
+## Candidata 2.8.0 — resumo e encerramento do LIRAa
+
+Resumo por estrato na ordem do programa oficial, com entrada de dados, índices,
+CSV e cobertura. Cada visita válida de imóvel aberto entra integralmente em
+Insp., inclusive adicionais autorizados. O Acompanhamento mostra as visitas
+excedentes por estrato. Encerramento e reabertura manuais do superadmin com
+resumo congelado e histórico. Tubitos sem leitura impedem encerrar; o saldo
+de cobertura pode ser registrado em observações. O ciclo 4 segue aberto.
+
 ## Versão ativa 2.7.8 — metas de campo do LIRAa
 
 Inclui o quarteirão 0323 nas retiradas operacionais do ciclo 4. O indicador

@@ -8,7 +8,7 @@ from xml.etree import ElementTree as ET
 
 from flask import Flask
 from openpyxl import load_workbook
-from app_core import db, liraa, liraa_kobo, liraa_operacional as op, liraa_xlsform, liraa_boletim, liraa_laboratorio as lab, liraa_relatorios
+from app_core import db, liraa, liraa_kobo, liraa_operacional as op, liraa_xlsform, liraa_boletim, liraa_laboratorio as lab, liraa_relatorios, liraa_integracao, liraa_resumo
 from tests import test_liraa as fixtures
 from blueprints.liraa import bp
 from blueprints.auth import bp as auth_bp
@@ -261,6 +261,66 @@ class OperacaoTests(unittest.TestCase):
         self.assertIn(b'PARCIAL',summary)
         self.assertIn(b'Aedes albopictus',summary)
 
+    def test_espelho_e_encerramento_preservam_resultado_com_cobertura_incompleta(self):
+        visita = self.registro(uuid="positiva", tubitos=2)
+        visita["Dados_visita"]["Imovel"] = "terreno_baldio"
+        visita["group_jr1vc40"][0]["C_digo_do_dep_sito"] = "D1"
+        visita_sem_coleta = self.registro(uuid="inspecionada", tubitos=0)
+        visita_sem_coleta["Dados_visita"]["Numero"] = 2
+        liraa_kobo.importar(self.target, self.ciclo, [visita, visita_sem_coleta])
+        usuario = {**self.user, "nivel": "superadmin"}
+        with self.assertRaisesRegex(liraa.LiraaError, "aguardando leitura"):
+            liraa_resumo.encerrar(self.target, self.ciclo, usuario, "Cobertura revisada")
+
+        tubos = lab.listar(self.target, self.ciclo)
+        lab.salvar(self.target, tubos[0]["id_tubito"], self.payload(aegypt_larvas="4", albopictus_pupas="1"), usuario)
+        lab.salvar(self.target, tubos[1]["id_tubito"], self.payload(aegypt_pupas="2"), usuario)
+        parcial = liraa_resumo.resumir(self.target, self.ciclo)
+        total = parcial["total"]
+        self.assertEqual(total["trabalhados"], 2)
+        self.assertEqual(total["aegypt_tb"], 1)
+        self.assertEqual(total["aegypt_total"], 2)
+        self.assertEqual(total["aegypt_iip"], 50)
+        self.assertEqual(total["aegypt_ib"], 100)
+        self.assertEqual(total["albopictus_ib"], 50)
+        self.assertEqual(total["itr"]["D1"], 50)
+        self.assertGreater(total["faltam"], 0)
+        with self.assertRaisesRegex(liraa.LiraaError, "observações"):
+            liraa_resumo.encerrar(self.target, self.ciclo, usuario, "")
+        liraa_resumo.encerrar(self.target, self.ciclo, usuario, "Cobertura revisada")
+        final = liraa_resumo.resumir(self.target, self.ciclo)
+        self.assertEqual(final["encerramento"]["responsavel"], usuario["nome"])
+        self.assertEqual(final["total"], total)
+        nova = self.registro(uuid="depois-do-fechamento", endemias_ciclo=self.ciclo)
+        proximo = liraa.criar_ciclo(self.target, {"ano": 2027, "nome": "Próximo levantamento"})
+        envio_proximo = self.registro(uuid="proximo-ciclo", endemias_ciclo=proximo)
+        with patch("app_core.kobo_api.fetch_complete_submissions", return_value=[nova, envio_proximo]):
+            registros, _ = liraa_integracao.buscar_kobo({}, self.target, uid="diario", incluir_encerrados=False)
+        self.assertEqual(registros, [envio_proximo])
+        with self.assertRaisesRegex(liraa.LiraaError, "encerrado"):
+            liraa_kobo.importar(self.target, self.ciclo, [nova])
+        with self.assertRaisesRegex(liraa.LiraaError, "encerrado"):
+            lab.salvar(self.target, tubos[0]["id_tubito"], self.payload(), usuario)
+        with self.assertRaisesRegex(liraa.LiraaError, "encerrado"):
+            op.salvar_configuracao(self.target, self.ciclo, [], "")
+        conn = db.connect(self.target)
+        try:
+            with conn:
+                lote = liraa_integracao.importar_lote(conn, [nova])
+            self.assertEqual((lote["visitas_novas"], lote["envios_de_ciclos_encerrados"]), (0, 1))
+        finally:
+            conn.close()
+        liraa_resumo.reabrir(self.target, self.ciclo, usuario, "Correção conferida")
+        self.assertNotIn("encerramento", liraa_resumo.resumir(self.target, self.ciclo))
+        self.assertEqual(liraa_kobo.importar(self.target, self.ciclo, [nova]), 1)
+        conn = db.connect(self.target)
+        try:
+            historico = conn.execute("SELECT resumo_json,motivo_reabertura FROM liraa_encerramentos").fetchone()
+            self.assertEqual(json.loads(historico["resumo_json"])["total"], total)
+            self.assertEqual(historico["motivo_reabertura"], "Correção conferida")
+        finally:
+            conn.close()
+
     def test_rotas_permissoes_downloads_e_telas(self):
         liraa_kobo.importar(self.target,self.ciclo,[self.registro()])
         conn=db.connect(self.target)
@@ -312,6 +372,30 @@ class OperacaoTests(unittest.TestCase):
         self.assertEqual(client.get('/laboratorio/lancamentos?modulo=liraa').status_code,200)
         self.assertEqual(client.get('/liraa/laboratorio?pendentes=0').status_code,302)
         self.assertEqual(client.get(f'/liraa/ciclos/{self.ciclo}/formulario.xlsx').status_code,403)
+        with db.connect(self.target) as conn:
+            conn.execute("UPDATE usuarios SET nivel='admin'")
+        conn.close()
+        self.assertEqual(client.post(f'/liraa/ciclos/{self.ciclo}/encerrar').status_code, 403)
+        with db.connect(self.target) as conn:
+            conn.execute("UPDATE usuarios SET nivel='superadmin'")
+        conn.close()
+        response = client.post(f'/liraa/ciclos/{self.ciclo}/encerrar', data={"observacoes": "Conferido"}, follow_redirects=True)
+        self.assertIn("Ciclo encerrado", response.get_data(as_text=True))
+        self.assertIn('id="liraa-tab-visitas"', response.get_data(as_text=True))
+        with db.connect(self.target) as conn:
+            conn.execute("UPDATE usuarios SET nivel='admin'")
+        conn.close()
+        resumo = client.get(f'/liraa?ciclo={self.ciclo}').get_data(as_text=True)
+        self.assertIn("Entrada de dados", resumo)
+        self.assertIn("Índices", resumo)
+        self.assertNotIn('id="liraa-tab-visitas"', resumo)
+        self.assertNotIn('id="liraa-dados-json"', resumo)
+        self.assertEqual(client.get(f'/liraa/acompanhamento?ciclo={self.ciclo}').status_code, 403)
+        self.assertEqual(client.get(f'/api/liraa/ciclos/{self.ciclo}/plano-mapa').status_code, 403)
+        self.assertEqual(client.get(f'/liraa/ciclos/{self.ciclo}/boletim.pdf').status_code, 403)
+        self.assertEqual(client.post(f'/liraa/ciclos/{self.ciclo}/reabrir').status_code, 403)
+        csv = client.get(f'/liraa/ciclos/{self.ciclo}/resumo.csv')
+        self.assertIn("Estrato;Prog.;Insp.", csv.data.decode("utf-8-sig"))
 
     def test_painel_laboratorio_contador_paginacao_e_schema_ausente(self):
         liraa_kobo.importar(self.target,self.ciclo,[self.registro(tubitos=3)])

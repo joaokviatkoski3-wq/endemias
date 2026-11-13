@@ -30,6 +30,8 @@
   <h2>Formulário Kobo por ciclo</h2>
   {{ filtros('formulario') }}
   {% if plan %}{% set cfg = plan.ciclo.config|default({'acs': [], 'acs_definidos': 0, 'kobo_uid': ''}) %}
+  {% if encerrado %}<p class="liraa-note">Ciclo encerrado · {{ cfg.acs|map(attribute='nome')|join(', ') or 'Nenhum ACS configurado' }}.</p>
+  {% else %}
   <p>Selecione os ACS participantes, salve e baixe o XLSForm. A lista pode ser alterada depois. O arquivo inclui os logradouros do RG de cada quarteirão e a opção “Outro — digitar”. No ciclo aprovado, preserva as demais alterações manuais, inclusive os quarteirões adicionais. Depois substitua e implante o formulário no Kobo manualmente, mantendo o UID do ciclo, e atualize o formulário nos aparelhos. O download não publica nada.</p>
   <form method="post" action="{{ url_for('liraa.configurar_ciclo', id_ciclo=plan.ciclo.id_ciclo) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -40,6 +42,7 @@
   </form>
   {% if (liraa_kobo|default({})).get('correcao_habilitada') %}<p><a class="liraa-btn" href="{{ url_for('liraa.formulario', id_ciclo=plan.ciclo.id_ciclo) }}">Gerar XLSForm do ciclo</a></p>{% else %}<p class="liraa-note">Reinicie o serviço para habilitar a atualização do formulário aprovado.</p>{% endif %}
   <p class="liraa-note">O formulário inclui <strong>todos</strong> os quarteirões sorteados do ciclo, independentemente dos filtros desta tela. Se houver ressorteio, gere e publique novamente antes das visitas. O Endemias identifica formulários antigos e não consolida seus dados silenciosamente.</p>
+  {% endif %}
   {% endif %}
 </section>
 <section class="liraa-panel" id="liraa-tab-boletins" role="tabpanel" hidden>

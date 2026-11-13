@@ -183,7 +183,7 @@ def verificar_formularios_230(target,client,checks,private):
 
 
 def verificar_liraa_sequencias(target, client, checks):
-    from app_core import db, liraa_integracao, visitas
+    from app_core import db, liraa_integracao, liraa_laboratorio, liraa_resumo, visitas
     conn=db.connect(target)
     try:
         cycle=db.insert_and_get_id(conn,"INSERT INTO liraa_ciclos(ano,nome,inicio,fim,observacoes,criado_em) VALUES(2026,'Ensaio sequencias','2026-10-01','2026-10-31','','2026-10-01')",(),'id_ciclo')
@@ -214,6 +214,31 @@ def verificar_liraa_sequencias(target, client, checks):
         assert "<strong>3</strong>Visitas registradas" in texto
         assert "<strong>1</strong>Tubitos aguardando leitura" in texto
         checks["liraa_acompanhamento_pg"] = True
+        with conn:
+            estrato = db.insert_and_get_id(conn, """INSERT INTO liraa_estratos
+                (id_ciclo,numero,tipo,imoveis_confirmados,criado_em,atualizado_em)
+                VALUES(?,1,'normal',1000,'2026-10-01','2026-10-01')""", (cycle,), "id_estrato")
+            loc = conn.execute("SELECT id_localidade FROM localidades WHERE nome='Localidade Ficticia'").fetchone()[0]
+            conn.execute("INSERT INTO liraa_estrato_quarteiroes(id_ciclo,id_estrato,id_localidade,quarteirao) VALUES(?,?,?,'0001')",
+                         (cycle, estrato, loc))
+            conn.execute("""INSERT INTO liraa_sorteios(id_estrato,criado_em,semente,n,a,q,fracao,intervalo,inicio_casual,
+                universo_hash,universo_json,selecionados_json) VALUES(?,'2026-10-01','1',2,1,1,0.2,1,0.1,'hash','[]',?)""",
+                         (estrato, json.dumps([{"id_localidade": loc, "quarteirao": "0001"}])))
+        tubo = liraa_laboratorio.listar(target, cycle)[0]["id_tubito"]
+        operador = {"id_usuario": 1, "nome": "Pessoa Fictícia", "nivel": "superadmin"}
+        liraa_laboratorio.salvar(target, tubo, {"data_leitura": "2026-10-07", **dict.fromkeys(liraa_laboratorio.CAMPOS, "0")}, operador)
+        espelho = client.get(f"/liraa/ciclos/{cycle}/resumo.csv")
+        assert espelho.status_code == 200 and "1;2;3;" in espelho.data.decode("utf-8-sig")
+        liraa_resumo.encerrar(target, cycle, operador, "Conferido no ensaio")
+        assert liraa_resumo.resumir(target, cycle)["total"]["excedentes"] == 1
+        novo = {**record, "_uuid": "apos-encerramento"}
+        with conn:
+            assert liraa_integracao.importar_lote(conn, [novo])["envios_de_ciclos_encerrados"] == 1
+        resposta = client.get(f"/api/laboratorio/lancamentos/historico?tipo=LIRAA&ciclo={cycle}")
+        assert resposta.status_code == 200 and resposta.json["registros"][0]["editavel"] is False
+        liraa_resumo.reabrir(target, cycle, operador, "Conferir histórico")
+        assert "encerramento" not in liraa_resumo.resumir(target, cycle)
+        checks["liraa_espelho_encerramento_reabertura_pg"] = True
     finally:conn.close()
 
 
@@ -299,6 +324,9 @@ def main():
             with connection.cursor() as cursor:
                 cursor.execute("UPDATE usuarios SET nivel='superadmin' WHERE id_usuario=1")
                 cursor.execute("UPDATE usuarios SET setor='ambiental' WHERE id_usuario=4")
+            connection.commit()
+            with connection.cursor() as cursor:
+                cursor.execute(next(m.sql for m in migrations if m.version=='0036'))
             connection.commit()
             checks['0035_aditiva_contas_senhas_preservadas']=True
         finally:

@@ -45,6 +45,7 @@ def verificar(config, root, endemias):
     endemias.jinja_env.get_template('formulario_kobo.html')
     endemias.jinja_env.get_template('liraa.html')
     endemias.jinja_env.get_template('liraa_acompanhamento.html')
+    endemias.jinja_env.get_template('liraa_resumo.html')
     from app_core.liraa_sequencias import separar
     assert separar('A1 / A2 / A3')[0]==['A1','A2','A3']
     from app_core.formularios_kobo import carregar,compilar,TITULOS

@@ -400,7 +400,7 @@ class LiraaTests(unittest.TestCase):
         env.globals.update({"csrf_token": lambda: "teste", "url_for": lambda name, **kw: "/" + name,
                             "get_flashed_messages": lambda **kw: []})
         html = env.get_template("liraa.html").render(dados=liraa.painel(self.db, self.temp.name),
-                                                       erro=None, editando=None, is_admin=True,
+                                                       erro=None, editando=None, is_admin=True, superadmin=True,
                                                        APP_VERSION_LABEL="Teste", TIPO_CORES={},
                                                        TIPO_LABELS={}, AGENDA_TIPO_LABELS={},
                                                          sidebar_groups=[], request=SimpleNamespace(endpoint="liraa.page", args={}))
@@ -430,7 +430,7 @@ class LiraaTests(unittest.TestCase):
         self.assertNotIn("expande o campo condomínio", html)
         self.assertNotIn("Baixar .lira", html)
 
-    def test_rota_exige_login_e_admin_para_gravar(self):
+    def test_rota_exige_superadmin_para_criar_ciclo_e_admin_para_planejar(self):
         conn = sqlite3.connect(self.db)
         conn.execute("""CREATE TABLE usuarios (
             id_usuario INTEGER PRIMARY KEY, usuario TEXT, nome TEXT, nivel TEXT, ativo INTEGER)""")
@@ -462,10 +462,17 @@ class LiraaTests(unittest.TestCase):
             conn.execute("UPDATE usuarios SET nivel='admin' WHERE id_usuario=1")
             conn.commit()
             conn.close()
+            self.assertEqual(client.post("/liraa/ciclos", data={"ano": 2026, "nome": "1º"}).status_code, 403)
+            with sqlite3.connect(self.db) as conn:
+                conn.execute("UPDATE usuarios SET nivel='superadmin' WHERE id_usuario=1")
+            conn.close()
             response = client.post("/liraa/ciclos", data={"ano": 2026, "nome": "1º"}, follow_redirects=True)
             self.assertEqual(response.status_code, 200)
             self.assertIn("1º", response.get_data(as_text=True))
             ciclo = liraa.painel(self.db, self.temp.name)["ciclos"][0]["id_ciclo"]
+            with sqlite3.connect(self.db) as conn:
+                conn.execute("UPDATE usuarios SET nivel='admin' WHERE id_usuario=1")
+            conn.close()
             response = client.post(f"/liraa/ciclos/{ciclo}/estratos", data={
                 "numero": "1", "tipo": "normal", "imoveis_confirmados": "9000",
                 "localidades": ["1", "2"]}, follow_redirects=True)

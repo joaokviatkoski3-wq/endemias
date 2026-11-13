@@ -20,6 +20,8 @@
 .liraa-table-wrap{overflow:auto;max-height:470px}.liraa-table{width:100%;border-collapse:collapse;font-size:13px}
 .liraa-table th,.liraa-table td{padding:9px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
 .liraa-table th{background:var(--surface2);position:sticky;top:0}.liraa-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+.liraa-espelho{min-width:960px}.liraa-espelho th,.liraa-espelho td{padding:8px 6px}.liraa-espelho th[scope=col]{font-size:12px}.liraa-espelho th:first-child{left:0;z-index:1}.liraa-espelho tfoot{font-weight:700;background:var(--surface2)}
+#liraa-tab-resumo h3{margin:14px 0 6px}
 .liraa-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.liraa-actions form{display:inline}
 .liraa-btn{border:1px solid var(--border);border-radius:6px;padding:8px 12px;background:var(--surface2);color:var(--text);cursor:pointer;text-decoration:none;font-size:12px;font-weight:700}
 .liraa-btn.primary{background:#155e75;color:white;border-color:#155e75}.liraa-btn.danger{color:#b91c1c}
@@ -64,8 +66,16 @@
 <p class="liraa-intro">Planejamento, plano de campo, diário Kobo e boletins do LIRAa. O arquivo <code>.lira</code> continua sendo gerado no programa oficial.</p>
 {% for category, message in get_flashed_messages(with_categories=true) %}<div class="liraa-feedback {{ category }}" role="status">{{ message }}</div>{% endfor %}
 {% if erro %}<div class="liraa-note" role="alert">{{ erro }}</div>{% endif %}
+{% if catalogo_ciclos %}
+<form class="liraa-map-controls" action="{{ url_for('liraa.page') }}#liraa-tab-resumo" method="get">
+  <label for="liraa-ciclo-resumo">Ciclo</label>
+  <select id="liraa-ciclo-resumo" name="ciclo">{% for c in catalogo_ciclos %}<option value="{{ c.id_ciclo }}" {% if c.id_ciclo == ciclo_selecionado %}selected{% endif %}>{{ c.ano }} · {{ c.nome }}{% if c.encerrado %} · Encerrado{% endif %}</option>{% endfor %}</select>
+  <button class="liraa-btn" type="submit">Abrir ciclo</button>
+</form>
+{% endif %}
 {% if dados %}
 <div class="liraa-tabs" role="tablist" aria-label="Áreas do LIRAa">
+  {% if ciclo_selecionado %}<button class="liraa-btn" id="liraa-tab-resumo-btn" type="button" role="tab" aria-selected="false" aria-controls="liraa-tab-resumo">Resumo do ciclo</button>{% endif %}
   <button class="liraa-btn" id="liraa-tab-plano-btn" type="button" role="tab" aria-selected="true" aria-controls="liraa-tab-plano">Planejamento</button>
   {% if dados.ciclos and acompanhamento_turnos is defined %}<button class="liraa-btn" id="liraa-tab-acompanhamento-btn" type="button" role="tab" aria-selected="false" aria-controls="liraa-tab-acompanhamento">Acompanhamento</button>{% endif %}
   <button class="liraa-btn" id="liraa-tab-mapa-btn" type="button" role="tab" aria-selected="false" aria-controls="liraa-tab-mapa">Mapa dos estratos</button>
@@ -76,6 +86,9 @@
   {% if is_admin %}<button class="liraa-btn" id="liraa-tab-importar-btn" type="button" role="tab" aria-selected="false" aria-controls="liraa-tab-importar">Importar Kobo</button>
   <button class="liraa-btn" id="liraa-tab-visitas-btn" type="button" role="tab" aria-selected="false" aria-controls="liraa-tab-visitas">Visitas LIRAa</button>{% endif %}
 </div>
+{% endif %}
+{% if ciclo_selecionado %}{% include 'liraa_resumo.html' %}{% endif %}
+{% if dados %}
 <div id="liraa-tab-plano" role="tabpanel">
 <div class="liraa-grid">
   <div class="liraa-card"><strong>{{ dados.localidades|length }}</strong><span>localidades cadastradas</span></div>
@@ -92,7 +105,7 @@
   {% for l in dados.localidades %}<tr><td>{{ l.nome }}</td><td class="num">{{ l.quarteiroes }}</td><td class="num">{{ l.com_rg }}</td><td class="num">{{ l.unidades_rg_sem_pe }}</td><td class="num">{{ l.pe_rg }}</td></tr>{% endfor %}
   </tbody></table></div>
 </section>
-{% if is_admin %}
+{% if superadmin %}
 <section class="liraa-panel">
   <h2>Novo ciclo</h2>
   <form class="liraa-form" method="post" action="{{ url_for('liraa.criar_ciclo') }}">
@@ -114,7 +127,7 @@
     <summary>{{ c.ano }} — {{ c.nome }} · {{ c.estratos|length }} estrato(s) · {{ c.quarteiroes_sem_estrato }} quarteirão(ões) sem estrato</summary>
     <div>
       <p class="liraa-muted">{% if c.inicio %}{{ c.inicio }}{% else %}Data inicial não informada{% endif %} a {% if c.fim %}{{ c.fim }}{% else %}data final não informada{% endif %}{% if c.observacoes %} · {{ c.observacoes }}{% endif %}</p>
-      {% if is_admin and not (c.estratos|selectattr('sorteio')|list) %}
+      {% if is_admin and not c.encerrado and not (c.estratos|selectattr('sorteio')|list) %}
       <details class="liraa-stratum"><summary>Corrigir dados do ciclo</summary>
         <form class="liraa-form" method="post" action="{{ url_for('liraa.atualizar_ciclo', id_ciclo=c.id_ciclo) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -127,7 +140,7 @@
         </form>
       </details>
       {% endif %}
-      {% if is_admin %}
+      {% if is_admin and not c.encerrado %}
       <form method="post" action="{{ url_for('liraa.excluir_ciclo', id_ciclo=c.id_ciclo) }}" onsubmit="return confirm('Excluir este ciclo e todos os seus estratos e sorteios? Esta ação não pode ser desfeita.');">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="liraa-btn danger" type="submit" name="confirmar_exclusao" value="sim">Excluir ciclo{% if c.estratos %} e seus {{ c.estratos|length }} estratos{% endif %}</button>
@@ -145,7 +158,7 @@
           {% if e.sorteio.selecionados|length != e.sorteio.q %}<div class="liraa-note">A quantidade efetiva difere do plano pela distribuição entre localidades. Confira a lista antes de usá-la.</div>{% endif %}
           <p class="liraa-muted">A posição sorteada recomeça em 1 em cada localidade (ou parte dela neste estrato); o quarteirão municipal é o número real correspondente na ordem numérica do cadastro. A quantidade efetiva pode diferir ligeiramente do plano pela divisão entre localidades.</p>
           <div class="liraa-actions">{% for l in e.sorteio.por_localidade|default([]) %}<span class="liraa-btn">{{ l.localidade }}: {{ l.sorteados }} sorteados / {{ l.universo }} quarteirões</span>{% endfor %}</div>
-          {% if is_admin %}
+          {% if is_admin and not c.encerrado %}
           <details class="liraa-sample"><summary>Ressortear / informar início casual</summary>
             <p class="liraa-muted">Disponível somente enquanto o ciclo não possui visitas importadas. O sorteio anterior fica no histórico. Após ressortear, gere novamente o XLSForm. Para comparar com LIRAa/LIA, use o mesmo início casual e a mesma ordem de quarteirões.</p>
             <form class="liraa-form" method="post" action="{{ url_for('liraa.sortear', id_estrato=e.id_estrato) }}" onsubmit="return confirm('Substituir a seleção atual? Os formulários já gerados precisarão ser atualizados no Kobo.');">
@@ -164,13 +177,13 @@
             {% for q in e.sorteio.selecionados %}{% set imoveis = e.sorteio.imoveis_rg_atuais.get(q.id_localidade|string ~ ':' ~ q.quarteirao) %}<tr><td>{{ q.localidade }}</td><td>{{ q.inicio_local if q.inicio_local is defined else '—' }}</td><td>{{ q.ordem_localidade if q.ordem_localidade is defined else '—' }}</td><td>{{ q.quarteirao_exibicao }}</td><td>{{ q.ordem_universo }}</td><td>{{ imoveis if imoveis is not none else 'Sem RG' }}</td></tr>{% endfor %}
             </tbody></table></div>
           </details>
-        {% elif is_admin %}
+        {% elif is_admin and not c.encerrado %}
           <div class="liraa-actions">
             <a class="liraa-btn" href="{{ url_for('liraa.page', editar=e.id_estrato) }}#mapa-estratos">Editar no mapa</a>
             <form method="post" action="{{ url_for('liraa.sortear', id_estrato=e.id_estrato) }}" onsubmit="return confirm('O universo e os parâmetros ficarão congelados para auditoria. Continuar?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Início casual (opcional)<input name="inicio_casual" inputmode="decimal" placeholder="Vazio = aleatório"></label><button class="liraa-btn primary" type="submit">Sortear ensaio</button></form>
           </div>
         {% endif %}
-        {% if is_admin %}
+        {% if is_admin and not c.encerrado %}
           <form method="post" action="{{ url_for('liraa.excluir_estrato', id_estrato=e.id_estrato) }}" onsubmit="return confirm('Excluir este estrato{% if e.sorteio %} e o sorteio registrado{% endif %}? Esta ação não pode ser desfeita.');">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="liraa-btn danger" type="submit" name="confirmar_exclusao" value="sim">Excluir estrato{% if e.sorteio %} e sorteio{% endif %}</button>
@@ -178,7 +191,7 @@
         {% endif %}
       </article>
       {% endfor %}
-      {% if is_admin %}<a class="liraa-btn" href="{{ url_for('liraa.page') }}?ciclo={{ c.id_ciclo }}#mapa-estratos">Adicionar estrato no mapa</a>{% endif %}
+      {% if is_admin and not c.encerrado %}<a class="liraa-btn" href="{{ url_for('liraa.page') }}?ciclo={{ c.id_ciclo }}#mapa-estratos">Adicionar estrato no mapa</a>{% endif %}
     </div>
   </details>
   {% endfor %}
@@ -253,7 +266,9 @@
 {% set kobo = liraa_kobo|default({}) %}
 <section class="liraa-panel" id="liraa-tab-importar" role="tabpanel" hidden>
   <h2>Importar diário Kobo do LIRAa</h2>
-  <p class="liraa-muted">Esta importação não participa da rotina automática dos outros formulários. A busca usa a data de envio ao Kobo; selecione o ciclo antes de consultar. Nenhuma visita é importada apenas por consultar.</p>
+  {% if encerrado %}<p class="liraa-note">Ciclo encerrado. Reabra-o pelo Resumo do ciclo para importar.</p>
+  {% else %}
+  <p class="liraa-muted">A busca usa a data de envio ao Kobo. Confira a prévia antes de importar as visitas.</p>
   {% if kobo.get('erro') %}<div class="liraa-note" role="alert">{{ kobo.erro }}</div>{% endif %}
   {% if tem_permissao is defined and tem_permissao('tecnica') %}<form class="liraa-form" method="post" action="{{ url_for('liraa.configurar_kobo') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -288,6 +303,7 @@
     <button class="liraa-btn primary" type="submit">Importar visitas novas</button>
   </form>
   {% endif %}
+  {% endif %}
 </section>
 <section class="liraa-panel" id="liraa-tab-visitas" role="tabpanel" hidden>
   <h2>Visitas LIRAa</h2>
@@ -320,11 +336,11 @@
           <label>Motivo da correção<input name="motivo" maxlength="300" required></label>
           <p>Altera somente o Endemias, mantém as leituras e registra a correção no histórico.</p><button class="liraa-btn primary" type="submit">Salvar correção</button>
         </form>
-      </details>{% endif %}<form method="post" action="{{ url_for('liraa.excluir_visita', id_visita=v.id_visita) }}" onsubmit="return confirm('Excluir esta visita e seus tubitos do Endemias? Ela continuará no Kobo e não será reimportada.');">
+      </details><form method="post" action="{{ url_for('liraa.excluir_visita', id_visita=v.id_visita) }}" onsubmit="return confirm('Excluir esta visita e seus tubitos do Endemias? Ela continuará no Kobo e não será reimportada.');">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="confirmar_exclusao" value="sim">
         <input name="motivo" maxlength="300" placeholder="Motivo (ex.: teste)" aria-label="Motivo da exclusão">
         <button class="liraa-btn danger" type="submit">Excluir</button>
-      </form></td>
+      </form>{% else %}Consulta{% endif %}</td>
     </tr>{% endfor %}
   </tbody></table></div>
   <div class="liraa-actions">

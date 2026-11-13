@@ -1,0 +1,78 @@
+{% macro tabela(titulo, colunas, id, grupos=()) %}
+<h3 id="{{ id }}">{{ titulo }}</h3>
+<div class="liraa-table-wrap" tabindex="0" role="region" aria-labelledby="{{ id }}">
+  <table class="liraa-table liraa-espelho">
+    {% if grupos %}<colgroup span="1"></colgroup>{% for _, largura in grupos %}<colgroup span="{{ largura }}"></colgroup>{% endfor %}{% endif %}
+    <thead>
+      {% if grupos %}<tr><th scope="col" rowspan="2">Estrato</th>{% for rotulo, largura in grupos %}<th scope="colgroup" colspan="{{ largura }}">{{ rotulo }}</th>{% endfor %}</tr>{% endif %}
+      <tr>{% if not grupos %}<th scope="col">Estrato</th>{% endif %}{% for _, rotulo in colunas %}<th scope="col">{{ rotulo }}</th>{% endfor %}</tr>
+    </thead>
+    <tbody>{% for e in resumo.estratos %}
+      <tr><th scope="row">{{ e.estrato }}</th>{% for campo, _ in colunas %}<td class="num">{{ celula_resumo(e, campo) }}</td>{% endfor %}</tr>
+    {% endfor %}</tbody>
+    <tfoot><tr><th scope="row">Total</th>{% for campo, _ in colunas %}<td class="num">{{ celula_resumo(resumo.total, campo) }}</td>{% endfor %}</tr></tfoot>
+  </table>
+</div>
+{% endmacro %}
+{% macro data_br(data) %}{{ (data|string)[:10].split('-')|reverse|join('/') }}{% endmacro %}
+
+<section id="liraa-tab-resumo" class="liraa-panel" {% if dados %}role="tabpanel" aria-labelledby="liraa-tab-resumo-btn" hidden{% endif %}>
+  <h2>Resumo do ciclo</h2>
+  {% if resumo_erro %}<p class="liraa-note" role="alert">{{ resumo_erro }}</p>{% endif %}
+  {% if resumo %}
+  <p>{{ resumo.ciclo.ano }} · {{ resumo.ciclo.nome }}{% if resumo.ciclo.inicio and resumo.ciclo.fim %} · {{ data_br(resumo.ciclo.inicio) }} a {{ data_br(resumo.ciclo.fim) }}{% endif %}</p>
+  {% if resumo.encerramento %}
+    <p class="liraa-note liraa-good">Encerrado em {{ data_br(resumo.encerramento.encerrado_em) }} por {{ resumo.encerramento.responsavel }}.{% if resumo.encerramento.observacoes %} {{ resumo.encerramento.observacoes }}{% endif %}</p>
+  {% else %}
+    <p class="liraa-muted">Ciclo aberto · Os números são atualizados conforme as visitas e leituras registradas.</p>
+  {% endif %}
+  <div class="liraa-acomp-kpis">
+    <div><strong>{{ resumo.total.programados }}</strong>Imóveis programados</div>
+    <div><strong>{{ resumo.total.trabalhados }}</strong>Imóveis inspecionados</div>
+    <div><strong>{{ celula_resumo(resumo, 'progresso') }}{% if resumo.progresso is not none %}%{% endif %}</strong>Meta de campo por estrato</div>
+    <div><strong>{{ resumo.total.excedentes }}</strong>Visitas acima da meta</div>
+    <div><strong>{{ resumo.total.leituras }} / {{ resumo.total.tubitos }}</strong>Tubitos lidos na apuração</div>
+  </div>
+  {% if resumo.pendentes_laboratorio %}<p class="liraa-note" role="status"><strong>Resultado parcial.</strong> {{ resumo.pendentes_laboratorio }} tubito(s) do ciclo aguardam leitura. Confira os números novamente quando o laboratório terminar.</p>{% endif %}
+  {% if resumo.estratos %}
+  <div class="liraa-actions">
+    <a class="liraa-btn" href="{{ url_for('liraa.resumo_csv', id_ciclo=resumo.ciclo.id_ciclo) }}">Baixar resumo em CSV</a>
+    <a class="liraa-btn" href="#liraa-resumo-entrada">Ir para Entrada de dados</a>
+    <a class="liraa-btn" href="#liraa-resumo-indices">Ir para Índices</a>
+  </div>
+  {{ tabela('Entrada de dados', colunas_entrada, 'liraa-resumo-entrada', grupos_entrada) }}
+  <p class="liraa-muted">Prog. usa a meta do sorteio. Insp. soma as visitas válidas de imóveis abertos, incluindo adicionais autorizados. TB significa terreno baldio. Crítica resume as pendências do Endemias.</p>
+  {{ tabela('Índices', colunas_indices, 'liraa-resumo-indices') }}
+  <p class="liraa-muted">IIP é o percentual de imóveis positivos entre os inspecionados. IB é o número de recipientes positivos por 100 imóveis inspecionados. ITR é a distribuição dos recipientes positivos de <i>Ae. aegypti</i> por tipo. A perda estimada usa o saldo faltante de cada estrato. Confira a perda e o arredondamento após calcular no programa oficial.</p>
+  {% else %}<p>Cadastre os estratos e realize o sorteio para montar o espelho.</p>{% endif %}
+
+  <details class="liraa-stratum" {% if not resumo.encerramento %}open{% endif %}>
+    <summary>Cobertura e conferência</summary>
+    <p>{{ resumo.quarteiroes - resumo.quarteiroes_pendentes|length }} de {{ resumo.quarteiroes }} quarteirões com visita no plano · {{ resumo.total.trabalhados_adicionais }} visitas em quarteirões adicionais · {{ resumo.total.faltam }} visitas abaixo das metas por estrato.</p>
+    {% if resumo.quarteiroes_pendentes %}<p>Quarteirões sem visita identificada no plano:</p>
+    <ul>{% for q in resumo.quarteiroes_pendentes %}<li>{{ q.localidade }} · Q. {{ q.quarteirao }}</li>{% endfor %}</ul>{% endif %}
+    {% if resumo.excluidas %}<p>{{ resumo.excluidas }} visita(s) fora da apuração do plano ou período.</p>{% endif %}
+    {% if resumo.sem_sorteio %}<p>{{ resumo.sem_sorteio }} estrato(s) aguardam sorteio.</p>{% endif %}
+    {% for chave, rotulo in avisos_resumo.items() %}{% if resumo.total[chave] %}<p>{{ rotulo }} · {{ resumo.total[chave] }}</p>{% endif %}{% endfor %}
+  </details>
+
+  {% if superadmin and resumo.encerramento %}
+  <details class="liraa-stratum"><summary>Reabrir ciclo</summary>
+    <form method="post" action="{{ url_for('liraa.reabrir', id_ciclo=resumo.ciclo.id_ciclo) }}" class="liraa-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="wide">Motivo da reabertura <textarea name="motivo" maxlength="1000" rows="2" required></textarea></label>
+      <button class="liraa-btn" type="submit">Reabrir ciclo</button>
+    </form>
+  </details>
+  {% elif superadmin and resumo.total.trabalhados and not resumo.pendentes_laboratorio and not resumo.sem_sorteio %}
+  <details class="liraa-stratum"><summary>Encerrar ciclo</summary>
+    <form method="post" action="{{ url_for('liraa.encerrar', id_ciclo=resumo.ciclo.id_ciclo) }}" class="liraa-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="wide">Observações do encerramento <textarea name="observacoes" maxlength="2000" rows="3" {% if resumo.quarteiroes_pendentes or resumo.total.faltam or resumo.excluidas or resumo.total.critica == 'Conferir' %}required{% endif %}></textarea></label>
+      <p class="wide liraa-muted">O resumo será guardado com os números desta conferência. A equipe poderá consultá-lo, e novas importações e alterações no ciclo ficarão bloqueadas até uma reabertura.</p>
+      <button class="liraa-btn primary" type="submit">Confirmar encerramento</button>
+    </form>
+  </details>
+  {% endif %}
+  {% endif %}
+</section>

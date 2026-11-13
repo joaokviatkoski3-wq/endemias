@@ -83,7 +83,7 @@ def ciclo_envio(conn, record):
     return candidatos[0][0]
 
 
-def buscar_kobo(cfg, target, inicio=None, fim=None, limite=5000, uid=None):
+def buscar_kobo(cfg, target, inicio=None, fim=None, limite=5000, uid=None, *, incluir_encerrados=True):
     """Consulta completa dos projetos configurados; não presume um ciclo ativo."""
     from app_core import kobo_api
     uids = {str(uid).strip()} if uid else {str((cfg.get("assets") or {}).get("LIRAA") or "").strip()}
@@ -107,6 +107,23 @@ def buscar_kobo(cfg, target, inicio=None, fim=None, limite=5000, uid=None):
                 versoes.append(row)
                 todos.append(row)
     distintos, reenvios = liraa_kobo.consolidar_reenvios_kobo(todos)
+    if not incluir_encerrados:
+        conn = db.connect(target)
+        try:
+            from app_core import liraa
+            encerrados = liraa.ciclos_encerrados(conn)
+            if encerrados:
+                ativos = []
+                for record in distintos:
+                    try:
+                        ciclo = ciclo_envio(conn, record)
+                    except liraa_kobo.LiraaKoboError:
+                        ciclo = None
+                    if ciclo not in encerrados:
+                        ativos.append(record)
+                distintos = ativos
+        finally:
+            conn.close()
     return distintos, {"count": len(distintos), "reenvios_ignorados": reenvios}
 
 
@@ -222,9 +239,11 @@ def importar_lote(conn, records):
         if kobo_api.record_uuid(record) in revisoes:
             continue
         grupos.setdefault(ciclo_envio(conn, record), []).append(record)
-    visitas = tubos = 0
+    visitas = tubos = encerrados = 0
     for ciclo in sorted(grupos):
-        liraa._bloquear_ciclo(conn, ciclo)
+        if liraa._bloquear_ciclo(conn, ciclo, permitir_encerrado=True):
+            encerrados += len(grupos[ciclo])
+            continue
         items = liraa_kobo._preparar(conn, ciclo, grupos[ciclo])
         for item in items:
             if item["situacao_importacao"] != "nova":
@@ -237,6 +256,7 @@ def importar_lote(conn, records):
         visitas += liraa_kobo.gravar_preparados(conn, ciclo, items)
     return {"ok":True,"visitas_novas":visitas,"visitas_atualizadas":0,"coletas_novas":tubos,
             "resultados_novos":0,"edicoes_para_revisao":len(revisoes),
+            "envios_de_ciclos_encerrados":encerrados,
             "reenvios_ignorados":reenvios,
             "pendencias_identidade":sum(bool(problema) for problema in problemas)}
 
@@ -248,7 +268,8 @@ def importar_leitura(conn, id_tubito, counts, nome, dia, uuid):
     row = conn.execute("SELECT v.id_ciclo,v.data_visita FROM liraa_visita_tubitos t JOIN liraa_visitas v ON v.id_visita=t.id_visita WHERE t.id_tubito=?", (id_tubito,)).fetchone()
     if not row:
         raise ValueError("Tubo LIRAa não encontrado.")
-    liraa._bloquear_ciclo(conn, row["id_ciclo"])
+    if liraa._bloquear_ciclo(conn, row["id_ciclo"], permitir_encerrado=True):
+        return False, None
     old = conn.execute("SELECT * FROM liraa_leituras WHERE id_tubito=?", (id_tubito,)).fetchone()
     if old:
         return False, (-id_tubito,old["aegypt_larvas"]+old["aegypt_pupas"])

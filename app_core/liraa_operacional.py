@@ -80,9 +80,7 @@ def salvar_configuracao(target, id_ciclo, codigos, uid, auditar=None, *, alterar
     try:
         require_config(conn)
         with conn:
-            lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
-            if not conn.execute("SELECT id_ciclo FROM liraa_ciclos WHERE id_ciclo=?" + lock, (id_ciclo,)).fetchone():
-                raise liraa.LiraaError("Ciclo não encontrado.")
+            liraa._bloquear_ciclo(conn, id_ciclo)
             if not alterar_uid:
                 atual = conn.execute("SELECT kobo_uid FROM liraa_ciclo_config WHERE id_ciclo=?", (id_ciclo,)).fetchone()
                 salvo = (atual[0] if atual else '') or ''

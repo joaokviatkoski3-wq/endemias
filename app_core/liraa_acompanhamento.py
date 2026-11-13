@@ -116,7 +116,9 @@ def resumir(target, id_ciclo, dia, turno="dia"):
 
         metas = [e for e in estratos.values() if e["meta"] is not None]
         for estrato in metas:
-            estrato["faltam"] = max(0, estrato["meta"] - estrato["sorteadas"] - estrato["adicionais"])
+            saldo = estrato["sorteadas"] + estrato["adicionais"] - estrato["meta"]
+            estrato["faltam"] = max(0, -saldo)
+            estrato["excedentes"] = max(0, saldo)
         meta = sum(e["meta"] for e in metas)
         faltam = sum(e["faltam"] for e in metas)
         cumpridas_sorteadas = sum(min(e["meta"], e["sorteadas"]) for e in metas)
@@ -139,6 +141,7 @@ def resumir(target, id_ciclo, dia, turno="dia"):
             "turno": TURNOS[turno], "atualizado": datetime.now().strftime("%H:%M:%S"),
             "recorte": recorte, "acumulado": acumulado, "estratos": list(estratos.values()),
             "meta": meta, "faltam": faltam, "sem_sorteio": len(estratos) - len(metas),
+            "excedentes": sum(e["excedentes"] for e in metas),
             "sorteadas": sum(e["sorteadas"] for e in estratos.values()),
             "adicionais": sum(e["adicionais"] for e in estratos.values()),
             "percentual": round(100 * (meta - faltam) / meta, 1) if meta else 0,

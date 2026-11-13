@@ -36,6 +36,7 @@
     <div><strong>{{ numero(resumo.meta) }}</strong>Imóveis programados</div>
     <div><strong>{{ numero(resumo.sorteadas) }}</strong>Visitas nos quarteirões sorteados</div>
     <div><strong>{{ numero(resumo.faltam) }}</strong>Visitas que faltam nas metas de campo</div>
+    <div><strong>{{ numero(resumo.excedentes) }}</strong>Visitas acima da meta do próprio estrato</div>
     <div><strong>{{ numero(resumo.adicionais) }}</strong>Visitas em quarteirões adicionais</div>
   </div>
   <progress value="{{ resumo.meta - resumo.faltam }}" max="{{ resumo.meta }}" aria-label="Progresso nas metas dos estratos"></progress>
@@ -48,9 +49,9 @@
   {% if resumo.estratos %}
   <div class="liraa-table-wrap">
     <table class="liraa-table">
-      <thead><tr><th scope="col">Estrato</th><th scope="col">Meta</th><th scope="col">Sorteadas</th><th scope="col">Adicionais</th><th scope="col">Faltam</th></tr></thead>
+      <thead><tr><th scope="col">Estrato</th><th scope="col">Meta</th><th scope="col">Sorteadas</th><th scope="col">Adicionais</th><th scope="col">Faltam</th><th scope="col">Acima da meta</th></tr></thead>
       <tbody>{% for e in resumo.estratos %}
-        <tr><td>{{ e.numero }}</td><td class="num">{{ e.meta if e.meta is not none else 'Sem sorteio' }}</td><td class="num">{{ numero(e.sorteadas) }}</td><td class="num">{{ numero(e.adicionais) }}</td><td class="num">{{ e.faltam if e.meta is not none else '—' }}</td></tr>
+        <tr><td>{{ e.numero }}</td><td class="num">{{ e.meta if e.meta is not none else 'Sem sorteio' }}</td><td class="num">{{ numero(e.sorteadas) }}</td><td class="num">{{ numero(e.adicionais) }}</td><td class="num">{{ e.faltam if e.meta is not none else '—' }}</td><td class="num">{{ numero(e.excedentes) if e.meta is not none else '—' }}</td></tr>
       {% endfor %}</tbody>
     </table>
   </div>

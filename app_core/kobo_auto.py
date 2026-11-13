@@ -80,7 +80,7 @@ def _buscar_novos(cfg, target, inicio, fim, tipos_permitidos=None):
             continue
         if tipo == "LIRAA":
             from app_core import liraa_integracao
-            registros,resposta=liraa_integracao.buscar_kobo(cfg,target,inicio,fim)
+            registros,resposta=liraa_integracao.buscar_kobo(cfg,target,inicio,fim,incluir_encerrados=False)
             if resposta is None:
                 continue
         else:
