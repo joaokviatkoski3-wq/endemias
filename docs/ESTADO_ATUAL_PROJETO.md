@@ -4,7 +4,7 @@ Atualizado em 13/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.7.7 — cobertura operacional do LIRAa
+## Versão ativa 2.7.7 — cobertura operacional do LIRAa
 
 Worktree C:\endemias-interface, branch codex/ajusta-cobertura-liraa.
 Retiradas solicitadas para o ciclo 4: Santa Maria 0326, 0328, 0334 e 0339,
@@ -18,9 +18,14 @@ reimportação sinaliza edição pendente. O pacote inclui correção em transa�
 das sete visitas existentes, com validação dos IDs permanentes, linhagem,
 sequências e vínculo com o plano. Preserva chaves, tubitos e leituras.
 Passaram 108 testes LIRAa, 24 do instalador e o ensaio PostgreSQL isolado
-de correção, repetição sem duplicação e preservação da meta. Ativação pendente.
+de correção, repetição sem duplicação e preservação da meta. Ativada em
+13/11/2026, release 6eba6d9. Portal e logins públicos e locais responderam
+em 2.7.7. O relatório ativacao-liraa-cobertura277-tangua.json confirmou
+as sete visitas corrigidas, 0001 coberto e todas as retiradas fora do
+plano. Painel com 263 quarteirões, quatro pendentes, meta de 1.964
+imóveis e 94,9% de cumprimento à hora da operação.
 
-## Versão ativa 2.7.6 — depósitos das coletas
+## Histórico 2.7.6 — depósitos das coletas
 
 Worktree C:\endemias-interface, branch codex/corrige-depositos-tubitos.
 O tubo 916 de PE chegou do Kobo sem tipo nem código de depósito. A busca

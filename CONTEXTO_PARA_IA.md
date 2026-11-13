@@ -6,14 +6,16 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.7.7 — cobertura operacional do LIRAa
+## Versão ativa 2.7.7 — cobertura operacional do LIRAa
 
 Retiradas operacionais do ciclo 4 são aplicadas à cobertura, ao plano e
-ao XLSForm gerado, com a assinatura e a meta do sorteio original. A
-ativação antecede o ajuste de sete visitas de Tanguá de 0028 para 0001
-com validação dos seis envios editados no Kobo. Sem migração.
+ao XLSForm gerado, com a assinatura e a meta do sorteio original.
+Ativada em 13/11/2026. Sete visitas de Tanguá foram corrigidas de 0028
+para 0001 após a validação dos seis envios editados no Kobo.
+O painel confirmou 263 quarteirões no plano, quatro pendentes, meta de
+1.964 imóveis e 94,9% de cumprimento à hora da conferência.
 
-## Versão ativa 2.7.6 — depósitos das coletas
+## Histórico 2.7.6 — depósitos das coletas
 
 O extrator Kobo identifica campos de tubito, código, tipo e eliminação
 pelo nome exato. O laboratório exibe código ou ausência quando falta
