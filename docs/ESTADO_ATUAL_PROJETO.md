@@ -4,7 +4,7 @@ Atualizado em 13/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.7.8 — metas de campo do LIRAa
+## Versão ativa 2.7.8 — metas de campo do LIRAa
 
 Worktree C:\endemias-interface, branch codex/retira-0323-liraa. O quarteirão
 0323 de Santa Maria integra a lista de retiradas do ciclo 4. Sai da cobertura,
@@ -12,9 +12,18 @@ do plano de campo, mapa, boletim e XLSForm gerado. A meta por estrato e a
 assinatura permanecem as do sorteio original. No Acompanhamento, visitas
 nos quarteirões adicionais autorizados passam a compor o progresso de campo
 do próprio estrato, limitado à respectiva meta. O percentual só com visitas
-em sorteados ativos aparece separadamente. Sem migração. Ativação pendente.
+em sorteados ativos aparece separadamente. Sem migração.
 
-## Versão ativa 2.7.7 — cobertura operacional do LIRAa
+Ativação confirmada em 13/11/2026 às 12h05 (America/Sao_Paulo), release
+711c028. Portal e logins públicos e locais responderam HTTP 200 em 2.7.8.
+O instalador conferiu a preservação dos dados de 96 tabelas. A consulta
+somente leitura confirmou a retirada do 0323 e 259 de 262 quarteirões
+visitados. Na meta de 1.964 imóveis, o progresso de campo ficou em 99,0%,
+ante 94,9% com somente os sorteados ativos. O estrato 5 tinha 138 visitas
+em sorteados ativos e 81 em adicionais, com saldo de 19 para sua meta de 238.
+Restavam sem visita Cachoeira 1174, Sede 0677 e Tranqueira 0509.
+
+## Histórico 2.7.7 — cobertura operacional do LIRAa
 
 Worktree C:\endemias-interface, branch codex/ajusta-cobertura-liraa.
 Retiradas solicitadas para o ciclo 4: Santa Maria 0326, 0328, 0334 e 0339,

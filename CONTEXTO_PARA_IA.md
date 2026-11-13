@@ -6,15 +6,18 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.7.8 — metas de campo do LIRAa
+## Versão ativa 2.7.8 — metas de campo do LIRAa
 
 Inclui o quarteirão 0323 nas retiradas operacionais do ciclo 4. O indicador
 de campo soma visitas nos quarteirões sorteados ativos e nos adicionais
 autorizados, até a meta de cada estrato. Mantém a meta e a assinatura do
 sorteio, e exibe o percentual só com visitas em sorteados para conferência.
-Ativação pendente.
+Ativada em 13/11/2026 às 12h05, release 711c028. Na conferência, o ciclo
+tinha 99,0% das metas de campo e 19 visitas faltantes no estrato 5.
+O percentual só com sorteados ativos foi de 94,9%. O 0323 saiu do plano,
+com 259 dos 262 quarteirões visitados.
 
-## Versão ativa 2.7.7 — cobertura operacional do LIRAa
+## Histórico 2.7.7 — cobertura operacional do LIRAa
 
 Retiradas operacionais do ciclo 4 são aplicadas à cobertura, ao plano e
 ao XLSForm gerado, com a assinatura e a meta do sorteio original.
