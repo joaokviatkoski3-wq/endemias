@@ -385,7 +385,7 @@ def corrigir_visita(id_visita):
             auditar=lambda conn, detalhes: audit.registrar_evento(_get_db, "liraa_visita_corrigida",
                 entidade="liraa_visita", entidade_id=id_visita, detalhes=detalhes, conn=conn))
         flash("Correção local salva; as leituras foram preservadas. O Kobo não foi alterado.", "success")
-    except liraa_kobo.LiraaKoboError as exc:
+    except (liraa_kobo.LiraaKoboError, liraa_core.LiraaError) as exc:
         flash(str(exc), "error")
     return redirect(url_for("liraa.page", ciclo=ciclo) + "#liraa-tab-visitas")
 
@@ -402,7 +402,7 @@ def permitir_reimportacao():
             auditar=lambda conn, detalhes: audit.registrar_evento(_get_db, "liraa_reimportacao_permitida",
                 entidade="liraa_visita", detalhes=detalhes, conn=conn))
         flash("Bloqueio removido. Consulte e importe o envio pelo Kobo; as leituras apagadas não são recuperadas.", "success")
-    except liraa_kobo.LiraaKoboError as exc:
+    except (liraa_kobo.LiraaKoboError, liraa_core.LiraaError) as exc:
         flash(str(exc), "error")
     return redirect(url_for("liraa.page", ciclo=ciclo) + "#liraa-tab-visitas")
 

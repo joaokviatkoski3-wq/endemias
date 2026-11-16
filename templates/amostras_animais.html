@@ -8,6 +8,9 @@
 .ani-kpi-label{font-size:10px;color:var(--text3);font-weight:800;text-transform:uppercase;letter-spacing:.4px;}
 .ani-kpi-value{font-size:26px;color:#7c3aed;font-weight:800;line-height:1.1;margin-top:4px;font-variant-numeric:tabular-nums;}
 .ani-layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr);gap:14px;}
+.ani-layout > *{min-width:0}.ani-layout .table-scroll{max-width:100%;overflow-x:auto}
+.am-anexos-conteudo{position:sticky;left:0;width:min(640px,calc(100vw - 85px));white-space:normal}.am-anexos-form{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-top:12px}.am-anexos-form label{display:flex;flex-direction:column;gap:8px}
+.ani-layout table{min-width:1000px}.ani-layout td{padding:12px 10px;vertical-align:top}.ani-layout td:first-child{white-space:nowrap}.ani-layout td:last-child{min-width:105px}.ani-layout .btn{margin-top:6px}
 .ani-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-bottom:12px;}
 .ani-actions{display:flex;align-items:end;justify-content:flex-end;}
 .ani-list{display:flex;flex-direction:column;gap:8px;}
@@ -20,6 +23,7 @@
 .ani-tag.warn{background:rgba(245,158,11,.14);color:#b45309;}
 .ani-tag.bad{background:rgba(239,68,68,.12);color:#b91c1c;}
 @media(max-width:980px){.ani-layout{grid-template-columns:1fr;}}
+@media(max-width:600px){.ani-layout .ani-filters{grid-template-columns:minmax(0,1fr)!important}.ani-layout input[type=file]{max-width:100%}.ani-layout .ani-actions .btn{width:100%}}
 </style>{% endblock %}
 
 {% block content %}
@@ -138,7 +142,7 @@ async function carregarListaAmostras(pagina=1){
     const animal = r.especie_resumo || r.animal_capturado || r.tipo_animal || r.animal_motivador || '-';
     const endereco = [r.logradouro, r.numero].filter(Boolean).join(', ') || '-';
     return `<tr>
-      <td>${escapeAttr(r.data || '-')}</td>
+      <td>${escapeAttr(r.data || '-')}<br><button class="btn btn-outline am-anexos" type="button" data-id="${escapeAttr(r.id_amostra)}">Anexos</button></td>
       <td>${escapeAttr(r.agentes || r.agentes_texto || '-')}</td>
       <td>${escapeAttr(r.motivo_visita || '-')}</td>
       <td>${escapeAttr(animal)}</td>
@@ -150,7 +154,9 @@ async function carregarListaAmostras(pagina=1){
         ${tag('Captura', r.houve_captura)}
       </div></td>
       <td style="font-weight:800;">${amFmt.format(r.quantidade || 0)}
-    ${detalhesRegistroOperacional(r, [["hora", "Hora"], ["animal_motivador", "Animal motivador"], ["animal_motivador_outro", "Outro motivador"], ["quarteirao", "Quarteirão"], ["tipo_imovel", "Tipo de imóvel"], ["visita", "Visita"], ["sequencia", "Sequência"], ["morador", "Morador"], ["onde", "Onde"], ["local_captura", "Local da captura"], ["tipo_animal", "Tipo capturado"], ["animal_capturado", "Animal capturado"], ["especie_serpente", "Espécie de serpente"], ["especie_escorpiao", "Espécie de escorpião"], ["especie_lagarta", "Espécie de lagarta"], ["especie_aranha", "Espécie de aranha"], ["especie_carrapato", "Espécie de carrapato"]])}</td></tr>`;
+    ${detalhesRegistroOperacional(r, [["hora", "Hora"], ["animal_motivador", "Animal motivador"], ["animal_motivador_outro", "Outro motivador"], ["quarteirao", "Quarteirão"], ["tipo_imovel", "Tipo de imóvel"], ["visita", "Visita"], ["sequencia", "Sequência"], ["morador", "Morador"], ["onde", "Onde"], ["local_captura", "Local da captura"], ["tipo_animal", "Tipo capturado"], ["animal_capturado", "Animal capturado"], ["especie_serpente", "Espécie de serpente"], ["especie_escorpiao", "Espécie de escorpião"], ["especie_lagarta", "Espécie de lagarta"], ["especie_aranha", "Espécie de aranha"], ["especie_carrapato", "Espécie de carrapato"]])}
+    </td></tr>
+    <tr class="am-anexos-painel" data-id="${escapeAttr(r.id_amostra)}" hidden><td colspan="9"><div class="am-anexos-conteudo"><div class="am-anexos-lista"></div>{% if pode_anexar %}<form class="am-anexos-form"><label>Adicionar arquivos (até 20 MB cada): <input type="file" name="arquivos" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.jfif,.doc,.docx,.xls,.xlsx" required></label> <button class="btn btn-primary" type="submit">Enviar anexos</button></form>{% endif %}</div></td></tr>`;
   }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:18px;">Nenhum registro encontrado.</td></tr>';
 }
 function tag(label, value){
@@ -159,6 +165,33 @@ function tag(label, value){
   return `<span class="ani-tag ${cls}">${escapeAttr(label)}: ${escapeAttr(v)}</span>`;
 }
 document.getElementById('ani-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarListaAmostras(); });
+document.getElementById('am-body').addEventListener('click', async e => {
+  const btn = e.target.closest('.am-anexos');
+  if (!btn) return;
+  const painel = btn.closest('tr').nextElementSibling;
+  painel.hidden = !painel.hidden;
+  if (!painel.hidden) await atualizarAnexos(painel);
+});
+async function atualizarAnexos(painel) {
+  try {
+    const d = await amGet('/api/amostras-animais/' + encodeURIComponent(painel.dataset.id) + '/anexos');
+    painel.querySelector('.am-anexos-lista').innerHTML = (d.anexos || []).map(a => `<div><a href="/amostras-animais/anexos/${encodeURIComponent(a.id_anexo)}/download">${escapeAttr(a.nome_original)}</a></div>`).join('') || 'Nenhum anexo.';
+  } catch (e) { toast('Erro ao consultar anexos: ' + e.message, 'error'); }
+}
+document.getElementById('am-body').addEventListener('submit', async e => {
+  if (!e.target.matches('.am-anexos-form')) return;
+  e.preventDefault();
+  const painel = e.target.closest('.am-anexos-painel');
+  const btn = e.target.querySelector('button');
+  btn.disabled = true;
+  try {
+    const resp = await fetch('/api/amostras-animais/' + encodeURIComponent(painel.dataset.id) + '/anexos', {method:'POST', body:new FormData(e.target), headers:{'X-CSRFToken':document.querySelector('meta[name="csrf-token"]').content}});
+    const dados = await resp.json();
+    if (!resp.ok) throw new Error(dados.erro || 'Falha no envio');
+    e.target.reset(); await atualizarAnexos(painel); toast('Anexos adicionados.', 'success');
+  } catch (erro) { toast(erro.message, 'error'); }
+  finally { btn.disabled = false; }
+});
 carregarAmostras().catch(e => toast('Erro ao carregar amostras: ' + e.message, 'error'));
 document.getElementById('amostras_animais-acao-0').addEventListener('click', carregarAmostras);
 document.getElementById('amostras_animais-acao-1').addEventListener('click', carregarListaAmostras);

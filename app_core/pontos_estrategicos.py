@@ -757,7 +757,7 @@ def listar(target, filtros=None, limite=1000):
                              WHERE v.tipo='PE'
                                AND (
                                    v.id_pe=pe.id_pe
-                                   OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao)
+                                   OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao AND (SELECT COUNT(*) FROM pontos_estrategicos pe_unico WHERE pe_unico.id_localidade=pe.id_localidade AND pe_unico.quarteirao=pe.quarteirao)=1)
                                )
                         ) AS ultima_visita_pe,
                         (
@@ -766,7 +766,7 @@ def listar(target, filtros=None, limite=1000):
                              WHERE v.tipo='PE'
                                AND (
                                    v.id_pe=pe.id_pe
-                                   OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao)
+                                   OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao AND (SELECT COUNT(*) FROM pontos_estrategicos pe_unico WHERE pe_unico.id_localidade=pe.id_localidade AND pe_unico.quarteirao=pe.quarteirao)=1)
                                )
                         ) AS visitas_pe_total,
                         (
@@ -775,7 +775,7 @@ def listar(target, filtros=None, limite=1000):
                              WHERE b.destino_tratamento='Ponto Estratégico'
                                AND (
                                    b.id_pe=pe.id_pe
-                                   OR (b.id_pe IS NULL AND b.id_localidade=pe.id_localidade AND b.quarteirao=pe.quarteirao)
+                                   OR (b.id_pe IS NULL AND b.id_localidade=pe.id_localidade AND b.quarteirao=pe.quarteirao AND (SELECT COUNT(*) FROM pontos_estrategicos pe_unico WHERE pe_unico.id_localidade=pe.id_localidade AND pe_unico.quarteirao=pe.quarteirao)=1)
                                )
                         ) AS ultimo_bri,
                         (
@@ -784,7 +784,7 @@ def listar(target, filtros=None, limite=1000):
                              WHERE b.destino_tratamento='Ponto Estratégico'
                                AND (
                                    b.id_pe=pe.id_pe
-                                   OR (b.id_pe IS NULL AND b.id_localidade=pe.id_localidade AND b.quarteirao=pe.quarteirao)
+                                   OR (b.id_pe IS NULL AND b.id_localidade=pe.id_localidade AND b.quarteirao=pe.quarteirao AND (SELECT COUNT(*) FROM pontos_estrategicos pe_unico WHERE pe_unico.id_localidade=pe.id_localidade AND pe_unico.quarteirao=pe.quarteirao)=1)
                                )
                         ) AS bri_total,
                         (
@@ -869,7 +869,7 @@ def resumo_operacional(target, filtros=None):
                   JOIN visitas v ON v.tipo='PE'
                    AND (
                        v.id_pe=pe.id_pe
-                       OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao)
+                       OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao AND (SELECT COUNT(*) FROM pontos_estrategicos pe_unico WHERE pe_unico.id_localidade=pe.id_localidade AND pe_unico.quarteirao=pe.quarteirao)=1)
                    )
                  {where}
                    AND v.data BETWEEN ? AND ?""",
@@ -882,7 +882,7 @@ def resumo_operacional(target, filtros=None):
                   JOIN bri_registros b ON b.destino_tratamento='Ponto Estratégico'
                    AND (
                        b.id_pe=pe.id_pe
-                       OR (b.id_pe IS NULL AND b.id_localidade=pe.id_localidade AND b.quarteirao=pe.quarteirao)
+                       OR (b.id_pe IS NULL AND b.id_localidade=pe.id_localidade AND b.quarteirao=pe.quarteirao AND (SELECT COUNT(*) FROM pontos_estrategicos pe_unico WHERE pe_unico.id_localidade=pe.id_localidade AND pe_unico.quarteirao=pe.quarteirao)=1)
                    )
                  {where}
                    AND b.data BETWEEN ? AND ?""",
@@ -907,7 +907,7 @@ def resumo_operacional(target, filtros=None):
                       LEFT JOIN visitas v ON v.tipo='PE'
                        AND (
                            v.id_pe=pe.id_pe
-                           OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao)
+                           OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao AND (SELECT COUNT(*) FROM pontos_estrategicos pe_unico WHERE pe_unico.id_localidade=pe.id_localidade AND pe_unico.quarteirao=pe.quarteirao)=1)
                        )
                      {where}
                        AND pe.situacao=1
@@ -928,7 +928,7 @@ def resumo_operacional(target, filtros=None):
                             WHERE b.destino_tratamento='Ponto Estratégico'
                                AND (
                                    b.id_pe=pe.id_pe
-                                   OR (b.id_pe IS NULL AND b.id_localidade=pe.id_localidade AND b.quarteirao=pe.quarteirao)
+                                   OR (b.id_pe IS NULL AND b.id_localidade=pe.id_localidade AND b.quarteirao=pe.quarteirao AND (SELECT COUNT(*) FROM pontos_estrategicos pe_unico WHERE pe_unico.id_localidade=pe.id_localidade AND pe_unico.quarteirao=pe.quarteirao)=1)
                                )
                         ) AS ultimo_bri,
                         (
@@ -936,7 +936,7 @@ def resumo_operacional(target, filtros=None):
                              WHERE b.destino_tratamento='Ponto Estratégico'
                                AND (
                                    b.id_pe=pe.id_pe
-                                   OR (b.id_pe IS NULL AND b.id_localidade=pe.id_localidade AND b.quarteirao=pe.quarteirao)
+                                   OR (b.id_pe IS NULL AND b.id_localidade=pe.id_localidade AND b.quarteirao=pe.quarteirao AND (SELECT COUNT(*) FROM pontos_estrategicos pe_unico WHERE pe_unico.id_localidade=pe.id_localidade AND pe_unico.quarteirao=pe.quarteirao)=1)
                                )
                         ) AS bri_total,
                         (
@@ -949,7 +949,7 @@ def resumo_operacional(target, filtros=None):
                     LEFT JOIN visitas v ON v.tipo='PE'
                      AND (
                          v.id_pe=pe.id_pe
-                         OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao)
+                         OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao AND (SELECT COUNT(*) FROM pontos_estrategicos pe_unico WHERE pe_unico.id_localidade=pe.id_localidade AND pe_unico.quarteirao=pe.quarteirao)=1)
                      )
                     {where}
                       AND pe.situacao=1
@@ -1216,7 +1216,7 @@ def _periodo_selecionado_sql(filtros):
              WHERE v.tipo='PE'
                AND (
                    v.id_pe=pe.id_pe
-                   OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao)
+                   OR (v.id_pe IS NULL AND v.id_localidade=pe.id_localidade AND v.quarteirao=pe.quarteirao AND (SELECT COUNT(*) FROM pontos_estrategicos pe_unico WHERE pe_unico.id_localidade=pe.id_localidade AND pe_unico.quarteirao=pe.quarteirao)=1)
                )
                AND v.data BETWEEN ? AND ?
         ) AS visitas_periodo_selecionado""",

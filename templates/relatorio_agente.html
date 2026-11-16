@@ -200,7 +200,7 @@
 </div>
 
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
-let agenteAtual = '{{ agente_sel | e }}';
+let agenteAtual = {{ agente_sel | tojson }};
 
 function selecionarAgente(nome) {
   agenteAtual = nome;
@@ -252,7 +252,7 @@ async function buscar() {
     const d = await apiGet(`/api/relatorio-agente?agente=${encodeURIComponent(agenteAtual)}&d_ini=${d_ini}&d_fim=${d_fim}`);
     renderRelatorio(d);
   } catch(e) {
-    document.getElementById('ra-area').innerHTML = `<div class="empty"><div class="empty-icon"><img src="/static/icons/alerta.svg" alt="⚠" class="icon-svg">️</div><p>Erro: ${e.message}</p></div>`;
+    document.getElementById('ra-area').innerHTML = `<div class="empty"><div class="empty-icon"><img src="/static/icons/alerta.svg" alt="⚠" class="icon-svg">️</div><p>Erro: ${escapeHtml(e.message)}</p></div>`;
   }
 }
 
@@ -292,7 +292,7 @@ function renderRelatorio(d) {
       <div class="agent-identity">
         <div class="agent-avatar"><img src="/static/icons/usuario.svg" alt="👤" class="icon-svg"></div>
         <div class="agent-header-info">
-          <h2>${d.agente}</h2>
+          <h2>${escapeHtml(d.agente)}</h2>
           <div class="sub">${escapeHtml(cargo)} · Período: ${diasStr}</div>
         </div>
       </div>

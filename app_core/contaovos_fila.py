@@ -303,10 +303,14 @@ def prepare_and_reconcile(conn, lot_id, *, now=None):
                 "historico sincronizado; revise antes de tentar novamente."
             )
         if conflict:
-            status = STATUS_ERROR
+            status = STATUS_SENDING if current and current['status'] == STATUS_SENDING else STATUS_ERROR
             summary["erros"] += 1
         elif remote_id:
             status = STATUS_CONFIRMED
+            summary["confirmados"] += 1
+        elif current and current['status'] == STATUS_CONFIRMED:
+            status = STATUS_CONFIRMED
+            remote_id = current['id_remoto']
             summary["confirmados"] += 1
         else:
             status = STATUS_PENDING
@@ -390,6 +394,21 @@ def send_lot(conn, lot_id, key, *, now=None, user_name=None):
         payload = _payload(row, data_instalacao=data_instalacao)
         id_item = row["id_item"]
         ovitrampa = payload["ovitrap_group_id"]
+        atual = conn.execute(f"SELECT status, payload_hash FROM {QUEUE_TABLE} WHERE id_item=?", (id_item,)).fetchone()
+        remoto, conflito = _find_remote(conn, payload)
+        if conflito or (atual and atual['status'] == STATUS_SENDING and not remoto):
+            falhas += 1
+            detalhes.append({'ovitrampa': ovitrampa, 'coleta': payload['counting_date_collect'], 'ok': False,
+                             'status': -1, 'mensagem': conflito or 'Envio anterior sem confirmação; confira no Conta Ovos antes de reenviar.'})
+            continue
+        if atual and atual['status'] == STATUS_CONFIRMED:
+            if atual['payload_hash'] and atual['payload_hash'] != payload_hash(payload):
+                falhas += 1
+                detalhes.append({'ovitrampa': ovitrampa, 'coleta': payload['counting_date_collect'], 'ok': False,
+                                 'status': -1, 'mensagem': 'Leitura confirmada foi alterada; confira antes de reenviar.'})
+            else:
+                ja_enviados += 1
+            continue
         cadastro = contaovos_cadastro.process_item(conn, id_item, key, now=now)
         if cadastro["changed"] and cadastro["ok"]:
             cadastros_confirmados += 1
@@ -404,27 +423,35 @@ def send_lot(conn, lot_id, key, *, now=None, user_name=None):
                 }
             )
             continue
-        remote_id, _conf = _find_remote(conn, payload)
+        remote_id = remoto
         if remote_id:
             ja_enviados += 1
             _upsert_fila_item(
-                conn, id_item, STATUS_CONFIRMED, remote_id, None, now_text
+                conn, id_item, STATUS_CONFIRMED, remote_id, None, now_text, payload_hash(payload)
             )
             continue
+        if not _upsert_fila_item(conn, id_item, STATUS_SENDING, None, None, now_text, payload_hash(payload)):
+            falhas += 1
+            detalhes.append({'ovitrampa': ovitrampa, 'coleta': payload['counting_date_collect'], 'ok': False,
+                             'status': -1, 'mensagem': 'Esta leitura já está em envio ou foi confirmada. Atualize a tela.'})
+            continue
+        conn.commit()  # preserva a incerteza se o processo cair durante o POST
         result = contaovos_client.send_counting(key, payload)
         if result["ok"]:
             enviados += 1
-            _upsert_fila_item(conn, id_item, STATUS_CONFIRMED, None, None, now_text)
+            _upsert_fila_item(conn, id_item, STATUS_CONFIRMED, None, None, now_text, payload_hash(payload))
         else:
             falhas += 1
             _upsert_fila_item(
                 conn,
                 id_item,
-                STATUS_ERROR,
+                STATUS_SENDING if result['status_code'] == -1 or result['status_code'] >= 500 else STATUS_ERROR,
                 None,
                 sanitized_message(result["message"]),
                 now_text,
+                payload_hash(payload),
             )
+        conn.commit()
         detalhes.append(
             {
                 "ovitrampa": ovitrampa,
@@ -457,28 +484,32 @@ def send_lot(conn, lot_id, key, *, now=None, user_name=None):
     }
 
 
-def _upsert_fila_item(conn, id_item, status, id_remoto, erro, now_text):
-    conn.execute(
+def _upsert_fila_item(conn, id_item, status, id_remoto, erro, now_text, digest=''):
+    cur = conn.execute(
         f"""INSERT INTO {QUEUE_TABLE}
                 (id_item, status, tentativas, id_remoto, erro_sanitizado,
                  payload_hash, criado_em, atualizado_em, confirmado_em)
-            VALUES (?,?,0,?,?,'',?,?,?)
+            VALUES (?,?,0,?,?,?,?,?,?)
             ON CONFLICT (id_item) DO UPDATE SET
                 status=excluded.status,
                 id_remoto=excluded.id_remoto,
                 erro_sanitizado=excluded.erro_sanitizado,
+                payload_hash=excluded.payload_hash,
                 atualizado_em=excluded.atualizado_em,
-                confirmado_em=excluded.confirmado_em""",
+                confirmado_em=excluded.confirmado_em
+            WHERE excluded.status<>'enviando' OR {QUEUE_TABLE}.status NOT IN ('enviando','confirmado')""",
         (
             int(id_item),
             status,
             id_remoto,
             erro,
+            digest,
             now_text,
             now_text,
             now_text if status == STATUS_CONFIRMED else None,
         ),
     )
+    return cur.rowcount > 0
 
 
 def sanitized_message(value):

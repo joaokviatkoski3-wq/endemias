@@ -120,6 +120,13 @@ class CorrecoesLiraaTests(unittest.TestCase):
             kobo.corrigir(self.target, v["id_visita"], {**p, "tipo_imovel": "terreno_baldio"}, auditar=falhar)
         self.assertEqual(kobo.listar(self.target)[0]["versao_dados"], v["versao_dados"])
 
+    def test_correcao_de_visita_nao_aceita_varias_sequencias(self):
+        kobo.importar(self.target, self.ciclo, [self.env.registro()])
+        visita = kobo.listar(self.target)[0]
+        with self.assertRaisesRegex(kobo.LiraaKoboError, 'somente uma sequência'):
+            kobo.corrigir(self.target, visita['id_visita'], {'versao': visita['versao_dados'], 'motivo': 'Conferência', 'sequencia': '1, 2, 3'})
+        self.assertEqual(kobo.listar(self.target)[0]['versao_dados'], visita['versao_dados'])
+
     def test_reimportacao_exige_liberacao_explicita_e_nao_recupera_leitura(self):
         r = self.env.registro()
         kobo.importar(self.target, self.ciclo, [r])

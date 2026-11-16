@@ -112,6 +112,10 @@ class InterfaceInstallerTests(unittest.TestCase):
         self.simulate(pending=True,origin='2.7.8',target='2.8.0',marker='liraa',
                       migration_name='0036_liraa_encerramentos.sql')
 
+    def test_revisao_290_aplica_somente_migracao_de_anexos(self):
+        self.simulate(pending=True,origin='2.8.6',target='2.9.0',marker='revisao290',
+                      migration_name='0037_amostras_animais_anexos.sql')
+
     def test_rc3_exige_origem_rc2_e_preserva_configuracao(self):
         before=self.original();before['version']='2.0.0-rc.2'
         result=installer.proposed_config(before,'2.0.0-rc.2','2.0.0-rc.3')

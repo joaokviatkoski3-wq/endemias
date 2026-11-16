@@ -1,16 +1,31 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 13/11/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 16/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.8.6 — nomes dos depósitos nas notificações LIRAa
+## Candidata 2.9.0 — revisão Endemias e Ambiental
+
+Preparação isolada em C:\endemias-revisao-geral, branch
+codex/revisao-amostras-e-integridade. Amostras de Animais reúne categorias
+equivalentes sem regravar dados, corrige contadores e oferece anexos, com a
+migração aditiva PostgreSQL 0037. Ovitrampas protege lotes existentes,
+eventos relacionados e reenvios incertos ao Conta Ovos; a data apresentada é
+a conclusão do lote, quando conhecida. Visitas/BRI sem PE vinculado não são
+atribuídos por quarteirão quando há mais de um PE no mesmo local. Inclui
+correções de privacidade, segurança de exportação e relatório, agenda e LIRAa.
+Não houve migração, reinício ou modificação de dados de produção por esta
+preparação. Consultar docs/REVISAO_290.md para validações e pendências.
+
+## Versão 2.8.6 observada nas entradas — nomes dos depósitos
 
 A lista e a impressão mostram a descrição do depósito positivo, com o
 número do tubo. Se faltar a descrição, usam o nome da classe do depósito.
 Edições manuais da notificação são preservadas. Sem migração.
+Portal e logins públicos dos dois setores responderam 2.8.6 em 16/11/2026;
+esta verificação não incluiu sessão autenticada nem nova implantação.
 
-## Versão ativa 2.8.5 — ACS nas notificações LIRAa
+## Histórico 2.8.5 — ACS nas notificações LIRAa
 
 Lista, detalhe e impressão HTML/DOCX consultam os ACS da visita de origem,
 inclusive em ciclos encerrados. O ACS tem campo próprio no documento.

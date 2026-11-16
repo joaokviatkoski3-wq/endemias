@@ -1,12 +1,21 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 13/11/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 16/11/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Versão ativa 2.8.3 — entregas por fonte
+## Candidata 2.9.0 — revisão Endemias e Ambiental
+
+Preparada na worktree C:\endemias-revisao-geral, branch
+codex/revisao-amostras-e-integridade. Corrige categorias em Amostra de
+Animais, adiciona anexos com migração 0037 e trata achados de integridade e
+segurança em Ovitrampas, Pontos Estratégicos, agenda e relatórios. Não foi
+ativada nem aplicada ao banco de produção nesta preparação. Ver
+`docs/REVISAO_290.md` e `docs/ESTADO_ATUAL_PROJETO.md`.
+
+## Histórico 2.8.3 — entregas por fonte
 
 Ativada em 13/11/2026. Entregas da Esporotricose com filtros e ordenação
 em todas as colunas. A aba repete uma vez a consulta após HTTP 502, 503 ou 504.

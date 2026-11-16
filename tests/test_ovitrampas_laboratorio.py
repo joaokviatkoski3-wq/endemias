@@ -237,6 +237,25 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
         conn.commit()
         conn.close()
 
+    def test_lote_concluido_nao_recebe_nova_armadilha_nem_e_excluido_com_evento(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = str(Path(tmpdir) / 'historico.db')
+            self._banco(path)
+            laboratorio_core.gerar_lotes_pendentes(path, hoje='2026-07-24')
+            conn = db_core.connect(path)
+            lote = conn.execute('SELECT id_lote,id_evento,id_diario FROM ovitrampas_laboratorio_lotes').fetchone()
+            conn.execute("UPDATE ovitrampas_laboratorio_lotes SET status='concluido' WHERE id_lote=?", (lote['id_lote'],))
+            conn.execute("INSERT INTO ovitrampas_armadilhas(ovitrampa_id,localidade,ativo,atualizado_em) VALUES ('nova','Roma',1,'2026-11-16')")
+            conn.execute("INSERT INTO ovitrampas_diario_armadilhas(id_diario,ovitrampa_id,ordem,criado_em,atualizado_em) VALUES (?,'nova',3,'2026-11-16','2026-11-16')", (lote['id_diario'],))
+            conn.commit()
+            conn.close()
+            laboratorio_core.gerar_lotes_pendentes(path, hoje='2026-11-16')
+            conn = db_core.connect(path)
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM ovitrampas_laboratorio_itens WHERE id_lote=? AND ovitrampa_id='nova'", (lote['id_lote'],)).fetchone()[0], 0)
+            conn.close()
+            with self.assertRaisesRegex(ValueError, 'lote de laboratório'):
+                ovitrampas_core.excluir_evento_calendario(path, lote['id_evento'])
+
     def test_fluxo_da_leitura_ate_envio_ao_conta_ovos(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = str(Path(tmpdir) / "ovitrampas-laboratorio.db")
@@ -434,6 +453,7 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
                VALUES (?,?,?,'2026-08-24','troca','concluido',?,?,?)""",
             (id_evento, id_diario, "Roma 1", "Laboratorista API", agora, agora),
         ).lastrowid
+        conn.execute("UPDATE ovitrampas_laboratorio_lotes SET concluido_em=? WHERE id_lote=?", (agora, id_lote))
         conn.execute(
             """INSERT INTO ovitrampas_laboratorio_itens
                (id_lote,ovitrampa_id,complemento,localidade,ovos,ocorrencia,atualizado_em)
@@ -451,7 +471,7 @@ class OvitrampasLaboratorioTests(unittest.TestCase):
         self.assertEqual("Roma", reg["localidade"])  # join com cadastro local
         self.assertEqual(0, reg["ovos"])
         self.assertEqual("2026-08-24", reg["data"])
-        self.assertEqual("2026-08-24", reg["data_leitura"])
+        self.assertEqual("2026-09-02", reg["data_leitura"])
         self.assertEqual("Laboratorista API", reg["laboratorista"])
         self.assertEqual("Armadilha seca", reg["ocorrencia_label"])
         self.assertEqual("Laboratório", reg["fonte_leitura"])

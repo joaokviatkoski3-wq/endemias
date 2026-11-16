@@ -31,6 +31,7 @@ CAMPOS_AGENTE = {
     "agentes",
     "agentes_texto",
     "agentes_nomes",
+    "equipe_coleta",
     "laboratorista",
     "laboratorista_nome",
     "agente_nome",
@@ -42,7 +43,7 @@ CAMPOS_AGENTE = {
 # inteiro (nao faz sentido manter uma linha anonima de produtividade alheia).
 CHAVES_QUEBRA_NOMINAL = {"por_agente", "por_laboratorista"}
 
-_SEPARADORES = re.compile(r"\s*[,;/]\s*")
+_SEPARADORES = re.compile(r"\s*[,;/·]\s*")
 
 
 def nivel_restrito(usuario):

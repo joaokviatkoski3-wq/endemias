@@ -74,6 +74,16 @@ class FiltrosPendenciaTests(unittest.TestCase):
     def test_sem_filtro_lista_todos(self):
         self.assertEqual(len(self._codigos({})), 4)
 
+    def test_visita_sem_vinculo_nao_visita_dois_pontos_do_mesmo_quarteirao(self):
+        self.conn.execute("INSERT INTO localidades(id_localidade,nome) VALUES (1,'Localidade fictícia')")
+        self.conn.execute("UPDATE pontos_estrategicos SET id_localidade=1,quarteirao=100 WHERE codigo_pe IN ('PE-0001','PE-0002')")
+        self.conn.execute("INSERT INTO visitas(id_visita,tipo,data,id_localidade,quarteirao) VALUES ('visita-ficticia','PE','2026-11-01',1,100)")
+        self.conn.commit()
+        registros = pe_core.listar(self.conn, {'periodo_inicio':'2026-11-01','periodo_fim':'2026-11-30'})['registros']
+        pares = [r for r in registros if r['codigo_pe'] in {'PE-0001','PE-0002'}]
+        self.assertEqual(len(pares), 2)
+        self.assertTrue(all(not r['visitado_periodo_selecionado'] for r in pares))
+
     def test_filtra_por_uma_pendencia(self):
         self.assertEqual(self._codigos({"pendencias_cadastro": ["sem_cnpj"]}), ["PE-0002"])
 

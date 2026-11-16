@@ -1,7 +1,7 @@
 """Indicadores ambientais. Animais/vínculos não multiplicam a contagem de visitas."""
 from collections import Counter, defaultdict
 
-from app_core import db
+from app_core import db, amostras_animais
 
 FONTES = (
     ('esporotricose_visitas', 'esporotricose_visita_agentes', 'id_visita', 'Esporotricose'),
@@ -44,8 +44,8 @@ def _where(table, links, key, label, args):
         else:
             for field in FILTROS_AMOSTRAS:
                 if args.get(field):
-                    where.append('v.' + field + '=?')
-                    params.append(args[field])
+                    where.append(amostras_animais.categoria_sql('v.' + field, field) + '=?')
+                    params.append(amostras_animais.categoria_valor(args[field], field))
     if args.get('especie') or args.get('feridas'):
         if amostra:
             where.append('1=0')
@@ -63,7 +63,7 @@ def _visitas(conn, args):
     result = []
     for table, links, key, label in FONTES:
         where, params = _where(table, links, key, label, args)
-        extra = ("v.tipo_animal,COALESCE(v.quantidade,0) AS quantidade,0 AS animais,0 AS animais_feridas"
+        extra = (amostras_animais.categoria_sql('v.tipo_animal', 'tipo_animal') + " AS tipo_animal,COALESCE(v.quantidade,0) AS quantidade,0 AS animais,0 AS animais_feridas"
                  if table == 'amostras_animais' else
                  "NULL AS tipo_animal,0 AS quantidade,"
                  "(SELECT COUNT(*) FROM esporotricose_animais a WHERE a.id_visita=v.id_visita) AS animais,"
@@ -132,7 +132,8 @@ def opcoes(target):
                       tuple(f[0] for f in FONTES))
             values = set()
             for table in tables:
-                values.update(r[0] for r in conn.execute(f'SELECT DISTINCT {field} FROM {table} WHERE {field} IS NOT NULL AND {field}<>? ORDER BY {field}', ('',)))
+                expr = amostras_animais.categoria_sql(field, field) if table == 'amostras_animais' else field
+                values.update(r[0] for r in conn.execute(f'SELECT DISTINCT {expr} AS valor FROM {table} WHERE {field} IS NOT NULL AND {field}<>? ORDER BY valor', ('',)))
             result[field] = sorted(values)
         return result
     finally:

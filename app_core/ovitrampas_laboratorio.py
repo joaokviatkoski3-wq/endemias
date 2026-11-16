@@ -73,6 +73,9 @@ def gerar_lotes_pendentes(db_path, hoje=None):
                 )
                 if cur.rowcount:
                     criados += 1
+                else:
+                    # Lotes existentes representam o diário no momento da coleta.
+                    continue
                 lote = conn.execute(
                     f"SELECT id_lote FROM {LOTES_TABLE} WHERE id_evento=? AND id_diario=?",
                     (evento["id_evento"], diario["id_diario"]),

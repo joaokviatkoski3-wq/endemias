@@ -38,6 +38,10 @@ class TestEscopoAgente(unittest.TestCase):
         self.assertEqual(resultado["eventos"][0]["agentes"], ["João", "—"])
         self.assertEqual(resultado["eventos"][0]["titulo"], "Campo")
 
+    def test_oculta_colegas_na_equipe_de_coleta(self):
+        resultado = escopo_agente.redigir_agentes({'equipe_coleta':'João · Maria'}, {'joao'})
+        self.assertEqual(resultado['equipe_coleta'], 'João, —')
+
     def test_redigir_sem_vinculo_oculta_tudo(self):
         resultado = escopo_agente.redigir_agentes(
             {"agentes": "João, Maria"}, set()

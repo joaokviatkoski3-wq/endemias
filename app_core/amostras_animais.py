@@ -14,6 +14,34 @@ from app_core import normalizadores
 TABLE = "amostras_animais"
 AGENTES_TABLE = "amostra_animais_agentes"
 
+# Equivalências observadas no Kobo e em planilhas históricas. Valores originais
+# permanecem no banco; a consulta reúne apenas categorias conhecidas.
+_CATEGORIAS = {
+    "motivo_visita": {"Reclamação": ("reclamação", "reclamacao", "reclama_o"),
+                      "Investigação": ("investigação", "investigacao", "investiga_o")},
+    "tipo_animal": {"Escorpião": ("escorpião", "escorpiao", "escorpi_o"),
+                    "Morcego": ("morcego",), "Serpente": ("serpente",),
+                    "Carrapato": ("carrapato",), "Aranha": ("aranha",),
+                    "Lagarta": ("lagarta",)},
+}
+
+
+def categoria_sql(coluna, campo):
+    regras = _CATEGORIAS.get(campo, {})
+    termos = []
+    for rotulo, aliases in regras.items():
+        valores = ",".join("'" + v.replace("'", "''") + "'" for v in aliases)
+        termos.append(f"WHEN LOWER(TRIM({coluna})) IN ({valores}) THEN '{rotulo}'")
+    return f"(CASE {' '.join(termos)} ELSE {coluna} END)" if termos else coluna
+
+
+def categoria_valor(valor, campo):
+    texto = str(valor or '').strip()
+    for rotulo, aliases in _CATEGORIAS.get(campo, {}).items():
+        if texto.casefold() in {rotulo.casefold(), *(v.casefold() for v in aliases)}:
+            return rotulo
+    return valor
+
 ESPECIE_COLS = (
     "Qual a espécie da serpente?",
     "Qual a espécie do escorpião?",
@@ -75,6 +103,17 @@ def ensure_schema(target):
                 id_amostra TEXT NOT NULL REFERENCES amostras_animais(id_amostra) ON DELETE CASCADE,
                 id_agente  INTEGER NOT NULL REFERENCES agentes(id_agente),
                 PRIMARY KEY (id_amostra, id_agente)
+            );
+
+            CREATE TABLE IF NOT EXISTS amostra_animais_anexos (
+                id_anexo TEXT PRIMARY KEY,
+                id_amostra TEXT NOT NULL REFERENCES amostras_animais(id_amostra) ON DELETE CASCADE,
+                nome_original TEXT NOT NULL,
+                caminho_rel TEXT NOT NULL,
+                mime_type TEXT NOT NULL,
+                tamanho INTEGER NOT NULL,
+                criado_em TEXT NOT NULL,
+                criado_por TEXT NOT NULL
             );
 
             CREATE INDEX IF NOT EXISTS idx_amostras_animais_data ON amostras_animais(data);
@@ -209,16 +248,16 @@ def resumo(target, filtros=None):
                     COALESCE(SUM(quantidade),0) AS quantidade,
                     SUM(CASE WHEN LOWER(COALESCE(houve_acidente,''))='sim' THEN 1 ELSE 0 END) AS acidentes,
                     SUM(CASE WHEN LOWER(COALESCE(houve_captura,''))='sim' THEN 1 ELSE 0 END) AS capturas,
-                    SUM(CASE WHEN LOWER(COALESCE(motivo_visita,''))='reclamação' OR LOWER(COALESCE(motivo_visita,''))='reclamacao' THEN 1 ELSE 0 END) AS reclamacoes,
-                    SUM(CASE WHEN LOWER(COALESCE(motivo_visita,''))='investigação' OR LOWER(COALESCE(motivo_visita,''))='investigacao' THEN 1 ELSE 0 END) AS investigacoes,
+                    SUM(CASE WHEN {categoria_sql('motivo_visita', 'motivo_visita')}='Reclamação' THEN 1 ELSE 0 END) AS reclamacoes,
+                    SUM(CASE WHEN {categoria_sql('motivo_visita', 'motivo_visita')}='Investigação' THEN 1 ELSE 0 END) AS investigacoes,
                     COUNT(DISTINCT localidade) AS localidades
                 FROM amostras_animais a {where}""",
             params,
         ).fetchone())
         por_tipo = [dict(r) for r in conn.execute(
-            f"""SELECT COALESCE(tipo_animal, animal_motivador, '-') AS tipo, COUNT(*) AS registros, COALESCE(SUM(quantidade),0) AS quantidade
+            f"""SELECT {categoria_sql("COALESCE(NULLIF(tipo_animal,''), animal_motivador, '-')", 'tipo_animal')} AS tipo, COUNT(*) AS registros, COALESCE(SUM(quantidade),0) AS quantidade
                   FROM amostras_animais a {where}
-                 GROUP BY COALESCE(tipo_animal, animal_motivador, '-')
+                 GROUP BY {categoria_sql("COALESCE(NULLIF(tipo_animal,''), animal_motivador, '-')", 'tipo_animal')}
                  ORDER BY registros DESC, tipo LIMIT 12""",
             params,
         )]
@@ -247,6 +286,11 @@ def listar(target, filtros=None, *, completo=False):
         agentes_agg = agentes_core._agentes_aggregate(conn, "ag.nome")
         rows = [agentes_core._serializar_linha(r) for r in conn.execute(
             f"""SELECT a.*,
+                       {categoria_sql('a.motivo_visita', 'motivo_visita')} AS motivo_visita_exibicao,
+                       {categoria_sql('a.tipo_animal', 'tipo_animal')} AS tipo_animal_exibicao,
+                       {categoria_sql('a.animal_capturado', 'tipo_animal')} AS animal_capturado_exibicao,
+                       {categoria_sql('a.animal_motivador', 'tipo_animal')} AS animal_motivador_exibicao,
+                       {categoria_sql('a.especie_resumo', 'tipo_animal')} AS especie_resumo_exibicao,
                        (SELECT {agentes_agg}
                           FROM amostra_animais_agentes aa
                           JOIN agentes ag ON ag.id_agente=aa.id_agente
@@ -256,6 +300,12 @@ def listar(target, filtros=None, *, completo=False):
                  {limite_sql}""",
             params + limite_params,
         )]
+        for row in rows:
+            row['motivo_visita'] = row.pop('motivo_visita_exibicao')
+            row['tipo_animal'] = row.pop('tipo_animal_exibicao')
+            row['animal_capturado'] = row.pop('animal_capturado_exibicao')
+            row['animal_motivador'] = row.pop('animal_motivador_exibicao')
+            row['especie_resumo'] = row.pop('especie_resumo_exibicao')
     finally:
         if close:
             conn.close()
@@ -292,10 +342,10 @@ def _distinct(target, coluna):
     try:
         ensure_schema(conn)
         return [dict(r) for r in conn.execute(
-            f"""SELECT DISTINCT {coluna} AS nome
+            f"""SELECT DISTINCT {categoria_sql(coluna, coluna)} AS nome
                   FROM amostras_animais
                  WHERE {coluna} IS NOT NULL AND TRIM({coluna})<>''
-                 ORDER BY {coluna}"""
+                 ORDER BY nome"""
         )]
     finally:
         if close:
@@ -321,8 +371,8 @@ def _where(filtros, busca=False):
         ("origem", "origem_estrutura"),
     ):
         if filtros.get(key):
-            clauses.append(f"AND a.{col}=?")
-            params.append(filtros[key])
+            clauses.append(f"AND {categoria_sql('a.' + col, col)}=?")
+            params.append(categoria_valor(filtros[key], col))
     if filtros.get("agente"):
         clauses.append(
             """AND EXISTS (

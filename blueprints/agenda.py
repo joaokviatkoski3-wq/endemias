@@ -335,7 +335,9 @@ def _eventos_manuais_expandido(row, range_inicio, range_fim):
         ocorrencia += 1
         if ocorrencia > 1500:
             break
-        proxima = _proxima_ocorrencia(atual, recorrencia)
+        cfg = RECORRENCIAS[recorrencia]
+        proxima = (_add_months(inicio_base, cfg["months"] * ocorrencia)
+                   if cfg["months"] else _proxima_ocorrencia(atual, recorrencia))
         if proxima <= atual:
             break
         atual = proxima

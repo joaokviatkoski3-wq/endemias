@@ -779,7 +779,7 @@ def _lab_contagens_join(conn):
         return ""
     return f"""
         LEFT JOIN (
-            SELECT li.ovitrampa_id, lt.data_movimento,
+            SELECT li.ovitrampa_id, lt.data_movimento, lt.concluido_em,
                    lt.laboratorista_nome, li.ocorrencia,
                    ROW_NUMBER() OVER (
                        PARTITION BY li.ovitrampa_id, lt.data_movimento
@@ -972,7 +972,7 @@ def listar_contagens_api_para_aba(db_path, filtros=None, limite=500):
         where, params = _where_contagens_api(filtros, busca=True)
         lab_join = _lab_contagens_join(conn)
         lab_fields = (
-            "lab.data_movimento AS data_leitura, lab.laboratorista_nome AS laboratorista, "
+            "SUBSTR(CAST(lab.concluido_em AS TEXT),1,10) AS data_leitura, lab.laboratorista_nome AS laboratorista, "
             "lab.ocorrencia AS ocorrencia_laboratorio"
             if lab_join
             else "NULL AS data_leitura, NULL AS laboratorista, NULL AS ocorrencia_laboratorio"
@@ -1102,7 +1102,7 @@ def historico_armadilha(db_path, ovitrampa_id):
         ).fetchone()
         lab_join = _lab_contagens_join(conn)
         lab_fields = (
-            "lab.data_movimento AS data_leitura, lab.laboratorista_nome AS laboratorista, "
+            "SUBSTR(CAST(lab.concluido_em AS TEXT),1,10) AS data_leitura, lab.laboratorista_nome AS laboratorista, "
             "lab.ocorrencia AS ocorrencia_laboratorio"
             if lab_join
             else "NULL AS data_leitura, NULL AS laboratorista, NULL AS ocorrencia_laboratorio"
@@ -2071,9 +2071,14 @@ def salvar_evento_calendario(db_path, dados, usuario_nome="sistema", id_evento=N
             if not grupo:
                 raise ValueError("Selecione um grupo ativo.")
         if id_evento:
-            existe = conn.execute(f"SELECT 1 FROM {CAL_EVENTOS_TABLE} WHERE id_evento=?", (id_evento,)).fetchone()
+            existe = conn.execute(f"SELECT data,movimento,id_grupo,ciclo FROM {CAL_EVENTOS_TABLE} WHERE id_evento=?", (id_evento,)).fetchone()
             if not existe:
                 raise ValueError("Evento nao encontrado.")
+            if db_core.table_exists(conn, "ovitrampas_laboratorio_lotes") and conn.execute(
+                "SELECT 1 FROM ovitrampas_laboratorio_lotes WHERE id_evento=? LIMIT 1", (id_evento,)
+            ).fetchone():
+                if any(str(existe[k] or '') != str(payload[k] or '') for k in ('data','movimento','id_grupo','ciclo')):
+                    raise ValueError("Evento com lote de laboratório não permite alterar data, movimento, grupo ou ciclo.")
             conn.execute(
                 f"""UPDATE {CAL_EVENTOS_TABLE}
                        SET data=?, movimento=?, titulo=?, id_grupo=?, ciclo=?, observacoes=?, atualizado_em=?
@@ -2132,6 +2137,10 @@ def excluir_evento_calendario(db_path, id_evento):
     conn = db_core.connect(db_path)
     try:
         ensure_schema(conn)
+        if db_core.table_exists(conn, "ovitrampas_laboratorio_lotes"):
+            ligado = conn.execute("SELECT 1 FROM ovitrampas_laboratorio_lotes WHERE id_evento=? LIMIT 1", (id_evento,)).fetchone()
+            if ligado:
+                raise ValueError("Este evento possui lote de laboratório e não pode ser excluído.")
         conn.execute(f"DELETE FROM {CAL_AGENTES_TABLE} WHERE id_evento=?", (id_evento,))
         cur = conn.execute(f"DELETE FROM {CAL_EVENTOS_TABLE} WHERE id_evento=?", (id_evento,))
         if cur.rowcount == 0:

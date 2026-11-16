@@ -434,7 +434,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
     </div>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Semana</th><th>Data da coleta</th><th>Data da leitura</th><th>Laboratorista</th><th>Ovos</th><th>Resultado</th><th>Enviado em</th><th>Fonte</th></tr></thead>
+        <thead><tr><th>Semana</th><th>Data da coleta</th><th>Conclusão do lote</th><th>Laboratorista</th><th>Ovos</th><th>Resultado</th><th>Enviado em</th><th>Fonte</th></tr></thead>
         <tbody id="ovi-hist-body"></tbody>
       </table>
     </div>
@@ -1037,7 +1037,7 @@ async function carregarListaOvitrampas(){
         <div class="ovi-field"><span>Quarteirão</span><strong>${oviEscape(r.quarteirao || '-')}</strong></div>
         <div class="ovi-field"><span>Ovos</span><strong><span class="ovi-tag ${ovos > 0 ? 'pos' : ''}">${oviFmt.format(ovos)}</span></strong></div>
         <div class="ovi-field"><span>Data da coleta</span><strong>${oviEscape(r.data_coleta || r.data || '-')}</strong></div>
-        <div class="ovi-field"><span>Data da leitura</span><strong>${oviEscape(r.data_leitura || '-')}</strong></div>
+        <div class="ovi-field"><span>Conclusão do lote</span><strong>${oviEscape(r.data_leitura || '-')}</strong></div>
         <div class="ovi-field"><span>Laboratorista</span><strong>${oviEscape(r.laboratorista || '-')}</strong></div>
         <div class="ovi-field"><span>Resultado</span><strong>${oviEscape(r.resultado || '-')}</strong></div>
         <div class="ovi-field"><span>Enviado em</span><strong>${oviEscape(r.data_envio_contagem || '-')}</strong></div>

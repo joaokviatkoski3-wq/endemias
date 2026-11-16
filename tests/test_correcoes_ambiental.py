@@ -1,5 +1,6 @@
 """Regressões de integridade, agenda e previsão com massa exclusivamente fictícia."""
 import shutil
+import io
 import sqlite3
 import tempfile
 import unittest
@@ -54,6 +55,62 @@ class CorrecoesAmbientalTests(unittest.TestCase):
 
     def visit_row(self):
         return next(row for row in esporotricose.listar_visitas(str(self.path))["registros"] if row["id_visita"] == self.visit)
+
+    def test_amostras_normalizam_categorias_sem_alterar_origem_e_anexam(self):
+        from app_core import amostras_animais
+        conn = db.connect(str(self.path))
+        try:
+            amostras_animais.ensure_schema(conn)
+            for i, motivo, animal in ((1, 'reclama_o', 'escorpi_o'), (2, 'Reclamação', 'Escorpião')):
+                conn.execute('INSERT INTO amostras_animais (id_amostra,data,motivo_visita,tipo_animal,quantidade,processado_em) VALUES (?,?,?,?,?,?)',
+                             (f'amostra-nova-{i}', '2026-11-16', motivo, animal, 1, '2026-11-16'))
+            conn.commit()
+        finally:
+            conn.close()
+        filtros = {'d_ini':'2026-11-16', 'd_fim':'2026-11-16', 'tipo_animal':'Escorpião'}
+        resumo = amostras_animais.resumo(str(self.path), filtros)
+        self.assertEqual(resumo['totais']['reclamacoes'], 2)
+        self.assertEqual(resumo['por_tipo'][0]['registros'], 2)
+        self.assertEqual(amostras_animais.listar(str(self.path), filtros)['total'], 2)
+        self.assertEqual(amostras_animais.listar(str(self.path), {**filtros, 'tipo_animal':'escorpiao'})['total'], 2)
+        self.assertEqual(db.query_one(str(self.path), 'SELECT motivo_visita FROM amostras_animais WHERE id_amostra=?', ('amostra-nova-1',))['motivo_visita'], 'reclama_o')
+        client = self.client('ambiental')
+        pagina = client.get('/amostras-animais')
+        self.assertEqual(pagina.status_code, 200)
+        self.assertIn('Enviar anexos', pagina.get_data(as_text=True))
+        url = '/api/amostras-animais/amostra-nova-1/anexos'
+        invalido = client.post(url, data={'arquivos': (io.BytesIO(b'ficticio'), 'ficticio.exe')}, content_type='multipart/form-data')
+        self.assertEqual(invalido.status_code, 400)
+        self.assertEqual(self.client('endemias').get(url).status_code, 403)
+        response = client.post(url, data={'arquivos': (io.BytesIO(b'%PDF-1.4\n%%EOF'), 'ficticio.pdf')}, content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        anexos = response.get_json()['anexos']
+        self.assertEqual(len(anexos), 1)
+        download = client.get('/amostras-animais/anexos/' + anexos[0]['id_anexo'] + '/download')
+        self.assertEqual(download.status_code, 200)
+        download.close()
+        self.assertEqual(client.get('/api/amostras-animais/inexistente/anexos').status_code, 404)
+        with closing(db.connect(str(self.path))) as conn:
+            conn.execute("UPDATE usuarios SET setor='ambiental' WHERE id_usuario=4")
+            conn.commit()
+        app_ambiental = self.apps['ambiental']
+        restrito = app_ambiental.test_client()
+        user = db.query_one(str(self.path), 'SELECT * FROM usuarios WHERE id_usuario=4')
+        with app_ambiental.app_context(), restrito.session_transaction() as sessao:
+            sessao.update(uid=4, nome=user['nome'], auth_token=auth.token_sessao(user['senha_hash']),
+                          sessao_id=sessoes.criar(str(self.path), user))
+        recusado = restrito.post(url, data={'arquivos': (io.BytesIO(b'%PDF-1.4'), 'ficticio.pdf')}, content_type='multipart/form-data')
+        self.assertEqual(recusado.status_code, 403)
+
+    def test_bloqueio_de_ciclo_encerrado_nao_retorna_erro_500(self):
+        from app_core import liraa, liraa_kobo
+        client = self.client('endemias')
+        with mock.patch.object(liraa_kobo, 'corrigir', side_effect=liraa.LiraaError('Ciclo encerrado')):
+            resposta = client.post('/liraa/visitas/1/corrigir', data={'ciclo':'1'})
+        self.assertEqual(resposta.status_code, 302)
+        with mock.patch.object(liraa_kobo, 'permitir_reimportacao', side_effect=liraa.LiraaError('Ciclo encerrado')):
+            resposta = client.post('/liraa/visitas/permitir-reimportacao', data={'ciclo':'1','confirmar_reimportacao':'sim'})
+        self.assertEqual(resposta.status_code, 302)
 
     def test_edicao_neutra_preserva_endereco_e_vinculo_do_imovel(self):
         conn = db.connect(str(self.path))

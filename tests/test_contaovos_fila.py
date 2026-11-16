@@ -64,6 +64,22 @@ class ContaOvosFilaTests(unittest.TestCase):
         self.conn.close()
         self.temp.cleanup()
 
+    def test_envio_parcial_nao_repete_confirmado_nem_reenvia_timeout(self):
+        self.conn.execute("INSERT INTO ovitrampas_laboratorio_itens VALUES (12,1,'98',8,5)")
+        self.conn.execute("INSERT INTO ovitrampas_armadilhas VALUES ('98',-25.1,-49.2)")
+        self.conn.commit()
+        respostas = [dict(ok=True, status_code=200, message='ok'),
+                     dict(ok=False, status_code=-1, message='timeout')]
+        with mock.patch.object(contaovos_fila, '_derivar_instalacao', return_value='2026-07-26'), \
+             mock.patch.object(contaovos_fila.contaovos_cadastro, 'process_item', return_value={'ok':True,'changed':False}), \
+             mock.patch.object(contaovos_fila.contaovos_client, 'send_counting', side_effect=respostas) as enviar:
+            primeiro = contaovos_fila.send_lot(self.conn, 1, 'ficticia')
+            segundo = contaovos_fila.send_lot(self.conn, 1, 'ficticia')
+        self.assertEqual(primeiro['falhas'], 1)
+        self.assertEqual(segundo['ja_enviados'], 1)
+        self.assertEqual(segundo['falhas'], 1)
+        self.assertEqual(enviar.call_count, 2)
+
     def test_mapeamento_de_ocorrencia_deriva_fonte_existente(self):
         for remote, local in ovitrampas.CONTA_OVOS_OCORRENCIAS.items():
             if local <= 8:
@@ -165,7 +181,7 @@ class ContaOvosFilaTests(unittest.TestCase):
         row = self.conn.execute(
             "SELECT status, erro_sanitizado FROM contaovos_fila_contagens"
         ).fetchone()
-        self.assertEqual("erro", row["status"])
+        self.assertEqual("enviando", row["status"])
         self.assertIn("tentativa anterior", row["erro_sanitizado"])
 
     def test_confere_semana_epidemiologica_com_dados_sincronizados(self):

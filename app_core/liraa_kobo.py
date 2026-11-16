@@ -623,6 +623,10 @@ def corrigir(target, id_visita, payload, auditar=None):
                           ("Imovel", "tipo_imovel"), ("Logradouro", "logradouro"), ("Numero", "numero"),
                           ("Sequencia", "sequencia"), ("Morador", "morador"), ("Observa_es", "observacoes"))}}
             new = _normalizar(record)
+            from app_core import liraa_sequencias
+            unidades, _ = liraa_sequencias.separar(new.get('sequencia'))
+            if len(unidades) > 1:
+                raise LiraaKoboError('Esta correção aceita somente uma sequência por visita. Para várias unidades, faça a reconciliação do envio.')
             if tipo_boletim(new["tipo_imovel"]) is None:
                 raise LiraaKoboError("Selecione um tipo de imóvel válido.")
             new["id_localidade"], new["id_estrato"], new["situacao_vinculo"] = _vincular(new, _contexto(conn, old["id_ciclo"]))

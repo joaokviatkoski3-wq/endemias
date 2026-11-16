@@ -138,7 +138,7 @@ def gerar_leituras_positivas_csv(db_path, filtros=None):
         ovitrampas.ensure_schema(conn)
         where, params = ovitrampas._where_contagens_api(filtros, busca=True)
         lab_join = ovitrampas._lab_contagens_join(conn)
-        lab_field = "lab.data_movimento AS data_leitura" if lab_join else "NULL AS data_leitura"
+        lab_field = "SUBSTR(CAST(lab.concluido_em AS TEXT),1,10) AS data_leitura" if lab_join else "NULL AS data_leitura"
         rows = conn.execute(
             f"""SELECT o.ovitrampa_id, a.rua, a.numero, a.complemento,
                        a.localidade, o.ovos, o.data, o.semana,
@@ -164,11 +164,12 @@ def gerar_leituras_positivas_csv(db_path, filtros=None):
         local = ", ".join(value for value in (rua, numero) if value)
         if complemento:
             local = f"{local} - {complemento}" if local else complemento
-        writer.writerow((
+        from app_core.csv_seguranca import campo_csv
+        writer.writerow(tuple(campo_csv(value) for value in (
             row["ovitrampa_id"], local, row["ovos"] or 0,
             row["localidade"] or "", _csv_date(row["data"]), "", "", "",
             row["semana"], _csv_date(row["data_leitura"]),
-        ))
+        )))
     return output.getvalue().encode("utf-8-sig"), len(rows)
 
 
