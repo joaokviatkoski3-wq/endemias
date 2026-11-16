@@ -24,7 +24,8 @@ por esta preparação; confirmar versão ativa e estado Git antes de implantar.
 - LIRAa: ciclo encerrado informa bloqueio e correção individual rejeita lista
   de sequências; não reinterpreta dados históricos.
 
-Regressão geral: 1.232 testes passaram, cinco ignorados; ocorreram avisos de
+Regressão geral: 1.232 testes executados, sem falhas, dos quais cinco ignorados;
+ocorreram avisos de
 conexões SQLite abertas durante a bateria. As alterações feitas durante a
 execução foram verificadas novamente em testes focados. O simulador do
 instalador passou em 26 testes, incluindo a migração 0037. Verificações focadas
