@@ -21,6 +21,18 @@ por esta preparação; confirmar versão ativa e estado Git antes de implantar.
 - Privacidade e segurança: equipe de coleta segue o escopo do usuário, CSV de
   ovitrampas neutraliza fórmulas e o relatório por agente trata texto como dados.
 - Agenda: recorrências mensais preservam o dia original sempre que possível.
+- Esporotricose (17/11): casos encerrados não mostram pendência ativa de
+  cápsulas/receita; quantidades históricas e entregas permanecem registradas.
+  O cálculo de necessidade ativa considera explicitamente Em tratamento;
+  aguardando documentos/medicação e medicação disponível ficam em grupo
+  separado. Outro e status sem classificação aparecem para revisão. Há aviso
+  de necessidade não quantificada em animais ativos sem receita ou com receita
+  pendente, déficit destacado e indicação de conferir o saldo com contagem
+  física. Entregas a casos encerrados não representam sobras automaticamente.
+  Passaram 65 testes de Esporotricose e 27 regressões selecionadas da suíte de
+  segurança; a tela foi ensaiada em Chromium 1440/390 px com dados fictícios.
+  A regressão geral registrada abaixo é anterior a este acréscimo, que foi
+  verificado pelos testes focados. Sem nova migração; sem alteração em produção.
 - LIRAa: ciclo encerrado informa bloqueio e correção individual rejeita lista
   de sequências; não reinterpreta dados históricos.
 

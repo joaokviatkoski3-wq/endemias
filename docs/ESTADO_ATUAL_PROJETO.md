@@ -1,6 +1,6 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 16/11/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 17/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
@@ -16,6 +16,10 @@ atribuídos por quarteirão quando há mais de um PE no mesmo local. Inclui
 correções de privacidade, segurança de exportação e relatório, agenda e LIRAa.
 Não houve migração, reinício ou modificação de dados de produção por esta
 preparação. Consultar docs/REVISAO_290.md para validações e pendências.
+Em 17/11, a candidata passou a separar pendência histórica de necessidade ativa
+na Esporotricose, com alerta de déficit e animais sem receita quantificada.
+65 testes focados e 27 regressões selecionadas passaram; telas ensaiadas em
+computador/celular com dados fictícios. Não foi ativada em produção.
 
 ## Versão 2.8.6 observada nas entradas — nomes dos depósitos
 

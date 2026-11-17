@@ -6,6 +6,16 @@ from app_core import esporotricose as core
 
 
 class FiltroReceitasDoentesTests(unittest.TestCase):
+    def test_receita_pendente_historica_nao_e_pendencia_de_animal_falecido(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            banco = str(Path(pasta) / 'encerrado.db')
+            ident = core.salvar_doente(banco, {'nome':'Histórico','tutor':'Tutor','status':'Faleceu'})
+            core.salvar_receita_doente(banco, ident, {'receita_pendente':True})
+            self.assertEqual(core.listar_doentes(banco, {'situacao_receita':'pendente'})['total'],0)
+            row = core.listar_doentes(banco, {'situacao_receita':'regular'})['registros'][0]
+            self.assertFalse(row['receita_pendente'])
+            self.assertTrue(row['receita_pendente_historica'])
+
     def test_pendente_sem_pendencia_e_sem_receita(self):
         with tempfile.TemporaryDirectory() as pasta:
             banco = str(Path(pasta) / "receitas.db")

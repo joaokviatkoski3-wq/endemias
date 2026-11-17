@@ -7,6 +7,53 @@ from app_core import db as db_core
 
 
 class EstoqueAutomaticoTests(unittest.TestCase):
+    def test_necessidade_ativa_exclui_encerrados_e_separa_aguardando_e_incerto(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp) / 'necessidade.db')
+            core = esporotricose_core
+            core.salvar_estoque_medicacao(path, {'tipo':'Entrada','quantidade':680})
+            ativos = []
+            for nome, status, total in [('Ativo','Em tratamento',1210),('Falecido','Faleceu',90),
+                                        ('Concluído','Acabou tratamento',80),('Curado','Curado',70),
+                                        ('Eutanásia','Eutanásia',60),('Outro','Outro',50),
+                                        ('Aguardando','Aguardando medicação',40)]:
+                ident = core.salvar_doente(path, {'nome':nome,'tutor':'Tutor fictício','status':status})
+                receita = core.salvar_receita_doente(path, ident, {'capsulas_total':total})
+                if status in {'Curado', 'Eutanásia'}:
+                    conn = db_core.connect(path)
+                    try:
+                        conn.execute('UPDATE esporotricose_doentes_animais SET status=? WHERE id_animal_doente=?', (status, ident))
+                        conn.commit()
+                    finally:
+                        conn.close()
+                if status == 'Em tratamento':
+                    core.salvar_entrega_doente(path, receita, {'quantidade':30})
+                    ativos.append(ident)
+            sem_receita = core.salvar_doente(path, {'nome':'Sem receita','tutor':'Tutor fictício','status':'Em tratamento'})
+            pendente = core.salvar_doente(path, {'nome':'Receita pendente','tutor':'Tutor fictício','status':'Em tratamento'})
+            core.salvar_receita_doente(path, pendente, {'receita_pendente':True})
+            totais = core.estoque_medicacao(path)['totais']
+            self.assertEqual(totais['saldo_setor'],650)
+            self.assertEqual(totais['faltantes_tratamento'],1180)
+            self.assertEqual(totais['deficit_tratamento'],530)
+            self.assertEqual(totais['tratamento_sem_quantificar'],2)
+            self.assertEqual(totais['faltantes_aguardando'],40)
+            self.assertEqual(totais['status_a_revisar'],1)
+            linhas = core.listar_doentes(path)['registros']
+            falecido = next(r for r in linhas if r['nome']=='Falecido')
+            self.assertEqual(falecido['capsulas_restantes'],0)
+            self.assertEqual(falecido['capsulas_restantes_historico'],90)
+            self.assertFalse(falecido['receita_pendente'])
+            detalhe = core.obter_doente(path,falecido['id_animal_doente'])
+            self.assertFalse(detalhe['receitas'][0]['pendencia_ativa'])
+            self.assertEqual(detalhe['receitas'][0]['capsulas_total'],90)
+            csv = next(r for r in core.listar_doentes_csv(path) if r['animal']=='Falecido')
+            self.assertEqual(csv['capsulas_restantes'],0)
+            core.salvar_doente(path, {'id_animal_doente':ativos[0],'nome':'Ativo','tutor':'Tutor fictício','status':'Faleceu'})
+            depois = core.estoque_medicacao(path)['totais']
+            self.assertEqual(depois['faltantes_tratamento'],0)
+            self.assertEqual(depois['saldo_setor'],650)  # entrega passada continua sendo saída física
+
     def test_excluir_uma_entrega_recalcula_estoque_sem_apagar_receita(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = str(Path(tmpdir) / "estoque.db")

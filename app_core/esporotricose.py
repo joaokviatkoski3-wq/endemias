@@ -1542,11 +1542,13 @@ def listar_doentes(target, filtros=None):
         situacao_receita = _text(filtros.get("situacao_receita")) or ""
         if situacao_receita not in ("", "pendente", "regular", "sem_receita"):
             raise ValidationError("Situacao da receita invalida.")
+        necessita_medicacao_sql = "LOWER(TRIM(COALESCE(d.status,''))) IN ('em tratamento','ativo','em andamento','aguardando documentos','aguardando medicação','medicação disponível')"
         if situacao_receita == "pendente":
+            where.append(necessita_medicacao_sql)
             where.append("EXISTS (SELECT 1 FROM esporotricose_doentes_receitas rp WHERE rp.id_animal_doente=d.id_animal_doente AND COALESCE(rp.receita_pendente, 0)=1)")
         elif situacao_receita == "regular":
             where.append("EXISTS (SELECT 1 FROM esporotricose_doentes_receitas rp WHERE rp.id_animal_doente=d.id_animal_doente)")
-            where.append("NOT EXISTS (SELECT 1 FROM esporotricose_doentes_receitas rp WHERE rp.id_animal_doente=d.id_animal_doente AND COALESCE(rp.receita_pendente, 0)=1)")
+            where.append("(NOT (" + necessita_medicacao_sql + ") OR NOT EXISTS (SELECT 1 FROM esporotricose_doentes_receitas rp WHERE rp.id_animal_doente=d.id_animal_doente AND COALESCE(rp.receita_pendente, 0)=1))")
         elif situacao_receita == "sem_receita":
             where.append("NOT EXISTS (SELECT 1 FROM esporotricose_doentes_receitas rp WHERE rp.id_animal_doente=d.id_animal_doente)")
         if status:
@@ -1647,7 +1649,9 @@ def listar_doentes(target, filtros=None):
 def estoque_medicacao(target):
     doentes = listar_doentes(target, {})["registros"]
     em_tratamento = [item for item in doentes if _doente_em_tratamento(item.get("status"))]
-    encerrados = [item for item in doentes if not _doente_em_tratamento(item.get("status"))]
+    encerrados = [item for item in doentes if _situacao_medicacao(item.get('status')) == 'encerrado']
+    aguardando = [item for item in doentes if _situacao_medicacao(item.get('status')) == 'aguardando']
+    revisar = [item for item in doentes if _situacao_medicacao(item.get('status')) == 'revisar']
     conn = db_core.connect(target)
     try:
         ensure_schema(conn)
@@ -1719,6 +1723,7 @@ def estoque_medicacao(target):
         saldos_por_fonte[fonte] = manuais - entregas
     capsulas_receitadas = sum(int(item.get("capsulas_receitadas") or 0) for item in doentes)
     necessidade_tratamento = sum(int(item.get("capsulas_restantes") or 0) for item in em_tratamento)
+    sem_quantificar = [item for item in em_tratamento if item.get('receita_pendente') or not int(item.get('receitas') or 0)]
     sobra_potencial_encerrados = sum(int(item.get("capsulas_entregues") or 0) for item in encerrados)
     candidatos_sobra = [
         {
@@ -1739,6 +1744,11 @@ def estoque_medicacao(target):
             "receitadas": capsulas_receitadas,
             "entregues": capsulas_entregues,
             "faltantes_tratamento": necessidade_tratamento,
+            "tratamento_sem_quantificar": len(sem_quantificar),
+            "aguardando": len(aguardando),
+            "faltantes_aguardando": sum(int(item.get('capsulas_restantes') or 0) for item in aguardando),
+            "status_a_revisar": len(revisar),
+            "deficit_tratamento": max(necessidade_tratamento - saldo_setor, 0),
             "saldo_setor": saldo_setor,
             "entradas_setor": entradas,
             "entradas_sesa": entradas_sesa,
@@ -2009,6 +2019,7 @@ def listar_doentes_csv(target, filtros=None):
                 0,
             )
             item["proxima_entrega"] = _proxima_entrega_doente(item)
+            _aplicar_situacao_medicacao(item)
             rows.append(item)
         return rows
     finally:
@@ -2045,6 +2056,9 @@ def obter_doente(target, id_animal_doente):
                 ).fetchall()
             ]
             _preencher_resumo_receita(item)
+            item['pendencia_ativa'] = animal['situacao_medicacao'] in {'em_tratamento', 'aguardando'}
+            if not item['pendencia_ativa']:
+                item['saldo_observacao'] = f"Histórico: {item['capsulas_entregues']} cápsula(s) entregue(s); sem pendência ativa."
             receitas.append(item)
         animal["receitas"] = receitas
         animal["anexos"] = [_anexo_doente_dict(row) for row in conn.execute(
@@ -2685,6 +2699,7 @@ def _doente_row(row):
         int(item.get("capsulas_entregues") or 0) - int(item.get("capsulas_receitadas") or 0),
         0,
     )
+    _aplicar_situacao_medicacao(item)
     item["proxima_entrega"] = _proxima_entrega_doente(item)
     if (
         int(item.get("entregas") or 0) == 0
@@ -2770,10 +2785,28 @@ def _posologia_padrao(capsulas_por_dia=1):
 
 
 def _doente_em_tratamento(status):
-    low = _sem_acentos(status).lower()
-    if any(term in low for term in ("faleceu", "obito", "nao e esporotricose", "acabou", "final")):
-        return False
-    return bool(low.strip())
+    return _situacao_medicacao(status) == 'em_tratamento'
+
+
+def _situacao_medicacao(status):
+    low = re.sub(r'[^a-z0-9]+', ' ', _sem_acentos(status).lower()).strip()
+    if low in {'em tratamento', 'ativo', 'em andamento'}:
+        return 'em_tratamento'
+    if low in {'aguardando documentos', 'aguardando medicacao', 'medicacao disponivel'}:
+        return 'aguardando'
+    if any(term in low for term in ('faleceu', 'obito', 'eutanasia', 'nao e esporotricose', 'acabou', 'finalizado', 'concluido')) or low in {'curado', 'cura', 'alta', 'tratamento encerrado'}:
+        return 'encerrado'
+    return 'revisar'
+
+
+def _aplicar_situacao_medicacao(item):
+    item['situacao_medicacao'] = _situacao_medicacao(item.get('status'))
+    item['capsulas_restantes_historico'] = int(item.get('capsulas_restantes') or 0)
+    item['receita_pendente_historica'] = bool(item.get('receita_pendente'))
+    if item['situacao_medicacao'] not in {'em_tratamento', 'aguardando'}:
+        item['capsulas_restantes'] = 0
+        item['receita_pendente'] = False
+    return item
 
 
 def _normalizar_tipo_estoque(value):
@@ -2875,7 +2908,7 @@ def _normalizar_status_doente(value):
     low = re.sub(r"[^a-z0-9]+", " ", low).strip()
     if "nao e esporotricose" in low or "nao esporotricose" in low or "nao eh esporotricose" in low:
         return "Não é esporotricose"
-    if "faleceu" in low or "obito" in low or "morreu" in low:
+    if "faleceu" in low or "obito" in low or "morreu" in low or "eutanasia" in low:
         return "Faleceu"
     if "document" in low or "nao mandou" in low or "nao enviou" in low or low == "aguardando":
         return "Aguardando documentos"
@@ -2883,7 +2916,7 @@ def _normalizar_status_doente(value):
         return "Aguardando medicação"
     if "medicacao disponivel" in low or "retirada" in low or "chegou" in low or "buscar medicacao" in low:
         return "Medicação disponível"
-    if "acabou" in low or "final" in low or "conclu" in low or "alta" in low:
+    if "acabou" in low or "final" in low or "conclu" in low or "alta" in low or low in {'curado', 'cura', 'tratamento encerrado'}:
         return "Acabou tratamento"
     if "tratamento" in low or low in {"ativo", "em andamento"}:
         return "Em tratamento"

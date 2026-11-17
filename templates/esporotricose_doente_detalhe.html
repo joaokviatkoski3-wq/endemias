@@ -168,7 +168,7 @@ function render(){
   document.getElementById('receitas-list').innerHTML = (animal.receitas || []).map(r => `
     <div class="doe-receita">
       <div class="doe-receita-head">
-        <strong>${r.receita_pendente ? 'Receita pendente' : `Receita ${data(r.data_receita)}`}</strong>
+        <strong>${r.pendencia_ativa === false ? 'Histórico · ' : ''}${r.receita_pendente ? 'Receita sem total definido' : `Receita ${data(r.data_receita)}`}</strong>
         <div class="doe-receita-actions">
           <button class="btn btn-outline btn-sm" type="button" onclick="toggleReceitaEdit(${r.id_receita})">
             <img src="/static/icons/editar.svg" alt="" class="icon-svg"> Editar receita
@@ -262,6 +262,7 @@ function baixarAnexosSeparados(){
   toast(`${anexos.length} download(s) solicitado(s). Se o navegador perguntar, permita vários downloads para este site.`, 'info');
 }
 function capsulasReceitaHtml(r) {
+  if (r.pendencia_ativa === false) return `Histórico: ${num(r.capsulas_entregues || 0)} cápsula(s) entregue(s) · sem pendência ativa. Prescritas: ${r.receita_pendente ? 'não definidas' : num(r.capsulas_total)}.`;
   if (r.receita_pendente) {
     return `<strong>${num(r.capsulas_entregues || 0)}</strong> c&aacute;psula(s) entregue(s) &middot; <span class="muted">Receita pendente</span>`;
   }

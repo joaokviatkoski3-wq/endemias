@@ -554,11 +554,12 @@
 
 <section class="esporo-pane" id="esp-tab-doentes-estoque" data-esp-area="doentes">
   <div class="esporo-doentes-kpis">
-    <div class="esporo-kpi"><div class="esporo-kpi-label">Saldo no setor</div><div class="esporo-kpi-value" id="est-kpi-saldo">0</div></div>
-    <div class="esporo-kpi"><div class="esporo-kpi-label">Necessidade em tratamento</div><div class="esporo-kpi-value" id="est-kpi-necessidade">0</div></div>
-    <div class="esporo-kpi"><div class="esporo-kpi-label">Saldo após faltantes</div><div class="esporo-kpi-value" id="est-kpi-reserva">0</div></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Estoque calculado no setor</div><div class="esporo-kpi-value" id="est-kpi-saldo">0</div><small>Conferir com a contagem física</small></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">A entregar · em tratamento</div><div class="esporo-kpi-value" id="est-kpi-necessidade">0</div><small>Somente prescrições quantificadas de casos ativos</small></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Saldo após atender os ativos</div><div class="esporo-kpi-value" id="est-kpi-reserva">0</div><small>Desconta as cápsulas ainda não entregues</small></div>
     <div class="esporo-kpi"><div class="esporo-kpi-label">Sobras retornadas</div><div class="esporo-kpi-value" id="est-kpi-sobras">0</div></div>
   </div>
+  <div id="est-cobertura" class="chart-card" role="status" style="padding:16px;margin-bottom:16px;"></div>
   <div class="esporo-estoque-grid">
     <div class="chart-card">
       <div class="chart-hd">
@@ -1209,12 +1210,16 @@ function renderEspDoentesStatusKpis(rows) {
 }
 function capsulasDoenteHtml(r) {
   const entregue = `<strong>${fmtNum(r.capsulas_entregues || 0)}</strong> entregues`;
+  if (r.situacao_medicacao === 'encerrado') return `${entregue}<div class="muted">Caso encerrado · sem entrega pendente</div><div class="muted">Prescritas no histórico: ${fmtNum(r.capsulas_receitadas || 0)}</div>`;
+  if (r.situacao_medicacao === 'revisar') return `${entregue}<div class="muted warn">Situação a revisar · fora da necessidade ativa</div>`;
   if (r.receita_pendente) {
     return `${entregue}<div class="muted warn">Receita pendente</div>${r.proxima_entrega ? `<div class="muted">Próxima estimada: ${fmtDate(r.proxima_entrega)}</div>` : '<div class="muted">Sem total prescrito</div>'}`;
   }
   return `${entregue}<div class="muted">${fmtNum(r.capsulas_restantes || 0)} faltam de ${fmtNum(r.capsulas_receitadas || 0)}</div>${r.proxima_entrega ? `<div class="muted">Próxima: ${fmtDate(r.proxima_entrega)}</div>` : ''}${Number(r.capsulas_excedentes || 0) > 0 ? `<div class="muted warn">${fmtNum(r.capsulas_excedentes)} excedentes</div>` : ''}`;
 }
 function tratamentoDoenteHtml(r) {
+  if (r.situacao_medicacao === 'encerrado') return `${fmtNum(r.receitas || 0)} receita(s) no histórico<div class="muted">Tratamento encerrado</div>`;
+  if (r.situacao_medicacao === 'revisar') return `${fmtNum(r.receitas || 0)} receita(s) no histórico<div class="muted warn">Confirmar situação do tratamento</div>`;
   if (r.receita_pendente) {
     return `${fmtNum(r.receitas || 0)} receita(s)<div class="muted warn">Receita pendente</div><div class="muted">Última entrega: ${fmtDate(r.ultima_entrega) || '-'}</div>`;
   }
@@ -1244,9 +1249,8 @@ function resumoRow(label, valor, detalhe='') {
   return `<div class="esporo-summary-row"><span>${escapeHtml(label)}${detalhe ? `<div class="muted">${escapeHtml(detalhe)}</div>` : ''}</span><strong>${fmtNum(valor)}</strong></div>`;
 }
 function doenteEmTratamento(status) {
-  const s = String(status || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  if (!s.trim()) return false;
-  return !(s.includes('faleceu') || s.includes('obito') || s.includes('nao e esporotricose') || s.includes('acabou') || s.includes('final'));
+  const s = String(status || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  return ['em tratamento', 'ativo', 'em andamento'].includes(s);
 }
 function renderEspDoentesResumo(rows, total, totais={}) {
   const rowsTratamento = rows.filter(r => doenteEmTratamento(r.status));
@@ -1327,6 +1331,16 @@ function renderEspEstoque(d) {
   setEspText('est-kpi-necessidade', t.faltantes_tratamento);
   setEspText('est-kpi-reserva', t.saldo_apos_reserva);
   setEspText('est-kpi-sobras', t.sobras_lancadas);
+  const deficit = Math.max(Number(t.deficit_tratamento || 0), 0);
+  const incertos = Number(t.tratamento_sem_quantificar || 0);
+  const cobertura = document.getElementById('est-cobertura');
+  cobertura.style.borderLeft = `5px solid ${deficit ? '#b91c1c' : (incertos ? '#b45309' : 'var(--brand)')}`;
+  cobertura.innerHTML = `<strong>${deficit ? `Faltam ${fmtNum(deficit)} cápsulas para as prescrições conhecidas dos animais em tratamento.` : (incertos ? 'O estoque cobre a necessidade quantificada, mas há tratamentos sem quantidade definida.' : 'O estoque calculado cobre as entregas pendentes dos animais em tratamento.')}</strong>
+    <div class="muted">${fmtNum(t.em_tratamento || 0)} animal(is) em tratamento. ${fmtNum(incertos)} sem receita ou com receita pendente: necessidade ainda não quantificada.</div>
+    <div class="muted">Aguardando documentos ou medicação: ${fmtNum(t.aguardando || 0)} animal(is), ${fmtNum(t.faltantes_aguardando || 0)} cápsula(s) quantificadas, separadas dos ativos. Situação a revisar: ${fmtNum(t.status_a_revisar || 0)}.</div>
+    <div class="muted">Compara registros de estoque e prescrições ainda não entregues; não estima tratamentos futuros. Confirme o saldo com a contagem física. Sobras com tutores só entram após devolução registrada.</div>`;
+  cobertura.querySelector('strong').style.color = deficit ? '#b91c1c' : (incertos ? '#b45309' : 'var(--brand)');
+  document.getElementById('est-kpi-reserva').style.color = Number(t.saldo_apos_reserva || 0) < 0 ? '#b91c1c' : 'var(--brand)';
   document.getElementById('est-info').textContent = `${fmtNum(movimentos.length)} movimento(s)`;
   document.getElementById('est-resumo-list').innerHTML = [
     resumoRow('Entradas SESA', t.entradas_sesa),
@@ -1343,7 +1357,8 @@ function renderEspEstoque(d) {
     resumoRow('Receitadas nos registros', t.receitadas),
     resumoRow('Entregues nos registros', t.entregues),
     resumoRow('Faltantes em tratamento', t.faltantes_tratamento),
-    resumoRow('Sobra potencial em encerrados', t.sobra_potencial_encerrados, 'conferir devolução antes de usar'),
+    resumoRow('Necessidade quantificada aguardando início', t.faltantes_aguardando),
+    resumoRow('Entregues a casos encerrados', t.sobra_potencial_encerrados, 'não representa sobra física; confirmar e registrar a devolução real'),
   ].join('');
   const candidatos = d.candidatos_sobra || [];
   document.getElementById('est-candidatos-sobra').innerHTML = candidatos.length ? candidatos.slice(0, 12).map(item => `
