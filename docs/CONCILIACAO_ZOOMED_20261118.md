@@ -4,8 +4,11 @@ Atualização após confirmações do usuário: segundo lote aplicado às 11h40,
 com oito auditorias; Caramelo/Peralta não receberam, Suelen/Pitoquinha receberam
 e estão dispensados de baixa, identidades dos dois tutores confirmadas.
 2.650 cápsulas físicas: 2.590 com baixa (870 Município, 1.720 SESA) + 60
-municipais dispensadas, nenhuma baixa pendente. Só a data/animal de Celoni
-continua pendente. Registro atual completo em docs/ESTOQUE_291.md. As seções
+municipais dispensadas, nenhuma baixa pendente. O operador confirmou depois
+que as duas entregas de Celoni são de 13/03/2026, como já estavam no VSATT:
+última pendência encerrada, com correção do ano da linha 18 da fonte somente
+na conciliação documentada. Arquivo original e banco preservados nesta etapa.
+Registro atual completo em docs/ESTOQUE_291.md. As seções
 abaixo preservam o estado e as decisões do primeiro lote.
 
 ## Fonte e resultado confirmado

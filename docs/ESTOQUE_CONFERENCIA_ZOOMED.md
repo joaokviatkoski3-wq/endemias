@@ -3,6 +3,9 @@
 Estado posterior: versão 2.9.1 ativada, segundo lote confirmado pelo operador
 aplicado; 2.650 entregues (2.590 com baixa e 60 municipais dispensadas), zero
 baixas pendentes. Acordo municipal e números atuais em docs/ESTOQUE_291.md.
+Operador confirmou que as duas entregas de Celoni são de 13/03/2026, como
+já registradas no VSATT. Conciliação das 85 entregas encerrada, considerando
+essa correção confirmada do ano na linha 18 da fonte. Arquivo original intacto.
 As consultas e a candidata descritas abaixo são registros das etapas anteriores.
 
 ## Planilha recebida e conciliação por entrega

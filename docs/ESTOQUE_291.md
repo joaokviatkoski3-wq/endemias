@@ -14,8 +14,12 @@ dispensadas e zero baixas pendentes. Estoque calculado 640 (SESA 580, Município
 física. Receitas, anexos, estoque manual e situações clínicas preservados.
 
 Conferência por tutor/data/fonte/quantidade das 85 entregas com baixa: 84
-coincidem com a origem. Uma entrega de Celoni tem 13/03/2025 no ZooMed e
-13/03/2026 no VSATT; ano/animal aguardam esclarecimento, sem alterar volumes.
+coincidem com a planilha original. Em 18/11, o operador confirmou que as duas
+entregas de Celoni são de 13/03/2026, como já constam no VSATT. A linha 18 da
+planilha recebida informa 13/03/2025: considerar 13/03/2026 na conciliação por
+confirmação expressa do operador. As 85 entregas estão conciliadas com essa
+correção da fonte; não há pendência de ano/animal. A planilha original foi
+preservada e não houve nova alteração de entrega no banco nem no ZooMed.
 Os dois lançamentos municipais dispensados explicam os 87 registros físicos.
 
 ## Regra confirmada pelo operador
@@ -64,8 +68,8 @@ Projeção preparada e depois confirmada na aplicação: 2.650 cápsulas física
 (930 Município, 1.720 SESA), sendo 2.590 com baixa (870 Município, 1.720 SESA)
 e 60 municipais dispensadas. Saldo calculado 640 e necessidade 880, déficit
 240. Valores confirmados após a aplicação; não são contagem
-física. A data divergente de Celoni continua pendente e não impede conciliar
-quantidades/fontes. Não editar o ano nem escolher um animal sem esclarecimento.
+física. A dúvida sobre o ano de Celoni foi encerrada pelo operador: ambas são
+de 2026. Os vínculos com Banguela/Mimi e as datas no VSATT ficam preservados.
 
 ## Validação e implantação
 

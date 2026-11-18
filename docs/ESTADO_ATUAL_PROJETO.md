@@ -21,8 +21,11 @@ Segundo lote aplicado com oito auditorias e nova conexão confirmando assinatura
 (870 Município, 1.720 SESA); 60 dispensadas, zero pendentes. Saldo calculado
 640 (SESA 580, Município 60), necessidade 880, déficit 240 em 11 ativos.
 Nenhuma mudança em receitas, anexos, estoque manual ou situação clínica.
-Sem contagem física. A única divergência da relação de 85 baixas é uma data
-de Celoni: 2025 na origem, 2026 no VSATT. Não corrigir ano/animal por hipótese.
+Sem contagem física. Operador confirmou que as duas entregas de Celoni são de
+13/03/2026; o VSATT já estava correto. Encerrada a última pendência de conciliação:
+84 entregas coincidem com a fonte original e a 85ª foi conciliada pela correção
+do ano confirmada pelo operador (linha 18 da planilha). Não houve nova escrita
+no banco nem alteração da planilha original ou do ZooMed.
 Ver docs/ESTOQUE_291.md para validações, backups e limites.
 
 ## Histórico do primeiro lote ZooMed — 18/11/2026

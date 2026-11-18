@@ -18,8 +18,11 @@ Mika confirmadas; segundo lote aplicado com oito auditorias. Ativada em 18/11
 confirmados. Entradas e portal HTTP 200 em 2.9.1. Total físico 2.650 (930
 Município, 1.720 SESA); ZooMed 2.590 (870 Município, 1.720 SESA); dispensadas
 60; pendentes zero. Saldo calculado 640, necessidade 880, déficit 240 em 11
-ativos. Sem contagem física. Só a data/animal de Celoni segue pendente; 84/85
-entregas com baixa coincidem por tutor/data/fonte/quantidade. Ver docs/ESTOQUE_291.md.
+ativos. Sem contagem física. Operador confirmou em 18/11 que ambas as entregas
+de Celoni são de 13/03/2026, como já constam no VSATT. Pendência encerrada:
+85 entregas conciliadas, considerando a correção do ano da linha 18 da fonte
+confirmada pelo operador. Planilha original preservada, sem nova escrita no
+banco ou no ZooMed. Ver docs/ESTOQUE_291.md.
 
 ## Histórico do primeiro lote ZooMed — 18/11/2026
 
