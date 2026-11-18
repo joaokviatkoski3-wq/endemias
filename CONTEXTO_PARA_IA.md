@@ -6,13 +6,20 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.9.1 — card de entregas e conferência ZooMed
+## Conciliação parcial ZooMed — 18/11/2026
 
-Preparada em C:\endemias-estoque-zoomed. Novo card informa entregas locais por
-fonte e baixa. Nenhuma correção de lançamentos nem remoção de sobras executada;
-há divergências com os totais ZooMed informados pelo usuário, que exigem
-comparação da relação de entregas. Ver docs/ESTOQUE_CONFERENCIA_ZOOMED.md.
-Produção continua na 2.9.0.
+Planilha fornecida pelo usuário confirma 2.590 cápsulas (870 Município,
+1.720 SESA), mas não identifica os animais. Primeiro lote aplicado no
+PostgreSQL às 10h56: 11 correções e uma entrega incluída, backup validado e
+12 auditorias. VSATT ficou com 2.680 entregues (900 Município, 1.780 SESA).
+O total com baixa marcada é 2.590 por compensação de diferenças pendentes;
+não declarar conciliação concluída. Aguardar respostas sobre duas identidades
+de tutores, quatro entregas ausentes na planilha e uma data ambígua. Não
+excluir entregas para bater totais. Saldo calculado 610, necessidade 880 em
+11 ativos e déficit 270; não é contagem física. Sem mudança de versão ou
+reinício do serviço. Ver docs/CONCILIACAO_ZOOMED_20261118.md.
+Card adicional permanece preparado na candidata 2.9.1, worktree
+C:\endemias-estoque-zoomed; ainda não ativado.
 
 ## Versão ativa 2.9.0 — revisão Endemias e Ambiental
 
