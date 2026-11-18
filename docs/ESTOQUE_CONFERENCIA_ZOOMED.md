@@ -1,5 +1,10 @@
 # Conferência de medicação — 18/11/2026
 
+Estado posterior: versão 2.9.1 ativada, segundo lote confirmado pelo operador
+aplicado; 2.650 entregues (2.590 com baixa e 60 municipais dispensadas), zero
+baixas pendentes. Acordo municipal e números atuais em docs/ESTOQUE_291.md.
+As consultas e a candidata descritas abaixo são registros das etapas anteriores.
+
 ## Planilha recebida e conciliação por entrega
 
 O arquivo zoomed.xlsx fornecido em 18/11 contém 85 entregas, 33 tutores e

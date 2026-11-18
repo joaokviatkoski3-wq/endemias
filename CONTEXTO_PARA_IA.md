@@ -6,17 +6,22 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.9.1 — acordo municipal e correções confirmadas
+## Versão ativa 2.9.1 — acordo municipal e correções confirmadas
 
 Preparada em C:\endemias-estoque-zoomed. Operador confirmou que Caramelo e a
 entrega de Peralta em 21/10 não ocorreram: corrigir somente entregas 45/91.
 Suelen/Pitoquinha receberam; municipais desde 08/11/2026 ficam só no VSATT,
 sem baixa ZooMed. Nova regra distingue Não se aplica de pendência, preserva
 baixas antigas e mantém a saída física. Identidades de Elisama e do tutor de
-Mika confirmadas; segundo lote específico preparado com auditoria e rollback.
-Ainda não aplicado/ativado neste registro. Ver docs/ESTOQUE_291.md.
+Mika confirmadas; segundo lote aplicado com oito auditorias. Ativada em 18/11
+às 11h40, release 5074f63, backups e preservação de 98 tabelas/arquivos
+confirmados. Entradas e portal HTTP 200 em 2.9.1. Total físico 2.650 (930
+Município, 1.720 SESA); ZooMed 2.590 (870 Município, 1.720 SESA); dispensadas
+60; pendentes zero. Saldo calculado 640, necessidade 880, déficit 240 em 11
+ativos. Sem contagem física. Só a data/animal de Celoni segue pendente; 84/85
+entregas com baixa coincidem por tutor/data/fonte/quantidade. Ver docs/ESTOQUE_291.md.
 
-## Conciliação parcial ZooMed — 18/11/2026
+## Histórico do primeiro lote ZooMed — 18/11/2026
 
 Planilha fornecida pelo usuário confirma 2.590 cápsulas (870 Município,
 1.720 SESA), mas não identifica os animais. Primeiro lote aplicado no
@@ -28,10 +33,10 @@ de tutores, quatro entregas ausentes na planilha e uma data ambígua. Não
 excluir entregas para bater totais. Saldo calculado 610, necessidade 880 em
 11 ativos e déficit 270; não é contagem física. Sem mudança de versão ou
 reinício do serviço. Ver docs/CONCILIACAO_ZOOMED_20261118.md.
-Card adicional permanece preparado na candidata 2.9.1, worktree
-C:\endemias-estoque-zoomed; ainda não ativado.
+Card adicional ativado em 2.9.1; os números acima registram o primeiro lote,
+anterior às confirmações do operador e ao segundo lote descrito no início.
 
-## Versão ativa 2.9.0 — revisão Endemias e Ambiental
+## Histórico 2.9.0 — revisão Endemias e Ambiental
 
 Preparada na worktree C:\endemias-revisao-geral, branch
 codex/revisao-amostras-e-integridade. Corrige categorias em Amostra de

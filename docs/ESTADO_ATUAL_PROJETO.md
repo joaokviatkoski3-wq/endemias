@@ -4,7 +4,7 @@ Atualizado em 18/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.9.1 — acordo municipal e correções confirmadas
+## Versão ativa 2.9.1 — acordo municipal e correções confirmadas
 
 O operador confirmou duas entregas inexistentes (45/91), duas efetivas
 dispensadas do ZooMed (88/96) e as identidades de Elisama e tutor da Mika.
@@ -13,9 +13,19 @@ entregues desde 08/11/2026 não exigem baixa no ZooMed, mas descontam estoque.
 Estado Não se aplica distinto de pendência em formulários, listas, filtros,
 CSV e card. Preserva baixas já realizadas e exigência para SESA/legado.
 Corrigido alargamento da tela de estoque no celular. Fonte da versão 2.9.1.
-Ainda não ativada/aplicado o segundo lote neste registro. Ver docs/ESTOQUE_291.md.
+Ativada em 18/11 às 11h40, release 5074f63. Backups PostgreSQL e completo,
+98 tabelas e arquivos preservados, conta limitada e automação Kobo confirmados.
+Portal e logins públicos/locais dos dois setores HTTP 200 em 2.9.1.
+Segundo lote aplicado com oito auditorias e nova conexão confirmando assinaturas:
+2.650 cápsulas físicas (930 Município, 1.720 SESA); registradas ZooMed 2.590
+(870 Município, 1.720 SESA); 60 dispensadas, zero pendentes. Saldo calculado
+640 (SESA 580, Município 60), necessidade 880, déficit 240 em 11 ativos.
+Nenhuma mudança em receitas, anexos, estoque manual ou situação clínica.
+Sem contagem física. A única divergência da relação de 85 baixas é uma data
+de Celoni: 2025 na origem, 2026 no VSATT. Não corrigir ano/animal por hipótese.
+Ver docs/ESTOQUE_291.md para validações, backups e limites.
 
-## Conciliação parcial ZooMed — 18/11/2026
+## Histórico do primeiro lote ZooMed — 18/11/2026
 
 Fonte do usuário: zoomed.xlsx, 85 entregas, 2.590 cápsulas (870 Município,
 1.720 SESA). Primeiro lote aplicado às 10h56 no PostgreSQL oficial após
@@ -36,9 +46,9 @@ Cinco testes do utilitário e 66 de Esporotricose passaram. Documentação,
 IDs, controles e backup em docs/CONCILIACAO_ZOOMED_20261118.md.
 Sem implantação de aplicação/reinício: serviço continua 2.9.0. O card de
 entregas por fonte está preparado em C:\endemias-estoque-zoomed, candidata
-2.9.1, ainda sem ativação.
+2.9.1, posteriormente ativada conforme registro acima.
 
-## Versão ativa 2.9.0 — revisão Endemias e Ambiental
+## Histórico 2.9.0 — revisão Endemias e Ambiental
 
 Preparação isolada em C:\endemias-revisao-geral, branch
 codex/revisao-amostras-e-integridade. Amostras de Animais reúne categorias

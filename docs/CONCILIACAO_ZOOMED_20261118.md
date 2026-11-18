@@ -1,5 +1,13 @@
 # Conciliação de entregas com ZooMed — 18/11/2026
 
+Atualização após confirmações do usuário: segundo lote aplicado às 11h40,
+com oito auditorias; Caramelo/Peralta não receberam, Suelen/Pitoquinha receberam
+e estão dispensados de baixa, identidades dos dois tutores confirmadas.
+2.650 cápsulas físicas: 2.590 com baixa (870 Município, 1.720 SESA) + 60
+municipais dispensadas, nenhuma baixa pendente. Só a data/animal de Celoni
+continua pendente. Registro atual completo em docs/ESTOQUE_291.md. As seções
+abaixo preservam o estado e as decisões do primeiro lote.
+
 ## Fonte e resultado confirmado
 
 Planilha zoomed.xlsx fornecida pelo usuário, histórico completo: 85 entregas,

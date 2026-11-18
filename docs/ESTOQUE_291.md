@@ -1,4 +1,22 @@
-# Estoque e dispensa municipal do ZooMed — candidata 2.9.1
+# Estoque e dispensa municipal do ZooMed — versão ativa 2.9.1
+
+Ativada em 18/11/2026, às 11h40 (America/Sao_Paulo), release 5074f63.
+Segundo lote aplicado em seguida, com oito auditorias e confirmação por nova
+conexão. Nenhuma migração de esquema. Backups PostgreSQL e completo feitos,
+preservação conferida de 98 tabelas e arquivos operacionais, prova da conta
+limitada e automação Kobo restabelecida. Entradas públicas/locais dos dois
+setores e portal responderam HTTP 200 exibindo 2.9.1.
+
+Resultado confirmado: 2.650 cápsulas físicas (930 Município + 1.720 SESA),
+das quais 2.590 registradas no ZooMed (870 Município + 1.720 SESA), 60 municipais
+dispensadas e zero baixas pendentes. Estoque calculado 640 (SESA 580, Município
+60), necessidade quantificada 880 em 11 ativos e déficit 240. Não houve contagem
+física. Receitas, anexos, estoque manual e situações clínicas preservados.
+
+Conferência por tutor/data/fonte/quantidade das 85 entregas com baixa: 84
+coincidem com a origem. Uma entrega de Celoni tem 13/03/2025 no ZooMed e
+13/03/2026 no VSATT; ano/animal aguardam esclarecimento, sem alterar volumes.
+Os dois lançamentos municipais dispensados explicam os 87 registros físicos.
 
 ## Regra confirmada pelo operador
 
@@ -42,10 +60,10 @@ e reconfere por nova conexão após commit. Aplica a mesma dispensa a eventuais
 novas entregas municipais pendentes com data desde 08/11, preservando Sim.
 Não altera estoque manual, prescrições, situação clínica nem arquivos.
 
-Projeção sem novos lançamentos durante a preparação: 2.650 cápsulas físicas
+Projeção preparada e depois confirmada na aplicação: 2.650 cápsulas físicas
 (930 Município, 1.720 SESA), sendo 2.590 com baixa (870 Município, 1.720 SESA)
 e 60 municipais dispensadas. Saldo calculado 640 e necessidade 880, déficit
-240. Valores ainda devem ser confirmados após a aplicação; não são contagem
+240. Valores confirmados após a aplicação; não são contagem
 física. A data divergente de Celoni continua pendente e não impede conciliar
 quantidades/fontes. Não editar o ano nem escolher um animal sem esclarecimento.
 
@@ -68,4 +86,16 @@ Nenhuma dependência foi instalada no Python do serviço.
 Ativador scripts/ativar_estoque_291_windows.py usa a rotina controlada existente:
 backup PostgreSQL e completo, pausa Kobo, janela curta, integração ff-only,
 preservação de tabelas e arquivos, prova da conta limitada e verificação das
-entradas. A situação efetiva da ativação será registrada após a execução.
+entradas. Resultado em C:\ProgramData\EndemiasWeb\ativacao-estoque291-resultado.json:
+aplicado/concluído, sem migração, 98 tabelas preservadas, todas as entradas OK.
+Backup completo: D:\BackupsEndemias\backups_web\completos\endemias_completo_20261118_113928.zip
+(311.597.161 bytes), SHA-256
+93323ff45490d0b2081aa06d2ce5e1075a3cd1552bf442f296a9d2a32d43ffa1.
+
+Backup imediatamente anterior às oito correções:
+C:\ProgramData\EndemiasWeb\confirmacoes-zoomed-20261118-114001\antes_conta_limitada.dump
+(7.756.459 bytes, catálogo validado), SHA-256
+de54572fd95ab9dbcbe5fa27a4b1f1685239b87e9dcd99fc3135cf83952bd37e.
+Diretório privado guarda fonte, estado anterior e resultado nominal; nenhum
+desses dados pessoais foi versionado. Histórico das exclusões está na auditoria.
+SQLite congelado preservou o SHA-256 964152e21de44b4fff985f72a0d7945e8e7dcf260bbb019708b868c3b3a7a025.
