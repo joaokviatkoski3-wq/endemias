@@ -555,6 +555,7 @@
 <section class="esporo-pane" id="esp-tab-doentes-estoque" data-esp-area="doentes">
   <div class="esporo-doentes-kpis">
     <div class="esporo-kpi"><div class="esporo-kpi-label">Estoque calculado no setor</div><div class="esporo-kpi-value" id="est-kpi-saldo">0</div><small>Conferir com a contagem física</small></div>
+    <div class="esporo-kpi"><div class="esporo-kpi-label">Entregues · registros VSATT</div><div class="esporo-kpi-value" id="est-kpi-entregues">0</div><div id="est-kpi-entregues-fontes"></div><small id="est-kpi-entregues-baixa"></small></div>
     <div class="esporo-kpi"><div class="esporo-kpi-label">A entregar · em tratamento</div><div class="esporo-kpi-value" id="est-kpi-necessidade">0</div><small>Somente prescrições quantificadas de casos ativos</small></div>
     <div class="esporo-kpi"><div class="esporo-kpi-label">Saldo após atender os ativos</div><div class="esporo-kpi-value" id="est-kpi-reserva">0</div><small>Desconta as cápsulas ainda não entregues</small></div>
     <div class="esporo-kpi"><div class="esporo-kpi-label">Sobras retornadas</div><div class="esporo-kpi-value" id="est-kpi-sobras">0</div></div>
@@ -1331,6 +1332,9 @@ function renderEspEstoque(d) {
   setEspText('est-kpi-necessidade', t.faltantes_tratamento);
   setEspText('est-kpi-reserva', t.saldo_apos_reserva);
   setEspText('est-kpi-sobras', t.sobras_lancadas);
+  setEspText('est-kpi-entregues', t.saidas_entregas);
+  document.getElementById('est-kpi-entregues-fontes').textContent = `Município: ${fmtNum(t.entregues_por_fonte?.['Município'] || 0)} · SESA: ${fmtNum(t.entregues_por_fonte?.SESA || 0)}`;
+  document.getElementById('est-kpi-entregues-baixa').textContent = `Baixa ZooMed marcada no VSATT: ${fmtNum(t.entregues_baixa_zoomed || 0)} · pendente: ${fmtNum(t.entregues_baixa_pendente || 0)}. Sem consulta automática ao ZooMed.`;
   const deficit = Math.max(Number(t.deficit_tratamento || 0), 0);
   const incertos = Number(t.tratamento_sem_quantificar || 0);
   const cobertura = document.getElementById('est-cobertura');

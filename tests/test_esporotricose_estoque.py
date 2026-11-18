@@ -78,6 +78,9 @@ class EstoqueAutomaticoTests(unittest.TestCase):
             antes = esporotricose_core.estoque_medicacao(db_path)
             self.assertEqual(antes["totais"]["saldos_por_fonte"], {"SESA": 90, "Município": 30})
             self.assertEqual(antes["totais"]["saldo_setor"], 120)
+            self.assertEqual(antes['totais']['entregues_por_fonte'], {'SESA':10, 'Município':20})
+            self.assertEqual(antes['totais']['entregues_baixa_zoomed'], 0)
+            self.assertEqual(antes['totais']['entregues_baixa_pendente'], 30)
 
             removida = esporotricose_core.excluir_entrega_doente(db_path, apagar)
             self.assertEqual(removida, {
@@ -97,6 +100,19 @@ class EstoqueAutomaticoTests(unittest.TestCase):
             with self.assertRaisesRegex(esporotricose_core.ValidationError, "não encontrada"):
                 esporotricose_core.excluir_entrega_doente(db_path, apagar)
             self.assertEqual(esporotricose_core.estoque_medicacao(db_path)["totais"]["saldo_setor"], 140)
+
+    def test_excluir_sobra_reduz_saldo_sem_alterar_entregas(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp) / 'sobras.db')
+            core = esporotricose_core
+            core.salvar_estoque_medicacao(path, {'tipo':'Entrada','quantidade':380})
+            sobra = core.salvar_estoque_medicacao(path, {'tipo':'Sobra','quantidade':270})
+            antes = core.estoque_medicacao(path)['totais']
+            self.assertEqual(antes['saldo_setor'], 650)
+            core.excluir_estoque_medicacao(path, sobra)
+            depois = core.estoque_medicacao(path)['totais']
+            self.assertEqual(depois['saldo_setor'], 380)
+            self.assertEqual(depois['saidas_entregas'], antes['saidas_entregas'])
 
     def test_saldos_por_fonte_e_correcao_de_entrega_antiga(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -124,6 +140,8 @@ class EstoqueAutomaticoTests(unittest.TestCase):
             estoque = esporotricose_core.estoque_medicacao(db_path)
             self.assertEqual(estoque["totais"]["saldos_por_fonte"], {"SESA": 100, "Município": 30})
             self.assertEqual(estoque["totais"]["saldo_setor"], 130)
+            self.assertEqual(estoque['totais']['entregues_por_fonte'], {'SESA':0, 'Município':20})
+            self.assertEqual(estoque['totais']['entregues_baixa_zoomed'], 20)
             self.assertEqual(esporotricose_core.listar_doentes(db_path)["totais"]["capsulas_baixa_zoomed"], 20)
             entrega = esporotricose_core.obter_doente(db_path, animal)["receitas"][0]["entregas"][0]
             self.assertEqual(entrega["baixa_zoomed"], "Sim")

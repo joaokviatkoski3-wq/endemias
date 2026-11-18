@@ -6,6 +6,14 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
+## Candidata 2.9.1 — card de entregas e conferência ZooMed
+
+Preparada em C:\endemias-estoque-zoomed. Novo card informa entregas locais por
+fonte e baixa. Nenhuma correção de lançamentos nem remoção de sobras executada;
+há divergências com os totais ZooMed informados pelo usuário, que exigem
+comparação da relação de entregas. Ver docs/ESTOQUE_CONFERENCIA_ZOOMED.md.
+Produção continua na 2.9.0.
+
 ## Versão ativa 2.9.0 — revisão Endemias e Ambiental
 
 Preparada na worktree C:\endemias-revisao-geral, branch

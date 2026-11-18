@@ -4,6 +4,18 @@ Atualizado em 18/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Candidata 2.9.1 — conferência do estoque com ZooMed
+
+Preparada em C:\endemias-estoque-zoomed, branch codex/estoque-conferencia-zoomed.
+Card de entregas por fonte e situação de baixa, com base nos registros locais.
+Consulta somente leitura encontrou 2.640 entregues (750 Município, 1.890 SESA),
+dos quais 2.520 com baixa marcada e 120 pendentes. Diverge da referência do
+usuário para todo o histórico (2.590, sendo 870 Município). Os cinco registros
+de sobra somam 270 e não foram removidos: excluir reduziria o saldo de 650
+para 380. Aguardar relação de entregas do ZooMed para reconciliação real.
+66 testes e ensaio em Chromium desktop/celular passaram. Sem migração ou
+ativação; produção segue 2.9.0. Ver docs/ESTOQUE_CONFERENCIA_ZOOMED.md.
+
 ## Versão ativa 2.9.0 — revisão Endemias e Ambiental
 
 Preparação isolada em C:\endemias-revisao-geral, branch
