@@ -1,7 +1,18 @@
-# Revisão Endemias e Ambiental — candidata 2.9.0
+# Revisão Endemias e Ambiental — versão 2.9.0
 
-Pacote preparado em worktree isolada. A produção não foi migrada nem reiniciada
-por esta preparação; confirmar versão ativa e estado Git antes de implantar.
+Pacote preparado em worktree isolada e ativado, após autorização, em
+18/11/2026 às 08h11, release 90515bd. Relatório
+`C:\ProgramData\EndemiasWeb\ativacao-revisao290-resultado.json` aplicado e
+concluído: backup PostgreSQL catalogado de 7.740.896 bytes e backup completo de
+311.583.999 bytes, migração 0037, dados de 97 tabelas anteriores e arquivos
+operacionais preservados. Prova da conta limitada, retomada Kobo e entradas
+dos setores passaram. Portal e logins públicos/locais confirmaram 2.9.0.
+
+A consulta agregada `ativacao-revisao290-estoque.json`, somente leitura, registrou
+saldo 650, necessidade ativa quantificada 820 e déficit 170 cápsulas. Há um
+animal ativo sem quantidade definida e sete situações para revisão. Os 42 casos
+encerrados não apresentaram pendência ativa. Esses números não substituem
+contagem física nem estimam tratamentos futuros; referem-se à consulta às 08h11.
 
 - Amostra de Animais: equivalências explícitas de motivos e tipos, preservando
   os textos originais no banco; filtros, contadores e agrupamentos consideram
@@ -32,7 +43,7 @@ por esta preparação; confirmar versão ativa e estado Git antes de implantar.
   Passaram 65 testes de Esporotricose e 27 regressões selecionadas da suíte de
   segurança; a tela foi ensaiada em Chromium 1440/390 px com dados fictícios.
   A regressão geral registrada abaixo é anterior a este acréscimo, que foi
-  verificado pelos testes focados. Sem nova migração; sem alteração em produção.
+  verificado pelos testes focados. Sem migração adicional além da 0037 do pacote.
 - LIRAa: ciclo encerrado informa bloqueio e correção individual rejeita lista
   de sequências; não reinterpreta dados históricos.
 
@@ -45,7 +56,8 @@ usaram SQLite temporário, transporte remoto simulado e PostgreSQL descartável;
 a migração e a trava de envio foram ensaiadas no PostgreSQL isolado. Em Chromium,
 com dados e conta fictícios, a tela de
 Amostras foi conferida em 1440 e 390 px, incluindo listagem e envio de anexo.
-Antes da implantação, confirmar os testes finais e a segurança do processo
-de ativação com 0037, backup, conta de serviço e restauração. A revisão visual
+Na implantação, o instalador conferiu a 0037, os backups, a conta de serviço
+e o retorno das entradas. Não foi feita restauração integral nesta ativação.
+A revisão visual
 de todas as telas do sistema não foi concluída. A existência de Vigiágua como
 área em desenvolvimento e a situação do Windows/ESU exigem decisões próprias.

@@ -1,10 +1,10 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 17/11/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 18/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.9.0 — revisão Endemias e Ambiental
+## Versão ativa 2.9.0 — revisão Endemias e Ambiental
 
 Preparação isolada em C:\endemias-revisao-geral, branch
 codex/revisao-amostras-e-integridade. Amostras de Animais reúne categorias
@@ -14,12 +14,21 @@ eventos relacionados e reenvios incertos ao Conta Ovos; a data apresentada é
 a conclusão do lote, quando conhecida. Visitas/BRI sem PE vinculado não são
 atribuídos por quarteirão quando há mais de um PE no mesmo local. Inclui
 correções de privacidade, segurança de exportação e relatório, agenda e LIRAa.
-Não houve migração, reinício ou modificação de dados de produção por esta
-preparação. Consultar docs/REVISAO_290.md para validações e pendências.
+Ativada em 18/11/2026 às 08h11 (America/Sao_Paulo), release 90515bd, após
+autorização. Relatório ativacao-revisao290-resultado.json aplicado/concluído:
+backups PostgreSQL e completo, somente migração 0037, preservação de dados de
+97 tabelas existentes e arquivos operacionais, conta limitada e automação Kobo
+confirmados. Portal e logins públicos e locais responderam HTTP 200 em 2.9.0.
+Consultar docs/REVISAO_290.md para validações e pendências.
 Em 17/11, a candidata passou a separar pendência histórica de necessidade ativa
 na Esporotricose, com alerta de déficit e animais sem receita quantificada.
 65 testes focados e 27 regressões selecionadas passaram; telas ensaiadas em
-computador/celular com dados fictícios. Não foi ativada em produção.
+computador/celular com dados fictícios. Conferência real somente leitura em
+18/11 às 08h11: 59 animais, 10 em tratamento, saldo calculado 650, necessidade
+quantificada 820 e déficit 170 cápsulas. Um ativo sem necessidade quantificada,
+sete situações a revisar e 42 encerrados sem pendência ativa. Nenhuma entrega,
+receita ou situação de animal foi alterada por essa consulta. A contagem física
+e o esclarecimento dos casos pendentes continuam com a equipe.
 
 ## Versão 2.8.6 observada nas entradas — nomes dos depósitos
 

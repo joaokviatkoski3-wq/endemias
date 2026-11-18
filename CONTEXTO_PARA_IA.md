@@ -1,21 +1,28 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 17/11/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 18/11/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.9.0 — revisão Endemias e Ambiental
+## Versão ativa 2.9.0 — revisão Endemias e Ambiental
 
 Preparada na worktree C:\endemias-revisao-geral, branch
 codex/revisao-amostras-e-integridade. Corrige categorias em Amostra de
 Animais, adiciona anexos com migração 0037 e trata achados de integridade e
-segurança em Ovitrampas, Pontos Estratégicos, agenda e relatórios. Não foi
-ativada nem aplicada ao banco de produção nesta preparação. Ver
+segurança em Ovitrampas, Pontos Estratégicos, agenda e relatórios. Ativada
+em 18/11/2026 às 08h11, release 90515bd, após autorização, backups e migração
+0037. O instalador confirmou a preservação das 97 tabelas anteriores e dos
+arquivos operacionais, a prova da conta limitada e a retomada da automação Kobo.
+Portal e logins públicos e locais dos dois setores confirmaram 2.9.0. Ver
 `docs/REVISAO_290.md` e `docs/ESTADO_ATUAL_PROJETO.md`.
 O acréscimo de 17/11 trata as pendências históricas da Esporotricose e torna
-visível a cobertura de medicação dos animais em tratamento; segue candidato.
+visível a cobertura de medicação dos animais em tratamento. Conferência real
+somente leitura: saldo 650, necessidade quantificada 820, déficit 170 cápsulas,
+um ativo sem quantidade definida e sete situações para revisão. Os 42 casos
+encerrados não tinham pendência ativa. Valores da consulta de 18/11 às 08h11,
+não uma contagem física nem uma projeção de todo o tratamento futuro.
 
 ## Histórico 2.8.3 — entregas por fonte
 
