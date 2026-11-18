@@ -4,7 +4,7 @@ Atualizado em 18/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.9.2 — cards de entregas no estoque
+## Versão ativa 2.9.2 — cards de entregas no estoque
 
 Solicitados cards explícitos: Município ZooMed (870), só VSATT (60) e total
 municipal (930), além de SESA (1.720), total ZooMed (2.590) e geral (2.650).
@@ -12,9 +12,17 @@ Tela passa a separar entregas históricas do estoque disponível; valores
 calculados dos dados, sem números fixos. Composição inclui eventual pendência
 antiga municipal. 14 testes passaram e UI foi conferida a 1440/390 px com
 dados fictícios, incluindo cenário com pendência. Sem migração ou alteração
-de registros; preparada, ainda não ativada. Ver docs/ESTOQUE_292.md.
+de registros. Ativada em 18/11, release 165aad1; backups PostgreSQL/completo,
+preservação de 98 tabelas/arquivos, conta limitada e automação Kobo confirmados.
+Portal e logins públicos/locais dos dois setores HTTP 200 em 2.9.2.
+Consulta atual antes/depois idêntica: Município ZooMed 870 + só VSATT 119 =
+989 municipais; SESA 1.720; ZooMed 2.590; geral 2.709; pendentes zero.
+Os 59 adicionais foram lançados às 13h22, IDs 99/100, quantidades 29/30,
+antes desta ativação. Não foram alterados. Perguntado se 29 é correto ou deve
+ser 30; aguardar resposta. Saldo calculado 581 (SESA 580, Município 1),
+necessidade 821 em 11 ativos, déficit 240. Ver docs/ESTOQUE_292.md.
 
-## Versão ativa 2.9.1 — acordo municipal e correções confirmadas
+## Histórico 2.9.1 — acordo municipal e correções confirmadas
 
 O operador confirmou duas entregas inexistentes (45/91), duas efetivas
 dispensadas do ZooMed (88/96) e as identidades de Elisama e tutor da Mika.

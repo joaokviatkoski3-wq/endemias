@@ -6,16 +6,22 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.9.2 — cards de entregas no estoque
+## Versão ativa 2.9.2 — cards de entregas no estoque
 
 Preparada em C:\endemias-estoque-zoomed: cards separados para Município
 registrado no ZooMed, somente no VSATT e total municipal, com composição;
 SESA, total ZooMed e geral em outro grupo. Valores dinâmicos em cápsulas,
 incluindo eventual baixa antiga pendente na composição. Não altera dados.
-14 testes e ensaio visual Chromium 1440/390 px passaram. Sem migração;
-ainda não ativada neste registro. Ver docs/ESTOQUE_292.md.
+14 testes e ensaio visual Chromium 1440/390 px passaram. Ativada em 18/11,
+release 165aad1, sem migração; backups, 98 tabelas/arquivos preservados,
+conta limitada e automação Kobo confirmados. Portal e entradas HTTP 200 em
+2.9.2. Dados atuais: 870 Município ZooMed + 119 só VSATT = 989 municipais;
+SESA 1.720, geral 2.709, ZooMed 2.590, pendentes zero. Houve novos lançamentos
+99/100 de 29/30 cápsulas antes da ativação; não foram alterados. Perguntado ao
+operador se a quantidade 29 deve ser 30; aguardar resposta antes de corrigir.
+Saldo calculado 581, necessidade 821 e déficit 240. Ver docs/ESTOQUE_292.md.
 
-## Versão ativa 2.9.1 — acordo municipal e correções confirmadas
+## Histórico 2.9.1 — acordo municipal e correções confirmadas
 
 Preparada em C:\endemias-estoque-zoomed. Operador confirmou que Caramelo e a
 entrega de Peralta em 21/10 não ocorreram: corrigir somente entregas 45/91.
