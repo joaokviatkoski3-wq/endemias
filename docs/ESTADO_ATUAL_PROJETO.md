@@ -4,6 +4,29 @@ Atualizado em 18/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Conciliação parcial ZooMed — 18/11/2026
+
+Fonte do usuário: zoomed.xlsx, 85 entregas, 2.590 cápsulas (870 Município,
+1.720 SESA). Primeiro lote aplicado às 10h56 no PostgreSQL oficial após
+pedido explícito: 11 atualizações e uma inclusão, com backup validado,
+transação única e 12 auditorias. Nova consulta confirmou as cinco tabelas.
+Receitas, anexos, estoque manual e dados clínicos preservados, sem excluir
+entregas. SQLite congelado intacto. VSATT passou de 2.640 para 2.680
+(900 Município, 1.780 SESA), das quais 2.590 com baixa e 90 pendentes.
+O total baixado coincide por compensação de divergências; conciliação aberta.
+
+Pendentes de resposta: duas identidades de tutores com nomes divergentes,
+quatro entregas ausentes no ZooMed (45/88/91/96) e ano/animal de uma entrega
+de Celoni. Não inferir que ausência na planilha significa que a entrega
+física não ocorreu. Consulta pós-lote: saldo calculado 610, necessidade
+quantificada 880 em 11 ativos, déficit 270 e sete situações para revisão.
+Nenhum ativo sem quantidade nesta consulta. Não houve contagem física.
+Cinco testes do utilitário e 66 de Esporotricose passaram. Documentação,
+IDs, controles e backup em docs/CONCILIACAO_ZOOMED_20261118.md.
+Sem implantação de aplicação/reinício: serviço continua 2.9.0. O card de
+entregas por fonte está preparado em C:\endemias-estoque-zoomed, candidata
+2.9.1, ainda sem ativação.
+
 ## Versão ativa 2.9.0 — revisão Endemias e Ambiental
 
 Preparação isolada em C:\endemias-revisao-geral, branch
