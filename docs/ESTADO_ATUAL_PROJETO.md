@@ -12,7 +12,11 @@ Consulta somente leitura encontrou 2.640 entregues (750 Município, 1.890 SESA),
 dos quais 2.520 com baixa marcada e 120 pendentes. Diverge da referência do
 usuário para todo o histórico (2.590, sendo 870 Município). Os cinco registros
 de sobra somam 270 e não foram removidos: excluir reduziria o saldo de 650
-para 380. Aguardar relação de entregas do ZooMed para reconciliação real.
+para 380. A relação foi recebida em 18/11: confirma 2.590, sendo 870 Município.
+Primeiro lote de 11 correções e uma inclusão aplicado às 10h56 no PostgreSQL,
+com backup e 12 auditorias. Totais: 2.680, Município 900, SESA 1.780.
+Duas identidades de tutores, quatro entregas ausentes
+no ZooMed e uma data ambígua dependem do operador. Não excluir para bater totais.
 66 testes e ensaio em Chromium desktop/celular passaram. Sem migração ou
 ativação; produção segue 2.9.0. Ver docs/ESTOQUE_CONFERENCIA_ZOOMED.md.
 
