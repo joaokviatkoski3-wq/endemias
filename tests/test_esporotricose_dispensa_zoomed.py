@@ -27,6 +27,8 @@ class DispensaZooMedTests(unittest.TestCase):
         self.assertEqual((t['entregues'],t['saldo_setor'],t['faltantes_tratamento']),(120,80,60))
         self.assertEqual((t['entregues_baixa_zoomed'],t['entregues_baixa_pendente'],t['entregues_baixa_dispensada']),(30,60,30))
         self.assertEqual(t['entregues_baixa_zoomed_por_fonte'],{'SESA':0,'Município':30})
+        self.assertEqual(t['entregues_baixa_dispensada_por_fonte'],{'SESA':0,'Município':30})
+        self.assertEqual(t['entregues_baixa_pendente_por_fonte'],{'SESA':30,'Município':30})
 
     def test_dispensada_nao_vira_pendencia_em_tela_csv_filtro_e_edicao(self):
         ident=self.entrega('Município','2026-11-08')

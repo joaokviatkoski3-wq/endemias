@@ -53,6 +53,10 @@
 .esporo-estoque-grid { display:grid; grid-template-columns:minmax(0,1fr) 390px; gap:14px; align-items:start; }
 .esporo-estoque-grid > .chart-card { min-width:0; }
 #esp-tab-doentes-estoque .esporo-doentes-kpis { grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); }
+.esporo-estoque-subtitulo { font-size:15px; margin:20px 0 8px; }
+.esporo-estoque-entregas { margin:20px 0; }
+.esporo-estoque-entregas p { margin:0 0 12px; }
+.esporo-kpi-total { border-top:3px solid var(--brand); }
 .esporo-estoque-form { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:12px; }
 .esporo-estoque-form .wide { grid-column:span 2; }
 .esporo-estoque-form .full { grid-column:1 / -1; }
@@ -557,12 +561,29 @@
 <section class="esporo-pane" id="esp-tab-doentes-estoque" data-esp-area="doentes">
   <div class="esporo-doentes-kpis">
     <div class="esporo-kpi"><div class="esporo-kpi-label">Estoque calculado no setor</div><div class="esporo-kpi-value" id="est-kpi-saldo">0</div><small>Conferir com a contagem física</small></div>
-    <div class="esporo-kpi"><div class="esporo-kpi-label">Entregues · registros VSATT</div><div class="esporo-kpi-value" id="est-kpi-entregues">0</div><div id="est-kpi-entregues-fontes"></div><small id="est-kpi-entregues-baixa"></small></div>
     <div class="esporo-kpi"><div class="esporo-kpi-label">A entregar · em tratamento</div><div class="esporo-kpi-value" id="est-kpi-necessidade">0</div><small>Somente prescrições quantificadas de casos ativos</small></div>
     <div class="esporo-kpi"><div class="esporo-kpi-label">Saldo após atender os ativos</div><div class="esporo-kpi-value" id="est-kpi-reserva">0</div><small>Desconta as cápsulas ainda não entregues</small></div>
     <div class="esporo-kpi"><div class="esporo-kpi-label">Sobras retornadas</div><div class="esporo-kpi-value" id="est-kpi-sobras">0</div></div>
   </div>
   <div id="est-cobertura" class="chart-card" role="status" style="padding:16px;margin-bottom:16px;"></div>
+  <section class="esporo-estoque-entregas" aria-labelledby="est-entregas-titulo">
+    <h2 id="est-entregas-titulo" class="esporo-estoque-subtitulo">Cápsulas entregues · histórico completo</h2>
+    <p class="muted">As entregas abaixo já saíram do estoque do setor. Os valores são atualizados pelos registros de cada entrega.</p>
+    <h3 class="esporo-estoque-subtitulo">Município</h3>
+    <div class="esporo-doentes-kpis">
+      <div class="esporo-kpi"><div class="esporo-kpi-label">Município · registradas no ZooMed</div><div class="esporo-kpi-value" id="est-kpi-municipio-zoomed">0</div><small>Cápsulas municipais com baixa registrada no ZooMed</small></div>
+      <div class="esporo-kpi"><div class="esporo-kpi-label">Município · somente no VSATT</div><div class="esporo-kpi-value" id="est-kpi-municipio-vsatt">0</div><small>Entregas municipais dispensadas do ZooMed desde 08/11/2026. Já descontadas do estoque.</small></div>
+      <div class="esporo-kpi esporo-kpi-total"><div class="esporo-kpi-label">Total entregue pelo Município</div><div class="esporo-kpi-value" id="est-kpi-municipio-total">0</div><small id="est-municipio-composicao"></small></div>
+    </div>
+    <h3 class="esporo-estoque-subtitulo">SESA e totais gerais</h3>
+    <div class="esporo-doentes-kpis">
+      <div class="esporo-kpi"><div class="esporo-kpi-label">Total entregue pela SESA</div><div class="esporo-kpi-value" id="est-kpi-sesa-entregues">0</div><small id="est-sesa-composicao"></small></div>
+      <div class="esporo-kpi"><div class="esporo-kpi-label">Total registrado no ZooMed</div><div class="esporo-kpi-value" id="est-kpi-zoomed-total">0</div><small id="est-zoomed-composicao"></small></div>
+      <div class="esporo-kpi esporo-kpi-total"><div class="esporo-kpi-label">Total geral entregue · VSATT</div><div class="esporo-kpi-value" id="est-kpi-entregues">0</div><small id="est-geral-composicao"></small></div>
+    </div>
+    <p class="muted" id="est-entregas-pendencias" role="status"></p>
+    <p class="muted">O total municipal inclui as entregas somente no VSATT. Os valores do ZooMed consideram as baixas informadas neste sistema.</p>
+  </section>
   <div class="esporo-estoque-grid">
     <div class="chart-card">
       <div class="chart-hd">
@@ -1335,8 +1356,22 @@ function renderEspEstoque(d) {
   setEspText('est-kpi-reserva', t.saldo_apos_reserva);
   setEspText('est-kpi-sobras', t.sobras_lancadas);
   setEspText('est-kpi-entregues', t.saidas_entregas);
-  document.getElementById('est-kpi-entregues-fontes').textContent = `Município: ${fmtNum(t.entregues_por_fonte?.['Município'] || 0)} · SESA: ${fmtNum(t.entregues_por_fonte?.SESA || 0)}`;
-  document.getElementById('est-kpi-entregues-baixa').textContent = `ZooMed: ${fmtNum(t.entregues_baixa_zoomed || 0)} (Município: ${fmtNum(t.entregues_baixa_zoomed_por_fonte?.['Município'] || 0)} · SESA: ${fmtNum(t.entregues_baixa_zoomed_por_fonte?.SESA || 0)}). Pendentes: ${fmtNum(t.entregues_baixa_pendente || 0)} · dispensadas: ${fmtNum(t.entregues_baixa_dispensada || 0)}. Municipais desde 08/11/2026 não exigem baixa. Sem consulta automática ao ZooMed.`;
+  const municipioZooMed = Number(t.entregues_baixa_zoomed_por_fonte?.['Município'] || 0);
+  const municipioVSATT = Number(t.entregues_baixa_dispensada_por_fonte?.['Município'] || 0);
+  const municipioPendente = Number(t.entregues_baixa_pendente_por_fonte?.['Município'] || 0);
+  const municipioTotal = Number(t.entregues_por_fonte?.['Município'] || 0);
+  const sesaTotal = Number(t.entregues_por_fonte?.SESA || 0);
+  const sesaZooMed = Number(t.entregues_baixa_zoomed_por_fonte?.SESA || 0);
+  setEspText('est-kpi-municipio-zoomed', municipioZooMed);
+  setEspText('est-kpi-municipio-vsatt', municipioVSATT);
+  setEspText('est-kpi-municipio-total', municipioTotal);
+  setEspText('est-kpi-sesa-entregues', sesaTotal);
+  setEspText('est-kpi-zoomed-total', t.entregues_baixa_zoomed);
+  document.getElementById('est-municipio-composicao').textContent = `${fmtNum(municipioZooMed)} no ZooMed + ${fmtNum(municipioVSATT)} somente no VSATT${municipioPendente ? ` + ${fmtNum(municipioPendente)} com baixa pendente` : ''} = ${fmtNum(municipioTotal)} cápsulas`;
+  document.getElementById('est-sesa-composicao').textContent = `${fmtNum(sesaZooMed)} com baixa no ZooMed · ${fmtNum(t.entregues_baixa_pendente_por_fonte?.SESA || 0)} pendentes`;
+  document.getElementById('est-zoomed-composicao').textContent = `Município: ${fmtNum(municipioZooMed)} + SESA: ${fmtNum(sesaZooMed)}`;
+  document.getElementById('est-geral-composicao').textContent = `Município: ${fmtNum(municipioTotal)} + SESA: ${fmtNum(sesaTotal)}. Inclui as municipais somente no VSATT.`;
+  document.getElementById('est-entregas-pendencias').textContent = `Baixas ainda pendentes no ZooMed: ${fmtNum(t.entregues_baixa_pendente || 0)} cápsulas. As entregas dispensadas não entram nessa pendência.`;
   const deficit = Math.max(Number(t.deficit_tratamento || 0), 0);
   const incertos = Number(t.tratamento_sem_quantificar || 0);
   const cobertura = document.getElementById('est-cobertura');

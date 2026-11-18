@@ -1805,6 +1805,16 @@ def estoque_medicacao(target):
             },
             "entregues_baixa_pendente": sum(int(item.get('quantidade') or 0) for item in movimentos_automaticos if item.get('baixa_zoomed') not in ('Sim', BAIXA_ZOOMED_DISPENSADA)),
             "entregues_baixa_dispensada": sum(int(item.get('quantidade') or 0) for item in movimentos_automaticos if item.get('baixa_zoomed') == BAIXA_ZOOMED_DISPENSADA),
+            "entregues_baixa_dispensada_por_fonte": {
+                fonte: sum(int(item.get('quantidade') or 0) for item in movimentos_automaticos
+                           if item.get('baixa_zoomed') == BAIXA_ZOOMED_DISPENSADA and item['fonte_medicacao'] == fonte)
+                for fonte in FONTES_MEDICACAO
+            },
+            "entregues_baixa_pendente_por_fonte": {
+                fonte: sum(int(item.get('quantidade') or 0) for item in movimentos_automaticos
+                           if item.get('baixa_zoomed') not in ('Sim', BAIXA_ZOOMED_DISPENSADA) and item['fonte_medicacao'] == fonte)
+                for fonte in FONTES_MEDICACAO
+            },
             "sobras_lancadas": sobras_lancadas,
             "sobra_potencial_encerrados": sobra_potencial_encerrados,
             "saldo_apos_reserva": saldo_setor - necessidade_tratamento,

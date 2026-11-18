@@ -6,6 +6,15 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
+## Candidata 2.9.2 — cards de entregas no estoque
+
+Preparada em C:\endemias-estoque-zoomed: cards separados para Município
+registrado no ZooMed, somente no VSATT e total municipal, com composição;
+SESA, total ZooMed e geral em outro grupo. Valores dinâmicos em cápsulas,
+incluindo eventual baixa antiga pendente na composição. Não altera dados.
+14 testes e ensaio visual Chromium 1440/390 px passaram. Sem migração;
+ainda não ativada neste registro. Ver docs/ESTOQUE_292.md.
+
 ## Versão ativa 2.9.1 — acordo municipal e correções confirmadas
 
 Preparada em C:\endemias-estoque-zoomed. Operador confirmou que Caramelo e a

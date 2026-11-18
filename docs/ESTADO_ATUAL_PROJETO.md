@@ -4,6 +4,16 @@ Atualizado em 18/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Candidata 2.9.2 — cards de entregas no estoque
+
+Solicitados cards explícitos: Município ZooMed (870), só VSATT (60) e total
+municipal (930), além de SESA (1.720), total ZooMed (2.590) e geral (2.650).
+Tela passa a separar entregas históricas do estoque disponível; valores
+calculados dos dados, sem números fixos. Composição inclui eventual pendência
+antiga municipal. 14 testes passaram e UI foi conferida a 1440/390 px com
+dados fictícios, incluindo cenário com pendência. Sem migração ou alteração
+de registros; preparada, ainda não ativada. Ver docs/ESTOQUE_292.md.
+
 ## Versão ativa 2.9.1 — acordo municipal e correções confirmadas
 
 O operador confirmou duas entregas inexistentes (45/91), duas efetivas
