@@ -80,7 +80,8 @@ class EstoqueAutomaticoTests(unittest.TestCase):
             self.assertEqual(antes["totais"]["saldo_setor"], 120)
             self.assertEqual(antes['totais']['entregues_por_fonte'], {'SESA':10, 'Município':20})
             self.assertEqual(antes['totais']['entregues_baixa_zoomed'], 0)
-            self.assertEqual(antes['totais']['entregues_baixa_pendente'], 30)
+            self.assertEqual(antes['totais']['entregues_baixa_pendente'], 10)
+            self.assertEqual(antes['totais']['entregues_baixa_dispensada'], 20)
 
             removida = esporotricose_core.excluir_entrega_doente(db_path, apagar)
             self.assertEqual(removida, {
@@ -150,13 +151,13 @@ class EstoqueAutomaticoTests(unittest.TestCase):
             self.assertEqual(esporotricose_core.listar_doentes(db_path)["registros"][0]["entregas_zoomed_pendentes"], 0)
 
             pendente = esporotricose_core.salvar_entrega_doente(db_path, receita, {
-                "quantidade": 5, "fonte_medicacao": "Município", "baixa_zoomed": "Não",
+                "quantidade": 5, "fonte_medicacao": "Município", "baixa_zoomed": "Não", "data_entrega":"2026-11-07",
             })
             self.assertEqual(esporotricose_core.listar_doentes(db_path)["registros"][0]["entregas_zoomed_pendentes"], 1)
             self.assertEqual(len(esporotricose_core.listar_doentes(db_path, {"baixa_zoomed": "Pendente"})["registros"]), 1)
             self.assertEqual(len(esporotricose_core.listar_doentes_csv(db_path, {"baixa_zoomed": "Pendente"})), 1)
             esporotricose_core.atualizar_entrega_doente(db_path, pendente, {
-                "quantidade": 5, "fonte_medicacao": "Município", "baixa_zoomed": "Sim",
+                "quantidade": 5, "fonte_medicacao": "Município", "baixa_zoomed": "Sim", "data_entrega":"2026-11-07",
             })
             self.assertEqual(esporotricose_core.listar_doentes(db_path)["totais"]["capsulas_baixa_zoomed"], 25)
             self.assertEqual(esporotricose_core.listar_doentes(db_path, {"baixa_zoomed": "Pendente"})["registros"], [])

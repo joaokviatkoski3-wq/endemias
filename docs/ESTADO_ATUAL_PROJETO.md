@@ -4,6 +4,17 @@ Atualizado em 18/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Candidata 2.9.1 — acordo municipal e correções confirmadas
+
+O operador confirmou duas entregas inexistentes (45/91), duas efetivas
+dispensadas do ZooMed (88/96) e as identidades de Elisama e tutor da Mika.
+Preparada correção transacional auditada e nova regra: medicamentos municipais
+entregues desde 08/11/2026 não exigem baixa no ZooMed, mas descontam estoque.
+Estado Não se aplica distinto de pendência em formulários, listas, filtros,
+CSV e card. Preserva baixas já realizadas e exigência para SESA/legado.
+Corrigido alargamento da tela de estoque no celular. Fonte da versão 2.9.1.
+Ainda não ativada/aplicado o segundo lote neste registro. Ver docs/ESTOQUE_291.md.
+
 ## Conciliação parcial ZooMed — 18/11/2026
 
 Fonte do usuário: zoomed.xlsx, 85 entregas, 2.590 cápsulas (870 Município,

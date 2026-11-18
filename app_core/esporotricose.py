@@ -190,6 +190,34 @@ ESTOQUE_MEDICACAO_TIPOS = (
     "Ajuste",
 )
 FONTES_MEDICACAO = ("SESA", "Município")
+BAIXA_ZOOMED_DISPENSADA = "Não se aplica"
+DISPENSA_ZOOMED_MUNICIPIO_DESDE = "2026-11-08"
+
+
+def _normalizar_baixa_zoomed(valor):
+    if _sem_acentos(str(valor or '')).strip().casefold() == 'nao se aplica':
+        return BAIXA_ZOOMED_DISPENSADA
+    return _normalizar_sim_nao(valor)
+
+
+def _baixa_zoomed_entrega(valor, fonte, data_entrega):
+    baixa = _normalizar_baixa_zoomed(valor) or 'Não'
+    dia = data_entrega or datetime.now().date().isoformat()
+    dispensada = fonte == 'Município' and dia >= DISPENSA_ZOOMED_MUNICIPIO_DESDE
+    if baixa == BAIXA_ZOOMED_DISPENSADA and not dispensada:
+        raise ValidationError('Dispensa de baixa ZooMed apenas para entregas municipais a partir de 08/11/2026.')
+    # Uma baixa efetivamente realizada continua sendo informação histórica válida.
+    return BAIXA_ZOOMED_DISPENSADA if dispensada and baixa != 'Sim' else baixa
+
+
+def _resumir_baixa_doente(item):
+    pendentes = int(item.get('entregas_zoomed_pendentes') or 0)
+    dispensadas = int(item.get('entregas_zoomed_dispensadas') or 0)
+    total = int(item.get('entregas') or 0)
+    feitas = max(total - pendentes - dispensadas, 0)
+    item['baixa_zoomed'] = ('Pendente' if pendentes else 'Sim' if feitas
+                            else BAIXA_ZOOMED_DISPENSADA if dispensadas else 'Sem entregas')
+    return item
 
 
 def _fonte_medicacao(valor):
@@ -546,7 +574,7 @@ def _normalizar_doentes_existentes(conn):
 
     rows = conn.execute(f"SELECT id_entrega, baixa_zoomed FROM {DOENTES_ENTREGAS_TABLE}").fetchall()
     for row in rows:
-        baixa = _normalizar_sim_nao(row["baixa_zoomed"]) or "Sim"
+        baixa = _normalizar_baixa_zoomed(row["baixa_zoomed"]) or "Sim"
         if baixa != (row["baixa_zoomed"] or ""):
             conn.execute(
                 f"UPDATE {DOENTES_ENTREGAS_TABLE} SET baixa_zoomed=? WHERE id_entrega=?",
@@ -1625,7 +1653,11 @@ def listar_doentes(target, filtros=None):
                       FROM esporotricose_doentes_entregas e
                       JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
                      WHERE r.id_animal_doente=d.id_animal_doente
-                       AND COALESCE(e.baixa_zoomed, '') <> 'Sim') AS entregas_zoomed_pendentes
+                       AND COALESCE(e.baixa_zoomed, '') NOT IN ('Sim','Não se aplica')) AS entregas_zoomed_pendentes,
+                   (SELECT COUNT(*) FROM esporotricose_doentes_entregas e
+                      JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
+                     WHERE r.id_animal_doente=d.id_animal_doente
+                       AND e.baixa_zoomed='Não se aplica') AS entregas_zoomed_dispensadas
               FROM esporotricose_doentes_animais d
         """
         if where:
@@ -1636,8 +1668,8 @@ def listar_doentes(target, filtros=None):
         rows = [_doente_row(row) for row in conn.execute(sql, params).fetchall()]
         if baixa_zoomed == "Pendente":
             rows = [row for row in rows if int(row.get("entregas_zoomed_pendentes") or 0) > 0]
-        elif baixa_zoomed == "Sim":
-            rows = [row for row in rows if int(row.get("entregas_zoomed_pendentes") or 0) == 0]
+        elif baixa_zoomed in ("Sim", BAIXA_ZOOMED_DISPENSADA):
+            rows = [row for row in rows if row['baixa_zoomed'] == baixa_zoomed]
         if especie:
             especie_norm = _sem_acentos(especie).strip().casefold()
             rows = [row for row in rows if _sem_acentos(row.get("especie")).strip().casefold() == especie_norm]
@@ -1766,7 +1798,13 @@ def estoque_medicacao(target):
                 for fonte in FONTES_MEDICACAO
             },
             "entregues_baixa_zoomed": sum(int(item.get('quantidade') or 0) for item in movimentos_automaticos if item.get('baixa_zoomed') == 'Sim'),
-            "entregues_baixa_pendente": sum(int(item.get('quantidade') or 0) for item in movimentos_automaticos if item.get('baixa_zoomed') != 'Sim'),
+            "entregues_baixa_zoomed_por_fonte": {
+                fonte: sum(int(item.get('quantidade') or 0) for item in movimentos_automaticos
+                           if item.get('baixa_zoomed') == 'Sim' and item['fonte_medicacao'] == fonte)
+                for fonte in FONTES_MEDICACAO
+            },
+            "entregues_baixa_pendente": sum(int(item.get('quantidade') or 0) for item in movimentos_automaticos if item.get('baixa_zoomed') not in ('Sim', BAIXA_ZOOMED_DISPENSADA)),
+            "entregues_baixa_dispensada": sum(int(item.get('quantidade') or 0) for item in movimentos_automaticos if item.get('baixa_zoomed') == BAIXA_ZOOMED_DISPENSADA),
             "sobras_lancadas": sobras_lancadas,
             "sobra_potencial_encerrados": sobra_potencial_encerrados,
             "saldo_apos_reserva": saldo_setor - necessidade_tratamento,
@@ -1987,8 +2025,12 @@ def listar_doentes_csv(target, filtros=None):
                          FROM esporotricose_doentes_entregas e
                          JOIN esporotricose_doentes_receitas re ON re.id_receita=e.id_receita
                         WHERE re.id_animal_doente=d.id_animal_doente
-                          AND COALESCE(e.baixa_zoomed, '') <> 'Sim'
+                          AND COALESCE(e.baixa_zoomed, '') NOT IN ('Sim','Não se aplica')
                    ) AS entregas_zoomed_pendentes,
+                   (SELECT COUNT(*) FROM esporotricose_doentes_entregas e
+                      JOIN esporotricose_doentes_receitas re ON re.id_receita=e.id_receita
+                     WHERE re.id_animal_doente=d.id_animal_doente
+                       AND e.baixa_zoomed='Não se aplica') AS entregas_zoomed_dispensadas,
                    (
                        SELECT COUNT(*)
                          FROM esporotricose_doentes_anexos an
@@ -2007,14 +2049,11 @@ def listar_doentes_csv(target, filtros=None):
         for row in conn.execute(sql, params).fetchall():
             item = db_core.serialize_row(row)
             pendentes = int(item.get("entregas_zoomed_pendentes") or 0)
-            entregas = int(item.get("entregas") or 0)
-            if entregas == 0 and item.get("status") == "Em tratamento" and pendentes == 0:
-                pendentes = 1
+            _resumir_baixa_doente(item)
             if baixa_zoomed == "Pendente" and pendentes == 0:
                 continue
-            if baixa_zoomed == "Sim" and pendentes > 0:
+            if baixa_zoomed in ('Sim', BAIXA_ZOOMED_DISPENSADA) and item['baixa_zoomed'] != baixa_zoomed:
                 continue
-            item["baixa_zoomed"] = "Pendente" if pendentes else "Sim"
             item["especie"] = _especie_doente(item)
             item["receita_pendente"] = int(item.get("receitas_pendentes") or 0) > 0
             item["capsulas_restantes"] = max(
@@ -2263,14 +2302,15 @@ def salvar_entrega_doente(target, id_receita, dados):
         if not quantidade or quantidade <= 0:
             raise ValidationError("Informe a quantidade de cápsulas.")
         fonte_medicacao = _fonte_medicacao(dados.get("fonte_medicacao"))
-        baixa_zoomed = _normalizar_sim_nao(dados.get("baixa_zoomed")) or "Não"
+        data_entrega = _date(dados.get('data_entrega'))
+        baixa_zoomed = _baixa_zoomed_entrega(dados.get('baixa_zoomed'), fonte_medicacao, data_entrega)
         agora = datetime.now().isoformat(timespec="seconds")
         id_entrega = db_core.insert_and_get_id(
             conn,
             """INSERT INTO esporotricose_doentes_entregas
                (id_receita, quantidade, data_entrega, baixa_zoomed, fonte_medicacao, observacoes, criado_em)
                VALUES (?,?,?,?,?,?,?)""",
-            (id_receita, quantidade, _date(dados.get("data_entrega")), baixa_zoomed, fonte_medicacao, _text(dados.get("observacoes")), agora),
+            (id_receita, quantidade, data_entrega, baixa_zoomed, fonte_medicacao, _text(dados.get("observacoes")), agora),
             "id_entrega",
         )
         conn.execute(
@@ -2288,7 +2328,7 @@ def atualizar_entrega_doente(target, id_entrega, dados):
     try:
         ensure_schema(conn)
         row = conn.execute(
-            """SELECT e.id_entrega, e.observacoes, r.id_animal_doente
+            """SELECT e.*, r.id_animal_doente
                  FROM esporotricose_doentes_entregas e
                  JOIN esporotricose_doentes_receitas r ON r.id_receita=e.id_receita
                 WHERE e.id_entrega=?""",
@@ -2299,15 +2339,17 @@ def atualizar_entrega_doente(target, id_entrega, dados):
         quantidade = _int(dados.get("quantidade"))
         if not quantidade or quantidade <= 0:
             raise ValidationError("Informe a quantidade de cápsulas.")
-        fonte_medicacao = _fonte_medicacao(dados.get("fonte_medicacao"))
-        baixa_zoomed = _normalizar_sim_nao(dados.get("baixa_zoomed")) or "Não"
+        fonte_medicacao = _fonte_medicacao(dados.get("fonte_medicacao", row['fonte_medicacao']))
+        data_entrega = _date(dados.get('data_entrega', row['data_entrega']))
+        dia_regra = data_entrega or str(row['criado_em'] or '')[:10] or None
+        baixa_zoomed = _baixa_zoomed_entrega(dados.get('baixa_zoomed', row['baixa_zoomed']), fonte_medicacao, dia_regra)
         conn.execute(
             """UPDATE esporotricose_doentes_entregas
                   SET quantidade=?, data_entrega=?, baixa_zoomed=?, fonte_medicacao=?, observacoes=?
                 WHERE id_entrega=?""",
             (
                 quantidade,
-                _date(dados.get("data_entrega")),
+                data_entrega,
                 baixa_zoomed,
                 fonte_medicacao,
                 _text(dados.get("observacoes", row["observacoes"])),
@@ -2708,12 +2750,7 @@ def _doente_row(row):
     )
     _aplicar_situacao_medicacao(item)
     item["proxima_entrega"] = _proxima_entrega_doente(item)
-    if (
-        int(item.get("entregas") or 0) == 0
-        and item.get("status") == "Em tratamento"
-        and int(item.get("entregas_zoomed_pendentes") or 0) == 0
-    ):
-        item["entregas_zoomed_pendentes"] = 1
+    _resumir_baixa_doente(item)
     item["prazo_receita_dias"] = _dias_desde(item.get("ultima_receita"))
     item["whatsapp_documentos"] = whatsapp_documentos_url(item)
     item["whatsapp_retirada"] = whatsapp_retirada_url(item)
@@ -3412,7 +3449,7 @@ def controle_entregas_medicacao(target, filtros=None):
         params.append(localidade)
     baixa = _text(filtros.get("baixa_zoomed"))
     if baixa:
-        if baixa not in ("Sim", "Não"):
+        if baixa not in ("Sim", "Não", BAIXA_ZOOMED_DISPENSADA):
             raise ValidationError("Filtro de baixa Zoomed inválido.")
         where.append(f"{baixa_sql} = ?")
         params.append(baixa)

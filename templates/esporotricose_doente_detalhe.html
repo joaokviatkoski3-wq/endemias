@@ -22,6 +22,8 @@
 .zoomed-badge.sim{background:rgba(34,197,94,.16);color:#166534;}
 .zoomed-badge.nao{background:rgba(239,68,68,.15);color:#b91c1c;}
 .zoomed-badge.pendente{background:rgba(245,158,11,.18);color:#92400e;}
+.zoomed-badge.dispensada{background:var(--surface2);color:var(--text2);border:1px solid var(--border);}
+.doe-entrega-edit{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px;border:1px solid var(--border);border-radius:10px;}
 .doe-status{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:900;}
 .doe-status.status-tratamento{background:rgba(14,165,233,.14);color:#0369a1;}
 .doe-status.status-docs{background:rgba(245,158,11,.18);color:#92400e;}
@@ -161,8 +163,20 @@ function data(v){ return v || '-'; }
 function num(v){ return new Intl.NumberFormat('pt-BR').format(Number(v || 0)); }
 function val(id){ return document.getElementById(id)?.value || ''; }
 function zoomedBadge(valor){
+  if(valor === 'Não se aplica') return '<span class="zoomed-badge dispensada">Não se aplica</span>';
   const sim = String(valor || '').toLowerCase() === 'sim';
   return `<span class="zoomed-badge ${sim ? 'sim' : 'pendente'}">${sim ? 'Sim' : 'Pendente'}</span>`;
+}
+function sincronizarBaixaEntrega(prefixo, id){
+  const fonte = document.getElementById(`${prefixo}fonte-${id}`);
+  const dia = document.getElementById(`${prefixo}data-${id}`);
+  const baixa = document.getElementById(`${prefixo}zoomed-${id}`);
+  const diaRegra = dia.value || dia.dataset.criadoEm || '';
+  const dispensada = fonte.value === 'Município' && (!diaRegra || diaRegra >= '2026-11-08');
+  baixa.querySelector('option[value="Não se aplica"]').disabled = !dispensada;
+  baixa.querySelector('option[value="Não"]').disabled = dispensada;
+  if(dispensada && baixa.value !== 'Sim') baixa.value = 'Não se aplica';
+  if(!dispensada && baixa.value === 'Não se aplica') baixa.value = 'Não';
 }
 function render(){
   document.getElementById('receitas-list').innerHTML = (animal.receitas || []).map(r => `
@@ -203,13 +217,14 @@ function render(){
       <div class="doe-entregas">${(r.entregas || []).map(e => `
         <div class="doe-entrega-row">
         <span class="doe-chip">${data(e.data_entrega)} · ${num(e.quantidade)} cápsula(s) · ${esc(e.fonte_medicacao || 'SESA')} · Baixa Zoomed ${zoomedBadge(e.baixa_zoomed)}</span>
-        <span class="doe-chip" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border);">
-          <input type="date" id="ent-edit-data-${e.id_entrega}" value="${esc(e.data_entrega || '')}" style="max-width:130px;">
-          <input type="number" min="1" id="ent-edit-qtd-${e.id_entrega}" value="${esc(e.quantidade || '')}" style="max-width:78px;">
-          <select id="ent-edit-fonte-${e.id_entrega}" aria-label="Fonte do itraconazol"><option value="SESA" ${e.fonte_medicacao !== 'Município' ? 'selected' : ''}>SESA</option><option value="Município" ${e.fonte_medicacao === 'Município' ? 'selected' : ''}>Município</option></select>
+        <span class="doe-entrega-edit">
+          <input type="date" id="ent-edit-data-${e.id_entrega}" data-criado-em="${esc((e.criado_em || '').slice(0,10))}" aria-label="Data da entrega" onchange="sincronizarBaixaEntrega('ent-edit-',${e.id_entrega})" value="${esc(e.data_entrega || '')}" style="max-width:140px;">
+          <input type="number" min="1" id="ent-edit-qtd-${e.id_entrega}" aria-label="Cápsulas entregues" value="${esc(e.quantidade || '')}" style="max-width:78px;">
+          <select id="ent-edit-fonte-${e.id_entrega}" onchange="sincronizarBaixaEntrega('ent-edit-',${e.id_entrega})" aria-label="Fonte do itraconazol"><option value="SESA" ${e.fonte_medicacao !== 'Município' ? 'selected' : ''}>SESA</option><option value="Município" ${e.fonte_medicacao === 'Município' ? 'selected' : ''}>Município</option></select>
           <select id="ent-edit-zoomed-${e.id_entrega}" aria-label="Baixa Zoomed">
             <option value="Sim" ${e.baixa_zoomed === 'Sim' ? 'selected' : ''}>Zoomed: Sim</option>
             <option value="Não" ${e.baixa_zoomed === 'Não' ? 'selected' : ''}>Zoomed: Pendente</option>
+            <option value="Não se aplica" ${e.baixa_zoomed === 'Não se aplica' ? 'selected' : ''}>ZooMed: Não se aplica</option>
           </select>
           <button class="btn btn-sm" type="button" onclick="atualizarEntrega(${e.id_entrega})">Salvar</button>
           <button class="btn btn-outline btn-sm" type="button" onclick="excluirEntrega(${e.id_entrega}, this)" aria-label="Apagar entrega de ${num(e.quantidade)} cápsulas">Apagar entrega</button>
@@ -217,14 +232,19 @@ function render(){
         </div>
       `).join('') || '<span class="muted">Sem entregas cadastradas.</span>'}</div>
       <div class="doe-form-grid" style="margin-top:8px;">
-        <div class="f-g"><label>Data entrega</label><input type="date" id="ent-data-${r.id_receita}"></div>
+        <div class="f-g"><label>Data entrega</label><input type="date" id="ent-data-${r.id_receita}" onchange="sincronizarBaixaEntrega('ent-',${r.id_receita})"></div>
         <div class="f-g"><label>Cápsulas</label><input type="number" min="1" id="ent-qtd-${r.id_receita}"></div>
-        <div class="f-g"><label>Fonte do itraconazol</label><select id="ent-fonte-${r.id_receita}"><option>SESA</option><option>Município</option></select></div>
-        <div class="f-g"><label>Entrega cadastrada na ZOOMED (baixa de ambas as fontes)</label><select id="ent-zoomed-${r.id_receita}"><option value="Não" selected>Pendente</option><option value="Sim">Sim</option></select></div>
+        <div class="f-g"><label>Fonte do itraconazol</label><select id="ent-fonte-${r.id_receita}" onchange="sincronizarBaixaEntrega('ent-',${r.id_receita})"><option>SESA</option><option>Município</option></select></div>
+        <div class="f-g"><label>Baixa no ZooMed</label><select id="ent-zoomed-${r.id_receita}"><option value="Não" selected>Pendente</option><option value="Sim">Registrada</option><option value="Não se aplica">Não se aplica</option></select></div>
+        <p class="muted full">Entregas municipais desde 08/11/2026 ficam somente no VSATT e não exigem baixa no ZooMed. As demais entregas mantêm a exigência anterior.</p>
       </div>
       <button class="btn btn-outline btn-sm" type="button" onclick="salvarEntrega(${r.id_receita})">Adicionar entrega</button>
     </div>
   `).join('') || '<div class="empty-inline">Nenhuma receita cadastrada.</div>';
+  (animal.receitas || []).forEach(r => {
+    sincronizarBaixaEntrega('ent-',r.id_receita);
+    (r.entregas || []).forEach(e => sincronizarBaixaEntrega('ent-edit-',e.id_entrega));
+  });
   document.getElementById('anexos-list').innerHTML = (animal.anexos || []).map(a => `
     <div class="doe-anexo">
       <a class="doe-anexo-preview" href="${a.url_visualizar}" target="_blank" rel="noopener" title="Abrir anexo">

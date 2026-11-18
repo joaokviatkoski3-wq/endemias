@@ -6,6 +6,16 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
+## Candidata 2.9.1 — acordo municipal e correções confirmadas
+
+Preparada em C:\endemias-estoque-zoomed. Operador confirmou que Caramelo e a
+entrega de Peralta em 21/10 não ocorreram: corrigir somente entregas 45/91.
+Suelen/Pitoquinha receberam; municipais desde 08/11/2026 ficam só no VSATT,
+sem baixa ZooMed. Nova regra distingue Não se aplica de pendência, preserva
+baixas antigas e mantém a saída física. Identidades de Elisama e do tutor de
+Mika confirmadas; segundo lote específico preparado com auditoria e rollback.
+Ainda não aplicado/ativado neste registro. Ver docs/ESTOQUE_291.md.
+
 ## Conciliação parcial ZooMed — 18/11/2026
 
 Planilha fornecida pelo usuário confirma 2.590 cápsulas (870 Município,
