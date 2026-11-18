@@ -1,5 +1,25 @@
 # Cards de entregas no estoque — versão ativa 2.9.2
 
+## Atualização da entrega 99 — 18/11 às 14h44
+
+Usuário confirmou corrigir a quantidade de Amarelo de 29 para 30. A consulta
+protegida já encontrou 30; o utilitário scripts/corrigir_entrega_99_20261118.py
+retornou ja_corrigido, sem emitir nova escrita ou auditoria de alteração.
+Backup validado e uma nova conexão readonly confirmaram quantidade 30, fonte
+Município e baixa Não se aplica. Três testes cobrem correção, idempotência,
+proteção de vínculo/fonte e rollback de efeito fora do escopo.
+
+Valores atuais dos cards: Município ZooMed 870 + somente VSATT 120 = 990;
+SESA 1.720; ZooMed 2.590; total geral 2.710; zero pendências de baixa.
+Saldo calculado 580 (SESA 580, Município 0), necessidade quantificada 820 em
+11 ativos, déficit 240. Não houve contagem física nem reinício do serviço.
+
+Backup de 7.757.379 bytes, catálogo validado:
+C:\ProgramData\EndemiasWeb\correcao-entrega99-20261118-144404\antes_conta_limitada.dump
+SHA-256 57a861f915eaa8d290f8a8de08c61ebd7fba60612c69f57ace77bba5454104e7.
+
+## Ativação e estado anterior à confirmação
+
 Ativada em 18/11/2026, release 165aad1. Backups PostgreSQL e completo,
 preservação das 98 tabelas e arquivos operacionais, prova da conta limitada,
 automação Kobo restabelecida e todas as entradas confirmadas. Portal e logins
@@ -14,9 +34,9 @@ quantificada 821 em 11 ativos, déficit 240. Não é contagem física.
 A diferença para as 60 municipais da conciliação anterior são dois novos
 lançamentos em 18/11 às 13h22, IDs 99/100, de 29 e 30 cápsulas. Entregas
 88/96 continuam com 30 cada. Consulta somente leitura confirmou os quatro
-registros; não houve correção dessas quantidades. Foi perguntado ao operador
-se a quantidade 29 deve permanecer ou ser corrigida para 30. Não alterar sem
-resposta. Os dados nominais ficaram somente no relatório privado local.
+registros; não houve correção dessas quantidades na ativação. Foi perguntado
+ao operador sobre as 29; ele confirmou 30 e a conferência posterior está
+registrada acima. Os dados nominais ficaram somente no relatório privado local.
 
 Solicitação: distinguir as 870 cápsulas municipais com registro no ZooMed
 das 60 municipais entregues somente pelo VSATT, compondo 930 municipais.

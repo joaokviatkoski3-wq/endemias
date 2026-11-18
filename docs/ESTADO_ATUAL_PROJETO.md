@@ -15,12 +15,17 @@ dados fictícios, incluindo cenário com pendência. Sem migração ou alteraç�
 de registros. Ativada em 18/11, release 165aad1; backups PostgreSQL/completo,
 preservação de 98 tabelas/arquivos, conta limitada e automação Kobo confirmados.
 Portal e logins públicos/locais dos dois setores HTTP 200 em 2.9.2.
-Consulta atual antes/depois idêntica: Município ZooMed 870 + só VSATT 119 =
+Consulta da ativação antes/depois idêntica: Município ZooMed 870 + só VSATT 119 =
 989 municipais; SESA 1.720; ZooMed 2.590; geral 2.709; pendentes zero.
 Os 59 adicionais foram lançados às 13h22, IDs 99/100, quantidades 29/30,
-antes desta ativação. Não foram alterados. Perguntado se 29 é correto ou deve
-ser 30; aguardar resposta. Saldo calculado 581 (SESA 580, Município 1),
-necessidade 821 em 11 ativos, déficit 240. Ver docs/ESTOQUE_292.md.
+antes desta ativação. Não foram alterados na ativação. Operador posteriormente
+confirmou 30 para entrega 99; ao conferir às 14h44 ela já estava com 30.
+Utilitário protegido retornou ja_corrigido, sem nova escrita/auditoria,
+com backup validado e estado confirmado por nova conexão. Valores atuais:
+870 Município ZooMed + 120 só VSATT = 990 municipais; SESA 1.720; total ZooMed
+2.590; geral 2.710; zero pendências. Saldo calculado 580 (SESA 580, Município
+0), necessidade 820 em 11 ativos e déficit 240. Sem contagem física.
+Ver docs/ESTOQUE_292.md.
 
 ## Histórico 2.9.1 — acordo municipal e correções confirmadas
 

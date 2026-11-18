@@ -15,11 +15,13 @@ incluindo eventual baixa antiga pendente na composição. Não altera dados.
 14 testes e ensaio visual Chromium 1440/390 px passaram. Ativada em 18/11,
 release 165aad1, sem migração; backups, 98 tabelas/arquivos preservados,
 conta limitada e automação Kobo confirmados. Portal e entradas HTTP 200 em
-2.9.2. Dados atuais: 870 Município ZooMed + 119 só VSATT = 989 municipais;
-SESA 1.720, geral 2.709, ZooMed 2.590, pendentes zero. Houve novos lançamentos
-99/100 de 29/30 cápsulas antes da ativação; não foram alterados. Perguntado ao
-operador se a quantidade 29 deve ser 30; aguardar resposta antes de corrigir.
-Saldo calculado 581, necessidade 821 e déficit 240. Ver docs/ESTOQUE_292.md.
+2.9.2. Operador confirmou corrigir entrega 99 de 29 para 30. Na conferência
+de 18/11 às 14h44 ela já estava com 30; utilitário retornou ja_corrigido,
+sem nova escrita ou auditoria de alteração. Backup validado e nova conexão
+confirmaram o estado. Dados atuais: 870 Município ZooMed + 120 só VSATT =
+990 municipais; SESA 1.720, geral 2.710, ZooMed 2.590, pendentes zero.
+Saldo calculado 580 (SESA 580, Município 0), necessidade 820 e déficit 240.
+Sem contagem física. Ver docs/ESTOQUE_292.md.
 
 ## Histórico 2.9.1 — acordo municipal e correções confirmadas
 
