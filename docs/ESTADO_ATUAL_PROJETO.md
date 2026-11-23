@@ -4,7 +4,14 @@ Atualizado em 23/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.11.0 — formulários de campo offline
+## Candidata 2.11.1 — superadmin no piloto de campo
+
+Autoriza o perfil superadmin de Endemias a preparar o mesmo pacote offline,
+com fila própria. Quando o superadmin não tem vínculo no catálogo de equipe,
+ele seleciona os participantes e o envio identifica sua conta como autora.
+A permissão do agente indicado na instalação 2.11.0 permanece. Sem migração.
+
+## Versão ativa 2.11.0 — formulários de campo offline
 
 O agente piloto entra pelo endereço HTTPS do Endemias. Na página Formulários,
 abre Campo offline e toca em Preparar para uso offline antes de sair. Pode
@@ -24,7 +31,9 @@ AT-024) e os campos oficiais de protocolo E-Ouve, ovitrampas do bloqueio,
 equipamento da BRI e endereço de Recolhimento. O catálogo preserva coordenadas
 e metadados públicos, com o telefone omitido. A ativação exige backup e o
 instalador confere se a conta informada está vinculada a um agente ativo.
-A homologação no Android do agente ocorre depois da ativação.
+Ativada em 23/11/2026. O instalador aplicou a migração 0038, conferiu a
+preservação das 98 tabelas anteriores e retomou a importação automática Kobo.
+Entradas confirmadas na 2.11.0. A homologação no Android permanece pendente.
 
 ## Versão ativa 2.10.0 — KML das ovitrampas para campo
 

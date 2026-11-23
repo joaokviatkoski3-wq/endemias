@@ -29,8 +29,9 @@ REFERENCIAS = {
 def habilitado(usuario):
     piloto = os.environ.get("ENDEMIAS_FORMULARIOS_OFFLINE_USUARIO", "").strip().casefold()
     return bool(piloto and setores.atual() != "ambiental"
-                and str(usuario.get("usuario") or "").casefold() == piloto
                 and usuario.get("nivel") in {"usuario", "operador", "admin", "superadmin"}
+                and (usuario.get("nivel") == "superadmin"
+                     or str(usuario.get("usuario") or "").casefold() == piloto)
                 and not usuario.get("somente_laboratorio"))
 
 

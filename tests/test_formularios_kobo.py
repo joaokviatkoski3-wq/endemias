@@ -95,6 +95,18 @@ class ValidacaoFormularioTests(unittest.TestCase):
         conferir_responsavel(tree,payload,publicar=True)
         self.assertEqual(payload['responsavel']['usuario_id'],1)
 
+    def test_superadmin_do_piloto_sem_vinculo_registra_autoria_e_equipe(self):
+        from app_core.formulario_campo import conferir_responsavel
+        tree = {'responsavel': {'usuario_id': 1, 'id_agente': None, 'campos': {}, 'gestao_piloto': True},
+                'nodes': [{'name': 'Agentes', 'path': 'Agentes', 'kind': 'select_multiple'}]}
+        with self.assertRaises(ValueError):
+            conferir_responsavel(tree, {'values': {}}, publicar=True)
+        payload = {'values': {'Agentes': 'agente-de-teste'}, 'responsavel': {'usuario_id': 999}}
+        conferir_responsavel(tree, payload, publicar=True)
+        self.assertEqual(payload['responsavel']['usuario_id'], 1)
+        self.assertIsNone(payload['responsavel']['id_agente'])
+        self.assertEqual(payload['values']['Agentes'], 'agente-de-teste')
+
 
 class ApiFormularioTests(unittest.TestCase):
     @classmethod
@@ -161,8 +173,12 @@ class ApiFormularioTests(unittest.TestCase):
             self.assertEqual(set(response.json['esquemas']), {'PE', 'PE_CADASTRO', 'TB', 'TBO', 'PVE', 'BRI', 'RECOLHIMENTO'})
             self.assertEqual(len(response.json['referencias']['equipamento']), 110)
             self.assertNotIn('AT-024', {row['id'] for row in response.json['referencias']['equipamento']})
-            self.assertEqual(self.f.client('endemias', 1).get(route).status_code, 403)
+            superadmin = self.f.client('endemias', 1)
+            self.assertEqual(superadmin.get(route).status_code, 200)
+            self.assertTrue(superadmin.get(route).json['esquemas']['BRI']['responsavel']['gestao_piloto'])
+            self.assertEqual(self.f.client('endemias', 3).get(route).status_code, 403)
             self.assertEqual(self.f.client('ambiental', 5).get(route).status_code, 403)
+            self.assertEqual(self.f.client('ambiental', 1).get(route).status_code, 403)
         self.assertEqual(self.client.get('/formularios/kobo/LARVAS').headers['Location'], '/laboratorio/lancamentos')
         self.assertEqual(self.client.post('/api/formularios/kobo/LARVAS', json={}).status_code, 403)
 

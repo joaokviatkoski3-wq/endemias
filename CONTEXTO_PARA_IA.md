@@ -6,7 +6,12 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.11.0 — formulários de campo offline
+## Candidata 2.11.1 — superadmin no piloto de campo
+
+Amplia o piloto de Endemias para o perfil superadmin. Esta candidata usa a
+mesma migração 0038 da versão 2.11.0 e não precisa de migração adicional.
+
+## Versão ativa 2.11.0 — formulários de campo offline
 
 Worktree `C:\endemias-campo-offline`, branch `codex/formularios-campo-offline`.
 PE (visita e proposta cadastral), TB, TBO, PVE, BRI e Recolhimento. O modo offline

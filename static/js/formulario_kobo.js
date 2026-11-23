@@ -232,7 +232,7 @@
     });
     $('fk-campos').querySelectorAll('[data-field]').forEach(control=>{const n=map.get(control.dataset.path),code=fixed(n);if(code){if(n.kind==='select_one')control.disabled=true;else for(const input of control.querySelectorAll('input'))if(input.value===code){input.checked=true;input.disabled=true;}}});
     const sender=current.autor||current.payload.responsavel||schema.responsavel;
-    $('fk-responsavel').textContent='Responsável pelo envio: '+(sender?.nome||'Conta autenticada')+(current.payload.responsavel?.agente?' · Agente: '+current.payload.responsavel.agente:'')+(current.autor?.enviado_em?' · Enviado em '+current.autor.enviado_em:'')+(!review&&!sender?.id_agente&&!current.autor?' · Falta vincular a conta a um agente. Salve como rascunho e peça ao gestor para conferir o vínculo.':'');
+    $('fk-responsavel').textContent='Responsável pelo envio: '+(sender?.nome||'Conta autenticada')+(current.payload.responsavel?.agente?' · Agente: '+current.payload.responsavel.agente:'')+(current.autor?.enviado_em?' · Enviado em '+current.autor.enviado_em:'')+(!review&&!sender?.id_agente&&!current.autor?(sender?.gestao_piloto?' · Selecione os agentes que participaram da atividade.':' · Falta vincular a conta a um agente. Salve como rascunho e peça ao gestor para conferir o vínculo.'):'');
     const flow=current.payload.acompanhamento||{},confirmed=flow.retorno_evento;
     $('fk-retorno').hidden=!flow.retorno;
     for(const id of ['fk-retorno-data','fk-retorno-hora','fk-retorno-nota'])$(id).disabled=locked||busy||Boolean(confirmed);
