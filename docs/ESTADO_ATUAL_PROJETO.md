@@ -4,14 +4,19 @@ Atualizado em 23/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.11.1 — superadmin no piloto de campo
+## Versão ativa 2.11.1 — superadmin no piloto de campo
 
 Autoriza o perfil superadmin de Endemias a preparar o mesmo pacote offline,
 com fila própria. Quando o superadmin não tem vínculo no catálogo de equipe,
 ele seleciona os participantes e o envio identifica sua conta como autora.
-A permissão do agente indicado na instalação 2.11.0 permanece. Sem migração.
+A permissão do agente indicado na instalação 2.11.0 permanece. Ativada em
+23/11/2026, release `698f44a`. O instalador preservou o ambiente e 99 tabelas,
+confirmou as entradas e retomou a automação Kobo. Sem migração. Ensaio
+Chromium móvel conferiu preparação, abertura da central Formulários em modo
+avião, acesso às sete fichas, recuperação de rascunho, sincronização e
+aprovação. Falta homologar no tablet Android do agente e no aparelho do gestor.
 
-## Versão ativa 2.11.0 — formulários de campo offline
+## Histórico 2.11.0 — formulários de campo offline
 
 O agente piloto entra pelo endereço HTTPS do Endemias. Na página Formulários,
 abre Campo offline e toca em Preparar para uso offline antes de sair. Pode
