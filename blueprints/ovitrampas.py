@@ -18,6 +18,7 @@ from app_core import contaovos_registro
 from app_core import contaovos_sync
 from app_core import ovitrampas as ovitrampas_core
 from app_core import ovitrampas_export
+from app_core import ovitrampas_kml
 from app_core import ovitrampas_laboratorio as ovi_lab_core
 
 
@@ -197,6 +198,32 @@ def api_exportar_leituras_csv():
 def api_armadilhas():
     filtros = {"distrito": request.args.get("distrito", ""), "busca": request.args.get("busca", "")}
     return jsonify(ovitrampas_core.listar_armadilhas(_db_path(), filtros, limite=request.args.get("limite") or 500))
+
+
+@bp.route("/api/ovitrampas/armadilhas/exportar.kml", methods=["POST"])
+@login_required
+def api_exportar_armadilhas_kml():
+    filtros = {"distrito": request.args.get("distrito", ""), "busca": request.args.get("busca", "")}
+    try:
+        conteudo, resumo = ovitrampas_kml.gerar_kml(_db_path(), filtros)
+    except (contaovos_client.ContaOvosError, contaovos_registro.ContaOvosRegistroError):
+        return jsonify(erro="Não foi possível consultar o cadastro atual do Conta Ovos. Tente novamente."), 502
+    except ValueError as exc:
+        return jsonify(erro=str(exc)), 422
+    audit.registrar_evento(
+        get_db, "ovitrampas_kml_exportado", entidade="ovitrampas",
+        detalhes={**resumo, "filtro_localidade": filtros["distrito"], "com_pesquisa": bool(filtros["busca"])},
+    )
+    resposta = send_file(
+        io.BytesIO(conteudo), as_attachment=True,
+        download_name=f"ovitrampas_campo_{date.today():%Y%m%d}.kml",
+        mimetype="application/vnd.google-earth.kml+xml",
+    )
+    resposta.headers["X-Ovitrampas-Pontos"] = str(resumo["pontos"])
+    resposta.headers["X-Ovitrampas-Ignoradas"] = str(resumo["ignoradas"])
+    resposta.headers["X-Ovitrampas-Apenas-Locais"] = str(resumo["apenas_locais"])
+    resposta.headers["Cache-Control"] = "private, no-store"
+    return resposta
 
 
 @bp.route("/api/ovitrampas/monitoramento")

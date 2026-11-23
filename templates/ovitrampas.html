@@ -403,7 +403,10 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
         <div class="f-g"><label>Localidade</label><select id="ovi-arm-distrito"><option value="">Todas</option>{% for distrito in distritos %}<option value="{{ distrito }}">{{ distrito }}</option>{% endfor %}</select></div>
         <div class="f-g"><label>Pesquisa</label><input type="search" id="ovi-arm-busca" placeholder="ID, rua, responsável..."></div>
         <button class="btn btn-outline" type="button" id="ovi-arm-atualizar"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button>
+        <button class="btn btn-outline" type="button" id="ovi-arm-exportar-kml"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Exportar KML para campo</button>
       </div>
+      <p class="ovi-source-note">O KML consulta as coordenadas atuais no Conta Ovos e inclui os detalhes do cadastro local. Usa os filtros de localidade e pesquisa acima.</p>
+      <p class="ovi-source-note" id="ovi-arm-kml-status" role="status" aria-live="polite"></p>
     </div>
   </div>
 
@@ -1045,6 +1048,42 @@ async function carregarListaOvitrampas(){
       <div class="ovi-source-note" style="margin:8px 0 0;">Fonte: ${oviEscape(r.fonte_leitura || 'API Conta Ovos')}${r.ocorrencia_label ? ` · Ocorrência: ${oviEscape(r.ocorrencia_label)}` : ''}${r.observacao_conta_ovos ? ` · Observação: ${oviEscape(r.observacao_conta_ovos)}` : ''}</div>
     </div>`;
   }).join('') || '<div class="empty">Nenhuma leitura encontrada.</div>';
+}
+async function exportarArmadilhasKml(){
+  const botao = document.getElementById('ovi-arm-exportar-kml');
+  const status = document.getElementById('ovi-arm-kml-status');
+  botao.disabled = true;
+  status.textContent = 'Consultando as coordenadas atuais no Conta Ovos…';
+  try {
+    const resposta = await fetch('/api/ovitrampas/armadilhas/exportar.kml?' + oviArmParams().toString(), {
+      method: 'POST', headers: {'X-CSRFToken': getCsrf()}
+    });
+    if (!resposta.ok) {
+      const erro = await resposta.json().catch(() => ({}));
+      throw new Error(erro.erro || 'Não foi possível exportar. Recarregue a página e tente novamente.');
+    }
+    const arquivo = await resposta.blob();
+    const url = URL.createObjectURL(arquivo);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'ovitrampas_campo.kml';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    const pontos = Number(resposta.headers.get('X-Ovitrampas-Pontos') || 0);
+    const ignoradas = Number(resposta.headers.get('X-Ovitrampas-Ignoradas') || 0);
+    const locais = Number(resposta.headers.get('X-Ovitrampas-Apenas-Locais') || 0);
+    status.textContent = pontos + ' ponto(s) exportado(s).'
+      + (ignoradas ? ' ' + ignoradas + ' armadilha(s) sem coordenadas válidas ficaram fora do mapa.' : '')
+      + (locais ? ' ' + locais + ' cadastro(s) apenas locais ficaram fora do mapa.' : '')
+      + ' No My Maps, use Adicionar camada → Importar para carregar o KML.';
+  } catch (erro) {
+    status.textContent = erro.message;
+    toast(erro.message, 'error');
+  } finally {
+    botao.disabled = false;
+  }
 }
 async function carregarArmadilhas(){
   const data = await oviGet('/api/ovitrampas/armadilhas?' + oviArmParams().toString());
@@ -1794,6 +1833,7 @@ document.getElementById('ovi-mon-limpar').addEventListener('click', async () => 
   }
 });
 document.getElementById('ovi-arm-atualizar').addEventListener('click', () => carregarArmadilhas().catch(e => toast('Erro ao carregar armadilhas: ' + e.message, 'error')));
+document.getElementById('ovi-arm-exportar-kml').addEventListener('click', exportarArmadilhasKml);
 document.getElementById('ovi-arm-busca').addEventListener('keydown', e => { if(e.key === 'Enter') carregarArmadilhas().catch(err => toast('Erro na busca: ' + err.message, 'error')); });
 document.getElementById('ovi-lab-admin-atualizar')?.addEventListener('click',()=>carregarOviLaboratorio());
 document.getElementById('ovi-lab-admin-status')?.addEventListener('change',()=>carregarOviLaboratorio());

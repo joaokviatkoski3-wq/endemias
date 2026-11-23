@@ -1,8 +1,28 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 18/11/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 23/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
+
+## Candidata 2.10.0 — KML das ovitrampas para campo
+
+Worktree C:\endemias-interface, branch codex/ovitrampas-kml-campo. Exportação
+POST autenticada na aba Armadilhas, com os filtros de localidade e pesquisa.
+Consulta o cadastro público completo do Conta Ovos em cada solicitação.
+Coordenadas e ID remoto são a referência, com detalhes operacionais locais.
+Sem uso de coordenadas locais como substituto. Falha na API impede baixar
+arquivo parcial. Informa registros ignorados, cadastros apenas locais e data
+da consulta. KML com descrição e ExtendedData, até 2.000 pontos e 5 MB conforme
+limites de importação do My Maps. Download privado e auditado por totais.
+Sem migração ou atualização dos cadastros. Ativação pendente.
+Validação em 23/11: 26 testes de Ovitrampas (incluindo nove novos), 79 de
+Conta Ovos e 26 do instalador passaram. PostgreSQL descartável em modo
+somente leitura e Chromium a 1440/390 px conferidos, incluindo filtros,
+download, CSRF, erro remoto e aviso de pontos omitidos. Consulta pública
+real gerou 347 pontos em KML de 1.436.754 bytes. Os detalhes locais nesse
+ensaio vieram do SQLite congelado, que tinha quatro IDs sem correspondência;
+não é conferência do cadastro de produção atual. Importação na conta Google
+My Maps do usuário permanece para validação após a ativação.
 
 ## Versão ativa 2.9.2 — cards de entregas no estoque
 

@@ -1,10 +1,18 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 18/11/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 23/11/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
+
+## Candidata 2.10.0 — KML das ovitrampas para campo
+
+Aba Armadilhas com exportação KML filtrada. Consulta pública completa ao
+Conta Ovos a cada exportação, usando ID como título e coordenadas remotas.
+Endereço, responsável, telefone e local de instalação vêm do cadastro local.
+Registros sem coordenadas válidas são informados como excluídos do mapa.
+Sem migração. Ativação pendente.
 
 ## Versão ativa 2.9.2 — cards de entregas no estoque
 
