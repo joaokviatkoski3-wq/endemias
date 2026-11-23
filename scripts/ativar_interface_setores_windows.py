@@ -60,7 +60,7 @@ def wait_closed(timeout=35):
     return False
 
 
-def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None):
+def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto=None):
     from app_core import postgresql_migrations,backup_completo,db
     if not ctypes.windll.shell32.IsUserAnAdmin():raise PermissionError('Execute como administrador do Windows.')
     if not all(re.fullmatch('[0-9a-f]{40}',v) for v in (args.release,args.expected_current)):
@@ -81,6 +81,16 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None):
         if (not status or any(row['state'] not in {'applied', 'pending'} for row in status)
                 or pendentes not in ([], [migration]) or (pendentes and migration is None)):
             raise ValueError('Migrações diferentes das previstas no pacote.')
+        if piloto:
+            with connection.cursor() as cursor:
+                cursor.execute("""SELECT u.usuario FROM usuarios u JOIN agentes a ON a.id_agente=u.id_agente
+                    WHERE LOWER(u.usuario)=LOWER(%s) AND u.ativo=1 AND COALESCE(a.ativo,1)=1
+                      AND u.setor='endemias' AND u.nivel IN ('usuario','operador','admin','superadmin')
+                      AND COALESCE(u.somente_laboratorio,0)=0""",(piloto,))
+                accounts=cursor.fetchall()
+            if len(accounts)!=1:
+                raise ValueError('A conta do piloto precisa estar ativa e vinculada a um agente de Endemias.')
+            proposed['env']['ENDEMIAS_FORMULARIOS_OFFLINE_USUARIO']=accounts[0][0]
     finally:connection.close()
     win=Windows();win.web=win.sec.ConvertStringSidToSid(original['sid'])
     task=win.folder.GetTask('Endemias - Servidor')
@@ -141,6 +151,8 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None):
         report.update(status='aplicado',task_identity_preserved=True,existing_environment_preserved=proposed['env']==original['env'],
             previous_data_preserved=True,operational_files_preserved=True,kobo_configs_preserved=True,
             cloudflare_changed=False,firewall_changed=False,all_entries_ok=True,kobo_automation_enabled_restored=True)
+        if piloto:
+            report['piloto_formularios_configurado']=True
         save('concluido');return 0
     except Exception as error:
         report.update(status='falhou',error_type=type(error).__name__,trace=[{'file':Path(f.filename).name,'line':f.lineno,'function':f.name} for f in traceback.extract_tb(error.__traceback__)])
@@ -160,12 +172,12 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None):
         save('retornado');return 1
 
 
-def main(origin=ORIGIN,target=TARGET,marker=MARKER, migration=None):
+def main(origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto=None):
     parser=argparse.ArgumentParser(description=f'Atualiza {origin} para {target}.')
     parser.add_argument('--aplicar',action='store_true',required=True)
     parser.add_argument('--release',required=True);parser.add_argument('--expected-current',required=True)
     args=parser.parse_args()
-    try:return apply(args,origin,target,marker,migration)
+    try:return apply(args,origin,target,marker,migration,piloto)
     except Exception as error:
         result={'status':'falhou','error_type':type(error).__name__,
                 'trace':[{'file':Path(f.filename).name,'line':f.lineno,'function':f.name} for f in traceback.extract_tb(error.__traceback__)]}

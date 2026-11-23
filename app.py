@@ -333,6 +333,13 @@ def create_app(config_overrides=None):
         ovitrampas_laboratorio_core.ensure_schema(flask_app.config["DB_PATH"])
         meteorologia_core.ensure_schema(flask_app.config["DB_PATH"])
         sqlite_maintenance.ensure_schema_compatibility(flask_app.config["DB_PATH"])
+        from app_core import formulario_equipamentos
+        conn = db_core.connect(flask_app.config["DB_PATH"])
+        try:
+            formulario_equipamentos.ensure_sqlite(conn)
+            conn.commit()
+        finally:
+            conn.close()
         sqlite_maintenance.ensure_performance_indexes(flask_app.config["DB_PATH"])
     if flask_app.config['SETORES_ENABLED']:
         connection=db_core.connect(database_target)

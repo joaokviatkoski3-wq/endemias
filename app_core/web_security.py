@@ -15,7 +15,7 @@ from app_core import permissoes
 
 
 PUBLIC_ENDPOINTS = {"static", "auth.login", "auth.logout", "auth.esqueci_senha", "auth.recuperar_senha",
-                    "formularios.sw_js", "formularios.manifest"}
+                    "formularios.sw_js", "formularios.manifest", "formularios.manifest_campo"}
 TERMS_ENDPOINTS = {"auth.termos", "auth.aceitar_termos", "auth.minha_senha", "auth.presenca"}
 
 
@@ -127,7 +127,7 @@ def configure(app):
 
     @app.after_request
     def private_response(response):
-        if request.endpoint not in {"static", "formularios.sw_js", "formularios.manifest"}:
+        if request.endpoint not in {"static", "formularios.sw_js", "formularios.manifest", "formularios.manifest_campo"}:
             if session.get("uid"):
                 response.headers["X-Endemias-User"] = str(session["uid"])
             response.headers["Cache-Control"] = "private, no-store"

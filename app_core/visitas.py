@@ -650,6 +650,9 @@ def detalhar(target, id_visita):
             (id_visita,),
         ).fetchall()
         serializada = _serializar_visita(visita, acs_por_codigo)
+        if serializada.get("ovitrampas_bloqueio"):
+            import json
+            serializada["ovitrampas_bloqueio"] = json.loads(serializada["ovitrampas_bloqueio"])
         origem_liraa = integradas.id_liraa(id_visita)
         if origem_liraa is not None:
             from app_core import liraa_kobo

@@ -2,9 +2,9 @@
 import hashlib
 from pathlib import Path
 
-from flask import Blueprint,jsonify,render_template,request,current_app
+from flask import Blueprint,jsonify,render_template,request,current_app,redirect,url_for
 from app_core import auth,blueprint_helpers as bh,formularios as forms,formularios_kobo as core
-from app_core import audit,db,permissoes,campo_protocolo,formulario_campo,formulario_fluxo
+from app_core import audit,db,permissoes,campo_protocolo,formulario_campo,formulario_fluxo,formulario_piloto
 
 bp=Blueprint('formularios_kobo',__name__)
 
@@ -12,7 +12,8 @@ bp=Blueprint('formularios_kobo',__name__)
 def user():return bh.usuario_atual() or {}
 
 
-def tree(tipo):return core.esquema(tipo,user(),bh.db_target())
+def tree(tipo,payload=None):
+    return core.esquema(tipo,user(),bh.db_target(),(payload or {}).get('versao'))
 
 
 def item(tipo,ident):
@@ -43,7 +44,13 @@ def conflict(error):return jsonify({'erro':str(error)}),409
 
 @bp.get('/formularios/kobo/<tipo>')
 def campo(tipo):
-    return render_template('formulario_kobo.html',tipo=tipo,titulo=core.TITULOS[tipo],revisao=False)
+    if tipo=='LARVAS':
+        return redirect(url_for('laboratorio_lancamentos.page'))
+    offline=tipo in formulario_piloto.TIPOS and formulario_piloto.habilitado(user())
+    response=current_app.make_response(render_template(
+        'formulario_kobo.html',tipo=tipo,titulo=core.TITULOS[tipo],revisao=False,offline=offline))
+    if offline:response.headers['X-Endemias-Campo-Offline']='1'
+    return response
 
 
 @bp.get('/formularios/kobo/<tipo>/revisao')
@@ -54,14 +61,46 @@ def revisao(tipo):
 
 @bp.get('/api/formularios/kobo/<tipo>/esquema')
 def esquema(tipo):
-    try:return jsonify(tree(tipo))
+    ident=request.args.get('envio',type=int)
+    row=item(tipo,ident) if ident else None
+    if ident and not row:return jsonify({'erro':'Envio não encontrado.'}),404
+    try:return jsonify(tree(tipo,row['payload'] if row else None))
     except (OSError,KeyError):return jsonify({'erro':'Definições ainda não instaladas. Avise o responsável pelo sistema.'}),503
 
 
 @bp.get('/api/formularios/kobo/<tipo>/sessao')
 def sessao(tipo):
     from flask_wtf.csrf import generate_csrf
-    return jsonify({'usuario':user()['id_usuario'],'csrf':generate_csrf()})
+    return jsonify({'usuario':user()['id_usuario'],'csrf':generate_csrf(),
+                    'offline':formulario_piloto.habilitado(user())})
+
+
+@bp.get('/formularios/campo-offline')
+def campo_offline():
+    if not formulario_piloto.habilitado(user()):
+        return redirect('/formularios')
+    response=current_app.make_response(render_template('formularios_offline.html',formularios=[
+        {'tipo':tipo,'titulo':core.TITULOS[tipo]} for tipo in formulario_piloto.TIPOS]))
+    response.headers['X-Endemias-Campo-Offline']='1'
+    return response
+
+
+@bp.get('/api/formularios/kobo/pacote-offline')
+def pacote_offline():
+    if not formulario_piloto.habilitado(user()):
+        return jsonify({'erro':'Conta fora do piloto offline.'}),403
+    try:
+        definitions={tipo:tree(tipo) for tipo in formulario_piloto.TIPOS}
+    except (OSError, KeyError):
+        return jsonify({'erro':'As definições de campo estão indisponíveis.'}),503
+    return jsonify({'usuario':user()['id_usuario'],'esquemas':definitions,
+                    'referencias':formulario_piloto.catalogos(bh.db_target())})
+
+
+@bp.get('/api/formularios/kobo/<tipo>/catalogos')
+def catalogos(tipo):
+    if tipo not in formulario_piloto.TIPOS:return jsonify({'erro':'Catálogo indisponível.'}),404
+    return jsonify(formulario_piloto.catalogos(bh.db_target()))
 
 
 @bp.get('/api/formularios/kobo/<tipo>')
@@ -87,14 +126,17 @@ def obter(tipo,ident):
 
 @bp.post('/api/formularios/kobo/<tipo>')
 def salvar(tipo):
+    if tipo=='LARVAS':
+        return jsonify({'erro':'Registre a leitura na área do Laboratório.'}),403
     body=request.get_json(silent=True)
     if not isinstance(body,dict):raise ValueError('Envio inválido.')
     if not isinstance(body.get('captura'),dict):raise ValueError('Identificação da captura ausente.')
     if body.get('usuario')!=user()['id_usuario']:return jsonify({'erro':'A conta mudou. Reabra o formulário.'}),403
     status=body.get('status')
     if status not in ('rascunho','enviado'):raise ValueError('Situação de envio inválida.')
-    payload=body.get('payload');definition=tree(tipo)
+    payload=body.get('payload')
     if not isinstance(payload,dict):raise ValueError('Preenchimento inválido.')
+    definition=tree(tipo,payload)
     formulario_campo.conferir_responsavel(definition,payload,publicar=status=='enviado')
     conn=bh.get_db()
     try:
@@ -103,7 +145,7 @@ def salvar(tipo):
     import json
     previous=json.loads(old['payload_json']) if old else {}
     payload['correcoes']=previous.get('correcoes',[])
-    formulario_fluxo.preparar(bh.db_target(),definition,payload,previous)
+    preparar(definition,payload,previous,publicar=status=='enviado')
     core.validar(definition,payload,publicar=status=='enviado')
     def event(conn,ident,metadata):
         audit.registrar_evento(bh.get_db,'formulario_interno_salvo',entidade='formularios',entidade_id=ident,
@@ -111,6 +153,16 @@ def salvar(tipo):
     ident=forms.salvar(bh.db_target(),core.KIND_PREFIX+tipo,payload,user(),uuid_cliente=body.get('uuid'),
         status=status,captura=body.get('captura'),auditar=event)
     return jsonify({'ok':True,'id':ident,'revisao':body['captura']['revisao']})
+
+
+def preparar(definition,payload,previous,publicar):
+    if definition.get('campo_v2'):
+        flow=payload.setdefault('acompanhamento',{})
+        if isinstance(flow,dict):
+            for key in ('retorno','retorno_evento'):
+                flow.pop(key,None)
+    formulario_fluxo.preparar(bh.db_target(),definition,payload,previous)
+    formulario_piloto.enriquecer(bh.db_target(),definition,payload,previous,publicar)
 
 
 @bp.post('/api/formularios/kobo/<tipo>/<int:ident>/revisar')
@@ -121,10 +173,12 @@ def revisar(tipo,ident):
     body=request.get_json(silent=True)
     if not isinstance(body,dict):raise ValueError('Revisão inválida.')
     payload=body.get('payload');decision=body.get('decisao')
+    if row['status']=='oficializado' and decision=='aprovado':
+        return jsonify({'ok':True,'ja_aplicado':True})
     if not isinstance(body.get('etag'),str) or not body['etag']:raise ValueError('Reabra o envio antes de revisar.')
     if row['status'] not in ('enviado','aprovado'):raise ValueError('Aguarde o envio para revisão pelo agente.')
-    definition=tree(tipo)
     if not isinstance(payload,dict):raise ValueError('Preenchimento inválido.')
+    definition=tree(tipo,row['payload'])
     original=row['payload'].get('responsavel')
     if original:
         definition['responsavel']=original
@@ -132,10 +186,12 @@ def revisar(tipo,ident):
     else:payload.pop('responsavel',None)
     payload['correcoes']=formulario_fluxo.correcoes(definition,body.get('correcoes',[]))
     if decision=='aprovado':payload['correcoes']=[]
-    formulario_fluxo.preparar(bh.db_target(),definition,payload,row['payload'])
+    preparar(definition,payload,row['payload'],publicar=decision=='aprovado')
     core.validar(definition,payload,publicar=decision=='aprovado')
     def event(conn):
         audit.registrar_evento(bh.get_db,'formulario_interno_revisado',entidade='formularios',entidade_id=ident,detalhes={'tipo':tipo,'decisao':decision},conn=conn)
+    if decision=='aprovado' and definition.get('campo_v2') and tipo!='PE_CADASTRO':
+        return gravar(tipo,ident,{**row,'payload':payload},definition,aprovacao=body['etag'])
     forms.revisar(bh.db_target(),ident,payload,decision,user(),motivo=body.get('motivo'),esperado=body.get('etag'),auditar=event)
     return jsonify({'ok':True})
 
@@ -147,13 +203,19 @@ def oficializar(tipo,ident):
     if not row:return jsonify({'erro':'Envio não encontrado.'}),404
     if row['status']=='oficializado':return jsonify({'ok':True,'ja_aplicado':True})
     if row['status']!='aprovado':raise ValueError('Revise e aprove antes de aplicar.')
-    definition=tree(tipo)
+    if tipo=='PE_CADASTRO':
+        raise ValueError('Proposta de cadastro. Atualize o PE na página Pontos Estratégicos.')
+    return gravar(tipo,ident,row,tree(tipo,row['payload']))
+
+
+def gravar(tipo,ident,row,definition,aprovacao=None):
     def event(conn,summary):
         audit.registrar_evento(bh.get_db,'formulario_interno_oficializado',entidade='formularios',entidade_id=ident,
             detalhes={'tipo':tipo,'itens':len(summary)},conn=conn)
     config=Path(current_app.config.get('CONFIG_PATH',Path(current_app.root_path)/'config.json'))
     temp=Path(current_app.config['UPLOAD_TEMP']);temp.mkdir(parents=True,exist_ok=True)
-    summary=core.aplicar(bh.db_target(),row,definition,user(),config,temp,event,backup_dir=current_app.config.get('BACKUP_DIR'))
+    summary=core.aplicar(bh.db_target(),row,definition,user(),config,temp,event,
+                       backup_dir=current_app.config.get('BACKUP_DIR'),aprovacao=aprovacao)
     from app_core.app_setup import invalidar_cache_globals
     invalidar_cache_globals()
     return jsonify({'ok':True,'resumo':summary})

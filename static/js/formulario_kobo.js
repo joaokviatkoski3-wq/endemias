@@ -1,4 +1,4 @@
-/* Piloto online. Nenhum conteúdo pessoal é gravado no armazenamento offline. */
+/* Captura de campo e revisão online, com fila local na conta piloto. */
 (() => {
   'use strict';
   const root=document.getElementById('fk-app');if(!root)return;
@@ -6,18 +6,46 @@
   const base='/api/formularios/kobo/'+encodeURIComponent(tipo);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let schema,current,busy=false,dirty=false,seq=0,listRequest=0,geoRequest=0,geoTimer;
+  let localPack=null,referenceCatalog=null,deviceLocked=false;
+  const fieldStore=window.CampoOffline;
+  const useLocal=()=>Boolean(fieldStore && localPack && !deviceLocked && (localPack.validade>Date.now() || navigator.onLine));
   const geoCache=new Map();
   function fixed(n){return (current?.payload?.responsavel||(!review&&current?.status==='novo'?schema?.responsavel:null))?.campos?.[n.path];}
   function anchor(){for(const n of all(schema.nodes)){const code=fixed(n);if(!code)continue;const raw=current.payload.values;raw[n.path]=n.kind==='select_multiple'?[...new Set([code,...String(raw[n.path]||'').split(/\s+/).filter(Boolean)])].join(' '):code;}}
   let autoTimer,autoFlight=null,pendingSave=null,pendingSerial=0,editSerial=0,saveBlocked=false;
   const saveMessage=text=>$('fk-save-status').textContent=text;
-  function editable(){return current&&!review&&['novo','rascunho','devolvido'].includes(current.status);}
-  function scheduleSave(delay=1800){clearTimeout(autoTimer);if(editable()&&dirty&&!busy&&!saveBlocked)autoTimer=setTimeout(()=>autoSave(),delay);}
+  function editable(){return current&&!review&&!deviceLocked&&['novo','rascunho','devolvido'].includes(current.status);}
+  function scheduleSave(delay=useLocal()?450:1800){clearTimeout(autoTimer);if(editable()&&dirty&&!busy&&!saveBlocked)autoTimer=setTimeout(()=>autoSave(),delay);}
+  async function saveDevice(statusName){
+    if(!useLocal() || current.id)throw Error('Prepare o aparelho com internet ou sincronize pela página Campo offline.');
+    const queued=statusName==='fila',revision=(current.captura.revisao||0)+1;
+    const payload=structuredClone(current.payload);
+    payload.fim=timestamp();
+    const request=queued?{usuario:owner,uuid:current.uuid,status:'enviado',payload,
+      captura:{versao:1,revisao:revision,dispositivo:current.captura.dispositivo}}:null;
+    const row=await fieldStore.salvar({usuario:owner,tipo,uuid:current.uuid,status:statusName,payload,request,
+      captura:current.captura,atualizado:Date.now()},current.localVersion||0);
+    current.localVersion=row.localVersion;
+    current.status=queued?'fila':'rascunho';
+    history.replaceState(null,'',location.pathname+'?local='+current.uuid);
+  }
   async function autoSave(){
     if(saveBlocked)return false;
     if(autoFlight)return autoFlight;
     if(!editable()||!dirty||busy)return true;
-    if(!navigator.onLine){saveMessage('Sem conexão: alterações ainda não salvas. Mantenha a tela aberta.');return false;}
+    if(useLocal()&&!current.id){
+      const serial=editSerial;
+      saveMessage('Salvando neste aparelho…');
+      autoFlight=saveDevice('rascunho').then(()=>{
+        dirty=serial!==editSerial;
+        saveMessage(dirty?'Há novas alterações aguardando gravação.':'Rascunho salvo neste aparelho.');
+        return true;
+      }).catch(e=>{saveMessage(e.message);return false;}).finally(()=>{
+        autoFlight=null;visibility();if(dirty)scheduleSave(3000);
+      });
+      return autoFlight;
+    }
+    if(!navigator.onLine){saveMessage('Conecte-se para salvar este rascunho do servidor.');return false;}
     const active=current;
     if(!pendingSave){pendingSerial=editSerial;current.payload.fim=timestamp();pendingSave={usuario:owner,uuid:current.uuid,payload:structuredClone(current.payload),status:'rascunho',captura:{versao:1,revisao:(current.captura.revisao||0)+1,dispositivo:current.captura.dispositivo}};}
     const request=pendingSave,serial=pendingSerial;saveMessage('Salvando rascunho…');
@@ -33,7 +61,7 @@
     }catch(e){if(e.http&&e.http<500)pendingSave=null;if(e.http===409)saveBlocked=true;saveMessage('Não foi possível confirmar o salvamento. '+e.message);return false;}finally{autoFlight=null;if(current===active){visibility();if(dirty)scheduleSave(30000);}}})();
     return autoFlight;
   }
-  const states={rascunho:'Rascunho recebido pelo sistema',enviado:'Enviado para revisão',devolvido:'Devolvido para correção',aprovado:'Aprovado; aguarda aplicação',oficializado:'Aplicado aos registros oficiais'};
+  const states={rascunho:'Rascunho',fila:'Na fila deste aparelho',enviado:'Enviado para revisão',devolvido:'Devolvido para correção',aprovado:'Aprovado',oficializado:'Aplicado aos registros oficiais'};
   function uuid(){if(crypto.randomUUID)return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=[...b].map(v=>v.toString(16).padStart(2,'0')).join('');return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);}
   function timestamp(){const now=new Date(),offset=-now.getTimezoneOffset(),local=new Date(now.getTime()+offset*60000).toISOString().slice(0,-1);return local+(offset>=0?'+':'-')+String(Math.floor(Math.abs(offset)/60)).padStart(2,'0')+':'+String(Math.abs(offset)%60).padStart(2,'0');}
   function status(text,error=false){$('fk-status').textContent=text;$('fk-status').className=error?'rgc-error':'rgc-notice';}
@@ -84,6 +112,73 @@
     if(pair&&n===pair.street){const code=context[pair.q.name],chosen=pair.q.options.find(o=>o.value===String(code));if(chosen&&option.value!==chosen.attrs.logradouro)return false;}
     return evaluate(n.filter,context,'',option.attrs);
   }
+  const key=value=>String(value||'').normalize('NFD').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const groupPath=node=>node.path.split('/').slice(0,-1).join('/');
+  function catalogOptions(node,raw){
+    const type=node.catalogo,refs=referenceCatalog||{},siblings=all(schema.nodes)
+      .filter(other=>groupPath(other)===groupPath(node));
+    const loc=siblings.find(other=>other.geo==='localidade'||other.catalogo==='localidade');
+    const localityCode=loc?raw[loc.path]:'';
+    const locality=loc?.options?.find(o=>o.value===String(localityCode))?.label||localityCode;
+    const blocks=refs.areas?.[key(locality)]||{};
+    if(type==='localidade')return (refs.localidades||[]).map(name=>({id:name,nome:name}));
+    if(type==='quarteirao')return Object.keys(blocks).sort((a,b)=>a.localeCompare(b,'pt-BR',{numeric:true})).map(id=>({id,nome:id}));
+    if(type==='logradouro'){
+      const block=siblings.find(other=>other.catalogo==='quarteirao');
+      const value=raw[block?.path]||'';
+      return (blocks[value]||blocks[Object.keys(blocks).find(b=>key(b).replace(/^0+/,'')===key(value).replace(/^0+/,''))]||[]).map(id=>({id,nome:id}));
+    }
+    if(type==='equipamento'){
+      const category=current.payload.values.Onde_vai_ser_realizado_o_trata;
+      return (refs.equipamento||[]).filter(r=>r.categoria===category)
+        .map(r=>({...r,nome:r.nome+(r.bairro?' — '+r.bairro:'')}));
+    }
+    if(type==='ovitrampas')return (refs.ovitrampa||[]).map(r=>({...r,nome:'#'+r.id+(r.localidade?' — '+r.localidade:'')}));
+    return (refs[type]||[]).filter(r=>key(r.localidade)===key(locality) && locality)
+      .map(r=>({...r,nome:type==='pe'?r.codigo_pe+' — '+r.nome:'#'+r.id+(r.logradouro?' — '+r.logradouro:'')}));
+  }
+  function catalogControl(n,id,binding,value){
+    if(n.catalogo==='ovitrampas'){
+      return `<input type="search" id="${id}-search" data-trap-search="${id}" aria-label="Buscar ovitrampa por número ou localidade" placeholder="Buscar por número ou localidade"><div id="${id}" role="group" aria-labelledby="${id}-label" class="fk-multiple fk-team fk-traps" ${binding}></div><small id="${id}-count"></small>`;
+    }
+    if(['quarteirao','logradouro'].includes(n.catalogo)){
+      return `<select id="${id}" data-catalog-address="${id}-text"></select><input id="${id}-text" type="text" ${binding} value="${esc(value)}" aria-label="${esc(n.label)} manual" maxlength="${n.catalogo==='quarteirao'?20:200}" ${n.catalogo==='quarteirao'?'inputmode="numeric"':''} hidden>`;
+    }
+    return `<select id="${id}" ${binding}></select><small id="${id}-preview" class="fk-catalog-detail"></small>`;
+  }
+  function refreshCatalog(control,node,raw){
+    const options=catalogOptions(node,raw),value=String(raw[node.path]??'');
+    if(node.catalogo==='ovitrampas'){
+      const selected=new Set(value.split(/\s+/).filter(Boolean)),filter=key($(control.id+'-search').value);
+      const optionsById=new Map(options.map(row=>[String(row.id),row.nome]));
+      for(const id of selected)if(!optionsById.has(id))optionsById.set(id,'#'+id);
+      const html=[...optionsById].filter(([id,label])=>selected.has(id)||key(label).includes(filter))
+        .map(([id,label])=>`<label><input type="checkbox" value="${esc(id)}" ${selected.has(id)?'checked':''}><span>${esc(label)}</span></label>`).join('');
+      if(control.dataset.options!==html){control.innerHTML=html;control.dataset.options=html;}
+      $(control.id+'-count').textContent=selected.size?selected.size+' selecionada(s)':'Selecione as armadilhas relacionadas a esta visita.';
+      return;
+    }
+    const address=control.tagName==='INPUT',select=address?$(control.id.replace(/-text$/,'')):control;
+    const multiple=select.multiple,other='__vsatt_outros__';
+    const present=options.some(row=>row.id===value);
+    const manual=address&&(select.dataset.manual==='1'||Boolean(value)&&!present);
+    const legacy=current.payload.referencia_campo;
+    const extra=!address && !multiple && value && !present?
+      `<option value="${esc(value)}">${esc(legacy?.id===value?legacy.nome||'#'+value:value)}</option>`:'';
+    const html=(multiple?'':'<option value="">Selecione…</option>')+options.map(row=>
+      `<option value="${esc(row.id)}">${esc(row.nome)}</option>`).join('')+extra+
+      (address?`<option value="${other}">Outros — digitar</option>`:'');
+    if(select.dataset.options!==html){select.innerHTML=html;select.dataset.options=html;}
+    if(multiple){
+      const selected=new Set(value.split(/\s+/));
+      for(const option of select.options)option.selected=selected.has(option.value);
+    }else select.value=manual?other:value;
+    if(address)control.hidden=!manual;
+    const preview=$(control.id+'-preview');
+    const match=options.find(row=>row.id===value)||(legacy?.id===value?legacy:null);
+    if(preview)preview.textContent=match?[match.logradouro,match.numero,match.quarteirao?'Quarteirão '+match.quarteirao:'']
+      .filter(Boolean).join(' · '):'';
+  }
   function draw(nodes,group='',index=-1){
     const ordered=[...nodes];
     const street=ordered.findIndex(n=>n.geo==='logradouro'),block=ordered.findIndex(n=>n.geo==='quarteirao'&&!n.name.toLowerCase().includes('outro'));
@@ -96,13 +191,14 @@
         return `<fieldset class="fk-section fk-node" ${attrs}><legend>${esc(n.label)}</legend>${rows.map((row,i)=>`<div class="fk-row"><strong>Registro ${i+1}</strong><button type="button" class="btn btn-ghost" data-remove="${esc(n.path)}" data-row="${i}">Remover registro ${i+1}</button>${draw(n.children,n.path,i)}</div>`).join('')}<button type="button" class="btn btn-outline" data-add="${esc(n.path)}">Adicionar registro</button></fieldset>`;
       }
       const id='fk-field-'+(++seq),binding=attrs+' data-field="1"';let control;
-      if(n.kind==='select_multiple')control=`<div id="${id}" role="group" aria-labelledby="${id}-label" class="fk-multiple ${n.equipe?'fk-team':''}" ${binding}>${n.options.map(o=>`<label data-option="${esc(o.value)}"><input type="checkbox" value="${esc(o.value)}" ${String(value).split(/\s+/).includes(o.value)?'checked':''}><span>${esc(o.label)}${fixed(n)===o.value?' · responsável':''}</span></label>`).join('')}</div>`;
+      if(n.catalogo)control=catalogControl(n,id,binding,value);
+      else if(n.kind==='select_multiple')control=`<div id="${id}" role="group" aria-labelledby="${id}-label" class="fk-multiple ${n.equipe?'fk-team':''}" ${binding}>${n.options.map(o=>`<label data-option="${esc(o.value)}"><input type="checkbox" value="${esc(o.value)}" ${String(value).split(/\s+/).includes(o.value)?'checked':''}><span>${esc(o.label)}${fixed(n)===o.value?' · responsável':''}</span></label>`).join('')}</div>`;
       else if(n.kind==='select_one')control=`<select id="${id}" ${binding}><option value="">Selecione…</option>${n.options.map(o=>`<option value="${esc(o.value)}" ${String(value)===o.value?'selected':''}>${esc(o.label)}</option>`).join('')}</select>`;
       else if(n.kind==='text'&&/observ|descri|coment/i.test(n.name))control=`<textarea id="${id}" ${binding} maxlength="4000" rows="3">${esc(value)}</textarea>`;
       else{
         const suggested=n.geo&&['quarteirao','logradouro'].includes(n.geo)&&!n.kind.startsWith('select_');
         const type=suggested?'text':n.kind==='date'?'date':n.kind==='time'?'time':n.kind==='integer'||n.kind==='decimal'?'number':'text';
-        control=(suggested?`<select class="fk-pick" data-suggestion="${id}" aria-label="Sugestões de ${esc(n.label)}" hidden><option value="">Selecione uma sugestão ou digite abaixo</option></select>`:'')+`<input id="${id}" ${binding} type="${type}" ${type==='number'?`min="0" step="${n.kind==='integer'?'1':'any'}"`:''} value="${esc(value)}" ${suggested?`data-geo="${n.geo}" inputmode="${n.geo==='quarteirao'?'numeric':'text'}"`:''} maxlength="4000" autocomplete="off">${suggested?'<small>Escolha uma sugestão ou digite. Se não houver opções, a digitação continua disponível.</small>':''}`;
+        control=(suggested?`<select class="fk-pick" data-suggestion="${id}" aria-label="Sugestões de ${esc(n.label)}" hidden><option value="">Selecione uma sugestão ou digite abaixo</option></select>`:'')+`<input id="${id}" ${binding} type="${type}" ${type==='number'?`min="0" step="${n.kind==='integer'?'1':'any'}"`:''} value="${esc(value)}" ${suggested?`data-geo="${n.geo}" inputmode="${n.geo==='quarteirao'?'numeric':'text'}"`:''} ${n.somente_digitos?'inputmode="numeric" pattern="[0-9]+" maxlength="40"':'maxlength="4000"'} autocomplete="off">${suggested?'<small>Escolha uma sugestão ou digite. Se não houver opções, a digitação continua disponível.</small>':''}`;
       }
       return `<div class="fk-field fk-node" ${attrs}><label id="${id}-label" for="${id}">${esc(n.label)} <span class="fk-required" aria-label="obrigatório" hidden>*</span></label>${control}${n.hint?`<small>${esc(n.hint)}</small>`:''}${review?`<label class="fk-correction-label">Orientação de correção<textarea data-correction="${esc(n.path)}" maxlength="500" rows="2">${esc((current.payload.correcoes||[]).find(c=>c.campo===n.path)?.mensagem||'')}</textarea></label>`:(current.payload.correcoes||[]).filter(c=>c.campo===n.path).map(c=>`<p class="fk-correction">Correção solicitada: ${esc(c.mensagem)}</p>`).join('')}</div>`;
     }).join('')+'</div>';
@@ -113,7 +209,9 @@
       const n=map.get(el.dataset.path),row=data(el.dataset.group,Number(el.dataset.index)),context=ctx(row);
       el.hidden=n.kind==='hidden'||!evaluate(n.relevant,context);
       const required=el.querySelector(':scope > label .fk-required');if(required)required.hidden=!evaluate(n.required,context,row[n.path]??'');
-      if(n.kind.startsWith('select_')){
+      if(n.catalogo){
+        refreshCatalog(el.querySelector('[data-field]'),n,row);
+      }else if(n.kind.startsWith('select_')){
         const control=el.querySelector('[data-field]');const options=new Map(n.options.map(o=>[o.value,o]));
         control.querySelectorAll(n.kind==='select_one'?'option[value]':'[data-option]').forEach(opt=>{
           const code=opt.value??opt.dataset.option;if(!code)return;const option=options.get(code);
@@ -122,16 +220,21 @@
         });
       }
     });
-    const locked=review?!['enviado','aprovado'].includes(current.status):['enviado','aprovado','oficializado'].includes(current.status);
-    $('fk-novo').disabled=busy;$('fk-listar').disabled=busy;
+    const locked=deviceLocked || (!navigator.onLine && fieldStore && !useLocal()) ||
+      (review?!['enviado','aprovado'].includes(current.status):['fila','enviado','aprovado','oficializado'].includes(current.status));
+    $('fk-novo').disabled=busy||deviceLocked;$('fk-listar').disabled=busy||deviceLocked||!navigator.onLine;
     $('fk-campos').querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=locked||busy);
     $('fk-acoes').querySelectorAll('button').forEach(el=>{
-      const a=el.dataset.action;el.disabled=busy||locked||review&&(a==='aplicar'?current.status!=='aprovado':!['enviado','aprovado'].includes(current.status));
+      const a=el.dataset.action;
+      el.disabled=busy||locked||review&&(a==='aplicar'?current.status!=='aprovado':!['enviado','aprovado'].includes(current.status));
+      if(review&&a==='aprovar')el.textContent=schema.campo_v2&&tipo!=='PE_CADASTRO'?'Aprovar e registrar':'Aprovar revisão';
+      if(review&&a==='aplicar')el.hidden=tipo==='PE_CADASTRO'||schema.campo_v2&&current.status!=='aprovado';
     });
     $('fk-campos').querySelectorAll('[data-field]').forEach(control=>{const n=map.get(control.dataset.path),code=fixed(n);if(code){if(n.kind==='select_one')control.disabled=true;else for(const input of control.querySelectorAll('input'))if(input.value===code){input.checked=true;input.disabled=true;}}});
     const sender=current.autor||current.payload.responsavel||schema.responsavel;
     $('fk-responsavel').textContent='Responsável pelo envio: '+(sender?.nome||'Conta autenticada')+(current.payload.responsavel?.agente?' · Agente: '+current.payload.responsavel.agente:'')+(current.autor?.enviado_em?' · Enviado em '+current.autor.enviado_em:'')+(!review&&!sender?.id_agente&&!current.autor?' · Falta vincular a conta a um agente. Salve como rascunho e peça ao gestor para conferir o vínculo.':'');
     const flow=current.payload.acompanhamento||{},confirmed=flow.retorno_evento;
+    $('fk-retorno').hidden=!flow.retorno;
     for(const id of ['fk-retorno-data','fk-retorno-hora','fk-retorno-nota'])$(id).disabled=locked||busy||Boolean(confirmed);
     $('fk-retorno-situacao').textContent=confirmed?'Retorno confirmado na agenda — evento #'+confirmed:'';
     if($('fk-confirmar-retorno'))$('fk-confirmar-retorno').disabled=busy||!['aprovado','oficializado'].includes(current.status)||!flow.retorno||Boolean(confirmed);
@@ -142,9 +245,13 @@
   function render(){anchor();const notes=current.payload.correcoes||[];$('fk-correcao-resumo').hidden=!notes.length;$('fk-correcao-resumo').innerHTML='<strong>Orientações da revisão</strong>'+notes.map(c=>`<p>${esc(all(schema.nodes).find(n=>n.path===c.campo)?.label||c.campo)}: ${esc(c.mensagem)}</p>`).join('');const proposal=current.payload.acompanhamento?.retorno||{};$('fk-retorno-data').value=proposal.data||'';$('fk-retorno-hora').value=proposal.hora||'';$('fk-retorno-nota').value=proposal.observacao||'';seq=0;$('fk-campos').innerHTML=draw(schema.nodes);$('fk-editor').hidden=false;visibility();scheduleGeo();}
   function initial(nodes,flat){for(const n of nodes){if(n.kind==='begin_repeat')continue;if(n.children)initial(n.children,flat);else if(n.default!==''&&n.default!==undefined&&!String(n.default).includes('${'))flat[n.path]=String(n.default);}}
   async function fresh(){
-    if(!schema||busy||autoFlight)return;
+    if(!schema||busy||autoFlight||deviceLocked)return;
     if(dirty&&!await confirmacaoDupla('Descartar as alterações que ainda não foram salvas?'))return;
     clearTimeout(autoTimer);pendingSave=null;saveBlocked=false;saveMessage('');
+    if(navigator.onLine&&!schema.campo_v2&&current?.id){
+      schema=await api(base+'/esquema');
+      if(schema.campo_v2)referenceCatalog=await api(base+'/catalogos');
+    }
     current={uuid:uuid(),status:'novo',captura:{versao:1,revisao:0,dispositivo:uuid()},payload:{versao:schema.versao,values:{},repeats:{},responsavel:schema.responsavel,inicio:timestamp()}};
     const planned=new URL(location.href).searchParams;
     if(planned.has('agenda'))current.payload.acompanhamento={agenda:Number(planned.get('agenda')),ocorrencia:planned.get('ocorrencia')||''};
@@ -161,7 +268,11 @@
   async function open(id){
     if(dirty&&!await confirmacaoDupla('Abrir outro envio e descartar as alterações ainda não salvas?'))return;
     if(autoFlight)await autoFlight;clearTimeout(autoTimer);pendingSave=null;
-    saveBlocked=false;current=await api(base+'/'+id);if(!review&&['rascunho','devolvido'].includes(current.status)&&!current.payload.responsavel)current.payload.responsavel=schema.responsavel;dirty=false;render();history.replaceState(null,'',location.pathname+'?envio='+id);
+    saveBlocked=false;current=await api(base+'/'+id);
+    if(schema.versao!==current.payload.versao){
+      schema=await api(base+'/esquema?envio='+encodeURIComponent(id));
+    }
+    if(!review&&['rascunho','devolvido'].includes(current.status)&&!current.payload.responsavel)current.payload.responsavel=schema.responsavel;dirty=false;render();history.replaceState(null,'',location.pathname+'?envio='+id);
     status('Envio carregado do servidor.');
   }
   async function action(name){
@@ -170,7 +281,40 @@
     try{
       if(name==='rascunho'||name==='enviado'||name==='proxima'){
         const next=name==='proxima';if(next)name='enviado';
-        if(name==='enviado'&&!await confirmacaoDupla('Enviar para revisão? O gestor precisa aprovar e aplicar antes de alterar os registros oficiais.'))return;
+        if(name==='enviado'&&!await confirmacaoDupla(useLocal()?'Colocar este preenchimento na fila de envio? A gestão poderá revisá-lo após a sincronização.':'Enviar este preenchimento para revisão?'))return;
+        if(useLocal()&&!current.id){
+          if(name==='enviado'){
+            for(const field of $('fk-campos').querySelectorAll('.fk-node')){
+              if(field.closest('[hidden]')||!field.querySelector(':scope > label .fk-required:not([hidden])'))continue;
+              const raw=data(field.dataset.group,Number(field.dataset.index));
+              const value=String(raw[field.dataset.path]??'').trim();
+              const label=field.querySelector('label').innerText.replace(/\s*\*$/,'');
+              if(!value)throw Error('Preencha '+label+'.');
+              if(field.querySelector('[pattern="[0-9]+"]')&&!/^[0-9]{1,40}$/.test(value))throw Error('Informe somente números em '+label+'.');
+            }
+          }
+          await saveDevice(name==='enviado'?'fila':'rascunho');
+          dirty=false;
+          saveMessage(name==='enviado'?'Guardado na fila. Sincronize ao recuperar internet.':'Rascunho salvo neste aparelho.');
+          status(name==='enviado'?'Lançamento guardado neste aparelho para envio.':'Rascunho salvo neste aparelho.');
+          if(name==='enviado'&&navigator.onLine){
+            try{
+              const result=await fieldStore.sync(owner,current.uuid);
+              if(result.sent){
+                const sent=await fieldStore.obter(owner,current.uuid);
+                await open(sent.id);
+                saveMessage('Recebido pelo sistema para revisão.');
+              }else if(result.errors.length){
+                const saved=await fieldStore.obter(owner,current.uuid);
+                current.localVersion=saved.localVersion;
+                if(saved.status==='corrigir')current.status='rascunho';
+                status(result.errors[0],true);
+              }
+            }catch(e){status('Lançamento preservado neste aparelho. '+e.message,true);}
+          }
+          if(next){$('fk-proxima').hidden=false;$('fk-proxima').scrollIntoView({behavior:'smooth'});}
+          return;
+        }
         const revision=(current.captura.revisao||0)+1;
         current.payload.fim=timestamp();
         const receipt=await api(base,'POST',{usuario:owner,uuid:current.uuid,payload:current.payload,status:name,
@@ -179,7 +323,8 @@
         dirty=false;current.captura.revisao=revision;await open(receipt.id);if(next){$('fk-proxima').hidden=false;$('fk-proxima').scrollIntoView({behavior:'smooth'});}status(name==='rascunho'?'Rascunho salvo no servidor.':'Recebido para revisão; ainda não aplicado aos registros oficiais.');
       }else{
         if(!current.id)throw Error('Abra um envio recebido antes de revisar.');
-        if(!await confirmacaoDupla(name==='aplicar'?'Aplicar este envio aprovado aos registros oficiais?':'Confirmar esta decisão de revisão?'))return;
+        const official=name==='aplicar'||name==='aprovar'&&schema.campo_v2&&tipo!=='PE_CADASTRO';
+        if(!await confirmacaoDupla(official?'Registrar este lançamento definitivamente após a revisão?':'Confirmar esta decisão de revisão?'))return;
         if(name==='retorno')await api(base+'/'+current.id+'/confirmar-retorno','POST',{});
         else if(name==='aplicar')await api(base+'/'+current.id+'/oficializar','POST',{});
         else{
@@ -187,7 +332,7 @@
           if(name==='devolver'&&!motivo?.trim())return;
           await api(base+'/'+current.id+'/revisar','POST',{payload:current.payload,etag:current.etag,correcoes:[...$('fk-campos').querySelectorAll('[data-correction]')].filter(el=>el.value.trim()).map(el=>({campo:el.dataset.correction,mensagem:el.value.trim()})).filter((c,i,arr)=>arr.findIndex(x=>x.campo===c.campo)===i),decisao:name==='aprovar'?'aprovado':'devolvido',motivo});
         }
-        dirty=false;await open(current.id);status(name==='aplicar'?'Aplicado com confirmação do sistema.':'Revisão registrada.');
+        dirty=false;await open(current.id);status(official?'Aplicado com confirmação do sistema.':'Revisão registrada.');
       }
       await list();
     }catch(e){if(['rascunho','enviado','proxima'].includes(name)&&(!e.http||e.http>=500||e.http===409))saveBlocked=true;status(e.message,true);}finally{busy=false;visibility();if(dirty)scheduleSave();}
@@ -196,7 +341,7 @@
   async function loadGeo(){
     if(!current)return;const token=geoRequest;
     for(const input of $('fk-campos').querySelectorAll('input[data-geo]')){
-      if(input.closest('[hidden]'))continue;
+      if(input.closest('[hidden]')||!input.parentElement.querySelector('[data-suggestion]'))continue;
       const n=all(schema.nodes).find(n=>n.path===input.dataset.path),parent=n.path.split('/').slice(0,-1).join('/');
       const peers=all(schema.nodes).filter(x=>x.path.split('/').slice(0,-1).join('/')===parent);
       const loc=peers.find(x=>x.geo==='localidade');if(!loc)continue;
@@ -212,8 +357,23 @@
       pick.innerHTML='<option value="">Selecione uma sugestão ou digite abaixo</option>'+options.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');pick.hidden=!options.length;
     }
   }
-  root.addEventListener('change',event=>{const pick=event.target.closest('[data-suggestion]');if(!pick||!pick.value||busy)return;const input=$(pick.dataset.suggestion);input.value=pick.value;input.dispatchEvent(new Event('input',{bubbles:true}));pick.value='';});
+  root.addEventListener('change',event=>{
+    const field=event.target.closest('[data-catalog-address]');
+    if(field&&!busy){
+      const input=$(field.dataset.catalogAddress);
+      field.dataset.manual=field.value==='__vsatt_outros__'?'1':'0';
+      input.value=field.dataset.manual==='1'?'':field.value;
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+      if(field.dataset.manual==='1')input.focus();
+      return;
+    }
+    const pick=event.target.closest('[data-suggestion]');
+    if(!pick||!pick.value||busy)return;
+    const input=$(pick.dataset.suggestion);input.value=pick.value;
+    input.dispatchEvent(new Event('input',{bubbles:true}));pick.value='';
+  });
   root.addEventListener('input',event=>{
+    if(event.target.hasAttribute('data-trap-search')){visibility();return;}
     if(['fk-retorno-data','fk-retorno-hora','fk-retorno-nota'].includes(event.target.id)&&current){
       current.payload.acompanhamento??={};const day=$('fk-retorno-data').value;
       current.payload.acompanhamento.retorno=day?{data:day,hora:$('fk-retorno-hora').value,observacao:$('fk-retorno-nota').value}:null;
@@ -224,13 +384,28 @@
     const raw=data(control.dataset.group,Number(control.dataset.index));
     const changed=all(schema.nodes).find(n=>n.path===control.dataset.path);
     const previous=raw[control.dataset.path];
-    raw[control.dataset.path]=control.classList.contains('fk-multiple')?[...control.querySelectorAll('input:checked')].map(el=>el.value).join(' '):control.value;
+    raw[control.dataset.path]=control.classList.contains('fk-multiple')?[...control.querySelectorAll('input:checked')].map(el=>el.value).join(' '):
+      control.multiple?[...control.selectedOptions].map(el=>el.value).join(' '):control.value;
+    if(changed?.catalogo==='localidade'&&previous!==control.value){
+      for(const n of all(schema.nodes)){
+        if(groupPath(n)===groupPath(changed)&&['pe','ovitrampa','quarteirao','logradouro'].includes(n.catalogo))raw[n.path]='';
+      }
+      delete current.payload.referencia_campo;
+    }
+    if(changed?.name==='Onde_vai_ser_realizado_o_trata'&&previous!==control.value){
+      for(const n of all(schema.nodes))if(n.catalogo==='equipamento')raw[n.path]='';
+      delete current.payload.referencia_campo;
+    }
+    if(changed?.name==='vsatt_e_ouve'&&control.value!=='sim'){
+      const protocol=all(schema.nodes).find(n=>n.name==='vsatt_protocolo');
+      if(protocol){delete raw[protocol.path];const field=$('fk-campos').querySelector('[data-field][data-path="'+CSS.escape(protocol.path)+'"]');if(field)field.value='';}
+    }
     if(changed?.geo&&previous!==raw[changed.path]){
       const parent=changed.path.split('/').slice(0,-1).join('/');
       for(const n of all(schema.nodes)){
         if(n.path===changed.path||n.path.split('/').slice(0,-1).join('/')!==parent)continue;
         const reset=changed.geo==='localidade'&&['quarteirao','logradouro'].includes(n.geo)||changed.geo==='quarteirao'&&n.geo==='logradouro'||changed.geo==='logradouro'&&n.geo==='quarteirao'&&JSON.stringify(n.filter).toLowerCase().includes('logradouro');
-        if(reset){raw[n.path]='';for(const el of $('fk-campos').querySelectorAll('[data-field]'))if(el.dataset.path===n.path&&el.dataset.group===control.dataset.group)el.value='';}
+        if(reset){raw[n.path]='';for(const el of $('fk-campos').querySelectorAll('[data-field]'))if(el.dataset.path===n.path&&el.dataset.group===control.dataset.group){el.value='';const pick=$(el.id.replace(/-text$/,''));if(pick)delete pick.dataset.manual;}}
       }
     }
     if(changed?.geo==='quarteirao'){const pair=geoPair(changed),chosen=pair?.q.options.find(o=>o.value===String(raw[changed.path]));if(chosen&&pair.street){raw[pair.street.path]=chosen.attrs.logradouro;for(const el of $('fk-campos').querySelectorAll('[data-field]'))if(el.dataset.path===pair.street.path&&el.dataset.group===control.dataset.group)el.value=chosen.attrs.logradouro;}}
@@ -249,8 +424,36 @@
   $('fk-filtro')?.addEventListener('change',()=>list().catch(e=>status(e.message,true)));
   $('fk-desvincular').addEventListener('click',()=>{delete current.payload.acompanhamento.agenda;delete current.payload.acompanhamento.ocorrencia;dirty=true;editSerial++;visibility();scheduleSave();});
   $('fk-criar-proxima')?.addEventListener('click',async()=>{const prior=structuredClone(current.payload.values);await fresh();for(const n of all(schema.nodes)){if(n.equipe&&$('fk-reusar-equipe').checked||n.geo==='localidade'&&$('fk-reusar-local').checked||n.kind==='date'&&['Data','Digite_a_data'].includes(n.name)&&$('fk-reusar-data').checked){if(prior[n.path]!==undefined)current.payload.values[n.path]=prior[n.path];}}$('fk-proxima').hidden=true;dirty=true;editSerial++;render();scheduleSave();$('fk-app').scrollIntoView({behavior:'smooth'});});
-  window.addEventListener('online',()=>scheduleSave(500));
+  window.addEventListener('online',()=>{if(current)visibility();scheduleSave(500);});
   window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});
-  window.addEventListener('offline',()=>status('Sem conexão. Mantenha esta tela aberta; estes formulários novos ainda não funcionam offline.',true));
-  (async()=>{schema=await api(base+'/esquema');await list(review);$('fk-listar').disabled=false;const id=Number(new URL(location.href).searchParams.get('envio'));if(id)await open(id);else if(!review)await fresh();else status('Abra um envio para revisar.');})().catch(e=>status(e.message,true));
+  window.addEventListener('offline',()=>{
+    status(useLocal()?'Sem internet. Os lançamentos ficam neste aparelho.':'Prepare este aparelho com internet para usar os formulários offline.',!useLocal());
+    if(current)visibility();
+  });
+  window.addEventListener('campo-bloqueado',()=>{
+    deviceLocked=true;referenceCatalog=null;localPack=null;
+    $('fk-editor').hidden=true;$('fk-campos').replaceChildren();$('fk-lista').replaceChildren();
+    status('Entre novamente na conta do piloto para continuar.',true);
+  });
+  (async()=>{
+    const params=new URL(location.href).searchParams,id=Number(params.get('envio')),local=params.get('local');
+    localPack=fieldStore?await fieldStore.pacote(owner):null;
+    if(!review&&!id&&localPack?.esquemas[tipo]){
+      schema=localPack.esquemas[tipo];referenceCatalog=localPack.referencias;
+    }else{
+      schema=await api(base+'/esquema'+(id?'?envio='+id:''));
+      if(schema.campo_v2)referenceCatalog=await api(base+'/catalogos');
+    }
+    $('fk-novo').disabled=review;
+    if(navigator.onLine){$('fk-listar').disabled=false;if(review)await list(true);}
+    else $('fk-listar').disabled=true;
+    if(local&&fieldStore&&localPack){
+      const row=await fieldStore.obter(owner,local);
+      if(!row||row.tipo!==tipo||!row.payload)throw Error('Rascunho indisponível neste aparelho.');
+      if(row.payload.versao!==schema.versao)throw Error('A definição mudou. O rascunho foi preservado.');
+      current={...row,status:row.status==='corrigir'?'rascunho':row.status};
+      render();
+      status(row.erro||'Lançamento recuperado deste aparelho.',Boolean(row.erro));
+    }else if(id)await open(id);else if(!review)await fresh();else status('Abra um envio para revisar.');
+  })().catch(e=>status(e.message,true));
 })();

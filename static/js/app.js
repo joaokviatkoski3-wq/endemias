@@ -631,6 +631,11 @@ async function apiGet(url) {
 }
 
 /* SEC-03: helper para obter token CSRF da meta tag */
+if (!window.confirmacaoDupla) {
+  window.confirmacaoDupla = mensagem =>
+    window.confirm(mensagem) && window.confirm('Confirmar esta ação?');
+}
+
 function getCsrf() {
   return document.querySelector('meta[name="csrf-token"]')?.content || '';
 }

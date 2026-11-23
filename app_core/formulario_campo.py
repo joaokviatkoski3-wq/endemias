@@ -26,6 +26,8 @@ def preparar(tree,usuario,target):
             if len(matches)==1:fields[node['path']]=matches[0]
         name=chave(node['name'])
         node['geo']='localidade' if name.startswith('localidade') else 'quarteirao' if name.startswith(('quarteir','quarteiro')) else 'logradouro' if name.startswith('logradouro') else ''
+        if node.get('catalogo') in {'localidade','quarteirao','logradouro'}:
+            node['geo']=node['catalogo']
     tree['responsavel']={'usuario_id':usuario['id_usuario'],'nome':usuario.get('nome') or usuario.get('usuario'),
         'id_agente':own['id_agente'] if own else None,'agente':own['nome'] if own else None,'campos':fields}
     return tree

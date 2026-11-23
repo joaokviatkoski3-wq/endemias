@@ -416,6 +416,10 @@ def normalizar_destino(value):
         "ovitrampa": "Ovitrampa", "localcomovitrampa": "Ovitrampa",
         "pontoestrategico": "Ponto Estratégico", "pontoestratgico": "Ponto Estratégico",
         "outro": "Outro",
+        "escolasmunicipais": "Escolas Municipais",
+        "cmeis": "CMEIs",
+        "unidadesdesaude": "Unidades de Saúde",
+        "outrosequipamentospublicos": "Outros equipamentos públicos",
     }.get(key, text)
 
 

@@ -11,7 +11,7 @@ from scripts.ativar_interface_setores_windows import main
 
 
 def instalar_definicoes(source=None,home=None):
-    from app_core.formularios_kobo import compilar,TITULOS
+    from app_core.formularios_kobo import compilar,TIPOS_DEFINICOES_KOBO
     if not ctypes.windll.shell32.IsUserAnAdmin():raise PermissionError('Execute como administrador.')
     source=Path(source or ROOT/'.venv/formularios-internos/definicoes.json')
     home=Path(home or 'C:/ProgramData/EndemiasWeb')
@@ -20,7 +20,7 @@ def instalar_definicoes(source=None,home=None):
     raw=source.read_bytes();data=json.loads(raw)
     if not data.get('somente_definicoes') or data.get('respostas_consultadas') is not False or data.get('errors'):
         raise ValueError('Catálogo de definição incompleto.')
-    if {f['tipo'] for f in data['forms']}!=set(TITULOS) or len(data['forms'])!=10:
+    if {f['tipo'] for f in data['forms']}!=set(TIPOS_DEFINICOES_KOBO) or len(data['forms'])!=10:
         raise ValueError('São necessárias as dez definições conferidas.')
     for form in data['forms']:compilar(form)
     destination=home/'formularios-kobo.json'

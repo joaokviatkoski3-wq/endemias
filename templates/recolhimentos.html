@@ -61,7 +61,7 @@
     <div class="table-scroll">
       <table>
         <thead>
-          <tr><th>Data</th><th>Hora</th><th>Localidade</th><th>Agentes</th><th>Materiais</th><th>Total</th><th>Origem</th></tr>
+          <tr><th>Data</th><th>Hora</th><th>Localidade</th><th>Endereço</th><th>Agentes</th><th>Materiais</th><th>Total</th><th>Origem</th></tr>
         </thead>
         <tbody id="rec-body"></tbody>
       </table>
@@ -124,6 +124,7 @@ async function carregarListaRecolhimentos(pagina=1){
       <td>${escapeAttr(r.data || '-')}</td>
       <td>${escapeAttr(r.hora || '-')}</td>
       <td>${escapeAttr(r.localidade || '-')}</td>
+      <td>${escapeAttr([r.logradouro,r.numero,r.quarteirao?'Q. '+r.quarteirao:''].filter(Boolean).join(' · ') || '-')}</td>
       <td>${escapeAttr(r.agentes || r.agentes_texto || '-')}</td>
       <td><div class="rec-materials">
         ${chip('Pneu', r.pneu)}
@@ -135,7 +136,7 @@ async function carregarListaRecolhimentos(pagina=1){
       <td style="font-weight:800;">${recFmt.format(r.total_materiais || 0)}</td>
       <td><span class="rec-chip">${String(r.kobo_uuid || '').startsWith('vsatt-') ? 'Formulário interno' : (r.origem_estrutura === 'legada' ? 'Legado' : 'Kobo')}</span></td>
     </tr>
-  `).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:18px;">Nenhum registro encontrado.</td></tr>';
+  `).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:18px;">Nenhum registro encontrado.</td></tr>';
 }
 function chip(label, value){
   const n = Number(value || 0);

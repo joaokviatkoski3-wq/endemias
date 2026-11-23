@@ -7,6 +7,9 @@
   <h1><span class="icon"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"></span> Formulários</h1>
   <div class="sub">Formulários internos de captura em campo e revisão</div>
 </div>
+{% if piloto_offline %}
+<p><a class="btn btn-primary" href="/formularios/campo-offline">Preparar formulários para uso offline</a></p>
+{% endif %}
 
 <div class="chart-card">
   <div class="chart-hd">

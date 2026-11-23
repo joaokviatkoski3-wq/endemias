@@ -4,7 +4,29 @@ Atualizado em 23/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.10.0 — KML das ovitrampas para campo
+## Candidata 2.11.0 — formulários de campo offline
+
+O agente piloto entra pelo endereço HTTPS do Endemias. Na página Formulários,
+abre Campo offline e toca em Preparar para uso offline antes de sair. Pode
+instalar Campo Endemias pelo navegador. O pacote dura 24 horas e inclui
+localidades, quarteirões e logradouros do RG, PE, ovitrampas e equipamentos.
+Com o pacote pronto, a própria página Formulários abre a central de campo
+sem internet. As sete fichas ficam disponíveis juntas para alternar em campo.
+Rascunhos e fila permanecem neste aparelho por conta. Ao voltar, usa
+Sincronizar envios. O gestor seleciona Aprovar e registrar em Revisar.
+Revisão, gravação e recibo oficial fecham em uma transação. Uma proposta de
+cadastro de PE aprovada fica disponível para atualização manual no cadastro.
+Para uma visita lançada também no Kobo, a gestão confere a origem na revisão.
+O módulo oficial de laboratório e as importações Kobo continuam disponíveis.
+
+A migração PostgreSQL 0038 acrescenta os 110 equipamentos públicos (exceto
+AT-024) e os campos oficiais de protocolo E-Ouve, ovitrampas do bloqueio,
+equipamento da BRI e endereço de Recolhimento. O catálogo preserva coordenadas
+e metadados públicos, com o telefone omitido. A ativação exige backup e o
+instalador confere se a conta informada está vinculada a um agente ativo.
+A homologação no Android do agente ocorre depois da ativação.
+
+## Versão ativa 2.10.0 — KML das ovitrampas para campo
 
 Worktree C:\endemias-interface, branch codex/ovitrampas-kml-campo. Exportação
 POST autenticada na aba Armadilhas, com os filtros de localidade e pesquisa.
@@ -14,7 +36,7 @@ Sem uso de coordenadas locais como substituto. Falha na API impede baixar
 arquivo parcial. Informa registros ignorados, cadastros apenas locais e data
 da consulta. KML com descrição e ExtendedData, até 2.000 pontos e 5 MB conforme
 limites de importação do My Maps. Download privado e auditado por totais.
-Sem migração ou atualização dos cadastros. Ativação pendente.
+Ativada em 23/11/2026 sem migração ou atualização dos cadastros.
 Validação em 23/11: 26 testes de Ovitrampas (incluindo nove novos), 79 de
 Conta Ovos e 26 do instalador passaram. PostgreSQL descartável em modo
 somente leitura e Chromium a 1440/390 px conferidos, incluindo filtros,

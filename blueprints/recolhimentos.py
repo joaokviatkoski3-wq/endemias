@@ -44,7 +44,11 @@ def exportar():
     filtros = _filtros()
     filtros["busca"] = request.args.get("busca", "")
     dados = recolhimentos_core.listar(bh.db_target(), filtros, completo=True)
-    campos = [["data","Data"],["hora","Hora"],["localidade","Localidade"],["agentes","Agentes"],["pneu","Pneus"],["louca_sanitaria","Louça sanitária"],["tv","TV"],["parachoque","Parachoque"],["outros","Outros"],["total_materiais","Total de materiais"],["origem_estrutura","Origem"]]
+    campos = [["data","Data"],["hora","Hora"],["localidade","Localidade"],
+              ["quarteirao","Quarteirão"],["logradouro","Logradouro"],["numero","Número"],
+              ["agentes","Agentes"],["pneu","Pneus"],["louca_sanitaria","Louça sanitária"],
+              ["tv","TV"],["parachoque","Parachoque"],["outros","Outros"],["total_materiais","Total de materiais"],
+              ["origem_estrutura","Origem"]]
     return exportar_csv(dados["registros"], campos, "recolhimentos", bh.db_target(), bh.usuario_atual() or {})
 
 

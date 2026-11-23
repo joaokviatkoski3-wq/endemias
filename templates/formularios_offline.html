@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Formulários de campo offline{% endblock %}
+{% block page_title %}Formulários de campo offline{% endblock %}
+{% block extra_css %}
+<link rel="manifest" href="/manifest-campo.webmanifest">
+<link rel="stylesheet" href="/static/css/formulario_kobo.css?v={{ APP_VERSION }}">
+{% endblock %}
+{% block content %}
+<section id="campo-offline" data-usuario="{{ usuario_atual.id_usuario }}">
+  <div class="page-header"><h1>Formulários de campo offline</h1></div>
+  <p>Prepare o aparelho com internet antes de sair. Ao voltar, sincronize os envios para revisão.</p>
+  <div class="fk-offline-actions">
+    <button class="btn btn-primary" id="campo-offline-preparar" type="button">Preparar para uso offline</button>
+    <button class="btn btn-outline" id="campo-offline-sincronizar" type="button">Sincronizar envios</button>
+    <button class="btn btn-outline" id="campo-offline-instalar" type="button" hidden>Instalar Campo Endemias</button>
+  </div>
+  <p id="campo-offline-status" role="status">Verificando este aparelho…</p>
+  <h2>Formulários</h2>
+  <ul class="fk-offline-forms">
+    {% for form in formularios %}
+    <li><a class="btn btn-outline" data-form="{{ form.tipo }}" href="/formularios/kobo/{{ form.tipo }}">{{ form.titulo }}</a></li>
+    {% endfor %}
+  </ul>
+  <h2>Rascunhos e fila deste aparelho</h2>
+  <ul id="campo-offline-fila"></ul>
+</section>
+{% endblock %}
+{% block extra_js %}
+<script nonce="{{ csp_nonce() }}" src="/static/js/formularios_offline.js?v={{ APP_VERSION }}"></script>
+{% endblock %}

@@ -228,7 +228,8 @@ def obter(target, id_formulario):
             conn.close()
 
 
-def revisar(target, id_formulario, payload, decisao, usuario, motivo=None, *, esperado=None, auditar=None):
+def revisar(target, id_formulario, payload, decisao, usuario, motivo=None, *, esperado=None,
+            auditar=None, transacao_externa=False):
     """Admin corrige o payload e decide aprovar/devolver."""
     if decisao not in (STATUS_APROVADO, STATUS_DEVOLVIDO):
         raise ValueError("Decisão inválida.")
@@ -237,8 +238,9 @@ def revisar(target, id_formulario, payload, decisao, usuario, motivo=None, *, es
     usuario = usuario or {}
     conn, close = _open_connection(target)
     try:
-        ensure_schema(conn)
-        if getattr(conn, "backend", "sqlite") != "postgresql":
+        if not transacao_externa:
+            ensure_schema(conn)
+        if not transacao_externa and getattr(conn, "backend", "sqlite") != "postgresql":
             conn.execute("BEGIN IMMEDIATE")
         lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
         row = conn.execute(
@@ -250,6 +252,8 @@ def revisar(target, id_formulario, payload, decisao, usuario, motivo=None, *, es
             raise campo_protocolo.ConflitoCampo('O envio mudou. Reabra e confira antes de revisar.')
         if row["status"] == STATUS_OFICIALIZADO:
             raise ValueError("Formulário já oficializado.")
+        if transacao_externa and row["status"] not in (STATUS_ENVIADO, STATUS_APROVADO):
+            raise ValueError("Aguarde o envio para revisão pelo agente.")
         reviewed = dict(payload)
         reviewed.pop("_editor", None)  # A revisão de linhas prevalece sobre o editor bruto do aparelho.
         metadata = json.loads(row["payload_json"] or "{}").get(campo_protocolo.META)
@@ -276,10 +280,12 @@ def revisar(target, id_formulario, payload, decisao, usuario, motivo=None, *, es
             raise ValueError("O formulário já foi alterado. Recarregue e confira.")
         if auditar:
             auditar(conn)
-        conn.commit()
+        if not transacao_externa:
+            conn.commit()
         return True
     except Exception:
-        conn.rollback()
+        if not transacao_externa:
+            conn.rollback()
         raise
     finally:
         if close:

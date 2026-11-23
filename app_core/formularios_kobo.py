@@ -13,11 +13,13 @@ import re
 from app_core import formulario_condicoes as cond
 from app_core import setores,permissoes,rg_formulario
 
-TITULOS={'PE':'Ponto Estratégico','TB':'Tratamento de Bloqueio','TBO':'Tratamento de Bloqueio — Ovitrampas',
-    'PVE':'Pesquisa Vetorial Especial','LIRAA':'LIRAa — visita de campo','LARVAS':'Resultados de laboratório',
-    'BRI':'BRI','RECOLHIMENTO':'Recolhimento de materiais','ESPOROTRICOSE':'Esporotricose — visita e animais',
+TITULOS={'PE':'Ponto Estratégico — visita','PE_CADASTRO':'Ponto Estratégico — proposta de cadastro',
+    'TB':'Tratamento de Bloqueio','TBO':'Tratamento de Bloqueio — Ovitrampas',
+    'PVE':'Pesquisa Vetorial Especial (PVE)','LIRAA':'LIRAa — visita de campo','LARVAS':'Resultados de laboratório',
+    'BRI':'Borrifação Residual Intradomiciliar (BRI)','RECOLHIMENTO':'Recolhimento de materiais','ESPOROTRICOSE':'Esporotricose — visita e animais',
     'AMOSTRA_ANIMAIS':'Amostras de Animais'}
 KIND_PREFIX='kobo_'
+TIPOS_DEFINICOES_KOBO=tuple(tipo for tipo in TITULOS if tipo!='PE_CADASTRO')
 
 
 def label(value):
@@ -36,15 +38,18 @@ def carregar(tipo):
 
 def permitido(tipo,usuario):
     if usuario.get('nivel') not in {'usuario','operador','admin','superadmin'} and not (tipo=='LARVAS' and usuario.get('acesso_laboratorio')):return False
-    if tipo not in setores.tipos_kobo():return False
+    if ('PE' if tipo=='PE_CADASTRO' else tipo) not in setores.tipos_kobo():return False
     if usuario.get('somente_laboratorio') and not permissoes.gerencia(usuario) and tipo!='LARVAS':return False
     return tipo!='LARVAS' or permissoes.gerencia(usuario) or bool(usuario.get('acesso_laboratorio'))
 
 
 def catalogo(usuario):
-    return [{'tipo':KIND_PREFIX+k,'titulo':v,'descricao':'Piloto online; revisão antes da gravação.',
+    from app_core import formulario_piloto
+    return [{'tipo':KIND_PREFIX+k,'titulo':v,'descricao':(
+             'Disponível no piloto offline; envio para revisão.' if k in formulario_piloto.TIPOS and formulario_piloto.habilitado(usuario)
+             else 'Revisão antes da gravação.'),
              'href_campo':'/formularios/kobo/'+k,'href_revisao':'/formularios/kobo/'+k+'/revisao'}
-            for k,v in TITULOS.items() if permitido(k,usuario)]
+            for k,v in TITULOS.items() if k!='LARVAS' and permitido(k,usuario)]
 
 
 def compilar(definicao):
@@ -68,6 +73,8 @@ def compilar(definicao):
               'relevant':cond.analisar(row.get('relevant')),'constraint':cond.analisar(row.get('constraint')),
               'constraint_message':label(row.get('constraint_message')),
               'filter':cond.analisar(row.get('choice_filter'))}
+        if row.get('vsatt_catalog'):node['catalogo']=row['vsatt_catalog']
+        if row.get('vsatt_digits'):node['somente_digitos']=True
         if kind in ('begin_group','begin_repeat'):
             node['children']=[];children.append(node);stack.append(node);children=node['children'];continue
         if kind not in ('integer','decimal','text','date','time','hidden','select_one','select_multiple'):
@@ -89,15 +96,22 @@ def percorrer(nodes):
         yield from percorrer(node.get('children',[]))
 
 
-def esquema(tipo,usuario,target):
+def esquema(tipo,usuario,target,versao=None):
     if not permitido(tipo,usuario):raise PermissionError('Formulário não permitido para este perfil/setor.')
-    tree=compilar(carregar(tipo))
+    from app_core import formulario_piloto
+    definition=carregar('PE' if tipo=='PE_CADASTRO' else tipo)
+    original=compilar(definition)
+    if tipo in formulario_piloto.TIPOS and (tipo=='PE_CADASTRO' or versao!=original['versao']):
+        tree=compilar(formulario_piloto.adaptar(definition,tipo))
+        tree['campo_v2']=True
+    else:
+        tree=original
     from app_core.formulario_campo import preparar
     return preparar(tree,usuario,target)
 
 
 def validar(tree,payload,publicar=True):
-    if not isinstance(payload,dict) or set(payload)-{'versao','values','repeats','inicio','fim','responsavel','correcoes','acompanhamento'}:
+    if not isinstance(payload,dict) or set(payload)-{'versao','values','repeats','inicio','fim','responsavel','correcoes','acompanhamento','referencia_campo'}:
         raise ValueError('Conteúdo do formulário inválido.')
     if payload.get('versao')!=tree['versao']:raise ValueError('A definição mudou; reabra e confira o formulário.')
     values=payload.get('values',{});repeats=payload.get('repeats',{})
@@ -141,6 +155,8 @@ def validar(tree,payload,publicar=True):
                 if publicar and cond.avaliar(node['required'],ctx,value):raise ValueError(node['label']+': obrigatório.')
                 continue
             if len(str(value))>4000:raise ValueError(node['label']+': texto muito longo.')
+            if node.get('somente_digitos') and not re.fullmatch(r'[0-9]{1,40}',str(value)):
+                if publicar:raise ValueError(node['label']+': informe somente números.')
             if kind in ('integer','decimal'):
                 try:
                     number=float(str(value).replace(',','.'))
@@ -165,6 +181,9 @@ def registro(tree,payload,uuid_cliente):
     from uuid import UUID
     uid=str(UUID(uuid_cliente))
     values=validar(tree,payload)
+    if tree.get('campo_v2'):
+        from app_core import formulario_piloto
+        formulario_piloto.registro(tree['tipo'],values,payload.get('referencia_campo'))
     agora=datetime.now().isoformat()
     return {**values,'_uuid':'vsatt-'+uid,'start':payload.get('inicio') or agora,
             'end':payload.get('fim') or agora,'_submission_time':agora}
@@ -197,15 +216,18 @@ def preservar_textos_planilhas(paths):
         finally:book.close()
 
 
-def aplicar(target,form,tree,usuario,config_path,temp_root,auditar,backup_dir=None):
+def aplicar(target,form,tree,usuario,config_path,temp_root,auditar,backup_dir=None, *, aprovacao=None):
     """Importação e recibo oficial se confirmam na mesma transação ETL."""
     import tempfile
     from app_core import formularios as forms,kobo_api,db,backup
     import etl
-    payload=form['payload'];payload.pop('_captura_campo',None)
+    payload=dict(form['payload']);payload.pop('_captura_campo',None)
     record=registro(tree,payload,form['uuid_cliente'])
     digest=hashlib.sha256(json.dumps(payload,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
     def lock(conn):
+        if aprovacao is not None:
+            forms.revisar(conn,form['id_formulario'],payload,forms.STATUS_APROVADO,usuario,
+                          esperado=aprovacao,auditar=None,transacao_externa=True)
         suffix=' FOR UPDATE' if getattr(conn,'backend','sqlite')=='postgresql' else ''
         row=conn.execute('SELECT status,payload_json FROM formularios WHERE id_formulario=?'+suffix,(form['id_formulario'],)).fetchone()
         if not row or row['status']!=forms.STATUS_APROVADO:raise ValueError('Envio não aprovado ou já aplicado.')
@@ -216,6 +238,9 @@ def aplicar(target,form,tree,usuario,config_path,temp_root,auditar,backup_dir=No
     def finish(conn,summary):
         total=sum(int(s.get(k) or 0) for s in summary for k in ('visitas_novas','visitas_atualizadas','coletas_novas','resultados_novos','animais_novos','materiais_novos'))
         if not total:raise ValueError('Nenhum dado foi reconhecido para aplicação.')
+        if tree.get('campo_v2'):
+            from app_core import formulario_piloto
+            formulario_piloto.persistir(conn,tree['tipo'],record,payload.get('referencia_campo'))
         forms.marcar_oficializado(conn,form['id_formulario'],usuario,commit=False)
         auditar(conn,summary)
     with backup.operacao_exclusiva(),tempfile.TemporaryDirectory(prefix='formulario-',dir=temp_root) as folder:

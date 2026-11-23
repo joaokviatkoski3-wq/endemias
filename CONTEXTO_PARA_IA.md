@@ -6,13 +6,23 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.10.0 — KML das ovitrampas para campo
+## Candidata 2.11.0 — formulários de campo offline
+
+Worktree `C:\endemias-campo-offline`, branch `codex/formularios-campo-offline`.
+PE (visita e proposta cadastral), TB, TBO, PVE, BRI e Recolhimento. O modo offline
+é liberado a uma única conta de Endemias pelo instalador. Preparação diária com
+internet, rascunhos e fila no aparelho e sincronização para revisão. Aprovar
+registra oficialmente em uma única transação. A proposta cadastral de PE é
+revisada para tratamento manual. Kobo segue em paralelo. Migração 0038 inclui
+os 110 equipamentos públicos e os novos vínculos. Consulte o estado operacional.
+
+## Histórico 2.10.0 — KML das ovitrampas para campo
 
 Aba Armadilhas com exportação KML filtrada. Consulta pública completa ao
 Conta Ovos a cada exportação, usando ID como título e coordenadas remotas.
 Endereço, responsável, telefone e local de instalação vêm do cadastro local.
 Registros sem coordenadas válidas são informados como excluídos do mapa.
-Sem migração. Ativação pendente.
+Ativação confirmada em 23/11/2026 sem migração.
 
 ## Versão ativa 2.9.2 — cards de entregas no estoque
 

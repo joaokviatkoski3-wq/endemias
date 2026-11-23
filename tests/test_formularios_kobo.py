@@ -129,6 +129,43 @@ class ApiFormularioTests(unittest.TestCase):
         self.assertEqual(self.client.post(f'/api/formularios/kobo/BRI/{ident}/oficializar',json={}).status_code,200)
         self.assertEqual(db.scalar(str(self.f.path),'SELECT COUNT(*) FROM bri_registros'),before+1)
 
+    def test_aprovar_v2_registra_na_mesma_operacao_e_repetir_nao_duplica(self):
+        schema = self.client.get('/api/formularios/kobo/BRI/esquema').json
+        payload = preenchimento(schema)
+        body = {'usuario': 5, 'uuid': str(uuid4()), 'status': 'enviado', 'payload': payload,
+                'captura': {'versao': 1, 'revisao': 1, 'dispositivo': str(uuid4())}}
+        response = self.client.post('/api/formularios/kobo/BRI', json=body)
+        self.assertEqual(response.status_code, 200, response.json)
+        ident = response.json['id']
+        item = self.client.get(f'/api/formularios/kobo/BRI/{ident}').json
+        review_body = {'payload': item['payload'], 'etag': item['etag'], 'decisao': 'aprovado'}
+        endpoint = f'/api/formularios/kobo/BRI/{ident}/revisar'
+        before = db.scalar(str(self.f.path), 'SELECT COUNT(*) FROM bri_registros')
+        from app_core import formulario_piloto
+        with mock.patch.object(formulario_piloto, 'persistir', side_effect=ValueError('falha de ensaio')):
+            failure = self.client.post(endpoint, json=review_body)
+        self.assertEqual(failure.status_code, 400, failure.json)
+        self.assertEqual(forms.obter(str(self.f.path), ident)['status'], 'enviado')
+        self.assertEqual(db.scalar(str(self.f.path), 'SELECT COUNT(*) FROM bri_registros'), before)
+        response = self.client.post(endpoint, json=review_body)
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertEqual(forms.obter(str(self.f.path), ident)['status'], 'oficializado')
+        self.assertTrue(self.client.post(endpoint, json=review_body).json['ja_aplicado'])
+        self.assertEqual(db.scalar(str(self.f.path), 'SELECT COUNT(*) FROM bri_registros'), before + 1)
+
+    def test_pacote_offline_restrito_e_resultado_laboratorial_fora_do_campo(self):
+        route = '/api/formularios/kobo/pacote-offline'
+        with mock.patch.dict('os.environ', {'ENDEMIAS_FORMULARIOS_OFFLINE_USUARIO': 'gestor'}):
+            response = self.client.get(route)
+            self.assertEqual(response.status_code, 200, response.json)
+            self.assertEqual(set(response.json['esquemas']), {'PE', 'PE_CADASTRO', 'TB', 'TBO', 'PVE', 'BRI', 'RECOLHIMENTO'})
+            self.assertEqual(len(response.json['referencias']['equipamento']), 110)
+            self.assertNotIn('AT-024', {row['id'] for row in response.json['referencias']['equipamento']})
+            self.assertEqual(self.f.client('endemias', 1).get(route).status_code, 403)
+            self.assertEqual(self.f.client('ambiental', 5).get(route).status_code, 403)
+        self.assertEqual(self.client.get('/formularios/kobo/LARVAS').headers['Location'], '/laboratorio/lancamentos')
+        self.assertEqual(self.client.post('/api/formularios/kobo/LARVAS', json={}).status_code, 403)
+
     def test_setor_conta_e_api_legada_nao_burlam_validacao(self):
         response=self.send();ident=response.json['id']
         self.assertEqual(self.f.client('ambiental',5).get(f'/api/formularios/kobo/BRI/{ident}').status_code,403)

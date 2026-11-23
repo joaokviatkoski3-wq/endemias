@@ -1,6 +1,7 @@
 /* Piloto de RG: salvar no aparelho primeiro; confirmar recebimento antes de limpar. */
 (() => {
   'use strict';
+  const version=new URL(document.currentScript.src).searchParams.get('v');
   const root=document.getElementById('rgc-app');if(!root)return;
   const $=id=>document.getElementById(id), store=window.RGCampoOffline;
   const context=JSON.parse($('rgc-contexto').textContent), owner=Number(document.querySelector('meta[name="offline-user"]')?.content);
@@ -253,7 +254,8 @@
   },true);
   async function worker(){
     if(!('serviceWorker'in navigator))return;
-    const registration=await navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'});
+    const script='/sw.js'+(version?'?v='+encodeURIComponent(version):'');
+    const registration=await navigator.serviceWorker.register(script,{updateViaCache:'none'});
     const ready=()=>{$('rgc-atualizar').hidden=!registration.waiting;};ready();
     registration.addEventListener('updatefound',()=>registration.installing?.addEventListener('statechange',ready));
     $('rgc-atualizar').addEventListener('click',async()=>{await flush();if(state.saveError)return;state.updating=true;registration.waiting?.postMessage({type:'ATIVAR_ATUALIZACAO'});});

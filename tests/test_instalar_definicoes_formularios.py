@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from app_core.formularios_kobo import TITULOS
+from app_core.formularios_kobo import TIPOS_DEFINICOES_KOBO
 from scripts.ativar_formularios_230_windows import instalar_definicoes
 
 
@@ -13,7 +13,7 @@ class InstalarDefinicoesTests(unittest.TestCase):
             home=Path(tmp);source=home/'consulta.json'
             (home/'config.json').write_text(json.dumps({'version':'2.2.1'}),encoding='utf-8')
             definition={'somente_definicoes':True,'respostas_consultadas':False,'errors':[],
-                'forms':[{'tipo':tipo,'survey':[{'name':'Data','type':'date'}],'choices':[]} for tipo in TITULOS]}
+                'forms':[{'tipo':tipo,'survey':[{'name':'Data','type':'date'}],'choices':[]} for tipo in TIPOS_DEFINICOES_KOBO]}
             source.write_text(json.dumps(definition),encoding='utf-8')
             with patch('ctypes.windll.shell32.IsUserAnAdmin',return_value=True):
                 instalar_definicoes(source,home)

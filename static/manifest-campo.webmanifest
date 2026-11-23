@@ -1,0 +1,15 @@
+{
+  "id": "/formularios/campo-offline",
+  "name": "Endemias — Formulários de campo",
+  "short_name": "Campo Endemias",
+  "start_url": "/formularios/campo-offline",
+  "scope": "/formularios/",
+  "display": "standalone",
+  "lang": "pt-BR",
+  "theme_color": "#153e73",
+  "background_color": "#f1f5fd",
+  "icons": [
+    { "src": "/static/icons/campo-192.svg", "sizes": "192x192", "type": "image/svg+xml" },
+    { "src": "/static/icons/campo-512.svg", "sizes": "512x512", "type": "image/svg+xml" }
+  ]
+}

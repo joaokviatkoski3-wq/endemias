@@ -259,6 +259,8 @@ function renderDetalheVisita(detail) {
       ${detalheField('Agentes', v.agentes, 'wide')}
       ${v.acs ? detalheField('ACS acompanhantes', v.acs, 'wide') : ''}
       ${detalheField('Observações', v.observacoes, 'wide')}
+      ${v.protocolo_e_ouve?detalheField('Protocolo da denúncia E-Ouve',v.protocolo_e_ouve):''}
+      ${v.ovitrampas_bloqueio?.length?detalheField('Ovitrampas que deram origem ao bloqueio',v.ovitrampas_bloqueio.join(', '),'wide'):''}
       ${detalheField('Identificador da visita', v.id_visita, 'wide')}
       ${detalheField('Código / identificador do PE', [v.codigo_pe, v.id_pe].filter(Boolean).join(' · '), 'wide')}
       ${detalheField('Identificador de origem', [v.kobo_id, v.kobo_uuid].filter(Boolean).join(' · '), 'wide')}

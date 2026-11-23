@@ -28,7 +28,8 @@ def sw_js():
     response = send_from_directory(
         current_app.static_folder, "sw.js", mimetype="application/javascript"
     )
-    response.headers["Cache-Control"] = "no-cache"
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Cloudflare-CDN-Cache-Control"] = "no-store"
     return response
 
 
@@ -39,15 +40,24 @@ def manifest():
     )
 
 
+@bp.get("/manifest-campo.webmanifest")
+def manifest_campo():
+    response = send_from_directory(current_app.static_folder, "manifest-campo.webmanifest",
+                                   mimetype="application/manifest+json")
+    response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 @bp.route("/formularios")
 @login_required
 def page():
     usuario = bh.usuario_atual() or {}
-    from app_core import formularios_kobo,setores
+    from app_core import formulario_piloto,formularios_kobo,setores
     rg=list(formularios_core.FORMULARIOS) if setores.atual()!='ambiental' and not usuario.get('somente_laboratorio') else []
     return render_template(
         "formularios.html",
         formularios=rg+formularios_kobo.catalogo(usuario),
+        piloto_offline=formulario_piloto.habilitado(usuario),
         is_admin=usuario.get("nivel") in {"admin", "superadmin"},
     )
 
