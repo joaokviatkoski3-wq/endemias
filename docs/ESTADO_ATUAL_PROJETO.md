@@ -4,6 +4,21 @@ Atualizado em 24/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Versão candidata 2.14.0 — avisos no Android
+
+Piloto Web Push optativo para a conta de campo de Endemias já configurada.
+O sininho ativa um aparelho Chrome/Android por vez e permite agendar um
+aviso de teste com tempo para fechar o aplicativo. A notificação do
+sistema operacional é genérica e abre o sininho no VSATT.
+
+O processo Waitress consulta as leituras novas e ainda não lidas da
+equipe do agente, incluindo rotina e LIRAa, e agrupa os avisos. A migração
+0042 registra a inscrição e as entregas aceitas. O cadastro começa a
+partir da ativação. A saída do aparelho limpa a inscrição local e revoga
+a inscrição da sessão. A ativação guarda a chave VAPID com as permissões
+da conta limitada do servidor. A validação em Android real é a etapa
+final do piloto.
+
 ## Versão ativa 2.13.1 — exclusão de rascunhos
 
 Ativada em 24/11/2026, release `67f97c1`. O instalador confirmou todas

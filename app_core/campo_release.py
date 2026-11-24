@@ -4,6 +4,9 @@ from app_core.version import APP_VERSION
 
 
 RESUMOS = {
+    "2.14.0": [
+        "A conta do piloto pode autorizar e testar avisos de campo com o app fechado no Chrome para Android.",
+    ],
     "2.13.1": [
         "Agora você pode apagar seus rascunhos de visita no formulário e na lista de rascunhos.",
     ],

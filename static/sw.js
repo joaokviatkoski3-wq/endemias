@@ -3,9 +3,11 @@ const CACHE = 'endemias-formularios-v6';
 const FIELD_CACHE = CACHE + '-campo';
 const RG = '/formularios/rg-campo';
 const IDENTITY = '/__endemias_offline_user';
+const PUSH_OWNER = '/__endemias_push_owner';
 const FIELD_IDENTITY = '/__endemias_campo_user';
 const FORMS_HOME = '/formularios';
 const FIELD_HOME = '/formularios/campo-offline';
+const FIELD_NOTICES = FIELD_HOME + '/avisos';
 const FIELD_PAGES = [FIELD_HOME,RG,...['PE','PE_CADASTRO','TB','TBO','PVE','BRI','RECOLHIMENTO']
   .map(type=>'/formularios/kobo/'+type)];
 const TTL = 24*60*60*1000;
@@ -14,13 +16,45 @@ self.addEventListener('install', event => event.waitUntil(navigation(new Request
 // Uma atualização espera o usuário salvar e tocar em Atualizar aplicativo.
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('endemias-formularios-') && ![CACHE,FIELD_CACHE].includes(k)).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 async function clearPages(cache) { pageEpoch++; await cache.delete(RG); await cache.delete(IDENTITY); }
+async function clearPush(cache) {
+  await cache.delete(PUSH_OWNER);
+  try {
+    const notices=await self.registration.getNotifications({tag:'vsatt-campo'});
+    notices.forEach(notification=>notification.close());
+    const subscription=await self.registration.pushManager.getSubscription();
+    if(subscription)await subscription.unsubscribe();
+  } catch { /* O servidor também revoga o aparelho ao sair da sessão. */ }
+}
 self.addEventListener('message', event => {
   if(event.data?.type === 'ATIVAR_ATUALIZACAO') event.waitUntil(self.skipWaiting());
   if(event.data?.type === 'LIMPAR_PAGINA') event.waitUntil(caches.open(CACHE).then(clearPages));
+  if(event.ports[0] && event.data?.type==='PUSH_ATIVAR' && /^\d+$/.test(event.data.user)){
+    const owner = String(event.data.user);
+    event.waitUntil(caches.open(CACHE).then(cache=>cache.put(PUSH_OWNER,new Response(owner)))
+      .then(()=>event.ports[0].postMessage(true),()=>event.ports[0].postMessage(false)));
+  }
+  if(event.ports[0] && event.data?.type==='PUSH_DESATIVAR'){
+    event.waitUntil(caches.open(CACHE).then(clearPush)
+      .then(()=>event.ports[0].postMessage(true),()=>event.ports[0].postMessage(false)));
+  }
   if(event.data?.type === 'PREPARAR_CAMPO' && event.ports[0]) {
     event.waitUntil(prepareField(event.data.user).then(validade=>event.ports[0].postMessage({validade}),
       ()=>event.ports[0].postMessage({erro:'Não foi possível preparar todas as páginas. Confira a conexão e tente de novo.'})));
   }
+});
+self.addEventListener('push',event=>{
+  event.waitUntil(caches.open(CACHE).then(async cache=>{
+    if(!await cache.match(PUSH_OWNER))return;
+    await self.registration.showNotification('Endemias - VSATT',{
+      body:'Há um aviso de campo. Toque para consultar no aplicativo.',
+      icon:'/static/icons/endemias-app-192.png',tag:'vsatt-campo'
+    });
+  }));
+});
+self.addEventListener('notificationclick',event=>{
+  if(event.notification.tag!=='vsatt-campo')return;
+  event.notification.close();
+  event.waitUntil(self.clients.openWindow(FIELD_NOTICES));
 });
 async function fieldIdentity(cache) {
   const saved=await cache.match(FIELD_IDENTITY);
@@ -77,7 +111,7 @@ function unavailable(logout=false) {
   return new Response(`<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Campo RG</title><body><h1>${logout?'Saída precisa de conexão':'Abra o RG com internet'}</h1><p>${logout?'A página offline foi bloqueada, mas o servidor ainda precisa confirmar sua saída.':'Entre na conta e abra o RG online para preparar ou renovar o acesso offline por 24 horas.'}</p><p>Os rascunhos continuam guardados neste navegador. Não limpe os dados do aplicativo.</p><a href="/formularios/rg-campo">Tentar novamente</a></body></html>`,{status:503,headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'none'; base-uri 'none'; frame-ancestors 'none'"}});
 }
 async function fallback(cache,path) {
-  const fieldPath=path===FORMS_HOME?FIELD_HOME:path;
+  const fieldPath=path===FORMS_HOME||path===FIELD_NOTICES?FIELD_HOME:path;
   if(FIELD_PAGES.includes(fieldPath)){
     const field=await caches.open(FIELD_CACHE),identity=await fieldIdentity(field);
     if(identity && Date.now()<identity.validade){
@@ -97,9 +131,13 @@ async function fallback(cache,path) {
 async function navigation(request,path) {
   const cache=await caches.open(CACHE); let response,epoch=pageEpoch;
   try {response=await fetch(request);} catch(e) {return fallback(cache,path);}
-  if(response.status>=500) return path===RG || path===FORMS_HOME || FIELD_PAGES.includes(path) ? fallback(cache,path) : response;
+  if(response.status>=500) return path===RG || path===FORMS_HOME || path===FIELD_NOTICES || FIELD_PAGES.includes(path) ? fallback(cache,path) : response;
   if(epoch!==pageEpoch)return response;
   const user=response.headers.get('X-Endemias-User'), previous=await cache.match(IDENTITY);
+  if(user){
+    const pushOwner=await cache.match(PUSH_OWNER);
+    if(pushOwner&&await pushOwner.text()!==user)await clearPush(cache);
+  }
   const field=await fieldIdentity(await caches.open(FIELD_CACHE));
   if(field && (field.usuario!==user || FIELD_PAGES.includes(path) &&
       response.headers.get('X-Endemias-Campo-Offline')!=='1'))await clearField();
@@ -119,7 +157,8 @@ self.addEventListener('fetch',event => {
   const url=new URL(event.request.url); if(url.origin!==self.location.origin) return;
   if(url.pathname==='/logout') {
     event.respondWith(caches.open(CACHE).then(async cache => {
-      await Promise.all([clearPages(cache),clearField()]); try {return await fetch(event.request);} catch(e) {return unavailable(true);}
+      await Promise.all([clearPages(cache),clearField(),clearPush(cache).catch(()=>{})]);
+      try {return await fetch(event.request);} catch(e) {return unavailable(true);}
     }));return;
   }
   if(event.request.method!=='GET' || url.pathname.startsWith('/api/')) return;

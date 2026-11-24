@@ -11,7 +11,7 @@ ESTAGIOS = ("larvas", "pupas", "exuvias", "adulto")
 CONTAGENS = tuple(f"{especie}_{estagio}" for especie in ESPECIES for estagio in ESTAGIOS)
 
 
-def _consulta(conn, usuario, agente, resultado=None):
+def _consulta(conn, usuario, agente, resultado=None, *, desde_push=None):
     if conn.backend == "sqlite":
         conn.execute("""CREATE TABLE IF NOT EXISTS avisos_campo_lidos (
             id_usuario INTEGER NOT NULL REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
@@ -25,6 +25,11 @@ def _consulta(conn, usuario, agente, resultado=None):
     args = [usuario, agente, agente, (date.today() - timedelta(days=30)).isoformat()]
     if resultado is not None:
         args.append(resultado)
+    if desde_push is not None:
+        filtro += f""" AND {versao}>=? AND (l.versao IS NULL OR l.versao<>{versao})
+            AND NOT EXISTS (SELECT 1 FROM campo_push_entregas e
+                WHERE e.id_usuario=? AND e.id_agente=? AND e.id_resultado=r.id_resultado AND e.versao={versao})"""
+        args.extend((desde_push, usuario, agente))
     return conn.execute(f"""
         WITH pessoais AS (
             SELECT r.id_resultado, r.num_tubo, CAST(r.data_coleta AS TEXT) AS data_coleta,
@@ -43,6 +48,11 @@ def _consulta(conn, usuario, agente, resultado=None):
         SELECT *, SUM(novo) OVER () AS nao_lidos
           FROM pessoais ORDER BY novo DESC, versao DESC, id_resultado DESC LIMIT 40
     """, args)
+
+
+def pendentes_push(conn, usuario, agente, desde):
+    return [(row["id_resultado"], row["versao"]) for row in
+            _consulta(conn, usuario, agente, desde_push=desde)]
 
 
 def listar(target, usuario, agente):

@@ -63,8 +63,12 @@ def revogar(target):
     conn = db.connect(target)
     try:
         ensure_schema(conn)
+        from app_core import campo_push
+        sid_hash = digest(sid)
+        uid = session.get('uid')
+        campo_push.revogar_sessao(conn, sid_hash, uid)
         conn.execute('UPDATE usuarios_sessoes SET revogada_em=? WHERE sessao_hash=? AND usuario_id=?',
-                     (int(time.time()), digest(sid), session.get('uid')))
+                     (int(time.time()), sid_hash, uid))
         conn.commit()
     finally:
         conn.close()

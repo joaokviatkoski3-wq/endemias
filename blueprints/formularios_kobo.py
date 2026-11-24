@@ -75,6 +75,7 @@ def sessao(tipo):
                     'offline':formulario_piloto.habilitado(user())})
 
 
+@bp.get('/formularios/campo-offline/avisos')
 @bp.get('/formularios/campo-offline')
 def campo_offline():
     if not formulario_piloto.habilitado(user()):

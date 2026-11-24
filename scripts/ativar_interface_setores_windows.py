@@ -60,7 +60,7 @@ def wait_closed(timeout=35):
     return False
 
 
-def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto=None):
+def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto=None, push=False):
     from app_core import postgresql_migrations,backup_completo,db
     if not ctypes.windll.shell32.IsUserAnAdmin():raise PermissionError('Execute como administrador do Windows.')
     if not all(re.fullmatch('[0-9a-f]{40}',v) for v in (args.release,args.expected_current)):
@@ -74,6 +74,9 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto
     if (SOURCE/'app_core/version.py').read_text(encoding='utf-8').splitlines()[0]!=f'APP_VERSION = "{target}"':
         raise ValueError('Versão candidata inesperada.')
     original=json.loads((HOME/'config.json').read_text(encoding='utf-8'));proposed=proposed_config(original,origin,target)
+    conta_push=original['env'].get('ENDEMIAS_FORMULARIOS_OFFLINE_USUARIO','').strip() if push else None
+    if push and not conta_push:
+        raise ValueError('Configure a conta do piloto de campo antes de instalar os avisos.')
     connection=connect(original,readonly=True)
     try:
         status=postgresql_migrations.status(connection,SOURCE/'migrations/postgresql')
@@ -81,16 +84,17 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto
         if (not status or any(row['state'] not in {'applied', 'pending'} for row in status)
                 or pendentes not in ([], [migration]) or (pendentes and migration is None)):
             raise ValueError('Migrações diferentes das previstas no pacote.')
-        if piloto:
+        if piloto or conta_push:
             with connection.cursor() as cursor:
                 cursor.execute("""SELECT u.usuario FROM usuarios u JOIN agentes a ON a.id_agente=u.id_agente
                     WHERE LOWER(u.usuario)=LOWER(%s) AND u.ativo=1 AND COALESCE(a.ativo,1)=1
                       AND u.setor='endemias' AND u.nivel IN ('usuario','operador','admin','superadmin')
-                      AND COALESCE(u.somente_laboratorio,0)=0""",(piloto,))
+                      AND COALESCE(u.somente_laboratorio,0)=0""",(piloto or conta_push,))
                 accounts=cursor.fetchall()
             if len(accounts)!=1:
                 raise ValueError('A conta do piloto precisa estar ativa e vinculada a um agente de Endemias.')
-            proposed['env']['ENDEMIAS_FORMULARIOS_OFFLINE_USUARIO']=accounts[0][0]
+            if piloto:
+                proposed['env']['ENDEMIAS_FORMULARIOS_OFFLINE_USUARIO']=accounts[0][0]
     finally:connection.close()
     win=Windows();win.web=win.sec.ConvertStringSidToSid(original['sid'])
     task=win.folder.GetTask('Endemias - Servidor')
@@ -110,6 +114,18 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto
     def save(stage):
         report['stage']=stage;output.write_text(json.dumps(report,indent=2),encoding='utf-8')
     try:
+        if push:
+            from app_core import campo_push
+            key_file=HOME/'campo-push-vapid.pem'
+            try:
+                key_file.touch(exist_ok=False)
+            except FileExistsError:
+                pass
+            win.protect(key_file,"read_file",remember=False,operator=False)
+            if key_file.stat().st_size==0:
+                campo_push.criar_chave(key_file)
+            campo_push.chave(str(key_file))
+            proposed['env'][campo_push.CHAVE_ENV]=str(key_file)
         if auto_enabled:
             auto.Enabled=False
             if auto.State==4:raise RuntimeError('Importação iniciou durante a pausa; aguarde e revise.')
@@ -153,6 +169,8 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto
             cloudflare_changed=False,firewall_changed=False,all_entries_ok=True,kobo_automation_enabled_restored=True)
         if piloto:
             report['piloto_formularios_configurado']=True
+        if push:
+            report['piloto_web_push_configurado']=True
         save('concluido');return 0
     except Exception as error:
         report.update(status='falhou',error_type=type(error).__name__,trace=[{'file':Path(f.filename).name,'line':f.lineno,'function':f.name} for f in traceback.extract_tb(error.__traceback__)])
@@ -172,12 +190,12 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto
         save('retornado');return 1
 
 
-def main(origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto=None):
+def main(origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto=None, push=False):
     parser=argparse.ArgumentParser(description=f'Atualiza {origin} para {target}.')
     parser.add_argument('--aplicar',action='store_true',required=True)
     parser.add_argument('--release',required=True);parser.add_argument('--expected-current',required=True)
     args=parser.parse_args()
-    try:return apply(args,origin,target,marker,migration,piloto)
+    try:return apply(args,origin,target,marker,migration,piloto,push)
     except Exception as error:
         result={'status':'falhou','error_type':type(error).__name__,
                 'trace':[{'file':Path(f.filename).name,'line':f.lineno,'function':f.name} for f in traceback.extract_tb(error.__traceback__)]}

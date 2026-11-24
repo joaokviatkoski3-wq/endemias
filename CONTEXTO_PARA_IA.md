@@ -6,6 +6,12 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
+## Versão candidata 2.14.0 — avisos no Android
+
+Piloto optativo de Web Push pelo sininho para a conta de campo já
+configurada, em um aparelho Chrome/Android. O aviso de teste é agendado
+para permitir fechar o app. Veja os detalhes no estado operacional.
+
 ## Versão ativa 2.13.1 — exclusão de rascunhos
 
 Autores podem excluir rascunhos de formulários internos no servidor e

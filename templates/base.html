@@ -82,6 +82,12 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
       <header><h2 id="campo-avisos-titulo">Resultados das minhas coletas</h2><form method="dialog"><button class="btn btn-outline">Fechar</button></form></header>
       <div class="campo-avisos-corpo">
         <p id="campo-avisos-status" role="status">Consultando resultados…</p>
+        <section id="campo-push" hidden aria-label="Avisos neste aparelho">
+          <p id="campo-push-status" role="status"></p>
+          <button id="campo-push-ativar" class="btn btn-outline" type="button" hidden>Ativar avisos neste aparelho</button>
+          <button id="campo-push-testar" class="btn btn-outline" type="button" hidden>Enviar aviso de teste</button>
+          <button id="campo-push-desativar" class="btn btn-ghost" type="button" hidden>Desativar avisos</button>
+        </section>
         <ol id="campo-avisos-lista"></ol>
       </div>
     </dialog>
@@ -189,6 +195,7 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
 {% if usuario_atual %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/presenca.js?v={{ APP_VERSION }}"></script>{% endif %}
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/ajuda.js?v={{ APP_VERSION }}"></script>
 {% if avisos_campo %}<script nonce="{{ csp_nonce() }}" src="/static/js/avisos_campo.js?v={{ APP_VERSION }}"></script>{% endif %}
+{% if avisos_campo %}<script nonce="{{ csp_nonce() }}" src="/static/js/campo_push.js?v={{ APP_VERSION }}"></script>{% endif %}
 {% block extra_js %}{% endblock %}
 
 </body>

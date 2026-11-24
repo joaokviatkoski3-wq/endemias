@@ -1,11 +1,12 @@
 import logging
+import os
 
-from flask import Blueprint, current_app, jsonify, render_template, request, send_from_directory
+from flask import Blueprint, current_app, jsonify, render_template, request, send_from_directory, session
 
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import formularios as formularios_core
-from app_core import rg_formulario
+from app_core import campo_push, rg_formulario
 from app_core import audit, avisos_campo, campo_protocolo, escopo_agente, formulario_piloto, formulario_revisao, permissoes, setores
 
 
@@ -154,6 +155,47 @@ def campo_avisos():
         target, ident, agente["id_agente"], item["resultado"], item["versao"]
     ):
         return jsonify({"erro": "Aviso indisponível ou atualizado. Consulte novamente."}), 404
+    return jsonify({"ok": True})
+
+
+@bp.route("/api/formularios/campo-push", methods=["GET", "POST"])
+@login_required
+def campo_push_api():
+    from flask_wtf.csrf import generate_csrf
+
+    usuario = bh.usuario_atual() or {}
+    path = os.environ.get(campo_push.CHAVE_ENV)
+    if (not current_app.config.get("ACESSO_EXTERNO") or not request.is_secure
+            or setores.atual() != "endemias" or not path or not campo_push.identificavel(usuario)):
+        return jsonify({"erro": "Notificações do aparelho reservadas ao piloto."}), 403
+    target = bh.db_target()
+    agente = escopo_agente.agente_proprio(target, usuario)
+    sid = session.get("sessao_id")
+    if not agente or not sid:
+        return jsonify({"erro": "Entre com a conta de campo vinculada ao agente do piloto."}), 403
+    try:
+        public = campo_push.chave_publica(campo_push.chave(path))
+    except (OSError, ValueError, ImportError):
+        return jsonify({"erro": "A configuração de notificações está indisponível."}), 503
+    ident = usuario["id_usuario"]
+    if request.method == "GET":
+        return jsonify({"usuario": ident, "chave": public,
+                        "aparelho": campo_push.status(target, ident), "csrf": generate_csrf()})
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or body.get("usuario") != ident:
+        return jsonify({"erro": "Reabra o aplicativo na conta do piloto."}), 403
+    try:
+        acao, endpoint = body.get("acao"), body.get("endpoint")
+        if acao == "ativar":
+            campo_push.inscrever(target, usuario, sid, endpoint)
+        elif acao == "desativar":
+            campo_push.cancelar(target, ident, endpoint)
+        elif acao == "testar":
+            campo_push.testar(target, ident, endpoint)
+        else:
+            raise ValueError("Ação inválida.")
+    except ValueError as erro:
+        return jsonify({"erro": str(erro)}), 400
     return jsonify({"ok": True})
 
 
