@@ -151,7 +151,7 @@ def validar(tree,payload,publicar=True):
             if kind=='begin_group':clean.update(check(node['children'],raw,ctx));continue
             value=raw.get(path,'')
             if not isinstance(value,(str,int,float)) or isinstance(value,bool):raise ValueError(node['label']+': valor inválido.')
-            if value=='':
+            if isinstance(value,str) and not value.strip():
                 if publicar and cond.avaliar(node['required'],ctx,value):raise ValueError(node['label']+': obrigatório.')
                 continue
             if len(str(value))>4000:raise ValueError(node['label']+': texto muito longo.')

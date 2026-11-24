@@ -172,7 +172,9 @@
     if(state.current.lados.some(s=>s.logradouros.some(r=>r.imoveis.some(h=>(h.numero.trim()||h.observacao.trim())&&!r.logradouro.trim()))))throw reason('Informe a rua dos imóveis preenchidos.','validacao');
   }
   async function submit(){
-    validate();if(!await confirmacaoDupla('Enviar este RG para a revisão do administrador?'))return;
+    const warning=$('rgc-envio-erro');warning.hidden=true;
+    try{validate();}catch(error){warning.textContent=error.message;warning.hidden=false;return;}
+    if(!await confirmacaoDupla('Enviar este RG para a revisão do administrador?'))return;
     await flush('enviado');if(state.saveError)return;await view('envios');await sync();
   }
   async function syncBody(){

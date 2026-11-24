@@ -4,6 +4,7 @@
   const root=document.getElementById('fk-app');if(!root)return;
   const $=id=>document.getElementById(id),tipo=root.dataset.tipo,owner=Number(root.dataset.usuario),review=root.dataset.revisao==='1';
   const base='/api/formularios/kobo/'+encodeURIComponent(tipo);
+  const embedded=review&&new URLSearchParams(location.search).get('embutido')==='1';
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let schema,current,busy=false,dirty=false,seq=0,listRequest=0,geoRequest=0,geoTimer;
   let localPack=null,referenceCatalog=null,deviceLocked=false;
@@ -11,7 +12,9 @@
   const useLocal=()=>Boolean(fieldStore && localPack && !deviceLocked && (localPack.validade>Date.now() || navigator.onLine));
   const geoCache=new Map();
   function fixed(n){return (current?.payload?.responsavel||(!review&&current?.status==='novo'?schema?.responsavel:null))?.campos?.[n.path];}
-  function anchor(){for(const n of all(schema.nodes)){const code=fixed(n);if(!code)continue;const raw=current.payload.values;raw[n.path]=n.kind==='select_multiple'?[...new Set([code,...String(raw[n.path]||'').split(/\s+/).filter(Boolean)])].join(' '):code;}}
+  function defaultTeam(){
+    for(const [path,code] of Object.entries(schema.responsavel?.campos||{}))current.payload.values[path]=code;
+  }
   let autoTimer,autoFlight=null,pendingSave=null,pendingSerial=0,editSerial=0,saveBlocked=false;
   const saveMessage=text=>$('fk-save-status').textContent=text;
   function editable(){return current&&!review&&!deviceLocked&&['novo','rascunho','devolvido'].includes(current.status);}
@@ -64,7 +67,10 @@
   const states={rascunho:'Rascunho',fila:'Na fila deste aparelho',enviado:'Enviado para revisão',devolvido:'Devolvido para correção',aprovado:'Aprovado',oficializado:'Aplicado aos registros oficiais'};
   function uuid(){if(crypto.randomUUID)return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=[...b].map(v=>v.toString(16).padStart(2,'0')).join('');return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);}
   function timestamp(){const now=new Date(),offset=-now.getTimezoneOffset(),local=new Date(now.getTime()+offset*60000).toISOString().slice(0,-1);return local+(offset>=0?'+':'-')+String(Math.floor(Math.abs(offset)/60)).padStart(2,'0')+':'+String(Math.abs(offset)%60).padStart(2,'0');}
-  function status(text,error=false){$('fk-status').textContent=text;$('fk-status').className=error?'rgc-error':'rgc-notice';}
+  function status(text,error=false){
+    $('fk-status').textContent=text;$('fk-status').className=error?'rgc-error':'rgc-notice';
+    $('fk-acao-status').textContent=text;$('fk-acao-status').className=error?'rgc-error':'sub';
+  }
   async function api(path,method='GET',body){
     const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),45000);
     try{
@@ -192,7 +198,7 @@
       }
       const id='fk-field-'+(++seq),binding=attrs+' data-field="1"';let control;
       if(n.catalogo)control=catalogControl(n,id,binding,value);
-      else if(n.kind==='select_multiple')control=`<div id="${id}" role="group" aria-labelledby="${id}-label" class="fk-multiple ${n.equipe?'fk-team':''}" ${binding}>${n.options.map(o=>`<label data-option="${esc(o.value)}"><input type="checkbox" value="${esc(o.value)}" ${String(value).split(/\s+/).includes(o.value)?'checked':''}><span>${esc(o.label)}${fixed(n)===o.value?' · responsável':''}</span></label>`).join('')}</div>`;
+      else if(n.kind==='select_multiple')control=`<div id="${id}" role="group" aria-labelledby="${id}-label" class="fk-multiple ${n.equipe?'fk-team':''}" ${binding}>${n.options.map(o=>`<label data-option="${esc(o.value)}"><input type="checkbox" value="${esc(o.value)}" ${String(value).split(/\s+/).includes(o.value)?'checked':''}><span>${esc(o.label)}${fixed(n)===o.value?' · sua conta':''}</span></label>`).join('')}</div>`;
       else if(n.kind==='select_one')control=`<select id="${id}" ${binding}><option value="">Selecione…</option>${n.options.map(o=>`<option value="${esc(o.value)}" ${String(value)===o.value?'selected':''}>${esc(o.label)}</option>`).join('')}</select>`;
       else if(n.kind==='text'&&/observ|descri|coment/i.test(n.name))control=`<textarea id="${id}" ${binding} maxlength="4000" rows="3">${esc(value)}</textarea>`;
       else{
@@ -227,12 +233,11 @@
     $('fk-acoes').querySelectorAll('button').forEach(el=>{
       const a=el.dataset.action;
       el.disabled=busy||locked||review&&(a==='aplicar'?current.status!=='aprovado':!['enviado','aprovado'].includes(current.status));
-      if(review&&a==='aprovar')el.textContent=schema.campo_v2&&tipo!=='PE_CADASTRO'?'Aprovar e registrar':'Aprovar revisão';
+      if(review&&a==='aprovar')el.textContent=(embedded||schema.campo_v2)&&tipo!=='PE_CADASTRO'?'Aprovar e registrar':'Aprovar revisão';
       if(review&&a==='aplicar')el.hidden=tipo==='PE_CADASTRO'||schema.campo_v2&&current.status!=='aprovado';
     });
-    $('fk-campos').querySelectorAll('[data-field]').forEach(control=>{const n=map.get(control.dataset.path),code=fixed(n);if(code){if(n.kind==='select_one')control.disabled=true;else for(const input of control.querySelectorAll('input'))if(input.value===code){input.checked=true;input.disabled=true;}}});
     const sender=current.autor||current.payload.responsavel||schema.responsavel;
-    $('fk-responsavel').textContent='Responsável pelo envio: '+(sender?.nome||'Conta autenticada')+(current.payload.responsavel?.agente?' · Agente: '+current.payload.responsavel.agente:'')+(current.autor?.enviado_em?' · Enviado em '+current.autor.enviado_em:'')+(!review&&!sender?.id_agente&&!current.autor?(sender?.gestao_piloto?' · Selecione os agentes que participaram da atividade.':' · Falta vincular a conta a um agente. Salve como rascunho e peça ao gestor para conferir o vínculo.'):'');
+    $('fk-responsavel').textContent='Responsável pelo envio: '+(sender?.nome||'Conta autenticada')+(current.autor?.enviado_em?' · Enviado em '+current.autor.enviado_em:'');
     const flow=current.payload.acompanhamento||{},confirmed=flow.retorno_evento;
     $('fk-retorno').hidden=!flow.retorno;
     for(const id of ['fk-retorno-data','fk-retorno-hora','fk-retorno-nota'])$(id).disabled=locked||busy||Boolean(confirmed);
@@ -242,7 +247,7 @@
     $('fk-agenda-vinculo').textContent=flow.agenda?'Atividade vinculada à agenda: #'+flow.agenda+' · '+flow.ocorrencia:'';
     $('fk-situacao').textContent=(states[current.status]||'Novo preenchimento')+(current.motivo?' · '+current.motivo:'');
   }
-  function render(){anchor();const notes=current.payload.correcoes||[];$('fk-correcao-resumo').hidden=!notes.length;$('fk-correcao-resumo').innerHTML='<strong>Orientações da revisão</strong>'+notes.map(c=>`<p>${esc(all(schema.nodes).find(n=>n.path===c.campo)?.label||c.campo)}: ${esc(c.mensagem)}</p>`).join('');const proposal=current.payload.acompanhamento?.retorno||{};$('fk-retorno-data').value=proposal.data||'';$('fk-retorno-hora').value=proposal.hora||'';$('fk-retorno-nota').value=proposal.observacao||'';seq=0;$('fk-campos').innerHTML=draw(schema.nodes);$('fk-editor').hidden=false;visibility();scheduleGeo();}
+  function render(){const notes=current.payload.correcoes||[];$('fk-correcao-resumo').hidden=!notes.length;$('fk-correcao-resumo').innerHTML='<strong>Orientações da revisão</strong>'+notes.map(c=>`<p>${esc(all(schema.nodes).find(n=>n.path===c.campo)?.label||c.campo)}: ${esc(c.mensagem)}</p>`).join('');const proposal=current.payload.acompanhamento?.retorno||{};$('fk-retorno-data').value=proposal.data||'';$('fk-retorno-hora').value=proposal.hora||'';$('fk-retorno-nota').value=proposal.observacao||'';seq=0;$('fk-campos').innerHTML=draw(schema.nodes);$('fk-editor').hidden=false;visibility();scheduleGeo();}
   function initial(nodes,flat){for(const n of nodes){if(n.kind==='begin_repeat')continue;if(n.children)initial(n.children,flat);else if(n.default!==''&&n.default!==undefined&&!String(n.default).includes('${'))flat[n.path]=String(n.default);}}
   async function fresh(){
     if(!schema||busy||autoFlight||deviceLocked)return;
@@ -255,7 +260,7 @@
     current={uuid:uuid(),status:'novo',captura:{versao:1,revisao:0,dispositivo:uuid()},payload:{versao:schema.versao,values:{},repeats:{},responsavel:schema.responsavel,inicio:timestamp()}};
     const planned=new URL(location.href).searchParams;
     if(planned.has('agenda'))current.payload.acompanhamento={agenda:Number(planned.get('agenda')),ocorrencia:planned.get('ocorrencia')||''};
-    initial(schema.nodes,current.payload.values);dirty=false;render();status('Preencha e salve o rascunho ou envie para revisão.');
+    initial(schema.nodes,current.payload.values);defaultTeam();$('fk-proxima').hidden=true;dirty=false;render();status('Preencha e salve o rascunho ou envie para revisão.');
     history.replaceState(null,'',location.pathname);
   }
   async function list(show=true){
@@ -272,27 +277,46 @@
     if(schema.versao!==current.payload.versao){
       schema=await api(base+'/esquema?envio='+encodeURIComponent(id));
     }
-    if(!review&&['rascunho','devolvido'].includes(current.status)&&!current.payload.responsavel)current.payload.responsavel=schema.responsavel;dirty=false;render();history.replaceState(null,'',location.pathname+'?envio='+id);
+    if(!review&&['rascunho','devolvido'].includes(current.status)&&!current.payload.responsavel)current.payload.responsavel=schema.responsavel;dirty=false;render();history.replaceState(null,'',location.pathname+'?envio='+id+(embedded?'&embutido=1':''));
     status('Envio carregado do servidor.');
   }
+  function conferirObrigatorios(){
+    const nodes=new Map(all(schema.nodes).map(node=>[node.path,node]));
+    const missing=[];
+    for(const field of $('fk-campos').querySelectorAll('.fk-node')){
+      field.classList.remove('fk-missing');
+      if(field.closest('[hidden]'))continue;
+      const marker=field.querySelector(':scope > label .fk-required:not([hidden])');
+      const control=field.querySelector(':scope > [data-field]');
+      if(!control)continue;
+      const node=nodes.get(field.dataset.path);
+      const raw=data(field.dataset.group,Number(field.dataset.index));
+      const value=String(raw[field.dataset.path]??'').trim();
+      const invalid=(marker&&!value)||(node.somente_digitos&&value&&!/^[0-9]{1,40}$/.test(value));
+      if(!invalid)continue;
+      field.classList.add('fk-missing');
+      missing.push({field, label:node.label+(node.somente_digitos&&value?' (somente números)':'')});
+    }
+    if(!missing.length)return true;
+    status('Confira antes de enviar: '+[...new Set(missing.map(item=>item.label))].join(', ')+'.',true);
+    missing[0].field.scrollIntoView({block:'center'});
+    missing[0].field.querySelector('input:not([hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled])')?.focus({preventScroll:true});
+    return false;
+  }
   async function action(name){
+    if(busy||!current)return;
+    if(['enviado','proxima','aprovar'].includes(name)&&!conferirObrigatorios())return;
     if(saveBlocked){status('Reabra o envio recebido em Meus envios para conferir a situação antes de continuar.',true);return;}
-    if(busy||!current)return;clearTimeout(autoTimer);if(autoFlight&&!await autoFlight)return;if(pendingSave&&!await autoSave())return;busy=true;visibility();
+    clearTimeout(autoTimer);
+    if((autoFlight&&!await autoFlight)||(pendingSave&&!await autoSave())){
+      status('Envio pendente. '+$('fk-save-status').textContent,true);return;
+    }
+    busy=true;visibility();
     try{
       if(name==='rascunho'||name==='enviado'||name==='proxima'){
         const next=name==='proxima';if(next)name='enviado';
         if(name==='enviado'&&!await confirmacaoDupla(useLocal()?'Colocar este preenchimento na fila de envio? A gestão poderá revisá-lo após a sincronização.':'Enviar este preenchimento para revisão?'))return;
         if(useLocal()&&!current.id){
-          if(name==='enviado'){
-            for(const field of $('fk-campos').querySelectorAll('.fk-node')){
-              if(field.closest('[hidden]')||!field.querySelector(':scope > label .fk-required:not([hidden])'))continue;
-              const raw=data(field.dataset.group,Number(field.dataset.index));
-              const value=String(raw[field.dataset.path]??'').trim();
-              const label=field.querySelector('label').innerText.replace(/\s*\*$/,'');
-              if(!value)throw Error('Preencha '+label+'.');
-              if(field.querySelector('[pattern="[0-9]+"]')&&!/^[0-9]{1,40}$/.test(value))throw Error('Informe somente números em '+label+'.');
-            }
-          }
           await saveDevice(name==='enviado'?'fila':'rascunho');
           dirty=false;
           saveMessage(name==='enviado'?'Guardado na fila. Sincronize ao recuperar internet.':'Rascunho salvo neste aparelho.');
@@ -323,18 +347,20 @@
         dirty=false;current.captura.revisao=revision;await open(receipt.id);if(next){$('fk-proxima').hidden=false;$('fk-proxima').scrollIntoView({behavior:'smooth'});}status(name==='rascunho'?'Rascunho salvo no servidor.':'Recebido para revisão; ainda não aplicado aos registros oficiais.');
       }else{
         if(!current.id)throw Error('Abra um envio recebido antes de revisar.');
-        const official=name==='aplicar'||name==='aprovar'&&schema.campo_v2&&tipo!=='PE_CADASTRO';
+        const official=name==='aplicar'||name==='aprovar'&&(embedded||schema.campo_v2)&&tipo!=='PE_CADASTRO';
         if(!await confirmacaoDupla(official?'Registrar este lançamento definitivamente após a revisão?':'Confirmar esta decisão de revisão?'))return;
         if(name==='retorno')await api(base+'/'+current.id+'/confirmar-retorno','POST',{});
         else if(name==='aplicar')await api(base+'/'+current.id+'/oficializar','POST',{});
         else{
           const motivo=name==='devolver'?prompt('Motivo da devolução:'):null;
           if(name==='devolver'&&!motivo?.trim())return;
-          await api(base+'/'+current.id+'/revisar','POST',{payload:current.payload,etag:current.etag,correcoes:[...$('fk-campos').querySelectorAll('[data-correction]')].filter(el=>el.value.trim()).map(el=>({campo:el.dataset.correction,mensagem:el.value.trim()})).filter((c,i,arr)=>arr.findIndex(x=>x.campo===c.campo)===i),decisao:name==='aprovar'?'aprovado':'devolvido',motivo});
+          await api(base+'/'+current.id+'/revisar','POST',{payload:current.payload,etag:current.etag,correcoes:[...$('fk-campos').querySelectorAll('[data-correction]')].filter(el=>el.value.trim()).map(el=>({campo:el.dataset.correction,mensagem:el.value.trim()})).filter((c,i,arr)=>arr.findIndex(x=>x.campo===c.campo)===i),decisao:name==='aprovar'?'aprovado':'devolvido',registrar:embedded,motivo});
         }
-        dirty=false;await open(current.id);status(official?'Aplicado com confirmação do sistema.':'Revisão registrada.');
+        dirty=false;
+        if(embedded)window.parent.postMessage({type:'revisao-alterada'},location.origin);
+        await open(current.id);status(official?'Aplicado com confirmação do sistema.':'Revisão registrada.');
       }
-      await list();
+      if(!embedded)await list();
     }catch(e){if(['rascunho','enviado','proxima'].includes(name)&&(!e.http||e.http>=500||e.http===409))saveBlocked=true;status(e.message,true);}finally{busy=false;visibility();if(dirty)scheduleSave();}
   }
   function scheduleGeo(){clearTimeout(geoTimer);geoRequest++;for(const el of $('fk-campos').querySelectorAll('[data-suggestion]'))el.hidden=true;geoTimer=setTimeout(()=>loadGeo().catch(()=>{}),200);}
@@ -409,7 +435,7 @@
       }
     }
     if(changed?.geo==='quarteirao'){const pair=geoPair(changed),chosen=pair?.q.options.find(o=>o.value===String(raw[changed.path]));if(chosen&&pair.street){raw[pair.street.path]=chosen.attrs.logradouro;for(const el of $('fk-campos').querySelectorAll('[data-field]'))if(el.dataset.path===pair.street.path&&el.dataset.group===control.dataset.group)el.value=chosen.attrs.logradouro;}}
-    anchor();dirty=true;editSerial++;saveMessage('Alterações ainda não salvas.');status('Há alterações ainda não salvas.');visibility();scheduleGeo();scheduleSave();
+    dirty=true;editSerial++;saveMessage('Alterações ainda não salvas.');control.closest('.fk-node')?.classList.remove('fk-missing');visibility();scheduleGeo();scheduleSave();
   });
   root.addEventListener('click',event=>{
     const b=event.target.closest('button');if(!b||busy)return;
@@ -420,7 +446,7 @@
       if(b.dataset.remove){if(await confirmacaoDupla('Remover este registro do preenchimento?')){current.payload.repeats[b.dataset.remove].splice(Number(b.dataset.row),1);dirty=true;editSerial++;render();scheduleSave();}}
     }).catch(e=>status(e.message,true));
   });
-  $('fk-novo').hidden=review;$('fk-novo').addEventListener('click',()=>fresh().catch(e=>status(e.message,true)));$('fk-listar').addEventListener('click',()=>list().catch(e=>status(e.message,true)));
+  $('fk-novo').hidden=review;$('fk-novo').addEventListener('click',()=>fresh().then(()=>$('fk-app').scrollIntoView()).catch(e=>status(e.message,true)));$('fk-listar').addEventListener('click',()=>list().catch(e=>status(e.message,true)));
   $('fk-filtro')?.addEventListener('change',()=>list().catch(e=>status(e.message,true)));
   $('fk-desvincular').addEventListener('click',()=>{delete current.payload.acompanhamento.agenda;delete current.payload.acompanhamento.ocorrencia;dirty=true;editSerial++;visibility();scheduleSave();});
   $('fk-criar-proxima')?.addEventListener('click',async()=>{const prior=structuredClone(current.payload.values);await fresh();for(const n of all(schema.nodes)){if(n.equipe&&$('fk-reusar-equipe').checked||n.geo==='localidade'&&$('fk-reusar-local').checked||n.kind==='date'&&['Data','Digite_a_data'].includes(n.name)&&$('fk-reusar-data').checked){if(prior[n.path]!==undefined)current.payload.values[n.path]=prior[n.path];}}$('fk-proxima').hidden=true;dirty=true;editSerial++;render();scheduleSave();$('fk-app').scrollIntoView({behavior:'smooth'});});
@@ -445,7 +471,7 @@
       if(schema.campo_v2)referenceCatalog=await api(base+'/catalogos');
     }
     $('fk-novo').disabled=review;
-    if(navigator.onLine){$('fk-listar').disabled=false;if(review)await list(true);}
+    if(navigator.onLine){$('fk-listar').disabled=false;if(review&&!embedded)await list(true);}
     else $('fk-listar').disabled=true;
     if(local&&fieldStore&&localPack){
       const row=await fieldStore.obter(owner,local);

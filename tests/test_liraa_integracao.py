@@ -105,6 +105,7 @@ class IntegracaoTests(unittest.TestCase):
         self.assertEqual(pendentes[0]["tipo"],"LIRAA")
         payload={f:0 for f in laboratorio_lancamentos_campos()}
         payload["aegypt_larvas"]=3
+        payload.update(aegypt_exuvias=2,albopictus_exuvias=4,outra_exuvias=6)
         url='/api/laboratorio/lancamentos/'+pendentes[0]["id_coleta"]+'/resultado'
         response=client.post(url,json=payload)
         self.assertEqual(response.status_code,200,response.get_data(as_text=True))
@@ -115,11 +116,15 @@ class IntegracaoTests(unittest.TestCase):
         conn.commit();conn.close()
         registro=client.get('/api/laboratorio/lancamentos/historico').get_json()["registros"][0]
         self.assertTrue(registro["editavel"])
+        self.assertEqual([registro[field] for field in ('aegypt_exuvias','albopictus_exuvias','outra_exuvias')],[2,4,6])
         payload.update(aegypt_larvas=0,versao=registro["atualizado_em"])
         editar=f'/api/laboratorio/lancamentos/resultados/{registro["id_resultado"]}/editar'
         self.assertEqual(client.post(editar,json=payload).status_code,200)
         self.assertEqual(self.foco()["gera_notificacao"],0)
         self.assertEqual(self.foco()["status_notificacao"],"entregue")
+        historico=client.get('/api/laboratorio/lancamentos/historico').get_json()["registros"][0]
+        self.assertEqual(historico["aegypt_exuvias"],2)
+        self.assertFalse(historico["positivo_aegypti"])
         self.assertEqual(client.post(editar,json=payload).status_code,400)
         self.assertEqual(client.get('/api/laboratorio/lancamentos/pendentes').get_json()["pendentes"],[])
 

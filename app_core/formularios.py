@@ -252,7 +252,7 @@ def revisar(target, id_formulario, payload, decisao, usuario, motivo=None, *, es
             raise campo_protocolo.ConflitoCampo('O envio mudou. Reabra e confira antes de revisar.')
         if row["status"] == STATUS_OFICIALIZADO:
             raise ValueError("Formulário já oficializado.")
-        if transacao_externa and row["status"] not in (STATUS_ENVIADO, STATUS_APROVADO):
+        if transacao_externa and row["status"] not in (STATUS_ENVIADO, STATUS_EM_REVISAO, STATUS_APROVADO):
             raise ValueError("Aguarde o envio para revisão pelo agente.")
         reviewed = dict(payload)
         reviewed.pop("_editor", None)  # A revisão de linhas prevalece sobre o editor bruto do aparelho.

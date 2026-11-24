@@ -1,10 +1,10 @@
 """Captura online em piloto, revisão humana e aplicação pelos importadores existentes."""
-import hashlib
 from pathlib import Path
 
 from flask import Blueprint,jsonify,render_template,request,current_app,redirect,url_for
 from app_core import auth,blueprint_helpers as bh,formularios as forms,formularios_kobo as core
 from app_core import audit,db,permissoes,campo_protocolo,formulario_campo,formulario_fluxo,formulario_piloto
+from app_core.formulario_revisao import versao as etag
 
 bp=Blueprint('formularios_kobo',__name__)
 
@@ -22,9 +22,6 @@ def item(tipo,ident):
     if not row or row['tipo_formulario']!=core.KIND_PREFIX+tipo:return None
     if row['usuario_id']!=user().get('id_usuario') and not permissoes.gerencia(user()):return None
     return row
-
-
-def etag(row):return hashlib.sha256((row['payload_json']+'|'+row['status']).encode()).hexdigest()
 
 
 @bp.before_request
@@ -56,7 +53,8 @@ def campo(tipo):
 @bp.get('/formularios/kobo/<tipo>/revisao')
 def revisao(tipo):
     if not permissoes.gerencia(user()):return jsonify({'erro':'Revisão reservada à gestão.'}),403
-    return render_template('formulario_kobo.html',tipo=tipo,titulo=core.TITULOS[tipo],revisao=True)
+    return render_template('formulario_kobo.html',tipo=tipo,titulo=core.TITULOS[tipo],revisao=True,
+                           embutido=request.args.get('embutido')=='1')
 
 
 @bp.get('/api/formularios/kobo/<tipo>/esquema')
@@ -137,7 +135,7 @@ def salvar(tipo):
     payload=body.get('payload')
     if not isinstance(payload,dict):raise ValueError('Preenchimento inválido.')
     definition=tree(tipo,payload)
-    formulario_campo.conferir_responsavel(definition,payload,publicar=status=='enviado')
+    formulario_campo.conferir_responsavel(definition,payload)
     conn=bh.get_db()
     try:
         old=conn.execute('SELECT payload_json FROM formularios WHERE uuid_cliente=? AND usuario_id=? AND tipo_formulario=?',(body.get('uuid'),user()['id_usuario'],core.KIND_PREFIX+tipo)).fetchone() if db.table_exists(conn,'formularios') else None
@@ -172,6 +170,21 @@ def revisar(tipo,ident):
     if not row:return jsonify({'erro':'Envio não encontrado.'}),404
     body=request.get_json(silent=True)
     if not isinstance(body,dict):raise ValueError('Revisão inválida.')
+    return decidir_revisao(tipo,ident,row,body,rapida=body.get('registrar') is True)
+
+
+@bp.post('/api/formularios/kobo/<tipo>/<int:ident>/aceitar')
+def aceitar(tipo,ident):
+    if not permissoes.gerencia(user()):return jsonify({'erro':'Revisão reservada à gestão.'}),403
+    row=item(tipo,ident)
+    if not row:return jsonify({'erro':'Envio não encontrado.'}),404
+    body=request.get_json(silent=True) or {}
+    if not isinstance(body,dict):raise ValueError('Revisão inválida.')
+    payload={key: value for key,value in row['payload'].items() if key!='_captura_campo'}
+    return decidir_revisao(tipo,ident,row,{**body,'payload':payload,'decisao':'aprovado','correcoes':[]},rapida=True)
+
+
+def decidir_revisao(tipo,ident,row,body,rapida=False):
     payload=body.get('payload');decision=body.get('decisao')
     if row['status']=='oficializado' and decision=='aprovado':
         return jsonify({'ok':True,'ja_aplicado':True})
@@ -182,7 +195,7 @@ def revisar(tipo,ident):
     original=row['payload'].get('responsavel')
     if original:
         definition['responsavel']=original
-        formulario_campo.conferir_responsavel(definition,payload,publicar=decision=='aprovado')
+        formulario_campo.conferir_responsavel(definition,payload)
     else:payload.pop('responsavel',None)
     payload['correcoes']=formulario_fluxo.correcoes(definition,body.get('correcoes',[]))
     if decision=='aprovado':payload['correcoes']=[]
@@ -190,7 +203,7 @@ def revisar(tipo,ident):
     core.validar(definition,payload,publicar=decision=='aprovado')
     def event(conn):
         audit.registrar_evento(bh.get_db,'formulario_interno_revisado',entidade='formularios',entidade_id=ident,detalhes={'tipo':tipo,'decisao':decision},conn=conn)
-    if decision=='aprovado' and definition.get('campo_v2') and tipo!='PE_CADASTRO':
+    if decision=='aprovado' and (rapida or definition.get('campo_v2')) and tipo!='PE_CADASTRO':
         return gravar(tipo,ident,{**row,'payload':payload},definition,aprovacao=body['etag'])
     forms.revisar(bh.db_target(),ident,payload,decision,user(),motivo=body.get('motivo'),esperado=body.get('etag'),auditar=event)
     return jsonify({'ok':True})

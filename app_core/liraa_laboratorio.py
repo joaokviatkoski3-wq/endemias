@@ -3,7 +3,9 @@
 from datetime import date, datetime
 from app_core import db, liraa, liraa_kobo, laboratorio_lancamentos, liraa_operacional as op
 
-CAMPOS = tuple(f"{specie}_{forma}" for specie in ("aegypt", "albopictus", "outra") for forma in ("larvas", "pupas"))
+EXUVIAS = tuple(f"{especie}_exuvias" for especie in ("aegypt", "albopictus", "outra"))
+CAMPOS = tuple(f"{especie}_{forma}" for especie in ("aegypt", "albopictus", "outra")
+               for forma in ("larvas", "pupas", "exuvias"))
 
 
 def painel(target, args):
@@ -54,7 +56,8 @@ def ensure_schema(conn):
     if not db.table_exists(conn, "liraa_leituras"):
         raise liraa.LiraaError("Aplique a migração 0026 para as leituras e boletins LIRAa.")
     if getattr(conn,"backend","sqlite") == "sqlite":
-        for campo, definicao in (("origem","TEXT NOT NULL DEFAULT 'sistema'"),("kobo_uuid","TEXT")):
+        extras = [(campo, f"INTEGER NOT NULL DEFAULT 0 CHECK({campo}>=0)") for campo in EXUVIAS]
+        for campo, definicao in (("origem","TEXT NOT NULL DEFAULT 'sistema'"),("kobo_uuid","TEXT"),*extras):
             if not db.column_exists(conn,"liraa_leituras",campo):
                 conn.execute(f"ALTER TABLE liraa_leituras ADD COLUMN {campo} {definicao}")
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_liraa_leituras_kobo_uuid ON liraa_leituras(kobo_uuid)")
@@ -74,7 +77,8 @@ def listar(target, ciclo=None, pendentes=False, offset=0):
         rows = [db.serialize_row(r) for r in conn.execute("""SELECT t.*,v.id_ciclo,v.data_visita,v.situacao_vinculo,
             v.localidade_informada,v.quarteirao,v.logradouro,v.numero AS numero_imovel,
             l.id_tubito AS leitura_id,l.data_leitura,l.laboratorista,l.id_usuario,l.observacoes,l.atualizado_em,
-            l.aegypt_larvas,l.aegypt_pupas,l.albopictus_larvas,l.albopictus_pupas,l.outra_larvas,l.outra_pupas
+            l.aegypt_larvas,l.aegypt_pupas,l.aegypt_exuvias,l.albopictus_larvas,l.albopictus_pupas,
+            l.albopictus_exuvias,l.outra_larvas,l.outra_pupas,l.outra_exuvias
             FROM liraa_visita_tubitos t JOIN liraa_visitas v ON v.id_visita=t.id_visita
             LEFT JOIN liraa_leituras l ON l.id_tubito=t.id_tubito""" + where +
             " ORDER BY v.data_visita,t.id_tubito LIMIT 101 OFFSET ?", (*params, max(0, int(offset))))]
@@ -91,8 +95,10 @@ def salvar(target, id_tubito, payload, usuario, auditar=None):
         raise liraa.LiraaError("Sem permissão para lançar resultados laboratoriais.")
     counts = {}
     for field in CAMPOS:
+        if field in EXUVIAS and field not in payload:
+            continue  # Clientes antigos preservam a informação ao editar.
         raw = str(payload.get(field, "")).strip()
-        if not raw.isascii() or not raw.isdigit() or not 0 <= int(raw) <= 1000000:
+        if not raw.isascii() or not raw.isdigit() or len(raw)>7 or int(raw)>1000000:
             raise liraa.LiraaError("Preencha todas as quantidades com inteiros entre 0 e 1.000.000; zero indica ausência.")
         counts[field] = int(raw)
     try:
@@ -133,9 +139,12 @@ def salvar(target, id_tubito, payload, usuario, auditar=None):
                 raise liraa.LiraaError("Somente administrador pode corrigir uma leitura já salva.")
             if old and str(payload.get("versao", "")) != old["atualizado_em"]:
                 raise liraa.LiraaError("Esta leitura foi alterada. Atualize a página antes de corrigir.")
+            for field in EXUVIAS:
+                counts.setdefault(field, old[field] if old else 0)
             fields = ["id_tubito", "data_leitura", "laboratorista", "id_usuario", *CAMPOS, "observacoes", "atualizado_em"]
             updated = datetime.now().isoformat(timespec="microseconds")
-            values = [id_tubito, reading_date.isoformat(), usuario["nome"], usuario["id_usuario"], *counts.values(), obs, updated]
+            values = [id_tubito, reading_date.isoformat(), usuario["nome"], usuario["id_usuario"],
+                      *(counts[field] for field in CAMPOS), obs, updated]
             conn.execute(f"INSERT INTO liraa_leituras ({','.join(fields)}) VALUES ({','.join('?' for _ in fields)}) "
                          "ON CONFLICT(id_tubito) DO UPDATE SET " + ','.join(f"{f}=excluded.{f}" for f in fields[1:]), values)
             if code:

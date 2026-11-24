@@ -92,17 +92,18 @@ class ValidacaoFormularioTests(unittest.TestCase):
         tree={'responsavel':{'usuario_id':1,'campos':{'Nome_do_laboratorista':'laboratorista ficticio'}},
               'nodes':[{'name':'Nome_do_laboratorista','path':'Nome_do_laboratorista','kind':'select_one'}]}
         payload={'values':{'Nome_do_laboratorista':'laboratorista ficticio'}}
-        conferir_responsavel(tree,payload,publicar=True)
+        conferir_responsavel(tree,payload)
         self.assertEqual(payload['responsavel']['usuario_id'],1)
 
     def test_superadmin_do_piloto_sem_vinculo_registra_autoria_e_equipe(self):
         from app_core.formulario_campo import conferir_responsavel
-        tree = {'responsavel': {'usuario_id': 1, 'id_agente': None, 'campos': {}, 'gestao_piloto': True},
+        tree = {'responsavel': {'usuario_id': 1, 'id_agente': None, 'campos': {}},
                 'nodes': [{'name': 'Agentes', 'path': 'Agentes', 'kind': 'select_multiple'}]}
-        with self.assertRaises(ValueError):
-            conferir_responsavel(tree, {'values': {}}, publicar=True)
+        payload = {'values': {}}
+        conferir_responsavel(tree, payload)
+        self.assertEqual(payload['values'], {})
         payload = {'values': {'Agentes': 'agente-de-teste'}, 'responsavel': {'usuario_id': 999}}
-        conferir_responsavel(tree, payload, publicar=True)
+        conferir_responsavel(tree, payload)
         self.assertEqual(payload['responsavel']['usuario_id'], 1)
         self.assertIsNone(payload['responsavel']['id_agente'])
         self.assertEqual(payload['values']['Agentes'], 'agente-de-teste')
@@ -175,7 +176,7 @@ class ApiFormularioTests(unittest.TestCase):
             self.assertNotIn('AT-024', {row['id'] for row in response.json['referencias']['equipamento']})
             superadmin = self.f.client('endemias', 1)
             self.assertEqual(superadmin.get(route).status_code, 200)
-            self.assertTrue(superadmin.get(route).json['esquemas']['BRI']['responsavel']['gestao_piloto'])
+            self.assertEqual(superadmin.get(route).json['esquemas']['BRI']['responsavel']['usuario_id'],1)
             self.assertEqual(self.f.client('endemias', 3).get(route).status_code, 403)
             self.assertEqual(self.f.client('ambiental', 5).get(route).status_code, 403)
             self.assertEqual(self.f.client('ambiental', 1).get(route).status_code, 403)
@@ -221,14 +222,14 @@ class ApiFormularioTests(unittest.TestCase):
 
     def equipe_ficticia(self):
         definition=definicao()
-        definition['survey'].append({'name':'Agentes','type':'select_multiple','select_from_list_name':'agentes'})
+        definition['survey'].append({'name':'Agentes','type':'select_multiple','select_from_list_name':'agentes','required':True})
         definition['choices'] += [{'list_name':'agentes','name':'eu','label':['Agente Ficticio']},
                                   {'list_name':'agentes','name':'colega','label':['Outro Agente Ficticio']}]
         core.carregar.side_effect=None;core.carregar.return_value=definition
         self.tree=core.compilar(definition);self.payload=preenchimento(self.tree)
         self.f.sql('UPDATE usuarios SET id_agente=1 WHERE id_usuario=5')
 
-    def test_autor_confiavel_nao_pode_ser_falsificado_nem_removido_na_revisao(self):
+    def test_autoria_permanece_ao_corrigir_a_equipe(self):
         self.equipe_ficticia();self.payload['values']['Agentes']='eu colega'
         self.payload['responsavel']={'usuario_id':999,'nome':'Falso','campos':{}}
         response=self.send();self.assertEqual(response.status_code,200,response.json)
@@ -238,15 +239,57 @@ class ApiFormularioTests(unittest.TestCase):
         self.assertEqual(saved['payload']['responsavel']['campos'],{'Agentes':'eu'})
         saved['payload']['values']['Agentes']='colega'
         response=self.client.post(f'/api/formularios/kobo/BRI/{ident}/revisar',json={'payload':saved['payload'],'etag':saved['etag'],'decisao':'aprovado'})
-        self.assertEqual(response.status_code,400)
-        self.assertEqual(forms.obter(str(self.f.path),ident)['status'],'enviado')
+        self.assertEqual(response.status_code,200,response.json)
+        revised=forms.obter(str(self.f.path),ident)
+        self.assertEqual(revised['payload']['values']['Agentes'],'colega')
+        self.assertEqual(revised['payload']['responsavel']['usuario_id'],5)
 
-    def test_envio_sem_agente_proprio_ou_sem_vinculo_falha_fechado(self):
+    def test_ausencia_na_visita_e_vinculo_opcional_preservam_autoria(self):
         self.equipe_ficticia();self.payload['values']['Agentes']='colega'
-        self.assertEqual(self.send().status_code,400)
+        saved=self.send()
+        self.assertEqual(saved.status_code,200)
+        self.assertEqual(forms.obter(str(self.f.path),saved.json['id'])['payload']['values']['Agentes'],'colega')
         self.f.sql('UPDATE usuarios SET id_agente=NULL WHERE id_usuario=5')
-        self.payload['values']['Agentes']='eu colega'
+        self.assertEqual(self.send().status_code,200)
+        self.payload['values']['Agentes']=''
         self.assertEqual(self.send().status_code,400)
+        self.payload['values']['Agentes']='nao-cadastrado'
+        self.assertEqual(self.send().status_code,400)
+
+    def test_fila_unificada_filtra_participante_e_respeita_setor_e_perfil(self):
+        self.equipe_ficticia();self.payload['values']['Agentes']='colega'
+        ident=self.send().json['id']
+        self.f.sql("INSERT INTO formularios(tipo_formulario,usuario_id,agente_nome,status,payload_json,criado_em)"
+                   "VALUES('rg_atualizacao',5,'Gestor ficticio','enviado',?,'2026-06-03')",
+                   ('{"localidade":"Localidade do RG","quarteirao":"42","data_atualizacao":"2026-06-03"}',))
+        path='/formularios?aba=revisao'
+        html=self.client.get(path).text
+        self.assertIn(f'#{ident}',html)
+        self.assertIn('Localidade do RG',html)
+        self.assertIn('Equipe da visita',html)
+        self.assertNotIn('Localidade do RG',self.client.get(path+'&agente=outro+agente').text)
+        self.assertNotIn(f'/formularios/kobo/BRI/revisao?envio={ident}',self.f.client('ambiental',5).get(path).text)
+        self.assertNotIn('fila-revisao',self.f.client('endemias',3).get(path).text)
+        endpoint=f'/api/formularios/kobo/BRI/{ident}/aceitar'
+        self.assertEqual(self.f.client('endemias',3).post(endpoint,json={}).status_code,403)
+        row=self.client.get(f'/api/formularios/kobo/BRI/{ident}').json
+        self.assertIn(self.client.post(endpoint,json={'etag':'0'*64}).status_code,(400,409))
+        self.assertEqual(self.client.post(endpoint,json={'etag':row['etag']}).status_code,200)
+        self.assertEqual(forms.obter(str(self.f.path),ident)['status'],'oficializado')
+
+    def test_aceite_rg_confere_versao_e_aplica_imoveis(self):
+        ident=forms.salvar(str(self.f.path),'rg_atualizacao', {
+            'id_localidade':1,'quarteirao':'0042','data_atualizacao':'2026-06-03','agentes_ids':[1],
+            'linhas':[{'logradouro':'Rua da revisão','numero':'12','tipo':'R','condominio':0}],
+        },{'id_usuario':5,'nome':'Gestor ficticio'})
+        item=self.client.get(f'/api/formularios/{ident}').json
+        endpoint=f'/api/formularios/{ident}/aceitar'
+        self.assertEqual(self.client.post(endpoint,json={'etag':'0'*64}).status_code,409)
+        self.assertEqual(forms.obter(str(self.f.path),ident)['status'],'enviado')
+        applied=self.client.post(endpoint,json={'etag':item['etag']})
+        self.assertEqual(applied.status_code,200,applied.json)
+        self.assertEqual(forms.obter(str(self.f.path),ident)['status'],'oficializado')
+        self.assertEqual(db.scalar(str(self.f.path),"SELECT COUNT(*) FROM registro_geografico_imoveis WHERE logradouro='Rua da revisão'"),1)
 
     def test_revisor_preserva_autor_e_nao_se_acrescenta_como_participante(self):
         self.equipe_ficticia();self.payload['values']['Agentes']='eu colega'

@@ -1,0 +1,56 @@
+<section aria-label="Fila de revisão" id="fila-revisao">
+  <form action="/formularios" method="get" class="fila-filtros">
+    <input type="hidden" name="aba" value="revisao">
+    <label class="fila-pesquisa">Pesquisar<input type="search" name="busca" value="{{ filtros.busca }}" maxlength="150" placeholder="Nº, endereço ou agente"></label>
+    <label>Tipo de formulário<select name="tipo"><option value="">Todos</option>{% for tipo, titulo in tipos.items() %}<option value="{{ tipo }}" {% if filtros.tipo==tipo %}selected{% endif %}>{{ titulo }}</option>{% endfor %}</select></label>
+    <label>Situação<select name="status">{% for chave, rotulo in situacoes.items() %}<option value="{{ chave }}" {% if filtros.status==chave %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}</select></label>
+    <details class="fila-mais-filtros" {% if filtros.inicio or filtros.fim or filtros.agente or filtros.autor or filtros.localidade %}open{% endif %}>
+      <summary>Mais filtros</summary>
+      <div>
+        <label>Data da visita · de<input type="date" name="inicio" value="{{ filtros.inicio }}"></label>
+        <label>Data da visita · até<input type="date" name="fim" value="{{ filtros.fim }}"></label>
+        <label>Agente participante<input name="agente" maxlength="150" value="{{ filtros.agente }}"></label>
+        <label>Responsável pelo envio<input name="autor" maxlength="150" value="{{ filtros.autor }}"></label>
+        <label>Localidade<input name="localidade" maxlength="150" value="{{ filtros.localidade }}"></label>
+      </div>
+    </details>
+    <div class="fila-filtro-acoes"><a class="btn btn-outline" href="/formularios?aba=revisao">Limpar</a><button class="btn btn-primary" type="submit">Filtrar</button></div>
+  </form>
+  <p id="fila-status" role="status" class="fila-total">{{ erro or (total ~ ' envio(s)') }}</p>
+  <div class="fila-cards">
+    {% for item in itens %}
+    {% set rg=item.tipo=='rg_atualizacao' %}
+    {% set detalhe=('/formularios/rg-revisao' if rg else '/formularios/kobo/' ~ item.tipo[5:] ~ '/revisao') ~ '?envio=' ~ item.id %}
+    {% set aceitar=('/api/formularios/' if rg else '/api/formularios/kobo/' ~ item.tipo[5:] ~ '/') ~ item.id ~ '/aceitar' %}
+    <article class="fila-card">
+      <div class="fila-card-corpo">
+        <header><span class="fila-situacao">{{ situacoes.get(item.status,item.status) }}</span><span>#{{ item.id }}</span></header>
+        <h2><a class="fila-detalhe" href="{{ detalhe }}">{{ item.titulo }}</a></h2>
+        {% if item.complemento or item.endereco %}<p>{{ [item.complemento,item.endereco]|select|join(' · ') }}</p>{% endif %}
+        <dl>
+          <div><dt>Data</dt><dd>{{ item.data[8:10] ~ '/' ~ item.data[5:7] ~ '/' ~ item.data[:4] if item.data|length==10 else '—' }}</dd></div>
+          <div><dt>Localidade</dt><dd>{{ item.localidade or '—' }}{% if item.quadra %} · Q. {{ item.quadra }}{% endif %}</dd></div>
+          <div><dt>Responsável pelo envio</dt><dd>{{ item.autor or '—' }}</dd></div>
+          <div><dt>Equipe da visita</dt><dd>{{ item.equipe|join(', ') or '—' }}</dd></div>
+        </dl>
+      </div>
+      {% if (item.status in ['enviado','aprovado'] and not (item.status=='aprovado' and item.tipo=='kobo_PE_CADASTRO')) or (rg and item.status=='em_revisao') %}
+      <button class="btn btn-primary fila-aceitar" type="button" data-aceitar="{{ aceitar }}" data-etag="{{ item.etag }}" data-rg="{{ '1' if rg else '0' }}">Aceitar</button>
+      {% endif %}
+    </article>
+    {% else %}
+    <p class="fila-vazia">Nenhum envio encontrado com estes filtros.</p>
+    {% endfor %}
+  </div>
+  {% if pagina>1 or total>pagina*por_pagina %}
+  <nav class="fila-paginacao" aria-label="Páginas da revisão">
+    {% if pagina>1 %}<a class="btn btn-outline" href="{{ url_for('formularios.page',aba='revisao',pagina=pagina-1,**filtros) }}">Anterior</a>{% endif %}
+    <span>Página {{ pagina }}</span>
+    {% if total>pagina*por_pagina %}<a class="btn btn-outline" href="{{ url_for('formularios.page',aba='revisao',pagina=pagina+1,**filtros) }}">Próxima</a>{% endif %}
+  </nav>
+  {% endif %}
+</section>
+<dialog id="fila-dialog" aria-labelledby="fila-dialog-titulo">
+  <header><strong id="fila-dialog-titulo">Detalhes do envio</strong><button class="btn btn-outline" id="fila-fechar" type="button">Fechar</button></header>
+  <iframe id="fila-editor" title="Detalhes e revisão do formulário"></iframe>
+</dialog>

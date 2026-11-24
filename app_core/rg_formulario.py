@@ -67,7 +67,7 @@ def snapshot(target, selecoes):
             conn.close()
 
 
-def oficializar(target, id_formulario, usuario):
+def oficializar(target, id_formulario, usuario, *, aceitar_versao=None):
     """Aplica o payload aprovado no RG (substitui o quarteirão) e oficializa."""
     conn = db_core.connect(target)
     try:
@@ -84,6 +84,15 @@ def oficializar(target, id_formulario, usuario):
             raise ValueError("Formulário não encontrado.")
         if form["tipo_formulario"] != TIPO:
             raise ValueError("Formulário não é de atualização de RG.")
+        if aceitar_versao is not None:
+            from app_core.formulario_revisao import versao
+            from app_core.campo_protocolo import ConflitoCampo
+            if versao(form)!=aceitar_versao:
+                raise ConflitoCampo("O envio mudou. Atualize a revisão.")
+            if form["status"]!="aprovado":
+                formularios_core.revisar(conn,id_formulario,form["payload"],
+                    formularios_core.STATUS_APROVADO,usuario,esperado=aceitar_versao,transacao_externa=True)
+                form=formularios_core.obter(conn,id_formulario)
         if form["status"] != formularios_core.STATUS_APROVADO:
             raise ValueError("Somente formulários aprovados podem ser oficializados.")
         usuario = usuario or {}

@@ -1,12 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Formulários{% endblock %}
 {% block page_title %}Formulários{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="/static/css/formularios_revisao.css?v={{ APP_VERSION }}">{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <h1><span class="icon"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"></span> Formulários</h1>
-  <div class="sub">Formulários internos de captura em campo e revisão</div>
 </div>
+<nav class="form-tabs" aria-label="Áreas de formulários">
+  <a class="{{ 'active' if aba=='campo' }}" href="/formularios" {% if aba=='campo' %}aria-current="page"{% endif %}>Formulários disponíveis</a>
+  {% if is_admin %}<a class="{{ 'active' if aba=='revisao' }}" href="/formularios?aba=revisao" {% if aba=='revisao' %}aria-current="page"{% endif %}>Revisão</a>{% endif %}
+</nav>
+{% if aba=='revisao' %}
+  {% include "formularios_fila.html" %}
+{% else %}
 {% if piloto_offline %}
 <p><a class="btn btn-primary" href="/formularios/campo-offline">Preparar formulários para uso offline</a></p>
 {% endif %}
@@ -40,4 +47,8 @@
     </table>
   </div>
 </div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+{% if aba=='revisao' %}<script nonce="{{ csp_nonce() }}" src="/static/js/formularios_revisao.js?v={{ APP_VERSION }}"></script>{% endif %}
 {% endblock %}

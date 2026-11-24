@@ -1,10 +1,17 @@
 # Contexto para continuidade do projeto
 
-Atualizado em 23/11/2026. Este arquivo e o ponto de entrada para qualquer IA
+Atualizado em 24/11/2026. Este arquivo e o ponto de entrada para qualquer IA
 que assumir o projeto em outra conta ou conversa. Leia depois
 `docs/ESTADO_ATUAL_PROJETO.md` (estado vivo) e, em especial, a seccao
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
+
+## Candidata 2.12.0 — revisão de formulários e exúvias
+
+Fila de revisão por setor para admin e superadmin, com filtros, cards e
+edição ou devolução dentro da página. Campos obrigatórios indicados antes
+do envio e autoria registrada separadamente da equipe. A migração 0039
+acrescenta exúvias às leituras do LIRAa. Consulte o estado operacional.
 
 ## Versão ativa 2.11.1 — superadmin no piloto de campo
 

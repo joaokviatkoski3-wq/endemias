@@ -1,8 +1,27 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 23/11/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 24/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
+
+## Candidata 2.12.0 — revisão de formulários e exúvias
+
+Formulários disponíveis e Revisão em abas. A fila é filtrada pelo setor e
+restrita a admin/superadmin. Inclui RG e formulários internos visíveis
+no setor, com busca, situação, participante, autor, localidade, tipo e data.
+Aceitar usa a versão exibida no card e valida antes da gravação. No RG,
+a confirmação explicita a substituição dos dados oficiais do quarteirão.
+A proposta cadastral do PE continua sujeita à atualização manual.
+
+O campo indica os obrigatórios pendentes ao tentar enviar, online ou
+offline. A conta autora continua registrada pelo servidor e a equipe da
+visita pode remover o agente pré-selecionado quando ele estiver ausente.
+Formulários do Kobo e a fila offline existente são preservados.
+
+Migração 0039 acrescenta exúvias de Ae. aegypti, Ae. albopictus e outras
+espécies às leituras LIRAa. Os novos campos aparecem no lançamento e no
+histórico. Índices e notificações LIRAa mantêm os critérios atuais de
+larvas e pupas. Exúvias da rotina já existiam.
 
 ## Versão ativa 2.11.1 — superadmin no piloto de campo
 

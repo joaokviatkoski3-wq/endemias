@@ -56,6 +56,7 @@
 .species{border-top:1px solid var(--border);padding-top:12px;display:grid;gap:9px;}
 .species-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}.species-head strong{font-size:13px;}
 .counts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+[data-liraa="1"] .counts{grid-template-columns:repeat(3,minmax(0,1fr));}
 .count-field{display:grid;gap:4px;}.count-field label{font-size:9px;text-transform:uppercase;color:var(--text3);font-weight:700;}
 .count-field input{width:100%;min-width:0;height:42px;text-align:center;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);font:700 15px inherit;}
 .lab-form-actions{position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);padding-top:12px;display:flex;justify-content:flex-end;gap:8px;}
@@ -238,7 +239,7 @@ function configurarCamposLiraa(tipo){
   const liraa=tipo==='LIRAA';
   labFields.forEach(name=>{
     const input=document.querySelector(`[name="${name}"]`);
-    const fora=liraa&&(name.endsWith('_exuvias')||name.endsWith('_adulto'));
+    const fora=liraa&&name.endsWith('_adulto');
     input.max=liraa?'1000000':'100000';
     input.disabled=fora;input.closest('.count-field').hidden=fora;
     if(fora)input.value=0;

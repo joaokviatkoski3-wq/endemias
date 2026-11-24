@@ -6,7 +6,7 @@ from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import formularios as formularios_core
 from app_core import rg_formulario
-from app_core import audit, campo_protocolo
+from app_core import audit, campo_protocolo, formulario_revisao, permissoes
 
 
 bp = Blueprint("formularios", __name__)
@@ -54,11 +54,22 @@ def page():
     usuario = bh.usuario_atual() or {}
     from app_core import formulario_piloto,formularios_kobo,setores
     rg=list(formularios_core.FORMULARIOS) if setores.atual()!='ambiental' and not usuario.get('somente_laboratorio') else []
+    is_admin=permissoes.gerencia(usuario)
+    aba="revisao" if is_admin and request.args.get("aba")=="revisao" else "campo"
+    itens,filtros,total,pagina=[],{},0,1
+    erro=None
+    if aba=="revisao":
+        try:
+            itens,filtros,total,pagina=formulario_revisao.listar(bh.db_target(),usuario,request.args)
+        except ValueError:
+            erro="Confira as datas usadas para filtrar a revisão."
     return render_template(
         "formularios.html",
         formularios=rg+formularios_kobo.catalogo(usuario),
         piloto_offline=formulario_piloto.habilitado(usuario),
-        is_admin=usuario.get("nivel") in {"admin", "superadmin"},
+        is_admin=is_admin,aba=aba,itens=itens,filtros=filtros,total=total,pagina=pagina,
+        erro=erro,por_pagina=formulario_revisao.POR_PAGINA,
+        situacoes=formulario_revisao.SITUACOES,tipos=formulario_revisao.tipos(usuario) if is_admin else {},
     )
 
 
@@ -145,7 +156,7 @@ def api_obter(id_formulario):
     usuario = bh.usuario_atual() or {}
     if usuario.get("nivel") not in {"admin", "superadmin"} and item["usuario_id"] != usuario.get("id_usuario"):
         return jsonify({"erro": "Formulário não encontrado."}), 404
-    return jsonify(item)
+    return jsonify({**item,"etag":formulario_revisao.versao(item)})
 
 
 @bp.route("/api/formularios/<int:id_formulario>/revisar", methods=["POST"])
@@ -162,7 +173,10 @@ def api_revisar(id_formulario):
             payload.get("decisao"),
             usuario,
             motivo=payload.get("motivo"),
+            esperado=payload.get("etag"),
         )
+    except campo_protocolo.ConflitoCampo as exc:
+        return jsonify({"erro":str(exc)}),409
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
     return jsonify({"ok": True})
@@ -197,7 +211,7 @@ def rg_campo_page():
 @login_required
 @nivel_min("admin")
 def rg_revisao_page():
-    return render_template("rg_revisao.html")
+    return render_template("rg_revisao.html",embutido=request.args.get("embutido")=="1")
 
 
 @bp.route("/api/formularios/rg/snapshot", methods=["POST"])
@@ -226,3 +240,20 @@ def api_oficializar(id_formulario):
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
     return jsonify({"ok": True})
+
+
+@bp.post("/api/formularios/<int:id_formulario>/aceitar")
+@login_required
+@nivel_min("admin")
+def api_aceitar(id_formulario):
+    payload=request.get_json(silent=True)
+    tag=payload.get("etag") if isinstance(payload,dict) else None
+    if not isinstance(tag,str) or len(tag)!=64:
+        return jsonify({"erro":"Abra a revisão antes de aceitar."}),400
+    try:
+        rg_formulario.oficializar(bh.db_target(),id_formulario,bh.usuario_atual() or {},aceitar_versao=tag)
+    except campo_protocolo.ConflitoCampo as exc:
+        return jsonify({"erro":str(exc)}),409
+    except ValueError as exc:
+        return jsonify({"erro":str(exc)}),400
+    return jsonify({"ok":True})

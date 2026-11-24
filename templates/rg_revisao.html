@@ -2,7 +2,7 @@
 {% block title %}RG — Revisão{% endblock %}
 {% block page_title %}Atualização de RG — Revisão{% endblock %}
 
-{% block extra_css %}<style>
+{% block extra_css %}{% if embutido %}<link rel="stylesheet" href="/static/css/formularios_revisao.css?v={{ APP_VERSION }}">{% endif %}<style>
 .rgr-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-bottom:14px;}
 .rgr-linha{display:grid;grid-template-columns:1fr 80px 70px 120px 60px 1fr 34px;gap:8px;align-items:center;margin-bottom:8px;}
 .rgr-linha .f-g{margin:0;}
@@ -21,7 +21,7 @@
   <div class="sub">Aprovar, corrigir e oficializar os formulários enviados do campo</div>
 </div>
 
-<div class="chart-card">
+<div class="chart-card" {% if embutido %}hidden{% endif %}>
   <div class="chart-hd">
     <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Formulários</div>
     <div style="display:flex;gap:8px;align-items:center;">
@@ -49,12 +49,13 @@
     <div class="chart-title"><img src="/static/icons/editar.svg" alt="" class="icon-svg"> <span id="rgr-editor-titulo"></span></div>
     <div class="rgr-actions">
       <button class="btn btn-outline" type="button" id="rgr-devolver" onclick="salvarRevisao('devolvido')">Devolver</button>
-      <button class="btn btn-primary" type="button" onclick="salvarRevisao('aprovado')"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Aprovar</button>
+      <button class="btn btn-primary" id="rgr-aprovar" type="button" onclick="salvarRevisao('aprovado')"><img src="/static/icons/check.svg" alt="" class="icon-svg"> Aprovar</button>
       <button class="btn btn-primary" type="button" id="rgr-oficializar" onclick="oficializar()" style="display:none;"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Oficializar no sistema</button>
     </div>
   </div>
   <div style="padding:14px;">
     <div class="f-g" id="rgr-motivo-wrap" style="display:none;margin-bottom:10px;"><label>Motivo da devolução</label><input id="rgr-motivo"></div>
+    <p id="rgr-data"></p>
     <div id="rgr-linhas"></div>
     <div style="margin-top:10px;"><button class="btn btn-outline" type="button" onclick="adicionarLinha()"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"> Adicionar imóvel</button></div>
   </div>
@@ -68,6 +69,11 @@ const rgrStatus = {
 };
 const rgrTipos = {R:'Residência',C:'Comércio',O:'Outros',TB:'Terreno baldio',PE:'Ponto estratégico',A:'Pendente',REF:'Referência'};
 let rgrAtual = null;
+const rgEmbutido = {{ (embutido or false)|tojson }};
+function rgRevisaoAtualizou(){
+  if(rgEmbutido)window.parent.postMessage({type:'revisao-alterada'},location.origin);
+  else carregarLista();
+}
 
 function peEsc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 async function api(url, method, body){
@@ -107,11 +113,14 @@ async function abrirForm(id){
   rgrAtual = f;
   const p = f.payload || {};
   rgrAtual.linhas = Array.isArray(p.linhas) ? p.linhas.map(l => ({...l})) : [];
-  document.getElementById('rgr-editor-titulo').textContent = `Formulário #${f.id_formulario} — ${p.localidade || ''} · Q. ${p.quarteirao || ''} (${peEsc(f.agente_nome || 'sem autor')})`;
+  document.getElementById('rgr-editor-titulo').textContent = `Formulário #${f.id_formulario} — ${p.localidade || ''} · Q. ${p.quarteirao || ''}`;
+  document.getElementById('rgr-data').textContent = `Responsável pelo envio: ${f.agente_nome || '—'} · Data da atualização: ${p.data_atualizacao || '—'}`;
   document.getElementById('rgr-editor').hidden = false;
   const oficializavel = f.status === 'aprovado';
   document.getElementById('rgr-oficializar').style.display = oficializavel ? '' : 'none';
   document.getElementById('rgr-devolver').style.display = (f.status === 'enviado' || f.status === 'em_revisao') ? '' : 'none';
+  document.getElementById('rgr-aprovar').hidden = !['enviado','em_revisao','aprovado'].includes(f.status);
+  document.getElementById('rgr-motivo-wrap').style.display = 'none';
   renderLinhas();
 }
 
@@ -140,20 +149,23 @@ function renderLinhas(){
 
 async function salvarRevisao(decisao){
   if (!rgrAtual) return;
+  const input=document.getElementById('rgr-motivo');
+  if(decisao==='devolvido'&&!input.value.trim()){
+    document.getElementById('rgr-motivo-wrap').style.display='';
+    input.focus();return;
+  }
   if (!(await confirmacaoDupla(decisao === 'devolvido'
     ? 'Devolver este RG ao agente? Os dados atuais serão preservados para ele continuar a atualização.'
     : 'Aprovar este RG para oficialização?'))) return;
-  if (decisao === 'devolvido') {
-    const m = document.getElementById('rgr-motivo').value.trim();
-    if (!m) { toast('Informe o motivo da devolução.', 'error'); return; }
-    await api(`/api/formularios/${rgrAtual.id_formulario}/revisar`, 'POST', {payload:{...rgrAtual.payload, linhas:rgrAtual.linhas}, decisao, motivo:m});
-  } else {
-    await api(`/api/formularios/${rgrAtual.id_formulario}/revisar`, 'POST', {payload:{...rgrAtual.payload, linhas:rgrAtual.linhas}, decisao});
+  try{
+    await api(`/api/formularios/${rgrAtual.id_formulario}/revisar`, 'POST', {payload:{...rgrAtual.payload, linhas:rgrAtual.linhas}, decisao, motivo:decisao==='devolvido'?input.value.trim():null,etag:rgrAtual.etag});
+    toast(decisao === 'aprovado' ? 'Formulário aprovado.' : 'Formulário devolvido.', 'success');
+    if(decisao==='aprovado')await abrirForm(rgrAtual.id_formulario);
+    else {rgrAtual=null;document.getElementById('rgr-editor').hidden=true;}
+    rgRevisaoAtualizou();
+  }catch(error){
+    toast(error.message,'error');
   }
-  toast(decisao === 'aprovado' ? 'Formulário aprovado.' : 'Formulário devolvido.', 'success');
-  rgrAtual = null;
-  document.getElementById('rgr-editor').hidden = true;
-  carregarLista();
 }
 
 async function confirmacaoDupla(mensagem){
@@ -170,7 +182,7 @@ async function excluirForm(id){
     if (rgrAtual && rgrAtual.id_formulario === id) {
       rgrAtual = null; document.getElementById('rgr-editor').hidden = true;
     }
-    carregarLista();
+    rgRevisaoAtualizou();
   } catch (e) { toast(e.message || 'Erro ao apagar.', 'error'); }
 }
 
@@ -182,12 +194,11 @@ async function oficializar(){
     toast('Oficializado no sistema.', 'success');
     rgrAtual = null;
     document.getElementById('rgr-editor').hidden = true;
-    carregarLista();
+    rgRevisaoAtualizou();
   } catch (e) { toast(e.message || 'Erro ao oficializar.', 'error'); }
 }
 
-document.getElementById('rgr-devolver').addEventListener('click', () => {
-  document.getElementById('rgr-motivo-wrap').style.display = '';
-});
-carregarLista().catch(e => toast('Erro ao carregar: ' + e.message, 'error'));
+const rgEnvio=Number(new URLSearchParams(location.search).get('envio'));
+if(rgEnvio)abrirForm(rgEnvio).catch(e=>toast(e.message,'error'));
+if(!rgEmbutido)carregarLista().catch(e => toast('Erro ao carregar: ' + e.message, 'error'));
 </script>{% endblock %}

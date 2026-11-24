@@ -320,6 +320,14 @@ def historico():
              LIMIT ?
         """, (*params, *encerrados, limite)).fetchall()
         coletas = _serializar_coletas(conn, resultados)
+        # Exúvias do LIRAa pertencem à ficha de leitura sem alterar a visão usada nos indicadores.
+        id_liraa = [-r["id_resultado"] for r in resultados if r["id_resultado"] < 0]
+        if id_liraa and db_core.column_exists(conn.raw,"liraa_leituras","aegypt_exuvias"):
+            leituras = conn.raw.execute("SELECT id_tubito,aegypt_exuvias,albopictus_exuvias,outra_exuvias"
+                " FROM liraa_leituras WHERE id_tubito IN ("+",".join("?" for _ in id_liraa)+")",id_liraa)
+            exuvias = {row["id_tubito"]: {campo:row[campo] for campo in liraa_lab_core.EXUVIAS} for row in leituras}
+        else:
+            exuvias = {}
         todos_encerrados = liraa.ciclos_encerrados(conn)
     finally:
         conn.close()
@@ -327,10 +335,11 @@ def historico():
     for row, item in zip(resultados, coletas):
         if item["id_resultado"] < 0:
             item["editavel"] = row["ciclo_visita"] not in todos_encerrados and (bh.usuario_atual() or {}).get("nivel") in {"admin", "superadmin"}
+            item.update(exuvias.get(-item["id_resultado"], {}))
         else:
             item["editavel"] = _resultado_editavel(row)
         item["positivo_aegypti"] = any(
-            int(item.get(nome) or 0) > 0 for nome in CAMPOS_CONTAGEM[:4]
+            int(item.get(nome) or 0) > 0 for nome in CAMPOS_CONTAGEM[:(2 if item["tipo"]=="LIRAA" else 4)]
         )
         itens.append(item)
     return jsonify({"registros": itens, "total": len(itens)})
@@ -446,8 +455,9 @@ def _salvar_liraa(id_tubito, dados, corrigir=False):
         if not agente:
             return jsonify({"erro":"O nome desta conta não corresponde a um agente ativo. Contate o administrador."}), 400
         if any(dados.get(f) not in (0,"0",None,"") for f in CAMPOS_CONTAGEM if f not in liraa_lab_core.CAMPOS):
-            return jsonify({"erro":"No LIRAa, informe somente larvas e pupas."}), 400
-        payload = {f:str(dados.get(f,"")) for f in liraa_lab_core.CAMPOS}
+            return jsonify({"erro":"No LIRAa, informe larvas, pupas e exúvias."}), 400
+        payload = {f:str(dados.get(f,"")) for f in liraa_lab_core.CAMPOS
+                   if f in dados or f not in liraa_lab_core.EXUVIAS}
         payload.update(data_leitura=old["data_leitura"] if old else date.today().isoformat(),
                        versao=dados.get("versao", ""), observacoes=old["observacoes"] if old else "")
         autor = dict(usuario, nome=agente["nome"])

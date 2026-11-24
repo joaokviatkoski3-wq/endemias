@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}{{ titulo }} — Formulário{% endblock %}
 {% block page_title %}{{ titulo }}{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="/static/css/rg_campo.css?v={{ APP_VERSION }}"><link rel="stylesheet" href="/static/css/formulario_kobo.css?v={{ APP_VERSION }}">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="/static/css/rg_campo.css?v={{ APP_VERSION }}"><link rel="stylesheet" href="/static/css/formulario_kobo.css?v={{ APP_VERSION }}">{% if embutido %}<link rel="stylesheet" href="/static/css/formularios_revisao.css?v={{ APP_VERSION }}">{% endif %}{% endblock %}
 {% block content %}
 <section id="fk-app" data-tipo="{{ tipo }}" data-usuario="{{ usuario_atual.id_usuario }}" data-revisao="{{ '1' if revisao else '0' }}" data-offline="{{ '1' if offline else '0' }}">
   <div class="page-header"><h1>{{ titulo }}</h1></div>
@@ -10,9 +10,9 @@
   <p id="fk-save-status" role="status" class="sub"></p>
   <div id="fk-status" role="status" class="rgc-notice">Carregando definições…</div>
   <a id="fk-login" class="btn btn-outline" href="{{ url_for('auth.login', next='/formularios') }}" target="_blank" rel="noopener" hidden>Entrar novamente em outra aba</a>
-  <div class="rgc-actions"><a class="btn btn-outline" href="{{ '/formularios/campo-offline' if offline else '/formularios' }}">{{ 'Campo offline' if offline else 'Formulários' }}</a><button id="fk-novo" class="btn btn-outline" type="button" disabled>Novo preenchimento</button><button id="fk-listar" class="btn btn-outline" type="button" disabled>{{ 'Envios para revisão' if revisao else 'Meus envios' }}</button></div>
+  <div class="rgc-actions" {% if embutido %}hidden{% endif %}><a class="btn btn-outline" href="{{ '/formularios/campo-offline' if offline else '/formularios' }}">{{ 'Campo offline' if offline else 'Formulários' }}</a><button id="fk-listar" class="btn btn-outline" type="button" disabled>{{ 'Envios para revisão' if revisao else 'Meus envios' }}</button></div>
   <div id="fk-lista"></div>
-  {% if revisao %}<label class="fk-field">Situação dos envios<select id="fk-filtro"><option value="enviado">Enviados para revisão</option><option value="aprovado">Aprovados aguardando aplicação</option><option value="devolvido">Devolvidos para correção</option><option value="rascunho">Rascunhos</option><option value="oficializado">Aplicados</option><option value="">Todos</option></select></label>{% endif %}
+  {% if revisao %}<label class="fk-field" {% if embutido %}hidden{% endif %}>Situação dos envios<select id="fk-filtro"><option value="enviado">Enviados para revisão</option><option value="aprovado">Aprovados aguardando aplicação</option><option value="devolvido">Devolvidos para correção</option><option value="rascunho">Rascunhos</option><option value="oficializado">Aplicados</option><option value="">Todos</option></select></label>{% endif %}
   <div id="fk-editor" hidden>
     <p id="fk-situacao"></p><p id="fk-responsavel" class="fk-responsavel"></p>{% if revisao %}<p class="sub">Antes de aplicar, confira se a mesma atividade já entrou pelo Kobo. A revisão não deve duplicar a produção.</p>{% endif %}<p id="fk-agenda-vinculo" class="sub"></p><button id="fk-desvincular" type="button" class="btn btn-ghost" hidden>Desvincular desta atividade agendada</button><div id="fk-correcao-resumo" class="fk-correction" hidden></div><div id="fk-campos"></div>
     <fieldset class="fk-section" id="fk-retorno" hidden><legend>Proposta de retorno</legend>
@@ -26,6 +26,8 @@
       {% if revisao %}<button type="button" class="btn btn-outline" data-action="devolver">Devolver para correção</button><button type="button" class="btn btn-outline" data-action="aprovar">Aprovar revisão</button><button type="button" class="btn btn-primary" data-action="aplicar">Aplicar aos registros oficiais</button>
       {% else %}<button type="button" class="btn btn-outline" data-action="rascunho">Salvar rascunho</button><button type="button" class="btn btn-primary" data-action="enviado">Enviar para revisão</button><button type="button" class="btn btn-outline" data-action="proxima">Enviar e iniciar próxima visita</button>{% endif %}
     </div>
+    <p id="fk-acao-status" role="status"></p>
+    <div class="rgc-actions"><button id="fk-novo" class="btn btn-outline" type="button" {% if revisao %}hidden{% endif %} disabled>Novo preenchimento</button></div>
   </div>
   {% if not revisao %}<fieldset id="fk-proxima" hidden><legend>Preparar próxima visita</legend><p>O envio anterior já foi recebido. Escolha o que reaproveitar; os demais dados serão limpos.</p><label><input id="fk-reusar-equipe" type="checkbox"> Equipe</label><label><input id="fk-reusar-data" type="checkbox"> Data da visita</label><label><input id="fk-reusar-local" type="checkbox"> Localidade</label><button id="fk-criar-proxima" class="btn btn-primary" type="button">Iniciar próxima visita</button></fieldset>{% endif %}
 </section>

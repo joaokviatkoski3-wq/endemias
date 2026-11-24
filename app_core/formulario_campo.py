@@ -16,7 +16,6 @@ def equipe(node):
 
 def preparar(tree,usuario,target):
     from app_core.formularios_kobo import percorrer
-    from app_core import formulario_piloto
     own=escopo_agente.agente_proprio(target,usuario)
     names={chave(own[k]) for k in ('nome','nome_completo')} if own else set()
     fields={}
@@ -31,28 +30,12 @@ def preparar(tree,usuario,target):
             node['geo']=node['catalogo']
     tree['responsavel']={'usuario_id':usuario['id_usuario'],'nome':usuario.get('nome') or usuario.get('usuario'),
         'id_agente':own['id_agente'] if own else None,'agente':own['nome'] if own else None,'campos':fields}
-    if tree.get('campo_v2') and usuario.get('nivel')=='superadmin' and formulario_piloto.habilitado(usuario):
-        tree['responsavel']['gestao_piloto']=True
     return tree
 
 
-def conferir_responsavel(tree,payload,publicar=False):
+def conferir_responsavel(tree,payload):
     """O responsável vem do servidor; nunca de um nome enviado pelo navegador."""
-    from app_core.formularios_kobo import percorrer
-    responsible=tree['responsavel']
-    for node in percorrer(tree['nodes']):
-        if not equipe(node):continue
-        code=responsible['campos'].get(node['path'])
-        value=str(payload.get('values',{}).get(node['path'],''))
-        if not code:
-            if responsible.get('gestao_piloto'):
-                if publicar and not value.strip():raise ValueError('Selecione os agentes que participaram da atividade.')
-                continue
-            if publicar:raise ValueError('Vincule sua conta a um agente ativo compatível com este formulário antes de enviar. O rascunho pode ser salvo.')
-            continue
-        selected=value.split() if node['kind']=='select_multiple' else [value]
-        if code not in selected:raise ValueError('O agente responsável pelo envio deve permanecer selecionado.')
-    payload['responsavel']=responsible
+    payload['responsavel']=tree['responsavel']
 
 
 def referencias(target,localidade,quarteirao=''):

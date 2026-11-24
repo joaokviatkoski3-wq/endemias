@@ -228,6 +228,18 @@ class OperacaoTests(unittest.TestCase):
         self.assertEqual(conn.execute("SELECT COUNT(*) FROM liraa_leituras").fetchone()[0],0)
         conn.close()
 
+    def test_exuvias_tres_especies_e_correcao_por_cliente_antigo(self):
+        liraa_kobo.importar(self.target,self.ciclo,[self.registro()])
+        tube=lab.listar(self.target,self.ciclo)[0]["id_tubito"]
+        lab.salvar(self.target,tube,self.payload(aegypt_exuvias="2",albopictus_exuvias="3",outra_exuvias="4"),self.user)
+        row=lab.listar(self.target,self.ciclo)[0]
+        self.assertEqual([row[campo] for campo in lab.EXUVIAS],[2,3,4])
+        antigo={k:v for k,v in self.payload().items() if k not in lab.EXUVIAS}
+        lab.salvar(self.target,tube,{**antigo,"versao":row["atualizado_em"]},self.user)
+        row=lab.listar(self.target,self.ciclo)[0]
+        self.assertEqual([row[campo] for campo in lab.EXUVIAS],[2,3,4])
+        self.assertEqual(liraa_boletim.resumir(self.target,self.ciclo,self.base)["grupos"][0]["aegypt_total"],0)
+
     def test_boletim_codigo_invalido_e_fora_plano(self):
         good=self.registro(uuid='bom')
         good['group_jr1vc40'][0]['C_digo_do_dep_sito']='B2'
