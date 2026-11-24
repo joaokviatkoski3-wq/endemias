@@ -56,6 +56,7 @@
       const receipt=await api(base,'POST',request);
       if(receipt.revisao!==request.captura.revisao)throw Error('Revisão não confirmada. Confira seus envios.');
       if(current!==active)return true;
+      if(current.status==='novo')current.apagavel=true;
       current.id=receipt.id;current.captura.revisao=receipt.revisao;current.status='rascunho';
       history.replaceState(null,'',location.pathname+'?envio='+receipt.id);
       pendingSave=null;dirty=serial!==editSerial;
@@ -65,6 +66,10 @@
     return autoFlight;
   }
   const states={rascunho:'Rascunho',fila:'Na fila deste aparelho',enviado:'Enviado para revisão',devolvido:'Devolvido para correção',aprovado:'Aprovado',oficializado:'Aplicado aos registros oficiais'};
+  function rascunhoAbertoApagavel(){
+    return current?.status==='rascunho'&&!review&&!deviceLocked&&(current.id
+      ? current.apagavel&&navigator.onLine : current.localVersion&&useLocal());
+  }
   function uuid(){if(crypto.randomUUID)return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=[...b].map(v=>v.toString(16).padStart(2,'0')).join('');return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);}
   function timestamp(){const now=new Date(),offset=-now.getTimezoneOffset(),local=new Date(now.getTime()+offset*60000).toISOString().slice(0,-1);return local+(offset>=0?'+':'-')+String(Math.floor(Math.abs(offset)/60)).padStart(2,'0')+':'+String(Math.abs(offset)%60).padStart(2,'0');}
   function status(text,error=false){
@@ -229,6 +234,10 @@
     const locked=deviceLocked || (!navigator.onLine && fieldStore && !useLocal()) ||
       (review?!['enviado','aprovado'].includes(current.status):['fila','enviado','aprovado','oficializado'].includes(current.status));
     $('fk-novo').disabled=busy||deviceLocked;$('fk-listar').disabled=busy||deviceLocked||!navigator.onLine;
+    if($('fk-apagar')){
+      $('fk-apagar').hidden=!rascunhoAbertoApagavel();
+      $('fk-apagar').disabled=busy;
+    }
     $('fk-campos').querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=locked||busy);
     $('fk-acoes').querySelectorAll('button').forEach(el=>{
       const a=el.dataset.action;
@@ -249,11 +258,11 @@
   }
   function render(){const notes=current.payload.correcoes||[];$('fk-correcao-resumo').hidden=!notes.length;$('fk-correcao-resumo').innerHTML='<strong>Orientações da revisão</strong>'+notes.map(c=>`<p>${esc(all(schema.nodes).find(n=>n.path===c.campo)?.label||c.campo)}: ${esc(c.mensagem)}</p>`).join('');const proposal=current.payload.acompanhamento?.retorno||{};$('fk-retorno-data').value=proposal.data||'';$('fk-retorno-hora').value=proposal.hora||'';$('fk-retorno-nota').value=proposal.observacao||'';seq=0;$('fk-campos').innerHTML=draw(schema.nodes);$('fk-editor').hidden=false;visibility();scheduleGeo();}
   function initial(nodes,flat){for(const n of nodes){if(n.kind==='begin_repeat')continue;if(n.children)initial(n.children,flat);else if(n.default!==''&&n.default!==undefined&&!String(n.default).includes('${'))flat[n.path]=String(n.default);}}
-  async function fresh(){
+  async function fresh(recarregarEsquema=false){
     if(!schema||busy||autoFlight||deviceLocked)return;
     if(dirty&&!await confirmacaoDupla('Descartar as alterações que ainda não foram salvas?'))return;
     clearTimeout(autoTimer);pendingSave=null;saveBlocked=false;saveMessage('');
-    if(navigator.onLine&&!schema.campo_v2&&current?.id){
+    if(navigator.onLine&&(recarregarEsquema||!schema.campo_v2&&current?.id)){
       schema=await api(base+'/esquema');
       if(schema.campo_v2)referenceCatalog=await api(base+'/catalogos');
     }
@@ -267,7 +276,7 @@
     const request=++listRequest;
     const r=await api(base+(review?'?status='+encodeURIComponent($('fk-filtro').value):'?proprios=1'));
     if(request!==listRequest)return;
-    $('fk-lista').innerHTML=r.itens.map(i=>`<article class="fk-list-item"><strong>#${i.id} · ${esc(states[i.status]||i.status)}</strong><p>${esc(i.autor||'')} · ${esc(i.criado_em)}</p><button class="btn btn-outline" type="button" data-open="${i.id}">Abrir</button></article>`).join('')||'<p>Nenhum envio encontrado.</p>';
+    $('fk-lista').innerHTML=r.itens.map(i=>`<article class="fk-list-item"><strong>#${i.id} · ${esc(states[i.status]||i.status)}</strong><p>${esc(i.autor||'')} · ${esc(i.criado_em)}</p><div class="rgc-actions"><button class="btn btn-outline" type="button" data-open="${i.id}">Abrir</button>${!review&&i.etag_rascunho?`<button class="btn btn-ghost fk-apagar" type="button" data-apagar="${i.id}" data-etag="${esc(i.etag_rascunho)}">Apagar rascunho</button>`:''}</div></article>`).join('')||'<p>Nenhum envio encontrado.</p>';
     $('fk-lista').hidden=!show;
   }
   async function open(id){
@@ -279,6 +288,46 @@
     }
     if(!review&&['rascunho','devolvido'].includes(current.status)&&!current.payload.responsavel)current.payload.responsavel=schema.responsavel;dirty=false;render();history.replaceState(null,'',location.pathname+'?envio='+id+(embedded?'&embutido=1':''));
     status('Envio carregado do servidor.');
+  }
+  async function apagarRascunho(id=null,versao=null){
+    if(busy||review||deviceLocked||(!id&&!rascunhoAbertoApagavel()))return;
+    busy=true;
+    clearTimeout(autoTimer);
+    let reset=false,servidor;
+    try{
+      if(current)visibility();
+      if(autoFlight)await autoFlight;
+      if(!id&&!rascunhoAbertoApagavel())throw Error('Confira a situação do rascunho antes de apagar.');
+      const draft=current;
+      servidor=id||draft.id;
+      if(servidor&&!versao){
+        const latest=await api(base+'/'+servidor);
+        const same=draft.captura.revisao
+          ? draft.captura.revisao===latest.captura.revisao&&draft.captura.dispositivo===latest.captura.dispositivo
+          : draft.etag===latest.etag;
+        if(!same||!latest.apagavel)throw Error('O lançamento mudou. Reabra em Meus envios antes de tentar apagar.');
+        versao=latest.etag;
+      }
+      if(!await confirmacaoDupla(servidor?'Apagar este rascunho do sistema?':'Apagar este rascunho deste aparelho?'))return;
+      if(servidor)await api(base+'/'+servidor,'DELETE',{usuario:owner,etag:versao});
+      else await fieldStore.apagarRascunho(owner,tipo,draft.uuid,draft.localVersion);
+      reset=Boolean(draft&&(!id||draft.id===id));
+      if(reset){
+        current=null;dirty=false;pendingSave=null;saveBlocked=false;
+        $('fk-editor').hidden=true;$('fk-proxima').hidden=true;
+        history.replaceState(null,'',location.pathname);
+      }
+      if(servidor&&!$('fk-lista').hidden)await list().catch(()=>$('fk-lista').replaceChildren());
+    }finally{
+      busy=false;
+      if(current)visibility();
+      if(dirty)scheduleSave();
+    }
+    if(reset){
+      try{await fresh(Boolean(servidor));}
+      catch{status('Rascunho apagado. Reabra o formulário para iniciar outro preenchimento.');return;}
+    }
+    status('Rascunho apagado.');
   }
   function conferirObrigatorios(){
     const nodes=new Map(all(schema.nodes).map(node=>[node.path,node]));
@@ -441,6 +490,8 @@
     const b=event.target.closest('button');if(!b||busy)return;
     Promise.resolve().then(async()=>{
       if(b.dataset.action)return action(b.dataset.action);
+      if(b.id==='fk-apagar')return apagarRascunho();
+      if(b.dataset.apagar)return apagarRascunho(Number(b.dataset.apagar),b.dataset.etag);
       if(b.dataset.open)return open(Number(b.dataset.open));
       if(b.dataset.add){const rows=current.payload.repeats[b.dataset.add]||=[];if(rows.length>=100)throw Error('Limite de 100 registros neste grupo.');rows.push({});dirty=true;editSerial++;render();scheduleSave();}
       if(b.dataset.remove){if(await confirmacaoDupla('Remover este registro do preenchimento?')){current.payload.repeats[b.dataset.remove].splice(Number(b.dataset.row),1);dirty=true;editSerial++;render();scheduleSave();}}

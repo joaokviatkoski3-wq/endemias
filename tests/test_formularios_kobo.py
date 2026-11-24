@@ -129,6 +129,36 @@ class ApiFormularioTests(unittest.TestCase):
         return self.client.post('/api/formularios/kobo/BRI',json={'usuario':5,'uuid':str(uuid4()),'status':'enviado',
             'payload':self.payload,'captura':{'versao':1,'revisao':1,'dispositivo':str(uuid4())}})
 
+    def test_apagar_rascunho_exige_autor_e_versao_e_bloqueia_reenvio(self):
+        base = '/api/formularios/kobo/BRI'
+        body = {'usuario': 5, 'uuid': str(uuid4()), 'status': 'rascunho', 'payload': self.payload,
+                'captura': {'versao': 1, 'revisao': 1, 'dispositivo': str(uuid4())}}
+        response = self.client.post(base, json=body)
+        self.assertEqual(response.status_code, 200, response.json)
+        url = f'{base}/{response.json["id"]}'
+        primeira = self.client.get(url).json
+        self.assertTrue(primeira['apagavel'])
+        gestor = self.f.client('endemias', 1)
+        self.assertEqual(gestor.delete(url, json={'usuario':1,'etag':primeira['etag']}).status_code,404)
+        body['captura']['revisao'] = 2
+        self.assertEqual(self.client.post(base, json=body).status_code, 200)
+        self.assertEqual(self.client.delete(url, json={'usuario':5,'etag':primeira['etag']}).status_code,409)
+        etag = self.client.get(base+'?proprios=1').json['itens'][0]['etag_rascunho']
+        self.assertEqual(self.client.delete(url, json={'usuario':5,'etag':etag}).status_code,200)
+        self.assertEqual(self.client.get(url).status_code,404)
+        self.assertEqual(self.client.get(base+'?proprios=1').json['itens'],[])
+        self.assertEqual(self.client.post(base, json=body).status_code,409)
+
+    def test_apagar_rascunho_jamais_remove_lancamento_enviado(self):
+        ident = self.send().json['id']
+        url = f'/api/formularios/kobo/BRI/{ident}'
+        for estado in ("enviado", "rascunho"):
+            self.f.sql("UPDATE formularios SET status=? WHERE id_formulario=?", (estado, ident))
+            record = self.client.get(url).json
+            self.assertFalse(record['apagavel'])
+            self.assertEqual(self.client.delete(url, json={'usuario':5,'etag':record['etag']}).status_code,409)
+            self.assertEqual(self.client.get(url).status_code,200)
+
     def test_captura_revisao_aplicacao_atomica_e_repeticao(self):
         response=self.send();self.assertEqual(response.status_code,200,response.json);ident=response.json['id']
         item=self.client.get(f'/api/formularios/kobo/BRI/{ident}').json

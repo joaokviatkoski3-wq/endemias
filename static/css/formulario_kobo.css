@@ -9,6 +9,8 @@
 #campo-offline [hidden]{display:none!important}
 .fk-offline-actions .btn,.fk-offline-forms .btn{min-height:48px;padding:12px 18px}
 .fk-offline-forms{display:flex;flex-wrap:wrap;gap:12px;list-style:none;padding:0}
+.fk-apagar{color:var(--red);min-height:44px}
+#campo-offline-fila li .fk-apagar{margin-inline-start:.5rem}
 .fk-catalog-detail{display:block;margin-block:6px}
 #fk-app .fk-missing{outline:2px solid #b45309;outline-offset:3px;border-radius:6px}
 #fk-acao-status:empty{display:none}

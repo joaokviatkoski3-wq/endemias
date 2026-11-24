@@ -40,6 +40,27 @@
   const pacoteSalvo=usuario=>operation('pacotes','readonly',s=>s.get(usuario));
   const listar=usuario=>operation('formularios','readonly',s=>s.index('usuario').getAll(usuario));
   const obter=(usuario,id)=>operation('formularios','readonly',s=>s.get([usuario,id]));
+  const rascunhoApagavel=row=>['rascunho','corrigir'].includes(row?.status);
+  async function apagarRascunho(usuario,tipo,uuid,versao){
+    if(blocked)throw Error('Entre novamente na conta do piloto.');
+    const db=await database();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction('formularios','readwrite'),store=tx.objectStore('formularios');
+      const lookup=store.get([usuario,uuid]);
+      let error;
+      lookup.onsuccess=()=>{
+        const row=lookup.result;
+        if(blocked||row?.tipo!==tipo||!rascunhoApagavel(row)||row.localVersion!==versao){
+          error=Error('O lançamento mudou ou já está na fila. Reabra a lista antes de tentar apagar.');
+          tx.abort();
+          return;
+        }
+        store.delete([usuario,uuid]);
+      };
+      tx.oncomplete=()=>resolve();
+      tx.onabort=()=>reject(error||tx.error||Error('Não foi possível apagar o rascunho.'));
+    });
+  }
   async function salvar(record,expected=0){
     if(blocked)throw Error('Entre novamente na conta do piloto.');
     const db=await database();
@@ -149,7 +170,7 @@
     })();
     try{return await syncPromise;}finally{syncPromise=null;}
   }
-  window.CampoOffline={pacote,listar,obter,salvar,sync};
+  window.CampoOffline={pacote,listar,obter,salvar,sync,apagarRascunho};
   if(!root)return;
   const usuario=Number(root.dataset.usuario),notice=document.getElementById('campo-offline-status');
   const actions=[...root.querySelectorAll('button')];
@@ -184,6 +205,16 @@
       }else link.href='/formularios/kobo/'+encodeURIComponent(row.tipo)+'?local='+encodeURIComponent(row.uuid);
       li.append(link,' · '+label[row.status]+' · '+new Date(row.atualizado).toLocaleString('pt-BR'));
       if(row.erro){const detail=document.createElement('p');detail.textContent=row.erro;li.append(detail);}
+      if(rascunhoApagavel(row)){
+        const button=document.createElement('button');
+        button.type='button';button.className='btn btn-ghost fk-apagar';button.textContent='Apagar rascunho';
+        button.onclick=()=>run(async()=>{
+          if(!await confirmacaoDupla('Apagar este rascunho deste aparelho?'))return;
+          await apagarRascunho(usuario,row.tipo,row.uuid,row.localVersion);
+          notice.textContent='Rascunho apagado deste aparelho.';
+        });
+        li.append(button);
+      }
       return li;
     }));
   }

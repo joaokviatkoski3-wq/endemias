@@ -63,6 +63,15 @@ def _now():
     return datetime.now().isoformat(timespec="seconds")
 
 
+def versao(row):
+    return hashlib.sha256((row["payload_json"] + "|" + row["status"]).encode()).hexdigest()
+
+
+def rascunho_apagavel(row, id_usuario):
+    return (row["usuario_id"] == id_usuario and row["status"] == STATUS_RASCUNHO
+            and row["enviado_em"] is None)
+
+
 def ensure_schema(conn):
     if getattr(conn, "backend", "sqlite") == "postgresql":
         return
@@ -88,6 +97,9 @@ def ensure_schema(conn):
         );
         CREATE INDEX IF NOT EXISTS idx_formularios_tipo_status
             ON formularios(tipo_formulario, status, id_formulario);
+        CREATE TABLE IF NOT EXISTS formularios_rascunhos_descartados (
+            uuid_cliente TEXT PRIMARY KEY
+        );
         """
     )
 
@@ -149,6 +161,11 @@ def salvar(target, tipo, payload, usuario, uuid_cliente=None, status=STATUS_ENVI
                     auditar(conn, existente["id_formulario"], metadata)
                 conn.commit()
                 return existente["id_formulario"]
+
+            if str(tipo).startswith("kobo_") and conn.execute(
+                "SELECT 1 FROM formularios_rascunhos_descartados WHERE uuid_cliente=?", (uuid_cliente,)
+            ).fetchone():
+                raise campo_protocolo.ConflitoCampo("Este rascunho foi apagado. Inicie um novo preenchimento.")
 
         novo_id = db_core.insert_and_get_id(
             conn,
@@ -248,7 +265,7 @@ def revisar(target, id_formulario, payload, decisao, usuario, motivo=None, *, es
         ).fetchone()
         if not row:
             raise ValueError("Formulário não encontrado.")
-        if esperado is not None and esperado!=hashlib.sha256((row['payload_json']+'|'+row['status']).encode()).hexdigest():
+        if esperado is not None and esperado != versao(row):
             raise campo_protocolo.ConflitoCampo('O envio mudou. Reabra e confira antes de revisar.')
         if row["status"] == STATUS_OFICIALIZADO:
             raise ValueError("Formulário já oficializado.")
@@ -309,6 +326,39 @@ def excluir(target, id_formulario):
             raise ValueError("O formulário já foi alterado. Recarregue e confira.")
         conn.commit()
         return True
+    finally:
+        if close:
+            conn.close()
+
+
+def excluir_rascunho(target, tipo, ident, id_usuario, esperado, *, auditar):
+    """Descarta um rascunho próprio que nunca entrou na fila de revisão."""
+    conn, close = _open_connection(target)
+    try:
+        ensure_schema(conn)
+        pg = getattr(conn, "backend", "sqlite") == "postgresql"
+        if not pg:
+            conn.execute("BEGIN IMMEDIATE")
+        lock = " FOR UPDATE" if pg else ""
+        row = conn.execute(
+            "SELECT * FROM formularios WHERE id_formulario=? AND tipo_formulario=? AND usuario_id=?" + lock,
+            (ident, tipo, id_usuario),
+        ).fetchone()
+        if row is None:
+            conn.rollback()
+            return False
+        if not rascunho_apagavel(row, id_usuario) or versao(row) != esperado:
+            raise campo_protocolo.ConflitoCampo("O lançamento mudou. Reabra em Meus envios antes de tentar apagar.")
+        if row["uuid_cliente"]:
+            conn.execute("INSERT INTO formularios_rascunhos_descartados (uuid_cliente) VALUES (?)",
+                         (row["uuid_cliente"],))
+        conn.execute("DELETE FROM formularios WHERE id_formulario=?", (ident,))
+        auditar(conn)
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         if close:
             conn.close()

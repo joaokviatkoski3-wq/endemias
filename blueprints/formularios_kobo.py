@@ -121,7 +121,8 @@ def listar(tipo):
     rows=forms.listar(bh.db_target(),tipo=core.KIND_PREFIX+tipo,usuario=actor,status=status,
         mais_antigos=permissoes.gerencia(actor) and status in ('enviado','aprovado'))
     return jsonify({'itens':[{'id':r['id_formulario'],'status':r['status'],'criado_em':r['criado_em'],
-        'autor':r['agente_nome'],'motivo':r.get('motivo_devolucao')} for r in rows]})
+        'autor':r['agente_nome'],'motivo':r.get('motivo_devolucao'),
+        'etag_rascunho':etag(r) if forms.rascunho_apagavel(r,actor['id_usuario']) else None} for r in rows]})
 
 
 @bp.get('/api/formularios/kobo/<tipo>/<int:ident>')
@@ -130,7 +131,27 @@ def obter(tipo,ident):
     if not row:return jsonify({'erro':'Envio não encontrado.'}),404
     meta=row['payload'].pop('_captura_campo',{})
     return jsonify({'id':ident,'uuid':row['uuid_cliente'],'payload':row['payload'],'status':row['status'],
-        'autor':{'usuario_id':row['usuario_id'],'nome':row['agente_nome'],'enviado_em':row['enviado_em']},'captura':meta,'etag':etag(row),'motivo':row['motivo_devolucao']})
+        'autor':{'usuario_id':row['usuario_id'],'nome':row['agente_nome'],'enviado_em':row['enviado_em']},
+        'captura':meta,'etag':etag(row),'apagavel':forms.rascunho_apagavel(row,user()['id_usuario']),
+        'motivo':row['motivo_devolucao']})
+
+
+@bp.delete('/api/formularios/kobo/<tipo>/<int:ident>')
+def apagar_rascunho(tipo,ident):
+    body=request.get_json(silent=True)
+    if not isinstance(body,dict) or not isinstance(body.get('etag'),str) or len(body['etag'])!=64:
+        raise ValueError('Reabra o rascunho para conferir a versão antes de apagar.')
+    if body.get('usuario')!=user()['id_usuario']:
+        return jsonify({'erro':'A conta mudou. Reabra o formulário.'}),403
+
+    def event(conn):
+        audit.registrar_evento(bh.get_db,'formulario_interno_rascunho_apagado',entidade='formularios',
+            entidade_id=ident,detalhes={'tipo':tipo},conn=conn)
+
+    if not forms.excluir_rascunho(bh.db_target(),core.KIND_PREFIX+tipo,ident,user()['id_usuario'],
+                                  body['etag'],auditar=event):
+        return jsonify({'erro':'Rascunho não encontrado.'}),404
+    return jsonify({'ok':True})
 
 
 @bp.post('/api/formularios/kobo/<tipo>')

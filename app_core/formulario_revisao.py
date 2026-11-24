@@ -1,10 +1,10 @@
 """Fila de revisão administrativa, limitada aos formulários do setor ativo."""
 from datetime import date
-from hashlib import sha256
 import json
 
 from app_core import db, formularios as forms, formularios_kobo as kobo
 from app_core import formulario_campo, formulario_piloto, setores
+from app_core.formularios import versao
 
 SITUACOES = {
     "pendentes": "Pendentes", "enviado": "Enviado",
@@ -12,10 +12,6 @@ SITUACOES = {
     "oficializado": "Registrado", "todos": "Todos os envios",
 }
 POR_PAGINA = 30
-
-
-def versao(row):
-    return sha256((row["payload_json"]+"|"+row["status"]).encode()).hexdigest()
 
 
 def tipos(usuario):

@@ -4,6 +4,14 @@ Atualizado em 24/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Versão candidata 2.13.1 — exclusão de rascunhos
+
+Em Meus envios e no editor, o autor pode apagar rascunhos de formulários
+internos que nunca foram enviados. A tela Campo offline permite apagar
+os rascunhos guardados no aparelho. A migração 0041 registra o
+identificador de rascunhos removidos do servidor para bloquear reenvios
+atrasados. A exclusão de um rascunho do servidor gera evento de auditoria.
+
 ## Versão ativa 2.13.0 — aplicativo de campo
 
 Ativada em 24/11/2026, release `298e6ad`. O instalador confirmou todas
