@@ -6,13 +6,13 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Versão candidata 2.13.1 — exclusão de rascunhos
+## Versão ativa 2.13.1 — exclusão de rascunhos
 
 Autores podem excluir rascunhos de formulários internos no servidor e
-no aparelho antes de enviar para revisão. Consulte o estado operacional
+no aparelho antes de enviar para revisão. Ativada em 24/11/2026. Consulte o estado operacional
 para a migração 0041 e o fluxo de campo.
 
-## Versão ativa 2.13.0 — aplicativo de campo
+## Histórico 2.13.0 — aplicativo de campo
 
 Endemias - VSATT reúne sete formulários internos e o RG na mesma preparação
 offline para as contas do piloto. O RG usa localidades, quadras e ruas do
