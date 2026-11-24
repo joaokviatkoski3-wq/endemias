@@ -1,7 +1,7 @@
 {
   "id": "/formularios/rg-campo",
-  "name": "Endemias — Campo RG",
-  "short_name": "Campo RG",
+  "name": "Endemias - VSATT (RG)",
+  "short_name": "Endemias RG",
   "description": "Preparação e preenchimento de Registro Geográfico em campo, com rascunhos neste aparelho.",
   "lang": "pt-BR",
   "start_url": "/formularios/rg-campo",
@@ -11,7 +11,7 @@
   "theme_color": "#153e73",
   "prefer_related_applications": false,
   "icons": [
-    { "src": "/static/icons/campo-192.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "/static/icons/campo-512.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any" }
+    { "src": "/static/icons/endemias-app-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/endemias-app-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
   ]
 }

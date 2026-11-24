@@ -6,7 +6,7 @@ from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import formularios as formularios_core
 from app_core import rg_formulario
-from app_core import audit, campo_protocolo, formulario_revisao, permissoes
+from app_core import audit, avisos_campo, campo_protocolo, escopo_agente, formulario_piloto, formulario_revisao, permissoes, setores
 
 
 bp = Blueprint("formularios", __name__)
@@ -35,9 +35,11 @@ def sw_js():
 
 @bp.route("/manifest.webmanifest")
 def manifest():
-    return send_from_directory(
+    response = send_from_directory(
         current_app.static_folder, "manifest.webmanifest", mimetype="application/manifest+json"
     )
+    response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 @bp.get("/manifest-campo.webmanifest")
@@ -128,6 +130,33 @@ def campo_sessao():
     return jsonify({"usuario_id": usuario["id_usuario"], "csrf": generate_csrf(), "protocolo": 1})
 
 
+@bp.route("/api/formularios/campo-avisos", methods=["GET", "POST"])
+@login_required
+def campo_avisos():
+    from flask_wtf.csrf import generate_csrf
+
+    usuario = bh.usuario_atual() or {}
+    if setores.atual() == "ambiental" or usuario.get("somente_laboratorio"):
+        return jsonify({"erro": "Avisos disponíveis para agentes de Endemias."}), 403
+    target = bh.db_target()
+    agente = escopo_agente.agente_proprio(target, usuario)
+    ident = usuario["id_usuario"]
+    if request.method == "GET":
+        avisos = (avisos_campo.listar(target, ident, agente["id_agente"]) if agente
+                  else {"itens": [], "nao_lidos": 0})
+        return jsonify({"usuario": ident, "vinculado": bool(agente), "csrf": generate_csrf(), **avisos})
+    item = request.get_json(silent=True)
+    if not isinstance(item, dict) or type(item.get("resultado")) is not int or not isinstance(item.get("versao"), str):
+        return jsonify({"erro": "Aviso inválido."}), 400
+    if not (-2**63 <= item["resultado"] < 2**63) or len(item["versao"]) > 100:
+        return jsonify({"erro": "Aviso inválido."}), 400
+    if not agente or item.get("usuario") != ident or not avisos_campo.ler(
+        target, ident, agente["id_agente"], item["resultado"], item["versao"]
+    ):
+        return jsonify({"erro": "Aviso indisponível ou atualizado. Consulte novamente."}), 404
+    return jsonify({"ok": True})
+
+
 @bp.route("/api/formularios")
 @login_required
 def api_listar():
@@ -200,11 +229,17 @@ def api_excluir(id_formulario):
 def rg_campo_page():
     usuario = bh.usuario_atual() or {}
     contexto = rg_formulario.contexto(bh.db_target(), usuario)
-    return render_template(
+    piloto = formulario_piloto.habilitado(usuario)
+    response = current_app.make_response(render_template(
         "rg_campo.html",
         agente_proprio=contexto["agente_proprio"],
         agentes=contexto["agentes"],
-    )
+        piloto_campo=piloto,
+        avisos_campo=setores.atual() != "ambiental",
+    ))
+    if piloto:
+        response.headers["X-Endemias-Campo-Offline"] = "1"
+    return response
 
 
 @bp.route("/formularios/rg-revisao")
@@ -228,6 +263,15 @@ def api_rg_snapshot():
     except Exception:
         logging.exception("Erro em api_rg_snapshot")
         return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
+
+
+@bp.get("/api/formularios/rg/referencias")
+@login_required
+def api_rg_referencias():
+    if setores.atual() == "ambiental":
+        return jsonify({"erro": "RG disponível em Endemias."}), 403
+    referencias = formulario_piloto.catalogos(bh.db_target())
+    return jsonify({"areas": referencias["areas"], "rg": referencias["rg"]})
 
 
 @bp.route("/api/formularios/<int:id_formulario>/oficializar", methods=["POST"])

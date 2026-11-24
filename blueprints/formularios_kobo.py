@@ -5,6 +5,7 @@ from flask import Blueprint,jsonify,render_template,request,current_app,redirect
 from app_core import auth,blueprint_helpers as bh,formularios as forms,formularios_kobo as core
 from app_core import audit,db,permissoes,campo_protocolo,formulario_campo,formulario_fluxo,formulario_piloto
 from app_core.formulario_revisao import versao as etag
+from app_core import campo_release
 
 bp=Blueprint('formularios_kobo',__name__)
 
@@ -45,7 +46,8 @@ def campo(tipo):
         return redirect(url_for('laboratorio_lancamentos.page'))
     offline=tipo in formulario_piloto.TIPOS and formulario_piloto.habilitado(user())
     response=current_app.make_response(render_template(
-        'formulario_kobo.html',tipo=tipo,titulo=core.TITULOS[tipo],revisao=False,offline=offline))
+        'formulario_kobo.html',tipo=tipo,titulo=core.TITULOS[tipo],revisao=False,offline=offline,
+        avisos_campo=offline))
     if offline:response.headers['X-Endemias-Campo-Offline']='1'
     return response
 
@@ -78,7 +80,8 @@ def campo_offline():
     if not formulario_piloto.habilitado(user()):
         return redirect('/formularios')
     response=current_app.make_response(render_template('formularios_offline.html',formularios=[
-        {'tipo':tipo,'titulo':core.TITULOS[tipo]} for tipo in formulario_piloto.TIPOS]))
+        {'tipo':tipo,'titulo':core.TITULOS[tipo]} for tipo in formulario_piloto.TIPOS],
+        avisos_campo=True))
     response.headers['X-Endemias-Campo-Offline']='1'
     return response
 
@@ -92,7 +95,15 @@ def pacote_offline():
     except (OSError, KeyError):
         return jsonify({'erro':'As definições de campo estão indisponíveis.'}),503
     return jsonify({'usuario':user()['id_usuario'],'esquemas':definitions,
+                    'release':campo_release.atual(),
                     'referencias':formulario_piloto.catalogos(bh.db_target())})
+
+
+@bp.get('/api/formularios/kobo/versao-offline')
+def versao_offline():
+    if not formulario_piloto.habilitado(user()):
+        return jsonify({'erro':'Conta fora do piloto offline.'}),403
+    return jsonify({'usuario':user()['id_usuario'], **campo_release.atual()})
 
 
 @bp.get('/api/formularios/kobo/<tipo>/catalogos')

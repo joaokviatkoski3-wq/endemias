@@ -7,3 +7,15 @@
 .rgc-lado{margin:16px 0;border:1px solid var(--border);border-radius:8px;background:var(--surface);overflow:hidden}.rgc-lado>h3{padding:13px 16px;background:var(--surface2);font-size:16px}.rgc-logradouro{padding:16px;border-bottom:1px dashed var(--border)}.rgc-imovel{border:1px solid var(--border);border-radius:6px;padding:12px;margin:12px 0;background:var(--surface2)}.rgc-item-heading strong{font-size:14px}.rgc-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 12px}.rgc-fields .rgc-wide{grid-column:1/-1}.rgc-actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}.rgc-actions .btn-primary{margin-left:auto}.rgc-lado-actions{padding:12px 16px}.rgc-envio{padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:7px;margin:10px 0;overflow-wrap:anywhere}.rgc-envio p{font-size:13px;margin:5px 0}.rgc-envio small{color:var(--text3)}
 .rgc-notice,.rgc-error{padding:12px 14px;border-radius:6px;line-height:1.6;margin:10px 0;font-size:13px}.rgc-notice{background:var(--brand-xs);color:var(--text)}.rgc-error{border:1px solid #b45309;background:#fffbeb;color:#78350f}.rgc-privacy{font-size:12px;line-height:1.6;color:var(--text3);margin:18px 0}.rgc-privacy summary{cursor:pointer;min-height:36px;padding:8px 0}.rgc-privacy p{margin:7px 0}.rgc-save-failed{color:#b45309!important}
 @media(max-width:600px){.rgc-toolbar{padding:12px}.rgc-toolbar-actions{width:100%}.rgc-toolbar-actions .btn{flex:1}.rgc-tabs button{flex:1;font-size:13px;padding:8px 4px}.rgc-qgrid{grid-template-columns:1fr}.rgc-panel,.rgc-logradouro{padding:12px}.rgc-fields{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 9px}.rgc-item-heading .btn{min-width:44px}.rgc-actions>.btn{flex:1 1 100%}.rgc-actions .btn-primary{margin-left:0}.rgc-form-heading{align-items:flex-start}.rgc-form-heading h2{font-size:17px}}
+.rgc-tabela-wrap { overflow: auto; max-width: 100%; margin-block: 1rem; }
+.rgc-tabela { width: 100%; min-width: 56rem; border-collapse: collapse; font-size: .9rem; }
+.rgc-tabela th, .rgc-tabela td { padding: .45rem; border: 1px solid var(--border, #d3ddeb); vertical-align: top; text-align: left; }
+.rgc-tabela th { background: var(--surface2, #eaf0f7); }
+.rgc-tabela input, .rgc-tabela select, .rgc-tabela textarea { width: 100%; min-height: 44px; }
+.rgc-tabela .rgc-rua { min-width: 13rem; }
+.rgc-tabela .rgc-rua-manual { margin-top: .4rem; }
+.rgc-tabela .rgc-lado-celula { min-width: 4rem; }
+.rgc-tabela .rgc-tipo-celula { min-width: 8rem; }
+.rgc-panel > .rgc-field { margin-bottom: .75rem; }
+.rgc-dica-tabela { display: none; }
+@media (max-width: 960px) { .rgc-dica-tabela { display: block; } }

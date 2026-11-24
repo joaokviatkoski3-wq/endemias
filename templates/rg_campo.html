@@ -3,13 +3,14 @@
 {% block page_title %}RG em campo{% endblock %}
 {% block extra_css %}
 <link rel="stylesheet" href="/static/css/rg_campo.css?v={{ APP_VERSION }}">
-<link rel="manifest" href="/manifest.webmanifest">
+<link rel="manifest" href="{{ '/manifest-campo.webmanifest' if piloto_campo else '/manifest.webmanifest' }}">
 <meta name="theme-color" content="#153e73">
-<link rel="apple-touch-icon" href="/static/img/favicon.png">
+<link rel="apple-touch-icon" href="/static/icons/endemias-app-192.png">
 {% endblock %}
 {% block content %}
-<section id="rgc-app">
-  <div class="page-header"><h1>Atualização de RG — Campo</h1><p class="sub">Prepare os quarteirões, preencha e acompanhe o recebimento.</p></div>
+<section id="rgc-app" data-piloto="{{ '1' if piloto_campo else '0' }}">
+  <div class="page-header"><h1>Registro Geográfico (RG)</h1><p class="sub">Selecione a localidade e o quarteirão. Registre um imóvel por linha.</p></div>
+  {% if piloto_campo %}<p><a href="/formularios/campo-offline">Voltar aos formulários de campo</a></p>{% endif %}
   <div class="rgc-toolbar">
     <div><strong id="rgc-conexao" role="status">Verificando conexão…</strong><p id="rgc-contagem">Abrindo os dados deste aparelho…</p></div>
     <div class="rgc-toolbar-actions"><button id="rgc-sync" class="btn btn-primary" type="button">Sincronizar agora</button><button id="rgc-instalar" class="btn btn-outline" type="button" hidden>Instalar</button></div>
@@ -17,8 +18,9 @@
   <div id="rgc-aviso" class="rgc-notice" role="status" hidden></div>
   <div id="rgc-erro" class="rgc-error" role="alert" hidden></div>
   <a id="rgc-login" href="{{ url_for('auth.login', next='/formularios/rg-campo') }}" class="btn btn-outline" hidden>Entrar novamente</a>
-  <nav class="rgc-tabs" aria-label="Etapas do RG"><button class="active" type="button" data-view="preparar">Preparar campo</button><button type="button" data-view="quarteiroes">Meus quarteirões</button><button type="button" data-view="envios">Envios</button></nav>
-  <section id="view-preparar" class="rgc-view">
+  <nav class="rgc-tabs" aria-label="Etapas do RG"><button class="active" type="button" data-view="quarteiroes">Preencher RG</button><button type="button" data-view="envios">Envios</button>{% if not piloto_campo %}<button type="button" data-view="preparar">Preparar campo</button>{% endif %}</nav>
+  {% if not piloto_campo %}
+  <section id="view-preparar" class="rgc-view" hidden>
     <div class="chart-card rgc-panel"><h2>Baixar referências</h2><p>Escolha os quarteirões antes de sair. O download contém localidades e logradouros, sem cadastros de moradores.</p>
       <label class="rgc-field">Localidade<select id="rgc-localidade"><option value="">Selecione…</option></select></label>
       <label class="rgc-check"><input type="checkbox" id="rgc-toda">Selecionar todos os quarteirões desta localidade</label>
@@ -27,22 +29,38 @@
     </div>
     <details class="rgc-privacy"><summary>Dados guardados neste aparelho</summary><p>Use um aparelho com bloqueio de tela. Neste piloto os rascunhos não têm senha ou criptografia adicional do aplicativo. Não informe dados pessoais de moradores nas observações.</p><p>Pendências, rascunhos e formulários em revisão não são apagados automaticamente. Somente cópias já oficializadas no RG são removidas deste aparelho após sete dias do recebimento, ao abrir esta área. Sair bloqueia a página offline, mas preserva os rascunhos da conta.</p><p>Limpar o navegador ou perder o aparelho pode apagar registros ainda não enviados. A preparação offline deve ser renovada com conexão a cada 24 horas. Sem conexão, o aplicativo não consegue conferir bloqueios de conta feitos no servidor durante esse intervalo.</p></details>
   </section>
-  <section id="view-quarteiroes" class="rgc-view" hidden><div class="rgc-section-heading"><h2>Quarteirões neste aparelho</h2><span id="rgc-info"></span></div><div id="rgc-grid" class="rgc-qgrid"></div></section>
+  {% endif %}
+  <section id="view-quarteiroes" class="rgc-view">
+    <div class="chart-card rgc-panel">
+      <label class="rgc-field">Localidade<select id="rgc-territorio"><option value="">Selecione…</option></select></label>
+      <label class="rgc-field">Quarteirão<select id="rgc-quadra" disabled><option value="">Selecione a localidade…</option></select></label>
+      <button id="rgc-preencher" class="btn btn-primary" type="button" data-action="abrir" disabled>Abrir tabela de imóveis</button>
+      {% if not piloto_campo %}<button id="rgc-retirar" class="btn btn-ghost" type="button" data-action="retirar" hidden>Retirar referências do aparelho</button>{% endif %}
+      <p id="rgc-info" role="status"></p>
+    </div>
+  </section>
   <section id="view-envios" class="rgc-view" hidden><h2>Acompanhar envios</h2><p>“Recebido” confirma que o servidor guardou o formulário. A aplicação ao RG oficial depende da revisão.</p><div class="rgc-actions"><button type="button" class="btn btn-outline" data-action="voltar">Novo preenchimento</button></div><div id="rgc-envios"></div></section>
   <section id="view-formulario" class="rgc-view" hidden>
     <div class="rgc-form-heading"><div><h2 id="rgc-form-titulo"></h2><p id="rgc-salvo" role="status" aria-live="polite">Rascunho neste aparelho</p></div><button type="button" class="btn btn-ghost" data-action="voltar">Voltar</button></div>
     <div class="chart-card rgc-panel"><p>Responsável pelo envio: <strong>{{ usuario_atual.nome }}</strong></p><label class="rgc-field">Data da atualização<input type="date" id="rgc-form-data"></label><fieldset class="rgc-equipe"><legend>Agentes participantes</legend><div id="rgc-form-agentes" class="rgc-chips"></div></fieldset></div>
-    <div id="rgc-lados"></div>
-    <div class="rgc-actions"><button class="btn btn-outline" type="button" data-action="lado-novo">Novo lado</button><button id="rgc-salvar" class="btn btn-outline" type="button" data-action="salvar">Salvar rascunho</button><button id="rgc-enviar" class="btn btn-primary" type="button" data-action="enviar">Enviar para revisão</button><button type="button" class="btn btn-outline" data-action="voltar">Novo preenchimento</button></div>
+    <p class="rgc-dica-tabela">Deslize a tabela para ver as outras colunas.</p>
+    <div class="rgc-tabela-wrap" tabindex="0" aria-label="Tabela de imóveis">
+      <table class="rgc-tabela"><thead><tr><th scope="col">Lado</th><th scope="col">Logradouro</th><th scope="col">Número</th><th scope="col">Sequência</th><th scope="col">Tipo</th><th scope="col">Unidades de condomínio</th><th scope="col">Observação</th><th scope="col">Remover</th></tr></thead>
+        <tbody id="rgc-imoveis"></tbody>
+      </table>
+    </div>
+    <div class="rgc-actions"><button class="btn btn-outline" type="button" data-action="imovel-novo">Adicionar imóvel</button><button id="rgc-salvar" class="btn btn-outline" type="button" data-action="salvar">Salvar rascunho</button><button id="rgc-enviar" class="btn btn-primary" type="button" data-action="enviar">Enviar para revisão</button><button type="button" class="btn btn-outline" data-action="voltar">Novo preenchimento</button></div>
     <p id="rgc-envio-erro" class="rgc-error" role="alert" hidden></p>
   </section>
-  <details id="rgc-instalacao" class="rgc-privacy"><summary>Instalar e usar sem internet</summary><p>No Android, use “Instalar aplicativo” ou “Adicionar à tela inicial” no menu do navegador. No iPhone, use Compartilhar → Adicionar à Tela de Início. Primeiro entre no endereço HTTPS oficial e baixe os quarteirões.</p><p>A instalação oferece o RG de campo. Outras páginas do sistema continuam precisando de conexão. O envio também depende de o servidor estar disponível.</p></details>
+  {% if not piloto_campo %}
+  <details id="rgc-instalacao" class="rgc-privacy"><summary>Instalar e usar sem internet</summary><p>Entre no endereço HTTPS oficial e baixe os quarteirões em Preparar campo antes de sair. A sincronização ocorre com conexão ao sistema.</p></details>
   <button id="rgc-atualizar" type="button" class="btn btn-outline" hidden>Salvar e atualizar a área de campo</button>
+  {% endif %}
 </section>
-<datalist id="rgc-logradouros-list"></datalist>
 <script id="rgc-contexto" type="application/json" nonce="{{ csp_nonce() }}">{{ {'agente':agente_proprio,'agentes':agentes}|tojson }}</script>
 {% endblock %}
 {% block extra_js %}
+{% if piloto_campo %}<script nonce="{{ csp_nonce() }}" src="/static/js/formularios_offline.js?v={{ APP_VERSION }}"></script>{% endif %}
 <script nonce="{{ csp_nonce() }}" src="/static/js/rg_campo_offline.js?v={{ APP_VERSION }}"></script>
 <script nonce="{{ csp_nonce() }}" src="/static/js/rg_campo.js?v={{ APP_VERSION }}"></script>
 {% endblock %}

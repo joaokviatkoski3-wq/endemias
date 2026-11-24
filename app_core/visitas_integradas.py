@@ -101,6 +101,8 @@ class ConsultaIntegrada:
                 tipo_deposito="t.deposito"), "liraa_visita_tubitos t JOIN liraa_visitas v ON v.id_visita=t.id_visita")
         if db.table_exists(self.raw, "liraa_leituras"):
             campos = {f"{e}_{f}": f"r.{e}_{f}" for e in ("aegypt", "albopictus", "outra") for f in ("larvas", "pupas")}
+            if db.column_exists(self.raw, "liraa_leituras", "aegypt_exuvias"):
+                campos.update({f"{e}_exuvias": f"r.{e}_exuvias" for e in ("aegypt", "albopictus", "outra")})
             id_agente = "(SELECT MIN(a.id_agente) FROM agentes a WHERE LOWER(a.nome)=LOWER(r.laboratorista))"
             if db.table_exists(self.raw,"usuarios") and db.column_exists(self.raw,"usuarios","id_agente"):
                 id_agente = "COALESCE((SELECT u.id_agente FROM usuarios u WHERE u.id_usuario=r.id_usuario)," + id_agente + ")"

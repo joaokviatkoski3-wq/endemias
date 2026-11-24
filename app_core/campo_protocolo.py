@@ -72,6 +72,19 @@ def validar_rg(payload, status):
         if status == "enviado" and any(not isinstance(line.get(k), str) or not line[k].strip() for k in ("logradouro", "numero")):
             raise ValueError("Confira o logradouro e o número dos imóveis antes de enviar.")
     editor = payload.get("_editor")
+    if isinstance(editor, dict) and editor.get("versao") == 2:
+        registros = editor.get("imoveis")
+        if not isinstance(registros, list) or not 1 <= len(registros) <= 3000:
+            raise ValueError("Confira a tabela de imóveis do rascunho.")
+        limites = (("lado",10),("logradouro",250),("numero",30),("sequencia",30),("observacao",2000))
+        for linha in registros:
+            if not isinstance(linha, dict) or any(not isinstance(linha.get(k), str) or len(linha[k]) > n for k,n in limites):
+                raise ValueError("Rascunho de imóvel inválido.")
+            if not isinstance(linha.get("tipo"), str) or linha["tipo"] not in TIPOS or type(linha.get("manual")) is not bool:
+                raise ValueError("Tipo ou logradouro do rascunho inválido.")
+            if not isinstance(linha.get("condominio"), str) or len(linha["condominio"]) > 6:
+                raise ValueError("Quantidade de unidades do rascunho inválida.")
+        return
     if editor is not None:
         if not isinstance(editor, dict) or editor.get("versao") != 1 or not isinstance(editor.get("lados"), list) or not 1 <= len(editor["lados"]) <= 100:
             raise ValueError("Editor de campo inválido.")

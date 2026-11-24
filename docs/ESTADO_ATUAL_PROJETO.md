@@ -4,6 +4,23 @@ Atualizado em 24/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Versão candidata 2.13.0 — aplicativo de campo
+
+O manifesto principal mantém o identificador e o endereço de abertura e
+passa a usar o nome Endemias - VSATT e o emblema do setor. Uma preparação
+baixa os sete formulários e o RG por 24 horas para as contas do piloto. O RG
+seleciona localidade e quarteirão antes de exibir a tabela, sugere as ruas do
+quarteirão e aceita digitação livre. O pacote contém referências do
+território. O envio continua sujeito à revisão antes de aplicar ao RG.
+
+A tela inicial consulta a versão com conexão, mostra as mudanças e permite
+baixar o pacote atualizado no mesmo aparelho. Os rascunhos e a fila
+continuam nas bases locais existentes. Ao atualizar a versão, registrar
+as mudanças de campo em `app_core/campo_release.py`. O sininho consulta até 40 resultados
+de rotina e LIRAa registrados ou atualizados nos últimos 30 dias, somente
+para o agente vinculado à conta e à equipe da coleta. A migração 0040 guarda
+as leituras dos avisos por conta. Entrega com o app fechado está planejada.
+
 ## Versão ativa 2.12.1 — rolagem e cartões da revisão
 
 Detalhes do envio ocupam a área útil do painel e rolam com roda, toque e

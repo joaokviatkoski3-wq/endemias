@@ -6,6 +6,7 @@ import sqlite3
 import tempfile
 import unittest
 import uuid
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -66,6 +67,35 @@ class SetoresTests(unittest.TestCase):
         from app_core import formularios
         formularios.salvar(str(self.path), 'rg_atualizacao', {}, {'id_usuario': 5, 'nome': 'Outro'})
         self.assertEqual(client.get('/api/formularios?proprios=1').json['formularios'], [])
+
+    def test_campo_avisos_restritos_a_equipe_e_versao_da_leitura(self):
+        self.sql("UPDATE usuarios SET id_agente=1 WHERE id_usuario=1")
+        hoje = date.today().isoformat()
+        agora = datetime.now()
+        self.sql("""INSERT INTO visitas(id_visita,kobo_uuid,tipo,data,processado_em)
+                    VALUES ('visita-aviso','uuid-aviso','PE',?,?)""", (hoje, agora.isoformat()))
+        self.sql("INSERT INTO coletas(id_coleta,id_visita,num_tubo) VALUES ('coleta-aviso','visita-aviso','91234')")
+        self.sql("""INSERT INTO resultados_laboratorio
+                    (id_coleta,num_tubo,data_coleta,data_leitura,aegypt_exuvias,atualizado_em)
+                    VALUES ('coleta-aviso','91234',?,?,2,?)""", (hoje, hoje, agora.isoformat()))
+        self.sql("INSERT INTO visita_agentes(id_visita,id_agente) VALUES ('visita-aviso',1)")
+        url = '/api/formularios/campo-avisos'
+        cliente = self.client('endemias')
+        response = cliente.get(url)
+        self.assertIn('no-store', response.headers['Cache-Control'])
+        aviso = response.json['itens'][0]
+        self.assertEqual((aviso['num_tubo'], aviso['novo'], aviso['aegypt_exuvias']), ('91234', 1, 2))
+        leitura = {'usuario': 1, 'resultado': aviso['id_resultado'], 'versao': aviso['versao']}
+        outra_conta = self.client('endemias', 5)
+        self.assertEqual(outra_conta.get(url).json['itens'], [])
+        self.assertEqual(outra_conta.post(url, json={**leitura, 'usuario': 5}).status_code, 404)
+        self.assertEqual(self.client('ambiental').get(url).status_code, 403)
+        self.assertEqual(cliente.post(url, json=leitura).status_code, 200)
+        self.assertEqual(cliente.get(url).json['nao_lidos'], 0)
+        self.sql("UPDATE resultados_laboratorio SET atualizado_em=? WHERE id_coleta='coleta-aviso'",
+                 ((agora + timedelta(seconds=1)).isoformat(),))
+        self.assertEqual(cliente.post(url, json=leitura).status_code, 404)
+        self.assertEqual(cliente.get(url).json['nao_lidos'], 1)
 
     def test_admin_importa_kobo_com_config_existente_nos_dois_setores(self):
         from blueprints import processar

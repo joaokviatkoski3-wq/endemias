@@ -1,8 +1,10 @@
 {% extends 'base.html' %}
-{% block title %}Formulários de campo offline{% endblock %}
-{% block page_title %}Formulários de campo offline{% endblock %}
+{% block title %}Endemias - VSATT{% endblock %}
+{% block page_title %}Endemias - VSATT{% endblock %}
 {% block extra_css %}
 <link rel="manifest" href="/manifest-campo.webmanifest">
+<meta name="theme-color" content="#153e73">
+<link rel="apple-touch-icon" href="/static/icons/endemias-app-192.png">
 <link rel="stylesheet" href="/static/css/formulario_kobo.css?v={{ APP_VERSION }}">
 {% endblock %}
 {% block content %}
@@ -12,11 +14,25 @@
   <div class="fk-offline-actions">
     <button class="btn btn-primary" id="campo-offline-preparar" type="button">Preparar para uso offline</button>
     <button class="btn btn-outline" id="campo-offline-sincronizar" type="button">Sincronizar envios</button>
-    <button class="btn btn-outline" id="campo-offline-instalar" type="button" hidden>Instalar Campo Endemias</button>
+    <button class="btn btn-outline" id="campo-offline-instalar" type="button" hidden>Instalar Endemias - VSATT</button>
+    <button class="btn btn-outline" id="campo-offline-ver-atualizacao" type="button" hidden>Atualização disponível</button>
   </div>
   <p id="campo-offline-status" role="status">Verificando este aparelho…</p>
+  <dialog id="campo-offline-atualizacao" aria-labelledby="campo-offline-atualizacao-titulo">
+    <div class="campo-atualizacao-corpo">
+      <h2 id="campo-offline-atualizacao-titulo">Atualização disponível</h2>
+      <p id="campo-offline-atualizacao-versao"></p>
+      <ul id="campo-offline-atualizacao-resumo"></ul>
+      <p>Conecte-se para baixar a nova versão. Seus rascunhos e envios pendentes ficam no aparelho.</p>
+      <div class="fk-offline-actions">
+        <button class="btn btn-primary" id="campo-offline-atualizar" type="button">Atualizar agora</button>
+        <form method="dialog"><button class="btn btn-outline">Depois</button></form>
+      </div>
+    </div>
+  </dialog>
   <h2>Formulários</h2>
   <ul class="fk-offline-forms">
+    <li><a class="btn btn-outline" href="/formularios/rg-campo">Registro Geográfico (RG)</a></li>
     {% for form in formularios %}
     <li><a class="btn btn-outline" data-form="{{ form.tipo }}" href="/formularios/kobo/{{ form.tipo }}">{{ form.titulo }}</a></li>
     {% endfor %}

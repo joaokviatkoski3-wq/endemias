@@ -2,7 +2,6 @@
 (() => {
   'use strict';
   const root=document.getElementById('campo-offline');
-  const version=new URL(document.currentScript.src).searchParams.get('v');
   let dbPromise,blocked=false;
   let syncPromise=null;
   navigator.serviceWorker?.addEventListener('message',event=>{
@@ -35,9 +34,10 @@
   }
   async function pacote(usuario){
     if(blocked)return null;
-    const stored=await operation('pacotes','readonly',s=>s.get(usuario));
+    const stored=await pacoteSalvo(usuario);
     return stored?.validade>Date.now()?stored:null;
   }
+  const pacoteSalvo=usuario=>operation('pacotes','readonly',s=>s.get(usuario));
   const listar=usuario=>operation('formularios','readonly',s=>s.index('usuario').getAll(usuario));
   const obter=(usuario,id)=>operation('formularios','readonly',s=>s.get([usuario,id]));
   async function salvar(record,expected=0){
@@ -78,19 +78,36 @@
   }
   async function prepare(usuario){
     if(!window.isSecureContext || !navigator.serviceWorker)throw Error('Abra o sistema pelo endereço HTTPS.');
-    const script='/sw.js'+(version?'?v='+encodeURIComponent(version):'');
+    const data=await json('/api/formularios/kobo/pacote-offline');
+    if(data.usuario!==usuario || !data.referencias?.rg)throw Error('Confira a conta e a versão do servidor.');
+    const script='/sw.js?v='+encodeURIComponent(data.release.versao);
     const registration=await navigator.serviceWorker.register(script,{updateViaCache:'none'});
     await registration.update();
+    const installing=registration.installing;
+    if(installing)await new Promise((resolve,reject)=>{
+      const check=()=>{
+        if(['installed','activating','activated'].includes(installing.state)){
+          clearTimeout(timer);resolve();
+        }else if(installing.state==='redundant'){
+          clearTimeout(timer);reject(Error('Não foi possível instalar a atualização. Tente novamente.'));
+        }
+      };
+      const timer=setTimeout(()=>reject(Error('A instalação demorou. Confira a conexão e tente novamente.')),15000);
+      installing.addEventListener('statechange',check);
+      check();
+    });
     if(registration.waiting){
-      registration.waiting.postMessage({type:'ATIVAR_ATUALIZACAO'});
       await new Promise((resolve,reject)=>{
-        const timer=setTimeout(()=>reject(Error('Reabra o aplicativo para concluir a atualização.')),12000);
-        navigator.serviceWorker.addEventListener('controllerchange',()=>{clearTimeout(timer);resolve();},{once:true});
+        const changed=()=>{clearTimeout(timer);resolve();};
+        const timer=setTimeout(()=>{
+          navigator.serviceWorker.removeEventListener('controllerchange',changed);
+          reject(Error('Reabra o aplicativo para concluir a atualização.'));
+        },12000);
+        navigator.serviceWorker.addEventListener('controllerchange',changed,{once:true});
+        registration.waiting.postMessage({type:'ATIVAR_ATUALIZACAO'});
       });
     }
     const active=(await navigator.serviceWorker.ready).active;
-    const data=await json('/api/formularios/kobo/pacote-offline');
-    if(data.usuario!==usuario)throw Error('A conta mudou durante a preparação.');
     const channel=new MessageChannel();
     const validade=await new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>reject(Error('A preparação demorou. Confira a conexão e tente novamente.')),45000);
@@ -103,7 +120,7 @@
     await session(usuario,'PE');
     blocked=false;
     await operation('pacotes','readwrite',store=>store.put({...data,validade}));
-    return validade;
+    return {...data,validade};
   }
   async function sync(usuario,uuid=null){
     if(syncPromise)return syncPromise;
@@ -139,6 +156,9 @@
   let running=false;
   const homeList=document.getElementById('campo-offline-fila');
   const installButton=document.getElementById('campo-offline-instalar');
+  const updateButton=document.getElementById('campo-offline-ver-atualizacao');
+  const updateDialog=document.getElementById('campo-offline-atualizacao');
+  let versionShown=null;
   let installPrompt;
   window.addEventListener('beforeinstallprompt',event=>{
     event.preventDefault();
@@ -173,21 +193,60 @@
     try{await operation();}catch(e){notice.textContent=e.message;}
     finally{running=false;actions.forEach(button=>button.disabled=false);await refresh();}
   }
-  document.getElementById('campo-offline-preparar').onclick=()=>run(async()=>{
-    notice.textContent='Baixando formulários e listas para este aparelho…';
-    const until=await prepare(usuario);
-    notice.textContent='Pronto para uso offline até '+new Date(until).toLocaleString('pt-BR')+'.';
+  function ready(current){
+    const versao=current.release?.versao;
+    notice.textContent='Pronto para uso offline até '+new Date(current.validade).toLocaleString('pt-BR')
+      +(versao?' · versão '+versao:'')+'.';
+  }
+  async function checkUpdate(){
+    if(blocked||running||!navigator.onLine)return;
+    try{
+      const current=await pacoteSalvo(usuario);
+      if(!current)return;
+      const latest=await json('/api/formularios/kobo/versao-offline');
+      if(latest.usuario!==usuario||blocked||running)return;
+      const available=latest.versao!==current.release?.versao;
+      updateButton.hidden=!available;
+      if(!available)return;
+      document.getElementById('campo-offline-atualizacao-versao').textContent='Versão '+latest.versao;
+      const items=latest.mudancas.map(change=>{
+        const li=document.createElement('li');li.textContent=change;return li;
+      });
+      document.getElementById('campo-offline-atualizacao-resumo').replaceChildren(...items);
+      if(versionShown!==latest.versao&&!updateDialog.open&&!document.querySelector('dialog[open]')){
+        versionShown=latest.versao;
+        updateDialog.showModal();
+      }
+    }catch{ /* A preparação vigente continua disponível durante falhas de consulta. */ }
+  }
+  const download=()=>run(async()=>{
+    if(updateDialog.open)updateDialog.close();
+    notice.textContent='Baixando formulários, quarteirões e logradouros…';
+    const current=await prepare(usuario);
+    updateButton.hidden=true;
+    ready(current);
+    if(document.documentElement.dataset.versao!==current.release.versao)location.reload();
   });
+  document.getElementById('campo-offline-preparar').onclick=download;
+  document.getElementById('campo-offline-atualizar').onclick=download;
+  updateButton.onclick=()=>updateDialog.showModal();
   document.getElementById('campo-offline-sincronizar').onclick=()=>run(async()=>{
     notice.textContent='Enviando a fila para revisão…';
     const {sent,errors}=await sync(usuario);
     notice.textContent=sent+' recebido(s) para revisão.'+(errors.length?' '+errors[0]:'');
   });
-  window.addEventListener('campo-bloqueado',()=>{homeList.replaceChildren();notice.textContent='Entre novamente na conta do piloto.';});
-  window.addEventListener('online',()=>refresh().catch(e=>{notice.textContent=e.message;}));
+  window.addEventListener('campo-bloqueado',()=>{
+    if(updateDialog.open)updateDialog.close();
+    updateButton.hidden=true;homeList.replaceChildren();notice.textContent='Entre novamente na conta do piloto.';
+  });
+  window.addEventListener('online',()=>{refresh().catch(e=>{notice.textContent=e.message;});checkUpdate();});
   window.addEventListener('offline',()=>refresh().catch(e=>{notice.textContent=e.message;}));
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkUpdate();});
+  setInterval(()=>{if(!document.hidden)checkUpdate();},300000);
   pacote(usuario).then(current=>{
-    if(current)notice.textContent='Pronto para uso offline até '+new Date(current.validade).toLocaleString('pt-BR')+'.';
+    if(current)ready(current);
+    else notice.textContent='Prepare este aparelho com internet para abrir os formulários offline.';
+    checkUpdate();
     return refresh();
   }).catch(e=>{notice.textContent=e.message;});
 })();

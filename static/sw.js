@@ -6,7 +6,7 @@ const IDENTITY = '/__endemias_offline_user';
 const FIELD_IDENTITY = '/__endemias_campo_user';
 const FORMS_HOME = '/formularios';
 const FIELD_HOME = '/formularios/campo-offline';
-const FIELD_PAGES = [FIELD_HOME,...['PE','PE_CADASTRO','TB','TBO','PVE','BRI','RECOLHIMENTO']
+const FIELD_PAGES = [FIELD_HOME,RG,...['PE','PE_CADASTRO','TB','TBO','PVE','BRI','RECOLHIMENTO']
   .map(type=>'/formularios/kobo/'+type)];
 const TTL = 24*60*60*1000;
 let pageEpoch=0,fieldEpoch=0;
@@ -30,11 +30,19 @@ async function clearField() {
   fieldEpoch++;
   const cache=await caches.open(FIELD_CACHE);
   await cache.delete(FIELD_IDENTITY);
-  await Promise.all(FIELD_PAGES.map(path=>cache.delete(path)));
+  await Promise.all((await cache.keys()).map(request=>cache.delete(request)));
   for(const client of await self.clients.matchAll({type:'window'}))client.postMessage({type:'BLOQUEAR_CAMPO'});
 }
-async function prepareField(user) {
+const fieldKey=(path,pack)=>pack ? path+'?offline='+pack : path;
+let preparing;
+async function prepareField(user){
+  if(preparing)throw new Error('Outra preparação em andamento');
+  preparing=storeField(user).finally(()=>{preparing=null;});
+  return preparing;
+}
+async function storeField(user) {
   const epoch=fieldEpoch,cache=await caches.open(FIELD_CACHE),assets=await caches.open(CACHE);
+  const previous=await fieldIdentity(cache),pack=crypto.randomUUID();
   const responses=await Promise.all(FIELD_PAGES.map(async path=>{
     const response=await fetch(path,{cache:'no-store',credentials:'same-origin',redirect:'error'});
     if(!response.ok || response.headers.get('X-Endemias-User')!==String(user) ||
@@ -42,12 +50,17 @@ async function prepareField(user) {
     await cachePageAssets(assets,response);
     return response;
   }));
-  if(epoch!==fieldEpoch)throw new Error('Conta mudou');
-  await Promise.all(responses.map((response,i)=>cache.put(FIELD_PAGES[i],response)));
-  if(epoch!==fieldEpoch)throw new Error('Conta mudou');
-  const validade=Date.now()+TTL;
-  await cache.put(FIELD_IDENTITY,new Response(JSON.stringify({usuario:String(user),validade})));
-  if(epoch!==fieldEpoch){await cache.delete(FIELD_IDENTITY);throw new Error('Conta mudou');}
+  const validade=Date.now()+TTL, keys=FIELD_PAGES.map(path=>fieldKey(path,pack));
+  try{
+    const writes = await Promise.allSettled(responses.map((response,i)=>cache.put(keys[i],response)));
+    if(epoch!==fieldEpoch || writes.some(write=>write.status==='rejected'))throw new Error('Preparação interrompida');
+    await cache.put(FIELD_IDENTITY,new Response(JSON.stringify({usuario:String(user),validade,pack})));
+    if(epoch!==fieldEpoch){await cache.delete(FIELD_IDENTITY);throw new Error('Conta mudou');}
+  }catch(error){
+    await Promise.allSettled(keys.map(key=>cache.delete(key)));
+    throw error;
+  }
+  await Promise.allSettled(FIELD_PAGES.map(path=>cache.delete(fieldKey(path,previous?.pack))));
   return validade;
 }
 async function cachePageAssets(cache,response) {
@@ -68,10 +81,10 @@ async function fallback(cache,path) {
   if(FIELD_PAGES.includes(fieldPath)){
     const field=await caches.open(FIELD_CACHE),identity=await fieldIdentity(field);
     if(identity && Date.now()<identity.validade){
-      const page=await field.match(fieldPath);
+      const page=await field.match(fieldKey(fieldPath,identity.pack));
       if(page && page.headers.get('X-Endemias-User')===identity.usuario)return page;
     }
-    return new Response('Conecte-se e prepare os formulários para o trabalho offline.',{status:503,
+    if(path!==RG)return new Response('Conecte-se e prepare os formulários para o trabalho offline.',{status:503,
       headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'}});
   }
   if(path !== RG) throw new Error('Página disponível somente online');

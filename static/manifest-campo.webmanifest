@@ -1,7 +1,7 @@
 {
   "id": "/formularios/campo-offline",
-  "name": "Endemias — Formulários de campo",
-  "short_name": "Campo Endemias",
+  "name": "Endemias - VSATT",
+  "short_name": "Endemias - VSATT",
   "start_url": "/formularios/campo-offline",
   "scope": "/formularios/",
   "display": "standalone",
@@ -9,7 +9,7 @@
   "theme_color": "#153e73",
   "background_color": "#f1f5fd",
   "icons": [
-    { "src": "/static/icons/campo-192.svg", "sizes": "192x192", "type": "image/svg+xml" },
-    { "src": "/static/icons/campo-512.svg", "sizes": "512x512", "type": "image/svg+xml" }
+    { "src": "/static/icons/endemias-app-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/static/icons/endemias-app-512.png", "sizes": "512x512", "type": "image/png" }
   ]
 }

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light"{% if SETOR_ATUAL == 'ambiental' %} data-setor="ambiental"{% endif %}>
+<html lang="pt-BR" data-theme="light" data-versao="{{ APP_VERSION }}"{% if SETOR_ATUAL == 'ambiental' %} data-setor="ambiental"{% endif %}>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,6 +11,7 @@
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/vendor/chartjs-plugin-datalabels/chartjs-plugin-datalabels.min.js"></script>
 <link rel="stylesheet" href="/static/css/app.css?v={{ APP_VERSION }}">
 {% block extra_css %}{% endblock %}
+{% if avisos_campo %}<link rel="stylesheet" href="/static/css/avisos_campo.css?v={{ APP_VERSION }}">{% endif %}
 {% if SETOR_ATUAL == 'ambiental' %}<link rel="stylesheet" href="/static/css/branding_ambiental.css?v={{ APP_VERSION }}">{% endif %}
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 const WORK_TYPE_COLORS = {{ TIPO_CORES|tojson }};
@@ -73,6 +74,18 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
   {% endif %}
   <div class="topbar-right">
     <span class="topbar-clock" id="clock"></span>
+    {% if avisos_campo and usuario_atual %}
+    <button id="campo-avisos-abrir" class="btn-icon campo-sino" type="button" aria-label="Notificações de campo" title="Notificações de campo">
+      <span class="campo-sino-icone" aria-hidden="true"></span><span id="campo-avisos-contagem" hidden></span>
+    </button>
+    <dialog id="campo-avisos" aria-labelledby="campo-avisos-titulo" data-usuario="{{ usuario_atual.id_usuario }}">
+      <header><h2 id="campo-avisos-titulo">Resultados das minhas coletas</h2><form method="dialog"><button class="btn btn-outline">Fechar</button></form></header>
+      <div class="campo-avisos-corpo">
+        <p id="campo-avisos-status" role="status">Consultando resultados…</p>
+        <ol id="campo-avisos-lista"></ol>
+      </div>
+    </dialog>
+    {% endif %}
     {% if usuario_atual %}
     <div class="user-menu-wrap" id="user-menu-wrap">
       <button class="btn-icon topbar-user" id="userMenuToggle" type="button" title="{{ usuario_atual.nome }}">
@@ -175,6 +188,7 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/app.js?v={{ APP_VERSION }}"></script>
 {% if usuario_atual %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/presenca.js?v={{ APP_VERSION }}"></script>{% endif %}
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/ajuda.js?v={{ APP_VERSION }}"></script>
+{% if avisos_campo %}<script nonce="{{ csp_nonce() }}" src="/static/js/avisos_campo.js?v={{ APP_VERSION }}"></script>{% endif %}
 {% block extra_js %}{% endblock %}
 
 </body>

@@ -202,7 +202,8 @@ def catalogos(target):
     from app_core import registro_geografico as rg
     conn = db.connect(target)
     try:
-        local = [row[0] for row in conn.execute("SELECT nome FROM localidades ORDER BY nome")]
+        localidades = [dict(row) for row in conn.execute("SELECT id_localidade, nome FROM localidades ORDER BY nome")]
+        local = [row['nome'] for row in localidades]
         areas = {chave(nome): {} for nome in local}
         queries = {
             "registro_geografico_quarteiroes": """SELECT DISTINCT l.nome,q.quarteirao,'' AS rua
@@ -225,6 +226,8 @@ def catalogos(target):
             for number, streets in blocks.items():
                 blocks[number] = sorted(set(streets), key=chave)
         return {"localidades": local, "areas": areas,
+                "rg": {"localidades": [{**row, "chave": chave(row['nome'])} for row in localidades],
+                       "tipos": [{"codigo": codigo, "nome": nome} for codigo, nome in rg.TIPOS.items()]},
                 **{tipo: _referencias(conn, tipo) for tipo in REFERENCIAS}}
     finally:
         conn.close()
