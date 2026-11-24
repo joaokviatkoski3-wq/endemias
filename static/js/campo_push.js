@@ -15,6 +15,7 @@
   const desativar=document.getElementById('campo-push-desativar');
   const endpoint='/api/formularios/campo-push';
   let registration,config,subscription,busy=false;
+  const ativos=()=>config.modo==='teste'?'Avisos de teste ativos neste aparelho.':'Avisos com o app fechado estão ativos neste aparelho.';
   async function api(acao=null) {
     const response=await fetch(endpoint,{cache:'no-store',signal:AbortSignal.timeout(10000),
       ...(acao?{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':config.csrf},
@@ -55,11 +56,13 @@
     }
     subscription=await registration.pushManager.getSubscription();
     if(subscription&&config.aparelho===await hash(subscription.endpoint)&&Notification.permission==='granted'){
-      dizer('Avisos com o app fechado estão ativos neste aparelho.',true);
+      dizer(ativos(),true);
     }else if(Notification.permission==='denied'){
       dizer('Para ativar, permita as notificações do VSATT nas configurações do Chrome.');
     }else{
-      dizer('Receba avisos de coleta mesmo com o aplicativo fechado. O piloto usa um aparelho por conta.',false,true);
+      dizer(config.modo==='teste'
+        ? 'Use este aparelho para testar a entrega com o app fechado.'
+        : 'Receba avisos de coleta mesmo com o aplicativo fechado. O piloto usa um aparelho por conta.',false,true);
     }
   }
   function worker(type){
@@ -106,7 +109,7 @@
       subscription=null;
       throw e;
     }
-    dizer('Avisos com o app fechado estão ativos neste aparelho.',true);
+    dizer(ativos(),true);
   });
   desativar.onclick=()=>executar(async()=>{
     config=await api();

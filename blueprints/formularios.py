@@ -165,13 +165,13 @@ def campo_push_api():
 
     usuario = bh.usuario_atual() or {}
     path = os.environ.get(campo_push.CHAVE_ENV)
+    modo = campo_push.modo(usuario)
     if (not current_app.config.get("ACESSO_EXTERNO") or not request.is_secure
-            or setores.atual() != "endemias" or not path or not campo_push.identificavel(usuario)):
+            or setores.atual() != "endemias" or not path or not modo):
         return jsonify({"erro": "Notificações do aparelho reservadas ao piloto."}), 403
     target = bh.db_target()
-    agente = escopo_agente.agente_proprio(target, usuario)
     sid = session.get("sessao_id")
-    if not agente or not sid:
+    if not sid or (modo == "campo" and not escopo_agente.agente_proprio(target, usuario)):
         return jsonify({"erro": "Entre com a conta de campo vinculada ao agente do piloto."}), 403
     try:
         public = campo_push.chave_publica(campo_push.chave(path))
@@ -179,7 +179,7 @@ def campo_push_api():
         return jsonify({"erro": "A configuração de notificações está indisponível."}), 503
     ident = usuario["id_usuario"]
     if request.method == "GET":
-        return jsonify({"usuario": ident, "chave": public,
+        return jsonify({"usuario": ident, "chave": public, "modo": modo,
                         "aparelho": campo_push.status(target, ident), "csrf": generate_csrf()})
     body = request.get_json(silent=True)
     if not isinstance(body, dict) or body.get("usuario") != ident:

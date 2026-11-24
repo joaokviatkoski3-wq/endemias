@@ -22,6 +22,12 @@ essa intervencao envolver escrita, use branch propria e nunca permita edicao
 simultanea dos mesmos arquivos. Leia `docs/GUIA_TRABALHO_MULTIAGENTE.md` para
 isolamento e coordenacao, sem interpretar o guia como exigencia de revisao.
 
+## Acesso aos testes
+
+Inclua o perfil superadmin no acesso aos pilotos e recursos de teste.
+Quando o piloto depender de uma conta de campo, permita ao superadmin
+validar o fluxo com um teste próprio, conforme as permissões do recurso.
+
 ## Versionamento do sistema
 
 Agentes de IA tem autonomia para atualizar a numeracao da versao do sistema quando julgarem que o conjunto de alteracoes justifica uma nova versao. Nao e necessario solicitar confirmacao previa exclusivamente para essa atualizacao.

@@ -28,11 +28,17 @@ def conta_piloto():
     return os.environ.get("ENDEMIAS_FORMULARIOS_OFFLINE_USUARIO", "").strip().casefold()
 
 
-def identificavel(usuario):
+def modo(usuario):
     piloto = conta_piloto()
-    return (bool(piloto and usuario.get("id_agente") and not usuario.get("somente_laboratorio")
-                 and usuario.get("nivel") in {"usuario", "operador", "admin", "superadmin"})
-            and str(usuario.get("usuario", "")).casefold() == piloto)
+    if not piloto or usuario.get("somente_laboratorio"):
+        return None
+    if (usuario.get("id_agente") and usuario.get("setor") == "endemias"
+            and usuario.get("nivel") in {"usuario", "operador", "admin", "superadmin"}
+            and str(usuario.get("usuario", "")).casefold() == piloto):
+        return "campo"
+    if usuario.get("nivel") == "superadmin":
+        return "teste"
+    return None
 
 
 def _base64(data):
@@ -109,13 +115,17 @@ def status(target, usuario):
 
 def inscrever(target, usuario, sid, endpoint):
     endpoint = validar_endpoint(endpoint)
+    acesso = modo(usuario)
+    if not acesso:
+        raise ValueError("Conta fora do piloto de avisos.")
+    agente = usuario["id_agente"] if acesso == "campo" else None
     with closing(db.connect(target)) as conn, conn:
         conn.execute("""INSERT INTO campo_push_aparelhos
             (id_usuario,id_agente,sessao_hash,senha_vinculo,endpoint,inscrito_em)
             VALUES (?,?,?,?,?,?) ON CONFLICT (id_usuario) DO UPDATE SET
                 id_agente=excluded.id_agente, sessao_hash=excluded.sessao_hash, senha_vinculo=excluded.senha_vinculo,
                 endpoint=excluded.endpoint, teste_em=0, inscrito_em=excluded.inscrito_em""",
-            (usuario["id_usuario"], usuario["id_agente"], sessoes.digest(sid),
+            (usuario["id_usuario"], agente, sessoes.digest(sid),
              sessoes.digest(usuario["senha_hash"]), endpoint, datetime.now().isoformat(timespec="microseconds")))
 
 
@@ -151,44 +161,58 @@ def verificar_resultados(target, key, assunto, agora=None):
         if conn.backend == "postgresql" and not conn.execute(
                 "SELECT pg_try_advisory_xact_lock(?)", (430992101,)).fetchone()[0]:
             return
-        user = conn.execute("""SELECT u.id_usuario, u.id_agente, u.senha_hash, u.somente_laboratorio, u.nivel, u.usuario
-            FROM usuarios u JOIN agentes a ON a.id_agente=u.id_agente
+        users = conn.execute("""SELECT u.id_usuario, u.id_agente, u.senha_hash, u.somente_laboratorio,
+                   u.nivel, u.usuario, u.setor, a.ativo AS agente_ativo
+            FROM usuarios u LEFT JOIN agentes a ON a.id_agente=u.id_agente
               JOIN campo_push_aparelhos p ON p.id_usuario=u.id_usuario
-            WHERE LOWER(u.usuario)=? AND u.setor='endemias' AND u.ativo=1 AND a.ativo=1""",
-            (conta_piloto(),)).fetchone()
-        if not user or not identificavel(dict(user)):
-            return
-        usuario, agente = user["id_usuario"], user["id_agente"]
-        aparelho = _aparelho(conn, usuario, lock=True)
-        if not aparelho:
-            return
-        if aparelho["id_agente"] != agente or aparelho["senha_vinculo"] != sessoes.digest(user["senha_hash"]):
-            conn.execute("DELETE FROM campo_push_aparelhos WHERE id_usuario=?", (usuario,))
-            return
+            WHERE u.ativo=1 AND (LOWER(u.usuario)=? OR u.nivel='superadmin')
+            ORDER BY u.id_usuario""", (conta_piloto(),)).fetchall()
+        for user in users:
+            _verificar_aparelho(conn, dict(user), key, assunto, agora)
+
+
+def _verificar_aparelho(conn, user, key, assunto, agora):
+    acesso = modo(user)
+    if not acesso or (acesso == "campo" and not user["agente_ativo"]):
+        return
+    usuario = user["id_usuario"]
+    agente = user["id_agente"] if acesso == "campo" else None
+    aparelho = _aparelho(conn, usuario, lock=True)
+    if not aparelho:
+        return
+    if aparelho["id_agente"] != agente or aparelho["senha_vinculo"] != sessoes.digest(user["senha_hash"]):
+        conn.execute("DELETE FROM campo_push_aparelhos WHERE id_usuario=?", (usuario,))
+        return
+    agora_seg = int(agora.timestamp())
+    agendado = aparelho["teste_em"]
+    if agendado and agora_seg < agendado:
+        return
+    if agendado and agora_seg > agendado+300:
+        conn.execute("UPDATE campo_push_aparelhos SET teste_em=0 WHERE id_usuario=?", (usuario,))
+        agendado = 0
+    pendentes = []
+    if agente is not None and not agendado:
         # Evita disparo de um acervo acumulado durante o desligamento do servidor.
         desde = max(aparelho["inscrito_em"], (agora-timedelta(days=1)).isoformat(timespec="microseconds"))
-        agora_seg = int(agora.timestamp())
-        agendado = aparelho["teste_em"]
-        if agendado and agora_seg < agendado:
-            return
-        if agendado and agora_seg > agendado+300:
-            conn.execute("UPDATE campo_push_aparelhos SET teste_em=0 WHERE id_usuario=?", (usuario,))
-            agendado = 0
-        pendentes = [] if agendado else avisos_campo.pendentes_push(conn, usuario, agente, desde)
-        if not pendentes and not agendado:
-            return
+        pendentes = avisos_campo.pendentes_push(conn, usuario, agente, desde)
+    if not pendentes and not agendado:
+        return
+    try:
         code = enviar(aparelho["endpoint"], key, assunto)
-        if code in {404, 410}:
-            conn.execute("DELETE FROM campo_push_aparelhos WHERE id_usuario=?", (usuario,))
-        elif 200 <= code < 300:
-            if agendado:
-                conn.execute("UPDATE campo_push_aparelhos SET teste_em=0 WHERE id_usuario=?", (usuario,))
-                return
-            conn.executemany("""INSERT INTO campo_push_entregas (id_usuario,id_agente,id_resultado,versao)
-                VALUES (?,?,?,?) ON CONFLICT (id_usuario,id_agente,id_resultado) DO UPDATE SET versao=excluded.versao""",
-                [(usuario, agente, ident, ver) for ident, ver in pendentes])
-        else:
-            LOG.warning("Web Push aguardando nova tentativa (HTTP %d)", code)
+    except urllib3.exceptions.HTTPError as exc:
+        LOG.warning("Web Push aguardando nova tentativa (%s)", type(exc).__name__)
+        return
+    if code in {404, 410}:
+        conn.execute("DELETE FROM campo_push_aparelhos WHERE id_usuario=?", (usuario,))
+    elif 200 <= code < 300:
+        if agendado:
+            conn.execute("UPDATE campo_push_aparelhos SET teste_em=0 WHERE id_usuario=?", (usuario,))
+            return
+        conn.executemany("""INSERT INTO campo_push_entregas (id_usuario,id_agente,id_resultado,versao)
+            VALUES (?,?,?,?) ON CONFLICT (id_usuario,id_agente,id_resultado) DO UPDATE SET versao=excluded.versao""",
+            [(usuario, agente, ident, ver) for ident, ver in pendentes])
+    else:
+        LOG.warning("Web Push aguardando nova tentativa (HTTP %d)", code)
 
 
 def iniciar(config):

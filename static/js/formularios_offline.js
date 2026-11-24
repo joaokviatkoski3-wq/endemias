@@ -234,17 +234,28 @@
     try{
       const current=await pacoteSalvo(usuario);
       if(!current)return;
-      const latest=await json('/api/formularios/kobo/versao-offline');
+      const desde=current.release?.versao||'';
+      const latest=await json('/api/formularios/kobo/versao-offline?desde='+encodeURIComponent(desde));
       if(latest.usuario!==usuario||blocked||running)return;
       const available=latest.versao!==current.release?.versao;
       updateButton.hidden=!available;
       if(!available)return;
       document.getElementById('campo-offline-atualizacao-versao').textContent='Versão '+latest.versao;
-      const items=latest.mudancas.map(change=>{
+      const changes=latest.atualizacoes??[{versao:latest.versao,mudancas:latest.mudancas}];
+      const bullet=change=>{
         const li=document.createElement('li');li.textContent=change;return li;
-      });
+      };
+      const items=changes.length>1?changes.map(release=>{
+        const section=document.createElement('li'), title=document.createElement('strong');
+        const notes=document.createElement('ul');
+        title.textContent='Versão '+release.versao;
+        notes.append(...release.mudancas.map(bullet));
+        section.append(title,notes);
+        return section;
+      }):(changes[0]?.mudancas||[]).map(bullet);
       document.getElementById('campo-offline-atualizacao-resumo').replaceChildren(...items);
-      if(versionShown!==latest.versao&&!updateDialog.open&&!document.querySelector('dialog[open]')){
+      if(updateDialog.open)versionShown=latest.versao;
+      if(versionShown!==latest.versao&&!document.querySelector('dialog[open]')){
         versionShown=latest.versao;
         updateDialog.showModal();
       }

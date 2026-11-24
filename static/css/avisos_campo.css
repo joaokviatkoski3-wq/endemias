@@ -4,6 +4,7 @@
 .campo-sino-icone::after { content: ""; position: absolute; width: 4px; height: 2px; left: 50%; bottom: -5px; transform: translateX(-50%); border-radius: 0 0 8px 8px; background: currentColor; }
 #campo-avisos-contagem { position: absolute; inset: -5px -5px auto auto; min-width: 1.15rem; padding: 0 .2rem; border-radius: 1rem; background: #9f2635; color: white; font-size: .7rem; font-weight: 700; text-align: center; }
 #campo-avisos, #campo-offline-atualizacao { color: var(--text, #182640); background: var(--surface, #fff); border: 1px solid var(--border, #d3ddeb); border-radius: 12px; width: min(34rem, calc(100% - 1.5rem)); max-height: 85dvh; padding: 0; }
+#campo-offline-atualizacao { position: fixed; inset: 0; margin: auto; height: fit-content; overflow-y: auto; }
 #campo-avisos::backdrop, #campo-offline-atualizacao::backdrop { background: #101e34a6; }
 #campo-avisos header { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .85rem 1rem; border-bottom: 1px solid var(--border, #d3ddeb); }
 #campo-avisos h2, #campo-offline-atualizacao h2 { font-size: 1.15rem; margin: 0; }
@@ -18,4 +19,5 @@
 #campo-avisos-lista h3 { font-size: 1.02rem; margin: 0 0 .25rem; }
 #campo-avisos-lista p { margin: .3rem 0; }
 .campo-atualizacao-corpo li { margin-bottom: .4rem; }
+#campo-offline-atualizacao-resumo, #campo-offline-atualizacao-resumo ul { padding-inline-start: 1.25rem; margin-block: .5rem; }
 .campo-atualizacao-corpo .fk-offline-actions { margin-top: 1rem; }

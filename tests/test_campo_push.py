@@ -10,7 +10,7 @@ from Cryptodome.Hash import SHA256
 from Cryptodome.PublicKey import ECC
 from Cryptodome.Signature import DSS
 
-from app_core import campo_push, db, sessoes
+from app_core import campo_push, campo_release, db, sessoes
 
 
 ENDPOINT = "https://fcm.googleapis.com/fcm/send/token-sintetico-com-20-caracteres"
@@ -38,7 +38,8 @@ class CampoPushTests(unittest.TestCase):
         self.path = str(self.f.path)
         conn = db.connect(self.path)
         try:
-            conn.executescript(Path("migrations/postgresql/0042_campo_push.sql").read_text())
+            ddl = Path("migrations/postgresql/0042_campo_push.sql").read_text()
+            conn.executescript(ddl.replace("id_agente bigint NOT NULL", "id_agente bigint", 1))
         finally:
             conn.close()
         self.f.sql("UPDATE usuarios SET id_agente=1 WHERE id_usuario=1")
@@ -49,6 +50,38 @@ class CampoPushTests(unittest.TestCase):
         self.addCleanup(self.env.stop)
         self.key = ECC.generate(curve="P-256")
         self.subject = "https://endemias.example.org"
+
+    def test_superadmin_sem_agente_pode_inscrever_e_enviar_apenas_teste(self):
+        os.environ["ENDEMIAS_FORMULARIOS_OFFLINE_USUARIO"] = "conta-de-campo"
+        self.f.sql("UPDATE usuarios SET id_agente=NULL WHERE id_usuario=1")
+        self.f.apps["endemias"].config["ACESSO_EXTERNO"] = True
+        cliente = self.f.client("endemias")
+        url = "/api/formularios/campo-push"
+        https = {"base_url": "https://localhost"}
+        dados = {"usuario": 1, "endpoint": ENDPOINT}
+        with patch.object(campo_push, "chave", return_value=self.key):
+            self.assertEqual(cliente.get(url, **https).json["modo"], "teste")
+            self.assertEqual(cliente.post(url, json={**dados, "acao":"ativar"}, **https).status_code, 200)
+            gestor = self.f.client("endemias", 5)
+            self.assertEqual(gestor.get(url, **https).status_code, 403)
+            self.assertIsNone(db.scalar(self.path, "SELECT id_agente FROM campo_push_aparelhos"))
+            self.f.sql("UPDATE usuarios SET id_agente=1 WHERE id_usuario=1")
+            with patch.object(campo_push.avisos_campo, "pendentes_push") as pendentes, patch.object(
+                campo_push, "enviar", return_value=201
+            ) as enviar:
+                campo_push.verificar_resultados(self.path,self.key,self.subject)
+                pendentes.assert_not_called()
+                enviar.assert_not_called()
+                self.assertEqual(cliente.post(url, json={**dados, "acao":"testar"}, **https).status_code, 200)
+                campo_push.verificar_resultados(self.path,self.key,self.subject,datetime.now()+timedelta(seconds=16))
+                pendentes.assert_not_called()
+                enviar.assert_called_once_with(ENDPOINT,self.key,self.subject)
+
+    def test_atualizacao_reune_so_os_resumos_das_versoes_puladas(self):
+        cliente = self.f.client("endemias")
+        resposta = cliente.get("/api/formularios/kobo/versao-offline?desde=2.13.1")
+        self.assertEqual([item["versao"] for item in resposta.json["atualizacoes"]], ["2.14.1","2.14.0"])
+        self.assertEqual(campo_release.historico("2.14.1"), [])
 
     def test_transporte_assina_sem_dados_da_coleta_e_restringe_destino(self):
         hdr = campo_push._cabecalhos(self.key, self.subject, 1000)

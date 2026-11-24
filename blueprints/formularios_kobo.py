@@ -104,7 +104,10 @@ def pacote_offline():
 def versao_offline():
     if not formulario_piloto.habilitado(user()):
         return jsonify({'erro':'Conta fora do piloto offline.'}),403
-    return jsonify({'usuario':user()['id_usuario'], **campo_release.atual()})
+    info=campo_release.atual()
+    if 'desde' in request.args:
+        info['atualizacoes']=campo_release.historico(request.args['desde'])
+    return jsonify({'usuario':user()['id_usuario'], **info})
 
 
 @bp.get('/api/formularios/kobo/<tipo>/catalogos')

@@ -4,7 +4,18 @@ Atualizado em 24/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Versão candidata 2.14.0 — avisos no Android
+## Versão candidata 2.14.1 — teste pelo superadmin e aviso de atualização
+
+O superadmin pode se inscrever para receber seus próprios avisos de teste
+no Android, mesmo sem vínculo de agente. A migração 0043 permite guardar
+essa autorização. Os avisos automáticos continuam na conta de campo
+configurada. O pop-up centralizado reúne as notas das versões que o
+aparelho pulou em um único aviso.
+
+## Versão ativa 2.14.0 — avisos no Android
+
+Ativada em 24/11/2026, release `77df9e0`. O instalador confirmou todas
+as entradas e preservou o conteúdo das 101 tabelas anteriores.
 
 Piloto Web Push optativo para a conta de campo de Endemias já configurada.
 O sininho ativa um aparelho Chrome/Android por vez e permite agendar um
@@ -19,7 +30,7 @@ a inscrição da sessão. A ativação guarda a chave VAPID com as permissões
 da conta limitada do servidor. A validação em Android real é a etapa
 final do piloto.
 
-## Versão ativa 2.13.1 — exclusão de rascunhos
+## Histórico 2.13.1 — exclusão de rascunhos
 
 Ativada em 24/11/2026, release `67f97c1`. O instalador confirmou todas
 as entradas e preservou o conteúdo das 100 tabelas anteriores.
