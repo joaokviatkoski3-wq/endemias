@@ -22,21 +22,31 @@
     {% set rg=item.tipo=='rg_atualizacao' %}
     {% set detalhe=('/formularios/rg-revisao' if rg else '/formularios/kobo/' ~ item.tipo[5:] ~ '/revisao') ~ '?envio=' ~ item.id %}
     {% set aceitar=('/api/formularios/' if rg else '/api/formularios/kobo/' ~ item.tipo[5:] ~ '/') ~ item.id ~ '/aceitar' %}
-    <article class="fila-card">
-      <div class="fila-card-corpo">
-        <header><span class="fila-situacao">{{ situacoes.get(item.status,item.status) }}</span><span>#{{ item.id }}</span></header>
-        <h2><a class="fila-detalhe" href="{{ detalhe }}">{{ item.titulo }}</a></h2>
-        {% if item.complemento or item.endereco %}<p>{{ [item.complemento,item.endereco]|select|join(' · ') }}</p>{% endif %}
-        <dl>
-          <div><dt>Data</dt><dd>{{ item.data[8:10] ~ '/' ~ item.data[5:7] ~ '/' ~ item.data[:4] if item.data|length==10 else '—' }}</dd></div>
-          <div><dt>Localidade</dt><dd>{{ item.localidade or '—' }}{% if item.quadra %} · Q. {{ item.quadra }}{% endif %}</dd></div>
+    <article class="fila-card" data-envio="{{ item.id }}">
+      <header class="fila-card-cabecalho">
+        <span class="fila-card-icone" aria-hidden="true"></span>
+        <div class="fila-card-local">
+          <h2>{{ item.titulo }}</h2>
+          {% if item.complemento or item.endereco %}<p>{{ [item.complemento,item.endereco]|select|join(' · ') }}</p>{% endif %}
+          {% if item.localidade or item.quadra %}<p class="fila-localidade">{{ item.localidade or '' }}{% if item.quadra %}{{ ' · ' if item.localidade else '' }}Q. {{ item.quadra }}{% endif %}</p>{% endif %}
+        </div>
+        <div class="fila-card-identificacao">
+          <span class="fila-situacao" data-situacao="{{ item.status }}">{{ situacoes.get(item.status,item.status) }}</span>
+          <span>#{{ item.id }}{% if item.data|length==10 %} · <time datetime="{{ item.data }}">{{ item.data[8:10] }}/{{ item.data[5:7] }}/{{ item.data[:4] }}</time>{% endif %}</span>
+        </div>
+      </header>
+      <footer class="fila-card-rodape">
+        <dl class="fila-card-pessoas">
           <div><dt>Responsável pelo envio</dt><dd>{{ item.autor or '—' }}</dd></div>
           <div><dt>Equipe da visita</dt><dd>{{ item.equipe|join(', ') or '—' }}</dd></div>
         </dl>
-      </div>
-      {% if (item.status in ['enviado','aprovado'] and not (item.status=='aprovado' and item.tipo=='kobo_PE_CADASTRO')) or (rg and item.status=='em_revisao') %}
-      <button class="btn btn-primary fila-aceitar" type="button" data-aceitar="{{ aceitar }}" data-etag="{{ item.etag }}" data-rg="{{ '1' if rg else '0' }}">Aceitar</button>
-      {% endif %}
+        <div class="fila-card-acoes">
+          <a class="btn btn-outline fila-detalhe" href="{{ detalhe }}" aria-label="Ver detalhes do envio {{ item.id }}">Ver detalhes</a>
+          {% if (item.status in ['enviado','aprovado'] and not (item.status=='aprovado' and item.tipo=='kobo_PE_CADASTRO')) or (rg and item.status=='em_revisao') %}
+          <button class="btn btn-primary fila-aceitar" type="button" data-aceitar="{{ aceitar }}" data-etag="{{ item.etag }}" data-rg="{{ '1' if rg else '0' }}">Aceitar</button>
+          {% endif %}
+        </div>
+      </footer>
     </article>
     {% else %}
     <p class="fila-vazia">Nenhum envio encontrado com estes filtros.</p>

@@ -10,6 +10,8 @@
       event.preventDefault();
       const url=new URL(detail.href,location.origin);
       url.searchParams.set('embutido','1');
+      const id=detail.closest('.fila-card').dataset.envio;
+      document.getElementById('fila-dialog-titulo').textContent='Detalhes do envio #'+id;
       opener=detail;frame.src=url.href;dialog.showModal();return;
     }
     const button=event.target.closest('[data-aceitar]');
@@ -28,7 +30,12 @@
       const card=button.closest('.fila-card');
       const pending=new URLSearchParams(location.search).get('status');
       if(!pending||pending==='pendentes'||pending==='enviado')card.remove();
-      else {card.querySelector('.fila-situacao').textContent='Aceito';button.remove();}
+      else {
+        const situation=card.querySelector('.fila-situacao');
+        situation.textContent='Aceito';
+        situation.dataset.situacao='aprovado';
+        button.remove();
+      }
       status.textContent='Envio aceito.';
     }catch(error){status.textContent=error.message;toast(error.message,'error');button.disabled=false;}
   });

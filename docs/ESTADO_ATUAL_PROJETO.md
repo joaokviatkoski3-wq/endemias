@@ -4,7 +4,14 @@ Atualizado em 24/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.12.0 — revisão de formulários e exúvias
+## Candidata 2.12.1 — rolagem e cartões da revisão
+
+Detalhes do envio ocupam a área útil do painel e rolam com roda, toque e
+teclado, com Fechar fixo no cabeçalho. Cartões com local da visita, situação,
+data e equipe, e ações Ver detalhes e Aceitar. Correção de interface sem
+migração nem alteração de registros.
+
+## Versão ativa 2.12.0 — revisão de formulários e exúvias
 
 Formulários disponíveis e Revisão em abas. A fila é filtrada pelo setor e
 restrita a admin/superadmin. Inclui RG e formulários internos visíveis
@@ -22,6 +29,8 @@ Migração 0039 acrescenta exúvias de Ae. aegypti, Ae. albopictus e outras
 espécies às leituras LIRAa. Os novos campos aparecem no lançamento e no
 histórico. Índices e notificações LIRAa mantêm os critérios atuais de
 larvas e pupas. Exúvias da rotina já existiam.
+Ativada em 24/11/2026 no release `5125ed7`, com a migração 0039 aplicada
+e a preservação das 99 tabelas anteriores confirmada.
 
 ## Versão ativa 2.11.1 — superadmin no piloto de campo
 

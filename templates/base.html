@@ -119,7 +119,7 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
     </div>
   </aside>
 
-  <main class="page">
+  <main class="page"{% if embutido %} tabindex="0" aria-label="Detalhes da revisão"{% endif %}>
   {% block content %}{% endblock %}
     <footer class="app-footer">
       <div>{{ APP_VERSION_LABEL.replace('Endemias', 'VSATT') if SETOR_ATUAL == 'ambiental' else APP_VERSION_LABEL }}</div>

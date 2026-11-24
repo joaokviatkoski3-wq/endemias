@@ -6,7 +6,13 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Candidata 2.12.0 — revisão de formulários e exúvias
+## Candidata 2.12.1 — rolagem e cartões da revisão
+
+Detalhes do envio com área de rolagem própria no painel. A fila de revisão
+exibe cartões compactos com local, data, responsáveis e ações explícitas.
+Sem nova migração.
+
+## Versão ativa 2.12.0 — revisão de formulários e exúvias
 
 Fila de revisão por setor para admin e superadmin, com filtros, cards e
 edição ou devolução dentro da página. Campos obrigatórios indicados antes
