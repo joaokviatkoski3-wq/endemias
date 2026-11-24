@@ -13,6 +13,8 @@
 .campo-avisos-corpo { overflow: auto; }
 #campo-push:not([hidden]) { padding: 0 0 .9rem; margin: 0 0 .85rem; border-bottom: 1px solid var(--border); }
 #campo-push button { min-height: 44px; }
+#campo-push-status:not(:empty) { margin: .6rem 0 0; padding: .65rem .75rem; background: var(--surface2, #f4f7fb); border: 1px solid var(--border, #d3ddeb); border-radius: 8px; }
+#campo-push-status[data-erro="1"] { border-inline-start: 4px solid var(--red, #a33); }
 #campo-avisos-lista { display: grid; gap: .65rem; padding: 0; list-style: none; margin: 0; }
 #campo-avisos-lista li { border: 1px solid var(--border, #d3ddeb); border-radius: 8px; padding: .75rem; }
 #campo-avisos-lista li[data-novo="1"] { border-inline-start: 4px solid var(--primary, #153e73); }

@@ -180,7 +180,7 @@ def campo_push_api():
     ident = usuario["id_usuario"]
     if request.method == "GET":
         return jsonify({"usuario": ident, "chave": public, "modo": modo,
-                        "aparelho": campo_push.status(target, ident), "csrf": generate_csrf()})
+                        **campo_push.status(target, ident), "csrf": generate_csrf()})
     body = request.get_json(silent=True)
     if not isinstance(body, dict) or body.get("usuario") != ident:
         return jsonify({"erro": "Reabra o aplicativo na conta do piloto."}), 403
@@ -191,7 +191,8 @@ def campo_push_api():
         elif acao == "desativar":
             campo_push.cancelar(target, ident, endpoint)
         elif acao == "testar":
-            campo_push.testar(target, ident, endpoint)
+            espera = campo_push.testar(target, ident, endpoint)
+            return jsonify({"ok": True, "segundos_para_fechar": espera})
         else:
             raise ValueError("Ação inválida.")
     except ValueError as erro:

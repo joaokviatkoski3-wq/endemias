@@ -16,11 +16,16 @@
   const endpoint='/api/formularios/campo-push';
   let registration,config,subscription,busy=false;
   const ativos=()=>config.modo==='teste'?'Avisos de teste ativos neste aparelho.':'Avisos com o app fechado estão ativos neste aparelho.';
+  const estadosTeste={
+    agendado:'Teste agendado. Feche o app sem tocar em Sair e bloqueie a tela.',
+    aceito:'O serviço de notificações aceitou o teste. Confira os avisos no Android.',
+    expirado:'O serviço de notificações não confirmou o teste a tempo. Tente novamente.'
+  };
   async function api(acao=null) {
     const response=await fetch(endpoint,{cache:'no-store',signal:AbortSignal.timeout(10000),
       ...(acao?{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':config.csrf},
         body:JSON.stringify({usuario,acao,endpoint:subscription?.endpoint})}:{})});
-    const data=await response.json();
+    const data=await response.json().catch(()=>({}));
     if(!response.ok || (!acao && data.usuario!==usuario)){
       throw Error(data.erro||'Entre na conta do piloto para configurar os avisos.');
     }
@@ -32,6 +37,7 @@
   }
   function dizer(text,ativo=false,permiteAtivar=false){
     status.textContent=text;
+    delete status.dataset.erro;
     ativar.hidden=!permiteAtivar;
     testar.hidden=desativar.hidden=!ativo;
   }
@@ -56,9 +62,11 @@
     }
     subscription=await registration.pushManager.getSubscription();
     if(subscription&&config.aparelho===await hash(subscription.endpoint)&&Notification.permission==='granted'){
-      dizer(ativos(),true);
+      dizer(estadosTeste[config.teste_estado]||ativos(),true);
     }else if(Notification.permission==='denied'){
       dizer('Para ativar, permita as notificações do VSATT nas configurações do Chrome.');
+    }else if(subscription){
+      dizer('O cadastro de avisos deste aparelho precisa ser confirmado. Toque em Ativar avisos neste aparelho.',false,true);
     }else{
       dizer(config.modo==='teste'
         ? 'Use este aparelho para testar a entrega com o app fechado.'
@@ -76,32 +84,45 @@
       registration.active.postMessage({type,user:usuario},[channel.port2]);
     });
   }
-  async function executar(act) {
+  async function executar(button, ocupado, act) {
     if(busy)return;
     busy=true;
+    const original=button.textContent;
+    button.textContent=ocupado;
+    status.textContent=ocupado;
+    delete status.dataset.erro;
     for(const button of [ativar,testar,desativar])button.disabled=true;
     try {await act();}
-    catch(e){status.textContent=e.message||'Não foi possível configurar os avisos.';}
+    catch(e){
+      status.dataset.erro='1';
+      status.textContent=e.name==='NotAllowedError'?'O Chrome não permitiu os avisos. Confira a permissão de notificações para o VSATT.'
+        :e.name==='AbortError'?'O Chrome não concluiu o cadastro dos avisos. Confira a internet e tente de novo.'
+        :e.name==='TimeoutError'||e instanceof TypeError?'A comunicação demorou. Confira a internet e tente de novo.'
+        :e.message||'Não foi possível configurar os avisos.';
+    }
     finally{
       busy=false;
+      button.textContent=original;
       for(const button of [ativar,testar,desativar])button.disabled=false;
+      status.scrollIntoView({block:'nearest'});
     }
   }
-  ativar.onclick=()=>executar(async()=>{
-    const permission=await Notification.requestPermission();
+  ativar.onclick=()=>executar(ativar,'Ativando avisos…',async()=>{
+    const permission=Notification.permission==='granted'?'granted':await Notification.requestPermission();
     if(permission!=='granted'){
       dizer('Os avisos dependem da sua permissão de notificações no Chrome.',false,permission!=='denied');
       return;
     }
-    config=await api();
     const encoded=config.chave.replaceAll('-','+').replaceAll('_','/');
     const key=Uint8Array.from(atob(encoded),ch=>ch.charCodeAt(0));
-    if(subscription){
+    const previousKey=new Uint8Array(subscription?.options?.applicationServerKey||key);
+    if(subscription&&(previousKey.length!==key.length||!key.every((byte,index)=>byte===previousKey[index]))){
       await subscription.unsubscribe();
       subscription=null;
     }
-    subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});
+    subscription??=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});
     try{
+      config=await api();
       await worker('PUSH_ATIVAR');
       await api('ativar');
     }catch(e){
@@ -111,19 +132,23 @@
     }
     dizer(ativos(),true);
   });
-  desativar.onclick=()=>executar(async()=>{
+  desativar.onclick=()=>executar(desativar,'Desativando avisos…',async()=>{
     config=await api();
     await api('desativar');
     await worker('PUSH_DESATIVAR');
     subscription=null;
     dizer('Avisos desativados neste aparelho.',false,true);
   });
-  testar.onclick=()=>executar(async()=>{
+  testar.onclick=()=>executar(testar,'Agendando teste…',async()=>{
     config=await api();
-    await api('testar');
-    status.textContent='Teste agendado. Feche o app agora e aguarde o aviso.';
+    const data=await api('testar');
+    const espera=data.segundos_para_fechar||20;
+    status.textContent='Teste agendado. Você tem '+espera+' segundos para fechar o app sem tocar em Sair e bloquear a tela.';
   });
   sino.addEventListener('click',()=>carregar().catch(()=>{box.hidden=true;}));
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden&&document.getElementById('campo-avisos')?.open)carregar().catch(()=>{box.hidden=true;});
+  });
   navigator.serviceWorker.addEventListener('message',event=>{
     if(event.data?.type==='BLOQUEAR_CAMPO')box.hidden=true;
   });

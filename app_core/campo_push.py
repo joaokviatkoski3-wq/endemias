@@ -20,7 +20,8 @@ from app_core import avisos_campo, db, sessoes, visitas_integradas
 
 CHAVE_ENV = "ENDEMIAS_CAMPO_PUSH_CHAVE"
 ORIGEM_FCM = "https://fcm.googleapis.com"
-ENDPOINT = re.compile(r"https://fcm\.googleapis\.com/fcm/send/[A-Za-z0-9_.:-]{20,2048}")
+ENDPOINT = re.compile(r"https://fcm\.googleapis\.com/(?:wp|fcm/send)/[A-Za-z0-9_.~:-]{20,2048}={0,2}")
+TESTE_ESPERA = 20
 LOG = logging.getLogger(__name__)
 
 
@@ -110,7 +111,8 @@ def _aparelho(conn, usuario, lock=False):
 def status(target, usuario):
     with closing(db.connect(target)) as conn:
         row = _aparelho(conn, usuario)
-        return sessoes.digest(row["endpoint"]) if row else None
+        return {"aparelho": sessoes.digest(row["endpoint"]) if row else None,
+                "teste_estado": row["teste_estado"] if row else "nenhum"}
 
 
 def inscrever(target, usuario, sid, endpoint):
@@ -124,7 +126,8 @@ def inscrever(target, usuario, sid, endpoint):
             (id_usuario,id_agente,sessao_hash,senha_vinculo,endpoint,inscrito_em)
             VALUES (?,?,?,?,?,?) ON CONFLICT (id_usuario) DO UPDATE SET
                 id_agente=excluded.id_agente, sessao_hash=excluded.sessao_hash, senha_vinculo=excluded.senha_vinculo,
-                endpoint=excluded.endpoint, teste_em=0, inscrito_em=excluded.inscrito_em""",
+                endpoint=excluded.endpoint, teste_em=0, teste_estado='nenhum',
+                inscrito_em=excluded.inscrito_em""",
             (usuario["id_usuario"], agente, sessoes.digest(sid),
              sessoes.digest(usuario["senha_hash"]), endpoint, datetime.now().isoformat(timespec="microseconds")))
 
@@ -150,8 +153,9 @@ def testar(target, usuario, endpoint):
             raise ValueError("Ative os avisos neste aparelho antes de testar.")
         if now - row["ultimo_teste"] < 60:
             raise ValueError("Aguarde um minuto antes de pedir outro teste.")
-        conn.execute("UPDATE campo_push_aparelhos SET ultimo_teste=?,teste_em=? WHERE id_usuario=?",
-                     (now, now+15, usuario))
+        conn.execute("""UPDATE campo_push_aparelhos SET ultimo_teste=?,teste_em=?,teste_estado='agendado'
+                        WHERE id_usuario=?""", (now, now+TESTE_ESPERA, usuario))
+    return TESTE_ESPERA
 
 
 def verificar_resultados(target, key, assunto, agora=None):
@@ -188,7 +192,8 @@ def _verificar_aparelho(conn, user, key, assunto, agora):
     if agendado and agora_seg < agendado:
         return
     if agendado and agora_seg > agendado+300:
-        conn.execute("UPDATE campo_push_aparelhos SET teste_em=0 WHERE id_usuario=?", (usuario,))
+        conn.execute("UPDATE campo_push_aparelhos SET teste_em=0,teste_estado='expirado' WHERE id_usuario=?",
+                     (usuario,))
         agendado = 0
     pendentes = []
     if agente is not None and not agendado:
@@ -206,7 +211,8 @@ def _verificar_aparelho(conn, user, key, assunto, agora):
         conn.execute("DELETE FROM campo_push_aparelhos WHERE id_usuario=?", (usuario,))
     elif 200 <= code < 300:
         if agendado:
-            conn.execute("UPDATE campo_push_aparelhos SET teste_em=0 WHERE id_usuario=?", (usuario,))
+            conn.execute("UPDATE campo_push_aparelhos SET teste_em=0,teste_estado='aceito' WHERE id_usuario=?",
+                         (usuario,))
             return
         conn.executemany("""INSERT INTO campo_push_entregas (id_usuario,id_agente,id_resultado,versao)
             VALUES (?,?,?,?) ON CONFLICT (id_usuario,id_agente,id_resultado) DO UPDATE SET versao=excluded.versao""",

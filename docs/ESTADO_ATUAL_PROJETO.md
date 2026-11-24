@@ -4,6 +4,14 @@ Atualizado em 24/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
+## Versão candidata 2.14.2 — cadastro e confirmação do Web Push
+
+O validador de inscrições aceita os caminhos `/wp/` e `/fcm/send/` de
+`fcm.googleapis.com`. O sininho confirma o agendamento com 20 segundos
+para fechar o app e bloquear a tela. A migração 0044 guarda se o serviço
+de notificações aceitou o teste ou se o prazo expirou. A chegada à tela
+bloqueada continua sujeita à validação em Android real.
+
 ## Versão ativa 2.14.1 — teste pelo superadmin e aviso de atualização
 
 Ativada em 24/11/2026, release `0bec614`. O instalador confirmou todas as

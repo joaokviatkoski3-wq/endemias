@@ -14,6 +14,7 @@ from app_core import campo_push, campo_release, db, sessoes
 
 
 ENDPOINT = "https://fcm.googleapis.com/fcm/send/token-sintetico-com-20-caracteres"
+ENDPOINT_ATUAL = ENDPOINT.replace("/fcm/send/", "/wp/")
 
 
 def dec(value):
@@ -40,6 +41,7 @@ class CampoPushTests(unittest.TestCase):
         try:
             ddl = Path("migrations/postgresql/0042_campo_push.sql").read_text()
             conn.executescript(ddl.replace("id_agente bigint NOT NULL", "id_agente bigint", 1))
+            conn.executescript(Path("migrations/postgresql/0044_campo_push_teste_estado.sql").read_text())
         finally:
             conn.close()
         self.f.sql("UPDATE usuarios SET id_agente=1 WHERE id_usuario=1")
@@ -58,7 +60,7 @@ class CampoPushTests(unittest.TestCase):
         cliente = self.f.client("endemias")
         url = "/api/formularios/campo-push"
         https = {"base_url": "https://localhost"}
-        dados = {"usuario": 1, "endpoint": ENDPOINT}
+        dados = {"usuario": 1, "endpoint": ENDPOINT_ATUAL}
         with patch.object(campo_push, "chave", return_value=self.key):
             self.assertEqual(cliente.get(url, **https).json["modo"], "teste")
             self.assertEqual(cliente.post(url, json={**dados, "acao":"ativar"}, **https).status_code, 200)
@@ -72,16 +74,21 @@ class CampoPushTests(unittest.TestCase):
                 campo_push.verificar_resultados(self.path,self.key,self.subject)
                 pendentes.assert_not_called()
                 enviar.assert_not_called()
-                self.assertEqual(cliente.post(url, json={**dados, "acao":"testar"}, **https).status_code, 200)
-                campo_push.verificar_resultados(self.path,self.key,self.subject,datetime.now()+timedelta(seconds=16))
+                resposta = cliente.post(url, json={**dados, "acao":"testar"}, **https)
+                self.assertEqual(resposta.status_code, 200)
+                self.assertEqual(resposta.json["segundos_para_fechar"], campo_push.TESTE_ESPERA)
+                self.assertEqual(cliente.get(url, **https).json["teste_estado"], "agendado")
+                campo_push.verificar_resultados(self.path,self.key,self.subject,
+                                               datetime.now()+timedelta(seconds=campo_push.TESTE_ESPERA+1))
                 pendentes.assert_not_called()
-                enviar.assert_called_once_with(ENDPOINT,self.key,self.subject)
+                enviar.assert_called_once_with(ENDPOINT_ATUAL,self.key,self.subject)
+                self.assertEqual(cliente.get(url, **https).json["teste_estado"], "aceito")
 
     def test_atualizacao_reune_so_os_resumos_das_versoes_puladas(self):
         cliente = self.f.client("endemias")
-        resposta = cliente.get("/api/formularios/kobo/versao-offline?desde=2.13.1")
-        self.assertEqual([item["versao"] for item in resposta.json["atualizacoes"]], ["2.14.1","2.14.0"])
-        self.assertEqual(campo_release.historico("2.14.1"), [])
+        resposta = cliente.get("/api/formularios/kobo/versao-offline?desde=2.14.0")
+        self.assertEqual([item["versao"] for item in resposta.json["atualizacoes"]], ["2.14.2","2.14.1"])
+        self.assertEqual(campo_release.historico("2.14.2"), [])
 
     def test_transporte_assina_sem_dados_da_coleta_e_restringe_destino(self):
         hdr = campo_push._cabecalhos(self.key, self.subject, 1000)
@@ -91,12 +98,14 @@ class CampoPushTests(unittest.TestCase):
         DSS.new(pub, "fips-186-3", encoding="binary").verify(SHA256.new(f"{header}.{claims}".encode()), dec(sig))
         self.assertEqual(json.loads(dec(claims)), {"aud":campo_push.ORIGEM_FCM,"exp":4600,"sub":self.subject})
         for url in ("http://fcm.googleapis.com", "https://fcm.googleapis.com@localhost/fcm/send/"+"x"*22,
-                    ENDPOINT+"?redirect=123", ENDPOINT.replace("/fcm/send/", "/")):
+                    ENDPOINT_ATUAL+"?redirect=123", ENDPOINT.replace("/fcm/send/", "/")):
             with self.assertRaises(ValueError):
                 campo_push.validar_endpoint(url)
         with patch.object(campo_push, "_http") as transport:
             transport.return_value.request.return_value.status = 201
-            self.assertEqual(campo_push.enviar(ENDPOINT,self.key,self.subject),201)
+            for destino in (ENDPOINT, ENDPOINT_ATUAL):
+                self.assertEqual(campo_push.enviar(destino,self.key,self.subject),201)
+                self.assertEqual(transport.return_value.request.call_args.args, ("POST", destino))
             sent = transport.return_value.request.call_args.kwargs
             self.assertEqual(sent["body"], b"")
             self.assertFalse(sent["redirect"])
@@ -109,9 +118,10 @@ class CampoPushTests(unittest.TestCase):
                 campo_push.testar(self.path,1,ENDPOINT)
             campo_push.verificar_resultados(self.path,self.key,self.subject)
             send.assert_not_called()
-            campo_push.verificar_resultados(self.path,self.key,self.subject,datetime.now()+timedelta(seconds=16))
+            espera = campo_push.TESTE_ESPERA
+            campo_push.verificar_resultados(self.path,self.key,self.subject,datetime.now()+timedelta(seconds=espera+1))
             send.assert_called_once_with(ENDPOINT,self.key,self.subject)
-            campo_push.verificar_resultados(self.path,self.key,self.subject,datetime.now()+timedelta(seconds=17))
+            campo_push.verificar_resultados(self.path,self.key,self.subject,datetime.now()+timedelta(seconds=espera+2))
             self.assertEqual(send.call_count,1)
         conn = db.connect(self.path)
         try:
@@ -119,7 +129,7 @@ class CampoPushTests(unittest.TestCase):
                 campo_push.revogar_sessao(conn,sessoes.digest("sessao-ficticia"),1)
         finally:
             conn.close()
-        self.assertIsNone(campo_push.status(self.path, 1))
+        self.assertIsNone(campo_push.status(self.path, 1)["aparelho"])
 
     def test_resultados_proprios_agrupados_retentativa_sem_repetir_envio_aceito(self):
         now = datetime.now()
@@ -140,4 +150,13 @@ class CampoPushTests(unittest.TestCase):
             self.f.sql("UPDATE resultados_laboratorio SET atualizado_em=? WHERE num_tubo='902'",
                        ((now+timedelta(seconds=32)).isoformat(),))
             campo_push.verificar_resultados(self.path,self.key,self.subject,now+timedelta(seconds=35))
-            self.assertIsNone(campo_push.status(self.path, 1))
+            self.assertIsNone(campo_push.status(self.path, 1)["aparelho"])
+
+    def test_teste_sem_confirmação_expira(self):
+        campo_push.inscrever(self.path, self.user, "sessao-ficticia", ENDPOINT_ATUAL)
+        campo_push.testar(self.path, 1, ENDPOINT_ATUAL)
+        with patch.object(campo_push, "enviar") as send:
+            campo_push.verificar_resultados(self.path, self.key, self.subject,
+                                           datetime.now()+timedelta(seconds=campo_push.TESTE_ESPERA+301))
+            send.assert_not_called()
+        self.assertEqual(campo_push.status(self.path, 1)["teste_estado"], "expirado")

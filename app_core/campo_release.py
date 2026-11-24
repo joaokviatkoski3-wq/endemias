@@ -6,6 +6,10 @@ from app_core.version import APP_VERSION
 
 
 RESUMOS = {
+    "2.14.2": [
+        "Compatibilidade com o cadastro de avisos nas versões atuais do Chrome para Android.",
+        "O sininho confirma o agendamento do teste e informa se o serviço aceitou o envio.",
+    ],
     "2.14.1": [
         "O superadmin pode testar os avisos neste aparelho pelo sininho.",
         "O aviso de atualização fica centralizado e reúne as mudanças das versões que o aparelho pulou.",
