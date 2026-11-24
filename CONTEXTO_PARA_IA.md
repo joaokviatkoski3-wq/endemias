@@ -6,13 +6,14 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Versão candidata 2.14.1 — teste pelo superadmin e aviso de atualização
+## Versão ativa 2.14.1 — teste pelo superadmin e aviso de atualização
 
 O superadmin pode testar os avisos no Android pelo sininho sem vínculo de
 agente. Cada aparelho vê um pop-up centralizado com os resumos das versões
-que pulou. O acesso do superadmin aos pilotos está registrado em AGENTS.md.
+que pulou. Ativada em 24/11/2026. O acesso do superadmin aos pilotos está
+registrado em AGENTS.md.
 
-## Versão ativa 2.14.0 — avisos no Android
+## Histórico 2.14.0 — avisos no Android
 
 Piloto optativo de Web Push pelo sininho para a conta de campo já
 configurada, em um aparelho Chrome/Android. O aviso de teste é agendado
