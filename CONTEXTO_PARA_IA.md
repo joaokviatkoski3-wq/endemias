@@ -6,16 +6,17 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Versão candidata 2.13.0 — aplicativo de campo
+## Versão ativa 2.13.0 — aplicativo de campo
 
 Endemias - VSATT reúne sete formulários internos e o RG na mesma preparação
 offline para as contas do piloto. O RG usa localidades, quadras e ruas do
 cadastro e envia a tabela de imóveis para revisão. O aplicativo informa
 atualizações e consulta os resultados das coletas do próprio agente. A
-migração 0040 guarda quais resultados já foram lidos. O envio de avisos
+migração 0040 guarda quais resultados já foram lidos. Ativada em
+24/11/2026. O envio de avisos
 com o aplicativo fechado permanece planejado.
 
-## Versão ativa 2.12.1 — rolagem e cartões da revisão
+## Histórico 2.12.1 — rolagem e cartões da revisão
 
 Detalhes do envio com área de rolagem própria no painel. A fila de revisão
 exibe cartões compactos com local, data, responsáveis e ações explícitas.

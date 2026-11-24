@@ -4,7 +4,10 @@ Atualizado em 24/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Versão candidata 2.13.0 — aplicativo de campo
+## Versão ativa 2.13.0 — aplicativo de campo
+
+Ativada em 24/11/2026, release `298e6ad`. O instalador confirmou todas
+as entradas e preservou o conteúdo das 99 tabelas anteriores à migração.
 
 O manifesto principal mantém o identificador e o endereço de abertura e
 passa a usar o nome Endemias - VSATT e o emblema do setor. Uma preparação
@@ -21,7 +24,7 @@ de rotina e LIRAa registrados ou atualizados nos últimos 30 dias, somente
 para o agente vinculado à conta e à equipe da coleta. A migração 0040 guarda
 as leituras dos avisos por conta. Entrega com o app fechado está planejada.
 
-## Versão ativa 2.12.1 — rolagem e cartões da revisão
+## Histórico 2.12.1 — rolagem e cartões da revisão
 
 Detalhes do envio ocupam a área útil do painel e rolam com roda, toque e
 teclado, com Fechar fixo no cabeçalho. Cartões com local da visita, situação,
