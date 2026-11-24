@@ -4,14 +4,24 @@ Atualizado em 24/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Candidata 2.12.1 — rolagem e cartões da revisão
+## Versão ativa 2.12.1 — rolagem e cartões da revisão
 
 Detalhes do envio ocupam a área útil do painel e rolam com roda, toque e
 teclado, com Fechar fixo no cabeçalho. Cartões com local da visita, situação,
 data e equipe, e ações Ver detalhes e Aceitar. Correção de interface sem
-migração nem alteração de registros.
+migração nem alteração de registros. Ativada em 24/11/2026, release
+`3032aaa`, com as entradas verificadas e as 99 tabelas anteriores preservadas.
 
-## Versão ativa 2.12.0 — revisão de formulários e exúvias
+## Projetos futuros do VSATT
+
+- **GeoVSATT** (`geo.vsatt.com.br`): ambiente cartográfico planejado para
+  consulta e organização de camadas de Vigilância em Saúde.
+- **Biblioteca VSATT** (`biblioteca.vsatt.com.br`, nome provisório): acervo
+  digital para organizar e consultar livros, notas técnicas, manuais e outros
+  documentos sobre vigilâncias e doenças. Inclui referências por links,
+  vídeos e imagens. O projeto está em planejamento.
+
+## Histórico 2.12.0 — revisão de formulários e exúvias
 
 Formulários disponíveis e Revisão em abas. A fila é filtrada pelo setor e
 restrita a admin/superadmin. Inclui RG e formulários internos visíveis
@@ -32,7 +42,7 @@ larvas e pupas. Exúvias da rotina já existiam.
 Ativada em 24/11/2026 no release `5125ed7`, com a migração 0039 aplicada
 e a preservação das 99 tabelas anteriores confirmada.
 
-## Versão ativa 2.11.1 — superadmin no piloto de campo
+## Histórico 2.11.1 — superadmin no piloto de campo
 
 Autoriza o perfil superadmin de Endemias a preparar o mesmo pacote offline,
 com fila própria. Quando o superadmin não tem vínculo no catálogo de equipe,
