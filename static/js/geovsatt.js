@@ -3,6 +3,7 @@
   const mapNode = document.getElementById('geo-map');
   if (!mapNode || !window.L) return;
   const statusNode = document.getElementById('geo-status');
+  const marcarEquipamento = document.getElementById('geo-marcar-equipamento');
   const sidebar = document.getElementById('geo-sidebar');
   const backdrop = document.getElementById('geo-sidebar-backdrop');
   const detail = document.getElementById('geo-detail');
@@ -16,6 +17,7 @@
   const layers = new Map();
   const options = [...document.querySelectorAll('[data-layer]:enabled')];
   const legendasPorCamada = new WeakMap();
+  const filtrosPorCamada = new Map();
   const blockIndex = new Map();
   const localityIndex = new Map();
   let fullBounds = null;
@@ -24,6 +26,7 @@
   let suggestionTimer;
   let suggestionRequest;
   let highlighted = null;
+  let marcandoEquipamento = false;
 
   const element = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -56,6 +59,40 @@
     headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content},
     body: JSON.stringify({pontos, incluir_condominios}),
   }));
+  if (marcarEquipamento) {
+    const alternarMarcacao = ativo => {
+      marcandoEquipamento = ativo;
+      marcarEquipamento.setAttribute('aria-pressed', String(ativo));
+      mapNode.classList.toggle('geo-marcando-equipamento', ativo);
+      statusNode.textContent = ativo ? 'Clique no local do novo equipamento. Pressione Esc para cancelar.' : '';
+    };
+    marcarEquipamento.addEventListener('click', () => {
+      if (measure.active()) {
+        statusNode.textContent = 'Conclua ou limpe a medição antes de marcar um equipamento.';
+        return;
+      }
+      map.closePopup();
+      if (detail.classList.contains('is-open')) {
+        detailSequence += 1;
+        clearHighlight();
+        openDetail(false);
+      }
+      alternarMarcacao(!marcandoEquipamento);
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && marcandoEquipamento) alternarMarcacao(false);
+    });
+    document.querySelectorAll('[data-medida], #geo-imprimir').forEach(botao => botao.addEventListener('click', () => {
+      if (marcandoEquipamento) alternarMarcacao(false);
+    }));
+    map.on('click', event => {
+      if (!marcandoEquipamento) return;
+      const destino = new URL(marcarEquipamento.dataset.destino, window.location.origin);
+      destino.searchParams.set('latitude', event.latlng.lat.toFixed(6));
+      destino.searchParams.set('longitude', event.latlng.lng.toFixed(6));
+      window.location.assign(destino.href);
+    });
+  }
   const basemaps = {
     sentinel: {
       title: 'Satélite Sentinel-2 (2025)',
@@ -200,26 +237,34 @@
     '#ba492f', '#0e667e', '#8f3c88', '#455d26', '#526ba0', '#a64751', '#217566', '#856515', '#56496d', '#99653a'];
   const propertyLabels = {id_quart: 'Quarteirão', Localidade_nome: 'Localidade', id_Q_antig: 'Número anterior',
     codigo_pe: 'Código do ponto', ovitrampa_id: 'Ovitrampa', NOME: 'Nome', Name: 'Nome',
-    data_coleta: 'Data de coleta', CdFerrovia: 'Código da ferrovia', TIPO_DRENA: 'Tipo de drenagem'};
+    data_coleta: 'Data de coleta', CdFerrovia: 'Código da ferrovia', TIPO_DRENA: 'Tipo de drenagem',
+    bairro_loteamento: 'Bairro ou loteamento', status_funcionamento: 'Situação', horario: 'Horário de atendimento',
+    servicos_no_local: 'Serviços no local', gestao: 'Gestão', codigo_oficial: 'Código oficial', uid: 'Identificador'};
   const propertyName = key => propertyLabels[key] || key.replaceAll('_', ' ').replace(/^./, text => text.toLocaleUpperCase('pt-BR'));
   const normalText = text => String(text ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR').trim();
   const detailKeys = props => Object.keys(props).filter(key => !['chave', 'id_localidade', 'Localidade', 'quarteirao_raw'].includes(key)
     && props[key] != null && props[key] !== '' && typeof props[key] !== 'object');
 
-  function showFeature(input, props, name, attribute, latlng) {
+  function showFeature(input, props, name, attribute, latlng, paginaEdicao) {
     const box = element('div', 'geo-info-popup');
     const details = element('dl');
     for (const key of detailKeys(props)) {
       if (key !== attribute) details.append(element('dt', '', propertyName(key)), element('dd', '', String(props[key]).slice(0, 400)));
     }
     box.append(element('strong', '', name || input.dataset.nome), details);
+    if (paginaEdicao) {
+      const link = element('a', 'geo-editar-ponto', 'Editar equipamento');
+      link.href = paginaEdicao;
+      box.append(link);
+    }
     L.popup({maxHeight: 260}).setLatLng(latlng).setContent(box).openOn(map);
   }
 
   function publicSymbol(tipo) {
     const nome = normalText(tipo);
     if (nome.includes('saude')) return ['quadrado', '+'];
-    if (['em', 'erm', 'cmei', 'conveniada'].includes(nome)) return ['quadrado', 'E'];
+    if (nome.includes('escola') || ['em', 'erm', 'cmei', 'conveniada'].includes(nome)) return ['quadrado', 'E'];
+    if (nome === 'ponto de interesse') return ['losango', ''];
     if (nome.includes('social')) return ['losango', ''];
     if (nome.includes('administracao')) return ['quadrado', 'A'];
     if (nome.includes('cultura')) return ['triangulo', ''];
@@ -229,6 +274,8 @@
 
   function buildLayer(input, data) {
     const id = input.dataset.layer;
+    const versaoEditavel = marcarEquipamento && id === 'predios_publicos' && Number.isInteger(data.metadata?.versao);
+    const indices = versaoEditavel ? new Map(data.features.map((feature, indice) => [feature, indice])) : null;
     const config = JSON.parse(input.dataset.estilo);
     const base = Object.hasOwn(defaults, id) ? defaults[id] : {color: '#175cd3'};
     const pane = base.pane || (input.dataset.tipo === 'poligono' ? 'areas' : 'imported');
@@ -305,9 +352,14 @@
           layer.on('remove', () => sleepers.remove());
         }
         layer.on('click', event => {
-          if (measure.active()) return;
+          if (measure.active() || marcandoEquipamento) return;
           if (id === 'quarteiroes' && podeRg && props.chave) showBlock(props.Localidade, props.id_quart, layer);
-          else showFeature(input, props, name, attribute, event.latlng);
+          else {
+            const indice = indices?.get(feature);
+            const edicao = Number.isInteger(indice) && feature.geometry.type === 'Point'
+              ? `/geovsatt/admin/equipamentos/${data.metadata.versao}/${indice}/editar` : '';
+            showFeature(input, props, name, attribute, event.latlng, edicao);
+          }
         });
       },
     });
@@ -338,16 +390,50 @@
     filter.append(summary, rules, actions);
     container.replaceChildren(filter);
 
-    function apply() {
-      const active = [...rules.children].flatMap(row => {
+    const tipos = new Map();
+    const iso = /^\d{4}-\d{2}-\d{2}(?:$|[T ])/;
+    const operadoresTexto = [['contains', 'Contém'], ['exact', 'Igual a'], ['not_equal', 'Diferente de'],
+      ['empty', 'Está vazio'], ['filled', 'Está preenchido']];
+    const semValor = new Set(['empty', 'filled']);
+    function tipoCampo(campo) {
+      if (!tipos.has(campo)) {
+        const valores = features.map(layer => layer.feature.properties?.[campo]).filter(v => v != null && v !== '');
+        let tipo = 'texto';
+        if (valores.every(Number.isFinite)) tipo = 'numero';
+        else if (valores.every(valor => iso.test(valor))) tipo = 'data';
+        tipos.set(campo, tipo);
+      }
+      return tipos.get(campo);
+    }
+
+    function ler() {
+      return [...rules.children].flatMap(row => {
         const [field, match, value] = row.querySelectorAll('select, input');
-        return value.value.trim() ? [{field: field.value, exact: match.value === 'exact', value: normalText(value.value)}] : [];
+        return value.value.trim() || semValor.has(match.value) ? [{field: field.value, match: match.value, value: value.value.trim()}] : [];
       });
+    }
+
+    function apply() {
+      const active = ler().map(regra => ({...regra, tipo: tipoCampo(regra.field), normal: normalText(regra.value)}));
       let count = 0;
       for (const layer of features) {
         const show = active.every(rule => {
-          const value = normalText(layer.feature.properties?.[rule.field]);
-          return rule.exact ? value === rule.value : value.includes(rule.value);
+          const bruto = layer.feature.properties?.[rule.field];
+          const value = normalText(bruto);
+          switch (rule.match) {
+            case 'empty': return !value;
+            case 'filled': return Boolean(value);
+            case 'exact': return value === rule.normal;
+            case 'not_equal': return value !== rule.normal;
+            case 'gte':
+            case 'lte': {
+              if (!value) return false;
+              const atual = rule.tipo === 'data' ? String(bruto).slice(0, 10) : Number(bruto);
+              const esperado = rule.tipo === 'data' ? rule.value : Number(rule.value);
+              return rule.match === 'gte' ? atual >= esperado : atual <= esperado;
+            }
+            default: return value.includes(rule.normal);
+          }
         });
         if (show) {
           count += 1;
@@ -360,18 +446,18 @@
     }
 
     let serial = 0;
-    function addRule() {
+    function addRule(inicial = {}) {
       const row = element('div', 'geo-filter-rule');
       const field = element('select');
       field.setAttribute('aria-label', 'Campo do filtro');
       for (const name of fields) field.add(new Option(propertyName(name), name));
+      if (inicial.field) field.value = inicial.field;
       const match = element('select');
       match.setAttribute('aria-label', 'Tipo de comparação');
-      match.add(new Option('Contém', 'contains'));
-      match.add(new Option('Igual a', 'exact'));
       const value = element('input');
       value.setAttribute('aria-label', 'Valor do filtro');
       value.placeholder = 'Digite ou selecione um valor';
+      value.maxLength = 400;
       const values = element('datalist');
       values.id = `${container.id}-values-${++serial}`;
       value.setAttribute('list', values.id);
@@ -381,8 +467,24 @@
         const options = new Set(features.map(layer => String(layer.feature.properties?.[field.value] ?? '')).filter(Boolean));
         values.replaceChildren(...[...options].slice(0, 100).sort((a, b) => a.localeCompare(b, 'pt-BR')).map(text => new Option(text)));
       };
-      field.addEventListener('change', () => { value.value = ''; updateValues(); apply(); });
-      match.addEventListener('change', apply);
+      const ajustarEntrada = () => {
+        const tipo = tipoCampo(field.value);
+        const limite = ['gte', 'lte'].includes(match.value);
+        value.hidden = semValor.has(match.value);
+        value.type = limite ? (tipo === 'data' ? 'date' : 'number') : 'text';
+        if (value.type === 'number') value.step = 'any';
+      };
+      const atualizarOperadores = () => {
+        const tipo = tipoCampo(field.value);
+        const operadores = [...operadoresTexto];
+        if (tipo === 'numero') operadores.push(['gte', 'Maior ou igual a'], ['lte', 'Menor ou igual a']);
+        if (tipo === 'data') operadores.push(['gte', 'A partir de'], ['lte', 'Até']);
+        match.replaceChildren(...operadores.map(([codigo, rotulo]) => new Option(rotulo, codigo)));
+      };
+      field.addEventListener('change', () => {
+        value.value = ''; atualizarOperadores(); ajustarEntrada(); updateValues(); apply();
+      });
+      match.addEventListener('change', () => { ajustarEntrada(); apply(); });
       value.addEventListener('change', apply);
       value.addEventListener('keydown', event => { if (event.key === 'Enter') apply(); });
       remove.addEventListener('click', () => { row.remove(); add.disabled = false; apply(); });
@@ -390,10 +492,27 @@
       rules.append(row);
       add.disabled = rules.childElementCount >= 4;
       updateValues();
+      atualizarOperadores();
+      const aplicavel = !inicial.match || [...match.options].some(opcao => opcao.value === inicial.match);
+      if (aplicavel && inicial.match) match.value = inicial.match;
+      ajustarEntrada();
+      if (aplicavel && inicial.value) value.value = inicial.value;
+      return aplicavel;
     }
-    add.addEventListener('click', addRule);
+    add.addEventListener('click', () => addRule());
     clear.addEventListener('click', () => { rules.replaceChildren(); addRule(); apply(); });
     addRule();
+    filtrosPorCamada.set(input.dataset.layer, {ler, restaurar(registros) {
+      if (JSON.stringify(ler()) === JSON.stringify(registros)) return 0;
+      let ignorados = 0;
+      rules.replaceChildren();
+      for (const registro of registros) {
+        if (!fields.includes(registro.field) || !addRule(registro)) ignorados += 1;
+      }
+      if (!rules.childElementCount) addRule();
+      apply();
+      return ignorados;
+    }});
   }
 
   function loadLayer(input) {
@@ -483,7 +602,8 @@
   options.forEach(input => input.addEventListener('change', () => {
     toggleLayer(input).catch(error => reportLayerError(input, error));
   }));
-  window.GeoVSATTImpressao.create(map, baseSelect, measure, () => activeBasemap?.isLoading(), options, toggleLayer, itensLegenda);
+  window.GeoVSATTImpressao.create(map, baseSelect, measure, () => activeBasemap?.isLoading(), options, toggleLayer, itensLegenda,
+    {api, filtrosPorCamada});
   document.getElementById('geo-fit').addEventListener('click', () => {
     if (fullBounds?.isValid()) map.fitBounds(fullBounds, {padding: [24, 24]});
   });
@@ -643,7 +763,7 @@
   const initial = options.filter(input => input.checked);
   Promise.allSettled(initial.map(toggleLayer)).then(results => {
     if (fullBounds?.isValid()) map.fitBounds(fullBounds, {padding: [24, 24]});
-    statusNode.textContent = '';
+    if (!marcandoEquipamento) statusNode.textContent = '';
     results.forEach((result, i) => {
       if (result.status === 'rejected') reportLayerError(initial[i], result.reason);
     });

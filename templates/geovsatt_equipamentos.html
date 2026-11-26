@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  {% set titulo = ('Novo equipamento' if indice is none else 'Editar equipamento') if formulario else 'Equipamentos públicos e pontos de interesse' %}
+  <title>{{ titulo }} · GeoVSATT</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/geovsatt_camadas.css', v=APP_VERSION) }}">
+</head>
+<body>
+  {% include "_ambiente_teste_faixa.html" %}
+  <header class="gc-header">
+    <img src="{{ url_for('static', filename='img/geovsatt-symbol.svg') }}" alt="" width="36" height="36">
+    <strong>GeoVSATT</strong>
+    <nav aria-label="Navegação">
+      <a href="{{ url_for('geovsatt.page') }}">Mapa</a>
+      {% if formulario %}<a href="{{ url_for('geovsatt.admin_equipamentos') }}">Equipamentos</a>{% endif %}
+      <a href="{{ url_for('geovsatt.admin_catalogo') }}">Gerenciar camadas</a>
+    </nav>
+  </header>
+  <main>
+    <h1>{{ titulo }}</h1>
+    {% for categoria, mensagem in get_flashed_messages(with_categories=true) %}
+      <p role="{{ 'alert' if categoria == 'erro' else 'status' }}" class="gc-aviso gc-aviso-{{ categoria }}">{{ mensagem }}</p>
+    {% endfor %}
+    {% if formulario %}
+    <section class="gc-card">
+      {% if erro %}<p class="gc-aviso gc-aviso-erro" role="alert">{{ erro }}</p>{% endif %}
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="versao" value="{{ versao }}">
+        <div class="gc-grid">
+          {% for campo, (rotulo, limite) in campos.items() %}
+            {% if campo == 'servicos_no_local' %}
+              <label class="gc-wide">{{ rotulo }} <textarea name="{{ campo }}" rows="3" maxlength="{{ limite }}">{{ valores.get(campo) or '' }}</textarea></label>
+            {% else %}
+              <label>{{ rotulo }} <input name="{{ campo }}" maxlength="{{ limite }}" value="{{ valores.get(campo) or '' }}" {% if campo in ('nome', 'tipo') %}required{% endif %} {% if campo == 'tipo' %}list="geo-tipos-equipamento"{% endif %}></label>
+            {% endif %}
+          {% endfor %}
+          <datalist id="geo-tipos-equipamento">{% for tipo in tipos %}<option value="{{ tipo }}">{% endfor %}</datalist>
+          <label>Latitude <input name="latitude" required inputmode="decimal" maxlength="24" placeholder="-25.315000" value="{{ valores.get('latitude', '') }}"></label>
+          <label>Longitude <input name="longitude" required inputmode="decimal" maxlength="24" placeholder="-49.301000" value="{{ valores.get('longitude', '') }}"></label>
+        </div>
+        <p class="gc-note">Use graus decimais (WGS 84). Salvar publica uma nova versão da camada.</p>
+        <div class="gc-acoes">
+          <button class="gc-primary" type="submit">Salvar e publicar</button>
+          <a href="{{ url_for('geovsatt.admin_equipamentos') }}">Voltar à lista</a>
+        </div>
+      </form>
+    </section>
+    {% else %}
+    <div class="gc-acoes gc-atalhos">
+      <a class="gc-primary" href="{{ url_for('geovsatt.admin_equipamento') }}">Novo equipamento</a>
+      {% if camada %}<a href="{{ url_for('geovsatt.admin_camada', codigo=camada.id, _anchor='versoes') }}">Histórico da camada</a>{% endif %}
+    </div>
+    <section class="gc-card">
+      <form method="get">
+        <label>Pesquisar por nome, categoria ou endereço <input type="search" name="q" value="{{ termo }}" maxlength="120"></label>
+        <div class="gc-acoes"><button type="submit">Buscar</button>{% if termo %}<a href="{{ url_for('geovsatt.admin_equipamentos') }}">Limpar</a>{% endif %}</div>
+      </form>
+      <p class="gc-note">{{ pontos|length }} {{ 'ponto' if pontos|length == 1 else 'pontos' }}{% if camada and camada.id_versao %} · Versão {{ camada.id_versao }}{% endif %}</p>
+      <ul class="gc-catalogo">
+        {% for indice, ponto in pontos %}
+          <li>
+            <div><strong>{{ ponto.nome or 'Equipamento' }}</strong><br><span>{{ ponto.tipo or '' }}{% if ponto.bairro_loteamento %} · {{ ponto.bairro_loteamento }}{% endif %}</span></div>
+            <a href="{{ url_for('geovsatt.admin_equipamento', versao=camada.id_versao, indice=indice) }}" aria-label="Editar {{ ponto.nome or 'equipamento' }}">Editar</a>
+          </li>
+        {% else %}<li>Nenhum ponto encontrado.</li>{% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </main>
+</body>
+</html>

@@ -8,6 +8,8 @@ from app_core import blueprint_helpers as bh
 from app_core import geovsatt as geo
 from app_core import geovsatt_busca as busca
 from app_core import geovsatt_catalogo as camadas
+from app_core import geovsatt_composicoes as composicoes
+from app_core import geovsatt_equipamentos as equipamentos
 from app_core import geovsatt_exportacao as exportacao
 from app_core import setores
 from app_core.auth import login_required
@@ -54,6 +56,33 @@ def api_catalogo():
     return jsonify(geo.catalogo(bh.db_target(), bh.usuario_atual()))
 
 
+@bp.route("/api/geovsatt/composicoes", methods=["GET", "POST"])
+@bp.route("/api/geovsatt/composicoes/<int:identificador>", methods=["GET", "PUT"])
+@login_required
+def api_composicoes(identificador=None):
+    usuario = bh.usuario_atual()
+    target = bh.db_target()
+    uid = usuario["id_usuario"]
+    if identificador is None and request.method == "GET":
+        return jsonify(composicoes.listar(target, uid))
+    permitidas = {item["id"] for item in geo.catalogo(target, usuario)["camadas"] if item["disponivel"]}
+    bases = {"none", "sentinel"}
+    if current_app.config["GEOVSATT_ESRI_LICENSED"]:
+        bases.add("esri")
+    try:
+        if request.method == "GET":
+            return jsonify(composicoes.obter(target, uid, identificador, permitidas, bases))
+        request.max_content_length = 131_072
+        resposta = composicoes.salvar(target, uid, request.get_json(silent=True), permitidas, bases, identificador)
+        return jsonify(resposta), 201 if identificador is None else 200
+    except composicoes.ComposicaoAusente as exc:
+        return jsonify({"erro": str(exc)}), 404
+    except composicoes.ComposicaoAlterada as exc:
+        return jsonify({"erro": str(exc)}), 409
+    except camadas.CatalogoErro as exc:
+        return jsonify({"erro": str(exc)}), 400
+
+
 @bp.get("/api/geovsatt/camadas/<codigo>")
 @login_required
 def api_camada(codigo):
@@ -64,6 +93,10 @@ def api_camada(codigo):
         if not camada["disponivel"] or not geo.pode_ver_camada(camada, usuario):
             raise camadas.CamadaAusente("Camada não encontrada.")
         if camada["origem"] == "importacao":
+            if codigo == equipamentos.CODIGO:
+                dados = equipamentos.geojson(camada, _base_dir())
+                dados["metadata"] = {"versao": camada["id_versao"]}
+                return current_app.response_class(json.dumps(dados, ensure_ascii=False), mimetype="application/geo+json")
             return current_app.response_class(camada["geojson"], mimetype="application/geo+json")
         return jsonify(geo.dados_nativos(target, _base_dir(), codigo, usuario))
     except camadas.CamadaAusente as exc:
@@ -87,7 +120,7 @@ def baixar_camada(codigo, formato):
     if not geo.pode_exportar_camada(camada, usuario):
         abort(403)
     if camada["origem"] == "importacao":
-        dados = json.loads(camada["geojson"])
+        dados = equipamentos.geojson(camada, _base_dir()) if codigo == equipamentos.CODIGO else json.loads(camada["geojson"])
         dados["metadata"] = json.loads(camada["metadados"])
     else:
         dados = geo.dados_nativos(bh.db_target(), _base_dir(), codigo, usuario)
@@ -173,6 +206,65 @@ def api_populacao():
 @superadmin
 def admin_catalogo():
     return render_template("geovsatt_camadas.html", camadas=camadas.listar(bh.db_target(), geo.BASES))
+
+
+def _camada_equipamentos():
+    try:
+        return _obter(equipamentos.CODIGO, incluir_dados=True)
+    except camadas.CamadaAusente:
+        return None
+
+
+@bp.get("/geovsatt/admin/equipamentos")
+@login_required
+@superadmin
+def admin_equipamentos():
+    camada = _camada_equipamentos()
+    termo = (request.args.get("q") or "").strip()[:120]
+    return render_template("geovsatt_equipamentos.html", camada=camada, termo=termo,
+                           pontos=equipamentos.listar(camada, _base_dir(), termo))
+
+
+@bp.route("/geovsatt/admin/equipamentos/novo", methods=["GET", "POST"])
+@bp.route("/geovsatt/admin/equipamentos/<int:versao>/<int:indice>/editar", methods=["GET", "POST"])
+@login_required
+@superadmin
+def admin_equipamento(versao=None, indice=None):
+    camada = _camada_equipamentos()
+    vigente = (camada and camada["id_versao"]) or 0
+    if versao is not None and vigente != versao:
+        flash("A camada recebeu outra versão. Abra o equipamento novamente.", "erro")
+        return redirect(url_for("geovsatt.admin_equipamentos"), code=303)
+    valores = {"status_funcionamento": "Ativo", "latitude": request.args.get("latitude", "")[:24],
+               "longitude": request.args.get("longitude", "")[:24]}
+    if indice is not None:
+        if not vigente:
+            abort(404)
+        feicoes = equipamentos.geojson(camada, _base_dir())["features"]
+        if indice >= len(feicoes) or feicoes[indice]["geometry"]["type"] != "Point":
+            abort(404)
+        feicao = feicoes[indice]
+        lon, lat = feicao["geometry"]["coordinates"][:2]
+        valores = feicao["properties"] | {"latitude": lat, "longitude": lon}
+    versao_formulario = vigente
+    erro = None
+    status = 200
+    if request.method == "POST":
+        valores = request.form
+        versao_formulario = request.form.get("versao", "")
+        try:
+            if not versao_formulario.isascii() or not versao_formulario.isdecimal() or len(versao_formulario) > 18:
+                raise camadas.CatalogoErro("Versão do formulário inválida. Abra o cadastro novamente.")
+            nova = equipamentos.salvar(bh.db_target(), _base_dir(), geo.BASES, valores, bh.usuario_atual()["id_usuario"],
+                                       int(versao_formulario) if versao is None else versao, indice)
+            flash(f"Equipamento salvo e publicado na versão {nova} da camada.", "ok")
+            return redirect(url_for("geovsatt.admin_equipamentos"), code=303)
+        except equipamentos.VersaoAlterada as exc:
+            erro, status = str(exc), 409
+        except camadas.CatalogoErro as exc:
+            erro, status = str(exc), 400
+    return render_template("geovsatt_equipamentos.html", formulario=True, campos=equipamentos.CAMPOS,
+                           tipos=equipamentos.TIPOS, valores=valores, indice=indice, versao=versao_formulario, erro=erro), status
 
 
 @bp.get("/geovsatt/admin/atualizar")

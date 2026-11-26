@@ -78,8 +78,9 @@ button{color:inherit}
 .geo-point--quadrado{border-radius:3px}
 .geo-point--losango{transform:rotate(45deg);border-radius:2px}
 .geo-point--triangulo{clip-path:polygon(50% 0,100% 100%,0 100%)}
-.geo-medindo,.geo-medindo .leaflet-interactive{cursor:crosshair}
-.geo-medindo .leaflet-interactive{pointer-events:none}
+.geo-medindo,.geo-medindo .leaflet-interactive,.geo-marcando-equipamento,.geo-marcando-equipamento .leaflet-interactive{cursor:crosshair}
+.geo-medindo .leaflet-interactive,.geo-marcando-equipamento .leaflet-interactive{pointer-events:none}
+.geo-editar-ponto{display:inline-block;margin-top:.6rem;font-weight:700}
 .geo-tools button[aria-pressed="true"]{background:var(--selection);color:var(--action);box-shadow:inset 0 0 0 2px var(--action)}
 .geo-medicao{position:absolute;z-index:500;top:86px;right:68px;width:min(300px,calc(100vw - 90px));padding:12px;border:1px solid var(--border);border-radius:8px;background:white;box-shadow:0 4px 15px #10201615}
 .geo-medicao strong{font-size:14px}

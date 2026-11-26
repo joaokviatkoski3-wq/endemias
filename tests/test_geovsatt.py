@@ -1,5 +1,6 @@
 """Fundação do GeoVSATT com banco SQLite sintético e sem acesso à produção."""
 
+import csv
 import io
 import json
 import shutil
@@ -81,6 +82,80 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         event = db.query_one(str(self.path), "SELECT setor FROM auditoria_eventos WHERE acao='login_sucesso' ORDER BY id_evento DESC LIMIT 1")
         self.assertEqual(event["setor"], "geo")
+
+    def test_cadastro_equipamentos_preserva_acervo_historico_e_permissoes(self):
+        admin = self.client()
+        comum = self.client(uid=2)
+        cadastro = "/geovsatt/admin/equipamentos"
+        camada = "/geovsatt/admin/camadas/predios_publicos"
+        mapa = "/api/geovsatt/camadas/predios_publicos"
+        self.assertEqual(comum.get(cadastro).status_code, 403)
+        self.assertEqual(comum.post(cadastro + "/novo", data={}).status_code, 403)
+        ref = Path(self.geo.config["BASE_DIR"]) / "dados_referencia/equipamentos_publicos.csv"
+        with ref.open(encoding="utf-8-sig", newline="") as arquivo:
+            origem = next(row for row in csv.DictReader(arquivo) if row["servicos_no_local"] and row["horario"])
+        ponto = {"type": "Feature", "geometry": {"type": "Point", "coordinates": [float(origem["longitude"]), float(origem["latitude"])]},
+                 "properties": {"nome": origem["nome"], "tipo": origem["tipo"], "campo_qgis": "preservado"}}
+        dados = io.BytesIO(json.dumps({"type": "FeatureCollection", "features": [ponto]}).encode())
+        self.assertEqual(admin.post("/geovsatt/admin/importar", data={"nome": "Equipamentos", "codigo": "predios_publicos",
+            "grupo": "Equipamentos", "fonte": "Referência de teste", "geojson": (dados, "equip.geojson")}).status_code, 303)
+        self.assertEqual(admin.post(camada + "/versoes/1/publicar").status_code, 303)
+        prefill = admin.get(cadastro + "/novo?latitude=-25.312345&longitude=-49.321234")
+        self.assertIn(b'value="-25.312345"', prefill.data)
+        inicial = admin.get(mapa).json["features"][0]["properties"]
+        self.assertEqual(inicial["servicos_no_local"], origem["servicos_no_local"])
+        self.assertNotIn("telefone", inicial)
+
+        novo = {"nome": "Posto de ensaio", "tipo": "SAÚDE", "latitude": "-25,31", "longitude": "-49.32",
+                "versao": "1", "cep": "83500000", "servicos_no_local": "Atendimento de ensaio"}
+        self.assertEqual(admin.post(cadastro + "/novo", data={**novo, "latitude": "95"}).status_code, 400)
+        self.assertEqual(admin.post(cadastro + "/novo", data=novo).status_code, 303)
+        self.assertEqual(admin.post(cadastro + "/novo", data=novo).status_code, 409)
+        versao = admin.get(mapa).json
+        self.assertEqual(versao["metadata"]["versao"], 2)
+        self.assertEqual(len(versao["features"]), 2)
+        self.assertEqual(versao["features"][1]["geometry"]["coordinates"], [-49.32, -25.31])
+        self.assertEqual(versao["features"][1]["properties"]["cep"], "83500-000")
+        self.assertIn(b"Posto de ensaio", admin.get(cadastro + "?q=posto").data)
+        editado = {**novo, "versao": "2", "nome": "Equipamento corrigido", "horario": origem["horario"],
+                   "servicos_no_local": origem["servicos_no_local"]}
+        self.assertEqual(admin.post(cadastro + "/2/0/editar", data=editado).status_code, 303)
+        pontos = admin.get(mapa).json["features"]
+        self.assertEqual(pontos[0]["properties"]["campo_qgis"], "preservado")
+        self.assertEqual(pontos[0]["properties"]["nome"], "Equipamento corrigido")
+        self.assertEqual(pontos[1]["properties"]["nome"], "Posto de ensaio")
+        self.assertEqual(len(admin.get(camada + "/versoes/1/geojson").json["features"]), 1)
+        self.assertEqual(db.scalar(str(self.path), "SELECT COUNT(*) FROM auditoria_eventos WHERE acao='geovsatt_equipamento_salvo'"), 2)
+
+    def test_composicoes_privadas_restauram_configuracao_e_reavaliam_permissoes(self):
+        rota = "/api/geovsatt/composicoes"
+        admin = self.client()
+        titular = self.client(uid=2)
+        outro = self.client(uid=3)
+        dados = {"titulo": "Mapa em retrato", "nota": "Visita de ensaio", "orientacao": "retrato", "layout": "lateral",
+                 "base": "esri", "legenda": True, "centro": [-25.31, -49.30], "zoom": 16,
+                 "camadas": ["quarteiroes", "logradouros"], "filtros": {"logradouros": [{"field": "nome", "match": "filled", "value": ""}]}}
+        invalida = {**dados, "camadas": [*dados["camadas"], "esporotricose"]}
+        self.assertEqual(titular.post(rota, json=invalida).status_code, 400)
+        criada = titular.post(rota, json=dados)
+        self.assertEqual(criada.status_code, 201, criada.json)
+        item = f'{rota}/{criada.json["id_composicao"]}'
+        self.assertEqual(titular.get(rota).json[0]["titulo"], "Mapa em retrato")
+        self.assertEqual(titular.get(item).json["configuracao"], dados)
+        self.assertEqual(outro.get(rota).json, [])
+        self.assertEqual(admin.get(item).status_code, 404)
+        entrada = {**dados, "titulo": "Nova revisão", "atualizada_em": criada.json["atualizada_em"]}
+        self.assertEqual(admin.put(item, json=entrada).status_code, 404)
+        self.assertEqual(titular.put(item, json=entrada).status_code, 200)
+        self.assertEqual(titular.put(item, json=entrada).status_code, 409)
+        admin.post("/geovsatt/admin/camadas/logradouros", data={"nome": "Logradouros", "grupo": "Território"})
+        with patch.dict(self.geo.config, {"GEOVSATT_ESRI_LICENSED": False}):
+            revisada = titular.get(item).json
+        self.assertEqual(revisada["camadas_indisponiveis"], 1)
+        self.assertTrue(revisada["base_indisponivel"])
+        self.assertEqual(revisada["configuracao"]["base"], "none")
+        self.assertEqual(revisada["configuracao"]["camadas"], ["quarteiroes"])
+        self.assertEqual(revisada["configuracao"]["filtros"], {})
 
     def test_estimativa_area_parcial_usa_cadastro_rg_sem_duplicar_blocos(self):
         def poligono(x1, x2, chave=None):

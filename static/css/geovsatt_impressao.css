@@ -21,6 +21,11 @@
 .geo-composicao-acoes input { accent-color: var(--action); }
 .geo-composicao-acoes p { flex: 1 1 12rem; margin: 0; color: var(--muted); }
 .geo-composicao-acoes button { padding: .55rem .8rem; border: 0; border-radius: 6px; color: white; background: var(--action); font-weight: 700; cursor: pointer; }
+.geo-composicao-projetos { display: flex; flex-wrap: wrap; align-items: end; gap: .4rem; margin-top: .55rem; padding-top: .55rem; border-top: 1px solid var(--border); font-size: .8rem; }
+.geo-composicao-projetos label { display: grid; gap: .2rem; flex: 1 1 12rem; min-width: 0; font-weight: 600; }
+.geo-composicao-projetos select,.geo-composicao-projetos button { min-height: 2.05rem; min-width: 0; padding: .32rem .55rem; border: 1px solid var(--border); border-radius: 6px; background: white; color: var(--action); font: inherit; }
+.geo-composicao-projetos button { cursor: pointer; font-weight: 650; }
+.geo-composicao-projetos button:disabled { color: var(--muted); opacity: .55; cursor: default; }
 .geo-composicao-camadas { position: relative; }
 .geo-composicao-camadas summary { padding: .45rem .55rem; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-weight: 650; }
 #geo-composicao-camadas { position: absolute; z-index: 1; top: calc(100% + .25rem); left: 0; display: grid; gap: .3rem; width: min(300px, 78vw); max-height: min(320px, 43dvh); overflow: auto; padding: .65rem; border: 1px solid var(--border); border-radius: 8px; background: white; box-shadow: 0 2px 12px #10201633; }

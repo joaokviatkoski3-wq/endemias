@@ -350,8 +350,9 @@ def create_app(config_overrides=None):
         try:
             setores.ensure_schema(connection)
             if flask_app.config["SETOR"] == "geo":
-                from app_core import geovsatt_catalogo
+                from app_core import geovsatt_catalogo, geovsatt_composicoes
                 geovsatt_catalogo.ensure_schema(connection)
+                geovsatt_composicoes.ensure_schema(connection)
         finally:
             connection.close()
 

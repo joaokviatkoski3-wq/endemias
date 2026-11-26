@@ -6,6 +6,9 @@ from app_core.version import APP_VERSION
 
 
 RESUMOS = {
+    "2.21.0": [
+        "O GeoVSATT passou a salvar composições e permite o cadastro manual de equipamentos pelo superadmin.",
+    ],
     "2.20.0": [
         "O GeoVSATT ganhou composição de mapas para impressão, população por área e exportação de camadas autorizadas.",
     ],

@@ -4,7 +4,7 @@ Atualizado em 26/11/2026.
 
 ## Estado deste incremento
 
-A versão `2.20.0` reúne as alterações descritas a seguir. Consulte
+A versão `2.21.0` reúne as alterações descritas a seguir. Consulte
 `ESTADO_ATUAL_PROJETO.md` para confirmar qual versão está em produção.
 
 Implementado:
@@ -174,6 +174,28 @@ importação, publicação e edição de metadados geram eventos de auditoria.
   O arquivo inclui todas as feições acessíveis da camada. O VSATT registra
   formato, conta, camada, versão quando importada e quantidade na auditoria.
 
+## Equipamentos, filtros e composições salvas na 2.21.0
+
+- O superadmin pode abrir **Gerenciar camadas → Cadastro de equipamentos**
+  ou usar **Marcar novo equipamento** na barra do mapa. Ao clicar em um
+  equipamento, o superadmin também encontra **Editar equipamento**. Salvar
+  publica uma versão da camada `predios_publicos`, com histórico e auditoria.
+  Se outra versão for publicada durante a edição, o sistema pede para reabrir
+  o cadastro. Os formulários de Endemias usam seu próprio catálogo.
+- A camada mantém o acervo carregado. O código, os serviços, o horário e a
+  gestão são complementados pelo cadastro institucional quando há uma única
+  correspondência por nome e coordenadas. O superadmin pode preencher ou
+  corrigir esses campos no GeoVSATT. O detalhe e os formatos de exportação
+  usam os mesmos atributos, conforme as permissões da camada.
+- Os filtros de atributos aceitam igualdade, diferença, busca por trecho,
+  vazio ou preenchido. Campos de data e numéricos oferecem limites que podem
+  ser combinados para formar um intervalo.
+- Na prévia, **Salvar como nova** guarda a composição na conta. Em **Minhas
+  composições**, use **Abrir** para recuperar título, nota, recorte, layout,
+  orientação, imagem-base, legenda, camadas e filtros. **Atualizar composição**
+  grava uma revisão. Camadas e imagem-base passam pela permissão vigente a
+  cada abertura. Medições pertencem à sessão aberta.
+
 ## Próximos incrementos
 
 1. Base vetorial OpenFreeMap, com dados OpenStreetMap e renderização MapLibre GL JS.
@@ -189,10 +211,8 @@ importação, publicação e edição de metadados geram eventos de auditoria.
    autocomplete ou dados confidenciais. O resultado externo deve indicar a
    fonte e a precisão. O vínculo oficial com o quarteirão vem do RG.
    [Política do Nominatim público](https://operations.osmfoundation.org/policies/nominatim/)
-4. Cadastro manual de prédios públicos e pontos de interesse pelo superadmin.
-5. Camadas de suspeitas de dengue e coletas de tubos com coordenadas.
+4. Camadas de suspeitas de dengue e coletas de tubos com coordenadas.
    Evoluir as consultas temporais e a composição de raios de bloqueio.
-6. Salvar e reabrir composições cartográficas como projetos reutilizáveis.
 
 ## Histórico de implantação e próximas validações
 

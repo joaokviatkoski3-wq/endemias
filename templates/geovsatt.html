@@ -109,6 +109,7 @@
         <button type="button" data-medida="area" aria-label="Medir área" aria-pressed="false" title="Medir área">▱</button>
         {% if pode_estimar %}<button type="button" data-medida="populacao" aria-label="Estimar população por área" aria-pressed="false" title="Estimar população por área"><img src="/static/icons/usuarios.svg" alt=""></button>{% endif %}
         <button id="geo-imprimir" type="button" aria-label="Compor e imprimir mapa" title="Compor e imprimir mapa"><img src="/static/icons/imprimir.svg" alt=""></button>
+        {% if catalogo.pode_configurar %}<button id="geo-marcar-equipamento" type="button" aria-pressed="false" aria-label="Marcar novo equipamento" title="Marcar novo equipamento" data-destino="{{ url_for('geovsatt.admin_equipamento') }}"><img src="/static/icons/marcador.svg" alt=""></button>{% endif %}
       </div>
       <section id="geo-medicao" class="geo-medicao" aria-label="Medição" hidden>
         <strong id="geo-medicao-titulo"></strong>
@@ -157,6 +158,12 @@
         <label><input name="medicoes" type="checkbox" checked> Mostrar medições</label>
         <p id="geo-composicao-status" role="status">Arraste ou ajuste o zoom para definir o recorte.</p>
         <button type="submit">Imprimir / salvar PDF</button>
+      </div>
+      <div class="geo-composicao-projetos">
+        <label>Minhas composições <select id="geo-composicao-salvas"><option value="">Selecione uma composição</option></select></label>
+        <button type="button" id="geo-composicao-abrir" disabled>Abrir</button>
+        <button type="button" id="geo-composicao-nova">Salvar como nova</button>
+        <button type="button" id="geo-composicao-atualizar" disabled>Atualizar composição</button>
       </div>
     </form>
     <div class="geo-composicao-rolagem">

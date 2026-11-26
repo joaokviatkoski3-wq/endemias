@@ -419,12 +419,15 @@ def editar_metadados(target, codigo, versao, form):
         _evento(conn, "metadados_editados", codigo, {"versao": versao})
 
 
+def _bloquear_camada(conn, codigo):
+    # O BEGIN IMMEDIATE faz a reserva equivalente no SQLite.
+    lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
+    return conn.execute("SELECT codigo FROM geovsatt_camadas WHERE codigo = ?" + lock, (codigo,)).fetchone()
+
+
 def publicar(target, codigo, versao):
     with _escrita(target) as conn:
-        # Serializa os publicadores da mesma camada. No SQLite o BEGIN IMMEDIATE
-        # já reserva a escrita antes da leitura da versão vigente.
-        lock = " FOR UPDATE" if getattr(conn, "backend", "sqlite") == "postgresql" else ""
-        conn.execute("SELECT codigo FROM geovsatt_camadas WHERE codigo = ?" + lock, (codigo,)).fetchone()
+        _bloquear_camada(conn, codigo)
         anterior = conn.execute(
             "SELECT id_versao FROM geovsatt_versoes WHERE codigo=? AND ativa=1", (codigo,)
         ).fetchone()

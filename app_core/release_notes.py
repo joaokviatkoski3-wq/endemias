@@ -4,6 +4,14 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.21.0": {
+        "titulo": "Equipamentos e composições salvas no GeoVSATT",
+        "mudancas": [
+            "O superadmin pode criar e editar equipamentos públicos e pontos de interesse na camada versionada.",
+            "Salve composições com recorte, layout, títulos, camadas e filtros para reabrir na sua conta.",
+            "Os filtros incluem comparações de datas e números, além de campos vazios ou preenchidos.",
+        ],
+    },
     "2.20.0": {
         "titulo": "Composição e exportação de mapas no GeoVSATT",
         "mudancas": [

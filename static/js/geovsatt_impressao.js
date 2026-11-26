@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  function create(map, seletorBase, medicao, carregandoBase, opcoesCamadas, alternarCamada, itensLegenda) {
+  function create(map, seletorBase, medicao, carregandoBase, opcoesCamadas, alternarCamada, itensLegenda, acesso) {
     const botao = document.getElementById('geo-imprimir');
     const dialogo = document.getElementById('geo-composicao');
     const formulario = document.getElementById('geo-composicao-form');
@@ -16,10 +16,16 @@
     const legendaNaFolha = document.getElementById('geo-folha-legenda');
     const status = document.getElementById('geo-composicao-status');
     const listaCamadas = document.getElementById('geo-composicao-camadas');
+    const salvas = document.getElementById('geo-composicao-salvas');
+    const abrirSalva = document.getElementById('geo-composicao-abrir');
+    const criarSalva = document.getElementById('geo-composicao-nova');
+    const atualizarSalva = document.getElementById('geo-composicao-atualizar');
+    const endpoint = '/api/geovsatt/composicoes';
     const escala = L.control.scale({imperial: false, maxWidth: 125, position: 'bottomleft'});
     const {titulo, orientacao, layout, base, nota, legenda, medicoes} = formulario.elements;
     const instrucao = 'Arraste ou ajuste o zoom para definir o recorte.';
     let vista;
+    let projetoAtual;
 
     function ajustarPrevia() {
       if (!dialogo.open) return;
@@ -107,6 +113,113 @@
       seletorBase.dispatchEvent(new Event('change'));
     }
 
+    function atualizarBotoes() {
+      const ocupado = vista.ocupada;
+      abrirSalva.disabled = ocupado || !salvas.value;
+      criarSalva.disabled = ocupado;
+      atualizarSalva.disabled = ocupado || Number(salvas.value) !== projetoAtual?.id_composicao;
+    }
+
+    async function carregarLista(sessao, selecionada = '') {
+      const listagem = sessao.listagem = (sessao.listagem || 0) + 1;
+      const itens = await acesso.api(endpoint);
+      if (vista !== sessao || sessao.listagem !== listagem || !dialogo.open) return;
+      salvas.replaceChildren(new Option('Selecione uma composição', ''),
+        ...itens.map(item => new Option(item.titulo, item.id_composicao)));
+      salvas.value = selecionada;
+      atualizarBotoes();
+    }
+
+    function lerComposicao() {
+      const centro = map.getCenter().wrap();
+      const camadas = opcoesCamadas.filter(camada => camada.checked).map(camada => camada.dataset.layer);
+      const filtros = Object.fromEntries(camadas.map(codigo => [codigo, acesso.filtrosPorCamada.get(codigo)?.ler() || []])
+        .filter(([, regras]) => regras.length));
+      return {titulo: titulo.value.trim() || 'Mapa territorial', nota: nota.value.trim(), orientacao: orientacao.value,
+        layout: layout.value, base: base.value, legenda: legenda.checked,
+        centro: [centro.lat, centro.lng], zoom: map.getZoom(), camadas, filtros};
+    }
+
+    async function salvarComposicao(nova) {
+      const dados = lerComposicao();
+      const caminho = nova ? endpoint : `${endpoint}/${projetoAtual.id_composicao}`;
+      if (!nova) dados.atualizada_em = projetoAtual.atualizada_em;
+      return acesso.api(caminho, {method: nova ? 'POST' : 'PUT',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content},
+        body: JSON.stringify(dados)});
+    }
+
+    async function aplicarComposicao(sessao, projeto) {
+      const dados = projeto.configuracao;
+      titulo.value = dados.titulo;
+      nota.value = dados.nota;
+      orientacao.value = dados.orientacao;
+      layout.value = dados.layout;
+      base.value = dados.base;
+      legenda.checked = dados.legenda;
+      medicoes.checked = false;
+      mudarBase(dados.base);
+      const selecionadas = new Set(dados.camadas);
+      const resultados = await Promise.allSettled(opcoesCamadas.map(async camada => {
+        const codigo = camada.dataset.layer;
+        camada.checked = selecionadas.has(codigo);
+        try {
+          await alternarCamada(camada);
+        } catch (erro) {
+          if (vista === sessao && dialogo.open) camada.checked = false;
+          throw erro;
+        }
+        if (vista !== sessao || !dialogo.open || !camada.checked) return 0;
+        const regras = dados.filtros[codigo] || [];
+        return acesso.filtrosPorCamada.get(codigo)?.restaurar(regras) ?? regras.length;
+      }));
+      if (vista !== sessao || !dialogo.open) return;
+      atualizarCamadas();
+      atualizarFolha();
+      map.setView(dados.centro, dados.zoom, {animate: false});
+      atualizarFolha();
+      const descartados = resultados.reduce((total, resultado) => total + (resultado.value || 0), 0);
+      const falhas = resultados.filter(resultado => resultado.status === 'rejected').length;
+      const avisos = [];
+      if (projeto.camadas_indisponiveis || falhas) avisos.push(`${projeto.camadas_indisponiveis + falhas} camada(s) indisponível(is).`);
+      if (projeto.base_indisponivel) avisos.push('Use o seletor para escolher outra imagem-base.');
+      if (descartados) avisos.push(`${descartados} filtro(s) indisponível(is) na versão atual.`);
+      status.textContent = ['Composição aberta.', ...avisos].join(' ');
+    }
+
+    async function operarProjeto(acao, execucao) {
+      if (!dialogo.open || vista.ocupada || vista.pendentes) return;
+      const sessao = vista;
+      sessao.ocupada = true;
+      atualizarBotoes();
+      status.textContent = acao;
+      try {
+        await execucao(sessao);
+      } catch (erro) {
+        if (vista === sessao && dialogo.open) status.textContent = erro.message;
+      } finally {
+        sessao.ocupada = false;
+        if (vista === sessao && dialogo.open) atualizarBotoes();
+      }
+    }
+
+    salvas.addEventListener('change', atualizarBotoes);
+    abrirSalva.addEventListener('click', () => operarProjeto('Abrindo composição…', async sessao => {
+      const projeto = await acesso.api(`${endpoint}/${salvas.value}`);
+      if (vista !== sessao || !dialogo.open) return;
+      projetoAtual = projeto;
+      await aplicarComposicao(sessao, projeto);
+    }));
+    for (const [botao, nova] of [[criarSalva, true], [atualizarSalva, false]]) {
+      botao.addEventListener('click', () => operarProjeto('Salvando composição…', async sessao => {
+        const projeto = await salvarComposicao(nova);
+        if (vista !== sessao || !dialogo.open) return;
+        projetoAtual = projeto;
+        await carregarLista(sessao, String(projeto.id_composicao));
+        if (vista === sessao && dialogo.open) status.textContent = 'Composição salva para sua conta.';
+      }));
+    }
+
     botao.addEventListener('click', () => {
       if (mapa.parentElement !== mapaOriginal) return;
       if (medicao.active()) {
@@ -115,7 +228,11 @@
       }
       map.stop();
       vista = {centro: map.getCenter(), zoom: map.getZoom(), limites: map.getBounds(), base: seletorBase.value,
-        camadas: new Map(opcoesCamadas.map(camada => [camada, camada.checked])), pendentes: 0};
+        camadas: new Map(opcoesCamadas.map(camada => [camada, camada.checked])), pendentes: 0, ocupada: false,
+        filtros: new Map([...acesso.filtrosPorCamada].map(([codigo, filtros]) => [codigo, filtros.ler()]))};
+      projetoAtual = null;
+      salvas.replaceChildren(new Option('Selecione uma composição', ''));
+      atualizarBotoes();
       atualizarCamadas();
       base.replaceChildren(...Array.from(seletorBase.options, opcao => opcao.cloneNode(true)));
       base.value = vista.base;
@@ -133,6 +250,8 @@
       atualizarFolha();
       map.fitBounds(vista.limites, {animate: false, maxZoom: vista.zoom});
       atualizarFolha();
+      const sessao = vista;
+      carregarLista(sessao).catch(erro => { if (vista === sessao && dialogo.open) status.textContent = erro.message; });
     });
 
     document.getElementById('geo-composicao-fechar').addEventListener('click', () => dialogo.close());
@@ -143,6 +262,7 @@
       document.body.classList.remove('geo-impressao-aberta');
       medicao.mostrar(true);
       mudarBase(vista.base);
+      for (const [codigo, filtros] of acesso.filtrosPorCamada) filtros.restaurar(vista.filtros.get(codigo) || []);
       for (const [camada, selecionada] of vista.camadas) {
         if (camada.checked === selecionada) continue;
         camada.checked = selecionada;
@@ -153,14 +273,14 @@
       botao.focus();
     });
     formulario.addEventListener('input', event => {
-      if (event.target.dataset.camada) return;
+      if (event.target.dataset.camada || event.target === salvas) return;
       if (event.target === base) mudarBase(base.value);
       status.textContent = instrucao;
       atualizarFolha();
     });
     formulario.addEventListener('submit', event => {
       event.preventDefault();
-      if (vista.pendentes) {
+      if (vista.pendentes || vista.ocupada) {
         status.textContent = 'Aguarde as camadas da folha terminarem de carregar.';
         return;
       }

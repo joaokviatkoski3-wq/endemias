@@ -55,6 +55,7 @@
       <nav class="gc-acoes gc-atalhos" aria-label="Atalhos de importação">
         <a class="gc-primary" href="{{ url_for('geovsatt.admin_importar_nova') }}">Nova camada GeoJSON</a>
         {% if modo != 'atualizar' %}<a href="{{ url_for('geovsatt.admin_atualizar') }}">Atualizar camada existente</a>{% endif %}
+        <a href="{{ url_for('geovsatt.admin_equipamentos') }}">Cadastro de equipamentos</a>
       </nav>
       <section id="catalogo" class="gc-card">
         <h2>Catálogo</h2>
@@ -81,6 +82,7 @@
         <a class="gc-primary" href="{{ url_for('geovsatt.admin_importar', codigo=camada.id) }}">Importar GeoJSON</a>
         <a href="#versoes">Histórico de versões</a>
         <a href="#configuracao">Permissões e exibição</a>
+        {% if camada.id == 'predios_publicos' %}<a href="{{ url_for('geovsatt.admin_equipamentos') }}">Cadastro de equipamentos</a>{% endif %}
       </nav>
       {% elif camada.id == 'quarteiroes' %}
       <p class="gc-note">Atualize a malha de quarteirões em Endemias, na página Registro Geográfico. O GeoVSATT usa a malha ativa do RG.</p>
