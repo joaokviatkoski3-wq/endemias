@@ -28,6 +28,12 @@ Inclua o perfil superadmin no acesso aos pilotos e recursos de teste.
 Quando o piloto depender de uma conta de campo, permita ao superadmin
 validar o fluxo com um teste próprio, conforme as permissões do recurso.
 
+## Atalhos temporários do Windows
+
+Entregue os arquivos `.bat` de execução pontual em `C:/VSATT-Temporarios`.
+Use caminhos absolutos nos atalhos quando houver arquivos de apoio em
+outras pastas. O usuário apaga os atalhos após a execução.
+
 ## Versionamento do sistema
 
 Agentes de IA tem autonomia para atualizar a numeracao da versao do sistema quando julgarem que o conjunto de alteracoes justifica uma nova versao. Nao e necessario solicitar confirmacao previa exclusivamente para essa atualizacao.
