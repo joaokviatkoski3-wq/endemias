@@ -1,8 +1,9 @@
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 import json
 import sqlite3
 
-from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, send_from_directory, url_for
 
 from app_core import audit
 from app_core import blueprint_helpers as bh
@@ -41,6 +42,17 @@ def _obter(codigo, **kwargs):
     return camadas.obter(bh.db_target(), codigo, geo.BASES, **kwargs)
 
 
+def _colecao_camada(target, camada, usuario, parametros=None):
+    codigo = camada["id"]
+    if camada["origem"] != "importacao":
+        return geo.dados_nativos(target, _base_dir(), codigo, usuario, parametros=parametros)
+    if codigo == equipamentos.CODIGO:
+        dados = equipamentos.geojson(camada, _base_dir())
+        dados["metadata"] = {"versao": camada["id_versao"]}
+        return dados
+    return json.loads(camada["geojson"])
+
+
 @bp.get("/geovsatt")
 @login_required
 def page():
@@ -50,13 +62,74 @@ def page():
     pode_estimar = pode_rg and any(item["id"] == "quarteiroes" for item in catalogo["camadas"])
     ambiental = setores.url_setor(usuario, "ambiental") if geo.esporotricose_localizacao_exata(usuario) else None
     return render_template("geovsatt.html", catalogo=catalogo, pode_rg=pode_rg, pode_estimar=pode_estimar,
-                           esri_licenciado=current_app.config["GEOVSATT_ESRI_LICENSED"], ambiental=ambiental)
+                           esri_licenciado=current_app.config["GEOVSATT_ESRI_LICENSED"], ambiental=ambiental,
+                           nominatim=bool(busca.endpoint_nominatim(current_app.config["GEOVSATT_NOMINATIM_URL"])))
+
+
+@bp.get("/geovsatt/manifest.webmanifest")
+def manifest_mapa():
+    return send_from_directory(current_app.static_folder, "manifest-geovsatt.webmanifest",
+                               mimetype="application/manifest+json")
+
+
+@bp.get("/geovsatt-sw.js")
+def worker_mapa():
+    resposta = send_from_directory(current_app.static_folder, "geovsatt-sw.js", mimetype="application/javascript")
+    resposta.headers["Service-Worker-Allowed"] = "/geovsatt"
+    return resposta
+
+
+@bp.get("/geovsatt/offline")
+def mapa_offline():
+    return render_template("geovsatt_offline.html")
 
 
 @bp.get("/api/geovsatt/catalogo")
 @login_required
 def api_catalogo():
     return jsonify(geo.catalogo(bh.db_target(), bh.usuario_atual()))
+
+
+@bp.post("/api/geovsatt/pacote-offline")
+@login_required
+def api_pacote_offline():
+    request.max_content_length = 16_384
+    payload = request.get_json(silent=True)
+    codigos = payload.get("camadas") if isinstance(payload, dict) else None
+    if (not isinstance(codigos, list) or not codigos
+            or any(not isinstance(codigo, str) or len(codigo) > 60 for codigo in codigos)):
+        return jsonify({"erro": "Selecione as camadas do pacote offline."}), 400
+
+    target, usuario = bh.db_target(), bh.usuario_atual()
+    catalogo = {item["id"]: item for item in geo.catalogo(target, usuario)["camadas"]
+                if item["disponivel"] and item.get("pode_exportar")}
+    selecionadas = list(dict.fromkeys(codigos))
+    if any(codigo not in catalogo for codigo in selecionadas):
+        return jsonify({"erro": "O pacote inclui uma camada indisponível para download nesta conta."}), 403
+
+    gerado = datetime.now(timezone.utc)
+    pacote = {
+        "formato": 1, "usuario": usuario["id_usuario"], "criado_em": gerado.isoformat(),
+        "valido_ate": (gerado + timedelta(days=7)).isoformat(),
+        "camadas": [catalogo[codigo] for codigo in selecionadas], "dados": {},
+    }
+    try:
+        for codigo in selecionadas:
+            camada = _obter(codigo, incluir_dados=True)
+            if not geo.pode_exportar_camada(target, camada, usuario):
+                return jsonify({"erro": "A permissão da camada mudou. Atualize o catálogo e tente novamente."}), 403
+            pacote["dados"][codigo] = _colecao_camada(target, camada, usuario)
+    except camadas.CamadaAusente:
+        return jsonify({"erro": "Uma camada deixou de estar disponível. Atualize o catálogo e tente novamente."}), 409
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+
+    conteudo = json.dumps(pacote, ensure_ascii=False, separators=(",", ":"), default=str).encode()
+    if len(conteudo) > 50 * 1024**2:
+        return jsonify({"erro": "O pacote ultrapassa 50 MiB. Selecione menos camadas para este aparelho."}), 413
+    audit.registrar_evento(bh.get_db, "geovsatt_pacote_offline_gerado", entidade="geovsatt_camada",
+                           detalhes={"camadas": selecionadas, "bytes": len(conteudo)})
+    return current_app.response_class(conteudo, mimetype="application/json")
 
 
 @bp.route("/api/geovsatt/composicoes", methods=["GET", "POST"])
@@ -97,13 +170,12 @@ def api_camada(codigo):
         camada = _obter(codigo, incluir_dados=True)
         if camada["origem"] == "ortofoto" or not camada["disponivel"] or not geo.pode_ver_camada(target, camada, usuario):
             raise camadas.CamadaAusente("Camada não encontrada.")
-        if camada["origem"] == "importacao":
-            if codigo == equipamentos.CODIGO:
-                dados = equipamentos.geojson(camada, _base_dir())
-                dados["metadata"] = {"versao": camada["id_versao"]}
-                return current_app.response_class(json.dumps(dados, ensure_ascii=False), mimetype="application/geo+json")
+        if camada["origem"] == "importacao" and codigo != equipamentos.CODIGO:
             return current_app.response_class(camada["geojson"], mimetype="application/geo+json")
-        return jsonify(geo.dados_nativos(target, _base_dir(), codigo, usuario, parametros=request.args))
+        dados = _colecao_camada(target, camada, usuario, request.args)
+        if camada["origem"] == "importacao":
+            return current_app.response_class(json.dumps(dados, ensure_ascii=False), mimetype="application/geo+json")
+        return jsonify(dados)
     except camadas.CamadaAusente as exc:
         return jsonify({"erro": str(exc)}), 404
     except ValueError as exc:
@@ -242,6 +314,25 @@ def api_ceps_por_logradouro():
         return jsonify({"resultados": busca.ceps_por_logradouro(rua)})
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
+    except RuntimeError as exc:
+        return jsonify({"erro": str(exc)}), 502
+
+
+@bp.post("/api/geovsatt/nominatim")
+@login_required
+def api_nominatim():
+    endpoint = busca.endpoint_nominatim(current_app.config["GEOVSATT_NOMINATIM_URL"])
+    if not endpoint:
+        return jsonify({"erro": "O provedor Nominatim ainda não foi configurado."}), 503
+    request.max_content_length = 2_048
+    payload = request.get_json(silent=True)
+    try:
+        texto = payload.get("q") if isinstance(payload, dict) else None
+        return jsonify({"resultados": busca.buscar_nominatim(endpoint, texto)})
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    except busca.NominatimOcupado as exc:
+        return jsonify({"erro": str(exc)}), 429, {"Retry-After": "2"}
     except RuntimeError as exc:
         return jsonify({"erro": str(exc)}), 502
 

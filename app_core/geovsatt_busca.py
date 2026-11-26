@@ -1,12 +1,15 @@
 """Busca territorial pelo RG e consultas públicas de endereçamento postal."""
 
-from collections import namedtuple
+from collections import OrderedDict, namedtuple
 from http.client import HTTPException
 import json
+import math
 import re
+from threading import Lock
+from time import monotonic
 from unicodedata import normalize
 from urllib.error import HTTPError
-from urllib.parse import quote
+from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from app_core import db, registro_geografico as rg
@@ -23,6 +26,12 @@ class _SemRedirecionamento(HTTPRedirectHandler):
 
 
 _CEP_HTTP = build_opener(_SemRedirecionamento())
+_NOMINATIM_CACHE = OrderedDict()
+_NOMINATIM_LOCK = Lock()
+_NOMINATIM_PROXIMA = 0.0
+_NOMINATIM_ATIVA = False
+# Almirante Tamandaré e margem para vias que chegam à divisa.
+_NOMINATIM_LIMITES = (-49.46, -25.40, -49.21, -25.21)
 
 
 def _numero(texto):
@@ -228,3 +237,77 @@ def ceps_por_logradouro(logradouro):
         if campos["logradouro"]:
             resultados.setdefault(cep, {"cep": cep, **campos})
     return list(resultados.values())
+
+
+class NominatimOcupado(RuntimeError):
+    pass
+
+
+def endpoint_nominatim(configurado):
+    if not configurado:
+        return None
+    base = configurado.strip().rstrip("/")
+    try:
+        url = urlsplit(base)
+        porta = url.port
+    except ValueError:
+        return None
+    seguro = url.scheme == "https" or (url.scheme == "http" and url.hostname in {"127.0.0.1", "::1", "localhost"})
+    if (not seguro or not url.hostname or url.username or url.password or url.query or url.fragment
+            or porta == 0 or url.hostname.rstrip(".") == "nominatim.openstreetmap.org"):
+        return None
+    return base if url.path.endswith("/search") else base + "/search"
+
+
+def buscar_nominatim(endpoint, termo):
+    global _NOMINATIM_PROXIMA, _NOMINATIM_ATIVA
+    texto = normalize("NFC", " ".join(termo.split())) if isinstance(termo, str) else ""
+    if (not 3 <= len(texto) <= 120 or sum(c.isalpha() for c in texto) < 3
+            or not all(c.isalpha() or c.isdecimal() or c in " ,.-'’º°()/–" for c in texto)
+            or re.search(r"\d{6,}|\d{3}[. ]\d{3}[. ]\d{3}", texto)):
+        raise ValueError("Informe uma rua ou um local público de Almirante Tamandaré.")
+    chave = (endpoint, texto.casefold())
+    with _NOMINATIM_LOCK:
+        agora = monotonic()
+        salvo = _NOMINATIM_CACHE.get(chave)
+        if salvo and salvo[0] > agora:
+            _NOMINATIM_CACHE.move_to_end(chave)
+            return salvo[1]
+        if _NOMINATIM_ATIVA or agora < _NOMINATIM_PROXIMA:
+            raise NominatimOcupado("A busca Nominatim está ocupada. Tente novamente em instantes.")
+        _NOMINATIM_ATIVA, _NOMINATIM_PROXIMA = True, agora + 1.05
+    oeste, sul, leste, norte = _NOMINATIM_LIMITES
+    parametros = urlencode({
+        "q": texto, "format": "jsonv2", "limit": 8, "addressdetails": 1,
+        "countrycodes": "br", "viewbox": f"{oeste},{norte},{leste},{sul}",
+        "bounded": 1, "accept-language": "pt-BR,pt",
+    })
+    try:
+        dados = _consulta_postal(f"{endpoint}?{parametros}", "Nominatim", 65_536)
+        if not isinstance(dados, list):
+            raise RuntimeError("Resposta inesperada do Nominatim.")
+        resultados = []
+        for item in dados[:8]:
+            if not isinstance(item, dict) or not isinstance(item.get("display_name"), str):
+                continue
+            try:
+                lat, lon = float(item["lat"]), float(item["lon"])
+            except (KeyError, TypeError, ValueError, OverflowError):
+                continue
+            if not math.isfinite(lat) or not math.isfinite(lon) or not (sul <= lat <= norte and oeste <= lon <= leste):
+                continue
+            titulo = item["display_name"].strip()[:400]
+            if titulo:
+                resultados.append({
+                    "tipo": "nominatim", "titulo": titulo, "latitude": lat, "longitude": lon,
+                    "subtitulo": "OpenStreetMap · posição de referência",
+                })
+        with _NOMINATIM_LOCK:
+            _NOMINATIM_CACHE[chave] = (monotonic() + 86_400, resultados)
+            _NOMINATIM_CACHE.move_to_end(chave)
+            if len(_NOMINATIM_CACHE) > 256:
+                _NOMINATIM_CACHE.popitem(last=False)
+        return resultados
+    finally:
+        with _NOMINATIM_LOCK:
+            _NOMINATIM_ATIVA = False

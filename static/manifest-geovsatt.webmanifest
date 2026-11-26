@@ -1,0 +1,16 @@
+{
+  "id": "/geovsatt",
+  "name": "GeoVSATT",
+  "short_name": "GeoVSATT",
+  "description": "Mapa da Vigilância em Saúde de Almirante Tamandaré",
+  "start_url": "/geovsatt",
+  "scope": "/geovsatt",
+  "display": "standalone",
+  "lang": "pt-BR",
+  "theme_color": "#00752b",
+  "background_color": "#f5f7f5",
+  "icons": [
+    {"src": "/static/icons/geovsatt-app-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "/static/icons/geovsatt-app-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

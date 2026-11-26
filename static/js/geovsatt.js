@@ -9,6 +9,7 @@
   const detail = document.getElementById('geo-detail');
   const detailContent = document.getElementById('geo-detail-content');
   const detailTitle = document.getElementById('geo-detail-title');
+  const detailSource = document.getElementById('geo-detail-source');
   const searchForm = document.getElementById('geo-search');
   const searchInput = document.getElementById('geo-search-input');
   const searchSource = document.getElementById('geo-search-source');
@@ -226,10 +227,15 @@
     detail.setAttribute('aria-hidden', String(!open));
     detail.inert = !open;
   }
-  document.getElementById('geo-detail-close').addEventListener('click', () => {
+  function fecharDetalhe() {
     detailSequence += 1;
     clearHighlight();
     openDetail(false);
+    mapNode.focus({preventScroll: true});
+  }
+  document.getElementById('geo-detail-close').addEventListener('click', fecharDetalhe);
+  detail.addEventListener('keydown', event => {
+    if (event.key === 'Escape') fecharDetalhe();
   });
 
   const kpi = (value, label) => {
@@ -259,9 +265,12 @@
     if (!podeRg) return;
     map.closePopup();
     const sequence = ++detailSequence;
+    detailSource.textContent = 'Registro Geográfico';
     openDetail(true);
     detailTitle.textContent = `Quarteirão ${block}`;
     detailContent.replaceChildren(element('p', 'geo-detail-loading', 'Carregando dados do Registro Geográfico...'));
+    detailContent.scrollTop = 0;
+    detailTitle.focus({preventScroll: true});
     try {
       const data = await api(`/api/geovsatt/quarteiroes/${encodeURIComponent(idLocality)}/${encodeURIComponent(block)}`);
       if (sequence !== detailSequence) return;
@@ -319,15 +328,25 @@
   const detailKeys = props => Object.keys(props).filter(key => !['chave', 'id_localidade', 'Localidade', 'quarteirao_raw'].includes(key)
     && props[key] != null && props[key] !== '' && typeof props[key] !== 'object');
 
-  function showFeature(input, props, name, attribute, latlng, action) {
-    const box = element('div', 'geo-info-popup');
-    const details = element('dl');
+  function showFeature(fonte, props, name, attribute, latlng, action) {
+    detailSequence += 1;
+    clearHighlight();
+    map.closePopup();
+    detailSource.textContent = fonte;
+    detailTitle.textContent = String(name ?? '').trim() || 'Detalhes da feição';
+    const details = element('dl', 'geo-feature-details');
     for (const key of detailKeys(props)) {
-      if (key !== attribute) details.append(element('dt', '', propertyName(key)), element('dd', '', String(props[key]).slice(0, 400)));
+      if (key !== attribute) details.append(element('dt', '', propertyName(key)), element('dd', '', props[key]));
     }
-    box.append(element('strong', '', name || input.dataset.nome), details);
-    if (action) box.append(action);
-    L.popup({maxHeight: 260}).setLatLng(latlng).setContent(box).openOn(map);
+    detailContent.replaceChildren(details.childElementCount ? details :
+      element('p', 'geo-detail-loading', 'Esta feição possui apenas a identificação acima.'));
+    if (action) detailContent.append(action);
+    openDetail(true);
+    detailContent.scrollTop = 0;
+    detailTitle.focus({preventScroll: true});
+    if (map.getSize().x > 820) {
+      map.panInside(latlng, {paddingTopLeft: [36, 40], paddingBottomRight: [detail.offsetWidth + 36, 44]});
+    }
   }
 
   function buildLayer(input, data) {
@@ -419,19 +438,21 @@
                 showBlock(props.Localidade, props.id_quart, blockIndex.get(String(props.chave)) || layer);
               });
             }
-            showFeature(input, props, name, attribute || (name === props.rotulo ? 'rotulo' : ''), event.latlng, action);
+            showFeature(input.dataset.nome, props, name, attribute || (name === props.rotulo ? 'rotulo' : ''), event.latlng, action);
           }
         });
       },
     });
-    if (config.modo_cor !== 'unico' && (config.atributo_cor || base.categories)) {
-      legendasPorCamada.set(group, layer => {
+    const temClasses = config.modo_cor !== 'unico' && Boolean(config.atributo_cor || base.categories);
+    legendasPorCamada.set(group, {
+      simbolo: layer => simboloDaFeicao(layer.feature),
+      classe: temClasses ? layer => {
         const classe = classeDe(layer.feature);
         if (!classe) return null;
         const cor = estilos.corDoSimbolo(simboloDaFeicao(layer.feature), estilos.tipoDaGeometria(layer.feature.geometry.type));
         return {...classe, cor};
-      });
-    }
+      } : null,
+    });
     if (id === 'quarteiroes_trabalhados') {
       const {inicio, fim} = data.metadata.consulta;
       const formatarData = data => data.split('-').reverse().join('/');
@@ -511,6 +532,7 @@
       }
       summary.textContent = active.length ? `Filtros · ${number(count)}/${number(features.length)}` : 'Filtros';
       updateBounds();
+      calor.atualizar(input.dataset.layer);
       labels.schedule();
     }
 
@@ -602,6 +624,55 @@
     return layers.get(id);
   }
 
+  function regrasLegenda(layer, recorte) {
+    const legenda = legendasPorCamada.get(layer);
+    const classes = new Map();
+    if (legenda?.classe) layer.eachLayer(item => {
+      if (recorte) {
+        const ponto = item.getLatLng?.();
+        const caixa = ponto ? null : item.getBounds();
+        if (ponto ? !recorte.contains(ponto) : !caixa.isValid() || !recorte.intersects(caixa)) return;
+      }
+      const categoria = legenda.classe(item);
+      if (categoria) classes.set(categoria.ordem, categoria);
+    });
+    return [...classes.values()].sort((a, b) => a.ordem - b.ordem);
+  }
+
+  function simboloDoMenu(input, layer, regras) {
+    const {tipo, layer: id} = input.dataset;
+    const amostra = input.parentElement.querySelector('.geo-layer-symbol');
+    const legenda = document.getElementById(`geo-key-${id}`);
+    const primeira = layer?.getLayers()[0];
+    const config = JSON.parse(input.dataset.estilo);
+    const simbolo = primeira ? legendasPorCamada.get(layer).simbolo(primeira) :
+      estilos.simbolo(config, estilos.padraoDaCamada(id), null, tipo);
+    amostra.style.setProperty('--layer-line', simbolo.color);
+    amostra.style.setProperty('--layer-fill', estilos.corDoSimbolo(simbolo, tipo));
+    const opacidade = tipo === 'linha' ? simbolo.opacity : simbolo.fillOpacity;
+    amostra.style.setProperty('--layer-opacity', tipo === 'poligono' && !simbolo.fill ? 0 : opacidade);
+    amostra.classList.toggle('is-classified', regras.length > 1);
+    if (regras.length > 1) {
+      amostra.replaceChildren(...regras.slice(0, 4).map(({cor}) => {
+        const segmento = element('i');
+        segmento.style.backgroundColor = cor;
+        return segmento;
+      }));
+    } else {
+      amostra.replaceChildren();
+    }
+    legenda.hidden = !input.checked || !regras.length;
+    const linhas = regras.slice(0, 60).map(({nome, cor}) => {
+      const linha = element('li');
+      const corNaLegenda = element('i');
+      corNaLegenda.style.backgroundColor = cor;
+      linha.append(corNaLegenda, document.createTextNode(nome));
+      return linha;
+    });
+    if (regras.length > linhas.length) linhas.push(element('li', '', `Mais ${regras.length - linhas.length} categorias`));
+    legenda.querySelector('ul').replaceChildren(...linhas);
+  }
+
   function itensLegenda(recorte = null) {
     const labels = [];
     for (const input of options) {
@@ -613,18 +684,9 @@
       const key = element('i', 'legend-' + input.dataset.tipo);
       const style = JSON.parse(input.dataset.estilo);
       const simboloPadrao = estilos.simbolo(style, estilos.padraoDaCamada(id), null, input.dataset.tipo);
-      const classificar = legendasPorCamada.get(layer);
-      const classes = new Map();
-      if (classificar) layer.eachLayer(item => {
-        if (recorte) {
-          const ponto = item.getLatLng?.();
-          const caixa = ponto ? null : item.getBounds();
-          if (ponto ? !recorte.contains(ponto) : !caixa.isValid() || !recorte.intersects(caixa)) return;
-        }
-        const categoria = classificar(item);
-        if (categoria) classes.set(categoria.ordem, categoria);
-      });
-      const rules = [...classes.values()].sort((a, b) => a.ordem - b.ordem).map(({nome, cor}) => [nome, cor]);
+      const classes = regrasLegenda(layer, recorte);
+      if (!recorte) simboloDoMenu(input, layer, classes);
+      const rules = classes.map(({nome, cor}) => [nome, cor]);
       key.style.setProperty('--legend-color', rules[0]?.[1] || estilos.corDoSimbolo(simboloPadrao, input.dataset.tipo));
       const label = element('span');
       if (rules.length) {
@@ -633,6 +695,12 @@
       }
       const periodo = periodoPorCamada.get(layer);
       label.append(key, document.createTextNode(input.dataset.nome + (periodo ? ` · ${periodo}` : '')));
+      labels.push(label);
+    }
+    const camadaDeCalor = calor.legenda();
+    if (camadaDeCalor) {
+      const label = element('span');
+      label.append(element('i', 'legend-calor'), document.createTextNode(`Densidade relativa · ${camadaDeCalor}`));
       labels.push(label);
     }
     return labels;
@@ -650,6 +718,8 @@
   }
 
   const mapLayers = Object.create(null);
+  const calor = window.GeoVSATTCalor.criar(map, options,
+    input => mapLayers[input.dataset.layer] || loadLayer(input), updateBounds);
 
   function configurarFiltrosDeTrabalhos() {
     const id = 'quarteiroes_trabalhados';
@@ -785,6 +855,7 @@
       }
     } else if (mapLayers[id]) {
       map.removeLayer(mapLayers[id]);
+      document.getElementById(`geo-key-${id}`).hidden = true;
       if (id === 'quarteiroes') clearHighlight();
     }
     if (container) container.hidden = !input.checked || !container.childElementCount;
@@ -799,9 +870,12 @@
     statusNode.textContent = `${input.dataset.nome}: ${error.message}`;
   }
 
-  options.forEach(input => input.addEventListener('change', () => {
-    toggleLayer(input).catch(error => reportLayerError(input, error));
-  }));
+  options.forEach(input => {
+    simboloDoMenu(input, null, []);
+    input.addEventListener('change', () => {
+      toggleLayer(input).catch(error => reportLayerError(input, error));
+    });
+  });
   window.GeoVSATTImpressao.create(map, baseSelect, measure, estadoBase, options, toggleLayer, itensLegenda,
     {api, filtrosPorCamada});
   document.getElementById('geo-fit').addEventListener('click', () => {
@@ -812,6 +886,13 @@
     searchResults.replaceChildren();
     const rotulo = suggestions ? ['sugestão', 'sugestões'] : ['resultado', 'resultados'];
     searchFeedback.textContent = items.length ? `${items.length} ${rotulo[Number(items.length > 1)]} do mapa.` : '';
+    if (searchSource.value === 'nominatim') {
+      const fonte = element('a', 'geo-search-result geo-search-info', 'Nominatim · © OpenStreetMap');
+      fonte.href = 'https://www.openstreetmap.org/copyright';
+      fonte.target = '_blank';
+      fonte.rel = 'noopener noreferrer';
+      searchResults.append(fonte);
+    }
     if (cep) {
       const referencia = [cep.logradouro, cep.complemento, cep.bairro,
         [cep.municipio, cep.uf].filter(Boolean).join(' – ')].filter(Boolean);
@@ -846,6 +927,18 @@
           searchInput.value = item.logradouro;
           searchInput.focus();
           searchFeedback.textContent = 'Logradouro selecionado. Acione Buscar para consultar o CEP.';
+          return;
+        }
+        if (item.tipo === 'nominatim') {
+          const posicao = L.latLng(item.latitude, item.longitude);
+          map.setView(posicao, 17);
+          showFeature('Nominatim · OpenStreetMap', {
+            precisao: 'Posição de referência da busca externa',
+          }, item.titulo, '', posicao);
+          highlighted = L.circleMarker(posicao, {
+            pane: 'rg-selection', interactive: false, radius: 8,
+            color: '#175cd3', fillColor: '#fff', weight: 3, fillOpacity: .9,
+          }).addTo(map);
           return;
         }
         const id = item.tipo === 'localidade' ? 'localidades' : 'quarteiroes';
@@ -938,7 +1031,7 @@
     searchResults.hidden = true;
     const query = searchInput.value.trim();
     searchFeedback.textContent = '';
-    if (!podeRg || searchSource.value === 'cep' || query.length < 3 || /^\d{5}-?\d*$/.test(query)) return;
+    if (!podeRg || !['rg', 'logradouro'].includes(searchSource.value) || query.length < 3 || /^\d{5}-?\d*$/.test(query)) return;
     suggestionTimer = setTimeout(async () => {
       const request = new AbortController();
       suggestionRequest = request;
@@ -975,10 +1068,12 @@
     cancelSuggestions();
     const cep = searchSource.value === 'cep';
     const postalAddress = searchSource.value === 'logradouro';
+    const nominatim = searchSource.value === 'nominatim';
     searchInput.placeholder = cep ? 'Digite o CEP (00000-000)' :
-      postalAddress ? 'Informe a rua em Almirante Tamandaré' : 'Rua e número, localidade ou quarteirão';
+      postalAddress ? 'Informe a rua em Almirante Tamandaré' :
+        nominatim ? 'Rua ou local público em Almirante Tamandaré' : 'Rua e número, localidade ou quarteirão';
     searchInput.inputMode = cep ? 'numeric' : 'search';
-    searchInput.maxLength = cep ? 9 : 180;
+    searchInput.maxLength = cep ? 9 : nominatim ? 120 : 180;
     searchSequence += 1;
     searchResults.hidden = true;
     searchInput.focus();
@@ -998,6 +1093,11 @@
     try {
       let cep;
       let items;
+      if (searchSource.value === 'nominatim') {
+        const data = await submitSearch('/api/geovsatt/nominatim', {q: query});
+        if (sequence === searchSequence) showSearch(data.resultados, null);
+        return;
+      }
       if (searchSource.value === 'logradouro') {
         const data = await submitSearch('/api/geovsatt/ceps-por-logradouro', {logradouro: query});
         if (sequence === searchSequence) showPostalResults(data.resultados);

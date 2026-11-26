@@ -279,20 +279,37 @@ importação, publicação e edição de metadados geram eventos de auditoria.
   e a supressão de sobreposições. A prévia usa valores de exemplo da
   camada e as classes usam as mesmas cores no mapa e na folha.
 
+## Detalhes, legenda, mapas de calor e instalação da candidata
+
+- Clicar nas feições abre o painel de detalhes à direita ou na parte inferior
+  em telas estreitas. A legenda no menu usa a simbologia calculada e mostra
+  as categorias da camada habilitada. Os filtros atualizam a legenda.
+- Em **Mapa de calor**, selecione uma camada de pontos disponível. A densidade
+  usa as feições da camada após os filtros. A Esporotricose conserva a forma
+  de representação autorizada à conta. Para ovitrampas, o cálculo pode ser
+  ponderado pelo número de ovos. A intensidade é relativa. O desenho usa o
+  tipo de camada `heatmap` do MapLibre e funciona com ou sem imagem-base.
+  [Estilos MapLibre](https://maplibre.org/maplibre-style-spec/layers/#heatmap)
+- **Lugares / Nominatim** aparece quando o servidor tem
+  `ENDEMIAS_GEO_NOMINATIM_URL` configurado para uma instância própria ou
+  contratada. Use HTTPS para a instância remota ou HTTP em loopback. A busca
+  é manual e restrita à região de Almirante Tamandaré, com cache e limitação
+  de frequência. O resultado indica a fonte e a posição de referência.
+  O endereço oficial de um imóvel continua sendo consultado pelo RG.
+  [API de busca](https://nominatim.org/release-docs/latest/api/Search/) ·
+  [Política da instância pública](https://operations.osmfoundation.org/policies/nominatim/)
+- **Instalar GeoVSATT** usa o manifesto e o service worker próprios. O cache
+  HTTP instala apenas a interface de entrada offline e arquivos públicos.
+  A API gera um pacote datado das camadas selecionadas, reaplicando o acesso
+  e a permissão de download e registrando a geração na auditoria. O
+  armazenamento criptografado e o uso da cópia no dispositivo seguem em
+  desenvolvimento nesta candidata.
+
 ## Próximos incrementos
 
-1. Usar a camada nativa `heatmap` do MapLibre para futuros mapas de densidade,
-   com filtros por período e respeito às permissões e à agregação de cada fonte.
-   [Documentação OpenFreeMap](https://openfreemap.org/quick_start/) ·
-   [Estilos MapLibre](https://maplibre.org/maplibre-style-spec/layers/#heatmap)
-2. Nominatim como geocodificação complementar para vias e lugares públicos.
-   Priorizar instância própria ou provedor contratado no uso recorrente.
-   A instância pública exige atribuição, identificação da aplicação, limite
-   agregado de uma consulta por segundo, provedor substituível e ausência de
-   autocomplete ou dados confidenciais. O resultado externo deve indicar a
-   fonte e a precisão. O vínculo oficial com o quarteirão vem do RG.
-   [Política do Nominatim público](https://operations.osmfoundation.org/policies/nominatim/)
-3. Camadas de suspeitas de dengue e coletas de tubos com coordenadas. Evoluir
+1. Completar o pacote cartográfico offline e homologar download, abertura
+   sem conexão e atualização no Android.
+2. Camadas de suspeitas de dengue e coletas de tubos com coordenadas. Evoluir
    consultas temporais e incorporar raios de ovitrampas positivas com a regra
    operacional definida pelo setor.
 

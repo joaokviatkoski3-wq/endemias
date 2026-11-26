@@ -5,10 +5,10 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.20.0**, release `d1d978a`, ativa em 26/11/2026. O instalador confirmou
-  a preservação de 105 tabelas, dos arquivos operacionais e da tarefa Kobo.
-  Os três logins responderam na origem do Tunnel e o GeoVSATT respondeu
-  em HTTPS no endereço público. O mapa de bloqueio
+- **2.26.0**, release `2293952`, ativa em 26/11/2026. O instalador confirmou
+  a aplicação da migração `0048_geovsatt_composicoes.sql` e a preservação dos
+  dados anteriores. Os três logins responderam na origem do Tunnel e o
+  GeoVSATT respondeu em HTTPS no endereço público. O mapa de bloqueio
   imprime em A4 paisagem, com um brasão, raio de 150 m, nomes sobre o traçado
   das vias e etiquetas ampliadas de quarteirão.
 - O portal `vsatt.com.br` apresenta Endemias, Ambiental e GeoVSATT. O Tunnel
@@ -87,15 +87,15 @@ regras de trabalho e isolamento de testes.
   O modo CEP / BrasilAPI e a imagem Sentinel‑2 continuam disponíveis.
   O acervo importado tem 12 camadas e 3.862 feições. Consulte
   [a continuidade do GeoVSATT](GEOVSATT_IMPLEMENTACAO.md).
-  A candidata 2.23.0 usa os raios de 150 m do mapa de Esporotricose do
+  A versão 2.23.0 acrescentou os raios de 150 m do mapa de Esporotricose do
   Ambiental. O mapa cruza os raios com a malha ativa, mostra a situação e
   a data do bloqueio e oferece acesso ao RG e à folha do caso no Ambiental.
   A camada de execução por quarteirão depende do registro de campo.
-  A candidata 2.24.0 acrescenta os quarteirões trabalhados do Endemias e
+  A versão 2.24.0 acrescentou os quarteirões trabalhados do Endemias e
   LIRAa, com filtros por período, tipo e localidade, impressão e exportação.
-  A candidata 2.25.0 acrescenta ortofotos MBTiles com publicação por versão,
+  A versão 2.25.0 acrescentou ortofotos MBTiles com publicação por versão,
   permissões e uso em composições. O acervo fornecido até aqui é vetorial.
-  A candidata 2.26.0 acrescenta classificação por faixas numéricas, prévia de
+  A versão 2.26.0 acrescentou classificação por faixas numéricas, prévia de
   simbologia e etiquetas compostas configuráveis.
 - **Biblioteca VSATT** (`biblioteca.vsatt.com.br`, nome provisório). Acervo
   interno de referências de Vigilância em Saúde, com documentos, links,

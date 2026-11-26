@@ -7,10 +7,12 @@ import shutil
 import sqlite3
 import tempfile
 import unittest
+from collections import OrderedDict
 from contextlib import closing
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError
+from urllib.parse import parse_qs, urlsplit
 from xml.etree import ElementTree as ET
 
 from PIL import Image
@@ -78,6 +80,9 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertIn(b'id="geo-map"', response.data)
         self.assertIn(b'id="geo-composicao"', response.data)
         self.assertIn(b'id="release-dialog"', response.data)
+        self.assertIn(b'id="geo-detail-source"', response.data)
+        self.assertIn(b'id="geo-key-logradouros"', response.data)
+        self.assertIn(b'id="geo-calor-camada"', response.data)
         self.assertNotIn(b"server.arcgisonline.com", response.data)
 
     def test_login_real_registra_auditoria_no_setor_geo(self):
@@ -86,6 +91,48 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         event = db.query_one(str(self.path), "SELECT setor FROM auditoria_eventos WHERE acao='login_sucesso' ORDER BY id_evento DESC LIMIT 1")
         self.assertEqual(event["setor"], "geo")
+
+    def test_manifesto_e_worker_geo_tem_escopo_proprio_e_pagina_sem_dados(self):
+        client = self.geo.test_client()
+        manifest_url = "/geovsatt/manifest.webmanifest"
+        with closing(client.get(manifest_url)) as manifest:
+            self.assertEqual(manifest.status_code, 200)
+            self.assertEqual(manifest.mimetype, "application/manifest+json")
+            dados = json.loads(manifest.data)
+        self.assertEqual(dados["start_url"], "/geovsatt")
+        self.assertEqual(dados["scope"], "/geovsatt")
+        for icone in dados["icons"]:
+            dimensoes = tuple(map(int, icone["sizes"].split("x")))
+            with closing(client.get(icone["src"])) as resposta, Image.open(io.BytesIO(resposta.data)) as imagem:
+                self.assertEqual(imagem.size, dimensoes)
+        with closing(client.get("/geovsatt-sw.js")) as worker:
+            self.assertEqual(worker.headers["Service-Worker-Allowed"], "/geovsatt")
+            self.assertEqual(worker.mimetype, "application/javascript")
+            self.assertIn("no-store", worker.headers["Cache-Control"])
+        self.assertEqual(self.endemias.test_client().get(manifest_url).status_code, 403)
+        self.assertNotEqual(client.get("/geovsatt").status_code, 200)
+        pagina = client.get("/geovsatt/offline")
+        self.assertEqual(pagina.status_code, 200)
+        self.assertIn(b"GeoVSATT offline", pagina.data)
+        self.assertNotIn(b'id="geo-map"', pagina.data)
+
+    def test_pacote_offline_exige_permissao_de_download_e_usa_dados_do_mapa(self):
+        admin = self.client()
+        comum = self.client(uid=2)
+        rota = "/api/geovsatt/pacote-offline"
+        escolhas = {"camadas": ["localidades", "logradouros", "localidades"]}
+        self.assertNotEqual(self.geo.test_client().post(rota, json=escolhas).status_code, 200)
+        self.assertEqual(comum.post(rota, json=escolhas).status_code, 403)
+        self.assertEqual(admin.post(rota, json={"camadas": [["logradouros"]]}).status_code, 400)
+        self.assertEqual(admin.post(rota, json={"camadas": ["camada-desconhecida"]}).status_code, 403)
+        resposta = admin.post(rota, json=escolhas)
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("no-store", resposta.headers["Cache-Control"])
+        self.assertEqual(resposta.json["formato"], 1)
+        self.assertEqual(resposta.json["usuario"], 1)
+        self.assertEqual([item["id"] for item in resposta.json["camadas"]], ["localidades", "logradouros"])
+        self.assertEqual(resposta.json["dados"]["localidades"], admin.get("/api/geovsatt/camadas/localidades").json)
+        self.assertEqual(resposta.json["dados"]["logradouros"], admin.get("/api/geovsatt/camadas/logradouros").json)
 
     def test_cadastro_equipamentos_preserva_acervo_historico_e_permissoes(self):
         admin = self.client()
@@ -793,6 +840,42 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(self.client(uid=3).post(url, json={"q": "João de Sou", "sugestao": True}).json["resultados"], [])
         self.client().post("/geovsatt/admin/camadas/quarteiroes", data={"nome": "Quarteirões", "grupo": "Território"})
         self.assertEqual(permitido.post(url, json={"q": consulta}).json["resultados"], [])
+
+    def test_nominatim_instancia_configurada_cache_limite_e_resultados(self):
+        rota = "/api/geovsatt/nominatim"
+        cliente = self.client()
+        self.assertEqual(cliente.post(rota, json={"q": "Parque Municipal"}).status_code, 503)
+        self.assertNotIn(b'value="nominatim"', cliente.get("/geovsatt").data)
+        self.assertIsNone(geovsatt_busca.endpoint_nominatim("https://nominatim.openstreetmap.org"))
+        self.assertIsNone(geovsatt_busca.endpoint_nominatim("http://osm.exemplo.invalid"))
+        dados = [
+            {"lat": "-25.32", "lon": "-49.30", "display_name": "Parque Municipal de Ensaio"},
+            {"lat": "-10", "lon": "-40", "display_name": "Fora da região"},
+            {"lat": "NaN", "lon": "-49.30", "display_name": "Inválido"},
+        ]
+        with (
+            patch.dict(self.geo.config, {"GEOVSATT_NOMINATIM_URL": "https://geo.exemplo.invalid/nominatim"}),
+            patch.object(geovsatt_busca, "_NOMINATIM_CACHE", OrderedDict()),
+            patch.object(geovsatt_busca, "_NOMINATIM_PROXIMA", 0.0),
+            patch.object(geovsatt_busca, "monotonic", return_value=100.0),
+            patch.object(geovsatt_busca, "_consulta_postal", return_value=dados) as consultar,
+        ):
+            self.assertIn(b'value="nominatim"', cliente.get("/geovsatt").data)
+            self.assertNotEqual(self.geo.test_client().post(rota, json={"q": "Parque Municipal"}).status_code, 200)
+            self.assertEqual(cliente.post(rota, json={"q": "123.456.789-00"}).status_code, 400)
+            ok = cliente.post(rota, json={"q": "Parque Municipal"})
+            self.assertEqual(ok.status_code, 200)
+            self.assertEqual(ok.json["resultados"], [{
+                "tipo": "nominatim", "titulo": "Parque Municipal de Ensaio", "latitude": -25.32,
+                "longitude": -49.30, "subtitulo": "OpenStreetMap · posição de referência",
+            }])
+            self.assertEqual(cliente.post(rota, json={"q": " parque   municipal "}).json, ok.json)
+            self.assertEqual(cliente.post(rota, json={"q": "Biblioteca Municipal"}).status_code, 429)
+            consultar.assert_called_once()
+            url = urlsplit(consultar.call_args.args[0])
+            self.assertEqual((url.netloc, url.path), ("geo.exemplo.invalid", "/nominatim/search"))
+            self.assertEqual(parse_qs(url.query)["q"], ["Parque Municipal"])
+            self.assertEqual(parse_qs(url.query)["bounded"], ["1"])
 
     def test_cep_passa_somente_o_codigo_e_identifica_origem(self):
         with patch.object(geovsatt_busca._CEP_HTTP, "open") as pedir:

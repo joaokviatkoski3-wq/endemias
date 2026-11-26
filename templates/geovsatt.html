@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>GeoVSATT · Vigilância em Saúde</title>
+  <meta name="theme-color" content="#00752b">
+  <link rel="manifest" href="{{ url_for('geovsatt.manifest_mapa') }}">
   <link rel="icon" type="image/png" href="/static/img/geovsatt-logo.png?v={{ APP_VERSION }}">
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.min.css?v={{ APP_VERSION }}">
   <link rel="stylesheet" href="/static/vendor/maplibre/maplibre-gl.css?v={{ APP_VERSION }}">
@@ -36,6 +38,7 @@
           <option value="rg">Endereço / RG</option>
           <option value="cep">CEP / BrasilAPI</option>
           <option value="logradouro">Rua → CEP</option>
+          {% if nominatim %}<option value="nominatim">Lugares / Nominatim</option>{% endif %}
         </select>
         <input id="geo-search-input" name="q" type="search" autocomplete="off" enterkeyhint="search"
                maxlength="180" placeholder="Rua e número, localidade ou quarteirão" aria-controls="geo-search-results">
@@ -63,6 +66,10 @@
         {% if catalogo.pode_configurar %}
         <a class="geo-admin-note" href="{{ url_for('geovsatt.admin_catalogo') }}"><strong>Gerenciar camadas</strong><span>Importar GeoJSON e publicar novas versões</span></a>
         {% endif %}
+        <div id="geo-app-instalar" class="geo-app-instalar" hidden>
+          <button type="button">Instalar GeoVSATT</button>
+          <p role="status" hidden></p>
+        </div>
         <section class="geo-layer-group">
           <h2>Imagens e bases</h2>
           <label class="geo-base-control">Mapa-base
@@ -86,6 +93,18 @@
             <a id="geo-ortofoto-baixar" hidden>Baixar MBTiles</a>
           </div>
         </section>
+        <section class="geo-layer-group" id="geo-calor" hidden>
+          <h2>Mapa de calor</h2>
+          <label class="geo-base-control">Camada para calcular a densidade
+            <select id="geo-calor-camada"><option value="">Desligado</option></select>
+          </label>
+          <div id="geo-calor-opcoes" hidden>
+            <label>Raio visual <input id="geo-calor-raio" type="range" min="16" max="64" value="32"></label>
+            <label id="geo-calor-peso" hidden><input type="checkbox"> Ponderar pelo número de ovos</label>
+            <div class="geo-calor-escala"><span>Menor densidade</span><i></i><span>Maior densidade</span></div>
+            <p id="geo-calor-status" role="status"></p>
+          </div>
+        </section>
         {% for grupo in catalogo.camadas|groupby('grupo') %}
         <section class="geo-layer-group">
           <h2>{{ grupo.grouper }}</h2>
@@ -100,6 +119,10 @@
             {% if not camada.disponivel %}<em>Em preparação</em>{% endif %}
           </label>
           {% if camada.disponivel %}
+          <details class="geo-layer-key" id="geo-key-{{ camada.id }}" hidden>
+            <summary>Legenda</summary>
+            <ul></ul>
+          </details>
           <div class="geo-layer-filters" id="geo-filter-{{ camada.id }}" hidden>
             {% if camada.id == 'quarteiroes_trabalhados' %}
             <details>
@@ -168,7 +191,7 @@
 
     <aside id="geo-detail" class="geo-detail" aria-hidden="true" aria-label="Detalhes territoriais" inert>
       <div class="geo-detail-head">
-        <div><span>Registro Geográfico</span><h2 id="geo-detail-title">Detalhes do quarteirão</h2></div>
+        <div><span id="geo-detail-source"></span><h2 id="geo-detail-title" tabindex="-1">Detalhes</h2></div>
         <button id="geo-detail-close" class="geo-icon-button" type="button" aria-label="Fechar detalhes"><img src="/static/icons/fechar.svg" alt=""></button>
       </div>
       <div id="geo-detail-content" class="geo-detail-content"></div>
@@ -233,6 +256,8 @@
   <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt_rotulos.js?v={{ APP_VERSION }}"></script>
   <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt_medicao.js?v={{ APP_VERSION }}"></script>
   <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt_impressao.js?v={{ APP_VERSION }}"></script>
+  <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt_calor.js?v={{ APP_VERSION }}"></script>
+  <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt_instalacao.js?v={{ APP_VERSION }}"></script>
   <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt.js?v={{ APP_VERSION }}"></script>
 </body>
 </html>
