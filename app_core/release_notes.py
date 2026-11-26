@@ -4,6 +4,14 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.20.0": {
+        "titulo": "Composição e exportação de mapas no GeoVSATT",
+        "mudancas": [
+            "Personalize o mapa, as camadas, a imagem-base e a legenda para imprimir ou salvar em PDF.",
+            "Desenhe uma área para estimar sua população com as residências cadastradas no Registro Geográfico.",
+            "As contas autorizadas pelo superadmin podem exportar camadas em CSV, GeoJSON e KML.",
+        ],
+    },
     "2.19.0": {
         "titulo": "Cartografia, filtros e vigilância no GeoVSATT",
         "mudancas": [

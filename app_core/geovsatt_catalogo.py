@@ -65,6 +65,7 @@ def configuracao_padrao(base=None):
         "niveis": list(base.get("niveis_padrao", NIVEIS)) if base else [],
         "setores": list(SETORES) if base else [],
         "usuarios": [],
+        "usuarios_exportacao": [],
         "visivel_inicial": bool(base and base["visivel_inicial"]),
         "cor": "",
         "atributo_cor": "",
@@ -153,9 +154,12 @@ def _config(form):
     setores = form.getlist("setores")
     if set(niveis) - NIVEIS.keys() or set(setores) - SETORES.keys():
         raise CatalogoErro("Selecione níveis e setores válidos.")
-    usuarios = form.getlist("usuarios")
-    if len(usuarios) > 1000 or any(not re.fullmatch(r"[1-9][0-9]{0,9}", uid) for uid in usuarios):
-        raise CatalogoErro("A lista de contas autorizadas é inválida.")
+    contas = {}
+    for chave in ("usuarios", "usuarios_exportacao"):
+        valores = form.getlist(chave)
+        if len(valores) > 1000 or any(not re.fullmatch(r"[1-9][0-9]{0,9}", uid) for uid in valores):
+            raise CatalogoErro("A lista de contas autorizadas é inválida.")
+        contas[chave] = sorted({int(uid) for uid in valores})
     cor = _texto(form.get("cor"), 7)
     atributo = _texto(form.get("atributo_cor"), 120)
     regras = _texto(form.get("regras_cor"), 5000).splitlines()
@@ -189,7 +193,7 @@ def _config(form):
         estilo[chave] = valor
     return {
         "niveis": sorted(set(niveis)), "setores": sorted(set(setores)),
-        "usuarios": sorted({int(uid) for uid in usuarios}),
+        **contas,
         "visivel_inicial": form.get("visivel_inicial") == "1",
         "abertura_configurada": True,
         "cor": cor.lower(), "atributo_cor": atributo, "cores": cores,
@@ -242,7 +246,7 @@ def _criar_camada(conn, codigo, dados, bases):
 def salvar_camada(target, codigo, form, bases, *, nova=False):
     nome, grupo, descricao, config = _dados_camada(codigo, form)
     with _escrita(target) as conn:
-        for uid in config["usuarios"]:
+        for uid in set(config["usuarios"]) | set(config["usuarios_exportacao"]):
             if not conn.execute("SELECT 1 FROM usuarios WHERE id_usuario = ?", (uid,)).fetchone():
                 raise CatalogoErro("Uma das contas selecionadas não existe.")
         if nova:

@@ -10,6 +10,7 @@ from contextlib import closing
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError
+from xml.etree import ElementTree as ET
 
 import app
 from app_core import auth, db, dominios, geovsatt_busca, registro_geografico, sessoes
@@ -70,6 +71,7 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"geovsatt-symbol.svg", response.data)
         self.assertIn(b'id="geo-map"', response.data)
+        self.assertIn(b'id="geo-composicao"', response.data)
         self.assertIn(b'id="release-dialog"', response.data)
         self.assertNotIn(b"server.arcgisonline.com", response.data)
 
@@ -79,6 +81,74 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         event = db.query_one(str(self.path), "SELECT setor FROM auditoria_eventos WHERE acao='login_sucesso' ORDER BY id_evento DESC LIMIT 1")
         self.assertEqual(event["setor"], "geo")
+
+    def test_estimativa_area_parcial_usa_cadastro_rg_sem_duplicar_blocos(self):
+        def poligono(x1, x2, chave=None):
+            vertices = [[x1, -25.4], [x2, -25.4], [x2, -25.3], [x1, -25.3]]
+            return {"geometry": {"type": "Polygon", "coordinates": [vertices + [vertices[0]]]},
+                    "properties": {"chave": chave}}
+
+        dados = {"features": [poligono(-49.4, -49.3, "1:1"), poligono(-49.4, -49.3, "1:1"),
+                              poligono(-49.4, -49.3), poligono(-49.3, -49.2)],
+                 "metadata": {"origem": "QGIS de ensaio"}}
+        forma = [[-49.35, -25.4], [-49.3, -25.4], [-49.3, -25.3], [-49.35, -25.3]]
+        rota = "/api/geovsatt/populacao"
+        client = self.client()
+        with patch("app_core.geovsatt.quarteiroes", return_value=dados):
+            res = client.post(rota, json={"pontos": forma}).json
+            self.assertEqual(res["populacao_estimada"], 6)
+            self.assertEqual(res["residencias_equivalentes"], 2)
+            self.assertEqual(res["quarteiroes_com_cadastro"], 1)
+            self.assertEqual(res["quarteiroes_sem_cadastro"], 1)
+            self.assertEqual(res["quarteiroes_parciais"], 1)
+            sem_condominios = client.post(rota, json={"pontos": forma, "incluir_condominios": False}).json
+            self.assertEqual(sem_condominios["populacao_estimada"], 0)
+            vazia = client.post(rota, json={"pontos": poligono(-49.5, -49.45)["geometry"]["coordinates"][0]}).json
+            self.assertIsNone(vazia["populacao_estimada"])
+        self.assertEqual(client.post(rota, json={"pontos": [forma[i] for i in (0, 2, 1, 3)]}).status_code, 400)
+        self.assertEqual(client.post(rota, json={"pontos": forma, "incluir_condominios": "false"}).status_code, 400)
+        ambient = self.client(uid=3)
+        self.assertEqual(ambient.post(rota, json={"pontos": forma}).status_code, 403)
+        self.assertNotIn(b'data-medida="populacao"', ambient.get("/geovsatt").data)
+
+    def test_exportacao_exige_permissao_propria_e_entrega_tres_formatos(self):
+        admin = self.client()
+        autorizado = self.client(uid=2)
+        ambiental = self.client(uid=3)
+        registro = {"type": "Feature", "properties": {"nome": "Ponto <QGIS>", "valor": "=HYPERLINK(1)"},
+                    "geometry": {"type": "Point", "coordinates": [-49.31, -25.31]}}
+        dados = {"type": "FeatureCollection", "features": [registro]}
+        pagina = "/geovsatt/admin/camadas/teste-exportacao"
+        rota = "/geovsatt/camadas/teste-exportacao/exportar/"
+        config = {"nome": "Camada de ensaio", "grupo": "Território", "niveis": "visualizador", "setores": "endemias"}
+        self.assertEqual(admin.post("/geovsatt/admin/importar", data={**config, "codigo": "teste-exportacao",
+            "fonte": "Cartografia de ensaio", "geojson": (io.BytesIO(json.dumps(dados).encode()), "dados.geojson")}).status_code, 303)
+        self.assertEqual(admin.post(pagina + "/versoes/1/publicar").status_code, 303)
+        admin.post(pagina, data=config)
+        self.assertEqual(autorizado.get("/api/geovsatt/camadas/teste-exportacao").status_code, 200)
+        self.assertEqual(autorizado.get(rota + "csv").status_code, 403)
+        self.assertNotIn(rota.encode(), autorizado.get("/geovsatt").data)
+        admin.post(pagina, data={**config, "usuarios_exportacao": ["2", "3"]})
+        self.assertIn(rota.encode(), autorizado.get("/geovsatt").data)
+        self.assertEqual(ambiental.get(rota + "geojson").status_code, 404)
+        csv = autorizado.get(rota + "csv")
+        self.assertEqual(csv.status_code, 200)
+        self.assertIn("geovsatt-teste-exportacao.csv", csv.headers["Content-Disposition"])
+        self.assertIn("no-store", csv.headers["Cache-Control"])
+        self.assertIn("'=HYPERLINK(1);POINT (-49.31 -25.31)", csv.data.decode("utf-8-sig"))
+        geojson = autorizado.get(rota + "geojson")
+        self.assertEqual(geojson.mimetype, "application/geo+json")
+        self.assertEqual(geojson.json["features"], [registro])
+        self.assertEqual(geojson.json["metadata"]["fonte"], "Cartografia de ensaio")
+        kml = autorizado.get(rota + "kml")
+        ns = {"k": "http://www.opengis.net/kml/2.2"}
+        raiz = ET.fromstring(kml.data)
+        self.assertEqual(raiz.findtext(".//k:Placemark/k:name", namespaces=ns), "Ponto <QGIS>")
+        self.assertEqual(raiz.findtext(".//k:Point/k:coordinates", namespaces=ns), "-49.31,-25.31")
+        self.assertEqual(admin.get(rota + "shp").status_code, 404)
+        admin.post(pagina, data=config)
+        self.assertEqual(autorizado.get(rota + "kml").status_code, 403)
+        self.assertEqual(db.scalar(str(self.path), "SELECT COUNT(*) FROM auditoria_eventos WHERE acao='geovsatt_camada_exportada'"), 3)
 
     def test_camadas_reais_busca_e_detalhe_rg(self):
         client = self.client()

@@ -1,9 +1,14 @@
-from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
+from io import BytesIO
+import json
 
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
+
+from app_core import audit
 from app_core import blueprint_helpers as bh
 from app_core import geovsatt as geo
 from app_core import geovsatt_busca as busca
 from app_core import geovsatt_catalogo as camadas
+from app_core import geovsatt_exportacao as exportacao
 from app_core import setores
 from app_core.auth import login_required
 
@@ -36,8 +41,10 @@ def _obter(codigo, **kwargs):
 @login_required
 def page():
     usuario = bh.usuario_atual()
-    return render_template("geovsatt.html", catalogo=geo.catalogo(bh.db_target(), usuario),
-                           pode_rg=setores.pode_entrar(usuario, "endemias"),
+    catalogo = geo.catalogo(bh.db_target(), usuario)
+    pode_rg = setores.pode_entrar(usuario, "endemias")
+    pode_estimar = pode_rg and any(item["id"] == "quarteiroes" for item in catalogo["camadas"])
+    return render_template("geovsatt.html", catalogo=catalogo, pode_rg=pode_rg, pode_estimar=pode_estimar,
                            esri_licenciado=current_app.config["GEOVSATT_ESRI_LICENSED"])
 
 
@@ -58,26 +65,37 @@ def api_camada(codigo):
             raise camadas.CamadaAusente("Camada não encontrada.")
         if camada["origem"] == "importacao":
             return current_app.response_class(camada["geojson"], mimetype="application/geo+json")
-        if codigo == "localidades":
-            return jsonify(geo.localidades(target, _base_dir(), usuario=usuario))
-        if codigo == "quarteiroes":
-            return jsonify(geo.quarteiroes(target, _base_dir(), incluir_rg=setores.pode_entrar(usuario, "endemias"),
-                                           usuario=usuario))
-        if codigo == "esporotricose":
-            if geo.esporotricose_localizacao_exata(usuario):
-                return jsonify(geo.esporotricose_animal_localizada(target))
-            return jsonify(geo.esporotricose_animal(target))
-        if codigo == "ovitrampas":
-            return jsonify(geo.ovitrampas(target))
-        if codigo == "pontos_estrategicos":
-            return jsonify(geo.pontos_estrategicos(target))
-        if codigo == "acoes_atendimentos":
-            return jsonify(geo.acoes_atendimentos(target))
-        return jsonify(geo.logradouros(_base_dir()))
+        return jsonify(geo.dados_nativos(target, _base_dir(), codigo, usuario))
     except camadas.CamadaAusente as exc:
         return jsonify({"erro": str(exc)}), 404
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
+
+
+@bp.get("/geovsatt/camadas/<codigo>/exportar/<formato>")
+@login_required
+def baixar_camada(codigo, formato):
+    if formato not in exportacao.FORMATOS:
+        abort(404)
+    usuario = bh.usuario_atual()
+    try:
+        camada = _obter(codigo, incluir_dados=True)
+    except camadas.CamadaAusente:
+        abort(404)
+    if not camada["disponivel"] or not geo.pode_ver_camada(camada, usuario):
+        abort(404)
+    if not geo.pode_exportar_camada(camada, usuario):
+        abort(403)
+    if camada["origem"] == "importacao":
+        dados = json.loads(camada["geojson"])
+        dados["metadata"] = json.loads(camada["metadados"])
+    else:
+        dados = geo.dados_nativos(bh.db_target(), _base_dir(), codigo, usuario)
+    conteudo = exportacao.gerar(dados, camada, formato)
+    audit.registrar_evento(bh.get_db, "geovsatt_camada_exportada", entidade="geovsatt_camada", entidade_id=codigo,
+                           detalhes={"formato": formato, "total": len(dados["features"]), "versao": camada["id_versao"]})
+    return send_file(BytesIO(conteudo), mimetype=exportacao.FORMATOS[formato], as_attachment=True,
+                     download_name=f"geovsatt-{codigo}.{formato}", etag=False, max_age=0)
 
 
 @bp.route("/api/geovsatt/busca", methods=["GET", "POST"])
@@ -130,6 +148,24 @@ def api_detalhe_quarteirao(id_localidade, numero):
         return jsonify(geo.detalhe_quarteirao(bh.db_target(), _base_dir(), id_localidade, numero))
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 404
+
+
+@bp.post("/api/geovsatt/populacao")
+@login_required
+def api_populacao():
+    usuario = bh.usuario_atual()
+    if not setores.pode_entrar(usuario, "endemias") or not geo.pode_ver_camada(_obter("quarteiroes"), usuario):
+        return jsonify({"erro": "Estimativa restrita a perfis com acesso aos quarteirões do RG."}), 403
+    request.max_content_length = 12_288
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or type(payload.get("incluir_condominios", True)) is not bool:
+        return jsonify({"erro": "Informe os vértices da área e a opção de condomínios."}), 400
+    try:
+        resultado = geo.estimar_populacao(bh.db_target(), _base_dir(), payload.get("pontos"), usuario=usuario,
+                                         incluir_condominios=payload.get("incluir_condominios", True))
+        return jsonify(resultado)
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
 
 
 @bp.get("/geovsatt/admin/camadas")

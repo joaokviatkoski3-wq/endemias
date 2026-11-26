@@ -4,7 +4,7 @@ Atualizado em 26/11/2026.
 
 ## Estado deste incremento
 
-A versão `2.19.0` reúne as alterações descritas a seguir. Consulte
+A versão `2.20.0` reúne as alterações descritas a seguir. Consulte
 `ESTADO_ATUAL_PROJETO.md` para confirmar qual versão está em produção.
 
 Implementado:
@@ -153,6 +153,27 @@ importação, publicação e edição de metadados geram eventos de auditoria.
   célula e o centro de cada célula. Nenhum ponto cadastrado é reposicionado
   automaticamente pelo GeoVSATT.
 
+## Composição, população e exportação na 2.20.0
+
+- Abra **Compor e imprimir mapa** e ajuste o recorte na própria folha.
+  Selecione camadas e imagem-base, orientação A4, título e nota. A legenda
+  pode ficar acima, abaixo ou ao lado do mapa e mostra as categorias no
+  recorte. A folha inclui seta norte, escala gráfica, data e créditos da
+  base escolhida. A opção **Imprimir / salvar PDF** abre a impressão do
+  navegador. Ao fechar a composição, o mapa anterior recupera seu recorte,
+  camadas e imagem-base.
+- Use **Estimar população por área**, desenhe o contorno e selecione
+  **Concluir**. O cálculo usa as residências do RG, o fator de 2,93 pessoas
+  por residência do Censo 2022 e a proporção de área dos quarteirões
+  cortados pelo contorno. A cobertura do RG é indicada à parte. É possível
+  excluir residências em condomínios. A estimativa pode acompanhar a folha.
+- Em **Gerenciar camadas → camada → Exportação da camada**, o superadmin
+  escolhe as contas autorizadas. A autorização de exportação exige acesso
+  à camada e às permissões de seu setor. O botão **Exportar** no menu
+  oferece CSV com coluna WKT em WGS 84, GeoJSON e KML para a versão ativa.
+  O arquivo inclui todas as feições acessíveis da camada. O VSATT registra
+  formato, conta, camada, versão quando importada e quantidade na auditoria.
+
 ## Próximos incrementos
 
 1. Base vetorial OpenFreeMap, com dados OpenStreetMap e renderização MapLibre GL JS.
@@ -171,7 +192,7 @@ importação, publicação e edição de metadados geram eventos de auditoria.
 4. Cadastro manual de prédios públicos e pontos de interesse pelo superadmin.
 5. Camadas de suspeitas de dengue e coletas de tubos com coordenadas.
    Evoluir as consultas temporais e a composição de raios de bloqueio.
-6. População por seleção, composição e impressão de mapas personalizados.
+6. Salvar e reabrir composições cartográficas como projetos reutilizáveis.
 
 ## Histórico de implantação e próximas validações
 

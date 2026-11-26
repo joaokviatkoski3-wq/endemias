@@ -15,6 +15,7 @@
   const podeRg = document.querySelector('.geo-shell').dataset.podeRg === '1';
   const layers = new Map();
   const options = [...document.querySelectorAll('[data-layer]:enabled')];
+  const legendasPorCamada = new WeakMap();
   const blockIndex = new Map();
   const localityIndex = new Map();
   let fullBounds = null;
@@ -50,7 +51,11 @@
   L.control.zoom({position: 'topright'}).addTo(map);
   map.setView([-25.32, -49.30], 12);
   const labels = window.GeoVSATTRotulos.create(map);
-  const measure = window.GeoVSATTMedicao.create(map);
+  const measure = window.GeoVSATTMedicao.create(map, (pontos, incluir_condominios) => api('/api/geovsatt/populacao', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content},
+    body: JSON.stringify({pontos, incluir_condominios}),
+  }));
   const basemaps = {
     sentinel: {
       title: 'Satélite Sentinel-2 (2025)',
@@ -306,6 +311,12 @@
         });
       },
     });
+    if (category) {
+      legendasPorCamada.set(group, layer => {
+        const valor = String(layer.feature.properties?.[category] ?? '').trim();
+        return valor ? [valor, color(layer.feature) || config.cor || base.color] : null;
+      });
+    }
     setupFilters(input, group);
     return group;
   }
@@ -399,27 +410,50 @@
     return layers.get(id);
   }
 
-  function updateBounds() {
-    fullBounds = L.latLngBounds([]);
-    const legend = document.getElementById('geo-legend');
+  function itensLegenda(recorte = null) {
     const labels = [];
     for (const input of options) {
       const id = input.dataset.layer;
       const layer = mapLayers[id];
       if (!layer || !map.hasLayer(layer)) continue;
-      if (layer.getBounds().isValid()) fullBounds.extend(layer.getBounds());
+      const limites = layer.getBounds();
+      if (recorte && (!limites.isValid() || !recorte.intersects(limites))) continue;
       const key = element('i', 'legend-' + input.dataset.tipo);
       const baseColor = Object.hasOwn(defaults, id) ? defaults[id].color : '#175cd3';
       const style = JSON.parse(input.dataset.estilo);
-      const rules = Object.entries(style.cores);
+      const classificar = legendasPorCamada.get(layer);
+      const classes = new Map();
+      if (classificar) layer.eachLayer(item => {
+        if (recorte) {
+          const ponto = item.getLatLng?.();
+          const caixa = ponto ? null : item.getBounds();
+          if (ponto ? !recorte.contains(ponto) : !caixa.isValid() || !recorte.intersects(caixa)) return;
+        }
+        const categoria = classificar(item);
+        if (categoria) classes.set(...categoria);
+      });
+      const rules = [...classes].sort(([a], [b]) => a.localeCompare(b, 'pt-BR', {numeric: true}));
       key.style.setProperty('--legend-color', style.cor || rules[0]?.[1] || baseColor);
       const label = element('span');
-      if (rules.length) label.title = rules.map(([value, color]) => `${value}: ${color}`).join('\n');
+      if (rules.length) {
+        label.title = rules.slice(0, 16).map(([value, color]) => `${value}: ${color}`).join('\n');
+        label.dataset.categorias = JSON.stringify(rules);
+      }
       label.append(key, document.createTextNode(input.dataset.nome));
       labels.push(label);
     }
-    legend.replaceChildren(...labels);
-    legend.hidden = !labels.length;
+    return labels;
+  }
+
+  function updateBounds() {
+    fullBounds = L.latLngBounds([]);
+    for (const layer of Object.values(mapLayers)) {
+      const bounds = layer.getBounds();
+      if (map.hasLayer(layer) && bounds.isValid()) fullBounds.extend(bounds);
+    }
+    const legend = document.getElementById('geo-legend');
+    legend.replaceChildren(...itensLegenda());
+    legend.hidden = !legend.childElementCount;
   }
 
   const mapLayers = Object.create(null);
@@ -449,6 +483,7 @@
   options.forEach(input => input.addEventListener('change', () => {
     toggleLayer(input).catch(error => reportLayerError(input, error));
   }));
+  window.GeoVSATTImpressao.create(map, baseSelect, measure, () => activeBasemap?.isLoading(), options, toggleLayer, itensLegenda);
   document.getElementById('geo-fit').addEventListener('click', () => {
     if (fullBounds?.isValid()) map.fitBounds(fullBounds, {padding: [24, 24]});
   });

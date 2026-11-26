@@ -6,7 +6,9 @@ import math
 from pathlib import Path
 import re
 
-from shapely.geometry import Point, shape
+from shapely import make_valid
+from shapely.geometry import Point, Polygon, shape
+from shapely.ops import unary_union
 from shapely.prepared import prep
 
 from app_core import db as db_core
@@ -134,6 +136,30 @@ def pode_ver_camada(camada, usuario):
     return catalogo_core.pode_ver(camada, usuario)
 
 
+def pode_exportar_camada(camada, usuario):
+    return (camada["disponivel"] and pode_ver_camada(camada, usuario)
+            and (permissoes.permite(usuario, "tecnica")
+                 or usuario["id_usuario"] in camada["config"]["usuarios_exportacao"]))
+
+
+def dados_nativos(target, base_dir, codigo, usuario):
+    if codigo == "localidades":
+        return localidades(target, base_dir, usuario=usuario)
+    if codigo == "quarteiroes":
+        return quarteiroes(target, base_dir, incluir_rg=setores.pode_entrar(usuario, "endemias"), usuario=usuario)
+    if codigo == "esporotricose":
+        if esporotricose_localizacao_exata(usuario):
+            return esporotricose_animal_localizada(target)
+        return esporotricose_animal(target)
+    if codigo == "ovitrampas":
+        return ovitrampas(target)
+    if codigo == "pontos_estrategicos":
+        return pontos_estrategicos(target)
+    if codigo == "acoes_atendimentos":
+        return acoes_atendimentos(target)
+    return logradouros(base_dir)
+
+
 def catalogo(target, usuario):
     gerencia = permissoes.permite(usuario, "tecnica")
     cadastradas = catalogo_core.listar(target, BASES)
@@ -147,6 +173,7 @@ def catalogo(target, usuario):
            if camada["id"] == "esporotricose" and not esporotricose_localizacao_exata(usuario) else {})
         | {"estilo": {key: camada["config"][key] for key in
                       ("cor", "atributo_cor", "cores", "rotulo", *catalogo_core.ESTILO_PADRAO)}}
+        | {"pode_exportar": pode_exportar_camada(camada, usuario)}
         | ({"tipo": fontes[FONTES_TERRITORIAIS[camada["id"]]]["tipo"]}
            if FONTES_TERRITORIAIS.get(camada["id"]) in fontes else
            {"tipo": "ponto"} if camada["id"] == "localidades" else {})
@@ -321,6 +348,64 @@ def localidades(db_path, base_dir, *, usuario=None):
             "geometry": {"type": "Point", "coordinates": [x, y]},
         })
     return {"type": "FeatureCollection", "features": features, "metadata": {"camada": "localidades", "derivada": True}}
+
+
+def estimar_populacao(db_path, base_dir, pontos, *, usuario, incluir_condominios=True):
+    if not isinstance(pontos, list) or not 3 <= len(pontos) <= 120:
+        raise ValueError("Desenhe uma área com 3 a 120 vértices.")
+    for coordenada in pontos:
+        if (not isinstance(coordenada, list) or len(coordenada) != 2
+                or any(type(valor) not in (float, int) for valor in coordenada)
+                or not (-180 <= coordenada[0] <= 180 and -90 <= coordenada[1] <= 90)):
+            raise ValueError("A área contém uma coordenada inválida.")
+    selecao = Polygon(pontos)
+    if not selecao.is_valid or selecao.area <= 0:
+        raise ValueError("Desenhe uma área sem cruzamentos e com pelo menos três vértices distintos.")
+    recorte = prep(selecao)
+    dados = quarteiroes(db_path, base_dir, usuario=usuario, incluir_rg=False)
+    blocos = {}
+    for indice, feature in enumerate(dados["features"]):
+        geometria = feature.get("geometry")
+        if not geometria or geometria["type"] not in {"Polygon", "MultiPolygon"}:
+            continue
+        props = feature["properties"]
+        chave = props["chave"] or indice
+        geom = shape(geometria)
+        if geom.is_empty:
+            continue
+        blocos.setdefault(chave, []).append(geom if geom.is_valid else make_valid(geom))
+
+    cadastrados = rg_core.resumo_mapa(db_path, base_dir)["quarteiroes"]
+    com_cadastro = sem_cadastro = parciais = 0
+    residencias = 0.0
+    campo = "residencias_reais" if incluir_condominios else "residencias_sem_condominio"
+    for chave, formas in blocos.items():
+        if not any(recorte.intersects(forma) for forma in formas):
+            continue
+        bloco = formas[0] if len(formas) == 1 else unary_union(formas)
+        area = selecao.intersection(bloco).area
+        if area <= 0:
+            continue
+        cadastro = cadastrados.get(chave, {})
+        if not cadastro.get("imoveis"):
+            sem_cadastro += 1
+            continue
+        com_cadastro += 1
+        proporcao = min(1, area / bloco.area)
+        parciais += proporcao < .999999
+        residencias += proporcao * cadastro[campo]
+
+    media = rg_core.MEDIA_PESSOAS_POR_RESIDENCIA
+    return {
+        "populacao_estimada": round(residencias * media) if com_cadastro else None,
+        "residencias_equivalentes": round(residencias, 2) if com_cadastro else None,
+        "quarteiroes_com_cadastro": com_cadastro,
+        "quarteiroes_sem_cadastro": sem_cadastro,
+        "quarteiroes_parciais": parciais,
+        "media_pessoas_por_residencia": media,
+        "fonte_populacao": rg_core.FONTE_POPULACAO,
+        "origem_malha": dados["metadata"]["origem"],
+    }
 
 
 def logradouros(base_dir):

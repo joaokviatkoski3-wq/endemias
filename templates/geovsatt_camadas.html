@@ -128,6 +128,17 @@
             </div>
           </fieldset>
           <fieldset>
+            <legend>Exportação da camada</legend>
+            <label>Contas autorizadas a baixar CSV, GeoJSON e KML
+              <select name="usuarios_exportacao" multiple size="5" aria-describedby="gc-exportacao-dica">
+                {% for conta in contas %}
+                <option value="{{ conta.id_usuario }}" {{ 'selected' if conta.id_usuario in config.usuarios_exportacao }}>{{ conta.nome }} ({{ conta.usuario }}){{ ' — inativa' if not conta.ativo else '' }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <p id="gc-exportacao-dica" class="gc-note">Use Ctrl para selecionar várias contas. Cada pessoa também precisa ter acesso à camada. O superadmin já pode exportar as camadas que administra.</p>
+          </fieldset>
+          <fieldset>
             <legend>Exibição no mapa</legend>
             <div class="gc-grid">
               <label>Cor padrão <input name="cor" maxlength="7" placeholder="#008c30" value="{{ config.cor }}"></label>

@@ -6,6 +6,9 @@ from app_core.version import APP_VERSION
 
 
 RESUMOS = {
+    "2.20.0": [
+        "O GeoVSATT ganhou composição de mapas para impressão, população por área e exportação de camadas autorizadas.",
+    ],
     "2.19.0": [
         "O GeoVSATT ganhou filtros por camada, sugestões de endereço do RG e a opção Esri World Imagery.",
     ],
