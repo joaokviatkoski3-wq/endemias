@@ -6,9 +6,6 @@ from app_core.version import APP_VERSION
 
 
 RESUMOS = {
-    "2.17.0": [
-        "No portal GeoVSATT, busque endereços do RG e consulte CEPs.",
-    ],
     "2.16.0": [
         "O portal VSATT agora apresenta o acesso ao novo GeoVSATT.",
         "Endemias, Ambiental e GeoVSATT passam a mostrar avisos de boas-vindas e novidades.",

@@ -22,15 +22,13 @@
         <span><strong>GeoVSATT</strong><small>Vigilância em Saúde</small></span>
       </a>
       <form id="geo-search" class="geo-search" role="search">
-        <label class="sr-only" for="geo-search-input">Buscar endereço, CEP, localidade ou quarteirão</label>
+        <label class="sr-only" for="geo-search-input">Buscar localidade ou quarteirão</label>
         <img src="/static/icons/busca.svg" alt="">
-        <input id="geo-search-input" name="q" type="search" autocomplete="off" enterkeyhint="search"
-               maxlength="180" placeholder="Endereço, CEP ou quarteirão" aria-controls="geo-search-results">
+        <input id="geo-search-input" name="q" type="search" autocomplete="off" placeholder="Buscar localidade ou quarteirão...">
         <button type="submit">Buscar</button>
         <div id="geo-search-results" class="geo-search-results" hidden></div>
       </form>
       <nav class="geo-header-actions" aria-label="Conta e navegação">
-        {% if catalogo.pode_configurar %}<a href="{{ url_for('geovsatt.admin_catalogo') }}">Gerenciar camadas</a>{% endif %}
         <a href="{{ PORTAL_VSATT_URL or '/' }}">Portal VSATT</a>
         <span>{{ usuario_atual.nome.split()[0] }}</span>
         <form action="/logout" method="post">
@@ -40,15 +38,13 @@
       </nav>
     </header>
 
-    <aside id="geo-sidebar" class="geo-sidebar" aria-hidden="true" inert>
+    <aside id="geo-sidebar" class="geo-sidebar" aria-hidden="true">
       <div class="geo-sidebar-head">
         <div><span>GeoVSATT</span><strong>Camadas do mapa</strong></div>
         <button id="geo-menu-close" class="geo-icon-button" type="button" aria-label="Fechar menu"><img src="/static/icons/fechar.svg" alt=""></button>
       </div>
       <div class="geo-sidebar-scroll">
-        {% if catalogo.pode_configurar %}
-        <a class="geo-admin-note" href="{{ url_for('geovsatt.admin_catalogo') }}"><strong>Gerenciar camadas</strong><span>Importar GeoJSON e publicar novas versões</span></a>
-        {% endif %}
+        <p class="geo-sidebar-intro">Escolha as camadas que deseja visualizar.</p>
         {% for grupo in catalogo.camadas|groupby('grupo') %}
         <section class="geo-layer-group">
           <h2>{{ grupo.grouper }}</h2>
@@ -71,6 +67,9 @@
           <div class="geo-layer-row is-pending"><span class="geo-layer-symbol geo-layer-symbol--raster"></span><span><strong>Ortofotos</strong><small>Versões e metadados serão adicionados depois.</small></span><em>Futuro</em></div>
         </section>
       </div>
+      {% if catalogo.pode_configurar %}
+      <a class="geo-admin-note" href="{{ url_for('geovsatt.admin_catalogo') }}"><strong>Gerenciar camadas</strong><span>Importações, versões, acesso e simbologia</span></a>
+      {% endif %}
     </aside>
     <button id="geo-sidebar-backdrop" class="geo-sidebar-backdrop" type="button" aria-label="Fechar menu" hidden></button>
 
@@ -83,22 +82,14 @@
       <div id="geo-status" class="geo-status" role="status">Carregando camadas territoriais...</div>
       <div class="geo-tools" aria-label="Ferramentas do mapa">
         <button id="geo-fit" type="button" title="Mostrar todo o município" aria-label="Mostrar todo o município">⌂</button>
-        <button type="button" data-medida="distancia" aria-label="Medir distância" aria-pressed="false" title="Medir distância">↔</button>
-        <button type="button" data-medida="area" aria-label="Medir área" aria-pressed="false" title="Medir área">▱</button>
+        <button type="button" disabled title="Medição de distâncias no próximo incremento">↔</button>
+        <button type="button" disabled title="Medição de áreas no próximo incremento">▱</button>
+        <button type="button" disabled title="Impressão personalizada no próximo incremento"><img src="/static/icons/imprimir.svg" alt=""></button>
       </div>
-      <section id="geo-medicao" class="geo-medicao" aria-label="Medição" hidden>
-        <strong id="geo-medicao-titulo"></strong>
-        <p id="geo-medicao-resultado" role="status"></p>
-        <div>
-          <button id="geo-medicao-desfazer" type="button">Desfazer ponto</button>
-          <button id="geo-medicao-concluir" type="button">Concluir</button>
-          <button id="geo-medicao-limpar" type="button">Limpar</button>
-        </div>
-      </section>
       <div id="geo-legend" class="geo-legend" aria-label="Legenda" hidden></div>
     </main>
 
-    <aside id="geo-detail" class="geo-detail" aria-hidden="true" aria-label="Detalhes territoriais" inert>
+    <aside id="geo-detail" class="geo-detail" aria-hidden="true" aria-label="Detalhes territoriais">
       <div class="geo-detail-head">
         <div><span>Registro Geográfico</span><h2 id="geo-detail-title">Detalhes do quarteirão</h2></div>
         <button id="geo-detail-close" class="geo-icon-button" type="button" aria-label="Fechar detalhes"><img src="/static/icons/fechar.svg" alt=""></button>
@@ -110,8 +101,6 @@
   {% include "_release_popup.html" %}
   <script nonce="{{ csp_nonce() }}" src="/static/vendor/leaflet/leaflet.min.js?v={{ APP_VERSION }}"></script>
   <script nonce="{{ csp_nonce() }}" src="/static/js/release_popup.js?v={{ APP_VERSION }}"></script>
-  <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt_rotulos.js?v={{ APP_VERSION }}"></script>
-  <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt_medicao.js?v={{ APP_VERSION }}"></script>
   <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt.js?v={{ APP_VERSION }}"></script>
 </body>
 </html>

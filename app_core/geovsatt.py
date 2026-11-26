@@ -2,10 +2,8 @@
 
 import json
 from pathlib import Path
-import re
 
 from app_core import db as db_core
-from app_core import geovsatt_busca as busca_core
 from app_core import geovsatt_catalogo as catalogo_core
 from app_core import permissoes
 from app_core import registro_geografico as rg_core
@@ -207,19 +205,14 @@ def buscar(db_path, base_dir, termo, permitidas, *, incluir_rg=False, limite=30)
     termo = str(termo or "").strip()
     if not termo:
         return []
-    if len(termo) > 180:
-        raise ValueError("A busca deve ter no máximo 180 caracteres.")
-    normalizado = rg_core._norm(termo)
-    bloco_explicito = re.fullmatch(r"(?:quarteirao|q\.?)\s+([a-z0-9]+)", normalizado)
-    if incluir_rg and "quarteiroes" in permitidas and not bloco_explicito:
-        enderecos = busca_core.buscar_enderecos(db_path, termo, limite)
-        if enderecos:
-            return enderecos
+    if len(termo) > 100:
+        raise ValueError("A busca deve ter no máximo 100 caracteres.")
+    normalizado = termo.casefold()
     itens = []
     pontos = localidades(db_path, base_dir)["features"] if "localidades" in permitidas else []
     for feature in pontos:
         props = feature["properties"]
-        if normalizado in rg_core._norm(props["nome"]):
+        if normalizado in props["nome"].casefold():
             itens.append({"tipo": "localidade", "titulo": props["nome"], "subtitulo": f"{props['quarteiroes']} quarteirões", "id_localidade": props["id_localidade"]})
         if len(itens) == limite:
             return itens
@@ -229,8 +222,7 @@ def buscar(db_path, base_dir, termo, permitidas, *, incluir_rg=False, limite=30)
         nome = item["localidade"]
         numero = item["quarteirao"]
         texto = f"{nome} {numero}"
-        if (bloco_explicito and rg_core._quarteirao_display(bloco_explicito[1]) == numero
-                or not bloco_explicito and normalizado in rg_core._norm(texto)):
+        if normalizado in texto.casefold():
             itens.append({
                 "tipo": "quarteirao",
                 "titulo": f"Quarteirão {numero}",

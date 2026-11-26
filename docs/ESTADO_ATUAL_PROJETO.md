@@ -5,13 +5,12 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.16.0**, release `4c9ab6b`, ativa em 26/11/2026. O relatório de instalação
-  confirmou as entradas existentes e a origem do GeoVSATT na porta 5001.
-  O mapa de bloqueio
+- **2.15.2**, release `de21b05`, ativa em 26/11/2026. O instalador confirmou
+  as entradas e a preservação das 103 tabelas anteriores. O mapa de bloqueio
   imprime em A4 paisagem, com um brasão, raio de 150 m, nomes sobre o traçado
   das vias e etiquetas ampliadas de quarteirão.
-- O portal `vsatt.com.br` apresenta Endemias, Ambiental e GeoVSATT. O Tunnel
-  encaminha para Waitress em
+- O portal `vsatt.com.br` encaminha para `endemias.vsatt.com.br` e
+  `ambiental.vsatt.com.br`. O Tunnel encaminha para Waitress em
   `127.0.0.1:5001`. O acesso local usa as portas 5000 (Endemias) e
   5004 (Ambiental). A tarefa `Endemias - Servidor` inicia o servidor Windows.
 - Contas comuns entram nos setores autorizados. Admin e superadmin acessam
@@ -69,11 +68,10 @@ regras de trabalho e isolamento de testes.
 
 ## Projetos futuros
 
-- **GeoVSATT** (`geo.vsatt.com.br`). A fundação está instalada na versão
-  `2.16.0`, com login validado na origem. A candidata `2.17.0` acrescenta
-  busca de endereço no RG, consulta de CEP, etiquetas por zoom e medições.
-  O mapa tem quarteirões, localidades derivadas, logradouros e detalhe do RG.
-  O superadmin já pode
+- **GeoVSATT** (`geo.vsatt.com.br`). A fundação executável começou na versão
+  candidata `2.16.0`, ainda sem implantação pública: terceiro domínio lógico,
+  login, entrada no portal, mapa próprio sem imagem-base, menu, busca, quarteirões,
+  localidades derivadas, logradouros e detalhe do RG. O superadmin já pode
   importar vetores GeoJSON, publicar ou restaurar versões, editar metadados e
   configurar permissões, rótulos e cores por atributo. Consulte
   [a continuidade do GeoVSATT](GEOVSATT_IMPLEMENTACAO.md).

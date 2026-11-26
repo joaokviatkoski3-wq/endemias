@@ -31,25 +31,18 @@
       <p role="{{ 'alert' if categoria == 'erro' else 'status' }}" class="gc-aviso gc-aviso-{{ categoria }}">{{ mensagem }}</p>
     {% endfor %}
     {% if not camada %}
-      <nav class="gc-acoes gc-atalhos" aria-label="Atalhos de importação">
-        <a class="gc-primary" href="#nova-camada">Nova camada GeoJSON</a>
-        <a href="#catalogo">Atualizar camada existente</a>
-      </nav>
-      <section id="catalogo" class="gc-card">
+      <section class="gc-card">
         <h2>Catálogo</h2>
         <ul class="gc-catalogo">
           {% for item in camadas %}
           <li>
             <a href="{{ url_for('geovsatt.admin_camada', codigo=item.id) }}">{{ item.nome }}</a>
             <span>{{ item.grupo }} · {{ 'Fonte do sistema' if item.origem == 'sistema' else ('Versão ' ~ item.id_versao if item.id_versao else 'Sem publicação') }}</span>
-            {% if item.origem == 'importacao' %}
-            <a href="{{ url_for('geovsatt.admin_camada', codigo=item.id, _anchor='importar-versao') }}">Importar versão de {{ item.nome }}</a>
-            {% endif %}
           </li>
           {% endfor %}
         </ul>
       </section>
-      <section id="nova-camada" class="gc-card">
+      <section class="gc-card">
         <h2>Nova camada</h2>
         <form method="post" action="{{ url_for('geovsatt.admin_criar') }}">
           {{ token() }}
@@ -60,26 +53,13 @@
             <label>Descrição <textarea name="descricao" maxlength="1000" rows="2"></textarea></label>
           </div>
           <p class="gc-note">Camadas novas ficam disponíveis apenas para o superadmin até a concessão de acesso.</p>
-          <button class="gc-primary" type="submit">Continuar para importar</button>
+          <button class="gc-primary" type="submit">Criar camada</button>
         </form>
       </section>
     {% else %}
       {% set config = camada.config %}
       <p class="gc-note">{{ camada.id }} · {{ 'Fonte do sistema' if camada.origem == 'sistema' else ('Versão ' ~ camada.id_versao if camada.id_versao else 'Sem publicação') }}</p>
-      {% if camada.origem == 'importacao' %}
-      <nav class="gc-acoes gc-atalhos" aria-label="Atalhos desta camada">
-        <a class="gc-primary" href="#importar-versao">Importar GeoJSON</a>
-        <a href="#versoes">Histórico de versões</a>
-        <a href="#configuracao">Permissões e exibição</a>
-      </nav>
-      {% elif camada.id == 'quarteiroes' %}
-      <p class="gc-note">Atualize a malha de quarteirões em Endemias, na página Registro Geográfico. O GeoVSATT usa a malha ativa do RG.</p>
-      {% elif camada.id == 'localidades' %}
-      <p class="gc-note">Os pontos de referência são derivados da malha ativa de quarteirões.</p>
-      {% else %}
-      <p class="gc-note">Esta camada usa os eixos de vias institucionais. Para exibir outro arquivo, crie uma camada GeoJSON no catálogo.</p>
-      {% endif %}
-      <section id="configuracao" class="gc-card">
+      <section class="gc-card">
         <h2>Configuração</h2>
         <form method="post">
           {{ token() }}
@@ -126,7 +106,7 @@
         </form>
       </section>
       {% if camada.origem == 'importacao' %}
-      <section id="importar-versao" class="gc-card">
+      <section class="gc-card">
         <h2>Importar versão</h2>
         <p class="gc-note">Exporte do QGIS como GeoJSON em UTF-8, WGS 84 (EPSG:4326), com até 8 MiB. O arquivo entra como rascunho.</p>
         <form method="post" enctype="multipart/form-data" action="{{ url_for('geovsatt.admin_importar', codigo=camada.id) }}">
@@ -136,7 +116,7 @@
           <button class="gc-primary" type="submit">Importar rascunho</button>
         </form>
       </section>
-      <section id="versoes" class="gc-card">
+      <section class="gc-card">
         <h2>Histórico de versões</h2>
         {% for item in versoes %}
         <details class="gc-versao" {{ 'open' if loop.first }}>
