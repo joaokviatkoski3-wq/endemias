@@ -7,6 +7,17 @@
   <label>Observações <textarea name="observacoes" rows="2" maxlength="2000">{{ dados.get('observacoes', '') }}</textarea></label>
 </div>
 {% endmacro %}
+{% macro faixa_cor(faixa={}) %}
+<div class="gc-faixa-cor">
+  <label>De (inclusive) <input name="faixa_de" inputmode="decimal" maxlength="40" placeholder="Sem mínimo"
+        value="{{ faixa.de if faixa.de is defined and faixa.de is not none else '' }}"></label>
+  <label>Até (exclusive) <input name="faixa_ate" inputmode="decimal" maxlength="40" placeholder="Sem máximo"
+        value="{{ faixa.ate if faixa.ate is defined and faixa.ate is not none else '' }}"></label>
+  <label>Cor da faixa <input name="faixa_cor" type="color" value="{{ faixa.cor | default('#157157') }}"></label>
+  <label>Nome na legenda <input name="faixa_legenda" maxlength="80" placeholder="Automático" value="{{ faixa.legenda | default('') }}"></label>
+  <button type="button" data-remover-faixa>Remover faixa</button>
+</div>
+{% endmacro %}
 {% set titulo = {'nova': 'Nova camada GeoJSON', 'atualizar': 'Atualizar camada existente',
                  'orto_nova': 'Nova ortofoto MBTiles',
                  'orto_arquivo': 'Importar ortofoto de ' ~ (camada.nome if camada else ''),
@@ -116,7 +127,8 @@
         {% elif fonte_territorial %}
           <p class="gc-note">Para trocar a geometria, publique uma versão na <a href="{{ url_for('geovsatt.admin_camada', codigo=fonte_territorial, _anchor='versoes') }}">fonte cartográfica</a>.</p>
         {% endif %}
-        <form method="post" id="gc-config" data-feicoes="{{ url_for('geovsatt.api_camada', codigo=camada.id) }}">
+        <form method="post" id="gc-config" data-feicoes="{{ url_for('geovsatt.api_camada', codigo=camada.id) }}"
+              data-camada="{{ camada.id }}" data-tipo="{{ camada.tipo }}">
           {{ token() }}
           <div class="gc-grid">
             <label>Nome <input name="nome" required maxlength="100" value="{{ camada.nome }}"></label>
@@ -167,14 +179,29 @@
             <legend>Exibição no mapa</legend>
             <div class="gc-grid">
               <label>Cor padrão <input name="cor" maxlength="7" placeholder="#008c30" value="{{ config.cor }}"></label>
-              <label>Campo da etiqueta <input name="rotulo" list="gc-atributos" maxlength="120" placeholder="Ex.: nome" value="{{ config.rotulo }}"></label>
+              <label>Classificação de cores <select name="modo_cor">
+                {% for modo_cor, nome in [('', 'Automática'), ('unico', 'Cor única'), ('categorias', 'Por categoria'), ('faixas', 'Por faixas numéricas')] %}
+                  <option value="{{ modo_cor }}" {{ 'selected' if config.modo_cor == modo_cor }}>{{ nome }}</option>
+                {% endfor %}
+              </select></label>
               <label>Campo para definir cores <input name="atributo_cor" list="gc-atributos" maxlength="120" placeholder="Ex.: Localidade_nome" value="{{ config.atributo_cor }}"></label>
-              <label>Cores por valor do atributo <textarea name="regras_cor" rows="4" maxlength="5000" placeholder="Valor = #008c30">{% for valor, cor in config.cores.items() %}{{ valor }} = {{ cor }}{{ '\n' if not loop.last }}{% endfor %}</textarea></label>
               <datalist id="gc-atributos"></datalist>
-              <div class="gc-wide gc-color-editor" hidden>
-                <label>Valor do campo <select id="gc-valor-cor" aria-label="Valor do campo"></select></label>
-                <label>Cor <input type="color" id="gc-paleta" value="#008c30"></label>
-                <button type="button" id="gc-aplicar-cor">Aplicar à categoria</button>
+              <div id="gc-categorias" class="gc-wide" {% if config.modo_cor in ('unico', 'faixas') %}hidden{% endif %}>
+                <label>Cores por valor do atributo <textarea name="regras_cor" rows="4" maxlength="5000" placeholder="Valor = #008c30">{% for valor, cor in config.cores.items() %}{{ valor }} = {{ cor }}{{ '\n' if not loop.last }}{% endfor %}</textarea></label>
+                <div class="gc-color-editor" hidden>
+                  <label>Categoria <select id="gc-valor-cor"></select></label>
+                  <label>Cor da categoria <input type="color" id="gc-paleta" value="#008c30"></label>
+                  <button type="button" id="gc-aplicar-cor">Aplicar à categoria</button>
+                </div>
+              </div>
+              <div id="gc-faixas" class="gc-wide" {% if config.modo_cor != 'faixas' %}hidden{% endif %}>
+                <p class="gc-note">O limite inicial entra na faixa e o final fica na próxima. Deixe uma ponta vazia para estender a faixa.</p>
+                <div id="gc-faixas-lista">
+                  {% for faixa in config.faixas_cor %}{{ faixa_cor(faixa) }}{% endfor %}
+                </div>
+                <template id="gc-faixa-modelo">{{ faixa_cor() }}</template>
+                <button type="button" id="gc-adicionar-faixa">Adicionar faixa</button>
+                <p id="gc-faixas-estado" class="gc-note" role="status"></p>
               </div>
               <label>Cor de preenchimento <input name="cor_preenchimento" pattern="#[0-9A-Fa-f]{6}" placeholder="Automática" value="{{ config.cor_preenchimento }}"></label>
               <label>Traçado <select name="linha">
@@ -187,15 +214,26 @@
                   <option value="{{ valor }}" {{ 'selected' if config.ponto == valor }}>{{ nome }}</option>
                 {% endfor %}
               </select></label>
+              <label>Campo da etiqueta <input name="rotulo" list="gc-atributos" maxlength="120" placeholder="Ex.: nome" value="{{ config.rotulo }}"></label>
+              <label>Campo complementar da etiqueta <input name="rotulo_complemento" list="gc-atributos" maxlength="120" value="{{ config.rotulo_complemento }}"></label>
+              <label>Prefixo da etiqueta <input name="rotulo_prefixo" maxlength="40" value="{{ config.rotulo_prefixo }}"></label>
+              <label>Sufixo da etiqueta <input name="rotulo_sufixo" maxlength="40" value="{{ config.rotulo_sufixo }}"></label>
               <label>Posição da etiqueta <select name="rotulo_modo">
                 {% for valor, nome in [('', 'Automática'), ('oculto', 'Oculta'), ('centro', 'Centro'), ('linha', 'Ao longo da linha')] %}
                   <option value="{{ valor }}" {{ 'selected' if config.rotulo_modo == valor }}>{{ nome }}</option>
                 {% endfor %}
               </select></label>
               <label>Cor da etiqueta <input name="rotulo_cor" pattern="#[0-9A-Fa-f]{6}" placeholder="Automática" value="{{ config.rotulo_cor }}"></label>
-              {% for campo, texto, minimo, maximo, passo in [('largura', 'Espessura do traço (px)', 0, 12, 0.1), ('opacidade', 'Opacidade do traço', 0, 1, 0.05), ('opacidade_preenchimento', 'Opacidade do preenchimento', 0, 1, 0.05), ('raio', 'Tamanho do símbolo (px)', 2, 24, 1), ('rotulo_zoom', 'Zoom mínimo das etiquetas', 10, 22, 1), ('rotulo_tamanho', 'Tamanho da etiqueta (px)', 8, 24, 1)] %}
+              <label>Cor do contorno da etiqueta <input name="rotulo_halo_cor" pattern="#[0-9A-Fa-f]{6}" placeholder="Branco" value="{{ config.rotulo_halo_cor }}"></label>
+              {% for campo, texto, minimo, maximo, passo in [('largura', 'Espessura do traço (px)', 0, 12, 0.1), ('opacidade', 'Opacidade do traço', 0, 1, 0.05), ('opacidade_preenchimento', 'Opacidade do preenchimento', 0, 1, 0.05), ('raio', 'Tamanho do símbolo (px)', 2, 24, 1), ('rotulo_zoom', 'Zoom mínimo das etiquetas', 10, 22, 1), ('rotulo_zoom_max', 'Zoom máximo das etiquetas', 10, 22, 1), ('rotulo_tamanho', 'Tamanho da etiqueta (px)', 8, 24, 1), ('rotulo_halo', 'Espessura do contorno da etiqueta (px)', 0, 6, 0.5)] %}
                 <label>{{ texto }} <input type="number" name="{{ campo }}" min="{{ minimo }}" max="{{ maximo }}" step="{{ passo }}" placeholder="Automático" value="{{ config[campo] if config[campo] is not none else '' }}"></label>
               {% endfor %}
+              <section class="gc-wide gc-previa-estilo" aria-labelledby="gc-previa-titulo">
+                <h3 id="gc-previa-titulo">Prévia do estilo</h3>
+                <label id="gc-amostra-campo" hidden>Valor de exemplo <select id="gc-amostra-valor"></select></label>
+                <div id="gc-amostra-simbolo"></div>
+                <ul id="gc-previa-legenda" class="gc-previa-legenda" aria-label="Prévia da legenda"></ul>
+              </section>
             </div>
             <label class="gc-checkbox"><input type="checkbox" name="visivel_inicial" value="1" {{ 'checked' if config.visivel_inicial }}>Ligar camada automaticamente ao abrir o mapa</label>
           </fieldset>
@@ -253,6 +291,9 @@
       {% endif %}
     {% endif %}
   </main>
-  {% if camada and not modo and not camada_mapa and camada.origem != 'ortofoto' %}<script nonce="{{ csp_nonce() }}" src="{{ url_for('static', filename='js/geovsatt_camadas.js', v=APP_VERSION) }}"></script>{% endif %}
+  {% if camada and not modo and not camada_mapa and camada.origem != 'ortofoto' %}
+  <script nonce="{{ csp_nonce() }}" src="{{ url_for('static', filename='js/geovsatt_estilos.js', v=APP_VERSION) }}"></script>
+  <script nonce="{{ csp_nonce() }}" src="{{ url_for('static', filename='js/geovsatt_camadas.js', v=APP_VERSION) }}"></script>
+  {% endif %}
 </body>
 </html>

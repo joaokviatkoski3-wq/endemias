@@ -253,6 +253,61 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(comum.get(download).status_code, 404)
         self.assertTrue(comum.get(salva).json["base_indisponivel"])
 
+    def test_simbologia_por_faixa_e_etiqueta_composta_preservam_regras_validas(self):
+        admin = self.client()
+        comum = self.client(uid=2)
+        codigo = "profundidade-ensaio"
+        gestor = f"/geovsatt/admin/camadas/{codigo}"
+        geometria = mapping(box(-49.31, -25.31, -49.30, -25.30))
+        dados = {"type": "FeatureCollection", "features": [
+            {"type": "Feature", "geometry": geometria, "properties": {"nome": "Setor", "profundidade": 10.5}}
+        ]}
+        campos = {"nome": "Profundidade de ensaio", "codigo": codigo, "grupo": "Território", "fonte": "QGIS de ensaio"}
+        self.assertEqual(admin.post("/geovsatt/admin/importar", data=campos | {
+            "geojson": (io.BytesIO(json.dumps(dados).encode()), "profundidade.geojson"),
+        }).status_code, 303)
+        admin.post(gestor + "/versoes/1/publicar")
+        consulta = "/api/geovsatt/catalogo"
+
+        def estilo():
+            return next(camada["estilo"] for camada in admin.get(consulta).json["camadas"] if camada["id"] == codigo)
+
+        self.assertEqual(estilo()["modo_cor"], "")
+        base = campos | {
+            "modo_cor": "faixas", "atributo_cor": "profundidade", "usuarios": ["2"], "cor": "#c0ccdd",
+            "faixa_de": ["10,5", ""], "faixa_ate": ["", "10,5"], "faixa_cor": ["#82223c", "#328B7C"],
+            "faixa_legenda": ["Classe alta", "Classe baixa"], "rotulo": "nome", "rotulo_complemento": "profundidade",
+            "rotulo_prefixo": "Área", "rotulo_sufixo": "m", "rotulo_zoom": "14", "rotulo_zoom_max": "19",
+            "rotulo_halo": "1.5", "rotulo_halo_cor": "#FFEEDD",
+        }
+        salva = admin.post(gestor, data=base, follow_redirects=True)
+        self.assertIn("Configuração salva.", salva.get_data(as_text=True))
+        estilos = estilo()
+        self.assertEqual(estilos["faixas_cor"], [
+            {"de": None, "ate": 10.5, "cor": "#328b7c", "legenda": "Classe baixa"},
+            {"de": 10.5, "ate": None, "cor": "#82223c", "legenda": "Classe alta"},
+        ])
+        self.assertEqual((estilos["rotulo_complemento"], estilos["rotulo_prefixo"], estilos["rotulo_sufixo"]),
+                         ("profundidade", "Área", "m"))
+        self.assertEqual((estilos["rotulo_zoom_max"], estilos["rotulo_halo"], estilos["rotulo_halo_cor"]),
+                         (19, 1.5, "#FFEEDD"))
+        self.assertIn("Prévia do estilo".encode("utf-8"), salva.data)
+        self.assertIn(b'name="faixa_de"', salva.data)
+        self.assertIn(b'geovsatt_estilos.js', comum.get("/geovsatt").data)
+        self.assertEqual(comum.post(gestor, data=base).status_code, 403)
+        for alteracao, mensagem in [
+            ({"faixa_ate": ["", "12"]}, "sobrepor"),
+            ({"faixa_de": ["nan", ""]}, "limites numéricos"),
+            ({"faixa_cor": ["#82223c"]}, "faixas de cor"),
+            ({"rotulo_zoom_max": "12"}, "zoom máximo"),
+        ]:
+            resposta = admin.post(gestor, data=base | alteracao, follow_redirects=True)
+            self.assertIn(mensagem, resposta.get_data(as_text=True))
+            self.assertEqual(estilo(), estilos)
+        admin.post(gestor, data=campos | {"modo_cor": "unico", "cor": "#225566"})
+        self.assertEqual(estilo()["faixas_cor"], [])
+        self.assertEqual(estilo()["modo_cor"], "unico")
+
     def test_estimativa_area_parcial_usa_cadastro_rg_sem_duplicar_blocos(self):
         def poligono(x1, x2, chave=None):
             vertices = [[x1, -25.4], [x2, -25.4], [x2, -25.3], [x1, -25.3]]

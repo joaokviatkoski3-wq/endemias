@@ -4,7 +4,7 @@ Atualizado em 26/11/2026.
 
 ## Estado deste incremento
 
-A versão `2.25.0` reúne as alterações descritas a seguir. Consulte
+A versão `2.26.0` reúne as alterações descritas a seguir. Consulte
 `ESTADO_ATUAL_PROJETO.md` para confirmar qual versão está em produção.
 
 Implementado:
@@ -260,6 +260,21 @@ importação, publicação e edição de metadados geram eventos de auditoria.
 - O arquivo original é preservado na pasta privada de anexos, dentro
   de `geovsatt-ortofotos`. O backup completo deve preservar essa pasta e
   o banco que contém o catálogo. A restauração deve recuperar os dois.
+
+## Simbologia e etiquetas na 2.26.0
+
+- Em **Gerenciar camadas → Exibição no mapa**, escolha entre as cores
+  automáticas, cor única, categorias ou faixas numéricas por campo. As
+  regras antigas continuam disponíveis no modo automático. As categorias
+  oferecem uma paleta inicial e aceitam a troca de cor por valor.
+- Cada faixa tem uma cor e um texto de legenda. O limite inicial é
+  inclusivo e o final é exclusivo. Em `0 a 10` e `10 a 20`, o valor 10
+  recebe a segunda cor. Uma ponta em branco estende o intervalo. Feições
+  sem valor numérico ou fora dos intervalos usam o estilo padrão.
+- As etiquetas aceitam campo complementar, prefixo, sufixo, zoom máximo,
+  cor e espessura de contorno. Permanecem os modos por linha e por centro
+  e a supressão de sobreposições. A prévia usa valores de exemplo da
+  camada e as classes usam as mesmas cores no mapa e na folha.
 
 ## Próximos incrementos
 

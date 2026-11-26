@@ -4,6 +4,14 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.26.0": {
+        "titulo": "Simbologia e etiquetas no GeoVSATT",
+        "mudancas": [
+            "Escolha cor única, categorias ou faixas numéricas no estilo de uma camada.",
+            "Monte a etiqueta com dois campos, prefixo e sufixo, e ajuste os limites de zoom e o contorno.",
+            "Confira uma amostra do símbolo, da etiqueta e da legenda antes de salvar.",
+        ],
+    },
     "2.25.0": {
         "titulo": "Ortofotos no GeoVSATT",
         "mudancas": [

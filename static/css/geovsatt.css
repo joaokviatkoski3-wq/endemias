@@ -62,7 +62,7 @@ button{color:inherit}
 .geo-rg-match{border-color:#b8792d;background:#fff5e5}
 .leaflet-geo-rotulos-pane{z-index:480;pointer-events:none}
 .geo-rotulos{position:absolute;pointer-events:none;overflow:hidden;font-family:inherit}
-.geo-rotulos text{stroke:#fff;stroke-width:3px;stroke-linejoin:round;paint-order:stroke fill}
+.geo-rotulos text{stroke-linejoin:round;paint-order:stroke fill}
 .geo-rotulo-quadra{font-weight:800}
 .geo-rotulo-rua{font-weight:650}
 .geo-layer-filters{margin:0 0 .4rem 1.75rem;font-size:.78rem;color:var(--muted)}

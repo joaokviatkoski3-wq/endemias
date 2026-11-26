@@ -95,6 +95,8 @@ regras de trabalho e isolamento de testes.
   LIRAa, com filtros por período, tipo e localidade, impressão e exportação.
   A candidata 2.25.0 acrescenta ortofotos MBTiles com publicação por versão,
   permissões e uso em composições. O acervo fornecido até aqui é vetorial.
+  A candidata 2.26.0 acrescenta classificação por faixas numéricas, prévia de
+  simbologia e etiquetas compostas configuráveis.
 - **Biblioteca VSATT** (`biblioteca.vsatt.com.br`, nome provisório). Acervo
   interno de referências de Vigilância em Saúde, com documentos, links,
   vídeos e imagens.

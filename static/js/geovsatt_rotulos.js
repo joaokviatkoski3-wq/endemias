@@ -92,13 +92,14 @@
       let quantidade = 0;
       const porGrupo = new Map();
       for (const {layer, nome, bounds, options} of centros) {
-        if (zoom < options.zoom || !map.hasLayer(layer) || !vista.intersects(bounds)) continue;
+        if (zoom < options.zoom || zoom > options.zoomMax || !map.hasLayer(layer) || !vista.intersects(bounds)) continue;
         if ((porGrupo.get(options.group) || 0) >= Math.ceil(maximo / 2)) continue;
         const centro = layer.getLatLng?.() || (layer instanceof L.Polygon ? layer.getCenter() : bounds.getCenter());
         const ponto = map.latLngToContainerPoint(centro);
         if (!aceitar(ponto, nome.length * options.size * .57 + 14, options.size + 8)) continue;
         const texto = svg('text', {x: ponto.x, y: ponto.y, class: 'geo-rotulo-quadra',
           fill: options.color || '#24362b', 'font-size': options.size,
+          stroke: options.haloColor || '#fff', 'stroke-width': options.halo ?? 3,
           'text-anchor': 'middle', 'dominant-baseline': 'central'});
         texto.textContent = nome;
         desenho.append(texto);
@@ -109,7 +110,7 @@
       {
         const porNome = new Map();
         for (const {layer, nome, bounds, options} of eixos) {
-          if (zoom < options.zoom || !map.hasLayer(layer) || !vista.intersects(bounds)) continue;
+          if (zoom < options.zoom || zoom > options.zoomMax || !map.hasLayer(layer) || !vista.intersects(bounds)) continue;
           const trecho = maiorTrecho(map, layer, recorte);
           if (!trecho || trecho.comprimento < nome.length * options.size * .57 + 16) continue;
           const chave = `${options.group}:${nome}`;
@@ -129,7 +130,8 @@
             fill: 'none', stroke: 'none',
           });
           const texto = svg('text', {class: 'geo-rotulo-rua', 'text-anchor': 'middle', dy: -3,
-            fill: options.color || '#24362b', 'font-size': options.size});
+            fill: options.color || '#24362b', 'font-size': options.size,
+            stroke: options.haloColor || '#fff', 'stroke-width': options.halo ?? 3});
           const trilha = svg('textPath', {href: `#${id}`, startOffset: '50%'});
           trilha.textContent = nome;
           texto.append(trilha);

@@ -28,11 +28,16 @@ ESTILOS_LINHA = {"solida": "Contínua", "tracejada": "Tracejada", "pontilhada": 
 ESTILOS_PONTO = {"circulo": "Círculo", "quadrado": "Quadrado", "losango": "Losango", "triangulo": "Triângulo"}
 VALORES_ESTILO = {
     "largura": (0, 12), "opacidade": (0, 1), "opacidade_preenchimento": (0, 1), "raio": (2, 24),
-    "rotulo_zoom": (10, 22), "rotulo_tamanho": (8, 24),
+    "rotulo_zoom": (10, 22), "rotulo_tamanho": (8, 24), "rotulo_zoom_max": (10, 22),
+    "rotulo_halo": (0, 6),
 }
 ESTILO_PADRAO = {chave: None for chave in VALORES_ESTILO} | {
     "cor_preenchimento": "", "rotulo_cor": "", "linha": "", "ponto": "", "rotulo_modo": "",
+    "modo_cor": "", "faixas_cor": (), "rotulo_complemento": "", "rotulo_prefixo": "",
+    "rotulo_sufixo": "", "rotulo_halo_cor": "",
 }
+MAX_FAIXAS = 12
+NUMERO_ESTILO = re.compile(r"[+-]?(?:[0-9]+(?:[.,][0-9]+)?|[.,][0-9]+)(?:[eE][+-]?[0-9]+)?")
 TIPOS = {
     "Point": ("ponto", 0), "MultiPoint": ("ponto", 1),
     "LineString": ("linha", 1), "MultiLineString": ("linha", 2),
@@ -150,6 +155,39 @@ def _metadados(form):
     return campos
 
 
+def _limite_faixa(texto):
+    texto = _texto(texto, 40)
+    if not texto:
+        return None
+    if NUMERO_ESTILO.fullmatch(texto):
+        valor = float(texto.replace(",", "."))
+        if math.isfinite(valor):
+            return valor
+    raise CatalogoErro("Informe limites numéricos válidos para as faixas de cor.")
+
+
+def _faixas_cor(form):
+    colunas = [form.getlist(chave) for chave in ("faixa_de", "faixa_ate", "faixa_cor", "faixa_legenda")]
+    if len({len(coluna) for coluna in colunas}) != 1 or not 1 <= len(colunas[0]) <= MAX_FAIXAS:
+        raise CatalogoErro(f"Informe de 1 a {MAX_FAIXAS} faixas de cor.")
+    faixas = []
+    legendas = set()
+    for de, ate, cor, legenda in zip(*colunas):
+        de, ate = _limite_faixa(de), _limite_faixa(ate)
+        legenda = _texto(legenda, 80)
+        if (de is None and ate is None) or (de is not None and ate is not None and de >= ate) or not COR.fullmatch(cor):
+            raise CatalogoErro("Confira os limites e a cor de cada faixa. O limite inicial deve ser menor que o final.")
+        if legenda and legenda.casefold() in legendas:
+            raise CatalogoErro("Use um texto de legenda diferente em cada faixa.")
+        legendas.add(legenda.casefold())
+        faixas.append({"de": de, "ate": ate, "cor": cor.lower(), "legenda": legenda})
+    faixas.sort(key=lambda faixa: faixa["de"] if faixa["de"] is not None else -math.inf)
+    for anterior, atual in zip(faixas, faixas[1:]):
+        if anterior["ate"] is None or atual["de"] is None or anterior["ate"] > atual["de"]:
+            raise CatalogoErro("As faixas não podem se sobrepor.")
+    return faixas
+
+
 def _config(form):
     niveis = form.getlist("niveis")
     setores = form.getlist("setores")
@@ -163,7 +201,10 @@ def _config(form):
         contas[chave] = sorted({int(uid) for uid in valores})
     cor = _texto(form.get("cor"), 7)
     atributo = _texto(form.get("atributo_cor"), 120)
-    regras = _texto(form.get("regras_cor"), 5000).splitlines()
+    modo_cor = form.get("modo_cor") or ""
+    if modo_cor not in {"", "unico", "categorias", "faixas"} or (modo_cor in {"categorias", "faixas"} and not atributo):
+        raise CatalogoErro("Selecione a classificação e o atributo usado para colorir a camada.")
+    regras = _texto(form.get("regras_cor"), 5000).splitlines() if modo_cor in {"", "categorias"} else []
     if (cor and not COR.fullmatch(cor)) or (regras and not atributo):
         raise CatalogoErro("Informe a cor no formato #008c30 e indique o atributo das regras.")
     cores = {}
@@ -174,7 +215,7 @@ def _config(form):
         if not valor.strip() or not COR.fullmatch(cor_regra.strip()) or valor.strip() in cores:
             raise CatalogoErro("Use uma regra por linha, no formato valor = #008c30, sem repetir valores.")
         cores[valor.strip()] = cor_regra.strip().lower()
-    estilo = {chave: _texto(form.get(chave), 7) for chave in ("cor_preenchimento", "rotulo_cor")}
+    estilo = {chave: _texto(form.get(chave), 7) for chave in ("cor_preenchimento", "rotulo_cor", "rotulo_halo_cor")}
     if any(valor and not COR.fullmatch(valor) for valor in estilo.values()):
         raise CatalogoErro("Use uma cor no formato #008c30.")
     for chave, (minimo, maximo) in VALORES_ESTILO.items():
@@ -186,6 +227,9 @@ def _config(form):
         if valor is not None and not minimo <= valor <= maximo:
             raise CatalogoErro(f"O valor de {chave.replace('_', ' ')} deve ficar entre {minimo} e {maximo}.")
         estilo[chave] = valor
+    if (estilo["rotulo_zoom"] is not None and estilo["rotulo_zoom_max"] is not None
+            and estilo["rotulo_zoom_max"] < estilo["rotulo_zoom"]):
+        raise CatalogoErro("O zoom máximo das etiquetas deve ser maior ou igual ao mínimo.")
     for chave, opcoes in (("linha", ESTILOS_LINHA), ("ponto", ESTILOS_PONTO),
                           ("rotulo_modo", ("oculto", "centro", "linha"))):
         valor = form.get(chave) or ""
@@ -199,6 +243,10 @@ def _config(form):
         "abertura_configurada": True,
         "cor": cor.lower(), "atributo_cor": atributo, "cores": cores,
         "rotulo": _texto(form.get("rotulo"), 120),
+        "modo_cor": modo_cor, "faixas_cor": _faixas_cor(form) if modo_cor == "faixas" else [],
+        "rotulo_complemento": _texto(form.get("rotulo_complemento"), 120),
+        "rotulo_prefixo": _texto(form.get("rotulo_prefixo"), 40),
+        "rotulo_sufixo": _texto(form.get("rotulo_sufixo"), 40),
         **estilo,
     }
 

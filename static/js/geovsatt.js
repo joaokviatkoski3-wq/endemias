@@ -298,33 +298,8 @@
     }
   }
 
-  const defaults = {
-    logradouros: {pane: 'streets', color: '#78857d', weight: 1.4, opacity: .78, label: 'nome'},
-    quarteiroes: {pane: 'blocks', color: '#00752b', fillColor: '#e8f5eb', weight: 1, fillOpacity: .28},
-    localidades: {pane: 'territory', color: '#238070', weight: 1.4, fillOpacity: .12, label: 'nome', labelZoom: 13, categories: 'nome'},
-    'limite-municipal': {pane: 'territory', color: '#364850', weight: 2.5, noFill: true},
-    hidrografia: {pane: 'streets', color: '#1672aa', weight: 2, label: 'NOME', labelColor: '#125783', labelZoom: 15},
-    ferrovia: {pane: 'streets', color: '#54463d', weight: 2, line: 'ferrovia'},
-    'suscetibilidade-inundacao': {color: '#355eb0', categories: 'Classe', colors: {Alta: '#1e4398', Media: '#3f82c9', Baixa: '#9ecbed'}},
-    'suscetibilidade-movimento-massa': {color: '#af5521', categories: 'Classe', colors: {Alta: '#a93a22', Media: '#d07c21', Baixa: '#e9b652'}},
-    predios_publicos: {pane: 'localities', color: '#a03d74', categories: 'tipo', label: 'nome'},
-    ovitrampas: {pane: 'localities', color: '#6b5294', label: 'ovitrampa_id', categories: 'resultado',
-      colors: {Positiva: '#b32e3b', Negativa: '#25866c', 'Sem contagem': '#656e73'}},
-    pontos_estrategicos: {pane: 'localities', color: '#975521', label: 'nome', categories: 'tipo'},
-    acoes_atendimentos: {pane: 'localities', color: '#235786', label: 'rotulo', categories: 'tipo'},
-    esporotricose: {pane: 'imported', color: '#ae412e', label: 'rotulo', categories: 'posicao_cadastrada',
-      colors: {'Dentro do limite municipal': '#ae412e', 'Fora do limite municipal': '#644191', 'Limite municipal indisponível': '#ae412e'}},
-    esporotricose_bloqueios: {pane: 'block-radii', color: '#a74025', weight: 2.5, noFill: true, line: 'tracejada',
-      label: 'rotulo', labelZoom: 18, categories: 'situacao_bloqueio',
-      colors: {Realizado: '#166c62', 'Não realizado': '#ae412e', 'Não necessário': '#52698c', 'Sem informação': '#686474'}},
-    esporotricose_quarteiroes: {pane: 'block-coverage', color: '#834999', fillOpacity: .22, categories: 'cobertura',
-      colors: {Integral: '#834999', Parcial: '#b05e25'}},
-    quarteiroes_trabalhados: {pane: 'block-work', color: '#225483', fillOpacity: .30, categories: 'atividade',
-      colors: {'Mais de um tipo': '#225483'}},
-  };
 
-  const palette = ['#157157', '#365eb3', '#965331', '#713996', '#9a5821', '#237383', '#a33558', '#626d1e', '#345687',
-    '#ba492f', '#0e667e', '#8f3c88', '#455d26', '#526ba0', '#a64751', '#217566', '#856515', '#56496d', '#99653a'];
+  const estilos = window.GeoVSATTEstilos;
   const propertyLabels = {id_quart: 'Quarteirão', Localidade_nome: 'Localidade', id_Q_antig: 'Número anterior',
     codigo_pe: 'Código do ponto', ovitrampa_id: 'Ovitrampa', NOME: 'Nome', Name: 'Nome',
     data_coleta: 'Data de coleta', CdFerrovia: 'Código da ferrovia', TIPO_DRENA: 'Tipo de drenagem',
@@ -372,40 +347,19 @@
     const versaoEditavel = marcarEquipamento && id === 'predios_publicos' && Number.isInteger(data.metadata?.versao);
     const indices = versaoEditavel ? new Map(data.features.map((feature, indice) => [feature, indice])) : null;
     const config = JSON.parse(input.dataset.estilo);
-    const base = {...(Object.hasOwn(defaults, id) ? defaults[id] : {color: '#175cd3'})};
-    if (id === 'quarteiroes_trabalhados') {
-      const cores = data.metadata.tipos.filter(tipo => tipo.cor).map(tipo => [tipo.nome, tipo.cor]);
-      base.colors = {...base.colors, ...Object.fromEntries(cores)};
-    }
+    const base = estilos.padraoDaCamada(id, data.metadata);
     const pane = base.pane || (input.dataset.tipo === 'poligono' ? 'areas' : 'imported');
-    const category = config.atributo_cor || base.categories;
-    const categories = [...new Set(data.features.map(feature => String(feature.properties?.[category] ?? '')).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b, 'pt-BR'));
-    const color = (feature) => {
-      const props = feature.properties || {};
-      const value = Object.hasOwn(props, category) ? String(props[category] ?? '') : '';
-      if (Object.hasOwn(config.cores, value)) return config.cores[value];
-      if (!config.atributo_cor && value) {
-        if (base.colors && Object.hasOwn(base.colors, value)) return base.colors[value];
-        return palette[categories.indexOf(value) % palette.length];
-      }
-      return '';
+    const classificar = estilos.classificador(config, base, data.features);
+    const classes = new WeakMap();
+    const classeDe = feature => {
+      if (!classes.has(feature)) classes.set(feature, classificar(feature.properties));
+      return classes.get(feature);
     };
+    const simboloDaFeicao = feature => estilos.simbolo(config, base, classeDe(feature), estilos.tipoDaGeometria(feature.geometry.type));
     const trace = config.linha || base.line;
     const group = L.geoJSON(data, {
       pane,
-      style(feature) {
-        const cor = color(feature) || config.cor || base.color;
-        if (['Point', 'MultiPoint'].includes(feature.geometry.type)) {
-          return {color: config.cor || '#fff', weight: config.largura ?? 2, opacity: config.opacidade ?? 1,
-            fillColor: config.cor_preenchimento || cor, fillOpacity: config.opacidade_preenchimento ?? 1};
-        }
-        return {color: cor, weight: config.largura ?? base.weight ?? 2, opacity: config.opacidade ?? base.opacity ?? 1,
-          fill: /Polygon$/.test(feature.geometry.type) && (!base.noFill || (config.opacidade_preenchimento ?? 0) > 0),
-          fillColor: color(feature) || config.cor_preenchimento || base.fillColor || cor,
-          fillOpacity: config.opacidade_preenchimento ?? base.fillOpacity ?? .24,
-          dashArray: {tracejada: '7 5', pontilhada: '1 5'}[trace] || null};
-      },
+      style: simboloDaFeicao,
       pointToLayer(feature, latlng) {
         const count = Number(feature.properties?.animais || 0);
         const [shape, symbol] = id === 'predios_publicos' ? publicSymbol(feature.properties?.tipo) : ['circulo', ''];
@@ -413,8 +367,9 @@
         if (point !== 'circulo' || symbol) {
           const size = 2 * (config.raio ?? 8);
           const icon = element('span', `geo-point geo-point--${point}`, symbol);
-          icon.style.setProperty('--point-fill', config.cor_preenchimento || color(feature) || config.cor || base.color);
-          icon.style.setProperty('--point-stroke', config.cor || '#fff');
+          const simbolo = simboloDaFeicao(feature);
+          icon.style.setProperty('--point-fill', simbolo.fillColor);
+          icon.style.setProperty('--point-stroke', simbolo.color);
           icon.style.setProperty('--point-stroke-width', `${config.largura ?? 1.5}px`);
           return L.marker(latlng, {pane, opacity: config.opacidade_preenchimento ?? config.opacidade ?? 1,
             title: String(feature.properties?.nome || input.dataset.nome), icon: L.divIcon({
@@ -440,13 +395,17 @@
         }
         const isLine = /LineString$/.test(feature.geometry.type);
         const along = (config.rotulo_modo || (isLine ? 'linha' : 'centro')) === 'linha' && isLine;
-        if (label != null && label !== '' && config.rotulo_modo !== 'oculto') {
-          labels.add(layer, label, {along, group: id, zoom: config.rotulo_zoom ?? base.labelZoom ?? (isLine ? 17 : 16),
-            color: config.rotulo_cor || base.labelColor, size: config.rotulo_tamanho ?? (along ? 11 : 12)});
-          layer.bindTooltip(element('span', '', name), {sticky: true});
+        label = estilos.textoRotulo(config, label, props);
+        if (label && config.rotulo_modo !== 'oculto') {
+          const zoomMax = config.rotulo_zoom_max ?? map.getMaxZoom();
+          const zoomMin = config.rotulo_zoom ?? Math.min(zoomMax, base.labelZoom ?? (isLine ? 17 : 16));
+          labels.add(layer, label, {along, group: id, zoom: zoomMin, zoomMax,
+            color: config.rotulo_cor || base.labelColor, size: config.rotulo_tamanho ?? (along ? 11 : 12),
+            halo: config.rotulo_halo, haloColor: config.rotulo_halo_cor});
+          layer.bindTooltip(element('span', '', label), {sticky: true});
         }
         if (isLine && trace === 'ferrovia') {
-          const sleepers = L.polyline(layer.getLatLngs(), {pane, interactive: false, color: color(feature) || config.cor || base.color,
+          const sleepers = L.polyline(layer.getLatLngs(), {pane, interactive: false, color: simboloDaFeicao(feature).color,
             dashArray: '2 9', lineCap: 'butt', weight: (config.largura ?? base.weight ?? 2) + 5,
             opacity: config.opacidade ?? base.opacity ?? 1});
           layer.on('add', () => { sleepers.addTo(map).bringToBack(); });
@@ -480,10 +439,12 @@
         });
       },
     });
-    if (category) {
+    if (config.modo_cor !== 'unico' && (config.atributo_cor || base.categories)) {
       legendasPorCamada.set(group, layer => {
-        const valor = String(layer.feature.properties?.[category] ?? '').trim();
-        return valor ? [valor, color(layer.feature) || config.cor || base.color] : null;
+        const classe = classeDe(layer.feature);
+        if (!classe) return null;
+        const cor = estilos.corDoSimbolo(simboloDaFeicao(layer.feature), estilos.tipoDaGeometria(layer.feature.geometry.type));
+        return {...classe, cor};
       });
     }
     if (id === 'quarteiroes_trabalhados') {
@@ -665,8 +626,8 @@
       const limites = layer.getBounds();
       if (recorte && (!limites.isValid() || !recorte.intersects(limites))) continue;
       const key = element('i', 'legend-' + input.dataset.tipo);
-      const baseColor = Object.hasOwn(defaults, id) ? defaults[id].color : '#175cd3';
       const style = JSON.parse(input.dataset.estilo);
+      const simboloPadrao = estilos.simbolo(style, estilos.padraoDaCamada(id), null, input.dataset.tipo);
       const classificar = legendasPorCamada.get(layer);
       const classes = new Map();
       if (classificar) layer.eachLayer(item => {
@@ -676,10 +637,10 @@
           if (ponto ? !recorte.contains(ponto) : !caixa.isValid() || !recorte.intersects(caixa)) return;
         }
         const categoria = classificar(item);
-        if (categoria) classes.set(...categoria);
+        if (categoria) classes.set(categoria.ordem, categoria);
       });
-      const rules = [...classes].sort(([a], [b]) => a.localeCompare(b, 'pt-BR', {numeric: true}));
-      key.style.setProperty('--legend-color', style.cor || rules[0]?.[1] || baseColor);
+      const rules = [...classes.values()].sort((a, b) => a.ordem - b.ordem).map(({nome, cor}) => [nome, cor]);
+      key.style.setProperty('--legend-color', rules[0]?.[1] || estilos.corDoSimbolo(simboloPadrao, input.dataset.tipo));
       const label = element('span');
       if (rules.length) {
         label.title = rules.slice(0, 16).map(([value, color]) => `${value}: ${color}`).join('\n');
