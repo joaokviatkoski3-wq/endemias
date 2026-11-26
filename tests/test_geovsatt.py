@@ -1,9 +1,12 @@
 """Fundação do GeoVSATT com banco SQLite sintético e sem acesso à produção."""
 
+import io
+import json
 import shutil
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 import app
@@ -14,9 +17,7 @@ from scripts.preparar_massa_web_teste import preparar
 class GeoVSATTTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.scratch = Path(__file__).resolve().parents[1] / ".tmp_test_geovsatt"
-        cls.scratch.mkdir(exist_ok=True)
-        cls.tmp = tempfile.TemporaryDirectory(dir=cls.scratch)
+        cls.tmp = tempfile.TemporaryDirectory(prefix=".tmp_test_geovsatt-", dir=Path(__file__).resolve().parents[1])
         cls.root = Path(cls.tmp.name)
         cls.seed = cls.root / "seed.db"
         preparar(cls.seed)
@@ -24,16 +25,13 @@ class GeoVSATTTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
-        cls.scratch.rmdir()
 
     def setUp(self):
         self.directory = Path(tempfile.mkdtemp(dir=self.root))
         self.path = self.directory / "geo.db"
         shutil.copyfile(self.seed, self.path)
-        connection = sqlite3.connect(self.path)
-        connection.execute("UPDATE usuarios SET nivel='superadmin' WHERE id_usuario=1")
-        connection.commit()
-        connection.close()
+        with closing(sqlite3.connect(self.path)) as connection, connection:
+            connection.execute("UPDATE usuarios SET nivel='superadmin' WHERE id_usuario=1")
         common = {
             "DB_PATH": str(self.path),
             "TESTING": True,
@@ -47,6 +45,8 @@ class GeoVSATTTests(unittest.TestCase):
         }
         self.geo = app.create_app({**common, "SETOR": "geo"})
         self.endemias = app.create_app({**common, "SETOR": "endemias"})
+        with closing(sqlite3.connect(self.path)) as connection, connection:
+            connection.execute("UPDATE usuarios SET setor='ambiental' WHERE id_usuario=3")
 
     def client(self, application=None, uid=1):
         application = application or self.geo
@@ -109,6 +109,76 @@ class GeoVSATTTests(unittest.TestCase):
         dispatcher = dominios.application(self.endemias)
         self.assertIn("geo.vsatt.com.br", dispatcher.applications)
         self.assertEqual(dispatcher.applications["geo.vsatt.com.br"].config["SETOR"], "geo")
+
+    def test_catalogo_importacao_publicacao_historico_e_acesso(self):
+        admin = self.client()
+        visualizador = self.client(uid=2)
+        ambiental = self.client(uid=3)
+        indicado = self.client(uid=4)
+        gerencia = "/geovsatt/admin/camadas"
+        camada = gerencia + "/bairros"
+        api = "/api/geovsatt/camadas/bairros"
+        configuracao = {"nome": "Limites de bairros", "grupo": "Território"}
+
+        self.assertEqual(visualizador.get(gerencia).status_code, 403)
+        self.assertEqual(visualizador.post(gerencia, data=configuracao).status_code, 403)
+        self.assertEqual(admin.post(gerencia, data={**configuracao, "codigo": "bairros"}).location, camada)
+        self.assertIn(b"Importar rascunho", admin.get(camada).data)
+
+        def importar(nome, coords):
+            dados = {"type": "FeatureCollection", "features": [{
+                "type": "Feature", "properties": {"nome": nome},
+                "geometry": {"type": "Point", "coordinates": coords},
+            }]}
+            return admin.post(camada + "/importar", data={
+                "geojson": (io.BytesIO(json.dumps(dados).encode()), "qgis.geojson"), "fonte": "QGIS sintético",
+            }, follow_redirects=True)
+
+        self.assertIn(b"Fei", importar("Inválido", [700000, 7220000]).data)
+        self.assertEqual(db.scalar(str(self.path), "SELECT COUNT(*) FROM geovsatt_versoes"), 0)
+        self.assertIn(b"Vers", importar("Primeira", [-49.3, -25.3]).data)
+        self.assertEqual(admin.get(api).status_code, 404)
+        self.assertEqual(admin.post(camada + "/versoes/1/publicar").status_code, 303)
+        self.assertEqual(visualizador.get(api).status_code, 404)
+        self.assertEqual(ambiental.get(camada + "/versoes/1/geojson").status_code, 403)
+
+        admin.post(camada, data={**configuracao, "niveis": ["visualizador", "operador"], "setores": "endemias",
+                                 "usuarios": "4", "cor": "#338899", "atributo_cor": "nome",
+                                 "regras_cor": "Primeira = #024680", "visivel_inicial": "1", "rotulo": "nome"})
+        resposta = visualizador.get(api)
+        self.assertEqual(resposta.json["features"][0]["properties"]["nome"], "Primeira")
+        self.assertIn("no-store", resposta.headers["Cache-Control"])
+        self.assertEqual(ambiental.get(api).status_code, 404)
+        self.assertEqual(indicado.get(api).status_code, 200)
+        self.assertNotIn(b'data-layer="bairros"', ambiental.get("/geovsatt").data)
+        self.assertIn(b'data-layer="bairros"', visualizador.get("/geovsatt").data)
+        entrada = next(item for item in visualizador.get("/api/geovsatt/catalogo").json["camadas"] if item["id"] == "bairros")
+        self.assertEqual(entrada["estilo"]["cores"], {"Primeira": "#024680"})
+        self.assertNotIn("config", entrada)
+
+        importar("Segunda", [-49.4, -25.4])
+        admin.post(camada + "/versoes/2/publicar")
+        self.assertEqual(visualizador.get(api).json["features"][0]["properties"]["nome"], "Segunda")
+        admin.post(camada + "/versoes/1/publicar")
+        admin.post(camada + "/versoes/999/publicar")
+        self.assertEqual(visualizador.get(api).json["features"][0]["properties"]["nome"], "Primeira")
+        admin.post(camada + "/versoes/1/metadados", data={"fonte": "Cartografia homologada", "data_referencia": "2026-11-26"})
+        self.assertIn(b"Cartografia homologada", admin.get(camada).data)
+        self.assertEqual(db.scalar(str(self.path), "SELECT COUNT(*) FROM geovsatt_versoes WHERE ativa=1"), 1)
+        self.assertEqual(db.scalar(str(self.path), "SELECT COUNT(*) FROM auditoria_eventos WHERE acao='geovsatt_versao_publicada'"), 3)
+
+    def test_permissao_camada_nativa_tambem_protege_busca_e_detalhe(self):
+        admin = self.client()
+        comum = self.client(uid=2)
+        ambiental = self.client(uid=3)
+        self.assertEqual(comum.get("/api/geovsatt/quarteiroes/1/1").status_code, 200)
+        self.assertEqual(ambiental.get("/api/geovsatt/quarteiroes/1/1").status_code, 403)
+        admin.post("/geovsatt/admin/camadas/quarteiroes", data={"nome": "Quarteirões", "grupo": "Território"})
+        self.assertEqual(comum.get("/api/geovsatt/camadas/quarteiroes").status_code, 404)
+        self.assertEqual(comum.get("/api/geovsatt/quarteiroes/1/1").status_code, 403)
+        self.assertNotIn(b'data-layer="quarteiroes"', comum.get("/geovsatt").data)
+        self.assertTrue(all(item["tipo"] == "localidade"
+                            for item in comum.get("/api/geovsatt/busca?q=Localidade").json["resultados"]))
 
 
 if __name__ == "__main__":

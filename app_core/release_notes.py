@@ -9,6 +9,7 @@ RELEASES = {
         "mudancas": [
             "O portal VSATT agora apresenta o novo acesso ao GeoVSATT.",
             "O mapa territorial inicial reúne quarteirões, localidades e logradouros já disponíveis.",
+            "O superadmin pode importar GeoJSON, publicar versões e definir o acesso a cada camada.",
             "Endemias, Ambiental e GeoVSATT passam a mostrar avisos de boas-vindas e novidades.",
         ],
     },

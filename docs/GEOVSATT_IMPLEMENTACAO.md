@@ -21,7 +21,13 @@ Implementado:
 - logradouros da base cartográfica municipal já existente;
 - busca por localidade e quarteirão;
 - pop-up de boas-vindas e novidades em Endemias, Ambiental e GeoVSATT;
-- uso dos arquivos SVG e PNG oficiais anexados para a nova marca.
+- uso dos arquivos SVG e PNG oficiais anexados para a nova marca;
+- catálogo persistente com administração exclusiva do superadmin no menu do mapa;
+- importação de vetores como rascunho, histórico, edição dos metadados, publicação e
+  restauração de uma versão anterior;
+- níveis e setores permitidos, concessões por conta, visibilidade inicial, rótulo e
+  cores por valor de um atributo. O servidor aplica a regra tanto ao catálogo quanto
+  à URL direta da camada.
 
 Limites explícitos:
 
@@ -29,7 +35,9 @@ Limites explícitos:
 - Bairros, hidrografia, satélite e ortofotos permanecem sem geometria até entrada de fonte
   oficial e metadados;
 - as camadas operacionais sensíveis ainda não foram expostas;
-- upload, versões, simbologia e permissões por camada ainda não gravam configuração;
+- as três camadas do sistema aceitam configuração de acesso e visualização. O RG
+  continua sendo a fonte dos quarteirões e o acesso aos seus detalhes exige acesso
+  a Endemias. A publicação de vetores via catálogo usa camadas de importação;
 - o endereço público, o Tunnel, DNS, firewall e serviços Windows não foram alterados.
 
 ## Contratos iniciais
@@ -44,17 +52,38 @@ armazenamento e a publicação podem ganhar formatos complementares quando volum
 imagem raster ou desempenho exigirem, sem mudar o formato de entrega preferido pelo
 usuário para vetores.
 
+## Operação do catálogo
+
+1. No menu do mapa, como superadmin, abra **Gerenciar camadas** e crie a camada.
+   Use o código `bairros` ou `hidrografia` para ocupar a respectiva entrada
+   reservada no mapa.
+2. Exporte o vetor no QGIS como *GeoJSON*, em WGS 84 (EPSG:4326), UTF-8,
+   até 8 MiB e 50 mil feições. São aceitos pontos, linhas e polígonos
+   (simples ou múltiplos), com atributos escalares.
+3. Importe com a fonte e, quando disponíveis, data de referência, licença e
+   observações. O histórico mostra quantidade, arquivo, data, conta responsável
+   e SHA-256 do arquivo recebido. É possível baixar a coleção validada.
+4. Use **Publicar no mapa** para trocar a versão ativa ou **Restaurar no mapa**
+   em uma versão anterior. Os metadados podem ser corrigidos no histórico.
+5. Marque os níveis e os setores para liberar acesso geral. Conceda acesso
+   diretamente a contas específicas para exceções. O superadmin sempre tem acesso
+   às versões publicadas e ao painel. Ao atualizar a página do mapa, carregam-se
+   a versão e as permissões vigentes.
+6. Para cor por localidade, indique o nome exato do atributo (por exemplo,
+   `Localidade` no quarteirão) e escreva uma regra por linha, como
+   `1 = #008c30`. A cor padrão cobre os demais valores.
+
+A migração PostgreSQL `0047_geovsatt_catalogo` armazena o JSON validado e os
+metadados no banco do VSATT, junto ao backup existente. Mudanças de configuração,
+importação, publicação e edição de metadados geram eventos de auditoria.
+
 ## Próximos incrementos sugeridos
 
-1. Catálogo persistente de camadas, metadados e versões, com upload e rollback pelo
-   superadmin.
-2. Regras de visibilidade por nível, setor e usuários escolhidos, aplicadas tanto aos
-   dados quanto às buscas, detalhes, exportações e impressão.
-3. Prédios públicos, começando pelas fontes com coordenadas e responsáveis definidos.
-4. Pontos estratégicos, ovitrampas, esporotricose e bloqueios, com validação de precisão
+1. Prédios públicos, começando pelas fontes com coordenadas e responsáveis definidos.
+2. Pontos estratégicos, ovitrampas, esporotricose e bloqueios, com validação de precisão
    e proteção dos dados pessoais.
-5. Ferramentas de distância, área, população por seleção e impressão cartográfica.
-6. Provedores de satélite e ortofoto com licença, atribuição, cache e versionamento
+3. Ferramentas de distância, área, população por seleção e impressão cartográfica.
+4. Provedores de satélite e ortofoto com licença, atribuição, cache e versionamento
    formalmente definidos.
 
 ## Implantação futura

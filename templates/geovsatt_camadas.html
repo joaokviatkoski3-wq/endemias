@@ -1,0 +1,153 @@
+{% macro token() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+{% macro metadados(dados) %}
+<div class="gc-grid">
+  <label>Fonte <input name="fonte" required maxlength="180" value="{{ dados.get('fonte', '') }}"></label>
+  <label>Data de referência <input type="date" name="data_referencia" value="{{ dados.get('data_referencia', '') }}"></label>
+  <label>Licença ou condição de uso <input name="licenca" maxlength="180" value="{{ dados.get('licenca', '') }}"></label>
+  <label>Observações <textarea name="observacoes" rows="2" maxlength="2000">{{ dados.get('observacoes', '') }}</textarea></label>
+</div>
+{% endmacro %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ camada.nome if camada else 'Camadas' }} · GeoVSATT</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/geovsatt_camadas.css', v=APP_VERSION) }}">
+</head>
+<body>
+  {% include "_ambiente_teste_faixa.html" %}
+  <header class="gc-header">
+    <img src="{{ url_for('static', filename='img/geovsatt-symbol.svg') }}" alt="" width="36" height="36">
+    <strong>GeoVSATT</strong>
+    <nav aria-label="Navegação">
+      <a href="{{ url_for('geovsatt.page') }}">Mapa</a>
+      {% if camada %}<a href="{{ url_for('geovsatt.admin_catalogo') }}">Todas as camadas</a>{% endif %}
+    </nav>
+  </header>
+  <main>
+    <h1>{{ camada.nome if camada else 'Gerenciar camadas' }}</h1>
+    {% for categoria, mensagem in get_flashed_messages(with_categories=true) %}
+      <p role="{{ 'alert' if categoria == 'erro' else 'status' }}" class="gc-aviso gc-aviso-{{ categoria }}">{{ mensagem }}</p>
+    {% endfor %}
+    {% if not camada %}
+      <section class="gc-card">
+        <h2>Catálogo</h2>
+        <ul class="gc-catalogo">
+          {% for item in camadas %}
+          <li>
+            <a href="{{ url_for('geovsatt.admin_camada', codigo=item.id) }}">{{ item.nome }}</a>
+            <span>{{ item.grupo }} · {{ 'Fonte do sistema' if item.origem == 'sistema' else ('Versão ' ~ item.id_versao if item.id_versao else 'Sem publicação') }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+      <section class="gc-card">
+        <h2>Nova camada</h2>
+        <form method="post" action="{{ url_for('geovsatt.admin_criar') }}">
+          {{ token() }}
+          <div class="gc-grid">
+            <label>Nome <input name="nome" required maxlength="100" placeholder="Ex.: Bairros"></label>
+            <label>Grupo <input name="grupo" required maxlength="60" placeholder="Ex.: Território"></label>
+            <label>Código <input name="codigo" required minlength="2" maxlength="60" pattern="[a-z][a-z0-9_\-]{1,59}" placeholder="Ex.: bairros"></label>
+            <label>Descrição <textarea name="descricao" maxlength="1000" rows="2"></textarea></label>
+          </div>
+          <p class="gc-note">Camadas novas ficam disponíveis apenas para o superadmin até a concessão de acesso.</p>
+          <button class="gc-primary" type="submit">Criar camada</button>
+        </form>
+      </section>
+    {% else %}
+      {% set config = camada.config %}
+      <p class="gc-note">{{ camada.id }} · {{ 'Fonte do sistema' if camada.origem == 'sistema' else ('Versão ' ~ camada.id_versao if camada.id_versao else 'Sem publicação') }}</p>
+      <section class="gc-card">
+        <h2>Configuração</h2>
+        <form method="post">
+          {{ token() }}
+          <div class="gc-grid">
+            <label>Nome <input name="nome" required maxlength="100" value="{{ camada.nome }}"></label>
+            <label>Grupo <input name="grupo" required maxlength="60" value="{{ camada.grupo }}"></label>
+            <label class="gc-wide">Descrição <textarea name="descricao" maxlength="1000" rows="2">{{ camada.descricao }}</textarea></label>
+          </div>
+          <fieldset>
+            <legend>Quem pode acessar</legend>
+            <p class="gc-note">O acesso geral exige um nível e um setor marcados. Contas selecionadas individualmente têm acesso mesmo fora desses grupos.</p>
+            <div class="gc-grid">
+              <div><strong>Níveis</strong>
+                {% for chave, nome in niveis.items() %}
+                <label class="gc-checkbox"><input type="checkbox" name="niveis" value="{{ chave }}" {{ 'checked' if chave in config.niveis }}>{{ nome }}</label>
+                {% endfor %}
+              </div>
+              <div><strong>Setores das contas</strong>
+                {% for chave, nome in setores.items() %}
+                <label class="gc-checkbox"><input type="checkbox" name="setores" value="{{ chave }}" {{ 'checked' if chave in config.setores }}>{{ nome }}</label>
+                {% endfor %}
+              </div>
+              <label class="gc-wide">Contas autorizadas individualmente
+                <select name="usuarios" multiple size="5" aria-describedby="gc-contas-dica">
+                  {% for conta in contas %}
+                  <option value="{{ conta.id_usuario }}" {{ 'selected' if conta.id_usuario in config.usuarios }}>{{ conta.nome }} ({{ conta.usuario }}){{ ' — inativa' if not conta.ativo }}</option>
+                  {% endfor %}
+                </select>
+                <small id="gc-contas-dica">Use Ctrl para marcar ou desmarcar várias contas.</small>
+              </label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Exibição no mapa</legend>
+            <div class="gc-grid">
+              <label>Cor padrão <input name="cor" maxlength="7" placeholder="#008c30" value="{{ config.cor }}"></label>
+              <label>Atributo do rótulo <input name="rotulo" maxlength="120" placeholder="Ex.: nome" value="{{ config.rotulo }}"></label>
+              <label>Atributo de classificação <input name="atributo_cor" maxlength="120" placeholder="Ex.: Localidade" value="{{ config.atributo_cor }}"></label>
+              <label>Cores por valor do atributo <textarea name="regras_cor" rows="4" maxlength="5000" placeholder="Valor = #008c30">{% for valor, cor in config.cores.items() %}{{ valor }} = {{ cor }}{{ '\n' if not loop.last }}{% endfor %}</textarea></label>
+            </div>
+            <label class="gc-checkbox"><input type="checkbox" name="visivel_inicial" value="1" {{ 'checked' if config.visivel_inicial }}>Ligar camada automaticamente ao abrir o mapa</label>
+          </fieldset>
+          <button class="gc-primary" type="submit">Salvar configuração</button>
+        </form>
+      </section>
+      {% if camada.origem == 'importacao' %}
+      <section class="gc-card">
+        <h2>Importar versão</h2>
+        <p class="gc-note">Exporte do QGIS como GeoJSON em UTF-8, WGS 84 (EPSG:4326), com até 8 MiB. O arquivo entra como rascunho.</p>
+        <form method="post" enctype="multipart/form-data" action="{{ url_for('geovsatt.admin_importar', codigo=camada.id) }}">
+          {{ token() }}
+          <label>Arquivo GeoJSON <input type="file" name="geojson" accept=".geojson,.json" required></label>
+          {{ metadados({}) }}
+          <button class="gc-primary" type="submit">Importar rascunho</button>
+        </form>
+      </section>
+      <section class="gc-card">
+        <h2>Histórico de versões</h2>
+        {% for item in versoes %}
+        <details class="gc-versao" {{ 'open' if loop.first }}>
+          <summary>Versão {{ item.id_versao }} · {{ 'Publicada' if item.ativa else ('Anterior' if item.publicada_em else 'Rascunho') }} · {{ item.total }} {{ 'feição' if item.total == 1 else 'feições' }}</summary>
+          <dl>
+            <dt>Arquivo</dt><dd>{{ item.arquivo }}</dd>
+            <dt>Importada (UTC)</dt><dd>{{ item.criada_em }}</dd>
+            <dt>Conta responsável</dt><dd>{{ item.autor_id }}</dd>
+            <dt>SHA-256 do arquivo enviado</dt><dd class="gc-hash">{{ item.sha256 }}</dd>
+          </dl>
+          <form method="post" action="{{ url_for('geovsatt.admin_metadados', codigo=camada.id, versao=item.id_versao) }}">
+            {{ token() }}
+            {{ metadados(item.metadados) }}
+            <button type="submit">Salvar metadados</button>
+          </form>
+          <div class="gc-acoes">
+            <a href="{{ url_for('geovsatt.admin_geojson', codigo=camada.id, versao=item.id_versao) }}">Baixar GeoJSON validado</a>
+            {% if not item.ativa %}
+            <form method="post" action="{{ url_for('geovsatt.admin_publicar', codigo=camada.id, versao=item.id_versao) }}">
+              {{ token() }}
+              <button class="gc-primary" type="submit">{{ 'Restaurar no mapa' if item.publicada_em else 'Publicar no mapa' }}</button>
+            </form>
+            {% endif %}
+          </div>
+        </details>
+        {% else %}
+        <p class="gc-note">Nenhuma versão importada.</p>
+        {% endfor %}
+      </section>
+      {% endif %}
+    {% endif %}
+  </main>
+</body>
+</html>

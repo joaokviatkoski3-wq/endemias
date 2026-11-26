@@ -346,8 +346,20 @@ def create_app(config_overrides=None):
         sqlite_maintenance.ensure_performance_indexes(flask_app.config["DB_PATH"])
     if flask_app.config['SETORES_ENABLED']:
         connection=db_core.connect(database_target)
-        try:setores.ensure_schema(connection)
-        finally:connection.close()
+        try:
+            setores.ensure_schema(connection)
+            if flask_app.config["SETOR"] == "geo":
+                from app_core import geovsatt_catalogo
+                geovsatt_catalogo.ensure_schema(connection)
+        finally:
+            connection.close()
+
+    @flask_app.before_request
+    def limitar_upload_geovsatt():
+        if request.endpoint == "geovsatt.admin_importar":
+            from app_core.geovsatt_catalogo import MAX_UPLOAD
+            request.max_content_length = MAX_UPLOAD + 256 * 1024
+
     csrf.init_app(flask_app)
 
     flask_app.extensions["database_target"] = database_target

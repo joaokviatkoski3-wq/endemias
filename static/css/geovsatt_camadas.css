@@ -1,0 +1,74 @@
+:root {
+  font: 15px/1.5 "Noto Sans", system-ui, sans-serif;
+  color: #25332b;
+  background: #f5f7f5;
+  --action: #00752b;
+  --border: #d4dfd6;
+  --muted: #546259;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: var(--action); }
+.gc-header {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .75rem max(1rem, calc((100% - 960px) / 2));
+  border-top: 4px solid #008c30;
+  border-bottom: 1px solid var(--border);
+  background: white;
+}
+.gc-header nav { display: flex; gap: 1rem; margin-left: auto; }
+main { max-width: 960px; padding: 1rem; margin: auto; }
+h1 { margin: .5rem 0 1rem; }
+h2 { margin: 0 0 .75rem; font-size: 1.15rem; }
+.gc-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 0 0 1rem;
+  padding: clamp(.9rem, 3vw, 1.5rem);
+}
+.gc-catalogo { padding: 0; list-style: none; margin: 0; }
+.gc-catalogo li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem 1rem;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  padding: .6rem 0;
+}
+.gc-catalogo span, .gc-note, small { color: var(--muted); }
+.gc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: .85rem;
+}
+.gc-wide { grid-column: 1 / -1; }
+label { display: flex; flex-direction: column; gap: .25rem; font-weight: 600; }
+input:not([type="checkbox"]), textarea, select, button {
+  border: 1px solid #899a8d;
+  border-radius: 6px;
+  padding: .55rem .65rem;
+  color: inherit;
+  background: white;
+  font: inherit;
+  min-width: 0;
+}
+button { cursor: pointer; font-weight: 700; }
+.gc-primary { background: var(--action); color: white; border-color: var(--action); }
+:focus-visible { outline: 2px solid #175cd3; outline-offset: 2px; }
+form { display: grid; gap: .85rem; }
+form > button { justify-self: start; }
+fieldset { margin: 0; min-width: 0; border: 1px solid var(--border); border-radius: 6px; }
+legend, summary { font-weight: 700; }
+.gc-checkbox { flex-direction: row; gap: .5rem; align-items: center; margin-top: .45rem; font-weight: 400; }
+.gc-checkbox input { accent-color: var(--action); width: 1.1rem; height: 1.1rem; }
+.gc-versao { border-top: 1px solid var(--border); padding: .85rem 0; }
+.gc-versao summary { cursor: pointer; }
+.gc-versao dl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: .3rem 1rem; }
+.gc-versao dd { margin: 0; overflow-wrap: anywhere; }
+.gc-hash { font-family: monospace; }
+.gc-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin-top: .85rem; }
+.gc-aviso { border-radius: 6px; padding: .75rem 1rem; background: #e8f5eb; }
+.gc-aviso-erro { background: #fff0ee; color: #8f1d15; }

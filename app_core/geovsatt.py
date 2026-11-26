@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from app_core import db as db_core
+from app_core import geovsatt_catalogo as catalogo_core
 from app_core import permissoes
 from app_core import registro_geografico as rg_core
 
@@ -93,11 +94,24 @@ CAMADAS = (
 )
 
 
-def catalogo(usuario):
+BASES = {item["id"]: item for item in CAMADAS if item["disponivel"]}
+
+
+def catalogo(target, usuario):
+    gerencia = permissoes.permite(usuario, "tecnica")
+    cadastradas = catalogo_core.listar(target, BASES)
+    reservadas = {item["id"] for item in cadastradas}
+    camadas = [
+        {key: camada[key] for key in ("id", "grupo", "nome", "descricao", "tipo", "disponivel",
+                                    "visivel_inicial", "origem")}
+        | {"estilo": {key: camada["config"][key] for key in ("cor", "atributo_cor", "cores", "rotulo")}}
+        for camada in cadastradas if catalogo_core.pode_ver(camada, usuario)
+    ]
+    camadas.extend(dict(item) for item in CAMADAS if item["id"] not in reservadas)
     return {
-        "camadas": [dict(item) for item in CAMADAS],
-        "pode_configurar": permissoes.permite(usuario, "tecnica"),
-        "gestao_disponivel": False,
+        "camadas": camadas,
+        "pode_configurar": gerencia,
+        "gestao_disponivel": gerencia,
     }
 
 
@@ -119,11 +133,14 @@ def _caminhar_coordenadas(coordinates):
         yield from _caminhar_coordenadas(item)
 
 
-def quarteiroes(db_path, base_dir):
+def quarteiroes(db_path, base_dir, *, incluir_rg=True):
     data = rg_core.geojson_ativo(db_path, base_dir)
-    resumo = rg_core.resumo_mapa(db_path, base_dir)["quarteiroes"]
+    resumo = rg_core.resumo_mapa(db_path, base_dir)["quarteiroes"] if incluir_rg else {}
     for feature in data.get("features", []):
-        props = feature.setdefault("properties", {})
+        props = feature.get("properties") or {}
+        if not incluir_rg:
+            props = {key: props[key] for key in ("Localidade", "Localidade_nome", "id_quart") if key in props}
+        feature["properties"] = props
         localidade = props.get("Localidade")
         numero = rg_core._quarteirao_display(props.get("id_quart"))
         chave = f"{localidade}:{numero}"
@@ -136,7 +153,7 @@ def quarteiroes(db_path, base_dir):
 
 
 def localidades(db_path, base_dir):
-    malha = quarteiroes(db_path, base_dir)
+    malha = rg_core.geojson_ativo(db_path, base_dir)
     grupos = {}
     for feature in malha.get("features", []):
         props = feature.get("properties") or {}
@@ -184,7 +201,7 @@ def logradouros(base_dir):
     return data
 
 
-def buscar(db_path, base_dir, termo, limite=30):
+def buscar(db_path, base_dir, termo, permitidas, *, incluir_rg=False, limite=30):
     termo = str(termo or "").strip()
     if not termo:
         return []
@@ -192,24 +209,43 @@ def buscar(db_path, base_dir, termo, limite=30):
         raise ValueError("A busca deve ter no máximo 100 caracteres.")
     normalizado = termo.casefold()
     itens = []
-    for feature in localidades(db_path, base_dir)["features"]:
+    pontos = localidades(db_path, base_dir)["features"] if "localidades" in permitidas else []
+    for feature in pontos:
         props = feature["properties"]
         if normalizado in props["nome"].casefold():
             itens.append({"tipo": "localidade", "titulo": props["nome"], "subtitulo": f"{props['quarteiroes']} quarteirões", "id_localidade": props["id_localidade"]})
-    for item in rg_core.resumo_mapa(db_path, base_dir)["quarteiroes"].values():
-        texto = f"{item['localidade']} {item['quarteirao']}"
+        if len(itens) == limite:
+            return itens
+    if "quarteiroes" not in permitidas:
+        return itens
+    for item in _quarteiroes_busca(db_path, base_dir, incluir_rg):
+        nome = item["localidade"]
+        numero = item["quarteirao"]
+        texto = f"{nome} {numero}"
         if normalizado in texto.casefold():
             itens.append({
                 "tipo": "quarteirao",
-                "titulo": f"Quarteirão {item['quarteirao']}",
-                "subtitulo": item["localidade"],
+                "titulo": f"Quarteirão {numero}",
+                "subtitulo": nome,
                 "id_localidade": item["id_localidade"],
-                "quarteirao": item["quarteirao"],
+                "quarteirao": numero,
                 "chave": item["chave"],
             })
         if len(itens) >= limite:
             break
-    return itens[:limite]
+    return itens
+
+
+def _quarteiroes_busca(db_path, base_dir, incluir_rg):
+    if incluir_rg:
+        yield from rg_core.resumo_mapa(db_path, base_dir)["quarteiroes"].values()
+        return
+    for feature in quarteiroes(db_path, base_dir, incluir_rg=False)["features"]:
+        props = feature["properties"]
+        codigo = props.get("Localidade")
+        if codigo is not None:
+            yield {"localidade": props.get("Localidade_nome") or f"Localidade {codigo}",
+                   "quarteirao": props["id_quart"], "id_localidade": codigo, "chave": props["chave"]}
 
 
 def detalhe_quarteirao(db_path, base_dir, id_localidade, numero):

@@ -12,7 +12,7 @@
 </head>
 <body class="geo-app">
   {% include "_ambiente_teste_faixa.html" %}
-  <div class="geo-shell">
+  <div class="geo-shell" data-pode-rg="{{ '1' if pode_rg else '0' }}">
     <header class="geo-header">
       <button id="geo-menu-open" class="geo-icon-button" type="button" aria-controls="geo-sidebar" aria-expanded="false" aria-label="Abrir menu de camadas">
         <img src="/static/icons/menu.svg" alt="">
@@ -44,13 +44,16 @@
         <button id="geo-menu-close" class="geo-icon-button" type="button" aria-label="Fechar menu"><img src="/static/icons/fechar.svg" alt=""></button>
       </div>
       <div class="geo-sidebar-scroll">
-        <p class="geo-sidebar-intro">Ative e desative as informações que deseja comparar. Camadas sem base oficial ficam identificadas como futuras.</p>
+        <p class="geo-sidebar-intro">Escolha as camadas que deseja visualizar.</p>
         {% for grupo in catalogo.camadas|groupby('grupo') %}
         <section class="geo-layer-group">
           <h2>{{ grupo.grouper }}</h2>
           {% for camada in grupo.list %}
           <label class="geo-layer-row {{ 'is-pending' if not camada.disponivel }}" title="{{ camada.descricao }}">
-            <input type="checkbox" data-layer="{{ camada.id }}" {% if camada.visivel_inicial %}checked{% endif %} {% if not camada.disponivel %}disabled{% endif %}>
+            <input type="checkbox" data-layer="{{ camada.id }}" data-nome="{{ camada.nome }}" data-tipo="{{ camada.tipo }}"
+                   data-estilo="{{ camada.estilo | default({}) | tojson | forceescape }}"
+                   {% if camada.visivel_inicial and camada.disponivel %}checked{% endif %}
+                   {% if not camada.disponivel %}disabled{% endif %}>
             <span class="geo-layer-symbol geo-layer-symbol--{{ camada.tipo }}" aria-hidden="true"></span>
             <span><strong>{{ camada.nome }}</strong><small>{{ camada.descricao }}</small></span>
             {% if not camada.disponivel %}<em>Em preparação</em>{% endif %}
@@ -65,7 +68,7 @@
         </section>
       </div>
       {% if catalogo.pode_configurar %}
-      <div class="geo-admin-note"><strong>Área do superadmin</strong><span>Upload, permissões, simbologia, metadados e versões entram no próximo incremento.</span></div>
+      <a class="geo-admin-note" href="{{ url_for('geovsatt.admin_catalogo') }}"><strong>Gerenciar camadas</strong><span>Importações, versões, acesso e simbologia</span></a>
       {% endif %}
     </aside>
     <button id="geo-sidebar-backdrop" class="geo-sidebar-backdrop" type="button" aria-label="Fechar menu" hidden></button>
@@ -83,11 +86,7 @@
         <button type="button" disabled title="Medição de áreas no próximo incremento">▱</button>
         <button type="button" disabled title="Impressão personalizada no próximo incremento"><img src="/static/icons/imprimir.svg" alt=""></button>
       </div>
-      <div class="geo-legend" aria-label="Legenda">
-        <span><i class="legend-block"></i> Quarteirões</span>
-        <span><i class="legend-street"></i> Logradouros</span>
-        <span><i class="legend-locality"></i> Localidades</span>
-      </div>
+      <div id="geo-legend" class="geo-legend" aria-label="Legenda" hidden></div>
     </main>
 
     <aside id="geo-detail" class="geo-detail" aria-hidden="true" aria-label="Detalhes territoriais">
