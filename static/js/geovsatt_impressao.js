@@ -16,6 +16,9 @@
     const legendaNaFolha = document.getElementById('geo-folha-legenda');
     const status = document.getElementById('geo-composicao-status');
     const listaCamadas = document.getElementById('geo-composicao-camadas');
+    const controlesCalor = document.getElementById('geo-calor');
+    const lugarCalor = document.createComment('');
+    controlesCalor.after(lugarCalor);
     const salvas = document.getElementById('geo-composicao-salvas');
     const abrirSalva = document.getElementById('geo-composicao-abrir');
     const criarSalva = document.getElementById('geo-composicao-nova');
@@ -133,11 +136,14 @@
     function lerComposicao() {
       const centro = map.getCenter().wrap();
       const camadas = opcoesCamadas.filter(camada => camada.checked).map(camada => camada.dataset.layer);
-      const filtros = Object.fromEntries(camadas.map(codigo => [codigo, acesso.filtrosPorCamada.get(codigo)?.ler() || []])
+      const calor = acesso.calor.ler();
+      const fontes = new Set(camadas);
+      if (calor) fontes.add(calor.camada);
+      const filtros = Object.fromEntries([...fontes].map(codigo => [codigo, acesso.filtrosPorCamada.get(codigo)?.ler() || []])
         .filter(([, regras]) => regras.length));
       return {titulo: titulo.value.trim() || 'Mapa territorial', nota: nota.value.trim(), orientacao: orientacao.value,
         layout: layout.value, base: base.value, legenda: legenda.checked,
-        centro: [centro.lat, centro.lng], zoom: map.getZoom(), camadas, filtros};
+        centro: [centro.lat, centro.lng], zoom: map.getZoom(), camadas, filtros, ...(calor ? {calor} : {})};
     }
 
     async function salvarComposicao(nova) {
@@ -159,34 +165,42 @@
       legenda.checked = dados.legenda;
       medicoes.checked = false;
       mudarBase(dados.base);
+      acesso.calor.restaurar(null);
       const selecionadas = new Set(dados.camadas);
+      let calorIndisponivel = projeto.calor_indisponivel;
       const resultados = await Promise.allSettled(opcoesCamadas.map(async camada => {
         const codigo = camada.dataset.layer;
         const regras = dados.filtros[codigo] || [];
+        const fonteCalor = codigo === dados.calor?.camada;
         camada.checked = selecionadas.has(codigo);
         try {
           await alternarCamada(camada, regras);
+          if (fonteCalor && !camada.checked) await acesso.carregarCamada(camada);
         } catch (erro) {
+          if (fonteCalor) calorIndisponivel = true;
           if (vista === sessao && dialogo.open) {
             camada.checked = false;
             await alternarCamada(camada);
           }
           throw erro;
         }
-        if (vista !== sessao || !dialogo.open || !camada.checked) return 0;
+        if (vista !== sessao || !dialogo.open || (!camada.checked && !fonteCalor)) return 0;
         const filtros = acesso.filtrosPorCamada.get(codigo);
         return filtros?.consultar ? 0 : (filtros?.restaurar(regras) ?? regras.length);
       }));
       if (vista !== sessao || !dialogo.open) return;
       atualizarCamadas();
-      atualizarFolha();
       map.setView(dados.centro, dados.zoom, {animate: false});
+      if (dados.calor && !calorIndisponivel) await acesso.calor.restaurar(dados.calor);
+      if (vista !== sessao || !dialogo.open) return;
       atualizarFolha();
       const descartados = resultados.reduce((total, resultado) => total + (resultado.value || 0), 0);
       const falhas = resultados.filter(resultado => resultado.status === 'rejected').length;
       const avisos = [];
       if (projeto.camadas_indisponiveis || falhas) avisos.push(`${projeto.camadas_indisponiveis + falhas} camada(s) indisponível(is).`);
       if (projeto.base_indisponivel) avisos.push('Use o seletor para escolher outra imagem-base.');
+      if (calorIndisponivel) avisos.push('A camada de origem do mapa de calor está indisponível.');
+      if (acesso.calor.estado() === 'erro') avisos.push('Não foi possível desenhar o mapa de calor.');
       if (descartados) avisos.push(`${descartados} filtro(s) indisponível(is) na versão atual.`);
       status.textContent = ['Composição aberta.', ...avisos].join(' ');
     }
@@ -238,6 +252,7 @@
       }
       map.stop();
       vista = {centro: map.getCenter(), zoom: map.getZoom(), limites: map.getBounds(), base: seletorBase.value,
+        calor: acesso.calor.ler(),
         camadas: new Map(opcoesCamadas.map(camada => [camada, camada.checked])), pendentes: 0, ocupada: false,
         filtros: new Map([...acesso.filtrosPorCamada].map(([codigo, filtros]) => [codigo, filtros.ler()]))};
       projetoAtual = null;
@@ -253,6 +268,7 @@
       carimbo.dateTime = data.toISOString();
       carimbo.textContent = data.toLocaleDateString('pt-BR');
       map.closePopup();
+      document.getElementById('geo-composicao-calor').append(controlesCalor);
       dialogo.showModal();
       document.body.classList.add('geo-impressao-aberta');
       mapaNaFolha.prepend(mapa);
@@ -269,6 +285,7 @@
       map.stop();
       escala.remove();
       mapaOriginal.prepend(mapa);
+      lugarCalor.before(controlesCalor);
       document.body.classList.remove('geo-impressao-aberta');
       medicao.mostrar(true);
       mudarBase(vista.base);
@@ -283,6 +300,7 @@
         resultado?.catch?.(() => {});
       }
       for (const camada of alternadas) camada.dispatchEvent(new Event('change'));
+      acesso.calor.restaurar(vista.calor);
       map.invalidateSize({animate: false});
       map.setView(vista.centro, vista.zoom, {animate: false});
       botao.focus();
@@ -304,6 +322,12 @@
       if (situacaoBase !== 'pronta') {
         status.textContent = situacaoBase === 'erro' ? 'O mapa-base não carregou. Selecione outra base para imprimir.'
           : 'Aguarde o mapa-base terminar de carregar e tente novamente.';
+        return;
+      }
+      const situacaoCalor = acesso.calor.estado();
+      if (situacaoCalor !== 'pronta') {
+        status.textContent = situacaoCalor === 'erro' ? 'A densidade não foi desenhada. Tente trocar a fonte do mapa de calor.'
+          : 'Aguarde o mapa de calor terminar de carregar e tente novamente.';
         return;
       }
       window.print();

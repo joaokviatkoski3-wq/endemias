@@ -35,7 +35,7 @@ def _texto(valor, limite):
     return catalogo._texto(valor, limite)
 
 
-def _validar(payload, permitidas, bases):
+def _validar(payload, permitidas, bases, pontos):
     if not isinstance(payload, dict):
         raise catalogo.CatalogoErro("Informe uma composição válida.")
     titulo = _texto(payload.get("titulo"), 84)
@@ -52,7 +52,20 @@ def _validar(payload, permitidas, bases):
     camadas = payload.get("camadas")
     filtros = payload.get("filtros", {})
     if (not isinstance(camadas, list) or any(not isinstance(codigo, str) or codigo not in permitidas for codigo in camadas)
-            or len(set(camadas)) != len(camadas) or not isinstance(filtros, dict) or filtros.keys() - set(camadas)):
+            or len(set(camadas)) != len(camadas) or not isinstance(filtros, dict)):
+        raise catalogo.CatalogoErro("A composição contém camadas indisponíveis.")
+    fontes = set(camadas)
+    calor = payload.get("calor")
+    if calor is not None:
+        if not isinstance(calor, dict) or set(calor) != {"camada", "raio", "ponderar_ovos"}:
+            raise catalogo.CatalogoErro("A configuração do mapa de calor é inválida.")
+        codigo, raio, ponderar = (calor[campo] for campo in ("camada", "raio", "ponderar_ovos"))
+        if (not isinstance(codigo, str) or codigo not in pontos or codigo not in permitidas
+                or type(raio) is not int or not 16 <= raio <= 64 or type(ponderar) is not bool
+                or (ponderar and codigo != "ovitrampas")):
+            raise catalogo.CatalogoErro("A composição contém um mapa de calor inválido ou indisponível.")
+        fontes.add(codigo)
+    if filtros.keys() - fontes:
         raise catalogo.CatalogoErro("A composição contém camadas indisponíveis.")
     filtros_validos = {}
     for codigo, regras in filtros.items():
@@ -74,8 +87,11 @@ def _validar(payload, permitidas, bases):
                 except ValueError as exc:
                     raise catalogo.CatalogoErro(str(exc)) from exc
             filtros_validos[codigo] = linhas
-    return {"titulo": titulo, "nota": nota, "orientacao": orientacao, "layout": layout, "base": base,
-            "legenda": payload["legenda"], "centro": centro, "zoom": zoom, "camadas": camadas, "filtros": filtros_validos}
+    configuracao = {"titulo": titulo, "nota": nota, "orientacao": orientacao, "layout": layout, "base": base,
+                    "legenda": payload["legenda"], "centro": centro, "zoom": zoom, "camadas": camadas, "filtros": filtros_validos}
+    if calor is not None:
+        configuracao["calor"] = calor
+    return configuracao
 
 
 def listar(target, usuario_id):
@@ -85,7 +101,7 @@ def listar(target, usuario_id):
     """, (usuario_id,))]
 
 
-def obter(target, usuario_id, identificador, permitidas, bases):
+def obter(target, usuario_id, identificador, permitidas, bases, *, pontos=()):
     row = db.query_one(target, """
         SELECT id_composicao,configuracao,atualizada_em FROM geovsatt_composicoes WHERE id_composicao=? AND usuario_id=?
     """, (identificador, usuario_id))
@@ -95,15 +111,26 @@ def obter(target, usuario_id, identificador, permitidas, bases):
     camadas = [codigo for codigo in configuracao["camadas"] if codigo in permitidas]
     indisponiveis = len(configuracao["camadas"]) - len(camadas)
     base_indisponivel = configuracao["base"] not in bases
-    configuracao.update(camadas=camadas, filtros={codigo: regras for codigo, regras in configuracao["filtros"].items() if codigo in camadas})
+    fontes = set(camadas)
+    calor = configuracao.get("calor")
+    calor_indisponivel = False
+    if calor:
+        codigo = calor["camada"]
+        if codigo in pontos and codigo in permitidas:
+            fontes.add(codigo)
+        else:
+            configuracao.pop("calor")
+            calor_indisponivel = True
+    configuracao.update(camadas=camadas, filtros={codigo: regras for codigo, regras in configuracao["filtros"].items() if codigo in fontes})
     if base_indisponivel:
         configuracao["base"] = "none"
     return {"id_composicao": identificador, "atualizada_em": row["atualizada_em"], "configuracao": configuracao,
-            "camadas_indisponiveis": indisponiveis, "base_indisponivel": base_indisponivel}
+            "camadas_indisponiveis": indisponiveis, "base_indisponivel": base_indisponivel,
+            "calor_indisponivel": calor_indisponivel}
 
 
-def salvar(target, usuario_id, payload, permitidas, bases, identificador=None):
-    configuracao = _validar(payload, permitidas, bases)
+def salvar(target, usuario_id, payload, permitidas, bases, identificador=None, *, pontos=()):
+    configuracao = _validar(payload, permitidas, bases, pontos)
     agora = datetime.now(timezone.utc).isoformat(timespec="microseconds")
     dados = (configuracao["titulo"], json.dumps(configuracao, ensure_ascii=False), agora)
     with catalogo._escrita(target) as conn:

@@ -192,13 +192,14 @@ def api_pacote_offline():
             feature["properties"] for feature in pacote["dados"]["quarteiroes"]["features"]
         ))
     projetos = []
+    pontos = {codigo for codigo in selecionadas if catalogo[codigo]["tipo"] == "ponto"}
     bases = {"none"} | {catalogo_ortos[codigo]["base"] for codigo in ortos_selecionadas}
     if ofm:
         bases.add("openfreemap")
     for item in composicoes.listar(target, usuario["id_usuario"]):
         try:
             projetos.append(composicoes.obter(target, usuario["id_usuario"], item["id_composicao"],
-                                               set(selecionadas), bases))
+                                               set(selecionadas), bases, pontos=pontos))
         except composicoes.ComposicaoAusente:
             continue
     pacote["composicoes"] = projetos
@@ -258,15 +259,16 @@ def api_composicoes(identificador=None):
         return jsonify(composicoes.listar(target, uid))
     catalogo = geo.catalogo(target, usuario)
     permitidas = {item["id"] for item in catalogo["camadas"] if item["disponivel"]}
+    pontos = {item["id"] for item in catalogo["camadas"] if item["disponivel"] and item["tipo"] == "ponto"}
     bases = {"none", "openfreemap", "sentinel"}
     bases.update(orto["base"] for orto in catalogo["ortofotos"])
     if current_app.config["GEOVSATT_ESRI_LICENSED"]:
         bases.add("esri")
     try:
         if request.method == "GET":
-            return jsonify(composicoes.obter(target, uid, identificador, permitidas, bases))
+            return jsonify(composicoes.obter(target, uid, identificador, permitidas, bases, pontos=pontos))
         request.max_content_length = 131_072
-        resposta = composicoes.salvar(target, uid, request.get_json(silent=True), permitidas, bases, identificador)
+        resposta = composicoes.salvar(target, uid, request.get_json(silent=True), permitidas, bases, identificador, pontos=pontos)
         return jsonify(resposta), 201 if identificador is None else 200
     except composicoes.ComposicaoAusente as exc:
         return jsonify({"erro": str(exc)}), 404

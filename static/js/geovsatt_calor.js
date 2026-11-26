@@ -35,6 +35,8 @@
     let aguardando;
     let pedido = 0;
     let nome = '';
+    let calculando = false;
+    let erroNoDesenho = false;
 
     function remover() {
       if (camada && map.hasLayer(camada)) map.removeLayer(camada);
@@ -56,6 +58,8 @@
       controles.hidden = !input;
       rotuloPeso.hidden = codigo !== 'ovitrampas';
       nome = '';
+      calculando = Boolean(input);
+      erroNoDesenho = false;
       if (!input) {
         remover();
         atualizarLegenda();
@@ -88,7 +92,10 @@
       } catch (erro) {
         if (sequencia !== pedido) return;
         remover();
+        erroNoDesenho = true;
         status.textContent = erro.message || 'Não foi possível desenhar o mapa de calor neste aparelho.';
+      } finally {
+        if (sequencia === pedido) calculando = false;
       }
       atualizarLegenda();
     }
@@ -105,6 +112,23 @@
       },
       legenda() {
         return nome;
+      },
+      ler() {
+        const codigo = seletor.value;
+        return codigo ? {camada: codigo, raio: Number(raio.value),
+          ponderar_ovos: codigo === 'ovitrampas' && peso.checked} : null;
+      },
+      restaurar(config) {
+        seletor.value = config?.camada || '';
+        raio.value = config?.raio ?? raio.defaultValue;
+        peso.checked = Boolean(config?.ponderar_ovos);
+        return redesenhar();
+      },
+      estado() {
+        if (erroNoDesenho) return 'erro';
+        const gl = camada?.getMaplibreMap();
+        if (calculando || (gl && (!gl.getSource('densidade') || !gl.isSourceLoaded('densidade')))) return 'carregando';
+        return 'pronta';
       },
     };
   }

@@ -4,7 +4,7 @@ Atualizado em 26/11/2026.
 
 ## Estado deste incremento
 
-A candidata `2.27.1` reúne as alterações descritas a seguir. Consulte
+A candidata `2.27.2` reúne as alterações descritas a seguir. Consulte
 `ESTADO_ATUAL_PROJETO.md` para o último registro de produção.
 
 Implementado:
@@ -290,6 +290,11 @@ importação, publicação e edição de metadados geram eventos de auditoria.
   ponderado pelo número de ovos. A intensidade é relativa. O desenho usa o
   tipo de camada `heatmap` do MapLibre e funciona com ou sem imagem-base.
   [Estilos MapLibre](https://maplibre.org/maplibre-style-spec/layers/#heatmap)
+- Na candidata 2.27.2, abra **Camadas da folha** na prévia para escolher o
+  mapa de calor. A composição guarda a fonte, os filtros, o raio visual e a opção
+  de ponderação, inclusive quando os marcadores ficam ocultos. Ao reabrir
+  na conta ou no modo offline, o calor depende da disponibilidade da
+  camada de origem. A cópia offline usa os vetores baixados.
 - **Lugares / Nominatim** aparece quando o servidor tem
   `ENDEMIAS_GEO_NOMINATIM_URL` configurado para uma instância própria ou
   contratada. Use HTTPS para a instância remota ou HTTP em loopback. A busca

@@ -282,6 +282,40 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(revisada["configuracao"]["camadas"], ["quarteiroes"])
         self.assertEqual(revisada["configuracao"]["filtros"], {})
 
+    def test_composicao_preserva_calor_sem_exigir_a_exibicao_dos_pontos(self):
+        admin = self.client()
+        titular = self.client(uid=2)
+        rota = "/api/geovsatt/composicoes"
+        pacote = "/api/geovsatt/pacote-offline"
+        permissoes = "/geovsatt/admin/camadas/ovitrampas"
+        camada = {"nome": "Ovitrampas", "grupo": "Vigilância"}
+        filtro = [{"field": "ovos", "match": "gte", "value": "1"}]
+        calor = {"camada": "ovitrampas", "raio": 48, "ponderar_ovos": True}
+        dados = {"titulo": "Calor de ensaio", "nota": "", "orientacao": "paisagem", "layout": "inferior",
+                 "base": "none", "legenda": True, "centro": [-25.31, -49.30], "zoom": 16,
+                 "camadas": [], "filtros": {"ovitrampas": filtro}, "calor": calor}
+        self.assertEqual(titular.post(rota, json=dados).status_code, 400)
+        admin.post(permissoes, data=camada | {"usuarios": ["2"], "usuarios_exportacao": ["2"]})
+        for invalido in (calor | {"raio": 65}, calor | {"camada": "logradouros"}, calor | {"ponderar_ovos": 1}):
+            self.assertEqual(titular.post(rota, json=dados | {"calor": invalido}).status_code, 400)
+        criada = titular.post(rota, json=dados)
+        self.assertEqual(criada.status_code, 201, criada.json)
+        item = f'{rota}/{criada.json["id_composicao"]}'
+        self.assertEqual(titular.get(item).json["configuracao"], dados)
+        somente_ovitrampas = titular.post(pacote, json={"camadas": ["ovitrampas"]})
+        self.assertEqual(somente_ovitrampas.status_code, 200, somente_ovitrampas.json)
+        self.assertEqual(somente_ovitrampas.json["composicoes"][0]["configuracao"], dados)
+        admin.post("/geovsatt/admin/camadas/logradouros", data={"nome": "Logradouros", "grupo": "Território",
+                                                               "usuarios": ["2"], "usuarios_exportacao": ["2"]})
+        apenas_ruas = titular.post(pacote, json={"camadas": ["logradouros"]})
+        self.assertEqual(apenas_ruas.status_code, 200, apenas_ruas.json)
+        admin.post(permissoes, data=camada)
+        revisada = titular.get(item).json
+        for projeto in (apenas_ruas.json["composicoes"][0], revisada):
+            self.assertTrue(projeto["calor_indisponivel"])
+            self.assertNotIn("calor", projeto["configuracao"])
+            self.assertEqual(projeto["configuracao"]["filtros"], {})
+
     def test_ortofoto_privada_com_rascunho_metadados_e_restauracao(self):
         def arquivo_mbtiles(nome, cor, formato="png"):
             caminho = self.directory / nome

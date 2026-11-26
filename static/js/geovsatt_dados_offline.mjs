@@ -2,15 +2,23 @@ const normalizar = valor => String(valor ?? '').normalize('NFD').replace(/\p{Dia
   .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const numero = valor => String(valor ?? '').trim().replace(/^0+(?=\d)/, '').toLowerCase();
 const nomeDaFeicao = (props, rotulo) => props[rotulo] ?? props.nome ?? props.NOME ?? props.Name ?? props.rotulo;
+const temFonteDeCalor = (pacote, codigo) =>
+  pacote.camadas.some(camada => camada.id === codigo && camada.tipo === 'ponto') && Object.hasOwn(pacote.dados, codigo);
+
 const projetoNaCopia = (projeto, pacote) => {
   const dados = projeto.configuracao;
   const camadas = dados.camadas.filter(codigo => Object.hasOwn(pacote.dados, codigo));
+  const fontes = new Set(camadas);
+  const calorIndisponivel = dados.calor && !temFonteDeCalor(pacote, dados.calor.camada);
+  if (dados.calor && !calorIndisponivel) fontes.add(dados.calor.camada);
   const baseIndisponivel = dados.base !== 'none' && !(dados.base === 'openfreemap' && pacote.openfreemap)
     && !pacote.ortofotos?.some(item => item.base === dados.base);
+  const configuracao = {...dados, base: baseIndisponivel ? 'none' : dados.base, camadas,
+    filtros: Object.fromEntries(Object.entries(dados.filtros || {}).filter(([id]) => fontes.has(id)))};
+  if (calorIndisponivel) delete configuracao.calor;
   return {...projeto, camadas_indisponiveis: projeto.camadas_indisponiveis + dados.camadas.length - camadas.length,
     base_indisponivel: projeto.base_indisponivel || Boolean(baseIndisponivel),
-    configuracao: {...dados, base: baseIndisponivel ? 'none' : dados.base, camadas,
-      filtros: Object.fromEntries(Object.entries(dados.filtros || {}).filter(([id]) => camadas.includes(id)))}};
+    calor_indisponivel: Boolean(projeto.calor_indisponivel || calorIndisponivel), configuracao};
 };
 
 function buscar(pacote, entrada) {
@@ -248,6 +256,14 @@ export function criarApiLocal(pacote, projetos, gravar, operacoes) {
         if (opcoes.method === 'POST' || opcoes.method === 'PUT') {
           if (id && (!anterior || anterior.atualizada_em !== carga.atualizada_em)) {
             throw Error('Abra a composição novamente antes de salvar.');
+          }
+          if (carga.calor != null) {
+            const {camada, raio, ponderar_ovos: ponderar} = carga.calor;
+            if (!temFonteDeCalor(pacote, camada) || !Number.isInteger(raio) || raio < 16 || raio > 64 ||
+              typeof ponderar !== 'boolean' || (ponderar && camada !== 'ovitrampas')) {
+              throw Error('A composição contém um mapa de calor inválido ou indisponível.');
+            }
+            carga.calor = {camada, raio, ponderar_ovos: ponderar};
           }
           const locais = Array.from(projetosAtuais.keys()).filter(chave => chave < 0);
           const proximo = id ? Number(id) : Math.min(0, ...locais) - 1;

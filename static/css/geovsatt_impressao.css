@@ -28,7 +28,10 @@
 .geo-composicao-projetos button:disabled { color: var(--muted); opacity: .55; cursor: default; }
 .geo-composicao-camadas { position: relative; }
 .geo-composicao-camadas summary { padding: .45rem .55rem; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-weight: 650; }
-#geo-composicao-camadas { position: absolute; z-index: 1; top: calc(100% + .25rem); left: 0; display: grid; gap: .3rem; width: min(300px, 78vw); max-height: min(320px, 43dvh); overflow: auto; padding: .65rem; border: 1px solid var(--border); border-radius: 8px; background: white; box-shadow: 0 2px 12px #10201633; }
+.geo-composicao-controles-camadas { position: absolute; z-index: 1; top: calc(100% + .25rem); left: 0; width: min(300px, 78vw); max-height: min(320px, 43dvh); overflow: auto; padding: .65rem; border: 1px solid var(--border); border-radius: 8px; background: white; box-shadow: 0 2px 12px #10201633; }
+#geo-composicao-camadas { display: grid; gap: .3rem; }
+#geo-composicao-calor #geo-calor { margin-top: .55rem; }
+#geo-composicao-calor .geo-base-control { display: grid; }
 .geo-composicao-camadas:not([open]) > div { display: none !important; }
 .geo-composicao-rolagem { min-height: 0; overflow: auto; padding: 15px; }
 .geo-folha-espaco { position: relative; margin-inline: auto; }

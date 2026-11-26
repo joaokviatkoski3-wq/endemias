@@ -922,7 +922,7 @@ function iniciarGeoVSATT() {
     });
   });
   window.GeoVSATTImpressao.create(map, baseSelect, measure, estadoBase, options, toggleLayer, itensLegenda,
-    {api, filtrosPorCamada});
+    {api, filtrosPorCamada, carregarCamada: loadLayer, calor});
   document.getElementById('geo-fit').addEventListener('click', () => {
     if (fullBounds?.isValid()) map.fitBounds(fullBounds, {padding: [24, 24]});
   });

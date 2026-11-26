@@ -47,6 +47,29 @@ test('a cópia possui autenticação criptográfica e mantém as composições p
   assert.ok(!JSON.stringify(registro).includes(projeto.titulo));
 });
 
+test('a composição offline mantém o calor e os filtros da fonte mesmo sem desenhar os marcadores', async () => {
+  const dados = pacote();
+  dados.camadas.push({id: 'ovitrampas', tipo: 'ponto'});
+  dados.dados.ovitrampas = {type: 'FeatureCollection', features: []};
+  let projetos = [];
+  const api = criarApiLocal(dados, projetos, async novos => { projetos = novos; }, recortar);
+  const rota = '/api/geovsatt/composicoes';
+  const calor = {camada: 'ovitrampas', raio: 48, ponderar_ovos: true};
+  const composicao = {titulo: 'Densidade de ensaio', camadas: [], base: 'none', calor,
+    filtros: {ovitrampas: [{field: 'ovos', match: 'gte', value: '1'}]}};
+  const salvar = entrada => api(rota, {method: 'POST', body: JSON.stringify(entrada)});
+  const criada = await salvar(composicao);
+  assert.deepEqual((await api(rota + '/' + criada.id_composicao)).configuracao, composicao);
+  await assert.rejects(salvar({...composicao, calor: {...calor, raio: 65}}), /mapa de calor inválido/);
+  const pacoteRenovado = pacote();
+  const novaApi = criarApiLocal(pacoteRenovado, projetos, () => {}, recortar);
+  const indisponivel = await novaApi(rota + '/' + criada.id_composicao);
+  assert.equal(indisponivel.calor_indisponivel, true);
+  assert.equal(indisponivel.configuracao.calor, undefined);
+  assert.deepEqual(indisponivel.configuracao.filtros, {});
+  assert.equal(projetos[0].configuracao.calor.raio, 48);
+});
+
 test('a estimativa recorta e une quarteirões repetidos', () => {
   const selecao = [[-49.35, -25.4], [-49.2, -25.4], [-49.2, -25.3], [-49.35, -25.3]];
   const dados = estimar(pacote(), selecao, true, recortar);
