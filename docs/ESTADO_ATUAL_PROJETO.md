@@ -5,7 +5,7 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.19.0**, release `405a1e7`, ativa em 26/11/2026. O instalador confirmou
+- **2.20.0**, release `d1d978a`, ativa em 26/11/2026. O instalador confirmou
   a preservação de 105 tabelas, dos arquivos operacionais e da tarefa Kobo.
   Os três logins responderam na origem do Tunnel e o GeoVSATT respondeu
   em HTTPS no endereço público. O mapa de bloqueio
@@ -66,27 +66,26 @@ regras de trabalho e isolamento de testes.
   Esses pontos ficaram para uma etapa de infraestrutura.
   [Infraestrutura](CLOUDFLARE_INFRAESTRUTURA.md) ·
   [Segurança](CORRECOES_SEGURANCA_180.md)
-- Restabelecer a autenticação ao GitHub para publicar os commits locais.
 
 ## Projetos futuros
 
-- **GeoVSATT** (`geo.vsatt.com.br`). A instalação `2.19.0` usa os quarteirões e
-  localidades do acervo como geometrias principais, limite municipal ligado na
-  abertura, Esri opcional no mapa, filtros, estilos e etiquetas por camada.
+- **GeoVSATT** (`geo.vsatt.com.br`). Na 2.20.0, a composição A4 permite escolher
+  o recorte, o layout, as camadas e a base. A folha inclui legenda, escala,
+  norte e nota. A população por área usa as residências do RG e informa a
+  cobertura de quarteirões. A exportação CSV, GeoJSON e KML exige autorização
+  por conta e camada e gera registro de auditoria.
+  O acervo QGIS fornece os quarteirões e polígonos de localidades. O limite
+  municipal aparece na abertura e o Esri pode ser escolhido no seletor.
+  O catálogo administra importações, versões, metadados, permissões, estilos
+  e etiquetas por camada. O mapa respeita os filtros aplicados na composição.
   A busca de endereço oferece sugestões do RG. Ovitrampas, pontos estratégicos
   e ações com coordenadas estão disponíveis conforme a permissão do setor.
   Entre 64 cadastros de Esporotricose animal, 60 têm coordenadas e quatro não
   têm. A apresentação anterior deslocava 36 dos 60 em mais de 100 m, com
   máximo de 177,1 m e um centro de célula além da divisa. Admin e superadmin
   agora veem a posição cadastrada. A publicação não alterou esses cadastros.
-  A versão `2.18.0` introduziu a busca de endereço
-  no RG, modo CEP / BrasilAPI, etiquetas por zoom, medições e satélite Sentinel‑2.
-  O catálogo recebeu 12 camadas, com 3.862 feições, preservando a malha ativa do RG.
-  A Esporotricose animal é exibida em células agregadas com acesso restrito.
-  O mapa tem quarteirões, localidades derivadas, logradouros e detalhe do RG.
-  O superadmin pode abrir os formulários de importação direto do catálogo,
-  publicar ou restaurar versões, editar metadados e
-  configurar permissões, rótulos e cores por atributo. Consulte
+  O modo CEP / BrasilAPI e a imagem Sentinel‑2 continuam disponíveis.
+  O acervo importado tem 12 camadas e 3.862 feições. Consulte
   [a continuidade do GeoVSATT](GEOVSATT_IMPLEMENTACAO.md).
   Para Esporotricose, usar os pontos dos animais com coordenadas válidas e
   reaproveitar os raios de 150 m de `app_core/esporotricose_bloqueio.py`.
