@@ -167,7 +167,10 @@
         try {
           await alternarCamada(camada, regras);
         } catch (erro) {
-          if (vista === sessao && dialogo.open) camada.checked = false;
+          if (vista === sessao && dialogo.open) {
+            camada.checked = false;
+            await alternarCamada(camada);
+          }
           throw erro;
         }
         if (vista !== sessao || !dialogo.open || !camada.checked) return 0;

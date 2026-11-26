@@ -538,10 +538,25 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(comum.get(rota, query_string=periodo | {"fim": "2025-01-30"}).status_code, 400)
         self.assertEqual(ambiental.get(rota, query_string=periodo).status_code, 404)
         self.assertEqual(comum.get(f"{exportar}/csv", query_string=tb).status_code, 403)
+        rota_offline = "/api/geovsatt/pacote-offline"
+        selecao = {"camadas": [codigo], "trabalhos": tb}
+        self.assertEqual(comum.post(rota_offline, json=selecao).status_code, 403)
         superadmin.post(f"/geovsatt/admin/camadas/{codigo}", data={
             "nome": "Quarteirões trabalhados", "grupo": "Vigilância", "usuarios": ["2", "3"],
             "usuarios_exportacao": ["2", "3"],
         })
+        pacote = comum.post(rota_offline, json=selecao)
+        self.assertEqual(pacote.status_code, 200, pacote.json)
+        self.assertEqual(pacote.json["dados"][codigo], comum.get(rota, query_string=tb).json)
+        historico = pacote.json["historico_trabalhos"]
+        self.assertEqual(historico["periodo"], {campo: periodo[campo] for campo in ("inicio", "fim")})
+        self.assertEqual(set(historico["malha"]), {"1:1"})
+        self.assertEqual({item["tipo"] for item in historico["dias"]}, {"TB", "PE", "PVE", "LIRAA"})
+        self.assertEqual(sum(item["total"] for item in historico["dias"]), 6)
+        self.assertNotIn("2025-01-31", {item["dia"] for item in historico["dias"]})
+        self.assertNotIn("Pessoa fictícia", pacote.get_data(as_text=True))
+        self.assertNotIn("geo-1", pacote.get_data(as_text=True))
+        self.assertEqual(ambiental.post(rota_offline, json=selecao).status_code, 403)
         for formato in ("csv", "geojson", "kml"):
             download = comum.get(f"{exportar}/{formato}", query_string=tb)
             self.assertEqual(download.status_code, 200)

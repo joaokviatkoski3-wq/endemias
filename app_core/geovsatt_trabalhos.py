@@ -52,7 +52,7 @@ def validar_regras_composicao(regras):
     filtros(parametros)
 
 
-def _visitas(target, consulta):
+def _visitas(target, consulta, *, por_dia=False):
     condicoes = ["v.data >= ?", "v.data <= ?"]
     valores = [consulta["inicio"], consulta["fim"]]
     tipo = "COALESCE(NULLIF(UPPER(TRIM(v.tipo)),''),'SEM_TIPO')"
@@ -62,6 +62,7 @@ def _visitas(target, consulta):
     if consulta["localidade"]:
         condicoes.append("v.id_localidade = ?")
         valores.append(int(consulta["localidade"]))
+    grupo_dia = ", v.data" if por_dia else ""
     return visitas_integradas.query(target, f"""
         SELECT v.id_localidade, v.quarteirao, {tipo} AS tipo,
                COUNT(DISTINCT v.id_visita) AS total,
@@ -71,23 +72,37 @@ def _visitas(target, consulta):
                MAX(v.data) AS ultima
           FROM visitas v
          WHERE {' AND '.join(condicoes)}
-         GROUP BY v.id_localidade, v.quarteirao, {tipo}
+         GROUP BY v.id_localidade, v.quarteirao, {tipo}{grupo_dia}
     """, valores)
 
 
-def camada(target, malha, consulta):
+def _agrupar(registros, rotulos):
     por_bloco = defaultdict(list)
-    rotulos = dict(work_types.WORK_TYPE_LABELS)
-    for registro in _visitas(target, consulta):
+    for registro in registros:
         tipo = registro["tipo"] or "SEM_TIPO"
         registro["tipo"] = tipo
         rotulos.setdefault(tipo, "Tipo não informado" if tipo == "SEM_TIPO" else tipo)
         por_bloco[chave_territorial(registro["id_localidade"], registro["quarteirao"])].append(registro)
+    return por_bloco
 
+
+def _formas(malha, chaves):
+    return {
+        chave_territorial(props["Localidade"], props["id_quart"]): {
+            "type": "Feature", "geometry": mapping(orient_polygons(geom)),
+            "properties": {key: props.get(key) for key in ("chave", "id_quart", "Localidade", "Localidade_nome")},
+        }
+        for props, geom in blocos(malha, chaves - {None})
+    }
+
+
+def _montar_camada(target, malha, consulta, por_bloco, formas, rotulos):
     features = []
     com_malha = 0
-    for props, geom in blocos(malha, por_bloco.keys() - {None}):
-        codigo = chave_territorial(props["Localidade"], props["id_quart"])
+    for codigo, forma in formas.items():
+        if codigo not in por_bloco:
+            continue
+        props = forma["properties"]
         visitas = por_bloco[codigo]
         por_tipo = Counter()
         for registro in visitas:
@@ -98,8 +113,8 @@ def camada(target, malha, consulta):
         tipos = ", ".join(f"{rotulos[tipo]} ({total})" for tipo, total in sorted(por_tipo.items()))
         categoria = "Mais de um tipo" if len(por_tipo) > 1 else rotulos[next(iter(por_tipo))]
         features.append({
-            "type": "Feature", "geometry": mapping(orient_polygons(geom)),
-            "properties": {key: props.get(key) for key in ("chave", "id_quart", "Localidade", "Localidade_nome")} | {
+            **forma,
+            "properties": props | {
                 "rotulo": f"Q. {props['id_quart']}",
                 "atividade": categoria, "tipos_registrados": tipos,
                 "total_registros": totais["total"], "visitas_normais": totais["normais"],
@@ -121,3 +136,31 @@ def camada(target, malha, consulta):
                   if re.fullmatch(r"[A-Z0-9_-]{1,24}", codigo)],
         "localidades": [{"codigo": str(r["id_localidade"]), "nome": r["nome"]} for r in localidades],
     }}
+
+
+def camada(target, malha, consulta):
+    rotulos = dict(work_types.WORK_TYPE_LABELS)
+    grupos = _agrupar(_visitas(target, consulta), rotulos)
+    return _montar_camada(target, malha, consulta, grupos, _formas(malha, grupos.keys()), rotulos)
+
+
+def preparar_offline(target, malha, consulta):
+    """Guarda contagens diárias sem fichas ou identificadores de visitas."""
+    periodo = {"inicio": consulta["inicio"], "fim": consulta["fim"]}
+    rotulos = dict(work_types.WORK_TYPE_LABELS)
+    grupos = _agrupar(_visitas(target, consulta | {"localidade": "", "tipo": ""}, por_dia=True), rotulos)
+    formas = _formas(malha, grupos.keys())
+    recortados = {}
+    dias = []
+    for chave, visitas in grupos.items():
+        for registro in visitas:
+            localidade = str(registro["id_localidade"]) if registro["id_localidade"] is not None else ""
+            tipo = registro["tipo"]
+            dia = registro["ultima"]
+            dias.append({"chave": chave, "localidade": localidade, "tipo": tipo, "dia": dia,
+                         **{campo: registro[campo] for campo in ("total", "normais", "fechadas", "recuperadas")}})
+            if ((not consulta["localidade"] or consulta["localidade"] == localidade)
+                    and (not consulta["tipo"] or consulta["tipo"] == tipo)):
+                recortados.setdefault(chave, []).append(registro)
+    primeira = _montar_camada(target, malha, consulta, recortados, formas, rotulos)
+    return primeira, {"periodo": periodo, "malha": formas, "dias": dias}

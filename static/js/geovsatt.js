@@ -492,7 +492,7 @@ function iniciarGeoVSATT() {
       const formatarData = data => data.split('-').reverse().join('/');
       periodoPorCamada.set(group, `${formatarData(inicio)} a ${formatarData(fim)}`);
     }
-    if (id !== 'quarteiroes_trabalhados' || campo) {
+    if (id !== 'quarteiroes_trabalhados' || (campo && !campo.temHistoricoTrabalhos)) {
       setupFilters(input, group);
     }
     return group;
@@ -643,7 +643,7 @@ function iniciarGeoVSATT() {
 
   function loadLayer(input, regras) {
     const id = input.dataset.layer;
-    if (id === 'quarteiroes_trabalhados' && !campo) {
+    if (id === 'quarteiroes_trabalhados' && (!campo || campo.temHistoricoTrabalhos)) {
       const filtros = filtrosPorCamada.get(id);
       return filtros.consultar(regras ?? filtros.ler());
     }
@@ -774,7 +774,7 @@ function iniciarGeoVSATT() {
     const botao = form.querySelector('[type="submit"]');
     const campos = [['inicio', 'data_visita', 'gte'], ['fim', 'data_visita', 'lte'],
       ['tipo', 'tipo_trabalho', 'exact'], ['localidade', 'localidade_id', 'exact']];
-    const links = document.querySelectorAll(`[data-export-layer="${id}"] a`);
+    const exportacao = document.querySelector(`[data-export-layer="${id}"]`);
     let aplicadas = [];
     let chaveMapa = null;
     let statusMapa = '';
@@ -799,7 +799,9 @@ function iniciarGeoVSATT() {
     }
 
     function atualizarLinks(parametros) {
-      for (const link of links) {
+      if (!exportacao) return;
+      exportacao.dataset.consulta = parametros;
+      for (const link of exportacao.querySelectorAll('a')) {
         const url = new URL(link.href);
         url.search = parametros;
         link.href = url.href;

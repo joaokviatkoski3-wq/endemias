@@ -1,3 +1,17 @@
+{%- macro filtros_trabalhos() -%}
+<details>
+  <summary>Filtros das visitas</summary>
+  <form id="geo-filtros-trabalhos" class="geo-trabalhos-filtros">
+    {% if modo_offline %}<small data-periodo-baixado></small>{% endif %}
+    <label>Data inicial <input name="inicio" type="date" required></label>
+    <label>Data final <input name="fim" type="date" required></label>
+    <label>Tipo de trabalho <select name="tipo"><option value="">Todos os tipos</option></select></label>
+    <label>Localidade <select name="localidade"><option value="">Todas as localidades</option></select></label>
+    <button type="submit">Aplicar filtros</button>
+    <small role="status"></small>
+  </form>
+</details>
+{%- endmacro -%}
 <!doctype html>
 <html lang="pt-BR" data-versao="{{ APP_VERSION }}" data-setor="geo"{% if modo_offline %} data-offline="1"{% endif %}>
 <head>
@@ -140,7 +154,10 @@
             <p id="geo-calor-status" role="status"></p>
           </div>
         </section>
-        {% if modo_offline %}<div id="geo-campo-camadas"></div>{% endif %}
+        {% if modo_offline %}
+        <div id="geo-campo-camadas"></div>
+        <template id="geo-campo-trabalhos">{{ filtros_trabalhos() }}</template>
+        {% endif %}
         {% for grupo in catalogo.camadas|groupby('grupo') %}
         <section class="geo-layer-group">
           <h2>{{ grupo.grouper }}</h2>
@@ -160,19 +177,7 @@
             <ul></ul>
           </details>
           <div class="geo-layer-filters" id="geo-filter-{{ camada.id }}" hidden>
-            {% if camada.id == 'quarteiroes_trabalhados' %}
-            <details>
-              <summary>Filtros das visitas</summary>
-              <form id="geo-filtros-trabalhos" class="geo-trabalhos-filtros">
-                <label>Data inicial <input name="inicio" type="date" required></label>
-                <label>Data final <input name="fim" type="date" required></label>
-                <label>Tipo de trabalho <select name="tipo"><option value="">Todos os tipos</option></select></label>
-                <label>Localidade <select name="localidade"><option value="">Todas as localidades</option></select></label>
-                <button type="submit">Aplicar filtros</button>
-                <small role="status"></small>
-              </form>
-            </details>
-            {% endif %}
+            {% if camada.id == 'quarteiroes_trabalhados' %}{{ filtros_trabalhos() }}{% endif %}
           </div>
           {% endif %}
           {% if camada.pode_exportar %}
@@ -294,7 +299,7 @@
         </button>
       </header>
       <p>A cópia fica criptografada neste aparelho por até sete dias.</p>
-      <p>Quarteirões trabalhados usa o período aplicado no mapa.</p>
+      <p>Quarteirões trabalhados permite filtrar por data, tipo e localidade dentro do período aplicado no mapa.</p>
       <label class="geo-campo-opcao"><input name="openfreemap" type="checkbox"> Incluir a base de ruas OpenFreeMap da área visível</label>
       <fieldset>
         <legend>Camadas para baixar</legend>

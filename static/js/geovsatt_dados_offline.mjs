@@ -156,6 +156,70 @@ export function estimar(pacote, pontos, incluir, operacoes) {
   };
 }
 
+function dataIso(valor) {
+  return /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(valor) && !valor.startsWith('0000-') &&
+    Number.isFinite(Date.parse(valor)) && new Date(valor).toISOString().slice(0, 10) === valor;
+}
+
+function consultarTrabalhos(original, historico, parametros) {
+  if (!historico || !parametros.size) return original;
+  const {periodo, malha, dias} = historico;
+  const consulta = {
+    inicio: parametros.get('inicio') || periodo.inicio,
+    fim: parametros.get('fim') || periodo.fim,
+    tipo: (parametros.get('tipo') || '').trim().toUpperCase(),
+    localidade: (parametros.get('localidade') || '').trim(),
+  };
+  const {inicio, fim, tipo, localidade} = consulta;
+  if (!dataIso(inicio) || !dataIso(fim) || inicio > fim) {
+    throw Error('Informe datas válidas para o período das visitas.');
+  }
+  if (inicio < periodo.inicio || fim > periodo.fim) {
+    const formatar = valor => valor.split('-').reverse().join('/');
+    throw Error('Consulte datas de ' + formatar(periodo.inicio) + ' a ' + formatar(periodo.fim) + ', período desta cópia.');
+  }
+  if (tipo && !/^[A-Z0-9_-]{1,24}$/.test(tipo)) throw Error('O tipo de trabalho é inválido.');
+  if (localidade && !/^[1-9][0-9]{0,17}$/.test(localidade)) throw Error('A localidade é inválida.');
+
+  const grupos = new Map();
+  let total = 0;
+  for (const dia of dias) {
+    if (dia.dia < inicio || dia.dia > fim || (tipo && dia.tipo !== tipo) ||
+      (localidade && dia.localidade !== localidade)) continue;
+    total += dia.total;
+    if (!Object.hasOwn(malha, dia.chave)) continue;
+    if (!grupos.has(dia.chave)) {
+      grupos.set(dia.chave, {tipos: new Map(), total: 0, normais: 0, fechadas: 0, recuperadas: 0, ultimo: ''});
+    }
+    const grupo = grupos.get(dia.chave);
+    grupo.tipos.set(dia.tipo, (grupo.tipos.get(dia.tipo) || 0) + dia.total);
+    for (const campo of ['total', 'normais', 'fechadas', 'recuperadas']) grupo[campo] += dia[campo];
+    if (dia.dia > grupo.ultimo) grupo.ultimo = dia.dia;
+  }
+  const rotulos = new Map(original.metadata.tipos.map(({codigo, nome}) => [codigo, nome]));
+  const rotulo = codigo => rotulos.get(codigo) || codigo;
+  const features = [];
+  let comMalha = 0;
+  for (const [chave, forma] of Object.entries(malha)) {
+    const grupo = grupos.get(chave);
+    if (!grupo) continue;
+    comMalha += grupo.total;
+    const codigos = [...grupo.tipos.keys()].sort();
+    features.push({...forma, properties: {...forma.properties,
+      rotulo: 'Q. ' + forma.properties.id_quart,
+      atividade: codigos.length > 1 ? 'Mais de um tipo' : rotulo(codigos[0]),
+      tipos_registrados: codigos.map(codigo => rotulo(codigo) + ' (' + grupo.tipos.get(codigo) + ')').join(', '),
+      total_registros: grupo.total, visitas_normais: grupo.normais,
+      visitas_fechadas: grupo.fechadas, visitas_recuperadas: grupo.recuperadas,
+      visitas_outras_situacoes: grupo.total - grupo.normais - grupo.fechadas - grupo.recuperadas,
+      ultimo_registro: grupo.ultimo,
+    }});
+  }
+  return {...original, features, metadata: {...original.metadata, consulta,
+    registros_no_recorte: total, registros_com_malha: comMalha, registros_sem_malha: total - comMalha,
+  }};
+}
+
 export function criarApiLocal(pacote, projetos, gravar, operacoes) {
   let alterados = projetos;
   const combinados = () => new Map([...pacote.composicoes || [], ...alterados].map(item => [item.id_composicao, item]));
@@ -166,6 +230,9 @@ export function criarApiLocal(pacote, projetos, gravar, operacoes) {
     const [recurso, id, extra] = rota.map(decodeURIComponent);
     switch (recurso) {
       case 'camadas':
+        if (id === 'quarteiroes_trabalhados' && Object.hasOwn(pacote.dados, id)) {
+          return consultarTrabalhos(pacote.dados[id], pacote.historico_trabalhos, url.searchParams);
+        }
         if (Object.hasOwn(pacote.dados, id)) return pacote.dados[id];
         throw Error('Esta camada não está nesta cópia.');
       case 'busca':

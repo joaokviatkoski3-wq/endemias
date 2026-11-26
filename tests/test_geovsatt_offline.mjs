@@ -68,6 +68,46 @@ test('consulta local usa apenas as feições e endereços preparados no pacote',
   await assert.rejects(api('/api/geovsatt/nominatim'), /conexão/);
 });
 
+test('quarteirões trabalhados recompõe o mapa e a exportação só dentro das datas baixadas', async () => {
+  const lacre = pacote();
+  const id = 'quarteiroes_trabalhados';
+  const primeiro = {inicio: '2026-11-01', fim: '2026-11-08', tipo: 'TB', localidade: '1'};
+  const {inicio, fim} = primeiro;
+  const forma = retangulo(-49.4, -49.3, {id_quart: '1', Localidade: 1, chave: '1:1'});
+  const visita = (chave, localidade, tipo, dia, total, normais = 0, fechadas = 0) =>
+    ({chave, localidade, tipo, dia, total, normais, fechadas, recuperadas: 0});
+  const inicial = {type: 'FeatureCollection', features: [forma], metadata: {consulta: primeiro,
+    tipos: [{codigo: 'TB', nome: 'Tratamento'}, {codigo: 'PE', nome: 'Ponto estratégico'}]}};
+  lacre.dados[id] = inicial;
+  const rota = '/api/geovsatt/camadas/' + id;
+  const api = criarApiLocal(lacre, [], () => {}, recortar);
+  assert.deepEqual(await api(rota + '?localidade=2'), inicial);
+  lacre.historico_trabalhos = {
+    periodo: {inicio, fim}, malha: {'1:1': forma}, dias: [
+      visita('1:1', '1', 'TB', '2026-11-01', 2, 2),
+      visita('1:1', '1', 'PE', '2026-11-05', 3, 1, 1),
+      visita('2:3', '2', 'PE', '2026-11-05', 1),
+    ],
+  };
+  assert.deepEqual(await api(rota), inicial);
+  const todas = await api(rota + '?inicio=2026-11-01&fim=2026-11-08');
+  assert.equal(todas.features[0].properties.atividade, 'Mais de um tipo');
+  assert.equal(todas.features[0].properties.tipos_registrados, 'Ponto estratégico (3), Tratamento (2)');
+  assert.equal(todas.metadata.registros_no_recorte, 6);
+  const pe = await api(rota + '?inicio=2026-11-05&fim=2026-11-05&tipo=PE');
+  assert.deepEqual(pe.features[0].geometry, forma.geometry);
+  assert.equal(pe.features[0].properties.atividade, 'Ponto estratégico');
+  assert.equal(pe.features[0].properties.ultimo_registro, '2026-11-05');
+  assert.equal(pe.features[0].properties.visitas_outras_situacoes, 1);
+  assert.equal(pe.metadata.registros_sem_malha, 1);
+  assert.deepEqual(JSON.parse(await exportar({nome: id}, pe, 'geojson').text()), pe);
+  const outra = await api(rota + '?localidade=2');
+  assert.equal(outra.features.length, 0);
+  assert.equal(outra.metadata.registros_no_recorte, 1);
+  await assert.rejects(api(rota + '?fim=2026-11-31'), /datas válidas/);
+  await assert.rejects(api(rota + '?fim=2026-11-09'), /período desta cópia/);
+});
+
 test('exporta os três formatos e escapa fórmulas e atributos XML', async () => {
   const pontos = {type: 'FeatureCollection', features: [{type: 'Feature',
     geometry: {type: 'Point', coordinates: [-49.3, -25.3]}, properties: {nome: '=2+3', descricao: 'A&B'}}]};

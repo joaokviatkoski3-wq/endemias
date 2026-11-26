@@ -4,8 +4,8 @@ Atualizado em 26/11/2026.
 
 ## Estado deste incremento
 
-A versão `2.26.0` reúne as alterações descritas a seguir. Consulte
-`ESTADO_ATUAL_PROJETO.md` para confirmar qual versão está em produção.
+A candidata `2.27.1` reúne as alterações descritas a seguir. Consulte
+`ESTADO_ATUAL_PROJETO.md` para o último registro de produção.
 
 Implementado:
 
@@ -314,7 +314,11 @@ importação, publicação e edição de metadados geram eventos de auditoria.
 2. Em **Preparar mapa offline**, selecione os vetores e as ortofotos
    autorizados. Ative **Incluir as fichas de endereço do Registro Geográfico**
    se precisar dos endereços dos quarteirões no aparelho. Quarteirões
-   trabalhados usa o período e os tipos selecionados no mapa. Para
+   trabalhados baixa contagens diárias agregadas de todos os tipos e
+   localidades no período aplicado no mapa. A abertura preserva o filtro
+   inicial. Na cópia é possível mudar datas dentro do período baixado,
+   tipo de trabalho e localidade. A impressão e a exportação usam o
+   filtro aplicado. Para
    ortofotos grandes, aproxime o mapa e mantenha a opção de área visível.
    **Incluir a base de ruas OpenFreeMap** baixa os mosaicos vetoriais,
    fontes e símbolos da área visível. A base também pode ser baixada

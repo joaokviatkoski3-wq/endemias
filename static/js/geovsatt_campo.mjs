@@ -67,8 +67,20 @@ function montarCamadas(pacote) {
     const filtros = node('div', 'geo-layer-filters');
     filtros.id = 'geo-filter-' + camada.id;
     filtros.hidden = true;
+    if (camada.id === 'quarteiroes_trabalhados' && pacote.historico_trabalhos) {
+      const {inicio, fim} = pacote.historico_trabalhos.periodo;
+      const modelo = document.getElementById('geo-campo-trabalhos').content.cloneNode(true);
+      for (const campo of modelo.querySelectorAll('input[type="date"]')) {
+        campo.min = inicio;
+        campo.max = fim;
+      }
+      const formatar = valor => valor.split('-').reverse().join('/');
+      modelo.querySelector('[data-periodo-baixado]').textContent =
+        'Período da cópia: ' + formatar(inicio) + ' a ' + formatar(fim) + '.';
+      filtros.append(modelo);
+    }
     secao.append(linha, lista, filtros);
-    if (camada.pode_exportar) montarExportacao(secao, camada, pacote.dados[camada.id]);
+    if (camada.pode_exportar) montarExportacao(secao, camada);
   }
   if (!destino.querySelector('input:checked')) {
     const primeira = destino.querySelector('input');
@@ -88,26 +100,40 @@ function montarCamadas(pacote) {
   }
 }
 
-function montarExportacao(secao, camada, dados) {
+function montarExportacao(secao, camada) {
   const ferramentas = node('details', 'geo-layer-exportar');
+  ferramentas.dataset.exportLayer = camada.id;
   ferramentas.append(node('summary', '', 'Exportar ' + camada.nome));
   const links = node('div');
+  const estado = node('small', '', 'Exporta as feições desta cópia.');
+  estado.setAttribute('role', 'status');
   for (const [formato, rotulo] of [['csv', 'CSV'], ['geojson', 'GeoJSON'], ['kml', 'KML']]) {
     const botao = node('button', '', rotulo);
     botao.type = 'button';
-    botao.addEventListener('click', () => {
-      const href = URL.createObjectURL(exportar(camada, dados, formato));
-      const download = node('a');
-      download.href = href;
-      download.download = 'geovsatt-' + camada.id + '-offline.' + formato;
-      links.append(download);
-      download.click();
-      download.remove();
-      setTimeout(() => URL.revokeObjectURL(href), 15000);
+    botao.addEventListener('click', async () => {
+      botao.disabled = true;
+      try {
+        const consulta = ferramentas.dataset.consulta;
+        const caminho = '/api/geovsatt/camadas/' + encodeURIComponent(camada.id);
+        const dados = await window.GeoVSATTCampo.api(consulta ? caminho + '?' + consulta : caminho);
+        const href = URL.createObjectURL(exportar(camada, dados, formato));
+        const download = node('a');
+        download.href = href;
+        download.download = 'geovsatt-' + camada.id + '-offline.' + formato;
+        links.append(download);
+        download.click();
+        download.remove();
+        setTimeout(() => URL.revokeObjectURL(href), 15000);
+        estado.textContent = 'Exporta as feições desta cópia.';
+      } catch (error) {
+        estado.textContent = error.message;
+      } finally {
+        botao.disabled = false;
+      }
     });
     links.append(botao);
   }
-  ferramentas.append(links, node('small', '', 'Exporta as feições desta cópia.'));
+  ferramentas.append(links, estado);
   secao.append(ferramentas);
 }
 
@@ -160,6 +186,7 @@ async function carregarOffline() {
       const ortos = new Map((dados.ortofotos || []).map(item => [item.id, item]));
       window.GeoVSATTCampo = {
         baseVetorial: dados.openfreemap || null,
+        temHistoricoTrabalhos: Boolean(dados.historico_trabalhos),
         api(url, opcoes) {
           if (!vigente(registro)) throw Error('A validade desta cópia terminou.');
           return apiLocal(url, opcoes);

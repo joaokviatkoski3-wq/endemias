@@ -15,6 +15,7 @@ from app_core import geovsatt_equipamentos as equipamentos
 from app_core import geovsatt_exportacao as exportacao
 from app_core import geovsatt_openfreemap as base_vetorial
 from app_core import geovsatt_ortofotos as ortofotos
+from app_core import geovsatt_trabalhos
 from app_core import registro_geografico as rg
 from app_core import setores
 from app_core.auth import login_required
@@ -171,8 +172,14 @@ def api_pacote_offline():
             camada = _obter(codigo, incluir_dados=True)
             if not geo.pode_exportar_camada(target, camada, usuario):
                 return jsonify({"erro": "A permissão da camada mudou. Atualize o catálogo e tente novamente."}), 403
-            parametros = trabalhos if codigo == "quarteiroes_trabalhados" else None
-            pacote["dados"][codigo] = _colecao_camada(target, camada, usuario, parametros)
+            if codigo == geovsatt_trabalhos.CODIGO:
+                consulta = geovsatt_trabalhos.filtros(trabalhos)
+                malha = geo.quarteiroes(target, _base_dir(), usuario=usuario, incluir_rg=False)
+                dados, historico = geovsatt_trabalhos.preparar_offline(target, malha, consulta)
+                pacote["dados"][codigo] = dados
+                pacote["historico_trabalhos"] = historico
+            else:
+                pacote["dados"][codigo] = _colecao_camada(target, camada, usuario)
     except camadas.CamadaAusente:
         return jsonify({"erro": "Uma camada deixou de estar disponível. Atualize o catálogo e tente novamente."}), 409
     except ValueError as exc:
