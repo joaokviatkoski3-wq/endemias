@@ -1,6 +1,6 @@
 import {abrirRegistro, bloquearRegistro, criarRegistro, decodificarPacote, gravarProjetos,
-  guardarRegistro, lerProjetos, lerRegistro, protegerProjetos, removerRegistro} from './geovsatt_cofre.mjs';
-import {criarApiLocal, exportar, lerBaseVetorial} from './geovsatt_dados_offline.mjs';
+  guardarRegistro, lerProjetos, lerRegistro, protegerProjetos, removerRegistro} from 'geovsatt-cofre';
+import {criarApiLocal, exportar, lerBaseVetorial} from 'geovsatt-dados-offline';
 
 const shell = document.querySelector('.geo-shell');
 const offline = document.documentElement.dataset.offline === '1';

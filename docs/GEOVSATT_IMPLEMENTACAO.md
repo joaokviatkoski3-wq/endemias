@@ -4,7 +4,7 @@ Atualizado em 26/11/2026.
 
 ## Estado deste incremento
 
-A candidata `2.27.2` reúne as alterações descritas a seguir. Consulte
+A candidata `2.27.3` reúne as alterações descritas a seguir. Consulte
 `ESTADO_ATUAL_PROJETO.md` para o último registro de produção.
 
 Implementado:
@@ -345,6 +345,14 @@ por PBKDF2-HMAC-SHA256. O servidor reaplica a permissão de download de cada
 camada e registra a geração na auditoria. O acesso é verificado quando o
 servidor responde ao abrir a cópia ou retornar a conexão. Sair da sessão
 bloqueia a cópia. Sua remoção apaga também as composições locais.
+
+Na 2.27.3, a busca offline aceita endereços completos das fichas do RG
+incluídas na cópia, com número ou S/N, bairro, Almirante Tamandaré, UF
+e CEP quando presente no texto do endereço. O CEP isolado ainda precisa
+de consulta postal com conexão. A instalação mantém os arquivos da versão
+anterior disponíveis para abas abertas. Quando o servidor não responde ou
+retorna erro 5xx, a entrada do aplicativo oferece a cópia no aparelho.
+Respostas de autenticação e acesso seguem a sessão do servidor.
 
 Nominatim, BrasilAPI, ViaCEP, Esri World Imagery, Sentinel-2 e a administração
 do catálogo usam conexão. As ortofotos e a base de ruas baixadas aparecem

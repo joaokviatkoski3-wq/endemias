@@ -1607,7 +1607,7 @@ def detalhes_quarteiroes_offline(db_path, blocos):
         agentes = _string_aggregate(conn, "a.nome")
         cursor = conn.execute(
             f"""
-            SELECT i.id_imovel, i.id_localidade, i.quarteirao, i.logradouro, i.numero,
+            SELECT i.id_imovel, i.id_localidade, i.quarteirao, i.localidade, i.logradouro, i.numero,
                    i.sequencia, i.tipo, i.condominio, i.data_atualizacao, i.agentes_texto,
                    {agentes} AS agentes
               FROM registro_geografico_imoveis i
@@ -1623,7 +1623,7 @@ def detalhes_quarteiroes_offline(db_path, blocos):
                 registros[chave].append(_formatar(dict(row)))
     finally:
         conn.close()
-    campos = ("id_imovel", "logradouro", "numero", "sequencia", "tipo", "tipo_label", "agentes")
+    campos = ("id_imovel", "localidade", "logradouro", "numero", "sequencia", "tipo", "tipo_label", "agentes")
     return {
         chave: {"localidade": {"nome": props.get("Localidade_nome")}, "quarteirao": props["id_quart"],
                 "data_atualizacao_br": _data_br(registros[chave][0]["data_atualizacao"]) if registros[chave] else "",

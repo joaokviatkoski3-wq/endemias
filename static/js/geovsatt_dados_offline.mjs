@@ -1,5 +1,5 @@
-const normalizar = valor => String(valor ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '')
-  .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const semAcentos = valor => String(valor ?? '').normalize('NFKD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+const normalizar = valor => semAcentos(valor).replace(/[^a-z0-9]+/g, ' ').trim();
 const numero = valor => String(valor ?? '').trim().replace(/^0+(?=\d)/, '').toLowerCase();
 const nomeDaFeicao = (props, rotulo) => props[rotulo] ?? props.nome ?? props.NOME ?? props.Name ?? props.rotulo;
 const temFonteDeCalor = (pacote, codigo) =>
@@ -21,41 +21,113 @@ const projetoNaCopia = (projeto, pacote) => {
     calor_indisponivel: Boolean(projeto.calor_indisponivel || calorIndisponivel), configuracao};
 };
 
+function numeroDeImovel(valor) {
+  const texto = semAcentos(valor).replace(/\s/g, '');
+  if (texto === 's/n' || texto === 'sn') return 'sn';
+  return /^\d+[a-z]?$/.test(texto) ? numero(texto) : '';
+}
+
+function interpretarEndereco(texto, palavrasDaVia, palavrasDaLocalidade) {
+  const ruaComComplementos = semAcentos(texto).trim()
+    .replace(/(?:[,;\s-]+cep\s*|[,;\s]+)\d{5}-\d{3}$|[,;\s-]+cep\s*\d{8}$/, '')
+    .replace(/,\s*brasil$/, '')
+    .replace(/(?:,|\s+-|\s*\/)\s*(?:pr|parana)$/, '')
+    .replace(/(?:,|\s+-)\s*almirante tamandare$/, '')
+    .replace(/\bn(?:[º°.]|o\.?|umero)\s*(?=\d)/g, '')
+    .replace(/\bs\s*\/\s*n\b/g, 'sn');
+  const [rua, ...complementos] = ruaComComplementos.split(',');
+  const via = palavrasDaVia(rua);
+  if (via.join('').length < 3) return [];
+  if (complementos.length) {
+    const resto = complementos.join(',').replace(/^[\s,-]+/, '');
+    const inicial = resto.match(/^(\d+[a-z]?|sn)(?=[\s,;-]|$)/);
+    return [{via, numero: numeroDeImovel(inicial?.[0]),
+      localidade: palavrasDaLocalidade(resto.slice(inicial?.[0].length || 0))}];
+  }
+  const consultas = [{via, numero: '', localidade: []}];
+  for (let i = 1; i < via.length; i += 1) {
+    const casa = numeroDeImovel(via[i]);
+    if (casa) consultas.push({via: via.slice(0, i), numero: casa,
+      localidade: palavrasDaLocalidade(via.slice(i + 1).join(' '))});
+  }
+  return consultas;
+}
+
+function conferePalavras(consulta, base) {
+  if (!consulta.length) return true;
+  return base.some((_, inicio) => consulta.every((palavra, i) => {
+    const atual = base[inicio + i];
+    return atual === palavra || (i === consulta.length - 1 && palavra.length >= 3 && atual?.startsWith(palavra));
+  }));
+}
+
+function buscarEnderecos(pacote, entrada, limite) {
+  const {abreviacoes = {r: 'rua', av: 'avenida', rod: 'rodovia', trav: 'travessa'},
+    prefixos = ['rua', 'avenida', 'rodovia', 'estrada', 'travessa', 'alameda', 'viela']} = pacote.rg_vocabulario || {};
+  const palavras = texto => normalizar(texto).split(' ').filter(Boolean)
+    .map(palavra => Object.hasOwn(abreviacoes, palavra) ? abreviacoes[palavra] : palavra);
+  const palavrasDaVia = texto => {
+    const via = palavras(texto);
+    while (prefixos.includes(via[0])) via.shift();
+    return via;
+  };
+  const palavrasDaLocalidade = texto => {
+    const parte = palavras(texto);
+    return ['bairro', 'localidade'].includes(parte[0]) ? parte.slice(1) : parte;
+  };
+  const consultas = interpretarEndereco(entrada.q, palavrasDaVia, palavrasDaLocalidade);
+  if (!consultas.length) return [];
+  const enderecos = new Map();
+  const vias = new Map();
+  const localidades = new Map();
+  for (const [chave, bloco] of Object.entries(pacote.rg || {})) {
+    for (const item of bloco.registros) {
+      if (!item.logradouro || item.tipo === 'REF') continue;
+      const local = item.localidade || bloco.localidade.nome;
+      if (!vias.has(item.logradouro)) vias.set(item.logradouro, palavrasDaVia(item.logradouro));
+      if (!localidades.has(local)) localidades.set(local, palavrasDaLocalidade(local));
+      const via = vias.get(item.logradouro);
+      const localidade = localidades.get(local);
+      const casa = numeroDeImovel(item.numero);
+      const rua = via.join(' ');
+      for (const consulta of consultas) {
+        const porNumero = Boolean(consulta.numero);
+        const numeroExato = casa === consulta.numero;
+        if (porNumero && !(entrada.sugestao ? casa.startsWith(consulta.numero) : numeroExato)) continue;
+        if (!conferePalavras(consulta.via, via) || !conferePalavras(consulta.localidade, localidade)) continue;
+        const viaExata = consulta.via.length === via.length && consulta.via.at(-1) === via.at(-1);
+        const prioridade = (porNumero ? 8 : 0) + (viaExata ? 4 : 0) +
+          (consulta.localidade.length ? 2 : 0) + (porNumero && numeroExato ? 1 : 0);
+        const id = [chave, rua, porNumero ? casa : ''].join('|');
+        const encontrado = enderecos.get(id);
+        if (encontrado && encontrado.prioridade >= prioridade) {
+          if (porNumero) encontrado.resultado.imoveis.add(item.id_imovel);
+          continue;
+        }
+        enderecos.set(id, {prioridade, porNumero, resultado: {tipo: 'endereco',
+          titulo: porNumero ? item.logradouro + ', ' + item.numero : item.logradouro,
+          logradouro: item.logradouro, subtitulo: local + ' · Q. ' + bloco.quarteirao + ' · RG offline',
+          id_localidade: Number(chave.split(':')[0]), quarteirao: bloco.quarteirao, chave,
+          imoveis: new Set(porNumero ? [item.id_imovel] : [])}});
+      }
+    }
+  }
+  const ordenados = [...enderecos.values()].sort((a, b) => b.prioridade - a.prioridade ||
+    a.resultado.titulo.localeCompare(b.resultado.titulo, 'pt-BR') ||
+    a.resultado.subtitulo.localeCompare(b.resultado.subtitulo, 'pt-BR'));
+  return ordenados.filter(item => !ordenados[0]?.porNumero || item.porNumero).slice(0, limite)
+    .map(({resultado}) => ({...resultado, imoveis: [...resultado.imoveis].sort((a, b) => a - b).slice(0, 100)}));
+}
+
 function buscar(pacote, entrada) {
   const termo = normalizar(entrada.q);
   if (termo.length < 2 || (entrada.sugestao && termo.length < 3)) return [];
   const limite = entrada.sugestao ? 7 : 30;
-  const tokens = termo.split(' ');
-  const ignoraTipo = new Set(['r', 'av', 'rod', 'trav', 'n', 'numero']);
   const blocoExplicito = termo.match(/^(?:quarteirao|q) ([\da-z ]+)$/);
-  const enderecos = new Map();
-  for (const [chave, bloco] of Object.entries(blocoExplicito ? {} : pacote.rg || {})) {
-    const local = normalizar(bloco.localidade.nome);
-    for (const item of bloco.registros) {
-      const via = normalizar(item.logradouro);
-      if (!via || item.tipo === 'REF') continue;
-      const n = numero(item.numero);
-      const palavrasDaVia = via.split(' ');
-      const numericos = tokens.filter(token => /^\d+[a-z]?$/.test(token) && !palavrasDaVia.includes(token));
-      const total = via + ' ' + local;
-      const combina = tokens.every(token => ignoraTipo.has(token) || numericos.includes(token) || total.includes(token))
-        && numericos.every(token => n && (entrada.sugestao ? n.startsWith(numero(token)) : n === numero(token)));
-      if (!combina) continue;
-      const porNumero = numericos.length > 0;
-      const id = chave + '|' + via + '|' + (porNumero ? n : '');
-      if (enderecos.has(id)) {
-        if (porNumero) enderecos.get(id).imoveis.push(item.id_imovel);
-        continue;
-      }
-      enderecos.set(id, {tipo: 'endereco', titulo: porNumero ? item.logradouro + ', ' + item.numero : item.logradouro,
-        logradouro: item.logradouro, subtitulo: bloco.localidade.nome + ' · Q. ' + bloco.quarteirao + ' · RG offline',
-        id_localidade: Number(chave.split(':')[0]), quarteirao: bloco.quarteirao, chave,
-        imoveis: porNumero ? [item.id_imovel] : []});
-      if (enderecos.size >= limite) return [...enderecos.values()];
-    }
+  if (!blocoExplicito && pacote.rg) {
+    const enderecos = buscarEnderecos(pacote, entrada, limite);
+    if (enderecos.length) return enderecos;
   }
-  if (enderecos.size) return [...enderecos.values()].sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'));
-
   const resultados = [];
   const blocos = new Set();
   for (const camada of pacote.camadas) {

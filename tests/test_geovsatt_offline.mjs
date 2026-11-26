@@ -82,10 +82,24 @@ test('a estimativa recorta e une quarteirões repetidos', () => {
 });
 
 test('consulta local usa apenas as feições e endereços preparados no pacote', async () => {
-  const api = criarApiLocal(pacote(), [], () => {}, recortar);
-  const busca = await api('/api/geovsatt/busca', {body: JSON.stringify({q: 'São José 10'})});
-  assert.equal(busca.resultados[0].chave, '1:1');
-  assert.deepEqual(busca.resultados[0].imoveis, [12]);
+  const dados = pacote();
+  const rg = dados.rg['1:1'];
+  rg.registros.push({id_imovel: 13, logradouro: 'Rua São José', numero: '100', tipo: 'R'});
+  rg.registros.push({id_imovel: 14, logradouro: 'Rua Sete de Setembro', numero: 'S/N', tipo: 'R',
+    localidade: 'Bairro de ensaio'});
+  dados.rg['2:9'] = {localidade: {nome: 'Vila vizinha'}, quarteirao: '9',
+    registros: [{id_imovel: 15, logradouro: 'Rua São José', numero: '10', tipo: 'R'}]};
+  const api = criarApiLocal(dados, [], () => {}, recortar);
+  const buscar = async (q, sugestao = false) =>
+    (await api('/api/geovsatt/busca', {body: JSON.stringify({q, sugestao})})).resultados;
+  assert.deepEqual((await buscar('São José 10')).map(item => item.imoveis), [[12], [15]]);
+  const [completo] = await buscar('R. São José, nº 0010, bairro Vila de ensaio, Almirante Tamandaré/PR, Brasil, CEP 83500-100');
+  assert.equal(completo.chave, '1:1');
+  assert.deepEqual(completo.imoveis, [12]);
+  assert.deepEqual((await buscar('Rua São José 10', true)).map(item => item.imoveis), [[12], [15], [13]]);
+  assert.deepEqual((await buscar('Rua Sete de Setembro, S/N, Bairro de ensaio, Almirante Tamandaré - PR'))
+    .map(item => item.imoveis), [[14]]);
+  assert.deepEqual(await buscar('R. São José, 10, Vila errada'), []);
   assert.equal((await api('/api/geovsatt/quarteiroes/1/1')).localidade.nome, 'Vila de ensaio');
   await assert.rejects(api('/api/geovsatt/quarteiroes/2/2'), /não está na cópia/);
   await assert.rejects(api('/api/geovsatt/nominatim'), /conexão/);
@@ -141,50 +155,93 @@ test('exporta os três formatos e escapa fórmulas e atributos XML', async () =>
 });
 
 test('o worker prepara só a interface pública e abre a entrada local sem conexão', async () => {
-  const eventos = {};
-  const preparadas = new Set();
+  const codigo = readFileSync(new URL('../static/geovsatt-sw.js', import.meta.url), 'utf8');
   const offline = {body: 'interface sem dados privados'};
   const origem = 'https://geo.exemplo.invalid';
-  const cache = {
-    async addAll(requisicoes) {
-      for (const pedido of requisicoes) preparadas.add(pedido.url);
+  const prefixo = 'geovsatt-app-';
+  const cacheAnterior = new Map([
+    ['/static/js/geovsatt_vetorial.mjs?v=2.27.2', {body: 'vetorial anterior'}],
+    ['/static/js/geovsatt_dados_offline.mjs', {body: 'módulo anterior'}],
+  ]);
+  const armazenados = new Map([['outro-app', new Map()], [prefixo + '2.27.1', new Map()],
+    [prefixo + '2.27.2', cacheAnterior]]);
+  let falhaInstalacao = false;
+  let statusDoServidor = 200;
+  const caches = {
+    has: async chave => armazenados.has(chave),
+    keys: async () => Array.from(armazenados.keys()),
+    delete: async chave => armazenados.delete(chave),
+    async open(chave) {
+      if (!armazenados.has(chave)) armazenados.set(chave, new Map());
+      return {async addAll(requisicoes) {
+        if (falhaInstalacao) throw Error('rede interrompida');
+        for (const {url} of requisicoes) {
+          const resposta = url.startsWith('/geovsatt/offline?') ? offline : {body: url};
+          armazenados.get(chave).set(url, resposta);
+        }
+      }};
     },
-    async match(entrada) {
-      if ((entrada.url || entrada) === '/geovsatt/offline') return offline;
-      return undefined;
+    async match(entrada, {cacheName}) {
+      const url = new URL(entrada.url || entrada, origem);
+      return armazenados.get(cacheName)?.get(url.pathname + url.search);
     },
   };
-  let conectado = true;
-  const contexto = {
-    URL, AbortSignal, Request: class Request { constructor(url) { this.url = url; } },
-    caches: {open: async () => cache},
-    fetch: async () => {
-      if (!conectado) throw Error('sem conexão');
-      return {status: 401};
-    },
-    self: {location: {href: origem + '/geovsatt-sw.js?v=2.26.0', origin: origem},
-      addEventListener: (nome, executar) => { eventos[nome] = executar; }, skipWaiting() {}},
-  };
-  runInNewContext(readFileSync(new URL('../static/geovsatt-sw.js', import.meta.url), 'utf8'), contexto);
-  let instalacao;
-  eventos.install({waitUntil: tarefa => { instalacao = tarefa; }});
-  await instalacao;
-  assert.ok(preparadas.has('/geovsatt/offline'));
-  for (const caminho of preparadas) {
-    assert.ok(caminho.startsWith('/static/') || ['/geovsatt/offline', '/geovsatt/manifest.webmanifest'].includes(caminho));
+  function worker(versao) {
+    const eventos = {};
+    runInNewContext(codigo, {
+      URL, AbortSignal, Response, Request: class Request { constructor(url) { this.url = url; } },
+      caches,
+      fetch: async () => {
+        if (!statusDoServidor) throw Error('sem conexão');
+        return {status: statusDoServidor};
+      },
+      self: {location: {href: origem + '/geovsatt-sw.js?v=' + versao, origin: origem},
+        addEventListener: (nome, executar) => { eventos[nome] = executar; }, skipWaiting() {},
+        clients: {claim() {}}},
+    });
+    return eventos;
+  }
+  function finalizar(evento) {
+    let pendente;
+    evento({waitUntil: tarefa => { pendente = tarefa; }});
+    return pendente;
+  }
+  const eventos = worker('2.27.3');
+  await finalizar(eventos.install);
+  const atual = armazenados.get(prefixo + '2.27.3');
+  assert.ok(atual.has('/geovsatt/offline?v=2.27.3'));
+  assert.ok(atual.has('/static/js/geovsatt_dados_offline.mjs?v=2.27.3'));
+  for (const caminho of atual.keys()) {
+    assert.ok(caminho.startsWith('/static/') || ['/geovsatt/offline?v=2.27.3', '/geovsatt/manifest.webmanifest'].includes(caminho));
     if (caminho.startsWith('/static/')) assert.ok(existsSync(new URL('..' + caminho.split('?')[0], import.meta.url)));
   }
-  function visitar(caminho, method = 'GET') {
+  await finalizar(eventos.activate);
+  assert.deepEqual([...armazenados.keys()], ['outro-app', prefixo + '2.27.2', prefixo + '2.27.3']);
+  falhaInstalacao = true;
+  await assert.rejects(finalizar(worker('2.27.4').install), /rede interrompida/);
+  assert.equal(armazenados.has(prefixo + '2.27.4'), false);
+  function visitar(caminho, method = 'GET', mode = 'navigate') {
     let resposta;
-    eventos.fetch({request: {url: origem + caminho, method, mode: 'navigate'},
+    eventos.fetch({request: {url: origem + caminho, method, mode},
       respondWith: tarefa => { resposta = tarefa; }});
     return resposta;
   }
-  assert.equal((await visitar('/geovsatt')).status, 401);
-  conectado = false;
+  for (const autorizado of [200, 401, 403]) {
+    statusDoServidor = autorizado;
+    assert.equal((await visitar('/geovsatt')).status, autorizado);
+  }
+  statusDoServidor = 503;
   assert.equal(await visitar('/geovsatt'), offline);
+  statusDoServidor = 0;
+  assert.equal(await visitar('/geovsatt'), offline);
+  assert.equal(await visitar('/geovsatt/offline'), offline);
+  assert.equal((await visitar('/static/js/geovsatt_vetorial.mjs?v=2.27.2', 'GET', 'cors')).body, 'vetorial anterior');
+  assert.equal((await visitar('/static/js/geovsatt_dados_offline.mjs', 'GET', 'cors')).body, 'módulo anterior');
+  assert.equal((await visitar('/static/js/geovsatt_dados_offline.mjs?v=2.27.3', 'GET', 'cors')).body,
+    '/static/js/geovsatt_dados_offline.mjs?v=2.27.3');
   assert.equal(visitar('/geovsatt/admin/camadas'), undefined);
   assert.equal(visitar('/api/geovsatt/pacote-offline', 'POST'), undefined);
+  assert.equal(visitar('/api/geovsatt/pacote-offline/estado?v=2.27.3'), undefined);
 });
 
 test('a base vetorial local só é aceita após receber todos os recursos', async () => {

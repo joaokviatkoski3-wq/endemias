@@ -4,7 +4,7 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
-    "2.27.2": {
+    "2.27.3": {
         "titulo": "GeoVSATT no campo e sem conexão",
         "mudancas": [
             "Os detalhes das feições abrem em um painel com rolagem. A legenda lateral acompanha as cores do mapa.",
@@ -13,6 +13,7 @@ RELEASES = {
             "Use busca, detalhes, medições, filtros, exportação e composições a partir da cópia no aparelho.",
             "Filtre os quarteirões trabalhados por datas, tipo de trabalho e localidade dentro do período baixado.",
             "Salve o mapa de calor e os filtros da camada de origem junto à composição de impressão.",
+            "Busque endereços completos do RG na cópia e continue usando o mapa durante a troca de versão.",
         ],
     },
     "2.26.0": {

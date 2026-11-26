@@ -19,6 +19,7 @@ from app_core import geovsatt_trabalhos
 from app_core import registro_geografico as rg
 from app_core import setores
 from app_core.auth import login_required
+from app_core.version import APP_VERSION
 
 
 bp = Blueprint("geovsatt", __name__)
@@ -84,6 +85,8 @@ def manifest_mapa():
 
 @bp.get("/geovsatt-sw.js")
 def worker_mapa():
+    if request.args.get("v", APP_VERSION) != APP_VERSION:
+        abort(409)
     resposta = send_from_directory(current_app.static_folder, "geovsatt-sw.js", mimetype="application/javascript")
     resposta.headers["Service-Worker-Allowed"] = "/geovsatt"
     return resposta
@@ -91,6 +94,8 @@ def worker_mapa():
 
 @bp.get("/geovsatt/offline")
 def mapa_offline():
+    if request.args.get("v", APP_VERSION) != APP_VERSION:
+        abort(409)
     return render_template("geovsatt.html", titulo="GeoVSATT offline", modo_offline=True,
                            catalogo={"camadas": []})
 
@@ -191,6 +196,7 @@ def api_pacote_offline():
         pacote["rg"] = rg.detalhes_quarteiroes_offline(target, (
             feature["properties"] for feature in pacote["dados"]["quarteiroes"]["features"]
         ))
+        pacote["rg_vocabulario"] = {"abreviacoes": rg.ABREVIACOES_LOGRADOURO, "prefixos": sorted(rg.PREFIXOS_LOGRADOURO)}
     projetos = []
     pontos = {codigo for codigo in selecionadas if catalogo[codigo]["tipo"] == "ponto"}
     bases = {"none"} | {catalogo_ortos[codigo]["base"] for codigo in ortos_selecionadas}

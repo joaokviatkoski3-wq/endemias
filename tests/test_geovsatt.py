@@ -21,6 +21,7 @@ from shapely.geometry import box, mapping, shape
 
 import app
 from app_core import auth, db, dominios, geovsatt_busca, geovsatt_openfreemap, liraa, liraa_kobo, registro_geografico, sessoes
+from app_core.version import APP_VERSION
 from scripts.preparar_massa_web_teste import preparar
 
 
@@ -110,6 +111,10 @@ class GeoVSATTTests(unittest.TestCase):
             self.assertEqual(worker.headers["Service-Worker-Allowed"], "/geovsatt")
             self.assertEqual(worker.mimetype, "application/javascript")
             self.assertIn("no-store", worker.headers["Cache-Control"])
+        for rota in ("/geovsatt-sw.js", "/geovsatt/offline"):
+            self.assertEqual(client.get(rota, query_string={"v": "0.0.0"}).status_code, 409)
+            with closing(client.get(rota, query_string={"v": APP_VERSION})) as resposta:
+                self.assertEqual(resposta.status_code, 200)
         self.assertEqual(self.endemias.test_client().get(manifest_url).status_code, 403)
         self.assertNotEqual(client.get("/geovsatt").status_code, 200)
         pagina = client.get("/geovsatt/offline")
@@ -121,6 +126,8 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertNotIn(b'data-conta=', pagina.data)
         self.assertNotIn(b'action="/logout"', pagina.data)
         self.assertIn(b'geovsatt_campo.mjs', pagina.data)
+        for modulo in ("geovsatt_cofre", "geovsatt_dados_offline"):
+            self.assertIn(f"/static/js/{modulo}.mjs?v={APP_VERSION}".encode(), pagina.data)
 
     def test_pacote_offline_exige_permissao_de_download_e_usa_dados_do_mapa(self):
         admin = self.client()
@@ -196,13 +203,16 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(admin.post(rota, json={"camadas": ["localidades"], "enderecos": True}).status_code, 403)
         dados = admin.post(rota, json={"camadas": ["quarteiroes"]}).json
         self.assertNotIn("rg", dados)
+        self.assertNotIn("rg_vocabulario", dados)
         self.assertEqual(dados["populacao"]["media"], 2.93)
         dados = admin.post(rota, json={"camadas": ["quarteiroes"], "enderecos": True}).json
         no_mapa = admin.get("/api/geovsatt/quarteiroes/1/1").json
         bloco = dados["rg"]["1:1"]
         self.assertEqual(bloco["resumo"], no_mapa["resumo"])
         self.assertEqual(bloco["registros"][0]["logradouro"], no_mapa["registros"][0]["logradouro"])
-        self.assertEqual(set(bloco["registros"][0]), {"id_imovel", "logradouro", "numero", "sequencia",
+        self.assertEqual(bloco["registros"][0]["localidade"], no_mapa["registros"][0]["localidade"])
+        self.assertEqual(dados["rg_vocabulario"]["abreviacoes"]["av"], "avenida")
+        self.assertEqual(set(bloco["registros"][0]), {"id_imovel", "localidade", "logradouro", "numero", "sequencia",
                                                       "tipo", "tipo_label", "agentes"})
 
     def test_cadastro_equipamentos_preserva_acervo_historico_e_permissoes(self):
