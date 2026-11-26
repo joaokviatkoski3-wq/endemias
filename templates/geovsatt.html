@@ -63,6 +63,29 @@
         {% if catalogo.pode_configurar %}
         <a class="geo-admin-note" href="{{ url_for('geovsatt.admin_catalogo') }}"><strong>Gerenciar camadas</strong><span>Importar GeoJSON e publicar novas versões</span></a>
         {% endif %}
+        <section class="geo-layer-group">
+          <h2>Imagens e bases</h2>
+          <label class="geo-base-control">Mapa-base
+            <select id="geo-basemap">
+              <option value="none">Sem imagem-base</option>
+              <option value="openfreemap">OpenStreetMap · OpenFreeMap</option>
+              <option value="sentinel">Satélite Sentinel-2 (2025)</option>
+              {% if esri_licenciado %}<option value="esri">Satélite Esri World Imagery</option>{% endif %}
+              {% if catalogo.ortofotos %}
+              <optgroup label="Ortofotos">
+                {% for orto in catalogo.ortofotos %}
+                <option value="{{ orto.base }}" data-ortofoto="{{ orto | tojson | forceescape }}">{{ orto.nome }}</option>
+                {% endfor %}
+              </optgroup>
+              {% endif %}
+            </select>
+          </label>
+          <div id="geo-ortofoto-info" class="geo-ortofoto-info" hidden>
+            <span id="geo-ortofoto-fonte"></span>
+            <button id="geo-ortofoto-enquadrar" type="button">Enquadrar ortofoto</button>
+            <a id="geo-ortofoto-baixar" hidden>Baixar MBTiles</a>
+          </div>
+        </section>
         {% for grupo in catalogo.camadas|groupby('grupo') %}
         <section class="geo-layer-group">
           <h2>{{ grupo.grouper }}</h2>
@@ -108,29 +131,6 @@
           {% endfor %}
         </section>
         {% endfor %}
-        <section class="geo-layer-group">
-          <h2>Imagens e bases</h2>
-          <label class="geo-base-control">Mapa-base
-            <select id="geo-basemap">
-              <option value="none">Sem imagem-base</option>
-              <option value="openfreemap">OpenStreetMap · OpenFreeMap</option>
-              <option value="sentinel">Satélite Sentinel-2 (2025)</option>
-              {% if esri_licenciado %}<option value="esri">Satélite Esri World Imagery</option>{% endif %}
-              {% if catalogo.ortofotos %}
-              <optgroup label="Ortofotos">
-                {% for orto in catalogo.ortofotos %}
-                <option value="{{ orto.base }}" data-ortofoto="{{ orto | tojson | forceescape }}">{{ orto.nome }}</option>
-                {% endfor %}
-              </optgroup>
-              {% endif %}
-            </select>
-          </label>
-          <div id="geo-ortofoto-info" class="geo-ortofoto-info" hidden>
-            <span id="geo-ortofoto-fonte"></span>
-            <button id="geo-ortofoto-enquadrar" type="button">Enquadrar ortofoto</button>
-            <a id="geo-ortofoto-baixar" hidden>Baixar MBTiles</a>
-          </div>
-        </section>
       </div>
     </aside>
     <button id="geo-sidebar-backdrop" class="geo-sidebar-backdrop" type="button" aria-label="Fechar menu" hidden></button>

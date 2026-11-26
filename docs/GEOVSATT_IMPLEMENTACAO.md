@@ -263,6 +263,9 @@ importação, publicação e edição de metadados geram eventos de auditoria.
 
 ## Simbologia e etiquetas na 2.26.0
 
+- O seletor **Imagens e bases** fica no início do menu lateral. As opções
+  incluem Esri World Imagery e OpenStreetMap · OpenFreeMap.
+
 - Em **Gerenciar camadas → Exibição no mapa**, escolha entre as cores
   automáticas, cor única, categorias ou faixas numéricas por campo. As
   regras antigas continuam disponíveis no modo automático. As categorias

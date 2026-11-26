@@ -86,9 +86,10 @@ class CampoPushTests(unittest.TestCase):
 
     def test_atualizacao_reune_so_os_resumos_das_versoes_puladas(self):
         cliente = self.f.client("endemias")
-        resposta = cliente.get("/api/formularios/kobo/versao-offline?desde=2.14.0")
-        self.assertEqual([item["versao"] for item in resposta.json["atualizacoes"]], ["2.14.2","2.14.1"])
-        self.assertEqual(campo_release.historico("2.14.2"), [])
+        with patch.object(campo_release, "APP_VERSION", "2.14.2"):
+            resposta = cliente.get("/api/formularios/kobo/versao-offline?desde=2.14.0")
+            self.assertEqual([item["versao"] for item in resposta.json["atualizacoes"]], ["2.14.2", "2.14.1"])
+            self.assertEqual(campo_release.historico("2.14.2"), [])
 
     def test_transporte_assina_sem_dados_da_coleta_e_restringe_destino(self):
         hdr = campo_push._cabecalhos(self.key, self.subject, 1000)
