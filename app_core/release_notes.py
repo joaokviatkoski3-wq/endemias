@@ -4,6 +4,15 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.27.0": {
+        "titulo": "GeoVSATT no campo e sem conexão",
+        "mudancas": [
+            "Os detalhes das feições abrem em um painel com rolagem. A legenda lateral acompanha as cores do mapa.",
+            "O mapa de calor usa as feições da camada selecionada. A busca de lugares usa Nominatim quando configurado.",
+            "Instale o GeoVSATT e prepare uma cópia offline com camadas, base de ruas e ortofotos selecionadas.",
+            "Use busca, detalhes, medições, filtros, exportação e composições a partir da cópia no aparelho.",
+        ],
+    },
     "2.26.0": {
         "titulo": "Simbologia e etiquetas no GeoVSATT",
         "mudancas": [

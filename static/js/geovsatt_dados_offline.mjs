@@ -5,7 +5,8 @@ const nomeDaFeicao = (props, rotulo) => props[rotulo] ?? props.nome ?? props.NOM
 const projetoNaCopia = (projeto, pacote) => {
   const dados = projeto.configuracao;
   const camadas = dados.camadas.filter(codigo => Object.hasOwn(pacote.dados, codigo));
-  const baseIndisponivel = dados.base !== 'none' && !pacote.ortofotos?.some(item => item.base === dados.base);
+  const baseIndisponivel = dados.base !== 'none' && !(dados.base === 'openfreemap' && pacote.openfreemap)
+    && !pacote.ortofotos?.some(item => item.base === dados.base);
   return {...projeto, camadas_indisponiveis: projeto.camadas_indisponiveis + dados.camadas.length - camadas.length,
     base_indisponivel: projeto.base_indisponivel || Boolean(baseIndisponivel),
     configuracao: {...dados, base: baseIndisponivel ? 'none' : dados.base, camadas,
@@ -262,4 +263,54 @@ export function exportar(camada, dados, formato) {
   });
   return new Blob(['<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>',
     xml(camada.nome), '</name>', ...itens, '</Document></kml>'], {type: 'application/vnd.google-earth.kml+xml'});
+}
+
+export async function lerBaseVetorial(fluxo, limite, progresso) {
+  const leitor = fluxo.getReader();
+  const decoder = new TextDecoder();
+  let trecho = '';
+  let recebido = 0;
+  let total;
+  let base;
+  let encerrado = false;
+  const recursos = Object.create(null);
+  function processar(linha) {
+    const item = JSON.parse(linha);
+    if (item.erro) throw Error(item.erro);
+    if (encerrado) throw Error('O download retornou dados após a confirmação.');
+    if (item.estilo && !base) {
+      total = item.total;
+      base = {estilo: item.estilo, recorte: item.recorte, recursos};
+      progresso(0, total);
+    } else if (item.chave && base) {
+      if (typeof item.dados !== 'string' || Object.hasOwn(recursos, item.chave)) {
+        throw Error('A base retornou um recurso inválido.');
+      }
+      recursos[item.chave] = item.dados;
+      recebido += 1;
+      if (recebido % 5 === 0 || recebido === total) progresso(recebido, total);
+    } else if (item.concluido && base && total === recebido) {
+      encerrado = true;
+    } else if (!item.preparando) {
+      throw Error('A base offline retornou um formato desconhecido.');
+    }
+  }
+  try {
+    for (;;) {
+      const {done, value} = await leitor.read();
+      if (done) break;
+      limite -= value.byteLength;
+      if (limite < 0) throw Error('A base ultrapassou o espaço disponível no pacote.');
+      trecho += decoder.decode(value, {stream: true});
+      const linhas = trecho.split('\n');
+      trecho = linhas.pop();
+      for (const linha of linhas) if (linha) processar(linha);
+    }
+    trecho += decoder.decode();
+    if (trecho.trim()) processar(trecho);
+    if (!encerrado) throw Error('O download da base foi interrompido. A cópia anterior permanece disponível.');
+    return base;
+  } finally {
+    await leitor.cancel().catch(() => {});
+  }
 }

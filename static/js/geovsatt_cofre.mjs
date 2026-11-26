@@ -25,12 +25,13 @@ async function descriptografar(registro, chave, protegido, tipo) {
   return crypto.subtle.decrypt(parametros(registro, protegido.iv, tipo), chave, protegido.conteudo);
 }
 
-export function decodificarPacote(bytes) {
+export function decodificarPacote(bytes, baseEmPreparo = false) {
   const dados = JSON.parse(decoder.decode(bytes));
   const inicio = Date.parse(dados.criado_em);
   const fim = Date.parse(dados.valido_ate);
   if (dados.formato !== 1 || !Number.isSafeInteger(dados.usuario) || !Array.isArray(dados.camadas)
-      || !(dados.camadas.length || dados.ortofotos?.length) || !dados.dados || !(inicio < fim)) {
+      || !(dados.camadas.length || dados.ortofotos?.length || dados.openfreemap?.estilo || baseEmPreparo)
+      || !dados.dados || !(inicio < fim)) {
     throw Error('Formato da cópia offline incompatível.');
   }
   return dados;

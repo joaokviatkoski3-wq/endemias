@@ -1,10 +1,11 @@
 import {abrirRegistro, bloquearRegistro, criarRegistro, decodificarPacote, gravarProjetos,
   guardarRegistro, lerProjetos, lerRegistro, protegerProjetos, removerRegistro} from './geovsatt_cofre.mjs';
-import {criarApiLocal, exportar} from './geovsatt_dados_offline.mjs';
+import {criarApiLocal, exportar, lerBaseVetorial} from './geovsatt_dados_offline.mjs';
 
 const shell = document.querySelector('.geo-shell');
 const offline = document.documentElement.dataset.offline === '1';
 const URL_OFFLINE = '/geovsatt/offline';
+const LIMITE_COPIA = 50 * 1024 ** 2;
 const canal = 'BroadcastChannel' in window ? new BroadcastChannel('geovsatt-mapa-campo') : null;
 const node = (tag, classe, texto) => {
   const el = document.createElement(tag);
@@ -73,6 +74,8 @@ function montarCamadas(pacote) {
     const primeira = destino.querySelector('input');
     if (primeira) primeira.checked = true;
   }
+  const seletor = document.getElementById('geo-basemap');
+  if (pacote.openfreemap) seletor.add(new Option('OpenStreetMap · OpenFreeMap (offline)', 'openfreemap'));
   if (pacote.ortofotos?.length) {
     const grupo = node('optgroup');
     grupo.label = 'Ortofotos desta cópia';
@@ -81,7 +84,7 @@ function montarCamadas(pacote) {
       opcao.dataset.ortofoto = JSON.stringify(orto);
       grupo.append(opcao);
     }
-    document.getElementById('geo-basemap').append(grupo);
+    seletor.append(grupo);
   }
 }
 
@@ -156,6 +159,7 @@ async function carregarOffline() {
       const apiLocal = criarApiLocal(dados, projetos, gravar, window.polygonClipping);
       const ortos = new Map((dados.ortofotos || []).map(item => [item.id, item]));
       window.GeoVSATTCampo = {
+        baseVetorial: dados.openfreemap || null,
         api(url, opcoes) {
           if (!vigente(registro)) throw Error('A validade desta cópia terminou.');
           return apiLocal(url, opcoes);
@@ -174,11 +178,11 @@ async function carregarOffline() {
       document.getElementById('geo-desbloquear').hidden = true;
       shell.hidden = false;
       document.dispatchEvent(new Event('geovsatt:pacote-aberto'));
-      if (!dados.camadas.length && ortos.size) {
+      if (!dados.camadas.length && (dados.openfreemap || ortos.size)) {
         const seletor = document.getElementById('geo-basemap');
-        seletor.value = ortos.values().next().value.base;
+        seletor.value = dados.openfreemap ? 'openfreemap' : ortos.values().next().value.base;
         seletor.dispatchEvent(new Event('change'));
-        document.getElementById('geo-ortofoto-enquadrar').click();
+        if (!dados.openfreemap) document.getElementById('geo-ortofoto-enquadrar').click();
       }
       document.getElementById('geo-campo-bloquear').addEventListener('click', bloquear);
       canal?.addEventListener('message', event => { if (event.data === registro.id) bloquear(); });
@@ -243,7 +247,6 @@ async function prepararOnline() {
   const fechar = document.getElementById('geo-campo-fechar');
   const excluir = document.getElementById('geo-campo-excluir');
   const preparar = document.getElementById('geo-campo-preparar');
-  const gerenciar = document.getElementById('geo-campo-gerenciar');
   const conta = Number(shell.dataset.conta);
   let ocupado = false;
   let salvo = await lerRegistro();
@@ -255,8 +258,7 @@ async function prepararOnline() {
   function mostrarSituacao() {
     abrir.hidden = !(salvo?.usuario === conta && vigente(salvo));
     excluir.hidden = !salvo;
-    gerenciar.hidden = Boolean(preparar) || !salvo;
-    menu.hidden = !salvo && !preparar;
+    menu.hidden = false;
     document.getElementById('geo-campo-situacao').textContent = !salvo ? '' : !abrir.hidden
       ? 'Cópia de ' + data(salvo.criado_em) + '. Válida até ' + data(salvo.valido_ate) + '.'
       : 'A cópia deste aparelho está bloqueada ou precisa ser renovada.';
@@ -266,9 +268,7 @@ async function prepararOnline() {
     progresso.textContent = '';
     dialogo.showModal();
   }
-  preparar?.addEventListener('click', abrirDialogo);
-  gerenciar.addEventListener('click', abrirDialogo);
-  if (!preparar) form.querySelectorAll('label, fieldset, [type="submit"]').forEach(campo => { campo.hidden = true; });
+  preparar.addEventListener('click', abrirDialogo);
   fechar.addEventListener('click', () => dialogo.close());
   dialogo.addEventListener('cancel', event => { if (ocupado) event.preventDefault(); });
   excluir.addEventListener('click', async () => {
@@ -298,10 +298,11 @@ async function prepararOnline() {
     const campos = new FormData(form);
     const selecionadas = campos.getAll('camadas');
     const ortos = campos.getAll('ortofotos');
+    const baixarOpenFreeMap = campos.has('openfreemap');
     const senha = campos.get('senha');
-    if (!(selecionadas.length || ortos.length) || senha !== campos.get('confirmacao')) {
-      progresso.textContent = !(selecionadas.length || ortos.length)
-        ? 'Selecione uma camada ou ortofoto.' : 'As senhas digitadas são diferentes.';
+    if (!(selecionadas.length || ortos.length || baixarOpenFreeMap) || senha !== campos.get('confirmacao')) {
+      progresso.textContent = !(selecionadas.length || ortos.length || baixarOpenFreeMap)
+        ? 'Selecione uma camada, ortofoto ou base de ruas.' : 'As senhas digitadas são diferentes.';
       return;
     }
     ocupado = true;
@@ -321,9 +322,10 @@ async function prepararOnline() {
       }
       await aguardarInterface();
       const detalhe = {};
-      if (ortos.length && campos.has('recortar')) {
+      const recortarOrto = ortos.length && campos.has('recortar');
+      if (baixarOpenFreeMap || recortarOrto) {
         document.dispatchEvent(new CustomEvent('geovsatt:obter-recorte-offline', {detail: detalhe}));
-        if (!detalhe.limites) throw Error('Abra o mapa na área da ortofoto antes de preparar a cópia.');
+        if (!detalhe.limites) throw Error('Abra o mapa na área que deseja baixar.');
       }
       const trabalhos = {};
       if (selecionadas.includes('quarteiroes_trabalhados')) {
@@ -332,18 +334,39 @@ async function prepararOnline() {
       const resposta = await fetch('/api/geovsatt/pacote-offline', {
         method: 'POST', cache: 'no-store', credentials: 'same-origin',
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name="csrf-token"]').content},
-        body: JSON.stringify({camadas: selecionadas, ortofotos: ortos, recorte: detalhe.limites, trabalhos,
+        body: JSON.stringify({camadas: selecionadas, ortofotos: ortos, recorte: recortarOrto ? detalhe.limites : undefined, trabalhos,
+          openfreemap: baixarOpenFreeMap,
           enderecos: campos.has('enderecos')}),
       });
       if (!resposta.ok || resposta.redirected) {
         const erro = await resposta.json().catch(() => null);
         throw Error(erro?.erro || 'Não foi possível preparar as camadas. Confira sua sessão e a conexão.');
       }
-      const bytes = await resposta.arrayBuffer();
-      const pacote = decodificarPacote(bytes);
+      let bytes = await resposta.arrayBuffer();
+      const pacote = decodificarPacote(bytes, baixarOpenFreeMap);
       if (pacote.usuario !== conta) throw Error('A conta mudou durante o download. Reabra o mapa.');
+      if (baixarOpenFreeMap) {
+        const limite = LIMITE_COPIA - bytes.byteLength;
+        if (limite <= 0) throw Error('A cópia está cheia. Selecione menos camadas ou ortofotos.');
+        progresso.textContent = 'Preparando o recorte da base OpenFreeMap…';
+        const base = await fetch('/api/geovsatt/pacote-offline/openfreemap', {
+          method: 'POST', cache: 'no-store', credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name="csrf-token"]').content},
+          body: JSON.stringify({recorte: detalhe.limites, limite}),
+        });
+        if (!base.ok || base.redirected || !base.body) {
+          const erro = await base.json().catch(() => null);
+          throw Error(erro?.erro || 'Não foi possível baixar a base OpenFreeMap.');
+        }
+        pacote.openfreemap = await lerBaseVetorial(base.body, limite, (atual, total) => {
+          progresso.textContent = 'OpenFreeMap · ' + atual + ' de ' + total + ' recursos baixados.';
+        });
+        bytes = new TextEncoder().encode(JSON.stringify(pacote));
+        if (bytes.byteLength > LIMITE_COPIA) throw Error('A base ultrapassou o tamanho disponível na cópia.');
+      }
       progresso.textContent = 'Protegendo a cópia no aparelho…';
       const registro = await criarRegistro(bytes, pacote, senha, projetos);
+      if (await revogadaNoServidor(pacote)) throw Error('A autorização mudou durante o download. Entre novamente.');
       await guardarRegistro(anterior?.id, anterior?.revisao || 0, registro);
       if (anterior) canal?.postMessage(anterior.id);
       salvo = registro;

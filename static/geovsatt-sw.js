@@ -42,7 +42,7 @@ self.addEventListener('activate', event => event.waitUntil((async () => {
 
 async function abrirMapa(request) {
   try {
-    return await fetch(request);
+    return await fetch(request, {signal: AbortSignal.timeout(5000)});
   } catch {
     const cache = await caches.open(cacheAtual);
     return await cache.match(entradaOffline) || Response.error();

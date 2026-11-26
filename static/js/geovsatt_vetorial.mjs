@@ -1,4 +1,4 @@
-import {setWorkerUrl} from 'maplibre-gl';
+import {addProtocol, setWorkerUrl} from 'maplibre-gl';
 import {maplibreGL} from 'maplibre-leaflet';
 
 const versao = encodeURIComponent(document.documentElement.dataset.versao);
@@ -31,6 +31,22 @@ export function criarBaseVetorial(map) {
     style: 'https://tiles.openfreemap.org/styles/positron',
     attributionControl: {customAttribution: creditos},
   });
+}
+
+export function criarBaseVetorialOffline(map, copia) {
+  addProtocol('geovsatt-ofm', async parametros => {
+    const url = new URL(parametros.url);
+    const chave = url.hostname + decodeURIComponent(url.pathname);
+    if (!Object.hasOwn(copia.recursos, chave)) {
+      if (chave.startsWith('tile/') || chave.startsWith('fonte/')) return {data: new ArrayBuffer(0)};
+      throw Error('Recurso do estilo ausente na cópia.');
+    }
+    const codificado = copia.recursos[chave];
+    const dados = Uint8Array.fromBase64 ? Uint8Array.fromBase64(codificado) :
+      Uint8Array.from(atob(codificado), letra => letra.charCodeAt(0));
+    return {data: chave.endsWith('.json') ? JSON.parse(new TextDecoder().decode(dados)) : dados.buffer};
+  });
+  return criarCamadaVetorial(map, {style: copia.estilo, attributionControl: {customAttribution: creditos}});
 }
 
 export function criarMapaCalor(map, dados, raio) {

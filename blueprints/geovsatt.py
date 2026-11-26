@@ -3,7 +3,7 @@ from io import BytesIO
 import json
 import sqlite3
 
-from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, send_from_directory, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, send_from_directory, stream_with_context, url_for
 
 from app_core import audit
 from app_core import blueprint_helpers as bh
@@ -13,6 +13,7 @@ from app_core import geovsatt_catalogo as camadas
 from app_core import geovsatt_composicoes as composicoes
 from app_core import geovsatt_equipamentos as equipamentos
 from app_core import geovsatt_exportacao as exportacao
+from app_core import geovsatt_openfreemap as base_vetorial
 from app_core import geovsatt_ortofotos as ortofotos
 from app_core import registro_geografico as rg
 from app_core import setores
@@ -55,6 +56,11 @@ def _colecao_camada(target, camada, usuario, parametros=None):
     return json.loads(camada["geojson"])
 
 
+def _nominatim():
+    token = current_app.config["GEOVSATT_NOMINATIM_TOKEN"].strip()
+    return busca.endpoint_nominatim(current_app.config["GEOVSATT_NOMINATIM_URL"], token), token
+
+
 @bp.get("/geovsatt")
 @login_required
 def page():
@@ -66,7 +72,7 @@ def page():
     return render_template("geovsatt.html", catalogo=catalogo, pode_rg=pode_rg, pode_estimar=pode_estimar,
                            esri_licenciado=current_app.config["GEOVSATT_ESRI_LICENSED"], ambiental=ambiental,
                            conta_geo=usuario["id_usuario"],
-                           nominatim=bool(busca.endpoint_nominatim(current_app.config["GEOVSATT_NOMINATIM_URL"])))
+                           nominatim=bool(_nominatim()[0]))
 
 
 @bp.get("/geovsatt/manifest.webmanifest")
@@ -102,6 +108,11 @@ def _camadas_para_copia(target, usuario):
     )
 
 
+def _recorte_valido(recorte):
+    return (isinstance(recorte, list) and len(recorte) == 4 and all(type(valor) in (int, float) for valor in recorte)
+            and -180 <= recorte[0] < recorte[2] <= 180 and -90 <= recorte[1] < recorte[3] <= 90)
+
+
 @bp.get("/api/geovsatt/pacote-offline/estado")
 @login_required
 def api_estado_pacote():
@@ -123,15 +134,15 @@ def api_pacote_offline():
     payload = request.get_json(silent=True)
     codigos = payload.get("camadas") if isinstance(payload, dict) else None
     imagens = payload.get("ortofotos", []) if isinstance(payload, dict) else None
-    if (not isinstance(codigos, list) or not isinstance(imagens, list) or not (codigos or imagens)
+    ofm = payload.get("openfreemap", False) if isinstance(payload, dict) else None
+    if (not isinstance(codigos, list) or not isinstance(imagens, list) or type(ofm) is not bool
+            or not (codigos or imagens or ofm)
             or any(not isinstance(codigo, str) or len(codigo) > 60 for codigo in codigos + imagens)
             or type(payload.get("enderecos", False)) is not bool):
         return jsonify({"erro": "Selecione as camadas do pacote offline."}), 400
     recorte = payload.get("recorte")
-    if recorte is not None and (not isinstance(recorte, list) or len(recorte) != 4
-                               or any(type(valor) not in (int, float) for valor in recorte)
-                               or not (-180 <= recorte[0] < recorte[2] <= 180 and -90 <= recorte[1] < recorte[3] <= 90)):
-        return jsonify({"erro": "O recorte das ortofotos está inválido."}), 400
+    if recorte is not None and not _recorte_valido(recorte):
+        return jsonify({"erro": "O recorte das imagens está inválido."}), 400
     trabalhos = payload.get("trabalhos", {})
     if (not isinstance(trabalhos, dict) or set(trabalhos) - {"inicio", "fim", "tipo", "localidade"}
             or any(not isinstance(valor, str) for valor in trabalhos.values())):
@@ -175,6 +186,8 @@ def api_pacote_offline():
         ))
     projetos = []
     bases = {"none"} | {catalogo_ortos[codigo]["base"] for codigo in ortos_selecionadas}
+    if ofm:
+        bases.add("openfreemap")
     for item in composicoes.listar(target, usuario["id_usuario"]):
         try:
             projetos.append(composicoes.obter(target, usuario["id_usuario"], item["id_composicao"],
@@ -208,6 +221,23 @@ def api_pacote_offline():
                            detalhes={"camadas": selecionadas, "ortofotos": ortos_selecionadas,
                                      "bytes": len(conteudo), "enderecos_rg": bool(pacote.get("rg"))})
     return current_app.response_class(conteudo, mimetype="application/json")
+
+
+@bp.post("/api/geovsatt/pacote-offline/openfreemap")
+@login_required
+def api_copia_openfreemap():
+    request.max_content_length = 2_048
+    carga = request.get_json(silent=True)
+    recorte = carga.get("recorte") if isinstance(carga, dict) else None
+    limite = carga.get("limite") if isinstance(carga, dict) else None
+    if not _recorte_valido(recorte) or type(limite) is not int or not 1 <= limite <= LIMITE_PACOTE_OFFLINE:
+        return jsonify({"erro": "Informe a área e o tamanho disponível para a base vetorial."}), 400
+    try:
+        base_vetorial.planejar(recorte, base_vetorial.ZOOM_FINAL)
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    return current_app.response_class(stream_with_context(base_vetorial.transmitir(recorte, limite)),
+                                      mimetype="application/x-ndjson")
 
 
 @bp.route("/api/geovsatt/composicoes", methods=["GET", "POST"])
@@ -399,14 +429,14 @@ def api_ceps_por_logradouro():
 @bp.post("/api/geovsatt/nominatim")
 @login_required
 def api_nominatim():
-    endpoint = busca.endpoint_nominatim(current_app.config["GEOVSATT_NOMINATIM_URL"])
+    endpoint, token = _nominatim()
     if not endpoint:
         return jsonify({"erro": "O provedor Nominatim ainda não foi configurado."}), 503
     request.max_content_length = 2_048
     payload = request.get_json(silent=True)
     try:
         texto = payload.get("q") if isinstance(payload, dict) else None
-        return jsonify({"resultados": busca.buscar_nominatim(endpoint, texto)})
+        return jsonify({"resultados": busca.buscar_nominatim(endpoint, texto, token)})
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
     except busca.NominatimOcupado as exc:

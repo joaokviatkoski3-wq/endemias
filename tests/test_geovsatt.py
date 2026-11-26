@@ -20,7 +20,7 @@ from PIL import Image
 from shapely.geometry import box, mapping, shape
 
 import app
-from app_core import auth, db, dominios, geovsatt_busca, liraa, liraa_kobo, registro_geografico, sessoes
+from app_core import auth, db, dominios, geovsatt_busca, geovsatt_openfreemap, liraa, liraa_kobo, registro_geografico, sessoes
 from scripts.preparar_massa_web_teste import preparar
 
 
@@ -139,6 +139,45 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in resposta.json["camadas"]], ["localidades", "logradouros"])
         self.assertEqual(resposta.json["dados"]["localidades"], admin.get("/api/geovsatt/camadas/localidades").json)
         self.assertEqual(resposta.json["dados"]["logradouros"], admin.get("/api/geovsatt/camadas/logradouros").json)
+
+    def test_base_openfreemap_offline_aceita_recorte_explicito_e_estilo_local(self):
+        cliente = self.client(uid=2)
+        rota = "/api/geovsatt/pacote-offline/openfreemap"
+        recorte = [-49.31, -25.33, -49.309, -25.329]
+        self.assertNotEqual(self.geo.test_client().post(rota, json={"recorte": recorte, "limite": 1000}).status_code, 200)
+        self.assertEqual(cliente.post(rota, json={"recorte": [-180, -90, 180, 90], "limite": 1000}).status_code, 400)
+        self.assertEqual(cliente.post(rota, json={"recorte": recorte, "limite": 0}).status_code, 400)
+        preparo = cliente.post("/api/geovsatt/pacote-offline", json={"camadas": [], "openfreemap": True})
+        self.assertEqual(preparo.status_code, 200)
+        self.assertEqual(preparo.json["camadas"], [])
+
+        origem = "https://tiles.openfreemap.org"
+        def upstream(path, **opcoes):
+            if path == "/styles/positron":
+                return json.dumps({"sources": {"openmaptiles": {"url": origem + "/backup_planet"}},
+                                   "sprite": origem + "/sprites/teste/ofm",
+                                   "glyphs": origem + "/fonts/{fontstack}/{range}.pbf",
+                                   "layers": [{"id": "ruas", "type": "symbol", "source": "openmaptiles",
+                                               "layout": {"text-field": ["get", "name"], "text-font": ["Noto Sans Regular"]}},
+                                              {"id": "outra", "type": "raster", "source": "ne2_shaded"}]}).encode()
+            if path == "/backup_planet":
+                return json.dumps({"maxzoom": 14, "tiles": [origem + "/backup_planet/ensaio/{z}/{x}/{y}.pbf"]}).encode()
+            return b"dados ficticios"
+
+        with patch.object(geovsatt_openfreemap, "_recurso", side_effect=upstream):
+            resposta = cliente.post(rota, json={"recorte": recorte, "limite": 50_000})
+            self.assertEqual(resposta.mimetype, "application/x-ndjson")
+            self.assertIn("no-store", resposta.headers["Cache-Control"])
+            linhas = [json.loads(linha) for linha in resposta.data.splitlines()]
+            plano = linhas[1]
+            self.assertEqual([item["id"] for item in plano["estilo"]["layers"]], ["ruas"])
+            self.assertTrue(plano["estilo"]["glyphs"].startswith("geovsatt-ofm://"))
+            self.assertEqual(plano["estilo"]["sources"]["openmaptiles"]["bounds"], recorte)
+            self.assertEqual(linhas[-1], {"concluido": True})
+            self.assertEqual(len(linhas[2:-1]), plano["total"])
+            excedida = cliente.post(rota, json={"recorte": recorte, "limite": 50})
+            self.assertIn("erro", json.loads(excedida.data.splitlines()[-1]))
+            self.assertNotIn(b'"concluido"', excedida.data)
 
     def test_pacote_offline_rg_explicito_entrega_campos_do_mapa_e_estimativa(self):
         admin = self.client()
@@ -924,6 +963,30 @@ class GeoVSATTTests(unittest.TestCase):
             self.assertEqual((url.netloc, url.path), ("geo.exemplo.invalid", "/nominatim/search"))
             self.assertEqual(parse_qs(url.query)["q"], ["Parque Municipal"])
             self.assertEqual(parse_qs(url.query)["bounded"], ["1"])
+
+    def test_nominatim_provedor_com_token_nao_expoe_a_credencial(self):
+        cliente = self.client()
+        rota = "/api/geovsatt/nominatim"
+        provedor = "https://geocode.maps.co"
+        self.assertIsNone(geovsatt_busca.endpoint_nominatim(provedor))
+        self.assertIsNone(geovsatt_busca.endpoint_nominatim("http://localhost:8000", "token"))
+        self.assertIsNone(geovsatt_busca.endpoint_nominatim(provedor, "token\r\n"))
+        config = {"GEOVSATT_NOMINATIM_URL": provedor, "GEOVSATT_NOMINATIM_TOKEN": "chave-de-ensaio"}
+        with (
+            patch.dict(self.geo.config, config),
+            patch.object(geovsatt_busca, "_NOMINATIM_CACHE", OrderedDict()),
+            patch.object(geovsatt_busca, "_NOMINATIM_PROXIMA", 0.0),
+            patch.object(geovsatt_busca._CEP_HTTP, "open") as abrir,
+        ):
+            resposta = abrir.return_value.__enter__.return_value
+            resposta.status, resposta.read.return_value = 200, b"[]"
+            consulta = cliente.post(rota, json={"q": "Praça de ensaio"})
+            self.assertEqual(consulta.status_code, 200)
+            requisicao = abrir.call_args.args[0]
+            self.assertEqual(requisicao.get_header("Authorization"), "Bearer chave-de-ensaio")
+            self.assertNotIn("chave-de-ensaio", requisicao.full_url)
+            self.assertNotIn(b"chave-de-ensaio", consulta.data)
+            self.assertNotIn(b"chave-de-ensaio", cliente.get("/geovsatt").data)
 
     def test_cep_passa_somente_o_codigo_e_identifica_origem(self):
         with patch.object(geovsatt_busca._CEP_HTTP, "open") as pedir:

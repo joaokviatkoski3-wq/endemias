@@ -98,11 +98,7 @@
         </div>
         <section id="geo-campo-menu" class="geo-layer-group geo-campo-menu" hidden>
           <h2>Uso offline</h2>
-          {% if catalogo.camadas | selectattr('disponivel') | selectattr('pode_exportar', 'defined') | selectattr('pode_exportar') | list
-             or catalogo.ortofotos | selectattr('pode_exportar') | list %}
           <button id="geo-campo-preparar" type="button">Preparar mapa offline</button>
-          {% endif %}
-          <button id="geo-campo-gerenciar" type="button" hidden>Gerenciar cópia offline</button>
           <a id="geo-campo-visualizar" href="{{ url_for('geovsatt.mapa_offline') }}" hidden>Abrir cópia offline</a>
           <p id="geo-campo-situacao" role="status"></p>
         </section>
@@ -299,6 +295,7 @@
       </header>
       <p>A cópia fica criptografada neste aparelho por até sete dias.</p>
       <p>Quarteirões trabalhados usa o período aplicado no mapa.</p>
+      <label class="geo-campo-opcao"><input name="openfreemap" type="checkbox"> Incluir a base de ruas OpenFreeMap da área visível</label>
       <fieldset>
         <legend>Camadas para baixar</legend>
         {% for camada in catalogo.camadas if camada.disponivel and camada.pode_exportar %}

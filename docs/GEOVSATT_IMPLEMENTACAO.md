@@ -279,7 +279,7 @@ importação, publicação e edição de metadados geram eventos de auditoria.
   e a supressão de sobreposições. A prévia usa valores de exemplo da
   camada e as classes usam as mesmas cores no mapa e na folha.
 
-## Detalhes, legenda, mapas de calor e instalação da candidata
+## Detalhes, legenda, mapas de calor e instalação na candidata 2.27.0
 
 - Clicar nas feições abre o painel de detalhes à direita ou na parte inferior
   em telas estreitas. A legenda no menu usa a simbologia calculada e mostra
@@ -298,6 +298,10 @@ importação, publicação e edição de metadados geram eventos de auditoria.
   O endereço oficial de um imóvel continua sendo consultado pelo RG.
   [API de busca](https://nominatim.org/release-docs/latest/api/Search/) ·
   [Política da instância pública](https://operations.osmfoundation.org/policies/nominatim/)
+- Para um provedor como geocode.maps.co, configure o endereço HTTPS e
+  `ENDEMIAS_GEO_NOMINATIM_TOKEN` no ambiente privado do servidor. A chave
+  segue no cabeçalho Authorization das consultas ao provedor.
+  [Documentação do provedor](https://geocode.maps.co/docs/)
 - **Instalar GeoVSATT** usa o manifesto e o service worker próprios. O cache
   HTTP instala arquivos públicos e a entrada do mapa offline. Camadas,
   fichas e composições ficam criptografadas no aparelho com uma senha
@@ -312,6 +316,11 @@ importação, publicação e edição de metadados geram eventos de auditoria.
    se precisar dos endereços dos quarteirões no aparelho. Quarteirões
    trabalhados usa o período e os tipos selecionados no mapa. Para
    ortofotos grandes, aproxime o mapa e mantenha a opção de área visível.
+   **Incluir a base de ruas OpenFreeMap** baixa os mosaicos vetoriais,
+   fontes e símbolos da área visível. A base também pode ser baixada
+   sozinha. Cada download respeita o limite de 3.000 mosaicos, 50 MB e
+   quatro requisições paralelas. Aproxime o mapa para reduzir um recorte
+   grande. [Política de downloads do OpenFreeMap](https://openfreemap.org/quick_start/#mobile-apps)
 3. Crie uma senha exclusiva e use **Baixar e proteger cópia**. O limite da
    cópia é de 50 MiB. A substituição é concluída depois da criptografia e
    da gravação. A senha da cópia anterior preserva as composições locais.
@@ -328,9 +337,10 @@ camada e registra a geração na auditoria. O acesso é verificado quando o
 servidor responde ao abrir a cópia ou retornar a conexão. Sair da sessão
 bloqueia a cópia. Sua remoção apaga também as composições locais.
 
-Nominatim, BrasilAPI, ViaCEP, imagens externas e a administração do catálogo
-usam conexão. As ortofotos baixadas aparecem como opções de mapa-base da
-cópia. A validação em Chrome Android físico está pendente.
+Nominatim, BrasilAPI, ViaCEP, Esri World Imagery, Sentinel-2 e a administração
+do catálogo usam conexão. As ortofotos e a base de ruas baixadas aparecem
+como opções de mapa-base da cópia. A validação em Chrome Android físico
+está pendente.
 [Recorte de polígonos](https://github.com/mfogel/polygon-clipping)
 
 ## Próximos incrementos

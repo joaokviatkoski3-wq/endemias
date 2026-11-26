@@ -4,7 +4,7 @@ import {createRequire} from 'node:module';
 import {test} from 'node:test';
 import {runInNewContext} from 'node:vm';
 import {abrirRegistro, criarRegistro, decodificarPacote, lerProjetos, protegerProjetos} from '../static/js/geovsatt_cofre.mjs';
-import {criarApiLocal, estimar, exportar} from '../static/js/geovsatt_dados_offline.mjs';
+import {criarApiLocal, estimar, exportar, lerBaseVetorial} from '../static/js/geovsatt_dados_offline.mjs';
 
 const recortar = createRequire(import.meta.url)('../static/vendor/polygon-clipping/polygon-clipping.umd.min.js');
 const retangulo = (oeste, leste, properties) => ({type: 'Feature', properties, geometry: {
@@ -93,7 +93,7 @@ test('o worker prepara só a interface pública e abre a entrada local sem conex
   };
   let conectado = true;
   const contexto = {
-    URL, Request: class Request { constructor(url) { this.url = url; } },
+    URL, AbortSignal, Request: class Request { constructor(url) { this.url = url; } },
     caches: {open: async () => cache},
     fetch: async () => {
       if (!conectado) throw Error('sem conexão');
@@ -122,4 +122,29 @@ test('o worker prepara só a interface pública e abre a entrada local sem conex
   assert.equal(await visitar('/geovsatt'), offline);
   assert.equal(visitar('/geovsatt/admin/camadas'), undefined);
   assert.equal(visitar('/api/geovsatt/pacote-offline', 'POST'), undefined);
+});
+
+test('a base vetorial local só é aceita após receber todos os recursos', async () => {
+  const recorte = [-49.31, -25.33, -49.309, -25.329];
+  const eventos = [
+    {preparando: true},
+    {estilo: {version: 8, layers: [], sources: {}}, recorte, total: 2},
+    {chave: 'tile/9/185/293', dados: 'Cgg='},
+    {chave: 'fonte/Noto Sans Regular/0-255.pbf', dados: 'CgM='},
+    {concluido: true},
+  ];
+  const fluxo = linhas => {
+    const bytes = new TextEncoder().encode(linhas.map(item => JSON.stringify(item)).join('\n'));
+    return new ReadableStream({start(controller) {
+      for (let i = 0; i < bytes.length; i += 11) controller.enqueue(bytes.subarray(i, i + 11));
+      controller.close();
+    }});
+  };
+  const progresso = [];
+  const base = await lerBaseVetorial(fluxo(eventos), 1024, (atual, total) => progresso.push([atual, total]));
+  assert.deepEqual(base.recorte, recorte);
+  assert.equal(base.recursos['tile/9/185/293'], 'Cgg=');
+  assert.deepEqual(progresso, [[0, 2], [2, 2]]);
+  await assert.rejects(lerBaseVetorial(fluxo(eventos.slice(0, -1)), 1024, () => {}), /interrompido/);
+  await assert.rejects(lerBaseVetorial(fluxo(eventos), 32, () => {}), /espaço disponível/);
 });

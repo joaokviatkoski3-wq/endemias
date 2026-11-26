@@ -1,6 +1,7 @@
 """Busca territorial pelo RG e consultas públicas de endereçamento postal."""
 
 from collections import OrderedDict, namedtuple
+from hashlib import sha256
 from http.client import HTTPException
 import json
 import math
@@ -172,8 +173,11 @@ class CepInexistente(ValueError):
     pass
 
 
-def _consulta_postal(url, provedor, limite, *, erro_404=None):
-    requisicao = Request(url, headers={"Accept": "application/json", "User-Agent": "VSATT/GeoVSATT"})
+def _consulta_postal(url, provedor, limite, *, erro_404=None, bearer=None):
+    cabecalhos = {"Accept": "application/json", "User-Agent": "VSATT/GeoVSATT"}
+    if bearer:
+        cabecalhos["Authorization"] = f"Bearer {bearer}"
+    requisicao = Request(url, headers=cabecalhos)
     indisponivel = f"O serviço {provedor} está indisponível. A busca no RG continua disponível."
     try:
         with _CEP_HTTP.open(requisicao, timeout=4) as resposta:
@@ -243,7 +247,7 @@ class NominatimOcupado(RuntimeError):
     pass
 
 
-def endpoint_nominatim(configurado):
+def endpoint_nominatim(configurado, token=""):
     if not configurado:
         return None
     base = configurado.strip().rstrip("/")
@@ -256,17 +260,21 @@ def endpoint_nominatim(configurado):
     if (not seguro or not url.hostname or url.username or url.password or url.query or url.fragment
             or porta == 0 or url.hostname.rstrip(".") == "nominatim.openstreetmap.org"):
         return None
+    if token and (url.scheme != "https" or len(token) > 1024 or not re.fullmatch(r"[A-Za-z0-9._~+/-]+={0,2}", token)):
+        return None
+    if url.hostname.rstrip(".") == "geocode.maps.co" and not token:
+        return None
     return base if url.path.endswith("/search") else base + "/search"
 
 
-def buscar_nominatim(endpoint, termo):
+def buscar_nominatim(endpoint, termo, token=""):
     global _NOMINATIM_PROXIMA, _NOMINATIM_ATIVA
     texto = normalize("NFC", " ".join(termo.split())) if isinstance(termo, str) else ""
     if (not 3 <= len(texto) <= 120 or sum(c.isalpha() for c in texto) < 3
             or not all(c.isalpha() or c.isdecimal() or c in " ,.-'’º°()/–" for c in texto)
             or re.search(r"\d{6,}|\d{3}[. ]\d{3}[. ]\d{3}", texto)):
         raise ValueError("Informe uma rua ou um local público de Almirante Tamandaré.")
-    chave = (endpoint, texto.casefold())
+    chave = (endpoint, sha256(token.encode("ascii")).digest() if token else None, texto.casefold())
     with _NOMINATIM_LOCK:
         agora = monotonic()
         salvo = _NOMINATIM_CACHE.get(chave)
@@ -283,7 +291,7 @@ def buscar_nominatim(endpoint, termo):
         "bounded": 1, "accept-language": "pt-BR,pt",
     })
     try:
-        dados = _consulta_postal(f"{endpoint}?{parametros}", "Nominatim", 65_536)
+        dados = _consulta_postal(f"{endpoint}?{parametros}", "Nominatim", 65_536, bearer=token)
         if not isinstance(dados, list):
             raise RuntimeError("Resposta inesperada do Nominatim.")
         resultados = []

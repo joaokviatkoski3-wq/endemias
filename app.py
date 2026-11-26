@@ -318,6 +318,7 @@ def create_app(config_overrides=None):
         GEO_LOCAL_PORT=int(os.environ.get('ENDEMIAS_GEO_LOCAL_PORT','5005')),
         GEOVSATT_ESRI_LICENSED=_env_bool(os.environ, 'ENDEMIAS_GEO_ESRI_LICENSED', True),
         GEOVSATT_NOMINATIM_URL=os.environ.get("ENDEMIAS_GEO_NOMINATIM_URL", ""),
+        GEOVSATT_NOMINATIM_TOKEN=os.environ.get("ENDEMIAS_GEO_NOMINATIM_TOKEN", ""),
     )
     flask_app.config.update(web_security.external_defaults())
     if config_overrides:

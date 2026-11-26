@@ -192,9 +192,16 @@ function iniciarGeoVSATT() {
       basePending = true;
       try {
         const versao = encodeURIComponent(document.documentElement.dataset.versao);
-        const {criarBaseVetorial} = await import(`/static/js/geovsatt_vetorial.mjs?v=${versao}`);
+        const {criarBaseVetorial, criarBaseVetorialOffline} = await import(`/static/js/geovsatt_vetorial.mjs?v=${versao}`);
         if (sequence !== baseSequence) return;
-        activeBasemap = criarBaseVetorial(map);
+        const copia = campo?.baseVetorial;
+        if (copia) {
+          const area = coberturaOrtofoto({limites: copia.recorte});
+          if (!options.some(input => input.checked) || !area.contains(map.getCenter())) {
+            map.fitBounds(area, {maxZoom: 17, padding: [24, 24]});
+          }
+        }
+        activeBasemap = copia ? criarBaseVetorialOffline(map, copia) : criarBaseVetorial(map);
         activeBasemap.addTo(map);
         vectorMap = activeBasemap.getMaplibreMap();
         vectorMap.once('load', () => {
