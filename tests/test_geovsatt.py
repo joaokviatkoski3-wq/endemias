@@ -13,6 +13,8 @@ from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError
 from xml.etree import ElementTree as ET
 
+from shapely.geometry import box, mapping, shape
+
 import app
 from app_core import auth, db, dominios, geovsatt_busca, registro_geografico, sessoes
 from scripts.preparar_massa_web_teste import preparar
@@ -410,6 +412,82 @@ class GeoVSATTTests(unittest.TestCase):
         ponto, = agregado.json["features"]
         self.assertEqual(ponto["properties"]["animais"], 1)
         self.assertNotEqual(ponto["geometry"]["coordinates"], [-49.301, -25.301])
+
+    def test_raios_e_abrangencia_usam_a_malha_qgis_e_permissoes_da_origem(self):
+        with closing(sqlite3.connect(self.path)) as conn, conn:
+            conn.executemany("""
+                INSERT INTO esporotricose_doentes_animais
+                       (chave,nome,tutor,latitude,longitude,bloqueio,data_bloqueio,criado_em,atualizado_em)
+                VALUES (?, 'Animal de ensaio', 'Tutor de ensaio', -25.301, ?, ?, ?, '2026-11-26', '2026-11-26')
+            """, [("feito", -49.301, "Realizado", "2026-11-26"), ("pendente", -49.301, "Não realizado", None),
+                  ("sem-coordenada", None, "Não necessário", None)])
+            conn.execute("UPDATE usuarios SET nivel='admin',setor='ambiental' WHERE id_usuario=2")
+        superadmin = self.client()
+        admin = self.client(uid=2)
+        ambiental = self.client(uid=3)
+        nome = db.scalar(str(self.path), "SELECT nome FROM localidades WHERE id_localidade=1")
+        shapes = (
+            (1, box(-49.3012, -25.3012, -49.3008, -25.3008)),
+            (1, box(-49.3012, -25.3012, -49.3008, -25.3008)),
+            (2, box(-49.3000, -25.3012, -49.2988, -25.3008)),
+            (3, box(-49.31, -25.31, -49.309, -25.309)),
+        )
+        geojson = {"type": "FeatureCollection", "features": [
+            {"type": "Feature", "properties": {"Localidade": nome, "id_Q": str(numero)}, "geometry": mapping(poligono)}
+            for numero, poligono in shapes]}
+        superadmin.post("/geovsatt/admin/importar", data={
+            "nome": "Quarteirões QGIS", "codigo": "quarteiroes-qgis", "grupo": "Território", "fonte": "QGIS de ensaio",
+            "geojson": (io.BytesIO(json.dumps(geojson).encode()), "blocos.geojson"),
+        })
+        superadmin.post("/geovsatt/admin/camadas/quarteiroes-qgis", data={
+            "nome": "Quarteirões QGIS", "grupo": "Território", "niveis": ["admin"], "setores": ["ambiental"],
+        })
+        self.assertEqual(superadmin.post("/geovsatt/admin/camadas/quarteiroes-qgis/versoes/1/publicar").status_code, 303)
+        raio = "esporotricose_bloqueios"
+        zona = "esporotricose_quarteiroes"
+        rota = "/api/geovsatt/camadas/"
+        download = f"/geovsatt/camadas/{raio}/exportar/"
+        fontes = admin.get(rota + raio)
+        self.assertEqual(fontes.status_code, 200)
+        self.assertNotIn(b"Tutor de ensaio", fontes.data)
+        self.assertEqual(fontes.json["metadata"]["origem_malha"], "Malha cartográfica QGIS")
+        realizado, nao_realizado = fontes.json["features"]
+        props = realizado["properties"]
+        self.assertEqual((props["situacao_bloqueio"], props["data_bloqueio"]), ("Realizado", "2026-11-26"))
+        self.assertEqual(nao_realizado["properties"]["situacao_bloqueio"], "Não realizado")
+        self.assertIsNone(nao_realizado["properties"]["data_bloqueio"])
+        self.assertEqual((props["raio_metros"], props["quarteiroes_abrangidos"], props["quarteiroes_integrais"]),
+                         (150, 2, 1))
+        centro = shape(realizado["geometry"]).centroid
+        self.assertAlmostEqual(centro.x, -49.301, places=6)
+        self.assertAlmostEqual(centro.y, -25.301, places=6)
+        self.assertAlmostEqual((shape(realizado["geometry"]).bounds[3] - centro.y) * 111_195, 150, places=1)
+        blocos = {f["properties"]["id_quart"]: f["properties"] for f in admin.get(rota + zona).json["features"]}
+        self.assertEqual(set(blocos), {"1", "2"})
+        self.assertEqual((blocos["1"]["cobertura"], blocos["1"]["percentual_no_raio"]), ("Integral", 100.0))
+        self.assertEqual(blocos["2"]["cobertura"], "Parcial")
+        self.assertLess(blocos["2"]["percentual_no_raio"], 100)
+        self.assertEqual(blocos["2"]["casos_com_bloqueio_realizado"], 1)
+        self.assertEqual(blocos["2"]["casos_com_bloqueio_nao_realizado"], 1)
+        self.assertEqual(admin.get(download + "geojson").status_code, 403)
+        config = {"nome": "Raios de bloqueio", "grupo": "Vigilância", "niveis": ["admin"],
+                  "setores": ["ambiental"], "usuarios": ["3"], "usuarios_exportacao": ["2", "3"]}
+        superadmin.post(f"/geovsatt/admin/camadas/{raio}", data=config)
+        for formato in ("csv", "geojson", "kml"):
+            exportada = admin.get(download + formato)
+            self.assertEqual(exportada.status_code, 200)
+            self.assertNotIn(b"Tutor de ensaio", exportada.data)
+            self.assertEqual(ambiental.get(download + formato).status_code, 404)
+        self.assertEqual(ambiental.get(rota + raio).status_code, 404)
+        self.assertNotIn(raio, [c["id"] for c in ambiental.get("/api/geovsatt/catalogo").json["camadas"]])
+        superadmin.post("/geovsatt/admin/camadas/quarteiroes", data={"nome": "Quarteirões", "grupo": "Território"})
+        self.assertEqual(admin.get(rota + zona).status_code, 404)
+        sem_malha = admin.get(rota + raio).json
+        self.assertIsNone(sem_malha["metadata"]["origem_malha"])
+        self.assertNotIn("quarteiroes_abrangidos", sem_malha["features"][0]["properties"])
+        superadmin.post("/geovsatt/admin/camadas/esporotricose", data={"nome": "Esporotricose", "grupo": "Vigilância"})
+        self.assertEqual(admin.get(rota + raio).status_code, 404)
+        self.assertEqual(admin.get(download + "geojson").status_code, 404)
 
     def test_seletor_cep_e_base_de_satelite_no_mapa(self):
         client = self.client()

@@ -108,6 +108,10 @@
           <fieldset>
             <legend>Quem pode acessar</legend>
             <p class="gc-note">O acesso geral exige um nível e um setor marcados. Contas selecionadas individualmente têm acesso mesmo fora desses grupos.</p>
+            {% if acesso_localizacao_exata %}
+            <p class="gc-note">Esta camada também exige acesso à localização exata na camada Esporotricose animal.
+              {% if camada.id == 'esporotricose_quarteiroes' %}A conta precisa acessar a camada Quarteirões.{% endif %}</p>
+            {% endif %}
             <div class="gc-grid">
               <div><strong>Níveis</strong>
                 {% for chave, nome in niveis.items() %}

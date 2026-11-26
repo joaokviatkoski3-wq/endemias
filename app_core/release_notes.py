@@ -4,6 +4,14 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.23.0": {
+        "titulo": "Raios de bloqueio de esporotricose no GeoVSATT",
+        "mudancas": [
+            "Ative os raios de 150 m e consulte a situação e a data do bloqueio no cadastro animal.",
+            "Veja os quarteirões alcançados, com área integral ou parcial no raio e contagem de casos sobrepostos.",
+            "Abra o mapa de bloqueio do caso no Ambiental a partir do ponto ou do contorno do raio.",
+        ],
+    },
     "2.22.0": {
         "titulo": "Busca postal e mapa-base vetorial no GeoVSATT",
         "mudancas": [

@@ -12,7 +12,9 @@ from shapely.ops import unary_union
 from shapely.prepared import prep
 
 from app_core import db as db_core
+from app_core import esporotricose as esporotricose_core
 from app_core import esporotricose_bloqueio
+from app_core import geovsatt_bloqueios as bloqueios_core
 from app_core import geovsatt_busca as busca_core
 from app_core import geovsatt_catalogo as catalogo_core
 from app_core import ovitrampas as ovitrampas_core
@@ -88,6 +90,27 @@ CAMADAS = (
         "rotulo_padrao": "rotulo",
     },
     {
+        "id": "esporotricose_bloqueios",
+        "grupo": "Vigilância",
+        "nome": "Esporotricose · Raios de bloqueio",
+        "descricao": f"Raio de {esporotricose_bloqueio.RAIO_METROS} m e situação registrada para cada caso animal georreferenciado.",
+        "tipo": "poligono",
+        "disponivel": True,
+        "visivel_inicial": False,
+        "niveis_padrao": ["admin"],
+        "rotulo_padrao": "rotulo",
+    },
+    {
+        "id": "esporotricose_quarteiroes",
+        "grupo": "Vigilância",
+        "nome": "Esporotricose · Quarteirões nos raios",
+        "descricao": "Quarteirões alcançados pelos raios de bloqueio. A cor indica a abrangência geométrica.",
+        "tipo": "poligono",
+        "disponivel": True,
+        "visivel_inicial": False,
+        "niveis_padrao": ["admin"],
+    },
+    {
         "id": "ovitrampas",
         "grupo": "Vigilância",
         "nome": "Ovitrampas",
@@ -127,17 +150,31 @@ BASES = {item["id"]: item for item in CAMADAS if item["disponivel"]}
 FONTES_TERRITORIAIS = {"localidades": "localidades-areas-dispersas", "quarteiroes": "quarteiroes-qgis"}
 SETORES_VIGILANCIA = {"esporotricose": "ambiental", "ovitrampas": "endemias", "pontos_estrategicos": "endemias",
                      "acoes_atendimentos": "endemias"}
+BLOQUEIOS_ESPOROTRICOSE = {
+    "esporotricose_bloqueios": ("esporotricose",),
+    "esporotricose_quarteiroes": ("esporotricose", "quarteiroes"),
+}
 
 
-def pode_ver_camada(camada, usuario):
-    setor = SETORES_VIGILANCIA.get(camada["id"])
+def pode_ver_camada(target, camada, usuario, *, cadastradas=None):
+    codigo = camada["id"]
+    setor = SETORES_VIGILANCIA.get(codigo)
     if setor and not setores.pode_entrar(usuario, setor):
         return False
-    return catalogo_core.pode_ver(camada, usuario)
+    if not catalogo_core.pode_ver(camada, usuario):
+        return False
+    if codigo in BLOQUEIOS_ESPOROTRICOSE:
+        if not esporotricose_localizacao_exata(usuario):
+            return False
+        for origem in BLOQUEIOS_ESPOROTRICOSE[codigo]:
+            fonte = cadastradas[origem] if cadastradas is not None else catalogo_core.obter(target, origem, BASES)
+            if not pode_ver_camada(target, fonte, usuario):
+                return False
+    return True
 
 
-def pode_exportar_camada(camada, usuario):
-    return (camada["disponivel"] and pode_ver_camada(camada, usuario)
+def pode_exportar_camada(target, camada, usuario, *, cadastradas=None):
+    return (camada["disponivel"] and pode_ver_camada(target, camada, usuario, cadastradas=cadastradas)
             and (permissoes.permite(usuario, "tecnica")
                  or usuario["id_usuario"] in camada["config"]["usuarios_exportacao"]))
 
@@ -151,6 +188,8 @@ def dados_nativos(target, base_dir, codigo, usuario):
         if esporotricose_localizacao_exata(usuario):
             return esporotricose_animal_localizada(target)
         return esporotricose_animal(target)
+    if codigo in BLOQUEIOS_ESPOROTRICOSE:
+        return esporotricose_abrangencia(target, base_dir, codigo, usuario)
     if codigo == "ovitrampas":
         return ovitrampas(target)
     if codigo == "pontos_estrategicos":
@@ -162,10 +201,10 @@ def dados_nativos(target, base_dir, codigo, usuario):
 
 def catalogo(target, usuario):
     gerencia = permissoes.permite(usuario, "tecnica")
-    cadastradas = catalogo_core.listar(target, BASES)
-    reservadas = {item["id"] for item in cadastradas}
-    fontes = {item["id"]: item for item in cadastradas if item["id_versao"] and item["tipo"] == "poligono"
-              and pode_ver_camada(item, usuario)}
+    cadastradas = {item["id"]: item for item in catalogo_core.listar(target, BASES)}
+    visiveis = [item for item in cadastradas.values()
+                if pode_ver_camada(target, item, usuario, cadastradas=cadastradas)]
+    fontes = {item["id"]: item for item in visiveis if item["id_versao"] and item["tipo"] == "poligono"}
     camadas = [
         {key: camada[key] for key in ("id", "grupo", "nome", "descricao", "tipo", "disponivel",
                                     "visivel_inicial", "origem")}
@@ -173,13 +212,13 @@ def catalogo(target, usuario):
            if camada["id"] == "esporotricose" and not esporotricose_localizacao_exata(usuario) else {})
         | {"estilo": {key: camada["config"][key] for key in
                       ("cor", "atributo_cor", "cores", "rotulo", *catalogo_core.ESTILO_PADRAO)}}
-        | {"pode_exportar": pode_exportar_camada(camada, usuario)}
+        | {"pode_exportar": pode_exportar_camada(target, camada, usuario, cadastradas=cadastradas)}
         | ({"tipo": fontes[FONTES_TERRITORIAIS[camada["id"]]]["tipo"]}
            if FONTES_TERRITORIAIS.get(camada["id"]) in fontes else
            {"tipo": "ponto"} if camada["id"] == "localidades" else {})
-        for camada in cadastradas if pode_ver_camada(camada, usuario) and camada["id"] not in FONTES_TERRITORIAIS.values()
+        for camada in visiveis if camada["id"] not in FONTES_TERRITORIAIS.values()
     ]
-    camadas.extend(dict(item) for item in CAMADAS if item["id"] not in reservadas)
+    camadas.extend(dict(item) for item in CAMADAS if item["id"] not in cadastradas)
     return {
         "camadas": camadas,
         "pode_configurar": gerencia,
@@ -212,7 +251,7 @@ def _fonte_territorial(db_path, codigo, usuario):
         camada = catalogo_core.obter(db_path, FONTES_TERRITORIAIS[codigo], BASES, incluir_dados=True)
     except catalogo_core.CamadaAusente:
         return None
-    if camada["id_versao"] and camada["tipo"] == "poligono" and pode_ver_camada(camada, usuario):
+    if camada["id_versao"] and camada["tipo"] == "poligono" and pode_ver_camada(db_path, camada, usuario):
         return json.loads(camada["geojson"])
     return None
 
@@ -451,7 +490,7 @@ def esporotricose_localizacao_exata(usuario):
 
 def esporotricose_animal_localizada(target):
     rows = db_core.query(target, """
-        SELECT id_animal_doente,especie,localidade,quarteirao,status,data_notificacao,latitude,longitude
+        SELECT id_animal_doente,especie,localidade,quarteirao,status,data_notificacao,bloqueio,data_bloqueio,latitude,longitude
           FROM esporotricose_doentes_animais
          WHERE latitude IS NOT NULL AND longitude IS NOT NULL
          ORDER BY id_animal_doente
@@ -470,20 +509,39 @@ def esporotricose_animal_localizada(target):
                       else "Fora do limite municipal") if geometrias else "Limite municipal indisponível"
         return {"rotulo": f"Caso animal {row['id_animal_doente']}", **{
             chave: row[chave] for chave in ("especie", "localidade", "quarteirao", "status", "data_notificacao")
-        }, "posicao_cadastrada": conferida}
+        }, "posicao_cadastrada": conferida,
+            "situacao_bloqueio": esporotricose_core._normalizar_bloqueio_doente(row["bloqueio"]) or "Sem informação",
+            "data_bloqueio": row["data_bloqueio"]}
 
-    return _pontos(rows, propriedades, "Coordenadas cadastradas pela Vigilância Ambiental")
+    return _pontos(rows, propriedades, "Coordenadas cadastradas pela Vigilância Ambiental", id_campo="id_animal_doente")
 
 
-def _pontos(registros, preparar, origem):
+def esporotricose_abrangencia(target, base_dir, codigo, usuario):
+    pontos = esporotricose_animal_localizada(target)
+    malha = None
+    cadastro = catalogo_core.obter(target, "quarteiroes", BASES)
+    if pode_ver_camada(target, cadastro, usuario):
+        try:
+            malha = quarteiroes(target, base_dir, incluir_rg=False, usuario=usuario)
+        except ValueError:
+            pass
+    raios, abrangidos, metadata = bloqueios_core.calcular(pontos, malha)
+    return {"type": "FeatureCollection", "features": raios if codigo == "esporotricose_bloqueios" else abrangidos,
+            "metadata": metadata}
+
+
+def _pontos(registros, preparar, origem, *, id_campo=None):
     features = []
     for registro in registros:
         props = db_core.serialize_row(registro)
         coordenadas = esporotricose_bloqueio.coordenadas(props)
         if coordenadas:
             lat, lon = coordenadas
-            features.append({"type": "Feature", "properties": preparar(props),
-                             "geometry": {"type": "Point", "coordinates": [lon, lat]}})
+            feicao = {"type": "Feature", "properties": preparar(props),
+                      "geometry": {"type": "Point", "coordinates": [lon, lat]}}
+            if id_campo:
+                feicao["id"] = props[id_campo]
+            features.append(feicao)
     return {"type": "FeatureCollection", "features": features, "metadata": {"origem": origem}}
 
 

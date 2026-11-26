@@ -46,8 +46,9 @@ def page():
     catalogo = geo.catalogo(bh.db_target(), usuario)
     pode_rg = setores.pode_entrar(usuario, "endemias")
     pode_estimar = pode_rg and any(item["id"] == "quarteiroes" for item in catalogo["camadas"])
+    ambiental = setores.url_setor(usuario, "ambiental") if geo.esporotricose_localizacao_exata(usuario) else None
     return render_template("geovsatt.html", catalogo=catalogo, pode_rg=pode_rg, pode_estimar=pode_estimar,
-                           esri_licenciado=current_app.config["GEOVSATT_ESRI_LICENSED"])
+                           esri_licenciado=current_app.config["GEOVSATT_ESRI_LICENSED"], ambiental=ambiental)
 
 
 @bp.get("/api/geovsatt/catalogo")
@@ -90,7 +91,7 @@ def api_camada(codigo):
     target = bh.db_target()
     try:
         camada = _obter(codigo, incluir_dados=True)
-        if not camada["disponivel"] or not geo.pode_ver_camada(camada, usuario):
+        if not camada["disponivel"] or not geo.pode_ver_camada(target, camada, usuario):
             raise camadas.CamadaAusente("Camada não encontrada.")
         if camada["origem"] == "importacao":
             if codigo == equipamentos.CODIGO:
@@ -111,19 +112,20 @@ def baixar_camada(codigo, formato):
     if formato not in exportacao.FORMATOS:
         abort(404)
     usuario = bh.usuario_atual()
+    target = bh.db_target()
     try:
         camada = _obter(codigo, incluir_dados=True)
     except camadas.CamadaAusente:
         abort(404)
-    if not camada["disponivel"] or not geo.pode_ver_camada(camada, usuario):
+    if not camada["disponivel"] or not geo.pode_ver_camada(target, camada, usuario):
         abort(404)
-    if not geo.pode_exportar_camada(camada, usuario):
+    if not geo.pode_exportar_camada(target, camada, usuario):
         abort(403)
     if camada["origem"] == "importacao":
         dados = equipamentos.geojson(camada, _base_dir()) if codigo == equipamentos.CODIGO else json.loads(camada["geojson"])
         dados["metadata"] = json.loads(camada["metadados"])
     else:
-        dados = geo.dados_nativos(bh.db_target(), _base_dir(), codigo, usuario)
+        dados = geo.dados_nativos(target, _base_dir(), codigo, usuario)
     conteudo = exportacao.gerar(dados, camada, formato)
     audit.registrar_evento(bh.get_db, "geovsatt_camada_exportada", entidade="geovsatt_camada", entidade_id=codigo,
                            detalhes={"formato": formato, "total": len(dados["features"]), "versao": camada["id_versao"]})
@@ -135,7 +137,8 @@ def baixar_camada(codigo, formato):
 @login_required
 def api_busca():
     usuario = bh.usuario_atual()
-    permitidas = {codigo for codigo in ("localidades", "quarteiroes") if geo.pode_ver_camada(_obter(codigo), usuario)}
+    target = bh.db_target()
+    permitidas = {codigo for codigo in ("localidades", "quarteiroes") if geo.pode_ver_camada(target, _obter(codigo), usuario)}
     pode_rg = setores.pode_entrar(usuario, "endemias")
     try:
         if request.method == "POST":
@@ -148,12 +151,12 @@ def api_busca():
                 termo = termo.strip()
                 resultados = []
                 if 3 <= len(termo) <= 180 and "quarteiroes" in permitidas and pode_rg:
-                    resultados = busca.buscar_enderecos(bh.db_target(), termo, 7, sugerir=True,
+                    resultados = busca.buscar_enderecos(target, termo, 7, sugerir=True,
                                                         por_logradouro=payload.get("logradouro") is True)
                 return jsonify({"resultados": resultados})
         else:
             termo = request.args.get("q")
-        resultados = geo.buscar(bh.db_target(), _base_dir(), termo, permitidas,
+        resultados = geo.buscar(target, _base_dir(), termo, permitidas,
                                incluir_rg=pode_rg, usuario=usuario)
         return jsonify({"resultados": resultados})
     except ValueError as exc:
@@ -203,7 +206,7 @@ def api_detalhe_quarteirao(id_localidade, numero):
 @login_required
 def api_populacao():
     usuario = bh.usuario_atual()
-    if not setores.pode_entrar(usuario, "endemias") or not geo.pode_ver_camada(_obter("quarteiroes"), usuario):
+    if not setores.pode_entrar(usuario, "endemias") or not geo.pode_ver_camada(bh.db_target(), _obter("quarteiroes"), usuario):
         return jsonify({"erro": "Estimativa restrita a perfis com acesso aos quarteirões do RG."}), 403
     request.max_content_length = 12_288
     payload = request.get_json(silent=True)
@@ -354,6 +357,7 @@ def admin_camada(codigo):
     camada_mapa = next((id_mapa for id_mapa, fonte in geo.FONTES_TERRITORIAIS.items() if fonte == codigo), None)
     return render_template("geovsatt_camadas.html", camada=camada, contas=contas,
                            camada_mapa=camada_mapa, fonte_territorial=geo.FONTES_TERRITORIAIS.get(codigo),
+                           acesso_localizacao_exata=codigo in geo.BLOQUEIOS_ESPOROTRICOSE,
                            niveis=camadas.NIVEIS, setores=camadas.SETORES,
                            versoes=camadas.listar_versoes(target, codigo))
 

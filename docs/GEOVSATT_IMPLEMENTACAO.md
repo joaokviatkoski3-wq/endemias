@@ -4,7 +4,7 @@ Atualizado em 26/11/2026.
 
 ## Estado deste incremento
 
-A versão `2.22.0` reúne as alterações descritas a seguir. Consulte
+A versão `2.23.0` reúne as alterações descritas a seguir. Consulte
 `ESTADO_ATUAL_PROJETO.md` para confirmar qual versão está em produção.
 
 Implementado:
@@ -211,6 +211,23 @@ importação, publicação e edição de metadados geram eventos de auditoria.
   salva em composições. O mapa abre sem base. As camadas institucionais mantêm
   o controle de acesso e a busca continua disponível durante a troca de base.
 
+## Bloqueios de esporotricose na 2.23.0
+
+- **Esporotricose · Raios de bloqueio** representa os 150 m do mapa de
+  bloqueio do Ambiental, centrados na coordenada cadastrada do caso animal.
+  O contorno abre os detalhes com situação e data do bloqueio, classificação
+  da posição e quantidade de quarteirões inteiros ou parcialmente no raio.
+  O ponto ou o contorno também abre a página de impressão do caso no Ambiental.
+- **Esporotricose · Quarteirões nos raios** cruza os raios com a malha
+  territorial ativa. Mostra a parcela coberta pelos raios combinados e os casos
+  correspondentes por situação de bloqueio. Sobreposições contam uma vez
+  no cálculo de área. Abra os detalhes do RG pelo balão do quarteirão.
+- Os resultados indicam abrangência geométrica. A situação de bloqueio vem
+  do cadastro do caso. A comprovação da execução em cada quarteirão exige
+  dados próprios de campo. Ambas as camadas exigem permissão para as posições
+  exatas da Esporotricose animal. O acesso aos quarteirões libera a cobertura
+  e suas contagens. As autorizações de exportação são configuradas por camada.
+
 ## Próximos incrementos
 
 1. Usar a camada nativa `heatmap` do MapLibre para futuros mapas de densidade,
@@ -225,8 +242,9 @@ importação, publicação e edição de metadados geram eventos de auditoria.
    autocomplete ou dados confidenciais. O resultado externo deve indicar a
    fonte e a precisão. O vínculo oficial com o quarteirão vem do RG.
    [Política do Nominatim público](https://operations.osmfoundation.org/policies/nominatim/)
-4. Camadas de suspeitas de dengue e coletas de tubos com coordenadas.
-   Evoluir as consultas temporais e a composição de raios de bloqueio.
+4. Camadas de suspeitas de dengue e coletas de tubos com coordenadas. Evoluir
+   consultas temporais e incorporar raios de ovitrampas positivas com a regra
+   operacional definida pelo setor.
 
 ## Histórico de implantação e próximas validações
 

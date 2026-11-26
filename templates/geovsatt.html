@@ -108,7 +108,7 @@
     <button id="geo-sidebar-backdrop" class="geo-sidebar-backdrop" type="button" aria-label="Fechar menu" hidden></button>
 
     <main class="geo-map-wrap">
-      <div id="geo-map" class="geo-map" aria-label="Mapa territorial do GeoVSATT"></div>
+      <div id="geo-map" class="geo-map" aria-label="Mapa territorial do GeoVSATT"{% if ambiental %} data-ambiental="{{ ambiental }}"{% endif %}></div>
       <div class="geo-map-title">
         <strong>Mapa territorial</strong>
         <span id="geo-base-label">Sem imagem-base · dados institucionais</span>

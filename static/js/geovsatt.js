@@ -49,6 +49,8 @@
   map.createPane('areas').style.zIndex = 300;
   map.createPane('streets').style.zIndex = 310;
   map.createPane('blocks').style.zIndex = 330;
+  map.createPane('block-coverage').style.zIndex = 342;
+  map.createPane('block-radii').style.zIndex = 348;
   map.createPane('imported').style.zIndex = 370;
   map.createPane('localities').style.zIndex = 450;
   map.createPane('rg-selection').style.zIndex = 460;
@@ -279,6 +281,11 @@
     acoes_atendimentos: {pane: 'localities', color: '#235786', label: 'rotulo', categories: 'tipo'},
     esporotricose: {pane: 'imported', color: '#ae412e', label: 'rotulo', categories: 'posicao_cadastrada',
       colors: {'Dentro do limite municipal': '#ae412e', 'Fora do limite municipal': '#644191', 'Limite municipal indisponível': '#ae412e'}},
+    esporotricose_bloqueios: {pane: 'block-radii', color: '#a74025', weight: 2.5, noFill: true, line: 'tracejada',
+      label: 'rotulo', labelZoom: 18, categories: 'situacao_bloqueio',
+      colors: {Realizado: '#166c62', 'Não realizado': '#ae412e', 'Não necessário': '#52698c', 'Sem informação': '#686474'}},
+    esporotricose_quarteiroes: {pane: 'block-coverage', color: '#834999', fillOpacity: .22, categories: 'cobertura',
+      colors: {Integral: '#834999', Parcial: '#b05e25'}},
   };
 
   const palette = ['#157157', '#365eb3', '#965331', '#713996', '#9a5821', '#237383', '#a33558', '#626d1e', '#345687',
@@ -287,24 +294,26 @@
     codigo_pe: 'Código do ponto', ovitrampa_id: 'Ovitrampa', NOME: 'Nome', Name: 'Nome',
     data_coleta: 'Data de coleta', CdFerrovia: 'Código da ferrovia', TIPO_DRENA: 'Tipo de drenagem',
     bairro_loteamento: 'Bairro ou loteamento', status_funcionamento: 'Situação', horario: 'Horário de atendimento',
-    servicos_no_local: 'Serviços no local', gestao: 'Gestão', codigo_oficial: 'Código oficial', uid: 'Identificador'};
+    servicos_no_local: 'Serviços no local', gestao: 'Gestão', codigo_oficial: 'Código oficial', uid: 'Identificador',
+    situacao_bloqueio: 'Situação do bloqueio', data_bloqueio: 'Data do bloqueio', raio_metros: 'Raio (m)',
+    percentual_no_raio: 'Área do quarteirão dentro dos raios (%)', cobertura: 'Abrangência',
+    casos_com_bloqueio_realizado: 'Casos com bloqueio realizado',
+    casos_com_bloqueio_nao_realizado: 'Casos com bloqueio não realizado',
+    casos_com_bloqueio_nao_necessario: 'Casos com bloqueio não necessário',
+    casos_sem_situacao_padronizada: 'Casos sem situação padronizada'};
   const propertyName = key => propertyLabels[key] || key.replaceAll('_', ' ').replace(/^./, text => text.toLocaleUpperCase('pt-BR'));
   const normalText = text => String(text ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR').trim();
   const detailKeys = props => Object.keys(props).filter(key => !['chave', 'id_localidade', 'Localidade', 'quarteirao_raw'].includes(key)
     && props[key] != null && props[key] !== '' && typeof props[key] !== 'object');
 
-  function showFeature(input, props, name, attribute, latlng, paginaEdicao) {
+  function showFeature(input, props, name, attribute, latlng, action) {
     const box = element('div', 'geo-info-popup');
     const details = element('dl');
     for (const key of detailKeys(props)) {
       if (key !== attribute) details.append(element('dt', '', propertyName(key)), element('dd', '', String(props[key]).slice(0, 400)));
     }
     box.append(element('strong', '', name || input.dataset.nome), details);
-    if (paginaEdicao) {
-      const link = element('a', 'geo-editar-ponto', 'Editar equipamento');
-      link.href = paginaEdicao;
-      box.append(link);
-    }
+    if (action) box.append(action);
     L.popup({maxHeight: 260}).setLatLng(latlng).setContent(box).openOn(map);
   }
 
@@ -384,6 +393,8 @@
           label ??= props.id_quart ? `Q. ${props.id_quart}` : '';
         } else if (id === 'localidades') {
           localityIndex.set(String(props.id_localidade), layer);
+        } else if (id === 'esporotricose_quarteiroes') {
+          name ??= props.rotulo;
         }
         const isLine = /LineString$/.test(feature.geometry.type);
         const along = (config.rotulo_modo || (isLine ? 'linha' : 'centro')) === 'linha' && isLine;
@@ -403,10 +414,26 @@
           if (measure.active() || marcandoEquipamento) return;
           if (id === 'quarteiroes' && podeRg && props.chave) showBlock(props.Localidade, props.id_quart, layer);
           else {
+            let action;
             const indice = indices?.get(feature);
-            const edicao = Number.isInteger(indice) && feature.geometry.type === 'Point'
-              ? `/geovsatt/admin/equipamentos/${data.metadata.versao}/${indice}/editar` : '';
-            showFeature(input, props, name, attribute, event.latlng, edicao);
+            if (Number.isInteger(indice) && feature.geometry.type === 'Point') {
+              action = element('a', 'geo-feature-action', 'Editar equipamento');
+              action.href = `/geovsatt/admin/equipamentos/${data.metadata.versao}/${indice}/editar`;
+            } else if (mapNode.dataset.ambiental && Number.isSafeInteger(feature.id) &&
+                       (id === 'esporotricose' || id === 'esporotricose_bloqueios')) {
+              action = element('a', 'geo-feature-action', 'Abrir mapa de bloqueio no Ambiental');
+              action.href = `${mapNode.dataset.ambiental}/esporotricose/doentes/${feature.id}/mapa-bloqueio`;
+              action.target = '_blank';
+              action.rel = 'noopener noreferrer';
+            } else if (id === 'esporotricose_quarteiroes' && podeRg && props.chave) {
+              action = element('button', 'geo-feature-action', 'Abrir detalhes no RG');
+              action.type = 'button';
+              action.addEventListener('click', () => {
+                map.closePopup();
+                showBlock(props.Localidade, props.id_quart, blockIndex.get(String(props.chave)) || layer);
+              });
+            }
+            showFeature(input, props, name, attribute || (id === 'esporotricose_quarteiroes' ? 'rotulo' : ''), event.latlng, action);
           }
         });
       },

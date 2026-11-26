@@ -87,12 +87,10 @@ regras de trabalho e isolamento de testes.
   O modo CEP / BrasilAPI e a imagem Sentinel‑2 continuam disponíveis.
   O acervo importado tem 12 camadas e 3.862 feições. Consulte
   [a continuidade do GeoVSATT](GEOVSATT_IMPLEMENTACAO.md).
-  Para Esporotricose, usar os pontos dos animais com coordenadas válidas e
-  reaproveitar os raios de 150 m de `app_core/esporotricose_bloqueio.py`.
-  Mostrar situação e data dos bloqueios, incluindo realizados e pendentes.
-  A camada de quarteirões realizados depende de registro de execução. A
-  interseção com o raio indica a área abrangida. Aplicar as permissões do
-  setor aos pontos de casos, consultas e exportações.
+  A candidata 2.23.0 usa os raios de 150 m do mapa de Esporotricose do
+  Ambiental. O mapa cruza os raios com a malha ativa, mostra a situação e
+  a data do bloqueio e oferece acesso ao RG e à folha do caso no Ambiental.
+  A camada de execução por quarteirão depende do registro de campo.
 - **Biblioteca VSATT** (`biblioteca.vsatt.com.br`, nome provisório). Acervo
   interno de referências de Vigilância em Saúde, com documentos, links,
   vídeos e imagens.
