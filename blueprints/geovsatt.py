@@ -37,7 +37,8 @@ def _obter(codigo, **kwargs):
 def page():
     usuario = bh.usuario_atual()
     return render_template("geovsatt.html", catalogo=geo.catalogo(bh.db_target(), usuario),
-                           pode_rg=setores.pode_entrar(usuario, "endemias"))
+                           pode_rg=setores.pode_entrar(usuario, "endemias"),
+                           esri_licenciado=current_app.config.get("GEOVSATT_ESRI_LICENSED", False))
 
 
 @bp.get("/api/geovsatt/catalogo")
@@ -53,7 +54,7 @@ def api_camada(codigo):
     target = bh.db_target()
     try:
         camada = _obter(codigo, incluir_dados=True)
-        if not camada["disponivel"] or not camadas.pode_ver(camada, usuario):
+        if not camada["disponivel"] or not geo.pode_ver_camada(camada, usuario):
             raise camadas.CamadaAusente("Camada não encontrada.")
         if camada["origem"] == "importacao":
             return current_app.response_class(camada["geojson"], mimetype="application/geo+json")
@@ -61,6 +62,8 @@ def api_camada(codigo):
             return jsonify(geo.localidades(target, _base_dir()))
         if codigo == "quarteiroes":
             return jsonify(geo.quarteiroes(target, _base_dir(), incluir_rg=setores.pode_entrar(usuario, "endemias")))
+        if codigo == "esporotricose":
+            return jsonify(geo.esporotricose_animal(target))
         return jsonify(geo.logradouros(_base_dir()))
     except camadas.CamadaAusente as exc:
         return jsonify({"erro": str(exc)}), 404
@@ -120,6 +123,39 @@ def admin_catalogo():
     return render_template("geovsatt_camadas.html", camadas=camadas.listar(bh.db_target(), geo.BASES))
 
 
+@bp.get("/geovsatt/admin/atualizar")
+@login_required
+@superadmin
+def admin_atualizar():
+    return render_template("geovsatt_camadas.html", modo="atualizar",
+                           camadas=camadas.listar(bh.db_target(), geo.BASES))
+
+
+@bp.route("/geovsatt/admin/importar", methods=["GET", "POST"])
+@login_required
+@superadmin
+def admin_importar_nova():
+    if request.method == "GET":
+        return render_template("geovsatt_camadas.html", modo="nova")
+    codigo = request.form.get("codigo", "").strip()
+    try:
+        arquivo = _arquivo_geojson()
+        versao = camadas.importar_nova(bh.db_target(), codigo, arquivo, request.form, geo.BASES,
+                                      bh.usuario_atual()["id_usuario"])
+    except camadas.CatalogoErro as exc:
+        flash(str(exc), "erro")
+        return render_template("geovsatt_camadas.html", modo="nova", campos=request.form), 400
+    flash(f"Camada criada e versão {versao} importada como rascunho.", "ok")
+    return _voltar(codigo, "versoes")
+
+
+def _arquivo_geojson():
+    arquivo = request.files.get("geojson")
+    if not arquivo:
+        raise camadas.CatalogoErro("Selecione um arquivo GeoJSON.")
+    return arquivo
+
+
 @bp.post("/geovsatt/admin/camadas")
 @login_required
 @superadmin
@@ -131,7 +167,7 @@ def admin_criar():
         flash(str(exc), "erro")
         return redirect(url_for("geovsatt.admin_catalogo"), code=303)
     flash("Camada criada. Importe um GeoJSON para preparar a primeira versão.", "ok")
-    return _voltar(codigo, "importar-versao")
+    return redirect(url_for("geovsatt.admin_importar", codigo=codigo), code=303)
 
 
 def _voltar(codigo, ancora=None):
@@ -160,22 +196,26 @@ def admin_camada(codigo):
                            versoes=camadas.listar_versoes(target, codigo))
 
 
-@bp.post("/geovsatt/admin/camadas/<codigo>/importar")
+@bp.route("/geovsatt/admin/camadas/<codigo>/importar", methods=["GET", "POST"])
 @login_required
 @superadmin
 def admin_importar(codigo):
     if codigo in geo.BASES:
         abort(404)
     try:
-        arquivo = request.files.get("geojson")
-        if not arquivo:
-            raise camadas.CatalogoErro("Selecione um arquivo GeoJSON.")
+        camada = _obter(codigo)
+    except camadas.CamadaAusente:
+        abort(404)
+    if request.method == "GET":
+        return render_template("geovsatt_camadas.html", camada=camada, modo="arquivo")
+    try:
+        arquivo = _arquivo_geojson()
         versao = camadas.importar(bh.db_target(), codigo, arquivo, request.form, bh.usuario_atual()["id_usuario"])
         flash(f"Versão {versao} importada como rascunho.", "ok")
         return _voltar(codigo, "versoes")
     except camadas.CatalogoErro as exc:
         flash(str(exc), "erro")
-    return _voltar(codigo, "importar-versao")
+        return render_template("geovsatt_camadas.html", camada=camada, modo="arquivo", campos=request.form), 400
 
 
 @bp.get("/geovsatt/admin/camadas/<codigo>/versoes/<int:versao>/geojson")

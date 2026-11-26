@@ -94,8 +94,30 @@ importação, publicação e edição de metadados geram eventos de auditoria.
 - Use as ferramentas de distância e área para marcar pontos, desfazer o último
   ponto e concluir. As medidas são aproximadas. O mapa aceita até zoom 22.
 - Como superadmin, **Gerenciar camadas** fica no topo do mapa ou no começo
-  do menu lateral. Para publicar um novo arquivo em uma camada importada,
-  escolha **Importar versão** ao lado dela.
+  do menu lateral. Na 2.18.0, **Nova camada GeoJSON** abre o formulário com
+  seletor de arquivo. **Atualizar camada existente** abre a lista de camadas
+  importadas com o botão **Importar versão**. O arquivo importado é rascunho
+  até **Publicar no mapa**. A busca oferece o modo **CEP / BrasilAPI**.
+
+## Cartografia e vigilância na 2.18.0
+
+- O lote assistido `scripts/importar_cartografia_geovsatt.py` prepara as camadas
+  da pasta de origem sem editar os arquivos. A prévia informa contagens, SRC,
+  correções e hashes. A publicação é transacional e reutiliza versões
+  idênticas em nova execução. Um cadastro divergente interrompe o lote.
+- Quarteirões do QGIS entram como uma camada de referência. O RG conserva
+  a malha ativa que vincula os imóveis. As propriedades importadas são
+  selecionadas por camada. Os QMD recebidos não especificam licença.
+- **Imagem-base** no menu permite ativar Sentinel‑2 (2025) por
+  [EOxCloudless](https://cloudless.eox.at/license-non-commercial), com
+  atribuição no mapa. A abertura padrão segue sem imagem-base.
+- A opção Esri World Imagery aparece quando a instalação tiver cobertura
+  de uso confirmada e `ENDEMIAS_GEO_ESRI_LICENSED=1`. Consulte os
+  [termos da Esri para mapas e camadas](https://doc.arcgis.com/en/arcgis-online/reference/access-use-constraints.htm).
+- **Esporotricose animal** apresenta contagens de animais do cadastro
+  em células de aproximadamente 250 metros. O acesso padrão é admin e
+  superadmin. Concessões a outros perfis também exigem acesso ao Ambiental.
+  O mapa exibe centros das células e não inclui a ficha ou o ponto individual.
 
 ## Próximos incrementos
 
@@ -104,8 +126,8 @@ importação, publicação e edição de metadados geram eventos de auditoria.
    com filtros por período e respeito às permissões e à agregação de cada fonte.
    [Documentação OpenFreeMap](https://openfreemap.org/quick_start/) ·
    [Estilos MapLibre](https://maplibre.org/maplibre-style-spec/layers/#heatmap)
-2. Base opcional Esri World Imagery e ortofotos, com revisão dos direitos de
-   uso, atribuição e exportação.
+2. Habilitar Esri World Imagery mediante confirmação da cobertura de uso.
+   Adicionar ortofotos com atribuição, metadados e regras de exportação.
 3. Nominatim como geocodificação complementar para vias e lugares públicos.
    Priorizar instância própria ou provedor contratado no uso recorrente.
    A instância pública exige atribuição, identificação da aplicação, limite
@@ -114,8 +136,8 @@ importação, publicação e edição de metadados geram eventos de auditoria.
    fonte e a precisão. O vínculo oficial com o quarteirão vem do RG.
    [Política do Nominatim público](https://operations.osmfoundation.org/policies/nominatim/)
 4. Cadastro manual de prédios públicos e pontos de interesse pelo superadmin.
-5. Ações e Atendimentos de Endemias que tenham coordenadas e camadas de
-   vigilância, começando pela Esporotricose com controle de acesso e precisão.
+5. Ações e Atendimentos de Endemias que tenham coordenadas e demais camadas
+   de vigilância. Evoluir a Esporotricose com recorte temporal e status de bloqueio.
 6. População por seleção, composição e impressão de mapas personalizados.
 
 ## Histórico de implantação e próximas validações

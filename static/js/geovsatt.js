@@ -10,6 +10,7 @@
   const detailTitle = document.getElementById('geo-detail-title');
   const searchForm = document.getElementById('geo-search');
   const searchInput = document.getElementById('geo-search-input');
+  const searchSource = document.getElementById('geo-search-source');
   const searchResults = document.getElementById('geo-search-results');
   const podeRg = document.querySelector('.geo-shell').dataset.podeRg === '1';
   const layers = new Map();
@@ -45,6 +46,36 @@
   map.setView([-25.32, -49.30], 12);
   const labels = window.GeoVSATTRotulos.create(map);
   const measure = window.GeoVSATTMedicao.create(map);
+  const basemaps = {
+    sentinel: {
+      title: 'Satélite Sentinel-2 (2025)',
+      url: 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2025_3857/default/g/{z}/{y}/{x}.jpg',
+      native: 14,
+      credits: '<a href="https://cloudless.eox.at/">EOxCloudless</a> por <a href="https://eox.at/">EOX IT Services GmbH</a> · Dados Copernicus Sentinel 2025 modificados',
+    },
+    esri: {
+      title: 'Satélite Esri World Imagery',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      native: 19,
+      credits: 'Esri, Vantor, Earthstar Geographics e GIS User Community',
+    },
+  };
+  let activeBasemap;
+  const baseSelect = document.getElementById('geo-basemap');
+  baseSelect.addEventListener('change', () => {
+    if (activeBasemap) map.removeLayer(activeBasemap);
+    activeBasemap = null;
+    const picked = Object.hasOwn(basemaps, baseSelect.value) ? basemaps[baseSelect.value] : null;
+    document.getElementById('geo-base-label').textContent = picked?.title || 'Sem imagem-base · dados institucionais';
+    statusNode.textContent = '';
+    if (picked) {
+      activeBasemap = L.tileLayer(picked.url, {
+        maxNativeZoom: picked.native, maxZoom: map.getMaxZoom(), noWrap: true, attribution: picked.credits,
+      }).on('tileerror', () => {
+        statusNode.textContent = 'Algumas imagens de satélite não carregaram.';
+      }).addTo(map);
+    }
+  });
 
   function openSidebar(open) {
     const trigger = document.getElementById('geo-menu-open');
@@ -140,6 +171,7 @@
     logradouros: {pane: 'streets', color: '#78857d', weight: 1.4, opacity: .78, label: 'nome'},
     quarteiroes: {pane: 'blocks', color: '#00752b', fillColor: '#e8f5eb', weight: 1, fillOpacity: .28},
     localidades: {pane: 'localities', color: '#008c30', label: 'nome'},
+    esporotricose: {pane: 'imported', color: '#ae412e', label: 'rotulo'},
   };
 
   function buildLayer(input, data) {
@@ -160,8 +192,10 @@
         }
         return {...base, color: cor || base.color, fillColor: cor || base.fillColor || base.color};
       },
-      pointToLayer(_, latlng) {
-        return L.circleMarker(latlng, {pane: base.pane, radius: 5});
+      pointToLayer(feature, latlng) {
+        const count = Number(feature.properties?.animais || 0);
+        const radius = id === 'esporotricose' ? 5 + Math.min(12, Math.sqrt(count) * 2) : 5;
+        return L.circleMarker(latlng, {pane: base.pane, radius});
       },
       onEachFeature(feature, layer) {
         const props = feature.properties || {};
@@ -184,6 +218,19 @@
             ? {permanent: true, direction: 'top', className: 'geo-locality-label'}
             : {sticky: true};
           layer.bindTooltip(element('span', '', name), tooltipOptions);
+        }
+        if (!Object.hasOwn(defaults, id) && name) {
+          layer.on('click', event => {
+            if (measure.active()) return;
+            const box = element('div', 'geo-info-popup');
+            const details = element('dl');
+            for (const [key, value] of Object.entries(props).slice(0, 12)) {
+              if (key === attribute || value == null || value === '') continue;
+              details.append(element('dt', '', key.replaceAll('_', ' ')), element('dd', '', String(value).slice(0, 400)));
+            }
+            box.append(element('strong', '', name), details);
+            L.popup().setLatLng(event.latlng).setContent(box).openOn(map);
+          });
         }
       },
     });
@@ -310,6 +357,17 @@
     return data.resultados;
   };
 
+  searchSource.addEventListener('change', () => {
+    const cep = searchSource.value === 'cep';
+    searchInput.placeholder = cep ? 'Digite o CEP (00000-000)' : 'Rua e número, localidade ou quarteirão';
+    searchInput.inputMode = cep ? 'numeric' : 'search';
+    searchInput.maxLength = cep ? 9 : 180;
+    searchSequence += 1;
+    searchResults.hidden = true;
+    searchInput.focus();
+    searchInput.select();
+  });
+
   searchForm.addEventListener('submit', async event => {
     event.preventDefault();
     const query = searchInput.value.trim();
@@ -320,7 +378,8 @@
     try {
       let cep;
       let items;
-      if (/^\d{5}-?\d{3}$/.test(query)) {
+      if (searchSource.value === 'cep' || /^\d{5}-?\d{3}$/.test(query)) {
+        if (!/^\d{5}-?\d{3}$/.test(query)) throw Error('Informe um CEP com oito dígitos.');
         cep = await api(`/api/geovsatt/cep/${encodeURIComponent(query)}`);
         items = cep.municipio_rg && cep.logradouro ? await searchRG(cep.logradouro) : [];
       } else {

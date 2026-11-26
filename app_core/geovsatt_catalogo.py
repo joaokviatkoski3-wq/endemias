@@ -53,14 +53,14 @@ def ensure_schema(conn):
 
 def configuracao_padrao(base=None):
     return {
-        "niveis": list(NIVEIS) if base else [],
+        "niveis": list(base.get("niveis_padrao", NIVEIS)) if base else [],
         "setores": list(SETORES) if base else [],
         "usuarios": [],
         "visivel_inicial": bool(base and base["visivel_inicial"]),
         "cor": "",
         "atributo_cor": "",
         "cores": {},
-        "rotulo": "",
+        "rotulo": base.get("rotulo_padrao", "") if base else "",
     }
 
 
@@ -183,7 +183,7 @@ def _evento(conn, acao, codigo, detalhes):
                            entidade_id=codigo, detalhes=detalhes, conn=conn)
 
 
-def salvar_camada(target, codigo, form, bases, *, nova=False):
+def _dados_camada(codigo, form):
     if not re.fullmatch(r"[a-z][a-z0-9_-]{1,59}", codigo):
         raise CatalogoErro("Use um código de 2 a 60 caracteres com letras minúsculas, números, hífen ou sublinhado.")
     nome = _texto(form.get("nome"), 100)
@@ -191,22 +191,36 @@ def salvar_camada(target, codigo, form, bases, *, nova=False):
     descricao = _texto(form.get("descricao"), 1000)
     if not nome or not grupo:
         raise CatalogoErro("Informe o nome e o grupo da camada.")
-    config = _config(form)
+    return nome, grupo, descricao, _config(form)
+
+
+def _criar_camada(conn, codigo, dados, bases):
+    if codigo in bases:
+        raise CatalogoErro("Este código já pertence a uma camada do sistema.")
+    nome, grupo, descricao, config = dados
+    alteracao = conn.execute(
+        """INSERT INTO geovsatt_camadas(codigo,nome,grupo,descricao,configuracao) VALUES (?,?,?,?,?)
+           ON CONFLICT (codigo) DO NOTHING""",
+        (codigo, nome, grupo, descricao, json.dumps(config)),
+    )
+    if not alteracao.rowcount:
+        raise CatalogoErro("Já existe uma camada com esse código.")
+
+
+def salvar_camada(target, codigo, form, bases, *, nova=False):
+    nome, grupo, descricao, config = _dados_camada(codigo, form)
     with _escrita(target) as conn:
         for uid in config["usuarios"]:
             if not conn.execute("SELECT 1 FROM usuarios WHERE id_usuario = ?", (uid,)).fetchone():
                 raise CatalogoErro("Uma das contas selecionadas não existe.")
-        if nova or codigo not in bases:
-            sql = ("INSERT INTO geovsatt_camadas(codigo,nome,grupo,descricao,configuracao) VALUES (?,?,?,?,?) "
-                   "ON CONFLICT (codigo) DO NOTHING" if nova else
-                   "UPDATE geovsatt_camadas SET nome=?,grupo=?,descricao=?,configuracao=? WHERE codigo=?")
-            valores = (nome, grupo, descricao, json.dumps(config))
-            if nova and codigo in bases:
-                raise CatalogoErro("Este código já pertence a uma camada do sistema.")
-            alteracao = conn.execute(sql, (codigo, *valores) if nova else (*valores, codigo))
+        if nova:
+            _criar_camada(conn, codigo, (nome, grupo, descricao, config), bases)
+        elif codigo not in bases:
+            alteracao = conn.execute(
+                "UPDATE geovsatt_camadas SET nome=?,grupo=?,descricao=?,configuracao=? WHERE codigo=?",
+                (nome, grupo, descricao, json.dumps(config), codigo),
+            )
             if not alteracao.rowcount:
-                if nova:
-                    raise CatalogoErro("Já existe uma camada com esse código.")
                 raise CamadaAusente("Camada não encontrada.")
         else:
             conn.execute(
@@ -294,25 +308,43 @@ def _geojson(conteudo):
     return json.dumps({"type": "FeatureCollection", "features": feicoes}, separators=(",", ":")), tipo, len(feicoes)
 
 
-def importar(target, codigo, arquivo, form, usuario_id):
+def preparar_importacao(arquivo, form):
     nome = _texto(arquivo.filename.replace("\\", "/").rsplit("/", 1)[-1], 200)
     if not nome.lower().endswith((".geojson", ".json")):
         raise CatalogoErro("Envie um arquivo .geojson ou .json.")
     metadados = _metadados(form)
     conteudo = arquivo.stream.read(MAX_UPLOAD + 1)
     geojson, tipo, total = _geojson(conteudo)
+    return nome, geojson, hashlib.sha256(conteudo).hexdigest(), total, tipo, json.dumps(metadados)
+
+
+def _inserir_versao(conn, codigo, dados, usuario_id, *, publicar=False):
+    agora = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    identificador = db.insert_and_get_id(
+        conn, """INSERT INTO geovsatt_versoes(codigo,arquivo,geojson,sha256,total,tipo,metadados,autor_id,criada_em,
+                                             publicada_em,ativa) VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        (codigo, *dados, usuario_id, agora, agora if publicar else None, int(publicar)),
+        "id_versao",
+    )
+    _evento(conn, "versao_importada", codigo, {"versao": identificador, "total": dados[3]})
+    return identificador
+
+
+def importar(target, codigo, arquivo, form, usuario_id):
+    dados = preparar_importacao(arquivo, form)
     with _escrita(target) as conn:
         if not conn.execute("SELECT 1 FROM geovsatt_camadas WHERE codigo = ?", (codigo,)).fetchone():
             raise CamadaAusente("Camada não encontrada.")
-        identificador = db.insert_and_get_id(
-            conn, """INSERT INTO geovsatt_versoes(codigo,arquivo,geojson,sha256,total,tipo,metadados,autor_id,criada_em)
-                     VALUES (?,?,?,?,?,?,?,?,?)""",
-            (codigo, nome, geojson, hashlib.sha256(conteudo).hexdigest(), total, tipo,
-             json.dumps(metadados), usuario_id, datetime.now(timezone.utc).isoformat(timespec="seconds")),
-            "id_versao",
-        )
-        _evento(conn, "versao_importada", codigo, {"versao": identificador, "total": total})
-    return identificador
+        return _inserir_versao(conn, codigo, dados, usuario_id)
+
+
+def importar_nova(target, codigo, arquivo, form, bases, usuario_id):
+    nome, grupo, descricao, _ = _dados_camada(codigo, form)
+    camada = (nome, grupo, descricao, configuracao_padrao())
+    dados = preparar_importacao(arquivo, form)
+    with _escrita(target) as conn:
+        _criar_camada(conn, codigo, camada, bases)
+        return _inserir_versao(conn, codigo, dados, usuario_id)
 
 
 def _versao(row):

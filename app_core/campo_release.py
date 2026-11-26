@@ -6,6 +6,9 @@ from app_core.version import APP_VERSION
 
 
 RESUMOS = {
+    "2.18.0": [
+        "O GeoVSATT ganhou importação de camadas, busca explícita por CEP e satélite Sentinel-2.",
+    ],
     "2.17.0": [
         "No portal GeoVSATT, busque endereços do RG e consulte CEPs.",
     ],

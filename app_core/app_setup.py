@@ -122,13 +122,14 @@ def register_security_headers(app):
             'consultas.laboratorio', 'laboratorio.page', 'recolhimentos.page', 'pontos_estrategicos.page', 'formularios.rg_campo_page'
         }
         attributes = "'none'" if strict or not inline else "'unsafe-inline'"
+        imagens_geo = " https://tiles.maps.eox.at" if request.endpoint == "geovsatt.page" else ""
         return (
             "default-src 'self'; "
             f"script-src 'self' https://cdn.jsdelivr.net 'nonce-{nonce()}' 'strict-dynamic'; "
             f"script-src-attr {attributes}; "
             f"style-src 'self' https://cdn.jsdelivr.net{inline}; "
             "object-src 'none'; "
-            "img-src 'self' data: blob: https://server.arcgisonline.com; "
+            f"img-src 'self' data: blob: https://server.arcgisonline.com{imagens_geo}; "
             "font-src 'self'; "
             "connect-src 'self'; "
             "frame-ancestors 'self'; "

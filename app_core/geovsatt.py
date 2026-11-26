@@ -1,14 +1,18 @@
 """Contratos de leitura da primeira fundação cartográfica do GeoVSATT."""
 
+from collections import Counter
 import json
+import math
 from pathlib import Path
 import re
 
 from app_core import db as db_core
+from app_core import esporotricose_bloqueio
 from app_core import geovsatt_busca as busca_core
 from app_core import geovsatt_catalogo as catalogo_core
 from app_core import permissoes
 from app_core import registro_geografico as rg_core
+from app_core import setores
 
 
 CAMADAS = (
@@ -69,11 +73,13 @@ CAMADAS = (
     {
         "id": "esporotricose",
         "grupo": "Vigilância",
-        "nome": "Esporotricose",
-        "descricao": "Casos, bloqueios e raios serão liberados com regras próprias de acesso.",
+        "nome": "Esporotricose animal",
+        "descricao": "Animais cadastrados com coordenadas, agrupados em células de aproximadamente 250 metros.",
         "tipo": "ponto",
-        "disponivel": False,
+        "disponivel": True,
         "visivel_inicial": False,
+        "niveis_padrao": ["admin"],
+        "rotulo_padrao": "rotulo",
     },
     {
         "id": "ovitrampas",
@@ -99,6 +105,12 @@ CAMADAS = (
 BASES = {item["id"]: item for item in CAMADAS if item["disponivel"]}
 
 
+def pode_ver_camada(camada, usuario):
+    if camada["id"] == "esporotricose" and not setores.pode_entrar(usuario, "ambiental"):
+        return False
+    return catalogo_core.pode_ver(camada, usuario)
+
+
 def catalogo(target, usuario):
     gerencia = permissoes.permite(usuario, "tecnica")
     cadastradas = catalogo_core.listar(target, BASES)
@@ -107,7 +119,7 @@ def catalogo(target, usuario):
         {key: camada[key] for key in ("id", "grupo", "nome", "descricao", "tipo", "disponivel",
                                     "visivel_inicial", "origem")}
         | {"estilo": {key: camada["config"][key] for key in ("cor", "atributo_cor", "cores", "rotulo")}}
-        for camada in cadastradas if catalogo_core.pode_ver(camada, usuario)
+        for camada in cadastradas if pode_ver_camada(camada, usuario)
     ]
     camadas.extend(dict(item) for item in CAMADAS if item["id"] not in reservadas)
     return {
@@ -201,6 +213,31 @@ def logradouros(base_dir):
         feature["properties"] = {key: _corrigir_texto(value) for key, value in (feature.get("properties") or {}).items()}
     data["metadata"] = {"camada": "logradouros", "origem": "base cartográfica municipal existente"}
     return data
+
+
+def esporotricose_animal(db_path):
+    """Exibe contagens territoriais sem entregar coordenadas ou atributos de casos."""
+    celulas = Counter()
+    grade = 0.0025
+    total = 0
+    registros = db_core.query(db_path, "SELECT latitude,longitude FROM esporotricose_doentes_animais")
+    for registro in registros:
+        coordenada = esporotricose_bloqueio.coordenadas(registro)
+        if not coordenada:
+            continue
+        lat, lon = coordenada
+        if -25.6 < lat < -25 and -49.7 < lon < -48.9:
+            total += 1
+            celulas[(math.floor(lon / grade), math.floor(lat / grade))] += 1
+    features = [{
+        "type": "Feature",
+        "properties": {"animais": quantidade, "rotulo": f"{quantidade} {'animal' if quantidade == 1 else 'animais'} no recorte"},
+        "geometry": {"type": "Point", "coordinates": [round((x + .5) * grade, 6), round((y + .5) * grade, 6)]},
+    } for (x, y), quantidade in sorted(celulas.items())]
+    return {"type": "FeatureCollection", "features": features, "metadata": {
+        "representacao": "Agrupamento em células de 0,0025°; a posição é o centro da célula.",
+        "animais_representados": total, "animais_no_cadastro": len(registros),
+    }}
 
 
 def buscar(db_path, base_dir, termo, permitidas, *, incluir_rg=False, limite=30):

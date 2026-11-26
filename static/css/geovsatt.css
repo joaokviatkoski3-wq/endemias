@@ -13,9 +13,14 @@ button{color:inherit}
 .geo-brand{height:48px;display:flex;align-items:center;gap:8px;color:#333;text-decoration:none}
 .geo-brand img{display:block;width:48px;height:48px;object-fit:contain}
 .geo-brand span,.geo-brand strong,.geo-brand small{display:block}.geo-brand strong{font-size:17px;line-height:1}.geo-brand small{margin-top:4px;color:var(--muted);font-size:9px;white-space:nowrap}
-.geo-search{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:center;gap:8px;height:44px;border:1px solid #91a197;border-radius:8px;background:#fff;padding-left:12px}
+.geo-search{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px;height:44px;border:1px solid #91a197;border-radius:8px;background:#fff;padding-left:12px}
 .geo-search:focus-within{border:2px solid var(--action);padding-left:11px}
-.geo-search>img{width:18px;height:18px;opacity:.65}
+.geo-search select{max-width:128px;border:0;border-right:1px solid #dde6df;background:white;color:var(--action);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.geo-base-control{display:grid;gap:5px;margin:8px 0 14px;color:var(--muted);font-size:12px}
+.geo-base-control select{padding:.5rem;border:1px solid var(--border);border-radius:6px;background:white;color:#23382d;font:inherit}
+.geo-info-popup dl{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:3px 10px;margin-bottom:0}
+.geo-info-popup dt{font-weight:700}.geo-info-popup dd{margin:0;overflow-wrap:anywhere}
+@media(max-width:560px){.geo-search select{max-width:66px;font-size:11px}}
 .geo-search input{min-width:0;border:0;outline:0;color:#333;background:transparent;font-size:14px}
 .geo-search>button{align-self:stretch;border:0;border-left:1px solid var(--border);background:var(--action);color:#fff;padding:0 18px;font-size:13px;font-weight:700;cursor:pointer}
 .geo-search-results{position:absolute;top:50px;left:0;right:0;max-height:360px;overflow:auto;border:1px solid var(--border);border-radius:8px;background:#fff;box-shadow:0 16px 40px #10201628}

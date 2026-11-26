@@ -23,9 +23,12 @@
       </a>
       <form id="geo-search" class="geo-search" role="search">
         <label class="sr-only" for="geo-search-input">Buscar endereço, CEP, localidade ou quarteirão</label>
-        <img src="/static/icons/busca.svg" alt="">
+        <select id="geo-search-source" aria-label="Tipo de busca">
+          <option value="rg">Endereço / RG</option>
+          <option value="cep">CEP / BrasilAPI</option>
+        </select>
         <input id="geo-search-input" name="q" type="search" autocomplete="off" enterkeyhint="search"
-               maxlength="180" placeholder="Endereço, CEP ou quarteirão" aria-controls="geo-search-results">
+               maxlength="180" placeholder="Rua e número, localidade ou quarteirão" aria-controls="geo-search-results">
         <button type="submit">Buscar</button>
         <div id="geo-search-results" class="geo-search-results" hidden></div>
       </form>
@@ -67,7 +70,13 @@
         {% endfor %}
         <section class="geo-layer-group">
           <h2>Imagens e bases</h2>
-          <div class="geo-layer-row is-pending"><span class="geo-layer-symbol geo-layer-symbol--raster"></span><span><strong>Satélite</strong><small>Será configurado pelo superadmin.</small></span><em>Futuro</em></div>
+          <label class="geo-base-control">Imagem-base
+            <select id="geo-basemap">
+              <option value="none">Sem imagem-base</option>
+              <option value="sentinel">Satélite Sentinel-2 (2025)</option>
+              {% if esri_licenciado %}<option value="esri">Satélite Esri World Imagery</option>{% endif %}
+            </select>
+          </label>
           <div class="geo-layer-row is-pending"><span class="geo-layer-symbol geo-layer-symbol--raster"></span><span><strong>Ortofotos</strong><small>Versões e metadados serão adicionados depois.</small></span><em>Futuro</em></div>
         </section>
       </div>
@@ -78,7 +87,7 @@
       <div id="geo-map" class="geo-map" aria-label="Mapa territorial do GeoVSATT"></div>
       <div class="geo-map-title">
         <strong>Mapa territorial</strong>
-        <span>Sem imagem-base · dados institucionais</span>
+        <span id="geo-base-label">Sem imagem-base · dados institucionais</span>
       </div>
       <div id="geo-status" class="geo-status" role="status">Carregando camadas territoriais...</div>
       <div class="geo-tools" aria-label="Ferramentas do mapa">

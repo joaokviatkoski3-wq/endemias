@@ -316,6 +316,7 @@ def create_app(config_overrides=None):
         ENDEMIAS_LOCAL_PORT=int(os.environ.get('ENDEMIAS_LOCAL_PORT','5000')),
         AMBIENTAL_LOCAL_PORT=int(os.environ.get('ENDEMIAS_AMBIENTAL_LOCAL_PORT','5004')),
         GEO_LOCAL_PORT=int(os.environ.get('ENDEMIAS_GEO_LOCAL_PORT','5005')),
+        GEOVSATT_ESRI_LICENSED=_env_bool(os.environ, 'ENDEMIAS_GEO_ESRI_LICENSED', False),
     )
     flask_app.config.update(web_security.external_defaults())
     if config_overrides:
@@ -356,7 +357,7 @@ def create_app(config_overrides=None):
 
     @flask_app.before_request
     def limitar_upload_geovsatt():
-        if request.endpoint == "geovsatt.admin_importar":
+        if request.endpoint in {"geovsatt.admin_importar", "geovsatt.admin_importar_nova"}:
             from app_core.geovsatt_catalogo import MAX_UPLOAD
             request.max_content_length = MAX_UPLOAD + 256 * 1024
 

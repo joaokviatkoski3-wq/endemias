@@ -4,6 +4,14 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.18.0": {
+        "titulo": "Importação e novas camadas no GeoVSATT",
+        "mudancas": [
+            "Os atalhos de importação abrem formulários próprios para arquivos GeoJSON.",
+            "A busca tem uma opção explícita de CEP, consultada na BrasilAPI.",
+            "O menu oferece imagens de satélite e uma camada restrita de Esporotricose animal.",
+        ],
+    },
     "2.17.0": {
         "titulo": "Busca e medições no GeoVSATT",
         "mudancas": [

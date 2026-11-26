@@ -124,9 +124,9 @@ class GeoVSATTTests(unittest.TestCase):
 
         self.assertEqual(visualizador.get(gerencia).status_code, 403)
         self.assertEqual(visualizador.post(gerencia, data=configuracao).status_code, 403)
-        self.assertEqual(admin.post(gerencia, data={**configuracao, "codigo": "bairros"}).location, camada + "#importar-versao")
-        self.assertIn(b"Importar rascunho", admin.get(camada).data)
-        self.assertIn(b'#importar-versao', admin.get(gerencia).data)
+        self.assertEqual(admin.post(gerencia, data={**configuracao, "codigo": "bairros"}).location, camada + "/importar")
+        self.assertIn(b"Importar rascunho", admin.get(camada + "/importar").data)
+        self.assertIn((camada + "/importar").encode(), admin.get("/geovsatt/admin/atualizar").data)
 
         def importar(nome, coords):
             dados = {"type": "FeatureCollection", "features": [{
@@ -169,6 +169,53 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertIn(b"Cartografia homologada", admin.get(camada).data)
         self.assertEqual(db.scalar(str(self.path), "SELECT COUNT(*) FROM geovsatt_versoes WHERE ativa=1"), 1)
         self.assertEqual(db.scalar(str(self.path), "SELECT COUNT(*) FROM auditoria_eventos WHERE acao='geovsatt_versao_publicada'"), 3)
+
+    def test_nova_camada_e_arquivo_formam_uma_operacao(self):
+        admin = self.client()
+        rota = "/geovsatt/admin/importar"
+        self.assertEqual(self.client(uid=2).get(rota).status_code, 403)
+        form = admin.get(rota)
+        self.assertIn(b'type="file"', form.data)
+        self.assertIn(b'/geovsatt/admin/atualizar', admin.get("/geovsatt/admin/camadas").data)
+        campos = {"codigo": "nova", "nome": "Nova camada", "grupo": "Território", "fonte": "Massa fictícia"}
+        erro = admin.post(rota, data={**campos, "geojson": (io.BytesIO(b"[]"), "invalido.geojson")})
+        self.assertEqual(erro.status_code, 400)
+        self.assertEqual(db.scalar(str(self.path), "SELECT COUNT(*) FROM geovsatt_camadas"), 0)
+        dados = {"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {},
+                 "geometry": {"type": "Point", "coordinates": [-49.3, -25.3]}}]}
+        ok = admin.post(rota, data={**campos, "geojson": (io.BytesIO(json.dumps(dados).encode()), "nova.geojson")})
+        self.assertEqual(ok.location, "/geovsatt/admin/camadas/nova#versoes")
+        self.assertEqual(db.scalar(str(self.path), "SELECT COUNT(*) FROM geovsatt_versoes WHERE ativa=0"), 1)
+
+    def test_esporotricose_agrega_coordenadas_e_restringe_a_origem(self):
+        with closing(sqlite3.connect(self.path)) as conn, conn:
+            conn.execute("""INSERT INTO esporotricose_doentes_animais(chave,nome,tutor,latitude,longitude,criado_em,atualizado_em)
+                            VALUES ('ficticio','Animal de ensaio','Tutor de ensaio',-25.301,-49.301,'2026-11-26','2026-11-26')""")
+        admin = self.client()
+        comum = self.client(uid=2)
+        ambiental = self.client(uid=3)
+        rota = "/api/geovsatt/camadas/esporotricose"
+        self.assertEqual(comum.get(rota).status_code, 404)
+        self.assertEqual(ambiental.get(rota).status_code, 404)
+        alvo = admin.get(rota)
+        self.assertEqual(alvo.status_code, 200)
+        self.assertNotIn(b'Tutor de ensaio', alvo.data)
+        ponto, = alvo.json["features"]
+        self.assertEqual(ponto["properties"]["animais"], 1)
+        self.assertNotEqual(ponto["geometry"]["coordinates"], [-49.301, -25.301])
+        admin.post("/geovsatt/admin/camadas/esporotricose", data={"nome": "Esporotricose animal",
+                   "grupo": "Vigilância", "usuarios": ["2", "3"]})
+        self.assertEqual(comum.get(rota).status_code, 404)
+        self.assertEqual(ambiental.get(rota).status_code, 200)
+
+    def test_seletor_cep_e_base_de_satelite_no_mapa(self):
+        client = self.client()
+        mapa = client.get("/geovsatt")
+        self.assertIn(b"CEP / BrasilAPI", mapa.data)
+        self.assertIn(b'value="sentinel"', mapa.data)
+        self.assertNotIn(b'value="esri"', mapa.data)
+        csp = mapa.headers.get("Content-Security-Policy") or mapa.headers["Content-Security-Policy-Report-Only"]
+        self.assertIn("https://tiles.maps.eox.at", csp)
 
     def test_permissao_camada_nativa_tambem_protege_busca_e_detalhe(self):
         admin = self.client()
