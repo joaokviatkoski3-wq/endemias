@@ -8,9 +8,11 @@ import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+from urllib.error import HTTPError
 
 import app
-from app_core import auth, db, dominios, sessoes
+from app_core import auth, db, dominios, geovsatt_busca, registro_geografico, sessoes
 from scripts.preparar_massa_web_teste import preparar
 
 
@@ -122,8 +124,9 @@ class GeoVSATTTests(unittest.TestCase):
 
         self.assertEqual(visualizador.get(gerencia).status_code, 403)
         self.assertEqual(visualizador.post(gerencia, data=configuracao).status_code, 403)
-        self.assertEqual(admin.post(gerencia, data={**configuracao, "codigo": "bairros"}).location, camada)
+        self.assertEqual(admin.post(gerencia, data={**configuracao, "codigo": "bairros"}).location, camada + "#importar-versao")
         self.assertIn(b"Importar rascunho", admin.get(camada).data)
+        self.assertIn(b'#importar-versao', admin.get(gerencia).data)
 
         def importar(nome, coords):
             dados = {"type": "FeatureCollection", "features": [{
@@ -179,6 +182,51 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertNotIn(b'data-layer="quarteiroes"', comum.get("/geovsatt").data)
         self.assertTrue(all(item["tipo"] == "localidade"
                             for item in comum.get("/api/geovsatt/busca?q=Localidade").json["resultados"]))
+
+    def test_endereco_completo_rg_busca_numero_exato_e_respeita_permissoes(self):
+        termos = {"logradouro": "Rua Doutor João de Souza", "numero": "10", "localidade": "Localidade Ficticia",
+                  "quarteirao": "0001", "observacao": "Praça Segredo Fictício"}
+        with closing(sqlite3.connect(self.path)) as conn, conn:
+            conn.execute("""
+                UPDATE registro_geografico_imoveis SET logradouro=?,observacao=?,busca_normalizada=? WHERE id_imovel=1
+            """, (termos["logradouro"], termos["observacao"], registro_geografico._busca_normalizada(termos)))
+        permitido = self.client(uid=2)
+        url = "/api/geovsatt/busca"
+        consulta = "R. Dr. Joao de Souza, nº 010, Localidade Fictícia, Almirante Tamandaré - PR, 83500-000"
+        resposta = permitido.post(url, json={"q": consulta})
+        item, = resposta.json["resultados"]
+        self.assertEqual(item["titulo"], "Rua Doutor João de Souza, 10")
+        self.assertEqual(item["chave"], "1:1")
+        self.assertEqual(item["imoveis"], [1])
+        self.assertIn("Localidade Ficticia · Q. 1", item["subtitulo"])
+        self.assertEqual(permitido.post(url, json={"q": "Doutor João de Souza 100"}).json["resultados"], [])
+        self.assertEqual(permitido.post(url, json={"q": "Praça Segredo Fictício"}).json["resultados"], [])
+        self.assertEqual(self.client(uid=3).post(url, json={"q": consulta}).json["resultados"], [])
+        self.client().post("/geovsatt/admin/camadas/quarteiroes", data={"nome": "Quarteirões", "grupo": "Território"})
+        self.assertEqual(permitido.post(url, json={"q": consulta}).json["resultados"], [])
+
+    def test_cep_passa_somente_o_codigo_e_identifica_origem(self):
+        with patch.object(geovsatt_busca._CEP_HTTP, "open") as pedir:
+            resposta = MagicMock(status=200)
+            resposta.read.return_value = json.dumps({
+                "street": "Rua Fictícia", "city": "Almirante Tamandaré", "state": "PR",
+                "location": {"coordinates": {"longitude": "-49.3", "latitude": "-25.3"}},
+            }).encode()
+            pedir.return_value.__enter__.return_value = resposta
+            client = self.client()
+            self.assertEqual(client.get("/api/geovsatt/cep/abc").status_code, 400)
+            pedir.assert_not_called()
+            cep = client.get("/api/geovsatt/cep/83500-000").json
+            self.assertEqual(cep["logradouro"], "Rua Fictícia")
+            self.assertTrue(cep["municipio_rg"])
+            self.assertNotIn("location", cep)
+            requisicao = pedir.call_args.args[0]
+            self.assertEqual(requisicao.full_url, "https://brasilapi.com.br/api/cep/v2/83500000")
+            resposta.read.assert_called_once_with(16_385)
+            pedir.side_effect = HTTPError(requisicao.full_url, 404, "Not found", {}, io.BytesIO())
+            self.assertEqual(client.get("/api/geovsatt/cep/83500-000").status_code, 404)
+            pedir.side_effect = HTTPError(requisicao.full_url, 301, "Moved", {}, io.BytesIO())
+            self.assertEqual(client.get("/api/geovsatt/cep/83500-000").status_code, 502)
 
 
 if __name__ == "__main__":
