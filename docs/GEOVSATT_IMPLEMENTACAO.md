@@ -88,6 +88,19 @@ importação, publicação e edição de metadados geram eventos de auditoria.
 
 ## Implantação futura
 
+Para sair da versão oficial `2.15.2`, execute
+`scripts/ativar_geovsatt_2160_windows.py` da candidata limpa em uma sessão
+elevada do Windows. O instalador verifica os commits completos passados em
+`--release` e `--expected-current`, faz os backups, integra por fast-forward,
+aplica somente as migrações previstas `0046` e `0047` e valida os logins nas
+entradas locais e na origem do Tunnel. Em caso de falha, volta ao código e à
+configuração anteriores e preserva as migrações aditivas.
+
+A origem do hostname `geo.vsatt.com.br` no Tunnel é
+`http://127.0.0.1:5001`, com o cabeçalho Host original. A porta `5005` é para
+acesso local. Configure o Access para as contas de teste e valide o login
+do novo hostname na origem antes de criar a rota publicada.
+
 Antes de publicar:
 
 - executar a suíte completa em banco isolado;

@@ -46,11 +46,11 @@ def proposed_config(original,origin=ORIGIN,target=TARGET):
     return proposed
 
 
-def wait_closed(timeout=35):
+def wait_closed(timeout=35, ports=(5000,5001,5004)):
     deadline=time.monotonic()+timeout
     while time.monotonic()<deadline:
         free=True
-        for port in (5000,5001,5004):
+        for port in ports:
             with socket.socket() as listener:
                 listener.setsockopt(socket.SOL_SOCKET,socket.SO_EXCLUSIVEADDRUSE,1)
                 try:listener.bind(('0.0.0.0',port))
@@ -60,7 +60,7 @@ def wait_closed(timeout=35):
     return False
 
 
-def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto=None, push=False):
+def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto=None, push=False, geo=False):
     from app_core import postgresql_migrations,backup_completo,db
     if not ctypes.windll.shell32.IsUserAnAdmin():raise PermissionError('Execute como administrador do Windows.')
     if not all(re.fullmatch('[0-9a-f]{40}',v) for v in (args.release,args.expected_current)):
@@ -74,15 +74,23 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto
     if (SOURCE/'app_core/version.py').read_text(encoding='utf-8').splitlines()[0]!=f'APP_VERSION = "{target}"':
         raise ValueError('Versão candidata inesperada.')
     original=json.loads((HOME/'config.json').read_text(encoding='utf-8'));proposed=proposed_config(original,origin,target)
+    env=original['env']
+    expected_migrations = (migration,) if isinstance(migration, str) else tuple(migration or ())
+    ports = (5000,5001,5004)
+    geo_port = int(env.get('ENDEMIAS_GEO_LOCAL_PORT','5005')) if geo else None
+    if geo:
+        if not 1 <= geo_port <= 65535 or geo_port in ports:
+            raise ValueError('Porta local do GeoVSATT inválida ou em conflito.')
+        ports += (geo_port,)
     conta_push=original['env'].get('ENDEMIAS_FORMULARIOS_OFFLINE_USUARIO','').strip() if push else None
     if push and not conta_push:
         raise ValueError('Configure a conta do piloto de campo antes de instalar os avisos.')
     connection=connect(original,readonly=True)
     try:
         status=postgresql_migrations.status(connection,SOURCE/'migrations/postgresql')
-        pendentes = [row.get('name') for row in status if row['state'] == 'pending']
+        pendentes = tuple(row.get('name') for row in status if row['state'] == 'pending')
         if (not status or any(row['state'] not in {'applied', 'pending'} for row in status)
-                or pendentes not in ([], [migration]) or (pendentes and migration is None)):
+                or (pendentes and pendentes != expected_migrations[-len(pendentes):])):
             raise ValueError('Migrações diferentes das previstas no pacote.')
         if piloto or conta_push:
             with connection.cursor() as cursor:
@@ -131,10 +139,10 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto
             if auto.State==4:raise RuntimeError('Importação iniciou durante a pausa; aguarde e revise.')
         save('backup_postgresql');report['backup']=backup_before_change(original,state)
         save('parando_aplicacao');task.Stop(0);stopped=True
-        if not wait_closed():raise RuntimeError('Uma entrada continua ativa; não integrar templates.')
+        if not wait_closed(ports=ports):raise RuntimeError('Uma entrada continua ativa; não integrar templates.')
         before=database_fingerprints(original);files_before=operational_files(original)
         (state/'assinaturas-antes.json').write_text(json.dumps(before),encoding='utf-8')
-        env=original['env'];save('backup_completo')
+        save('backup_completo')
         info=backup_completo.criar_backup_completo(destino_dir=env['ENDEMIAS_BACKUP_COMPLETO_DIR'],raiz=OFFICIAL,manter=None,
             anexos_dir=env.get('ENDEMIAS_ANEXOS_DIR'),kobo_config_path=str(OFFICIAL/'kobo_config.json'),
             secret_key_path=str(OFFICIAL/'secret.key'),db_target=db.DatabaseTarget('postgresql','endemias'),postgresql_env=env)
@@ -142,11 +150,11 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto
         report['backup_completo']={'arquivo':str(archive),'bytes':archive.stat().st_size,'sha256':digest(archive)}
         save('integrando_codigo');git('merge','--ff-only',args.release);integrated=True
         if pendentes:
-            save('migracao_' + migration[:4])
+            save('migracao_' + pendentes[0][:4])
             connection = connect(original)
             try:
                 report['migrations_applied'] = postgresql_migrations.apply_pending(connection, OFFICIAL/'migrations/postgresql')
-                if report['migrations_applied'] != [migration]:
+                if tuple(report['migrations_applied']) != pendentes:
                     raise RuntimeError('Migração aplicada diferente da prevista.')
             finally:
                 connection.close()
@@ -158,11 +166,16 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto
         proposed['probe_only']=False
         (HOME/'config.json').write_text(json.dumps(proposed,indent=2),encoding='utf-8')
         save('iniciando_aplicacao');task.Run('')
-        for address,port,host in [('127.0.0.1',5000,None),(env['ENDEMIAS_LOCAL_BIND'],5000,None),
+        entradas = [('127.0.0.1',5000,None),(env['ENDEMIAS_LOCAL_BIND'],5000,None),
               ('127.0.0.1',5004,None),(env['ENDEMIAS_LOCAL_BIND'],5004,None),
-              ('127.0.0.1',5001,'endemias.vsatt.com.br'),('127.0.0.1',5001,'ambiental.vsatt.com.br')]:
+              ('127.0.0.1',5001,'endemias.vsatt.com.br'),('127.0.0.1',5001,'ambiental.vsatt.com.br')]
+        if geo:
+            entradas.extend([('127.0.0.1',geo_port,None),(env['ENDEMIAS_LOCAL_BIND'],geo_port,None),
+                            ('127.0.0.1',5001,'geo.vsatt.com.br')])
+        for address,port,host in entradas:
             if not http_login(address,port,host,expected_version=target):raise RuntimeError('Uma entrada não confirmou a candidata.')
-        if not origin_portal():raise RuntimeError('Portal não respondeu corretamente.')
+        if not origin_portal(geo=geo):raise RuntimeError('Portal não respondeu corretamente.')
+        if geo:report['geo_origin_login_ok']=True
         if auto_enabled:auto.Enabled=True
         report.update(status='aplicado',task_identity_preserved=True,existing_environment_preserved=proposed['env']==original['env'],
             previous_data_preserved=True,operational_files_preserved=True,kobo_configs_preserved=True,
@@ -177,7 +190,7 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto
         save('retorno')
         if stopped:
             if task.State==4:task.Stop(0)
-            if not wait_closed():raise RuntimeError('Retorno aguarda liberação das três entradas.')
+            if not wait_closed(ports=ports):raise RuntimeError('Retorno aguarda liberação das entradas.')
             shutil.copyfile(state/'config-anterior.json',HOME/'config.json')
         if integrated:
             if git('status','--porcelain') or git('rev-parse','HEAD')!=args.release:
@@ -190,12 +203,12 @@ def apply(args,origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto
         save('retornado');return 1
 
 
-def main(origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto=None, push=False):
+def main(origin=ORIGIN,target=TARGET,marker=MARKER, migration=None, piloto=None, push=False, geo=False):
     parser=argparse.ArgumentParser(description=f'Atualiza {origin} para {target}.')
     parser.add_argument('--aplicar',action='store_true',required=True)
     parser.add_argument('--release',required=True);parser.add_argument('--expected-current',required=True)
     args=parser.parse_args()
-    try:return apply(args,origin,target,marker,migration,piloto,push)
+    try:return apply(args,origin,target,marker,migration,piloto,push,geo)
     except Exception as error:
         result={'status':'falhou','error_type':type(error).__name__,
                 'trace':[{'file':Path(f.filename).name,'line':f.lineno,'function':f.name} for f in traceback.extract_tb(error.__traceback__)]}

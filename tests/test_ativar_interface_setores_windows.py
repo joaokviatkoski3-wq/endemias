@@ -36,7 +36,7 @@ class InterfaceInstallerTests(unittest.TestCase):
             with self.assertRaises(ValueError):installer.proposed_config(original)
 
     def simulate(self,fail_probe=False,pending=False,origin=installer.ORIGIN,target=installer.TARGET,marker=installer.MARKER,
-                 migration_name=None):
+                 migration_name=None, geo=False):
         from app_core import postgresql_migrations,backup_completo
         tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup)
         base=Path(tmp.name);official=base/'official';home=base/'home';source=base/'source'
@@ -60,6 +60,7 @@ class InterfaceInstallerTests(unittest.TestCase):
             if args[:2]==('merge','--ff-only'):head[0]=new
             if args and args[0]=='commit':head[0]=old
             return ''
+        migrations = list(migration_name) if isinstance(migration_name, tuple) else [migration_name]
         with ExitStack() as stack:
             for key,value in [('OFFICIAL',official),('HOME',home),('SOURCE',source)]:stack.enter_context(mock.patch.object(installer,key,value))
             stack.enter_context(mock.patch.object(installer.ctypes.windll.shell32,'IsUserAnAdmin',return_value=1))
@@ -69,22 +70,26 @@ class InterfaceInstallerTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(installer,'Windows',return_value=win))
             stack.enter_context(mock.patch.object(installer,'scheduled_import',return_value=auto))
             stack.enter_context(mock.patch.object(installer,'wait_closed',return_value=True))
-            stack.enter_context(mock.patch.object(installer,'http_login',return_value=True))
-            stack.enter_context(mock.patch.object(installer,'origin_portal',return_value=True))
+            login=stack.enter_context(mock.patch.object(installer,'http_login',return_value=True))
+            portal=stack.enter_context(mock.patch.object(installer,'origin_portal',return_value=True))
             stack.enter_context(mock.patch.object(installer,'database_fingerprints',return_value={'ficticio':{'count':1}}))
             stack.enter_context(mock.patch.object(installer,'operational_files',return_value={'anexo-ficticio':'hash-ficticio'}))
             stack.enter_context(mock.patch.object(installer,'backup_before_change',return_value={'catalogo_validado':True}))
             stack.enter_context(mock.patch.object(backup_completo,'criar_backup_completo',return_value={'arquivo':str(archive)}))
             stack.enter_context(mock.patch.object(postgresql_migrations,'status',return_value=[
-                {'state':'pending' if pending else 'applied', 'name':migration_name}]))
-            migration=stack.enter_context(mock.patch.object(postgresql_migrations,'apply_pending',return_value=[migration_name]))
+                {'state':'pending' if pending else 'applied', 'name':name} for name in migrations]))
+            migration=stack.enter_context(mock.patch.object(postgresql_migrations,'apply_pending',return_value=migrations))
             stack.enter_context(mock.patch.object(installer,'await_probe',side_effect=RuntimeError('Falha fictícia') if fail_probe else None))
             if pending and not migration_name:
                 with self.assertRaises(ValueError):installer.apply(SimpleNamespace(release=new,expected_current=old),origin,target,marker)
                 self.assertFalse(task.stopped)
                 migration.assert_not_called()
                 return
-            result=installer.apply(SimpleNamespace(release=new,expected_current=old),origin,target,marker,migration_name)
+            result=installer.apply(SimpleNamespace(release=new,expected_current=old),origin,target,marker,migration_name,geo=geo)
+            if geo and not fail_probe:
+                login.assert_any_call('127.0.0.1',5005,None,expected_version=target)
+                login.assert_any_call('127.0.0.1',5001,'geo.vsatt.com.br',expected_version=target)
+                portal.assert_called_once_with(geo=True)
             if pending:
                 migration.assert_called_once()
             else:
@@ -92,7 +97,7 @@ class InterfaceInstallerTests(unittest.TestCase):
         report=json.loads((home/(marker+'-resultado.json')).read_text(encoding='utf-8'))
         self.assertTrue(auto.Enabled);self.assertEqual(task.State,4)
         self.assertFalse(report['database_restored_or_deleted'])
-        self.assertEqual(report['migrations_applied'],[migration_name] if pending else [])
+        self.assertEqual(report['migrations_applied'],migrations if pending else [])
         for name in ('secret.key','config.json','endemias.db','kobo_config.json','kobo_ambiental.json'):
             self.assertEqual((official/name).read_bytes(),b'CONTEUDO-FICTICIO-PRESERVAR')
         self.assertEqual((home/'servico_web_windows.py').read_bytes(),b'BOOTSTRAP-FICTICIO')
@@ -103,6 +108,8 @@ class InterfaceInstallerTests(unittest.TestCase):
         else:
             self.assertEqual(result,0);self.assertEqual(cfg,{**original,'version':target})
             self.assertEqual(report['status'],'aplicado')
+            if geo:
+                self.assertTrue(report['geo_origin_login_ok'])
 
     def test_atualizacao_sem_ddl_preserva_ambos_kobo_bootstrap_e_tarefa(self):self.simulate()
     def test_falha_na_prova_retorna_codigo_config_sem_restaurar_banco(self):self.simulate(fail_probe=True)
@@ -115,6 +122,10 @@ class InterfaceInstallerTests(unittest.TestCase):
     def test_revisao_290_aplica_somente_migracao_de_anexos(self):
         self.simulate(pending=True,origin='2.8.6',target='2.9.0',marker='revisao290',
                       migration_name='0037_amostras_animais_anexos.sql')
+
+    def test_geovsatt_aplica_duas_migracoes_e_confere_as_entradas_novas(self):
+        self.simulate(pending=True,origin='2.15.2',target='2.16.0',marker='geovsatt2160',
+                      migration_name=('0046_geovsatt_setor.sql','0047_geovsatt_catalogo.sql'),geo=True)
 
     def test_rc3_exige_origem_rc2_e_preserva_configuracao(self):
         before=self.original();before['version']='2.0.0-rc.2'

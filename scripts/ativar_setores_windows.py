@@ -155,13 +155,14 @@ def remove_own_firewall(bind):
     policy.Rules.Remove(RULE)
 
 
-def origin_portal():
+def origin_portal(geo=False):
     client=http.client.HTTPConnection('127.0.0.1',5001,timeout=5)
     try:
         client.request('GET','/',headers={'Host':'vsatt.com.br','CF-Connecting-IP':'203.0.113.21','X-Forwarded-Proto':'https'})
         response=client.getresponse();body=response.read()
         return (response.status==200 and b'https://endemias.vsatt.com.br' in body
-                and b'https://ambiental.vsatt.com.br' in body and not response.getheader('Set-Cookie'))
+                and b'https://ambiental.vsatt.com.br' in body and not response.getheader('Set-Cookie')
+                and (not geo or b'https://geo.vsatt.com.br' in body))
     finally:client.close()
 
 
