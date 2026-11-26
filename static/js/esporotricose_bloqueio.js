@@ -1,7 +1,7 @@
 
 (() => {
   const dados = JSON.parse(document.getElementById('dados-bloqueio').textContent);
-  const mapa = L.map('mapa-bloqueio', { zoomSnap: 0, scrollWheelZoom: false, dragging: false, zoomControl: false, doubleClickZoom: false, touchZoom: false, keyboard: false }).setView(dados.centro, 18);
+  const mapa = L.map('mapa-bloqueio', { zoomSnap: 0, fadeAnimation: false, scrollWheelZoom: false, dragging: false, zoomControl: false, doubleClickZoom: false, touchZoom: false, keyboard: false }).setView(dados.centro, 18);
   const imprimir = document.getElementById('imprimir-mapa');
   const alternar = document.getElementById('base-ruas');
   const estado = document.getElementById('mapa-estado');
@@ -37,12 +37,6 @@
   }
 
   L.geoJSON(dados.ruas, { style: { color: '#d9dae5', opacity: .88, weight: 2 } }).addTo(mapa);
-  for (const rotulo of dados.rotulos_ruas) {
-    const texto = document.createElement('span');
-    texto.textContent = rotulo.nome;
-    L.tooltip({ permanent: true, direction: 'center', className: 'rua-label' })
-      .setLatLng(rotulo.ponto).setContent(texto).addTo(mapa);
-  }
 
   const quarteiroes = L.geoJSON(dados.quarteiroes, {
     style: f => ({color: f.properties.atingido ? '#88ffc1' : '#c8e2d2', opacity: .9, weight: 1.5, fillOpacity: 0}),
@@ -57,20 +51,54 @@
   }).addTo(mapa);
   const raio = L.geoJSON(dados.circulo, {style: {color: '#ffe355', opacity: 1, weight: 3, fillColor: '#ffd657', fillOpacity: .13}}).addTo(mapa);
   L.circleMarker(dados.centro, {radius: 6, color:'#fff', weight: 2, fillColor:'#bf3119', fillOpacity: 1}).addTo(mapa);
-  const mostrarRotulosLegiveis = () => {
-    const container = mapa.getContainer();
+  const container = mapa.getContainer();
+  const svg = (tag, atributos = {}) => {
+    const elemento = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [nome, valor] of Object.entries(atributos)) elemento.setAttribute(nome, valor);
+    return elemento;
+  };
+  const rotulos = svg('svg', {class: 'nomes-ruas', 'aria-hidden': 'true'});
+  container.append(rotulos);
+  const medida = document.createElement('canvas').getContext('2d');
+  medida.font = '600 10px system-ui';
+
+  function mostrarRotulosLegiveis() {
+    rotulos.replaceChildren();
     const borda = container.getBoundingClientRect();
-    const ocupados = [...container.querySelectorAll('.quadra-label')].map(label => label.getBoundingClientRect());
-    for (const label of container.querySelectorAll('.rua-label')) {
-      const r = label.getBoundingClientRect();
+    const ocupados = [...container.querySelectorAll('.quadra-label, .norte, .leaflet-control')]
+      .map(label => label.getBoundingClientRect());
+    for (const [i, rotulo] of dados.rotulos_ruas.entries()) {
+      const pontos = rotulo.linha.map(p => mapa.latLngToContainerPoint(p));
+      if (pontos[0].x > pontos.at(-1).x) pontos.reverse();
+      const id = 'eixo-rua-' + i;
+      const eixo = svg('path', {id, d: 'M' + pontos.map(p => p.x + ',' + p.y).join(' L')});
+      rotulos.append(eixo);
+      if (eixo.getTotalLength() < medida.measureText(rotulo.nome).width + 8) {
+        eixo.remove();
+        continue;
+      }
+      const texto = svg('text', {dy: '-3', 'text-anchor': 'middle'});
+      const trilha = svg('textPath', {href: '#' + id, startOffset: '50%'});
+      trilha.textContent = rotulo.nome;
+      texto.append(trilha);
+      rotulos.append(texto);
+      const r = texto.getBoundingClientRect();
       const corta = r.left < borda.left + 5 || r.right > borda.right - 5 ||
         r.top < borda.top + 5 || r.bottom > borda.bottom - 5;
       const cruza = ocupados.some(o => r.left < o.right && o.left < r.right && r.top < o.bottom && o.top < r.bottom);
-      label.style.visibility = corta || cruza ? 'hidden' : '';
-      if (!corta && !cruza) ocupados.push(r);
+      if (corta || cruza) {
+        texto.remove();
+        eixo.remove();
+      } else {
+        ocupados.push(r);
+      }
     }
-  };
+  }
+  let tamanhoAnterior;
   const ajustar = () => {
+    const tamanho = container.clientWidth + 'x' + container.clientHeight;
+    if (tamanho === tamanhoAnterior) return;
+    tamanhoAnterior = tamanho;
     mapa.invalidateSize({animate: false});
     mapa.fitBounds(raio.getBounds().pad(.095), {animate: false});
     quarteiroes.bringToBack();
@@ -82,6 +110,7 @@
 
   alternar.addEventListener('click', () => {
     baseRuas = !baseRuas;
+    container.classList.toggle('sem-satelite', baseRuas);
     falha = false;
     alternar.setAttribute('aria-pressed', String(baseRuas));
     if (baseRuas) mapa.removeLayer(imagem);
@@ -90,8 +119,26 @@
     raio.setStyle({color: baseRuas ? '#b45c11' : '#ffe355'});
     verificarCarregamento();
   });
-  imprimir.addEventListener('click', () => window.print());
+  imprimir.addEventListener('click', async () => {
+    document.documentElement.classList.add('preparando-impressao');
+    ajustar();
+    if (!baseRuas && imagem.isLoading()) {
+      await new Promise(concluir => {
+        const liberar = () => {
+          clearTimeout(limite);
+          imagem.off('load', liberar);
+          concluir();
+        };
+        imagem.once('load', liberar);
+        const limite = setTimeout(liberar, 9000);
+      });
+    }
+    window.print();
+  });
   window.addEventListener('resize', ajustar);
   window.addEventListener('beforeprint', ajustar);
-  window.addEventListener('afterprint', ajustar);
+  window.addEventListener('afterprint', () => {
+    document.documentElement.classList.remove('preparando-impressao');
+    ajustar();
+  });
 })();

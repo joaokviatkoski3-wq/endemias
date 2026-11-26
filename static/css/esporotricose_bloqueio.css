@@ -2,25 +2,25 @@
 :root { color-scheme: light; font-family: system-ui, sans-serif; color: #18342b; background: #eef3ee; }
 * { box-sizing: border-box; }
 body { margin: 0; }
-.acoes { max-width: 204mm; margin: 16px auto 12px; padding-inline: 12px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.acoes { max-width: 291mm; margin: 16px auto 12px; padding-inline: 12px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .acoes button, .acoes a { font: inherit; min-height: 40px; border: 1px solid #225f4c; border-radius: 6px; background: #fff; color: #174e3e; padding: 7px 12px; text-decoration: none; }
 .acoes button { cursor: pointer; }
 .acoes button:disabled { opacity: .6; cursor: default; }
 #imprimir-mapa:not(:disabled) { background: #174e3e; color: #fff; }
-.folha { max-width: 204mm; padding: 6mm; margin: 0 auto 16px; background: #fff; }
+.folha { max-width: 291mm; padding: 6mm; margin: 0 auto 16px; background: #fff; }
 .cabecalho { display: grid; grid-template-columns: 16mm 1fr 16mm; text-align: center; align-items: center; gap: 4mm; }
 .cabecalho img { width: 100%; max-height: 16mm; object-fit: contain; }
 .cabecalho p { margin: 0; font-size: .86rem; font-weight: 600; color: #38594e; }
 .cabecalho h1 { margin: 1mm 0 0; font-size: clamp(1.05rem,3vw,1.5rem); }
-.caso { display: flex; column-gap: 6mm; row-gap: 2mm; flex-wrap: wrap; margin: 4mm 0 3mm; }
-.caso .endereco { width: 100%; }
+.conteudo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(190px, 25%); gap: 5mm; margin-top: 4mm; align-items: start; }
+.caso { display: grid; gap: 2.5mm; margin: 0 0 4mm; }
 dt { font-size: .76rem; color: #38594e; }
 dd { margin: .5mm 0 0; font-size: .87rem; font-weight: 600; overflow-wrap: anywhere; }
-#mapa-bloqueio { width: 100%; aspect-ratio: 1; position: relative; background: #e5ebdf; border: 1px solid #cad7ce; }
+#mapa-bloqueio { width: 100%; aspect-ratio: 1.26; position: relative; background: #e5ebdf; border: 1px solid #cad7ce; }
 .norte { position: absolute; z-index: 600; right: 3mm; top: 3mm; background: #fff; border: 1px solid #9aab9d; border-radius: 4px; padding: 2px 6px; font-size: .9rem; font-weight: 700; }
 .estado { font-size: .8rem; margin: 2mm 0; }
 .estado:empty { display: none; }
-.legenda { display: flex; flex-wrap: wrap; gap: 2mm 6mm; align-items: center; margin: 2mm 0; font-size: .8rem; }
+.legenda { display: grid; gap: 1.25mm; margin: 3mm 0; font-size: .8rem; }
 .legenda i { display: inline-block; width: 4mm; height: 3mm; vertical-align: middle; margin-right: 1mm; }
 .legenda .centro { border-radius: 50%; background: #bf3119; width: 2.5mm; height: 2.5mm; }
 .legenda .raio { border: 2px solid #ffe355; background: #8f761f; }
@@ -28,19 +28,34 @@ dd { margin: .5mm 0 0; font-size: .87rem; font-weight: 600; overflow-wrap: anywh
 .atingidos { margin-top: 2mm; }
 .atingidos h2 { font-size: .9rem; margin: 0 0 1mm; }
 .atingidos p { font-size: .84rem; margin: 0; }
-.atingidos ul { display: flex; flex-wrap: wrap; column-gap: 4mm; row-gap: 1mm; padding-left: 4mm; margin: 0; font-size: .76rem; }
-.atingidos li { margin-right: 2mm; }
+.atingidos ul { padding-left: 4mm; margin: 0; font-size: .76rem; }
+.fonte { margin: 3mm 0 0; color: #38594e; font-size: .72rem; }
 .sem-mapa { padding: 3mm; background: #fff4cd; }
+.folha > .caso { margin-top: 4mm; }
 .leaflet-tooltip.quadra-label { background: #fff; border: 0; border-radius: 3px; padding: 1px 4px; font-size: 11px; color: #165038; }
-.leaflet-tooltip.rua-label { border: 0; border-radius: 2px; background: #182e26; color: #fff; font-size: 10px; padding: 1px 3px; }
-@page { size: A4 portrait; margin: 9mm; }
+.nomes-ruas { position: absolute; z-index: 651; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.nomes-ruas path { fill: none; }
+.nomes-ruas text { font: 600 10px system-ui; fill: #fff; stroke: #182e26; stroke-width: 2.5px; stroke-linejoin: round; paint-order: stroke; }
+.sem-satelite .nomes-ruas text { fill: #18342b; stroke: #fff; }
+@media screen and (max-width: 700px) {
+  .folha { padding: 4mm; }
+  .cabecalho { grid-template-columns: 12mm 1fr; text-align: left; }
+  .conteudo { grid-template-columns: minmax(0, 1fr); }
+  #mapa-bloqueio { aspect-ratio: 1; }
+}
+.preparando-impressao .folha { width: 279mm; max-width: none; padding: 0; }
+.preparando-impressao .cabecalho { grid-template-columns: 16mm 1fr 16mm; text-align: center; }
+.preparando-impressao .conteudo { grid-template-columns: minmax(0, 1fr) 66mm; }
+.preparando-impressao #mapa-bloqueio { height: 170mm; aspect-ratio: auto; }
+@page { size: A4 landscape; margin: 9mm; }
 @media print {
   :root, body { background: #fff; }
   body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .acoes, .leaflet-control-zoom { display: none; }
-  .folha { width: 192mm; max-width: none; margin: 0; padding: 0; }
+  .folha { width: 279mm; max-width: none; margin: 0; padding: 0; }
   .cabecalho h1 { font-size: 17pt; }
-  #mapa-bloqueio { break-inside: avoid; }
+  .conteudo { grid-template-columns: minmax(0, 1fr) 66mm; }
+  #mapa-bloqueio { height: 170mm; aspect-ratio: auto; break-inside: avoid; }
   .atingidos { break-inside: avoid; }
   .leaflet-control-attribution { font-size: 6pt !important; }
 }

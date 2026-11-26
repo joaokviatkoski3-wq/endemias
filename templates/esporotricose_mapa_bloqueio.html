@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mapa de bloqueio de esporotricose</title>
 <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.min.css">
-<link rel="stylesheet" href="/static/css/esporotricose_bloqueio.css">
+<link rel="stylesheet" href="/static/css/esporotricose_bloqueio.css?v={{ APP_VERSION }}">
 </head>
 <body>
 <nav class="acoes" aria-label="Ações do mapa">
@@ -20,8 +20,14 @@
   <header class="cabecalho">
     <img src="/static/img/logo_prefeitura.png" alt="Prefeitura de Almirante Tamandaré">
     <div><p>Vigilância Ambiental de Almirante Tamandaré</p><h1>Mapa de bloqueio de esporotricose</h1></div>
-    <img src="/static/img/logo_prefeitura.png" alt="">
   </header>
+  {% if mapa %}
+  <div class="conteudo">
+    <div id="mapa-bloqueio" aria-label="Mapa do raio de 150 metros com quarteirões e ruas">
+      <div class="norte" aria-label="Norte">↑ N</div>
+    </div>
+    <aside class="informacoes" aria-label="Informações do mapa">
+  {% endif %}
   <dl class="caso">
     <div><dt>Animal</dt><dd>{{ animal.nome or '—' }}{% if animal.especie %} · {{ animal.especie }}{% endif %}</dd></div>
     <div><dt>Situação do caso</dt><dd>{{ animal.status or 'Não informada' }}</dd></div>
@@ -29,12 +35,8 @@
     <div class="endereco"><dt>Local do bloqueio</dt><dd>{{ animal.endereco or 'Endereço não informado' }}{% if animal.localidade %} · {{ animal.localidade }}{% endif %}{% if animal.quarteirao %} · Q. {{ animal.quarteirao }}{% endif %}</dd></div>
   </dl>
   {% if mapa %}
-  <div id="mapa-bloqueio" aria-label="Mapa do raio de 150 metros com quarteirões e ruas">
-    <div class="norte" aria-label="Norte">↑ N</div>
-  </div>
   <p class="estado" id="mapa-estado" role="status">Carregando imagem e ruas…</p>
   <div class="legenda"><span><i class="centro"></i> Ponto do animal</span><span><i class="raio"></i> Raio de {{ mapa.raio_metros }} m</span><span><i class="quarteirao"></i> Limite de quarteirão</span></div>
-  <p class="estado">Ruas e quarteirões da base cartográfica local.</p>
   <section class="atingidos">
     <h2>Quarteirões atingidos</h2>
     {% if not mapa.camada_disponivel %}
@@ -45,9 +47,12 @@
       <p>O raio não cruza nenhum quarteirão cadastrado na camada ativa.</p>
     {% endif %}
   </section>
+  <p class="fonte">Ruas e quarteirões da base cartográfica local.</p>
+    </aside>
+  </div>
   <script type="application/json" id="dados-bloqueio" nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">{{ mapa|tojson }}</script>
   <script src="/static/vendor/leaflet/leaflet.min.js" nonce="{{ csp_nonce() if csp_nonce is defined else '' }}"></script>
-  <script src="/static/js/esporotricose_bloqueio.js" nonce="{{ csp_nonce() if csp_nonce is defined else '' }}"></script>
+  <script src="/static/js/esporotricose_bloqueio.js?v={{ APP_VERSION }}" nonce="{{ csp_nonce() if csp_nonce is defined else '' }}"></script>
   {% else %}
   <p class="sem-mapa" role="status">Informe a latitude e a longitude válidas no cadastro do animal para gerar o mapa.</p>
   {% endif %}

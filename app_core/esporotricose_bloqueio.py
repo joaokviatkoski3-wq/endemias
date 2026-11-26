@@ -59,23 +59,23 @@ def _vias_no_recorte(base_dir, janela):
         if recorte.length <= 0:
             continue
         features.append({"type": "Feature", "properties": {"nome": nome}, "geometry": mapping(recorte)})
-        if nome and (nome not in marcadores or recorte.length > marcadores[nome][0]):
-            linha = max((parte for parte in getattr(recorte, "geoms", (recorte,))
-                         if parte.geom_type == "LineString"), key=lambda parte: parte.length, default=None)
-            if linha is None:
-                continue
-            meio = linha.interpolate(0.5, normalized=True)
-            marcadores[nome] = (recorte.length, [meio.y, meio.x])
-    ordenados = sorted(marcadores.items(), key=lambda item: item[1][0], reverse=True)
+        if not nome:
+            continue
+        for linha in getattr(recorte, "geoms", (recorte,)):
+            if linha.geom_type == "LineString" and (nome not in marcadores or linha.length > marcadores[nome].length):
+                marcadores[nome] = linha
+    ordenados = sorted(marcadores.items(), key=lambda item: item[1].length, reverse=True)
     return {"type": "FeatureCollection", "features": features}, [
-        {"nome": nome, "ponto": ponto} for nome, (_, ponto) in ordenados[:14]
+        {"nome": nome, "linha": [[y, x] for x, y in linha.coords]} for nome, linha in ordenados[:14]
     ]
 
 
 def mapa(target, base_dir, centro):
     lat, lon = centro
     raio = _circulo(lat, lon, RAIO_METROS)
-    janela = box(*_circulo(lat, lon, RAIO_METROS * 1.32).bounds)
+    _, sul, _, norte = _circulo(lat, lon, RAIO_METROS * 1.32).bounds
+    oeste, _, leste, _ = _circulo(lat, lon, RAIO_METROS * 1.68).bounds
+    janela = box(oeste, sul, leste, norte)
     camada = {"type": "FeatureCollection", "features": []}
     atingidos = []
     try:

@@ -4,7 +4,16 @@ Atualizado em 26/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Versão candidata 2.15.0 — visitas e mapas de bloqueio de Esporotricose
+## Versão candidata 2.15.1 — impressão do mapa de bloqueio
+
+O PDF usa A4 paisagem, com um brasão no cabeçalho e os dados do caso ao
+lado do mapa. Os nomes das ruas acompanham a geometria das vias.
+
+## Versão ativa 2.15.0 — visitas e mapas de bloqueio de Esporotricose
+
+Ativada em 26/11/2026, release `13232a4`. O preenchimento de origem pelo
+Kobo recuperou 910 das 2.312 visitas cadastradas. As demais 1.402 contam
+com os dados já registrados no sistema.
 
 O Dashboard abre a aba Visitas e usa a mesma consulta para contagens de
 visitas e animais agrupados por localidade. O card abre o recorte de visitas.
