@@ -38,7 +38,7 @@ def page():
     usuario = bh.usuario_atual()
     return render_template("geovsatt.html", catalogo=geo.catalogo(bh.db_target(), usuario),
                            pode_rg=setores.pode_entrar(usuario, "endemias"),
-                           esri_licenciado=current_app.config.get("GEOVSATT_ESRI_LICENSED", False))
+                           esri_licenciado=current_app.config["GEOVSATT_ESRI_LICENSED"])
 
 
 @bp.get("/api/geovsatt/catalogo")
@@ -59,11 +59,20 @@ def api_camada(codigo):
         if camada["origem"] == "importacao":
             return current_app.response_class(camada["geojson"], mimetype="application/geo+json")
         if codigo == "localidades":
-            return jsonify(geo.localidades(target, _base_dir()))
+            return jsonify(geo.localidades(target, _base_dir(), usuario=usuario))
         if codigo == "quarteiroes":
-            return jsonify(geo.quarteiroes(target, _base_dir(), incluir_rg=setores.pode_entrar(usuario, "endemias")))
+            return jsonify(geo.quarteiroes(target, _base_dir(), incluir_rg=setores.pode_entrar(usuario, "endemias"),
+                                           usuario=usuario))
         if codigo == "esporotricose":
+            if geo.esporotricose_localizacao_exata(usuario):
+                return jsonify(geo.esporotricose_animal_localizada(target))
             return jsonify(geo.esporotricose_animal(target))
+        if codigo == "ovitrampas":
+            return jsonify(geo.ovitrampas(target))
+        if codigo == "pontos_estrategicos":
+            return jsonify(geo.pontos_estrategicos(target))
+        if codigo == "acoes_atendimentos":
+            return jsonify(geo.acoes_atendimentos(target))
         return jsonify(geo.logradouros(_base_dir()))
     except camadas.CamadaAusente as exc:
         return jsonify({"erro": str(exc)}), 404
@@ -75,17 +84,24 @@ def api_camada(codigo):
 @login_required
 def api_busca():
     usuario = bh.usuario_atual()
-    permitidas = {codigo for codigo in ("localidades", "quarteiroes") if camadas.pode_ver(_obter(codigo), usuario)}
+    permitidas = {codigo for codigo in ("localidades", "quarteiroes") if geo.pode_ver_camada(_obter(codigo), usuario)}
+    pode_rg = setores.pode_entrar(usuario, "endemias")
     try:
         if request.method == "POST":
             payload = request.get_json(silent=True)
             termo = payload.get("q") if isinstance(payload, dict) else None
             if not isinstance(termo, str):
                 raise ValueError("Informe um texto de busca.")
+            if payload.get("sugestao") is True:
+                termo = termo.strip()
+                resultados = []
+                if 3 <= len(termo) <= 180 and "quarteiroes" in permitidas and pode_rg:
+                    resultados = busca.buscar_enderecos(bh.db_target(), termo, 7)
+                return jsonify({"resultados": resultados})
         else:
             termo = request.args.get("q")
         resultados = geo.buscar(bh.db_target(), _base_dir(), termo, permitidas,
-                               incluir_rg=setores.pode_entrar(usuario, "endemias"))
+                               incluir_rg=pode_rg, usuario=usuario)
         return jsonify({"resultados": resultados})
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
@@ -191,7 +207,9 @@ def admin_camada(codigo):
             flash(str(exc), "erro")
         return _voltar(codigo)
     contas = bh.q("SELECT id_usuario,nome,usuario,ativo FROM usuarios WHERE nivel <> 'superadmin' ORDER BY nome")
+    camada_mapa = next((id_mapa for id_mapa, fonte in geo.FONTES_TERRITORIAIS.items() if fonte == codigo), None)
     return render_template("geovsatt_camadas.html", camada=camada, contas=contas,
+                           camada_mapa=camada_mapa, fonte_territorial=geo.FONTES_TERRITORIAIS.get(codigo),
                            niveis=camadas.NIVEIS, setores=camadas.SETORES,
                            versoes=camadas.listar_versoes(target, codigo))
 

@@ -91,7 +91,12 @@
       {% endif %}
       <section id="configuracao" class="gc-card">
         <h2>Configuração</h2>
-        <form method="post">
+        {% if camada_mapa %}
+          <p class="gc-note">Esta fonte fornece a geometria de <a href="{{ url_for('geovsatt.admin_camada', codigo=camada_mapa) }}">{{ 'Localidades' if camada_mapa == 'localidades' else 'Quarteirões' }}</a>. Use a configuração dessa camada para ajustar os símbolos e as etiquetas do mapa.</p>
+        {% elif fonte_territorial %}
+          <p class="gc-note">Para trocar a geometria, publique uma versão na <a href="{{ url_for('geovsatt.admin_camada', codigo=fonte_territorial, _anchor='versoes') }}">fonte cartográfica</a>.</p>
+        {% endif %}
+        <form method="post" id="gc-config" data-feicoes="{{ url_for('geovsatt.api_camada', codigo=camada.id) }}">
           {{ token() }}
           <div class="gc-grid">
             <label>Nome <input name="nome" required maxlength="100" value="{{ camada.nome }}"></label>
@@ -126,9 +131,35 @@
             <legend>Exibição no mapa</legend>
             <div class="gc-grid">
               <label>Cor padrão <input name="cor" maxlength="7" placeholder="#008c30" value="{{ config.cor }}"></label>
-              <label>Atributo do rótulo <input name="rotulo" maxlength="120" placeholder="Ex.: nome" value="{{ config.rotulo }}"></label>
-              <label>Atributo de classificação <input name="atributo_cor" maxlength="120" placeholder="Ex.: Localidade" value="{{ config.atributo_cor }}"></label>
+              <label>Campo da etiqueta <input name="rotulo" list="gc-atributos" maxlength="120" placeholder="Ex.: nome" value="{{ config.rotulo }}"></label>
+              <label>Campo para definir cores <input name="atributo_cor" list="gc-atributos" maxlength="120" placeholder="Ex.: Localidade_nome" value="{{ config.atributo_cor }}"></label>
               <label>Cores por valor do atributo <textarea name="regras_cor" rows="4" maxlength="5000" placeholder="Valor = #008c30">{% for valor, cor in config.cores.items() %}{{ valor }} = {{ cor }}{{ '\n' if not loop.last }}{% endfor %}</textarea></label>
+              <datalist id="gc-atributos"></datalist>
+              <div class="gc-wide gc-color-editor" hidden>
+                <label>Valor do campo <select id="gc-valor-cor" aria-label="Valor do campo"></select></label>
+                <label>Cor <input type="color" id="gc-paleta" value="#008c30"></label>
+                <button type="button" id="gc-aplicar-cor">Aplicar à categoria</button>
+              </div>
+              <label>Cor de preenchimento <input name="cor_preenchimento" pattern="#[0-9A-Fa-f]{6}" placeholder="Automática" value="{{ config.cor_preenchimento }}"></label>
+              <label>Traçado <select name="linha">
+                {% for valor, nome in [('', 'Automático'), ('solida', 'Contínuo'), ('tracejada', 'Tracejado'), ('pontilhada', 'Pontilhado'), ('ferrovia', 'Ferrovia')] %}
+                  <option value="{{ valor }}" {{ 'selected' if config.linha == valor }}>{{ nome }}</option>
+                {% endfor %}
+              </select></label>
+              <label>Símbolo de ponto <select name="ponto">
+                {% for valor, nome in [('', 'Automático'), ('circulo', 'Círculo'), ('quadrado', 'Quadrado'), ('losango', 'Losango'), ('triangulo', 'Triângulo')] %}
+                  <option value="{{ valor }}" {{ 'selected' if config.ponto == valor }}>{{ nome }}</option>
+                {% endfor %}
+              </select></label>
+              <label>Posição da etiqueta <select name="rotulo_modo">
+                {% for valor, nome in [('', 'Automática'), ('oculto', 'Oculta'), ('centro', 'Centro'), ('linha', 'Ao longo da linha')] %}
+                  <option value="{{ valor }}" {{ 'selected' if config.rotulo_modo == valor }}>{{ nome }}</option>
+                {% endfor %}
+              </select></label>
+              <label>Cor da etiqueta <input name="rotulo_cor" pattern="#[0-9A-Fa-f]{6}" placeholder="Automática" value="{{ config.rotulo_cor }}"></label>
+              {% for campo, texto, minimo, maximo, passo in [('largura', 'Espessura do traço (px)', 0, 12, 0.1), ('opacidade', 'Opacidade do traço', 0, 1, 0.05), ('opacidade_preenchimento', 'Opacidade do preenchimento', 0, 1, 0.05), ('raio', 'Tamanho do símbolo (px)', 2, 24, 1), ('rotulo_zoom', 'Zoom mínimo das etiquetas', 10, 22, 1), ('rotulo_tamanho', 'Tamanho da etiqueta (px)', 8, 24, 1)] %}
+                <label>{{ texto }} <input type="number" name="{{ campo }}" min="{{ minimo }}" max="{{ maximo }}" step="{{ passo }}" placeholder="Automático" value="{{ config[campo] if config[campo] is not none else '' }}"></label>
+              {% endfor %}
             </div>
             <label class="gc-checkbox"><input type="checkbox" name="visivel_inicial" value="1" {{ 'checked' if config.visivel_inicial }}>Ligar camada automaticamente ao abrir o mapa</label>
           </fieldset>
@@ -169,5 +200,6 @@
       {% endif %}
     {% endif %}
   </main>
+  {% if camada and not modo and not camada_mapa %}<script nonce="{{ csp_nonce() }}" src="{{ url_for('static', filename='js/geovsatt_camadas.js', v=APP_VERSION) }}"></script>{% endif %}
 </body>
 </html>

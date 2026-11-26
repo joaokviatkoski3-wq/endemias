@@ -316,7 +316,7 @@ def create_app(config_overrides=None):
         ENDEMIAS_LOCAL_PORT=int(os.environ.get('ENDEMIAS_LOCAL_PORT','5000')),
         AMBIENTAL_LOCAL_PORT=int(os.environ.get('ENDEMIAS_AMBIENTAL_LOCAL_PORT','5004')),
         GEO_LOCAL_PORT=int(os.environ.get('ENDEMIAS_GEO_LOCAL_PORT','5005')),
-        GEOVSATT_ESRI_LICENSED=_env_bool(os.environ, 'ENDEMIAS_GEO_ESRI_LICENSED', False),
+        GEOVSATT_ESRI_LICENSED=_env_bool(os.environ, 'ENDEMIAS_GEO_ESRI_LICENSED', True),
     )
     flask_app.config.update(web_security.external_defaults())
     if config_overrides:

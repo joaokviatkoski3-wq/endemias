@@ -61,9 +61,19 @@ button{color:inherit}
 .geo-rg-match{border-color:#b8792d;background:#fff5e5}
 .leaflet-geo-rotulos-pane{z-index:480;pointer-events:none}
 .geo-rotulos{position:absolute;pointer-events:none;overflow:hidden;font-family:inherit}
-.geo-rotulos text{fill:#24362b;stroke:#fff;stroke-width:3px;stroke-linejoin:round;paint-order:stroke fill}
-.geo-rotulo-quadra{font-size:12px;font-weight:800}
-.geo-rotulo-rua{font-size:11px;font-weight:650}
+.geo-rotulos text{stroke:#fff;stroke-width:3px;stroke-linejoin:round;paint-order:stroke fill}
+.geo-rotulo-quadra{font-weight:800}
+.geo-rotulo-rua{font-weight:650}
+.geo-layer-filters{margin:0 0 .4rem 1.75rem;font-size:.78rem;color:var(--muted)}
+.geo-layer-filters summary{cursor:pointer;padding:.2rem .25rem;color:var(--action)}
+.geo-filter-rule,.geo-filter-actions{display:flex;gap:.25rem;flex-wrap:wrap;padding:.2rem 0}
+.geo-filter-rule select,.geo-filter-rule input,.geo-filter-rule button,.geo-filter-actions button{min-width:0;max-width:100%;font:inherit;padding:.25rem;border:1px solid var(--border);border-radius:4px;background:white;color:#182924}
+.geo-filter-rule input{flex:1 0 70%}
+.geo-point{width:100%;height:100%;display:grid;place-items:center;background:var(--point-fill);border:var(--point-stroke-width) solid var(--point-stroke);box-sizing:border-box;color:white;font-weight:800;font-size:10px;line-height:1;box-shadow:0 1px 4px #24362b55}
+.geo-point--circulo{border-radius:50%}
+.geo-point--quadrado{border-radius:3px}
+.geo-point--losango{transform:rotate(45deg);border-radius:2px}
+.geo-point--triangulo{clip-path:polygon(50% 0,100% 100%,0 100%)}
 .geo-medindo,.geo-medindo .leaflet-interactive{cursor:crosshair}
 .geo-tools button[aria-pressed="true"]{background:var(--selection);color:var(--action);box-shadow:inset 0 0 0 2px var(--action)}
 .geo-medicao{position:absolute;z-index:500;top:86px;right:68px;width:min(300px,calc(100vw - 90px));padding:12px;border:1px solid var(--border);border-radius:8px;background:white;box-shadow:0 4px 15px #10201615}

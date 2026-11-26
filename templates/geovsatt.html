@@ -65,6 +65,7 @@
             <span><strong>{{ camada.nome }}</strong><small>{{ camada.descricao }}</small></span>
             {% if not camada.disponivel %}<em>Em preparação</em>{% endif %}
           </label>
+          {% if camada.disponivel %}<div class="geo-layer-filters" id="geo-filter-{{ camada.id }}" hidden></div>{% endif %}
           {% endfor %}
         </section>
         {% endfor %}

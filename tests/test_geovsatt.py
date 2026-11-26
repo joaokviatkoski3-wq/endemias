@@ -97,6 +97,58 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(detail.status_code, 200, detail.json)
         self.assertIn("populacao_aproximada", detail.json["resumo"])
 
+    def test_malha_importada_substitui_o_desenho_e_preserva_vinculo_rg(self):
+        client = self.client()
+        nome = db.scalar(str(self.path), "SELECT nome FROM localidades WHERE id_localidade=1")
+        geometria = {"type": "Polygon", "coordinates": [[[-49.3, -25.3], [-49.2, -25.3],
+                       [-49.2, -25.25], [-49.3, -25.3]]]}
+        for versao, (codigo, props) in enumerate((
+            ("quarteiroes-qgis", {"Localidade": nome, "id_Q": "0001", "id_Q_antig": "A"}),
+            ("localidades-areas-dispersas", {"nome": nome, "cod_loc": None}),
+            ("limite-municipal", {}),
+        ), 1):
+            dados = {"type": "FeatureCollection", "features": [{"type": "Feature", "properties": props,
+                     "geometry": geometria}]}
+            resposta = client.post("/geovsatt/admin/importar", data={"nome": codigo, "codigo": codigo,
+                "grupo": "Território", "fonte": "QGIS sintético",
+                "geojson": (io.BytesIO(json.dumps(dados).encode()), f"{codigo}.geojson")})
+            self.assertEqual(resposta.status_code, 303)
+            self.assertEqual(client.post(f"/geovsatt/admin/camadas/{codigo}/versoes/{versao}/publicar").status_code, 303)
+        camadas = {item['id']: item for item in client.get("/api/geovsatt/catalogo").json["camadas"]}
+        self.assertNotIn("quarteiroes-qgis", camadas)
+        self.assertNotIn("localidades-areas-dispersas", camadas)
+        self.assertTrue(camadas["limite-municipal"]["disponivel"])
+        quarteirao, = client.get("/api/geovsatt/camadas/quarteiroes").json["features"]
+        self.assertEqual(quarteirao["geometry"], geometria)
+        self.assertEqual(quarteirao["properties"]["chave"], "1:1")
+        self.assertEqual(quarteirao["properties"]["id_Q_antig"], "A")
+        localidade, = client.get("/api/geovsatt/camadas/localidades").json["features"]
+        self.assertEqual(localidade["geometry"]["type"], "Polygon")
+        self.assertEqual(localidade["properties"]["id_localidade"], 1)
+        self.assertEqual(client.get("/api/geovsatt/quarteiroes/1/1").status_code, 200)
+
+    def test_camadas_operacionais_e_perfis(self):
+        client = self.client()
+        ambiental = self.client(uid=3)
+        with closing(sqlite3.connect(self.path)) as conn, conn:
+            conn.execute("""INSERT INTO ovitrampas_armadilhas(ovitrampa_id,localidade,latitude,longitude,atualizado_em)
+                            VALUES('001','Ensaio',-25.301,-49.301,'2026-11-26')""")
+            conn.execute("""INSERT INTO ovitrampas_leituras(id_leitura,ovitrampa_id,ano,semana,ovos,importado_em)
+                            VALUES('teste','001',2026,45,12,'2026-11-26')""")
+            conn.execute("""INSERT INTO pontos_estrategicos(codigo_pe,nome,latitude,longitude,criado_em,atualizado_em)
+                            VALUES('001','Ponto de ensaio',-25.301,-49.301,'2026-11-26','2026-11-26')""")
+            conn.execute("""INSERT INTO acoes_setor(tipo,data,local,coordenadas,criado_em)
+                            VALUES('vistoria','2026-11-26','Ação de ensaio','-25.301, -49.301','2026-11-26')""")
+        for codigo in ("ovitrampas", "pontos_estrategicos", "acoes_atendimentos"):
+            url = f"/api/geovsatt/camadas/{codigo}"
+            resultado = client.get(url)
+            self.assertEqual(resultado.status_code, 200)
+            ponto = next(p for p in resultado.json["features"] if p["geometry"]["coordinates"] == [-49.301, -25.301])
+            self.assertNotIn("responsavel", ponto["properties"])
+            self.assertEqual(ambiental.get(url).status_code, 404)
+        dados = client.get("/api/geovsatt/camadas/ovitrampas").json["features"]
+        self.assertTrue(any(p["properties"]["resultado"] == "Positiva" for p in dados))
+
     def test_fronteira_geo_e_catalogo_administrativo(self):
         geo = self.client()
         self.assertEqual(geo.get("/visitas").status_code, 403)
@@ -201,19 +253,25 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(alvo.status_code, 200)
         self.assertNotIn(b'Tutor de ensaio', alvo.data)
         ponto, = alvo.json["features"]
-        self.assertEqual(ponto["properties"]["animais"], 1)
-        self.assertNotEqual(ponto["geometry"]["coordinates"], [-49.301, -25.301])
+        self.assertEqual(ponto["geometry"]["coordinates"], [-49.301, -25.301])
         admin.post("/geovsatt/admin/camadas/esporotricose", data={"nome": "Esporotricose animal",
                    "grupo": "Vigilância", "usuarios": ["2", "3"]})
         self.assertEqual(comum.get(rota).status_code, 404)
-        self.assertEqual(ambiental.get(rota).status_code, 200)
+        agregado = ambiental.get(rota)
+        self.assertEqual(agregado.status_code, 200)
+        ponto, = agregado.json["features"]
+        self.assertEqual(ponto["properties"]["animais"], 1)
+        self.assertNotEqual(ponto["geometry"]["coordinates"], [-49.301, -25.301])
 
     def test_seletor_cep_e_base_de_satelite_no_mapa(self):
         client = self.client()
         mapa = client.get("/geovsatt")
         self.assertIn(b"CEP / BrasilAPI", mapa.data)
         self.assertIn(b'value="sentinel"', mapa.data)
-        self.assertNotIn(b'value="esri"', mapa.data)
+        self.assertIn(b'value="esri"', mapa.data)
+        self.assertLess(mapa.data.index(b'value="none"'), mapa.data.index(b'value="esri"'))
+        with patch.dict(self.geo.config, {"GEOVSATT_ESRI_LICENSED": False}):
+            self.assertNotIn(b'value="esri"', client.get("/geovsatt").data)
         csp = mapa.headers.get("Content-Security-Policy") or mapa.headers["Content-Security-Policy-Report-Only"]
         self.assertIn("https://tiles.maps.eox.at", csp)
 
@@ -249,6 +307,9 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(permitido.post(url, json={"q": "Doutor João de Souza 100"}).json["resultados"], [])
         self.assertEqual(permitido.post(url, json={"q": "Praça Segredo Fictício"}).json["resultados"], [])
         self.assertEqual(self.client(uid=3).post(url, json={"q": consulta}).json["resultados"], [])
+        sugestao = permitido.post(url, json={"q": "João de Sou", "sugestao": True}).json["resultados"]
+        self.assertEqual(sugestao[0]["titulo"], "Rua Doutor João de Souza")
+        self.assertEqual(self.client(uid=3).post(url, json={"q": "João de Sou", "sugestao": True}).json["resultados"], [])
         self.client().post("/geovsatt/admin/camadas/quarteiroes", data={"nome": "Quarteirões", "grupo": "Território"})
         self.assertEqual(permitido.post(url, json={"q": consulta}).json["resultados"], [])
 

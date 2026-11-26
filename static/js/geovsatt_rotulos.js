@@ -59,8 +59,8 @@
   }
 
   function create(map) {
-    const quadras = [];
-    const ruas = [];
+    const centros = [];
+    const eixos = [];
     const pane = map.createPane('geo-rotulos');
     const overlay = svg('svg', {class: 'geo-rotulos', 'aria-hidden': 'true'});
     pane.append(overlay);
@@ -71,7 +71,7 @@
       frame = null;
       const zoom = map.getZoom();
       overlay.replaceChildren();
-      if (movimentando || zoom < 16) return;
+      if (movimentando) return;
       const {x: largura, y: altura} = map.getSize();
       overlay.setAttribute('width', largura);
       overlay.setAttribute('height', altura);
@@ -89,42 +89,47 @@
       };
       const desenho = document.createDocumentFragment();
 
-      if (zoom >= 16) {
-        let quantidade = 0;
-        for (const {layer, nome, bounds} of quadras) {
-          if (!map.hasLayer(layer) || !vista.intersects(bounds)) continue;
-          const ponto = map.latLngToContainerPoint(layer.getCenter());
-          if (!aceitar(ponto, nome.length * 7 + 14, 20)) continue;
-          const texto = svg('text', {x: ponto.x, y: ponto.y, class: 'geo-rotulo-quadra',
-            'text-anchor': 'middle', 'dominant-baseline': 'central'});
-          texto.textContent = nome;
-          desenho.append(texto);
-          if (++quantidade >= maximo) break;
-        }
+      let quantidade = 0;
+      const porGrupo = new Map();
+      for (const {layer, nome, bounds, options} of centros) {
+        if (zoom < options.zoom || !map.hasLayer(layer) || !vista.intersects(bounds)) continue;
+        if ((porGrupo.get(options.group) || 0) >= Math.ceil(maximo / 2)) continue;
+        const centro = layer.getLatLng?.() || (layer instanceof L.Polygon ? layer.getCenter() : bounds.getCenter());
+        const ponto = map.latLngToContainerPoint(centro);
+        if (!aceitar(ponto, nome.length * options.size * .57 + 14, options.size + 8)) continue;
+        const texto = svg('text', {x: ponto.x, y: ponto.y, class: 'geo-rotulo-quadra',
+          fill: options.color || '#24362b', 'font-size': options.size,
+          'text-anchor': 'middle', 'dominant-baseline': 'central'});
+        texto.textContent = nome;
+        desenho.append(texto);
+        porGrupo.set(options.group, (porGrupo.get(options.group) || 0) + 1);
+        if (++quantidade >= maximo) break;
       }
 
-      if (zoom >= 17) {
+      {
         const porNome = new Map();
-        for (const {layer, nome, bounds} of ruas) {
-          if (!map.hasLayer(layer) || !vista.intersects(bounds)) continue;
+        for (const {layer, nome, bounds, options} of eixos) {
+          if (zoom < options.zoom || !map.hasLayer(layer) || !vista.intersects(bounds)) continue;
           const trecho = maiorTrecho(map, layer, recorte);
-          if (!trecho || trecho.comprimento < nome.length * 6.2 + 16) continue;
-          if (!porNome.has(nome) || porNome.get(nome).comprimento < trecho.comprimento) {
-            porNome.set(nome, {...trecho, nome});
+          if (!trecho || trecho.comprimento < nome.length * options.size * .57 + 16) continue;
+          const chave = `${options.group}:${nome}`;
+          if (!porNome.has(chave) || porNome.get(chave).comprimento < trecho.comprimento) {
+            porNome.set(chave, {...trecho, nome, options});
           }
         }
         let quantidade = 0;
         const trechos = [...porNome.values()].sort((a, b) => b.comprimento - a.comprimento);
-        for (const {nome, pontos, comprimento} of trechos) {
+        for (const {nome, pontos, comprimento, options} of trechos) {
           const centro = centroDaLinha(pontos, comprimento);
-          if (!aceitar(centro, Math.min(nome.length * 6 + 16, 220), 26)) continue;
+          if (!aceitar(centro, Math.min(nome.length * options.size * .57 + 16, 220), options.size + 15)) continue;
           if (pontos.at(-1).x < pontos[0].x) pontos.reverse();
           const id = `geovsatt-eixo-${quantidade}`;
           const path = svg('path', {
             id, d: pontos.map((ponto, i) => `${i ? 'L' : 'M'}${ponto.x},${ponto.y}`).join(' '),
             fill: 'none', stroke: 'none',
           });
-          const texto = svg('text', {class: 'geo-rotulo-rua', 'text-anchor': 'middle', dy: -3});
+          const texto = svg('text', {class: 'geo-rotulo-rua', 'text-anchor': 'middle', dy: -3,
+            fill: options.color || '#24362b', 'font-size': options.size});
           const trilha = svg('textPath', {href: `#${id}`, startOffset: '50%'});
           trilha.textContent = nome;
           texto.append(trilha);
@@ -150,17 +155,11 @@
     map.on('resize', schedule);
     return {
       schedule,
-      addBlock(layer, numero) {
-        const bounds = layer.getBounds?.();
-        if (numero && bounds?.isValid() && typeof layer.getCenter === 'function') {
-          quadras.push({layer, bounds, nome: `Q. ${numero}`});
-        }
-      },
-      addStreet(layer, nome) {
-        const bounds = layer.getBounds?.();
-        if (bounds?.isValid() && typeof layer.getLatLngs === 'function') {
-          ruas.push({layer, bounds, nome: String(nome).slice(0, 90)});
-        }
+      add(layer, nome, options) {
+        const point = layer.getLatLng?.();
+        const bounds = layer.getBounds?.() || (point && L.latLngBounds([point, point]));
+        if (!bounds?.isValid()) return;
+        (options.along ? eixos : centros).push({layer, bounds, options, nome: String(nome).slice(0, 90)});
       },
     };
   }

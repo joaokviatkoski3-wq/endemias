@@ -70,7 +70,7 @@ regras de trabalho e isolamento de testes.
 
 ## Projetos futuros
 
-- **GeoVSATT** (`geo.vsatt.com.br`). A versão `2.18.0` inclui busca de endereço
+- **GeoVSATT** (`geo.vsatt.com.br`). A instalação `2.18.0` inclui busca de endereço
   no RG, modo CEP / BrasilAPI, etiquetas por zoom, medições e satélite Sentinel‑2.
   O catálogo recebeu 12 camadas, com 3.862 feições, preservando a malha ativa do RG.
   A Esporotricose animal é exibida em células agregadas com acesso restrito.

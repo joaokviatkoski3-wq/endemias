@@ -4,9 +4,8 @@ Atualizado em 26/11/2026.
 
 ## Estado deste incremento
 
-O GeoVSATT está instalado na versão `2.18.0`, com a cartografia do lote,
-busca, medições, satélite e Esporotricose animal por células.
-Consulte `ESTADO_ATUAL_PROJETO.md` para acompanhar a instalação oficial.
+A versão `2.19.0` reúne as alterações descritas a seguir. Consulte
+`ESTADO_ATUAL_PROJETO.md` para confirmar qual versão está em produção.
 
 Implementado:
 
@@ -15,8 +14,8 @@ Implementado:
 - entrada do GeoVSATT no portal `vsatt.com.br`;
 - mapa próprio, sem reaproveitar o desenho da página Mapa antiga e sem imagem-base;
 - menu de camadas à esquerda, aberto pelo botão de menu;
-- quarteirões ativos do Registro Geográfico, com resumo e detalhe dos imóveis ao clicar;
-- localidades como pontos de referência derivados da extensão dos quarteirões;
+- quarteirões do QGIS com resumo e detalhe dos imóveis do RG ao clicar;
+- polígonos de localidades e áreas dispersas do lote;
 - logradouros da base cartográfica municipal já existente;
 - busca por localidade e quarteirão;
 - pop-up de boas-vindas e novidades em Endemias, Ambiental e GeoVSATT;
@@ -125,6 +124,35 @@ importação, publicação e edição de metadados geram eventos de auditoria.
   superadmin. Concessões a outros perfis também exigem acesso ao Ambiental.
   O mapa exibe centros das células e não inclui a ficha ou o ponto individual.
 
+## Cartografia, busca e vigilância na 2.19.0
+
+- O menu **Imagens e bases** oferece **Satélite Esri World Imagery** com a
+  mesma fonte usada no Ambiental e em outros mapas do VSATT. O mapa abre
+  sem imagem-base. A instalação pode ocultar o Esri com
+  `ENDEMIAS_GEO_ESRI_LICENSED=0`.
+- Os vetores `quarteiroes-qgis` e `localidades-areas-dispersas` continuam
+  versionados no catálogo administrativo. Suas versões publicadas alimentam
+  **Quarteirões** e **Localidades** no mapa. Atualize as versões nessas fontes
+  e ajuste o estilo nas camadas com os nomes exibidos no mapa. A troca da
+  malha no GeoVSATT preserva a malha utilizada pelos outros mapas do RG.
+- O limite municipal liga por padrão. As localidades recebem cores distintas.
+  Hidrografia nomeada recebe etiquetas azuis pelo eixo e ferrovias recebem
+  traço com dormentes. Etiquetas respeitam zoom, recorte e colisões.
+- Cada camada carregada pode ser filtrada por atributos presentes na versão
+  exibida. No catálogo, o superadmin pode escolher cores por categoria,
+  traços, símbolos de ponto, preenchimento e aparência das etiquetas.
+- A busca de endereço oferece até sete sugestões de imóveis e ruas do RG
+  quando o perfil tem acesso aos dados. O quarteirão continua sendo o vínculo
+  para consultar as informações dos imóveis.
+- Ovitrampas usam a leitura mais recente entre as fontes válidas do VSATT.
+  Pontos estratégicos e ações e atendimentos usam coordenadas dos cadastros.
+  O GeoVSATT respeita a permissão da camada e do setor de origem.
+- Admin e superadmin veem as coordenadas cadastradas dos animais da
+  Esporotricose e a indicação de que o ponto está dentro ou fora do limite
+  oficial, quando disponível. Outros perfis autorizados veem contagens por
+  célula e o centro de cada célula. Nenhum ponto cadastrado é reposicionado
+  automaticamente pelo GeoVSATT.
+
 ## Próximos incrementos
 
 1. Base vetorial OpenFreeMap, com dados OpenStreetMap e renderização MapLibre GL JS.
@@ -132,8 +160,7 @@ importação, publicação e edição de metadados geram eventos de auditoria.
    com filtros por período e respeito às permissões e à agregação de cada fonte.
    [Documentação OpenFreeMap](https://openfreemap.org/quick_start/) ·
    [Estilos MapLibre](https://maplibre.org/maplibre-style-spec/layers/#heatmap)
-2. Habilitar Esri World Imagery mediante confirmação da cobertura de uso.
-   Adicionar ortofotos com atribuição, metadados e regras de exportação.
+2. Adicionar ortofotos com atribuição, metadados e regras de exportação.
 3. Nominatim como geocodificação complementar para vias e lugares públicos.
    Priorizar instância própria ou provedor contratado no uso recorrente.
    A instância pública exige atribuição, identificação da aplicação, limite
@@ -142,8 +169,8 @@ importação, publicação e edição de metadados geram eventos de auditoria.
    fonte e a precisão. O vínculo oficial com o quarteirão vem do RG.
    [Política do Nominatim público](https://operations.osmfoundation.org/policies/nominatim/)
 4. Cadastro manual de prédios públicos e pontos de interesse pelo superadmin.
-5. Ações e Atendimentos de Endemias que tenham coordenadas e demais camadas
-   de vigilância. Evoluir a Esporotricose com recorte temporal e status de bloqueio.
+5. Camadas de suspeitas de dengue e coletas de tubos com coordenadas.
+   Evoluir as consultas temporais e a composição de raios de bloqueio.
 6. População por seleção, composição e impressão de mapas personalizados.
 
 ## Histórico de implantação e próximas validações

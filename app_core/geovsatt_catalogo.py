@@ -24,6 +24,15 @@ NIVEIS = {
 }
 SETORES = {"endemias": "Endemias", "ambiental": "Ambiental"}
 COR = re.compile(r"#[0-9a-fA-F]{6}")
+ESTILOS_LINHA = {"solida": "Contínua", "tracejada": "Tracejada", "pontilhada": "Pontilhada", "ferrovia": "Ferrovia"}
+ESTILOS_PONTO = {"circulo": "Círculo", "quadrado": "Quadrado", "losango": "Losango", "triangulo": "Triângulo"}
+VALORES_ESTILO = {
+    "largura": (0, 12), "opacidade": (0, 1), "opacidade_preenchimento": (0, 1), "raio": (2, 24),
+    "rotulo_zoom": (10, 22), "rotulo_tamanho": (8, 24),
+}
+ESTILO_PADRAO = {chave: None for chave in VALORES_ESTILO} | {
+    "cor_preenchimento": "", "rotulo_cor": "", "linha": "", "ponto": "", "rotulo_modo": "",
+}
 TIPOS = {
     "Point": ("ponto", 0), "MultiPoint": ("ponto", 1),
     "LineString": ("linha", 1), "MultiLineString": ("linha", 2),
@@ -61,6 +70,7 @@ def configuracao_padrao(base=None):
         "atributo_cor": "",
         "cores": {},
         "rotulo": base.get("rotulo_padrao", "") if base else "",
+        **ESTILO_PADRAO,
     }
 
 
@@ -81,7 +91,9 @@ def camada_base(base):
 
 def _camada(row, base=None):
     camada = db.serialize_row(row)
-    config = json.loads(camada.pop("configuracao"))
+    config = configuracao_padrao(base) | json.loads(camada.pop("configuracao"))
+    if camada["codigo"] == "limite-municipal" and not config.get("abertura_configurada"):
+        config["visivel_inicial"] = True
     camada.update(
         id=camada["codigo"], config=config, visivel_inicial=config["visivel_inicial"],
         disponivel=bool(base or camada["id_versao"]),
@@ -157,12 +169,32 @@ def _config(form):
         if not valor.strip() or not COR.fullmatch(cor_regra.strip()) or valor.strip() in cores:
             raise CatalogoErro("Use uma regra por linha, no formato valor = #008c30, sem repetir valores.")
         cores[valor.strip()] = cor_regra.strip().lower()
+    estilo = {chave: _texto(form.get(chave), 7) for chave in ("cor_preenchimento", "rotulo_cor")}
+    if any(valor and not COR.fullmatch(valor) for valor in estilo.values()):
+        raise CatalogoErro("Use uma cor no formato #008c30.")
+    for chave, (minimo, maximo) in VALORES_ESTILO.items():
+        raw = form.get(chave)
+        try:
+            valor = float(raw) if raw else None
+        except ValueError:
+            raise CatalogoErro(f"Informe um número válido para {chave.replace('_', ' ')}.") from None
+        if valor is not None and not minimo <= valor <= maximo:
+            raise CatalogoErro(f"O valor de {chave.replace('_', ' ')} deve ficar entre {minimo} e {maximo}.")
+        estilo[chave] = valor
+    for chave, opcoes in (("linha", ESTILOS_LINHA), ("ponto", ESTILOS_PONTO),
+                          ("rotulo_modo", ("oculto", "centro", "linha"))):
+        valor = form.get(chave) or ""
+        if valor and valor not in opcoes:
+            raise CatalogoErro("Selecione uma opção de estilo válida.")
+        estilo[chave] = valor
     return {
         "niveis": sorted(set(niveis)), "setores": sorted(set(setores)),
         "usuarios": sorted({int(uid) for uid in usuarios}),
         "visivel_inicial": form.get("visivel_inicial") == "1",
+        "abertura_configurada": True,
         "cor": cor.lower(), "atributo_cor": atributo, "cores": cores,
         "rotulo": _texto(form.get("rotulo"), 120),
+        **estilo,
     }
 
 

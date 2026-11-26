@@ -4,6 +4,15 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.19.0": {
+        "titulo": "Cartografia, filtros e vigilância no GeoVSATT",
+        "mudancas": [
+            "O mapa usa a nova malha de quarteirões, localidades em polígonos e o limite municipal na abertura.",
+            "Busque endereços com sugestões do Registro Geográfico. Abra os detalhes clicando na feição.",
+            "O menu oferece Esri World Imagery, filtros por camada e opções de estilo por categoria.",
+            "Ovitrampas, pontos estratégicos e ações com coordenadas estão disponíveis para os perfis autorizados.",
+        ],
+    },
     "2.18.0": {
         "titulo": "Importação e novas camadas no GeoVSATT",
         "mudancas": [

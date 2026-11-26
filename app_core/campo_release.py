@@ -6,6 +6,9 @@ from app_core.version import APP_VERSION
 
 
 RESUMOS = {
+    "2.19.0": [
+        "O GeoVSATT ganhou filtros por camada, sugestões de endereço do RG e a opção Esri World Imagery.",
+    ],
     "2.18.0": [
         "O GeoVSATT ganhou importação de camadas, busca explícita por CEP e satélite Sentinel-2.",
     ],
