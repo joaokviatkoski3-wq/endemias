@@ -3,7 +3,7 @@
   const dados = JSON.parse(document.getElementById('dados-bloqueio').textContent);
   const mapa = L.map('mapa-bloqueio', { zoomSnap: 0, fadeAnimation: false, scrollWheelZoom: false, dragging: false, zoomControl: false, doubleClickZoom: false, touchZoom: false, keyboard: false }).setView(dados.centro, 18);
   const imprimir = document.getElementById('imprimir-mapa');
-  const alternar = document.getElementById('base-ruas');
+  const alternar = document.getElementById('alternar-satelite');
   const estado = document.getElementById('mapa-estado');
   const servico = (nome, cred) => L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/' + nome + '/MapServer/tile/{z}/{y}/{x}', {
     maxZoom: 21, maxNativeZoom: 19, attribution: cred,
@@ -35,8 +35,6 @@
     l.on('tileerror', () => { if (visiveis().includes(l)) falha = true; });
     l.on('load', verificarCarregamento);
   }
-
-  L.geoJSON(dados.ruas, { style: { color: '#d9dae5', opacity: .88, weight: 2 } }).addTo(mapa);
 
   const quarteiroes = L.geoJSON(dados.quarteiroes, {
     style: f => ({color: f.properties.atingido ? '#88ffc1' : '#c8e2d2', opacity: .9, weight: 1.5, fillOpacity: 0}),

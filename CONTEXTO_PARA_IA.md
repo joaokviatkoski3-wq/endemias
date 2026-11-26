@@ -6,12 +6,19 @@ que assumir o projeto em outra conta ou conversa. Leia depois
 "Fechamento da sessao (08/09/2026)" para nao repetir a investigacao do cadastro
 em branco do Conta Ovos nem retomar a refatoracao de Ovitrampas sem contexto.
 
-## Versão candidata 2.15.1 — impressão do mapa de bloqueio
+## Versão candidata 2.15.2 — etiquetas do mapa de bloqueio
+
+Os nomes continuam alinhados ao traçado das ruas, com as linhas das vias
+ocultas. A numeração dos quarteirões usa texto maior na tela e no PDF.
+
+## Versão ativa 2.15.1 — impressão do mapa de bloqueio
+
+Ativada em 26/11/2026, release `d17d482`, com todas as entradas verificadas.
 
 O PDF usa A4 paisagem, com um brasão no cabeçalho e os dados do caso ao
 lado do mapa. Os nomes das ruas acompanham a geometria das vias.
 
-## Versão ativa 2.15.0 — visitas e mapas de bloqueio de Esporotricose
+## Histórico 2.15.0 — visitas e mapas de bloqueio de Esporotricose
 
 Ativada em 26/11/2026, release `13232a4`. O preenchimento de origem pelo
 Kobo recuperou 910 das 2.312 visitas cadastradas. As demais 1.402 contam

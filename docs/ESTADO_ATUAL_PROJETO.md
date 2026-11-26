@@ -4,12 +4,19 @@ Atualizado em 26/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
 
-## Versão candidata 2.15.1 — impressão do mapa de bloqueio
+## Versão candidata 2.15.2 — etiquetas do mapa de bloqueio
+
+Os nomes continuam alinhados ao traçado das ruas, com as linhas das vias
+ocultas. A numeração dos quarteirões usa texto maior na tela e no PDF.
+
+## Versão ativa 2.15.1 — impressão do mapa de bloqueio
+
+Ativada em 26/11/2026, release `d17d482`, com todas as entradas verificadas.
 
 O PDF usa A4 paisagem, com um brasão no cabeçalho e os dados do caso ao
 lado do mapa. Os nomes das ruas acompanham a geometria das vias.
 
-## Versão ativa 2.15.0 — visitas e mapas de bloqueio de Esporotricose
+## Histórico 2.15.0 — visitas e mapas de bloqueio de Esporotricose
 
 Ativada em 26/11/2026, release `13232a4`. O preenchimento de origem pelo
 Kobo recuperou 910 das 2.312 visitas cadastradas. As demais 1.402 contam
@@ -113,7 +120,14 @@ migração nem alteração de registros. Ativada em 24/11/2026, release
 ## Projetos futuros do VSATT
 
 - **GeoVSATT** (`geo.vsatt.com.br`): ambiente cartográfico planejado para
-  consulta e organização de camadas de Vigilância em Saúde.
+  consulta e organização de camadas de Vigilância em Saúde. O superadmin
+  poderá configurar camadas, visibilidade, simbologia, etiquetas e filtros.
+  Para Esporotricose, reaproveitar os pontos dos animais com coordenadas
+  válidas e a geometria dos raios de 150 m de `app_core/esporotricose_bloqueio.py`.
+  Mostrar situação e data do bloqueio e distinguir realizados e pendentes.
+  Uma camada própria mostrará quarteirões com execução registrada. A
+  interseção com o raio identifica os quarteirões abrangidos pelo bloqueio.
+  Aplicar as permissões do setor aos pontos de casos, consultas e exportações.
 - **Biblioteca VSATT** (`biblioteca.vsatt.com.br`, nome provisório): acervo
   digital para organizar e consultar livros, notas técnicas, manuais e outros
   documentos sobre vigilâncias e doenças. Inclui referências por links,

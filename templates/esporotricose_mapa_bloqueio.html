@@ -12,7 +12,7 @@
 <nav class="acoes" aria-label="Ações do mapa">
   <a href="{{ url_for('esporotricose.page_doente_detalhe', id_animal=animal.id_animal_doente) }}">Abrir cadastro</a>
   {% if mapa %}
-  <button id="base-ruas" type="button" aria-pressed="false">Alternar satélite e ruas</button>
+  <button id="alternar-satelite" type="button" aria-pressed="false">Ver sem satélite</button>
   <button id="imprimir-mapa" type="button" disabled>Imprimir / salvar em PDF</button>
   {% endif %}
 </nav>

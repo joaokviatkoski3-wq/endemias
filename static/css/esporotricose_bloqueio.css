@@ -32,9 +32,9 @@ dd { margin: .5mm 0 0; font-size: .87rem; font-weight: 600; overflow-wrap: anywh
 .fonte { margin: 3mm 0 0; color: #38594e; font-size: .72rem; }
 .sem-mapa { padding: 3mm; background: #fff4cd; }
 .folha > .caso { margin-top: 4mm; }
-.leaflet-tooltip.quadra-label { background: #fff; border: 0; border-radius: 3px; padding: 1px 4px; font-size: 11px; color: #165038; }
+.leaflet-tooltip.quadra-label { background: #fff; border: 0; border-radius: 3px; padding: 2px 5px; font-size: 13px; font-weight: 600; color: #165038; }
 .nomes-ruas { position: absolute; z-index: 651; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.nomes-ruas path { fill: none; }
+.nomes-ruas path { fill: none; stroke: none; }
 .nomes-ruas text { font: 600 10px system-ui; fill: #fff; stroke: #182e26; stroke-width: 2.5px; stroke-linejoin: round; paint-order: stroke; }
 .sem-satelite .nomes-ruas text { fill: #18342b; stroke: #fff; }
 @media screen and (max-width: 700px) {

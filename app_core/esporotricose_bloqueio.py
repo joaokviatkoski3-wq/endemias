@@ -44,28 +44,22 @@ def _vias(arquivo, versao):
     return tuple((shape(f["geometry"]), f["properties"]["nome"]) for f in conteudo["features"])
 
 
-def _vias_no_recorte(base_dir, janela):
+def _rotulos_ruas(base_dir, janela):
     arquivo = Path(base_dir) / "dados_referencia" / "esporotricose_ruas.geojson"
     marcadores = {}
-    features = []
     try:
         vias = _vias(arquivo, arquivo.stat().st_mtime_ns)
     except (OSError, ValueError):
-        return {"type": "FeatureCollection", "features": []}, []
+        return []
     for geom, nome in vias:
-        if not geom.intersects(janela):
+        if not nome or not geom.intersects(janela):
             continue
         recorte = geom.intersection(janela)
-        if recorte.length <= 0:
-            continue
-        features.append({"type": "Feature", "properties": {"nome": nome}, "geometry": mapping(recorte)})
-        if not nome:
-            continue
         for linha in getattr(recorte, "geoms", (recorte,)):
             if linha.geom_type == "LineString" and (nome not in marcadores or linha.length > marcadores[nome].length):
                 marcadores[nome] = linha
     ordenados = sorted(marcadores.items(), key=lambda item: item[1].length, reverse=True)
-    return {"type": "FeatureCollection", "features": features}, [
+    return [
         {"nome": nome, "linha": [[y, x] for x, y in linha.coords]} for nome, linha in ordenados[:14]
     ]
 
@@ -99,7 +93,7 @@ def mapa(target, base_dir, centro):
                               "parcial": not raio.covers(geometria)})
         camada["features"].append({"type": "Feature", "properties": {"codigo": codigo, "atingido": area > 0},
                                    "geometry": mapping(geometria.intersection(janela))})
-    ruas, rotulos = _vias_no_recorte(base_dir, janela)
-    return {"ruas": ruas, "rotulos_ruas": rotulos, "centro": list(centro), "raio_metros": RAIO_METROS, "circulo": mapping(raio), "quarteiroes": camada,
+    return {"rotulos_ruas": _rotulos_ruas(base_dir, janela), "centro": list(centro), "raio_metros": RAIO_METROS,
+            "circulo": mapping(raio), "quarteiroes": camada,
             "atingidos": sorted(atingidos, key=lambda item: (item["localidade"], item["codigo"])),
             "camada_disponivel": base is not None}
