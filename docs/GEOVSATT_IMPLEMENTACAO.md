@@ -4,10 +4,10 @@ Atualizado em 26/11/2026.
 
 ## Estado deste incremento
 
-O GeoVSATT deixa de ser apenas planejamento e passa a ter uma fundação executável
-no mesmo repositório do VSATT. A versão candidata é `2.16.0`; isso não significa
-que `geo.vsatt.com.br` já esteja publicado. A produção confirmada continua sendo a
-versão indicada em `ESTADO_ATUAL_PROJETO.md` até implantação e homologação.
+O GeoVSATT tem uma fundação executável no repositório do VSATT, instalada na
+versão `2.16.0`. A busca de endereços, as etiquetas e as medições desta página
+são da candidata `2.17.0`. Consulte `ESTADO_ATUAL_PROJETO.md` para saber o que
+já foi implantado.
 
 Implementado:
 
@@ -77,20 +77,53 @@ A migração PostgreSQL `0047_geovsatt_catalogo` armazena o JSON validado e os
 metadados no banco do VSATT, junto ao backup existente. Mudanças de configuração,
 importação, publicação e edição de metadados geram eventos de auditoria.
 
-## Próximos incrementos sugeridos
+## Busca, etiquetas e ferramentas
 
-1. Prédios públicos, começando pelas fontes com coordenadas e responsáveis definidos.
-2. Pontos estratégicos, ovitrampas, esporotricose e bloqueios, com validação de precisão
-   e proteção dos dados pessoais.
-3. Ferramentas de distância, área, população por seleção e impressão cartográfica.
-4. Provedores de satélite e ortofoto com licença, atribuição, cache e versionamento
-   formalmente definidos.
+- Pesquise por rua e número, localidade ou quarteirão. É possível incluir
+  localidade, município, UF e CEP no texto do endereço. Os resultados do RG
+  exigem acesso ao RG e à camada de quarteirões no GeoVSATT.
+- Selecionar um endereço destaca o quarteirão que consta no cadastro e a linha
+  correspondente no painel. A ausência de um polígono na malha não impede a
+  leitura do cadastro, que é exibido sem inventar uma posição.
+- Informar apenas oito dígitos ou um CEP com hífen consulta a
+  [BrasilAPI CEP v2](https://brasilapi.com.br/docs#tag/CEP-V2). Somente o CEP é
+  enviado externamente. O logradouro retornado é usado para buscar
+  correspondências no RG local. A BrasilAPI não estabelece o quarteirão.
+- As etiquetas de quarteirões aparecem a partir do zoom 16. Os nomes de rua
+  acompanham os trechos visíveis a partir do zoom 17. A tela limita e
+  espaça as etiquetas, removendo-as enquanto a vista se move.
+- Use as ferramentas de distância e área para marcar pontos, desfazer o último
+  ponto e concluir. As medidas são aproximadas. O mapa aceita até zoom 22.
+- Como superadmin, **Gerenciar camadas** fica no topo do mapa ou no começo
+  do menu lateral. Para publicar um novo arquivo em uma camada importada,
+  escolha **Importar versão** ao lado dela.
 
-## Implantação futura
+## Próximos incrementos
 
-Para sair da versão oficial `2.15.2`, execute
-`scripts/ativar_geovsatt_2160_windows.py` da candidata limpa em uma sessão
-elevada do Windows. O instalador verifica os commits completos passados em
+1. Base vetorial OpenFreeMap, com dados OpenStreetMap e renderização MapLibre GL JS.
+   Usar a camada nativa `heatmap` do MapLibre para futuros mapas de densidade,
+   com filtros por período e respeito às permissões e à agregação de cada fonte.
+   [Documentação OpenFreeMap](https://openfreemap.org/quick_start/) ·
+   [Estilos MapLibre](https://maplibre.org/maplibre-style-spec/layers/#heatmap)
+2. Base opcional Esri World Imagery e ortofotos, com revisão dos direitos de
+   uso, atribuição e exportação.
+3. Nominatim como geocodificação complementar para vias e lugares públicos.
+   Priorizar instância própria ou provedor contratado no uso recorrente.
+   A instância pública exige atribuição, identificação da aplicação, limite
+   agregado de uma consulta por segundo, provedor substituível e ausência de
+   autocomplete ou dados confidenciais. O resultado externo deve indicar a
+   fonte e a precisão. O vínculo oficial com o quarteirão vem do RG.
+   [Política do Nominatim público](https://operations.osmfoundation.org/policies/nominatim/)
+4. Cadastro manual de prédios públicos e pontos de interesse pelo superadmin.
+5. Ações e Atendimentos de Endemias que tenham coordenadas e camadas de
+   vigilância, começando pela Esporotricose com controle de acesso e precisão.
+6. População por seleção, composição e impressão de mapas personalizados.
+
+## Histórico de implantação e próximas validações
+
+Para a transição de `2.15.2` para `2.16.0`, foi usado
+`scripts/ativar_geovsatt_2160_windows.py`, em uma sessão elevada do Windows.
+O instalador verifica os commits completos passados em
 `--release` e `--expected-current`, faz os backups, integra por fast-forward,
 aplica somente as migrações previstas `0046` e `0047` e valida os logins nas
 entradas locais e na origem do Tunnel. Em caso de falha, volta ao código e à

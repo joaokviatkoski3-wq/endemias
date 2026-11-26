@@ -2,6 +2,7 @@ from flask import Blueprint, abort, current_app, flash, jsonify, redirect, rende
 
 from app_core import blueprint_helpers as bh
 from app_core import geovsatt as geo
+from app_core import geovsatt_busca as busca
 from app_core import geovsatt_catalogo as camadas
 from app_core import setores
 from app_core.auth import login_required
@@ -67,17 +68,37 @@ def api_camada(codigo):
         return jsonify({"erro": str(exc)}), 400
 
 
-@bp.get("/api/geovsatt/busca")
+@bp.route("/api/geovsatt/busca", methods=["GET", "POST"])
 @login_required
 def api_busca():
     usuario = bh.usuario_atual()
     permitidas = {codigo for codigo in ("localidades", "quarteiroes") if camadas.pode_ver(_obter(codigo), usuario)}
     try:
-        resultados = geo.buscar(bh.db_target(), _base_dir(), request.args.get("q"), permitidas,
+        if request.method == "POST":
+            payload = request.get_json(silent=True)
+            termo = payload.get("q") if isinstance(payload, dict) else None
+            if not isinstance(termo, str):
+                raise ValueError("Informe um texto de busca.")
+        else:
+            termo = request.args.get("q")
+        resultados = geo.buscar(bh.db_target(), _base_dir(), termo, permitidas,
                                incluir_rg=setores.pode_entrar(usuario, "endemias"))
         return jsonify({"resultados": resultados})
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
+
+
+@bp.get("/api/geovsatt/cep/<cep>")
+@login_required
+def api_cep(cep):
+    try:
+        return jsonify(busca.consultar_cep(cep))
+    except busca.CepInexistente as exc:
+        return jsonify({"erro": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    except RuntimeError as exc:
+        return jsonify({"erro": str(exc)}), 502
 
 
 @bp.get("/api/geovsatt/quarteiroes/<int:id_localidade>/<numero>")
@@ -110,11 +131,11 @@ def admin_criar():
         flash(str(exc), "erro")
         return redirect(url_for("geovsatt.admin_catalogo"), code=303)
     flash("Camada criada. Importe um GeoJSON para preparar a primeira versão.", "ok")
-    return _voltar(codigo)
+    return _voltar(codigo, "importar-versao")
 
 
-def _voltar(codigo):
-    return redirect(url_for("geovsatt.admin_camada", codigo=codigo), code=303)
+def _voltar(codigo, ancora=None):
+    return redirect(url_for("geovsatt.admin_camada", codigo=codigo, _anchor=ancora), code=303)
 
 
 @bp.route("/geovsatt/admin/camadas/<codigo>", methods=["GET", "POST"])
@@ -151,9 +172,10 @@ def admin_importar(codigo):
             raise camadas.CatalogoErro("Selecione um arquivo GeoJSON.")
         versao = camadas.importar(bh.db_target(), codigo, arquivo, request.form, bh.usuario_atual()["id_usuario"])
         flash(f"Versão {versao} importada como rascunho.", "ok")
+        return _voltar(codigo, "versoes")
     except camadas.CatalogoErro as exc:
         flash(str(exc), "erro")
-    return _voltar(codigo)
+    return _voltar(codigo, "importar-versao")
 
 
 @bp.get("/geovsatt/admin/camadas/<codigo>/versoes/<int:versao>/geojson")

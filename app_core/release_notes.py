@@ -4,6 +4,14 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.17.0": {
+        "titulo": "Busca e medições no GeoVSATT",
+        "mudancas": [
+            "Pesquise endereços do RG e encontre a localidade e o quarteirão.",
+            "Consulte um CEP, use o zoom de aproximação e meça distâncias e áreas no mapa.",
+            "O superadmin encontra os atalhos de importação em Gerenciar camadas.",
+        ],
+    },
     "2.16.0": {
         "titulo": "GeoVSATT começou a ganhar forma",
         "mudancas": [
