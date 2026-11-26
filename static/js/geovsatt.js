@@ -330,18 +330,6 @@
     L.popup({maxHeight: 260}).setLatLng(latlng).setContent(box).openOn(map);
   }
 
-  function publicSymbol(tipo) {
-    const nome = normalText(tipo);
-    if (nome.includes('saude')) return ['quadrado', '+'];
-    if (nome.includes('escola') || ['em', 'erm', 'cmei', 'conveniada'].includes(nome)) return ['quadrado', 'E'];
-    if (nome === 'ponto de interesse') return ['losango', ''];
-    if (nome.includes('social')) return ['losango', ''];
-    if (nome.includes('administracao')) return ['quadrado', 'A'];
-    if (nome.includes('cultura')) return ['triangulo', ''];
-    if (nome.includes('seguranca')) return ['quadrado', 'S'];
-    return ['circulo', ''];
-  }
-
   function buildLayer(input, data) {
     const id = input.dataset.layer;
     const versaoEditavel = marcarEquipamento && id === 'predios_publicos' && Number.isInteger(data.metadata?.versao);
@@ -361,12 +349,10 @@
       pane,
       style: simboloDaFeicao,
       pointToLayer(feature, latlng) {
-        const count = Number(feature.properties?.animais || 0);
-        const [shape, symbol] = id === 'predios_publicos' ? publicSymbol(feature.properties?.tipo) : ['circulo', ''];
-        const point = config.ponto || shape;
-        if (point !== 'circulo' || symbol) {
-          const size = 2 * (config.raio ?? 8);
-          const icon = element('span', `geo-point geo-point--${point}`, symbol);
+        const {forma, glifo, icone, raio} = estilos.marcador(id, config, feature.properties || {});
+        if (icone) {
+          const size = 2 * raio;
+          const icon = element('span', `geo-point geo-point--${forma}`, glifo);
           const simbolo = simboloDaFeicao(feature);
           icon.style.setProperty('--point-fill', simbolo.fillColor);
           icon.style.setProperty('--point-stroke', simbolo.color);
@@ -376,8 +362,7 @@
               className: 'geo-point-icon', html: icon, iconSize: [size, size],
             })});
         }
-        const radius = config.raio ?? (id === 'esporotricose' ? 5 + Math.min(12, Math.sqrt(count) * 2) : 6);
-        return L.circleMarker(latlng, {pane, radius});
+        return L.circleMarker(latlng, {pane, radius: raio});
       },
       onEachFeature(feature, layer) {
         const props = feature.properties || {};

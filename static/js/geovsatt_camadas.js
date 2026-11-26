@@ -87,7 +87,7 @@
     return node;
   }
 
-  function desenhar(config, estilo, tipo, texto) {
+  function desenhar(config, estilo, tipo, texto, props) {
     const quadro = svg('svg', {viewBox: '0 0 360 112', 'aria-hidden': 'true'});
     const traçado = {fill: 'none', stroke: estilo.color, 'stroke-width': estilo.weight, 'stroke-opacity': estilo.opacity};
     const preenchimento = {fill: estilo.fillColor, 'fill-opacity': estilo.fillOpacity};
@@ -100,17 +100,29 @@
       if (estilo.dashArray) traçado['stroke-dasharray'] = estilo.dashArray;
       quadro.append(svg('path', {...traçado, d: linha, id: 'gc-amostra-eixo'}));
     } else if (tipo === 'ponto') {
-      const raio = config.raio ?? 8;
-      if (config.ponto === 'quadrado') {
-        quadro.append(svg('rect', {...traçado, ...preenchimento, x: 180 - raio, y: 43 - raio, width: 2 * raio, height: 2 * raio, rx: 3}));
-      } else if (config.ponto === 'losango' || config.ponto === 'triangulo') {
-        const pontos = [`180,${43 - raio}`, `${180 + raio},${config.ponto === 'losango' ? 43 : 43 + raio}`,
-          ...(config.ponto === 'losango' ? [`180,${43 + raio}`] : []),
-          `${180 - raio},${config.ponto === 'losango' ? 43 : 43 + raio}`];
-        quadro.append(svg('polygon', {...traçado, ...preenchimento, points: pontos.join(' ')}));
-      } else {
-        quadro.append(svg('circle', {...traçado, ...preenchimento, cx: 180, cy: 43, r: raio}));
+      const {forma, glifo, icone, raio} = estilos.marcador(form.dataset.camada, config, props);
+      const desenho = svg('g', {});
+      if (icone) {
+        desenho.setAttribute('opacity', config.opacidade_preenchimento ?? config.opacidade ?? 1);
+        traçado['stroke-width'] = config.largura ?? 1.5;
+        traçado['stroke-opacity'] = preenchimento['fill-opacity'] = 1;
       }
+      if (forma === 'quadrado') {
+        desenho.append(svg('rect', {...traçado, ...preenchimento, x: 180 - raio, y: 43 - raio, width: 2 * raio, height: 2 * raio, rx: 3}));
+      } else if (forma === 'losango' || forma === 'triangulo') {
+        const y = forma === 'losango' ? 43 : 43 + raio;
+        const pontos = [`180,${43 - raio}`, `${180 + raio},${y}`,
+          ...(forma === 'losango' ? [`180,${43 + raio}`] : []), `${180 - raio},${y}`];
+        desenho.append(svg('polygon', {...traçado, ...preenchimento, points: pontos.join(' ')}));
+      } else {
+        desenho.append(svg('circle', {...traçado, ...preenchimento, cx: 180, cy: 43, r: raio}));
+      }
+      if (glifo) {
+        const marca = svg('text', {x: 180, y: 47, 'text-anchor': 'middle', fill: 'white', 'font-size': 10, 'font-weight': 800});
+        marca.textContent = glifo;
+        desenho.append(marca);
+      }
+      quadro.append(desenho);
     } else {
       if (estilo.dashArray) traçado['stroke-dasharray'] = estilo.dashArray;
       quadro.append(svg('polygon', {...traçado, ...(estilo.fill ? preenchimento : {}), points: '29,29 245,16 318,38 298,86 140,98 41,75'}));
@@ -143,7 +155,7 @@
     const tipo = feicao?.geometry?.type ? estilos.tipoDaGeometria(feicao.geometry.type) : form.dataset.tipo;
     const classificar = estilos.classificador(config, padrao, [...(opcoes?.values() || [])]);
     const principal = props[config.rotulo || padrao.label] ?? (form.dataset.camada === 'quarteiroes' && props.id_quart ? `Q. ${props.id_quart}` : '');
-    desenhar(config, estilos.simbolo(config, padrao, classificar(props), tipo), tipo, estilos.textoRotulo(config, principal, props));
+    desenhar(config, estilos.simbolo(config, padrao, classificar(props), tipo), tipo, estilos.textoRotulo(config, principal, props), props);
     const classes = config.modo_cor === 'faixas'
       ? config.faixas_cor.map(faixa => ({nome: estilos.textoFaixa(faixa), cor: faixa.cor}))
       : [...(opcoes?.values() || [])].slice(0, 16).map(exemplo => classificar(exemplo.properties)).filter(Boolean);

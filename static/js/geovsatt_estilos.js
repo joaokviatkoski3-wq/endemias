@@ -105,6 +105,26 @@
     return /Point$/.test(tipo) ? 'ponto' : /LineString$/.test(tipo) ? 'linha' : 'poligono';
   }
 
+  function equipamento(tipo) {
+    const nome = String(tipo ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR').trim();
+    if (nome.includes('saude')) return ['quadrado', '+'];
+    if (nome.includes('escola') || ['em', 'erm', 'cmei', 'conveniada'].includes(nome)) return ['quadrado', 'E'];
+    if (nome === 'ponto de interesse' || nome.includes('social')) return ['losango', ''];
+    if (nome.includes('administracao')) return ['quadrado', 'A'];
+    if (nome.includes('cultura')) return ['triangulo', ''];
+    if (nome.includes('seguranca')) return ['quadrado', 'S'];
+    return ['circulo', ''];
+  }
+
+  function marcador(id, config, props) {
+    const [formaPadrao, glifo] = id === 'predios_publicos' ? equipamento(props.tipo) : ['circulo', ''];
+    const forma = config.ponto || formaPadrao;
+    const icone = forma !== 'circulo' || Boolean(glifo);
+    const animais = Math.max(0, Number(props.animais) || 0);
+    const raioPadrao = id === 'esporotricose' ? 5 + Math.min(12, Math.sqrt(animais) * 2) : 6;
+    return {forma, glifo, icone, raio: config.raio ?? (icone ? 8 : raioPadrao)};
+  }
+
   function padraoDaCamada(id, metadados) {
     const base = Object.hasOwn(padroes, id) ? padroes[id] : {color: '#175cd3'};
     if (id !== 'quarteiroes_trabalhados' || !metadados?.tipos) return base;
@@ -117,5 +137,5 @@
   }
 
   window.GeoVSATTEstilos = {paleta, numero, textoFaixa, classificador, simbolo, textoRotulo,
-    tipoDaGeometria, padraoDaCamada, corDoSimbolo};
+    tipoDaGeometria, marcador, padraoDaCamada, corDoSimbolo};
 })();
