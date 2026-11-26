@@ -4,8 +4,8 @@ Atualizado em 26/11/2026.
 
 ## Estado deste incremento
 
-O GeoVSATT está instalado na versão `2.17.0`, com busca de endereços,
-etiquetas e medições. O login respondeu em `https://geo.vsatt.com.br/login`.
+O GeoVSATT está instalado na versão `2.18.0`, com a cartografia do lote,
+busca, medições, satélite e Esporotricose animal por células.
 Consulte `ESTADO_ATUAL_PROJETO.md` para acompanhar a instalação oficial.
 
 Implementado:
@@ -105,6 +105,12 @@ importação, publicação e edição de metadados geram eventos de auditoria.
   da pasta de origem sem editar os arquivos. A prévia informa contagens, SRC,
   correções e hashes. A publicação é transacional e reutiliza versões
   idênticas em nova execução. Um cadastro divergente interrompe o lote.
+- Em 26/11/2026, foram publicadas 3.862 feições em 12 camadas:
+  bairros, limite municipal, localidades e áreas dispersas, quarteirões QGIS,
+  equipamentos públicos (111), ferrovias, cursos e massas d’água, geologia,
+  áreas de risco e suscetibilidades à inundação e a movimentos de massa.
+  Duas camadas foram reprojetadas, 14 geometrias foram reparadas e quatro
+  registros de ferrovia estavam sem geometria. Os originais foram preservados.
 - Quarteirões do QGIS entram como uma camada de referência. O RG conserva
   a malha ativa que vincula os imóveis. As propriedades importadas são
   selecionadas por camada. Os QMD recebidos não especificam licença.
