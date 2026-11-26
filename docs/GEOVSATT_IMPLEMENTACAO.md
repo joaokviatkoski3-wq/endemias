@@ -4,7 +4,7 @@ Atualizado em 26/11/2026.
 
 ## Estado deste incremento
 
-A versão `2.23.0` reúne as alterações descritas a seguir. Consulte
+A versão `2.24.0` reúne as alterações descritas a seguir. Consulte
 `ESTADO_ATUAL_PROJETO.md` para confirmar qual versão está em produção.
 
 Implementado:
@@ -227,6 +227,22 @@ importação, publicação e edição de metadados geram eventos de auditoria.
   dados próprios de campo. Ambas as camadas exigem permissão para as posições
   exatas da Esporotricose animal. O acesso aos quarteirões libera a cobertura
   e suas contagens. As autorizações de exportação são configuradas por camada.
+
+## Quarteirões trabalhados na 2.24.0
+
+- A camada **Quarteirões trabalhados** cruza os registros de visita do
+  Endemias e do LIRAa com a malha ativa, usando localidade e número do
+  quarteirão. O filtro começa em 1º de janeiro do ano corrente e aceita
+  outros períodos, tipos de trabalho e localidades. O painel informa
+  o total do recorte e quantos registros ficaram sem geometria.
+- O balão mostra a contagem por tipo, o último registro no período e as
+  quantidades de visitas normais, fechadas, recuperadas e de registros
+  com outra situação ou sem situação. Os valores contam registros de
+  visita. Um mesmo imóvel pode aparecer em várias visitas.
+- Composições reaplicam o recorte ao abrir e imprimem o período na legenda.
+  Os links de CSV, GeoJSON e KML exportam o recorte aplicado para as contas
+  autorizadas. O catálogo administra a visibilidade e os estilos da camada.
+  O acesso também exige o setor Endemias e a camada Quarteirões.
 
 ## Próximos incrementos
 

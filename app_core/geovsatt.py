@@ -17,6 +17,7 @@ from app_core import esporotricose_bloqueio
 from app_core import geovsatt_bloqueios as bloqueios_core
 from app_core import geovsatt_busca as busca_core
 from app_core import geovsatt_catalogo as catalogo_core
+from app_core import geovsatt_trabalhos as trabalhos_core
 from app_core import ovitrampas as ovitrampas_core
 from app_core import permissoes
 from app_core import registro_geografico as rg_core
@@ -143,17 +144,28 @@ CAMADAS = (
         "niveis_padrao": ["admin"],
         "rotulo_padrao": "rotulo",
     },
+    {
+        "id": trabalhos_core.CODIGO,
+        "grupo": "Vigilância",
+        "nome": "Quarteirões trabalhados",
+        "descricao": "Registros de visitas no Endemias, por período, tipo de trabalho e localidade.",
+        "tipo": "poligono",
+        "disponivel": True,
+        "visivel_inicial": False,
+        "niveis_padrao": ["admin"],
+    },
 )
 
 
 BASES = {item["id"]: item for item in CAMADAS if item["disponivel"]}
 FONTES_TERRITORIAIS = {"localidades": "localidades-areas-dispersas", "quarteiroes": "quarteiroes-qgis"}
 SETORES_VIGILANCIA = {"esporotricose": "ambiental", "ovitrampas": "endemias", "pontos_estrategicos": "endemias",
-                     "acoes_atendimentos": "endemias"}
+                     "acoes_atendimentos": "endemias", trabalhos_core.CODIGO: "endemias"}
 BLOQUEIOS_ESPOROTRICOSE = {
     "esporotricose_bloqueios": ("esporotricose",),
     "esporotricose_quarteiroes": ("esporotricose", "quarteiroes"),
 }
+DEPENDENCIAS = BLOQUEIOS_ESPOROTRICOSE | {trabalhos_core.CODIGO: ("quarteiroes",)}
 
 
 def pode_ver_camada(target, camada, usuario, *, cadastradas=None):
@@ -163,13 +175,12 @@ def pode_ver_camada(target, camada, usuario, *, cadastradas=None):
         return False
     if not catalogo_core.pode_ver(camada, usuario):
         return False
-    if codigo in BLOQUEIOS_ESPOROTRICOSE:
-        if not esporotricose_localizacao_exata(usuario):
+    if codigo in BLOQUEIOS_ESPOROTRICOSE and not esporotricose_localizacao_exata(usuario):
+        return False
+    for origem in DEPENDENCIAS.get(codigo, ()):
+        fonte = cadastradas[origem] if cadastradas is not None else catalogo_core.obter(target, origem, BASES)
+        if not pode_ver_camada(target, fonte, usuario):
             return False
-        for origem in BLOQUEIOS_ESPOROTRICOSE[codigo]:
-            fonte = cadastradas[origem] if cadastradas is not None else catalogo_core.obter(target, origem, BASES)
-            if not pode_ver_camada(target, fonte, usuario):
-                return False
     return True
 
 
@@ -179,7 +190,7 @@ def pode_exportar_camada(target, camada, usuario, *, cadastradas=None):
                  or usuario["id_usuario"] in camada["config"]["usuarios_exportacao"]))
 
 
-def dados_nativos(target, base_dir, codigo, usuario):
+def dados_nativos(target, base_dir, codigo, usuario, *, parametros=None):
     if codigo == "localidades":
         return localidades(target, base_dir, usuario=usuario)
     if codigo == "quarteiroes":
@@ -196,6 +207,10 @@ def dados_nativos(target, base_dir, codigo, usuario):
         return pontos_estrategicos(target)
     if codigo == "acoes_atendimentos":
         return acoes_atendimentos(target)
+    if codigo == trabalhos_core.CODIGO:
+        consulta = trabalhos_core.filtros(parametros if parametros is not None else {})
+        malha = quarteiroes(target, base_dir, incluir_rg=False, usuario=usuario)
+        return trabalhos_core.camada(target, malha, consulta)
     return logradouros(base_dir)
 
 

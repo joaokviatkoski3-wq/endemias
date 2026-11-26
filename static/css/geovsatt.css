@@ -74,6 +74,12 @@ button{color:inherit}
 .geo-filter-rule,.geo-filter-actions{display:flex;gap:.25rem;flex-wrap:wrap;padding:.2rem 0}
 .geo-filter-rule select,.geo-filter-rule input,.geo-filter-rule button,.geo-filter-actions button{min-width:0;max-width:100%;font:inherit;padding:.25rem;border:1px solid var(--border);border-radius:4px;background:white;color:#182924}
 .geo-filter-rule input{flex:1 0 70%}
+.geo-trabalhos-filtros{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;margin:.35rem 0 .6rem}
+.geo-trabalhos-filtros label{display:grid;gap:.2rem}
+.geo-trabalhos-filtros input,.geo-trabalhos-filtros select,.geo-trabalhos-filtros button{min-width:0;max-width:100%;padding:.35rem;border:1px solid var(--border);border-radius:4px;background:white;color:#182924;font:inherit}
+.geo-trabalhos-filtros button,.geo-trabalhos-filtros small{grid-column:1/-1}
+.geo-trabalhos-filtros button{justify-self:start;color:var(--action);font-weight:700;cursor:pointer}
+.geo-trabalhos-filtros button:disabled{opacity:.55;cursor:wait}
 .geo-point{width:100%;height:100%;display:grid;place-items:center;background:var(--point-fill);border:var(--point-stroke-width) solid var(--point-stroke);box-sizing:border-box;color:white;font-weight:800;font-size:10px;line-height:1;box-shadow:0 1px 4px #24362b55}
 .geo-point--circulo{border-radius:50%}
 .geo-point--quadrado{border-radius:3px}

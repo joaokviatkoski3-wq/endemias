@@ -91,6 +91,8 @@ regras de trabalho e isolamento de testes.
   Ambiental. O mapa cruza os raios com a malha ativa, mostra a situação e
   a data do bloqueio e oferece acesso ao RG e à folha do caso no Ambiental.
   A camada de execução por quarteirão depende do registro de campo.
+  A candidata 2.24.0 acrescenta os quarteirões trabalhados do Endemias e
+  LIRAa, com filtros por período, tipo e localidade, impressão e exportação.
 - **Biblioteca VSATT** (`biblioteca.vsatt.com.br`, nome provisório). Acervo
   interno de referências de Vigilância em Saúde, com documentos, links,
   vídeos e imagens.

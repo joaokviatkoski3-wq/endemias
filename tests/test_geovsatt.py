@@ -16,7 +16,7 @@ from xml.etree import ElementTree as ET
 from shapely.geometry import box, mapping, shape
 
 import app
-from app_core import auth, db, dominios, geovsatt_busca, registro_geografico, sessoes
+from app_core import auth, db, dominios, geovsatt_busca, liraa, liraa_kobo, registro_geografico, sessoes
 from scripts.preparar_massa_web_teste import preparar
 
 
@@ -190,6 +190,102 @@ class GeoVSATTTests(unittest.TestCase):
         ambient = self.client(uid=3)
         self.assertEqual(ambient.post(rota, json={"pontos": forma}).status_code, 403)
         self.assertNotIn(b'data-medida="populacao"', ambient.get("/geovsatt").data)
+
+    def test_trabalhos_agregam_visitas_e_liraa_na_malha_e_preservam_o_recorte(self):
+        ciclo = liraa.criar_ciclo(str(self.path), {"ano": 2025, "nome": "Geo de ensaio",
+                                                  "inicio": "2025-02-01", "fim": "2025-02-28"})
+        with closing(db.connect(str(self.path))) as conn, conn:
+            liraa_kobo.ensure_schema(conn)
+            outra_localidade = conn.execute("INSERT INTO localidades(nome) VALUES('Outra localidade de ensaio')").lastrowid
+            conn.executemany("""
+                INSERT INTO visitas(id_visita,kobo_uuid,tipo,data,id_localidade,quarteirao,visita,morador,processado_em)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'Pessoa fictícia', '2026-11-26')
+            """, [
+                ("geo-1", "geo-1", "TB", "2025-02-01", 1, 1, "Normal"),
+                ("geo-2", "geo-2", "TB", "2025-02-03", 1, 1, "Fechado"),
+                ("geo-3", "geo-3", "PE", "2025-02-14", 1, 1, "Recuperado"),
+                ("geo-4", "geo-4", "TB", "2025-02-16", 1, 999, "Normal"),
+                ("geo-5", "geo-5", "TB", "2025-01-31", 1, 1, "Normal"),
+                ("geo-6", "geo-6", "PVE", "2025-02-20", outra_localidade, 1, "Normal"),
+            ])
+            conn.execute("""
+                INSERT INTO liraa_visitas(id_ciclo,kobo_uuid,data_visita,id_localidade,localidade_informada,
+                    quarteirao,situacao_vinculo,morador,criado_em)
+                VALUES (?, 'geo-liraa', '2025-02-28', 1, 'Localidade Ficticia', '0001', 'vinculado',
+                    'Pessoa fictícia do LIRAa', '2026-11-26')
+            """, (ciclo,))
+        superadmin = self.client()
+        comum = self.client(uid=2)
+        ambiental = self.client(uid=3)
+        geometria = box(-49.3012, -25.3012, -49.3008, -25.3008)
+        geojson = {"type": "FeatureCollection", "features": [
+            {"type": "Feature", "properties": {"Localidade": "Localidade Ficticia", "id_Q": "0001"},
+             "geometry": mapping(geometria)}] * 2}
+        self.assertEqual(superadmin.post("/geovsatt/admin/importar", data={
+            "nome": "Quarteirões QGIS", "codigo": "quarteiroes-qgis", "grupo": "Território", "fonte": "QGIS de ensaio",
+            "geojson": (io.BytesIO(json.dumps(geojson).encode()), "blocos.geojson"),
+        }).status_code, 303)
+        superadmin.post("/geovsatt/admin/camadas/quarteiroes-qgis", data={
+            "nome": "Quarteirões QGIS", "grupo": "Território", "usuarios": ["2"],
+        })
+        superadmin.post("/geovsatt/admin/camadas/quarteiroes-qgis/versoes/1/publicar")
+        codigo = "quarteiroes_trabalhados"
+        rota = f"/api/geovsatt/camadas/{codigo}"
+        exportar = f"/geovsatt/camadas/{codigo}/exportar"
+        periodo = {"inicio": "2025-02-01", "fim": "2025-02-28", "localidade": "1"}
+        self.assertEqual(comum.get(rota, query_string=periodo).status_code, 404)
+        superadmin.post(f"/geovsatt/admin/camadas/{codigo}", data={
+            "nome": "Quarteirões trabalhados", "grupo": "Vigilância", "usuarios": ["2", "3"],
+        })
+        resposta = comum.get(rota, query_string=periodo)
+        self.assertEqual(resposta.status_code, 200, resposta.json)
+        self.assertNotIn("Pessoa fictícia", resposta.get_data(as_text=True))
+        recorte = resposta.json
+        feature, = recorte["features"]
+        self.assertTrue(shape(feature["geometry"]).equals(geometria))
+        self.assertEqual(recorte["metadata"]["origem_malha"], "Malha cartográfica QGIS")
+        self.assertEqual(recorte["metadata"]["registros_no_recorte"], 5)
+        self.assertEqual(recorte["metadata"]["registros_sem_malha"], 1)
+        props = feature["properties"]
+        self.assertEqual((props["chave"], props["atividade"], props["total_registros"]), ("1:1", "Mais de um tipo", 4))
+        self.assertEqual((props["visitas_normais"], props["visitas_fechadas"], props["visitas_recuperadas"],
+                          props["visitas_outras_situacoes"]), (1, 1, 1, 1))
+        self.assertEqual(props["ultimo_registro"], "2025-02-28")
+        self.assertIn("LIRAa (1)", props["tipos_registrados"])
+        tb = periodo | {"tipo": "TB"}
+        self.assertEqual(comum.get(rota, query_string=tb).json["features"][0]["properties"]["total_registros"], 2)
+        self.assertEqual(comum.get(rota, query_string=periodo | {"inicio": "2025-02-30"}).status_code, 400)
+        self.assertEqual(comum.get(rota, query_string=periodo | {"fim": "2025-01-30"}).status_code, 400)
+        self.assertEqual(ambiental.get(rota, query_string=periodo).status_code, 404)
+        self.assertEqual(comum.get(f"{exportar}/csv", query_string=tb).status_code, 403)
+        superadmin.post(f"/geovsatt/admin/camadas/{codigo}", data={
+            "nome": "Quarteirões trabalhados", "grupo": "Vigilância", "usuarios": ["2", "3"],
+            "usuarios_exportacao": ["2", "3"],
+        })
+        for formato in ("csv", "geojson", "kml"):
+            download = comum.get(f"{exportar}/{formato}", query_string=tb)
+            self.assertEqual(download.status_code, 200)
+            self.assertIn("-2025-02-01-2025-02-28", download.headers["Content-Disposition"])
+            self.assertNotIn("LIRAa (1)", download.get_data(as_text=True))
+            self.assertEqual(ambiental.get(f"{exportar}/{formato}", query_string=tb).status_code, 404)
+        download = comum.get(f"{exportar}/geojson", query_string=tb)
+        self.assertEqual(download.get_json()["metadata"]["consulta"], tb)
+        regras = [{"field": "data_visita", "match": "gte", "value": periodo["inicio"]},
+                  {"field": "data_visita", "match": "lte", "value": periodo["fim"]},
+                  {"field": "tipo_trabalho", "match": "exact", "value": "TB"},
+                  {"field": "localidade_id", "match": "exact", "value": "1"}]
+        dados = {"titulo": "Recorte do trabalho", "orientacao": "paisagem", "layout": "inferior",
+                 "base": "none", "legenda": True, "centro": [-25.31, -49.30], "zoom": 16,
+                 "camadas": [codigo], "filtros": {codigo: regras}}
+        composicoes = "/api/geovsatt/composicoes"
+        criada = comum.post(composicoes, json=dados)
+        self.assertEqual(criada.status_code, 201, criada.json)
+        item = f"{composicoes}/{criada.json['id_composicao']}"
+        self.assertEqual(comum.get(item).json["configuracao"]["filtros"][codigo], regras)
+        self.assertEqual(comum.post(composicoes, json=dados | {"filtros": {codigo: [regras[0], regras[0]]}}).status_code, 400)
+        superadmin.post("/geovsatt/admin/camadas/quarteiroes", data={"nome": "Quarteirões", "grupo": "Território"})
+        self.assertEqual(comum.get(rota).status_code, 404)
+        self.assertEqual(comum.get(item).json["configuracao"]["filtros"], {})
 
     def test_exportacao_exige_permissao_propria_e_entrega_tres_formatos(self):
         admin = self.client()

@@ -155,6 +155,13 @@
     map.on('resize', schedule);
     return {
       schedule,
+      clearGroup(group) {
+        for (const lista of [centros, eixos]) {
+          for (let i = lista.length - 1; i >= 0; i -= 1) {
+            if (lista[i].options.group === group) lista.splice(i, 1);
+          }
+        }
+      },
       add(layer, nome, options) {
         const point = layer.getLatLng?.();
         const bounds = layer.getBounds?.() || (point && L.latLngBounds([point, point]));

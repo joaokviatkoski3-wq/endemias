@@ -99,7 +99,7 @@ def api_camada(codigo):
                 dados["metadata"] = {"versao": camada["id_versao"]}
                 return current_app.response_class(json.dumps(dados, ensure_ascii=False), mimetype="application/geo+json")
             return current_app.response_class(camada["geojson"], mimetype="application/geo+json")
-        return jsonify(geo.dados_nativos(target, _base_dir(), codigo, usuario))
+        return jsonify(geo.dados_nativos(target, _base_dir(), codigo, usuario, parametros=request.args))
     except camadas.CamadaAusente as exc:
         return jsonify({"erro": str(exc)}), 404
     except ValueError as exc:
@@ -125,12 +125,18 @@ def baixar_camada(codigo, formato):
         dados = equipamentos.geojson(camada, _base_dir()) if codigo == equipamentos.CODIGO else json.loads(camada["geojson"])
         dados["metadata"] = json.loads(camada["metadados"])
     else:
-        dados = geo.dados_nativos(target, _base_dir(), codigo, usuario)
+        try:
+            dados = geo.dados_nativos(target, _base_dir(), codigo, usuario, parametros=request.args)
+        except ValueError as exc:
+            return jsonify({"erro": str(exc)}), 400
     conteudo = exportacao.gerar(dados, camada, formato)
+    consulta = dados.get("metadata", {}).get("consulta") if codigo == "quarteiroes_trabalhados" else None
+    sufixo = f"-{consulta['inicio']}-{consulta['fim']}" if consulta else ""
     audit.registrar_evento(bh.get_db, "geovsatt_camada_exportada", entidade="geovsatt_camada", entidade_id=codigo,
-                           detalhes={"formato": formato, "total": len(dados["features"]), "versao": camada["id_versao"]})
+                           detalhes={"formato": formato, "total": len(dados["features"]), "versao": camada["id_versao"]}
+                           | ({"consulta": consulta} if consulta else {}))
     return send_file(BytesIO(conteudo), mimetype=exportacao.FORMATOS[formato], as_attachment=True,
-                     download_name=f"geovsatt-{codigo}.{formato}", etag=False, max_age=0)
+                     download_name=f"geovsatt-{codigo}{sufixo}.{formato}", etag=False, max_age=0)
 
 
 @bp.route("/api/geovsatt/busca", methods=["GET", "POST"])

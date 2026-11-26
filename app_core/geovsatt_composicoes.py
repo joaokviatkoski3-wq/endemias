@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from app_core import audit, db, geovsatt_catalogo as catalogo
+from app_core import geovsatt_trabalhos as trabalhos_core
 
 
 class ComposicaoAusente(catalogo.CatalogoErro):
@@ -67,6 +68,11 @@ def _validar(payload, permitidas, bases):
                 raise catalogo.CatalogoErro("Informe o campo e o valor do filtro.")
             linhas.append({"field": campo, "match": regra["match"], "value": valor})
         if linhas:
+            if codigo == trabalhos_core.CODIGO:
+                try:
+                    trabalhos_core.validar_regras_composicao(linhas)
+                except ValueError as exc:
+                    raise catalogo.CatalogoErro(str(exc)) from exc
             filtros_validos[codigo] = linhas
     return {"titulo": titulo, "nota": nota, "orientacao": orientacao, "layout": layout, "base": base,
             "legenda": payload["legenda"], "centro": centro, "zoom": zoom, "camadas": camadas, "filtros": filtros_validos}

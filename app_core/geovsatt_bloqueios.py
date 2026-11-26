@@ -2,49 +2,19 @@
 
 from collections import Counter
 
-from shapely import make_valid, orient_polygons
-from shapely.geometry import mapping, shape
+from shapely import orient_polygons
+from shapely.geometry import mapping
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
 from app_core import esporotricose_bloqueio
-
-
-def _partes_poligonais(geometria):
-    if geometria.geom_type == "Polygon":
-        if not geometria.is_empty:
-            yield geometria
-    else:
-        for parte in getattr(geometria, "geoms", ()):
-            yield from _partes_poligonais(parte)
-
-
-def _blocos(malha):
-    agrupados = {}
-    for indice, feicao in enumerate(malha["features"]):
-        geometria = feicao.get("geometry")
-        if not geometria or geometria["type"] not in {"Polygon", "MultiPolygon"}:
-            continue
-        geom = shape(geometria)
-        if not geom.is_valid:
-            geom = make_valid(geom)
-        partes = list(_partes_poligonais(geom))
-        if not partes:
-            continue
-        props = feicao["properties"]
-        numero = props.get("id_quart")
-        localidade = props.get("Localidade_nome")
-        chave = props.get("chave") or ((localidade, numero) if localidade and numero else indice)
-        grupo = agrupados.setdefault(chave, (props, []))
-        grupo[1].extend(partes)
-    return [(props, partes[0] if len(partes) == 1 else unary_union(partes))
-            for props, partes in agrupados.values()]
+from app_core.geovsatt_malha import blocos as agrupar_blocos
 
 
 def calcular(pontos, malha):
     """Calcula o raio nominal e os quarteirões sobrepostos, sem inferir execução."""
     raio_metros = esporotricose_bloqueio.RAIO_METROS
-    blocos = _blocos(malha) if malha else []
+    blocos = agrupar_blocos(malha) if malha else []
     indice = STRtree([geom for _, geom in blocos])
     recortes = {}
     raios = []

@@ -18,6 +18,7 @@
   const layers = new Map();
   const options = [...document.querySelectorAll('[data-layer]:enabled')];
   const legendasPorCamada = new WeakMap();
+  const periodoPorCamada = new WeakMap();
   const filtrosPorCamada = new Map();
   const blockIndex = new Map();
   const localityIndex = new Map();
@@ -49,6 +50,7 @@
   map.createPane('areas').style.zIndex = 300;
   map.createPane('streets').style.zIndex = 310;
   map.createPane('blocks').style.zIndex = 330;
+  map.createPane('block-work').style.zIndex = 335;
   map.createPane('block-coverage').style.zIndex = 342;
   map.createPane('block-radii').style.zIndex = 348;
   map.createPane('imported').style.zIndex = 370;
@@ -286,6 +288,8 @@
       colors: {Realizado: '#166c62', 'Não realizado': '#ae412e', 'Não necessário': '#52698c', 'Sem informação': '#686474'}},
     esporotricose_quarteiroes: {pane: 'block-coverage', color: '#834999', fillOpacity: .22, categories: 'cobertura',
       colors: {Integral: '#834999', Parcial: '#b05e25'}},
+    quarteiroes_trabalhados: {pane: 'block-work', color: '#225483', fillOpacity: .30, categories: 'atividade',
+      colors: {'Mais de um tipo': '#225483'}},
   };
 
   const palette = ['#157157', '#365eb3', '#965331', '#713996', '#9a5821', '#237383', '#a33558', '#626d1e', '#345687',
@@ -300,7 +304,10 @@
     casos_com_bloqueio_realizado: 'Casos com bloqueio realizado',
     casos_com_bloqueio_nao_realizado: 'Casos com bloqueio não realizado',
     casos_com_bloqueio_nao_necessario: 'Casos com bloqueio não necessário',
-    casos_sem_situacao_padronizada: 'Casos sem situação padronizada'};
+    casos_sem_situacao_padronizada: 'Casos sem situação padronizada', tipos_registrados: 'Registros por tipo',
+    total_registros: 'Total de registros de visita', visitas_normais: 'Visitas normais',
+    visitas_fechadas: 'Visitas com imóvel fechado', visitas_recuperadas: 'Visitas recuperadas',
+    visitas_outras_situacoes: 'Registros com outra situação ou sem situação', ultimo_registro: 'Último registro no período'};
   const propertyName = key => propertyLabels[key] || key.replaceAll('_', ' ').replace(/^./, text => text.toLocaleUpperCase('pt-BR'));
   const normalText = text => String(text ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR').trim();
   const detailKeys = props => Object.keys(props).filter(key => !['chave', 'id_localidade', 'Localidade', 'quarteirao_raw'].includes(key)
@@ -334,7 +341,11 @@
     const versaoEditavel = marcarEquipamento && id === 'predios_publicos' && Number.isInteger(data.metadata?.versao);
     const indices = versaoEditavel ? new Map(data.features.map((feature, indice) => [feature, indice])) : null;
     const config = JSON.parse(input.dataset.estilo);
-    const base = Object.hasOwn(defaults, id) ? defaults[id] : {color: '#175cd3'};
+    const base = {...(Object.hasOwn(defaults, id) ? defaults[id] : {color: '#175cd3'})};
+    if (id === 'quarteiroes_trabalhados') {
+      const cores = data.metadata.tipos.filter(tipo => tipo.cor).map(tipo => [tipo.nome, tipo.cor]);
+      base.colors = {...base.colors, ...Object.fromEntries(cores)};
+    }
     const pane = base.pane || (input.dataset.tipo === 'poligono' ? 'areas' : 'imported');
     const category = config.atributo_cor || base.categories;
     const categories = [...new Set(data.features.map(feature => String(feature.properties?.[category] ?? '')).filter(Boolean))]
@@ -393,7 +404,7 @@
           label ??= props.id_quart ? `Q. ${props.id_quart}` : '';
         } else if (id === 'localidades') {
           localityIndex.set(String(props.id_localidade), layer);
-        } else if (id === 'esporotricose_quarteiroes') {
+        } else if (id === 'esporotricose_quarteiroes' || id === 'quarteiroes_trabalhados') {
           name ??= props.rotulo;
         }
         const isLine = /LineString$/.test(feature.geometry.type);
@@ -425,7 +436,7 @@
               action.href = `${mapNode.dataset.ambiental}/esporotricose/doentes/${feature.id}/mapa-bloqueio`;
               action.target = '_blank';
               action.rel = 'noopener noreferrer';
-            } else if (id === 'esporotricose_quarteiroes' && podeRg && props.chave) {
+            } else if ((id === 'esporotricose_quarteiroes' || id === 'quarteiroes_trabalhados') && podeRg && props.chave) {
               action = element('button', 'geo-feature-action', 'Abrir detalhes no RG');
               action.type = 'button';
               action.addEventListener('click', () => {
@@ -433,7 +444,7 @@
                 showBlock(props.Localidade, props.id_quart, blockIndex.get(String(props.chave)) || layer);
               });
             }
-            showFeature(input, props, name, attribute || (id === 'esporotricose_quarteiroes' ? 'rotulo' : ''), event.latlng, action);
+            showFeature(input, props, name, attribute || (name === props.rotulo ? 'rotulo' : ''), event.latlng, action);
           }
         });
       },
@@ -444,7 +455,13 @@
         return valor ? [valor, color(layer.feature) || config.cor || base.color] : null;
       });
     }
-    setupFilters(input, group);
+    if (id === 'quarteiroes_trabalhados') {
+      const {inicio, fim} = data.metadata.consulta;
+      const formatarData = data => data.split('-').reverse().join('/');
+      periodoPorCamada.set(group, `${formatarData(inicio)} a ${formatarData(fim)}`);
+    } else {
+      setupFilters(input, group);
+    }
     return group;
   }
 
@@ -590,8 +607,12 @@
     }});
   }
 
-  function loadLayer(input) {
+  function loadLayer(input, regras) {
     const id = input.dataset.layer;
+    if (id === 'quarteiroes_trabalhados') {
+      const filtros = filtrosPorCamada.get(id);
+      return filtros.consultar(regras ?? filtros.ler());
+    }
     if (!layers.has(id)) {
       const pending = api(`/api/geovsatt/camadas/${encodeURIComponent(id)}`)
         .then(data => buildLayer(input, data))
@@ -633,7 +654,8 @@
         label.title = rules.slice(0, 16).map(([value, color]) => `${value}: ${color}`).join('\n');
         label.dataset.categorias = JSON.stringify(rules);
       }
-      label.append(key, document.createTextNode(input.dataset.nome));
+      const periodo = periodoPorCamada.get(layer);
+      label.append(key, document.createTextNode(input.dataset.nome + (periodo ? ` · ${periodo}` : '')));
       labels.push(label);
     }
     return labels;
@@ -651,13 +673,139 @@
   }
 
   const mapLayers = Object.create(null);
-  async function toggleLayer(input) {
+
+  function configurarFiltrosDeTrabalhos() {
+    const id = 'quarteiroes_trabalhados';
+    const input = options.find(opcao => opcao.dataset.layer === id);
+    const form = document.getElementById('geo-filtros-trabalhos');
+    if (!input || !form) return;
+    const feedback = form.querySelector('[role="status"]');
+    const resumo = form.closest('details').querySelector('summary');
+    const botao = form.querySelector('[type="submit"]');
+    const campos = [['inicio', 'data_visita', 'gte'], ['fim', 'data_visita', 'lte'],
+      ['tipo', 'tipo_trabalho', 'exact'], ['localidade', 'localidade_id', 'exact']];
+    const links = document.querySelectorAll(`[data-export-layer="${id}"] a`);
+    let aplicadas = [];
+    let chaveMapa = null;
+    let statusMapa = '';
+    let requisicao = null;
+
+    const lerRegras = valores => campos.filter(([chave]) => valores[chave])
+      .map(([chave, field, match]) => ({field, match, value: valores[chave]}));
+    const lerParametros = regras => Object.fromEntries(campos.map(([chave, field, match]) => [
+      chave, regras.find(regra => regra.field === field && regra.match === match)?.value || '',
+    ]));
+    const query = valores => new URLSearchParams(campos
+      .map(([campo]) => [campo, valores[campo]]).filter(([, value]) => value)).toString();
+    const quantidade = (total, singular, plural) => `${number(total)} ${total === 1 ? singular : plural}`;
+    function bloquearCampos(bloqueados) {
+      botao.disabled = bloqueados;
+      for (const [campo] of campos) form.elements[campo].disabled = bloqueados;
+    }
+    function atualizarOpcoes(select, linhas, descricao, selecionada) {
+      const opcoes = linhas.map(({codigo, nome}) => new Option(nome, codigo));
+      if (selecionada && !linhas.some(({codigo}) => codigo === selecionada)) opcoes.push(new Option(selecionada, selecionada));
+      select.replaceChildren(new Option(descricao, ''), ...opcoes);
+    }
+
+    function atualizarLinks(parametros) {
+      for (const link of links) {
+        const url = new URL(link.href);
+        url.search = parametros;
+        link.href = url.href;
+      }
+    }
+
+    function registrar(data) {
+      const {consulta, tipos, localidades, registros_no_recorte, registros_sem_malha} = data.metadata;
+      aplicadas = lerRegras(consulta);
+      chaveMapa = query(consulta);
+      atualizarOpcoes(form.elements.tipo, tipos, 'Todos os tipos', consulta.tipo);
+      atualizarOpcoes(form.elements.localidade, localidades, 'Todas as localidades', consulta.localidade);
+      for (const [campo] of campos) form.elements[campo].value = consulta[campo];
+      atualizarLinks(chaveMapa);
+      const quarteiroes = quantidade(data.features.length, 'quarteirão', 'quarteirões');
+      const registros = quantidade(registros_no_recorte, 'registro', 'registros');
+      resumo.textContent = `Filtros das visitas · ${quarteiroes}`;
+      statusMapa = `${quarteiroes} · ${registros} · ${number(registros_sem_malha)} sem geometria`;
+      feedback.textContent = statusMapa;
+    }
+
+    function consultar(regras) {
+      const chave = query(lerParametros(regras));
+      if (requisicao?.chave === chave) return requisicao.promise;
+      requisicao?.controller.abort();
+      requisicao = null;
+      if (chave === chaveMapa) {
+        bloquearCampos(false);
+        feedback.textContent = statusMapa;
+        return Promise.resolve(mapLayers[id]);
+      }
+      const atual = {chave, controller: new AbortController()};
+      requisicao = atual;
+      bloquearCampos(true);
+      feedback.textContent = 'Consultando visitas…';
+      atual.promise = api(`/api/geovsatt/camadas/${id}?${chave}`, {signal: atual.controller.signal})
+        .then(data => {
+          if (requisicao !== atual) return null;
+          if (mapLayers[id]) mapLayers[id].remove();
+          labels.clearGroup(id);
+          const camada = buildLayer(input, data);
+          mapLayers[id] = camada;
+          if (input.checked) camada.addTo(map);
+          registrar(data);
+          updateBounds();
+          labels.schedule();
+          return camada;
+        })
+        .catch(error => {
+          if (requisicao !== atual) return null;
+          feedback.textContent = error.message;
+          throw error;
+        })
+        .finally(() => {
+          if (requisicao === atual) {
+            requisicao = null;
+            bloquearCampos(false);
+          }
+        });
+      return atual.promise;
+    }
+
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      const regras = lerRegras(Object.fromEntries(new FormData(form)));
+      consultar(regras).catch(() => {});
+    });
+    filtrosPorCamada.set(id, {
+      ler: () => aplicadas.slice(),
+      consultar,
+      pendente: () => Boolean(requisicao),
+      async restaurar(regras) {
+        if (input.checked) await consultar(regras);
+        else {
+          requisicao?.controller.abort();
+          requisicao = null;
+          bloquearCampos(false);
+          aplicadas = regras;
+          atualizarLinks(query(lerParametros(regras)));
+        }
+        return 0;
+      },
+    });
+  }
+
+  configurarFiltrosDeTrabalhos();
+
+  async function toggleLayer(input, regras) {
     const id = input.dataset.layer;
     const container = document.getElementById(`geo-filter-${id}`);
     if (input.checked) {
-      const layer = await loadLayer(input);
-      mapLayers[id] = layer;
-      if (input.checked) layer.addTo(map);
+      const layer = await loadLayer(input, regras);
+      if (layer) {
+        mapLayers[id] = layer;
+        if (input.checked) layer.addTo(map);
+      }
     } else if (mapLayers[id]) {
       map.removeLayer(mapLayers[id]);
       if (id === 'quarteiroes') clearHighlight();

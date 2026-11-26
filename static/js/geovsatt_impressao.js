@@ -162,16 +162,17 @@
       const selecionadas = new Set(dados.camadas);
       const resultados = await Promise.allSettled(opcoesCamadas.map(async camada => {
         const codigo = camada.dataset.layer;
+        const regras = dados.filtros[codigo] || [];
         camada.checked = selecionadas.has(codigo);
         try {
-          await alternarCamada(camada);
+          await alternarCamada(camada, regras);
         } catch (erro) {
           if (vista === sessao && dialogo.open) camada.checked = false;
           throw erro;
         }
         if (vista !== sessao || !dialogo.open || !camada.checked) return 0;
-        const regras = dados.filtros[codigo] || [];
-        return acesso.filtrosPorCamada.get(codigo)?.restaurar(regras) ?? regras.length;
+        const filtros = acesso.filtrosPorCamada.get(codigo);
+        return filtros?.consultar ? 0 : (filtros?.restaurar(regras) ?? regras.length);
       }));
       if (vista !== sessao || !dialogo.open) return;
       atualizarCamadas();
@@ -188,7 +189,11 @@
     }
 
     async function operarProjeto(acao, execucao) {
-      if (!dialogo.open || vista.ocupada || vista.pendentes) return;
+      if (!dialogo.open || vista.ocupada) return;
+      if (camadasPendentes()) {
+        status.textContent = 'Aguarde as camadas da folha terminarem de carregar.';
+        return;
+      }
       const sessao = vista;
       sessao.ocupada = true;
       atualizarBotoes();
@@ -262,12 +267,17 @@
       document.body.classList.remove('geo-impressao-aberta');
       medicao.mostrar(true);
       mudarBase(vista.base);
-      for (const [codigo, filtros] of acesso.filtrosPorCamada) filtros.restaurar(vista.filtros.get(codigo) || []);
+      const alternadas = [];
       for (const [camada, selecionada] of vista.camadas) {
         if (camada.checked === selecionada) continue;
         camada.checked = selecionada;
-        camada.dispatchEvent(new Event('change'));
+        alternadas.push(camada);
       }
+      for (const [codigo, filtros] of acesso.filtrosPorCamada) {
+        const resultado = filtros.restaurar(vista.filtros.get(codigo) || []);
+        resultado?.catch?.(() => {});
+      }
+      for (const camada of alternadas) camada.dispatchEvent(new Event('change'));
       map.invalidateSize({animate: false});
       map.setView(vista.centro, vista.zoom, {animate: false});
       botao.focus();
@@ -280,7 +290,7 @@
     });
     formulario.addEventListener('submit', event => {
       event.preventDefault();
-      if (vista.pendentes || vista.ocupada) {
+      if (vista.ocupada || camadasPendentes()) {
         status.textContent = 'Aguarde as camadas da folha terminarem de carregar.';
         return;
       }
@@ -293,6 +303,9 @@
       }
       window.print();
     });
+    function camadasPendentes() {
+      return vista.pendentes || [...acesso.filtrosPorCamada.values()].some(filtro => filtro.pendente?.());
+    }
     new ResizeObserver(ajustarPrevia).observe(rolagem);
     new MutationObserver(() => { if (dialogo.open) atualizarFolha(); }).observe(legendaOriginal, {childList: true});
     map.on('dragend zoomend', () => { if (dialogo.open) atualizarFolha(); });

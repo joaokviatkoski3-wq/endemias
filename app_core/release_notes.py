@@ -4,6 +4,14 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.24.0": {
+        "titulo": "Quarteirões trabalhados no GeoVSATT",
+        "mudancas": [
+            "Filtre as visitas do Endemias e do LIRAa por período, tipo de trabalho e localidade.",
+            "Consulte os totais por tipo e situação ao clicar no quarteirão da malha ativa.",
+            "Preserve o recorte nas composições e nas exportações autorizadas em CSV, GeoJSON e KML.",
+        ],
+    },
     "2.23.0": {
         "titulo": "Raios de bloqueio de esporotricose no GeoVSATT",
         "mudancas": [

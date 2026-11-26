@@ -76,16 +76,33 @@
             <span><strong>{{ camada.nome }}</strong><small>{{ camada.descricao }}</small></span>
             {% if not camada.disponivel %}<em>Em preparação</em>{% endif %}
           </label>
-          {% if camada.disponivel %}<div class="geo-layer-filters" id="geo-filter-{{ camada.id }}" hidden></div>{% endif %}
+          {% if camada.disponivel %}
+          <div class="geo-layer-filters" id="geo-filter-{{ camada.id }}" hidden>
+            {% if camada.id == 'quarteiroes_trabalhados' %}
+            <details>
+              <summary>Filtros das visitas</summary>
+              <form id="geo-filtros-trabalhos" class="geo-trabalhos-filtros">
+                <label>Data inicial <input name="inicio" type="date" required></label>
+                <label>Data final <input name="fim" type="date" required></label>
+                <label>Tipo de trabalho <select name="tipo"><option value="">Todos os tipos</option></select></label>
+                <label>Localidade <select name="localidade"><option value="">Todas as localidades</option></select></label>
+                <button type="submit">Aplicar filtros</button>
+                <small role="status"></small>
+              </form>
+            </details>
+            {% endif %}
+          </div>
+          {% endif %}
           {% if camada.pode_exportar %}
-          <details class="geo-layer-exportar">
+          <details class="geo-layer-exportar" data-export-layer="{{ camada.id }}">
             <summary>Exportar {{ camada.nome }}</summary>
             <div>
               {% for formato in ('csv', 'geojson', 'kml') %}
               <a href="{{ url_for('geovsatt.baixar_camada', codigo=camada.id, formato=formato) }}">{{ {'csv': 'CSV', 'geojson': 'GeoJSON', 'kml': 'KML'}[formato] }}</a>
               {% endfor %}
             </div>
-            <small>Inclui todas as feições que sua conta pode ver na camada.</small>
+            <small>{{ 'Usa o período, o tipo e a localidade aplicados no mapa.' if camada.id == 'quarteiroes_trabalhados'
+              else 'Inclui todas as feições que sua conta pode ver na camada.' }}</small>
           </details>
           {% endif %}
           {% endfor %}
