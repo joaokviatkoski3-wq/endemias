@@ -74,3 +74,4 @@ legend, summary { font-weight: 700; }
 .gc-atalhos .gc-primary { border-radius: 6px; padding: .5rem .75rem; text-decoration: none; font-weight: 700; }
 .gc-aviso { border-radius: 6px; padding: .75rem 1rem; background: #e8f5eb; }
 .gc-aviso-erro { background: #fff0ee; color: #8f1d15; }
+.gc-raster-preview{display:block;max-width:100%;object-fit:contain;border:1px solid var(--border,#d9e5de);border-radius:6px;margin:0 0 .75rem}

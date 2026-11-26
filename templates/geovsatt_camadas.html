@@ -8,6 +8,8 @@
 </div>
 {% endmacro %}
 {% set titulo = {'nova': 'Nova camada GeoJSON', 'atualizar': 'Atualizar camada existente',
+                 'orto_nova': 'Nova ortofoto MBTiles',
+                 'orto_arquivo': 'Importar ortofoto de ' ~ (camada.nome if camada else ''),
                  'arquivo': 'Importar versão de ' ~ (camada.nome if camada else '')}.get(modo, camada.nome if camada else 'Gerenciar camadas') %}
 {% set valores = campos|default({}) %}
 <!doctype html>
@@ -33,17 +35,26 @@
     {% for categoria, mensagem in get_flashed_messages(with_categories=true) %}
       <p role="{{ 'alert' if categoria == 'erro' else 'status' }}" class="gc-aviso gc-aviso-{{ categoria }}">{{ mensagem }}</p>
     {% endfor %}
-    {% if modo in ('nova', 'arquivo') %}
+    {% if modo in ('nova', 'arquivo', 'orto_nova', 'orto_arquivo') %}
+      {% set raster = modo in ('orto_nova', 'orto_arquivo') %}
       <section class="gc-card">
+        {% if raster %}
+        <p class="gc-note">No QGIS, use <strong>Gerar mosaicos XYZ (MBTiles)</strong> com PNG ou JPG. Esta entrada recebe arquivos de até {{ limite_mib }} MiB. A versão fica como rascunho até a publicação.</p>
+        {% else %}
         <p class="gc-note">Use GeoJSON em UTF-8, WGS 84 (EPSG:4326), com até 8 MiB. A versão fica como rascunho até ser publicada.</p>
+        {% endif %}
         <form method="post" enctype="multipart/form-data">
           {{ token() }}
+          {% if raster %}
+          <label>Arquivo MBTiles <input type="file" name="mbtiles" accept=".mbtiles" required></label>
+          {% else %}
           <label>Arquivo GeoJSON <input type="file" name="geojson" accept=".geojson,.json" required></label>
-          {% if modo == 'nova' %}
+          {% endif %}
+          {% if modo in ('nova', 'orto_nova') %}
           <div class="gc-grid">
-            <label>Nome <input name="nome" required maxlength="100" value="{{ valores.get('nome', '') }}" placeholder="Ex.: Bairros"></label>
-            <label>Grupo <input name="grupo" required maxlength="60" value="{{ valores.get('grupo', '') }}" placeholder="Ex.: Território"></label>
-            <label>Código <input name="codigo" required maxlength="60" pattern="[a-z][a-z0-9_\-]{1,59}" value="{{ valores.get('codigo', '') }}" placeholder="Ex.: bairros"></label>
+            <label>Nome <input name="nome" required maxlength="100" value="{{ valores.get('nome', '') }}" placeholder="{{ 'Ex.: Ortofoto 2026' if raster else 'Ex.: Bairros' }}"></label>
+            <label>Grupo <input name="grupo" required maxlength="60" value="{{ valores.get('grupo', 'Imagens e bases' if raster else '') }}" placeholder="Ex.: Território"></label>
+            <label>Código <input name="codigo" required maxlength="60" pattern="[a-z][a-z0-9_\-]{1,59}" value="{{ valores.get('codigo', '') }}" placeholder="{{ 'Ex.: ortofoto-2026' if raster else 'Ex.: bairros' }}"></label>
             <label>Descrição <textarea name="descricao" maxlength="1000" rows="2">{{ valores.get('descricao', '') }}</textarea></label>
           </div>
           {% endif %}
@@ -54,18 +65,21 @@
     {% elif not camada %}
       <nav class="gc-acoes gc-atalhos" aria-label="Atalhos de importação">
         <a class="gc-primary" href="{{ url_for('geovsatt.admin_importar_nova') }}">Nova camada GeoJSON</a>
+        <a href="{{ url_for('geovsatt.admin_importar_ortofoto') }}">Nova ortofoto MBTiles</a>
         {% if modo != 'atualizar' %}<a href="{{ url_for('geovsatt.admin_atualizar') }}">Atualizar camada existente</a>{% endif %}
         <a href="{{ url_for('geovsatt.admin_equipamentos') }}">Cadastro de equipamentos</a>
       </nav>
       <section id="catalogo" class="gc-card">
         <h2>Catálogo</h2>
         <ul class="gc-catalogo">
-          {% for item in camadas if modo != 'atualizar' or item.origem == 'importacao' %}
+          {% for item in camadas if modo != 'atualizar' or item.origem != 'sistema' %}
           <li>
             <a href="{{ url_for('geovsatt.admin_camada', codigo=item.id) }}">{{ item.nome }}</a>
             <span>{{ item.grupo }} · {{ 'Fonte do sistema' if item.origem == 'sistema' else ('Versão ' ~ item.id_versao if item.id_versao else 'Sem publicação') }}</span>
             {% if item.origem == 'importacao' %}
             <a href="{{ url_for('geovsatt.admin_importar', codigo=item.id) }}">Importar versão de {{ item.nome }}</a>
+            {% elif item.origem == 'ortofoto' %}
+            <a href="{{ url_for('geovsatt.admin_importar_ortofoto', codigo=item.id) }}">Importar MBTiles</a>
             {% endif %}
           </li>
           {% else %}
@@ -77,17 +91,21 @@
     {% else %}
       {% set config = camada.config %}
       <p class="gc-note">{{ camada.id }} · {{ 'Fonte do sistema' if camada.origem == 'sistema' else ('Versão ' ~ camada.id_versao if camada.id_versao else 'Sem publicação') }}</p>
-      {% if camada.origem == 'importacao' %}
+      {% if camada.origem in ('importacao', 'ortofoto') %}
       <nav class="gc-acoes gc-atalhos" aria-label="Atalhos desta camada">
+        {% if camada.origem == 'ortofoto' %}
+        <a class="gc-primary" href="{{ url_for('geovsatt.admin_importar_ortofoto', codigo=camada.id) }}">Importar MBTiles</a>
+        {% else %}
         <a class="gc-primary" href="{{ url_for('geovsatt.admin_importar', codigo=camada.id) }}">Importar GeoJSON</a>
+        {% endif %}
         <a href="#versoes">Histórico de versões</a>
         <a href="#configuracao">Permissões e exibição</a>
         {% if camada.id == 'predios_publicos' %}<a href="{{ url_for('geovsatt.admin_equipamentos') }}">Cadastro de equipamentos</a>{% endif %}
       </nav>
       {% elif camada.id == 'quarteiroes' %}
-      <p class="gc-note">Atualize a malha de quarteirões em Endemias, na página Registro Geográfico. O GeoVSATT usa a malha ativa do RG.</p>
+      <p class="gc-note">Com uma malha QGIS publicada, o desenho usa aquela versão. Os detalhes de imóveis e endereços vêm do Registro Geográfico.</p>
       {% elif camada.id == 'localidades' %}
-      <p class="gc-note">Os pontos de referência são derivados da malha ativa de quarteirões.</p>
+      <p class="gc-note">Com polígonos de localidades publicados, o desenho usa aquela versão.</p>
       {% elif camada.id == 'logradouros' %}
       <p class="gc-note">Esta camada usa os eixos de vias institucionais. Para exibir outro arquivo, crie uma camada GeoJSON no catálogo.</p>
       {% endif %}
@@ -135,7 +153,7 @@
           </fieldset>
           <fieldset>
             <legend>Exportação da camada</legend>
-            <label>Contas autorizadas a baixar CSV, GeoJSON e KML
+            <label>Contas autorizadas a baixar {{ 'o arquivo MBTiles' if camada.origem == 'ortofoto' else 'CSV, GeoJSON e KML' }}
               <select name="usuarios_exportacao" multiple size="5" aria-describedby="gc-exportacao-dica">
                 {% for conta in contas %}
                 <option value="{{ conta.id_usuario }}" {{ 'selected' if conta.id_usuario in config.usuarios_exportacao }}>{{ conta.nome }} ({{ conta.usuario }}){{ ' — inativa' if not conta.ativo else '' }}</option>
@@ -144,6 +162,7 @@
             </label>
             <p id="gc-exportacao-dica" class="gc-note">Use Ctrl para selecionar várias contas. Cada pessoa também precisa ter acesso à camada. O superadmin já pode exportar as camadas que administra.</p>
           </fieldset>
+          {% if camada.origem != 'ortofoto' %}
           <fieldset>
             <legend>Exibição no mapa</legend>
             <div class="gc-grid">
@@ -180,28 +199,45 @@
             </div>
             <label class="gc-checkbox"><input type="checkbox" name="visivel_inicial" value="1" {{ 'checked' if config.visivel_inicial }}>Ligar camada automaticamente ao abrir o mapa</label>
           </fieldset>
+          {% endif %}
           <button class="gc-primary" type="submit">Salvar configuração</button>
         </form>
       </section>
-      {% if camada.origem == 'importacao' %}
+      {% if camada.origem in ('importacao', 'ortofoto') %}
       <section id="versoes" class="gc-card">
         <h2>Histórico de versões</h2>
         {% for item in versoes %}
         <details class="gc-versao" {{ 'open' if loop.first }}>
-          <summary>Versão {{ item.id_versao }} · {{ 'Publicada' if item.ativa else ('Anterior' if item.publicada_em else 'Rascunho') }} · {{ item.total }} {{ 'feição' if item.total == 1 else 'feições' }}</summary>
+          <summary>Versão {{ item.id_versao }} · {{ 'Publicada' if item.ativa else ('Anterior' if item.publicada_em else 'Rascunho') }} · {{ item.total }} {{ ('mosaico' if item.total == 1 else 'mosaicos') if item.tipo == 'raster' else ('feição' if item.total == 1 else 'feições') }}</summary>
           <dl>
             <dt>Arquivo</dt><dd>{{ item.arquivo }}</dd>
             <dt>Importada (UTC)</dt><dd>{{ item.criada_em }}</dd>
             <dt>Conta responsável</dt><dd>{{ item.autor_id or 'Importação assistida' }}</dd>
             <dt>SHA-256 do arquivo enviado</dt><dd class="gc-hash">{{ item.sha256 }}</dd>
+            {% if item.tipo == 'raster' %}
+            {% set raster = item.metadados.mbtiles %}
+            <dt>Formato interno</dt><dd>{{ raster.formato | upper }}</dd>
+            <dt>Níveis de zoom</dt><dd>{{ raster.zoom_min }} a {{ raster.zoom_max }}</dd>
+            <dt>Extensão (O, S, L, N)</dt><dd>{{ raster.limites | map('round', 6) | join(', ') }}</dd>
+            <dt>Tamanho</dt><dd>{{ (raster.bytes / 1048576) | round(2) }} MiB</dd>
+            {% endif %}
           </dl>
+          {% if item.tipo == 'raster' %}
+          <img class="gc-raster-preview" loading="lazy" width="160" height="160"
+               src="{{ url_for('geovsatt.admin_arquivo_ortofoto', codigo=camada.id, versao=item.id_versao, acao='amostra') }}"
+               alt="Mosaico de amostra da versão {{ item.id_versao }}">
+          {% endif %}
           <form method="post" action="{{ url_for('geovsatt.admin_metadados', codigo=camada.id, versao=item.id_versao) }}">
             {{ token() }}
             {{ metadados(item.metadados) }}
             <button type="submit">Salvar metadados</button>
           </form>
           <div class="gc-acoes">
+            {% if item.tipo == 'raster' %}
+            <a href="{{ url_for('geovsatt.admin_arquivo_ortofoto', codigo=camada.id, versao=item.id_versao, acao='mbtiles') }}">Baixar MBTiles</a>
+            {% else %}
             <a href="{{ url_for('geovsatt.admin_geojson', codigo=camada.id, versao=item.id_versao) }}">Baixar GeoJSON validado</a>
+            {% endif %}
             {% if not item.ativa %}
             <form method="post" action="{{ url_for('geovsatt.admin_publicar', codigo=camada.id, versao=item.id_versao) }}">
               {{ token() }}
@@ -217,6 +253,6 @@
       {% endif %}
     {% endif %}
   </main>
-  {% if camada and not modo and not camada_mapa %}<script nonce="{{ csp_nonce() }}" src="{{ url_for('static', filename='js/geovsatt_camadas.js', v=APP_VERSION) }}"></script>{% endif %}
+  {% if camada and not modo and not camada_mapa and camada.origem != 'ortofoto' %}<script nonce="{{ csp_nonce() }}" src="{{ url_for('static', filename='js/geovsatt_camadas.js', v=APP_VERSION) }}"></script>{% endif %}
 </body>
 </html>

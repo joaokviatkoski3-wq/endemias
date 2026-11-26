@@ -118,6 +118,14 @@
   let basePending = false;
   let baseFailed = false;
   const baseSelect = document.getElementById('geo-basemap');
+  const ortoInfo = document.getElementById('geo-ortofoto-info');
+  const ortoDownload = document.getElementById('geo-ortofoto-baixar');
+  const lerOrtofoto = () => JSON.parse(baseSelect.selectedOptions[0]?.dataset.ortofoto || 'null');
+  const coberturaOrtofoto = ({limites: [oeste, sul, leste, norte]}) => L.latLngBounds([sul, oeste], [norte, leste]);
+  document.getElementById('geo-ortofoto-enquadrar').addEventListener('click', () => {
+    const orto = lerOrtofoto();
+    if (orto) map.fitBounds(coberturaOrtofoto(orto), {maxZoom: orto.zoom_max, padding: [30, 30]});
+  });
   baseSelect.addEventListener('change', async () => {
     const sequence = ++baseSequence;
     if (activeBasemap) map.removeLayer(activeBasemap);
@@ -127,6 +135,29 @@
     baseFailed = false;
     statusNode.textContent = '';
     const baseLabel = document.getElementById('geo-base-label');
+    const orto = lerOrtofoto();
+    ortoInfo.hidden = !orto;
+    ortoDownload.hidden = true;
+    ortoDownload.removeAttribute('href');
+    if (orto) {
+      const codigo = encodeURIComponent(orto.id);
+      const fonte = [orto.fonte, orto.data_referencia, orto.licenca].filter(Boolean).join(' · ');
+      document.getElementById('geo-ortofoto-fonte').textContent = fonte;
+      if (orto.pode_exportar) {
+        ortoDownload.href = `/geovsatt/camadas/${codigo}/exportar/mbtiles`;
+        ortoDownload.hidden = false;
+      }
+      baseLabel.textContent = orto.nome;
+      activeBasemap = L.tileLayer(`/api/geovsatt/ortofotos/${codigo}/${orto.versao}/{z}/{x}/{y}`, {
+        bounds: coberturaOrtofoto(orto), minNativeZoom: orto.zoom_min, maxNativeZoom: orto.zoom_max,
+        maxZoom: map.getMaxZoom(), noWrap: true, attribution: element('span', '', fonte).innerHTML,
+      }).on('tileerror', () => {
+        if (sequence !== baseSequence) return;
+        baseFailed = true;
+        statusNode.textContent = 'A ortofoto não carregou. Atualize a página para conferir a versão ativa.';
+      }).addTo(map);
+      return;
+    }
     if (baseSelect.value === 'openfreemap') {
       baseLabel.textContent = 'OpenStreetMap · OpenFreeMap';
       statusNode.textContent = 'Carregando a base vetorial…';

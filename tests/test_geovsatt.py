@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError
 from xml.etree import ElementTree as ET
 
+from PIL import Image
 from shapely.geometry import box, mapping, shape
 
 import app
@@ -45,6 +46,7 @@ class GeoVSATTTests(unittest.TestCase):
             "SETORES_ENABLED": True,
             "TERMOS_USO_ENABLED": False,
             "UPLOAD_TEMP": str(self.directory / "uploads"),
+            "ANEXOS_DIR": str(self.directory / "anexos"),
             "BACKUP_DIR": str(self.directory / "backups"),
             "BACKUP_COMPLETO_DIR": str(self.directory / "completos"),
             "KOBO_CONFIG_PATH": str(self.directory / "kobo.json"),
@@ -161,6 +163,95 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(revisada["configuracao"]["base"], "none")
         self.assertEqual(revisada["configuracao"]["camadas"], ["quarteiroes"])
         self.assertEqual(revisada["configuracao"]["filtros"], {})
+
+    def test_ortofoto_privada_com_rascunho_metadados_e_restauracao(self):
+        def arquivo_mbtiles(nome, cor, formato="png"):
+            caminho = self.directory / nome
+            imagem = io.BytesIO()
+            Image.new("RGB", (256, 256), cor).save(imagem, format="JPEG" if formato == "jpg" else "PNG")
+            with closing(sqlite3.connect(caminho)) as conn, conn:
+                conn.executescript("""
+                    CREATE TABLE metadata(name text PRIMARY KEY, value text);
+                    CREATE TABLE tiles(zoom_level integer,tile_column integer,tile_row integer,tile_data blob,
+                                       PRIMARY KEY(zoom_level,tile_column,tile_row));
+                """)
+                conn.execute("INSERT INTO metadata VALUES ('format',?)", (formato,))
+                conn.execute("INSERT INTO tiles VALUES (15,11896,13998,?)", (imagem.getvalue(),))
+            return caminho.read_bytes(), imagem.getvalue()
+
+        admin = self.client()
+        comum = self.client(uid=2)
+        ambiental = self.client(uid=3)
+        importa = "/geovsatt/admin/ortofotos/importar"
+        gestor = "/geovsatt/admin/camadas/ortofoto-ensaio"
+        publico = "/api/geovsatt/ortofotos/ortofoto-ensaio"
+        painel = "/geovsatt/admin/ortofotos/ortofoto-ensaio/"
+        download = "/geovsatt/camadas/ortofoto-ensaio/exportar/mbtiles"
+        catalogo = "/api/geovsatt/catalogo"
+        campos = {"nome": "Ortofoto de ensaio", "codigo": "ortofoto-ensaio", "grupo": "Imagens e bases",
+                  "fonte": "Fonte de ensaio", "data_referencia": "2025-05-10", "licenca": "Uso de ensaio"}
+        bruto1, png1 = arquivo_mbtiles("primeiro.mbtiles", "#11686e")
+        bruto2, jpeg2 = arquivo_mbtiles("segundo.mbtiles", "#8a452d", "jpg")
+        invalido, _ = arquivo_mbtiles("vetorial.mbtiles", "#222222", "pbf")
+        self.assertIn(b'Nova ortofoto MBTiles', admin.get("/geovsatt/admin/camadas").data)
+        self.assertIn(b'name="mbtiles"', admin.get(importa).data)
+        self.assertEqual(comum.get(importa).status_code, 403)
+        self.assertEqual(admin.post(importa, data=campos | {"mbtiles": (io.BytesIO(invalido), "vetorial.mbtiles")}).status_code, 400)
+        self.assertEqual(db.scalar(str(self.path), "SELECT COUNT(*) FROM geovsatt_camadas"), 0)
+        enviada = admin.post(importa, data=campos | {"mbtiles": (io.BytesIO(bruto1), "primeiro.mbtiles")})
+        self.assertEqual(enviada.status_code, 303, enviada.data[:500])
+        self.assertEqual(admin.get(catalogo).json["ortofotos"], [])
+        self.assertIn(b'Mosaico de amostra da', admin.get(gestor).data)
+        self.assertEqual(admin.get(painel + "versoes/1/amostra").data, png1)
+        self.assertEqual(admin.get(gestor + "/versoes/1/geojson").status_code, 404)
+        rota1 = f"{publico}/1/15/11896/18769"
+        rota2 = f"{publico}/2/15/11896/18769"
+        self.assertEqual(admin.get(rota1).status_code, 404)
+        self.assertEqual(comum.get(painel + "versoes/1/amostra").status_code, 403)
+        admin.post(gestor + "/versoes/1/metadados", data=campos | {"fonte": "Fonte revisada"})
+        self.assertEqual(admin.post(gestor + "/versoes/1/publicar").status_code, 303)
+        dados, = admin.get(catalogo).json["ortofotos"]
+        self.assertEqual((dados["versao"], dados["fonte"], dados["zoom_max"]), (1, "Fonte revisada", 15))
+        self.assertEqual(admin.get("/api/geovsatt/camadas/ortofoto-ensaio").status_code, 404)
+        imagem = admin.get(rota1)
+        self.assertEqual((imagem.mimetype, imagem.data), ("image/png", png1))
+        self.assertEqual(imagem.headers["Cache-Control"], "private, no-store")
+        vazia = admin.get(f"{publico}/1/15/11897/18769")
+        with Image.open(io.BytesIO(vazia.data)) as transparente:
+            self.assertEqual(transparente.convert("RGBA").getpixel((0, 0))[3], 0)
+        self.assertEqual(comum.get(rota1).status_code, 404)
+        admin.post(gestor, data=campos | {"usuarios": ["2"]})
+        self.assertEqual(comum.get(rota1).data, png1)
+        self.assertIn(b'value="ortofoto:ortofoto-ensaio"', comum.get("/geovsatt").data)
+        self.assertNotIn(b'value="ortofoto:ortofoto-ensaio"', ambiental.get("/geovsatt").data)
+        self.assertEqual(comum.get(download).status_code, 403)
+        admin.post(gestor, data=campos | {"usuarios": ["2"], "usuarios_exportacao": ["2"]})
+        exportada = comum.get(download)
+        self.addCleanup(exportada.close)
+        self.assertEqual(exportada.data, bruto1)
+        self.assertIn('v1.mbtiles', exportada.headers["Content-Disposition"])
+        composicao = {"titulo": "Ensaio", "orientacao": "paisagem", "layout": "inferior",
+                      "base": dados["base"], "legenda": True, "centro": [-25.3, -49.3], "zoom": 16, "camadas": []}
+        salvas = "/api/geovsatt/composicoes"
+        criada = comum.post(salvas, json=composicao)
+        self.assertEqual(criada.status_code, 201)
+        salva = f"{salvas}/{criada.json['id_composicao']}"
+        self.assertEqual(ambiental.post(salvas, json=composicao).status_code, 400)
+        self.assertEqual(admin.post(painel + "importar", data=campos | {
+            "mbtiles": (io.BytesIO(bruto2), "segundo.mbtiles"),
+        }).status_code, 303)
+        admin.post(gestor + "/versoes/2/publicar")
+        imagem2 = comum.get(rota2)
+        self.assertEqual((imagem2.mimetype, imagem2.data), ("image/jpeg", jpeg2))
+        self.assertEqual(comum.get(rota1).status_code, 404)
+        self.assertEqual(comum.get(salva).json["configuracao"]["base"], dados["base"])
+        admin.post(gestor + "/versoes/1/publicar")
+        self.assertEqual(comum.get(rota1).data, png1)
+        self.assertEqual(comum.get(rota2).status_code, 404)
+        admin.post(gestor, data=campos)
+        self.assertEqual(comum.get(rota1).status_code, 404)
+        self.assertEqual(comum.get(download).status_code, 404)
+        self.assertTrue(comum.get(salva).json["base_indisponivel"])
 
     def test_estimativa_area_parcial_usa_cadastro_rg_sem_duplicar_blocos(self):
         def poligono(x1, x2, chave=None):

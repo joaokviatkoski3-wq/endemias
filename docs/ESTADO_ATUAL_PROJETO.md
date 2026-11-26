@@ -93,6 +93,8 @@ regras de trabalho e isolamento de testes.
   A camada de execução por quarteirão depende do registro de campo.
   A candidata 2.24.0 acrescenta os quarteirões trabalhados do Endemias e
   LIRAa, com filtros por período, tipo e localidade, impressão e exportação.
+  A candidata 2.25.0 acrescenta ortofotos MBTiles com publicação por versão,
+  permissões e uso em composições. O acervo fornecido até aqui é vetorial.
 - **Biblioteca VSATT** (`biblioteca.vsatt.com.br`, nome provisório). Acervo
   interno de referências de Vigilância em Saúde, com documentos, links,
   vídeos e imagens.

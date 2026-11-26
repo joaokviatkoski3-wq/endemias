@@ -17,6 +17,7 @@ from app_core import esporotricose_bloqueio
 from app_core import geovsatt_bloqueios as bloqueios_core
 from app_core import geovsatt_busca as busca_core
 from app_core import geovsatt_catalogo as catalogo_core
+from app_core import geovsatt_ortofotos as ortofotos_core
 from app_core import geovsatt_trabalhos as trabalhos_core
 from app_core import ovitrampas as ovitrampas_core
 from app_core import permissoes
@@ -231,11 +232,24 @@ def catalogo(target, usuario):
         | ({"tipo": fontes[FONTES_TERRITORIAIS[camada["id"]]]["tipo"]}
            if FONTES_TERRITORIAIS.get(camada["id"]) in fontes else
            {"tipo": "ponto"} if camada["id"] == "localidades" else {})
-        for camada in visiveis if camada["id"] not in FONTES_TERRITORIAIS.values()
+        for camada in visiveis if camada["id"] not in FONTES_TERRITORIAIS.values() and camada["origem"] != "ortofoto"
     ]
     camadas.extend(dict(item) for item in CAMADAS if item["id"] not in cadastradas)
+    ortofotos = []
+    for camada in visiveis:
+        if camada["origem"] != "ortofoto" or not camada["disponivel"]:
+            continue
+        metadados = json.loads(camada["metadados"])
+        ortofotos.append({
+            "id": camada["id"], "base": ortofotos_core.PREFIXO_BASE + camada["id"], "versao": camada["id_versao"],
+            "nome": camada["nome"], "fonte": metadados["fonte"], "licenca": metadados["licenca"],
+            "data_referencia": metadados["data_referencia"], "limites": metadados["mbtiles"]["limites"],
+            "zoom_min": metadados["mbtiles"]["zoom_min"], "zoom_max": metadados["mbtiles"]["zoom_max"],
+            "pode_exportar": pode_exportar_camada(target, camada, usuario, cadastradas=cadastradas),
+        })
     return {
         "camadas": camadas,
+        "ortofotos": ortofotos,
         "pode_configurar": gerencia,
         "gestao_disponivel": gerencia,
     }

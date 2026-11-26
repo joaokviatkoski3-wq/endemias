@@ -116,9 +116,20 @@
               <option value="openfreemap">OpenStreetMap · OpenFreeMap</option>
               <option value="sentinel">Satélite Sentinel-2 (2025)</option>
               {% if esri_licenciado %}<option value="esri">Satélite Esri World Imagery</option>{% endif %}
+              {% if catalogo.ortofotos %}
+              <optgroup label="Ortofotos">
+                {% for orto in catalogo.ortofotos %}
+                <option value="{{ orto.base }}" data-ortofoto="{{ orto | tojson | forceescape }}">{{ orto.nome }}</option>
+                {% endfor %}
+              </optgroup>
+              {% endif %}
             </select>
           </label>
-          <div class="geo-layer-row is-pending"><span class="geo-layer-symbol geo-layer-symbol--raster"></span><span><strong>Ortofotos</strong><small>Versões e metadados serão adicionados depois.</small></span><em>Futuro</em></div>
+          <div id="geo-ortofoto-info" class="geo-ortofoto-info" hidden>
+            <span id="geo-ortofoto-fonte"></span>
+            <button id="geo-ortofoto-enquadrar" type="button">Enquadrar ortofoto</button>
+            <a id="geo-ortofoto-baixar" hidden>Baixar MBTiles</a>
+          </div>
         </section>
       </div>
     </aside>

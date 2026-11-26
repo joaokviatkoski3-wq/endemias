@@ -239,7 +239,7 @@
       salvas.replaceChildren(new Option('Selecione uma composição', ''));
       atualizarBotoes();
       atualizarCamadas();
-      base.replaceChildren(...Array.from(seletorBase.options, opcao => opcao.cloneNode(true)));
+      base.replaceChildren(...Array.from(seletorBase.children, opcao => opcao.cloneNode(true)));
       base.value = vista.base;
       medicoes.checked = true;
       status.textContent = instrucao;

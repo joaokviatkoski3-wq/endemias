@@ -4,7 +4,7 @@ Atualizado em 26/11/2026.
 
 ## Estado deste incremento
 
-A versão `2.24.0` reúne as alterações descritas a seguir. Consulte
+A versão `2.25.0` reúne as alterações descritas a seguir. Consulte
 `ESTADO_ATUAL_PROJETO.md` para confirmar qual versão está em produção.
 
 Implementado:
@@ -29,13 +29,11 @@ Implementado:
 
 Limites explícitos:
 
-- a camada Localidades deste incremento é representativa; não declara limites oficiais;
-- Bairros, hidrografia, satélite e ortofotos permanecem sem geometria até entrada de fonte
-  oficial e metadados;
-- as camadas operacionais sensíveis ainda não foram expostas;
-- as três camadas do sistema aceitam configuração de acesso e visualização. O RG
-  continua sendo a fonte dos quarteirões e o acesso aos seus detalhes exige acesso
-  a Endemias. A publicação de vetores via catálogo usa camadas de importação;
+- bairros, hidrografia e ortofotos aparecem conforme as versões publicadas no catálogo;
+- as camadas operacionais exigem as permissões do catálogo e do setor de origem;
+- a malha de quarteirões do QGIS é a geometria principal quando publicada e
+  disponível para a conta. Os detalhes de imóveis e endereços vêm do RG e
+  exigem acesso a Endemias;
 - a configuração do endereço público e do Tunnel é administrada separadamente.
 
 ## Contratos iniciais
@@ -244,21 +242,39 @@ importação, publicação e edição de metadados geram eventos de auditoria.
   autorizadas. O catálogo administra a visibilidade e os estilos da camada.
   O acesso também exige o setor Endemias e a camada Quarteirões.
 
+## Ortofotos na 2.25.0
+
+- No QGIS, deixe visível a ortofoto desejada e use **Gerar mosaicos XYZ
+  (MBTiles)**. Defina a extensão, uma sequência de níveis de zoom e o
+  formato PNG ou JPG. O tamanho máximo de upload aparece no formulário
+  do GeoVSATT e depende da entrada de rede.
+  [Documentação do QGIS](https://docs.qgis.org/3.44/en/docs/user_manual/processing_algs/qgis/rastertools.html#generate-xyz-tiles-mbtiles)
+- Acesse **Gerenciar camadas → Nova ortofoto MBTiles**. Informe a fonte,
+  data de referência e condição de uso. O rascunho mostra um mosaico,
+  extensão, quantidade, formato, zoom e SHA-256. O histórico permite
+  publicar uma versão, editar seus metadados ou restaurar outra.
+- As contas autorizadas encontram a ortofoto em **Mapa-base → Ortofotos**
+  e podem enquadrar sua cobertura. A atribuição aparece no mapa e na
+  folha de impressão. Composições usam a versão publicada vigente.
+  Baixar o MBTiles completo exige a autorização de exportação da camada.
+- O arquivo original é preservado na pasta privada de anexos, dentro
+  de `geovsatt-ortofotos`. O backup completo deve preservar essa pasta e
+  o banco que contém o catálogo. A restauração deve recuperar os dois.
+
 ## Próximos incrementos
 
 1. Usar a camada nativa `heatmap` do MapLibre para futuros mapas de densidade,
    com filtros por período e respeito às permissões e à agregação de cada fonte.
    [Documentação OpenFreeMap](https://openfreemap.org/quick_start/) ·
    [Estilos MapLibre](https://maplibre.org/maplibre-style-spec/layers/#heatmap)
-2. Adicionar ortofotos com atribuição, metadados e regras de exportação.
-3. Nominatim como geocodificação complementar para vias e lugares públicos.
+2. Nominatim como geocodificação complementar para vias e lugares públicos.
    Priorizar instância própria ou provedor contratado no uso recorrente.
    A instância pública exige atribuição, identificação da aplicação, limite
    agregado de uma consulta por segundo, provedor substituível e ausência de
    autocomplete ou dados confidenciais. O resultado externo deve indicar a
    fonte e a precisão. O vínculo oficial com o quarteirão vem do RG.
    [Política do Nominatim público](https://operations.osmfoundation.org/policies/nominatim/)
-4. Camadas de suspeitas de dengue e coletas de tubos com coordenadas. Evoluir
+3. Camadas de suspeitas de dengue e coletas de tubos com coordenadas. Evoluir
    consultas temporais e incorporar raios de ovitrampas positivas com a regra
    operacional definida pelo setor.
 

@@ -95,11 +95,12 @@ def _camada(row, base=None):
     config = configuracao_padrao(base) | json.loads(camada.pop("configuracao"))
     if camada["codigo"] == "limite-municipal" and not config.get("abertura_configurada"):
         config["visivel_inicial"] = True
+    ortofoto = config.get("formato") == "mbtiles"
     camada.update(
         id=camada["codigo"], config=config, visivel_inicial=config["visivel_inicial"],
         disponivel=bool(base or camada["id_versao"]),
-        origem="sistema" if base else "importacao",
-        tipo=base["tipo"] if base else camada["tipo"] or "vetor",
+        origem="sistema" if base else "ortofoto" if ortofoto else "importacao",
+        tipo=base["tipo"] if base else "raster" if ortofoto else camada["tipo"] or "vetor",
     )
     return camada
 
@@ -111,13 +112,13 @@ def _consulta_camadas(campos_versao):
 
 def listar(target, bases):
     camadas = {codigo: camada_base(base) for codigo, base in bases.items()}
-    for row in db.query(target, _consulta_camadas("v.id_versao,v.tipo")):
+    for row in db.query(target, _consulta_camadas("v.id_versao,v.tipo,CASE WHEN v.tipo='raster' THEN v.metadados END AS metadados")):
         camadas[row["codigo"]] = _camada(row, bases.get(row["codigo"]))
     return sorted(camadas.values(), key=lambda item: (item["grupo"].casefold(), item["nome"].casefold()))
 
 
 def obter(target, codigo, bases, *, incluir_dados=False):
-    campos = "v.id_versao,v.tipo,v.total,v.metadados"
+    campos = "v.id_versao,v.tipo,v.total,v.metadados,v.sha256"
     if incluir_dados:
         campos += ",v.geojson"
     row = db.query_one(target, _consulta_camadas(campos) + " WHERE c.codigo = ?", (codigo,))
@@ -252,6 +253,10 @@ def salvar_camada(target, codigo, form, bases, *, nova=False):
         if nova:
             _criar_camada(conn, codigo, (nome, grupo, descricao, config), bases)
         elif codigo not in bases:
+            _bloquear_camada(conn, codigo)
+            anterior = conn.execute("SELECT configuracao FROM geovsatt_camadas WHERE codigo=?", (codigo,)).fetchone()
+            if anterior and json.loads(anterior[0]).get("formato") == "mbtiles":
+                config["formato"] = "mbtiles"
             alteracao = conn.execute(
                 "UPDATE geovsatt_camadas SET nome=?,grupo=?,descricao=?,configuracao=? WHERE codigo=?",
                 (nome, grupo, descricao, json.dumps(config), codigo),
@@ -412,6 +417,13 @@ def _exigir_versao(atualizacao):
 def editar_metadados(target, codigo, versao, form):
     metadados = _metadados(form)
     with _escrita(target) as conn:
+        _bloquear_camada(conn, codigo)
+        anterior = conn.execute("SELECT metadados FROM geovsatt_versoes WHERE codigo=? AND id_versao=?",
+                                (codigo, versao)).fetchone()
+        if anterior:
+            mbtiles = json.loads(anterior[0]).get("mbtiles")
+            if mbtiles:
+                metadados["mbtiles"] = mbtiles
         _exigir_versao(conn.execute(
             "UPDATE geovsatt_versoes SET metadados=? WHERE codigo=? AND id_versao=?",
             (json.dumps(metadados), codigo, versao),

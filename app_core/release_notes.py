@@ -4,6 +4,14 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.25.0": {
+        "titulo": "Ortofotos no GeoVSATT",
+        "mudancas": [
+            "O superadmin pode importar ortofotos MBTiles do QGIS, conferir a amostra e publicar uma versão.",
+            "A ortofoto publicada aparece no seletor Mapa-base com fonte, data, condições de uso e opção de enquadrar.",
+            "Use a ortofoto nas composições para impressão. O download completo exige autorização própria.",
+        ],
+    },
     "2.24.0": {
         "titulo": "Quarteirões trabalhados no GeoVSATT",
         "mudancas": [

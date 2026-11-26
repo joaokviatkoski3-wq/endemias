@@ -1,5 +1,6 @@
 from io import BytesIO
 import json
+import sqlite3
 
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
 
@@ -11,6 +12,7 @@ from app_core import geovsatt_catalogo as camadas
 from app_core import geovsatt_composicoes as composicoes
 from app_core import geovsatt_equipamentos as equipamentos
 from app_core import geovsatt_exportacao as exportacao
+from app_core import geovsatt_ortofotos as ortofotos
 from app_core import setores
 from app_core.auth import login_required
 
@@ -66,8 +68,10 @@ def api_composicoes(identificador=None):
     uid = usuario["id_usuario"]
     if identificador is None and request.method == "GET":
         return jsonify(composicoes.listar(target, uid))
-    permitidas = {item["id"] for item in geo.catalogo(target, usuario)["camadas"] if item["disponivel"]}
+    catalogo = geo.catalogo(target, usuario)
+    permitidas = {item["id"] for item in catalogo["camadas"] if item["disponivel"]}
     bases = {"none", "openfreemap", "sentinel"}
+    bases.update(orto["base"] for orto in catalogo["ortofotos"])
     if current_app.config["GEOVSATT_ESRI_LICENSED"]:
         bases.add("esri")
     try:
@@ -91,7 +95,7 @@ def api_camada(codigo):
     target = bh.db_target()
     try:
         camada = _obter(codigo, incluir_dados=True)
-        if not camada["disponivel"] or not geo.pode_ver_camada(target, camada, usuario):
+        if camada["origem"] == "ortofoto" or not camada["disponivel"] or not geo.pode_ver_camada(target, camada, usuario):
             raise camadas.CamadaAusente("Camada não encontrada.")
         if camada["origem"] == "importacao":
             if codigo == equipamentos.CODIGO:
@@ -109,7 +113,7 @@ def api_camada(codigo):
 @bp.get("/geovsatt/camadas/<codigo>/exportar/<formato>")
 @login_required
 def baixar_camada(codigo, formato):
-    if formato not in exportacao.FORMATOS:
+    if formato not in {*exportacao.FORMATOS, "mbtiles"}:
         abort(404)
     usuario = bh.usuario_atual()
     target = bh.db_target()
@@ -119,8 +123,18 @@ def baixar_camada(codigo, formato):
         abort(404)
     if not camada["disponivel"] or not geo.pode_ver_camada(target, camada, usuario):
         abort(404)
+    if (camada["origem"] == "ortofoto") != (formato == "mbtiles"):
+        abort(404)
     if not geo.pode_exportar_camada(target, camada, usuario):
         abort(403)
+    if formato == "mbtiles":
+        try:
+            path = _arquivo_ortofoto(camada)
+        except camadas.CamadaAusente:
+            abort(404)
+        audit.registrar_evento(bh.get_db, "geovsatt_camada_exportada", entidade="geovsatt_camada", entidade_id=codigo,
+                               detalhes={"formato": formato, "total": camada["total"], "versao": camada["id_versao"]})
+        return _enviar_ortofoto(path, codigo, camada["id_versao"])
     if camada["origem"] == "importacao":
         dados = equipamentos.geojson(camada, _base_dir()) if codigo == equipamentos.CODIGO else json.loads(camada["geojson"])
         dados["metadata"] = json.loads(camada["metadados"])
@@ -137,6 +151,42 @@ def baixar_camada(codigo, formato):
                            | ({"consulta": consulta} if consulta else {}))
     return send_file(BytesIO(conteudo), mimetype=exportacao.FORMATOS[formato], as_attachment=True,
                      download_name=f"geovsatt-{codigo}{sufixo}.{formato}", etag=False, max_age=0)
+
+
+def _arquivo_ortofoto(versao):
+    path = ortofotos.caminho(current_app.config["ANEXOS_DIR"], versao["sha256"])
+    if not path.is_file():
+        raise camadas.CamadaAusente("Arquivo de ortofoto indisponível.")
+    return path
+
+
+def _enviar_ortofoto(path, codigo, versao):
+    return send_file(path, mimetype="application/octet-stream", as_attachment=True,
+                     download_name=f"geovsatt-{codigo}-v{versao}.mbtiles", etag=False, max_age=0)
+
+
+def _responder_mosaico(item, z, x, y):
+    try:
+        mosaico = ortofotos.mosaico(_arquivo_ortofoto(item), item, z, x, y)
+    except (camadas.CatalogoErro, OSError, sqlite3.DatabaseError):
+        abort(503)
+    conteudo, tipo = mosaico or (ortofotos.TRANSPARENTE, "image/png")
+    return current_app.response_class(conteudo, mimetype=tipo)
+
+
+@bp.get("/api/geovsatt/ortofotos/<codigo>/<int:versao>/<int:z>/<int:x>/<int:y>")
+@login_required
+def mosaico_ortofoto(codigo, versao, z, x, y):
+    target = bh.db_target()
+    try:
+        camada = _obter(codigo)
+    except camadas.CamadaAusente:
+        abort(404)
+    if (camada["origem"] != "ortofoto" or camada["id_versao"] != versao
+            or not geo.pode_ver_camada(target, camada, bh.usuario_atual())):
+        abort(404)
+    camada["metadados"] = json.loads(camada["metadados"])
+    return _responder_mosaico(camada, z, x, y)
 
 
 @bp.route("/api/geovsatt/busca", methods=["GET", "POST"])
@@ -318,6 +368,45 @@ def admin_importar_nova():
     return _voltar(codigo, "versoes")
 
 
+@bp.route("/geovsatt/admin/ortofotos/importar", methods=["GET", "POST"])
+@bp.route("/geovsatt/admin/ortofotos/<codigo>/importar", methods=["GET", "POST"])
+@login_required
+@superadmin
+def admin_importar_ortofoto(codigo=None):
+    camada = None
+    if codigo is not None:
+        try:
+            camada = _obter(codigo)
+        except camadas.CamadaAusente:
+            abort(404)
+        if camada["origem"] != "ortofoto":
+            abort(404)
+    limite = current_app.config["MAX_CONTENT_LENGTH"] - 256 * 1024
+    status = 200
+    if request.method == "POST":
+        codigo = codigo or request.form.get("codigo", "").strip()
+        try:
+            arquivo = request.files.get("mbtiles")
+            if not arquivo:
+                raise camadas.CatalogoErro("Selecione o arquivo MBTiles.")
+            reservados = {item["id"] for item in geo.CAMADAS} | set(geo.FONTES_TERRITORIAIS.values()) | {"limite-municipal"}
+            versao = ortofotos.importar(bh.db_target(), current_app.config["ANEXOS_DIR"], codigo, arquivo,
+                                       request.form, reservados, bh.usuario_atual()["id_usuario"], limite,
+                                       nova=camada is None)
+            flash(f"Ortofoto importada como rascunho na versão {versao}.", "ok")
+            return _voltar(codigo, "versoes")
+        except camadas.CatalogoErro as exc:
+            flash(str(exc), "erro")
+            status = 400
+        except OSError:
+            current_app.logger.exception("Falha no armazenamento de uma ortofoto.")
+            flash("O arquivo de ortofoto não pôde ser armazenado.", "erro")
+            status = 503
+    return render_template("geovsatt_camadas.html", camada=camada,
+                           modo="orto_arquivo" if camada else "orto_nova",
+                           campos=request.form, limite_mib=limite // (1024 * 1024)), status
+
+
 def _arquivo_geojson():
     arquivo = request.files.get("geojson")
     if not arquivo:
@@ -378,6 +467,8 @@ def admin_importar(codigo):
         camada = _obter(codigo)
     except camadas.CamadaAusente:
         abort(404)
+    if camada["origem"] == "ortofoto":
+        abort(404)
     if request.method == "GET":
         return render_template("geovsatt_camadas.html", camada=camada, modo="arquivo")
     try:
@@ -398,8 +489,30 @@ def admin_geojson(codigo, versao):
         item = camadas.obter_versao(bh.db_target(), codigo, versao)
     except camadas.CamadaAusente:
         abort(404)
+    if item["tipo"] == "raster":
+        abort(404)
     return current_app.response_class(item["geojson"], mimetype="application/geo+json",
                                       headers={"Content-Disposition": f'attachment; filename="versao-{versao}.geojson"'})
+
+
+@bp.get("/geovsatt/admin/ortofotos/<codigo>/versoes/<int:versao>/<acao>")
+@login_required
+@superadmin
+def admin_arquivo_ortofoto(codigo, versao, acao):
+    if acao not in {"amostra", "mbtiles"}:
+        abort(404)
+    try:
+        item = camadas.obter_versao(bh.db_target(), codigo, versao)
+        if item["tipo"] != "raster":
+            abort(404)
+        if acao == "mbtiles":
+            path = _arquivo_ortofoto(item)
+            audit.registrar_evento(bh.get_db, "geovsatt_camada_exportada", entidade="geovsatt_camada", entidade_id=codigo,
+                                   detalhes={"formato": "mbtiles", "total": item["total"], "versao": versao})
+            return _enviar_ortofoto(path, codigo, versao)
+    except camadas.CamadaAusente:
+        abort(404)
+    return _responder_mosaico(item, *item["metadados"]["mbtiles"]["amostra"])
 
 
 @bp.post("/geovsatt/admin/camadas/<codigo>/versoes/<int:versao>/metadados")
@@ -419,6 +532,9 @@ def admin_metadados(codigo, versao):
 @superadmin
 def admin_publicar(codigo, versao):
     try:
+        camada = _obter(codigo)
+        if camada["origem"] == "ortofoto":
+            _arquivo_ortofoto(camadas.obter_versao(bh.db_target(), codigo, versao))
         camadas.publicar(bh.db_target(), codigo, versao)
         flash(f"Versão {versao} publicada no mapa.", "ok")
     except camadas.CatalogoErro as exc:
