@@ -299,16 +299,44 @@ importação, publicação e edição de metadados geram eventos de auditoria.
   [API de busca](https://nominatim.org/release-docs/latest/api/Search/) ·
   [Política da instância pública](https://operations.osmfoundation.org/policies/nominatim/)
 - **Instalar GeoVSATT** usa o manifesto e o service worker próprios. O cache
-  HTTP instala apenas a interface de entrada offline e arquivos públicos.
-  A API gera um pacote datado das camadas selecionadas, reaplicando o acesso
-  e a permissão de download e registrando a geração na auditoria. O
-  armazenamento criptografado e o uso da cópia no dispositivo seguem em
-  desenvolvimento nesta candidata.
+  HTTP instala arquivos públicos e a entrada do mapa offline. Camadas,
+  fichas e composições ficam criptografadas no aparelho com uma senha
+  exclusiva da cópia. O navegador usa a cópia por até sete dias.
+
+## Mapa offline no aparelho
+
+1. No Chrome do Android, entre por HTTPS, abra o menu lateral e escolha
+   **Instalar GeoVSATT**. O menu do Chrome também oferece a instalação.
+2. Em **Preparar mapa offline**, selecione os vetores e as ortofotos
+   autorizados. Ative **Incluir as fichas de endereço do Registro Geográfico**
+   se precisar dos endereços dos quarteirões no aparelho. Quarteirões
+   trabalhados usa o período e os tipos selecionados no mapa. Para
+   ortofotos grandes, aproxime o mapa e mantenha a opção de área visível.
+3. Crie uma senha exclusiva e use **Baixar e proteger cópia**. O limite da
+   cópia é de 50 MiB. A substituição é concluída depois da criptografia e
+   da gravação. A senha da cópia anterior preserva as composições locais.
+4. Use **Abrir cópia offline** ou abra o app sem conexão. Digite a senha da
+   cópia. É possível consultar as feições e os endereços preparados, filtrar
+   feições, usar mapas de calor e ortofotos baixadas, medir distância e área,
+   estimar população com os quarteirões do pacote e compor ou imprimir a
+   folha. As exportações em CSV, GeoJSON e KML usam os dados da cópia.
+   Composições criadas offline ficam no aparelho.
+
+A cópia usa IndexedDB e Web Crypto com AES-GCM e uma chave derivada da senha
+por PBKDF2-HMAC-SHA256. O servidor reaplica a permissão de download de cada
+camada e registra a geração na auditoria. O acesso é verificado quando o
+servidor responde ao abrir a cópia ou retornar a conexão. Sair da sessão
+bloqueia a cópia. Sua remoção apaga também as composições locais.
+
+Nominatim, BrasilAPI, ViaCEP, imagens externas e a administração do catálogo
+usam conexão. As ortofotos baixadas aparecem como opções de mapa-base da
+cópia. A validação em Chrome Android físico está pendente.
+[Recorte de polígonos](https://github.com/mfogel/polygon-clipping)
 
 ## Próximos incrementos
 
-1. Completar o pacote cartográfico offline e homologar download, abertura
-   sem conexão e atualização no Android.
+1. Homologar instalação, download, abertura sem conexão, impressão e
+   atualização com superadmin e conta comum em Chrome Android físico.
 2. Camadas de suspeitas de dengue e coletas de tubos com coordenadas. Evoluir
    consultas temporais e incorporar raios de ovitrampas positivas com a regra
    operacional definida pelo setor.

@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="pt-BR" data-versao="{{ APP_VERSION }}" data-setor="geo">
+<html lang="pt-BR" data-versao="{{ APP_VERSION }}" data-setor="geo"{% if modo_offline %} data-offline="1"{% endif %}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>GeoVSATT · Vigilância em Saúde</title>
+  <meta name="csrf-token" content="{{ '' if modo_offline else csrf_token() }}">
+  <title>{{ titulo or 'GeoVSATT · Vigilância em Saúde' }}</title>
   <meta name="theme-color" content="#00752b">
   <link rel="manifest" href="{{ url_for('geovsatt.manifest_mapa') }}">
   <link rel="icon" type="image/png" href="/static/img/geovsatt-logo.png?v={{ APP_VERSION }}">
@@ -22,23 +22,38 @@
   </script>
 </head>
 <body class="geo-app">
+  {% if modo_offline %}
+  <main id="geo-desbloquear" class="geo-campo-entrada">
+    <img src="/static/img/geovsatt-symbol.svg?v={{ APP_VERSION }}" alt="" width="80" height="50">
+    <h1>GeoVSATT offline</h1>
+    <p id="geo-campo-disponibilidade" role="status">Verificando a cópia deste aparelho…</p>
+    <form id="geo-campo-abrir" hidden>
+      <label>Senha da cópia offline <input name="senha" type="password" maxlength="128" autocomplete="off" required></label>
+      <button type="submit">Abrir mapa</button>
+    </form>
+    <a href="{{ url_for('geovsatt.page') }}">Conectar ao GeoVSATT</a>
+  </main>
+  {% else %}
   {% include "_ambiente_teste_faixa.html" %}
-  <div class="geo-shell" data-pode-rg="{{ '1' if pode_rg else '0' }}">
+  {% endif %}
+  <div class="geo-shell" data-pode-rg="{{ '1' if pode_rg else '0' }}"{% if modo_offline %} hidden{% else %} data-conta="{{ conta_geo }}"{% endif %}>
     <header class="geo-header">
       <button id="geo-menu-open" class="geo-icon-button" type="button" aria-controls="geo-sidebar" aria-expanded="false" aria-label="Abrir menu de camadas">
         <img src="/static/icons/menu.svg" alt="">
       </button>
       <a class="geo-brand" href="/geovsatt" aria-label="GeoVSATT - início">
         <img src="/static/img/geovsatt-symbol.svg?v={{ APP_VERSION }}" alt="">
-        <span><strong>GeoVSATT</strong><small>Vigilância em Saúde</small></span>
+        <span><strong>GeoVSATT</strong><small>{{ 'Mapa offline' if modo_offline else 'Vigilância em Saúde' }}</small></span>
       </a>
       <form id="geo-search" class="geo-search" role="search">
         <label class="sr-only" for="geo-search-input">Buscar endereço, CEP, localidade ou quarteirão</label>
         <select id="geo-search-source" aria-label="Tipo de busca">
           <option value="rg">Endereço / RG</option>
+          {% if not modo_offline %}
           <option value="cep">CEP / BrasilAPI</option>
           <option value="logradouro">Rua → CEP</option>
           {% if nominatim %}<option value="nominatim">Lugares / Nominatim</option>{% endif %}
+          {% endif %}
         </select>
         <input id="geo-search-input" name="q" type="search" autocomplete="off" enterkeyhint="search"
                maxlength="180" placeholder="Rua e número, localidade ou quarteirão" aria-controls="geo-search-results">
@@ -47,6 +62,9 @@
         <span id="geo-search-feedback" class="sr-only" role="status"></span>
       </form>
       <nav class="geo-header-actions" aria-label="Conta e navegação">
+        {% if modo_offline %}
+        <a href="{{ url_for('geovsatt.page') }}">Conectar ao GeoVSATT</a>
+        {% else %}
         {% if catalogo.pode_configurar %}<a href="{{ url_for('geovsatt.admin_catalogo') }}">Gerenciar camadas</a>{% endif %}
         <a href="{{ PORTAL_VSATT_URL or '/' }}">Portal VSATT</a>
         <span>{{ usuario_atual.nome.split()[0] }}</span>
@@ -54,6 +72,7 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit">Sair</button>
         </form>
+        {% endif %}
       </nav>
     </header>
 
@@ -66,15 +85,34 @@
         {% if catalogo.pode_configurar %}
         <a class="geo-admin-note" href="{{ url_for('geovsatt.admin_catalogo') }}"><strong>Gerenciar camadas</strong><span>Importar GeoJSON e publicar novas versões</span></a>
         {% endif %}
+        {% if modo_offline %}
+        <section class="geo-layer-group geo-campo-menu">
+          <p id="geo-campo-snapshot"></p>
+          <button id="geo-campo-bloquear" type="button">Bloquear cópia</button>
+          <a href="{{ url_for('geovsatt.page') }}">Conectar ao GeoVSATT</a>
+        </section>
+        {% else %}
         <div id="geo-app-instalar" class="geo-app-instalar" hidden>
           <button type="button">Instalar GeoVSATT</button>
           <p role="status" hidden></p>
         </div>
+        <section id="geo-campo-menu" class="geo-layer-group geo-campo-menu" hidden>
+          <h2>Uso offline</h2>
+          {% if catalogo.camadas | selectattr('disponivel') | selectattr('pode_exportar', 'defined') | selectattr('pode_exportar') | list
+             or catalogo.ortofotos | selectattr('pode_exportar') | list %}
+          <button id="geo-campo-preparar" type="button">Preparar mapa offline</button>
+          {% endif %}
+          <button id="geo-campo-gerenciar" type="button" hidden>Gerenciar cópia offline</button>
+          <a id="geo-campo-visualizar" href="{{ url_for('geovsatt.mapa_offline') }}" hidden>Abrir cópia offline</a>
+          <p id="geo-campo-situacao" role="status"></p>
+        </section>
+        {% endif %}
         <section class="geo-layer-group">
           <h2>Imagens e bases</h2>
           <label class="geo-base-control">Mapa-base
             <select id="geo-basemap">
               <option value="none">Sem imagem-base</option>
+              {% if not modo_offline %}
               <option value="openfreemap">OpenStreetMap · OpenFreeMap</option>
               <option value="sentinel">Satélite Sentinel-2 (2025)</option>
               {% if esri_licenciado %}<option value="esri">Satélite Esri World Imagery</option>{% endif %}
@@ -84,6 +122,7 @@
                 <option value="{{ orto.base }}" data-ortofoto="{{ orto | tojson | forceescape }}">{{ orto.nome }}</option>
                 {% endfor %}
               </optgroup>
+              {% endif %}
               {% endif %}
             </select>
           </label>
@@ -105,6 +144,7 @@
             <p id="geo-calor-status" role="status"></p>
           </div>
         </section>
+        {% if modo_offline %}<div id="geo-campo-camadas"></div>{% endif %}
         {% for grupo in catalogo.camadas|groupby('grupo') %}
         <section class="geo-layer-group">
           <h2>{{ grupo.grouper }}</h2>
@@ -161,7 +201,7 @@
     <main class="geo-map-wrap">
       <div id="geo-map" class="geo-map" aria-label="Mapa territorial do GeoVSATT"{% if ambiental %} data-ambiental="{{ ambiental }}"{% endif %}></div>
       <div class="geo-map-title">
-        <strong>Mapa territorial</strong>
+        <strong>{{ 'Mapa offline' if modo_offline else 'Mapa territorial' }}</strong>
         <span id="geo-base-label">Sem imagem-base · dados institucionais</span>
       </div>
       <div id="geo-status" class="geo-status" role="status">Carregando camadas territoriais...</div>
@@ -169,7 +209,7 @@
         <button id="geo-fit" type="button" title="Mostrar todo o município" aria-label="Mostrar todo o município">⌂</button>
         <button type="button" data-medida="distancia" aria-label="Medir distância" aria-pressed="false" title="Medir distância">↔</button>
         <button type="button" data-medida="area" aria-label="Medir área" aria-pressed="false" title="Medir área">▱</button>
-        {% if pode_estimar %}<button type="button" data-medida="populacao" aria-label="Estimar população por área" aria-pressed="false" title="Estimar população por área"><img src="/static/icons/usuarios.svg" alt=""></button>{% endif %}
+        {% if pode_estimar or modo_offline %}<button type="button" data-medida="populacao" aria-label="Estimar população por área" aria-pressed="false" title="Estimar população por área"{% if modo_offline %} hidden{% endif %}><img src="/static/icons/usuarios.svg" alt=""></button>{% endif %}
         <button id="geo-imprimir" type="button" aria-label="Compor e imprimir mapa" title="Compor e imprimir mapa"><img src="/static/icons/imprimir.svg" alt=""></button>
         {% if catalogo.pode_configurar %}<button id="geo-marcar-equipamento" type="button" aria-pressed="false" aria-label="Marcar novo equipamento" title="Marcar novo equipamento" data-destino="{{ url_for('geovsatt.admin_equipamento') }}"><img src="/static/icons/marcador.svg" alt=""></button>{% endif %}
       </div>
@@ -249,15 +289,54 @@
     </div>
   </dialog>
 
+  {% if not modo_offline %}
+  <dialog id="geo-campo-dialogo" class="geo-campo-dialogo" aria-labelledby="geo-campo-titulo">
+    <form id="geo-campo-form">
+      <header><h2 id="geo-campo-titulo">Preparar mapa offline</h2>
+        <button id="geo-campo-fechar" class="geo-icon-button" type="button" aria-label="Fechar preparação">
+          <img src="/static/icons/fechar.svg" alt="">
+        </button>
+      </header>
+      <p>A cópia fica criptografada neste aparelho por até sete dias.</p>
+      <p>Quarteirões trabalhados usa o período aplicado no mapa.</p>
+      <fieldset>
+        <legend>Camadas para baixar</legend>
+        {% for camada in catalogo.camadas if camada.disponivel and camada.pode_exportar %}
+        <label><input name="camadas" type="checkbox" value="{{ camada.id }}"{% if camada.visivel_inicial %} checked{% endif %}> {{ camada.nome }}</label>
+        {% endfor %}
+      </fieldset>
+      {% if catalogo.ortofotos | selectattr('pode_exportar') | list %}
+      <fieldset>
+        <legend>Ortofotos autorizadas</legend>
+        {% for orto in catalogo.ortofotos if orto.pode_exportar %}
+        <label><input name="ortofotos" type="checkbox" value="{{ orto.id }}"> {{ orto.nome }}</label>
+        {% endfor %}
+        <label><input name="recortar" type="checkbox" checked> Baixar apenas a área visível do mapa</label>
+      </fieldset>
+      {% endif %}
+      {% if pode_rg %}<label class="geo-campo-opcao"><input name="enderecos" type="checkbox"> Incluir as fichas de endereço do Registro Geográfico</label>{% endif %}
+      <label>Senha exclusiva da cópia <input name="senha" type="password" minlength="10" maxlength="128" autocomplete="new-password" required></label>
+      <label>Confirmar senha <input name="confirmacao" type="password" minlength="10" maxlength="128" autocomplete="new-password" required></label>
+      <p id="geo-campo-progresso" role="status"></p>
+      <button type="submit">Baixar e proteger cópia</button>
+      <button id="geo-campo-excluir" type="button" hidden>Remover cópia deste aparelho</button>
+    </form>
+  </dialog>
   {% include "_release_popup.html" %}
+  {% endif %}
   <script nonce="{{ csp_nonce() }}" src="/static/vendor/leaflet/leaflet.min.js?v={{ APP_VERSION }}"></script>
+  {% if modo_offline %}
+  <script nonce="{{ csp_nonce() }}" src="/static/vendor/polygon-clipping/polygon-clipping.umd.min.js?v={{ APP_VERSION }}"></script>
+  {% else %}
   <script nonce="{{ csp_nonce() }}" src="/static/js/release_popup.js?v={{ APP_VERSION }}"></script>
+  <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt_instalacao.js?v={{ APP_VERSION }}"></script>
+  {% endif %}
   <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt_estilos.js?v={{ APP_VERSION }}"></script>
   <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt_rotulos.js?v={{ APP_VERSION }}"></script>
   <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt_medicao.js?v={{ APP_VERSION }}"></script>
   <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt_impressao.js?v={{ APP_VERSION }}"></script>
   <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt_calor.js?v={{ APP_VERSION }}"></script>
-  <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt_instalacao.js?v={{ APP_VERSION }}"></script>
   <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt.js?v={{ APP_VERSION }}"></script>
+  <script nonce="{{ csp_nonce() }}" type="module" src="/static/js/geovsatt_campo.mjs?v={{ APP_VERSION }}"></script>
 </body>
 </html>

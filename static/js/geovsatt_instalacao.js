@@ -15,10 +15,11 @@
     convite = event;
   });
   window.addEventListener('appinstalled', () => { area.hidden = true; });
-  navigator.serviceWorker.register(`/geovsatt-sw.js?v=${versao}`, {scope: '/geovsatt', updateViaCache: 'none'})
+  window.GeoVSATTPWA = navigator.serviceWorker.register(`/geovsatt-sw.js?v=${versao}`, {scope: '/geovsatt', updateViaCache: 'none'})
     .catch(() => {
       status.hidden = false;
       status.textContent = 'O navegador não conseguiu preparar a instalação neste endereço.';
+      return null;
     });
 
   botao.addEventListener('click', async () => {

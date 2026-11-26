@@ -97,6 +97,10 @@ regras de trabalho e isolamento de testes.
   permissões e uso em composições. O acervo fornecido até aqui é vetorial.
   A versão 2.26.0 acrescentou classificação por faixas numéricas, prévia de
   simbologia e etiquetas compostas configuráveis.
+  A candidata de campo acrescenta painel de feições, símbolos na legenda
+  lateral, calor e busca Nominatim configurável. A cópia offline reúne
+  camadas e ortofotos autorizadas, busca, RG, medições e impressão. Falta
+  homologar a instalação e o uso em Android e configurar um provedor Nominatim.
 - **Biblioteca VSATT** (`biblioteca.vsatt.com.br`, nome provisório). Acervo
   interno de referências de Vigilância em Saúde, com documentos, links,
   vídeos e imagens.

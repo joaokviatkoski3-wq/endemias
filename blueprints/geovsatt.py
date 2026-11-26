@@ -14,12 +14,14 @@ from app_core import geovsatt_composicoes as composicoes
 from app_core import geovsatt_equipamentos as equipamentos
 from app_core import geovsatt_exportacao as exportacao
 from app_core import geovsatt_ortofotos as ortofotos
+from app_core import registro_geografico as rg
 from app_core import setores
 from app_core.auth import login_required
 
 
 bp = Blueprint("geovsatt", __name__)
 superadmin = bh.nivel_min("superadmin")
+LIMITE_PACOTE_OFFLINE = 50 * 1024**2
 
 
 @bp.before_request
@@ -63,6 +65,7 @@ def page():
     ambiental = setores.url_setor(usuario, "ambiental") if geo.esporotricose_localizacao_exata(usuario) else None
     return render_template("geovsatt.html", catalogo=catalogo, pode_rg=pode_rg, pode_estimar=pode_estimar,
                            esri_licenciado=current_app.config["GEOVSATT_ESRI_LICENSED"], ambiental=ambiental,
+                           conta_geo=usuario["id_usuario"],
                            nominatim=bool(busca.endpoint_nominatim(current_app.config["GEOVSATT_NOMINATIM_URL"])))
 
 
@@ -81,7 +84,8 @@ def worker_mapa():
 
 @bp.get("/geovsatt/offline")
 def mapa_offline():
-    return render_template("geovsatt_offline.html")
+    return render_template("geovsatt.html", titulo="GeoVSATT offline", modo_offline=True,
+                           catalogo={"camadas": []})
 
 
 @bp.get("/api/geovsatt/catalogo")
@@ -90,45 +94,119 @@ def api_catalogo():
     return jsonify(geo.catalogo(bh.db_target(), bh.usuario_atual()))
 
 
+def _camadas_para_copia(target, usuario):
+    catalogo = geo.catalogo(target, usuario)
+    return (
+        {item["id"]: item for item in catalogo["camadas"] if item["disponivel"] and item.get("pode_exportar")},
+        {item["id"]: item for item in catalogo["ortofotos"] if item["pode_exportar"]},
+    )
+
+
+@bp.get("/api/geovsatt/pacote-offline/estado")
+@login_required
+def api_estado_pacote():
+    usuario = bh.usuario_atual()
+    vetores, imagens = _camadas_para_copia(bh.db_target(), usuario)
+    return jsonify({
+        "usuario": usuario["id_usuario"],
+        "camadas": list(vetores),
+        "ortofotos": {codigo: item["versao"] for codigo, item in imagens.items()},
+        "rg": setores.pode_entrar(usuario, "endemias"),
+        "esporotricose_exata": geo.esporotricose_localizacao_exata(usuario),
+    })
+
+
 @bp.post("/api/geovsatt/pacote-offline")
 @login_required
 def api_pacote_offline():
     request.max_content_length = 16_384
     payload = request.get_json(silent=True)
     codigos = payload.get("camadas") if isinstance(payload, dict) else None
-    if (not isinstance(codigos, list) or not codigos
-            or any(not isinstance(codigo, str) or len(codigo) > 60 for codigo in codigos)):
+    imagens = payload.get("ortofotos", []) if isinstance(payload, dict) else None
+    if (not isinstance(codigos, list) or not isinstance(imagens, list) or not (codigos or imagens)
+            or any(not isinstance(codigo, str) or len(codigo) > 60 for codigo in codigos + imagens)
+            or type(payload.get("enderecos", False)) is not bool):
         return jsonify({"erro": "Selecione as camadas do pacote offline."}), 400
+    recorte = payload.get("recorte")
+    if recorte is not None and (not isinstance(recorte, list) or len(recorte) != 4
+                               or any(type(valor) not in (int, float) for valor in recorte)
+                               or not (-180 <= recorte[0] < recorte[2] <= 180 and -90 <= recorte[1] < recorte[3] <= 90)):
+        return jsonify({"erro": "O recorte das ortofotos está inválido."}), 400
+    trabalhos = payload.get("trabalhos", {})
+    if (not isinstance(trabalhos, dict) or set(trabalhos) - {"inicio", "fim", "tipo", "localidade"}
+            or any(not isinstance(valor, str) for valor in trabalhos.values())):
+        return jsonify({"erro": "Os filtros de quarteirões trabalhados estão inválidos."}), 400
 
     target, usuario = bh.db_target(), bh.usuario_atual()
-    catalogo = {item["id"]: item for item in geo.catalogo(target, usuario)["camadas"]
-                if item["disponivel"] and item.get("pode_exportar")}
+    catalogo, catalogo_ortos = _camadas_para_copia(target, usuario)
     selecionadas = list(dict.fromkeys(codigos))
-    if any(codigo not in catalogo for codigo in selecionadas):
+    ortos_selecionadas = list(dict.fromkeys(imagens))
+    if set(selecionadas) - catalogo.keys() or set(ortos_selecionadas) - catalogo_ortos.keys():
         return jsonify({"erro": "O pacote inclui uma camada indisponível para download nesta conta."}), 403
+    tem_rg = "quarteiroes" in selecionadas and setores.pode_entrar(usuario, "endemias")
+    if payload.get("enderecos") and not tem_rg:
+        return jsonify({"erro": "Os endereços do RG exigem acesso ao Endemias e a camada Quarteirões."}), 403
 
     gerado = datetime.now(timezone.utc)
     pacote = {
         "formato": 1, "usuario": usuario["id_usuario"], "criado_em": gerado.isoformat(),
         "valido_ate": (gerado + timedelta(days=7)).isoformat(),
         "camadas": [catalogo[codigo] for codigo in selecionadas], "dados": {},
+        "ortofotos": [],
+        "esporotricose_exata": "esporotricose" in selecionadas and geo.esporotricose_localizacao_exata(usuario),
     }
     try:
         for codigo in selecionadas:
             camada = _obter(codigo, incluir_dados=True)
             if not geo.pode_exportar_camada(target, camada, usuario):
                 return jsonify({"erro": "A permissão da camada mudou. Atualize o catálogo e tente novamente."}), 403
-            pacote["dados"][codigo] = _colecao_camada(target, camada, usuario)
+            parametros = trabalhos if codigo == "quarteiroes_trabalhados" else None
+            pacote["dados"][codigo] = _colecao_camada(target, camada, usuario, parametros)
     except camadas.CamadaAusente:
         return jsonify({"erro": "Uma camada deixou de estar disponível. Atualize o catálogo e tente novamente."}), 409
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
 
+    if tem_rg:
+        pacote["populacao"] = {"media": rg.MEDIA_PESSOAS_POR_RESIDENCIA, "fonte": rg.FONTE_POPULACAO}
+    if payload.get("enderecos"):
+        pacote["rg"] = rg.detalhes_quarteiroes_offline(target, (
+            feature["properties"] for feature in pacote["dados"]["quarteiroes"]["features"]
+        ))
+    projetos = []
+    bases = {"none"} | {catalogo_ortos[codigo]["base"] for codigo in ortos_selecionadas}
+    for item in composicoes.listar(target, usuario["id_usuario"]):
+        try:
+            projetos.append(composicoes.obter(target, usuario["id_usuario"], item["id_composicao"],
+                                               set(selecionadas), bases))
+        except composicoes.ComposicaoAusente:
+            continue
+    pacote["composicoes"] = projetos
+
+    restantes = LIMITE_PACOTE_OFFLINE
+    if ortos_selecionadas:
+        restantes -= len(json.dumps(pacote, ensure_ascii=False, separators=(",", ":"), default=str).encode())
+    try:
+        for codigo in ortos_selecionadas:
+            orto = _obter(codigo, incluir_dados=True)
+            item = catalogo_ortos[codigo]
+            if orto["id_versao"] != item["versao"] or not geo.pode_exportar_camada(target, orto, usuario):
+                return jsonify({"erro": "A publicação da ortofoto mudou. Atualize o mapa e tente novamente."}), 409
+            orto["metadados"] = json.loads(orto["metadados"])
+            blocos, tamanho = ortofotos.pacote_offline(_arquivo_ortofoto(orto), orto, recorte, restantes)
+            pacote["ortofotos"].append(item | blocos)
+            restantes -= tamanho
+    except (camadas.CamadaAusente, OSError, sqlite3.DatabaseError):
+        return jsonify({"erro": "O arquivo da ortofoto selecionada está indisponível."}), 409
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+
     conteudo = json.dumps(pacote, ensure_ascii=False, separators=(",", ":"), default=str).encode()
-    if len(conteudo) > 50 * 1024**2:
+    if len(conteudo) > LIMITE_PACOTE_OFFLINE:
         return jsonify({"erro": "O pacote ultrapassa 50 MiB. Selecione menos camadas para este aparelho."}), 413
     audit.registrar_evento(bh.get_db, "geovsatt_pacote_offline_gerado", entidade="geovsatt_camada",
-                           detalhes={"camadas": selecionadas, "bytes": len(conteudo)})
+                           detalhes={"camadas": selecionadas, "ortofotos": ortos_selecionadas,
+                                     "bytes": len(conteudo), "enderecos_rg": bool(pacote.get("rg"))})
     return current_app.response_class(conteudo, mimetype="application/json")
 
 

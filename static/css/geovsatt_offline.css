@@ -1,6 +1,0 @@
-:root{font-family:system-ui,sans-serif;color:#26362b;background:#f5f7f5}
-body{min-height:100dvh;display:grid;place-items:center;margin:0}
-main{width:min(86vw,28rem);padding:1.5rem;background:#fff;border:1px solid #d8e2da;border-radius:.75rem}
-h1{margin:.5rem 0;font-size:1.45rem}
-p{line-height:1.5;color:#536459}
-a{display:inline-block;padding:.65rem .9rem;background:#00752b;color:#fff;border-radius:.4rem;text-decoration:none;font-weight:700}

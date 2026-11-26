@@ -221,7 +221,9 @@
         if (vista !== sessao || !dialogo.open) return;
         projetoAtual = projeto;
         await carregarLista(sessao, String(projeto.id_composicao));
-        if (vista === sessao && dialogo.open) status.textContent = 'Composição salva para sua conta.';
+        if (vista === sessao && dialogo.open) {
+          status.textContent = window.GeoVSATTCampo ? 'Composição salva na cópia deste aparelho.' : 'Composição salva para sua conta.';
+        }
       }));
     }
 

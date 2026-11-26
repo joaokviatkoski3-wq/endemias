@@ -1,10 +1,10 @@
 """Ortofotos MBTiles no catálogo privado do GeoVSATT."""
 
-from base64 import b64decode
+from base64 import b64decode, b64encode
 from contextlib import closing
 from hashlib import sha256
 import json
-from math import atan, degrees, isfinite, pi, sinh
+from math import asinh, atan, degrees, floor, isfinite, pi, radians, sinh, tan
 import os
 from pathlib import Path
 import re
@@ -170,3 +170,42 @@ def mosaico(path, versao, z, x, y):
     if not isinstance(row[0], bytes) or not row[0].startswith(assinatura):
         raise catalogo.CatalogoErro("O mosaico armazenado está indisponível.")
     return row[0], mime
+
+
+def pacote_offline(path, versao, recorte, limite_bytes):
+    """Empacota mosaicos da versão publicada no recorte XYZ escolhido."""
+    info = versao["metadados"]["mbtiles"]
+    mime, assinatura = IMAGENS[info["formato"]]
+    oeste, sul, leste, norte = info["limites"]
+    if recorte:
+        oeste, sul, leste, norte = max(oeste, recorte[0]), max(sul, recorte[1]), min(leste, recorte[2]), min(norte, recorte[3])
+    if oeste >= leste or sul >= norte:
+        raise catalogo.CatalogoErro("A ortofoto selecionada não cobre a área visível do mapa.")
+
+    mosaicos = {}
+    bytes_usados = 0
+    with closing(_abrir(path)) as conn:
+        for z in range(info["zoom_min"], info["zoom_max"] + 1):
+            lado = 1 << z
+
+            def linha(lat):
+                lat = max(-85.05112878, min(85.05112878, lat))
+                return max(0, min(lado - 1, floor((1 - asinh(tan(radians(lat))) / pi) * lado / 2)))
+
+            x1 = max(0, floor((oeste + 180) * lado / 360))
+            x2 = min(lado - 1, floor((leste + 180) * lado / 360))
+            linhas = conn.execute("""
+                SELECT tile_column,tile_row,tile_data FROM tiles
+                 WHERE zoom_level=? AND tile_column BETWEEN ? AND ? AND tile_row BETWEEN ? AND ?
+            """, (z, x1, x2, lado - 1 - linha(sul), lado - 1 - linha(norte)))
+            for x, tms, imagem in linhas:
+                if not isinstance(imagem, bytes) or len(imagem) > MAX_TILE or not imagem.startswith(assinatura):
+                    raise catalogo.CatalogoErro("A ortofoto contém um mosaico indisponível.")
+                chave = f"{z}/{x}/{lado - 1 - tms}"
+                bytes_usados += 4 * ((len(imagem) + 2) // 3) + len(chave) + 8
+                if bytes_usados > limite_bytes:
+                    raise catalogo.CatalogoErro("As ortofotos excedem o limite da cópia. Aproxime o mapa e baixe uma área menor.")
+                mosaicos[chave] = b64encode(imagem).decode("ascii")
+    if not mosaicos:
+        raise catalogo.CatalogoErro("Não há mosaicos da ortofoto na área selecionada.")
+    return {"mime": mime, "mosaicos": mosaicos, "limites": [oeste, sul, leste, norte]}, bytes_usados

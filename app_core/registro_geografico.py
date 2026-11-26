@@ -1596,6 +1596,43 @@ def quarteirao(db_path, id_localidade, quarteirao_numero, base_dir=None):
         conn.close()
 
 
+def detalhes_quarteiroes_offline(db_path, blocos):
+    """Seleciona os campos usados no mapa para os quarteirões da cópia."""
+    chaves = {props["chave"]: props for props in blocos if props.get("chave")}
+    if not chaves:
+        return {}
+    registros = {chave: [] for chave in chaves}
+    conn = db_core.connect(db_path)
+    try:
+        agentes = _string_aggregate(conn, "a.nome")
+        cursor = conn.execute(
+            f"""
+            SELECT i.id_imovel, i.id_localidade, i.quarteirao, i.logradouro, i.numero,
+                   i.sequencia, i.tipo, i.condominio, i.data_atualizacao, i.agentes_texto,
+                   {agentes} AS agentes
+              FROM registro_geografico_imoveis i
+              LEFT JOIN registro_geografico_imovel_agentes ia ON ia.id_imovel=i.id_imovel
+              LEFT JOIN agentes a ON a.id_agente=ia.id_agente
+             GROUP BY i.id_imovel
+             ORDER BY i.id_localidade, i.quarteirao, COALESCE(i.ordem, i.id_imovel), i.id_imovel
+            """
+        )
+        for row in cursor:
+            chave = f"{row['id_localidade']}:{_quarteirao_display(row['quarteirao'])}"
+            if chave in registros:
+                registros[chave].append(_formatar(dict(row)))
+    finally:
+        conn.close()
+    campos = ("id_imovel", "logradouro", "numero", "sequencia", "tipo", "tipo_label", "agentes")
+    return {
+        chave: {"localidade": {"nome": props.get("Localidade_nome")}, "quarteirao": props["id_quart"],
+                "data_atualizacao_br": _data_br(registros[chave][0]["data_atualizacao"]) if registros[chave] else "",
+                "resumo": _resumo_quarteirao(registros[chave]),
+                "registros": [{campo: row[campo] for campo in campos} for row in registros[chave]]}
+        for chave, props in chaves.items()
+    }
+
+
 def _resumo_quarteirao(registros):
     tipos = {"R": "Residências", "C": "Comércios", "TB": "Terrenos baldios", "PE": "Pontos estratégicos", "O": "Outros"}
     resumo = []

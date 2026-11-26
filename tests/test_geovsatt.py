@@ -8,6 +8,7 @@ import sqlite3
 import tempfile
 import unittest
 from collections import OrderedDict
+from base64 import b64decode
 from contextlib import closing
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -114,7 +115,12 @@ class GeoVSATTTests(unittest.TestCase):
         pagina = client.get("/geovsatt/offline")
         self.assertEqual(pagina.status_code, 200)
         self.assertIn(b"GeoVSATT offline", pagina.data)
-        self.assertNotIn(b'id="geo-map"', pagina.data)
+        self.assertIn(b'id="geo-map"', pagina.data)
+        self.assertIn(b'data-pode-rg="0" hidden', pagina.data)
+        self.assertIn(b'name="csrf-token" content=""', pagina.data)
+        self.assertNotIn(b'data-conta=', pagina.data)
+        self.assertNotIn(b'action="/logout"', pagina.data)
+        self.assertIn(b'geovsatt_campo.mjs', pagina.data)
 
     def test_pacote_offline_exige_permissao_de_download_e_usa_dados_do_mapa(self):
         admin = self.client()
@@ -133,6 +139,32 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in resposta.json["camadas"]], ["localidades", "logradouros"])
         self.assertEqual(resposta.json["dados"]["localidades"], admin.get("/api/geovsatt/camadas/localidades").json)
         self.assertEqual(resposta.json["dados"]["logradouros"], admin.get("/api/geovsatt/camadas/logradouros").json)
+
+    def test_pacote_offline_rg_explicito_entrega_campos_do_mapa_e_estimativa(self):
+        admin = self.client()
+        with closing(sqlite3.connect(self.path)) as conn:
+            nome = conn.execute("SELECT nome FROM localidades WHERE id_localidade=1").fetchone()[0]
+        forma = {"type": "Feature", "properties": {"Localidade": nome, "id_Q": "0001"},
+                 "geometry": mapping(box(-49.31, -25.33, -49.30, -25.32))}
+        coleta = io.BytesIO(json.dumps({"type": "FeatureCollection", "features": [forma]}).encode())
+        slug = "quarteiroes-qgis"
+        self.assertEqual(admin.post("/geovsatt/admin/importar", data={
+            "nome": "Quarteirões de ensaio", "codigo": slug, "grupo": "Território", "fonte": "Ensaio",
+            "geojson": (coleta, "quarteiroes.geojson"),
+        }).status_code, 303)
+        self.assertEqual(admin.post(f"/geovsatt/admin/camadas/{slug}/versoes/1/publicar").status_code, 303)
+        rota = "/api/geovsatt/pacote-offline"
+        self.assertEqual(admin.post(rota, json={"camadas": ["localidades"], "enderecos": True}).status_code, 403)
+        dados = admin.post(rota, json={"camadas": ["quarteiroes"]}).json
+        self.assertNotIn("rg", dados)
+        self.assertEqual(dados["populacao"]["media"], 2.93)
+        dados = admin.post(rota, json={"camadas": ["quarteiroes"], "enderecos": True}).json
+        no_mapa = admin.get("/api/geovsatt/quarteiroes/1/1").json
+        bloco = dados["rg"]["1:1"]
+        self.assertEqual(bloco["resumo"], no_mapa["resumo"])
+        self.assertEqual(bloco["registros"][0]["logradouro"], no_mapa["registros"][0]["logradouro"])
+        self.assertEqual(set(bloco["registros"][0]), {"id_imovel", "logradouro", "numero", "sequencia",
+                                                      "tipo", "tipo_label", "agentes"})
 
     def test_cadastro_equipamentos_preserva_acervo_historico_e_permissoes(self):
         admin = self.client()
@@ -272,11 +304,26 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertIn(b'value="ortofoto:ortofoto-ensaio"', comum.get("/geovsatt").data)
         self.assertNotIn(b'value="ortofoto:ortofoto-ensaio"', ambiental.get("/geovsatt").data)
         self.assertEqual(comum.get(download).status_code, 403)
+        rota_offline = "/api/geovsatt/pacote-offline"
+        apenas_imagem = {"camadas": [], "ortofotos": ["ortofoto-ensaio"]}
+        self.assertEqual(comum.post(rota_offline, json=apenas_imagem).status_code, 403)
         admin.post(gestor, data=campos | {"usuarios": ["2"], "usuarios_exportacao": ["2"]})
         exportada = comum.get(download)
         self.addCleanup(exportada.close)
         self.assertEqual(exportada.data, bruto1)
         self.assertIn('v1.mbtiles', exportada.headers["Content-Disposition"])
+        oeste, sul, leste, norte = dados["limites"]
+        recorte = [oeste + (leste - oeste) / 4, sul + (norte - sul) / 4,
+                   leste - (leste - oeste) / 4, norte - (norte - sul) / 4]
+        copiada = comum.post(rota_offline, json=apenas_imagem | {"recorte": recorte})
+        self.assertEqual(copiada.status_code, 200)
+        orto, = copiada.json["ortofotos"]
+        self.assertEqual(orto["limites"], recorte)
+        self.assertEqual(orto["mime"], "image/png")
+        self.assertEqual(set(orto["mosaicos"]), {"15/11896/18769"})
+        self.assertEqual(b64decode(orto["mosaicos"]["15/11896/18769"]), png1)
+        self.assertEqual(comum.post(rota_offline, json=apenas_imagem | {"recorte": [0, 0, 1, 1]}).status_code, 400)
+        self.assertEqual(comum.get(rota_offline + "/estado").json["ortofotos"], {"ortofoto-ensaio": 1})
         composicao = {"titulo": "Ensaio", "orientacao": "paisagem", "layout": "inferior",
                       "base": dados["base"], "legenda": True, "centro": [-25.3, -49.3], "zoom": 16, "camadas": []}
         salvas = "/api/geovsatt/composicoes"
@@ -290,6 +337,7 @@ class GeoVSATTTests(unittest.TestCase):
         admin.post(gestor + "/versoes/2/publicar")
         imagem2 = comum.get(rota2)
         self.assertEqual((imagem2.mimetype, imagem2.data), ("image/jpeg", jpeg2))
+        self.assertEqual(comum.get(rota_offline + "/estado").json["ortofotos"], {"ortofoto-ensaio": 2})
         self.assertEqual(comum.get(rota1).status_code, 404)
         self.assertEqual(comum.get(salva).json["configuracao"]["base"], dados["base"])
         admin.post(gestor + "/versoes/1/publicar")

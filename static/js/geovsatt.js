@@ -1,7 +1,8 @@
-(() => {
+function iniciarGeoVSATT() {
   'use strict';
   const mapNode = document.getElementById('geo-map');
   if (!mapNode || !window.L) return;
+  const campo = window.GeoVSATTCampo;
   const statusNode = document.getElementById('geo-status');
   const marcarEquipamento = document.getElementById('geo-marcar-equipamento');
   const sidebar = document.getElementById('geo-sidebar');
@@ -39,6 +40,7 @@
   };
   const number = value => Number(value || 0).toLocaleString('pt-BR');
   const api = async (url, options = {}) => {
+    if (campo) return campo.api(url, options);
     const response = await fetch(url, {credentials: 'same-origin', cache: 'no-store', ...options});
     const data = await response.json().catch(() => null);
     if (!response.ok || !data) throw Error(data?.erro || 'Não foi possível carregar os dados do mapa.');
@@ -59,6 +61,11 @@
   map.createPane('rg-selection').style.zIndex = 460;
   L.control.zoom({position: 'topright'}).addTo(map);
   map.setView([-25.32, -49.30], 12);
+  if (!campo) document.addEventListener('geovsatt:obter-recorte-offline', event => {
+    const bounds = map.getBounds();
+    event.detail.limites = [Math.max(-180, bounds.getWest()), Math.max(-90, bounds.getSouth()),
+      Math.min(180, bounds.getEast()), Math.min(90, bounds.getNorth())];
+  });
   const labels = window.GeoVSATTRotulos.create(map);
   const measure = window.GeoVSATTMedicao.create(map, (pontos, incluir_condominios) => api('/api/geovsatt/populacao', {
     method: 'POST',
@@ -144,18 +151,38 @@
       const codigo = encodeURIComponent(orto.id);
       const fonte = [orto.fonte, orto.data_referencia, orto.licenca].filter(Boolean).join(' · ');
       document.getElementById('geo-ortofoto-fonte').textContent = fonte;
-      if (orto.pode_exportar) {
+      if (orto.pode_exportar && !campo) {
         ortoDownload.href = `/geovsatt/camadas/${codigo}/exportar/mbtiles`;
         ortoDownload.hidden = false;
       }
       baseLabel.textContent = orto.nome;
-      activeBasemap = L.tileLayer(`/api/geovsatt/ortofotos/${codigo}/${orto.versao}/{z}/{x}/{y}`, {
+      const opcoes = {
         bounds: coberturaOrtofoto(orto), minNativeZoom: orto.zoom_min, maxNativeZoom: orto.zoom_max,
         maxZoom: map.getMaxZoom(), noWrap: true, attribution: element('span', '', fonte).innerHTML,
-      }).on('tileerror', () => {
+      };
+      if (campo) {
+        activeBasemap = L.gridLayer(opcoes);
+        activeBasemap.createTile = (coordenada, pronto) => {
+          const src = campo.mosaico(orto.id, coordenada);
+          const tile = element(src ? 'img' : 'div');
+          if (src) {
+            tile.alt = '';
+            tile.onload = () => pronto(null, tile);
+            tile.onerror = () => pronto(Error('Mosaico indisponível na cópia.'), tile);
+            tile.src = src;
+          } else {
+            queueMicrotask(() => pronto(null, tile));
+          }
+          return tile;
+        };
+      } else {
+        activeBasemap = L.tileLayer(`/api/geovsatt/ortofotos/${codigo}/${orto.versao}/{z}/{x}/{y}`, opcoes);
+      }
+      activeBasemap.on('tileerror', () => {
         if (sequence !== baseSequence) return;
         baseFailed = true;
-        statusNode.textContent = 'A ortofoto não carregou. Atualize a página para conferir a versão ativa.';
+        statusNode.textContent = campo ? 'Um mosaico da cópia não carregou.' :
+          'A ortofoto não carregou. Atualize a página para conferir a versão ativa.';
       }).addTo(map);
       return;
     }
@@ -457,7 +484,8 @@
       const {inicio, fim} = data.metadata.consulta;
       const formatarData = data => data.split('-').reverse().join('/');
       periodoPorCamada.set(group, `${formatarData(inicio)} a ${formatarData(fim)}`);
-    } else {
+    }
+    if (id !== 'quarteiroes_trabalhados' || campo) {
       setupFilters(input, group);
     }
     return group;
@@ -608,7 +636,7 @@
 
   function loadLayer(input, regras) {
     const id = input.dataset.layer;
-    if (id === 'quarteiroes_trabalhados') {
+    if (id === 'quarteiroes_trabalhados' && !campo) {
       const filtros = filtrosPorCamada.get(id);
       return filtros.consultar(regras ?? filtros.ler());
     }
@@ -720,6 +748,14 @@
   const mapLayers = Object.create(null);
   const calor = window.GeoVSATTCalor.criar(map, options,
     input => mapLayers[input.dataset.layer] || loadLayer(input), updateBounds);
+  if (!campo) document.addEventListener('geovsatt:obter-trabalhos-offline', event => {
+    const regras = filtrosPorCamada.get('quarteiroes_trabalhados')?.ler() || [];
+    const campos = {data_visita: {gte: 'inicio', lte: 'fim'}, tipo_trabalho: {exact: 'tipo'}, localidade_id: {exact: 'localidade'}};
+    for (const {field, match, value} of regras) {
+      const chave = campos[field]?.[match];
+      if (chave) event.detail[chave] = value;
+    }
+  });
 
   function configurarFiltrosDeTrabalhos() {
     const id = 'quarteiroes_trabalhados';
@@ -941,6 +977,22 @@
           }).addTo(map);
           return;
         }
+        if (item.tipo === 'feicao') {
+          const selecao = L.geoJSON(item.feature, {
+            pane: 'rg-selection', style: {color: '#7a4300', weight: 3, fillOpacity: .12},
+            pointToLayer: (feature, posicao) => L.circleMarker(posicao, {
+              pane: 'rg-selection', radius: 8, color: '#7a4300', fillColor: '#fff', interactive: false,
+            }),
+            interactive: false,
+          });
+          const limites = selecao.getBounds();
+          if (!limites.isValid()) return;
+          map.fitBounds(limites, {maxZoom: 17, padding: [44, 50]});
+          showFeature(item.subtitulo || 'Cópia offline', item.feature.properties || {}, item.titulo, '',
+            limites.getCenter());
+          highlighted = selecao.addTo(map);
+          return;
+        }
         const id = item.tipo === 'localidade' ? 'localidades' : 'quarteiroes';
         const input = options.find(option => option.dataset.layer === id);
         if (!input) return;
@@ -1031,7 +1083,8 @@
     searchResults.hidden = true;
     const query = searchInput.value.trim();
     searchFeedback.textContent = '';
-    if (!podeRg || !['rg', 'logradouro'].includes(searchSource.value) || query.length < 3 || /^\d{5}-?\d*$/.test(query)) return;
+    if ((!podeRg && !campo) || !['rg', 'logradouro'].includes(searchSource.value)
+        || query.length < 3 || (!campo && /^\d{5}-?\d*$/.test(query))) return;
     suggestionTimer = setTimeout(async () => {
       const request = new AbortController();
       suggestionRequest = request;
@@ -1103,7 +1156,7 @@
         if (sequence === searchSequence) showPostalResults(data.resultados);
         return;
       }
-      if (searchSource.value === 'cep' || /^\d{5}-?\d{3}$/.test(query)) {
+      if (searchSource.value === 'cep' || (!campo && /^\d{5}-?\d{3}$/.test(query))) {
         if (!/^\d{5}-?\d{3}$/.test(query)) throw Error('Informe um CEP com oito dígitos.');
         cep = await api(`/api/geovsatt/cep/${encodeURIComponent(query)}`);
         items = cep.municipio_rg && cep.logradouro ? await searchRG(cep.logradouro) : [];
@@ -1131,4 +1184,10 @@
       if (result.status === 'rejected') reportLayerError(initial[i], result.reason);
     });
   });
-})();
+}
+
+if (document.documentElement.dataset.offline === '1') {
+  document.addEventListener('geovsatt:pacote-aberto', iniciarGeoVSATT, {once: true});
+} else {
+  iniciarGeoVSATT();
+}

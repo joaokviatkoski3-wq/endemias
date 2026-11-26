@@ -122,7 +122,7 @@ def register_security_headers(app):
             'consultas.laboratorio', 'laboratorio.page', 'recolhimentos.page', 'pontos_estrategicos.page', 'formularios.rg_campo_page'
         }
         attributes = "'none'" if strict or not inline else "'unsafe-inline'"
-        mapa_geo = request.endpoint == "geovsatt.page"
+        mapa_geo = request.endpoint in {"geovsatt.page", "geovsatt.mapa_offline"}
         worker_geo = (request.endpoint == "static" and
                       (request.view_args or {}).get("filename") == "vendor/maplibre/maplibre-gl-worker.mjs")
         imagens_geo = " https://tiles.maps.eox.at https://tiles.openfreemap.org" if mapa_geo else ""

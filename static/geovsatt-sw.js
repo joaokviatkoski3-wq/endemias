@@ -4,11 +4,25 @@ const versao = new URL(self.location.href).searchParams.get('v');
 const prefixo = 'geovsatt-app-';
 const cacheAtual = prefixo + versao;
 const entradaOffline = '/geovsatt/offline';
+const comVersao = caminho => `${caminho}?v=${encodeURIComponent(versao)}`;
 const arquivos = new Set([
-  `/static/img/geovsatt-symbol.svg?v=${encodeURIComponent(versao)}`,
+  ...[
+    'img/geovsatt-symbol.svg', 'img/geovsatt-logo.png',
+    'css/geovsatt.css', 'css/geovsatt_impressao.css', 'css/release_popup.css',
+    'vendor/leaflet/leaflet.min.css', 'vendor/leaflet/leaflet.min.js',
+    'vendor/maplibre/maplibre-gl.css', 'vendor/maplibre/maplibre-gl.mjs',
+    'vendor/maplibre/maplibre-gl-worker.mjs', 'vendor/maplibre/leaflet-maplibre-gl.mjs',
+    'vendor/polygon-clipping/polygon-clipping.umd.min.js',
+    'js/geovsatt.js', 'js/geovsatt_estilos.js', 'js/geovsatt_rotulos.js',
+    'js/geovsatt_medicao.js', 'js/geovsatt_impressao.js', 'js/geovsatt_calor.js',
+    'js/geovsatt_leaflet.mjs', 'js/geovsatt_vetorial.mjs', 'js/geovsatt_campo.mjs',
+  ].map(caminho => comVersao('/static/' + caminho)),
+  '/static/js/geovsatt_cofre.mjs',
+  '/static/js/geovsatt_dados_offline.mjs',
+  ...['menu', 'fechar', 'imprimir', 'usuarios'].map(icone => `/static/icons/${icone}.svg`),
   '/static/icons/geovsatt-app-192.png',
   '/static/icons/geovsatt-app-512.png',
-  '/static/css/geovsatt_offline.css',
+  '/geovsatt/manifest.webmanifest',
 ]);
 
 async function preparar() {
@@ -43,7 +57,7 @@ self.addEventListener('fetch', event => {
     event.respondWith(abrirMapa(request));
     return;
   }
-  if (arquivos.has(url.pathname + url.search) || url.pathname === entradaOffline) {
+  if (arquivos.has(url.pathname + url.search) || (url.pathname === entradaOffline && !url.search)) {
     event.respondWith(caches.open(cacheAtual).then(async cache => await cache.match(request) || fetch(request)));
   }
 });
