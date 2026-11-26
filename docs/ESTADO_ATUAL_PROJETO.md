@@ -5,9 +5,10 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.16.0**, release `4c9ab6b`, ativa em 26/11/2026. O relatório de instalação
-  confirmou as entradas existentes e a origem do GeoVSATT na porta 5001.
-  O mapa de bloqueio
+- **2.17.0**, release `9346ba9`, ativa em 26/11/2026. O instalador confirmou
+  a preservação de 105 tabelas, dos arquivos operacionais e da tarefa Kobo.
+  Os três logins responderam na origem do Tunnel e o GeoVSATT respondeu
+  em HTTPS no endereço público. O mapa de bloqueio
   imprime em A4 paisagem, com um brasão, raio de 150 m, nomes sobre o traçado
   das vias e etiquetas ampliadas de quarteirão.
 - O portal `vsatt.com.br` apresenta Endemias, Ambiental e GeoVSATT. O Tunnel
@@ -69,9 +70,8 @@ regras de trabalho e isolamento de testes.
 
 ## Projetos futuros
 
-- **GeoVSATT** (`geo.vsatt.com.br`). A fundação está instalada na versão
-  `2.16.0`, com login validado na origem. A candidata `2.17.0` acrescenta
-  busca de endereço no RG, consulta de CEP, etiquetas por zoom e medições.
+- **GeoVSATT** (`geo.vsatt.com.br`). A versão `2.17.0` inclui busca de endereço
+  no RG, consulta de CEP, etiquetas por zoom e medições.
   O mapa tem quarteirões, localidades derivadas, logradouros e detalhe do RG.
   O superadmin já pode
   importar vetores GeoJSON, publicar ou restaurar versões, editar metadados e

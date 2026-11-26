@@ -4,10 +4,9 @@ Atualizado em 26/11/2026.
 
 ## Estado deste incremento
 
-O GeoVSATT tem uma fundação executável no repositório do VSATT, instalada na
-versão `2.16.0`. A busca de endereços, as etiquetas e as medições desta página
-são da candidata `2.17.0`. Consulte `ESTADO_ATUAL_PROJETO.md` para saber o que
-já foi implantado.
+O GeoVSATT está instalado na versão `2.17.0`, com busca de endereços,
+etiquetas e medições. O login respondeu em `https://geo.vsatt.com.br/login`.
+Consulte `ESTADO_ATUAL_PROJETO.md` para acompanhar a instalação oficial.
 
 Implementado:
 
@@ -38,7 +37,7 @@ Limites explícitos:
 - as três camadas do sistema aceitam configuração de acesso e visualização. O RG
   continua sendo a fonte dos quarteirões e o acesso aos seus detalhes exige acesso
   a Endemias. A publicação de vetores via catálogo usa camadas de importação;
-- o endereço público, o Tunnel, DNS, firewall e serviços Windows não foram alterados.
+- a configuração do endereço público e do Tunnel é administrada separadamente.
 
 ## Contratos iniciais
 
@@ -129,16 +128,20 @@ aplica somente as migrações previstas `0046` e `0047` e valida os logins nas
 entradas locais e na origem do Tunnel. Em caso de falha, volta ao código e à
 configuração anteriores e preserva as migrações aditivas.
 
+A revisão `9346ba9` da 2.17.0 foi instalada sem novas migrações. A primeira
+tentativa retornou à 2.16.0 porque `requests` não fazia parte do Python do
+serviço. A consulta de CEP foi corrigida para usar a biblioteca padrão.
+A regressão de 70 testes e uma consulta de CEP público foram executadas
+com o próprio runtime do serviço antes da segunda tentativa.
+
 A origem do hostname `geo.vsatt.com.br` no Tunnel é
 `http://127.0.0.1:5001`, com o cabeçalho Host original. A porta `5005` é para
 acesso local. Configure o Access para as contas de teste e valide o login
 do novo hostname na origem antes de criar a rota publicada.
 
-Antes de publicar:
+Para próximas versões:
 
 - executar a suíte completa em banco isolado;
 - homologar o mapa e os detalhes do RG com superadmin e contas comuns;
 - validar desempenho em computador e celular com as três camadas iniciais;
-- configurar a porta local GeoVSATT (`ENDEMIAS_GEO_LOCAL_PORT`, padrão `5005`);
-- criar o hostname e a rota do Tunnel somente depois de autorização do usuário;
-- confirmar backup, reinício e retorno das três áreas existentes.
+- confirmar backup, reinício e retorno dos logins após a atualização.
