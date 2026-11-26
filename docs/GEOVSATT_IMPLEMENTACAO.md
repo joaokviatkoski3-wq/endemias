@@ -4,8 +4,9 @@ Atualizado em 26/11/2026.
 
 ## Estado deste incremento
 
-A candidata `2.27.3` reúne as alterações descritas a seguir. Consulte
-`ESTADO_ATUAL_PROJETO.md` para o último registro de produção.
+A versão `2.27.3` foi ativada em 26/11/2026, no commit `7eaaf9d`. A
+entrada offline, o manifesto e o service worker responderam no domínio
+público. Consulte `ESTADO_ATUAL_PROJETO.md` para o estado da produção.
 
 Implementado:
 
@@ -279,7 +280,7 @@ importação, publicação e edição de metadados geram eventos de auditoria.
   e a supressão de sobreposições. A prévia usa valores de exemplo da
   camada e as classes usam as mesmas cores no mapa e na folha.
 
-## Detalhes, legenda, mapas de calor e instalação na candidata 2.27.0
+## Detalhes, legenda, mapas de calor e instalação na série 2.27
 
 - Clicar nas feições abre o painel de detalhes à direita ou na parte inferior
   em telas estreitas. A legenda no menu usa a simbologia calculada e mostra
@@ -290,7 +291,7 @@ importação, publicação e edição de metadados geram eventos de auditoria.
   ponderado pelo número de ovos. A intensidade é relativa. O desenho usa o
   tipo de camada `heatmap` do MapLibre e funciona com ou sem imagem-base.
   [Estilos MapLibre](https://maplibre.org/maplibre-style-spec/layers/#heatmap)
-- Na candidata 2.27.2, abra **Camadas da folha** na prévia para escolher o
+- A partir da 2.27.2, abra **Camadas da folha** na prévia para escolher o
   mapa de calor. A composição guarda a fonte, os filtros, o raio visual e a opção
   de ponderação, inclusive quando os marcadores ficam ocultos. Ao reabrir
   na conta ou no modo offline, o calor depende da disponibilidade da
@@ -369,6 +370,14 @@ está pendente.
    operacional definida pelo setor.
 
 ## Histórico de implantação e próximas validações
+
+A ativação da 2.27.3 partiu da 2.26.0. O relatório
+`C:/ProgramData/EndemiasWeb/ativacao-geovsatt2273-resultado.json` registrou
+a conclusão com 106 tabelas comparadas e os logins ativos. A atualização
+dispensou novas migrações. O servidor segue à espera da configuração do
+Nominatim. Os testes automatizados e a disponibilidade do manifesto e da
+entrada offline comprovam o preparo da aplicação. A instalação e o uso
+sem rede em Chrome Android físico ainda precisam de validação.
 
 Para a transição de `2.15.2` para `2.16.0`, foi usado
 `scripts/ativar_geovsatt_2160_windows.py`, em uma sessão elevada do Windows.

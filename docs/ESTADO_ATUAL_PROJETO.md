@@ -5,12 +5,11 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.26.0**, release `2293952`, ativa em 26/11/2026. O instalador confirmou
-  a aplicação da migração `0048_geovsatt_composicoes.sql` e a preservação dos
-  dados anteriores. Os três logins responderam na origem do Tunnel e o
-  GeoVSATT respondeu em HTTPS no endereço público. O mapa de bloqueio
-  imprime em A4 paisagem, com um brasão, raio de 150 m, nomes sobre o traçado
-  das vias e etiquetas ampliadas de quarteirão.
+- **2.27.3**, release `7eaaf9d`, ativa desde 26/11/2026. O relatório de
+  ativação confirmou a preservação de 106 tabelas e o retorno dos logins.
+  O GeoVSATT respondeu em HTTPS com a nova versão, incluindo a entrada,
+  o manifesto e o service worker do aplicativo. A instalação em Android
+  físico e o Nominatim com provedor configurado aguardam homologação.
 - O portal `vsatt.com.br` apresenta Endemias, Ambiental e GeoVSATT. O Tunnel
   encaminha para Waitress em
   `127.0.0.1:5001`. O acesso local usa as portas 5000 (Endemias) e
@@ -97,7 +96,7 @@ regras de trabalho e isolamento de testes.
   permissões e uso em composições. O acervo fornecido até aqui é vetorial.
   A versão 2.26.0 acrescentou classificação por faixas numéricas, prévia de
   simbologia e etiquetas compostas configuráveis.
-  A candidata 2.27.3 acrescenta painel de feições, símbolos na legenda
+  A versão 2.27.3 acrescenta painel de feições, símbolos na legenda
   lateral, calor e busca Nominatim configurável. A cópia offline reúne
   camadas e ortofotos autorizadas, o recorte OpenFreeMap, busca, RG, medições,
   impressão, configuração de calor em composições e filtros das visitas
