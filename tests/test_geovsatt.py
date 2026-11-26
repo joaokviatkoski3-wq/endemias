@@ -142,6 +142,9 @@ class GeoVSATTTests(unittest.TestCase):
         item = f'{rota}/{criada.json["id_composicao"]}'
         self.assertEqual(titular.get(rota).json[0]["titulo"], "Mapa em retrato")
         self.assertEqual(titular.get(item).json["configuracao"], dados)
+        vetorial = titular.post(rota, json=dados | {"base": "openfreemap"})
+        self.assertEqual(vetorial.status_code, 201)
+        self.assertEqual(titular.get(f'{rota}/{vetorial.json["id_composicao"]}').json["configuracao"]["base"], "openfreemap")
         self.assertEqual(outro.get(rota).json, [])
         self.assertEqual(admin.get(item).status_code, 404)
         entrada = {**dados, "titulo": "Nova revisão", "atualizada_em": criada.json["atualizada_em"]}
@@ -412,13 +415,23 @@ class GeoVSATTTests(unittest.TestCase):
         client = self.client()
         mapa = client.get("/geovsatt")
         self.assertIn(b"CEP / BrasilAPI", mapa.data)
+        self.assertIn(b'value="logradouro"', mapa.data)
         self.assertIn(b'value="sentinel"', mapa.data)
+        self.assertIn(b'value="openfreemap"', mapa.data)
         self.assertIn(b'value="esri"', mapa.data)
         self.assertLess(mapa.data.index(b'value="none"'), mapa.data.index(b'value="esri"'))
         with patch.dict(self.geo.config, {"GEOVSATT_ESRI_LICENSED": False}):
             self.assertNotIn(b'value="esri"', client.get("/geovsatt").data)
         csp = mapa.headers.get("Content-Security-Policy") or mapa.headers["Content-Security-Policy-Report-Only"]
         self.assertIn("https://tiles.maps.eox.at", csp)
+        self.assertIn("connect-src 'self' https://tiles.openfreemap.org;", csp)
+        self.assertIn("worker-src 'self';", csp)
+        worker = client.get("/static/vendor/maplibre/maplibre-gl-worker.mjs")
+        self.addCleanup(worker.close)
+        self.assertEqual(worker.status_code, 200)
+        self.assertIn("javascript", worker.mimetype)
+        csp_worker = worker.headers.get("Content-Security-Policy") or worker.headers["Content-Security-Policy-Report-Only"]
+        self.assertIn("connect-src 'self' https://tiles.openfreemap.org;", csp_worker)
 
     def test_permissao_camada_nativa_tambem_protege_busca_e_detalhe(self):
         admin = self.client()
@@ -454,6 +467,9 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(self.client(uid=3).post(url, json={"q": consulta}).json["resultados"], [])
         sugestao = permitido.post(url, json={"q": "João de Sou", "sugestao": True}).json["resultados"]
         self.assertEqual(sugestao[0]["titulo"], "Rua Doutor João de Souza")
+        prefixo = permitido.post(url, json={"q": "João de Souza, 1", "sugestao": True}).json["resultados"]
+        self.assertEqual(prefixo[0]["titulo"], "Rua Doutor João de Souza, 10")
+        self.assertEqual(permitido.post(url, json={"q": "João de Souza, 1"}).json["resultados"], [])
         self.assertEqual(self.client(uid=3).post(url, json={"q": "João de Sou", "sugestao": True}).json["resultados"], [])
         self.client().post("/geovsatt/admin/camadas/quarteiroes", data={"nome": "Quarteirões", "grupo": "Território"})
         self.assertEqual(permitido.post(url, json={"q": consulta}).json["resultados"], [])
@@ -480,6 +496,37 @@ class GeoVSATTTests(unittest.TestCase):
             self.assertEqual(client.get("/api/geovsatt/cep/83500-000").status_code, 404)
             pedir.side_effect = HTTPError(requisicao.full_url, 301, "Moved", {}, io.BytesIO())
             self.assertEqual(client.get("/api/geovsatt/cep/83500-000").status_code, 502)
+
+    def test_ceps_por_logradouro_preserva_bairros_e_trechos(self):
+        url = "/api/geovsatt/ceps-por-logradouro"
+        rua = {"logradouro": "Rua da Praça", "localidade": "Almirante Tamandaré", "uf": "PR"}
+        postal = [
+            rua | {"cep": "83501-020", "bairro": "Jardim 1", "complemento": "lado par", "unidade": "Ignorar"},
+            rua | {"cep": "83501020"},
+            rua | {"cep": "83501-021", "bairro": "Jardim 2"},
+            rua | {"cep": "99999-999", "localidade": "Outro município"},
+        ]
+        client = self.client(uid=3)
+        with patch.object(geovsatt_busca._CEP_HTTP, "open") as pedir:
+            resposta = MagicMock(status=200)
+            resposta.read.return_value = json.dumps(postal).encode()
+            pedir.return_value.__enter__.return_value = resposta
+            self.assertEqual(client.post(url, json={"logradouro": "R."}).status_code, 400)
+            self.assertEqual(client.post(url, json={"logradouro": "https://example.com"}).status_code, 400)
+            self.assertEqual(client.post(url, json={"logradouro": []}).status_code, 400)
+            self.assertEqual(self.geo.test_client().post(url, json={"logradouro": "Rua da Praça"}).status_code, 302)
+            pedir.assert_not_called()
+            obtidos = client.post(url, json={"logradouro": "  Rua da Praça, 150, Bairro  "}).json["resultados"]
+            self.assertEqual(obtidos, [
+                {"cep": "83501-020", "bairro": "Jardim 1", "complemento": "lado par", "logradouro": "Rua da Praça"},
+                {"cep": "83501-021", "bairro": "Jardim 2", "complemento": "", "logradouro": "Rua da Praça"},
+            ])
+            self.assertEqual(pedir.call_args.args[0].full_url,
+                             "https://viacep.com.br/ws/PR/Almirante%20Tamandar%C3%A9/Rua%20da%20Pra%C3%A7a/json/")
+            resposta.read.return_value = b"[]"
+            self.assertEqual(client.post(url, json={"logradouro": "Sem resultado"}).json["resultados"], [])
+            resposta.read.return_value = b'{"erro":true}'
+            self.assertEqual(client.post(url, json={"logradouro": "Rua da Praça"}).status_code, 502)
 
 
 if __name__ == "__main__":

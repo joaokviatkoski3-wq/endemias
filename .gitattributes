@@ -1,2 +1,5 @@
 # Preservar bytes originais e hashes do fornecedor, inclusive no Windows.
 static/vendor/fullcalendar/*.js -text
+static/vendor/maplibre/*.mjs -text
+static/vendor/maplibre/*.css -text
+static/vendor/maplibre/*-LICENSE.txt -text

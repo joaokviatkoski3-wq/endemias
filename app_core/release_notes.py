@@ -4,6 +4,14 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.22.0": {
+        "titulo": "Busca postal e mapa-base vetorial no GeoVSATT",
+        "mudancas": [
+            "Em Rua → CEP, consulte códigos postais dos logradouros de Almirante Tamandaré via ViaCEP.",
+            "O Registro Geográfico sugere ruas e números enquanto você digita e abre os detalhes do quarteirão.",
+            "A base OpenStreetMap · OpenFreeMap está disponível no mapa e nas composições para impressão.",
+        ],
+    },
     "2.21.0": {
         "titulo": "Equipamentos e composições salvas no GeoVSATT",
         "mudancas": [

@@ -1,10 +1,12 @@
-"""Busca territorial com os campos de endereço do RG e consulta pública de CEP."""
+"""Busca territorial pelo RG e consultas públicas de endereçamento postal."""
 
 from collections import namedtuple
 from http.client import HTTPException
 import json
 import re
+from unicodedata import normalize
 from urllib.error import HTTPError
+from urllib.parse import quote
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from app_core import db, registro_geografico as rg
@@ -93,7 +95,7 @@ def _encontra(consulta, base):
     return False
 
 
-def buscar_enderecos(target, termo, limite):
+def buscar_enderecos(target, termo, limite, *, sugerir=False, por_logradouro=False):
     opcoes, filtro = _interpretar(termo)
     if not opcoes or sum(map(len, opcoes[0].via)) < 3:
         return []
@@ -117,16 +119,19 @@ def buscar_enderecos(target, termo, limite):
             numero = _numero(registro["numero"])
             localidade = _localidade(registro["localidade"])
             for busca in opcoes:
-                if (busca.numero and busca.numero != numero) or not (
+                confere_numero = numero.startswith(busca.numero) if sugerir else busca.numero == numero
+                if (busca.numero and not confere_numero) or not (
                     _encontra(busca.via, via) and _encontra(busca.localidade, localidade)
                 ):
                     continue
-                prioridade = (bool(busca.numero), busca.via == via, bool(busca.localidade))
-                chave = (registro["id_localidade"], registro["quarteirao"], tuple(via), busca.numero)
+                prioridade = (bool(busca.numero), busca.via == via, bool(busca.localidade),
+                              bool(busca.numero) and busca.numero == numero)
+                chave = (tuple(_tokens(registro["logradouro"])) if por_logradouro else
+                         (registro["id_localidade"], registro["quarteirao"], tuple(via), numero if busca.numero else ""))
                 grupo = grupos.get(chave)
-                if grupo is None:
+                if grupo is None or prioridade > grupo[0]:
                     grupos[chave] = (prioridade, registro, [registro["id_imovel"]])
-                elif busca.numero:
+                elif busca.numero and not por_logradouro:
                     grupo[2].append(registro["id_imovel"])
     finally:
         conn.close()
@@ -145,10 +150,11 @@ def buscar_enderecos(target, termo, limite):
             titulo += f", {registro['numero']}"
         resultados.append({
             "tipo": "endereco", "titulo": titulo,
+            "logradouro": registro["logradouro"],
             "subtitulo": f"{registro['localidade']} · Q. {quarteirao} · Cadastro RG",
             "id_localidade": registro["id_localidade"], "quarteirao": quarteirao,
             "chave": f"{registro['id_localidade']}:{quarteirao}",
-            "imoveis": sorted(set(ids))[:100] if prioridade[0] else [],
+            "imoveis": sorted(set(ids))[:100] if prioridade[0] and not por_logradouro else [],
         })
     return resultados
 
@@ -157,27 +163,32 @@ class CepInexistente(ValueError):
     pass
 
 
+def _consulta_postal(url, provedor, limite, *, erro_404=None):
+    requisicao = Request(url, headers={"Accept": "application/json", "User-Agent": "VSATT/GeoVSATT"})
+    indisponivel = f"O serviço {provedor} está indisponível. A busca no RG continua disponível."
+    try:
+        with _CEP_HTTP.open(requisicao, timeout=4) as resposta:
+            if resposta.status != 200:
+                raise RuntimeError(indisponivel)
+            conteudo = resposta.read(limite + 1)
+            if len(conteudo) > limite:
+                raise RuntimeError(f"Resposta inesperada de {provedor}.")
+            return json.loads(conteudo)
+    except HTTPError as erro:
+        erro.close()
+        if erro.code == 404 and erro_404:
+            raise CepInexistente(erro_404) from erro
+        raise RuntimeError(indisponivel) from erro
+    except (OSError, HTTPException, json.JSONDecodeError, UnicodeError) as erro:
+        raise RuntimeError(indisponivel) from erro
+
+
 def consultar_cep(cep):
     if not CEP_PATTERN.fullmatch(cep):
         raise ValueError("Informe um CEP de 8 dígitos.")
     digitos = cep.replace("-", "")
-    requisicao = Request(f"https://brasilapi.com.br/api/cep/v2/{digitos}",
-                         headers={"Accept": "application/json", "User-Agent": "VSATT/GeoVSATT"})
-    try:
-        with _CEP_HTTP.open(requisicao, timeout=4) as resposta:
-            if resposta.status != 200:
-                raise RuntimeError("A BrasilAPI está indisponível. A busca no RG continua disponível.")
-            conteudo = resposta.read(16_385)
-            if len(conteudo) > 16_384:
-                raise RuntimeError("Resposta inesperada da BrasilAPI.")
-            dados = json.loads(conteudo)
-    except HTTPError as erro:
-        erro.close()
-        if erro.code == 404:
-            raise CepInexistente("CEP não encontrado na BrasilAPI.") from erro
-        raise RuntimeError("A BrasilAPI está indisponível. A busca no RG continua disponível.") from erro
-    except (OSError, HTTPException, json.JSONDecodeError, UnicodeError) as erro:
-        raise RuntimeError("A BrasilAPI está indisponível. Tente novamente mais tarde.") from erro
+    dados = _consulta_postal(f"https://brasilapi.com.br/api/cep/v2/{digitos}", "BrasilAPI", 16_384,
+                             erro_404="CEP não encontrado na BrasilAPI.")
     if not isinstance(dados, dict):
         raise RuntimeError("Resposta inesperada da BrasilAPI.")
     campos = {chave: str(dados.get(chave) or "")[:180] for chave in ("street", "neighborhood", "city", "state")}
@@ -186,3 +197,34 @@ def consultar_cep(cep):
         "municipio": campos["city"], "uf": campos["state"],
         "municipio_rg": rg._norm(campos["city"]) == "almirante tamandare" and campos["state"] == "PR",
     }
+
+
+def ceps_por_logradouro(logradouro):
+    # ViaCEP requer UF, município e logradouro. O município é o mesmo do RG.
+    if not isinstance(logradouro, str):
+        raise ValueError("Informe o nome do logradouro.")
+    rua = normalize("NFC", " ".join(logradouro.split(",", 1)[0].split()))
+    if not 3 <= len(rua) <= 120 or not any(c.isalpha() for c in rua):
+        raise ValueError("Informe pelo menos três caracteres do nome da rua, sem o número do imóvel.")
+    if not all(c.isalpha() or c.isdecimal() or c in " .-'’º°" for c in rua):
+        raise ValueError("Informe apenas o nome do logradouro.")
+    municipio = quote("Almirante Tamandaré", safe="")
+    dados = _consulta_postal(f"https://viacep.com.br/ws/PR/{municipio}/{quote(rua, safe='')}/json/",
+                             "ViaCEP", 65_536)
+    if not isinstance(dados, list):
+        raise RuntimeError("Resposta inesperada do ViaCEP.")
+    resultados = {}
+    for item in dados[:50]:
+        if not isinstance(item, dict):
+            continue
+        cep = item.get("cep")
+        if not isinstance(cep, str) or not CEP_PATTERN.fullmatch(cep):
+            continue
+        if item.get("uf") != "PR" or rg._norm(item.get("localidade")) != "almirante tamandare":
+            continue
+        digitos = cep.replace("-", "")
+        cep = f"{digitos[:5]}-{digitos[5:]}"
+        campos = {campo: str(item.get(campo) or "")[:180] for campo in ("logradouro", "bairro", "complemento")}
+        if campos["logradouro"]:
+            resultados.setdefault(cep, {"cep": cep, **campos})
+    return list(resultados.values())

@@ -13,6 +13,7 @@
   const searchInput = document.getElementById('geo-search-input');
   const searchSource = document.getElementById('geo-search-source');
   const searchResults = document.getElementById('geo-search-results');
+  const searchFeedback = document.getElementById('geo-search-feedback');
   const podeRg = document.querySelector('.geo-shell').dataset.podeRg === '1';
   const layers = new Map();
   const options = [...document.querySelectorAll('[data-layer]:enabled')];
@@ -108,13 +109,54 @@
     },
   };
   let activeBasemap;
+  let vectorMap;
+  let baseSequence = 0;
+  let basePending = false;
+  let baseFailed = false;
   const baseSelect = document.getElementById('geo-basemap');
-  baseSelect.addEventListener('change', () => {
+  baseSelect.addEventListener('change', async () => {
+    const sequence = ++baseSequence;
     if (activeBasemap) map.removeLayer(activeBasemap);
     activeBasemap = null;
-    const picked = Object.hasOwn(basemaps, baseSelect.value) ? basemaps[baseSelect.value] : null;
-    document.getElementById('geo-base-label').textContent = picked?.title || 'Sem imagem-base · dados institucionais';
+    vectorMap = null;
+    basePending = false;
+    baseFailed = false;
     statusNode.textContent = '';
+    const baseLabel = document.getElementById('geo-base-label');
+    if (baseSelect.value === 'openfreemap') {
+      baseLabel.textContent = 'OpenStreetMap · OpenFreeMap';
+      statusNode.textContent = 'Carregando a base vetorial…';
+      basePending = true;
+      try {
+        const versao = encodeURIComponent(document.documentElement.dataset.versao);
+        const {criarBaseVetorial} = await import(`/static/js/geovsatt_vetorial.mjs?v=${versao}`);
+        if (sequence !== baseSequence) return;
+        activeBasemap = criarBaseVetorial(map);
+        activeBasemap.addTo(map);
+        vectorMap = activeBasemap.getMaplibreMap();
+        vectorMap.once('load', () => {
+          if (sequence !== baseSequence) return;
+          baseFailed = false;
+          if (statusNode.textContent === 'Carregando a base vetorial…') statusNode.textContent = '';
+        });
+        vectorMap.on('error', () => {
+          if (sequence !== baseSequence) return;
+          baseFailed = !vectorMap.isStyleLoaded();
+          statusNode.textContent = 'Alguns dados da base OpenFreeMap não carregaram.';
+        });
+      } catch {
+        if (sequence !== baseSequence) return;
+        if (activeBasemap) map.removeLayer(activeBasemap);
+        activeBasemap = null;
+        baseFailed = true;
+        statusNode.textContent = 'Não foi possível abrir a base OpenFreeMap neste navegador.';
+      } finally {
+        if (sequence === baseSequence) basePending = false;
+      }
+      return;
+    }
+    const picked = Object.hasOwn(basemaps, baseSelect.value) ? basemaps[baseSelect.value] : null;
+    baseLabel.textContent = picked?.title || 'Sem imagem-base · dados institucionais';
     if (picked) {
       activeBasemap = L.tileLayer(picked.url, {
         maxNativeZoom: picked.native, maxZoom: map.getMaxZoom(), noWrap: true, attribution: picked.credits,
@@ -123,6 +165,12 @@
       }).addTo(map);
     }
   });
+
+  function estadoBase() {
+    if (baseFailed) return 'erro';
+    if (basePending || activeBasemap?.isLoading?.() || (vectorMap && !vectorMap.loaded())) return 'carregando';
+    return 'pronta';
+  }
 
   function openSidebar(open) {
     const trigger = document.getElementById('geo-menu-open');
@@ -602,7 +650,7 @@
   options.forEach(input => input.addEventListener('change', () => {
     toggleLayer(input).catch(error => reportLayerError(input, error));
   }));
-  window.GeoVSATTImpressao.create(map, baseSelect, measure, () => activeBasemap?.isLoading(), options, toggleLayer, itensLegenda,
+  window.GeoVSATTImpressao.create(map, baseSelect, measure, estadoBase, options, toggleLayer, itensLegenda,
     {api, filtrosPorCamada});
   document.getElementById('geo-fit').addEventListener('click', () => {
     if (fullBounds?.isValid()) map.fitBounds(fullBounds, {padding: [24, 24]});
@@ -610,10 +658,13 @@
 
   function showSearch(items, cep, suggestions = false) {
     searchResults.replaceChildren();
+    const rotulo = suggestions ? ['sugestão', 'sugestões'] : ['resultado', 'resultados'];
+    searchFeedback.textContent = items.length ? `${items.length} ${rotulo[Number(items.length > 1)]} do mapa.` : '';
     if (cep) {
-      const referencia = [cep.logradouro, cep.bairro, [cep.municipio, cep.uf].filter(Boolean).join(' – ')].filter(Boolean);
+      const referencia = [cep.logradouro, cep.complemento, cep.bairro,
+        [cep.municipio, cep.uf].filter(Boolean).join(' – ')].filter(Boolean);
       const card = element('div', 'geo-search-result geo-search-info');
-      card.append(element('strong', '', `CEP ${cep.cep} · BrasilAPI`),
+      card.append(element('strong', '', `CEP ${cep.cep} · ${cep.fonte || 'BrasilAPI'}`),
         element('span', '', referencia.join(' · ') || 'Endereço indisponível'));
       searchResults.append(card);
     }
@@ -625,17 +676,26 @@
       const aviso = cep ? (cep.municipio_rg ? 'Nenhum logradouro correspondente no RG.' : 'Este CEP está fora do município do RG.')
         : 'Nenhum resultado encontrado.';
       searchResults.append(element('div', 'geo-search-result geo-search-info', aviso));
+      searchFeedback.textContent = aviso;
       searchResults.hidden = false;
       return;
     }
     for (const item of items) {
       const button = element('button', 'geo-search-result');
       button.type = 'button';
-      button.append(element('strong', '', item.titulo), element('span', '', item.subtitulo));
+      const postalSuggestion = suggestions && searchSource.value === 'logradouro';
+      button.append(element('strong', '', postalSuggestion ? item.logradouro : item.titulo),
+        element('span', '', postalSuggestion ? 'Usar esse logradouro na pesquisa de CEP' : item.subtitulo));
       button.addEventListener('click', async () => {
         cancelSuggestions();
         searchSequence += 1;
         searchResults.hidden = true;
+        if (postalSuggestion) {
+          searchInput.value = item.logradouro;
+          searchInput.focus();
+          searchFeedback.textContent = 'Logradouro selecionado. Acione Buscar para consultar o CEP.';
+          return;
+        }
         const id = item.tipo === 'localidade' ? 'localidades' : 'quarteiroes';
         const input = options.find(option => option.dataset.layer === id);
         if (!input) return;
@@ -663,14 +723,56 @@
     searchResults.hidden = false;
   }
 
+  const submitSearch = (url, fields, signal) => api(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name="csrf-token"]').content},
+    body: JSON.stringify(fields), signal,
+  });
   const searchRG = async (term, suggestion = false, signal) => {
-    const data = await api('/api/geovsatt/busca', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name="csrf-token"]').content},
-      body: JSON.stringify({q: term, sugestao: suggestion}), signal,
-    });
+    const data = await submitSearch('/api/geovsatt/busca',
+      {q: term, sugestao: suggestion, logradouro: suggestion && searchSource.value === 'logradouro'}, signal);
     return data.resultados;
   };
+
+  function showPostalResults(resultados) {
+    searchResults.replaceChildren();
+    const feedback = resultados.length ? `${resultados.length} ${resultados.length === 1 ? 'CEP encontrado' : 'CEPs encontrados'}`
+      : 'Nenhum CEP encontrado para esse logradouro em Almirante Tamandaré.';
+    searchFeedback.textContent = feedback;
+    searchResults.append(element('div', 'geo-search-result geo-search-info', `${feedback} · ViaCEP`));
+    for (const item of resultados) {
+      const card = element('div', 'geo-search-result geo-search-info');
+      card.append(element('strong', '', item.cep),
+        element('span', '', [item.logradouro, item.complemento, item.bairro].filter(Boolean).join(' · ')));
+      if (podeRg && options.some(camada => camada.dataset.layer === 'quarteiroes')) {
+        const locate = element('button', 'geo-search-map-link', 'Procurar no RG');
+        locate.type = 'button';
+        locate.setAttribute('aria-label', `Procurar ${item.logradouro} no RG, CEP ${item.cep}`);
+        locate.addEventListener('click', async () => {
+          const sequence = ++searchSequence;
+          locate.disabled = true;
+          try {
+            const cep = {...item, municipio_rg: true, fonte: 'ViaCEP'};
+            const ruas = list => list.filter(result => result.tipo === 'endereco');
+            let items = ruas(await searchRG([item.logradouro, item.bairro].filter(Boolean).join(', ')));
+            if (item.bairro && !items.length && sequence === searchSequence) items = ruas(await searchRG(item.logradouro));
+            if (sequence === searchSequence) showSearch(items, cep);
+          } catch (error) {
+            if (sequence === searchSequence) showSearchError(error);
+          } finally {
+            locate.disabled = false;
+          }
+        });
+        card.append(locate);
+      }
+      searchResults.append(card);
+    }
+  }
+
+  function showSearchError(error) {
+    searchResults.replaceChildren(element('div', 'geo-search-result geo-search-info', error.message));
+    searchFeedback.textContent = error.message;
+  }
 
   function cancelSuggestions() {
     clearTimeout(suggestionTimer);
@@ -683,7 +785,8 @@
     const sequence = ++searchSequence;
     searchResults.hidden = true;
     const query = searchInput.value.trim();
-    if (!podeRg || searchSource.value !== 'rg' || query.length < 3 || /^\d/.test(query)) return;
+    searchFeedback.textContent = '';
+    if (!podeRg || searchSource.value === 'cep' || query.length < 3 || /^\d{5}-?\d*$/.test(query)) return;
     suggestionTimer = setTimeout(async () => {
       const request = new AbortController();
       suggestionRequest = request;
@@ -703,10 +806,11 @@
       cancelSuggestions();
       searchSequence += 1;
       searchResults.hidden = true;
+      searchFeedback.textContent = '';
       searchInput.focus();
     }
     if (searchResults.hidden || !['ArrowDown', 'ArrowUp'].includes(event.key)) return;
-    const buttons = [...searchResults.querySelectorAll('button')];
+    const buttons = [...searchResults.querySelectorAll('button:enabled')];
     if (!buttons.length) return;
     event.preventDefault();
     const current = buttons.indexOf(document.activeElement);
@@ -718,13 +822,16 @@
   searchSource.addEventListener('change', () => {
     cancelSuggestions();
     const cep = searchSource.value === 'cep';
-    searchInput.placeholder = cep ? 'Digite o CEP (00000-000)' : 'Rua e número, localidade ou quarteirão';
+    const postalAddress = searchSource.value === 'logradouro';
+    searchInput.placeholder = cep ? 'Digite o CEP (00000-000)' :
+      postalAddress ? 'Informe a rua em Almirante Tamandaré' : 'Rua e número, localidade ou quarteirão';
     searchInput.inputMode = cep ? 'numeric' : 'search';
     searchInput.maxLength = cep ? 9 : 180;
     searchSequence += 1;
     searchResults.hidden = true;
     searchInput.focus();
     searchInput.select();
+    searchFeedback.textContent = '';
   });
 
   searchForm.addEventListener('submit', async event => {
@@ -735,9 +842,15 @@
     const sequence = ++searchSequence;
     searchResults.hidden = false;
     searchResults.replaceChildren(element('div', 'geo-search-result geo-search-info', 'Buscando...'));
+    searchFeedback.textContent = 'Buscando.';
     try {
       let cep;
       let items;
+      if (searchSource.value === 'logradouro') {
+        const data = await submitSearch('/api/geovsatt/ceps-por-logradouro', {logradouro: query});
+        if (sequence === searchSequence) showPostalResults(data.resultados);
+        return;
+      }
       if (searchSource.value === 'cep' || /^\d{5}-?\d{3}$/.test(query)) {
         if (!/^\d{5}-?\d{3}$/.test(query)) throw Error('Informe um CEP com oito dígitos.');
         cep = await api(`/api/geovsatt/cep/${encodeURIComponent(query)}`);
@@ -747,9 +860,7 @@
       }
       if (sequence === searchSequence) showSearch(items, cep);
     } catch (error) {
-      if (sequence === searchSequence) {
-        searchResults.replaceChildren(element('div', 'geo-search-result geo-search-info', error.message));
-      }
+      if (sequence === searchSequence) showSearchError(error);
     }
   });
   document.addEventListener('click', event => {

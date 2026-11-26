@@ -28,6 +28,7 @@ button{color:inherit}
 .geo-search-result:hover,.geo-search-result:focus-visible{background:var(--selection);outline:0}
 .geo-search-result strong,.geo-search-result span{display:block}
 .geo-search-result strong{font-size:13px}.geo-search-result span{margin-top:3px;color:var(--muted);font-size:11px}
+.geo-search-map-link{margin-top:.4rem;padding:0;border:0;background:transparent;color:var(--action);font-size:12px;font-weight:700;text-decoration:underline;cursor:pointer}
 .geo-header-actions{display:flex;justify-content:flex-end;align-items:center;gap:12px;min-width:0;font-size:12px;color:var(--muted)}
 .geo-header-actions a,.geo-header-actions button{border:0;background:transparent;color:var(--action);font-weight:700;text-decoration:none;cursor:pointer;padding:8px 0}
 .geo-header-actions form{margin:0}

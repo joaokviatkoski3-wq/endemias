@@ -66,7 +66,7 @@ def api_composicoes(identificador=None):
     if identificador is None and request.method == "GET":
         return jsonify(composicoes.listar(target, uid))
     permitidas = {item["id"] for item in geo.catalogo(target, usuario)["camadas"] if item["disponivel"]}
-    bases = {"none", "sentinel"}
+    bases = {"none", "openfreemap", "sentinel"}
     if current_app.config["GEOVSATT_ESRI_LICENSED"]:
         bases.add("esri")
     try:
@@ -139,6 +139,7 @@ def api_busca():
     pode_rg = setores.pode_entrar(usuario, "endemias")
     try:
         if request.method == "POST":
+            request.max_content_length = 4_096
             payload = request.get_json(silent=True)
             termo = payload.get("q") if isinstance(payload, dict) else None
             if not isinstance(termo, str):
@@ -147,7 +148,8 @@ def api_busca():
                 termo = termo.strip()
                 resultados = []
                 if 3 <= len(termo) <= 180 and "quarteiroes" in permitidas and pode_rg:
-                    resultados = busca.buscar_enderecos(bh.db_target(), termo, 7)
+                    resultados = busca.buscar_enderecos(bh.db_target(), termo, 7, sugerir=True,
+                                                        por_logradouro=payload.get("logradouro") is True)
                 return jsonify({"resultados": resultados})
         else:
             termo = request.args.get("q")
@@ -165,6 +167,20 @@ def api_cep(cep):
         return jsonify(busca.consultar_cep(cep))
     except busca.CepInexistente as exc:
         return jsonify({"erro": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    except RuntimeError as exc:
+        return jsonify({"erro": str(exc)}), 502
+
+
+@bp.post("/api/geovsatt/ceps-por-logradouro")
+@login_required
+def api_ceps_por_logradouro():
+    request.max_content_length = 2_048
+    payload = request.get_json(silent=True)
+    try:
+        rua = payload.get("logradouro") if isinstance(payload, dict) else None
+        return jsonify({"resultados": busca.ceps_por_logradouro(rua)})
     except ValueError as exc:
         return jsonify({"erro": str(exc)}), 400
     except RuntimeError as exc:

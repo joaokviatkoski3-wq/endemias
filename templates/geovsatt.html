@@ -7,9 +7,17 @@
   <title>GeoVSATT · Vigilância em Saúde</title>
   <link rel="icon" type="image/png" href="/static/img/geovsatt-logo.png?v={{ APP_VERSION }}">
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.min.css?v={{ APP_VERSION }}">
+  <link rel="stylesheet" href="/static/vendor/maplibre/maplibre-gl.css?v={{ APP_VERSION }}">
   <link rel="stylesheet" href="/static/css/release_popup.css?v={{ APP_VERSION }}">
   <link rel="stylesheet" href="/static/css/geovsatt.css?v={{ APP_VERSION }}">
   <link rel="stylesheet" href="/static/css/geovsatt_impressao.css?v={{ APP_VERSION }}">
+  <script type="importmap" nonce="{{ csp_nonce() }}">
+    {"imports": {
+      "leaflet": "/static/js/geovsatt_leaflet.mjs?v={{ APP_VERSION }}",
+      "maplibre-gl": "/static/vendor/maplibre/maplibre-gl.mjs?v={{ APP_VERSION }}",
+      "maplibre-leaflet": "/static/vendor/maplibre/leaflet-maplibre-gl.mjs?v={{ APP_VERSION }}"
+    }}
+  </script>
 </head>
 <body class="geo-app">
   {% include "_ambiente_teste_faixa.html" %}
@@ -27,11 +35,13 @@
         <select id="geo-search-source" aria-label="Tipo de busca">
           <option value="rg">Endereço / RG</option>
           <option value="cep">CEP / BrasilAPI</option>
+          <option value="logradouro">Rua → CEP</option>
         </select>
         <input id="geo-search-input" name="q" type="search" autocomplete="off" enterkeyhint="search"
                maxlength="180" placeholder="Rua e número, localidade ou quarteirão" aria-controls="geo-search-results">
         <button type="submit">Buscar</button>
         <div id="geo-search-results" class="geo-search-results" hidden></div>
+        <span id="geo-search-feedback" class="sr-only" role="status"></span>
       </form>
       <nav class="geo-header-actions" aria-label="Conta e navegação">
         {% if catalogo.pode_configurar %}<a href="{{ url_for('geovsatt.admin_catalogo') }}">Gerenciar camadas</a>{% endif %}
@@ -83,9 +93,10 @@
         {% endfor %}
         <section class="geo-layer-group">
           <h2>Imagens e bases</h2>
-          <label class="geo-base-control">Imagem-base
+          <label class="geo-base-control">Mapa-base
             <select id="geo-basemap">
               <option value="none">Sem imagem-base</option>
+              <option value="openfreemap">OpenStreetMap · OpenFreeMap</option>
               <option value="sentinel">Satélite Sentinel-2 (2025)</option>
               {% if esri_licenciado %}<option value="esri">Satélite Esri World Imagery</option>{% endif %}
             </select>
@@ -146,7 +157,7 @@
         <label>Título do mapa <input name="titulo" maxlength="84" value="Mapa territorial"></label>
         <label>Folha A4 <select name="orientacao"><option value="paisagem">Paisagem</option><option value="retrato">Retrato</option></select></label>
         <label>Layout <select name="layout"><option value="inferior">Legenda inferior</option><option value="lateral">Legenda lateral</option><option value="superior">Legenda superior</option></select></label>
-        <label>Imagem-base <select name="base"></select></label>
+        <label>Mapa-base <select name="base"></select></label>
         <label>Nota para a folha <input name="nota" maxlength="140" placeholder="Opcional"></label>
       </div>
       <div class="geo-composicao-acoes">

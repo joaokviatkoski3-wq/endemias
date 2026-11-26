@@ -4,7 +4,7 @@ Atualizado em 26/11/2026.
 
 ## Estado deste incremento
 
-A versão `2.21.0` reúne as alterações descritas a seguir. Consulte
+A versão `2.22.0` reúne as alterações descritas a seguir. Consulte
 `ESTADO_ATUAL_PROJETO.md` para confirmar qual versão está em produção.
 
 Implementado:
@@ -196,10 +196,24 @@ importação, publicação e edição de metadados geram eventos de auditoria.
   grava uma revisão. Camadas e imagem-base passam pela permissão vigente a
   cada abertura. Medições pertencem à sessão aberta.
 
+## Busca postal e base vetorial na 2.22.0
+
+- **Rua → CEP** consulta o [ViaCEP](https://viacep.com.br/) com o logradouro e
+  o município do RG, Almirante Tamandaré–PR. Mostra todos os CEPs retornados,
+  com bairro e descrição do trecho quando informados. A consulta é executada
+  ao acionar **Buscar**. **Procurar no RG** busca os quarteirões para as contas
+  autorizadas. **CEP / BrasilAPI** atende à consulta a partir dos oito dígitos.
+- As sugestões usam o RG enquanto a pessoa digita, inclusive com início do
+  número do imóvel. A busca enviada no modo **Endereço / RG** continua usando
+  o número completo. As setas navegam pelas sugestões e Enter escolhe o item.
+- **OpenStreetMap · OpenFreeMap** usa a base Positron com MapLibre GL JS e
+  atribuição à cartografia na tela e na prévia. A opção pode ser escolhida e
+  salva em composições. O mapa abre sem base. As camadas institucionais mantêm
+  o controle de acesso e a busca continua disponível durante a troca de base.
+
 ## Próximos incrementos
 
-1. Base vetorial OpenFreeMap, com dados OpenStreetMap e renderização MapLibre GL JS.
-   Usar a camada nativa `heatmap` do MapLibre para futuros mapas de densidade,
+1. Usar a camada nativa `heatmap` do MapLibre para futuros mapas de densidade,
    com filtros por período e respeito às permissões e à agregação de cada fonte.
    [Documentação OpenFreeMap](https://openfreemap.org/quick_start/) ·
    [Estilos MapLibre](https://maplibre.org/maplibre-style-spec/layers/#heatmap)

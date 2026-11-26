@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  function create(map, seletorBase, medicao, carregandoBase, opcoesCamadas, alternarCamada, itensLegenda, acesso) {
+  function create(map, seletorBase, medicao, estadoBase, opcoesCamadas, alternarCamada, itensLegenda, acesso) {
     const botao = document.getElementById('geo-imprimir');
     const dialogo = document.getElementById('geo-composicao');
     const formulario = document.getElementById('geo-composicao-form');
@@ -285,8 +285,10 @@
         return;
       }
       atualizarFolha();
-      if (carregandoBase()) {
-        status.textContent = 'Aguarde a imagem-base terminar de carregar e tente novamente.';
+      const situacaoBase = estadoBase();
+      if (situacaoBase !== 'pronta') {
+        status.textContent = situacaoBase === 'erro' ? 'O mapa-base não carregou. Selecione outra base para imprimir.'
+          : 'Aguarde o mapa-base terminar de carregar e tente novamente.';
         return;
       }
       window.print();

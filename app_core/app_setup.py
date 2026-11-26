@@ -122,7 +122,12 @@ def register_security_headers(app):
             'consultas.laboratorio', 'laboratorio.page', 'recolhimentos.page', 'pontos_estrategicos.page', 'formularios.rg_campo_page'
         }
         attributes = "'none'" if strict or not inline else "'unsafe-inline'"
-        imagens_geo = " https://tiles.maps.eox.at" if request.endpoint == "geovsatt.page" else ""
+        mapa_geo = request.endpoint == "geovsatt.page"
+        worker_geo = (request.endpoint == "static" and
+                      (request.view_args or {}).get("filename") == "vendor/maplibre/maplibre-gl-worker.mjs")
+        imagens_geo = " https://tiles.maps.eox.at https://tiles.openfreemap.org" if mapa_geo else ""
+        conexoes_geo = " https://tiles.openfreemap.org" if mapa_geo or worker_geo else ""
+        workers_geo = "worker-src 'self'; " if mapa_geo else ""
         return (
             "default-src 'self'; "
             f"script-src 'self' https://cdn.jsdelivr.net 'nonce-{nonce()}' 'strict-dynamic'; "
@@ -131,7 +136,8 @@ def register_security_headers(app):
             "object-src 'none'; "
             f"img-src 'self' data: blob: https://server.arcgisonline.com{imagens_geo}; "
             "font-src 'self'; "
-            "connect-src 'self'; "
+            f"connect-src 'self'{conexoes_geo}; "
+            f"{workers_geo}"
             "frame-ancestors 'self'; "
             "base-uri 'self'; "
             "form-action 'self'"
