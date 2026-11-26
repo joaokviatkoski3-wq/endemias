@@ -5,7 +5,7 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.18.0**, release `f7e3108`, ativa em 26/11/2026. O instalador confirmou
+- **2.19.0**, release `405a1e7`, ativa em 26/11/2026. O instalador confirmou
   a preservação de 105 tabelas, dos arquivos operacionais e da tarefa Kobo.
   Os três logins responderam na origem do Tunnel e o GeoVSATT respondeu
   em HTTPS no endereço público. O mapa de bloqueio
@@ -70,7 +70,16 @@ regras de trabalho e isolamento de testes.
 
 ## Projetos futuros
 
-- **GeoVSATT** (`geo.vsatt.com.br`). A instalação `2.18.0` inclui busca de endereço
+- **GeoVSATT** (`geo.vsatt.com.br`). A instalação `2.19.0` usa os quarteirões e
+  localidades do acervo como geometrias principais, limite municipal ligado na
+  abertura, Esri opcional no mapa, filtros, estilos e etiquetas por camada.
+  A busca de endereço oferece sugestões do RG. Ovitrampas, pontos estratégicos
+  e ações com coordenadas estão disponíveis conforme a permissão do setor.
+  Entre 64 cadastros de Esporotricose animal, 60 têm coordenadas e quatro não
+  têm. A apresentação anterior deslocava 36 dos 60 em mais de 100 m, com
+  máximo de 177,1 m e um centro de célula além da divisa. Admin e superadmin
+  agora veem a posição cadastrada. A publicação não alterou esses cadastros.
+  A versão `2.18.0` introduziu a busca de endereço
   no RG, modo CEP / BrasilAPI, etiquetas por zoom, medições e satélite Sentinel‑2.
   O catálogo recebeu 12 camadas, com 3.862 feições, preservando a malha ativa do RG.
   A Esporotricose animal é exibida em células agregadas com acesso restrito.
