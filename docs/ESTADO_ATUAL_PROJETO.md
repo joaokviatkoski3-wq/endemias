@@ -1,8 +1,29 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 24/11/2026. Este e o resumo operacional que uma nova conversa do
+Atualizado em 26/11/2026. Este e o resumo operacional que uma nova conversa do
 Codex deve ler depois de `CONTEXTO_PARA_IA.md`. Datas, commits,
 branches e servicos podem mudar; confirme sempre o estado vivo antes de agir.
+
+## Versão candidata 2.15.0 — visitas e mapas de bloqueio de Esporotricose
+
+O Dashboard abre a aba Visitas e usa a mesma consulta para contagens de
+visitas e animais agrupados por localidade. O card abre o recorte de visitas.
+A ficha individual mostra contato e dados do imóvel, horários, equipe,
+observações e animais. XLSX e PDF administrativos exportam todo o filtro,
+incluindo campos de origem disponíveis. O XLSX separa visitas e animais
+por identificador, com uma aba adicional para os campos de origem.
+
+A migração 0045 acrescenta uma coluna nula para arquivar os dados de origem.
+A API do Kobo guarda a resposta original, inclusive grupos repetidos e
+metadados de anexos. O utilitário completar_origem_esporotricose.py faz
+prévia ou preenche cópias ausentes em visitas existentes pelo UUID. Ele
+não altera os campos editáveis, não reimporta visitas e não baixa arquivos
+de mídia. Aceita a API do Kobo Ambiental ou uma planilha histórica XLSX.
+
+Em Doentes > Lista, Gerar mapa abre um A4 com raio de 150 m, imagem de
+satélite, quarteirões ativos e ruas de Ruas-web.geojson da cartografia
+municipal. A página lista quarteirões atingidos, mostra as datas de bloqueio
+e oferece impressão ou salvamento em PDF pelo navegador.
 
 ## Versão candidata 2.14.2 — cadastro e confirmação do Web Push
 

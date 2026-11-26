@@ -1,4 +1,5 @@
 import hashlib
+import json
 import math
 import re
 import unicodedata
@@ -28,6 +29,11 @@ DOENTES_STATUS_TABLE = "esporotricose_doentes_status"
 DOENTES_ESTOQUE_TABLE = "esporotricose_estoque_medicacao"
 IMOVEIS_TABLE = "esporotricose_imoveis"
 VISITA_IMOVEIS_TABLE = "esporotricose_visita_imoveis"
+TELEFONE_KOBO_COLUNAS = (
+    "Dados do morador/Telefone", "Telefone", "Telefone do morador", "Telefone do munícipe",
+    "Telefone_para_contato", "Telefone_do_morador",
+)
+NUMERO_KOBO_COLUNAS = ("Dados do morador/Número", "Número do imóvel", "Numero", "N_mero")
 NORMAL_IMPORT_MARKER = "esporotricose_kobo_v2"
 LEGACY_IMPORT_MARKER = "esporotricose_historico_legado"
 DOENTES_DATAS_NOTIFICACAO_HISTORICAS = {
@@ -144,6 +150,7 @@ CHOICE_LABELS = {
     "sem tratamento": "Sem tratamento",
     "em_tratamento": "Em tratamento",
     "em tratamento": "Em tratamento",
+    "_bito_eutan_sia": "Óbito/Eutanásia",
     "obito_eutanasia": "Óbito/Eutanásia",
     "obito/eutanasia": "Óbito/Eutanásia",
     "óbito/eutanásia": "Óbito/Eutanásia",
@@ -438,6 +445,7 @@ def ensure_schema(conn):
     )
     _ensure_column(conn, DOENTES_TABLE, "especie", "TEXT")
     _ensure_column(conn, DOENTES_TABLE, "cpf", "TEXT")
+    _ensure_column(conn, VISITAS_TABLE, "dados_kobo_json", "TEXT")
     _ensure_column(conn, DOENTES_TABLE, "data_notificacao", "DATE")
     _ensure_column(conn, DOENTES_RECEITAS_TABLE, "capsulas_por_dia", "REAL NOT NULL DEFAULT 1")
     _ensure_column(conn, DOENTES_RECEITAS_TABLE, "receita_pendente", "INTEGER NOT NULL DEFAULT 0")
@@ -824,6 +832,8 @@ def processar_arquivo(path, conn, logger, agora_iso, dry_run=False,
             duplicadas += 1
         vinculos += _inserir_agentes(conn, visita["id_visita"], visita.get("agentes_texto"))
         _sincronizar_acs_visita(conn, visita)
+        if visita.get("dados_kobo"):
+            armazenar_dados_kobo(conn, visita, somente_ausentes=True)
 
     for animal in animais:
         animal["arquivo_origem"] = _basename(path)
@@ -846,16 +856,55 @@ def processar_arquivo(path, conn, logger, agora_iso, dry_run=False,
     }
 
 
+def _dados_originais(row):
+    return {
+        str(key): value if isinstance(value, (str, bool, int, float)) else str(value)
+        for key, value in row.items() if pd.notna(value)
+    }
+
+
+def armazenar_dados_kobo(conn, visita, *, somente_ausentes=False):
+    """Vincula a cópia de origem ao UUID existente, sem mudar os campos editáveis."""
+    dados = visita.get("dados_kobo")
+    if not dados:
+        return 0
+    condition = " AND dados_kobo_json IS NULL" if somente_ausentes else ""
+    return conn.execute(
+        f"UPDATE {VISITAS_TABLE} SET dados_kobo_json=? WHERE kobo_uuid=?{condition}",
+        (json.dumps(dados, ensure_ascii=False, allow_nan=False), visita["kobo_uuid"]),
+    ).rowcount
+
+
+def _origens_api(path):
+    from app_core import kobo_api
+
+    dados = pd.read_excel(path, sheet_name="Origem Kobo", dtype=object, keep_default_na=False)
+    origens = {}
+    for uuid, group in dados.groupby("UUID", sort=False):
+        try:
+            linhas = sorted(zip(group["Parte"], group["Envio JSON"]))
+            if [parte for parte, _ in linhas] != list(range(1, len(linhas) + 1)):
+                continue
+            envio = json.loads("".join(pedaco for _, pedaco in linhas))
+            if isinstance(envio, dict) and kobo_api.record_uuid(envio) == uuid:
+                origens[uuid] = envio
+        except (ValueError, TypeError):
+            continue
+    return origens
+
+
 def parse_workbook(path, estrutura=None):
     with pd.ExcelFile(path, engine="openpyxl") as xls:
         sheet_names = list(xls.sheet_names)
-    main = pd.read_excel(path, sheet_name=sheet_names[0], engine="openpyxl").dropna(how="all")
-    animals_df = pd.read_excel(path, sheet_name=sheet_names[1], engine="openpyxl").dropna(how="all")
+    main = pd.read_excel(path, sheet_name=sheet_names[0], engine="openpyxl", dtype=object).dropna(how="all")
+    animals_df = pd.read_excel(path, sheet_name=sheet_names[1], engine="openpyxl", dtype=object).dropna(how="all")
     estrutura = estrutura or ("nova" if is_new_format(path) else "legada")
 
     visitas = []
     uuid_to_id = {}
     index_to_id = {}
+    originais_por_visita = {}
+    origens_api = _origens_api(path) if "Origem Kobo" in sheet_names else {}
     for _, row in main.iterrows():
         uuid = _uuid(row.get("_uuid"))
         if not uuid:
@@ -882,10 +931,10 @@ def parse_workbook(path, estrutura=None):
             "quarteirao": _int(_row_get(row, ["Dados do morador/Quarteirão", "Quarteirao", "Quarteir_o"])),
             "tipo_imovel": _choice(_row_get(row, ["Dados do morador/Tipo do imóvel", "Tipo_do_im_vel", "Tipo do imovel"])),
             "logradouro": _text(_row_get(row, ["Dados do morador/Logradouro", "Logradouro"])),
-            "numero": _text(_row_get(row, ["Dados do morador/Número", "Numero", "N_mero"])),
+            "numero": _text(_row_get(row, NUMERO_KOBO_COLUNAS)),
             "morador": _text(_row_get(row, ["Dados do morador/Morador", "Morador"])),
             "visita": _choice(_row_get(row, ["Dados do morador/Visita:", "Visita"])),
-            "telefone": _text(_row_get(row, ["Dados do morador/Telefone", "Telefone"])),
+            "telefone": _text(_row_get(row, TELEFONE_KOBO_COLUNAS)),
             "observacoes": _text(_row_get(row, ["Dados do morador/Observações", "Observacoes", "Observa_es"])),
             "deseja_cadastrar_animal": _choice(_row_get(row, ["Deseja cadastrar um animal?", "Deseja_cadastrar_um_animal"])),
             "acs_presente": acs_presente,
@@ -893,6 +942,10 @@ def parse_workbook(path, estrutura=None):
             "acs_codigos": acs_codigos,
             "submission_time": _datetime(row.get("_submission_time")),
         }
+        visita["dados_kobo"] = {"visita": _dados_originais(row), "animais": []}
+        if uuid in origens_api:
+            visita["dados_kobo"]["envio_api"] = origens_api[uuid]
+        originais_por_visita[id_visita] = visita["dados_kobo"]["animais"]
         visitas.append(visita)
         uuid_to_id[uuid] = id_visita
         idx = _text(row.get("_index"))
@@ -906,6 +959,7 @@ def parse_workbook(path, estrutura=None):
         id_visita = uuid_to_id.get(sub_uuid) or index_to_id.get(parent_idx)
         if not id_visita:
             continue
+        originais_por_visita[id_visita].append(_dados_originais(row))
         animal_uuid = f"{sub_uuid or parent_idx}:{_text(row.get('_index')) or len(animais)}"
         animais.append({
             "id_animal": _hash("esporotricose:animal", animal_uuid),
@@ -1051,11 +1105,17 @@ def opcoes_acs_visitas(target):
         conn.close()
 
 
-def listar_visitas(target, filtros=None):
+def listar_visitas(target, filtros=None, *, id_visita=None, todos=False):
     filtros = filtros or {}
     conn = db_core.connect(target)
     ensure_schema(conn)
     where, params = _where_visitas(filtros)
+    if id_visita is not None:
+        where += " AND v.id_visita=?"
+        params.append(id_visita)
+    completas = todos or id_visita is not None
+    colunas_originais = ", v.dados_kobo_json, v.kobo_id, v.origem_estrutura, v.arquivo_origem" if completas else ""
+    limite = "" if completas else "LIMIT 500"
     if getattr(conn, "backend", "sqlite") == "postgresql":
         agentes_sql = (
             "string_agg(agentes_unicos.nome, ', ' "
@@ -1089,15 +1149,15 @@ def listar_visitas(target, filtros=None):
                                  WHERE va.id_visita=v.id_visita
                                  ORDER BY ag.nome
                                ) agentes_unicos
-                    ), '') AS agentes
+                    ), '') AS agentes {colunas_originais}
                 FROM esporotricose_visitas v
                 {where}
-                ORDER BY v.data DESC, v.hora_inicio DESC, v.localidade, v.quarteirao
-                LIMIT 500""",
+                ORDER BY v.data DESC, v.hora_inicio DESC, v.localidade, v.quarteirao, v.id_visita
+                {limite}""",
             params,
         )]
         agentes_por_visita = {}
-        if registros:
+        if not completas and registros:
             ids = [r["id_visita"] for r in registros]
             placeholders = ",".join("?" for _ in ids)
             for row in conn.execute(
@@ -1107,10 +1167,38 @@ def listar_visitas(target, filtros=None):
                 agentes_por_visita.setdefault(row["id_visita"], []).append(row["id_agente"])
         for registro in registros:
             registro["agente_ids"] = agentes_por_visita.get(registro["id_visita"], [])
-        _anexar_acs_visitas(conn, registros)
+        for inicio in range(0, len(registros), 400):
+            lote = registros[inicio:inicio+400]
+            _anexar_acs_visitas(conn, lote)
+            if completas:
+                _anexar_detalhes_visitas(conn, lote)
     finally:
         conn.close()
     return {"total": total or 0, "registros": registros}
+
+
+def _anexar_detalhes_visitas(conn, registros):
+    visitas = {row["id_visita"]: row for row in registros}
+    lacunas = ",".join("?" for _ in visitas)
+    for visita in registros:
+        origem = visita.pop("dados_kobo_json")
+        visita["origem_kobo"] = json.loads(origem) if origem else None
+        dados = (visita["origem_kobo"] or {}).get("visita", {})
+        if dados:
+            for campo, colunas in (("telefone", TELEFONE_KOBO_COLUNAS), ("numero", NUMERO_KOBO_COLUNAS)):
+                if not visita.get(campo):
+                    visita[campo] = _text(_row_get(pd.Series(dados), colunas))
+        visita["animais_detalhes"] = []
+    for row in conn.execute(
+        f"""SELECT a.*
+              FROM {ANIMAIS_TABLE} a
+             WHERE a.id_visita IN ({lacunas})
+             ORDER BY a.id_visita, a.id_animal""",
+        list(visitas),
+    ):
+        item = db_core.serialize_row(row)
+        item["evolucao_caso"] = _choice(item["evolucao_caso"])
+        visitas[item["id_visita"]]["animais_detalhes"].append(item)
 
 
 def atualizar_visita(target, id_visita, dados):
@@ -1342,6 +1430,8 @@ def listar_animais(target, filtros=None):
             params,
         )]
         _anexar_acs_visitas(conn, registros)
+        for registro in registros:
+            registro["evolucao_caso"] = _choice(registro["evolucao_caso"])
         _anexar_buscas_ferido(conn, registros)
     finally:
         conn.close()
@@ -1450,32 +1540,35 @@ def preparar_doente_de_visita(target, id_animal_visita):
         conn.close()
 
 
+def _localidades_filtradas(conn, where, params):
+    registros = [db_core.serialize_row(r) for r in conn.execute(
+        f"""SELECT
+                COALESCE(v.localidade, '-') AS localidade,
+                COUNT(DISTINCT v.id_visita) AS visitas,
+                COUNT(a.id_animal) AS animais,
+                SUM(CASE WHEN substr(LOWER(COALESCE(a.especie,'')),1,1)='c' THEN 1 ELSE 0 END) AS caes,
+                SUM(CASE WHEN substr(LOWER(COALESCE(a.especie,'')),1,4)='gato' THEN 1 ELSE 0 END) AS gatos,
+                SUM(CASE WHEN LOWER(COALESCE(a.feridas,'')) = 'sim' THEN 1 ELSE 0 END) AS com_feridas,
+                COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,'')) = 'fechado' THEN v.id_visita END) AS fechadas,
+                COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,'')) = 'recusa' THEN v.id_visita END) AS recusas
+            FROM esporotricose_visitas v
+            LEFT JOIN esporotricose_animais a ON a.id_visita = v.id_visita
+            {where}
+            GROUP BY COALESCE(v.localidade, '-')
+            ORDER BY visitas DESC, localidade""",
+        params,
+    )]
+    return [{k: (v or 0) if k != "localidade" else v for k, v in row.items()} for row in registros]
+
+
 def resumo_localidades(target, filtros=None):
-    filtros = filtros or {}
     conn = db_core.connect(target)
     ensure_schema(conn)
-    where, params = _where(filtros)
     try:
-        registros = [db_core.serialize_row(r) for r in conn.execute(
-            f"""SELECT
-                    COALESCE(v.localidade, '-') AS localidade,
-                    COUNT(DISTINCT v.id_visita) AS visitas,
-                    COUNT(a.id_animal) AS animais,
-                    SUM(CASE WHEN substr(LOWER(COALESCE(a.especie,'')),1,1)='c' THEN 1 ELSE 0 END) AS caes,
-                    SUM(CASE WHEN substr(LOWER(COALESCE(a.especie,'')),1,4)='gato' THEN 1 ELSE 0 END) AS gatos,
-                    SUM(CASE WHEN LOWER(COALESCE(a.feridas,'')) = 'sim' THEN 1 ELSE 0 END) AS com_feridas,
-                    COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,'')) = 'fechado' THEN v.id_visita END) AS fechadas,
-                    COUNT(DISTINCT CASE WHEN LOWER(COALESCE(v.visita,'')) = 'recusa' THEN v.id_visita END) AS recusas
-                FROM esporotricose_visitas v
-                LEFT JOIN esporotricose_animais a ON a.id_visita = v.id_visita
-                {where}
-                GROUP BY COALESCE(v.localidade, '-')
-                ORDER BY visitas DESC, localidade""",
-            params,
-        )]
+        where, params = _where(filtros or {})
+        return {"registros": _localidades_filtradas(conn, where, params)}
     finally:
         conn.close()
-    return {"registros": [{k: (v or 0) if k != "localidade" else v for k, v in row.items()} for row in registros]}
 
 
 def dashboard(target, filtros=None):
@@ -1513,15 +1606,7 @@ def dashboard(target, filtros=None):
             GROUP BY COALESCE(NULLIF(a.ambiente, ''), 'Sem informação')
             ORDER BY total DESC, nome
         """, params)
-        localidades = _rows(conn, f"""
-            SELECT COALESCE(v.localidade, '-') AS nome, COUNT(DISTINCT v.id_visita) AS visitas, COUNT(a.id_animal) AS animais
-            FROM esporotricose_visitas v
-            LEFT JOIN esporotricose_animais a ON a.id_visita = v.id_visita
-            {where}
-            GROUP BY COALESCE(v.localidade, '-')
-            ORDER BY visitas DESC, nome
-            LIMIT 12
-        """, params)
+        localidades = [dict(item, nome=item["localidade"]) for item in _localidades_filtradas(conn, where, params)]
         saude = _rows(conn, f"""
             SELECT 'Feridas' AS grupo,
                    SUM(CASE WHEN LOWER(COALESCE(a.feridas,'')) = 'sim' THEN 1 ELSE 0 END) AS sim,
@@ -3254,7 +3339,13 @@ def _where_animais(filtros):
     _add_valores_filtro(clauses, params, "a.castrado", filtros.get("castrado"))
     _add_valores_filtro(clauses, params, "a.ambiente", filtros.get("ambiente"))
     _add_valores_filtro(clauses, params, f"({MOTIVO_ATENCAO_SQL})", filtros.get("motivo_atencao"))
-    _add_valores_filtro(clauses, params, "COALESCE(a.evolucao_caso, '')", filtros.get("evolucao"), nocase=True)
+    evolucoes = _valores_filtro(filtros.get("evolucao"))
+    if any(_choice(valor) == "Óbito/Eutanásia" for valor in evolucoes):
+        evolucoes.extend(chave for chave, rotulo in CHOICE_LABELS.items() if rotulo == "Óbito/Eutanásia")
+        evolucoes.append("Óbito/Eutanásia")
+    _add_valores_filtro(
+        clauses, params, "REPLACE(COALESCE(a.evolucao_caso, ''), 'Ó', 'ó')", evolucoes, nocase=True
+    )
     if filtros.get("prioritarios"):
         clauses.append(f"({MOTIVO_ATENCAO_SQL}) <> ''")
     return "WHERE " + " AND ".join(clauses), params

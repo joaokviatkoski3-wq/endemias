@@ -1197,6 +1197,18 @@ def write_etl_workbooks(registros_por_tipo, config_path, output_dir, prefix="kob
         with pd.ExcelWriter(path, engine="openpyxl") as writer:
             pd.DataFrame(visitas).to_excel(writer, sheet_name="dados", index=False)
             pd.DataFrame(animais).to_excel(writer, sheet_name="Dados do animal", index=False)
+            origem = writer.book.create_sheet("Origem Kobo")
+            origem.append(("UUID", "Parte", "Envio JSON"))
+            for envio in esporo:
+                conteudo = json.dumps(envio, ensure_ascii=False, separators=(",", ":"))
+                for parte, inicio in enumerate(range(0, len(conteudo), 30000), start=1):
+                    origem.append((record_uuid(envio), parte, conteudo[inicio:inicio + 30000]))
+            # Preserva respostas iniciadas por "=" como texto, inclusive na planilha transitória.
+            for planilha in writer.book.worksheets:
+                for linha in planilha.iter_rows():
+                    for celula in linha:
+                        if celula.data_type == "f":
+                            celula.data_type = "s"
         arquivos.append(str(path))
 
     for tipo in ("BRI", "AMOSTRA_ANIMAIS"):

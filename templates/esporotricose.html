@@ -8,7 +8,7 @@
 .esporo-kpi-label { font-size:10px; color:var(--text3); font-weight:800; text-transform:uppercase; letter-spacing:.4px; }
 .esporo-kpi-value { font-size:26px; color:var(--brand); font-weight:800; line-height:1.1; margin-top:4px; font-variant-numeric:tabular-nums; }
 .esporo-layout { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr); gap:14px; }
-.esporo-local-list { display:flex; flex-direction:column; gap:8px; }
+.esporo-local-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr)); gap:8px; }
 .esporo-local-item { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; background:var(--surface2); border-radius:var(--radius-sm); color:var(--text2); font-size:12px; }
 .esporo-local-item strong { color:var(--text); }
 .esporo-badge { display:inline-flex; align-items:center; justify-content:center; min-width:26px; padding:2px 8px; border-radius:999px; background:var(--brand-xs); color:var(--brand); font-weight:800; font-size:12px; }
@@ -153,12 +153,11 @@
 </div>
 
 <div class="esporo-tabbar esporo-subtabs" id="esp-visitas-tabs" aria-label="Abas de visitas de esporotricose">
-  <button class="esporo-tab-btn active" type="button" onclick="openEspTab('esp-tab-resumo', this)"><img src="/static/icons/grafico_barra.svg" alt="" class="icon-svg"> Resumo</button>
+  <button class="esporo-tab-btn active" type="button" onclick="openEspTab('esp-tab-dashboard', this)"><img src="/static/icons/grafico_linha.svg" alt="" class="icon-svg"> Dashboard</button>
   <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-visitas', this)"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Visitas</button>
   <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-imoveis', this)"><img src="/static/icons/casas.svg" alt="" class="icon-svg"> Histórico por imóvel</button>
   <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-animais', this)"><img src="/static/icons/pets.svg" alt="" class="icon-svg"> Animais</button>
   <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-localidades', this)"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Localidades</button>
-  <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-dashboard', this)"><img src="/static/icons/grafico_linha.svg" alt="" class="icon-svg"> Dashboard</button>
 </div>
 
 <div class="esporo-tabbar esporo-subtabs" id="esp-doentes-tabs" aria-label="Abas de animais doentes">
@@ -168,54 +167,17 @@
   <button class="esporo-tab-btn" type="button" onclick="openEspTab('esp-tab-doentes-estoque', this)"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Estoque medicação</button>
 </div>
 
-<div class="esporo-grid" id="esp-visitas-kpis">
-  <div class="esporo-kpi"><div class="esporo-kpi-label">Visitas</div><div class="esporo-kpi-value" id="esp-visitas">0</div></div>
-  <div class="esporo-kpi"><div class="esporo-kpi-label">Animais</div><div class="esporo-kpi-value" id="esp-animais">0</div></div>
-  <div class="esporo-kpi"><div class="esporo-kpi-label">Cães</div><div class="esporo-kpi-value" id="esp-caes">0</div></div>
-  <div class="esporo-kpi"><div class="esporo-kpi-label">Gatos</div><div class="esporo-kpi-value" id="esp-gatos">0</div></div>
-  <div class="esporo-kpi"><div class="esporo-kpi-label">Com feridas</div><div class="esporo-kpi-value" id="esp-feridas">0</div></div>
-  <div class="esporo-kpi"><div class="esporo-kpi-label">Fechadas</div><div class="esporo-kpi-value" id="esp-fechadas">0</div></div>
-</div>
-
-<section class="esporo-pane active" id="esp-tab-resumo" data-esp-area="visitas">
-  <div class="filter-card esporo-mini-filter">
-    <div class="filter-body open">
-      <div class="filter-grid">
-        <div class="f-g"><label>Data inicial</label><input type="date" id="res-d-ini" value="{{ d_ini }}"></div>
-        <div class="f-g"><label>Data final</label><input type="date" id="res-d-fim" value="{{ d_fim }}"></div>
-        <div class="f-g"><label>Localidade</label><select id="res-localidade"><option value="">Todas</option>{% for loc in localidades %}<option value="{{ loc.nome }}">{{ loc.nome }}</option>{% endfor %}</select></div>
-        <div class="f-g"><label>Situação</label><select id="res-visita"><option value="">Todas</option><option value="Normal">Normal</option><option value="Fechado">Fechado</option><option value="Recusa">Recusa</option><option value="Recuperado">Recuperado</option></select></div>
-        <div class="esporo-filter-actions"><button class="btn btn-primary" type="button" onclick="carregarEsporotricose()"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
-      </div>
-    </div>
-  </div>
-  <div class="esporo-layout">
-    <div class="chart-card">
-      <div class="chart-hd">
-        <div class="chart-title"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> Visitas recentes</div>
-      </div>
-      <div class="table-scroll">
-        <table id="esp-resumo-visitas-table" data-sortable-table>
-          <thead><tr><th data-sort-type="date">Data</th><th data-sort-type="text">Localidade</th><th data-sort-type="text">Quadra</th><th data-sort-type="text">Endereço</th><th data-sort-type="text">Morador</th><th data-sort-type="text">Visita</th><th data-sort-type="number">Animais</th></tr></thead>
-          <tbody id="esp-resumo-visitas-body"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="chart-card">
-      <div class="chart-hd">
-        <div class="chart-title"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Por localidade</div>
-      </div>
-      <div class="esporo-local-list" id="esp-localidades"></div>
-    </div>
-  </div>
-</section>
-
 <section class="esporo-pane" id="esp-tab-visitas" data-esp-area="visitas">
   <div class="chart-card">
     <div class="chart-hd">
       <div class="chart-title"><img src="/static/icons/casas.svg" alt="" class="icon-svg"> Imóveis visitados</div>
       <span class="table-info" id="esp-visitas-info"></span>
+      {% if is_admin %}
+      <div class="esporo-filter-actions">
+        <a class="btn btn-outline btn-sm" id="esp-export-xlsx" href="{{ url_for('esporotricose.download_visitas', formato='xlsx') }}">Baixar planilha</a>
+        <a class="btn btn-outline btn-sm" id="esp-export-pdf" href="{{ url_for('esporotricose.download_visitas', formato='pdf') }}">Baixar PDF</a>
+      </div>
+      {% endif %}
     </div>
     <div class="esporo-animal-filters">
       <div class="f-g"><label>Pesquisa</label><input type="search" id="vis-busca" placeholder="Endereço, data, localidade, morador..."></div>
@@ -346,7 +308,7 @@
           <option value="Em tratamento">Em tratamento</option>
           <option value="Desconhecido">Desconhecido</option>
           <option value="Sem tratamento">Sem tratamento</option>
-          <option value="Óbito/Eutanásia">Óbito/Eutanásia</option>
+          <option value="Óbito/Eutanásia">Óbito / eutanásia</option>
         </select>
       </div>
       <div class="f-g">
@@ -392,7 +354,6 @@
         <div class="chart-title"><img src="/static/icons/gato_doente.svg" alt="" class="icon-svg"> Animais doentes</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <span class="table-info" id="esp-doentes-info"></span>
-          <a class="btn btn-outline btn-sm" href="/esporotricose/doentes/casos.csv"><img src="/static/icons/prancheta.svg" alt="" class="icon-svg"> CSV QGIS</a>
           <a class="btn btn-primary btn-sm" href="/esporotricose/doentes/novo"><img src="/static/icons/mais.svg" alt="" class="icon-svg"> Novo paciente</a>
         </div>
       </div>
@@ -647,7 +608,7 @@
   </div>
 </section>
 
-<section class="esporo-pane" id="esp-tab-dashboard" data-esp-area="visitas">
+<section class="esporo-pane active" id="esp-tab-dashboard" data-esp-area="visitas">
   <div class="filter-card esporo-mini-filter">
     <div class="filter-body open">
       <div class="filter-grid">
@@ -658,6 +619,18 @@
         <div class="esporo-filter-actions"><button class="btn btn-primary" type="button" onclick="carregarEspDashboard()"><img src="/static/icons/atualizar.svg" alt="" class="icon-svg"> Atualizar</button></div>
       </div>
     </div>
+  </div>
+<div class="esporo-grid" id="esp-visitas-kpis">
+  <div class="esporo-kpi"><div class="esporo-kpi-label">Visitas</div><div class="esporo-kpi-value" id="esp-visitas">0</div></div>
+  <div class="esporo-kpi"><div class="esporo-kpi-label">Animais</div><div class="esporo-kpi-value" id="esp-animais">0</div></div>
+  <div class="esporo-kpi"><div class="esporo-kpi-label">Cães</div><div class="esporo-kpi-value" id="esp-caes">0</div></div>
+  <div class="esporo-kpi"><div class="esporo-kpi-label">Gatos</div><div class="esporo-kpi-value" id="esp-gatos">0</div></div>
+  <div class="esporo-kpi"><div class="esporo-kpi-label">Com feridas</div><div class="esporo-kpi-value" id="esp-feridas">0</div></div>
+  <div class="esporo-kpi"><div class="esporo-kpi-label">Fechadas</div><div class="esporo-kpi-value" id="esp-fechadas">0</div></div>
+</div>
+  <div class="chart-card" style="margin-bottom:16px;">
+    <div class="chart-hd"><div class="chart-title"><img src="/static/icons/mapa.svg" alt="" class="icon-svg"> Por localidade</div></div>
+    <div class="esporo-local-list" id="esp-localidades" aria-live="polite"><div class="muted">Carregando localidades…</div></div>
   </div>
   <div class="esporo-chart-grid">
     <div class="chart-card full">
@@ -698,7 +671,6 @@ let espLocalidadesCarregadas = false;
 let espDashboardCarregado = false;
 let espEstoqueCarregado = false;
 let espEntregasPagina = 1;
-let espResumo = null;
 let espDoenteAtual = null;
 let espDoentesRows = [];
 let espDoentesTotais = {};
@@ -841,7 +813,7 @@ function openEspMain(area, btn) {
   const tabs = area === 'visitas' ? document.getElementById('esp-visitas-tabs') : document.getElementById('esp-doentes-tabs');
   const activeBtn = tabs.querySelector('.esporo-tab-btn.active') || tabs.querySelector('.esporo-tab-btn');
   const match = activeBtn?.getAttribute('onclick')?.match(/'(esp-tab-[^']+)'/);
-  openEspTab(match ? match[1] : (area === 'visitas' ? 'esp-tab-resumo' : 'esp-tab-doentes'), activeBtn);
+  openEspTab(match ? match[1] : (area === 'visitas' ? 'esp-tab-dashboard' : 'esp-tab-doentes'), activeBtn);
 }
 function openEspTab(id, btn) {
   const pane = document.getElementById(id);
@@ -861,49 +833,35 @@ function openEspTab(id, btn) {
   if (id === 'esp-tab-localidades' && !espLocalidadesCarregadas) carregarEspLocalidadesDetalhe();
   if (id === 'esp-tab-dashboard' && !espDashboardCarregado) carregarEspDashboard();
 }
-async function carregarEsporotricose() {
-  try {
-    espVisitasCarregadas = false;
-    espImoveisCarregados = false;
-    espAnimaisCarregados = false;
-    espDoentesCarregados = false;
-    espLocalidadesCarregadas = false;
-    espDashboardCarregado = false;
-    espEstoqueCarregado = false;
-    const d = await apiGet('/api/esporotricose?' + espParams('res').toString());
-    espResumo = d;
-    const t = d.totais || {};
-    const a = d.animais || {};
-    setEspText('esp-visitas', t.visitas);
-    setEspText('esp-animais', a.total);
-    setEspText('esp-caes', a.caes);
-    setEspText('esp-gatos', a.gatos);
-    setEspText('esp-feridas', a.com_feridas);
-    setEspText('esp-fechadas', t.fechadas);
-    const resumoInfo = document.getElementById('esporo-total-info');
-    if (resumoInfo) resumoInfo.textContent = `${fmtNum(t.visitas)} visita(s) · ${fmtNum(a.total)} animal(is)`;
-    renderEspResumoVisitas(d.recentes || []);
-    renderEspLocalidades(d.por_localidade || []);
-    if (document.getElementById('esp-tab-animais').classList.contains('active')) carregarEspAnimais();
-    if (document.getElementById('esp-tab-localidades').classList.contains('active')) carregarEspLocalidadesDetalhe();
-    if (document.getElementById('esp-tab-dashboard').classList.contains('active')) carregarEspDashboard();
-  } catch (e) {
-    toast(e.message, 'error');
-  }
-}
-function renderEspLocalidades(rows) {
+function renderEspLocalidades(rows, filtros) {
   const el = document.getElementById('esp-localidades');
-  if (!el) return;
-  el.innerHTML = rows.length ? rows.map(r => `
-    <div class="esporo-local-item">
-      <div>
-        <strong>${escapeHtml(r.localidade || '-')}</strong>
-        <div class="muted">${fmtNum(r.visitas || 0)} visita(s) - ${fmtNum(r.animais || 0)} animal(is)</div>
-      </div>
-      <span class="esporo-tag">${fmtNum(r.fechadas || 0)} fechada(s)</span>
-    </div>
-  `).join('') : '<div class="empty-inline">Nenhuma localidade encontrada.</div>';
+  el.innerHTML = rows.length ? rows.map(r => {
+    const localidade = r.localidade && r.localidade !== '-' ? r.localidade : '';
+    const label = escapeHtml(localidade || 'Sem localidade');
+    const nome = localidade ? `<button type="button" class="btn btn-ghost btn-sm" data-localidade="${label}">${label}</button>` : `<strong>${label}</strong>`;
+    return `<div class="esporo-local-item">
+      <div>${nome}<div class="muted">${fmtNum(r.visitas)} visita(s) · ${fmtNum(r.animais)} animal(is)</div></div>
+      <span class="esporo-tag">${fmtNum(r.fechadas)} fechada(s)</span>
+    </div>`;
+  }).join('') : '<div class="empty-inline">Nenhuma localidade encontrada para estes filtros.</div>';
+  el.querySelectorAll('[data-localidade]').forEach(button => button.addEventListener('click', () => {
+    const localidade = document.getElementById('vis-localidade');
+    if (![...localidade.options].some(option => option.value === button.dataset.localidade)) {
+      localidade.add(new Option(button.dataset.localidade, button.dataset.localidade));
+    }
+    localidade.value = button.dataset.localidade;
+    for (const chave of ['d_ini', 'd_fim', 'visita', 'agente']) {
+      document.getElementById('vis-' + chave.replace('_', '-')).value = filtros.get(chave) || '';
+    }
+    document.getElementById('vis-busca').value = '';
+    const acs = document.getElementById('vis-acs');
+    for (const opcao of acs.options) opcao.selected = false;
+    acs.dispatchEvent(new Event('change', {bubbles: true}));
+    espVisitasCarregadas = false;
+    openEspTab('esp-tab-visitas', document.querySelector('#esp-visitas-tabs [onclick*="esp-tab-visitas"]'));
+  }));
 }
+
 async function carregarEspAnimais() {
   try {
     document.getElementById('esp-animais-body').innerHTML = '<tr><td colspan="15"><div class="loading-box"><div class="spinner"></div></div></td></tr>';
@@ -917,7 +875,12 @@ async function carregarEspAnimais() {
 async function carregarEspVisitas() {
   try {
     document.getElementById('esp-visitas-body').innerHTML = '<tr><td colspan="14"><div class="loading-box"><div class="spinner"></div></div></td></tr>';
-    const d = await apiGet('/api/esporotricose/visitas?' + espParams('vis').toString());
+    const filtros = espParams('vis').toString();
+    const d = await apiGet('/api/esporotricose/visitas?' + filtros);
+    for (const formato of ['xlsx', 'pdf']) {
+      const link = document.getElementById('esp-export-' + formato);
+      if (link) link.href = `/esporotricose/visitas/exportar.${formato}?${filtros}`;
+    }
     espVisitasCarregadas = true;
     renderEspVisitas(d.registros || [], d.total || 0);
   } catch (e) {
@@ -1181,7 +1144,8 @@ function renderEspDoentes(rows, total) {
       <td data-sort-value="${Number(r.entregas_zoomed_pendentes || 0)}">${zoomedBaixaBadge(r)}</td>
       <td>
         <div class="esporo-doente-actions">
-          <a class="btn btn-sm" href="/esporotricose/doentes/${r.id_animal_doente}">Abrir</a>
+          <a class="btn btn-sm" href="/esporotricose/doentes/${Number(r.id_animal_doente)}">Abrir</a>
+          <a class="btn btn-outline btn-sm" href="/esporotricose/doentes/${Number(r.id_animal_doente)}/mapa-bloqueio" target="_blank" rel="noopener">Gerar mapa</a>
           ${Number(r.anexos || 0) > 0 ? `<a class="btn btn-outline btn-sm" href="/esporotricose/doentes/${Number(r.id_animal_doente)}#anexos" title="Abrir os ${Number(r.anexos)} anexo(s) deste animal">Anexos (${Number(r.anexos)})</a>` : ''}
           <button class="btn btn-ghost btn-sm" type="button" data-id="${Number(r.id_animal_doente)}" data-nome="${escapeHtml(r.nome || '')}" data-tutor="${escapeHtml(r.tutor || '')}" onclick="apagarEspDoente(this)">Apagar</button>
         </div>
@@ -1995,27 +1959,19 @@ async function carregarEspLocalidadesDetalhe() {
 }
 async function carregarEspDashboard() {
   try {
-    const d = await apiGet('/api/esporotricose/dashboard?' + espParams('dash').toString());
+    const filtros = espParams('dash');
+    const d = await apiGet('/api/esporotricose/dashboard?' + filtros);
     espDashboardCarregado = true;
+    const localidades = d.localidades || [];
+    for (const [kpi, campo] of [['visitas','visitas'], ['animais','animais'], ['caes','caes'],
+                               ['gatos','gatos'], ['feridas','com_feridas'], ['fechadas','fechadas']]) {
+      setEspText('esp-' + kpi, localidades.reduce((total, item) => total + Number(item[campo] || 0), 0));
+    }
+    renderEspLocalidades(localidades, filtros);
     renderEspDashboard(d);
   } catch (e) {
     toast(e.message, 'error');
   }
-}
-function renderEspResumoVisitas(rows) {
-  const html = rows.length ? rows.map(r => `
-    <tr>
-      <td data-sort-value="${escapeHtml(r.data || '')}">${fmtDate(r.data)}</td>
-      <td data-sort-value="${escapeHtml(r.localidade || '')}">${escapeHtml(r.localidade || '-')}</td>
-      <td data-sort-value="${escapeHtml(r.quarteirao ?? '')}">${escapeHtml(r.quarteirao ?? '-')}</td>
-      <td class="esporo-address" data-sort-value="${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', '))}">${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', ') || '-')}</td>
-      <td data-sort-value="${escapeHtml(r.morador || '')}">${escapeHtml(r.morador || '-')}</td>
-      <td data-sort-value="${escapeHtml(r.visita || '')}">${escapeHtml(r.visita || '-')}</td>
-      <td data-sort-value="${Number(r.animais || 0)}"><strong>${fmtNum(r.animais)}</strong></td>
-    </tr>
-  `).join('') : '<tr><td colspan="7" class="empty-inline">Nenhuma visita encontrada.</td></tr>';
-  document.getElementById('esp-resumo-visitas-body').innerHTML = html;
-  refreshSortableTable('esp-resumo-visitas-table');
 }
 function renderEspVisitas(rows, total) {
   espVisitasRowsById = new Map(rows.map(r => [String(r.id_visita), r]));
@@ -2034,7 +1990,7 @@ function renderEspVisitas(rows, total) {
       <td data-sort-value="${Number(r.animais || 0)}"><strong>${fmtNum(r.animais)}</strong></td>
       <td data-sort-value="${escapeHtml(r.deseja_cadastrar_animal || '')}">${escapeHtml(r.deseja_cadastrar_animal || '-')}</td>
       <td data-sort-value="${escapeHtml(r.acs || '')}">${escapeHtml(r.acs || (r.acs_presente === 0 ? 'Não' : r.acs_presente === 1 ? 'Sim (nome não informado)' : '-'))}</td>
-      <td><button class="btn btn-ghost btn-sm" type="button" onclick="editarVisita('${escapeHtml(r.id_visita)}')"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button></td>
+      <td><a class="btn btn-outline btn-sm" href="/esporotricose/visitas/${encodeURIComponent(r.id_visita)}/detalhes">Ver detalhes</a> <button class="btn btn-ghost btn-sm" type="button" onclick="editarVisita('${escapeHtml(r.id_visita)}')"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button></td>
     </tr>
   `).join('') : '<tr><td colspan="14" class="empty-inline">Nenhuma visita encontrada.</td></tr>';
   document.getElementById('esp-visitas-info').textContent = `${fmtNum(total)} visita(s) · ${fmtNum(rows.length)} exibida(s)`;
@@ -2056,7 +2012,7 @@ function renderEspAnimais(rows, total, bodyId, infoId) {
       <td data-sort-value="${escapeHtml(r.castrado || '')}">${tagStatus(r.castrado)}</td>
       <td data-sort-value="${escapeHtml(r.atendimento_veterinario || '')}">${tagStatus(r.atendimento_veterinario)}</td>
       <td data-sort-value="${escapeHtml(r.data_atendimento || '')}">${fmtDate(r.data_atendimento) || '-'}</td>
-      <td data-sort-value="${escapeHtml(r.evolucao_caso || '')}"><span class="esporo-tag ${statusDoenteClass(r.evolucao_caso)}">${escapeHtml(r.evolucao_caso || 'Nao informado')}</span></td>
+      <td data-sort-value="${escapeHtml(r.evolucao_caso || '')}"><span class="esporo-tag ${statusDoenteClass(r.evolucao_caso)}">${escapeHtml(r.evolucao_caso === 'Óbito/Eutanásia' ? 'Óbito / eutanásia' : (r.evolucao_caso || 'Não informado'))}</span></td>
       <td data-sort-value="${escapeHtml(r.morador || '')}">${escapeHtml(r.morador || '-')}</td>
       <td class="esporo-address" data-sort-value="${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', '))}">${escapeHtml([r.logradouro, r.numero].filter(Boolean).join(', ') || '-')}</td>
       <td><div class="esporo-doente-actions"><button class="btn btn-outline btn-sm" type="button" data-id="${escapeHtml(r.id_animal)}" onclick="toggleEspAnimalDetalhes(this.dataset.id, event)">Detalhes</button><button class="btn btn-ghost btn-sm" type="button" data-id="${escapeHtml(r.id_animal)}" onclick="event.stopPropagation(); editarAnimal(this.dataset.id)"><img src="/static/icons/editar.svg" alt="" class="icon-svg"></button></div></td>
@@ -2243,7 +2199,7 @@ function renderEspDashboard(d) {
   mkChart('esp-ch-localidades', {
     type: 'bar',
     data: {
-      labels: loc.map(r => r.nome),
+      labels: loc.map(r => r.localidade && r.localidade !== '-' ? r.localidade : 'Sem localidade'),
       datasets: [
         { label:'Visitas', data:loc.map(r => r.visitas), backgroundColor:PAL[0] + 'cc', borderRadius:4 },
         { label:'Animais', data:loc.map(r => r.animais), backgroundColor:PAL[1] + 'cc', borderRadius:4 },
@@ -2363,7 +2319,7 @@ function editarAnimal(id) {
   cells[8].innerHTML = `<select style="width:70px"><option value="Sim" ${original.castrado === 'Sim' ? 'selected' : ''}>Sim</option><option value="Não" ${original.castrado === 'Não' ? 'selected' : ''}>Não</option><option value="Desconhecido" ${original.castrado === 'Desconhecido' ? 'selected' : ''}>Desconhecido</option></select>`;
   cells[9].innerHTML = `<select style="width:70px"><option value="Sim" ${original.atendimento_veterinario === 'Sim' ? 'selected' : ''}>Sim</option><option value="Não" ${original.atendimento_veterinario === 'Não' ? 'selected' : ''}>Não</option><option value="Desconhecido" ${original.atendimento_veterinario === 'Desconhecido' ? 'selected' : ''}>Desconhecido</option></select>`;
   cells[10].innerHTML = `<input type="date" value="${original.data_atendimento === '-' ? '' : original.data_atendimento.split('/').reverse().join('-')}" style="width:120px">`;
-  cells[11].innerHTML = `<select style="width:110px"><option value="">-</option><option value="Curado" ${original.evolucao_caso === 'Curado' ? 'selected' : ''}>Curado</option><option value="Em tratamento" ${original.evolucao_caso === 'Em tratamento' ? 'selected' : ''}>Em tratamento</option><option value="Faleceu" ${original.evolucao_caso === 'Faleceu' ? 'selected' : ''}>Faleceu</option><option value="Eutanásia" ${original.evolucao_caso === 'Eutanásia' ? 'selected' : ''}>Eutanásia</option><option value="Outro" ${original.evolucao_caso === 'Outro' ? 'selected' : ''}>Outro</option></select>`;
+  cells[11].innerHTML = `<select style="width:110px"><option value="">-</option><option value="Curado" ${original.evolucao_caso === 'Curado' ? 'selected' : ''}>Curado</option><option value="Em tratamento" ${original.evolucao_caso === 'Em tratamento' ? 'selected' : ''}>Em tratamento</option><option value="Faleceu" ${original.evolucao_caso === 'Faleceu' ? 'selected' : ''}>Faleceu</option><option value="Eutanásia" ${original.evolucao_caso === 'Eutanásia' ? 'selected' : ''}>Eutanásia</option><option value="Óbito/Eutanásia" ${original.evolucao_caso === 'Óbito/Eutanásia' ? 'selected' : ''}>Óbito / eutanásia</option><option value="Outro" ${original.evolucao_caso === 'Outro' ? 'selected' : ''}>Outro</option></select>`;
   cells[14].innerHTML = `<button class="btn btn-primary btn-sm" type="button" data-id="${escapeHtml(id)}" onclick="event.stopPropagation(); salvarAnimal(this.dataset.id)"><img src="/static/icons/salvar.svg" alt="" class="icon-svg"></button> <button class="btn btn-ghost btn-sm" type="button" data-id="${escapeHtml(id)}" onclick="event.stopPropagation(); cancelarAnimal(this.dataset.id)">Cancelar</button>`;
 }
 
@@ -2422,7 +2378,6 @@ async function salvarAnimal(id) {
 
 document.addEventListener('DOMContentLoaded', () => {
   initMultiPickers();
-  carregarEsporotricose();
   if (window.location.hash === '#doentes') {
     const btn = document.querySelector('[data-esp-main="doentes"]');
     if (btn) openEspMain('doentes', btn);
@@ -2432,6 +2387,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const animaisBtn = Array.from(document.querySelectorAll('#esp-visitas-tabs .esporo-tab-btn'))
       .find(btn => (btn.getAttribute('onclick') || '').includes("esp-tab-animais"));
     if (animaisBtn) openEspTab('esp-tab-animais', animaisBtn);
+  } else if (window.location.hash === '#visitas') {
+    openEspTab('esp-tab-visitas', document.querySelector('#esp-visitas-tabs [onclick*="esp-tab-visitas"]'));
+  } else {
+    carregarEspDashboard();
   }
 });
 </script>{% endblock %}

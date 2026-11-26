@@ -1,0 +1,74 @@
+
+{% extends "base.html" %}
+{% block title %}Detalhes da visita{% endblock %}
+{% block page_title %}Esporotricose{% endblock %}
+{% block extra_css %}
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
+.esporo-ficha { max-width: 1040px; margin: 0 auto; }
+.esporo-ficha .chart-card { margin-block: 16px; padding: 16px; }
+.esporo-ficha dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 12px 20px; }
+.esporo-ficha dt { color: var(--text-muted, var(--text)); font-size: .82rem; }
+.esporo-ficha dd { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.esporo-ficha summary { cursor: pointer; font-weight: 650; padding-block: 8px; }
+.esporo-ficha td { white-space: pre-wrap; overflow-wrap: anywhere; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="esporo-ficha">
+  <a class="btn btn-outline btn-sm" href="{{ url_for('esporotricose.page') }}#visitas">Voltar às visitas</a>
+  <h1>Detalhes da visita</h1>
+  <p class="muted">{{ valores.localidade or 'Localidade não informada' }}{% if valores.quarteirao %} · Quarteirão {{ valores.quarteirao }}{% endif %} · {{ valores.data }}</p>
+
+  <section class="chart-card">
+    <h2>Dados da visita</h2>
+    <dl>
+      {% for chave, rotulo in campos_visita %}
+        {% if pode_ver_origem or chave not in ['kobo_id', 'kobo_uuid', 'arquivo_origem', 'origem_estrutura'] %}
+          <div><dt>{{ rotulo }}</dt><dd>{{ valores.get(chave) if valores.get(chave) not in (none, '') else '—' }}</dd></div>
+        {% endif %}
+      {% endfor %}
+    </dl>
+  </section>
+
+  <section class="chart-card">
+    <h2>Animais registrados nesta visita</h2>
+    {% for animal in visita.animais_detalhes %}
+      <details {% if loop.first %}open{% endif %}>
+        <summary>{{ loop.index }}. {{ animal.nome or animal.especie or 'Animal sem nome cadastrado' }}</summary>
+        <dl>
+          {% for chave, rotulo in campos_animal %}
+            {% if chave != 'kobo_uuid' or pode_ver_origem %}
+              <div><dt>{{ rotulo }}</dt><dd>{{ animal.get(chave) if animal.get(chave) not in (none, '') else '—' }}</dd></div>
+            {% endif %}
+          {% endfor %}
+        </dl>
+      </details>
+    {% else %}
+      <p class="muted">Nenhum animal registrado nesta visita.</p>
+    {% endfor %}
+  </section>
+
+  {% if pode_ver_origem %}
+    <section class="chart-card">
+      <h2>Dados de origem do Kobo</h2>
+      {% if campos_origem %}
+        <details>
+          <summary>Ver campos originais do envio</summary>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Grupo</th><th>Campo</th><th>Valor</th></tr></thead>
+              <tbody>
+                {% for grupo, ordem, campo, valor in campos_origem %}
+                  <tr><td>{{ grupo }}{% if ordem %} {{ ordem }}{% endif %}</td><td>{{ campo }}</td><td>{{ valor }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      {% else %}
+        <p class="muted">A cópia original ainda está indisponível para este registro. Os campos cadastrados estão disponíveis acima.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

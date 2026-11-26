@@ -21,6 +21,8 @@ from app_core import blueprint_helpers as bh
 from app_core import db as db_core
 from app_core import escopo_agente
 from app_core import esporotricose as esporotricose_core
+from app_core import esporotricose_bloqueio as bloqueio_core
+from app_core import esporotricose_exportacao as exportacao_core
 from app_core import esporotricose_humanos as humanos_core
 from app_core import utils as utils_core
 from app_core.csv_seguranca import campo_csv
@@ -452,10 +454,8 @@ def api_resumo():
     return jsonify(esporotricose_core.resumo(bh.db_target(), filtros))
 
 
-@bp.route("/api/esporotricose/visitas")
-@login_required
-def api_visitas():
-    filtros = {
+def _filtros_visitas():
+    return {
         "d_ini": request.args.get("d_ini", ""),
         "d_fim": request.args.get("d_fim", ""),
         "localidade": request.args.get("localidade", ""),
@@ -464,7 +464,47 @@ def api_visitas():
         "busca": request.args.get("busca", ""),
         "acs": request.args.getlist("acs"),
     }
-    return jsonify(esporotricose_core.listar_visitas(bh.db_target(), filtros))
+
+
+@bp.route("/api/esporotricose/visitas")
+@login_required
+def api_visitas():
+    return jsonify(esporotricose_core.listar_visitas(bh.db_target(), _filtros_visitas()))
+
+
+@bp.route("/esporotricose/visitas/<id_visita>/detalhes")
+@login_required
+def page_visita_detalhes(id_visita):
+    registros = esporotricose_core.listar_visitas(bh.db_target(), id_visita=id_visita)["registros"]
+    if not registros:
+        abort(404)
+    visita = _redigir_agentes(registros[0])
+    valores = exportacao_core.valores_visita(visita)
+    pode_ver_origem = (bh.usuario_atual() or {}).get("nivel") in {"admin", "superadmin"}
+    return render_template(
+        "esporotricose_visita_detalhes.html", visita=visita, valores=valores,
+        campos_visita=exportacao_core.VISITA, campos_animal=exportacao_core.ANIMAL,
+        campos_origem=list(exportacao_core.campos_camadas(visita)) if pode_ver_origem else [],
+        pode_ver_origem=pode_ver_origem,
+    )
+
+
+@bp.route("/esporotricose/visitas/exportar.<formato>")
+@login_required
+@nivel_min("admin")
+def download_visitas(formato):
+    if formato not in {"xlsx", "pdf"}:
+        abort(404)
+    registros = esporotricose_core.listar_visitas(bh.db_target(), _filtros_visitas(), todos=True)["registros"]
+    if formato == "xlsx":
+        arquivo = exportacao_core.xlsx(registros)
+        mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    else:
+        arquivo = exportacao_core.pdf(registros)
+        mime = "application/pdf"
+    resposta = send_file(arquivo, download_name=f"Visitas-esporotricose.{formato}", as_attachment=True, mimetype=mime)
+    resposta.headers["Cache-Control"] = "private, no-store"
+    return resposta
 
 
 @bp.route("/api/esporotricose/imoveis")
@@ -655,6 +695,17 @@ def api_doentes():
         "situacao_receita": request.args.get("situacao_receita", ""),
     }
     return jsonify(esporotricose_core.listar_doentes(bh.db_target(), filtros))
+
+
+@bp.route("/esporotricose/doentes/<int:id_animal>/mapa-bloqueio")
+@login_required
+def page_mapa_bloqueio(id_animal):
+    animal = esporotricose_core.obter_doente(bh.db_target(), id_animal)
+    if not animal:
+        abort(404)
+    centro = bloqueio_core.coordenadas(animal)
+    mapa = bloqueio_core.mapa(bh.db_target(), current_app.config["BASE_DIR"], centro) if centro else None
+    return render_template("esporotricose_mapa_bloqueio.html", animal=animal, mapa=mapa)
 
 
 @bp.route("/esporotricose/doentes/casos.csv")

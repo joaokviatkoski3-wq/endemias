@@ -22,7 +22,6 @@ class TableSortingTests(unittest.TestCase):
     def test_esporotricose_aplica_ordenacao_nas_tabelas_adequadas(self):
         html = (ROOT / "templates" / "esporotricose.html").read_text(encoding="utf-8")
         tabelas = (
-            "esp-resumo-visitas-table",
             "esp-visitas-table",
             "esp-animais-table",
             "esp-doentes-table",
