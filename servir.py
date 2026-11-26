@@ -47,9 +47,11 @@ def local_application(external, bind):
     from app import create_app
     # Mesmos recursos e mesmo processo: locks de backup/importacao continuam comuns.
     config = dict(external.config)
+    setor = external.config.get("SETOR")
+    cookie_names = {"endemias": "endemias_local", "ambiental": "ambiental_local", "geo": "geo_local"}
     config.update(
         ACESSO_EXTERNO=False, SESSION_KEY_SCOPE="local",
-        SESSION_COOKIE_SECURE=False, SESSION_COOKIE_NAME=("ambiental_local" if external.config.get("SETOR")=="ambiental" else "endemias_local"),
+        SESSION_COOKIE_SECURE=False, SESSION_COOKIE_NAME=cookie_names.get(setor, "endemias_local"),
         TRUSTED_HOSTS=list(dict.fromkeys([bind, "127.0.0.1", "localhost"])), REQUIRE_SESSION_TOKEN=True, TERMOS_USO_ENABLED=True,
         TRUST_PROXY_HEADERS=False, MAX_CONTENT_LENGTH=220 * 1024 * 1024,
     )
@@ -77,13 +79,19 @@ def create_dual_servers(external, local, env=None):
         options.update(listen=" ".join(f"{address}:{settings['port']}" for address in addresses), max_request_body_size=local.config["MAX_CONTENT_LENGTH"])
         local_server = create_server(local, map=shared_map, _dispatcher=external_server.task_dispatcher, **options)
         if external.config.get('SETORES_ENABLED'):
-            port=int(env.get('ENDEMIAS_AMBIENTAL_LOCAL_PORT','5004'))
-            if not 1<=port<=65535 or port in {settings['port'],settings['tunnel_port']}:
+            ambiental_port=int(env.get('ENDEMIAS_AMBIENTAL_LOCAL_PORT','5004'))
+            geo_port=int(env.get('ENDEMIAS_GEO_LOCAL_PORT','5005'))
+            if not 1<=ambiental_port<=65535 or ambiental_port in {settings['port'],settings['tunnel_port']}:
                 raise ValueError('Porta local Ambiental invalida ou em conflito.')
+            if not 1<=geo_port<=65535 or geo_port in {settings['port'],settings['tunnel_port'],ambiental_port}:
+                raise ValueError('Porta local GeoVSATT invalida ou em conflito.')
             ambiental=local_application(dominios.ambiental_application(external),settings['bind'])
-            options['listen']=' '.join(f'{address}:{port}' for address in addresses)
+            options['listen']=' '.join(f'{address}:{ambiental_port}' for address in addresses)
             ambiental_server=create_server(ambiental,map=shared_map,_dispatcher=external_server.task_dispatcher,**options)
-            local_server=ServidoresLocais(local_server,ambiental_server)
+            geo=local_application(dominios.geo_application(external),settings['bind'])
+            options['listen']=' '.join(f'{address}:{geo_port}' for address in addresses)
+            geo_server=create_server(geo,map=shared_map,_dispatcher=external_server.task_dispatcher,**options)
+            local_server=ServidoresLocais(local_server,ambiental_server,geo_server)
     except Exception:
         for channel in list(shared_map.values()):
             channel.close()

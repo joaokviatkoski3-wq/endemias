@@ -1,14 +1,48 @@
 """Fronteira de setor independente do nivel; ativada explicitamente na implantacao."""
 from flask import current_app, has_app_context, jsonify, render_template, request
 
-SETORES = ('endemias','ambiental')
-TITULOS = {'endemias':'Setor de Endemias','ambiental':'Vigilância Ambiental'}
+SETORES = ('endemias','ambiental','geo')
+TITULOS = {
+    'endemias':'Setor de Endemias',
+    'ambiental':'Vigilância Ambiental',
+    'geo':'GeoVSATT',
+}
 TIPOS_KOBO = {
     'ambiental': frozenset({'ESPOROTRICOSE','AMOSTRA_ANIMAIS'}),
     'endemias': frozenset({'PE','TB','TBO','PVE','LIRAA','LARVAS','BRI','RECOLHIMENTO'}),
 }
 COMPARTILHADOS = frozenset({'home','dashboard','meteorologia','agenda','mapa','processar','usuarios','controle_pessoal','auditoria','sistema'})
 AMBIENTAL = frozenset({'esporotricose','amostras_animais','vigiagua','relatorios_ambientais'})
+
+
+def _ampliar_setor_eventos_sqlite(conn, tabela):
+    """Inclui Geo em tabelas de histórico sem atribuir contas ou agendas ao Geo."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (tabela,)
+    ).fetchone()
+    definition = row[0] if row else ""
+    if not definition or "'geo'" in definition:
+        return
+    allowed = "'endemias','ambiental','legado'"
+    if allowed not in definition:
+        raise ValueError(f"Restrição de setor inesperada em {tabela}.")
+    updated = definition.replace(allowed, allowed + ",'geo'")
+    indexes = [
+        item[0]
+        for item in conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name=? AND sql IS NOT NULL",
+            (tabela,),
+        )
+    ]
+    columns = [item[1] for item in conn.execute(f'PRAGMA table_info("{tabela}")')]
+    quoted = ",".join(f'"{column}"' for column in columns)
+    previous = tabela + "_antes_geo"
+    conn.execute(f'ALTER TABLE "{tabela}" RENAME TO "{previous}"')
+    conn.execute(updated)
+    conn.execute(f'INSERT INTO "{tabela}" ({quoted}) SELECT {quoted} FROM "{previous}"')
+    conn.execute(f'DROP TABLE "{previous}"')
+    for sql in indexes:
+        conn.execute(sql)
 
 
 def atual():
@@ -21,6 +55,8 @@ def pode_entrar(usuario, setor=None):
     setor = setor or atual()
     if setor is None:
         return True
+    if setor == 'geo':
+        return bool(usuario)
     return bool(usuario) and (usuario.get('nivel') in {'admin','superadmin'}
         or usuario.get('setor','endemias') == setor)
 
@@ -34,6 +70,7 @@ def url_portal(usuario):
 def atalho_outro_setor(usuario):
     """Destino canônico externo, ou a mesma máquina na entrada LAN independente."""
     if not atual():return None
+    if atual() == 'geo':return None
     outro='ambiental' if atual()=='endemias' else 'endemias'
     if not pode_entrar(usuario,outro):return None
     if current_app.config.get('ACESSO_EXTERNO'):
@@ -55,8 +92,10 @@ def atalho_outro_setor(usuario):
 
 
 def permite_modulo(chave):
-    if chave=='formularios':return True
     setor=atual()
+    if setor == 'geo':
+        return False
+    if chave=='formularios':return True
     if setor is None and chave in {'vigiagua','relatorios_ambientais'}:
         return False
     if setor is None or chave in COMPARTILHADOS:
@@ -69,6 +108,8 @@ def permite_endpoint(endpoint):
     if not setor or not endpoint:
         return True
     blueprint=endpoint.split('.')[0]
+    if setor == 'geo':
+        return blueprint in {'static','auth','ajuda','home','geovsatt'}
     if blueprint=='formularios_kobo' or endpoint=='formularios.page':return True
     if blueprint in {'static','auth','ajuda','home','meteorologia','agenda','admin','controle_pessoal','processar'}:
         return True
@@ -82,6 +123,8 @@ def permite_endpoint(endpoint):
 
 def tipos_kobo():
     setor=atual()
+    if setor == 'geo':
+        return frozenset()
     return TIPOS_KOBO[setor] if setor else frozenset().union(*TIPOS_KOBO.values())
 
 
@@ -99,6 +142,8 @@ def ensure_schema(conn):
             default='legado' if tabela in {'importacoes','auditoria_eventos'} else 'endemias'
             allowed="'endemias','ambiental','legado'" if tabela in {'importacoes','auditoria_eventos'} else "'endemias','ambiental'"
             conn.execute(f"ALTER TABLE {tabela} ADD COLUMN setor TEXT NOT NULL DEFAULT '{default}' CHECK(setor IN ({allowed}))")
+    for tabela in ('importacoes', 'auditoria_eventos'):
+        _ampliar_setor_eventos_sqlite(conn, tabela)
     conn.commit()
     from app_core import sessoes
     sessoes.ensure_schema(conn)

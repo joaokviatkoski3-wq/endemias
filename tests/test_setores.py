@@ -265,6 +265,8 @@ class SetoresTests(unittest.TestCase):
         self.assertNotIn('Set-Cookie',response.headers)
         home=self.client('ambiental').get('/').data
         self.assertIn(b'ambiental-home-grid',home)
+        self.assertIn(b'id="release-dialog"',home)
+        self.assertIn(b'id="release-dialog"',self.client('endemias').get('/').data)
         self.assertNotIn(b'id="ambiental-filtros"',home)
         self.assertNotIn(b'<canvas',home)
 
@@ -356,11 +358,13 @@ class SetoresTests(unittest.TestCase):
         r=portal.get('/',base_url='https://vsatt.com.br')
         self.assertIn(b'https://endemias.vsatt.com.br',r.data)
         self.assertIn(b'https://ambiental.vsatt.com.br',r.data)
+        self.assertIn(b'https://geo.vsatt.com.br',r.data)
         self.assertNotIn('Set-Cookie',r.headers)
         dispatcher=dominios.application(end)
         from werkzeug.test import Client
         r=Client(dispatcher).get('/',base_url='https://geo.vsatt.com.br')
-        self.assertEqual(r.status_code,400)
+        self.assertEqual(r.status_code,302)
+        self.assertIn('/login', r.location)
 
     def test_link_recuperacao_aponta_setor_da_conta(self):
         r=self.client('endemias').post('/admin/usuarios/4/recuperacao-senha')
@@ -512,13 +516,13 @@ class SetoresTests(unittest.TestCase):
         self.assertIsNotNone(db.query_one(str(self.path),'SELECT 1 FROM amostras_animais WHERE kobo_uuid=?',(record['_uuid'],)))
         self.assertEqual(before,db.query(str(self.path),'SELECT * FROM visitas ORDER BY id_visita'))
 
-    def test_tres_entradas_waitress_respondem_sem_portas_de_producao(self):
+    def test_quatro_entradas_waitress_respondem_sem_portas_de_producao(self):
         import socket
         import threading
         from urllib.request import Request,urlopen
         import servir
         sockets=[]
-        for _ in range(3):
+        for _ in range(4):
             sock=socket.socket();sock.bind(('127.0.0.1',0));sockets.append(sock)
         ports=[s.getsockname()[1] for s in sockets]
         for sock in sockets:sock.close()
@@ -528,15 +532,16 @@ class SetoresTests(unittest.TestCase):
         local=servir.local_application(external,'127.0.0.1')
         env={'ENDEMIAS_ACESSO_LOCAL':'1','ENDEMIAS_LOCAL_BIND':'127.0.0.1',
              'ENDEMIAS_LOCAL_PORT':str(ports[0]),'ENDEMIAS_TUNNEL_PORT':str(ports[1]),
-             'ENDEMIAS_AMBIENTAL_LOCAL_PORT':str(ports[2])}
+             'ENDEMIAS_AMBIENTAL_LOCAL_PORT':str(ports[2]),'ENDEMIAS_GEO_LOCAL_PORT':str(ports[3])}
         server,locals=servir.create_dual_servers(external,local,env)
         thread=threading.Thread(target=server.run,daemon=True);thread.start()
         try:
-            for port,title in [(ports[0],'Setor de Endemias'),(ports[2],'Vigilância Ambiental')]:
+            for port,title in [(ports[0],'Setor de Endemias'),(ports[2],'Vigilância Ambiental'),(ports[3],'GeoVSATT')]:
                 with urlopen(f'http://127.0.0.1:{port}/login',timeout=10) as response:
                     self.assertIn(title,response.read().decode())
             for host,path,text in [('endemias.vsatt.com.br','/login','Setor de Endemias'),
                                     ('ambiental.vsatt.com.br','/login','Vigilância Ambiental'),
+                                    ('geo.vsatt.com.br','/login','GeoVSATT'),
                                     ('vsatt.com.br','/','Vigilância em Saúde')]:
                 request=Request(f'http://127.0.0.1:{ports[1]}{path}',headers={'Host':host,'CF-Connecting-IP':'203.0.113.24','X-Forwarded-Proto':'https'})
                 with urlopen(request,timeout=10) as response:self.assertIn(text,response.read().decode())

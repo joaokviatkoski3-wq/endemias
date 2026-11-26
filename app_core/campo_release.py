@@ -6,6 +6,10 @@ from app_core.version import APP_VERSION
 
 
 RESUMOS = {
+    "2.16.0": [
+        "O portal VSATT agora apresenta o acesso ao novo GeoVSATT.",
+        "Endemias, Ambiental e GeoVSATT passam a mostrar avisos de boas-vindas e novidades.",
+    ],
     "2.14.2": [
         "Compatibilidade com o cadastro de avisos nas versões atuais do Chrome para Android.",
         "O sininho confirma o agendamento do teste e informa se o serviço aceitou o envio.",

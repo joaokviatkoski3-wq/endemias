@@ -35,6 +35,13 @@ def ambiental_application(endemias):
     return create_app(config)
 
 
+def geo_application(endemias):
+    from app import create_app
+    config = dict(endemias.config)
+    config.update(SETOR='geo', TRUSTED_HOSTS=['geo.' + dominio_base(config)])
+    return create_app(config)
+
+
 def portal_application(domain, external=True, logging_config=None):
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
@@ -78,5 +85,6 @@ def application(endemias):
     return PorDominio({
         'endemias.' + domain: endemias,
         'ambiental.' + domain: ambiental_application(endemias),
+        'geo.' + domain: geo_application(endemias),
         domain: portal_application(domain, external=endemias.config.get('ACESSO_EXTERNO', False), logging_config=endemias.config),
     })

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt-BR"{% if SETOR_ATUAL == 'ambiental' %} data-setor="ambiental"{% endif %}>
+<html lang="pt-BR"{% if SETOR_ATUAL in ('ambiental','geo') %} data-setor="{{ SETOR_ATUAL }}"{% endif %}>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/png" href="/static/img/{{ 'logo_ambiental.png' if SETOR_ATUAL == 'ambiental' else 'favicon.png' }}">
+<link rel="icon" type="image/png" href="/static/img/{{ 'logo_ambiental.png' if SETOR_ATUAL == 'ambiental' else ('geovsatt-logo.png' if SETOR_ATUAL == 'geo' else 'favicon.png') }}">
 <title>{{ SETOR_TITULO }} — Login</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -26,6 +26,16 @@ body.ambiente-teste-ativo{padding-top:34px;}
 .erro{background:#fee2e2;color:#991b1b;border-radius:7px;padding:10px 14px;font-size:12.5px;margin-bottom:16px;display:flex;align-items:center;gap:6px;}
 .footer{text-align:center;font-size:10px;color:#8896b0;margin-top:16px;}
 .footer-credit{margin-top:3px;}
+[data-setor="geo"] body{background:#f5f7f5}
+[data-setor="geo"] .card{box-shadow:0 4px 24px rgba(0,117,43,.13)}
+[data-setor="geo"] .card-top{background:#fff;border-top:6px solid #008c30;border-bottom:1px solid #d8e2da}
+[data-setor="geo"] .card-top img{height:132px;margin-bottom:8px}
+[data-setor="geo"] .card-top h1{color:#333}
+[data-setor="geo"] .card-top p{color:#66736c}
+[data-setor="geo"] .f-g input:focus{border-color:#00752b}
+[data-setor="geo"] .btn{background:#00752b}
+[data-setor="geo"] .btn:hover{background:#005f23}
+[data-setor="geo"] .card-body a{color:#00752b!important}
 @media print{.ambiente-teste-faixa{display:none!important;}body.ambiente-teste-ativo{padding-top:0;}}
 </style>
 {% if SETOR_ATUAL == 'ambiental' %}<link rel="stylesheet" href="/static/css/branding_ambiental.css?v={{ APP_VERSION }}">{% endif %}
@@ -35,7 +45,7 @@ body.ambiente-teste-ativo{padding-top:34px;}
 <div class="wrap">
   <div class="card">
     <div class="card-top">
-      {% if SETOR_ATUAL == 'ambiental' %}<img class="ambiental-logo" src="/static/img/logo_ambiental.png?v={{ APP_VERSION }}" alt="Vigilância Ambiental">{% else %}<img src="/static/img/logo_endemias.png?v={{ APP_VERSION }}" alt="">{% endif %}
+      {% if SETOR_ATUAL == 'ambiental' %}<img class="ambiental-logo" src="/static/img/logo_ambiental.png?v={{ APP_VERSION }}" alt="Vigilância Ambiental">{% elif SETOR_ATUAL == 'geo' %}<img src="/static/img/geovsatt-logo.svg?v={{ APP_VERSION }}" alt="GeoVSATT">{% else %}<img src="/static/img/logo_endemias.png?v={{ APP_VERSION }}" alt="">{% endif %}
       <h1>{{ SETOR_TITULO }}</h1>
       <p>Vigilância em Saúde · Almirante Tamandaré-PR</p>
     </div>
@@ -59,7 +69,7 @@ body.ambiente-teste-ativo{padding-top:34px;}
     </div>
   </div>
   <div class="footer">
-    <div>{{ APP_VERSION_LABEL.replace('Endemias', 'VSATT') if SETOR_ATUAL == 'ambiental' else APP_VERSION_LABEL }}</div>
+    <div>{{ APP_VERSION_LABEL.replace('Endemias', 'GeoVSATT' if SETOR_ATUAL == 'geo' else 'VSATT') if SETOR_ATUAL in ('ambiental','geo') else APP_VERSION_LABEL }}</div>
     {% include "_marca_ambiental_provisoria.html" %}
     <div class="footer-credit">João Kviatkoski</div>
   </div>

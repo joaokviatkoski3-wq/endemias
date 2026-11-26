@@ -22,9 +22,10 @@ main { padding: 36px 0 44px; flex: 1; }
 h1 { color: var(--portal-blue); font-size: clamp(29px, 4vw, 42px); letter-spacing: -.025em; line-height: 1.15; margin: 0; font-weight: 650; }
 .municipio { font-size: 16px; color: var(--portal-muted); margin: 12px 0 26px; }
 .portal-intro > p:last-child { font-size: 14px; color: var(--portal-muted); }
-.setores { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; margin-top: 28px; }
+.setores { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 28px; }
 .setores > a { --setor-cor: var(--portal-green); display: flex; flex-direction: column; border: 1px solid var(--portal-border); border-top: 3px solid var(--setor-cor); border-radius: 5px; padding: 26px; color: inherit; background: var(--portal-surface); text-decoration: none; transition: border-color .15s, box-shadow .15s; }
 .setores > .setor-endemias { --setor-cor: var(--portal-blue); }
+.setores > .setor-geo { --setor-cor: #008c30; }
 .setores > a:hover { border-color: var(--setor-cor); box-shadow: 0 3px 12px #183d2b12; }
 .setores > a:focus-visible, .portal-wordmark:focus-visible { outline: 3px solid var(--portal-blue); outline-offset: 4px; }
 .setor-heading { display: flex; align-items: center; gap: 14px; min-height: 62px; }
@@ -45,4 +46,8 @@ footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wr
   .setores > a { padding: 20px; }
   .setores h2 { font-size: 18px; }
   .version-date { display: none; }
+}
+@media (min-width: 651px) and (max-width: 900px) {
+  .setores { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .setor-geo { grid-column: 1 / -1; }
 }

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 478 300" role="img" aria-labelledby="title">
+  <title id="title">Símbolo GeoVSATT - mapa e pino de localização</title>
+  <g transform="translate(9 0)">
+    <path fill="#008C30" d="M93 214 L133 169 H187 L213 214 Z M247 214 L272 169 H327 L368 214 Z M29 287 L80 229 H217 L206 287 Z M253 287 L241 229 H380 L432 287 Z"/>
+    <path fill="#333333" fill-rule="evenodd" d="M229 16 C190.34 16 159 46.9 159 85 C159 99 164 110 171 122 L229 222 L287 122 C294 110 299 99 299 85 C299 46.9 267.66 16 229 16 Z M229 52 A29 29 0 1 0 229 110 A29 29 0 1 0 229 52 Z"/>
+  </g>
+</svg>

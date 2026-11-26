@@ -1,0 +1,16 @@
+.release-open{position:fixed;right:82px;bottom:24px;z-index:900;border:1px solid #00752b;border-radius:999px;background:#fff;color:#00752b;padding:9px 14px;font:700 12px/1 system-ui,-apple-system,"Segoe UI",sans-serif;box-shadow:0 4px 18px #10201620;cursor:pointer}
+.release-open:hover,.release-open:focus-visible{background:#e8f5eb;outline:3px solid #00752b35;outline-offset:2px}
+.release-dialog{width:min(560px,calc(100vw - 32px));max-height:min(720px,calc(100vh - 32px));padding:0;border:1px solid #d8e2da;border-radius:12px;background:#fff;color:#333;box-shadow:0 24px 80px #10201645;overflow:auto}
+.release-dialog::backdrop{background:#10201699;backdrop-filter:blur(2px)}
+.release-accent{height:7px;background:#008c30}
+.release-body{padding:28px}
+.release-eyebrow{margin:0 0 10px;color:#00752b;font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+.release-dialog h2{margin:0;color:#333;font-size:26px;line-height:1.16}
+.release-dialog h3{margin:24px 0 10px;font-size:14px;color:#333}
+.release-dialog p,.release-dialog li{font-size:14px;line-height:1.65;color:#66736c}
+.release-dialog ul{margin:0 0 24px;padding-left:20px}
+.release-dialog li+li{margin-top:7px}
+.release-dialog form{display:flex;justify-content:flex-end}
+.release-close{min-height:44px;border:0;border-radius:8px;background:#00752b;color:#fff;padding:0 20px;font:700 14px/1 system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer}
+.release-close:hover,.release-close:focus-visible{background:#005f23;outline:3px solid #00752b35;outline-offset:2px}
+@media(max-width:640px){.release-open{right:20px;bottom:76px}.release-body{padding:22px}.release-dialog h2{font-size:22px}}

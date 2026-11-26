@@ -118,7 +118,7 @@ def register_security_headers(app):
         inline = " 'unsafe-inline'" if current_app.config.get("CSP_ALLOW_INLINE", True) else ""
         # Migracao gradual dos manipuladores inline; estas telas ja usam listeners.
         strict = request.endpoint in {'bri.page', 'amostras_animais.page', 'auth.login', 'auth.recuperar_senha', 'auth.esqueci_senha', 'admin.admin_baixar_backup', 'admin.admin_baixar_backup_completo'}
-        strict = strict or request.blueprint in {"ambiental","formularios_kobo"} or request.endpoint in {
+        strict = strict or request.blueprint in {"ambiental","formularios_kobo","geovsatt"} or request.endpoint in {
             'consultas.laboratorio', 'laboratorio.page', 'recolhimentos.page', 'pontos_estrategicos.page', 'formularios.rg_campo_page'
         }
         attributes = "'none'" if strict or not inline else "'unsafe-inline'"
@@ -244,7 +244,7 @@ def register_response_redaction(app):
 def register_context_processors(app):
     @app.context_processor
     def inject_globals():
-        from app_core import setores
+        from app_core import release_notes, setores
         target = db_core.configured_target(current_app.config)
         ambiente = str(current_app.config.get("AMBIENTE") or "producao").strip().lower()
         try:
@@ -304,6 +304,7 @@ def register_context_processors(app):
             APP_VERSION=version_core.APP_VERSION,
             APP_VERSION_DATE=version_core.APP_VERSION_DATE,
             APP_VERSION_LABEL=version_core.APP_VERSION_LABEL,
+            release_notice=release_notes.aviso_atual(setores.atual()),
             ACESSO_EXTERNO=current_app.config.get("ACESSO_EXTERNO", False),
             OFFLINE_USER_SCOPED=True,
             AMBIENTE_TESTE=ambiente_teste,

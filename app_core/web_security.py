@@ -22,7 +22,7 @@ TERMS_ENDPOINTS = {"auth.termos", "auth.aceitar_termos", "auth.minha_senha", "au
 def scope_session_key(app):
     scope = app.config.get("SESSION_KEY_SCOPE")
     if app.config.get('SETORES_ENABLED'):
-        if app.config.get('SETOR') not in {'endemias','ambiental'}:
+        if app.config.get('SETOR') not in {'endemias','ambiental','geo'}:
             raise ValueError('Setor invalido para sessao.')
         scope=scope or 'local'
     if scope:

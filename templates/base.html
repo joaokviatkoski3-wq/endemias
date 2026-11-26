@@ -10,6 +10,7 @@
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/vendor/chartjs/chart.umd.min.js"></script>
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/vendor/chartjs-plugin-datalabels/chartjs-plugin-datalabels.min.js"></script>
 <link rel="stylesheet" href="/static/css/app.css?v={{ APP_VERSION }}">
+<link rel="stylesheet" href="/static/css/release_popup.css?v={{ APP_VERSION }}">
 {% block extra_css %}{% endblock %}
 {% if avisos_campo %}<link rel="stylesheet" href="/static/css/avisos_campo.css?v={{ APP_VERSION }}">{% endif %}
 {% if SETOR_ATUAL == 'ambiental' %}<link rel="stylesheet" href="/static/css/branding_ambiental.css?v={{ APP_VERSION }}">{% endif %}
@@ -149,6 +150,7 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
 </div>
 
 <div id="toast-area"></div>
+{% include "_release_popup.html" %}
 
 <button id="help-launcher" class="help-launcher" type="button" title="Ajuda do sistema" aria-label="Abrir ajuda do sistema" aria-controls="help-panel" aria-expanded="false">
   <span aria-hidden="true">?</span>
@@ -192,6 +194,7 @@ const AGENDA_TYPE_LABELS = {{ AGENDA_TIPO_LABELS|tojson }};
 </div>
 
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/app.js?v={{ APP_VERSION }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/release_popup.js?v={{ APP_VERSION }}"></script>
 {% if usuario_atual %}<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/presenca.js?v={{ APP_VERSION }}"></script>{% endif %}
 <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="/static/js/ajuda.js?v={{ APP_VERSION }}"></script>
 {% if avisos_campo %}<script nonce="{{ csp_nonce() }}" src="/static/js/avisos_campo.js?v={{ APP_VERSION }}"></script>{% endif %}

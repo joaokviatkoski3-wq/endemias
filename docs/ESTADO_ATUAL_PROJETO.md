@@ -68,7 +68,11 @@ regras de trabalho e isolamento de testes.
 
 ## Projetos futuros
 
-- **GeoVSATT** (`geo.vsatt.com.br`). Portal cartográfico interno. O superadmin
+- **GeoVSATT** (`geo.vsatt.com.br`). A fundação executável começou na versão
+  candidata `2.16.0`, ainda sem implantação pública: terceiro domínio lógico,
+  login, entrada no portal, mapa próprio sem imagem-base, menu, busca, quarteirões,
+  localidades derivadas, logradouros e detalhe do RG. Consulte
+  [a continuidade do GeoVSATT](GEOVSATT_IMPLEMENTACAO.md). O superadmin
   poderá configurar camadas, visibilidade, simbologia, etiquetas e filtros.
   Para Esporotricose, usar os pontos dos animais com coordenadas válidas e
   reaproveitar os raios de 150 m de `app_core/esporotricose_bloqueio.py`.

@@ -1,4 +1,4 @@
-from flask import Blueprint, current_app, render_template
+from flask import Blueprint, current_app, redirect, render_template, url_for
 
 from app_core import audit
 from app_core import backup as backup_core
@@ -18,6 +18,8 @@ bp = Blueprint("home", __name__)
 @login_required
 def page():
     from app_core import setores
+    if setores.atual() == 'geo':
+        return redirect(url_for('geovsatt.page'))
     if setores.atual()=='ambiental':
         from blueprints.ambiental import painel
         return painel('Vigilância Ambiental')

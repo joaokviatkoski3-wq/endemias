@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="pt-BR" data-versao="{{ APP_VERSION }}" data-setor="geo">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>GeoVSATT · Vigilância em Saúde</title>
+  <link rel="icon" type="image/png" href="/static/img/geovsatt-logo.png?v={{ APP_VERSION }}">
+  <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.min.css?v={{ APP_VERSION }}">
+  <link rel="stylesheet" href="/static/css/release_popup.css?v={{ APP_VERSION }}">
+  <link rel="stylesheet" href="/static/css/geovsatt.css?v={{ APP_VERSION }}">
+</head>
+<body class="geo-app">
+  {% include "_ambiente_teste_faixa.html" %}
+  <div class="geo-shell">
+    <header class="geo-header">
+      <button id="geo-menu-open" class="geo-icon-button" type="button" aria-controls="geo-sidebar" aria-expanded="false" aria-label="Abrir menu de camadas">
+        <img src="/static/icons/menu.svg" alt="">
+      </button>
+      <a class="geo-brand" href="/geovsatt" aria-label="GeoVSATT - início">
+        <img src="/static/img/geovsatt-symbol.svg?v={{ APP_VERSION }}" alt="">
+        <span><strong>GeoVSATT</strong><small>Vigilância em Saúde</small></span>
+      </a>
+      <form id="geo-search" class="geo-search" role="search">
+        <label class="sr-only" for="geo-search-input">Buscar localidade ou quarteirão</label>
+        <img src="/static/icons/busca.svg" alt="">
+        <input id="geo-search-input" name="q" type="search" autocomplete="off" placeholder="Buscar localidade ou quarteirão...">
+        <button type="submit">Buscar</button>
+        <div id="geo-search-results" class="geo-search-results" hidden></div>
+      </form>
+      <nav class="geo-header-actions" aria-label="Conta e navegação">
+        <a href="{{ PORTAL_VSATT_URL or '/' }}">Portal VSATT</a>
+        <span>{{ usuario_atual.nome.split()[0] }}</span>
+        <form action="/logout" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit">Sair</button>
+        </form>
+      </nav>
+    </header>
+
+    <aside id="geo-sidebar" class="geo-sidebar" aria-hidden="true">
+      <div class="geo-sidebar-head">
+        <div><span>GeoVSATT</span><strong>Camadas do mapa</strong></div>
+        <button id="geo-menu-close" class="geo-icon-button" type="button" aria-label="Fechar menu"><img src="/static/icons/fechar.svg" alt=""></button>
+      </div>
+      <div class="geo-sidebar-scroll">
+        <p class="geo-sidebar-intro">Ative e desative as informações que deseja comparar. Camadas sem base oficial ficam identificadas como futuras.</p>
+        {% for grupo in catalogo.camadas|groupby('grupo') %}
+        <section class="geo-layer-group">
+          <h2>{{ grupo.grouper }}</h2>
+          {% for camada in grupo.list %}
+          <label class="geo-layer-row {{ 'is-pending' if not camada.disponivel }}" title="{{ camada.descricao }}">
+            <input type="checkbox" data-layer="{{ camada.id }}" {% if camada.visivel_inicial %}checked{% endif %} {% if not camada.disponivel %}disabled{% endif %}>
+            <span class="geo-layer-symbol geo-layer-symbol--{{ camada.tipo }}" aria-hidden="true"></span>
+            <span><strong>{{ camada.nome }}</strong><small>{{ camada.descricao }}</small></span>
+            {% if not camada.disponivel %}<em>Em preparação</em>{% endif %}
+          </label>
+          {% endfor %}
+        </section>
+        {% endfor %}
+        <section class="geo-layer-group">
+          <h2>Imagens e bases</h2>
+          <div class="geo-layer-row is-pending"><span class="geo-layer-symbol geo-layer-symbol--raster"></span><span><strong>Satélite</strong><small>Será configurado pelo superadmin.</small></span><em>Futuro</em></div>
+          <div class="geo-layer-row is-pending"><span class="geo-layer-symbol geo-layer-symbol--raster"></span><span><strong>Ortofotos</strong><small>Versões e metadados serão adicionados depois.</small></span><em>Futuro</em></div>
+        </section>
+      </div>
+      {% if catalogo.pode_configurar %}
+      <div class="geo-admin-note"><strong>Área do superadmin</strong><span>Upload, permissões, simbologia, metadados e versões entram no próximo incremento.</span></div>
+      {% endif %}
+    </aside>
+    <button id="geo-sidebar-backdrop" class="geo-sidebar-backdrop" type="button" aria-label="Fechar menu" hidden></button>
+
+    <main class="geo-map-wrap">
+      <div id="geo-map" class="geo-map" aria-label="Mapa territorial do GeoVSATT"></div>
+      <div class="geo-map-title">
+        <strong>Mapa territorial</strong>
+        <span>Sem imagem-base · dados institucionais</span>
+      </div>
+      <div id="geo-status" class="geo-status" role="status">Carregando camadas territoriais...</div>
+      <div class="geo-tools" aria-label="Ferramentas do mapa">
+        <button id="geo-fit" type="button" title="Mostrar todo o município" aria-label="Mostrar todo o município">⌂</button>
+        <button type="button" disabled title="Medição de distâncias no próximo incremento">↔</button>
+        <button type="button" disabled title="Medição de áreas no próximo incremento">▱</button>
+        <button type="button" disabled title="Impressão personalizada no próximo incremento"><img src="/static/icons/imprimir.svg" alt=""></button>
+      </div>
+      <div class="geo-legend" aria-label="Legenda">
+        <span><i class="legend-block"></i> Quarteirões</span>
+        <span><i class="legend-street"></i> Logradouros</span>
+        <span><i class="legend-locality"></i> Localidades</span>
+      </div>
+    </main>
+
+    <aside id="geo-detail" class="geo-detail" aria-hidden="true" aria-label="Detalhes territoriais">
+      <div class="geo-detail-head">
+        <div><span>Registro Geográfico</span><h2 id="geo-detail-title">Detalhes do quarteirão</h2></div>
+        <button id="geo-detail-close" class="geo-icon-button" type="button" aria-label="Fechar detalhes"><img src="/static/icons/fechar.svg" alt=""></button>
+      </div>
+      <div id="geo-detail-content" class="geo-detail-content"></div>
+    </aside>
+  </div>
+
+  {% include "_release_popup.html" %}
+  <script nonce="{{ csp_nonce() }}" src="/static/vendor/leaflet/leaflet.min.js?v={{ APP_VERSION }}"></script>
+  <script nonce="{{ csp_nonce() }}" src="/static/js/release_popup.js?v={{ APP_VERSION }}"></script>
+  <script nonce="{{ csp_nonce() }}" src="/static/js/geovsatt.js?v={{ APP_VERSION }}"></script>
+</body>
+</html>

@@ -43,6 +43,7 @@ from blueprints.esporotricose import bp as esporotricose_bp
 from blueprints.exportacoes import bp as exportacoes_bp
 from blueprints.formularios import bp as formularios_bp
 from blueprints.formularios_kobo import bp as formularios_kobo_bp
+from blueprints.geovsatt import bp as geovsatt_bp
 from blueprints.home import bp as home_bp
 from blueprints.laboratorio_lancamentos import bp as laboratorio_lancamentos_bp
 from blueprints.liraa import bp as liraa_bp
@@ -177,6 +178,7 @@ def _register_blueprints(flask_app):
     flask_app.register_blueprint(exportacoes_bp)
     flask_app.register_blueprint(formularios_bp)
     flask_app.register_blueprint(formularios_kobo_bp)
+    flask_app.register_blueprint(geovsatt_bp)
     flask_app.register_blueprint(home_bp)
     flask_app.register_blueprint(laboratorio_lancamentos_bp)
     flask_app.register_blueprint(liraa_bp)
@@ -313,6 +315,7 @@ def create_app(config_overrides=None):
         DOMINIO_BASE=os.environ.get('ENDEMIAS_DOMINIO_BASE','vsatt.com.br'),
         ENDEMIAS_LOCAL_PORT=int(os.environ.get('ENDEMIAS_LOCAL_PORT','5000')),
         AMBIENTAL_LOCAL_PORT=int(os.environ.get('ENDEMIAS_AMBIENTAL_LOCAL_PORT','5004')),
+        GEO_LOCAL_PORT=int(os.environ.get('ENDEMIAS_GEO_LOCAL_PORT','5005')),
     )
     flask_app.config.update(web_security.external_defaults())
     if config_overrides:

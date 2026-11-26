@@ -1,0 +1,18 @@
+{% if release_notice and usuario_atual %}
+<button id="release-open" class="release-open" type="button" aria-controls="release-dialog">Novidades</button>
+<dialog id="release-dialog" class="release-dialog" aria-labelledby="release-title"
+        data-version="{{ release_notice.versao }}" data-area="{{ release_notice.area }}"
+        data-user="{{ usuario_atual.id_usuario }}">
+  <div class="release-accent" aria-hidden="true"></div>
+  <div class="release-body">
+    <p class="release-eyebrow">VSATT · versão {{ release_notice.versao }}</p>
+    <h2 id="release-title">{{ release_notice.titulo }}</h2>
+    <p>{{ release_notice.resumo }}</p>
+    {% if release_notice.mudancas %}
+    <h3>O que há de novo</h3>
+    <ul>{% for item in release_notice.mudancas %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% endif %}
+    <form method="dialog"><button class="release-close" type="submit">Começar</button></form>
+  </div>
+</dialog>
+{% endif %}
