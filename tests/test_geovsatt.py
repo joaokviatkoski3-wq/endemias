@@ -21,7 +21,7 @@ from shapely.geometry import box, mapping, shape
 
 import app
 from app_core import auth, db, dominios, geovsatt_busca, geovsatt_openfreemap, liraa, liraa_kobo, registro_geografico, sessoes
-from app_core import geovsatt_bloqueios, geovsatt_dengue, geovsatt_enderecos
+from app_core import geovsatt, geovsatt_bloqueios, geovsatt_dengue, geovsatt_enderecos
 from app_core.version import APP_VERSION
 from scripts.preparar_massa_web_teste import preparar
 
@@ -899,6 +899,22 @@ class GeoVSATTTests(unittest.TestCase):
         with closing(sqlite3.connect(self.path)) as conn, conn:
             conn.execute("""UPDATE ovitrampas_armadilhas SET numero='10' WHERE ovitrampa_id='outro'""")
         self.assertEqual(cliente.get(camada).json["features"], [])
+
+    def test_cnefe_reconhece_variante_conferida_apenas_para_coleta_no_quarteirao(self):
+        malha, bloco = self._malha_vigilancia()
+        lon, lat = bloco.centroid.x, bloco.centroid.y
+        base = self.directory / "cnefe.csv"
+        base.write_text(
+            "COD_MUNICIPIO;NOM_TIPO_SEGLOGR;NOM_SEGLOGR;NUM_ENDERECO;LATITUDE;LONGITUDE;DSC_LOCALIDADE\n"
+            f"4100400;Rua;Professor Antonio Rodrigues Dias;10;{lat};{lon};Bonfim\n",
+            encoding="utf-8",
+        )
+        localizador = geovsatt_enderecos.Localizador(str(self.path), geovsatt.BASES, malha, str(base))
+        endereco = "Rua Antônio Rodrigues Dias, 10, Localidade Fictícia"
+        _, _, fonte = localizador.localizar(endereco, esperado="1:1", localidade_ubs=True)
+        self.assertEqual(fonte, "CNEFE 2022")
+        self.assertIsNone(localizador.localizar(endereco, localidade_ubs=True))
+        self.assertIsNone(localizador.localizar(endereco, esperado="2:1", localidade_ubs=True))
 
     def test_coletas_desde_2026_reusam_pe_e_aceitam_kml(self):
         _, bloco = self._malha_vigilancia()

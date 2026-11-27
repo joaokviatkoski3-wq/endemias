@@ -4,6 +4,12 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.34.1": {
+        "titulo": "Conferência de nomes de ruas nas coletas",
+        "mudancas": [
+            "A localização das coletas reconhece variantes conferidas de nomes de ruas quando o número e o quarteirão coincidem com o CNEFE.",
+        ],
+    },
     "2.34.0": {
         "titulo": "Posições aproximadas de coletas sem número",
         "mudancas": [

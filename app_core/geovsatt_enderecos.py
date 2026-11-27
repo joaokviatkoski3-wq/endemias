@@ -24,6 +24,11 @@ from app_core.territorio import chave_territorial
 MUNICIPIO_IBGE = "4100400"
 DIAMETRO_CNEFE_COLETA_METROS = 8
 COLUNAS_CSV = ("chave", "endereco_google_earth", "logradouro", "numero", "localidade", "cep", "latitude", "longitude")
+# Formas abreviadas das visitas, conferidas na cartografia de Almirante Tamandaré.
+CNEFE_VIAS_COLETAS = {
+    "antonio rodrigues dias": "professor antonio rodrigues dias",
+    "maria bonfim alcantara": "maria bonfim de alcantara",
+}
 
 
 def chave_endereco(endereco):
@@ -240,11 +245,15 @@ class Localizador:
         enderecos_candidatos = variantes(endereco)
         if self.cnefe:
             for opcao in enderecos_candidatos:
-                for bairro, cep_base, pos in self.cnefe.get((tuple(opcao.via), opcao.numero), ()):
-                    if (conferir_bairro and opcao.localidade and list(bairro) != opcao.localidade
-                            or cep and "".join(cep.groups()) != cep_base.replace("-", "")):
-                        continue
-                    alternativas.add(pos)
+                via = tuple(opcao.via)
+                variante = None if conferir_bairro else CNEFE_VIAS_COLETAS.get(" ".join(via))
+                vias = (via, tuple(variante.split())) if variante else (via,)
+                for nome in vias:
+                    for bairro, cep_base, pos in self.cnefe.get((nome, opcao.numero), ()):
+                        if (conferir_bairro and opcao.localidade and list(bairro) != opcao.localidade
+                                or cep and "".join(cep.groups()) != cep_base.replace("-", "")):
+                            continue
+                        alternativas.add(pos)
         validadas = [(pos, props) for pos in alternativas
                      if (props := self.validar(pos, esperado)) is not None]
         if len(validadas) == 1:

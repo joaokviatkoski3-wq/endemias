@@ -460,6 +460,8 @@ verificações do instalador.
   cabem em um intervalo espacial de até 8 m. Na falta desse resultado,
   o GeoVSATT verifica se há ovitrampa cadastrada no mesmo logradouro,
   número e quarteirão, com coordenada única. A fonte é exibida no mapa.
+  A 2.34.1 reconhece duas variantes conferidas de logradouros no CNEFE,
+  com correspondência pelo mesmo número e quarteirão da visita.
   A partir da 2.32.0, filtre por espécie e tipo de trabalho na camada de coletas
   e na aba administrativa. Os CSVs de pendências da aba usam o mesmo recorte.
   Em **Posições pendentes**, abra uma coleta e clique no local confirmado.
