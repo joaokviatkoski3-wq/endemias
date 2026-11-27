@@ -119,14 +119,17 @@ def main(argv=None):
     if settings:
         local = local_application(app, settings["bind"])
         external_server, local_server = create_dual_servers(app, local)
-        from app_core import campo_push
+        from app_core import campo_push, geovsatt_dengue
         stop_push = campo_push.iniciar(app.config)
+        stop_dengue = geovsatt_dengue.iniciar(app.config)
         print(f"Entrada local: http://{settings['bind']}:{settings['port']} | Tunnel: 127.0.0.1:{settings['tunnel_port']}", flush=True)
         try:
             external_server.run()
         finally:
             if stop_push:
                 stop_push.set()
+            if stop_dengue:
+                stop_dengue.set()
             external_server.close()
             local_server.close()
             external_server.task_dispatcher.shutdown()
@@ -135,13 +138,16 @@ def main(argv=None):
     from app_core.version import APP_VERSION_LABEL
     print(f"{APP_VERSION_LABEL} | Waitress | {options['host']}:{options['port']} | {options['threads']} threads", flush=True)
     from app_core import dominios
-    from app_core import campo_push
+    from app_core import campo_push, geovsatt_dengue
     stop_push = campo_push.iniciar(app.config)
+    stop_dengue = geovsatt_dengue.iniciar(app.config)
     try:
         serve(dominios.application(app), **options)
     finally:
         if stop_push:
             stop_push.set()
+        if stop_dengue:
+            stop_dengue.set()
     return 0
 
 

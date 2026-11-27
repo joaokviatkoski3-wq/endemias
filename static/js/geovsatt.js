@@ -61,6 +61,36 @@ function iniciarGeoVSATT() {
   map.createPane('rg-selection').style.zIndex = 460;
   L.control.zoom({position: 'topright'}).addTo(map);
   map.setView([-25.32, -49.30], 12);
+  const botaoLocalizacao = document.getElementById('geo-localizacao');
+  const localizacao = L.layerGroup().addTo(map);
+  botaoLocalizacao?.addEventListener('click', () => {
+    if (!window.isSecureContext || !navigator.geolocation) {
+      statusNode.textContent = 'Minha localização precisa de um navegador compatível e acesso por HTTPS.';
+      return;
+    }
+    botaoLocalizacao.disabled = true;
+    statusNode.textContent = 'Obtendo a posição do aparelho…';
+    navigator.geolocation.getCurrentPosition(({coords}) => {
+      botaoLocalizacao.disabled = false;
+      const ponto = [coords.latitude, coords.longitude];
+      localizacao.clearLayers();
+      const estilo = {color: '#1664c0', interactive: false};
+      if (Number.isFinite(coords.accuracy) && coords.accuracy > 0) {
+        localizacao.addLayer(L.circle(ponto, {...estilo, radius: coords.accuracy, fillOpacity: .14}));
+      }
+      localizacao.addLayer(L.circleMarker(ponto, {...estilo, radius: 7, weight: 2, fillOpacity: 1}));
+      map.setView(ponto, Math.max(map.getZoom(), coords.accuracy <= 100 ? 17 : 14));
+      const precisao = Number.isFinite(coords.accuracy) ? ' Precisão aproximada de ' + Math.round(coords.accuracy) + ' m.' : '';
+      statusNode.textContent = 'Posição do aparelho.' + precisao;
+    }, erro => {
+      botaoLocalizacao.disabled = false;
+      statusNode.textContent = {
+        1: 'Permissão de localização negada. Verifique as permissões do navegador.',
+        2: 'O aparelho não conseguiu obter a localização.',
+        3: 'A localização demorou a responder. Tente novamente ao ar livre.',
+      }[erro.code] || 'A localização está indisponível.';
+    }, {enableHighAccuracy: true, timeout: 15000, maximumAge: 0});
+  });
   if (!campo) document.addEventListener('geovsatt:obter-recorte-offline', event => {
     const bounds = map.getBounds();
     event.detail.limites = [Math.max(-180, bounds.getWest()), Math.max(-90, bounds.getSouth()),
@@ -458,6 +488,15 @@ function iniciarGeoVSATT() {
             if (Number.isInteger(indice) && feature.geometry.type === 'Point') {
               action = element('a', 'geo-feature-action', 'Editar equipamento');
               action.href = `/geovsatt/admin/equipamentos/${data.metadata.versao}/${indice}/editar`;
+            } else if (['dengue', 'dengue_bloqueios'].includes(id) && typeof feature.id === 'string') {
+              action = element('a', 'geo-feature-action', 'Imprimir mapa de bloqueio');
+              action.href = '/geovsatt/dengue/' + encodeURIComponent(feature.id) + '/mapa-bloqueio';
+            } else if (mapNode.dataset.endemias && ['ovitrampas', 'ovitrampas_bloqueios'].includes(id) && props.leitura_bloqueio) {
+              action = element('a', 'geo-feature-action', 'Imprimir mapa de bloqueio');
+              action.href = mapNode.dataset.endemias + '/ovitrampas/mapa-bloqueio/' +
+                encodeURIComponent(props.leitura_bloqueio);
+              action.target = '_blank';
+              action.rel = 'noopener noreferrer';
             } else if (mapNode.dataset.ambiental && Number.isSafeInteger(feature.id) &&
                        (id === 'esporotricose' || id === 'esporotricose_bloqueios')) {
               action = element('a', 'geo-feature-action', 'Abrir mapa de bloqueio no Ambiental');
@@ -492,7 +531,8 @@ function iniciarGeoVSATT() {
       const formatarData = data => data.split('-').reverse().join('/');
       periodoPorCamada.set(group, `${formatarData(inicio)} a ${formatarData(fim)}`);
     }
-    if (id !== 'quarteiroes_trabalhados' || (campo && !campo.temHistoricoTrabalhos)) {
+    if (!document.querySelector(`[data-filtro-vigilancia="${id}"]`) &&
+        (id !== 'quarteiroes_trabalhados' || (campo && !campo.temHistoricoTrabalhos))) {
       setupFilters(input, group);
     }
     return group;
@@ -643,7 +683,7 @@ function iniciarGeoVSATT() {
 
   function loadLayer(input, regras) {
     const id = input.dataset.layer;
-    if (id === 'quarteiroes_trabalhados' && (!campo || campo.temHistoricoTrabalhos)) {
+    if (filtrosPorCamada.get(id)?.consultar) {
       const filtros = filtrosPorCamada.get(id);
       return filtros.consultar(regras ?? filtros.ler());
     }
@@ -888,6 +928,87 @@ function iniciarGeoVSATT() {
   }
 
   configurarFiltrosDeTrabalhos();
+
+  for (const form of document.querySelectorAll('[data-filtro-vigilancia]')) {
+    const id = form.dataset.filtroVigilancia;
+    const input = options.find(opcao => opcao.dataset.layer === id);
+    const mensagem = form.querySelector('[role="status"]');
+    const botao = form.querySelector('button');
+    const exportacao = document.querySelector(`[data-export-layer="${id}"]`);
+    let regras = [];
+    let ultimaConsulta;
+    let controller;
+    function camposDoPeriodo() {
+      for (const label of form.querySelectorAll('[data-tipo-periodo]')) {
+        label.hidden = label.dataset.tipoPeriodo !== form.elements.periodo.value;
+        const campo = label.querySelector('input');
+        campo.disabled = label.hidden;
+        campo.required = !label.hidden && form.elements.periodo.value !== 'intervalo';
+      }
+    }
+    form.elements.periodo.addEventListener('change', camposDoPeriodo);
+    camposDoPeriodo();
+
+    async function consultar(novas) {
+      const params = new URLSearchParams(novas.filter(regra => regra.value &&
+        Array.from(form.elements).some(campo => campo.name === regra.field))
+        .map(regra => [regra.field, regra.value]));
+      const chave = params.toString();
+      if (chave === ultimaConsulta && !controller) return mapLayers[id];
+      controller?.abort();
+      const atual = new AbortController();
+      controller = atual;
+      botao.disabled = true;
+      mensagem.textContent = 'Consultando dados…';
+      try {
+        const dados = await api(`/api/geovsatt/camadas/${id}?${chave}`, {signal: atual.signal});
+        if (controller !== atual) return mapLayers[id];
+        mapLayers[id]?.remove();
+        const camada = buildLayer(input, dados);
+        mapLayers[id] = camada;
+        if (input.checked) camada.addTo(map);
+        regras = novas;
+        ultimaConsulta = chave;
+        if (exportacao) for (const link of exportacao.querySelectorAll('a')) {
+          const url = new URL(link.href);
+          url.search = chave;
+          link.href = url.href;
+        }
+        mensagem.textContent = `${number(dados.features.length)} feições`;
+        updateBounds();
+        calor.atualizar(id);
+        labels.schedule();
+        return camada;
+      } catch (error) {
+        if (controller === atual) mensagem.textContent = error.message;
+        throw error;
+      } finally {
+        if (controller === atual) {
+          controller = null;
+          botao.disabled = false;
+        }
+      }
+    }
+
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      const novas = [...new FormData(form)].filter(([, value]) => value)
+        .map(([field, value]) => ({field, match: 'exact', value}));
+      consultar(novas).catch(() => {});
+    });
+    filtrosPorCamada.set(id, {ler: () => regras.slice(), consultar, pendente: () => Boolean(controller),
+      async restaurar(novas) {
+        form.reset();
+        for (const {field, value} of novas) {
+          const campo = form.elements.namedItem(field);
+          if (campo?.name === field) campo.value = value;
+        }
+        camposDoPeriodo();
+        if (input.checked) await consultar(novas);
+        else regras = novas;
+        return 0;
+      }});
+  }
 
   async function toggleLayer(input, regras) {
     const id = input.dataset.layer;

@@ -24,6 +24,11 @@ dd { margin: .5mm 0 0; font-size: .87rem; font-weight: 600; overflow-wrap: anywh
 .legenda i { display: inline-block; width: 4mm; height: 3mm; vertical-align: middle; margin-right: 1mm; }
 .legenda .centro { border-radius: 50%; background: #bf3119; width: 2.5mm; height: 2.5mm; }
 .legenda .raio { border: 2px solid #ffe355; background: #8f761f; }
+.legenda .executado { border: 1px solid #008255; background: #62ba9d; }
+.legenda .fora { border: 1px dashed #616b70; background: #e1e6e8; }
+.legenda .pendente { border: 1px dashed #ad4d15; background: #f6dccb; }
+.acoes label { color: #18342b; }
+.acoes form { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .legenda .quarteirao { border: 1px solid #158753; background: #f2fff5; }
 .atingidos { margin-top: 2mm; }
 .atingidos h2 { font-size: .9rem; margin: 0 0 1mm; }

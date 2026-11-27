@@ -4,14 +4,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mapa de bloqueio de esporotricose</title>
+<title>{{ titulo or "Mapa de bloqueio de esporotricose" }}</title>
 <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.min.css">
 <link rel="stylesheet" href="/static/css/esporotricose_bloqueio.css?v={{ APP_VERSION }}">
 </head>
 <body>
 <nav class="acoes" aria-label="Ações do mapa">
+  {% if animal %}
   <a href="{{ url_for('esporotricose.page_doente_detalhe', id_animal=animal.id_animal_doente) }}">Abrir cadastro</a>
+  {% else %}
+  <a href="{{ voltar }}">Voltar ao cadastro</a>
+  {% endif %}
   {% if mapa %}
+  <form method="get">
+    <label>Raio (m) <input type="number" name="raio" min="1" max="10000" value="{{ mapa.raio_metros }}" required></label>
+    <label>Visitas de <input type="date" name="visitas_inicio" value="{{ request.args.get('visitas_inicio', '') }}"></label>
+    <label>Até <input type="date" name="visitas_fim" value="{{ request.args.get('visitas_fim', '') }}"></label>
+    <button type="submit">Atualizar mapa</button>
+  </form>
   <button id="alternar-satelite" type="button" aria-pressed="false">Ver sem satélite</button>
   <button id="imprimir-mapa" type="button" disabled>Imprimir / salvar em PDF</button>
   {% endif %}
@@ -19,24 +29,28 @@
 <main class="folha">
   <header class="cabecalho">
     <img src="/static/img/logo_prefeitura.png" alt="Prefeitura de Almirante Tamandaré">
-    <div><p>Vigilância Ambiental de Almirante Tamandaré</p><h1>Mapa de bloqueio de esporotricose</h1></div>
+    <div><p>{{ setor_titulo or "Vigilância Ambiental" }} de Almirante Tamandaré</p><h1>{{ titulo or "Mapa de bloqueio de esporotricose" }}</h1></div>
   </header>
   {% if mapa %}
   <div class="conteudo">
-    <div id="mapa-bloqueio" aria-label="Mapa do raio de 150 metros com quarteirões e ruas">
+    <div id="mapa-bloqueio" aria-label="Mapa do raio de {{ mapa.raio_metros }} metros com quarteirões e ruas">
       <div class="norte" aria-label="Norte">↑ N</div>
     </div>
     <aside class="informacoes" aria-label="Informações do mapa">
   {% endif %}
   <dl class="caso">
+    {% if animal %}
     <div><dt>Animal</dt><dd>{{ animal.nome or '—' }}{% if animal.especie %} · {{ animal.especie }}{% endif %}</dd></div>
     <div><dt>Situação do caso</dt><dd>{{ animal.status or 'Não informada' }}</dd></div>
     <div><dt>Bloqueio</dt><dd>{{ animal.bloqueio or 'Não informado' }}{% if animal.data_bloqueio %} · {{ (animal.data_bloqueio|string)[8:10] }}/{{ (animal.data_bloqueio|string)[5:7] }}/{{ (animal.data_bloqueio|string)[:4] }}{% endif %}</dd></div>
     <div class="endereco"><dt>Local do bloqueio</dt><dd>{{ animal.endereco or 'Endereço não informado' }}{% if animal.localidade %} · {{ animal.localidade }}{% endif %}{% if animal.quarteirao %} · Q. {{ animal.quarteirao }}{% endif %}</dd></div>
+    {% else %}
+    {% for campo, valor in referencia %}<div><dt>{{ campo }}</dt><dd>{{ valor or "—" }}</dd></div>{% endfor %}
+    {% endif %}
   </dl>
   {% if mapa %}
   <p class="estado" id="mapa-estado" role="status">Carregando imagem e ruas…</p>
-  <div class="legenda"><span><i class="centro"></i> Ponto do animal</span><span><i class="raio"></i> Raio de {{ mapa.raio_metros }} m</span><span><i class="quarteirao"></i> Limite de quarteirão</span></div>
+  <div class="legenda"><span><i class="centro"></i> {{ "Ponto do animal" if animal else "Ponto de referência" }}</span><span><i class="raio"></i> Raio de {{ mapa.raio_metros }} m</span><span><i class="quarteirao"></i> Limite de quarteirão</span>{% if mapa.execucao %}<span><i class="executado"></i> Trabalhado</span><span><i class="pendente"></i> Sem visita registrada ou sem dados para cruzar</span><span><i class="fora"></i> Fora do raio operacional</span>{% endif %}</div>
   <section class="atingidos">
     <h2>Quarteirões atingidos</h2>
     {% if not mapa.camada_disponivel %}
@@ -54,7 +68,7 @@
   <script src="/static/vendor/leaflet/leaflet.min.js" nonce="{{ csp_nonce() if csp_nonce is defined else '' }}"></script>
   <script src="/static/js/esporotricose_bloqueio.js?v={{ APP_VERSION }}" nonce="{{ csp_nonce() if csp_nonce is defined else '' }}"></script>
   {% else %}
-  <p class="sem-mapa" role="status">Informe a latitude e a longitude válidas no cadastro do animal para gerar o mapa.</p>
+  <p class="sem-mapa" role="status">{{ mensagem_sem_mapa or "Informe a latitude e a longitude válidas no cadastro do animal para gerar o mapa." }}</p>
   {% endif %}
 </main>
 </body>

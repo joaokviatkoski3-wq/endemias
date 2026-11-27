@@ -21,6 +21,7 @@ from shapely.geometry import box, mapping, shape
 
 import app
 from app_core import auth, db, dominios, geovsatt_busca, geovsatt_openfreemap, liraa, liraa_kobo, registro_geografico, sessoes
+from app_core import geovsatt_bloqueios, geovsatt_dengue, geovsatt_enderecos
 from app_core.version import APP_VERSION
 from scripts.preparar_massa_web_teste import preparar
 
@@ -711,6 +712,142 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(localidade["geometry"]["type"], "Polygon")
         self.assertEqual(localidade["properties"]["id_localidade"], 1)
         self.assertEqual(client.get("/api/geovsatt/quarteiroes/1/1").status_code, 200)
+
+    def test_localizacao_permitida_apenas_no_mapa_e_na_copia(self):
+        client = self.client()
+        for url in ("/geovsatt", "/geovsatt/offline"):
+            resposta = client.get(url)
+            self.assertIn("geolocation=(self)", resposta.headers["Permissions-Policy"])
+            self.assertIn(b'geo-localizacao', resposta.data)
+        self.assertIn("geolocation=()", client.get("/api/geovsatt/catalogo").headers["Permissions-Policy"])
+        self.assertIn("geolocation=()", self.client(self.endemias).get("/mapa").headers["Permissions-Policy"])
+
+    def test_ovitrampa_positiva_no_historico_tem_folha_e_filtro_de_mes(self):
+        with closing(sqlite3.connect(self.path)) as conn, conn:
+            conn.execute("""INSERT INTO ovitrampas_armadilhas
+                            (ovitrampa_id,localidade,latitude,longitude,atualizado_em)
+                            VALUES('historica','Localidade Ficticia',-25.301,-49.301,'2026-11-26')""")
+            conn.executemany("""INSERT INTO ovitrampas_leituras
+                 (id_leitura,ovitrampa_id,ano,semana,data_coleta,ovos,importado_em)
+                 VALUES(?, 'historica', 2026, ?, ?, ?, '2026-11-26')""",
+                 (("teste-positiva", 40, "2026-10-07", 8), ("teste-negativa", 45, "2026-11-11", 0)))
+        geo_client, end_client = self.client(), self.client(self.endemias)
+        geo = geo_client.get("/api/geovsatt/camadas/ovitrampas?periodo=mes&mes=2026-10")
+        self.assertEqual(geo.status_code, 200)
+        feicao = next(f for f in geo.json["features"] if f["id"] == "historica")
+        self.assertEqual(feicao["properties"]["leitura_bloqueio"], "legado:teste-positiva")
+        leitura = end_client.get("/api/ovitrampas/armadilhas/historica").json["leituras"]
+        self.assertTrue(next(row for row in leitura if row["id_leitura"] == "teste-positiva")["pode_imprimir_bloqueio"])
+        url = "/ovitrampas/mapa-bloqueio/legado:teste-positiva"
+        self.assertIn(b'Raio de 200 m', end_client.get(url).data)
+        self.assertIn(b'Raio de 250 m', end_client.get(url + "?raio=250").data)
+        self.assertEqual(end_client.get("/ovitrampas/mapa-bloqueio/legado:teste-negativa").status_code, 404)
+
+    def test_dengue_sync_isolada_retem_conflitos_e_protege_camadas_e_folha(self):
+        _, bloco = self._malha_vigilancia()
+        lon, lat = bloco.centroid.x, bloco.centroid.y
+        cabe = ["DATA NOTIFICAÇÃO", "Nº NOTIFICAÇÃO", "NOME", "ENDEREÇO", "RESULTADO", "DATA BLOQUEIO",
+                "LATITUDE", "LONGITUDE"]
+        abas = {"2025": [cabe, ["12/10/2025", "9001", "Nome sintético", "", "Negativo"]],
+                "2026": [cabe, ["01/06/2026", "112", "Sigiloso", "Rua Ficticia, 10", "Positivo", "01/06/2026", lat, lon],
+                          ["01/06/2026", "113", "Sigiloso", "Rua Ficticia, 10", "", "", lat, lon],
+                          ["01/06/2026", "113", "Sigiloso", "Rua Ficticia, 12", "", "", lat, lon]]}
+        for _ in range(2):
+            estado = geovsatt_dengue.sincronizar(str(self.path), {}, carregar=lambda _: abas)
+            self.assertEqual(estado["total"], 3)
+        with self.assertRaises(ValueError):
+            geovsatt_dengue.sincronizar(str(self.path), {}, carregar=lambda _: {"2026": abas["2026"]})
+        self.assertEqual(geovsatt_dengue.estado(str(self.path)), estado)
+        cliente = self.client()
+        resp = cliente.get("/api/geovsatt/camadas/dengue")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual([f["id"] for f in resp.json["features"]], ["2026:112"])
+        self.assertNotIn(b'Sigiloso', resp.data)
+        self.assertIn(b'Notifica', cliente.get("/geovsatt/dengue").data)
+        self.assertIn(b'Raio de 200 m', cliente.get("/geovsatt/dengue/2026:112/mapa-bloqueio").data)
+        self.assertEqual(cliente.get("/geovsatt/dengue/2026:113/mapa-bloqueio").status_code, 404)
+        self.assertEqual(self.client(uid=3).get("/geovsatt/dengue/2026:112/mapa-bloqueio").status_code, 404)
+        self.assertEqual(cliente.post("/api/geovsatt/pacote-offline", json={"camadas": ["dengue"]}).status_code, 403)
+
+    def _malha_vigilancia(self):
+        area = box(-49.32, -25.32, -49.30, -25.30)
+        base = {"type": "FeatureCollection", "features": [{"type": "Feature",
+            "properties": {"Localidade": "1", "Localidade_nome": "Localidade Ficticia", "id_quart": "0001"},
+            "geometry": mapping(area)}]}
+        url = "/geovsatt/admin/importar"
+        payload = {"codigo": "quarteiroes-qgis", "nome": "Malha de teste", "grupo": "Território",
+                   "fonte": "Fixture", "geojson": (io.BytesIO(json.dumps(base).encode()), "malha.geojson")}
+        cliente = self.client()
+        self.assertEqual(cliente.post(url, data=payload).status_code, 303)
+        self.assertEqual(cliente.post("/geovsatt/admin/camadas/quarteiroes-qgis/versoes/1/publicar").status_code, 303)
+        return base, area
+
+    def test_csv_coletas_reusa_chave_validada_e_recorte_cruza_apenas_visitas(self):
+        base, bloco = self._malha_vigilancia()
+        lat, lon = bloco.centroid.y, bloco.centroid.x
+        with closing(sqlite3.connect(self.path)) as conn, conn:
+            conn.execute("UPDATE visitas SET visita='Normal', quarteirao='1' WHERE id_visita='ficticio-visitas'")
+            conn.execute("INSERT INTO coletas(id_coleta,id_visita,num_tubo) VALUES('c1','ficticio-visitas','1')")
+        cliente = self.client()
+        resp = cliente.get("/geovsatt/admin/coletas-tubo/pendencias.csv")
+        self.assertEqual(resp.status_code, 200)
+        linhas = list(csv.DictReader(io.StringIO(resp.data.decode("utf-8-sig"))))
+        self.assertEqual(len(linhas), 1)
+        linhas[0].update(latitude=lat, longitude=lon)
+        texto = io.StringIO()
+        escritor = csv.DictWriter(texto, fieldnames=geovsatt_enderecos.COLUNAS_CSV)
+        escritor.writeheader()
+        escritor.writerows(linhas)
+        url = "/api/geovsatt/admin/coletas-tubo/importar"
+        for etapa in ("validar", "aplicar"):
+            resposta = cliente.post(url, data={"etapa": etapa, "csv": (io.BytesIO(texto.getvalue().encode()), "c.csv")})
+            self.assertEqual(resposta.status_code, 200)
+            self.assertEqual(resposta.json["validas"], 1)
+        tubos = cliente.get("/api/geovsatt/camadas/coletas_tubos").json["features"]
+        self.assertEqual(tubos[0]["properties"]["situacao"], "Aguardando resultado")
+
+        eventos = [{"id": "1", "centro": (lat, lon), "data_bloqueio": "2026-06-01"}]
+        partes = geovsatt_bloqueios.execucao(str(self.path), "dengue", eventos, base, raio_mapa=400)
+        restante, feito = partes
+        self.assertEqual(feito["properties"]["situacao_execucao"], "Trabalhado")
+        self.assertEqual(restante["properties"]["situacao_execucao"], "Fora do raio operacional")
+        geom = shape(feito["geometry"])
+        self.assertTrue(bloco.covers(geom))
+        self.assertLess(geom.area, shape(restante["geometry"]).area)
+        self.assertLess(geom.area, bloco.area)
+        oeste, sul, leste, norte = bloco.bounds
+        blocos_contiguos = dict(base, features=[
+            {**base["features"][0], "geometry": mapping(box(oeste, sul, lon, norte))},
+            {**base["features"][0], "geometry": mapping(box(lon, sul, leste, norte)),
+             "properties": dict(base["features"][0]["properties"], id_quart="2")},
+        ])
+        segundo = dict(eventos[0], id="2", data_bloqueio="2026-06-02")
+        recortes = geovsatt_bloqueios.execucao(str(self.path), "dengue", eventos + [segundo], blocos_contiguos)
+        trabalho = [f["properties"] for f in recortes if f["properties"]["situacao_execucao"] == "Trabalhado"]
+        self.assertEqual([(p["evento"], p["id_quart"]) for p in trabalho], [("1", "0001")])
+        self.assertTrue(any(f["properties"]["id_quart"] == "2" for f in recortes))
+        indicadores = cliente.get("/api/geovsatt/camadas/indicadores_endemias?modo=focos&inicio=2026-06-01&fim=2026-06-01")
+        self.assertEqual(indicadores.status_code, 200)
+        legado = self.client(self.endemias).get("/api/mapa?d_ini=2026-06-01&d_fim=2026-06-01")
+        atuais = next(f["properties"] for f in indicadores.json["features"] if f["id"] == "1:1")
+        self.assertEqual(atuais["total"], legado.json["1:1"]["total"])
+        self.assertEqual(atuais["focos"], legado.json["1:1"]["focos"])
+
+    def test_indicador_ambiental_respeita_area_e_agente_e_redireciona_so_quando_habilitado(self):
+        self._malha_vigilancia()
+        config = dict(self.endemias.config, SETOR="ambiental")
+        ambiental = self.client(app.create_app(config))
+        args = "fonte=Esporotricose&agente=Agente+Ficticio&localidade=Localidade+Ficticia"
+        legado = ambiental.get("/api/mapa?" + args)
+        novo = self.client().get("/api/geovsatt/camadas/visitas_ambientais?" + args)
+        self.assertEqual(novo.status_code, 200)
+        self.assertEqual(sum(f["properties"]["total_registros"] for f in novo.json["features"]),
+                         legado.json["registros"])
+        self.assertEqual(ambiental.get("/mapa").status_code, 200)
+        with patch.dict(ambiental.application.config, {"GEOVSATT_REDIRIGIR_MAPA_LEGADO": True,
+                                                        "ACESSO_EXTERNO": True, "DOMINIO_BASE": "vsatt.com.br"}):
+            self.assertEqual(ambiental.get("/mapa").location, "https://geo.vsatt.com.br/geovsatt")
+            self.assertEqual(ambiental.get("/api/mapa?" + args).json["registros"], legado.json["registros"])
 
     def test_camadas_operacionais_e_perfis(self):
         client = self.client()

@@ -24,6 +24,8 @@ from app_core import esporotricose as esporotricose_core
 from app_core import esporotricose_bloqueio as bloqueio_core
 from app_core import esporotricose_exportacao as exportacao_core
 from app_core import esporotricose_humanos as humanos_core
+from app_core import geovsatt as geo
+from app_core import geovsatt_bloqueios as bloqueios_geo
 from app_core import utils as utils_core
 from app_core.csv_seguranca import campo_csv
 
@@ -703,8 +705,14 @@ def page_mapa_bloqueio(id_animal):
     animal = esporotricose_core.obter_doente(bh.db_target(), id_animal)
     if not animal:
         abort(404)
-    centro = bloqueio_core.coordenadas(animal)
-    mapa = bloqueio_core.mapa(bh.db_target(), current_app.config["BASE_DIR"], centro) if centro else None
+    target, base = bh.db_target(), current_app.config["BASE_DIR"]
+    evento = {"id": str(id_animal), "centro": bloqueio_core.coordenadas(animal),
+              "data_bloqueio": animal.get("data_bloqueio")}
+    try:
+        mapa = bloqueios_geo.folha(target, base, "esporotricose", evento, request.args,
+                                   geo.malha_bloqueios(target, base, bh.usuario_atual()))
+    except ValueError as exc:
+        abort(400, str(exc))
     return render_template("esporotricose_mapa_bloqueio.html", animal=animal, mapa=mapa)
 
 

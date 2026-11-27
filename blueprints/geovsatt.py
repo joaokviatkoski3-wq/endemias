@@ -1,5 +1,6 @@
+import csv
 from datetime import datetime, timedelta, timezone
-from io import BytesIO
+from io import BytesIO, StringIO
 import json
 import sqlite3
 
@@ -11,6 +12,11 @@ from app_core import geovsatt as geo
 from app_core import geovsatt_busca as busca
 from app_core import geovsatt_catalogo as camadas
 from app_core import geovsatt_composicoes as composicoes
+from app_core import geovsatt_bloqueios as bloqueios
+from app_core import geovsatt_dengue as dengue
+from app_core import geovsatt_enderecos as enderecos
+from app_core import geovsatt_vigilancia as vigilancia
+from app_core.csv_seguranca import campo_csv
 from app_core import geovsatt_equipamentos as equipamentos
 from app_core import geovsatt_exportacao as exportacao
 from app_core import geovsatt_openfreemap as base_vetorial
@@ -50,12 +56,135 @@ def _obter(codigo, **kwargs):
 def _colecao_camada(target, camada, usuario, parametros=None):
     codigo = camada["id"]
     if camada["origem"] != "importacao":
-        return geo.dados_nativos(target, _base_dir(), codigo, usuario, parametros=parametros)
+        return geo.dados_nativos(target, _base_dir(), codigo, usuario, parametros=parametros,
+                                cnefe=current_app.config["GEOVSATT_CNEFE_CSV"])
     if codigo == equipamentos.CODIGO:
         dados = equipamentos.geojson(camada, _base_dir())
         dados["metadata"] = {"versao": camada["id_versao"]}
         return dados
     return json.loads(camada["geojson"])
+
+
+def _localizador(target, usuario):
+    malha = geo.malha_bloqueios(target, _base_dir(), usuario)
+    localizador = enderecos.Localizador(target, geo.BASES, malha, current_app.config["GEOVSATT_CNEFE_CSV"])
+    return malha, localizador
+
+
+def _acesso_dengue(usuario):
+    camada = _obter("dengue")
+    if not camada["disponivel"] or not geo.pode_ver_camada(bh.db_target(), camada, usuario):
+        abort(404)
+
+
+@bp.get("/geovsatt/dengue")
+@login_required
+def page_dengue():
+    target, usuario = bh.db_target(), bh.usuario_atual()
+    _acesso_dengue(usuario)
+    try:
+        _, localizador = _localizador(target, usuario)
+        casos = list(vigilancia.preparar_dengue(target, localizador))
+        selecionados = vigilancia.filtrar_dengue(casos, request.args)
+    except (OSError, ValueError):
+        abort(400, "Confira o período e a configuração da base municipal de endereços.")
+    if request.args.get("pendentes") == "1":
+        selecionados = [row for row in selecionados if not row["centro"]]
+    estado = dengue.estado(target)
+    desatualizada = estado and datetime.fromisoformat(estado["sincronizado_em"]) < datetime.now(timezone.utc) - timedelta(minutes=30)
+    return render_template("geovsatt_dengue.html", casos=selecionados, sincronizacao=estado, desatualizada=desatualizada,
+                           total=len(casos), pendentes=sum(not row["centro"] for row in casos),
+                           configurado=dengue.configurado(current_app.config), superadmin=usuario["nivel"] == "superadmin")
+
+
+@bp.get("/geovsatt/dengue/<chave>/mapa-bloqueio")
+@login_required
+def imprimir_dengue(chave):
+    target, usuario = bh.db_target(), bh.usuario_atual()
+    _acesso_dengue(usuario)
+    try:
+        malha, localizador = _localizador(target, usuario)
+        evento = next(vigilancia.preparar_dengue(target, localizador, chave), None)
+        if evento is None or not evento["centro"]:
+            abort(404)
+        mapa = bloqueios.folha(target, _base_dir(), "dengue", evento, request.args, malha)
+    except (OSError, ValueError) as exc:
+        abort(400, str(exc) if isinstance(exc, ValueError) else "A base municipal de endereços está indisponível.")
+    audit.registrar_evento(bh.get_db, "geovsatt_imprimir_bloqueio", "dengue", chave)
+    return render_template("esporotricose_mapa_bloqueio.html", mapa=mapa, animal=None,
+        voltar=url_for("geovsatt.page_dengue"), titulo="Mapa de bloqueio de dengue",
+        setor_titulo="Vigilância de Endemias",
+        referencia=[("Notificação", evento["notificacao"]), ("Data da notificação", evento["data_notificacao"]),
+                    ("Localidade", evento["localidade"]), ("Quarteirão", evento["quarteirao"]),
+                    ("Data de bloqueio", evento["data_bloqueio"])])
+
+
+@bp.post("/geovsatt/dengue/sincronizar")
+@login_required
+@superadmin
+def sincronizar_dengue():
+    try:
+        resultado = dengue.sincronizar(bh.db_target(), current_app.config)
+    except ValueError as exc:
+        flash(str(exc), "erro")
+    else:
+        audit.registrar_evento(bh.get_db, "geovsatt_sincronizar_dengue", "dengue", detalhes={"total": resultado["total"]})
+        flash(f'{resultado["total"]} notificações no espelho anual.', "sucesso")
+    return redirect(url_for("geovsatt.page_dengue"))
+
+
+@bp.get("/geovsatt/admin/coletas-tubo")
+@login_required
+@superadmin
+def coletas_tubo():
+    try:
+        _, localizador = _localizador(bh.db_target(), bh.usuario_atual())
+        pendentes, sem_endereco = vigilancia.pendencias_csv(bh.db_target(), localizador)
+    except (OSError, ValueError):
+        abort(400, "Confira a base municipal de endereços.")
+    return render_template("geovsatt_coletas_tubo.html", total=len(pendentes), sem_endereco=sem_endereco)
+
+
+@bp.get("/geovsatt/admin/coletas-tubo/pendencias.csv")
+@login_required
+@superadmin
+def coletas_tubo_csv():
+    try:
+        _, localizador = _localizador(bh.db_target(), bh.usuario_atual())
+        pendentes, _ = vigilancia.pendencias_csv(bh.db_target(), localizador)
+    except (OSError, ValueError):
+        abort(400, "Confira a base municipal de endereços.")
+    texto = StringIO(newline="")
+    escritor = csv.DictWriter(texto, fieldnames=enderecos.COLUNAS_CSV)
+    escritor.writeheader()
+    for item in pendentes.values():
+        escritor.writerow({k: campo_csv(v) for k, v in enderecos.campos_csv(item["endereco"]).items()})
+    audit.registrar_evento(bh.get_db, "geovsatt_exportar_pendencias", "coletas_tubos", detalhes={"total": len(pendentes)})
+    return send_file(BytesIO(texto.getvalue().encode("utf-8-sig")), mimetype="text/csv",
+                     as_attachment=True, download_name="coletas-enderecos-pendentes.csv")
+
+
+@bp.post("/api/geovsatt/admin/coletas-tubo/importar")
+@login_required
+@superadmin
+def coletas_tubo_importar():
+    request.max_content_length = 12 * 1024**2
+    arquivo = request.files.get("csv")
+    if not arquivo:
+        return jsonify({"erro": "Selecione o CSV das pendências preenchido."}), 400
+    aplicar = request.form.get("etapa") == "aplicar"
+    try:
+        _, localizador = _localizador(bh.db_target(), bh.usuario_atual())
+        resultado = vigilancia.importar_csv(bh.db_target(), arquivo.read().decode("utf-8-sig"),
+                                             localizador, aplicar=aplicar)
+    except (OSError, UnicodeError, ValueError, csv.Error) as exc:
+        mensagem = str(exc) if isinstance(exc, ValueError) and not isinstance(exc, UnicodeError) else (
+            "Confira o arquivo CSV em UTF-8 e a base municipal de endereços.")
+        return jsonify({"erro": mensagem}), 400
+    if aplicar and not resultado["total_problemas"] and resultado["validas"]:
+        audit.registrar_evento(bh.get_db, "geovsatt_importar_coordenadas", "coletas_tubos",
+                               detalhes={"total": resultado["validas"]})
+    return jsonify(resultado)
 
 
 def _nominatim():
@@ -71,9 +200,11 @@ def page():
     pode_rg = setores.pode_entrar(usuario, "endemias")
     pode_estimar = pode_rg and any(item["id"] == "quarteiroes" for item in catalogo["camadas"])
     ambiental = setores.url_setor(usuario, "ambiental") if geo.esporotricose_localizacao_exata(usuario) else None
+    endemias = setores.url_setor(usuario, "endemias")
     return render_template("geovsatt.html", catalogo=catalogo, pode_rg=pode_rg, pode_estimar=pode_estimar,
                            esri_licenciado=current_app.config["GEOVSATT_ESRI_LICENSED"], ambiental=ambiental,
-                           conta_geo=usuario["id_usuario"],
+                           conta_geo=usuario["id_usuario"], endemias=endemias,
+                           pode_dengue=any(item["id"] == "dengue" for item in catalogo["camadas"]),
                            nominatim=bool(_nominatim()[0]))
 
 

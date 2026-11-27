@@ -17,6 +17,8 @@ from app_core import esporotricose_bloqueio
 from app_core import geovsatt_bloqueios as bloqueios_core
 from app_core import geovsatt_busca as busca_core
 from app_core import geovsatt_catalogo as catalogo_core
+from app_core import geovsatt_enderecos as enderecos_core
+from app_core import geovsatt_vigilancia as vigilancia
 from app_core import geovsatt_ortofotos as ortofotos_core
 from app_core import geovsatt_trabalhos as trabalhos_core
 from app_core import ovitrampas as ovitrampas_core
@@ -158,15 +160,42 @@ CAMADAS = (
 )
 
 
+CAMADAS += tuple({
+    "id": codigo, "grupo": "Vigilância", "nome": nome, "descricao": descricao,
+    "tipo": tipo, "disponivel": True, "visivel_inicial": False,
+    "niveis_padrao": [] if codigo in vigilancia.DENGUE else ["admin"],
+} for codigo, nome, descricao, tipo in (
+    ("dengue", "Dengue · Notificações", "Casos localizados das abas gerais de dengue.", "ponto"),
+    ("dengue_bloqueios", "Dengue · Raios de bloqueio", "Raios dos endereços validados.", "poligono"),
+    ("dengue_quarteiroes", "Dengue · Execução no raio", "Recortes dos quarteirões cruzados com visitas de bloqueio.", "poligono"),
+    ("ovitrampas_bloqueios", "Ovitrampas · Raios de bloqueio", "Raios por leitura positiva no período.", "poligono"),
+    ("ovitrampas_quarteiroes", "Ovitrampas · Execução no raio", "Recortes dos quarteirões cruzados com visitas de bloqueio.", "poligono"),
+    (vigilancia.RECORTE_ESPO, "Esporotricose · Execução no raio", "Recortes dos quarteirões cruzados com visitas do Ambiental.", "poligono"),
+    ("indicadores_endemias", "Indicadores por quarteirão · Endemias", "Focos, visitas, pontos estratégicos, ovitrampas e áreas de atenção.", "poligono"),
+    ("visitas_ambientais", "Visitas por quarteirão · Ambiental", "Visitas de esporotricose e amostras de animais.", "poligono"),
+    (vigilancia.TUBOS, "Coletas de tubo", "Coletas com endereço localizado e resultado de laboratório.", "ponto"),
+))
+
 BASES = {item["id"]: item for item in CAMADAS if item["disponivel"]}
+DADOS_RESTRITOS_EXPORTACAO = {*vigilancia.DENGUE, vigilancia.TUBOS}
+FILTROS_VIGILANCIA = {*vigilancia.DENGUE, *vigilancia.OVITRAMPAS, vigilancia.RECORTE_ESPO, vigilancia.TUBOS,
+                      "indicadores_endemias", "visitas_ambientais"}
 FONTES_TERRITORIAIS = {"localidades": "localidades-areas-dispersas", "quarteiroes": "quarteiroes-qgis"}
 SETORES_VIGILANCIA = {"esporotricose": "ambiental", "ovitrampas": "endemias", "pontos_estrategicos": "endemias",
-                     "acoes_atendimentos": "endemias", trabalhos_core.CODIGO: "endemias"}
+                     "acoes_atendimentos": "endemias", trabalhos_core.CODIGO: "endemias",
+                     vigilancia.RECORTE_ESPO: "ambiental", "visitas_ambientais": "ambiental",
+                     "indicadores_endemias": "endemias",
+                     **{codigo: "endemias" for codigo in (*vigilancia.DENGUE, *vigilancia.OVITRAMPAS, vigilancia.TUBOS)}}
 BLOQUEIOS_ESPOROTRICOSE = {
     "esporotricose_bloqueios": ("esporotricose",),
     "esporotricose_quarteiroes": ("esporotricose", "quarteiroes"),
 }
-DEPENDENCIAS = BLOQUEIOS_ESPOROTRICOSE | {trabalhos_core.CODIGO: ("quarteiroes",)}
+DEPENDENCIAS = BLOQUEIOS_ESPOROTRICOSE | {
+    trabalhos_core.CODIGO: ("quarteiroes",), vigilancia.RECORTE_ESPO: ("esporotricose", "quarteiroes"),
+    "ovitrampas_bloqueios": ("ovitrampas",), "ovitrampas_quarteiroes": ("ovitrampas", "quarteiroes"),
+    "dengue_bloqueios": ("dengue",), "dengue_quarteiroes": ("dengue", "quarteiroes"),
+    "indicadores_endemias": ("quarteiroes",), "visitas_ambientais": ("quarteiroes",),
+}
 
 
 def pode_ver_camada(target, camada, usuario, *, cadastradas=None):
@@ -176,7 +205,7 @@ def pode_ver_camada(target, camada, usuario, *, cadastradas=None):
         return False
     if not catalogo_core.pode_ver(camada, usuario):
         return False
-    if codigo in BLOQUEIOS_ESPOROTRICOSE and not esporotricose_localizacao_exata(usuario):
+    if codigo in BLOQUEIOS_ESPOROTRICOSE.keys() | {vigilancia.RECORTE_ESPO} and not esporotricose_localizacao_exata(usuario):
         return False
     for origem in DEPENDENCIAS.get(codigo, ()):
         fonte = cadastradas[origem] if cadastradas is not None else catalogo_core.obter(target, origem, BASES)
@@ -186,12 +215,13 @@ def pode_ver_camada(target, camada, usuario, *, cadastradas=None):
 
 
 def pode_exportar_camada(target, camada, usuario, *, cadastradas=None):
-    return (camada["disponivel"] and pode_ver_camada(target, camada, usuario, cadastradas=cadastradas)
+    return (camada["id"] not in DADOS_RESTRITOS_EXPORTACAO and camada["disponivel"] and pode_ver_camada(target, camada, usuario, cadastradas=cadastradas)
             and (permissoes.permite(usuario, "tecnica")
                  or usuario["id_usuario"] in camada["config"]["usuarios_exportacao"]))
 
 
-def dados_nativos(target, base_dir, codigo, usuario, *, parametros=None):
+def dados_nativos(target, base_dir, codigo, usuario, *, parametros=None, cnefe=""):
+    parametros = parametros or {}
     if codigo == "localidades":
         return localidades(target, base_dir, usuario=usuario)
     if codigo == "quarteiroes":
@@ -202,8 +232,22 @@ def dados_nativos(target, base_dir, codigo, usuario, *, parametros=None):
         return esporotricose_animal(target)
     if codigo in BLOQUEIOS_ESPOROTRICOSE:
         return esporotricose_abrangencia(target, base_dir, codigo, usuario)
-    if codigo == "ovitrampas":
+    if codigo == "ovitrampas" and not any(parametros.values()):
         return ovitrampas(target)
+    if codigo in FILTROS_VIGILANCIA:
+        malha = malha_bloqueios(target, base_dir, usuario)
+        if codigo == "indicadores_endemias":
+            return vigilancia.indicadores_endemias(target, parametros, malha)
+        if codigo == "visitas_ambientais":
+            return vigilancia.visitas_ambientais(target, parametros, malha)
+        if codigo in vigilancia.OVITRAMPAS:
+            return vigilancia.camada_ovitrampas(target, codigo, parametros, malha)
+        if codigo == vigilancia.RECORTE_ESPO:
+            return vigilancia.camada_esporotricose(target, parametros, malha, esporotricose_animal_localizada(target))
+        localizador = enderecos_core.Localizador(target, BASES, malha, cnefe)
+        if codigo == vigilancia.TUBOS:
+            return vigilancia.camada_tubos(target, parametros, localizador)
+        return vigilancia.camada_dengue(target, codigo, parametros, malha, localizador)
     if codigo == "pontos_estrategicos":
         return pontos_estrategicos(target)
     if codigo == "acoes_atendimentos":
@@ -213,6 +257,16 @@ def dados_nativos(target, base_dir, codigo, usuario, *, parametros=None):
         malha = quarteiroes(target, base_dir, incluir_rg=False, usuario=usuario)
         return trabalhos_core.camada(target, malha, consulta)
     return logradouros(base_dir)
+
+
+def malha_bloqueios(target, base_dir, usuario):
+    camada = catalogo_core.obter(target, "quarteiroes", BASES)
+    if not pode_ver_camada(target, camada, usuario):
+        return {"type": "FeatureCollection", "features": []}
+    try:
+        return quarteiroes(target, base_dir, incluir_rg=False, usuario=usuario)
+    except (OSError, ValueError):
+        return {"type": "FeatureCollection", "features": []}
 
 
 def catalogo(target, usuario):
@@ -228,7 +282,8 @@ def catalogo(target, usuario):
            if camada["id"] == "esporotricose" and not esporotricose_localizacao_exata(usuario) else {})
         | {"estilo": {key: camada["config"][key] for key in
                       ("cor", "atributo_cor", "cores", "rotulo", *catalogo_core.ESTILO_PADRAO)}}
-        | {"pode_exportar": pode_exportar_camada(target, camada, usuario, cadastradas=cadastradas)}
+        | {"pode_exportar": pode_exportar_camada(target, camada, usuario, cadastradas=cadastradas),
+           "filtros_vigilancia": camada["id"] in FILTROS_VIGILANCIA}
         | ({"tipo": fontes[FONTES_TERRITORIAIS[camada["id"]]]["tipo"]}
            if FONTES_TERRITORIAIS.get(camada["id"]) in fontes else
            {"tipo": "ponto"} if camada["id"] == "localidades" else {})
@@ -579,14 +634,15 @@ def ovitrampas(target):
     try:
         cte = ovitrampas_core.leituras_mapa_cte(conn)
         rows = conn.execute(cte + """, ultimas AS (
-            SELECT ovitrampa_id,ano,semana,data_coleta,ovos,
+            SELECT ovitrampa_id,ano,semana,data_coleta,ovos,id_leitura,
                    ROW_NUMBER() OVER (PARTITION BY ovitrampa_id ORDER BY ano DESC, semana DESC,
                        COALESCE(data_coleta,'') DESC, COALESCE(data_envio_contagem,'') DESC, id_leitura DESC) AS posicao
               FROM ovi_leituras
         )
         SELECT a.ovitrampa_id,a.latitude,a.longitude,a.localidade,a.quarteirao,
                CASE WHEN a.ativo=1 THEN 'Ativa' ELSE 'Inativa' END AS situacao,
-               u.ano,u.semana,u.data_coleta,u.ovos
+               u.ano,u.semana,u.data_coleta,u.ovos,
+               CASE WHEN u.ovos>0 THEN u.id_leitura END AS leitura_bloqueio
           FROM ovitrampas_armadilhas a LEFT JOIN ultimas u ON a.ovitrampa_id=u.ovitrampa_id AND u.posicao=1
          WHERE a.latitude IS NOT NULL AND a.longitude IS NOT NULL
          ORDER BY a.ovitrampa_id

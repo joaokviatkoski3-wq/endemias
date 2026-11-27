@@ -4,6 +4,16 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.28.0": {
+        "titulo": "Localização e bloqueios no GeoVSATT",
+        "mudancas": [
+            "Use Minha localização para mostrar a posição e a precisão do aparelho no mapa.",
+            "Abra o mapa de bloqueio com raio de 200 m a partir de uma leitura positiva em Ovitrampas.",
+            "Consulte o recorte dos quarteirões trabalhados a partir das visitas registradas.",
+            "Quando configurado, o GeoVSATT consulta as abas anuais de dengue do Google Sheets para o setor autorizado.",
+            "O superadmin pode baixar o CSV de endereços de coletas pendentes e importar as coordenadas conferidas.",
+        ],
+    },
     "2.27.3": {
         "titulo": "GeoVSATT no campo e sem conexão",
         "mudancas": [

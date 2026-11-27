@@ -1092,6 +1092,36 @@ def listar_armadilhas(db_path, filtros=None, limite=500):
     return {"total": total, "registros": rows}
 
 
+def leituras_para_bloqueio(target, *, leitura=None, armadilha=None):
+    conn = db_core.connect(target)
+    try:
+        ensure_schema(conn)
+        cte = leituras_mapa_cte(conn)
+        condicoes = ["1=1"]
+        argumentos = []
+        for campo, valor in (("l.id_leitura", leitura), ("l.ovitrampa_id", armadilha)):
+            if valor is not None:
+                condicoes.append(f"{campo}=?")
+                argumentos.append(valor)
+        return [db_core.serialize_row(row) for row in conn.execute(cte + f"""
+            , episodios AS (
+                SELECT o.*, LEAD(o.data_coleta) OVER (PARTITION BY o.ovitrampa_id
+                       ORDER BY o.data_coleta, o.id_leitura) AS proxima_coleta
+                  FROM ovi_leituras o
+            )
+            SELECT l.*, a.latitude, a.longitude, a.localidade, a.quarteirao,
+                   COALESCE(o.latitude,h.latitude) AS latitude_leitura,
+                   COALESCE(o.longitude,h.longitude) AS longitude_leitura
+              FROM episodios l JOIN ovitrampas_armadilhas a ON a.ovitrampa_id=l.ovitrampa_id
+              LEFT JOIN {OCORRENCIAS_TABLE} o ON l.id_leitura='api:'||CAST(o.id_contagem AS TEXT)
+              LEFT JOIN {TABLE} h ON l.id_leitura='legado:'||CAST(h.id_leitura AS TEXT)
+             WHERE {' AND '.join(condicoes)}
+             ORDER BY l.ano DESC, l.semana DESC, l.data_coleta DESC, l.id_leitura DESC
+        """, argumentos)]
+    finally:
+        conn.close()
+
+
 def historico_armadilha(db_path, ovitrampa_id):
     conn = db_core.connect(db_path)
     try:
@@ -1121,6 +1151,7 @@ def historico_armadilha(db_path, ovitrampa_id):
             (str(ovitrampa_id),),
         )]
         for row in leituras:
+            row["chave_mapa"] = f"api:{row['id_leitura']}"
             row["ocorrencia_label"] = OCORRENCIAS.get(row.get("ocorrencia_laboratorio"))
         if not leituras:
             # Mantem a leitura de dados antigos enquanto a primeira
@@ -1133,6 +1164,8 @@ def historico_armadilha(db_path, ovitrampa_id):
                     ORDER BY l.ano DESC, l.semana DESC, l.data_coleta DESC""",
                 (str(ovitrampa_id),),
             )]
+            for row in leituras:
+                row["chave_mapa"] = f"legado:{row['id_leitura']}"
         historico = [db_core.serialize_row(row) for row in conn.execute(
             f"""SELECT *
                   FROM {ARMADILHAS_HISTORICO_TABLE}
@@ -1143,6 +1176,18 @@ def historico_armadilha(db_path, ovitrampa_id):
         )]
     finally:
         conn.close()
+    disponiveis = {row["chave_mapa"]: row for row in leituras}
+    oficiais = leituras_para_bloqueio(db_path, armadilha=str(ovitrampa_id))
+    for row in oficiais:
+        chave = row["id_leitura"]
+        if chave not in disponiveis:
+            leituras.append(row | {"chave_mapa": chave, "arquivo_origem": "Laboratório VSATT"
+                                   if chave.startswith("lab:") else "Histórico"})
+    positivas = {row["id_leitura"] for row in oficiais if (row["ovos"] or 0) > 0}
+    for row in leituras:
+        row["pode_imprimir_bloqueio"] = row["chave_mapa"] in positivas
+    leituras.sort(key=lambda row: (row.get("ano") or 0, row.get("semana") or 0,
+                                  str(row.get("data_coleta") or "")), reverse=True)
     return {
         "armadilha": db_core.serialize_row(armadilha) if armadilha else None,
         "leituras": leituras,

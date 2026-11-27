@@ -6,6 +6,7 @@ from pathlib import Path
 
 from app_core import audit, db, geovsatt_catalogo as catalogo
 from app_core import geovsatt_trabalhos as trabalhos_core
+from app_core.geovsatt import FILTROS_VIGILANCIA
 
 
 class ComposicaoAusente(catalogo.CatalogoErro):
@@ -69,7 +70,8 @@ def _validar(payload, permitidas, bases, pontos):
         raise catalogo.CatalogoErro("A composição contém camadas indisponíveis.")
     filtros_validos = {}
     for codigo, regras in filtros.items():
-        if not isinstance(regras, list) or len(regras) > 4:
+        limite = 8 if codigo in FILTROS_VIGILANCIA else 4
+        if not isinstance(regras, list) or len(regras) > limite:
             raise catalogo.CatalogoErro("A composição contém filtros inválidos.")
         linhas = []
         for regra in regras:

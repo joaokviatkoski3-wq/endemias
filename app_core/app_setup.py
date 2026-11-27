@@ -150,7 +150,9 @@ def register_security_headers(app):
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
         response.headers.setdefault(
             "Permissions-Policy",
-            "camera=(), microphone=(), geolocation=(), payment=()",
+            "camera=(), microphone=(), geolocation=(self), payment=()"
+            if request.endpoint in {"geovsatt.page", "geovsatt.mapa_offline"}
+            else "camera=(), microphone=(), geolocation=(), payment=()",
         )
         csp = _csp()
         if current_app.config.get("CSP_REPORT_ONLY", True):

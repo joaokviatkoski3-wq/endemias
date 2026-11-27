@@ -22,6 +22,14 @@ regras de trabalho e isolamento de testes.
   temporário servem a ensaios. Os backups operacionais ficam em
   `D:/BackupsEndemias`.
 
+## Versão em desenvolvimento
+
+- **2.28.0** introduz Minha localização, camadas de execução de bloqueios,
+  impressão de dengue e ovitrampas, espelho das abas anuais do Google Sheets
+  e georreferenciamento de coletas de tubo. A configuração do Google Sheets,
+  a homologação em aparelho e a troca dos atalhos de mapas são etapas de
+  operação. [Operação no GeoVSATT](GEOVSATT_IMPLEMENTACAO.md#vigilância-e-bloqueios-na-2280)
+
 ## Continuidade por módulo
 
 - **Esporotricose.** Ambiental reúne visitas, animais, casos humanos e estoque.

@@ -10,10 +10,12 @@ from app_core.csv_seguranca import campo_csv
 bp=Blueprint('ambiental',__name__)
 
 
-def filtros():
+def filtros(parametros=None):
+    if parametros is None:
+        parametros = request.args
     keys=('d_ini','d_fim','localidade','agente','quarteirao','fonte',
           *ambiental.FILTROS_COMUNS,*ambiental.FILTROS_AMOSTRAS,'especie','feridas')
-    args={k:request.args.get(k,'').strip() for k in keys}
+    args={k:parametros.get(k,'').strip() for k in keys}
     if any(len(v)>200 for v in args.values()):raise ValueError('Filtro muito longo.')
     for k in ('d_ini','d_fim'):
         if args[k]:args[k]=date.fromisoformat(args[k]).isoformat()
@@ -24,7 +26,7 @@ def filtros():
             raise ValueError('Quarteirão inválido.')
         args['quarteirao']=str(int(args['quarteirao']))
     if args['fonte'] not in ('',*(f[3] for f in ambiental.FONTES)):raise ValueError('Área inválida.')
-    args['agrupamento']=request.args.get('agrupamento','territorio')
+    args['agrupamento']=parametros.get('agrupamento','territorio')
     if args['agrupamento'] not in ambiental.AGRUPAMENTOS:raise ValueError('Agrupamento inválido.')
     user=bh.usuario_atual()
     if args['agente'] and escopo_agente.nivel_restrito(user):

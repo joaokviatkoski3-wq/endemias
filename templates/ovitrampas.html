@@ -439,7 +439,7 @@ body.ovi-diario-is-dragging{cursor:grabbing!important;user-select:none!important
     </div>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Semana</th><th>Data da coleta</th><th>Conclusão do lote</th><th>Laboratorista</th><th>Ovos</th><th>Resultado</th><th>Enviado em</th><th>Fonte</th></tr></thead>
+        <thead><tr><th>Semana</th><th>Data da coleta</th><th>Conclusão do lote</th><th>Laboratorista</th><th>Ovos</th><th>Resultado</th><th>Enviado em</th><th>Fonte</th><th>Bloqueio</th></tr></thead>
         <tbody id="ovi-hist-body"></tbody>
       </table>
     </div>
@@ -1142,8 +1142,9 @@ async function abrirHistorico(id){
       <td>${oviEscape(r.resultado || '-')}</td>
       <td>${oviEscape(r.data_envio_contagem || '-')}</td>
       <td>${oviEscape(r.arquivo_origem || 'API Conta Ovos')}</td>
+      <td>${r.pode_imprimir_bloqueio ? `<a class="btn btn-outline btn-sm" href="/ovitrampas/mapa-bloqueio/${encodeURIComponent(r.chave_mapa)}">Imprimir mapa de bloqueio</a>` : '—'}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:18px;">Sem leituras para esta armadilha.</td></tr>';
+  }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:18px;">Sem leituras para esta armadilha.</td></tr>';
   document.getElementById('ovi-historico').scrollIntoView({behavior:'smooth', block:'start'});
 }
 function oviDiarioOptions(selected){

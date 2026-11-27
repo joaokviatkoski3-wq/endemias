@@ -370,6 +370,43 @@ uso offline na 2.27.3.
    consultas temporais e incorporar raios de ovitrampas positivas com a regra
    operacional definida pelo setor.
 
+## Vigilância e bloqueios na 2.28.0
+
+- **Minha localização** usa o GPS do aparelho com permissões do navegador. A
+  posição e o círculo de precisão ficam na sessão do mapa. Valide HTTPS e
+  teste em modo avião com uma cópia baixada e o GPS habilitado.
+- **Dengue.** Configure `ENDEMIAS_GEO_DENGUE_PLANILHA` com o ID do Google Sheets
+  e `ENDEMIAS_GEO_DENGUE_CREDENCIAL` com o caminho privado ao JSON da conta de
+  serviço. Ative a Sheets API e compartilhe a planilha privada como leitora
+  com a conta de serviço. O Waitress inicia a leitura e repete a cada 15
+  minutos. O superadmin também pode atualizar em **Notificações de dengue**.
+  Use as abas gerais com nomes de quatro dígitos, mantendo `2025` e `2026`.
+  Divergências por ano e número entram em pendências para correção na origem.
+  Conceda acesso nominal pelo catálogo e revise as três camadas de dengue.
+- **Coletas e endereços.** Configure `ENDEMIAS_GEO_CNEFE_CSV` com o caminho do
+  ZIP ou CSV municipal [4100400 do IBGE](https://ftp.ibge.gov.br/Cadastro_Nacional_de_Enderecos_para_Fins_Estatisticos/Censo_Demografico_2022/Arquivos_CNEFE/CSV/Municipio/41_PR/).
+  A consulta cruza o endereço e o RG. Em **Georreferenciar coletas de tubo**,
+  baixe o CSV com as pendências, mantenha a chave, preencha latitude e longitude
+  WGS84 e valide antes de importar. Preserve no backup o acervo territorial
+  e o arquivo CNEFE configurado, além do banco com as coordenadas conferidas.
+- **Execução no raio.** A folha de bloqueio permite definir o raio e o período
+  das visitas. Para dengue e esporotricose, a data cadastrada do bloqueio é a
+  janela padrão. Para ovitrampas, informe o intervalo de visitas quando a
+  ficha de campo ainda não identifica a armadilha. As camadas de raio e
+  execução das ovitrampas usam a última positiva por armadilha na abertura e detalham as leituras
+  quando um período é selecionado. Uma visita Normal ou
+  Recuperado do tipo correspondente colore somente a interseção do quarteirão
+  com o raio operacional. A folha e o mapa usam o mesmo recorte.
+- **Mapas antigos.** Compare os totais e os filtros das novas camadas
+  **Indicadores por quarteirão · Endemias** e **Visitas por quarteirão · Ambiental**
+  com `/mapa` em cada setor. Após homologar, configure
+  `ENDEMIAS_GEO_REDIRIGIR_MAPA_LEGADO=1` no serviço externo e confira os dois
+  atalhos. As rotas de dados legadas seguem disponíveis durante a transição.
+
+Aplique a migração PostgreSQL `0049_geovsatt_vigilancia.sql` com o procedimento
+de atualização do projeto. A ativação das integrações depende das configurações
+acima.
+
 ## Histórico de implantação e próximas validações
 
 A ativação da 2.27.3 partiu da 2.26.0. O relatório

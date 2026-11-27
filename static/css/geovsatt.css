@@ -121,6 +121,7 @@ button{color:inherit}
 .geo-filter-rule input{flex:1 0 70%}
 .geo-trabalhos-filtros{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;margin:.35rem 0 .6rem}
 .geo-trabalhos-filtros label{display:grid;gap:.2rem}
+.geo-trabalhos-filtros label[hidden]{display:none}
 .geo-trabalhos-filtros input,.geo-trabalhos-filtros select,.geo-trabalhos-filtros button{min-width:0;max-width:100%;padding:.35rem;border:1px solid var(--border);border-radius:4px;background:white;color:#182924;font:inherit}
 .geo-trabalhos-filtros button,.geo-trabalhos-filtros small{grid-column:1/-1}
 .geo-trabalhos-filtros button{justify-self:start;color:var(--action);font-weight:700;cursor:pointer}

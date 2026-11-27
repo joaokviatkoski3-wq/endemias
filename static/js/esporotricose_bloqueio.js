@@ -48,6 +48,12 @@
     },
   }).addTo(mapa);
   const raio = L.geoJSON(dados.circulo, {style: {color: '#ffe355', opacity: 1, weight: 3, fillColor: '#ffd657', fillOpacity: .13}}).addTo(mapa);
+  if (dados.execucao) L.geoJSON(dados.execucao, {interactive: false,
+    style: f => f.properties.situacao_execucao === 'Trabalhado'
+      ? {color: '#008255', weight: 2, fillOpacity: .65}
+      : {color: f.properties.situacao_execucao === 'Fora do raio operacional' ? '#616b70' : '#ad4d15',
+         weight: 1.5, dashArray: '4 4', fillOpacity: .24}
+  }).addTo(mapa);
   L.circleMarker(dados.centro, {radius: 6, color:'#fff', weight: 2, fillColor:'#bf3119', fillOpacity: 1}).addTo(mapa);
   const container = mapa.getContainer();
   const svg = (tag, atributos = {}) => {

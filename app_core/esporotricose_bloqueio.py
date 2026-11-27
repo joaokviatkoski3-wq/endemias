@@ -64,16 +64,16 @@ def _rotulos_ruas(base_dir, janela):
     ]
 
 
-def mapa(target, base_dir, centro):
+def mapa(target, base_dir, centro, raio_metros=RAIO_METROS, *, malha=None):
     lat, lon = centro
-    raio = _circulo(lat, lon, RAIO_METROS)
-    _, sul, _, norte = _circulo(lat, lon, RAIO_METROS * 1.32).bounds
-    oeste, _, leste, _ = _circulo(lat, lon, RAIO_METROS * 1.68).bounds
+    raio = _circulo(lat, lon, raio_metros)
+    _, sul, _, norte = _circulo(lat, lon, raio_metros * 1.32).bounds
+    oeste, _, leste, _ = _circulo(lat, lon, raio_metros * 1.68).bounds
     janela = box(oeste, sul, leste, norte)
     camada = {"type": "FeatureCollection", "features": []}
     atingidos = []
     try:
-        base = registro_geografico.geojson_ativo(target, base_dir)
+        base = malha if malha is not None else registro_geografico.geojson_ativo(target, base_dir)
     except ValueError:
         base = None
     for feature in (base or {}).get("features", []):
@@ -93,7 +93,7 @@ def mapa(target, base_dir, centro):
                               "parcial": not raio.covers(geometria)})
         camada["features"].append({"type": "Feature", "properties": {"codigo": codigo, "atingido": area > 0},
                                    "geometry": mapping(geometria.intersection(janela))})
-    return {"rotulos_ruas": _rotulos_ruas(base_dir, janela), "centro": list(centro), "raio_metros": RAIO_METROS,
+    return {"rotulos_ruas": _rotulos_ruas(base_dir, janela), "centro": list(centro), "raio_metros": raio_metros,
             "circulo": mapping(raio), "quarteiroes": camada,
             "atingidos": sorted(atingidos, key=lambda item: (item["localidade"], item["codigo"])),
             "camada_disponivel": base is not None}

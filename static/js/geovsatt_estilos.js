@@ -6,7 +6,21 @@
   const tracejado = {tracejada: '7 5', pontilhada: '1 5'};
   const formatador = new Intl.NumberFormat('pt-BR', {maximumSignificantDigits: 16});
 
+  const execucao = {pane: 'block-coverage', color: '#19684b', fillOpacity: .42, categories: 'situacao_execucao',
+    colors: {Trabalhado: '#008255', 'Sem visita registrada': '#a75322', 'Sem dados para cruzar': '#686474', 'Fora do raio operacional': '#616b70'}};
+  const indicadores = {pane: 'block-work', color: '#2d565b', fillOpacity: .43, categories: 'faixa',
+    colors: {'0': '#838b8e', '1': '#53846d', '2–3': '#bd7824', '4 ou mais': '#a53436'}};
   const padroes = {
+    dengue: {pane: 'localities', color: '#b33d2d', label: 'rotulo', categories: 'situacao'},
+    dengue_bloqueios: {pane: 'block-radii', color: '#ab3924', weight: 2.5, noFill: true, line: 'tracejada'},
+    ovitrampas_bloqueios: {pane: 'block-radii', color: '#754c98', weight: 2.5, noFill: true, line: 'tracejada'},
+    esporotricose_trabalhados: execucao,
+    dengue_quarteiroes: execucao,
+    ovitrampas_quarteiroes: execucao,
+    indicadores_endemias: indicadores,
+    visitas_ambientais: indicadores,
+    coletas_tubos: {pane: 'localities', color: '#527f85', label: 'rotulo', categories: 'situacao',
+      colors: {Positiva: '#b32e3b', Negativa: '#25866c', 'Aguardando resultado': '#656e73'}},
     logradouros: {pane: 'streets', color: '#78857d', weight: 1.4, opacity: .78, label: 'nome'},
     quarteiroes: {pane: 'blocks', color: '#00752b', fillColor: '#e8f5eb', weight: 1, fillOpacity: .28},
     localidades: {pane: 'territory', color: '#238070', weight: 1.4, fillOpacity: .12, label: 'nome', labelZoom: 13, categories: 'nome'},

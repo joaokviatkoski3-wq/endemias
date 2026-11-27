@@ -160,6 +160,12 @@
         <div id="geo-campo-camadas"></div>
         <template id="geo-campo-trabalhos">{{ filtros_trabalhos() }}</template>
         {% endif %}
+        {% if pode_dengue or catalogo.pode_configurar %}
+        <section class="geo-layer-group" aria-label="Consultas de vigilância">
+          {% if pode_dengue %}<p><a href="{{ url_for('geovsatt.page_dengue') }}">Notificações de dengue e pendências</a></p>{% endif %}
+          {% if catalogo.pode_configurar %}<p><a href="{{ url_for('geovsatt.coletas_tubo') }}">Georreferenciar coletas de tubo</a></p>{% endif %}
+        </section>
+        {% endif %}
         {% for grupo in catalogo.camadas|groupby('grupo') %}
         <section class="geo-layer-group">
           <h2>{{ grupo.grouper }}</h2>
@@ -180,6 +186,64 @@
           </details>
           <div class="geo-layer-filters" id="geo-filter-{{ camada.id }}" hidden>
             {% if camada.id == 'quarteiroes_trabalhados' %}{{ filtros_trabalhos() }}{% endif %}
+            {% if camada.filtros_vigilancia %}
+            <details>
+              <summary>Filtros de {{ camada.nome }}</summary>
+              <form class="geo-trabalhos-filtros" data-filtro-vigilancia="{{ camada.id }}">
+                <label>Período <select name="periodo">
+                  <option value="">Todo o histórico</option>
+                  <option value="intervalo">Intervalo</option>
+                  <option value="mes">Mês</option>
+                  <option value="semana">Semana epidemiológica</option>
+                </select></label>
+                <label data-tipo-periodo="intervalo" hidden>De <input type="date" name="inicio"></label>
+                <label data-tipo-periodo="intervalo" hidden>Até <input type="date" name="fim"></label>
+                <label data-tipo-periodo="mes" hidden>Mês <input type="month" name="mes"></label>
+                <label data-tipo-periodo="semana" hidden>Ano <input type="number" name="ano" min="2000" max="2099"></label>
+                <label data-tipo-periodo="semana" hidden>Semana <input type="number" name="semana" min="1" max="53"></label>
+                <label>Localidade <input name="localidade" maxlength="100"></label>
+                {% if camada.id.startswith('dengue') %}<label>UBS <input name="unidade" maxlength="100"></label>{% endif %}
+                {% if camada.id in ('visitas_ambientais', 'indicadores_endemias') %}
+                <label>Quarteirão <input name="quarteirao" maxlength="18"></label>
+                {% if camada.id == 'visitas_ambientais' %}
+                <label>Agente <input name="agente" maxlength="100"></label>
+                <label>Área <select name="fonte"><option value="">Todas</option>
+                  <option>Esporotricose</option><option>Amostra de Animais</option>
+                </select></label>
+                {% else %}
+                <label>Tipo de trabalho <select name="tipo"><option value="">Todos</option>
+                  <option>TB</option><option>TBO</option><option>PE</option><option>PVE</option><option>LIRAA</option>
+                </select></label>
+                <label>Colorir por <select name="modo"><option value="">Total de visitas</option>
+                  <option value="focos">Focos</option><option value="acesso">Fechados e recusas</option>
+                  <option value="pes">Pontos estratégicos ativos</option><option value="ovis">Ovitrampas positivas</option>
+                  <option value="atencao">Áreas de atenção</option>
+                </select></label>
+                {% endif %}
+                {% elif not camada.id.endswith('_quarteiroes') and camada.id != 'esporotricose_trabalhados' %}
+                <label>Situação <select name="situacao"><option value="">Todas</option>
+                  {% if camada.id.startswith('dengue') %}
+                  <option>Suspeito ou em investigação</option><option>Positivo ou confirmado</option>
+                  <option>Negativo ou descartado</option><option>Resultado a revisar</option>
+                  {% elif camada.id == 'coletas_tubos' %}
+                  <option>Positiva</option><option>Negativa</option><option>Aguardando resultado</option>
+                  {% else %}
+                  <option>Positiva</option><option>Negativa</option><option>Sem contagem</option>
+                  {% endif %}
+                </select></label>
+                {% endif %}
+                {% if camada.id.endswith(('_bloqueios', '_quarteiroes')) or camada.id == 'esporotricose_trabalhados' %}
+                <label>Raio (m) <input type="number" name="raio" min="1" max="10000" placeholder="{{ 150 if camada.id == 'esporotricose_trabalhados' else 200 }}"></label>
+                {% endif %}
+                {% if camada.id.endswith('_quarteiroes') or camada.id == 'esporotricose_trabalhados' %}
+                <label>Visitas de <input type="date" name="visitas_inicio"></label>
+                <label>Até <input type="date" name="visitas_fim"></label>
+                {% endif %}
+                <button type="submit">Aplicar filtros</button>
+                <small role="status"></small>
+              </form>
+            </details>
+            {% endif %}
           </div>
           {% endif %}
           {% if camada.pode_exportar %}
@@ -202,7 +266,7 @@
     <button id="geo-sidebar-backdrop" class="geo-sidebar-backdrop" type="button" aria-label="Fechar menu" hidden></button>
 
     <main class="geo-map-wrap">
-      <div id="geo-map" class="geo-map" aria-label="Mapa territorial do GeoVSATT"{% if ambiental %} data-ambiental="{{ ambiental }}"{% endif %}></div>
+      <div id="geo-map" class="geo-map" aria-label="Mapa territorial do GeoVSATT"{% if endemias %} data-endemias="{{ endemias }}"{% endif %}{% if ambiental %} data-ambiental="{{ ambiental }}"{% endif %}></div>
       <div class="geo-map-title">
         <strong>{{ 'Mapa offline' if modo_offline else 'Mapa territorial' }}</strong>
         <span id="geo-base-label">Sem imagem-base · dados institucionais</span>
@@ -210,6 +274,7 @@
       <div id="geo-status" class="geo-status" role="status">Carregando camadas territoriais...</div>
       <div class="geo-tools" aria-label="Ferramentas do mapa">
         <button id="geo-fit" type="button" title="Mostrar todo o município" aria-label="Mostrar todo o município">⌂</button>
+        <button id="geo-localizacao" type="button" aria-label="Minha localização" title="Minha localização">⌖</button>
         <button type="button" data-medida="distancia" aria-label="Medir distância" aria-pressed="false" title="Medir distância">↔</button>
         <button type="button" data-medida="area" aria-label="Medir área" aria-pressed="false" title="Medir área">▱</button>
         {% if pode_estimar or modo_offline %}<button type="button" data-medida="populacao" aria-label="Estimar população por área" aria-pressed="false" title="Estimar população por área"{% if modo_offline %} hidden{% endif %}><img src="/static/icons/usuarios.svg" alt=""></button>{% endif %}

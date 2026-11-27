@@ -5,7 +5,7 @@ import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template, request, send_file
+from flask import Blueprint, abort, current_app, jsonify, render_template, request, send_file, url_for
 
 from app_core import audit
 from app_core import auth as auth_core
@@ -16,6 +16,9 @@ from app_core import contaovos_credencial
 from app_core import contaovos_fila
 from app_core import contaovos_registro
 from app_core import contaovos_sync
+from app_core import esporotricose_bloqueio
+from app_core import geovsatt as geo
+from app_core import geovsatt_bloqueios as bloqueios
 from app_core import ovitrampas as ovitrampas_core
 from app_core import ovitrampas_export
 from app_core import ovitrampas_kml
@@ -59,6 +62,27 @@ def page():
         distritos=ovitrampas_core.distritos(_db_path()),
         agentes=bh.catalogo_agentes(ovitrampas_core.agentes(_db_path())),
     )
+
+
+@bp.get("/ovitrampas/mapa-bloqueio/<leitura>")
+@login_required
+def page_mapa_bloqueio(leitura):
+    registros = ovitrampas_core.leituras_para_bloqueio(_db_path(), leitura=leitura)
+    if not registros or (registros[0]["ovos"] or 0) <= 0:
+        abort(404)
+    row = registros[0]
+    base = current_app.config["BASE_DIR"]
+    malha = geo.malha_bloqueios(_db_path(), base, _usuario_atual())
+    evento = bloqueios.evento_ovitrampa(row)
+    try:
+        mapa = bloqueios.folha(_db_path(), base, "ovitrampas", evento, request.args, malha)
+    except ValueError as exc:
+        abort(400, str(exc))
+    return render_template("esporotricose_mapa_bloqueio.html", mapa=mapa, animal=None,
+        voltar=url_for("ovitrampas.page"), titulo="Mapa de bloqueio de ovitrampa positiva",
+        setor_titulo="Vigilância de Endemias", mensagem_sem_mapa="Cadastre as coordenadas da armadilha.",
+        referencia=[("Armadilha", row["ovitrampa_id"]), ("Localidade", row["localidade"]),
+                    ("Data da coleta", row["data_coleta"]), ("Ovos", row["ovos"])])
 
 
 @bp.route("/api/ovitrampas/sincronizar-conta-ovos", methods=["POST"])
