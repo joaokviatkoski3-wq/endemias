@@ -79,12 +79,24 @@ def coletas(target, id_coleta=None):
     conn = visitas_integradas.connect(target)
     try:
         tem_posicoes = db.table_exists(conn, "geovsatt_posicoes_coletas")
-        campos_posicao = ("p.latitude, p.longitude" if tem_posicoes else "NULL AS latitude, NULL AS longitude")
-        vinculo_posicao = ("LEFT JOIN geovsatt_posicoes_coletas p ON p.id_coleta=c.id_coleta" if tem_posicoes else "")
+        tem_posicoes_liraa = db.table_exists(conn, "geovsatt_posicoes_tubitos_liraa")
+        campos_posicao = []
+        vinculos_posicao = []
+        if tem_posicoes:
+            campos_posicao.append("p")
+            vinculos_posicao.append("LEFT JOIN geovsatt_posicoes_coletas p ON p.id_coleta=c.id_coleta")
+        if tem_posicoes_liraa:
+            campos_posicao.append("pl")
+            vinculos_posicao.append(f"""LEFT JOIN geovsatt_posicoes_tubitos_liraa pl
+                ON v.tipo='LIRAA' AND c.id_coleta='{visitas_integradas.TUBO_PREFIXO}' || CAST(pl.id_tubito AS TEXT)""")
+        posicoes_sql = ", ".join(
+            f"COALESCE({', '.join(alias + '.' + campo for alias in campos_posicao)}, NULL) AS {campo}"
+            if campos_posicao else f"NULL AS {campo}" for campo in ("latitude", "longitude")
+        )
         condicao = " AND c.id_coleta=?" if id_coleta is not None else ""
         parametros = (INICIO_COLETAS, id_coleta) if condicao else (INICIO_COLETAS,)
         registros = [db.serialize_row(row) for row in conn.execute(f"""
-        SELECT {campos_posicao}, c.id_coleta, c.num_tubo, v.id_localidade, v.localidade, v.quarteirao,
+        SELECT {posicoes_sql}, c.id_coleta, c.num_tubo, v.id_localidade, v.localidade, v.quarteirao,
                v.logradouro, v.numero, v.data, v.tipo, v.id_pe, v.codigo_pe,
                pe.codigo_pe AS pe_cadastrado, pe.latitude AS pe_latitude, pe.longitude AS pe_longitude,
                CASE WHEN EXISTS (SELECT 1 FROM resultados_laboratorio r
@@ -95,7 +107,7 @@ def coletas(target, id_coleta=None):
           FROM coletas c JOIN visitas v ON v.id_visita=c.id_visita
           LEFT JOIN pontos_estrategicos pe ON pe.id_pe=v.id_pe
                 OR (v.id_pe IS NULL AND pe.codigo_pe=NULLIF(TRIM(v.codigo_pe),''))
-          {vinculo_posicao}
+          {" ".join(vinculos_posicao)}
          WHERE v.data >= ?{condicao}
          ORDER BY v.data DESC,c.id_coleta
         """, parametros)]
@@ -177,10 +189,15 @@ def reposicionar_coleta(target, localizador, id_coleta, latitude, longitude):
     conn = db.connect(target)
     try:
         enderecos.ensure_schema(conn)
-        conn.execute("""INSERT INTO geovsatt_posicoes_coletas(id_coleta,latitude,longitude,atualizado_em)
-                        VALUES(?,?,?,?) ON CONFLICT(id_coleta) DO UPDATE
-                          SET latitude=excluded.latitude,longitude=excluded.longitude,atualizado_em=excluded.atualizado_em""",
-                     (id_coleta, *posicao, datetime.now(timezone.utc).isoformat()))
+        prefixo = visitas_integradas.TUBO_PREFIXO
+        if registros[0]["tipo"] == "LIRAA" and id_coleta.startswith(prefixo):
+            tabela, campo, chave = "geovsatt_posicoes_tubitos_liraa", "id_tubito", int(id_coleta[len(prefixo):])
+        else:
+            tabela, campo, chave = "geovsatt_posicoes_coletas", "id_coleta", id_coleta
+        conn.execute(f"""INSERT INTO {tabela}({campo},latitude,longitude,atualizado_em)
+                         VALUES(?,?,?,?) ON CONFLICT({campo}) DO UPDATE
+                           SET latitude=excluded.latitude,longitude=excluded.longitude,atualizado_em=excluded.atualizado_em""",
+                     (chave, *posicao, datetime.now(timezone.utc).isoformat()))
         conn.commit()
     finally:
         conn.close()

@@ -4,6 +4,12 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.30.3": {
+        "titulo": "Ajuste visual das coletas do LIRAa",
+        "mudancas": [
+            "O superadmin pode corrigir no mapa a posição de tubos do LIRAa, além das demais coletas já localizadas.",
+        ],
+    },
     "2.30.2": {
         "titulo": "Mais coletas localizadas no GeoVSATT",
         "mudancas": [

@@ -956,6 +956,35 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(ajustada["geometry"]["coordinates"], [nova["longitude"], nova["latitude"]])
         self.assertEqual(ajustada["properties"]["fonte_coordenadas"], "Ajuste no GeoVSATT")
 
+    def test_geovsatt_corrige_posicao_de_tubo_integrado_do_liraa(self):
+        _, bloco = self._malha_vigilancia()
+        lon, lat = bloco.centroid.x, bloco.centroid.y
+        ciclo = liraa.criar_ciclo(str(self.path), {"ano": 2026, "nome": "Coletas no mapa",
+                                                 "inicio": "2026-03-01", "fim": "2026-03-15"})
+        with closing(db.connect(str(self.path))) as conn, conn:
+            liraa_kobo.ensure_schema(conn)
+            visita = conn.execute("""INSERT INTO liraa_visitas(id_ciclo,kobo_uuid,data_visita,id_localidade,
+                    localidade_informada,quarteirao,situacao_vinculo,criado_em)
+                    VALUES(?, 'tubo-ficticio', '2026-03-15', 1, 'Localidade Ficticia', '0001',
+                    'vinculado', '2026-03-15')""", (ciclo,)).lastrowid
+            tubito = conn.execute("""INSERT INTO liraa_visita_tubitos(id_visita,ordem,numero)
+                                     VALUES(?,1,'31')""", (visita,)).lastrowid
+        cliente = self.client()
+        ajuste = "/api/geovsatt/admin/coletas-tubo/posicao"
+        mapa = "/api/geovsatt/camadas/coletas_tubos"
+        id_coleta = f"liraa-t-{tubito}"
+        self.assertEqual(cliente.get(mapa).json["features"], [])
+        for p in (lat, lat + .001):
+            resp = cliente.post(ajuste, json={"id": id_coleta, "latitude": p, "longitude": lon})
+            self.assertEqual(resp.status_code, 200, resp.json)
+            feicao, = cliente.get(mapa).json["features"]
+            self.assertEqual(feicao["id"], id_coleta)
+            self.assertEqual(feicao["geometry"]["coordinates"], [lon, p])
+        with closing(db.connect(str(self.path))) as conn, conn:
+            conn.execute("DELETE FROM liraa_visita_tubitos WHERE id_tubito=?", (tubito,))
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM geovsatt_posicoes_tubitos_liraa").fetchone()[0], 0)
+        self.assertEqual(cliente.get(mapa).json["features"], [])
+
     def test_cores_por_filtro_aparecem_no_catalogo_e_usam_seletor(self):
         cliente = self.client()
         url = "/geovsatt/admin/camadas/quarteiroes"

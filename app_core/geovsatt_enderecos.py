@@ -95,7 +95,8 @@ def campos_csv(endereco):
 def ensure_schema(conn):
     if conn.backend == "sqlite":
         pasta = Path(__file__).resolve().parents[1] / "migrations" / "postgresql"
-        for nome in ("0049_geovsatt_vigilancia.sql", "0050_geovsatt_posicoes_coletas.sql"):
+        for nome in ("0049_geovsatt_vigilancia.sql", "0050_geovsatt_posicoes_coletas.sql",
+                     "0051_geovsatt_posicoes_tubitos_liraa.sql"):
             for comando in (pasta / nome).read_text(encoding="utf-8").split(";"):
                 if comando.strip():
                     conn.execute(comando)
