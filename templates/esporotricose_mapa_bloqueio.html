@@ -60,18 +60,12 @@
       <p>O raio não cruza nenhum quarteirão cadastrado na camada ativa.</p>
     {% endif %}
   </section>
-  <section id="ruas-no-quadro" class="ruas-sem-etiqueta" hidden>
-    <h2>Ruas sem etiqueta no mapa</h2><ul></ul>
-  </section>
   <p class="fonte">Ruas e quarteirões da base cartográfica local.</p>
     </aside>
   </div>
   <section class="continuacao-bloqueio" id="continuacao-bloqueio" hidden>
     <div id="quarteiroes-continuacao" hidden>
       <h2>Quarteirões atingidos · continuação</h2><ul></ul>
-    </div>
-    <div id="ruas-continuacao" hidden>
-      <h2>Ruas do recorte sem espaço para etiqueta no mapa</h2><ul></ul>
     </div>
   </section>
   <script type="application/json" id="dados-bloqueio" nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">{{ mapa|tojson }}</script>

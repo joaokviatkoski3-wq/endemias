@@ -64,13 +64,12 @@ def _rotulos_ruas(base_dir, janela, raio):
     for nome, linhas in por_nome.items():
         uniao = unary_union(linhas)
         eixo = uniao if uniao.geom_type == "LineString" else linemerge(uniao)
-        trechos = tuple(getattr(eixo, "geoms", (eixo,)))
+        trechos = sorted(getattr(eixo, "geoms", (eixo,)),
+                         key=lambda linha: (linha.intersects(raio), linha.length), reverse=True)
         if trechos:
-            melhor = max(trechos, key=lambda linha: (linha.intersects(raio), linha.length))
-            marcadores.append((melhor.intersects(raio), melhor.length, nome, melhor))
-    marcadores.sort(key=lambda item: (-item[0], -item[1], item[2]))
-    return [{"nome": nome, "linha": [[y, x] for x, y in linha.coords]}
-            for _, _, nome, linha in marcadores]
+            marcadores.append({"nome": nome, "no_raio": trechos[0].intersects(raio),
+                               "linhas": [[[y, x] for x, y in linha.coords] for linha in trechos]})
+    return marcadores
 
 
 def mapa(target, base_dir, centro, raio_metros=RAIO_METROS, *, malha=None):

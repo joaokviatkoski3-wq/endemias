@@ -48,8 +48,8 @@
     },
   }).addTo(mapa);
   const raio = L.geoJSON(dados.circulo, {style: {color: '#ffe355', opacity: 1, weight: 2.5, fillColor: '#ffd657', fillOpacity: .04}}).addTo(mapa);
-  const eixosRuas = L.featureGroup(dados.rotulos_ruas.map(rua =>
-    L.polyline(rua.linha, {interactive: false, color: '#83958c', opacity: .65, weight: 2})));
+  const eixosRuas = L.featureGroup(dados.rotulos_ruas.flatMap(rua => rua.linhas.map(linha =>
+    L.polyline(linha, {interactive: false, color: '#83958c', opacity: .65, weight: 2}))));
   L.circleMarker(dados.centro, {radius: 6, color:'#fff', weight: 2, fillColor:'#bf3119', fillOpacity: 1}).addTo(mapa);
   const container = mapa.getContainer();
   const svg = (tag, atributos = {}) => {
@@ -60,17 +60,14 @@
   const rotulos = svg('svg', {class: 'nomes-ruas', 'aria-hidden': 'true'});
   container.append(rotulos);
   const medida = document.createElement('canvas').getContext('2d');
-  medida.font = '600 10px system-ui';
+  const fonte = tamanho => '600 ' + tamanho + 'px system-ui';
+  const abreviarVia = nome => nome.replace(/^Rua /i, 'R. ').replace(/^Avenida /i, 'Av. ')
+    .replace(/^Travessa /i, 'Tv. ').replace(/\bProfessor /i, 'Prof. ').replace(/\bProfessora /i, 'Profª. ');
 
   const continuacao = document.getElementById('continuacao-bloqueio');
-  const ruasContinuacao = document.getElementById('ruas-continuacao');
-  const ruasNoQuadro = document.getElementById('ruas-no-quadro');
-  const informacoes = document.querySelector('.informacoes');
-  let ruasSemEtiqueta = [];
   const quadrasContinuacao = document.getElementById('quarteiroes-continuacao');
   const listaQuadras = document.getElementById('lista-quarteiroes');
   const itensQuadras = [...(listaQuadras?.children || [])];
-  const selecionaContinuacao = () => { continuacao.hidden = ruasContinuacao.hidden && quadrasContinuacao.hidden; };
   const cruza = (a, b) => a.left < b.right + 2 && b.left < a.right + 2 && a.top < b.bottom + 2 && b.top < a.bottom + 2;
 
   function organizarQuadro() {
@@ -82,35 +79,62 @@
       !document.documentElement.classList.contains('preparando-impressao') && !window.matchMedia('print').matches;
     const fora = quebra < 0 || empilhado ? [] : itensQuadras.slice(quebra);
     quadrasContinuacao.querySelector('ul').replaceChildren(...fora);
-    quadrasContinuacao.hidden = !fora.length;
-    ruasNoQuadro.querySelector('ul').replaceChildren(...ruasSemEtiqueta);
-    ruasNoQuadro.hidden = !ruasSemEtiqueta.length;
-    const ruasFora = !empilhado && informacoes.getBoundingClientRect().bottom > fimMapa ? ruasSemEtiqueta : [];
-    ruasNoQuadro.hidden ||= ruasFora.length > 0;
-    ruasContinuacao.querySelector('ul').replaceChildren(...ruasFora);
-    ruasContinuacao.hidden = !ruasFora.length;
-    selecionaContinuacao();
+    quadrasContinuacao.hidden = continuacao.hidden = !fora.length;
   }
 
-  function trechoVisivel(linha, limites) {
+  function trechosVisiveis(linha, limites) {
     const pontos = linha.map(p => mapa.latLngToContainerPoint(p));
-    let melhor = [], maior = 0, trecho = [], comprimento = 0;
+    const trechos = [];
+    let trecho;
     for (let i = 1; i < pontos.length; i++) {
       const segmento = L.LineUtil.clipSegment(pontos[i - 1], pontos[i], limites);
       if (!segmento) continue;
       const [inicio, fim] = segmento;
-      if (!trecho.at(-1)?.equals(inicio)) {
-        trecho = [inicio];
-        comprimento = 0;
+      if (!trecho?.pontos.at(-1).equals(inicio)) {
+        trecho = {pontos: [inicio], comprimento: 0};
+        trechos.push(trecho);
       }
-      trecho.push(fim);
-      comprimento += inicio.distanceTo(fim);
-      if (comprimento > maior) {
-        maior = comprimento;
-        melhor = trecho.slice();
+      trecho.pontos.push(fim);
+      trecho.comprimento += inicio.distanceTo(fim);
+    }
+    return trechos;
+  }
+
+  function posicionarNaLinha(trecho, id, nome, tamanho, largura, verifica) {
+    const metade = largura / 2 + 2;
+    if (trecho.comprimento < metade * 2) return false;
+    const linhaSvg = lista => 'M' + lista.map(p => p.x + ',' + p.y).join(' L');
+    const eixo = svg('path', {id, d: linhaSvg(trecho.pontos)});
+    const reverso = svg('path', {id: id + '-reverso', d: linhaSvg(trecho.pontos.slice().reverse())});
+    const texto = svg('text', {'text-anchor': 'middle', 'dominant-baseline': 'central'});
+    texto.style.fontSize = tamanho + 'px';
+    const trilha = svg('textPath');
+    trilha.textContent = nome;
+    texto.append(trilha);
+    rotulos.append(eixo, reverso, texto);
+    const comprimento = eixo.getTotalLength();
+    const passos = Math.ceil((comprimento / 2 - metade) / 6);
+    for (let passo = 0; passo <= passos; passo++) {
+      const distancia = passos ? (comprimento / 2 - metade) * passo / passos : 0;
+      const opcoes = passo === 0 ? [comprimento / 2] : [comprimento / 2 - distancia, comprimento / 2 + distancia];
+      for (const meio of opcoes) {
+        const inicio = eixo.getPointAtLength(meio - largura / 2);
+        const fim = eixo.getPointAtLength(meio + largura / 2);
+        const dx = fim.x - inicio.x, dy = fim.y - inicio.y;
+        if (Math.hypot(dx, dy) < largura * .92) continue;
+        const inverter = Math.abs(dx) >= Math.abs(dy) ? dx < 0 : dy > 0;
+        trilha.setAttribute('href', '#' + (inverter ? reverso.id : eixo.id));
+        trilha.setAttribute('startOffset', inverter ? comprimento - meio : meio);
+        if (verifica(texto)) {
+          (inverter ? eixo : reverso).remove();
+          return true;
+        }
       }
     }
-    return melhor;
+    eixo.remove();
+    reverso.remove();
+    texto.remove();
+    return false;
   }
 
   function mostrarRotulosLegiveis() {
@@ -125,44 +149,23 @@
       ocupados.push(r);
       return true;
     };
-    const omitidas = [];
     const limites = L.bounds([0, 0], [borda.width, borda.height]);
-    for (const [i, rotulo] of dados.rotulos_ruas.entries()) {
-      const pontos = trechoVisivel(rotulo.linha, limites);
-      if (pontos.length < 2) continue;
-      const id = 'eixo-rua-' + i;
-      const linhaSvg = lista => 'M' + lista.map(p => p.x + ',' + p.y).join(' L');
-      const eixo = svg('path', {id, d: linhaSvg(pontos)});
-      const reverso = svg('path', {id: id + '-reverso', d: linhaSvg(pontos.slice().reverse())});
-      rotulos.append(eixo, reverso);
-      const comprimento = eixo.getTotalLength();
-      const largura = medida.measureText(rotulo.nome).width;
-      const texto = svg('text', {'text-anchor': 'middle', 'dominant-baseline': 'central'});
-      const trilha = svg('textPath', {href: '#' + id});
-      trilha.textContent = rotulo.nome;
-      texto.append(trilha);
-      rotulos.append(texto);
-      const posicoes = [50, 42, 58, 34, 66, 26, 74, 18, 82, 10, 90];
-      const posicionou = posicoes.some(pos => {
-        const meio = pos / 100 * comprimento;
-        if (Math.min(meio, comprimento - meio) < largura / 2 + 4) return false;
-        const inicio = eixo.getPointAtLength(meio - largura / 2);
-        const fim = eixo.getPointAtLength(meio + largura / 2);
-        const dx = fim.x - inicio.x, dy = fim.y - inicio.y;
-        // Uma curva fechada encurta demais a distância entre as pontas do nome.
-        if (Math.hypot(dx, dy) < largura * .92) return false;
-        const inverter = Math.abs(dx) >= Math.abs(dy) ? dx < 0 : dy > 0;
-        trilha.setAttribute('href', '#' + (inverter ? reverso.id : eixo.id));
-        trilha.setAttribute('startOffset', (inverter ? 100 - pos : pos) + '%');
-        return verifica(texto);
-      });
-      if (posicionou) continue;
-      eixo.remove();
-      reverso.remove();
-      texto.remove();
-      const item = document.createElement('li');
-      item.textContent = rotulo.nome;
-      omitidas.push(item);
+    const ruas = dados.rotulos_ruas.map(rua => {
+      const trechos = rua.linhas.flatMap(linha => trechosVisiveis(linha, limites));
+      const formatos = [{nome: rua.nome, tamanho: 10}, {nome: rua.nome, tamanho: 9.5}];
+      const abreviado = abreviarVia(rua.nome);
+      if (abreviado !== rua.nome) formatos.push({nome: abreviado, tamanho: 9.5});
+      for (const formato of formatos) {
+        medida.font = fonte(formato.tamanho);
+        formato.largura = medida.measureText(formato.nome).width;
+      }
+      // Dentro do raio, tente primeiro as ruas com menos espaço para mover o nome.
+      const margem = Math.max(0, ...trechos.map(trecho => trecho.comprimento)) - formatos.at(-1).largura - 4;
+      return {...rua, trechos, formatos, margem};
+    }).filter(rua => rua.margem >= 0).sort((a, b) => b.no_raio - a.no_raio || a.margem - b.margem);
+    for (const [i, rua] of ruas.entries()) {
+      rua.formatos.some(({nome, tamanho, largura}) => rua.trechos.some((trecho, j) =>
+        posicionarNaLinha(trecho, 'eixo-rua-' + i + '-' + j, nome, tamanho, largura, verifica)));
     }
     for (const etiqueta of container.querySelectorAll('.quadra-label')) {
       etiqueta.style.visibility = 'visible';
@@ -170,7 +173,6 @@
       if (ocupados.some(o => cruza(r, o))) etiqueta.style.visibility = 'hidden';
       else ocupados.push(r);
     }
-    ruasSemEtiqueta = omitidas;
   }
   let tamanhoAnterior;
   const ajustar = () => {

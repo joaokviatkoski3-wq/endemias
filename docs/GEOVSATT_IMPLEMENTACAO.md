@@ -455,6 +455,8 @@ verificações do instalador.
 - As folhas de bloqueio de dengue, esporotricose e ovitrampa exibem o raio,
   os quarteirões atingidos e os nomes das vias da base cartográfica. Cabe uma
   lista de duas colunas ao lado do mapa, com continuação quando necessário.
+  A partir da 2.30.1, os nomes das vias aparecem apenas sobre seus eixos,
+  aproveitando os trechos legíveis e priorizando as ruas que cruzam o raio.
   Consulte a folha de ovitrampa no histórico de uma leitura positiva.
 
 ## Coletas em lote na 2.29.1

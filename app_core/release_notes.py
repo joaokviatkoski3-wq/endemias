@@ -4,6 +4,14 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.30.1": {
+        "titulo": "Etiquetas no eixo das ruas nos mapas de campo",
+        "mudancas": [
+            "Os nomes das ruas são posicionados diretamente sobre a via, priorizando os trechos que cruzam o raio.",
+            "No Endemias, Pacientes de dengue reúne as notificações e as folhas de bloqueio de 200 m.",
+            "No GeoVSATT, recolha os grupos de camadas, alterne as etiquetas e ajuste a posição de uma coleta de tubo.",
+        ],
+    },
     "2.30.0": {
         "titulo": "Bloqueios de campo e correção de pontos no mapa",
         "mudancas": [

@@ -37,9 +37,6 @@ dd { margin: .5mm 0 0; font-size: .87rem; font-weight: 600; overflow-wrap: anywh
 .continuacao-bloqueio h2 { font-size: 1rem; }
 .continuacao-bloqueio ul { columns: 3 60mm; font-size: .8rem; }
 .continuacao-bloqueio li { break-inside: avoid; }
-.ruas-sem-etiqueta { margin-top: 3mm; }
-.ruas-sem-etiqueta h2 { font-size: .8rem; margin: 0 0 1mm; }
-.ruas-sem-etiqueta ul { margin: 0; padding-left: 4mm; font-size: .72rem; }
 .fonte { margin: 3mm 0 0; color: #38594e; font-size: .72rem; }
 .sem-mapa { padding: 3mm; background: #fff4cd; }
 .folha > .caso { margin-top: 4mm; }
