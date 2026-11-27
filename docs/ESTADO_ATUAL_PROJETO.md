@@ -5,11 +5,11 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.30.3**, release `964bd28`, ativa desde 27/11/2026. A ativação confirmou
-  os backups, a preservação das 110 tabelas existentes e os três logins na
-  origem do Tunnel. Aplicou a migração aditiva
-  `0051_geovsatt_posicoes_tubitos_liraa.sql`. O relatório está em
-  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2303-resultado.json`.
+- **2.31.0**, release `16e6d99`, ativa desde 27/11/2026. A ativação confirmou
+  os backups, a preservação das 111 tabelas existentes e os três logins na
+  origem do Tunnel. Aplicou a migração aditiva `0052_pessoal_folgas.sql`.
+  Relatório: `C:/ProgramData/EndemiasWeb/ativacao-folgas2310-resultado.json`.
+  A migração `0051_geovsatt_posicoes_tubitos_liraa.sql` foi aplicada na 2.30.3.
   A primeira leitura do Sheets, feita na 2.29.0, consta em
   `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2290-sincronizacao.json`.
   A busca Nominatim usa o maps.co, configurado em 27/11/2026.
@@ -55,6 +55,10 @@ regras de trabalho e isolamento de testes.
 
 ## Continuidade por módulo
 
+- **Controle de Pessoal.** A aba Servidores reúne o cadastro. A aba Folgas e
+  Ausências reúne créditos com validade, agenda administrativa de folgas e
+  faltas e extrato por servidor. Acesso restrito a admin e superadmin no
+  Endemias e no Ambiental. [Guia de operação](CONTROLE_PESSOAL_FOLGAS.md)
 - **Esporotricose.** Ambiental reúne visitas, animais, casos humanos e estoque.
   O Dashboard abre em Visitas. Excel e PDF administrativos seguem os filtros
   e abrangem o recorte completo. A migração `0045` arquiva os campos de origem
