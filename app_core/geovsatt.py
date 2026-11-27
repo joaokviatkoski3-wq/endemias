@@ -246,7 +246,7 @@ def dados_nativos(target, base_dir, codigo, usuario, *, parametros=None, cnefe="
             return vigilancia.camada_esporotricose(target, parametros, malha, esporotricose_animal_localizada(target))
         localizador = enderecos_core.Localizador(target, BASES, malha, cnefe)
         if codigo == vigilancia.TUBOS:
-            return vigilancia.camada_tubos(target, parametros, localizador, malha, lambda: logradouros(base_dir))
+            return vigilancia.camada_tubos(target, parametros, localizador, malha, lambda: _logradouros_coletas(base_dir))
         return vigilancia.camada_dengue(target, codigo, parametros, malha, localizador)
     if codigo == "pontos_estrategicos":
         return pontos_estrategicos(target)
@@ -541,6 +541,18 @@ def logradouros(base_dir):
         feature["properties"] = {key: _corrigir_texto(value) for key, value in (feature.get("properties") or {}).items()}
     data["metadata"] = {"camada": "logradouros", "origem": "base cartográfica municipal existente"}
     return data
+
+
+def _logradouros_coletas(base_dir):
+    locais = logradouros(base_dir)["features"]
+    caminho = Path(base_dir) / "dados_referencia" / "faces_logradouros_ibge_2022.geojson"
+    try:
+        adicionais = json.loads(caminho.read_text(encoding="utf-8"))["features"]
+    except (OSError, ValueError):
+        return {"features": locais}
+    nomes = {rg_core._sem_prefixo_logradouro(f["properties"].get("nome")) for f in locais}
+    return {"features": locais + [f for f in adicionais
+                                  if rg_core._sem_prefixo_logradouro(f["properties"]["nome"]) not in nomes]}
 
 
 def esporotricose_animal(db_path):

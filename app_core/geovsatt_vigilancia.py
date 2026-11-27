@@ -477,12 +477,13 @@ def _pontos_aproximados(aproximaveis, localizador, malha, obter_logradouros):
         dados_ruas = {}
     eixos = defaultdict(list)
     for feicao in dados_ruas.get("features", []):
-        rua = rg._sem_prefixo_logradouro((feicao.get("properties") or {}).get("nome"))
+        propriedades = feicao.get("properties") or {}
+        rua = rg._sem_prefixo_logradouro(propriedades.get("nome"))
         geometria = feicao.get("geometry") or {}
         if rua in vias and geometria.get("type") in {"LineString", "MultiLineString"}:
             eixo = shape(geometria)
             if not eixo.is_empty:
-                eixos[rua].append(eixo)
+                eixos[rua].append((eixo, propriedades.get("origem")))
 
     geometria_por_chave = {chave_territorial(props.get("Localidade"), props.get("id_quart")): geometria
                            for props, geometria in blocos(malha, {chave for chave, _ in solicitadas})}
@@ -499,13 +500,16 @@ def _pontos_aproximados(aproximaveis, localizador, malha, obter_logradouros):
         if eixos[rua]:
             # A longitude representa uma distância menor que a latitude no município.
             escala = cos(radians(centro.y))
-            linhas = (scale(eixo, xfact=escala, origin=centro) for eixo in eixos[rua])
-            mais_proxima = min(linhas, key=centro.distance)
+            linhas = ((scale(eixo, xfact=escala, origin=centro), origem) for eixo, origem in eixos[rua])
+            mais_proxima, origem = min(linhas, key=lambda linha: centro.distance(linha[0]))
             _, projecao = nearest_points(centro, mais_proxima)
             metade = Point(centro.x + (projecao.x - centro.x) / (2 * escala), (centro.y + projecao.y) / 2)
             if geometria.contains(metade) and localizador.validar((metade.y, metade.x), chave) is not None:
                 pos = (metade.y, metade.x)
-                fonte = "Posição aproximada entre o centro do quarteirão e o logradouro · aguarda confirmação"
+                fonte = "Posição aproximada entre o centro do quarteirão e o logradouro"
+                if origem:
+                    fonte += f" · {origem}"
+                fonte += " · aguarda confirmação"
         if localizador.validar(pos, chave) is not None:
             resultado[chave, rua] = pos, fonte
     return resultado

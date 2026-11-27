@@ -11,6 +11,12 @@ RELEASES = {
             "Consulte os tubos do foco e exporte o mesmo recorte mostrado na tela.",
         ],
     },
+    "2.34.2": {
+        "titulo": "Mais logradouros para as posições aproximadas",
+        "mudancas": [
+            "As coletas sem número também podem usar as faces de logradouros do IBGE quando a via não consta na base local.",
+        ],
+    },
     "2.34.1": {
         "titulo": "Conferência de nomes de ruas nas coletas",
         "mudancas": [

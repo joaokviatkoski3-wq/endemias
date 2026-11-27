@@ -473,6 +473,11 @@ verificações do instalador.
   Um círculo tracejado indica que a posição é aproximada. A
   coleta continua em **Posições pendentes** até a confirmação manual. O
   mapa de calor usa apenas as posições por endereço, cadastro ou ajuste.
+  A 2.34.2 usa também as faces do Censo 2022 nas vias ausentes da
+  cartografia local. A fonte da posição identifica o IBGE quando a face
+  sustenta o cálculo. O recorte municipal está em
+  `dados_referencia/faces_logradouros_ibge_2022.geojson`.
+  [Base de Faces de Logradouros do IBGE](https://www.ibge.gov.br/geociencias/organizacao-do-territorio/malhas-territoriais/3014-np-base-de-faces-de-logradouros-do-brasil/28971-base-de-faces-de-logradouros-do-brasil.html)
 - **Mapa de calor** apresenta os filtros da camada selecionada no próprio
   painel. Os filtros também valem na camada de pontos. Ajuste raio visual,
   intensidade e opacidade. As composições salvas preservam esses ajustes.
