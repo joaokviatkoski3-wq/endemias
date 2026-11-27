@@ -433,6 +433,14 @@ verificações do instalador.
   Também é possível preencher latitude e longitude no CSV. Valide o arquivo
   antes de importá-lo. A geocodificação em lote do Google Earth Pro não cobre
   endereços do Brasil. [Ajuda do Google Earth Pro](https://support.google.com/earth/answer/176685?hl=pt-BR)
+- **Teste de geocodificação em lote.** O My Maps exibiu dois endereços públicos
+  de Almirante Tamandaré importados com a coluna `endereco_google_earth` e
+  preservou as chaves dos marcadores. O KML trouxe o endereço de cada
+  marcador sem geometria. O CSV exportado pela camada também veio sem
+  coordenadas. Esses arquivos não resolvem as pendências de coletas.
+  A importação experimental de endereços do Google Earth na web ainda
+  precisa de validação da exportação dos pontos.
+  [Importação no Google Earth na web](https://developers.google.com/maps/documentation/earth/import-data#import-csv-and-google-sheets-files)
 - **Minha localização** acompanha a posição e a precisão até desligar o
   botão ou sair do mapa. Ao arrastar o mapa, a posição continua atualizando
   e o enquadramento fica sob controle de quem usa o mapa. Está disponível
