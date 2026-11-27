@@ -864,12 +864,24 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(len(linhas), 1)
         chave = linhas[0]["chave"]
         self.assertIn("Almirante Tamandaré, Paraná, Brasil", linhas[0]["endereco_google_earth"])
+        earth_url = csv_url + "?destino=earth"
+        self.assertEqual(self.client(uid=3).get(earth_url).status_code, 403)
+        earth = cliente.get(earth_url)
+        earth_csv = list(csv.DictReader(io.StringIO(earth.data.decode("utf-8"))))
+        self.assertEqual(earth_csv, [{"name": chave, "address": linhas[0]["endereco_google_earth"]}])
         kml = f"""<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
           <Placemark><name>{chave}</name><Point><coordinates>{lon},{lat},0</coordinates></Point></Placemark>
           </Document></kml>"""
         url = "/api/geovsatt/admin/coletas-tubo/importar"
-        for etapa in ("validar", "aplicar"):
-            resposta = cliente.post(url, data={"etapa": etapa, "arquivo": (io.BytesIO(kml.encode()), "pontos.kml")})
+        kml_earth = f"""<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+          <Schema id="managed"><SimpleField name="COL123" type="string">
+            <displayName>name</displayName></SimpleField></Schema>
+          <Placemark><ExtendedData><SchemaData schemaUrl="#managed">
+            <SimpleData name="COL123">{chave}</SimpleData>
+          </SchemaData></ExtendedData><Point><coordinates>{lon},{lat},0</coordinates></Point></Placemark>
+          </Document></kml>"""
+        for etapa, conteudo in (("validar", kml), ("validar", kml_earth), ("aplicar", kml_earth)):
+            resposta = cliente.post(url, data={"etapa": etapa, "arquivo": (io.BytesIO(conteudo.encode()), "pontos.kml")})
             self.assertEqual(resposta.status_code, 200)
             self.assertEqual(resposta.json["validas"], 1)
         with closing(sqlite3.connect(self.path)) as conn, conn:
@@ -877,7 +889,7 @@ class GeoVSATTTests(unittest.TestCase):
         feicoes = cliente.get(camada).json["features"]
         self.assertEqual({f["id"] for f in feicoes}, {"a", "b", "d"})
         self.assertEqual(next(f["properties"]["fonte_coordenadas"] for f in feicoes if f["id"] == "d"),
-                         "Google Earth Pro")
+                         "Google Earth")
 
     def test_cores_por_filtro_aparecem_no_catalogo_e_usam_seletor(self):
         cliente = self.client()

@@ -433,18 +433,32 @@ verificações do instalador.
   Também é possível preencher latitude e longitude no CSV. Valide o arquivo
   antes de importá-lo. A geocodificação em lote do Google Earth Pro não cobre
   endereços do Brasil. [Ajuda do Google Earth Pro](https://support.google.com/earth/answer/176685?hl=pt-BR)
-- **Teste de geocodificação em lote.** O My Maps exibiu dois endereços públicos
-  de Almirante Tamandaré importados com a coluna `endereco_google_earth` e
-  preservou as chaves dos marcadores. O KML trouxe o endereço de cada
-  marcador sem geometria. O CSV exportado pela camada também veio sem
-  coordenadas. Esses arquivos não resolvem as pendências de coletas.
-  A importação experimental de endereços do Google Earth na web ainda
-  precisa de validação da exportação dos pontos.
-  [Importação no Google Earth na web](https://developers.google.com/maps/documentation/earth/import-data#import-csv-and-google-sheets-files)
 - **Minha localização** acompanha a posição e a precisão até desligar o
   botão ou sair do mapa. Ao arrastar o mapa, a posição continua atualizando
   e o enquadramento fica sob controle de quem usa o mapa. Está disponível
   também na cópia offline, com GPS e permissão de localização.
+
+## Coletas em lote na 2.29.1
+
+1. Em **Gerenciar camadas → Coletas de tubo**, use **Baixar CSV para Google
+   Earth**. O arquivo tem as colunas `name` e `address`. A primeira guarda a
+   chave do endereço e a segunda contém o endereço completo.
+2. No Google Earth na web, use **Novo → Importar arquivo para o projeto do
+   mapa → Fazer upload do dispositivo**. Selecione o CSV e importe como
+   **Elementos do mapa**. Aguarde a conclusão e confira os pontos.
+3. Use **Arquivo → Exportar como arquivo KML**. No GeoVSATT, valide o KML e
+   confirme a importação. O sistema lê as chaves que o Earth preserva na
+   tabela de atributos dos pontos, inclusive em marcadores sem título.
+4. O **CSV para preenchimento** reúne os campos para edição manual. A
+   importação também aceita KML ou KMZ com a chave como nome do marcador.
+
+O ensaio utilizou dois endereços públicos de Almirante Tamandaré. O KML
+exportado pelo Google Earth na web conservou as duas chaves e as duas
+coordenadas. O GeoVSATT validou o arquivo e exibiu as duas coletas em uma
+base isolada. O My Maps e a importação de um KML que contém apenas endereços
+exibiram os pontos, mas a exportação desses dois fluxos trouxe os endereços
+sem coordenadas.
+[Importação no Google Earth na web](https://developers.google.com/maps/documentation/earth/import-data#import-csv-and-google-sheets-files)
 
 ## Histórico de implantação e próximas validações
 

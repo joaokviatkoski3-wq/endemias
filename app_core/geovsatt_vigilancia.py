@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 import csv
 from io import BytesIO, StringIO
+import re
 from zipfile import BadZipFile, ZipFile
 
 from defusedxml import ElementTree
@@ -27,6 +28,7 @@ TUBOS = "coletas_tubos"
 INICIO_COLETAS = "2026-01-01"
 LIMITE_COORDENADAS = 12 * 1024**2
 KML = "{http://www.opengis.net/kml/2.2}"
+CHAVE_ENDERECO_KML = re.compile(r"[0-9a-f]{64}")
 
 
 def _intervalo(parametros):
@@ -154,6 +156,20 @@ def _registros_csv(conteudo):
         yield leitor.line_num, item
 
 
+def _chave_do_marcador(marcador, esquemas):
+    nome = marcador.findtext(f"{KML}name", "").strip()
+    if CHAVE_ENDERECO_KML.fullmatch(nome):
+        return nome
+    chaves = set()
+    for dados in marcador.findall(f"{KML}ExtendedData/{KML}SchemaData"):
+        campos = esquemas.get(dados.get("schemaUrl"), ())
+        for campo in dados.findall(f"{KML}SimpleData"):
+            valor = (campo.text or "").strip()
+            if campo.get("name") in campos and CHAVE_ENDERECO_KML.fullmatch(valor):
+                chaves.add(valor)
+    return next(iter(chaves)) if len(chaves) == 1 else nome
+
+
 def _registros_kml(conteudo):
     try:
         if conteudo.startswith(b"PK"):
@@ -165,11 +181,18 @@ def _registros_kml(conteudo):
         arvore = ElementTree.fromstring(conteudo)
     except (BadZipFile, DefusedXmlException, ElementTree.ParseError, RuntimeError) as exc:
         raise ValueError("Não foi possível ler o KML ou KMZ.") from exc
+    esquemas = {
+        f"#{esquema.get('id')}": {
+            campo.get("name") for campo in esquema.findall(f"{KML}SimpleField")
+            if campo.get("name") and campo.findtext(f"{KML}displayName", "").strip().casefold() in {"name", "chave"}
+        }
+        for esquema in arvore.findall(f".//{KML}Schema") if esquema.get("id")
+    }
     pontos = arvore.findall(f".//{KML}Placemark")
     if not pontos:
         raise ValueError("O arquivo não contém marcadores do Google Earth.")
     for i, marcador in enumerate(pontos, 1):
-        chave = marcador.findtext(f"{KML}name", "")
+        chave = _chave_do_marcador(marcador, esquemas)
         coordenadas = marcador.findtext(f"{KML}Point/{KML}coordinates", "").strip()
         lon, lat, *_ = coordenadas.split(",") + ["", ""]
         if not lat or not lon:
@@ -184,7 +207,7 @@ def importar_coordenadas(target, conteudo, localizador, *, formato="csv", aplica
         fonte = "CSV verificado"
     elif formato in {"kml", "kmz"}:
         leitor = _registros_kml(conteudo)
-        fonte = "Google Earth Pro"
+        fonte = "Google Earth"
     else:
         raise ValueError("Selecione um arquivo CSV, KML ou KMZ.")
     alteracoes, problemas, vistos = [], [], set()

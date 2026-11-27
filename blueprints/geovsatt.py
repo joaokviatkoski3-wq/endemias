@@ -148,12 +148,17 @@ def coletas_tubo():
     return redirect(url_for("geovsatt.admin_catalogo", aba="coletas"), code=303)
 
 
-def _dados_coletas_tubo():
+def _pendencias_coletas_tubo():
+    target = bh.db_target()
     try:
-        _, localizador = _localizador(bh.db_target(), bh.usuario_atual())
-        pendentes, resumo = vigilancia.pendencias_csv(bh.db_target(), localizador)
+        _, localizador = _localizador(target, bh.usuario_atual())
+        return vigilancia.pendencias_csv(target, localizador)
     except (OSError, ValueError):
         abort(400, "Confira a base municipal de endereços.")
+
+
+def _dados_coletas_tubo():
+    pendentes, resumo = _pendencias_coletas_tubo()
     return {"total": len(pendentes), **resumo}
 
 
@@ -161,19 +166,22 @@ def _dados_coletas_tubo():
 @login_required
 @superadmin
 def coletas_tubo_csv():
-    try:
-        _, localizador = _localizador(bh.db_target(), bh.usuario_atual())
-        pendentes, _ = vigilancia.pendencias_csv(bh.db_target(), localizador)
-    except (OSError, ValueError):
-        abort(400, "Confira a base municipal de endereços.")
+    pendentes, _ = _pendencias_coletas_tubo()
+    earth = request.args.get("destino") == "earth"
+    campos = ("name", "address") if earth else enderecos.COLUNAS_CSV
     texto = StringIO(newline="")
-    escritor = csv.DictWriter(texto, fieldnames=enderecos.COLUNAS_CSV)
+    escritor = csv.DictWriter(texto, fieldnames=campos)
     escritor.writeheader()
     for item in pendentes.values():
-        escritor.writerow({k: campo_csv(v) for k, v in enderecos.campos_csv(item["endereco"]).items()})
-    audit.registrar_evento(bh.get_db, "geovsatt_exportar_pendencias", "coletas_tubos", detalhes={"total": len(pendentes)})
-    return send_file(BytesIO(texto.getvalue().encode("utf-8-sig")), mimetype="text/csv",
-                     as_attachment=True, download_name="coletas-enderecos-pendentes.csv")
+        dados = enderecos.campos_csv(item["endereco"])
+        if earth:
+            dados = {"name": dados["chave"], "address": dados["endereco_google_earth"]}
+        escritor.writerow({k: campo_csv(v) for k, v in dados.items()})
+    audit.registrar_evento(bh.get_db, "geovsatt_exportar_pendencias", "coletas_tubos",
+                           detalhes={"total": len(pendentes), "destino": "earth" if earth else "csv"})
+    nome = "coletas-google-earth.csv" if earth else "coletas-enderecos-pendentes.csv"
+    return send_file(BytesIO(texto.getvalue().encode("utf-8" if earth else "utf-8-sig")), mimetype="text/csv",
+                     as_attachment=True, download_name=nome)
 
 
 @bp.post("/api/geovsatt/admin/coletas-tubo/importar")

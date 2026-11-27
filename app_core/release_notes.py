@@ -4,6 +4,13 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.29.1": {
+        "titulo": "Coletas de tubo no Google Earth",
+        "mudancas": [
+            "Baixe o CSV com chaves e endereços para localizar coletas em lote no Google Earth na web.",
+            "Valide o KML devolvido pelo Earth em Gerenciar camadas → Coletas de tubo.",
+        ],
+    },
     "2.29.0": {
         "titulo": "Gerenciamento de camadas e localização em tempo real",
         "mudancas": [

@@ -4,17 +4,30 @@
       <h2>Georreferenciar coletas de tubo</h2>
       <p class="gc-note">Coletas registradas a partir de 2026</p>
     </div>
-    <a class="gc-botao gc-primary" href="{{ url_for('geovsatt.coletas_tubo_csv') }}">Baixar CSV para Google Earth</a>
+    <div class="gc-acoes">
+      <a class="gc-botao gc-primary" href="{{ url_for('geovsatt.coletas_tubo_csv', destino='earth') }}">Baixar CSV para Google Earth</a>
+      <a class="gc-botao" href="{{ url_for('geovsatt.coletas_tubo_csv') }}">Baixar CSV para preenchimento</a>
+    </div>
   </div>
   <div class="gc-metricas">
-    <div><strong>{{ total }}</strong><span>Endereços no CSV</span></div>
+    <div><strong>{{ total }}</strong><span>Endereços pendentes</span></div>
     <div><strong>{{ sem_endereco }}</strong><span>Coletas sem logradouro</span></div>
     <div><strong>{{ pe_georreferenciado }}</strong><span>Tubos localizados pelo PE</span></div>
     <div><strong>{{ pe_aguardando }}</strong><span>Tubos aguardando coordenadas do PE</span></div>
   </div>
   <p>As coletas de pontos estratégicos usam a posição do PE cadastrado. Assim que o cadastro tiver coordenadas, a coleta aparece no mapa.</p>
   <details>
-    <summary>Como usar no Google Earth Pro</summary>
+    <summary>Como localizar endereços em lote no Google Earth</summary>
+    <ol>
+      <li>Baixe o CSV para Google Earth. Ele contém a chave da coleta e o endereço completo.</li>
+      <li>No Google Earth na web, abra <strong>Novo → Importar arquivo para o projeto do mapa → Fazer upload do dispositivo</strong>.</li>
+      <li>Selecione o CSV e importe como <strong>Elementos do mapa</strong>. Aguarde o processamento e confira os pontos, mesmo que apareçam sem título.</li>
+      <li>Use <strong>Arquivo → Exportar como arquivo KML</strong> e valide o arquivo de volta nesta página.</li>
+    </ol>
+    <p><a href="https://earth.google.com/web/" target="_blank" rel="noopener noreferrer">Abrir Google Earth na web</a></p>
+  </details>
+  <details>
+    <summary>Como usar o CSV ou o Google Earth Pro</summary>
     <p>O CSV contém a coluna <strong>endereco_google_earth</strong> com o endereço completo e a coluna <strong>chave</strong>.
       Para endereços no Brasil, use a busca do Earth Pro para localizar cada ponto. O Google disponibiliza a conversão automática de endereços em lote em alguns países, e o Brasil está fora dessa lista.
       <a href="https://support.google.com/earth/answer/176685?hl=pt-BR">Formatos aceitos pelo Google Earth</a></p>
