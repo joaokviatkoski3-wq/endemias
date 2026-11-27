@@ -56,9 +56,11 @@ regras de trabalho e isolamento de testes.
   do recorte de 27/11. Outros seis PEs receberam os pinos informados pelo
   setor, conferidos na malha e reabertos no Endemias após salvar. Eles
   abrangem mais 24 coletas do mesmo recorte. Com confirmação do setor, a
-  Cal Elói (PE-0020) passou do quarteirão 150 para o 791 em Sede. Após as
-  correções, restam nesse recorte 190 coletas em 115 endereços e 11 de PE
-  sem vínculo a um cadastro.
+  Cal Elói (PE-0020) passou do quarteirão 150 para o 791 em Sede. As seis
+  visitas que originaram as 11 coletas de PE sem vínculo foram conferidas
+  pelas submissões do Kobo. Todas registram a ORPEC no número 4250. O alias
+  `WADISLAU BUGALSKI - ORPEC` foi cadastrado para o PE-0028 em Lamenha.
+  Restam no recorte 190 coletas em 115 endereços para localizar.
 - A partir da 2.32.0, coletas têm filtros por espécie e tipo de trabalho na
   camada, no painel administrativo e nos CSVs desse painel. Em **Posições
   pendentes**, o superadmin pode marcar a primeira posição no mapa e abrir o
