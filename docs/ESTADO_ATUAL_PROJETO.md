@@ -5,11 +5,12 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.33.0**, release `d36ff0d`, ativa desde 27/11/2026. A ativação confirmou
-  os backups, a preservação das 114 tabelas existentes e os três logins na
-  origem do Tunnel. Aplicou a migração
-  `0053_pessoal_folgas_adiantamentos.sql`. O relatório está em
-  `C:/ProgramData/EndemiasWeb/ativacao-folgas2330-resultado.json`.
+- **2.33.1**, release `0622cf9`, ativa desde 27/11/2026. A ativação confirmou
+  os backups, a preservação das 115 tabelas existentes e os logins do
+  Endemias e do Ambiental na origem do Tunnel. A atualização não exigiu
+  migração. O relatório está em
+  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2331-resultado.json`.
+  A migração `0053_pessoal_folgas_adiantamentos.sql` foi aplicada na 2.33.0.
   A migração aditiva `0052_pessoal_folgas.sql` foi aplicada na 2.31.0.
   A migração `0051_geovsatt_posicoes_tubitos_liraa.sql` foi aplicada na 2.30.3.
   A primeira leitura do Sheets, feita na 2.29.0, consta em
@@ -42,8 +43,10 @@ regras de trabalho e isolamento de testes.
   [Operação no GeoVSATT](GEOVSATT_IMPLEMENTACAO.md#operação-de-campo-a-partir-da-2300)
 - **Pacientes de dengue**, no Endemias, abre no ano corrente, mantém 2025
   para consulta histórica e imprime o bloqueio de 200 m a partir de 2026.
-  Na conferência de 27/11, 113 de 125 notificações de 2026 foram localizadas.
-  Das 12 pendentes, sete têm conflito e cinco carecem de coordenadas utilizáveis.
+  Após a sincronização da 2.33.1 em 27/11, 118 de 125 notificações de 2026
+  têm coordenadas no município. A leitura recuperou cinco latitudes com
+  vírgula final em AA. Os sete números pendentes se repetem na coluna B
+  em 15 linhas de pacientes distintos e exigem conferência na origem.
 - Em 27/11, havia 469 coletas desde janeiro, das quais 467 tinham resultado.
   Na 2.30.2, há 229 localizadas, sendo 169 pelo cadastro de PE, 55 pelo CNEFE
   e cinco pela coincidência de endereço com uma ovitrampa no quarteirão.
