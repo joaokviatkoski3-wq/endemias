@@ -5,11 +5,12 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.29.1**, release `fbdf912`, ativa desde 27/11/2026. A ativação confirmou
-  os backups, a preservação das 109 tabelas e os três logins na origem
-  do Tunnel. A versão reutiliza a migração `0049_geovsatt_vigilancia.sql`
-  aplicada na 2.28.0. O relatório está em
-  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2291-resultado.json`.
+- **2.30.1**, release `95c8e6e`, ativa desde 27/11/2026. A ativação confirmou
+  os backups, a preservação das 110 tabelas e os três logins na origem do
+  Tunnel. A migração `0050_geovsatt_posicoes_coletas.sql` foi aplicada no
+  passo anterior, na release `f8477c3` da 2.30.0. Os relatórios estão em
+  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2300-resultado.json` e
+  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2301-resultado.json`.
   A primeira leitura do Sheets, feita na 2.29.0, consta em
   `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2290-sincronizacao.json`.
   A busca Nominatim usa o maps.co, configurado em 27/11/2026.
@@ -37,7 +38,19 @@ regras de trabalho e isolamento de testes.
   O acompanhamento da localização foi validado com duas posições no Brave.
   O teste em modo avião ainda será feito em aparelho. O redirecionamento
   dos mapas antigos aguarda a conferência de Endemias e Ambiental.
-  [Operação no GeoVSATT](GEOVSATT_IMPLEMENTACAO.md#administração-e-acompanhamento-na-2290)
+  [Operação no GeoVSATT](GEOVSATT_IMPLEMENTACAO.md#operação-de-campo-a-partir-da-2300)
+- **Pacientes de dengue**, no Endemias, abre no ano corrente, mantém 2025
+  para consulta histórica e imprime o bloqueio de 200 m a partir de 2026.
+  Na conferência de 27/11, 113 de 125 notificações de 2026 foram localizadas.
+  Das 12 pendentes, sete têm conflito e cinco carecem de coordenadas utilizáveis.
+- Em 27/11, havia 469 coletas desde janeiro, das quais 467 tinham resultado.
+  O cruzamento com o CNEFE, confirmado pelo quarteirão da visita, localizou
+  mais 24 coletas. Restaram 221 coletas em 134 endereços e 50 coletas de PE
+  aguardando a posição do cadastro. Em coletas já localizadas sem vínculo com
+  PE, o superadmin pode corrigir a posição visualmente no mapa.
+- As folhas de bloqueio de dengue, esporotricose e ovitrampa usam nomes de ruas
+  sobre seus eixos. No ensaio em A4 com a malha de Tanguá, couberam 16 etiquetas
+  sobre o mapa e 11 quarteirões na lista de duas colunas.
 
 ## Continuidade por módulo
 
