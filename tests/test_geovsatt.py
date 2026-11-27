@@ -1025,6 +1025,11 @@ class GeoVSATTTests(unittest.TestCase):
         meio_lon, meio_lat = entre_via_e_centro["geometry"]["coordinates"]
         self.assertAlmostEqual(meio_lon, lon+.004)
         self.assertAlmostEqual(meio_lat, lat+.0015)
+        ruas["features"][0]["properties"]["origem"] = "IBGE 2022"
+        with patch("app_core.geovsatt._logradouros_coletas", return_value=ruas):
+            do_ibge, = cliente.get(camada).json["features"]
+        self.assertIn("IBGE 2022", do_ibge["properties"]["fonte_coordenadas"])
+        self.assertEqual(do_ibge["geometry"]["coordinates"], [meio_lon, meio_lat])
         with closing(sqlite3.connect(self.path)) as conn:
             self.assertIsNone(conn.execute("SELECT 1 FROM sqlite_master WHERE name='geovsatt_posicoes_coletas'").fetchone())
         csv_url = "/geovsatt/admin/coletas-tubo/pendencias.csv?tipo=PVE&especie=aegypt"
