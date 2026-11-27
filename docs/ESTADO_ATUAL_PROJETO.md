@@ -5,11 +5,11 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.34.2**, release `5807271`, ativa desde 27/11/2026. A ativação confirmou
-  os backups, a preservação das 115 tabelas existentes e os logins do
-  Endemias e do Ambiental na origem do Tunnel. A atualização não exigiu
-  migração. O relatório está em
-  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2342-resultado.json`.
+- **2.35.0**, release `d5d3eec`, ativa desde 27/11/2026. A ativação confirmou
+  os backups, a preservação das 115 tabelas existentes e os logins de
+  Endemias, Ambiental e GeoVSATT no acesso local e na origem do Tunnel.
+  A atualização de Positividade não exigiu migração. O relatório está em
+  `C:/ProgramData/EndemiasWeb/ativacao-positividade2350-resultado.json`.
   A migração `0053_pessoal_folgas_adiantamentos.sql` foi aplicada na 2.33.0.
   A migração aditiva `0052_pessoal_folgas.sql` foi aplicada na 2.31.0.
   A migração `0051_geovsatt_posicoes_tubitos_liraa.sql` foi aplicada na 2.30.3.
@@ -86,6 +86,10 @@ regras de trabalho e isolamento de testes.
 
 ## Continuidade por módulo
 
+- **Positividade de Coletas.** A 2.35.0 abre em Focos positivos por imóvel,
+  com um foco por visita positiva. O modo Amostras positivas lista os tubos
+  do laboratório individualmente. Totais por localidade e Excel seguem o
+  modo e os filtros selecionados. [Regra de contagem](POSITIVIDADE_HISTORICA.md)
 - **Controle de Pessoal.** A aba Servidores reúne o cadastro. A aba Folgas e
   Ausências reúne créditos com validade, agenda administrativa de folgas e
   faltas e extrato por servidor. A 2.33.0 acrescenta adiantamento com saldo
