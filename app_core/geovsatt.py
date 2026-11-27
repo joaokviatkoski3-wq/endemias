@@ -246,7 +246,7 @@ def dados_nativos(target, base_dir, codigo, usuario, *, parametros=None, cnefe="
             return vigilancia.camada_esporotricose(target, parametros, malha, esporotricose_animal_localizada(target))
         localizador = enderecos_core.Localizador(target, BASES, malha, cnefe)
         if codigo == vigilancia.TUBOS:
-            return vigilancia.camada_tubos(target, parametros, localizador)
+            return vigilancia.camada_tubos(target, parametros, localizador, malha, lambda: logradouros(base_dir))
         return vigilancia.camada_dengue(target, codigo, parametros, malha, localizador)
     if codigo == "pontos_estrategicos":
         return pontos_estrategicos(target)

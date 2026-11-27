@@ -464,6 +464,13 @@ verificações do instalador.
   e na aba administrativa. Os CSVs de pendências da aba usam o mesmo recorte.
   Em **Posições pendentes**, abra uma coleta e clique no local confirmado.
   As coletas de PE têm atalhos para o cadastro ou para a revisão do vínculo.
+  A partir da 2.34.0, quando falta um número utilizável e a visita tem um
+  quarteirão na malha, a camada exibe a coleta a meio caminho do centro
+  interno até o ponto mais próximo do logradouro da visita. Usa o centro
+  interno se a via não consta na base ou se o ponto sair do quarteirão.
+  Um círculo tracejado indica que a posição é aproximada. A
+  coleta continua em **Posições pendentes** até a confirmação manual. O
+  mapa de calor usa apenas as posições por endereço, cadastro ou ajuste.
 - **Mapa de calor** apresenta os filtros da camada selecionada no próprio
   painel. Os filtros também valem na camada de pontos. Ajuste raio visual,
   intensidade e opacidade. As composições salvas preservam esses ajustes.

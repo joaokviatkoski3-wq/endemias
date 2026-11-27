@@ -969,7 +969,7 @@ class GeoVSATTTests(unittest.TestCase):
         _, bloco = self._malha_vigilancia()
         lon, lat = bloco.centroid.x, bloco.centroid.y
         with closing(sqlite3.connect(self.path)) as conn, conn:
-            conn.execute("""UPDATE visitas SET tipo='TB', logradouro='Rua Fictícia', numero='10', quarteirao=1
+            conn.execute("""UPDATE visitas SET tipo='TB', logradouro='Rua Fictícia', numero='SN', quarteirao=1
                             WHERE id_visita='ficticio-visitas'""")
             conn.execute("""INSERT INTO visitas(id_visita,kobo_uuid,tipo,data,id_localidade,localidade,quarteirao,
                                                 logradouro,numero,processado_em)
@@ -990,11 +990,32 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertNotIn(b"localizar/tubo-b", lista.data)
         self.assertEqual(self.client(uid=3).get(localizar).status_code, 403)
         self.assertIn(b'geo-coleta-pendente', cliente.get(localizar).data)
+        aproximada, = cliente.get(camada).json["features"]
+        self.assertEqual(aproximada["id"], "tubo-a")
+        self.assertTrue(aproximada["properties"]["localizacao_aproximada"])
+        self.assertIn("aguarda confirmação", aproximada["properties"]["fonte_coordenadas"])
+        self.assertEqual(aproximada["geometry"]["coordinates"], [lon, lat])
+        ruas = {"features": [
+            {"properties": {"nome": "R. Fictícia"}, "geometry": {"type": "MultiLineString", "coordinates": [
+                [[lon+.008, lat+.003], [lon+.008, lat+.007]], [[lon-.009, lat], [lon-.009, lat-.006]],
+            ]}},
+            {"properties": {"nome": "Rua Diferente"}, "geometry": {"type": "LineString", "coordinates": [
+                [lon+.001, lat], [lon+.001, lat+.004],
+            ]}},
+        ]}
+        with patch("app_core.geovsatt.logradouros", return_value=ruas):
+            entre_via_e_centro, = cliente.get(camada).json["features"]
+        self.assertIn("entre o centro do quarteirão e o logradouro", entre_via_e_centro["properties"]["fonte_coordenadas"])
+        meio_lon, meio_lat = entre_via_e_centro["geometry"]["coordinates"]
+        self.assertAlmostEqual(meio_lon, lon+.004)
+        self.assertAlmostEqual(meio_lat, lat+.0015)
+        with closing(sqlite3.connect(self.path)) as conn:
+            self.assertIsNone(conn.execute("SELECT 1 FROM sqlite_master WHERE name='geovsatt_posicoes_coletas'").fetchone())
         csv_url = "/geovsatt/admin/coletas-tubo/pendencias.csv?tipo=PVE&especie=aegypt"
         linhas = list(csv.DictReader(io.StringIO(cliente.get(csv_url).data.decode("utf-8-sig"))))
         self.assertEqual([linha["numero"] for linha in linhas], ["12"])
         url = "/api/geovsatt/admin/coletas-tubo/posicao"
-        dados = {"id":"tubo-a", "latitude":lat, "longitude":lon, "primeira_posicao":True}
+        dados = {"id":"tubo-a", "latitude":lat+.001, "longitude":lon, "primeira_posicao":True}
         self.assertEqual(cliente.post(url,json=dados).status_code, 200)
         self.assertEqual(cliente.post(url,json=dados | {"latitude":lat+.002}).status_code, 409)
         self.assertEqual(cliente.get(localizar).status_code, 303)
@@ -1006,7 +1027,9 @@ class GeoVSATTTests(unittest.TestCase):
             self.assertEqual({f["id"] for f in feicoes}, ids)
         feicao, = cliente.get(camada, query_string={"especie":"albopictus"}).json["features"]
         self.assertEqual(feicao["properties"]["especies"], "Aedes aegypti, Aedes albopictus")
-        self.assertEqual(feicao["geometry"]["coordinates"], [lon, lat])
+        self.assertNotIn("localizacao_aproximada", feicao["properties"])
+        self.assertEqual(feicao["properties"]["fonte_coordenadas"], "Ajuste no GeoVSATT")
+        self.assertEqual(feicao["geometry"]["coordinates"], [lon, lat+.001])
 
     def test_geovsatt_corrige_posicao_de_tubo_integrado_do_liraa(self):
         _, bloco = self._malha_vigilancia()

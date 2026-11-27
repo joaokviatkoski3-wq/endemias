@@ -168,6 +168,7 @@ button{color:inherit}
 .geo-legend{max-width:min(70vw,640px);max-height:100px;overflow:auto;flex-wrap:wrap}
 .geo-legend i{background:var(--legend-color);flex-shrink:0}
 .geo-legend .legend-ponto{width:9px;border-radius:50%}
+.geo-legend .legend-ponto-aproximado{border:1px dashed currentColor;background:transparent}
 .geo-legend .legend-linha{height:2px}
 .geo-legend .legend-poligono{border:1px solid var(--legend-color);background:color-mix(in srgb,var(--legend-color) 25%,white)}
 .leaflet-control-zoom{border:1px solid var(--border)!important;box-shadow:0 4px 15px #10201615!important}.leaflet-control-zoom a{color:#333!important}.leaflet-interactive:focus{outline:3px solid #175cd380}

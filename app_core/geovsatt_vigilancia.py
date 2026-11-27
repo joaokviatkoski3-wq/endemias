@@ -5,13 +5,16 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 import csv
 from io import BytesIO, StringIO
+from math import cos, radians
 import re
 from zipfile import BadZipFile, ZipFile
 
 from defusedxml import ElementTree
 from defusedxml.common import DefusedXmlException
 
-from shapely.geometry import mapping
+from shapely.affinity import scale
+from shapely.geometry import Point, mapping, shape
+from shapely.ops import nearest_points
 from werkzeug.datastructures import MultiDict
 
 from app_core import ambiental, db, esporotricose_bloqueio, geovsatt_bloqueios as bloqueios
@@ -463,18 +466,79 @@ def camada_dengue(target, codigo, parametros, malha, localizador):
     return colecao(features, "Abas gerais de dengue do Google Sheets")
 
 
-def camada_tubos(target, parametros, localizador):
-    features = []
+def _pontos_aproximados(aproximaveis, localizador, malha, obter_logradouros):
+    if not aproximaveis:
+        return {}
+    solicitadas = set(aproximaveis.values())
+    vias = {via for _, via in solicitadas if via}
+    try:
+        dados_ruas = obter_logradouros() if vias else {}
+    except (OSError, ValueError):
+        dados_ruas = {}
+    eixos = defaultdict(list)
+    for feicao in dados_ruas.get("features", []):
+        rua = rg._sem_prefixo_logradouro((feicao.get("properties") or {}).get("nome"))
+        geometria = feicao.get("geometry") or {}
+        if rua in vias and geometria.get("type") in {"LineString", "MultiLineString"}:
+            eixo = shape(geometria)
+            if not eixo.is_empty:
+                eixos[rua].append(eixo)
+
+    geometria_por_chave = {chave_territorial(props.get("Localidade"), props.get("id_quart")): geometria
+                           for props, geometria in blocos(malha, {chave for chave, _ in solicitadas})}
+    resultado = {}
+    for chave, rua in solicitadas:
+        geometria = geometria_por_chave.get(chave)
+        if geometria is None:
+            continue
+        centro = geometria.centroid
+        if not geometria.contains(centro):
+            centro = geometria.representative_point()
+        pos = (centro.y, centro.x)
+        fonte = "Posição aproximada no quarteirão · aguarda confirmação"
+        if eixos[rua]:
+            # A longitude representa uma distância menor que a latitude no município.
+            escala = cos(radians(centro.y))
+            linhas = (scale(eixo, xfact=escala, origin=centro) for eixo in eixos[rua])
+            mais_proxima = min(linhas, key=centro.distance)
+            _, projecao = nearest_points(centro, mais_proxima)
+            metade = Point(centro.x + (projecao.x - centro.x) / (2 * escala), (centro.y + projecao.y) / 2)
+            if geometria.contains(metade) and localizador.validar((metade.y, metade.x), chave) is not None:
+                pos = (metade.y, metade.x)
+                fonte = "Posição aproximada entre o centro do quarteirão e o logradouro · aguarda confirmação"
+        if localizador.validar(pos, chave) is not None:
+            resultado[chave, rua] = pos, fonte
+    return resultado
+
+
+def camada_tubos(target, parametros, localizador, malha, obter_logradouros):
     registros = {row["id_coleta"]: (row, endereco, esperado, localizado)
                  for row, endereco, esperado, localizado in enderecos_coletas(target, localizador, parametros=parametros)}
-    for row in filtrar((v[0] for v in registros.values()), parametros, "data", "localidade", "situacao"):
-        _, _, _, localizado = registros[row["id_coleta"]]
+    selecionados = list(filtrar((v[0] for v in registros.values()), parametros, "data", "localidade", "situacao"))
+    aproximaveis = {}
+    for row in selecionados:
+        _, endereco, esperado, localizado = registros[row["id_coleta"]]
+        if (not localizado and esperado and endereco and not _e_coleta_pe(row)
+                and not enderecos.chave_logradouro_numero(row["logradouro"], row["numero"])):
+            aproximaveis[row["id_coleta"]] = (esperado, rg._sem_prefixo_logradouro(row["logradouro"]))
+
+    pontos_do_quarteirao = _pontos_aproximados(aproximaveis, localizador, malha, obter_logradouros)
+
+    features = []
+    for row in selecionados:
+        id_coleta = row["id_coleta"]
+        _, _, _, localizado = registros[id_coleta]
+        campos = {k: row[k] for k in ("num_tubo", "data", "localidade", "quarteirao", "situacao", "tipo")}
         if localizado:
             pos, _, fonte = localizado
-            campos = {k: row[k] for k in ("num_tubo", "data", "localidade", "quarteirao", "situacao", "tipo")}
-            features.append(_ponto(row["id_coleta"], pos, campos | {"fonte_coordenadas": fonte,
-                                  "especies": ", ".join(ESPECIES_TUBOS[e] for e in row["especies"]),
-                                  "vinculado_pe": _e_coleta_pe(row), "rotulo": f"Tubo {row['num_tubo']}"}))
+        elif posicao := pontos_do_quarteirao.get(aproximaveis.get(id_coleta)):
+            pos, fonte = posicao
+            campos["localizacao_aproximada"] = True
+        else:
+            continue
+        features.append(_ponto(id_coleta, pos, campos | {"fonte_coordenadas": fonte,
+                               "especies": ", ".join(ESPECIES_TUBOS[e] for e in row["especies"]),
+                               "vinculado_pe": _e_coleta_pe(row), "rotulo": f"Tubo {row['num_tubo']}"}))
     return colecao(features, "Coletas e resultados do laboratório VSATT")
 
 

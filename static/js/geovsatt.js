@@ -494,7 +494,7 @@ function iniciarGeoVSATT() {
     data_coleta: 'Data de coleta', CdFerrovia: 'Código da ferrovia', TIPO_DRENA: 'Tipo de drenagem',
     bairro_loteamento: 'Bairro ou loteamento', status_funcionamento: 'Situação', horario: 'Horário de atendimento',
     servicos_no_local: 'Serviços no local', gestao: 'Gestão', codigo_oficial: 'Código oficial', uid: 'Identificador',
-    especies: 'Espécies', situacao_bloqueio: 'Situação do bloqueio', data_bloqueio: 'Data do bloqueio', raio_metros: 'Raio (m)',
+    especies: 'Espécies', fonte_coordenadas: 'Fonte da posição', situacao_bloqueio: 'Situação do bloqueio', data_bloqueio: 'Data do bloqueio', raio_metros: 'Raio (m)',
     percentual_no_raio: 'Área do quarteirão dentro dos raios (%)', cobertura: 'Abrangência',
     casos_com_bloqueio_realizado: 'Casos com bloqueio realizado',
     casos_com_bloqueio_nao_realizado: 'Casos com bloqueio não realizado',
@@ -505,7 +505,7 @@ function iniciarGeoVSATT() {
     visitas_outras_situacoes: 'Registros com outra situação ou sem situação', ultimo_registro: 'Último registro no período'};
   const propertyName = key => propertyLabels[key] || key.replaceAll('_', ' ').replace(/^./, text => text.toLocaleUpperCase('pt-BR'));
   const normalText = text => String(text ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR').trim();
-  const detailKeys = props => Object.keys(props).filter(key => !['chave', 'id_localidade', 'Localidade', 'quarteirao_raw'].includes(key)
+  const detailKeys = props => Object.keys(props).filter(key => !['chave', 'id_localidade', 'Localidade', 'quarteirao_raw', 'localizacao_aproximada'].includes(key)
     && props[key] != null && props[key] !== '' && typeof props[key] !== 'object');
 
   function showFeature(fonte, props, name, attribute, latlng, action) {
@@ -542,14 +542,20 @@ function iniciarGeoVSATT() {
       if (!classes.has(feature)) classes.set(feature, classificar(feature.properties));
       return classes.get(feature);
     };
-    const simboloDaFeicao = feature => estilos.simbolo(config, base, classeDe(feature), estilos.tipoDaGeometria(feature.geometry.type));
+    const simboloDaFeicao = feature => {
+      const simbolo = estilos.simbolo(config, base, classeDe(feature), estilos.tipoDaGeometria(feature.geometry.type));
+      if (id === 'coletas_tubos' && feature.properties.localizacao_aproximada) {
+        return {...simbolo, color: simbolo.fillColor, dashArray: '3 3', fillOpacity: .25};
+      }
+      return simbolo;
+    };
     const trace = config.linha || base.line;
     const group = L.geoJSON(data, {
       pane,
       style: simboloDaFeicao,
       pointToLayer(feature, latlng) {
         const {forma, glifo, icone, raio} = estilos.marcador(id, config, feature.properties || {});
-        if (icone) {
+        if (icone && !(id === 'coletas_tubos' && feature.properties.localizacao_aproximada)) {
           const size = 2 * raio;
           const icon = element('span', `geo-point geo-point--${forma}`, glifo);
           const simbolo = simboloDaFeicao(feature);
@@ -606,9 +612,14 @@ function iniciarGeoVSATT() {
               action = element('a', 'geo-feature-action', 'Editar equipamento');
               action.href = `/geovsatt/admin/equipamentos/${data.metadata.versao}/${indice}/editar`;
             } else if (id === 'coletas_tubos' && painelColeta && !props.vinculado_pe) {
-              action = element('button', 'geo-feature-action', 'Corrigir posição da coleta');
-              action.type = 'button';
-              action.addEventListener('click', () => abrirAjusteColeta(feature, layer));
+              if (props.localizacao_aproximada) {
+                action = element('a', 'geo-feature-action', 'Confirmar posição no mapa');
+                action.href = '/geovsatt/admin/coletas-tubo/localizar/' + encodeURIComponent(feature.id);
+              } else {
+                action = element('button', 'geo-feature-action', 'Corrigir posição da coleta');
+                action.type = 'button';
+                action.addEventListener('click', () => abrirAjusteColeta(feature, layer));
+              }
             } else if (['dengue', 'dengue_bloqueios'].includes(id) && typeof feature.id === 'string' &&
                        props.ano >= 2026 && props.situacao !== 'Negativo ou descartado') {
               action = element('a', 'geo-feature-action', 'Imprimir mapa de bloqueio');
@@ -893,6 +904,13 @@ function iniciarGeoVSATT() {
       const periodo = periodoPorCamada.get(layer);
       label.append(key, document.createTextNode(input.dataset.nome + (periodo ? ` · ${periodo}` : '')));
       labels.push(label);
+      if (id === 'coletas_tubos' && layer.getLayers().some(item => item.feature.properties.localizacao_aproximada
+          && (!recorte || recorte.contains(item.getLatLng())))) {
+        const aproximadas = element('span');
+        aproximadas.append(element('i', 'legend-ponto legend-ponto-aproximado'),
+          document.createTextNode('Coleta com posição aproximada'));
+        labels.push(aproximadas);
+      }
     }
     const camadaDeCalor = calor.legenda();
     if (camadaDeCalor) {

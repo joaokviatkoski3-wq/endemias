@@ -4,6 +4,13 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.34.0": {
+        "titulo": "Posições aproximadas de coletas sem número",
+        "mudancas": [
+            "Coletas sem número podem aparecer entre o centro do quarteirão e o logradouro da visita, com um círculo tracejado.",
+            "Use Confirmar posição no mapa ou a lista de posições pendentes para registrar o local correto.",
+        ],
+    },
     "2.33.1": {
         "titulo": "Leitura das coordenadas de dengue",
         "mudancas": [

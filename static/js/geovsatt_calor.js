@@ -5,6 +5,7 @@
     const features = [];
     grupo.eachLayer(({feature}) => {
       const {geometry, properties = {}} = feature;
+      if (codigo === 'coletas_tubos' && properties.localizacao_aproximada) return;
       const peso = codigo === 'ovitrampas' && porOvos ? Number(properties.ovos || 0) :
         codigo === 'esporotricose' ? Number(properties.animais || 1) : 1;
       if (!Number.isFinite(peso) || peso < 1) return;
