@@ -42,8 +42,8 @@ function montarCamadas(pacote) {
   const secoes = new Map();
   for (const camada of pacote.camadas) {
     if (!secoes.has(camada.grupo)) {
-      const secao = node('section', 'geo-layer-group');
-      secao.append(node('h2', '', camada.grupo));
+      const secao = node('details', 'geo-layer-group');
+      secao.append(node('summary', '', camada.grupo));
       secoes.set(camada.grupo, secao);
       destino.append(secao);
     }
@@ -79,11 +79,22 @@ function montarCamadas(pacote) {
         'Período da cópia: ' + formatar(inicio) + ' a ' + formatar(fim) + '.';
       filtros.append(modelo);
     }
-    secao.append(linha, lista, filtros);
+    secao.append(linha);
+    if (camada.tipo !== 'raster' && camada.estilo?.rotulo_modo !== 'oculto') {
+      const etiquetas = node('label', 'geo-layer-etiquetas');
+      etiquetas.hidden = true;
+      const controle = node('input');
+      controle.type = 'checkbox';
+      controle.checked = true;
+      controle.dataset.layerLabels = camada.id;
+      etiquetas.append(controle, ' Etiquetas', node('span', 'sr-only', ' de ' + camada.nome));
+      secao.append(etiquetas);
+    }
+    secao.append(lista, filtros);
     if (camada.pode_exportar) montarExportacao(secao, camada);
   }
-  if (!destino.querySelector('input:checked')) {
-    const primeira = destino.querySelector('input');
+  if (!destino.querySelector('[data-layer]:checked')) {
+    const primeira = destino.querySelector('[data-layer]');
     if (primeira) primeira.checked = true;
   }
   const seletor = document.getElementById('geo-basemap');

@@ -73,13 +73,18 @@ def filtrar(registros, parametros, campo_data, campo_localidade, campo_situacao)
         yield row
 
 
-def coletas(target):
+def coletas(target, id_coleta=None):
     presencas = " OR ".join(laboratorio._presence_sql(especie, "r")
                              for especie in ("aegypt", "albopictus", "outra"))
     conn = visitas_integradas.connect(target)
     try:
+        tem_posicoes = db.table_exists(conn, "geovsatt_posicoes_coletas")
+        campos_posicao = ("p.latitude, p.longitude" if tem_posicoes else "NULL AS latitude, NULL AS longitude")
+        vinculo_posicao = ("LEFT JOIN geovsatt_posicoes_coletas p ON p.id_coleta=c.id_coleta" if tem_posicoes else "")
+        condicao = " AND c.id_coleta=?" if id_coleta is not None else ""
+        parametros = (INICIO_COLETAS, id_coleta) if condicao else (INICIO_COLETAS,)
         registros = [db.serialize_row(row) for row in conn.execute(f"""
-        SELECT c.id_coleta, c.num_tubo, v.id_localidade, v.localidade, v.quarteirao,
+        SELECT {campos_posicao}, c.id_coleta, c.num_tubo, v.id_localidade, v.localidade, v.quarteirao,
                v.logradouro, v.numero, v.data, v.tipo, v.id_pe, v.codigo_pe,
                pe.codigo_pe AS pe_cadastrado, pe.latitude AS pe_latitude, pe.longitude AS pe_longitude,
                CASE WHEN EXISTS (SELECT 1 FROM resultados_laboratorio r
@@ -90,9 +95,10 @@ def coletas(target):
           FROM coletas c JOIN visitas v ON v.id_visita=c.id_visita
           LEFT JOIN pontos_estrategicos pe ON pe.id_pe=v.id_pe
                 OR (v.id_pe IS NULL AND pe.codigo_pe=NULLIF(TRIM(v.codigo_pe),''))
-         WHERE v.data >= ?
+          {vinculo_posicao}
+         WHERE v.data >= ?{condicao}
          ORDER BY v.data DESC,c.id_coleta
-        """, (INICIO_COLETAS,))]
+        """, parametros)]
         aliases = {}
         for row in registros:
             if row["tipo"] != "PE" or row["id_pe"] is not None or (row["codigo_pe"] or "").strip():
@@ -124,23 +130,56 @@ def enderecos_coletas(target, localizador):
             continue
         endereco = enderecos.endereco_rotulado(row)
         chave = chave_territorial(row["id_localidade"], row["quarteirao"])
-        if endereco:
-            yield row, endereco, chave, localizador.localizar(endereco, esperado=chave)
+        posicao = enderecos.ponto(row["latitude"], row["longitude"])
+        if (props := localizador.validar(posicao, aceitar_sem_quarteirao=True)) is not None:
+            yield row, endereco, chave, (posicao, props, "Ajuste no GeoVSATT")
         else:
-            yield row, "", chave, None
+            yield row, endereco, chave, localizador.localizar(endereco, esperado=chave, localidade_ubs=True)
+
+
+def reposicionar_coleta(target, localizador, id_coleta, latitude, longitude):
+    registros = coletas(target, id_coleta)
+    if not registros:
+        raise LookupError
+    if _e_coleta_pe(registros[0]):
+        raise ValueError("A posição deste tubo vem do cadastro do ponto estratégico.")
+    posicao = enderecos.ponto(latitude, longitude)
+    if localizador.validar(posicao, aceitar_sem_quarteirao=True) is None:
+        raise ValueError("Marque uma posição válida no município.")
+    conn = db.connect(target)
+    try:
+        enderecos.ensure_schema(conn)
+        conn.execute("""INSERT INTO geovsatt_posicoes_coletas(id_coleta,latitude,longitude,atualizado_em)
+                        VALUES(?,?,?,?) ON CONFLICT(id_coleta) DO UPDATE
+                          SET latitude=excluded.latitude,longitude=excluded.longitude,atualizado_em=excluded.atualizado_em""",
+                     (id_coleta, *posicao, datetime.now(timezone.utc).isoformat()))
+        conn.commit()
+    finally:
+        conn.close()
+    return posicao
 
 
 def pendencias_csv(target, localizador):
     pendentes = {}
-    resumo = {"sem_endereco": 0, "pe_aguardando": 0, "pe_georreferenciado": 0}
+    resumo = dict(coletas=0, com_resultado=0, sem_endereco=0, pe_aguardando=0,
+                  pe_georreferenciado=0, outras_localizadas=0, coletas_endereco_pendente=0)
     for row, endereco, esperado, localizado in enderecos_coletas(target, localizador):
+        resumo["coletas"] += 1
+        resumo["com_resultado"] += row["situacao"] != "Aguardando resultado"
         if _e_coleta_pe(row):
             resumo["pe_georreferenciado" if localizado else "pe_aguardando"] += 1
+        elif localizado:
+            resumo["outras_localizadas"] += 1
         elif not endereco:
             resumo["sem_endereco"] += 1
-        elif not localizado:
+        else:
+            resumo["coletas_endereco_pendente"] += 1
             chave = enderecos.chave_endereco(endereco)
-            registro = pendentes.setdefault(chave, {"endereco": endereco, "esperados": set(), "total": 0})
+            endereco_earth = ", ".join(str(x).strip() for x in
+                                      (row["logradouro"], row["numero"], "Almirante Tamandaré", "Paraná", "Brasil")
+                                      if x is not None and str(x).strip())
+            registro = pendentes.setdefault(chave, {"endereco": endereco, "endereco_earth": endereco_earth,
+                                                    "esperados": set(), "total": 0})
             if esperado:
                 registro["esperados"].add(esperado)
             registro["total"] += 1
@@ -271,8 +310,13 @@ def preparar_dengue(target, localizador, chave=None):
             "Endereço pendente de localização" if row["endereco"] else "Sem endereço")
         if not row["conflito"]:
             coords = enderecos.ponto(row["latitude"], row["longitude"])
-            if localizado := localizador.localizar(row["endereco"], coordenadas=coords):
+            props = localizador.validar(coords, aceitar_sem_quarteirao=True)
+            localizado = (coords, props, "Google Sheets") if props is not None else localizador.localizar(row["endereco"])
+            if localizado:
                 row["centro"], props, row["fonte_coordenadas"] = localizado
+            elif coords:
+                row["estado"] = "Coordenadas fora da cobertura municipal"
+            if row["centro"]:
                 row["localidade"] = props.get("Localidade_nome")
                 row["quarteirao"] = props.get("id_quart")
                 row["estado"] = "Localizado"
@@ -315,10 +359,11 @@ def camada_dengue(target, codigo, parametros, malha, localizador):
         campos = {k: row.get(k) for k in colunas}
         if codigo == DENGUE[0]:
             features.append(_ponto(row["id"], row["centro"], campos))
-        elif codigo == DENGUE[1]:
-            features.append(_raio(row, raio, campos))
-        else:
-            eventos.append(row)
+        elif row["ano"] >= 2026 and row["situacao"] != "Negativo ou descartado":
+            if codigo == DENGUE[1]:
+                features.append(_raio(row, raio, campos))
+            else:
+                eventos.append(row)
     if codigo == DENGUE[2]:
         features = bloqueios.execucao(target, "dengue", eventos, malha, periodo=periodo, raio_mapa=raio)
     return colecao(features, "Abas gerais de dengue do Google Sheets")
@@ -334,7 +379,7 @@ def camada_tubos(target, parametros, localizador):
             pos, _, fonte = localizado
             campos = {k: row[k] for k in ("num_tubo", "data", "localidade", "quarteirao", "situacao", "tipo")}
             features.append(_ponto(row["id_coleta"], pos, campos | {"fonte_coordenadas": fonte,
-                                  "rotulo": f"Tubo {row['num_tubo']}"}))
+                                  "vinculado_pe": _e_coleta_pe(row), "rotulo": f"Tubo {row['num_tubo']}"}))
     return colecao(features, "Coletas e resultados do laboratório VSATT")
 
 

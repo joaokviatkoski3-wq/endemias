@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Iterable, List, Optional, Tuple
+from flask import g, has_request_context
+
 from app_core import permissoes
 from app_core import setores
 
@@ -129,6 +131,15 @@ MODULES: Tuple[AppModule, ...] = (
         nav_section="Analise",
         description="Consolidado SisPNCD e contingencia do boletim TBO manual.",
         tags=("SisPNCD", "TBO"),
+    ),
+    AppModule(
+        key="pacientes_dengue",
+        title="Pacientes de dengue",
+        href="/pacientes-dengue",
+        endpoint="geovsatt.pacientes_dengue",
+        icon="prancheta.svg",
+        nav_section="Analise",
+        description="Notificações de dengue e mapas de bloqueio para o trabalho de campo.",
     ),
     AppModule(
         key="ovitrampas",
@@ -380,6 +391,18 @@ def can_access(module: AppModule, user) -> bool:
     level = (user or {}).get("nivel") if isinstance(user, dict) else None
     if LEVEL_ORDER.get(level or "visualizador", 0) < LEVEL_ORDER.get(module.min_level, 999):
         return False
+    if module.key == "pacientes_dengue":
+        if setores.atual() != "endemias" or not user or not user.get("id_usuario"):
+            return False
+        if not has_request_context():
+            return permissoes.permite(user, "tecnica")
+        if not hasattr(g, "pode_consultar_dengue"):
+            from app_core import blueprint_helpers as bh, geovsatt
+            from app_core import geovsatt_catalogo as catalogo
+            target = bh.db_target()
+            camada = catalogo.obter(target, "dengue", geovsatt.BASES)
+            g.pode_consultar_dengue = geovsatt.pode_ver_camada(target, camada, user)
+        return g.pode_consultar_dengue
     if module.required_permission and not permissoes.gerencia(user):
         return bool((user or {}).get(module.required_permission))
     return True

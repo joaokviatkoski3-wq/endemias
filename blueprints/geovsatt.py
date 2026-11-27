@@ -36,7 +36,10 @@ LIMITE_PACOTE_OFFLINE = 50 * 1024**2
 
 @bp.before_request
 def setor_do_mapa():
-    if setores.atual() != "geo":
+    setor = setores.atual()
+    if setor == "endemias" and request.endpoint in {"geovsatt.pacientes_dengue", "geovsatt.imprimir_dengue"}:
+        return
+    if setor != "geo":
         abort(403)
 
 
@@ -92,18 +95,35 @@ def _dados_dengue():
     try:
         _, localizador = _localizador(target, usuario)
         casos = list(vigilancia.preparar_dengue(target, localizador))
-        selecionados = vigilancia.filtrar_dengue(casos, request.args)
+        anos = sorted({str(caso["ano"]) for caso in casos} | {str(datetime.now().year)}, reverse=True)
+        ano = request.args.get("ano", str(datetime.now().year))
+        selecionados = vigilancia.filtrar_dengue(
+            (caso for caso in casos if not ano or str(caso["ano"]) == ano), request.args)
     except (OSError, ValueError):
         abort(400, "Confira o período e a configuração da base municipal de endereços.")
+    total = len(selecionados)
+    pendentes = sum(not row["centro"] for row in selecionados)
     if request.args.get("pendentes") == "1":
         selecionados = [row for row in selecionados if not row["centro"]]
     estado = dengue.estado(target)
     desatualizada = estado and datetime.fromisoformat(estado["sincronizado_em"]) < datetime.now(timezone.utc) - timedelta(minutes=30)
     return {"casos": selecionados, "sincronizacao": estado, "desatualizada": desatualizada,
-            "total": len(casos), "pendentes": sum(not row["centro"] for row in casos),
+            "total": total, "pendentes": pendentes, "ano": ano, "anos": anos,
             "configurado": dengue.configurado(current_app.config)}
 
 
+@bp.get("/pacientes-dengue")
+@login_required
+def pacientes_dengue():
+    if setores.atual() not in (None, "endemias"):
+        abort(404)
+    _acesso_dengue(bh.usuario_atual())
+    dados = _dados_dengue()
+    dados["casos"] = [caso for caso in dados["casos"] if caso["situacao"] != "Negativo ou descartado" or caso["ano"] < 2026]
+    return render_template("pacientes_dengue.html", **dados)
+
+
+@bp.get("/pacientes-dengue/<chave>/mapa-bloqueio")
 @bp.get("/geovsatt/dengue/<chave>/mapa-bloqueio")
 @login_required
 def imprimir_dengue(chave):
@@ -114,12 +134,15 @@ def imprimir_dengue(chave):
         evento = next(vigilancia.preparar_dengue(target, localizador, chave), None)
         if evento is None or not evento["centro"]:
             abort(404)
+        if evento["ano"] < 2026 or evento["situacao"] == "Negativo ou descartado":
+            abort(404)
         mapa = bloqueios.folha(target, _base_dir(), "dengue", evento, request.args, malha)
     except (OSError, ValueError) as exc:
         abort(400, str(exc) if isinstance(exc, ValueError) else "A base municipal de endereços está indisponível.")
     audit.registrar_evento(bh.get_db, "geovsatt_imprimir_bloqueio", "dengue", chave)
     return render_template("esporotricose_mapa_bloqueio.html", mapa=mapa, animal=None,
-        voltar=url_for("geovsatt.admin_catalogo", aba="dengue") if usuario["nivel"] == "superadmin" else url_for("geovsatt.page"),
+        voltar=url_for("geovsatt.pacientes_dengue") if setores.atual() == "endemias" else (
+            url_for("geovsatt.admin_catalogo", aba="dengue") if usuario["nivel"] == "superadmin" else url_for("geovsatt.page")),
         titulo="Mapa de bloqueio de dengue",
         setor_titulo="Vigilância de Endemias",
         referencia=[("Notificação", evento["notificacao"]), ("Data da notificação", evento["data_notificacao"]),
@@ -174,6 +197,7 @@ def coletas_tubo_csv():
     escritor.writeheader()
     for item in pendentes.values():
         dados = enderecos.campos_csv(item["endereco"])
+        dados["endereco_google_earth"] = item["endereco_earth"]
         if earth:
             dados = {"name": dados["chave"], "address": dados["endereco_google_earth"]}
         escritor.writerow({k: campo_csv(v) for k, v in dados.items()})
@@ -182,6 +206,26 @@ def coletas_tubo_csv():
     nome = "coletas-google-earth.csv" if earth else "coletas-enderecos-pendentes.csv"
     return send_file(BytesIO(texto.getvalue().encode("utf-8" if earth else "utf-8-sig")), mimetype="text/csv",
                      as_attachment=True, download_name=nome)
+
+
+@bp.post("/api/geovsatt/admin/coletas-tubo/posicao")
+@login_required
+@superadmin
+def coletas_tubo_posicao():
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or not isinstance(payload.get("id"), str) or not payload["id"]:
+        return jsonify(erro="Informe a coleta a reposicionar."), 400
+    target = bh.db_target()
+    try:
+        _, localizador = _localizador(target, bh.usuario_atual())
+        posicao = vigilancia.reposicionar_coleta(target, localizador, payload["id"],
+                                                 payload.get("latitude"), payload.get("longitude"))
+    except LookupError:
+        abort(404)
+    except ValueError as exc:
+        return jsonify(erro=str(exc)), 400
+    audit.registrar_evento(bh.get_db, "geovsatt_reposicionar_coleta", "coletas_tubos", payload["id"])
+    return jsonify(coordenadas=posicao, fonte="Ajuste no GeoVSATT")
 
 
 @bp.post("/api/geovsatt/admin/coletas-tubo/importar")

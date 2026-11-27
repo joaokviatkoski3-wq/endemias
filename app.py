@@ -355,9 +355,12 @@ def create_app(config_overrides=None):
         connection=db_core.connect(database_target)
         try:
             setores.ensure_schema(connection)
-            if flask_app.config["SETOR"] == "geo":
-                from app_core import geovsatt_catalogo, geovsatt_composicoes
+            setor = flask_app.config["SETOR"]
+            if setor == "geo" or (setor == "endemias" and db_core.is_sqlite(database_target)):
+                from app_core import geovsatt_catalogo
                 geovsatt_catalogo.ensure_schema(connection)
+            if setor == "geo":
+                from app_core import geovsatt_composicoes
                 geovsatt_composicoes.ensure_schema(connection)
         finally:
             connection.close()

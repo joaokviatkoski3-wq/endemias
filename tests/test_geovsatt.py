@@ -749,7 +749,7 @@ class GeoVSATTTests(unittest.TestCase):
         cabe = ["DATA NOTIFICAÇÃO", "Nº NOTIFICAÇÃO", "NOME", "ENDEREÇO", "RESULTADO", "DATA BLOQUEIO",
                 "LATITUDE", "LONGITUDE"]
         abas = {"2025": [cabe, ["12/10/2025", "9001", "Nome sintético", "", "Negativo"]],
-                "2026": [cabe, ["01/06/2026", "112", "Sigiloso", "Rua Ficticia, 10", "Positivo", "01/06/2026", lat, lon],
+                "2026": [cabe, ["01/06/2026", "112", "Sigiloso", "Rua fora do RG, 57", "Positivo", "01/06/2026", lat, lon],
                           ["01/06/2026", "113", "Sigiloso", "Rua Ficticia, 10", "", "", lat, lon],
                           ["01/06/2026", "113", "Sigiloso", "Rua Ficticia, 12", "", "", lat, lon]]}
         for _ in range(2):
@@ -762,6 +762,21 @@ class GeoVSATTTests(unittest.TestCase):
         resp = cliente.get("/api/geovsatt/camadas/dengue")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual([f["id"] for f in resp.json["features"]], ["2026:112"])
+        self.assertEqual(resp.json["features"][0]["properties"]["fonte_coordenadas"], "Google Sheets")
+        endemias = self.client(self.endemias)
+        pacientes = endemias.get("/pacientes-dengue?ano=2026")
+        self.assertIn(b"Imprimir mapa de bloqueio", pacientes.data)
+        self.assertNotIn(b"9001", pacientes.data)
+        historico = endemias.get("/pacientes-dengue?ano=2025")
+        self.assertIn(b"9001", historico.data)
+        self.assertNotIn(b"Imprimir mapa de bloqueio", historico.data)
+        self.assertEqual(cliente.get("/geovsatt/dengue/2025:9001/mapa-bloqueio").status_code, 404)
+        self.assertEqual(self.client(self.endemias, uid=3).get("/pacientes-dengue").status_code, 403)
+        self.assertEqual(self.client(self.endemias, uid=2).get("/pacientes-dengue").status_code, 404)
+        folha = endemias.get("/pacientes-dengue/2026:112/mapa-bloqueio")
+        self.assertIn(b"Raio de 200 m", folha.data)
+        self.assertNotIn(b"Sem visita registrada", folha.data)
+        self.assertNotIn(b'"execucao"', folha.data)
         self.assertNotIn(b'Sigiloso', resp.data)
         dados_admin = "/geovsatt/admin/camadas?aba=dengue"
         self.assertIn(b'Notifica', cliente.get(dados_admin).data)
@@ -864,6 +879,7 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(len(linhas), 1)
         chave = linhas[0]["chave"]
         self.assertIn("Almirante Tamandaré, Paraná, Brasil", linhas[0]["endereco_google_earth"])
+        self.assertNotIn("Localidade Ficticia", linhas[0]["endereco_google_earth"])
         earth_url = csv_url + "?destino=earth"
         self.assertEqual(self.client(uid=3).get(earth_url).status_code, 403)
         earth = cliente.get(earth_url)
@@ -890,6 +906,16 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual({f["id"] for f in feicoes}, {"a", "b", "d"})
         self.assertEqual(next(f["properties"]["fonte_coordenadas"] for f in feicoes if f["id"] == "d"),
                          "Google Earth")
+        ajuste = "/api/geovsatt/admin/coletas-tubo/posicao"
+        nova = {"id": "d", "latitude": lat + .002, "longitude": lon + .002}
+        self.assertEqual(self.client(uid=3).post(ajuste, json=nova).status_code, 403)
+        self.assertEqual(cliente.post(ajuste, json=nova | {"id": "a"}).status_code, 400)
+        self.assertEqual(cliente.post(ajuste, json=nova | {"id": "c"}).status_code, 404)
+        self.assertEqual(cliente.post(ajuste, json=nova | {"latitude": 40}).status_code, 400)
+        self.assertEqual(cliente.post(ajuste, json=nova).status_code, 200)
+        ajustada = next(f for f in cliente.get(camada).json["features"] if f["id"] == "d")
+        self.assertEqual(ajustada["geometry"]["coordinates"], [nova["longitude"], nova["latitude"]])
+        self.assertEqual(ajustada["properties"]["fonte_coordenadas"], "Ajuste no GeoVSATT")
 
     def test_cores_por_filtro_aparecem_no_catalogo_e_usam_seletor(self):
         cliente = self.client()

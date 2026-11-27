@@ -1,5 +1,6 @@
 
 """Recorte territorial do raio de bloqueio de Esporotricose."""
+from collections import defaultdict
 import json
 import math
 from functools import lru_cache
@@ -7,6 +8,7 @@ from pathlib import Path
 
 from shapely import make_valid
 from shapely.geometry import Polygon, box, mapping, shape
+from shapely.ops import linemerge, unary_union
 
 from app_core import registro_geografico
 
@@ -44,9 +46,9 @@ def _vias(arquivo, versao):
     return tuple((shape(f["geometry"]), f["properties"]["nome"]) for f in conteudo["features"])
 
 
-def _rotulos_ruas(base_dir, janela):
+def _rotulos_ruas(base_dir, janela, raio):
     arquivo = Path(base_dir) / "dados_referencia" / "esporotricose_ruas.geojson"
-    marcadores = {}
+    por_nome = defaultdict(list)
     try:
         vias = _vias(arquivo, arquivo.stat().st_mtime_ns)
     except (OSError, ValueError):
@@ -56,12 +58,19 @@ def _rotulos_ruas(base_dir, janela):
             continue
         recorte = geom.intersection(janela)
         for linha in getattr(recorte, "geoms", (recorte,)):
-            if linha.geom_type == "LineString" and (nome not in marcadores or linha.length > marcadores[nome].length):
-                marcadores[nome] = linha
-    ordenados = sorted(marcadores.items(), key=lambda item: item[1].length, reverse=True)
-    return [
-        {"nome": nome, "linha": [[y, x] for x, y in linha.coords]} for nome, linha in ordenados[:14]
-    ]
+            if linha.geom_type == "LineString" and not linha.is_empty:
+                por_nome[nome].append(linha)
+    marcadores = []
+    for nome, linhas in por_nome.items():
+        uniao = unary_union(linhas)
+        eixo = uniao if uniao.geom_type == "LineString" else linemerge(uniao)
+        trechos = tuple(getattr(eixo, "geoms", (eixo,)))
+        if trechos:
+            melhor = max(trechos, key=lambda linha: (linha.intersects(raio), linha.length))
+            marcadores.append((melhor.intersects(raio), melhor.length, nome, melhor))
+    marcadores.sort(key=lambda item: (-item[0], -item[1], item[2]))
+    return [{"nome": nome, "linha": [[y, x] for x, y in linha.coords]}
+            for _, _, nome, linha in marcadores]
 
 
 def mapa(target, base_dir, centro, raio_metros=RAIO_METROS, *, malha=None):
@@ -93,7 +102,7 @@ def mapa(target, base_dir, centro, raio_metros=RAIO_METROS, *, malha=None):
                               "parcial": not raio.covers(geometria)})
         camada["features"].append({"type": "Feature", "properties": {"codigo": codigo, "atingido": area > 0},
                                    "geometry": mapping(geometria.intersection(janela))})
-    return {"rotulos_ruas": _rotulos_ruas(base_dir, janela), "centro": list(centro), "raio_metros": raio_metros,
+    return {"rotulos_ruas": _rotulos_ruas(base_dir, janela, raio), "centro": list(centro), "raio_metros": raio_metros,
             "circulo": mapping(raio), "quarteiroes": camada,
             "atingidos": sorted(atingidos, key=lambda item: (item["localidade"], item["codigo"])),
             "camada_disponivel": base is not None}

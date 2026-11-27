@@ -438,6 +438,25 @@ verificações do instalador.
   e o enquadramento fica sob controle de quem usa o mapa. Está disponível
   também na cópia offline, com GPS e permissão de localização.
 
+## Operação de campo a partir da 2.30.0
+
+- O menu do GeoVSATT abre e recolhe os grupos de camadas. Nas camadas com
+  etiquetas, é possível exibir ou ocultar os rótulos mantendo a geometria.
+- No Endemias, **Pacientes de dengue** abre no ano corrente e permite consultar
+  as notificações de 2025 como histórico. A folha de 200 m está disponível
+  a partir de 2026 para notificações operacionais com localização validada.
+  As coordenadas AA e AB são conferidas com o limite do município. O RG
+  complementa a localização com o quarteirão quando há correspondência.
+- Em **Gerenciar camadas → Coletas de tubo**, o resumo distingue coletas,
+  resultados, endereços únicos e vínculos com pontos estratégicos.
+  O campo usado para geocodificar o CSV traz logradouro, número e município.
+  No mapa, o superadmin pode clicar na coleta e usar **Corrigir posição da
+  coleta**. Coletas de PE acompanham a posição do próprio cadastro do PE.
+- As folhas de bloqueio de dengue, esporotricose e ovitrampa exibem o raio,
+  os quarteirões atingidos e os nomes das vias da base cartográfica. Cabe uma
+  lista de duas colunas ao lado do mapa, com continuação quando necessário.
+  Consulte a folha de ovitrampa no histórico de uma leitura positiva.
+
 ## Coletas em lote na 2.29.1
 
 1. Em **Gerenciar camadas → Coletas de tubo**, use **Baixar CSV para Google

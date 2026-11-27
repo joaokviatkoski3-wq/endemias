@@ -61,6 +61,7 @@
   function create(map) {
     const centros = [];
     const eixos = [];
+    const ocultos = new Set();
     const pane = map.createPane('geo-rotulos');
     const overlay = svg('svg', {class: 'geo-rotulos', 'aria-hidden': 'true'});
     pane.append(overlay);
@@ -92,7 +93,9 @@
       let quantidade = 0;
       const porGrupo = new Map();
       for (const {layer, nome, bounds, options} of centros) {
-        if (zoom < options.zoom || zoom > options.zoomMax || !map.hasLayer(layer) || !vista.intersects(bounds)) continue;
+        const posicao = layer.getLatLng?.();
+        if (ocultos.has(options.group) || zoom < options.zoom || zoom > options.zoomMax || !map.hasLayer(layer) ||
+            (posicao ? !vista.contains(posicao) : !vista.intersects(bounds))) continue;
         if ((porGrupo.get(options.group) || 0) >= Math.ceil(maximo / 2)) continue;
         const centro = layer.getLatLng?.() || (layer instanceof L.Polygon ? layer.getCenter() : bounds.getCenter());
         const ponto = map.latLngToContainerPoint(centro);
@@ -110,7 +113,8 @@
       {
         const porNome = new Map();
         for (const {layer, nome, bounds, options} of eixos) {
-          if (zoom < options.zoom || zoom > options.zoomMax || !map.hasLayer(layer) || !vista.intersects(bounds)) continue;
+          if (ocultos.has(options.group) || zoom < options.zoom || zoom > options.zoomMax ||
+              !map.hasLayer(layer) || !vista.intersects(bounds)) continue;
           const trecho = maiorTrecho(map, layer, recorte);
           if (!trecho || trecho.comprimento < nome.length * options.size * .57 + 16) continue;
           const chave = `${options.group}:${nome}`;
@@ -155,8 +159,25 @@
       schedule();
     });
     map.on('resize', schedule);
+    function alternarTooltip(layer, nome, visivel) {
+      if (!visivel) layer.unbindTooltip();
+      else {
+        const texto = document.createElement('span');
+        texto.textContent = nome;
+        layer.bindTooltip(texto, {sticky: true});
+      }
+    }
+
     return {
       schedule,
+      mostrarGrupo(group, visivel) {
+        if (visivel) ocultos.delete(group);
+        else ocultos.add(group);
+        for (const item of [...centros, ...eixos]) {
+          if (item.options.group === group) alternarTooltip(item.layer, item.nome, visivel);
+        }
+        schedule();
+      },
       clearGroup(group) {
         for (const lista of [centros, eixos]) {
           for (let i = lista.length - 1; i >= 0; i -= 1) {
@@ -168,7 +189,9 @@
         const point = layer.getLatLng?.();
         const bounds = layer.getBounds?.() || (point && L.latLngBounds([point, point]));
         if (!bounds?.isValid()) return;
-        (options.along ? eixos : centros).push({layer, bounds, options, nome: String(nome).slice(0, 90)});
+        nome = String(nome).slice(0, 90);
+        (options.along ? eixos : centros).push({layer, bounds, options, nome});
+        if (!ocultos.has(options.group)) alternarTooltip(layer, nome, true);
       },
     };
   }

@@ -4,6 +4,15 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.30.0": {
+        "titulo": "Bloqueios de campo e correção de pontos no mapa",
+        "mudancas": [
+            "Abra e recolha os grupos de camadas e controle as etiquetas de cada camada.",
+            "Acesse Pacientes de dengue no Endemias para consultar as notificações e imprimir o bloqueio.",
+            "Veja a contagem de coletas e endereços pendentes e ajuste a posição de um tubo no mapa.",
+            "As folhas de campo destacam o raio, os quarteirões e as ruas.",
+        ],
+    },
     "2.29.1": {
         "titulo": "Coletas de tubo no Google Earth",
         "mudancas": [

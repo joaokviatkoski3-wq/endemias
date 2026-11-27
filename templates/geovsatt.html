@@ -161,8 +161,8 @@
         <template id="geo-campo-trabalhos">{{ filtros_trabalhos() }}</template>
         {% endif %}
         {% for grupo in catalogo.camadas|groupby('grupo') %}
-        <section class="geo-layer-group">
-          <h2>{{ grupo.grouper }}</h2>
+        <details class="geo-layer-group">
+          <summary>{{ grupo.grouper }}</summary>
           {% for camada in grupo.list %}
           <label class="geo-layer-row {{ 'is-pending' if not camada.disponivel }}" title="{{ camada.descricao }}">
             <input type="checkbox" data-layer="{{ camada.id }}" data-nome="{{ camada.nome }}" data-tipo="{{ camada.tipo }}"
@@ -174,6 +174,9 @@
             {% if not camada.disponivel %}<em>Em preparação</em>{% endif %}
           </label>
           {% if camada.disponivel %}
+          {% if camada.tipo != 'raster' and camada.estilo.rotulo_modo|default('') != 'oculto' %}
+          <label class="geo-layer-etiquetas" hidden><input type="checkbox" data-layer-labels="{{ camada.id }}" checked> Etiquetas <span class="sr-only">de {{ camada.nome }}</span></label>
+          {% endif %}
           <details class="geo-layer-key" id="geo-key-{{ camada.id }}" hidden>
             <summary>Legenda</summary>
             <ul></ul>
@@ -253,7 +256,7 @@
           </details>
           {% endif %}
           {% endfor %}
-        </section>
+        </details>
         {% endfor %}
       </div>
     </aside>
@@ -275,6 +278,14 @@
         <button id="geo-imprimir" type="button" aria-label="Compor e imprimir mapa" title="Compor e imprimir mapa"><img src="/static/icons/imprimir.svg" alt=""></button>
         {% if catalogo.pode_configurar %}<button id="geo-marcar-equipamento" type="button" aria-pressed="false" aria-label="Marcar novo equipamento" title="Marcar novo equipamento" data-destino="{{ url_for('geovsatt.admin_equipamento') }}"><img src="/static/icons/marcador.svg" alt=""></button>{% endif %}
       </div>
+      {% if catalogo.pode_configurar and not modo_offline %}
+      <section id="geo-ajuste-coleta" class="geo-ajuste-coleta" aria-label="Corrigir posição da coleta"
+               data-destino="{{ url_for('geovsatt.coletas_tubo_posicao') }}" hidden>
+        <strong>Corrigir posição da coleta</strong>
+        <p role="status">Arraste o marcador azul até o local correto.</p>
+        <div><button type="button" data-salvar>Salvar posição</button> <button type="button" data-cancelar>Cancelar</button></div>
+      </section>
+      {% endif %}
       <section id="geo-medicao" class="geo-medicao" aria-label="Medição" hidden>
         <strong id="geo-medicao-titulo"></strong>
         <p id="geo-medicao-resultado" role="status"></p>

@@ -18,8 +18,6 @@
   {% if mapa %}
   <form method="get">
     <label>Raio (m) <input type="number" name="raio" min="1" max="10000" value="{{ mapa.raio_metros }}" required></label>
-    <label>Visitas de <input type="date" name="visitas_inicio" value="{{ request.args.get('visitas_inicio', '') }}"></label>
-    <label>Até <input type="date" name="visitas_fim" value="{{ request.args.get('visitas_fim', '') }}"></label>
     <button type="submit">Atualizar mapa</button>
   </form>
   <button id="alternar-satelite" type="button" aria-pressed="false">Ver sem satélite</button>
@@ -50,20 +48,32 @@
   </dl>
   {% if mapa %}
   <p class="estado" id="mapa-estado" role="status">Carregando imagem e ruas…</p>
-  <div class="legenda"><span><i class="centro"></i> {{ "Ponto do animal" if animal else "Ponto de referência" }}</span><span><i class="raio"></i> Raio de {{ mapa.raio_metros }} m</span><span><i class="quarteirao"></i> Limite de quarteirão</span>{% if mapa.execucao %}<span><i class="executado"></i> Trabalhado</span><span><i class="pendente"></i> Sem visita registrada ou sem dados para cruzar</span><span><i class="fora"></i> Fora do raio operacional</span>{% endif %}</div>
+  <div class="legenda"><span><i class="centro"></i> {{ "Ponto do animal" if animal else "Ponto de referência" }}</span><span><i class="raio"></i> Raio de {{ mapa.raio_metros }} m</span><span><i class="quarteirao"></i> Limite de quarteirão</span></div>
   <section class="atingidos">
     <h2>Quarteirões atingidos</h2>
     {% if not mapa.camada_disponivel %}
       <p>A camada de quarteirões está indisponível.</p>
     {% elif mapa.atingidos %}
-      <ul>{% for q in mapa.atingidos %}<li>{{ q.codigo or 'Sem código' }}{% if q.localidade %} · {{ q.localidade }}{% endif %}{% if q.parcial %} (parcial){% endif %}</li>{% endfor %}</ul>
+      <ul id="lista-quarteiroes">{% for q in mapa.atingidos %}<li>{{ q.codigo or 'Sem código' }}{% if q.localidade %} · {{ q.localidade }}{% endif %}{% if q.parcial %} *{% endif %}</li>{% endfor %}</ul>
+      {% if mapa.atingidos|selectattr('parcial')|first %}<p class="nota-quarteirao">* Parcialmente dentro do raio</p>{% endif %}
     {% else %}
       <p>O raio não cruza nenhum quarteirão cadastrado na camada ativa.</p>
     {% endif %}
   </section>
+  <section id="ruas-no-quadro" class="ruas-sem-etiqueta" hidden>
+    <h2>Ruas sem etiqueta no mapa</h2><ul></ul>
+  </section>
   <p class="fonte">Ruas e quarteirões da base cartográfica local.</p>
     </aside>
   </div>
+  <section class="continuacao-bloqueio" id="continuacao-bloqueio" hidden>
+    <div id="quarteiroes-continuacao" hidden>
+      <h2>Quarteirões atingidos · continuação</h2><ul></ul>
+    </div>
+    <div id="ruas-continuacao" hidden>
+      <h2>Ruas do recorte sem espaço para etiqueta no mapa</h2><ul></ul>
+    </div>
+  </section>
   <script type="application/json" id="dados-bloqueio" nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">{{ mapa|tojson }}</script>
   <script src="/static/vendor/leaflet/leaflet.min.js" nonce="{{ csp_nonce() if csp_nonce is defined else '' }}"></script>
   <script src="/static/js/esporotricose_bloqueio.js?v={{ APP_VERSION }}" nonce="{{ csp_nonce() if csp_nonce is defined else '' }}"></script>

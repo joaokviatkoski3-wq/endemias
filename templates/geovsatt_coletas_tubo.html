@@ -10,16 +10,19 @@
     </div>
   </div>
   <div class="gc-metricas">
-    <div><strong>{{ total }}</strong><span>Endereços pendentes</span></div>
+    <div><strong>{{ coletas }}</strong><span>Coletas desde 01/01/2026</span></div>
+    <div><strong>{{ com_resultado }}</strong><span>Coletas com resultado</span></div>
+    <div><strong>{{ coletas - com_resultado }}</strong><span>Aguardando resultado</span></div>
+    <div><strong>{{ pe_georreferenciado + outras_localizadas }}</strong><span>Coletas localizadas</span></div>
+    <div><strong>{{ coletas_endereco_pendente }}</strong><span>Coletas nos {{ total }} endereços do CSV</span></div>
+    <div><strong>{{ pe_aguardando }}</strong><span>Coletas aguardando coordenadas do PE</span></div>
     <div><strong>{{ sem_endereco }}</strong><span>Coletas sem logradouro</span></div>
-    <div><strong>{{ pe_georreferenciado }}</strong><span>Tubos localizados pelo PE</span></div>
-    <div><strong>{{ pe_aguardando }}</strong><span>Tubos aguardando coordenadas do PE</span></div>
   </div>
   <p>As coletas de pontos estratégicos usam a posição do PE cadastrado. Assim que o cadastro tiver coordenadas, a coleta aparece no mapa.</p>
   <details>
     <summary>Como localizar endereços em lote no Google Earth</summary>
     <ol>
-      <li>Baixe o CSV para Google Earth. Ele contém a chave da coleta e o endereço completo.</li>
+      <li>Baixe o CSV para Google Earth. Cada linha reúne as coletas de um endereço. A busca usa logradouro, número e município.</li>
       <li>No Google Earth na web, abra <strong>Novo → Importar arquivo para o projeto do mapa → Fazer upload do dispositivo</strong>.</li>
       <li>Selecione o CSV e importe como <strong>Elementos do mapa</strong>. Aguarde o processamento e confira os pontos, mesmo que apareçam sem título.</li>
       <li>Use <strong>Arquivo → Exportar como arquivo KML</strong> e valide o arquivo de volta nesta página.</li>

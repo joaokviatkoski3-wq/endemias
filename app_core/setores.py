@@ -117,6 +117,8 @@ def permite_endpoint(endpoint):
     if blueprint in {'static','auth','ajuda','home','meteorologia','agenda','admin','controle_pessoal','processar'}:
         return True
     if setor=='endemias':
+        if endpoint in {"geovsatt.pacientes_dengue", "geovsatt.imprimir_dengue"}:
+            return True
         return blueprint in {'acoes_setor','bri','boletim_mensal','conta_ovos_sispncd',
             'consultas','exportacoes','formularios','laboratorio_lancamentos','liraa','mapa',
             'notificacoes','ovitrampas','pontos_estrategicos','recolhimentos','registro_geografico','relatorio_agente'}

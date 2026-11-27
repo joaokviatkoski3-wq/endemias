@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Pacientes de dengue{% endblock %}
+{% block page_title %}Pacientes de dengue{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Pacientes de dengue</h1>
+  <p class="sub">Consulte as notificações e imprima a folha de bloqueio de 200 m.</p>
+</div>
+<div class="filter-card">
+  <form method="get" class="filter-body open">
+    <div class="filter-grid">
+      <div class="f-g"><label for="dengue-ano">Ano da notificação</label>
+        <select id="dengue-ano" name="ano">
+          <option value="">Todo o histórico</option>
+          {% for item in anos %}<option value="{{ item }}" {% if item == ano %}selected{% endif %}>{{ item }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="f-g"><label for="dengue-inicio">De</label><input type="date" id="dengue-inicio" name="inicio" value="{{ request.args.get('inicio', '') }}"></div>
+      <div class="f-g"><label for="dengue-fim">Até</label><input type="date" id="dengue-fim" name="fim" value="{{ request.args.get('fim', '') }}"></div>
+      <div class="f-g"><label for="dengue-ubs">UBS</label><input id="dengue-ubs" name="unidade" value="{{ request.args.get('unidade', '') }}"></div>
+    </div>
+    <button type="submit" class="btn btn-primary">Filtrar</button>
+  </form>
+</div>
+<div class="table-scroll">
+  <table aria-label="Notificações de pacientes de dengue">
+    <thead><tr><th>Notificação</th><th>Data</th><th>UBS</th><th>Endereço</th><th>Situação</th><th>Bloqueio</th></tr></thead>
+    <tbody>
+      {% for caso in casos %}
+      <tr>
+        <td>{{ caso.notificacao or "Sem número" }}</td><td>{{ caso.data_notificacao or "—" }}</td>
+        <td>{{ caso.unidade or caso.origem or "—" }}</td>
+        <td>{{ caso.endereco or "—" }}{% if caso.localidade %}<br>{{ caso.localidade }}{% endif %}{% if caso.quarteirao %} · Q. {{ caso.quarteirao }}{% endif %}</td>
+        <td>{{ caso.resultado or caso.situacao }}</td>
+        <td>{% if caso.ano < 2026 %}Histórico
+          {% elif caso.centro %}<a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="{{ url_for('geovsatt.imprimir_dengue', chave=caso.id) }}">Imprimir mapa de bloqueio</a>
+          {% else %}{{ caso.estado }}{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">Nenhuma notificação neste período.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

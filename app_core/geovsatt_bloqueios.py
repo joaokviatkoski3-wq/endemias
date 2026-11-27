@@ -206,10 +206,7 @@ def evento_ovitrampa(row):
 
 
 def folha(target, base_dir, fonte, evento, parametros, malha):
-    raio, periodo = parametros_impressao(parametros, fonte)
+    raio, _ = parametros_impressao(parametros, fonte)
     if not evento["centro"]:
         return None
-    mapa = esporotricose_bloqueio.mapa(target, base_dir, evento["centro"], raio, malha=malha)
-    mapa["execucao"] = {"type": "FeatureCollection", "features": execucao(
-        target, fonte, [evento], malha, periodo=periodo, raio_mapa=raio)}
-    return mapa
+    return esporotricose_bloqueio.mapa(target, base_dir, evento["centro"], raio, malha=malha)

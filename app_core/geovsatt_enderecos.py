@@ -73,10 +73,11 @@ def campos_csv(endereco):
 
 def ensure_schema(conn):
     if conn.backend == "sqlite":
-        sql = (Path(__file__).resolve().parents[1] / "migrations/postgresql/0049_geovsatt_vigilancia.sql").read_text()
-        for comando in sql.split(";"):
-            if comando.strip():
-                conn.execute(comando)
+        pasta = Path(__file__).resolve().parents[1] / "migrations" / "postgresql"
+        for nome in ("0049_geovsatt_vigilancia.sql", "0050_geovsatt_posicoes_coletas.sql"):
+            for comando in (pasta / nome).read_text(encoding="utf-8").split(";"):
+                if comando.strip():
+                    conn.execute(comando)
 
 
 def _camadas_geometricas(target, bases, malha):
@@ -164,7 +165,7 @@ class Localizador:
                 for bairro, chave in self.rg.get((tuple(opcao.via), opcao.numero), ())
                 if not opcao.localidade or opcao.localidade == list(bairro)}
 
-    def validar(self, coordenadas, esperado=None):
+    def validar(self, coordenadas, esperado=None, *, aceitar_sem_quarteirao=False):
         if coordenadas is None:
             return None
         lat, lon = coordenadas
@@ -182,24 +183,27 @@ class Localizador:
             return blocos.get(esperado)
         if len(blocos) == 1:
             return next(iter(blocos.values()))
-        if not blocos and self.limite is not None:
+        if self.limite is not None and (not blocos or aceitar_sem_quarteirao):
             return {}
         return None
 
-    def localizar(self, endereco, *, coordenadas=None, esperado=None):
+    def localizar(self, endereco, *, coordenadas=None, esperado=None, localidade_ubs=False):
         if not endereco:
             return None
-        cache_key = (chave_endereco(endereco), coordenadas, esperado)
+        # O nome da área de UBS não é o bairro do CNEFE. Para relaxar esse
+        # filtro na coleta, exigimos a confirmação pelo quarteirão da visita.
+        conferir_bairro = not (localidade_ubs and esperado)
+        cache_key = (chave_endereco(endereco), coordenadas, esperado, conferir_bairro)
         if cache_key in self.cache:
             return self.cache[cache_key]
         candidatas_rg = self._rg(endereco)
         if esperado is None and len(candidatas_rg) == 1:
             esperado = next(iter(candidatas_rg))
-        resultado = self._buscar(endereco, coordenadas, esperado, len(candidatas_rg))
+        resultado = self._buscar(endereco, coordenadas, esperado, len(candidatas_rg), conferir_bairro)
         self.cache[cache_key] = resultado
         return resultado
 
-    def _buscar(self, endereco, coordenadas, esperado, total_rg):
+    def _buscar(self, endereco, coordenadas, esperado, total_rg, conferir_bairro):
         salvo = self.verificados.get(chave_endereco(endereco))
         if salvo:
             pos = ponto(salvo["latitude"], salvo["longitude"])
@@ -214,7 +218,7 @@ class Localizador:
         if self.cnefe:
             for opcao in variantes(endereco):
                 for bairro, cep_base, pos in self.cnefe.get((tuple(opcao.via), opcao.numero), ()):
-                    if (opcao.localidade and list(bairro) != opcao.localidade
+                    if (conferir_bairro and opcao.localidade and list(bairro) != opcao.localidade
                             or cep and "".join(cep.groups()) != cep_base.replace("-", "")):
                         continue
                     alternativas.add(pos)

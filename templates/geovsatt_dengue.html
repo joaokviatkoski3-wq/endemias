@@ -24,6 +24,10 @@
   </div>
     <form method="get" class="gc-filtros">
       <input type="hidden" name="aba" value="dengue">
+      <label>Ano <select name="ano">
+        <option value="">Todo o histórico</option>
+        {% for item in anos %}<option value="{{ item }}" {% if item == ano %}selected{% endif %}>{{ item }}</option>{% endfor %}
+      </select></label>
       <label>Notificações de <input type="date" name="inicio" value="{{ request.args.get('inicio', '') }}"></label>
       <label>Até <input type="date" name="fim" value="{{ request.args.get('fim', '') }}"></label>
       <label>Localidade <input name="localidade" value="{{ request.args.get('localidade', '') }}"></label>
@@ -40,7 +44,7 @@
         <td>{{ caso.ano }}</td><td>{{ caso.notificacao or "Sem número" }}</td><td>{{ caso.data_notificacao or "—" }}</td>
         <td>{{ caso.localidade or "—" }}{% if caso.quarteirao %} · Q. {{ caso.quarteirao }}{% endif %}</td>
         <td>{{ caso.resultado or caso.situacao }}</td><td>{{ caso.estado }}</td>
-        <td>{% if caso.centro %}<a href="{{ url_for('geovsatt.imprimir_dengue', chave=caso.id) }}">Imprimir mapa de bloqueio</a>{% else %}—{% endif %}</td>
+        <td>{% if caso.ano < 2026 %}Histórico{% elif caso.centro and caso.situacao != 'Negativo ou descartado' %}<a href="{{ url_for('geovsatt.imprimir_dengue', chave=caso.id) }}">Imprimir mapa de bloqueio</a>{% else %}—{% endif %}</td>
       </tr>
       {% else %}
       <tr><td colspan="7">Nenhuma notificação neste recorte.</td></tr>

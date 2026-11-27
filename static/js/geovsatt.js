@@ -129,11 +129,74 @@ function iniciarGeoVSATT() {
       Math.min(180, bounds.getEast()), Math.min(90, bounds.getNorth())];
   });
   const labels = window.GeoVSATTRotulos.create(map);
+  const controlesEtiquetas = new Map([...document.querySelectorAll('[data-layer-labels]')]
+    .map(input => [input.dataset.layerLabels, input]));
+  for (const [id, controle] of controlesEtiquetas) {
+    labels.mostrarGrupo(id, controle.checked);
+    controle.addEventListener('change', () => labels.mostrarGrupo(id, controle.checked));
+  }
   const measure = window.GeoVSATTMedicao.create(map, (pontos, incluir_condominios) => api('/api/geovsatt/populacao', {
     method: 'POST',
     headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content},
     body: JSON.stringify({pontos, incluir_condominios}),
   }));
+  const painelColeta = document.getElementById('geo-ajuste-coleta');
+  let ajusteColeta;
+  function fecharAjusteColeta() {
+    ajusteColeta?.marcador.remove();
+    ajusteColeta = null;
+    if (painelColeta) painelColeta.hidden = true;
+  }
+
+  function abrirAjusteColeta(feature, layer) {
+    if (ajusteColeta?.salvando) return;
+    fecharAjusteColeta();
+    map.closePopup();
+    const marcador = L.marker(layer.getLatLng(), {draggable: true, zIndexOffset: 1000,
+      title: 'Arraste até o local correto da coleta'}).addTo(map);
+    ajusteColeta = {marcador, feature, layer, salvando: false};
+    painelColeta.querySelector('[role="status"]').textContent = 'Arraste o marcador azul até o local correto.';
+    painelColeta.hidden = false;
+    painelColeta.querySelector('[data-salvar]').focus();
+  }
+
+  if (painelColeta) {
+    const salvar = painelColeta.querySelector('[data-salvar]');
+    const cancelar = painelColeta.querySelector('[data-cancelar]');
+    const mensagem = painelColeta.querySelector('[role="status"]');
+    cancelar.addEventListener('click', fecharAjusteColeta);
+    salvar.addEventListener('click', async () => {
+      if (!ajusteColeta || ajusteColeta.salvando) return;
+      const atual = ajusteColeta;
+      const {lat, lng} = atual.marcador.getLatLng();
+      atual.salvando = salvar.disabled = cancelar.disabled = true;
+      atual.marcador.dragging.disable();
+      mensagem.textContent = 'Salvando a posição…';
+      try {
+        const resultado = await api(painelColeta.dataset.destino, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content},
+          body: JSON.stringify({id: atual.feature.id, latitude: lat, longitude: lng}),
+        });
+        atual.layer.setLatLng(resultado.coordenadas);
+        atual.feature.geometry.coordinates = [...resultado.coordenadas].reverse();
+        atual.feature.properties.fonte_coordenadas = resultado.fonte;
+        labels.schedule();
+        updateBounds();
+        fecharAjusteColeta();
+        statusNode.textContent = 'Posição da coleta atualizada.';
+      } catch (erro) {
+        mensagem.textContent = erro.message;
+        atual.marcador.dragging.enable();
+      } finally {
+        atual.salvando = salvar.disabled = cancelar.disabled = false;
+      }
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && ajusteColeta && !ajusteColeta.salvando) fecharAjusteColeta();
+    });
+  }
+
   if (marcarEquipamento) {
     const alternarMarcacao = ativo => {
       marcandoEquipamento = ativo;
@@ -502,7 +565,8 @@ function iniciarGeoVSATT() {
           labels.add(layer, label, {along, group: id, zoom: zoomMin, zoomMax,
             color: config.rotulo_cor || base.labelColor, size: config.rotulo_tamanho ?? (along ? 11 : 12),
             halo: config.rotulo_halo, haloColor: config.rotulo_halo_cor});
-          layer.bindTooltip(element('span', '', label), {sticky: true});
+          const controle = controlesEtiquetas.get(id);
+          if (controle) controle.closest('label').hidden = false;
         }
         if (isLine && trace === 'ferrovia') {
           const sleepers = L.polyline(layer.getLatLngs(), {pane, interactive: false, color: simboloDaFeicao(feature).color,
@@ -512,7 +576,7 @@ function iniciarGeoVSATT() {
           layer.on('remove', () => sleepers.remove());
         }
         layer.on('click', event => {
-          if (measure.active() || marcandoEquipamento) return;
+          if (measure.active() || marcandoEquipamento || ajusteColeta) return;
           if (id === 'quarteiroes' && podeRg && props.chave) showBlock(props.Localidade, props.id_quart, layer);
           else {
             let action;
@@ -520,7 +584,12 @@ function iniciarGeoVSATT() {
             if (Number.isInteger(indice) && feature.geometry.type === 'Point') {
               action = element('a', 'geo-feature-action', 'Editar equipamento');
               action.href = `/geovsatt/admin/equipamentos/${data.metadata.versao}/${indice}/editar`;
-            } else if (['dengue', 'dengue_bloqueios'].includes(id) && typeof feature.id === 'string') {
+            } else if (id === 'coletas_tubos' && painelColeta && !props.vinculado_pe) {
+              action = element('button', 'geo-feature-action', 'Corrigir posição da coleta');
+              action.type = 'button';
+              action.addEventListener('click', () => abrirAjusteColeta(feature, layer));
+            } else if (['dengue', 'dengue_bloqueios'].includes(id) && typeof feature.id === 'string' &&
+                       props.ano >= 2026 && props.situacao !== 'Negativo ou descartado') {
               action = element('a', 'geo-feature-action', 'Imprimir mapa de bloqueio');
               action.href = '/geovsatt/dengue/' + encodeURIComponent(feature.id) + '/mapa-bloqueio';
             } else if (mapNode.dataset.endemias && ['ovitrampas', 'ovitrampas_bloqueios'].includes(id) && props.leitura_bloqueio) {
