@@ -13,6 +13,7 @@ ORIGENS = frozenset({
 })
 CLASSIFICACOES = frozenset({"pendente", "justificada", "abonada", "injustificada"})
 TIPOS = frozenset({"folga", "falta"})
+FONTES_COMPENSACAO = frozenset({"credito", "ferias", "dia_trabalhado"})
 MAX_ID = 2**63 - 1
 
 try:
@@ -99,6 +100,27 @@ def ensure_schema(conn):
     )
     for comando in comandos:
         conn.execute(comando)
+    if "unidades_adiantadas" not in {col[1] for col in conn.execute("PRAGMA table_info(pessoal_ocorrencias)")}:
+        conn.execute("""ALTER TABLE pessoal_ocorrencias
+            ADD COLUMN unidades_adiantadas INTEGER NOT NULL DEFAULT 0
+            CHECK (unidades_adiantadas BETWEEN 0 AND unidades)""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS pessoal_folga_compensacoes (
+        id_compensacao INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_agente INTEGER NOT NULL,
+        id_ocorrencia INTEGER NOT NULL,
+        id_credito INTEGER,
+        origem TEXT NOT NULL CHECK (origem IN ('credito', 'ferias', 'dia_trabalhado')),
+        unidades INTEGER NOT NULL CHECK (unidades IN (1, 2)),
+        motivo TEXT NOT NULL,
+        criado_por INTEGER NOT NULL REFERENCES usuarios(id_usuario),
+        criado_em TEXT NOT NULL,
+        CHECK ((origem = 'credito') = (id_credito IS NOT NULL)),
+        FOREIGN KEY (id_ocorrencia, id_agente) REFERENCES pessoal_ocorrencias(id_ocorrencia, id_agente),
+        FOREIGN KEY (id_credito, id_agente) REFERENCES pessoal_folga_creditos(id_credito, id_agente)
+    )""")
+    for coluna in ("ocorrencia", "credito", "agente"):
+        conn.execute(f"""CREATE INDEX IF NOT EXISTS idx_pessoal_compensacoes_{coluna}
+                         ON pessoal_folga_compensacoes(id_{coluna})""")
 
 
 def _postgresql(conn):
@@ -243,30 +265,25 @@ def _validar_dia(conn, id_agente, dia, dia_inteiro, inicio, fim, unidades):
         raise Conflito("O servidor já tem um dia de folga registrado nesta data.")
 
 
-def _alocar_creditos(conn, id_agente, dia, unidades):
-    creditos = conn.execute(
-        """SELECT c.id_credito, c.unidades - COALESCE(SUM(
-                   CASE WHEN o.status <> 'cancelada' THEN m.unidades ELSE 0 END
-               ), 0) AS restante
-             FROM pessoal_folga_creditos c
-        LEFT JOIN pessoal_folga_consumos m ON m.id_credito=c.id_credito
-        LEFT JOIN pessoal_ocorrencias o ON o.id_ocorrencia=m.id_ocorrencia
-            WHERE c.id_agente=? AND c.cancelado_em IS NULL AND c.data_aquisicao<=? AND c.validade>=?
-         GROUP BY c.id_credito, c.unidades, c.validade, c.data_aquisicao
-         ORDER BY c.validade, c.data_aquisicao, c.id_credito""",
-        (id_agente, dia, dia),
-    ).fetchall()
-    restante = unidades
+def _alocar_creditos(conn, id_agente, dia, unidades, *, preservar_divida=False):
+    dia_iso = dia.isoformat()
+    creditos = [_serializar_credito(row, dia) for row in _creditos_por_servidor(conn, id_agente)
+                if str(row["data_aquisicao"]) <= dia_iso]
+    total = sum(credito["disponivel"] for credito in creditos)
+    if preservar_divida:
+        for item in _dividas(conn, id_agente):
+            total -= item["pendente"]
+    restante = min(unidades, max(0, total))
     alocacoes = []
     for credito in creditos:
-        alocado = min(credito["restante"], restante)
+        alocado = min(credito["disponivel"], restante)
         if alocado <= 0:
             continue
         alocacoes.append((credito["id_credito"], alocado))
         restante -= alocado
         if not restante:
-            return alocacoes
-    raise Conflito("Não há saldo de folga suficiente com validade na data escolhida.")
+            break
+    return alocacoes
 
 
 def criar_ocorrencia(conn, dados, ator, setor):
@@ -275,6 +292,11 @@ def criar_ocorrencia(conn, dados, ator, setor):
     dia = _data(dados.get("data"), "Data da ocorrência")
     dia_inteiro, inicio, fim = _horarios(dados)
     observacao = _texto(dados.get("observacao"), "observação administrativa", 1000)
+    autorizar_adiantamento = dados.get("autorizar_adiantamento", False)
+    if type(autorizar_adiantamento) is not bool or (autorizar_adiantamento and tipo != "folga"):
+        raise ValueError("O adiantamento se aplica somente às folgas.")
+    if autorizar_adiantamento and not observacao:
+        raise ValueError("Informe o motivo da folga excepcional.")
     setor = _setor(setor)
     classificacao = dados.get("classificacao")
     if tipo == "falta":
@@ -295,15 +317,18 @@ def criar_ocorrencia(conn, dados, ator, setor):
     status = "agendada" if tipo == "folga" else "registrada"
     data_iso = dia.isoformat()
     _validar_dia(conn, id_agente, data_iso, dia_inteiro, inicio, fim, unidades)
-    alocacoes = _alocar_creditos(conn, id_agente, data_iso, unidades) if unidades else []
+    alocacoes = _alocar_creditos(conn, id_agente, dia, unidades, preservar_divida=True) if unidades else []
+    adiantadas = unidades - sum(valor for _, valor in alocacoes)
+    if adiantadas and not autorizar_adiantamento:
+        raise Conflito("Não há saldo de folga suficiente com validade na data escolhida.")
     id_ocorrencia = db.insert_and_get_id(
         conn,
         """INSERT INTO pessoal_ocorrencias
            (id_agente, data, tipo, dia_inteiro, hora_inicio, hora_fim, unidades, status,
-            classificacao, observacao, setor, criado_por, criado_em)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            classificacao, observacao, setor, criado_por, criado_em, unidades_adiantadas)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (id_agente, data_iso, tipo, int(dia_inteiro), inicio, fim, unidades, status,
-         classificacao, observacao, setor, ator, _carimbo(agora)),
+         classificacao, observacao, setor, ator, _carimbo(agora), adiantadas),
         "id_ocorrencia",
     )
     if alocacoes:
@@ -325,6 +350,8 @@ def _registro_para_editar(conn, tabela, chave, identificador, rotulo):
     if _postgresql(conn):
         # A leitura anterior só identifica o servidor. Releia o estado com o lock.
         registro = conn.execute(sql, (identificador,)).fetchone()
+        if not registro:
+            raise NaoEncontrado(f"{rotulo} não existe.")
     return registro
 
 
@@ -357,6 +384,8 @@ def cancelar_ocorrencia(conn, id_ocorrencia, motivo, ator):
     registro = _registro_para_editar(conn, "pessoal_ocorrencias", "id_ocorrencia", id_ocorrencia, "A ocorrência")
     if registro["status"] == "cancelada":
         raise Conflito("Essa ocorrência já foi cancelada.")
+    if _total_compensado(conn, id_ocorrencia):
+        raise Conflito("Reverta as compensações desta folga antes de cancelar.")
     conn.execute(
         """UPDATE pessoal_ocorrencias SET status='cancelada', cancelado_por=?, cancelado_em=?, motivo_cancelamento=?
             WHERE id_ocorrencia=?""",
@@ -365,20 +394,26 @@ def cancelar_ocorrencia(conn, id_ocorrencia, motivo, ator):
     return id_ocorrencia
 
 
+def _exigir_credito_livre(conn, id_credito):
+    consumido = conn.execute(
+        """SELECT 1 FROM pessoal_folga_consumos m
+             JOIN pessoal_ocorrencias o ON o.id_ocorrencia=m.id_ocorrencia
+            WHERE m.id_credito=? AND o.status <> 'cancelada' LIMIT 1""",
+        (id_credito,),
+    ).fetchone()
+    if consumido:
+        raise Conflito("O crédito tem folga reservada ou utilizada. Revise as ocorrências vinculadas.")
+    if conn.execute("SELECT 1 FROM pessoal_folga_compensacoes WHERE id_credito=? LIMIT 1", (id_credito,)).fetchone():
+        raise Conflito("Reverta as compensações vinculadas a este crédito primeiro.")
+
+
 def cancelar_credito(conn, id_credito, motivo, ator):
     id_credito = _inteiro(id_credito, "Identificador do crédito")
     motivo = _texto(motivo, "o motivo do cancelamento", 500, obrigatorio=True)
     registro = _registro_para_editar(conn, "pessoal_folga_creditos", "id_credito", id_credito, "O crédito")
     if registro["cancelado_em"]:
         raise Conflito("Esse crédito já foi cancelado.")
-    tem_consumo = conn.execute(
-        """SELECT 1 FROM pessoal_folga_consumos m
-             JOIN pessoal_ocorrencias o ON o.id_ocorrencia=m.id_ocorrencia
-            WHERE m.id_credito=? AND o.status <> 'cancelada' LIMIT 1""",
-        (id_credito,),
-    ).fetchone()
-    if tem_consumo:
-        raise Conflito("O crédito tem folga reservada ou utilizada. Revise as ocorrências vinculadas.")
+    _exigir_credito_livre(conn, id_credito)
     conn.execute(
         """UPDATE pessoal_folga_creditos SET cancelado_por=?, cancelado_em=?, motivo_cancelamento=?
             WHERE id_credito=?""",
@@ -404,8 +439,90 @@ def classificar_falta(conn, id_ocorrencia, classificacao, motivo, ator):
     return id_ocorrencia
 
 
+def _total_compensado(conn, id_ocorrencia):
+    return conn.execute(
+        "SELECT COALESCE(SUM(unidades), 0) FROM pessoal_folga_compensacoes WHERE id_ocorrencia=?",
+        (id_ocorrencia,),
+    ).fetchone()[0]
+
+
+def compensar_folga(conn, id_ocorrencia, dados, ator):
+    id_ocorrencia = _inteiro(id_ocorrencia, "Identificador da ocorrência")
+    unidades = _inteiro(dados.get("unidades"), "Número de meios períodos", 2)
+    origem = _escolha(dados.get("origem"), FONTES_COMPENSACAO, "Origem")
+    motivo = _texto(dados.get("motivo"), "o motivo ou referência da compensação", 500, obrigatorio=True)
+    registro = _registro_para_editar(conn, "pessoal_ocorrencias", "id_ocorrencia", id_ocorrencia, "A ocorrência")
+    if registro["status"] != "utilizada" or unidades > registro["unidades_adiantadas"] - _total_compensado(conn, id_ocorrencia):
+        raise Conflito("A compensação deve corresponder a um débito em aberto de folga utilizada.")
+    agora = _agora()
+    alocacoes = [(None, unidades)]
+    if origem == "credito":
+        alocacoes = _alocar_creditos(conn, registro["id_agente"], agora.date(), unidades)
+        if sum(valor for _, valor in alocacoes) != unidades:
+            raise Conflito("Não há créditos vigentes suficientes para compensar esse débito.")
+    return [
+        db.insert_and_get_id(
+            conn,
+            """INSERT INTO pessoal_folga_compensacoes
+               (id_agente,id_ocorrencia,id_credito,origem,unidades,motivo,criado_por,criado_em)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (registro["id_agente"], id_ocorrencia, id_credito, origem, valor, motivo, ator, _carimbo(agora)),
+            "id_compensacao",
+        )
+        for id_credito, valor in alocacoes
+    ]
+
+
+def apagar_registro(conn, categoria, identificador):
+    alvos = {
+        "creditos": ("pessoal_folga_creditos", "id_credito"),
+        "ocorrencias": ("pessoal_ocorrencias", "id_ocorrencia"),
+        "compensacoes": ("pessoal_folga_compensacoes", "id_compensacao"),
+    }
+    tabela, chave = alvos[categoria]
+    identificador = _inteiro(identificador, "Identificador do registro")
+    registro = _registro_para_editar(conn, tabela, chave, identificador, "O registro")
+    if categoria == "creditos":
+        _exigir_credito_livre(conn, identificador)
+    if categoria == "ocorrencias" and _total_compensado(conn, identificador):
+        raise Conflito("Reverta as compensações desta folga antes de apagá-la.")
+    if categoria != "compensacoes":
+        conn.execute(f"DELETE FROM pessoal_folga_consumos WHERE {chave}=?", (identificador,))
+    conn.execute(f"DELETE FROM {tabela} WHERE {chave}=?", (identificador,))
+    return registro["id_agente"]
+
+
+def apagar_historico(conn, id_agente):
+    id_agente = _inteiro(id_agente, "Servidor")
+    _bloquear_servidor(conn, id_agente)
+    apagados = {}
+    for tabela in ("pessoal_folga_compensacoes", "pessoal_folga_consumos", "pessoal_ocorrencias", "pessoal_folga_creditos"):
+        apagados[tabela] = conn.execute(f"DELETE FROM {tabela} WHERE id_agente=?", (id_agente,)).rowcount
+    if not any(apagados.values()):
+        raise Conflito("O servidor já está sem lançamentos.")
+    return apagados
+
+
+def _dividas(conn, id_agente=None):
+    filtro = "AND o.id_agente=?" if id_agente is not None else ""
+    return conn.execute(
+        f"""SELECT o.id_agente, o.status,
+                   CAST(SUM(o.unidades_adiantadas - COALESCE(c.pagas, 0)) AS BIGINT) AS pendente
+              FROM pessoal_ocorrencias o
+              LEFT JOIN (
+                  SELECT id_ocorrencia, SUM(unidades) AS pagas
+                    FROM pessoal_folga_compensacoes GROUP BY id_ocorrencia
+              ) c ON c.id_ocorrencia=o.id_ocorrencia
+             WHERE o.unidades_adiantadas>0 AND o.status IN ('agendada', 'utilizada') {filtro}
+             GROUP BY o.id_agente, o.status""",
+        (id_agente,) if id_agente is not None else (),
+    ).fetchall()
+
+
 _OCORRENCIAS_SQL = """
-    SELECT o.*, COALESCE(NULLIF(TRIM(a.nome_completo), ''), a.nome) AS nome
+    SELECT o.*, COALESCE(NULLIF(TRIM(a.nome_completo), ''), a.nome) AS nome,
+           COALESCE((SELECT SUM(c.unidades) FROM pessoal_folga_compensacoes c
+                     WHERE c.id_ocorrencia=o.id_ocorrencia), 0) AS unidades_compensadas
       FROM pessoal_ocorrencias o
       JOIN agentes a ON a.id_agente=o.id_agente
 """
@@ -419,6 +536,8 @@ def _serializar_ocorrencia(registro, agora):
             item[campo] = item[campo][:5]
     if item["status"] == "agendada" and _periodo_encerrado(registro, agora):
         item["status"] = "aguardando_confirmacao"
+    item["unidades_pendentes"] = (0 if item["status"] == "cancelada"
+                                 else item["unidades_adiantadas"] - item["unidades_compensadas"])
     return item
 
 
@@ -448,7 +567,9 @@ def _creditos_por_servidor(conn, id_agente=None):
     return conn.execute(
         f"""SELECT c.*,
                    COALESCE(m.reservado, 0) AS reservado,
-                   COALESCE(m.utilizado, 0) AS utilizado
+                   COALESCE(m.utilizado, 0) AS utilizado,
+                   COALESCE((SELECT SUM(p.unidades) FROM pessoal_folga_compensacoes p
+                             WHERE p.id_credito=c.id_credito), 0) AS compensado
               FROM pessoal_folga_creditos c
          LEFT JOIN (
                 SELECT m.id_credito,
@@ -468,7 +589,7 @@ def _serializar_credito(registro, hoje):
     credito = db.serialize_row(registro)
     credito.update(disponivel=0, expirado=0, status="cancelado")
     if not credito["cancelado_em"]:
-        restante = credito["unidades"] - credito["reservado"] - credito["utilizado"]
+        restante = credito["unidades"] - credito["reservado"] - credito["utilizado"] - credito["compensado"]
         if restante <= 0:
             credito["status"] = "esgotado"
         elif credito["validade"] < hoje.isoformat():
@@ -488,6 +609,9 @@ def _saldo_inicial(servidor):
         "reservado": 0,
         "utilizado": 0,
         "expirado": 0,
+        "compensado": 0,
+        "adiantado_reservado": 0,
+        "em_debito": 0,
         "a_vencer": 0,
         "proximo_vencimento": None,
     }
@@ -497,7 +621,7 @@ def _somar_credito(saldo, credito, limite):
     if credito["status"] == "cancelado":
         return
     saldo["concedido"] += credito["unidades"]
-    for campo in ("disponivel", "reservado", "utilizado", "expirado"):
+    for campo in ("disponivel", "reservado", "utilizado", "expirado", "compensado"):
         saldo[campo] += credito[campo]
     if credito["disponivel"]:
         prazo = credito["validade"]
@@ -525,7 +649,28 @@ def _saldos(conn, hoje, id_agente=None):
         if saldo:
             _somar_credito(saldo, credito, limite)
             creditos.append(credito)
+    for item in _dividas(conn, id_agente):
+        campo = "em_debito" if item["status"] == "utilizada" else "adiantado_reservado"
+        saldos[item["id_agente"]][campo] += item["pendente"]
+    for saldo in saldos.values():
+        saldo["saldo_liquido"] = saldo["disponivel"] - saldo["em_debito"] - saldo["adiantado_reservado"]
     return list(saldos.values()), creditos
+
+
+def listar_compensacoes(conn, id_agente=None, inicio=None, fim=None):
+    filtros, params = [], []
+    for condicao, valor in (("c.id_agente=?", id_agente),
+                             ("substr(c.criado_em,1,10)>=?", inicio), ("substr(c.criado_em,1,10)<?", fim)):
+        if valor is not None:
+            filtros.append(condicao)
+            params.append(valor)
+    where = " WHERE " + " AND ".join(filtros) if filtros else ""
+    return [db.serialize_row(row) for row in conn.execute(
+        """SELECT c.*, o.data AS data_folga, COALESCE(NULLIF(TRIM(a.nome_completo), ''), a.nome) AS nome
+             FROM pessoal_folga_compensacoes c JOIN pessoal_ocorrencias o ON o.id_ocorrencia=c.id_ocorrencia
+             JOIN agentes a ON a.id_agente=c.id_agente""" + where
+        + " ORDER BY c.criado_em DESC, c.id_compensacao DESC", params,
+    ).fetchall()]
 
 
 def listar_saldos(conn, id_agente=None):
@@ -560,4 +705,5 @@ def extrato(conn, id_agente):
         "creditos": creditos,
         "ocorrencias": [_serializar_ocorrencia(row, agora) for row in ocorrencias],
         "consumos": [dict(row) for row in consumos],
+        "compensacoes": listar_compensacoes(conn, id_agente),
     }

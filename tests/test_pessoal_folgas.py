@@ -3,7 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing, redirect_stdout
 from datetime import datetime
-from io import StringIO
+from io import BytesIO, StringIO
 from pathlib import Path
 import re
 import shutil
@@ -325,3 +325,91 @@ class PessoalFolgasTests(unittest.TestCase):
         extrato = self.extrato(agente=13)
         self.assertEqual(extrato["consumos"][0]["id_credito"], credito)
         self.assertEqual(extrato["consumos"][0]["status"], "cancelado")
+
+    def test_adiantamento_parcial_confirmado_compensado_e_revertido(self):
+        self.credito(unidades=1)
+        self.ocorrencia(data="2026-11-26", observacao="Retroativa", expected=409)
+        self.ocorrencia(data="2026-11-27", autorizar_adiantamento=True, expected=400)
+        folga = self.ocorrencia(data="2026-11-26", autorizar_adiantamento=True,
+                                observacao="Plantão reprogramado")["id"]
+        saldo = self.extrato()["saldo"]
+        self.assertEqual((saldo["saldo_liquido"], saldo["adiantado_reservado"], saldo["em_debito"]), (-1, 1, 0))
+        rota = f"/ocorrencias/{folga}/compensar"
+        baixa = {"unidades": 1, "origem": "credito", "motivo": "Saldo da campanha"}
+        self.post(self.admin, rota, baixa, 409)
+        self.post(self.admin, f"/ocorrencias/{folga}/confirmar", {}, 200)
+        self.assertEqual(self.extrato()["saldo"]["em_debito"], 1)
+        self.post(self.admin, rota, baixa, 409)
+        credito = self.credito(data_aquisicao="2026-11-27", unidades=1)["id"]
+        self.ocorrencia(data="2026-11-30", dia_inteiro=False, hora_inicio="08:00",
+                        hora_fim="12:00", expected=409)
+        self.post(self.admin, rota, baixa, 201)
+        extrato = self.extrato()
+        self.assertEqual((extrato["saldo"]["em_debito"], extrato["saldo"]["disponivel"]), (0, 0))
+        self.assertEqual(extrato["compensacoes"][0]["id_credito"], credito)
+        self.post(self.admin, rota, baixa, 409)
+        self.post(self.admin, f"/creditos/{credito}/cancelar", {"motivo": "Teste"}, 409)
+        self.post(self.admin, f"/ocorrencias/{folga}/cancelar", {"motivo": "Teste"}, 409)
+        baixa_id = extrato["compensacoes"][0]["id_compensacao"]
+        self.post(self.logged(self.app, 1), f"/compensacoes/{baixa_id}/apagar",
+                  {"confirmacao": "APAGAR", "motivo": "erro_lancamento"}, 200)
+        self.assertEqual(self.extrato()["saldo"]["em_debito"], 1)
+        self.post(self.admin, rota, {**baixa, "origem": "ferias"}, 201)
+        extrato = self.extrato()
+        self.assertIsNone(extrato["compensacoes"][0]["id_credito"])
+        self.assertEqual(extrato["saldo"]["saldo_liquido"], 1)
+
+    def test_apagar_servidor_isola_historico_e_credito_vinculado(self):
+        superadmin = self.logged(self.app, 1)
+        credito = self.credito()["id"]
+        folga = self.ocorrencia()["id"]
+        self.credito(id_agente=13)
+        motivo = {"confirmacao": "APAGAR", "motivo": "lancamento_teste"}
+        alvo = "/servidores/11/apagar-historico"
+        self.post(self.admin, alvo, motivo, 403)
+        self.post(superadmin, alvo, {**motivo, "confirmacao": ""}, 400)
+        self.post(superadmin, f"/creditos/{credito}/apagar", motivo, 409)
+        self.post(superadmin, f"/ocorrencias/{folga}/apagar", motivo, 200)
+        self.assertEqual(self.extrato()["saldo"]["disponivel"], 2)
+        self.assertEqual(self.extrato()["consumos"], [])
+        self.ocorrencia(data="2026-11-26", observacao="Registro retroativo",
+                        autorizar_adiantamento=True)
+        self.post(superadmin, alvo, motivo, 200)
+        self.post(superadmin, alvo, motivo, 409)
+        self.assertEqual(self.extrato()["saldo"]["saldo_liquido"], 0)
+        self.assertEqual(self.extrato()["ocorrencias"], [])
+        self.assertEqual(self.extrato()["creditos"], [])
+        self.assertEqual(self.extrato(agente=13)["saldo"]["disponivel"], 2)
+        with closing(db.connect(str(self.path))) as conn:
+            row = conn.execute("SELECT detalhes_json FROM auditoria_eventos WHERE acao='pessoal_historico_apagado'").fetchone()
+        self.assertIn("lancamento_teste", row[0])
+
+    def test_relatorios_e_exportacoes_usam_o_mesmo_recorte_inclusivo(self):
+        from openpyxl import load_workbook
+        import fitz
+
+        self.credito(data_aquisicao="2026-11-27", unidades=1, descricao="=Texto administrativo")
+        self.credito(id_agente=13, descricao="PLANTAO FORA DO FILTRO")
+        self.ocorrencia(data="2026-11-27", autorizar_adiantamento=True, observacao="Urgência fictícia")
+        query = {"inicio": "2026-11-27", "fim": "2026-11-27", "id_agente": 11}
+        pagina = self.admin.get("/admin/agentes", query_string={"aba": "relatorios", **query})
+        self.assertEqual(pagina.status_code, 200)
+        self.assertIn("Urgência fictícia", pagina.get_data(as_text=True))
+        self.assertNotIn("PLANTAO FORA DO FILTRO", pagina.get_data(as_text=True))
+        xlsx = self.admin.get("/admin/agentes/relatorios/xlsx", query_string=query)
+        self.assertEqual(xlsx.status_code, 200)
+        self.assertIn("no-store", xlsx.headers["Cache-Control"])
+        with closing(load_workbook(BytesIO(xlsx.data))) as livro:
+            self.assertEqual(livro.sheetnames, ["Saldos atuais", "Créditos concedidos", "Folgas e faltas", "Compensações"])
+            self.assertEqual(livro["Saldos atuais"]["C5"].value, -0.5)
+            self.assertEqual(livro["Créditos concedidos"]["H5"].value, "=Texto administrativo / Ofício 123")
+            self.assertEqual(livro["Créditos concedidos"]["H5"].data_type, "s")
+            self.assertEqual(livro["Folgas e faltas"]["H5"].value, "Urgência fictícia")
+        pdf = self.admin.get("/admin/agentes/relatorios/pdf", query_string=query)
+        self.assertEqual(pdf.status_code, 200)
+        with fitz.open(stream=pdf.data, filetype="pdf") as arquivo:
+            texto = "\n".join(pagina.get_text() for pagina in arquivo)
+        self.assertIn("Urgência fictícia", texto)
+        self.assertNotIn("PLANTAO FORA DO FILTRO", texto)
+        operador = self.logged(self.app, 3)
+        self.assertEqual(operador.get("/admin/agentes/relatorios/pdf", query_string=query).status_code, 403)

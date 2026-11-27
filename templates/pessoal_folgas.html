@@ -13,7 +13,7 @@
   <option value="injustificada">Falta não justificada</option>
 {% endmacro %}
 
-<section id="pessoal-folgas" aria-labelledby="pessoal-folgas-titulo">
+<section id="pessoal-folgas" aria-labelledby="pessoal-folgas-titulo" data-pode-apagar="{{ '1' if pode_apagar else '0' }}">
   <div class="pessoal-folgas-header">
     <div>
       <h2 id="pessoal-folgas-titulo">Folgas e Ausências</h2>
@@ -56,7 +56,7 @@
   <section class="pessoal-folgas-saldo" aria-labelledby="pessoal-saldo-titulo">
     <h3 id="pessoal-saldo-titulo">Saldo de folgas</h3>
     <dl class="pessoal-folgas-resumo">
-      {% for chave, rotulo in [('disponivel','Disponível'),('reservado','Reservado'),('utilizado','Utilizado'),('expirado','Expirado'),('concedido','Concedido'),('a_vencer','A vencer · 30 dias')] %}
+      {% for chave, rotulo in [('saldo_liquido','Saldo líquido'),('em_debito','Em débito'),('adiantado_reservado','Adiantado reservado'),('disponivel','Crédito vigente'),('reservado','Crédito reservado'),('utilizado','Crédito usado'),('expirado','Crédito expirado'),('concedido','Concedido'),('a_vencer','A vencer · 30 dias')] %}
       <div><dt>{{ rotulo }}</dt><dd id="pessoal-saldo-{{ chave }}">—</dd></div>
       {% endfor %}
     </dl>
@@ -158,10 +158,13 @@
           <label class="pessoal-folgas-campo">Horário final<input name="hora_fim" class="form-control" type="time"></label>
         </div>
         <p id="pessoal-ocorrencia-ajuda" class="pessoal-folgas-ajuda pessoal-folgas-full"></p>
+        <label id="pessoal-campo-adiantamento" class="pessoal-folgas-check pessoal-folgas-full">
+          <input name="autorizar_adiantamento" type="checkbox"> Autorizar folga excepcional com saldo insuficiente
+        </label>
         <p id="pessoal-ocorrencia-aviso" class="pessoal-folgas-aviso pessoal-folgas-full" role="status" hidden></p>
         <label class="pessoal-folgas-campo pessoal-folgas-full">Observação administrativa
           <textarea name="observacao" class="form-control" rows="2" maxlength="1000"></textarea>
-          <small>Em folgas retroativas, informe o motivo. Limite o texto a dados administrativos, sem diagnóstico, CID ou outros dados de saúde.</small>
+          <small>Informe o motivo em folgas retroativas ou excepcionais. Use somente dados administrativos.</small>
         </label>
       </div>
       <p class="pessoal-folgas-retorno" role="alert" data-erro></p>
@@ -181,6 +184,30 @@
       </label>
       <label class="pessoal-folgas-campo" id="pessoal-detalhes-motivo" hidden>Motivo
         <textarea name="motivo" class="form-control" rows="2" maxlength="500"></textarea>
+      </label>
+      <div id="pessoal-detalhes-baixa" class="pessoal-folgas-form-grid" hidden>
+        <label class="pessoal-folgas-campo">Usar
+          <select name="origem" class="form-control">
+            <option value="credito">Créditos de folga vigentes</option>
+            <option value="dia_trabalhado">Dia trabalhado para compensação</option>
+            <option value="ferias">Férias com desconto já autorizado</option>
+          </select>
+        </label>
+        <label class="pessoal-folgas-campo">Quantidade em dias
+          <input name="dias" min="0.5" max="1" step="0.5" type="number" class="form-control">
+        </label>
+      </div>
+      <label class="pessoal-folgas-campo" id="pessoal-detalhes-confirma" hidden>Digite APAGAR para confirmar a exclusão definitiva
+        <input name="confirmacao" class="form-control" autocomplete="off" maxlength="6" pattern="APAGAR">
+      </label>
+      <label class="pessoal-folgas-campo" id="pessoal-detalhes-motivo-exclusao" hidden>Motivo da exclusão
+        <select name="motivo_exclusao" class="form-control">
+          <option value="">Selecione</option>
+          <option value="lancamento_teste">Lançamento de teste</option>
+          <option value="lancamento_duplicado">Registro duplicado</option>
+          <option value="erro_lancamento">Erro de lançamento</option>
+          <option value="correcao_administrativa">Correção administrativa</option>
+        </select>
       </label>
       <div class="pessoal-folgas-acoes">
         <button class="btn btn-ghost" type="button" id="pessoal-detalhes-voltar">Voltar</button>

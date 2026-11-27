@@ -4,6 +4,13 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.33.0": {
+        "titulo": "Folgas excepcionais e relatórios de pessoal",
+        "mudancas": [
+            "Registre folgas excepcionais com saldo insuficiente e acompanhe a compensação.",
+            "Consulte saldos e lançamentos em tabelas e exporte o recorte para Excel ou PDF.",
+        ],
+    },
     "2.32.0": {
         "titulo": "Coletas pendentes no mapa e filtros de calor",
         "mudancas": [

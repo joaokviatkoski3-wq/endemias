@@ -1,4 +1,4 @@
-#pessoal-folgas {
+#pessoal-folgas, #pessoal-relatorios {
   display: grid;
   gap: 18px;
   padding-bottom: 24px;
@@ -30,6 +30,12 @@
 
 .pessoal-folgas-campo small { font-weight: 400; }
 .pessoal-folgas-campo textarea { resize: vertical; }
+.pessoal-folgas-check { display: flex; align-items: center; gap: 8px; }
+.pessoal-relatorio-filtros { display: grid; grid-template-columns: minmax(0, 2fr) 1fr 1fr auto; gap: 10px; align-items: end; }
+.pessoal-saldo-negativo, .pessoal-folgas-resumo dd[data-negativo] { color: var(--red, #b91c1c); font-weight: 700; }
+#pessoal-relatorios td { overflow-wrap: anywhere; }
+#pessoal-relatorios .pessoal-folgas-tabela { min-width: 720px; }
+#pessoal-relatorios td:first-child { min-width: 145px; }
 .pessoal-folgas-saldo h3, .pessoal-folgas-cal-top h3, .pessoal-folgas-extrato h3 { margin: 0 0 6px; font-size: 16px; }
 
 .pessoal-folgas-resumo {
@@ -123,6 +129,8 @@
   .pessoal-folgas-header .pessoal-folgas-acoes { width: 100%; }
   .pessoal-folgas-filtros { grid-template-columns: 1fr 1fr; }
   .pessoal-folgas-filtros > :first-child { grid-column: 1 / -1; }
+  .pessoal-relatorio-filtros { grid-template-columns: 1fr 1fr; }
+  .pessoal-relatorio-filtros > :first-of-type, .pessoal-relatorio-filtros > button { grid-column: 1 / -1; }
   .pessoal-folgas-cal-card { padding: 10px; }
   .pessoal-folgas-dialog { padding: 14px; }
 }

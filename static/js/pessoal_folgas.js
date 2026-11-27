@@ -14,6 +14,8 @@
   const dialogDetalhes = element('dialog-detalhes');
   const formDetalhes = element('detalhes-form');
   const acoesDetalhes = element('detalhes-acoes');
+  const podeApagar = area.dataset.podeApagar === '1';
+  const origensBaixa = {credito: 'Crédito de folga', ferias: 'Férias', dia_trabalhado: 'Dia trabalhado'};
   const rotulosStatus = {
     agendada: 'Folga agendada', aguardando_confirmacao: 'Folga a confirmar', utilizada: 'Folga utilizada',
     registrada: 'Falta', cancelada: 'Cancelada', ativo: 'Ativo', esgotado: 'Esgotado',
@@ -55,7 +57,7 @@
 
   function dias(unidades) {
     const quantidade = unidades / 2;
-    return `${formatoNumero.format(quantidade)} ${quantidade > 0 && quantidade <= 1 ? 'dia' : 'dias'}`;
+    return `${formatoNumero.format(quantidade)} ${quantidade !== 0 && Math.abs(quantidade) <= 1 ? 'dia' : 'dias'}`;
   }
 
   function situacaoOcorrencia(ocorrencia) {
@@ -125,11 +127,15 @@
     const servidor = filtroServidor.value;
     const saldoRetorno = element('saldo-retorno');
     const extratoRetorno = element('extrato-retorno');
-    const campos = ['disponivel', 'reservado', 'utilizado', 'expirado', 'concedido', 'a_vencer'];
+    const campos = ['saldo_liquido', 'em_debito', 'adiantado_reservado',
+      'disponivel', 'reservado', 'utilizado', 'expirado', 'concedido', 'a_vencer'];
     const opcoes = {signal: consulta.signal};
     element('extrato').hidden = !servidor;
     element('vencimentos').replaceChildren();
-    for (const campo of campos) element(`saldo-${campo}`).textContent = '—';
+    for (const campo of campos) {
+      element(`saldo-${campo}`).textContent = '—';
+      element(`saldo-${campo}`).removeAttribute('data-negativo');
+    }
     status(saldoRetorno, 'Carregando saldos…');
     if (servidor) {
       element('extrato-titulo').textContent = 'Extrato do servidor';
@@ -142,7 +148,10 @@
       const saldos = extrato ? [extrato.saldo] : (await requisicao('/saldos', opcoes)).saldos;
       if (consulta.signal.aborted) return;
       for (const campo of campos) {
-        element(`saldo-${campo}`).textContent = dias(saldos.reduce((total, saldo) => total + saldo[campo], 0));
+        const valor = saldos.reduce((total, saldo) => total + saldo[campo], 0);
+        const alvo = element(`saldo-${campo}`);
+        alvo.textContent = dias(valor);
+        alvo.toggleAttribute('data-negativo', campo === 'em_debito' ? valor > 0 : valor < 0);
       }
       mostrarVencimentos(saldos);
       status(saldoRetorno, '');
@@ -187,7 +196,7 @@
   }
 
   function mostrarExtrato(extrato) {
-    const {saldo, creditos, ocorrencias, consumos} = extrato;
+    const {saldo, creditos, ocorrencias, consumos, compensacoes} = extrato;
     element('extrato-titulo').textContent = `Extrato de ${saldo.nome}`;
     const linhasCreditos = creditos.map((credito) => [
       dataExibida(credito.data_aquisicao), rotulosOrigens[credito.origem], dataExibida(credito.validade),
@@ -202,14 +211,27 @@
     }
     const linhasOcorrencias = ocorrencias.map((ocorrencia) => [
       dataExibida(ocorrencia.data), horarioOcorrencia(ocorrencia), situacaoOcorrencia(ocorrencia),
-      ocorrencia.tipo === 'folga' ? 'Folga' : 'Falta',
+      ocorrencia.tipo === 'folga' ? 'Folga' : 'Falta', ocorrencia.unidades_pendentes ? dias(ocorrencia.unidades_pendentes) : '—',
       botao(`Ver ocorrência #${ocorrencia.id_ocorrencia}`, () => abrirOcorrencia(ocorrencia, consumoPorOcorrencia.get(ocorrencia.id_ocorrencia) || [])),
+    ]);
+    const baixas = compensacoes.map((item) => [
+      dataExibida(item.criado_em), dataExibida(item.data_folga), origensBaixa[item.origem],
+      dias(item.unidades), item.motivo,
+      podeApagar ? botao('Reverter baixa', () => abrirExclusao(
+        '/compensacoes/' + item.id_compensacao + '/apagar', 'Reverter compensação',
+        'O débito correspondente volta ao saldo do servidor.')) : '—',
     ]);
     element('extrato-conteudo').replaceChildren(
       node('p', `Total de créditos concedidos: ${dias(saldo.concedido)}.`, 'pessoal-folgas-ajuda'),
       tabela('Créditos de folga', ['Aquisição', 'Origem', 'Validade', 'Concedido', 'Disponível', 'Situação', 'Ação'], linhasCreditos, 'Nenhum crédito de folga registrado.'),
-      tabela('Ocorrências', ['Data', 'Período', 'Situação', 'Tipo', 'Ação'], linhasOcorrencias, 'Nenhuma ocorrência registrada.'),
+      tabela('Ocorrências', ['Data', 'Período', 'Situação', 'Tipo', 'Adiantamento pendente', 'Ação'], linhasOcorrencias, 'Nenhuma ocorrência registrada.'),
+      tabela('Compensações', ['Baixa em', 'Data da folga', 'Origem', 'Dias', 'Motivo', 'Ação'], baixas, 'Nenhuma compensação registrada.'),
     );
+    if (podeApagar && (creditos.length || ocorrencias.length || compensacoes.length)) {
+      element('extrato-conteudo').append(botao('Apagar histórico e zerar saldo', () => abrirExclusao(
+        '/servidores/' + saldo.id_agente + '/apagar-historico', 'Apagar histórico e zerar saldo',
+        `Todos os créditos, folgas, faltas e compensações de ${saldo.nome} serão apagados. O cadastro será preservado.`)));
+    }
   }
 
   function atualizarServidor() {
@@ -218,6 +240,10 @@
     if (id) url.searchParams.set('id_agente', id);
     else url.searchParams.delete('id_agente');
     history.replaceState(null, '', url);
+    const relatorios = new URL(element('link-relatorios').href);
+    if (id) relatorios.searchParams.set('id_agente', id);
+    else relatorios.searchParams.delete('id_agente');
+    element('link-relatorios').href = relatorios.href;
     carregarPainel();
     calendario?.refetchEvents();
   }
@@ -226,7 +252,7 @@
     const allDay = ocorrencia.dia_inteiro;
     return {
       id: String(ocorrencia.id_ocorrencia),
-      title: `${ocorrencia.nome} · ${situacaoOcorrencia(ocorrencia)}`,
+      title: `${ocorrencia.nome} · ${situacaoOcorrencia(ocorrencia)}${ocorrencia.unidades_pendentes ? ' · adiantada' : ''}`,
       allDay,
       start: allDay ? ocorrencia.data : `${ocorrencia.data}T${ocorrencia.hora_inicio}:00`,
       end: allDay ? undefined : `${ocorrencia.data}T${ocorrencia.hora_fim}:00`,
@@ -272,7 +298,10 @@
       campo.required = parcial;
     }
     campos.data.max = falta ? hoje : '';
-    campos.observacao.required = Boolean(!falta && campos.data.value && campos.data.value < hoje);
+    element('campo-adiantamento').hidden = falta;
+    campos.autorizar_adiantamento.disabled = falta;
+    if (falta) campos.autorizar_adiantamento.checked = false;
+    campos.observacao.required = !falta && (campos.autorizar_adiantamento.checked || Boolean(campos.data.value && campos.data.value < hoje));
     const ajuda = falta
       ? 'A falta fica no histórico sem alterar o saldo de folgas.'
       : 'O agendamento reserva o saldo válido para a data. Confirme o uso após a folga.';
@@ -310,8 +339,9 @@
   }
 
   function dadosOcorrencia(formulario) {
-    const {periodo, ...dados} = Object.fromEntries(new FormData(formulario));
-    return {...dados, id_agente: Number(dados.id_agente), dia_inteiro: periodo === 'inteiro'};
+    const {periodo, autorizar_adiantamento, ...dados} = Object.fromEntries(new FormData(formulario));
+    return {...dados, id_agente: Number(dados.id_agente), dia_inteiro: periodo === 'inteiro',
+      autorizar_adiantamento: Boolean(autorizar_adiantamento)};
   }
 
   async function salvar(formulario, caminho, dados, mensagem) {
@@ -347,19 +377,32 @@
     return lista;
   }
 
-  function iniciarAcaoDetalhes(caminho, rotulo, precisaMotivo, classificacao) {
-    alterarDetalhes = {caminho, precisaMotivo, classificar: Boolean(classificacao)};
+  function iniciarAcaoDetalhes(caminho, rotulo, precisaMotivo, classificacao, opcoes = {}) {
+    const {apagar = false, maximo = 0} = opcoes;
+    alterarDetalhes = {caminho, precisaMotivo, classificar: Boolean(classificacao), apagar, compensar: maximo > 0};
     const campos = formDetalhes.elements;
     formDetalhes.reset();
-    campos.motivo.required = precisaMotivo;
+    campos.motivo.required = precisaMotivo && !apagar;
+    campos.motivo_exclusao.disabled = !apagar;
+    campos.motivo_exclusao.required = apagar;
+    campos.confirmacao.required = apagar;
+    campos.confirmacao.disabled = !apagar;
+    campos.dias.required = maximo > 0;
+    campos.dias.disabled = !maximo;
+    campos.dias.max = maximo / 2;
+    campos.dias.value = maximo ? maximo / 2 : '';
     campos.classificacao.value = classificacao || 'pendente';
     element('detalhes-classificacao').hidden = !classificacao;
-    element('detalhes-motivo').hidden = !precisaMotivo;
+    element('detalhes-motivo').hidden = !precisaMotivo || apagar;
+    element('detalhes-motivo-exclusao').hidden = !apagar;
+    element('detalhes-confirma').hidden = !apagar;
+    element('detalhes-baixa').hidden = !maximo;
     element('detalhes-salvar').textContent = rotulo;
     acoesDetalhes.hidden = true;
     formDetalhes.hidden = false;
     dialogDetalhes.querySelector('[data-erro]').textContent = '';
-    if (classificacao) campos.classificacao.focus();
+    if (apagar) campos.confirmacao.focus();
+    else if (classificacao) campos.classificacao.focus();
     else if (precisaMotivo) campos.motivo.focus();
     else element('detalhes-salvar').focus();
   }
@@ -381,17 +424,27 @@
     heading.focus();
   }
 
+  function abrirExclusao(caminho, titulo, efeito) {
+    abrirDetalhes(titulo, [['Efeito', efeito]], []);
+    iniciarAcaoDetalhes(caminho, 'Confirmar exclusão', true, null, {apagar: true});
+  }
+
   function abrirCredito(credito, servidor) {
     const caminho = `/creditos/${credito.id_credito}`;
     const acoes = [];
-    if (credito.status !== 'cancelado' && !credito.reservado && !credito.utilizado) {
+    const livre = !credito.reservado && !credito.utilizado && !credito.compensado;
+    if (credito.status !== 'cancelado' && livre) {
       acoes.push(botao('Cancelar crédito', () => iniciarAcaoDetalhes(`${caminho}/cancelar`, 'Confirmar cancelamento', true)));
+    }
+    if (podeApagar && livre) {
+      acoes.push(botao('Apagar crédito', () => iniciarAcaoDetalhes(`${caminho}/apagar`, 'Apagar crédito', true, null, {apagar: true})));
     }
     abrirDetalhes(`Crédito #${credito.id_credito}`, [
       ['Servidor', servidor], ['Origem', rotulosOrigens[credito.origem]], ['Setor de registro', rotulosSetores[credito.setor]],
       ['Aquisição', dataExibida(credito.data_aquisicao)], ['Válido até', dataExibida(credito.validade)],
       ['Concedido', dias(credito.unidades)], ['Disponível', dias(credito.disponivel)], ['Reservado', dias(credito.reservado)],
       ['Utilizado', dias(credito.utilizado)], ['Expirado', dias(credito.expirado)], ['Situação', rotulosStatus[credito.status]],
+      ['Usado em compensações', dias(credito.compensado)],
       ['Atividade', credito.descricao], ['Referência', credito.referencia], ['Motivo do cancelamento', credito.motivo_cancelamento],
     ], acoes);
   }
@@ -406,8 +459,15 @@
     if (ocorrencia.status === 'registrada' && !folga) {
       acoes.push(botao('Classificar falta', () => iniciarAcaoDetalhes(`${caminho}/classificar`, 'Salvar classificação', true, ocorrencia.classificacao || 'pendente')));
     }
-    if (ocorrencia.status !== 'cancelada') {
+    if (ocorrencia.status !== 'cancelada' && !ocorrencia.unidades_compensadas) {
       acoes.push(botao('Cancelar ocorrência', () => iniciarAcaoDetalhes(`${caminho}/cancelar`, 'Confirmar cancelamento', true)));
+    }
+    if (podeApagar && !ocorrencia.unidades_compensadas) {
+      acoes.push(botao('Apagar ocorrência', () => iniciarAcaoDetalhes(`${caminho}/apagar`, 'Apagar ocorrência', true, null, {apagar: true})));
+    }
+    if (folga && ocorrencia.status === 'utilizada' && ocorrencia.unidades_pendentes > 0) {
+      acoes.push(botao('Compensar débito', () => iniciarAcaoDetalhes(
+        `${caminho}/compensar`, 'Registrar compensação', true, null, {maximo: ocorrencia.unidades_pendentes})));
     }
     if (filtroServidor.value !== String(ocorrencia.id_agente)) {
       acoes.push(botao('Ver extrato', () => {
@@ -421,7 +481,9 @@
     abrirDetalhes(`${folga ? 'Folga' : 'Falta'} #${ocorrencia.id_ocorrencia}`, [
       ['Servidor', ocorrencia.nome], ['Data', dataExibida(ocorrencia.data)], ['Período', horarioOcorrencia(ocorrencia)],
       ['Situação', situacaoOcorrencia(ocorrencia)], ['Classificação', ocorrencia.status === 'cancelada' ? rotulosFaltas[ocorrencia.classificacao] : ''],
-      ['Saldo vinculado', folga ? dias(ocorrencia.unidades) : ''], ['Créditos vinculados', vinculos],
+      ['Duração da folga', folga ? dias(ocorrencia.unidades) : ''], ['Créditos vinculados', vinculos],
+      ['Adiantado', ocorrencia.unidades_adiantadas ? dias(ocorrencia.unidades_adiantadas) : ''],
+      ['Adiantamento pendente', ocorrencia.unidades_adiantadas ? dias(ocorrencia.unidades_pendentes) : ''],
       ['Setor de registro', rotulosSetores[ocorrencia.setor]], ['Observação', ocorrencia.observacao],
       ['Motivo da classificação', ocorrencia.motivo_classificacao], ['Motivo do cancelamento', ocorrencia.motivo_cancelamento],
     ], acoes);
@@ -434,7 +496,7 @@
   formCredito.elements.data_aquisicao.addEventListener('change', () => {
     formCredito.elements.validade.min = formCredito.elements.data_aquisicao.value;
   });
-  for (const nome of ['tipo', 'periodo', 'data']) {
+  for (const nome of ['tipo', 'periodo', 'data', 'autorizar_adiantamento']) {
     formOcorrencia.elements[nome].addEventListener('change', atualizarCamposOcorrencia);
   }
   formCredito.addEventListener('submit', (evento) => {
@@ -451,6 +513,14 @@
     const dados = {};
     if (alterarDetalhes.precisaMotivo) dados.motivo = formDetalhes.elements.motivo.value;
     if (alterarDetalhes.classificar) dados.classificacao = formDetalhes.elements.classificacao.value;
+    if (alterarDetalhes.apagar) {
+      dados.confirmacao = formDetalhes.elements.confirmacao.value;
+      dados.motivo = formDetalhes.elements.motivo_exclusao.value;
+    }
+    if (alterarDetalhes.compensar) {
+      dados.origem = formDetalhes.elements.origem.value;
+      dados.unidades = Number(formDetalhes.elements.dias.value) * 2;
+    }
     salvar(formDetalhes, alterarDetalhes.caminho, dados, 'Registro atualizado.');
   });
   element('detalhes-voltar').addEventListener('click', () => {

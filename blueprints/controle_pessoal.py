@@ -1,14 +1,16 @@
 import logging
-from datetime import date
+from datetime import date, timedelta
 from functools import wraps
 
-from flask import Blueprint, current_app, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_file, url_for
 
 from app_core import agentes as agentes_core
 from app_core import audit
 from app_core import auth as auth_core
 from app_core import blueprint_helpers as bh
 from app_core import pessoal_folgas
+from app_core import pessoal_folgas_relatorio as relatorio
+from app_core import permissoes
 from app_core import setores
 from app_core import utils as utils_core
 
@@ -28,19 +30,30 @@ def _invalidate_globals():
 @login_required
 @nivel_min("admin")
 def page():
-    if request.args.get("aba") == "folgas":
+    aba = request.args.get("aba")
+    if aba in {"folgas", "relatorios"}:
         conn = bh.get_db()
         try:
+            _iniciar_leitura(conn)
             servidores = conn.execute(
                 """SELECT id_agente, COALESCE(NULLIF(TRIM(nome_completo), ''), nome) AS nome, ativo
                      FROM agentes ORDER BY ativo DESC, LOWER(COALESCE(NULLIF(TRIM(nome_completo), ''), nome))"""
             ).fetchall()
+            agente_id = request.args.get("id_agente", type=int)
+            contexto = {}
+            if aba == "relatorios":
+                try:
+                    contexto = {"relatorio": _dados_relatorio(conn)}
+                except ValueError as exc:
+                    return render_template("admin_agentes.html", aba=aba, erro=str(exc),
+                                           servidores_folgas=servidores, agente_folgas=agente_id,
+                                           filtros_relatorio=request.args), 400
         finally:
             conn.close()
-        agente_id = request.args.get("id_agente", type=int)
         return render_template(
-            "admin_agentes.html", aba="folgas", servidores_folgas=[dict(row) for row in servidores],
+            "admin_agentes.html", aba=aba, servidores_folgas=[dict(row) for row in servidores],
             agente_folgas=next((row["id_agente"] for row in servidores if row["id_agente"] == agente_id), None),
+            pode_apagar=permissoes.permite(bh.usuario_atual(), "tecnica"), **contexto,
         )
 
     filtros = {
@@ -120,6 +133,13 @@ def editar(id_agente):
         return jsonify({"erro": str(exc)}), 400
 
 
+def _iniciar_leitura(conn):
+    if conn.backend == "postgresql":
+        conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+    else:
+        conn.execute("BEGIN")
+
+
 def _api_pessoal(view):
     @wraps(view)
     @login_required
@@ -128,10 +148,7 @@ def _api_pessoal(view):
         conn = bh.get_db()
         try:
             if request.method in {"GET", "HEAD"}:
-                if conn.backend == "postgresql":
-                    conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
-                else:
-                    conn.execute("BEGIN")
+                _iniciar_leitura(conn)
             return view(conn, *args, **kwargs)
         except pessoal_folgas.NaoEncontrado as exc:
             return jsonify(erro=str(exc)), 404
@@ -172,6 +189,21 @@ def _intervalo_agenda():
     if not 1 <= (fim - inicio).days <= 370:
         raise ValueError("Selecione um período de até 370 dias para a agenda.")
     return inicio.isoformat(), fim.isoformat()
+
+
+def _dados_relatorio(conn):
+    hoje = date.fromisoformat(utils_core.hoje())
+    inicio = request.args.get("inicio") or hoje.replace(day=1).isoformat()
+    fim = request.args.get("fim") or hoje.isoformat()
+    try:
+        inicio, fim = date.fromisoformat(inicio), date.fromisoformat(fim)
+        fim_exclusivo = fim + timedelta(days=1)
+    except (ValueError, OverflowError):
+        raise ValueError("Informe datas inicial e final válidas.") from None
+    if not 1 <= (fim_exclusivo - inicio).days <= 370:
+        raise ValueError("Escolha um período de até 370 dias, com a data inicial antes ou igual à final.")
+    id_agente = _id_filtro()
+    return relatorio.montar(conn, inicio, fim, fim_exclusivo, id_agente)
 
 
 def _gravar(conn, acao, entidade, registro_id, *, criado=False, detalhes=None):
@@ -226,6 +258,8 @@ def criar_ocorrencia(conn):
     detalhes = {"tipo": dados["tipo"]}
     if dados["tipo"] == "falta":
         detalhes["classificacao"] = dados.get("classificacao") or "pendente"
+    elif dados.get("autorizar_adiantamento"):
+        detalhes["adiantamento_autorizado"] = True
     return _gravar(conn, "pessoal_ocorrencia_criada", "pessoal_ocorrencias", registro_id, criado=True, detalhes=detalhes)
 
 
@@ -259,3 +293,56 @@ def classificar_falta(conn, registro_id):
 def cancelar_credito(conn, registro_id):
     pessoal_folgas.cancelar_credito(conn, registro_id, _dados_json().get("motivo"), bh.usuario_atual()["id_usuario"])
     return _gravar(conn, "pessoal_credito_cancelado", "pessoal_folga_creditos", registro_id)
+
+
+@bp.post("/api/pessoal/folgas/ocorrencias/<int:registro_id>/compensar")
+@_api_pessoal
+def compensar(conn, registro_id):
+    dados = _dados_json()
+    ids = pessoal_folgas.compensar_folga(conn, registro_id, dados, bh.usuario_atual()["id_usuario"])
+    return _gravar(conn, "pessoal_folga_compensada", "pessoal_ocorrencias", registro_id, criado=True,
+                   detalhes={"origem": dados["origem"], "compensacoes": ids})
+
+
+def _confirmacao_exclusao(dados):
+    motivo = dados.get("motivo")
+    if dados.get("confirmacao") != "APAGAR":
+        raise ValueError("Digite APAGAR para confirmar a exclusão definitiva.")
+    if motivo not in ("lancamento_teste", "lancamento_duplicado", "erro_lancamento", "correcao_administrativa"):
+        raise ValueError("Selecione o motivo da exclusão.")
+    return motivo
+
+
+@bp.post("/api/pessoal/folgas/<categoria>/<int:registro_id>/apagar")
+@nivel_min("superadmin")
+@_api_pessoal
+def apagar_lancamento(conn, categoria, registro_id):
+    if categoria not in {"creditos", "ocorrencias", "compensacoes"}:
+        raise pessoal_folgas.NaoEncontrado("Categoria de lançamento inexistente.")
+    motivo = _confirmacao_exclusao(_dados_json())
+    id_agente = pessoal_folgas.apagar_registro(conn, categoria, registro_id)
+    return _gravar(conn, "pessoal_lancamento_apagado", categoria, registro_id,
+                   detalhes={"id_agente": id_agente, "motivo_codigo": motivo})
+
+
+@bp.post("/api/pessoal/folgas/servidores/<int:id_agente>/apagar-historico")
+@nivel_min("superadmin")
+@_api_pessoal
+def apagar_historico(conn, id_agente):
+    motivo = _confirmacao_exclusao(_dados_json())
+    apagados = pessoal_folgas.apagar_historico(conn, id_agente)
+    return _gravar(conn, "pessoal_historico_apagado", "agentes", id_agente,
+                   detalhes={"motivo_codigo": motivo, "apagados": apagados})
+
+
+@bp.get("/admin/agentes/relatorios/<formato>")
+@_api_pessoal
+def exportar_relatorio(conn, formato):
+    if formato not in {"xlsx", "pdf"}:
+        raise pessoal_folgas.NaoEncontrado("Formato de relatório inexistente.")
+    dados = _dados_relatorio(conn)
+    arquivo, tipo = relatorio.exportar(dados, formato)
+    audit.registrar_evento(bh.get_db, "pessoal_relatorio_exportado", entidade="pessoal",
+                           detalhes={"formato": formato, **dados["filtros"]})
+    return send_file(arquivo, mimetype=tipo, as_attachment=True,
+                     download_name=f"controle-pessoal-{dados['filtros']['fim']}.{formato}")

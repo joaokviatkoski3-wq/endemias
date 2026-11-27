@@ -20,7 +20,7 @@
 .form-grid .full{grid-column:1/-1;}
 @media(max-width:980px){.form-grid{grid-template-columns:1fr;}}
 </style>
-{% if aba == 'folgas' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/pessoal_folgas.css', v=APP_VERSION) }}">{% endif %}
+{% if aba in ['folgas', 'relatorios'] %}<link rel="stylesheet" href="{{ url_for('static', filename='css/pessoal_folgas.css', v=APP_VERSION) }}">{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -30,12 +30,15 @@
 </div>
 
 <nav class="tabs-bar" aria-label="Controle de Pessoal">
-  <a class="tab-btn {{ 'active' if aba != 'folgas' }}" href="{{ url_for('controle_pessoal.page') }}"{% if aba != 'folgas' %} aria-current="page"{% endif %}>Servidores</a>
+  <a class="tab-btn {{ 'active' if aba == 'servidores' }}" href="{{ url_for('controle_pessoal.page') }}"{% if aba == 'servidores' %} aria-current="page"{% endif %}>Servidores</a>
   <a class="tab-btn {{ 'active' if aba == 'folgas' }}" href="{{ url_for('controle_pessoal.page', aba='folgas') }}"{% if aba == 'folgas' %} aria-current="page"{% endif %}>Folgas e Ausências</a>
+  <a id="pessoal-link-relatorios" class="tab-btn {{ 'active' if aba == 'relatorios' }}" href="{{ url_for('controle_pessoal.page', aba='relatorios', id_agente=agente_folgas) }}"{% if aba == 'relatorios' %} aria-current="page"{% endif %}>Relatórios</a>
 </nav>
 
 {% if aba == 'folgas' %}
 {% include 'pessoal_folgas.html' %}
+{% elif aba == 'relatorios' %}
+{% include 'pessoal_folgas_relatorio.html' %}
 {% else %}
 {% if erro %}
 <div style="background:var(--red-l);color:#991b1b;border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:16px;font-size:13px;">

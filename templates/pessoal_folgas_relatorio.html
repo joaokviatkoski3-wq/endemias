@@ -1,0 +1,54 @@
+<section id="pessoal-relatorios" aria-labelledby="pessoal-relatorios-titulo">
+  <div class="pessoal-folgas-header">
+    <div>
+      <h2 id="pessoal-relatorios-titulo">Relatórios de pessoal</h2>
+      <p>Os saldos mostram a posição atual. As datas filtram os lançamentos.</p>
+    </div>
+    {% if relatorio %}
+    <div class="pessoal-folgas-acoes">
+      <a class="btn btn-ghost" href="{{ url_for('controle_pessoal.exportar_relatorio', formato='xlsx', **relatorio.filtros) }}">Exportar Excel</a>
+      <a class="btn btn-ghost" href="{{ url_for('controle_pessoal.exportar_relatorio', formato='pdf', **relatorio.filtros) }}">Exportar PDF</a>
+    </div>
+    {% endif %}
+  </div>
+  {% if erro %}<p role="alert" class="pessoal-folgas-retorno" data-falha>{{ erro }}</p>{% endif %}
+  {% set filtros = relatorio.filtros if relatorio else filtros_relatorio %}
+  <form method="get" action="{{ url_for('controle_pessoal.page') }}" class="pessoal-relatorio-filtros">
+    <input type="hidden" name="aba" value="relatorios">
+    <label class="pessoal-folgas-campo">Servidor
+      <select name="id_agente" class="form-control">
+        <option value="">Todos os servidores</option>
+        {% for s in servidores_folgas %}
+        <option value="{{ s.id_agente }}" {{ 'selected' if s.id_agente == agente_folgas else '' }}>{{ s.nome }}{{ ' (inativo)' if not s.ativo else '' }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="pessoal-folgas-campo">Data inicial
+      <input type="date" name="inicio" value="{{ filtros.inicio or '' }}" class="form-control" required>
+    </label>
+    <label class="pessoal-folgas-campo">Data final
+      <input type="date" name="fim" value="{{ filtros.fim or '' }}" class="form-control" required>
+    </label>
+    <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+  </form>
+  {% if relatorio %}
+  <p class="pessoal-folgas-ajuda">Lançamentos de {{ relatorio.periodo }}. Saldos em {{ relatorio.data_saldo }}. Quantidades em dias.</p>
+  {% for tabela in relatorio.tabelas %}
+  <section class="pessoal-card pessoal-folgas-extrato" aria-labelledby="pessoal-relatorio-{{ loop.index }}">
+    <h3 id="pessoal-relatorio-{{ loop.index }}">{{ tabela.titulo }}</h3>
+    {% if tabela.linhas %}
+    <div class="table-scroll" tabindex="0" role="region" aria-labelledby="pessoal-relatorio-{{ loop.index }}">
+      <table class="pessoal-folgas-tabela">
+        <thead><tr>{% for titulo in tabela.colunas %}<th scope="col">{{ titulo }}</th>{% endfor %}</tr></thead>
+        <tbody>
+        {% for linha in tabela.linhas %}<tr>{% for valor in linha %}
+          <td{% if valor is number and valor < 0 %} class="pessoal-saldo-negativo"{% endif %}>{{ relatorio.exibir(valor) }}</td>
+        {% endfor %}</tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<p class="pessoal-folgas-ajuda">Nenhum registro no recorte.</p>{% endif %}
+  </section>
+  {% endfor %}
+  {% endif %}
+</section>
