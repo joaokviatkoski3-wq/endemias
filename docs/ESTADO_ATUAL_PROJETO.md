@@ -53,7 +53,12 @@ regras de trabalho e isolamento de testes.
   os tubos do LIRAa a partir da 2.30.3. Em conferência posterior, três PEs
   receberam coordenadas publicadas pelo IAT e pelo CREA-PR, confirmadas nos
   quarteirões cadastrados. Esses três PEs abrangem 15 das coletas pendentes
-  do recorte de 27/11.
+  do recorte de 27/11. Outros seis PEs receberam os pinos informados pelo
+  setor, conferidos na malha e reabertos no Endemias após salvar. Eles
+  abrangem mais 24 coletas do mesmo recorte. Com confirmação do setor, a
+  Cal Elói (PE-0020) passou do quarteirão 150 para o 791 em Sede. Após as
+  correções, restam nesse recorte 190 coletas em 115 endereços e 11 de PE
+  sem vínculo a um cadastro.
 - A partir da 2.32.0, coletas têm filtros por espécie e tipo de trabalho na
   camada, no painel administrativo e nos CSVs desse painel. Em **Posições
   pendentes**, o superadmin pode marcar a primeira posição no mapa e abrir o
