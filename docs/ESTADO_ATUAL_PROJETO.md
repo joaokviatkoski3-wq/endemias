@@ -5,12 +5,11 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.30.1**, release `95c8e6e`, ativa desde 27/11/2026. A ativação confirmou
+- **2.30.2**, release `cd2c297`, ativa desde 27/11/2026. A ativação confirmou
   os backups, a preservação das 110 tabelas e os três logins na origem do
-  Tunnel. A migração `0050_geovsatt_posicoes_coletas.sql` foi aplicada no
-  passo anterior, na release `f8477c3` da 2.30.0. Os relatórios estão em
-  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2300-resultado.json` e
-  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2301-resultado.json`.
+  Tunnel. A migração `0050_geovsatt_posicoes_coletas.sql` foi aplicada na
+  release `f8477c3` da 2.30.0. O relatório atual está em
+  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2302-resultado.json`.
   A primeira leitura do Sheets, feita na 2.29.0, consta em
   `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2290-sincronizacao.json`.
   A busca Nominatim usa o maps.co, configurado em 27/11/2026.
@@ -44,10 +43,11 @@ regras de trabalho e isolamento de testes.
   Na conferência de 27/11, 113 de 125 notificações de 2026 foram localizadas.
   Das 12 pendentes, sete têm conflito e cinco carecem de coordenadas utilizáveis.
 - Em 27/11, havia 469 coletas desde janeiro, das quais 467 tinham resultado.
-  O cruzamento com o CNEFE, confirmado pelo quarteirão da visita, localizou
-  mais 24 coletas. Restaram 221 coletas em 134 endereços e 50 coletas de PE
-  aguardando a posição do cadastro. Em coletas já localizadas sem vínculo com
-  PE, o superadmin pode corrigir a posição visualmente no mapa.
+  Na 2.30.2, há 229 localizadas, sendo 169 pelo cadastro de PE, 55 pelo CNEFE
+  e cinco pela coincidência de endereço com uma ovitrampa no quarteirão.
+  Restaram 190 coletas em 115 endereços, 39 vinculadas a nove PEs que precisam
+  de coordenadas e 11 de PE sem vínculo. Em coletas já localizadas sem vínculo
+  com PE, o superadmin pode corrigir a posição visualmente no mapa.
 - As folhas de bloqueio de dengue, esporotricose e ovitrampa usam nomes de ruas
   sobre seus eixos. No ensaio em A4 com a malha de Tanguá, couberam 16 etiquetas
   sobre o mapa e 11 quarteirões na lista de duas colunas.
