@@ -5,11 +5,11 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.34.1**, release `fa11d35`, ativa desde 27/11/2026. A ativação confirmou
+- **2.34.2**, release `5807271`, ativa desde 27/11/2026. A ativação confirmou
   os backups, a preservação das 115 tabelas existentes e os logins do
   Endemias e do Ambiental na origem do Tunnel. A atualização não exigiu
   migração. O relatório está em
-  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2341-resultado.json`.
+  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2342-resultado.json`.
   A migração `0053_pessoal_folgas_adiantamentos.sql` foi aplicada na 2.33.0.
   A migração aditiva `0052_pessoal_folgas.sql` foi aplicada na 2.31.0.
   A migração `0051_geovsatt_posicoes_tubitos_liraa.sql` foi aplicada na 2.30.3.
@@ -72,6 +72,9 @@ regras de trabalho e isolamento de testes.
   e 12 no centro interno. Essas coletas continuam na lista de revisão e
   ficam fora do mapa de calor até a confirmação. As outras duas têm
   divergência entre a localidade da visita e a do quarteirão na malha.
+  A base de faces de logradouros do IBGE, incluída na 2.34.2, permitiu
+  calcular o ponto a meio caminho da via para mais duas dessas coletas.
+  Agora são 26 entre a quadra e a rua e dez no centro interno.
 - A partir da 2.32.0, coletas têm filtros por espécie e tipo de trabalho na
   camada, no painel administrativo e nos CSVs desse painel. Em **Posições
   pendentes**, o superadmin pode marcar a primeira posição no mapa e abrir o
