@@ -406,9 +406,9 @@ uso offline na 2.27.3.
 Em 27/11/2026, a implantação aplicou a migração PostgreSQL
 `0049_geovsatt_vigilancia.sql` e ativou `ENDEMIAS_GEO_CNEFE_CSV` com o ZIP em
 `C:/ProgramData/EndemiasWeb/geovsatt-cnefe/4100400_ALMIRANTE_TAMANDARE.zip`.
-O serviço confirmou a leitura do arquivo. O Google Sheets aguarda a conta
-de serviço e o ID da planilha. O redirecionamento dos mapas antigos segue
-desativado. Consulte
+O serviço confirmou a leitura do arquivo. O Google Sheets ficou pendente
+nessa etapa e foi conectado na 2.29.0. O redirecionamento dos mapas antigos
+seguiu desativado. Consulte
 `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2280-resultado.json` para as
 verificações do instalador.
 
@@ -422,8 +422,9 @@ verificações do instalador.
   define a cor da feição. As cores podem ser escolhidas pelo seletor.
 - **Dengue** reúne notificações, pendências e sincronização com o Google Sheets.
   Mantenha o compartilhamento de leitura com a conta de serviço e o JSON em
-  um diretório de credenciais do servidor. Quem tem acesso à camada de dengue
-  pode abrir a folha de bloqueio pelo mapa.
+  um diretório de credenciais do servidor. A primeira sincronização em
+  produção registrou 442 notificações em 27/11/2026. Quem tem acesso à camada
+  de dengue pode abrir a folha de bloqueio pelo mapa.
 - **Coletas de tubo** inclui registros a partir de 01/01/2026. Os tubos de PEs
   seguem as coordenadas do cadastro, inclusive quando elas são preenchidas
   posteriormente. O CSV agrupa os endereços restantes sem coordenadas após

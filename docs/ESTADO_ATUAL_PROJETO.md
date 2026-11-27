@@ -5,13 +5,12 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.28.0**, release `85918bd`, ativa desde 27/11/2026. A ativação aplicou
-  `0049_geovsatt_vigilancia.sql`, conferiu o backup e confirmou a preservação
-  das 106 tabelas anteriores e o retorno dos três logins na origem do
-  Tunnel. O mapa offline respondeu com o botão Minha localização e a
-  permissão de geolocalização. O cliente automatizado recebeu 403 com
-  código Cloudflare 1010 na checagem externa. O relatório fica em
-  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2280-resultado.json`.
+- **2.29.0**, release `7dc73f3`, ativa desde 27/11/2026. A ativação confirmou
+  os backups, a preservação das 109 tabelas e os três logins na origem
+  do Tunnel. A versão reutiliza a migração `0049_geovsatt_vigilancia.sql`
+  aplicada na 2.28.0. Os relatórios da atualização e da primeira leitura
+  ficam em `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2290-resultado.json`
+  e `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2290-sincronizacao.json`.
   A busca Nominatim usa o maps.co, configurado em 27/11/2026.
 - O portal `vsatt.com.br` apresenta Endemias, Ambiental e GeoVSATT. O Tunnel
   encaminha para Waitress em
@@ -26,11 +25,16 @@ regras de trabalho e isolamento de testes.
 ## Homologação do GeoVSATT
 
 - O ZIP CNEFE do município 4100400 está configurado no serviço e carrega
-  26.238 chaves de logradouro e número. A sincronização de dengue depende
-  do ID da planilha e da credencial de uma conta de serviço leitora.
-  O teste de localização em modo avião será feito em aparelho. O
-  redirecionamento dos mapas antigos aguarda a conferência de Endemias e
-  Ambiental. [Operação no GeoVSATT](GEOVSATT_IMPLEMENTACAO.md#vigilância-e-bloqueios-na-2280)
+  26.238 chaves de logradouro e número. O Google Sheets de dengue está
+  conectado por conta de serviço leitora. A primeira sincronização registrou
+  442 notificações, sendo 317 de 2025 e 125 de 2026, com 14 conflitos.
+- **Gerenciar camadas** reúne abas de estilos, dengue e coletas de tubo
+  exclusivas do superadmin. A camada de tubos considera 2026 em diante.
+  Tubos vinculados a PEs seguem as coordenadas do ponto no cadastro.
+  O acompanhamento da localização foi validado com duas posições no Brave.
+  O teste em modo avião ainda será feito em aparelho. O redirecionamento
+  dos mapas antigos aguarda a conferência de Endemias e Ambiental.
+  [Operação no GeoVSATT](GEOVSATT_IMPLEMENTACAO.md#administração-e-acompanhamento-na-2290)
 
 ## Continuidade por módulo
 
