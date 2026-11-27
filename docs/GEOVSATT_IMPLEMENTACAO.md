@@ -452,6 +452,11 @@ verificações do instalador.
   O campo usado para geocodificar o CSV traz logradouro, número e município.
   No mapa, o superadmin pode clicar na coleta e usar **Corrigir posição da
   coleta**. Coletas de PE acompanham a posição do próprio cadastro do PE.
+  A partir da 2.30.2, coletas sem posição manual também aproveitam registros
+  do mesmo endereço do CNEFE quando todos os pontos válidos no quarteirão
+  cabem em um intervalo espacial de até 8 m. Na falta desse resultado,
+  o GeoVSATT verifica se há ovitrampa cadastrada no mesmo logradouro,
+  número e quarteirão, com coordenada única. A fonte é exibida no mapa.
 - As folhas de bloqueio de dengue, esporotricose e ovitrampa exibem o raio,
   os quarteirões atingidos e os nomes das vias da base cartográfica. Cabe uma
   lista de duas colunas ao lado do mapa, com continuação quando necessário.

@@ -4,6 +4,13 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.30.2": {
+        "titulo": "Mais coletas localizadas no GeoVSATT",
+        "mudancas": [
+            "As coletas podem usar registros próximos do CNEFE ou o cadastro de ovitrampas quando o endereço e o quarteirão coincidem.",
+            "O mapa indica a fonte da coordenada da coleta.",
+        ],
+    },
     "2.30.1": {
         "titulo": "Etiquetas no eixo das ruas nos mapas de campo",
         "mudancas": [

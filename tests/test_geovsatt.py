@@ -852,6 +852,45 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(atuais["total"], legado.json["1:1"]["total"])
         self.assertEqual(atuais["focos"], legado.json["1:1"]["focos"])
 
+    def test_coletas_aceitam_cnefe_proximo_e_ovitrampa_no_mesmo_endereco(self):
+        _, bloco = self._malha_vigilancia()
+        lon, lat = bloco.centroid.x, bloco.centroid.y
+        with closing(sqlite3.connect(self.path)) as conn, conn:
+            conn.execute("""UPDATE visitas SET logradouro='Rua Ficticia', numero='10', quarteirao='1'
+                             WHERE id_visita='ficticio-visitas'""")
+            conn.execute("INSERT INTO coletas(id_coleta,id_visita,num_tubo) VALUES('teste','ficticio-visitas','1')")
+        cliente = self.client()
+        camada = "/api/geovsatt/camadas/coletas_tubos"
+        csv = self.directory / "cnefe.csv"
+        cabecalho = "COD_MUNICIPIO;NOM_TIPO_SEGLOGR;NOM_SEGLOGR;NUM_ENDERECO;LATITUDE;LONGITUDE;DSC_LOCALIDADE\n"
+        linha = "4100400;Rua;Ficticia;10;{};{};Bairro divergente\n"
+        perto = linha.format(lat, lon) + linha.format(lat + .00002, lon)
+        csv.write_text(cabecalho + perto, encoding="utf-8")
+        self.geo.config["GEOVSATT_CNEFE_CSV"] = str(csv)
+        geovsatt_enderecos._ler_cnefe.cache_clear()
+        feicoes = cliente.get(camada).json["features"]
+        self.assertEqual(feicoes[0]["properties"]["fonte_coordenadas"], "CNEFE 2022 · registros próximos")
+        self.assertIn(feicoes[0]["geometry"]["coordinates"], [[lon, lat], [lon, lat + .00002]])
+        chave = geovsatt_enderecos.chave_endereco("Rua Ficticia, 10, Localidade Ficticia")
+        arquivo_anterior = f"chave,latitude,longitude\n{chave},{lat},{lon}\n".encode()
+        resposta = cliente.post("/api/geovsatt/admin/coletas-tubo/importar",
+                                data={"etapa": "validar", "csv": (io.BytesIO(arquivo_anterior), "anterior.csv")})
+        self.assertEqual(resposta.json["validas"], 1)
+        csv.write_text(cabecalho + perto + linha.format(lat + .001, lon), encoding="utf-8")
+        geovsatt_enderecos._ler_cnefe.cache_clear()
+        self.assertEqual(cliente.get(camada).json["features"], [])
+        with closing(sqlite3.connect(self.path)) as conn, conn:
+            conn.execute("""INSERT INTO ovitrampas_armadilhas(ovitrampa_id,rua,numero,latitude,longitude,atualizado_em)
+                            VALUES('certo','R. Ficticia','10',?,?,'2026-01-01'),
+                                  ('fora','Rua Ficticia','10',0.2,0.2,'2026-01-01'),
+                                  ('outro','Rua Ficticia','12',?,?,'2026-01-01')""", (lat, lon, lat + .001, lon))
+        feicoes = cliente.get(camada).json["features"]
+        self.assertEqual(feicoes[0]["properties"]["fonte_coordenadas"], "Cadastro de ovitrampas · mesmo endereço")
+        self.assertEqual(feicoes[0]["geometry"]["coordinates"], [lon, lat])
+        with closing(sqlite3.connect(self.path)) as conn, conn:
+            conn.execute("""UPDATE ovitrampas_armadilhas SET numero='10' WHERE ovitrampa_id='outro'""")
+        self.assertEqual(cliente.get(camada).json["features"], [])
+
     def test_coletas_desde_2026_reusam_pe_e_aceitam_kml(self):
         _, bloco = self._malha_vigilancia()
         lon, lat = bloco.centroid.x, bloco.centroid.y

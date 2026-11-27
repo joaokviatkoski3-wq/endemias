@@ -5,6 +5,7 @@ from collections import defaultdict
 from functools import lru_cache
 from hashlib import sha256
 import json
+import math
 from pathlib import Path
 import re
 from zipfile import BadZipFile, ZipFile
@@ -21,6 +22,7 @@ from app_core.territorio import chave_territorial
 
 
 MUNICIPIO_IBGE = "4100400"
+DIAMETRO_CNEFE_COLETA_METROS = 8
 COLUNAS_CSV = ("chave", "endereco_google_earth", "logradouro", "numero", "localidade", "cep", "latitude", "longitude")
 
 
@@ -42,6 +44,25 @@ def ponto(latitude, longitude):
     if -90 < lat < 90 and -180 < lon < 180 and (lat, lon) != (0, 0):
         return lat, lon
     return None
+
+
+def chave_logradouro_numero(logradouro, numero):
+    via = tuple(rg._sem_prefixo_logradouro(logradouro).split())
+    numero = busca._numero(numero)
+    return (via, numero) if via and numero not in {"", "0", "sn"} else None
+
+
+def _cnefe_proximo(validadas):
+    """Obtém um ponto medido de um único endereço com leituras próximas."""
+    latitudes, longitudes = zip(*(pos for pos, _ in validadas))
+    lat = sum(latitudes) / len(latitudes)
+    lon = sum(longitudes) / len(longitudes)
+    escala_lon = math.cos(math.radians(lat))
+    diagonal = 111_195 * math.hypot(max(latitudes) - min(latitudes),
+                                   (max(longitudes) - min(longitudes)) * escala_lon)
+    if diagonal > DIAMETRO_CNEFE_COLETA_METROS:
+        return None
+    return min(validadas, key=lambda item: ((item[0][0] - lat)**2 + ((item[0][1] - lon) * escala_lon)**2, item[0]))
 
 
 def variantes(endereco):
@@ -215,8 +236,9 @@ class Localizador:
             return None
         alternativas = set()
         cep = re.search(r"\b([0-9]{5})-?([0-9]{3})\b", endereco)
+        enderecos_candidatos = variantes(endereco)
         if self.cnefe:
-            for opcao in variantes(endereco):
+            for opcao in enderecos_candidatos:
                 for bairro, cep_base, pos in self.cnefe.get((tuple(opcao.via), opcao.numero), ()):
                     if (conferir_bairro and opcao.localidade and list(bairro) != opcao.localidade
                             or cep and "".join(cep.groups()) != cep_base.replace("-", "")):
@@ -227,4 +249,8 @@ class Localizador:
         if len(validadas) == 1:
             pos, props = validadas[0]
             return pos, props, "CNEFE 2022"
+        if not conferir_bairro and len(enderecos_candidatos) == 1 and len(validadas) > 1:
+            proxima = _cnefe_proximo(validadas)
+            if proxima:
+                return (*proxima, "CNEFE 2022 · registros próximos")
         return None

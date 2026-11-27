@@ -121,7 +121,25 @@ def _e_coleta_pe(row):
     return row["tipo"] == "PE" or row["id_pe"] is not None or bool((row["codigo_pe"] or "").strip())
 
 
+def _ovitrampas_por_endereco(target):
+    posicoes = defaultdict(set)
+    conn = db.connect(target)
+    try:
+        if not db.table_exists(conn, "ovitrampas_armadilhas"):
+            return posicoes
+        for row in conn.execute("""SELECT rua, numero, latitude, longitude FROM ovitrampas_armadilhas
+                                   WHERE latitude IS NOT NULL AND longitude IS NOT NULL"""):
+            chave = enderecos.chave_logradouro_numero(row["rua"], row["numero"])
+            pos = enderecos.ponto(row["latitude"], row["longitude"])
+            if chave and pos:
+                posicoes[chave].add(pos)
+    finally:
+        conn.close()
+    return posicoes
+
+
 def enderecos_coletas(target, localizador):
+    ovitrampas_por_endereco = None
     for row in coletas(target):
         if _e_coleta_pe(row):
             pos = enderecos.ponto(row["pe_latitude"], row["pe_longitude"])
@@ -133,8 +151,18 @@ def enderecos_coletas(target, localizador):
         posicao = enderecos.ponto(row["latitude"], row["longitude"])
         if (props := localizador.validar(posicao, aceitar_sem_quarteirao=True)) is not None:
             yield row, endereco, chave, (posicao, props, "Ajuste no GeoVSATT")
-        else:
-            yield row, endereco, chave, localizador.localizar(endereco, esperado=chave, localidade_ubs=True)
+            continue
+        localizado = localizador.localizar(endereco, esperado=chave, localidade_ubs=True)
+        if localizado is None and chave:
+            via_numero = enderecos.chave_logradouro_numero(row["logradouro"], row["numero"])
+            if via_numero:
+                if ovitrampas_por_endereco is None:
+                    ovitrampas_por_endereco = _ovitrampas_por_endereco(target)
+                opcoes = [(pos, props) for pos in ovitrampas_por_endereco.get(via_numero, ())
+                          if (props := localizador.validar(pos, chave)) is not None]
+                if len(opcoes) == 1:
+                    localizado = (*opcoes[0], "Cadastro de ovitrampas · mesmo endereço")
+        yield row, endereco, chave, localizado
 
 
 def reposicionar_coleta(target, localizador, id_coleta, latitude, longitude):
@@ -159,7 +187,7 @@ def reposicionar_coleta(target, localizador, id_coleta, latitude, longitude):
     return posicao
 
 
-def pendencias_csv(target, localizador):
+def pendencias_csv(target, localizador, *, incluir_automaticos=False):
     pendentes = {}
     resumo = dict(coletas=0, com_resultado=0, sem_endereco=0, pe_aguardando=0,
                   pe_georreferenciado=0, outras_localizadas=0, coletas_endereco_pendente=0)
@@ -168,21 +196,25 @@ def pendencias_csv(target, localizador):
         resumo["com_resultado"] += row["situacao"] != "Aguardando resultado"
         if _e_coleta_pe(row):
             resumo["pe_georreferenciado" if localizado else "pe_aguardando"] += 1
-        elif localizado:
+            continue
+        chave = enderecos.chave_endereco(endereco) if endereco else None
+        if localizado:
             resumo["outras_localizadas"] += 1
+            if not incluir_automaticos or not chave or chave in localizador.verificados or localizado[2] == "Ajuste no GeoVSATT":
+                continue
         elif not endereco:
             resumo["sem_endereco"] += 1
+            continue
         else:
             resumo["coletas_endereco_pendente"] += 1
-            chave = enderecos.chave_endereco(endereco)
-            endereco_earth = ", ".join(str(x).strip() for x in
-                                      (row["logradouro"], row["numero"], "Almirante Tamandaré", "Paraná", "Brasil")
-                                      if x is not None and str(x).strip())
-            registro = pendentes.setdefault(chave, {"endereco": endereco, "endereco_earth": endereco_earth,
-                                                    "esperados": set(), "total": 0})
-            if esperado:
-                registro["esperados"].add(esperado)
-            registro["total"] += 1
+        endereco_earth = ", ".join(str(x).strip() for x in
+                                  (row["logradouro"], row["numero"], "Almirante Tamandaré", "Paraná", "Brasil")
+                                  if x is not None and str(x).strip())
+        registro = pendentes.setdefault(chave, {"endereco": endereco, "endereco_earth": endereco_earth,
+                                                "esperados": set(), "total": 0})
+        if esperado:
+            registro["esperados"].add(esperado)
+        registro["total"] += 1
     return pendentes, resumo
 
 
@@ -240,7 +272,8 @@ def _registros_kml(conteudo):
 
 
 def importar_coordenadas(target, conteudo, localizador, *, formato="csv", aplicar=False):
-    pendentes, _ = pendencias_csv(target, localizador)
+    # Um CSV anterior pode conter endereços já localizados automaticamente.
+    pendentes, _ = pendencias_csv(target, localizador, incluir_automaticos=True)
     if formato == "csv":
         leitor = _registros_csv(conteudo.decode("utf-8-sig"))
         fonte = "CSV verificado"
