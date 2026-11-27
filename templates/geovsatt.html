@@ -150,7 +150,10 @@
             <select id="geo-calor-camada"><option value="">Desligado</option></select>
           </label>
           <div id="geo-calor-opcoes" hidden>
-            <label>Raio visual <input id="geo-calor-raio" type="range" min="16" max="64" value="32"></label>
+            <label>Raio visual <input id="geo-calor-raio" type="range" min="16" max="64" value="32"><output for="geo-calor-raio"></output></label>
+            <label>Intensidade <input id="geo-calor-intensidade" type="range" min="25" max="200" value="85"><output for="geo-calor-intensidade"></output></label>
+            <label>Opacidade <input id="geo-calor-opacidade" type="range" min="15" max="100" value="82"><output for="geo-calor-opacidade"></output></label>
+            <div id="geo-calor-filtros" tabindex="-1"></div>
             <label id="geo-calor-peso" hidden><input type="checkbox"> Ponderar pelo número de ovos</label>
             <div class="geo-calor-escala"><span>Menor densidade</span><i></i><span>Maior densidade</span></div>
             <p id="geo-calor-status" role="status"></p>
@@ -200,6 +203,10 @@
                 <label data-tipo-periodo="semana" hidden>Semana <input type="number" name="semana" min="1" max="53"></label>
                 <label>Localidade <input name="localidade" maxlength="100"></label>
                 {% if camada.id.startswith('dengue') %}<label>UBS <input name="unidade" maxlength="100"></label>{% endif %}
+                {% if camada.id == 'coletas_tubos' %}
+                  {% from "_geovsatt_filtros_coletas.html" import campos_coletas %}
+                  {{ campos_coletas(especies_tubos, TIPOS_TRABALHO, {}) }}
+                {% endif %}
                 {% if camada.id in ('visitas_ambientais', 'indicadores_endemias') %}
                 <label>Quarteirão <input name="quarteirao" maxlength="18"></label>
                 {% if camada.id == 'visitas_ambientais' %}
@@ -279,10 +286,14 @@
         {% if catalogo.pode_configurar %}<button id="geo-marcar-equipamento" type="button" aria-pressed="false" aria-label="Marcar novo equipamento" title="Marcar novo equipamento" data-destino="{{ url_for('geovsatt.admin_equipamento') }}"><img src="/static/icons/marcador.svg" alt=""></button>{% endif %}
       </div>
       {% if catalogo.pode_configurar and not modo_offline %}
-      <section id="geo-ajuste-coleta" class="geo-ajuste-coleta" aria-label="Corrigir posição da coleta"
-               data-destino="{{ url_for('geovsatt.coletas_tubo_posicao') }}" hidden>
-        <strong>Corrigir posição da coleta</strong>
-        <p role="status">Arraste o marcador azul até o local correto.</p>
+      {% if coleta_pendente %}<script type="application/json" id="geo-coleta-pendente" nonce="{{ csp_nonce() }}">{{ coleta_pendente | tojson }}</script>{% endif %}
+      <section id="geo-ajuste-coleta" class="geo-ajuste-coleta" aria-label="Posição da coleta"
+               data-destino="{{ url_for('geovsatt.coletas_tubo_posicao') }}" data-voltar="{{ url_for('geovsatt.admin_catalogo', aba='coletas', _anchor='pendencias-tubos', **recorte_coletas) }}" hidden>
+        <strong>{{ 'Marcar posição da coleta' if coleta_pendente else 'Corrigir posição da coleta' }}</strong>
+        {% if coleta_pendente %}
+          <p>Tubo {{ coleta_pendente.tubo or 'sem número' }}{% if coleta_pendente.endereco %} · {{ coleta_pendente.endereco }}{% endif %}{% if coleta_pendente.quarteirao %} · Q. {{ coleta_pendente.quarteirao }}{% endif %}</p>
+        {% endif %}
+        <p role="status"></p>
         <div><button type="button" data-salvar>Salvar posição</button> <button type="button" data-cancelar>Cancelar</button></div>
       </section>
       {% endif %}

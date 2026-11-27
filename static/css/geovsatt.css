@@ -90,8 +90,12 @@ button{color:inherit}
 .geo-campo-dialogo button:disabled,.geo-campo-entrada button:disabled{opacity:.6;cursor:wait}
 #geo-calor[hidden],#geo-calor [hidden]{display:none}
 #geo-calor-opcoes{display:grid;gap:.5rem;margin:0 0 .5rem;font-size:.78rem;color:var(--muted)}
-#geo-calor-opcoes label{display:flex;gap:.55rem;align-items:center}
+#geo-calor-opcoes > label{display:flex;gap:.55rem;align-items:center}
 #geo-calor-opcoes input{accent-color:var(--action)}
+#geo-calor-opcoes input[type=range]{min-width:3rem;flex:1}
+#geo-calor-opcoes output{min-width:3rem;text-align:right;font-variant-numeric:tabular-nums}
+#geo-calor-filtros .geo-layer-filters{margin:0}
+.geo-calor-atalho{display:block;margin:.15rem 0 .5rem;color:var(--action);font-size:.75rem}
 #geo-calor-status{margin:0;line-height:1.4}
 .geo-calor-escala{display:grid;grid-template-columns:max-content minmax(2rem,1fr) max-content;gap:.4rem;align-items:center;font-size:.68rem}
 .geo-calor-escala i,.geo-legend i.legend-calor{height:.5rem;border-radius:2px;background:linear-gradient(90deg,#3157b6,#39a9cc,#75cda0,#ffca55,#c1342f)}

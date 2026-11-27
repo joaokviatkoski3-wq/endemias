@@ -1,3 +1,4 @@
+{% from "_geovsatt_filtros_coletas.html" import campos_coletas %}
 <section class="gc-card">
   <div class="gc-painel-cabecalho">
     <div>
@@ -5,12 +6,18 @@
       <p class="gc-note">Coletas registradas a partir de 2026</p>
     </div>
     <div class="gc-acoes">
-      <a class="gc-botao gc-primary" href="{{ url_for('geovsatt.coletas_tubo_csv', destino='earth') }}">Baixar CSV para Google Earth</a>
-      <a class="gc-botao" href="{{ url_for('geovsatt.coletas_tubo_csv') }}">Baixar CSV para preenchimento</a>
+      <a class="gc-botao gc-primary" href="{{ url_for('geovsatt.coletas_tubo_csv', destino='earth', **recorte_coletas) }}">Baixar CSV para Google Earth</a>
+      <a class="gc-botao" href="{{ url_for('geovsatt.coletas_tubo_csv', **recorte_coletas) }}">Baixar CSV para preenchimento</a>
     </div>
   </div>
+  <form class="gc-filtros" action="{{ url_for('geovsatt.admin_catalogo') }}" method="get">
+    <input name="aba" type="hidden" value="coletas">
+    {{ campos_coletas(especies_tubos, TIPOS_TRABALHO, recorte_coletas) }}
+    <button type="submit">Aplicar filtros</button>
+    {% if recorte_coletas %}<a class="gc-botao" href="{{ url_for('geovsatt.admin_catalogo', aba='coletas') }}">Limpar filtros</a>{% endif %}
+  </form>
   <div class="gc-metricas">
-    <div><strong>{{ coletas }}</strong><span>Coletas desde 01/01/2026</span></div>
+    <div><strong>{{ coletas }}</strong><span>Coletas {{ 'no recorte' if recorte_coletas else 'desde 01/01/2026' }}</span></div>
     <div><strong>{{ com_resultado }}</strong><span>Coletas com resultado</span></div>
     <div><strong>{{ coletas - com_resultado }}</strong><span>Aguardando resultado</span></div>
     <div><strong>{{ pe_georreferenciado + outras_localizadas }}</strong><span>Coletas localizadas</span></div>
@@ -37,6 +44,44 @@
     <p>Use o valor exato de <strong>chave</strong> como nome de cada marcador e exporte a pasta de marcadores em KML ou KMZ. Você também pode preencher latitude e longitude em WGS84 no CSV e importar o arquivo em UTF-8.</p>
   </details>
 </section>
+{% if lista_pendencias %}
+<section class="gc-card" id="pendencias-tubos">
+  <h2>Posições pendentes</h2>
+  {% for grupo, itens in [
+      ('Coletas para localizar no mapa', lista_pendencias|rejectattr('pe')|list),
+      ('Coletas de PE com coordenadas pendentes', lista_pendencias|selectattr('pe_id')|list),
+      ('Coletas de PE a vincular', lista_pendencias|selectattr('pe')|rejectattr('pe_id')|list)] %}
+  {% if itens %}
+  <details {% if loop.first %}open{% endif %}>
+    <summary>{{ grupo }} ({{ itens|length }})</summary>
+    <div class="gc-tabela gc-pendencias-tubos" tabindex="0" aria-label="{{ grupo }}">
+      <table>
+        <thead><tr><th>Coleta</th><th>Endereço da visita</th><th>Localidade e quarteirão</th><th>Ação</th></tr></thead>
+        <tbody>
+          {% for item in itens %}
+          <tr>
+            <td>{{ item.tubo or 'Sem número' }} · {{ item.data | data_br }}<br>{{ item.tipo or '—' }}{% if item.especies %}<br>{{ item.especies }}{% endif %}</td>
+            <td>{{ item.logradouro or 'Sem logradouro' }}{% if item.numero %}, {{ item.numero }}{% endif %}</td>
+            <td>{{ item.localidade or '—' }}{% if item.quarteirao %} · Q. {{ item.quarteirao }}{% endif %}</td>
+            <td>{% if not item.pe %}
+              <a class="gc-botao" href="{{ url_for('geovsatt.coletas_tubo_localizar', id_coleta=item.id, **recorte_coletas) }}">Marcar no mapa</a>
+              {% elif item.pe_id %}
+                {% if endemias %}<a class="gc-botao" href="{{ endemias }}/pontos-estrategicos?pe={{ item.pe_id }}">Abrir PE {{ item.codigo_pe }}</a>
+                {% else %}PE {{ item.codigo_pe }}{% endif %}
+              {% elif endemias %}
+                <a class="gc-botao" href="{{ endemias }}/pontos-estrategicos?aba=aliases">Conferir vínculo de PE</a>
+              {% else %}Conferir vínculo no Endemias{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+  {% endfor %}
+</section>
+{% endif %}
 <section class="gc-card">
   <h2>Importar coordenadas confirmadas</h2>
     <form id="coletas-importar" method="post" enctype="multipart/form-data" action="{{ url_for('geovsatt.coletas_tubo_importar') }}">

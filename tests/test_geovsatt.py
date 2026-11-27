@@ -307,15 +307,23 @@ class GeoVSATTTests(unittest.TestCase):
                  "camadas": [], "filtros": {"ovitrampas": filtro}, "calor": calor}
         self.assertEqual(titular.post(rota, json=dados).status_code, 400)
         admin.post(permissoes, data=camada | {"usuarios": ["2"], "usuarios_exportacao": ["2"]})
-        for invalido in (calor | {"raio": 65}, calor | {"camada": "logradouros"}, calor | {"ponderar_ovos": 1}):
+        for invalido in (calor | {"raio": 65}, calor | {"camada": "logradouros"}, calor | {"ponderar_ovos": 1},
+                         calor | {"intensidade": 201}, calor | {"opacidade": False}):
             self.assertEqual(titular.post(rota, json=dados | {"calor": invalido}).status_code, 400)
         criada = titular.post(rota, json=dados)
         self.assertEqual(criada.status_code, 201, criada.json)
         item = f'{rota}/{criada.json["id_composicao"]}'
         self.assertEqual(titular.get(item).json["configuracao"], dados)
+        com_visual = {"calor": calor | {"intensidade": 125, "opacidade": 65}}
+        resposta_visual = titular.post(rota, json=dados | com_visual)
+        self.assertEqual(resposta_visual.status_code, 201, resposta_visual.json)
+        item_visual = f'{rota}/{resposta_visual.json["id_composicao"]}'
+        self.assertEqual(titular.get(item_visual).json["configuracao"]["calor"], com_visual["calor"])
         somente_ovitrampas = titular.post(pacote, json={"camadas": ["ovitrampas"]})
         self.assertEqual(somente_ovitrampas.status_code, 200, somente_ovitrampas.json)
-        self.assertEqual(somente_ovitrampas.json["composicoes"][0]["configuracao"], dados)
+        configs = {p["id_composicao"]: p["configuracao"] for p in somente_ovitrampas.json["composicoes"]}
+        self.assertEqual(configs[criada.json["id_composicao"]], dados)
+        self.assertEqual(configs[resposta_visual.json["id_composicao"]], dados | com_visual)
         admin.post("/geovsatt/admin/camadas/logradouros", data={"nome": "Logradouros", "grupo": "Território",
                                                                "usuarios": ["2"], "usuarios_exportacao": ["2"]})
         apenas_ruas = titular.post(pacote, json={"camadas": ["logradouros"]})
@@ -955,6 +963,49 @@ class GeoVSATTTests(unittest.TestCase):
         ajustada = next(f for f in cliente.get(camada).json["features"] if f["id"] == "d")
         self.assertEqual(ajustada["geometry"]["coordinates"], [nova["longitude"], nova["latitude"]])
         self.assertEqual(ajustada["properties"]["fonte_coordenadas"], "Ajuste no GeoVSATT")
+
+    def test_geovsatt_filtra_coletas_e_marca_primeira_posicao(self):
+        _, bloco = self._malha_vigilancia()
+        lon, lat = bloco.centroid.x, bloco.centroid.y
+        with closing(sqlite3.connect(self.path)) as conn, conn:
+            conn.execute("""UPDATE visitas SET tipo='TB', logradouro='Rua Fictícia', numero='10', quarteirao=1
+                            WHERE id_visita='ficticio-visitas'""")
+            conn.execute("""INSERT INTO visitas(id_visita,kobo_uuid,tipo,data,id_localidade,localidade,quarteirao,
+                                                logradouro,numero,processado_em)
+                            VALUES('pve','pve','PVE','2026-01-05',1,'Localidade Ficticia',1,'Rua Fictícia','12','2026-01-05')""")
+            conn.execute("""INSERT INTO coletas(id_coleta,id_visita,num_tubo)
+                            VALUES('tubo-a','ficticio-visitas','10'), ('tubo-b','pve','12')""")
+            conn.execute("""INSERT INTO resultados_laboratorio(id_coleta,num_tubo,data_coleta,data_leitura,atualizado_em,
+                                                               aegypt_larvas,albopictus_pupas)
+                            VALUES('tubo-a','10','2026-01-05','2026-01-05','2026-01-05',1,2),
+                                  ('tubo-b','12','2026-01-05','2026-01-05','2026-01-05',1,0)""")
+        cliente = self.client()
+        camada = "/api/geovsatt/camadas/coletas_tubos"
+        pendencias = "/geovsatt/admin/camadas?aba=coletas&especie=albopictus&tipo=TB"
+        localizar = "/geovsatt/admin/coletas-tubo/localizar/tubo-a"
+        lista = cliente.get(pendencias)
+        self.assertIn(b"Marcar no mapa", lista.data)
+        self.assertIn(b"localizar/tubo-a", lista.data)
+        self.assertNotIn(b"localizar/tubo-b", lista.data)
+        self.assertEqual(self.client(uid=3).get(localizar).status_code, 403)
+        self.assertIn(b'geo-coleta-pendente', cliente.get(localizar).data)
+        csv_url = "/geovsatt/admin/coletas-tubo/pendencias.csv?tipo=PVE&especie=aegypt"
+        linhas = list(csv.DictReader(io.StringIO(cliente.get(csv_url).data.decode("utf-8-sig"))))
+        self.assertEqual([linha["numero"] for linha in linhas], ["12"])
+        url = "/api/geovsatt/admin/coletas-tubo/posicao"
+        dados = {"id":"tubo-a", "latitude":lat, "longitude":lon, "primeira_posicao":True}
+        self.assertEqual(cliente.post(url,json=dados).status_code, 200)
+        self.assertEqual(cliente.post(url,json=dados | {"latitude":lat+.002}).status_code, 409)
+        self.assertEqual(cliente.get(localizar).status_code, 303)
+        self.assertEqual(cliente.post(url,json=dados | {"id":"tubo-b"}).status_code, 200)
+        self.assertEqual(cliente.get(pendencias).data.count(b"Marcar no mapa"), 0)
+        for especie, tipo, ids in (("aegypt","",{"tubo-a","tubo-b"}), ("albopictus","TB",{"tubo-a"}),
+                                  ("albopictus","PVE",set()), ("aegypt","PVE",{"tubo-b"})):
+            feicoes = cliente.get(camada, query_string={"especie":especie,"tipo":tipo}).json["features"]
+            self.assertEqual({f["id"] for f in feicoes}, ids)
+        feicao, = cliente.get(camada, query_string={"especie":"albopictus"}).json["features"]
+        self.assertEqual(feicao["properties"]["especies"], "Aedes aegypti, Aedes albopictus")
+        self.assertEqual(feicao["geometry"]["coordinates"], [lon, lat])
 
     def test_geovsatt_corrige_posicao_de_tubo_integrado_do_liraa(self):
         _, bloco = self._malha_vigilancia()

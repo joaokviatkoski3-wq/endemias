@@ -141,19 +141,24 @@ function iniciarGeoVSATT() {
     body: JSON.stringify({pontos, incluir_condominios}),
   }));
   const painelColeta = document.getElementById('geo-ajuste-coleta');
+  const coletaPendente = document.getElementById('geo-coleta-pendente');
   let ajusteColeta;
   function fecharAjusteColeta() {
-    ajusteColeta?.marcador.remove();
+    ajusteColeta?.marcador?.remove();
     ajusteColeta = null;
     if (painelColeta) painelColeta.hidden = true;
+  }
+
+  function marcadorDaColeta(ponto) {
+    return L.marker(ponto, {draggable: true, zIndexOffset: 1000,
+      title: 'Arraste até o local correto da coleta'}).addTo(map);
   }
 
   function abrirAjusteColeta(feature, layer) {
     if (ajusteColeta?.salvando) return;
     fecharAjusteColeta();
     map.closePopup();
-    const marcador = L.marker(layer.getLatLng(), {draggable: true, zIndexOffset: 1000,
-      title: 'Arraste até o local correto da coleta'}).addTo(map);
+    const marcador = marcadorDaColeta(layer.getLatLng());
     ajusteColeta = {marcador, feature, layer, salvando: false};
     painelColeta.querySelector('[role="status"]').textContent = 'Arraste o marcador azul até o local correto.';
     painelColeta.hidden = false;
@@ -164,9 +169,20 @@ function iniciarGeoVSATT() {
     const salvar = painelColeta.querySelector('[data-salvar]');
     const cancelar = painelColeta.querySelector('[data-cancelar]');
     const mensagem = painelColeta.querySelector('[role="status"]');
-    cancelar.addEventListener('click', fecharAjusteColeta);
+    function cancelarAjuste() {
+      if (ajusteColeta?.primeira) window.location.assign(painelColeta.dataset.voltar);
+      else fecharAjusteColeta();
+    }
+    cancelar.addEventListener('click', cancelarAjuste);
+    map.on('click', event => {
+      if (!ajusteColeta?.primeira || ajusteColeta.salvando || measure.active() || marcandoEquipamento) return;
+      if (ajusteColeta.marcador) ajusteColeta.marcador.setLatLng(event.latlng);
+      else ajusteColeta.marcador = marcadorDaColeta(event.latlng);
+      salvar.disabled = false;
+      mensagem.textContent = 'Confira a posição e salve. Você pode arrastar o marcador.';
+    });
     salvar.addEventListener('click', async () => {
-      if (!ajusteColeta || ajusteColeta.salvando) return;
+      if (!ajusteColeta?.marcador || ajusteColeta.salvando) return;
       const atual = ajusteColeta;
       const {lat, lng} = atual.marcador.getLatLng();
       atual.salvando = salvar.disabled = cancelar.disabled = true;
@@ -176,8 +192,13 @@ function iniciarGeoVSATT() {
         const resultado = await api(painelColeta.dataset.destino, {
           method: 'POST',
           headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content},
-          body: JSON.stringify({id: atual.feature.id, latitude: lat, longitude: lng}),
+          body: JSON.stringify({id: atual.id || atual.feature.id, latitude: lat, longitude: lng,
+            primeira_posicao: Boolean(atual.primeira)}),
         });
+        if (atual.primeira) {
+          window.location.assign(painelColeta.dataset.voltar);
+          return;
+        }
         atual.layer.setLatLng(resultado.coordenadas);
         atual.feature.geometry.coordinates = [...resultado.coordenadas].reverse();
         atual.feature.properties.fonte_coordenadas = resultado.fonte;
@@ -193,7 +214,7 @@ function iniciarGeoVSATT() {
       }
     });
     document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && ajusteColeta && !ajusteColeta.salvando) fecharAjusteColeta();
+      if (event.key === 'Escape' && ajusteColeta && !ajusteColeta.salvando) cancelarAjuste();
     });
   }
 
@@ -473,7 +494,7 @@ function iniciarGeoVSATT() {
     data_coleta: 'Data de coleta', CdFerrovia: 'Código da ferrovia', TIPO_DRENA: 'Tipo de drenagem',
     bairro_loteamento: 'Bairro ou loteamento', status_funcionamento: 'Situação', horario: 'Horário de atendimento',
     servicos_no_local: 'Serviços no local', gestao: 'Gestão', codigo_oficial: 'Código oficial', uid: 'Identificador',
-    situacao_bloqueio: 'Situação do bloqueio', data_bloqueio: 'Data do bloqueio', raio_metros: 'Raio (m)',
+    especies: 'Espécies', situacao_bloqueio: 'Situação do bloqueio', data_bloqueio: 'Data do bloqueio', raio_metros: 'Raio (m)',
     percentual_no_raio: 'Área do quarteirão dentro dos raios (%)', cobertura: 'Abrangência',
     casos_com_bloqueio_realizado: 'Casos com bloqueio realizado',
     casos_com_bloqueio_nao_realizado: 'Casos com bloqueio não realizado',
@@ -1125,7 +1146,7 @@ function iniciarGeoVSATT() {
       document.getElementById(`geo-key-${id}`).hidden = true;
       if (id === 'quarteiroes') clearHighlight();
     }
-    if (container) container.hidden = !input.checked || !container.childElementCount;
+    if (container && !container.dataset.noCalor) container.hidden = !input.checked || !container.childElementCount;
     updateBounds();
     labels.schedule();
   }
@@ -1133,7 +1154,7 @@ function iniciarGeoVSATT() {
   function reportLayerError(input, error) {
     input.checked = false;
     const filter = document.getElementById(`geo-filter-${input.dataset.layer}`);
-    if (filter) filter.hidden = true;
+    if (filter && !filter.dataset.noCalor) filter.hidden = true;
     statusNode.textContent = `${input.dataset.nome}: ${error.message}`;
   }
 
@@ -1414,6 +1435,17 @@ function iniciarGeoVSATT() {
     results.forEach((result, i) => {
       if (result.status === 'rejected') reportLayerError(initial[i], result.reason);
     });
+    if (coletaPendente) {
+      const dados = JSON.parse(coletaPendente.textContent);
+      if (dados.geometria) {
+        const quadro = L.geoJSON(dados.geometria, {style: {color: '#003e91', weight: 3, fillOpacity: .08}, interactive: false}).addTo(map);
+        map.fitBounds(quadro.getBounds(), {maxZoom: 18, padding: [48, 100]});
+      }
+      ajusteColeta = {id: dados.id, primeira: true, marcador: null, salvando: false};
+      painelColeta.querySelector('[data-salvar]').disabled = true;
+      painelColeta.querySelector('[role="status"]').textContent = 'Clique no local confirmado da coleta.';
+      painelColeta.hidden = false;
+    }
   });
 }
 

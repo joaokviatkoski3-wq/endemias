@@ -58,12 +58,16 @@ def _validar(payload, permitidas, bases, pontos):
     fontes = set(camadas)
     calor = payload.get("calor")
     if calor is not None:
-        if not isinstance(calor, dict) or set(calor) != {"camada", "raio", "ponderar_ovos"}:
+        obrigatorios = {"camada", "raio", "ponderar_ovos"}
+        if (not isinstance(calor, dict) or not obrigatorios <= calor.keys()
+                or calor.keys() - obrigatorios - {"intensidade", "opacidade"}):
             raise catalogo.CatalogoErro("A configuração do mapa de calor é inválida.")
         codigo, raio, ponderar = (calor[campo] for campo in ("camada", "raio", "ponderar_ovos"))
         if (not isinstance(codigo, str) or codigo not in pontos or codigo not in permitidas
                 or type(raio) is not int or not 16 <= raio <= 64 or type(ponderar) is not bool
-                or (ponderar and codigo != "ovitrampas")):
+                or (ponderar and codigo != "ovitrampas")
+                or ("intensidade" in calor and (type(calor["intensidade"]) is not int or not 25 <= calor["intensidade"] <= 200))
+                or ("opacidade" in calor and (type(calor["opacidade"]) is not int or not 15 <= calor["opacidade"] <= 100))):
             raise catalogo.CatalogoErro("A composição contém um mapa de calor inválido ou indisponível.")
         fontes.add(codigo)
     if filtros.keys() - fontes:

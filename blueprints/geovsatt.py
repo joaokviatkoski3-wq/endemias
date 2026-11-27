@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 import sqlite3
 
+from shapely.geometry import mapping
+
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, send_from_directory, stream_with_context, url_for
 
 from app_core import audit
@@ -23,6 +25,7 @@ from app_core import geovsatt_exportacao as exportacao
 from app_core import geovsatt_openfreemap as base_vetorial
 from app_core import geovsatt_ortofotos as ortofotos
 from app_core import geovsatt_trabalhos
+from app_core.geovsatt_malha import blocos
 from app_core import registro_geografico as rg
 from app_core import setores
 from app_core.auth import login_required
@@ -171,18 +174,27 @@ def coletas_tubo():
     return redirect(url_for("geovsatt.admin_catalogo", aba="coletas"), code=303)
 
 
-def _pendencias_coletas_tubo():
+def _recorte_coletas():
+    try:
+        return vigilancia.filtros_coletas(request.args)
+    except ValueError as exc:
+        abort(400, str(exc))
+
+
+def _pendencias_coletas_tubo(*, listar=False):
     target = bh.db_target()
+    recorte = _recorte_coletas()
     try:
         _, localizador = _localizador(target, bh.usuario_atual())
-        return vigilancia.pendencias_csv(target, localizador)
+        return vigilancia.pendencias_csv(target, localizador, listar=listar, parametros=recorte)
     except (OSError, ValueError):
         abort(400, "Confira a base municipal de endereços.")
 
 
 def _dados_coletas_tubo():
-    pendentes, resumo = _pendencias_coletas_tubo()
-    return {"total": len(pendentes), **resumo}
+    pendentes, resumo = _pendencias_coletas_tubo(listar=True)
+    return {"total": len(pendentes), "endemias": setores.url_setor(bh.usuario_atual(), "endemias"),
+            "especies_tubos": vigilancia.ESPECIES_TUBOS, "recorte_coletas": _recorte_coletas(), **resumo}
 
 
 @bp.get("/geovsatt/admin/coletas-tubo/pendencias.csv")
@@ -208,6 +220,30 @@ def coletas_tubo_csv():
                      as_attachment=True, download_name=nome)
 
 
+@bp.get("/geovsatt/admin/coletas-tubo/localizar/<id_coleta>")
+@login_required
+@superadmin
+def coletas_tubo_localizar(id_coleta):
+    target = bh.db_target()
+    try:
+        malha, localizador = _localizador(target, bh.usuario_atual())
+        registro = next(vigilancia.enderecos_coletas(target, localizador, id_coleta), None)
+    except (OSError, ValueError):
+        abort(400, "Confira a base municipal de endereços.")
+    if not registro or vigilancia._e_coleta_pe(registro[0]):
+        abort(404)
+    row, endereco, chave, localizado = registro
+    if localizado:
+        return redirect(url_for("geovsatt.admin_catalogo", aba="coletas", _anchor="pendencias-tubos",
+                                **_recorte_coletas()), code=303)
+    quarteirao = blocos(malha, {chave}) if chave else []
+    return _pagina_mapa(coleta_pendente={
+        "id": row["id_coleta"], "tubo": row["num_tubo"], "endereco": endereco,
+        "quarteirao": row["quarteirao"], "localidade": row["localidade"],
+        "geometria": mapping(quarteirao[0][1]) if quarteirao else None,
+    })
+
+
 @bp.post("/api/geovsatt/admin/coletas-tubo/posicao")
 @login_required
 @superadmin
@@ -216,15 +252,20 @@ def coletas_tubo_posicao():
     if not isinstance(payload, dict) or not isinstance(payload.get("id"), str) or not payload["id"]:
         return jsonify(erro="Informe a coleta a reposicionar."), 400
     target = bh.db_target()
+    primeira_posicao = payload.get("primeira_posicao") is True
     try:
         _, localizador = _localizador(target, bh.usuario_atual())
         posicao = vigilancia.reposicionar_coleta(target, localizador, payload["id"],
-                                                 payload.get("latitude"), payload.get("longitude"))
+                                                 payload.get("latitude"), payload.get("longitude"),
+                                                 primeira_posicao=primeira_posicao)
+    except vigilancia.PosicaoJaConfirmada as exc:
+        return jsonify(erro=str(exc)), 409
     except LookupError:
         abort(404)
     except ValueError as exc:
         return jsonify(erro=str(exc)), 400
-    audit.registrar_evento(bh.get_db, "geovsatt_reposicionar_coleta", "coletas_tubos", payload["id"])
+    acao = "geovsatt_marcar_coleta" if primeira_posicao else "geovsatt_reposicionar_coleta"
+    audit.registrar_evento(bh.get_db, acao, "coletas_tubos", payload["id"])
     return jsonify(coordenadas=posicao, fonte="Ajuste no GeoVSATT")
 
 
@@ -263,6 +304,10 @@ def _nominatim():
 @bp.get("/geovsatt")
 @login_required
 def page():
+    return _pagina_mapa()
+
+
+def _pagina_mapa(*, coleta_pendente=None):
     usuario = bh.usuario_atual()
     catalogo = geo.catalogo(bh.db_target(), usuario)
     pode_rg = setores.pode_entrar(usuario, "endemias")
@@ -272,7 +317,9 @@ def page():
     return render_template("geovsatt.html", catalogo=catalogo, pode_rg=pode_rg, pode_estimar=pode_estimar,
                            esri_licenciado=current_app.config["GEOVSATT_ESRI_LICENSED"], ambiental=ambiental,
                            conta_geo=usuario["id_usuario"], endemias=endemias,
-                           nominatim=bool(_nominatim()[0]))
+                           nominatim=bool(_nominatim()[0]), coleta_pendente=coleta_pendente,
+                           especies_tubos=vigilancia.ESPECIES_TUBOS,
+                           recorte_coletas=_recorte_coletas() if coleta_pendente else {})
 
 
 @bp.get("/geovsatt/manifest.webmanifest")

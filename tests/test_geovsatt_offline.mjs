@@ -54,13 +54,15 @@ test('a composição offline mantém o calor e os filtros da fonte mesmo sem des
   let projetos = [];
   const api = criarApiLocal(dados, projetos, async novos => { projetos = novos; }, recortar);
   const rota = '/api/geovsatt/composicoes';
-  const calor = {camada: 'ovitrampas', raio: 48, ponderar_ovos: true};
+  const calor = {camada: 'ovitrampas', raio: 48, ponderar_ovos: true, intensidade: 125, opacidade: 65};
   const composicao = {titulo: 'Densidade de ensaio', camadas: [], base: 'none', calor,
     filtros: {ovitrampas: [{field: 'ovos', match: 'gte', value: '1'}]}};
   const salvar = entrada => api(rota, {method: 'POST', body: JSON.stringify(entrada)});
   const criada = await salvar(composicao);
   assert.deepEqual((await api(rota + '/' + criada.id_composicao)).configuracao, composicao);
-  await assert.rejects(salvar({...composicao, calor: {...calor, raio: 65}}), /mapa de calor inválido/);
+  for (const visual of [{raio: 65}, {intensidade: 201}, {opacidade: false}]) {
+    await assert.rejects(salvar({...composicao, calor: {...calor, ...visual}}), /mapa de calor inválido/);
+  }
   const pacoteRenovado = pacote();
   const novaApi = criarApiLocal(pacoteRenovado, projetos, () => {}, recortar);
   const indisponivel = await novaApi(rota + '/' + criada.id_composicao);

@@ -1,0 +1,12 @@
+{% macro campos_coletas(especies, tipos, recorte) %}
+<label>Espécie <select name="especie"><option value="">Todas</option>
+  {% for codigo, rotulo in especies.items() %}
+  <option value="{{ codigo }}"{% if recorte.get('especie') == codigo %} selected{% endif %}>{{ rotulo }}</option>
+  {% endfor %}
+</select></label>
+<label>Tipo de trabalho <select name="tipo"><option value="">Todos</option>
+  {% for item in tipos %}
+  <option value="{{ item.codigo }}"{% if recorte.get('tipo') == item.codigo %} selected{% endif %}>{{ item.label if item.codigo == 'LIRAA' else item.codigo ~ ' · ' ~ item.label }}</option>
+  {% endfor %}
+</select></label>
+{% endmacro %}

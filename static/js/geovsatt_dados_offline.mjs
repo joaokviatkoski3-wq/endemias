@@ -330,12 +330,16 @@ export function criarApiLocal(pacote, projetos, gravar, operacoes) {
             throw Error('Abra a composição novamente antes de salvar.');
           }
           if (carga.calor != null) {
-            const {camada, raio, ponderar_ovos: ponderar} = carga.calor;
+            const {camada, raio, ponderar_ovos: ponderar, intensidade, opacidade} = carga.calor;
             if (!temFonteDeCalor(pacote, camada) || !Number.isInteger(raio) || raio < 16 || raio > 64 ||
-              typeof ponderar !== 'boolean' || (ponderar && camada !== 'ovitrampas')) {
+              typeof ponderar !== 'boolean' || (ponderar && camada !== 'ovitrampas') ||
+              (intensidade !== undefined && (!Number.isInteger(intensidade) || intensidade < 25 || intensidade > 200)) ||
+              (opacidade !== undefined && (!Number.isInteger(opacidade) || opacidade < 15 || opacidade > 100))) {
               throw Error('A composição contém um mapa de calor inválido ou indisponível.');
             }
             carga.calor = {camada, raio, ponderar_ovos: ponderar};
+            if (intensidade !== undefined) carga.calor.intensidade = intensidade;
+            if (opacidade !== undefined) carga.calor.opacidade = opacidade;
           }
           const locais = Array.from(projetosAtuais.keys()).filter(chave => chave < 0);
           const proximo = id ? Number(id) : Math.min(0, ...locais) - 1;

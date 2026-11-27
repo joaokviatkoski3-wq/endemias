@@ -25,6 +25,7 @@ DENGUE = ("dengue", "dengue_bloqueios", "dengue_quarteiroes")
 OVITRAMPAS = ("ovitrampas", "ovitrampas_bloqueios", "ovitrampas_quarteiroes")
 RECORTE_ESPO = "esporotricose_trabalhados"
 TUBOS = "coletas_tubos"
+ESPECIES_TUBOS = {"aegypt": "Aedes aegypti", "albopictus": "Aedes albopictus", "outra": "Outras espécies"}
 INICIO_COLETAS = "2026-01-01"
 LIMITE_COORDENADAS = 12 * 1024**2
 KML = "{http://www.opengis.net/kml/2.2}"
@@ -74,8 +75,9 @@ def filtrar(registros, parametros, campo_data, campo_localidade, campo_situacao)
 
 
 def coletas(target, id_coleta=None):
-    presencas = " OR ".join(laboratorio._presence_sql(especie, "r")
-                             for especie in ("aegypt", "albopictus", "outra"))
+    presencas = ", ".join(f"""EXISTS (SELECT 1 FROM resultados_laboratorio r
+                                     WHERE r.id_coleta=c.id_coleta AND {laboratorio._presence_sql(especie, "r")}) AS tem_{especie}"""
+                         for especie in ESPECIES_TUBOS)
     conn = visitas_integradas.connect(target)
     try:
         tem_posicoes = db.table_exists(conn, "geovsatt_posicoes_coletas")
@@ -98,12 +100,10 @@ def coletas(target, id_coleta=None):
         registros = [db.serialize_row(row) for row in conn.execute(f"""
         SELECT {posicoes_sql}, c.id_coleta, c.num_tubo, v.id_localidade, v.localidade, v.quarteirao,
                v.logradouro, v.numero, v.data, v.tipo, v.id_pe, v.codigo_pe,
-               pe.codigo_pe AS pe_cadastrado, pe.latitude AS pe_latitude, pe.longitude AS pe_longitude,
-               CASE WHEN EXISTS (SELECT 1 FROM resultados_laboratorio r
-                                    WHERE r.id_coleta=c.id_coleta AND ({presencas})) THEN 'Positiva'
-                    WHEN EXISTS (SELECT 1 FROM resultados_laboratorio r WHERE r.id_coleta=c.id_coleta)
-                         THEN 'Negativa'
-                    ELSE 'Aguardando resultado' END AS situacao
+               pe.id_pe AS pe_id_cadastrado, pe.codigo_pe AS pe_cadastrado,
+               pe.latitude AS pe_latitude, pe.longitude AS pe_longitude,
+               {presencas},
+               EXISTS (SELECT 1 FROM resultados_laboratorio r WHERE r.id_coleta=c.id_coleta) AS tem_resultado
           FROM coletas c JOIN visitas v ON v.id_visita=c.id_visita
           LEFT JOIN pontos_estrategicos pe ON pe.id_pe=v.id_pe
                 OR (v.id_pe IS NULL AND pe.codigo_pe=NULLIF(TRIM(v.codigo_pe),''))
@@ -113,13 +113,17 @@ def coletas(target, id_coleta=None):
         """, parametros)]
         aliases = {}
         for row in registros:
+            row["especies"] = [especie for especie in ESPECIES_TUBOS if row.pop(f"tem_{especie}")]
+            tem_resultado = row.pop("tem_resultado")
+            row["situacao"] = "Positiva" if row["especies"] else ("Negativa" if tem_resultado else "Aguardando resultado")
             if row["tipo"] != "PE" or row["id_pe"] is not None or (row["codigo_pe"] or "").strip():
                 continue
             chave = (row["logradouro"], row["localidade"])
             if chave not in aliases:
                 vinculo = pontos_estrategicos.resolver_alias_visita(conn, *chave)
                 aliases[chave] = conn.execute("""
-                    SELECT codigo_pe AS pe_cadastrado, latitude AS pe_latitude, longitude AS pe_longitude
+                    SELECT id_pe AS pe_id_cadastrado, codigo_pe AS pe_cadastrado,
+                           latitude AS pe_latitude, longitude AS pe_longitude
                       FROM pontos_estrategicos WHERE id_pe=?
                 """, (vinculo["id_pe"],)).fetchone() if vinculo else None
             if aliases[chave]:
@@ -150,9 +154,23 @@ def _ovitrampas_por_endereco(target):
     return posicoes
 
 
-def enderecos_coletas(target, localizador):
+def filtros_coletas(parametros):
+    parametros = parametros or {}
+    tipo = rg._norm(parametros.get("tipo")).upper()
+    especie = rg._norm(parametros.get("especie"))
+    if especie and especie not in ESPECIES_TUBOS:
+        raise ValueError("Selecione uma espécie disponível para as coletas.")
+    return {campo: valor for campo, valor in (("especie", especie), ("tipo", tipo)) if valor}
+
+
+def enderecos_coletas(target, localizador, id_coleta=None, *, parametros=None):
+    recorte = filtros_coletas(parametros)
+    especie, tipo = recorte.get("especie"), recorte.get("tipo")
     ovitrampas_por_endereco = None
-    for row in coletas(target):
+    for row in coletas(target, id_coleta):
+        if ((tipo and rg._norm(row["tipo"]).upper() != tipo)
+                or (especie and especie not in row["especies"])):
+            continue
         if _e_coleta_pe(row):
             pos = enderecos.ponto(row["pe_latitude"], row["pe_longitude"])
             fonte = f"Ponto estratégico · {row['pe_cadastrado']}" if pos else None
@@ -177,12 +195,25 @@ def enderecos_coletas(target, localizador):
         yield row, endereco, chave, localizado
 
 
-def reposicionar_coleta(target, localizador, id_coleta, latitude, longitude):
-    registros = coletas(target, id_coleta)
-    if not registros:
-        raise LookupError
-    if _e_coleta_pe(registros[0]):
+class PosicaoJaConfirmada(ValueError):
+    pass
+
+
+def reposicionar_coleta(target, localizador, id_coleta, latitude, longitude, *, primeira_posicao=False):
+    if primeira_posicao:
+        registro = next(enderecos_coletas(target, localizador, id_coleta), None)
+        if registro is None:
+            raise LookupError
+        row, _, _, localizado = registro
+    else:
+        registros = coletas(target, id_coleta)
+        if not registros:
+            raise LookupError
+        row = registros[0]
+    if _e_coleta_pe(row):
         raise ValueError("A posição deste tubo vem do cadastro do ponto estratégico.")
+    if primeira_posicao and localizado:
+        raise PosicaoJaConfirmada("A coleta já tem uma posição. Abra o mapa para revisar o marcador.")
     posicao = enderecos.ponto(latitude, longitude)
     if localizador.validar(posicao, aceitar_sem_quarteirao=True) is None:
         raise ValueError("Marque uma posição válida no município.")
@@ -190,25 +221,38 @@ def reposicionar_coleta(target, localizador, id_coleta, latitude, longitude):
     try:
         enderecos.ensure_schema(conn)
         prefixo = visitas_integradas.TUBO_PREFIXO
-        if registros[0]["tipo"] == "LIRAA" and id_coleta.startswith(prefixo):
+        if row["tipo"] == "LIRAA" and id_coleta.startswith(prefixo):
             tabela, campo, chave = "geovsatt_posicoes_tubitos_liraa", "id_tubito", int(id_coleta[len(prefixo):])
         else:
             tabela, campo, chave = "geovsatt_posicoes_coletas", "id_coleta", id_coleta
-        conn.execute(f"""INSERT INTO {tabela}({campo},latitude,longitude,atualizado_em)
-                         VALUES(?,?,?,?) ON CONFLICT({campo}) DO UPDATE
-                           SET latitude=excluded.latitude,longitude=excluded.longitude,atualizado_em=excluded.atualizado_em""",
-                     (chave, *posicao, datetime.now(timezone.utc).isoformat()))
+        acao = "DO NOTHING" if primeira_posicao else (
+            "DO UPDATE SET latitude=excluded.latitude,longitude=excluded.longitude,atualizado_em=excluded.atualizado_em")
+        escrita = conn.execute(f"""INSERT INTO {tabela}({campo},latitude,longitude,atualizado_em)
+                                   VALUES(?,?,?,?) ON CONFLICT({campo}) {acao}""",
+                                (chave, *posicao, datetime.now(timezone.utc).isoformat()))
+        if primeira_posicao and not escrita.rowcount:
+            raise PosicaoJaConfirmada("A coleta já tem uma posição. Abra o mapa para revisar o marcador.")
         conn.commit()
     finally:
         conn.close()
     return posicao
 
 
-def pendencias_csv(target, localizador, *, incluir_automaticos=False):
+def pendencias_csv(target, localizador, *, incluir_automaticos=False, listar=False, parametros=None):
     pendentes = {}
     resumo = dict(coletas=0, com_resultado=0, sem_endereco=0, pe_aguardando=0,
                   pe_georreferenciado=0, outras_localizadas=0, coletas_endereco_pendente=0)
-    for row, endereco, esperado, localizado in enderecos_coletas(target, localizador):
+    if listar:
+        resumo["lista_pendencias"] = []
+    for row, endereco, esperado, localizado in enderecos_coletas(target, localizador, parametros=parametros):
+        if listar and not localizado:
+            resumo["lista_pendencias"].append({
+                "id": row["id_coleta"], "tubo": row["num_tubo"], "data": row["data"],
+                "logradouro": row["logradouro"], "numero": row["numero"], "localidade": row["localidade"],
+                "quarteirao": row["quarteirao"], "tipo": row["tipo"], "pe": _e_coleta_pe(row),
+                "especies": ", ".join(ESPECIES_TUBOS[e] for e in row["especies"]),
+                "codigo_pe": row["pe_cadastrado"] or row["codigo_pe"], "pe_id": row["pe_id_cadastrado"],
+            })
         resumo["coletas"] += 1
         resumo["com_resultado"] += row["situacao"] != "Aguardando resultado"
         if _e_coleta_pe(row):
@@ -422,13 +466,14 @@ def camada_dengue(target, codigo, parametros, malha, localizador):
 def camada_tubos(target, parametros, localizador):
     features = []
     registros = {row["id_coleta"]: (row, endereco, esperado, localizado)
-                 for row, endereco, esperado, localizado in enderecos_coletas(target, localizador)}
+                 for row, endereco, esperado, localizado in enderecos_coletas(target, localizador, parametros=parametros)}
     for row in filtrar((v[0] for v in registros.values()), parametros, "data", "localidade", "situacao"):
         _, _, _, localizado = registros[row["id_coleta"]]
         if localizado:
             pos, _, fonte = localizado
             campos = {k: row[k] for k in ("num_tubo", "data", "localidade", "quarteirao", "situacao", "tipo")}
             features.append(_ponto(row["id_coleta"], pos, campos | {"fonte_coordenadas": fonte,
+                                  "especies": ", ".join(ESPECIES_TUBOS[e] for e in row["especies"]),
                                   "vinculado_pe": _e_coleta_pe(row), "rotulo": f"Tubo {row['num_tubo']}"}))
     return colecao(features, "Coletas e resultados do laboratório VSATT")
 

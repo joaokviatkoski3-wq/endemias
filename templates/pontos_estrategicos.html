@@ -452,5 +452,11 @@ document.addEventListener('click', e => {
   if(acao) acao();
 });
 document.querySelector('[data-pe-alias-select]').addEventListener('change', carregarAliases);
+const atalhoPE = new URLSearchParams(location.search);
+if (atalhoPE.get('aba') === 'aliases') ativarTab('aliases');
+const peSelecionado = Number(atalhoPE.get('pe'));
+if (Number.isSafeInteger(peSelecionado) && peSelecionado > 0) {
+  editarPE(peSelecionado).catch(erro => toast(erro.message || 'Confira o ponto estratégico.', 'error'));
+}
 
 </script>{% endblock %}

@@ -457,6 +457,13 @@ verificações do instalador.
   cabem em um intervalo espacial de até 8 m. Na falta desse resultado,
   o GeoVSATT verifica se há ovitrampa cadastrada no mesmo logradouro,
   número e quarteirão, com coordenada única. A fonte é exibida no mapa.
+  A partir da 2.32.0, filtre por espécie e tipo de trabalho na camada de coletas
+  e na aba administrativa. Os CSVs de pendências da aba usam o mesmo recorte.
+  Em **Posições pendentes**, abra uma coleta e clique no local confirmado.
+  As coletas de PE têm atalhos para o cadastro ou para a revisão do vínculo.
+- **Mapa de calor** apresenta os filtros da camada selecionada no próprio
+  painel. Os filtros também valem na camada de pontos. Ajuste raio visual,
+  intensidade e opacidade. As composições salvas preservam esses ajustes.
 - As folhas de bloqueio de dengue, esporotricose e ovitrampa exibem o raio,
   os quarteirões atingidos e os nomes das vias da base cartográfica. Cabe uma
   lista de duas colunas ao lado do mapa, com continuação quando necessário.

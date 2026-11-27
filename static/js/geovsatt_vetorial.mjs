@@ -49,7 +49,7 @@ export function criarBaseVetorialOffline(map, copia) {
   return criarCamadaVetorial(map, {style: copia.estilo, attributionControl: {customAttribution: creditos}});
 }
 
-export function criarMapaCalor(map, dados, raio) {
+export function criarMapaCalor(map, dados, {raio, intensidade, opacidade}) {
   return criarCamadaVetorial(map, {
     pane: 'heatmap',
     attributionControl: false,
@@ -61,8 +61,8 @@ export function criarMapaCalor(map, dados, raio) {
         paint: {
           'heatmap-weight': ['get', 'peso'],
           'heatmap-radius': raio,
-          'heatmap-intensity': .85,
-          'heatmap-opacity': .82,
+          'heatmap-intensity': intensidade / 100,
+          'heatmap-opacity': opacidade / 100,
           'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(49,87,182,0)',
             .2, '#3157b6', .4, '#39a9cc', .6, '#75cda0', .8, '#ffca55', 1, '#c1342f'],
         },

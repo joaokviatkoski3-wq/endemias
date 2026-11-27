@@ -4,6 +4,14 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.32.0": {
+        "titulo": "Coletas pendentes no mapa e filtros de calor",
+        "mudancas": [
+            "Localize uma coleta pendente pelo painel e marque a posição diretamente no mapa.",
+            "Filtre coletas por espécie e tipo de trabalho.",
+            "Aplique os filtros da camada no painel de calor e ajuste raio, intensidade e opacidade.",
+        ],
+    },
     "2.31.0": {
         "titulo": "Folgas e Ausências no Controle de Pessoal",
         "mudancas": [
