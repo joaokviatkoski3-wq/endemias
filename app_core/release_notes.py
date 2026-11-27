@@ -4,6 +4,15 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.29.0": {
+        "titulo": "Gerenciamento de camadas e localização em tempo real",
+        "mudancas": [
+            "Gerenciar camadas reúne catálogo, importação, estilos, dengue e coletas nas abas do superadmin.",
+            "Escolha a cor de uma camada pelo seletor ou defina regras por campo, como a localidade dos quarteirões.",
+            "Minha localização acompanha a posição do aparelho até você parar o acompanhamento.",
+            "Os tubos aparecem a partir de 2026. Coletas de PE usam a posição do cadastro, e o retorno do Google Earth aceita KML ou KMZ.",
+        ],
+    },
     "2.28.0": {
         "titulo": "Localização e bloqueios no GeoVSATT",
         "mudancas": [

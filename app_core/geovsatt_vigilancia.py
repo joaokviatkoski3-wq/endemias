@@ -4,14 +4,18 @@ from calendar import monthrange
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 import csv
-from io import StringIO
+from io import BytesIO, StringIO
+from zipfile import BadZipFile, ZipFile
+
+from defusedxml import ElementTree
+from defusedxml.common import DefusedXmlException
 
 from shapely.geometry import mapping
 from werkzeug.datastructures import MultiDict
 
 from app_core import ambiental, db, esporotricose_bloqueio, geovsatt_bloqueios as bloqueios
 from app_core import geovsatt_dengue as dengue, geovsatt_enderecos as enderecos
-from app_core import laboratorio, ovitrampas, registro_geografico as rg, visitas_integradas
+from app_core import laboratorio, ovitrampas, pontos_estrategicos, registro_geografico as rg, visitas_integradas
 from app_core.geovsatt_malha import blocos
 from app_core.territorio import chave_territorial
 
@@ -20,6 +24,9 @@ DENGUE = ("dengue", "dengue_bloqueios", "dengue_quarteiroes")
 OVITRAMPAS = ("ovitrampas", "ovitrampas_bloqueios", "ovitrampas_quarteiroes")
 RECORTE_ESPO = "esporotricose_trabalhados"
 TUBOS = "coletas_tubos"
+INICIO_COLETAS = "2026-01-01"
+LIMITE_COORDENADAS = 12 * 1024**2
+KML = "{http://www.opengis.net/kml/2.2}"
 
 
 def _intervalo(parametros):
@@ -67,21 +74,52 @@ def filtrar(registros, parametros, campo_data, campo_localidade, campo_situacao)
 def coletas(target):
     presencas = " OR ".join(laboratorio._presence_sql(especie, "r")
                              for especie in ("aegypt", "albopictus", "outra"))
-    return visitas_integradas.query(target, f"""
+    conn = visitas_integradas.connect(target)
+    try:
+        registros = [db.serialize_row(row) for row in conn.execute(f"""
         SELECT c.id_coleta, c.num_tubo, v.id_localidade, v.localidade, v.quarteirao,
-               v.logradouro, v.numero, v.data, v.tipo,
+               v.logradouro, v.numero, v.data, v.tipo, v.id_pe, v.codigo_pe,
+               pe.codigo_pe AS pe_cadastrado, pe.latitude AS pe_latitude, pe.longitude AS pe_longitude,
                CASE WHEN EXISTS (SELECT 1 FROM resultados_laboratorio r
                                     WHERE r.id_coleta=c.id_coleta AND ({presencas})) THEN 'Positiva'
                     WHEN EXISTS (SELECT 1 FROM resultados_laboratorio r WHERE r.id_coleta=c.id_coleta)
                          THEN 'Negativa'
                     ELSE 'Aguardando resultado' END AS situacao
           FROM coletas c JOIN visitas v ON v.id_visita=c.id_visita
+          LEFT JOIN pontos_estrategicos pe ON pe.id_pe=v.id_pe
+                OR (v.id_pe IS NULL AND pe.codigo_pe=NULLIF(TRIM(v.codigo_pe),''))
+         WHERE v.data >= ?
          ORDER BY v.data DESC,c.id_coleta
-    """)
+        """, (INICIO_COLETAS,))]
+        aliases = {}
+        for row in registros:
+            if row["tipo"] != "PE" or row["id_pe"] is not None or (row["codigo_pe"] or "").strip():
+                continue
+            chave = (row["logradouro"], row["localidade"])
+            if chave not in aliases:
+                vinculo = pontos_estrategicos.resolver_alias_visita(conn, *chave)
+                aliases[chave] = conn.execute("""
+                    SELECT codigo_pe AS pe_cadastrado, latitude AS pe_latitude, longitude AS pe_longitude
+                      FROM pontos_estrategicos WHERE id_pe=?
+                """, (vinculo["id_pe"],)).fetchone() if vinculo else None
+            if aliases[chave]:
+                row.update(db.serialize_row(aliases[chave]))
+        return registros
+    finally:
+        conn.close()
+
+
+def _e_coleta_pe(row):
+    return row["tipo"] == "PE" or row["id_pe"] is not None or bool((row["codigo_pe"] or "").strip())
 
 
 def enderecos_coletas(target, localizador):
     for row in coletas(target):
+        if _e_coleta_pe(row):
+            pos = enderecos.ponto(row["pe_latitude"], row["pe_longitude"])
+            fonte = f"Ponto estratégico · {row['pe_cadastrado']}" if pos else None
+            yield row, "", None, (pos, {}, fonte) if pos else None
+            continue
         endereco = enderecos.endereco_rotulado(row)
         chave = chave_territorial(row["id_localidade"], row["quarteirao"])
         if endereco:
@@ -92,28 +130,66 @@ def enderecos_coletas(target, localizador):
 
 def pendencias_csv(target, localizador):
     pendentes = {}
-    sem_endereco = 0
-    for _, endereco, esperado, localizado in enderecos_coletas(target, localizador):
-        if not endereco:
-            sem_endereco += 1
+    resumo = {"sem_endereco": 0, "pe_aguardando": 0, "pe_georreferenciado": 0}
+    for row, endereco, esperado, localizado in enderecos_coletas(target, localizador):
+        if _e_coleta_pe(row):
+            resumo["pe_georreferenciado" if localizado else "pe_aguardando"] += 1
+        elif not endereco:
+            resumo["sem_endereco"] += 1
         elif not localizado:
             chave = enderecos.chave_endereco(endereco)
             registro = pendentes.setdefault(chave, {"endereco": endereco, "esperados": set(), "total": 0})
             if esperado:
                 registro["esperados"].add(esperado)
             registro["total"] += 1
-    return pendentes, sem_endereco
+    return pendentes, resumo
 
 
-def importar_csv(target, conteudo, localizador, *, aplicar=False):
-    pendentes, _ = pendencias_csv(target, localizador)
+def _registros_csv(conteudo):
     cabecalho = conteudo.partition("\n")[0]
     leitor = csv.DictReader(StringIO(conteudo), delimiter=";" if ";" in cabecalho else ",")
     if not {"chave", "latitude", "longitude"}.issubset(leitor.fieldnames or []):
         raise ValueError("Use o CSV exportado pelo GeoVSATT e preserve chave, latitude e longitude.")
+    for item in leitor:
+        yield leitor.line_num, item
+
+
+def _registros_kml(conteudo):
+    try:
+        if conteudo.startswith(b"PK"):
+            with ZipFile(BytesIO(conteudo)) as kmz:
+                arquivos = [info for info in kmz.infolist() if info.filename.lower().endswith(".kml")]
+                if len(arquivos) != 1 or arquivos[0].file_size > LIMITE_COORDENADAS:
+                    raise ValueError("O KMZ deve conter um único KML de até 12 MiB.")
+                conteudo = kmz.read(arquivos[0])
+        arvore = ElementTree.fromstring(conteudo)
+    except (BadZipFile, DefusedXmlException, ElementTree.ParseError, RuntimeError) as exc:
+        raise ValueError("Não foi possível ler o KML ou KMZ.") from exc
+    pontos = arvore.findall(f".//{KML}Placemark")
+    if not pontos:
+        raise ValueError("O arquivo não contém marcadores do Google Earth.")
+    for i, marcador in enumerate(pontos, 1):
+        chave = marcador.findtext(f"{KML}name", "")
+        coordenadas = marcador.findtext(f"{KML}Point/{KML}coordinates", "").strip()
+        lon, lat, *_ = coordenadas.split(",") + ["", ""]
+        if not lat or not lon:
+            lat = "inválida"
+        yield i, {"chave": chave, "latitude": lat, "longitude": lon}
+
+
+def importar_coordenadas(target, conteudo, localizador, *, formato="csv", aplicar=False):
+    pendentes, _ = pendencias_csv(target, localizador)
+    if formato == "csv":
+        leitor = _registros_csv(conteudo.decode("utf-8-sig"))
+        fonte = "CSV verificado"
+    elif formato in {"kml", "kmz"}:
+        leitor = _registros_kml(conteudo)
+        fonte = "Google Earth Pro"
+    else:
+        raise ValueError("Selecione um arquivo CSV, KML ou KMZ.")
     alteracoes, problemas, vistos = [], [], set()
     ignorados = 0
-    for item in leitor:
+    for linha, item in leitor:
         chave = (item.get("chave") or "").strip()
         lat = (item.get("latitude") or "").strip()
         lon = (item.get("longitude") or "").strip()
@@ -140,7 +216,7 @@ def importar_csv(target, conteudo, localizador, *, aplicar=False):
             alteracoes.append((chave, *pos))
             erro = None
         if erro:
-            problemas.append({"linha": leitor.line_num, "erro": erro})
+            problemas.append({"linha": linha, "erro": erro})
         vistos.add(chave)
     if aplicar and alteracoes and not problemas:
         conn = db.connect(target)
@@ -152,7 +228,7 @@ def importar_csv(target, conteudo, localizador, *, aplicar=False):
             for chave, lat, lon in alteracoes:
                 conn.execute("""INSERT INTO geovsatt_enderecos_verificados
                                     (chave,latitude,longitude,fonte,atualizado_em) VALUES (?,?,?,?,?)
-                                ON CONFLICT (chave) DO NOTHING""", (chave, lat, lon, "CSV verificado", agora))
+                                ON CONFLICT (chave) DO NOTHING""", (chave, lat, lon, fonte, agora))
                 salvo = conn.execute("SELECT latitude,longitude FROM geovsatt_enderecos_verificados WHERE chave=?",
                                      (chave,)).fetchone()
                 if (salvo["latitude"], salvo["longitude"]) != (lat, lon):

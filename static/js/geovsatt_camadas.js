@@ -11,6 +11,13 @@
   const categoria = document.getElementById('gc-valor-cor');
   const editorCor = document.querySelector('.gc-color-editor');
   const paleta = document.getElementById('gc-paleta');
+  const coresDefinidas = document.getElementById('gc-cores-definidas');
+  const painelFiltros = document.getElementById('gc-filtros-cor');
+  const listaFiltros = document.getElementById('gc-filtros-cor-lista');
+  const adicionarFiltro = document.getElementById('gc-adicionar-filtro-cor');
+  const modeloFiltro = document.getElementById('gc-filtro-cor-modelo');
+  const maxFiltros = 40;
+  let ordemLista = 0;
   const faixas = document.getElementById('gc-faixas');
   const lista = document.getElementById('gc-faixas-lista');
   const estado = document.getElementById('gc-faixas-estado');
@@ -47,6 +54,13 @@
       ? itens : null;
   }
 
+  function lerFiltros() {
+    return [...listaFiltros.children].map(linha => {
+      const valor = nome => linha.querySelector(`[name="filtro_cor_${nome}"]`).value.trim();
+      return {campo: valor('campo'), operador: valor('operador'), valor: valor('valor'), cor: valor('cor')};
+    }).filter(regra => regra.campo && regra.valor);
+  }
+
   function lerConfig() {
     const config = Object.fromEntries(new FormData(form));
     for (const nome of ['largura', 'opacidade', 'opacidade_preenchimento', 'raio', 'rotulo_tamanho', 'rotulo_halo']) {
@@ -55,6 +69,7 @@
     }
     for (const nome of ['cor', 'cor_preenchimento', 'rotulo_cor', 'rotulo_halo_cor']) config[nome] = hex(config[nome]);
     config.cores = cores();
+    config.filtros_cor = modo.value === 'filtros' ? lerFiltros() : [];
     config.faixas_cor = modo.value === 'faixas' ? lerFaixas() : [];
     estado.textContent = config.faixas_cor === null ? 'Preencha os limites das faixas e evite sobreposições.' : '';
     if (config.faixas_cor === null) {
@@ -66,17 +81,24 @@
 
   function atualizarValores() {
     atributo.required = modo.value === 'faixas' || modo.value === 'categorias';
-    categorias.hidden = modo.value === 'faixas' || modo.value === 'unico';
+    categorias.hidden = ['faixas', 'unico', 'filtros'].includes(modo.value);
     faixas.hidden = modo.value !== 'faixas';
+    painelFiltros.hidden = modo.value !== 'filtros';
+    document.getElementById('gc-campo-cores').hidden = ['unico', 'filtros'].includes(modo.value);
+    for (const entrada of listaFiltros.querySelectorAll('input, select')) {
+      entrada.disabled = painelFiltros.hidden;
+      entrada.required = !painelFiltros.hidden;
+    }
     adicionar.disabled = lista.childElementCount >= maxFaixas;
-    const valores = [...(atributos.get(atributo.value || padrao.categories)?.keys() ?? [])]
+    const campoAmostra = modo.value === 'filtros' ? lerFiltros()[0]?.campo : atributo.value || padrao.categories;
+    const valores = [...(atributos.get(campoAmostra)?.keys() ?? [])]
       .sort((a, b) => a.localeCompare(b, 'pt-BR', {numeric: true}));
     for (const select of [categoria, amostra]) {
       const anterior = select.value;
       select.replaceChildren(...valores.map(valor => new Option(valor, valor)));
       if (valores.includes(anterior)) select.value = anterior;
     }
-    editorCor.hidden = !valores.length || !atributo.value;
+    editorCor.hidden = !valores.length || !atributo.value || categorias.hidden;
     document.getElementById('gc-amostra-campo').hidden = !valores.length || modo.value === 'unico';
     paleta.value = cores()[categoria.value] || '#008c30';
   }
@@ -149,7 +171,8 @@
 
   function atualizarPrevia() {
     const config = lerConfig();
-    const opcoes = atributos.get(config.atributo_cor || padrao.categories);
+    const campoAmostra = config.modo_cor === 'filtros' ? config.filtros_cor[0]?.campo : config.atributo_cor || padrao.categories;
+    const opcoes = atributos.get(campoAmostra);
     const feicao = opcoes?.get(amostra.value) || primeira;
     const props = feicao?.properties || {};
     const tipo = feicao?.geometry?.type ? estilos.tipoDaGeometria(feicao.geometry.type) : form.dataset.tipo;
@@ -158,7 +181,8 @@
     desenhar(config, estilos.simbolo(config, padrao, classificar(props), tipo), tipo, estilos.textoRotulo(config, principal, props), props);
     const classes = config.modo_cor === 'faixas'
       ? config.faixas_cor.map(faixa => ({nome: estilos.textoFaixa(faixa), cor: faixa.cor}))
-      : [...(opcoes?.values() || [])].slice(0, 16).map(exemplo => classificar(exemplo.properties)).filter(Boolean);
+      : config.modo_cor === 'filtros' ? estilos.classesDosFiltros(config)
+        : [...(opcoes?.values() || [])].slice(0, 16).map(exemplo => classificar(exemplo.properties)).filter(Boolean);
     legenda.replaceChildren(...classes.map(classe => {
       const item = document.createElement('li');
       const cor = document.createElement('i');
@@ -168,6 +192,85 @@
     }));
   }
 
+  function atualizarCoresDefinidas() {
+    coresDefinidas.replaceChildren(...Object.entries(cores()).map(([nome, cor]) => {
+      const linha = document.createElement('li');
+      const seletor = document.createElement('input');
+      seletor.type = 'color';
+      seletor.value = cor;
+      seletor.setAttribute('aria-label', 'Cor de ' + nome);
+      seletor.addEventListener('input', () => salvarCores({...cores(), [nome]: seletor.value}, false));
+      const remover = document.createElement('button');
+      remover.type = 'button';
+      remover.textContent = 'Remover';
+      remover.addEventListener('click', () => {
+        const valores = cores();
+        delete valores[nome];
+        salvarCores(valores);
+      });
+      linha.append(seletor, document.createTextNode(nome), remover);
+      return linha;
+    }));
+  }
+
+  function salvarCores(valores, redesenhar = true) {
+    const texto = Object.entries(valores).map(([nome, cor]) => `${nome} = ${cor}`).join('\n');
+    if (texto.length > regras.maxLength) {
+      document.getElementById('gc-categorias-estado').textContent = 'O conjunto de cores atingiu o tamanho máximo.';
+      return;
+    }
+    document.getElementById('gc-categorias-estado').textContent = '';
+    regras.value = texto;
+    if (redesenhar) atualizarCoresDefinidas();
+    atualizarPrevia();
+  }
+
+  for (const escolha of form.querySelectorAll('[data-escolha-cor]')) {
+    const paleta = escolha.querySelector('[data-cor-visual]');
+    const automatica = escolha.querySelector('[data-cor-automatica]');
+    const destino = escolha.querySelector('input[type="hidden"]');
+    paleta.addEventListener('input', () => {
+      automatica.checked = false;
+      destino.value = paleta.value;
+    });
+    automatica.addEventListener('input', () => {
+      destino.value = automatica.checked ? '' : paleta.value;
+    });
+  }
+
+  function atualizarSugestoes(linha) {
+    const campoFiltro = linha.querySelector('[name="filtro_cor_campo"]');
+    const valorFiltro = linha.querySelector('[name="filtro_cor_valor"]');
+    let sugestoes = linha.querySelector('datalist');
+    if (!sugestoes) {
+      sugestoes = document.createElement('datalist');
+      sugestoes.id = 'gc-opcoes-filtro-cor-' + (++ordemLista);
+      valorFiltro.setAttribute('list', sugestoes.id);
+      linha.append(sugestoes);
+    }
+    const valores = [...(atributos.get(campoFiltro.value)?.keys() ?? [])];
+    sugestoes.replaceChildren(...valores.slice(0, 100).map(valor => new Option(valor, valor)));
+  }
+
+  adicionarFiltro.addEventListener('click', () => {
+    if (listaFiltros.childElementCount >= maxFiltros) return;
+    const novo = modeloFiltro.content.cloneNode(true);
+    listaFiltros.append(novo);
+    const linha = listaFiltros.lastElementChild;
+    atualizarSugestoes(linha);
+    adicionarFiltro.disabled = listaFiltros.childElementCount >= maxFiltros;
+    linha.querySelector('input').focus();
+  });
+
+  listaFiltros.addEventListener('click', event => {
+    if (!event.target.matches('[data-remover-filtro-cor]')) return;
+    event.target.closest('.gc-filtro-cor').remove();
+    adicionarFiltro.disabled = false;
+    adicionarFiltro.focus();
+    atualizarValores();
+    atualizarPrevia();
+  });
+
   categoria.addEventListener('change', () => {
     paleta.value = cores()[categoria.value] || '#008c30';
     amostra.value = categoria.value;
@@ -175,16 +278,7 @@
   });
   document.getElementById('gc-aplicar-cor').addEventListener('click', () => {
     if (!categoria.value) return;
-    const valores = {...cores(), [categoria.value]: paleta.value};
-    const texto = Object.entries(valores).map(([nome, cor]) => `${nome} = ${cor}`).join('\n');
-    if (texto.length > regras.maxLength) {
-      regras.setCustomValidity('O conjunto de regras atingiu o tamanho máximo.');
-      regras.reportValidity();
-      regras.setCustomValidity('');
-      return;
-    }
-    regras.value = texto;
-    atualizarPrevia();
+    salvarCores({...cores(), [categoria.value]: paleta.value});
   });
   adicionar.addEventListener('click', () => {
     if (lista.childElementCount >= maxFaixas) return;
@@ -203,10 +297,16 @@
     atualizarPrevia();
   });
   form.addEventListener('input', event => {
-    if (event.target === modo || event.target === atributo) atualizarValores();
+    if (event.target.name === 'filtro_cor_campo') atualizarSugestoes(event.target.closest('.gc-filtro-cor'));
+    if (event.target === modo || event.target === atributo || event.target.name === 'filtro_cor_campo') atualizarValores();
     if (event.target.closest('fieldset')?.contains(simbolo)) atualizarPrevia();
   });
   form.addEventListener('submit', event => {
+    if (modo.value === 'filtros' && listaFiltros.childElementCount === 0) {
+      event.preventDefault();
+      adicionarFiltro.click();
+      return;
+    }
     if (modo.value !== 'faixas' || lerFaixas()) return;
     event.preventDefault();
     atualizarPrevia();
@@ -229,10 +329,12 @@
       }
     }
     document.getElementById('gc-atributos').replaceChildren(...[...atributos.keys()].sort().map(nome => new Option(nome, nome)));
+    for (const linha of listaFiltros.children) atualizarSugestoes(linha);
     atualizarValores();
     atualizarPrevia();
   }
 
+  atualizarCoresDefinidas();
   atualizarValores();
   atualizarPrevia();
   carregarAmostras().catch(() => {});

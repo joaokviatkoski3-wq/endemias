@@ -63,32 +63,64 @@ function iniciarGeoVSATT() {
   map.setView([-25.32, -49.30], 12);
   const botaoLocalizacao = document.getElementById('geo-localizacao');
   const localizacao = L.layerGroup().addTo(map);
+  let rastreio = null;
+
+  function pararLocalizacao() {
+    if (!rastreio) return;
+    if (rastreio.id !== undefined) navigator.geolocation.clearWatch(rastreio.id);
+    rastreio = null;
+    localizacao.clearLayers();
+    botaoLocalizacao.setAttribute('aria-pressed', 'false');
+    botaoLocalizacao.title = 'Acompanhar minha localização';
+    botaoLocalizacao.setAttribute('aria-label', botaoLocalizacao.title);
+  }
+
+  map.on('dragstart', () => {
+    if (rastreio?.marcador) rastreio.centralizar = false;
+  });
+  window.addEventListener('pagehide', pararLocalizacao);
   botaoLocalizacao?.addEventListener('click', () => {
     if (!window.isSecureContext || !navigator.geolocation) {
       statusNode.textContent = 'Minha localização precisa de um navegador compatível e acesso por HTTPS.';
       return;
     }
-    botaoLocalizacao.disabled = true;
+    if (rastreio) {
+      pararLocalizacao();
+      statusNode.textContent = 'Acompanhamento da localização encerrado.';
+      return;
+    }
+    const atual = {centralizar: true};
+    rastreio = atual;
+    botaoLocalizacao.setAttribute('aria-pressed', 'true');
+    botaoLocalizacao.title = 'Parar acompanhamento da localização';
+    botaoLocalizacao.setAttribute('aria-label', botaoLocalizacao.title);
     statusNode.textContent = 'Obtendo a posição do aparelho…';
-    navigator.geolocation.getCurrentPosition(({coords}) => {
-      botaoLocalizacao.disabled = false;
+    atual.id = navigator.geolocation.watchPosition(({coords}) => {
+      if (rastreio !== atual) return;
       const ponto = [coords.latitude, coords.longitude];
-      localizacao.clearLayers();
-      const estilo = {color: '#1664c0', interactive: false};
-      if (Number.isFinite(coords.accuracy) && coords.accuracy > 0) {
-        localizacao.addLayer(L.circle(ponto, {...estilo, radius: coords.accuracy, fillOpacity: .14}));
+      const precisao = Number.isFinite(coords.accuracy) ? coords.accuracy : 0;
+      if (!atual.marcador) {
+        atual.circulo = L.circle(ponto, {radius: precisao, color: '#1765bb', weight: 1,
+          fillColor: '#2f83e9', fillOpacity: .15, interactive: false}).addTo(localizacao);
+        atual.marcador = L.circleMarker(ponto, {radius: 8, color: '#fff', weight: 3,
+          fillColor: '#1765bb', fillOpacity: 1, interactive: false}).addTo(localizacao);
+        map.setView(ponto, Math.max(map.getZoom(), precisao > 100 ? 14 : 17));
+      } else {
+        atual.circulo.setLatLng(ponto).setRadius(precisao).setStyle({opacity: 1, fillOpacity: .15});
+        atual.marcador.setLatLng(ponto).setStyle({opacity: 1, fillOpacity: 1});
+        if (atual.centralizar) map.panTo(ponto, {animate: false});
       }
-      localizacao.addLayer(L.circleMarker(ponto, {...estilo, radius: 7, weight: 2, fillOpacity: 1}));
-      map.setView(ponto, Math.max(map.getZoom(), coords.accuracy <= 100 ? 17 : 14));
-      const precisao = Number.isFinite(coords.accuracy) ? ' Precisão aproximada de ' + Math.round(coords.accuracy) + ' m.' : '';
-      statusNode.textContent = 'Posição do aparelho.' + precisao;
+      statusNode.textContent = 'Localização em tempo real' +
+        (precisao > 0 ? ' · precisão aproximada de ' + Math.round(precisao) + ' m' : '');
     }, erro => {
-      botaoLocalizacao.disabled = false;
-      statusNode.textContent = {
-        1: 'Permissão de localização negada. Verifique as permissões do navegador.',
-        2: 'O aparelho não conseguiu obter a localização.',
-        3: 'A localização demorou a responder. Tente novamente ao ar livre.',
-      }[erro.code] || 'A localização está indisponível.';
+      if (rastreio !== atual) return;
+      if (erro.code === 1) {
+        pararLocalizacao();
+        statusNode.textContent = 'Permissão de localização negada. Verifique as permissões do navegador.';
+      } else {
+        localizacao.eachLayer(camada => camada.setStyle({opacity: .45, fillOpacity: .16}));
+        statusNode.textContent = 'Sinal de localização indisponível. Tentando novamente…';
+      }
     }, {enableHighAccuracy: true, timeout: 15000, maximumAge: 0});
   });
   if (!campo) document.addEventListener('geovsatt:obter-recorte-offline', event => {

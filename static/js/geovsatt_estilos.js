@@ -61,7 +61,30 @@
     return `${formatador.format(de)} a < ${formatador.format(ate)}`;
   }
 
+  const comparacoesCor = {igual: '=', contem: 'contém', minimo: '≥', maximo: '≤'};
+
+  function classesDosFiltros(config) {
+    return (config.filtros_cor || []).map((filtro, ordem) => ({
+      ...filtro, ordem, nome: `${filtro.campo} ${comparacoesCor[filtro.operador]} ${filtro.valor}`,
+      texto: String(filtro.valor).trim().toLocaleLowerCase('pt-BR'), numero: numero(filtro.valor),
+    }));
+  }
+
   function classificador(config, padrao, feicoes) {
+    if (config.modo_cor === 'filtros') {
+      const regras = classesDosFiltros(config);
+      return props => regras.find(regra => {
+        if (!Object.hasOwn(props ?? {}, regra.campo) || props[regra.campo] == null) return false;
+        const valor = props[regra.campo];
+        if (regra.operador === 'minimo' || regra.operador === 'maximo') {
+          const n = numero(valor);
+          if (n === null || regra.numero === null) return false;
+          return regra.operador === 'minimo' ? n >= regra.numero : n <= regra.numero;
+        }
+        const texto = String(valor).trim().toLocaleLowerCase('pt-BR');
+        return regra.operador === 'contem' ? texto.includes(regra.texto) : texto === regra.texto;
+      }) || null;
+    }
     const atributo = config.atributo_cor || padrao.categories;
     if (!atributo || config.modo_cor === 'unico') return () => null;
     const atributoEm = props => Object.hasOwn(props ?? {}, atributo) ? props[atributo] : undefined;
@@ -95,7 +118,7 @@
     const corClasse = classe?.cor || '';
     const cor = corClasse || config.cor || padrao.color;
     if (tipo === 'ponto') {
-      const preenchimento = config.modo_cor === 'faixas' || config.modo_cor === 'categorias'
+      const preenchimento = ['faixas', 'categorias', 'filtros'].includes(config.modo_cor)
         ? (corClasse || config.cor_preenchimento) : (config.cor_preenchimento || corClasse);
       return {color: config.cor || '#fff', weight: config.largura ?? 2, opacity: config.opacidade ?? 1,
         fillColor: preenchimento || cor, fillOpacity: config.opacidade_preenchimento ?? 1};
@@ -151,5 +174,5 @@
   }
 
   window.GeoVSATTEstilos = {paleta, numero, textoFaixa, classificador, simbolo, textoRotulo,
-    tipoDaGeometria, marcador, padraoDaCamada, corDoSimbolo};
+    tipoDaGeometria, marcador, padraoDaCamada, corDoSimbolo, classesDosFiltros};
 })();

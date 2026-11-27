@@ -33,10 +33,12 @@ VALORES_ESTILO = {
 }
 ESTILO_PADRAO = {chave: None for chave in VALORES_ESTILO} | {
     "cor_preenchimento": "", "rotulo_cor": "", "linha": "", "ponto": "", "rotulo_modo": "",
-    "modo_cor": "", "faixas_cor": (), "rotulo_complemento": "", "rotulo_prefixo": "",
+    "modo_cor": "", "faixas_cor": (), "filtros_cor": (), "rotulo_complemento": "", "rotulo_prefixo": "",
     "rotulo_sufixo": "", "rotulo_halo_cor": "",
 }
 MAX_FAIXAS = 12
+MAX_FILTROS_COR = 40
+OPERADORES_COR = {"igual", "contem", "minimo", "maximo"}
 NUMERO_ESTILO = re.compile(r"[+-]?(?:[0-9]+(?:[.,][0-9]+)?|[.,][0-9]+)(?:[eE][+-]?[0-9]+)?")
 TIPOS = {
     "Point": ("ponto", 0), "MultiPoint": ("ponto", 1),
@@ -188,6 +190,23 @@ def _faixas_cor(form):
     return faixas
 
 
+def _filtros_cor(form):
+    colunas = [form.getlist("filtro_cor_" + chave) for chave in ("campo", "operador", "valor", "cor")]
+    if len({len(coluna) for coluna in colunas}) != 1 or not 1 <= len(colunas[0]) <= MAX_FILTROS_COR:
+        raise CatalogoErro("Adicione até 40 regras de cor e preencha os campos de cada regra.")
+    filtros = []
+    for campo, operador, valor, cor in zip(*colunas):
+        campo = _texto(campo, 120)
+        valor = _texto(valor, 400)
+        if not campo or not valor or operador not in OPERADORES_COR or not COR.fullmatch(cor):
+            raise CatalogoErro("Selecione o campo, a comparação, o valor e a cor de cada regra.")
+        if operador in {"minimo", "maximo"}:
+            if not NUMERO_ESTILO.fullmatch(valor) or not math.isfinite(float(valor.replace(",", "."))):
+                raise CatalogoErro("Use um número nas comparações de limite das cores.")
+        filtros.append({"campo": campo, "operador": operador, "valor": valor, "cor": cor.lower()})
+    return filtros
+
+
 def _config(form):
     niveis = form.getlist("niveis")
     setores = form.getlist("setores")
@@ -202,7 +221,7 @@ def _config(form):
     cor = _texto(form.get("cor"), 7)
     atributo = _texto(form.get("atributo_cor"), 120)
     modo_cor = form.get("modo_cor") or ""
-    if modo_cor not in {"", "unico", "categorias", "faixas"} or (modo_cor in {"categorias", "faixas"} and not atributo):
+    if modo_cor not in {"", "unico", "categorias", "faixas", "filtros"} or (modo_cor in {"categorias", "faixas"} and not atributo):
         raise CatalogoErro("Selecione a classificação e o atributo usado para colorir a camada.")
     regras = _texto(form.get("regras_cor"), 5000).splitlines() if modo_cor in {"", "categorias"} else []
     if (cor and not COR.fullmatch(cor)) or (regras and not atributo):
@@ -244,6 +263,7 @@ def _config(form):
         "cor": cor.lower(), "atributo_cor": atributo, "cores": cores,
         "rotulo": _texto(form.get("rotulo"), 120),
         "modo_cor": modo_cor, "faixas_cor": _faixas_cor(form) if modo_cor == "faixas" else [],
+        "filtros_cor": _filtros_cor(form) if modo_cor == "filtros" else [],
         "rotulo_complemento": _texto(form.get("rotulo_complemento"), 120),
         "rotulo_prefixo": _texto(form.get("rotulo_prefixo"), 40),
         "rotulo_sufixo": _texto(form.get("rotulo_sufixo"), 40),

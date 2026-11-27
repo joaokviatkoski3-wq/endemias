@@ -2,6 +2,7 @@ import csv
 from datetime import datetime, timedelta, timezone
 from io import BytesIO, StringIO
 import json
+from pathlib import Path
 import sqlite3
 
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, send_from_directory, stream_with_context, url_for
@@ -79,9 +80,15 @@ def _acesso_dengue(usuario):
 
 @bp.get("/geovsatt/dengue")
 @login_required
+@superadmin
 def page_dengue():
+    return redirect(url_for("geovsatt.admin_catalogo", aba="dengue", **{
+        k: request.args[k] for k in ("inicio", "fim", "localidade", "unidade", "pendentes") if k in request.args
+    }), code=303)
+
+
+def _dados_dengue():
     target, usuario = bh.db_target(), bh.usuario_atual()
-    _acesso_dengue(usuario)
     try:
         _, localizador = _localizador(target, usuario)
         casos = list(vigilancia.preparar_dengue(target, localizador))
@@ -92,9 +99,9 @@ def page_dengue():
         selecionados = [row for row in selecionados if not row["centro"]]
     estado = dengue.estado(target)
     desatualizada = estado and datetime.fromisoformat(estado["sincronizado_em"]) < datetime.now(timezone.utc) - timedelta(minutes=30)
-    return render_template("geovsatt_dengue.html", casos=selecionados, sincronizacao=estado, desatualizada=desatualizada,
-                           total=len(casos), pendentes=sum(not row["centro"] for row in casos),
-                           configurado=dengue.configurado(current_app.config), superadmin=usuario["nivel"] == "superadmin")
+    return {"casos": selecionados, "sincronizacao": estado, "desatualizada": desatualizada,
+            "total": len(casos), "pendentes": sum(not row["centro"] for row in casos),
+            "configurado": dengue.configurado(current_app.config)}
 
 
 @bp.get("/geovsatt/dengue/<chave>/mapa-bloqueio")
@@ -112,7 +119,8 @@ def imprimir_dengue(chave):
         abort(400, str(exc) if isinstance(exc, ValueError) else "A base municipal de endereços está indisponível.")
     audit.registrar_evento(bh.get_db, "geovsatt_imprimir_bloqueio", "dengue", chave)
     return render_template("esporotricose_mapa_bloqueio.html", mapa=mapa, animal=None,
-        voltar=url_for("geovsatt.page_dengue"), titulo="Mapa de bloqueio de dengue",
+        voltar=url_for("geovsatt.admin_catalogo", aba="dengue") if usuario["nivel"] == "superadmin" else url_for("geovsatt.page"),
+        titulo="Mapa de bloqueio de dengue",
         setor_titulo="Vigilância de Endemias",
         referencia=[("Notificação", evento["notificacao"]), ("Data da notificação", evento["data_notificacao"]),
                     ("Localidade", evento["localidade"]), ("Quarteirão", evento["quarteirao"]),
@@ -130,19 +138,23 @@ def sincronizar_dengue():
     else:
         audit.registrar_evento(bh.get_db, "geovsatt_sincronizar_dengue", "dengue", detalhes={"total": resultado["total"]})
         flash(f'{resultado["total"]} notificações no espelho anual.', "sucesso")
-    return redirect(url_for("geovsatt.page_dengue"))
+    return redirect(url_for("geovsatt.admin_catalogo", aba="dengue"), code=303)
 
 
 @bp.get("/geovsatt/admin/coletas-tubo")
 @login_required
 @superadmin
 def coletas_tubo():
+    return redirect(url_for("geovsatt.admin_catalogo", aba="coletas"), code=303)
+
+
+def _dados_coletas_tubo():
     try:
         _, localizador = _localizador(bh.db_target(), bh.usuario_atual())
-        pendentes, sem_endereco = vigilancia.pendencias_csv(bh.db_target(), localizador)
+        pendentes, resumo = vigilancia.pendencias_csv(bh.db_target(), localizador)
     except (OSError, ValueError):
         abort(400, "Confira a base municipal de endereços.")
-    return render_template("geovsatt_coletas_tubo.html", total=len(pendentes), sem_endereco=sem_endereco)
+    return {"total": len(pendentes), **resumo}
 
 
 @bp.get("/geovsatt/admin/coletas-tubo/pendencias.csv")
@@ -168,18 +180,22 @@ def coletas_tubo_csv():
 @login_required
 @superadmin
 def coletas_tubo_importar():
-    request.max_content_length = 12 * 1024**2
-    arquivo = request.files.get("csv")
+    request.max_content_length = vigilancia.LIMITE_COORDENADAS + 32 * 1024
+    arquivo = request.files.get("arquivo") or request.files.get("csv")
     if not arquivo:
-        return jsonify({"erro": "Selecione o CSV das pendências preenchido."}), 400
+        return jsonify({"erro": "Selecione o CSV, KML ou KMZ com as coordenadas."}), 400
+    formato = Path(arquivo.filename).suffix.lower().lstrip(".")
     aplicar = request.form.get("etapa") == "aplicar"
     try:
         _, localizador = _localizador(bh.db_target(), bh.usuario_atual())
-        resultado = vigilancia.importar_csv(bh.db_target(), arquivo.read().decode("utf-8-sig"),
-                                             localizador, aplicar=aplicar)
+        conteudo = arquivo.read(vigilancia.LIMITE_COORDENADAS + 1)
+        if len(conteudo) > vigilancia.LIMITE_COORDENADAS:
+            raise ValueError("O arquivo deve ter até 12 MiB.")
+        resultado = vigilancia.importar_coordenadas(bh.db_target(), conteudo, localizador,
+                                                    formato=formato, aplicar=aplicar)
     except (OSError, UnicodeError, ValueError, csv.Error) as exc:
         mensagem = str(exc) if isinstance(exc, ValueError) and not isinstance(exc, UnicodeError) else (
-            "Confira o arquivo CSV em UTF-8 e a base municipal de endereços.")
+            "Confira o arquivo de coordenadas e a base municipal de endereços.")
         return jsonify({"erro": mensagem}), 400
     if aplicar and not resultado["total_problemas"] and resultado["validas"]:
         audit.registrar_evento(bh.get_db, "geovsatt_importar_coordenadas", "coletas_tubos",
@@ -204,7 +220,6 @@ def page():
     return render_template("geovsatt.html", catalogo=catalogo, pode_rg=pode_rg, pode_estimar=pode_estimar,
                            esri_licenciado=current_app.config["GEOVSATT_ESRI_LICENSED"], ambiental=ambiental,
                            conta_geo=usuario["id_usuario"], endemias=endemias,
-                           pode_dengue=any(item["id"] == "dengue" for item in catalogo["camadas"]),
                            nominatim=bool(_nominatim()[0]))
 
 
@@ -625,7 +640,16 @@ def api_populacao():
 @login_required
 @superadmin
 def admin_catalogo():
-    return render_template("geovsatt_camadas.html", camadas=camadas.listar(bh.db_target(), geo.BASES))
+    aba = request.args.get("aba", "catalogo")
+    if aba == "dengue":
+        dados = _dados_dengue()
+    elif aba == "coletas":
+        dados = _dados_coletas_tubo()
+    elif aba in {"catalogo", "estilos", "importacao"}:
+        dados = {"camadas": camadas.listar(bh.db_target(), geo.BASES)}
+    else:
+        abort(404)
+    return render_template("geovsatt_camadas.html", aba=aba, **dados)
 
 
 def _camada_equipamentos():

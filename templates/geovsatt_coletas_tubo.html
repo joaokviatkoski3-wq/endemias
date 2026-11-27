@@ -1,22 +1,36 @@
-{% extends "base.html" %}
-{% block title %}Georreferenciar coletas de tubo · GeoVSATT{% endblock %}
-{% block content %}
-<section class="card">
-  <div class="card-body">
-    <h1>Georreferenciar coletas de tubo</h1>
-    <p><a href="{{ url_for('geovsatt.page') }}">Voltar ao GeoVSATT</a></p>
-    <p>{{ total }} endereços sem coordenada validada. {{ sem_endereco }} coletas sem logradouro informado.</p>
-    <p><a class="btn btn-outline" href="{{ url_for('geovsatt.coletas_tubo_csv') }}">Baixar CSV das pendências</a></p>
-    <p>No QGIS, complete as colunas latitude e longitude em WGS84 e preserve a coluna chave. Salve o CSV em UTF-8.</p>
+<section class="gc-card">
+  <div class="gc-painel-cabecalho">
+    <div>
+      <h2>Georreferenciar coletas de tubo</h2>
+      <p class="gc-note">Coletas registradas a partir de 2026</p>
+    </div>
+    <a class="gc-botao gc-primary" href="{{ url_for('geovsatt.coletas_tubo_csv') }}">Baixar CSV para Google Earth</a>
+  </div>
+  <div class="gc-metricas">
+    <div><strong>{{ total }}</strong><span>Endereços no CSV</span></div>
+    <div><strong>{{ sem_endereco }}</strong><span>Coletas sem logradouro</span></div>
+    <div><strong>{{ pe_georreferenciado }}</strong><span>Tubos localizados pelo PE</span></div>
+    <div><strong>{{ pe_aguardando }}</strong><span>Tubos aguardando coordenadas do PE</span></div>
+  </div>
+  <p>As coletas de pontos estratégicos usam a posição do PE cadastrado. Assim que o cadastro tiver coordenadas, a coleta aparece no mapa.</p>
+  <details>
+    <summary>Como usar no Google Earth Pro</summary>
+    <p>O CSV contém a coluna <strong>endereco_google_earth</strong> com o endereço completo e a coluna <strong>chave</strong>.
+      Para endereços no Brasil, use a busca do Earth Pro para localizar cada ponto. O Google disponibiliza a conversão automática de endereços em lote em alguns países, e o Brasil está fora dessa lista.
+      <a href="https://support.google.com/earth/answer/176685?hl=pt-BR">Formatos aceitos pelo Google Earth</a></p>
+    <p>Use o valor exato de <strong>chave</strong> como nome de cada marcador e exporte a pasta de marcadores em KML ou KMZ. Você também pode preencher latitude e longitude em WGS84 no CSV e importar o arquivo em UTF-8.</p>
+  </details>
+</section>
+<section class="gc-card">
+  <h2>Importar coordenadas confirmadas</h2>
     <form id="coletas-importar" method="post" enctype="multipart/form-data" action="{{ url_for('geovsatt.coletas_tubo_importar') }}">
       <input name="csrf_token" type="hidden" value="{{ csrf_token() }}">
-      <label>CSV preenchido <input type="file" name="csv" accept=".csv,text/csv" required></label>
-      <button type="submit" class="btn btn-outline" value="validar">Validar coordenadas</button>
-      <button type="submit" class="btn btn-primary" value="aplicar" disabled>Importar coordenadas</button>
+      <label>Arquivo CSV, KML ou KMZ <input type="file" name="arquivo" accept=".csv,.kml,.kmz" required></label>
+      <button type="submit" value="validar">Validar coordenadas</button>
+      <button type="submit" class="gc-primary" value="aplicar" disabled>Importar coordenadas</button>
     </form>
     <p id="coletas-estado" role="status"></p>
-    <ul id="coletas-erros"></ul>
-  </div>
+    <ul id="coletas-erros" class="gc-lista-erros"></ul>
 </section>
 <script nonce="{{ csp_nonce() }}">
 (() => {
@@ -25,7 +39,7 @@
   const erros = document.getElementById('coletas-erros');
   const validar = form.querySelector('button[value="validar"]');
   const aplicar = form.querySelector('button[value="aplicar"]');
-  form.elements.csv.addEventListener('change', () => { aplicar.disabled = true; estado.textContent = ''; erros.replaceChildren(); });
+  form.elements.arquivo.addEventListener('change', () => { aplicar.disabled = true; estado.textContent = ''; erros.replaceChildren(); });
   form.addEventListener('submit', async event => {
     event.preventDefault();
     const etapa = event.submitter?.value || 'validar';
@@ -33,26 +47,25 @@
     dados.set('etapa', etapa);
     erros.replaceChildren();
     estado.textContent = 'Verificando coordenadas…';
-    aplicar.disabled = validar.disabled = form.elements.csv.disabled = true;
+    aplicar.disabled = validar.disabled = form.elements.arquivo.disabled = true;
     try {
       const resposta = await fetch(form.action, {method: 'POST', body: dados});
       const resultado = await resposta.json();
-      if (!resposta.ok) throw Error(resultado.erro || 'Não foi possível ler o CSV.');
+      if (!resposta.ok) throw Error(resultado.erro || 'Não foi possível ler o arquivo.');
       estado.textContent = etapa === 'aplicar' && !resultado.total_problemas
         ? resultado.validas + ' endereços atualizados. Reabra o GeoVSATT para atualizar a camada.'
         : resultado.validas + ' válidos, ' + resultado.ignoradas + ' ignorados e ' + resultado.total_problemas + ' com erro.';
       for (const problema of resultado.problemas) {
         const linha = document.createElement('li');
-        linha.textContent = 'Linha ' + problema.linha + ': ' + problema.erro;
+        linha.textContent = 'Registro ' + problema.linha + ': ' + problema.erro;
         erros.append(linha);
       }
       aplicar.disabled = etapa !== 'validar' || resultado.total_problemas > 0 || !resultado.validas;
     } catch (error) {
       estado.textContent = error.message;
     } finally {
-      validar.disabled = form.elements.csv.disabled = false;
+      validar.disabled = form.elements.arquivo.disabled = false;
     }
   });
 })();
 </script>
-{% endblock %}

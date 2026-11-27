@@ -20,6 +20,8 @@
   </header>
   <main>
     <h1>{{ titulo }}</h1>
+    {% set aba = 'equipamentos' %}
+    {% include '_geovsatt_admin_tabs.html' %}
     {% for categoria, mensagem in get_flashed_messages(with_categories=true) %}
       <p role="{{ 'alert' if categoria == 'erro' else 'status' }}" class="gc-aviso gc-aviso-{{ categoria }}">{{ mensagem }}</p>
     {% endfor %}

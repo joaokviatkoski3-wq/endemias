@@ -412,6 +412,31 @@ desativado. Consulte
 `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2280-resultado.json` para as
 verificações do instalador.
 
+
+## Administração e acompanhamento na 2.29.0
+
+- **Gerenciar camadas** é exclusivo do superadmin. O catálogo reúne as abas
+  de importação, estilos e cores, dengue, coletas de tubo e equipamentos. Em
+  **Estilos e cores**, escolha a camada, selecione **Por filtros** e preencha
+  o campo, a condição, o valor e a cor. A primeira regra correspondente
+  define a cor da feição. As cores podem ser escolhidas pelo seletor.
+- **Dengue** reúne notificações, pendências e sincronização com o Google Sheets.
+  Mantenha o compartilhamento de leitura com a conta de serviço e o JSON em
+  um diretório de credenciais do servidor. Quem tem acesso à camada de dengue
+  pode abrir a folha de bloqueio pelo mapa.
+- **Coletas de tubo** inclui registros a partir de 01/01/2026. Os tubos de PEs
+  seguem as coordenadas do cadastro, inclusive quando elas são preenchidas
+  posteriormente. O CSV agrupa os endereços restantes sem coordenadas após
+  a conferência no RG e no CNEFE. No Google Earth Pro, procure o endereço,
+  nomeie o marcador com a chave do CSV e exporte os pontos em KML ou KMZ.
+  Também é possível preencher latitude e longitude no CSV. Valide o arquivo
+  antes de importá-lo. A geocodificação em lote do Google Earth Pro não cobre
+  endereços do Brasil. [Ajuda do Google Earth Pro](https://support.google.com/earth/answer/176685?hl=pt-BR)
+- **Minha localização** acompanha a posição e a precisão até desligar o
+  botão ou sair do mapa. Ao arrastar o mapa, a posição continua atualizando
+  e o enquadramento fica sob controle de quem usa o mapa. Está disponível
+  também na cópia offline, com GPS e permissão de localização.
+
 ## Histórico de implantação e próximas validações
 
 A ativação da 2.27.3 partiu da 2.26.0. O relatório

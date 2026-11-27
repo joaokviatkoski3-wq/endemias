@@ -1,37 +1,37 @@
-{% extends "base.html" %}
-{% block title %}Notificações de dengue · GeoVSATT{% endblock %}
-{% block content %}
-<section class="card">
-  <div class="card-body">
-    <h1>Notificações de dengue</h1>
-    <p><a href="{{ url_for('geovsatt.page') }}">Voltar ao GeoVSATT</a></p>
-    {% for categoria, mensagem in get_flashed_messages(with_categories=true) %}
-    <p role="status">{{ mensagem }}</p>
-    {% endfor %}
+<section class="gc-card">
+  <div class="gc-painel-cabecalho">
+    <div>
+      <h2>Notificações de dengue e pendências</h2>
     {% if sincronizacao %}
-    <p>Última atualização <time datetime="{{ sincronizacao.sincronizado_em }}">{{ sincronizacao.sincronizado_em[:16]|replace('T', ' ') }} UTC</time>.
-      {{ total }} notificações, {{ pendentes }} com pendência.</p>
+    <p>Última atualização <time datetime="{{ sincronizacao.sincronizado_em }}">{{ sincronizacao.sincronizado_em[:16]|replace('T', ' ') }} UTC</time>.</p>
     {% if desatualizada %}<p role="status">A planilha está há mais de 30 minutos sem atualização no GeoVSATT.</p>{% endif %}
     {% elif configurado %}
     <p>Aguardando a primeira sincronização das abas anuais.</p>
     {% else %}
     <p>Integração com o Google Sheets em preparação.</p>
     {% endif %}
-    {% if superadmin and configurado %}
+    </div>
+    {% if configurado %}
     <form method="post" action="{{ url_for('geovsatt.sincronizar_dengue') }}">
       <input name="csrf_token" type="hidden" value="{{ csrf_token() }}">
-      <button class="btn btn-primary" type="submit">Atualizar do Google Sheets</button>
+      <button class="gc-primary" type="submit">Atualizar do Google Sheets</button>
     </form>
     {% endif %}
-    <form method="get" class="filter-bar">
+  </div>
+  <div class="gc-metricas">
+    <div><strong>{{ total }}</strong><span>Notificações</span></div>
+    <div><strong>{{ pendentes }}</strong><span>Com pendência</span></div>
+  </div>
+    <form method="get" class="gc-filtros">
+      <input type="hidden" name="aba" value="dengue">
       <label>Notificações de <input type="date" name="inicio" value="{{ request.args.get('inicio', '') }}"></label>
       <label>Até <input type="date" name="fim" value="{{ request.args.get('fim', '') }}"></label>
       <label>Localidade <input name="localidade" value="{{ request.args.get('localidade', '') }}"></label>
       <label>UBS <input name="unidade" value="{{ request.args.get('unidade', '') }}"></label>
-      <label><input type="checkbox" name="pendentes" value="1" {% if request.args.get('pendentes') == '1' %}checked{% endif %}> Somente pendências</label>
-      <button class="btn btn-outline" type="submit">Filtrar</button>
+      <label class="gc-checkbox"><input type="checkbox" name="pendentes" value="1" {% if request.args.get('pendentes') == '1' %}checked{% endif %}> Somente pendências</label>
+      <button type="submit">Filtrar</button>
     </form>
-    <div class="table-scroll">
+    <div class="gc-tabela" tabindex="0" aria-label="Notificações de dengue">
     <table>
       <thead><tr><th>Aba</th><th>Notificação</th><th>Data</th><th>Localidade e quarteirão</th><th>Resultado</th><th>Localização</th><th>Bloqueio</th></tr></thead>
       <tbody>
@@ -48,6 +48,4 @@
       </tbody>
     </table>
     </div>
-  </div>
 </section>
-{% endblock %}

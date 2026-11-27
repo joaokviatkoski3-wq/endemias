@@ -7,6 +7,26 @@
   <label>Observações <textarea name="observacoes" rows="2" maxlength="2000">{{ dados.get('observacoes', '') }}</textarea></label>
 </div>
 {% endmacro %}
+{% macro cor_visual(campo, rotulo, atual, automatico='#157157') %}
+<div class="gc-escolha-cor" data-escolha-cor>
+  <label>{{ rotulo }} <input type="color" value="{{ atual or automatico }}" data-cor-visual></label>
+  <label class="gc-checkbox"><input type="checkbox" data-cor-automatica {{ 'checked' if not atual }}> Automática</label>
+  <input type="hidden" name="{{ campo }}" value="{{ atual }}">
+</div>
+{% endmacro %}
+{% macro filtro_cor(filtro={}) %}
+<div class="gc-filtro-cor">
+  <label>Campo <input name="filtro_cor_campo" list="gc-atributos" maxlength="120" placeholder="Ex.: Localidade_nome" value="{{ filtro.campo|default('') }}"></label>
+  <label>Comparação <select name="filtro_cor_operador">
+    {% for op, texto in [('igual', 'É igual a'), ('contem', 'Contém'), ('minimo', 'É maior ou igual a'), ('maximo', 'É menor ou igual a')] %}
+    <option value="{{ op }}" {{ 'selected' if filtro.operador|default('igual') == op }}>{{ texto }}</option>
+    {% endfor %}
+  </select></label>
+  <label>Valor <input name="filtro_cor_valor" maxlength="400" value="{{ filtro.valor|default('') }}"></label>
+  <label>Cor <input name="filtro_cor_cor" type="color" value="{{ filtro.cor|default('#157157') }}"></label>
+  <button type="button" data-remover-filtro-cor>Remover</button>
+</div>
+{% endmacro %}
 {% macro faixa_cor(faixa={}) %}
 <div class="gc-faixa-cor">
   <label>De (inclusive) <input name="faixa_de" inputmode="decimal" maxlength="40" placeholder="Sem mínimo"
@@ -23,6 +43,7 @@
                  'orto_arquivo': 'Importar ortofoto de ' ~ (camada.nome if camada else ''),
                  'arquivo': 'Importar versão de ' ~ (camada.nome if camada else '')}.get(modo, camada.nome if camada else 'Gerenciar camadas') %}
 {% set valores = campos|default({}) %}
+{% set aba = aba|default('estilos' if camada and not modo else 'importacao' if modo else 'catalogo') %}
 <!doctype html>
 <html lang="pt-BR">
 <head>
@@ -43,10 +64,15 @@
   </header>
   <main>
     <h1>{{ titulo }}</h1>
+    {% include '_geovsatt_admin_tabs.html' %}
     {% for categoria, mensagem in get_flashed_messages(with_categories=true) %}
       <p role="{{ 'alert' if categoria == 'erro' else 'status' }}" class="gc-aviso gc-aviso-{{ categoria }}">{{ mensagem }}</p>
     {% endfor %}
-    {% if modo in ('nova', 'arquivo', 'orto_nova', 'orto_arquivo') %}
+    {% if aba == 'dengue' %}
+      {% include 'geovsatt_dengue.html' %}
+    {% elif aba == 'coletas' %}
+      {% include 'geovsatt_coletas_tubo.html' %}
+    {% elif modo in ('nova', 'arquivo', 'orto_nova', 'orto_arquivo') %}
       {% set raster = modo in ('orto_nova', 'orto_arquivo') %}
       <section class="gc-card">
         {% if raster %}
@@ -74,22 +100,24 @@
         </form>
       </section>
     {% elif not camada %}
+      {% if aba == 'importacao' %}
       <nav class="gc-acoes gc-atalhos" aria-label="Atalhos de importação">
         <a class="gc-primary" href="{{ url_for('geovsatt.admin_importar_nova') }}">Nova camada GeoJSON</a>
         <a href="{{ url_for('geovsatt.admin_importar_ortofoto') }}">Nova ortofoto MBTiles</a>
         {% if modo != 'atualizar' %}<a href="{{ url_for('geovsatt.admin_atualizar') }}">Atualizar camada existente</a>{% endif %}
-        <a href="{{ url_for('geovsatt.admin_equipamentos') }}">Cadastro de equipamentos</a>
       </nav>
+      {% endif %}
       <section id="catalogo" class="gc-card">
-        <h2>Catálogo</h2>
+        <h2>{{ 'Estilos e cores' if aba == 'estilos' else 'Atualizar uma camada' if aba == 'importacao' else 'Catálogo' }}</h2>
+        {% if aba == 'estilos' %}<p class="gc-note">Escolha uma camada para ajustar suas cores, símbolos e etiquetas.</p>{% endif %}
         <ul class="gc-catalogo">
-          {% for item in camadas if modo != 'atualizar' or item.origem != 'sistema' %}
+          {% for item in camadas if (aba != 'importacao' or item.origem != 'sistema') and (aba != 'estilos' or item.origem != 'ortofoto') %}
           <li>
-            <a href="{{ url_for('geovsatt.admin_camada', codigo=item.id) }}">{{ item.nome }}</a>
+            <a href="{{ url_for('geovsatt.admin_camada', codigo=item.id, _anchor='estilo' if aba == 'estilos' else none) }}">{{ item.nome }}</a>
             <span>{{ item.grupo }} · {{ 'Fonte do sistema' if item.origem == 'sistema' else ('Versão ' ~ item.id_versao if item.id_versao else 'Sem publicação') }}</span>
-            {% if item.origem == 'importacao' %}
+{% if aba == 'importacao' and item.origem == 'importacao' %}
             <a href="{{ url_for('geovsatt.admin_importar', codigo=item.id) }}">Importar versão de {{ item.nome }}</a>
-            {% elif item.origem == 'ortofoto' %}
+            {% elif aba == 'importacao' and item.origem == 'ortofoto' %}
             <a href="{{ url_for('geovsatt.admin_importar_ortofoto', codigo=item.id) }}">Importar MBTiles</a>
             {% endif %}
           </li>
@@ -175,19 +203,21 @@
             <p id="gc-exportacao-dica" class="gc-note">Use Ctrl para selecionar várias contas. Cada pessoa também precisa ter acesso à camada. O superadmin já pode exportar as camadas que administra.</p>
           </fieldset>
           {% if camada.origem != 'ortofoto' %}
-          <fieldset>
-            <legend>Exibição no mapa</legend>
+          <fieldset id="estilo">
+            <legend>Estilos e cores no mapa</legend>
             <div class="gc-grid">
-              <label>Cor padrão <input name="cor" maxlength="7" placeholder="#008c30" value="{{ config.cor }}"></label>
+              {{ cor_visual('cor', 'Cor padrão', config.cor) }}
               <label>Classificação de cores <select name="modo_cor">
-                {% for modo_cor, nome in [('', 'Automática'), ('unico', 'Cor única'), ('categorias', 'Por categoria'), ('faixas', 'Por faixas numéricas')] %}
+                {% for modo_cor, nome in [('', 'Automática'), ('unico', 'Cor única'), ('categorias', 'Por categoria'), ('faixas', 'Por faixas numéricas'), ('filtros', 'Por filtros')] %}
                   <option value="{{ modo_cor }}" {{ 'selected' if config.modo_cor == modo_cor }}>{{ nome }}</option>
                 {% endfor %}
               </select></label>
-              <label>Campo para definir cores <input name="atributo_cor" list="gc-atributos" maxlength="120" placeholder="Ex.: Localidade_nome" value="{{ config.atributo_cor }}"></label>
+              <label id="gc-campo-cores">Campo para definir cores <input name="atributo_cor" list="gc-atributos" maxlength="120" placeholder="Ex.: Localidade_nome" value="{{ config.atributo_cor }}"></label>
               <datalist id="gc-atributos"></datalist>
-              <div id="gc-categorias" class="gc-wide" {% if config.modo_cor in ('unico', 'faixas') %}hidden{% endif %}>
-                <label>Cores por valor do atributo <textarea name="regras_cor" rows="4" maxlength="5000" placeholder="Valor = #008c30">{% for valor, cor in config.cores.items() %}{{ valor }} = {{ cor }}{{ '\n' if not loop.last }}{% endfor %}</textarea></label>
+              <div id="gc-categorias" class="gc-wide" {% if config.modo_cor in ('unico', 'faixas', 'filtros') %}hidden{% endif %}>
+                <textarea name="regras_cor" maxlength="5000" hidden>{% for valor, cor in config.cores.items() %}{{ valor }} = {{ cor }}{{ '\n' if not loop.last }}{% endfor %}</textarea>
+                <ul class="gc-cores-definidas" id="gc-cores-definidas" aria-label="Cores configuradas por categoria"></ul>
+                <p id="gc-categorias-estado" role="status"></p>
                 <div class="gc-color-editor" hidden>
                   <label>Categoria <select id="gc-valor-cor"></select></label>
                   <label>Cor da categoria <input type="color" id="gc-paleta" value="#008c30"></label>
@@ -203,7 +233,13 @@
                 <button type="button" id="gc-adicionar-faixa">Adicionar faixa</button>
                 <p id="gc-faixas-estado" class="gc-note" role="status"></p>
               </div>
-              <label>Cor de preenchimento <input name="cor_preenchimento" pattern="#[0-9A-Fa-f]{6}" placeholder="Automática" value="{{ config.cor_preenchimento }}"></label>
+              <div id="gc-filtros-cor" class="gc-wide" {% if config.modo_cor != 'filtros' %}hidden{% endif %}>
+                <p class="gc-note">A primeira regra correspondente define a cor. As demais feições usam a cor padrão.</p>
+                <div id="gc-filtros-cor-lista">{% for filtro in config.filtros_cor %}{{ filtro_cor(filtro) }}{% endfor %}</div>
+                <template id="gc-filtro-cor-modelo">{{ filtro_cor() }}</template>
+                <button type="button" id="gc-adicionar-filtro-cor">Adicionar regra de cor</button>
+              </div>
+              {{ cor_visual('cor_preenchimento', 'Cor de preenchimento', config.cor_preenchimento, '#d7ebdc') }}
               <label>Traçado <select name="linha">
                 {% for valor, nome in [('', 'Automático'), ('solida', 'Contínuo'), ('tracejada', 'Tracejado'), ('pontilhada', 'Pontilhado'), ('ferrovia', 'Ferrovia')] %}
                   <option value="{{ valor }}" {{ 'selected' if config.linha == valor }}>{{ nome }}</option>
@@ -223,8 +259,8 @@
                   <option value="{{ valor }}" {{ 'selected' if config.rotulo_modo == valor }}>{{ nome }}</option>
                 {% endfor %}
               </select></label>
-              <label>Cor da etiqueta <input name="rotulo_cor" pattern="#[0-9A-Fa-f]{6}" placeholder="Automática" value="{{ config.rotulo_cor }}"></label>
-              <label>Cor do contorno da etiqueta <input name="rotulo_halo_cor" pattern="#[0-9A-Fa-f]{6}" placeholder="Branco" value="{{ config.rotulo_halo_cor }}"></label>
+              {{ cor_visual('rotulo_cor', 'Cor da etiqueta', config.rotulo_cor, '#24362b') }}
+              {{ cor_visual('rotulo_halo_cor', 'Contorno da etiqueta', config.rotulo_halo_cor, '#ffffff') }}
               {% for campo, texto, minimo, maximo, passo in [('largura', 'Espessura do traço (px)', 0, 12, 0.1), ('opacidade', 'Opacidade do traço', 0, 1, 0.05), ('opacidade_preenchimento', 'Opacidade do preenchimento', 0, 1, 0.05), ('raio', 'Tamanho do símbolo (px)', 2, 24, 1), ('rotulo_zoom', 'Zoom mínimo das etiquetas', 10, 22, 1), ('rotulo_zoom_max', 'Zoom máximo das etiquetas', 10, 22, 1), ('rotulo_tamanho', 'Tamanho da etiqueta (px)', 8, 24, 1), ('rotulo_halo', 'Espessura do contorno da etiqueta (px)', 0, 6, 0.5)] %}
                 <label>{{ texto }} <input type="number" name="{{ campo }}" min="{{ minimo }}" max="{{ maximo }}" step="{{ passo }}" placeholder="Automático" value="{{ config[campo] if config[campo] is not none else '' }}"></label>
               {% endfor %}

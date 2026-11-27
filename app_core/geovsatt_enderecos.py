@@ -21,7 +21,7 @@ from app_core.territorio import chave_territorial
 
 
 MUNICIPIO_IBGE = "4100400"
-COLUNAS_CSV = ("chave", "logradouro", "numero", "localidade", "cep", "latitude", "longitude")
+COLUNAS_CSV = ("chave", "endereco_google_earth", "logradouro", "numero", "localidade", "cep", "latitude", "longitude")
 
 
 def chave_endereco(endereco):
@@ -62,7 +62,11 @@ def campos_csv(endereco):
     candidatos = variantes(endereco)
     caso = candidatos[0] if len(candidatos) == 1 else None
     cep = re.search(r"\b[0-9]{5}-[0-9]{3}\b", endereco)
-    return {"chave": chave_endereco(endereco), "logradouro": " ".join(caso.via) if caso else endereco,
+    endereco_completo = endereco.rstrip(" ,")
+    if "almirante tamandare" not in rg._norm(endereco_completo):
+        endereco_completo += ", Almirante Tamandaré"
+    endereco_completo += ", Paraná, Brasil"
+    return {"chave": chave_endereco(endereco), "endereco_google_earth": endereco_completo, "logradouro": " ".join(caso.via) if caso else endereco,
             "numero": caso.numero if caso else "", "localidade": " ".join(caso.localidade) if caso else "",
             "cep": cep[0] if cep else "", "latitude": "", "longitude": ""}
 

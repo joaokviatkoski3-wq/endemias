@@ -99,7 +99,7 @@
       </div>
       <div class="geo-sidebar-scroll">
         {% if catalogo.pode_configurar %}
-        <a class="geo-admin-note" href="{{ url_for('geovsatt.admin_catalogo') }}"><strong>Gerenciar camadas</strong><span>Importar GeoJSON e publicar novas versões</span></a>
+        <a class="geo-admin-note" href="{{ url_for('geovsatt.admin_catalogo') }}"><strong>Gerenciar camadas</strong><span>Catálogo, estilos, dengue e coletas</span></a>
         {% endif %}
         {% if modo_offline %}
         <section class="geo-layer-group geo-campo-menu">
@@ -159,12 +159,6 @@
         {% if modo_offline %}
         <div id="geo-campo-camadas"></div>
         <template id="geo-campo-trabalhos">{{ filtros_trabalhos() }}</template>
-        {% endif %}
-        {% if pode_dengue or catalogo.pode_configurar %}
-        <section class="geo-layer-group" aria-label="Consultas de vigilância">
-          {% if pode_dengue %}<p><a href="{{ url_for('geovsatt.page_dengue') }}">Notificações de dengue e pendências</a></p>{% endif %}
-          {% if catalogo.pode_configurar %}<p><a href="{{ url_for('geovsatt.coletas_tubo') }}">Georreferenciar coletas de tubo</a></p>{% endif %}
-        </section>
         {% endif %}
         {% for grupo in catalogo.camadas|groupby('grupo') %}
         <section class="geo-layer-group">
@@ -274,7 +268,7 @@
       <div id="geo-status" class="geo-status" role="status">Carregando camadas territoriais...</div>
       <div class="geo-tools" aria-label="Ferramentas do mapa">
         <button id="geo-fit" type="button" title="Mostrar todo o município" aria-label="Mostrar todo o município">⌂</button>
-        <button id="geo-localizacao" type="button" aria-label="Minha localização" title="Minha localização">⌖</button>
+        <button id="geo-localizacao" type="button" aria-label="Acompanhar minha localização" title="Acompanhar minha localização" aria-pressed="false"><span class="geo-localizacao-icone" aria-hidden="true"></span></button>
         <button type="button" data-medida="distancia" aria-label="Medir distância" aria-pressed="false" title="Medir distância">↔</button>
         <button type="button" data-medida="area" aria-label="Medir área" aria-pressed="false" title="Medir área">▱</button>
         {% if pode_estimar or modo_offline %}<button type="button" data-medida="populacao" aria-label="Estimar população por área" aria-pressed="false" title="Estimar população por área"{% if modo_offline %} hidden{% endif %}><img src="/static/icons/usuarios.svg" alt=""></button>{% endif %}

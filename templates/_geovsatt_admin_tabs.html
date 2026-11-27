@@ -1,0 +1,6 @@
+<nav class="gc-tabs" aria-label="Gerenciar camadas">
+  {% for chave, rotulo in [('catalogo', 'Catálogo'), ('importacao', 'Importação'), ('estilos', 'Estilos e cores'), ('dengue', 'Dengue'), ('coletas', 'Coletas de tubo')] %}
+  <a href="{{ url_for('geovsatt.admin_catalogo', aba=chave) }}"{% if aba == chave %} aria-current="page"{% endif %}>{{ rotulo }}</a>
+  {% endfor %}
+  <a href="{{ url_for('geovsatt.admin_equipamentos') }}"{% if aba == 'equipamentos' %} aria-current="page"{% endif %}>Equipamentos</a>
+</nav>

@@ -356,7 +356,7 @@ class GeoVSATTTests(unittest.TestCase):
         bruto1, png1 = arquivo_mbtiles("primeiro.mbtiles", "#11686e")
         bruto2, jpeg2 = arquivo_mbtiles("segundo.mbtiles", "#8a452d", "jpg")
         invalido, _ = arquivo_mbtiles("vetorial.mbtiles", "#222222", "pbf")
-        self.assertIn(b'Nova ortofoto MBTiles', admin.get("/geovsatt/admin/camadas").data)
+        self.assertIn(b'Nova ortofoto MBTiles', admin.get("/geovsatt/admin/camadas?aba=importacao").data)
         self.assertIn(b'name="mbtiles"', admin.get(importa).data)
         self.assertEqual(comum.get(importa).status_code, 403)
         self.assertEqual(admin.post(importa, data=campos | {"mbtiles": (io.BytesIO(invalido), "vetorial.mbtiles")}).status_code, 400)
@@ -763,7 +763,11 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual([f["id"] for f in resp.json["features"]], ["2026:112"])
         self.assertNotIn(b'Sigiloso', resp.data)
-        self.assertIn(b'Notifica', cliente.get("/geovsatt/dengue").data)
+        dados_admin = "/geovsatt/admin/camadas?aba=dengue"
+        self.assertIn(b'Notifica', cliente.get(dados_admin).data)
+        self.assertEqual(cliente.get("/geovsatt/dengue").location, dados_admin)
+        self.assertEqual(self.client(uid=3).get(dados_admin).status_code, 403)
+        self.assertNotIn(b'Notifica\xc3\xa7\xc3\xb5es de dengue e pend\xc3\xaancias', cliente.get("/geovsatt").data)
         self.assertIn(b'Raio de 200 m', cliente.get("/geovsatt/dengue/2026:112/mapa-bloqueio").data)
         self.assertEqual(cliente.get("/geovsatt/dengue/2026:113/mapa-bloqueio").status_code, 404)
         self.assertEqual(self.client(uid=3).get("/geovsatt/dengue/2026:112/mapa-bloqueio").status_code, 404)
@@ -832,6 +836,63 @@ class GeoVSATTTests(unittest.TestCase):
         atuais = next(f["properties"] for f in indicadores.json["features"] if f["id"] == "1:1")
         self.assertEqual(atuais["total"], legado.json["1:1"]["total"])
         self.assertEqual(atuais["focos"], legado.json["1:1"]["focos"])
+
+    def test_coletas_desde_2026_reusam_pe_e_aceitam_kml(self):
+        _, bloco = self._malha_vigilancia()
+        lon, lat = bloco.centroid.x, bloco.centroid.y
+        with closing(sqlite3.connect(self.path)) as conn, conn:
+            conn.execute("""INSERT INTO pontos_estrategicos(codigo_pe,nome,latitude,longitude,criado_em,atualizado_em)
+                            VALUES('P1','PE com ponto',?,?,'2026-01-01','2026-01-01')""", (lat, lon))
+            conn.execute("""INSERT INTO pontos_estrategicos(codigo_pe,nome,criado_em,atualizado_em)
+                            VALUES('P2','PE sem ponto','2026-01-01','2026-01-01')""")
+            conn.executemany("""INSERT INTO visitas
+                 (id_visita,kobo_uuid,tipo,data,id_localidade,localidade,quarteirao,logradouro,numero,codigo_pe,processado_em)
+                 VALUES(?,?,?,?,1,'Localidade Ficticia',1,'Rua Ficticia','10',?,'2026-01-01')""",
+                 (("a", "a", "PE", "2026-01-01", "P1"), ("b", "b", "PE", "2026-06-01", "P2"),
+                  ("c", "c", "TB", "2025-12-31", None)))
+            conn.executemany("INSERT INTO coletas(id_coleta,id_visita,num_tubo) VALUES(?,?,?)",
+                             (("a", "a", "1"), ("b", "b", "2"), ("c", "c", "3"),
+                              ("d", "ficticio-visitas", "4")))
+        cliente = self.client()
+        camada = "/api/geovsatt/camadas/coletas_tubos"
+        self.assertEqual({f["id"] for f in cliente.get(camada).json["features"]}, {"a"})
+        dados_admin = "/geovsatt/admin/camadas?aba=coletas"
+        self.assertIn(b"Baixar CSV para Google Earth", cliente.get(dados_admin).data)
+        self.assertEqual(self.client(uid=3).get(dados_admin).status_code, 403)
+        csv_url = "/geovsatt/admin/coletas-tubo/pendencias.csv"
+        linhas = list(csv.DictReader(io.StringIO(cliente.get(csv_url).data.decode("utf-8-sig"))))
+        self.assertEqual(len(linhas), 1)
+        chave = linhas[0]["chave"]
+        self.assertIn("Almirante Tamandaré, Paraná, Brasil", linhas[0]["endereco_google_earth"])
+        kml = f"""<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+          <Placemark><name>{chave}</name><Point><coordinates>{lon},{lat},0</coordinates></Point></Placemark>
+          </Document></kml>"""
+        url = "/api/geovsatt/admin/coletas-tubo/importar"
+        for etapa in ("validar", "aplicar"):
+            resposta = cliente.post(url, data={"etapa": etapa, "arquivo": (io.BytesIO(kml.encode()), "pontos.kml")})
+            self.assertEqual(resposta.status_code, 200)
+            self.assertEqual(resposta.json["validas"], 1)
+        with closing(sqlite3.connect(self.path)) as conn, conn:
+            conn.execute("UPDATE pontos_estrategicos SET latitude=?,longitude=? WHERE codigo_pe='P2'", (lat, lon))
+        feicoes = cliente.get(camada).json["features"]
+        self.assertEqual({f["id"] for f in feicoes}, {"a", "b", "d"})
+        self.assertEqual(next(f["properties"]["fonte_coordenadas"] for f in feicoes if f["id"] == "d"),
+                         "Google Earth Pro")
+
+    def test_cores_por_filtro_aparecem_no_catalogo_e_usam_seletor(self):
+        cliente = self.client()
+        url = "/geovsatt/admin/camadas/quarteiroes"
+        payload = {"nome": "Quarteirões", "grupo": "Território", "modo_cor": "filtros",
+                   "filtro_cor_campo": "Localidade_nome", "filtro_cor_operador": "igual",
+                   "filtro_cor_valor": "Localidade Ficticia", "filtro_cor_cor": "#6d3ca6", "cor": "#008c30"}
+        self.assertEqual(cliente.post(url, data=payload).status_code, 303)
+        painel = cliente.get(url)
+        self.assertIn(b'id="gc-filtros-cor"', painel.data)
+        self.assertIn(b'type="color" value="#008c30"', painel.data)
+        camadas = cliente.get("/api/geovsatt/catalogo").json["camadas"]
+        estilo = next(c["estilo"] for c in camadas if c["id"] == "quarteiroes")
+        self.assertEqual(estilo["filtros_cor"], [{"campo": "Localidade_nome", "operador": "igual",
+                                                "valor": "Localidade Ficticia", "cor": "#6d3ca6"}])
 
     def test_indicador_ambiental_respeita_area_e_agente_e_redireciona_so_quando_habilitado(self):
         self._malha_vigilancia()
@@ -950,7 +1011,7 @@ class GeoVSATTTests(unittest.TestCase):
         self.assertEqual(self.client(uid=2).get(rota).status_code, 403)
         form = admin.get(rota)
         self.assertIn(b'type="file"', form.data)
-        self.assertIn(b'/geovsatt/admin/atualizar', admin.get("/geovsatt/admin/camadas").data)
+        self.assertIn(b'/geovsatt/admin/atualizar', admin.get("/geovsatt/admin/camadas?aba=importacao").data)
         campos = {"codigo": "nova", "nome": "Nova camada", "grupo": "Território", "fonte": "Massa fictícia"}
         erro = admin.post(rota, data={**campos, "geojson": (io.BytesIO(b"[]"), "invalido.geojson")})
         self.assertEqual(erro.status_code, 400)
