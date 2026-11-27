@@ -128,11 +128,14 @@ def register_security_headers(app):
         imagens_geo = " https://tiles.maps.eox.at https://tiles.openfreemap.org" if mapa_geo else ""
         conexoes_geo = " https://tiles.openfreemap.org" if mapa_geo or worker_geo else ""
         workers_geo = "worker-src 'self'; " if mapa_geo else ""
+        agenda_pessoal = request.endpoint == "controle_pessoal.page" and request.args.get("aba") == "folgas"
+        # FullCalendar usa o nonce do documento ao inserir sua folha de estilos.
+        estilo_agenda = f" 'nonce-{nonce()}'" if agenda_pessoal and not inline else ""
         return (
             "default-src 'self'; "
             f"script-src 'self' https://cdn.jsdelivr.net 'nonce-{nonce()}' 'strict-dynamic'; "
             f"script-src-attr {attributes}; "
-            f"style-src 'self' https://cdn.jsdelivr.net{inline}; "
+            f"style-src 'self' https://cdn.jsdelivr.net{inline}{estilo_agenda}; "
             "object-src 'none'; "
             f"img-src 'self' data: blob: https://server.arcgisonline.com{imagens_geo}; "
             "font-src 'self'; "

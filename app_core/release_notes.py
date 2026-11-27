@@ -4,6 +4,14 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.31.0": {
+        "titulo": "Folgas e Ausências no Controle de Pessoal",
+        "mudancas": [
+            "A aba Servidores reúne o cadastro e a situação funcional da equipe.",
+            "Administradores podem conceder saldo com validade e registrar folgas de meio dia ou de dia inteiro.",
+            "A miniagenda e o extrato mostram reservas, utilizações e faltas registradas.",
+        ],
+    },
     "2.30.3": {
         "titulo": "Ajuste visual das coletas do LIRAa",
         "mudancas": [

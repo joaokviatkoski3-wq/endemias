@@ -1,0 +1,128 @@
+#pessoal-folgas {
+  display: grid;
+  gap: 18px;
+  padding-bottom: 24px;
+}
+
+#pessoal-folgas [hidden] { display: none !important; }
+
+.pessoal-folgas-header, .pessoal-folgas-cal-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pessoal-folgas-header h2 { margin: 0; font-size: 20px; }
+.pessoal-folgas-header p { margin: 3px 0 0; color: var(--text2); }
+.pessoal-folgas-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.pessoal-folgas-filtros { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; }
+
+.pessoal-folgas-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text2);
+  min-width: 0;
+  font-weight: 600;
+}
+
+.pessoal-folgas-campo small { font-weight: 400; }
+.pessoal-folgas-campo textarea { resize: vertical; }
+.pessoal-folgas-saldo h3, .pessoal-folgas-cal-top h3, .pessoal-folgas-extrato h3 { margin: 0 0 6px; font-size: 16px; }
+
+.pessoal-folgas-resumo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.pessoal-folgas-resumo > div {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+.pessoal-folgas-resumo > div:first-child { border-inline-start: 3px solid var(--brand); }
+.pessoal-folgas-resumo dt { color: var(--text2); font-size: 12px; }
+.pessoal-folgas-resumo dd { margin: 2px 0 0; font-size: 17px; font-weight: 700; color: var(--text); }
+.pessoal-folgas-retorno { margin: 6px 0; color: var(--text2); }
+.pessoal-folgas-retorno:empty { margin: 0; }
+.pessoal-folgas-retorno[role='alert'], .pessoal-folgas-retorno[data-falha] { color: var(--red, #b91c1c); }
+
+#pessoal-vencimentos details { margin-top: 10px; }
+#pessoal-vencimentos summary { cursor: pointer; font-weight: 700; }
+#pessoal-vencimentos ul { margin: 4px 0 0; padding-left: 20px; }
+#pessoal-vencimentos button { min-height: 30px; white-space: normal; text-align: left; }
+
+.pessoal-folgas-cal-card, .pessoal-folgas-extrato { min-width: 0; padding: 14px; }
+.pessoal-folgas-cal-top { margin-bottom: 8px; }
+.pessoal-folgas-cal-top h3 { margin-bottom: 0; }
+.pessoal-folgas-legenda { display: flex; flex-wrap: wrap; gap: 4px 12px; list-style: none; margin: 0; padding: 0; }
+.pessoal-folgas-legenda li { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+.pessoal-folgas-legenda li::before { content: ''; width: 9px; height: 9px; border-radius: 3px; background: var(--pessoal-cor); }
+
+#pessoal-folgas [data-situacao='agendada'], #pessoal-folgas .pessoal-evento-agendada { --pessoal-cor: #1d4ed8; }
+#pessoal-folgas [data-situacao='aguardando_confirmacao'], #pessoal-folgas .pessoal-evento-aguardando_confirmacao { --pessoal-cor: #854d0e; }
+#pessoal-folgas [data-situacao='utilizada'], #pessoal-folgas .pessoal-evento-utilizada { --pessoal-cor: #047857; }
+#pessoal-folgas [data-situacao='registrada'], #pessoal-folgas .pessoal-evento-registrada { --pessoal-cor: #b91c1c; }
+#pessoal-folgas [data-situacao='cancelada'], #pessoal-folgas .pessoal-evento-cancelada { --pessoal-cor: #475569; }
+
+#pessoal-calendario {
+  --fc-border-color: var(--border);
+  --fc-page-bg-color: var(--surface);
+  --fc-neutral-bg-color: var(--surface2);
+  --fc-today-bg-color: var(--brand-xs);
+  --fc-list-event-hover-bg-color: var(--surface2);
+  --fc-event-bg-color: var(--pessoal-cor, #475569);
+  --fc-event-border-color: var(--pessoal-cor, #475569);
+  font-size: 12px;
+}
+
+#pessoal-calendario .fc-toolbar { flex-wrap: wrap; gap: 8px; }
+#pessoal-calendario .fc-toolbar-title { font-size: 16px; }
+#pessoal-calendario .fc-button { font-size: 12px; }
+#pessoal-calendario .fc-event { cursor: pointer; }
+#pessoal-calendario .fc-event:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+#pessoal-calendario .fc-event[class*='pessoal-evento-'] { --fc-event-bg-color: var(--pessoal-cor); --fc-event-border-color: var(--pessoal-cor); }
+#pessoal-calendario .fc-daygrid-event-dot, #pessoal-calendario .fc-list-event-dot { border-color: var(--pessoal-cor, #475569); }
+#pessoal-calendario .fc-list-sticky .fc-list-day-cushion { background: var(--surface2); }
+
+.pessoal-folgas-dialog {
+  width: min(560px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 20px;
+  margin: auto;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+
+.pessoal-folgas-dialog::backdrop { background: rgb(15 23 42 / .55); }
+.pessoal-folgas-dialog h3 { margin: 0 0 14px; font-size: 17px; }
+.pessoal-folgas-dialog .pessoal-folgas-acoes { justify-content: flex-end; margin-top: 12px; }
+.pessoal-folgas-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.pessoal-folgas-full { grid-column: 1 / -1; }
+.pessoal-folgas-ajuda { color: var(--text2); margin: 0; font-size: 12px; }
+.pessoal-folgas-aviso { border-inline-start: 3px solid #a16207; padding: 6px 8px; margin: 0; background: var(--surface2); }
+.pessoal-folgas-detalhes { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px 12px; margin: 0 0 10px; }
+.pessoal-folgas-detalhes dt { color: var(--text2); font-weight: 600; }
+.pessoal-folgas-detalhes dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.pessoal-folgas-tabela { border-collapse: collapse; width: 100%; min-width: 450px; }
+.pessoal-folgas-tabela th, .pessoal-folgas-tabela td { border-bottom: 1px solid var(--border); padding: 6px 8px; text-align: left; }
+.pessoal-folgas-tabela th { background: var(--surface2); }
+.pessoal-folgas-tabela .btn { min-height: 34px; }
+.pessoal-folgas-extrato h4 { margin: 12px 0 6px; font-size: 13px; }
+
+@media (max-width: 620px) {
+  .pessoal-folgas-header .pessoal-folgas-acoes { width: 100%; }
+  .pessoal-folgas-filtros { grid-template-columns: 1fr 1fr; }
+  .pessoal-folgas-filtros > :first-child { grid-column: 1 / -1; }
+  .pessoal-folgas-cal-card { padding: 10px; }
+  .pessoal-folgas-dialog { padding: 14px; }
+}

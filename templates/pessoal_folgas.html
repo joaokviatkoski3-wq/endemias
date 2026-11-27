@@ -1,0 +1,195 @@
+{% macro opcoes_servidor(ativos=false) %}
+  {% for servidor in servidores_folgas if not ativos or servidor.ativo %}
+  <option value="{{ servidor.id_agente }}"{% if not ativos and servidor.id_agente|string == agente_folgas|string %} selected{% endif %}>
+    {{ servidor.nome }}{{ ' (inativo)' if not servidor.ativo }}
+  </option>
+  {% endfor %}
+{% endmacro %}
+
+{% macro classificacoes() %}
+  <option value="pendente">Aguardando justificativa</option>
+  <option value="justificada">Falta justificada</option>
+  <option value="abonada">Falta abonada</option>
+  <option value="injustificada">Falta não justificada</option>
+{% endmacro %}
+
+<section id="pessoal-folgas" aria-labelledby="pessoal-folgas-titulo">
+  <div class="pessoal-folgas-header">
+    <div>
+      <h2 id="pessoal-folgas-titulo">Folgas e Ausências</h2>
+      <p>Controle interno de saldo e ausências da equipe.</p>
+    </div>
+    <div class="pessoal-folgas-acoes">
+      <button class="btn btn-ghost" type="button" id="pessoal-novo-credito">Conceder saldo</button>
+      <button class="btn btn-primary" type="button" id="pessoal-nova-ocorrencia">Registrar ocorrência</button>
+    </div>
+  </div>
+
+  <div class="pessoal-folgas-filtros" aria-label="Filtros de folgas e ausências">
+    <label class="pessoal-folgas-campo" for="pessoal-filtro-servidor">Servidor
+      <select id="pessoal-filtro-servidor" class="form-control">
+        <option value="">Todos os servidores</option>
+        {{ opcoes_servidor() }}
+      </select>
+    </label>
+    <label class="pessoal-folgas-campo" for="pessoal-filtro-tipo">Tipo de ocorrência
+      <select id="pessoal-filtro-tipo" class="form-control">
+        <option value="">Todos os tipos</option>
+        <option value="folga">Folgas compensatórias</option>
+        <option value="falta">Faltas</option>
+      </select>
+    </label>
+    <label class="pessoal-folgas-campo" for="pessoal-filtro-situacao">Situação
+      <select id="pessoal-filtro-situacao" class="form-control">
+        <option value="">Ocorrências vigentes</option>
+        <optgroup label="Folgas">
+          <option value="agendada">Agendadas</option>
+          <option value="aguardando_confirmacao">Aguardando confirmação</option>
+          <option value="utilizada">Utilizadas</option>
+        </optgroup>
+        <optgroup label="Faltas">{{ classificacoes() }}</optgroup>
+        <option value="cancelada">Canceladas</option>
+      </select>
+    </label>
+  </div>
+
+  <section class="pessoal-folgas-saldo" aria-labelledby="pessoal-saldo-titulo">
+    <h3 id="pessoal-saldo-titulo">Saldo de folgas</h3>
+    <dl class="pessoal-folgas-resumo">
+      {% for chave, rotulo in [('disponivel','Disponível'),('reservado','Reservado'),('utilizado','Utilizado'),('expirado','Expirado'),('concedido','Concedido'),('a_vencer','A vencer · 30 dias')] %}
+      <div><dt>{{ rotulo }}</dt><dd id="pessoal-saldo-{{ chave }}">—</dd></div>
+      {% endfor %}
+    </dl>
+    <div id="pessoal-vencimentos"></div>
+    <p id="pessoal-saldo-retorno" class="pessoal-folgas-retorno" role="status"></p>
+  </section>
+
+  <section class="pessoal-card pessoal-folgas-cal-card" aria-labelledby="pessoal-calendario-titulo">
+    <div class="pessoal-folgas-cal-top">
+      <h3 id="pessoal-calendario-titulo">Agenda de pessoal</h3>
+      <ul class="pessoal-folgas-legenda" aria-label="Legenda da agenda">
+        <li data-situacao="agendada">Folga agendada</li>
+        <li data-situacao="aguardando_confirmacao">A confirmar</li>
+        <li data-situacao="utilizada">Folga utilizada</li>
+        <li data-situacao="registrada">Falta</li>
+        <li data-situacao="cancelada">Cancelada</li>
+      </ul>
+    </div>
+    <p id="pessoal-calendario-retorno" class="pessoal-folgas-retorno" role="status"></p>
+    <div id="pessoal-calendario"></div>
+  </section>
+
+  <section class="pessoal-card pessoal-folgas-extrato" id="pessoal-extrato" aria-labelledby="pessoal-extrato-titulo" hidden>
+    <h3 id="pessoal-extrato-titulo" tabindex="-1">Extrato do servidor</h3>
+    <p id="pessoal-extrato-retorno" class="pessoal-folgas-retorno" role="status"></p>
+    <div id="pessoal-extrato-conteudo"></div>
+  </section>
+
+  <dialog class="pessoal-folgas-dialog" id="pessoal-dialog-credito" aria-labelledby="pessoal-credito-titulo">
+    <form id="pessoal-form-credito">
+      <h3 id="pessoal-credito-titulo">Conceder saldo de folga</h3>
+      <div class="pessoal-folgas-form-grid">
+        <label class="pessoal-folgas-campo pessoal-folgas-full">Servidor
+          <select name="id_agente" class="form-control" required autofocus>
+            <option value="">Selecione um servidor ativo</option>
+            {{ opcoes_servidor(true) }}
+          </select>
+        </label>
+        <label class="pessoal-folgas-campo">Data da aquisição<input name="data_aquisicao" class="form-control" type="date" required></label>
+        <label class="pessoal-folgas-campo">Válido até<input name="validade" class="form-control" type="date" required></label>
+        <label class="pessoal-folgas-campo">Quantidade em dias
+          <input name="dias" class="form-control" type="number" min="0.5" step="0.5" value="1" required aria-describedby="pessoal-credito-dias-ajuda">
+          <small id="pessoal-credito-dias-ajuda">0,5 equivale a meio dia.</small>
+        </label>
+        <label class="pessoal-folgas-campo">Origem
+          <select name="origem" class="form-control" required>
+            <option value="">Selecione</option>
+            <option value="sabado">Trabalho no sábado</option>
+            <option value="domingo_feriado">Trabalho no domingo ou feriado</option>
+            <option value="evento_campanha">Evento ou campanha</option>
+            <option value="servico_extraordinario">Serviço extraordinário</option>
+            <option value="ajuste_administrativo">Ajuste administrativo</option>
+            <option value="outro">Outro</option>
+          </select>
+        </label>
+        <label class="pessoal-folgas-campo pessoal-folgas-full">Descrição da atividade
+          <textarea name="descricao" class="form-control" rows="2" maxlength="1000" required></textarea>
+        </label>
+        <label class="pessoal-folgas-campo pessoal-folgas-full">Referência da autorização (opcional)
+          <input name="referencia" class="form-control" maxlength="200" placeholder="Número de ofício ou protocolo">
+        </label>
+      </div>
+      <p class="pessoal-folgas-retorno" role="alert" data-erro></p>
+      <div class="pessoal-folgas-acoes">
+        <button class="btn btn-ghost" type="button" data-fechar>Fechar</button>
+        <button class="btn btn-primary" type="submit">Conceder saldo</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="pessoal-folgas-dialog" id="pessoal-dialog-ocorrencia" aria-labelledby="pessoal-ocorrencia-titulo">
+    <form id="pessoal-form-ocorrencia">
+      <h3 id="pessoal-ocorrencia-titulo">Registrar ocorrência</h3>
+      <div class="pessoal-folgas-form-grid">
+        <label class="pessoal-folgas-campo pessoal-folgas-full">Servidor
+          <select name="id_agente" class="form-control" required autofocus>
+            <option value="">Selecione um servidor ativo</option>
+            {{ opcoes_servidor(true) }}
+          </select>
+        </label>
+        <label class="pessoal-folgas-campo">Tipo
+          <select name="tipo" class="form-control">
+            <option value="folga">Folga compensatória</option>
+            <option value="falta">Falta</option>
+          </select>
+        </label>
+        <label class="pessoal-folgas-campo">Data<input name="data" class="form-control" type="date" required></label>
+        <label class="pessoal-folgas-campo">Período
+          <select name="periodo" class="form-control">
+            <option value="inteiro">Dia inteiro</option>
+            <option value="parcial">Meio dia</option>
+          </select>
+        </label>
+        <label id="pessoal-campo-classificacao" class="pessoal-folgas-campo" hidden>Classificação
+          <select name="classificacao" class="form-control">{{ classificacoes() }}</select>
+        </label>
+        <div id="pessoal-campos-horas" class="pessoal-folgas-form-grid pessoal-folgas-full" hidden>
+          <label class="pessoal-folgas-campo">Horário inicial<input name="hora_inicio" class="form-control" type="time"></label>
+          <label class="pessoal-folgas-campo">Horário final<input name="hora_fim" class="form-control" type="time"></label>
+        </div>
+        <p id="pessoal-ocorrencia-ajuda" class="pessoal-folgas-ajuda pessoal-folgas-full"></p>
+        <p id="pessoal-ocorrencia-aviso" class="pessoal-folgas-aviso pessoal-folgas-full" role="status" hidden></p>
+        <label class="pessoal-folgas-campo pessoal-folgas-full">Observação administrativa
+          <textarea name="observacao" class="form-control" rows="2" maxlength="1000"></textarea>
+          <small>Em folgas retroativas, informe o motivo. Limite o texto a dados administrativos, sem diagnóstico, CID ou outros dados de saúde.</small>
+        </label>
+      </div>
+      <p class="pessoal-folgas-retorno" role="alert" data-erro></p>
+      <div class="pessoal-folgas-acoes">
+        <button class="btn btn-ghost" type="button" data-fechar>Fechar</button>
+        <button class="btn btn-primary" type="submit">Registrar ocorrência</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="pessoal-folgas-dialog" id="pessoal-dialog-detalhes" aria-labelledby="pessoal-detalhes-titulo">
+    <h3 id="pessoal-detalhes-titulo" tabindex="-1">Detalhes do registro</h3>
+    <div id="pessoal-detalhes-conteudo"></div>
+    <form id="pessoal-detalhes-form" hidden>
+      <label class="pessoal-folgas-campo" id="pessoal-detalhes-classificacao" hidden>Classificação
+        <select name="classificacao" class="form-control">{{ classificacoes() }}</select>
+      </label>
+      <label class="pessoal-folgas-campo" id="pessoal-detalhes-motivo" hidden>Motivo
+        <textarea name="motivo" class="form-control" rows="2" maxlength="500"></textarea>
+      </label>
+      <div class="pessoal-folgas-acoes">
+        <button class="btn btn-ghost" type="button" id="pessoal-detalhes-voltar">Voltar</button>
+        <button class="btn btn-primary" type="submit" id="pessoal-detalhes-salvar">Salvar</button>
+      </div>
+    </form>
+    <p class="pessoal-folgas-retorno" role="alert" data-erro></p>
+    <div class="pessoal-folgas-acoes" id="pessoal-detalhes-acoes">
+      <button class="btn btn-ghost" type="button" data-fechar>Fechar</button>
+    </div>
+  </dialog>
+</section>

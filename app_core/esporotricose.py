@@ -683,6 +683,10 @@ def _normalizar_visitas_animais_existentes(conn):
 def _normalizar_agentes_existentes(conn):
     if not _table_exists(conn, "agentes"):
         return
+    historicos_pessoais = [
+        tabela for tabela in ("pessoal_folga_creditos", "pessoal_ocorrencias")
+        if _table_exists(conn, tabela)
+    ]
     for alias, correto in AGENTE_ALIASES.items():
         if _table_exists(conn, VISITAS_TABLE):
             conn.execute(
@@ -705,6 +709,10 @@ def _normalizar_agentes_existentes(conn):
             aliases = aliases[1:]
         for row in aliases:
             id_origem = _db_value(row, "id_agente", 0)
+            # A manutenção legada do SQLite não pode fundir históricos funcionais.
+            if any(conn.execute(f"SELECT 1 FROM {tabela} WHERE id_agente=? LIMIT 1", (id_origem,)).fetchone()
+                   for tabela in historicos_pessoais):
+                continue
             _migrar_vinculos_agente(conn, id_origem, id_destino)
             conn.execute("DELETE FROM agentes WHERE id_agente=?", (id_origem,))
 

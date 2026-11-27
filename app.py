@@ -343,10 +343,11 @@ def create_app(config_overrides=None):
         ovitrampas_laboratorio_core.ensure_schema(flask_app.config["DB_PATH"])
         meteorologia_core.ensure_schema(flask_app.config["DB_PATH"])
         sqlite_maintenance.ensure_schema_compatibility(flask_app.config["DB_PATH"])
-        from app_core import formulario_equipamentos
+        from app_core import formulario_equipamentos, pessoal_folgas
         conn = db_core.connect(flask_app.config["DB_PATH"])
         try:
             formulario_equipamentos.ensure_sqlite(conn)
+            pessoal_folgas.ensure_schema(conn)
             conn.commit()
         finally:
             conn.close()
