@@ -5,11 +5,11 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.30.2**, release `cd2c297`, ativa desde 27/11/2026. A ativação confirmou
-  os backups, a preservação das 110 tabelas e os três logins na origem do
-  Tunnel. A migração `0050_geovsatt_posicoes_coletas.sql` foi aplicada na
-  release `f8477c3` da 2.30.0. O relatório atual está em
-  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2302-resultado.json`.
+- **2.30.3**, release `964bd28`, ativa desde 27/11/2026. A ativação confirmou
+  os backups, a preservação das 110 tabelas existentes e os três logins na
+  origem do Tunnel. Aplicou a migração aditiva
+  `0051_geovsatt_posicoes_tubitos_liraa.sql`. O relatório está em
+  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2303-resultado.json`.
   A primeira leitura do Sheets, feita na 2.29.0, consta em
   `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2290-sincronizacao.json`.
   A busca Nominatim usa o maps.co, configurado em 27/11/2026.
@@ -47,7 +47,8 @@ regras de trabalho e isolamento de testes.
   e cinco pela coincidência de endereço com uma ovitrampa no quarteirão.
   Restaram 190 coletas em 115 endereços, 39 vinculadas a nove PEs que precisam
   de coordenadas e 11 de PE sem vínculo. Em coletas já localizadas sem vínculo
-  com PE, o superadmin pode corrigir a posição visualmente no mapa.
+  com PE, o superadmin pode corrigir a posição visualmente no mapa, incluindo
+  os tubos do LIRAa a partir da 2.30.3.
 - As folhas de bloqueio de dengue, esporotricose e ovitrampa usam nomes de ruas
   sobre seus eixos. No ensaio em A4 com a malha de Tanguá, couberam 16 etiquetas
   sobre o mapa e 11 quarteirões na lista de duas colunas.
