@@ -5,10 +5,11 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.31.0**, release `16e6d99`, ativa desde 27/11/2026. A ativação confirmou
-  os backups, a preservação das 111 tabelas existentes e os três logins na
-  origem do Tunnel. Aplicou a migração aditiva `0052_pessoal_folgas.sql`.
-  Relatório: `C:/ProgramData/EndemiasWeb/ativacao-folgas2310-resultado.json`.
+- **2.32.0**, release `115b615`, ativa desde 27/11/2026. A ativação confirmou
+  os backups, a preservação das 114 tabelas existentes e os três logins na
+  origem do Tunnel, sem nova migração. O relatório está em
+  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2320-resultado.json`.
+  A migração aditiva `0052_pessoal_folgas.sql` foi aplicada na 2.31.0.
   A migração `0051_geovsatt_posicoes_tubitos_liraa.sql` foi aplicada na 2.30.3.
   A primeira leitura do Sheets, feita na 2.29.0, consta em
   `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2290-sincronizacao.json`.
@@ -49,6 +50,11 @@ regras de trabalho e isolamento de testes.
   de coordenadas e 11 de PE sem vínculo. Em coletas já localizadas sem vínculo
   com PE, o superadmin pode corrigir a posição visualmente no mapa, incluindo
   os tubos do LIRAa a partir da 2.30.3.
+- A partir da 2.32.0, coletas têm filtros por espécie e tipo de trabalho na
+  camada, no painel administrativo e nos CSVs desse painel. Em **Posições
+  pendentes**, o superadmin pode marcar a primeira posição no mapa e abrir o
+  cadastro ou a revisão de vínculo para coletas de PE. O mapa de calor usa
+  os filtros da fonte e preserva raio, intensidade e opacidade nas composições.
 - As folhas de bloqueio de dengue, esporotricose e ovitrampa usam nomes de ruas
   sobre seus eixos. No ensaio em A4 com a malha de Tanguá, couberam 16 etiquetas
   sobre o mapa e 11 quarteirões na lista de duas colunas.
