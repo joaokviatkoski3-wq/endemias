@@ -1,6 +1,6 @@
 # Estado atual e passagem de contexto do projeto
 
-Atualizado em 26/11/2026. Consulte [o contexto](../CONTEXTO_PARA_IA.md) para
+Atualizado em 27/11/2026. Consulte [o contexto](../CONTEXTO_PARA_IA.md) para
 regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
@@ -8,8 +8,10 @@ regras de trabalho e isolamento de testes.
 - **2.27.3**, release `7eaaf9d`, ativa desde 26/11/2026. O relatório de
   ativação confirmou a preservação de 106 tabelas e o retorno dos logins.
   O GeoVSATT respondeu em HTTPS com a nova versão, incluindo a entrada,
-  o manifesto e o service worker do aplicativo. A instalação em Android
-  físico e o Nominatim com provedor configurado aguardam homologação.
+  o manifesto e o service worker do aplicativo. O usuário confirmou a
+  conferência dos recursos, inclusive o offline. Em 27/11/2026, a busca
+  Nominatim foi ativada com o maps.co e retornou a Prefeitura de Almirante
+  Tamandaré no ensaio autenticado com banco isolado.
 - O portal `vsatt.com.br` apresenta Endemias, Ambiental e GeoVSATT. O Tunnel
   encaminha para Waitress em
   `127.0.0.1:5001`. O acesso local usa as portas 5000 (Endemias) e
@@ -97,12 +99,11 @@ regras de trabalho e isolamento de testes.
   A versão 2.26.0 acrescentou classificação por faixas numéricas, prévia de
   simbologia e etiquetas compostas configuráveis.
   A versão 2.27.3 acrescenta painel de feições, símbolos na legenda
-  lateral, calor e busca Nominatim configurável. A cópia offline reúne
+  lateral, calor e busca Nominatim pelo maps.co. A cópia offline reúne
   camadas e ortofotos autorizadas, o recorte OpenFreeMap, busca, RG, medições,
   impressão, configuração de calor em composições e filtros das visitas
   dentro do período baixado. A busca offline aceita endereços completos do
-  RG e a interface retoma a cópia se o servidor ficar indisponível. Falta
-  homologar a instalação e o uso em Android e configurar um provedor Nominatim.
+  RG e a interface retoma a cópia se o servidor ficar indisponível.
 - **Biblioteca VSATT** (`biblioteca.vsatt.com.br`, nome provisório). Acervo
   interno de referências de Vigilância em Saúde, com documentos, links,
   vídeos e imagens.

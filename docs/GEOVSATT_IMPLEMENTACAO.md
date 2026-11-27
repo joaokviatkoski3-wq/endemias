@@ -1,6 +1,6 @@
 # GeoVSATT - implementação e continuidade
 
-Atualizado em 26/11/2026.
+Atualizado em 27/11/2026.
 
 ## Estado deste incremento
 
@@ -358,7 +358,8 @@ Respostas de autenticação e acesso seguem a sessão do servidor.
 Nominatim, BrasilAPI, ViaCEP, Esri World Imagery, Sentinel-2 e a administração
 do catálogo usam conexão. As ortofotos e a base de ruas baixadas aparecem
 como opções de mapa-base da cópia. A validação em Chrome Android físico
-está pendente.
+faz parte do fluxo de homologação. O usuário confirmou a conferência do
+uso offline na 2.27.3.
 [Recorte de polígonos](https://github.com/mfogel/polygon-clipping)
 
 ## Próximos incrementos
@@ -374,10 +375,16 @@ está pendente.
 A ativação da 2.27.3 partiu da 2.26.0. O relatório
 `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2273-resultado.json` registrou
 a conclusão com 106 tabelas comparadas e os logins ativos. A atualização
-dispensou novas migrações. O servidor segue à espera da configuração do
-Nominatim. Os testes automatizados e a disponibilidade do manifesto e da
-entrada offline comprovam o preparo da aplicação. A instalação e o uso
-sem rede em Chrome Android físico ainda precisam de validação.
+dispensou novas migrações.
+
+Em 27/11/2026, o serviço Windows passou a usar o maps.co para o Nominatim.
+O reinício devolveu os três logins e o portal. Um ensaio autenticado com
+banco isolado e a configuração gravada mostrou o seletor **Lugares /
+Nominatim** e encontrou a Prefeitura de Almirante Tamandaré. Para operar
+essa configuração no Windows, `scripts/configurar_nominatim_geovsatt_windows.py`
+lê a chave do caminho informado em `--arquivo-chave`. Use `--verificar` para
+testar a consulta. `--aplicar` exige administrador e preserva a configuração
+anterior em uma pasta protegida durante a troca e o reinício.
 
 Para a transição de `2.15.2` para `2.16.0`, foi usado
 `scripts/ativar_geovsatt_2160_windows.py`, em uma sessão elevada do Windows.
